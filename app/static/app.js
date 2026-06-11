@@ -4036,6 +4036,9 @@ function _objectMapHtml(id, data) {
     const safeId = obj.id ?? '';
     const shortName = (obj.label || rawName).replace(/.*[/\\]/, '');
     const displayId = safeId !== '' ? `#${esc(safeId)}` : esc(shortName);
+    const fallbackLabel = safeId !== ''
+      ? `<span class="obj-chip-id">${displayId}</span><span>${esc(shortName)}</span>`
+      : `<span class="obj-chip-id">${displayId}</span>`;
     const pointGeometry = topDown && _objectMapHasPoint(obj);
     if (hasGeometry && (obj.bbox || pointGeometry)) {
       const geom = pointGeometry ? _objectMapPointHitStyle(bounds, obj) : _objectMapBoxStyle(bounds, obj.bbox, data);
@@ -4047,7 +4050,7 @@ function _objectMapHtml(id, data) {
     if (hasGeometry && topDown) return '';
     return `<button type="button" class="obj-id-select obj-exclude-btn${isExcluded ? ' is-excluded' : ''}${isCurrent ? ' is-current' : ''}"
       data-obj-name="${safeName}" data-obj-label="${esc(shortName)}" data-printer-id="${id}" data-obj-id="${safeId}" ${isExcluded ? 'disabled' : ''}
-      title="${esc(shortName)}"><span class="obj-chip-id">${displayId}</span></button>`;
+      title="${esc(shortName)}">${fallbackLabel}</button>`;
   }).join('');
   const imageVersion = objects.map(o => `${o.id ?? ''}:${o.state ?? ''}`).join('-') || 'current';
   const plateImageUrl = _objectMapPlateImageUrl(data, topDown);
@@ -4315,6 +4318,9 @@ function _largeObjectMapHtml(id, data) {
     const safeId = obj.id ?? '';
     const shortName = (obj.label || rawName).replace(/.*[/\\]/, '');
     const displayId = safeId !== '' ? `#${esc(safeId)}` : esc(shortName);
+    const fallbackLabel = safeId !== ''
+      ? `<span class="obj-chip-id">${displayId}</span><span>${esc(shortName)}</span>`
+      : `<span class="obj-chip-id">${displayId}</span>`;
     const pointGeometry = topDown && _objectMapHasPoint(obj);
     if (hasGeometry && (obj.bbox || pointGeometry)) {
       return `<button type="button" class="obj-map-region obj-exclude-btn${isExcluded ? ' is-excluded' : ''}${isCurrent ? ' is-current' : ''}"
@@ -4325,7 +4331,7 @@ function _largeObjectMapHtml(id, data) {
     if (hasGeometry && topDown) return '';
     return `<button type="button" class="obj-id-select obj-exclude-btn${isExcluded ? ' is-excluded' : ''}${isCurrent ? ' is-current' : ''}"
       data-obj-name="${safeName}" data-obj-label="${esc(shortName)}" data-printer-id="${id}" data-obj-id="${safeId}" ${isExcluded ? 'disabled' : ''}
-      title="${esc(shortName)}"><span class="obj-chip-id">${displayId}</span><span>${esc(shortName)}</span></button>`;
+      title="${esc(shortName)}">${fallbackLabel}</button>`;
   }).join('');
   const helper = hasGeometry
     ? 'Match the ID to the printer screen, then tap the map or list.'

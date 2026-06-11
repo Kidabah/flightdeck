@@ -2,13 +2,15 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: current HEAD after this handoff (`Open slicer models in managed Orca`)
+- Latest commit: current HEAD after this handoff (`Port compact object fallback labels`)
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=454 / style.css?v=367
+- Refresh cachebust currently: app.js?v=455 / style.css?v=368
 
 Recent work:
+- Ported only the useful label-size idea from Steve's fork: Klipper/Bambu no-geometry skip-object fallback buttons now use compact, left-aligned label tiles with a smaller ID/header and a second object-name line when an object ID exists. Real mapped object overlays were left unchanged. Static cache bumped to `app.js?v=455` and `style.css?v=368`; frontend refresh only.
+  - Verification: `node --check app/static/app.js` and `git diff --check` passed.
 - Spool cards now have an `Assign` quick action. The modal lets an operator move the roll to a shelf/home, assign it to a printer-only location, or assign it directly to a printer AMS/MMU/tool slot using grouped dropdown options built from the current fleet state. Assigning to an occupied printer/slot uses the existing replace flow so the previous roll returns home. Static cache bumped to `app.js?v=454` and `style.css?v=367`; frontend refresh only.
   - Verification: `node --check app/static/app.js` and `git diff --check` passed.
 - Add Printer now presents Moonraker-backed printers as plain `Klipper` instead of `Voron / Klipper` or `Other Moonraker`. The Klipper model dropdown now includes common Voron, Rat Rig, Sovol, Qidi, FLSUN, VzBot, Annex, RailCore, HevORT, Creality K1, Elegoo Neptune 4, and Custom Klipper presets, with build-volume defaults for the listed models. Static cache bumped to `app.js?v=453`; frontend refresh only.
