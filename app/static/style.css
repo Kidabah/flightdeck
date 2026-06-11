@@ -15491,6 +15491,34 @@ select optgroup {
   border-color: rgba(59,130,246,0.75);
   background: rgba(59,130,246,0.12);
 }
+.filedesk-slice-plan-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(10rem, 0.9fr) minmax(10rem, 0.9fr);
+  gap: 0.6rem;
+  align-items: end;
+  margin-bottom: 0.85rem;
+  padding: 0.75rem;
+  border: 1px solid rgba(59,130,246,0.32);
+  border-radius: 0.55rem;
+  background:
+    linear-gradient(135deg, rgba(59,130,246,0.11), rgba(15,23,42,0.62)),
+    rgba(2,6,23,0.45);
+}
+.filedesk-slice-plan-copy {
+  display: grid;
+  gap: 0.22rem;
+  min-width: 0;
+  padding-bottom: 0.08rem;
+}
+.filedesk-slice-plan-copy strong {
+  color: #bfdbfe;
+  font-size: 0.88rem;
+}
+.filedesk-slice-plan-copy span {
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.35;
+}
 .filedesk-slice-profile-fields {
   display: grid;
   gap: 0.55rem;
@@ -15522,6 +15550,11 @@ select optgroup {
   .filedesk-slice-option-row {
     grid-template-columns: minmax(9rem, 0.7fr) minmax(0, 1fr);
     align-items: end;
+  }
+}
+@media (max-width: 760px) {
+  .filedesk-slice-plan-panel {
+    grid-template-columns: 1fr;
   }
 }
 .filedesk-slice-field {

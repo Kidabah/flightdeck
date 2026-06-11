@@ -11080,7 +11080,7 @@ function _slicerCategoryHtml(profileData = null, printers = []) {
         <label class="settings-label">Worker URL</label>
         <input class="settings-input pref-input" data-pref-key="orcaslicer_worker_url" type="url" value="${esc(workerUrl)}" placeholder="http://100.x.x.x:8000">
       </div>
-      <div class="settings-hint">Browser Orca URL opens the web slicer. Slicer API URL points to the background /slice service, usually port 3003. Worker URL points to a Windows Flightdeck instance with native Orca profiles installed. With Use Slicer API off, Flightdeck opens the model for manual Orca/Bambu review instead of background slicing.</div>
+      <div class="settings-hint">Browser Orca URL opens the web slicer. Slicer API URL points to the background /slice service, usually port 3003. Worker URL points to a Windows Flightdeck instance with native Orca profiles installed. With Use Slicer API off, Flightdeck hands the model to Browser OrcaSlicer or Bambu Studio review instead of background slicing.</div>
       <div class="slicer-connection-actions">
         <button type="button" class="settings-save-btn" data-slicer-test="browser">Test Browser Orca</button>
         <button type="button" class="settings-save-btn" data-slicer-test="api">Test API</button>
@@ -11961,6 +11961,8 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay filedesk-slice-dialog';
   let selectedPrinterId = printers[0]?.id || '';
+  const currentOpenMode = (_serverSettings.slicer_open_mode || 'same').trim() || 'same';
+  const useSlicerApi = String(_serverSettings.slicer_use_api || '').toLowerCase() === 'true';
   const bedTypes = ['Textured PEI Plate', 'Smooth PEI Plate', 'High Temp Plate', 'Cool Plate', 'Engineering Plate'];
   const supportModes = [
     ['normal_auto', 'Normal auto'],
@@ -11987,6 +11989,26 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
           <strong>${esc(p.custom_name || p.model_name || p.id)}</strong>
           <span>${esc([p.model_name, p.kind].filter(Boolean).join(' · '))}</span>
         </button>`).join('')}
+      </div>
+      <div class="filedesk-slice-plan-panel">
+        <div class="filedesk-slice-plan-copy">
+          <strong>${useSlicerApi ? 'API slicing enabled' : 'Manual slicer review'}</strong>
+          <span>${useSlicerApi ? 'Flightdeck can offer background slicing when the slicer API/worker is healthy.' : 'Production-safe mode: open or download the model, inspect it in your slicer, then export the printer-ready job back to the Print Vault.'}</span>
+        </div>
+        <label class="filedesk-slice-field">
+          <span>Open in slicer</span>
+          <select id="slice-open-mode">
+            <option value="same"${currentOpenMode === 'same' ? ' selected' : ''}>Same as Settings</option>
+            <option value="orca"${currentOpenMode === 'orca' ? ' selected' : ''}>Browser OrcaSlicer</option>
+            <option value="bambu_studio"${currentOpenMode === 'bambu_studio' ? ' selected' : ''}>Bambu Studio handoff</option>
+          </select>
+        </label>
+        <label class="filedesk-slice-field">
+          <span>Slicer bundle</span>
+          <select id="slice-bundle" disabled>
+            <option>None - pick profiles individually</option>
+          </select>
+        </label>
       </div>
       <div class="filedesk-slice-profile-fields">
         <label class="filedesk-slice-field">
@@ -12217,6 +12239,23 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
   overlay.querySelector('#slice-prepare-plan')?.addEventListener('click', preparePlan);
   overlay.querySelector('#slice-support-enabled')?.addEventListener('change', syncSliceOptionControls);
   overlay.querySelector('#slice-brim-enabled')?.addEventListener('change', syncSliceOptionControls);
+  overlay.querySelector('#slice-open-mode')?.addEventListener('change', async e => {
+    const value = e.currentTarget.value || 'same';
+    _serverSettings.slicer_open_mode = value;
+    const actionsEl = overlay.querySelector('#slice-handoff-actions');
+    const errEl = overlay.querySelector('#slice-plan-result');
+    if (actionsEl) {
+      actionsEl.hidden = true;
+      actionsEl.innerHTML = '';
+    }
+    if (errEl) errEl.hidden = true;
+    try {
+      await _saveSetting('slicer_open_mode', value);
+      showToast('Slicer handoff saved', value === 'bambu_studio' ? 'Bambu Studio handoff' : value === 'orca' ? 'Browser OrcaSlicer' : 'Same as Settings', 'success');
+    } catch (err) {
+      showToast('Setting save failed', err.message || '', 'error');
+    }
+  });
   overlay.addEventListener('click', e => {
     if (e.target === overlay || e.target.closest('[data-dialog-close]')) {
       close();

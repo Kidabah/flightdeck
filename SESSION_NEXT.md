@@ -2,13 +2,15 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: current HEAD after this handoff (`Add slicer API safety controls`)
+- Latest commit: current HEAD after this handoff (`Make slicer modal handoff visible`)
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=459 / style.css?v=369 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=460 / style.css?v=369 / demo-runtime.js?v=8
 
 Recent work:
+- Slice Model modal now visibly shows the slicer handoff controls before the operator clicks Prepare. Added a Flightdeck-style plan panel with `Manual slicer review` / `API slicing enabled` status copy, an `Open in slicer` dropdown with `Browser OrcaSlicer` and `Bambu Studio handoff`, plus a disabled first-pass `Slicer bundle` row (`None - pick profiles individually`) to match the direction of the Bambuddy-style flow. Changing the modal dropdown saves `slicer_open_mode`, clears stale prepared actions, and the modal later uses that mode for Bambu Studio vs Orca handoff buttons. Static cache bumped to `app.js?v=460`; frontend refresh only.
+  - Verification: `node --check app/static/app.js` and `git diff --check` passed.
 - Settings > Slicer now has a Flightdeck-style manual-first slicer control surface inspired by the useful Bambuddy flow without copying their skin. Added durable `slicer_use_api` and `slicer_open_mode` settings: `Use Slicer API` defaults off, so `/api/slicer/plan` continues to hand off source models for manual Orca/Bambu review, while turning it on deliberately re-enables the background-slice offer when the worker/API/local slicer path is healthy. Added an `Open in Slicer` selector (`Same as API slicer`, `Browser OrcaSlicer`, `Bambu Studio handoff`), a warning banner about known Orca CLI/API risks, and clearer `Slicer Bundles & Profiles` copy for Orca JSON/ZIP and Bambu Studio `.bbscfg` uploads. The Slice Model modal now reflects the handoff mode: Orca mode can open the model in Browser Orca, while Bambu Studio mode steers operators to download/import manually instead of pretending to open Bambu Studio. Static cache bumped to `app.js?v=459`; backend restart required for the new defaults and plan gating. User also spotted that Bambuddy appears to include SpoolBuddy API hooks, which is worth revisiting for future inventory/profile integration.
   - Verification: `python -m py_compile app/main.py app/db.py`, `node --check app/static/app.js`, and `git diff --check` passed. Browser visual verification was skipped because the in-app browser control tool was not exposed in this turn.
 - In-Flightdeck background slicing is intentionally paused in the operator UI while the managed Orca Docker printer/AMS workflow is validated. `/api/slicer/plan` now returns `can_background_slice=false`, `background_slice_paused=true`, and a manual-review message for source models with valid profiles. The Slice Model modal now shows `Manual Orca review`, explains that operators should open the model in Orca, confirm printer/AMS/supports, and export the sliced job back to the Print Vault, and no longer shows the tempting `Slice in Flightdeck` button. The backend `/api/slicer/run` remains in place for diagnostics/developer testing, including feature-count reporting from the previous change. Static cache bumped to `app.js?v=458`; backend restart required for the plan response.
