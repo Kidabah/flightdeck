@@ -1587,22 +1587,24 @@ async def plan_slice_from_file_desk(body: SlicePlanRequest):
     browser_url = (settings.get("orcaslicer_docker_url") or "").strip().rstrip("/")
     worker_url = (settings.get("orcaslicer_worker_url") or "").strip().rstrip("/")
     api_url = (settings.get("orcaslicer_api_url") or "").strip().rstrip("/")
+    slicer_use_api = str(settings.get("slicer_use_api") or "").strip().lower() in {"1", "true", "yes", "on"}
+    slicer_open_mode = (settings.get("slicer_open_mode") or "same").strip() or "same"
     output_ext = ".gcode.3mf" if target_kind == "bambu" else ".gcode"
     base_name = _file_archive_key(filename) or "sliced_model"
     target = next((p for p in await _gather_all() if p.get("id") == printer_id), None)
     slice_options = _slice_option_summary(body.bed_type, body.support_mode, body.brim_mode)
     profiles = _slice_request_profiles(body, settings, printer_id)
     missing_profiles = [label for label, value in profiles.items() if not str(value or "").strip()]
-    can_slice = bool(worker_url or api_url or _orca_executable()) and not missing_profiles and not is_step_source
+    can_slice = slicer_use_api and bool(worker_url or api_url or _orca_executable()) and not missing_profiles and not is_step_source
     can_handoff = is_step_source and not missing_profiles
     h2d_loose_mesh = _h2d_loose_mesh_requires_sidecar(filename, profiles)
     slicer_api_probe = None
-    if h2d_loose_mesh and api_url:
+    if slicer_use_api and h2d_loose_mesh and api_url:
         slicer_api_probe = await _probe_slicer_api(api_url)
-    if h2d_loose_mesh and not (slicer_api_probe or {}).get("ok"):
+    if slicer_use_api and h2d_loose_mesh and not (slicer_api_probe or {}).get("ok"):
         can_slice = False
         can_handoff = not missing_profiles
-    background_slice_paused = True
+    background_slice_paused = not slicer_use_api
     if background_slice_paused and not missing_profiles:
         can_slice = False
         can_handoff = True
@@ -1617,6 +1619,8 @@ async def plan_slice_from_file_desk(body: SlicePlanRequest):
         "api_url": api_url,
         "api_health": slicer_api_probe,
         "worker_url": worker_url,
+        "slicer_use_api": slicer_use_api,
+        "slicer_open_mode": slicer_open_mode,
         "source": {
             "source_id": source_id,
             "path": source_path,

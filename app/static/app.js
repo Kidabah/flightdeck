@@ -10859,11 +10859,11 @@ function _slicerProfilesHtml(profileData, printers) {
     <div class="settings-section slicer-profiles-panel">
       <div class="setup-version-main">
         <div>
-          <div class="settings-section-title">Standard Profiles</div>
-          <div class="settings-hint">Synced from OrcaSlicer standard profiles, local Orca AppData profiles, plus any custom profiles you upload.</div>
+          <div class="settings-section-title">Slicer Bundles & Profiles</div>
+          <div class="settings-hint">Synced from OrcaSlicer standard/local profiles, plus Orca JSON/ZIP or Bambu Studio .bbscfg bundles you upload.</div>
         </div>
         <div class="setup-version-actions">
-          <button type="button" class="settings-save-btn" id="slicer-upload-profiles">Upload profiles</button>
+          <button type="button" class="settings-save-btn" id="slicer-upload-profiles">Upload bundle</button>
           <button type="button" class="settings-save-btn" id="slicer-sync-profiles">Sync profiles</button>
         </div>
       </div>
@@ -10873,7 +10873,7 @@ function _slicerProfilesHtml(profileData, printers) {
     </div>
     <div class="settings-section slicer-profiles-panel">
       <div class="settings-section-title">Printer Defaults</div>
-      <div class="settings-hint">Choose the default profile triplet Flightdeck should use when slicing for each printer. Nozzle size lives in the printer profile; Bambu 0.4 process profiles are usually named by layer height, like 0.20mm Standard @BBL H2D.</div>
+      <div class="settings-hint">Choose the default profile triplet Flightdeck uses for slicer handoff and optional API slicing. Nozzle size lives in the printer profile; Bambu 0.4 process profiles are usually named by layer height, like 0.20mm Standard @BBL H2D.</div>
       ${_slicerDatalist('slicer-process-profiles', processProfiles)}
       ${_slicerDatalist('slicer-filament-profiles', filamentProfiles)}
       <div class="slicer-profile-headings">
@@ -11009,6 +11009,8 @@ function _slicerCategoryHtml(profileData = null, printers = []) {
   const dockerPassword = (_serverSettings.orcaslicer_browser_password || 'flightdeck').trim();
   const workerUrl = (_serverSettings.orcaslicer_worker_url || '').trim();
   const apiUrl = (_serverSettings.orcaslicer_api_url || '').trim();
+  const openMode = (_serverSettings.slicer_open_mode || 'same').trim();
+  const useSlicerApi = String(_serverSettings.slicer_use_api || '').toLowerCase() === 'true';
   const dockerLaunchUrl = _slicerDockerLaunchUrl(dockerUrl, { username: dockerUser, password: dockerPassword });
   const dockerReady = !!dockerUrl;
 
@@ -11042,6 +11044,10 @@ function _slicerCategoryHtml(profileData = null, printers = []) {
     </div>
     <div class="settings-section">
       <div class="settings-section-title">OrcaSlicer Integration</div>
+      <div class="slicer-risk-banner">
+        <strong>Manual review is the safe default</strong>
+        <span>OrcaSlicer CLI/API builds can reject or mis-handle some Bambu-authored 3MF/STL jobs. Keep Use Slicer API off for production work until the sidecar flow is proven on your printer profiles.</span>
+      </div>
       <div class="slicer-docker-panel">
         <div>
           <strong>Browser-based OrcaSlicer</strong>
@@ -11052,6 +11058,17 @@ function _slicerCategoryHtml(profileData = null, printers = []) {
           : `<span class="slicer-launch-btn slicer-launch-disabled">Set URL first</span>`}
       </div>
       <div class="settings-form-row">
+        <label class="settings-label">Open in Slicer</label>
+        <select class="settings-input slicer-mode-input" data-pref-key="slicer_open_mode">
+          <option value="same"${openMode === 'same' ? ' selected' : ''}>Same as API slicer</option>
+          <option value="orca"${openMode === 'orca' ? ' selected' : ''}>Browser OrcaSlicer</option>
+          <option value="bambu_studio"${openMode === 'bambu_studio' ? ' selected' : ''}>Bambu Studio handoff</option>
+        </select>
+        <label class="settings-label">Use Slicer API</label>
+        <div class="setting-toggle-group slicer-api-toggle-group" data-slicer-api-toggle>
+          <button type="button" class="setting-toggle-btn${!useSlicerApi ? ' setting-toggle-active' : ''}" data-slicer-api-value="false">Off</button>
+          <button type="button" class="setting-toggle-btn${useSlicerApi ? ' setting-toggle-active' : ''}" data-slicer-api-value="true">On</button>
+        </div>
         <label class="settings-label">Browser Orca URL</label>
         <input class="settings-input slicer-docker-input" data-pref-key="orcaslicer_docker_url" type="url" value="${esc(dockerUrl)}" placeholder="${esc(_slicerDockerDefaultUrl())}">
         <label class="settings-label">Browser Orca username</label>
@@ -11063,7 +11080,7 @@ function _slicerCategoryHtml(profileData = null, printers = []) {
         <label class="settings-label">Worker URL</label>
         <input class="settings-input pref-input" data-pref-key="orcaslicer_worker_url" type="url" value="${esc(workerUrl)}" placeholder="http://100.x.x.x:8000">
       </div>
-      <div class="settings-hint">Browser Orca URL opens the web slicer. Slicer API URL points to the background /slice service, usually port 3003. Worker URL points to a Windows Flightdeck instance with native Orca profiles installed.</div>
+      <div class="settings-hint">Browser Orca URL opens the web slicer. Slicer API URL points to the background /slice service, usually port 3003. Worker URL points to a Windows Flightdeck instance with native Orca profiles installed. With Use Slicer API off, Flightdeck opens the model for manual Orca/Bambu review instead of background slicing.</div>
       <div class="slicer-connection-actions">
         <button type="button" class="settings-save-btn" data-slicer-test="browser">Test Browser Orca</button>
         <button type="button" class="settings-save-btn" data-slicer-test="api">Test API</button>
@@ -11283,6 +11300,45 @@ function _attachSlicerEvents(el) {
       } catch (err) {
         showToast('Setting save failed', err.message || '', 'error');
         input.value = input.defaultValue;
+      }
+    });
+  });
+  el.querySelectorAll('.slicer-mode-input').forEach(input => {
+    input.addEventListener('change', async () => {
+      const key = input.dataset.prefKey;
+      const value = input.value.trim() || 'same';
+      try {
+        const saved = await _saveSetting(key, value);
+        input.value = saved || 'same';
+        _serverSettings[key] = input.value;
+        showToast('Slicer handoff saved', input.options[input.selectedIndex]?.textContent || input.value, 'success');
+      } catch (err) {
+        showToast('Setting save failed', err.message || '', 'error');
+        input.value = input.defaultValue || 'same';
+      }
+    });
+  });
+  el.querySelectorAll('[data-slicer-api-toggle]').forEach(group => {
+    group.addEventListener('click', async e => {
+      const btn = e.target.closest('[data-slicer-api-value]');
+      if (!btn) return;
+      const value = btn.dataset.slicerApiValue === 'true' ? 'true' : 'false';
+      group.querySelectorAll('[data-slicer-api-value]').forEach(item => { item.disabled = true; });
+      try {
+        const saved = await _saveSetting('slicer_use_api', value);
+        _serverSettings.slicer_use_api = saved === 'true' ? 'true' : 'false';
+        group.querySelectorAll('[data-slicer-api-value]').forEach(item => {
+          item.classList.toggle('setting-toggle-active', item.dataset.slicerApiValue === _serverSettings.slicer_use_api);
+        });
+        showToast(
+          _serverSettings.slicer_use_api === 'true' ? 'Slicer API enabled' : 'Manual slicer review enabled',
+          _serverSettings.slicer_use_api === 'true' ? 'Flightdeck can offer background slicing when the sidecar is healthy.' : 'Slice actions will hand off to Orca/Bambu Studio.',
+          'success'
+        );
+      } catch (err) {
+        showToast('Setting save failed', err.message || '', 'error');
+      } finally {
+        group.querySelectorAll('[data-slicer-api-value]').forEach(item => { item.disabled = false; });
       }
     });
   });
@@ -12095,6 +12151,9 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
         const profiles = data.profiles || {};
         const canBackgroundSlice = data.can_background_slice !== false;
         const backgroundSlicePaused = !!data.background_slice_paused;
+        const openMode = data.slicer_open_mode || _serverSettings.slicer_open_mode || 'same';
+        const manualSlicerName = openMode === 'bambu_studio' ? 'Bambu Studio' : 'Orca';
+        const sourceDownloadLabel = openMode === 'bambu_studio' ? 'Download for Bambu Studio' : 'Download model';
         const profileRows = [
           ['Printer', profiles.printer],
           ['Process', profiles.process],
@@ -12106,10 +12165,13 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
           ['Supports', sliceOptions.support],
           ['Brim', sliceOptions.brim],
         ].map(([label, value]) => `<div><span>${esc(label)}</span><strong>${esc(value || 'Profile default')}</strong></div>`).join('');
-        const handoffTitle = backgroundSlicePaused ? 'Manual Orca review' : 'Slice handoff';
+        const handoffTitle = backgroundSlicePaused ? `Manual ${manualSlicerName} review` : 'Slice handoff';
         const handoffCopy = backgroundSlicePaused
-          ? 'Background slicing is paused. Open the model in Orca, confirm printer/AMS/supports, then export the sliced job back to the Print Vault.'
+          ? `Background slicing is paused. Open the model in ${manualSlicerName}, confirm printer/AMS/supports, then export the sliced job back to the Print Vault.`
           : "Support and brim toggles apply to Slice in Flightdeck. Opening the raw model uses Orca's current Prepare defaults.";
+        const openRawButton = openMode === 'bambu_studio'
+          ? ''
+          : (browserUrl ? `<button class="filedesk-slice-link" type="button" data-open-orca data-open-orca-source-id="${esc(sourceId)}" data-open-orca-path="${esc(path)}" data-open-orca-url="${esc(browserUrl)}">Open raw model in Orca</button>` : '');
         actionsEl.hidden = false;
         actionsEl.dataset.browserUrl = browserUrl || '';
         actionsEl.innerHTML = `
@@ -12120,8 +12182,8 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
           <div class="filedesk-slice-profiles">${profileRows}${optionRows}</div>
           <div class="filedesk-slice-buttons">
             ${canBackgroundSlice ? `<button class="filedesk-slice-link filedesk-slice-run" type="button" data-run-slice="${esc(outputName)}" data-printer-id="${esc(data.target?.id || selectedPrinterId)}">Slice in Flightdeck</button>` : ''}
-            ${sourceUrl ? `<a class="filedesk-slice-link" href="${esc(sourceUrl)}" download>Download model</a>` : ''}
-            ${browserUrl ? `<button class="filedesk-slice-link" type="button" data-open-orca data-open-orca-source-id="${esc(sourceId)}" data-open-orca-path="${esc(path)}" data-open-orca-url="${esc(browserUrl)}">Open raw model in Orca</button>` : ''}
+            ${sourceUrl ? `<a class="filedesk-slice-link" href="${esc(sourceUrl)}" download>${esc(sourceDownloadLabel)}</a>` : ''}
+            ${openRawButton}
             <button class="filedesk-slice-link" type="button" data-copy-slice-name="${esc(outputName)}">Copy output name</button>
             <button class="filedesk-slice-link" type="button" data-check-slice-output="${esc(outputName)}">Check vault</button>
           </div>`;

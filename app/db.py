@@ -31,6 +31,8 @@ DEFAULT_SETTINGS = {
     "orcaslicer_browser_password": "flightdeck",
     "orcaslicer_worker_url": "",
     "orcaslicer_api_url": "",
+    "slicer_open_mode": "same",
+    "slicer_use_api": "false",
 }
 
 _PRINTER_PRINTING_ENABLED_PREFIX = "printer_print_enabled_"

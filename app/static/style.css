@@ -11391,6 +11391,36 @@ select optgroup {
   padding-top: 0.25rem;
 }
 
+.slicer-risk-banner {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid rgba(245,158,11,0.48);
+  border-radius: 0.5rem;
+  background: rgba(120,53,15,0.22);
+  color: #fed7aa;
+}
+
+.slicer-risk-banner strong {
+  color: #fcd34d;
+  font-size: 0.82rem;
+}
+
+.slicer-risk-banner span {
+  color: #f8d9ad;
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+.slicer-api-toggle-group {
+  min-height: 2.25rem;
+  align-items: stretch;
+}
+
+.slicer-api-toggle-group .setting-toggle-btn {
+  min-width: 4rem;
+}
+
 .slicer-docker-panel {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
