@@ -2408,6 +2408,7 @@ async def run_slice_from_file_desk(body: SliceRunRequest):
     dest.write_bytes(sliced_data)
     stat = dest.stat()
     output_path = dest.relative_to(library_root).as_posix()
+    feature_counts = _slicer_output_feature_counts(sliced_data, dest.name)
     preview_url = None
     if dest.name.lower().endswith(".gcode.3mf") or _queue_file_extension(dest.name) == ".3mf":
         preview_url = "/api/files/source/preview?" + urllib.parse.urlencode({
@@ -2432,6 +2433,7 @@ async def run_slice_from_file_desk(body: SliceRunRequest):
         "preview_url": preview_url,
         "profiles": profiles,
         "slice_options": slice_options,
+        "feature_counts": feature_counts,
     }
 
 
@@ -4502,6 +4504,30 @@ def _apply_slice_process_overrides(process_data: bytes, *, support_mode: str | N
         profile.setdefault("brim_ears_detection_length", "1")
 
     return json.dumps(profile, ensure_ascii=False, indent=4).encode("utf-8")
+
+
+def _slicer_output_feature_counts(data: bytes, filename: str = "") -> dict:
+    names_and_blobs: list[tuple[str, bytes]] = []
+    lower_name = (filename or "").lower()
+    if lower_name.endswith(".3mf") or lower_name.endswith(".gcode.3mf"):
+        try:
+            with zipfile.ZipFile(io.BytesIO(data)) as archive:
+                for name in archive.namelist():
+                    if name.lower().endswith(".gcode"):
+                        names_and_blobs.append((name, archive.read(name)))
+        except Exception:
+            return {}
+    elif lower_name.endswith(".gcode"):
+        names_and_blobs.append((filename, data))
+
+    counts: dict[str, int] = {}
+    for _name, blob in names_and_blobs:
+        text = blob.decode("utf-8", "ignore")
+        for match in re.finditer(r"^\s*;\s*FEATURE:\s*(.+?)\s*$", text, re.MULTILINE):
+            feature = match.group(1).strip()
+            if feature:
+                counts[feature] = counts.get(feature, 0) + 1
+    return counts
 
 
 def _run_orca_slice_sidecar(

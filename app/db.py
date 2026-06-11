@@ -27,6 +27,8 @@ DEFAULT_SETTINGS = {
     "queue_strict_colour": "true",
     "print_vault_path": "",
     "orcaslicer_docker_url": "",
+    "orcaslicer_browser_username": "flightdeck",
+    "orcaslicer_browser_password": "flightdeck",
     "orcaslicer_worker_url": "",
     "orcaslicer_api_url": "",
 }

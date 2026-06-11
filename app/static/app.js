@@ -11005,9 +11005,11 @@ function _slicerCategoryHtml(profileData = null, printers = []) {
   const selected = _serverSettings.preferred_slicer ?? '';
   const detected = _serverSettings.slicer_detected_version ?? '';
   const dockerUrl = (_serverSettings.orcaslicer_docker_url || '').trim();
+  const dockerUser = (_serverSettings.orcaslicer_browser_username || 'flightdeck').trim();
+  const dockerPassword = (_serverSettings.orcaslicer_browser_password || 'flightdeck').trim();
   const workerUrl = (_serverSettings.orcaslicer_worker_url || '').trim();
   const apiUrl = (_serverSettings.orcaslicer_api_url || '').trim();
-  const dockerLaunchUrl = _slicerDockerLaunchUrl(dockerUrl);
+  const dockerLaunchUrl = _slicerDockerLaunchUrl(dockerUrl, { username: dockerUser, password: dockerPassword });
   const dockerReady = !!dockerUrl;
 
   const cards = _SLICER_DEFINITIONS.map(s => {
@@ -11052,6 +11054,10 @@ function _slicerCategoryHtml(profileData = null, printers = []) {
       <div class="settings-form-row">
         <label class="settings-label">Browser Orca URL</label>
         <input class="settings-input slicer-docker-input" data-pref-key="orcaslicer_docker_url" type="url" value="${esc(dockerUrl)}" placeholder="${esc(_slicerDockerDefaultUrl())}">
+        <label class="settings-label">Browser Orca username</label>
+        <input class="settings-input slicer-browser-auth-input" data-pref-key="orcaslicer_browser_username" autocomplete="username" value="${esc(dockerUser)}" placeholder="flightdeck">
+        <label class="settings-label">Browser Orca password</label>
+        <input class="settings-input slicer-browser-auth-input" data-pref-key="orcaslicer_browser_password" type="password" autocomplete="current-password" value="${esc(dockerPassword)}" placeholder="flightdeck">
         <label class="settings-label">Slicer API URL</label>
         <input class="settings-input pref-input" data-pref-key="orcaslicer_api_url" type="url" value="${esc(apiUrl)}" placeholder="${esc(_slicerApiDefaultUrl())}">
         <label class="settings-label">Worker URL</label>
@@ -11088,13 +11094,27 @@ function _slicerApiDefaultUrl() {
   return `http://${location.hostname}:3003`;
 }
 
-function _slicerDockerLaunchUrl(value = '') {
+function _slicerBrowserCredentials(root = null) {
+  const username = (root?.querySelector?.('[data-pref-key="orcaslicer_browser_username"]')?.value ?? _serverSettings.orcaslicer_browser_username ?? 'flightdeck').trim();
+  const password = (root?.querySelector?.('[data-pref-key="orcaslicer_browser_password"]')?.value ?? _serverSettings.orcaslicer_browser_password ?? 'flightdeck').trim();
+  return { username, password };
+}
+
+function _slicerDockerLaunchUrl(value = '', credentials = null) {
   const raw = (value || '').trim().replace(/\/+$/, '');
   if (!raw) return '';
   try {
     const url = new URL(raw);
     if (url.protocol === 'http:' && url.port === '3011') {
       url.protocol = 'https:';
+    }
+    if (credentials && !url.username) {
+      const username = (credentials.username || '').trim();
+      const password = (credentials.password || '').trim();
+      if (username) {
+        url.username = username;
+        url.password = password;
+      }
     }
     return url.toString().replace(/\/+$/, '');
   } catch {
@@ -11106,7 +11126,7 @@ function _updateSlicerDockerLaunch(el) {
   const input = el.querySelector('.slicer-docker-input');
   const btn = el.querySelector('.slicer-launch-btn');
   if (!input || !btn) return;
-  const url = _slicerDockerLaunchUrl(input.value);
+  const url = _slicerDockerLaunchUrl(input.value, _slicerBrowserCredentials(el));
   if (!url) {
     const replacement = document.createElement('span');
     replacement.className = 'slicer-launch-btn slicer-launch-disabled';
@@ -11250,6 +11270,22 @@ function _attachSlicerEvents(el) {
       }
     });
   });
+  el.querySelectorAll('.slicer-browser-auth-input').forEach(input => {
+    input.addEventListener('change', async () => {
+      const key = input.dataset.prefKey;
+      const value = input.value.trim();
+      try {
+        const saved = await _saveSetting(key, value);
+        input.value = saved || '';
+        _serverSettings[key] = input.value;
+        _updateSlicerDockerLaunch(el);
+        showToast('Browser Orca login saved', key.includes('password') ? 'Password updated' : (input.value || 'Cleared'), 'success');
+      } catch (err) {
+        showToast('Setting save failed', err.message || '', 'error');
+        input.value = input.defaultValue;
+      }
+    });
+  });
   el.querySelectorAll('.pref-input[data-pref-key="orcaslicer_worker_url"], .pref-input[data-pref-key="orcaslicer_api_url"]').forEach(input => {
     input.addEventListener('change', async () => {
       const value = input.value.trim().replace(/\/+$/, '');
@@ -11278,7 +11314,7 @@ function _attachSlicerEvents(el) {
       const input = el.querySelector(selector);
       const fallback = kind === 'api' ? _slicerApiDefaultUrl() : (kind === 'browser' ? _slicerDockerDefaultUrl() : '');
       const rawUrl = (input?.value || fallback || '').trim().replace(/\/+$/, '');
-      const url = kind === 'browser' ? _slicerDockerLaunchUrl(rawUrl) : rawUrl;
+      const url = kind === 'browser' ? _slicerDockerLaunchUrl(rawUrl, _slicerBrowserCredentials(el)) : rawUrl;
       if (!url) {
         showToast('Slicer test needs a URL', 'Set the URL first.', 'warning');
         return;
@@ -12054,7 +12090,7 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
       errEl.classList.toggle('filedesk-dialog-ok', !!data.ready);
       if (data.ready && actionsEl) {
         const sourceUrl = data.source?.download_url || `/api/files/source/download?${new URLSearchParams({ source_id: sourceId, path }).toString()}`;
-        const browserUrl = _slicerDockerLaunchUrl(data.browser_url || data.sidecar_url || '');
+        const browserUrl = _slicerDockerLaunchUrl(data.browser_url || data.sidecar_url || '', _slicerBrowserCredentials());
         const outputName = data.output?.filename || 'sliced-output';
         const profiles = data.profiles || {};
         const canBackgroundSlice = data.can_background_slice !== false;
@@ -12074,13 +12110,13 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
         actionsEl.innerHTML = `
           <div class="filedesk-slice-steps">
             <strong>Slice handoff</strong>
-            <span>Slice with the selected profile set, then queue the generated printer-ready file.</span>
+            <span>Support and brim toggles apply to Slice in Flightdeck. Opening the raw model uses Orca's current Prepare defaults.</span>
           </div>
           <div class="filedesk-slice-profiles">${profileRows}${optionRows}</div>
           <div class="filedesk-slice-buttons">
             ${canBackgroundSlice ? `<button class="filedesk-slice-link filedesk-slice-run" type="button" data-run-slice="${esc(outputName)}" data-printer-id="${esc(data.target?.id || selectedPrinterId)}">Slice in Flightdeck</button>` : ''}
             ${sourceUrl ? `<a class="filedesk-slice-link" href="${esc(sourceUrl)}" download>Download model</a>` : ''}
-            ${browserUrl ? `<button class="filedesk-slice-link" type="button" data-open-orca data-open-orca-source-id="${esc(sourceId)}" data-open-orca-path="${esc(path)}" data-open-orca-url="${esc(browserUrl)}">Open model in Orca</button>` : ''}
+            ${browserUrl ? `<button class="filedesk-slice-link" type="button" data-open-orca data-open-orca-source-id="${esc(sourceId)}" data-open-orca-path="${esc(path)}" data-open-orca-url="${esc(browserUrl)}">Open raw model in Orca</button>` : ''}
             <button class="filedesk-slice-link" type="button" data-copy-slice-name="${esc(outputName)}">Copy output name</button>
             <button class="filedesk-slice-link" type="button" data-check-slice-output="${esc(outputName)}">Check vault</button>
           </div>`;
@@ -12249,7 +12285,7 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
           <div class="filedesk-slice-progress-bar"><span data-slice-progress-fill style="width:8%"></span></div>
           <div class="filedesk-slice-progress-foot">
             <span>Background slice running</span>
-            ${browserUrl ? `<a class="filedesk-slice-link" href="${esc(browserUrl)}" target="_blank" rel="noreferrer">Open Orca</a>` : ''}
+            ${browserUrl ? `<a class="filedesk-slice-link" href="${esc(browserUrl)}" target="_blank" rel="noreferrer">Open Browser Orca</a>` : ''}
           </div>
         </div>`;
     }
@@ -12282,11 +12318,18 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
           ? `/api/files/source/preview?${new URLSearchParams({ source_id: 'library', path: data.path, view: 'top' }).toString()}`
           : '');
         const previewLabel = data.filename ? `${data.filename} preview` : 'Sliced job preview';
+        const features = data.feature_counts || {};
+        const supportPaths = (features.Support || 0) + (features['Support interface'] || 0);
+        const brimPaths = features.Brim || 0;
+        const featureSummary = [
+          supportPaths ? `Support paths detected (${supportPaths})` : (sliceOptionPayload().support_mode === 'off' ? 'Supports off' : 'No support paths detected'),
+          brimPaths ? `Brim paths detected (${brimPaths})` : (sliceOptionPayload().brim_mode === 'off' ? 'Brim off' : 'No brim paths detected'),
+        ].join(' · ');
         actionsEl.hidden = false;
         actionsEl.innerHTML = `
           <div class="filedesk-slice-steps">
             <strong>Sliced job ready</strong>
-            <span>${esc(data.filename)} is now printer-ready. Preview uses the thumbnail embedded in the sliced output when available.</span>
+            <span>${esc(data.filename)} is now printer-ready. ${esc(featureSummary)}.</span>
           </div>
           ${previewUrl ? `<div class="filedesk-slice-preview">
             <img src="${esc(_mediaUrl(previewUrl, previewLabel))}" alt="${esc(previewLabel)}" loading="eager" data-slice-preview-img>
@@ -12319,7 +12362,7 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
           </div>
           <div class="filedesk-slice-buttons">
             <button class="filedesk-slice-link filedesk-slice-run" type="button" data-run-slice="${esc(runBtn.dataset.runSlice || '')}" data-printer-id="${esc(runBtn.dataset.printerId || selectedPrinterId)}">Try again</button>
-            ${browserUrl ? `<button class="filedesk-slice-link" type="button" data-open-orca data-open-orca-source-id="${esc(sourceId)}" data-open-orca-path="${esc(path)}" data-open-orca-url="${esc(browserUrl)}">Open model in Orca</button>` : ''}
+            ${browserUrl ? `<button class="filedesk-slice-link" type="button" data-open-orca data-open-orca-source-id="${esc(sourceId)}" data-open-orca-path="${esc(path)}" data-open-orca-url="${esc(browserUrl)}">Open raw model in Orca</button>` : ''}
           </div>`;
       }
     } finally {
