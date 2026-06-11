@@ -7260,6 +7260,10 @@ button.live-route-node:hover {
   background-size: 1.2rem 1.2rem;
 }
 
+.obj-map-no-geometry .obj-map-stage {
+  display: none;
+}
+
 .obj-map-plane,
 .obj-map-image-plane {
   position: relative;
@@ -7526,11 +7530,13 @@ button.live-route-node:hover {
 
 .obj-id-selector > div {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(3.2rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
   gap: 0.35rem;
 }
 
 .obj-id-select {
+  min-width: 0;
+  width: 100%;
   display: inline-flex;
   flex-direction: column;
   align-items: center;
@@ -7541,6 +7547,13 @@ button.live-route-node:hover {
   color: #fff;
   min-height: 1.7rem;
   padding: 0.18rem 0.34rem;
+}
+
+.obj-id-select .obj-chip-id {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .obj-id-select > span:not(.obj-chip-id) {

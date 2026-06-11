@@ -906,7 +906,7 @@ class BambuPrinter:
                 "mode": "bambu_skip_objects",
                 "label": "Bambu skip objects",
                 "objects": [],
-                "detail": "No object metadata found in the active 3MF.",
+                "detail": "No skip-object metadata found. Enable Label objects and Exclude objects in Orca/Bambu Studio, then reslice/send the job.",
             }
 
         skipped = set()
