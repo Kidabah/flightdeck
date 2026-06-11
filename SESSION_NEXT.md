@@ -6,9 +6,11 @@ Latest GitHub/Pi state:
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=452 / style.css?v=364
+- Refresh cachebust currently: app.js?v=453 / style.css?v=366
 
 Recent work:
+- Add Printer now presents Moonraker-backed printers as plain `Klipper` instead of `Voron / Klipper` or `Other Moonraker`. The Klipper model dropdown now includes common Voron, Rat Rig, Sovol, Qidi, FLSUN, VzBot, Annex, RailCore, HevORT, Creality K1, Elegoo Neptune 4, and Custom Klipper presets, with build-volume defaults for the listed models. Static cache bumped to `app.js?v=453`; frontend refresh only.
+  - Verification: `node --check app/static/app.js` and `git diff --check` passed.
 - Klipper no-geometry object selector font was reduced so long object-name pills read like compact labels instead of large headline buttons. Static cache bumped to `style.css?v=366`; frontend refresh only.
   - Verification: `node --check app/static/app.js` and `git diff --check` passed.
 - Klipper exclude-object panels no longer let long STEP-derived object names overflow the printer detail card. When no bed geometry is available, the empty striped map is hidden and the fallback object selector uses wider responsive tiles with ellipsised labels/tooltips, so names like `BOV plates jigs.step` stay contained. Bambu's no-object empty state now tells operators to enable `Label objects` and `Exclude objects` in Orca/Bambu Studio, then reslice/send the job. Static cache bumped to `style.css?v=365`; backend restart required for the clearer Bambu message.

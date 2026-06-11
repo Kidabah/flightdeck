@@ -1849,7 +1849,7 @@ function _renderAddPrinterCard(empty = false) {
       <div>
         <span>First run</span>
         <strong>Add your first printer</strong>
-        <p>Connect a Bambu, Moonraker/Klipper, or Snapmaker printer to start building live status, history, queue, and spool tracking.</p>
+        <p>Connect a Bambu, Klipper, or Snapmaker printer to start building live status, history, queue, and spool tracking.</p>
       </div>
       <a class="dashboard-add-printer-primary" href="#/settings/printers">Add Printer</a>
     </section>`;
@@ -9661,12 +9661,24 @@ const _PRINTER_SETUP_FAMILIES = {
     models: ['H2D', 'H2C', 'H2S', 'X2D', 'X1C', 'X1E', 'P2S', 'P1S', 'P1P', 'A1', 'A1 mini', 'Custom Bambu'],
   },
   voron: {
-    label: 'Voron / Klipper',
+    label: 'Klipper',
     connType: 'moonraker',
     icon: 'voron',
-    idPlaceholder: 'voron24',
+    idPlaceholder: 'klipper_printer',
     customPlaceholder: 'Greyhound Elite V2',
-    models: ['Voron 2.4 250', 'Voron 2.4 300', 'Voron 2.4 350', 'Voron Trident 250', 'Voron Trident 300', 'Voron Trident 350', 'Voron 0.1', 'Voron 0.2', 'Voron Switchwire', 'Custom Voron / Klipper'],
+    models: [
+      'Voron 2.4 250', 'Voron 2.4 300', 'Voron 2.4 350',
+      'Voron Trident 250', 'Voron Trident 300', 'Voron Trident 350',
+      'Voron 0.1', 'Voron 0.2', 'Voron Switchwire',
+      'Rat Rig V-Core 3.1 300', 'Rat Rig V-Core 3.1 400', 'Rat Rig V-Core 3.1 500',
+      'Rat Rig V-Core 4 300', 'Rat Rig V-Core 4 400', 'Rat Rig V-Core 4 500', 'Rat Rig V-Minion',
+      'Sovol SV08', 'Sovol SV06', 'Sovol SV06 Plus', 'Sovol SV07', 'Sovol SV07 Plus',
+      'Qidi Q1 Pro', 'Qidi Plus4', 'Qidi X-Plus 3', 'Qidi X-Max 3',
+      'FLSUN V400', 'FLSUN S1', 'FLSUN T1',
+      'VzBot 235', 'VzBot 330', 'Annex K3', 'RailCore II 300ZL', 'HevORT',
+      'Creality K1', 'Creality K1C', 'Creality K1 Max', 'Elegoo Neptune 4', 'Elegoo Neptune 4 Plus', 'Elegoo Neptune 4 Max',
+      'Custom Klipper',
+    ],
   },
   snapmaker_u1: {
     label: 'Snapmaker',
@@ -9677,12 +9689,12 @@ const _PRINTER_SETUP_FAMILIES = {
     models: ['Snapmaker U1'],
   },
   moonraker: {
-    label: 'Other Moonraker',
+    label: 'Klipper',
     connType: 'moonraker',
     icon: 'generic',
-    idPlaceholder: 'my_printer',
+    idPlaceholder: 'klipper_printer',
     customPlaceholder: 'Workshop Beast',
-    models: ['Sovol SV08', 'Qidi', 'FLSUN', 'IdeaFormer IR3 V2', 'Custom Moonraker'],
+    models: ['Custom Klipper'],
   },
   simulated: {
     label: 'Simulated',
@@ -9694,7 +9706,7 @@ const _PRINTER_SETUP_FAMILIES = {
   },
 };
 
-const _PRINTER_FAMILY_ORDER = ['bambu', 'voron', 'snapmaker_u1', 'moonraker'];
+const _PRINTER_FAMILY_ORDER = ['bambu', 'voron', 'snapmaker_u1'];
 
 const _CUSTOM_MODEL_RE = /custom|other/i;
 const _PRINTER_MODEL_BUILD_VOLUME = {
@@ -9718,8 +9730,37 @@ const _PRINTER_MODEL_BUILD_VOLUME = {
   'Voron 0.1': { x: 120, y: 120, z: 120 },
   'Voron 0.2': { x: 120, y: 120, z: 120 },
   'Voron Switchwire': { x: 250, y: 210, z: 220 },
-  'Snapmaker U1': { x: 270, y: 270, z: 270 },
+  'Rat Rig V-Core 3.1 300': { x: 300, y: 300, z: 300 },
+  'Rat Rig V-Core 3.1 400': { x: 400, y: 400, z: 400 },
+  'Rat Rig V-Core 3.1 500': { x: 500, y: 500, z: 500 },
+  'Rat Rig V-Core 4 300': { x: 300, y: 300, z: 300 },
+  'Rat Rig V-Core 4 400': { x: 400, y: 400, z: 400 },
+  'Rat Rig V-Core 4 500': { x: 500, y: 500, z: 500 },
+  'Rat Rig V-Minion': { x: 180, y: 180, z: 180 },
   'Sovol SV08': { x: 350, y: 350, z: 345 },
+  'Sovol SV06': { x: 220, y: 220, z: 250 },
+  'Sovol SV06 Plus': { x: 300, y: 300, z: 340 },
+  'Sovol SV07': { x: 220, y: 220, z: 250 },
+  'Sovol SV07 Plus': { x: 300, y: 300, z: 350 },
+  'Qidi Q1 Pro': { x: 245, y: 245, z: 240 },
+  'Qidi Plus4': { x: 305, y: 305, z: 280 },
+  'Qidi X-Plus 3': { x: 280, y: 280, z: 270 },
+  'Qidi X-Max 3': { x: 325, y: 325, z: 315 },
+  'FLSUN V400': { x: 300, y: 300, z: 410 },
+  'FLSUN S1': { x: 320, y: 320, z: 430 },
+  'FLSUN T1': { x: 260, y: 260, z: 330 },
+  'VzBot 235': { x: 235, y: 235, z: 240 },
+  'VzBot 330': { x: 330, y: 330, z: 330 },
+  'Annex K3': { x: 180, y: 180, z: 180 },
+  'RailCore II 300ZL': { x: 300, y: 300, z: 330 },
+  'HevORT': { x: 400, y: 400, z: 400 },
+  'Creality K1': { x: 220, y: 220, z: 250 },
+  'Creality K1C': { x: 220, y: 220, z: 250 },
+  'Creality K1 Max': { x: 300, y: 300, z: 300 },
+  'Elegoo Neptune 4': { x: 225, y: 225, z: 265 },
+  'Elegoo Neptune 4 Plus': { x: 320, y: 320, z: 385 },
+  'Elegoo Neptune 4 Max': { x: 420, y: 420, z: 480 },
+  'Snapmaker U1': { x: 270, y: 270, z: 270 },
 };
 
 function _setupFamilyForPrinter(printer) {
@@ -9728,15 +9769,14 @@ function _setupFamilyForPrinter(printer) {
   if (connType === 'bambu') return 'bambu';
   if (connType === 'snapmaker_u1') return 'snapmaker_u1';
   if (connType === 'simulated') return 'simulated';
-  if (model.includes('voron') || printer?.icon === 'voron') return 'voron';
-  return 'moonraker';
+  return 'voron';
 }
 
 function _setupFamilyForConnType(connType, modelName = '') {
   if (connType === 'bambu') return 'bambu';
   if (connType === 'snapmaker_u1') return 'snapmaker_u1';
   if (connType === 'simulated') return 'simulated';
-  return String(modelName || '').toLowerCase().includes('voron') ? 'voron' : 'moonraker';
+  return 'voron';
 }
 
 function _modelOptionsHtml(familyId, selectedModel = '') {
@@ -9844,9 +9884,8 @@ function _printersCategoryHtml(printers) {
           <label class="settings-label" for="p-printer-family">Printer</label>
           <select class="settings-input printer-family-select" id="p-printer-family" aria-label="Printer family">
             <option value="bambu">Bambu</option>
-            <option value="voron">Voron / Klipper</option>
+            <option value="voron">Klipper</option>
             <option value="snapmaker_u1">Snapmaker</option>
-            <option value="moonraker">Other Moonraker</option>
           </select>
           <div class="printer-family-picker" role="radiogroup" aria-label="Printer family">
             ${_PRINTER_FAMILY_ORDER.map(id => {
