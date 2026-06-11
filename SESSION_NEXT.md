@@ -2,14 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: current HEAD after this handoff (`Clarify Windows label printer status`)
+- Latest commit: current HEAD after this handoff (`Use compact spool labels`)
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=455 / style.css?v=368
 
 Recent work:
-- Label-printer detection now handles the common Windows case where the Brother QL-700 is actually plugged into the Pi/NAS, not the Windows worker. If `lsusb` is missing, Flightdeck falls back to PyUSB detection and reports a plain setup message about using WinUSB/libusb on Windows or connecting the label printer to the Pi/NAS instead of surfacing raw `[WinError 2] The system cannot find the file specified`. The physical spool label design was not changed.
+- Printed Brother QL-700 spool labels now use a compact default layout on the normal Pi/Brother path as well as any future Windows queue path. The rendered label height drops from 696x430 to 696x330 pixels while keeping material, brand, colour, hex, spool ID, label weight/date, location, and QR. Set `FLIGHTDECK_LABEL_COMPACT=false` to temporarily use the old taller layout. Backend restart required.
+  - Verification: compact sample rendered at 696x330, `python -m py_compile app/label_printer.py`, and `git diff --check` passed.
+- Label-printer detection now handles the common Windows case where the Brother QL-700 is actually plugged into the Pi/NAS, not the Windows worker. If `lsusb` is missing, Flightdeck falls back to PyUSB detection and reports a plain setup message about using WinUSB/libusb on Windows or connecting the label printer to the Pi/NAS instead of surfacing raw `[WinError 2] The system cannot find the file specified`.
   - Verification: `python -m py_compile app/label_printer.py`, `git diff --check`, and venv smoke test for Windows-style status messaging passed.
 - Ported only the useful label-size idea from Steve's fork: Klipper/Bambu no-geometry skip-object fallback buttons now use compact, left-aligned label tiles with a smaller ID/header and a second object-name line when an object ID exists. Real mapped object overlays were left unchanged. Static cache bumped to `app.js?v=455` and `style.css?v=368`; frontend refresh only.
   - Verification: `node --check app/static/app.js` and `git diff --check` passed.

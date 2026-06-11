@@ -75,6 +75,8 @@ class LabelPrinter:
         return LabelStatus(False, last_error=self.last_error)
 
     def render_spool_label(self, spool: dict, base_url: str = "https://flightdeck.tail7de73e.ts.net") -> Image.Image:
+        if _compact_ql700_label_enabled():
+            return self.render_compact_spool_label(spool, base_url=base_url)
         img = Image.new("RGB", (self.LABEL_WIDTH_PX, 430), "white")
         draw = ImageDraw.Draw(img)
         prefs = spool.get("_label_preferences") or {}
@@ -127,6 +129,62 @@ class LabelPrinter:
         else:
             draw.rectangle((506, 218, 658, 370), outline="black")
             draw.text((558, 276), "QR", fill="black", font=font_body)
+        return img
+
+    def render_compact_spool_label(self, spool: dict, base_url: str = "https://flightdeck.tail7de73e.ts.net") -> Image.Image:
+        img = Image.new("RGB", (self.LABEL_WIDTH_PX, 330), "white")
+        draw = ImageDraw.Draw(img)
+        prefs = spool.get("_label_preferences") or {}
+        include_brand = prefs.get("label_include_brand", "true") == "true"
+        include_colour = prefs.get("label_include_colour", "true") == "true"
+        include_location = prefs.get("label_include_location", "true") == "true"
+
+        font_title = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 44)
+        font_body = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 28)
+        font_small = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 19)
+        font_badge = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 28)
+
+        x = 42
+        material = " ".join([spool.get("material") or "Material", spool.get("subtype") or ""]).strip()
+        brand = spool.get("brand") or "-"
+        color_name = spool.get("color_name") or "-"
+        color_hex = (spool.get("color_hex") or "").upper()
+        location_line = ""
+        if not str(spool.get("location_printer_id") or "").strip():
+            location = (
+                spool.get("storage_location_name")
+                or spool.get("storage_location")
+                or "Storage"
+            )
+            location_line = f"Loc: {location}"
+
+        draw.text((x, 26), _ellipsize(draw, material, font_title, 405), fill="black", font=font_title)
+        draw.text((x, 88), _ellipsize(draw, brand if include_brand else "Flightdeck spool", font_body, 390), fill="black", font=font_body)
+        draw.text((x, 130), _ellipsize(draw, color_name if include_colour else f"Spool #{spool.get('id', '-')}", font_body, 300), fill="black", font=font_body)
+        if color_hex and include_colour:
+            draw.text((x, 170), color_hex, fill="black", font=font_badge)
+        draw.text((x, 214), f"Spool #{spool.get('id', '-')}", fill="black", font=font_badge)
+
+        if location_line and include_location:
+            draw.text((496, 28), "Loc:", fill="black", font=font_small)
+            draw.text((496, 54), _ellipsize(draw, location_line[5:], font_body, 155), fill="black", font=font_body)
+
+        added = str(spool.get("added_at") or "")[:10]
+        try:
+            added = datetime.fromisoformat(added).strftime("%d/%m/%y")
+        except Exception:
+            added = datetime.utcnow().strftime("%d/%m/%y")
+        bottom = f"{round(float(spool.get('label_weight_g') or 0))}g label  |  {added}"
+        draw.text((x, 276), bottom, fill="black", font=font_small)
+
+        qr_base = (base_url or "https://flightdeck.tail7de73e.ts.net").rstrip("/")
+        qr_url = f"{qr_base}/#/spool/{spool.get('id')}"
+        qr = _qr_image(qr_url)
+        if qr:
+            img.paste(qr.resize((178, 178)), (496, 118))
+        else:
+            draw.rectangle((496, 118, 674, 296), outline="black")
+            draw.text((562, 188), "QR", fill="black", font=font_body)
         return img
 
     def print_spool_label(self, spool: dict, base_url: str = "https://flightdeck.tail7de73e.ts.net") -> bool:
@@ -221,3 +279,7 @@ def _friendly_usb_error(exc: Exception) -> str:
     if "Access denied" in message or "insufficient permissions" in message:
         return "QL-700 USB permission denied; add the flightdeck user to lp or apply the Brother udev rule"
     return message
+
+
+def _compact_ql700_label_enabled() -> bool:
+    return os.getenv("FLIGHTDECK_LABEL_COMPACT", "true").strip().lower() not in {"0", "false", "no", "off"}
