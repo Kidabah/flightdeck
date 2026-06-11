@@ -7545,13 +7545,16 @@ button.live-route-node:hover {
   border-radius: 0.38rem;
   background: rgba(2,6,23,0.84);
   color: #fff;
-  min-height: 1.7rem;
-  padding: 0.18rem 0.34rem;
+  min-height: 1.5rem;
+  padding: 0.16rem 0.32rem;
 }
 
 .obj-id-select .obj-chip-id {
   max-width: 100%;
   overflow: hidden;
+  font-size: 0.66rem;
+  font-weight: 800;
+  line-height: 1.05;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

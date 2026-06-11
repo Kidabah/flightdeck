@@ -9,6 +9,8 @@ Latest GitHub/Pi state:
 - Refresh cachebust currently: app.js?v=452 / style.css?v=364
 
 Recent work:
+- Klipper no-geometry object selector font was reduced so long object-name pills read like compact labels instead of large headline buttons. Static cache bumped to `style.css?v=366`; frontend refresh only.
+  - Verification: `node --check app/static/app.js` and `git diff --check` passed.
 - Klipper exclude-object panels no longer let long STEP-derived object names overflow the printer detail card. When no bed geometry is available, the empty striped map is hidden and the fallback object selector uses wider responsive tiles with ellipsised labels/tooltips, so names like `BOV plates jigs.step` stay contained. Bambu's no-object empty state now tells operators to enable `Label objects` and `Exclude objects` in Orca/Bambu Studio, then reslice/send the job. Static cache bumped to `style.css?v=365`; backend restart required for the clearer Bambu message.
   - Verification: `python -m py_compile app/printers/bambu.py`, `node --check app/static/app.js`, and `git diff --check` passed.
 - Public GitHub Pages website copy was tightened so Flightdeck is positioned as a local-first 3D print-farm control tower rather than a generic inventory app. The `docs/` landing page now leads with mixed-fleet operations, local-first/open-source positioning, Flightdeck-specific feature cards, real screenshot sections, a shop-floor systems grid, install links for Pi/Windows, a ready-to-post Facebook share block, Ko-fi support, and stronger social metadata. Added `.github/workflows/pages.yml` to publish `docs/` with GitHub Pages when Pages is enabled for the repo. No app runtime changes.
