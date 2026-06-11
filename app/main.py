@@ -4411,7 +4411,9 @@ _SLICE_SUPPORT_MODES = {
 _SLICE_BRIM_MODES = {
     "profile": "Profile default",
     "off": "No brim",
+    "auto": "Auto brim",
     "outer": "Outer brim",
+    "mouse_ears": "Mouse ears",
 }
 
 
@@ -4482,11 +4484,22 @@ def _apply_slice_process_overrides(process_data: bytes, *, support_mode: str | N
         profile["support_style"] = "tree_strong"
 
     if brim == "off":
+        profile["enable_brim"] = "0"
         profile["brim_type"] = "no_brim"
+    elif brim == "auto":
+        profile["enable_brim"] = "1"
+        profile["brim_type"] = "auto_brim"
     elif brim == "outer":
+        profile["enable_brim"] = "1"
         profile["brim_type"] = "outer_only"
         profile.setdefault("brim_width", "5")
         profile.setdefault("brim_object_gap", "0.1")
+    elif brim == "mouse_ears":
+        profile["enable_brim"] = "1"
+        profile["brim_type"] = "brim_ears"
+        profile["brim_ears"] = "1"
+        profile.setdefault("brim_ears_max_angle", "125")
+        profile.setdefault("brim_ears_detection_length", "1")
 
     return json.dumps(profile, ensure_ascii=False, indent=4).encode("utf-8")
 

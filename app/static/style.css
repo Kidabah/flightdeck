@@ -15479,6 +15479,21 @@ select optgroup {
   color: var(--text);
   font-size: 0.82rem;
 }
+.filedesk-slice-option-row {
+  display: grid;
+  gap: 0.55rem;
+  margin-bottom: 0.75rem;
+}
+.filedesk-slice-option-row .filedesk-slice-toggle,
+.filedesk-slice-option-row .filedesk-slice-field {
+  margin-bottom: 0;
+}
+@media (min-width: 640px) {
+  .filedesk-slice-option-row {
+    grid-template-columns: minmax(9rem, 0.7fr) minmax(0, 1fr);
+    align-items: end;
+  }
+}
 .filedesk-slice-field {
   display: grid;
   gap: 0.35rem;

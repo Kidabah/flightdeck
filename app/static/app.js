@@ -11871,16 +11871,14 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
   let selectedPrinterId = printers[0]?.id || '';
   const bedTypes = ['Textured PEI Plate', 'Smooth PEI Plate', 'High Temp Plate', 'Cool Plate', 'Engineering Plate'];
   const supportModes = [
-    ['profile', 'Profile default'],
-    ['off', 'Supports off'],
     ['normal_auto', 'Normal auto'],
     ['tree_auto', 'Tree auto'],
     ['tree_strong', 'Tree strong'],
   ];
   const brimModes = [
-    ['profile', 'Profile default'],
-    ['off', 'No brim'],
+    ['auto', 'Auto brim'],
     ['outer', 'Outer brim'],
+    ['mouse_ears', 'Mouse ears'],
   ];
   overlay.innerHTML = `
     <div class="modal-box filedesk-queue-box filedesk-slice-box" role="dialog" aria-modal="true" aria-label="Slice model">
@@ -11925,18 +11923,30 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
           ${bedTypes.map(name => `<option value="${esc(name)}">${esc(name)}</option>`).join('')}
         </select>
       </label>
-      <label class="filedesk-slice-field">
-        <span>Supports</span>
-        <select id="slice-support-mode">
-          ${supportModes.map(([value, label]) => `<option value="${esc(value)}">${esc(label)}</option>`).join('')}
-        </select>
-      </label>
-      <label class="filedesk-slice-field">
-        <span>Brim</span>
-        <select id="slice-brim-mode">
-          ${brimModes.map(([value, label]) => `<option value="${esc(value)}">${esc(label)}</option>`).join('')}
-        </select>
-      </label>
+      <div class="filedesk-slice-option-row">
+        <label class="filedesk-slice-toggle">
+          <input type="checkbox" id="slice-support-enabled">
+          Enable supports
+        </label>
+        <label class="filedesk-slice-field">
+          <span>Support type</span>
+          <select id="slice-support-mode" disabled>
+            ${supportModes.map(([value, label]) => `<option value="${esc(value)}"${value === 'tree_auto' ? ' selected' : ''}>${esc(label)}</option>`).join('')}
+          </select>
+        </label>
+      </div>
+      <div class="filedesk-slice-option-row">
+        <label class="filedesk-slice-toggle">
+          <input type="checkbox" id="slice-brim-enabled">
+          Enable brim
+        </label>
+        <label class="filedesk-slice-field">
+          <span>Brim type</span>
+          <select id="slice-brim-mode" disabled>
+            ${brimModes.map(([value, label]) => `<option value="${esc(value)}">${esc(label)}</option>`).join('')}
+          </select>
+        </label>
+      </div>
       <div class="filedesk-dialog-error" id="slice-plan-result" hidden></div>
       <div class="filedesk-slice-actions" id="slice-handoff-actions" hidden></div>
       <div class="settings-hint">Source models are portable. Flightdeck will create a printer-specific sliced job before queueing or sending it.</div>
@@ -11952,6 +11962,21 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
     process_profile: overlay.querySelector('#slice-process-profile')?.value.trim() || '',
     filament_profile: overlay.querySelector('#slice-filament-profile')?.value.trim() || '',
   });
+  const sliceOptionPayload = () => {
+    const supportEnabled = !!overlay.querySelector('#slice-support-enabled')?.checked;
+    const brimEnabled = !!overlay.querySelector('#slice-brim-enabled')?.checked;
+    return {
+      bed_type: overlay.querySelector('#slice-bed-type')?.value || 'Textured PEI Plate',
+      support_mode: supportEnabled ? (overlay.querySelector('#slice-support-mode')?.value || 'tree_auto') : 'off',
+      brim_mode: brimEnabled ? (overlay.querySelector('#slice-brim-mode')?.value || 'outer') : 'off',
+    };
+  };
+  const syncSliceOptionControls = () => {
+    const supportSelect = overlay.querySelector('#slice-support-mode');
+    const brimSelect = overlay.querySelector('#slice-brim-mode');
+    if (supportSelect) supportSelect.disabled = !overlay.querySelector('#slice-support-enabled')?.checked;
+    if (brimSelect) brimSelect.disabled = !overlay.querySelector('#slice-brim-enabled')?.checked;
+  };
   const setProfilesForPrinter = printerId => {
     selectedPrinterId = printerId || selectedPrinterId;
     const printer = printers.find(p => p.id === selectedPrinterId) || printers[0] || {};
@@ -12014,9 +12039,7 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
           printer_id: selectedPrinterId,
           ...profilePayload(),
           plate: 'auto',
-          bed_type: overlay.querySelector('#slice-bed-type')?.value || 'Textured PEI Plate',
-          support_mode: overlay.querySelector('#slice-support-mode')?.value || 'profile',
-          brim_mode: overlay.querySelector('#slice-brim-mode')?.value || 'profile',
+          ...sliceOptionPayload(),
           all_plates: !!overlay.querySelector('#slice-all-plates')?.checked,
         }),
       });
@@ -12074,6 +12097,7 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
       }
     }
   };
+  syncSliceOptionControls();
   setProfilesForPrinter(selectedPrinterId);
   _attachSlicerProfileDropdowns(overlay);
   overlay.querySelector('#slice-printer-profile')?.addEventListener('change', () => {
@@ -12088,6 +12112,8 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
     _slicerReplaceDatalist('slice-filament-profiles', filamentRows);
   });
   overlay.querySelector('#slice-prepare-plan')?.addEventListener('click', preparePlan);
+  overlay.querySelector('#slice-support-enabled')?.addEventListener('change', syncSliceOptionControls);
+  overlay.querySelector('#slice-brim-enabled')?.addEventListener('change', syncSliceOptionControls);
   overlay.addEventListener('click', e => {
     if (e.target === overlay || e.target.closest('[data-dialog-close]')) {
       close();
@@ -12201,7 +12227,7 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
     }, 500);
     runBtn.disabled = true;
     runBtn.textContent = 'Slicing...';
-    overlay.querySelectorAll('.filedesk-printer-choice, #slice-prepare-plan, #slice-bed-type, #slice-support-mode, #slice-brim-mode, #slice-all-plates, .slicer-profile-input').forEach(el => {
+    overlay.querySelectorAll('.filedesk-printer-choice, #slice-prepare-plan, #slice-bed-type, #slice-support-enabled, #slice-support-mode, #slice-brim-enabled, #slice-brim-mode, #slice-all-plates, .slicer-profile-input').forEach(el => {
       el.disabled = true;
     });
     if (errEl) {
@@ -12238,9 +12264,7 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
           ...profilePayload(),
           output_filename: runBtn.dataset.runSlice || '',
           plate: '1',
-          bed_type: overlay.querySelector('#slice-bed-type')?.value || 'Textured PEI Plate',
-          support_mode: overlay.querySelector('#slice-support-mode')?.value || 'profile',
-          brim_mode: overlay.querySelector('#slice-brim-mode')?.value || 'profile',
+          ...sliceOptionPayload(),
           all_plates: !!overlay.querySelector('#slice-all-plates')?.checked,
         }),
       });
@@ -12302,9 +12326,10 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
       clearInterval(progressTimer);
       runBtn.disabled = false;
       runBtn.textContent = old;
-      overlay.querySelectorAll('.filedesk-printer-choice, #slice-prepare-plan, #slice-bed-type, #slice-support-mode, #slice-brim-mode, #slice-all-plates, .slicer-profile-input').forEach(el => {
+      overlay.querySelectorAll('.filedesk-printer-choice, #slice-prepare-plan, #slice-bed-type, #slice-support-enabled, #slice-support-mode, #slice-brim-enabled, #slice-brim-mode, #slice-all-plates, .slicer-profile-input').forEach(el => {
         el.disabled = false;
       });
+      syncSliceOptionControls();
     }
   });
   overlay.addEventListener('click', async e => {

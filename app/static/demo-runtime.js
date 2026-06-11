@@ -279,6 +279,18 @@
     const u = new URL(url, location.origin);
     const path = u.pathname;
     const method = (options.method || 'GET').toUpperCase();
+    const jsonBody = () => {
+      try { return JSON.parse(options.body || '{}'); } catch (_) { return {}; }
+    };
+    const sliceOptions = body => {
+      const supports = { off: 'Supports off', normal_auto: 'Normal auto', tree_auto: 'Tree auto', tree_strong: 'Tree strong' };
+      const brims = { off: 'No brim', auto: 'Auto brim', outer: 'Outer brim', mouse_ears: 'Mouse ears' };
+      return {
+        bed_type: body.bed_type || 'Textured PEI Plate',
+        support: supports[body.support_mode] || 'Supports off',
+        brim: brims[body.brim_mode] || 'No brim',
+      };
+    };
 
     if (path === '/api/settings') return jsonResponse({ temp_unit: 'F', time_format: '24h', accent: '#3b82f6' });
     if (path.startsWith('/api/settings/')) return method === 'GET' ? jsonResponse({ value: null }) : jsonResponse({ ok: true, demo: true });
@@ -410,7 +422,9 @@
     if (path === '/api/files/reprints') return jsonResponse([]);
     if (path === '/api/files/queue' || path === '/api/files/library/copy') return jsonResponse({ ok: true, demo: true });
     if (path === '/api/files/source/preview') return fetch('/static/demo-assets/can-opener-preview.png', { cache: 'no-store' });
-    if (path === '/api/slicer/plan') return jsonResponse({
+    if (path === '/api/slicer/plan') {
+      const body = jsonBody();
+      return jsonResponse({
       ok: true,
       ready: true,
       can_background_slice: true,
@@ -423,9 +437,12 @@
         process: '0.20mm Balanced Strength @BBL H2D',
         filament: 'Bambu ASA @BBL H2D 0.4 nozzle',
       },
-      slice_options: { bed_type: 'Textured PEI Plate', support: 'Profile default', brim: 'Profile default' },
+      slice_options: sliceOptions(body),
     });
-    if (path === '/api/slicer/run') return jsonResponse({
+    }
+    if (path === '/api/slicer/run') {
+      const body = jsonBody();
+      return jsonResponse({
       ok: true,
       filename: 'HULA_H2D_feet_h2d_demo.gcode.3mf',
       path: 'HULA_H2D_feet_h2d_demo.gcode.3mf',
@@ -438,8 +455,9 @@
         process: '0.20mm Balanced Strength @BBL H2D',
         filament: 'Bambu ASA @BBL H2D 0.4 nozzle',
       },
-      slice_options: { bed_type: 'Textured PEI Plate', support: 'Profile default', brim: 'Profile default' },
+      slice_options: sliceOptions(body),
     });
+    }
     if (path === '/api/slicer/check') return jsonResponse({ ok: true, kind: 'demo', status: 200, version: 'demo reachable' });
     if (path.match(/^\/api\/files\/bambu\/[^/]+\/clear$/)) return jsonResponse({ ok: true, demo: true });
     if (path === '/api/queue') return jsonResponse(clone(demoQueue));
