@@ -1602,11 +1602,16 @@ async def plan_slice_from_file_desk(body: SlicePlanRequest):
     if h2d_loose_mesh and not (slicer_api_probe or {}).get("ok"):
         can_slice = False
         can_handoff = not missing_profiles
+    background_slice_paused = True
+    if background_slice_paused and not missing_profiles:
+        can_slice = False
+        can_handoff = True
     return {
         "ok": True,
         "ready": can_slice or can_handoff,
         "can_background_slice": can_slice,
         "manual_handoff": can_handoff,
+        "background_slice_paused": background_slice_paused,
         "sidecar_url": browser_url,
         "browser_url": browser_url,
         "api_url": api_url,
@@ -1639,6 +1644,8 @@ async def plan_slice_from_file_desk(body: SlicePlanRequest):
         "plate": body.plate or "auto",
         "all_plates": bool(body.all_plates),
         "message": (
+            "In-Flightdeck background slicing is paused while the managed Orca printer/AMS workflow is validated. Open the model in Orca, inspect the plate, then export the sliced job back to the Print Vault."
+            if background_slice_paused and not missing_profiles else
             f"H2D STL/OBJ background slicing needs a running slicer API sidecar. {(slicer_api_probe or {}).get('detail') or 'Configure the sidecar API URL first.'} Use Open Orca until it is online."
             if h2d_loose_mesh and not (slicer_api_probe or {}).get("ok") and not missing_profiles else
             "STEP models need Orca GUI import; use Download model/Open Orca, then export the sliced job back to the Print Vault."

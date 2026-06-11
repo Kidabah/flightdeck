@@ -12094,6 +12094,7 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
         const outputName = data.output?.filename || 'sliced-output';
         const profiles = data.profiles || {};
         const canBackgroundSlice = data.can_background_slice !== false;
+        const backgroundSlicePaused = !!data.background_slice_paused;
         const profileRows = [
           ['Printer', profiles.printer],
           ['Process', profiles.process],
@@ -12105,12 +12106,16 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
           ['Supports', sliceOptions.support],
           ['Brim', sliceOptions.brim],
         ].map(([label, value]) => `<div><span>${esc(label)}</span><strong>${esc(value || 'Profile default')}</strong></div>`).join('');
+        const handoffTitle = backgroundSlicePaused ? 'Manual Orca review' : 'Slice handoff';
+        const handoffCopy = backgroundSlicePaused
+          ? 'Background slicing is paused. Open the model in Orca, confirm printer/AMS/supports, then export the sliced job back to the Print Vault.'
+          : "Support and brim toggles apply to Slice in Flightdeck. Opening the raw model uses Orca's current Prepare defaults.";
         actionsEl.hidden = false;
         actionsEl.dataset.browserUrl = browserUrl || '';
         actionsEl.innerHTML = `
           <div class="filedesk-slice-steps">
-            <strong>Slice handoff</strong>
-            <span>Support and brim toggles apply to Slice in Flightdeck. Opening the raw model uses Orca's current Prepare defaults.</span>
+            <strong>${esc(handoffTitle)}</strong>
+            <span>${esc(handoffCopy)}</span>
           </div>
           <div class="filedesk-slice-profiles">${profileRows}${optionRows}</div>
           <div class="filedesk-slice-buttons">
