@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import os
 import re
+import shutil
 import subprocess
 from dataclasses import dataclass
 from datetime import datetime
@@ -34,10 +35,15 @@ class LabelPrinter:
 
     def status(self) -> LabelStatus:
         self.last_error = None
+        if not shutil.which("lsusb"):
+            return self._status_pyusb()
         try:
             out = subprocess.check_output(["lsusb"], text=True)
         except Exception as exc:
-            self.last_error = str(exc)
+            pyusb_status = self._status_pyusb()
+            if pyusb_status.available or pyusb_status.last_error:
+                return pyusb_status
+            self.last_error = _friendly_usb_error(exc)
             return LabelStatus(False, last_error=self.last_error)
         printer_line = next((line for line in out.splitlines() if f"{self.VENDOR}:{self.PRODUCT_PRINTER}" in line), "")
         if printer_line:
@@ -48,6 +54,25 @@ class LabelPrinter:
         if f"{self.VENDOR}:{self.PRODUCT_EDITOR_LITE}" in out:
             return LabelStatus(False, last_error="QL-700 is in Editor Lite mass-storage mode; turn Editor Lite off on the printer")
         return LabelStatus(False, last_error="Brother QL-700 not detected")
+
+    def _status_pyusb(self) -> LabelStatus:
+        try:
+            import usb.core
+        except Exception as exc:
+            self.last_error = f"PyUSB unavailable for QL-700 detection: {exc}"
+            return LabelStatus(False, last_error=self.last_error)
+        try:
+            printer = usb.core.find(idVendor=int(self.VENDOR, 16), idProduct=int(self.PRODUCT_PRINTER, 16))
+            if printer is not None:
+                return LabelStatus(True)
+            editor_lite = usb.core.find(idVendor=int(self.VENDOR, 16), idProduct=int(self.PRODUCT_EDITOR_LITE, 16))
+            if editor_lite is not None:
+                return LabelStatus(False, last_error="QL-700 is in Editor Lite mass-storage mode; turn Editor Lite off on the printer")
+        except Exception as exc:
+            self.last_error = _friendly_usb_error(exc)
+            return LabelStatus(False, last_error=self.last_error)
+        self.last_error = "Brother QL-700 not detected"
+        return LabelStatus(False, last_error=self.last_error)
 
     def render_spool_label(self, spool: dict, base_url: str = "https://flightdeck.tail7de73e.ts.net") -> Image.Image:
         img = Image.new("RGB", (self.LABEL_WIDTH_PX, 430), "white")
@@ -127,6 +152,8 @@ class LabelPrinter:
             message = str(exc)
             if "Access denied" in message or "insufficient permissions" in message:
                 message = "QL-700 USB permission denied; add the flightdeck user to lp or apply the Brother udev rule"
+            elif "No backend available" in message:
+                message = "QL-700 USB backend unavailable. On Windows, install a WinUSB/libusb driver for the QL-700 with Zadig, or connect the label printer to the Pi/NAS."
             self.last_error = message
             return False
 
@@ -183,3 +210,14 @@ def _usb_device_node(lsusb_line: str) -> Optional[str]:
     if not match:
         return None
     return f"/dev/bus/usb/{match.group(1)}/{match.group(2)}"
+
+
+def _friendly_usb_error(exc: Exception) -> str:
+    message = str(exc).strip() or exc.__class__.__name__
+    if getattr(exc, "winerror", None) == 2 or "The system cannot find the file specified" in message:
+        return "USB detection tool not found. On Windows, QL-700 printing needs a WinUSB/libusb driver via Zadig, or connect the label printer to the Pi/NAS."
+    if "No backend available" in message:
+        return "QL-700 USB backend unavailable. On Windows, install a WinUSB/libusb driver for the QL-700 with Zadig, or connect the label printer to the Pi/NAS."
+    if "Access denied" in message or "insufficient permissions" in message:
+        return "QL-700 USB permission denied; add the flightdeck user to lp or apply the Brother udev rule"
+    return message

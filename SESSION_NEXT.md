@@ -2,13 +2,15 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: current HEAD after this handoff (`Port compact object fallback labels`)
+- Latest commit: current HEAD after this handoff (`Clarify Windows label printer status`)
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=455 / style.css?v=368
 
 Recent work:
+- Label-printer detection now handles the common Windows case where the Brother QL-700 is actually plugged into the Pi/NAS, not the Windows worker. If `lsusb` is missing, Flightdeck falls back to PyUSB detection and reports a plain setup message about using WinUSB/libusb on Windows or connecting the label printer to the Pi/NAS instead of surfacing raw `[WinError 2] The system cannot find the file specified`. The physical spool label design was not changed.
+  - Verification: `python -m py_compile app/label_printer.py`, `git diff --check`, and venv smoke test for Windows-style status messaging passed.
 - Ported only the useful label-size idea from Steve's fork: Klipper/Bambu no-geometry skip-object fallback buttons now use compact, left-aligned label tiles with a smaller ID/header and a second object-name line when an object ID exists. Real mapped object overlays were left unchanged. Static cache bumped to `app.js?v=455` and `style.css?v=368`; frontend refresh only.
   - Verification: `node --check app/static/app.js` and `git diff --check` passed.
 - Spool cards now have an `Assign` quick action. The modal lets an operator move the roll to a shelf/home, assign it to a printer-only location, or assign it directly to a printer AMS/MMU/tool slot using grouped dropdown options built from the current fleet state. Assigning to an occupied printer/slot uses the existing replace flow so the previous roll returns home. Static cache bumped to `app.js?v=454` and `style.css?v=367`; frontend refresh only.
