@@ -12774,6 +12774,7 @@ select optgroup {
 .spool-action-btn:hover { opacity: 1; }
 .spool-action-detail,
 .spool-action-edit,
+.spool-action-assign,
 .spool-action-label,
 .spool-action-weigh,
 .spool-action-more,
@@ -12795,6 +12796,7 @@ select optgroup {
   color: var(--muted);
   text-decoration: none;
 }
+.spool-action-assign { color: #60a5fa; }
 .spool-action-label { color: #22c55e; }
 .spool-action-weigh { color: #f59e0b; }
 .spool-action-detail:hover {
@@ -12857,6 +12859,46 @@ select optgroup {
   justify-content: center;
   text-align: center;
   padding: 0.35rem 0.45rem !important;
+}
+
+.spool-assign-modal {
+  width: min(34rem, calc(100vw - 1.5rem));
+}
+
+.spool-assign-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.65rem;
+  margin: 0.45rem 0 0.75rem;
+  padding: 0.65rem;
+  border: 1px solid rgba(96,165,250,0.22);
+  border-radius: 0.55rem;
+  background: rgba(15,23,42,0.5);
+}
+
+.spool-assign-card strong,
+.spool-assign-card small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spool-assign-card strong {
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
+.spool-assign-card small {
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.spool-assign-select {
+  width: 100%;
+  margin-top: 0.28rem;
 }
 
 /* Add Spool modal */

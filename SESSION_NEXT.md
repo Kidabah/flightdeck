@@ -6,9 +6,11 @@ Latest GitHub/Pi state:
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=453 / style.css?v=366
+- Refresh cachebust currently: app.js?v=454 / style.css?v=367
 
 Recent work:
+- Spool cards now have an `Assign` quick action. The modal lets an operator move the roll to a shelf/home, assign it to a printer-only location, or assign it directly to a printer AMS/MMU/tool slot using grouped dropdown options built from the current fleet state. Assigning to an occupied printer/slot uses the existing replace flow so the previous roll returns home. Static cache bumped to `app.js?v=454` and `style.css?v=367`; frontend refresh only.
+  - Verification: `node --check app/static/app.js` and `git diff --check` passed.
 - Add Printer now presents Moonraker-backed printers as plain `Klipper` instead of `Voron / Klipper` or `Other Moonraker`. The Klipper model dropdown now includes common Voron, Rat Rig, Sovol, Qidi, FLSUN, VzBot, Annex, RailCore, HevORT, Creality K1, Elegoo Neptune 4, and Custom Klipper presets, with build-volume defaults for the listed models. Static cache bumped to `app.js?v=453`; frontend refresh only.
   - Verification: `node --check app/static/app.js` and `git diff --check` passed.
 - Klipper no-geometry object selector font was reduced so long object-name pills read like compact labels instead of large headline buttons. Static cache bumped to `style.css?v=366`; frontend refresh only.

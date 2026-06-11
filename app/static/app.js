@@ -13208,6 +13208,7 @@ function _tareHintText(source) {
 }
 const _SPOOL_ACTIONS = [
   { key: 'detail', label: 'Info', title: 'Details', kind: 'link', cls: 'spool-action-detail' },
+  { key: 'assign', label: 'Assign', title: 'Assign to printer or shelf', cls: 'spool-action-assign' },
   { key: 'label', label: 'Label', title: 'Print label', cls: 'spool-action-label' },
   { key: 'weigh', label: 'Weigh', title: 'Weigh from scale', cls: 'spool-action-weigh' },
   { key: 'edit', label: 'Edit', title: 'Edit', cls: 'spool-action-edit' },
@@ -14058,9 +14059,150 @@ function _spoolActionControl(action, spoolId, compact = false) {
   return `<button class="${cls}" data-action="${action.key}" data-id="${spoolId}" title="${action.title}">${label}</button>`;
 }
 
+function _spoolAssignSlotTargets(printer) {
+  const targets = [];
+  const printerName = _printerPrimaryLabel(printer);
+  for (const unit of printer.ams || []) {
+    for (const slot of unit.slots || []) {
+      const flat = _amsFlatSlot(unit, slot);
+      targets.push({
+        value: `${printer.id}|${flat}`,
+        label: `${printerName} · ${_amsSlotLabel(printer, flat)}`,
+        meta: unit.label || 'AMS',
+      });
+    }
+  }
+  for (const unit of printer.mmu || []) {
+    for (const gate of unit.gates || []) {
+      const idx = Number(gate.idx);
+      if (!Number.isFinite(idx)) continue;
+      targets.push({
+        value: `${printer.id}|${idx}`,
+        label: `${printerName} · ${_amsSlotLabel(printer, idx)}`,
+        meta: unit.label || 'MMU',
+      });
+    }
+  }
+  if (_isSnapmakerU1(printer)) {
+    for (const tool of printer.toolheads || []) {
+      const idx = Number(tool.index ?? tool.tool ?? tool.id);
+      if (!Number.isFinite(idx)) continue;
+      targets.push({
+        value: `${printer.id}|${idx}`,
+        label: `${printerName} · ${tool.label || `T${idx}`}`,
+        meta: 'Toolhead',
+      });
+    }
+  }
+  return targets;
+}
+
+function _spoolAssignTargetOptions(spool) {
+  const currentPrinterId = spool?.location_printer_id || '';
+  const currentSlot = spool?.location_slot;
+  const currentStorageId = spool?.storage_location_id;
+  const selectedValue = currentPrinterId
+    ? `${currentPrinterId}|${currentSlot === null || currentSlot === undefined ? '' : currentSlot}`
+    : `shelf|${currentStorageId || ''}`;
+  const shelfOptions = [
+    `<option value="shelf|"${selectedValue === 'shelf|' ? ' selected' : ''}>Home shelf / unassigned shelf</option>`,
+    ...(_spoolLocations || []).map(loc => {
+      const value = `shelf|${loc.id}`;
+      return `<option value="${esc(value)}"${selectedValue === value ? ' selected' : ''}>Shelf · ${esc(loc.name)}</option>`;
+    }),
+  ].join('');
+  const printerOptions = (_latestPrinters || []).map(printer => {
+    const printerName = _printerPrimaryLabel(printer);
+    const printerOnlyValue = `${printer.id}|`;
+    const slotTargets = _spoolAssignSlotTargets(printer);
+    const options = [
+      `<option value="${esc(printerOnlyValue)}"${selectedValue === printerOnlyValue ? ' selected' : ''}>${esc(printerName)} · Printer only</option>`,
+      ...slotTargets.map(target =>
+        `<option value="${esc(target.value)}"${selectedValue === target.value ? ' selected' : ''}>${esc(target.label)}${target.meta ? ` (${esc(target.meta)})` : ''}</option>`
+      ),
+    ].join('');
+    return `<optgroup label="${esc(printerName)}">${options}</optgroup>`;
+  }).join('');
+  return `<optgroup label="Storage">${shelfOptions}</optgroup>${printerOptions}`;
+}
+
+async function _openSpoolAssignModal(spoolId, refresh = _refreshSpoolsSurface) {
+  if (!_latestPrinters?.length) {
+    try { _latestPrinters = await fetch('/api/printers').then(r => r.ok ? r.json() : []); } catch {}
+  }
+  if (!_spoolLocations?.length) {
+    try { _spoolLocations = await fetch('/api/spool-locations').then(r => r.ok ? r.json() : []); } catch {}
+  }
+  const spool = _allSpools.find(s => String(s.id) === String(spoolId));
+  if (!spool) {
+    showToast('Spool not found', `Spool #${spoolId} is no longer in the list.`, 'error');
+    return;
+  }
+  const title = `Assign spool #${spool.id}`;
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal-box spool-assign-modal">
+      <div class="modal-header">
+        <span class="modal-title">${esc(title)}</span>
+        <button class="modal-close-btn">✕</button>
+      </div>
+      <div class="spool-assign-card">
+        <span class="location-spool-swatch" style="${_spoolColorStyle(spool)}"></span>
+        <div>
+          <strong>${esc(spool.color_name || spool.color_hex || 'Colour')} · ${esc(spool.material)}${spool.subtype ? ` ${esc(spool.subtype)}` : ''}</strong>
+          <small>${esc(spool.brand || 'Unknown brand')} · ${Math.round(spool.remaining_g || 0)}g remaining</small>
+        </div>
+      </div>
+      <label class="spool-form-label" for="spool-assign-target">Assign to</label>
+      <select id="spool-assign-target" class="spool-form-input spool-assign-select">
+        ${_spoolAssignTargetOptions(spool)}
+      </select>
+      <div class="slot-return-memory">Choose a printer by itself for manually loaded filament, or choose a specific AMS/MMU slot when the roll is physically loaded there.</div>
+      <div class="modal-actions">
+        <button class="modal-btn" data-spool-assign-cancel>Cancel</button>
+        <button class="modal-btn primary" data-spool-assign-save>Assign</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelector('.modal-close-btn')?.addEventListener('click', close);
+  overlay.querySelector('[data-spool-assign-cancel]')?.addEventListener('click', close);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  overlay.querySelector('[data-spool-assign-save]')?.addEventListener('click', async e => {
+    const btn = e.currentTarget;
+    const value = overlay.querySelector('#spool-assign-target')?.value || 'shelf|';
+    const [kind, raw] = value.split('|');
+    const body = kind === 'shelf'
+      ? { printer_id: null, slot: null, storage_location_id: raw ? Number(raw) : null }
+      : { printer_id: kind, slot: raw === '' ? null : Number(raw), replace_existing: true };
+    btn.disabled = true;
+    btn.textContent = 'Assigning';
+    const response = await fetch(`/api/spools/${spool.id}/move`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      const message = err.detail?.message || err.detail || 'Flightdeck could not assign that spool.';
+      showToast('Assign failed', String(message), 'error');
+      btn.disabled = false;
+      btn.textContent = 'Assign';
+      return;
+    }
+    const data = await response.json().catch(() => ({}));
+    if (data.replaced_spool_id) showToast('Slot swapped', `Returned spool #${data.replaced_spool_id} home and assigned spool #${spool.id}.`, 'success');
+    else showToast('Spool assigned', `Spool #${spool.id} location updated.`, 'success');
+    await _refreshSpoolsByPrinter();
+    close();
+    await refresh();
+  });
+}
+
 function _spoolCardActionsHtml(spoolId) {
   const quick = _SPOOL_ACTIONS
-    .filter(a => a.key === 'label' || a.key === 'edit')
+    .filter(a => a.key === 'assign' || a.key === 'label' || a.key === 'edit')
     .map(a => _spoolActionControl(a, spoolId)).join('');
   const menu = _SPOOL_ACTIONS.map(a => _spoolActionControl(a, spoolId, true)).join('');
   return `<div class="spool-card-actions">
@@ -15016,6 +15158,8 @@ function _attachSpoolListEvents(el, listEl, refresh = _refreshSpoolsSurface) {
       const costs = await fetch('/api/filament/costs').then(r => r.json()).catch(() => []);
       if (action === 'manage') {
         _openSpoolActionModal(id, el, refresh);
+      } else if (action === 'assign') {
+        _openSpoolAssignModal(id, refresh);
       } else if (action === 'edit') {
         const spool = _allSpools.find(s => s.id == id);
         if (spool) _openSpoolModal(costs, refresh, spool);
