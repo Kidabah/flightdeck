@@ -321,6 +321,7 @@ const _pendingControls = {};    // printer_id → { action, fromState }
 const _lightOptimistic = {};    // printer_id → { state, expiresAt }
 const _tempOptimistic = {};     // `${id}:${heater}` → { sentTarget, expiresAt }
 const _objectsCache = {};       // printer_id → { supported, objects }
+const _detailThumbMissing = new Set(); // `${printer_id}::${job_name}` after thumbnail 404/error
 const _cameraUrlFetches = {};   // printer_id → in-flight camera URL fetch
 const _historyYear = {};        // printer_id → selected year (int)
 const _historyHeatmapMode = {}; // printer_id -> yearly | monthly | weekly
@@ -3521,6 +3522,16 @@ function _detailLiveStrip(p) {
   </div>`;
 }
 
+function _detailThumbKey(id, name) {
+  return `${id || ''}::${name || ''}`;
+}
+
+window._flightdeckMarkDetailThumbMissing = function(img, key) {
+  if (key) _detailThumbMissing.add(String(key));
+  const parent = img?.parentElement;
+  if (parent) parent.hidden = true;
+};
+
 function _detailPrintPanel(p) {
   const title = `<div class="detail-panel-title">Print Details</div>`;
   const activeJob = _activePrinterJob(p);
@@ -3542,9 +3553,11 @@ function _detailPrintPanel(p) {
   const layers = job.layer_current != null && job.layer_total != null
     ? `${job.layer_current} / ${job.layer_total}` : '—';
 
-  const thumb = `<div class="detail-thumb">
+  const thumbKey = _detailThumbKey(p.id, name);
+  const thumbArg = esc(JSON.stringify(thumbKey));
+  const thumb = _detailThumbMissing.has(thumbKey) ? '' : `<div class="detail-thumb">
     <img class="detail-thumb-img" src="${_mediaUrl(`/api/printers/${p.id}/thumbnail`, name)}" alt="Print thumbnail"
-         onerror="this.parentElement.hidden=true">
+         onerror="window._flightdeckMarkDetailThumbMissing?.(this, ${thumbArg})">
   </div>`;
 
   const cal = p.eta_calibration;  // {ratio: float|null, count: int} or undefined

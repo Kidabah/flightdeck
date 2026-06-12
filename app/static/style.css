@@ -3650,6 +3650,8 @@ button.briefing-row {
   flex-direction: column;
   gap: 0.75rem;
   overflow-y: auto;
+  overflow-x: hidden;
+  contain: layout paint;
 }
 
 .camera-name-banner {
@@ -5707,6 +5709,15 @@ button.live-route-node:hover {
   border: 1px solid var(--border);
   border-radius: 0.75rem;
   padding: 1rem;
+  box-sizing: border-box;
+}
+
+#detail-print {
+  min-height: 11.4rem;
+}
+
+.obj-unavailable {
+  min-height: 10.8rem;
 }
 
 .detail-panel-title {
@@ -5719,16 +5730,24 @@ button.live-route-node:hover {
 }
 
 .detail-row {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(4.25rem, max-content) minmax(0, 1fr);
   align-items: baseline;
   gap: 1rem;
   font-size: 0.8125rem;
+  line-height: 1.35;
+  min-height: 1.45rem;
   padding: 0.25rem 0;
 }
 
 .detail-label { color: var(--muted); flex-shrink: 0; }
-.detail-value { color: var(--text); text-align: right; font-variant-numeric: tabular-nums; }
+.detail-value {
+  color: var(--text);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 
 .detail-progress-bar {
   height: 3px;
