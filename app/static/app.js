@@ -11999,7 +11999,10 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
   overlay.className = 'modal-overlay filedesk-slice-dialog';
   let selectedPrinterId = printers[0]?.id || '';
   const currentOpenMode = (_serverSettings.slicer_open_mode || 'same').trim() || 'same';
-  const useSlicerApi = String(_serverSettings.slicer_use_api || '').toLowerCase() === 'true';
+  let useSlicerApi = String(_serverSettings.slicer_use_api || '').toLowerCase() === 'true';
+  let selectedWorkflow = useSlicerApi
+    ? 'auto'
+    : (currentOpenMode === 'bambu_studio' ? 'bambu_studio' : currentOpenMode === 'orca' ? 'browser_orca' : 'desktop_orca');
   const bedTypes = ['Textured PEI Plate', 'Smooth PEI Plate', 'High Temp Plate', 'Cool Plate', 'Engineering Plate'];
   const supportModes = [
     ['normal_auto', 'Normal auto'],
@@ -12029,15 +12032,16 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
       </div>
       <div class="filedesk-slice-plan-panel">
         <div class="filedesk-slice-plan-copy">
-          <strong>${useSlicerApi ? 'API slicing enabled' : 'Manual slicer review'}</strong>
-          <span>${useSlicerApi ? 'Flightdeck can offer background slicing when the slicer API/worker is healthy.' : 'Production-safe mode: open or download the model, inspect it in your slicer, then export the printer-ready job back to the Print Vault.'}</span>
+          <strong>${useSlicerApi ? 'Headless auto slice ready' : 'Manual project review'}</strong>
+          <span>${useSlicerApi ? 'Flightdeck can generate a printer-ready job with selected profiles, supports, brim, and plate settings.' : 'Open or download the model for painted supports, orientation tweaks, or final slicer inspection.'}</span>
         </div>
         <label class="filedesk-slice-field">
-          <span>Open in slicer</span>
-          <select id="slice-open-mode">
-            <option value="same"${currentOpenMode === 'same' ? ' selected' : ''}>Desktop OrcaSlicer</option>
-            <option value="orca"${currentOpenMode === 'orca' ? ' selected' : ''}>Browser OrcaSlicer</option>
-            <option value="bambu_studio"${currentOpenMode === 'bambu_studio' ? ' selected' : ''}>Bambu Studio handoff</option>
+          <span>Workflow</span>
+          <select id="slice-workflow">
+            <option value="auto"${selectedWorkflow === 'auto' ? ' selected' : ''}>Headless auto slice</option>
+            <option value="desktop_orca"${selectedWorkflow === 'desktop_orca' ? ' selected' : ''}>Open in Desktop Orca</option>
+            <option value="browser_orca"${selectedWorkflow === 'browser_orca' ? ' selected' : ''}>Open in Browser Orca</option>
+            <option value="bambu_studio"${selectedWorkflow === 'bambu_studio' ? ' selected' : ''}>Open in Bambu Studio</option>
           </select>
         </label>
         <label class="filedesk-slice-field">
@@ -12114,9 +12118,14 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
     process_profile: overlay.querySelector('#slice-process-profile')?.value.trim() || '',
     filament_profile: overlay.querySelector('#slice-filament-profile')?.value.trim() || '',
   });
+  const selectedManualOpenMode = () => (
+    selectedWorkflow === 'browser_orca' ? 'orca' : selectedWorkflow === 'bambu_studio' ? 'bambu_studio' : 'same'
+  );
+  const selectedEffectiveOpenMode = () => (
+    selectedWorkflow === 'browser_orca' ? 'browser_orca' : selectedWorkflow === 'bambu_studio' ? 'bambu_studio' : 'desktop_orca'
+  );
   const sliceOptionPayload = () => {
-    const selectedOpenMode = overlay.querySelector('#slice-open-mode')?.value || _serverSettings.slicer_open_mode || 'same';
-    const optionsApply = useSlicerApi && selectedOpenMode !== 'bambu_studio';
+    const optionsApply = selectedWorkflow === 'auto';
     const supportEnabled = !!overlay.querySelector('#slice-support-enabled')?.checked;
     const brimEnabled = !!overlay.querySelector('#slice-brim-enabled')?.checked;
     return {
@@ -12126,8 +12135,7 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
     };
   };
   const syncSliceOptionControls = () => {
-    const selectedOpenMode = overlay.querySelector('#slice-open-mode')?.value || _serverSettings.slicer_open_mode || 'same';
-    const optionsApply = useSlicerApi && selectedOpenMode !== 'bambu_studio';
+    const optionsApply = selectedWorkflow === 'auto';
     const supportToggle = overlay.querySelector('#slice-support-enabled');
     const brimToggle = overlay.querySelector('#slice-brim-enabled');
     const supportSelect = overlay.querySelector('#slice-support-mode');
@@ -12140,8 +12148,19 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
     overlay.querySelectorAll('.filedesk-slice-option-row').forEach(row => row.classList.toggle('is-muted', !optionsApply));
     if (note) {
       note.textContent = optionsApply
-        ? 'Support and brim choices apply to Flightdeck background slicing.'
-        : 'Desktop Orca/Bambu handoff opens the raw model. Set supports and brim inside the slicer before exporting the printer-ready job.';
+        ? 'Headless auto slice will bake these support and brim choices into the generated printer-ready job.'
+        : 'Manual slicer review opens the raw model/project. Set supports and brim inside Orca or Bambu Studio before exporting the printer-ready job.';
+    }
+    const copy = overlay.querySelector('.filedesk-slice-plan-copy');
+    if (copy) {
+      const title = copy.querySelector('strong');
+      const detail = copy.querySelector('span');
+      if (title) title.textContent = optionsApply ? 'Headless auto slice' : 'Manual project review';
+      if (detail) {
+        detail.textContent = optionsApply
+          ? 'Flightdeck will generate a printer-ready job with the selected profiles, supports, brim, and plate settings.'
+          : 'Open or download the model for painted supports, orientation tweaks, or final slicer inspection.';
+      }
     }
   };
   const setProfilesForPrinter = printerId => {
@@ -12197,6 +12216,14 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
       actionsEl.innerHTML = '';
     }
     try {
+      const wantsAutoSlice = selectedWorkflow === 'auto';
+      useSlicerApi = wantsAutoSlice;
+      _serverSettings.slicer_use_api = wantsAutoSlice ? 'true' : 'false';
+      _serverSettings.slicer_open_mode = selectedManualOpenMode();
+      await Promise.all([
+        _saveSetting('slicer_use_api', _serverSettings.slicer_use_api),
+        _saveSetting('slicer_open_mode', _serverSettings.slicer_open_mode),
+      ]);
       const r = await fetch('/api/slicer/plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -12227,8 +12254,8 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
         const profiles = data.profiles || {};
         const canBackgroundSlice = data.can_background_slice !== false;
         const backgroundSlicePaused = !!data.background_slice_paused;
-        const openMode = data.slicer_open_mode || _serverSettings.slicer_open_mode || 'same';
-        const effectiveOpenMode = openMode === 'orca' ? 'browser_orca' : (openMode === 'bambu_studio' ? 'bambu_studio' : 'desktop_orca');
+        const openMode = selectedManualOpenMode();
+        const effectiveOpenMode = selectedEffectiveOpenMode();
         const isBambuHandoff = effectiveOpenMode === 'bambu_studio';
         const showBackgroundSlice = canBackgroundSlice && !isBambuHandoff;
         const manualSlicerName = openMode === 'bambu_studio' ? 'Bambu Studio' : 'Orca';
@@ -12244,12 +12271,12 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
           ['Supports', sliceOptions.support],
           ['Brim', sliceOptions.brim],
         ].map(([label, value]) => `<div><span>${esc(label)}</span><strong>${esc(value || 'Profile default')}</strong></div>`).join('');
-        const handoffTitle = (backgroundSlicePaused || isBambuHandoff) ? `Manual ${manualSlicerName} review` : 'Slice handoff';
+        const handoffTitle = showBackgroundSlice ? 'Headless auto slice' : `Manual ${manualSlicerName} review`;
         const handoffCopy = isBambuHandoff
-          ? 'Bambu handoff is manual while Orca background slicing is parked. Open Bambu Studio Docker or download the model for desktop Bambu Studio, then export the printer-ready job back to the Print Vault.'
+          ? 'Open Bambu Studio or download the model for desktop Bambu Studio, then set painted/manual supports if needed and export the printer-ready job back to the Print Vault.'
           : backgroundSlicePaused
-          ? `Background slicing is paused. Open the model in ${manualSlicerName}, confirm printer/AMS/supports, then export the sliced job back to the Print Vault.`
-          : "Support and brim toggles apply to Slice in Flightdeck. Opening the raw model uses Orca's current Prepare defaults.";
+          ? `Open the model in ${manualSlicerName}, confirm printer/AMS/supports, then export the sliced job back to the Print Vault.`
+          : 'Flightdeck will run the slicer headlessly and bake the selected supports/brim/profile settings into the generated output.';
         const openRawButton = effectiveOpenMode === 'bambu_studio'
           ? (bambuStudioUrl ? `<a class="filedesk-slice-link" href="${esc(bambuStudioUrl)}" target="_blank" rel="noreferrer">Open Bambu Studio</a>` : '')
           : `<button class="filedesk-slice-link" type="button" data-open-orca data-open-orca-target="${esc(effectiveOpenMode)}" data-open-orca-source-id="${esc(sourceId)}" data-open-orca-path="${esc(path)}" data-open-orca-url="${esc(effectiveOpenMode === 'browser_orca' ? browserUrl : '')}">${effectiveOpenMode === 'browser_orca' ? 'Open in Browser Orca' : 'Open in Desktop Orca'}</button>`;
@@ -12299,9 +12326,12 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
   overlay.querySelector('#slice-prepare-plan')?.addEventListener('click', preparePlan);
   overlay.querySelector('#slice-support-enabled')?.addEventListener('change', syncSliceOptionControls);
   overlay.querySelector('#slice-brim-enabled')?.addEventListener('change', syncSliceOptionControls);
-  overlay.querySelector('#slice-open-mode')?.addEventListener('change', async e => {
+  overlay.querySelector('#slice-workflow')?.addEventListener('change', async e => {
     const value = e.currentTarget.value || 'same';
-    _serverSettings.slicer_open_mode = value;
+    selectedWorkflow = value;
+    useSlicerApi = value === 'auto';
+    _serverSettings.slicer_use_api = useSlicerApi ? 'true' : 'false';
+    _serverSettings.slicer_open_mode = selectedManualOpenMode();
     const actionsEl = overlay.querySelector('#slice-handoff-actions');
     const errEl = overlay.querySelector('#slice-plan-result');
     if (actionsEl) {
@@ -12311,8 +12341,15 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
     if (errEl) errEl.hidden = true;
     syncSliceOptionControls();
     try {
-      await _saveSetting('slicer_open_mode', value);
-      showToast('Slicer handoff saved', value === 'bambu_studio' ? 'Bambu Studio handoff' : value === 'orca' ? 'Browser OrcaSlicer' : 'Desktop OrcaSlicer', 'success');
+      await Promise.all([
+        _saveSetting('slicer_use_api', _serverSettings.slicer_use_api),
+        _saveSetting('slicer_open_mode', _serverSettings.slicer_open_mode),
+      ]);
+      showToast(
+        'Slice workflow saved',
+        value === 'auto' ? 'Headless auto slice' : value === 'bambu_studio' ? 'Bambu Studio handoff' : value === 'browser_orca' ? 'Browser OrcaSlicer' : 'Desktop OrcaSlicer',
+        'success',
+      );
     } catch (err) {
       showToast('Setting save failed', err.message || '', 'error');
     }
@@ -12403,8 +12440,7 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
     const errEl = overlay.querySelector('#slice-plan-result');
     const browserUrl = actionsEl?.dataset.browserUrl || '';
     const bambuStudioUrl = actionsEl?.dataset.bambuStudioUrl || '';
-    const selectedOpenMode = overlay.querySelector('#slice-open-mode')?.value || _serverSettings.slicer_open_mode || 'same';
-    const openTarget = selectedOpenMode === 'orca' ? 'browser_orca' : (selectedOpenMode === 'bambu_studio' ? 'bambu_studio' : 'desktop_orca');
+    const openTarget = selectedEffectiveOpenMode();
     const openUrl = openTarget === 'browser_orca' ? browserUrl : '';
     const openLabel = openTarget === 'browser_orca' ? 'Open in Browser Orca' : 'Open in Desktop Orca';
     const openSlicerButton = (source, modelPath, label = openLabel) => {
@@ -12442,7 +12478,7 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
     }, 500);
     runBtn.disabled = true;
     runBtn.textContent = 'Slicing...';
-    overlay.querySelectorAll('.filedesk-printer-choice, #slice-prepare-plan, #slice-bed-type, #slice-support-enabled, #slice-support-mode, #slice-brim-enabled, #slice-brim-mode, #slice-all-plates, .slicer-profile-input').forEach(el => {
+    overlay.querySelectorAll('.filedesk-printer-choice, #slice-prepare-plan, #slice-workflow, #slice-bed-type, #slice-support-enabled, #slice-support-mode, #slice-brim-enabled, #slice-brim-mode, #slice-all-plates, .slicer-profile-input').forEach(el => {
       el.disabled = true;
     });
     if (errEl) {
@@ -12548,7 +12584,7 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
       clearInterval(progressTimer);
       runBtn.disabled = false;
       runBtn.textContent = old;
-      overlay.querySelectorAll('.filedesk-printer-choice, #slice-prepare-plan, #slice-bed-type, #slice-support-enabled, #slice-support-mode, #slice-brim-enabled, #slice-brim-mode, #slice-all-plates, .slicer-profile-input').forEach(el => {
+      overlay.querySelectorAll('.filedesk-printer-choice, #slice-prepare-plan, #slice-workflow, #slice-bed-type, #slice-support-enabled, #slice-support-mode, #slice-brim-enabled, #slice-brim-mode, #slice-all-plates, .slicer-profile-input').forEach(el => {
         el.disabled = false;
       });
       syncSliceOptionControls();

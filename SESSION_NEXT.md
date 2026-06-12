@@ -2,13 +2,15 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: current HEAD after this handoff (`Load desktop Orca models via file association`)
+- Latest commit: current HEAD after this handoff (`Choose slicer workflow in slice modal`)
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=464 / style.css?v=370 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=465 / style.css?v=370 / demo-runtime.js?v=8
 
 Recent work:
+- Slice Model now starts with the actual workflow choice the user described: `Headless auto slice`, `Open in Desktop Orca`, `Open in Browser Orca`, or `Open in Bambu Studio`. Headless auto slice enables the support/brim controls and saves `slicer_use_api=true` before planning, so the generated output bakes in selected profiles/supports/brims/plate settings. Manual Orca/Bambu choices save `slicer_use_api=false`, dim the support/brim controls, and show handoff/download actions for painted supports, manual supports, orientation tweaks, or final slicer inspection. Static cache bumped to `app.js?v=465`; frontend refresh only.
+  - Verification: `node --check app/static/app.js` and `git diff --check` passed. Browser click-through was skipped because the in-app browser control tool was not available in this resumed tool set.
 - Desktop Orca source-model handoff now opens files through the Windows file association first before falling back to launching the Orca executable directly. This should behave like double-clicking the STL/3MF and is intended to fix the blank Orca window where the desktop app opened but did not load the selected model. The Slice Model modal now disables/dims the support and brim controls when Flightdeck background slicing is not enabled or Bambu Studio handoff is selected, and it explicitly says manual Desktop Orca/Bambu handoff opens the raw model so supports/brim must be set in the slicer before exporting. Static cache bumped to `app.js?v=464` and `style.css?v=370`; backend restart required.
   - Verification: `python -m py_compile app/main.py`, `node --check app/static/app.js`, and `git diff --check` passed.
 - Desktop Orca handoff now prefers the configured Windows worker before attempting a local Pi Orca launch. This fixes the blank-plate case where the Pi opened a local/remote Orca shell but did not pass the model into the user's real desktop Orca session. The modal toast now reports forwarded worker opens first. Static cache bumped to `app.js?v=463`; backend restart required.
