@@ -2314,6 +2314,25 @@ async def open_file_in_orca(body: SlicerOpenRequest):
     settings = db.get_all_settings()
     worker_url = (settings.get("orcaslicer_worker_url") or "").strip().rstrip("/")
     local_orca = _docker_inspect_container(_ORCA_DOCKER_BROWSER_CONTAINER)
+    if target == "desktop_orca" and worker_url:
+        files = {"file": (filename, data, "application/octet-stream")}
+        form_data = {"target": target}
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(connect=10.0, read=45.0, write=60.0, pool=10.0)) as client:
+                resp = await client.post(f"{worker_url}/api/slicer/worker/open", files=files, data=form_data)
+        except Exception as exc:
+            detail = str(exc).strip() or "connection timed out"
+            raise HTTPException(status_code=502, detail=f"Slicer worker unreachable: {detail}") from exc
+        payload = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
+        if resp.status_code >= 400:
+            detail = payload.get("detail") if isinstance(payload, dict) else resp.text
+            raise HTTPException(status_code=resp.status_code, detail=detail or "Slicer worker could not open desktop Orca")
+        if isinstance(payload, dict):
+            payload["forwarded"] = True
+            payload["worker_url"] = worker_url
+            return payload
+        return {"ok": True, "forwarded": True, "worker_url": worker_url}
+
     if target == "desktop_orca":
         if source_id == "library":
             try:
@@ -2329,7 +2348,7 @@ async def open_file_in_orca(body: SlicerOpenRequest):
             result["forwarded"] = False
             return result
 
-    if (target == "desktop_orca" and worker_url) or (target != "desktop_orca" and not local_orca and worker_url):
+    if target != "desktop_orca" and not local_orca and worker_url:
         files = {"file": (filename, data, "application/octet-stream")}
         form_data = {"target": target}
         try:

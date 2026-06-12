@@ -2,13 +2,15 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: current HEAD after this handoff (`Keep Bambu handoff out of Orca`)
+- Latest commit: current HEAD after this handoff (`Prefer worker for desktop Orca opens`)
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=462 / style.css?v=369 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=463 / style.css?v=369 / demo-runtime.js?v=8
 
 Recent work:
+- Desktop Orca handoff now prefers the configured Windows worker before attempting a local Pi Orca launch. This fixes the blank-plate case where the Pi opened a local/remote Orca shell but did not pass the model into the user's real desktop Orca session. The modal toast now reports forwarded worker opens first. Static cache bumped to `app.js?v=463`; backend restart required.
+  - Verification: `python -m py_compile app/main.py`, `node --check app/static/app.js`, and `git diff --check` passed.
 - Bambu Studio handoff in the Slice Model modal is now manual-only while the Orca/background slicing path is parked. When `Open in slicer` is set to `Bambu Studio handoff`, Flightdeck no longer shows `Slice in Flightdeck` or Orca open actions; it offers the Bambu Studio Docker link when configured plus the source download/import handoff for desktop Bambu Studio. Static cache bumped to `app.js?v=462`; frontend refresh only.
   - Verification: `node --check app/static/app.js` and `git diff --check` passed.
 - Added Steve's live spool deduction idea. Flightdeck now deducts filament from the print-start spool snapshot at 10% progress checkpoints while a print is running, reserves the final 10% until the printer reports FINISHED, and uses the existing finish deduction as an idempotent top-up to 100% rather than a second full deduction. Bambu uses active AMS tray plus 3MF preview filament usage when available; Klipper/Moonraker uses the existing slicer metadata filament weight. Repeated polling and backend restarts do not double-deduct because `prints.spool_usage` is treated as the recorded target so far. Bambu preview metadata is now cleared at job boundaries to avoid carrying one job's filament weight into the next job. Backend restart required.

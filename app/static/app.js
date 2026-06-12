@@ -12339,7 +12339,7 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
       });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Unable to open Orca');
-      showToast('Opening in Orca', data.mode === 'desktop-orca' ? 'Sent to desktop OrcaSlicer' : data.forwarded ? 'Sent to Windows Orca worker' : (data.filename || 'Model handed to Orca'), 'success');
+      showToast('Opening in Orca', data.forwarded ? 'Sent to Windows Orca worker' : data.mode === 'desktop-orca' ? 'Sent to desktop OrcaSlicer' : (data.filename || 'Model handed to Orca'), 'success');
       if (browserUrl) window.open(browserUrl, '_blank', 'noreferrer');
     } catch (err) {
       showToast('Open Orca failed', err.message || '', 'error');
