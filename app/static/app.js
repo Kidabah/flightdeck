@@ -12258,6 +12258,7 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
         const effectiveOpenMode = selectedEffectiveOpenMode();
         const isBambuHandoff = effectiveOpenMode === 'bambu_studio';
         const showBackgroundSlice = canBackgroundSlice && !isBambuHandoff;
+        const headlessBlocked = selectedWorkflow === 'auto' && !showBackgroundSlice;
         const manualSlicerName = openMode === 'bambu_studio' ? 'Bambu Studio' : 'Orca';
         const sourceDownloadLabel = openMode === 'bambu_studio' ? 'Download for Bambu Studio' : 'Download model';
         const profileRows = [
@@ -12271,8 +12272,10 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
           ['Supports', sliceOptions.support],
           ['Brim', sliceOptions.brim],
         ].map(([label, value]) => `<div><span>${esc(label)}</span><strong>${esc(value || 'Profile default')}</strong></div>`).join('');
-        const handoffTitle = showBackgroundSlice ? 'Headless auto slice' : `Manual ${manualSlicerName} review`;
-        const handoffCopy = isBambuHandoff
+        const handoffTitle = showBackgroundSlice ? 'Headless auto slice' : headlessBlocked ? 'Headless auto slice blocked' : `Manual ${manualSlicerName} review`;
+        const handoffCopy = headlessBlocked
+          ? (data.message || 'Flightdeck cannot run this headless slice until the slicer API/worker path is healthy.')
+          : isBambuHandoff
           ? 'Open Bambu Studio or download the model for desktop Bambu Studio, then set painted/manual supports if needed and export the printer-ready job back to the Print Vault.'
           : backgroundSlicePaused
           ? `Open the model in ${manualSlicerName}, confirm printer/AMS/supports, then export the sliced job back to the Print Vault.`
@@ -12291,6 +12294,7 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
           <div class="filedesk-slice-profiles">${profileRows}${optionRows}</div>
           <div class="filedesk-slice-buttons">
             ${showBackgroundSlice ? `<button class="filedesk-slice-link filedesk-slice-run" type="button" data-run-slice="${esc(outputName)}" data-printer-id="${esc(data.target?.id || selectedPrinterId)}">Slice in Flightdeck</button>` : ''}
+            ${headlessBlocked ? `<button class="filedesk-slice-link filedesk-slice-run" type="button" disabled title="${esc(data.message || 'Slicer API/worker is not ready')}">Slice in Flightdeck blocked</button>` : ''}
             ${sourceUrl ? `<a class="filedesk-slice-link" href="${esc(sourceUrl)}" download>${esc(sourceDownloadLabel)}</a>` : ''}
             ${openRawButton}
             <button class="filedesk-slice-link" type="button" data-copy-slice-name="${esc(outputName)}">Copy output name</button>

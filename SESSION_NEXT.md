@@ -2,13 +2,15 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: current HEAD after this handoff (`Choose slicer workflow in slice modal`)
+- Latest commit: current HEAD after this handoff (`Show blocked headless slice state`)
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=465 / style.css?v=370 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=466 / style.css?v=370 / demo-runtime.js?v=8
 
 Recent work:
+- Headless auto slice now shows an explicit blocked state when the selected job cannot currently be sliced in Flightdeck. Live test on `Working to the Bone - Office Skeleton.stl` for H2D showed the slicer API sidecar on port 3003 was unreachable, so the modal now says `Headless auto slice blocked`, keeps a disabled `Slice in Flightdeck blocked` button with the reason, and still offers the manual download/open fallback. This fixes the confusing case where the user selected Headless auto slice but saw only manual Orca actions. Static cache bumped to `app.js?v=466`; frontend refresh only.
+  - Verification: `node --check app/static/app.js` passed. Direct probes showed Windows worker `/api/slicer/worker/status` is available but `http://100.112.171.88:3003/health` refuses connections.
 - Slice Model now starts with the actual workflow choice the user described: `Headless auto slice`, `Open in Desktop Orca`, `Open in Browser Orca`, or `Open in Bambu Studio`. Headless auto slice enables the support/brim controls and saves `slicer_use_api=true` before planning, so the generated output bakes in selected profiles/supports/brims/plate settings. Manual Orca/Bambu choices save `slicer_use_api=false`, dim the support/brim controls, and show handoff/download actions for painted supports, manual supports, orientation tweaks, or final slicer inspection. Static cache bumped to `app.js?v=465`; frontend refresh only.
   - Verification: `node --check app/static/app.js` and `git diff --check` passed. Browser click-through was skipped because the in-app browser control tool was not available in this resumed tool set.
 - Desktop Orca source-model handoff now opens files through the Windows file association first before falling back to launching the Orca executable directly. This should behave like double-clicking the STL/3MF and is intended to fix the blank Orca window where the desktop app opened but did not load the selected model. The Slice Model modal now disables/dims the support and brim controls when Flightdeck background slicing is not enabled or Bambu Studio handoff is selected, and it explicitly says manual Desktop Orca/Bambu handoff opens the raw model so supports/brim must be set in the slicer before exporting. Static cache bumped to `app.js?v=464` and `style.css?v=370`; backend restart required.
