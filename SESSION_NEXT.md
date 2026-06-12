@@ -2,13 +2,15 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: current HEAD after this handoff (`Fix slicer settings layout`)
+- Latest commit: current HEAD after this handoff (`Stop prepare from rewriting slicer mode`)
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=468 / style.css?v=371 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=469 / style.css?v=371 / demo-runtime.js?v=8
 
 Recent work:
+- Slice Model `Prepare slice` no longer silently rewrites the saved `slicer_open_mode` preference. The workflow dropdown remains the only place that persists the user's open-mode/API preference; Prepare now just plans the selected workflow for the current modal. This prevents Headless auto slice from resetting a saved Browser Orca/Bambu handoff preference back to Desktop Orca. Static cache bumped to `app.js?v=469`; frontend refresh only.
+  - Verification: `node --check app/static/app.js` and `git diff --check` passed.
 - Settings > Slicer OrcaSlicer Integration controls now use a dedicated responsive field grid instead of one long alternating label/input row. This fixes the collapsed tiny controls and sideways overflow seen on Windows for Open in Slicer, Use Slicer API, Browser Orca URL, Bambu Studio URL, browser credentials, Slicer API URL, and Worker URL. Static cache bumped to `app.js?v=468` and `style.css?v=371`; frontend refresh only.
   - Verification: `node --check app/static/app.js` and `git diff --check` passed.
 - Bambu Studio manual slice handoff now behaves like the selected workflow instead of only showing a download. When `Open in Bambu Studio` is selected and the Bambu Studio URL is configured, `Prepare slice` attempts to open Bambu Studio automatically, shows `Open Bambu Studio` as the first action, and keeps `Download model for import` as the fallback. If no Bambu Studio URL is configured, the panel shows a disabled `Open Bambu Studio unavailable` action with a tooltip. Static cache bumped to `app.js?v=467`; frontend refresh only. Current limitation: Flightdeck can open Bambu Studio, but does not yet have a reliable Bambu Studio import API/URI to place the model on the plate automatically.

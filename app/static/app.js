@@ -12235,11 +12235,6 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
       const wantsAutoSlice = selectedWorkflow === 'auto';
       useSlicerApi = wantsAutoSlice;
       _serverSettings.slicer_use_api = wantsAutoSlice ? 'true' : 'false';
-      _serverSettings.slicer_open_mode = selectedManualOpenMode();
-      await Promise.all([
-        _saveSetting('slicer_use_api', _serverSettings.slicer_use_api),
-        _saveSetting('slicer_open_mode', _serverSettings.slicer_open_mode),
-      ]);
       const r = await fetch('/api/slicer/plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
