@@ -4696,6 +4696,77 @@ function _printRowHtml(print, idx, dateStr) {
   </div>`;
 }
 
+async function _refreshPrintDetailFromServer(printerId, dateStr, printId, targetEl = null) {
+  const key = `${printerId}:${dateStr}`;
+  try {
+    const r = await fetch(`/api/printers/${printerId}/history/day/${dateStr}`);
+    if (!r.ok) throw new Error('history refresh failed');
+    const prints = await r.json();
+    _dayPrintsCache[key] = prints;
+    const next = prints.find(p => String(p.id) === String(printId));
+    if (next) _showPrintDetail(printerId, dateStr, next, targetEl);
+  } catch {
+    delete _dayPrintsCache[key];
+    await _loadDayDetail(printerId, dateStr);
+  }
+}
+
+function _printSpoolCorrectionLabel(spool) {
+  const printer = _latestPrinters.find(p => p.id === spool.location_printer_id);
+  const where = spool.location_printer_id
+    ? `${_printerNavLabel(printer || { id: spool.location_printer_id })}${spool.location_slot != null ? ` · ${printer ? _amsSlotLabel(printer, Number(spool.location_slot)) : `slot ${Number(spool.location_slot) + 1}`}` : ''}`
+    : (spool.storage_location_name || 'Shelf');
+  const name = [spool.color_name, spool.material, spool.subtype].filter(Boolean).join(' ') || 'Filament';
+  const brand = spool.brand ? ` · ${spool.brand}` : '';
+  return `#${spool.id} ${name}${brand} · ${Math.round(Number(spool.remaining_g || 0))}g · ${where}`;
+}
+
+async function _showSpoolUsageCorrectionModal({ print, usage, printerId }) {
+  await _commandEnsureSpools();
+  const fromId = String(usage.spool_id);
+  const sourceGrams = Number(usage.actual_grams ?? usage.grams ?? 0);
+  const candidates = (_allSpools || [])
+    .filter(s => !s.archived_at && String(s.id) !== fromId)
+    .sort((a, b) => {
+      const aLoaded = a.location_printer_id === printerId ? 0 : a.location_printer_id ? 1 : 2;
+      const bLoaded = b.location_printer_id === printerId ? 0 : b.location_printer_id ? 1 : 2;
+      return aLoaded - bLoaded || String(a.material || '').localeCompare(String(b.material || '')) || Number(a.id) - Number(b.id);
+    });
+  if (!candidates.length) {
+    showToast('No correction candidates', 'No active spools are available to assign this usage to.', 'error');
+    return null;
+  }
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal-box input-modal spool-correction-modal">
+        <div class="modal-message">Correct spool used</div>
+        <div class="modal-submessage">Move ${sourceGrams.toFixed(1)}g from spool #${esc(fromId)} to the spool that actually printed ${esc(print.subtask_name || print.filename || 'this job')}.</div>
+        <label class="modal-field-label" for="spool-correction-target">Correct spool</label>
+        <select id="spool-correction-target" class="modal-input">
+          ${candidates.map(s => `<option value="${s.id}">${esc(_printSpoolCorrectionLabel(s))}</option>`).join('')}
+        </select>
+        <label class="modal-field-label" for="spool-correction-note">Note</label>
+        <input id="spool-correction-note" class="modal-input" type="text" value="Corrected spool attribution" placeholder="Why this changed">
+        <div class="modal-actions">
+          <button class="modal-btn" data-correction-cancel>Cancel</button>
+          <button class="modal-btn modal-btn-danger" data-correction-ok>Correct</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const select = overlay.querySelector('#spool-correction-target');
+    const note = overlay.querySelector('#spool-correction-note');
+    const close = result => { overlay.remove(); resolve(result); };
+    overlay.addEventListener('click', e => { if (e.target === overlay) close(null); });
+    overlay.querySelector('[data-correction-cancel]').addEventListener('click', () => close(null));
+    overlay.querySelector('[data-correction-ok]').addEventListener('click', () => close({
+      to_spool_id: Number(select.value),
+      note: note.value || '',
+    }));
+  });
+}
+
 function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
   const el = targetEl || document.getElementById('history-day-detail');
   if (!el) return;
@@ -4784,7 +4855,11 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
             </span>
             ${u.actual_grams != null
               ? '<span class="print-spool-reconciled">Reconciled</span>'
-              : `<button class="print-spool-reconcile${u.reconcile_suggested ? ' suggested' : ''}" data-print-id="${print.id}" data-spool-id="${u.spool_id}">${u.reconcile_suggested ? 'Weigh' : 'Reconcile'}</button>`}
+              : ''}
+            <span class="print-spool-actions">
+              ${u.actual_grams == null ? `<button class="print-spool-reconcile${u.reconcile_suggested ? ' suggested' : ''}" data-print-id="${print.id}" data-spool-id="${u.spool_id}">${u.reconcile_suggested ? 'Weigh' : 'Reconcile'}</button>` : ''}
+              <button class="print-spool-correct" data-print-id="${print.id}" data-spool-id="${u.spool_id}">Correct</button>
+            </span>
           </div>`).join('')}
       </div>`
     : '';
@@ -4904,9 +4979,42 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
           print.spool_usage = print.spool_usage.filter(u => String(u.spool_id) === String(spoolId));
         }
         await _refreshSpoolsByPrinter();
-        _showPrintDetail(printerId, dateStr, print);
+        await _refreshPrintDetailFromServer(printerId, dateStr, printId, targetEl);
       } catch (err) {
         showToast('Reconcile failed', err.message || '', 'error');
+        btn.disabled = false;
+        btn.textContent = old;
+      }
+    });
+  });
+
+  el.querySelectorAll('.print-spool-correct').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      e.preventDefault();
+      const printId = btn.dataset.printId;
+      const spoolId = btn.dataset.spoolId;
+      const usage = print.spool_usage.find(u => String(u.spool_id) === String(spoolId));
+      if (!usage) return;
+      const correction = await _showSpoolUsageCorrectionModal({ print, usage, printerId });
+      if (!correction) return;
+      const ok = await _confirmModal(`Move ${Number(usage.actual_grams ?? usage.grams ?? 0).toFixed(1)}g from spool #${spoolId} to spool #${correction.to_spool_id}?`);
+      if (!ok) return;
+      const old = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = '...';
+      try {
+        const r = await fetch(`/api/prints/${printId}/spool_usage/${spoolId}/correct`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(correction),
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.detail || 'Correction failed');
+        showToast('Spool usage corrected', `Moved ${Number(data.grams || 0).toFixed(1)}g to spool #${data.to_spool_id}.`, 'success');
+        await _refreshSpoolsByPrinter();
+        await _refreshPrintDetailFromServer(printerId, dateStr, printId, targetEl);
+      } catch (err) {
+        showToast('Correction failed', err.message || '', 'error');
         btn.disabled = false;
         btn.textContent = old;
       }
@@ -13563,6 +13671,7 @@ async function _refreshSpoolsByPrinter() {
   try {
     const spools = await fetch('/api/spools').then(r => r.json()).catch(() => []);
     const summary = await fetch('/api/spools/summary').then(r => r.json()).catch(() => ({}));
+    _allSpools = spools;
     _latestLowStockPct = summary.low_stock_pct ?? 20;
     const byPrinter = {};
     for (const s of spools) {

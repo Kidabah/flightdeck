@@ -6347,6 +6347,11 @@ class SpoolUsageReconcile(BaseModel):
     reading_g: Optional[float] = None
     empty_spool_weight_g: Optional[float] = None
 
+class SpoolUsageCorrection(BaseModel):
+    to_spool_id: int
+    grams: Optional[float] = None
+    note: Optional[str] = None
+
 class IncomingStockLine(BaseModel):
     quantity: int = 1
     material: str
@@ -6697,6 +6702,23 @@ async def reconcile_print_spool_usage(print_id: int, spool_id: int, body: SpoolU
     )
     if not result:
         raise HTTPException(status_code=404, detail="Print usage not found")
+    return {"ok": True, **result}
+
+@app.post("/api/prints/{print_id}/spool_usage/{spool_id}/correct")
+async def correct_print_spool_usage(print_id: int, spool_id: int, body: SpoolUsageCorrection):
+    if not db.get_spool(spool_id):
+        raise HTTPException(status_code=404, detail="Original spool not found")
+    if not db.get_spool(body.to_spool_id):
+        raise HTTPException(status_code=404, detail="Correct spool not found")
+    result = db.correct_print_spool_attribution(
+        print_id,
+        spool_id,
+        body.to_spool_id,
+        grams=body.grams,
+        note=body.note,
+    )
+    if not result:
+        raise HTTPException(status_code=404, detail="Print usage correction not available")
     return {"ok": True, **result}
 
 @app.post("/api/spools/{spool_id}/move")

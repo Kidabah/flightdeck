@@ -3388,6 +3388,119 @@ def reconcile_spool_usage(
     }
 
 
+def correct_print_spool_attribution(
+    print_id: int,
+    from_spool_id: int,
+    to_spool_id: int,
+    *,
+    grams: Optional[float] = None,
+    note: Optional[str] = None,
+) -> Optional[dict]:
+    """Move recorded print usage from one spool to another.
+
+    This is for attribution mistakes where the print did consume the recorded
+    grams, but Flightdeck attached them to the wrong loaded spool. It restores
+    the old spool and deducts the same grams from the corrected spool.
+    """
+    import json
+    if int(from_spool_id) == int(to_spool_id):
+        return None
+    with _conn() as conn:
+        prow = conn.execute(
+            "SELECT id, printer_id, spool_usage FROM prints WHERE id = ?",
+            (print_id,),
+        ).fetchone()
+        if not prow:
+            return None
+        old_spool = conn.execute(
+            "SELECT id, remaining_g, location_slot FROM spools WHERE id = ?",
+            (from_spool_id,),
+        ).fetchone()
+        new_spool = conn.execute(
+            "SELECT id, remaining_g, location_slot FROM spools WHERE id = ?",
+            (to_spool_id,),
+        ).fetchone()
+        if not old_spool or not new_spool:
+            return None
+        try:
+            usage = json.loads(prow["spool_usage"] or "[]")
+        except Exception:
+            usage = []
+        if not isinstance(usage, list):
+            usage = []
+
+        source = None
+        for entry in usage:
+            if isinstance(entry, dict) and int(entry.get("spool_id") or 0) == int(from_spool_id):
+                source = entry
+                break
+        if source is None:
+            return None
+
+        source_original = dict(source)
+        recorded = _usage_grams(source)
+        try:
+            move_grams = float(grams) if grams is not None else recorded
+        except (TypeError, ValueError):
+            move_grams = recorded
+        move_grams = round(max(0.0, min(move_grams, recorded)), 2)
+        if move_grams <= 0:
+            return None
+
+        conn.execute(
+            "UPDATE spools SET remaining_g = remaining_g + ? WHERE id = ?",
+            (move_grams, from_spool_id),
+        )
+        new_remaining = max(0.0, float(new_spool["remaining_g"] or 0) - move_grams)
+        conn.execute(
+            "UPDATE spools SET remaining_g = ? WHERE id = ?",
+            (new_remaining, to_spool_id),
+        )
+
+        if move_grams >= recorded - 0.005:
+            usage = [entry for entry in usage if entry is not source]
+        else:
+            source["grams"] = round(recorded - move_grams, 2)
+            if source.get("actual_grams") is not None:
+                source["actual_grams"] = round(max(0.0, float(source.get("actual_grams") or 0) - move_grams), 2)
+            if source.get("remaining_after_g") is not None:
+                try:
+                    source["remaining_after_g"] = round(float(source["remaining_after_g"]) + move_grams, 2)
+                except (TypeError, ValueError):
+                    pass
+
+        replacement = dict(source_original)
+        replacement["spool_id"] = int(to_spool_id)
+        replacement["grams"] = move_grams
+        replacement["actual_grams"] = move_grams
+        replacement["slot"] = new_spool["location_slot"]
+        replacement["remaining_before_g"] = round(float(new_spool["remaining_g"] or 0), 2)
+        replacement["remaining_after_g"] = round(new_remaining, 2)
+        replacement["corrected_from_spool_id"] = int(from_spool_id)
+        replacement["corrected_at"] = datetime.utcnow().isoformat()
+        replacement["correction_note"] = (note or "").strip()[:200]
+        replacement.pop("cost", None)
+        replacement.pop("cost_per_gram", None)
+        replacement.pop("cost_source", None)
+        usage.append(replacement)
+
+        conn.execute(
+            "UPDATE prints SET spool_usage = ? WHERE id = ?",
+            (json.dumps(usage), print_id),
+        )
+
+    detail = f"Spool usage corrected from #{from_spool_id} to #{to_spool_id}: {move_grams:.1f}g"
+    if note:
+        detail += f" - {note.strip()[:120]}"
+    log_decision(prow["printer_id"], "spool_usage_corrected", detail, print_id=print_id)
+    return {
+        "from_spool_id": int(from_spool_id),
+        "to_spool_id": int(to_spool_id),
+        "grams": move_grams,
+        "to_remaining_g": round(new_remaining, 1),
+    }
+
+
 # ── print queue ───────────────────────────────────────────────────────────
 
 def queue_add(
