@@ -4725,6 +4725,12 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
     const mat = print.material ? ` · ${print.material}` : '';
     rows.push(`<div class="detail-row"><span class="detail-label">Filament</span><span class="detail-value">${print.filament_grams.toFixed(1)}g${mat}</span></div>`);
   }
+  if (print.total_cost != null || print.cost_pending) {
+    const costText = print.total_cost != null
+      ? `$${Number(print.total_cost).toFixed(2)}${print.cost_pending ? ' · partial' : ''}`
+      : 'Set filament costs';
+    rows.push(`<div class="detail-row"><span class="detail-label">Cost</span><span class="detail-value">${costText}</span></div>`);
+  }
 
   const errorHtml = print.error_message
     ? `<div class="print-detail-error">${print.error_message}</div>`
@@ -4772,6 +4778,7 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
             <a href="#/spool/${u.spool_id}">Spool #${u.spool_id}${u.slot != null ? ` · ${(_latestPrinters.find(x => x.id === printerId) ? _amsSlotLabel(_latestPrinters.find(x => x.id === printerId), u.slot) : `S${u.slot + 1}`)}` : ''}</a>
             <span class="print-spool-grams">
               <strong>${Number(u.actual_grams ?? u.grams ?? 0).toFixed(1)}g</strong>
+              ${u.cost != null ? `<em class="print-spool-cost">$${Number(u.cost).toFixed(2)} · ${esc(u.cost_source || 'costed')}</em>` : ''}
               ${u.waste_grams ? `<em>${Number(u.grams || 0).toFixed(1)}g model · ${Number(u.waste_grams || 0).toFixed(1)}g purge</em>` : ''}
               ${u.reconcile_suggested ? `<em class="weigh-suggested">Weigh-in suggested · ${(u.reconcile_reasons || []).join(', ')}</em>` : ''}
             </span>
@@ -5073,11 +5080,12 @@ function _memoryRow(item) {
     : '';
   const material = item.material || (item.spool_usage || [])[0]?.material || '';
   const spoolCount = (item.spool_usage || []).length;
+  const cost = item.total_cost != null ? ` · $${Number(item.total_cost).toFixed(2)}` : '';
   return `<button class="memory-row" type="button" data-print-id="${item.id}" data-printer-id="${esc(item.printer_id)}">
     <span class="memory-date"><strong>${esc(dateLabel)}</strong><em>${esc(timeLabel)}</em></span>
     <span class="memory-main">
       <strong title="${esc(item.filename || '')}">${esc(_memoryPrintName(item))}</strong>
-      <em>${esc(_memoryPrinterLabel(item.printer_id))}${material ? ` · ${esc(material)}` : ''}${spoolCount ? ` · ${spoolCount} spool${spoolCount !== 1 ? 's' : ''}` : ''}</em>
+      <em>${esc(_memoryPrinterLabel(item.printer_id))}${material ? ` · ${esc(material)}` : ''}${spoolCount ? ` · ${spoolCount} spool${spoolCount !== 1 ? 's' : ''}` : ''}${cost}</em>
     </span>
     <span class="memory-meta">${_memoryStateBadge(item.final_state)}<em>${esc(dur)}</em>${estimate}</span>
     <span class="memory-flags">${_memoryFlags(item)}</span>
@@ -5128,6 +5136,8 @@ function _memorySummary(items) {
   const cancelled = items.filter(i => i.final_state === 'CANCELLED').length;
   const excluded = items.filter(i => i.exclude_from_stats).length;
   const hours = items.reduce((sum, i) => sum + Number(i.duration_seconds || 0), 0) / 3600;
+  const cost = items.reduce((sum, i) => sum + Number(i.total_cost || 0), 0);
+  const costCount = items.filter(i => i.total_cost != null).length;
   return `<div class="memory-summary">
     <span><strong>${items.length}</strong> prints</span>
     <span><strong>${finished}</strong> finished</span>
@@ -5135,6 +5145,7 @@ function _memorySummary(items) {
     <span><strong>${failed}</strong> failed</span>
     ${excluded ? `<span><strong>${excluded}</strong> no stats</span>` : ''}
     <span><strong>${hours.toFixed(1)}</strong> h</span>
+    ${costCount ? `<span><strong>$${cost.toFixed(2)}</strong> costed</span>` : ''}
   </div>`;
 }
 

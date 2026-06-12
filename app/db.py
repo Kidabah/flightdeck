@@ -655,10 +655,14 @@ def get_prints_for_day(printer_id: str, date_str: str) -> list[dict]:
         ).fetchone()
         low_pct = float(threshold_row["value"]) if threshold_row else 20.0
         spool_rows = conn.execute(
-            """SELECT id, label_weight_g, remaining_g
+            """SELECT id, material, brand, label_weight_g, remaining_g
                FROM spools"""
         ).fetchall()
+        cost_rows = conn.execute(
+            "SELECT material, brand, cost_per_gram FROM material_costs"
+        ).fetchall()
     spools = {int(r["id"]): dict(r) for r in spool_rows}
+    cost_lookup = _print_cost_lookup(cost_rows)
     result = []
     import json
     for r in rows:
@@ -676,6 +680,7 @@ def get_prints_for_day(printer_id: str, date_str: str) -> list[dict]:
             item["tags"] = []
         item["exclude_from_stats"] = bool(item.get("exclude_from_stats"))
         _mark_reconcile_suggestions(item["spool_usage"], spools, low_pct)
+        _attach_print_cost(item, spools, cost_lookup)
         result.append(item)
     return result
 
@@ -688,10 +693,14 @@ def _hydrate_print_rows(rows) -> list[dict]:
         ).fetchone()
         low_pct = float(threshold_row["value"]) if threshold_row else 20.0
         spool_rows = conn.execute(
-            """SELECT id, label_weight_g, remaining_g
+            """SELECT id, material, brand, label_weight_g, remaining_g
                FROM spools"""
         ).fetchall()
+        cost_rows = conn.execute(
+            "SELECT material, brand, cost_per_gram FROM material_costs"
+        ).fetchall()
     spools = {int(r["id"]): dict(r) for r in spool_rows}
+    cost_lookup = _print_cost_lookup(cost_rows)
     result = []
     for r in rows:
         item = dict(r)
@@ -708,8 +717,82 @@ def _hydrate_print_rows(rows) -> list[dict]:
             item["tags"] = []
         item["exclude_from_stats"] = bool(item.get("exclude_from_stats"))
         _mark_reconcile_suggestions(item["spool_usage"], spools, low_pct)
+        _attach_print_cost(item, spools, cost_lookup)
         result.append(item)
     return result
+
+
+def _print_cost_lookup(cost_rows) -> dict:
+    lookup: dict = {"exact": {}, "material": {}}
+    by_material: dict[str, list[float]] = {}
+    for row in cost_rows:
+        material = str(row["material"] or "").strip().upper()
+        brand = str(row["brand"] or "").strip().upper()
+        try:
+            cpg = float(row["cost_per_gram"])
+        except (TypeError, ValueError):
+            continue
+        if not material or cpg <= 0:
+            continue
+        lookup["exact"][(material, brand)] = cpg
+        by_material.setdefault(material, []).append(cpg)
+    lookup["material"] = {
+        material: sum(values) / len(values)
+        for material, values in by_material.items()
+        if values
+    }
+    return lookup
+
+
+def _usage_grams(entry: dict) -> float:
+    try:
+        return max(0.0, float(entry.get("actual_grams") if entry.get("actual_grams") is not None else entry.get("grams") or 0))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _attach_print_cost(item: dict, spools: dict[int, dict], cost_lookup: dict) -> None:
+    usage = item.get("spool_usage") or []
+    if not isinstance(usage, list) or not usage:
+        item["total_cost"] = None
+        item["cost_pending"] = bool(item.get("filament_grams"))
+        return
+    total = 0.0
+    pending = False
+    for entry in usage:
+        if not isinstance(entry, dict):
+            continue
+        try:
+            spool_id = int(entry.get("spool_id") or 0)
+        except (TypeError, ValueError):
+            spool_id = 0
+        spool = spools.get(spool_id, {})
+        material = str(spool.get("material") or entry.get("material") or item.get("material") or "").strip().upper()
+        brand = str(spool.get("brand") or entry.get("brand") or "").strip().upper()
+        grams = _usage_grams(entry)
+        cpg = None
+        source = None
+        if material:
+            cpg = cost_lookup.get("exact", {}).get((material, brand))
+            if cpg is not None:
+                source = "spool brand"
+            else:
+                cpg = cost_lookup.get("material", {}).get(material)
+                if cpg is not None:
+                    source = "material average"
+        if cpg is None or grams <= 0:
+            entry.pop("cost", None)
+            entry.pop("cost_per_gram", None)
+            entry.pop("cost_source", None)
+            pending = True
+            continue
+        cost = round(grams * cpg, 2)
+        entry["cost"] = cost
+        entry["cost_per_gram"] = round(cpg, 4)
+        entry["cost_source"] = source
+        total += cost
+    item["total_cost"] = round(total, 2) if total > 0 else None
+    item["cost_pending"] = pending
 
 
 def get_print_memory(

@@ -8014,6 +8014,10 @@ button.live-route-node:hover {
   font-style: normal;
 }
 
+.print-spool-grams .print-spool-cost {
+  color: var(--success);
+}
+
 .print-spool-grams .weigh-suggested {
   color: var(--paused);
 }
