@@ -19,6 +19,14 @@ log = logging.getLogger(__name__)
 FINISHED_TTL = timedelta(minutes=30)
 _BAMBU_PREVIEW_FAILED = object()  # sentinel: FTP failed, don't retry until job changes
 _BAMBU_STALE_REPORT_SECONDS = 45
+
+
+def _preview_metadata(value: object):
+    if value is None or value is _BAMBU_PREVIEW_FAILED:
+        return None
+    return value if hasattr(value, "filament_weight_g") else None
+
+
 _BAMBU_CARE_LABELS = {
     "cr": "Clean carbon rods",
     "ls": "Lubricate lead screws",
@@ -376,8 +384,8 @@ class BambuPrinter:
             self._seen_finish_this_session = True
             if self._current_job_key:
                 filament_g = material = filament_usage = None
-                if self._preview_cache:
-                    _, pv = self._preview_cache
+                pv = _preview_metadata(self._preview_cache[1]) if self._preview_cache else None
+                if pv:
                     filament_g = pv.filament_weight_g
                     material = pv.filament_type
                     filament_usage = _preview_filament_requirements(pv.filament_colors, pv.filament_type)
@@ -886,7 +894,7 @@ class BambuPrinter:
         cache_key = f"{subtask}|plate:{plate_number or 1}"
         if self._preview_cache and self._preview_cache[0] == cache_key:
             val = self._preview_cache[1]
-            return None if val is _BAMBU_PREVIEW_FAILED else val
+            return _preview_metadata(val)
         try:
             from .bambu_ftp import fetch_bambu_preview
             preview = fetch_bambu_preview(self._ip, self._access_code, subtask, plate_number=plate_number)
