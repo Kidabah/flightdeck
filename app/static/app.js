@@ -11069,30 +11069,46 @@ function _slicerCategoryHtml(profileData = null, printers = []) {
           ? `<a class="slicer-launch-btn" data-slicer-launch="bambu_studio" href="${esc(bambuStudioLaunchUrl)}" target="_blank" rel="noreferrer">Open Bambu Studio</a>`
           : `<span class="slicer-launch-btn slicer-launch-disabled" data-slicer-launch="bambu_studio">Set URL first</span>`}
       </div>
-      <div class="settings-form-row">
-        <label class="settings-label">Open in Slicer</label>
-        <select class="settings-input slicer-mode-input" data-pref-key="slicer_open_mode">
-          <option value="same"${openMode === 'same' ? ' selected' : ''}>Desktop OrcaSlicer</option>
-          <option value="orca"${openMode === 'orca' ? ' selected' : ''}>Browser OrcaSlicer</option>
-          <option value="bambu_studio"${openMode === 'bambu_studio' ? ' selected' : ''}>Bambu Studio Docker</option>
-        </select>
-        <label class="settings-label">Use Slicer API</label>
-        <div class="setting-toggle-group slicer-api-toggle-group" data-slicer-api-toggle>
-          <button type="button" class="setting-toggle-btn${!useSlicerApi ? ' setting-toggle-active' : ''}" data-slicer-api-value="false">Off</button>
-          <button type="button" class="setting-toggle-btn${useSlicerApi ? ' setting-toggle-active' : ''}" data-slicer-api-value="true">On</button>
+      <div class="slicer-integration-grid">
+        <label class="slicer-integration-field">
+          <span>Open in Slicer</span>
+          <select class="settings-input slicer-mode-input" data-pref-key="slicer_open_mode">
+            <option value="same"${openMode === 'same' ? ' selected' : ''}>Desktop OrcaSlicer</option>
+            <option value="orca"${openMode === 'orca' ? ' selected' : ''}>Browser OrcaSlicer</option>
+            <option value="bambu_studio"${openMode === 'bambu_studio' ? ' selected' : ''}>Bambu Studio Docker</option>
+          </select>
+        </label>
+        <div class="slicer-integration-field">
+          <span>Use Slicer API</span>
+          <div class="setting-toggle-group slicer-api-toggle-group" data-slicer-api-toggle>
+            <button type="button" class="setting-toggle-btn${!useSlicerApi ? ' setting-toggle-active' : ''}" data-slicer-api-value="false">Off</button>
+            <button type="button" class="setting-toggle-btn${useSlicerApi ? ' setting-toggle-active' : ''}" data-slicer-api-value="true">On</button>
+          </div>
         </div>
-        <label class="settings-label">Browser Orca URL</label>
-        <input class="settings-input slicer-docker-input" data-pref-key="orcaslicer_docker_url" type="url" value="${esc(dockerUrl)}" placeholder="${esc(_slicerDockerDefaultUrl())}">
-        <label class="settings-label">Bambu Studio URL</label>
-        <input class="settings-input slicer-docker-input" data-pref-key="bambustudio_docker_url" type="url" value="${esc(bambuStudioUrl)}" placeholder="${esc(_bambuStudioDockerDefaultUrl())}">
-        <label class="settings-label">Browser Orca username</label>
-        <input class="settings-input slicer-browser-auth-input" data-pref-key="orcaslicer_browser_username" autocomplete="username" value="${esc(dockerUser)}" placeholder="flightdeck">
-        <label class="settings-label">Browser Orca password</label>
-        <input class="settings-input slicer-browser-auth-input" data-pref-key="orcaslicer_browser_password" type="password" autocomplete="current-password" value="${esc(dockerPassword)}" placeholder="flightdeck">
-        <label class="settings-label">Slicer API URL</label>
-        <input class="settings-input pref-input" data-pref-key="orcaslicer_api_url" type="url" value="${esc(apiUrl)}" placeholder="${esc(_slicerApiDefaultUrl())}">
-        <label class="settings-label">Worker URL</label>
-        <input class="settings-input pref-input" data-pref-key="orcaslicer_worker_url" type="url" value="${esc(workerUrl)}" placeholder="http://100.x.x.x:8000">
+        <label class="slicer-integration-field slicer-integration-field-wide">
+          <span>Browser Orca URL</span>
+          <input class="settings-input slicer-docker-input" data-pref-key="orcaslicer_docker_url" type="url" value="${esc(dockerUrl)}" placeholder="${esc(_slicerDockerDefaultUrl())}">
+        </label>
+        <label class="slicer-integration-field slicer-integration-field-wide">
+          <span>Bambu Studio URL</span>
+          <input class="settings-input slicer-docker-input" data-pref-key="bambustudio_docker_url" type="url" value="${esc(bambuStudioUrl)}" placeholder="${esc(_bambuStudioDockerDefaultUrl())}">
+        </label>
+        <label class="slicer-integration-field">
+          <span>Browser Orca username</span>
+          <input class="settings-input slicer-browser-auth-input" data-pref-key="orcaslicer_browser_username" autocomplete="username" value="${esc(dockerUser)}" placeholder="flightdeck">
+        </label>
+        <label class="slicer-integration-field">
+          <span>Browser Orca password</span>
+          <input class="settings-input slicer-browser-auth-input" data-pref-key="orcaslicer_browser_password" type="password" autocomplete="current-password" value="${esc(dockerPassword)}" placeholder="flightdeck">
+        </label>
+        <label class="slicer-integration-field slicer-integration-field-wide">
+          <span>Slicer API URL</span>
+          <input class="settings-input pref-input" data-pref-key="orcaslicer_api_url" type="url" value="${esc(apiUrl)}" placeholder="${esc(_slicerApiDefaultUrl())}">
+        </label>
+        <label class="slicer-integration-field slicer-integration-field-wide">
+          <span>Worker URL</span>
+          <input class="settings-input pref-input" data-pref-key="orcaslicer_worker_url" type="url" value="${esc(workerUrl)}" placeholder="http://100.x.x.x:8000">
+        </label>
       </div>
       <div class="settings-hint">Desktop OrcaSlicer opens the installed Windows slicer through the Flightdeck worker, keeping your real printers and AMS setup. Browser Orca and Bambu Studio URLs open Docker/web slicers. Slicer API URL points to the background /slice service, usually port 3003.</div>
       <div class="slicer-connection-actions">
