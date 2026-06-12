@@ -12098,6 +12098,7 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
           </select>
         </label>
       </div>
+      <div class="settings-hint filedesk-slice-option-note" id="slice-option-note"></div>
       <div class="filedesk-dialog-error" id="slice-plan-result" hidden></div>
       <div class="filedesk-slice-actions" id="slice-handoff-actions" hidden></div>
       <div class="settings-hint">Source models are portable. Flightdeck will create a printer-specific sliced job before queueing or sending it.</div>
@@ -12114,19 +12115,34 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
     filament_profile: overlay.querySelector('#slice-filament-profile')?.value.trim() || '',
   });
   const sliceOptionPayload = () => {
+    const selectedOpenMode = overlay.querySelector('#slice-open-mode')?.value || _serverSettings.slicer_open_mode || 'same';
+    const optionsApply = useSlicerApi && selectedOpenMode !== 'bambu_studio';
     const supportEnabled = !!overlay.querySelector('#slice-support-enabled')?.checked;
     const brimEnabled = !!overlay.querySelector('#slice-brim-enabled')?.checked;
     return {
       bed_type: overlay.querySelector('#slice-bed-type')?.value || 'Textured PEI Plate',
-      support_mode: supportEnabled ? (overlay.querySelector('#slice-support-mode')?.value || 'tree_auto') : 'off',
-      brim_mode: brimEnabled ? (overlay.querySelector('#slice-brim-mode')?.value || 'outer') : 'off',
+      support_mode: optionsApply && supportEnabled ? (overlay.querySelector('#slice-support-mode')?.value || 'tree_auto') : 'off',
+      brim_mode: optionsApply && brimEnabled ? (overlay.querySelector('#slice-brim-mode')?.value || 'outer') : 'off',
     };
   };
   const syncSliceOptionControls = () => {
+    const selectedOpenMode = overlay.querySelector('#slice-open-mode')?.value || _serverSettings.slicer_open_mode || 'same';
+    const optionsApply = useSlicerApi && selectedOpenMode !== 'bambu_studio';
+    const supportToggle = overlay.querySelector('#slice-support-enabled');
+    const brimToggle = overlay.querySelector('#slice-brim-enabled');
     const supportSelect = overlay.querySelector('#slice-support-mode');
     const brimSelect = overlay.querySelector('#slice-brim-mode');
-    if (supportSelect) supportSelect.disabled = !overlay.querySelector('#slice-support-enabled')?.checked;
-    if (brimSelect) brimSelect.disabled = !overlay.querySelector('#slice-brim-enabled')?.checked;
+    const note = overlay.querySelector('#slice-option-note');
+    if (supportToggle) supportToggle.disabled = !optionsApply;
+    if (brimToggle) brimToggle.disabled = !optionsApply;
+    if (supportSelect) supportSelect.disabled = !optionsApply || !supportToggle?.checked;
+    if (brimSelect) brimSelect.disabled = !optionsApply || !brimToggle?.checked;
+    overlay.querySelectorAll('.filedesk-slice-option-row').forEach(row => row.classList.toggle('is-muted', !optionsApply));
+    if (note) {
+      note.textContent = optionsApply
+        ? 'Support and brim choices apply to Flightdeck background slicing.'
+        : 'Desktop Orca/Bambu handoff opens the raw model. Set supports and brim inside the slicer before exporting the printer-ready job.';
+    }
   };
   const setProfilesForPrinter = printerId => {
     selectedPrinterId = printerId || selectedPrinterId;
@@ -12293,6 +12309,7 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
       actionsEl.innerHTML = '';
     }
     if (errEl) errEl.hidden = true;
+    syncSliceOptionControls();
     try {
       await _saveSetting('slicer_open_mode', value);
       showToast('Slicer handoff saved', value === 'bambu_studio' ? 'Bambu Studio handoff' : value === 'orca' ? 'Browser OrcaSlicer' : 'Desktop OrcaSlicer', 'success');
@@ -12339,7 +12356,7 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
       });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Unable to open Orca');
-      showToast('Opening in Orca', data.forwarded ? 'Sent to Windows Orca worker' : data.mode === 'desktop-orca' ? 'Sent to desktop OrcaSlicer' : (data.filename || 'Model handed to Orca'), 'success');
+      showToast('Opening in Orca', data.forwarded ? 'Sent to Windows Orca worker' : (data.mode === 'desktop-orca' || data.mode === 'desktop-file-association') ? 'Sent to desktop OrcaSlicer' : (data.filename || 'Model handed to Orca'), 'success');
       if (browserUrl) window.open(browserUrl, '_blank', 'noreferrer');
     } catch (err) {
       showToast('Open Orca failed', err.message || '', 'error');

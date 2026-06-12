@@ -2,13 +2,15 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: current HEAD after this handoff (`Prefer worker for desktop Orca opens`)
+- Latest commit: current HEAD after this handoff (`Load desktop Orca models via file association`)
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=463 / style.css?v=369 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=464 / style.css?v=370 / demo-runtime.js?v=8
 
 Recent work:
+- Desktop Orca source-model handoff now opens files through the Windows file association first before falling back to launching the Orca executable directly. This should behave like double-clicking the STL/3MF and is intended to fix the blank Orca window where the desktop app opened but did not load the selected model. The Slice Model modal now disables/dims the support and brim controls when Flightdeck background slicing is not enabled or Bambu Studio handoff is selected, and it explicitly says manual Desktop Orca/Bambu handoff opens the raw model so supports/brim must be set in the slicer before exporting. Static cache bumped to `app.js?v=464` and `style.css?v=370`; backend restart required.
+  - Verification: `python -m py_compile app/main.py`, `node --check app/static/app.js`, and `git diff --check` passed.
 - Desktop Orca handoff now prefers the configured Windows worker before attempting a local Pi Orca launch. This fixes the blank-plate case where the Pi opened a local/remote Orca shell but did not pass the model into the user's real desktop Orca session. The modal toast now reports forwarded worker opens first. Static cache bumped to `app.js?v=463`; backend restart required.
   - Verification: `python -m py_compile app/main.py`, `node --check app/static/app.js`, and `git diff --check` passed.
 - Bambu Studio handoff in the Slice Model modal is now manual-only while the Orca/background slicing path is parked. When `Open in slicer` is set to `Bambu Studio handoff`, Flightdeck no longer shows `Slice in Flightdeck` or Orca open actions; it offers the Bambu Studio Docker link when configured plus the source download/import handoff for desktop Bambu Studio. Static cache bumped to `app.js?v=462`; frontend refresh only.

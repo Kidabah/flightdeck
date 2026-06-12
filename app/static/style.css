@@ -15546,6 +15546,12 @@ select optgroup {
 .filedesk-slice-option-row .filedesk-slice-field {
   margin-bottom: 0;
 }
+.filedesk-slice-option-row.is-muted {
+  opacity: 0.55;
+}
+.filedesk-slice-option-note {
+  margin: -0.25rem 0 0.8rem;
+}
 @media (min-width: 640px) {
   .filedesk-slice-option-row {
     grid-template-columns: minmax(9rem, 0.7fr) minmax(0, 1fr);

@@ -1915,11 +1915,23 @@ def _open_orca_model_bytes(filename: str, data: bytes) -> dict:
 
 
 def _launch_desktop_orca(path: Path) -> dict:
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Model file was not found")
+    if os.name == "nt":
+        try:
+            os.startfile(str(path))  # type: ignore[attr-defined]
+            return {
+                "ok": True,
+                "filename": path.name,
+                "path": str(path),
+                "executable": "windows-file-association",
+                "mode": "desktop-file-association",
+            }
+        except OSError as exc:
+            log.warning("Windows file association open failed for %s: %s", path, exc)
     exe = _orca_executable()
     if not exe:
         raise HTTPException(status_code=404, detail="Desktop OrcaSlicer executable was not found on this machine")
-    if not path.exists():
-        raise HTTPException(status_code=404, detail="Model file was not found")
     args = [str(exe), str(path)]
     kwargs = {
         "stdout": subprocess.DEVNULL,
