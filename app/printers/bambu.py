@@ -1023,7 +1023,11 @@ class BambuPrinter:
             "ams_mapping": ams_mapping,
             "mapping_note": mapping_note,
         }))
-        self._printer.start_print(filename, 1, True, ams_mapping)
+        self.start_uploaded_3mf(filename, ams_mapping)
+
+    def start_uploaded_3mf(self, filename: str, ams_mapping: list[int]) -> bool:
+        """Start an uploaded 3MF using the H2D-safe AMS mapping payload."""
+        return self._printer.mqtt_client.start_print_3mf(filename, 1, True, ams_mapping)
 
 
 def _read_dual_nozzle_temps(mqtt_dump: dict, model_name: str) -> dict[str, "TempReading"]:
@@ -1278,6 +1282,7 @@ def _read_fan_speeds(mc) -> dict[str, float]:
 
 
 _BAMBU_ALARM_MESSAGES = {
+    "18008012": 'Failed to get AMS mapping table; please select "Resume" to retry.',
     "1E07008012": 'Failed to get AMS mapping table; please select "Resume" to retry.',
     "07008012": 'Failed to get AMS mapping table; please select "Resume" to retry.',
     "117473298": 'Failed to get AMS mapping table; please select "Resume" to retry.',

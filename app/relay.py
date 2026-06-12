@@ -191,10 +191,8 @@ async def bambu_print_start(
     ams_mapping, mapping_note = _bambu_ams_mapping(meta, printer)
     try:
         await asyncio.to_thread(
-            printer._printer.start_print,
+            printer.start_uploaded_3mf,
             filename,
-            1,      # plate_number — OrcaSlicer sends single-plate 3mf
-            True,   # use_ams
             ams_mapping,
         )
     except Exception as exc:
