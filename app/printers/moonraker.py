@@ -201,6 +201,18 @@ async def fetch(
                 log.debug("metadata fetch for duration failed %s: %s", id, exc)
         _estimated_stored.add(id)  # mark attempted regardless of success
 
+    if (state == "printing"
+            and new_print_id is not None
+            and _mmu_gate_snapshot_print_id.get(id) == new_print_id
+            and job and job.progress is not None
+            and id in _filament_grams):
+        db.deduct_spool_usage_progress(
+            id,
+            new_print_id,
+            _filament_grams[id],
+            job.progress,
+        )
+
     if state == "idle":
         job = None  # MQTT/Moonraker retains last-print data; don't surface it as active
 

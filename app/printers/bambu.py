@@ -342,6 +342,23 @@ class BambuPrinter:
                          self.id, self._current_print_id, list(raw_snap.keys()),
                          self._ams_active_slot_at_start)
 
+            if (state == "printing"
+                    and self._current_print_id is not None
+                    and self._ams_slot_snapshot_print_id == self._current_print_id
+                    and job and job.progress is not None):
+                pv = _preview_metadata(self._preview_cache[1]) if self._preview_cache else None
+                if pv is None and subtask and not self._preview_cache:
+                    pv = _preview_metadata(self.get_preview())
+                if pv and pv.filament_weight_g:
+                    db.deduct_spool_usage_progress(
+                        self.id,
+                        self._current_print_id,
+                        pv.filament_weight_g,
+                        job.progress,
+                        active_slot=self._ams_active_slot_at_start,
+                        filament_usage=_preview_filament_requirements(pv.filament_colors, pv.filament_type),
+                    )
+
             if state == "idle":
                 job = None  # MQTT retains last-print data; don't surface it as active
 
@@ -408,6 +425,7 @@ class BambuPrinter:
                 self._current_job_key = None
                 self._current_print_id = None
                 self._ams_active_slot_at_start = None
+                self._preview_cache = None
             else:
                 # Service restarted during the print; close any open row as FINISHED
                 # rather than leaving it orphaned for the stale-orphan sweep.
@@ -488,6 +506,7 @@ class BambuPrinter:
             self._current_job_key = None
             self._current_print_id = None
             self._ams_active_slot_at_start = None
+            self._preview_cache = None
             finished_at = db.get_finished_at(self.id)
             if finished_at is not None:
                 if (now - finished_at.replace(tzinfo=timezone.utc)) <= FINISHED_TTL:
@@ -503,6 +522,7 @@ class BambuPrinter:
             self._error_seen_at = 0.0
             if self._current_job_key is None:
                 self._current_job_key = self._make_job_key(subtask)
+                self._preview_cache = None
                 self._job_started_at = time.monotonic()
                 self._estimated_stored = False
                 print_id, is_reattach = db.on_print_started(

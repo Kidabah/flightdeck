@@ -2905,17 +2905,80 @@ def deduct_spool_usage(
     active_slot: Optional[int] = None,
     filament_usage: Optional[list[dict]] = None,
 ) -> None:
-    """Read stored slot snapshot, deduct grams from mapped spools, write spool_usage JSON."""
+    """Read stored slot snapshot, deduct remaining grams from mapped spools."""
+    _deduct_spool_usage_to_target(
+        printer_id,
+        print_id,
+        total_grams,
+        target_ratio=1.0,
+        active_slot=active_slot,
+        filament_usage=filament_usage,
+    )
+
+
+def deduct_spool_usage_progress(
+    printer_id: str,
+    print_id: int,
+    total_grams: float,
+    progress: float,
+    active_slot: Optional[int] = None,
+    filament_usage: Optional[list[dict]] = None,
+) -> bool:
+    """Deduct spool usage at 10% live-print checkpoints.
+
+    Returns True when a new checkpoint deducted filament. The final 10% is
+    reserved for deduct_spool_usage() once the printer reports FINISHED.
+    """
+    try:
+        pct = max(0.0, min(float(progress), 0.999))
+    except (TypeError, ValueError):
+        return False
+    checkpoint = int(pct * 10) * 10
+    if checkpoint < 10:
+        return False
+    checkpoint = min(checkpoint, 90)
+    return _deduct_spool_usage_to_target(
+        printer_id,
+        print_id,
+        total_grams,
+        target_ratio=checkpoint / 100.0,
+        active_slot=active_slot,
+        filament_usage=filament_usage,
+    )
+
+
+def _deduct_spool_usage_to_target(
+    printer_id: str,
+    print_id: int,
+    total_grams: float,
+    *,
+    target_ratio: float,
+    active_slot: Optional[int] = None,
+    filament_usage: Optional[list[dict]] = None,
+) -> bool:
+    """Deduct only the delta needed to bring spool_usage up to target_ratio."""
     import json
+    try:
+        total_grams = float(total_grams or 0)
+        target_ratio = max(0.0, min(float(target_ratio), 1.0))
+    except (TypeError, ValueError):
+        return False
+    if total_grams <= 0 or target_ratio <= 0:
+        return False
+
     with _conn() as conn:
         row = conn.execute(
-            "SELECT ams_slot_snapshot FROM prints WHERE id = ?", (print_id,)
+            "SELECT ams_slot_snapshot, spool_usage FROM prints WHERE id = ?", (print_id,)
         ).fetchone()
         if not row or not row["ams_slot_snapshot"]:
             log.info("No slot snapshot for print %d, skipping spool deduction", print_id)
-            return
+            return False
         snapshot = json.loads(row["ams_slot_snapshot"])
         meta = snapshot.pop("__meta__", {}) if isinstance(snapshot, dict) else {}
+        try:
+            existing_usage = json.loads(row["spool_usage"] or "[]")
+        except Exception:
+            existing_usage = []
 
     if active_slot is None:
         try:
@@ -2971,24 +3034,58 @@ def deduct_spool_usage(
 
     spool_usage = []
     spool_id_map = {s: sid for s, sid in slots_with}
+    existing_by_key: dict[tuple[int, int], dict] = {}
+    existing_rows = existing_usage if isinstance(existing_usage, list) else []
+    for entry in existing_rows:
+        if not isinstance(entry, dict):
+            continue
+        try:
+            key = (int(entry.get("slot")), int(entry.get("spool_id")))
+        except (TypeError, ValueError):
+            spool_usage.append(entry)
+            continue
+        existing_by_key[key] = entry
+        spool_usage.append(entry)
 
     with _conn() as conn:
         decision_logs = []
         for slot, grams in slot_grams.items():
             spool_id = spool_id_map[slot]
+            target_grams = round(float(grams) * target_ratio, 4)
+            key = (int(slot), int(spool_id))
+            existing = existing_by_key.get(key)
+            try:
+                already = float(existing.get("grams") or 0) if existing else 0.0
+            except (TypeError, ValueError):
+                already = 0.0
+            delta = target_grams - already
+            if delta <= 0.05:
+                if existing:
+                    existing["progress_pct"] = max(int(existing.get("progress_pct") or 0), int(target_ratio * 100))
+                continue
             cur = conn.execute("SELECT remaining_g FROM spools WHERE id = ?", (spool_id,)).fetchone()
             if not cur:
                 continue
             old_r = cur["remaining_g"]
-            new_r = max(0.0, old_r - grams)
+            new_r = max(0.0, old_r - delta)
             conn.execute("UPDATE spools SET remaining_g = ? WHERE id = ?", (new_r, spool_id))
-            usage = {
-                "spool_id": spool_id,
-                "grams": round(grams, 2),
-                "slot": slot,
-                "remaining_before_g": round(float(old_r), 2),
-                "remaining_after_g": round(float(new_r), 2),
-            }
+            if existing:
+                usage = existing
+                usage["grams"] = round(already + delta, 2)
+                usage["remaining_after_g"] = round(float(new_r), 2)
+            else:
+                usage = {
+                    "spool_id": spool_id,
+                    "grams": round(delta, 2),
+                    "slot": slot,
+                    "remaining_before_g": round(float(old_r), 2),
+                    "remaining_after_g": round(float(new_r), 2),
+                }
+                spool_usage.append(usage)
+                existing_by_key[key] = usage
+            usage["progress_pct"] = int(target_ratio * 100)
+            if target_ratio < 1.0:
+                usage["live_deduction"] = True
             if filament_usage:
                 usage["attribution"] = "filament_usage"
             start_g = slot_snapshot.get(slot, {}).get("remaining_g_at_start")
@@ -2997,20 +3094,22 @@ def deduct_spool_usage(
                     usage["remaining_start_g"] = round(float(start_g), 2)
                 except (TypeError, ValueError):
                     pass
-            spool_usage.append(usage)
-            if old_r - grams < 0:
+            if old_r - delta < 0:
                 decision_logs.append(("spool_overdrawn",
-                                      f"Spool #{spool_id} slot {slot}: tried to deduct {grams:.1f}g "
+                                      f"Spool #{spool_id} slot {slot}: tried to deduct {delta:.1f}g "
                                       f"but only {old_r:.1f}g remained; clamped to 0"))
             else:
-                decision_logs.append(("spool_deducted",
-                                      f"Spool #{spool_id} slot {slot}: {grams:.1f}g deducted "
+                event = "spool_deducted_live" if target_ratio < 1.0 else "spool_deducted"
+                progress_note = f" at {int(target_ratio * 100)}%" if target_ratio < 1.0 else ""
+                decision_logs.append((event,
+                                      f"Spool #{spool_id} slot {slot}: {delta:.1f}g deducted{progress_note} "
                                       f"({old_r:.1f}g -> {new_r:.1f}g)"))
 
-        for slot in slots_without:
-            unattr = slot_grams.get(slot, 0.0) if not slots_with else 0.0
-            decision_logs.append(("spool_missing",
-                                  f"Slot {slot}: no spool assigned; {unattr:.1f}g unattributed"))
+        if target_ratio >= 1.0:
+            for slot in slots_without:
+                unattr = slot_grams.get(slot, 0.0) if not slots_with else 0.0
+                decision_logs.append(("spool_missing",
+                                      f"Slot {slot}: no spool assigned; {unattr:.1f}g unattributed"))
 
         if spool_usage:
             conn.execute(
@@ -3020,6 +3119,7 @@ def deduct_spool_usage(
 
     for event, detail in decision_logs:
         log_decision(printer_id, event, detail, print_id=print_id)
+    return bool(decision_logs)
 
 
 def _normalise_filament_usage(rows: list[dict]) -> list[dict]:

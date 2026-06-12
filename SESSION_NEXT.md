@@ -2,13 +2,15 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: current HEAD after this handoff (`Guard failed Bambu preview metadata`)
+- Latest commit: current HEAD after this handoff (`Deduct spool usage during prints`)
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=461 / style.css?v=369 / demo-runtime.js?v=8
 
 Recent work:
+- Added Steve's live spool deduction idea. Flightdeck now deducts filament from the print-start spool snapshot at 10% progress checkpoints while a print is running, reserves the final 10% until the printer reports FINISHED, and uses the existing finish deduction as an idempotent top-up to 100% rather than a second full deduction. Bambu uses active AMS tray plus 3MF preview filament usage when available; Klipper/Moonraker uses the existing slicer metadata filament weight. Repeated polling and backend restarts do not double-deduct because `prints.spool_usage` is treated as the recorded target so far. Bambu preview metadata is now cleared at job boundaries to avoid carrying one job's filament weight into the next job. Backend restart required.
+  - Verification: `python -m py_compile app/db.py app/printers/bambu.py app/printers/moonraker.py`, temp-database smoke test for 10%/repeat/20%/90%/finish idempotent deduction, and `git diff --check` passed.
 - Guarded the Bambu preview metadata cache after Steve hit `'object' object has no attribute 'filament_weight_g'` on an H2D printer card. If Bambu FTP preview/3MF metadata fetch fails, Flightdeck stores a retry sentinel; the print-finish path now treats that sentinel as metadata unavailable instead of trying to read filament weight from it. This prevents the printer card from surfacing a backend exception and allows the job state to continue resolving without preview-derived spool deduction data. Backend restart required.
   - Verification: `python -m py_compile app/printers/bambu.py` and `git diff --check` passed.
 - Split the Slice Model handoff targets so `Open in Orca` no longer silently means the managed Docker/browser Orca. `Desktop OrcaSlicer` is now the default/manual open mode and `/api/slicer/open` launches the installed OrcaSlicer executable on the current host or forwards the model bytes to the configured Windows worker, preserving the user's real desktop printer/AMS setup. Browser Orca remains available only when explicitly selected. Added a first-pass `bambustudio_docker_url` setting and Settings > Slicer panel for browser-based Bambu Studio, plus `Bambu Studio Docker` as a modal handoff target that opens Bambu Studio and keeps the model download/import flow visible for Bambu-first review. Static cache bumped to `app.js?v=461`; backend restart required.
