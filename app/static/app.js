@@ -12260,7 +12260,7 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
         const showBackgroundSlice = canBackgroundSlice && !isBambuHandoff;
         const headlessBlocked = selectedWorkflow === 'auto' && !showBackgroundSlice;
         const manualSlicerName = openMode === 'bambu_studio' ? 'Bambu Studio' : 'Orca';
-        const sourceDownloadLabel = openMode === 'bambu_studio' ? 'Download for Bambu Studio' : 'Download model';
+        const sourceDownloadLabel = openMode === 'bambu_studio' ? 'Download model for import' : 'Download model';
         const profileRows = [
           ['Printer', profiles.printer],
           ['Process', profiles.process],
@@ -12276,13 +12276,19 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
         const handoffCopy = headlessBlocked
           ? (data.message || 'Flightdeck cannot run this headless slice until the slicer API/worker path is healthy.')
           : isBambuHandoff
-          ? 'Open Bambu Studio or download the model for desktop Bambu Studio, then set painted/manual supports if needed and export the printer-ready job back to the Print Vault.'
+          ? 'Flightdeck can open Bambu Studio for review. Download/import the model if it is not already on the plate, then set painted/manual supports if needed and export the printer-ready job back to the Print Vault.'
           : backgroundSlicePaused
           ? `Open the model in ${manualSlicerName}, confirm printer/AMS/supports, then export the sliced job back to the Print Vault.`
           : 'Flightdeck will run the slicer headlessly and bake the selected supports/brim/profile settings into the generated output.';
         const openRawButton = effectiveOpenMode === 'bambu_studio'
-          ? (bambuStudioUrl ? `<a class="filedesk-slice-link" href="${esc(bambuStudioUrl)}" target="_blank" rel="noreferrer">Open Bambu Studio</a>` : '')
+          ? (bambuStudioUrl
+            ? `<a class="filedesk-slice-link" href="${esc(bambuStudioUrl)}" target="_blank" rel="noreferrer">Open Bambu Studio</a>`
+            : `<button class="filedesk-slice-link" type="button" disabled title="Set the Bambu Studio URL in Settings > Slicer first">Open Bambu Studio unavailable</button>`)
           : `<button class="filedesk-slice-link" type="button" data-open-orca data-open-orca-target="${esc(effectiveOpenMode)}" data-open-orca-source-id="${esc(sourceId)}" data-open-orca-path="${esc(path)}" data-open-orca-url="${esc(effectiveOpenMode === 'browser_orca' ? browserUrl : '')}">${effectiveOpenMode === 'browser_orca' ? 'Open in Browser Orca' : 'Open in Desktop Orca'}</button>`;
+        if (isBambuHandoff && bambuStudioUrl) {
+          window.open(bambuStudioUrl, '_blank', 'noreferrer');
+          showToast('Opening Bambu Studio', 'Import the downloaded model if it is not already on the plate.', 'success');
+        }
         actionsEl.hidden = false;
         actionsEl.dataset.browserUrl = browserUrl || '';
         actionsEl.dataset.bambuStudioUrl = bambuStudioUrl || '';
@@ -12295,8 +12301,8 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
           <div class="filedesk-slice-buttons">
             ${showBackgroundSlice ? `<button class="filedesk-slice-link filedesk-slice-run" type="button" data-run-slice="${esc(outputName)}" data-printer-id="${esc(data.target?.id || selectedPrinterId)}">Slice in Flightdeck</button>` : ''}
             ${headlessBlocked ? `<button class="filedesk-slice-link filedesk-slice-run" type="button" disabled title="${esc(data.message || 'Slicer API/worker is not ready')}">Slice in Flightdeck blocked</button>` : ''}
-            ${sourceUrl ? `<a class="filedesk-slice-link" href="${esc(sourceUrl)}" download>${esc(sourceDownloadLabel)}</a>` : ''}
             ${openRawButton}
+            ${sourceUrl ? `<a class="filedesk-slice-link" href="${esc(sourceUrl)}" download>${esc(sourceDownloadLabel)}</a>` : ''}
             <button class="filedesk-slice-link" type="button" data-copy-slice-name="${esc(outputName)}">Copy output name</button>
             <button class="filedesk-slice-link" type="button" data-check-slice-output="${esc(outputName)}">Check vault</button>
           </div>`;

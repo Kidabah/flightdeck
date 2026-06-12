@@ -2,13 +2,15 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: current HEAD after this handoff (`Show blocked headless slice state`)
+- Latest commit: current HEAD after this handoff (`Clarify Bambu Studio slice handoff`)
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=466 / style.css?v=370 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=467 / style.css?v=370 / demo-runtime.js?v=8
 
 Recent work:
+- Bambu Studio manual slice handoff now behaves like the selected workflow instead of only showing a download. When `Open in Bambu Studio` is selected and the Bambu Studio URL is configured, `Prepare slice` attempts to open Bambu Studio automatically, shows `Open Bambu Studio` as the first action, and keeps `Download model for import` as the fallback. If no Bambu Studio URL is configured, the panel shows a disabled `Open Bambu Studio unavailable` action with a tooltip. Static cache bumped to `app.js?v=467`; frontend refresh only. Current limitation: Flightdeck can open Bambu Studio, but does not yet have a reliable Bambu Studio import API/URI to place the model on the plate automatically.
+  - Verification: `node --check app/static/app.js` passed.
 - Headless auto slice now shows an explicit blocked state when the selected job cannot currently be sliced in Flightdeck. Live test on `Working to the Bone - Office Skeleton.stl` for H2D showed the slicer API sidecar on port 3003 was unreachable, so the modal now says `Headless auto slice blocked`, keeps a disabled `Slice in Flightdeck blocked` button with the reason, and still offers the manual download/open fallback. This fixes the confusing case where the user selected Headless auto slice but saw only manual Orca actions. Static cache bumped to `app.js?v=466`; frontend refresh only.
   - Verification: `node --check app/static/app.js` passed. Direct probes showed Windows worker `/api/slicer/worker/status` is available but `http://100.112.171.88:3003/health` refuses connections.
 - Slice Model now starts with the actual workflow choice the user described: `Headless auto slice`, `Open in Desktop Orca`, `Open in Browser Orca`, or `Open in Bambu Studio`. Headless auto slice enables the support/brim controls and saves `slicer_use_api=true` before planning, so the generated output bakes in selected profiles/supports/brims/plate settings. Manual Orca/Bambu choices save `slicer_use_api=false`, dim the support/brim controls, and show handoff/download actions for painted supports, manual supports, orientation tweaks, or final slicer inspection. Static cache bumped to `app.js?v=465`; frontend refresh only.
