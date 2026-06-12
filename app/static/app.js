@@ -12813,7 +12813,7 @@ function _setupVersionHtml(version) {
   const current = [version?.version ? `v${version.version}` : 'version unknown', version?.commit || ''].filter(Boolean).join(' · ');
   const updateHint = version?.dirty
     ? esc(_setupUpdateDirtyMessage(version))
-    : 'Updates use <code>git pull --ff-only</code>. Restart Flightdeck after a successful update. Download logs creates a redacted diagnostic zip for support.';
+    : 'Updates pull Flightdeck app code from GitHub only. Live printers, spools, history, and settings stay in this host data directory and do not sync from the Pi or GitHub. Restart Flightdeck after a successful update.';
   let updateText = 'Check GitHub';
   let updateClass = 'info';
   if (version?.behind) {
@@ -13078,7 +13078,7 @@ function _attachSetupEvents(el) {
       else setUpdateButton('done', 'Current');
       setMessage(data.dirty
         ? _setupUpdateDirtyMessage(data)
-        : data.behind ? 'A newer GitHub build is available.' : (data.fetch_detail || 'Flightdeck is up to date.'),
+        : data.behind ? 'A newer GitHub build is available. This updates app code only; inventory and printer data stay local to this host.' : (data.fetch_detail || 'Flightdeck app code is up to date. Live data is stored separately on this host.'),
         (data.dirty || data.behind) ? 'warn' : 'ok');
     } catch (err) {
       setUpdateButton('blocked', 'Check failed');
@@ -13096,7 +13096,7 @@ function _attachSetupEvents(el) {
       if (!r.ok) throw new Error(data.detail || 'Update failed');
       if (state) state.textContent = 'Updated';
       setUpdateButton('done', 'Updated');
-      setMessage(`${data.message || 'Update complete.'} Restart Flightdeck to load the new code.`, 'ok');
+      setMessage(`${data.message || 'Update complete.'} Restart Flightdeck to load the new code. Live data was not changed.`, 'ok');
       showToast('Flightdeck updated', 'Restart Flightdeck to load the new build.', 'success');
     } catch (err) {
       btn.disabled = false;

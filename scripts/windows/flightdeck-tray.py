@@ -81,10 +81,19 @@ class FlightdeckTray:
         self.icon: pystray.Icon | None = None
         self.status = "Starting"
         self.sidecar_status = "Off" if not SIDECAR_CMD else "Starting"
+        self.external_server = False
         self._sidecar_manual_stop = False
         self._monitor_stop = threading.Event()
 
     def start_server(self) -> None:
+        if self.process is None and self._is_http_ready():
+            self.external_server = True
+            self.status = "Running"
+            self._refresh_icon()
+            self.start_sidecar()
+            return
+
+        self.external_server = False
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         (DATA_DIR / "uploads").mkdir(exist_ok=True)
         (DATA_DIR / "print_library").mkdir(exist_ok=True)
@@ -125,6 +134,7 @@ class FlightdeckTray:
         proc = self.process
         if not proc or proc.poll() is not None:
             self.process = None
+            self.external_server = False
             self.status = "Stopped"
             self._refresh_icon()
             return
@@ -134,6 +144,7 @@ class FlightdeckTray:
         except Exception:
             proc.kill()
         self.process = None
+        self.external_server = False
         self.status = "Stopped"
         self._refresh_icon()
 
@@ -241,8 +252,11 @@ class FlightdeckTray:
 
             with log_path.open("a", encoding="utf-8") as log:
                 log.write(f"\n[{datetime.now().isoformat(timespec='seconds')}] Update OK\n{output}\n")
-            self.restart_server()
-            self.status = "Updated"
+            if self.external_server and not self.process:
+                self.status = "Updated - restart needed"
+            else:
+                self.restart_server()
+                self.status = "Updated"
             self._refresh_icon()
             webbrowser.open(URL)
         except Exception as exc:
@@ -284,7 +298,11 @@ class FlightdeckTray:
         while not self._monitor_stop.is_set():
             proc = self.process
             if proc is None:
-                self.status = "Stopped"
+                if self.external_server and self._is_http_ready():
+                    self.status = "Running"
+                else:
+                    self.external_server = False
+                    self.status = "Stopped"
             elif proc.poll() is not None:
                 self.status = "Stopped"
                 self.process = None
