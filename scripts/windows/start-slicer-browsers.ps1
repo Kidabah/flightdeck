@@ -7,6 +7,8 @@ param(
     [switch]$OrcaOnly,
     [switch]$BambuOnly,
     [switch]$Force,
+    [switch]$InstallDockerDesktop,
+    [switch]$SkipFlightdeckSettings,
     [switch]$CheckOnly
 )
 
@@ -25,8 +27,21 @@ function Write-Step {
 
 function Get-DockerPath {
     $Docker = Get-Command docker.exe -ErrorAction SilentlyContinue
+    if (-not $Docker -and $InstallDockerDesktop) {
+        $Winget = Get-Command winget.exe -ErrorAction SilentlyContinue
+        if (-not $Winget) {
+            throw "Docker Desktop is required, but winget is not available. Install Docker Desktop manually, then run this again."
+        }
+        Write-Host "Docker was not found. Installing Docker Desktop with winget..."
+        & $Winget.Source install --id Docker.DockerDesktop --exact --source winget --accept-package-agreements --accept-source-agreements
+        if ($LASTEXITCODE -ne 0) {
+            throw "Docker Desktop install failed. Install it manually, then run this again."
+        }
+        $env:PATH = [Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" + [Environment]::GetEnvironmentVariable("PATH", "User")
+        $Docker = Get-Command docker.exe -ErrorAction SilentlyContinue
+    }
     if (-not $Docker) {
-        throw "Docker was not found. Install Docker Desktop, then run this again."
+        throw "Docker was not found. Install Docker Desktop, or run this helper with -InstallDockerDesktop."
     }
     return $Docker.Source
 }
@@ -159,6 +174,41 @@ function Test-SlicerUrl {
     & $Curl.Source -k -sS -u "$Username`:$Password" -m 10 -D - $Url -o NUL | Select-String -Pattern "^HTTP/" | Select-Object -First 1
 }
 
+function Save-FlightdeckSlicerSettings {
+    $ScriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $PSCommandPath }
+    $AppDir = (Resolve-Path (Join-Path $ScriptDir "..\..")).Path
+    $Python = Join-Path $AppDir ".venv\Scripts\python.exe"
+    if (-not (Test-Path $Python)) {
+        Write-Host "Flightdeck venv was not found; skipping slicer URL settings."
+        return
+    }
+    $PrintDir = Join-Path $DataDir "print_library"
+    $env:FLIGHTDECK_DATA_DIR = $DataDir
+    $env:FLIGHTDECK_PRINT_LIBRARY = $PrintDir
+    $env:FLIGHTDECK_ORCA_BROWSER_URL = "https://127.0.0.1:$OrcaPort"
+    $env:FLIGHTDECK_BAMBU_BROWSER_URL = "https://127.0.0.1:$BambuPort"
+    $env:FLIGHTDECK_BROWSER_SLICER_USER = $Username
+    $env:FLIGHTDECK_BROWSER_SLICER_PASSWORD = $Password
+    $Code = @"
+import os
+from app import db
+db.init()
+settings = db.get_all_settings()
+db.set_setting('orcaslicer_docker_url', os.environ['FLIGHTDECK_ORCA_BROWSER_URL'])
+db.set_setting('bambustudio_docker_url', os.environ['FLIGHTDECK_BAMBU_BROWSER_URL'])
+db.set_setting('orcaslicer_browser_username', os.environ['FLIGHTDECK_BROWSER_SLICER_USER'])
+db.set_setting('orcaslicer_browser_password', os.environ['FLIGHTDECK_BROWSER_SLICER_PASSWORD'])
+db.set_setting('slicer_open_mode', settings.get('slicer_open_mode') or 'desktop_orca')
+db.set_setting('slicer_use_api', settings.get('slicer_use_api') or 'false')
+"@
+    & $Python -c $Code
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "Flightdeck slicer URLs saved."
+    } else {
+        Write-Host "Could not save Flightdeck slicer URL settings." -ForegroundColor Yellow
+    }
+}
+
 $DockerPath = Wait-DockerReady
 $PrintDir = Join-Path $DataDir "print_library"
 $RunOrca = -not $BambuOnly
@@ -210,4 +260,7 @@ if (-not $CheckOnly) {
     Write-Host ""
     Write-Host "Login: $Username / $Password"
     Write-Host "Use the same host with your Tailscale IP if you access it from another device."
+    if (-not $SkipFlightdeckSettings) {
+        Save-FlightdeckSlicerSettings
+    }
 }

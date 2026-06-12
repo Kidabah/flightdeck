@@ -367,7 +367,9 @@ On Windows, use the bundled helper instead of the NAS compose file because the N
 .\Start-Flightdeck-Slicers-Windows.cmd
 ```
 
-It starts/repairs `flightdeck-orcaslicer` on `https://127.0.0.1:3011` and `flightdeck-bambustudio` on `https://127.0.0.1:3012`, both using `%LOCALAPPDATA%\Flightdeck\print_library` as `/prints`. The default browser login is `flightdeck` / `flightdeck`.
+It starts/repairs `flightdeck-orcaslicer` on `https://127.0.0.1:3011` and `flightdeck-bambustudio` on `https://127.0.0.1:3012`, saves those URLs into Flightdeck settings when the local `.venv` exists, and uses `%LOCALAPPDATA%\Flightdeck\print_library` as `/prints`. The default browser login is `flightdeck` / `flightdeck`.
+
+The Windows installer pre-fills these browser slicer URLs and starts the containers automatically when Docker Desktop is already installed. For a fuller setup, run `.\scripts\windows\bootstrap-install.ps1 -BrowserSlicers yes`; if Docker Desktop is missing and `winget` is available, Flightdeck will install Docker Desktop first. If Docker is added later, run the helper above.
 
 ---
 

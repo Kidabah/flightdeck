@@ -66,12 +66,30 @@ Easy install:
 2. Open the Flightdeck folder.
 3. Double-click `Install-Flightdeck-Windows.cmd`.
 
-The bootstrap checks for Python, Git, and ffmpeg. If any are missing and `winget` is available, it asks Windows to install them. ffmpeg is required for Bambu live camera streams. Flightdeck treats Raspberry Pi OS/Debian apt FFmpeg 5.x and Gyan Windows FFmpeg 8.x as the tested camera-driver family; newer or custom FFmpeg major versions are allowed but will show as untested in Setup Health and diagnostics. If Windows SmartScreen warns because the installer is not digitally signed yet, choose **More info -> Run anyway**.
+The bootstrap checks for Python, Git, and ffmpeg. If any are missing and `winget` is available, it asks Windows to install them. ffmpeg is required for Bambu live camera streams. If Docker Desktop is already installed, the Windows installer also starts/repairs the browser OrcaSlicer and Bambu Studio sidecars, then pre-fills Flightdeck's slicer URLs. If Docker Desktop is not installed, Flightdeck still installs normally and tells the user how to add browser slicers later. Flightdeck treats Raspberry Pi OS/Debian apt FFmpeg 5.x and Gyan Windows FFmpeg 8.x as the tested camera-driver family; newer or custom FFmpeg major versions are allowed but will show as untested in Setup Health and diagnostics. If Windows SmartScreen warns because the installer is not digitally signed yet, choose **More info -> Run anyway**.
 
 PowerShell install, if you prefer running it manually:
 
 ```powershell
 .\scripts\windows\bootstrap-install.ps1
+```
+
+Force browser slicer setup during install. If Docker Desktop is missing and `winget` is available, this also installs Docker Desktop:
+
+```powershell
+.\scripts\windows\bootstrap-install.ps1 -BrowserSlicers yes
+```
+
+Skip browser slicers during install:
+
+```powershell
+.\scripts\windows\bootstrap-install.ps1 -BrowserSlicers no
+```
+
+Install Docker Desktop through `winget` during the normal auto path, then start the browser slicers:
+
+```powershell
+.\scripts\windows\bootstrap-install.ps1 -BrowserSlicers yes -InstallDockerDesktop
 ```
 
 Install with an existing Flightdeck data backup:
@@ -162,7 +180,7 @@ For manual review in a browser, Flightdeck can run Docker desktop versions of Or
 %LOCALAPPDATA%\Flightdeck\bambustudio   -> /config
 ```
 
-Start or repair both browser slicers:
+Start or repair both browser slicers and save the matching Flightdeck slicer URLs:
 
 ```powershell
 .\Start-Flightdeck-Slicers-Windows.cmd
@@ -194,6 +212,8 @@ Useful repair options:
 .\scripts\windows\start-slicer-browsers.ps1 -OrcaOnly
 .\scripts\windows\start-slicer-browsers.ps1 -BambuOnly
 .\scripts\windows\start-slicer-browsers.ps1 -Force
+.\scripts\windows\start-slicer-browsers.ps1 -InstallDockerDesktop
+.\scripts\windows\start-slicer-browsers.ps1 -SkipFlightdeckSettings
 ```
 
 `-Force` recreates the containers but keeps the persistent `/config` and `/prints` folders.
