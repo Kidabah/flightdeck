@@ -2,13 +2,15 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: current HEAD after this handoff (`Stop prepare from rewriting slicer mode`)
+- Latest commit: current HEAD after this handoff (`Add Bambu Studio sidecar URL support`)
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=469 / style.css?v=371 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=470 / style.css?v=371 / demo-runtime.js?v=8
 
 Recent work:
+- Bambu Studio browser handoff now has the missing Docker sidecar wiring. `docker-compose.nas.yml` adds `flightdeck-bambustudio` using `lscr.io/linuxserver/bambustudio:latest`, publishes HTTPS port `3012`, sets `shm_size: "1gb"`, persists config at `/volume2/flightdeck-bambustudio`, and mounts the Print Vault at `/prints`. `.env.nas.example` adds Bambu Studio credentials. Settings > Slicer now derives a Bambu Studio URL from the Browser Orca host on port `3012` when the Bambu Studio URL field is blank, so an Orca host like `https://100.112.171.88:3011` becomes `https://100.112.171.88:3012` for Bambu Studio. README documents the paired Orca/Bambu URLs and x86-64 Docker-host caveat. Static cache bumped to `app.js?v=470`; frontend refresh plus Docker compose update required.
+  - Verification: `node --check app/static/app.js`, structural grep for the `bambustudio` compose service/port, and `git diff --check` passed. PyYAML was unavailable in this Windows Python, so a full YAML parse was not run. Live curl probes before starting the new service showed nothing listening on `127.0.0.1:3012` or `100.112.171.88:3012`, as expected.
 - Slice Model `Prepare slice` no longer silently rewrites the saved `slicer_open_mode` preference. The workflow dropdown remains the only place that persists the user's open-mode/API preference; Prepare now just plans the selected workflow for the current modal. This prevents Headless auto slice from resetting a saved Browser Orca/Bambu handoff preference back to Desktop Orca. Static cache bumped to `app.js?v=469`; frontend refresh only.
   - Verification: `node --check app/static/app.js` and `git diff --check` passed.
 - Settings > Slicer OrcaSlicer Integration controls now use a dedicated responsive field grid instead of one long alternating label/input row. This fixes the collapsed tiny controls and sideways overflow seen on Windows for Open in Slicer, Use Slicer API, Browser Orca URL, Bambu Studio URL, browser credentials, Slicer API URL, and Worker URL. Static cache bumped to `app.js?v=468` and `style.css?v=371`; frontend refresh only.

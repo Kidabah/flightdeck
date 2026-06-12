@@ -11006,6 +11006,8 @@ function _slicerCategoryHtml(profileData = null, printers = []) {
   const detected = _serverSettings.slicer_detected_version ?? '';
   const dockerUrl = (_serverSettings.orcaslicer_docker_url || '').trim();
   const bambuStudioUrl = (_serverSettings.bambustudio_docker_url || '').trim();
+  const bambuStudioDefaultUrl = _bambuStudioDockerDefaultUrl(dockerUrl);
+  const bambuStudioEffectiveUrl = bambuStudioUrl || bambuStudioDefaultUrl;
   const dockerUser = (_serverSettings.orcaslicer_browser_username || 'flightdeck').trim();
   const dockerPassword = (_serverSettings.orcaslicer_browser_password || 'flightdeck').trim();
   const workerUrl = (_serverSettings.orcaslicer_worker_url || '').trim();
@@ -11013,9 +11015,9 @@ function _slicerCategoryHtml(profileData = null, printers = []) {
   const openMode = (_serverSettings.slicer_open_mode || 'same').trim();
   const useSlicerApi = String(_serverSettings.slicer_use_api || '').toLowerCase() === 'true';
   const dockerLaunchUrl = _slicerDockerLaunchUrl(dockerUrl, { username: dockerUser, password: dockerPassword });
-  const bambuStudioLaunchUrl = _slicerDockerLaunchUrl(bambuStudioUrl, { username: dockerUser, password: dockerPassword });
+  const bambuStudioLaunchUrl = _slicerDockerLaunchUrl(bambuStudioEffectiveUrl, { username: dockerUser, password: dockerPassword });
   const dockerReady = !!dockerUrl;
-  const bambuStudioReady = !!bambuStudioUrl;
+  const bambuStudioReady = !!bambuStudioEffectiveUrl;
 
   const cards = _SLICER_DEFINITIONS.map(s => {
     const isSelected = s.id === selected;
@@ -11091,7 +11093,7 @@ function _slicerCategoryHtml(profileData = null, printers = []) {
         </label>
         <label class="slicer-integration-field slicer-integration-field-wide">
           <span>Bambu Studio URL</span>
-          <input class="settings-input slicer-docker-input" data-pref-key="bambustudio_docker_url" type="url" value="${esc(bambuStudioUrl)}" placeholder="${esc(_bambuStudioDockerDefaultUrl())}">
+          <input class="settings-input slicer-docker-input" data-pref-key="bambustudio_docker_url" type="url" value="${esc(bambuStudioUrl)}" placeholder="${esc(bambuStudioDefaultUrl)}">
         </label>
         <label class="slicer-integration-field">
           <span>Browser Orca username</span>
@@ -11138,8 +11140,20 @@ function _slicerDockerDefaultUrl() {
   return `https://${location.hostname}:3011`;
 }
 
-function _bambuStudioDockerDefaultUrl() {
-  return `https://${location.hostname}:3012`;
+function _bambuStudioDockerDefaultUrl(orcaUrl = '') {
+  try {
+    const source = new URL((orcaUrl || '').trim() || location.href);
+    source.protocol = 'https:';
+    source.port = '3012';
+    source.username = '';
+    source.password = '';
+    source.pathname = '/';
+    source.search = '';
+    source.hash = '';
+    return source.toString().replace(/\/+$/, '');
+  } catch {
+    return `https://${location.hostname}:3012`;
+  }
 }
 
 function _slicerApiDefaultUrl() {
@@ -11181,7 +11195,10 @@ function _updateSlicerDockerLaunch(input) {
   const section = input.closest?.('.settings-section') || document;
   const btn = section.querySelector?.(`[data-slicer-launch="${launchKey}"]`);
   if (!btn) return;
-  const url = _slicerDockerLaunchUrl(input.value, _slicerBrowserCredentials(section));
+  const defaultUrl = isBambu
+    ? _bambuStudioDockerDefaultUrl(section.querySelector?.('[data-pref-key="orcaslicer_docker_url"]')?.value || _serverSettings.orcaslicer_docker_url || '')
+    : '';
+  const url = _slicerDockerLaunchUrl(input.value || defaultUrl, _slicerBrowserCredentials(section));
   const label = isBambu ? 'Open Bambu Studio' : 'Open Orca';
   if (!url) {
     const replacement = document.createElement('span');
@@ -11420,7 +11437,7 @@ function _attachSlicerEvents(el) {
         : kind === 'browser'
           ? _slicerDockerDefaultUrl()
           : kind === 'bambu_browser'
-            ? _bambuStudioDockerDefaultUrl()
+            ? _bambuStudioDockerDefaultUrl(el.querySelector('[data-pref-key="orcaslicer_docker_url"]')?.value || _serverSettings.orcaslicer_docker_url || '')
             : '';
       const rawUrl = (input?.value || fallback || '').trim().replace(/\/+$/, '');
       const url = (kind === 'browser' || kind === 'bambu_browser') ? _slicerDockerLaunchUrl(rawUrl, _slicerBrowserCredentials(el)) : rawUrl;
@@ -12260,7 +12277,10 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
       if (data.ready && actionsEl) {
         const sourceUrl = data.source?.download_url || `/api/files/source/download?${new URLSearchParams({ source_id: sourceId, path }).toString()}`;
         const browserUrl = _slicerDockerLaunchUrl(data.browser_url || data.sidecar_url || '', _slicerBrowserCredentials());
-        const bambuStudioUrl = _slicerDockerLaunchUrl(data.bambustudio_url || _serverSettings.bambustudio_docker_url || '', _slicerBrowserCredentials());
+        const bambuStudioUrl = _slicerDockerLaunchUrl(
+          data.bambustudio_url || _serverSettings.bambustudio_docker_url || _bambuStudioDockerDefaultUrl(_serverSettings.orcaslicer_docker_url || data.browser_url || data.sidecar_url || ''),
+          _slicerBrowserCredentials(),
+        );
         const outputName = data.output?.filename || 'sliced-output';
         const profiles = data.profiles || {};
         const canBackgroundSlice = data.can_background_slice !== false;
