@@ -3093,13 +3093,14 @@ def _deduct_spool_usage_to_target(
                 matches = [
                     item for item in available
                     if item[0] not in used_slots
-                    and _usage_material_matches(req["material"], item[2].get("type"))
+                    and _usage_material_score(req["material"], item[2].get("type")) < 99
                 ] or [item for item in available if item[0] not in used_slots] or available
                 if not matches:
                     continue
                 best = min(
                     matches,
                     key=lambda item: (
+                        _usage_material_score(req["material"], item[2].get("type")),
                         _hex_distance(req["color"], item[2].get("color")),
                         item[0],
                     ),
@@ -3236,8 +3237,31 @@ def _normalise_hex(value) -> str:
 
 
 def _usage_material_matches(wanted: str, got) -> bool:
-    material = _normalise_material(got)
-    return bool(wanted and material and (wanted in material or material in wanted))
+    return _usage_material_score(wanted, got) < 99
+
+
+def _usage_material_score(wanted: str, got) -> int:
+    """Rank material matches before colour proximity.
+
+    A sliced ABS job should prefer an exact ABS slot over an ABS+ slot even if
+    the ABS+ colour is closer to the preview colour. Compatibility remains as a
+    fallback for loose slicer metadata, but it should not beat exact material.
+    """
+    material = _material_match_key(got)
+    wanted = _material_match_key(wanted)
+    if not wanted or not material:
+        return 99
+    if wanted == material:
+        return 0
+    if wanted in material or material in wanted:
+        return 10
+    return 99
+
+
+def _material_match_key(value) -> str:
+    import re
+    text = str(value or "").lower().replace("+", "plus")
+    return re.sub(r"[^a-z0-9]+", "", text)
 
 
 def _hex_distance(a, b) -> int:
