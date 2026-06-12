@@ -891,6 +891,7 @@ class SlicerOpenRequest(BaseModel):
     source_id: str
     path: str
     filename: str = ""
+    target: str = "desktop_orca"
 
 
 class SlicerConnectionCheckRequest(BaseModel):
@@ -1585,6 +1586,7 @@ async def plan_slice_from_file_desk(body: SlicePlanRequest):
 
     settings = db.get_all_settings()
     browser_url = (settings.get("orcaslicer_docker_url") or "").strip().rstrip("/")
+    bambustudio_url = (settings.get("bambustudio_docker_url") or "").strip().rstrip("/")
     worker_url = (settings.get("orcaslicer_worker_url") or "").strip().rstrip("/")
     api_url = (settings.get("orcaslicer_api_url") or "").strip().rstrip("/")
     slicer_use_api = str(settings.get("slicer_use_api") or "").strip().lower() in {"1", "true", "yes", "on"}
@@ -1616,6 +1618,7 @@ async def plan_slice_from_file_desk(body: SlicePlanRequest):
         "background_slice_paused": background_slice_paused,
         "sidecar_url": browser_url,
         "browser_url": browser_url,
+        "bambustudio_url": bambustudio_url,
         "api_url": api_url,
         "api_health": slicer_api_probe,
         "worker_url": worker_url,
@@ -1911,6 +1914,39 @@ def _open_orca_model_bytes(filename: str, data: bytes) -> dict:
     }
 
 
+def _launch_desktop_orca(path: Path) -> dict:
+    exe = _orca_executable()
+    if not exe:
+        raise HTTPException(status_code=404, detail="Desktop OrcaSlicer executable was not found on this machine")
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Model file was not found")
+    args = [str(exe), str(path)]
+    kwargs = {
+        "stdout": subprocess.DEVNULL,
+        "stderr": subprocess.DEVNULL,
+        "stdin": subprocess.DEVNULL,
+        "close_fds": True,
+    }
+    if os.name == "nt":
+        kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+    subprocess.Popen(args, **kwargs)
+    return {
+        "ok": True,
+        "filename": path.name,
+        "path": str(path),
+        "executable": str(exe),
+        "mode": "desktop-orca",
+    }
+
+
+def _open_desktop_orca_model_bytes(filename: str, data: bytes) -> dict:
+    _enforce_file_size(len(data), label="Orca model")
+    dest, rel = _import_model_for_orca(filename, data)
+    result = _launch_desktop_orca(dest)
+    result["path"] = rel
+    return result
+
+
 def _suppress_orca_internal_update_prompt() -> dict:
     result = {
         "configured": False,
@@ -2124,21 +2160,22 @@ async def _probe_slicer_api(api_url: str, *, timeout: float = 3.0) -> dict:
 async def check_slicer_connection(body: SlicerConnectionCheckRequest):
     kind = (body.kind or "").strip().lower()
     base_url = (body.url or "").strip().rstrip("/")
-    if kind not in {"api", "worker", "browser"}:
-        raise HTTPException(status_code=422, detail="kind must be api, worker, or browser")
+    browser_like = kind in {"browser", "bambu_browser"}
+    if kind not in {"api", "worker", "browser", "bambu_browser"}:
+        raise HTTPException(status_code=422, detail="kind must be api, worker, browser, or bambu_browser")
     parsed = urllib.parse.urlparse(base_url)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise HTTPException(status_code=422, detail="Enter a full http:// or https:// URL")
 
     path = "/health" if kind == "api" else ("/api/slicer/worker/status" if kind == "worker" else "")
     target = f"{base_url}{path}"
-    verify_tls = False if kind == "browser" else True
+    verify_tls = False if browser_like else True
     try:
         async with httpx.AsyncClient(timeout=httpx.Timeout(connect=3.0, read=8.0, write=3.0, pool=3.0), follow_redirects=True, verify=verify_tls) as client:
             resp = await client.get(target)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Could not reach {kind} URL: {exc}") from exc
-    auth_required = kind == "browser" and resp.status_code in {401, 403}
+    auth_required = browser_like and resp.status_code in {401, 403}
     if resp.status_code >= 400 and not auth_required:
         raise HTTPException(status_code=resp.status_code, detail=f"{kind} URL returned HTTP {resp.status_code}")
 
@@ -2248,10 +2285,15 @@ async def slicer_worker_slice(
 
 
 @app.post("/api/slicer/worker/open")
-async def slicer_worker_open(file: UploadFile = File(...)):
+async def slicer_worker_open(file: UploadFile = File(...), target: str = Form("desktop_orca")):
     source_name = _safe_basename(file.filename, "flightdeck-model.3mf")
     source_data = await _read_upload_bytes(file, label="Orca model")
-    return await asyncio.to_thread(_open_orca_model_bytes, source_name, source_data)
+    target = (target or "desktop_orca").strip().lower()
+    if target in {"browser_orca", "docker_orca"}:
+        return await asyncio.to_thread(_open_orca_model_bytes, source_name, source_data)
+    if target in {"desktop_orca", "orca", "same"}:
+        return await asyncio.to_thread(_open_desktop_orca_model_bytes, source_name, source_data)
+    raise HTTPException(status_code=422, detail="target must be desktop_orca or browser_orca")
 
 
 @app.post("/api/slicer/open")
@@ -2261,15 +2303,38 @@ async def open_file_in_orca(body: SlicerOpenRequest):
     filename, data = await _read_file_desk_source(source_id, source_path)
     if body.filename.strip():
         filename = _safe_basename(body.filename, filename)
+    target = (body.target or "desktop_orca").strip().lower()
+    if target == "same":
+        target = "desktop_orca"
+    if target == "orca":
+        target = "desktop_orca"
+    if target not in {"desktop_orca", "browser_orca", "docker_orca"}:
+        raise HTTPException(status_code=422, detail="target must be desktop_orca or browser_orca")
 
     settings = db.get_all_settings()
     worker_url = (settings.get("orcaslicer_worker_url") or "").strip().rstrip("/")
     local_orca = _docker_inspect_container(_ORCA_DOCKER_BROWSER_CONTAINER)
-    if not local_orca and worker_url:
+    if target == "desktop_orca":
+        if source_id == "library":
+            try:
+                source_file = _safe_library_path(source_path)
+                result = await asyncio.to_thread(_launch_desktop_orca, source_file)
+                result["forwarded"] = False
+                return result
+            except HTTPException as exc:
+                if exc.status_code != 404 or not worker_url:
+                    raise
+        elif _orca_executable():
+            result = await asyncio.to_thread(_open_desktop_orca_model_bytes, filename, data)
+            result["forwarded"] = False
+            return result
+
+    if (target == "desktop_orca" and worker_url) or (target != "desktop_orca" and not local_orca and worker_url):
         files = {"file": (filename, data, "application/octet-stream")}
+        form_data = {"target": target}
         try:
             async with httpx.AsyncClient(timeout=httpx.Timeout(connect=10.0, read=45.0, write=60.0, pool=10.0)) as client:
-                resp = await client.post(f"{worker_url}/api/slicer/worker/open", files=files)
+                resp = await client.post(f"{worker_url}/api/slicer/worker/open", files=files, data=form_data)
         except Exception as exc:
             detail = str(exc).strip() or "connection timed out"
             raise HTTPException(status_code=502, detail=f"Slicer worker unreachable: {detail}") from exc
@@ -2283,7 +2348,7 @@ async def open_file_in_orca(body: SlicerOpenRequest):
             return payload
         return {"ok": True, "forwarded": True, "worker_url": worker_url}
 
-    if source_id == "library" and local_orca:
+    if target in {"browser_orca", "docker_orca"} and source_id == "library" and local_orca:
         source_file = _safe_library_path(source_path)
         container_path = _orca_container_path_for_library_file(source_file)
         await asyncio.to_thread(_open_orca_container_file, container_path)
@@ -2295,6 +2360,8 @@ async def open_file_in_orca(body: SlicerOpenRequest):
             "mode": "local-docker",
             "forwarded": False,
         }
+    if target == "desktop_orca":
+        raise HTTPException(status_code=404, detail="Desktop OrcaSlicer was not found here and no Windows worker is configured")
     result = await asyncio.to_thread(_open_orca_model_bytes, filename, data)
     result["forwarded"] = False
     return result
