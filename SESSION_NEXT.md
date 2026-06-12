@@ -2,13 +2,15 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: current HEAD after this handoff (`Add cost per flight to print history`)
+- Latest commit: current HEAD after this handoff (`Start Flight Recorder history media`)
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=471 / style.css?v=372 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=473 / style.css?v=374 / demo-runtime.js?v=8
 
 Recent work:
+- Started Flight Recorder as print-history media. `prints` rows now have `timelapse_path`, `timelapse_source`, and `timelapse_captured_at`; Flightdeck stores uploaded recorder clips under the data directory's `flight_recorder` folder, serves them from `/api/printers/{printer_id}/prints/{print_id}/timelapse`, and allows attaching `.mp4`, `.webm`, `.mov`, or `.avi` clips to a print. Print detail now shows a Flight Recorder card with an embedded video player when a clip exists or an `Add video` upload control when it does not; Print Memory rows get a green `recorder` pill. This is the first safe layer before automatic Bambu SD/Moonraker timelapse harvesting. Static cache bumped to `app.js?v=473` and `style.css?v=374`; backend restart required.
+  - Verification: `python -m py_compile app/db.py app/main.py app/printers/bambu.py app/printers/moonraker.py`, `node --check app/static/app.js`, `git diff --check`, and a temp-database smoke test passed. The smoke test created a finished print, attached a fake mp4 under `flight_recorder`, and confirmed `db.get_print_by_id()` reports `has_timelapse` with source `smoke`.
 - Added a print-history `Correct` action for wrong spool attribution. In the print detail `Spool usage` section, operators can now move the recorded grams from the incorrectly charged spool to the spool that actually printed the job. The backend restores the moved grams to the original spool, deducts the same grams from the corrected spool, rewrites the print's `spool_usage` row with `corrected_from_spool_id` / `corrected_at`, and logs a `spool_usage_corrected` decision. This is the safe UI path for cases like `spacerv2` being charged to X1C AMS 1/S4 spool `#10` instead of AMS 2/S1 spool `#68`, without hand-editing SQLite. Static cache bumped to `app.js?v=472` and `style.css?v=373`; backend restart required.
   - Verification: `python -m py_compile app/db.py app/main.py app/printers/bambu.py`, `node --check app/static/app.js`, `git diff --check`, and a temp-database correction smoke test passed. The smoke test moved 13.6g from a silver ABS+ spool to a black ABS spool, restored the old spool from 150.0g to 163.6g, deducted the corrected spool from 1000.0g to 986.4g, rewrote the print usage row, and logged `spool_usage_corrected`.
 - Tightened live spool deduction attribution after `spacerv2` on X1C was charged to AMS 1/S4 spool `#10` even though the print used AMS 2/S1 black Siddament ABS spool `#68`. The Bambu print-start snapshot had both slots loaded, but the filament matcher normalised `ABS+` down to `ABS` and let colour proximity beat the exact material slot. `_usage_material_score()` now preserves `+` as `plus`, ranks exact material matches before compatible fuzzy matches, and only then uses colour distance, so a sliced `ABS` job prefers an exact `ABS` slot over `ABS+`. Existing finished print history was not silently rewritten; use reconcile or a deliberate DB correction if that specific row should move from `#10` to `#68`. Backend restart required.

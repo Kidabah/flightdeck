@@ -45,7 +45,7 @@ from . import db, relay
 from .camera import BambuCameraProxy
 from .label_printer import LabelPrinter
 from .models import PrintPreview
-from .paths import APP_DIR, DATA_DIR, DB_PATH, PRINTERS_CONFIG_PATH, PRINT_LIBRARY_DIR, UPLOADS_DIR
+from .paths import APP_DIR, DATA_DIR, DB_PATH, FLIGHT_RECORDER_DIR, PRINTERS_CONFIG_PATH, PRINT_LIBRARY_DIR, UPLOADS_DIR
 from .printer_config import BambuConnection, BambuRtspCamera, MjpegDirectCamera, MoonrakerConnection, NtfyConfig, PrinterEntry, SimulatedConnection, SnapmakerU1Connection, load, save
 from .printers import moonraker, simulated
 from .printers.bambu import BambuPrinter
@@ -72,6 +72,7 @@ _scale = Scale()
 _label_printer = LabelPrinter()
 _MAX_PRINT_FILE_BYTES = int(os.getenv("FLIGHTDECK_MAX_PRINT_FILE_MB", "2048")) * 1024 * 1024
 _MAX_PROFILE_UPLOAD_BYTES = int(os.getenv("FLIGHTDECK_MAX_PROFILE_UPLOAD_MB", "64")) * 1024 * 1024
+_MAX_FLIGHT_RECORDER_BYTES = int(os.getenv("FLIGHTDECK_MAX_FLIGHT_RECORDER_MB", "2048")) * 1024 * 1024
 _UPLOAD_READ_CHUNK_BYTES = 1024 * 1024
 _BAMBU_FILE_LIST_TIMEOUT_SECONDS = float(os.getenv("FLIGHTDECK_BAMBU_FILE_LIST_TIMEOUT", "2.5"))
 _FILE_DESK_TARGET_CACHE_SECONDS = float(os.getenv("FLIGHTDECK_FILE_DESK_TARGET_CACHE_SECONDS", "20"))
@@ -6720,6 +6721,90 @@ async def correct_print_spool_usage(print_id: int, spool_id: int, body: SpoolUsa
     if not result:
         raise HTTPException(status_code=404, detail="Print usage correction not available")
     return {"ok": True, **result}
+
+
+def _timelapse_media_type(path: Path) -> str:
+    suffix = path.suffix.lower()
+    if suffix == ".webm":
+        return "video/webm"
+    if suffix == ".mov":
+        return "video/quicktime"
+    if suffix == ".avi":
+        return "video/x-msvideo"
+    return "video/mp4"
+
+
+def _timelapse_path_from_record(record: dict) -> Path:
+    raw = Path(str(record.get("timelapse_path") or ""))
+    if raw.is_absolute():
+        raise HTTPException(status_code=404, detail="timelapse path unavailable")
+    path = FLIGHT_RECORDER_DIR / raw
+    try:
+        resolved = path.resolve()
+        base = FLIGHT_RECORDER_DIR.resolve()
+        resolved.relative_to(base)
+        return resolved
+    except Exception as exc:
+        raise HTTPException(status_code=404, detail="timelapse path unavailable") from exc
+
+
+@app.get("/api/printers/{printer_id}/prints/{print_id}/timelapse")
+async def get_print_timelapse(printer_id: str, print_id: int):
+    _assert_printer(printer_id)
+    record = db.get_print_timelapse(print_id)
+    if not record or record.get("printer_id") != printer_id:
+        raise HTTPException(status_code=404, detail="no timelapse")
+    path = _timelapse_path_from_record(record)
+    if not path.exists() or not path.is_file():
+        raise HTTPException(status_code=404, detail="timelapse file missing")
+    return FileResponse(
+        path,
+        media_type=_timelapse_media_type(path),
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )
+
+
+@app.post("/api/printers/{printer_id}/prints/{print_id}/timelapse")
+async def upload_print_timelapse(printer_id: str, print_id: int, file: UploadFile = File(...)):
+    _assert_printer(printer_id)
+    item = db.get_print_by_id(print_id)
+    if not item or item.get("printer_id") != printer_id:
+        raise HTTPException(status_code=404, detail="print not found")
+    suffix = Path(file.filename or "").suffix.lower()
+    if suffix not in {".mp4", ".webm", ".mov", ".avi"}:
+        raise HTTPException(status_code=400, detail="upload an mp4, webm, mov, or avi timelapse")
+    safe_printer = re.sub(r"[^a-zA-Z0-9_.-]+", "-", printer_id).strip("-") or "printer"
+    safe_name = re.sub(r"[^a-zA-Z0-9_.-]+", "-", Path(item.get("filename") or "print").stem).strip("-")[:80] or "print"
+    out_dir = FLIGHT_RECORDER_DIR / safe_printer
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"{print_id}-{safe_name}{suffix}"
+    total = 0
+    with out_path.open("wb") as fh:
+        while True:
+            chunk = await file.read(_UPLOAD_READ_CHUNK_BYTES)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > _MAX_FLIGHT_RECORDER_BYTES:
+                fh.close()
+                try:
+                    out_path.unlink()
+                except OSError:
+                    pass
+                raise HTTPException(status_code=413, detail="timelapse upload too large")
+            fh.write(chunk)
+    if total <= 0:
+        try:
+            out_path.unlink()
+        except OSError:
+            pass
+        raise HTTPException(status_code=400, detail="empty timelapse upload")
+    if not db.attach_print_timelapse(print_id, out_path, source="upload"):
+        raise HTTPException(status_code=404, detail="print not found")
+    db.log_decision(printer_id, "flight_recorder_attached", f"Attached timelapse {out_path.name}", print_id=print_id)
+    updated = db.get_print_by_id(print_id) or item
+    updated["timelapse_url"] = f"/api/printers/{urllib.parse.quote(printer_id)}/prints/{print_id}/timelapse"
+    return updated
 
 @app.post("/api/spools/{spool_id}/move")
 async def move_spool(spool_id: int, body: SpoolMove):

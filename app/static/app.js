@@ -4814,6 +4814,25 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
        </div>`
     : '';
 
+  const recorderUrl = print.has_timelapse
+    ? _mediaUrl(`/api/printers/${printerId}/prints/${print.id}/timelapse`, print.filename || 'Flight Recorder')
+    : '';
+  const recorderHtml = print.id ? `<div class="flight-recorder-block" data-print-id="${print.id}" data-printer-id="${printerId}">
+    <div class="flight-recorder-head">
+      <div>
+        <span>Flight Recorder</span>
+        <em>${print.has_timelapse ? `Recorded${print.timelapse_source ? ` · ${esc(print.timelapse_source)}` : ''}` : 'Attach a timelapse to this print'}</em>
+      </div>
+      ${print.has_timelapse ? '' : `<label class="flight-recorder-upload">
+        <input type="file" accept="video/mp4,video/webm,video/quicktime,video/x-msvideo">
+        <span>Add video</span>
+      </label>`}
+    </div>
+    ${print.has_timelapse
+      ? `<video class="flight-recorder-video" src="${recorderUrl}" controls preload="metadata"></video>`
+      : `<div class="flight-recorder-empty">No recorder clip attached yet.</div>`}
+  </div>` : '';
+
   const decisionHtml = print.id
     ? `<details class="decision-trail" data-print-id="${print.id}" data-printer-id="${printerId}">
          <summary>Decision trail</summary>
@@ -4873,6 +4892,7 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
       <span class="badge badge-${cls}" style="font-size:0.6rem;padding:0.15rem 0.5rem">${label}</span>
     </div>
     ${snapshotHtml}
+    ${recorderHtml}
     ${errorHtml}
     <div>${rows.join('')}</div>
     ${spoolUsageHtml}
@@ -4880,6 +4900,30 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
     ${memoryMetaHtml}
     ${decisionHtml}
   </div>`;
+
+  const recorderBlock = el.querySelector('.flight-recorder-block');
+  if (recorderBlock) {
+    const fileInput = recorderBlock.querySelector('input[type="file"]');
+    fileInput?.addEventListener('change', async () => {
+      const file = fileInput.files?.[0];
+      if (!file) return;
+      const form = new FormData();
+      form.append('file', file);
+      const uploadLabel = recorderBlock.querySelector('.flight-recorder-upload span');
+      if (uploadLabel) uploadLabel.textContent = 'Uploading...';
+      try {
+        const r = await fetch(`/api/printers/${printerId}/prints/${print.id}/timelapse`, { method: 'POST', body: form });
+        if (!r.ok) throw new Error(await r.text());
+        const saved = await r.json();
+        print = { ...print, ...saved };
+        showToast('Flight Recorder clip attached', 'success');
+        _showPrintDetail(printerId, dateStr, print);
+      } catch (err) {
+        showToast(`Recorder upload failed: ${err.message || err}`, 'error');
+        if (uploadLabel) uploadLabel.textContent = 'Add video';
+      }
+    });
+  }
 
   const notesBlock = el.querySelector('.print-notes-block');
   if (notesBlock) {
@@ -5175,7 +5219,8 @@ function _memoryFlags(item) {
   const excluded = item.exclude_from_stats ? '<span class="memory-pill memory-pill-muted">no stats</span>' : '';
   const notes = item.notes ? '<span class="memory-pill">note</span>' : '';
   const snap = item.has_snapshot ? '<span class="memory-pill memory-pill-warn">snapshot</span>' : '';
-  return `${tags}${moreTags}${excluded}${notes}${snap}`;
+  const recorder = item.has_timelapse ? '<span class="memory-pill memory-pill-good">recorder</span>' : '';
+  return `${tags}${moreTags}${excluded}${notes}${snap}${recorder}`;
 }
 
 function _memoryRow(item) {

@@ -5,9 +5,10 @@ import json
 import secrets
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Iterable, Optional
 
-from .paths import DB_PATH, UPLOADS_DIR
+from .paths import DB_PATH, FLIGHT_RECORDER_DIR, UPLOADS_DIR
 
 log = logging.getLogger(__name__)
 
@@ -64,6 +65,9 @@ def init() -> None:
                 layers_completed   INTEGER,
                 filament_grams     REAL,
                 material           TEXT,
+                timelapse_path     TEXT,
+                timelapse_source   TEXT,
+                timelapse_captured_at TIMESTAMP,
                 created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
 
@@ -284,6 +288,9 @@ def init() -> None:
             "ALTER TABLE prints ADD COLUMN exclude_from_stats INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE prints ADD COLUMN spool_usage TEXT",
             "ALTER TABLE prints ADD COLUMN ams_slot_snapshot TEXT",
+            "ALTER TABLE prints ADD COLUMN timelapse_path TEXT",
+            "ALTER TABLE prints ADD COLUMN timelapse_source TEXT",
+            "ALTER TABLE prints ADD COLUMN timelapse_captured_at TIMESTAMP",
             "ALTER TABLE spools ADD COLUMN empty_spool_weight_g REAL",
             "ALTER TABLE spools ADD COLUMN storage_location_id INTEGER",
             "ALTER TABLE spools ADD COLUMN home_storage_location_id INTEGER",
@@ -321,7 +328,8 @@ def init() -> None:
             conn.execute("DROP TABLE material_costs")
             conn.execute("ALTER TABLE _mat_new RENAME TO material_costs")
 
-    UPLOADS_DIR.mkdir(exist_ok=True)
+    UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+    FLIGHT_RECORDER_DIR.mkdir(parents=True, exist_ok=True)
 
     with _conn() as conn:
         shelf1 = conn.execute(
@@ -644,6 +652,8 @@ def get_prints_for_day(printer_id: str, date_str: str) -> list[dict]:
                       layers_total, layers_completed, filament_grams, material,
                       snapshot_captured_at IS NOT NULL AS has_snapshot, notes,
                       tags, exclude_from_stats,
+                      timelapse_captured_at IS NOT NULL AS has_timelapse,
+                      timelapse_source,
                       spool_usage
                FROM prints
                WHERE printer_id = ? AND date(started_at) = ?
@@ -840,6 +850,8 @@ def get_print_memory(
                      layers_total, layers_completed, filament_grams, material,
                      snapshot_captured_at IS NOT NULL AS has_snapshot, notes,
                      tags, exclude_from_stats,
+                     timelapse_captured_at IS NOT NULL AS has_timelapse,
+                     timelapse_source,
                      spool_usage
               FROM prints
               WHERE {' AND '.join(where)}
@@ -858,6 +870,8 @@ def get_print_by_id(print_id: int) -> Optional[dict]:
                       layers_total, layers_completed, filament_grams, material,
                       snapshot_captured_at IS NOT NULL AS has_snapshot, notes,
                       tags, exclude_from_stats,
+                      timelapse_captured_at IS NOT NULL AS has_timelapse,
+                      timelapse_source,
                       spool_usage
                FROM prints
                WHERE id = ?""",
@@ -1290,6 +1304,36 @@ def get_print_snapshot(print_id: int) -> Optional[bytes]:
             (print_id,),
         ).fetchone()
     return row["snapshot_jpeg"] if row else None
+
+
+def attach_print_timelapse(print_id: int, media_path: str | Path, *, source: str = "manual") -> bool:
+    """Attach a Flight Recorder video to a print row."""
+    path = Path(media_path)
+    try:
+        stored = str(path.resolve().relative_to(FLIGHT_RECORDER_DIR.resolve()))
+    except Exception:
+        stored = str(path)
+    with _conn() as conn:
+        n = conn.execute(
+            """UPDATE prints
+               SET timelapse_path = ?,
+                   timelapse_source = ?,
+                   timelapse_captured_at = CURRENT_TIMESTAMP
+               WHERE id = ?""",
+            (stored, source[:64] if source else "manual", print_id),
+        ).rowcount
+    return n > 0
+
+
+def get_print_timelapse(print_id: int) -> Optional[dict]:
+    with _conn() as conn:
+        row = conn.execute(
+            """SELECT id, printer_id, filename, timelapse_path, timelapse_source, timelapse_captured_at
+               FROM prints
+               WHERE id = ? AND timelapse_path IS NOT NULL""",
+            (print_id,),
+        ).fetchone()
+    return dict(row) if row else None
 
 
 def update_print_notes(print_id: int, notes: str) -> bool:
