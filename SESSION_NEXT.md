@@ -2,13 +2,15 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: current HEAD after this handoff (`Note Windows Bambu Studio sidecar`)
+- Latest commit: current HEAD after this handoff (`Add Windows slicer browser helper`)
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=470 / style.css?v=371 / demo-runtime.js?v=8
 
 Recent work:
+- Added a Windows helper for the browser slicers proven during live testing. `Start-Flightdeck-Slicers-Windows.cmd` wraps `scripts/windows/start-slicer-browsers.ps1`, which starts Docker Desktop if needed and creates/starts `flightdeck-orcaslicer` on `https://127.0.0.1:3011` plus `flightdeck-bambustudio` on `https://127.0.0.1:3012` using Windows-safe mounts: `%LOCALAPPDATA%\Flightdeck\orcaslicer` or `bambustudio` -> `/config`, and `%LOCALAPPDATA%\Flightdeck\print_library` -> `/prints`. Added `-CheckOnly`, `-OrcaOnly`, `-BambuOnly`, and `-Force` repair options, then documented the Windows helper in `INSTALL.md` and `README.md` so users do not try the NAS compose file on Windows.
+  - Verification: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\windows\start-slicer-browsers.ps1 -CheckOnly` reported both existing containers running; the normal helper path kept the existing Orca/Bambu containers running and verified `https://127.0.0.1:3011` plus `https://127.0.0.1:3012` with HTTP 200; `git diff --check` passed.
 - Windows Bambu Studio Docker sidecar was started manually for live testing after Docker Desktop had been stopped. Docker Desktop was launched, then `flightdeck-bambustudio` was started from `lscr.io/linuxserver/bambustudio:latest` with Windows-safe mounts: `%LOCALAPPDATA%\Flightdeck\bambustudio` -> `/config` and `%LOCALAPPDATA%\Flightdeck\print_library` -> `/prints`, publishing `https://100.112.171.88:3012`. Raw curl with `flightdeck:flightdeck` and Flightdeck's `/api/slicer/check` both returned HTTP 200. No code change required for this operational note.
   - Verification: `docker ps` showed `flightdeck-bambustudio`, `flightdeck-orcaslicer`, and `orca-slicer-api` running; `curl.exe -k -u flightdeck:flightdeck https://100.112.171.88:3012/` returned HTTP 200; `/api/slicer/check` returned `ok: true`.
 - Bambu Studio browser handoff now has the missing Docker sidecar wiring. `docker-compose.nas.yml` adds `flightdeck-bambustudio` using `lscr.io/linuxserver/bambustudio:latest`, publishes HTTPS port `3012`, sets `shm_size: "1gb"`, persists config at `/volume2/flightdeck-bambustudio`, and mounts the Print Vault at `/prints`. `.env.nas.example` adds Bambu Studio credentials. Settings > Slicer now derives a Bambu Studio URL from the Browser Orca host on port `3012` when the Bambu Studio URL field is blank, so an Orca host like `https://100.112.171.88:3011` becomes `https://100.112.171.88:3012` for Bambu Studio. README documents the paired Orca/Bambu URLs and x86-64 Docker-host caveat. Static cache bumped to `app.js?v=470`; frontend refresh plus Docker compose update required.

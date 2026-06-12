@@ -361,6 +361,14 @@ For optional hardware support, the NAS Docker image includes `usbutils` and the 
 
 This is intended for a staged NAS deployment first. Keep the Pi service as the live host until the NAS container has been tested with copied backup data and printer connectivity.
 
+On Windows, use the bundled helper instead of the NAS compose file because the NAS compose uses `/volume2` and `/volume3` paths:
+
+```powershell
+.\Start-Flightdeck-Slicers-Windows.cmd
+```
+
+It starts/repairs `flightdeck-orcaslicer` on `https://127.0.0.1:3011` and `flightdeck-bambustudio` on `https://127.0.0.1:3012`, both using `%LOCALAPPDATA%\Flightdeck\print_library` as `/prints`. The default browser login is `flightdeck` / `flightdeck`.
+
 ---
 
 ## Usage

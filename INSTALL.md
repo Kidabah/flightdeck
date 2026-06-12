@@ -152,6 +152,52 @@ For fresh installs, the same values can be supplied during install:
   -SlicerSidecarUrl "http://127.0.0.1:3003"
 ```
 
+### Windows Browser Slicers
+
+For manual review in a browser, Flightdeck can run Docker desktop versions of OrcaSlicer and Bambu Studio on Windows. They use the same Print Vault as Flightdeck:
+
+```text
+%LOCALAPPDATA%\Flightdeck\print_library -> /prints
+%LOCALAPPDATA%\Flightdeck\orcaslicer    -> /config
+%LOCALAPPDATA%\Flightdeck\bambustudio   -> /config
+```
+
+Start or repair both browser slicers:
+
+```powershell
+.\Start-Flightdeck-Slicers-Windows.cmd
+```
+
+Or run the PowerShell helper directly:
+
+```powershell
+.\scripts\windows\start-slicer-browsers.ps1
+```
+
+It starts Docker Desktop if it is closed, creates any missing config folders, then starts these containers:
+
+```text
+https://127.0.0.1:3011  OrcaSlicer
+https://127.0.0.1:3012  Bambu Studio
+```
+
+Default login:
+
+```text
+flightdeck / flightdeck
+```
+
+Useful repair options:
+
+```powershell
+.\scripts\windows\start-slicer-browsers.ps1 -CheckOnly
+.\scripts\windows\start-slicer-browsers.ps1 -OrcaOnly
+.\scripts\windows\start-slicer-browsers.ps1 -BambuOnly
+.\scripts\windows\start-slicer-browsers.ps1 -Force
+```
+
+`-Force` recreates the containers but keeps the persistent `/config` and `/prints` folders.
+
 ## Manual Install
 
 Use this only if you want to run each step yourself.
