@@ -7103,6 +7103,32 @@ def _colour_label(color: Optional[str]) -> str:
     return name if dist <= 115 else color
 
 
+def _colour_family(color: Optional[str]) -> str:
+    color = _norm_hex(color)
+    if not color:
+        return ""
+    rgb = [int(color[i:i + 2], 16) for i in (1, 3, 5)]
+    spread = max(rgb) - min(rgb)
+    avg = sum(rgb) / 3
+    if spread <= 45:
+        if avg <= 45:
+            return "black"
+        if avg >= 220:
+            return "white"
+        return "grey_silver"
+    return _colour_label(color).lower().replace(" ", "_")
+
+
+def _colour_matches(actual: Optional[str], expected: Optional[str]) -> bool:
+    if not expected:
+        return True
+    if _hex_dist(actual, expected) <= 95:
+        return True
+    actual_family = _colour_family(actual)
+    expected_family = _colour_family(expected)
+    return bool(actual_family and actual_family == expected_family == "grey_silver")
+
+
 def _coverage_label(coverage: dict) -> str:
     brands = sorted({
         str(s.get("brand") or "").strip()
@@ -7121,9 +7147,7 @@ def _coverage_label(coverage: dict) -> str:
 
 
 def _spool_matches_color(spool: dict, color: Optional[str]) -> bool:
-    if not color:
-        return True
-    return _hex_dist(spool.get("color_hex"), color) <= 95
+    return _colour_matches(spool.get("color_hex"), color)
 
 
 def _queue_colour_coverage(requirements: list[dict], spools: list[dict]) -> list[dict]:
@@ -7177,7 +7201,7 @@ def _reported_slot_matches_requirement(slot: dict, req: dict) -> bool:
             {"material": _reported_slot_material_text(slot), "subtype": "", "brand": ""},
             req["material"],
         )
-        and _hex_dist(slot.get("color"), req["color"]) <= 95
+        and _colour_matches(slot.get("color"), req["color"])
     )
 
 
@@ -7201,7 +7225,7 @@ def _reported_slot_mismatch(spool: Optional[dict], slot: Optional[dict]) -> str:
     if _generic_profile_rejects_spool(slot, spool):
         expected = " ".join(str(spool.get(k) or "") for k in ("brand", "material", "subtype")).strip()
         return f"Profile mismatch: printer {_reported_profile_text(slot) or 'Generic'}, Flightdeck {expected}"
-    if _hex_dist(slot.get("color"), spool.get("color_hex")) > 95:
+    if not _colour_matches(slot.get("color"), spool.get("color_hex")):
         return f"Colour mismatch: printer {_colour_label(slot.get('color'))}, Flightdeck {_colour_label(spool.get('color_hex'))}"
 
     reported_brand = _norm_material(slot.get("brand") or "")
