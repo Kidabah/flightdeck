@@ -12213,6 +12213,8 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
         const backgroundSlicePaused = !!data.background_slice_paused;
         const openMode = data.slicer_open_mode || _serverSettings.slicer_open_mode || 'same';
         const effectiveOpenMode = openMode === 'orca' ? 'browser_orca' : (openMode === 'bambu_studio' ? 'bambu_studio' : 'desktop_orca');
+        const isBambuHandoff = effectiveOpenMode === 'bambu_studio';
+        const showBackgroundSlice = canBackgroundSlice && !isBambuHandoff;
         const manualSlicerName = openMode === 'bambu_studio' ? 'Bambu Studio' : 'Orca';
         const sourceDownloadLabel = openMode === 'bambu_studio' ? 'Download for Bambu Studio' : 'Download model';
         const profileRows = [
@@ -12226,8 +12228,10 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
           ['Supports', sliceOptions.support],
           ['Brim', sliceOptions.brim],
         ].map(([label, value]) => `<div><span>${esc(label)}</span><strong>${esc(value || 'Profile default')}</strong></div>`).join('');
-        const handoffTitle = backgroundSlicePaused ? `Manual ${manualSlicerName} review` : 'Slice handoff';
-        const handoffCopy = backgroundSlicePaused
+        const handoffTitle = (backgroundSlicePaused || isBambuHandoff) ? `Manual ${manualSlicerName} review` : 'Slice handoff';
+        const handoffCopy = isBambuHandoff
+          ? 'Bambu handoff is manual while Orca background slicing is parked. Open Bambu Studio Docker or download the model for desktop Bambu Studio, then export the printer-ready job back to the Print Vault.'
+          : backgroundSlicePaused
           ? `Background slicing is paused. Open the model in ${manualSlicerName}, confirm printer/AMS/supports, then export the sliced job back to the Print Vault.`
           : "Support and brim toggles apply to Slice in Flightdeck. Opening the raw model uses Orca's current Prepare defaults.";
         const openRawButton = effectiveOpenMode === 'bambu_studio'
@@ -12243,7 +12247,7 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
           </div>
           <div class="filedesk-slice-profiles">${profileRows}${optionRows}</div>
           <div class="filedesk-slice-buttons">
-            ${canBackgroundSlice ? `<button class="filedesk-slice-link filedesk-slice-run" type="button" data-run-slice="${esc(outputName)}" data-printer-id="${esc(data.target?.id || selectedPrinterId)}">Slice in Flightdeck</button>` : ''}
+            ${showBackgroundSlice ? `<button class="filedesk-slice-link filedesk-slice-run" type="button" data-run-slice="${esc(outputName)}" data-printer-id="${esc(data.target?.id || selectedPrinterId)}">Slice in Flightdeck</button>` : ''}
             ${sourceUrl ? `<a class="filedesk-slice-link" href="${esc(sourceUrl)}" download>${esc(sourceDownloadLabel)}</a>` : ''}
             ${openRawButton}
             <button class="filedesk-slice-link" type="button" data-copy-slice-name="${esc(outputName)}">Copy output name</button>
