@@ -284,6 +284,7 @@ async def bambu_print_start(
         "source": source_ip,
         "eta_s": meta.get("estimated_seconds"),
         "ams_mapping": ams_mapping,
+        "filament_ids": filament_ids,
         "mapping_note": mapping_note,
     }))
     log.info("relay: print started %s → %s from %s", filename, printer_id, source_ip)

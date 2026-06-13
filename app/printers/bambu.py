@@ -1034,10 +1034,13 @@ class BambuPrinter:
             preview.filament_type if preview else None,
             self.ams_slots(),
         )
+        flat_mapping, detailed_mapping = _build_bambu_ams_mappings(ams_mapping, filament_ids)
         db.log_decision(self.id, "queue_bambu_mapping", json.dumps({
             "file": filename,
             "ams_mapping": ams_mapping,
             "filament_ids": filament_ids,
+            "flat_ams_mapping": flat_mapping,
+            "ams_mapping2": detailed_mapping,
             "mapping_note": mapping_note,
         }))
         self.start_uploaded_3mf(filename, ams_mapping, filament_ids=filament_ids)

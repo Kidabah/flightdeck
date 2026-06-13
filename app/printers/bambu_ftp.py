@@ -118,6 +118,7 @@ def _parse_3mf(buf: io.BytesIO, plate_number: Optional[int] = None) -> BambuPrev
     filament_el = plate.find("filament") if plate is not None else None
     filament_type = filament_el.get("type") if filament_el is not None else None
     filaments = []
+    slice_filament_ids: list[int] = []
     objects = []
     object_boxes, object_boxes_by_name, object_points_by_name, plate_bounds = _extract_plate_object_boxes(plate_json)
     if plate_bounds:
@@ -145,6 +146,10 @@ def _parse_3mf(buf: io.BytesIO, plate_number: Optional[int] = None) -> BambuPrev
                 except ValueError:
                     grams = None
                 filament = {"type": ftype, "color": color.upper(), "used_g": grams}
+                try:
+                    slice_filament_ids.append(int(el.get("id")))
+                except (TypeError, ValueError):
+                    pass
                 if idx < len(filament_nozzles):
                     filament["nozzle"] = filament_nozzles[idx]
                 filaments.append(filament)
@@ -186,7 +191,9 @@ def _parse_3mf(buf: io.BytesIO, plate_number: Optional[int] = None) -> BambuPrev
 
     raw_fids = plate_json.get("filament_ids") if isinstance(plate_json, dict) else None
     filament_ids: Optional[list[int]] = None
-    if isinstance(raw_fids, list) and raw_fids:
+    if slice_filament_ids:
+        filament_ids = slice_filament_ids
+    elif isinstance(raw_fids, list) and raw_fids:
         try:
             filament_ids = [int(x) for x in raw_fids]
         except (TypeError, ValueError):
