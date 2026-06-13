@@ -1,14 +1,21 @@
-## 2026-06-13 Session handoff
+## 2026-06-13 Session handoff (updated)
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Fix H2D AMS HT flat tray ID using filament_ids from 3MF plate JSON`
+- Latest commit: `Fix H2D AMS HT sequential slot numbering in print command`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=479 / style.css?v=377 / demo-runtime.js?v=8
 
 Recent work:
+- **CONFIRMED WORKING**: H2D AMS HT (BigBoy) prints now start correctly via Flightdeck queue without `1800-8012`. Three stacked bugs were fixed across this session:
+  1. **Wrong index**: `ams_mapping=[128]` (1 element at index 0) — gcode `T4`/`M620 S4A` requires `ams_mapping[4]`, so a full project-filament-indexed array is needed.
+  2. **Wrong flat value**: MQTT unit_id `128` is not recognised by the firmware in print commands; the correct value is the sequential slot position: `n_regular_ams_units × 4 + ht_slot_idx` = **4** for H2D with one 4-slot AMS.
+  3. **Wrong ams_mapping2**: `{"ams_id": 128, "slot_id": 0}` should be `{"ams_id": 1, "slot_id": 0}` — ams_id is the sequential AMS unit index (0-based), not the MQTT unit_id.
+  - `_bambu_tray_target()` now accepts `regular_ams_slots` and returns `regular_ams_slots + (slot - 128)` for AMS HT. `ams_slots()` computes `regular_ams_slots = n_regular_units * 4` and passes it in. `_build_bambu_ams_mappings()` drops the `tray_id >= 128` special case; the universal `tray_id // 4` / `tray_id % 4` formula handles AMS HT once it arrives as sequential value 4. Backend restart required; print confirmed successful.
+  - Verification: `_build_bambu_ams_mappings([4], [5])` returns `flat=[-1,-1,-1,-1,-1,4]`, `ams_mapping2[5]={"ams_id":1,"slot_id":0}`. User queued BigBoy print and confirmed it started and printed correctly.
+
 - Follow-up after the fresh H2D retry still failed with `1800-8012`: diagnostics showed the queued job parsed `plate_1.json` `filament_ids: [4]` and Flightdeck would therefore send flat `ams_mapping=[4]`, but the same real 3MF's `Metadata/slice_info.config` has `<filament id="5" ...>` and Bambu Studio displays the filament as `5`. `_parse_3mf()` now prefers the slice-info filament `id` for `BambuPreview.filament_ids`, falling back to plate JSON only if slice-info IDs are missing. Queue mapping logs now include the final `flat_ams_mapping` and `ams_mapping2` that will be sent, so the next retry can be audited directly. Backend restart required.
   - Verification: parsed both real files `Revised Wheel_HT_SilverPLA_2h39m.gcode.3mf` and `Revised Wheel_PLA_2h38m.gcode.3mf`; both now report `filament_ids: [5]` and `_build_bambu_ams_mappings([128], [5])` returns flat `[5]` plus detailed `{"ams_id": 128, "slot_id": 0}`. `python -m py_compile app/printers/bambu.py app/printers/bambu_ftp.py app/relay.py` and `git diff --check` passed.
 - First attempted H2D AMS HT 1800-8012 fix: Flightdeck had been sending `ams_mapping=[128]` (MQTT unit ID), while the H2D firmware's flat lookup table needs a slicer-side filament/tray index. The first fix used `plate_N.json` `"filament_ids": [4]` as that flat override and threaded it through `start_print_3mf()`, `start_uploaded_3mf()`, `bambu_upload()`, and `bambu_print_start()`. It also fixed `ams_mapping2` AMS HT decomposition: was sending `{"ams_id": 128+N, "slot_id": 0}` instead of `{"ams_id": 128, "slot_id": N}`. Retest still failed, which led to the follow-up above: use `slice_info.config` filament id `5` instead of plate JSON id `4`.
