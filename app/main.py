@@ -694,7 +694,7 @@ def _check_transitions(data: list[dict]) -> None:
                 _notify("error", f"{title_prefix}Print error", msg, printer_id=pid, print_id=error_pid, link=f"#/printer/{pid}/live")
                 if not is_simulated:
                     asyncio.create_task(_send_ntfy("Print error", msg, ["warning"], priority=4))
-                db.queue_cancel_active(pid, "failed")
+                db.queue_fail_active(pid, str(p.get("error") or "Printer reported an error"))
         elif prev == "printing" and curr == "paused":
             msg = f"{name}" + (f" · {label}" if label else "")
             if p.get("error"):
@@ -702,6 +702,8 @@ def _check_transitions(data: list[dict]) -> None:
             _notify("info", f"{title_prefix}Print paused", msg, printer_id=pid, link=f"#/printer/{pid}/live")
             if not is_simulated:
                 asyncio.create_task(_send_ntfy("Print paused", msg, ["double_vertical_bar"]))
+            if "ams mapping" in str(p.get("error") or "").lower():
+                db.queue_fail_active(pid, str(p.get("error") or "Failed to get AMS mapping table"))
         elif prev == "printing" and curr == "idle":
             msg = f"{name}" + (f" · {label}" if label else "")
             _notify("warn", f"{title_prefix}Print cancelled", msg, printer_id=pid, link=f"#/printer/{pid}/history")
@@ -7666,6 +7668,49 @@ def _apply_queue_preflight(jobs: list[dict], statuses: dict[str, dict]) -> list[
     return jobs
 
 
+def _queue_printer_error(status: Optional[dict]) -> str:
+    if not status:
+        return ""
+    error = str(status.get("error") or "").strip()
+    if not error:
+        return ""
+    state = str(status.get("state") or "").lower()
+    if state in {"error", "estop"}:
+        return error
+    if state == "paused" and "ams mapping" in error.lower():
+        return error
+    return ""
+
+
+def _reconcile_queue_active_state(jobs: list[dict], statuses: dict[str, dict]) -> bool:
+    changed = False
+    active_by_printer: dict[str, list[dict]] = {}
+    for job in jobs:
+        if job.get("status") in {"printing", "uploading"}:
+            active_by_printer.setdefault(str(job.get("printer_id") or ""), []).append(job)
+
+    for printer_id, active in active_by_printer.items():
+        printer_error = _queue_printer_error(statuses.get(printer_id))
+        if printer_error:
+            changed = db.queue_fail_active(printer_id, printer_error) > 0 or changed
+            continue
+        if len(active) <= 1:
+            continue
+        keep = max(
+            active,
+            key=lambda row: (
+                str(row.get("started_at") or ""),
+                int(row.get("id") or 0),
+            ),
+        )
+        changed = db.queue_fail_active_except(
+            printer_id,
+            int(keep["id"]),
+            "Superseded by newer active queue job",
+        ) > 0 or changed
+    return changed
+
+
 async def _advance_queue(printer_id: str) -> None:
     job = db.queue_next_pending(printer_id)
     if not job:
@@ -7710,8 +7755,10 @@ async def get_queue_summary():
 
 @app.get("/api/queue")
 async def get_queue(printer_id: Optional[str] = None):
-    jobs = db.queue_list(printer_id)
     statuses = await _printer_status_map()
+    jobs = db.queue_list(printer_id)
+    if _reconcile_queue_active_state(jobs, statuses):
+        jobs = db.queue_list(printer_id)
     return _apply_queue_preflight(jobs, statuses)
 
 

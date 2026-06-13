@@ -89,6 +89,13 @@ def _parse_3mf(buf: io.BytesIO, plate_number: Optional[int] = None) -> BambuPrev
             plate_gcode = z.read(f"Metadata/plate_{plate_number}.gcode").decode("utf-8", "ignore")
         except Exception:
             plate_gcode = ""
+        try:
+            project_settings = z.read("Metadata/project_settings.config").decode("utf-8", "ignore")
+        except Exception:
+            try:
+                project_settings = z.read("project_settings.config").decode("utf-8", "ignore")
+            except Exception:
+                project_settings = ""
 
     root_el = ET.fromstring(slice_xml)
     plates = root_el.findall("plate")
@@ -123,10 +130,11 @@ def _parse_3mf(buf: io.BytesIO, plate_number: Optional[int] = None) -> BambuPrev
         object_boxes.update(gcode_object_boxes)
         plate_bounds = plate_bounds or _bounds_for_boxes(gcode_object_boxes.values())
     if plate is not None:
+        filament_nozzles = _parse_filament_nozzle_map(project_settings)
         name_counts: dict[str, int] = {}
         name_box_counts: dict[str, int] = {}
         name_point_counts: dict[str, int] = {}
-        for el in plate.findall("filament"):
+        for idx, el in enumerate(plate.findall("filament")):
             color = el.get("color")
             used_g = el.get("used_g")
             ftype = el.get("type")
@@ -135,7 +143,10 @@ def _parse_3mf(buf: io.BytesIO, plate_number: Optional[int] = None) -> BambuPrev
                     grams = float(used_g) if used_g else None
                 except ValueError:
                     grams = None
-                filaments.append({"type": ftype, "color": color.upper(), "used_g": grams})
+                filament = {"type": ftype, "color": color.upper(), "used_g": grams}
+                if idx < len(filament_nozzles):
+                    filament["nozzle"] = filament_nozzles[idx]
+                filaments.append(filament)
         for el in plate.findall("object"):
             obj_id = el.get("identify_id")
             name = el.get("name") or f"Object {obj_id or len(objects) + 1}"
@@ -182,6 +193,63 @@ def _parse_3mf(buf: io.BytesIO, plate_number: Optional[int] = None) -> BambuPrev
         objects=objects or None,
         plate_bounds=plate_bounds,
     )
+
+
+def _parse_config_value(text: str, key: str):
+    if not text:
+        return None
+    try:
+        data = json.loads(text)
+        if isinstance(data, dict):
+            return data.get(key)
+    except Exception:
+        pass
+    try:
+        root = ET.fromstring(text)
+        for el in root.iter():
+            if el.get("key") == key or el.get("name") == key:
+                return el.get("value") or (el.text or "")
+    except Exception:
+        pass
+    match = re.search(
+        rf'["\']?{re.escape(key)}["\']?\s*[:=]\s*(?:"([^"]*)"|\'([^\']*)\'|([^\r\n<]+))',
+        text,
+        re.IGNORECASE,
+    )
+    if match:
+        return next((g for g in match.groups() if g is not None), "")
+    return None
+
+
+def _parse_int_list(value) -> list[int]:
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple)):
+        raw = value
+    else:
+        raw = re.findall(r"-?\d+", str(value))
+    out: list[int] = []
+    for item in raw:
+        try:
+            out.append(int(item))
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
+def _parse_filament_nozzle_map(project_settings: str) -> list[int]:
+    """Return per-filament H2D nozzle targets where 0=right and 1=left."""
+    nozzle_map = (
+        _parse_int_list(_parse_config_value(project_settings, "filament_nozzle_map"))
+        or _parse_int_list(_parse_config_value(project_settings, "physical_extruder_map"))
+    )
+    if not nozzle_map:
+        return []
+    out: list[int] = []
+    for nozzle in nozzle_map:
+        if nozzle in (0, 1):
+            out.append(nozzle)
+    return out
 
 
 def _numbers(value) -> list[float]:

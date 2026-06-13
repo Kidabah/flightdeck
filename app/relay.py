@@ -60,7 +60,14 @@ def _bambu_preview_filaments(meta: dict) -> list[dict]:
         color = _norm_hex(row.get("color"))
         material = _norm_material(row.get("type") or meta.get("filament_type"))
         if color or material:
-            out.append({"color": color, "material": material, "used_g": row.get("used_g")})
+            item = {"color": color, "material": material, "used_g": row.get("used_g")}
+            try:
+                nozzle = int(row.get("nozzle"))
+                if nozzle in (0, 1):
+                    item["nozzle"] = nozzle
+            except (TypeError, ValueError):
+                pass
+            out.append(item)
     return out
 
 
@@ -95,6 +102,11 @@ def _bambu_ams_mapping(meta: dict, printer: "BambuPrinter") -> tuple[list[int], 
                 or slot["material_norm"] in req["material"]
             )
         ] or available
+        nozzle = req.get("nozzle")
+        if nozzle in (0, 1):
+            nozzle_matches = [slot for slot in material_matches if slot.get("nozzle") == nozzle]
+            if nozzle_matches:
+                material_matches = nozzle_matches
         ranked = sorted(
             material_matches,
             key=lambda slot: (
@@ -108,6 +120,7 @@ def _bambu_ams_mapping(meta: dict, printer: "BambuPrinter") -> tuple[list[int], 
         used.add(int(best["bambu_tray_id"]))
         notes.append(
             f"{req.get('material') or 'unknown'} {req.get('color') or ''}"
+            f"{' nozzle=' + ('R' if nozzle == 0 else 'L') if nozzle in (0, 1) else ''}"
             f"→{best['bambu_tray_id']} {best.get('type') or ''} {best.get('color') or ''}"
         )
 

@@ -986,9 +986,15 @@ class BambuPrinter:
     def ams_slots(self) -> list[dict]:
         """Return flattened live AMS slots with Bambu's global slot index."""
         dump = self._printer.mqtt_dump()
+        print_data = dump.get("print", {})
+        extruder_map = _read_ams_extruder_map(print_data)
         slots = []
-        for unit in _parse_ams(dump.get("print", {})):
+        for unit in _parse_ams(print_data):
             unit_id = int(unit.get("unit", 0))
+            nozzle = extruder_map.get(unit_id)
+            if nozzle is None and self.model_name.upper().startswith("H2"):
+                # H2D fallback: regular AMS feeds left, AMS HT feeds right.
+                nozzle = 0 if unit_id >= 128 else 1
             for slot in unit.get("slots") or []:
                 if slot.get("empty"):
                     continue
@@ -1000,6 +1006,7 @@ class BambuPrinter:
                     "unit": unit_id,
                     "global_idx": flat_idx,
                     "bambu_tray_id": bambu_tray_id,
+                    **({"nozzle": nozzle} if nozzle in (0, 1) else {}),
                 })
         return slots
 
@@ -1074,6 +1081,53 @@ def _read_dual_nozzle_temps(mqtt_dump: dict, model_name: str) -> dict[str, "Temp
             pass
 
     return result if len(result) == 2 else {}
+
+
+def _read_ams_extruder_map(print_data: dict) -> dict[int, int]:
+    """Return AMS unit -> H2D nozzle target where 0=right and 1=left."""
+    ams_raw = print_data.get("ams", {}) if isinstance(print_data, dict) else {}
+    candidates = [
+        print_data.get("ams_extruder_map") if isinstance(print_data, dict) else None,
+        ams_raw.get("ams_extruder_map") if isinstance(ams_raw, dict) else None,
+    ]
+    for candidate in candidates:
+        if not candidate:
+            continue
+        if isinstance(candidate, str):
+            try:
+                candidate = json.loads(candidate)
+            except Exception:
+                pairs = re.findall(r"(\d+)\s*[:=]\s*(\d+)", candidate)
+                if pairs:
+                    return {int(k): int(v) for k, v in pairs if int(v) in (0, 1)}
+                continue
+        if isinstance(candidate, dict):
+            out = {}
+            for key, value in candidate.items():
+                try:
+                    nozzle = int(value)
+                    if nozzle in (0, 1):
+                        out[int(key)] = nozzle
+                except (TypeError, ValueError):
+                    continue
+            if out:
+                return out
+        if isinstance(candidate, list):
+            out = {}
+            for row in candidate:
+                if not isinstance(row, dict):
+                    continue
+                unit = row.get("ams_id", row.get("id", row.get("unit")))
+                nozzle = row.get("extruder", row.get("nozzle", row.get("target")))
+                try:
+                    nozzle_i = int(nozzle)
+                    if nozzle_i in (0, 1):
+                        out[int(unit)] = nozzle_i
+                except (TypeError, ValueError):
+                    continue
+            if out:
+                return out
+    return {}
 
 
 def _build_bambu_ams_mappings(ams_mapping: list[int] | None) -> tuple[list[int], list[dict]]:
@@ -1160,7 +1214,14 @@ def _preview_filament_requirements(filament_colors, fallback_type: Optional[str]
         color = _norm_bambu_hex(row.get("color"))
         material = _norm_bambu_material(row.get("type") or fallback_type)
         if color or material:
-            out.append({"color": color, "material": material, "used_g": row.get("used_g")})
+            item = {"color": color, "material": material, "used_g": row.get("used_g")}
+            try:
+                nozzle = int(row.get("nozzle"))
+                if nozzle in (0, 1):
+                    item["nozzle"] = nozzle
+            except (TypeError, ValueError):
+                pass
+            out.append(item)
     return out
 
 
@@ -1194,6 +1255,11 @@ def _derive_bambu_ams_mapping(
                 or slot["material_norm"] in req["material"]
             )
         ] or available
+        nozzle = req.get("nozzle")
+        if nozzle in (0, 1):
+            nozzle_matches = [slot for slot in material_matches if slot.get("nozzle") == nozzle]
+            if nozzle_matches:
+                material_matches = nozzle_matches
         ranked = sorted(
             material_matches,
             key=lambda slot: (
@@ -1207,6 +1273,7 @@ def _derive_bambu_ams_mapping(
         used.add(int(best["bambu_tray_id"]))
         notes.append(
             f"{req.get('material') or 'unknown'} {req.get('color') or ''}"
+            f"{' nozzle=' + ('R' if nozzle == 0 else 'L') if nozzle in (0, 1) else ''}"
             f"->{best['bambu_tray_id']} {best.get('type') or ''} {best.get('color') or ''}"
         )
 

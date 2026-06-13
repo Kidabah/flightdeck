@@ -3657,23 +3657,42 @@ def queue_update_metadata(
 
 
 def queue_update_status(job_id: int, status: str, error_msg: Optional[str] = None) -> bool:
+    terminal = status in {"done", "failed", "cancelled"}
     with _conn() as conn:
+        sets = ["status = ?"]
+        params: list = [status]
         if error_msg is not None:
-            c = conn.execute(
-                "UPDATE print_queue SET status = ?, error_msg = ? WHERE id = ?",
-                (status, error_msg, job_id),
-            )
-        else:
-            c = conn.execute(
-                "UPDATE print_queue SET status = ? WHERE id = ?", (status, job_id)
-            )
+            sets.append("error_msg = ?")
+            params.append(error_msg)
+        if terminal:
+            sets.append("finished_at = COALESCE(finished_at, datetime('now'))")
+        params.append(job_id)
+        c = conn.execute(
+            f"UPDATE print_queue SET {', '.join(sets)} WHERE id = ?",
+            params,
+        )
     return c.rowcount > 0
 
 
 def queue_set_started(job_id: int) -> bool:
     with _conn() as conn:
+        row = conn.execute(
+            "SELECT printer_id FROM print_queue WHERE id = ?",
+            (job_id,),
+        ).fetchone()
+        if row:
+            conn.execute(
+                """UPDATE print_queue
+                   SET status = 'failed',
+                       finished_at = datetime('now'),
+                       error_msg = 'Superseded by another queue start'
+                   WHERE printer_id = ?
+                     AND id != ?
+                     AND status IN ('printing', 'uploading')""",
+                (row["printer_id"], job_id),
+            )
         c = conn.execute(
-            "UPDATE print_queue SET status = 'printing', started_at = datetime('now') WHERE id = ?",
+            "UPDATE print_queue SET status = 'printing', started_at = datetime('now'), error_msg = NULL WHERE id = ?",
             (job_id,),
         )
     return c.rowcount > 0
@@ -3692,8 +3711,39 @@ def queue_finish_active(printer_id: str) -> int:
 def queue_cancel_active(printer_id: str, status: str = "cancelled") -> int:
     with _conn() as conn:
         c = conn.execute(
-            "UPDATE print_queue SET status = ? WHERE printer_id = ? AND status IN ('printing', 'uploading')",
+            """UPDATE print_queue
+               SET status = ?,
+                   finished_at = COALESCE(finished_at, datetime('now'))
+               WHERE printer_id = ? AND status IN ('printing', 'uploading')""",
             (status, printer_id),
+        )
+    return c.rowcount
+
+
+def queue_fail_active(printer_id: str, error_msg: str) -> int:
+    with _conn() as conn:
+        c = conn.execute(
+            """UPDATE print_queue
+               SET status = 'failed',
+                   finished_at = COALESCE(finished_at, datetime('now')),
+                   error_msg = ?
+               WHERE printer_id = ? AND status IN ('printing', 'uploading')""",
+            (error_msg, printer_id),
+        )
+    return c.rowcount
+
+
+def queue_fail_active_except(printer_id: str, keep_job_id: int, error_msg: str) -> int:
+    with _conn() as conn:
+        c = conn.execute(
+            """UPDATE print_queue
+               SET status = 'failed',
+                   finished_at = COALESCE(finished_at, datetime('now')),
+                   error_msg = ?
+               WHERE printer_id = ?
+                 AND id != ?
+                 AND status IN ('printing', 'uploading')""",
+            (error_msg, printer_id, keep_job_id),
         )
     return c.rowcount
 
