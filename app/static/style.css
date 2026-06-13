@@ -15184,6 +15184,140 @@ select optgroup {
 
 .queue-act-retry { color: #a78bfa; border-color: #a78bfa; }
 .queue-act-retry:hover:not(:disabled) { background: rgba(167,139,250,0.1); }
+.queue-act-recover {
+  color: #bfdbfe;
+  border-color: rgba(96,165,250,0.85);
+  background: rgba(37,99,235,0.12);
+}
+.queue-act-recover:hover:not(:disabled) { background: rgba(37,99,235,0.22); }
+
+.queue-recovery-modal {
+  max-width: 560px;
+  display: grid;
+  gap: 0.85rem;
+}
+.queue-recovery-head {
+  display: grid;
+  grid-template-columns: 74px 1fr;
+  align-items: center;
+  gap: 0.9rem;
+}
+.queue-recovery-icon {
+  width: 74px;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  border: 1px solid rgba(148,163,184,0.25);
+  background: rgba(148,163,184,0.18);
+  display: grid;
+  place-items: center;
+}
+.queue-recovery-icon span,
+.queue-recovery-icon span::before,
+.queue-recovery-icon span::after {
+  content: "";
+  display: block;
+  position: absolute;
+  background: #dbeafe;
+  border-radius: 999px;
+}
+.queue-recovery-icon span {
+  position: relative;
+  width: 44px;
+  height: 4px;
+}
+.queue-recovery-icon span::before {
+  width: 4px;
+  height: 44px;
+  left: 20px;
+  top: -20px;
+}
+.queue-recovery-icon span::after {
+  width: 12px;
+  height: 12px;
+  left: 16px;
+  top: -4px;
+  border: 2px solid #dbeafe;
+  background: var(--surface);
+}
+.queue-recovery-title {
+  color: #fca5a5;
+  font-size: 1.35rem;
+  font-weight: 800;
+}
+.queue-recovery-printer {
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin-top: 0.15rem;
+}
+.queue-recovery-job {
+  color: var(--text);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.queue-recovery-reason {
+  color: #fca5a5;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  border: 1px solid rgba(248,113,113,0.28);
+  background: rgba(127,29,29,0.18);
+  border-radius: 6px;
+  padding: 0.65rem 0.75rem;
+}
+.queue-recovery-links {
+  display: grid;
+  gap: 0.45rem;
+}
+.queue-recovery-link {
+  min-height: 42px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: #dbeafe;
+  text-decoration: none;
+  background: rgba(148,163,184,0.16);
+  border: 1px solid rgba(148,163,184,0.18);
+  border-radius: 6px;
+  padding: 0.55rem 0.75rem;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+.queue-recovery-link:hover { background: rgba(148,163,184,0.24); }
+.queue-recovery-link span { color: #bfdbfe; font-size: 1.2rem; line-height: 1; }
+.queue-recovery-steps {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.1rem;
+}
+.queue-recovery-confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  color: var(--text);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+.queue-recovery-confirm input { margin-top: 0.15rem; }
+.queue-recovery-status {
+  min-height: 1.2rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+.queue-recovery-status[data-tone="ok"] { color: #86efac; }
+.queue-recovery-status[data-tone="warn"] { color: #fbbf24; }
+.queue-recovery-status[data-tone="info"] { color: #93c5fd; }
+.queue-recovery-actions { margin-top: 0.2rem; }
+
+@media (max-width: 540px) {
+  .queue-recovery-head { grid-template-columns: 58px 1fr; }
+  .queue-recovery-icon { width: 58px; }
+  .queue-recovery-title { font-size: 1.1rem; }
+  .queue-recovery-actions { flex-direction: column-reverse; }
+  .queue-recovery-actions .modal-btn { width: 100%; }
+}
 
 /* -- File Desk ------------------------------------------------------------- */
 .filedesk-page { min-height: 100%; }

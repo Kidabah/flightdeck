@@ -239,16 +239,19 @@ def _parse_int_list(value) -> list[int]:
 
 def _parse_filament_nozzle_map(project_settings: str) -> list[int]:
     """Return per-filament H2D nozzle targets where 0=right and 1=left."""
-    nozzle_map = (
-        _parse_int_list(_parse_config_value(project_settings, "filament_nozzle_map"))
-        or _parse_int_list(_parse_config_value(project_settings, "physical_extruder_map"))
-    )
+    nozzle_map = _parse_int_list(_parse_config_value(project_settings, "filament_nozzle_map"))
+    physical_map = _parse_int_list(_parse_config_value(project_settings, "physical_extruder_map"))
+    if not nozzle_map:
+        nozzle_map = physical_map
     if not nozzle_map:
         return []
     out: list[int] = []
     for nozzle in nozzle_map:
-        if nozzle in (0, 1):
-            out.append(nozzle)
+        mapped = nozzle
+        if physical_map and 0 <= nozzle < len(physical_map):
+            mapped = physical_map[nozzle]
+        if mapped in (0, 1):
+            out.append(mapped)
     return out
 
 

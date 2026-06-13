@@ -344,6 +344,7 @@ let _onDemo = false;            // true while demo mode is active
 let _renderedSpoolDetailId = null;
 let _lastSpoolsRouteKey = '';
 let _lastMemoryRouteKey = '';
+let _queueLatestJobs = [];
 
 // ── Toast notifications ────────────────────────────────────────────────────
 
@@ -7284,6 +7285,124 @@ function _queuePreflightModal(jobId, filename, preflight) {
   overlay.querySelector('#queue-preflight-close').addEventListener('click', close);
 }
 
+function _queueErrorText(job) {
+  return String(job?.error_msg || '').trim() || 'The printer stopped before this job completed.';
+}
+
+async function _queueFetchJson(url, options = {}) {
+  const r = await fetch(url, options);
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const detail = body?.detail;
+    if (typeof detail === 'string') throw new Error(detail);
+    if (detail?.preflight?.issues?.length) {
+      const issue = detail.preflight.issues.find(i => i.level === 'block' || i.level === 'wait') || detail.preflight.issues[0];
+      throw new Error(issue?.message || detail.message || 'Preflight blocked');
+    }
+    throw new Error(detail?.message || body?.message || `${r.status} ${r.statusText}`.trim());
+  }
+  return body;
+}
+
+function _queueRecoveryModal(job) {
+  if (!job) return;
+  const printer = _latestPrinters.find(p => p.id === job.printer_id);
+  const printerName = printer ? _printerPrimaryLabel(printer) : job.printer_id;
+  const reason = _queueErrorText(job);
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal-box queue-recovery-modal" role="dialog" aria-modal="true" aria-label="Recover stopped print">
+      <div class="queue-recovery-head">
+        <div class="queue-recovery-icon" aria-hidden="true"><span></span></div>
+        <div>
+          <div class="queue-recovery-title">Print stopped</div>
+          <div class="queue-recovery-printer">${esc(printerName)}</div>
+        </div>
+      </div>
+      <div class="queue-recovery-job">${esc(job.filename || `Queue job #${job.id}`)}</div>
+      <div class="queue-recovery-reason">${esc(reason)}</div>
+      <div class="queue-recovery-links">
+        <button type="button" class="queue-recovery-link" data-recovery-check>Filament / nozzle check <span>›</span></button>
+        <a class="queue-recovery-link" href="#/printer/${encodeURIComponent(job.printer_id)}/live" data-recovery-live>Open live view <span>›</span></a>
+      </div>
+      <div class="queue-recovery-steps">
+        <button type="button" class="modal-btn" data-recovery-clear>Clear printer state</button>
+        <label class="queue-recovery-confirm">
+          <input type="checkbox" data-recovery-bed-clear>
+          <span>Bed is clear and the printer is ready to start again</span>
+        </label>
+      </div>
+      <div class="queue-recovery-status" data-recovery-status></div>
+      <div class="modal-actions queue-recovery-actions">
+        <button class="modal-btn" data-recovery-close>OK</button>
+        <button class="modal-btn modal-btn-primary" data-recovery-print disabled>Print again</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const close = () => overlay.remove();
+  const status = overlay.querySelector('[data-recovery-status]');
+  const clearBtn = overlay.querySelector('[data-recovery-clear]');
+  const printBtn = overlay.querySelector('[data-recovery-print]');
+  const bedClear = overlay.querySelector('[data-recovery-bed-clear]');
+  const setStatus = (message, tone = '') => {
+    status.textContent = message || '';
+    status.dataset.tone = tone;
+  };
+
+  bedClear.addEventListener('change', () => {
+    printBtn.disabled = !bedClear.checked;
+  });
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  overlay.querySelector('[data-recovery-close]').addEventListener('click', close);
+  overlay.querySelector('[data-recovery-live]').addEventListener('click', close);
+  overlay.querySelector('[data-recovery-check]').addEventListener('click', async () => {
+    try {
+      const payload = await _queueFetchJson(`/api/queue/${job.id}/preflight`);
+      _queuePreflightModal(job.id, job.filename, payload?.preflight || {});
+    } catch (err) {
+      showToast('Filament check failed', err.message || '', 'error');
+    }
+  });
+  clearBtn.addEventListener('click', async () => {
+    clearBtn.disabled = true;
+    setStatus('Clearing printer state...', 'info');
+    try {
+      await _queueFetchJson(`/api/printers/${encodeURIComponent(job.printer_id)}/control`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'cancel' }),
+      });
+      setStatus('Printer clear command sent. Remove the failed print, then tick bed clear.', 'ok');
+    } catch (err) {
+      setStatus(err.message || 'Clear command failed. Clear it on the printer, then tick bed clear.', 'warn');
+      showToast('Clear printer state failed', err.message || '', 'warning');
+    } finally {
+      clearBtn.disabled = false;
+    }
+  });
+  printBtn.addEventListener('click', async () => {
+    if (!bedClear.checked) return;
+    printBtn.disabled = true;
+    setStatus('Retrying job...', 'info');
+    try {
+      await _queueFetchJson(`/api/queue/${job.id}/retry`, { method: 'POST' });
+      setStatus('Preflight running...', 'info');
+      await _queueFetchJson(`/api/queue/${job.id}/send`, { method: 'POST' });
+      showToast('Print started', job.filename || `Queue job #${job.id}`, 'success');
+      close();
+      await renderQueueView();
+    } catch (err) {
+      setStatus(err.message || 'Print again failed', 'warn');
+      showToast('Print again blocked', err.message || '', 'warning');
+      await renderQueueView();
+    } finally {
+      if (document.body.contains(overlay)) printBtn.disabled = !bedClear.checked;
+    }
+  });
+}
+
 function _fmtSeconds(s) {
   if (!s) return '';
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
@@ -8091,7 +8210,8 @@ function _queueJobCard(job, isFirst, isLast) {
         <button class="queue-act-btn queue-act-check" data-action="check"  data-id="${job.id}" title="Run filament check">FIL</button>
         <button class="queue-act-btn queue-act-del"  data-action="delete" data-id="${job.id}" title="Remove">✕</button>
       ` : isRecoverable ? `
-        <button class="queue-act-btn queue-act-retry" data-action="retry"  data-id="${job.id}" title="Retry">↺</button>
+        <button class="queue-act-btn queue-act-recover" data-action="recover" data-id="${job.id}" title="Recover stopped print">Recover</button>
+        <button class="queue-act-btn queue-act-retry" data-action="retry"  data-id="${job.id}" title="Retry without recovery">↺</button>
         <button class="queue-act-btn queue-act-del"   data-action="delete" data-id="${job.id}" title="Remove">✕</button>
       ` : ''}
     </div>
@@ -8148,6 +8268,7 @@ async function renderQueueView() {
     ]);
     const jobs = Array.isArray(jobsRaw) ? jobsRaw : [];
     const printers = Array.isArray(printersRaw) ? printersRaw : [];
+    _queueLatestJobs = jobs;
 
     const byPrinter = {};
     for (const p of printers) byPrinter[p.id] = { label: _printerNavLabel(p), kind: p.kind, jobs: [] };
@@ -8255,6 +8376,10 @@ async function _queueHandleAction(e) {
       if (!r.ok) throw new Error((await r.json())?.detail || `Queue preflight ${r.status}`);
       const payload = await r.json();
       _queuePreflightModal(id, payload?.filename || null, payload?.preflight || {});
+    } else if (action === 'recover') {
+      btn.disabled = false;
+      _queueRecoveryModal(_queueLatestJobs.find(j => String(j.id) === String(id)));
+      return;
     } else if (action === 'retry') {
       await fetch(`/api/queue/${id}/retry`, { method: 'POST' });
     } else if (action === 'clear-completed') {
