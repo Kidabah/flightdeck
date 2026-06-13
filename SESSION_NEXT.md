@@ -6,9 +6,23 @@ Latest GitHub/Pi state:
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=479 / style.css?v=377 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=480 / style.css?v=378 / demo-runtime.js?v=8
 
 Recent work:
+- **Added slicer health endpoint + UI** (`app/main.py`, `app/static/app.js`, `app/static/style.css`). **`app/printers/bambu.py` was NOT touched — AMS mapping code (`_build_bambu_ams_mappings`, `_bambu_tray_target`, `ams_slots`) is unchanged.**
+  - `GET /api/slicer/health` probes all four configured slicer services in parallel (3s timeout each): Windows worker (`/api/slicer/worker/status`), Browser Orca, Bambu Studio browser, Slicer API (`/health`). Returns per-component `{configured, ok, url, detail}` plus top-level `all_ok` / `any_configured`.
+  - Settings > Slicer: new "Check all" button renders a colour-coded health grid (green=online, amber=offline + plain-English hint per service, grey=not configured).
+  - Slice Modal: after the plan renders, if worker or API URL is configured, an async health probe fires and appends a `slicer-health-warning` strip if any service is offline — "Windows slicers offline / start Docker Desktop on Windows and wait for containers."
+  - **Live test from Pi (2026-06-13, all services up):**
+    - `worker`: `ok: true` — `http://100.112.171.88:8000` — `Reachable · C:\Program Files\OrcaSlicer\orca-slicer.exe`
+    - `orca_browser`: `ok: true` — `https://100.112.171.88:3011` — `Reachable (sign-in required)`
+    - `bambu_browser`: `ok: true` — `https://100.112.171.88:3012` — `Reachable (sign-in required)`
+    - `slicer_api`: `ok: true` — `http://100.112.171.88:3003` — `Reachable`
+    - `all_ok: true`, `any_configured: true`
+  - `python -m py_compile app/main.py`, `node --check app/static/app.js`, `git diff --check` all clean.
+  - Cachebusted: `app.js?v=480`, `style.css?v=378` (both `index.html` and `demo.html`).
+
+
 - **CONFIRMED WORKING**: H2D AMS HT (BigBoy) prints now start correctly via Flightdeck queue without `1800-8012`. Three stacked bugs were fixed across this session:
   1. **Wrong index**: `ams_mapping=[128]` (1 element at index 0) — gcode `T4`/`M620 S4A` requires `ams_mapping[4]`, so a full project-filament-indexed array is needed.
   2. **Wrong flat value**: MQTT unit_id `128` is not recognised by the firmware in print commands; the correct value is the sequential slot position: `n_regular_ams_units × 4 + ht_slot_idx` = **4** for H2D with one 4-slot AMS.

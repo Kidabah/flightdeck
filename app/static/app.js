@@ -11442,8 +11442,10 @@ function _slicerCategoryHtml(profileData = null, printers = []) {
         <button type="button" class="settings-save-btn" data-slicer-test="bambu_browser">Test Bambu Studio</button>
         <button type="button" class="settings-save-btn" data-slicer-test="api">Test API</button>
         <button type="button" class="settings-save-btn" data-slicer-test="worker">Test Worker</button>
+        <button type="button" class="settings-save-btn" id="slicer-check-all">Check all</button>
         <span class="slicer-connection-status" id="slicer-connection-status"></span>
       </div>
+      <div class="slicer-health-grid" id="slicer-health-grid" hidden></div>
       <div class="slicer-managed-panel">
         <div class="slicer-managed-copy">
           <strong>Managed Docker Orca</strong>
@@ -11482,6 +11484,32 @@ function _bambuStudioDockerDefaultUrl(orcaUrl = '') {
 
 function _slicerApiDefaultUrl() {
   return `http://${location.hostname}:3003`;
+}
+
+function _renderSlicerHealthGrid(data) {
+  const rows = [
+    ['Windows worker', data.worker, 'Docker Desktop on Windows may be stopped — start it and wait for containers.'],
+    ['Browser Orca', data.orca_browser, 'The Orca browser container may be stopped — use Restart Orca below.'],
+    ['Bambu Studio', data.bambu_browser, 'The Bambu Studio browser container may be stopped.'],
+    ['Slicer API', data.slicer_api, 'The OrcaSlicer API sidecar on Windows may be stopped — restart Docker Desktop.'],
+  ];
+  return rows.map(([label, r, hint]) => {
+    if (!r) return '';
+    if (!r.configured) return `<div class="slicer-health-row slicer-health-unconfigured"><span>${esc(label)}</span><span>Not configured</span></div>`;
+    const tone = r.ok ? 'ok' : 'warn';
+    const detail = r.ok ? (r.detail || 'Online') : `Offline — ${hint}`;
+    return `<div class="slicer-health-row" data-tone="${tone}"><span>${esc(label)}</span><span>${esc(detail)}</span></div>`;
+  }).join('');
+}
+
+function _slicerOfflineCopy(health) {
+  const offline = [];
+  if (health.worker?.configured && !health.worker.ok) offline.push('Windows worker');
+  if (health.slicer_api?.configured && !health.slicer_api.ok) offline.push('slicer API');
+  if (health.orca_browser?.configured && !health.orca_browser.ok) offline.push('Browser Orca');
+  if (!offline.length) return 'One or more slicer services are not responding.';
+  const list = offline.join(' and ');
+  return `${list} ${offline.length > 1 ? 'are' : 'is'} not responding. Start Docker Desktop on Windows and wait for containers to come up, then retry.`;
 }
 
 function _slicerBrowserCredentials(root = null) {
@@ -11805,6 +11833,32 @@ function _attachSlicerEvents(el) {
       }
     });
   });
+
+  const checkAllBtn = el.querySelector('#slicer-check-all');
+  if (checkAllBtn) {
+    checkAllBtn.addEventListener('click', async () => {
+      const grid = el.querySelector('#slicer-health-grid');
+      const old = checkAllBtn.textContent;
+      checkAllBtn.disabled = true;
+      checkAllBtn.textContent = 'Checking...';
+      if (grid) { grid.hidden = false; grid.textContent = 'Checking all slicer services...'; }
+      try {
+        const r = await fetch('/api/slicer/health');
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(data.detail || 'Health check failed');
+        if (grid) grid.innerHTML = _renderSlicerHealthGrid(data);
+        if (data.all_ok) showToast('All slicer services online', '', 'success');
+        else if (!data.any_configured) showToast('No slicer services configured', 'Set URLs in Settings → Slicer.', 'warning');
+        else showToast('One or more slicer services offline', _slicerOfflineCopy(data), 'error');
+      } catch (err) {
+        if (grid) { grid.hidden = true; }
+        showToast('Slicer health check failed', err.message || '', 'error');
+      } finally {
+        checkAllBtn.disabled = false;
+        checkAllBtn.textContent = old;
+      }
+    });
+  }
 
   el.querySelectorAll('[data-orca-docker-action]').forEach(btn => {
     btn.addEventListener('click', async () => {
@@ -12663,6 +12717,21 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
             <button class="filedesk-slice-link" type="button" data-copy-slice-name="${esc(outputName)}">Copy output name</button>
             <button class="filedesk-slice-link" type="button" data-check-slice-output="${esc(outputName)}">Check vault</button>
           </div>`;
+        // Async health probe — appends an offline warning if any configured slicer service is down.
+        if (data.worker_url || data.api_url) {
+          (async () => {
+            try {
+              const hr = await fetch('/api/slicer/health');
+              const hdata = await hr.json().catch(() => ({}));
+              if (hr.ok && hdata.any_configured && !hdata.all_ok) {
+                const warn = document.createElement('div');
+                warn.className = 'slicer-health-warning';
+                warn.innerHTML = `<strong>Windows slicers offline</strong><span>${esc(_slicerOfflineCopy(hdata))}</span>`;
+                actionsEl.appendChild(warn);
+              }
+            } catch { /* best-effort */ }
+          })();
+        }
       }
       showToast(data.ready ? 'Slice plan ready' : 'Slicer not configured', data.message || '', data.ready ? 'success' : 'warning');
     } catch (err) {

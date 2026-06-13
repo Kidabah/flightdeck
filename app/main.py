@@ -2219,6 +2219,56 @@ async def check_slicer_connection(body: SlicerConnectionCheckRequest):
     }
 
 
+@app.get("/api/slicer/health")
+async def slicer_health_summary():
+    """Probe all configured slicer components concurrently and return a health summary."""
+    settings = db.get_all_settings()
+    worker_url = (settings.get("orcaslicer_worker_url") or "").strip().rstrip("/")
+    browser_url = (settings.get("orcaslicer_docker_url") or "").strip().rstrip("/")
+    bambu_url = (settings.get("bambustudio_docker_url") or "").strip().rstrip("/")
+    api_url = (settings.get("orcaslicer_api_url") or "").strip().rstrip("/")
+
+    async def _probe(url: str, path: str = "", *, verify: bool = True, timeout: float = 3.0) -> dict:
+        if not url:
+            return {"configured": False, "ok": False, "url": "", "detail": "Not configured"}
+        target = url.rstrip("/") + path
+        try:
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(connect=timeout, read=timeout, write=timeout, pool=timeout),
+                follow_redirects=True, verify=verify,
+            ) as client:
+                resp = await client.get(target)
+        except Exception as exc:
+            return {"configured": True, "ok": False, "url": url, "detail": str(exc)}
+        if not verify and resp.status_code in {401, 403}:
+            return {"configured": True, "ok": True, "url": url, "detail": "Reachable (sign-in required)"}
+        if resp.status_code >= 400:
+            return {"configured": True, "ok": False, "url": url, "detail": f"HTTP {resp.status_code}"}
+        payload = None
+        try:
+            payload = resp.json()
+        except Exception:
+            pass
+        version = str((payload or {}).get("version") or (payload or {}).get("executable") or "") if payload else ""
+        return {"configured": True, "ok": True, "url": url, "detail": f"Reachable{f' · {version}' if version else ''}"}
+
+    worker_r, browser_r, bambu_r, api_r = await asyncio.gather(
+        _probe(worker_url, "/api/slicer/worker/status"),
+        _probe(browser_url, verify=False),
+        _probe(bambu_url, verify=False),
+        _probe(api_url, "/health"),
+    )
+    configured = [r for r in (worker_r, browser_r, bambu_r, api_r) if r["configured"]]
+    return {
+        "worker": worker_r,
+        "orca_browser": browser_r,
+        "bambu_browser": bambu_r,
+        "slicer_api": api_r,
+        "all_ok": all(r["ok"] for r in configured),
+        "any_configured": bool(configured),
+    }
+
+
 @app.post("/api/slicer/worker/slice")
 async def slicer_worker_slice(
     file: UploadFile = File(...),
