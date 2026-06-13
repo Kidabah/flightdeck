@@ -1,3 +1,19 @@
+## 2026-06-13 Session handoff
+
+Latest GitHub/Pi state:
+- Branch: main
+- Latest commit: `Fix H2D AMS HT flat tray ID using filament_ids from 3MF plate JSON`
+- Pi repo: /home/flightdeck/flightdeck
+- Data dir: /home/flightdeck/flightdeck-data
+- App URL: https://flightdeck.tail7de73e.ts.net/
+- Refresh cachebust currently: app.js?v=479 / style.css?v=377 / demo-runtime.js?v=8
+
+Recent work:
+- Fixed H2D AMS HT 1800-8012 "Failed to get AMS mapping table" error definitively. Root cause: Flightdeck sent `ams_mapping=[128]` (MQTT unit ID) but H2D firmware's flat lookup table expects BambuStudio's sequential tray index (e.g. `[4]` for AMS HT slot 0 when one 4-slot regular AMS is also present). The 3MF plate_N.json already contains `"filament_ids": [4]` — Flightdeck was ignoring it. `_parse_3mf()` now extracts `filament_ids` from plate JSON into `BambuPreview`. `_build_bambu_ams_mappings()` uses `filament_ids` as the flat override when available. `filament_ids` is threaded through `start_print_3mf()`, `start_uploaded_3mf()`, `bambu_upload()`, and `bambu_print_start()`. Also fixed `ams_mapping2` AMS HT decomposition: was sending `{"ams_id": 128+N, "slot_id": 0}` instead of `{"ams_id": 128, "slot_id": N}`. Backend restart required (user ran sudo restart, service confirmed healthy).
+  - Verification: `python -m py_compile app/printers/bambu.py app/printers/bambu_ftp.py app/relay.py`, `git diff --check` passed. queue_bambu_mapping decision log now records `filament_ids` alongside `ams_mapping`. Next test: queue a fresh AMS HT print and confirm it starts without 1800-8012.
+
+---
+
 ## 2026-06-07 Session handoff
 
 Latest GitHub/Pi state:
