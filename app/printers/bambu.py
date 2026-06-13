@@ -1152,33 +1152,46 @@ def _build_bambu_ams_mappings(
 ) -> tuple[list[int], list[dict]]:
     """Return legacy flat ams_mapping plus detailed ams_mapping2.
 
-    For regular AMS, Bambu's flat tray ID is unit*4+slot. For AMS HT the
-    printer firmware uses a sequential index that continues after the last
-    regular AMS slot (e.g. 4 if one 4-slot AMS precedes the AMS HT).
-    filament_ids from the 3MF plate JSON carries the exact values BambuStudio
-    uses; pass them to get the correct flat ID for AMS HT slots.
-    External virtual trays are represented as -1 and resolved via ams_mapping2.
+    The H2D gcode uses T[project_filament_idx] and M620 S[project_filament_idx]A.
+    The firmware resolves these by looking up ams_mapping[project_filament_idx].
+    When filament_ids is provided (the 0-based project filament indices used on
+    the plate, from plate_N.json), the output is expanded to a project-indexed
+    array so ams_mapping[filament_ids[i]] = physical tray for plate slot i.
+    Unused project filament slots are filled with -1 / {255,255}.
+
+    Without filament_ids (X1C / single-AMS prints), the output is plate-indexed
+    and matches the existing behaviour where ams_mapping[plate_slot_i] = tray.
     """
     flat: list[int] = []
     detailed: list[dict] = []
-    for i, raw_id in enumerate(ams_mapping or []):
+    for raw_id in (ams_mapping or []):
         tray_id = int(raw_id) if raw_id is not None else -1
-        # Use the BambuStudio-assigned filament ID as the flat value when available.
-        flat_id = filament_ids[i] if (filament_ids and i < len(filament_ids)) else None
         if tray_id < 0:
-            flat.append(flat_id if flat_id is not None else -1)
+            flat.append(-1)
             detailed.append({"ams_id": 255, "slot_id": 255})
         elif tray_id >= 254:
-            flat.append(flat_id if flat_id is not None else -1)
+            flat.append(-1)
             detailed.append({"ams_id": 255, "slot_id": 0})
         elif tray_id >= 128:
-            # AMS HT: physical unit is 128, slot within it is tray_id - 128.
+            # AMS HT: MQTT unit_id is 128; slot within it is tray_id - 128.
             ht_slot = tray_id - 128
-            flat.append(flat_id if flat_id is not None else tray_id)
+            flat.append(tray_id)
             detailed.append({"ams_id": 128, "slot_id": ht_slot})
         else:
-            flat.append(flat_id if flat_id is not None else tray_id)
+            flat.append(tray_id)
             detailed.append({"ams_id": tray_id // 4, "slot_id": tray_id % 4})
+
+    # When filament_ids are present, remap from plate-slot-indexed to
+    # project-filament-indexed so the firmware can look up T4 as ams_mapping[4].
+    if filament_ids and len(filament_ids) == len(flat):
+        size = max(filament_ids) + 1
+        proj_flat = [-1] * size
+        proj_detailed: list[dict] = [{"ams_id": 255, "slot_id": 255}] * size
+        for i, proj_idx in enumerate(filament_ids):
+            proj_flat[proj_idx] = flat[i]
+            proj_detailed[proj_idx] = detailed[i]
+        return proj_flat, proj_detailed
+
     return flat, detailed
 
 
