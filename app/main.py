@@ -7291,6 +7291,28 @@ def _queue_colour_requirements(job: dict) -> list[dict]:
     return list(grouped.values())
 
 
+def _queue_nozzle_requirements(job: dict) -> list[dict]:
+    material = _norm_material(job.get("filament_type"))
+    out = []
+    for item in _queue_filament_colors(job):
+        try:
+            nozzle = int(item.get("nozzle"))
+        except (TypeError, ValueError):
+            continue
+        if nozzle not in (0, 1):
+            continue
+        color = _norm_hex(item.get("color"))
+        item_material = _norm_material(item.get("type")) or material
+        if color or item_material:
+            out.append({
+                "material": item_material,
+                "color": color,
+                "used_g": float(item.get("used_g") or 0),
+                "nozzle": nozzle,
+            })
+    return out
+
+
 def _norm_hex(value: Optional[str]) -> str:
     h = str(value or "").strip().lstrip("#")[:6].upper()
     return f"#{h}" if re.fullmatch(r"[0-9A-F]{6}", h) else ""
@@ -7357,6 +7379,91 @@ def _colour_matches(actual: Optional[str], expected: Optional[str]) -> bool:
     actual_family = _colour_family(actual)
     expected_family = _colour_family(expected)
     return bool(actual_family and actual_family == expected_family == "grey_silver")
+
+
+def _queue_nozzle_label(nozzle: Optional[int]) -> str:
+    return "right nozzle" if nozzle == 0 else "left nozzle" if nozzle == 1 else "unknown nozzle"
+
+
+def _reported_ams_path_slots(printer_status: Optional[dict]) -> list[dict]:
+    if not printer_status or not str(printer_status.get("model_name") or "").upper().startswith("H2"):
+        return []
+    slots = []
+    for unit in printer_status.get("ams") or []:
+        try:
+            unit_id = int(unit.get("unit") or 0)
+        except (TypeError, ValueError):
+            continue
+        nozzle = 0 if unit_id >= 128 else 1
+        bay = "AMS HT" if unit_id >= 128 else f"AMS {unit_id + 1}"
+        for slot in unit.get("slots") or []:
+            if slot.get("empty"):
+                continue
+            try:
+                slot_idx = int(slot.get("idx") or 0)
+            except (TypeError, ValueError):
+                slot_idx = 0
+            slots.append({
+                "unit": unit_id,
+                "idx": slot_idx,
+                "label": bay if unit_id >= 128 else f"{bay} slot {slot_idx + 1}",
+                "nozzle": nozzle,
+                "material": _norm_material(slot.get("type")),
+                "color": _norm_hex(slot.get("color")),
+            })
+    return slots
+
+
+def _h2d_nozzle_mapping_issues(job: dict, printer_status: Optional[dict]) -> list[dict]:
+    requirements = _queue_nozzle_requirements(job)
+    if not requirements:
+        return []
+    slots = _reported_ams_path_slots(printer_status)
+    if not slots:
+        return []
+    issues = []
+    for req in requirements:
+        material_matches = [
+            s for s in slots
+            if req["material"] and (
+                req["material"] == s["material"]
+                or req["material"] in s["material"]
+                or s["material"] in req["material"]
+            )
+        ] or slots
+        same_path = [s for s in material_matches if s["nozzle"] == req["nozzle"]]
+        same_path_match = [
+            s for s in same_path
+            if _colour_matches(s.get("color"), req.get("color"))
+        ]
+        if same_path_match:
+            continue
+        other_path_match = [
+            s for s in material_matches
+            if s["nozzle"] != req["nozzle"] and _colour_matches(s.get("color"), req.get("color"))
+        ]
+        wanted = " ".join(p for p in [req.get("material"), _colour_label(req.get("color"))] if p).strip()
+        target = _queue_nozzle_label(req["nozzle"])
+        if other_path_match:
+            issues.append({
+                "level": "block",
+                "message": (
+                    f"H2D nozzle/AMS mismatch: job is sliced for {target}, but matching {wanted} "
+                    f"is loaded in {other_path_match[0]['label']} ({_queue_nozzle_label(other_path_match[0]['nozzle'])}). "
+                    "Move the filament to the matching nozzle path or re-slice for the loaded AMS path."
+                ),
+            })
+        elif same_path:
+            issues.append({
+                "level": "block",
+                "message": f"H2D nozzle/AMS mismatch: job needs {wanted} on {target}, but that nozzle path has no matching colour loaded.",
+            })
+        else:
+            issues.append({
+                "level": "block",
+                "message": f"H2D nozzle/AMS mismatch: job needs {wanted} on {target}, but no AMS tray feeding that nozzle is loaded.",
+            })
+    return issues
 
 
 def _coverage_label(coverage: dict) -> str:
@@ -7577,6 +7684,7 @@ def _queue_preflight(job: dict, printer_status: Optional[dict]) -> dict:
     ] if color_reqs else material_matches
     active_reported = _reported_active_slot(printer_status)
     ams_mismatches = _printer_ams_mismatches(printer_status, loaded_spools)
+    issues.extend(_h2d_nozzle_mapping_issues(job, printer_status))
     impacted_mismatches = [m for m in ams_mismatches if _ams_mismatch_impacts_job(m, material, color_reqs)]
     if impacted_mismatches:
         detail = "; ".join(f"{m['label']}: {m['message']}" for m in impacted_mismatches[:2])

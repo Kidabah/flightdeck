@@ -38,6 +38,41 @@ def _hex_dist(a: Optional[str], b: Optional[str]) -> float:
     return sum((x - y) ** 2 for x, y in zip(va, vb)) ** 0.5
 
 
+def _colour_family(color: Optional[str]) -> str:
+    color = _norm_hex(color)
+    if not color:
+        return ""
+    rgb = [int(color[i:i + 2], 16) for i in (1, 3, 5)]
+    spread = max(rgb) - min(rgb)
+    avg = sum(rgb) / 3
+    if spread <= 45:
+        if avg <= 45:
+            return "black"
+        if avg >= 220:
+            return "white"
+        return "grey_silver"
+    return ""
+
+
+def _colour_matches(actual: Optional[str], expected: Optional[str]) -> bool:
+    if not expected:
+        return True
+    if _hex_dist(actual, expected) <= 95:
+        return True
+    return bool(_colour_family(actual) == _colour_family(expected) == "grey_silver")
+
+
+def _nozzle_label(nozzle: Optional[int]) -> str:
+    return "right nozzle" if nozzle == 0 else "left nozzle" if nozzle == 1 else "unknown nozzle"
+
+
+def _slot_label(slot: dict) -> str:
+    unit = int(slot.get("unit") or 0)
+    slot_idx = int(slot.get("idx") or 0)
+    bay = "AMS HT" if unit >= 128 else f"AMS {unit + 1} slot {slot_idx + 1}"
+    return f"{bay} / {_nozzle_label(slot.get('nozzle'))}"
+
+
 def _norm_material(value: Optional[str]) -> str:
     return re.sub(r"[^a-z0-9]+", "", (value or "").lower())
 
@@ -106,7 +141,35 @@ def _bambu_ams_mapping(meta: dict, printer: "BambuPrinter") -> tuple[list[int], 
         if nozzle in (0, 1):
             nozzle_matches = [slot for slot in material_matches if slot.get("nozzle") == nozzle]
             if nozzle_matches:
-                material_matches = nozzle_matches
+                colour_matches = [
+                    slot for slot in nozzle_matches
+                    if _colour_matches(slot.get("color_norm"), req.get("color"))
+                ]
+                if colour_matches:
+                    material_matches = colour_matches
+                else:
+                    other_path = [
+                        slot for slot in material_matches
+                        if slot.get("nozzle") != nozzle
+                        and _colour_matches(slot.get("color_norm"), req.get("color"))
+                    ]
+                    wanted = " ".join(p for p in [req.get("material"), req.get("color")] if p) or "filament"
+                    if other_path:
+                        raise RuntimeError(
+                            f"H2D AMS mapping blocked: sliced filament {wanted} is assigned to "
+                            f"{_nozzle_label(nozzle)}, but the matching loaded tray is {_slot_label(other_path[0])}. "
+                            "Move that filament to the correct AMS path or re-slice the job for the nozzle fed by that AMS."
+                        )
+                    raise RuntimeError(
+                        f"H2D AMS mapping blocked: sliced filament {wanted} is assigned to "
+                        f"{_nozzle_label(nozzle)}, but no matching loaded tray is available on that AMS path."
+                    )
+            else:
+                wanted = " ".join(p for p in [req.get("material"), req.get("color")] if p) or "filament"
+                raise RuntimeError(
+                    f"H2D AMS mapping blocked: sliced filament {wanted} is assigned to "
+                    f"{_nozzle_label(nozzle)}, but Flightdeck cannot see any loaded AMS tray feeding that nozzle."
+                )
         ranked = sorted(
             material_matches,
             key=lambda slot: (
