@@ -77,6 +77,9 @@ _UPLOAD_READ_CHUNK_BYTES = 1024 * 1024
 _BAMBU_FILE_LIST_TIMEOUT_SECONDS = float(os.getenv("FLIGHTDECK_BAMBU_FILE_LIST_TIMEOUT", "2.5"))
 _FILE_DESK_TARGET_CACHE_SECONDS = float(os.getenv("FLIGHTDECK_FILE_DESK_TARGET_CACHE_SECONDS", "20"))
 _file_desk_target_cache: dict[str, dict] = {}
+_FLIGHT_RECORDER_EXTS = {".mp4", ".webm", ".mov", ".avi"}
+_BAMBU_RECORDER_ROOTS = ("timelapse", "video", "movie", "ipcam", "record", "records")
+_MOONRAKER_RECORDER_ROOTS = ("timelapse", "gcodes")
 
 
 def _dt_default(obj):
@@ -1099,9 +1102,13 @@ def _safe_library_path(rel_path: str) -> Path:
 
 
 async def _moonraker_files(base_url: str) -> list[dict]:
+    return await _moonraker_files_root(base_url, "gcodes")
+
+
+async def _moonraker_files_root(base_url: str, root: str) -> list[dict]:
     timeout = httpx.Timeout(4.0, connect=1.0)
     async with httpx.AsyncClient(timeout=timeout) as client:
-        r = await client.get(f"{base_url.rstrip('/')}/server/files/list", params={"root": "gcodes"})
+        r = await client.get(f"{base_url.rstrip('/')}/server/files/list", params={"root": root})
         r.raise_for_status()
         result = r.json().get("result", [])
     rows = []
@@ -1120,11 +1127,11 @@ async def _moonraker_files(base_url: str) -> list[dict]:
     return sorted(rows, key=lambda r: (r["kind"] != "dir", r["path"].lower()))
 
 
-async def _download_moonraker_file(base_url: str, path: str) -> bytes:
+async def _download_moonraker_file(base_url: str, path: str, root: str = "gcodes") -> bytes:
     from urllib.parse import quote
     safe = quote(path.lstrip("/"), safe="/")
     async with httpx.AsyncClient(timeout=120.0) as client:
-        r = await client.get(f"{base_url.rstrip('/')}/server/files/gcodes/{safe}")
+        r = await client.get(f"{base_url.rstrip('/')}/server/files/{root}/{safe}")
         r.raise_for_status()
         return r.content
 
@@ -2361,24 +2368,30 @@ async def open_file_in_orca(body: SlicerOpenRequest):
             result["forwarded"] = False
             return result
 
-    if target != "desktop_orca" and not local_orca and worker_url:
+    if target != "desktop_orca" and worker_url:
         files = {"file": (filename, data, "application/octet-stream")}
         form_data = {"target": target}
         try:
             async with httpx.AsyncClient(timeout=httpx.Timeout(connect=10.0, read=45.0, write=60.0, pool=10.0)) as client:
                 resp = await client.post(f"{worker_url}/api/slicer/worker/open", files=files, data=form_data)
         except Exception as exc:
-            detail = str(exc).strip() or "connection timed out"
-            raise HTTPException(status_code=502, detail=f"Slicer worker unreachable: {detail}") from exc
-        payload = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
-        if resp.status_code >= 400:
-            detail = payload.get("detail") if isinstance(payload, dict) else resp.text
-            raise HTTPException(status_code=resp.status_code, detail=detail or "Slicer worker could not open Orca")
-        if isinstance(payload, dict):
-            payload["forwarded"] = True
-            payload["worker_url"] = worker_url
-            return payload
-        return {"ok": True, "forwarded": True, "worker_url": worker_url}
+            if local_orca:
+                log.warning("Slicer worker unreachable for browser open; falling back to local Orca container: %s", exc)
+            else:
+                detail = str(exc).strip() or "connection timed out"
+                raise HTTPException(status_code=502, detail=f"Slicer worker unreachable: {detail}") from exc
+        else:
+            payload = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
+            if resp.status_code < 400:
+                if isinstance(payload, dict):
+                    payload["forwarded"] = True
+                    payload["worker_url"] = worker_url
+                    return payload
+                return {"ok": True, "forwarded": True, "worker_url": worker_url}
+            if not local_orca:
+                detail = payload.get("detail") if isinstance(payload, dict) else resp.text
+                raise HTTPException(status_code=resp.status_code, detail=detail or "Slicer worker could not open Orca")
+            log.warning("Slicer worker could not open Orca; falling back to local Orca container: %s", payload or resp.text)
 
     if target in {"browser_orca", "docker_orca"} and source_id == "library" and local_orca:
         source_file = _safe_library_path(source_path)
@@ -6734,6 +6747,19 @@ def _timelapse_media_type(path: Path) -> str:
     return "video/mp4"
 
 
+def _timelapse_suffix(filename: str) -> str:
+    suffix = Path(filename or "").suffix.lower()
+    return suffix if suffix in _FLIGHT_RECORDER_EXTS else ""
+
+
+def _timelapse_safe_output_path(printer_id: str, print_id: int, print_filename: str, suffix: str) -> Path:
+    safe_printer = re.sub(r"[^a-zA-Z0-9_.-]+", "-", printer_id).strip("-") or "printer"
+    safe_name = re.sub(r"[^a-zA-Z0-9_.-]+", "-", Path(print_filename or "print").stem).strip("-")[:80] or "print"
+    out_dir = FLIGHT_RECORDER_DIR / safe_printer
+    out_dir.mkdir(parents=True, exist_ok=True)
+    return out_dir / f"{print_id}-{safe_name}{suffix}"
+
+
 def _timelapse_path_from_record(record: dict) -> Path:
     raw = Path(str(record.get("timelapse_path") or ""))
     if raw.is_absolute():
@@ -6746,6 +6772,170 @@ def _timelapse_path_from_record(record: dict) -> Path:
         return resolved
     except Exception as exc:
         raise HTTPException(status_code=404, detail="timelapse path unavailable") from exc
+
+
+def _normalise_timelapse_key(value: str) -> str:
+    text = Path(value or "").stem.lower()
+    text = re.sub(r"\.gcode$", "", text)
+    text = re.sub(r"[^a-z0-9]+", "", text)
+    return text
+
+
+def _parse_timelapse_modified(value) -> Optional[datetime]:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        try:
+            return datetime.fromtimestamp(float(value), tz=timezone.utc)
+        except Exception:
+            return None
+    raw = str(value).strip()
+    if not raw:
+        return None
+    for fmt in ("%Y%m%d%H%M%S", "%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S"):
+        try:
+            dt = datetime.strptime(raw, fmt)
+            return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        except ValueError:
+            pass
+    try:
+        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
+def _print_time_window(item: dict) -> tuple[Optional[datetime], Optional[datetime]]:
+    def parse(value) -> Optional[datetime]:
+        if not value:
+            return None
+        if isinstance(value, datetime):
+            return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        try:
+            dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+            return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        except ValueError:
+            return None
+    return parse(item.get("started_at")), parse(item.get("ended_at"))
+
+
+def _timelapse_candidate_score(item: dict, candidate: dict) -> float:
+    filename_key = _normalise_timelapse_key(item.get("filename") or "")
+    subtask_key = _normalise_timelapse_key(item.get("subtask_name") or "")
+    candidate_key = _normalise_timelapse_key(candidate.get("name") or candidate.get("path") or "")
+    score = 0.0
+    if filename_key and (filename_key in candidate_key or candidate_key in filename_key):
+        score += 80
+    if subtask_key and (subtask_key in candidate_key or candidate_key in subtask_key):
+        score += 100
+
+    started, ended = _print_time_window(item)
+    modified = _parse_timelapse_modified(candidate.get("modified"))
+    if modified and (started or ended):
+        if ended:
+            delta = abs((modified - ended).total_seconds())
+            if delta <= 6 * 3600:
+                score += max(0.0, 60.0 - (delta / 360.0))
+        if started and modified >= started - timedelta(minutes=10):
+            score += 15
+
+    size = candidate.get("size")
+    if score > 0 and isinstance(size, int) and size > 0:
+        score += min(10.0, size / (25 * 1024 * 1024))
+    return score
+
+
+def _pick_timelapse_candidate(item: dict, candidates: list[dict]) -> Optional[dict]:
+    viable = []
+    for candidate in candidates:
+        suffix = _timelapse_suffix(candidate.get("name") or candidate.get("path") or "")
+        if not suffix:
+            continue
+        size = candidate.get("size")
+        if isinstance(size, int) and size > _MAX_FLIGHT_RECORDER_BYTES:
+            continue
+        scored = dict(candidate)
+        scored["_score"] = _timelapse_candidate_score(item, candidate)
+        viable.append(scored)
+    if not viable:
+        return None
+    viable.sort(key=lambda c: (float(c.get("_score") or 0), c.get("modified") or "", c.get("size") or 0), reverse=True)
+    best = viable[0]
+    if float(best.get("_score") or 0) <= 0:
+        return None
+    return best
+
+
+async def _list_bambu_recorder_candidates(printer) -> list[dict]:
+    from .printers.bambu_ftp import list_bambu_files
+    roots = [""] + list(_BAMBU_RECORDER_ROOTS)
+    seen: set[str] = set()
+    rows: list[dict] = []
+
+    async def scan(root: str, depth: int = 0) -> None:
+        if root in seen or depth > 2:
+            return
+        seen.add(root)
+        try:
+            files = await asyncio.to_thread(list_bambu_files, printer._ip, printer._access_code, root)
+        except Exception as exc:
+            log.debug("Bambu recorder scan failed for %s:%s: %s", printer.id, root or "/", exc)
+            return
+        for file in files[:200]:
+            path = str(file.get("path") or file.get("name") or "").lstrip("/")
+            if not path:
+                continue
+            kind = file.get("kind")
+            if kind == "dir":
+                if depth < 2:
+                    await scan(path, depth + 1)
+                continue
+            if _timelapse_suffix(path):
+                rows.append({**file, "path": path, "source": "bambu-sd"})
+
+    for root in roots:
+        await scan(root)
+    return rows
+
+
+async def _list_moonraker_recorder_candidates(base_url: str) -> list[dict]:
+    rows: list[dict] = []
+    for root in _MOONRAKER_RECORDER_ROOTS:
+        try:
+            files = await _moonraker_files_root(base_url, root)
+        except Exception as exc:
+            log.debug("Moonraker recorder scan failed for %s: %s", root, exc)
+            continue
+        for file in files:
+            if file.get("kind") == "dir":
+                continue
+            path = str(file.get("path") or file.get("name") or "").lstrip("/")
+            if _timelapse_suffix(path):
+                rows.append({**file, "path": path, "root": root, "source": "moonraker"})
+    return rows
+
+
+async def _discover_print_timelapse(printer_id: str, item: dict) -> tuple[dict, bytes]:
+    bambu = _find_bambu(printer_id)
+    if bambu:
+        candidates = await _list_bambu_recorder_candidates(bambu)
+        best = _pick_timelapse_candidate(item, candidates)
+        if not best:
+            raise HTTPException(status_code=404, detail="no matching Bambu recorder clip found")
+        from .printers.bambu_ftp import download_bambu_file
+        data = await asyncio.to_thread(download_bambu_file, bambu._ip, bambu._access_code, best["path"])
+        return best, data
+
+    mr_url = _find_moonraker_url(printer_id)
+    if mr_url:
+        candidates = await _list_moonraker_recorder_candidates(mr_url)
+        best = _pick_timelapse_candidate(item, candidates)
+        if not best:
+            raise HTTPException(status_code=404, detail="no matching Moonraker recorder clip found")
+        data = await _download_moonraker_file(mr_url, best["path"], root=str(best.get("root") or "gcodes"))
+        return best, data
+
+    raise HTTPException(status_code=404, detail="printer does not support recorder discovery")
 
 
 @app.get("/api/printers/{printer_id}/prints/{print_id}/timelapse")
@@ -6770,14 +6960,10 @@ async def upload_print_timelapse(printer_id: str, print_id: int, file: UploadFil
     item = db.get_print_by_id(print_id)
     if not item or item.get("printer_id") != printer_id:
         raise HTTPException(status_code=404, detail="print not found")
-    suffix = Path(file.filename or "").suffix.lower()
-    if suffix not in {".mp4", ".webm", ".mov", ".avi"}:
+    suffix = _timelapse_suffix(file.filename or "")
+    if not suffix:
         raise HTTPException(status_code=400, detail="upload an mp4, webm, mov, or avi timelapse")
-    safe_printer = re.sub(r"[^a-zA-Z0-9_.-]+", "-", printer_id).strip("-") or "printer"
-    safe_name = re.sub(r"[^a-zA-Z0-9_.-]+", "-", Path(item.get("filename") or "print").stem).strip("-")[:80] or "print"
-    out_dir = FLIGHT_RECORDER_DIR / safe_printer
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / f"{print_id}-{safe_name}{suffix}"
+    out_path = _timelapse_safe_output_path(printer_id, print_id, item.get("filename") or "print", suffix)
     total = 0
     with out_path.open("wb") as fh:
         while True:
@@ -6804,6 +6990,48 @@ async def upload_print_timelapse(printer_id: str, print_id: int, file: UploadFil
     db.log_decision(printer_id, "flight_recorder_attached", f"Attached timelapse {out_path.name}", print_id=print_id)
     updated = db.get_print_by_id(print_id) or item
     updated["timelapse_url"] = f"/api/printers/{urllib.parse.quote(printer_id)}/prints/{print_id}/timelapse"
+    return updated
+
+
+@app.post("/api/printers/{printer_id}/prints/{print_id}/timelapse/discover")
+async def discover_print_timelapse(printer_id: str, print_id: int):
+    _assert_printer(printer_id)
+    item = db.get_print_by_id(print_id)
+    if not item or item.get("printer_id") != printer_id:
+        raise HTTPException(status_code=404, detail="print not found")
+    if item.get("has_timelapse"):
+        updated = db.get_print_by_id(print_id) or item
+        updated["timelapse_url"] = f"/api/printers/{urllib.parse.quote(printer_id)}/prints/{print_id}/timelapse"
+        return updated
+
+    candidate, data = await _discover_print_timelapse(printer_id, item)
+    if not data:
+        raise HTTPException(status_code=422, detail="recorder clip is empty")
+    if len(data) > _MAX_FLIGHT_RECORDER_BYTES:
+        raise HTTPException(status_code=413, detail="recorder clip too large")
+
+    suffix = _timelapse_suffix(candidate.get("name") or candidate.get("path") or "")
+    if not suffix:
+        raise HTTPException(status_code=422, detail="recorder clip type is unsupported")
+    out_path = _timelapse_safe_output_path(printer_id, print_id, item.get("filename") or "print", suffix)
+    out_path.write_bytes(data)
+    source = str(candidate.get("source") or "printer-media")
+    if not db.attach_print_timelapse(print_id, out_path, source=source):
+        raise HTTPException(status_code=404, detail="print not found")
+    db.log_decision(
+        printer_id,
+        "flight_recorder_discovered",
+        f"Attached {source} clip {candidate.get('path') or candidate.get('name')}",
+        print_id=print_id,
+    )
+    updated = db.get_print_by_id(print_id) or item
+    updated["timelapse_url"] = f"/api/printers/{urllib.parse.quote(printer_id)}/prints/{print_id}/timelapse"
+    updated["recorder_candidate"] = {
+        "source": source,
+        "path": candidate.get("path"),
+        "size": candidate.get("size") or len(data),
+        "score": candidate.get("_score"),
+    }
     return updated
 
 @app.post("/api/spools/{spool_id}/move")

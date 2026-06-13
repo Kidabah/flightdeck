@@ -4836,10 +4836,13 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
         <span>Flight Recorder</span>
         <em>${print.has_timelapse ? `Recorded${print.timelapse_source ? ` · ${esc(print.timelapse_source)}` : ''}` : 'Attach a timelapse to this print'}</em>
       </div>
-      ${print.has_timelapse ? '' : `<label class="flight-recorder-upload">
-        <input type="file" accept="video/mp4,video/webm,video/quicktime,video/x-msvideo">
-        <span>Add video</span>
-      </label>`}
+      ${print.has_timelapse ? '' : `<div class="flight-recorder-actions">
+        <button type="button" class="flight-recorder-discover">Find clip</button>
+        <label class="flight-recorder-upload">
+          <input type="file" accept="video/mp4,video/webm,video/quicktime,video/x-msvideo">
+          <span>Add video</span>
+        </label>
+      </div>`}
     </div>
     ${print.has_timelapse
       ? `<video class="flight-recorder-video" src="${recorderUrl}" controls preload="metadata"></video>`
@@ -4934,6 +4937,25 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
       } catch (err) {
         showToast(`Recorder upload failed: ${err.message || err}`, 'error');
         if (uploadLabel) uploadLabel.textContent = 'Add video';
+      }
+    });
+
+    const discoverBtn = recorderBlock.querySelector('.flight-recorder-discover');
+    discoverBtn?.addEventListener('click', async () => {
+      const originalText = discoverBtn.textContent;
+      discoverBtn.disabled = true;
+      discoverBtn.textContent = 'Searching...';
+      try {
+        const r = await fetch(`/api/printers/${printerId}/prints/${print.id}/timelapse/discover`, { method: 'POST' });
+        if (!r.ok) throw new Error(await r.text());
+        const saved = await r.json();
+        print = { ...print, ...saved };
+        showToast('Flight Recorder clip found', 'success');
+        _showPrintDetail(printerId, dateStr, print);
+      } catch (err) {
+        showToast(`Recorder search failed: ${err.message || err}`, 'error');
+        discoverBtn.disabled = false;
+        discoverBtn.textContent = originalText || 'Find clip';
       }
     });
   }
@@ -12492,7 +12514,9 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
           ? (bambuStudioUrl
             ? `<a class="filedesk-slice-link" href="${esc(bambuStudioUrl)}" target="_blank" rel="noreferrer">Open Bambu Studio</a>`
             : `<button class="filedesk-slice-link" type="button" disabled title="Set the Bambu Studio URL in Settings > Slicer first">Open Bambu Studio unavailable</button>`)
-          : `<button class="filedesk-slice-link" type="button" data-open-orca data-open-orca-target="${esc(effectiveOpenMode)}" data-open-orca-source-id="${esc(sourceId)}" data-open-orca-path="${esc(path)}" data-open-orca-url="${esc(effectiveOpenMode === 'browser_orca' ? browserUrl : '')}">${effectiveOpenMode === 'browser_orca' ? 'Open in Browser Orca' : 'Open in Desktop Orca'}</button>`;
+          : effectiveOpenMode === 'browser_orca'
+            ? `<a class="filedesk-slice-link" href="${esc(browserUrl || '#')}" target="_blank" rel="noreferrer" data-open-orca data-open-orca-target="browser_orca" data-open-orca-source-id="${esc(sourceId)}" data-open-orca-path="${esc(path)}" data-open-orca-url="${esc(browserUrl || '')}">Open in Browser Orca</a>`
+            : `<button class="filedesk-slice-link" type="button" data-open-orca data-open-orca-target="${esc(effectiveOpenMode)}" data-open-orca-source-id="${esc(sourceId)}" data-open-orca-path="${esc(path)}" data-open-orca-url="">Open in Desktop Orca</button>`;
         if (isBambuHandoff && bambuStudioUrl) {
           window.open(bambuStudioUrl, '_blank', 'noreferrer');
           showToast('Opening Bambu Studio', 'Import the downloaded model if it is not already on the plate.', 'success');
@@ -12596,7 +12620,17 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
     if (!openBtn) return;
     const old = openBtn.textContent;
     const browserUrl = openBtn.dataset.openOrcaUrl || '';
-    openBtn.disabled = true;
+    const openTarget = openBtn.dataset.openOrcaTarget || 'desktop_orca';
+    let browserOpened = false;
+    if (browserUrl && openTarget === 'browser_orca' && openBtn.tagName !== 'A') {
+      window.open(browserUrl, '_blank', 'noreferrer');
+      browserOpened = true;
+    }
+    if (openBtn.tagName === 'A' && browserUrl && openTarget === 'browser_orca') {
+      browserOpened = true;
+    }
+    if ('disabled' in openBtn) openBtn.disabled = true;
+    else openBtn.setAttribute('aria-disabled', 'true');
     openBtn.textContent = 'Opening...';
     try {
       const r = await fetch('/api/slicer/open', {
@@ -12606,17 +12640,18 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
           source_id: openBtn.dataset.openOrcaSourceId || 'library',
           path: openBtn.dataset.openOrcaPath || '',
           filename: openBtn.dataset.openOrcaFilename || '',
-          target: openBtn.dataset.openOrcaTarget || 'desktop_orca',
+          target: openTarget,
         }),
       });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Unable to open Orca');
       showToast('Opening in Orca', data.forwarded ? 'Sent to Windows Orca worker' : (data.mode === 'desktop-orca' || data.mode === 'desktop-file-association') ? 'Sent to desktop OrcaSlicer' : (data.filename || 'Model handed to Orca'), 'success');
-      if (browserUrl) window.open(browserUrl, '_blank', 'noreferrer');
+      if (browserUrl && !browserOpened) window.open(browserUrl, '_blank', 'noreferrer');
     } catch (err) {
-      showToast('Open Orca failed', err.message || '', 'error');
+      showToast(browserOpened ? 'Browser Orca opened' : 'Open Orca failed', browserOpened ? `Model handoff failed: ${err.message || err}` : (err.message || ''), browserOpened ? 'warning' : 'error');
     } finally {
-      openBtn.disabled = false;
+      if ('disabled' in openBtn) openBtn.disabled = false;
+      else openBtn.removeAttribute('aria-disabled');
       openBtn.textContent = old;
     }
   });
