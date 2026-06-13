@@ -996,8 +996,13 @@ class BambuPrinter:
         dump = self._printer.mqtt_dump()
         print_data = dump.get("print", {})
         extruder_map = _read_ams_extruder_map(print_data)
+        units = list(_parse_ams(print_data))
+        # Regular AMS units (unit_id < 128) each occupy 4 sequential print-command slots.
+        # AMS HT (unit_id >= 128) follows sequentially after all regular units.
+        n_regular_units = sum(1 for u in units if int(u.get("unit", 0)) < 128)
+        regular_ams_slots = n_regular_units * 4
         slots = []
-        for unit in _parse_ams(print_data):
+        for unit in units:
             unit_id = int(unit.get("unit", 0))
             nozzle = extruder_map.get(unit_id)
             if nozzle is None and self.model_name.upper().startswith("H2"):
@@ -1008,7 +1013,7 @@ class BambuPrinter:
                     continue
                 slot_idx = int(slot.get("idx", 0))
                 flat_idx = _bambu_slot_index(unit_id, slot_idx)
-                bambu_tray_id = _bambu_tray_target(flat_idx)
+                bambu_tray_id = _bambu_tray_target(flat_idx, regular_ams_slots)
                 slots.append({
                     **slot,
                     "unit": unit_id,
@@ -1172,12 +1177,11 @@ def _build_bambu_ams_mappings(
         elif tray_id >= 254:
             flat.append(-1)
             detailed.append({"ams_id": 255, "slot_id": 0})
-        elif tray_id >= 128:
-            # AMS HT: MQTT unit_id is 128; slot within it is tray_id - 128.
-            ht_slot = tray_id - 128
-            flat.append(tray_id)
-            detailed.append({"ams_id": 128, "slot_id": ht_slot})
         else:
+            # Sequential flat tray ID: ams_id = tray_id // 4, slot_id = tray_id % 4.
+            # _bambu_tray_target() already converts AMS HT (MQTT unit 128) to its
+            # sequential position (e.g. 4 on H2D with one 4-slot regular AMS), so
+            # the formula applies uniformly to both regular AMS and AMS HT.
             flat.append(tray_id)
             detailed.append({"ams_id": tray_id // 4, "slot_id": tray_id % 4})
 
@@ -1516,9 +1520,18 @@ def _split_ams_slot(slot: int) -> tuple[int, int]:
     return slot // 4, slot % 4
 
 
-def _bambu_tray_target(slot: int) -> int:
-    unit_id, tray_id = _split_ams_slot(slot)
-    return unit_id + tray_id if unit_id >= 128 else int(slot)
+def _bambu_tray_target(slot: int, regular_ams_slots: int = 0) -> int:
+    """Return the print-command flat tray ID for a canonical AMS slot index.
+
+    Regular AMS (slot < 128): flat ID == canonical slot index (unit*4+slot).
+    AMS HT (slot >= 128): flat ID is sequential after all regular slots,
+    i.e. regular_ams_slots + (slot - 128).  This matches the sequential
+    numbering the H2D firmware and BambuStudio use in ams_mapping.
+    """
+    slot = int(slot)
+    if slot >= 128:
+        return regular_ams_slots + (slot - 128)
+    return slot
 
 
 def _filament_change_temp(material: Optional[str]) -> int:
