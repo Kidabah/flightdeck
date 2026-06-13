@@ -8061,12 +8061,60 @@ async def _advance_queue_specific(job_id: int, printer_id: str,
         for p in _bambu:
             if p.id == printer_id:
                 await asyncio.to_thread(p.send_file, file_path, filename)
+                if not await _wait_for_bambu_physical_start(p, job_id, filename):
+                    return
                 db.queue_set_started(job_id)
                 return
         db.queue_update_status(job_id, "failed", "Printer not found")
     except Exception as exc:
         log.error("queue send: job %d failed: %s", job_id, exc)
         db.queue_update_status(job_id, "failed", str(exc))
+
+
+def _bambu_physical_start_confirmed(status: dict) -> bool:
+    if (status.get("state") or "").lower() not in {"printing", "paused"}:
+        return False
+    job = status.get("job") or {}
+    temps = status.get("temps") or {}
+    if any(float((reading or {}).get("target") or 0) > 0 for reading in temps.values()):
+        return True
+    if float(job.get("progress") or 0) > 0.001:
+        return True
+    layer_current = job.get("layer_current")
+    layer_total = job.get("layer_total")
+    if layer_current is not None and layer_total is not None:
+        try:
+            return int(layer_total) > 0 and int(layer_current) < int(layer_total)
+        except (TypeError, ValueError):
+            return False
+    return False
+
+
+async def _wait_for_bambu_physical_start(p: BambuPrinter, job_id: int, filename: str) -> bool:
+    deadline = time.monotonic() + 90.0
+    last_state = "unknown"
+    while time.monotonic() < deadline:
+        await asyncio.sleep(3.0)
+        try:
+            status_obj = await asyncio.to_thread(p.status)
+            status = status_obj.model_dump() if hasattr(status_obj, "model_dump") else status_obj.dict()
+        except Exception as exc:
+            last_state = f"status error: {exc}"
+            continue
+        last_state = str(status.get("state") or "unknown")
+        if _bambu_physical_start_confirmed(status):
+            db.log_decision(
+                p.id,
+                "queue_bambu_start_confirmed",
+                f"Job #{job_id} {filename}: physical start confirmed",
+            )
+            return True
+        if last_state in {"idle", "error", "estop"}:
+            break
+    msg = "Printer accepted the start command but did not begin heating or progressing; clear printer state and retry"
+    db.queue_update_status(job_id, "failed", msg)
+    db.log_decision(p.id, "queue_bambu_start_unconfirmed", f"Job #{job_id} {filename}: {msg} (last_state={last_state})")
+    return False
 
 
 # ── OrcaSlicer relay ──────────────────────────────────────────────────────
