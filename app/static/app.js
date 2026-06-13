@@ -312,8 +312,8 @@ let _missionRenderInFlight = false;
 let _missionLastHtml = '';
 const _cameraUrlCache = {};     // printer_id → url string or null
 const _cameraMetaCache = {};    // printer_id → camera metadata
-const _CAMERA_STREAM_REFRESH_MS = 120000;
-const _CAMERA_SIGNAL_STALE_MS = 45000;
+const _CAMERA_STREAM_REFRESH_MS = 45000;
+const _CAMERA_SIGNAL_STALE_MS = 35000;
 let _renderedDetailId = null;
 let _renderedDetailSubtab = null;
 let _renderedDetailOk = false;
@@ -8516,7 +8516,7 @@ function _refreshCameraSignals(root = document) {
     const current = img.dataset.cameraSignalState || 'waiting';
     if (current === 'reconnecting' || current === 'refreshing') return;
     const loadedAt = Number(img.dataset.streamLoadedAt || 0);
-    if (img.dataset.fleetStill === '1' && loadedAt && (now - loadedAt) > _CAMERA_SIGNAL_STALE_MS) {
+    if (loadedAt && (now - loadedAt) > _CAMERA_SIGNAL_STALE_MS) {
       _setCameraSignal(img, 'stale');
       return;
     }

@@ -22,7 +22,8 @@ Recent work:
   - `python -m py_compile app/main.py`, `node --check app/static/app.js`, `git diff --check` all clean.
   - Cachebusted: `app.js?v=480`, `style.css?v=378` (both `index.html` and `demo.html`).
 
-
+- Reduced live camera freeze impact on printer detail streams. Direct H2D camera checks showed snapshots worked and `/api/camera/h2d/stream` delivered MJPEG bytes steadily, so the likely failure was the browser holding an open MJPEG image after repaint stalled. Visible camera streams now refresh every 45s instead of 120s, and the camera signal marks all stale streams, not only fleet-wall stills. Static cache bumped to `app.js?v=480`; frontend refresh required.
+  - Verification: `node --check app/static/app.js`, `git diff --check`, live snapshot fetch for H2D, and a 12s direct MJPEG stream pull from `/api/camera/h2d/stream` passed.
 - **CONFIRMED WORKING**: H2D AMS HT (BigBoy) prints now start correctly via Flightdeck queue without `1800-8012`. Three stacked bugs were fixed across this session:
   1. **Wrong index**: `ams_mapping=[128]` (1 element at index 0) — gcode `T4`/`M620 S4A` requires `ams_mapping[4]`, so a full project-filament-indexed array is needed.
   2. **Wrong flat value**: MQTT unit_id `128` is not recognised by the firmware in print commands; the correct value is the sequential slot position: `n_regular_ams_units × 4 + ht_slot_idx` = **4** for H2D with one 4-slot AMS.
