@@ -27,6 +27,7 @@ class BambuPreview:
     filament_type: Optional[str]
     top_image_png: Optional[bytes] = None
     filament_colors: Optional[str] = None
+    filament_ids: Optional[list[int]] = None
     objects: Optional[list[dict]] = None
     plate_bounds: Optional[dict] = None
 
@@ -183,6 +184,14 @@ def _parse_3mf(buf: io.BytesIO, plate_number: Optional[int] = None) -> BambuPrev
     if not plate_bounds and object_boxes:
         plate_bounds = _bounds_for_boxes(object_boxes.values())
 
+    raw_fids = plate_json.get("filament_ids") if isinstance(plate_json, dict) else None
+    filament_ids: Optional[list[int]] = None
+    if isinstance(raw_fids, list) and raw_fids:
+        try:
+            filament_ids = [int(x) for x in raw_fids]
+        except (TypeError, ValueError):
+            filament_ids = None
+
     return BambuPreview(
         image_png=image_png,
         top_image_png=top_image_png,
@@ -190,6 +199,7 @@ def _parse_3mf(buf: io.BytesIO, plate_number: Optional[int] = None) -> BambuPrev
         filament_weight_g=float(weight) if weight else None,
         filament_type=filament_type,
         filament_colors=json.dumps(filaments) if filaments else None,
+        filament_ids=filament_ids,
         objects=objects or None,
         plate_bounds=plate_bounds,
     )

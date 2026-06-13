@@ -238,6 +238,7 @@ async def bambu_upload(
         "filament_g": preview.filament_weight_g if preview else None,
         "filament_type": preview.filament_type if preview else None,
         "filament_colors": preview.filament_colors if preview else None,
+        "filament_ids": preview.filament_ids if preview else None,
         "ts": time.monotonic(),
     }
 
@@ -265,11 +266,13 @@ async def bambu_print_start(
     """Issue MQTT project_file command to Bambu printer."""
     meta = _pending.get((printer_id, filename), {})
     ams_mapping, mapping_note = _bambu_ams_mapping(meta, printer)
+    filament_ids: list[int] | None = meta.get("filament_ids") or None
     try:
         await asyncio.to_thread(
             printer.start_uploaded_3mf,
             filename,
             ams_mapping,
+            filament_ids,
         )
     except Exception as exc:
         db.log_decision(printer_id, "relay_start_failed",

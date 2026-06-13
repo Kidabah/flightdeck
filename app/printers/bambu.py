@@ -150,12 +150,16 @@ class _SequencedMQTTClient(PrinterMQTTClient):
                         ams_mapping: list[int] = [0],
                         skip_objects: list[int] | None = None,
                         flow_calibration: bool = True,
+                        filament_ids: list[int] | None = None,
                         ) -> bool:
         """Start a 3MF with BambuStudio-style AMS mapping fields.
 
         bambulabs_api 2.6.6 only sends the legacy flat ams_mapping. Newer Bambu
         firmware, especially H2D with AMS 2 / AMS HT, expects ams_mapping2 as
         well or it can pause with 0700-8012 "Failed to get AMS mapping table".
+        filament_ids are the sequential slot indices from the 3MF plate JSON
+        (BambuStudio's own tray numbering); they override the default flat
+        ams_mapping values for AMS HT slots so the firmware lookup succeeds.
         """
         if skip_objects is not None and not skip_objects:
             skip_objects = None
@@ -165,7 +169,7 @@ class _SequencedMQTTClient(PrinterMQTTClient):
         else:
             plate_location = plate_number
 
-        flat_mapping, detailed_mapping = _build_bambu_ams_mappings(ams_mapping)
+        flat_mapping, detailed_mapping = _build_bambu_ams_mappings(ams_mapping, filament_ids)
         use_ams_flag = bool(use_ams)
         if ams_mapping and use_ams_flag:
             if all(t is None or int(t) < 0 or int(t) >= 254 for t in ams_mapping):
@@ -1024,6 +1028,7 @@ class BambuPrinter:
         if preview and preview.image_png:
             self.seed_preview(subtask_name, preview)
 
+        filament_ids = preview.filament_ids if preview else None
         ams_mapping, mapping_note = _derive_bambu_ams_mapping(
             preview.filament_colors if preview else None,
             preview.filament_type if preview else None,
@@ -1032,13 +1037,17 @@ class BambuPrinter:
         db.log_decision(self.id, "queue_bambu_mapping", json.dumps({
             "file": filename,
             "ams_mapping": ams_mapping,
+            "filament_ids": filament_ids,
             "mapping_note": mapping_note,
         }))
-        self.start_uploaded_3mf(filename, ams_mapping)
+        self.start_uploaded_3mf(filename, ams_mapping, filament_ids=filament_ids)
 
-    def start_uploaded_3mf(self, filename: str, ams_mapping: list[int]) -> bool:
+    def start_uploaded_3mf(self, filename: str, ams_mapping: list[int],
+                            filament_ids: list[int] | None = None) -> bool:
         """Start an uploaded 3MF using the H2D-safe AMS mapping payload."""
-        return self._printer.mqtt_client.start_print_3mf(filename, 1, True, ams_mapping)
+        return self._printer.mqtt_client.start_print_3mf(
+            filename, 1, True, ams_mapping, filament_ids=filament_ids,
+        )
 
 
 def _read_dual_nozzle_temps(mqtt_dump: dict, model_name: str) -> dict[str, "TempReading"]:
@@ -1134,29 +1143,38 @@ def _read_ams_extruder_map(print_data: dict) -> dict[int, int]:
     return {}
 
 
-def _build_bambu_ams_mappings(ams_mapping: list[int] | None) -> tuple[list[int], list[dict]]:
+def _build_bambu_ams_mappings(
+    ams_mapping: list[int] | None,
+    filament_ids: list[int] | None = None,
+) -> tuple[list[int], list[dict]]:
     """Return legacy flat ams_mapping plus detailed ams_mapping2.
 
-    For regular AMS, Bambu's flat tray ID is unit*4+slot. For AMS HT, the
-    flat tray ID is the unit ID itself (128, 129, ...), not unit*4. External
-    virtual trays are represented as -1 in the flat array and resolved through
-    ams_mapping2.
+    For regular AMS, Bambu's flat tray ID is unit*4+slot. For AMS HT the
+    printer firmware uses a sequential index that continues after the last
+    regular AMS slot (e.g. 4 if one 4-slot AMS precedes the AMS HT).
+    filament_ids from the 3MF plate JSON carries the exact values BambuStudio
+    uses; pass them to get the correct flat ID for AMS HT slots.
+    External virtual trays are represented as -1 and resolved via ams_mapping2.
     """
     flat: list[int] = []
     detailed: list[dict] = []
-    for raw_id in ams_mapping or []:
+    for i, raw_id in enumerate(ams_mapping or []):
         tray_id = int(raw_id) if raw_id is not None else -1
+        # Use the BambuStudio-assigned filament ID as the flat value when available.
+        flat_id = filament_ids[i] if (filament_ids and i < len(filament_ids)) else None
         if tray_id < 0:
-            flat.append(-1)
+            flat.append(flat_id if flat_id is not None else -1)
             detailed.append({"ams_id": 255, "slot_id": 255})
         elif tray_id >= 254:
-            flat.append(-1)
+            flat.append(flat_id if flat_id is not None else -1)
             detailed.append({"ams_id": 255, "slot_id": 0})
         elif tray_id >= 128:
-            flat.append(tray_id)
-            detailed.append({"ams_id": tray_id, "slot_id": 0})
+            # AMS HT: physical unit is 128, slot within it is tray_id - 128.
+            ht_slot = tray_id - 128
+            flat.append(flat_id if flat_id is not None else tray_id)
+            detailed.append({"ams_id": 128, "slot_id": ht_slot})
         else:
-            flat.append(tray_id)
+            flat.append(flat_id if flat_id is not None else tray_id)
             detailed.append({"ams_id": tray_id // 4, "slot_id": tray_id % 4})
     return flat, detailed
 
