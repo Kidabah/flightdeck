@@ -16,7 +16,7 @@ from ..models import PrinterStatus, JobStatus, TempReading
 
 log = logging.getLogger(__name__)
 
-FINISHED_TTL = timedelta(minutes=30)
+FINISHED_TTL = timedelta(minutes=5)
 _BAMBU_PREVIEW_FAILED = object()  # sentinel: FTP failed, don't retry until job changes
 _BAMBU_STALE_REPORT_SECONDS = 45
 
