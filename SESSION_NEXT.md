@@ -6,9 +6,10 @@ Latest GitHub/Pi state:
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=480 / style.css?v=378 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=481 / style.css?v=378 / demo-runtime.js?v=8
 
 Recent work:
+- Fixed a silent queue-action failure path after H2D showed as idle and queue job `#60` was preflight-ready but the print still did not start from the browser. The queue click handler now uses `_queueFetchJson()` for send, retry, reorder, and clear-completed actions so non-2xx backend responses surface as the existing "Queue action failed" toast instead of being ignored. Static cache bumped to `app.js?v=481`; frontend refresh required. Live check at the time showed BigBoy `idle`, job `#60` pending, and `/api/queue/60/preflight` returned `can_start: true` with no issues.
 - Shortened the Bambu/H2D finished-state display window from 30 minutes to 5 minutes after BigBoy completed successfully but stayed in Flightdeck as `finished` with the old `/data/Metadata/plate_1.gcode` job attached. Live check showed the queue was clean and H2D had no active job; sending the existing `cancel`/clear command returned `ok` but did not dismiss the H2D firmware's completion latch over MQTT. This change keeps the useful "print complete" state briefly, then lets Flightdeck return BigBoy to idle sooner so the next dispatch is not visually confused by stale completion/progress data. If the H2D touchscreen is still on the completion dialog, the operator may still need to tap OK on the printer; no AMS mapping code was touched.
 - **Added slicer health endpoint + UI** (`app/main.py`, `app/static/app.js`, `app/static/style.css`). **`app/printers/bambu.py` was NOT touched — AMS mapping code (`_build_bambu_ams_mappings`, `_bambu_tray_target`, `ams_slots`) is unchanged.**
   - `GET /api/slicer/health` probes all four configured slicer services in parallel (3s timeout each): Windows worker (`/api/slicer/worker/status`), Browser Orca, Bambu Studio browser, Slicer API (`/health`). Returns per-component `{configured, ok, url, detail}` plus top-level `all_ok` / `any_configured`.

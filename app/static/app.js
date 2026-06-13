@@ -8354,12 +8354,12 @@ async function _queueHandleAction(e) {
       });
       return;
     } else if (action === 'up' || action === 'down') {
-      await fetch(`/api/queue/${id}/reorder`, {
+      await _queueFetchJson(`/api/queue/${id}/reorder`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ direction: action }),
       });
     } else if (action === 'send') {
-      await fetch(`/api/queue/${id}/send`, { method: 'POST' });
+      await _queueFetchJson(`/api/queue/${id}/send`, { method: 'POST' });
     } else if (action === 'slice') {
       const printer = _latestPrinters.find(p => p.id === (printerId || btn.dataset.printerId));
       if (!printer) throw new Error('Target printer not found');
@@ -8381,9 +8381,9 @@ async function _queueHandleAction(e) {
       _queueRecoveryModal(_queueLatestJobs.find(j => String(j.id) === String(id)));
       return;
     } else if (action === 'retry') {
-      await fetch(`/api/queue/${id}/retry`, { method: 'POST' });
+      await _queueFetchJson(`/api/queue/${id}/retry`, { method: 'POST' });
     } else if (action === 'clear-completed') {
-      await fetch(`/api/queue/completed?printer_id=${encodeURIComponent(printerId)}`, { method: 'DELETE' });
+      await _queueFetchJson(`/api/queue/completed?printer_id=${encodeURIComponent(printerId)}`, { method: 'DELETE' });
     } else {
       btn.disabled = false; return;
     }
