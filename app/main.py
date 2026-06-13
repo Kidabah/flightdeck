@@ -8080,13 +8080,6 @@ def _bambu_physical_start_confirmed(status: dict) -> bool:
         return True
     if float(job.get("progress") or 0) > 0.001:
         return True
-    layer_current = job.get("layer_current")
-    layer_total = job.get("layer_total")
-    if layer_current is not None and layer_total is not None:
-        try:
-            return int(layer_total) > 0 and int(layer_current) < int(layer_total)
-        except (TypeError, ValueError):
-            return False
     return False
 
 

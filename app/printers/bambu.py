@@ -31,6 +31,14 @@ def _preview_metadata(value: object):
     return value if hasattr(value, "filament_weight_g") else None
 
 
+def _bambu_physical_start_confirmed(job: Optional[JobStatus], temps: dict[str, TempReading]) -> bool:
+    if any(float((reading.target if reading else 0) or 0) > 0 for reading in temps.values()):
+        return True
+    if job and float(job.progress or 0) > 0.001:
+        return True
+    return False
+
+
 _BAMBU_CARE_LABELS = {
     "cr": "Clean carbon rods",
     "ls": "Lubricate lead screws",
@@ -220,6 +228,7 @@ class BambuPrinter:
         self._cancel_requested = False
         self._estimated_stored = False   # True once slicer estimate written for this job
         self._job_started_at: float = 0.0  # monotonic time when _current_job_key was set
+        self._physical_start_confirmed = False
         self._current_print_id: Optional[int] = None  # prints.id for the active job
         self._error_print_id: Optional[int] = None    # prints.id of the last error (for snapshot)
         self._ams_slot_snapshot: dict[int, dict] = {}      # slot_index → slot info at print start
@@ -313,7 +322,7 @@ class BambuPrinter:
                     subtask_name=subtask,
                 )
 
-            state = self._resolve_state(raw_state, job, subtask, alarm_message)
+            state = self._resolve_state(raw_state, job, subtask, alarm_message, temps)
 
             if (state == "printing"
                     and self._current_print_id is not None
@@ -400,7 +409,8 @@ class BambuPrinter:
                                  kind="bambu", state="error", error=str(exc))
 
     def _resolve_state(self, raw: bl.GcodeState, job: Optional[JobStatus],
-                       subtask: Optional[str], alarm_message: Optional[str] = None) -> str:
+                       subtask: Optional[str], alarm_message: Optional[str] = None,
+                       temps: Optional[dict[str, TempReading]] = None) -> str:
         now = datetime.now(timezone.utc)
 
         if raw == bl.GcodeState.FINISH:
@@ -408,6 +418,27 @@ class BambuPrinter:
             self._job_started_at = 0.0
             self._seen_finish_this_session = True
             if self._current_job_key:
+                if not self._physical_start_confirmed:
+                    print_id = db.on_print_ended(
+                        self.id,
+                        self._current_job_key,
+                        final_state="ERROR",
+                        layers_completed=0,
+                        error_message="Printer accepted start command but finished without heating or progressing",
+                    )
+                    if print_id:
+                        db.log_decision(
+                            self.id,
+                            "ghost_start_resolved",
+                            "FINISH seen with no physical start proof; closed as ERROR and skipped spool deduction",
+                            print_id=print_id,
+                        )
+                    self._current_job_key = None
+                    self._current_print_id = None
+                    self._ams_active_slot_at_start = None
+                    self._preview_cache = None
+                    self._physical_start_confirmed = False
+                    return "idle"
                 filament_g = material = filament_usage = None
                 pv = _preview_metadata(self._preview_cache[1]) if self._preview_cache else None
                 if pv:
@@ -434,6 +465,7 @@ class BambuPrinter:
                 self._current_print_id = None
                 self._ams_active_slot_at_start = None
                 self._preview_cache = None
+                self._physical_start_confirmed = False
             else:
                 # Service restarted during the print; close any open row as FINISHED
                 # rather than leaving it orphaned for the stale-orphan sweep.
@@ -467,6 +499,7 @@ class BambuPrinter:
                 self._current_job_key = None
                 self._current_print_id = None
                 self._cancel_requested = False
+                self._physical_start_confirmed = False
                 return "idle"
             if self._current_job_key:
                 # In-session stop: distinguish user-initiated cancel from unexpected drop.
@@ -515,6 +548,7 @@ class BambuPrinter:
             self._current_print_id = None
             self._ams_active_slot_at_start = None
             self._preview_cache = None
+            self._physical_start_confirmed = False
             finished_at = db.get_finished_at(self.id)
             if finished_at is not None:
                 if (now - finished_at.replace(tzinfo=timezone.utc)) <= FINISHED_TTL:
@@ -528,6 +562,8 @@ class BambuPrinter:
             self._error_job_key = None
             self._error_print_id = None
             self._error_seen_at = 0.0
+            if _bambu_physical_start_confirmed(job, temps or {}):
+                self._physical_start_confirmed = True
             if self._current_job_key is None:
                 self._current_job_key = self._make_job_key(subtask)
                 self._preview_cache = None
@@ -577,6 +613,7 @@ class BambuPrinter:
             self._estimated_stored = False
             self._job_started_at = 0.0
             db.clear_finished_at(self.id)
+            self._physical_start_confirmed = False
             err_code = self._printer.mqtt_dump().get("print", {}).get("print_error", 0)
 
             if self._current_job_key:
