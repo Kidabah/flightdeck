@@ -6,10 +6,11 @@ from typing import Optional
 
 log = logging.getLogger(__name__)
 
-_IDLE_TIMEOUT       = 60    # seconds before killing ffmpeg after last client leaves
-_STALE_TIMEOUT      = 8     # seconds without a new frame before declaring stream dead
-_INITIAL_TIMEOUT    = 10    # max seconds to wait for the very first frame after (re)start
-_MAX_SESSION_LIFE   = 900   # 15 min — H2D firmware silently freezes long-lived RTSP sessions
+_IDLE_TIMEOUT        = 60   # seconds before killing ffmpeg after last client leaves
+_STALE_TIMEOUT       = 8    # seconds without a new frame before declaring stream dead
+_FROZEN_TIMEOUT      = 20   # seconds with identical frame content before declaring frozen
+_INITIAL_TIMEOUT     = 10   # max seconds to wait for the very first frame after (re)start
+_MAX_SESSION_LIFE    = 900  # 15 min — H2D firmware silently freezes long-lived RTSP sessions
 _FRAME_START = b"\xff\xd8"
 _FRAME_END   = b"\xff\xd9"
 _STREAM_WIDTH = "960"
@@ -61,6 +62,8 @@ class BambuCameraProxy:
                 "-fflags", "nobuffer",
                 "-flags", "low_delay",
                 "-rtsp_transport", "tcp",
+                "-rw_timeout", "8000000",    # 8s I/O timeout (µs) — bail on dead RTSP fast
+                "-stimeout", "8000000",      # 8s RTSP stream timeout (µs)
                 "-i", self._url,
                 "-vf", f"scale={_STREAM_WIDTH}:-2",
                 "-f", "image2pipe", "-vcodec", "mjpeg",
@@ -117,6 +120,12 @@ class BambuCameraProxy:
                         except Exception: pass
             elif (now - self._last_frame_at) > _STALE_TIMEOUT:
                 log.warning("camera stale (%ds no frames), restarting: %s", _STALE_TIMEOUT, self._id)
+                if self._proc:
+                    try: self._proc.kill()
+                    except Exception: pass
+            elif (self._last_changed_at > 0
+                  and (now - self._last_changed_at) > _FROZEN_TIMEOUT):
+                log.warning("camera frozen (%ds same frame), restarting: %s", _FROZEN_TIMEOUT, self._id)
                 if self._proc:
                     try: self._proc.kill()
                     except Exception: pass
