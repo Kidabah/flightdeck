@@ -7755,7 +7755,10 @@ def _queue_preflight(job: dict, printer_status: Optional[dict]) -> dict:
                 "level": "block" if strict_colour else "warn",
                 "message": f"No loaded spool matches required colour {wanted}",
             })
-        elif len(color_reqs) == 1 and active_reported:
+        elif len(color_reqs) == 1 and active_reported and state in {"printing", "paused"}:
+            # Only check the active slot mid-print. When idle, tray_now reflects
+            # the last-used slot, not the slot the next job will use — the AMS
+            # mapping in the print command handles slot selection at dispatch time.
             req = color_reqs[0]
             if not _reported_slot_matches_requirement(active_reported, req):
                 actual = " ".join(
