@@ -7372,14 +7372,14 @@ button.live-route-node:hover {
   overflow: visible;
   background:
     radial-gradient(circle at 0.7rem calc(100% - 0.7rem), rgba(226,232,240,0.52) 0 0.17rem, transparent 0.19rem),
-    rgba(7,10,18,0.96);
+    rgba(51,65,85,0.96);
   background-size: 100% 100%, 100% 100%;
 }
 
 .obj-map-topdown .obj-map-image-plane {
   overflow: hidden;
   border-radius: 0.5rem;
-  background: rgba(2,6,23,0.76);
+  background: rgba(30,41,59,0.80);
 }
 
 .obj-map-stage .obj-map-preview-image,
@@ -7422,21 +7422,21 @@ button.live-route-node:hover {
 
 .obj-map-id-dot {
   position: absolute;
-  right: -0.55rem;
-  top: -0.5rem;
+  right: -0.28rem;
+  top: -0.28rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 1.36rem;
-  height: 1.36rem;
+  min-width: 1.1rem;
+  height: 1.1rem;
   border: 1px solid rgba(96,165,250,0.68);
   border-radius: 999px;
   background: rgba(37,99,235,0.94);
   color: #dbeafe;
-  font-size: 0.58rem;
+  font-size: 0.52rem;
   font-weight: 900;
   line-height: 1;
-  padding: 0 0.14rem;
+  padding: 0 0.1rem;
   box-shadow: 0 0.18rem 0.4rem rgba(0,0,0,0.35);
 }
 
