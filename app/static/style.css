@@ -7371,15 +7371,15 @@ button.live-route-node:hover {
 .object-map-modal-stage.obj-map-topdown {
   overflow: visible;
   background:
-    radial-gradient(circle at 0.7rem calc(100% - 0.7rem), rgba(226,232,240,0.52) 0 0.17rem, transparent 0.19rem),
-    rgba(51,65,85,0.96);
+    radial-gradient(circle at 0.7rem calc(100% - 0.7rem), rgba(100,116,139,0.45) 0 0.17rem, transparent 0.19rem),
+    #e2dfd9;
   background-size: 100% 100%, 100% 100%;
 }
 
 .obj-map-topdown .obj-map-image-plane {
   overflow: hidden;
   border-radius: 0.5rem;
-  background: rgba(30,41,59,0.80);
+  background: #e2dfd9;
 }
 
 .obj-map-stage .obj-map-preview-image,
@@ -7398,15 +7398,7 @@ button.live-route-node:hover {
 
 .obj-map-top-object {
   position: absolute;
-  width: auto;
-  height: auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.12rem;
-  opacity: 0.94;
   pointer-events: none;
-  transform: translate(-50%, -50%);
 }
 
 .obj-map-top-block {
@@ -7424,20 +7416,23 @@ button.live-route-node:hover {
 }
 
 .obj-map-id-dot {
+  position: absolute;
+  left: 0.18rem;
+  top: 0.18rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-width: 1.2rem;
-  height: 1.0rem;
-  border: 1px solid rgba(96,165,250,0.6);
+  height: 1.1rem;
+  border: 1px solid rgba(0,0,0,0.5);
   border-radius: 0.22rem;
-  background: rgba(30,64,175,0.92);
-  color: #bfdbfe;
-  font-size: 0.54rem;
+  background: rgba(10,10,10,0.88);
+  color: #ffffff;
+  font-size: 0.55rem;
   font-weight: 900;
   line-height: 1;
   padding: 0 0.14rem;
-  box-shadow: 0 0.12rem 0.3rem rgba(0,0,0,0.5);
+  box-shadow: 0 0.12rem 0.3rem rgba(0,0,0,0.45);
 }
 
 .obj-map-active-count {
@@ -7483,7 +7478,11 @@ button.live-route-node:hover {
 }
 
 .obj-map-top-object.is-excluded {
-  opacity: 0.34;
+  opacity: 0.4;
+}
+
+.obj-map-top-object.is-excluded .obj-map-id-dot {
+  filter: grayscale(0.7);
 }
 
 .obj-map-overlay-rotated .obj-map-stage,
@@ -15050,11 +15049,6 @@ select optgroup {
   opacity: 0.35;
 }
 
-.obj-map-top-object.is-excluded .obj-map-top-block,
-.obj-map-top-object.is-excluded .obj-map-id-dot {
-  filter: grayscale(0.65);
-  opacity: 0.45;
-}
 
 .obj-map-list {
   margin-top: 0.55rem;
@@ -15096,10 +15090,10 @@ select optgroup {
   align-items: center;
   justify-content: center;
   min-height: 1.6rem;
-  border: 1px solid rgba(96,165,250,0.54);
+  border: 1px solid rgba(0,0,0,0.5);
   border-radius: 0.38rem;
-  background: rgba(30,64,175,0.44);
-  color: #93c5fd;
+  background: rgba(10,10,10,0.88);
+  color: #ffffff;
   font-size: 0.85rem;
   font-weight: 900;
 }

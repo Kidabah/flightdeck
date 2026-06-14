@@ -4273,11 +4273,11 @@ function _objectMapTopDownObjects(data) {
     const shortName = (obj.label || rawName).replace(/.*[/\\]/, '');
     const displayId = obj.id !== undefined && obj.id !== null ? `#${obj.id}` : '?';
     const style = _objectMapHasPoint(obj)
-      ? _objectMapPointMarkerStyle(bounds, obj)
-      : _objectMapMarkerStyle(bounds, obj.bbox, data);
+      ? _objectMapPointHitStyle(bounds, obj)
+      : _objectMapBoxStyle(bounds, obj.bbox, data);
     return `<div class="obj-map-top-object${isExcluded ? ' is-excluded' : ''}${isCurrent ? ' is-current' : ''}"
       style="${style}"
-      title="${esc(shortName)}" aria-hidden="true"><span class="obj-map-top-block"></span><span class="obj-map-id-dot">${esc(displayId)}</span></div>`;
+      title="${esc(shortName)}" aria-hidden="true"><span class="obj-map-id-dot">${esc(displayId)}</span></div>`;
   }).join('');
 }
 
