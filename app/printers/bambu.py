@@ -1803,6 +1803,8 @@ def _parse_ams(dump: dict) -> list[dict]:
     tray_now = int(ams_raw.get("tray_now", 255))
     _AMS_LABELS = {128: "AMS HT"}
     result = []
+    n_regular_units = sum(1 for u in ams_raw.get("ams", []) if int(u.get("id", 0)) < 128)
+    regular_ams_slots = n_regular_units * 4
 
     for unit_data in ams_raw.get("ams", []):
         unit_id = int(unit_data.get("id", 0))
@@ -1856,7 +1858,7 @@ def _parse_ams(dump: dict) -> list[dict]:
                 color = ""
 
             slot_index = _bambu_slot_index(unit_id, tray_id)
-            active = (not empty) and (tray_now == _bambu_tray_target(slot_index))
+            active = (not empty) and (tray_now == _bambu_tray_target(slot_index, regular_ams_slots))
 
             slots.append({
                 "idx": tray_id,

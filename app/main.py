@@ -44,7 +44,7 @@ import httpx
 from . import db, relay
 from .camera import BambuCameraProxy
 from .label_printer import LabelPrinter
-from .models import PrintPreview
+from .models import PrintPreview, PrinterStatus
 from .paths import APP_DIR, DATA_DIR, DB_PATH, FLIGHT_RECORDER_DIR, PRINTERS_CONFIG_PATH, PRINT_LIBRARY_DIR, UPLOADS_DIR
 from .printer_config import BambuConnection, BambuRtspCamera, MjpegDirectCamera, MoonrakerConnection, NtfyConfig, PrinterEntry, SimulatedConnection, SnapmakerU1Connection, load, save
 from .printers import moonraker, simulated
@@ -8071,14 +8071,12 @@ async def _advance_queue_specific(job_id: int, printer_id: str,
         db.queue_update_status(job_id, "failed", str(exc))
 
 
-def _bambu_physical_start_confirmed(status: dict) -> bool:
-    if (status.get("state") or "").lower() not in {"printing", "paused"}:
+def _bambu_physical_start_confirmed(status: PrinterStatus) -> bool:
+    if (status.state or "").lower() not in {"printing", "paused"}:
         return False
-    job = status.get("job") or {}
-    temps = status.get("temps") or {}
-    if any(float((reading or {}).get("target") or 0) > 0 for reading in temps.values()):
+    if any(float((r.target if r else 0) or 0) > 0 for r in status.temps.values()):
         return True
-    if float(job.get("progress") or 0) > 0.001:
+    if status.job and float(status.job.progress or 0) > 0.001:
         return True
     return False
 
@@ -8098,12 +8096,11 @@ async def _wait_for_bambu_physical_start(p: BambuPrinter, job_id: int, filename:
         await asyncio.sleep(3.0)
         try:
             status_obj = await asyncio.to_thread(p.status)
-            status = status_obj.model_dump() if hasattr(status_obj, "model_dump") else status_obj.dict()
         except Exception as exc:
             last_state = f"status error: {exc}"
             continue
-        last_state = str(status.get("state") or "unknown")
-        if _bambu_physical_start_confirmed(status):
+        last_state = str(status_obj.state or "unknown")
+        if _bambu_physical_start_confirmed(status_obj):
             db.log_decision(
                 p.id,
                 "queue_bambu_start_confirmed",
@@ -8115,6 +8112,15 @@ async def _wait_for_bambu_physical_start(p: BambuPrinter, job_id: int, filename:
     msg = "Printer accepted the start command but did not begin heating or progressing; clear printer state and retry"
     note = "Start blocked after the printer accepted a job but never heated or progressed. Check the printer screen for AMS/AMS HT errors, clear the printer state, then re-enable printing."
     db.queue_update_status(job_id, "failed", msg)
+    # Cancel the stuck job on the printer so it returns to idle rather than
+    # sitting frozen in "printing" state with no heat indefinitely.
+    try:
+        await asyncio.to_thread(p.cancel)
+        db.log_decision(p.id, "queue_bambu_cold_start_cancelled",
+                        f"Job #{job_id} {filename}: auto-cancelled cold stuck print on printer")
+    except Exception as exc:
+        db.log_decision(p.id, "queue_bambu_cold_cancel_failed",
+                        f"Job #{job_id} {filename}: could not auto-cancel cold print: {exc}")
     _block_printer_dispatch(p.id, note)
     db.log_decision(p.id, "queue_bambu_start_unconfirmed", f"Job #{job_id} {filename}: {msg} (last_state={last_state})")
     return False
