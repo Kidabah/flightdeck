@@ -2,11 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Hide stale printer-nav progress badge`
+- Latest commit: `Add queue reprint action for completed jobs`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=482 / style.css?v=378 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=483 / style.css?v=379 / demo-runtime.js?v=8
+
+### 2026-06-14 fixes (queue reprint)
+
+**Reprint completed queue files** (`app/db.py`, `app/static/app.js`, `app/static/style.css`)
+Completed `done` jobs in the Print Queue now show a `Reprint` action. It reuses the existing queue file and resets the row back to `pending` at the end of that printer's queue, clearing previous start/finish/error fields so normal queue preflight and `Send now` behaviour applies. Failed/cancelled retry now also moves the job to the back of the printer queue. Static cache bumped to `app.js?v=483` and `style.css?v=379`.
 
 ### 2026-06-14 fixes (UI progress display)
 

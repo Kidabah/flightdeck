@@ -3775,12 +3775,27 @@ def queue_next_pending(printer_id: str) -> Optional[dict]:
 
 
 def queue_retry(job_id: int) -> bool:
-    """Reset a failed/cancelled job to pending."""
+    """Reset a failed/cancelled/done job to pending at the end of its printer queue."""
     with _conn() as conn:
-        c = conn.execute(
-            """UPDATE print_queue SET status = 'pending', error_msg = NULL, started_at = NULL
-               WHERE id = ? AND status IN ('failed', 'cancelled')""",
+        row = conn.execute(
+            "SELECT printer_id FROM print_queue WHERE id = ? AND status IN ('failed', 'cancelled', 'done')",
             (job_id,),
+        ).fetchone()
+        if not row:
+            return False
+        pos = conn.execute(
+            "SELECT COALESCE(MAX(position), 0) + 1 AS next FROM print_queue WHERE printer_id = ?",
+            (row["printer_id"],),
+        ).fetchone()["next"]
+        c = conn.execute(
+            """UPDATE print_queue
+               SET status = 'pending',
+                   position = ?,
+                   error_msg = NULL,
+                   started_at = NULL,
+                   finished_at = NULL
+               WHERE id = ?""",
+            (pos, job_id),
         )
     return c.rowcount > 0
 

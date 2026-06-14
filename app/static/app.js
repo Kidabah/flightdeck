@@ -8166,6 +8166,7 @@ function _queueJobCard(job, isFirst, isLast) {
   const isPending   = job.status === 'pending';
   const isActive    = job.status === 'printing' || job.status === 'uploading';
   const isRecoverable = job.status === 'failed' || job.status === 'cancelled';
+  const isReprintable = job.status === 'done';
   const previewSrc  = job.has_preview ? _mediaUrl(`/api/queue/${job.id}/preview`, job.filename || 'Queued print') : '';
   const preflight = job.preflight;
   const isSourceModel = _queueJobIsSourceModel(job);
@@ -8205,6 +8206,9 @@ function _queueJobCard(job, isFirst, isLast) {
         <button class="queue-act-btn queue-act-recover" data-action="recover" data-id="${job.id}" title="Recover stopped print">Recover</button>
         <button class="queue-act-btn queue-act-retry" data-action="retry"  data-id="${job.id}" title="Retry without recovery">↺</button>
         <button class="queue-act-btn queue-act-del"   data-action="delete" data-id="${job.id}" title="Remove">✕</button>
+      ` : isReprintable ? `
+        <button class="queue-act-btn queue-act-reprint" data-action="reprint" data-id="${job.id}" title="Queue this file again">Reprint</button>
+        <button class="queue-act-btn queue-act-del"     data-action="delete"  data-id="${job.id}" title="Remove">✕</button>
       ` : ''}
     </div>
   </div>`;
@@ -8372,7 +8376,7 @@ async function _queueHandleAction(e) {
       btn.disabled = false;
       _queueRecoveryModal(_queueLatestJobs.find(j => String(j.id) === String(id)));
       return;
-    } else if (action === 'retry') {
+    } else if (action === 'retry' || action === 'reprint') {
       await _queueFetchJson(`/api/queue/${id}/retry`, { method: 'POST' });
     } else if (action === 'clear-completed') {
       await _queueFetchJson(`/api/queue/completed?printer_id=${encodeURIComponent(printerId)}`, { method: 'DELETE' });
