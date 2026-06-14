@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `add1935 Fix frozen camera stream: watchdog content-change detection + ffmpeg timeouts`
+- Latest commit: `76826f4 Revert ffmpeg RTSP timeout flags — too aggressive for H2D`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
@@ -10,8 +10,8 @@ Latest GitHub/Pi state:
 
 ### 2026-06-14 fixes (camera streams)
 
-**Frozen MJPEG stream — watchdog blind spot** (`app/camera.py`, `add1935`)
-The watchdog checked `_last_frame_at` (frames arriving) but not `_last_changed_at` (frame content changing). H2D firmware freeze sends the same JPEG on repeat — frames keep arriving so the 8s stale timeout never fires, stream stays frozen indefinitely. Fix: added `_FROZEN_TIMEOUT = 20` — if frame content hasn't changed for 20 seconds while frames are still arriving, kill and restart ffmpeg. Also added `-rw_timeout 8000000 -stimeout 8000000` to ffmpeg args so it bails in 8s on a dead RTSP connection instead of hanging for minutes. Frozen stream was immediately unblocked by killing the stuck ffmpeg (PID 3399681); watchdog restart brought it back within 3s. Deploy requires service restart.
+**Frozen MJPEG stream — watchdog blind spot** (`app/camera.py`, `76826f4`)
+The watchdog checked `_last_frame_at` (frames arriving) but not `_last_changed_at` (frame content changing). H2D firmware freeze sends the same JPEG on repeat — frames keep arriving so the 8s stale timeout never fires, stream stays frozen indefinitely. Fix: added `_FROZEN_TIMEOUT = 20` — if frame content hasn't changed for 20 seconds while frames are still arriving, kill and restart ffmpeg. Stream self-heals within 20s automatically. Note: `-rw_timeout`/`-stimeout` ffmpeg flags were tried and reverted — too aggressive for H2D RTSP, caused ffmpeg to exit prematurely. The watchdog is the right layer for this.
 
 ---
 
