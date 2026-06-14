@@ -62,8 +62,6 @@ class BambuCameraProxy:
                 "-fflags", "nobuffer",
                 "-flags", "low_delay",
                 "-rtsp_transport", "tcp",
-                "-rw_timeout", "8000000",    # 8s I/O timeout (µs) — bail on dead RTSP fast
-                "-stimeout", "8000000",      # 8s RTSP stream timeout (µs)
                 "-i", self._url,
                 "-vf", f"scale={_STREAM_WIDTH}:-2",
                 "-f", "image2pipe", "-vcodec", "mjpeg",
