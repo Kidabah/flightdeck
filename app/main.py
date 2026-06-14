@@ -8016,6 +8016,20 @@ async def retry_queue_job(job_id: int):
     return {"ok": True}
 
 
+@app.post("/api/printers/{printer_id}/queue/reprint-last")
+async def reprint_last_queue_job(printer_id: str):
+    cfg = load()
+    if not any(p.id == printer_id for p in cfg.printers):
+        raise HTTPException(status_code=404, detail="printer not found")
+    job = db.queue_latest_reprintable(printer_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="No completed queue file found for this printer")
+    if not db.queue_retry(int(job["id"])):
+        raise HTTPException(status_code=409, detail="Last completed queue file could not be reprinted")
+    db.log_decision(printer_id, "queue_reprint_last", f"Reprint last queued file: job #{job['id']} {job['filename']}")
+    return {"ok": True, "job_id": job["id"], "filename": job["filename"]}
+
+
 @app.delete("/api/queue/completed")
 async def clear_completed_jobs(printer_id: str):
     file_paths = db.queue_clear_completed(printer_id)

@@ -3758,6 +3758,27 @@ button.briefing-row {
   height: 0.9rem;
 }
 
+.live-reprint-last {
+  border: 1px solid rgba(34,197,94,0.72);
+  border-radius: 0.35rem;
+  background: rgba(34,197,94,0.1);
+  color: #bbf7d0;
+  padding: 0.18rem 0.55rem;
+  font-size: 0.66rem;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.live-reprint-last:hover:not(:disabled) {
+  background: rgba(34,197,94,0.18);
+}
+
+.live-reprint-last:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 .live-lockout-note {
   grid-column: 1 / -1;
   display: flex;

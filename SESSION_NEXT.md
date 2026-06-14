@@ -2,11 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Fix queue clear done route`
+- Latest commit: `Add live reprint last action`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=484 / style.css?v=379 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=485 / style.css?v=380 / demo-runtime.js?v=8
+
+### 2026-06-14 fixes (live reprint)
+
+**Live view Reprint last** (`app/main.py`, `app/db.py`, `app/static/app.js`, `app/static/style.css`)
+Added a first-pass safe `Reprint last` action to the Live header when a printer is `idle` or `finished`. It finds that printer's newest completed queue row, resets it to `pending` at the end of the printer queue, then takes the operator to the Queue so normal preflight and `Send now` still apply. It does not start the printer automatically. Static cache bumped to `app.js?v=485` and `style.css?v=380`.
 
 ### 2026-06-14 fixes (queue clear done)
 

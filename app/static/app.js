@@ -2181,6 +2181,14 @@ function toggleBambuLight(id) {
 
 // Delegated handler — wired once at startup
 document.getElementById('view-printer').addEventListener('click', e => {
+  const reprintBtn = e.target.closest('[data-live-reprint-last]');
+  if (reprintBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    _handleLiveReprintLast(reprintBtn);
+    return;
+  }
+
   const lightToggle = e.target.closest('[data-light-toggle]');
   if (lightToggle) {
     e.preventDefault();
@@ -2207,6 +2215,27 @@ document.getElementById('view-printer').addEventListener('click', e => {
     sendControl(id, action);
   }
 });
+
+async function _handleLiveReprintLast(btn) {
+  const printerId = btn.dataset.printerId;
+  if (!printerId || btn.disabled) return;
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.textContent = 'Queuing...';
+  try {
+    const data = await _queueFetchJson(`/api/printers/${encodeURIComponent(printerId)}/queue/reprint-last`, {
+      method: 'POST',
+    });
+    showToast('Reprint queued', data.filename || 'Last completed file is pending again', 'success');
+    await _updateQueueBadge();
+    location.hash = '#/queue';
+  } catch (err) {
+    showToast('Reprint failed', err.message || 'No completed queue file found', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original || 'Reprint last';
+  }
+}
 
 document.getElementById('view-printer').addEventListener('change', async e => {
   const liveToggle = e.target.closest('[data-live-print-enabled]');
@@ -2924,6 +2953,7 @@ function _detailLiveHeader(p, printerColor, bannerTextColor) {
     : _dashboardIssueText(p);
   const signals = _detailLiveSignals(p);
   const disabledNote = (p.print_enabled ?? true) ? '' : (p.print_enabled_note || 'No reason entered');
+  const canReprintLast = ['idle', 'finished'].includes(String(p.state || '').toLowerCase());
   return `<div class="live-command-header" style="--tab-accent:${printerColor}">
     <div class="live-printer-mark" style="color:${bannerTextColor}">
       <span class="live-printer-name">${esc(primary)}</span>
@@ -2936,6 +2966,7 @@ function _detailLiveHeader(p, printerColor, bannerTextColor) {
     </div>
     <div class="live-state-wrap">
       <span class="badge badge-${esc(stateClass)} live-state-badge">${esc(stateLabel)}</span>
+      ${canReprintLast ? `<button class="live-reprint-last" type="button" data-live-reprint-last data-printer-id="${esc(p.id)}" title="Queue the last completed file again">Reprint last</button>` : ''}
       <label class="live-print-enabled">
         <input type="checkbox"
           data-live-print-enabled

@@ -3621,6 +3621,21 @@ def queue_get(job_id: int) -> Optional[dict]:
     return dict(row) if row else None
 
 
+def queue_latest_reprintable(printer_id: str) -> Optional[dict]:
+    with _conn() as conn:
+        row = conn.execute(
+            """SELECT id, printer_id, position, filename, file_path, file_size,
+                      status, estimated_seconds, filament_weight_g, filament_type, filament_colors,
+                      created_at, started_at, finished_at, error_msg
+               FROM print_queue
+               WHERE printer_id = ? AND status = 'done'
+               ORDER BY datetime(COALESCE(finished_at, started_at, created_at)) DESC, id DESC
+               LIMIT 1""",
+            (printer_id,),
+        ).fetchone()
+    return dict(row) if row else None
+
+
 def queue_active_job(printer_id: str) -> Optional[dict]:
     with _conn() as conn:
         row = conn.execute(
