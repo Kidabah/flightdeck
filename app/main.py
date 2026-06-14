@@ -8027,6 +8027,11 @@ async def clear_completed_jobs(printer_id: str):
     return {"ok": True, "deleted": len(file_paths)}
 
 
+@app.delete("/api/queue/completed/clear")
+async def clear_completed_jobs_alias(printer_id: str):
+    return await clear_completed_jobs(printer_id)
+
+
 @app.post("/api/queue/{job_id}/send")
 async def send_queue_job(job_id: int):
     job = db.queue_get(job_id)

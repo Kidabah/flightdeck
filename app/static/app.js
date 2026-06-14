@@ -8379,7 +8379,7 @@ async function _queueHandleAction(e) {
     } else if (action === 'retry' || action === 'reprint') {
       await _queueFetchJson(`/api/queue/${id}/retry`, { method: 'POST' });
     } else if (action === 'clear-completed') {
-      await _queueFetchJson(`/api/queue/completed?printer_id=${encodeURIComponent(printerId)}`, { method: 'DELETE' });
+      await _queueFetchJson(`/api/queue/completed/clear?printer_id=${encodeURIComponent(printerId)}`, { method: 'DELETE' });
     } else {
       btn.disabled = false; return;
     }

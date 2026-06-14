@@ -2,11 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Add queue reprint action for completed jobs`
+- Latest commit: `Fix queue clear done route`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=483 / style.css?v=379 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=484 / style.css?v=379 / demo-runtime.js?v=8
+
+### 2026-06-14 fixes (queue clear done)
+
+**Fix Clear done 422** (`app/main.py`, `app/static/app.js`)
+The Print Queue `Clear done` button was calling `DELETE /api/queue/completed`, but FastAPI matched the earlier dynamic `DELETE /api/queue/{job_id}` route first and tried to parse `completed` as an integer job id, returning `422`. Added a non-conflicting `DELETE /api/queue/completed/clear` endpoint and pointed the UI at it. Static cache bumped to `app.js?v=484`.
 
 ### 2026-06-14 fixes (queue reprint)
 
