@@ -8083,6 +8083,14 @@ def _bambu_physical_start_confirmed(status: dict) -> bool:
     return False
 
 
+def _block_printer_dispatch(printer_id: str, note: str) -> None:
+    db.set_printer_printing_enabled(printer_id, False)
+    db.set_printer_printing_note(printer_id, note)
+    if printer_id in _latest_printers:
+        _latest_printers[printer_id]["print_enabled"] = False
+        _latest_printers[printer_id]["print_enabled_note"] = note
+
+
 async def _wait_for_bambu_physical_start(p: BambuPrinter, job_id: int, filename: str) -> bool:
     deadline = time.monotonic() + 90.0
     last_state = "unknown"
@@ -8105,7 +8113,9 @@ async def _wait_for_bambu_physical_start(p: BambuPrinter, job_id: int, filename:
         if last_state in {"idle", "error", "estop"}:
             break
     msg = "Printer accepted the start command but did not begin heating or progressing; clear printer state and retry"
+    note = "Start blocked after the printer accepted a job but never heated or progressed. Check the printer screen for AMS/AMS HT errors, clear the printer state, then re-enable printing."
     db.queue_update_status(job_id, "failed", msg)
+    _block_printer_dispatch(p.id, note)
     db.log_decision(p.id, "queue_bambu_start_unconfirmed", f"Job #{job_id} {filename}: {msg} (last_state={last_state})")
     return False
 
