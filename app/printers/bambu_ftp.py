@@ -147,7 +147,9 @@ def _parse_3mf(buf: io.BytesIO, plate_number: Optional[int] = None) -> BambuPrev
                     grams = None
                 filament = {"type": ftype, "color": color.upper(), "used_g": grams}
                 try:
-                    slice_filament_ids.append(int(el.get("id")))
+                    # XML filament id is 1-indexed (global project slot number);
+                    # the gcode uses 0-indexed T commands, so subtract 1.
+                    slice_filament_ids.append(int(el.get("id")) - 1)
                 except (TypeError, ValueError):
                     pass
                 if idx < len(filament_nozzles):
