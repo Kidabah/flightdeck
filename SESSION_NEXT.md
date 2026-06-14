@@ -1,12 +1,40 @@
-## 2026-06-13 Session handoff (updated)
+## 2026-06-14 Session handoff
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `cd1edb8 Fix AMS HT ams_id and cold-start grace period for H2D`
+- Latest commit: `94245d6 Update SESSION_NEXT: correct latest commit and fix backwards ams_id note`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=481 / style.css?v=378 / demo-runtime.js?v=8
+
+### 2026-06-14 fixes (H2D AMS HT end-to-end)
+
+Root-cause investigation of H2D AMS HT prints not starting. Multiple stacked bugs, all now fixed and confirmed working with a live 2h 36m print running on AMS HT grey PLA via the right nozzle.
+
+**1. `PrinterStatus` is a dataclass — no `.dict()` or `.model_dump()`** (`app/main.py`)
+Cold-start detection polled `p.status()` every 3s and tried to serialise the result with `.dict()` / `.model_dump()`. Both raise `AttributeError` on a plain `@dataclass`. Every poll silently crashed, `last_state` stayed `"status error"`, and after 90s the start was always declared cold and the printer was blocked. Fixed by importing `PrinterStatus` and reading its fields directly.
+
+**2. Auto-cancel never ran** (`app/main.py`)
+When cold-start timeout fired, the code blocked the printer but never sent an MQTT cancel. The printer sat frozen in `printing` state indefinitely. Added `await asyncio.to_thread(p.cancel)` before the block so the printer returns to idle cleanly.
+
+**3. AMS HT false active-slot detection** (`app/printers/bambu.py`)
+`_parse_ams` called `_bambu_tray_target(slot_index)` without `regular_ams_slots`, so AMS HT slot 0 (canonical index 128) computed tray target 0 — same as regular AMS slot 0. Both showed `active=True` when `tray_now=0`, which caused a false pre-dispatch "active slot mismatch" block on idle printers. Fixed by pre-computing `regular_ams_slots = n_regular_units * 4` from the MQTT dump and passing it into `_bambu_tray_target`. Also restricted the mismatch check to `state in {"printing", "paused"}` so it never fires when the printer is idle.
+
+**4. `filament_ids` off-by-one** (`app/printers/bambu_ftp.py`)
+XML `<filament id="5">` in `slice_info.config` is 1-indexed; gcode T-commands are 0-indexed. Code was setting `ams_mapping[5] = 4` but firmware reads `ams_mapping[4]` (finds `-1`, falls back to tray 0 = wrong slot). Fixed: `int(el.get("id")) - 1`.
+
+**5. Wrong `ams_id` for AMS HT in `ams_mapping2`** (`app/printers/bambu.py`)
+`_build_bambu_ams_mappings` computed `ams_id = tray_id // 4 = 4 // 4 = 1`. The H2D firmware expects `ams_id = 128` for AMS HT — the same unit_id it reports in MQTT status. With `ams_id=1` the firmware rejected the slot address at "preparing AMS" (step 1) and the print stalled. Fixed by passing `regular_ams_slots` (read from MQTT dump as `n_regular_units * 4`) through `send_file → start_uploaded_3mf → start_print_3mf → _build_bambu_ams_mappings`. Slots with `tray_id >= regular_ams_slots` now get `ams_id=128, slot_id = tray_id - regular_ams_slots`.
+
+**6. Cold-start detection too aggressive** (`app/main.py`)
+90s timeout + immediate idle-break on first poll (3s after command) cancelled prints that were legitimately in the H2D AMS prep sequence (preparing AMS → cooling chamber → homing tool head → changing filament = 3-5 min). Fixed: timeout extended to 360s; idle-break only after 45s of sustained idle; immediate break on `error`/`estop` only.
+
+**Verification:** decisions log `04:27:55` shows `ams_mapping2[4]={"ams_id":128,"slot_id":0}`, `regular_ams_slots=4`; `queue_bambu_start_confirmed` at `04:28:12`; print running.
+
+---
+
+### Prior 2026-06-13 work
 
 Recent work:
 - Added a Bambu/H2D failed-start safety block after BigBoy accepted a start command but stayed cold and the printer screen reported AMS/AMS HT communication fault `[0500-40c0 220913]`. `_advance_queue_specific()` already waits up to 90s for physical start proof; when that proof never appears, Flightdeck now fails the queue job **and disables Print enabled for that printer** with a clear note to check the printer screen for AMS/AMS HT errors, clear printer state, then re-enable printing. This prevents the UI from returning to a misleading "idle / print enabled" state after an accepted-but-not-started job. No AMS mapping code was touched.
