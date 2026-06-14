@@ -2,11 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `76826f4 Revert ffmpeg RTSP timeout flags — too aggressive for H2D`
+- Latest commit: `Hide stale printer-nav progress badge`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=481 / style.css?v=378 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=482 / style.css?v=378 / demo-runtime.js?v=8
+
+### 2026-06-14 fixes (UI progress display)
+
+**Hide stale printer-nav progress badge** (`app/static/app.js`)
+Removed the percent badge from the left printer navigation after BigBoy showed mismatched progress values between the nav (`84%`) and the live detail card (`91%`). The nav is now just printer identity/state; the live card, print details panel, and camera HUD remain the progress source of truth. Static cache bumped to `app.js?v=482`.
 
 ### 2026-06-14 fixes (camera streams)
 

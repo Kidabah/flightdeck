@@ -1350,12 +1350,6 @@ function _printerNavLabel(p) {
   return _printerPrimaryLabel(p);
 }
 
-function _printerProgressBadge(p) {
-  const state = String(p?.state || '').toLowerCase();
-  if (!['printing', 'paused'].includes(state)) return '';
-  return p?.job?.progress != null ? `${Math.round(p.job.progress * 100)}%` : '';
-}
-
 function _activePrinterJob(p) {
   const state = String(p?.state || '').toLowerCase();
   return ['printing', 'paused'].includes(state) ? p?.job || null : null;
@@ -2840,14 +2834,12 @@ function buildTabs(printers) {
     const subLabel = _printerSecondaryLabel(p);
     const state = p.state || 'unknown';
     const stateClass = _printerDisplayStateClass(p);
-    const progress = _printerProgressBadge(p);
     return `<a class="tab tab-printer" href="#/printer/${p.id}" style="--tab-accent:${color}" title="${esc(label)} · ${esc(_printerDisplayStateLabel(p))}">
       <span class="tab-printer-state tab-printer-state-${esc(stateClass)}"></span>
       <span class="tab-printer-title">
         <span class="tab-printer-name">${esc(label)}</span>
         ${subLabel ? `<span class="tab-printer-sub">${esc(subLabel)}</span>` : ''}
       </span>
-      ${progress ? `<span class="tab-printer-progress">${progress}</span>` : ''}
     </a>`;
   }).join('');
   const settingsLinks = _SETTINGS_CATEGORIES.map(c =>
