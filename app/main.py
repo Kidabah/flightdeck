@@ -8093,7 +8093,10 @@ def _block_printer_dispatch(printer_id: str, note: str) -> None:
 
 
 async def _wait_for_bambu_physical_start(p: BambuPrinter, job_id: int, filename: str) -> bool:
-    deadline = time.monotonic() + 90.0
+    # 6-minute ceiling: AMS prep (preparing AMS → cooling → homing → filament
+    # change) can take 3-5 minutes before actual printing begins.
+    started_at = time.monotonic()
+    deadline = started_at + 360.0
     last_state = "unknown"
     while time.monotonic() < deadline:
         await asyncio.sleep(3.0)
@@ -8110,7 +8113,13 @@ async def _wait_for_bambu_physical_start(p: BambuPrinter, job_id: int, filename:
                 f"Job #{job_id} {filename}: physical start confirmed",
             )
             return True
-        if last_state in {"idle", "error", "estop"}:
+        # Definitive failures — stop immediately.
+        if last_state in {"error", "estop"}:
+            break
+        # "idle" can be a transient state during the first ~30 seconds while the
+        # printer transitions from idle → PREPARE (AMS prep).  Only give up on
+        # sustained idle (no sign of life after 45 seconds).
+        if last_state == "idle" and time.monotonic() - started_at > 45.0:
             break
     msg = "Printer accepted the start command but did not begin heating or progressing; clear printer state and retry"
     note = "Start blocked after the printer accepted a job but never heated or progressed. Check the printer screen for AMS/AMS HT errors, clear the printer state, then re-enable printing."

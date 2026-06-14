@@ -159,6 +159,7 @@ class _SequencedMQTTClient(PrinterMQTTClient):
                         skip_objects: list[int] | None = None,
                         flow_calibration: bool = True,
                         filament_ids: list[int] | None = None,
+                        regular_ams_slots: int = 0,
                         ) -> bool:
         """Start a 3MF with BambuStudio-style AMS mapping fields.
 
@@ -168,6 +169,8 @@ class _SequencedMQTTClient(PrinterMQTTClient):
         filament_ids are the sequential slot indices from the 3MF plate JSON
         (BambuStudio's own tray numbering); they override the default flat
         ams_mapping values for AMS HT slots so the firmware lookup succeeds.
+        regular_ams_slots is the total slot count across all non-HT AMS units
+        (n_regular_units * 4), used to compute the correct ams_id for AMS HT.
         """
         if skip_objects is not None and not skip_objects:
             skip_objects = None
@@ -177,7 +180,7 @@ class _SequencedMQTTClient(PrinterMQTTClient):
         else:
             plate_location = plate_number
 
-        flat_mapping, detailed_mapping = _build_bambu_ams_mappings(ams_mapping, filament_ids)
+        flat_mapping, detailed_mapping = _build_bambu_ams_mappings(ams_mapping, filament_ids, regular_ams_slots)
         use_ams_flag = bool(use_ams)
         if ams_mapping and use_ams_flag:
             if all(t is None or int(t) < 0 or int(t) >= 254 for t in ams_mapping):
@@ -1071,12 +1074,17 @@ class BambuPrinter:
             self.seed_preview(subtask_name, preview)
 
         filament_ids = preview.filament_ids if preview else None
+        slots = self.ams_slots()
         ams_mapping, mapping_note = _derive_bambu_ams_mapping(
             preview.filament_colors if preview else None,
             preview.filament_type if preview else None,
-            self.ams_slots(),
+            slots,
         )
-        flat_mapping, detailed_mapping = _build_bambu_ams_mappings(ams_mapping, filament_ids)
+        # Count regular AMS units from MQTT so we can compute ams_id=128 for AMS HT.
+        ams_raw = (self._printer.mqtt_dump().get("print") or {}).get("ams") or {}
+        n_regular = sum(1 for u in ams_raw.get("ams", []) if int(u.get("id", 0)) < 128)
+        regular_ams_slots = n_regular * 4
+        flat_mapping, detailed_mapping = _build_bambu_ams_mappings(ams_mapping, filament_ids, regular_ams_slots)
         db.log_decision(self.id, "queue_bambu_mapping", json.dumps({
             "file": filename,
             "ams_mapping": ams_mapping,
@@ -1084,14 +1092,18 @@ class BambuPrinter:
             "flat_ams_mapping": flat_mapping,
             "ams_mapping2": detailed_mapping,
             "mapping_note": mapping_note,
+            "regular_ams_slots": regular_ams_slots,
         }))
-        self.start_uploaded_3mf(filename, ams_mapping, filament_ids=filament_ids)
+        self.start_uploaded_3mf(filename, ams_mapping, filament_ids=filament_ids,
+                                 regular_ams_slots=regular_ams_slots)
 
     def start_uploaded_3mf(self, filename: str, ams_mapping: list[int],
-                            filament_ids: list[int] | None = None) -> bool:
+                            filament_ids: list[int] | None = None,
+                            regular_ams_slots: int = 0) -> bool:
         """Start an uploaded 3MF using the H2D-safe AMS mapping payload."""
         return self._printer.mqtt_client.start_print_3mf(
             filename, 1, True, ams_mapping, filament_ids=filament_ids,
+            regular_ams_slots=regular_ams_slots,
         )
 
 
@@ -1191,6 +1203,7 @@ def _read_ams_extruder_map(print_data: dict) -> dict[int, int]:
 def _build_bambu_ams_mappings(
     ams_mapping: list[int] | None,
     filament_ids: list[int] | None = None,
+    regular_ams_slots: int = 0,
 ) -> tuple[list[int], list[dict]]:
     """Return legacy flat ams_mapping plus detailed ams_mapping2.
 
@@ -1203,6 +1216,11 @@ def _build_bambu_ams_mappings(
 
     Without filament_ids (X1C / single-AMS prints), the output is plate-indexed
     and matches the existing behaviour where ams_mapping[plate_slot_i] = tray.
+
+    regular_ams_slots: total number of slots across all regular (non-HT) AMS
+    units, i.e. n_regular_units * 4.  When non-zero, flat tray IDs that equal
+    or exceed this value are treated as AMS HT slots and get ams_id=128 in
+    ams_mapping2, matching the unit_id the firmware reports in MQTT status.
     """
     flat: list[int] = []
     detailed: list[dict] = []
@@ -1215,12 +1233,14 @@ def _build_bambu_ams_mappings(
             flat.append(-1)
             detailed.append({"ams_id": 255, "slot_id": 0})
         else:
-            # Sequential flat tray ID: ams_id = tray_id // 4, slot_id = tray_id % 4.
-            # _bambu_tray_target() already converts AMS HT (MQTT unit 128) to its
-            # sequential position (e.g. 4 on H2D with one 4-slot regular AMS), so
-            # the formula applies uniformly to both regular AMS and AMS HT.
             flat.append(tray_id)
-            detailed.append({"ams_id": tray_id // 4, "slot_id": tray_id % 4})
+            if regular_ams_slots > 0 and tray_id >= regular_ams_slots:
+                # AMS HT slot: ams_id matches the MQTT unit_id (128), slot_id
+                # is the offset within the HT unit.
+                detailed.append({"ams_id": 128, "slot_id": tray_id - regular_ams_slots})
+            else:
+                # Regular AMS: sequential unit numbering within 4-slot units.
+                detailed.append({"ams_id": tray_id // 4, "slot_id": tray_id % 4})
 
     # When filament_ids are present, remap from plate-slot-indexed to
     # project-filament-indexed so the firmware can look up T4 as ams_mapping[4].
