@@ -2,11 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Scope H2D nozzle AMS guard to path-aware printers`
+- Latest commit: `Use proper red for fan-off sliders`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=485 / style.css?v=380 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=485 / style.css?v=383 / demo-runtime.js?v=8
+
+### 2026-06-15 polish (fan controls)
+
+**Use proper red for fan-off sliders** (`app/static/style.css`, `app/static/index.html`, `app/static/demo.html`)
+Changed the live fan-control slider off state from the theme danger colour, which read as pink in the current palette, to a fixed red accent. The green/on slider state is unchanged. Static cache bumped to `style.css?v=383`; frontend refresh only.
 
 ### 2026-06-15 fixes (X1C queue mapping)
 
