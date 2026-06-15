@@ -388,24 +388,39 @@ def _extract_gcode_object_geometry(gcode: str) -> tuple[dict[int, dict], dict[in
         return {}, {}
     start_re = re.compile(r";\s*start printing object,\s*unique label id:\s*(\d+)", re.IGNORECASE)
     stop_re = re.compile(r";\s*stop printing object,\s*unique label id", re.IGNORECASE)
+    feature_re = re.compile(r";\s*FEATURE:\s*(\S+.*)", re.IGNORECASE)
     move_re = re.compile(r"^G[01]\b([^;]*)")
-    coord_re = re.compile(r"\b([XYE])(-?\d+(?:\.\d+)?)")
+    coord_re = re.compile(r"\b([XYE])(-?(?:\d+(?:\.\d*)?|\.\d+))")
+    _SKIP_FEATURES = {"brim", "skirt", "prime_tower", "prime tower"}
     raw_boxes: dict[int, list[float]] = {}
     raw_shapes: dict[int, list[list[float]]] = {}
     current_id: Optional[int] = None
     last_x: Optional[float] = None
     last_y: Optional[float] = None
+    skip_feature = False
 
     for raw_line in gcode.splitlines():
         line = raw_line.strip()
         start = start_re.search(line)
         if start:
             current_id = int(start.group(1))
+            skip_feature = False
+            last_x = last_y = None
             raw_boxes.setdefault(current_id, [float("inf"), float("inf"), float("-inf"), float("-inf")])
             raw_shapes.setdefault(current_id, [])
             continue
         if stop_re.search(line):
             current_id = None
+            skip_feature = False
+            continue
+        fm = feature_re.search(line)
+        if fm:
+            new_skip = fm.group(1).strip().lower() in _SKIP_FEATURES
+            if new_skip and not skip_feature:
+                last_x = last_y = None
+            skip_feature = new_skip
+            continue
+        if skip_feature:
             continue
         move = move_re.match(line)
         if not move:
@@ -423,6 +438,8 @@ def _extract_gcode_object_geometry(gcode: str) -> tuple[dict[int, dict], dict[in
             continue
         if values.get("E", 0.0) <= 0:
             continue
+        if "X" not in values and "Y" not in values:
+            continue  # pure retract/unretract: no XY movement, skip for bbox
         box = raw_boxes[current_id]
         segment_points = []
         for x, y in ((old_x, old_y), (last_x, last_y)):

@@ -4078,11 +4078,16 @@ function _objectMapHtml(id, data) {
       : `<span class="obj-chip-id">${displayId}</span>`;
     const pointGeometry = topDown && _objectMapHasPoint(obj);
     if (hasGeometry && (obj.bbox || pointGeometry)) {
-      const geom = pointGeometry ? _objectMapPointHitStyle(bounds, obj) : _objectMapBoxStyle(bounds, obj.bbox, data);
-      return `<button type="button" class="obj-map-region obj-exclude-btn${isExcluded ? ' is-excluded' : ''}${isCurrent ? ' is-current' : ''}"
+      const geom = topDown
+        ? (obj.bbox ? _objectMapBadgeCenterStyle(bounds, obj.bbox, data) : (() => { const p = _objectMapPointPosition(bounds, obj); return `left:${p.x.toFixed(2)}%;top:${p.y.toFixed(2)}%;transform:translate(-50%,-50%)`; })())
+        : (pointGeometry ? _objectMapPointHitStyle(bounds, obj) : _objectMapBoxStyle(bounds, obj.bbox, data));
+      const inner = topDown
+        ? `<span class="obj-map-id-dot">${displayId}</span>`
+        : `<span class="obj-chip-id">${displayId}</span>`;
+      return `<button type="button" class="obj-map-region obj-exclude-btn${topDown ? ' is-top-down' : ''}${isExcluded ? ' is-excluded' : ''}${isCurrent ? ' is-current' : ''}"
         style="${geom}"
         data-obj-name="${safeName}" data-obj-label="${esc(shortName)}" data-printer-id="${id}" data-obj-id="${safeId}" ${isExcluded ? 'disabled' : ''}
-        title="${esc(shortName)}"><span class="obj-chip-id">${displayId}</span></button>`;
+        title="${esc(shortName)}">${inner}</button>`;
     }
     if (hasGeometry && topDown) return '';
     return `<button type="button" class="obj-id-select obj-exclude-btn${isExcluded ? ' is-excluded' : ''}${isCurrent ? ' is-current' : ''}"
@@ -4262,23 +4267,15 @@ function _objectMapPointHitStyle(bounds, obj) {
   return `left:${Math.max(0, p.x - (size / 2)).toFixed(2)}%;top:${Math.max(0, p.y - (size / 2)).toFixed(2)}%;width:${size.toFixed(2)}%;height:${size.toFixed(2)}%`;
 }
 
-function _objectMapTopDownObjects(data) {
-  const objects = data?.objects || [];
-  const bounds = data?.plate_bounds;
-  if (!bounds || bounds.w <= 0 || bounds.h <= 0) return '';
-  return objects.filter(obj => obj.bbox || _objectMapHasPoint(obj)).map(obj => {
-    const isExcluded = obj.state === 'excluded';
-    const isCurrent = obj.state === 'current';
-    const rawName = obj.name || `Object ${obj.id ?? ''}`;
-    const shortName = (obj.label || rawName).replace(/.*[/\\]/, '');
-    const displayId = obj.id !== undefined && obj.id !== null ? `#${obj.id}` : '?';
-    const style = _objectMapHasPoint(obj)
-      ? _objectMapPointHitStyle(bounds, obj)
-      : _objectMapBoxStyle(bounds, obj.bbox, data);
-    return `<div class="obj-map-top-object${isExcluded ? ' is-excluded' : ''}${isCurrent ? ' is-current' : ''}"
-      style="${style}"
-      title="${esc(shortName)}" aria-hidden="true"><span class="obj-map-id-dot">${esc(displayId)}</span></div>`;
-  }).join('');
+function _objectMapBadgeCenterStyle(bounds, box, data = {}) {
+  const p = _objectMapBoxParts(bounds, box, data);
+  const cx = Math.max(0, Math.min(100, p.left + p.width / 2));
+  const cy = Math.max(0, Math.min(100, p.top + p.height / 2));
+  return `left:${cx.toFixed(2)}%;top:${cy.toFixed(2)}%;transform:translate(-50%,-50%)`;
+}
+
+function _objectMapTopDownObjects(_data) {
+  return '';
 }
 
 function _objectMapShapeSvg(obj, bounds, data = {}) {
@@ -4360,10 +4357,16 @@ function _largeObjectMapHtml(id, data) {
       : `<span class="obj-chip-id">${displayId}</span>`;
     const pointGeometry = topDown && _objectMapHasPoint(obj);
     if (hasGeometry && (obj.bbox || pointGeometry)) {
-      return `<button type="button" class="obj-map-region obj-exclude-btn${isExcluded ? ' is-excluded' : ''}${isCurrent ? ' is-current' : ''}"
-        style="${pointGeometry ? _objectMapPointHitStyle(bounds, obj) : _objectMapBoxStyle(bounds, obj.bbox, data)}"
+      const geom = topDown
+        ? (obj.bbox ? _objectMapBadgeCenterStyle(bounds, obj.bbox, data) : (() => { const p = _objectMapPointPosition(bounds, obj); return `left:${p.x.toFixed(2)}%;top:${p.y.toFixed(2)}%;transform:translate(-50%,-50%)`; })())
+        : (pointGeometry ? _objectMapPointHitStyle(bounds, obj) : _objectMapBoxStyle(bounds, obj.bbox, data));
+      const inner = topDown
+        ? `<span class="obj-map-id-dot">${displayId}</span>`
+        : `<span class="obj-chip-id">${displayId}</span>`;
+      return `<button type="button" class="obj-map-region obj-exclude-btn${topDown ? ' is-top-down' : ''}${isExcluded ? ' is-excluded' : ''}${isCurrent ? ' is-current' : ''}"
+        style="${geom}"
         data-obj-name="${safeName}" data-obj-label="${esc(shortName)}" data-printer-id="${id}" data-obj-id="${safeId}" ${isExcluded ? 'disabled' : ''}
-        title="${esc(shortName)}"><span class="obj-chip-id">${displayId}</span></button>`;
+        title="${esc(shortName)}">${inner}</button>`;
     }
     if (hasGeometry && topDown) return '';
     return `<button type="button" class="obj-id-select obj-exclude-btn${isExcluded ? ' is-excluded' : ''}${isCurrent ? ' is-current' : ''}"

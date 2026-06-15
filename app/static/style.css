@@ -7485,6 +7485,44 @@ button.live-route-node:hover {
   filter: grayscale(0.7);
 }
 
+.obj-map-topdown .obj-map-region.is-top-down {
+  background: transparent;
+  border-color: transparent;
+  color: transparent;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border-radius: 0.22rem;
+  cursor: pointer;
+}
+
+.obj-map-topdown .obj-map-region.is-top-down .obj-map-id-dot {
+  position: static;
+  left: auto;
+  top: auto;
+}
+
+.obj-map-topdown .obj-map-region.is-top-down:hover:not(:disabled) {
+  background: transparent;
+  border-color: transparent;
+}
+
+.obj-map-topdown .obj-map-region.is-top-down:hover:not(:disabled) .obj-map-id-dot {
+  background: rgba(37,99,235,0.88);
+  border-color: rgba(96,165,250,0.9);
+}
+
+.obj-map-topdown .obj-map-region.is-top-down.is-excluded {
+  background: transparent;
+  border-color: transparent;
+  opacity: 0.4;
+}
+
+.obj-map-topdown .obj-map-region.is-top-down.is-current .obj-map-id-dot {
+  border-color: rgba(59,130,246,0.85);
+  box-shadow: 0 0 0.75rem rgba(59,130,246,0.5), 0 0.12rem 0.3rem rgba(0,0,0,0.45);
+}
+
 .obj-map-overlay-rotated .obj-map-stage,
 .object-map-modal-stage.obj-map-overlay-rotated {
   aspect-ratio: 1 / 1;
