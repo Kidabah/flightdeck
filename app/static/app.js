@@ -2120,6 +2120,22 @@ function _detailLiveOps(p) {
   return `<div class="live-op-row" aria-label="Live printer shortcuts">${controls}</div>`;
 }
 
+function _detailLiveOpsDrawer(p) {
+  const ops = _detailLiveOps(p);
+  if (!ops) return '';
+  return `<button class="live-controls-toggle" type="button" data-live-ops-toggle aria-expanded="false">
+      <span>Controls</span>
+    </button>
+    <button class="live-control-backdrop" type="button" data-live-ops-close aria-label="Close controls"></button>
+    <aside class="live-control-rail" id="detail-live-ops" aria-label="Live printer controls">
+      <div class="live-control-rail-head">
+        <span>Controls</span>
+        <button class="live-control-close" type="button" data-live-ops-close aria-label="Close controls">&times;</button>
+      </div>
+      <div class="live-control-scroll" id="detail-live-ops-body">${ops}</div>
+    </aside>`;
+}
+
 function _updateControlsWidget(id) {
   const p = _latestPrinters.find(x => x.id === id);
   const el = document.querySelector('.detail-controls-wrap');
@@ -2300,6 +2316,26 @@ document.addEventListener('keydown', e => {
 // Delegated handler for temp nudge + inline edit
 document.getElementById('view-printer').addEventListener('click', e => {
   // Nudge buttons
+  const liveOpsToggle = e.target.closest('[data-live-ops-toggle]');
+  if (liveOpsToggle) {
+    const deck = liveOpsToggle.closest('.live-main-deck');
+    if (deck) {
+      deck.classList.toggle('live-ops-open');
+      liveOpsToggle.setAttribute('aria-expanded', deck.classList.contains('live-ops-open') ? 'true' : 'false');
+    }
+    return;
+  }
+
+  const liveOpsClose = e.target.closest('[data-live-ops-close]');
+  if (liveOpsClose) {
+    const deck = liveOpsClose.closest('.live-main-deck');
+    if (deck) {
+      deck.classList.remove('live-ops-open');
+      deck.querySelector('[data-live-ops-toggle]')?.setAttribute('aria-expanded', 'false');
+    }
+    return;
+  }
+
   const tempBtn = e.target.closest('[data-temp-action]');
   if (tempBtn) {
     const { tempAction, heater, printerId: id, target } = tempBtn.dataset;
@@ -6274,6 +6310,7 @@ async function renderPrinterDetail(id, subtab = 'live') {
     try {
       const camSrc = _cameraStreamSrc(id);
       const camHtml = _detailCameraContent(id, p, camSrc);
+      const opsDrawer = _detailLiveOpsDrawer(p);
 
       const printerColor = _printerColor(id);
       const bannerTextColor = p.icon === 'bambu' ? '#22c55e' : p.icon === 'voron' ? '#ef4444' : 'var(--text)';
@@ -6282,8 +6319,8 @@ async function renderPrinterDetail(id, subtab = 'live') {
         `<div class="detail-body">
           <div class="detail-left">
             <div id="detail-live-head">${_detailLiveHeader(p, printerColor, bannerTextColor)}</div>
-            <div class="live-main-deck">
-              <aside class="live-control-rail" id="detail-live-ops">${_detailLiveOps(p)}</aside>
+            <div class="live-main-deck ${opsDrawer ? 'has-live-ops' : ''}">
+              ${opsDrawer}
               <div class="camera-hero">${camHtml}<div class="camera-hud" id="detail-camera-hud">${_detailCameraHud(p)}</div></div>
             </div>
             <div class="live-strip" id="detail-live-strip">${_detailLiveStrip(p)}</div>
@@ -6364,8 +6401,11 @@ async function renderPrinterDetail(id, subtab = 'live') {
     const bannerTextColor = p.icon === 'bambu' ? '#22c55e' : p.icon === 'voron' ? '#ef4444' : 'var(--text)';
     const headEl = el.querySelector('#detail-live-head');
     if (headEl) headEl.innerHTML = _detailLiveHeader(p, printerColor, bannerTextColor);
-    const opsEl = el.querySelector('#detail-live-ops');
-    if (opsEl) opsEl.innerHTML = _detailLiveOps(p);
+    const opsHtml = _detailLiveOps(p);
+    const deckEl = el.querySelector('.live-main-deck');
+    if (deckEl) deckEl.classList.toggle('has-live-ops', !!opsHtml);
+    const opsEl = el.querySelector('#detail-live-ops-body');
+    if (opsEl) opsEl.innerHTML = opsHtml;
     const hudEl = el.querySelector('#detail-camera-hud');
     if (hudEl) hudEl.innerHTML = _detailCameraHud(p);
     const stripEl = el.querySelector('#detail-live-strip');

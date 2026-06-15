@@ -2,11 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Use proper red for fan-off sliders`
+- Latest commit: `Move live controls into a slide-out drawer`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=485 / style.css?v=383 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=486 / style.css?v=384 / demo-runtime.js?v=8
+
+### 2026-06-15 polish (live controls drawer)
+
+**Move live controls into a slide-out drawer** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `app/static/demo.html`)
+Moved the Live page preheat, fan, jog, home, and Klipper controls out of the always-visible left rail and into a left slide-out `Controls` drawer over the camera. The camera now gets the full main deck by default, while the same printer control buttons/sliders remain available on demand. Static cache bumped to `app.js?v=486` and `style.css?v=384`; frontend refresh only.
 
 ### 2026-06-15 polish (fan controls)
 

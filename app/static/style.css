@@ -3893,14 +3893,110 @@ button.briefing-row {
   flex: 1;
   min-height: clamp(22rem, 58vh, 44rem);
   display: grid;
-  grid-template-columns: clamp(9.5rem, 13vw, 12rem) minmax(0, 1fr);
-  gap: 0.65rem;
+  grid-template-columns: minmax(0, 1fr);
+  position: relative;
+  overflow: hidden;
 }
 
 .live-control-rail {
+  position: absolute;
+  z-index: 8;
+  inset: 0 auto 0 0;
+  width: min(17rem, calc(100% - 1.4rem));
   min-height: 0;
+  padding: 0.75rem;
   overflow-y: auto;
   scrollbar-width: thin;
+  border: 1px solid rgba(96,165,250,0.32);
+  border-radius: 0.75rem 0.95rem 0.95rem 0.75rem;
+  background: rgba(8,13,26,0.96);
+  box-shadow: 0 24px 48px rgba(0,0,0,0.42);
+  transform: translateX(calc(-100% - 0.85rem));
+  transition: transform 160ms ease, opacity 160ms ease;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.live-main-deck.live-ops-open .live-control-rail {
+  transform: translateX(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.live-control-rail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  margin-bottom: 0.65rem;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.live-control-close,
+.live-controls-toggle {
+  border: 1px solid rgba(96,165,250,0.34);
+  background: rgba(15,23,42,0.82);
+  color: #bfdbfe;
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.live-control-close {
+  display: inline-grid;
+  place-items: center;
+  width: 1.95rem;
+  height: 1.95rem;
+  border-radius: 0.55rem;
+  font-size: 1rem;
+}
+
+.live-controls-toggle {
+  position: absolute;
+  z-index: 7;
+  top: 0.72rem;
+  left: 0.72rem;
+  min-height: 2.15rem;
+  padding: 0.2rem 0.75rem;
+  border-radius: 999px;
+  box-shadow: 0 12px 30px rgba(0,0,0,0.34);
+}
+
+.live-controls-toggle span {
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.live-main-deck.live-ops-open .live-controls-toggle {
+  border-color: rgba(34,197,94,0.58);
+  background: rgba(22,101,52,0.58);
+  color: #dcfce7;
+}
+
+.live-control-backdrop {
+  position: absolute;
+  z-index: 6;
+  inset: 0;
+  border: 0;
+  border-radius: 0.75rem;
+  background: rgba(2,6,23,0.3);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
+}
+
+.live-main-deck.live-ops-open .live-control-backdrop {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.live-control-scroll {
+  min-height: 0;
 }
 
 .live-control-rail:empty {
@@ -4178,6 +4274,8 @@ button.briefing-row {
 
 .detail-body.cam-wide .detail-right,
 .detail-body.cam-wide .live-control-rail,
+.detail-body.cam-wide .live-controls-toggle,
+.detail-body.cam-wide .live-control-backdrop,
 .detail-body.cam-wide .live-strip { display: none; }
 
 .detail-body.cam-wide .live-main-deck {
@@ -5658,7 +5756,7 @@ button.live-route-node:hover {
     grid-template-columns: 1fr;
   }
   .live-control-rail {
-    overflow-y: visible;
+    max-height: min(34rem, calc(100vh - 8rem));
   }
   .camera-hero { flex: none; aspect-ratio: 16 / 9; }
   .detail-right { width: auto; overflow-y: visible; }
