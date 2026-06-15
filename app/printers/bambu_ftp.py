@@ -30,6 +30,7 @@ class BambuPreview:
     filament_ids: Optional[list[int]] = None
     objects: Optional[list[dict]] = None
     plate_bounds: Optional[dict] = None
+    bed_bounds: Optional[dict] = None
 
 
 class _ImplicitFTP_TLS(ftplib.FTP_TLS):
@@ -127,7 +128,7 @@ def _parse_3mf(buf: io.BytesIO, plate_number: Optional[int] = None) -> BambuPrev
             k: [_flip_bbox_y(v, plate_bounds) for v in vals]
             for k, vals in object_boxes_by_name.items()
         }
-    gcode_object_boxes, gcode_object_shapes = _extract_gcode_object_geometry(plate_gcode)
+    gcode_object_boxes, gcode_object_shapes, bed_bounds = _extract_gcode_object_geometry(plate_gcode)
     if gcode_object_boxes:
         object_boxes.update(gcode_object_boxes)
         plate_bounds = plate_bounds or _bounds_for_boxes(gcode_object_boxes.values())
@@ -211,6 +212,7 @@ def _parse_3mf(buf: io.BytesIO, plate_number: Optional[int] = None) -> BambuPrev
         filament_ids=filament_ids,
         objects=objects or None,
         plate_bounds=plate_bounds,
+        bed_bounds=bed_bounds,
     )
 
 
@@ -382,13 +384,14 @@ def _extract_plate_object_boxes(data) -> tuple[dict[int, dict], dict[str, list[d
     return boxes, boxes_by_name, points_by_name, plate_bounds
 
 
-def _extract_gcode_object_geometry(gcode: str) -> tuple[dict[int, dict], dict[int, dict]]:
+def _extract_gcode_object_geometry(gcode: str) -> tuple[dict[int, dict], dict[int, dict], Optional[dict]]:
     """Recover top-down per-object footprints from Bambu/Orca object label markers."""
     if not gcode:
-        return {}, {}
+        return {}, {}, None
     start_re = re.compile(r";\s*start printing object,\s*unique label id:\s*(\d+)", re.IGNORECASE)
     stop_re = re.compile(r";\s*stop printing object,\s*unique label id", re.IGNORECASE)
     feature_re = re.compile(r";\s*FEATURE:\s*(\S+.*)", re.IGNORECASE)
+    area_re = re.compile(r";\s*printable_area\s*=\s*(.+)", re.IGNORECASE)
     move_re = re.compile(r"^G[01]\b([^;]*)")
     coord_re = re.compile(r"\b([XYE])(-?(?:\d+(?:\.\d*)?|\.\d+))")
     _SKIP_FEATURES = {"brim", "skirt", "prime_tower", "prime tower"}
@@ -398,9 +401,21 @@ def _extract_gcode_object_geometry(gcode: str) -> tuple[dict[int, dict], dict[in
     last_x: Optional[float] = None
     last_y: Optional[float] = None
     skip_feature = False
+    bed_bounds: Optional[dict] = None
 
     for raw_line in gcode.splitlines():
         line = raw_line.strip()
+        if bed_bounds is None:
+            am = area_re.match(line)
+            if am:
+                try:
+                    pts = [tuple(float(v) for v in p.strip().split('x')) for p in am.group(1).split(',')]
+                    xs = [p[0] for p in pts]; ys = [p[1] for p in pts]
+                    bw = max(xs) - min(xs); bh = max(ys) - min(ys)
+                    if bw > 0 and bh > 0:
+                        bed_bounds = {"x": min(xs), "y": min(ys), "w": bw, "h": bh}
+                except Exception:
+                    pass
         start = start_re.search(line)
         if start:
             current_id = int(start.group(1))
@@ -475,7 +490,7 @@ def _extract_gcode_object_geometry(gcode: str) -> tuple[dict[int, dict], dict[in
         if len(hull) >= 3:
             shape["polygon"] = [[round(x, 3), round(y, 3)] for x, y in hull]
         shapes[obj_id] = shape
-    return boxes, shapes
+    return boxes, shapes, bed_bounds
 
 
 def _convex_hull(points: list[tuple[float, float]]) -> list[tuple[float, float]]:

@@ -4060,8 +4060,8 @@ function _detailObjectsUnavailablePanel(data) {
 
 function _objectMapHtml(id, data) {
   const objects = data?.objects || [];
-  const bounds = data?.plate_bounds;
   const topDown = _objectMapIsTopDown(data);
+  const bounds = (topDown && data?.bed_bounds) ? data.bed_bounds : data?.plate_bounds;
   const hasGeometry = bounds && bounds.w > 0 && bounds.h > 0 && objects.some(o => o.bbox || (topDown && _objectMapHasPoint(o)));
   const availableObjects = objects.filter(o => o.state !== 'excluded');
   const mappedAvailableObjects = hasGeometry ? availableObjects.filter(o => o.bbox || (topDown && _objectMapHasPoint(o))) : availableObjects;
@@ -4326,8 +4326,8 @@ function _objectMapStyleVars(bounds, rotated, rotation, imageRotation, imageOffs
 
 function _largeObjectMapHtml(id, data) {
   const objects = data?.objects || [];
-  const bounds = data?.plate_bounds;
   const topDown = _objectMapIsTopDown(data);
+  const bounds = (topDown && data?.bed_bounds) ? data.bed_bounds : data?.plate_bounds;
   const hasGeometry = bounds && bounds.w > 0 && bounds.h > 0 && objects.some(o => o.bbox || (topDown && _objectMapHasPoint(o)));
   const availableObjects = objects.filter(o => o.state !== 'excluded');
   const mappedAvailableObjects = hasGeometry ? availableObjects.filter(o => o.bbox || (topDown && _objectMapHasPoint(o))) : availableObjects;
