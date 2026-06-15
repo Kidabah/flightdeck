@@ -2,11 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Move live controls into a slide-out drawer`
+- Latest commit: `Polish live header action controls`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=486 / style.css?v=384 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=486 / style.css?v=385 / demo-runtime.js?v=8
+
+### 2026-06-15 polish (live header controls)
+
+**Polish live header action controls** (`app/static/style.css`, `app/static/index.html`, `app/static/demo.html`)
+Tightened the Live header action area after the controls drawer change. The printer state/reprint/print-enabled group now sits in a subtle action pill, `Reprint last` reads as a deliberate green command, and the light/pause/cancel/e-stop transport deck has stronger button sizing, hover states, and danger styling. Static cache bumped to `style.css?v=385`; frontend refresh only.
 
 ### 2026-06-15 polish (live controls drawer)
 
