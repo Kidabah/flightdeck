@@ -2,11 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Add live reprint last action`
+- Latest commit: `Scope H2D nozzle AMS guard to path-aware printers`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=485 / style.css?v=380 / demo-runtime.js?v=8
+
+### 2026-06-15 fixes (X1C queue mapping)
+
+**Scope H2D nozzle/AMS guard to path-aware printers** (`app/printers/bambu.py`, `app/relay.py`)
+Fixed an X1C queue failure where `spacerv2.gcode.3mf` was blocked with `H2D AMS mapping blocked... assigned to right nozzle` even though the job targeted the X1C. Normal X1C 3MF metadata can include `nozzle: 0`, but X1C AMS slots do not have H2D left/right path annotations. The Bambu queue/relay mappers now enforce nozzle-path matching only when the loaded AMS slots actually include `nozzle` metadata (H2D path-aware case). X1C falls back to material/colour AMS matching as intended.
 
 ### 2026-06-14 fixes (live reprint)
 

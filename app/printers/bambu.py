@@ -1392,7 +1392,8 @@ def _derive_bambu_ams_mapping(
             )
         ] or available
         nozzle = req.get("nozzle")
-        if nozzle in (0, 1):
+        enforce_nozzle_path = nozzle in (0, 1) and any("nozzle" in slot for slot in material_matches)
+        if enforce_nozzle_path:
             nozzle_matches = [slot for slot in material_matches if slot.get("nozzle") == nozzle]
             if nozzle_matches:
                 colour_matches = [
