@@ -2,11 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Polish live header action controls`
+- Latest commit: `Add Bambu-Run comparison research note`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=486 / style.css?v=385 / demo-runtime.js?v=8
+
+### 2026-06-15 research (Bambu-Run comparison)
+
+**Add Bambu-Run comparison research note** (`docs/research/bambu-run-comparison.md`)
+Stored a safe comparison note for RunLit/Bambu-Run covering feature overlap, Bambu cloud task sync clues, auth/token handling, MQTT/AMS field checklists, AMS type-code hints, and Bambu colour catalog notes. The note deliberately does **not** copy Bambu-Run code or full colour files because the repository metadata has a license mismatch (GitHub page GPL-3.0, `pyproject.toml` MIT). Colour work should use this as a shape reference and build a Flightdeck-owned catalog from official/user-owned sources.
 
 ### 2026-06-15 polish (live header controls)
 
