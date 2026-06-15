@@ -7533,6 +7533,42 @@ def _coverage_label(coverage: dict) -> str:
     )
 
 
+def _spool_h2d_nozzle(spool: dict) -> Optional[int]:
+    try:
+        slot = int(spool.get("location_slot"))
+    except (TypeError, ValueError):
+        return None
+    return 0 if slot >= 128 else 1
+
+
+def _queue_nozzle_coverage(requirements: list[dict], spools: list[dict], required_g: Optional[float]) -> list[dict]:
+    reqs = [dict(req) for req in requirements]
+    if required_g is not None and len(reqs) == 1 and float(reqs[0].get("used_g") or 0) <= 0:
+        reqs[0]["used_g"] = float(required_g)
+
+    coverage = []
+    for req in reqs:
+        matching = [
+            s for s in spools
+            if _spool_h2d_nozzle(s) == req.get("nozzle")
+            and _spool_matches_material(s, req["material"])
+            and _spool_matches_color(s, req["color"])
+        ]
+        available = sum(float(s.get("remaining_g") or 0) for s in matching)
+        coverage.append({
+            **req,
+            "available_g": available,
+            "spools": matching,
+            "ok": available + 0.1 >= float(req.get("used_g") or 0),
+        })
+    return coverage
+
+
+def _nozzle_coverage_label(coverage: dict) -> str:
+    base = _coverage_label(coverage)
+    return f"{_queue_nozzle_label(coverage.get('nozzle'))} {base}"
+
+
 def _spool_matches_color(spool: dict, color: Optional[str]) -> bool:
     return _colour_matches(spool.get("color_hex"), color)
 
@@ -7724,10 +7760,12 @@ def _queue_preflight(job: dict, printer_status: Optional[dict]) -> dict:
     required_g = job.get("filament_weight_g")
     material = job.get("filament_type")
     color_reqs = _queue_colour_requirements(job)
+    nozzle_reqs = _queue_nozzle_requirements(job)
     loaded = db.get_spools_by_printer(job["printer_id"])
     loaded_spools = list(loaded.values())
     material_matches = [s for s in loaded_spools if _spool_matches_material(s, material)]
     color_coverage = _queue_colour_coverage(color_reqs, loaded_spools) if color_reqs else []
+    nozzle_coverage = _queue_nozzle_coverage(nozzle_reqs, loaded_spools, required_g) if nozzle_reqs else []
     color_matches = [
         s for s in material_matches
         if any(_spool_matches_color(s, c["color"]) for c in color_reqs)
@@ -7776,7 +7814,21 @@ def _queue_preflight(job: dict, printer_status: Optional[dict]) -> dict:
         issues.append({"level": "warn", "message": "No material metadata; material check skipped"})
 
     if required_g is not None:
-        if color_reqs:
+        if nozzle_coverage:
+            missing = [c for c in nozzle_coverage if not c["ok"]]
+            if missing:
+                detail = "; ".join(_nozzle_coverage_label(c) for c in missing)
+                issues.append({
+                    "level": "block" if strict_colour else "warn",
+                    "message": f"Loaded nozzle-path stock short: {detail}",
+                })
+            elif any(c["available_g"] < float(c["used_g"] or 0) * 1.15 for c in nozzle_coverage):
+                detail = "; ".join(_nozzle_coverage_label(c) for c in nozzle_coverage)
+                issues.append({
+                    "level": "warn",
+                    "message": f"Low nozzle-path margin: {detail}",
+                })
+        elif color_reqs:
             missing = [c for c in color_coverage if not c["ok"]]
             if missing:
                 detail = "; ".join(_coverage_label(c) for c in missing)

@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Add Bambu-Run comparison research note`
+- Latest commit: pending commit after this handoff (`Block H2D queue starts when nozzle-path spool stock is short`)
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=486 / style.css?v=385 / demo-runtime.js?v=8
+
+### 2026-06-15 fix (H2D nozzle-path stock gate)
+
+**Block H2D queue starts when nozzle-path spool stock is short** (`app/main.py`)
+Hardened queue preflight after BigBoy/H2D paused mid-print on filament runout while the AMS HT modal showed the HT bay empty and no Flightdeck spool assigned. The existing colour stock check could prove that matching filament existed somewhere on the printer, but for H2D dual-path jobs it did not separately prove that the sliced nozzle path had an assigned Flightdeck spool with enough grams. `_queue_preflight()` now builds nozzle-path-aware coverage from sliced `filament_colors[].nozzle`: right-nozzle jobs only count canonical AMS HT slots (`location_slot >= 128`), left-nozzle jobs only count regular AMS slots, and insufficient/no assigned stock blocks dispatch with `Loaded nozzle-path stock short...`. This deliberately avoids touching the Bambu AMS mapping/send path. Backend restart required; it will protect future queue starts, but the already-paused printer still needs normal operator recovery/load-resume handling.
+  - Verification: `python -m py_compile app/main.py`, `git diff --check`, and venv smoke tests passed. The smoke tests confirmed a right-nozzle HT job with only a matching regular AMS spool now blocks, a right-nozzle HT job with a 50g assigned HT spool for a 96g print blocks, and the same job with a 120g assigned HT spool is ready.
 
 ### 2026-06-15 research (Bambu-Run comparison)
 
