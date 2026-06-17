@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: pending commit after this handoff (`Block H2D queue starts when nozzle-path spool stock is short`)
+- Latest commit: pending commit after this handoff (`Parse H2D plate nozzle when filament nozzle map is missing`)
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=486 / style.css?v=385 / demo-runtime.js?v=8
+
+### 2026-06-17 fix (H2D regular AMS nozzle parse)
+
+**Parse H2D plate nozzle when filament nozzle map is missing** (`app/printers/bambu_ftp.py`)
+Fixed a false queue block on `Spindle Centre v2.0_PLA_1h28m.gcode.3mf`, sliced for H2D using regular AMS/AMS2 Pro slot 1, where Flightdeck stored `filament_colors[].nozzle = 0` and blocked with `job is sliced for right nozzle... matching PLA Grey is loaded in AMS 1 slot 1 (left nozzle)`. Root cause: this 3MF has no `filament_nozzle_map`; it has `physical_extruder_map = [1,0]` plus plate `<nozzle id="0" extruder_id="1">`. The fallback parser treated `physical_extruder_map` itself as the nozzle list and then mapped it through `physical_extruder_map` again, turning the first filament into right nozzle. `_parse_filament_nozzle_map()` now uses explicit `filament_nozzle_map` exactly as before when present, but when it is missing it reads the plate `<nozzle id>` entries and translates those through `physical_extruder_map` once. Existing queued rows parsed before this fix still carry stale metadata; delete/re-upload or re-add those files after deploy so they parse fresh.
+  - Verification: `python -m py_compile app/printers/bambu_ftp.py`, `git diff --check`, and parser smokes passed. `Spindle Centre v2.0_PLA_1h28m.gcode.3mf` now parses as `nozzle: 1` (left/regular AMS). Known AMS HT files `HT__TEST.gcode.3mf`, `Revised Wheel_HT_SilverPLA_2h39m.gcode.3mf`, and `Revised Wheel_PLA_2h38m.gcode.3mf` still parse as `nozzle: 0` (right/AMS HT). The explicit-map smoke still maps `filament_nozzle_map=[1]` plus `physical_extruder_map=[1,0]` to right nozzle.
 
 ### 2026-06-15 fix (H2D nozzle-path stock gate)
 

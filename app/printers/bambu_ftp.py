@@ -133,7 +133,7 @@ def _parse_3mf(buf: io.BytesIO, plate_number: Optional[int] = None) -> BambuPrev
         object_boxes.update(gcode_object_boxes)
         plate_bounds = plate_bounds or _bounds_for_boxes(gcode_object_boxes.values())
     if plate is not None:
-        filament_nozzles = _parse_filament_nozzle_map(project_settings)
+        filament_nozzles = _parse_filament_nozzle_map(project_settings, plate)
         name_counts: dict[str, int] = {}
         name_box_counts: dict[str, int] = {}
         name_point_counts: dict[str, int] = {}
@@ -258,22 +258,41 @@ def _parse_int_list(value) -> list[int]:
     return out
 
 
-def _parse_filament_nozzle_map(project_settings: str) -> list[int]:
+def _parse_filament_nozzle_map(project_settings: str, plate: Optional[ET.Element] = None) -> list[int]:
     """Return per-filament H2D nozzle targets where 0=right and 1=left."""
     nozzle_map = _parse_int_list(_parse_config_value(project_settings, "filament_nozzle_map"))
     physical_map = _parse_int_list(_parse_config_value(project_settings, "physical_extruder_map"))
-    if not nozzle_map:
-        nozzle_map = physical_map
-    if not nozzle_map:
-        return []
+    if nozzle_map:
+        out: list[int] = []
+        for nozzle in nozzle_map:
+            mapped = nozzle
+            if physical_map and 0 <= nozzle < len(physical_map):
+                mapped = physical_map[nozzle]
+            if mapped in (0, 1):
+                out.append(mapped)
+        return out
+
+    plate_nozzles: list[int] = []
+    if plate is not None:
+        for nozzle_el in plate.findall("nozzle"):
+            try:
+                plate_nozzles.append(int(nozzle_el.get("id")))
+            except (TypeError, ValueError):
+                continue
+
     out: list[int] = []
-    for nozzle in nozzle_map:
+    for nozzle in plate_nozzles:
         mapped = nozzle
         if physical_map and 0 <= nozzle < len(physical_map):
             mapped = physical_map[nozzle]
         if mapped in (0, 1):
             out.append(mapped)
-    return out
+    if len(out) == 1 and plate is not None:
+        return out * len(plate.findall("filament"))
+    if out:
+        return out
+
+    return [n for n in physical_map if n in (0, 1)]
 
 
 def _numbers(value) -> list[float]:
