@@ -2689,10 +2689,13 @@ async function renderDemoView() {
 
   el.innerHTML = `<div class="demo-page">
     <section class="demo-hero">
-      <div>
-        <div class="mission-eyebrow">Walkthrough Mode</div>
-        <h1>Flightdeck first-look tour</h1>
-        <p>A guided, low-risk path through the screens that make Flightdeck feel different: fleet awareness, dispatch intelligence, live printer control, spool truth, and recovery. Use it for a live install, a screen share, or a proper release demo.</p>
+      <div class="demo-hero-copy">
+        <img class="demo-hero-logo" src="/static/flightdeck-icon.svg" alt="" aria-hidden="true">
+        <div>
+          <div class="mission-eyebrow">Walkthrough Mode</div>
+          <h1>Welcome to Flightdeck</h1>
+          <p>A low-risk path through fleet awareness, dispatch intelligence, live printer control, spool truth, and recovery.</p>
+        </div>
       </div>
       <div class="demo-hero-status ${demoReady ? 'ready' : 'watch'}">
         <span>${demoReady ? 'Ready to show' : 'Check before demo'}</span>
@@ -2723,9 +2726,9 @@ async function renderDemoView() {
       <div class="demo-card">
         <div class="manual-card-head"><span>Talk Track</span></div>
         <div class="demo-script">
-          <p><strong>Opening:</strong> Flightdeck is built for a mixed printer workshop, not just one brand. It keeps printers, filament, queue decisions, history, maintenance, and recovery in one cockpit.</p>
-          <p><strong>Key difference:</strong> it does not just show status. It explains what is safe to run, which spool will be used, why a print is blocked, and what to check next.</p>
-          <p><strong>Trust point:</strong> risky actions are deliberate, state is visible, and the system health panel tells you when the host is under pressure.</p>
+          <p><strong>Opening:</strong> Flightdeck is for mixed-printer workshops, not just one brand.</p>
+          <p><strong>Key difference:</strong> it explains what is safe to run, which spool will be used, and why a print is blocked.</p>
+          <p><strong>Trust point:</strong> risky actions are deliberate and system health is visible.</p>
         </div>
       </div>
 

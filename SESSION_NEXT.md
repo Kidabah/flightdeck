@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Add quick-start links to Walkthrough Mode`
+- Latest commit: `Tighten Walkthrough Mode first screen`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=488 / style.css?v=386 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=489 / style.css?v=387 / demo-runtime.js?v=8
+
+### 2026-06-17 polish (Walkthrough first screen)
+
+**Tighten Walkthrough Mode first screen** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `app/static/demo.html`)
+Compressed the Walkthrough Mode header into a compact welcome strip with the Flightdeck icon and `Welcome to Flightdeck` copy, shortened the talk-track text, reduced metric/card spacing, and tightened the walkthrough/quick-start rows so the page is much more likely to fit as a single-screen overview on desktop. Mobile hero/logo wrapping was adjusted at the existing breakpoint. Static cache bumped to `app.js?v=489` and `style.css?v=387`; frontend refresh only.
+  - Verification: `node --check app/static/app.js` passed. `git diff --check` passed with only the existing Windows CRLF warnings.
 
 ### 2026-06-17 polish (Walkthrough quick start)
 
