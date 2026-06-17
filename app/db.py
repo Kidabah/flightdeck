@@ -3100,12 +3100,31 @@ def _deduct_spool_usage_to_target(
         if not row or not row["ams_slot_snapshot"]:
             log.info("No slot snapshot for print %d, skipping spool deduction", print_id)
             return False
-        snapshot = json.loads(row["ams_slot_snapshot"])
-        meta = snapshot.pop("__meta__", {}) if isinstance(snapshot, dict) else {}
+        try:
+            snapshot_raw = json.loads(row["ams_slot_snapshot"])
+        except Exception:
+            log.warning("Invalid slot snapshot for print %d, skipping spool deduction", print_id)
+            return False
+        if not isinstance(snapshot_raw, dict):
+            log.warning("Unexpected slot snapshot shape for print %d, skipping spool deduction", print_id)
+            return False
+        meta = snapshot_raw.get("__meta__", {}) if isinstance(snapshot_raw.get("__meta__"), dict) else {}
+        slot_snapshot: dict[int, dict] = {}
+        for raw_slot, data in snapshot_raw.items():
+            if raw_slot == "__meta__" or not isinstance(data, dict):
+                continue
+            try:
+                slot_snapshot[int(raw_slot)] = data
+            except (TypeError, ValueError):
+                log.debug("Ignoring non-numeric snapshot slot %r for print %d", raw_slot, print_id)
         try:
             existing_usage = json.loads(row["spool_usage"] or "[]")
         except Exception:
             existing_usage = []
+
+    if not slot_snapshot:
+        log.info("No usable slot snapshot for print %d, skipping spool deduction", print_id)
+        return False
 
     if active_slot is None:
         try:
@@ -3113,12 +3132,11 @@ def _deduct_spool_usage_to_target(
         except (TypeError, ValueError):
             active_slot = None
     if active_slot is None:
-        active_slots = [int(s) for s, d in snapshot.items() if isinstance(d, dict) and d.get("active")]
+        active_slots = [s for s, d in slot_snapshot.items() if d.get("active")]
         if len(active_slots) == 1:
             active_slot = active_slots[0]
 
     # snapshot: {slot_str: {... "spool_id": int|null}}
-    slot_snapshot = {int(s): d for s, d in snapshot.items() if isinstance(d, dict)}
     slots_with = [(slot, d["spool_id"]) for slot, d in slot_snapshot.items() if d.get("spool_id")]
     slots_without = [slot for slot, d in slot_snapshot.items() if not d.get("spool_id")]
 

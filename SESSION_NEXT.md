@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Tighten Walkthrough Mode first screen`
+- Latest commit: `Guard spool deduction against malformed slot snapshots`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=489 / style.css?v=387 / demo-runtime.js?v=8
+
+### 2026-06-17 fix (Bambu slot snapshot notification)
+
+**Guard spool deduction against malformed slot snapshots** (`app/db.py`)
+Fixed a Bambu status-poll notification/error like `BigBoy · cannot access local variable 'slot_snapshot' where it is not associated with a value`. The spool deduction helper now parses `ams_slot_snapshot` defensively: invalid JSON, non-dict snapshots, meta-only snapshots, and non-numeric slot keys are skipped cleanly instead of throwing inside the printer poll. Valid snapshots still deduct normally. This does not touch Bambu AMS mapping, queue preflight, printer commands, or frontend code. Backend restart required after deploy.
+  - Verification: `python -m py_compile app/db.py app/printers/bambu.py`, `git diff --check`, and a temp-database smoke passed. The smoke confirmed malformed/meta-only snapshots return `False` without throwing and a valid snapshot still deducts. Windows Python emitted its usual `Could not find platform independent libraries <prefix>` warning but exited successfully.
 
 ### 2026-06-17 polish (Walkthrough first screen)
 
