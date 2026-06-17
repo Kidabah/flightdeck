@@ -2625,6 +2625,17 @@ function _demoStep(n, title, route, body, bullets = []) {
   </a>`;
 }
 
+function _walkthroughQuickStep(n, title, route, body, action) {
+  return `<a class="walkthrough-quick-step" href="${esc(route)}">
+    <span class="walkthrough-quick-num">${n}</span>
+    <span class="walkthrough-quick-copy">
+      <strong>${esc(title)}</strong>
+      <small>${esc(body)}</small>
+    </span>
+    <span class="walkthrough-quick-action">${esc(action)}</span>
+  </a>`;
+}
+
 function _demoPrinterCard(p) {
   const route = `#/printer/${p.id}`;
   const bayRoute = `${route}/bay`;
@@ -2726,12 +2737,12 @@ async function renderDemoView() {
       </div>
 
       <div class="demo-card">
-        <div class="manual-card-head"><span>Do Not Show First</span></div>
-        <div class="demo-avoid">
-          <span>Do not start with Settings unless someone asks install questions.</span>
-          <span>Do not press E-stop, delete, archive, SD cleanup, or format actions during a casual walkthrough.</span>
-          <span>Do not open all camera feeds on a small Pi while screen sharing unless host health looks comfortable.</span>
-          <span>Do not explain every edge case. Show the daily workflow first, then go deeper.</span>
+        <div class="manual-card-head"><span>Easy as 1-2-3</span></div>
+        <div class="walkthrough-quick">
+          ${_walkthroughQuickStep(1, 'Add printers', '#/settings/printers', 'Connect Bambu, Voron/Klipper, or Moonraker machines.', 'Printers')}
+          ${_walkthroughQuickStep(2, 'Add spools', '#/spools', 'Build the filament stock list Flightdeck will trust.', 'Spools')}
+          ${_walkthroughQuickStep(3, 'Add a file', '#/files', 'Drop a sliced job or source model into the Print Vault.', 'Print Bay')}
+          ${_walkthroughQuickStep(4, 'Print', '#/queue', 'Queue the job, let preflight explain readiness, then send it.', 'Queue')}
         </div>
       </div>
     </section>

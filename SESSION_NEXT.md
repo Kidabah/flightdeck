@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Rename in-app demo tour to walkthrough mode`
+- Latest commit: `Add quick-start links to Walkthrough Mode`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=487 / style.css?v=385 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=488 / style.css?v=386 / demo-runtime.js?v=8
+
+### 2026-06-17 polish (Walkthrough quick start)
+
+**Add quick-start links to Walkthrough Mode** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `app/static/demo.html`)
+Replaced the old right-side `Do Not Show First` warning card with an `Easy as 1-2-3` quick-start path: `Add printers` links to `#/settings/printers`, `Add spools` links to `#/spools`, `Add a file` links to `#/files`, and `Print` links to `#/queue`. The rows are styled as compact clickable setup steps with mobile wrapping. Static cache bumped to `app.js?v=488` and `style.css?v=386`; frontend refresh only.
+  - Verification: `node --check app/static/app.js` passed. `git diff --check` passed with only the existing Windows CRLF warnings.
 
 ### 2026-06-17 polish (Walkthrough Mode rename)
 
