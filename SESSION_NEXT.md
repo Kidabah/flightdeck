@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: pending commit after this handoff (`Parse H2D plate nozzle when filament nozzle map is missing`)
+- Latest commit: `Rename in-app demo tour to walkthrough mode`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=486 / style.css?v=385 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=487 / style.css?v=385 / demo-runtime.js?v=8
+
+### 2026-06-17 polish (Walkthrough Mode rename)
+
+**Turn in-app Demo Mode into Walkthrough Mode** (`app/static/app.js`, `app/static/index.html`, `app/static/demo.html`, `README.md`, `INSTALL.md`)
+Renamed the real-install guided tour from `Demo Mode` to `Walkthrough Mode` so it better matches the release/demo workflow: use the live app for a guided screen-share or creator walkthrough, while keeping standalone `/demo` as the simulated no-printer sandbox. The sidebar and command palette now point at `#/walkthrough`; old `#/demo` links still route to the same in-app walkthrough for compatibility. The Flight Manual and install docs now explain `System -> Walkthrough Mode` versus standalone `/demo`. No printer, queue, AMS, slicer, or runtime paths were touched. Static cache bumped to `app.js?v=487`; frontend refresh only.
+  - Verification: `node --check app/static/app.js` passed. `git diff --check` passed with only the existing Windows CRLF warnings.
 
 ### 2026-06-17 fix (H2D regular AMS nozzle parse)
 

@@ -340,7 +340,7 @@ let _onFailures = false;        // true while failure review is active
 let _onSpools = false;          // true while spool inventory is active
 let _onMemory = false;          // true while Print Memory is active
 let _onManual = false;          // true while flight manual is active
-let _onDemo = false;            // true while demo mode is active
+let _onDemo = false;            // true while walkthrough mode is active
 let _renderedSpoolDetailId = null;
 let _lastSpoolsRouteKey = '';
 let _lastMemoryRouteKey = '';
@@ -819,8 +819,8 @@ function _commandStaticItems() {
     ['Queue', '#/queue', 'Pending print jobs'],
     ['Global Print Bay', '#/files', 'Files, printer storage, and reprint staging'],
     ['Spools', '#/spools', 'Spool inventory'],
-    ['Demo Mode', '#/demo', 'Guided first-look tour for testers'],
-    ['Flight Manual', '#/manual', 'Setup, recovery, Bambu and demo notes'],
+    ['Walkthrough Mode', '#/walkthrough', 'Guided first-look tour for testers'],
+    ['Flight Manual', '#/manual', 'Setup, recovery, Bambu and walkthrough notes'],
     ['Settings', '#/settings', 'Configuration'],
   ].map(([label, hash, meta]) => _commandItem({
     label: `Go to ${label}`,
@@ -2538,23 +2538,23 @@ async function renderManualView() {
       <div>
         <div class="mission-eyebrow">Flight Manual</div>
         <h1>Operator handbook</h1>
-        <p>Quick rules, recovery steps, and demo notes for running Flightdeck without needing the whole backstory.</p>
+        <p>Quick rules, recovery steps, and walkthrough notes for running Flightdeck without needing the whole backstory.</p>
       </div>
       <div class="manual-hero-actions">
-        <a href="#/demo">Demo Mode</a>
+        <a href="#/walkthrough">Walkthrough Mode</a>
         <a href="#/settings/setup">Setup Health</a>
         <a href="#/stats">Telemetry</a>
       </div>
     </section>
 
     <section class="manual-ready">
-      <div class="manual-card-head"><span>Demo Readiness</span></div>
+      <div class="manual-card-head"><span>Walkthrough Readiness</span></div>
       <div class="manual-check-grid">${readyChecks}</div>
     </section>
 
     <section class="manual-grid">
       ${_manualSection('First Tester Path', 'When Flightdeck is new to someone, start with the safe tour before touching real printer controls.', [
-        '<strong>Demo Mode</strong><span>Use the guided tour to show Dashboard, Flight Tower, Live printer pages, Spools, Print Bay, and Maintenance in the right order.</span>',
+        '<strong>Walkthrough Mode</strong><span>Use the guided tour to show Dashboard, Flight Tower, Live printer pages, Spools, Print Bay, and Maintenance in the right order.</span>',
         '<strong>Setup Health</strong><span>Confirm required checks first, then treat optional scale, label, backup, and vault items as upgrades rather than blockers.</span>',
         '<strong>One printer first</strong><span>Add or test one printer, browse read-only pages, then move on to queue, file, AMS, and hardware actions.</span>',
       ])}
@@ -2604,7 +2604,7 @@ async function renderManualView() {
   </div>`;
 }
 
-// ── Demo Mode ─────────────────────────────────────────────────────────────
+// ── Walkthrough Mode ───────────────────────────────────────────────────────
 
 function _demoMetric(label, value, detail = '', tone = '') {
   return `<div class="demo-metric ${tone}">
@@ -2679,9 +2679,9 @@ async function renderDemoView() {
   el.innerHTML = `<div class="demo-page">
     <section class="demo-hero">
       <div>
-        <div class="mission-eyebrow">Demo Mode</div>
+        <div class="mission-eyebrow">Walkthrough Mode</div>
         <h1>Flightdeck first-look tour</h1>
-        <p>A guided, low-risk path through the screens that make Flightdeck feel different: fleet awareness, dispatch intelligence, live printer control, spool truth, and recovery.</p>
+        <p>A guided, low-risk path through the screens that make Flightdeck feel different: fleet awareness, dispatch intelligence, live printer control, spool truth, and recovery. Use it for a live install, a screen share, or a proper release demo.</p>
       </div>
       <div class="demo-hero-status ${demoReady ? 'ready' : 'watch'}">
         <span>${demoReady ? 'Ready to show' : 'Check before demo'}</span>
@@ -2700,7 +2700,7 @@ async function renderDemoView() {
 
     <section class="demo-grid">
       <div class="demo-card demo-tour">
-        <div class="manual-card-head"><span>Tour Path</span></div>
+        <div class="manual-card-head"><span>Walkthrough Path</span></div>
         ${_demoStep(1, 'Dashboard', '#/', 'Open with the fleet view. Show online state, loaded spools, reliability flags, and camera shortcuts.', ['fleet health', 'loaded filament', 'low-risk overview'])}
         ${_demoStep(2, 'Flight Tower', '#/mission', 'Show the advisory dispatcher: ready jobs, blocked jobs, and why Flightdeck recommends a printer.', ['dispatch intel', 'stock checks', 'operator notes'])}
         ${_demoStep(3, 'Live Printer', bambuRoute, 'Use one printer page to show the camera hero, status strip, print details, objects, and AMS/Vivid filament route.', ['live feed', 'filament route', 'pause/cancel/E-stop are guarded'])}
@@ -2726,7 +2726,7 @@ async function renderDemoView() {
       </div>
 
       <div class="demo-card">
-        <div class="manual-card-head"><span>Do Not Demo First</span></div>
+        <div class="manual-card-head"><span>Do Not Show First</span></div>
         <div class="demo-avoid">
           <span>Do not start with Settings unless someone asks install questions.</span>
           <span>Do not press E-stop, delete, archive, SD cleanup, or format actions during a casual walkthrough.</span>
@@ -2755,7 +2755,7 @@ function parseRoute() {
   if (hash === '#/memory' || hash.startsWith('#/memory?')) return { view: 'memory' };
   if (hash === '#/failures' || hash.startsWith('#/failures?')) return { view: 'failures' };
   if (hash === '#/spools' || hash.startsWith('#/spools?')) return { view: 'spools' };
-  if (hash === '#/demo') return { view: 'demo' };
+  if (hash === '#/walkthrough' || hash === '#/demo') return { view: 'demo' };
   if (hash === '#/manual') return { view: 'manual' };
   const settingsMatch = hash.match(/^#\/settings\/([^/]+)/);
   if (settingsMatch?.[1] === 'spools') return { view: 'spools' };
@@ -2854,7 +2854,7 @@ function router() {
       (route.view === 'memory'   && href === '#/memory') ||
       (route.view === 'failures' && href === '#/failures') ||
       (route.view === 'spools'   && href === '#/spools') ||
-      (route.view === 'demo'     && href === '#/demo') ||
+      (route.view === 'demo'     && (href === '#/walkthrough' || href === '#/demo')) ||
       (route.view === 'manual'   && href === '#/manual') ||
       (route.view === 'settings' && (
         href === '#/settings' ||
@@ -2923,7 +2923,7 @@ function buildTabs(printers) {
     `<a class="tab" href="#/memory">Print Memory</a>`,
     `<a class="tab" href="#/spools">Spools</a>`,
     `<div class="tab-section">System</div>`,
-    `<a class="tab" href="#/demo">Demo Mode</a>`,
+    `<a class="tab" href="#/walkthrough">Walkthrough Mode</a>`,
     `<a class="tab" href="#/manual">Flight Manual</a>`,
     `<div class="tab-flyout">
       <a class="tab tab-settings-root" href="#/settings">Settings</a>
