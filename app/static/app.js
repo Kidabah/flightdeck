@@ -14537,10 +14537,16 @@ async function _openSlotEditor(printerId, slotIndex, slotLabel) {
           </div>
           <div class="slot-actions slot-actions-secondary">
             <button class="spool-action-btn spool-action-label" data-slot-trust-flightdeck="${current.id}">Trust Flightdeck</button>
-            ${report ? `<button class="spool-action-btn spool-action-edit" data-slot-trust-printer="${current.id}">Trust Printer</button>` : ''}
             <select class="slot-clear-location" data-slot-clear-location>${locationOptions}</select>
             <button class="spool-action-btn spool-action-danger" data-slot-clear="${current.id}">Return spool</button>
           </div>
+          ${report ? `<details class="slot-advanced-actions">
+            <summary>Advanced repair</summary>
+            <div>
+              <p>Use only when the printer's AMS report is definitely right. This overwrites Flightdeck's stored material, colour, and brand for spool #${current.id} from the printer slot.</p>
+              <button class="spool-action-btn spool-action-danger" data-slot-trust-printer="${current.id}">Trust Printer report</button>
+            </div>
+          </details>` : ''}
           ${returnHelp ? `<div class="slot-return-memory">${esc(returnHelp)}</div>` : ''}
           ${_amsProfilePanelHtml(current, report, profileData, printer)}` : ''}
       </div>
@@ -14639,6 +14645,8 @@ async function _openSlotEditor(printerId, slotIndex, slotLabel) {
     body.querySelector('[data-slot-trust-printer]')?.addEventListener('click', async e => {
       const btn = e.currentTarget;
       const id = btn.dataset.slotTrustPrinter;
+      const confirmed = await _confirmModal(`Overwrite spool #${id} from the printer AMS report? Use this only if the printer screen is definitely correct. Flightdeck's stored material, colour, and brand may change.`);
+      if (!confirmed) return;
       const old = btn.textContent;
       const rawStorageId = body.querySelector('[data-slot-clear-location]')?.value || '';
       const storageId = rawStorageId ? Number(rawStorageId) : null;

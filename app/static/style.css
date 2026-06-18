@@ -7131,6 +7131,52 @@ button.live-route-node:hover {
   padding-top: 0.55rem;
 }
 
+.slot-advanced-actions {
+  margin-top: 0.55rem;
+  border: 1px solid rgba(245,158,11,0.24);
+  border-radius: 0.5rem;
+  background: rgba(245,158,11,0.06);
+}
+
+.slot-advanced-actions > summary {
+  cursor: pointer;
+  list-style: none;
+  color: #fbbf24;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 0.55rem 0.65rem;
+  text-transform: uppercase;
+}
+
+.slot-advanced-actions > summary::-webkit-details-marker {
+  display: none;
+}
+
+.slot-advanced-actions > summary::after {
+  content: "+";
+  float: right;
+  color: var(--muted);
+}
+
+.slot-advanced-actions[open] > summary::after {
+  content: "-";
+}
+
+.slot-advanced-actions > div {
+  display: grid;
+  gap: 0.55rem;
+  border-top: 1px solid rgba(245,158,11,0.16);
+  padding: 0 0.65rem 0.65rem;
+}
+
+.slot-advanced-actions p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.35;
+}
+
 .slot-return-memory {
   margin-top: 0.45rem;
   border: 1px solid rgba(59,130,246,0.22);

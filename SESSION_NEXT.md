@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Guard spool deduction against malformed slot snapshots`
+- Latest commit: `Move Trust Printer behind advanced repair`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=489 / style.css?v=387 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=490 / style.css?v=388 / demo-runtime.js?v=8
+
+### 2026-06-18 polish (AMS Profile Doctor trust actions)
+
+**Move Trust Printer behind advanced repair** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `app/static/demo.html`)
+Demoted the AMS Profile Doctor `Trust Printer` action after the X1C case where Flightdeck correctly knew a slot was ASA White but the printer still reported ABS Black; one click on `Trust Printer` would overwrite the stored Flightdeck spool to the stale printer report. `Trust Flightdeck` remains in the normal action row. `Trust Printer` is now inside an `Advanced repair` details block with warning copy and a confirmation modal explaining it will overwrite Flightdeck's stored material/colour/brand from the printer AMS report. Static cache bumped to `app.js?v=490` and `style.css?v=388`; frontend refresh only.
+  - Verification: `node --check app/static/app.js` passed. `git diff --check` passed with only the existing Windows CRLF warnings.
 
 ### 2026-06-17 fix (Bambu slot snapshot notification)
 
