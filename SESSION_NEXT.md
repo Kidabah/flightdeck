@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Polish AMS review and Trust Printer copy`
+- Latest commit: `Add H2C tool matrix prototype`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=491 / style.css?v=389 / demo-runtime.js?v=8
+
+### 2026-06-18 prototype (H2C Tool Matrix)
+
+**Add H2C tool matrix prototype** (`docs/prototypes/h2c-tool-matrix.html`)
+Added a standalone visual prototype for future H2C support before the printer arrives. The mockup treats the seven H2C tools/nozzles as the main operating surface, with each tool card owning state, material, source spool, active/review/ready status, and job intent. AMS and AMS HT are shown below as material sources feeding the tool matrix rather than drawing dense route lines across the live view. This is intentionally docs-only and does not change runtime app code, printer commands, AMS mapping, slicer flow, or cachebust versions.
+  - Verification: `git diff --check` passed with only the existing Windows CRLF warning on `SESSION_NEXT.md`.
 
 ### 2026-06-18 polish (AMS review and Trust Printer copy)
 
