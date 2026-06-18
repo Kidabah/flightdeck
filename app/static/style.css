@@ -5102,22 +5102,22 @@ button.live-route-node:hover {
 }
 
 .live-filament-route-warning .live-route-source {
-  border-color: rgba(245,158,11,0.62);
-  background: rgba(245,158,11,0.1);
-  box-shadow: 0 0 0 1px rgba(245,158,11,0.18);
+  border-color: rgba(245,158,11,0.52);
+  background: rgba(245,158,11,0.08);
+  box-shadow: 0 0 0 1px rgba(245,158,11,0.12);
 }
 
 .live-filament-route-warning .live-route-fed {
-  border-color: rgba(245,158,11,0.72);
-  background: rgba(245,158,11,0.16);
+  border-color: rgba(245,158,11,0.62);
+  background: rgba(245,158,11,0.12);
   color: #fbbf24;
 }
 
 .live-filament-route-warning .live-route-line {
   background:
-    repeating-linear-gradient(90deg, rgba(251,191,36,0.32) 0 0.32rem, transparent 0.32rem 0.74rem),
-    linear-gradient(90deg, var(--route-colour), rgba(245,158,11,0.82));
-  box-shadow: 0 0 12px rgba(245,158,11,0.28);
+    repeating-linear-gradient(90deg, rgba(251,191,36,0.24) 0 0.32rem, transparent 0.32rem 0.74rem),
+    linear-gradient(90deg, color-mix(in srgb, var(--route-colour) 72%, transparent), rgba(245,158,11,0.58));
+  box-shadow: 0 0 8px rgba(245,158,11,0.18);
 }
 
 .live-route-line::after {
@@ -5483,16 +5483,17 @@ button.live-route-node:hover {
   content: '';
   position: absolute;
   left: 50%;
-  top: -7.2rem;
-  z-index: 4;
-  width: 0.16rem;
-  height: 7.2rem;
+  top: -4.1rem;
+  z-index: 2;
+  width: 0.12rem;
+  height: 4.1rem;
   border-radius: 999px;
   background:
-    repeating-linear-gradient(180deg, rgba(255,255,255,0.35) 0 0.16rem, transparent 0.16rem 0.34rem),
-    linear-gradient(180deg, rgba(96,165,250,0.86), var(--slot-colour));
+    repeating-linear-gradient(180deg, rgba(255,255,255,0.24) 0 0.14rem, transparent 0.14rem 0.32rem),
+    linear-gradient(180deg, rgba(96,165,250,0.48), color-mix(in srgb, var(--slot-colour) 78%, transparent));
   background-size: 100% 0.68rem, 100% 100%;
-  box-shadow: 0 0 0.65rem color-mix(in srgb, var(--slot-colour) 42%, transparent);
+  opacity: 0.72;
+  box-shadow: 0 0 0.42rem color-mix(in srgb, var(--slot-colour) 28%, transparent);
   transform: translateX(-50%);
   animation: ams-feed-up 1.15s linear infinite;
 }
@@ -5504,6 +5505,10 @@ button.live-route-node:hover {
 
 .ams-loadout-slot.has-warning {
   border-color: #f59e0b;
+}
+
+.ams-loadout-slot.has-warning::after {
+  display: none;
 }
 
 .ams-loadout-slot.has-warning::before {
@@ -7133,15 +7138,15 @@ button.live-route-node:hover {
 
 .slot-advanced-actions {
   margin-top: 0.55rem;
-  border: 1px solid rgba(245,158,11,0.24);
+  border: 1px solid rgba(148,163,184,0.2);
   border-radius: 0.5rem;
-  background: rgba(245,158,11,0.06);
+  background: rgba(15,23,42,0.34);
 }
 
 .slot-advanced-actions > summary {
   cursor: pointer;
   list-style: none;
-  color: #fbbf24;
+  color: #93c5fd;
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -7166,7 +7171,7 @@ button.live-route-node:hover {
 .slot-advanced-actions > div {
   display: grid;
   gap: 0.55rem;
-  border-top: 1px solid rgba(245,158,11,0.16);
+  border-top: 1px solid rgba(148,163,184,0.14);
   padding: 0 0.65rem 0.65rem;
 }
 

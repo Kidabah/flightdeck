@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Move Trust Printer behind advanced repair`
+- Latest commit: `Polish AMS review and Trust Printer copy`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=490 / style.css?v=388 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=491 / style.css?v=389 / demo-runtime.js?v=8
+
+### 2026-06-18 polish (AMS review and Trust Printer copy)
+
+**Polish AMS review and Trust Printer copy** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `app/static/demo.html`)
+Reworded the AMS Profile Doctor advanced `Trust Printer` copy so lay users do not see a specific spool number and think the warning always applies to that spool. The warning now says it replaces the assigned spool's stored material, colour, and brand from the printer AMS report for this slot, and the confirmation uses the same generic wording. Also polished the Live Environment review state: warning/review route lines are softer, and the AMS loadout no longer draws the bright vertical feed beam through warning/review slots. The advanced panel styling was softened from amber warning to a quieter secondary repair block while keeping the action itself visually cautious. Static cache bumped to `app.js?v=491` and `style.css?v=389`; frontend refresh only.
+  - Verification: `node --check app/static/app.js` passed. `git diff --check` passed with only the existing Windows CRLF warnings.
 
 ### 2026-06-18 polish (AMS Profile Doctor trust actions)
 

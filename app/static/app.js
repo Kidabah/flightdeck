@@ -14543,8 +14543,8 @@ async function _openSlotEditor(printerId, slotIndex, slotLabel) {
           ${report ? `<details class="slot-advanced-actions">
             <summary>Advanced repair</summary>
             <div>
-              <p>Use only when the printer's AMS report is definitely right. This overwrites Flightdeck's stored material, colour, and brand for spool #${current.id} from the printer slot.</p>
-              <button class="spool-action-btn spool-action-danger" data-slot-trust-printer="${current.id}">Trust Printer report</button>
+              <p>Use only when the printer screen is definitely right. This replaces the assigned spool's stored material, colour, and brand with the printer's AMS report for this slot.</p>
+              <button class="spool-action-btn spool-action-danger" data-slot-trust-printer="${current.id}">Use printer report</button>
             </div>
           </details>` : ''}
           ${returnHelp ? `<div class="slot-return-memory">${esc(returnHelp)}</div>` : ''}
@@ -14645,7 +14645,7 @@ async function _openSlotEditor(printerId, slotIndex, slotLabel) {
     body.querySelector('[data-slot-trust-printer]')?.addEventListener('click', async e => {
       const btn = e.currentTarget;
       const id = btn.dataset.slotTrustPrinter;
-      const confirmed = await _confirmModal(`Overwrite spool #${id} from the printer AMS report? Use this only if the printer screen is definitely correct. Flightdeck's stored material, colour, and brand may change.`);
+      const confirmed = await _confirmModal(`Replace the assigned spool details from the printer AMS report? Use this only if the printer screen is definitely correct. Flightdeck's stored material, colour, and brand may change.`);
       if (!confirmed) return;
       const old = btn.textContent;
       const rawStorageId = body.querySelector('[data-slot-clear-location]')?.value || '';
