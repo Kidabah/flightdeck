@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Add history spool assignment repair`
+- Latest commit: `Fix mobile spools page scrolling`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=492 / style.css?v=390 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=492 / style.css?v=391 / demo-runtime.js?v=8
+
+### 2026-06-19 fix (Mobile Spools scrolling)
+
+**Fix mobile spools page scrolling** (`app/static/style.css`, `app/static/index.html`, `app/static/demo.html`)
+Fixed the Spools page not scrolling correctly on mobile. The standalone `#view-spools` page had its own `overflow: hidden` rule that overrode the generic mobile `.view { overflow: visible; }`, so the page could not grow naturally on phones. Mobile Spools now uses normal page scrolling, `#spool-list` no longer traps vertical scroll, table view keeps horizontal scrolling, and cabinet lanes stop using nested vertical scrolling on mobile. Static cache bumped to `style.css?v=391`; frontend refresh only.
+  - Verification: `git diff --check` passed with only the existing Windows CRLF warnings. Static/CSS-only change; no backend restart required.
 
 ### 2026-06-19 feature (History spool assignment repair)
 

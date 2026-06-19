@@ -1426,6 +1426,9 @@ header {
   .tab-printer { min-width: 7rem; padding: 0.35rem 0.65rem; }
   .app-views { overflow: visible; }
   .view { overflow: visible; }
+  #view-spools {
+    overflow: visible;
+  }
   #dashboard-overview { padding: 1rem 1rem 0; }
   .dashboard-overview { grid-template-columns: 1fr; }
   .dashboard-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -12695,7 +12698,7 @@ select optgroup {
 @media (max-width: 640px) {
   .settings-body {
     flex-direction: column;
-    overflow-y: auto;
+    overflow: visible;
     padding: 1rem 1rem 0;
   }
   .settings-nav {
@@ -12708,6 +12711,18 @@ select optgroup {
     margin-bottom: 0.5rem;
   }
   .settings-content { overflow-y: visible; }
+  .settings-content.settings-content-spools {
+    overflow: visible;
+    padding-bottom: 1.5rem;
+  }
+  .settings-content-spools #spool-list {
+    flex: none;
+    overflow: visible;
+    padding-bottom: 1.5rem;
+  }
+  .settings-content-spools .spool-table-wrap {
+    overflow-x: auto;
+  }
   .settings-label { min-width: 7rem; }
   .settings-form-row { flex-wrap: wrap; }
   #settings-add-form { grid-template-columns: 1fr; }
@@ -14427,6 +14442,10 @@ select optgroup {
 @media (max-width: 760px) {
   .spool-cabinet-view {
     grid-template-columns: 1fr;
+  }
+  .spool-cabinet-tiles {
+    max-height: none;
+    overflow-y: visible;
   }
 }
 
