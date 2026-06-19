@@ -2,13 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Make compact label spool number prominent`
+- Latest commit: `Tighten compact label colour line`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=497 / style.css?v=392 / demo-runtime.js?v=8
 
 ### 2026-06-19 polish (Compact spool labels)
+
+**Tighten compact label colour line** (`app/label_printer.py`)
+Adjusted the compact/default QL-700 label so the colour name and colour hex print on the same line, e.g. `Silver  #817E7E`, leaving more vertical breathing room for the large shelf-readable spool number. Backend/service restart required after deploy because label rendering lives in Python.
+  - Verification: `python -m py_compile app/label_printer.py` passed with the usual Windows Python `<prefix>` warning. Bundled-Python render smoke confirmed compact label size `(696, 330)`. `git diff --check` passed with only the existing Windows CRLF warnings.
 
 **Make compact label spool number prominent** (`app/label_printer.py`)
 Polished the compact/default QL-700 spool label so the Flightdeck spool number is readable at shelf distance. The compact label now prints the spool number as a large bold `#ID` instead of the small `Spool #ID` line, with the footer moved lower to keep the number clear. Also hardened `_font()` with Windows font fallbacks so local preview renders use realistic font sizes instead of PIL's tiny default when Linux DejaVu paths are unavailable. Backend/service restart required after deploy because label rendering lives in Python.

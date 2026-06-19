@@ -161,9 +161,10 @@ class LabelPrinter:
 
         draw.text((x, 26), _ellipsize(draw, material, font_title, 405), fill="black", font=font_title)
         draw.text((x, 88), _ellipsize(draw, brand if include_brand else "Flightdeck spool", font_body, 390), fill="black", font=font_body)
-        draw.text((x, 130), _ellipsize(draw, color_name if include_colour else f"Spool #{spool.get('id', '-')}", font_body, 300), fill="black", font=font_body)
+        colour_line = color_name if include_colour else f"Spool #{spool.get('id', '-')}"
         if color_hex and include_colour:
-            draw.text((x, 170), color_hex, fill="black", font=font_badge)
+            colour_line = f"{colour_line}  {color_hex}"
+        draw.text((x, 130), _ellipsize(draw, colour_line, font_body, 390), fill="black", font=font_body)
         draw.text((x, 178), _ellipsize(draw, f"#{spool.get('id', '-')}", font_spool, 395), fill="black", font=font_spool)
 
         if location_line and include_location:
