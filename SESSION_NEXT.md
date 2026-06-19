@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Add H2C tool matrix prototype`
+- Latest commit: `Add history spool assignment repair`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=491 / style.css?v=389 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=492 / style.css?v=390 / demo-runtime.js?v=8
+
+### 2026-06-19 feature (History spool assignment repair)
+
+**Add history spool assignment repair** (`app/db.py`, `app/main.py`, `app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `app/static/demo.html`)
+Added an `Assign spool` recovery path in print History for finished/stored print records that have filament grams but no `spool_usage`. This covers the workshop case where staff load filament and run a print without assigning a Flightdeck spool first. The History detail now shows `No spool assigned` with an `Assign spool` action; the modal lets the operator choose the real spool and grams to deduct. The backend refuses to apply this path if the print already has recorded spool usage, deducts the selected amount once, records the usage row with `assigned_after_print`, and logs a decision entry. Existing reconcile/correct flows still handle prints that already have usage. Static cache bumped to `app.js?v=492` and `style.css?v=390`; backend restart required after deploy.
+  - Verification: `python -m py_compile app/db.py app/main.py` passed with the usual Windows Python `<prefix>` warning. `node --check app/static/app.js` passed. `git diff --check` passed with only the existing Windows CRLF warnings. Temp-database smoke confirmed a 42.5g assignment deducts once and a second assignment is refused as already assigned.
 
 ### 2026-06-18 prototype (H2C Tool Matrix)
 

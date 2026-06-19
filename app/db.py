@@ -3563,6 +3563,91 @@ def correct_print_spool_attribution(
     }
 
 
+def assign_print_spool_usage(
+    print_id: int,
+    spool_id: int,
+    *,
+    grams: Optional[float] = None,
+    note: Optional[str] = None,
+) -> Optional[dict]:
+    """Assign a previously unattributed print to a spool and deduct once."""
+    import json
+    with _conn() as conn:
+        prow = conn.execute(
+            """SELECT id, printer_id, filename, subtask_name, filament_grams,
+                      material, spool_usage
+               FROM prints
+               WHERE id = ?""",
+            (print_id,),
+        ).fetchone()
+        if not prow:
+            return None
+        try:
+            existing_usage = json.loads(prow["spool_usage"] or "[]")
+        except Exception:
+            existing_usage = []
+        if isinstance(existing_usage, list) and any(isinstance(e, dict) and int(e.get("spool_id") or 0) for e in existing_usage):
+            return {"error": "already_assigned"}
+
+        spool = conn.execute(
+            """SELECT id, remaining_g, location_slot, material, brand
+               FROM spools
+               WHERE id = ? AND archived_at IS NULL""",
+            (spool_id,),
+        ).fetchone()
+        if not spool:
+            return None
+
+        try:
+            deduct_g = float(grams) if grams is not None else float(prow["filament_grams"] or 0)
+        except (TypeError, ValueError):
+            deduct_g = 0.0
+        deduct_g = round(max(0.0, deduct_g), 2)
+        if deduct_g <= 0:
+            return {"error": "no_grams"}
+
+        old_r = float(spool["remaining_g"] or 0)
+        new_r = max(0.0, old_r - deduct_g)
+        usage = {
+            "spool_id": int(spool_id),
+            "grams": deduct_g,
+            "actual_grams": deduct_g,
+            "slot": spool["location_slot"],
+            "remaining_before_g": round(old_r, 2),
+            "remaining_after_g": round(new_r, 2),
+            "material": spool["material"] or prow["material"],
+            "brand": spool["brand"],
+            "assigned_after_print": True,
+            "assigned_at": datetime.utcnow().isoformat(),
+            "assignment_note": (note or "").strip()[:200],
+        }
+        conn.execute("UPDATE spools SET remaining_g = ? WHERE id = ?", (new_r, spool_id))
+        conn.execute(
+            "UPDATE prints SET spool_usage = ? WHERE id = ?",
+            (json.dumps([usage]), print_id),
+        )
+
+    detail = (
+        f"Spool #{spool_id} assigned after print: {deduct_g:.1f}g deducted "
+        f"({old_r:.1f}g -> {new_r:.1f}g)"
+    )
+    if note:
+        detail += f" - {note.strip()[:120]}"
+    log_decision(prow["printer_id"], "spool_usage_assigned_after_print", detail, print_id=print_id)
+    if old_r - deduct_g < 0:
+        log_decision(
+            prow["printer_id"],
+            "spool_overdrawn",
+            f"Spool #{spool_id}: assigned-after-print deduction wanted {deduct_g:.1f}g but only {old_r:.1f}g remained; clamped to 0",
+            print_id=print_id,
+        )
+    return {
+        "spool_id": int(spool_id),
+        "grams": deduct_g,
+        "remaining_g": round(new_r, 1),
+    }
+
+
 # ── print queue ───────────────────────────────────────────────────────────
 
 def queue_add(

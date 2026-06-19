@@ -6418,6 +6418,11 @@ class SpoolUsageCorrection(BaseModel):
     grams: Optional[float] = None
     note: Optional[str] = None
 
+class SpoolUsageAssignment(BaseModel):
+    spool_id: int
+    grams: Optional[float] = None
+    note: Optional[str] = None
+
 class IncomingStockLine(BaseModel):
     quantity: int = 1
     material: str
@@ -6785,6 +6790,24 @@ async def correct_print_spool_usage(print_id: int, spool_id: int, body: SpoolUsa
     )
     if not result:
         raise HTTPException(status_code=404, detail="Print usage correction not available")
+    return {"ok": True, **result}
+
+@app.post("/api/prints/{print_id}/spool_usage/assign")
+async def assign_print_spool_usage(print_id: int, body: SpoolUsageAssignment):
+    if not db.get_spool(body.spool_id):
+        raise HTTPException(status_code=404, detail="Spool not found")
+    result = db.assign_print_spool_usage(
+        print_id,
+        body.spool_id,
+        grams=body.grams,
+        note=body.note,
+    )
+    if not result:
+        raise HTTPException(status_code=404, detail="Print or spool not found")
+    if result.get("error") == "already_assigned":
+        raise HTTPException(status_code=409, detail="Print already has spool usage recorded")
+    if result.get("error") == "no_grams":
+        raise HTTPException(status_code=422, detail="Print has no filament grams to deduct")
     return {"ok": True, **result}
 
 

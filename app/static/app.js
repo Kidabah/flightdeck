@@ -4857,6 +4857,67 @@ async function _showSpoolUsageCorrectionModal({ print, usage, printerId }) {
   });
 }
 
+async function _showSpoolUsageAssignmentModal({ print, printerId }) {
+  await _commandEnsureSpools();
+  const printMaterial = String(print.material || '').trim().toUpperCase();
+  const defaultGrams = Number(print.filament_grams || 0);
+  const candidates = (_allSpools || [])
+    .filter(s => !s.archived_at)
+    .sort((a, b) => {
+      const aLoaded = a.location_printer_id === printerId ? 0 : a.location_printer_id ? 1 : 2;
+      const bLoaded = b.location_printer_id === printerId ? 0 : b.location_printer_id ? 1 : 2;
+      const aMat = printMaterial && String(a.material || '').trim().toUpperCase() === printMaterial ? 0 : 1;
+      const bMat = printMaterial && String(b.material || '').trim().toUpperCase() === printMaterial ? 0 : 1;
+      return aLoaded - bLoaded || aMat - bMat || String(a.material || '').localeCompare(String(b.material || '')) || Number(a.id) - Number(b.id);
+    });
+  if (!candidates.length) {
+    showToast('No spool candidates', 'No active spools are available to assign to this print.', 'error');
+    return null;
+  }
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal-box input-modal spool-correction-modal">
+        <div class="modal-message">Assign spool after print</div>
+        <div class="modal-submessage">Deduct filament from the spool that actually printed ${esc(print.subtask_name || print.filename || 'this job')}.</div>
+        <label class="modal-field-label" for="spool-assignment-target">Spool used</label>
+        <select id="spool-assignment-target" class="modal-input">
+          ${candidates.map(s => `<option value="${s.id}">${esc(_printSpoolCorrectionLabel(s))}</option>`).join('')}
+        </select>
+        <label class="modal-field-label" for="spool-assignment-grams">Grams to deduct</label>
+        <input id="spool-assignment-grams" class="modal-input" type="number" min="0" step="0.1" value="${defaultGrams > 0 ? defaultGrams.toFixed(1) : ''}" placeholder="grams">
+        <label class="modal-field-label" for="spool-assignment-note">Note</label>
+        <input id="spool-assignment-note" class="modal-input" type="text" value="Assigned after print" placeholder="Why this was assigned later">
+        <div class="modal-actions">
+          <button class="modal-btn" data-assignment-cancel>Cancel</button>
+          <button class="modal-btn modal-btn-danger" data-assignment-ok>Assign and deduct</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const select = overlay.querySelector('#spool-assignment-target');
+    const grams = overlay.querySelector('#spool-assignment-grams');
+    const note = overlay.querySelector('#spool-assignment-note');
+    const close = result => { overlay.remove(); resolve(result); };
+    overlay.addEventListener('click', e => { if (e.target === overlay) close(null); });
+    overlay.querySelector('[data-assignment-cancel]').addEventListener('click', () => close(null));
+    overlay.querySelector('[data-assignment-ok]').addEventListener('click', () => {
+      const amount = parseFloat(grams.value);
+      if (isNaN(amount) || amount <= 0) {
+        showToast('Invalid gram value', 'Enter the amount this print used.', 'error');
+        return;
+      }
+      close({
+        spool_id: Number(select.value),
+        grams: amount,
+        note: note.value || '',
+      });
+    });
+    grams.focus();
+    grams.select();
+  });
+}
+
 function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
   const el = targetEl || document.getElementById('history-day-detail');
   if (!el) return;
@@ -4953,6 +5014,7 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
     </div>
   </div>` : '';
 
+  const canAssignSpoolUsage = print.id && !print.spool_usage?.length && Number(print.filament_grams || 0) > 0;
   const spoolUsageHtml = print.spool_usage?.length
     ? `<div class="print-spool-usage">
         <div class="print-spool-title">Spool usage</div>
@@ -4974,6 +5036,20 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
             </span>
           </div>`).join('')}
       </div>`
+    : canAssignSpoolUsage
+      ? `<div class="print-spool-usage print-spool-unassigned">
+          <div class="print-spool-title">Spool usage</div>
+          <div class="print-spool-row print-spool-row-suggested">
+            <span>No spool assigned</span>
+            <span class="print-spool-grams">
+              <strong>${Number(print.filament_grams || 0).toFixed(1)}g</strong>
+              <em>Assign after print to deduct stock</em>
+            </span>
+            <span class="print-spool-actions">
+              <button class="print-spool-assign" data-print-id="${print.id}">Assign spool</button>
+            </span>
+          </div>
+        </div>`
     : '';
 
   el.innerHTML = `<div class="history-day-panel">
@@ -5138,6 +5214,36 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
         await _refreshPrintDetailFromServer(printerId, dateStr, printId, targetEl);
       } catch (err) {
         showToast('Reconcile failed', err.message || '', 'error');
+        btn.disabled = false;
+        btn.textContent = old;
+      }
+    });
+  });
+
+  el.querySelectorAll('.print-spool-assign').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      e.preventDefault();
+      const printId = btn.dataset.printId;
+      const assignment = await _showSpoolUsageAssignmentModal({ print, printerId });
+      if (!assignment) return;
+      const ok = await _confirmModal(`Deduct ${Number(assignment.grams || 0).toFixed(1)}g from spool #${assignment.spool_id} for this print?`);
+      if (!ok) return;
+      const old = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = '...';
+      try {
+        const r = await fetch(`/api/prints/${printId}/spool_usage/assign`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(assignment),
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.detail || 'Assignment failed');
+        showToast('Spool assigned', `Deducted ${Number(data.grams || 0).toFixed(1)}g from spool #${data.spool_id}.`, 'success');
+        await _refreshSpoolsByPrinter();
+        await _refreshPrintDetailFromServer(printerId, dateStr, printId, targetEl);
+      } catch (err) {
+        showToast('Spool assignment failed', err.message || '', 'error');
         btn.disabled = false;
         btn.textContent = old;
       }

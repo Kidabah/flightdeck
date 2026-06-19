@@ -8443,7 +8443,8 @@ button.live-route-node:hover {
 }
 
 .print-spool-reconcile,
-.print-spool-correct {
+.print-spool-correct,
+.print-spool-assign {
   border: 1px solid var(--border);
   background: var(--card-2);
   color: var(--muted);
@@ -8454,7 +8455,8 @@ button.live-route-node:hover {
 }
 
 .print-spool-reconcile:hover,
-.print-spool-correct:hover {
+.print-spool-correct:hover,
+.print-spool-assign:hover {
   border-color: var(--printing);
   color: var(--text);
 }
@@ -8476,6 +8478,11 @@ button.live-route-node:hover {
 .print-spool-correct {
   border-color: rgba(96, 165, 250, 0.38);
   color: var(--accent);
+}
+
+.print-spool-assign {
+  border-color: rgba(34, 197, 94, 0.45);
+  color: var(--success);
 }
 
 .spool-correction-modal {
