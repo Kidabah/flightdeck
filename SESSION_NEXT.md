@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Fix mobile spools page scrolling`
+- Latest commit: `Load archived spools for inventory search`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=492 / style.css?v=391 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=493 / style.css?v=391 / demo-runtime.js?v=8
+
+### 2026-06-19 fix (Archived spool search)
+
+**Load archived spools for inventory search** (`app/static/app.js`, `app/static/index.html`, `app/static/demo.html`)
+Fixed the Spools page search/filter path after archiving spool `#89`: the UI had an `Archived` filter chip, but the page loaded `/api/spools` without `include_archived=true`, so archived spools were never present in the client-side list and could not appear in search. The Spools page now fetches `/api/spools?include_archived=true`, letting `Archived` + search by number find archived spool records while leaving active/archived filtering client-side. Static cache bumped to `app.js?v=493`; frontend refresh only.
+  - Verification: `node --check app/static/app.js` passed. `git diff --check` passed with only the existing Windows CRLF warnings.
 
 ### 2026-06-19 fix (Mobile Spools scrolling)
 

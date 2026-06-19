@@ -17739,7 +17739,7 @@ async function _renderSpoolsContent(el) {
   }
   _spoolsFilter.printer = params.get('printer') || '';
   const [spools, summary, costs, filamentSummary, locations, intelligence] = await Promise.all([
-    fetch('/api/spools').then(r => r.json()).catch(() => []),
+    fetch('/api/spools?include_archived=true').then(r => r.json()).catch(() => []),
     fetch('/api/spools/summary').then(r => r.json()).catch(() => ({})),
     fetch('/api/filament/costs').then(r => r.json()).catch(() => []),
     fetch('/api/filament/summary').then(r => r.json()).catch(() => ({})),
