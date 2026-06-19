@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Keep archived spools loaded in inventory view`
+- Latest commit: `Mark archived spool cards clearly`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=496 / style.css?v=391 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=497 / style.css?v=392 / demo-runtime.js?v=8
+
+### 2026-06-19 polish (Archived spool cards)
+
+**Mark archived spool cards clearly** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `app/static/demo.html`)
+Polished the archived spool inventory view so archived records read as historical/used stock at a glance. Single archived spool cards and archived multiple/group cards now get a muted archived card style plus an `ARCHIVED` stamp across the colour band. Archived groups remain separate from active groups because archive state is already part of the spool grouping key. Static cache bumped to `app.js?v=497` and `style.css?v=392`; frontend refresh only.
+  - Verification: `node --check app/static/app.js` passed. `git diff --check` passed with only the existing Windows CRLF warnings.
 
 ### 2026-06-19 fix (Archived spool inventory cache)
 

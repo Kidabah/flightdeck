@@ -15228,6 +15228,7 @@ function _spoolGroupCounts(spools) {
 function _spoolGroupCardHtml(group) {
   if (group.length === 1) return _spoolCardHtml(group[0]);
   const first = group[0];
+  const archived = !!first.archived_at;
   const latestId = Math.max(...group.map(s => Number(s.id || 0)));
   const rollTitle = group.map(s => `#${s.id}`).join(', ');
   const totalRemaining = group.reduce((sum, s) => sum + Number(s.remaining_g || 0), 0);
@@ -15261,10 +15262,11 @@ function _spoolGroupCardHtml(group) {
       <button class="spool-group-manage spool-action-btn spool-action-more" data-action="manage" data-id="${s.id}" title="Spool actions">Manage</button>
     </div>`;
   }).join('');
-  return `<div class="spool-card spool-group-card" data-spool-group="${esc(_spoolGroupKey(first))}">
+  return `<div class="spool-card spool-group-card${archived ? ' spool-card-archived' : ''}" data-spool-group="${esc(_spoolGroupKey(first))}">
     <div class="spool-card-band" style="${_spoolColorStyle(first)};color:${textColor}">
       <span class="spool-color-name">${esc(first.color_name || '—')}</span>
       <span class="spool-id-badge" title="${esc(`${group.length} rolls · latest #${latestId} · ${rollTitle}`)}">${group.length} rolls</span>
+      ${archived ? '<span class="spool-archived-stamp">Archived</span>' : ''}
     </div>
     <div class="spool-card-body">
       <div class="spool-card-row">
@@ -15299,14 +15301,16 @@ function _spoolCardHtml(s) {
   const bandColor = s.color_hex || '#404040';
   const textColor = _spoolTextColor(bandColor);
   const used = Math.max(0, s.label_weight_g - s.remaining_g);
+  const archived = !!s.archived_at;
   const p = _latestPrinters.find(x => x.id === s.location_printer_id);
   const locBadge = s.location_printer_id
     ? `<span class="spool-location-badge" title="${(p?.custom_name ?? s.location_printer_id)} ${_amsSlotLabel(p, s.location_slot)}">${p?.custom_name ?? s.location_printer_id}</span>`
     : `<span class="spool-location-badge spool-location-storage" title="${esc(_spoolStorageLocationName(s.storage_location_id))}">${esc(_spoolStorageLocationName(s.storage_location_id))}</span>`;
-  return `<div class="spool-card" data-spool-id="${s.id}">
+  return `<div class="spool-card${archived ? ' spool-card-archived' : ''}" data-spool-id="${s.id}">
     <div class="spool-card-band" style="${_spoolColorStyle(s)};color:${textColor}">
       <span class="spool-color-name">${s.color_name || '—'}</span>
       <span class="spool-id-badge">#${s.id}</span>
+      ${archived ? '<span class="spool-archived-stamp">Archived</span>' : ''}
     </div>
     <div class="spool-card-body">
       <div class="spool-card-row">

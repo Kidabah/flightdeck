@@ -13047,6 +13047,11 @@ select optgroup {
   min-width: 0;
 }
 
+.spool-card-archived {
+  border-color: rgba(148, 163, 184, 0.42);
+  background: rgba(15, 23, 42, 0.64);
+}
+
 .spool-card[data-spool-id] {
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s, transform 0.15s;
@@ -13057,7 +13062,13 @@ select optgroup {
   background: rgba(59,130,246,0.045);
 }
 
+.spool-card.spool-card-archived[data-spool-id]:hover {
+  border-color: rgba(148, 163, 184, 0.62);
+  background: rgba(30, 41, 59, 0.72);
+}
+
 .spool-card-band {
+  position: relative;
   min-height: 48px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -13067,6 +13078,34 @@ select optgroup {
   padding: 0.4rem 0.45rem;
   font-weight: 700;
   border-radius: 0.45rem 0.45rem 0 0;
+}
+
+.spool-card-archived .spool-card-band {
+  filter: grayscale(0.86) saturate(0.35);
+}
+
+.spool-card-archived .spool-card-body {
+  opacity: 0.74;
+}
+
+.spool-archived-stamp {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) rotate(-7deg);
+  z-index: 1;
+  padding: 0.12rem 0.44rem;
+  border: 1px solid rgba(248, 250, 252, 0.78);
+  border-radius: 0.2rem;
+  background: rgba(2, 6, 23, 0.78);
+  color: #f8fafc;
+  box-shadow: 0 0.35rem 1rem rgba(0, 0, 0, 0.28);
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1;
+  text-transform: uppercase;
+  pointer-events: none;
 }
 
 .spool-color-name {
