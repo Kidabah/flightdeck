@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Add explicit all-spools inventory endpoint`
+- Latest commit: `Keep archived spools loaded in inventory view`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=495 / style.css?v=391 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=496 / style.css?v=391 / demo-runtime.js?v=8
+
+### 2026-06-19 fix (Archived spool inventory cache)
+
+**Keep archived spools loaded in inventory view** (`app/static/app.js`, `app/static/index.html`, `app/static/demo.html`)
+Fourth pass on archived spool cards after live testing proved `/api/spools/all` returned archived spool `#89`, but `Cards + Archived + All` still rendered no cards unless searching `89`. Root cause: an older background spool refresh path still fetched active-only `/api/spools` and assigned it back into the shared `_allSpools` cache after the Spools page loaded the full inventory. The loaded-printer spool refresh now uses `/api/spools/all` and filters archived rows only when building `_latestSpoolsByPrinter`. The Archived view also self-recovers: if the current cache has no archived rows, it reloads `/api/spools/all` before showing the empty state. Archived Cabinet view falls back to card rendering because the cabinet layout intentionally hides archived loaded/shelf positions. Static cache bumped to `app.js?v=496`; frontend refresh only.
+  - Verification: Live API probe confirmed `/api/spools/all` returns archived spool `#89` while the fresh browser tab still reproduced empty `Cards + Archived + All` before this fix. `node --check app/static/app.js` passed. `git diff --check` passed with only the existing Windows CRLF warnings.
 
 ### 2026-06-19 fix (Archived spool bulk list)
 

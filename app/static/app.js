@@ -14146,13 +14146,13 @@ const _SPOOL_ACTIONS = [
 
 async function _refreshSpoolsByPrinter() {
   try {
-    const spools = await fetch('/api/spools').then(r => r.json()).catch(() => []);
+    const spools = await fetch(`/api/spools/all?_=${Date.now()}`, { cache: 'no-store' }).then(r => r.json()).catch(() => []);
     const summary = await fetch('/api/spools/summary').then(r => r.json()).catch(() => ({}));
     _allSpools = spools;
     _latestLowStockPct = summary.low_stock_pct ?? 20;
     const byPrinter = {};
     for (const s of spools) {
-      if (s.location_printer_id) {
+      if (!s.archived_at && s.location_printer_id) {
         if (!byPrinter[s.location_printer_id]) byPrinter[s.location_printer_id] = [];
         byPrinter[s.location_printer_id].push(s);
       }
@@ -15505,6 +15505,19 @@ async function _spoolExactSearchFallback() {
   return null;
 }
 
+async function _ensureArchivedSpoolsLoaded() {
+  if (_allSpools.some(s => s.archived_at)) return false;
+  try {
+    const r = await fetch(`/api/spools/all?_=${Date.now()}`, { cache: 'no-store' });
+    if (!r.ok) return false;
+    const spools = await r.json();
+    if (!Array.isArray(spools) || !spools.some(s => s.archived_at)) return false;
+    _allSpools = spools;
+    return true;
+  } catch {}
+  return false;
+}
+
 function _stockInLocationOptions(selected = '', opts = {}) {
   const locs = _spoolLocations.length ? _spoolLocations : [];
   const selectedValue = opts.defaultFirst && String(selected ?? '') === '' && locs[0]?.id
@@ -15960,40 +15973,22 @@ async function _renderSpoolList(el) {
   if (filtered.length === 0) {
     listEl.className = '';
     listEl.innerHTML = `<p class="filament-empty">Searching archived records...</p>`;
+    if (_spoolsFilter.status === 'archived' && await _ensureArchivedSpoolsLoaded()) {
+      const reloaded = _applySpoolFilters(_allSpools);
+      if (reloaded.length) {
+        _paintSpoolList(el, listEl, reloaded);
+        return;
+      }
+    }
     const fallback = await _spoolExactSearchFallback();
     if (fallback?.spools?.length) {
-      if (_spoolsViewMode === 'table') {
-        listEl.innerHTML = _spoolTableHtml(fallback.spools);
-      } else if (_spoolsViewMode === 'cabinet') {
-        listEl.innerHTML = _spoolCabinetHtml(fallback.spools);
-      } else {
-        listEl.className = 'spool-card-grid';
-        listEl.innerHTML = _spoolGroupedCards(fallback.spools).map(_spoolGroupCardHtml).join('');
-      }
-      _attachSpoolListEvents(el, listEl);
+      _paintSpoolList(el, listEl, fallback.spools);
       return;
     }
     listEl.innerHTML = `<p class="filament-empty">${esc(fallback?.message || 'No spools match the current filters.')}</p>`;
     return;
   }
-  if (_spoolsViewMode === 'table') {
-    listEl.className = '';
-    listEl.innerHTML = _spoolTableHtml(filtered);
-    listEl.querySelectorAll('.spool-th[data-sort]').forEach(th => {
-      th.addEventListener('click', () => {
-        if (_spoolsSortKey === th.dataset.sort) _spoolsSortDir *= -1;
-        else { _spoolsSortKey = th.dataset.sort; _spoolsSortDir = 1; }
-        _renderSpoolList(el);
-      });
-    });
-  } else if (_spoolsViewMode === 'cabinet') {
-    listEl.className = '';
-    listEl.innerHTML = _spoolCabinetHtml(filtered);
-  } else {
-    listEl.className = 'spool-card-grid';
-    listEl.innerHTML = _spoolGroupedCards(filtered).map(_spoolGroupCardHtml).join('');
-  }
-  _attachSpoolListEvents(el, listEl);
+  _paintSpoolList(el, listEl, filtered);
 }
 
 function _spoolIntelligenceHtml(intel = {}) {
@@ -16111,6 +16106,27 @@ function _spoolsCategoryHtml(spools, summary, costs, intelligence = {}) {
 
 function _refreshSpoolsSurface() {
   return location.hash.startsWith('#/spools') ? renderSpoolsView() : _renderSettingsContent('spools');
+}
+
+function _paintSpoolList(el, listEl, spools) {
+  if (_spoolsViewMode === 'table') {
+    listEl.className = '';
+    listEl.innerHTML = _spoolTableHtml(spools);
+    listEl.querySelectorAll('.spool-th[data-sort]').forEach(th => {
+      th.addEventListener('click', () => {
+        if (_spoolsSortKey === th.dataset.sort) _spoolsSortDir *= -1;
+        else { _spoolsSortKey = th.dataset.sort; _spoolsSortDir = 1; }
+        _renderSpoolList(el);
+      });
+    });
+  } else if (_spoolsViewMode === 'cabinet' && _spoolsFilter.status !== 'archived') {
+    listEl.className = '';
+    listEl.innerHTML = _spoolCabinetHtml(spools);
+  } else {
+    listEl.className = 'spool-card-grid';
+    listEl.innerHTML = _spoolGroupedCards(spools).map(_spoolGroupCardHtml).join('');
+  }
+  _attachSpoolListEvents(el, listEl);
 }
 
 function _attachSpoolListEvents(el, listEl, refresh = _refreshSpoolsSurface) {
