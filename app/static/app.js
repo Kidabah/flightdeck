@@ -15485,6 +15485,26 @@ function _applySpoolFilters(spools) {
   });
 }
 
+async function _spoolExactSearchFallback() {
+  const raw = String(_spoolsFilter.search || '').trim();
+  const match = raw.match(/^#?(\d+)$/);
+  if (!match) return null;
+  try {
+    const r = await fetch(`/api/spools/${encodeURIComponent(match[1])}`, { cache: 'no-store' });
+    if (!r.ok) return null;
+    const spool = await r.json();
+    const filtered = _applySpoolFilters([spool]);
+    if (filtered.length) return { spools: filtered };
+    if (_spoolsFilter.status === 'archived' && !spool.archived_at) {
+      return { message: `Spool #${spool.id} exists, but it is active. Switch to Any status or Active.` };
+    }
+    if (_spoolsFilter.status === 'active' && spool.archived_at) {
+      return { message: `Spool #${spool.id} exists, but it is archived. Switch to Any status or Archived.` };
+    }
+  } catch {}
+  return null;
+}
+
 function _stockInLocationOptions(selected = '', opts = {}) {
   const locs = _spoolLocations.length ? _spoolLocations : [];
   const selectedValue = opts.defaultFirst && String(selected ?? '') === '' && locs[0]?.id
@@ -15921,7 +15941,7 @@ function _printStockInSheet(order) {
   win.document.close();
 }
 
-function _renderSpoolList(el) {
+async function _renderSpoolList(el) {
   const listEl = el.querySelector('#spool-list');
   if (!listEl) return;
   if (_spoolsViewMode === 'incoming') {
@@ -15939,7 +15959,21 @@ function _renderSpoolList(el) {
   const filtered = _applySpoolFilters(_allSpools);
   if (filtered.length === 0) {
     listEl.className = '';
-    listEl.innerHTML = `<p class="filament-empty">No spools match the current filters.</p>`;
+    listEl.innerHTML = `<p class="filament-empty">Searching archived records...</p>`;
+    const fallback = await _spoolExactSearchFallback();
+    if (fallback?.spools?.length) {
+      if (_spoolsViewMode === 'table') {
+        listEl.innerHTML = _spoolTableHtml(fallback.spools);
+      } else if (_spoolsViewMode === 'cabinet') {
+        listEl.innerHTML = _spoolCabinetHtml(fallback.spools);
+      } else {
+        listEl.className = 'spool-card-grid';
+        listEl.innerHTML = _spoolGroupedCards(fallback.spools).map(_spoolGroupCardHtml).join('');
+      }
+      _attachSpoolListEvents(el, listEl);
+      return;
+    }
+    listEl.innerHTML = `<p class="filament-empty">${esc(fallback?.message || 'No spools match the current filters.')}</p>`;
     return;
   }
   if (_spoolsViewMode === 'table') {
@@ -16041,7 +16075,7 @@ function _spoolsCategoryHtml(spools, summary, costs, intelligence = {}) {
           <button class="spool-view-btn${_spoolsViewMode==='catalogue'?' active':''}" data-view="catalogue">Filament catalogue</button>
         </div>
         <div class="spool-chips spool-toolbar-chips">
-          ${fc('status','active','Active')}${fc('status','archived','Archived')}
+          ${fc('status','all','Any status')}${fc('status','active','Active')}${fc('status','archived','Archived')}
           <span class="spool-chip-sep"></span>
           ${fc('slotFilter','all','All')}${fc('slotFilter','multiples','Multiples')}${fc('slotFilter','loaded','Loaded')}${fc('slotFilter','storage','Shelved')}${fc('slotFilter','low','Low stock')}
         </div>
@@ -17739,7 +17773,7 @@ async function _renderSpoolsContent(el) {
   }
   _spoolsFilter.printer = params.get('printer') || '';
   const [spools, summary, costs, filamentSummary, locations, intelligence] = await Promise.all([
-    fetch('/api/spools?include_archived=true').then(r => r.json()).catch(() => []),
+    fetch(`/api/spools?include_archived=1&_=${Date.now()}`, { cache: 'no-store' }).then(r => r.json()).catch(() => []),
     fetch('/api/spools/summary').then(r => r.json()).catch(() => ({})),
     fetch('/api/filament/costs').then(r => r.json()).catch(() => []),
     fetch('/api/filament/summary').then(r => r.json()).catch(() => ({})),
