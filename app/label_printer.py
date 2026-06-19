@@ -143,6 +143,7 @@ class LabelPrinter:
         font_body = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 28)
         font_small = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 19)
         font_badge = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 28)
+        font_spool = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 108)
 
         x = 42
         material = " ".join([spool.get("material") or "Material", spool.get("subtype") or ""]).strip()
@@ -163,7 +164,7 @@ class LabelPrinter:
         draw.text((x, 130), _ellipsize(draw, color_name if include_colour else f"Spool #{spool.get('id', '-')}", font_body, 300), fill="black", font=font_body)
         if color_hex and include_colour:
             draw.text((x, 170), color_hex, fill="black", font=font_badge)
-        draw.text((x, 214), f"Spool #{spool.get('id', '-')}", fill="black", font=font_badge)
+        draw.text((x, 178), _ellipsize(draw, f"#{spool.get('id', '-')}", font_spool, 395), fill="black", font=font_spool)
 
         if location_line and include_location:
             draw.text((496, 28), "Loc:", fill="black", font=font_small)
@@ -175,7 +176,7 @@ class LabelPrinter:
         except Exception:
             added = datetime.utcnow().strftime("%d/%m/%y")
         bottom = f"{round(float(spool.get('label_weight_g') or 0))}g label  |  {added}"
-        draw.text((x, 276), bottom, fill="black", font=font_small)
+        draw.text((x, 296), bottom, fill="black", font=font_small)
 
         qr_base = (base_url or "https://flightdeck.tail7de73e.ts.net").rstrip("/")
         qr_url = f"{qr_base}/#/spool/{spool.get('id')}"
@@ -230,10 +231,18 @@ class LabelPrinter:
 
 
 def _font(path: str, size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-    try:
-        return ImageFont.truetype(path, size)
-    except Exception:
-        return ImageFont.load_default()
+    candidates = [path]
+    bold = "Bold" in path or "bold" in path
+    candidates.extend([
+        r"C:\Windows\Fonts\arialbd.ttf" if bold else r"C:\Windows\Fonts\arial.ttf",
+        r"C:\Windows\Fonts\segoeuib.ttf" if bold else r"C:\Windows\Fonts\segoeui.ttf",
+    ])
+    for candidate in candidates:
+        try:
+            return ImageFont.truetype(candidate, size)
+        except Exception:
+            continue
+    return ImageFont.load_default()
 
 
 def _ellipsize(draw: ImageDraw.ImageDraw, text: str, font, max_width: int) -> str:
