@@ -6577,6 +6577,10 @@ async def get_spools_by_printer(printer_id: str):
 async def get_spools(include_archived: bool = False):
     return db.get_spools(include_archived=include_archived)
 
+@app.get("/api/spools/all")
+async def get_all_spools():
+    return db.get_spools(include_archived=True)
+
 @app.get("/api/spool-locations")
 async def get_spool_locations(include_archived: bool = False):
     return db.get_spool_locations(include_archived=include_archived)

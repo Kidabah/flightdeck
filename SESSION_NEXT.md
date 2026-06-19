@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Harden archived spool number search`
+- Latest commit: `Add explicit all-spools inventory endpoint`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=494 / style.css?v=391 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=495 / style.css?v=391 / demo-runtime.js?v=8
+
+### 2026-06-19 fix (Archived spool bulk list)
+
+**Add explicit all-spools inventory endpoint** (`app/main.py`, `app/static/app.js`, `app/static/index.html`, `app/static/demo.html`)
+Third pass on archived spool visibility after `Cards + Archived + All` still showed no spools unless the operator searched the exact number `89`. The direct `/api/spools/{id}` lookup could see archived spool `#89`, proving the row existed, but the bulk inventory fetch path could still drop archived rows. Added explicit `GET /api/spools/all` returning `db.get_spools(include_archived=True)` and moved the Spools inventory page to that route, so the normal archived/all card view loads the same full inventory before client-side filters run. Existing `/api/spools` remains the active-only/default route for older flows. Static cache bumped to `app.js?v=495`; backend restart required after deploy.
+  - Verification: `python -m py_compile app/main.py` passed with the usual Windows Python `<prefix>` warning. `node --check app/static/app.js` passed. `git diff --check` passed with only the existing Windows CRLF warnings. Route order was checked in source: `/api/spools/all` is declared before `/api/spools/{spool_id}`.
 
 ### 2026-06-19 fix (Archived spool exact search hardening)
 
