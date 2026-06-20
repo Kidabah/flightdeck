@@ -6958,6 +6958,37 @@ def _pick_timelapse_candidate(item: dict, candidates: list[dict]) -> Optional[di
     return best
 
 
+def _list_local_recorder_candidates() -> list[dict]:
+    rows: list[dict] = []
+    if not FLIGHT_RECORDER_DIR.exists():
+        return rows
+    base = FLIGHT_RECORDER_DIR.resolve()
+    try:
+        paths = FLIGHT_RECORDER_DIR.rglob("*")
+        for idx, path in enumerate(paths):
+            if idx > 2000:
+                break
+            if not path.is_file() or not _timelapse_suffix(path.name):
+                continue
+            try:
+                resolved = path.resolve()
+                rel = resolved.relative_to(base)
+                stat = resolved.stat()
+            except Exception:
+                continue
+            rows.append({
+                "name": path.name,
+                "path": str(rel).replace("\\", "/"),
+                "local_path": str(resolved),
+                "size": int(stat.st_size),
+                "modified": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
+                "source": "flightdeck-local",
+            })
+    except Exception as exc:
+        log.debug("Flight Recorder local scan failed: %s", exc)
+    return rows
+
+
 async def _list_bambu_recorder_candidates(printer) -> list[dict]:
     from .printers.bambu_ftp import list_bambu_files
     roots = [""] + list(_BAMBU_RECORDER_ROOTS)
@@ -7008,6 +7039,16 @@ async def _list_moonraker_recorder_candidates(base_url: str) -> list[dict]:
 
 
 async def _discover_print_timelapse(printer_id: str, item: dict) -> tuple[dict, bytes]:
+    local_best = _pick_timelapse_candidate(item, _list_local_recorder_candidates())
+    if local_best:
+        path = Path(str(local_best.get("local_path") or ""))
+        try:
+            resolved = path.resolve()
+            resolved.relative_to(FLIGHT_RECORDER_DIR.resolve())
+        except Exception as exc:
+            raise HTTPException(status_code=404, detail="local recorder clip unavailable") from exc
+        return local_best, await asyncio.to_thread(resolved.read_bytes)
+
     bambu = _find_bambu(printer_id)
     if bambu:
         candidates = await _list_bambu_recorder_candidates(bambu)
@@ -7020,12 +7061,7 @@ async def _discover_print_timelapse(printer_id: str, item: dict) -> tuple[dict, 
 
     mr_url = _find_moonraker_url(printer_id)
     if mr_url:
-        candidates = await _list_moonraker_recorder_candidates(mr_url)
-        best = _pick_timelapse_candidate(item, candidates)
-        if not best:
-            raise HTTPException(status_code=404, detail="no matching Moonraker recorder clip found")
-        data = await _download_moonraker_file(mr_url, best["path"], root=str(best.get("root") or "gcodes"))
-        return best, data
+        raise HTTPException(status_code=404, detail="automatic printer-storage discovery is Bambu-tested for beta; use Add video for this printer")
 
     raise HTTPException(status_code=404, detail="printer does not support recorder discovery")
 

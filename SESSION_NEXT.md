@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Loosen relay filament metadata recovery`
+- Latest commit: `Finish Flight Recorder beta discovery`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=497 / style.css?v=392 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=500 / style.css?v=392 / demo-runtime.js?v=8
+
+### 2026-06-20 feature (Flight Recorder beta discovery)
+
+**Finish Flight Recorder beta discovery** (`app/main.py`, `app/static/app.js`, `app/static/index.html`, `app/static/demo.html`)
+Finished the beta-sized Flight Recorder path. The existing History `Find clip` action now searches Flightdeck's own recorder folder first and attaches the best matching local clip by print name/subtask and start/end time. If no local clip matches, printer-storage discovery remains Bambu-first/Bambu-tested for beta; Moonraker/Snapmaker-style printer storage discovery now returns a clear beta boundary and operators can still use `Add video` manually. The History recorder copy now says local clips can be found and printer-storage discovery is Bambu-tested for beta, and failed searches surface the backend detail instead of raw response text. Static cache bumped to `app.js?v=500`; backend/service restart required after deploy.
+  - Verification: `.venv\Scripts\python.exe -m py_compile app/main.py app/db.py` passed with the usual Windows Python `<prefix>` warning. `node --check app/static/app.js` passed. Temp-folder smoke confirmed the local recorder matcher picks a matching `H2D_H2S_H2C_Poop_Chute.mp4` clip. `git diff --check` passed with only the existing Windows CRLF warnings.
 
 ### 2026-06-20 fix (Bambu finish spool deduction fallback)
 

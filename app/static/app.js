@@ -4972,7 +4972,7 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
     <div class="flight-recorder-head">
       <div>
         <span>Flight Recorder</span>
-        <em>${print.has_timelapse ? `Recorded${print.timelapse_source ? ` · ${esc(print.timelapse_source)}` : ''}` : 'Attach a timelapse to this print'}</em>
+        <em>${print.has_timelapse ? `Recorded${print.timelapse_source ? ` · ${esc(print.timelapse_source)}` : ''}` : 'Find local clips or attach a video. Printer storage discovery is Bambu-tested for beta.'}</em>
       </div>
       ${print.has_timelapse ? '' : `<div class="flight-recorder-actions">
         <button type="button" class="flight-recorder-discover">Find clip</button>
@@ -5116,8 +5116,13 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
       discoverBtn.textContent = 'Searching...';
       try {
         const r = await fetch(`/api/printers/${printerId}/prints/${print.id}/timelapse/discover`, { method: 'POST' });
-        if (!r.ok) throw new Error(await r.text());
-        const saved = await r.json();
+        const raw = await r.text();
+        let saved = {};
+        try { saved = raw ? JSON.parse(raw) : {}; } catch { saved = { detail: raw }; }
+        if (!r.ok) {
+          const detail = typeof saved.detail === 'string' ? saved.detail : (saved.detail?.message || 'Recorder search failed');
+          throw new Error(detail);
+        }
         print = { ...print, ...saved };
         showToast('Flight Recorder clip found', 'success');
         _showPrintDetail(printerId, dateStr, print);
