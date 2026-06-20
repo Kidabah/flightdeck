@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Search Pi recorder folders for Flight Recorder`
+- Latest commit: `Clear stale active queue rows`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=501 / style.css?v=392 / demo-runtime.js?v=8
+
+### 2026-06-20 fix (Queue stale active rows)
+
+**Clear stale active queue rows** (`app/main.py`)
+Fixed a Print Queue state leak seen on Greyhound Ludicrous/X1C where a cancelled/stopped Bambu job remained `PRINTING` in Flightdeck, then a newly queued copy was blocked/failed as `Superseded by newer active queue job` while the stale row stayed active. Queue reconciliation now clears active `printing/uploading` rows when the printer status has returned to an inactive state (`idle`, `ready`, `standby`, `finished`, `cancelled`, or `failed`) and logs `queue_active_cleared`. Explicit printer errors/estop are still handled by the existing error path, and genuinely active `printing/paused` printers are left alone. Backend/service restart required after deploy.
+  - Verification: `.venv\Scripts\python.exe -m py_compile app/main.py` passed with the usual Windows Python `<prefix>` warning. `git diff --check` passed with only the existing Windows CRLF warning.
 
 ### 2026-06-20 feature (Flight Recorder beta discovery)
 
