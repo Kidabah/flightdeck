@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Clear stale active queue rows`
+- Latest commit: `Mark stale active queue rows cancelled`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=501 / style.css?v=392 / demo-runtime.js?v=8
+
+### 2026-06-21 fix (Queue stale active row wording)
+
+**Mark stale active queue rows cancelled** (`app/db.py`, `app/main.py`)
+Follow-up after live testing showed the new stale active queue cleanup worked, but the queue row appeared as a red `FAILED` item with `Printer is idle; clearing stale active queue job`, which made a harmless state repair look like another print failure. The idle/ready/finished stale cleanup path now marks those active rows `cancelled` with the softer message `Cleared stale queue state after printer returned to idle`, while genuine printer errors still use the existing failed path. Backend/service restart required after deploy.
+  - Verification: `.venv\Scripts\python.exe -m py_compile app/db.py app/main.py` passed with the usual Windows Python `<prefix>` warning. `git diff --check` passed with only the existing Windows CRLF warning.
 
 ### 2026-06-20 fix (Queue stale active rows)
 

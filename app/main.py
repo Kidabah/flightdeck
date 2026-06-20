@@ -8020,11 +8020,15 @@ def _reconcile_queue_active_state(jobs: list[dict], statuses: dict[str, dict]) -
             continue
         state = str((statuses.get(printer_id) or {}).get("state") or "").lower()
         if state in {"idle", "ready", "standby", "finished", "cancelled", "failed"}:
-            reason = f"Printer is {state or 'not printing'}; clearing stale active queue job"
-            cleared = db.queue_fail_active(printer_id, reason)
+            detail = f"Printer is {state or 'not printing'}; stale active queue job cleared"
+            cleared = db.queue_cancel_active(
+                printer_id,
+                "cancelled",
+                "Cleared stale queue state after printer returned to idle",
+            )
             changed = cleared > 0 or changed
             if cleared:
-                db.log_decision(printer_id, "queue_active_cleared", reason)
+                db.log_decision(printer_id, "queue_active_cleared", detail)
             continue
         if len(active) <= 1:
             continue

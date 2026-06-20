@@ -3957,15 +3957,25 @@ def queue_finish_active(printer_id: str) -> int:
     return c.rowcount
 
 
-def queue_cancel_active(printer_id: str, status: str = "cancelled") -> int:
+def queue_cancel_active(printer_id: str, status: str = "cancelled", error_msg: Optional[str] = None) -> int:
     with _conn() as conn:
-        c = conn.execute(
-            """UPDATE print_queue
-               SET status = ?,
-                   finished_at = COALESCE(finished_at, datetime('now'))
-               WHERE printer_id = ? AND status IN ('printing', 'uploading')""",
-            (status, printer_id),
-        )
+        if error_msg is None:
+            c = conn.execute(
+                """UPDATE print_queue
+                   SET status = ?,
+                       finished_at = COALESCE(finished_at, datetime('now'))
+                   WHERE printer_id = ? AND status IN ('printing', 'uploading')""",
+                (status, printer_id),
+            )
+        else:
+            c = conn.execute(
+                """UPDATE print_queue
+                   SET status = ?,
+                       finished_at = COALESCE(finished_at, datetime('now')),
+                       error_msg = ?
+                   WHERE printer_id = ? AND status IN ('printing', 'uploading')""",
+                (status, error_msg, printer_id),
+            )
     return c.rowcount
 
 
