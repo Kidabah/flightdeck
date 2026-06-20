@@ -3093,6 +3093,8 @@ def _deduct_spool_usage_to_target(
     if total_grams <= 0 or target_ratio <= 0:
         return False
 
+    slot_snapshot: dict[int, dict] = {}
+    existing_usage = []
     with _conn() as conn:
         row = conn.execute(
             "SELECT ams_slot_snapshot, spool_usage FROM prints WHERE id = ?", (print_id,)
@@ -3109,7 +3111,6 @@ def _deduct_spool_usage_to_target(
             log.warning("Unexpected slot snapshot shape for print %d, skipping spool deduction", print_id)
             return False
         meta = snapshot_raw.get("__meta__", {}) if isinstance(snapshot_raw.get("__meta__"), dict) else {}
-        slot_snapshot: dict[int, dict] = {}
         for raw_slot, data in snapshot_raw.items():
             if raw_slot == "__meta__" or not isinstance(data, dict):
                 continue

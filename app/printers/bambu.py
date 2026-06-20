@@ -5,6 +5,7 @@ import re
 import threading
 import time
 from datetime import datetime, timezone, timedelta
+from types import SimpleNamespace
 from typing import Optional
 
 import bambulabs_api as bl
@@ -29,6 +30,20 @@ def _preview_metadata(value: object):
     if value is None or value is _BAMBU_PREVIEW_FAILED:
         return None
     return value if hasattr(value, "filament_weight_g") else None
+
+
+def _queue_preview_metadata(printer_id: str):
+    """Return queued 3MF metadata when live FTP preview metadata is unavailable."""
+    row = db.queue_active_job(printer_id)
+    if not row:
+        return None
+    if not any(row.get(k) is not None for k in ("filament_weight_g", "filament_type", "filament_colors")):
+        return None
+    return SimpleNamespace(
+        filament_weight_g=row.get("filament_weight_g"),
+        filament_type=row.get("filament_type"),
+        filament_colors=row.get("filament_colors"),
+    )
 
 
 def _bambu_physical_start_confirmed(job: Optional[JobStatus], temps: dict[str, TempReading]) -> bool:
@@ -369,6 +384,8 @@ class BambuPrinter:
                 pv = _preview_metadata(self._preview_cache[1]) if self._preview_cache else None
                 if pv is None and subtask and not self._preview_cache:
                     pv = _preview_metadata(self.get_preview())
+                if pv is None:
+                    pv = _queue_preview_metadata(self.id)
                 if pv and pv.filament_weight_g:
                     db.deduct_spool_usage_progress(
                         self.id,
@@ -444,6 +461,8 @@ class BambuPrinter:
                     return "idle"
                 filament_g = material = filament_usage = None
                 pv = _preview_metadata(self._preview_cache[1]) if self._preview_cache else None
+                if pv is None:
+                    pv = _queue_preview_metadata(self.id)
                 if pv:
                     filament_g = pv.filament_weight_g
                     material = pv.filament_type
