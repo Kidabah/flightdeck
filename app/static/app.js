@@ -4972,7 +4972,7 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
     <div class="flight-recorder-head">
       <div>
         <span>Flight Recorder</span>
-        <em>${print.has_timelapse ? `Recorded${print.timelapse_source ? ` · ${esc(print.timelapse_source)}` : ''}` : 'Find local clips or attach a video. Printer storage discovery is Bambu-tested for beta.'}</em>
+        <em>${print.has_timelapse ? `Recorded${print.timelapse_source ? ` · ${esc(print.timelapse_source)}` : ''}` : 'Find Pi/Flightdeck clips or attach a video. Printer storage discovery is Bambu-tested for beta.'}</em>
       </div>
       ${print.has_timelapse ? '' : `<div class="flight-recorder-actions">
         <button type="button" class="flight-recorder-discover">Find clip</button>

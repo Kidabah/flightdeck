@@ -80,6 +80,7 @@ _file_desk_target_cache: dict[str, dict] = {}
 _FLIGHT_RECORDER_EXTS = {".mp4", ".webm", ".mov", ".avi"}
 _BAMBU_RECORDER_ROOTS = ("timelapse", "video", "movie", "ipcam", "record", "records")
 _MOONRAKER_RECORDER_ROOTS = ("timelapse", "gcodes")
+_LOCAL_RECORDER_SEARCH_NAMES = ("flight_recorder", "timelapse", "timelapses", "recordings", "records", "videos", "camera")
 
 
 def _dt_default(obj):
@@ -6958,34 +6959,67 @@ def _pick_timelapse_candidate(item: dict, candidates: list[dict]) -> Optional[di
     return best
 
 
+def _local_recorder_search_roots() -> list[Path]:
+    roots: list[Path] = []
+
+    def add(path: Path | str | None) -> None:
+        if not path:
+            return
+        try:
+            resolved = Path(path).expanduser().resolve()
+        except Exception:
+            return
+        if resolved not in roots:
+            roots.append(resolved)
+
+    add(FLIGHT_RECORDER_DIR)
+    for name in _LOCAL_RECORDER_SEARCH_NAMES:
+        add(DATA_DIR / name)
+        add(PRINT_LIBRARY_DIR / name)
+    add(DATA_DIR)
+
+    env_value = os.getenv("FLIGHTDECK_RECORDER_SEARCH_DIRS", "")
+    for raw in re.split(r"[;\n]", env_value):
+        raw = raw.strip()
+        if raw:
+            add(raw)
+    return roots
+
+
 def _list_local_recorder_candidates() -> list[dict]:
     rows: list[dict] = []
-    if not FLIGHT_RECORDER_DIR.exists():
-        return rows
-    base = FLIGHT_RECORDER_DIR.resolve()
-    try:
-        paths = FLIGHT_RECORDER_DIR.rglob("*")
-        for idx, path in enumerate(paths):
-            if idx > 2000:
-                break
-            if not path.is_file() or not _timelapse_suffix(path.name):
-                continue
-            try:
-                resolved = path.resolve()
-                rel = resolved.relative_to(base)
-                stat = resolved.stat()
-            except Exception:
-                continue
-            rows.append({
-                "name": path.name,
-                "path": str(rel).replace("\\", "/"),
-                "local_path": str(resolved),
-                "size": int(stat.st_size),
-                "modified": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
-                "source": "flightdeck-local",
-            })
-    except Exception as exc:
-        log.debug("Flight Recorder local scan failed: %s", exc)
+    seen: set[Path] = set()
+    for root in _local_recorder_search_roots():
+        if not root.exists() or not root.is_dir():
+            continue
+        try:
+            base = root.resolve()
+            paths = root.rglob("*")
+            for idx, path in enumerate(paths):
+                if idx > 3000 or len(rows) >= 600:
+                    break
+                if not path.is_file() or not _timelapse_suffix(path.name):
+                    continue
+                try:
+                    resolved = path.resolve()
+                    if resolved in seen:
+                        continue
+                    rel = resolved.relative_to(base)
+                    stat = resolved.stat()
+                except Exception:
+                    continue
+                seen.add(resolved)
+                rows.append({
+                    "name": path.name,
+                    "path": str(rel).replace("\\", "/"),
+                    "local_path": str(resolved),
+                    "size": int(stat.st_size),
+                    "modified": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
+                    "source": "flightdeck-pi",
+                    "root": str(base),
+                })
+        except Exception as exc:
+            log.debug("Flight Recorder local scan failed for %s: %s", root, exc)
     return rows
 
 
@@ -7044,7 +7078,8 @@ async def _discover_print_timelapse(printer_id: str, item: dict) -> tuple[dict, 
         path = Path(str(local_best.get("local_path") or ""))
         try:
             resolved = path.resolve()
-            resolved.relative_to(FLIGHT_RECORDER_DIR.resolve())
+            root = Path(str(local_best.get("root") or FLIGHT_RECORDER_DIR)).resolve()
+            resolved.relative_to(root)
         except Exception as exc:
             raise HTTPException(status_code=404, detail="local recorder clip unavailable") from exc
         return local_best, await asyncio.to_thread(resolved.read_bytes)

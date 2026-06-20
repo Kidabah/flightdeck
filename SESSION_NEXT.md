@@ -2,13 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Finish Flight Recorder beta discovery`
+- Latest commit: `Search Pi recorder folders for Flight Recorder`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=500 / style.css?v=392 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=501 / style.css?v=392 / demo-runtime.js?v=8
 
 ### 2026-06-20 feature (Flight Recorder beta discovery)
+
+**Search Pi recorder folders for Flight Recorder** (`app/main.py`, `app/static/app.js`, `app/static/index.html`, `app/static/demo.html`)
+Follow-up after live testing showed `Find clip` searched only Flightdeck's configured `flight_recorder` folder, not broader Pi-side folders. The local discovery scan now searches bounded Pi/Flightdeck media roots: the configured recorder folder, common `flight_recorder/timelapse/timelapses/recordings/records/videos/camera` folders under `DATA_DIR` and `PRINT_LIBRARY_DIR`, plus `DATA_DIR` itself. A custom semicolon/newline separated `FLIGHTDECK_RECORDER_SEARCH_DIRS` env var can add extra Pi folders without scanning the whole filesystem. Matches outside the recorder folder are copied into the recorder folder before attaching. History copy now says `Find Pi/Flightdeck clips...`. Static cache bumped to `app.js?v=501`; backend/service restart required after deploy.
+  - Verification: `.venv\Scripts\python.exe -m py_compile app/main.py` passed with the usual Windows Python `<prefix>` warning. `node --check app/static/app.js` passed. Temp-folder smoke confirmed discovery can find a matching clip under a Pi-style `flightdeck-data/timelapse` folder while the recorder folder is empty. `git diff --check` passed with only the existing Windows CRLF warnings.
 
 **Finish Flight Recorder beta discovery** (`app/main.py`, `app/static/app.js`, `app/static/index.html`, `app/static/demo.html`)
 Finished the beta-sized Flight Recorder path. The existing History `Find clip` action now searches Flightdeck's own recorder folder first and attaches the best matching local clip by print name/subtask and start/end time. If no local clip matches, printer-storage discovery remains Bambu-first/Bambu-tested for beta; Moonraker/Snapmaker-style printer storage discovery now returns a clear beta boundary and operators can still use `Add video` manually. The History recorder copy now says local clips can be found and printer-storage discovery is Bambu-tested for beta, and failed searches surface the backend detail instead of raw response text. Static cache bumped to `app.js?v=500`; backend/service restart required after deploy.
