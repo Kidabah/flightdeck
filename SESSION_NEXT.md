@@ -2,13 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Use queue metadata for Bambu spool deductions`
+- Latest commit: `Persist Bambu relay filament metadata`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=497 / style.css?v=392 / demo-runtime.js?v=8
 
 ### 2026-06-20 fix (Bambu finish spool deduction fallback)
+
+**Persist and recover Bambu relay filament metadata** (`app/relay.py`, `app/printers/bambu.py`, `app/db.py`, `app/main.py`, `app/static/app.js`, `app/static/index.html`, `app/static/demo.html`)
+Fixed the direct-slicer-to-Flightdeck path where a print sent straight from Orca/Bambu Studio via the Flightdeck relay could complete without filament/cost accounting, while the same file worked correctly when dropped into the Queue. Root cause: Queue uploads persist parsed 3MF metadata in `print_queue`, but relay uploads only kept it in memory and only seeded the Bambu preview cache if the preview image existed. Relay uploads now seed the preview cache whenever parsed metadata exists, and the Bambu status path writes that metadata onto the print row as soon as the print starts. History also gets a recovery button for older affected prints with no filament grams: `Recover grams` looks up the matching `relay_upload` decision, restores `filament_grams/material`, then the existing `Assign spool` action can deduct from the correct spool. Static cache bumped to `app.js?v=498`; backend/service restart required after deploy.
+  - Verification: `python -m py_compile app/db.py app/main.py app/printers/bambu.py app/relay.py` passed with the usual Windows Python `<prefix>` warning. `node --check app/static/app.js` passed. Temp-DB smoke confirmed a finished print with no grams can recover `42.5g PLA` from a matching relay upload decision. `git diff --check` passed with only the existing Windows CRLF warnings.
 
 **Use queue metadata when Bambu finish preview metadata is missing** (`app/printers/bambu.py`, `app/db.py`)
 Fixed the BigBoy/H2D completion case where a print finished cleanly, but History showed no filament/cost rows and the decision trail logged `spool_no_deduction_cancelled` because the live FTP preview/cache did not provide `filament_weight_g` at finish. The Bambu status path now falls back to the active queue row's parsed 3MF metadata (`filament_weight_g`, `filament_type`, `filament_colors`) for both live progress deductions and final finish deductions before giving up. Also moved the `slot_snapshot` local initialisation ahead of snapshot parsing as a defensive guard against the recurring notification `cannot access local variable 'slot_snapshot' where it is not associated with a value`. This is accounting/deduction only; no AMS mapping, queue preflight, slicer, or printer command code was touched. Backend/service restart required after deploy.

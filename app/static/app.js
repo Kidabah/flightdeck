@@ -5015,6 +5015,7 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
   </div>` : '';
 
   const canAssignSpoolUsage = print.id && !print.spool_usage?.length && Number(print.filament_grams || 0) > 0;
+  const canRecoverFilamentUsage = print.id && !print.spool_usage?.length && print.filament_grams == null && String(print.final_state || '').toUpperCase() === 'FINISHED';
   const spoolUsageHtml = print.spool_usage?.length
     ? `<div class="print-spool-usage">
         <div class="print-spool-title">Spool usage</div>
@@ -5047,6 +5048,20 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
             </span>
             <span class="print-spool-actions">
               <button class="print-spool-assign" data-print-id="${print.id}">Assign spool</button>
+            </span>
+          </div>
+        </div>`
+    : canRecoverFilamentUsage
+      ? `<div class="print-spool-usage print-spool-unassigned">
+          <div class="print-spool-title">Spool usage</div>
+          <div class="print-spool-row print-spool-row-suggested">
+            <span>No filament metadata</span>
+            <span class="print-spool-grams">
+              <strong>Unknown grams</strong>
+              <em>Recover from slicer relay log, then assign a spool</em>
+            </span>
+            <span class="print-spool-actions">
+              <button class="print-filament-repair" data-print-id="${print.id}">Recover grams</button>
             </span>
           </div>
         </div>`
@@ -5214,6 +5229,27 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
         await _refreshPrintDetailFromServer(printerId, dateStr, printId, targetEl);
       } catch (err) {
         showToast('Reconcile failed', err.message || '', 'error');
+        btn.disabled = false;
+        btn.textContent = old;
+      }
+    });
+  });
+
+  el.querySelectorAll('.print-filament-repair').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      e.preventDefault();
+      const printId = btn.dataset.printId;
+      const old = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = '...';
+      try {
+        const r = await fetch(`/api/print-memory/${printId}/repair-filament`, { method: 'POST' });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.detail || 'Recovery failed');
+        showToast('Filament recovered', `${Number(data.filament_grams || 0).toFixed(1)}g recovered from slicer relay metadata.`, 'success');
+        await _refreshPrintDetailFromServer(printerId, dateStr, printId, targetEl);
+      } catch (err) {
+        showToast('Recovery failed', err.message || '', 'error');
         btn.disabled = false;
         btn.textContent = old;
       }

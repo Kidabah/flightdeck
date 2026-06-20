@@ -607,6 +607,13 @@ class BambuPrinter:
                     db.log_decision(self.id, "job_started",
                                    f"New print started key={self._current_job_key}",
                                    print_id=print_id)
+                pv = _preview_metadata(self._preview_cache[1]) if self._preview_cache else None
+                if print_id and pv:
+                    db.update_print_filament_metadata(
+                        print_id,
+                        filament_grams=pv.filament_weight_g,
+                        material=pv.filament_type,
+                    )
             # Derived slicer estimate: capture once after 60s elapsed.
             # Primary path for Bambu — no metadata API available.
             # Formula: slicer_total = eta_seconds / (1 - progress)

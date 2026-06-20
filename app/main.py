@@ -3427,6 +3427,19 @@ async def get_print_memory_detail(print_id: int):
     return item
 
 
+@app.post("/api/print-memory/{print_id}/repair-filament")
+async def repair_print_memory_filament(print_id: int):
+    result = db.repair_print_filament_metadata_from_relay(print_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="print not found")
+    if result.get("error") == "already_has_metadata":
+        raise HTTPException(status_code=409, detail="Print already has filament metadata")
+    if result.get("error") == "metadata_not_found":
+        raise HTTPException(status_code=404, detail="No matching relay filament metadata found")
+    item = db.get_print_by_id(print_id)
+    return {"ok": True, "print": item, **result}
+
+
 @app.get("/api/print-memory-score")
 async def get_print_memory_score(days: Optional[int] = None):
     return db.get_print_memory_score(days=days)

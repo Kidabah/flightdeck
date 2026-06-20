@@ -230,7 +230,7 @@ async def bambu_upload(
                 raise
 
     subtask_name = filename.removesuffix(".gcode.3mf")
-    if preview and preview.image_png:
+    if preview:
         printer.seed_preview(subtask_name, preview)
 
     _evict_stale()

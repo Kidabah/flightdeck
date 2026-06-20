@@ -546,6 +546,113 @@ def on_print_finished(
     return print_id
 
 
+def update_print_filament_metadata(
+    print_id: int,
+    *,
+    filament_grams: Optional[float] = None,
+    material: Optional[str] = None,
+) -> bool:
+    """Fill missing filament metadata for a print without overwriting known values."""
+    grams_value = None
+    if filament_grams is not None:
+        try:
+            grams_value = float(filament_grams)
+        except (TypeError, ValueError):
+            grams_value = None
+    material_value = (material or "").strip() or None
+    if grams_value is None and material_value is None:
+        return False
+    with _conn() as conn:
+        n = conn.execute(
+            """UPDATE prints
+               SET filament_grams = COALESCE(filament_grams, ?),
+                   material       = COALESCE(material, ?)
+               WHERE id = ?""",
+            (grams_value, material_value, print_id),
+        ).rowcount
+    return n > 0
+
+
+def repair_print_filament_metadata_from_relay(print_id: int) -> Optional[dict]:
+    """Recover missing filament grams/material from prior slicer relay upload logs."""
+    def _key(value: str | None) -> str:
+        name = str(value or "").rsplit("/", 1)[-1].rsplit("\\", 1)[-1].lower()
+        for suffix in (".gcode.3mf", ".3mf", ".gcode"):
+            if name.endswith(suffix):
+                name = name[: -len(suffix)]
+        return name
+
+    with _conn() as conn:
+        row = conn.execute(
+            """SELECT id, printer_id, filename, subtask_name, started_at,
+                      filament_grams, material
+               FROM prints
+               WHERE id = ?""",
+            (print_id,),
+        ).fetchone()
+        if not row:
+            return None
+        if row["filament_grams"] is not None:
+            return {"error": "already_has_metadata"}
+
+        wanted = {_key(row["filename"]), _key(row["subtask_name"])}
+        wanted.discard("")
+        decisions = conn.execute(
+            """SELECT detail, logged_at
+               FROM decisions
+               WHERE printer_id = ? AND event = 'relay_upload'
+               ORDER BY logged_at DESC, id DESC
+               LIMIT 120""",
+            (row["printer_id"],),
+        ).fetchall()
+
+        match = None
+        for decision in decisions:
+            try:
+                payload = json.loads(decision["detail"] or "{}")
+            except Exception:
+                continue
+            if not isinstance(payload, dict):
+                continue
+            grams = payload.get("filament_g")
+            try:
+                grams = float(grams)
+            except (TypeError, ValueError):
+                grams = None
+            if not grams or grams <= 0:
+                continue
+            file_key = _key(payload.get("file"))
+            if wanted and file_key not in wanted:
+                continue
+            match = {
+                "filament_grams": grams,
+                "material": (payload.get("filament_type") or row["material"] or None),
+                "source_file": payload.get("file"),
+                "logged_at": decision["logged_at"],
+            }
+            break
+
+        if not match:
+            return {"error": "metadata_not_found"}
+
+        conn.execute(
+            """UPDATE prints
+               SET filament_grams = COALESCE(filament_grams, ?),
+                   material       = COALESCE(material, ?)
+               WHERE id = ?""",
+            (match["filament_grams"], match["material"], print_id),
+        )
+
+    detail = (
+        f"Recovered filament metadata from relay upload {match.get('source_file') or ''}: "
+        f"{float(match['filament_grams']):.1f}g"
+    )
+    if match.get("material"):
+        detail += f" {match['material']}"
+    log_decision(row["printer_id"], "print_filament_metadata_recovered", detail, print_id=print_id)
+    return match
+
+
 def on_print_ended(
     printer_id: str,
     job_key: str,
