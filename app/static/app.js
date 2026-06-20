@@ -2122,7 +2122,9 @@ function _detailLiveOps(p) {
 
 function _detailLiveOpsDrawer(p) {
   const ops = _detailLiveOps(p);
-  if (!ops) return '';
+  const hasTemps = Object.keys(p.temps || {}).length > 0;
+  const temps = hasTemps ? `<div class="live-op-temp-panel" id="detail-temps">${_detailTempsPanel(p)}</div>` : '';
+  if (!ops && !temps) return '';
   return `<button class="live-controls-toggle" type="button" data-live-ops-toggle aria-expanded="false">
       <span>Controls</span>
     </button>
@@ -2132,7 +2134,10 @@ function _detailLiveOpsDrawer(p) {
         <span>Controls</span>
         <button class="live-control-close" type="button" data-live-ops-close aria-label="Close controls">&times;</button>
       </div>
-      <div class="live-control-scroll" id="detail-live-ops-body">${ops}</div>
+      <div class="live-control-scroll">
+        ${temps}
+        <div id="detail-live-ops-body">${ops}</div>
+      </div>
     </aside>`;
 }
 

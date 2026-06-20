@@ -4097,10 +4097,21 @@ button.briefing-row {
 
 .live-control-scroll {
   min-height: 0;
+  display: grid;
+  gap: 0.55rem;
 }
 
 .live-control-rail:empty {
   display: none;
+}
+
+.live-op-temp-panel {
+  display: grid;
+  gap: 0.62rem;
+  padding: 0.62rem;
+  border: 1px solid rgba(96,165,250,0.25);
+  border-radius: 0.7rem;
+  background: rgba(15,23,42,0.36);
 }
 
 .live-op-row {

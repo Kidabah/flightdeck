@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Mark stale active queue rows cancelled`
+- Latest commit: `Restore Live temperature controls`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=501 / style.css?v=392 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=502 / style.css?v=393 / demo-runtime.js?v=8
+
+### 2026-06-21 fix (Live temperature controls)
+
+**Restore Live temperature controls** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `app/static/demo.html`)
+Fixed a Live view regression introduced during the camera/control cleanup where `_detailTempsPanel()` still existed and refresh code still tried to update `#detail-temps`, but the full Live render no longer inserted that element anywhere. The nozzle/hotend and bed temperature controls now render at the top of the slide-out Controls rail, keeping the camera-first layout while restoring target editing and +/- nudges. Static cache bumped to `app.js?v=502` and `style.css?v=393`; frontend refresh required after deploy.
+  - Verification: `node --check app/static/app.js` passed. `git diff --check` passed with only the existing Windows CRLF warning.
 
 ### 2026-06-21 fix (Queue stale active row wording)
 
