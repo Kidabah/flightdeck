@@ -3915,6 +3915,8 @@ def queue_update_status(job_id: int, status: str, error_msg: Optional[str] = Non
             params.append(error_msg)
         if terminal:
             sets.append("finished_at = COALESCE(finished_at, datetime('now'))")
+        elif status == "uploading":
+            sets.append("started_at = COALESCE(started_at, datetime('now'))")
         params.append(job_id)
         c = conn.execute(
             f"UPDATE print_queue SET {', '.join(sets)} WHERE id = ?",

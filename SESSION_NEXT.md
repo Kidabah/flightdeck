@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Restore Live temperature controls`
+- Latest commit: `Debounce stale queue cleanup during Bambu starts`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=502 / style.css?v=393 / demo-runtime.js?v=8
+
+### 2026-06-21 fix (Queue start handoff debounce)
+
+**Debounce stale queue cleanup during Bambu starts** (`app/db.py`, `app/main.py`)
+Follow-up after H2D showed the stale active queue cleanup was still too eager: a freshly sent Bambu queue job could be marked cancelled/cleared while the printer still reported `idle` during the upload/AMS/prep handoff, then flip back to `printing` after the physical-start confirmer saw heat/progress. Queue rows now timestamp the `uploading` state, and stale active cleanup ignores fresh `printing/uploading` rows for an 8-minute grace window (`FLIGHTDECK_QUEUE_ACTIVE_STALE_GRACE_SECONDS`, default `480`). This restores the old smooth queue feel while still allowing genuinely old stuck active rows to be cleaned later. Backend/service restart required after deploy.
+  - Verification: `.venv\Scripts\python.exe -m py_compile app/db.py app/main.py` passed with the usual Windows Python `<prefix>` warning. `git diff --check` passed with only the existing Windows CRLF warning.
 
 ### 2026-06-21 fix (Live temperature controls)
 

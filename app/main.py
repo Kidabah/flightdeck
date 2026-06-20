@@ -73,6 +73,7 @@ _label_printer = LabelPrinter()
 _MAX_PRINT_FILE_BYTES = int(os.getenv("FLIGHTDECK_MAX_PRINT_FILE_MB", "2048")) * 1024 * 1024
 _MAX_PROFILE_UPLOAD_BYTES = int(os.getenv("FLIGHTDECK_MAX_PROFILE_UPLOAD_MB", "64")) * 1024 * 1024
 _MAX_FLIGHT_RECORDER_BYTES = int(os.getenv("FLIGHTDECK_MAX_FLIGHT_RECORDER_MB", "2048")) * 1024 * 1024
+_QUEUE_ACTIVE_STALE_GRACE_SECONDS = int(os.getenv("FLIGHTDECK_QUEUE_ACTIVE_STALE_GRACE_SECONDS", "480"))
 _UPLOAD_READ_CHUNK_BYTES = 1024 * 1024
 _BAMBU_FILE_LIST_TIMEOUT_SECONDS = float(os.getenv("FLIGHTDECK_BAMBU_FILE_LIST_TIMEOUT", "2.5"))
 _FILE_DESK_TARGET_CACHE_SECONDS = float(os.getenv("FLIGHTDECK_FILE_DESK_TARGET_CACHE_SECONDS", "20"))
@@ -8006,6 +8007,19 @@ def _queue_printer_error(status: Optional[dict]) -> str:
     return ""
 
 
+def _queue_active_age_seconds(job: dict) -> Optional[float]:
+    raw = job.get("started_at") or job.get("created_at")
+    if not raw:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return max(0.0, (datetime.utcnow() - dt).total_seconds())
+
+
 def _reconcile_queue_active_state(jobs: list[dict], statuses: dict[str, dict]) -> bool:
     changed = False
     active_by_printer: dict[str, list[dict]] = {}
@@ -8020,6 +8034,12 @@ def _reconcile_queue_active_state(jobs: list[dict], statuses: dict[str, dict]) -
             continue
         state = str((statuses.get(printer_id) or {}).get("state") or "").lower()
         if state in {"idle", "ready", "standby", "finished", "cancelled", "failed"}:
+            ages = [
+                age for age in (_queue_active_age_seconds(row) for row in active)
+                if age is not None
+            ]
+            if ages and min(ages) < _QUEUE_ACTIVE_STALE_GRACE_SECONDS:
+                continue
             detail = f"Printer is {state or 'not printing'}; stale active queue job cleared"
             cleared = db.queue_cancel_active(
                 printer_id,
