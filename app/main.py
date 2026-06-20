@@ -2863,7 +2863,9 @@ class AmsFilamentActionRequest(BaseModel):
 
 @app.post("/api/printers/{printer_id}/set-temp")
 async def set_printer_temp(printer_id: str, req: SetTempRequest):
-    if req.heater not in ("hotend", "bed", "chamber"):
+    heater = req.heater
+    command_heater = "hotend" if heater in ("hotend_l", "hotend_r") else heater
+    if command_heater not in ("hotend", "bed", "chamber"):
         raise HTTPException(status_code=400, detail="invalid heater")
     if not (0 <= req.target <= 350):
         raise HTTPException(status_code=400, detail="target out of range (0-350)")
@@ -2871,14 +2873,14 @@ async def set_printer_temp(printer_id: str, req: SetTempRequest):
     for (id, model_name, custom_name, icon, url, _kind, _toolhead_count) in _moonraker:
         if id == printer_id:
             try:
-                await moonraker.set_temp(url, req.heater, req.target)
+                await moonraker.set_temp(url, command_heater, req.target)
             except Exception as exc:
                 raise HTTPException(status_code=502, detail=str(exc))
             return {"ok": True}
 
     for p in _bambu:
         if p.id == printer_id:
-            await asyncio.to_thread(p.set_temp, req.heater, req.target)
+            await asyncio.to_thread(p.set_temp, command_heater, req.target)
             return {"ok": True}
 
     for (id, *_) in _simulated:

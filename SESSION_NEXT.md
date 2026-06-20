@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Debounce stale queue cleanup during Bambu starts`
+- Latest commit: `Compact Live controls drawer`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=502 / style.css?v=393 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=503 / style.css?v=394 / demo-runtime.js?v=8
+
+### 2026-06-21 polish (Compact Live controls drawer)
+
+**Compact Live controls drawer** (`app/main.py`, `app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `app/static/demo.html`)
+Polished the Live slide-out controls after the restored temperature panel made the drawer too tall. Preheat presets now prefer the common material order and show up to eight presets plus Cool in a compact 3-column grid, so PETG appears when configured. Temperature rows are shorter and use clickable nozzle/bed readouts with the existing keypad popup; the +/- nudge buttons were removed. H2D-style `hotend_l`/`hotend_r` readouts now open the same temperature popup and are accepted by the backend by mapping to the Bambu hotend temperature command. Static cache bumped to `app.js?v=503` and `style.css?v=394`; backend/service restart plus browser refresh required after deploy.
+  - Verification: `.venv\Scripts\python.exe -m py_compile app/main.py` passed with the usual Windows Python `<prefix>` warning. `node --check app/static/app.js` passed. `git diff --check` passed with only the existing Windows CRLF warning.
 
 ### 2026-06-21 fix (Queue start handoff debounce)
 

@@ -2012,9 +2012,16 @@ function _preheatPresets(p) {
   const presets = p.temperature_presets || {};
   const hotend = Object.fromEntries((presets.hotend || []).map(row => [row.label, row.value]));
   const bed = Object.fromEntries((presets.bed || []).map(row => [row.label, row.value]));
+  const preferred = ['PLA', 'PETG', 'ASA', 'ABS', 'TPU', 'PA', 'PC', 'PVA'];
   return Object.keys(hotend)
     .filter(label => bed[label] != null)
-    .slice(0, 5)
+    .sort((a, b) => {
+      const ai = preferred.indexOf(String(a).toUpperCase());
+      const bi = preferred.indexOf(String(b).toUpperCase());
+      if (ai !== -1 || bi !== -1) return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+      return String(a).localeCompare(String(b));
+    })
+    .slice(0, 8)
     .map(label => ({ label, hotend: Number(hotend[label]), bed: Number(bed[label]) }))
     .filter(row => Number.isFinite(row.hotend) && Number.isFinite(row.bed));
 }
@@ -2027,16 +2034,22 @@ function _detailLiveOps(p) {
   const canJog = (isMoonraker || isBambu) && !['offline', 'printing', 'finished', 'error', 'estop'].includes(p.state || '');
   const canHome = (isMoonraker || isBambu) && !['offline', 'printing', 'paused', 'finished', 'error', 'estop'].includes(p.state || '');
   const presets = _preheatPresets(p);
-  const preheatButtons = presets.map(row => `<button class="live-op-btn" type="button"
+  const preheatButtons = presets.map(row => `<button class="live-op-btn live-op-preheat-btn" type="button"
       data-preheat data-printer-id="${esc(p.id)}" data-material="${esc(row.label)}"
       data-hotend="${row.hotend}" data-bed="${row.bed}" ${canPreheat ? '' : 'disabled'}>
       <span>${esc(row.label)}</span><small>${row.hotend}/${row.bed}°</small>
     </button>`).join('');
-  const cooldown = `<button class="live-op-btn live-op-muted" type="button"
+  const cooldown = `<button class="live-op-btn live-op-muted live-op-preheat-btn" type="button"
       data-preheat data-printer-id="${esc(p.id)}" data-material="Cooldown"
       data-hotend="0" data-bed="0" ${canPreheat ? '' : 'disabled'}>
       <span>Cool</span><small>0/0°</small>
     </button>`;
+  const preheat = (preheatButtons || presets.length)
+    ? `<div class="live-op-group live-op-preheats" aria-label="Preheat presets">
+        <span class="live-op-group-label">Preheat</span>
+        ${preheatButtons}${cooldown}
+      </div>`
+    : '';
   const klipper = _isMoonrakerFamily(p) && p.klipper_ui_url
     ? `<a class="live-op-btn live-op-link" href="${esc(p.klipper_ui_url)}" target="_blank" rel="noreferrer">
         <span>Klipper</span><small>Mainsail / Fluidd</small>
@@ -2115,7 +2128,7 @@ function _detailLiveOps(p) {
         </button>`).join('')}
       </div>`
     : '';
-  const controls = [preheatButtons, presets.length ? cooldown : '', fan, jog, home, klipper].filter(Boolean).join('');
+  const controls = [preheat, fan, jog, home, klipper].filter(Boolean).join('');
   if (!controls) return '';
   return `<div class="live-op-row" aria-label="Live printer shortcuts">${controls}</div>`;
 }
@@ -2444,7 +2457,7 @@ document.getElementById('view-printer').addEventListener('click', e => {
       label: _TEMP_LABELS[heater] ?? heater,
       current: r.actual,
       target: _getDisplayTarget(id, heater, r.target),
-      presets: p.temperature_presets?.[heater] ?? [],
+      presets: p.temperature_presets?.[heater] ?? (heater.startsWith('hotend') ? p.temperature_presets?.hotend : []) ?? [],
       max: 300,
     });
   }
@@ -3658,7 +3671,7 @@ function _detailPrintPanel(p) {
     `<div class="detail-row"><span class="detail-label">ETA</span><span class="detail-value eta-row">${etaValue}</span></div>`;
 }
 
-const _TEMP_CTRL_HEATERS = new Set(['hotend', 'bed']);
+const _TEMP_CTRL_HEATERS = new Set(['hotend', 'hotend_l', 'hotend_r', 'bed']);
 const _TEMP_LABELS = { hotend: 'Hotend', hotend_l: 'Left', hotend_r: 'Right', bed: 'Bed', chamber: 'Chamber' };
 
 function _getDisplayTarget(id, heater, wsTarget) {
@@ -3693,18 +3706,14 @@ function _detailTempsPanel(p) {
 
     const targetHtml = targetC > 0
       ? `<span class="temp-sep">/</span>
-         <span class="temp-target-val" data-temp-edit="${k}" data-printer-id="${p.id}">${_toDisplayTemp(targetC)}${unit}</span>`
-      : `<span class="temp-sep" style="font-size:0.75rem">off</span>`;
+         <span class="temp-target-val">${_toDisplayTemp(targetC)}${unit}</span>`
+      : `<span class="temp-target-val temp-target-off">off</span>`;
 
     return `<div class="temp-ctrl-row">
       <span class="temp-row-label">${label}</span>
       <div class="temp-readings" data-temp-edit="${k}" data-printer-id="${p.id}" style="cursor:pointer">
         <span class="temp-actual${cls}">${actual}${unit}</span>
         ${targetHtml}
-      </div>
-      <div class="temp-nudge">
-        <button class="temp-btn" data-temp-action="dec" data-heater="${k}" data-printer-id="${p.id}" data-target="${Math.round(targetC)}">−</button>
-        <button class="temp-btn" data-temp-action="inc" data-heater="${k}" data-printer-id="${p.id}" data-target="${Math.round(targetC)}">+</button>
       </div>
     </div>`;
   }).join('');
