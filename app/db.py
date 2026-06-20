@@ -582,9 +582,17 @@ def repair_print_filament_metadata_from_relay(print_id: int) -> Optional[dict]:
                 name = name[: -len(suffix)]
         return name
 
+    def _parse_ts(value: str | None) -> Optional[datetime]:
+        if not value:
+            return None
+        try:
+            return datetime.fromisoformat(str(value).replace("Z", "+00:00")).replace(tzinfo=None)
+        except Exception:
+            return None
+
     with _conn() as conn:
         row = conn.execute(
-            """SELECT id, printer_id, filename, subtask_name, started_at,
+            """SELECT id, printer_id, filename, subtask_name, started_at, ended_at,
                       filament_grams, material
                FROM prints
                WHERE id = ?""",
@@ -607,6 +615,9 @@ def repair_print_filament_metadata_from_relay(print_id: int) -> Optional[dict]:
         ).fetchall()
 
         match = None
+        fallback_candidates = []
+        start_ts = _parse_ts(row["started_at"])
+        end_ts = _parse_ts(row["ended_at"])
         for decision in decisions:
             try:
                 payload = json.loads(decision["detail"] or "{}")
@@ -622,15 +633,27 @@ def repair_print_filament_metadata_from_relay(print_id: int) -> Optional[dict]:
             if not grams or grams <= 0:
                 continue
             file_key = _key(payload.get("file"))
-            if wanted and file_key not in wanted:
-                continue
-            match = {
+            candidate = {
                 "filament_grams": grams,
                 "material": (payload.get("filament_type") or row["material"] or None),
                 "source_file": payload.get("file"),
                 "logged_at": decision["logged_at"],
             }
-            break
+            if wanted and file_key in wanted:
+                match = candidate
+                break
+            logged_ts = _parse_ts(decision["logged_at"])
+            if start_ts and logged_ts:
+                before_start = (start_ts - logged_ts).total_seconds()
+                within_print = end_ts is not None and start_ts <= logged_ts <= end_ts
+                if 0 <= before_start <= 7200 or within_print:
+                    fallback_candidates.append((abs(before_start), candidate))
+            elif not wanted:
+                fallback_candidates.append((0, candidate))
+
+        if not match and fallback_candidates:
+            fallback_candidates.sort(key=lambda item: item[0])
+            match = fallback_candidates[0][1]
 
         if not match:
             return {"error": "metadata_not_found"}

@@ -5062,6 +5062,7 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
             </span>
             <span class="print-spool-actions">
               <button class="print-filament-repair" data-print-id="${print.id}">Recover grams</button>
+              <button class="print-spool-assign" data-print-id="${print.id}">Assign manually</button>
             </span>
           </div>
         </div>`

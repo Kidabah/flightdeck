@@ -2,13 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Persist Bambu relay filament metadata`
+- Latest commit: `Loosen relay filament metadata recovery`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=497 / style.css?v=392 / demo-runtime.js?v=8
 
 ### 2026-06-20 fix (Bambu finish spool deduction fallback)
+
+**Loosen relay filament metadata recovery** (`app/db.py`, `app/static/app.js`, `app/static/index.html`, `app/static/demo.html`)
+Follow-up after live History repair on BigBoy's completed direct-slicer print showed `Recovery failed: No matching relay filament metadata found`. This was not caused by swapping filament; it means the existing repair lookup could not match the print's `plate_1.gcode`/subtask name to a stored relay upload entry. The recovery helper now tries exact file/subtask matching first, then falls back to the nearest relay upload for the same printer within two hours before print start or during the print. The History missing-metadata row also exposes `Assign manually` next to `Recover grams`, so an old print can still be repaired by choosing a spool and typing grams even if no relay log exists. Static cache bumped to `app.js?v=499`; backend/service restart required after deploy.
+  - Verification: `python -m py_compile app/db.py app/main.py` passed with the usual Windows Python `<prefix>` warning. `node --check app/static/app.js` passed. Temp-DB smoke confirmed a `plate_1.gcode` finished print can recover `42.5g PLA` from a nearby differently named relay upload. `git diff --check` passed with only the existing Windows CRLF warnings.
 
 **Persist and recover Bambu relay filament metadata** (`app/relay.py`, `app/printers/bambu.py`, `app/db.py`, `app/main.py`, `app/static/app.js`, `app/static/index.html`, `app/static/demo.html`)
 Fixed the direct-slicer-to-Flightdeck path where a print sent straight from Orca/Bambu Studio via the Flightdeck relay could complete without filament/cost accounting, while the same file worked correctly when dropped into the Queue. Root cause: Queue uploads persist parsed 3MF metadata in `print_queue`, but relay uploads only kept it in memory and only seeded the Bambu preview cache if the preview image existed. Relay uploads now seed the preview cache whenever parsed metadata exists, and the Bambu status path writes that metadata onto the print row as soon as the print starts. History also gets a recovery button for older affected prints with no filament grams: `Recover grams` looks up the matching `relay_upload` decision, restores `filament_grams/material`, then the existing `Assign spool` action can deduct from the correct spool. Static cache bumped to `app.js?v=498`; backend/service restart required after deploy.
