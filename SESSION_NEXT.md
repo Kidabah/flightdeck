@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Prefer hot H2D toolhead on Fleet Wall`
+- Latest commit: `Make spool action menu readable`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=509 / style.css?v=398 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=509 / style.css?v=399 / demo-runtime.js?v=8
+
+### 2026-06-21 polish (Spool card action menu)
+
+**Make spool action menu readable** (`app/static/style.css`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+Polished the spool card `Actions` popover after the menu proved impossible to read on the compact card grid, especially when it opened over neighbouring colour bands. Open spool cards now rise above the grid, the action menu has an opaque dark surface with stronger border/shadow, and menu rows use full-width high-contrast button styling with clearer danger-state treatment. Static cache bumped to `style.css?v=399`; frontend refresh required.
+  - Verification: `git diff --check` passed with only the existing Windows CRLF warning.
 
 ### 2026-06-21 fix (Fleet Wall active H2D hotend)
 
