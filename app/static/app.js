@@ -6129,6 +6129,176 @@ function _spoolActivityRow(row) {
   </div>`;
 }
 
+function _spoolDestinationSlotOptions(printer, selectedSlot = null) {
+  if (!printer) return '<option value="">Select printer first</option>';
+  const kind = printer.kind || 'bambu';
+  if (kind !== 'bambu') {
+    const mmuUnit = printer.mmu?.[0];
+    if (mmuUnit?.num_gates > 1) {
+      return Array.from({ length: mmuUnit.num_gates }, (_, i) => {
+        const gate = mmuUnit.gates?.[i];
+        const label = gate?.material ? `T${i} · ${gate.material}` : `T${i}`;
+        return `<option value="${i}"${Number(selectedSlot) === i ? ' selected' : ''}>${esc(label)}</option>`;
+      }).join('');
+    }
+    return `<option value="0"${Number(selectedSlot) === 0 ? ' selected' : ''}>Single extruder</option>`;
+  }
+  const units = printer.ams;
+  if (units?.length) {
+    const opts = [];
+    for (const unit of units) {
+      for (const slot of unit.slots) {
+        const flatIdx = _amsFlatSlot(unit, slot);
+        const label = unit.slots.length === 1
+          ? unit.label
+          : `${unit.label} · Slot ${slot.idx + 1}`;
+        opts.push(`<option value="${flatIdx}"${Number(selectedSlot) === flatIdx ? ' selected' : ''}>${esc(label)}</option>`);
+      }
+    }
+    return opts.join('');
+  }
+  return [0, 1, 2, 3].map(i =>
+    `<option value="${i}"${Number(selectedSlot) === i ? ' selected' : ''}>Slot ${i + 1}</option>`
+  ).join('');
+}
+
+function _spoolDestinationPanel(data) {
+  const loaded = !!data.location_printer_id;
+  const currentPrinter = _latestPrinters.find(p => p.id === data.location_printer_id);
+  const selectedPrinter = currentPrinter || _latestPrinters[0];
+  const printerOptions = (_latestPrinters || []).map(p =>
+    `<option value="${esc(p.id)}"${selectedPrinter?.id === p.id ? ' selected' : ''}>${esc(p.custom_name || p.model_name || p.id)}</option>`
+  ).join('');
+  const storageOptions = (_spoolLocations.length ? _spoolLocations : [{ id: '', name: 'Storage' }]).map(loc =>
+    `<option value="${esc(loc.id ?? '')}"${String(data.storage_location_id ?? '') === String(loc.id ?? '') ? ' selected' : ''}>${esc(loc.name || 'Storage')}</option>`
+  ).join('');
+  const slotOptions = _spoolDestinationSlotOptions(selectedPrinter, data.location_slot);
+  return `<section class="spool-quick-assign" data-spool-assign data-spool-id="${data.id}">
+    <div class="spool-quick-head">
+      <div>
+        <span>QR quick move</span>
+        <strong>Assign this spool</strong>
+      </div>
+      <small>${esc(_spoolLocationText(data))}</small>
+    </div>
+    <div class="spool-quick-mode">
+      <label class="${loaded ? '' : 'active'}">
+        <input type="radio" name="spool-assign-mode-${data.id}" value="storage"${loaded ? '' : ' checked'}>
+        Storage
+      </label>
+      <label class="${loaded ? 'active' : ''}">
+        <input type="radio" name="spool-assign-mode-${data.id}" value="loaded"${loaded ? ' checked' : ''}>
+        Printer slot
+      </label>
+    </div>
+    <div class="spool-quick-fields">
+      <div class="spool-quick-storage${loaded ? ' hidden' : ''}">
+        <label>Storage location</label>
+        <select data-spool-assign-storage>${storageOptions}</select>
+      </div>
+      <div class="spool-quick-loaded${loaded ? '' : ' hidden'}">
+        <label>Printer</label>
+        <select data-spool-assign-printer>${printerOptions || '<option value="">No printers configured</option>'}</select>
+        <label>Slot</label>
+        <select data-spool-assign-slot>${slotOptions}</select>
+      </div>
+      <label class="spool-quick-replace">
+        <input type="checkbox" data-spool-assign-replace checked>
+        Replace spool already assigned to that slot
+      </label>
+    </div>
+    <div class="spool-quick-actions">
+      <button type="button" data-spool-assign-submit>Assign spool</button>
+      <a href="#/spools?filter=loaded">Loaded spools</a>
+    </div>
+    <div class="spool-quick-result" data-spool-assign-result></div>
+  </section>`;
+}
+
+function _attachSpoolQuickAssign(root, spoolId) {
+  const panel = root.querySelector('[data-spool-assign]');
+  if (!panel) return;
+  const storageBlock = panel.querySelector('.spool-quick-storage');
+  const loadedBlock = panel.querySelector('.spool-quick-loaded');
+  const printerSel = panel.querySelector('[data-spool-assign-printer]');
+  const slotSel = panel.querySelector('[data-spool-assign-slot]');
+  const storageSel = panel.querySelector('[data-spool-assign-storage]');
+  const resultEl = panel.querySelector('[data-spool-assign-result]');
+  const replaceBox = panel.querySelector('[data-spool-assign-replace]');
+
+  const selectedMode = () => panel.querySelector('input[name^="spool-assign-mode-"]:checked')?.value || 'storage';
+  const refreshMode = () => {
+    const loaded = selectedMode() === 'loaded';
+    storageBlock?.classList.toggle('hidden', loaded);
+    loadedBlock?.classList.toggle('hidden', !loaded);
+    panel.querySelectorAll('.spool-quick-mode label').forEach(label => {
+      label.classList.toggle('active', label.querySelector('input')?.checked);
+    });
+  };
+  const refreshSlots = () => {
+    const printer = _latestPrinters.find(p => p.id === printerSel?.value);
+    if (slotSel) slotSel.innerHTML = _spoolDestinationSlotOptions(printer);
+  };
+
+  panel.querySelectorAll('input[name^="spool-assign-mode-"]').forEach(input => {
+    input.addEventListener('change', refreshMode);
+  });
+  printerSel?.addEventListener('change', refreshSlots);
+
+  panel.querySelector('[data-spool-assign-submit]')?.addEventListener('click', async e => {
+    const btn = e.currentTarget;
+    const mode = selectedMode();
+    const printer = _latestPrinters.find(p => p.id === printerSel?.value);
+    const slotLabel = mode === 'loaded' ? (slotSel?.options[slotSel.selectedIndex]?.textContent || 'Slot') : '';
+    btn.disabled = true;
+    const old = btn.textContent;
+    btn.textContent = 'Assigning';
+    if (resultEl) resultEl.textContent = '';
+    try {
+      if (mode === 'loaded' && (!printerSel?.value || slotSel?.value === '')) {
+        throw new Error('Choose a printer and slot first');
+      }
+      const body = mode === 'loaded'
+        ? {
+            printer_id: printerSel.value,
+            slot: Number(slotSel.value),
+            storage_location_id: null,
+            replace_existing: !!replaceBox?.checked,
+            sync_ams: true,
+          }
+        : {
+            printer_id: null,
+            slot: null,
+            storage_location_id: storageSel?.value ? Number(storageSel.value) : null,
+          };
+      const r = await fetch(`/api/spools/${spoolId}/move`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const payload = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(_spoolConflictMessage(payload) || 'Unable to assign spool');
+      if (mode === 'loaded') {
+        _spoolMoveSyncToast(payload, printer?.custom_name || printerSel.value, slotLabel);
+      } else {
+        showToast('Spool moved', storageSel?.options[storageSel.selectedIndex]?.textContent || 'Storage', 'success');
+      }
+      if (payload.replaced_spool_id && resultEl) {
+        resultEl.textContent = `Replaced spool #${payload.replaced_spool_id}; it is now unassigned.`;
+        showToast('Slot assignment replaced', `Spool #${payload.replaced_spool_id} was unassigned.`, 'warning');
+      }
+      await _refreshSpoolsByPrinter();
+      await renderSpoolDetail(spoolId);
+    } catch (err) {
+      if (resultEl) resultEl.textContent = err?.message || 'Unable to assign spool';
+      showToast('Spool assignment failed', err?.message || '', 'error');
+      btn.disabled = false;
+      btn.textContent = old;
+    }
+  });
+  refreshMode();
+}
+
 async function renderSpoolDetail(spoolId) {
   const el = document.getElementById('spool-detail');
   if (!el) return;
@@ -6136,12 +6306,14 @@ async function renderSpoolDetail(spoolId) {
 
   let data = null;
   try {
-    const [r, locs] = await Promise.all([
+    const [r, locs, printers] = await Promise.all([
       fetch(`/api/spools/${spoolId}/trace`),
       _spoolLocations.length ? Promise.resolve(null) : fetch('/api/spool-locations').catch(() => null),
+      _latestPrinters.length ? Promise.resolve(null) : fetch('/api/printers').catch(() => null),
     ]);
     if (r.ok) data = await r.json();
     if (locs?.ok) _spoolLocations = await locs.json();
+    if (printers?.ok) _latestPrinters = await printers.json();
   } catch {}
 
   if (!data) {
@@ -6209,6 +6381,7 @@ async function renderSpoolDetail(spoolId) {
       </div>
       ${data.notes ? `<div class="spool-detail-notes">${esc(data.notes)}</div>` : ''}
     </section>
+    ${_spoolDestinationPanel(data)}
     <section class="spool-trace-panel">
       <div class="history-day-header">AMS / Shelf Activity</div>
       ${activity.length ? activity.map(_spoolActivityRow).join('') : '<div class="print-empty">No spool activity recorded yet.</div>'}
@@ -6218,6 +6391,7 @@ async function renderSpoolDetail(spoolId) {
       ${trace.length ? trace.map(_spoolTraceRow).join('') : '<div class="print-empty">No print usage recorded for this spool yet.</div>'}
     </section>
   </div>`;
+  _attachSpoolQuickAssign(el, data.id);
 }
 
 // ── Failure review ────────────────────────────────────────────────────────

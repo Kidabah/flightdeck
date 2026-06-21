@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Compact Live controls drawer`
+- Latest commit: `Add QR spool quick assignment`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=503 / style.css?v=394 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=504 / style.css?v=395 / demo-runtime.js?v=8
+
+### 2026-06-21 feature (QR spool quick assignment)
+
+**Add QR spool quick assignment** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `app/static/demo.html`)
+Added the first pass of the scan-to-assign workflow for Steve/staff testing. Existing spool label QR codes already open `#/spool/{id}`; that detail page now includes a mobile-friendly `QR quick move` panel that shows the scanned spool and lets the operator move it to a storage location or pre-assign it to a printer AMS/MMU slot. Printer slots are generated from the live printer model, including Bambu AMS/AMS HT flat slots. Assignment uses the existing `/api/spools/{id}/move` endpoint, can replace an already assigned spool in the destination slot, and requests AMS profile sync when assigning to a printer slot. Static cache bumped to `app.js?v=504` and `style.css?v=395`; frontend refresh required after deploy.
+  - Verification: `node --check app/static/app.js` passed. `git diff --check` passed with only the existing Windows CRLF warning.
 
 ### 2026-06-21 polish (Compact Live controls drawer)
 
