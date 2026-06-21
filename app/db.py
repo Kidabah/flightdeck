@@ -2921,6 +2921,33 @@ def get_spool_trace(spool_id: int) -> Optional[dict]:
     return spool
 
 
+def _auto_archive_empty_spool(conn: sqlite3.Connection, spool_id: int) -> bool:
+    row = conn.execute(
+        "SELECT remaining_g, archived_at FROM spools WHERE id = ?",
+        (spool_id,),
+    ).fetchone()
+    if not row or row["archived_at"] is not None:
+        return False
+    try:
+        remaining = float(row["remaining_g"] or 0)
+    except (TypeError, ValueError):
+        return False
+    if remaining > 0.005:
+        return False
+    c = conn.execute(
+        """UPDATE spools
+           SET archived_at = CURRENT_TIMESTAMP,
+               location_printer_id = NULL,
+               location_slot = NULL,
+               storage_location_id = NULL,
+               home_storage_location_id = NULL,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = ? AND archived_at IS NULL""",
+        (spool_id,),
+    )
+    return c.rowcount > 0
+
+
 def update_spool(spool_id: int, **fields) -> bool:
     allowed = {"material", "brand", "subtype", "color_hex", "color_name", "color_hex_2", "color_hex_3", "color_scheme",
                "label_weight_g", "remaining_g", "empty_spool_weight_g", "notes"}
@@ -2934,8 +2961,13 @@ def update_spool(spool_id: int, **fields) -> bool:
         return False
     cols = ", ".join(f"{k} = ?" for k in updates)
     vals = list(updates.values()) + [spool_id]
+    archived_empty = False
     with _conn() as conn:
         c = conn.execute(f"UPDATE spools SET {cols} WHERE id = ?", vals)
+        if c.rowcount and "remaining_g" in updates:
+            archived_empty = _auto_archive_empty_spool(conn, spool_id)
+    if archived_empty:
+        log_decision("system", "spool_auto_archived_empty", f"Spool #{spool_id} archived after remaining weight reached 0g")
     return c.rowcount > 0
 
 
@@ -2990,13 +3022,18 @@ def correct_spool_weight(
         updates["empty_spool_weight_g"] = float(empty_spool_weight_g)
     cols = ", ".join(f"{k} = ?" for k in updates)
     vals = list(updates.values()) + [spool_id]
+    archived_empty = False
     with _conn() as conn:
         c = conn.execute(f"UPDATE spools SET {cols} WHERE id = ?", vals)
+        if c.rowcount:
+            archived_empty = _auto_archive_empty_spool(conn, spool_id)
     if c.rowcount:
         detail = f"Spool #{spool_id} corrected to {updates['remaining_g']:.1f}g"
         if reading_g is not None:
             detail += f" from scale reading {float(reading_g):.1f}g"
         log_decision("system", "spool_weight_corrected", detail)
+        if archived_empty:
+            log_decision("system", "spool_auto_archived_empty", f"Spool #{spool_id} archived after weight correction reached 0g")
     return c.rowcount > 0
 
 
@@ -3088,13 +3125,67 @@ def update_spool_location(location_id: int, name: str, notes: Optional[str] = No
     return c.rowcount > 0
 
 
-def archive_spool_location(location_id: int) -> bool:
+def get_spool_location_usage(location_id: int) -> dict:
     with _conn() as conn:
+        loc = conn.execute(
+            "SELECT id, name FROM spool_locations WHERE id = ? AND archived_at IS NULL",
+            (location_id,),
+        ).fetchone()
+        active_stored = conn.execute(
+            """SELECT COUNT(*) AS n FROM spools
+               WHERE storage_location_id = ?
+                 AND location_printer_id IS NULL
+                 AND archived_at IS NULL""",
+            (location_id,),
+        ).fetchone()["n"]
+        active_home = conn.execute(
+            """SELECT COUNT(*) AS n FROM spools
+               WHERE home_storage_location_id = ?
+                 AND archived_at IS NULL""",
+            (location_id,),
+        ).fetchone()["n"]
+    return {
+        "exists": bool(loc),
+        "name": loc["name"] if loc else None,
+        "active_stored_count": int(active_stored or 0),
+        "active_home_count": int(active_home or 0),
+    }
+
+
+def archive_spool_location(location_id: int, archive_spools: bool = False) -> bool:
+    archived_spool_ids: list[int] = []
+    with _conn() as conn:
+        loc = conn.execute(
+            "SELECT name FROM spool_locations WHERE id = ? AND archived_at IS NULL",
+            (location_id,),
+        ).fetchone()
         c = conn.execute(
             "UPDATE spool_locations SET archived_at = CURRENT_TIMESTAMP WHERE id = ? AND archived_at IS NULL",
             (location_id,),
         )
         if c.rowcount:
+            if archive_spools:
+                archived_spool_ids = [
+                    int(r["id"])
+                    for r in conn.execute(
+                        """SELECT id FROM spools
+                           WHERE storage_location_id = ?
+                             AND location_printer_id IS NULL
+                             AND archived_at IS NULL""",
+                        (location_id,),
+                    ).fetchall()
+                ]
+                conn.execute(
+                    """UPDATE spools
+                       SET archived_at = CURRENT_TIMESTAMP,
+                           storage_location_id = NULL,
+                           home_storage_location_id = NULL,
+                           updated_at = CURRENT_TIMESTAMP
+                       WHERE storage_location_id = ?
+                         AND location_printer_id IS NULL
+                         AND archived_at IS NULL""",
+                    (location_id,),
+                )
             conn.execute(
                 "UPDATE spools SET storage_location_id = NULL WHERE storage_location_id = ?",
                 (location_id,),
@@ -3103,7 +3194,17 @@ def archive_spool_location(location_id: int) -> bool:
                 "UPDATE spools SET home_storage_location_id = NULL WHERE home_storage_location_id = ?",
                 (location_id,),
             )
-    return c.rowcount > 0
+    ok = c.rowcount > 0
+    if ok:
+        name = loc["name"] if loc else f"#{location_id}"
+        log_decision("system", "spool_location_archived", f"Storage location {name} archived")
+        if archived_spool_ids:
+            log_decision(
+                "system",
+                "spools_archived_with_location",
+                f"Archived {len(archived_spool_ids)} stored spool(s) with location {name}",
+            )
+    return ok
 
 
 def get_spools_summary() -> dict:
@@ -3541,6 +3642,7 @@ def _deduct_spool_usage_to_target(
 
     with _conn() as conn:
         decision_logs = []
+        auto_archived_spool_ids: set[int] = set()
         for slot, grams in slot_grams.items():
             spool_id = spool_id_map[slot]
             target_grams = round(float(grams) * target_ratio, 4)
@@ -3561,6 +3663,8 @@ def _deduct_spool_usage_to_target(
             old_r = cur["remaining_g"]
             new_r = max(0.0, old_r - delta)
             conn.execute("UPDATE spools SET remaining_g = ? WHERE id = ?", (new_r, spool_id))
+            if _auto_archive_empty_spool(conn, spool_id):
+                auto_archived_spool_ids.add(int(spool_id))
             if existing:
                 usage = existing
                 usage["grams"] = round(already + delta, 2)
@@ -3596,6 +3700,8 @@ def _deduct_spool_usage_to_target(
                 decision_logs.append((event,
                                       f"Spool #{spool_id} slot {slot}: {delta:.1f}g deducted{progress_note} "
                                       f"({old_r:.1f}g -> {new_r:.1f}g)"))
+            if int(spool_id) in auto_archived_spool_ids:
+                decision_logs.append(("spool_auto_archived_empty", f"Spool #{spool_id} archived after remaining weight reached 0g"))
 
         if target_ratio >= 1.0:
             for slot in slots_without:
@@ -3772,6 +3878,7 @@ def reconcile_spool_usage(
             vals.append(float(empty_spool_weight_g))
         vals.append(spool_id)
         conn.execute(f"UPDATE spools SET {', '.join(updates)} WHERE id = ?", vals)
+        archived_empty = _auto_archive_empty_spool(conn, spool_id)
         conn.execute(
             "UPDATE prints SET spool_usage = ? WHERE id = ?",
             (json.dumps(usage), print_id),
@@ -3786,6 +3893,8 @@ def reconcile_spool_usage(
     if restored:
         detail += f", restored {len(restored)} other spool(s)"
     log_decision(prow["printer_id"], "spool_reconciled", detail, print_id=print_id)
+    if archived_empty:
+        log_decision(prow["printer_id"], "spool_auto_archived_empty", f"Spool #{spool_id} archived after reconcile reached 0g", print_id=print_id)
     return {
         "spool_id": spool_id,
         "remaining_g": round(actual_remaining, 1),
@@ -3864,6 +3973,7 @@ def correct_print_spool_attribution(
             "UPDATE spools SET remaining_g = ? WHERE id = ?",
             (new_remaining, to_spool_id),
         )
+        archived_empty = _auto_archive_empty_spool(conn, to_spool_id)
 
         if move_grams >= recorded - 0.005:
             usage = [entry for entry in usage if entry is not source]
@@ -3901,6 +4011,8 @@ def correct_print_spool_attribution(
     if note:
         detail += f" - {note.strip()[:120]}"
     log_decision(prow["printer_id"], "spool_usage_corrected", detail, print_id=print_id)
+    if archived_empty:
+        log_decision(prow["printer_id"], "spool_auto_archived_empty", f"Spool #{to_spool_id} archived after corrected deduction reached 0g", print_id=print_id)
     return {
         "from_spool_id": int(from_spool_id),
         "to_spool_id": int(to_spool_id),
@@ -3954,6 +4066,7 @@ def assign_print_spool_usage(
 
         old_r = float(spool["remaining_g"] or 0)
         new_r = max(0.0, old_r - deduct_g)
+        archived_empty = False
         usage = {
             "spool_id": int(spool_id),
             "grams": deduct_g,
@@ -3968,6 +4081,7 @@ def assign_print_spool_usage(
             "assignment_note": (note or "").strip()[:200],
         }
         conn.execute("UPDATE spools SET remaining_g = ? WHERE id = ?", (new_r, spool_id))
+        archived_empty = _auto_archive_empty_spool(conn, spool_id)
         conn.execute(
             "UPDATE prints SET spool_usage = ? WHERE id = ?",
             (json.dumps([usage]), print_id),
@@ -3980,6 +4094,8 @@ def assign_print_spool_usage(
     if note:
         detail += f" - {note.strip()[:120]}"
     log_decision(prow["printer_id"], "spool_usage_assigned_after_print", detail, print_id=print_id)
+    if archived_empty:
+        log_decision(prow["printer_id"], "spool_auto_archived_empty", f"Spool #{spool_id} archived after assigned print reached 0g", print_id=print_id)
     if old_r - deduct_g < 0:
         log_decision(
             prow["printer_id"],

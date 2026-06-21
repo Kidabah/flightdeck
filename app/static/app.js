@@ -3496,6 +3496,28 @@ function _h2dNozzleActivity(p) {
   };
 }
 
+function _activeHotendReading(p) {
+  const temps = p?.temps || {};
+  if (!_isH2dPrinter(p)) return temps.hotend || temps.hotend_l || temps.hotend_r || {};
+  const units = _asList(p?.ams);
+  for (const unit of units) {
+    const slots = _asList(unit?.slots);
+    if (slots.some(slot => slot && !slot.empty && slot.active)) {
+      return _isAmsHtUnit(unit) ? (temps.hotend_r || temps.hotend || {}) : (temps.hotend_l || temps.hotend || {});
+    }
+  }
+  const nozzles = _h2dNozzleActivity(p);
+  if (nozzles.right && !nozzles.left) return temps.hotend_r || temps.hotend || {};
+  if (nozzles.left && !nozzles.right) return temps.hotend_l || temps.hotend || {};
+  const left = temps.hotend_l || {};
+  const right = temps.hotend_r || {};
+  const leftActual = Number(left.actual ?? -1);
+  const rightActual = Number(right.actual ?? -1);
+  if (rightActual > leftActual) return right;
+  if (leftActual >= 0) return left;
+  return temps.hotend || {};
+}
+
 function _slotRouteActive(p, unit, slot) {
   if (!slot || slot.empty) return false;
   if (_isH2dPrinter(p)) {
@@ -9542,7 +9564,7 @@ function _fleetWallFeedHtml(p) {
 function _fleetWallCardBody(p) {
   const tone = _fleetWallTone(p);
   const temps = p.temps || {};
-  const hotend = temps.hotend_l || temps.hotend || temps.hotend_r || {};
+  const hotend = _activeHotendReading(p);
   const bed = temps.bed || {};
   const chamber = temps.chamber || {};
   const activeJob = _activePrinterJob(p);
@@ -18096,7 +18118,7 @@ function _locationsCategoryHtml(locations) {
     </div>
     <div class="settings-section">
       <div class="settings-section-title">Shelf Locations</div>
-      <div class="settings-subtitle">Create the shelves, dry boxes, tubs, or bays where spools live when they are not loaded in a printer.</div>
+      <div class="settings-subtitle">Create the shelves, dry boxes, tubs, or bays where spools live when they are not loaded in a printer. Archiving a location hides the shelf; Flightdeck will ask before archiving any stored spools inside it.</div>
       <form id="spool-location-form" class="settings-form spool-location-form" novalidate>
         <input id="loc-id" type="hidden" value="">
         <div class="settings-form-row">
@@ -18178,7 +18200,32 @@ function _attachLocationsEvents(el, locations) {
         return;
       }
       _modal.show(`Archive ${loc.name}?`, async () => {
-        await fetch(`/api/spool-locations/${id}`, { method: 'DELETE' });
+        const archiveLocation = async (archiveSpools = false) => {
+          const suffix = archiveSpools ? '?archive_spools=true' : '';
+          return fetch(`/api/spool-locations/${id}${suffix}`, { method: 'DELETE' });
+        };
+        const r = await archiveLocation(false);
+        if (r.status === 409) {
+          let detail = {};
+          try { detail = (await r.json())?.detail || {}; } catch {}
+          const count = Number(detail.active_stored_count || 0);
+          const label = count === 1 ? 'spool' : 'spools';
+          _modal.show(`${loc.name} still has ${count || 'active'} stored ${label}. Archive those ${label} too and remove the location?`, async () => {
+            const rr = await archiveLocation(true);
+            if (!rr.ok) {
+              showToast('Location archive failed', 'Could not archive stored spools', 'error');
+              return;
+            }
+            showToast('Location archived', count ? `${count} ${label} archived too` : loc.name, 'success');
+            await _renderSettingsContent('locations');
+          });
+          return;
+        }
+        if (!r.ok) {
+          showToast('Location archive failed', loc.name, 'error');
+          return;
+        }
+        showToast('Location archived', loc.name, 'success');
         await _renderSettingsContent('locations');
       });
     });

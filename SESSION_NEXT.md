@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Restore active queue rows from live printer state`
+- Latest commit: `Improve spool archiving and H2D hotend display`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=507 / style.css?v=398 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=508 / style.css?v=398 / demo-runtime.js?v=8
+
+### 2026-06-21 fix (Spool archive polish)
+
+**Improve spool archiving and H2D hotend display** (`app/db.py`, `app/main.py`, `app/static/app.js`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+Fixed the confusing case where a user created a storage location named `Archive`, expecting it to archive a spool. Locations remain physical shelves/tubs/bays, but archiving a location now checks for active stored spools first. If the location still contains active stored spools, the API returns a clear 409 with the count and the Settings -> Locations UI asks a second confirmation: archive those stored spools too and remove the location. Loaded printer spools are not mass-archived by that flow; only active spools physically stored in that location are archived, and stale location/home pointers are cleared when the location is hidden. Spools now also auto-archive when their remaining weight reaches 0g through manual edits, scale correction/reconcile, live/final print deduction, assign-after-print, or spool usage correction; the archived empty spool is cleared from printer/storage assignments so it stops occupying active stock. Fleet Wall cards now choose the active H2D hotend reading from the active route/nozzle signal, so an AMS HT/right-nozzle print shows the hot right side instead of the cold left side. Static cache bumped to `app.js?v=508`; backend/service restart plus frontend refresh required after deploy.
+  - Verification: `python -m py_compile app/db.py app/main.py` passed with the usual Windows Python `<prefix>` warning. `node --check app/static/app.js` passed. `git diff --check` passed with only the existing Windows CRLF warning.
 
 ### 2026-06-21 fix (Flight Tower active queue truth)
 

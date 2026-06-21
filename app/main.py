@@ -6681,10 +6681,25 @@ async def update_spool_location(location_id: int, body: SpoolLocationBody):
     return {"ok": True}
 
 @app.delete("/api/spool-locations/{location_id}")
-async def archive_spool_location(location_id: int):
-    if not db.archive_spool_location(location_id):
+async def archive_spool_location(location_id: int, archive_spools: bool = False):
+    usage = db.get_spool_location_usage(location_id)
+    if not usage["exists"]:
         raise HTTPException(status_code=404, detail="Location not found")
-    return {"ok": True}
+    if usage["active_stored_count"] and not archive_spools:
+        count = usage["active_stored_count"]
+        label = "spool" if count == 1 else "spools"
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": f"{usage['name']} still has {count} active stored {label}.",
+                "active_stored_count": count,
+                "active_home_count": usage["active_home_count"],
+                "location_name": usage["name"],
+            },
+        )
+    if not db.archive_spool_location(location_id, archive_spools=archive_spools):
+        raise HTTPException(status_code=404, detail="Location not found")
+    return {"ok": True, "archived_spools": usage["active_stored_count"] if archive_spools else 0}
 
 @app.get("/api/spools/{spool_id}")
 async def get_spool(spool_id: int):
