@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Style grouped spool tabs as stacked cards`
+- Latest commit: `Improve grouped spool tab contrast`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=512 / style.css?v=403 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=512 / style.css?v=404 / demo-runtime.js?v=8
+
+### 2026-06-21 polish (Grouped spool tab contrast)
+
+**Improve grouped spool tab contrast** (`app/static/style.css`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+Follow-up after live screenshot review showed grouped spool tab numbers were hard to read, especially on white/light colour-band cards because inactive tabs inherited too much of the spool colour contrast. Header tabs now have their own darker high-contrast face, slightly taller hit area, brighter text, and a small shadow/text-shadow so spool numbers remain readable on white, pale, rainbow, and dark cards. Static cache bumped to `style.css?v=404`; frontend refresh required.
+  - Verification: `git diff --check` passed with only the existing Windows CRLF warning.
 
 ### 2026-06-21 polish (Grouped spool stacked tabs)
 

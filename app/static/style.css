@@ -13528,14 +13528,16 @@ select optgroup {
 
 .spool-card-band .spool-roll-tab {
   min-width: 1.62rem;
-  padding: 0.13rem 0.24rem 0.1rem;
-  border-color: rgba(2, 6, 23, 0.34);
+  min-height: 1.02rem;
+  padding: 0.18rem 0.26rem 0.13rem;
+  border-color: rgba(96, 165, 250, 0.38);
   border-bottom-color: rgba(122, 162, 216, 0.34);
   border-radius: 0.3rem 0.3rem 0 0;
-  background: rgba(2, 6, 23, 0.22);
-  color: inherit;
-  font-size: 0.55rem;
-  box-shadow: 0 -1px 0 rgba(255,255,255,0.08) inset;
+  background: rgba(8, 17, 31, 0.9);
+  color: #eaf2ff;
+  font-size: 0.6rem;
+  text-shadow: 0 1px 1px rgba(0,0,0,0.7);
+  box-shadow: 0 -1px 0 rgba(255,255,255,0.08) inset, 0 0.12rem 0.35rem rgba(0,0,0,0.26);
 }
 
 .spool-roll-tab.active {
