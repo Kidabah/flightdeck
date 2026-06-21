@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Add tabbed grouped spool cards`
+- Latest commit: `Move spool tabs into colour band`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=511 / style.css?v=401 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=512 / style.css?v=402 / demo-runtime.js?v=8
+
+### 2026-06-21 polish (Spool card tab placement)
+
+**Move spool tabs into colour band** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+Follow-up after grouped spool cards landed: the number tabs were functionally right but sat in the detail body instead of the colour bar. Grouped cards now show their spool number tabs directly in the colour band where the old roll count/ID badge lived, keeping the tab selector as part of the card header while the selected spool's detail remains below. The spool `Actions` popover now opens centred under the button instead of offsetting left from the right edge, so far-left cards no longer have menus clipped offscreen. Static cache bumped to `app.js?v=512` and `style.css?v=402`; frontend refresh required.
+  - Verification: `node --check app/static/app.js` passed. `git diff --check` passed with only the existing Windows CRLF warning.
 
 ### 2026-06-21 polish (Tabbed grouped spool cards)
 

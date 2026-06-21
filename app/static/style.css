@@ -13485,6 +13485,15 @@ select optgroup {
   border-bottom: 1px solid rgba(255,255,255,0.055);
 }
 
+.spool-card-band .spool-roll-tabs {
+  justify-content: flex-end;
+  justify-self: end;
+  margin: 0;
+  padding: 0;
+  border-bottom: 0;
+  max-width: 100%;
+}
+
 .spool-roll-tab {
   display: inline-flex;
   align-items: center;
@@ -13501,11 +13510,27 @@ select optgroup {
   cursor: pointer;
 }
 
+.spool-card-band .spool-roll-tab {
+  min-width: 1.45rem;
+  padding: 0.06rem 0.2rem;
+  border-color: rgba(2, 6, 23, 0.34);
+  background: rgba(2, 6, 23, 0.18);
+  color: inherit;
+  font-size: 0.55rem;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.1);
+}
+
 .spool-roll-tab.active {
   background: rgba(59,130,246,0.25);
   border-color: rgba(96,165,250,0.8);
   color: #eff6ff;
   box-shadow: inset 0 -2px 0 rgba(96,165,250,0.95);
+}
+
+.spool-card-band .spool-roll-tab.active {
+  background: rgba(2, 6, 23, 0.34);
+  border-color: rgba(248, 250, 252, 0.72);
+  box-shadow: inset 0 -2px 0 currentColor;
 }
 
 .spool-roll-tab.spool-amber {
@@ -13607,8 +13632,10 @@ select optgroup {
 }
 .spool-action-menu-panel {
   position: absolute;
-  right: 0;
+  left: 50%;
+  right: auto;
   top: calc(100% + 0.25rem);
+  transform: translateX(-50%);
   z-index: 100;
   min-width: 8.75rem;
   padding: 0.4rem;

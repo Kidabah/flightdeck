@@ -15733,11 +15733,10 @@ function _spoolGroupCardHtml(group) {
   return `<div class="spool-card spool-group-card${archived ? ' spool-card-archived' : ''}" data-spool-group="${esc(_spoolGroupKey(first))}">
     <div class="spool-card-band" style="${_spoolColorStyle(first)};color:${textColor}">
       <span class="spool-color-name">${esc(first.color_name || '—')}</span>
-      <span class="spool-id-badge" title="${esc(`${group.length} rolls · latest #${latestId} · ${rollTitle}`)}">${group.length} rolls</span>
+      <div class="spool-roll-tabs" role="tablist" aria-label="${esc(first.color_name || 'Spool')} rolls" title="${esc(`${group.length} rolls · latest #${latestId} · ${rollTitle}`)}">${tabs}</div>
       ${archived ? '<span class="spool-archived-stamp">Archived</span>' : ''}
     </div>
     <div class="spool-card-body">
-      <div class="spool-roll-tabs" role="tablist" aria-label="${esc(first.color_name || 'Spool')} rolls">${tabs}</div>
       <div class="spool-group-panels">${panels}</div>
     </div>
   </div>`;
