@@ -12721,7 +12721,7 @@ function _filamentCategoryHtml(summary, costs, emptyProfiles = []) {
     </div>
     <div class="settings-section filament-catalogue-list-section">
       <div class="settings-section-title">Filament catalogue</div>
-      <p class="filament-empty">Each material can have multiple brands with individual costs. Est. cost uses the average $/g across brands.</p>
+      <p class="filament-empty">Each material can have multiple brands with individual costs. Est. cost uses the spool brand first, then the plain material default, then the material average only as a last resort.</p>
       <div class="cost-card-grid">${costCards}</div>
     </div>
     <div class="settings-section">

@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Lock non-Bambu printer setup for beta`
+- Latest commit: `Fix print cost brand matching fallback`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=515 / style.css?v=408 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=516 / style.css?v=408 / demo-runtime.js?v=8
+
+### 2026-06-21 fix (Print cost fallback)
+
+**Fix print cost brand matching fallback** (`app/db.py`, `app/static/app.js`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+Fixed a misleading print-history cost case where spool `#63` was stored as `Bambu Lab` but the filament cost row was named `Bambu`, so the exact brand lookup missed and Flightdeck used the broad PLA material average. That average mixed the plain PLA default, Bambu, and Inkstation rows, producing an obviously wrong `0.0973/g` rate and inflated active print cost. Print cost lookup now normalises common brand aliases (`Bambu`/`Bambu Lab`, `eSun`, `3DFillies`), tries exact spool brand first, then the plain material default row, and only uses a material average as the final fallback. Settings > Filament copy now states that order. Static cache bumped to `app.js?v=516`; backend/service restart plus frontend refresh required.
+  - Verification: `python -m py_compile app/db.py` passed with the usual Windows Python `<prefix>` warning. `node --check app/static/app.js` passed. A targeted smoke test confirmed `Bambu Lab` matches the `Bambu` cost row as `spool brand`, `Inkstation` matches its exact row, and an unknown PLA brand falls back to the plain PLA default instead of the inflated material average. `git diff --check` passed with only the existing Windows CRLF warning.
 
 ### 2026-06-21 beta setup polish
 

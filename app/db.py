@@ -896,19 +896,37 @@ def _hydrate_print_rows(rows) -> list[dict]:
     return result
 
 
+def _cost_brand_key(value: str | None) -> str:
+    brand = str(value or "").strip().upper()
+    aliases = {
+        "BAMBU": "BAMBU LAB",
+        "BAMBULAB": "BAMBU LAB",
+        "BAMBU LAB": "BAMBU LAB",
+        "ESUN": "ESUN",
+        "E-SUN": "ESUN",
+        "3D FILLIES": "3DFILLIES",
+        "3DFILLIES": "3DFILLIES",
+    }
+    return aliases.get(brand, brand)
+
+
 def _print_cost_lookup(cost_rows) -> dict:
-    lookup: dict = {"exact": {}, "material": {}}
+    lookup: dict = {"exact": {}, "default": {}, "material": {}}
     by_material: dict[str, list[float]] = {}
     for row in cost_rows:
         material = str(row["material"] or "").strip().upper()
-        brand = str(row["brand"] or "").strip().upper()
+        raw_brand = str(row["brand"] or "").strip()
+        brand = _cost_brand_key(raw_brand)
         try:
             cpg = float(row["cost_per_gram"])
         except (TypeError, ValueError):
             continue
         if not material or cpg <= 0:
             continue
-        lookup["exact"][(material, brand)] = cpg
+        if brand:
+            lookup["exact"][(material, brand)] = cpg
+        else:
+            lookup["default"][material] = cpg
         by_material.setdefault(material, []).append(cpg)
     lookup["material"] = {
         material: sum(values) / len(values)
@@ -942,7 +960,7 @@ def _attach_print_cost(item: dict, spools: dict[int, dict], cost_lookup: dict) -
             spool_id = 0
         spool = spools.get(spool_id, {})
         material = str(spool.get("material") or entry.get("material") or item.get("material") or "").strip().upper()
-        brand = str(spool.get("brand") or entry.get("brand") or "").strip().upper()
+        brand = _cost_brand_key(spool.get("brand") or entry.get("brand") or "")
         grams = _usage_grams(entry)
         cpg = None
         source = None
@@ -950,7 +968,11 @@ def _attach_print_cost(item: dict, spools: dict[int, dict], cost_lookup: dict) -
             cpg = cost_lookup.get("exact", {}).get((material, brand))
             if cpg is not None:
                 source = "spool brand"
-            else:
+            if cpg is None:
+                cpg = cost_lookup.get("default", {}).get(material)
+                if cpg is not None:
+                    source = "material default"
+            if cpg is None:
                 cpg = cost_lookup.get("material", {}).get(material)
                 if cpg is not None:
                     source = "material average"
