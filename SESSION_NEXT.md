@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Improve spool archiving and H2D hotend display`
+- Latest commit: `Prefer hot H2D toolhead on Fleet Wall`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=508 / style.css?v=398 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=509 / style.css?v=398 / demo-runtime.js?v=8
+
+### 2026-06-21 fix (Fleet Wall active H2D hotend)
+
+**Prefer hot H2D toolhead on Fleet Wall** (`app/static/app.js`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+Follow-up after BigBoy showed Fleet Wall still displaying the cold H2D hotend (`40°`) while the active/right nozzle was physically printing. The first fix trusted the AMS HT route label too early; if Bambu/Flightdeck reports the active temperature under the other hotend key, the card could still choose the cold route side. Fleet Wall now prefers whichever H2D hotend has a live target or hot actual temperature, and only falls back to route-based left/right selection when neither side has an active thermal signal. Static cache bumped to `app.js?v=509`; frontend refresh required after deploy.
+  - Verification: `node --check app/static/app.js` passed. `git diff --check` passed with only the existing Windows CRLF warning.
 
 ### 2026-06-21 fix (Spool archive polish)
 

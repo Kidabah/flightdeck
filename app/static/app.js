@@ -3499,6 +3499,13 @@ function _h2dNozzleActivity(p) {
 function _activeHotendReading(p) {
   const temps = p?.temps || {};
   if (!_isH2dPrinter(p)) return temps.hotend || temps.hotend_l || temps.hotend_r || {};
+  const left = temps.hotend_l || {};
+  const right = temps.hotend_r || {};
+  const hotends = [right, left, temps.hotend || {}].filter(t => t && (t.actual != null || t.target != null));
+  const working = hotends
+    .filter(t => _hotendIsWorking(p, t))
+    .sort((a, b) => Number(b.target || b.actual || 0) - Number(a.target || a.actual || 0));
+  if (working.length) return working[0];
   const units = _asList(p?.ams);
   for (const unit of units) {
     const slots = _asList(unit?.slots);
@@ -3509,8 +3516,6 @@ function _activeHotendReading(p) {
   const nozzles = _h2dNozzleActivity(p);
   if (nozzles.right && !nozzles.left) return temps.hotend_r || temps.hotend || {};
   if (nozzles.left && !nozzles.right) return temps.hotend_l || temps.hotend || {};
-  const left = temps.hotend_l || {};
-  const right = temps.hotend_r || {};
   const leftActual = Number(left.actual ?? -1);
   const rightActual = Number(right.actual ?? -1);
   if (rightActual > leftActual) return right;
