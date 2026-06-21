@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Prepare Bambu beta launch docs`
+- Latest commit: `License Flightdeck under AGPL`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=514 / style.css?v=407 / demo-runtime.js?v=8
+
+### 2026-06-21 beta launch prep (AGPL licensing)
+
+**License Flightdeck under AGPL** (`LICENSE`, `TRADEMARK.md`, `README.md`, `docs/index.html`, `docs/releases/v0.4.0-beta.1.md`, `SESSION_NEXT.md`)
+Added the official GNU AGPL-3.0 license text as `LICENSE` and updated the repo badge/license section from the older MIT wording to `AGPL-3.0-or-later`. Added `TRADEMARK.md` to reserve the Flightdeck name, logo, icon, wordmark, and branding separately from the code license. Updated the public site footer and beta release notes so testers see that the source is AGPL while branding is reserved. README now also names the tested optional hardware path: Dymo USB postal scale for spool weighing and Brother QL-700 with DK-22212 continuous labels for spool QR labels. Static cachebust unchanged (`app.js?v=514`, `style.css?v=407`, `demo-runtime.js?v=8`) because no app UI assets changed.
+  - Verification: `git diff --check` passed with only the existing Windows CRLF warning.
 
 ### 2026-06-21 beta launch prep (Bambu beta docs)
 

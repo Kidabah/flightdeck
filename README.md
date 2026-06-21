@@ -2,7 +2,7 @@
 
 ![Status](https://img.shields.io/badge/status-Bambu%20beta-blue)
 ![Python](https://img.shields.io/badge/python-3.13-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
+![License](https://img.shields.io/badge/license-AGPL--3.0--or--later-green)
 
 Flightdeck is a local-first print operations dashboard for makers running Bambu-heavy printer rooms.
 
@@ -74,6 +74,17 @@ Flightdeck can also run as a Windows tray app:
 ```
 
 Windows is useful when you want the slicer worker and browser slicer containers on the same machine as OrcaSlicer/Bambu Studio. For a simple always-on shop host, start with the Pi install.
+
+## Optional Hardware
+
+Flightdeck does not require extra hardware, but these are the currently tested shop-floor helpers:
+
+| Hardware | Current beta use |
+| --- | --- |
+| Dymo USB postal scale | Read spool weight for correction/reconcile workflows |
+| Brother QL-700 label printer | Print spool QR labels on DK-22212 continuous labels |
+
+Use `System -> Settings -> Hardware` and `System -> Settings -> Setup` to check whether Flightdeck can see connected USB hardware. On Windows, QL-700 printing may need a WinUSB/libusb driver through Zadig; on Pi, connect the scale/label printer directly to the host when possible.
 
 ## Updating
 
@@ -152,4 +163,6 @@ Flightdeck is free and open source. If it helps your shop, support is appreciate
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+Flightdeck source code is licensed under the GNU Affero General Public License v3.0 or later. See [LICENSE](LICENSE).
+
+The Flightdeck name, logo, icon, wordmark, and project branding are not granted for reuse by the code license. See [TRADEMARK.md](TRADEMARK.md).
