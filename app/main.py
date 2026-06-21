@@ -8124,6 +8124,28 @@ def _reconcile_queue_active_state(jobs: list[dict], statuses: dict[str, dict]) -
     return changed
 
 
+def _reconcile_queue_from_printer_state(jobs: list[dict], statuses: dict[str, dict]) -> bool:
+    changed = False
+    active_printers = {
+        str(row.get("printer_id") or "")
+        for row in jobs
+        if row.get("status") in {"printing", "uploading"}
+    }
+    for printer_id, status in statuses.items():
+        state = str((status or {}).get("state") or "").lower()
+        if state not in {"printing", "paused"} or printer_id in active_printers:
+            continue
+        restored = db.queue_reopen_stale_cleared_active(printer_id)
+        if restored:
+            changed = True
+            db.log_decision(
+                printer_id,
+                "queue_active_restored",
+                f"Restored stale-cleared queue job #{restored['id']} {restored['filename']} after printer reported {state}",
+            )
+    return changed
+
+
 async def _advance_queue(printer_id: str) -> None:
     job = db.queue_next_pending(printer_id)
     if not job:
@@ -8170,7 +8192,11 @@ async def get_queue_summary():
 async def get_queue(printer_id: Optional[str] = None):
     statuses = await _printer_status_map()
     jobs = db.queue_list(printer_id)
-    if _reconcile_queue_active_state(jobs, statuses):
+    restored = _reconcile_queue_from_printer_state(jobs, statuses)
+    if restored:
+        jobs = db.queue_list(printer_id)
+    cleared = _reconcile_queue_active_state(jobs, statuses)
+    if restored or cleared:
         jobs = db.queue_list(printer_id)
     return _apply_queue_preflight(jobs, statuses)
 

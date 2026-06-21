@@ -7914,6 +7914,7 @@ function _missionJobEta(job) {
 }
 
 function _missionJobReadiness(job) {
+  if (job.status === 'printing' || job.status === 'uploading') return { cls: 'ready', label: 'Printing', ok: true };
   if (job.status === 'failed') return { cls: 'blocked', label: 'Failed', ok: false };
   if (job.status === 'cancelled') return { cls: 'blocked', label: 'Cancelled', ok: false };
   if (job.preflight?.can_start === false) return { cls: 'blocked', label: 'Blocked', ok: false };
@@ -7963,7 +7964,7 @@ function _missionSignalHtml(signal) {
 
 function _missionQueueForPrinter(jobs, printerId) {
   return jobs
-    .filter(j => j.printer_id === printerId && !['done'].includes(j.status))
+    .filter(j => j.printer_id === printerId && ['pending', 'printing', 'uploading'].includes(j.status))
     .sort((a, b) => (a.position ?? 999) - (b.position ?? 999) || a.id - b.id);
 }
 
@@ -8511,14 +8512,15 @@ async function renderMissionControl() {
       }
     }));
     const maint = Object.fromEntries(maintPairs);
+    const missionJobs = jobs.filter(j => ['pending', 'printing', 'uploading'].includes(j.status));
     const active = missionPrinters.filter(p => p.state === 'printing' || p.state === 'paused').length;
-    const pendingJobs = jobs.filter(j => j.status === 'pending');
-    const blocked = jobs.filter(j => _missionJobReadiness(j).cls === 'blocked').length;
-    const caution = jobs.filter(j => _missionJobReadiness(j).cls === 'warn').length;
+    const pendingJobs = missionJobs.filter(j => j.status === 'pending');
+    const blocked = missionJobs.filter(j => _missionJobReadiness(j).cls === 'blocked').length;
+    const caution = missionJobs.filter(j => _missionJobReadiness(j).cls === 'warn').length;
     const forecastSeconds = pendingJobs.reduce((sum, j) => sum + _missionJobEta(j), 0);
     const forecast = forecastSeconds ? new Date(Date.now() + forecastSeconds * 1000).toLocaleTimeString([], _clockOpts()) : 'Clear';
     const printerContexts = missionPrinters.map(p => {
-      const laneJobs = _missionQueueForPrinter(jobs, p.id.replace(/-sim-\d+$/, ''));
+      const laneJobs = _missionQueueForPrinter(missionJobs, p.id.replace(/-sim-\d+$/, ''));
       const signals = _missionPrinterSignals(p, laneJobs, spools, maint);
       return { p, laneJobs, signals, bucket: _missionPrinterBucket(p, laneJobs, signals) };
     });
@@ -8582,7 +8584,7 @@ async function renderMissionControl() {
       </section>`;
     }).join('') || `<div class="mission-empty-filter">No printers match this filter.</div>`;
 
-    const dispatchReady = jobs
+    const dispatchReady = missionJobs
       .filter(j => j.status === 'pending' && _missionJobReadiness(j).cls === 'ready')
       .sort((a, b) => (a.status === 'pending' ? 0 : 1) - (b.status === 'pending' ? 0 : 1) || (a.position ?? 999) - (b.position ?? 999))
       .slice(0, 6)
@@ -8595,7 +8597,7 @@ async function renderMissionControl() {
         </a>`;
       }).join('') || '<div class="mission-empty-list">Nothing ready right now.</div>';
 
-    const blockedJobs = jobs
+    const blockedJobs = missionJobs
       .filter(j => _missionJobReadiness(j).cls === 'blocked')
       .slice(0, 6)
       .map(j => {
@@ -8606,9 +8608,9 @@ async function renderMissionControl() {
           <small>${esc(p ? _dashboardPrinterName(p) : j.printer_id)} · ${ready.label}</small>
         </a>`;
       }).join('') || '<div class="mission-empty-list">No blocked queue items.</div>';
-    const actionInbox = _missionActionInbox(jobs, printers, spools, maint);
-    const fixIt = _missionFixItPanel(jobs, printers, spools);
-    const dispatchIntel = _missionDispatchIntel(jobs, printers, spools, maint);
+    const actionInbox = _missionActionInbox(missionJobs, printers, spools, maint);
+    const fixIt = _missionFixItPanel(missionJobs, printers, spools);
+    const dispatchIntel = _missionDispatchIntel(missionJobs, printers, spools, maint);
 
     const html = `
       <section class="mission-hero">

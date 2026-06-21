@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Add About Flightdeck page`
+- Latest commit: `Restore active queue rows from live printer state`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=506 / style.css?v=397 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=507 / style.css?v=398 / demo-runtime.js?v=8
+
+### 2026-06-21 fix (Flight Tower active queue truth)
+
+**Restore active queue rows from live printer state** (`app/db.py`, `app/main.py`, `app/static/app.js`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+Fixed a bad Flight Tower story where BigBoy was physically printing but the related queue row still showed `CANCELLED`, causing Flight Tower to count it as blocked work. `/api/queue` now reconciles the live printer state back into the queue: if a printer reports `printing`/`paused`, has no active queue row, and the most recent terminal queue row was either stale-cleared by Flightdeck or cancelled within the last 30 minutes, that row is restored to `printing` and a `queue_active_restored` decision is logged. Flight Tower also stops treating terminal `done`/`failed`/`cancelled` rows as farm-forecast blockers; it focuses on active/pending queue work while Queue remains the recovery surface. Static cache bumped to `app.js?v=507` and `style.css?v=398`; backend/service restart plus frontend refresh required after deploy.
+  - Verification: `python -m py_compile app/db.py app/main.py` passed with the usual Windows Python `<prefix>` warning. `node --check app/static/app.js` passed. `git diff --check` passed with only the existing Windows CRLF warning.
 
 ### 2026-06-21 feature (About Flightdeck page)
 

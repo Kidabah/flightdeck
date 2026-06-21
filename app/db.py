@@ -4196,6 +4196,37 @@ def queue_cancel_active(printer_id: str, status: str = "cancelled", error_msg: O
     return c.rowcount
 
 
+def queue_reopen_stale_cleared_active(printer_id: str) -> Optional[dict]:
+    """Restore the latest queue row only if Flightdeck cleared it as stale."""
+    with _conn() as conn:
+        row = conn.execute(
+            """SELECT id, filename, status, error_msg
+               FROM print_queue
+               WHERE printer_id = ?
+                 AND (
+                       (status IN ('cancelled', 'failed')
+                        AND error_msg = 'Cleared stale queue state after printer returned to idle')
+                    OR (status = 'cancelled'
+                        AND datetime(COALESCE(finished_at, started_at, created_at)) >= datetime('now', '-30 minutes'))
+                 )
+               ORDER BY datetime(COALESCE(finished_at, started_at, created_at)) DESC, id DESC
+               LIMIT 1""",
+            (printer_id,),
+        ).fetchone()
+        if not row:
+            return None
+        conn.execute(
+            """UPDATE print_queue
+               SET status = 'printing',
+                   started_at = COALESCE(started_at, datetime('now')),
+                   finished_at = NULL,
+                   error_msg = NULL
+               WHERE id = ?""",
+            (row["id"],),
+        )
+    return dict(row)
+
+
 def queue_fail_active(printer_id: str, error_msg: str) -> int:
     with _conn() as conn:
         c = conn.execute(
