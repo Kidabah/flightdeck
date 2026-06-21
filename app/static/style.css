@@ -13475,6 +13475,17 @@ select optgroup {
   border-color: rgba(122,162,216,0.32);
 }
 
+.spool-group-card .spool-card-band {
+  display: block;
+  min-height: 62px;
+  padding-bottom: 1.55rem;
+}
+
+.spool-group-card .spool-color-name {
+  display: block;
+  max-width: 100%;
+}
+
 .spool-roll-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -13486,12 +13497,17 @@ select optgroup {
 }
 
 .spool-card-band .spool-roll-tabs {
-  justify-content: flex-end;
-  justify-self: end;
+  position: absolute;
+  left: 0.34rem;
+  right: 0.34rem;
+  bottom: -1px;
+  justify-content: flex-start;
   margin: 0;
   padding: 0;
   border-bottom: 0;
   max-width: 100%;
+  flex-wrap: nowrap;
+  overflow: hidden;
 }
 
 .spool-roll-tab {
@@ -13511,13 +13527,15 @@ select optgroup {
 }
 
 .spool-card-band .spool-roll-tab {
-  min-width: 1.45rem;
-  padding: 0.06rem 0.2rem;
+  min-width: 1.62rem;
+  padding: 0.13rem 0.24rem 0.1rem;
   border-color: rgba(2, 6, 23, 0.34);
-  background: rgba(2, 6, 23, 0.18);
+  border-bottom-color: rgba(122, 162, 216, 0.34);
+  border-radius: 0.3rem 0.3rem 0 0;
+  background: rgba(2, 6, 23, 0.22);
   color: inherit;
   font-size: 0.55rem;
-  box-shadow: 0 1px 0 rgba(255,255,255,0.1);
+  box-shadow: 0 -1px 0 rgba(255,255,255,0.08) inset;
 }
 
 .spool-roll-tab.active {
@@ -13528,9 +13546,12 @@ select optgroup {
 }
 
 .spool-card-band .spool-roll-tab.active {
-  background: rgba(2, 6, 23, 0.34);
+  background: var(--card-bg);
   border-color: rgba(248, 250, 252, 0.72);
-  box-shadow: inset 0 -2px 0 currentColor;
+  border-bottom-color: var(--card-bg);
+  color: var(--text);
+  transform: translateY(1px);
+  box-shadow: 0 -0.2rem 0.7rem rgba(0,0,0,0.18);
 }
 
 .spool-roll-tab.spool-amber {

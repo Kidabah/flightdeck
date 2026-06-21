@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Move spool tabs into colour band`
+- Latest commit: `Style grouped spool tabs as stacked cards`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=512 / style.css?v=402 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=512 / style.css?v=403 / demo-runtime.js?v=8
+
+### 2026-06-21 polish (Grouped spool stacked tabs)
+
+**Style grouped spool tabs as stacked cards** (`app/static/style.css`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+Follow-up after moving grouped spool tabs into the colour band: the number tabs were still reading like small badges beside the colour name. Grouped cards now reserve the colour band as a true header, keep the colour name on its own line, and place spool-number tabs along the lower edge like stacked cards/Flightdeck-style tabs. The active spool tab visually connects to the detail body underneath, making multiples feel like separate cards in one stack rather than one combined card. Static cache bumped to `style.css?v=403`; frontend refresh required.
+  - Verification: `git diff --check` passed with only the existing Windows CRLF warning.
 
 ### 2026-06-21 polish (Spool card tab placement)
 
