@@ -12549,6 +12549,68 @@ select optgroup {
   gap: 0.6rem;
 }
 
+.empty-profile-add {
+  display: grid;
+  grid-template-columns: minmax(8rem, 1fr) minmax(7rem, 0.7fr) minmax(12rem, 1.2fr) 6rem auto auto;
+  align-items: end;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.empty-profile-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  min-height: 2rem;
+}
+
+.empty-profile-table {
+  width: 100%;
+  border-collapse: collapse;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: rgba(255,255,255,0.02);
+}
+
+.empty-profile-table th,
+.empty-profile-table td {
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  color: var(--text);
+  font-size: 0.8rem;
+  padding: 0.45rem 0.55rem;
+  text-align: left;
+}
+
+.empty-profile-table th {
+  color: var(--muted);
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.empty-profile-default {
+  display: inline-block;
+  margin-left: 0.45rem;
+  padding: 0.08rem 0.35rem;
+  border: 1px solid rgba(34,197,94,0.45);
+  border-radius: 999px;
+  color: #86efac;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+}
+
+.empty-profile-del-btn {
+  background: transparent;
+  border: 1px solid rgba(239,68,68,0.45);
+  border-radius: 0.3rem;
+  color: #fca5a5;
+  cursor: pointer;
+  padding: 0.12rem 0.45rem;
+}
+
 .cost-add-form {
   background: rgba(255,255,255,0.02);
   border-style: dashed;
@@ -13968,6 +14030,8 @@ select optgroup {
 .spool-location-selects .spool-form-input { flex: 1; min-width: 8rem; }
 
 @media (max-width: 900px) {
+  .empty-profile-add { grid-template-columns: 1fr 1fr; }
+  .empty-profile-table { display: block; overflow-x: auto; }
   .spool-modal {
     width: min(96vw, 440px);
   }

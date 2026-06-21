@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Add QR spool quick assignment`
+- Latest commit: `Add empty spool tare profiles`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=504 / style.css?v=395 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=505 / style.css?v=396 / demo-runtime.js?v=8
+
+### 2026-06-21 feature (Empty spool tare profiles)
+
+**Add empty spool tare profiles** (`app/db.py`, `app/main.py`, `app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `app/static/demo.html`)
+Added a dedicated `empty_spool_profiles` table/API so measured spool tare weights can be stored separately from the broad material/brand cost row. Existing `material_costs.empty_spool_weight_g` values seed the new profile table on first startup, preserving current tare knowledge. Settings -> Filament now has an `Empty spool profiles` panel where profiles can be added or archived by brand/material/profile/grams/default. The Add/Edit Spool modal now loads these profiles, shows a `Tare profile` selector, and prefers the best matching measured profile before falling back to the old brand/material tare or hardcoded estimates. This is intended to fix real-world tare drift such as eSun measured at 256g while an older default said 224g, without forcing filament write-offs for grams that were never present. Static cache bumped to `app.js?v=505` and `style.css?v=396`; backend/service restart plus frontend refresh required after deploy.
+  - Verification: `python -m py_compile app/db.py app/main.py` passed with the usual Windows Python `<prefix>` warning. `node --check app/static/app.js` passed. `git diff --check` passed with only the existing Windows CRLF warning.
 
 ### 2026-06-21 feature (QR spool quick assignment)
 

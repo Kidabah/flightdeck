@@ -5971,6 +5971,16 @@ class CostUpdate(BaseModel):
     empty_spool_weight_g: Optional[float] = None
 
 
+class EmptySpoolProfileUpdate(BaseModel):
+    brand: str = ""
+    material: Optional[str] = None
+    profile_name: str
+    empty_spool_weight_g: float
+    source: Optional[str] = "manual"
+    notes: Optional[str] = None
+    is_default: bool = False
+
+
 OPEN_FILAMENT_CSV_BASES = [
     "https://api.openfilamentdatabase.org/csv",
     "https://openfilamentcollective.github.io/open-filament-database/csv",
@@ -6348,6 +6358,51 @@ async def put_filament_cost(material: str, brand: str, body: CostUpdate):
 @app.delete("/api/filament/costs/{material}/{brand}")
 async def delete_filament_cost(material: str, brand: str):
     db.delete_material_cost(material, brand)
+    return {"ok": True}
+
+@app.get("/api/empty-spool-profiles")
+async def get_empty_spool_profiles(include_archived: bool = False):
+    return db.get_empty_spool_profiles(include_archived=include_archived)
+
+@app.post("/api/empty-spool-profiles")
+async def create_empty_spool_profile(body: EmptySpoolProfileUpdate):
+    try:
+        item = db.create_empty_spool_profile(
+            body.brand,
+            body.material,
+            body.profile_name,
+            body.empty_spool_weight_g,
+            body.source,
+            body.notes,
+            body.is_default,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    return item
+
+@app.put("/api/empty-spool-profiles/{profile_id}")
+async def update_empty_spool_profile(profile_id: int, body: EmptySpoolProfileUpdate):
+    try:
+        item = db.update_empty_spool_profile(
+            profile_id,
+            body.brand,
+            body.material,
+            body.profile_name,
+            body.empty_spool_weight_g,
+            body.source,
+            body.notes,
+            body.is_default,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    if not item:
+        raise HTTPException(status_code=404, detail="Empty spool profile not found")
+    return item
+
+@app.delete("/api/empty-spool-profiles/{profile_id}")
+async def delete_empty_spool_profile(profile_id: int):
+    if not db.archive_empty_spool_profile(profile_id):
+        raise HTTPException(status_code=404, detail="Empty spool profile not found")
     return {"ok": True}
 
 @app.get("/api/filament/summary")

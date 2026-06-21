@@ -12437,7 +12437,7 @@ function _fmtGrams(g) {
   return `${Math.round(g)}g`;
 }
 
-function _filamentCategoryHtml(summary, costs) {
+function _filamentCategoryHtml(summary, costs, emptyProfiles = []) {
   const totalG    = summary.total_grams  || 0;
   const totalCost = summary.total_cost   ?? null;
   const byMat     = summary.by_material  || [];
@@ -12501,6 +12501,18 @@ function _filamentCategoryHtml(summary, costs) {
   const allMats = [...new Set([..._DEFAULT_MATERIALS, ...Object.keys(grouped)])];
 
   const _esc = s => (s ?? '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  const profiles = _normaliseEmptySpoolProfiles(emptyProfiles);
+  const brandsForProfile = [...new Set(costsList.map(e => e.brand).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const profileRows = profiles.length ? profiles.map(p => `
+      <tr class="empty-profile-row" data-profile-id="${p.id}">
+        <td>${esc(p.brand || 'Generic')}</td>
+        <td>${esc(p.material || 'Any')}</td>
+        <td>${esc(p.profile_name || 'Standard spool')}${p.is_default ? '<span class="empty-profile-default">Default</span>' : ''}</td>
+        <td>${Math.round(p.empty_spool_weight_g)}g</td>
+        <td>${esc(p.notes || '')}</td>
+        <td><button class="empty-profile-del-btn" title="Archive">×</button></td>
+      </tr>`).join('')
+    : `<tr><td colspan="6" class="filament-empty">No tare profiles yet. Add the empty spool weights you have measured.</td></tr>`;
 
   const costCards = allMats.map(mat => {
     const brands = grouped[mat] || [];
@@ -12572,6 +12584,28 @@ function _filamentCategoryHtml(summary, costs) {
       <div class="settings-section-title">Filament catalogue</div>
       <p class="filament-empty">Each material can have multiple brands with individual costs. Est. cost uses the average $/g across brands.</p>
       <div class="cost-card-grid">${costCards}</div>
+    </div>
+    <div class="settings-section">
+      <div class="settings-section-title">Empty spool profiles</div>
+      <p class="filament-empty">Measured tare weights override the broad brand tare when adding or editing spools.</p>
+      <div class="empty-profile-add cost-card">
+        <select id="empty-profile-brand" class="cost-brand-input">
+          <option value="">Brand *</option>
+          ${brandsForProfile.map(b => `<option value="${_esc(b)}">${esc(b)}</option>`).join('')}
+        </select>
+        <select id="empty-profile-material" class="cost-brand-input">
+          <option value="">Any material</option>
+          ${allMats.map(m => `<option value="${_esc(m)}">${esc(m)}</option>`).join('')}
+        </select>
+        <input id="empty-profile-name" class="cost-brand-input" type="text" placeholder="Profile name, e.g. eSun cardboard">
+        <input id="empty-profile-grams" class="cost-input" type="number" min="0" step="1" placeholder="Tare g *">
+        <label class="empty-profile-check"><input id="empty-profile-default" type="checkbox" checked> Default</label>
+        <button class="cost-add-btn" id="empty-profile-add-btn">Add</button>
+      </div>
+      <table class="empty-profile-table">
+        <thead><tr><th>Brand</th><th>Material</th><th>Profile</th><th>Tare</th><th>Notes</th><th></th></tr></thead>
+        <tbody>${profileRows}</tbody>
+      </table>
     </div>`;
 }
 
@@ -12595,6 +12629,34 @@ function _attachFilamentEvents(el, refresh = () => _renderSettingsContent('filam
       { method: 'DELETE' }
     );
     if (!r.ok) throw new Error();
+  }
+
+  async function _addEmptySpoolProfile() {
+    const brandEl = el.querySelector('#empty-profile-brand');
+    const materialEl = el.querySelector('#empty-profile-material');
+    const nameEl = el.querySelector('#empty-profile-name');
+    const gramsEl = el.querySelector('#empty-profile-grams');
+    const defaultEl = el.querySelector('#empty-profile-default');
+    const brand = brandEl?.value.trim() || '';
+    const material = materialEl?.value.trim() || null;
+    const grams = parseFloat(gramsEl?.value || '');
+    const profileName = nameEl?.value.trim() || `${brand || material || 'Generic'} spool`;
+    if (!brand) { brandEl?.focus(); return; }
+    if (Number.isNaN(grams) || grams < 0) { gramsEl?.focus(); return; }
+    const r = await fetch('/api/empty-spool-profiles', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        brand,
+        material,
+        profile_name: profileName,
+        empty_spool_weight_g: grams,
+        source: 'manual',
+        is_default: !!defaultEl?.checked,
+      }),
+    });
+    if (!r.ok) throw new Error();
+    _emptySpoolProfiles = await fetch('/api/empty-spool-profiles').then(res => res.json()).catch(() => _emptySpoolProfiles);
   }
 
   // Add brand to an existing material card
@@ -12720,6 +12782,40 @@ function _attachFilamentEvents(el, refresh = () => _renderSettingsContent('filam
       }
     });
   }
+
+  const profileBtn = el.querySelector('#empty-profile-add-btn');
+  profileBtn?.addEventListener('click', async () => {
+    const old = profileBtn.textContent;
+    profileBtn.disabled = true;
+    profileBtn.textContent = '...';
+    try {
+      await _addEmptySpoolProfile();
+      profileBtn.textContent = old;
+      profileBtn.disabled = false;
+      refresh();
+    } catch {
+      profileBtn.textContent = 'Error';
+      setTimeout(() => { profileBtn.textContent = old; profileBtn.disabled = false; }, 1500);
+    }
+  });
+
+  el.querySelectorAll('.empty-profile-del-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const row = btn.closest('.empty-profile-row');
+      const id = row?.dataset.profileId;
+      if (!id) return;
+      if (!await _confirmModal('Archive this empty spool profile?')) return;
+      btn.disabled = true;
+      try {
+        const r = await fetch(`/api/empty-spool-profiles/${id}`, { method: 'DELETE' });
+        if (!r.ok) throw new Error();
+        _emptySpoolProfiles = await fetch('/api/empty-spool-profiles').then(res => res.json()).catch(() => _emptySpoolProfiles);
+        row.remove();
+      } catch {
+        btn.disabled = false;
+      }
+    });
+  });
 }
 
 const _ACCENT_COLORS = [
@@ -14279,6 +14375,7 @@ let _spoolsSortDir = 1;
 let _spoolsFilter = { search: '', status: 'active', slotFilter: 'all', material: '', brand: '', printer: '' };
 let _spoolsFilamentSummary = {};
 let _spoolsFilamentCosts = [];
+let _emptySpoolProfiles = [];
 let _spoolLocations = [];
 let _latestSpoolsByPrinter = {};   // printer_id → [spool, ...]
 let _latestLowStockPct = 20;
@@ -14355,8 +14452,40 @@ function _brandTareEstimate(brand, subtype = '') {
   return matches[0] || null;
 }
 
+function _normaliseEmptySpoolProfiles(profiles) {
+  return (Array.isArray(profiles) ? profiles : []).map(p => ({
+    ...p,
+    brand: p.brand || '',
+    material: p.material || '',
+    empty_spool_weight_g: p.empty_spool_weight_g == null ? null : Number(p.empty_spool_weight_g),
+    is_default: !!p.is_default,
+  })).filter(p => p.empty_spool_weight_g != null && !Number.isNaN(p.empty_spool_weight_g));
+}
+
+function _matchingEmptySpoolProfiles(material, brand) {
+  const matKey = String(material || '').trim().toUpperCase();
+  const brandKey = _tareKey(brand);
+  if (!brandKey) return [];
+  return _normaliseEmptySpoolProfiles(_emptySpoolProfiles).filter(p => {
+    const pBrand = _tareKey(p.brand);
+    const pMat = String(p.material || '').trim().toUpperCase();
+    return pBrand === brandKey && (!pMat || !matKey || pMat === matKey);
+  }).sort((a, b) => {
+    const aExact = String(a.material || '').trim().toUpperCase() === matKey ? 1 : 0;
+    const bExact = String(b.material || '').trim().toUpperCase() === matKey ? 1 : 0;
+    if (aExact !== bExact) return bExact - aExact;
+    if (a.is_default !== b.is_default) return b.is_default ? 1 : -1;
+    return String(a.profile_name || '').localeCompare(String(b.profile_name || ''));
+  });
+}
+
+function _bestEmptySpoolProfile(material, brand) {
+  return _matchingEmptySpoolProfiles(material, brand)[0] || null;
+}
+
 function _tareHintText(source) {
   if (!source) return 'tare weight';
+  if (source.kind === 'profile') return `${source.profile_name || source.brand || 'profile'} tare`;
   if (source.kind === 'saved') return `saved ${source.brand || 'brand'} tare`;
   if (source.kind === 'catalogue') return 'catalogue tare';
   if (source.kind === 'estimate') return `estimated ${source.brand} tare`;
@@ -16680,6 +16809,10 @@ function _openSpoolModal(costs, onSaved, prefill = null) {
             <span class="spool-form-hint" id="sm-empty-hint">tare weight</span>
           </div>
         </div>
+        <div class="spool-form-row">
+          <label class="spool-form-label">Tare profile</label>
+          <select id="sm-empty-profile" class="spool-form-input"><option value="">Auto match</option></select>
+        </div>
         <div class="spool-form-section">Where it lives</div>
         <div class="spool-form-row">
           <label class="spool-form-label">Location</label>
@@ -16734,6 +16867,7 @@ function _openSpoolModal(costs, onSaved, prefill = null) {
   const remainG   = overlay.querySelector('#sm-remaining-g');
   const emptyG    = overlay.querySelector('#sm-empty-g');
   const emptyHint = overlay.querySelector('#sm-empty-hint');
+  const emptyProfileSel = overlay.querySelector('#sm-empty-profile');
   const weighBtn  = overlay.querySelector('#sm-weigh-btn');
   const locSels   = overlay.querySelector('#sm-location-selects');
   const storageSels = overlay.querySelector('#sm-storage-selects');
@@ -16884,6 +17018,13 @@ function _openSpoolModal(costs, onSaved, prefill = null) {
   }
 
   function tareFallbackFor(material, brand, subtype = '') {
+    const profile = _bestEmptySpoolProfile(material, brand);
+    if (profile) {
+      return {
+        value: profile.empty_spool_weight_g,
+        source: { kind: 'profile', brand: profile.brand, profile_name: profile.profile_name },
+      };
+    }
     const saved = costLookup[`${material}|||${brand || ''}`]?.empty_spool_weight_g;
     if (saved != null) return { value: saved, source: { kind: 'saved', brand } };
     const estimate = _brandTareEstimate(brand, subtype);
@@ -17377,6 +17518,15 @@ function _openSpoolModal(costs, onSaved, prefill = null) {
     return { mat, brand };
   }
 
+  function refreshEmptyProfileOptions(selectedId = '') {
+    const { mat, brand } = selectedMaterialBrand();
+    const matches = _matchingEmptySpoolProfiles(mat, brand);
+    emptyProfileSel.innerHTML = `<option value="">Auto match</option>` + matches.map(p =>
+      `<option value="${p.id}"${String(selectedId) === String(p.id) ? ' selected' : ''}>${esc(p.profile_name || 'Standard spool')} · ${Math.round(p.empty_spool_weight_g)}g${p.material ? ` · ${esc(p.material)}` : ''}</option>`
+    ).join('');
+    emptyProfileSel.disabled = matches.length === 0;
+  }
+
   function updateDraftPreview(note = '') {
     const { mat, brand } = selectedMaterialBrand();
     const subtype = overlay.querySelector('#sm-subtype')?.value.trim();
@@ -17413,6 +17563,7 @@ function _openSpoolModal(costs, onSaved, prefill = null) {
     if (isEdit && !force) return;
     if (emptyG.dataset.touched && !force) return;
     const { mat, brand } = selectedMaterialBrand();
+    refreshEmptyProfileOptions();
     const subtype = overlay.querySelector('#sm-subtype')?.value.trim();
     const tareFallback = tareFallbackFor(mat, brand, subtype);
     if (tareFallback) {
@@ -17427,6 +17578,14 @@ function _openSpoolModal(costs, onSaved, prefill = null) {
   brandSel.addEventListener('change', () => { applyDefaultTare(); updatePrevPicks(); updateDraftPreview(); });
   matNewIn.addEventListener('input', () => { applyDefaultTare(); updatePrevPicks(); updateDraftPreview(); });
   brandNewIn.addEventListener('input', () => { applyDefaultTare(); updatePrevPicks(); updateDraftPreview(); });
+  emptyProfileSel.addEventListener('change', () => {
+    const profile = _normaliseEmptySpoolProfiles(_emptySpoolProfiles).find(p => String(p.id) === String(emptyProfileSel.value));
+    if (profile) {
+      setEmptySpoolValue(profile.empty_spool_weight_g, { kind: 'profile', brand: profile.brand, profile_name: profile.profile_name }, true);
+      emptyG.dataset.touched = '1';
+      updateDraftPreview('Tare profile applied');
+    }
+  });
 
   // New material toggle
   matToggle.addEventListener('click', () => {
@@ -17615,7 +17774,15 @@ function _openSpoolModal(costs, onSaved, prefill = null) {
   slotSel.addEventListener('change', () => updateDraftPreview());
   storageSel.addEventListener('change', () => updateDraftPreview());
   updateSlots();
+  refreshEmptyProfileOptions();
   updateDraftPreview();
+  if (!_emptySpoolProfiles.length) {
+    fetch('/api/empty-spool-profiles').then(r => r.json()).then(rows => {
+      _emptySpoolProfiles = rows;
+      refreshEmptyProfileOptions();
+      applyDefaultTare();
+    }).catch(() => {});
+  }
   setScanExpanded(scanExpanded);
 
   function closeSpoolModal() {
@@ -17988,11 +18155,13 @@ async function _renderSettingsContent(category) {
     _attachSlicerEvents(el);
   } else if (category === 'filament') {
     el.innerHTML = `<div class="detail-placeholder" style="min-height:10rem">Loading…</div>`;
-    const [summary, costs] = await Promise.all([
+    const [summary, costs, emptyProfiles] = await Promise.all([
       fetch('/api/filament/summary').then(r => r.json()).catch(() => ({})),
       fetch('/api/filament/costs').then(r => r.json()).catch(() => []),
+      fetch('/api/empty-spool-profiles').then(r => r.json()).catch(() => []),
     ]);
-    el.innerHTML = _filamentCategoryHtml(summary, costs);
+    _emptySpoolProfiles = emptyProfiles;
+    el.innerHTML = _filamentCategoryHtml(summary, costs, emptyProfiles);
     _attachFilamentEvents(el);
   } else if (category === 'locations') {
     el.classList.add('settings-content-locations');
@@ -18022,17 +18191,19 @@ async function _renderSpoolsContent(el) {
     if (['cards', 'table', 'cabinet', 'incoming', 'catalogue'].includes(view)) _spoolsViewMode = view;
   }
   _spoolsFilter.printer = params.get('printer') || '';
-  const [spools, summary, costs, filamentSummary, locations, intelligence] = await Promise.all([
+  const [spools, summary, costs, filamentSummary, locations, intelligence, emptyProfiles] = await Promise.all([
     fetch(`/api/spools/all?_=${Date.now()}`, { cache: 'no-store' }).then(r => r.json()).catch(() => []),
     fetch('/api/spools/summary').then(r => r.json()).catch(() => ({})),
     fetch('/api/filament/costs').then(r => r.json()).catch(() => []),
     fetch('/api/filament/summary').then(r => r.json()).catch(() => ({})),
     fetch('/api/spool-locations').then(r => r.json()).catch(() => []),
     fetch('/api/spools/intelligence').then(r => r.json()).catch(() => ({})),
+    fetch('/api/empty-spool-profiles').then(r => r.json()).catch(() => []),
   ]);
   _spoolLocations = locations;
   _spoolsFilamentSummary = filamentSummary;
   _spoolsFilamentCosts = costs;
+  _emptySpoolProfiles = emptyProfiles;
   el.innerHTML = _spoolsCategoryHtml(spools, summary, costs, intelligence);
   _attachSpoolsEvents(el, costs);
 }

@@ -110,6 +110,24 @@ def init() -> None:
                 PRIMARY KEY (material, brand)
             );
 
+            CREATE TABLE IF NOT EXISTS empty_spool_profiles (
+                id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+                brand                 TEXT NOT NULL DEFAULT '',
+                material              TEXT,
+                profile_name          TEXT NOT NULL,
+                empty_spool_weight_g  REAL NOT NULL,
+                source                TEXT NOT NULL DEFAULT 'manual',
+                notes                 TEXT,
+                is_default            INTEGER NOT NULL DEFAULT 0,
+                archived_at           TEXT,
+                created_at            TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at            TEXT NOT NULL DEFAULT (datetime('now')),
+                UNIQUE(brand, material, profile_name)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_empty_spool_profiles_lookup
+                ON empty_spool_profiles(brand, material, archived_at);
+
             CREATE TABLE IF NOT EXISTS spools (
                 id                  INTEGER PRIMARY KEY AUTOINCREMENT,
                 material            TEXT NOT NULL,
@@ -300,6 +318,10 @@ def init() -> None:
             "ALTER TABLE incoming_stock_rolls ADD COLUMN cancelled_at TEXT",
             "ALTER TABLE incoming_stock_rolls ADD COLUMN cancel_reason TEXT",
             "ALTER TABLE print_queue ADD COLUMN filament_colors TEXT",
+            "ALTER TABLE empty_spool_profiles ADD COLUMN source TEXT NOT NULL DEFAULT 'manual'",
+            "ALTER TABLE empty_spool_profiles ADD COLUMN notes TEXT",
+            "ALTER TABLE empty_spool_profiles ADD COLUMN is_default INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE empty_spool_profiles ADD COLUMN archived_at TEXT",
         ):
             try:
                 conn.execute(stmt)
@@ -382,6 +404,18 @@ def init() -> None:
                  AND location_printer_id IS NULL
                  AND storage_location_id IS NOT NULL"""
         )
+        seeded = conn.execute("SELECT COUNT(*) AS n FROM empty_spool_profiles").fetchone()
+        if int(seeded["n"] or 0) == 0:
+            conn.execute(
+                """INSERT OR IGNORE INTO empty_spool_profiles
+                   (brand, material, profile_name, empty_spool_weight_g, source, is_default)
+                   SELECT COALESCE(brand, ''), material,
+                          CASE WHEN COALESCE(brand, '') = '' THEN material || ' standard spool'
+                               ELSE brand || ' standard spool' END,
+                          empty_spool_weight_g, 'material_costs', 1
+                   FROM material_costs
+                   WHERE empty_spool_weight_g IS NOT NULL AND empty_spool_weight_g >= 0"""
+            )
 
     # Clean up prints that started >24 h ago but never got a final_state
     # (backend crash during a print that has since ended)
@@ -2008,6 +2042,187 @@ def get_material_costs() -> list:
          "empty_spool_weight_g": r["empty_spool_weight_g"]}
         for r in rows
     ]
+
+
+def get_empty_spool_profiles(include_archived: bool = False) -> list:
+    where = "" if include_archived else "WHERE archived_at IS NULL"
+    with _conn() as conn:
+        rows = conn.execute(
+            f"""SELECT id, brand, material, profile_name, empty_spool_weight_g,
+                       source, notes, is_default, archived_at, created_at, updated_at
+                FROM empty_spool_profiles
+                {where}
+                ORDER BY LOWER(brand), LOWER(COALESCE(material, '')), is_default DESC,
+                         empty_spool_weight_g, LOWER(profile_name)"""
+        ).fetchall()
+    return [
+        {
+            "id": int(r["id"]),
+            "brand": r["brand"] or "",
+            "material": r["material"] or "",
+            "profile_name": r["profile_name"],
+            "empty_spool_weight_g": r["empty_spool_weight_g"],
+            "source": r["source"] or "manual",
+            "notes": r["notes"],
+            "is_default": bool(r["is_default"]),
+            "archived_at": r["archived_at"],
+            "created_at": r["created_at"],
+            "updated_at": r["updated_at"],
+        }
+        for r in rows
+    ]
+
+
+def _normalise_empty_spool_profile(
+    brand: str,
+    material: Optional[str],
+    profile_name: str,
+    empty_spool_weight_g: float,
+    source: Optional[str] = None,
+    notes: Optional[str] = None,
+    is_default: bool = False,
+) -> dict:
+    cleaned_brand = (brand or "").strip()
+    cleaned_material = (material or "").strip().upper() or None
+    cleaned_name = (profile_name or "").strip()
+    if not cleaned_name:
+        cleaned_name = f"{cleaned_brand or cleaned_material or 'Generic'} spool"
+    grams = round(float(empty_spool_weight_g), 1)
+    if grams < 0:
+        raise ValueError("empty_spool_weight_g must be 0 or greater")
+    return {
+        "brand": cleaned_brand,
+        "material": cleaned_material,
+        "profile_name": cleaned_name[:120],
+        "empty_spool_weight_g": grams,
+        "source": (source or "manual").strip()[:60] or "manual",
+        "notes": (notes or "").strip()[:500] or None,
+        "is_default": bool(is_default),
+    }
+
+
+def create_empty_spool_profile(
+    brand: str,
+    material: Optional[str],
+    profile_name: str,
+    empty_spool_weight_g: float,
+    source: Optional[str] = None,
+    notes: Optional[str] = None,
+    is_default: bool = False,
+) -> dict:
+    item = _normalise_empty_spool_profile(
+        brand, material, profile_name, empty_spool_weight_g, source, notes, is_default
+    )
+    with _conn() as conn:
+        if item["is_default"]:
+            conn.execute(
+                """UPDATE empty_spool_profiles
+                   SET is_default = 0, updated_at = datetime('now')
+                   WHERE brand = ? AND COALESCE(material, '') = COALESCE(?, '')
+                     AND archived_at IS NULL""",
+                (item["brand"], item["material"]),
+            )
+        cursor = conn.execute(
+            """INSERT INTO empty_spool_profiles
+               (brand, material, profile_name, empty_spool_weight_g, source, notes, is_default)
+               VALUES (?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(brand, material, profile_name) DO UPDATE
+               SET empty_spool_weight_g = excluded.empty_spool_weight_g,
+                   source = excluded.source,
+                   notes = excluded.notes,
+                   is_default = excluded.is_default,
+                   archived_at = NULL,
+                   updated_at = datetime('now')""",
+            (
+                item["brand"], item["material"], item["profile_name"],
+                item["empty_spool_weight_g"], item["source"], item["notes"],
+                1 if item["is_default"] else 0,
+            ),
+        )
+        profile_id = cursor.lastrowid
+        row = conn.execute(
+            """SELECT id FROM empty_spool_profiles
+               WHERE brand = ? AND COALESCE(material, '') = COALESCE(?, '')
+                 AND profile_name = ?""",
+            (item["brand"], item["material"], item["profile_name"]),
+        ).fetchone()
+        if row:
+            profile_id = int(row["id"])
+    return get_empty_spool_profile(profile_id) or {}
+
+
+def get_empty_spool_profile(profile_id: int) -> Optional[dict]:
+    with _conn() as conn:
+        row = conn.execute(
+            """SELECT id, brand, material, profile_name, empty_spool_weight_g,
+                      source, notes, is_default, archived_at, created_at, updated_at
+               FROM empty_spool_profiles WHERE id = ?""",
+            (profile_id,),
+        ).fetchone()
+    if not row:
+        return None
+    return {
+        "id": int(row["id"]),
+        "brand": row["brand"] or "",
+        "material": row["material"] or "",
+        "profile_name": row["profile_name"],
+        "empty_spool_weight_g": row["empty_spool_weight_g"],
+        "source": row["source"] or "manual",
+        "notes": row["notes"],
+        "is_default": bool(row["is_default"]),
+        "archived_at": row["archived_at"],
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+    }
+
+
+def update_empty_spool_profile(
+    profile_id: int,
+    brand: str,
+    material: Optional[str],
+    profile_name: str,
+    empty_spool_weight_g: float,
+    source: Optional[str] = None,
+    notes: Optional[str] = None,
+    is_default: bool = False,
+) -> Optional[dict]:
+    item = _normalise_empty_spool_profile(
+        brand, material, profile_name, empty_spool_weight_g, source, notes, is_default
+    )
+    with _conn() as conn:
+        if item["is_default"]:
+            conn.execute(
+                """UPDATE empty_spool_profiles
+                   SET is_default = 0, updated_at = datetime('now')
+                   WHERE brand = ? AND COALESCE(material, '') = COALESCE(?, '')
+                     AND id != ? AND archived_at IS NULL""",
+                (item["brand"], item["material"], profile_id),
+            )
+        c = conn.execute(
+            """UPDATE empty_spool_profiles
+               SET brand = ?, material = ?, profile_name = ?, empty_spool_weight_g = ?,
+                   source = ?, notes = ?, is_default = ?, updated_at = datetime('now')
+               WHERE id = ? AND archived_at IS NULL""",
+            (
+                item["brand"], item["material"], item["profile_name"],
+                item["empty_spool_weight_g"], item["source"], item["notes"],
+                1 if item["is_default"] else 0, profile_id,
+            ),
+        )
+    if c.rowcount <= 0:
+        return None
+    return get_empty_spool_profile(profile_id)
+
+
+def archive_empty_spool_profile(profile_id: int) -> bool:
+    with _conn() as conn:
+        c = conn.execute(
+            """UPDATE empty_spool_profiles
+               SET archived_at = datetime('now'), is_default = 0, updated_at = datetime('now')
+               WHERE id = ? AND archived_at IS NULL""",
+            (profile_id,),
+        )
+    return c.rowcount > 0
 
 
 def replace_filament_catalog(rows: list[dict], source: str = "open_filament_database") -> int:
