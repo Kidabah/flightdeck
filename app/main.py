@@ -7701,21 +7701,29 @@ def _h2d_nozzle_mapping_issues(job: dict, printer_status: Optional[dict]) -> lis
 
 
 def _coverage_label(coverage: dict) -> str:
-    brands = sorted({
-        str(s.get("brand") or "").strip()
-        for s in coverage.get("spools") or []
-        if str(s.get("brand") or "").strip()
-    })
-    brand_text = ", ".join(brands[:2])
-    if len(brands) > 2:
-        brand_text += f" +{len(brands) - 2}"
-    if not brand_text:
+    spools = coverage.get("spools") or []
+    spool_bits = []
+    for spool in spools[:2]:
+        sid = spool.get("id")
+        colour = str(spool.get("color_name") or "").strip()
+        brand = str(spool.get("brand") or "").strip()
+        label = " ".join(p for p in [f"#{sid}" if sid else "", colour] if p).strip()
+        if brand:
+            label = f"{label} ({brand})" if label else brand
+        if label:
+            spool_bits.append(label)
+    if len(spools) > 2:
+        spool_bits.append(f"+{len(spools) - 2} more")
+    if spool_bits:
+        brand_text = ", ".join(spool_bits)
+    else:
         brand_text = "no loaded spool"
+    requested = _colour_label(coverage["color"])
+    spool_label = f"{requested} via {brand_text}" if spools else f"{requested} ({brand_text})"
     return (
-        f"{_colour_label(coverage['color'])} ({brand_text}) "
+        f"{spool_label} "
         f"{coverage['available_g']:.0f}g/{coverage['used_g']:.0f}g"
     )
-
 
 def _spool_h2d_nozzle(spool: dict) -> Optional[int]:
     try:
@@ -7754,6 +7762,8 @@ def _nozzle_coverage_label(coverage: dict) -> str:
 
 
 def _spool_matches_color(spool: dict, color: Optional[str]) -> bool:
+    if str(spool.get("color_scheme") or "").lower() in {"rainbow", "multicolor", "multi", "gradient"}:
+        return True
     return _colour_matches(spool.get("color_hex"), color)
 
 

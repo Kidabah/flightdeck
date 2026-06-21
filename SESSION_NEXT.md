@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Fix print cost brand matching fallback`
+- Latest commit: `Clarify queue stock short spool labels`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=516 / style.css?v=408 / demo-runtime.js?v=8
+
+### 2026-06-21 fix (Queue stock-short wording)
+
+**Clarify queue stock short spool labels** (`app/main.py`, `SESSION_NEXT.md`)
+Queue preflight stock-short messages now name the actual matched loaded spool(s), including spool number and colour name, instead of only showing the sliced colour family and brand. This fixes the confusing X1C case where the queued `06_rack_bobine.gcode.3mf` job was correctly checking loaded spool `#38 Rainbow` but displayed `left nozzle Green (Inkstation) 166g/173g`, making it look like Flightdeck had selected the wrong spool. Rainbow/multicolour/gradient spools are also treated as colour-flexible for matching once material and nozzle path match, which better reflects how those rolls are used. Backend/service restart required; static cache unchanged.
+  - Verification: `.venv\Scripts\python.exe -m py_compile app/main.py` passed with the usual Windows Python `<prefix>` warning. A targeted helper smoke confirmed the X1C/Rainbow case labels as `left nozzle Green via #38 Rainbow (Inkstation) 166g/173g` and rainbow spools match arbitrary requested colours once material/path match. `git diff --check` passed with only the existing Windows CRLF warning.
 
 ### 2026-06-21 fix (Print cost fallback)
 
