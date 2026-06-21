@@ -295,12 +295,13 @@
     if (path === '/api/settings') return jsonResponse({ temp_unit: 'F', time_format: '24h', accent: '#3b82f6' });
     if (path.startsWith('/api/settings/')) return method === 'GET' ? jsonResponse({ value: null }) : jsonResponse({ ok: true, demo: true });
     if (path === '/api/update/status') return jsonResponse({
-      version: '0.4.0',
-      name: 'Windows installer and fleet setup',
+      version: '0.4.0-beta.1',
+      name: 'Bambu beta launch candidate',
       release_notes: [
-        'Windows tray installer with dependency checks',
-        'Setup health, diagnostics, and first-run printer setup',
-        'Live AMS visual loadout and Bambu/Klipper fleet tools',
+        'Bambu-focused beta front door and install docs',
+        'Spool swatch/detail views and QR assignment workflows',
+        'AMS/AMS HT queue, history, and deduction polish',
+        'Windows slicer worker health checks and browser slicer guidance',
       ],
       branch: 'demo',
       commit: 'demo',
@@ -313,8 +314,8 @@
     if (path === '/api/update') return jsonResponse({ ok: true, message: 'Demo mode does not update files.', restart_required: false });
     if (path === '/api/instance') return jsonResponse({
       app: 'flightdeck-demo',
-      version: '0.4.0',
-      version_name: 'Windows installer and fleet setup',
+      version: '0.4.0-beta.1',
+      version_name: 'Bambu beta launch candidate',
       address: 'demo.local',
       hardware: 'Demo Pi 5 8GB',
       runtime: 'standalone demo',

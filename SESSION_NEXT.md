@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Add swatch and detail spool views`
+- Latest commit: `Prepare Bambu beta launch docs`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=514 / style.css?v=407 / demo-runtime.js?v=8
+
+### 2026-06-21 beta launch prep (Bambu beta docs)
+
+**Prepare Bambu beta launch docs** (`README.md`, `INSTALL.md`, `docs/INSTALL_PI.md`, `docs/WINDOWS_SLICER_WORKER.md`, `docs/TROUBLESHOOTING.md`, `docs/BETA_LIMITATIONS.md`, `docs/releases/v0.4.0-beta.1.md`, `docs/index.html`, `app/version.py`, `app/static/demo-runtime.js`, `SESSION_NEXT.md`)
+Converted the repo front door from an older broad/early-development README into a Bambu-focused beta landing README. Added focused Pi install, Windows slicer worker/browser slicer, troubleshooting, beta limitations, and `v0.4.0-beta.1` release notes docs. Updated the public GitHub Pages copy to present Flightdeck as a local-first Bambu beta instead of over-promising mixed-fleet/Snapmaker readiness. App/demo version metadata now reports `0.4.0-beta.1` / `Bambu beta launch candidate` with beta-focused release notes. Existing static cachebust unchanged (`app.js?v=514`, `style.css?v=407`, `demo-runtime.js?v=8`) because app UI assets were not changed.
+  - Verification: `python -m py_compile app/version.py` passed with the usual Windows Python `<prefix>` warning. `node --check app/static/demo-runtime.js` passed. `git diff --check` passed with only the existing Windows CRLF warning.
 
 ### 2026-06-21 polish (Spool swatch/detail views)
 

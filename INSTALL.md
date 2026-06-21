@@ -1,5 +1,7 @@
 # Flightdeck Install Guide
 
+> Beta note: the current public beta is Bambu-tested first. For the shortest first-run path, use the focused [Raspberry Pi install guide](docs/INSTALL_PI.md), then return here only if you need Windows tray setup, manual install, or deeper reference notes.
+
 Flightdeck install, easy as 1-2-3:
 
 1. **Install Flightdeck**
