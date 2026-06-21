@@ -13530,13 +13530,13 @@ select optgroup {
   min-width: 1.62rem;
   min-height: 1.02rem;
   padding: 0.18rem 0.26rem 0.13rem;
-  border-color: rgba(96, 165, 250, 0.38);
+  border-color: var(--spool-tab-border, rgba(96, 165, 250, 0.38));
   border-bottom-color: rgba(122, 162, 216, 0.34);
   border-radius: 0.3rem 0.3rem 0 0;
-  background: rgba(8, 17, 31, 0.9);
-  color: #eaf2ff;
+  background: var(--spool-tab-bg, #08111f);
+  color: var(--spool-tab-text, #f8fafc);
   font-size: 0.6rem;
-  text-shadow: 0 1px 1px rgba(0,0,0,0.7);
+  text-shadow: none;
   box-shadow: 0 -1px 0 rgba(255,255,255,0.08) inset, 0 0.12rem 0.35rem rgba(0,0,0,0.26);
 }
 
@@ -13548,12 +13548,12 @@ select optgroup {
 }
 
 .spool-card-band .spool-roll-tab.active {
-  background: var(--card-bg);
-  border-color: rgba(248, 250, 252, 0.72);
+  background: var(--spool-tab-bg, #08111f);
+  border-color: var(--spool-tab-border, rgba(248, 250, 252, 0.72));
   border-bottom-color: var(--card-bg);
-  color: var(--text);
+  color: var(--spool-tab-text, #f8fafc);
   transform: translateY(1px);
-  box-shadow: 0 -0.2rem 0.7rem rgba(0,0,0,0.18);
+  box-shadow: 0 -0.2rem 0.7rem rgba(0,0,0,0.18), inset 0 0 0 1px rgba(255,255,255,0.16);
 }
 
 .spool-roll-tab.spool-amber {
@@ -13566,6 +13566,13 @@ select optgroup {
   color: var(--error);
   border-color: rgba(239,68,68,0.48);
   background: rgba(239,68,68,0.12);
+}
+
+.spool-card-band .spool-roll-tab.spool-amber,
+.spool-card-band .spool-roll-tab.spool-low {
+  background: var(--spool-tab-bg, #08111f);
+  border-color: var(--spool-tab-border, rgba(96, 165, 250, 0.38));
+  color: var(--spool-tab-text, #f8fafc);
 }
 
 .spool-group-panel {

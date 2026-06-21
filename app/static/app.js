@@ -15697,6 +15697,10 @@ function _spoolGroupCardHtml(group) {
   const rollTitle = group.map(s => `#${s.id}`).join(', ');
   const bandColor = first.color_hex || '#404040';
   const textColor = _spoolTextColor(bandColor);
+  const lightBand = textColor === '#1a1a1a';
+  const tabStyle = lightBand
+    ? '--spool-tab-bg:#08111f;--spool-tab-text:#f8fafc;--spool-tab-border:rgba(2,6,23,0.72);'
+    : '--spool-tab-bg:#f8fafc;--spool-tab-text:#0f172a;--spool-tab-border:rgba(248,250,252,0.86);';
   const tabs = group.map((s, idx) => {
     const rollPct = s.label_weight_g > 0 ? Math.round(s.remaining_g * 100 / s.label_weight_g) : 0;
     const cls = rollPct < 20 ? ' spool-low' : rollPct < 50 ? ' spool-amber' : '';
@@ -15731,7 +15735,7 @@ function _spoolGroupCardHtml(group) {
     </div>`;
   }).join('');
   return `<div class="spool-card spool-group-card${archived ? ' spool-card-archived' : ''}" data-spool-group="${esc(_spoolGroupKey(first))}">
-    <div class="spool-card-band" style="${_spoolColorStyle(first)};color:${textColor}">
+    <div class="spool-card-band" style="${_spoolColorStyle(first)};color:${textColor};${tabStyle}">
       <span class="spool-color-name">${esc(first.color_name || '—')}</span>
       <div class="spool-roll-tabs" role="tablist" aria-label="${esc(first.color_name || 'Spool')} rolls" title="${esc(`${group.length} rolls · latest #${latestId} · ${rollTitle}`)}">${tabs}</div>
       ${archived ? '<span class="spool-archived-stamp">Archived</span>' : ''}

@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Improve grouped spool tab contrast`
+- Latest commit: `Use reversible contrast for spool tabs`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=512 / style.css?v=404 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=513 / style.css?v=405 / demo-runtime.js?v=8
+
+### 2026-06-21 polish (Grouped spool reversible tab contrast)
+
+**Use reversible contrast for spool tabs** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+Follow-up after screenshots showed grouped spool tabs still lacked uniform contrast: black/dark cards looked acceptable but white, blue, and other light/bright cards made the tab numbers hard to read. Grouped card tabs now use a reversible black/white contrast scheme based on the colour band's luminance: light bands get black tabs with white numbers, while dark bands get white tabs with black numbers. Header tabs no longer inherit low-stock red/orange text tint, keeping spool number readability consistent; low-stock status remains visible in the selected detail panel. Static cache bumped to `app.js?v=513` and `style.css?v=405`; frontend refresh required.
+  - Verification: `node --check app/static/app.js` passed. `git diff --check` passed with only the existing Windows CRLF warning.
 
 ### 2026-06-21 polish (Grouped spool tab contrast)
 
