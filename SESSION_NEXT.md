@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `License Flightdeck under AGPL`
+- Latest commit: `Lock non-Bambu printer setup for beta`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=514 / style.css?v=407 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=515 / style.css?v=408 / demo-runtime.js?v=8
+
+### 2026-06-21 beta setup polish
+
+**Lock non-Bambu printer setup for beta** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+Settings > Printers now presents Bambu as the active `Beta ready` add-printer path while Klipper and Snapmaker remain visible as `Tester wanted` / coming-soon families. The locked tiles explain that those brands are planned tester paths but not part of the tested beta setup path yet, and new non-Bambu submissions are blocked with a clear validation message. Existing configured non-Bambu printers remain editable/visible, but new beta users are steered away from half-supported setup. LAN scan bulk-add language was adjusted so discovered Klipper/Snapmaker-style devices are treated as future tester candidates rather than auto-addable beta targets. Static cache bumped to `app.js?v=515` and `style.css?v=408`; frontend refresh required.
+  - Verification: `node --check app/static/app.js` passed. `git diff --check` passed with only the existing Windows CRLF warning.
 
 ### 2026-06-21 beta launch prep (AGPL licensing)
 

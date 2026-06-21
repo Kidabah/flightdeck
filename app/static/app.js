@@ -10518,6 +10518,8 @@ const _PRINTER_SETUP_FAMILIES = {
     label: 'Bambu',
     connType: 'bambu',
     icon: 'bambu',
+    setupBadge: 'Beta ready',
+    setupNote: 'Tested setup path for this beta.',
     idPlaceholder: 'h2d',
     customPlaceholder: 'BigBoy',
     models: ['H2D', 'H2C', 'H2S', 'X2D', 'X1C', 'X1E', 'P2S', 'P1S', 'P1P', 'A1', 'A1 mini', 'Custom Bambu'],
@@ -10526,6 +10528,9 @@ const _PRINTER_SETUP_FAMILIES = {
     label: 'Klipper',
     connType: 'moonraker',
     icon: 'voron',
+    setupBadge: 'Tester wanted',
+    setupNote: 'Coming soon. Visible so Klipper/Voron owners can see the direction, but locked for the Bambu beta.',
+    setupLocked: true,
     idPlaceholder: 'klipper_printer',
     customPlaceholder: 'Greyhound Elite V2',
     models: [
@@ -10546,6 +10551,9 @@ const _PRINTER_SETUP_FAMILIES = {
     label: 'Snapmaker',
     connType: 'snapmaker_u1',
     icon: 'generic',
+    setupBadge: 'Tester wanted',
+    setupNote: 'Coming soon. Planned printer family, but not part of the tested beta setup path yet.',
+    setupLocked: true,
     idPlaceholder: 'u1',
     customPlaceholder: 'Printer Beast',
     models: ['Snapmaker U1'],
@@ -10746,17 +10754,24 @@ function _printersCategoryHtml(printers) {
           <label class="settings-label" for="p-printer-family">Printer</label>
           <select class="settings-input printer-family-select" id="p-printer-family" aria-label="Printer family">
             <option value="bambu">Bambu</option>
-            <option value="voron">Klipper</option>
-            <option value="snapmaker_u1">Snapmaker</option>
+            <option value="voron" disabled>Klipper</option>
+            <option value="snapmaker_u1" disabled>Snapmaker</option>
           </select>
           <div class="printer-family-picker" role="radiogroup" aria-label="Printer family">
             ${_PRINTER_FAMILY_ORDER.map(id => {
               const family = _PRINTER_SETUP_FAMILIES[id];
-              return `<button type="button" class="printer-family-option" data-printer-family-option="${esc(id)}" aria-pressed="${id === 'bambu' ? 'true' : 'false'}">
+              return `<button type="button" class="printer-family-option${family.setupLocked ? ' printer-family-option-locked' : ''}" data-printer-family-option="${esc(id)}" aria-pressed="${id === 'bambu' ? 'true' : 'false'}" ${family.setupLocked ? 'aria-disabled="true"' : ''}>
                 <span class="printer-family-icon">${getIcon(family.icon)}</span>
-                <span>${esc(family.label)}</span>
+                <span class="printer-family-copy">
+                  <strong>${esc(family.label)}</strong>
+                  <small>${esc(family.setupBadge || '')}</small>
+                </span>
               </button>`;
             }).join('')}
+          </div>
+          <div class="printer-family-beta-note">
+            <strong>Bambu is the tested beta setup path.</strong>
+            <span>Klipper, Snapmaker, and other printer brands are planned tester paths, but they stay locked here until they have proper setup coverage.</span>
           </div>
         </div>
 
@@ -11031,18 +11046,19 @@ function _attachPrintersEvents(el) {
         <button type="button" class="settings-save-btn printer-scan-use" data-scan-index="${idx}" ${row.already_configured ? 'disabled' : ''}>Use</button>
       </div>`).join('');
     if (!autoAddable) {
-      box.insertAdjacentHTML('afterbegin', '<div class="settings-empty">Only unconfigured Moonraker/Snapmaker results can be bulk added. Bambu results need access code and serial first.</div>');
+      box.insertAdjacentHTML('afterbegin', '<div class="settings-empty">Bambu results need access code and serial first. Klipper, Snapmaker, and other brands are tester candidates for after the Bambu beta path is proven.</div>');
     }
   };
 
   const _scanCandidateCanAutoAdd = candidate => {
     if (!candidate || candidate.already_configured) return false;
-    return ['moonraker', 'snapmaker_u1'].includes(candidate.connection_type);
+    return false;
   };
 
   const _scanCandidateDisabledReason = candidate => {
     if (candidate?.already_configured) return 'Already configured';
     if (candidate?.connection_type === 'bambu') return 'Bambu needs access code and serial before adding';
+    if (['moonraker', 'snapmaker_u1'].includes(candidate?.connection_type)) return 'Tester candidate; locked during the Bambu beta';
     return 'Not enough information to add automatically';
   };
 
@@ -11198,7 +11214,14 @@ function _attachPrintersEvents(el) {
     setPrinterFamily(e.target.value);
   });
   el.querySelectorAll('[data-printer-family-option]').forEach(btn => {
-    btn.addEventListener('click', () => setPrinterFamily(btn.dataset.printerFamilyOption));
+    btn.addEventListener('click', () => {
+      const family = _PRINTER_SETUP_FAMILIES[btn.dataset.printerFamilyOption];
+      if (family?.setupLocked) {
+        showToast('Coming soon', `${family.label} setup is locked for the Bambu beta.`, 'warn');
+        return;
+      }
+      setPrinterFamily(btn.dataset.printerFamilyOption);
+    });
   });
   el.querySelector('#p-model-select')?.addEventListener('change', () => syncModelValue(true));
   el.querySelector('#p-model-custom')?.addEventListener('input', () => syncModelValue(false));
@@ -11384,9 +11407,13 @@ function _resetPrinterForm(el, setConnType) {
   el.querySelector('#mjpeg-fields').hidden = true;
 }
 
-function _validateFormData(data, connType, errorEl) {
+function _validateFormData(data, connType, errorEl, editingId = '') {
   const fail = msg => { errorEl.textContent = msg; errorEl.removeAttribute('hidden'); return false; };
   errorEl.setAttribute('hidden', '');
+
+  if (!editingId && connType !== 'bambu') {
+    return fail('Bambu is the only tested add-printer path in this beta. Other brands are coming soon for testers.');
+  }
 
   if (!data.id)          return fail('ID is required');
   if (!/^[a-z][a-z0-9_-]*$/.test(data.id))
@@ -11413,7 +11440,7 @@ async function _submitAddPrinter(el, connType) {
   const data      = _collectFormData(el, connType);
   if (editingId) data.id = editingId;
 
-  if (!_validateFormData(data, connType, errorEl)) return;
+  if (!_validateFormData(data, connType, errorEl, editingId)) return;
 
   const dup = await _checkDuplicateConnection(data, connType, editingId);
   if (dup) {

@@ -11633,6 +11633,10 @@ select optgroup {
   transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 
+.printer-family-option:disabled {
+  cursor: not-allowed;
+}
+
 .printer-family-option:hover,
 .printer-family-option:focus-visible {
   color: var(--text);
@@ -11640,11 +11644,62 @@ select optgroup {
   outline: none;
 }
 
+.printer-family-option-locked {
+  color: rgba(148, 163, 184, 0.72);
+  background:
+    linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(15, 23, 42, 0.72)),
+    repeating-linear-gradient(135deg, rgba(96, 165, 250, 0.08) 0 8px, transparent 8px 16px);
+  border-color: rgba(74, 119, 184, 0.32);
+}
+
+.printer-family-option-locked:hover,
+.printer-family-option-locked:focus-visible {
+  color: rgba(203, 213, 225, 0.82);
+  border-color: rgba(96, 165, 250, 0.42);
+}
+
 .printer-family-option.active {
   color: var(--text);
   background: rgba(21, 80, 67, 0.32);
   border-color: var(--ok);
   box-shadow: inset 0 0 0 1px rgba(29, 255, 142, 0.25);
+}
+
+.printer-family-copy {
+  min-width: 0;
+  display: grid;
+  gap: 0.12rem;
+}
+
+.printer-family-copy strong {
+  color: currentColor;
+  font-size: 0.95rem;
+}
+
+.printer-family-copy small {
+  width: fit-content;
+  border: 1px solid rgba(96, 165, 250, 0.32);
+  border-radius: 999px;
+  padding: 0.08rem 0.38rem;
+  background: rgba(59, 130, 246, 0.1);
+  color: #93c5fd;
+  font-size: 0.62rem;
+  font-weight: 900;
+  line-height: 1.25;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.printer-family-option.active .printer-family-copy small {
+  border-color: rgba(34, 197, 94, 0.45);
+  background: rgba(34, 197, 94, 0.12);
+  color: #86efac;
+}
+
+.printer-family-option-locked .printer-family-copy small {
+  border-color: rgba(245, 158, 11, 0.38);
+  background: rgba(245, 158, 11, 0.1);
+  color: #fbbf24;
 }
 
 .printer-family-icon {
@@ -11668,6 +11723,29 @@ select optgroup {
 .printer-family-icon svg {
   width: 1.05rem;
   height: 1.05rem;
+}
+
+.printer-family-beta-note {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-top: 0.15rem;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 0.55rem;
+  padding: 0.62rem 0.72rem;
+  background: rgba(245, 158, 11, 0.07);
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.printer-family-beta-note strong {
+  flex: 0 0 auto;
+  color: #fde68a;
+}
+
+.printer-family-beta-note span {
+  min-width: 0;
 }
 
 #settings-add-form .settings-inline-fields {
