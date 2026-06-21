@@ -13600,9 +13600,8 @@ select optgroup {
 
 .spool-card-actions {
   position: relative;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.16rem;
+  display: flex;
+  justify-content: flex-start;
   margin-top: 0.18rem;
   padding-top: 0.24rem;
   border-top: 1px solid rgba(255,255,255,0.04);
@@ -13610,7 +13609,7 @@ select optgroup {
 
 .spool-card-actions > .spool-action-btn,
 .spool-card-actions > .spool-action-menu > .spool-action-more {
-  width: 100%;
+  width: auto;
   box-sizing: border-box;
   justify-content: center;
   text-align: center;

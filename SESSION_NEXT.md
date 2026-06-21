@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Make spool action menu readable`
+- Latest commit: `Use uniform spool card actions`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=509 / style.css?v=399 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=510 / style.css?v=400 / demo-runtime.js?v=8
+
+### 2026-06-21 polish (Uniform spool card actions)
+
+**Use uniform spool card actions** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+Follow-up after the readable action popover: compact spool cards in the far-left column still looked messy because single-spool cards rendered `Assign`, `Label`, and `Edit` inline plus a separate `Actions` menu. Single spool cards now use the same single `Actions` entry point everywhere, with all actions inside the readable popover. The card action strip styling was simplified from a three-column button grid to a clean one-button row. Static cache bumped to `app.js?v=510` and `style.css?v=400`; frontend refresh required.
+  - Verification: `node --check app/static/app.js` passed. `git diff --check` passed with only the existing Windows CRLF warning.
 
 ### 2026-06-21 polish (Spool card action menu)
 

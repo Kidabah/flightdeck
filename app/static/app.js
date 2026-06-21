@@ -15604,12 +15604,8 @@ async function _openSpoolAssignModal(spoolId, refresh = _refreshSpoolsSurface) {
 }
 
 function _spoolCardActionsHtml(spoolId) {
-  const quick = _SPOOL_ACTIONS
-    .filter(a => a.key === 'assign' || a.key === 'label' || a.key === 'edit')
-    .map(a => _spoolActionControl(a, spoolId)).join('');
   const menu = _SPOOL_ACTIONS.map(a => _spoolActionControl(a, spoolId, true)).join('');
   return `<div class="spool-card-actions">
-    ${quick}
     <details class="spool-action-menu">
       <summary class="spool-action-btn spool-action-more" title="More actions">Actions</summary>
       <div class="spool-action-menu-panel">${menu}</div>
