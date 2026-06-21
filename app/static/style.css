@@ -1633,6 +1633,72 @@ header {
 .manual-check-watch { border-color: rgba(245,158,11,0.6); background: rgba(245,158,11,0.06); }
 .manual-check-watch strong { color: #fcd34d; }
 
+.about-page .about-hero {
+  align-items: stretch;
+}
+
+.about-build-card {
+  min-width: 17rem;
+  border: 1px solid rgba(59,130,246,0.28);
+  border-radius: 0.65rem;
+  background:
+    linear-gradient(135deg, rgba(59,130,246,0.1), rgba(239,68,68,0.04)),
+    var(--surface);
+  padding: 0.85rem 0.95rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.28rem;
+}
+
+.about-build-card span,
+.about-build-card small {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.about-build-card strong {
+  color: var(--text);
+  font-size: 0.9rem;
+  line-height: 1.25;
+}
+
+.about-timeline {
+  grid-row: span 2;
+}
+
+.about-timeline-list {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.about-timeline-item {
+  border-left: 2px solid rgba(59,130,246,0.55);
+  background: rgba(255,255,255,0.025);
+  border-radius: 0 0.5rem 0.5rem 0;
+  padding: 0.58rem 0.7rem;
+}
+
+.about-timeline-item strong,
+.about-timeline-item span {
+  display: block;
+}
+
+.about-timeline-item strong {
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
+.about-timeline-item span {
+  margin-top: 0.25rem;
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
 .demo-page {
   max-width: 1480px;
   width: 100%;
@@ -2540,6 +2606,7 @@ header {
   .demo-page { padding: 1rem; }
   .manual-hero,
   .demo-hero { align-items: stretch; flex-direction: column; }
+  .about-build-card { min-width: 0; }
   .demo-hero-copy { align-items: flex-start; }
   .demo-hero-logo { width: 40px; height: 40px; }
   .manual-hero-actions { justify-content: flex-start; }

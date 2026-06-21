@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Add empty spool tare profiles`
+- Latest commit: `Add About Flightdeck page`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=505 / style.css?v=396 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=506 / style.css?v=397 / demo-runtime.js?v=8
+
+### 2026-06-21 feature (About Flightdeck page)
+
+**Add About Flightdeck page** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `app/static/demo.html`)
+Added a System -> About page at `#/about` plus command-palette navigation. The page gives Flightdeck a short origin/history without turning it into a marketing landing page: it names Christopher Elle as creator, explains that Kidabah is the family/GitHub handle from his wife's pet name, credits Steve Keen for practical shop-floor/staff workflow input, states the Bambu-focused beta scope, and summarizes major areas of change such as spool truth, Bambu reliability, slicer handoff, Live cockpit, and Flight Recorder. Static cache bumped to `app.js?v=506` and `style.css?v=397`; frontend refresh required after deploy.
+  - Verification: `node --check app/static/app.js` passed. `git diff --check` passed with only the existing Windows CRLF warning.
 
 ### 2026-06-21 feature (Empty spool tare profiles)
 

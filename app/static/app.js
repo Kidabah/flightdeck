@@ -341,6 +341,7 @@ let _onSpools = false;          // true while spool inventory is active
 let _onMemory = false;          // true while Print Memory is active
 let _onManual = false;          // true while flight manual is active
 let _onDemo = false;            // true while walkthrough mode is active
+let _onAbout = false;           // true while about page is active
 let _renderedSpoolDetailId = null;
 let _lastSpoolsRouteKey = '';
 let _lastMemoryRouteKey = '';
@@ -821,6 +822,7 @@ function _commandStaticItems() {
     ['Spools', '#/spools', 'Spool inventory'],
     ['Walkthrough Mode', '#/walkthrough', 'Guided first-look tour for testers'],
     ['Flight Manual', '#/manual', 'Setup, recovery, Bambu and walkthrough notes'],
+    ['About Flightdeck', '#/about', 'Origin story, credits, and release notes'],
     ['Settings', '#/settings', 'Configuration'],
   ].map(([label, hash, meta]) => _commandItem({
     label: `Go to ${label}`,
@@ -2622,6 +2624,77 @@ async function renderManualView() {
   </div>`;
 }
 
+// ── About Flightdeck ───────────────────────────────────────────────────────
+
+function _aboutTimelineItem(title, body) {
+  return `<div class="about-timeline-item">
+    <strong>${esc(title)}</strong>
+    <span>${esc(body)}</span>
+  </div>`;
+}
+
+async function renderAboutView() {
+  const el = document.getElementById('about-page');
+  if (!el) return;
+  const instance = await fetch('/api/instance')
+    .then(r => r.ok ? r.json() : (_instanceInfo || {}))
+    .catch(() => (_instanceInfo || {}));
+  if (instance?.app) _instanceInfo = instance;
+  const versionText = [
+    instance.app?.version || instance.version,
+    instance.git?.branch,
+    instance.git?.commit ? String(instance.git.commit).slice(0, 7) : '',
+  ].filter(Boolean).join(' · ') || 'Local build';
+
+  el.innerHTML = `<div class="manual-page about-page">
+    <section class="manual-hero about-hero">
+      <div>
+        <div class="mission-eyebrow">About Flightdeck</div>
+        <h1>Built from a real print room, not a pitch deck.</h1>
+        <p>Flightdeck started as Christopher Elle's workshop control layer for keeping printers, filament, queues, history, and recovery decisions in one honest place.</p>
+      </div>
+      <div class="about-build-card">
+        <span>Current build</span>
+        <strong>${esc(versionText)}</strong>
+        <small>Bambu-focused beta path</small>
+      </div>
+    </section>
+
+    <section class="manual-grid about-grid">
+      ${_manualSection('Where It Came From', 'Flightdeck grew out of day-to-day printing pain: spools that did not match printer reports, jobs that needed better queue recovery, cameras that froze, slicers that needed handoff help, and history that should remember more than a filename.', [
+        '<strong>Workshop first</strong><span>Every feature is shaped by running actual printers, not a clean-room demo.</span>',
+        '<strong>Mixed fleet thinking</strong><span>The core is built for Bambu, Voron/Klipper, and future printer types without pretending they all behave the same.</span>',
+        '<strong>Operator trust</strong><span>Flightdeck tries to explain why a print can run, why it is blocked, and what the next safe action is.</span>',
+      ])}
+      ${_manualSection('Credits', 'Flightdeck is led and built by Christopher Elle. Kidabah is the family handle behind the GitHub account and comes from his wife\'s pet name.', [
+        '<strong>Christopher Elle</strong><span>Project creator, daily operator, tester, and the person whose print room keeps finding the hard problems.</span>',
+        '<strong>Steve Keen</strong><span>Practical shop-floor input, staff workflow ideas, and feature pressure around spool assignment, recovery, and real-world usability.</span>',
+        '<strong>Early testers and makers</strong><span>Feedback from real users keeps Flightdeck pointed at useful workshop behaviour instead of shiny noise.</span>',
+      ])}
+      ${_manualSection('Beta Scope', 'The current beta should be treated as Bambu-tested first. Other printer paths are part of the direction, but the safest release promise is the one proven hardest in the room.', [
+        '<strong>Tested hardest</strong><span>Bambu X1C, H2D, AMS, and AMS HT workflows have driven most of the recent fixes.</span>',
+        '<strong>Supported carefully</strong><span>Voron/Klipper and other printer types are handled where available, but beta notes should call out what has actually been tested.</span>',
+        '<strong>Local data</strong><span>Printers, spools, print history, and settings live on the Flightdeck host, not in GitHub.</span>',
+      ])}
+      <section class="manual-card about-timeline">
+        <div class="manual-card-head"><span>How It Has Changed</span></div>
+        <div class="about-timeline-list">
+          ${_aboutTimelineItem('Spool truth', 'Inventory grew from simple stock tracking into QR labels, cabinet views, AMS slot assignment, tare profiles, weight confidence, and post-print repair.')}
+          ${_aboutTimelineItem('Bambu reliability', 'Queue preflight, AMS Profile Doctor, H2D AMS HT mapping, skip objects, and reprint flows were shaped by real failed starts and recovery testing.')}
+          ${_aboutTimelineItem('Slicer handoff', 'Browser and desktop slicer flows were tightened so source models can move through Orca/Bambu Studio without losing operator control.')}
+          ${_aboutTimelineItem('Live cockpit', 'Camera-first Live pages, slide-out controls, temperature editing, filament routes, and stream watchdogs made the printer page useful from a desk or phone.')}
+          ${_aboutTimelineItem('Flight Recorder', 'Print history now has the hooks for clips, notes, decisions, failures, costs, spool deductions, and manual recovery when metadata is missing.')}
+        </div>
+      </section>
+      ${_manualSection('What Flightdeck Is Trying To Be', 'A calm control surface for a busy print room: enough automation to remove repeated mistakes, enough caution to keep the operator in charge, and enough history to understand what really happened.', [
+        '<strong>Not just filament stock</strong><span>Filament matters, but the real value is connecting spool truth to printer state, queue decisions, failures, and print history.</span>',
+        '<strong>Not a cloud lock-in</strong><span>The goal is practical local control with clear data ownership.</span>',
+        '<strong>Still growing</strong><span>Beta is the point where real users can start pressure-testing the flow and helping decide what matters next.</span>',
+      ])}
+    </section>
+  </div>`;
+}
+
 // ── Walkthrough Mode ───────────────────────────────────────────────────────
 
 function _demoMetric(label, value, detail = '', tone = '') {
@@ -2789,6 +2862,7 @@ function parseRoute() {
   if (hash === '#/spools' || hash.startsWith('#/spools?')) return { view: 'spools' };
   if (hash === '#/walkthrough' || hash === '#/demo') return { view: 'demo' };
   if (hash === '#/manual') return { view: 'manual' };
+  if (hash === '#/about') return { view: 'about' };
   const settingsMatch = hash.match(/^#\/settings\/([^/]+)/);
   if (settingsMatch?.[1] === 'spools') return { view: 'spools' };
   if (settingsMatch?.[1] === 'filament') return { view: 'spools', legacyFilament: true };
@@ -2845,6 +2919,7 @@ function router() {
   const wasOnMemory = _onMemory;
   const wasOnManual = _onManual;
   const wasOnDemo = _onDemo;
+  const wasOnAbout = _onAbout;
   const wasSpoolDetailId = _renderedSpoolDetailId;
   const spoolsRouteKey = route.view === 'spools' ? (location.hash || '#/spools') : '';
   const memoryRouteKey = route.view === 'memory' ? (location.hash || '#/memory') : '';
@@ -2854,6 +2929,7 @@ function router() {
   _onMemory = route.view === 'memory';
   _onManual = route.view === 'manual';
   _onDemo = route.view === 'demo';
+  _onAbout = route.view === 'about';
   if (route.view !== 'spool') _renderedSpoolDetailId = null;
 
   document.getElementById('view-dashboard').hidden = route.view !== 'dashboard';
@@ -2871,6 +2947,7 @@ function router() {
   document.getElementById('view-settings').hidden  = route.view !== 'settings';
   document.getElementById('view-demo').hidden      = route.view !== 'demo';
   document.getElementById('view-manual').hidden    = route.view !== 'manual';
+  document.getElementById('view-about').hidden     = route.view !== 'about';
 
   document.querySelectorAll('#tab-strip .tab').forEach(tab => {
     const href = tab.getAttribute('href');
@@ -2888,6 +2965,7 @@ function router() {
       (route.view === 'spools'   && href === '#/spools') ||
       (route.view === 'demo'     && (href === '#/walkthrough' || href === '#/demo')) ||
       (route.view === 'manual'   && href === '#/manual') ||
+      (route.view === 'about'    && href === '#/about') ||
       (route.view === 'settings' && (
         href === '#/settings' ||
         href === `#/settings/${_settingsCategory}` ||
@@ -2921,6 +2999,7 @@ function router() {
   if (route.view === 'settings' && (!wasOnSettings || categoryBeforeRoute !== _settingsCategory)) renderSettingsView();
   if (route.view === 'demo' && !wasOnDemo) renderDemoView();
   if (route.view === 'manual' && !wasOnManual) renderManualView();
+  if (route.view === 'about' && !wasOnAbout) renderAboutView();
 }
 
 function buildTabs(printers) {
@@ -2957,6 +3036,7 @@ function buildTabs(printers) {
     `<div class="tab-section">System</div>`,
     `<a class="tab" href="#/walkthrough">Walkthrough Mode</a>`,
     `<a class="tab" href="#/manual">Flight Manual</a>`,
+    `<a class="tab" href="#/about">About</a>`,
     `<div class="tab-flyout">
       <a class="tab tab-settings-root" href="#/settings">Settings</a>
       <div class="tab-flyout-menu">${settingsLinks}</div>
