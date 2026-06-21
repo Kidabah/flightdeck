@@ -161,7 +161,10 @@ async function loadSettings() {
 
   try {
     const r = await fetch('/api/settings');
-    if (r.ok) _serverSettings = await r.json();
+    if (r.ok) {
+      _serverSettings = await r.json();
+      if (_serverSettings.spool_view_mode) _spoolsViewMode = _normaliseSpoolViewMode(_serverSettings.spool_view_mode);
+    }
   } catch {}
 
   _applyAppearanceSettings();
@@ -14478,7 +14481,7 @@ function _attachHardwareEvents(el) {
 
 // ── Spool state ───────────────────────────────────────────────────────────
 let _allSpools = [];
-let _spoolsViewMode = 'cards';
+let _spoolsViewMode = 'swatch';
 let _spoolsSortKey = 'material';
 let _spoolsSortDir = 1;
 let _spoolsFilter = { search: '', status: 'active', slotFilter: 'all', material: '', brand: '', printer: '' };
@@ -14496,6 +14499,12 @@ const _COLOR_SCHEMES = [
   { value: 'gradient', label: 'Gradient' },
   { value: 'mixed', label: 'Mixed' },
 ];
+
+function _normaliseSpoolViewMode(view) {
+  const mode = String(view || '').trim().toLowerCase();
+  if (mode === 'cards') return 'detail';
+  return ['swatch', 'detail', 'table', 'cabinet', 'incoming', 'catalogue'].includes(mode) ? mode : 'swatch';
+}
 const _BRAND_TARE_ESTIMATES = [
   { brand: 'Bambu Lab', grams: 256, aliases: ['bambu'] },
   { brand: '3D Fuel', grams: 264 },
@@ -15689,6 +15698,48 @@ function _spoolGroupCounts(spools) {
   return counts;
 }
 
+function _spoolSwatchCardHtml(group) {
+  const first = group[0];
+  const archived = !!first.archived_at;
+  const totalRemaining = group.reduce((sum, s) => sum + Number(s.remaining_g || 0), 0);
+  const totalLabel = group.reduce((sum, s) => sum + Number(s.label_weight_g || 0), 0);
+  const pct = totalLabel > 0 ? Math.round(totalRemaining * 100 / totalLabel) : 0;
+  const barColor = _spoolProgressColor(pct);
+  const latest = group.reduce((best, s) => Number(s.id || 0) > Number(best.id || 0) ? s : best, first);
+  const textColor = _spoolTextColor(first.color_hex || '#404040');
+  const material = [first.material, first.subtype].filter(Boolean).join(' ') || 'Unknown material';
+  const rollIds = group.map(s => `#${s.id}`).join(', ');
+  const loc = _spoolGroupLocationSummary(group);
+  const countLabel = group.length === 1 ? `#${first.id}` : `${group.length} rolls`;
+  const lowCls = pct < 20 ? ' spool-low' : pct < 50 ? ' spool-amber' : '';
+  return `<button type="button" class="spool-swatch-card${archived ? ' spool-swatch-archived' : ''}" data-spool-id="${latest.id}" title="${esc(`${material} · ${rollIds}`)}">
+    <span class="spool-swatch-band" style="${_spoolColorStyle(first)};color:${textColor}">
+      <span class="spool-swatch-color">${esc(first.color_name || '—')}</span>
+      <span class="spool-swatch-count">${esc(countLabel)}</span>
+      ${archived ? '<span class="spool-archived-stamp">Archived</span>' : ''}
+    </span>
+    <span class="spool-swatch-body">
+      <span class="spool-swatch-material">${esc(material)}</span>
+      <span class="spool-swatch-brand">${esc(first.brand || 'Unknown brand')}</span>
+      <span class="spool-swatch-meta">
+        <span title="${esc(loc)}">${esc(loc)}</span>
+        <strong class="${lowCls}">${pct}%</strong>
+        <b>${Math.round(totalRemaining)}g</b>
+      </span>
+      <span class="spool-progress-bar">
+        <span class="spool-progress-fill" style="width:${pct}%;background:${barColor}"></span>
+      </span>
+    </span>
+  </button>`;
+}
+
+function _spoolSwatchHtml(spools) {
+  const groups = _spoolGroupedCards(spools);
+  return groups.length
+    ? groups.map(_spoolSwatchCardHtml).join('')
+    : '<p class="filament-empty">No spools match the current filters.</p>';
+}
+
 function _spoolGroupCardHtml(group) {
   if (group.length === 1) return _spoolCardHtml(group[0]);
   const first = group[0];
@@ -16518,7 +16569,8 @@ function _spoolsCategoryHtml(spools, summary, costs, intelligence = {}) {
     ${_spoolIntelligenceHtml(intelligence)}
     <div class="spool-filter-bar">
         <div class="spool-view-toggle">
-          <button class="spool-view-btn${_spoolsViewMode==='cards'?' active':''}" data-view="cards">Cards</button>
+          <button class="spool-view-btn${_spoolsViewMode==='swatch'?' active':''}" data-view="swatch">Swatch</button>
+          <button class="spool-view-btn${_spoolsViewMode==='detail'?' active':''}" data-view="detail">Detail</button>
           <button class="spool-view-btn${_spoolsViewMode==='table'?' active':''}" data-view="table">Table</button>
           <button class="spool-view-btn${_spoolsViewMode==='cabinet'?' active':''}" data-view="cabinet">Cabinet</button>
           <button class="spool-view-btn${_spoolsViewMode==='incoming'?' active':''}" data-view="incoming">Stock In</button>
@@ -16577,6 +16629,9 @@ function _paintSpoolList(el, listEl, spools) {
   } else if (_spoolsViewMode === 'cabinet' && _spoolsFilter.status !== 'archived') {
     listEl.className = '';
     listEl.innerHTML = _spoolCabinetHtml(spools);
+  } else if (_spoolsViewMode === 'swatch') {
+    listEl.className = 'spool-swatch-grid';
+    listEl.innerHTML = _spoolSwatchHtml(spools);
   } else {
     listEl.className = 'spool-card-grid';
     listEl.innerHTML = _spoolGroupedCards(spools).map(_spoolGroupCardHtml).join('');
@@ -16596,6 +16651,11 @@ function _attachSpoolListEvents(el, listEl, refresh = _refreshSpoolsSurface) {
       card?.querySelectorAll('[data-spool-group-panel]').forEach(panel => {
         panel.classList.toggle('active', String(panel.dataset.spoolId || '') === spoolId);
       });
+      return;
+    }
+    const swatch = e.target.closest('.spool-swatch-card[data-spool-id]');
+    if (swatch && listEl.contains(swatch)) {
+      location.hash = `#/spool/${swatch.dataset.spoolId}`;
       return;
     }
     if (e.target.closest('button, a, input, select, textarea, summary, details, .spool-action-menu')) return;
@@ -16716,8 +16776,8 @@ function _attachSpoolsEvents(el, costs) {
   // View toggle
   el.querySelectorAll('.spool-view-btn[data-view]').forEach(btn => {
     btn.addEventListener('click', async () => {
-      _spoolsViewMode = btn.dataset.view;
-      const targetHash = _spoolsViewMode === 'cards'
+      _spoolsViewMode = _normaliseSpoolViewMode(btn.dataset.view);
+      const targetHash = _spoolsViewMode === 'swatch'
         ? '#/spools'
         : `#/spools?view=${encodeURIComponent(_spoolsViewMode)}`;
       if (location.hash.startsWith('#/spools') && location.hash !== targetHash) {
@@ -16729,6 +16789,7 @@ function _attachSpoolsEvents(el, costs) {
         method: 'PUT', headers: {'Content-Type':'application/json'},
         body: JSON.stringify({value: _spoolsViewMode}),
       }).catch(() => {});
+      _serverSettings.spool_view_mode = _spoolsViewMode;
       _renderSpoolList(el);
     });
   });
@@ -18310,6 +18371,7 @@ async function _renderSpoolsContent(el) {
   if (!el) return;
   el.classList.add('settings-content-spools');
   el.innerHTML = `<div class="detail-placeholder" style="min-height:10rem">Loading…</div>`;
+  _spoolsViewMode = _normaliseSpoolViewMode(_spoolsViewMode || _serverSettings.spool_view_mode);
   const params = _routeParams('#/spools');
   if (params.has('filter')) {
     const filter = params.get('filter');
@@ -18317,7 +18379,7 @@ async function _renderSpoolsContent(el) {
   }
   if (params.has('view')) {
     const view = params.get('view');
-    if (['cards', 'table', 'cabinet', 'incoming', 'catalogue'].includes(view)) _spoolsViewMode = view;
+    _spoolsViewMode = _normaliseSpoolViewMode(view);
   }
   _spoolsFilter.printer = params.get('printer') || '';
   const [spools, summary, costs, filamentSummary, locations, intelligence, emptyProfiles] = await Promise.all([

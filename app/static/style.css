@@ -13231,6 +13231,134 @@ select optgroup {
 @media (max-width: 740px) { .spool-card-grid { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); } }
 @media (max-width: 420px) { .spool-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
+.spool-swatch-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(138px, 1fr));
+  gap: 0.5rem;
+}
+
+@media (max-width: 740px) { .spool-swatch-grid { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); } }
+@media (max-width: 420px) { .spool-swatch-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.spool-swatch-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 0.45rem;
+  background: var(--card-bg);
+  color: var(--text);
+  cursor: pointer;
+  overflow: hidden;
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s, transform 0.15s;
+}
+
+.spool-swatch-card:hover {
+  border-color: rgba(59,130,246,0.6);
+  background: rgba(59,130,246,0.05);
+  transform: translateY(-1px);
+}
+
+.spool-swatch-archived {
+  border-color: rgba(148, 163, 184, 0.42);
+  opacity: 0.76;
+}
+
+.spool-swatch-band {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.35rem;
+  min-height: 4.25rem;
+  padding: 0.46rem 0.52rem;
+  align-items: start;
+}
+
+.spool-swatch-color {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.86rem;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.spool-swatch-count {
+  padding: 0.08rem 0.32rem;
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.55);
+  color: #f8fafc;
+  box-shadow: 0 0 0 1px rgba(248, 250, 252, 0.22);
+  font-size: 0.58rem;
+  font-weight: 900;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.spool-swatch-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.42rem 0.5rem 0.48rem;
+}
+
+.spool-swatch-material {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 0.76rem;
+  font-weight: 900;
+  line-height: 1.16;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spool-swatch-brand {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.64rem;
+  line-height: 1.12;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spool-swatch-meta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.28rem;
+  align-items: baseline;
+  color: var(--muted);
+  font-size: 0.62rem;
+  line-height: 1.1;
+}
+
+.spool-swatch-meta span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spool-swatch-meta strong {
+  color: var(--printing);
+  font-size: 0.7rem;
+  font-weight: 900;
+}
+
+.spool-swatch-meta strong.spool-amber { color: #f59e0b; }
+.spool-swatch-meta strong.spool-low { color: var(--error); }
+
+.spool-swatch-meta b {
+  color: var(--text);
+  font-size: 0.68rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
 .spool-card {
   position: relative;
   background: var(--card-bg);

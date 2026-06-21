@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Add active marker to grouped spool tabs`
+- Latest commit: `Add swatch and detail spool views`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=513 / style.css?v=406 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=514 / style.css?v=407 / demo-runtime.js?v=8
+
+### 2026-06-21 polish (Spool swatch/detail views)
+
+**Add swatch and detail spool views** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+Split the old Spools `Cards` mode into two clearer views. `Swatch` is now the colour-first overview with compact colour cards showing colour, material/profile, brand, roll count, location summary, remaining percent, and grams. `Detail` keeps the previous richer card workflow with spool tabs, actions, trust, weights, and edit/label tools. The view toggle now reads `Swatch`, `Detail`, `Table`, `Cabinet`, followed by `Stock In` and `Filament catalogue`; legacy `cards` routes/settings are normalised to `Detail` so old links do not break. Static cache bumped to `app.js?v=514` and `style.css?v=407`; frontend refresh required.
+  - Verification: `node --check app/static/app.js` passed. `git diff --check` passed with only the existing Windows CRLF warning.
 
 ### 2026-06-21 polish (Grouped spool active tab marker)
 
