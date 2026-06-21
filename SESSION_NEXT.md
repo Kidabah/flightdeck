@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Use reversible contrast for spool tabs`
+- Latest commit: `Add active marker to grouped spool tabs`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=513 / style.css?v=405 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=513 / style.css?v=406 / demo-runtime.js?v=8
+
+### 2026-06-21 polish (Grouped spool active tab marker)
+
+**Add active marker to grouped spool tabs** (`app/static/style.css`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+Follow-up after the reversible black/white spool tabs improved readability but the selected roll still needed a clearer state marker. Grouped spool tabs now show a green active underline plus a small marker below the selected tab, so operators can tell at a glance which roll's detail panel is being shown even on light, dark, or rainbow colour bands. Static cache bumped to `style.css?v=406`; frontend refresh required.
+  - Verification: `git diff --check` passed with only the existing Windows CRLF warning.
 
 ### 2026-06-21 polish (Grouped spool reversible tab contrast)
 
