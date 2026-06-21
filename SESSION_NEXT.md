@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Use uniform spool card actions`
+- Latest commit: `Add tabbed grouped spool cards`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=510 / style.css?v=400 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=511 / style.css?v=401 / demo-runtime.js?v=8
+
+### 2026-06-21 polish (Tabbed grouped spool cards)
+
+**Add tabbed grouped spool cards** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+Refined the Spools card layout after grouped/multiple cards still felt too combined and single-card actions needed better visual balance. Single spool cards now centre the one `Actions` button. Multiple/grouped cards now keep the shared colour/material band but render each roll as its own number tab (`#22`, `#26`, etc.); clicking a tab swaps the detail panel underneath so each spool remains separate for grams, trust, location, progress, and actions instead of showing one combined roll summary. Static cache bumped to `app.js?v=511` and `style.css?v=401`; frontend refresh required.
+  - Verification: `node --check app/static/app.js` passed. `git diff --check` passed with only the existing Windows CRLF warning.
 
 ### 2026-06-21 polish (Uniform spool card actions)
 

@@ -15695,35 +15695,39 @@ function _spoolGroupCardHtml(group) {
   const archived = !!first.archived_at;
   const latestId = Math.max(...group.map(s => Number(s.id || 0)));
   const rollTitle = group.map(s => `#${s.id}`).join(', ');
-  const totalRemaining = group.reduce((sum, s) => sum + Number(s.remaining_g || 0), 0);
-  const totalLabel = group.reduce((sum, s) => sum + Number(s.label_weight_g || 0), 0);
-  const used = Math.max(0, totalLabel - totalRemaining);
-  const pct = totalLabel > 0 ? Math.round(totalRemaining * 100 / totalLabel) : 0;
-  const barColor = _spoolProgressColor(pct);
   const bandColor = first.color_hex || '#404040';
   const textColor = _spoolTextColor(bandColor);
-  const locationSummary = _spoolGroupLocationSummary(group);
-  const confidenceScores = group.map(s => Number(s.confidence?.score ?? 0)).filter(n => !isNaN(n));
-  const confidenceAvg = confidenceScores.length
-    ? Math.round(confidenceScores.reduce((sum, n) => sum + n, 0) / confidenceScores.length)
-    : null;
-  const rollChips = group.map(s => {
+  const tabs = group.map((s, idx) => {
     const rollPct = s.label_weight_g > 0 ? Math.round(s.remaining_g * 100 / s.label_weight_g) : 0;
     const cls = rollPct < 20 ? ' spool-low' : rollPct < 50 ? ' spool-amber' : '';
-    return `<a class="spool-roll-chip${cls}" href="#/spool/${s.id}" title="#${s.id} · ${Math.round(s.remaining_g || 0)}g">#${s.id}</a>`;
+    return `<button type="button" class="spool-roll-tab${cls}${idx === 0 ? ' active' : ''}" data-spool-group-tab="${esc(_spoolGroupKey(first))}" data-spool-id="${s.id}" title="#${s.id} · ${Math.round(s.remaining_g || 0)}g">#${s.id}</button>`;
   }).join('');
-  const rows = group.map(s => {
+  const panels = group.map((s, idx) => {
     const rollPct = s.label_weight_g > 0 ? Math.round(s.remaining_g * 100 / s.label_weight_g) : 0;
+    const barColor = _spoolProgressColor(rollPct);
+    const used = Math.max(0, Number(s.label_weight_g || 0) - Number(s.remaining_g || 0));
     const cls = rollPct < 20 ? ' spool-low' : rollPct < 50 ? ' spool-amber' : '';
     const p = _latestPrinters.find(x => x.id === s.location_printer_id);
     const loc = s.location_printer_id
       ? `${p?.custom_name ?? s.location_printer_id} ${_amsSlotLabel(p, s.location_slot)}`
       : _spoolStorageLocationName(s.storage_location_id);
-    return `<div class="spool-group-roll">
-      <a class="spool-group-roll-id" href="#/spool/${s.id}">#${s.id}</a>
-      <span class="spool-group-roll-grams${cls}">${Math.round(s.remaining_g || 0)}g</span>
-      <span class="spool-group-roll-loc" title="${esc(loc)}">${esc(loc)}</span>
-      <button class="spool-group-manage spool-action-btn spool-action-more" data-action="manage" data-id="${s.id}" title="Spool actions">Manage</button>
+    return `<div class="spool-group-panel${idx === 0 ? ' active' : ''}" data-spool-group-panel="${esc(_spoolGroupKey(first))}" data-spool-id="${s.id}">
+      <div class="spool-card-row">
+        <span class="spool-material">${esc(s.material)}${s.subtype ? ' ' + esc(s.subtype) : ''}</span>
+        <span class="spool-location-badge" title="${esc(loc)}">${esc(loc)}</span>
+      </div>
+      <div class="spool-card-row spool-confidence-row">${_spoolConfidenceHtml(s)}</div>
+      <div class="spool-card-row spool-brand">${esc(s.brand || 'Unknown brand')}</div>
+      <div class="spool-remaining-row">
+        <span class="spool-remaining-label">Remaining</span>
+        <span class="spool-remaining-pct${cls}">${rollPct}%</span>
+        <span class="spool-remaining-g">${Math.round(s.remaining_g || 0)}g</span>
+      </div>
+      <div class="spool-progress-bar">
+        <div class="spool-progress-fill" style="width:${rollPct}%;background:${barColor}"></div>
+      </div>
+      <div class="spool-meta-row"><span class="spool-meta">${Math.round(s.label_weight_g || 0)}g label</span><span class="spool-meta">${Math.round(used)}g used</span></div>
+      ${_spoolCardActionsHtml(s.id)}
     </div>`;
   }).join('');
   return `<div class="spool-card spool-group-card${archived ? ' spool-card-archived' : ''}" data-spool-group="${esc(_spoolGroupKey(first))}">
@@ -15733,28 +15737,8 @@ function _spoolGroupCardHtml(group) {
       ${archived ? '<span class="spool-archived-stamp">Archived</span>' : ''}
     </div>
     <div class="spool-card-body">
-      <div class="spool-card-row">
-        <span class="spool-material">${esc(first.material)}${first.subtype ? ' ' + esc(first.subtype) : ''}</span>
-        <span class="spool-location-badge" title="${esc(locationSummary)}">${esc(locationSummary)}</span>
-      </div>
-      <div class="spool-card-row spool-brand">${esc(first.brand || 'Unknown brand')}</div>
-      <div class="spool-remaining-row">
-        <span class="spool-remaining-label">Combined ${group.length} rolls</span>
-        <span class="spool-remaining-pct${pct < 20 ? ' spool-low' : pct < 50 ? ' spool-amber' : ''}">${pct}%</span>
-        <span class="spool-remaining-g">${Math.round(totalRemaining)}g</span>
-      </div>
-      <div class="spool-progress-bar">
-        <div class="spool-progress-fill" style="width:${pct}%;background:${barColor}"></div>
-      </div>
-      <div class="spool-meta-row">
-        <span class="spool-meta">${Math.round(totalLabel)}g total</span>
-        ${confidenceAvg != null ? `<span class="spool-meta">${confidenceAvg}% trust</span>` : ''}
-      </div>
-      <div class="spool-roll-chips">${rollChips}</div>
-      <details class="spool-group-details">
-        <summary class="spool-group-summary">Rolls <span>${group.length}</span></summary>
-        <div class="spool-group-rolls">${rows}</div>
-      </details>
+      <div class="spool-roll-tabs" role="tablist" aria-label="${esc(first.color_name || 'Spool')} rolls">${tabs}</div>
+      <div class="spool-group-panels">${panels}</div>
     </div>
   </div>`;
 }
@@ -16599,6 +16583,18 @@ function _paintSpoolList(el, listEl, spools) {
 
 function _attachSpoolListEvents(el, listEl, refresh = _refreshSpoolsSurface) {
   listEl.addEventListener('click', e => {
+    const tab = e.target.closest('[data-spool-group-tab]');
+    if (tab && listEl.contains(tab)) {
+      e.preventDefault();
+      e.stopPropagation();
+      const card = tab.closest('.spool-group-card');
+      const spoolId = String(tab.dataset.spoolId || '');
+      card?.querySelectorAll('[data-spool-group-tab]').forEach(btn => btn.classList.toggle('active', btn === tab));
+      card?.querySelectorAll('[data-spool-group-panel]').forEach(panel => {
+        panel.classList.toggle('active', String(panel.dataset.spoolId || '') === spoolId);
+      });
+      return;
+    }
     if (e.target.closest('button, a, input, select, textarea, summary, details, .spool-action-menu')) return;
     const card = e.target.closest('.spool-card[data-spool-id]');
     if (!card || !listEl.contains(card)) return;
