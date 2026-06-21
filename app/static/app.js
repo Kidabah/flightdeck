@@ -2651,7 +2651,7 @@ async function renderAboutView() {
       <div>
         <div class="mission-eyebrow">About Flightdeck</div>
         <h1>Built from a real print room, not a pitch deck.</h1>
-        <p>Flightdeck started as Christopher Elle's workshop control layer for keeping printers, filament, queues, history, and recovery decisions in one honest place.</p>
+        <p>Flightdeck started as Chris Little's workshop control layer for keeping printers, filament, queues, history, and recovery decisions in one honest place.</p>
       </div>
       <div class="about-build-card">
         <span>Current build</span>
@@ -2666,8 +2666,8 @@ async function renderAboutView() {
         '<strong>Mixed fleet thinking</strong><span>The core is built for Bambu, Voron/Klipper, and future printer types without pretending they all behave the same.</span>',
         '<strong>Operator trust</strong><span>Flightdeck tries to explain why a print can run, why it is blocked, and what the next safe action is.</span>',
       ])}
-      ${_manualSection('Credits', 'Flightdeck is led and built by Christopher Elle. Kidabah is the family handle behind the GitHub account and comes from his wife\'s pet name.', [
-        '<strong>Christopher Elle</strong><span>Project creator, daily operator, tester, and the person whose print room keeps finding the hard problems.</span>',
+      ${_manualSection('Credits', 'Flightdeck is led and built by Chris Little. Kidabah is the family handle behind the GitHub account and comes from his wife\'s pet name.', [
+        '<strong>Chris Little</strong><span>Project creator, daily operator, tester, and the person whose print room keeps finding the hard problems.</span>',
         '<strong>Steve Keen</strong><span>Practical shop-floor input, staff workflow ideas, and feature pressure around spool assignment, recovery, and real-world usability.</span>',
         '<strong>Early testers and makers</strong><span>Feedback from real users keeps Flightdeck pointed at useful workshop behaviour instead of shiny noise.</span>',
       ])}
