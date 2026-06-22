@@ -4050,7 +4050,13 @@ def assign_print_spool_usage(
     grams: Optional[float] = None,
     note: Optional[str] = None,
 ) -> Optional[dict]:
-    """Assign a previously unattributed print to a spool and deduct once."""
+    """Assign a previously unattributed print to a spool and deduct once.
+
+    History repair can legitimately target an archived spool when a printer
+    finished a job but reported it as cancelled after the roll was emptied.
+    In that case keep the spool archived, but still attach the usage so the
+    print history and consumed totals are truthful.
+    """
     import json
     with _conn() as conn:
         prow = conn.execute(
@@ -4070,9 +4076,9 @@ def assign_print_spool_usage(
             return {"error": "already_assigned"}
 
         spool = conn.execute(
-            """SELECT id, remaining_g, location_slot, material, brand
+            """SELECT id, remaining_g, location_slot, material, brand, archived_at
                FROM spools
-               WHERE id = ? AND archived_at IS NULL""",
+               WHERE id = ?""",
             (spool_id,),
         ).fetchone()
         if not spool:
@@ -4088,6 +4094,7 @@ def assign_print_spool_usage(
 
         old_r = float(spool["remaining_g"] or 0)
         new_r = max(0.0, old_r - deduct_g)
+        was_archived = spool["archived_at"] is not None
         archived_empty = False
         usage = {
             "spool_id": int(spool_id),
@@ -4099,11 +4106,13 @@ def assign_print_spool_usage(
             "material": spool["material"] or prow["material"],
             "brand": spool["brand"],
             "assigned_after_print": True,
+            "assigned_to_archived_spool": was_archived,
             "assigned_at": datetime.utcnow().isoformat(),
             "assignment_note": (note or "").strip()[:200],
         }
         conn.execute("UPDATE spools SET remaining_g = ? WHERE id = ?", (new_r, spool_id))
-        archived_empty = _auto_archive_empty_spool(conn, spool_id)
+        if not was_archived:
+            archived_empty = _auto_archive_empty_spool(conn, spool_id)
         conn.execute(
             "UPDATE prints SET spool_usage = ? WHERE id = ?",
             (json.dumps([usage]), print_id),
@@ -4113,6 +4122,8 @@ def assign_print_spool_usage(
         f"Spool #{spool_id} assigned after print: {deduct_g:.1f}g deducted "
         f"({old_r:.1f}g -> {new_r:.1f}g)"
     )
+    if was_archived:
+        detail += " on archived spool"
     if note:
         detail += f" - {note.strip()[:120]}"
     log_decision(prow["printer_id"], "spool_usage_assigned_after_print", detail, print_id=print_id)

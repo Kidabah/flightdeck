@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Clarify queue stock short spool labels`
+- Latest commit: `Repair archived spool history assignment and polish spool views`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=516 / style.css?v=408 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=516 / style.css?v=409 / demo-runtime.js?v=8
+
+### 2026-06-22 fix (History repair + spool polish)
+
+**Repair archived spool history assignment and polish spool views** (`app/db.py`, `app/static/style.css`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+Fixed the History repair path for cancelled-at-finish Bambu jobs where the physical print completed but the printer later reported a cancelled/error finish after the spool had already emptied and been archived. `assign_print_spool_usage()` can now attach grams to an archived spool, record `assigned_to_archived_spool`, keep the spool archived, and clamp the historical spool remaining value to 0g instead of blocking the repair. This is intended for cases like X1C print `289` / `Supporto rack componibile e impilabile per bobine`, which ran to completion but ended as `CANCELLED` with no filament metadata/spool usage after an extruder block. Also polished the Spools UI: Swatch cards now keep their natural height instead of stretching into tall columns when filters leave sparse rows, and the spool detail Back/Spools links now render as a compact breadcrumb pill. Static cache bumped to `style.css?v=409`; backend/service restart plus frontend refresh required.
+  - Verification: `python -m py_compile app/db.py` passed with the usual Windows Python `<prefix>` warning. `node --check app/static/app.js` passed. Temp-DB smoke confirmed assigning `173.15g` to archived spool `#38` for print `289` records spool usage, leaves the spool archived, and clamps remaining to `0g`. `git diff --check` passed with only the existing Windows CRLF warning.
 
 ### 2026-06-21 fix (Queue stock-short wording)
 
