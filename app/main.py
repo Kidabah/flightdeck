@@ -7619,8 +7619,12 @@ def _queue_nozzle_label(nozzle: Optional[int]) -> str:
     return "right nozzle" if nozzle == 0 else "left nozzle" if nozzle == 1 else "unknown nozzle"
 
 
+def _is_h2_printer_status(printer_status: Optional[dict]) -> bool:
+    return str((printer_status or {}).get("model_name") or "").upper().startswith("H2")
+
+
 def _reported_ams_path_slots(printer_status: Optional[dict]) -> list[dict]:
-    if not printer_status or not str(printer_status.get("model_name") or "").upper().startswith("H2"):
+    if not printer_status or not _is_h2_printer_status(printer_status):
         return []
     slots = []
     for unit in printer_status.get("ams") or []:
@@ -7959,7 +7963,11 @@ def _queue_preflight(job: dict, printer_status: Optional[dict]) -> dict:
     loaded_spools = list(loaded.values())
     material_matches = [s for s in loaded_spools if _spool_matches_material(s, material)]
     color_coverage = _queue_colour_coverage(color_reqs, loaded_spools) if color_reqs else []
-    nozzle_coverage = _queue_nozzle_coverage(nozzle_reqs, loaded_spools, required_g) if nozzle_reqs else []
+    use_nozzle_path_checks = _is_h2_printer_status(printer_status)
+    nozzle_coverage = (
+        _queue_nozzle_coverage(nozzle_reqs, loaded_spools, required_g)
+        if use_nozzle_path_checks and nozzle_reqs else []
+    )
     color_matches = [
         s for s in material_matches
         if any(_spool_matches_color(s, c["color"]) for c in color_reqs)

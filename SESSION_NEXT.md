@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Repair archived spool history assignment and polish spool views`
+- Latest commit: `Limit nozzle-path stock wording to H2 printers`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
@@ -13,6 +13,10 @@ Latest GitHub/Pi state:
 **Repair archived spool history assignment and polish spool views** (`app/db.py`, `app/static/style.css`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
 Fixed the History repair path for cancelled-at-finish Bambu jobs where the physical print completed but the printer later reported a cancelled/error finish after the spool had already emptied and been archived. `assign_print_spool_usage()` can now attach grams to an archived spool, record `assigned_to_archived_spool`, keep the spool archived, and clamp the historical spool remaining value to 0g instead of blocking the repair. This is intended for cases like X1C print `289` / `Supporto rack componibile e impilabile per bobine`, which ran to completion but ended as `CANCELLED` with no filament metadata/spool usage after an extruder block. Also polished the Spools UI: Swatch cards now keep their natural height instead of stretching into tall columns when filters leave sparse rows, and the spool detail Back/Spools links now render as a compact breadcrumb pill. Static cache bumped to `style.css?v=409`; backend/service restart plus frontend refresh required.
   - Verification: `python -m py_compile app/db.py` passed with the usual Windows Python `<prefix>` warning. `node --check app/static/app.js` passed. Temp-DB smoke confirmed assigning `173.15g` to archived spool `#38` for print `289` records spool usage, leaves the spool archived, and clamps remaining to `0g`. `git diff --check` passed with only the existing Windows CRLF warning.
+
+**Limit nozzle-path stock wording to H2 printers** (`app/main.py`, `SESSION_NEXT.md`)
+Fixed a confusing X1C queue preflight message where a single-nozzle Bambu job sliced for X1C still showed `Loaded nozzle-path stock short: right nozzle Grey...`. The 3MF can carry nozzle metadata even for single-tool printers, but that should not be presented as H2D left/right nozzle routing. Queue stock checks now only use nozzle-path coverage for H2-series printer statuses; X1C/P1/A1-style Bambu jobs fall back to normal colour/material coverage wording such as `Loaded colour coverage short: Grey (no loaded spool) 0g/177g`. Backend/service restart required after deploy; static cache unchanged.
+  - Verification: `.venv\Scripts\python.exe -m py_compile app/main.py` passed with the usual Windows Python `<prefix>` warning. A targeted preflight smoke for an X1C job with nozzle metadata confirmed no `right nozzle` / `nozzle-path` wording appears and the message uses colour coverage instead. `git diff --check` passed with only the existing Windows CRLF warning.
 
 ### 2026-06-21 fix (Queue stock-short wording)
 
