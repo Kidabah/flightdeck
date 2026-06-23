@@ -8718,6 +8718,14 @@ button.live-route-node:hover {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
+  max-height: min(18rem, 42vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.45rem 0.5rem 0.45rem 0;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 0.55rem;
+  background: rgba(15, 23, 42, 0.28);
+  scrollbar-gutter: stable;
 }
 .decision-item {
   display: grid;
@@ -8725,9 +8733,15 @@ button.live-route-node:hover {
   gap: 0.5rem;
   align-items: baseline;
   font-size: 0.78rem;
+  padding: 0 0.5rem;
 }
 .decision-ts { color: var(--muted); font-variant-numeric: tabular-nums; }
-.decision-event { color: var(--text); font-weight: 500; }
+.decision-event {
+  color: var(--text);
+  font-weight: 500;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .decision-detail { color: var(--muted); }
 .decision-detail em {
   color: var(--muted);
@@ -8746,6 +8760,20 @@ button.live-route-node:hover {
   line-height: 1.2;
 }
 .decision-empty { color: var(--muted); font-size: 0.78rem; }
+
+@media (max-width: 760px) {
+  .decision-list {
+    max-height: 16rem;
+    padding-right: 0.35rem;
+  }
+  .decision-item {
+    grid-template-columns: 4.6rem 1fr;
+    gap: 0.25rem 0.45rem;
+  }
+  .decision-detail {
+    grid-column: 2;
+  }
+}
 
 .print-name {
   flex: 1;

@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Limit nozzle-path stock wording to H2 printers`
+- Latest commit: `Make print history decision trail scrollable`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=516 / style.css?v=409 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=516 / style.css?v=410 / demo-runtime.js?v=8
+
+### 2026-06-23 polish (History decision trail)
+
+**Make print history decision trail scrollable** (`app/static/style.css`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+Print History detail pages now keep the Decision trail inside a capped scrollable log panel instead of letting long live-deduction/retry trails stretch the whole print card down the page. The panel has its own scrollbar, contained scroll behaviour, subtle log styling, wrapped event text, and a narrower mobile layout so repeated `spool_deducted_live`, `job_reattached`, and calibration entries remain useful without taking over the screen. Static cache bumped to `style.css?v=410`; frontend refresh required.
+  - Verification: `git diff --check` passed with only the existing Windows CRLF warning.
 
 ### 2026-06-22 fix (History repair + spool polish)
 
