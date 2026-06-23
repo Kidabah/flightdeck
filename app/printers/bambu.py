@@ -1135,14 +1135,14 @@ class BambuPrinter:
 
 
 def _read_dual_nozzle_temps(mqtt_dump: dict, model_name: str) -> dict[str, "TempReading"]:
-    """Return {hotend_l, hotend_r} TempReadings for dual-nozzle printers (H2D only).
+    """Return {hotend_l, hotend_r} TempReadings for H-series dual-nozzle printers.
 
     H2D extruder encoding in device.extruder.info[]:
       - Primary extruder (id=0, Right): packed (actual<<16)|target  e.g. 17694990=(270<<16)|270
       - Secondary extruder (id=1, Left): plain int when temp>>16==0  e.g. 77 → 77°C
     Assignment confirmed: nozzle_temper tracks extruder[0] (Right); extruder[1] is Left.
     """
-    if model_name != "H2D":
+    if not str(model_name or "").upper().startswith("H"):
         return {}
 
     print_data = mqtt_dump.get("print", {})

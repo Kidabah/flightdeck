@@ -2,11 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Make print history decision trail scrollable`
+- Latest commit: `Allow H-series dual-nozzle temp parsing`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=516 / style.css?v=410 / demo-runtime.js?v=8
+
+### 2026-06-23 H2C bring-up
+
+**Allow H-series dual-nozzle temp parsing** (`app/printers/bambu.py`, `SESSION_NEXT.md`)
+Broadened the Bambu dual-nozzle temperature parser so it no longer hard-codes `H2D` as the only model allowed to decode `device.extruder.info[]`. H-series models now attempt the same dual-hotend parsing path, which is the first step toward exposing H2C left/right tool temperatures if its MQTT payload matches the H2D extruder layout. This is intentionally scoped to temperature parsing only; H2D-specific AMS/nozzle routing logic was not widened in the same change. Backend/service restart required after deploy; static cache unchanged.
+  - Verification: `python -m py_compile app/printers/bambu.py` passed with the usual Windows Python `<prefix>` warning. `git diff --check` passed with only the existing Windows CRLF warning.
 
 ### 2026-06-23 polish (History decision trail)
 
