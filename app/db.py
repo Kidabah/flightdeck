@@ -580,6 +580,42 @@ def on_print_finished(
     return print_id
 
 
+def on_print_finished_by_id(
+    print_id: int,
+    *,
+    ended_at: Optional[datetime] = None,
+    layers_completed: Optional[int] = None,
+    filament_grams: Optional[float] = None,
+    material: Optional[str] = None,
+) -> bool:
+    """Close an open print row by id when the printer-side job key drifts."""
+    now = (ended_at or datetime.utcnow()).isoformat()
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT printer_id, job_key FROM prints WHERE id = ? AND final_state IS NULL",
+            (print_id,),
+        ).fetchone()
+        if not row:
+            return False
+        updated = conn.execute(
+            """UPDATE prints
+               SET ended_at         = ?,
+                   duration_seconds = CAST(
+                       (julianday(?) - julianday(started_at)) * 86400 AS INTEGER),
+                   final_state      = 'FINISHED',
+                   layers_completed = COALESCE(?, layers_completed),
+                   filament_grams   = COALESCE(?, filament_grams),
+                   material         = COALESCE(?, material)
+               WHERE id = ? AND final_state IS NULL""",
+            (now, now, layers_completed, filament_grams, material, print_id),
+        ).rowcount
+    if updated:
+        _cal_cache.pop(str(row["printer_id"]), None)
+        log.info("print finished by id: %s key=%s id=%s", row["printer_id"], row["job_key"], print_id)
+        return True
+    return False
+
+
 def update_print_filament_metadata(
     print_id: int,
     *,

@@ -473,6 +473,20 @@ class BambuPrinter:
                     filament_grams=filament_g,
                     material=material,
                 )
+                if finished_print_id is None and self._current_print_id:
+                    if db.on_print_finished_by_id(
+                        self._current_print_id,
+                        layers_completed=job.layer_current if job else None,
+                        filament_grams=filament_g,
+                        material=material,
+                    ):
+                        finished_print_id = self._current_print_id
+                        db.log_decision(
+                            self.id,
+                            "finish_key_fallback",
+                            f"Closed tracked print by id after finish key mismatch (key={self._current_job_key})",
+                            print_id=finished_print_id,
+                        )
                 if finished_print_id and filament_g:
                     db.deduct_spool_usage(
                         self.id, finished_print_id, filament_g,

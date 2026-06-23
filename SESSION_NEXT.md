@@ -8,6 +8,12 @@ Latest GitHub/Pi state:
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=516 / style.css?v=410 / demo-runtime.js?v=8
 
+### 2026-06-23 fix (H2C history finish close)
+
+**Close Bambu finished prints by tracked id if the finish key drifts** (`app/db.py`, `app/printers/bambu.py`, `SESSION_NEXT.md`)
+Hardened the Bambu finish path for H-series testing after `Big Girl` completed in Live view but stayed `RUNNING` in printer History. Root cause appears to be a finish-time job-key mismatch edge case: the session still knows the tracked print row id, spool deductions are attached to that row, and Live can show `finished`, but `db.on_print_finished(printer_id, job_key)` may return `None` if the printer-side finish key has drifted. Added `db.on_print_finished_by_id(print_id, ...)` and a Bambu fallback that closes the tracked open row directly by id, then logs `finish_key_fallback` for audit. This keeps History, queue completion, and spool usage aligned instead of leaving an open print row behind.
+  - Verification pending: run `python -m py_compile app/db.py app/printers/bambu.py`, then restart the backend and confirm `H2C first print` flips from `RUNNING` to `FINISHED` in History after the next completed H2C job.
+
 ### 2026-06-23 H2C bring-up
 
 **Allow H-series dual-nozzle temp parsing** (`app/printers/bambu.py`, `SESSION_NEXT.md`)
