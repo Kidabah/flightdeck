@@ -530,6 +530,14 @@ class BambuPrinter:
             self._error_print_id = None
             self._error_seen_at = 0.0
             if self._seen_finish_this_session:
+                closed_ids = db.close_open_prints(self.id, final_state="FINISHED")
+                for pid in closed_ids:
+                    db.log_decision(
+                        self.id,
+                        "finish_idle_cleanup",
+                        "IDLE followed a finished state with an open print row; closed as FINISHED before clearing the finish window",
+                        print_id=pid,
+                    )
                 db.clear_finished_at(self.id)
                 self._seen_finish_this_session = False
                 self._current_job_key = None
