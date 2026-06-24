@@ -6,7 +6,12 @@ Latest GitHub/Pi state:
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=520 / style.css?v=410 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=521 / style.css?v=411 / demo-runtime.js?v=8
+
+### 2026-06-24 polish (Reserved card actions)
+
+**Tune reserved spool card menu** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+Reserved spool cards now show only the actions that make sense for a reserved rack line: `Info`, `Restock`, and `Delete`. The inherited archived-card fade was removed from the card body so the action popover no longer looks washed out, and the reserved menu gets a slightly wider, clearer surface with the `Restock` action highlighted. Static cache bumped to `app.js?v=521` and `style.css?v=411`; frontend refresh required.
 
 ### 2026-06-24 polish (Reserved spool wording)
 

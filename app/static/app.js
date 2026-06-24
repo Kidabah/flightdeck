@@ -14667,7 +14667,7 @@ function _spoolActionsFor(spool) {
   const archived = !!spool?.archived_at;
   return _SPOOL_ACTIONS.filter(action => {
     if (action.key === 'restock') return archived;
-    if (archived && ['assign', 'weigh', 'reset', 'archive', 'duplicate'].includes(action.key)) return false;
+    if (archived && ['assign', 'label', 'weigh', 'edit', 'reset', 'archive', 'duplicate'].includes(action.key)) return false;
     if (!archived && action.key === 'restock') return false;
     return true;
   });

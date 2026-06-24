@@ -13521,7 +13521,8 @@ select optgroup {
 }
 
 .spool-card-archived .spool-card-body {
-  opacity: 0.74;
+  opacity: 1;
+  color: rgba(226, 232, 240, 0.86);
 }
 
 .spool-archived-stamp {
@@ -13941,6 +13942,22 @@ select optgroup {
   opacity: 1;
   font-size: 0.68rem;
   line-height: 1.1;
+}
+
+.spool-card-archived .spool-action-menu-panel {
+  min-width: 9.5rem;
+  border-color: rgba(148, 163, 184, 0.72);
+  background: #07101d;
+}
+
+.spool-card-archived .spool-action-menu-panel .spool-action-btn {
+  color: #e5edf8;
+}
+
+.spool-card-archived .spool-action-menu-panel .spool-action-label {
+  color: #86efac;
+  background: rgba(20, 83, 45, 0.36);
+  border-color: rgba(134, 239, 172, 0.68) !important;
 }
 
 .spool-action-menu-panel .spool-action-btn:hover {
