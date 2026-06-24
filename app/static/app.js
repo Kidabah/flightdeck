@@ -345,6 +345,7 @@ let _onMemory = false;          // true while Print Memory is active
 let _onManual = false;          // true while flight manual is active
 let _onDemo = false;            // true while walkthrough mode is active
 let _onAbout = false;           // true while about page is active
+let _onMakerWorld = false;      // true while MakerWorld page is active
 let _renderedSpoolDetailId = null;
 let _lastSpoolsRouteKey = '';
 let _lastMemoryRouteKey = '';
@@ -838,6 +839,7 @@ function _commandStaticItems() {
     ['Global Print Bay', '#/files', 'Files, printer storage, and reprint staging'],
     ['Spools', '#/spools', 'Spool inventory'],
     ['Walkthrough Mode', '#/walkthrough', 'Guided first-look tour for testers'],
+    ['MakerWorld', '#/makerworld', 'Bambu Cloud login, token health, and imports'],
     ['Flight Manual', '#/manual', 'Setup, recovery, Bambu and walkthrough notes'],
     ['About Flightdeck', '#/about', 'Origin story, credits, and release notes'],
     ['Settings', '#/settings', 'Configuration'],
@@ -2712,6 +2714,81 @@ async function renderAboutView() {
   </div>`;
 }
 
+// ── MakerWorld ─────────────────────────────────────────────────────────────
+
+function _makerWorldHealthPanelHtml() {
+  const h = _bambuCloudHealth();
+  return `<section class="manual-card makerworld-token-card">
+    <div class="manual-card-head"><span>Bambu Cloud Token</span></div>
+    <div class="bambu-cloud-health bambu-cloud-health-${esc(h.tone)}">
+      <div>
+        <span class="bambu-cloud-status">${esc(h.label)}</span>
+        <strong>${esc(h.daysText)}</strong>
+      </div>
+      <p>${esc(h.detail)}</p>
+    </div>
+    <div class="makerworld-date-row">
+      <label class="settings-label">Last sign-in</label>
+      <input class="settings-input pref-input" data-pref-key="bambu_cloud_last_auth_at" type="date" value="${esc(h.lastValue)}">
+      <button type="button" class="settings-save-btn" data-bambu-cloud-mark-now>Mark today</button>
+    </div>
+    <div class="makerworld-expiry">
+      <span>Estimated expiry</span>
+      <strong>${esc(h.expiresText)}</strong>
+    </div>
+  </section>`;
+}
+
+function _attachBambuCloudMarkEvents(el, afterSave = null) {
+  el.querySelectorAll('[data-bambu-cloud-mark-now]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const today = new Date().toISOString().slice(0, 10);
+      try {
+        await _saveSetting('bambu_cloud_last_auth_at', today);
+        _serverSettings.bambu_cloud_last_auth_at = today;
+        showToast('Bambu Cloud sign-in tracked', today, 'success');
+        if (typeof afterSave === 'function') afterSave(today);
+      } catch (err) {
+        showToast('Bambu Cloud setting failed', err.message || '', 'error');
+      }
+    });
+  });
+}
+
+async function renderMakerWorldView() {
+  const el = document.getElementById('makerworld-page');
+  if (!el) return;
+  const healthPanel = _makerWorldHealthPanelHtml();
+  el.innerHTML = `<div class="manual-page makerworld-page">
+    <section class="manual-hero makerworld-hero">
+      <div>
+        <div class="mission-eyebrow">MakerWorld</div>
+        <h1>Bambu Cloud doorway for Flightdeck.</h1>
+        <p>Use this page to open MakerWorld, refresh the Bambu Cloud session, and keep Flightdeck's token reminder in step with your real login.</p>
+      </div>
+      <div class="manual-hero-actions">
+        <a href="https://makerworld.com/" target="_blank" rel="noopener noreferrer">Open MakerWorld</a>
+        <a href="#/settings/preferences">Token settings</a>
+      </div>
+    </section>
+
+    <section class="manual-grid makerworld-grid">
+      ${healthPanel}
+      ${_manualSection('How To Use It', 'Keep this deliberately simple until the MakerWorld import path earns a deeper integration.', [
+        '<strong>1. Open MakerWorld</strong><span>If it opens already signed in, your browser session is still good.</span>',
+        '<strong>2. Refresh login when needed</strong><span>If MakerWorld asks for sign-in, complete it in the browser.</span>',
+        '<strong>3. Mark today</strong><span>After a successful sign-in, update the local token date so Flightdeck can warn before the next expiry.</span>',
+      ])}
+      ${_manualSection('Current Scope', 'This is a launch and health page, not a cloud account manager. Flightdeck does not store your Bambu password or silently re-authenticate.', [
+        '<strong>Local stays local</strong><span>Printer control and LAN workflows keep working without Bambu Cloud.</span>',
+        '<strong>Cloud is optional</strong><span>MakerWorld and cloud-backed imports depend on the browser/Bambu session.</span>',
+        '<strong>Next step</strong><span>Once this is proven, this page can become the home for model import and plate handoff tools.</span>',
+      ])}
+    </section>
+  </div>`;
+  _attachBambuCloudMarkEvents(el, () => renderMakerWorldView());
+}
+
 // ── Walkthrough Mode ───────────────────────────────────────────────────────
 
 function _demoMetric(label, value, detail = '', tone = '') {
@@ -2878,6 +2955,7 @@ function parseRoute() {
   if (hash === '#/failures' || hash.startsWith('#/failures?')) return { view: 'failures' };
   if (hash === '#/spools' || hash.startsWith('#/spools?')) return { view: 'spools' };
   if (hash === '#/walkthrough' || hash === '#/demo') return { view: 'demo' };
+  if (hash === '#/makerworld') return { view: 'makerworld' };
   if (hash === '#/manual') return { view: 'manual' };
   if (hash === '#/about') return { view: 'about' };
   const settingsMatch = hash.match(/^#\/settings\/([^/]+)/);
@@ -2937,6 +3015,7 @@ function router() {
   const wasOnManual = _onManual;
   const wasOnDemo = _onDemo;
   const wasOnAbout = _onAbout;
+  const wasOnMakerWorld = _onMakerWorld;
   const wasSpoolDetailId = _renderedSpoolDetailId;
   const spoolsRouteKey = route.view === 'spools' ? (location.hash || '#/spools') : '';
   const memoryRouteKey = route.view === 'memory' ? (location.hash || '#/memory') : '';
@@ -2947,6 +3026,7 @@ function router() {
   _onManual = route.view === 'manual';
   _onDemo = route.view === 'demo';
   _onAbout = route.view === 'about';
+  _onMakerWorld = route.view === 'makerworld';
   if (route.view !== 'spool') _renderedSpoolDetailId = null;
 
   document.getElementById('view-dashboard').hidden = route.view !== 'dashboard';
@@ -2963,6 +3043,7 @@ function router() {
   document.getElementById('view-spools').hidden    = route.view !== 'spools';
   document.getElementById('view-settings').hidden  = route.view !== 'settings';
   document.getElementById('view-demo').hidden      = route.view !== 'demo';
+  document.getElementById('view-makerworld').hidden = route.view !== 'makerworld';
   document.getElementById('view-manual').hidden    = route.view !== 'manual';
   document.getElementById('view-about').hidden     = route.view !== 'about';
 
@@ -2981,6 +3062,7 @@ function router() {
       (route.view === 'failures' && href === '#/failures') ||
       (route.view === 'spools'   && href === '#/spools') ||
       (route.view === 'demo'     && (href === '#/walkthrough' || href === '#/demo')) ||
+      (route.view === 'makerworld' && href === '#/makerworld') ||
       (route.view === 'manual'   && href === '#/manual') ||
       (route.view === 'about'    && href === '#/about') ||
       (route.view === 'settings' && (
@@ -3015,6 +3097,7 @@ function router() {
   if (route.view !== 'memory') _lastMemoryRouteKey = '';
   if (route.view === 'settings' && (!wasOnSettings || categoryBeforeRoute !== _settingsCategory)) renderSettingsView();
   if (route.view === 'demo' && !wasOnDemo) renderDemoView();
+  if (route.view === 'makerworld' && !wasOnMakerWorld) renderMakerWorldView();
   if (route.view === 'manual' && !wasOnManual) renderManualView();
   if (route.view === 'about' && !wasOnAbout) renderAboutView();
 }
@@ -3052,6 +3135,7 @@ function buildTabs(printers) {
     `<a class="tab" href="#/spools">Spools</a>`,
     `<div class="tab-section">System</div>`,
     `<a class="tab" href="#/walkthrough">Walkthrough Mode</a>`,
+    `<a class="tab" href="#/makerworld">MakerWorld</a>`,
     `<a class="tab" href="#/manual">Flight Manual</a>`,
     `<a class="tab" href="#/about">About</a>`,
     `<div class="tab-flyout">
@@ -18480,19 +18564,9 @@ function _attachLocationsEvents(el, locations) {
     });
   });
 
-  el.querySelectorAll('[data-bambu-cloud-mark-now]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const today = new Date().toISOString().slice(0, 10);
-      try {
-        await _saveSetting('bambu_cloud_last_auth_at', today);
-        _serverSettings.bambu_cloud_last_auth_at = today;
-        showToast('Bambu Cloud sign-in tracked', today, 'success');
-        el.innerHTML = _preferencesCategoryHtml();
-        _attachPreferencesEvents(el);
-      } catch (err) {
-        showToast('Bambu Cloud setting failed', err.message || '', 'error');
-      }
-    });
+  _attachBambuCloudMarkEvents(el, () => {
+    el.innerHTML = _preferencesCategoryHtml();
+    _attachPreferencesEvents(el);
   });
 }
 
