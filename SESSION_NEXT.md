@@ -2,16 +2,19 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Add printable rack location labels`
+- Latest commit: `Rename reserved spool search copy`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=525 / style.css?v=415 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=526 / style.css?v=415 / demo-runtime.js?v=8
 
 ### 2026-06-25 polish (Rack labels)
 
 **Add printable rack/location labels** (`app/label_printer.py`, `app/main.py`, `app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
 Settings -> Locations now has a `Label` action for each physical storage location. The backend prints a separate QL-700 rack/location label with a large location name/range, optional notes, a `FLIGHTDECK RACK` badge, print date, and QR code back to the Spools cabinet view for that location. This is separate from permanent spool QR labels and is intended for cupboard/rack ranges like `1-10`, `11-20`, or named wall bays. Static cache bumped to `app.js?v=525` and `style.css?v=415`; backend/service restart plus frontend refresh required after deploy.
+
+**Reserved wording follow-up** (`app/static/app.js`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+Cleaned up the last visible Spools search messages that still said `Archived` for reserved spool lines. Static cache bumped to `app.js?v=526`; frontend refresh required.
 
 ### 2026-06-25 feature (Bambu Cloud token health)
 

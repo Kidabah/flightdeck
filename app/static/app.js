@@ -16256,7 +16256,7 @@ async function _spoolExactSearchFallback() {
       return { message: `Spool ${_spoolDisplayLabel(spool)} exists, but it is active. Switch to Any status or Active.` };
     }
     if (_spoolsFilter.status === 'active' && spool.archived_at) {
-      return { message: `Spool ${_spoolDisplayLabel(spool)} is reserved on an archived spool line. Switch to Any status or Archived.` };
+      return { message: `Spool ${_spoolDisplayLabel(spool)} is reserved. Switch to Any status or Reserved.` };
     }
   } catch {}
   return null;
@@ -16732,7 +16732,7 @@ async function _renderSpoolList(el) {
   const filtered = _applySpoolFilters(_allSpools);
   if (filtered.length === 0) {
     listEl.className = '';
-    listEl.innerHTML = `<p class="filament-empty">Searching archived records...</p>`;
+    listEl.innerHTML = `<p class="filament-empty">Searching reserved records...</p>`;
     if (_spoolsFilter.status === 'archived' && await _ensureArchivedSpoolsLoaded()) {
       const reloaded = _applySpoolFilters(_allSpools);
       if (reloaded.length) {
