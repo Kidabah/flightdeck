@@ -6,7 +6,12 @@ Latest GitHub/Pi state:
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=521 / style.css?v=411 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=522 / style.css?v=412 / demo-runtime.js?v=8
+
+### 2026-06-25 feature (Bambu Cloud token health)
+
+**Add Bambu Cloud token health monitor** (`app/db.py`, `app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+Settings -> Preferences now includes a Bambu Cloud health card for future MakerWorld/Cloud import workflows. Operators can record the last Bambu Cloud sign-in date, see an estimated 90-day expiry window, and get clear healthy/watch/urgent/expired status copy before cloud-backed imports fail. The card deliberately does not store Bambu account credentials or silently re-authenticate; local LAN printer control remains separate from optional Bambu Cloud features. Static cache bumped to `app.js?v=522` and `style.css?v=412`; backend/service restart plus frontend refresh required so the new default settings are available.
 
 ### 2026-06-24 polish (Reserved card actions)
 

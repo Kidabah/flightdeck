@@ -14037,6 +14037,106 @@ function _prefBool(key, fallback = 'false') {
   return (_serverSettings[key] ?? fallback) === 'true';
 }
 
+function _dateInputValue(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return raw.slice(0, 10);
+  return d.toISOString().slice(0, 10);
+}
+
+function _bambuCloudHealth(settings = _serverSettings) {
+  const lastValue = _dateInputValue(settings.bambu_cloud_last_auth_at || '');
+  const tokenDays = Math.max(1, Number(settings.bambu_cloud_token_days || 90) || 90);
+  const warnDays = Math.max(1, Number(settings.bambu_cloud_warn_days || 75) || 75);
+  const urgentDays = Math.max(warnDays, Number(settings.bambu_cloud_urgent_days || 85) || 85);
+  if (!lastValue) {
+    return {
+      tone: 'muted',
+      label: 'Not tracked',
+      detail: 'Record a Bambu Cloud sign-in date before using future MakerWorld import features.',
+      lastValue: '',
+      expiresText: '—',
+      daysText: '—',
+    };
+  }
+  const last = new Date(`${lastValue}T00:00:00`);
+  if (Number.isNaN(last.getTime())) {
+    return {
+      tone: 'warn',
+      label: 'Check date',
+      detail: 'The saved Bambu Cloud sign-in date is not readable.',
+      lastValue,
+      expiresText: '—',
+      daysText: '—',
+    };
+  }
+  const now = new Date();
+  const ageDays = Math.max(0, Math.floor((now.getTime() - last.getTime()) / 86400000));
+  const remaining = tokenDays - ageDays;
+  const expiry = new Date(last.getTime() + tokenDays * 86400000);
+  let tone = 'ok';
+  let label = 'Healthy';
+  let detail = 'Bambu Cloud login should still be inside the expected token window.';
+  if (remaining <= 0) {
+    tone = 'bad';
+    label = 'Expired';
+    detail = 'Re-authenticate Bambu Cloud before relying on MakerWorld/profile import.';
+  } else if (ageDays >= urgentDays) {
+    tone = 'bad';
+    label = 'Expires soon';
+    detail = 'Re-authenticate soon so imports do not fail mid-workflow.';
+  } else if (ageDays >= warnDays) {
+    tone = 'warn';
+    label = 'Watch';
+    detail = 'Plan a Bambu Cloud re-authentication before the token window closes.';
+  }
+  return {
+    tone,
+    label,
+    detail,
+    lastValue,
+    expiresText: expiry.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }),
+    daysText: remaining <= 0 ? `${Math.abs(remaining)}d overdue` : `${remaining}d left`,
+  };
+}
+
+function _bambuCloudHealthHtml() {
+  const h = _bambuCloudHealth();
+  const tokenDays = _serverSettings.bambu_cloud_token_days ?? '90';
+  const warnDays = _serverSettings.bambu_cloud_warn_days ?? '75';
+  const urgentDays = _serverSettings.bambu_cloud_urgent_days ?? '85';
+  return `
+    <div class="settings-section bambu-cloud-section">
+      <div class="settings-section-title">Bambu Cloud</div>
+      <div class="bambu-cloud-health bambu-cloud-health-${esc(h.tone)}">
+        <div>
+          <span class="bambu-cloud-status">${esc(h.label)}</span>
+          <strong>${esc(h.daysText)}</strong>
+        </div>
+        <p>${esc(h.detail)}</p>
+      </div>
+      <div class="settings-form-row">
+        <label class="settings-label">Last sign-in</label>
+        <input class="settings-input pref-input" data-pref-key="bambu_cloud_last_auth_at" type="date" value="${esc(h.lastValue)}">
+        <button type="button" class="settings-save-btn" data-bambu-cloud-mark-now>Mark today</button>
+      </div>
+      <div class="settings-hint">Used for future MakerWorld/Cloud import checks only. Local printer control keeps working without Bambu Cloud.</div>
+      <div class="settings-form-row">
+        <label class="settings-label">Estimated expiry</label>
+        <span class="settings-readonly-pill">${esc(h.expiresText)}</span>
+      </div>
+      <div class="settings-form-row bambu-cloud-thresholds">
+        <label class="settings-label">Token window</label>
+        <input class="settings-input pref-input" data-pref-key="bambu_cloud_token_days" type="number" min="1" value="${esc(tokenDays)}"> days
+        <span class="settings-hint">Warn</span>
+        <input class="settings-input pref-input" data-pref-key="bambu_cloud_warn_days" type="number" min="1" value="${esc(warnDays)}"> days
+        <span class="settings-hint">Urgent</span>
+        <input class="settings-input pref-input" data-pref-key="bambu_cloud_urgent_days" type="number" min="1" value="${esc(urgentDays)}"> days
+      </div>
+    </div>`;
+}
+
 function _preferencesCategoryHtml() {
   const systemUrl = _serverSettings.system_base_url ?? 'https://flightdeck.tail7de73e.ts.net';
   const lowPct = _serverSettings.spool_low_stock_pct ?? '20';
@@ -14058,6 +14158,7 @@ function _preferencesCategoryHtml() {
       </div>
       <div class="settings-hint">Optional Pi, USB, or HDD-backed archive path for Print Bay. Leave blank to use the service default.</div>
     </div>
+    ${_bambuCloudHealthHtml()}
     <div class="settings-section">
       <div class="settings-section-title">Spool Thresholds</div>
       <div class="settings-form-row">
@@ -14119,6 +14220,11 @@ function _attachPreferencesEvents(el) {
         const saved = await _saveSetting(key, value);
         input.value = saved;
         if (key === 'print_vault_path') showToast('Print Vault path saved', saved || 'Using service default', 'success');
+        if (key.startsWith('bambu_cloud_')) {
+          _serverSettings[key] = saved;
+          el.innerHTML = _preferencesCategoryHtml();
+          _attachPreferencesEvents(el);
+        }
       } catch (err) {
         showToast('Setting save failed', err.message || '', 'error');
         input.value = input.defaultValue;
@@ -18370,6 +18476,21 @@ function _attachLocationsEvents(el, locations) {
         showToast('Location archived', loc.name, 'success');
         await _renderSettingsContent('locations');
       });
+    });
+  });
+
+  el.querySelectorAll('[data-bambu-cloud-mark-now]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const today = new Date().toISOString().slice(0, 10);
+      try {
+        await _saveSetting('bambu_cloud_last_auth_at', today);
+        _serverSettings.bambu_cloud_last_auth_at = today;
+        showToast('Bambu Cloud sign-in tracked', today, 'success');
+        el.innerHTML = _preferencesCategoryHtml();
+        _attachPreferencesEvents(el);
+      } catch (err) {
+        showToast('Bambu Cloud setting failed', err.message || '', 'error');
+      }
     });
   });
 }
