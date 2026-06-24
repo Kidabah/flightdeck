@@ -16639,7 +16639,7 @@ function _spoolsCategoryHtml(spools, summary, costs, intelligence = {}) {
           <button class="spool-view-btn${_spoolsViewMode==='catalogue'?' active':''}" data-view="catalogue">Filament catalogue</button>
         </div>
         <div class="spool-chips spool-toolbar-chips">
-          ${fc('status','all','Any status')}${fc('status','active','Active')}${fc('status','archived','Archived')}
+          ${fc('status','all','Any status')}${fc('status','active','Active')}${fc('status','archived','Reserved')}
           <span class="spool-chip-sep"></span>
           ${fc('slotFilter','all','All')}${fc('slotFilter','multiples','Multiples')}${fc('slotFilter','loaded','Loaded')}${fc('slotFilter','storage','Shelved')}${fc('slotFilter','low','Low stock')}
         </div>

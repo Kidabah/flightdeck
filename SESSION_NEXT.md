@@ -6,7 +6,12 @@ Latest GitHub/Pi state:
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=519 / style.css?v=410 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=520 / style.css?v=410 / demo-runtime.js?v=8
+
+### 2026-06-24 polish (Reserved spool wording)
+
+**Rename archived spool filter chip to Reserved** (`app/static/app.js`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+The Spools status filter now labels the archived/reserved state as `Reserved` instead of `Archived`, matching the new rack-number model and the card stamp. The underlying filter key remains `archived` internally to avoid unnecessary data churn. Static cache bumped to `app.js?v=520`; frontend refresh required.
 
 ### 2026-06-24 follow-up (Reserved spool restock)
 
