@@ -80,6 +80,7 @@ class LabelPrinter:
         img = Image.new("RGB", (self.LABEL_WIDTH_PX, 430), "white")
         draw = ImageDraw.Draw(img)
         prefs = spool.get("_label_preferences") or {}
+        display_id = spool.get("display_id") or spool.get("id") or "-"
         include_brand = prefs.get("label_include_brand", "true") == "true"
         include_colour = prefs.get("label_include_colour", "true") == "true"
         include_location = prefs.get("label_include_location", "true") == "true"
@@ -104,10 +105,10 @@ class LabelPrinter:
             location_line = f"Loc: {location}"
         draw.text((x, 42), _ellipsize(draw, material, font_bold, 420), fill="black", font=font_bold)
         draw.text((x, 116), _ellipsize(draw, brand if include_brand else "Flightdeck spool", font_body, 420), fill="black", font=font_body)
-        draw.text((x, 168), _ellipsize(draw, color_name if include_colour else f"Spool #{spool.get('id', '-')}", font_body, 300), fill="black", font=font_body)
+        draw.text((x, 168), _ellipsize(draw, color_name if include_colour else f"Spool #{display_id}", font_body, 300), fill="black", font=font_body)
         if color_hex and include_colour:
             draw.text((x, 210), color_hex, fill="black", font=font_badge)
-        draw.text((x, 258), f"Spool #{spool.get('id', '-')}", fill="black", font=font_badge)
+        draw.text((x, 258), f"Spool #{display_id}", fill="black", font=font_badge)
 
         if location_line and include_location:
             draw.text((506, 42), "Loc:", fill="black", font=font_small)
@@ -135,6 +136,7 @@ class LabelPrinter:
         img = Image.new("RGB", (self.LABEL_WIDTH_PX, 330), "white")
         draw = ImageDraw.Draw(img)
         prefs = spool.get("_label_preferences") or {}
+        display_id = spool.get("display_id") or spool.get("id") or "-"
         include_brand = prefs.get("label_include_brand", "true") == "true"
         include_colour = prefs.get("label_include_colour", "true") == "true"
         include_location = prefs.get("label_include_location", "true") == "true"
@@ -161,11 +163,11 @@ class LabelPrinter:
 
         draw.text((x, 26), _ellipsize(draw, material, font_title, 405), fill="black", font=font_title)
         draw.text((x, 88), _ellipsize(draw, brand if include_brand else "Flightdeck spool", font_body, 390), fill="black", font=font_body)
-        colour_line = color_name if include_colour else f"Spool #{spool.get('id', '-')}"
+        colour_line = color_name if include_colour else f"Spool #{display_id}"
         if color_hex and include_colour:
             colour_line = f"{colour_line}  {color_hex}"
         draw.text((x, 130), _ellipsize(draw, colour_line, font_body, 390), fill="black", font=font_body)
-        draw.text((x, 178), _ellipsize(draw, f"#{spool.get('id', '-')}", font_spool, 395), fill="black", font=font_spool)
+        draw.text((x, 178), _ellipsize(draw, f"#{display_id}", font_spool, 395), fill="black", font=font_spool)
 
         if location_line and include_location:
             draw.text((496, 28), "Loc:", fill="black", font=font_small)

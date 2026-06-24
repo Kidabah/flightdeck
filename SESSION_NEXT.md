@@ -6,7 +6,25 @@ Latest GitHub/Pi state:
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=516 / style.css?v=410 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=519 / style.css?v=410 / demo-runtime.js?v=8
+
+### 2026-06-24 follow-up (Reserved spool restock)
+
+**Add first-pass restock flow for reserved spool numbers** (`app/db.py`, `app/main.py`, `app/static/app.js`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+Reserved spool numbers now have a real path back into active stock. Archived/reserved spool cards show a `Restock` action that opens the normal spool form and updates that reserved line instead of creating a new visible number. Stock In receive forms now include `Restock spool #`; leaving it blank creates the next fresh number, while entering an archived reserved number refills that line. The backend protects active lines: if staff enter a number that is still active, Flightdeck returns a clear conflict instead of overwriting the current roll. Static cache bumped to `app.js?v=519`; backend/service restart plus frontend refresh required after deploy.
+  - Verification: `python -m py_compile app/db.py app/main.py app/label_printer.py` passed with the usual Windows Python `<prefix>` warning. `node --check app/static/app.js` passed.
+
+### 2026-06-24 follow-up (Reserved spool numbers)
+
+**Change spool numbering from auto-reuse to reserved spool lines** (`app/db.py`, `app/static/app.js`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+Follow-up after testing the first `display_id` split against the real rack workflow: lowest-free automatic number reuse was the wrong operator model because physical rack tags like `89 eSun` would drift out of sync if a totally different new roll inherited that number. Flightdeck now treats the visible spool number as a reserved spool line/rack identity instead of a recyclable slot token. New spools always take the next never-used display number (`MAX(display_id) + 1`), while archived spools keep their old number reserved for future restock/revival. Archived cards now stamp as `Reserved` rather than `Archived` so the UI better matches that intent. Exact search still works by visible number through `/api/spools/by-number/{display_id}`. Static cache bumped again to `app.js?v=518`; frontend refresh required.
+  - Verification pending: add a brand-new spool after archiving an older one and confirm the new roll gets the next fresh number instead of reusing the archived display number.
+
+### 2026-06-24 feature (Reusable spool numbering)
+
+**Split human spool numbers from internal spool ids and reuse freed numbers** (`app/db.py`, `app/main.py`, `app/label_printer.py`, `app/static/app.js`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+Flightdeck now keeps the database `spools.id` as the permanent internal identity/QR target while introducing a separate human-facing `display_id` for rack labels, UI cards, search, and operator workflows. Existing spools are backfilled so `display_id = id`, active spool numbers are protected by a partial unique index, and the codebase now has a clean split between internal spool identity and operator-facing numbering. Added `/api/spools/by-number/{display_id}` so exact search can open a spool by visible rack number, updated labels/swatch/detail/table/cabinet/fleet-wall/history surfaces to show the visible spool number instead of the raw row id, fixed the new by-number API route ordering so it is not shadowed by `/api/spools/{spool_id}`, and stamped live deduction / assigned-after-print / correction history text with the human-facing number. This entry was later superseded by the reserved spool-line model below, so automatic lowest-free number reuse is no longer the intended behaviour. Static cache first bumped to `app.js?v=517`; backend/service restart plus frontend refresh required after deploy.
+  - Verification: `python -m py_compile app/db.py app/main.py app/label_printer.py` passed with the usual Windows Python `<prefix>` warning. `node --check app/static/app.js` passed. `git diff --check` passed with only the existing Windows CRLF warning.
 
 ### 2026-06-23 fix (H2C history finish close)
 

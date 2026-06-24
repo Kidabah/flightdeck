@@ -6517,6 +6517,8 @@ class IncomingStockOrderCreate(BaseModel):
     lines: list[IncomingStockLine]
 
 class IncomingStockReceive(BaseModel):
+    restock_spool_id: Optional[int] = None
+    restock_display_id: Optional[int] = None
     storage_location_id: Optional[int] = None
     remaining_g: Optional[float] = None
     label_weight_g: Optional[float] = None
@@ -6617,14 +6619,19 @@ async def get_incoming_stock_roll_qr(token: str):
 
 @app.post("/api/stock-in/rolls/{token}/receive")
 async def receive_incoming_stock_roll(token: str, body: IncomingStockReceive):
-    result = db.receive_incoming_stock_roll(
-        token,
-        storage_location_id=body.storage_location_id,
-        remaining_g=body.remaining_g,
-        label_weight_g=body.label_weight_g,
-        empty_spool_weight_g=body.empty_spool_weight_g,
-        notes=body.notes,
-    )
+    try:
+        result = db.receive_incoming_stock_roll(
+            token,
+            restock_spool_id=body.restock_spool_id,
+            restock_display_id=body.restock_display_id,
+            storage_location_id=body.storage_location_id,
+            remaining_g=body.remaining_g,
+            label_weight_g=body.label_weight_g,
+            empty_spool_weight_g=body.empty_spool_weight_g,
+            notes=body.notes,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     if not result:
         raise HTTPException(status_code=404, detail="Incoming roll not found")
     label_printed = False
@@ -6634,12 +6641,55 @@ async def receive_incoming_stock_roll(token: str, body: IncomingStockReceive):
         ok = await asyncio.to_thread(_label_printer.print_spool_label, _label_spool(spool), _label_base_url())
         if ok:
             label_printed = True
-            db.log_decision("system", "label_printed", f"Spool #{spool['id']} stock-in receive")
+            db.log_decision("system", "label_printed", f"Spool #{spool.get('display_id') or spool['id']} stock-in receive")
         else:
             label_error = _label_printer.last_error or "Label printer unavailable"
-            db.log_decision("system", "label_print_failed", f"Spool #{spool['id']}: {label_error}")
-            _notify("warn", "Label print failed", f"Spool #{spool['id']}: {label_error}", link="#/settings/hardware")
+            db.log_decision("system", "label_print_failed", f"Spool #{spool.get('display_id') or spool['id']}: {label_error}")
+            _notify("warn", "Label print failed", f"Spool #{spool.get('display_id') or spool['id']}: {label_error}", link="#/settings/hardware")
     return {**result, "label_printed": label_printed, "label_error": label_error}
+
+@app.post("/api/spools/{spool_id}/restock")
+async def restock_spool(spool_id: int, body: SpoolCreate):
+    target = db.get_spool(spool_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="Spool not found")
+    if not target.get("archived_at"):
+        raise HTTPException(status_code=409, detail="Only reserved archived spool lines can be restocked")
+    remaining = body.remaining_g if body.remaining_g is not None else body.label_weight_g
+    try:
+        ok = db.restock_spool_line(
+            spool_id,
+            material=body.material,
+            brand=body.brand,
+            color_hex=body.color_hex,
+            label_weight_g=body.label_weight_g,
+            remaining_g=remaining,
+            subtype=body.subtype,
+            color_name=body.color_name,
+            color_hex_2=body.color_hex_2,
+            color_hex_3=body.color_hex_3,
+            color_scheme=body.color_scheme or "solid",
+            storage_location_id=body.storage_location_id,
+            notes=body.notes,
+            empty_spool_weight_g=body.empty_spool_weight_g,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if not ok:
+        raise HTTPException(status_code=404, detail="Spool not found")
+    spool = db.get_spool(spool_id)
+    label_printed = False
+    label_error = None
+    if db.get_all_settings().get("label_auto_print") == "true" and spool:
+        ok = await asyncio.to_thread(_label_printer.print_spool_label, _label_spool(spool), _label_base_url())
+        if ok:
+            label_printed = True
+            db.log_decision("system", "label_printed", f"Spool #{spool.get('display_id') or spool_id} restock")
+        else:
+            label_error = _label_printer.last_error or "Label printer unavailable"
+            db.log_decision("system", "label_print_failed", f"Spool #{spool.get('display_id') or spool_id}: {label_error}")
+            _notify("warn", "Label print failed", f"Spool #{spool.get('display_id') or spool_id}: {label_error}", link="#/settings/hardware")
+    return {"ok": True, "spool": spool, "label_printed": label_printed, "label_error": label_error}
 
 @app.get("/api/spools/by-printer/{printer_id}")
 async def get_spools_by_printer(printer_id: str):
@@ -6701,6 +6751,13 @@ async def archive_spool_location(location_id: int, archive_spools: bool = False)
         raise HTTPException(status_code=404, detail="Location not found")
     return {"ok": True, "archived_spools": usage["active_stored_count"] if archive_spools else 0}
 
+@app.get("/api/spools/by-number/{display_id}")
+async def get_spool_by_number(display_id: int, include_archived: bool = True):
+    s = db.get_spool_by_display_id(display_id, include_archived=include_archived)
+    if not s:
+        raise HTTPException(status_code=404, detail="Spool not found")
+    return s
+
 @app.get("/api/spools/{spool_id}")
 async def get_spool(spool_id: int):
     s = db.get_spool(spool_id)
@@ -6722,7 +6779,7 @@ async def create_spool(body: SpoolCreate):
         conflict = db.get_spool_at_slot(body.location_printer_id, body.location_slot)
         if conflict:
             raise HTTPException(status_code=409,
-                detail={"message": f"Slot occupied by spool #{conflict['id']}", "conflict_spool_id": conflict["id"]})
+                detail={"message": f"Slot occupied by spool #{conflict.get('display_id') or conflict['id']}", "conflict_spool_id": conflict["id"]})
     try:
         spool_id = db.create_spool(
             material=body.material, brand=body.brand, color_hex=body.color_hex,
@@ -6745,16 +6802,17 @@ async def create_spool(body: SpoolCreate):
         spool = db.get_spool(spool_id)
         ok = await asyncio.to_thread(_label_printer.print_spool_label, _label_spool(spool), _label_base_url())
         if ok:
-            db.log_decision("system", "label_printed", f"Spool #{spool_id} auto-print")
+            db.log_decision("system", "label_printed", f"Spool #{spool.get('display_id') if spool else spool_id} auto-print")
         else:
             message = _label_printer.last_error or "Label printer unavailable"
-            db.log_decision("system", "label_print_failed", f"Spool #{spool_id}: {message}")
-            _notify("warn", "Label print failed", f"Spool #{spool_id}: {message}", link="#/settings/hardware")
+            db.log_decision("system", "label_print_failed", f"Spool #{spool.get('display_id') if spool else spool_id}: {message}")
+            _notify("warn", "Label print failed", f"Spool #{spool.get('display_id') if spool else spool_id}: {message}", link="#/settings/hardware")
     ams_sync = None
     if body.location_printer_id and body.location_slot is not None:
         spool = db.get_spool(spool_id)
         ams_sync = await _sync_bambu_ams_slot(body.location_printer_id, body.location_slot, spool)
-    return {"id": spool_id, "ams_sync": ams_sync}
+    spool = db.get_spool(spool_id)
+    return {"id": spool_id, "display_id": spool.get("display_id") if spool else spool_id, "ams_sync": ams_sync}
 
 @app.put("/api/spools/{spool_id}")
 async def update_spool(spool_id: int, body: SpoolUpdate):

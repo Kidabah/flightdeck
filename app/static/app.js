@@ -752,10 +752,24 @@ function _commandNavigate(hash, after = null) {
   if (after) setTimeout(after, 120);
 }
 
+function _spoolDisplayId(spool) {
+  return Number(spool?.display_id || spool?.id || 0);
+}
+
+function _spoolDisplayLabel(spool) {
+  const value = spool?.display_id || spool?.id;
+  return value != null ? `#${value}` : '#-';
+}
+
+function _spoolDisplayNumberById(spoolId) {
+  const spool = (_allSpools || []).find(s => String(s.id) === String(spoolId));
+  return spool?.display_id || spool?.id || spoolId;
+}
+
 function _commandSpoolTitle(s) {
   const name = [s.color_name, s.material, s.subtype].filter(Boolean).join(' ');
   const brand = s.brand ? ` · ${s.brand}` : '';
-  return `Spool #${s.id} · ${name || 'Filament'}${brand}`;
+  return `Spool ${_spoolDisplayLabel(s)} · ${name || 'Filament'}${brand}`;
 }
 
 function _commandSpoolMeta(s) {
@@ -3228,7 +3242,7 @@ function _detailLiveSpoolChips(p) {
   return spools.map(s => {
     const pct = s.label_weight_g > 0 ? Math.round(Number(s.remaining_g || 0) * 100 / Number(s.label_weight_g || 1)) : 0;
     const cls = pct < 20 ? ' live-spool-row-low' : pct < 50 ? ' live-spool-row-warn' : '';
-    const title = [s.color_name, s.material, s.brand].filter(Boolean).join(' · ') || `Spool #${s.id}`;
+    const title = [s.color_name, s.material, s.brand].filter(Boolean).join(' · ') || `Spool ${_spoolDisplayLabel(s)}`;
     const grams = Math.round(Number(s.remaining_g || 0));
     const total = Math.round(Number(s.label_weight_g || 0));
     const slot = s.location_slot != null ? _amsSlotLabel(p, Number(s.location_slot)) : (s.storage_location_name || 'Loaded');
@@ -3236,7 +3250,7 @@ function _detailLiveSpoolChips(p) {
       <span class="live-spool-swatch" style="${_spoolColorStyle(s)}"></span>
       <span class="live-spool-main">
         <strong>${esc(title)}</strong>
-        <em>#${s.id} · ${esc(slot)} · ${grams}g${total ? ` of ${total}g` : ''}</em>
+        <em>${_spoolDisplayLabel(s)} · ${esc(slot)} · ${grams}g${total ? ` of ${total}g` : ''}</em>
       </span>
       <span class="live-spool-meter"><b style="width:${Math.max(2, Math.min(100, pct))}%"></b></span>
       <span class="live-spool-pct">${pct}%</span>
@@ -3405,7 +3419,7 @@ function _detailLiveToolheadRows(p) {
       </span>
       <span class="snapmaker-tool-nozzle" aria-hidden="true"></span>
       <span class="snapmaker-tool-info">
-        <strong>${esc(loadedSpool ? (loadedSpool.color_name || `Spool #${loadedSpool.id}`) : 'No spool assigned')}</strong>
+        <strong>${esc(loadedSpool ? (loadedSpool.color_name || `Spool ${_spoolDisplayLabel(loadedSpool)}`) : 'No spool assigned')}</strong>
         <em>${esc(loadedSpool ? [loadedSpool.material, loadedSpool.brand].filter(Boolean).join(' · ') : 'Click to assign')}</em>
       </span>
       <span class="snapmaker-tool-foot">
@@ -4932,7 +4946,7 @@ function _printSpoolCorrectionLabel(spool) {
     : (spool.storage_location_name || 'Shelf');
   const name = [spool.color_name, spool.material, spool.subtype].filter(Boolean).join(' ') || 'Filament';
   const brand = spool.brand ? ` · ${spool.brand}` : '';
-  return `#${spool.id} ${name}${brand} · ${Math.round(Number(spool.remaining_g || 0))}g · ${where}`;
+  return `${_spoolDisplayLabel(spool)} ${name}${brand} · ${Math.round(Number(spool.remaining_g || 0))}g · ${where}`;
 }
 
 async function _showSpoolUsageCorrectionModal({ print, usage, printerId }) {
@@ -4956,7 +4970,7 @@ async function _showSpoolUsageCorrectionModal({ print, usage, printerId }) {
     overlay.innerHTML = `
       <div class="modal-box input-modal spool-correction-modal">
         <div class="modal-message">Correct spool used</div>
-        <div class="modal-submessage">Move ${sourceGrams.toFixed(1)}g from spool #${esc(fromId)} to the spool that actually printed ${esc(print.subtask_name || print.filename || 'this job')}.</div>
+        <div class="modal-submessage">Move ${sourceGrams.toFixed(1)}g from spool #${esc(_spoolDisplayNumberById(fromId))} to the spool that actually printed ${esc(print.subtask_name || print.filename || 'this job')}.</div>
         <label class="modal-field-label" for="spool-correction-target">Correct spool</label>
         <select id="spool-correction-target" class="modal-input">
           ${candidates.map(s => `<option value="${s.id}">${esc(_printSpoolCorrectionLabel(s))}</option>`).join('')}
@@ -5145,7 +5159,7 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
         <div class="print-spool-title">Spool usage</div>
         ${print.spool_usage.map(u => `
           <div class="print-spool-row${u.reconcile_suggested ? ' print-spool-row-suggested' : ''}">
-            <a href="#/spool/${u.spool_id}">Spool #${u.spool_id}${u.slot != null ? ` · ${(_latestPrinters.find(x => x.id === printerId) ? _amsSlotLabel(_latestPrinters.find(x => x.id === printerId), u.slot) : `S${u.slot + 1}`)}` : ''}</a>
+            <a href="#/spool/${u.spool_id}">Spool #${_spoolDisplayNumberById(u.spool_id)}${u.slot != null ? ` · ${(_latestPrinters.find(x => x.id === printerId) ? _amsSlotLabel(_latestPrinters.find(x => x.id === printerId), u.slot) : `S${u.slot + 1}`)}` : ''}</a>
             <span class="print-spool-grams">
               <strong>${Number(u.actual_grams ?? u.grams ?? 0).toFixed(1)}g</strong>
               ${u.cost != null ? `<em class="print-spool-cost">$${Number(u.cost).toFixed(2)} · ${esc(u.cost_source || 'costed')}</em>` : ''}
@@ -5392,7 +5406,7 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
       const printId = btn.dataset.printId;
       const assignment = await _showSpoolUsageAssignmentModal({ print, printerId });
       if (!assignment) return;
-      const ok = await _confirmModal(`Deduct ${Number(assignment.grams || 0).toFixed(1)}g from spool #${assignment.spool_id} for this print?`);
+      const ok = await _confirmModal(`Deduct ${Number(assignment.grams || 0).toFixed(1)}g from spool #${_spoolDisplayNumberById(assignment.spool_id)} for this print?`);
       if (!ok) return;
       const old = btn.textContent;
       btn.disabled = true;
@@ -5405,7 +5419,7 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
         });
         const data = await r.json();
         if (!r.ok) throw new Error(data.detail || 'Assignment failed');
-        showToast('Spool assigned', `Deducted ${Number(data.grams || 0).toFixed(1)}g from spool #${data.spool_id}.`, 'success');
+        showToast('Spool assigned', `Deducted ${Number(data.grams || 0).toFixed(1)}g from spool #${_spoolDisplayNumberById(data.spool_id)}.`, 'success');
         await _refreshSpoolsByPrinter();
         await _refreshPrintDetailFromServer(printerId, dateStr, printId, targetEl);
       } catch (err) {
@@ -5425,7 +5439,7 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
       if (!usage) return;
       const correction = await _showSpoolUsageCorrectionModal({ print, usage, printerId });
       if (!correction) return;
-      const ok = await _confirmModal(`Move ${Number(usage.actual_grams ?? usage.grams ?? 0).toFixed(1)}g from spool #${spoolId} to spool #${correction.to_spool_id}?`);
+      const ok = await _confirmModal(`Move ${Number(usage.actual_grams ?? usage.grams ?? 0).toFixed(1)}g from spool #${_spoolDisplayNumberById(spoolId)} to spool #${_spoolDisplayNumberById(correction.to_spool_id)}?`);
       if (!ok) return;
       const old = btn.textContent;
       btn.disabled = true;
@@ -5438,7 +5452,7 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
         });
         const data = await r.json();
         if (!r.ok) throw new Error(data.detail || 'Correction failed');
-        showToast('Spool usage corrected', `Moved ${Number(data.grams || 0).toFixed(1)}g to spool #${data.to_spool_id}.`, 'success');
+        showToast('Spool usage corrected', `Moved ${Number(data.grams || 0).toFixed(1)}g to spool #${_spoolDisplayNumberById(data.to_spool_id)}.`, 'success');
         await _refreshSpoolsByPrinter();
         await _refreshPrintDetailFromServer(printerId, dateStr, printId, targetEl);
       } catch (err) {
@@ -6537,7 +6551,7 @@ function _failureRow(item) {
   const progress = item.progress_pct != null ? `${item.progress_pct}%` : '—';
   const mat = item.material || 'Unknown material';
   const spoolLinks = item.spool_usage?.length
-    ? item.spool_usage.map(u => `<a href="#/spool/${u.spool_id}">#${u.spool_id}</a>`).join(', ')
+    ? item.spool_usage.map(u => `<a href="#/spool/${u.spool_id}">#${u.display_id || _spoolDisplayNumberById(u.spool_id)}</a>`).join(', ')
     : '—';
   const snapshot = item.has_snapshot
     ? `<img src="${_mediaUrl(`/api/printers/${item.printer_id}/prints/${item.id}/snapshot`, item.filename || 'Failure snapshot', '#ef4444')}" alt="" loading="lazy">`
@@ -6624,7 +6638,7 @@ async function renderFailuresView(options = {}) {
   }, {})).map(([spool_id, count]) => ({ spool_id, count })).sort((a, b) => b.count - a.count);
   const spoolRows = _failureFilter.printer ? scopedSpoolStats : spoolStats;
   const spoolStatHtml = spoolRows.length
-    ? _failureStatBlock('By Spool', spoolRows, r => r.spool_id && r.spool_id !== 'Unknown' ? `Spool #${r.spool_id}` : 'Unknown')
+    ? _failureStatBlock('By Spool', spoolRows, r => r.spool_id && r.spool_id !== 'Unknown' ? `Spool #${_spoolDisplayNumberById(r.spool_id)}` : 'Unknown')
     : '';
 
   el.innerHTML = `<div class="failures-header">
@@ -9481,7 +9495,7 @@ function _fleetWallSpools(p) {
     const tc = _spoolTextColor(s.color_hex || '#808080');
     const loc = s.location_slot != null ? _amsSlotLabel(p, Number(s.location_slot)) : 'Loaded';
     return `<a class="fleet-wall-spool ${low ? 'fleet-wall-spool-low' : ''}" href="#/spool/${s.id}" style="${_spoolColorStyle(s)};color:${tc}" title="${esc(`${loc} · ${s.material || ''} ${s.color_name || ''}`)}">
-      <strong>#${s.id}</strong>
+      <strong>${_spoolDisplayLabel(s)}</strong>
       <span>${esc(s.color_name || s.material || loc)}</span>
     </a>`;
   }).join('')}</div>`;
@@ -9525,7 +9539,7 @@ function _fleetWallAmsRouteStrip(p) {
       const colour = spool?.color_hex || slot.color || '#22c55e';
       const slotLabel = _amsSlotLabel(p, flatSlot);
       const spoolLabel = spool
-        ? `#${spool.id} ${[spool.color_name, spool.material].filter(Boolean).join(' · ')}`
+        ? `${_spoolDisplayLabel(spool)} ${[spool.color_name, spool.material].filter(Boolean).join(' · ')}`
         : _slotProfileLabel(slot) || slot.type || 'Filament';
       const dest = _routeDestinationLabel(p, unit);
       const fedNow = _slotRouteFed(p, unit, slot);
@@ -14638,6 +14652,7 @@ function _tareHintText(source) {
 }
 const _SPOOL_ACTIONS = [
   { key: 'detail', label: 'Info', title: 'Details', kind: 'link', cls: 'spool-action-detail' },
+  { key: 'restock', label: 'Restock', title: 'Restock this reserved spool number', cls: 'spool-action-label' },
   { key: 'assign', label: 'Assign', title: 'Assign to printer or shelf', cls: 'spool-action-assign' },
   { key: 'label', label: 'Label', title: 'Print label', cls: 'spool-action-label' },
   { key: 'weigh', label: 'Weigh', title: 'Weigh from scale', cls: 'spool-action-weigh' },
@@ -14647,6 +14662,16 @@ const _SPOOL_ACTIONS = [
   { key: 'archive', label: 'Arch', title: 'Archive', cls: 'spool-action-utility' },
   { key: 'delete', label: 'Del', title: 'Delete', cls: 'spool-action-utility spool-action-danger' },
 ];
+
+function _spoolActionsFor(spool) {
+  const archived = !!spool?.archived_at;
+  return _SPOOL_ACTIONS.filter(action => {
+    if (action.key === 'restock') return archived;
+    if (archived && ['assign', 'weigh', 'reset', 'archive', 'duplicate'].includes(action.key)) return false;
+    if (!archived && action.key === 'restock') return false;
+    return true;
+  });
+}
 
 async function _refreshSpoolsByPrinter() {
   try {
@@ -15039,7 +15064,7 @@ async function _openSlotEditor(printerId, slotIndex, slotLabel) {
         <span class="location-spool-swatch" style="${_spoolColorStyle(current)}"></span>
         <div class="location-spool-main">
           <div class="location-spool-title">${esc(current.color_name || current.color_hex || 'Colour')} · ${esc(current.material)}${current.subtype ? ` ${esc(current.subtype)}` : ''}</div>
-          <div class="location-spool-sub">${esc(current.brand || 'Unknown brand')} · #${current.id} · ${Math.round(current.remaining_g || 0)}g</div>
+          <div class="location-spool-sub">${esc(current.brand || 'Unknown brand')} · ${_spoolDisplayLabel(current)} · ${Math.round(current.remaining_g || 0)}g</div>
         </div>
       </div>`
       : '<div class="slot-empty-state">No Flightdeck spool assigned to this slot.</div>';
@@ -15048,7 +15073,7 @@ async function _openSlotEditor(printerId, slotIndex, slotLabel) {
         <div>
           <span>Best stored match</span>
           <strong>${esc(bestCandidate.color_name || bestCandidate.color_hex || 'Colour')} · ${esc(bestCandidate.material)}${bestCandidate.subtype ? ` ${esc(bestCandidate.subtype)}` : ''}</strong>
-          <p>${esc(bestCandidate.brand || 'Unknown brand')} · #${bestCandidate.id} · ${Math.round(bestCandidate.remaining_g || 0)}g · ${esc(_spoolStorageLocationName(bestCandidate.storage_location_id))}</p>
+          <p>${esc(bestCandidate.brand || 'Unknown brand')} · ${_spoolDisplayLabel(bestCandidate)} · ${Math.round(bestCandidate.remaining_g || 0)}g · ${esc(_spoolStorageLocationName(bestCandidate.storage_location_id))}</p>
         </div>
         <button type="button" class="spool-action-btn spool-action-label" data-slot-spool-id="${bestCandidate.id}">Assign suggested spool</button>
       </div>`
@@ -15089,13 +15114,13 @@ async function _openSlotEditor(printerId, slotIndex, slotLabel) {
         homeShelf ? 'Home shelf' : '',
         staleEmptySource ? 'Empty source slot' : '',
       ].filter(Boolean);
-      const searchable = `${loc} ${s.material || ''} ${s.subtype || ''} ${s.brand || ''} ${s.color_name || ''} ${s.color_hex || ''} #${s.id}`.toLowerCase();
+      const searchable = `${loc} ${s.material || ''} ${s.subtype || ''} ${s.brand || ''} ${s.color_name || ''} ${s.color_hex || ''} ${_spoolDisplayLabel(s)}`.toLowerCase();
       const filterKey = staleEmptySource ? `empty:${s.location_printer_id}:${s.location_slot}` : `loc:${s.storage_location_id || ''}`;
       return `<button type="button" class="slot-spool-option" data-slot-spool-id="${s.id}" data-search="${esc(searchable)}" data-score="${score}" data-location-id="${esc(filterKey)}">
         <span class="location-spool-swatch" style="${_spoolColorStyle(s)}"></span>
         <span class="slot-spool-option-main">
           <strong>${esc(s.color_name || s.color_hex || 'Colour')} · ${esc(s.material)}${s.subtype ? ` ${esc(s.subtype)}` : ''}</strong>
-          <small>${esc(s.brand || 'Unknown brand')} · #${s.id} · ${Math.round(s.remaining_g || 0)}g (${pct}%)</small>
+          <small>${esc(s.brand || 'Unknown brand')} · ${_spoolDisplayLabel(s)} · ${Math.round(s.remaining_g || 0)}g (${pct}%)</small>
           ${badges.length ? `<span class="slot-spool-badges">${badges.map(b => `<em>${esc(b)}</em>`).join('')}</span>` : ''}
         </span>
         <span class="slot-spool-location">${esc(loc)}</span>
@@ -15640,7 +15665,8 @@ async function _openSpoolAssignModal(spoolId, refresh = _refreshSpoolsSurface) {
 }
 
 function _spoolCardActionsHtml(spoolId) {
-  const menu = _SPOOL_ACTIONS.map(a => _spoolActionControl(a, spoolId, true)).join('');
+  const spool = _allSpools.find(s => String(s.id) === String(spoolId));
+  const menu = _spoolActionsFor(spool).map(a => _spoolActionControl(a, spoolId, true)).join('');
   return `<div class="spool-card-actions">
     <details class="spool-action-menu">
       <summary class="spool-action-btn spool-action-more" title="More actions">Actions</summary>
@@ -15652,11 +15678,11 @@ function _spoolCardActionsHtml(spoolId) {
 function _openSpoolActionModal(spoolId, el, refresh = _refreshSpoolsSurface) {
   const spool = _allSpools.find(s => String(s.id) === String(spoolId));
   const title = spool
-    ? `Spool #${spool.id} · ${[spool.color_name, spool.material, spool.subtype].filter(Boolean).join(' ')}`
+    ? `Spool ${_spoolDisplayLabel(spool)} · ${[spool.color_name, spool.material, spool.subtype].filter(Boolean).join(' ')}`
     : `Spool #${spoolId}`;
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
-  const actions = _SPOOL_ACTIONS.map(a => _spoolActionControl(a, spoolId, true)).join('');
+  const actions = _spoolActionsFor(spool).map(a => _spoolActionControl(a, spoolId, true)).join('');
   overlay.innerHTML = `
     <div class="modal-box spool-action-modal">
       <div class="modal-header">
@@ -15708,10 +15734,10 @@ function _spoolGroupedCards(spools) {
     groups.get(key).push(s);
   }
   return [...groups.values()]
-    .map(group => group.sort((a, b) => Number(a.id || 0) - Number(b.id || 0)))
+    .map(group => group.sort((a, b) => _spoolDisplayId(a) - _spoolDisplayId(b) || Number(a.id || 0) - Number(b.id || 0)))
     .sort((a, b) => {
-      const aLatest = Math.max(...a.map(s => Number(s.id || 0)));
-      const bLatest = Math.max(...b.map(s => Number(s.id || 0)));
+      const aLatest = Math.max(...a.map(s => _spoolDisplayId(s)));
+      const bLatest = Math.max(...b.map(s => _spoolDisplayId(s)));
       return aLatest - bLatest;
     });
 }
@@ -15732,18 +15758,18 @@ function _spoolSwatchCardHtml(group) {
   const totalLabel = group.reduce((sum, s) => sum + Number(s.label_weight_g || 0), 0);
   const pct = totalLabel > 0 ? Math.round(totalRemaining * 100 / totalLabel) : 0;
   const barColor = _spoolProgressColor(pct);
-  const latest = group.reduce((best, s) => Number(s.id || 0) > Number(best.id || 0) ? s : best, first);
+  const latest = group.reduce((best, s) => _spoolDisplayId(s) > _spoolDisplayId(best) ? s : best, first);
   const textColor = _spoolTextColor(first.color_hex || '#404040');
   const material = [first.material, first.subtype].filter(Boolean).join(' ') || 'Unknown material';
-  const rollIds = group.map(s => `#${s.id}`).join(', ');
+  const rollIds = group.map(s => _spoolDisplayLabel(s)).join(', ');
   const loc = _spoolGroupLocationSummary(group);
-  const countLabel = group.length === 1 ? `#${first.id}` : `${group.length} rolls`;
+  const countLabel = group.length === 1 ? _spoolDisplayLabel(first) : `${group.length} rolls`;
   const lowCls = pct < 20 ? ' spool-low' : pct < 50 ? ' spool-amber' : '';
   return `<button type="button" class="spool-swatch-card${archived ? ' spool-swatch-archived' : ''}" data-spool-id="${latest.id}" title="${esc(`${material} · ${rollIds}`)}">
     <span class="spool-swatch-band" style="${_spoolColorStyle(first)};color:${textColor}">
       <span class="spool-swatch-color">${esc(first.color_name || '—')}</span>
       <span class="spool-swatch-count">${esc(countLabel)}</span>
-      ${archived ? '<span class="spool-archived-stamp">Archived</span>' : ''}
+      ${archived ? '<span class="spool-archived-stamp">Reserved</span>' : ''}
     </span>
     <span class="spool-swatch-body">
       <span class="spool-swatch-material">${esc(material)}</span>
@@ -15771,8 +15797,8 @@ function _spoolGroupCardHtml(group) {
   if (group.length === 1) return _spoolCardHtml(group[0]);
   const first = group[0];
   const archived = !!first.archived_at;
-  const latestId = Math.max(...group.map(s => Number(s.id || 0)));
-  const rollTitle = group.map(s => `#${s.id}`).join(', ');
+  const latestId = Math.max(...group.map(s => _spoolDisplayId(s)));
+  const rollTitle = group.map(s => _spoolDisplayLabel(s)).join(', ');
   const bandColor = first.color_hex || '#404040';
   const textColor = _spoolTextColor(bandColor);
   const lightBand = textColor === '#1a1a1a';
@@ -15782,7 +15808,7 @@ function _spoolGroupCardHtml(group) {
   const tabs = group.map((s, idx) => {
     const rollPct = s.label_weight_g > 0 ? Math.round(s.remaining_g * 100 / s.label_weight_g) : 0;
     const cls = rollPct < 20 ? ' spool-low' : rollPct < 50 ? ' spool-amber' : '';
-    return `<button type="button" class="spool-roll-tab${cls}${idx === 0 ? ' active' : ''}" data-spool-group-tab="${esc(_spoolGroupKey(first))}" data-spool-id="${s.id}" title="#${s.id} · ${Math.round(s.remaining_g || 0)}g">#${s.id}</button>`;
+    return `<button type="button" class="spool-roll-tab${cls}${idx === 0 ? ' active' : ''}" data-spool-group-tab="${esc(_spoolGroupKey(first))}" data-spool-id="${s.id}" title="${_spoolDisplayLabel(s)} · ${Math.round(s.remaining_g || 0)}g">${_spoolDisplayLabel(s)}</button>`;
   }).join('');
   const panels = group.map((s, idx) => {
     const rollPct = s.label_weight_g > 0 ? Math.round(s.remaining_g * 100 / s.label_weight_g) : 0;
@@ -15816,7 +15842,7 @@ function _spoolGroupCardHtml(group) {
     <div class="spool-card-band" style="${_spoolColorStyle(first)};color:${textColor};${tabStyle}">
       <span class="spool-color-name">${esc(first.color_name || '—')}</span>
       <div class="spool-roll-tabs" role="tablist" aria-label="${esc(first.color_name || 'Spool')} rolls" title="${esc(`${group.length} rolls · latest #${latestId} · ${rollTitle}`)}">${tabs}</div>
-      ${archived ? '<span class="spool-archived-stamp">Archived</span>' : ''}
+      ${archived ? '<span class="spool-archived-stamp">Reserved</span>' : ''}
     </div>
     <div class="spool-card-body">
       <div class="spool-group-panels">${panels}</div>
@@ -15838,8 +15864,8 @@ function _spoolCardHtml(s) {
   return `<div class="spool-card${archived ? ' spool-card-archived' : ''}" data-spool-id="${s.id}">
     <div class="spool-card-band" style="${_spoolColorStyle(s)};color:${textColor}">
       <span class="spool-color-name">${s.color_name || '—'}</span>
-      <span class="spool-id-badge">#${s.id}</span>
-      ${archived ? '<span class="spool-archived-stamp">Archived</span>' : ''}
+      <span class="spool-id-badge">${_spoolDisplayLabel(s)}</span>
+      ${archived ? '<span class="spool-archived-stamp">Reserved</span>' : ''}
     </div>
     <div class="spool-card-body">
       <div class="spool-card-row">
@@ -15877,7 +15903,7 @@ function _spoolTableHtml(spools) {
       ? `${p?.custom_name ?? s.location_printer_id} ${_amsSlotLabel(p, s.location_slot)}`
       : _spoolStorageLocationName(s.storage_location_id);
     return `<tr class="spool-tr" data-spool-id="${s.id}">
-      <td class="spool-td">#${s.id}</td>
+      <td class="spool-td">${_spoolDisplayLabel(s)}</td>
       <td class="spool-td">${added}</td>
       <td class="spool-td"><span class="spool-table-swatch" style="${_spoolColorStyle(s)}"></span></td>
       <td class="spool-td">${s.material}</td>
@@ -15919,9 +15945,9 @@ function _spoolCabinetTileHtml(s) {
   const textColor = _spoolTextColor(bandColor);
   const pctCls = pct < 20 ? ' spool-low' : pct < 50 ? ' spool-amber' : '';
   return `<div class="spool-cabinet-tile" data-spool-id="${s.id}">
-    <a class="spool-cabinet-swatch" href="#/spool/${s.id}" style="${_spoolColorStyle(s)};color:${textColor}" title="#${s.id} ${esc(s.color_name || '')}">
+    <a class="spool-cabinet-swatch" href="#/spool/${s.id}" style="${_spoolColorStyle(s)};color:${textColor}" title="${_spoolDisplayLabel(s)} ${esc(s.color_name || '')}">
       <span>${esc(s.color_name || bandColor)}</span>
-      <b>#${s.id}</b>
+      <b>${_spoolDisplayLabel(s)}</b>
     </a>
     <div class="spool-cabinet-info">
       <strong>${esc(s.material)}${s.subtype ? ` ${esc(s.subtype)}` : ''}</strong>
@@ -15992,7 +16018,9 @@ function _applySpoolFilters(spools) {
     if (f.search) {
       const q = f.search.toLowerCase();
       const haystack = [
-        `#${s.id}`,
+        _spoolDisplayLabel(s),
+        String(_spoolDisplayId(s) || ''),
+        `db:${s.id}`,
         String(s.id || ''),
         s.material,
         s.brand,
@@ -16012,7 +16040,8 @@ function _applySpoolFilters(spools) {
     ? filtered.filter(s => (groupCounts.get(_spoolGroupKey(s)) || 0) > 1)
     : filtered;
   return multiples.sort((a, b) => {
-    const va = a[_spoolsSortKey], vb = b[_spoolsSortKey];
+    const va = _spoolsSortKey === 'id' ? _spoolDisplayId(a) : a[_spoolsSortKey];
+    const vb = _spoolsSortKey === 'id' ? _spoolDisplayId(b) : b[_spoolsSortKey];
     if (typeof va === 'string') return _spoolsSortDir * (va || '').localeCompare(vb || '');
     return _spoolsSortDir * ((va ?? 0) - (vb ?? 0));
   });
@@ -16023,16 +16052,19 @@ async function _spoolExactSearchFallback() {
   const match = raw.match(/^#?(\d+)$/);
   if (!match) return null;
   try {
-    const r = await fetch(`/api/spools/${encodeURIComponent(match[1])}`, { cache: 'no-store' });
+    let r = await fetch(`/api/spools/by-number/${encodeURIComponent(match[1])}`, { cache: 'no-store' });
+    if (r.status === 404) {
+      r = await fetch(`/api/spools/${encodeURIComponent(match[1])}`, { cache: 'no-store' });
+    }
     if (!r.ok) return null;
     const spool = await r.json();
     const filtered = _applySpoolFilters([spool]);
     if (filtered.length) return { spools: filtered };
     if (_spoolsFilter.status === 'archived' && !spool.archived_at) {
-      return { message: `Spool #${spool.id} exists, but it is active. Switch to Any status or Active.` };
+      return { message: `Spool ${_spoolDisplayLabel(spool)} exists, but it is active. Switch to Any status or Active.` };
     }
     if (_spoolsFilter.status === 'active' && spool.archived_at) {
-      return { message: `Spool #${spool.id} exists, but it is archived. Switch to Any status or Archived.` };
+      return { message: `Spool ${_spoolDisplayLabel(spool)} is reserved on an archived spool line. Switch to Any status or Archived.` };
     }
   } catch {}
   return null;
@@ -16152,6 +16184,7 @@ async function _renderStockInView(listEl) {
       <div class="stock-in-received">Already received as <a href="#/spool/${scanRoll.spool_id}">Spool #${scanRoll.spool_id}</a></div>
     ` : `
       <form class="stock-in-receive-form" data-token="${esc(scanRoll.token)}">
+        <label>Restock spool # <input name="restock_display_id" type="number" min="1" step="1" placeholder="Blank = new number"></label>
         <label>Location <select name="storage_location_id">${_stockInLocationOptions(scanRoll.storage_location_id || '', { defaultFirst: true })}</select></label>
         <label>Remaining <input name="remaining_g" type="number" min="0" step="1" value="${Math.round(Number(scanRoll.label_weight_g || defaultWeight))}"></label>
         <label>Label weight <input name="label_weight_g" type="number" min="0" step="1" value="${Math.round(Number(scanRoll.label_weight_g || defaultWeight))}"></label>
@@ -16259,6 +16292,7 @@ async function _renderStockInView(listEl) {
       return v === '' ? null : Number(v);
     };
     const body = {
+      restock_display_id: num('restock_display_id'),
       storage_location_id: num('storage_location_id'),
       remaining_g: num('remaining_g'),
       label_weight_g: num('label_weight_g'),
@@ -16272,7 +16306,8 @@ async function _renderStockInView(listEl) {
     if (!r.ok) return showToast('Receive failed', (await r.json()).detail || 'Could not receive roll', 'error');
     const result = await r.json();
     const spoolId = result.spool?.id;
-    showToast(`Spool #${spoolId} created`, result.label_printed ? 'Label printed' : (result.label_error || 'Label not printed'), result.label_error ? 'warn' : 'success');
+    const spoolDisplayId = result.spool?.display_id || spoolId;
+    showToast(`Spool #${spoolDisplayId} created`, result.label_printed ? 'Label printed' : (result.label_error || 'Label not printed'), result.label_error ? 'warn' : 'success');
     location.hash = `#/spool/${spoolId}`;
   });
 
@@ -16749,6 +16784,17 @@ function _attachSpoolListEvents(el, listEl, refresh = _refreshSpoolsSurface) {
       } else if (action === 'duplicate') {
         const spool = _allSpools.find(s => s.id == id);
         if (spool) _openSpoolModal(costs, refresh, {...spool, id: null, location_printer_id: null, location_slot: null});
+      } else if (action === 'restock') {
+        const spool = _allSpools.find(s => s.id == id);
+        if (spool) _openSpoolModal(costs, refresh, {
+          ...spool,
+          id: null,
+          restock_spool_id: spool.id,
+          archived_at: null,
+          location_printer_id: null,
+          location_slot: null,
+          remaining_g: spool.label_weight_g || _serverSettings.default_label_weight_g || 1000,
+        });
       } else if (action === 'archive') {
         if (!await _confirmModal('Archive this spool?')) return;
         await fetch(`/api/spools/${id}/archive`, { method: 'POST' });
@@ -16825,10 +16871,11 @@ function _attachSpoolsEvents(el, costs) {
 }
 
 function _openSpoolModal(costs, onSaved, prefill = null) {
-  const isEdit = prefill?.id != null;
+  const isRestock = prefill?.restock_spool_id != null;
+  const isEdit = prefill?.id != null && !isRestock;
   const p0 = prefill || {};
-  const title = isEdit ? `Edit Spool #${p0.id}` : 'Add Spool';
-  const submitLabel = isEdit ? 'Save' : 'Add Spool';
+  const title = isRestock ? `Restock Spool ${_spoolDisplayLabel(p0)}` : (isEdit ? `Edit Spool ${_spoolDisplayLabel(p0)}` : 'Add Spool');
+  const submitLabel = isRestock ? 'Restock Spool' : (isEdit ? 'Save' : 'Add Spool');
 
   // Build material → brands map
   const matBrands = {};
@@ -17736,7 +17783,7 @@ function _openSpoolModal(costs, onSaved, prefill = null) {
       : `${storageSel.options[storageSel.selectedIndex]?.textContent || 'Storage'}`;
     const titleLine = [colorName || 'Colour', mat || 'Material', subtype].filter(Boolean).join(' · ');
     const brandLine = [brand || 'Brand', locText].filter(Boolean).join(' · ');
-    const spoolIdLine = isEdit && p0.id ? `<span class="spool-draft-id">Spool #${esc(p0.id)}</span>` : '';
+    const spoolIdLine = isEdit && p0.id ? `<span class="spool-draft-id">Spool ${esc(_spoolDisplayLabel(p0))}</span>` : '';
     spoolPreview.innerHTML = `
       <div class="spool-draft-swatch" style="${_spoolColorStyle(hex, scheme, hex2, hex3)}"></div>
       <div class="spool-draft-main">
@@ -18059,6 +18106,13 @@ function _openSpoolModal(costs, onSaved, prefill = null) {
         }
         if (!mr.ok) throw new Error(await _spoolSaveErrorMessage(mr, 'Unable to move spool'));
         savedData = await mr.json().catch(() => ({}));
+      } else if (isRestock) {
+        const r = await fetch(`/api/spools/${prefill.restock_spool_id}/restock`, {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify(body),
+        });
+        if (!r.ok) throw new Error(await _spoolSaveErrorMessage(r, 'Unable to restock spool'));
+        savedData = await r.json().catch(() => ({}));
       } else {
         const r = await fetch('/api/spools', {
           method: 'POST', headers: {'Content-Type':'application/json'},
