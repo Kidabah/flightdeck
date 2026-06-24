@@ -14716,7 +14716,7 @@ let _allSpools = [];
 let _spoolsViewMode = 'swatch';
 let _spoolsSortKey = 'material';
 let _spoolsSortDir = 1;
-let _spoolsFilter = { search: '', status: 'active', slotFilter: 'all', material: '', brand: '', printer: '' };
+let _spoolsFilter = { search: '', status: 'active', slotFilter: 'all', material: '', brand: '', printer: '', location: '' };
 let _spoolsFilamentSummary = {};
 let _spoolsFilamentCosts = [];
 let _emptySpoolProfiles = [];
@@ -16198,6 +16198,7 @@ function _applySpoolFilters(spools) {
     if (f.status === 'active'   && s.archived_at)  return false;
     if (f.status === 'archived' && !s.archived_at) return false;
     if (f.printer && s.location_printer_id !== f.printer) return false;
+    if (f.location && String(s.storage_location_id || '') !== String(f.location)) return false;
     if (f.slotFilter === 'loaded'  && !s.location_printer_id) return false;
     if (f.slotFilter === 'storage' &&  s.location_printer_id) return false;
     if (f.slotFilter === 'low') {
@@ -16808,6 +16809,9 @@ function _spoolsCategoryHtml(spools, summary, costs, intelligence = {}) {
   const brandSet = [...new Set(spools.map(s => s.brand))].sort();
   const matOpts = `<option value="">All materials</option>` + matSet.map(m => `<option value="${m}"${_spoolsFilter.material===m?' selected':''}>${m}</option>`).join('');
   const brandOpts = `<option value="">All brands</option>` + brandSet.map(b => `<option value="${b}"${_spoolsFilter.brand===b?' selected':''}>${b}</option>`).join('');
+  const activeLocation = _spoolsFilter.location
+    ? _spoolLocations.find(loc => String(loc.id) === String(_spoolsFilter.location))
+    : null;
 
   const fc = (key, val, label) => `<button class="spool-chip${_spoolsFilter[key]===val?' spool-chip-active':''}" data-fkey="${key}" data-fval="${val}">${label}</button>`;
 
@@ -16833,6 +16837,7 @@ function _spoolsCategoryHtml(spools, summary, costs, intelligence = {}) {
           ${fc('status','all','Any status')}${fc('status','active','Active')}${fc('status','archived','Reserved')}
           <span class="spool-chip-sep"></span>
           ${fc('slotFilter','all','All')}${fc('slotFilter','multiples','Multiples')}${fc('slotFilter','loaded','Loaded')}${fc('slotFilter','storage','Shelved')}${fc('slotFilter','low','Low stock')}
+          ${activeLocation ? `${fc('location', _spoolsFilter.location, `Rack: ${activeLocation.name}`)}${fc('location', '', 'Clear rack')}` : ''}
         </div>
         <select class="spool-filter-sel" data-fkey="material">${matOpts}</select>
         <select class="spool-filter-sel" data-fkey="brand">${brandOpts}</select>
@@ -17012,6 +17017,18 @@ function _attachSpoolsEvents(el, costs) {
   el.querySelectorAll('.spool-chip[data-fkey]').forEach(chip => {
     chip.addEventListener('click', () => {
       _spoolsFilter[chip.dataset.fkey] = chip.dataset.fval;
+      if (chip.dataset.fkey === 'location') {
+        if (location.hash.startsWith('#/spools')) {
+          const params = _routeParams('#/spools');
+          if (chip.dataset.fval) params.set('location', chip.dataset.fval);
+          else params.delete('location');
+          if (_spoolsViewMode !== 'swatch') params.set('view', _spoolsViewMode);
+          const q = params.toString();
+          history.replaceState(null, '', q ? `#/spools?${q}` : '#/spools');
+        }
+        _renderSpoolsContent(el);
+        return;
+      }
       el.querySelectorAll(`.spool-chip[data-fkey="${chip.dataset.fkey}"]`).forEach(c =>
         c.classList.toggle('spool-chip-active', c === chip)
       );
@@ -18396,6 +18413,7 @@ function _locationsCategoryHtml(locations) {
           <strong>${spools.length}</strong>
           <span>${spools.length === 1 ? 'spool' : 'spools'}</span>
           <small>${(grams / 1000).toFixed(2)}kg</small>
+          <button class="spool-action-btn spool-action-label" data-location-action="label" data-id="${loc.id}">Label</button>
         </div>
       </div>
       <div class="location-spool-list">${spoolRows}</div>
@@ -18438,6 +18456,7 @@ function _locationsCategoryHtml(locations) {
         <div class="spool-location-notes">${esc(loc.notes || 'No notes')}</div>
       </div>
       <div class="spool-location-actions">
+        <button class="spool-action-btn spool-action-label" data-location-action="label" data-id="${loc.id}">Label</button>
         <button class="spool-action-btn spool-action-edit" data-location-action="edit" data-id="${loc.id}">Edit</button>
         <button class="spool-action-btn spool-action-danger" data-location-action="delete" data-id="${loc.id}">Archive</button>
       </div>
@@ -18523,6 +18542,22 @@ function _attachLocationsEvents(el, locations) {
       const id = btn.dataset.id;
       const loc = locations.find(l => String(l.id) === String(id));
       if (!loc) return;
+      if (btn.dataset.locationAction === 'label') {
+        const old = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Printing...';
+        try {
+          const r = await fetch(`/api/label_printer/location/${id}`, { method: 'POST' });
+          if (!r.ok) throw new Error((await r.json()).detail || 'Print failed');
+          showToast('Rack label printed', loc.name || `Location #${id}`, 'success');
+        } catch (err) {
+          showToast('Rack label failed', err.message || loc.name || '', 'error');
+        } finally {
+          btn.disabled = false;
+          btn.textContent = old;
+        }
+        return;
+      }
       if (btn.dataset.locationAction === 'edit') {
         idIn.value = loc.id;
         nameIn.value = loc.name || '';
@@ -18659,6 +18694,7 @@ async function _renderSpoolsContent(el) {
     _spoolsViewMode = _normaliseSpoolViewMode(view);
   }
   _spoolsFilter.printer = params.get('printer') || '';
+  _spoolsFilter.location = params.get('location') || '';
   const [spools, summary, costs, filamentSummary, locations, intelligence, emptyProfiles] = await Promise.all([
     fetch(`/api/spools/all?_=${Date.now()}`, { cache: 'no-store' }).then(r => r.json()).catch(() => []),
     fetch('/api/spools/summary').then(r => r.json()).catch(() => ({})),

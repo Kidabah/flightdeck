@@ -14706,6 +14706,12 @@ select optgroup {
   letter-spacing: 0;
 }
 
+.location-card-stats .spool-action-btn {
+  margin-top: 0.45rem;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
 .location-spool-list {
   display: grid;
   gap: 0;

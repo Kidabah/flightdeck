@@ -197,6 +197,48 @@ class LabelPrinter:
             self.last_error = status.last_error
             return False
         image = self.render_spool_label(spool, base_url=base_url)
+        return self._print_image(image)
+
+    def render_location_label(self, location: dict, base_url: str = "https://flightdeck.tail7de73e.ts.net") -> Image.Image:
+        img = Image.new("RGB", (self.LABEL_WIDTH_PX, 330), "white")
+        draw = ImageDraw.Draw(img)
+        name = str(location.get("name") or "Rack").strip() or "Rack"
+        notes = str(location.get("notes") or "").strip()
+
+        font_title = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 78)
+        font_body = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 28)
+        font_small = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 20)
+        font_badge = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 26)
+
+        draw.text((38, 28), _ellipsize(draw, name, font_title, 430), fill="black", font=font_title)
+        subtitle = notes or "Scan to open this rack in Flightdeck"
+        draw.text((42, 130), _ellipsize(draw, subtitle, font_body, 410), fill="black", font=font_body)
+        draw.rounded_rectangle((42, 220, 394, 276), radius=12, outline="black", width=3)
+        draw.text((62, 232), "FLIGHTDECK RACK", fill="black", font=font_badge)
+        draw.text((42, 294), datetime.utcnow().strftime("Printed %d/%m/%y"), fill="black", font=font_small)
+
+        qr_base = (base_url or "https://flightdeck.tail7de73e.ts.net").rstrip("/")
+        loc_id = location.get("id")
+        qr_url = f"{qr_base}/#/spools?view=cabinet"
+        if loc_id is not None:
+            qr_url += f"&location={loc_id}"
+        qr = _qr_image(qr_url)
+        if qr:
+            img.paste(qr.resize((210, 210)), (454, 64))
+        else:
+            draw.rectangle((454, 64, 664, 274), outline="black")
+            draw.text((532, 148), "QR", fill="black", font=font_body)
+        return img
+
+    def print_location_label(self, location: dict, base_url: str = "https://flightdeck.tail7de73e.ts.net") -> bool:
+        status = self.status()
+        if not status.available:
+            self.last_error = status.last_error
+            return False
+        image = self.render_location_label(location, base_url=base_url)
+        return self._print_image(image)
+
+    def _print_image(self, image: Image.Image) -> bool:
         try:
             from brother_ql.backends.helpers import send
             from brother_ql.conversion import convert

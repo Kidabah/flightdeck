@@ -5951,6 +5951,21 @@ async def print_spool_label(spool_id: int):
     return {"ok": True}
 
 
+@app.post("/api/label_printer/location/{location_id}")
+async def print_location_label(location_id: int):
+    location = next((loc for loc in db.get_spool_locations(include_archived=True) if int(loc["id"]) == int(location_id)), None)
+    if not location:
+        raise HTTPException(status_code=404, detail="Location not found")
+    ok = await asyncio.to_thread(_label_printer.print_location_label, location, _label_base_url())
+    if not ok:
+        message = _label_printer.last_error or "Label printer unavailable"
+        db.log_decision("system", "label_print_failed", f"Location {location.get('name') or location_id}: {message}")
+        _notify("warn", "Label print failed", f"{location.get('name') or location_id}: {message}", link="#/settings/hardware")
+        raise HTTPException(status_code=503, detail=message)
+    db.log_decision("system", "label_printed", f"Location {location.get('name') or location_id}")
+    return {"ok": True}
+
+
 @app.post("/api/label_printer/test")
 async def print_test_label():
     ok = await asyncio.to_thread(_label_printer.print_test_label)
