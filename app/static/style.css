@@ -11582,6 +11582,11 @@ button.live-route-node:hover {
   max-width: 5.5rem;
 }
 
+.bambu-cloud-link {
+  text-decoration: none;
+  text-align: center;
+}
+
 .settings-input {
   flex: 1;
   background: var(--bg);

@@ -14119,9 +14119,10 @@ function _bambuCloudHealthHtml() {
       <div class="settings-form-row">
         <label class="settings-label">Last sign-in</label>
         <input class="settings-input pref-input" data-pref-key="bambu_cloud_last_auth_at" type="date" value="${esc(h.lastValue)}">
+        <a class="settings-save-btn bambu-cloud-link" href="https://makerworld.com/" target="_blank" rel="noopener noreferrer">Open MakerWorld</a>
         <button type="button" class="settings-save-btn" data-bambu-cloud-mark-now>Mark today</button>
       </div>
-      <div class="settings-hint">Used for future MakerWorld/Cloud import checks only. Local printer control keeps working without Bambu Cloud.</div>
+      <div class="settings-hint">Open MakerWorld to refresh Bambu Cloud login, then mark today. Local printer control keeps working without Bambu Cloud.</div>
       <div class="settings-form-row">
         <label class="settings-label">Estimated expiry</label>
         <span class="settings-readonly-pill">${esc(h.expiresText)}</span>
