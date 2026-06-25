@@ -8478,9 +8478,8 @@ async def _advance_queue_specific(job_id: int, printer_id: str,
         for p in _bambu:
             if p.id == printer_id:
                 await asyncio.to_thread(p.send_file, file_path, filename)
-                if not await _wait_for_bambu_physical_start(p, job_id, filename):
-                    return
                 db.queue_set_started(job_id)
+                await _wait_for_bambu_physical_start(p, job_id, filename)
                 return
         db.queue_update_status(job_id, "failed", "Printer not found")
     except Exception as exc:
@@ -8535,19 +8534,7 @@ async def _wait_for_bambu_physical_start(p: BambuPrinter, job_id: int, filename:
         # sustained idle (no sign of life after 45 seconds).
         if last_state == "idle" and time.monotonic() - started_at > 45.0:
             break
-    msg = "Printer accepted the start command but did not begin heating or progressing; clear printer state and retry"
-    note = "Start blocked after the printer accepted a job but never heated or progressed. Check the printer screen for AMS/AMS HT errors, clear the printer state, then re-enable printing."
-    db.queue_update_status(job_id, "failed", msg)
-    # Cancel the stuck job on the printer so it returns to idle rather than
-    # sitting frozen in "printing" state with no heat indefinitely.
-    try:
-        await asyncio.to_thread(p.cancel)
-        db.log_decision(p.id, "queue_bambu_cold_start_cancelled",
-                        f"Job #{job_id} {filename}: auto-cancelled cold stuck print on printer")
-    except Exception as exc:
-        db.log_decision(p.id, "queue_bambu_cold_cancel_failed",
-                        f"Job #{job_id} {filename}: could not auto-cancel cold print: {exc}")
-    _block_printer_dispatch(p.id, note)
+    msg = "Start confirmation was inconclusive; leaving the accepted queue job active for printer-state monitoring"
     db.log_decision(p.id, "queue_bambu_start_unconfirmed", f"Job #{job_id} {filename}: {msg} (last_state={last_state})")
     return False
 

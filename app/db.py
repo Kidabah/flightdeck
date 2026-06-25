@@ -4542,6 +4542,9 @@ def queue_reopen_stale_cleared_active(printer_id: str) -> Optional[dict]:
                  AND (
                        (status IN ('cancelled', 'failed')
                         AND error_msg = 'Cleared stale queue state after printer returned to idle')
+                    OR (status = 'failed'
+                        AND error_msg LIKE 'Printer accepted the start command but did not begin heating or progressing%'
+                        AND datetime(COALESCE(finished_at, started_at, created_at)) >= datetime('now', '-30 minutes'))
                     OR (status = 'cancelled'
                         AND datetime(COALESCE(finished_at, started_at, created_at)) >= datetime('now', '-30 minutes'))
                  )
