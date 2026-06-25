@@ -2,13 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Defer queue AMS checks while printer is busy`
+- Latest commit: `Keep H2D AMS nozzle fallback off H2C`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=529 / style.css?v=416 / demo-runtime.js?v=8
 
 ### 2026-06-25 fix (Queue preflight while busy)
+
+**Keep H2D AMS/nozzle fallback off H2C dispatch** (`app/printers/bambu.py`, `SESSION_NEXT.md`)
+The Bambu dispatch path still applied the H2D fallback that treats regular AMS as the left nozzle path and AMS HT as the right nozzle path to any model whose name started with `H2`. That made H2C queue jobs fail with `H2D AMS mapping blocked` even though the H2C AMS/rack path is different. `ams_slots()` now only injects that fallback nozzle map for actual `H2D`; H2C slots are left unforced unless the printer reports an explicit extruder map. Backend/service restart required after deploy; failed H2C queue rows can be recovered and retried.
 
 **Defer pending-job AMS checks while a printer is already printing** (`app/main.py`, `SESSION_NEXT.md`)
 Pending queue jobs now stop preflight at `Printer is printing` while their printer is actively printing/paused instead of also running AMS/nozzle-path checks against the filament path used by the current active print. This prevents queued H2D/H2C follow-up jobs from looking falsely blocked just because the printer is busy with a different job. H2D-specific nozzle-path checks are now scoped to actual `H2D` printer status, so H2C uses the broader material/colour/grams checks until its rack/toolhead mapping is explicitly modelled. Backend/service restart required after deploy.

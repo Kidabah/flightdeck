@@ -1094,7 +1094,7 @@ class BambuPrinter:
         for unit in units:
             unit_id = int(unit.get("unit", 0))
             nozzle = extruder_map.get(unit_id)
-            if nozzle is None and self.model_name.upper().startswith("H2"):
+            if nozzle is None and self.model_name.upper() == "H2D":
                 # H2D fallback: regular AMS feeds left, AMS HT feeds right.
                 nozzle = 0 if unit_id >= 128 else 1
             for slot in unit.get("slots") or []:
