@@ -2,16 +2,19 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Sync rack rows from spool numbers`
+- Latest commit: `Make rack row sync report failed moves`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=528 / style.css?v=416 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=529 / style.css?v=416 / demo-runtime.js?v=8
 
 ### 2026-06-25 follow-up (Rack row sync)
 
 **Sync shelved spools into numbered rack rows** (`app/static/app.js`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
 Settings -> Locations `Build rack rows` now does the wiring pass after creating/renaming the main cupboard rows. It moves active shelved spools with visible numbers `1-90` into the matching `Rack Row N` storage location (`1-10`, `11-20`, etc.) so Settings -> Locations, Cabinet, and the Spools `Rack` view tell the same physical story. Loaded printer spools are deliberately left loaded, and reserved/archived spool lines stay reserved. Static cache bumped to `app.js?v=528`; frontend refresh required after deploy.
+
+**Rack sync reliability follow-up** (`app/static/app.js`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+The `Build rack rows` helper now refreshes the spool list immediately before moving shelved spools and reports failed move calls in the toast instead of silently ignoring them. This makes rack wiring troubleshooting visible if any stored spool cannot be moved into its matching numbered row. Static cache bumped to `app.js?v=529`; frontend refresh required after deploy.
 
 ### 2026-06-25 feature (Snake rack view)
 

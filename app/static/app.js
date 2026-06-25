@@ -18634,7 +18634,10 @@ function _attachLocationsEvents(el, locations) {
           }
         }
       }
+      const freshSpools = await fetch('/api/spools').then(r => r.ok ? r.json() : _allSpools).catch(() => _allSpools);
+      _allSpools = Array.isArray(freshSpools) ? freshSpools : _allSpools;
       let synced = 0;
+      let failed = 0;
       const shelved = (_allSpools || []).filter(s => !s.archived_at && !s.location_printer_id);
       for (const spool of shelved) {
         const num = _spoolDisplayId(spool);
@@ -18648,8 +18651,12 @@ function _attachLocationsEvents(el, locations) {
           body: JSON.stringify({ printer_id: null, slot: null, storage_location_id: Number(targetId) }),
         });
         if (r.ok) synced += 1;
+        else failed += 1;
       }
-      showToast('Rack rows ready', `Main cupboard rows 1-90 are ready. ${synced} shelved ${synced === 1 ? 'spool was' : 'spools were'} synced to rack rows.`, 'success');
+      const detail = failed
+        ? `${synced} shelved ${synced === 1 ? 'spool was' : 'spools were'} synced; ${failed} move ${failed === 1 ? 'failed' : 'moves failed'}.`
+        : `${synced} shelved ${synced === 1 ? 'spool was' : 'spools were'} synced to rack rows.`;
+      showToast('Rack rows ready', `Main cupboard rows 1-90 are ready. ${detail}`, failed ? 'warn' : 'success');
       await _renderSettingsContent('locations');
     } catch (err) {
       showToast('Rack setup failed', err?.message || 'Could not create rack rows', 'error');
