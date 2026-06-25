@@ -3702,8 +3702,8 @@ function _detailFilamentRoute(p) {
       const dest = _routeDestinationLabel(p, unit);
       const fedNow = _slotRouteFed(p, unit, slot);
       const routeClass = `${fedNow ? '' : ' live-filament-route-idle'}${mismatch ? ' live-filament-route-warning' : ''}`;
-      const routeBadge = mismatch ? 'Review' : fedNow ? 'Fed now' : 'Ready';
-      const routeStatus = mismatch ? 'needs review for' : fedNow ? 'feeding' : 'ready for';
+      const routeBadge = mismatch ? 'Review' : fedNow ? 'Loaded' : 'Ready';
+      const routeStatus = mismatch ? 'needs review for' : fedNow ? 'loaded for' : 'ready for';
       const title = `${slotLabel} ${routeStatus} ${dest}${spoolLabel ? ' · ' + spoolLabel : ''}${mismatch ? ' · ' + mismatch : ''}`;
       if (FLIGHTDECK_DEMO) {
         routes.push(`<div class="demo-filament-route${routeClass}${_isAmsHtUnit(unit) ? ' demo-filament-route-ht' : ''}" style="--route-colour:${colour};--route-text:${textColour};--route-slot:${Number(slot.idx || 0)}" title="${esc(title)}">
@@ -3725,7 +3725,7 @@ function _detailFilamentRoute(p) {
           <span class="live-route-line" aria-hidden="true"></span>
           <span class="live-route-node live-route-destination">
             <span class="live-route-nozzle" aria-hidden="true"></span>
-            <span><strong>${esc(dest)}</strong><em>${fedNow ? 'Filament fed' : 'Filament ready'}</em></span>
+            <span><strong>${esc(dest)}</strong><em>${fedNow ? 'Filament loaded' : 'Filament ready'}</em></span>
           </span>
         </div>`);
       }

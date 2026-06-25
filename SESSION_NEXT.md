@@ -2,11 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Shorten rack location on spool labels`
+- Latest commit: `Fix H-series slicer nozzle direction`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=530 / style.css?v=417 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=531 / style.css?v=417 / demo-runtime.js?v=8
+
+### 2026-06-25 fix (H-series nozzle direction)
+
+**Fix H-series slicer nozzle direction** (`app/printers/bambu_ftp.py`, `app/static/app.js`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+Bambu Studio exports H-series slicer grouping with its own left/right nozzle numbering, while Flightdeck's queue and MQTT-side printer handling use the printer convention where `0=right` and `1=left`. Flightdeck was taking the exported slicer value directly, so a Bambu Studio file that clearly showed `Left nozzle` could be blocked as if it were sliced for the right nozzle. The 3MF parser now converts Bambu Studio's H-series nozzle ids into Flightdeck's internal convention before storing `filament_colors[].nozzle`, which fixes H2D queue preflight and dispatch AMS/nozzle-path checks for correctly sliced left-nozzle jobs. Live filament route copy now says `Loaded` / `Filament loaded` instead of `Fed now` / `Filament fed` so a hot/ready support path does not look like the actively printing path. Static cache bumped to `app.js?v=531`; backend/service restart plus frontend refresh required after deploy.
 
 ### 2026-06-25 fix (Queue preflight while busy)
 
