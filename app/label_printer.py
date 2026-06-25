@@ -204,18 +204,23 @@ class LabelPrinter:
         draw = ImageDraw.Draw(img)
         name = str(location.get("name") or "Rack").strip() or "Rack"
         notes = str(location.get("notes") or "").strip()
+        rack_range, rack_direction = _rack_label_parts(name, notes)
+        title = rack_range or name
+        row_name = re.sub(r"\s*[·-]\s*\d+\s*-\s*\d+\s*$", "", name).strip() or "Rack"
 
-        font_title = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 78)
+        font_title = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 92)
+        font_row = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 34)
         font_body = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 28)
         font_small = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 20)
         font_badge = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 26)
 
-        draw.text((38, 28), _ellipsize(draw, name, font_title, 430), fill="black", font=font_title)
-        subtitle = notes or "Scan to open this rack in Flightdeck"
-        draw.text((42, 130), _ellipsize(draw, subtitle, font_body, 410), fill="black", font=font_body)
-        draw.rounded_rectangle((42, 220, 394, 276), radius=12, outline="black", width=3)
-        draw.text((62, 232), "FLIGHTDECK RACK", fill="black", font=font_badge)
-        draw.text((42, 294), datetime.utcnow().strftime("Printed %d/%m/%y"), fill="black", font=font_small)
+        draw.text((38, 18), _ellipsize(draw, title, font_title, 370), fill="black", font=font_title)
+        draw.text((42, 116), _ellipsize(draw, row_name, font_row, 388), fill="black", font=font_row)
+        subtitle = rack_direction or notes or "Scan to open this rack in Flightdeck"
+        draw.text((42, 160), _ellipsize(draw, subtitle, font_body, 390), fill="black", font=font_body)
+        draw.rounded_rectangle((42, 230, 356, 282), radius=12, outline="black", width=3)
+        draw.text((60, 241), "FLIGHTDECK RACK", fill="black", font=font_badge)
+        draw.text((42, 298), datetime.utcnow().strftime("Printed %d/%m/%y"), fill="black", font=font_small)
 
         qr_base = (base_url or "https://flightdeck.tail7de73e.ts.net").rstrip("/")
         loc_id = location.get("id")
@@ -304,6 +309,15 @@ def _luminance(hex_color: str) -> float:
         return 0
     r, g, b = [int(h[i:i + 2], 16) / 255 for i in (0, 2, 4)]
     return 0.299 * r + 0.587 * g + 0.114 * b
+
+
+def _rack_label_parts(name: str, notes: str) -> tuple[Optional[str], Optional[str]]:
+    text = f"{name} {notes}"
+    range_match = re.search(r"\b(\d+\s*-\s*\d+)\b", text)
+    direction_match = re.search(r"\b(left\s+to\s+right|right\s+to\s+left)\b", text, re.IGNORECASE)
+    rack_range = range_match.group(1).replace(" ", "") if range_match else None
+    direction = direction_match.group(1).lower() if direction_match else None
+    return rack_range, direction
 
 
 def _qr_image(url: str) -> Optional[Image.Image]:

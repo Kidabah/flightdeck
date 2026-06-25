@@ -2,13 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Start Bambu multi-plate exports from sliced plate`
+- Latest commit: `Make rack labels read as row markers`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=529 / style.css?v=416 / demo-runtime.js?v=8
 
 ### 2026-06-25 fix (Queue preflight while busy)
+
+**Make rack labels read as row markers** (`app/label_printer.py`, `SESSION_NEXT.md`)
+Rack/location labels are now formatted for wall/rack use instead of printing the whole storage location name as one oversized, truncated title. Labels extract the physical slot range such as `1-10` as the hero text, show the row name below it, and use the direction text (`left to right` / `right to left`) as the short operator cue. The QR code still opens the matching Flightdeck cabinet/location view. Verified by rendering a local preview for `Rack Row 1 · 1-10`.
 
 **Start Bambu multi-plate exports from the sliced plate** (`app/printers/bambu_ftp.py`, `app/printers/bambu.py`, `SESSION_NEXT.md`)
 Bambu Studio can export a multi-plate `.gcode.3mf` where only a non-first plate is actually sliced, for example a project with preview JSON/PNGs for plates 1-9 but only `Metadata/plate_6.gcode`. Flightdeck previously uploaded the file correctly but always sent the MQTT start command for `Metadata/plate_1.gcode`, which made the H2C accept the command and then show `unable to parse the job`. The 3MF parser now detects the actual printable plate from the embedded `Metadata/plate_N.gcode` entries, stores it on `BambuPreview.print_plate_number`, logs it in `queue_bambu_mapping`, and starts that plate instead of assuming plate 1. Verified against `H2C first print.gcode.3mf` (plate 1) and `KYZ_AMS_Undermount...Lower.gcode.3mf` (plate 6). Backend/service restart required after deploy; recover/retry the failed H2C queue row after re-enabling printing.
