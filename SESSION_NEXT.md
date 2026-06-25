@@ -6,9 +6,12 @@ Latest GitHub/Pi state:
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=529 / style.css?v=416 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=530 / style.css?v=417 / demo-runtime.js?v=8
 
 ### 2026-06-25 fix (Queue preflight while busy)
+
+**Make Rack view read like the physical cupboard map** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+Spools -> Rack now has a map header with held/empty/loaded/reserved counts, clearer legend context, row range heroes, row direction cues, and per-row held/loaded counts. Slot cards now show their state badge (`Stored`, `Loaded`, `Low`, `Reserved`) while preserving the existing click-through to spool detail and the 1-90 snake numbering. Static cache bumped to `app.js?v=530` and `style.css?v=417`; frontend refresh required after deploy.
 
 **Shorten rack location on spool labels** (`app/label_printer.py`, `SESSION_NEXT.md`)
 Compact and standard spool labels now collapse rack-row storage locations like `Rack Row 1 · 1-10` into a readable `Loc: Rack 1-10` label instead of truncating the row name as `Rack Ro...`. The big spool number remains the exact physical rack slot; the location line now gives the row range at a glance. Verified by rendering a local compact spool label preview for spool `#5` stored in `Rack Row 1 · 1-10`.

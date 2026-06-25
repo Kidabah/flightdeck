@@ -16230,7 +16230,19 @@ function _spoolRackHtml(spools) {
     if (n > 0 && !byNumber.has(n)) byNumber.set(n, s);
   });
   const rows = _rackSlotNumbers();
+  const rackSlots = rows.flat();
+  const rackStats = rackSlots.reduce((acc, num) => {
+    const spool = byNumber.get(num);
+    const state = _rackSlotClass(spool);
+    acc[state] = (acc[state] || 0) + 1;
+    if (spool) acc.held += 1;
+    return acc;
+  }, { stored: 0, loaded: 0, low: 0, reserved: 0, empty: 0, held: 0 });
   const cells = rows.map((row, rowIndex) => {
+    const direction = rowIndex % 2 === 0 ? 'Left to right' : 'Right to left';
+    const arrow = rowIndex % 2 === 0 ? '&rarr;' : '&larr;';
+    const rowHeld = row.filter(num => byNumber.has(num)).length;
+    const rowLoaded = row.filter(num => _rackSlotClass(byNumber.get(num)) === 'loaded').length;
     const rowCells = row.map(num => {
       const spool = byNumber.get(num);
       const state = _rackSlotClass(spool);
@@ -16240,9 +16252,10 @@ function _spoolRackHtml(spools) {
       const pct = spool?.label_weight_g > 0 ? Math.round(spool.remaining_g * 100 / spool.label_weight_g) : null;
       const style = spool ? _spoolColorStyle(spool) : '';
       const textColor = spool ? _spoolTextColor(spool.color_hex || '#1f2937') : '';
+      const stateLabel = state === 'stored' ? 'Stored' : state[0].toUpperCase() + state.slice(1);
       const body = `<span class="spool-rack-num">#${num}</span>
         ${spool ? `<span class="spool-rack-name">${esc(spool.color_name || spool.material || 'Spool')}</span>` : '<span class="spool-rack-empty">Empty</span>'}
-        ${spool ? `<span class="spool-rack-meta">${esc(spool.material || '')}${pct != null ? ` · ${pct}%` : ''}</span>` : ''}`;
+        ${spool ? `<span class="spool-rack-meta">${esc(spool.material || '')}${pct != null ? ` · ${pct}%` : ''}</span><span class="spool-rack-state">${stateLabel}</span>` : ''}`;
       if (spool) {
         return `<a class="spool-rack-cell spool-rack-${state}" href="#/spool/${spool.id}" style="${style};color:${textColor}" title="${esc(label)}">${body}</a>`;
       }
@@ -16250,13 +16263,28 @@ function _spoolRackHtml(spools) {
     }).join('');
     return `<section class="spool-rack-row">
       <div class="spool-rack-row-head">
-        <strong>Row ${rowIndex + 1}</strong>
-        <span>${rowIndex * 10 + 1}-${rowIndex * 10 + 10}</span>
+        <span class="spool-rack-row-kicker">Row ${rowIndex + 1}</span>
+        <strong>${rowIndex * 10 + 1}-${rowIndex * 10 + 10}</strong>
+        <span>${arrow} ${direction}</span>
+        <small>${rowHeld}/10 held${rowLoaded ? ` · ${rowLoaded} loaded` : ''}</small>
       </div>
       <div class="spool-rack-row-grid">${rowCells}</div>
     </section>`;
   }).join('');
   return `<div class="spool-rack-view">
+    <div class="spool-rack-map-head">
+      <div>
+        <span class="eyebrow">Main cupboard</span>
+        <strong>Snake rack map</strong>
+        <p>Matches the physical rack numbers: odd rows read left to right, even rows read right to left.</p>
+      </div>
+      <div class="spool-rack-map-stats">
+        <span><b>${rackStats.held}</b><small>held</small></span>
+        <span><b>${rackStats.empty}</b><small>empty</small></span>
+        <span><b>${rackStats.loaded}</b><small>loaded</small></span>
+        <span><b>${rackStats.reserved}</b><small>reserved</small></span>
+      </div>
+    </div>
     <div class="spool-rack-legend">
       <span><i class="spool-rack-dot stored"></i>Stored</span>
       <span><i class="spool-rack-dot loaded"></i>Loaded</span>
