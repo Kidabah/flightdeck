@@ -18555,7 +18555,7 @@ function _locationsCategoryHtml(locations) {
       <div class="rack-builder-panel">
         <div>
           <strong>Main cupboard snake rack</strong>
-          <span>Build rows 1-9 as 1-90, alternating left-to-right then right-to-left.</span>
+          <span>Build rows 1-9 as 1-90, then sync shelved spools into the row that matches their visible number.</span>
         </div>
         <button type="button" class="settings-save-btn rack-builder-btn" data-rack-action="build-main">Build rack rows</button>
       </div>
@@ -18604,6 +18604,7 @@ function _attachLocationsEvents(el, locations) {
     btn.textContent = 'Building...';
     try {
       const active = [...locations];
+      const rowLocationIds = new Map();
       for (let i = 0; i < 9; i += 1) {
         const rowNum = i + 1;
         const name = _rackRowLocationName(i);
@@ -18619,6 +18620,7 @@ function _attachLocationsEvents(el, locations) {
           });
           existing.name = name;
           existing.notes = notes;
+          rowLocationIds.set(rowNum, existing.id);
         } else {
           const r = await fetch('/api/spool-locations', {
             method: 'POST',
@@ -18628,10 +18630,26 @@ function _attachLocationsEvents(el, locations) {
           if (r.ok) {
             const created = await r.json().catch(() => null);
             active.push({ id: created?.id, name, notes });
+            if (created?.id) rowLocationIds.set(rowNum, created.id);
           }
         }
       }
-      showToast('Rack rows ready', 'Main cupboard rows 1-90 are available for labels and cabinet views.', 'success');
+      let synced = 0;
+      const shelved = (_allSpools || []).filter(s => !s.archived_at && !s.location_printer_id);
+      for (const spool of shelved) {
+        const num = _spoolDisplayId(spool);
+        if (num < 1 || num > 90) continue;
+        const rowNum = Math.ceil(num / 10);
+        const targetId = rowLocationIds.get(rowNum);
+        if (!targetId || String(spool.storage_location_id || '') === String(targetId)) continue;
+        const r = await fetch(`/api/spools/${spool.id}/move`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ printer_id: null, slot: null, storage_location_id: Number(targetId) }),
+        });
+        if (r.ok) synced += 1;
+      }
+      showToast('Rack rows ready', `Main cupboard rows 1-90 are ready. ${synced} shelved ${synced === 1 ? 'spool was' : 'spools were'} synced to rack rows.`, 'success');
       await _renderSettingsContent('locations');
     } catch (err) {
       showToast('Rack setup failed', err?.message || 'Could not create rack rows', 'error');
