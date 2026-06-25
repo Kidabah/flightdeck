@@ -2,13 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Keep H2D AMS nozzle fallback off H2C`
+- Latest commit: `Start Bambu multi-plate exports from sliced plate`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=529 / style.css?v=416 / demo-runtime.js?v=8
 
 ### 2026-06-25 fix (Queue preflight while busy)
+
+**Start Bambu multi-plate exports from the sliced plate** (`app/printers/bambu_ftp.py`, `app/printers/bambu.py`, `SESSION_NEXT.md`)
+Bambu Studio can export a multi-plate `.gcode.3mf` where only a non-first plate is actually sliced, for example a project with preview JSON/PNGs for plates 1-9 but only `Metadata/plate_6.gcode`. Flightdeck previously uploaded the file correctly but always sent the MQTT start command for `Metadata/plate_1.gcode`, which made the H2C accept the command and then show `unable to parse the job`. The 3MF parser now detects the actual printable plate from the embedded `Metadata/plate_N.gcode` entries, stores it on `BambuPreview.print_plate_number`, logs it in `queue_bambu_mapping`, and starts that plate instead of assuming plate 1. Verified against `H2C first print.gcode.3mf` (plate 1) and `KYZ_AMS_Undermount...Lower.gcode.3mf` (plate 6). Backend/service restart required after deploy; recover/retry the failed H2C queue row after re-enabling printing.
 
 **Keep H2D AMS/nozzle fallback off H2C dispatch** (`app/printers/bambu.py`, `SESSION_NEXT.md`)
 The Bambu dispatch path still applied the H2D fallback that treats regular AMS as the left nozzle path and AMS HT as the right nozzle path to any model whose name started with `H2`. That made H2C queue jobs fail with `H2D AMS mapping blocked` even though the H2C AMS/rack path is different. `ams_slots()` now only injects that fallback nozzle map for actual `H2D`; H2C slots are left unforced unless the printer reports an explicit extruder map. Backend/service restart required after deploy; failed H2C queue rows can be recovered and retried.

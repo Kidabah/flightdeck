@@ -1123,6 +1123,7 @@ class BambuPrinter:
             self.seed_preview(subtask_name, preview)
 
         filament_ids = preview.filament_ids if preview else None
+        print_plate_number = preview.print_plate_number if preview and preview.print_plate_number else 1
         slots = self.ams_slots()
         ams_mapping, mapping_note = _derive_bambu_ams_mapping(
             preview.filament_colors if preview else None,
@@ -1142,16 +1143,19 @@ class BambuPrinter:
             "ams_mapping2": detailed_mapping,
             "mapping_note": mapping_note,
             "regular_ams_slots": regular_ams_slots,
+            "print_plate_number": print_plate_number,
         }))
         self.start_uploaded_3mf(filename, ams_mapping, filament_ids=filament_ids,
-                                 regular_ams_slots=regular_ams_slots)
+                                 regular_ams_slots=regular_ams_slots,
+                                 plate_number=print_plate_number)
 
     def start_uploaded_3mf(self, filename: str, ams_mapping: list[int],
                             filament_ids: list[int] | None = None,
-                            regular_ams_slots: int = 0) -> bool:
+                            regular_ams_slots: int = 0,
+                            plate_number: int = 1) -> bool:
         """Start an uploaded 3MF using the H2D-safe AMS mapping payload."""
         return self._printer.mqtt_client.start_print_3mf(
-            filename, 1, True, ams_mapping, filament_ids=filament_ids,
+            filename, plate_number, True, ams_mapping, filament_ids=filament_ids,
             regular_ams_slots=regular_ams_slots,
         )
 

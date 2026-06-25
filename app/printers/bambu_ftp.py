@@ -31,6 +31,7 @@ class BambuPreview:
     objects: Optional[list[dict]] = None
     plate_bounds: Optional[dict] = None
     bed_bounds: Optional[dict] = None
+    print_plate_number: Optional[int] = None
 
 
 class _ImplicitFTP_TLS(ftplib.FTP_TLS):
@@ -60,8 +61,8 @@ class _ImplicitFTP_TLS(ftplib.FTP_TLS):
 
 def _parse_3mf(buf: io.BytesIO, plate_number: Optional[int] = None) -> BambuPreview:
     """Extract thumbnail and metadata from an in-memory .gcode.3mf zip."""
-    plate_number = int(plate_number or 1)
     with zipfile.ZipFile(buf) as z:
+        plate_number = _resolve_print_plate_number(z.namelist(), plate_number)
         try:
             image_png: Optional[bytes] = z.read(f"Metadata/plate_{plate_number}.png")
         except KeyError:
@@ -82,7 +83,7 @@ def _parse_3mf(buf: io.BytesIO, plate_number: Optional[int] = None) -> BambuPrev
             return BambuPreview(image_png=image_png, estimated_total_seconds=None,
                                 top_image_png=top_image_png,
                                 filament_weight_g=None, filament_type=None, filament_colors=None,
-                                objects=None)
+                                objects=None, print_plate_number=plate_number)
         try:
             plate_json = json.loads(z.read(f"Metadata/plate_{plate_number}.json").decode())
         except Exception:
@@ -213,7 +214,34 @@ def _parse_3mf(buf: io.BytesIO, plate_number: Optional[int] = None) -> BambuPrev
         objects=objects or None,
         plate_bounds=plate_bounds,
         bed_bounds=bed_bounds,
+        print_plate_number=plate_number,
     )
+
+
+def _resolve_print_plate_number(names: list[str], requested: Optional[int] = None) -> int:
+    """Return the plate number that actually has printable gcode.
+
+    Bambu Studio can export a project where only one non-first plate is sliced,
+    for example Metadata/plate_6.gcode with preview JSON/PNGs for plates 1-9.
+    The printer rejects a start command that points at a missing plate_1.gcode.
+    """
+    try:
+        requested_num = int(requested) if requested is not None else None
+    except (TypeError, ValueError):
+        requested_num = None
+    gcode_plates: list[int] = []
+    for name in names:
+        match = re.match(r"Metadata/plate_(\d+)\.gcode$", name, re.IGNORECASE)
+        if match:
+            try:
+                gcode_plates.append(int(match.group(1)))
+            except ValueError:
+                pass
+    if requested_num and requested_num in gcode_plates:
+        return requested_num
+    if gcode_plates:
+        return sorted(gcode_plates)[0]
+    return requested_num or 1
 
 
 def _parse_config_value(text: str, key: str):
