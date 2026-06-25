@@ -14735,7 +14735,7 @@ const _COLOR_SCHEMES = [
 function _normaliseSpoolViewMode(view) {
   const mode = String(view || '').trim().toLowerCase();
   if (mode === 'cards') return 'detail';
-  return ['swatch', 'detail', 'table', 'cabinet', 'incoming', 'catalogue'].includes(mode) ? mode : 'swatch';
+  return ['swatch', 'detail', 'table', 'cabinet', 'rack', 'incoming', 'catalogue'].includes(mode) ? mode : 'swatch';
 }
 const _BRAND_TARE_ESTIMATES = [
   { brand: 'Bambu Lab', grams: 256, aliases: ['bambu'] },
@@ -16191,6 +16191,83 @@ function _spoolCabinetHtml(spools) {
   return `<div class="spool-cabinet-view">${laneHtml}${loadedHtml}</div>`;
 }
 
+function _rackSlotNumbers(rows = 9, cols = 10) {
+  const slots = [];
+  for (let row = 0; row < rows; row += 1) {
+    const start = row * cols + 1;
+    const values = Array.from({ length: cols }, (_, i) => start + i);
+    slots.push(row % 2 === 0 ? values : values.reverse());
+  }
+  return slots;
+}
+
+function _rackRowLocationName(rowIndex) {
+  const start = rowIndex * 10 + 1;
+  const end = start + 9;
+  return `Rack Row ${rowIndex + 1} · ${start}-${end}`;
+}
+
+function _rackRowLocationNote(rowIndex) {
+  const start = rowIndex * 10 + 1;
+  const end = start + 9;
+  const direction = rowIndex % 2 === 0 ? 'left to right' : 'right to left';
+  return `Main cupboard snake rack · slots ${start}-${end} · ${direction}`;
+}
+
+function _rackSlotClass(spool) {
+  if (!spool) return 'empty';
+  if (spool.archived_at) return 'reserved';
+  if (spool.location_printer_id) return 'loaded';
+  const pct = spool.label_weight_g > 0 ? spool.remaining_g * 100 / spool.label_weight_g : 100;
+  if (pct < _latestLowStockPct) return 'low';
+  return 'stored';
+}
+
+function _spoolRackHtml(spools) {
+  const byNumber = new Map();
+  spools.forEach(s => {
+    const n = _spoolDisplayId(s);
+    if (n > 0 && !byNumber.has(n)) byNumber.set(n, s);
+  });
+  const rows = _rackSlotNumbers();
+  const cells = rows.map((row, rowIndex) => {
+    const rowCells = row.map(num => {
+      const spool = byNumber.get(num);
+      const state = _rackSlotClass(spool);
+      const label = spool
+        ? `${_spoolDisplayLabel(spool)} ${spool.color_name || ''} ${spool.material || ''} ${spool.brand || ''}`
+        : `Empty rack slot ${num}`;
+      const pct = spool?.label_weight_g > 0 ? Math.round(spool.remaining_g * 100 / spool.label_weight_g) : null;
+      const style = spool ? _spoolColorStyle(spool) : '';
+      const textColor = spool ? _spoolTextColor(spool.color_hex || '#1f2937') : '';
+      const body = `<span class="spool-rack-num">#${num}</span>
+        ${spool ? `<span class="spool-rack-name">${esc(spool.color_name || spool.material || 'Spool')}</span>` : '<span class="spool-rack-empty">Empty</span>'}
+        ${spool ? `<span class="spool-rack-meta">${esc(spool.material || '')}${pct != null ? ` · ${pct}%` : ''}</span>` : ''}`;
+      if (spool) {
+        return `<a class="spool-rack-cell spool-rack-${state}" href="#/spool/${spool.id}" style="${style};color:${textColor}" title="${esc(label)}">${body}</a>`;
+      }
+      return `<div class="spool-rack-cell spool-rack-empty-slot" title="${esc(label)}">${body}</div>`;
+    }).join('');
+    return `<section class="spool-rack-row">
+      <div class="spool-rack-row-head">
+        <strong>Row ${rowIndex + 1}</strong>
+        <span>${rowIndex * 10 + 1}-${rowIndex * 10 + 10}</span>
+      </div>
+      <div class="spool-rack-row-grid">${rowCells}</div>
+    </section>`;
+  }).join('');
+  return `<div class="spool-rack-view">
+    <div class="spool-rack-legend">
+      <span><i class="spool-rack-dot stored"></i>Stored</span>
+      <span><i class="spool-rack-dot loaded"></i>Loaded</span>
+      <span><i class="spool-rack-dot low"></i>Low</span>
+      <span><i class="spool-rack-dot reserved"></i>Reserved</span>
+      <span><i class="spool-rack-dot empty"></i>Empty</span>
+    </div>
+    ${cells}
+  </div>`;
+}
+
 function _applySpoolFilters(spools) {
   const f = _spoolsFilter;
   const thresh = _latestLowStockPct;
@@ -16830,6 +16907,7 @@ function _spoolsCategoryHtml(spools, summary, costs, intelligence = {}) {
           <button class="spool-view-btn${_spoolsViewMode==='detail'?' active':''}" data-view="detail">Detail</button>
           <button class="spool-view-btn${_spoolsViewMode==='table'?' active':''}" data-view="table">Table</button>
           <button class="spool-view-btn${_spoolsViewMode==='cabinet'?' active':''}" data-view="cabinet">Cabinet</button>
+          <button class="spool-view-btn${_spoolsViewMode==='rack'?' active':''}" data-view="rack">Rack</button>
           <button class="spool-view-btn${_spoolsViewMode==='incoming'?' active':''}" data-view="incoming">Stock In</button>
           <button class="spool-view-btn${_spoolsViewMode==='catalogue'?' active':''}" data-view="catalogue">Filament catalogue</button>
         </div>
@@ -16887,6 +16965,9 @@ function _paintSpoolList(el, listEl, spools) {
   } else if (_spoolsViewMode === 'cabinet' && _spoolsFilter.status !== 'archived') {
     listEl.className = '';
     listEl.innerHTML = _spoolCabinetHtml(spools);
+  } else if (_spoolsViewMode === 'rack') {
+    listEl.className = '';
+    listEl.innerHTML = _spoolRackHtml(spools);
   } else if (_spoolsViewMode === 'swatch') {
     listEl.className = 'spool-swatch-grid';
     listEl.innerHTML = _spoolSwatchHtml(spools);
@@ -18470,7 +18551,14 @@ function _locationsCategoryHtml(locations) {
     </div>
     <div class="settings-section">
       <div class="settings-section-title">Shelf Locations</div>
-      <div class="settings-subtitle">Create the shelves, dry boxes, tubs, or bays where spools live when they are not loaded in a printer. Archiving a location hides the shelf; Flightdeck will ask before archiving any stored spools inside it.</div>
+      <div class="settings-subtitle">Create the shelves, racks, dry boxes, tubs, or bays where spools live when they are not loaded in a printer. Archiving a location hides it; Flightdeck will ask before archiving any stored spools inside it.</div>
+      <div class="rack-builder-panel">
+        <div>
+          <strong>Main cupboard snake rack</strong>
+          <span>Build rows 1-9 as 1-90, alternating left-to-right then right-to-left.</span>
+        </div>
+        <button type="button" class="settings-save-btn rack-builder-btn" data-rack-action="build-main">Build rack rows</button>
+      </div>
       <form id="spool-location-form" class="settings-form spool-location-form" novalidate>
         <input id="loc-id" type="hidden" value="">
         <div class="settings-form-row">
@@ -18509,6 +18597,53 @@ function _attachLocationsEvents(el, locations) {
     submit.textContent = 'Add Location';
     cancel.classList.add('hidden');
   }
+
+  async function buildMainRackRows(btn) {
+    const old = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Building...';
+    try {
+      const active = [...locations];
+      for (let i = 0; i < 9; i += 1) {
+        const rowNum = i + 1;
+        const name = _rackRowLocationName(i);
+        const notes = _rackRowLocationNote(i);
+        const existing = active.find(loc => String(loc.name || '') === name)
+          || active.find(loc => String(loc.name || '').trim().toLowerCase() === `shelf #${rowNum}`)
+          || active.find(loc => String(loc.name || '').trim().toLowerCase().startsWith(`rack row ${rowNum} `));
+        if (existing) {
+          await fetch(`/api/spool-locations/${existing.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, notes }),
+          });
+          existing.name = name;
+          existing.notes = notes;
+        } else {
+          const r = await fetch('/api/spool-locations', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, notes }),
+          });
+          if (r.ok) {
+            const created = await r.json().catch(() => null);
+            active.push({ id: created?.id, name, notes });
+          }
+        }
+      }
+      showToast('Rack rows ready', 'Main cupboard rows 1-90 are available for labels and cabinet views.', 'success');
+      await _renderSettingsContent('locations');
+    } catch (err) {
+      showToast('Rack setup failed', err?.message || 'Could not create rack rows', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = old;
+    }
+  }
+
+  el.querySelectorAll('[data-rack-action="build-main"]').forEach(btn => {
+    btn.addEventListener('click', () => buildMainRackRows(btn));
+  });
 
   form?.addEventListener('submit', async e => {
     e.preventDefault();

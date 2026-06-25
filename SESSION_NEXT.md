@@ -2,11 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Rename reserved spool search copy`
+- Latest commit: `Add snake rack view and builder`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=526 / style.css?v=415 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=527 / style.css?v=416 / demo-runtime.js?v=8
+
+### 2026-06-25 feature (Snake rack view)
+
+**Add main cupboard snake rack workflow** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+Spools now has a `Rack` view that draws the physical main cupboard as a 9-row, 10-slot snake layout: odd rows run left-to-right and even rows run right-to-left, covering visible spool numbers `1-90`. Rack cells show the spool number, colour/material summary, low-stock/loaded/reserved/empty state, and click through to the spool detail page. Settings -> Locations now includes a `Build rack rows` helper that renames old `Shelf #N` rows or existing rack rows into `Rack Row N · range` and creates any missing rows through the existing location API without moving spools. This gives rack labels, cabinet storage, and the physical cupboard a shared row naming scheme. Static cache bumped to `app.js?v=527` and `style.css?v=416`; frontend refresh required after deploy.
 
 ### 2026-06-25 polish (Rack labels)
 
