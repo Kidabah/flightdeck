@@ -97,12 +97,7 @@ class LabelPrinter:
         color_hex = (spool.get("color_hex") or "").upper()
         location_line = ""
         if not str(spool.get("location_printer_id") or "").strip():
-            location = (
-                spool.get("storage_location_name")
-                or spool.get("storage_location")
-                or "Storage"
-            )
-            location_line = f"Loc: {location}"
+            location_line = _spool_label_location_text(spool)
         draw.text((x, 42), _ellipsize(draw, material, font_bold, 420), fill="black", font=font_bold)
         draw.text((x, 116), _ellipsize(draw, brand if include_brand else "Flightdeck spool", font_body, 420), fill="black", font=font_body)
         draw.text((x, 168), _ellipsize(draw, color_name if include_colour else f"Spool #{display_id}", font_body, 300), fill="black", font=font_body)
@@ -154,12 +149,7 @@ class LabelPrinter:
         color_hex = (spool.get("color_hex") or "").upper()
         location_line = ""
         if not str(spool.get("location_printer_id") or "").strip():
-            location = (
-                spool.get("storage_location_name")
-                or spool.get("storage_location")
-                or "Storage"
-            )
-            location_line = f"Loc: {location}"
+            location_line = _spool_label_location_text(spool)
 
         draw.text((x, 26), _ellipsize(draw, material, font_title, 405), fill="black", font=font_title)
         draw.text((x, 88), _ellipsize(draw, brand if include_brand else "Flightdeck spool", font_body, 390), fill="black", font=font_body)
@@ -318,6 +308,19 @@ def _rack_label_parts(name: str, notes: str) -> tuple[Optional[str], Optional[st
     rack_range = range_match.group(1).replace(" ", "") if range_match else None
     direction = direction_match.group(1).lower() if direction_match else None
     return rack_range, direction
+
+
+def _spool_label_location_text(spool: dict) -> str:
+    location = (
+        spool.get("storage_location_name")
+        or spool.get("storage_location")
+        or "Storage"
+    )
+    notes = spool.get("storage_location_notes") or spool.get("storage_notes") or ""
+    rack_range, _ = _rack_label_parts(str(location), str(notes))
+    if rack_range:
+        return f"Loc: Rack {rack_range}"
+    return f"Loc: {location}"
 
 
 def _qr_image(url: str) -> Optional[Image.Image]:

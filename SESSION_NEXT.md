@@ -2,13 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Make rack labels read as row markers`
+- Latest commit: `Shorten rack location on spool labels`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=529 / style.css?v=416 / demo-runtime.js?v=8
 
 ### 2026-06-25 fix (Queue preflight while busy)
+
+**Shorten rack location on spool labels** (`app/label_printer.py`, `SESSION_NEXT.md`)
+Compact and standard spool labels now collapse rack-row storage locations like `Rack Row 1 · 1-10` into a readable `Loc: Rack 1-10` label instead of truncating the row name as `Rack Ro...`. The big spool number remains the exact physical rack slot; the location line now gives the row range at a glance. Verified by rendering a local compact spool label preview for spool `#5` stored in `Rack Row 1 · 1-10`.
 
 **Make rack labels read as row markers** (`app/label_printer.py`, `SESSION_NEXT.md`)
 Rack/location labels are now formatted for wall/rack use instead of printing the whole storage location name as one oversized, truncated title. Labels extract the physical slot range such as `1-10` as the hero text, show the row name below it, and use the direction text (`left to right` / `right to left`) as the short operator cue. The QR code still opens the matching Flightdeck cabinet/location view. Verified by rendering a local preview for `Rack Row 1 · 1-10`.
