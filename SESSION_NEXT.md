@@ -2,11 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Render H2C rack like Bambu hotend rack`
+- Latest commit: `Match H2C AMS and rack panel height`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=542 / style.css?v=425 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=543 / style.css?v=426 / demo-runtime.js?v=8
+
+### 2026-06-27 polish (H2C AMS/Rack tab height)
+
+**Match H2C AMS and rack panel height** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+Big Girl/H2C Rack view now has the right Bambu-style hotend rack layout, but switching back to AMS made the Environment panel sit shorter than the Rack tab. H2C live panels now mark whether the `AMS` or `Rack` tab is active, and the AMS loaded area reserves a little bottom clearance so the two tabs feel the same height when toggling. Static cache bumped to `app.js?v=543` and `style.css?v=426`; frontend refresh required after deploy. UI-only: no backend, printer command, AMS mapping, queue-dispatch, or spool-deduction code was touched.
 
 ### 2026-06-26 polish (Bambu-style H2C rack view)
 

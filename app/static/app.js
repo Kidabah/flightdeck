@@ -4043,7 +4043,9 @@ function _detailLiveStrip(p) {
     ? [amsHtml || mmuHtml || spoolHtml, toolHtml].filter(Boolean).join('')
     : primaryHtml;
   const routeHtml = _detailFilamentRoute(p);
-  return `<div class="live-environment-panel">
+  const panelClasses = ['live-environment-panel'];
+  if (isH2C) panelClasses.push(`is-h2c-${activeHSeriesTab}-view`);
+  return `<div class="${panelClasses.join(' ')}">
     <div class="live-environment-head">
       <span class="live-strip-label live-environment-title">Environment</span>
       <div class="live-chip-row">${_detailLiveTempChips(p)}</div>

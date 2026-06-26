@@ -4975,6 +4975,11 @@ button.briefing-row {
   gap: 0.34rem;
 }
 
+.live-environment-panel.is-h2c-ams-view .live-loaded-stack {
+  min-height: 10.5rem;
+  align-content: start;
+}
+
 .live-route-section {
   display: grid;
   gap: 0.32rem;
