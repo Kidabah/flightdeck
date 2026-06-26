@@ -3603,24 +3603,90 @@ function _detailLiveHSeriesToolheadRows(p, view = 'nozzles') {
       </span>
     </div>`;
   };
-  const rackCell = (tool) => {
-    const { colour, textColour, state, meta, title } = toolMeta(tool);
-    return `<div class="hseries-rack-cell${tool.active ? ' is-active' : ''}${tool.present ? ' has-spool' : ' is-empty'}"
-        style="--tool-colour:${colour};--tool-text:${textColour}" title="${esc(title)}">
-      <span class="hseries-rack-cell-head">
-        <b>${esc(tool.label || 'Rack')}</b>
+  const rackSlotNumber = (tool) => {
+    const explicit = [tool.rack_slot, tool.rackSlot, tool.rack_index, tool.slot, tool.slot_id]
+      .map((value) => Number(value))
+      .find((value) => Number.isFinite(value) && value >= 1 && value <= 6);
+    if (explicit) return explicit;
+    const labelMatch = String(tool.label || '').match(/(\d+)/);
+    if (labelMatch) {
+      const fromLabel = Number(labelMatch[1]);
+      if (Number.isFinite(fromLabel) && fromLabel >= 1 && fromLabel <= 6) return fromLabel;
+    }
+    const rawId = Number(tool.id);
+    if (Number.isFinite(rawId) && rawId >= 16 && rawId <= 21) return rawId - 15;
+    if (Number.isFinite(rawId) && rawId >= 1 && rawId <= 6) return rawId;
+    return null;
+  };
+  const rackBay = (tool, slot) => {
+    const { colour, textColour, state, title } = toolMeta(tool);
+    const diameter = Number(tool.diameter || 0);
+    const diameterText = diameter ? `${diameter.toFixed(1)}mm` : '';
+    const typeText = String(tool.type || '').trim();
+    const materialText = _bambuFilamentIdLabel(tool.filament_id) || tool.filament_id || '';
+    const loadedText = [diameterText, typeText].filter(Boolean).join(' · ') || (tool.present ? 'Hotend' : 'Empty');
+    const materialLine = materialText ? ` · ${materialText}` : '';
+    return `<div class="hseries-rack-bay${tool.active ? ' is-active' : ''}${tool.present ? ' has-tool' : ' is-empty'}"
+        style="--tool-colour:${colour};--tool-text:${textColour}" title="${esc(title || `Rack ${slot}`)}">
+      <span class="hseries-rack-bay-number">${esc(slot)}</span>
+      <span class="hseries-rack-hotend-icon" aria-hidden="true"></span>
+      <strong>${esc(loadedText)}</strong>
+      <small>${esc(tool.present ? `${state}${materialLine}` : 'Empty')}</small>
+    </div>`;
+  };
+  const rackBoard = () => {
+    const bySlot = new Map();
+    rack.forEach((tool) => {
+      const slot = rackSlotNumber(tool);
+      if (slot) bySlot.set(slot, tool);
+    });
+    const toolForSlot = (slot) => bySlot.get(slot) || {
+      zone: 'rack',
+      label: `Rack ${slot}`,
+      present: false,
+      slot,
+      color: '#1e293b',
+    };
+    const topSlots = [1, 3, 5].map((slot) => rackBay(toolForSlot(slot), slot)).join('');
+    const bottomSlots = [2, 4, 6].map((slot) => rackBay(toolForSlot(slot), slot)).join('');
+    const rackCount = rack.filter((tool) => tool.present).length;
+    const rackTotal = Math.max(rack.length, 6);
+    const compactToolheads = toolheads.map((tool) => {
+      const { colour, textColour, state, meta, title } = toolMeta(tool);
+      return `<div class="hseries-rack-toolhead${tool.active ? ' is-active' : ''}${tool.present ? ' has-tool' : ' is-empty'}"
+          style="--tool-colour:${colour};--tool-text:${textColour}" title="${esc(title)}">
+        <span class="hseries-rack-hotend-icon" aria-hidden="true"></span>
+        <b>${esc(tool.label || 'Toolhead')}</b>
+        <strong>${esc(meta)}</strong>
         <small>${esc(state)}</small>
-      </span>
-      <span class="hseries-rack-cell-nozzle" aria-hidden="true"></span>
-      <strong>${esc(meta)}</strong>
+      </div>`;
+    }).join('');
+    return `<div class="hseries-rack-board" aria-label="H2C hotends and rack">
+      <div class="hseries-rack-toolhead-panel">
+        <span class="hseries-rack-panel-title">Toolhead</span>
+        <div class="hseries-rack-toolhead-stack">${compactToolheads || '<span class="mini-muted">No toolhead data reported yet.</span>'}</div>
+      </div>
+      <div class="hseries-rack-grid-panel">
+        <span class="hseries-rack-panel-title">Induction hotend rack <small>${esc(rackCount)}/${esc(rackTotal)} loaded</small></span>
+        <div class="hseries-rack-grid-wrap">
+          <div class="hseries-rack-grid">
+            ${topSlots}
+            ${bottomSlots}
+          </div>
+          <div class="hseries-rack-row-labels" aria-hidden="true">
+            <span>Row A</span>
+            <span>Row B</span>
+          </div>
+        </div>
+      </div>
     </div>`;
   };
   const toolheadCards = toolheads.map(card).join('');
-  const rackCards = rack.map(rackCell).join('');
+  const rackCards = rack.length ? rackBoard() : '';
   const activeView = view === 'rack' && rackCards ? 'rack' : 'nozzles';
   return `<div class="snapmaker-tooldeck hseries-tooldeck${rackCards ? ' has-rack' : ' no-rack'}" data-hseries-tooldeck>
     ${activeView === 'rack'
-      ? `<div class="hseries-tooldeck-panel" data-hseries-panel="rack"><div class="hseries-rack-strip">${rackCards}</div></div>`
+      ? `<div class="hseries-tooldeck-panel" data-hseries-panel="rack">${rackCards}</div>`
       : `<div class="hseries-tooldeck-panel" data-hseries-panel="nozzles">${toolheadCards ? `<div class="snapmaker-tools hseries-tools hseries-toolheads">${toolheadCards}</div>` : '<div class="mini-muted">No nozzle data reported yet.</div>'}</div>`}
   </div>`;
 }

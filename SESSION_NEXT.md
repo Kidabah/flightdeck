@@ -2,11 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Move H2C rack tabs into Environment header`
+- Latest commit: `Render H2C rack like Bambu hotend rack`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=541 / style.css?v=424 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=542 / style.css?v=425 / demo-runtime.js?v=8
+
+### 2026-06-26 polish (Bambu-style H2C rack view)
+
+**Render H2C rack like Bambu hotend rack** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+The first H2C Rack tab pass was functional but too generic: it showed compact `Rack 1`/`Rack 2` cards instead of resembling the printer's own Hotends & Rack screen. Big Girl/H2C now renders the Rack tab as a Bambu-style board with a Toolhead panel on the left and a fixed six-bay induction rack on the right. Rack bays are laid out in the same odd/even physical pattern as the printer screen (`1,3,5` over `2,4,6`), including empty bays such as the changeover slot, while loaded bays keep colour/material/hotend details. The AMS tab and normal nozzle/toolhead tab behaviour are unchanged. Static cache bumped to `app.js?v=542` and `style.css?v=425`; frontend refresh required after deploy. No backend, printer command, AMS mapping, queue-dispatch, or spool-deduction code was touched.
 
 ### 2026-06-26 fix (H-series history layer recovery and spool catch-up wording)
 
