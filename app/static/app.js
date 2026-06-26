@@ -16247,6 +16247,26 @@ function _spoolRackHtml(spools) {
     if (spool) acc.held += 1;
     return acc;
   }, { stored: 0, loaded: 0, low: 0, reserved: 0, empty: 0, held: 0 });
+  const firstEmpty = rackSlots.find(num => !byNumber.has(num));
+  const firstLoaded = rackSlots.find(num => _rackSlotClass(byNumber.get(num)) === 'loaded');
+  const firstReserved = rackSlots.find(num => _rackSlotClass(byNumber.get(num)) === 'reserved');
+  const overviewRows = rows.map((row, rowIndex) => {
+    const start = rowIndex * 10 + 1;
+    const end = start + 9;
+    const rowStates = row.map(num => {
+      const spool = byNumber.get(num);
+      const state = _rackSlotClass(spool);
+      const label = spool
+        ? `${_spoolDisplayLabel(spool)} ${spool.color_name || ''} ${spool.material || ''}`
+        : `Empty rack slot ${num}`;
+      return `<span class="spool-rack-overview-cell spool-rack-overview-${state}" title="${esc(label)}"></span>`;
+    }).join('');
+    return `<button type="button" class="spool-rack-overview-row" data-rack-jump="${rowIndex + 1}" aria-label="Jump to rack row ${rowIndex + 1}">
+      <span class="spool-rack-overview-label">R${rowIndex + 1}</span>
+      <span class="spool-rack-overview-strip">${rowStates}</span>
+      <small>${start}-${end}</small>
+    </button>`;
+  }).join('');
   const cells = rows.map((row, rowIndex) => {
     const direction = rowIndex % 2 === 0 ? 'Left to right' : 'Right to left';
     const arrow = rowIndex % 2 === 0 ? '&rarr;' : '&larr;';
@@ -16270,7 +16290,7 @@ function _spoolRackHtml(spools) {
       }
       return `<div class="spool-rack-cell spool-rack-empty-slot" title="${esc(label)}">${body}</div>`;
     }).join('');
-    return `<section class="spool-rack-row">
+    return `<section class="spool-rack-row" id="rack-row-${rowIndex + 1}">
       <div class="spool-rack-row-head">
         <span class="spool-rack-row-kicker">Row ${rowIndex + 1}</span>
         <strong>${rowIndex * 10 + 1}-${rowIndex * 10 + 10}</strong>
@@ -16292,6 +16312,16 @@ function _spoolRackHtml(spools) {
         <span><b>${rackStats.empty}</b><small>empty</small></span>
         <span><b>${rackStats.loaded}</b><small>loaded</small></span>
         <span><b>${rackStats.reserved}</b><small>reserved</small></span>
+      </div>
+    </div>
+    <div class="spool-rack-overview">
+      <div class="spool-rack-overview-grid">${overviewRows}</div>
+      <div class="spool-rack-overview-notes">
+        <span><b>${rows.length}</b> rows</span>
+        <span><b>${rackSlots.length}</b> rack slots</span>
+        <span><b>${firstEmpty ? `#${firstEmpty}` : 'Full'}</b> first empty</span>
+        <span><b>${firstLoaded ? `#${firstLoaded}` : 'None'}</b> loaded</span>
+        <span><b>${firstReserved ? `#${firstReserved}` : 'None'}</b> reserved</span>
       </div>
     </div>
     <div class="spool-rack-legend">
@@ -17017,6 +17047,15 @@ function _paintSpoolList(el, listEl, spools) {
 
 function _attachSpoolListEvents(el, listEl, refresh = _refreshSpoolsSurface) {
   listEl.addEventListener('click', e => {
+    const rackJump = e.target.closest('[data-rack-jump]');
+    if (rackJump && listEl.contains(rackJump)) {
+      e.preventDefault();
+      const row = listEl.querySelector(`#rack-row-${CSS.escape(String(rackJump.dataset.rackJump || ''))}`);
+      row?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      row?.classList.add('spool-rack-row-focus');
+      setTimeout(() => row?.classList.remove('spool-rack-row-focus'), 1100);
+      return;
+    }
     const tab = e.target.closest('[data-spool-group-tab]');
     if (tab && listEl.contains(tab)) {
       e.preventDefault();

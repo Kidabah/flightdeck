@@ -6,7 +6,12 @@ Latest GitHub/Pi state:
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=532 / style.css?v=417 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=533 / style.css?v=418 / demo-runtime.js?v=8
+
+### 2026-06-26 polish (Rack wall-board overview)
+
+**Add a whole-rack visual map to Spools -> Rack** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+Spools -> Rack now shows a compact wall-board overview above the detailed rack rows. Each physical rack row renders as a 10-slot strip using the same Stored/Loaded/Low/Reserved/Empty states as the row cards, with quick totals for row count, rack slots, first empty slot, first loaded slot, and first reserved slot. Row strips link down to the matching detailed row so the rack can be scanned quickly before drilling into individual spool cards. Static cache bumped to `app.js?v=533` and `style.css?v=418`; frontend refresh required after deploy.
 
 ### 2026-06-26 fix (Archived default shelf startup crash)
 
