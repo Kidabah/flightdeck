@@ -10,6 +10,9 @@ Latest GitHub/Pi state:
 
 ### 2026-06-26 fix (BigBoy completion ntfy accounting errors)
 
+**Update running history layer progress live** (`app/db.py`, `app/printers/bambu.py`, `SESSION_NEXT.md`)
+History detail rows now refresh `layers_completed` while a Bambu print is running instead of only filling the value when the print closes. The Bambu poll loop writes live layer progress to the active print row whenever the printer reports a current layer; if H-series telemetry omits the current layer, Flightdeck derives a running estimate from print percentage and the known sliced total so history no longer sits at `— / total` during long prints. The update is monotonic and only affects open rows, so finished/cancelled history is not regressed. Verified with `python -m py_compile app/db.py app/printers/bambu.py app/main.py` and `git diff --check`. Backend/service restart required after deploy.
+
 **Harden Bambu spool/accounting errors after print completion** (`app/db.py`, `app/printers/bambu.py`, `SESSION_NEXT.md`)
 BigBoy reported two scary ntfy `Print error` messages after a completed print: `no such column: updated_at` and `cannot access local variable 'slot_snapshot' where it is not associated with a value`. The `updated_at` fault came from older Pi databases where `filament_catalog` existed before the newer timestamp column; startup migration now adds `filament_catalog.updated_at`, and `get_filament_catalog_status()` defensively handles older schemas until migration has run. Bambu live and finish spool deduction is now isolated from printer polling: any deduction exception is logged and written to the print decision trail as `spool_deduction_error`, but it no longer bubbles out as a printer-status failure or ntfy `Print error`. Verified with `python -m py_compile app/db.py app/printers/bambu.py app/main.py` and `git diff --check`. Backend/service restart required after deploy.
 

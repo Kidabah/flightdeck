@@ -1702,6 +1702,47 @@ def update_estimated_duration(printer_id: str, job_key: str, seconds: int) -> No
         )
 
 
+def update_print_live_progress(
+    print_id: int,
+    *,
+    layers_completed: Optional[int] = None,
+    layers_total: Optional[int] = None,
+) -> None:
+    """Refresh live layer progress for a running print without regressing it."""
+    current = None
+    if layers_completed is not None:
+        try:
+            current = max(0, int(layers_completed))
+        except (TypeError, ValueError):
+            current = None
+    total = None
+    if layers_total is not None:
+        try:
+            total = max(0, int(layers_total))
+        except (TypeError, ValueError):
+            total = None
+    if current is None and total is None:
+        return
+    with _conn() as conn:
+        conn.execute(
+            """UPDATE prints
+               SET layers_completed = CASE
+                       WHEN ? IS NULL THEN layers_completed
+                       WHEN layers_completed IS NULL THEN ?
+                       WHEN ? > layers_completed THEN ?
+                       ELSE layers_completed
+                   END,
+                   layers_total = CASE
+                       WHEN ? IS NULL OR ? <= 0 THEN layers_total
+                       WHEN layers_total IS NULL THEN ?
+                       WHEN ? > layers_total THEN ?
+                       ELSE layers_total
+                   END
+               WHERE id = ? AND final_state IS NULL""",
+            (current, current, current, current, total, total, total, total, total, print_id),
+        )
+
+
 def get_calibration(printer_id: str) -> Optional[dict]:
     """Return {ratio, count} for ETA calibration, or None if no samples exist.
 

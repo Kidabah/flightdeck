@@ -654,6 +654,15 @@ class BambuPrinter:
                         filament_grams=pv.filament_weight_g,
                         material=pv.filament_type,
                     )
+            if self._current_print_id and job is not None:
+                live_layer = job.layer_current
+                if live_layer is None and job.layer_total and job.progress is not None:
+                    live_layer = int(max(0.0, min(1.0, job.progress)) * job.layer_total)
+                db.update_print_live_progress(
+                    self._current_print_id,
+                    layers_completed=live_layer,
+                    layers_total=job.layer_total,
+                )
             # Derived slicer estimate: capture once after 60s elapsed.
             # Primary path for Bambu — no metadata API available.
             # Formula: slicer_total = eta_seconds / (1 - progress)
