@@ -3561,7 +3561,7 @@ function _detailLiveHSeriesToolheadRows(p) {
   if (!tools.length) return '';
   const toolheads = tools.filter(tool => tool.zone === 'toolhead');
   const rack = tools.filter(tool => tool.zone === 'rack');
-  const card = (tool) => {
+  const toolMeta = (tool) => {
     const colour = tool.color || '#64748b';
     const textColour = _spoolTextColor(colour);
     const diameter = Number(tool.diameter || 0);
@@ -3575,6 +3575,10 @@ function _detailLiveHSeriesToolheadRows(p) {
       : 'Empty';
     const meta = [diameterText, typeText, materialText].filter(Boolean).join(' · ') || 'No hotend detected';
     const title = [tool.label, state, meta, serialText].filter(Boolean).join(' · ');
+    return { colour, textColour, state, meta, serialText, title };
+  };
+  const card = (tool) => {
+    const { colour, textColour, state, meta, serialText, title } = toolMeta(tool);
     return `<div class="snapmaker-tool-card hseries-tool-card${tool.active ? ' is-active' : ''}${tool.present ? ' has-spool' : ' is-empty'}"
         style="--tool-colour:${colour};--tool-text:${textColour}" title="${esc(title)}">
       <span class="snapmaker-tool-head">
@@ -3592,8 +3596,20 @@ function _detailLiveHSeriesToolheadRows(p) {
       </span>
     </div>`;
   };
+  const rackCell = (tool) => {
+    const { colour, textColour, state, meta, title } = toolMeta(tool);
+    return `<div class="hseries-rack-cell${tool.active ? ' is-active' : ''}${tool.present ? ' has-spool' : ' is-empty'}"
+        style="--tool-colour:${colour};--tool-text:${textColour}" title="${esc(title)}">
+      <span class="hseries-rack-cell-head">
+        <b>${esc(tool.label || 'Rack')}</b>
+        <small>${esc(state)}</small>
+      </span>
+      <span class="hseries-rack-cell-nozzle" aria-hidden="true"></span>
+      <strong>${esc(meta)}</strong>
+    </div>`;
+  };
   const toolheadCards = toolheads.map(card).join('');
-  const rackCards = rack.map(card).join('');
+  const rackCards = rack.map(rackCell).join('');
   const rackCount = rack.filter(tool => tool.present).length;
   const summary = [
     `${toolheads.length} toolheads`,
@@ -3605,7 +3621,7 @@ function _detailLiveHSeriesToolheadRows(p) {
       <span>${esc(summary)}</span>
     </div>
     ${toolheadCards ? `<div class="snapmaker-tools hseries-tools hseries-toolheads">${toolheadCards}</div>` : ''}
-    ${rackCards ? `<div class="snapmaker-tools hseries-tools hseries-rack">${rackCards}</div>` : ''}
+    ${rackCards ? `<div class="hseries-rack-strip">${rackCards}</div>` : ''}
   </div>`;
 }
 

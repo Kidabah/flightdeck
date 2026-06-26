@@ -2,11 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Show H-series hotend rack state`
+- Latest commit: `Fix H-series rack panel scrolling`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=535 / style.css?v=419 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=536 / style.css?v=420 / demo-runtime.js?v=8
+
+### 2026-06-26 fix (H-series rack panel scrolling)
+
+**Compact the H-series hotend rack display** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+The first H-series rack visibility pass used full-height hotend cards for both active nozzles and rack storage bays. On Big Girl/H2C that made the Live environment panel too tall and awkward to scroll once AMS state and rack state were both visible. Rack bays now render as compact cells in a capped scroll strip, while the active left/right toolheads keep the richer card view. This is UI-only: no Bambu MQTT parsing, print-command, AMS mapping, or queue-dispatch code was touched. Static cache bumped to `app.js?v=536` and `style.css?v=420`; frontend refresh required after deploy.
 
 ### 2026-06-26 polish (H-series hotend rack visibility)
 

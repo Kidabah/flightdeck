@@ -5151,6 +5151,83 @@ button.live-route-node:hover {
   filter: grayscale(1);
 }
 
+.hseries-rack-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(4.6rem, 1fr));
+  gap: 0.38rem;
+  max-height: 8rem;
+  overflow-y: auto;
+  padding-right: 0.12rem;
+  overscroll-behavior: contain;
+}
+
+.hseries-rack-cell {
+  min-width: 0;
+  min-height: 3.9rem;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  gap: 0.22rem 0.42rem;
+  align-items: center;
+  padding: 0.42rem;
+  border: 1px solid var(--border);
+  border-radius: 0.45rem;
+  background: rgba(7, 15, 29, 0.76);
+  color: var(--text);
+}
+
+.hseries-rack-cell.is-active {
+  border-color: color-mix(in srgb, var(--tool-colour) 64%, #60a5fa);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--tool-colour) 24%, transparent);
+}
+
+.hseries-rack-cell.is-empty {
+  opacity: 0.5;
+}
+
+.hseries-rack-cell-head {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.hseries-rack-cell-head b,
+.hseries-rack-cell strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hseries-rack-cell-head b {
+  color: #eff6ff;
+  font-size: 0.66rem;
+}
+
+.hseries-rack-cell-head small {
+  color: #93c5fd;
+  font-size: 0.54rem;
+}
+
+.hseries-rack-cell-nozzle {
+  width: 1.18rem;
+  height: 1.18rem;
+  border-radius: 0.26rem 0.26rem 0.48rem 0.48rem;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--tool-colour) 92%, #ffffff), var(--tool-colour));
+  box-shadow: 0 0 0.75rem color-mix(in srgb, var(--tool-colour) 32%, transparent);
+}
+
+.hseries-rack-cell.is-empty .hseries-rack-cell-nozzle {
+  filter: grayscale(1);
+}
+
+.hseries-rack-cell strong {
+  color: #f8fafc;
+  font-size: 0.62rem;
+}
+
 .snapmaker-tool-head,
 .snapmaker-tool-foot {
   display: flex;
