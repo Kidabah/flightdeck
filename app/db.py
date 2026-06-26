@@ -1701,44 +1701,69 @@ def update_estimated_duration(printer_id: str, job_key: str, seconds: int) -> No
         )
 
 
+def _coerce_layer_value(value: Optional[int]) -> Optional[int]:
+    if value is None:
+        return None
+    try:
+        return max(0, int(value))
+    except (TypeError, ValueError):
+        return None
+
+
 def update_print_live_progress(
     print_id: int,
     *,
     layers_completed: Optional[int] = None,
     layers_total: Optional[int] = None,
 ) -> None:
-    """Refresh live layer progress for a running print without regressing it."""
-    current = None
-    if layers_completed is not None:
-        try:
-            current = max(0, int(layers_completed))
-        except (TypeError, ValueError):
-            current = None
-    total = None
-    if layers_total is not None:
-        try:
-            total = max(0, int(layers_total))
-        except (TypeError, ValueError):
-            total = None
+    """Refresh live layer progress for a running print.
+
+    Bambu H-series printers can briefly report a stale/alternate layer total
+    while the live job payload settles. Keep normal progress monotonic, but let
+    a later sane total replace a wildly larger stored value so history can
+    recover from 1000+ layer ghosts on 100-layer jobs.
+    """
+    current = _coerce_layer_value(layers_completed)
+    total = _coerce_layer_value(layers_total)
     if current is None and total is None:
         return
     with _conn() as conn:
+        row = conn.execute(
+            """SELECT layers_completed, layers_total
+               FROM prints
+               WHERE id = ? AND final_state IS NULL""",
+            (print_id,),
+        ).fetchone()
+        if not row:
+            return
+
+        stored_current = _coerce_layer_value(row["layers_completed"])
+        stored_total = _coerce_layer_value(row["layers_total"])
+        next_current = stored_current
+        next_total = stored_total
+        corrected_total_down = False
+
+        if total is not None and total > 0:
+            if stored_total is None or stored_total <= 0 or total > stored_total:
+                next_total = total
+            elif stored_total > total * 3 and (current is None or current <= total):
+                next_total = total
+                corrected_total_down = True
+
+        if current is not None:
+            if corrected_total_down:
+                next_current = current
+            elif stored_current is None or current > stored_current:
+                next_current = current
+            elif next_total and stored_current and stored_current > next_total and current <= next_total:
+                next_current = current
+
         conn.execute(
             """UPDATE prints
-               SET layers_completed = CASE
-                       WHEN ? IS NULL THEN layers_completed
-                       WHEN layers_completed IS NULL THEN ?
-                       WHEN ? > layers_completed THEN ?
-                       ELSE layers_completed
-                   END,
-                   layers_total = CASE
-                       WHEN ? IS NULL OR ? <= 0 THEN layers_total
-                       WHEN layers_total IS NULL THEN ?
-                       WHEN ? > layers_total THEN ?
-                       ELSE layers_total
-                   END
+               SET layers_completed = ?,
+                   layers_total = ?
                WHERE id = ? AND final_state IS NULL""",
-            (current, current, current, current, total, total, total, total, total, print_id),
+            (next_current, next_total, print_id),
         )
 
 
@@ -3948,9 +3973,14 @@ def _deduct_spool_usage_to_target(
                                       f"but only {old_r:.1f}g remained; clamped to 0"))
             else:
                 event = "spool_deducted_live" if target_ratio < 1.0 else "spool_deducted"
-                progress_note = f" at {int(target_ratio * 100)}%" if target_ratio < 1.0 else ""
+                if target_ratio < 1.0 and already <= 0.05 and target_ratio >= 0.2:
+                    action_note = f"catch-up deducted to {int(target_ratio * 100)}%"
+                else:
+                    action_note = f"{delta:.1f}g deducted"
+                    if target_ratio < 1.0:
+                        action_note += f" at {int(target_ratio * 100)}%"
                 decision_logs.append((event,
-                                      f"Spool #{spool_label} slot {slot}: {delta:.1f}g deducted{progress_note} "
+                                      f"Spool #{spool_label} slot {slot}: {action_note} "
                                       f"({old_r:.1f}g -> {new_r:.1f}g)"))
             if int(spool_id) in auto_archived_spool_ids:
                 decision_logs.append(("spool_auto_archived_empty", f"Spool #{spool_label} archived after remaining weight reached 0g"))

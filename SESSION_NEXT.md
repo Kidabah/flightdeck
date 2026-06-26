@@ -8,6 +8,11 @@ Latest GitHub/Pi state:
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=541 / style.css?v=424 / demo-runtime.js?v=8
 
+### 2026-06-26 fix (H-series history layer recovery and spool catch-up wording)
+
+**Recover history from bad H-series layer totals** (`app/db.py`, `SESSION_NEXT.md`)
+Big Girl/H2C exposed an H-series telemetry edge case where Live view showed the correct print progress (`110 / 110`) but History had latched onto a stale/high layer total (`1123 / 1123`). `update_print_live_progress()` now keeps normal layer progress monotonic but allows a later sane total to replace a wildly larger stored value, so history can recover from transient H-series layer ghosts instead of keeping the first bad number forever. Live spool deduction also now labels late first deductions as `catch-up deducted to 90%` when Flightdeck first sees a usable snapshot/metadata after the print is already well underway. This keeps the accounting behaviour the same, including holding the final 10% until the printer reports `FINISHED`, but makes the decision trail honest when a service restart or reattach misses earlier 10% checkpoints. Backend/service restart required after deploy. No printer command, AMS mapping, queue-dispatch, or frontend code was touched.
+
 ### 2026-06-26 polish (H2C Environment tabs)
 
 **Move H2C rack tabs into Environment header** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
