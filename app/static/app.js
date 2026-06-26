@@ -3578,7 +3578,7 @@ function _detailLiveHSeriesToolheadRows(p) {
     return { colour, textColour, state, meta, serialText, title, isRack };
   };
   const card = (tool) => {
-    const { colour, textColour, state, meta, serialText, title } = toolMeta(tool);
+    const { colour, textColour, state, meta, serialText, title, isRack } = toolMeta(tool);
     return `<div class="snapmaker-tool-card hseries-tool-card${tool.active ? ' is-active' : ''}${tool.present ? ' has-spool' : ' is-empty'}"
         style="--tool-colour:${colour};--tool-text:${textColour}" title="${esc(title)}">
       <span class="snapmaker-tool-head">

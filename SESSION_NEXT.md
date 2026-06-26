@@ -2,11 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Fix H-series rack live crash`
+- Latest commit: `Fix H-series rack isRack destructuring`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=537 / style.css?v=420 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=538 / style.css?v=420 / demo-runtime.js?v=8
+
+### 2026-06-26 fix (H-series rack destructuring)
+
+**Finish the `isRack` live-view crash fix** (`app/static/app.js`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+The prior patch returned `isRack` from the shared H-series metadata helper but missed adding it to the full-card destructuring assignment, so Live view could still fail with `isRack is not defined`. The card renderer now destructures `isRack` explicitly. Static cache bumped to `app.js?v=538`; frontend refresh required after deploy.
 
 ### 2026-06-26 fix (H-series rack live crash)
 
