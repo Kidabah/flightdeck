@@ -5139,7 +5139,7 @@ button.live-route-node:hover {
 }
 
 .hseries-tool-card {
-  min-height: 7.4rem;
+  min-height: 6.2rem;
   cursor: default;
 }
 
@@ -5155,10 +5155,10 @@ button.live-route-node:hover {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(4.6rem, 1fr));
   gap: 0.38rem;
-  max-height: 8rem;
-  overflow-y: auto;
-  padding-right: 0.12rem;
-  overscroll-behavior: contain;
+  max-height: none;
+  overflow: visible;
+  padding-right: 0;
+  overscroll-behavior: auto;
 }
 
 .hseries-rack-cell {

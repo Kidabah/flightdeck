@@ -8036,7 +8036,14 @@ def _queue_preflight(job: dict, printer_status: Optional[dict]) -> dict:
     if not printer_status:
         issues.append({"level": "wait", "message": "Waiting for printer telemetry"})
     elif state in ("offline", "error", "estop"):
-        issues.append({"level": "block", "message": f"Printer is {state}"})
+        printer_error = str((printer_status or {}).get("error") or "").strip()
+        if state == "error":
+            message = f"Printer error: {printer_error}" if printer_error else "Printer reports an error; clear the printer screen or Bambu app, then retry."
+        elif state == "estop":
+            message = "Emergency stop is active"
+        else:
+            message = "Printer is offline"
+        issues.append({"level": "block", "message": message})
     elif state not in ("idle", "ready", "standby", "finished"):
         issues.append({"level": "wait", "message": f"Printer is {state}"})
         has_block = any(i["level"] == "block" for i in issues)

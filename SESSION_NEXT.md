@@ -2,11 +2,19 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Fix H-series rack isRack destructuring`
+- Latest commit: `Fix H-series rack scroll and queue fault wording`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=538 / style.css?v=420 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=538 / style.css?v=421 / demo-runtime.js?v=8
+
+### 2026-06-26 fix (H-series rack scroll and queue fault wording)
+
+**Let Live page scrolling own the H-series rack section** (`app/static/style.css`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+The compact H-series hotend/rack strip had its own capped internal scrollbar plus contained overscroll. On Big Girl/H2C this could trap wheel/touch scrolling around the environment panel and make the Live page feel stuck near the rack. The rack strip now flows with the page, and full toolhead cards are slightly shorter so the H-series panel stays readable without becoming a scroll trap. Static cache bumped to `style.css?v=421`; frontend refresh required after deploy.
+
+**Make printer-error queue blocks actionable** (`app/main.py`, `SESSION_NEXT.md`)
+Queue preflight still blocks jobs when a printer is genuinely offline, in error, or in E-stop, but it no longer shows the vague `Printer is error` copy. For Bambu/Moonraker faults Flightdeck now uses the reported printer error text when available, and falls back to a clear operator instruction to clear the printer screen/Bambu app before retrying. Backend/service restart required after deploy.
 
 ### 2026-06-26 fix (H-series rack destructuring)
 
