@@ -2,11 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Use tabs for H-series nozzle and rack view`
+- Latest commit: `Move H2C rack tabs into Environment header`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=540 / style.css?v=423 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=541 / style.css?v=424 / demo-runtime.js?v=8
+
+### 2026-06-26 polish (H2C Environment tabs)
+
+**Move H2C rack tabs into Environment header** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+The first tab pass rendered `Nozzles`/`Rack` below the AMS loadout, which made the controls feel disconnected and did not bring the rack view up where operators expect it. Big Girl/H2C now shows compact `AMS` and `Rack` tabs beside the Environment temperature chips. `AMS` shows the normal AMS/loadout view, while `Rack` replaces that loaded area with the hotend rack view. The selected tab is remembered per printer across live refreshes. BigBoy/H2D remains dual-nozzle/no-rack and does not get the rack tab. Static cache bumped to `app.js?v=541` and `style.css?v=424`; frontend refresh required after deploy. No backend, printer command, AMS mapping, queue-dispatch, or spool-deduction code was touched.
 
 ### 2026-06-26 polish (H2D no rack, H2C tabbed rack access)
 

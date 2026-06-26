@@ -352,6 +352,7 @@ let _latestPrinters = [];
 let _tabsBuilt = false;
 let _missionRenderInFlight = false;
 let _missionLastHtml = '';
+let _hSeriesLiveTabByPrinter = {};
 const _cameraUrlCache = {};     // printer_id → url string or null
 const _cameraMetaCache = {};    // printer_id → camera metadata
 const _CAMERA_STREAM_REFRESH_MS = 45000;
@@ -3512,8 +3513,8 @@ function _detailLiveMmuRows(p) {
   }).join('');
 }
 
-function _detailLiveToolheadRows(p) {
-  if (_hasHSeriesNozzleRack(p)) return _detailLiveHSeriesToolheadRows(p);
+function _detailLiveToolheadRows(p, view = 'nozzles') {
+  if (_hasHSeriesNozzleRack(p)) return _detailLiveHSeriesToolheadRows(p, view);
   if (!_isSnapmakerU1(p)) return '';
   const loaded = _latestSpoolsByPrinter[p.id] || [];
   const reported = _asList(p.toolheads);
@@ -3561,7 +3562,7 @@ function _detailLiveToolheadRows(p) {
   </div>`;
 }
 
-function _detailLiveHSeriesToolheadRows(p) {
+function _detailLiveHSeriesToolheadRows(p, view = 'nozzles') {
   const tools = _asList(p.toolheads).filter(tool => tool?.zone === 'toolhead' || tool?.zone === 'rack');
   if (!tools.length) return '';
   const showRack = _isH2CPrinter(p);
@@ -3616,18 +3617,25 @@ function _detailLiveHSeriesToolheadRows(p) {
   };
   const toolheadCards = toolheads.map(card).join('');
   const rackCards = rack.map(rackCell).join('');
+  const activeView = view === 'rack' && rackCards ? 'rack' : 'nozzles';
+  return `<div class="snapmaker-tooldeck hseries-tooldeck${rackCards ? ' has-rack' : ' no-rack'}" data-hseries-tooldeck>
+    ${activeView === 'rack'
+      ? `<div class="hseries-tooldeck-panel" data-hseries-panel="rack"><div class="hseries-rack-strip">${rackCards}</div></div>`
+      : `<div class="hseries-tooldeck-panel" data-hseries-panel="nozzles">${toolheadCards ? `<div class="snapmaker-tools hseries-tools hseries-toolheads">${toolheadCards}</div>` : '<div class="mini-muted">No nozzle data reported yet.</div>'}</div>`}
+  </div>`;
+}
+
+function _detailLiveHSeriesTabs(p) {
+  if (!_isH2CPrinter(p)) return '';
+  const rack = _asList(p.toolheads).filter(tool => tool?.zone === 'rack');
+  if (!rack.length) return '';
+  const active = _hSeriesLiveTabByPrinter[p.id] === 'rack' ? 'rack' : 'ams';
   const rackCount = rack.filter(tool => tool.present).length;
   const rackTotal = rack.length || 6;
-  const tabs = [
-    `<button class="hseries-tooldeck-tab is-active" type="button" role="tab" aria-selected="true" data-hseries-tab="nozzles">Nozzles <span>${toolheads.length || 0}</span></button>`,
-    rackCards ? `<button class="hseries-tooldeck-tab" type="button" role="tab" aria-selected="false" data-hseries-tab="rack">Rack <span>${rackCount}/${rackTotal}</span></button>` : '',
-  ].filter(Boolean).join('');
-  return `<div class="snapmaker-tooldeck hseries-tooldeck${rackCards ? ' has-rack' : ' no-rack'}" data-hseries-tooldeck>
-    <div class="hseries-tooldeck-tabs" role="tablist" aria-label="${esc(showRack ? 'H-series nozzles and rack' : 'H-series nozzles')}">${tabs}</div>
-    <div class="hseries-tooldeck-panel" data-hseries-panel="nozzles">
-      ${toolheadCards ? `<div class="snapmaker-tools hseries-tools hseries-toolheads">${toolheadCards}</div>` : '<div class="mini-muted">No nozzle data reported yet.</div>'}
-    </div>
-    ${rackCards ? `<div class="hseries-tooldeck-panel" data-hseries-panel="rack" hidden><div class="hseries-rack-strip">${rackCards}</div></div>` : ''}
+  const tab = (key, label, count) => `<button class="hseries-tooldeck-tab${active === key ? ' is-active' : ''}" type="button" role="tab" aria-selected="${active === key ? 'true' : 'false'}" data-hseries-live-tab="${key}" data-printer-id="${esc(p.id)}">${esc(label)} <span>${esc(count)}</span></button>`;
+  return `<div class="hseries-tooldeck-tabs" role="tablist" aria-label="H2C loaded view">
+    ${tab('ams', 'AMS', String(_asList(p.ams).length || 0))}
+    ${tab('rack', 'Rack', `${rackCount}/${rackTotal}`)}
   </div>`;
 }
 
@@ -3675,6 +3683,15 @@ function _mmuRouteState(unit = {}) {
 }
 
 document.addEventListener('click', e => {
+  const liveTab = e.target.closest('[data-hseries-live-tab]');
+  if (liveTab) {
+    const printerId = liveTab.dataset.printerId || '';
+    _hSeriesLiveTabByPrinter[printerId] = liveTab.dataset.hseriesLiveTab === 'rack' ? 'rack' : 'ams';
+    const stripEl = document.getElementById('detail-live-strip');
+    const printer = _latestPrinters.find(p => p.id === printerId);
+    if (stripEl && printer) stripEl.innerHTML = _detailLiveStrip(printer);
+    return;
+  }
   const tab = e.target.closest('[data-hseries-tab]');
   if (!tab) return;
   const deck = tab.closest('[data-hseries-tooldeck]');
@@ -3946,10 +3963,17 @@ function _detailCameraHud(p) {
 function _detailLiveStrip(p) {
   const amsHtml = _detailLiveAmsRows(p);
   const mmuHtml = _detailLiveMmuRows(p);
-  const toolHtml = _detailLiveToolheadRows(p);
+  const isHSeries = _hasHSeriesNozzleRack(p);
+  const isH2C = _isH2CPrinter(p);
+  const activeHSeriesTab = _hSeriesLiveTabByPrinter[p.id] === 'rack' ? 'rack' : 'ams';
+  const toolHtml = _detailLiveToolheadRows(p, isH2C && activeHSeriesTab === 'rack' ? 'rack' : 'nozzles');
   const spoolHtml = _detailLiveSpoolChips(p);
   const primaryHtml = amsHtml || mmuHtml || toolHtml || spoolHtml;
-  const loadedHtml = _hasHSeriesNozzleRack(p)
+  const loadedHtml = isH2C
+    ? (activeHSeriesTab === 'rack'
+      ? (toolHtml || '<span class="live-strip-empty">No hotend rack data reported yet</span>')
+      : (amsHtml || mmuHtml || spoolHtml || '<span class="live-strip-empty">No Flightdeck spools assigned</span>'))
+    : isHSeries
     ? [amsHtml || mmuHtml || spoolHtml, toolHtml].filter(Boolean).join('')
     : primaryHtml;
   const routeHtml = _detailFilamentRoute(p);
@@ -3957,6 +3981,7 @@ function _detailLiveStrip(p) {
     <div class="live-environment-head">
       <span class="live-strip-label live-environment-title">Environment</span>
       <div class="live-chip-row">${_detailLiveTempChips(p)}</div>
+      ${_detailLiveHSeriesTabs(p)}
     </div>
     ${routeHtml}
     <div class="live-environment-section live-environment-loaded">

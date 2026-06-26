@@ -5143,6 +5143,12 @@ button.live-route-node:hover {
   border-bottom: 1px solid rgba(96, 165, 250, 0.16);
 }
 
+.live-environment-head .hseries-tooldeck-tabs {
+  margin-left: auto;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
 .hseries-tooldeck-tab {
   min-height: 2rem;
   padding: 0.32rem 0.68rem;
@@ -6196,6 +6202,9 @@ button.live-route-node:hover {
   .live-environment-head {
     align-items: flex-start;
     flex-direction: column;
+  }
+  .live-environment-head .hseries-tooldeck-tabs {
+    margin-left: 0;
   }
   .live-environment-loaded {
     border-top: 1px solid rgba(255,255,255,0.07);
