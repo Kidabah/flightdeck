@@ -2,11 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Fix H-series rack panel scrolling`
+- Latest commit: `Fix H-series rack live crash`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=536 / style.css?v=420 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=537 / style.css?v=420 / demo-runtime.js?v=8
+
+### 2026-06-26 fix (H-series rack live crash)
+
+**Fix undefined `isRack` in H-series rack renderer** (`app/static/app.js`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+The compact rack-strip UI shared hotend metadata between the full toolhead card renderer and compact rack-cell renderer, but `isRack` stayed scoped inside the helper while the card renderer still referenced it for the fallback label. Live view could fail with `isRack is not defined`. The helper now returns `isRack` with the rest of the metadata. Static cache bumped to `app.js?v=537`; frontend refresh required after deploy.
 
 ### 2026-06-26 fix (H-series rack panel scrolling)
 

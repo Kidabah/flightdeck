@@ -3575,7 +3575,7 @@ function _detailLiveHSeriesToolheadRows(p) {
       : 'Empty';
     const meta = [diameterText, typeText, materialText].filter(Boolean).join(' · ') || 'No hotend detected';
     const title = [tool.label, state, meta, serialText].filter(Boolean).join(' · ');
-    return { colour, textColour, state, meta, serialText, title };
+    return { colour, textColour, state, meta, serialText, title, isRack };
   };
   const card = (tool) => {
     const { colour, textColour, state, meta, serialText, title } = toolMeta(tool);
