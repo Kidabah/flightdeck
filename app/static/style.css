@@ -5134,53 +5134,50 @@ button.live-route-node:hover {
   padding-top: 0.5rem;
 }
 
-.hseries-tooldeck-summary {
+.hseries-tooldeck-tabs {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  min-height: 2.1rem;
-  padding: 0.36rem 0.48rem;
-  border: 1px solid rgba(96, 165, 250, 0.22);
-  border-radius: 0.5rem;
-  background: rgba(7, 15, 29, 0.72);
-  color: var(--text);
-  cursor: pointer;
-  list-style: none;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding-bottom: 0.45rem;
+  border-bottom: 1px solid rgba(96, 165, 250, 0.16);
 }
 
-.hseries-tooldeck-summary::-webkit-details-marker {
-  display: none;
-}
-
-.hseries-tooldeck-summary span {
-  color: var(--muted);
-  font-size: 0.76rem;
-}
-
-.hseries-tooldeck-summary::after {
-  content: "Show";
-  flex: 0 0 auto;
-  min-width: 3.2rem;
-  padding: 0.18rem 0.42rem;
+.hseries-tooldeck-tab {
+  min-height: 2rem;
+  padding: 0.32rem 0.68rem;
+  border-radius: 0.48rem 0.48rem 0.22rem 0.22rem;
+  background: rgba(7, 15, 29, 0.76);
   border: 1px solid var(--accent);
-  border-radius: 999px;
   color: #bfdbfe;
-  font-size: 0.68rem;
+  font-size: 0.72rem;
   font-weight: 800;
-  text-align: center;
   text-transform: uppercase;
   letter-spacing: 0;
+  cursor: pointer;
 }
 
-.hseries-tooldeck[open] .hseries-tooldeck-summary::after {
-  content: "Hide";
+.hseries-tooldeck-tab.is-active {
+  background: rgba(37, 99, 235, 0.22);
+  border-color: #60a5fa;
+  color: #eff6ff;
+  box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.18);
 }
 
-.hseries-tooldeck-body {
+.hseries-tooldeck-tab span {
+  margin-left: 0.35rem;
+  color: #93c5fd;
+  font-size: 0.66rem;
+}
+
+.hseries-tooldeck-panel {
   display: grid;
   gap: 0.5rem;
   padding-top: 0.5rem;
+}
+
+.hseries-tooldeck-panel[hidden] {
+  display: none;
 }
 
 .hseries-tools {

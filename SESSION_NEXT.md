@@ -2,11 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Collapse H-series rack by default in live view`
+- Latest commit: `Use tabs for H-series nozzle and rack view`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=539 / style.css?v=422 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=540 / style.css?v=423 / demo-runtime.js?v=8
+
+### 2026-06-26 polish (H2D no rack, H2C tabbed rack access)
+
+**Use tabs for H-series nozzle and rack view** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+H2D is now treated as a dual-nozzle engineering printer with no hotend rack UI. The Live environment panel filters rack bays out unless the printer model is H2C, so BigBoy/H2D shows only the nozzle/toolhead view while Big Girl/H2C keeps rack visibility. Replaced the native `Show`/`Hide` drawer with a cleaner tab strip: `Nozzles` is the default tab, and `Rack` appears only for H2C when rack bays are reported. Static cache bumped to `app.js?v=540` and `style.css?v=423`; frontend refresh required after deploy. No printer command, AMS mapping, H2C routing, or queue-dispatch code was touched.
 
 ### 2026-06-26 polish (H-series rack live drawer)
 

@@ -115,6 +115,11 @@ function _isHSeriesPrinter(p) {
   return (p?.kind === 'bambu' || p?.connection?.type === 'bambu') && model.startsWith('h');
 }
 
+function _isH2CPrinter(p) {
+  const model = String(p?.model_name || p?.model || p?.id || '').trim().toLowerCase();
+  return (p?.kind === 'bambu' || p?.connection?.type === 'bambu') && model.startsWith('h2c');
+}
+
 function _hasHSeriesNozzleRack(p) {
   return _isHSeriesPrinter(p) && _asList(p?.toolheads).some(tool => tool?.zone === 'toolhead' || tool?.zone === 'rack');
 }
@@ -3559,8 +3564,9 @@ function _detailLiveToolheadRows(p) {
 function _detailLiveHSeriesToolheadRows(p) {
   const tools = _asList(p.toolheads).filter(tool => tool?.zone === 'toolhead' || tool?.zone === 'rack');
   if (!tools.length) return '';
+  const showRack = _isH2CPrinter(p);
   const toolheads = tools.filter(tool => tool.zone === 'toolhead');
-  const rack = tools.filter(tool => tool.zone === 'rack');
+  const rack = showRack ? tools.filter(tool => tool.zone === 'rack') : [];
   const toolMeta = (tool) => {
     const colour = tool.color || '#64748b';
     const textColour = _spoolTextColor(colour);
@@ -3611,20 +3617,18 @@ function _detailLiveHSeriesToolheadRows(p) {
   const toolheadCards = toolheads.map(card).join('');
   const rackCards = rack.map(rackCell).join('');
   const rackCount = rack.filter(tool => tool.present).length;
-  const summary = [
-    `${toolheads.length} toolheads`,
-    `${rackCount}/${rack.length || 6} rack loaded`,
-  ].filter(Boolean).join(' · ');
-  return `<details class="snapmaker-tooldeck hseries-tooldeck">
-    <summary class="hseries-tooldeck-summary">
-      <strong>H-series hotends & rack</strong>
-      <span>${esc(summary)}</span>
-    </summary>
-    <div class="hseries-tooldeck-body">
-      ${toolheadCards ? `<div class="snapmaker-tools hseries-tools hseries-toolheads">${toolheadCards}</div>` : ''}
-      ${rackCards ? `<div class="hseries-rack-strip">${rackCards}</div>` : ''}
+  const rackTotal = rack.length || 6;
+  const tabs = [
+    `<button class="hseries-tooldeck-tab is-active" type="button" role="tab" aria-selected="true" data-hseries-tab="nozzles">Nozzles <span>${toolheads.length || 0}</span></button>`,
+    rackCards ? `<button class="hseries-tooldeck-tab" type="button" role="tab" aria-selected="false" data-hseries-tab="rack">Rack <span>${rackCount}/${rackTotal}</span></button>` : '',
+  ].filter(Boolean).join('');
+  return `<div class="snapmaker-tooldeck hseries-tooldeck${rackCards ? ' has-rack' : ' no-rack'}" data-hseries-tooldeck>
+    <div class="hseries-tooldeck-tabs" role="tablist" aria-label="${esc(showRack ? 'H-series nozzles and rack' : 'H-series nozzles')}">${tabs}</div>
+    <div class="hseries-tooldeck-panel" data-hseries-panel="nozzles">
+      ${toolheadCards ? `<div class="snapmaker-tools hseries-tools hseries-toolheads">${toolheadCards}</div>` : '<div class="mini-muted">No nozzle data reported yet.</div>'}
     </div>
-  </details>`;
+    ${rackCards ? `<div class="hseries-tooldeck-panel" data-hseries-panel="rack" hidden><div class="hseries-rack-strip">${rackCards}</div></div>` : ''}
+  </div>`;
 }
 
 function _mmuRouteState(unit = {}) {
@@ -3669,6 +3673,22 @@ function _mmuRouteState(unit = {}) {
     meta: filament && !/unloaded/i.test(filament) ? filament : '',
   };
 }
+
+document.addEventListener('click', e => {
+  const tab = e.target.closest('[data-hseries-tab]');
+  if (!tab) return;
+  const deck = tab.closest('[data-hseries-tooldeck]');
+  if (!deck) return;
+  const target = tab.dataset.hseriesTab;
+  deck.querySelectorAll('[data-hseries-tab]').forEach(btn => {
+    const active = btn.dataset.hseriesTab === target;
+    btn.classList.toggle('is-active', active);
+    btn.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
+  deck.querySelectorAll('[data-hseries-panel]').forEach(panel => {
+    panel.hidden = panel.dataset.hseriesPanel !== target;
+  });
+});
 
 function _isH2dPrinter(p) {
   return String(p?.model_name || p?.id || '').toLowerCase().includes('h2d');
