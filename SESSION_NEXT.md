@@ -2,11 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Use active H-series nozzle in live displays`
+- Latest commit: `Add Bambu MQTT debug snapshot endpoint`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=534 / style.css?v=418 / demo-runtime.js?v=8
+
+### 2026-06-26 H2C discovery (Bambu MQTT snapshot)
+
+**Add read-only Bambu MQTT debug snapshot** (`app/printers/bambu.py`, `app/main.py`, `SESSION_NEXT.md`)
+Added `/api/printers/{printer_id}/bambu/mqtt`, a redacted read-only endpoint that returns the latest Bambu MQTT dump plus connection metadata. It is for H-series discovery, especially finding whether H2C publishes hotend rack inventory/toolhead state outside Flightdeck's current parsed status snapshot. No printer commands are sent; the API layer redacts serial/access/token/password-like fields before returning the payload. Backend/service restart required after deploy.
 
 ### 2026-06-26 polish (H2C active nozzle display)
 

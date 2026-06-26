@@ -2684,6 +2684,20 @@ async def get_printer(printer_id: str):
     raise HTTPException(status_code=404, detail="printer not found")
 
 
+@app.get("/api/printers/{printer_id}/bambu/mqtt")
+async def get_bambu_mqtt_debug(printer_id: str):
+    printer = _find_bambu(printer_id)
+    if not printer:
+        raise HTTPException(status_code=404, detail="Bambu printer not found")
+    try:
+        payload = await asyncio.to_thread(printer.mqtt_debug_snapshot)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Could not read Bambu MQTT snapshot: {exc}") from exc
+    return _diagnostic_redact_value("", payload)
+
+
 @app.websocket("/ws")
 async def ws_endpoint(ws: WebSocket):
     await ws.accept()

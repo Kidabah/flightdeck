@@ -437,6 +437,28 @@ class BambuPrinter:
                                  custom_name=self.custom_name, icon=self.icon,
                                  kind="bambu", state="error", error=str(exc))
 
+    def mqtt_debug_snapshot(self) -> dict:
+        """Return the last raw MQTT dump plus connection metadata.
+
+        This is read-only and intended for H-series field discovery, such as
+        finding where H2C hotend rack state appears in Bambu's MQTT payload.
+        Redaction is applied by the API layer before returning this data.
+        """
+        if not self._connected:
+            raise RuntimeError("Bambu MQTT is not connected")
+        mc = self._printer.mqtt_client
+        return {
+            "id": self.id,
+            "model_name": self.model_name,
+            "custom_name": self.custom_name,
+            "connected": bool(self._connected),
+            "mqtt_connected": bool(mc.is_connected()),
+            "report_age_seconds": mc.report_age_seconds(),
+            "last_report_wall": mc.last_report_wall() or self._last_seen,
+            "snapshot_at": datetime.utcnow(),
+            "mqtt_dump": self._printer.mqtt_dump(),
+        }
+
     def _resolve_state(self, raw: bl.GcodeState, job: Optional[JobStatus],
                        subtask: Optional[str], alarm_message: Optional[str] = None,
                        temps: Optional[dict[str, TempReading]] = None) -> str:
