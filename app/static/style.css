@@ -5129,6 +5129,28 @@ button.live-route-node:hover {
     rgba(13, 26, 49, 0.9);
 }
 
+.hseries-tooldeck {
+  border-top: 1px solid rgba(37, 99, 235, 0.18);
+  padding-top: 0.5rem;
+}
+
+.hseries-tools {
+  grid-template-columns: repeat(auto-fit, minmax(5.4rem, 1fr));
+}
+
+.hseries-tool-card {
+  min-height: 7.4rem;
+  cursor: default;
+}
+
+.hseries-tool-card.is-empty {
+  opacity: 0.48;
+}
+
+.hseries-tool-card.is-empty .snapmaker-tool-nozzle {
+  filter: grayscale(1);
+}
+
 .snapmaker-tool-head,
 .snapmaker-tool-foot {
   display: flex;

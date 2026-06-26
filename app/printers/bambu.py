@@ -419,6 +419,7 @@ class BambuPrinter:
             except Exception:
                 ams = []
             maintenance = _parse_care(print_data)
+            toolheads = _parse_h_series_nozzles(print_data, self.model_name)
 
             now = datetime.utcnow()
             self._last_seen = now
@@ -426,7 +427,8 @@ class BambuPrinter:
                 id=self.id, model_name=self.model_name, custom_name=self.custom_name,
                 icon=self.icon, kind="bambu", state=state,
                 temps=temps, job=job, substage=substage,
-                idle_info=idle_info, ams=ams, maintenance=maintenance, light_state=light_state,
+                idle_info=idle_info, ams=ams, toolheads=toolheads,
+                maintenance=maintenance, light_state=light_state,
                 fan_speed=fan_speeds.get("part"),
                 fan_speeds=fan_speeds,
                 error=alarm_message if state in ("paused", "error") else None,
@@ -1253,6 +1255,72 @@ def _read_dual_nozzle_temps(mqtt_dump: dict, model_name: str) -> dict[str, "Temp
             pass
 
     return result if len(result) == 2 else {}
+
+
+def _parse_h_series_nozzles(print_data: dict, model_name: str) -> list[dict]:
+    """Return H-series toolhead/rack state from Bambu's device.nozzle payload."""
+    if not str(model_name or "").upper().startswith("H"):
+        return []
+    device = print_data.get("device", {}) if isinstance(print_data, dict) else {}
+    nozzle = device.get("nozzle", {}) if isinstance(device, dict) else {}
+    info = nozzle.get("info", []) if isinstance(nozzle, dict) else []
+    if not isinstance(info, list):
+        return []
+
+    src_id = _safe_int(nozzle.get("src_id"))
+    tar_id = _safe_int(nozzle.get("tar_id"))
+    tools: list[dict] = []
+    for raw in info:
+        if not isinstance(raw, dict):
+            continue
+        nozzle_id = _safe_int(raw.get("id"))
+        if nozzle_id is None:
+            continue
+        serial = str(raw.get("sn") or "").strip()
+        has_physical = bool(serial and serial.upper() != "N/A")
+        colour = _norm_bambu_hex(raw.get("color_m")) or ""
+        filament_id = str(raw.get("fila_id") or "").strip()
+        diameter = _safe_float(raw.get("diameter"))
+        max_temp = _safe_int(raw.get("tm"))
+        usage_raw = _safe_int(raw.get("p_t"))
+
+        if nozzle_id in (0, 1):
+            position = "right" if nozzle_id == 0 else "left"
+            label = "Right nozzle" if nozzle_id == 0 else "Left nozzle"
+            zone = "toolhead"
+            slot = nozzle_id
+        elif nozzle_id >= 16:
+            position = "rack"
+            rack_slot = nozzle_id - 15
+            label = f"Rack {rack_slot}"
+            zone = "rack"
+            slot = rack_slot
+        else:
+            position = "unknown"
+            label = f"Nozzle {nozzle_id}"
+            zone = "unknown"
+            slot = nozzle_id
+
+        tools.append({
+            "idx": slot,
+            "id": nozzle_id,
+            "label": label,
+            "position": position,
+            "zone": zone,
+            "loaded": zone == "toolhead" and has_physical,
+            "present": has_physical,
+            "active": nozzle_id in (src_id, tar_id),
+            "serial": serial if has_physical else "",
+            "type": str(raw.get("type") or "").strip(),
+            "diameter": diameter,
+            "max_temp": max_temp,
+            "usage": usage_raw,
+            "color": colour,
+            "filament_id": filament_id,
+            "wear": _safe_int(raw.get("wear")),
+        })
+
+    return sorted(tools, key=lambda item: (0 if item.get("zone") == "toolhead" else 1, item.get("idx") or 0))
 
 
 def _read_ams_extruder_map(print_data: dict) -> dict[int, int]:

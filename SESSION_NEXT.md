@@ -2,11 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Add Bambu MQTT debug snapshot endpoint`
+- Latest commit: `Show H-series hotend rack state`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=534 / style.css?v=418 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=535 / style.css?v=419 / demo-runtime.js?v=8
+
+### 2026-06-26 polish (H-series hotend rack visibility)
+
+**Show H-series toolhead and hotend-rack state from Bambu MQTT** (`app/printers/bambu.py`, `app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+Big Girl/H2C publishes hotend and rack inventory in `device.nozzle.info`. Flightdeck now parses that H-series payload into `PrinterStatus.toolheads` and shows a read-only H-series hotend/rack deck in the Live environment panel alongside AMS state. In the first live Big Girl snapshot, nozzle ids `0` and `1` mapped to right/left toolheads, rack ids `16+` mapped to rack slots via `id - 15`, five rack hotends were present, and rack slot 6 stayed empty for changeover. This is visibility only: no print-command, AMS mapping, or queue-dispatch mapping logic was touched. Static cache bumped to `app.js?v=535` and `style.css?v=419`; backend/service restart plus frontend refresh required after deploy.
 
 ### 2026-06-26 H2C discovery (Bambu MQTT snapshot)
 

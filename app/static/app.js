@@ -110,6 +110,40 @@ function _isSnapmakerU1(p) {
   return kind === 'snapmaker_u1';
 }
 
+function _isHSeriesPrinter(p) {
+  const model = String(p?.model_name || p?.model || p?.id || '').trim().toLowerCase();
+  return (p?.kind === 'bambu' || p?.connection?.type === 'bambu') && model.startsWith('h');
+}
+
+function _hasHSeriesNozzleRack(p) {
+  return _isHSeriesPrinter(p) && _asList(p?.toolheads).some(tool => tool?.zone === 'toolhead' || tool?.zone === 'rack');
+}
+
+function _bambuFilamentIdLabel(value) {
+  const code = String(value || '').trim().toUpperCase();
+  const labels = {
+    GFL99: 'PLA',
+    GFL98: 'PLA-CF',
+    GFL96: 'PLA Silk',
+    GFL95: 'PLA HS',
+    GFG99: 'PETG',
+    GFG98: 'PETG-CF',
+    GFG97: 'PCTG',
+    GFG96: 'PETG HF',
+    GFB99: 'ABS',
+    GFB98: 'ASA',
+    GFC99: 'PC',
+    GFN99: 'PA',
+    GFN98: 'PA-CF',
+    GFU99: 'TPU',
+    GFS99: 'PVA',
+    GFS98: 'HIPS',
+    GFP99: 'PE',
+    GFP97: 'PP',
+  };
+  return labels[code] || '';
+}
+
 function _snapmakerMjpegUrl(host) {
   const clean = String(host || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
   return clean ? `http://${clean}/webcam/stream.mjpg` : '';
@@ -3474,6 +3508,7 @@ function _detailLiveMmuRows(p) {
 }
 
 function _detailLiveToolheadRows(p) {
+  if (_hasHSeriesNozzleRack(p)) return _detailLiveHSeriesToolheadRows(p);
   if (!_isSnapmakerU1(p)) return '';
   const loaded = _latestSpoolsByPrinter[p.id] || [];
   const reported = _asList(p.toolheads);
@@ -3518,6 +3553,59 @@ function _detailLiveToolheadRows(p) {
       <span>Four independent tools · T0-T3</span>
     </div>
     <div class="snapmaker-tools">${cards}</div>
+  </div>`;
+}
+
+function _detailLiveHSeriesToolheadRows(p) {
+  const tools = _asList(p.toolheads).filter(tool => tool?.zone === 'toolhead' || tool?.zone === 'rack');
+  if (!tools.length) return '';
+  const toolheads = tools.filter(tool => tool.zone === 'toolhead');
+  const rack = tools.filter(tool => tool.zone === 'rack');
+  const card = (tool) => {
+    const colour = tool.color || '#64748b';
+    const textColour = _spoolTextColor(colour);
+    const diameter = Number(tool.diameter || 0);
+    const diameterText = diameter ? `${diameter.toFixed(1)}mm` : '';
+    const typeText = String(tool.type || '').trim();
+    const materialText = _bambuFilamentIdLabel(tool.filament_id) || tool.filament_id || '';
+    const serialText = tool.serial ? `SN ${String(tool.serial).slice(-6)}` : '';
+    const isRack = tool.zone === 'rack';
+    const state = tool.present
+      ? (isRack ? 'Stored' : (tool.loaded ? 'Loaded' : 'Installed'))
+      : 'Empty';
+    const meta = [diameterText, typeText, materialText].filter(Boolean).join(' · ') || 'No hotend detected';
+    const title = [tool.label, state, meta, serialText].filter(Boolean).join(' · ');
+    return `<div class="snapmaker-tool-card hseries-tool-card${tool.active ? ' is-active' : ''}${tool.present ? ' has-spool' : ' is-empty'}"
+        style="--tool-colour:${colour};--tool-text:${textColour}" title="${esc(title)}">
+      <span class="snapmaker-tool-head">
+        <b>${esc(tool.label || 'Hotend')}</b>
+        <small>${esc(state)}</small>
+      </span>
+      <span class="snapmaker-tool-nozzle" aria-hidden="true"></span>
+      <span class="snapmaker-tool-info">
+        <strong>${esc(meta)}</strong>
+        <em>${esc(serialText || (isRack ? 'Rack bay' : 'Toolhead'))}</em>
+      </span>
+      <span class="snapmaker-tool-foot">
+        <small>${esc(tool.active ? 'Selected' : '')}</small>
+        <small>${esc(tool.max_temp ? `${tool.max_temp}° max` : '')}</small>
+      </span>
+    </div>`;
+  };
+  const toolheadCards = toolheads.map(card).join('');
+  const rackCards = rack.map(card).join('');
+  const rackCount = rack.filter(tool => tool.present).length;
+  const summary = [
+    `${toolheads.length} toolheads`,
+    `${rackCount}/${rack.length || 6} rack loaded`,
+  ].filter(Boolean).join(' · ');
+  return `<div class="snapmaker-tooldeck hseries-tooldeck">
+    <div class="snapmaker-tooldeck-head">
+      <strong>H-series hotends & rack</strong>
+      <span>${esc(summary)}</span>
+    </div>
+    ${toolheadCards ? `<div class="snapmaker-tools hseries-tools hseries-toolheads">${toolheadCards}</div>` : ''}
+    ${rackCards ? `<div class="snapmaker-tools hseries-tools hseries-rack">${rackCards}</div>` : ''}
   </div>`;
 }
 
@@ -3818,7 +3906,14 @@ function _detailCameraHud(p) {
 }
 
 function _detailLiveStrip(p) {
-  const loadedHtml = _detailLiveAmsRows(p) || _detailLiveMmuRows(p) || _detailLiveToolheadRows(p) || _detailLiveSpoolChips(p);
+  const amsHtml = _detailLiveAmsRows(p);
+  const mmuHtml = _detailLiveMmuRows(p);
+  const toolHtml = _detailLiveToolheadRows(p);
+  const spoolHtml = _detailLiveSpoolChips(p);
+  const primaryHtml = amsHtml || mmuHtml || toolHtml || spoolHtml;
+  const loadedHtml = _hasHSeriesNozzleRack(p)
+    ? [amsHtml || mmuHtml || spoolHtml, toolHtml].filter(Boolean).join('')
+    : primaryHtml;
   const routeHtml = _detailFilamentRoute(p);
   return `<div class="live-environment-panel">
     <div class="live-environment-head">
