@@ -6,7 +6,12 @@ Latest GitHub/Pi state:
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=531 / style.css?v=417 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=532 / style.css?v=417 / demo-runtime.js?v=8
+
+### 2026-06-26 fix (Rack rows beyond 90)
+
+**Grow rack map by visible spool number** (`app/static/app.js`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+Spools -> Rack now grows from the highest visible spool number instead of stopping at the original 1-90 cupboard map. A reserved/active line such as `#91` now naturally creates row 10 (`91-100`), and future numbers like `#101` will extend the map to row 11 (`101-110`). Settings -> Locations now sorts stored spools by the visible spool number and shows the visible label in row cards, so physical rack order and Flightdeck order match. The `Build rack rows` helper now refreshes the current spool list first, creates enough rack rows for the visible range, and syncs stored spools up to that dynamic limit. Static cache bumped to `app.js?v=532`; frontend refresh required after deploy.
 
 ### 2026-06-26 fix (BigBoy completion ntfy accounting errors)
 

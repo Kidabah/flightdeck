@@ -16191,6 +16191,15 @@ function _spoolCabinetHtml(spools) {
   return `<div class="spool-cabinet-view">${laneHtml}${loadedHtml}</div>`;
 }
 
+function _spoolVisibleNumberSort(a, b) {
+  return (_spoolDisplayId(a) || Number.MAX_SAFE_INTEGER) - (_spoolDisplayId(b) || Number.MAX_SAFE_INTEGER);
+}
+
+function _rackRowCount(spools = [], minRows = 9, cols = 10) {
+  const maxId = Math.max(0, ...spools.map(s => _spoolDisplayId(s) || 0));
+  return Math.max(minRows, Math.ceil(maxId / cols));
+}
+
 function _rackSlotNumbers(rows = 9, cols = 10) {
   const slots = [];
   for (let row = 0; row < rows; row += 1) {
@@ -16229,7 +16238,7 @@ function _spoolRackHtml(spools) {
     const n = _spoolDisplayId(s);
     if (n > 0 && !byNumber.has(n)) byNumber.set(n, s);
   });
-  const rows = _rackSlotNumbers();
+  const rows = _rackSlotNumbers(_rackRowCount(spools));
   const rackSlots = rows.flat();
   const rackStats = rackSlots.reduce((acc, num) => {
     const spool = byNumber.get(num);
@@ -18492,7 +18501,9 @@ async function _spoolSaveErrorMessage(response, fallback = 'Unable to save spool
 function _locationsCategoryHtml(locations) {
   const storedSpools = _allSpools.filter(s => !s.archived_at && !s.location_printer_id);
   const locationCards = locations.length ? locations.map(loc => {
-    const spools = storedSpools.filter(s => String(s.storage_location_id || '') === String(loc.id));
+    const spools = storedSpools
+      .filter(s => String(s.storage_location_id || '') === String(loc.id))
+      .sort(_spoolVisibleNumberSort);
     const grams = spools.reduce((sum, s) => sum + Number(s.remaining_g || 0), 0);
     const spoolRows = spools.length ? spools.map(s => {
       const pct = s.label_weight_g > 0 ? Math.round(s.remaining_g * 100 / s.label_weight_g) : 0;
@@ -18502,7 +18513,7 @@ function _locationsCategoryHtml(locations) {
         <span class="location-spool-swatch" style="${_spoolColorStyle(s)}"></span>
         <div class="location-spool-main">
           <div class="location-spool-title">${esc(s.color_name || color)} · ${esc(s.material)}${s.subtype ? ` ${esc(s.subtype)}` : ''}</div>
-          <div class="location-spool-sub">${esc(s.brand || 'Unknown brand')} · #${s.id}</div>
+          <div class="location-spool-sub">${esc(s.brand || 'Unknown brand')} · ${_spoolDisplayLabel(s)}</div>
         </div>
         <div class="location-spool-weight${pctCls}">${Math.round(s.remaining_g || 0)}g</div>
         <div class="location-spool-actions">
@@ -18529,7 +18540,7 @@ function _locationsCategoryHtml(locations) {
     </section>`;
   }).join('') : `<div class="settings-empty">Add a location to start organising stored spools.</div>`;
 
-  const unassigned = storedSpools.filter(s => !s.storage_location_id);
+  const unassigned = storedSpools.filter(s => !s.storage_location_id).sort(_spoolVisibleNumberSort);
   const unassignedCard = unassigned.length ? `<section class="location-card location-card-unassigned">
     <div class="location-card-head">
       <div>
@@ -18546,7 +18557,7 @@ function _locationsCategoryHtml(locations) {
         <span class="location-spool-swatch" style="${_spoolColorStyle(s)}"></span>
         <div class="location-spool-main">
           <div class="location-spool-title">${esc(s.color_name || s.color_hex || 'Colour')} · ${esc(s.material)}</div>
-          <div class="location-spool-sub">${esc(s.brand || 'Unknown brand')} · #${s.id}</div>
+          <div class="location-spool-sub">${esc(s.brand || 'Unknown brand')} · ${_spoolDisplayLabel(s)}</div>
         </div>
         <div class="location-spool-weight">${Math.round(s.remaining_g || 0)}g</div>
         <div class="location-spool-actions">
@@ -18583,7 +18594,7 @@ function _locationsCategoryHtml(locations) {
       <div class="rack-builder-panel">
         <div>
           <strong>Main cupboard snake rack</strong>
-          <span>Build rows 1-9 as 1-90, then sync shelved spools into the row that matches their visible number.</span>
+          <span>Build the visible rack range, then sync shelved spools into the row that matches their number.</span>
         </div>
         <button type="button" class="settings-save-btn rack-builder-btn" data-rack-action="build-main">Build rack rows</button>
       </div>
@@ -18631,9 +18642,13 @@ function _attachLocationsEvents(el, locations) {
     btn.disabled = true;
     btn.textContent = 'Building...';
     try {
+      const freshSpools = await fetch('/api/spools').then(r => r.ok ? r.json() : _allSpools).catch(() => _allSpools);
+      _allSpools = Array.isArray(freshSpools) ? freshSpools : _allSpools;
+      const rackRows = _rackRowCount(_allSpools || []);
+      const rackLimit = rackRows * 10;
       const active = [...locations];
       const rowLocationIds = new Map();
-      for (let i = 0; i < 9; i += 1) {
+      for (let i = 0; i < rackRows; i += 1) {
         const rowNum = i + 1;
         const name = _rackRowLocationName(i);
         const notes = _rackRowLocationNote(i);
@@ -18662,14 +18677,12 @@ function _attachLocationsEvents(el, locations) {
           }
         }
       }
-      const freshSpools = await fetch('/api/spools').then(r => r.ok ? r.json() : _allSpools).catch(() => _allSpools);
-      _allSpools = Array.isArray(freshSpools) ? freshSpools : _allSpools;
       let synced = 0;
       let failed = 0;
       const shelved = (_allSpools || []).filter(s => !s.archived_at && !s.location_printer_id);
       for (const spool of shelved) {
         const num = _spoolDisplayId(spool);
-        if (num < 1 || num > 90) continue;
+        if (num < 1 || num > rackLimit) continue;
         const rowNum = Math.ceil(num / 10);
         const targetId = rowLocationIds.get(rowNum);
         if (!targetId || String(spool.storage_location_id || '') === String(targetId)) continue;
@@ -18684,7 +18697,7 @@ function _attachLocationsEvents(el, locations) {
       const detail = failed
         ? `${synced} shelved ${synced === 1 ? 'spool was' : 'spools were'} synced; ${failed} move ${failed === 1 ? 'failed' : 'moves failed'}.`
         : `${synced} shelved ${synced === 1 ? 'spool was' : 'spools were'} synced to rack rows.`;
-      showToast('Rack rows ready', `Main cupboard rows 1-90 are ready. ${detail}`, failed ? 'warn' : 'success');
+      showToast('Rack rows ready', `Main cupboard rows 1-${rackLimit} are ready. ${detail}`, failed ? 'warn' : 'success');
       await _renderSettingsContent('locations');
     } catch (err) {
       showToast('Rack setup failed', err?.message || 'Could not create rack rows', 'error');
