@@ -387,14 +387,23 @@ class BambuPrinter:
                 if pv is None:
                     pv = _queue_preview_metadata(self.id)
                 if pv and pv.filament_weight_g:
-                    db.deduct_spool_usage_progress(
-                        self.id,
-                        self._current_print_id,
-                        pv.filament_weight_g,
-                        job.progress,
-                        active_slot=self._ams_active_slot_at_start,
-                        filament_usage=_preview_filament_requirements(pv.filament_colors, pv.filament_type),
-                    )
+                    try:
+                        db.deduct_spool_usage_progress(
+                            self.id,
+                            self._current_print_id,
+                            pv.filament_weight_g,
+                            job.progress,
+                            active_slot=self._ams_active_slot_at_start,
+                            filament_usage=_preview_filament_requirements(pv.filament_colors, pv.filament_type),
+                        )
+                    except Exception as exc:
+                        log.exception("Bambu live spool deduction failed for %s print_id=%s", self.id, self._current_print_id)
+                        db.log_decision(
+                            self.id,
+                            "spool_deduction_error",
+                            f"Live spool deduction failed without changing printer state: {exc}",
+                            print_id=self._current_print_id,
+                        )
 
             if state == "idle":
                 job = None  # MQTT retains last-print data; don't surface it as active
@@ -488,11 +497,20 @@ class BambuPrinter:
                             print_id=finished_print_id,
                         )
                 if finished_print_id and filament_g:
-                    db.deduct_spool_usage(
-                        self.id, finished_print_id, filament_g,
-                        active_slot=self._ams_active_slot_at_start,
-                        filament_usage=filament_usage,
-                    )
+                    try:
+                        db.deduct_spool_usage(
+                            self.id, finished_print_id, filament_g,
+                            active_slot=self._ams_active_slot_at_start,
+                            filament_usage=filament_usage,
+                        )
+                    except Exception as exc:
+                        log.exception("Bambu finish spool deduction failed for %s print_id=%s", self.id, finished_print_id)
+                        db.log_decision(
+                            self.id,
+                            "spool_deduction_error",
+                            f"Finish spool deduction failed without changing printer state: {exc}",
+                            print_id=finished_print_id,
+                        )
                 elif finished_print_id and self._ams_slot_snapshot_print_id == finished_print_id:
                     db.log_decision(self.id, "spool_no_deduction_cancelled",
                                    "Print finished but filament weight unknown; no spool deduction",

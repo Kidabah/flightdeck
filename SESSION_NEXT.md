@@ -8,6 +8,11 @@ Latest GitHub/Pi state:
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=531 / style.css?v=417 / demo-runtime.js?v=8
 
+### 2026-06-26 fix (BigBoy completion ntfy accounting errors)
+
+**Harden Bambu spool/accounting errors after print completion** (`app/db.py`, `app/printers/bambu.py`, `SESSION_NEXT.md`)
+BigBoy reported two scary ntfy `Print error` messages after a completed print: `no such column: updated_at` and `cannot access local variable 'slot_snapshot' where it is not associated with a value`. The `updated_at` fault came from older Pi databases where `filament_catalog` existed before the newer timestamp column; startup migration now adds `filament_catalog.updated_at`, and `get_filament_catalog_status()` defensively handles older schemas until migration has run. Bambu live and finish spool deduction is now isolated from printer polling: any deduction exception is logged and written to the print decision trail as `spool_deduction_error`, but it no longer bubbles out as a printer-status failure or ntfy `Print error`. Verified with `python -m py_compile app/db.py app/printers/bambu.py app/main.py` and `git diff --check`. Backend/service restart required after deploy.
+
 ### 2026-06-25 fix (H-series nozzle direction)
 
 **Keep accepted Bambu starts active when confirmation is noisy** (`app/main.py`, `app/db.py`, `SESSION_NEXT.md`)

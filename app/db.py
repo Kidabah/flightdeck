@@ -324,6 +324,7 @@ def init() -> None:
             "ALTER TABLE incoming_stock_rolls ADD COLUMN cancelled_at TEXT",
             "ALTER TABLE incoming_stock_rolls ADD COLUMN cancel_reason TEXT",
             "ALTER TABLE print_queue ADD COLUMN filament_colors TEXT",
+            "ALTER TABLE filament_catalog ADD COLUMN updated_at TEXT NOT NULL DEFAULT (datetime('now'))",
             "ALTER TABLE empty_spool_profiles ADD COLUMN source TEXT NOT NULL DEFAULT 'manual'",
             "ALTER TABLE empty_spool_profiles ADD COLUMN notes TEXT",
             "ALTER TABLE empty_spool_profiles ADD COLUMN is_default INTEGER NOT NULL DEFAULT 0",
@@ -2333,11 +2334,18 @@ def replace_filament_catalog(rows: list[dict], source: str = "open_filament_data
 
 def get_filament_catalog_status(source: str = "open_filament_database") -> dict:
     with _conn() as conn:
-        row = conn.execute(
-            """SELECT COUNT(*) AS count, MAX(updated_at) AS updated_at
-               FROM filament_catalog WHERE source = ?""",
-            (source,),
-        ).fetchone()
+        columns = {r["name"] for r in conn.execute("PRAGMA table_info(filament_catalog)").fetchall()}
+        if "updated_at" in columns:
+            row = conn.execute(
+                """SELECT COUNT(*) AS count, MAX(updated_at) AS updated_at
+                   FROM filament_catalog WHERE source = ?""",
+                (source,),
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT COUNT(*) AS count, NULL AS updated_at FROM filament_catalog WHERE source = ?",
+                (source,),
+            ).fetchone()
     return {"source": source, "count": int(row["count"] or 0), "updated_at": row["updated_at"]}
 
 
