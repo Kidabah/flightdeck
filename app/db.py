@@ -369,37 +369,36 @@ def init() -> None:
     FLIGHT_RECORDER_DIR.mkdir(parents=True, exist_ok=True)
 
     with _conn() as conn:
-        shelf1 = conn.execute(
-            "SELECT id FROM spool_locations WHERE name = ? AND archived_at IS NULL",
-            ("Shelf #1",),
-        ).fetchone()
-        if not shelf1:
+        def ensure_seed_location(name: str, notes: str, sort_order: int):
+            existing = conn.execute(
+                "SELECT id, archived_at FROM spool_locations WHERE name = ?",
+                (name,),
+            ).fetchone()
+            if existing:
+                return existing
             cursor = conn.execute(
                 "INSERT INTO spool_locations (name, notes, sort_order) VALUES (?, ?, ?)",
-                ("Shelf #1", "Inside main cupboard top shelf", 10),
+                (name, notes, sort_order),
             )
-            shelf1 = {"id": cursor.lastrowid}
+            return conn.execute(
+                "SELECT id, archived_at FROM spool_locations WHERE id = ?",
+                (cursor.lastrowid,),
+            ).fetchone()
+
+        shelf1 = ensure_seed_location("Shelf #1", "Inside main cupboard top shelf", 10)
 
         defaults = (
             ("Shelf #2", "Inside main cupboard middle shelf", 20),
             ("Shelf #3", "Inside main cupboard bottom shelf", 30),
         )
         for name, notes, order in defaults:
-            exists = conn.execute(
-                "SELECT id FROM spool_locations WHERE name = ? AND archived_at IS NULL",
-                (name,),
-            ).fetchone()
-            if not exists:
-                conn.execute(
-                    "INSERT INTO spool_locations (name, notes, sort_order) VALUES (?, ?, ?)",
-                    (name, notes, order),
-                )
+            ensure_seed_location(name, notes, order)
 
         storage = conn.execute(
             "SELECT id FROM spool_locations WHERE name = ? AND archived_at IS NULL",
             ("Storage",),
         ).fetchone()
-        if storage:
+        if storage and not shelf1["archived_at"]:
             conn.execute(
                 "UPDATE spools SET storage_location_id = ? WHERE storage_location_id = ?",
                 (shelf1["id"], storage["id"]),

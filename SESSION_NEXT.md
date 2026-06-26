@@ -8,6 +8,11 @@ Latest GitHub/Pi state:
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=532 / style.css?v=417 / demo-runtime.js?v=8
 
+### 2026-06-26 fix (Archived default shelf startup crash)
+
+**Make default spool-location seeding idempotent** (`app/db.py`, `SESSION_NEXT.md`)
+Archived `Shelf #1`/`Shelf #2`/`Shelf #3` locations kept their unique names in SQLite, but the startup seed only checked for active rows. After those original shelves were archived in favour of rack rows, Flightdeck could try to insert `Shelf #1` again during boot and crash the service with `UNIQUE constraint failed: spool_locations.name`, showing as a 502 through Tailscale. The seed path now treats existing default shelf names as already handled whether active or archived, so archived shelves stay archived and startup cannot duplicate them. The legacy `Storage` migration now only moves spools into `Shelf #1` when that shelf is active, avoiding accidental moves into an archived shelf. Verified with `python -m py_compile app/db.py app/main.py app/printers/bambu.py`, `git diff --check`, and a throwaway SQLite startup test with all three default shelves archived.
+
 ### 2026-06-26 fix (Rack rows beyond 90)
 
 **Grow rack map by visible spool number** (`app/static/app.js`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
