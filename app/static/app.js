@@ -3568,6 +3568,10 @@ function _isH2dPrinter(p) {
   return String(p?.model_name || p?.id || '').toLowerCase().includes('h2d');
 }
 
+function _hasDualNozzleTemps(p) {
+  return p?.temps?.hotend_l != null || p?.temps?.hotend_r != null;
+}
+
 function _isAmsHtUnit(unit) {
   return Number(unit?.unit) >= 128 || String(unit?.label || '').toLowerCase().includes('ht');
 }
@@ -3599,7 +3603,7 @@ function _h2dNozzleActivity(p) {
 
 function _activeHotendReading(p) {
   const temps = p?.temps || {};
-  if (!_isH2dPrinter(p)) return temps.hotend || temps.hotend_l || temps.hotend_r || {};
+  if (!_isH2dPrinter(p) && !_hasDualNozzleTemps(p)) return temps.hotend || {};
   const left = temps.hotend_l || {};
   const right = temps.hotend_r || {};
   const hotends = [right, left, temps.hotend || {}].filter(t => t && (t.actual != null || t.target != null));
@@ -3622,6 +3626,13 @@ function _activeHotendReading(p) {
   if (rightActual > leftActual) return right;
   if (leftActual >= 0) return left;
   return temps.hotend || {};
+}
+
+function _activeNozzleLabel(p) {
+  const nozzles = _h2dNozzleActivity(p);
+  if (nozzles.right && !nozzles.left) return 'Right nozzle';
+  if (nozzles.left && !nozzles.right) return 'Left nozzle';
+  return _hasDualNozzleTemps(p) ? 'Toolhead' : 'Nozzle';
 }
 
 function _slotRouteActive(p, unit, slot) {
@@ -3652,7 +3663,7 @@ function _slotRouteFed(p, unit, slot) {
 
 function _routeDestinationLabel(p, unit) {
   if (_isH2dPrinter(p)) return _isAmsHtUnit(unit) ? 'Right nozzle' : 'Left nozzle';
-  return p?.temps?.hotend_l != null || p?.temps?.hotend_r != null ? 'Toolhead' : 'Nozzle';
+  return _activeNozzleLabel(p);
 }
 
 function _detailFilamentRoute(p) {

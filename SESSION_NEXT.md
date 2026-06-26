@@ -2,11 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Fix H-series slicer nozzle direction`
+- Latest commit: `Use active H-series nozzle in live displays`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=533 / style.css?v=418 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=534 / style.css?v=418 / demo-runtime.js?v=8
+
+### 2026-06-26 polish (H2C active nozzle display)
+
+**Use active H-series nozzle in live displays** (`app/static/app.js`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+Big Girl/H2C reports separate `hotend_l` and `hotend_r` readings. Flightdeck already decoded those readings, but non-H2D H-series live cards could still fall back to the first/cold side or generic `Toolhead` copy. The live/fleet hotend selector now treats any dual-nozzle H-series printer as dual-temp capable, picks the working heated nozzle, and labels filament route destinations as `Left nozzle` or `Right nozzle` when only one side is active. H2D-specific AMS vs AMS HT routing rules remain scoped to actual H2D only. Static cache bumped to `app.js?v=534`; frontend refresh required after deploy.
 
 ### 2026-06-26 polish (Rack wall-board overview)
 
