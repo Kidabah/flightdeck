@@ -2,11 +2,19 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Fix H-series rack scroll and queue fault wording`
+- Latest commit: `Collapse H-series rack by default in live view`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=538 / style.css?v=421 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=539 / style.css?v=422 / demo-runtime.js?v=8
+
+### 2026-06-26 polish (H-series rack live drawer)
+
+**Collapse H-series hotends/rack by default on Live** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+The H2C/H-series hotends and rack visibility panel was technically scrollable after the previous fix, but it still rendered fully open under the AMS route and made the Live page feel unchanged/cluttered during active prints. The H-series section now renders as a compact native details drawer showing only `H-series hotends & rack` plus the `toolheads · rack loaded` summary until opened. This keeps Big Girl/BigBoy live monitoring focused on the print, filament route, and AMS state while preserving the detailed hotend/rack view on demand. Static cache bumped to `app.js?v=539` and `style.css?v=422`; frontend refresh required after deploy. No printer command, AMS mapping, H2C routing, or queue-dispatch code was touched.
+
+**Current queue note**
+Greyhound Ludicrous/X1C queue preflight now shows the real printer fault text (`Printer error: Bambu alarm 5034-8044`) when the printer reports an error state. Flightdeck is intentionally blocking dispatch until that printer-side Bambu alarm is cleared on the printer/Bambu app, then the queue row can be retried.
 
 ### 2026-06-26 fix (H-series rack scroll and queue fault wording)
 

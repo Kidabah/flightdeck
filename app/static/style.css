@@ -5134,6 +5134,55 @@ button.live-route-node:hover {
   padding-top: 0.5rem;
 }
 
+.hseries-tooldeck-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 2.1rem;
+  padding: 0.36rem 0.48rem;
+  border: 1px solid rgba(96, 165, 250, 0.22);
+  border-radius: 0.5rem;
+  background: rgba(7, 15, 29, 0.72);
+  color: var(--text);
+  cursor: pointer;
+  list-style: none;
+}
+
+.hseries-tooldeck-summary::-webkit-details-marker {
+  display: none;
+}
+
+.hseries-tooldeck-summary span {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.hseries-tooldeck-summary::after {
+  content: "Show";
+  flex: 0 0 auto;
+  min-width: 3.2rem;
+  padding: 0.18rem 0.42rem;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  color: #bfdbfe;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.hseries-tooldeck[open] .hseries-tooldeck-summary::after {
+  content: "Hide";
+}
+
+.hseries-tooldeck-body {
+  display: grid;
+  gap: 0.5rem;
+  padding-top: 0.5rem;
+}
+
 .hseries-tools {
   grid-template-columns: repeat(auto-fit, minmax(5.4rem, 1fr));
 }

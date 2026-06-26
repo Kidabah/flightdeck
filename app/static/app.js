@@ -3615,14 +3615,16 @@ function _detailLiveHSeriesToolheadRows(p) {
     `${toolheads.length} toolheads`,
     `${rackCount}/${rack.length || 6} rack loaded`,
   ].filter(Boolean).join(' · ');
-  return `<div class="snapmaker-tooldeck hseries-tooldeck">
-    <div class="snapmaker-tooldeck-head">
+  return `<details class="snapmaker-tooldeck hseries-tooldeck">
+    <summary class="hseries-tooldeck-summary">
       <strong>H-series hotends & rack</strong>
       <span>${esc(summary)}</span>
+    </summary>
+    <div class="hseries-tooldeck-body">
+      ${toolheadCards ? `<div class="snapmaker-tools hseries-tools hseries-toolheads">${toolheadCards}</div>` : ''}
+      ${rackCards ? `<div class="hseries-rack-strip">${rackCards}</div>` : ''}
     </div>
-    ${toolheadCards ? `<div class="snapmaker-tools hseries-tools hseries-toolheads">${toolheadCards}</div>` : ''}
-    ${rackCards ? `<div class="hseries-rack-strip">${rackCards}</div>` : ''}
-  </div>`;
+  </details>`;
 }
 
 function _mmuRouteState(unit = {}) {
