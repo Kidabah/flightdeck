@@ -6,7 +6,12 @@ Latest GitHub/Pi state:
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=544 / style.css?v=427 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=545 / style.css?v=427 / demo-runtime.js?v=8
+
+### 2026-06-28 fix (rack row range parsing)
+
+**Keep rack rows locked to their visible number range** (`app/static/app.js`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+Settings > Locations rack-row overview could still fall back to old storage-location membership when a rack row name/note used older punctuation or did not expose a clean `slots 1-10` range. That made Row 1 show unrelated stored spools such as `#21` or `#43` instead of only numbers `#1` through `#10`. Rack range parsing now prefers explicit `slots X-Y`, accepts normal hyphens/en dashes/em dashes, falls back to the final range in the row text, and finally derives `Rack Row N` as `((N-1)*10+1)..+9`. Non-rack locations still group by assigned location. Static cache bumped to `app.js?v=545`; frontend refresh required after deploy.
 
 ### 2026-06-28 polish (compact rack labels)
 

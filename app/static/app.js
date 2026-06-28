@@ -16461,14 +16461,30 @@ function _rackRowLocationNote(rowIndex) {
 }
 
 function _rackLocationRange(loc) {
-  const text = `${loc?.name || ''} ${loc?.notes || ''}`;
+  const name = String(loc?.name || '');
+  const notes = String(loc?.notes || '');
+  const text = `${name} ${notes}`;
   if (!/(rack row|snake rack|slots?)/i.test(text)) return null;
-  const match = text.match(/(?:slots?\s*)?(\d+)\s*-\s*(\d+)/i);
-  if (!match) return null;
-  const start = Number(match[1]);
-  const end = Number(match[2]);
-  if (!Number.isFinite(start) || !Number.isFinite(end) || start < 1 || end < start) return null;
-  return { start, end };
+  const validRange = (match) => {
+    if (!match) return null;
+    const start = Number(match[1]);
+    const end = Number(match[2]);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || start < 1 || end < start) return null;
+    return { start, end };
+  };
+  const slotRange = validRange(text.match(/slots?\s*(\d+)\s*[-–—]\s*(\d+)/i));
+  if (slotRange) return slotRange;
+  const namedRange = validRange(name.match(/[·:]\s*(\d+)\s*[-–—]\s*(\d+)/i));
+  if (namedRange) return namedRange;
+  const allRanges = [...text.matchAll(/(\d+)\s*[-–—]\s*(\d+)/g)].map(validRange).filter(Boolean);
+  if (allRanges.length) return allRanges[allRanges.length - 1];
+  const rowMatch = name.match(/rack\s*row\s*(\d+)/i);
+  const rowNum = rowMatch ? Number(rowMatch[1]) : 0;
+  if (rowNum > 0) {
+    const start = (rowNum - 1) * 10 + 1;
+    return { start, end: start + 9 };
+  }
+  return null;
 }
 
 function _rackLocationSpools(storedSpools, loc) {
