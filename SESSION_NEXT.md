@@ -2,11 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Hydrate direct Bambu print metadata`
+- Latest commit: `Repair H-series AMS HT slot snapshots`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=547 / style.css?v=427 / demo-runtime.js?v=8
+
+### 2026-06-28 fix (H-series AMS HT direct-start spool snapshots)
+
+**Repair H-series AMS HT slot snapshots** (`app/printers/bambu.py`, `app/db.py`, `SESSION_NEXT.md`)
+Direct printer-screen/storage starts on H-series Bambu printers could create a History row with `spool_missing No spool assigned to AMS slot 128` even when the matching spool was loaded/assigned. The Bambu firmware reports AMS HT through a mix of canonical unit IDs (`128+`) and flat sequential tray IDs, so print-start snapshots could fail to match the stored Flightdeck spool assignment and then stay wrong because existing snapshots were never updated after restart. `_snapshot_ams_slots()` now records the flat tray ID alongside the canonical slot and marks active slots using either value. Print-start active-slot attribution now stores the canonical Flightdeck slot, and snapshot enrichment falls back through the flat tray ID when resolving the assigned spool. `write_slot_snapshot()` still preserves original print-start data, but can now repair missing spool assignments and active-slot metadata when a later poll has better information. Backend/service restart required after deploy. No frontend cache bump needed.
 
 ### 2026-06-28 fix (direct printer-panel Bambu starts)
 

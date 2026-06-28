@@ -251,7 +251,7 @@ class BambuPrinter:
         self._error_print_id: Optional[int] = None    # prints.id of the last error (for snapshot)
         self._ams_slot_snapshot: dict[int, dict] = {}      # slot_index → slot info at print start
         self._ams_slot_snapshot_print_id: Optional[int] = None  # print_id the snapshot belongs to
-        self._ams_active_slot_at_start: Optional[int] = None    # tray_now at print start for deduction
+        self._ams_active_slot_at_start: Optional[int] = None    # canonical AMS slot at print start
 
     def start(self) -> None:
         self._printer.connect()
@@ -352,14 +352,16 @@ class BambuPrinter:
                 raw_snap = _snapshot_ams_slots(print_data)
                 self._ams_slot_snapshot = raw_snap
                 self._ams_slot_snapshot_print_id = self._current_print_id
-                # Capture active tray for single-spool deduction attribution
-                ams_raw = print_data.get("ams", {})
-                tray_now = int(ams_raw.get("tray_now", 255))
-                self._ams_active_slot_at_start = None if tray_now == 255 else tray_now
+                active_slots = [slot_idx for slot_idx, slot_data in raw_snap.items() if slot_data.get("active")]
+                self._ams_active_slot_at_start = active_slots[0] if len(active_slots) == 1 else None
                 # Enrich snapshot with current spool assignments and persist to DB
                 enriched: dict[str, dict] = {}
                 for slot_idx, slot_data in raw_snap.items():
                     spool = db.get_spool_at_slot(self.id, slot_idx)
+                    if spool is None:
+                        flat_slot = _safe_int(slot_data.get("flat_slot"))
+                        if flat_slot is not None and flat_slot != slot_idx:
+                            spool = db.get_spool_at_slot(self.id, flat_slot)
                     enriched[str(slot_idx)] = {
                         **slot_data,
                         "spool_id": spool["id"] if spool else None,
@@ -2197,16 +2199,24 @@ def _safe_float(value) -> Optional[float]:
 def _snapshot_ams_slots(print_data: dict) -> dict[int, dict]:
     """Capture AMS slot state at print start. Returns {slot_index: slot_info}."""
     ams_raw = print_data.get("ams", {})
-    tray_now = int(ams_raw.get("tray_now", 255))
+    tray_now = _safe_int(ams_raw.get("tray_now"))
+    ams_units = ams_raw.get("ams", [])
+    n_regular_units = sum(
+        1
+        for unit_data in ams_units
+        if (_safe_int(unit_data.get("id")) or 0) < 128
+    )
+    regular_ams_slots = n_regular_units * 4
     result: dict[int, dict] = {}
-    for unit_data in ams_raw.get("ams", []):
-        unit_id = int(unit_data.get("id", 0))
+    for unit_data in ams_units:
+        unit_id = _safe_int(unit_data.get("id")) or 0
         for tray_data in unit_data.get("tray", []):
-            tray_id = int(tray_data.get("id", 0))
+            tray_id = _safe_int(tray_data.get("id")) or 0
             tray_type = tray_data.get("tray_type", "")
             if not tray_type:
                 continue
             slot_index = _bambu_slot_index(unit_id, tray_id)
+            flat_slot = _bambu_tray_target(slot_index, regular_ams_slots)
             hex_c = tray_data.get("tray_color", "")
             color = f"#{hex_c[:6].upper()}" if len(hex_c) >= 6 and hex_c.upper() not in ("00000000", "") else ""
             profile_id = str(tray_data.get("tray_info_idx") or "")
@@ -2221,7 +2231,8 @@ def _snapshot_ams_slots(print_data: dict) -> dict[int, dict]:
                 "color": color,
                 "uuid": tray_data.get("tray_uuid", ""),
                 "remain_pct": tray_data.get("remain", -1),
-                "active": tray_now == _bambu_tray_target(slot_index),
+                "flat_slot": flat_slot,
+                "active": tray_now is not None and tray_now in (slot_index, flat_slot),
             }
     return result
 

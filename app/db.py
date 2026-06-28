@@ -3734,16 +3734,61 @@ def get_recent_spool_for_slot(printer_id: str, slot: int, limit: int = 25) -> Op
 def write_slot_snapshot(print_id: int, snapshot: dict) -> None:
     """Persist the enriched slot/gate snapshot (with spool_ids) to the prints row.
 
-    No-op if a snapshot already exists — preserves the original print-start
-    snapshot across service restarts (the condition that triggers this fires
-    again after restart, but the original data must not be overwritten).
+    Existing print-start snapshots are preserved across service restarts, but
+    missing spool assignments may be filled in if a later snapshot can now match
+    the same slot. This repairs direct-printer starts that captured before the
+    H-series AMS HT slot was normalised.
     """
     import json
     with _conn() as conn:
-        conn.execute(
-            "UPDATE prints SET ams_slot_snapshot = ? WHERE id = ? AND ams_slot_snapshot IS NULL",
-            (json.dumps(snapshot), print_id),
-        )
+        row = conn.execute(
+            "SELECT ams_slot_snapshot FROM prints WHERE id = ?",
+            (print_id,),
+        ).fetchone()
+        if not row or not row["ams_slot_snapshot"]:
+            conn.execute(
+                "UPDATE prints SET ams_slot_snapshot = ? WHERE id = ?",
+                (json.dumps(snapshot), print_id),
+            )
+            return
+
+        try:
+            existing = json.loads(row["ams_slot_snapshot"] or "{}")
+        except Exception:
+            return
+        if not isinstance(existing, dict):
+            return
+
+        changed = False
+        for key, incoming in snapshot.items():
+            if not isinstance(incoming, dict):
+                continue
+            current = existing.get(key)
+            if not isinstance(current, dict):
+                existing[key] = incoming
+                changed = True
+                continue
+            if not current.get("spool_id") and incoming.get("spool_id"):
+                current["spool_id"] = incoming.get("spool_id")
+                current["remaining_g_at_start"] = incoming.get("remaining_g_at_start")
+                current.setdefault("flat_slot", incoming.get("flat_slot"))
+                changed = True
+
+        incoming_meta = snapshot.get("__meta__")
+        if isinstance(incoming_meta, dict):
+            existing_meta = existing.get("__meta__")
+            if not isinstance(existing_meta, dict):
+                existing["__meta__"] = incoming_meta
+                changed = True
+            elif incoming_meta.get("active_slot") is not None and existing_meta.get("active_slot") != incoming_meta.get("active_slot"):
+                existing_meta["active_slot"] = incoming_meta.get("active_slot")
+                changed = True
+
+        if changed:
+            conn.execute(
+                "UPDATE prints SET ams_slot_snapshot = ? WHERE id = ?",
+                (json.dumps(existing), print_id),
+            )
 
 
 def deduct_spool_usage(
