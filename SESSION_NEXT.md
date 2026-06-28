@@ -2,13 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Keep rack rows aligned by spool number`
+- Latest commit: `Fix H-series rack toolhead nozzle labels`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=546 / style.css?v=427 / demo-runtime.js?v=8
 
 ### 2026-06-28 fix (H-series live filament route selection)
+
+**Fix H-series rack toolhead nozzle labels** (`app/printers/bambu.py`, `SESSION_NEXT.md`)
+Big Girl/H2C rack view could show a loaded hotend under `Right nozzle` when the physical/Bambu-screen view showed it in the left nozzle. The H-series hotend rack payload reports physical rack nozzle IDs opposite to the temperature/extruder payload used by the live route code, so only the rack/toolhead parser label mapping was flipped. Live filament route selection, AMS mapping, queue dispatch, and spool deduction paths were not changed. Backend restart required after deploy.
 
 **Fix H-series live filament route selection** (`app/printers/bambu.py`, `app/static/app.js`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
 Big Girl/H2C could show a stale regular AMS slot as the active route, so the Live filament route displayed `AMS 1 · S1` red feeding the right nozzle even when the active print was using AMS HT grey on the left nozzle. Bambu MQTT can leave regular AMS tray flags active while the actual active toolhead/nozzle has moved, so Flightdeck now carries AMS nozzle hints from the backend and, for dual-nozzle non-H2D H-series printers, prefers the active heated nozzle plus the AMS HT loaded tray signal before trusting stale slot-active flags. H2D's fixed regular-AMS-left / AMS-HT-right rule remains scoped to H2D only. Static cache bumped to `app.js?v=546`; backend restart plus frontend hard refresh required after deploy.

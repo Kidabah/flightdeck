@@ -1296,8 +1296,10 @@ def _parse_h_series_nozzles(print_data: dict, model_name: str) -> list[dict]:
         usage_raw = _safe_int(raw.get("p_t"))
 
         if nozzle_id in (0, 1):
-            position = "right" if nozzle_id == 0 else "left"
-            label = "Right nozzle" if nozzle_id == 0 else "Left nozzle"
+            # Bambu's H-series hotend rack payload reports the physical nozzle
+            # ids opposite to the temperature/extruder payload used elsewhere.
+            position = "left" if nozzle_id == 0 else "right"
+            label = "Left nozzle" if nozzle_id == 0 else "Right nozzle"
             zone = "toolhead"
             slot = nozzle_id
         elif nozzle_id >= 16:
