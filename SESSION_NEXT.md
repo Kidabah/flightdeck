@@ -2,13 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Fix H-series rack toolhead nozzle labels`
+- Latest commit: `Use live route colour for H-series loaded toolhead`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=546 / style.css?v=427 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=547 / style.css?v=427 / demo-runtime.js?v=8
 
 ### 2026-06-28 fix (H-series live filament route selection)
+
+**Use live route colour for H-series loaded toolhead** (`app/static/app.js`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+Big Girl/H2C rack/toolhead view could show the loaded hotend with the stale colour reported by the hotend rack payload, even though the live filament route already knew the active AMS/spool colour. The H-series toolhead renderer now prefers the single active live route colour for the mounted toolhead while leaving stored rack bays to use their own hotend colours. Static cache bumped to `app.js?v=547`; frontend hard refresh required after deploy. No backend, AMS mapping, queue dispatch, or spool deduction code was touched.
 
 **Fix H-series rack toolhead nozzle labels** (`app/printers/bambu.py`, `SESSION_NEXT.md`)
 Big Girl/H2C rack view could show a loaded hotend under `Right nozzle` when the physical/Bambu-screen view showed it in the left nozzle. The H-series hotend rack payload reports physical rack nozzle IDs opposite to the temperature/extruder payload used by the live route code, so only the rack/toolhead parser label mapping was flipped. Live filament route selection, AMS mapping, queue dispatch, and spool deduction paths were not changed. Backend restart required after deploy.

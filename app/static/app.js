@@ -3568,8 +3568,22 @@ function _detailLiveHSeriesToolheadRows(p, view = 'nozzles') {
   const showRack = _isH2CPrinter(p);
   const toolheads = tools.filter(tool => tool.zone === 'toolhead');
   const rack = showRack ? tools.filter(tool => tool.zone === 'rack') : [];
+  const loadedToolheadCount = toolheads.filter(tool => tool.loaded || tool.active).length;
+  const routeColours = [];
+  _asList(p.ams).forEach((unit) => {
+    _asList(unit?.slots).forEach((slot) => {
+      if (!slot || slot.empty) return;
+      if (!_slotRouteActive(p, unit, slot) && !_slotRouteFed(p, unit, slot)) return;
+      const colour = slot.color || slot.colour || slot.color_hex || '';
+      if (colour) routeColours.push(colour);
+    });
+  });
+  const liveToolheadColour = [...new Set(routeColours)].length === 1 ? routeColours[0] : '';
   const toolMeta = (tool) => {
-    const colour = tool.color || '#64748b';
+    const routeColour = tool.zone === 'toolhead' && liveToolheadColour && (tool.active || loadedToolheadCount === 1)
+      ? liveToolheadColour
+      : '';
+    const colour = routeColour || tool.color || '#64748b';
     const textColour = _spoolTextColor(colour);
     const diameter = Number(tool.diameter || 0);
     const diameterText = diameter ? `${diameter.toFixed(1)}mm` : '';
