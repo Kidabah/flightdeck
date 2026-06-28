@@ -128,7 +128,7 @@ class LabelPrinter:
         return img
 
     def render_compact_spool_label(self, spool: dict, base_url: str = "https://flightdeck.tail7de73e.ts.net") -> Image.Image:
-        img = Image.new("RGB", (self.LABEL_WIDTH_PX, 330), "white")
+        img = Image.new("RGB", (self.LABEL_WIDTH_PX, 210), "white")
         draw = ImageDraw.Draw(img)
         prefs = spool.get("_label_preferences") or {}
         display_id = spool.get("display_id") or spool.get("id") or "-"
@@ -136,13 +136,13 @@ class LabelPrinter:
         include_colour = prefs.get("label_include_colour", "true") == "true"
         include_location = prefs.get("label_include_location", "true") == "true"
 
-        font_title = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 44)
-        font_body = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 28)
-        font_small = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 19)
-        font_badge = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 28)
-        font_spool = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 108)
+        font_number = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 86)
+        font_title = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 30)
+        font_body = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 24)
+        font_small = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 17)
+        font_badge = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 20)
 
-        x = 42
+        x = 28
         material = " ".join([spool.get("material") or "Material", spool.get("subtype") or ""]).strip()
         brand = spool.get("brand") or "-"
         color_name = spool.get("color_name") or "-"
@@ -151,34 +151,40 @@ class LabelPrinter:
         if not str(spool.get("location_printer_id") or "").strip():
             location_line = _spool_label_location_text(spool)
 
-        draw.text((x, 26), _ellipsize(draw, material, font_title, 405), fill="black", font=font_title)
-        draw.text((x, 88), _ellipsize(draw, brand if include_brand else "Flightdeck spool", font_body, 390), fill="black", font=font_body)
+        draw.rounded_rectangle((x, 26, 178, 178), radius=14, outline="black", width=3)
+        number_text = f"#{display_id}"
+        bbox = draw.textbbox((0, 0), number_text, font=font_number)
+        draw.text((x + (150 - (bbox[2] - bbox[0])) / 2, 54), number_text, fill="black", font=font_number)
+
+        info_x = 202
+        info_width = 280
+        draw.text((info_x, 24), _ellipsize(draw, material, font_title, info_width), fill="black", font=font_title)
+        draw.text((info_x, 68), _ellipsize(draw, brand if include_brand else "Flightdeck spool", font_body, info_width), fill="black", font=font_body)
         colour_line = color_name if include_colour else f"Spool #{display_id}"
         if color_hex and include_colour:
             colour_line = f"{colour_line}  {color_hex}"
-        draw.text((x, 130), _ellipsize(draw, colour_line, font_body, 390), fill="black", font=font_body)
-        draw.text((x, 178), _ellipsize(draw, f"#{display_id}", font_spool, 395), fill="black", font=font_spool)
+        draw.text((info_x, 102), _ellipsize(draw, colour_line, font_body, info_width), fill="black", font=font_body)
 
         if location_line and include_location:
-            draw.text((496, 28), "Loc:", fill="black", font=font_small)
-            draw.text((496, 54), _ellipsize(draw, location_line[5:], font_body, 155), fill="black", font=font_body)
+            draw.rounded_rectangle((info_x, 142, info_x + info_width, 176), radius=8, outline="black", width=2)
+            draw.text((info_x + 12, 147), _ellipsize(draw, location_line, font_badge, info_width - 24), fill="black", font=font_badge)
 
         added = str(spool.get("added_at") or "")[:10]
         try:
             added = datetime.fromisoformat(added).strftime("%d/%m/%y")
         except Exception:
             added = datetime.utcnow().strftime("%d/%m/%y")
-        bottom = f"{round(float(spool.get('label_weight_g') or 0))}g label  |  {added}"
-        draw.text((x, 296), bottom, fill="black", font=font_small)
+        bottom = f"{round(float(spool.get('label_weight_g') or 0))}g label | {added}"
+        draw.text((x, 184), _ellipsize(draw, bottom, font_small, 455), fill="black", font=font_small)
 
         qr_base = (base_url or "https://flightdeck.tail7de73e.ts.net").rstrip("/")
         qr_url = f"{qr_base}/#/spool/{spool.get('id')}"
         qr = _qr_image(qr_url)
         if qr:
-            img.paste(qr.resize((178, 178)), (496, 118))
+            img.paste(qr.resize((160, 160)), (512, 26))
         else:
-            draw.rectangle((496, 118, 674, 296), outline="black")
-            draw.text((562, 188), "QR", fill="black", font=font_body)
+            draw.rectangle((512, 26, 672, 186), outline="black")
+            draw.text((570, 92), "QR", fill="black", font=font_body)
         return img
 
     def print_spool_label(self, spool: dict, base_url: str = "https://flightdeck.tail7de73e.ts.net") -> bool:
@@ -190,27 +196,27 @@ class LabelPrinter:
         return self._print_image(image)
 
     def render_location_label(self, location: dict, base_url: str = "https://flightdeck.tail7de73e.ts.net") -> Image.Image:
-        img = Image.new("RGB", (self.LABEL_WIDTH_PX, 330), "white")
+        img = Image.new("RGB", (self.LABEL_WIDTH_PX, 190), "white")
         draw = ImageDraw.Draw(img)
         name = str(location.get("name") or "Rack").strip() or "Rack"
         notes = str(location.get("notes") or "").strip()
         rack_range, rack_direction = _rack_label_parts(name, notes)
-        title = rack_range or name
+        title = f"Rack {rack_range}" if rack_range else name
         row_name = re.sub(r"\s*[·-]\s*\d+\s*-\s*\d+\s*$", "", name).strip() or "Rack"
 
-        font_title = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 92)
-        font_row = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 34)
-        font_body = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 28)
-        font_small = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 20)
-        font_badge = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 26)
+        font_title = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 48)
+        font_row = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 22)
+        font_body = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 20)
+        font_small = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 16)
+        font_badge = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 18)
 
-        draw.text((38, 18), _ellipsize(draw, title, font_title, 370), fill="black", font=font_title)
-        draw.text((42, 116), _ellipsize(draw, row_name, font_row, 388), fill="black", font=font_row)
+        draw.text((34, 20), _ellipsize(draw, title, font_title, 430), fill="black", font=font_title)
+        draw.text((36, 78), _ellipsize(draw, row_name, font_row, 430), fill="black", font=font_row)
         subtitle = rack_direction or notes or "Scan to open this rack in Flightdeck"
-        draw.text((42, 160), _ellipsize(draw, subtitle, font_body, 390), fill="black", font=font_body)
-        draw.rounded_rectangle((42, 230, 356, 282), radius=12, outline="black", width=3)
-        draw.text((60, 241), "FLIGHTDECK RACK", fill="black", font=font_badge)
-        draw.text((42, 298), datetime.utcnow().strftime("Printed %d/%m/%y"), fill="black", font=font_small)
+        draw.text((36, 108), _ellipsize(draw, subtitle, font_body, 430), fill="black", font=font_body)
+        draw.rounded_rectangle((36, 140, 250, 173), radius=8, outline="black", width=2)
+        draw.text((48, 147), "FLIGHTDECK RACK", fill="black", font=font_badge)
+        draw.text((276, 149), datetime.utcnow().strftime("%d/%m/%y"), fill="black", font=font_small)
 
         qr_base = (base_url or "https://flightdeck.tail7de73e.ts.net").rstrip("/")
         loc_id = location.get("id")
@@ -219,10 +225,10 @@ class LabelPrinter:
             qr_url += f"&location={loc_id}"
         qr = _qr_image(qr_url)
         if qr:
-            img.paste(qr.resize((210, 210)), (454, 64))
+            img.paste(qr.resize((150, 150)), (512, 20))
         else:
-            draw.rectangle((454, 64, 664, 274), outline="black")
-            draw.text((532, 148), "QR", fill="black", font=font_body)
+            draw.rectangle((512, 20, 662, 170), outline="black")
+            draw.text((568, 84), "QR", fill="black", font=font_body)
         return img
 
     def print_location_label(self, location: dict, base_url: str = "https://flightdeck.tail7de73e.ts.net") -> bool:
@@ -303,7 +309,7 @@ def _luminance(hex_color: str) -> float:
 
 def _rack_label_parts(name: str, notes: str) -> tuple[Optional[str], Optional[str]]:
     text = f"{name} {notes}"
-    range_match = re.search(r"\b(\d+\s*-\s*\d+)\b", text)
+    range_match = re.search(r"(?<![\d-])(\d+\s*-\s*\d+)(?!\s*-)", text)
     direction_match = re.search(r"\b(left\s+to\s+right|right\s+to\s+left)\b", text, re.IGNORECASE)
     rack_range = range_match.group(1).replace(" ", "") if range_match else None
     direction = direction_match.group(1).lower() if direction_match else None

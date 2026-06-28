@@ -8,6 +8,14 @@ Latest GitHub/Pi state:
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=543 / style.css?v=427 / demo-runtime.js?v=8
 
+### 2026-06-28 polish (compact rack labels)
+
+**Make rack/location stickers shorter** (`app/label_printer.py`, `SESSION_NEXT.md`)
+Rack labels now render as compact 696x190 strip labels instead of the older 696x330 layout, so they fit the physical rack without wrapping around the rods. The label title is normalized to `Rack 1-10` style, with row/direction text, a smaller Flightdeck badge/date line, and a 150px QR on the right. Also tightened rack-range parsing so names like `Rack Row 1 - 1-10` do not get shortened to `Rack 1-1`.
+
+**Make spool rack-position stickers shorter** (`app/label_printer.py`, `SESSION_NEXT.md`)
+The normal compact spool label used by each rack position is now a short 696x210 strip instead of a taller spool card. It keeps the big spool number, material/brand/colour, rack range, printed date, and QR, so the sticker can sit beside a physical rack slot without wrapping. Verification preview rendered to `C:\Users\Kidabah\AppData\Local\Temp\flightdeck-spool-rack-label-preview.png`.
+
 ### 2026-06-27 polish (H2C AMS/Rack tab height)
 
 **Match H2C AMS and rack panel height** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
