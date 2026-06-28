@@ -6,7 +6,12 @@ Latest GitHub/Pi state:
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=548 / style.css?v=427 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=549 / style.css?v=427 / demo-runtime.js?v=8
+
+### 2026-06-28 polish (rack labels include loaded spools)
+
+**Keep loaded spools on their home rack for labels** (`app/static/app.js`, `app/label_printer.py`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+Rack/location labels now treat a loaded spool as still belonging to its home rack row, so the location overview can print all rack labels even when some rolls are currently loaded in AMS/AMS HT. Loaded rolls remain visibly loaded by adding their printer/slot in the location row, while spool labels now print the home rack location instead of dropping the location line when the spool is in a printer. Static cache bumped to `app.js?v=549`; frontend hard refresh required after deploy. No printer command, AMS mapping, queue-dispatch, or spool-deduction code was touched.
 
 ### 2026-06-28 polish (H2D live nozzle panel)
 

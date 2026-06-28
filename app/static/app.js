@@ -6556,6 +6556,10 @@ function _spoolStorageLocationName(id) {
   return loc?.name || 'Unassigned';
 }
 
+function _spoolHomeLocationId(s) {
+  return s?.home_storage_location_id ?? s?.storage_location_id ?? null;
+}
+
 function _spoolTraceRow(row) {
   const p = _latestPrinters.find(x => x.id === row.printer_id);
   const raw = row.subtask_name || row.filename.replace(/.*[/\\]/, '');
@@ -16550,14 +16554,14 @@ function _rackLocationRange(loc) {
   return null;
 }
 
-function _rackLocationSpools(storedSpools, loc) {
+function _rackLocationSpools(spools, loc) {
   const range = _rackLocationRange(loc);
   if (!range) {
-    return storedSpools
-      .filter(s => String(s.storage_location_id || '') === String(loc.id))
+    return spools
+      .filter(s => String(_spoolHomeLocationId(s) || '') === String(loc.id))
       .sort(_spoolVisibleNumberSort);
   }
-  return storedSpools
+  return spools
     .filter(s => {
       const num = _spoolDisplayId(s);
       return num >= range.start && num <= range.end;
@@ -18880,24 +18884,25 @@ async function _spoolSaveErrorMessage(response, fallback = 'Unable to save spool
 }
 
 function _locationsCategoryHtml(locations) {
-  const storedSpools = _allSpools.filter(s => !s.archived_at && !s.location_printer_id);
+  const rackVisibleSpools = _allSpools.filter(s => !s.archived_at);
   const rackRanges = locations.map(_rackLocationRange).filter(Boolean);
   const isInRackRange = (spool) => {
     const num = _spoolDisplayId(spool);
     return rackRanges.some(range => num >= range.start && num <= range.end);
   };
   const locationCards = locations.length ? locations.map(loc => {
-    const spools = _rackLocationSpools(storedSpools, loc);
+    const spools = _rackLocationSpools(rackVisibleSpools, loc);
     const grams = spools.reduce((sum, s) => sum + Number(s.remaining_g || 0), 0);
     const spoolRows = spools.length ? spools.map(s => {
       const pct = s.label_weight_g > 0 ? Math.round(s.remaining_g * 100 / s.label_weight_g) : 0;
       const pctCls = pct < 20 ? ' spool-low' : pct < 50 ? ' spool-amber' : '';
       const color = s.color_hex || '#808080';
-      return `<div class="location-spool-row" data-spool-id="${s.id}">
+      const loadedText = s.location_printer_id ? _spoolLocationText(s) : '';
+      return `<div class="location-spool-row${loadedText ? ' is-loaded' : ''}" data-spool-id="${s.id}">
         <span class="location-spool-swatch" style="${_spoolColorStyle(s)}"></span>
         <div class="location-spool-main">
           <div class="location-spool-title">${esc(s.color_name || color)} · ${esc(s.material)}${s.subtype ? ` ${esc(s.subtype)}` : ''}</div>
-          <div class="location-spool-sub">${esc(s.brand || 'Unknown brand')} · ${_spoolDisplayLabel(s)}</div>
+          <div class="location-spool-sub">${esc(s.brand || 'Unknown brand')} · ${_spoolDisplayLabel(s)}${loadedText ? ` · Loaded: ${esc(loadedText)}` : ''}</div>
         </div>
         <div class="location-spool-weight${pctCls}">${Math.round(s.remaining_g || 0)}g</div>
         <div class="location-spool-actions">
@@ -18924,8 +18929,8 @@ function _locationsCategoryHtml(locations) {
     </section>`;
   }).join('') : `<div class="settings-empty">Add a location to start organising stored spools.</div>`;
 
-  const unassigned = storedSpools
-    .filter(s => !s.storage_location_id && !isInRackRange(s))
+  const unassigned = rackVisibleSpools
+    .filter(s => !s.location_printer_id && !s.storage_location_id && !isInRackRange(s))
     .sort(_spoolVisibleNumberSort);
   const unassignedCard = unassigned.length ? `<section class="location-card location-card-unassigned">
     <div class="location-card-head">

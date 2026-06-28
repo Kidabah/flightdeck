@@ -95,9 +95,7 @@ class LabelPrinter:
         brand = spool.get("brand") or "-"
         color_name = spool.get("color_name") or "-"
         color_hex = (spool.get("color_hex") or "").upper()
-        location_line = ""
-        if not str(spool.get("location_printer_id") or "").strip():
-            location_line = _spool_label_location_text(spool)
+        location_line = _spool_label_location_text(spool)
         draw.text((x, 42), _ellipsize(draw, material, font_bold, 420), fill="black", font=font_bold)
         draw.text((x, 116), _ellipsize(draw, brand if include_brand else "Flightdeck spool", font_body, 420), fill="black", font=font_body)
         draw.text((x, 168), _ellipsize(draw, color_name if include_colour else f"Spool #{display_id}", font_body, 300), fill="black", font=font_body)
@@ -147,9 +145,7 @@ class LabelPrinter:
         brand = spool.get("brand") or "-"
         color_name = spool.get("color_name") or "-"
         color_hex = (spool.get("color_hex") or "").upper()
-        location_line = ""
-        if not str(spool.get("location_printer_id") or "").strip():
-            location_line = _spool_label_location_text(spool)
+        location_line = _spool_label_location_text(spool)
 
         draw.rounded_rectangle((x, 26, 178, 178), radius=14, outline="black", width=3)
         number_text = f"#{display_id}"
@@ -317,12 +313,16 @@ def _rack_label_parts(name: str, notes: str) -> tuple[Optional[str], Optional[st
 
 
 def _spool_label_location_text(spool: dict) -> str:
-    location = (
-        spool.get("storage_location_name")
-        or spool.get("storage_location")
-        or "Storage"
+    loaded = bool(str(spool.get("location_printer_id") or "").strip())
+    current_location = spool.get("storage_location_name") or spool.get("storage_location")
+    home_location = spool.get("home_storage_location_name") or spool.get("home_storage_location")
+    location = (home_location or current_location or "Storage") if loaded else (current_location or home_location or "Storage")
+    notes = (
+        spool.get("home_storage_location_notes")
+        or spool.get("storage_location_notes")
+        or spool.get("storage_notes")
+        or ""
     )
-    notes = spool.get("storage_location_notes") or spool.get("storage_notes") or ""
     rack_range, _ = _rack_label_parts(str(location), str(notes))
     if rack_range:
         return f"Loc: Rack {rack_range}"
