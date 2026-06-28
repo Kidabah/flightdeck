@@ -2,13 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Reserve H2C AMS tab height`
+- Latest commit: `Keep rack rows aligned by spool number`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=543 / style.css?v=427 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=544 / style.css?v=427 / demo-runtime.js?v=8
 
 ### 2026-06-28 polish (compact rack labels)
+
+**Keep rack-row overview cards aligned by spool number** (`app/static/app.js`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+Settings > Locations now treats rack-row cards as number-range views, so `Rack Row 1 · 1-10` only shows stored active spools with visible numbers `#1` through `#10` even if older location assignments still point somewhere else. Non-rack locations still group by their assigned location as before. Numbered spools that fall inside a rack row are also kept out of the Unassigned card, so the overview matches the physical rack story immediately; the existing `Build rack rows` action remains the database repair pass that can move stored spools into their matching row. Static cache bumped to `app.js?v=544`; frontend refresh required after deploy.
 
 **Make rack/location stickers shorter** (`app/label_printer.py`, `SESSION_NEXT.md`)
 Rack labels now render as compact 696x190 strip labels instead of the older 696x330 layout, so they fit the physical rack without wrapping around the rods. The label title is normalized to `Rack 1-10` style, with row/direction text, a smaller Flightdeck badge/date line, and a 150px QR on the right. Also tightened rack-range parsing so names like `Rack Row 1 - 1-10` do not get shortened to `Rack 1-1`.

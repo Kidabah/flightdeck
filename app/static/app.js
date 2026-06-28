@@ -16460,6 +16460,32 @@ function _rackRowLocationNote(rowIndex) {
   return `Main cupboard snake rack · slots ${start}-${end} · ${direction}`;
 }
 
+function _rackLocationRange(loc) {
+  const text = `${loc?.name || ''} ${loc?.notes || ''}`;
+  if (!/(rack row|snake rack|slots?)/i.test(text)) return null;
+  const match = text.match(/(?:slots?\s*)?(\d+)\s*-\s*(\d+)/i);
+  if (!match) return null;
+  const start = Number(match[1]);
+  const end = Number(match[2]);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start < 1 || end < start) return null;
+  return { start, end };
+}
+
+function _rackLocationSpools(storedSpools, loc) {
+  const range = _rackLocationRange(loc);
+  if (!range) {
+    return storedSpools
+      .filter(s => String(s.storage_location_id || '') === String(loc.id))
+      .sort(_spoolVisibleNumberSort);
+  }
+  return storedSpools
+    .filter(s => {
+      const num = _spoolDisplayId(s);
+      return num >= range.start && num <= range.end;
+    })
+    .sort(_spoolVisibleNumberSort);
+}
+
 function _rackSlotClass(spool) {
   if (!spool) return 'empty';
   if (spool.archived_at) return 'reserved';
@@ -18776,10 +18802,13 @@ async function _spoolSaveErrorMessage(response, fallback = 'Unable to save spool
 
 function _locationsCategoryHtml(locations) {
   const storedSpools = _allSpools.filter(s => !s.archived_at && !s.location_printer_id);
+  const rackRanges = locations.map(_rackLocationRange).filter(Boolean);
+  const isInRackRange = (spool) => {
+    const num = _spoolDisplayId(spool);
+    return rackRanges.some(range => num >= range.start && num <= range.end);
+  };
   const locationCards = locations.length ? locations.map(loc => {
-    const spools = storedSpools
-      .filter(s => String(s.storage_location_id || '') === String(loc.id))
-      .sort(_spoolVisibleNumberSort);
+    const spools = _rackLocationSpools(storedSpools, loc);
     const grams = spools.reduce((sum, s) => sum + Number(s.remaining_g || 0), 0);
     const spoolRows = spools.length ? spools.map(s => {
       const pct = s.label_weight_g > 0 ? Math.round(s.remaining_g * 100 / s.label_weight_g) : 0;
@@ -18816,7 +18845,9 @@ function _locationsCategoryHtml(locations) {
     </section>`;
   }).join('') : `<div class="settings-empty">Add a location to start organising stored spools.</div>`;
 
-  const unassigned = storedSpools.filter(s => !s.storage_location_id).sort(_spoolVisibleNumberSort);
+  const unassigned = storedSpools
+    .filter(s => !s.storage_location_id && !isInRackRange(s))
+    .sort(_spoolVisibleNumberSort);
   const unassignedCard = unassigned.length ? `<section class="location-card location-card-unassigned">
     <div class="location-card-head">
       <div>
