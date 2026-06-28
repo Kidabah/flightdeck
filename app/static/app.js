@@ -3810,6 +3810,45 @@ function _h2dNozzleActivity(p) {
   };
 }
 
+function _routeNozzleIndex(unit, slot = null) {
+  const raw = slot?.nozzle ?? unit?.nozzle;
+  const n = Number(raw);
+  return n === 0 || n === 1 ? n : null;
+}
+
+function _nozzleLabelFromIndex(nozzle) {
+  if (nozzle === 0) return 'Right nozzle';
+  if (nozzle === 1) return 'Left nozzle';
+  return '';
+}
+
+function _activeNozzleIndex(p) {
+  const nozzles = _h2dNozzleActivity(p);
+  if (nozzles.right && !nozzles.left) return 0;
+  if (nozzles.left && !nozzles.right) return 1;
+  return null;
+}
+
+function _slotTrayStateNumber(slot) {
+  const n = Number(slot?.tray_state);
+  return Number.isFinite(n) ? n : null;
+}
+
+function _hSeriesSlotRouteSignal(p, unit, slot) {
+  if (!slot || slot.empty || _isH2dPrinter(p) || !_hasDualNozzleTemps(p)) return null;
+  const activeNozzle = _activeNozzleIndex(p);
+  if (activeNozzle == null) return null;
+  const routeNozzle = _routeNozzleIndex(unit, slot);
+  const trayState = _slotTrayStateNumber(slot);
+  if (routeNozzle != null && routeNozzle !== activeNozzle) return false;
+  if (routeNozzle != null) return !!slot.active || trayState === 27;
+  const htLoaded = _asList(p?.ams).some(u => _isAmsHtUnit(u)
+    && _asList(u?.slots).some(s => s && !s.empty && _slotTrayStateNumber(s) === 27));
+  if (activeNozzle === 1 && _isAmsHtUnit(unit) && trayState === 27) return true;
+  if (activeNozzle === 1 && htLoaded && !_isAmsHtUnit(unit) && slot.active) return false;
+  return null;
+}
+
 function _activeHotendReading(p) {
   const temps = p?.temps || {};
   if (!_isH2dPrinter(p) && !_hasDualNozzleTemps(p)) return temps.hotend || {};
@@ -3838,14 +3877,15 @@ function _activeHotendReading(p) {
 }
 
 function _activeNozzleLabel(p) {
-  const nozzles = _h2dNozzleActivity(p);
-  if (nozzles.right && !nozzles.left) return 'Right nozzle';
-  if (nozzles.left && !nozzles.right) return 'Left nozzle';
+  const activeNozzle = _activeNozzleIndex(p);
+  if (activeNozzle != null) return _nozzleLabelFromIndex(activeNozzle);
   return _hasDualNozzleTemps(p) ? 'Toolhead' : 'Nozzle';
 }
 
 function _slotRouteActive(p, unit, slot) {
   if (!slot || slot.empty) return false;
+  const hSeriesSignal = _hSeriesSlotRouteSignal(p, unit, slot);
+  if (hSeriesSignal != null) return hSeriesSignal;
   if (_isH2dPrinter(p)) {
     const nozzles = _h2dNozzleActivity(p);
     const hasNozzleSignal = nozzles.left || nozzles.right;
@@ -3861,6 +3901,8 @@ function _slotRouteActive(p, unit, slot) {
 
 function _slotRouteFed(p, unit, slot) {
   if (!slot || slot.empty) return false;
+  const hSeriesSignal = _hSeriesSlotRouteSignal(p, unit, slot);
+  if (hSeriesSignal != null) return hSeriesSignal;
   if (_isH2dPrinter(p)) {
     const nozzles = _h2dNozzleActivity(p);
     const hasNozzleSignal = nozzles.left || nozzles.right;
@@ -3870,8 +3912,12 @@ function _slotRouteFed(p, unit, slot) {
   return !!slot.active;
 }
 
-function _routeDestinationLabel(p, unit) {
+function _routeDestinationLabel(p, unit, slot = null) {
+  const routedNozzle = _routeNozzleIndex(unit, slot);
+  if (routedNozzle != null) return _nozzleLabelFromIndex(routedNozzle);
   if (_isH2dPrinter(p)) return _isAmsHtUnit(unit) ? 'Right nozzle' : 'Left nozzle';
+  const activeNozzle = _activeNozzleIndex(p);
+  if (activeNozzle != null) return _nozzleLabelFromIndex(activeNozzle);
   return _activeNozzleLabel(p);
 }
 
@@ -3919,7 +3965,7 @@ function _detailFilamentRoute(p) {
       const spoolLabel = spool
         ? `#${spool.id} ${[spool.color_name, spool.material].filter(Boolean).join(' · ')}`
         : _slotProfileLabel(slot) || slot.type || 'Loaded filament';
-      const dest = _routeDestinationLabel(p, unit);
+      const dest = _routeDestinationLabel(p, unit, slot);
       const fedNow = _slotRouteFed(p, unit, slot);
       const routeClass = `${fedNow ? '' : ' live-filament-route-idle'}${mismatch ? ' live-filament-route-warning' : ''}`;
       const routeBadge = mismatch ? 'Review' : fedNow ? 'Loaded' : 'Ready';
@@ -9862,7 +9908,7 @@ function _fleetWallAmsRouteStrip(p) {
       const spoolLabel = spool
         ? `${_spoolDisplayLabel(spool)} ${[spool.color_name, spool.material].filter(Boolean).join(' · ')}`
         : _slotProfileLabel(slot) || slot.type || 'Filament';
-      const dest = _routeDestinationLabel(p, unit);
+      const dest = _routeDestinationLabel(p, unit, slot);
       const fedNow = _slotRouteFed(p, unit, slot);
       routes.push(`<button class="fleet-wall-route${fedNow ? ' is-fed' : ' is-ready'}" data-slot-edit data-printer-id="${esc(p.id)}" data-slot-index="${flatSlot}" data-slot-label="${esc(slotLabel)}" style="--route-colour:${esc(colour)}" title="${esc(`${slotLabel} ${fedNow ? 'feeding' : 'ready for'} ${dest} · ${spoolLabel}`)}">
         <span class="fleet-wall-route-source">

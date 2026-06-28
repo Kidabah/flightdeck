@@ -414,8 +414,13 @@ class BambuPrinter:
                 if last:
                     idle_info["Last print"] = _fmt_last_print(last)
 
+            extruder_map = _read_ams_extruder_map(print_data)
             try:
-                ams = _parse_ams(print_data)
+                ams = _parse_ams(
+                    print_data,
+                    extruder_map=extruder_map,
+                    model_name=self.model_name,
+                )
             except Exception:
                 ams = []
             maintenance = _parse_care(print_data)
@@ -1136,7 +1141,11 @@ class BambuPrinter:
         dump = self._printer.mqtt_dump()
         print_data = dump.get("print", {})
         extruder_map = _read_ams_extruder_map(print_data)
-        units = list(_parse_ams(print_data))
+        units = list(_parse_ams(
+            print_data,
+            extruder_map=extruder_map,
+            model_name=self.model_name,
+        ))
         # Regular AMS units (unit_id < 128) each occupy 4 sequential print-command slots.
         # AMS HT (unit_id >= 128) follows sequentially after all regular units.
         n_regular_units = sum(1 for u in units if int(u.get("unit", 0)) < 128)
@@ -1144,7 +1153,9 @@ class BambuPrinter:
         slots = []
         for unit in units:
             unit_id = int(unit.get("unit", 0))
-            nozzle = extruder_map.get(unit_id)
+            nozzle = unit.get("nozzle")
+            if nozzle not in (0, 1):
+                nozzle = extruder_map.get(unit_id)
             if nozzle is None and self.model_name.upper() == "H2D":
                 # H2D fallback: regular AMS feeds left, AMS HT feeds right.
                 nozzle = 0 if unit_id >= 128 else 1
@@ -1985,12 +1996,19 @@ def _filament_for_spool(spool: dict):
     return bl.Filament(key)
 
 
-def _parse_ams(dump: dict) -> list[dict]:
+def _parse_ams(
+    dump: dict,
+    *,
+    extruder_map: dict[int, int] | None = None,
+    model_name: str = "",
+) -> list[dict]:
     """Parse AMS data from mqtt_dump()['print']. Returns JSON-serialisable list."""
     ams_raw = dump.get("ams", {})
     if not ams_raw or ams_raw.get("ams_exist_bits", "0") == "0":
         return []
 
+    extruder_map = extruder_map if extruder_map is not None else _read_ams_extruder_map(dump)
+    model_key = str(model_name or "").upper()
     tray_now = int(ams_raw.get("tray_now", 255))
     _AMS_LABELS = {128: "AMS HT"}
     result = []
@@ -1999,6 +2017,10 @@ def _parse_ams(dump: dict) -> list[dict]:
 
     for unit_data in ams_raw.get("ams", []):
         unit_id = int(unit_data.get("id", 0))
+        nozzle = extruder_map.get(unit_id)
+        if nozzle is None and model_key == "H2D":
+            # H2D has a fixed split: regular AMS feeds left, AMS HT feeds right.
+            nozzle = 0 if unit_id >= 128 else 1
         dry_setting = unit_data.get("dry_setting") or {}
         dry_time = _safe_int(unit_data.get("dry_time"))
         unit_temp = _safe_float(
@@ -2051,7 +2073,7 @@ def _parse_ams(dump: dict) -> list[dict]:
             slot_index = _bambu_slot_index(unit_id, tray_id)
             active = (not empty) and (tray_now == _bambu_tray_target(slot_index, regular_ams_slots))
 
-            slots.append({
+            slot_payload = {
                 "idx": tray_id,
                 "type": tray_type,
                 "color": color,
@@ -2061,10 +2083,13 @@ def _parse_ams(dump: dict) -> list[dict]:
                 "tray_state": tray_state,
                 "active": active,
                 "empty": empty,
-            })
+            }
+            if nozzle in (0, 1):
+                slot_payload["nozzle"] = nozzle
+            slots.append(slot_payload)
 
         if slots:
-            result.append({
+            unit_payload = {
                 "unit": unit_id,
                 "label": _AMS_LABELS.get(unit_id, f"AMS {unit_id + 1}"),
                 "slots": slots,
@@ -2082,7 +2107,10 @@ def _parse_ams(dump: dict) -> list[dict]:
                     "temperature": dry_temperature,
                     "duration": dry_duration,
                 },
-            })
+            }
+            if nozzle in (0, 1):
+                unit_payload["nozzle"] = nozzle
+            result.append(unit_payload)
 
     return result
 
