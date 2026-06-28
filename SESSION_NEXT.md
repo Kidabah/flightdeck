@@ -6,7 +6,12 @@ Latest GitHub/Pi state:
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=547 / style.css?v=427 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=548 / style.css?v=427 / demo-runtime.js?v=8
+
+### 2026-06-28 polish (H2D live nozzle panel)
+
+**Hide H2D H-series hotend deck in Live** (`app/static/app.js`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+BigBoy/H2D could show an extra `Left nozzle` / `Right nozzle` H-series hotend panel underneath the AMS loadout, which looked like another feed/rack state even though H2D does not have the H2C induction rack workflow. The Live environment renderer now keeps that H-series hotend/rack deck scoped to H2C only. H2D still shows the useful filament route target and AMS/AMS HT loadout, while Big Girl/H2C keeps the AMS/Rack tabs. Static cache bumped to `app.js?v=548`; frontend refresh required after deploy. UI-only: no backend, printer command, AMS mapping, queue-dispatch, or spool-deduction code was touched.
 
 ### 2026-06-28 fix (H-series AMS HT direct-start spool snapshots)
 

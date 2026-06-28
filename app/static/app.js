@@ -4092,7 +4092,10 @@ function _detailLiveStrip(p) {
   const isHSeries = _hasHSeriesNozzleRack(p);
   const isH2C = _isH2CPrinter(p);
   const activeHSeriesTab = _hSeriesLiveTabByPrinter[p.id] === 'rack' ? 'rack' : 'ams';
-  const toolHtml = _detailLiveToolheadRows(p, isH2C && activeHSeriesTab === 'rack' ? 'rack' : 'nozzles');
+  const showHSeriesToolSection = isH2C && isHSeries;
+  const toolHtml = showHSeriesToolSection
+    ? _detailLiveToolheadRows(p, activeHSeriesTab === 'rack' ? 'rack' : 'nozzles')
+    : '';
   const spoolHtml = _detailLiveSpoolChips(p);
   const primaryHtml = amsHtml || mmuHtml || toolHtml || spoolHtml;
   const loadedHtml = isH2C
@@ -4100,7 +4103,7 @@ function _detailLiveStrip(p) {
       ? (toolHtml || '<span class="live-strip-empty">No hotend rack data reported yet</span>')
       : (amsHtml || mmuHtml || spoolHtml || '<span class="live-strip-empty">No Flightdeck spools assigned</span>'))
     : isHSeries
-    ? [amsHtml || mmuHtml || spoolHtml, toolHtml].filter(Boolean).join('')
+    ? (amsHtml || mmuHtml || spoolHtml)
     : primaryHtml;
   const routeHtml = _detailFilamentRoute(p);
   const panelClasses = ['live-environment-panel'];
