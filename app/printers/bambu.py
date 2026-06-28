@@ -326,8 +326,8 @@ class BambuPrinter:
             filename = self._printer.get_file_name()
             pct = self._printer.get_percentage()
             subtask = self._printer.subtask_name() or None
-            if _is_plate_gcode(filename) and not subtask:
-                subtask = _active_queue_subtask(self.id)
+            if not subtask:
+                subtask = _resolve_bambu_job_subtask(self.id, filename)
             if filename and pct is not None:
                 remaining = self._printer.get_time()
                 eta = int(remaining * 60) if remaining is not None else None
@@ -348,8 +348,7 @@ class BambuPrinter:
                 # Proactively fetch preview so filament_weight_g is available at
                 # print-end even if nobody visits the detail page during the print.
                 # get_preview() caches on subtask_name so this is a one-shot FTP call.
-                if subtask and not self._preview_cache:
-                    self.get_preview()
+                self._hydrate_print_preview_metadata(self._current_print_id)
                 raw_snap = _snapshot_ams_slots(print_data)
                 self._ams_slot_snapshot = raw_snap
                 self._ams_slot_snapshot_print_id = self._current_print_id
@@ -381,11 +380,7 @@ class BambuPrinter:
                     and self._current_print_id is not None
                     and self._ams_slot_snapshot_print_id == self._current_print_id
                     and job and job.progress is not None):
-                pv = _preview_metadata(self._preview_cache[1]) if self._preview_cache else None
-                if pv is None and subtask and not self._preview_cache:
-                    pv = _preview_metadata(self.get_preview())
-                if pv is None:
-                    pv = _queue_preview_metadata(self.id)
+                pv = self._hydrate_print_preview_metadata(self._current_print_id)
                 if pv and pv.filament_weight_g:
                     try:
                         db.deduct_spool_usage_progress(
@@ -498,7 +493,7 @@ class BambuPrinter:
                     self._physical_start_confirmed = False
                     return "idle"
                 filament_g = material = filament_usage = None
-                pv = _preview_metadata(self._preview_cache[1]) if self._preview_cache else None
+                pv = self._hydrate_print_preview_metadata(self._current_print_id) if self._current_print_id else None
                 if pv is None:
                     pv = _queue_preview_metadata(self.id)
                 if pv:
@@ -676,13 +671,8 @@ class BambuPrinter:
                     db.log_decision(self.id, "job_started",
                                    f"New print started key={self._current_job_key}",
                                    print_id=print_id)
-                pv = _preview_metadata(self._preview_cache[1]) if self._preview_cache else None
-                if print_id and pv:
-                    db.update_print_filament_metadata(
-                        print_id,
-                        filament_grams=pv.filament_weight_g,
-                        material=pv.filament_type,
-                    )
+                if print_id:
+                    self._hydrate_print_preview_metadata(print_id)
             if self._current_print_id and job is not None:
                 live_layer = job.layer_current
                 if live_layer is None and job.layer_total and job.progress is not None:
@@ -1059,8 +1049,8 @@ class BambuPrinter:
         subtask = self._printer.subtask_name()
         filename = self._printer.get_file_name()
         plate_number = _plate_number(filename)
-        if _is_plate_gcode(filename) and not subtask:
-            subtask = _active_queue_subtask(self.id)
+        if not subtask:
+            subtask = _resolve_bambu_job_subtask(self.id, filename)
         if not subtask:
             return None
         cache_key = f"{subtask}|plate:{plate_number or 1}"
@@ -1076,6 +1066,23 @@ class BambuPrinter:
             log.warning("FTP preview failed for %s: %s", self.model_name, exc)
             self._preview_cache = (cache_key, _BAMBU_PREVIEW_FAILED)
             return None
+
+    def _hydrate_print_preview_metadata(self, print_id: Optional[int]):
+        """Attach 3MF preview metadata when a print started outside Flightdeck."""
+        if not print_id:
+            return None
+        pv = _preview_metadata(self._preview_cache[1]) if self._preview_cache else None
+        if pv is None:
+            pv = _preview_metadata(self.get_preview())
+        if pv is None:
+            pv = _queue_preview_metadata(self.id)
+        if pv:
+            db.update_print_filament_metadata(
+                print_id,
+                filament_grams=pv.filament_weight_g,
+                material=pv.filament_type,
+            )
+        return pv
 
     def get_objects(self) -> dict:
         """Return skip-object candidates parsed from the current 3MF metadata."""
@@ -1459,6 +1466,26 @@ def _active_queue_subtask(printer_id: str) -> Optional[str]:
         return None
     name = str(row.get("filename") or "").rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
     return name.removesuffix(".gcode.3mf").removesuffix(".3mf").removesuffix(".gcode") or None
+
+
+def _bambu_subtask_from_filename(filename: Optional[str]) -> Optional[str]:
+    if not filename or _is_plate_gcode(filename):
+        return None
+    name = str(filename).strip().split("?", 1)[0].rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
+    if not name or name in {".", ".."}:
+        return None
+    lower = name.lower()
+    for suffix in (".gcode.3mf", ".3mf", ".gcode.gz", ".gcode"):
+        if lower.endswith(suffix):
+            name = name[: -len(suffix)]
+            break
+    return name.strip() or None
+
+
+def _resolve_bambu_job_subtask(printer_id: str, filename: Optional[str]) -> Optional[str]:
+    if _is_plate_gcode(filename):
+        return _active_queue_subtask(printer_id)
+    return _bambu_subtask_from_filename(filename) or _active_queue_subtask(printer_id)
 
 
 def _norm_bambu_hex(value: Optional[str]) -> str:

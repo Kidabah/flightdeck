@@ -2,11 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Use live route colour for H-series loaded toolhead`
+- Latest commit: `Hydrate direct Bambu print metadata`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=547 / style.css?v=427 / demo-runtime.js?v=8
+
+### 2026-06-28 fix (direct printer-panel Bambu starts)
+
+**Hydrate direct Bambu print metadata** (`app/printers/bambu.py`, `SESSION_NEXT.md`)
+Bambu prints started straight from the printer screen/storage could create a History row but miss the 3MF preview metadata because Flightdeck only knew how to hydrate jobs that came through its queue. That left direct BigBoy/Big Girl starts without the expected thumbnail/filament metadata path and could prevent live/history spool deductions when the print never had a Flightdeck queue row. The Bambu adapter now resolves a source subtask from the printer-reported filename when no queue job exists, fetches/caches the same FTP preview metadata used by queued jobs, and attaches filament grams/material to the running print row at start, live deduction, and finish. Limitation: if firmware only reports `plate_N.gcode` and there is no active queue/source filename to fall back to, Flightdeck still cannot infer the original 3MF. Backend/service restart required after deploy. No frontend cache bump needed.
 
 ### 2026-06-28 fix (H-series live filament route selection)
 
