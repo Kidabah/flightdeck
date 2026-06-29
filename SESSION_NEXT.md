@@ -6,15 +6,14 @@ Latest GitHub/Pi state:
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=556 / style.css?v=430 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=556 / style.css?v=431 / demo-runtime.js?v=8
 
-### 2026-06-29 UX (live camera height trim)
+### 2026-06-29 UX (live camera height rebalance)
 
-**Trim live camera height so AMS loadout sits higher** (`app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+**Rebalance live camera height** (`app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
 
-- Live camera deck capped at ~46vh (was growing with a 58vh minimum), so the environment/AMS strip sits closer under the feed instead of pinned to the viewport floor.
-- Slightly tighter detail padding and live-strip spacing.
-- Static cache bumped to `style.css?v=430`; hard refresh required.
+- Previous cap (~46vh max) lifted the AMS block too high with a large dead gap below. Camera min is now ~52vh (was 58vh originally, 38vh on the over-correction) with no max-height cap so the feed still fills the column naturally.
+- Static cache bumped to `style.css?v=431`; hard refresh required.
 
 ### 2026-06-29 UX (compact AMS load popover)
 
