@@ -5840,13 +5840,15 @@ button.live-route-node:hover {
 .ams-loadout-deck {
   display: block;
   --ams-loadout-head-space: 2.35rem;
+  --ams-loadout-slot-w: 5.8rem;
+  --ams-loadout-slots-height: calc(1.04rem + (var(--ams-loadout-slot-w) / 0.82));
 }
 
 .ams-loadout-units {
   display: flex;
   flex-wrap: wrap;
   gap: 0.55rem;
-  align-items: flex-start;
+  align-items: stretch;
 }
 
 .ams-loadout-unit {
@@ -5878,8 +5880,8 @@ button.live-route-node:hover {
 }
 
 .ams-loadout-unit-ht {
-  width: min(100%, 18.9rem);
-  grid-template-columns: minmax(8.8rem, 1fr) 4.9rem;
+  width: min(100%, calc(var(--ams-loadout-slot-w) + 6.35rem));
+  grid-template-columns: minmax(0, 1fr) 4.9rem;
 }
 
 .ams-loadout-main {
@@ -5964,9 +5966,11 @@ button.live-route-node:hover {
 .ams-loadout-slots {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(4, minmax(4.4rem, 5.8rem));
+  grid-template-columns: repeat(4, minmax(4.4rem, var(--ams-loadout-slot-w)));
   gap: 0.44rem;
   justify-content: center;
+  align-content: center;
+  min-height: var(--ams-loadout-slots-height);
   padding: 0.52rem;
   border: 1px solid rgba(148,163,184,0.12);
   border-radius: 8px;
@@ -5976,15 +5980,20 @@ button.live-route-node:hover {
 }
 
 .ams-loadout-unit-ht .ams-loadout-slots {
-  grid-template-columns: minmax(4.35rem, 5.15rem);
+  grid-template-columns: minmax(4.4rem, var(--ams-loadout-slot-w));
   justify-content: center;
-  padding: 0.42rem;
+  align-content: center;
+  min-height: var(--ams-loadout-slots-height);
+  padding: 0.52rem;
 }
 
 .ams-loadout-slot {
   min-width: 0;
+  width: 100%;
+  max-width: var(--ams-loadout-slot-w);
   aspect-ratio: 0.82;
   min-height: 0;
+  justify-self: center;
   border: 1px solid rgba(59,130,246,0.18);
   background:
     radial-gradient(ellipse at 50% 50%, color-mix(in srgb, var(--slot-colour) 22%, transparent), transparent 72%),

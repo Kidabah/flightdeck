@@ -6,7 +6,15 @@ Latest GitHub/Pi state:
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=556 / style.css?v=432 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=556 / style.css?v=433 / demo-runtime.js?v=8
+
+### 2026-06-29 UX (AMS HT loadout height match)
+
+**Match AMS HT loadout card height to AMS 1** (`app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Shared CSS vars for slot width and slots-panel height so AMS HT uses the same bay size and card height as a regular 4-slot AMS unit.
+- Loadout row uses stretch alignment so both unit cards line up top and bottom.
+- Static cache bumped to `style.css?v=433`; hard refresh required.
 
 ### 2026-06-29 UX (live camera height rebalance)
 
