@@ -2,12 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Make spool label number large without Spool # prefix`
+- Latest commit: `Trim spool label height while keeping hero number`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=551 / style.css?v=427 / demo-runtime.js?v=8
 - Pi deploy: `cd /home/flightdeck/flightdeck && git pull && sudo systemctl restart flightdeck.service`
+- Pi SSH (Tailscale): `ssh flightdeck@100.106.112.104` or `ssh flightdeck@flightdeck.tail7de73e.ts.net`
+
+### 2026-06-29 polish (spool label height trim)
+
+**Trim spool label height while keeping hero number** (`app/label_printer.py`, `SESSION_NEXT.md`)
+Full spool stickers drop from `696x430` to `696x340` by tightening top metadata spacing and bottom footer margin while keeping the large bordered spool number box and QR readable. Backend/service restart required after deploy. No frontend cache bump needed.
 
 ### 2026-06-29 polish (spool label hero number)
 

@@ -25,6 +25,7 @@ class LabelPrinter:
     MODEL = "QL-700"
     LABEL_SIZE = "62"
     LABEL_WIDTH_PX = 696
+    SPOOL_LABEL_HEIGHT_PX = 340
     LABEL_HEIGHT_PX = 520
     VENDOR = "04f9"
     PRODUCT_PRINTER = "2042"
@@ -76,7 +77,7 @@ class LabelPrinter:
 
     def render_spool_label(self, spool: dict, base_url: str = "https://flightdeck.tail7de73e.ts.net") -> Image.Image:
         # Spool labels stay full-size; rack/location labels use their own compact layout.
-        img = Image.new("RGB", (self.LABEL_WIDTH_PX, 430), "white")
+        img = Image.new("RGB", (self.LABEL_WIDTH_PX, self.SPOOL_LABEL_HEIGHT_PX), "white")
         draw = ImageDraw.Draw(img)
         prefs = spool.get("_label_preferences") or {}
         display_id = spool.get("display_id") or spool.get("id") or "-"
@@ -84,34 +85,34 @@ class LabelPrinter:
         include_colour = prefs.get("label_include_colour", "true") == "true"
         include_location = prefs.get("label_include_location", "true") == "true"
 
-        font_bold = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 42)
-        font_body = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 28)
-        font_small = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 21)
+        font_bold = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 38)
+        font_body = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 26)
+        font_small = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 19)
         number_text = str(display_id)
 
-        x = 46
+        x = 38
         material = " ".join([spool.get("material") or "Material", spool.get("subtype") or ""]).strip()
         brand = spool.get("brand") or "-"
         color_name = spool.get("color_name") or "-"
         color_hex = (spool.get("color_hex") or "").upper()
         location_line = _spool_label_location_text(spool)
-        draw.text((x, 36), _ellipsize(draw, material, font_bold, 420), fill="black", font=font_bold)
-        draw.text((x, 92), _ellipsize(draw, brand if include_brand else "Flightdeck spool", font_body, 420), fill="black", font=font_body)
+        draw.text((x, 22), _ellipsize(draw, material, font_bold, 420), fill="black", font=font_bold)
+        draw.text((x, 62), _ellipsize(draw, brand if include_brand else "Flightdeck spool", font_body, 420), fill="black", font=font_body)
         if include_colour:
             colour_line = color_name
             if color_hex:
                 colour_line = f"{colour_line} {color_hex}"
-            draw.text((x, 132), _ellipsize(draw, colour_line, font_body, 420), fill="black", font=font_body)
+            draw.text((x, 96), _ellipsize(draw, colour_line, font_body, 420), fill="black", font=font_body)
 
-        box = (x, 188, x + 196, 368)
-        draw.rounded_rectangle(box, radius=16, outline="black", width=4)
-        font_number = _hero_number_font(draw, number_text, max_width=box[2] - box[0] - 28)
+        box = (x, 118, x + 182, 278)
+        draw.rounded_rectangle(box, radius=14, outline="black", width=4)
+        font_number = _hero_number_font(draw, number_text, max_width=box[2] - box[0] - 24)
         _draw_text_centered_in_box(draw, number_text, box, font_number)
 
         if location_line and include_location:
-            draw.text((506, 36), "Loc:", fill="black", font=font_small)
-            loc_font = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 24)
-            draw.text((506, 66), _ellipsize(draw, location_line, loc_font, 150), fill="black", font=loc_font)
+            draw.text((506, 22), "Loc:", fill="black", font=font_small)
+            loc_font = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 22)
+            draw.text((506, 48), _ellipsize(draw, location_line, loc_font, 150), fill="black", font=loc_font)
 
         added = str(spool.get("added_at") or "")[:10]
         try:
@@ -119,16 +120,18 @@ class LabelPrinter:
         except Exception:
             added = datetime.utcnow().strftime("%d/%m/%y")
         bottom = f"{round(float(spool.get('label_weight_g') or 0))}g label  |  {added}"
-        draw.text((x, 388), bottom, fill="black", font=font_small)
+        draw.text((x, 296), bottom, fill="black", font=font_small)
 
         qr_base = (base_url or "https://flightdeck.tail7de73e.ts.net").rstrip("/")
         qr_url = f"{qr_base}/#/spool/{spool.get('id')}"
         qr = _qr_image(qr_url)
+        qr_size = 136
+        qr_y = 148
         if qr:
-            img.paste(qr.resize((152, 152)), (506, 218))
+            img.paste(qr.resize((qr_size, qr_size)), (506, qr_y))
         else:
-            draw.rectangle((506, 218, 658, 370), outline="black")
-            draw.text((558, 276), "QR", fill="black", font=font_body)
+            draw.rectangle((506, qr_y, 506 + qr_size, qr_y + qr_size), outline="black")
+            draw.text((558, qr_y + 52), "QR", fill="black", font=font_body)
         return img
 
     def render_compact_spool_label(self, spool: dict, base_url: str = "https://flightdeck.tail7de73e.ts.net") -> Image.Image:
