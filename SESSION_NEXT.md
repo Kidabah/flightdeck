@@ -2,13 +2,22 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Fix generic AMS auto-claim and slot assign UX`
+- Latest commit: `Add quick AMS load by spool number`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=553 / style.css?v=427 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=554 / style.css?v=428 / demo-runtime.js?v=8
 - Pi deploy: `cd /home/flightdeck/flightdeck && git pull && sudo systemctl restart flightdeck.service`
 - Pi SSH (Tailscale): `ssh -i ~/.ssh/flightdeck_cursor flightdeck@100.106.112.104`
+
+### 2026-06-29 UX (quick AMS load by spool #)
+
+**Add quick AMS load by spool number** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Clicking an AMS slot now opens a compact **Load & sync** dialog first: type rack label spool number (e.g. `93`), Enter or click Load — assigns in Flightdeck and pushes profile to Bambu (same as Trust Flightdeck) in one step.
+- Full **AMS Profile Doctor** remains available via the `⋯` button on dashboard AMS slots or **Full AMS Profile Doctor** in the quick dialog / doctor modal.
+- Doctor modal also has a **Quick load by spool #** row at the top for the same one-step flow.
+- Static cache bumped to `app.js?v=554` and `style.css?v=428`; frontend refresh required after deploy (UI-only, no backend restart strictly required but harmless).
 
 ### 2026-06-29 fix (generic AMS slot assign)
 

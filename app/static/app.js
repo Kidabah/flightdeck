@@ -2554,14 +2554,28 @@ document.getElementById('view-printer').addEventListener('click', e => {
   }
 
   const slot = e.target.closest('[data-slot-edit]');
-  if (!slot) return;
-  e.preventDefault();
-  e.stopPropagation();
-  _openSlotEditor(
-    slot.dataset.printerId,
-    Number(slot.dataset.slotIndex),
-    slot.dataset.slotLabel || `S${Number(slot.dataset.slotIndex) + 1}`
-  );
+  if (slot) {
+    e.preventDefault();
+    e.stopPropagation();
+    _openSlotQuickAssign(
+      slot.dataset.printerId,
+      Number(slot.dataset.slotIndex),
+      slot.dataset.slotLabel || `S${Number(slot.dataset.slotIndex) + 1}`
+    );
+    return;
+  }
+
+  const doctor = e.target.closest('[data-slot-doctor]');
+  if (doctor) {
+    e.preventDefault();
+    e.stopPropagation();
+    _openSlotEditor(
+      doctor.dataset.printerId,
+      Number(doctor.dataset.slotIndex),
+      doctor.dataset.slotLabel || `S${Number(doctor.dataset.slotIndex) + 1}`
+    );
+    return;
+  }
 });
 
 // ── Flight Manual ─────────────────────────────────────────────────────────
@@ -4348,7 +4362,8 @@ function _detailAmsPanel(p) {
         <button class="ams-slot${activeCls}${emptyCls}${mappedCls}${warnCls}" ${style}
           data-slot-edit data-printer-id="${p.id}" data-slot-index="${flatSlot}"
           data-slot-label="${esc(_amsSlotLabel(p, flatSlot))}" title="${esc([tip, mismatch].filter(Boolean).join(' · '))}"></button>
-        <span class="ams-slot-type">${loaded ? `#${loaded.id}` : (slot.empty ? '' : (unassigned ? 'Assign' : slot.type))}</span>
+        <span class="ams-slot-type">${loaded ? `#${loaded.id}` : (slot.empty ? '' : 'Assign')}</span>
+        <button type="button" class="ams-slot-doctor" data-slot-doctor data-printer-id="${p.id}" data-slot-index="${flatSlot}" data-slot-label="${esc(_amsSlotLabel(p, flatSlot))}" title="Full AMS Profile Doctor">⋯</button>
       </div>`;
     }).join('');
     return `<div class="ams-unit">
@@ -15517,6 +15532,180 @@ function _slotAmsProfilePayload(container, current) {
   };
 }
 
+async function _findSpoolByEnteredNumber(raw) {
+  let spools = _allSpools;
+  if (!spools?.length) {
+    spools = await fetch('/api/spools').then(r => r.json()).catch(() => []);
+    _allSpools = spools;
+  }
+  return _findSpoolByEnteredNumberSync(raw, spools);
+}
+
+async function _assignSpoolToAmsSlot(printerId, slotIndex, spoolId, { syncAms = true, replaceExisting = true } = {}) {
+  const r = await fetch(`/api/spools/${spoolId}/move`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      printer_id: printerId,
+      slot: Number(slotIndex),
+      replace_existing: replaceExisting,
+      sync_ams: syncAms,
+    }),
+  });
+  if (!r.ok) throw new Error(await _spoolSaveErrorMessage(r, 'Assign failed'));
+  return r.json();
+}
+
+async function _openSlotQuickAssign(printerId, slotIndex, slotLabel) {
+  const printer = _latestPrinters.find(p => p.id === printerId);
+  const title = `${printer?.custom_name || printerId} · ${slotLabel}`;
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay slot-modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal-box slot-quick-modal">
+      <div class="modal-header">
+        <span class="modal-title">${esc(title)}</span>
+        <button class="modal-close-btn">✕</button>
+      </div>
+      <div class="slot-quick-body">
+        <p class="slot-quick-lead">Type the spool number from your label, then load it into this AMS slot and push the profile to Bambu.</p>
+        <div class="slot-quick-row">
+          <label class="slot-quick-label" for="slot-quick-number">Spool #</label>
+          <input id="slot-quick-number" class="spool-form-input slot-quick-input" type="number" min="1" step="1" inputmode="numeric" placeholder="93" autofocus>
+          <button type="button" class="spool-action-btn spool-action-label slot-quick-go" data-slot-quick-go>Load &amp; sync</button>
+        </div>
+        <div class="slot-quick-preview" data-slot-quick-preview>Loading spool…</div>
+        <div class="slot-quick-memory" data-slot-quick-memory hidden></div>
+      </div>
+      <div class="modal-actions slot-quick-actions">
+        <button type="button" class="modal-btn" data-slot-quick-doctor>Full AMS Profile Doctor</button>
+        <button type="button" class="modal-btn modal-btn-primary" data-slot-quick-go>Load &amp; sync</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const close = () => overlay.remove();
+  overlay.querySelector('.modal-close-btn').addEventListener('click', close);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+
+  const input = overlay.querySelector('#slot-quick-number');
+  const preview = overlay.querySelector('[data-slot-quick-preview]');
+  const memoryEl = overlay.querySelector('[data-slot-quick-memory]');
+  let spools = _allSpools;
+  if (!spools?.length) {
+    spools = await fetch('/api/spools').then(r => r.json()).catch(() => []);
+    _allSpools = spools;
+  }
+  const current = spools.find(s =>
+    s.location_printer_id === printerId && Number(s.location_slot) === Number(slotIndex) && !s.archived_at
+  );
+  const slotMemory = await fetch(`/api/printers/${encodeURIComponent(printerId)}/slots/${encodeURIComponent(slotIndex)}/memory`)
+    .then(r => r.json()).catch(() => null);
+  const memorySpool = slotMemory?.spool && !slotMemory.spool.archived_at ? slotMemory.spool : null;
+
+  const renderPreview = () => {
+    const spool = _findSpoolByEnteredNumberSync(input.value, spools);
+    if (!input.value.trim()) {
+      preview.innerHTML = current
+        ? `<span>Currently <strong>${esc(_commandSpoolTitle(current))}</strong></span>`
+        : '<span>Enter a spool number from your rack label.</span>';
+      return;
+    }
+    if (!spool) {
+      preview.innerHTML = `<span class="slot-quick-miss">No active spool found for <strong>#${esc(input.value.trim())}</strong>.</span>`;
+      return;
+    }
+    preview.innerHTML = `<span>Ready to load <strong>${esc(_commandSpoolTitle(spool))}</strong> · ${Math.round(spool.remaining_g || 0)}g</span>`;
+  };
+
+  if (memorySpool && (!current || String(current.id) !== String(memorySpool.id))) {
+    memoryEl.hidden = false;
+    memoryEl.innerHTML = `
+      <span>Last in this slot</span>
+      <button type="button" class="spool-action-btn spool-action-label" data-slot-quick-memory="${memorySpool.id}">
+        Use ${_spoolDisplayLabel(memorySpool)} ${esc(memorySpool.color_name || memorySpool.material || '')}
+      </button>`;
+    memoryEl.querySelector('[data-slot-quick-memory]')?.addEventListener('click', e => {
+      input.value = String(_spoolDisplayId(memorySpool));
+      renderPreview();
+      input.focus();
+    });
+  }
+
+  if (current) input.value = String(_spoolDisplayId(current));
+  renderPreview();
+  input.addEventListener('input', renderPreview);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') overlay.querySelector('[data-slot-quick-go]')?.click();
+  });
+
+  const runLoad = async btn => {
+    const spool = await _findSpoolByEnteredNumber(input.value);
+    if (!spool) {
+      showToast('Spool not found', `No active spool matches #${input.value.trim() || '?'}.`, 'error');
+      input.focus();
+      return;
+    }
+    if (current && String(current.id) === String(spool.id)) {
+      const old = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Syncing';
+      try {
+        const data = await _assignSpoolToAmsSlot(printerId, slotIndex, spool.id, { syncAms: true, replaceExisting: false });
+        _spoolMoveSyncToast(data, printer?.custom_name || printerId, slotLabel);
+        await refreshPrinters();
+        await _refreshSpoolsByPrinter();
+        close();
+      } catch (err) {
+        showToast('AMS sync failed', err.message || '', 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = old;
+      }
+      return;
+    }
+    const old = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Loading';
+    overlay.querySelectorAll('[data-slot-quick-go]').forEach(b => { b.disabled = true; });
+    try {
+      const data = await _assignSpoolToAmsSlot(printerId, slotIndex, spool.id, { syncAms: true, replaceExisting: true });
+      _spoolMoveSyncToast(data, printer?.custom_name || printerId, slotLabel);
+      if (data.replaced_spool_id) {
+        showToast('AMS slot swapped', `Returned spool #${data.replaced_spool_id} and loaded ${_spoolDisplayLabel(spool)}.`, 'success');
+      } else {
+        showToast('Spool loaded', `${_spoolDisplayLabel(spool)} assigned to ${slotLabel}.`, 'success');
+      }
+      await refreshPrinters();
+      await _refreshSpoolsByPrinter();
+      close();
+    } catch (err) {
+      showToast('Load failed', err.message || '', 'error');
+    } finally {
+      overlay.querySelectorAll('[data-slot-quick-go]').forEach(b => {
+        b.disabled = false;
+        b.textContent = old;
+      });
+    }
+  };
+
+  overlay.querySelectorAll('[data-slot-quick-go]').forEach(btn => {
+    btn.addEventListener('click', () => runLoad(btn));
+  });
+  overlay.querySelector('[data-slot-quick-doctor]')?.addEventListener('click', () => {
+    close();
+    _openSlotEditor(printerId, slotIndex, slotLabel);
+  });
+  input.focus();
+  input.select();
+}
+
+function _findSpoolByEnteredNumberSync(raw, spools = _allSpools || []) {
+  const n = parseInt(String(raw || '').replace(/^#/, '').trim(), 10);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return spools.find(s => !s.archived_at && (Number(s.display_id) === n || Number(s.id) === n)) || null;
+}
+
 async function _openSlotEditor(printerId, slotIndex, slotLabel) {
   const printer = _latestPrinters.find(p => p.id === printerId);
   const title = `${printer?.custom_name || printerId} · ${slotLabel}`;
@@ -15680,6 +15869,13 @@ async function _openSlotEditor(printerId, slotIndex, slotLabel) {
         : ''
     );
     body.innerHTML = `
+      <div class="slot-quick-inline">
+        <label class="spool-form-label" for="slot-inline-number">Quick load by spool #</label>
+        <div class="slot-quick-row">
+          <input id="slot-inline-number" class="spool-form-input slot-quick-input" type="number" min="1" step="1" inputmode="numeric" placeholder="93" value="${current ? esc(String(_spoolDisplayId(current))) : ''}">
+          <button type="button" class="spool-action-btn spool-action-label" data-slot-inline-go>Load &amp; sync</button>
+        </div>
+      </div>
       <div class="slot-doctor slot-doctor-${doctor.cls}">
         <div>
           <span>AMS Profile Doctor</span>
@@ -15770,32 +15966,54 @@ async function _openSlotEditor(printerId, slotIndex, slotLabel) {
       });
     });
 
+    body.querySelector('[data-slot-inline-go]')?.addEventListener('click', async e => {
+      const btn = e.currentTarget;
+      const inlineInput = body.querySelector('#slot-inline-number');
+      const spool = await _findSpoolByEnteredNumber(inlineInput?.value);
+      if (!spool) {
+        showToast('Spool not found', `No active spool matches #${inlineInput?.value?.trim() || '?'}.`, 'error');
+        inlineInput?.focus();
+        return;
+      }
+      const old = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Loading';
+      try {
+        const sameSlot = current && String(current.id) === String(spool.id);
+        const data = await _assignSpoolToAmsSlot(printerId, slotIndex, spool.id, {
+          syncAms: true,
+          replaceExisting: !sameSlot,
+        });
+        _spoolMoveSyncToast(data, printer?.custom_name || printerId, slotLabel);
+        await refreshPrinters();
+        await _refreshSpoolsByPrinter();
+        load();
+      } catch (err) {
+        showToast('Load failed', err.message || '', 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = old;
+      }
+    });
+
     body.querySelectorAll('[data-slot-spool-id]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const id = btn.dataset.slotSpoolId;
         btn.disabled = true;
         btn.classList.add('assigning');
-        const r = await fetch(`/api/spools/${id}/move`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            printer_id: printerId,
-            slot: Number(slotIndex),
-            replace_existing: true,
-            sync_ams: _slotReportIsGeneric(report) || _slotReportIsUnknownLoaded(report),
-          }),
-        });
-        if (!r.ok) {
-          btn.classList.remove('assigning');
+        try {
+          const data = await _assignSpoolToAmsSlot(printerId, slotIndex, id, {
+            syncAms: _slotReportIsGeneric(report) || _slotReportIsUnknownLoaded(report),
+            replaceExisting: true,
+          });
+          _spoolMoveSyncToast(data, printer?.custom_name || printerId, slotLabel);
+          if (data.replaced_spool_id) {
+            showToast('AMS slot swapped', `Returned spool #${data.replaced_spool_id} home and assigned spool #${id}.`, 'success');
+          }
+        } catch {
           btn.classList.add('slot-spool-error');
-          setTimeout(load, 1200);
-          return;
         }
-        const data = await r.json().catch(() => ({}));
-        _spoolMoveSyncToast(data, printer?.custom_name || printerId, slotLabel);
-        if (data.replaced_spool_id) {
-          showToast('AMS slot swapped', `Returned spool #${data.replaced_spool_id} home and assigned spool #${id}.`, 'success');
-        }
+        btn.classList.remove('assigning');
         await _refreshSpoolsByPrinter();
         load();
       });
