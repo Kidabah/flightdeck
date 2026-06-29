@@ -96,23 +96,23 @@ class LabelPrinter:
         color_name = spool.get("color_name") or "-"
         color_hex = (spool.get("color_hex") or "").upper()
         location_line = _spool_label_location_text(spool)
-        draw.text((x, 22), _ellipsize(draw, material, font_bold, 420), fill="black", font=font_bold)
-        draw.text((x, 62), _ellipsize(draw, brand if include_brand else "Flightdeck spool", font_body, 420), fill="black", font=font_body)
+        draw.text((x, 12), _ellipsize(draw, material, font_bold, 420), fill="black", font=font_bold)
+        draw.text((x, 48), _ellipsize(draw, brand if include_brand else "Flightdeck spool", font_body, 420), fill="black", font=font_body)
         if include_colour:
             colour_line = color_name
             if color_hex:
                 colour_line = f"{colour_line} {color_hex}"
-            draw.text((x, 96), _ellipsize(draw, colour_line, font_body, 420), fill="black", font=font_body)
+            draw.text((x, 78), _ellipsize(draw, colour_line, font_body, 420), fill="black", font=font_body)
 
-        box = (x, 118, x + 182, 278)
+        box = (x, 128, x + 182, 288)
         draw.rounded_rectangle(box, radius=14, outline="black", width=4)
         font_number = _hero_number_font(draw, number_text, max_width=box[2] - box[0] - 24)
         _draw_text_centered_in_box(draw, number_text, box, font_number)
 
         if location_line and include_location:
-            draw.text((506, 22), "Loc:", fill="black", font=font_small)
+            draw.text((506, 12), "Loc:", fill="black", font=font_small)
             loc_font = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 22)
-            draw.text((506, 48), _ellipsize(draw, location_line, loc_font, 150), fill="black", font=loc_font)
+            draw.text((506, 38), _ellipsize(draw, location_line, loc_font, 150), fill="black", font=loc_font)
 
         added = str(spool.get("added_at") or "")[:10]
         try:

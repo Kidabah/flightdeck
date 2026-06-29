@@ -2,13 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Trim spool label height while keeping hero number`
+- Latest commit: `Raise spool label metadata above number box`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=551 / style.css?v=427 / demo-runtime.js?v=8
 - Pi deploy: `cd /home/flightdeck/flightdeck && git pull && sudo systemctl restart flightdeck.service`
-- Pi SSH (Tailscale): `ssh flightdeck@100.106.112.104` or `ssh flightdeck@flightdeck.tail7de73e.ts.net`
+- Pi SSH (Tailscale): `ssh -i ~/.ssh/flightdeck_cursor flightdeck@100.106.112.104`
+
+### 2026-06-29 polish (spool label metadata spacing)
+
+**Raise spool label metadata above number box** (`app/label_printer.py`, `SESSION_NEXT.md`)
+Moved material, brand, and colour/hex lines up and dropped the hero number box slightly so the top text no longer crowds the bordered spool number. Backend/service restart required after deploy. No frontend cache bump needed.
 
 ### 2026-06-29 polish (spool label height trim)
 
