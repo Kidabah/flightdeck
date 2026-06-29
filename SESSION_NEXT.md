@@ -6,7 +6,15 @@ Latest GitHub/Pi state:
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=555 / style.css?v=428 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=556 / style.css?v=429 / demo-runtime.js?v=8
+
+### 2026-06-29 UX (compact AMS load popover)
+
+**Anchor compact AMS load popover near clicked slot** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Quick load is now a ~220px popover positioned below (or above) the AMS slot you clicked, not a top-of-screen modal.
+- Compact row: slot label, `#` input, **Load** button, tiny preview line, optional **Last: #N**, **Profile doctor** link.
+- Static cache bumped to `app.js?v=556` and `style.css?v=429`; hard refresh required.
 - Pi deploy: `cd /home/flightdeck/flightdeck && git pull && sudo systemctl restart flightdeck.service`
 - Pi SSH (Tailscale): `ssh -i ~/.ssh/flightdeck_cursor flightdeck@100.106.112.104`
 

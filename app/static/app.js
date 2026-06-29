@@ -2390,7 +2390,8 @@ document.addEventListener('click', e => {
     _openSlotQuickAssign(
       target.dataset.printerId,
       Number(target.dataset.slotIndex),
-      target.dataset.slotLabel || `S${Number(target.dataset.slotIndex) + 1}`
+      target.dataset.slotLabel || `S${Number(target.dataset.slotIndex) + 1}`,
+      target
     );
   }
 }, true);
@@ -15545,37 +15546,50 @@ async function _assignSpoolToAmsSlot(printerId, slotIndex, spoolId, { syncAms = 
   return r.json();
 }
 
-async function _openSlotQuickAssign(printerId, slotIndex, slotLabel) {
+async function _openSlotQuickAssign(printerId, slotIndex, slotLabel, anchorEl = null) {
+  document.querySelector('.slot-quick-popover-overlay')?.remove();
+
   const printer = _latestPrinters.find(p => p.id === printerId);
-  const title = `${printer?.custom_name || printerId} · ${slotLabel}`;
+  const anchor = anchorEl?.closest?.('.ams-slot-wrap, .ams-loadout-slot, [data-slot-edit]') || anchorEl;
   const overlay = document.createElement('div');
-  overlay.className = 'modal-overlay slot-modal-overlay';
+  overlay.className = 'slot-quick-popover-overlay';
   overlay.innerHTML = `
-    <div class="modal-box slot-quick-modal">
-      <div class="modal-header">
-        <span class="modal-title">${esc(title)}</span>
-        <button class="modal-close-btn">✕</button>
+    <div class="slot-quick-popover" role="dialog" aria-label="Load spool into ${esc(slotLabel)}">
+      <div class="slot-quick-popover-head">
+        <strong>${esc(slotLabel)}</strong>
+        <button type="button" class="slot-quick-popover-close" aria-label="Close">✕</button>
       </div>
-      <div class="slot-quick-body">
-        <p class="slot-quick-lead">Type the spool number from your label, then load it into this AMS slot and push the profile to Bambu.</p>
-        <div class="slot-quick-row">
-          <label class="slot-quick-label" for="slot-quick-number">Spool #</label>
-          <input id="slot-quick-number" class="spool-form-input slot-quick-input" type="number" min="1" step="1" inputmode="numeric" placeholder="93" autofocus>
-          <button type="button" class="spool-action-btn spool-action-label slot-quick-go" data-slot-quick-go>Load &amp; sync</button>
-        </div>
-        <div class="slot-quick-preview" data-slot-quick-preview>Loading spool…</div>
-        <div class="slot-quick-memory" data-slot-quick-memory hidden></div>
+      <div class="slot-quick-popover-row">
+        <label class="slot-quick-label" for="slot-quick-number">#</label>
+        <input id="slot-quick-number" class="spool-form-input slot-quick-input" type="number" min="1" step="1" inputmode="numeric" placeholder="93" autofocus>
+        <button type="button" class="slot-quick-go" data-slot-quick-go>Load</button>
       </div>
-      <div class="modal-actions slot-quick-actions">
-        <button type="button" class="modal-btn" data-slot-quick-doctor>Full AMS Profile Doctor</button>
-        <button type="button" class="modal-btn modal-btn-primary" data-slot-quick-go>Load &amp; sync</button>
-      </div>
+      <div class="slot-quick-preview" data-slot-quick-preview>…</div>
+      <div class="slot-quick-memory" data-slot-quick-memory hidden></div>
+      <button type="button" class="slot-quick-doctor-link" data-slot-quick-doctor>Profile doctor</button>
     </div>`;
   document.body.appendChild(overlay);
 
-  const close = () => overlay.remove();
-  overlay.querySelector('.modal-close-btn').addEventListener('click', close);
+  const popover = overlay.querySelector('.slot-quick-popover');
+  const reposition = () => _positionSlotQuickPopover(popover, anchor);
+  reposition();
+  const onViewportChange = () => reposition();
+  window.addEventListener('resize', onViewportChange);
+  window.addEventListener('scroll', onViewportChange, true);
+
+  const close = () => {
+    window.removeEventListener('resize', onViewportChange);
+    window.removeEventListener('scroll', onViewportChange, true);
+    document.removeEventListener('keydown', onKeydown, true);
+    overlay.remove();
+  };
+  const onKeydown = e => {
+    if (e.key === 'Escape') close();
+  };
+  document.addEventListener('keydown', onKeydown, true);
+  overlay.querySelector('.slot-quick-popover-close')?.addEventListener('click', close);
   overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  popover.addEventListener('click', e => e.stopPropagation());
 
   const input = overlay.querySelector('#slot-quick-number');
   const preview = overlay.querySelector('[data-slot-quick-preview]');
@@ -15596,25 +15610,21 @@ async function _openSlotQuickAssign(printerId, slotIndex, slotLabel) {
     const spool = _findSpoolByEnteredNumberSync(input.value, spools);
     if (!input.value.trim()) {
       preview.innerHTML = current
-        ? `<span>Currently <strong>${esc(_commandSpoolTitle(current))}</strong></span>`
-        : '<span>Enter a spool number from your rack label.</span>';
+        ? `Current: ${_spoolDisplayLabel(current)} ${esc(current.color_name || current.material || '')}`
+        : 'Rack label spool #';
       return;
     }
     if (!spool) {
-      preview.innerHTML = `<span class="slot-quick-miss">No active spool found for <strong>#${esc(input.value.trim())}</strong>.</span>`;
+      preview.innerHTML = `<span class="slot-quick-miss">No spool #${esc(input.value.trim())}</span>`;
       return;
     }
-    preview.innerHTML = `<span>Ready to load <strong>${esc(_commandSpoolTitle(spool))}</strong> · ${Math.round(spool.remaining_g || 0)}g</span>`;
+    preview.textContent = `${_spoolDisplayLabel(spool)} ${spool.color_name || spool.material || ''} · ${Math.round(spool.remaining_g || 0)}g`;
   };
 
   if (memorySpool && (!current || String(current.id) !== String(memorySpool.id))) {
     memoryEl.hidden = false;
-    memoryEl.innerHTML = `
-      <span>Last in this slot</span>
-      <button type="button" class="spool-action-btn spool-action-label" data-slot-quick-memory="${memorySpool.id}">
-        Use ${_spoolDisplayLabel(memorySpool)} ${esc(memorySpool.color_name || memorySpool.material || '')}
-      </button>`;
-    memoryEl.querySelector('[data-slot-quick-memory]')?.addEventListener('click', e => {
+    memoryEl.innerHTML = `<button type="button" class="slot-quick-memory-btn" data-slot-quick-memory="${memorySpool.id}">Last: ${_spoolDisplayLabel(memorySpool)}</button>`;
+    memoryEl.querySelector('[data-slot-quick-memory]')?.addEventListener('click', () => {
       input.value = String(_spoolDisplayId(memorySpool));
       renderPreview();
       input.focus();
@@ -15638,7 +15648,7 @@ async function _openSlotQuickAssign(printerId, slotIndex, slotLabel) {
     if (current && String(current.id) === String(spool.id)) {
       const old = btn.textContent;
       btn.disabled = true;
-      btn.textContent = 'Syncing';
+      btn.textContent = '…';
       try {
         const data = await _assignSpoolToAmsSlot(printerId, slotIndex, spool.id, { syncAms: true, replaceExisting: false });
         _spoolMoveSyncToast(data, printer?.custom_name || printerId, slotLabel);
@@ -15655,15 +15665,12 @@ async function _openSlotQuickAssign(printerId, slotIndex, slotLabel) {
     }
     const old = btn.textContent;
     btn.disabled = true;
-    btn.textContent = 'Loading';
-    overlay.querySelectorAll('[data-slot-quick-go]').forEach(b => { b.disabled = true; });
+    btn.textContent = '…';
     try {
       const data = await _assignSpoolToAmsSlot(printerId, slotIndex, spool.id, { syncAms: true, replaceExisting: true });
       _spoolMoveSyncToast(data, printer?.custom_name || printerId, slotLabel);
       if (data.replaced_spool_id) {
         showToast('AMS slot swapped', `Returned spool #${data.replaced_spool_id} and loaded ${_spoolDisplayLabel(spool)}.`, 'success');
-      } else {
-        showToast('Spool loaded', `${_spoolDisplayLabel(spool)} assigned to ${slotLabel}.`, 'success');
       }
       await refreshPrinters();
       await _refreshSpoolsByPrinter();
@@ -15671,22 +15678,44 @@ async function _openSlotQuickAssign(printerId, slotIndex, slotLabel) {
     } catch (err) {
       showToast('Load failed', err.message || '', 'error');
     } finally {
-      overlay.querySelectorAll('[data-slot-quick-go]').forEach(b => {
-        b.disabled = false;
-        b.textContent = old;
-      });
+      btn.disabled = false;
+      btn.textContent = old;
     }
   };
 
-  overlay.querySelectorAll('[data-slot-quick-go]').forEach(btn => {
-    btn.addEventListener('click', () => runLoad(btn));
-  });
+  overlay.querySelector('[data-slot-quick-go]')?.addEventListener('click', e => runLoad(e.currentTarget));
   overlay.querySelector('[data-slot-quick-doctor]')?.addEventListener('click', () => {
     close();
     _openSlotEditor(printerId, slotIndex, slotLabel);
   });
-  input.focus();
-  input.select();
+  requestAnimationFrame(() => {
+    reposition();
+    input.focus();
+    input.select();
+  });
+}
+
+function _positionSlotQuickPopover(popover, anchorEl) {
+  if (!popover) return;
+  const anchor = anchorEl?.closest?.('.ams-slot-wrap, .ams-loadout-slot, [data-slot-edit]') || anchorEl;
+  const margin = 6;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  if (!anchor?.getBoundingClientRect) {
+    popover.style.top = `${Math.round(vh * 0.4)}px`;
+    popover.style.left = `${Math.round(vw / 2 - popover.offsetWidth / 2)}px`;
+    return;
+  }
+  const rect = anchor.getBoundingClientRect();
+  const pw = popover.offsetWidth || 220;
+  const ph = popover.offsetHeight || 120;
+  let top = rect.bottom + margin;
+  let left = rect.left + rect.width / 2 - pw / 2;
+  if (top + ph > vh - margin) top = rect.top - ph - margin;
+  left = Math.max(margin, Math.min(left, vw - pw - margin));
+  top = Math.max(margin, Math.min(top, vh - ph - margin));
+  popover.style.top = `${Math.round(top)}px`;
+  popover.style.left = `${Math.round(left)}px`;
 }
 
 function _findSpoolByEnteredNumberSync(raw, spools = _allSpools || []) {
