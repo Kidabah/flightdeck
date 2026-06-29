@@ -2,13 +2,25 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Restore AMS auto-claim on fresh slot transitions`
+- Latest commit: `Fix generic AMS auto-claim and slot assign UX`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=552 / style.css?v=427 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=553 / style.css?v=427 / demo-runtime.js?v=8
 - Pi deploy: `cd /home/flightdeck/flightdeck && git pull && sudo systemctl restart flightdeck.service`
 - Pi SSH (Tailscale): `ssh -i ~/.ssh/flightdeck_cursor flightdeck@100.106.112.104`
+
+### 2026-06-29 fix (generic AMS slot assign)
+
+**Fix generic AMS auto-claim and slot assign UX** (`app/main.py`, `app/db.py`, `app/static/app.js`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- BigBoy AMS 1 S3 could show Bambu generic black PLA with no Flightdeck spool number while the physical roll was spool #93 light gold. Generic Bambu reports are stale/wrong colour — expected until Trust Flightdeck writes the real profile.
+- Fixed dead auto-claim path: generic slots were blocked by the low-confidence guard before the generic handler could run. Generic loads now auto-claim via slot memory + material match (ignores wrong Bambu colour).
+- Slot memory expanded: `get_recent_spool_for_slot()` now reads decision-log moves, not just print snapshots.
+- AMS slot cards show orange **Assign** when printer reports loaded but Flightdeck has no spool; Profile Doctor explains generic/stale colour.
+- Assigning from Profile Doctor on generic/incomplete reports now sends `sync_ams` so Bambu gets the real spool profile immediately.
+- Added `GET /api/printers/{id}/slots/{slot}/memory` and Profile Doctor **Last spool in this slot** suggestion.
+- Static cache bumped to `app.js?v=553`; backend restart plus frontend refresh required after deploy.
 
 ### 2026-06-29 feature (AMS auto-claim v2)
 

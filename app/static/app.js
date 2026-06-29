@@ -4333,19 +4333,22 @@ function _detailAmsPanel(p) {
       const flatSlot = _amsFlatSlot(unit, slot);
       const loaded = (_latestSpoolsByPrinter[p.id] || []).find(s => Number(s.location_slot) === flatSlot);
       const mismatch = _slotMismatch(loaded, slot);
+      const unassigned = !loaded && !slot.empty;
       const style = (!slot.empty && slot.color) ? `style="background:${slot.color}"` : '';
       const activeCls = slot.active ? ' ams-active' : '';
       const emptyCls  = slot.empty  ? ' ams-empty'  : '';
       const mappedCls = loaded ? ' ams-mapped' : '';
-      const warnCls = mismatch ? ' ams-warning' : '';
+      const warnCls = mismatch || unassigned ? ' ams-warning' : '';
       const tip = slot.empty
         ? `Slot ${slot.idx + 1}: empty`
-        : _slotProfileLabel(slot);
+        : unassigned
+          ? `${_slotProfileLabel(slot)} · assign a Flightdeck spool`
+          : _slotProfileLabel(slot);
       return `<div class="ams-slot-wrap">
         <button class="ams-slot${activeCls}${emptyCls}${mappedCls}${warnCls}" ${style}
           data-slot-edit data-printer-id="${p.id}" data-slot-index="${flatSlot}"
           data-slot-label="${esc(_amsSlotLabel(p, flatSlot))}" title="${esc([tip, mismatch].filter(Boolean).join(' · '))}"></button>
-        <span class="ams-slot-type">${loaded ? `#${loaded.id}` : (slot.empty ? '' : slot.type)}</span>
+        <span class="ams-slot-type">${loaded ? `#${loaded.id}` : (slot.empty ? '' : (unassigned ? 'Assign' : slot.type))}</span>
       </div>`;
     }).join('');
     return `<div class="ams-unit">
@@ -15275,7 +15278,12 @@ function _reportedBrandMatchesSpool(reportedBrand, spool) {
 
 function _slotMismatch(spool, report) {
   const printerLoaded = report && !report.empty;
-  if (!spool && printerLoaded) return 'Printer reports filament but no Flightdeck spool is assigned';
+  if (!spool && printerLoaded) {
+    if (_slotReportIsGeneric(report)) {
+      return 'Printer reports generic/stale filament — assign the physical shelf spool; Bambu colour is often wrong until you Trust Flightdeck';
+    }
+    return 'Printer reports filament but no Flightdeck spool is assigned';
+  }
   if (spool && report?.empty) return `Flightdeck has spool #${spool.id} assigned but printer reports empty`;
   if (!spool || !printerLoaded) return '';
 
@@ -15536,10 +15544,11 @@ async function _openSlotEditor(printerId, slotIndex, slotLabel) {
   overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
 
   async function load() {
-    const [spools, locations, profileData] = await Promise.all([
+    const [spools, locations, profileData, slotMemory] = await Promise.all([
       fetch('/api/spools').then(r => r.json()).catch(() => []),
       fetch('/api/spool-locations').then(r => r.json()).catch(() => []),
       fetch('/api/slicer/profiles').then(r => r.json()).catch(() => null),
+      fetch(`/api/printers/${encodeURIComponent(printerId)}/slots/${encodeURIComponent(slotIndex)}/memory`).then(r => r.json()).catch(() => null),
     ]);
     if (profileData) _slicerProfileData = profileData;
     _allSpools = spools;
@@ -15559,7 +15568,23 @@ async function _openSlotEditor(printerId, slotIndex, slotLabel) {
         (a.material || '').localeCompare(b.material || '') ||
         (a.color_name || '').localeCompare(b.color_name || '')
       );
-    const bestCandidate = report && !report.empty && !lowConfidenceReport ? candidates.find(s => _slotCandidateScore(s, report) < 320) : null;
+    const memorySpool = slotMemory?.spool && !slotMemory.spool.archived_at ? slotMemory.spool : null;
+    let bestCandidate = null;
+    if (report && !report.empty && !lowConfidenceReport) {
+      bestCandidate = candidates.find(s => _slotCandidateScore(s, report) < 320) || null;
+    }
+    if (!bestCandidate && memorySpool && candidates.some(s => String(s.id) === String(memorySpool.id))) {
+      bestCandidate = candidates.find(s => String(s.id) === String(memorySpool.id)) || null;
+    }
+    const memorySuggestionHtml = memorySpool && !current && candidates.some(s => String(s.id) === String(memorySpool.id)) ? `
+      <div class="slot-suggestion">
+        <div>
+          <span>Last spool in this slot</span>
+          <strong>${esc(memorySpool.color_name || memorySpool.color_hex || 'Colour')} · ${esc(memorySpool.material)}${memorySpool.subtype ? ` ${esc(memorySpool.subtype)}` : ''}</strong>
+          <p>${esc(memorySpool.brand || 'Unknown brand')} · ${_spoolDisplayLabel(memorySpool)} · ${Math.round(memorySpool.remaining_g || 0)}g · ${esc(_spoolStorageLocationName(memorySpool.storage_location_id))}</p>
+        </div>
+        <button type="button" class="spool-action-btn spool-action-label" data-slot-spool-id="${memorySpool.id}">Assign #${memorySpool.id}</button>
+      </div>` : '';
     const reportProfile = report ? (_slotProfileLabel(report) || 'Loaded filament') : 'No report';
     const reportColour = report?.empty ? 'Empty' : (report?.color || 'Unknown');
     const reportMaterial = report?.empty ? 'Empty' : (_slotReportedMaterial(report) || 'Unknown');
@@ -15675,6 +15700,7 @@ async function _openSlotEditor(printerId, slotIndex, slotLabel) {
         </div>
         ${mismatch ? `<div class="slot-warning">${esc(mismatch)}</div>` : ''}
         ${genericWarningHtml}
+        ${memorySuggestionHtml}
         ${suggestionHtml}
         ${current ? `
           <div class="slot-actions slot-actions-primary">
@@ -15752,7 +15778,12 @@ async function _openSlotEditor(printerId, slotIndex, slotLabel) {
         const r = await fetch(`/api/spools/${id}/move`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ printer_id: printerId, slot: Number(slotIndex), replace_existing: true }),
+          body: JSON.stringify({
+            printer_id: printerId,
+            slot: Number(slotIndex),
+            replace_existing: true,
+            sync_ams: _slotReportIsGeneric(report) || _slotReportIsUnknownLoaded(report),
+          }),
         });
         if (!r.ok) {
           btn.classList.remove('assigning');

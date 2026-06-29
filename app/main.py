@@ -545,6 +545,7 @@ def _slot_fingerprint(slot: dict) -> dict:
     return {
         "empty": empty,
         "loaded_sig": "" if empty else _slot_loaded_signature(slot),
+        "tray_state": _tray_state_int(slot),
     }
 
 
@@ -554,6 +555,8 @@ def _slot_report_transition(prev: Optional[dict], curr: dict) -> bool:
         return False
     if prev.get("empty") and not curr.get("empty"):
         return True
+    if prev.get("tray_state") != 11 and curr.get("tray_state") == 11 and not curr.get("empty"):
+        return True
     if (
         not prev.get("empty")
         and not curr.get("empty")
@@ -561,6 +564,41 @@ def _slot_report_transition(prev: Optional[dict], curr: dict) -> bool:
     ):
         return True
     return False
+
+
+def _generic_slot_spool_match(
+    slot: dict,
+    spool: dict,
+    preferred_spool_id: Optional[int],
+) -> Optional[tuple[float, str]]:
+    """Match a shelved spool to a generic Bambu report using material + slot memory."""
+    if spool.get("location_printer_id") is not None or spool.get("archived_at"):
+        return None
+    if preferred_spool_id is not None and int(spool.get("id") or 0) != int(preferred_spool_id):
+        return None
+    if preferred_spool_id is None:
+        return None
+    reported_material = _reported_slot_material_text(slot)
+    if not _spool_matches_material(spool, str(reported_material)):
+        return None
+    if _generic_profile_rejects_spool(slot, spool):
+        return None
+    return 85.0, "slot memory, generic report"
+
+
+def _best_spool_for_generic_reported_slot(
+    slot: dict,
+    candidates: list[dict],
+    preferred_spool_id: Optional[int],
+) -> Optional[tuple[dict, float, str]]:
+    if preferred_spool_id is None:
+        return None
+    for spool in candidates:
+        result = _generic_slot_spool_match(slot, spool, preferred_spool_id)
+        if result:
+            score, reason = result
+            return spool, score, reason
+    return None
 
 
 def _slot_physically_present(slot: dict) -> bool:
@@ -633,7 +671,7 @@ def _reconcile_reported_loaded_slots(printer_status: dict) -> None:
             continue
         if not _slot_physically_present(slot):
             continue
-        if _reported_slot_is_low_confidence(slot):
+        if _reported_slot_is_unknown_loaded(slot):
             continue
 
         preferred_spool_id = db.get_recent_spool_for_slot(str(printer_id), int(flat_slot))
@@ -647,8 +685,9 @@ def _reconcile_reported_loaded_slots(printer_status: dict) -> None:
             ]
             if not slot_available:
                 continue
-
-        best = _best_spool_for_reported_slot(slot, slot_available, preferred_spool_id)
+            best = _best_spool_for_generic_reported_slot(slot, slot_available, preferred_spool_id)
+        else:
+            best = _best_spool_for_reported_slot(slot, slot_available, preferred_spool_id)
         if not best:
             continue
 
@@ -2863,6 +2902,13 @@ async def get_printer(printer_id: str):
             return asdict(simulated.status(id, model_name, custom_name, icon, profile, scenario))
 
     raise HTTPException(status_code=404, detail="printer not found")
+
+
+@app.get("/api/printers/{printer_id}/slots/{slot}/memory")
+async def get_printer_slot_memory(printer_id: str, slot: int):
+    spool_id = db.get_recent_spool_for_slot(printer_id, int(slot))
+    spool = db.get_spool(spool_id) if spool_id else None
+    return {"spool_id": spool_id, "spool": spool}
 
 
 @app.get("/api/printers/{printer_id}/bambu/mqtt")

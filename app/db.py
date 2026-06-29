@@ -3703,7 +3703,14 @@ def get_spool_at_slot(printer_id: str, slot: int) -> Optional[dict]:
 
 
 def get_recent_spool_for_slot(printer_id: str, slot: int, limit: int = 25) -> Optional[int]:
-    """Return the most recent print-start spool id captured for a printer slot."""
+    """Return the most recent spool id known for a printer slot."""
+    slot_int = int(slot)
+    from_decisions = _recent_spool_id_from_slot_decisions(printer_id, slot_int)
+    if from_decisions is not None:
+        spool = get_spool(from_decisions)
+        if spool and not spool.get("archived_at"):
+            return from_decisions
+
     import json
     with _conn() as conn:
         rows = conn.execute(
@@ -3714,7 +3721,6 @@ def get_recent_spool_for_slot(printer_id: str, slot: int, limit: int = 25) -> Op
                LIMIT ?""",
             (printer_id, int(limit)),
         ).fetchall()
-    slot_int = int(slot)
     keys = [str(slot_int)]
     if 128 <= slot_int < 512:
         keys.append(str(slot_int * 4))
@@ -3726,9 +3732,43 @@ def get_recent_spool_for_slot(printer_id: str, slot: int, limit: int = 25) -> Op
         entry = next((snapshot.get(key) for key in keys if snapshot.get(key) is not None), None)
         if isinstance(entry, dict) and entry.get("spool_id"):
             try:
-                return int(entry["spool_id"])
+                spool_id = int(entry["spool_id"])
             except (TypeError, ValueError):
                 return None
+            spool = get_spool(spool_id)
+            if spool and not spool.get("archived_at"):
+                return spool_id
+    return None
+
+
+def _recent_spool_id_from_slot_decisions(printer_id: str, slot: int) -> Optional[int]:
+    """Last spool moved into this printer slot according to the decision log."""
+    import re
+
+    target = f"{printer_id}:{int(slot)}"
+    move_re = re.compile(rf"Spool #(\d+)\b.*→ {re.escape(target)}\b")
+    claim_re = re.compile(rf"Spool #(\d+)\b.*auto-claimed\b")
+    with _conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT detail, event
+            FROM decisions
+            WHERE event IN ('spool_moved', 'spool_auto_claimed', 'spool_auto_returned')
+            ORDER BY logged_at DESC
+            LIMIT 80
+            """,
+        ).fetchall()
+    for row in rows:
+        detail = str(row["detail"] or "")
+        if row["event"] == "spool_auto_returned" and target in detail:
+            continue
+        match = move_re.search(detail)
+        if match:
+            return int(match.group(1))
+        if row["event"] == "spool_auto_claimed" and target.split(":")[0] in detail and f"to " in detail:
+            claim_match = claim_re.search(detail)
+            if claim_match:
+                return int(claim_match.group(1))
     return None
 
 
