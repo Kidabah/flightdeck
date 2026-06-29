@@ -2,12 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Keep spool and rack labels on separate templates`
+- Latest commit: `Make spool label number large and borderless-prefix`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=551 / style.css?v=427 / demo-runtime.js?v=8
 - Pi deploy: `cd /home/flightdeck/flightdeck && git pull && sudo systemctl restart flightdeck.service`
+
+### 2026-06-29 polish (spool label hero number)
+
+**Make spool label number large without Spool # prefix** (`app/label_printer.py`, `SESSION_NEXT.md`)
+Full spool stickers now drop the `Spool #` prefix and render the visible spool number alone inside a large bordered box (up to 156pt for short numbers) so it reads clearly from across the room. Material, brand, and colour stay above the number box; location and QR stay on the right. Backend/service restart required after deploy. No frontend cache bump needed.
 
 ### 2026-06-29 fix (spool vs rack label templates)
 

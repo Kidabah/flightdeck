@@ -84,10 +84,10 @@ class LabelPrinter:
         include_colour = prefs.get("label_include_colour", "true") == "true"
         include_location = prefs.get("label_include_location", "true") == "true"
 
-        font_bold = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 46)
-        font_body = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 32)
+        font_bold = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 42)
+        font_body = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 28)
         font_small = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 21)
-        font_badge = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 30)
+        number_text = str(display_id)
 
         x = 46
         material = " ".join([spool.get("material") or "Material", spool.get("subtype") or ""]).strip()
@@ -95,18 +95,23 @@ class LabelPrinter:
         color_name = spool.get("color_name") or "-"
         color_hex = (spool.get("color_hex") or "").upper()
         location_line = _spool_label_location_text(spool)
-        draw.text((x, 42), _ellipsize(draw, material, font_bold, 420), fill="black", font=font_bold)
-        draw.text((x, 116), _ellipsize(draw, brand if include_brand else "Flightdeck spool", font_body, 420), fill="black", font=font_body)
-        colour_line = color_name if include_colour else f"Spool #{display_id}"
-        if color_hex and include_colour:
-            colour_line = f"{colour_line} {color_hex}"
-        draw.text((x, 168), _ellipsize(draw, colour_line, font_body, 420), fill="black", font=font_body)
-        draw.text((x, 258), f"Spool #{display_id}", fill="black", font=font_badge)
+        draw.text((x, 36), _ellipsize(draw, material, font_bold, 420), fill="black", font=font_bold)
+        draw.text((x, 92), _ellipsize(draw, brand if include_brand else "Flightdeck spool", font_body, 420), fill="black", font=font_body)
+        if include_colour:
+            colour_line = color_name
+            if color_hex:
+                colour_line = f"{colour_line} {color_hex}"
+            draw.text((x, 132), _ellipsize(draw, colour_line, font_body, 420), fill="black", font=font_body)
+
+        box = (x, 188, x + 196, 368)
+        draw.rounded_rectangle(box, radius=16, outline="black", width=4)
+        font_number = _hero_number_font(draw, number_text, max_width=box[2] - box[0] - 28)
+        _draw_text_centered_in_box(draw, number_text, box, font_number)
 
         if location_line and include_location:
-            draw.text((506, 42), "Loc:", fill="black", font=font_small)
+            draw.text((506, 36), "Loc:", fill="black", font=font_small)
             loc_font = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 24)
-            draw.text((506, 72), _ellipsize(draw, location_line, loc_font, 150), fill="black", font=loc_font)
+            draw.text((506, 66), _ellipsize(draw, location_line, loc_font, 150), fill="black", font=loc_font)
 
         added = str(spool.get("added_at") or "")[:10]
         try:
@@ -114,7 +119,7 @@ class LabelPrinter:
         except Exception:
             added = datetime.utcnow().strftime("%d/%m/%y")
         bottom = f"{round(float(spool.get('label_weight_g') or 0))}g label  |  {added}"
-        draw.text((x, 372), bottom, fill="black", font=font_small)
+        draw.text((x, 388), bottom, fill="black", font=font_small)
 
         qr_base = (base_url or "https://flightdeck.tail7de73e.ts.net").rstrip("/")
         qr_url = f"{qr_base}/#/spool/{spool.get('id')}"
@@ -303,6 +308,30 @@ def _ellipsize(draw: ImageDraw.ImageDraw, text: str, font, max_width: int) -> st
     while text and draw.textlength(text + "...", font=font) > max_width:
         text = text[:-1]
     return text + "..."
+
+
+def _hero_number_font(draw: ImageDraw.ImageDraw, number_text: str, *, max_width: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+    bold_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+    for size in (156, 140, 124, 108, 92, 78):
+        font = _font(bold_path, size)
+        if draw.textlength(number_text, font=font) <= max_width:
+            return font
+    return _font(bold_path, 78)
+
+
+def _draw_text_centered_in_box(
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    box: tuple[int, int, int, int],
+    font,
+) -> None:
+    left, top, right, bottom = box
+    bbox = draw.textbbox((0, 0), text, font=font)
+    text_w = bbox[2] - bbox[0]
+    text_h = bbox[3] - bbox[1]
+    x = left + ((right - left) - text_w) / 2 - bbox[0]
+    y = top + ((bottom - top) - text_h) / 2 - bbox[1]
+    draw.text((x, y), text, fill="black", font=font)
 
 
 def _luminance(hex_color: str) -> float:
