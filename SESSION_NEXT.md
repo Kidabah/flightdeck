@@ -6,7 +6,7 @@ Latest GitHub/Pi state:
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=556 / style.css?v=431 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=556 / style.css?v=432 / demo-runtime.js?v=8
 
 ### 2026-06-29 UX (live camera height rebalance)
 

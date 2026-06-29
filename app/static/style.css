@@ -4105,7 +4105,7 @@ button.briefing-row {
 
 .live-main-deck {
   flex: 1;
-  min-height: clamp(20rem, 52vh, 40rem);
+  min-height: clamp(19rem, 50vh, 39rem);
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   position: relative;
