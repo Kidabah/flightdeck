@@ -6,9 +6,18 @@ Latest GitHub/Pi state:
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=554 / style.css?v=428 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=555 / style.css?v=428 / demo-runtime.js?v=8
 - Pi deploy: `cd /home/flightdeck/flightdeck && git pull && sudo systemctl restart flightdeck.service`
 - Pi SSH (Tailscale): `ssh -i ~/.ssh/flightdeck_cursor flightdeck@100.106.112.104`
+
+### 2026-06-29 fix (quick load opens doctor by mistake)
+
+**Fix AMS slot click opening full doctor instead of quick load** (`app/static/app.js`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- A legacy document-level click handler still routed every `data-slot-edit` click to the full Profile Doctor, so users saw the modified doctor with quick-load at the top instead of the compact Load & sync dialog.
+- Slot swatch clicks now open the small quick-load dialog everywhere (dashboard, live, fleet wall). Full doctor is only via the slot `⋯` button or **Full AMS Profile Doctor** in the quick dialog.
+- Removed the quick-load row from the top of the full doctor so that modal is unchanged again.
+- Static cache bumped to `app.js?v=555`; hard refresh required.
 
 ### 2026-06-29 UX (quick AMS load by spool #)
 

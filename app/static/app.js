@@ -2364,6 +2364,18 @@ document.addEventListener('click', e => {
     return;
   }
 
+  const doctor = e.target.closest('[data-slot-doctor]');
+  if (doctor) {
+    e.preventDefault();
+    e.stopPropagation();
+    _openSlotEditor(
+      doctor.dataset.printerId,
+      Number(doctor.dataset.slotIndex),
+      doctor.dataset.slotLabel || `S${Number(doctor.dataset.slotIndex) + 1}`
+    );
+    return;
+  }
+
   const target = e.target.closest('[data-warning-target], [data-slot-edit]');
   if (!target) return;
   if (target.dataset.warningTarget === 'hash') {
@@ -2375,7 +2387,7 @@ document.addEventListener('click', e => {
   if (target.dataset.warningTarget === 'slot' || target.dataset.slotEdit !== undefined) {
     e.preventDefault();
     e.stopPropagation();
-    _openSlotEditor(
+    _openSlotQuickAssign(
       target.dataset.printerId,
       Number(target.dataset.slotIndex),
       target.dataset.slotLabel || `S${Number(target.dataset.slotIndex) + 1}`
@@ -2553,29 +2565,6 @@ document.getElementById('view-printer').addEventListener('click', e => {
     return;
   }
 
-  const slot = e.target.closest('[data-slot-edit]');
-  if (slot) {
-    e.preventDefault();
-    e.stopPropagation();
-    _openSlotQuickAssign(
-      slot.dataset.printerId,
-      Number(slot.dataset.slotIndex),
-      slot.dataset.slotLabel || `S${Number(slot.dataset.slotIndex) + 1}`
-    );
-    return;
-  }
-
-  const doctor = e.target.closest('[data-slot-doctor]');
-  if (doctor) {
-    e.preventDefault();
-    e.stopPropagation();
-    _openSlotEditor(
-      doctor.dataset.printerId,
-      Number(doctor.dataset.slotIndex),
-      doctor.dataset.slotLabel || `S${Number(doctor.dataset.slotIndex) + 1}`
-    );
-    return;
-  }
 });
 
 // ── Flight Manual ─────────────────────────────────────────────────────────
@@ -15869,13 +15858,6 @@ async function _openSlotEditor(printerId, slotIndex, slotLabel) {
         : ''
     );
     body.innerHTML = `
-      <div class="slot-quick-inline">
-        <label class="spool-form-label" for="slot-inline-number">Quick load by spool #</label>
-        <div class="slot-quick-row">
-          <input id="slot-inline-number" class="spool-form-input slot-quick-input" type="number" min="1" step="1" inputmode="numeric" placeholder="93" value="${current ? esc(String(_spoolDisplayId(current))) : ''}">
-          <button type="button" class="spool-action-btn spool-action-label" data-slot-inline-go>Load &amp; sync</button>
-        </div>
-      </div>
       <div class="slot-doctor slot-doctor-${doctor.cls}">
         <div>
           <span>AMS Profile Doctor</span>
@@ -15964,36 +15946,6 @@ async function _openSlotEditor(printerId, slotIndex, slotLabel) {
         if (profileEnableInput) profileEnableInput.checked = true;
         applyProfileName();
       });
-    });
-
-    body.querySelector('[data-slot-inline-go]')?.addEventListener('click', async e => {
-      const btn = e.currentTarget;
-      const inlineInput = body.querySelector('#slot-inline-number');
-      const spool = await _findSpoolByEnteredNumber(inlineInput?.value);
-      if (!spool) {
-        showToast('Spool not found', `No active spool matches #${inlineInput?.value?.trim() || '?'}.`, 'error');
-        inlineInput?.focus();
-        return;
-      }
-      const old = btn.textContent;
-      btn.disabled = true;
-      btn.textContent = 'Loading';
-      try {
-        const sameSlot = current && String(current.id) === String(spool.id);
-        const data = await _assignSpoolToAmsSlot(printerId, slotIndex, spool.id, {
-          syncAms: true,
-          replaceExisting: !sameSlot,
-        });
-        _spoolMoveSyncToast(data, printer?.custom_name || printerId, slotLabel);
-        await refreshPrinters();
-        await _refreshSpoolsByPrinter();
-        load();
-      } catch (err) {
-        showToast('Load failed', err.message || '', 'error');
-      } finally {
-        btn.disabled = false;
-        btn.textContent = old;
-      }
     });
 
     body.querySelectorAll('[data-slot-spool-id]').forEach(btn => {
