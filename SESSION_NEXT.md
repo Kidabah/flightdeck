@@ -2,17 +2,22 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Fix H2D queue preflight nozzle-path stock checks`
+- Latest commit: `Fix H2D queue preflight left AMS nozzle parsing`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=549 / style.css?v=427 / demo-runtime.js?v=8
 - Pi deploy: `cd /home/flightdeck/flightdeck && git pull && sudo systemctl restart flightdeck.service`
 
+### 2026-06-29 fix (H2D queue preflight left AMS nozzle parsing)
+
+**Fix H2D queue preflight left AMS nozzle parsing** (`app/main.py`, `app/printers/bambu_ftp.py`, `app/db.py`, `SESSION_NEXT.md`)
+Follow-up after `b857b50` made BigBoy/H2D queue blocks worse: a Bambu Studio job grouped to the left nozzle with red PETG in regular AMS 2 Pro slot 1 could show `job is sliced for right nozzle, but matching petg Red is loaded in AMS 1 slot 1 (left nozzle)`. The real fixes are split: `_spool_h2d_nozzle()` must map regular AMS slots to left (`0`) and AMS HT to right (`1`), and the 3MF parser must keep translating Bambu `physical_extruder_map` / MQTT extruder ids (`0=right`, `1=left`) into Flightdeck queue ids (`0=left`, `1=right`) via `_bambu_nozzle_to_flightdeck()`. Removing that swap in `b857b50` was incorrect and is reverted. H2D pending jobs still re-read the stored queue 3MF at preflight so existing rows pick up the corrected nozzle without re-upload. Backend/service restart required after deploy. No frontend cache bump needed.
+
 ### 2026-06-29 fix (H2D queue preflight nozzle-path stock)
 
 **Fix H2D queue preflight nozzle-path stock checks** (`app/main.py`, `app/printers/bambu_ftp.py`, `app/db.py`, `SESSION_NEXT.md`)
-BigBoy/H2D queue jobs could block with `Loaded nozzle-path stock short: left nozzle Red (no loaded spool) 0g/43g` even when the matching Flightdeck spool was loaded in regular AMS with enough grams. Three related bugs remained after the earlier H2D fallback pass: `_spool_h2d_nozzle()` in queue preflight still mapped regular AMS slots to the right path, the 3MF parser still swapped Bambu Studio left/right ids using the old MQTT convention, and pending queue rows kept stale inverted nozzle metadata from upload time. Queue preflight now maps regular AMS to left and AMS HT to right, the 3MF parser keeps Bambu Studio's `0=left / 1=right` ids unchanged, and H2D pending jobs re-read the stored queue 3MF at preflight time so existing rows pick up the corrected nozzle path without re-upload. `queue_list()` now includes `file_path` for that refresh path. Backend/service restart required after deploy. No frontend cache bump needed.
+BigBoy/H2D queue jobs could block with `Loaded nozzle-path stock short: left nozzle Red (no loaded spool) 0g/43g` even when the matching Flightdeck spool was loaded in regular AMS with enough grams. `_spool_h2d_nozzle()` in queue preflight still mapped regular AMS slots to the right path, pending queue rows kept stale inverted nozzle metadata from upload time, and H2D pending jobs now re-read the stored queue 3MF at preflight time so existing rows pick up corrected nozzle metadata without re-upload. `queue_list()` now includes `file_path` for that refresh path. Note: commit `b857b50` also removed the required `_bambu_nozzle_to_flightdeck()` swap and was corrected in the follow-up above. Backend/service restart required after deploy. No frontend cache bump needed.
 
 ### 2026-06-29 fix (H2D nozzle-path blocker and spool labels)
 
