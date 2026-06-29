@@ -15149,7 +15149,8 @@ const _SPOOL_ACTIONS = [
   { key: 'detail', label: 'Info', title: 'Details', kind: 'link', cls: 'spool-action-detail' },
   { key: 'restock', label: 'Restock', title: 'Restock this reserved spool number', cls: 'spool-action-label' },
   { key: 'assign', label: 'Assign', title: 'Assign to printer or shelf', cls: 'spool-action-assign' },
-  { key: 'label', label: 'Label', title: 'Print label', cls: 'spool-action-label' },
+  { key: 'label', label: 'Label', title: 'Print spool label', cls: 'spool-action-label' },
+  { key: 'rack-label', label: 'Rack', title: 'Print rack slot label', cls: 'spool-action-label' },
   { key: 'weigh', label: 'Weigh', title: 'Weigh from scale', cls: 'spool-action-weigh' },
   { key: 'edit', label: 'Edit', title: 'Edit', cls: 'spool-action-edit' },
   { key: 'duplicate', label: 'Copy', title: 'Duplicate', cls: 'spool-action-utility' },
@@ -15158,11 +15159,19 @@ const _SPOOL_ACTIONS = [
   { key: 'delete', label: 'Del', title: 'Delete', cls: 'spool-action-utility spool-action-danger' },
 ];
 
+function _spoolHasRackLabel(spool) {
+  const locId = spool?.storage_location_id ?? spool?.home_storage_location_id;
+  const loc = _spoolLocations.find(l => String(l.id) === String(locId));
+  if (loc && _rackLocationRange(loc)) return true;
+  return (_spoolDisplayId(spool) || 0) > 0;
+}
+
 function _spoolActionsFor(spool) {
   const archived = !!spool?.archived_at;
   return _SPOOL_ACTIONS.filter(action => {
+    if (action.key === 'rack-label') return !archived && _spoolHasRackLabel(spool);
     if (action.key === 'restock') return archived;
-    if (archived && ['assign', 'label', 'weigh', 'edit', 'reset', 'archive', 'duplicate'].includes(action.key)) return false;
+    if (archived && ['assign', 'label', 'weigh', 'edit', 'reset', 'archive', 'duplicate', 'rack-label'].includes(action.key)) return false;
     if (!archived && action.key === 'restock') return false;
     return true;
   });
@@ -17436,12 +17445,15 @@ function _attachSpoolListEvents(el, listEl, refresh = _refreshSpoolsSurface) {
       } else if (action === 'edit') {
         const spool = _allSpools.find(s => s.id == id);
         if (spool) _openSpoolModal(costs, refresh, spool);
-      } else if (action === 'label') {
+      } else if (action === 'label' || action === 'rack-label') {
         btn.disabled = true;
         const old = btn.textContent;
         btn.textContent = '...';
         try {
-          const r = await fetch(`/api/label_printer/print/${id}`, { method: 'POST' });
+          const url = action === 'rack-label'
+            ? `/api/label_printer/print/${id}/compact`
+            : `/api/label_printer/print/${id}`;
+          const r = await fetch(url, { method: 'POST' });
           if (!r.ok) throw new Error((await r.json()).detail || 'Print failed');
           btn.textContent = 'Done';
         } catch (err) {
@@ -18907,7 +18919,8 @@ function _locationsCategoryHtml(locations) {
         <div class="location-spool-weight${pctCls}">${Math.round(s.remaining_g || 0)}g</div>
         <div class="location-spool-actions">
           <a class="spool-action-btn spool-action-detail" href="#/spool/${s.id}">Details</a>
-          <button class="spool-action-btn spool-action-label" data-action="label" data-id="${s.id}">Label</button>
+          <button class="spool-action-btn spool-action-label" data-action="label" data-id="${s.id}" title="Print spool label">Spool label</button>
+          ${_rackLocationRange(loc) ? `<button class="spool-action-btn spool-action-label" data-action="rack-label" data-id="${s.id}" title="Print rack slot label">Rack label</button>` : ''}
           <button class="spool-action-btn spool-action-edit" data-action="edit" data-id="${s.id}">Edit</button>
         </div>
       </div>`;
@@ -18922,7 +18935,7 @@ function _locationsCategoryHtml(locations) {
           <strong>${spools.length}</strong>
           <span>${spools.length === 1 ? 'spool' : 'spools'}</span>
           <small>${(grams / 1000).toFixed(2)}kg</small>
-          <button class="spool-action-btn spool-action-label" data-location-action="label" data-id="${loc.id}">Label</button>
+          <button class="spool-action-btn spool-action-label" data-location-action="label" data-id="${loc.id}" title="Print rack row marker">Row label</button>
         </div>
       </div>
       <div class="location-spool-list">${spoolRows}</div>

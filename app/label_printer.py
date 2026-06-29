@@ -97,21 +97,23 @@ class LabelPrinter:
         location_line = _spool_label_location_text(spool)
         draw.text((x, 42), _ellipsize(draw, material, font_bold, 420), fill="black", font=font_bold)
         draw.text((x, 116), _ellipsize(draw, brand if include_brand else "Flightdeck spool", font_body, 420), fill="black", font=font_body)
-        draw.text((x, 168), _ellipsize(draw, color_name if include_colour else f"Spool #{display_id}", font_body, 300), fill="black", font=font_body)
+        colour_line = color_name if include_colour else f"Spool #{display_id}"
         if color_hex and include_colour:
-            draw.text((x, 210), color_hex, fill="black", font=font_badge)
+            colour_line = f"{colour_line} {color_hex}"
+        draw.text((x, 168), _ellipsize(draw, colour_line, font_body, 420), fill="black", font=font_body)
         draw.text((x, 258), f"Spool #{display_id}", fill="black", font=font_badge)
 
         if location_line and include_location:
             draw.text((506, 42), "Loc:", fill="black", font=font_small)
-            draw.text((506, 72), _ellipsize(draw, location_line, font_body, 150), fill="black", font=font_body)
+            loc_font = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 24)
+            draw.text((506, 72), _ellipsize(draw, location_line, loc_font, 150), fill="black", font=loc_font)
 
         added = str(spool.get("added_at") or "")[:10]
         try:
             added = datetime.fromisoformat(added).strftime("%d/%m/%y")
         except Exception:
             added = datetime.utcnow().strftime("%d/%m/%y")
-        bottom = f"{round(float(spool.get('label_weight_g') or 0))}g label weight  |  {added}"
+        bottom = f"{round(float(spool.get('label_weight_g') or 0))}g label  |  {added}"
         draw.text((x, 372), bottom, fill="black", font=font_small)
 
         qr_base = (base_url or "https://flightdeck.tail7de73e.ts.net").rstrip("/")
@@ -125,6 +127,7 @@ class LabelPrinter:
         return img
 
     def render_compact_spool_label(self, spool: dict, base_url: str = "https://flightdeck.tail7de73e.ts.net") -> Image.Image:
+        """Short rack-position strip for a numbered cupboard slot."""
         img = Image.new("RGB", (self.LABEL_WIDTH_PX, 210), "white")
         draw = ImageDraw.Draw(img)
         prefs = spool.get("_label_preferences") or {}
@@ -144,7 +147,7 @@ class LabelPrinter:
         brand = spool.get("brand") or "-"
         color_name = spool.get("color_name") or "-"
         color_hex = (spool.get("color_hex") or "").upper()
-        location_line = _spool_label_location_text(spool)
+        location_line = _rack_spool_label_location_text(spool)
 
         draw.rounded_rectangle((x, 26, 178, 178), radius=14, outline="black", width=3)
         number_text = f"{display_id}"
@@ -188,6 +191,14 @@ class LabelPrinter:
             self.last_error = status.last_error
             return False
         image = self.render_spool_label(spool, base_url=base_url)
+        return self._print_image(image)
+
+    def print_compact_spool_label(self, spool: dict, base_url: str = "https://flightdeck.tail7de73e.ts.net") -> bool:
+        status = self.status()
+        if not status.available:
+            self.last_error = status.last_error
+            return False
+        image = self.render_compact_spool_label(spool, base_url=base_url)
         return self._print_image(image)
 
     def render_location_label(self, location: dict, base_url: str = "https://flightdeck.tail7de73e.ts.net") -> Image.Image:
@@ -312,11 +323,40 @@ def _rack_label_parts(name: str, notes: str) -> tuple[Optional[str], Optional[st
 
 
 def _spool_label_location_text(spool: dict) -> str:
+    """Plain home/storage location for full spool stickers."""
     loaded = bool(str(spool.get("location_printer_id") or "").strip())
     current_location = spool.get("storage_location_name") or spool.get("storage_location")
     home_location = spool.get("home_storage_location_name") or spool.get("home_storage_location")
     location = (home_location or current_location or "Storage") if loaded else (current_location or home_location or "Storage")
-    return str(location)
+    return str(location).strip() or "Storage"
+
+
+def _rack_spool_label_location_text(spool: dict) -> str:
+    """Rack row marker for compact slot stickers beside the physical rack."""
+    for key in ("storage_location_name", "storage_location", "home_storage_location_name", "home_storage_location"):
+        text = str(spool.get(key) or "").strip()
+        if text and re.search(r"rack\s*row", text, re.IGNORECASE):
+            return text
+    try:
+        num = int(spool.get("display_id") or spool.get("id") or 0)
+    except (TypeError, ValueError):
+        num = 0
+    if num > 0:
+        row = (num - 1) // 10 + 1
+        start = (row - 1) * 10 + 1
+        end = start + 9
+        return f"Rack Row {row} · {start}-{end}"
+    return _spool_label_location_text(spool)
+
+
+def _compact_location_name(name: str) -> str:
+    text = str(name or "").strip()
+    if not text:
+        return "Storage"
+    range_match = re.search(r"(?<![\d-])(\d+\s*-\s*\d+)(?!\s*-)", text)
+    if range_match:
+        return f"Rack {range_match.group(1).replace(' ', '')}"
+    return text
 
 
 def _qr_image(url: str) -> Optional[Image.Image]:
@@ -346,7 +386,3 @@ def _friendly_usb_error(exc: Exception) -> str:
     if "Access denied" in message or "insufficient permissions" in message:
         return "QL-700 USB permission denied; add the flightdeck user to lp or apply the Brother udev rule"
     return message
-
-
-def _compact_ql700_label_enabled() -> bool:
-    return os.getenv("FLIGHTDECK_LABEL_COMPACT", "true").strip().lower() not in {"0", "false", "no", "off"}

@@ -2,12 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Fix H2D queue preflight left AMS nozzle parsing`
+- Latest commit: `Keep spool and rack labels on separate templates`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=549 / style.css?v=427 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=551 / style.css?v=427 / demo-runtime.js?v=8
 - Pi deploy: `cd /home/flightdeck/flightdeck && git pull && sudo systemctl restart flightdeck.service`
+
+### 2026-06-29 fix (spool vs rack label templates)
+
+**Keep spool and rack labels on separate templates** (`app/label_printer.py`, `app/main.py`, `app/static/app.js`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
+Flightdeck prints three distinct Brother QL-700 layouts: full spool stickers for filament rolls (`696x430`, material/brand/colour/`Spool #N`/plain `Loc:`/QR), compact rack-position strips for numbered cupboard slots (`696x210`, big slot number/material/`Rack Row N · 1-10`/QR), and short rack-row wall markers via `render_location_label()` (`696x190`). Normal spool print paths now always use the full template; compact printing is only exposed as `Rack label` / `rack-label` actions. AMS slot label buttons were corrected back to the full spool sticker instead of the rack strip. Static cache bumped to `app.js?v=551`; backend restart required after deploy for label rendering, frontend hard refresh for the new buttons.
 
 ### 2026-06-29 fix (H2D queue preflight left AMS nozzle parsing)
 
