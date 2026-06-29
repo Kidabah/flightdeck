@@ -2,15 +2,25 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Raise spool label metadata above number box`
+- Latest commit: `Restore AMS auto-claim on fresh slot transitions`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=551 / style.css?v=427 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=552 / style.css?v=427 / demo-runtime.js?v=8
 - Pi deploy: `cd /home/flightdeck/flightdeck && git pull && sudo systemctl restart flightdeck.service`
 - Pi SSH (Tailscale): `ssh -i ~/.ssh/flightdeck_cursor flightdeck@100.106.112.104`
 
-### 2026-06-29 polish (spool label metadata spacing)
+### 2026-06-29 feature (AMS auto-claim v2)
+
+**Restore AMS auto-claim on fresh slot transitions** (`app/main.py`, `app/db.py`, `app/static/app.js`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Re-enabled `_reconcile_reported_loaded_slots()` with transition-based safety: only auto-claims when a poll sees empty→loaded or a profile/colour change, not on persistent stale AMS HT tray data (the failure mode that disabled auto-claim in `27f8d17`).
+- First poll after restart establishes a baseline fingerprint per slot — no claim on stale reports already sitting there.
+- Still requires unique high-confidence shelf match, physical-present tray signal, and skips generic/unknown Bambu profiles unless slot memory points at a specific spool.
+- Respects empty-slot auto-return grace window so a just-returned spool is not immediately re-claimed.
+- New preference **Settings → Preferences → AMS Inventory → Auto-claim on load** (`ams_auto_claim_enabled`, default on).
+- Static cache bumped to `app.js?v=552`; backend restart plus frontend refresh required after deploy.
+
 
 **Raise spool label metadata above number box** (`app/label_printer.py`, `SESSION_NEXT.md`)
 Moved material, brand, and colour/hex lines up and dropped the hero number box slightly so the top text no longer crowds the bordered spool number. Backend/service restart required after deploy. No frontend cache bump needed.

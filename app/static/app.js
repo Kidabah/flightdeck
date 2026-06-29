@@ -14586,6 +14586,16 @@ function _preferencesCategoryHtml() {
           ${_settingToggle('queue_strict_colour', [{ value: 'true', label: 'Strict' }, { value: 'false', label: 'Advisory' }], _prefBool('queue_strict_colour', 'true') ? 'true' : 'false')}
         </div>
       </div>
+    </div>
+    <div class="settings-section">
+      <div class="settings-section-title">AMS Inventory</div>
+      <div class="settings-form-row">
+        <label class="settings-label">Auto-claim on load</label>
+        <div class="setting-toggle-group">
+          ${_settingToggle('ams_auto_claim_enabled', [{ value: 'true', label: 'On' }, { value: 'false', label: 'Off' }], _prefBool('ams_auto_claim_enabled', 'true') ? 'true' : 'false')}
+        </div>
+        <p class="settings-help">When a spool is physically inserted, move a unique high-confidence shelf match into that AMS slot. Ignores stale tray reports until the printer report actually changes.</p>
+      </div>
     </div>`;
 }
 

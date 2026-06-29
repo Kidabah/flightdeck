@@ -68,6 +68,7 @@ _latest_printers_at: datetime | None = None
 _gather_lock: asyncio.Lock | None = None
 _scale_keep_awake_task: asyncio.Task | None = None
 _EMPTY_SLOT_AUTO_RETURN_GRACE_SECONDS = 600
+_AMS_SLOT_FINGERPRINTS: dict[str, dict] = {}
 _scale = Scale()
 _label_printer = LabelPrinter()
 _MAX_PRINT_FILE_BYTES = int(os.getenv("FLIGHTDECK_MAX_PRINT_FILE_MB", "2048")) * 1024 * 1024
@@ -495,14 +496,194 @@ def _best_spool_for_reported_slot(slot: dict, candidates: list[dict], preferred_
     return best[3], best[0], best[4]
 
 
-def _reconcile_reported_loaded_slots(printer_status: dict) -> None:
-    """Do not move inventory based only on Bambu AMS reports.
+def _ams_auto_claim_enabled() -> bool:
+    try:
+        settings = db.get_all_settings()
+    except Exception:
+        settings = {}
+    return str(settings.get("ams_auto_claim_enabled", "true")).strip().lower() in {"1", "true", "yes", "on"}
 
-    Bambu can retain stale tray profile data after the physical spool changes,
-    especially on AMS HT. The AMS Profile Doctor still scores and suggests
-    likely shelf matches, but stock movement must be operator-approved.
+
+def _slot_fingerprint_key(printer_id: str, flat_slot: int) -> str:
+    return f"{printer_id}:{flat_slot}"
+
+
+def _tray_state_int(slot: dict) -> Optional[int]:
+    try:
+        return int(slot.get("tray_state"))
+    except (TypeError, ValueError):
+        return None
+
+
+def _reported_slot_is_unknown_loaded(slot: dict) -> bool:
+    if not slot or slot.get("empty"):
+        return False
+    material = str(_reported_slot_material_text(slot) or "").strip()
+    color = str(slot.get("color") or "").strip()
+    brandish = str(slot.get("brand") or slot.get("profile_name") or slot.get("profile_id") or "").strip()
+    return not material and not color and not brandish
+
+
+def _reported_slot_is_low_confidence(slot: dict) -> bool:
+    return _reported_slot_is_generic(slot) or _reported_slot_is_unknown_loaded(slot)
+
+
+def _slot_loaded_signature(slot: dict) -> str:
+    parts = [
+        str(slot.get("profile_id") or "").strip().upper(),
+        str(slot.get("color") or "").strip().upper(),
+        str(slot.get("type") or "").strip().upper(),
+        _norm_material(str(slot.get("brand") or "")),
+        _norm_material(str(slot.get("profile_name") or "")),
+        str(_tray_state_int(slot) or ""),
+    ]
+    return "|".join(parts)
+
+
+def _slot_fingerprint(slot: dict) -> dict:
+    empty = bool(slot.get("empty")) or _reported_slot_is_stale_empty(slot)
+    return {
+        "empty": empty,
+        "loaded_sig": "" if empty else _slot_loaded_signature(slot),
+    }
+
+
+def _slot_report_transition(prev: Optional[dict], curr: dict) -> bool:
+    """True when the MQTT report changed like a fresh spool insert."""
+    if not prev:
+        return False
+    if prev.get("empty") and not curr.get("empty"):
+        return True
+    if (
+        not prev.get("empty")
+        and not curr.get("empty")
+        and prev.get("loaded_sig") != curr.get("loaded_sig")
+    ):
+        return True
+    return False
+
+
+def _slot_physically_present(slot: dict) -> bool:
+    if slot.get("empty") or _reported_slot_is_stale_empty(slot):
+        return False
+    if _tray_state_int(slot) == 11:
+        return True
+    tray_type = str(slot.get("type") or "").strip()
+    color = str(slot.get("color") or "").strip()
+    return bool(tray_type and color)
+
+
+def _recent_auto_return_from_slot(printer_id: str, flat_slot: int, spool_id: int) -> bool:
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            row = conn.execute(
+                """
+                SELECT 1
+                FROM decisions
+                WHERE event = 'spool_auto_returned'
+                  AND detail LIKE ?
+                  AND logged_at >= datetime('now', ?)
+                LIMIT 1
+                """,
+                (
+                    f"Spool #{spool_id} %from empty %{printer_id}:{flat_slot}%",
+                    f"-{_EMPTY_SLOT_AUTO_RETURN_GRACE_SECONDS} seconds",
+                ),
+            ).fetchone()
+        return row is not None
+    except Exception as exc:
+        log.debug("recent auto-return check failed: %s", exc)
+        return False
+
+
+def _reconcile_reported_loaded_slots(printer_status: dict) -> None:
+    """Claim a shelved spool when Bambu reports a fresh AMS/MMU load.
+
+    Only reacts to empty→loaded or profile/colour transitions between polls.
+    Persistent stale tray data — common on AMS HT — is ignored until the report
+    actually changes, which is what caused false auto-claims before.
     """
-    return
+    printer_id = printer_status.get("id")
+    if not printer_id:
+        return
+
+    loaded_by_slot = db.get_spools_by_printer(str(printer_id))
+    auto_claim = _ams_auto_claim_enabled()
+    available = [
+        spool for spool in db.get_spools()
+        if spool.get("location_printer_id") is None and not spool.get("archived_at")
+    ]
+
+    for slot in _flatten_reported_ams_slots(printer_status, include_empty=True):
+        flat_slot = slot.get("flat_slot")
+        if flat_slot is None:
+            continue
+        key = _slot_fingerprint_key(str(printer_id), int(flat_slot))
+        curr_fp = _slot_fingerprint(slot)
+        prev_fp = _AMS_SLOT_FINGERPRINTS.get(key)
+        _AMS_SLOT_FINGERPRINTS[key] = curr_fp
+
+        if not auto_claim or not available:
+            continue
+        if curr_fp.get("empty"):
+            continue
+        if loaded_by_slot.get(int(flat_slot)):
+            continue
+        if not _slot_report_transition(prev_fp, curr_fp):
+            continue
+        if not _slot_physically_present(slot):
+            continue
+        if _reported_slot_is_low_confidence(slot):
+            continue
+
+        preferred_spool_id = db.get_recent_spool_for_slot(str(printer_id), int(flat_slot))
+        slot_available = available
+        if _reported_slot_is_generic(slot):
+            if preferred_spool_id is None:
+                continue
+            slot_available = [
+                spool for spool in available
+                if int(spool.get("id") or 0) == int(preferred_spool_id)
+            ]
+            if not slot_available:
+                continue
+
+        best = _best_spool_for_reported_slot(slot, slot_available, preferred_spool_id)
+        if not best:
+            continue
+
+        spool, score, reason = best
+        if _recent_auto_return_from_slot(str(printer_id), int(flat_slot), int(spool["id"])):
+            continue
+
+        result = db.move_spool(
+            int(spool["id"]),
+            str(printer_id),
+            int(flat_slot),
+            spool.get("storage_location_id") or spool.get("home_storage_location_id"),
+        )
+        if not result.get("ok"):
+            continue
+
+        source_location = _spool_location_label(
+            spool.get("storage_location_id") or spool.get("home_storage_location_id")
+        )
+        reported = " ".join(
+            str(slot.get(key) or "").strip()
+            for key in ("brand", "type", "profile_name")
+            if str(slot.get(key) or "").strip()
+        ) or "filament"
+        db.log_decision(
+            str(printer_id),
+            "spool_auto_claimed",
+            (
+                f"Spool #{spool['id']} auto-claimed from {source_location} "
+                f"to {slot.get('label') or flat_slot}; fresh printer report "
+                f"{reported} {slot.get('color') or ''} (score {score:.0f}: {reason})"
+            ),
+        )
+        loaded_by_slot[int(flat_slot)] = spool
+        available = [candidate for candidate in available if int(candidate["id"]) != int(spool["id"])]
 
 
 async def _grab_snapshot(printer_id: str) -> Optional[bytes]:

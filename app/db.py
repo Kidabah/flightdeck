@@ -26,6 +26,7 @@ DEFAULT_SETTINGS = {
     "label_include_brand": "true",
     "label_include_location": "true",
     "queue_strict_colour": "true",
+    "ams_auto_claim_enabled": "true",
     "bambu_cloud_last_auth_at": "",
     "bambu_cloud_token_days": "90",
     "bambu_cloud_warn_days": "75",
