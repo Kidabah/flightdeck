@@ -287,21 +287,18 @@ def _parse_int_list(value) -> list[int]:
 
 
 def _bambu_nozzle_to_flightdeck(value: int) -> Optional[int]:
-    """Convert Bambu Studio's H-series nozzle id to Flightdeck's internal id.
+    """Normalize Bambu Studio's H-series nozzle id for Flightdeck.
 
-    Bambu exports H-series slicer grouping with 0=left and 1=right, while the
-    printer MQTT temperature/extruder map uses 0=right and 1=left internally.
-    Queue checks and AMS dispatch share the MQTT convention.
+    Both Bambu Studio slicer grouping and Flightdeck's H-series handling use
+    0=left and 1=right.
     """
-    if value == 0:
-        return 1
-    if value == 1:
-        return 0
+    if value in (0, 1):
+        return value
     return None
 
 
 def _parse_filament_nozzle_map(project_settings: str, plate: Optional[ET.Element] = None) -> list[int]:
-    """Return per-filament H-series nozzle targets where 0=right and 1=left."""
+    """Return per-filament H-series nozzle targets where 0=left and 1=right."""
     nozzle_map = _parse_int_list(_parse_config_value(project_settings, "filament_nozzle_map"))
     physical_map = _parse_int_list(_parse_config_value(project_settings, "physical_extruder_map"))
     if nozzle_map:

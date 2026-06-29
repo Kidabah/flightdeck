@@ -5965,6 +5965,21 @@ async def print_spool_label(spool_id: int):
     return {"ok": True}
 
 
+@app.post("/api/label_printer/print/{spool_id}/compact")
+async def print_compact_spool_label(spool_id: int):
+    spool = db.get_spool(spool_id)
+    if not spool:
+        raise HTTPException(status_code=404, detail="Spool not found")
+    ok = await asyncio.to_thread(_label_printer.print_compact_spool_label, _label_spool(spool), _label_base_url())
+    if not ok:
+        message = _label_printer.last_error or "Label printer unavailable"
+        db.log_decision("system", "label_print_failed", f"Compact spool #{spool_id}: {message}")
+        _notify("warn", "Label print failed", f"Spool #{spool_id}: {message}", link="#/settings/hardware")
+        raise HTTPException(status_code=503, detail=message)
+    db.log_decision("system", "label_printed", f"Compact spool #{spool_id}")
+    return {"ok": True}
+
+
 @app.post("/api/label_printer/location/{location_id}")
 async def print_location_label(location_id: int):
     location = next((loc for loc in db.get_spool_locations(include_archived=True) if int(loc["id"]) == int(location_id)), None)
@@ -7598,10 +7613,39 @@ def _queue_filament_colors(job: dict) -> list[dict]:
         return []
 
 
-def _queue_colour_requirements(job: dict) -> list[dict]:
+def _queue_filament_colors_for_preflight(job: dict, printer_status: Optional[dict]) -> list[dict]:
+    """Re-read H2D 3MF nozzle metadata so queue checks use current parser rules."""
+    colors = _queue_filament_colors(job)
+    if not _is_h2d_printer_status(printer_status):
+        return colors
+    filename = str(job.get("filename") or "")
+    if _queue_file_extension(filename) != ".3mf":
+        return colors
+    file_path = job.get("file_path")
+    if not file_path:
+        job_id = job.get("id")
+        if job_id is not None:
+            full = db.queue_get(int(job_id))
+            file_path = (full or {}).get("file_path")
+    if not file_path:
+        return colors
+    try:
+        data = Path(file_path).read_bytes()
+    except OSError:
+        return colors
+    try:
+        refreshed = _queue_filament_colors(
+            {"filament_colors": _queue_file_metadata(filename, data).get("filament_colors")}
+        )
+    except Exception:
+        return colors
+    return refreshed or colors
+
+
+def _queue_colour_requirements(job: dict, printer_status: Optional[dict] = None) -> list[dict]:
     material = _norm_material(job.get("filament_type"))
     grouped: dict[tuple[str, str], dict] = {}
-    for item in _queue_filament_colors(job):
+    for item in _queue_filament_colors_for_preflight(job, printer_status):
         color = _norm_hex(item.get("color"))
         if not color:
             continue
@@ -7612,10 +7656,10 @@ def _queue_colour_requirements(job: dict) -> list[dict]:
     return list(grouped.values())
 
 
-def _queue_nozzle_requirements(job: dict) -> list[dict]:
+def _queue_nozzle_requirements(job: dict, printer_status: Optional[dict] = None) -> list[dict]:
     material = _norm_material(job.get("filament_type"))
     out = []
-    for item in _queue_filament_colors(job):
+    for item in _queue_filament_colors_for_preflight(job, printer_status):
         try:
             nozzle = int(item.get("nozzle"))
         except (TypeError, ValueError):
@@ -7746,7 +7790,7 @@ def _reported_ams_path_slots(printer_status: Optional[dict]) -> list[dict]:
 
 
 def _h2d_nozzle_mapping_issues(job: dict, printer_status: Optional[dict]) -> list[dict]:
-    requirements = _queue_nozzle_requirements(job)
+    requirements = _queue_nozzle_requirements(job, printer_status)
     if not requirements:
         return []
     slots = _reported_ams_path_slots(printer_status)
@@ -7827,7 +7871,9 @@ def _spool_h2d_nozzle(spool: dict) -> Optional[int]:
         slot = int(spool.get("location_slot"))
     except (TypeError, ValueError):
         return None
-    return 0 if slot >= 128 else 1
+    # H2D/H-series path numbering is 0=left, 1=right. Regular AMS units feed
+    # the left path; AMS HT virtual slots (128+) feed the right path.
+    return 1 if slot >= 128 else 0
 
 
 def _queue_nozzle_coverage(requirements: list[dict], spools: list[dict], required_g: Optional[float]) -> list[dict]:
@@ -8064,8 +8110,8 @@ def _queue_preflight(job: dict, printer_status: Optional[dict]) -> dict:
 
     required_g = job.get("filament_weight_g")
     material = job.get("filament_type")
-    color_reqs = _queue_colour_requirements(job)
-    nozzle_reqs = _queue_nozzle_requirements(job)
+    color_reqs = _queue_colour_requirements(job, printer_status)
+    nozzle_reqs = _queue_nozzle_requirements(job, printer_status)
     loaded = db.get_spools_by_printer(job["printer_id"])
     loaded_spools = list(loaded.values())
     material_matches = [s for s in loaded_spools if _spool_matches_material(s, material)]

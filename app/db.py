@@ -4489,7 +4489,7 @@ def queue_list(printer_id: Optional[str] = None) -> list[dict]:
     with _conn() as conn:
         if printer_id:
             rows = conn.execute(
-                f"""SELECT id, printer_id, position, filename, file_size, status,
+                f"""SELECT id, printer_id, position, filename, file_path, file_size, status,
                            estimated_seconds, filament_weight_g, filament_type, filament_colors,
                            created_at, started_at, finished_at, error_msg,
                            (preview_png IS NOT NULL) AS has_preview
@@ -4499,7 +4499,7 @@ def queue_list(printer_id: Optional[str] = None) -> list[dict]:
             ).fetchall()
         else:
             rows = conn.execute(
-                f"""SELECT id, printer_id, position, filename, file_size, status,
+                f"""SELECT id, printer_id, position, filename, file_path, file_size, status,
                            estimated_seconds, filament_weight_g, filament_type, filament_colors,
                            created_at, started_at, finished_at, error_msg,
                            (preview_png IS NOT NULL) AS has_preview
