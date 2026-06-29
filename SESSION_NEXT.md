@@ -2,11 +2,19 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Repair H-series AMS HT slot snapshots`
+- Latest commit: `Fix H2D nozzle fallback and restore full spool labels`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=549 / style.css?v=427 / demo-runtime.js?v=8
+
+### 2026-06-29 fix (H2D nozzle-path blocker and spool labels)
+
+**Fix H2D regular AMS nozzle fallback** (`app/main.py`, `app/printers/bambu.py`, `app/relay.py`, `SESSION_NEXT.md`)
+Flightdeck could block correctly sliced H2D jobs by claiming the file was sliced for the right nozzle even when Bambu Studio's filament grouping showed the filament under the left nozzle. The bug was an inverted fallback in H2D AMS-path handling: comments said regular AMS feeds the left path and AMS HT feeds the right path, but the fallback numbers were assigning the opposite. H-series nozzle labels are now consistently `0=left` and `1=right`, with H2D regular AMS mapped to left and AMS HT mapped to right when the printer does not provide a live extruder map. Backend/service restart required after deploy.
+
+**Keep normal spool labels off the rack template** (`app/label_printer.py`, `SESSION_NEXT.md`)
+The compact QL-700 label default made normal spool-label prints use the short rack-position style, so the user-facing spool label looked like a rack label. Normal spool labels now always use the full spool template, while rack/location labels keep their compact rack format. Backend/service restart required after deploy if labels are printed from the live Pi service. No frontend cache bump needed.
 
 ### 2026-06-28 polish (rack labels include loaded spools)
 

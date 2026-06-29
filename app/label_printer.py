@@ -75,8 +75,7 @@ class LabelPrinter:
         return LabelStatus(False, last_error=self.last_error)
 
     def render_spool_label(self, spool: dict, base_url: str = "https://flightdeck.tail7de73e.ts.net") -> Image.Image:
-        if _compact_ql700_label_enabled():
-            return self.render_compact_spool_label(spool, base_url=base_url)
+        # Spool labels stay full-size; rack/location labels use their own compact layout.
         img = Image.new("RGB", (self.LABEL_WIDTH_PX, 430), "white")
         draw = ImageDraw.Draw(img)
         prefs = spool.get("_label_preferences") or {}

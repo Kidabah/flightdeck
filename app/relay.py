@@ -63,7 +63,7 @@ def _colour_matches(actual: Optional[str], expected: Optional[str]) -> bool:
 
 
 def _nozzle_label(nozzle: Optional[int]) -> str:
-    return "right nozzle" if nozzle == 0 else "left nozzle" if nozzle == 1 else "unknown nozzle"
+    return "left nozzle" if nozzle == 0 else "right nozzle" if nozzle == 1 else "unknown nozzle"
 
 
 def _slot_label(slot: dict) -> str:

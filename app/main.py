@@ -7703,7 +7703,7 @@ def _colour_matches(actual: Optional[str], expected: Optional[str]) -> bool:
 
 
 def _queue_nozzle_label(nozzle: Optional[int]) -> str:
-    return "right nozzle" if nozzle == 0 else "left nozzle" if nozzle == 1 else "unknown nozzle"
+    return "left nozzle" if nozzle == 0 else "right nozzle" if nozzle == 1 else "unknown nozzle"
 
 
 def _is_h2_printer_status(printer_status: Optional[dict]) -> bool:
@@ -7723,7 +7723,9 @@ def _reported_ams_path_slots(printer_status: Optional[dict]) -> list[dict]:
             unit_id = int(unit.get("unit") or 0)
         except (TypeError, ValueError):
             continue
-        nozzle = 0 if unit_id >= 128 else 1
+        # H-series nozzle IDs are 0=left, 1=right. H2D regular AMS feeds
+        # the left path, while AMS HT feeds the right path.
+        nozzle = 1 if unit_id >= 128 else 0
         bay = "AMS HT" if unit_id >= 128 else f"AMS {unit_id + 1}"
         for slot in unit.get("slots") or []:
             if slot.get("empty"):

@@ -1166,8 +1166,9 @@ class BambuPrinter:
             if nozzle not in (0, 1):
                 nozzle = extruder_map.get(unit_id)
             if nozzle is None and self.model_name.upper() == "H2D":
-                # H2D fallback: regular AMS feeds left, AMS HT feeds right.
-                nozzle = 0 if unit_id >= 128 else 1
+                # H-series nozzle IDs are 0=left, 1=right. H2D regular AMS
+                # feeds the left path, while AMS HT feeds the right path.
+                nozzle = 1 if unit_id >= 128 else 0
             for slot in unit.get("slots") or []:
                 if slot.get("empty"):
                     continue
@@ -1346,7 +1347,7 @@ def _parse_h_series_nozzles(print_data: dict, model_name: str) -> list[dict]:
 
 
 def _read_ams_extruder_map(print_data: dict) -> dict[int, int]:
-    """Return AMS unit -> H2D nozzle target where 0=right and 1=left."""
+    """Return AMS unit -> H-series nozzle target where 0=left and 1=right."""
     ams_raw = print_data.get("ams", {}) if isinstance(print_data, dict) else {}
     candidates = [
         print_data.get("ams_extruder_map") if isinstance(print_data, dict) else None,
@@ -1529,7 +1530,7 @@ def _bambu_colour_matches(actual: Optional[str], expected: Optional[str]) -> boo
 
 
 def _bambu_nozzle_label(nozzle: Optional[int]) -> str:
-    return "right nozzle" if nozzle == 0 else "left nozzle" if nozzle == 1 else "unknown nozzle"
+    return "left nozzle" if nozzle == 0 else "right nozzle" if nozzle == 1 else "unknown nozzle"
 
 
 def _bambu_slot_label(slot: dict) -> str:
@@ -2050,8 +2051,9 @@ def _parse_ams(
         unit_id = int(unit_data.get("id", 0))
         nozzle = extruder_map.get(unit_id)
         if nozzle is None and model_key == "H2D":
-            # H2D has a fixed split: regular AMS feeds left, AMS HT feeds right.
-            nozzle = 0 if unit_id >= 128 else 1
+            # H-series nozzle IDs are 0=left, 1=right. H2D regular AMS feeds
+            # the left path, while AMS HT feeds the right path.
+            nozzle = 1 if unit_id >= 128 else 0
         dry_setting = unit_data.get("dry_setting") or {}
         dry_time = _safe_int(unit_data.get("dry_time"))
         unit_temp = _safe_float(
