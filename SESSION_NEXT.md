@@ -13,6 +13,11 @@ Latest GitHub/Pi state:
 **Keep loaded spools on their home rack for labels** (`app/static/app.js`, `app/label_printer.py`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)
 Rack/location labels now treat a loaded spool as still belonging to its home rack row, so the location overview can print all rack labels even when some rolls are currently loaded in AMS/AMS HT. Loaded rolls remain visibly loaded by adding their printer/slot in the location row, while spool labels now print the home rack location instead of dropping the location line when the spool is in a printer. Static cache bumped to `app.js?v=549`; frontend hard refresh required after deploy. No printer command, AMS mapping, queue-dispatch, or spool-deduction code was touched.
 
+### 2026-06-29 fix (spool labels vs rack labels)
+
+**Keep spool labels separate from rack labels** (`app/label_printer.py`, `SESSION_NEXT.md`)
+The last rack-label polish accidentally made normal spool stickers inherit rack-style location text such as `Rack 31-40`, which made spool labels read like rack labels. Spool labels now go back to printing the plain home/storage location name, while rack labels remain their own dedicated format. The compact spool sticker also drops the `#` prefix from the big visible number so it fits the box more cleanly. Backend/service restart required after deploy if labels are printed from the live Pi service. No frontend cache bump needed.
+
 ### 2026-06-28 polish (H2D live nozzle panel)
 
 **Hide H2D H-series hotend deck in Live** (`app/static/app.js`, `app/static/index.html`, `app/static/demo.html`, `SESSION_NEXT.md`)

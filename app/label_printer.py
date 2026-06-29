@@ -105,7 +105,7 @@ class LabelPrinter:
 
         if location_line and include_location:
             draw.text((506, 42), "Loc:", fill="black", font=font_small)
-            draw.text((506, 72), _ellipsize(draw, location_line[5:], font_body, 150), fill="black", font=font_body)
+            draw.text((506, 72), _ellipsize(draw, location_line, font_body, 150), fill="black", font=font_body)
 
         added = str(spool.get("added_at") or "")[:10]
         try:
@@ -148,7 +148,7 @@ class LabelPrinter:
         location_line = _spool_label_location_text(spool)
 
         draw.rounded_rectangle((x, 26, 178, 178), radius=14, outline="black", width=3)
-        number_text = f"#{display_id}"
+        number_text = f"{display_id}"
         bbox = draw.textbbox((0, 0), number_text, font=font_number)
         draw.text((x + (150 - (bbox[2] - bbox[0])) / 2, 54), number_text, fill="black", font=font_number)
 
@@ -317,16 +317,7 @@ def _spool_label_location_text(spool: dict) -> str:
     current_location = spool.get("storage_location_name") or spool.get("storage_location")
     home_location = spool.get("home_storage_location_name") or spool.get("home_storage_location")
     location = (home_location or current_location or "Storage") if loaded else (current_location or home_location or "Storage")
-    notes = (
-        spool.get("home_storage_location_notes")
-        or spool.get("storage_location_notes")
-        or spool.get("storage_notes")
-        or ""
-    )
-    rack_range, _ = _rack_label_parts(str(location), str(notes))
-    if rack_range:
-        return f"Loc: Rack {rack_range}"
-    return f"Loc: {location}"
+    return str(location)
 
 
 def _qr_image(url: str) -> Optional[Image.Image]:
