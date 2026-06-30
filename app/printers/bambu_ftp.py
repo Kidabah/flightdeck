@@ -602,8 +602,91 @@ def friendly_bambu_ftp_error(exc: Exception) -> str:
     return f"Bambu FTP upload failed: {text}"
 
 
+def _preview_from_gcode_bytes(data: bytes) -> Optional[BambuPreview]:
+    """Best-effort filament estimate from a gcode header when no 3MF is on printer storage."""
+    import re
+
+    text = data[:512_000].decode("utf-8", "ignore")
+    filament_weight_g = filament_type = None
+    re_weight = re.compile(
+        r"\b(?:filament[_ -]?weight|filament[_ -]?used|filament_total|filament_total_weight)\s*(?:\[[gG]\])?\s*=\s*([0-9]+(?:\.[0-9]+)?)",
+        re.I,
+    )
+    re_material = re.compile(r"\b(?:material|filament[_ -]?type)\b\s*[:=]\s*([A-Za-z0-9+\\-/* ]+)", re.I)
+    for line in text.splitlines()[:5000]:
+        if not line.startswith(";"):
+            continue
+        if filament_weight_g is None:
+            m = re_weight.search(line)
+            if m:
+                try:
+                    filament_weight_g = float(m.group(1))
+                except ValueError:
+                    pass
+        if filament_type is None:
+            m = re_material.search(line)
+            if m:
+                filament_type = re.split(r"[,/;]", m.group(1).strip())[0].strip() or None
+        if filament_weight_g is not None and filament_type is not None:
+            break
+    if filament_weight_g is None and filament_type is None:
+        return None
+    return BambuPreview(
+        image_png=None,
+        top_image_png=None,
+        estimated_total_seconds=None,
+        filament_weight_g=filament_weight_g,
+        filament_type=filament_type,
+    )
+
+
+def _storage_name_stem(name: str) -> str:
+    stem = str(name or "").rsplit("/", 1)[-1].rsplit("\\", 1)[-1].lower()
+    for suffix in (".gcode.3mf", ".3mf", ".gcode.gz", ".gcode"):
+        if stem.endswith(suffix):
+            return stem[: -len(suffix)]
+    return stem
+
+
+def _best_storage_match(entries: list[tuple[str, dict]], stem: str) -> Optional[str]:
+    wanted = _storage_name_stem(stem)
+    if not wanted:
+        return None
+    ranked: list[tuple[int, str, str]] = []
+    for name, facts in entries:
+        if name in (".", ".."):
+            continue
+        lower = name.lower()
+        if not lower.endswith((".gcode.3mf", ".3mf", ".gcode")):
+            continue
+        base = _storage_name_stem(name)
+        if wanted == base:
+            score = 0
+        elif wanted in base or base in wanted:
+            score = 1
+        elif lower.endswith(".gcode.3mf"):
+            score = 3
+        else:
+            continue
+        ranked.append((score, facts.get("modify") or "", name))
+    if not ranked:
+        return None
+    ranked.sort(key=lambda item: item[0])
+    best_score = ranked[0][0]
+    best = [item for item in ranked if item[0] == best_score]
+    best.sort(key=lambda item: item[1], reverse=True)
+    return best[0][2]
+
+
 def fetch_bambu_preview(ip: str, access_code: str, subtask_name: str, plate_number: Optional[int] = None) -> Optional[BambuPreview]:
-    """Download the .3mf for the current job and extract thumbnail + metadata."""
+    """Download job metadata from printer storage, trying several FTP paths."""
+    stem = str(subtask_name or "").strip().strip("/")
+    paths: list[str] = []
+    if stem:
+        paths.extend([f"/{stem}.gcode.3mf", f"/{stem}.3mf"])
+    if plate_number:
+        paths.append(f"/plate_{plate_number}.gcode")
+
     ftp = _ImplicitFTP_TLS()
     try:
         ftp.connect(ip, 990, timeout=15)
@@ -611,16 +694,45 @@ def fetch_bambu_preview(ip: str, access_code: str, subtask_name: str, plate_numb
         ftp.prot_p()
         ftp.set_pasv(True)
 
-        buf = io.BytesIO()
-        ftp.retrbinary(f"RETR /{subtask_name}.gcode.3mf", buf.write)
-        buf.seek(0)
+        for path in paths:
+            try:
+                buf = io.BytesIO()
+                ftp.retrbinary(f"RETR {path}", buf.write)
+                data = buf.getvalue()
+                if path.endswith(".gcode"):
+                    preview = _preview_from_gcode_bytes(data)
+                    if preview:
+                        return preview
+                    continue
+                return _parse_3mf(io.BytesIO(data), plate_number=plate_number)
+            except Exception:
+                continue
+
+        if stem:
+            try:
+                match = _best_storage_match(list(ftp.mlsd("/")), stem)
+            except Exception:
+                match = None
+            if match:
+                try:
+                    buf = io.BytesIO()
+                    ftp.retrbinary(f"RETR /{match}", buf.write)
+                    data = buf.getvalue()
+                    if match.lower().endswith(".gcode"):
+                        preview = _preview_from_gcode_bytes(data)
+                        if preview:
+                            return preview
+                    else:
+                        return _parse_3mf(io.BytesIO(data), plate_number=plate_number)
+                except Exception:
+                    pass
     finally:
         try:
             ftp.quit()
         except Exception:
             pass
 
-    return _parse_3mf(buf, plate_number=plate_number)
+    return None
 
 
 def download_bambu_file(ip: str, access_code: str, path: str) -> bytes:

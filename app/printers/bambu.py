@@ -1078,6 +1078,24 @@ class BambuPrinter:
             pv = _preview_metadata(self.get_preview())
         if pv is None:
             pv = _queue_preview_metadata(self.id)
+        if pv and pv.filament_weight_g:
+            db.update_print_filament_metadata(
+                print_id,
+                filament_grams=pv.filament_weight_g,
+                material=pv.filament_type,
+            )
+            return pv
+        if db.try_apply_relay_filament_metadata(
+            print_id,
+            log_event="print_filament_metadata_from_relay",
+        ):
+            prow = db.get_print_by_id(print_id)
+            if prow and prow.get("filament_grams"):
+                return SimpleNamespace(
+                    filament_weight_g=prow.get("filament_grams"),
+                    filament_type=prow.get("material"),
+                    filament_colors=None,
+                )
         if pv:
             db.update_print_filament_metadata(
                 print_id,
