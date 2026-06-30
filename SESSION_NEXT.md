@@ -2,8 +2,15 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `44da691` — Group MakerWorld multi-plate imports into numbered vault folders
-- Refresh cachebust currently: app.js?v=576 / style.css?v=449
+- Latest commit: (pending) — Fix MakerWorld plateCount syntax error breaking app.js
+- Refresh cachebust currently: app.js?v=577 / style.css?v=449
+
+### 2026-06-30 hotfix (app.js syntax)
+
+**Fix duplicate `plateCount` declaration breaking entire UI** (`app/static/app.js`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- `_makerWorldPreviewHtml()` declared `const plateCount` twice in the same scope → `SyntaxError: Identifier 'plateCount' has already been declared` prevented `app.js` from loading at all.
+- Static cache `app.js?v=577`; hard refresh required after deploy (UI-only).
 
 ### 2026-06-30 fix (MakerWorld multi-plate vault layout)
 

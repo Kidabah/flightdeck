@@ -3129,7 +3129,6 @@ function _makerWorldPreviewHtml(data, url) {
         <a href="#/settings/preferences">Settings → Preferences → Bambu Cloud</a>, then resolve again.
       </div>`;
 
-  const plateCount = plateRows.length;
   const pendingCount = plateRows.filter(plate => !plate.already_imported).length;
   const importAllBtn = plateCount > 1 && data.can_download
     ? `<button type="button" class="settings-save-btn makerworld-import-all-btn" data-makerworld-import-all ${pendingCount ? '' : 'disabled'}>
