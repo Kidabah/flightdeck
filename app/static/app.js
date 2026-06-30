@@ -5159,6 +5159,10 @@ function _detailObjectsUnavailablePanel(data) {
   </div>`;
 }
 
+function _objectMapUsesPreviewLayout(data) {
+  return _objectMapIsTopDown(data) && Array.isArray(data?.bbox_all) && data.bbox_all.length >= 4;
+}
+
 function _objectMapHasBedGeometry(obj, topDown) {
   if (obj?.bbox) return true;
   if (!topDown) return false;
@@ -5167,14 +5171,68 @@ function _objectMapHasBedGeometry(obj, topDown) {
   return Boolean(shape?.polygon?.length >= 3 || shape?.segments?.length);
 }
 
+function _objectMapHasMarker(obj, topDown, data) {
+  if (!topDown) return Boolean(obj?.bbox);
+  if (_objectMapUsesPreviewLayout(data)) return true;
+  return _objectMapHasBedGeometry(obj, topDown);
+}
+
+function _objectMapPreviewMarkerPosition(obj, data) {
+  const padding = 8;
+  const contentArea = 100 - (padding * 2);
+  const bboxAll = data?.bbox_all;
+  if (_objectMapHasPoint(obj) && Array.isArray(bboxAll) && bboxAll.length >= 4) {
+    const [xMin, yMin, xMax, yMax] = bboxAll.map(Number);
+    const bw = xMax - xMin;
+    const bh = yMax - yMin;
+    if (bw > 0 && bh > 0) {
+      let x = padding + ((Number(obj.x) - xMin) / bw) * contentArea;
+      let y = padding + ((yMax - Number(obj.y)) / bh) * contentArea;
+      return {
+        x: Math.max(5, Math.min(95, x)),
+        y: Math.max(5, Math.min(95, y)),
+      };
+    }
+  }
+  if (_objectMapHasPoint(obj)) {
+    const plate = Number(data?.bed_bounds?.w) || Number(data?.plate_bounds?.w) || 256;
+    return {
+      x: Math.max(5, Math.min(95, (Number(obj.x) / plate) * 100)),
+      y: Math.max(5, Math.min(95, 100 - (Number(obj.y) / plate) * 100)),
+    };
+  }
+  return null;
+}
+
+function _objectMapPreviewGridPosition(index, total) {
+  const cols = Math.ceil(Math.sqrt(Math.max(total, 1)));
+  const row = Math.floor(index / cols);
+  const col = index % cols;
+  const rows = Math.ceil(total / cols);
+  return {
+    x: 15 + (col * (70 / cols)) + (35 / cols),
+    y: 15 + (row * (70 / rows)) + (35 / rows),
+  };
+}
+
+function _objectMapPreviewMarkerStyle(obj, data, index, total) {
+  const p = _objectMapPreviewMarkerPosition(obj, data) || _objectMapPreviewGridPosition(index, total);
+  return `left:${p.x.toFixed(2)}%;top:${p.y.toFixed(2)}%;transform:translate(-50%,-50%)`;
+}
+
 function _objectMapHtml(id, data) {
   const objects = data?.objects || [];
   const topDown = _objectMapIsTopDown(data);
-  const bounds = (topDown && data?.bed_bounds) ? data.bed_bounds : data?.plate_bounds;
-  const hasGeometry = bounds && bounds.w > 0 && bounds.h > 0 && objects.some(o => _objectMapHasBedGeometry(o, topDown));
+  const previewLayout = _objectMapUsesPreviewLayout(data);
+  const bounds = previewLayout ? null : ((topDown && data?.bed_bounds) ? data.bed_bounds : data?.plate_bounds);
+  const hasGeometry = previewLayout
+    ? objects.length > 0
+    : (bounds && bounds.w > 0 && bounds.h > 0 && objects.some(o => _objectMapHasMarker(o, topDown, data)));
   const availableObjects = objects.filter(o => o.state !== 'excluded');
-  const mappedAvailableObjects = hasGeometry ? availableObjects.filter(o => _objectMapHasBedGeometry(o, topDown)) : availableObjects;
-  const mapButtons = objects.map(obj => {
+  const mappedAvailableObjects = hasGeometry
+    ? (previewLayout ? availableObjects : availableObjects.filter(o => _objectMapHasMarker(o, topDown, data)))
+    : availableObjects;
+  const mapButtons = objects.map((obj, idx) => {
     const isExcluded = obj.state === 'excluded';
     const isCurrent = obj.state === 'current';
     const rawName = obj.name || `Object ${obj.id ?? ''}`;
@@ -5186,10 +5244,12 @@ function _objectMapHtml(id, data) {
       ? `<span class="obj-chip-id">${displayId}</span><span>${esc(shortName)}</span>`
       : `<span class="obj-chip-id">${displayId}</span>`;
     const pointGeometry = topDown && _objectMapHasPoint(obj);
-    if (hasGeometry && _objectMapHasBedGeometry(obj, topDown)) {
-      const geom = topDown
-        ? _objectMapTopDownRegionStyle(bounds, obj, data)
-        : (pointGeometry ? _objectMapPointHitStyle(bounds, obj, data) : _objectMapBoxStyle(bounds, obj.bbox, data));
+    if (hasGeometry && _objectMapHasMarker(obj, topDown, data)) {
+      const geom = previewLayout
+        ? _objectMapPreviewMarkerStyle(obj, data, idx, objects.length)
+        : (topDown
+          ? _objectMapTopDownRegionStyle(bounds, obj, data)
+          : (pointGeometry ? _objectMapPointHitStyle(bounds, obj, data) : _objectMapBoxStyle(bounds, obj.bbox, data)));
       const inner = topDown
         ? `<span class="obj-map-id-dot">${displayId}</span>`
         : `<span class="obj-chip-id">${displayId}</span>`;
@@ -5209,16 +5269,18 @@ function _objectMapHtml(id, data) {
   const image = imageSrc
     ? `<img class="${topDown ? 'obj-map-preview-image' : ''}" src="${esc(imageSrc)}" alt="Plate object map" loading="lazy">`
     : '';
-  const objectImages = topDown ? _objectMapTopDownObjects(data) : _objectMapImagePieces(data, imageVersion);
+  const objectImages = previewLayout ? '' : (topDown ? _objectMapTopDownObjects(data) : _objectMapImagePieces(data, imageVersion));
   const rotation = Number(data?.map_rotation || 0);
   const imageRotation = Number(data?.map_image_rotation || 0);
   const imageOffsetX = Number(data?.map_image_offset_x || 0);
   const imageOffsetY = Number(data?.map_image_offset_y || 0);
-  const rotated = rotation > 0 || imageRotation > 0;
-  const classes = `obj-map${hasGeometry ? ' obj-map-has-geometry' : ' obj-map-no-geometry'}${topDown ? ' obj-map-topdown' : ''}${rotated ? ' obj-map-transformed' : ''}${rotation > 0 ? ' obj-map-overlay-rotated' : ''}${imageRotation > 0 ? ' obj-map-image-rotated' : ''}`;
-  const rotationStyle = _objectMapStyleVars(bounds, rotated, rotation, imageRotation, imageOffsetX, imageOffsetY, topDown);
+  const rotated = !previewLayout && (rotation > 0 || imageRotation > 0);
+  const classes = `obj-map${hasGeometry ? ' obj-map-has-geometry' : ' obj-map-no-geometry'}${topDown ? ' obj-map-topdown' : ''}${previewLayout ? ' obj-map-preview-layout' : ''}${rotated ? ' obj-map-transformed' : ''}${rotation > 0 ? ' obj-map-overlay-rotated' : ''}${imageRotation > 0 ? ' obj-map-image-rotated' : ''}`;
+  const rotationStyle = _objectMapStyleVars(bounds, rotated, rotation, imageRotation, imageOffsetX, imageOffsetY, topDown, previewLayout);
   const helper = hasGeometry
-    ? 'Tap a shape or ID on the map, or use the list below. Front edge is on the right.'
+    ? (previewLayout
+      ? 'Match the numbered markers to your printer screen, then tap the preview or list.'
+      : 'Tap a shape or ID on the map, or use the list below.')
     : `No bed positions in this 3MF; use the object ID shown on the printer screen. Bambu/Orca IDs can be high. ${availableObjects.length} objects still available.`;
   const objectList = _objectMapObjectList(id, objects, hasGeometry);
   const activeBadge = mappedAvailableObjects.length === availableObjects.length
@@ -5233,7 +5295,7 @@ function _objectMapHtml(id, data) {
       <div class="obj-map-plane">
         ${hasGeometry ? `<div class="obj-map-overlay">${mapButtons}</div>` : ''}
       </div>
-      ${topDown ? '<div class="obj-map-front-marker" aria-hidden="true">Front</div>' : ''}
+      ${topDown && !previewLayout ? '<div class="obj-map-front-marker" aria-hidden="true">Front</div>' : ''}
       ${topDown ? `<div class="obj-map-active-count">${esc(activeBadge)}</div>` : ''}
     </div>
     ${objectList || (hasGeometry ? '' : `<div class="obj-id-selector"><span>Printer object IDs</span><div>${mapButtons}</div></div>`)}
@@ -5409,22 +5471,17 @@ function _objectMapBadgeCenterStyle(bounds, box, data = {}) {
   return `left:${cx.toFixed(2)}%;top:${cy.toFixed(2)}%;transform:translate(-50%,-50%)`;
 }
 
-function _objectMapTopDownObjects(data) {
-  const bounds = data?.bed_bounds || data?.plate_bounds;
-  const objects = data?.objects || [];
-  if (!bounds || bounds.w <= 0 || bounds.h <= 0) return '';
-  return objects.filter(obj => obj?.bbox).map(obj => {
-    const style = _objectMapBoxStyle(bounds, obj.bbox, data);
-    const stateClass = obj.state === 'excluded' ? ' is-excluded' : (obj.state === 'current' ? ' is-current' : '');
-    return `<div class="obj-map-footprint${stateClass}" style="${style}" aria-hidden="true"></div>`;
-  }).join('');
+function _objectMapTopDownObjects(_data) {
+  return '';
 }
 
-function _objectMapStyleVars(bounds, rotated, rotation, imageRotation, imageOffsetX, imageOffsetY, topDown = false) {
+function _objectMapStyleVars(bounds, rotated, rotation, imageRotation, imageOffsetX, imageOffsetY, topDown = false, previewLayout = false) {
   const vars = [];
-  if (bounds && bounds.w > 0 && bounds.h > 0) {
+  if (previewLayout) {
+    vars.push('--obj-map-aspect:1');
+  } else if (bounds && bounds.w > 0 && bounds.h > 0) {
     const aspect = topDown
-      ? Math.max(0.65, Math.min(1.85, Number(bounds.h) / Number(bounds.w))
+      ? Math.max(0.65, Math.min(1.85, Number(bounds.h) / Number(bounds.w)))
       : Math.max(0.65, Math.min(1.85, Number(bounds.w) / Number(bounds.h)));
     vars.push(`--obj-map-aspect:${aspect.toFixed(4)}`);
   }
@@ -5445,24 +5502,29 @@ function _objectMapStyleVars(bounds, rotated, rotation, imageRotation, imageOffs
 function _largeObjectMapHtml(id, data) {
   const objects = data?.objects || [];
   const topDown = _objectMapIsTopDown(data);
-  const bounds = (topDown && data?.bed_bounds) ? data.bed_bounds : data?.plate_bounds;
-  const hasGeometry = bounds && bounds.w > 0 && bounds.h > 0 && objects.some(o => _objectMapHasBedGeometry(o, topDown));
+  const previewLayout = _objectMapUsesPreviewLayout(data);
+  const bounds = previewLayout ? null : ((topDown && data?.bed_bounds) ? data.bed_bounds : data?.plate_bounds);
+  const hasGeometry = previewLayout
+    ? objects.length > 0
+    : (bounds && bounds.w > 0 && bounds.h > 0 && objects.some(o => _objectMapHasMarker(o, topDown, data)));
   const availableObjects = objects.filter(o => o.state !== 'excluded');
-  const mappedAvailableObjects = hasGeometry ? availableObjects.filter(o => _objectMapHasBedGeometry(o, topDown)) : availableObjects;
+  const mappedAvailableObjects = hasGeometry
+    ? (previewLayout ? availableObjects : availableObjects.filter(o => _objectMapHasMarker(o, topDown, data)))
+    : availableObjects;
   const imageVersion = objects.map(o => `${o.id ?? ''}:${o.state ?? ''}`).join('-') || 'current';
   const plateImageUrl = _objectMapPlateImageUrl(data, topDown);
   const imageSrc = _objectMapImageSrc(plateImageUrl, imageVersion);
   const image = imageSrc
     ? `<img class="${topDown ? 'obj-map-preview-image' : ''}" src="${esc(imageSrc)}" alt="Large plate preview" loading="eager">`
     : '<div class="object-map-missing">No thumbnail available</div>';
-  const objectImages = topDown ? _objectMapTopDownObjects(data) : _objectMapImagePieces(data, imageVersion);
+  const objectImages = previewLayout ? '' : (topDown ? _objectMapTopDownObjects(data) : _objectMapImagePieces(data, imageVersion));
   const rotation = Number(data?.map_rotation || 0);
   const imageRotation = Number(data?.map_image_rotation || 0);
   const imageOffsetX = Number(data?.map_image_offset_x || 0);
   const imageOffsetY = Number(data?.map_image_offset_y || 0);
-  const rotated = rotation > 0 || imageRotation > 0;
-  const rotationStyle = _objectMapStyleVars(bounds, rotated, rotation, imageRotation, imageOffsetX, imageOffsetY, topDown);
-  const buttons = objects.map(obj => {
+  const rotated = !previewLayout && (rotation > 0 || imageRotation > 0);
+  const rotationStyle = _objectMapStyleVars(bounds, rotated, rotation, imageRotation, imageOffsetX, imageOffsetY, topDown, previewLayout);
+  const buttons = objects.map((obj, idx) => {
     const isExcluded = obj.state === 'excluded';
     const isCurrent = obj.state === 'current';
     const rawName = obj.name || `Object ${obj.id ?? ''}`;
@@ -5474,10 +5536,12 @@ function _largeObjectMapHtml(id, data) {
       ? `<span class="obj-chip-id">${displayId}</span><span>${esc(shortName)}</span>`
       : `<span class="obj-chip-id">${displayId}</span>`;
     const pointGeometry = topDown && _objectMapHasPoint(obj);
-    if (hasGeometry && _objectMapHasBedGeometry(obj, topDown)) {
-      const geom = topDown
-        ? _objectMapTopDownRegionStyle(bounds, obj, data)
-        : (pointGeometry ? _objectMapPointHitStyle(bounds, obj, data) : _objectMapBoxStyle(bounds, obj.bbox, data));
+    if (hasGeometry && _objectMapHasMarker(obj, topDown, data)) {
+      const geom = previewLayout
+        ? _objectMapPreviewMarkerStyle(obj, data, idx, objects.length)
+        : (topDown
+          ? _objectMapTopDownRegionStyle(bounds, obj, data)
+          : (pointGeometry ? _objectMapPointHitStyle(bounds, obj, data) : _objectMapBoxStyle(bounds, obj.bbox, data)));
       const inner = topDown
         ? `<span class="obj-map-id-dot">${displayId}</span>`
         : `<span class="obj-chip-id">${displayId}</span>`;
@@ -5492,14 +5556,16 @@ function _largeObjectMapHtml(id, data) {
       title="${esc(shortName)}">${fallbackLabel}</button>`;
   }).join('');
   const helper = hasGeometry
-    ? 'Tap a shape or ID on the map, or use the list below. Front edge is on the right.'
+    ? (previewLayout
+      ? 'Match the numbered markers to your printer screen, then tap the preview or list.'
+      : 'Tap a shape or ID on the map, or use the list below.')
     : 'This file has no bed-position metadata. Match the object ID shown on the printer screen, then select it below.';
   const objectList = _objectMapObjectList(id, objects, hasGeometry);
   const activeBadge = mappedAvailableObjects.length === availableObjects.length
     ? `${availableObjects.length} active`
     : `${mappedAvailableObjects.length} mapped`;
   return `<div class="object-map-modal-body">
-    <div class="object-map-modal-stage${hasGeometry ? ' has-geometry' : ''}${topDown ? ' obj-map-topdown' : ''}${rotated ? ' obj-map-transformed' : ''}${rotation > 0 ? ' obj-map-overlay-rotated' : ''}${imageRotation > 0 ? ' obj-map-image-rotated' : ''}"${rotationStyle}>
+    <div class="object-map-modal-stage${hasGeometry ? ' has-geometry' : ''}${topDown ? ' obj-map-topdown' : ''}${previewLayout ? ' obj-map-preview-layout' : ''}${rotated ? ' obj-map-transformed' : ''}${rotation > 0 ? ' obj-map-overlay-rotated' : ''}${imageRotation > 0 ? ' obj-map-image-rotated' : ''}"${rotationStyle}>
       <div class="obj-map-image-plane">
         ${topDown ? image : ''}
         ${objectImages || (topDown ? '' : image)}
@@ -5507,7 +5573,7 @@ function _largeObjectMapHtml(id, data) {
       <div class="obj-map-plane">
         ${hasGeometry ? `<div class="obj-map-overlay">${buttons}</div>` : ''}
       </div>
-      ${topDown ? '<div class="obj-map-front-marker" aria-hidden="true">Front</div>' : ''}
+      ${topDown && !previewLayout ? '<div class="obj-map-front-marker" aria-hidden="true">Front</div>' : ''}
       ${topDown ? `<div class="obj-map-active-count">${esc(activeBadge)}</div>` : ''}
     </div>
     <div class="obj-map-helper">${esc(helper)}</div>

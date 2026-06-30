@@ -2,11 +2,15 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `cc0ffaf` — Fix skip-object map depth axis and use bbox footprints
-- Pi repo: /home/flightdeck/flightdeck
-- Data dir: /home/flightdeck/flightdeck-data
-- App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=571 / style.css?v=446
+- Latest commit: `TBD` — Align skip-object map with Bambu preview layout (Bambuddy-style)
+- Refresh cachebust currently: app.js?v=572 / style.css?v=447
+
+### 2026-06-30 fix (Skip object map — Bambuddy-style preview)
+
+**Align skip-object map to Bambu top preview + plate bbox_all** (`app/printers/bambu_ftp.py`, `app/printers/bambu.py`, `app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Root cause: Flightdeck derived skip-map positions from gcode geometry with custom axis transforms; Bambuddy/Bambu align markers to `Metadata/plate_N.json` `bbox_objects` centers mapped through `bbox_all` onto `top_N.png` with `object-contain`.
+- Parser now reads `bbox_all` + `bbox_objects` (same as Bambuddy), API exposes `bbox_all`, and the UI places circular ID markers on the top preview image using the same percentage math. Static cache `app.js?v=572` / `style.css?v=447`; hard refresh after deploy.
 
 ### 2026-06-30 fix (Skip object map depth axis)
 

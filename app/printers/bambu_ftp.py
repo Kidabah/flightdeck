@@ -31,6 +31,7 @@ class BambuPreview:
     objects: Optional[list[dict]] = None
     plate_bounds: Optional[dict] = None
     bed_bounds: Optional[dict] = None
+    bbox_all: Optional[list[float]] = None
     print_plate_number: Optional[int] = None
 
 
@@ -122,6 +123,7 @@ def _parse_3mf(buf: io.BytesIO, plate_number: Optional[int] = None) -> BambuPrev
     filaments = []
     slice_filament_ids: list[int] = []
     objects = []
+    bbox_by_name, bbox_all = _extract_plate_bbox_objects(plate_json)
     object_boxes, object_boxes_by_name, object_points_by_name, plate_bounds = _extract_plate_object_boxes(plate_json)
     if plate_bounds:
         object_boxes = {k: _flip_bbox_y(v, plate_bounds) for k, v in object_boxes.items()}
@@ -131,7 +133,6 @@ def _parse_3mf(buf: io.BytesIO, plate_number: Optional[int] = None) -> BambuPrev
         }
     gcode_object_boxes, gcode_object_shapes, bed_bounds = _extract_gcode_object_geometry(plate_gcode)
     if gcode_object_boxes:
-        object_boxes.update(gcode_object_boxes)
         plate_bounds = plate_bounds or _bounds_for_boxes(gcode_object_boxes.values())
     if plate is not None:
         filament_nozzles = _parse_filament_nozzle_map(project_settings, plate)
@@ -171,7 +172,24 @@ def _parse_3mf(buf: io.BytesIO, plate_number: Optional[int] = None) -> BambuPrev
                 identify_id = None
             base = name.rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
             name_counts[base] = name_counts.get(base, 0) + 1
-            box = object_boxes.get(identify_id) if identify_id is not None else None
+            map_x = map_y = None
+            map_bbox = None
+            for lookup in (name, base):
+                bboxes = bbox_by_name.get(lookup)
+                if bboxes:
+                    raw = bboxes.pop(0)
+                    map_x = (raw[0] + raw[2]) / 2
+                    map_y = (raw[1] + raw[3]) / 2
+                    map_bbox = {
+                        "x": raw[0],
+                        "y": raw[1],
+                        "w": raw[2] - raw[0],
+                        "h": raw[3] - raw[1],
+                    }
+                    break
+            box = map_bbox
+            if box is None:
+                box = object_boxes.get(identify_id) if identify_id is not None else None
             if box is None:
                 name_box_counts[base] = name_box_counts.get(base, 0) + 1
                 matching_boxes = object_boxes_by_name.get(base) or []
@@ -179,12 +197,15 @@ def _parse_3mf(buf: io.BytesIO, plate_number: Optional[int] = None) -> BambuPrev
                 if box_index < len(matching_boxes):
                     box = matching_boxes[box_index]
             point = None
-            matching_points = object_points_by_name.get(name) or object_points_by_name.get(base) or []
-            if matching_points:
-                name_point_counts[base] = name_point_counts.get(base, 0) + 1
-                point_index = name_point_counts[base] - 1
-                if point_index < len(matching_points):
-                    point = matching_points[point_index]
+            if map_x is not None and map_y is not None:
+                point = {"x": map_x, "y": map_y}
+            else:
+                matching_points = object_points_by_name.get(name) or object_points_by_name.get(base) or []
+                if matching_points:
+                    name_point_counts[base] = name_point_counts.get(base, 0) + 1
+                    point_index = name_point_counts[base] - 1
+                    if point_index < len(matching_points):
+                        point = matching_points[point_index]
             objects.append({
                 "id": identify_id,
                 "name": base,
@@ -219,6 +240,7 @@ def _parse_3mf(buf: io.BytesIO, plate_number: Optional[int] = None) -> BambuPrev
         objects=objects or None,
         plate_bounds=plate_bounds,
         bed_bounds=bed_bounds,
+        bbox_all=bbox_all,
         print_plate_number=plate_number,
     )
 
@@ -406,6 +428,33 @@ def _flip_bbox_y(box: dict, bounds: dict) -> dict:
         **box,
         "y": bounds_y + (bounds_max_y - (float(box["y"]) + float(box["h"]))),
     }
+
+
+def _extract_plate_bbox_objects(plate_json) -> tuple[dict[str, list[list[float]]], Optional[list[float]]]:
+    """Read Bambu plate_N.json bbox_objects for skip-object preview alignment."""
+    if not isinstance(plate_json, dict):
+        return {}, None
+    raw_bbox_all = plate_json.get("bbox_all")
+    bbox_all: Optional[list[float]] = None
+    if isinstance(raw_bbox_all, (list, tuple)) and len(raw_bbox_all) >= 4:
+        try:
+            bbox_all = [float(raw_bbox_all[0]), float(raw_bbox_all[1]), float(raw_bbox_all[2]), float(raw_bbox_all[3])]
+        except (TypeError, ValueError):
+            bbox_all = None
+    by_name: dict[str, list[list[float]]] = {}
+    for item in plate_json.get("bbox_objects") or []:
+        if not isinstance(item, dict):
+            continue
+        obj_name = item.get("name")
+        bbox = item.get("bbox")
+        if not isinstance(obj_name, str) or not isinstance(bbox, (list, tuple)) or len(bbox) < 4:
+            continue
+        try:
+            parsed = [float(bbox[0]), float(bbox[1]), float(bbox[2]), float(bbox[3])]
+        except (TypeError, ValueError):
+            continue
+        by_name.setdefault(obj_name, []).append(parsed)
+    return by_name, bbox_all
 
 
 def _extract_plate_object_boxes(data) -> tuple[dict[int, dict], dict[str, list[dict]], dict[str, list[dict]], Optional[dict]]:
