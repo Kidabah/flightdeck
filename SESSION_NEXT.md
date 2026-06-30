@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `b6b2a6c` — Align skip-object map with Bambu preview layout (Bambuddy-style)
-- Refresh cachebust currently: app.js?v=572 / style.css?v=447
+- Latest commit: `349afcb` — Add MakerWorld import-all plates for multi-plate models
+- Refresh cachebust currently: app.js?v=574 / style.css?v=447
+
+### 2026-06-30 fix (MakerWorld import all)
+
+**MakerWorld import-all plates + legacy fallback** (`app/makerworld.py`, `app/main.py`, `app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Multi-plate models get **Import all to Vault** on `#/makerworld`; backend `POST /api/makerworld/import-all` loops profiles via existing single-plate import.
+- If the Pi backend has not been restarted yet, bulk import 404s — frontend now falls back to sequential per-plate `/api/makerworld/import` calls with `Importing N/M…` progress.
+- Static cache `app.js?v=574`; **backend restart required** on Pi for the bulk endpoint (`sudo systemctl restart flightdeck.service` after `git pull`).
 
 ### 2026-06-30 fix (Skip object map — Bambuddy-style preview)
 

@@ -2911,13 +2911,60 @@ async function _importMakerWorldPlate(url, profileId) {
   return body;
 }
 
-async function _importAllMakerWorldPlates(url) {
+async function _importAllMakerWorldPlatesLegacy(url, plates = [], onProgress = null) {
+  const profileIds = (plates || [])
+    .map(plate => Number(plate.profile_id))
+    .filter(id => Number.isFinite(id) && id > 0);
+  const total = profileIds.length;
+  const results = [];
+  let imported = 0;
+  let already_existed = 0;
+  let failed = 0;
+  for (let i = 0; i < profileIds.length; i += 1) {
+    const profileId = profileIds[i];
+    if (onProgress) onProgress(i + 1, total);
+    try {
+      const row = await _importMakerWorldPlate(url, profileId);
+      if (row.already_existed) already_existed += 1;
+      else imported += 1;
+      results.push({
+        ok: true,
+        profile_id: profileId,
+        already_existed: Boolean(row.already_existed),
+        name: row.name,
+        path: row.path,
+        plate_title: row.plate_title,
+      });
+    } catch (err) {
+      failed += 1;
+      results.push({
+        ok: false,
+        profile_id: profileId,
+        error: err.message || 'Import failed',
+      });
+    }
+  }
+  return {
+    ok: failed === 0,
+    total,
+    imported,
+    already_existed,
+    failed,
+    results,
+    legacy: true,
+  };
+}
+
+async function _importAllMakerWorldPlates(url, { plates = null, onProgress = null } = {}) {
   const r = await fetch('/api/makerworld/import-all', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ url: url.trim() }),
   });
   const body = await r.json().catch(() => ({}));
+  if (r.status === 404) {
+    return _importAllMakerWorldPlatesLegacy(url, plates || _makerWorldResolved?.plates || [], onProgress);
+  }
   if (!r.ok) throw new Error(_apiDetail(body, 'MakerWorld bulk import failed'));
   return body;
 }
@@ -3130,7 +3177,13 @@ function _attachMakerWorldImportEvents(el, url) {
     const label = btn.textContent;
     btn.textContent = 'Importing all…';
     try {
-      const result = await _importAllMakerWorldPlates(url);
+      const plates = _makerWorldResolved?.plates || [];
+      const result = await _importAllMakerWorldPlates(url, {
+        plates,
+        onProgress: (current, total) => {
+          btn.textContent = `Importing ${current}/${total}…`;
+        },
+      });
       const tone = result.failed ? 'warn' : 'success';
       const title = result.failed ? 'Import finished with errors' : 'All plates saved';
       showToast(title, _makerWorldImportAllSummary(result), tone);
