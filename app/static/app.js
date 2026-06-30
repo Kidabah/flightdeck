@@ -2786,6 +2786,16 @@ async function _fetchMakerWorldRecent() {
   return r.json();
 }
 
+function _apiDetail(body, fallback) {
+  const detail = body?.detail;
+  if (typeof detail === 'string' && detail.trim()) return detail;
+  if (Array.isArray(detail) && detail.length) {
+    return detail.map(item => item?.msg || item?.message || JSON.stringify(item)).join('; ');
+  }
+  if (detail && typeof detail === 'object') return detail.message || JSON.stringify(detail);
+  return fallback;
+}
+
 async function _resolveMakerWorldUrl(url) {
   const r = await fetch('/api/makerworld/resolve', {
     method: 'POST',
@@ -2793,7 +2803,7 @@ async function _resolveMakerWorldUrl(url) {
     body: JSON.stringify({ url: url.trim() }),
   });
   const body = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(body.detail || 'Could not resolve MakerWorld URL');
+  if (!r.ok) throw new Error(await _apiDetail(body, 'Could not resolve MakerWorld URL'));
   return body;
 }
 
@@ -2804,7 +2814,7 @@ async function _importMakerWorldPlate(url, profileId) {
     body: JSON.stringify({ url: url.trim(), profile_id: Number(profileId) }),
   });
   const body = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(body.detail || 'MakerWorld import failed');
+  if (!r.ok) throw new Error(await _apiDetail(body, 'MakerWorld import failed'));
   return body;
 }
 

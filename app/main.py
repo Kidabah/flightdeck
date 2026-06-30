@@ -4353,9 +4353,13 @@ class MakerWorldImportRequest(BaseModel):
     profile_id: int
 
 
+def _db_setting(key: str) -> str:
+    return str(db.get_all_settings().get(key) or "").strip()
+
+
 @app.get("/api/makerworld/status")
 async def makerworld_status():
-    token = (db.get_setting("bambu_cloud_token") or "").strip()
+    token = _db_setting("bambu_cloud_token")
     return {
         "has_token": bool(token),
         "token_hint": makerworld._token_hint(token),
@@ -4365,7 +4369,7 @@ async def makerworld_status():
 
 @app.post("/api/makerworld/resolve")
 async def makerworld_resolve(body: MakerWorldResolveRequest):
-    token = (db.get_setting("bambu_cloud_token") or "").strip()
+    token = _db_setting("bambu_cloud_token")
     try:
         return makerworld.resolve_url(body.url.strip(), token, DATA_DIR)
     except makerworld.MakerWorldError as exc:
@@ -4374,7 +4378,7 @@ async def makerworld_resolve(body: MakerWorldResolveRequest):
 
 @app.post("/api/makerworld/import")
 async def makerworld_import(body: MakerWorldImportRequest):
-    token = (db.get_setting("bambu_cloud_token") or "").strip()
+    token = _db_setting("bambu_cloud_token")
     try:
         return makerworld.import_plate(
             url=body.url.strip(),
