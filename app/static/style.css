@@ -18419,6 +18419,16 @@ select optgroup {
   grid-template-columns: auto minmax(0, 1fr) auto;
 }
 
+.filedesk-file-row-compact .filedesk-row-actions .filedesk-action-btn {
+  justify-self: end;
+  min-width: 0;
+  width: auto;
+  padding: 0.16rem 0.52rem;
+  font-size: 0.64rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
 .filedesk-file-row-compact .filedesk-action-btn {
   justify-self: end;
   min-width: 0;
@@ -18566,15 +18576,18 @@ select optgroup {
 .filedesk-select, .filedesk-select-all { width: 0.9rem; height: 0.9rem; accent-color: var(--accent); cursor: pointer; }
 .filedesk-file-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1.15fr) minmax(7rem, 0.62fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) minmax(7rem, 0.62fr) auto;
   gap: 0.45rem;
   align-items: center;
   padding: 0.45rem 0.72rem;
   border-bottom: 1px solid rgba(122,162,216,0.12);
 }
 
-.filedesk-file-row-has-thumb {
-  grid-template-columns: auto 3.85rem minmax(0, 1.15fr) minmax(7rem, 0.62fr) auto;
+.filedesk-file-body {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
 }
 
 .filedesk-file-thumb {
@@ -18587,6 +18600,12 @@ select optgroup {
   flex-shrink: 0;
 }
 
+.filedesk-file-thumb-compact {
+  width: 2.75rem;
+  height: 2.1rem;
+  border-radius: 0.35rem;
+}
+
 .filedesk-file-thumb img {
   display: block;
   width: 100%;
@@ -18597,6 +18616,23 @@ select optgroup {
 
 .filedesk-file-thumb.is-missing {
   display: none;
+}
+
+.filedesk-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.28rem;
+  flex: 0 0 auto;
+  max-width: 10.5rem;
+}
+
+.filedesk-row-actions .filedesk-action-btn {
+  width: auto;
+  min-width: 4.25rem;
+  max-width: 5.5rem;
+  justify-self: end;
 }
 
 .filedesk-file-row:hover { background: rgba(96,165,250,0.035); }
@@ -18672,7 +18708,6 @@ select optgroup {
 }
 .filedesk-action-btn:hover:not(:disabled) { background: rgba(59,130,246,0.16); color: white; }
 .filedesk-action-btn:disabled { opacity: 0.55; cursor: default; }
-.filedesk-row-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.28rem; flex: 0 0 auto; max-width: 10.5rem; }
 .filedesk-queue-primary {
   border-color: #22c55e;
   background: rgba(34,197,94,0.08);
@@ -19997,9 +20032,7 @@ select optgroup {
   .filedesk-bulk-row { align-items: flex-start; flex-direction: column; }
   .filedesk-bulk-actions { justify-content: flex-start; }
   .filedesk-file-row { grid-template-columns: auto minmax(0, 1fr) auto; }
-  .filedesk-file-row-has-thumb { grid-template-columns: auto 3.85rem minmax(0, 1fr) auto; }
   .filedesk-compat { grid-column: 2 / -1; justify-content: flex-start; }
-  .filedesk-file-row-has-thumb .filedesk-compat { grid-column: 3 / -1; }
   .stock-in-order-fields,
   .stock-in-line-grid,
   .stock-in-receive-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -20010,8 +20043,7 @@ select optgroup {
   .printbay-reprint-card { grid-template-columns: 1fr; }
   .printbay-reprint-thumb { min-height: 7rem; }
   .filedesk-file-row { grid-template-columns: auto minmax(0, 1fr); }
-  .filedesk-file-row-has-thumb { grid-template-columns: auto 3.85rem minmax(0, 1fr); }
-  .filedesk-queue-primary { grid-column: 2; justify-self: start; }
+  .filedesk-row-actions { grid-column: 2; justify-self: start; }
   .stock-in-order-fields,
   .stock-in-line-grid,
   .stock-in-receive-form,

@@ -8408,32 +8408,35 @@ function _fileDeskFileRowHtml(f, target, options = {}) {
   const compatCell = compactBay ? '' : `<div class="filedesk-compat">
       ${printerChips}${more}
     </div>`;
-  const showThumb = target.id === 'library' && !compactBay && _fileDeskHasPreview(f);
+  const showThumb = _fileDeskHasPreview(f);
   const previewUrl = showThumb ? _fileDeskPreviewUrl(target.id, f.path || f.name) : '';
-  const thumbCell = previewUrl
-    ? `<div class="filedesk-file-thumb">
-        <img src="${esc(previewUrl)}" alt="" loading="lazy" onerror="this.closest('.filedesk-file-thumb')?.classList.add('is-missing')">
+  const thumbHtml = previewUrl
+    ? `<div class="filedesk-file-thumb${compactBay ? ' filedesk-file-thumb-compact' : ''}">
+        <img src="${esc(previewUrl)}" alt="" loading="lazy" onerror="this.parentElement.classList.add('is-missing')">
       </div>`
     : '';
-  return `<article class="filedesk-file-row${compactBay ? ' filedesk-file-row-compact' : ''}${inFolder ? ' filedesk-file-row-folder' : ''}${showThumb ? ' filedesk-file-row-has-thumb' : ''}">
+  const actionBtn = isSource
+    ? `<button class="filedesk-action-btn filedesk-slice-primary" data-file-action="slice" data-source-id="${esc(target.id)}" data-path="${path}" ${targetPrinterId ? `data-target-printer="${esc(targetPrinterId)}"` : ''}>Slice</button>`
+    : `<button class="filedesk-action-btn filedesk-queue-primary" data-file-action="queue" data-source-id="${esc(target.id)}" data-path="${path}" ${directQueue ? `data-target-printer="${esc(targetPrinterId)}"` : ''} ${printable.length ? '' : 'disabled'}>Queue</button>`;
+  return `<article class="filedesk-file-row${compactBay ? ' filedesk-file-row-compact' : ''}${inFolder ? ' filedesk-file-row-folder' : ''}">
     <input type="checkbox" class="filedesk-select" data-source-id="${esc(target.id)}" data-path="${path}" data-name="${esc(f.name || f.path || 'File')}" aria-label="Select ${esc(f.name || f.path || 'file')}">
-    ${thumbCell}
-    <div class="filedesk-file-main" title="${esc(f.path || f.name)}">
-      <div class="filedesk-file-title">
-        <span class="filedesk-kind filedesk-kind-${_fileKindClass(f.kind)}">${esc(f.kind || 'file')}</span>
-        ${vaultChip}
-        <strong class="filedesk-name">${esc(f.name || f.path || 'File')}</strong>
-      </div>
-      <div class="filedesk-file-meta">
-        <span>${esc(_fmtBytes(f.size))}</span>
-        <span>${esc(_fileModifiedLabel(f.modified))}</span>
-        ${metaPath}
+    <div class="filedesk-file-body">
+      ${thumbHtml}
+      <div class="filedesk-file-main" title="${esc(f.path || f.name)}">
+        <div class="filedesk-file-title">
+          <span class="filedesk-kind filedesk-kind-${_fileKindClass(f.kind)}">${esc(f.kind || 'file')}</span>
+          ${vaultChip}
+          <strong class="filedesk-name">${esc(f.name || f.path || 'File')}</strong>
+        </div>
+        <div class="filedesk-file-meta">
+          <span>${esc(_fmtBytes(f.size))}</span>
+          <span>${esc(_fileModifiedLabel(f.modified))}</span>
+          ${metaPath}
+        </div>
       </div>
     </div>
     ${compatCell}
-    ${isSource
-      ? `<button class="filedesk-action-btn filedesk-slice-primary" data-file-action="slice" data-source-id="${esc(target.id)}" data-path="${path}" ${targetPrinterId ? `data-target-printer="${esc(targetPrinterId)}"` : ''}>Slice</button>`
-      : `<button class="filedesk-action-btn filedesk-queue-primary" data-file-action="queue" data-source-id="${esc(target.id)}" data-path="${path}" ${directQueue ? `data-target-printer="${esc(targetPrinterId)}"` : ''} ${printable.length ? '' : 'disabled'}>Queue</button>`}
+    <div class="filedesk-row-actions">${actionBtn}</div>
   </article>`;
 }
 
