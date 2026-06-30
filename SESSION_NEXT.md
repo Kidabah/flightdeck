@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `24ff5ef` — Fix H2D nozzle assignment for non-first filament slots
+- Latest commit: `5fee547` — Fix Bambu skip-object map alignment to gcode footprints
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
