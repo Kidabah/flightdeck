@@ -8671,30 +8671,31 @@ button.live-route-node:hover {
   pointer-events: none;
 }
 
-.obj-map-shapes-bed {
+.obj-map-topdown .obj-map-preview-image,
+.object-map-modal-stage.obj-map-topdown .obj-map-preview-image {
+  object-fit: fill;
+  opacity: 0.45;
+  transform: rotate(90deg);
+  transform-origin: center center;
+}
+
+.obj-map-footprint {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 1;
+  box-sizing: border-box;
+  border: 1px solid rgba(15,23,42,0.38);
+  background: rgba(184,180,173,0.5);
+  border-radius: 0.15rem;
   pointer-events: none;
-  overflow: visible;
+  z-index: 1;
 }
 
-.obj-map-shapes-bed .obj-map-shape-object polygon {
-  fill: #b8b4ad;
-  stroke: rgba(15,23,42,0.55);
-  stroke-width: 0.35;
-  vector-effect: non-scaling-stroke;
+.obj-map-footprint.is-current {
+  border-color: rgba(37,99,235,0.72);
+  background: rgba(219,234,254,0.55);
 }
 
-.obj-map-shapes-bed .obj-map-shape-object.is-current polygon {
-  fill: #cbdaf8;
-  stroke: rgba(37,99,235,0.72);
-}
-
-.obj-map-shapes-bed .obj-map-shape-object.is-excluded {
-  opacity: 0.38;
+.obj-map-footprint.is-excluded {
+  opacity: 0.35;
 }
 
 .obj-map-topdown .obj-map-overlay {

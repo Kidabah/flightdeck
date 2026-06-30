@@ -5206,8 +5206,8 @@ function _objectMapHtml(id, data) {
   const imageVersion = objects.map(o => `${o.id ?? ''}:${o.state ?? ''}`).join('-') || 'current';
   const plateImageUrl = _objectMapPlateImageUrl(data, topDown);
   const imageSrc = _objectMapImageSrc(plateImageUrl, imageVersion);
-  const image = imageSrc && !topDown
-    ? `<img class="obj-map-preview-image" src="${esc(imageSrc)}" alt="Plate object map" loading="lazy">`
+  const image = imageSrc
+    ? `<img class="${topDown ? 'obj-map-preview-image' : ''}" src="${esc(imageSrc)}" alt="Plate object map" loading="lazy">`
     : '';
   const objectImages = topDown ? _objectMapTopDownObjects(data) : _objectMapImagePieces(data, imageVersion);
   const rotation = Number(data?.map_rotation || 0);
@@ -5216,7 +5216,7 @@ function _objectMapHtml(id, data) {
   const imageOffsetY = Number(data?.map_image_offset_y || 0);
   const rotated = rotation > 0 || imageRotation > 0;
   const classes = `obj-map${hasGeometry ? ' obj-map-has-geometry' : ' obj-map-no-geometry'}${topDown ? ' obj-map-topdown' : ''}${rotated ? ' obj-map-transformed' : ''}${rotation > 0 ? ' obj-map-overlay-rotated' : ''}${imageRotation > 0 ? ' obj-map-image-rotated' : ''}`;
-  const rotationStyle = _objectMapStyleVars(bounds, rotated, rotation, imageRotation, imageOffsetX, imageOffsetY);
+  const rotationStyle = _objectMapStyleVars(bounds, rotated, rotation, imageRotation, imageOffsetX, imageOffsetY, topDown);
   const helper = hasGeometry
     ? 'Tap a shape or ID on the map, or use the list below. Front edge is on the right.'
     : `No bed positions in this 3MF; use the object ID shown on the printer screen. Bambu/Orca IDs can be high. ${availableObjects.length} objects still available.`;
@@ -5323,10 +5323,10 @@ function _objectMapTransformPoint(bounds, x, y, data = {}) {
   const bh = Number(bounds.h);
   if (!(bw > 0 && bh > 0)) return { x: 50, y: 50 };
   if (_objectMapIsTopDown(data)) {
-    // Bambu bed mm: x increases left→right facing front, y increases front→back.
-    // Flightdeck top-down map keeps FRONT on the right edge and bed-left toward the top.
+    // Bambu gcode: x = left→right facing front, y = back→front (0 at back).
+    // Map view: bed depth on horizontal axis (back=left, front=right), lateral x on vertical (left=top).
     return {
-      x: ((by + bh - Number(y)) / bh) * 100,
+      x: ((Number(y) - by) / bh) * 100,
       y: ((Number(x) - bx) / bw) * 100,
     };
   }
@@ -5350,15 +5350,6 @@ function _objectMapTransformPoint(bounds, x, y, data = {}) {
     py = 100 - py;
   }
   return { x: px, y: py };
-}
-
-function _objectMapTransformShapePoint(bounds, x, y, data = {}) {
-  const pt = _objectMapTransformPoint(bounds, x, y, data);
-  if (_objectMapIsTopDown(data)) {
-    // Gcode footprints are front/back inverted relative to skip-ID placement.
-    return { x: 100 - pt.x, y: pt.y };
-  }
-  return pt;
 }
 
 function _objectMapTopDownRegionStyle(bounds, obj, data = {}) {
@@ -5422,29 +5413,19 @@ function _objectMapTopDownObjects(data) {
   const bounds = data?.bed_bounds || data?.plate_bounds;
   const objects = data?.objects || [];
   if (!bounds || bounds.w <= 0 || bounds.h <= 0) return '';
-  const groups = objects.map(obj => _objectMapShapeGroup(obj, bounds, data)).filter(Boolean);
-  if (!groups.length) return '';
-  return `<svg class="obj-map-shapes-bed" viewBox="0 0 100 100" preserveAspectRatio="none" focusable="false" aria-hidden="true">${groups.join('')}</svg>`;
+  return objects.filter(obj => obj?.bbox).map(obj => {
+    const style = _objectMapBoxStyle(bounds, obj.bbox, data);
+    const stateClass = obj.state === 'excluded' ? ' is-excluded' : (obj.state === 'current' ? ' is-current' : '');
+    return `<div class="obj-map-footprint${stateClass}" style="${style}" aria-hidden="true"></div>`;
+  }).join('');
 }
 
-function _objectMapShapeGroup(obj, bounds, data = {}) {
-  const polygon = Array.isArray(obj?.shape?.polygon) ? obj.shape.polygon : [];
-  if (polygon.length < 3) return '';
-  const point = pt => {
-    if (!Array.isArray(pt) || pt.length < 2) return null;
-    const transformed = _objectMapTransformShapePoint(bounds, pt[0], pt[1], data);
-    if (!Number.isFinite(transformed.x) || !Number.isFinite(transformed.y)) return null;
-    return transformed;
-  };
-  const polygonHtml = `<polygon points="${polygon.map(point).filter(Boolean).map(pt => `${pt.x.toFixed(3)},${pt.y.toFixed(3)}`).join(' ')}"></polygon>`;
-  const stateClass = obj.state === 'excluded' ? ' is-excluded' : (obj.state === 'current' ? ' is-current' : '');
-  return `<g class="obj-map-shape-object${stateClass}">${polygonHtml}</g>`;
-}
-
-function _objectMapStyleVars(bounds, rotated, rotation, imageRotation, imageOffsetX, imageOffsetY) {
+function _objectMapStyleVars(bounds, rotated, rotation, imageRotation, imageOffsetX, imageOffsetY, topDown = false) {
   const vars = [];
   if (bounds && bounds.w > 0 && bounds.h > 0) {
-    const aspect = Math.max(0.65, Math.min(1.85, Number(bounds.w) / Number(bounds.h)));
+    const aspect = topDown
+      ? Math.max(0.65, Math.min(1.85, Number(bounds.h) / Number(bounds.w))
+      : Math.max(0.65, Math.min(1.85, Number(bounds.w) / Number(bounds.h)));
     vars.push(`--obj-map-aspect:${aspect.toFixed(4)}`);
   }
   if (rotated) {
@@ -5471,16 +5452,16 @@ function _largeObjectMapHtml(id, data) {
   const imageVersion = objects.map(o => `${o.id ?? ''}:${o.state ?? ''}`).join('-') || 'current';
   const plateImageUrl = _objectMapPlateImageUrl(data, topDown);
   const imageSrc = _objectMapImageSrc(plateImageUrl, imageVersion);
-  const image = imageSrc && !topDown
-    ? `<img class="obj-map-preview-image" src="${esc(imageSrc)}" alt="Large plate preview" loading="eager">`
-    : (topDown ? '' : '<div class="object-map-missing">No thumbnail available</div>');
+  const image = imageSrc
+    ? `<img class="${topDown ? 'obj-map-preview-image' : ''}" src="${esc(imageSrc)}" alt="Large plate preview" loading="eager">`
+    : '<div class="object-map-missing">No thumbnail available</div>';
   const objectImages = topDown ? _objectMapTopDownObjects(data) : _objectMapImagePieces(data, imageVersion);
   const rotation = Number(data?.map_rotation || 0);
   const imageRotation = Number(data?.map_image_rotation || 0);
   const imageOffsetX = Number(data?.map_image_offset_x || 0);
   const imageOffsetY = Number(data?.map_image_offset_y || 0);
   const rotated = rotation > 0 || imageRotation > 0;
-  const rotationStyle = _objectMapStyleVars(bounds, rotated, rotation, imageRotation, imageOffsetX, imageOffsetY);
+  const rotationStyle = _objectMapStyleVars(bounds, rotated, rotation, imageRotation, imageOffsetX, imageOffsetY, topDown);
   const buttons = objects.map(obj => {
     const isExcluded = obj.state === 'excluded';
     const isCurrent = obj.state === 'current';
