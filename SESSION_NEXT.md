@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `TBD` — Align skip-object map with Bambu preview layout (Bambuddy-style)
+- Latest commit: `b6b2a6c` — Align skip-object map with Bambu preview layout (Bambuddy-style)
 - Refresh cachebust currently: app.js?v=572 / style.css?v=447
 
 ### 2026-06-30 fix (Skip object map — Bambuddy-style preview)
