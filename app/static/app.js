@@ -8003,6 +8003,9 @@ function _fileDeskTargetHtml(target, options = {}) {
       ? `<span class="filedesk-vault-chip" title="Archived in Print Vault${f.vault_path ? ': ' + esc(f.vault_path) : ''}">Vaulted</span>`
       : '';
     const metaPath = compactBay ? '' : `<span>${esc(f.path || '')}</span>`;
+    const compatCell = compactBay ? '' : `<div class="filedesk-compat">
+        ${printerChips}${more}
+      </div>`;
     return `<article class="filedesk-file-row${compactBay ? ' filedesk-file-row-compact' : ''}">
       <input type="checkbox" class="filedesk-select" data-source-id="${esc(target.id)}" data-path="${path}" data-name="${esc(f.name || f.path || 'File')}" aria-label="Select ${esc(f.name || f.path || 'file')}">
       <div class="filedesk-file-main" title="${esc(f.path || f.name)}">
@@ -8017,9 +8020,7 @@ function _fileDeskTargetHtml(target, options = {}) {
           ${metaPath}
         </div>
       </div>
-      <div class="filedesk-compat">
-        ${printerChips}${more}
-      </div>
+      ${compatCell}
       ${isSource
         ? `<button class="filedesk-action-btn filedesk-slice-primary" data-file-action="slice" data-source-id="${esc(target.id)}" data-path="${path}" ${targetPrinterId ? `data-target-printer="${esc(targetPrinterId)}"` : ''}>Slice</button>`
         : `<button class="filedesk-action-btn filedesk-queue-primary" data-file-action="queue" data-source-id="${esc(target.id)}" data-path="${path}" ${directQueue ? `data-target-printer="${esc(targetPrinterId)}"` : ''} ${printable.length ? '' : 'disabled'}>Queue</button>`}

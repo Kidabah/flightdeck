@@ -18243,8 +18243,14 @@ select optgroup {
   grid-template-columns: auto minmax(0, 1fr) auto;
 }
 
-.filedesk-file-row-compact .filedesk-compat {
-  display: none;
+.filedesk-file-row-compact .filedesk-action-btn {
+  justify-self: end;
+  min-width: 0;
+  width: auto;
+  padding: 0.16rem 0.52rem;
+  font-size: 0.64rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
 }
 
 .filedesk-danger-btn-compact {
@@ -18401,9 +18407,10 @@ select optgroup {
   color: #60a5fa;
   padding: 0.18rem 0.48rem;
   font-size: 0.68rem;
-  font-weight: 800;
+  font-weight: 600;
   cursor: pointer;
   flex: 0 0 auto;
+  white-space: nowrap;
 }
 .filedesk-action-btn:hover:not(:disabled) { background: rgba(59,130,246,0.16); color: white; }
 .filedesk-action-btn:disabled { opacity: 0.55; cursor: default; }
