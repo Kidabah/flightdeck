@@ -218,6 +218,56 @@ def _format_seconds(seconds: int | None) -> str | None:
     return f"{minutes}m"
 
 
+def _safe_folder_segment(name: str, fallback: str) -> str:
+    raw = str(name or fallback).replace("\x00", "")
+    raw = raw.rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
+    safe = re.sub(r"[^A-Za-z0-9._ -]+", "_", raw).strip(" ._")
+    return safe or fallback
+
+
+def _sorted_instances(design: dict[str, Any]) -> list[dict[str, Any]]:
+    instances: list[dict[str, Any]] = []
+    for row in design.get("instances") or []:
+        if not isinstance(row, dict):
+            continue
+        profile_id = int(row.get("profileId") or 0)
+        if profile_id:
+            instances.append(row)
+    instances.sort(key=lambda row: (not bool(row.get("isDefault")), str(row.get("title") or "").lower()))
+    return instances
+
+
+def _design_vault_folder(design: dict[str, Any], design_id: int, *, multi_plate: bool) -> str:
+    if not multi_plate:
+        return IMPORT_SUBDIR
+    slug = str(design.get("slug") or "").strip()
+    title = str(design.get("title") or f"design_{design_id}").strip()
+    base = _safe_folder_segment(slug or title, f"design_{design_id}")
+    if str(design_id) not in base:
+        base = f"{base}_{design_id}"
+    return f"{IMPORT_SUBDIR}/{base}"
+
+
+def _plate_vault_filename(
+    *,
+    upstream_name: str,
+    profile_id: int,
+    plate_title: str,
+    plate_index: int,
+    plate_total: int,
+    design_id: int,
+    safe_basename,
+) -> str:
+    if plate_total <= 1:
+        stem = safe_basename(upstream_name, f"{design_id}_{profile_id}.3mf")
+    else:
+        label = safe_basename(plate_title, f"plate_{profile_id}")
+        stem = f"{plate_index:02d} - {label}.3mf"
+    if not stem.lower().endswith(".3mf"):
+        stem = f"{stem}.3mf"
+    return stem
+
+
 def _plate_row(instance: dict[str, Any], imported: dict[str, Any] | None) -> dict[str, Any]:
     profile_id = int(instance.get("profileId") or 0)
     cover = instance.get("cover")
@@ -263,6 +313,11 @@ def resolve_url(url: str, token: str, data_dir: Path) -> dict[str, Any]:
         imported = imports.get((design_id, profile_id))
         plates.append(_plate_row(instance, imported))
     plates.sort(key=lambda row: (not row["is_default"], row["title"].lower()))
+    plate_total = len(plates)
+    for idx, plate in enumerate(plates):
+        plate["plate_index"] = idx + 1
+        plate["plate_total"] = plate_total
+    vault_folder = _design_vault_folder(design, design_id, multi_plate=plate_total > 1)
     return {
         "ok": True,
         "design_id": design_id,
@@ -278,6 +333,8 @@ def resolve_url(url: str, token: str, data_dir: Path) -> dict[str, Any]:
         "source_url": f"https://makerworld.com/en/models/{design_id}",
         "highlight_profile_id": highlight_profile_id,
         "plates": plates,
+        "plate_total": plate_total,
+        "vault_folder": vault_folder,
         "can_download": bool(token.strip()),
         "token_hint": _token_hint(token),
     }
@@ -301,9 +358,13 @@ def import_plate(
         raise MakerWorldError("MakerWorld design is missing model metadata.", status=502)
 
     instance = None
-    for row in design.get("instances") or []:
-        if isinstance(row, dict) and int(row.get("profileId") or 0) == profile_id:
+    instances = _sorted_instances(design)
+    plate_total = len(instances)
+    plate_index = 0
+    for idx, row in enumerate(instances):
+        if int(row.get("profileId") or 0) == profile_id:
             instance = row
+            plate_index = idx + 1
             break
     if instance is None:
         raise MakerWorldError("That print profile is not on this MakerWorld model.", status=404)
@@ -332,11 +393,18 @@ def import_plate(
 
     plate_title = str(instance.get("title") or f"plate_{profile_id}").strip()
     design_title = str(design.get("title") or f"design_{design_id}").strip()
-    stem = safe_basename(upstream_name, f"{design_id}_{profile_id}.3mf")
-    if not stem.lower().endswith(".3mf"):
-        stem = f"{stem}.3mf"
+    stem = _plate_vault_filename(
+        upstream_name=upstream_name,
+        profile_id=profile_id,
+        plate_title=plate_title,
+        plate_index=plate_index,
+        plate_total=plate_total,
+        design_id=design_id,
+        safe_basename=safe_basename,
+    )
 
-    folder = safe_join_under(library_root.resolve(), IMPORT_SUBDIR, missing_ok=True)
+    vault_folder_rel = _design_vault_folder(design, design_id, multi_plate=plate_total > 1)
+    folder = safe_join_under(library_root.resolve(), *vault_folder_rel.split("/"), missing_ok=True)
     folder.mkdir(parents=True, exist_ok=True)
     dest = safe_join_under(folder, stem, missing_ok=True)
     if dest.exists():
@@ -391,13 +459,10 @@ def import_all_plates(
 
     design_id, _ = parse_makerworld_url(url)
     design = fetch_design(design_id)
-    profile_ids: list[int] = []
-    for row in design.get("instances") or []:
-        if not isinstance(row, dict):
-            continue
-        profile_id = int(row.get("profileId") or 0)
-        if profile_id:
-            profile_ids.append(profile_id)
+    profile_ids = [
+        int(row.get("profileId") or 0)
+        for row in _sorted_instances(design)
+    ]
     if not profile_ids:
         raise MakerWorldError("No downloadable plates were found for this model.", status=404)
 

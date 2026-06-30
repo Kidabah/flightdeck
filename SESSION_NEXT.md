@@ -2,15 +2,24 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `349afcb` — Add MakerWorld import-all plates for multi-plate models
-- Refresh cachebust currently: app.js?v=574 / style.css?v=447
+- Latest commit: (pending) — MakerWorld multi-plate vault folders and plate labels
+- Refresh cachebust currently: app.js?v=576 / style.css?v=449
+
+### 2026-06-30 fix (MakerWorld multi-plate vault layout)
+
+**MakerWorld multi-plate folders, numbered files, and plate labels** (`app/makerworld.py`, `app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Multi-plate models (2+) import into `MakerWorld/{slug}_{designId}/` with filenames like `01 - Plate title.3mf` (sorted default-first, then title).
+- Single-plate models still land flat in `MakerWorld/`. Already-imported plates keep their existing vault path until re-imported.
+- Resolve API returns `vault_folder`, `plate_index`, and `plate_total`; UI shows **Plate N of M**, colour accents, thumb badges, and target folder hint before import.
+- Static cache `app.js?v=576` / `style.css?v=449`; **backend restart required** on Pi (`git pull` then `sudo systemctl restart flightdeck.service`).
 
 ### 2026-06-30 fix (MakerWorld import all)
 
 **MakerWorld import-all plates + legacy fallback** (`app/makerworld.py`, `app/main.py`, `app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
 
 - Multi-plate models get **Import all to Vault** on `#/makerworld`; backend `POST /api/makerworld/import-all` loops profiles via existing single-plate import.
-- If the Pi backend has not been restarted yet, bulk import 404s — frontend now falls back to sequential per-plate `/api/makerworld/import` calls with `Importing N/M…` progress.
+- If the Pi backend has not been restarted yet, bulk import 404s — frontend falls back to sequential per-plate `/api/makerworld/import` calls with `Importing N/M…` progress.
 - Static cache `app.js?v=574`; **backend restart required** on Pi for the bulk endpoint (`sudo systemctl restart flightdeck.service` after `git pull`).
 
 ### 2026-06-30 fix (Skip object map — Bambuddy-style preview)

@@ -3053,12 +3053,39 @@ function _makerWorldPlateMeta(plate) {
   return bits.join(' · ') || 'Print profile';
 }
 
+const _MAKERWORLD_PLATE_ACCENTS = [
+  '#60a5fa',
+  '#34d399',
+  '#a78bfa',
+  '#fbbf24',
+  '#f472b6',
+  '#22d3ee',
+  '#fb923c',
+  '#4ade80',
+];
+
+function _makerWorldPlateAccent(index) {
+  return _MAKERWORLD_PLATE_ACCENTS[Math.abs(Number(index) || 0) % _MAKERWORLD_PLATE_ACCENTS.length];
+}
+
+function _makerWorldPlateIndexLabel(index, total) {
+  if (total <= 1) return '';
+  return `Plate ${index} of ${total}`;
+}
+
 function _makerWorldPreviewHtml(data, url) {
   if (!data) return '';
   const cover = data.cover_url ? _makerWorldThumbUrl(data.cover_url) : '';
   const highlight = Number(data.highlight_profile_id || 0);
   const slicer = _makerWorldSlicerHandoff();
-  const plates = (data.plates || []).map(plate => {
+  const plateRows = data.plates || [];
+  const plateCount = plateRows.length;
+  const plates = plateRows.map((plate, idx) => {
+    const plateNum = Number(plate.plate_index) || (idx + 1);
+    const plateTotal = Number(plate.plate_total) || plateCount;
+    const numbered = plateTotal > 1;
+    const accent = _makerWorldPlateAccent(idx);
+    const indexLabel = numbered ? _makerWorldPlateIndexLabel(plateNum, plateTotal) : '';
     const active = highlight && Number(plate.profile_id) === highlight ? ' makerworld-plate-highlight' : '';
     const imported = plate.already_imported;
     const vaultPath = plate.vault_path || '';
@@ -3080,12 +3107,16 @@ function _makerWorldPreviewHtml(data, url) {
           </button>
         </div>`;
     const thumb = plate.cover_url ? _makerWorldThumbUrl(plate.cover_url) : cover;
-    return `<article class="makerworld-plate${active}">
-      <div class="makerworld-plate-thumb">${thumb ? `<img src="${esc(thumb)}" alt="" loading="lazy">` : ''}</div>
+    const thumbIndex = numbered
+      ? `<span class="makerworld-plate-thumb-index" aria-hidden="true">${plateNum}</span>`
+      : '';
+    return `<article class="makerworld-plate${numbered ? ' makerworld-plate--numbered' : ''}${active}"${numbered ? ` style="--plate-accent:${accent}"` : ''}>
+      <div class="makerworld-plate-thumb">${thumbIndex}${thumb ? `<img src="${esc(thumb)}" alt="" loading="lazy">` : ''}</div>
       <div class="makerworld-plate-body">
+        ${indexLabel ? `<span class="makerworld-plate-index">${esc(indexLabel)}</span>` : ''}
         <strong>${esc(plate.title)}</strong>
         <span>${esc(_makerWorldPlateMeta(plate))}</span>
-        ${imported && plate.vault_name ? `<small>${esc(plate.vault_name)}</small>` : ''}
+        ${imported && plate.vault_path ? `<small>${esc(plate.vault_path)}</small>` : (imported && plate.vault_name ? `<small>${esc(plate.vault_name)}</small>` : '')}
       </div>
       ${actions}
     </article>`;
@@ -3098,8 +3129,8 @@ function _makerWorldPreviewHtml(data, url) {
         <a href="#/settings/preferences">Settings → Preferences → Bambu Cloud</a>, then resolve again.
       </div>`;
 
-  const plateCount = (data.plates || []).length;
-  const pendingCount = (data.plates || []).filter(plate => !plate.already_imported).length;
+  const plateCount = plateRows.length;
+  const pendingCount = plateRows.filter(plate => !plate.already_imported).length;
   const importAllBtn = plateCount > 1 && data.can_download
     ? `<button type="button" class="settings-save-btn makerworld-import-all-btn" data-makerworld-import-all ${pendingCount ? '' : 'disabled'}>
         Import all to Vault${pendingCount && pendingCount < plateCount ? ` (${pendingCount} new)` : ''}
@@ -3133,6 +3164,7 @@ function _makerWorldPreviewHtml(data, url) {
         </div>
         ${importAllBtn}
       </div>
+      ${plateCount > 1 && data.vault_folder ? `<div class="makerworld-vault-folder">Imports save to <code>${esc(data.vault_folder)}/</code> with numbered filenames.</div>` : ''}
       <div class="makerworld-plate-list">${plates || '<p class="makerworld-empty">No downloadable plates were returned for this model.</p>'}</div>
     </div>
   </section>`;
