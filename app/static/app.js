@@ -5193,7 +5193,7 @@ function _objectMapHtml(id, data) {
       const inner = topDown
         ? `<span class="obj-map-id-dot">${displayId}</span>`
         : `<span class="obj-chip-id">${displayId}</span>`;
-      return `<button type="button" class="obj-map-region obj-exclude-btn${topDown ? ' is-top-down is-shape-hit' : ''}${isExcluded ? ' is-excluded' : ''}${isCurrent ? ' is-current' : ''}"
+      return `<button type="button" class="obj-map-region obj-exclude-btn${topDown ? ' is-top-down' : ''}${isExcluded ? ' is-excluded' : ''}${isCurrent ? ' is-current' : ''}"
         style="${geom}"
         data-obj-name="${safeName}" data-obj-label="${esc(shortName)}" data-printer-id="${id}" data-obj-id="${safeId}" ${isExcluded ? 'disabled' : ''}
         title="${esc(shortName)}">${inner}</button>`;
@@ -5206,8 +5206,8 @@ function _objectMapHtml(id, data) {
   const imageVersion = objects.map(o => `${o.id ?? ''}:${o.state ?? ''}`).join('-') || 'current';
   const plateImageUrl = _objectMapPlateImageUrl(data, topDown);
   const imageSrc = _objectMapImageSrc(plateImageUrl, imageVersion);
-  const image = imageSrc
-    ? `<img class="${topDown ? 'obj-map-preview-image' : ''}" src="${esc(imageSrc)}" alt="Plate object map" loading="lazy">`
+  const image = imageSrc && !topDown
+    ? `<img class="obj-map-preview-image" src="${esc(imageSrc)}" alt="Plate object map" loading="lazy">`
     : '';
   const objectImages = topDown ? _objectMapTopDownObjects(data) : _objectMapImagePieces(data, imageVersion);
   const rotation = Number(data?.map_rotation || 0);
@@ -5352,11 +5352,19 @@ function _objectMapTransformPoint(bounds, x, y, data = {}) {
   return { x: px, y: py };
 }
 
+function _objectMapTransformShapePoint(bounds, x, y, data = {}) {
+  const pt = _objectMapTransformPoint(bounds, x, y, data);
+  if (_objectMapIsTopDown(data)) {
+    // Gcode footprints are front/back inverted relative to skip-ID placement.
+    return { x: 100 - pt.x, y: pt.y };
+  }
+  return pt;
+}
+
 function _objectMapTopDownRegionStyle(bounds, obj, data = {}) {
-  if (obj?.bbox) return _objectMapBoxStyle(bounds, obj.bbox, data);
+  if (obj?.bbox) return _objectMapBadgeCenterStyle(bounds, obj.bbox, data);
   const p = _objectMapPointPosition(bounds, obj, data);
-  const size = 12;
-  return `left:${Math.max(0, p.x - (size / 2)).toFixed(2)}%;top:${Math.max(0, p.y - (size / 2)).toFixed(2)}%;width:${size.toFixed(2)}%;height:${size.toFixed(2)}%`;
+  return `left:${p.x.toFixed(2)}%;top:${p.y.toFixed(2)}%;transform:translate(-50%,-50%)`;
 }
 
 function _objectMapBoxParts(bounds, box, data = {}) {
@@ -5420,28 +5428,17 @@ function _objectMapTopDownObjects(data) {
 }
 
 function _objectMapShapeGroup(obj, bounds, data = {}) {
-  const segments = Array.isArray(obj?.shape?.segments) ? obj.shape.segments : [];
   const polygon = Array.isArray(obj?.shape?.polygon) ? obj.shape.polygon : [];
-  if (!segments.length && !polygon.length) return '';
+  if (polygon.length < 3) return '';
   const point = pt => {
     if (!Array.isArray(pt) || pt.length < 2) return null;
-    const transformed = _objectMapTransformPoint(bounds, pt[0], pt[1], data);
+    const transformed = _objectMapTransformShapePoint(bounds, pt[0], pt[1], data);
     if (!Number.isFinite(transformed.x) || !Number.isFinite(transformed.y)) return null;
     return transformed;
   };
-  const polygonHtml = polygon.length >= 3
-    ? `<polygon points="${polygon.map(point).filter(Boolean).map(pt => `${pt.x.toFixed(3)},${pt.y.toFixed(3)}`).join(' ')}"></polygon>`
-    : '';
-  const lines = segments.slice(0, 260).map(seg => {
-    if (!Array.isArray(seg) || seg.length < 4) return '';
-    const a = point([seg[0], seg[1]]);
-    const b = point([seg[2], seg[3]]);
-    if (!a || !b) return '';
-    return `<line x1="${a.x.toFixed(3)}" y1="${a.y.toFixed(3)}" x2="${b.x.toFixed(3)}" y2="${b.y.toFixed(3)}"></line>`;
-  }).join('');
-  if (!lines && !polygonHtml) return '';
+  const polygonHtml = `<polygon points="${polygon.map(point).filter(Boolean).map(pt => `${pt.x.toFixed(3)},${pt.y.toFixed(3)}`).join(' ')}"></polygon>`;
   const stateClass = obj.state === 'excluded' ? ' is-excluded' : (obj.state === 'current' ? ' is-current' : '');
-  return `<g class="obj-map-shape-object${stateClass}">${polygonHtml}${lines}</g>`;
+  return `<g class="obj-map-shape-object${stateClass}">${polygonHtml}</g>`;
 }
 
 function _objectMapStyleVars(bounds, rotated, rotation, imageRotation, imageOffsetX, imageOffsetY) {
@@ -5474,9 +5471,9 @@ function _largeObjectMapHtml(id, data) {
   const imageVersion = objects.map(o => `${o.id ?? ''}:${o.state ?? ''}`).join('-') || 'current';
   const plateImageUrl = _objectMapPlateImageUrl(data, topDown);
   const imageSrc = _objectMapImageSrc(plateImageUrl, imageVersion);
-  const image = imageSrc
-    ? `<img class="${topDown ? 'obj-map-preview-image' : ''}" src="${esc(imageSrc)}" alt="Large plate preview" loading="eager">`
-    : '<div class="object-map-missing">No thumbnail available</div>';
+  const image = imageSrc && !topDown
+    ? `<img class="obj-map-preview-image" src="${esc(imageSrc)}" alt="Large plate preview" loading="eager">`
+    : (topDown ? '' : '<div class="object-map-missing">No thumbnail available</div>');
   const objectImages = topDown ? _objectMapTopDownObjects(data) : _objectMapImagePieces(data, imageVersion);
   const rotation = Number(data?.map_rotation || 0);
   const imageRotation = Number(data?.map_image_rotation || 0);
@@ -5503,7 +5500,7 @@ function _largeObjectMapHtml(id, data) {
       const inner = topDown
         ? `<span class="obj-map-id-dot">${displayId}</span>`
         : `<span class="obj-chip-id">${displayId}</span>`;
-      return `<button type="button" class="obj-map-region obj-exclude-btn${topDown ? ' is-top-down is-shape-hit' : ''}${isExcluded ? ' is-excluded' : ''}${isCurrent ? ' is-current' : ''}"
+      return `<button type="button" class="obj-map-region obj-exclude-btn${topDown ? ' is-top-down' : ''}${isExcluded ? ' is-excluded' : ''}${isCurrent ? ' is-current' : ''}"
         style="${geom}"
         data-obj-name="${safeName}" data-obj-label="${esc(shortName)}" data-printer-id="${id}" data-obj-id="${safeId}" ${isExcluded ? 'disabled' : ''}
         title="${esc(shortName)}">${inner}</button>`;

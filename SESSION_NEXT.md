@@ -6,7 +6,14 @@ Latest GitHub/Pi state:
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=569 / style.css?v=444
+- Refresh cachebust currently: app.js?v=570 / style.css?v=445
+
+### 2026-06-30 fix (Skip object footprint flip)
+
+**Flip gcode footprints front/back on skip-object map** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Skip ID badges were already aligned with the printer screen; gcode footprint polygons were mirrored front/back relative to them.
+- Footprints now use a separate front/back flip while ID tags stay put; removed the rotated Bambu bed PNG and gcode line-segment overlay (source of white-square/double-silhouette artefacts). Static cache `app.js?v=570` / `style.css?v=445`; hard refresh after deploy.
 
 ### 2026-06-30 fix (Skip objects bed map alignment)
 

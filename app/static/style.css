@@ -8671,14 +8671,6 @@ button.live-route-node:hover {
   pointer-events: none;
 }
 
-.obj-map-topdown .obj-map-preview-image,
-.object-map-modal-stage.obj-map-topdown .obj-map-preview-image {
-  object-fit: fill;
-  opacity: 0.34;
-  transform: rotate(90deg);
-  transform-origin: center center;
-}
-
 .obj-map-shapes-bed {
   position: absolute;
   inset: 0;
@@ -8690,27 +8682,19 @@ button.live-route-node:hover {
 }
 
 .obj-map-shapes-bed .obj-map-shape-object polygon {
-  fill: #c8c5be;
-  stroke: rgba(15,23,42,0.62);
-  stroke-width: 0.4;
-  vector-effect: non-scaling-stroke;
-}
-
-.obj-map-shapes-bed .obj-map-shape-object line {
-  stroke: rgba(255,255,255,0.78);
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 0.28;
+  fill: #b8b4ad;
+  stroke: rgba(15,23,42,0.55);
+  stroke-width: 0.35;
   vector-effect: non-scaling-stroke;
 }
 
 .obj-map-shapes-bed .obj-map-shape-object.is-current polygon {
-  fill: #dbeafe;
+  fill: #cbdaf8;
   stroke: rgba(37,99,235,0.72);
 }
 
 .obj-map-shapes-bed .obj-map-shape-object.is-excluded {
-  opacity: 0.34;
+  opacity: 0.38;
 }
 
 .obj-map-topdown .obj-map-overlay {
@@ -8809,7 +8793,7 @@ button.live-route-node:hover {
 .obj-map-topdown .obj-map-region.is-top-down {
   background: transparent;
   border-color: transparent;
-  color: transparent;
+  color: #fff;
   min-width: 0;
   min-height: 0;
   padding: 0;
@@ -8821,22 +8805,7 @@ button.live-route-node:hover {
   position: static;
   left: auto;
   top: auto;
-}
-
-.obj-map-topdown .obj-map-region.is-shape-hit {
-  border: 1px solid transparent;
-}
-
-.obj-map-topdown .obj-map-region.is-shape-hit .obj-map-id-dot {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-}
-
-.obj-map-topdown .obj-map-region.is-shape-hit:hover:not(:disabled) {
-  border-color: rgba(248,113,113,0.55);
-  background: rgba(248,113,113,0.08);
+  transform: none;
 }
 
 .obj-map-topdown .obj-map-region.is-top-down:hover:not(:disabled) {
