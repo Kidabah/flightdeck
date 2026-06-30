@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — Fix H2D nozzle map keyed by filament slot id
+- Latest commit: `24ff5ef` — Fix H2D nozzle assignment for non-first filament slots
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
