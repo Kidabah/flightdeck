@@ -4412,7 +4412,13 @@ async def makerworld_status():
 async def makerworld_resolve(body: MakerWorldResolveRequest):
     token = _db_setting("bambu_cloud_token")
     try:
-        return makerworld.resolve_url(body.url.strip(), token, DATA_DIR)
+        return makerworld.resolve_url(
+            body.url.strip(),
+            token,
+            DATA_DIR,
+            library_root=_print_library_path().resolve(),
+            safe_join_under=_safe_join_under,
+        )
     except makerworld.MakerWorldError as exc:
         raise HTTPException(status_code=exc.status, detail=str(exc))
 
@@ -4455,6 +4461,12 @@ async def makerworld_import_all(body: MakerWorldImportAllRequest):
 @app.get("/api/makerworld/recent")
 async def makerworld_recent(limit: int = 10):
     return {"imports": makerworld.recent_imports(DATA_DIR, limit)}
+
+
+@app.post("/api/makerworld/recent/clear")
+async def makerworld_recent_clear():
+    cleared = makerworld.clear_imports(DATA_DIR)
+    return {"ok": True, "cleared": cleared}
 
 
 @app.get("/api/makerworld/thumbnail")

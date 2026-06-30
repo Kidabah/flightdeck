@@ -114,6 +114,12 @@ def save_imports(data_dir: Path, rows: list[dict[str, Any]]) -> None:
     path.write_text(json.dumps({"imports": trimmed}, indent=2), encoding="utf-8")
 
 
+def clear_imports(data_dir: Path) -> int:
+    count = len(load_imports(data_dir))
+    save_imports(data_dir, [])
+    return count
+
+
 def _imports_by_profile(rows: list[dict[str, Any]]) -> dict[tuple[int, int], dict[str, Any]]:
     out: dict[tuple[int, int], dict[str, Any]] = {}
     for row in rows:
@@ -268,6 +274,28 @@ def _plate_vault_filename(
     return stem
 
 
+def _plate_vault_layout_ok(
+    *,
+    vault_path: str,
+    vault_folder: str,
+    plate_total: int,
+    library_root: Path | None,
+    safe_join_under=None,
+) -> bool:
+    vault_path = str(vault_path or "").strip()
+    if not vault_path:
+        return False
+    if plate_total > 1 and not vault_path.startswith(f"{vault_folder}/"):
+        return False
+    if library_root is None or safe_join_under is None:
+        return True
+    try:
+        dest = safe_join_under(library_root.resolve(), vault_path, missing_ok=True)
+    except Exception:
+        return False
+    return dest.is_file()
+
+
 def _plate_row(instance: dict[str, Any], imported: dict[str, Any] | None) -> dict[str, Any]:
     profile_id = int(instance.get("profileId") or 0)
     cover = instance.get("cover")
@@ -295,7 +323,13 @@ def _plate_row(instance: dict[str, Any], imported: dict[str, Any] | None) -> dic
     }
 
 
-def resolve_url(url: str, token: str, data_dir: Path) -> dict[str, Any]:
+def resolve_url(
+    url: str,
+    token: str,
+    data_dir: Path,
+    library_root: Path | None = None,
+    safe_join_under=None,
+) -> dict[str, Any]:
     design_id, highlight_profile_id = parse_makerworld_url(url)
     design = fetch_design(design_id)
     model_id = str(design.get("modelId") or "").strip()
@@ -318,6 +352,18 @@ def resolve_url(url: str, token: str, data_dir: Path) -> dict[str, Any]:
         plate["plate_index"] = idx + 1
         plate["plate_total"] = plate_total
     vault_folder = _design_vault_folder(design, design_id, multi_plate=plate_total > 1)
+    for plate in plates:
+        vault_path = str(plate.get("vault_path") or "")
+        layout_ok = _plate_vault_layout_ok(
+            vault_path=vault_path,
+            vault_folder=vault_folder,
+            plate_total=plate_total,
+            library_root=library_root,
+            safe_join_under=safe_join_under,
+        )
+        plate["vault_layout_ok"] = layout_ok
+        plate["needs_vault_refresh"] = bool(plate.get("already_imported") and not layout_ok)
+    needs_refresh = sum(1 for plate in plates if plate.get("needs_vault_refresh"))
     return {
         "ok": True,
         "design_id": design_id,
@@ -335,6 +381,7 @@ def resolve_url(url: str, token: str, data_dir: Path) -> dict[str, Any]:
         "plates": plates,
         "plate_total": plate_total,
         "vault_folder": vault_folder,
+        "needs_vault_refresh": needs_refresh,
         "can_download": bool(token.strip()),
         "token_hint": _token_hint(token),
     }
@@ -416,9 +463,12 @@ def import_plate(
         dest = safe_join_under(folder, f"{dest.stem}_{stamp}{''.join(suffixes)}", missing_ok=True)
     dest.write_bytes(data)
 
+    relocated = False
+    old_rel = ""
     if existing and existing.get("vault_path"):
         old_rel = str(existing["vault_path"])
-        if old_rel != dest.relative_to(library_root.resolve()).as_posix():
+        relocated = old_rel != dest.relative_to(library_root.resolve()).as_posix()
+        if relocated:
             try:
                 old_dest = safe_join_under(library_root.resolve(), old_rel, missing_ok=True)
                 if old_dest.is_file():
@@ -447,6 +497,7 @@ def import_plate(
     return {
         "ok": True,
         "already_existed": False,
+        "relocated": relocated,
         "name": dest.name,
         "path": vault_rel,
         "size": len(data),
@@ -482,6 +533,7 @@ def import_all_plates(
     results: list[dict[str, Any]] = []
     imported = 0
     already_existed = 0
+    relocated = 0
     failed = 0
     for profile_id in profile_ids:
         try:
@@ -499,10 +551,13 @@ def import_all_plates(
                 already_existed += 1
             else:
                 imported += 1
+                if row.get("relocated"):
+                    relocated += 1
             results.append({
                 "ok": True,
                 "profile_id": profile_id,
                 "already_existed": bool(row.get("already_existed")),
+                "relocated": bool(row.get("relocated")),
                 "name": row.get("name"),
                 "path": row.get("path"),
                 "plate_title": row.get("plate_title"),
@@ -530,6 +585,7 @@ def import_all_plates(
         "total": len(profile_ids),
         "imported": imported,
         "already_existed": already_existed,
+        "relocated": relocated,
         "failed": failed,
         "results": results,
     }

@@ -2879,6 +2879,13 @@ async function _fetchMakerWorldRecent() {
   return r.json();
 }
 
+async function _clearMakerWorldRecent() {
+  const r = await fetch('/api/makerworld/recent/clear', { method: 'POST' });
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(_apiDetail(body, 'Could not clear recent imports'));
+  return body;
+}
+
 function _apiDetail(body, fallback) {
   const detail = body?.detail;
   if (typeof detail === 'string' && detail.trim()) return detail;
@@ -2931,6 +2938,7 @@ async function _importAllMakerWorldPlatesLegacy(url, plates = [], onProgress = n
         ok: true,
         profile_id: profileId,
         already_existed: Boolean(row.already_existed),
+        relocated: Boolean(row.relocated),
         name: row.name,
         path: row.path,
         plate_title: row.plate_title,
@@ -2949,6 +2957,7 @@ async function _importAllMakerWorldPlatesLegacy(url, plates = [], onProgress = n
     total,
     imported,
     already_existed,
+    relocated: results.filter(row => row.relocated).length,
     failed,
     results,
     legacy: true,
@@ -2969,9 +2978,16 @@ async function _importAllMakerWorldPlates(url, { plates = null, onProgress = nul
   return body;
 }
 
+function _makerWorldPlateNeedsAction(plate) {
+  if (!plate?.already_imported) return true;
+  if (plate?.needs_vault_refresh) return true;
+  return false;
+}
+
 function _makerWorldImportAllSummary(result) {
   const parts = [];
   if (result.imported) parts.push(`${result.imported} saved`);
+  if (result.relocated) parts.push(`${result.relocated} moved to folder`);
   if (result.already_existed) parts.push(`${result.already_existed} already in vault`);
   if (result.failed) parts.push(`${result.failed} failed`);
   if (!parts.length) return 'No plates to import';
@@ -3129,10 +3145,19 @@ function _makerWorldPreviewHtml(data, url) {
         <a href="#/settings/preferences">Settings → Preferences → Bambu Cloud</a>, then resolve again.
       </div>`;
 
-  const pendingCount = plateRows.filter(plate => !plate.already_imported).length;
+  const pendingCount = plateRows.filter(_makerWorldPlateNeedsAction).length;
+  const refreshCount = plateRows.filter(plate => plate.needs_vault_refresh).length;
+  const importAllLabel = refreshCount && !plateRows.some(plate => !plate.already_imported)
+    ? 'Move all to folder'
+    : 'Import all to Vault';
+  const importAllHint = pendingCount
+    ? (refreshCount && pendingCount === refreshCount
+      ? ` (${refreshCount} to move)`
+      : (pendingCount < plateCount ? ` (${pendingCount} to update)` : ''))
+    : '';
   const importAllBtn = plateCount > 1 && data.can_download
     ? `<button type="button" class="settings-save-btn makerworld-import-all-btn" data-makerworld-import-all ${pendingCount ? '' : 'disabled'}>
-        Import all to Vault${pendingCount && pendingCount < plateCount ? ` (${pendingCount} new)` : ''}
+        ${esc(importAllLabel)}${importAllHint}
       </button>`
     : '';
 
@@ -3186,10 +3211,52 @@ function _makerWorldRecentHtml(imports) {
       </div>
     </div>`;
   }).join('');
+  const clearBtn = (imports || []).length
+    ? '<button type="button" class="settings-save-btn makerworld-clear-recent-btn" data-makerworld-clear-recent>Clear all</button>'
+    : '';
   return `<section class="manual-card makerworld-recent-card">
-    <div class="manual-card-head"><span>Recent imports</span></div>
+    <div class="manual-card-head makerworld-recent-head">
+      <span>Recent imports</span>
+      ${clearBtn}
+    </div>
     ${rows ? `<div class="makerworld-recent-list">${rows}</div>` : '<p class="makerworld-empty">Imported MakerWorld plates will appear here.</p>'}
   </section>`;
+}
+
+function _attachMakerWorldRecentEvents(el) {
+  el.querySelector('[data-makerworld-clear-recent]')?.addEventListener('click', async () => {
+    if (_makerWorldBusy) return;
+    if (!window.confirm('Clear recent MakerWorld import history? Print Vault files are not deleted.')) return;
+    _makerWorldBusy = true;
+    const btn = el.querySelector('[data-makerworld-clear-recent]');
+    const label = btn?.textContent || 'Clear all';
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Clearing…';
+    }
+    try {
+      const result = await _clearMakerWorldRecent();
+      _makerWorldRecent = [];
+      if (_makerWorldUrl) {
+        try {
+          _makerWorldResolved = await _resolveMakerWorldUrl(_makerWorldUrl);
+        } catch (_) {
+          /* keep current preview if resolve fails */
+        }
+      }
+      await renderMakerWorldView();
+      const count = Number(result.cleared || 0);
+      showToast('Recent imports cleared', count ? `${count} record${count === 1 ? '' : 's'} removed` : 'History cleared', 'success');
+    } catch (err) {
+      showToast('Clear failed', err.message || '', 'error');
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = label;
+      }
+    } finally {
+      _makerWorldBusy = false;
+    }
+  });
 }
 
 function _attachMakerWorldImportEvents(el, url) {
@@ -3486,6 +3553,7 @@ async function renderMakerWorldView() {
   });
 
   _attachMakerWorldImportEvents(el, _makerWorldUrl);
+  _attachMakerWorldRecentEvents(el);
 }
 
 // ── Walkthrough Mode ───────────────────────────────────────────────────────

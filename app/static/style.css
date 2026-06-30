@@ -2089,6 +2089,18 @@ header {
   gap: 0.45rem;
 }
 
+.makerworld-recent-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.makerworld-clear-recent-btn {
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+
 .makerworld-recent-row strong {
   font-size: 0.82rem;
 }

@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `66ed964` — Show Print Vault folders and migrate MakerWorld multi-plate imports
-- Refresh cachebust currently: app.js?v=578 / style.css?v=450
+- Latest commit: (pending) — MakerWorld clear recent + import-all folder migration
+- Refresh cachebust currently: app.js?v=579 / style.css?v=451
+
+### 2026-07-01 fix (MakerWorld recent + import all)
+
+**Clear recent imports + re-enable Import all for folder migration** (`app/makerworld.py`, `app/main.py`, `app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Recent imports card gets **Clear all** — clears `makerworld_imports.json` history only; Print Vault files stay put. `POST /api/makerworld/recent/clear`.
+- **Import all** / **Move all to folder** stays enabled when plates are imported but still at flat `MakerWorld/` paths (`needs_vault_refresh` from resolve).
+- Static cache `app.js?v=579` / `style.css?v=451`; **backend restart required** on Pi.
 
 ### 2026-06-30 fix (Print Vault folders)
 
