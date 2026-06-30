@@ -6,7 +6,15 @@ Latest GitHub/Pi state:
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=567 / style.css?v=442
+- Refresh cachebust currently: app.js?v=569 / style.css?v=444
+
+### 2026-06-30 fix (Skip objects bed map alignment)
+
+**Align Bambu skip-object map IDs to gcode footprints** (`app/static/app.js`, `app/static/style.css`, `app/printers/bambu.py`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Root cause: top-down skip maps used a separate mirror/rotate transform for ID badges while the bed preview image used `object-fit: contain`, so multi-object plates (e.g. `mixed`) showed #245 on the wrong silhouette even though gcode geometry was correct.
+- Top-down maps now use one bed-mm → screen transform (front on the right, bed-left toward the top), draw per-object gcode footprints as the primary overlay, and place each skip button over the object bbox with the ID centered on the shape.
+- Bambu `top_N.png` is rotated 90° to match gcode orientation; footprints are the primary overlay. Static cache `app.js?v=569` / `style.css?v=444`; hard refresh required after deploy (UI-only).
 
 ### 2026-06-30 fix (H2D filament slot nozzle index)
 

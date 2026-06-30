@@ -5159,13 +5159,21 @@ function _detailObjectsUnavailablePanel(data) {
   </div>`;
 }
 
+function _objectMapHasBedGeometry(obj, topDown) {
+  if (obj?.bbox) return true;
+  if (!topDown) return false;
+  if (_objectMapHasPoint(obj)) return true;
+  const shape = obj?.shape;
+  return Boolean(shape?.polygon?.length >= 3 || shape?.segments?.length);
+}
+
 function _objectMapHtml(id, data) {
   const objects = data?.objects || [];
   const topDown = _objectMapIsTopDown(data);
   const bounds = (topDown && data?.bed_bounds) ? data.bed_bounds : data?.plate_bounds;
-  const hasGeometry = bounds && bounds.w > 0 && bounds.h > 0 && objects.some(o => o.bbox || (topDown && _objectMapHasPoint(o)));
+  const hasGeometry = bounds && bounds.w > 0 && bounds.h > 0 && objects.some(o => _objectMapHasBedGeometry(o, topDown));
   const availableObjects = objects.filter(o => o.state !== 'excluded');
-  const mappedAvailableObjects = hasGeometry ? availableObjects.filter(o => o.bbox || (topDown && _objectMapHasPoint(o))) : availableObjects;
+  const mappedAvailableObjects = hasGeometry ? availableObjects.filter(o => _objectMapHasBedGeometry(o, topDown)) : availableObjects;
   const mapButtons = objects.map(obj => {
     const isExcluded = obj.state === 'excluded';
     const isCurrent = obj.state === 'current';
@@ -5178,14 +5186,14 @@ function _objectMapHtml(id, data) {
       ? `<span class="obj-chip-id">${displayId}</span><span>${esc(shortName)}</span>`
       : `<span class="obj-chip-id">${displayId}</span>`;
     const pointGeometry = topDown && _objectMapHasPoint(obj);
-    if (hasGeometry && (obj.bbox || pointGeometry)) {
+    if (hasGeometry && _objectMapHasBedGeometry(obj, topDown)) {
       const geom = topDown
-        ? (obj.bbox ? _objectMapBadgeCenterStyle(bounds, obj.bbox, data) : (() => { const p = _objectMapPointPosition(bounds, obj); return `left:${p.x.toFixed(2)}%;top:${p.y.toFixed(2)}%;transform:translate(-50%,-50%)`; })())
-        : (pointGeometry ? _objectMapPointHitStyle(bounds, obj) : _objectMapBoxStyle(bounds, obj.bbox, data));
+        ? _objectMapTopDownRegionStyle(bounds, obj, data)
+        : (pointGeometry ? _objectMapPointHitStyle(bounds, obj, data) : _objectMapBoxStyle(bounds, obj.bbox, data));
       const inner = topDown
         ? `<span class="obj-map-id-dot">${displayId}</span>`
         : `<span class="obj-chip-id">${displayId}</span>`;
-      return `<button type="button" class="obj-map-region obj-exclude-btn${topDown ? ' is-top-down' : ''}${isExcluded ? ' is-excluded' : ''}${isCurrent ? ' is-current' : ''}"
+      return `<button type="button" class="obj-map-region obj-exclude-btn${topDown ? ' is-top-down is-shape-hit' : ''}${isExcluded ? ' is-excluded' : ''}${isCurrent ? ' is-current' : ''}"
         style="${geom}"
         data-obj-name="${safeName}" data-obj-label="${esc(shortName)}" data-printer-id="${id}" data-obj-id="${safeId}" ${isExcluded ? 'disabled' : ''}
         title="${esc(shortName)}">${inner}</button>`;
@@ -5210,7 +5218,7 @@ function _objectMapHtml(id, data) {
   const classes = `obj-map${hasGeometry ? ' obj-map-has-geometry' : ' obj-map-no-geometry'}${topDown ? ' obj-map-topdown' : ''}${rotated ? ' obj-map-transformed' : ''}${rotation > 0 ? ' obj-map-overlay-rotated' : ''}${imageRotation > 0 ? ' obj-map-image-rotated' : ''}`;
   const rotationStyle = _objectMapStyleVars(bounds, rotated, rotation, imageRotation, imageOffsetX, imageOffsetY);
   const helper = hasGeometry
-    ? 'Match the ID to the printer screen, then tap the map or list.'
+    ? 'Tap a shape or ID on the map, or use the list below. Front edge is on the right.'
     : `No bed positions in this 3MF; use the object ID shown on the printer screen. Bambu/Orca IDs can be high. ${availableObjects.length} objects still available.`;
   const objectList = _objectMapObjectList(id, objects, hasGeometry);
   const activeBadge = mappedAvailableObjects.length === availableObjects.length
@@ -5290,7 +5298,14 @@ function _objectMapHasPoint(obj) {
   return Number.isFinite(Number(obj?.x)) && Number.isFinite(Number(obj?.y));
 }
 
-function _objectMapPointPosition(bounds, obj) {
+function _objectMapPointPosition(bounds, obj, data = {}) {
+  if (_objectMapIsTopDown(data)) {
+    const t = _objectMapTransformPoint(bounds, obj.x, obj.y, data);
+    return {
+      x: Math.max(0, Math.min(100, t.x)),
+      y: Math.max(0, Math.min(100, t.y)),
+    };
+  }
   const padding = 8;
   const contentArea = 100 - (padding * 2);
   const yMax = Number(bounds.y) + Number(bounds.h);
@@ -5302,8 +5317,21 @@ function _objectMapPointPosition(bounds, obj) {
 }
 
 function _objectMapTransformPoint(bounds, x, y, data = {}) {
-  let px = ((Number(x) - bounds.x) / bounds.w) * 100;
-  let py = ((Number(y) - bounds.y) / bounds.h) * 100;
+  const bx = Number(bounds.x);
+  const by = Number(bounds.y);
+  const bw = Number(bounds.w);
+  const bh = Number(bounds.h);
+  if (!(bw > 0 && bh > 0)) return { x: 50, y: 50 };
+  if (_objectMapIsTopDown(data)) {
+    // Bambu bed mm: x increases left→right facing front, y increases front→back.
+    // Flightdeck top-down map keeps FRONT on the right edge and bed-left toward the top.
+    return {
+      x: ((by + bh - Number(y)) / bh) * 100,
+      y: ((Number(x) - bx) / bw) * 100,
+    };
+  }
+  let px = ((Number(x) - bx) / bw) * 100;
+  let py = ((Number(y) - by) / bh) * 100;
   if (data?.map_mirror_x) px = 100 - px;
   if (data?.map_mirror_y) py = 100 - py;
   const rotation = Number(data?.map_coordinate_rotation || 0);
@@ -5322,6 +5350,13 @@ function _objectMapTransformPoint(bounds, x, y, data = {}) {
     py = 100 - py;
   }
   return { x: px, y: py };
+}
+
+function _objectMapTopDownRegionStyle(bounds, obj, data = {}) {
+  if (obj?.bbox) return _objectMapBoxStyle(bounds, obj.bbox, data);
+  const p = _objectMapPointPosition(bounds, obj, data);
+  const size = 12;
+  return `left:${Math.max(0, p.x - (size / 2)).toFixed(2)}%;top:${Math.max(0, p.y - (size / 2)).toFixed(2)}%;width:${size.toFixed(2)}%;height:${size.toFixed(2)}%`;
 }
 
 function _objectMapBoxParts(bounds, box, data = {}) {
@@ -5357,13 +5392,13 @@ function _objectMapMarkerStyle(bounds, box, data = {}) {
   return `left:${centerX.toFixed(2)}%;top:${centerY.toFixed(2)}%`;
 }
 
-function _objectMapPointMarkerStyle(bounds, obj) {
-  const p = _objectMapPointPosition(bounds, obj);
+function _objectMapPointMarkerStyle(bounds, obj, data = {}) {
+  const p = _objectMapPointPosition(bounds, obj, data);
   return `left:${p.x.toFixed(2)}%;top:${p.y.toFixed(2)}%`;
 }
 
-function _objectMapPointHitStyle(bounds, obj) {
-  const p = _objectMapPointPosition(bounds, obj);
+function _objectMapPointHitStyle(bounds, obj, data = {}) {
+  const p = _objectMapPointPosition(bounds, obj, data);
   const size = 12;
   return `left:${Math.max(0, p.x - (size / 2)).toFixed(2)}%;top:${Math.max(0, p.y - (size / 2)).toFixed(2)}%;width:${size.toFixed(2)}%;height:${size.toFixed(2)}%`;
 }
@@ -5375,16 +5410,19 @@ function _objectMapBadgeCenterStyle(bounds, box, data = {}) {
   return `left:${cx.toFixed(2)}%;top:${cy.toFixed(2)}%;transform:translate(-50%,-50%)`;
 }
 
-function _objectMapTopDownObjects(_data) {
-  return '';
+function _objectMapTopDownObjects(data) {
+  const bounds = data?.bed_bounds || data?.plate_bounds;
+  const objects = data?.objects || [];
+  if (!bounds || bounds.w <= 0 || bounds.h <= 0) return '';
+  const groups = objects.map(obj => _objectMapShapeGroup(obj, bounds, data)).filter(Boolean);
+  if (!groups.length) return '';
+  return `<svg class="obj-map-shapes-bed" viewBox="0 0 100 100" preserveAspectRatio="none" focusable="false" aria-hidden="true">${groups.join('')}</svg>`;
 }
 
-function _objectMapShapeSvg(obj, bounds, data = {}) {
-  const box = obj?.bbox;
+function _objectMapShapeGroup(obj, bounds, data = {}) {
   const segments = Array.isArray(obj?.shape?.segments) ? obj.shape.segments : [];
   const polygon = Array.isArray(obj?.shape?.polygon) ? obj.shape.polygon : [];
-  if (!bounds || !box || (!segments.length && !polygon.length) || box.w <= 0 || box.h <= 0) return '';
-  const view = _objectMapBoxParts(bounds, box, data);
+  if (!segments.length && !polygon.length) return '';
   const point = pt => {
     if (!Array.isArray(pt) || pt.length < 2) return null;
     const transformed = _objectMapTransformPoint(bounds, pt[0], pt[1], data);
@@ -5402,7 +5440,8 @@ function _objectMapShapeSvg(obj, bounds, data = {}) {
     return `<line x1="${a.x.toFixed(3)}" y1="${a.y.toFixed(3)}" x2="${b.x.toFixed(3)}" y2="${b.y.toFixed(3)}"></line>`;
   }).join('');
   if (!lines && !polygonHtml) return '';
-  return `<svg class="obj-map-shape" viewBox="${view.left.toFixed(3)} ${view.top.toFixed(3)} ${view.width.toFixed(3)} ${view.height.toFixed(3)}" preserveAspectRatio="none" focusable="false">${polygonHtml}${lines}</svg>`;
+  const stateClass = obj.state === 'excluded' ? ' is-excluded' : (obj.state === 'current' ? ' is-current' : '');
+  return `<g class="obj-map-shape-object${stateClass}">${polygonHtml}${lines}</g>`;
 }
 
 function _objectMapStyleVars(bounds, rotated, rotation, imageRotation, imageOffsetX, imageOffsetY) {
@@ -5429,9 +5468,9 @@ function _largeObjectMapHtml(id, data) {
   const objects = data?.objects || [];
   const topDown = _objectMapIsTopDown(data);
   const bounds = (topDown && data?.bed_bounds) ? data.bed_bounds : data?.plate_bounds;
-  const hasGeometry = bounds && bounds.w > 0 && bounds.h > 0 && objects.some(o => o.bbox || (topDown && _objectMapHasPoint(o)));
+  const hasGeometry = bounds && bounds.w > 0 && bounds.h > 0 && objects.some(o => _objectMapHasBedGeometry(o, topDown));
   const availableObjects = objects.filter(o => o.state !== 'excluded');
-  const mappedAvailableObjects = hasGeometry ? availableObjects.filter(o => o.bbox || (topDown && _objectMapHasPoint(o))) : availableObjects;
+  const mappedAvailableObjects = hasGeometry ? availableObjects.filter(o => _objectMapHasBedGeometry(o, topDown)) : availableObjects;
   const imageVersion = objects.map(o => `${o.id ?? ''}:${o.state ?? ''}`).join('-') || 'current';
   const plateImageUrl = _objectMapPlateImageUrl(data, topDown);
   const imageSrc = _objectMapImageSrc(plateImageUrl, imageVersion);
@@ -5457,14 +5496,14 @@ function _largeObjectMapHtml(id, data) {
       ? `<span class="obj-chip-id">${displayId}</span><span>${esc(shortName)}</span>`
       : `<span class="obj-chip-id">${displayId}</span>`;
     const pointGeometry = topDown && _objectMapHasPoint(obj);
-    if (hasGeometry && (obj.bbox || pointGeometry)) {
+    if (hasGeometry && _objectMapHasBedGeometry(obj, topDown)) {
       const geom = topDown
-        ? (obj.bbox ? _objectMapBadgeCenterStyle(bounds, obj.bbox, data) : (() => { const p = _objectMapPointPosition(bounds, obj); return `left:${p.x.toFixed(2)}%;top:${p.y.toFixed(2)}%;transform:translate(-50%,-50%)`; })())
-        : (pointGeometry ? _objectMapPointHitStyle(bounds, obj) : _objectMapBoxStyle(bounds, obj.bbox, data));
+        ? _objectMapTopDownRegionStyle(bounds, obj, data)
+        : (pointGeometry ? _objectMapPointHitStyle(bounds, obj, data) : _objectMapBoxStyle(bounds, obj.bbox, data));
       const inner = topDown
         ? `<span class="obj-map-id-dot">${displayId}</span>`
         : `<span class="obj-chip-id">${displayId}</span>`;
-      return `<button type="button" class="obj-map-region obj-exclude-btn${topDown ? ' is-top-down' : ''}${isExcluded ? ' is-excluded' : ''}${isCurrent ? ' is-current' : ''}"
+      return `<button type="button" class="obj-map-region obj-exclude-btn${topDown ? ' is-top-down is-shape-hit' : ''}${isExcluded ? ' is-excluded' : ''}${isCurrent ? ' is-current' : ''}"
         style="${geom}"
         data-obj-name="${safeName}" data-obj-label="${esc(shortName)}" data-printer-id="${id}" data-obj-id="${safeId}" ${isExcluded ? 'disabled' : ''}
         title="${esc(shortName)}">${inner}</button>`;
@@ -5475,7 +5514,7 @@ function _largeObjectMapHtml(id, data) {
       title="${esc(shortName)}">${fallbackLabel}</button>`;
   }).join('');
   const helper = hasGeometry
-    ? 'Match the ID to the printer screen, then tap the map or list.'
+    ? 'Tap a shape or ID on the map, or use the list below. Front edge is on the right.'
     : 'This file has no bed-position metadata. Match the object ID shown on the printer screen, then select it below.';
   const objectList = _objectMapObjectList(id, objects, hasGeometry);
   const activeBadge = mappedAvailableObjects.length === availableObjects.length
