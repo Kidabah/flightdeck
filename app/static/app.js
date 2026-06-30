@@ -8161,6 +8161,21 @@ function _fileIsSlicedJob(file) {
   return name.endsWith('.gcode.3mf') || name.endsWith('.gcode') || name.endsWith('.gcode.gz') || name.endsWith('.ufp');
 }
 
+function _fileDeskHasPreview(file) {
+  const name = String(file?.name || file?.path || '').toLowerCase();
+  return name.endsWith('.3mf') || name.endsWith('.gcode.3mf');
+}
+
+function _fileDeskPreviewUrl(sourceId, filePath, view = 'top') {
+  const path = String(filePath || '').trim().replace(/^\/+/, '');
+  if (!path) return '';
+  return `/api/files/source/preview?${new URLSearchParams({
+    source_id: String(sourceId || 'library'),
+    path,
+    view,
+  }).toString()}`;
+}
+
 function _queueJobIsSourceModel(job) {
   const name = String(job?.filename || '').toLowerCase();
   return name.endsWith('.step') || name.endsWith('.stp');
@@ -8393,8 +8408,16 @@ function _fileDeskFileRowHtml(f, target, options = {}) {
   const compatCell = compactBay ? '' : `<div class="filedesk-compat">
       ${printerChips}${more}
     </div>`;
-  return `<article class="filedesk-file-row${compactBay ? ' filedesk-file-row-compact' : ''}${inFolder ? ' filedesk-file-row-folder' : ''}">
+  const showThumb = target.id === 'library' && !compactBay && _fileDeskHasPreview(f);
+  const previewUrl = showThumb ? _fileDeskPreviewUrl(target.id, f.path || f.name) : '';
+  const thumbCell = previewUrl
+    ? `<div class="filedesk-file-thumb">
+        <img src="${esc(previewUrl)}" alt="" loading="lazy" onerror="this.closest('.filedesk-file-thumb')?.classList.add('is-missing')">
+      </div>`
+    : '';
+  return `<article class="filedesk-file-row${compactBay ? ' filedesk-file-row-compact' : ''}${inFolder ? ' filedesk-file-row-folder' : ''}${showThumb ? ' filedesk-file-row-has-thumb' : ''}">
     <input type="checkbox" class="filedesk-select" data-source-id="${esc(target.id)}" data-path="${path}" data-name="${esc(f.name || f.path || 'File')}" aria-label="Select ${esc(f.name || f.path || 'file')}">
+    ${thumbCell}
     <div class="filedesk-file-main" title="${esc(f.path || f.name)}">
       <div class="filedesk-file-title">
         <span class="filedesk-kind filedesk-kind-${_fileKindClass(f.kind)}">${esc(f.kind || 'file')}</span>

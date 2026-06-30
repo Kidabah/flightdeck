@@ -18572,6 +18572,33 @@ select optgroup {
   padding: 0.45rem 0.72rem;
   border-bottom: 1px solid rgba(122,162,216,0.12);
 }
+
+.filedesk-file-row-has-thumb {
+  grid-template-columns: auto 3.85rem minmax(0, 1.15fr) minmax(7rem, 0.62fr) auto;
+}
+
+.filedesk-file-thumb {
+  width: 3.85rem;
+  height: 2.9rem;
+  border-radius: 0.42rem;
+  overflow: hidden;
+  background: rgba(15,23,42,0.55);
+  border: 1px solid rgba(122,162,216,0.16);
+  flex-shrink: 0;
+}
+
+.filedesk-file-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: rgba(2,6,23,0.35);
+}
+
+.filedesk-file-thumb.is-missing {
+  display: none;
+}
+
 .filedesk-file-row:hover { background: rgba(96,165,250,0.035); }
 .filedesk-file-main { min-width: 0; }
 .filedesk-file-title { display: flex; align-items: center; gap: 0.45rem; min-width: 0; }
@@ -19970,7 +19997,9 @@ select optgroup {
   .filedesk-bulk-row { align-items: flex-start; flex-direction: column; }
   .filedesk-bulk-actions { justify-content: flex-start; }
   .filedesk-file-row { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .filedesk-file-row-has-thumb { grid-template-columns: auto 3.85rem minmax(0, 1fr) auto; }
   .filedesk-compat { grid-column: 2 / -1; justify-content: flex-start; }
+  .filedesk-file-row-has-thumb .filedesk-compat { grid-column: 3 / -1; }
   .stock-in-order-fields,
   .stock-in-line-grid,
   .stock-in-receive-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -19981,6 +20010,7 @@ select optgroup {
   .printbay-reprint-card { grid-template-columns: 1fr; }
   .printbay-reprint-thumb { min-height: 7rem; }
   .filedesk-file-row { grid-template-columns: auto minmax(0, 1fr); }
+  .filedesk-file-row-has-thumb { grid-template-columns: auto 3.85rem minmax(0, 1fr); }
   .filedesk-queue-primary { grid-column: 2; justify-self: start; }
   .stock-in-order-fields,
   .stock-in-line-grid,
