@@ -2,11 +2,20 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `6e55004` — Fix slice modal, MakerWorld token UX, and Desktop Orca handoff
+- Latest commit: `162dfcd` — Improve spool metadata for direct slicer-to-printer sends
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=566 / style.css?v=442
+
+### 2026-06-30 fix (Direct slicer spool metadata)
+
+**Recover spool metadata for direct slicer → printer sends** (`app/printers/bambu_ftp.py`, `app/printers/bambu.py`, `app/db.py`, `SESSION_NEXT.md`)
+
+- Root cause: Queue/Relay uploads persist 3MF filament grams; **Send directly to printer IP** bypasses Flightdeck, so History rows had no grams and spool deduction was skipped.
+- Bambu FTP preview now tries `{name}.gcode.3mf`, `{name}.3mf`, `plate_N.gcode`, fuzzy-matches storage filenames like `rack_spool_*`, and parses gcode headers when only plate gcode exists.
+- At print start, Flightdeck also auto-applies matching **relay upload** metadata when the slicer was pointed at the Flightdeck physical-printer URL.
+- Existing prints: History → **Recover grams** → **Assign manually** still works. **Backend restart required** on Pi; no frontend cache bump.
 
 ### 2026-06-30 fix (Slice modal, MakerWorld token, Desktop Orca)
 
