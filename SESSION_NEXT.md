@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — MakerWorld multi-plate vault folders and plate labels
+- Latest commit: `44da691` — Group MakerWorld multi-plate imports into numbered vault folders
 - Refresh cachebust currently: app.js?v=576 / style.css?v=449
 
 ### 2026-06-30 fix (MakerWorld multi-plate vault layout)
