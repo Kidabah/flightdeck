@@ -7947,9 +7947,44 @@ function _printBayReprintHtml(items, targets) {
   </section>`;
 }
 
+function _printBayHiddenIds() {
+  try {
+    return new Set(JSON.parse(sessionStorage.getItem('flightdeck.printbay.hidden') || '[]'));
+  } catch {
+    return new Set();
+  }
+}
+
+function _setPrintBayHiddenIds(ids) {
+  sessionStorage.setItem('flightdeck.printbay.hidden', JSON.stringify([...ids]));
+}
+
+function _printBayOpenState() {
+  try {
+    const raw = JSON.parse(sessionStorage.getItem('flightdeck.printbay.open') || '{}');
+    return raw && typeof raw === 'object' ? raw : {};
+  } catch {
+    return {};
+  }
+}
+
+function _setPrintBayBayOpen(id, open) {
+  const state = _printBayOpenState();
+  state[id] = !!open;
+  sessionStorage.setItem('flightdeck.printbay.open', JSON.stringify(state));
+}
+
+function _printBayBayShouldOpen(targetId, summary) {
+  const state = _printBayOpenState();
+  if (Object.prototype.hasOwnProperty.call(state, targetId)) return !!state[targetId];
+  return (summary.ready || 0) > 0;
+}
+
 function _fileDeskTargetHtml(target, options = {}) {
   const targetPrinterId = options.printerId || '';
   const directQueue = !!options.directQueue && !!targetPrinterId;
+  const compactBay = !!options.compactBay;
+  const collapsible = !!options.collapsible && target.id !== 'library';
   const files = (target.files || []).filter(f => {
     if (f.kind === 'dir') return false;
     const printers = _fileCompatiblePrinters(f, target);
@@ -7962,12 +7997,13 @@ function _fileDeskTargetHtml(target, options = {}) {
     const printable = _filePrintablePrinters(f, target);
     const isSource = _fileIsSourceModel(f);
     const ready = printers.filter(p => p.state === 'idle' || p.state === 'finished');
-    const printerChips = printers.slice(0, 4).map(p => `<span class="filedesk-printer-chip${ready.some(r => r.id === p.id) ? ' filedesk-printer-ready' : ''}">${esc(p.model_name || p.custom_name || p.id)}</span>`).join('');
-    const more = printers.length > 4 ? `<span class="filedesk-printer-chip">+${printers.length - 4}</span>` : '';
+    const printerChips = compactBay ? '' : printers.slice(0, 4).map(p => `<span class="filedesk-printer-chip${ready.some(r => r.id === p.id) ? ' filedesk-printer-ready' : ''}">${esc(p.model_name || p.custom_name || p.id)}</span>`).join('');
+    const more = compactBay ? '' : (printers.length > 4 ? `<span class="filedesk-printer-chip">+${printers.length - 4}</span>` : '');
     const vaultChip = f.in_vault && target.id !== 'library'
       ? `<span class="filedesk-vault-chip" title="Archived in Print Vault${f.vault_path ? ': ' + esc(f.vault_path) : ''}">Vaulted</span>`
       : '';
-    return `<article class="filedesk-file-row">
+    const metaPath = compactBay ? '' : `<span>${esc(f.path || '')}</span>`;
+    return `<article class="filedesk-file-row${compactBay ? ' filedesk-file-row-compact' : ''}">
       <input type="checkbox" class="filedesk-select" data-source-id="${esc(target.id)}" data-path="${path}" data-name="${esc(f.name || f.path || 'File')}" aria-label="Select ${esc(f.name || f.path || 'file')}">
       <div class="filedesk-file-main" title="${esc(f.path || f.name)}">
         <div class="filedesk-file-title">
@@ -7978,7 +8014,7 @@ function _fileDeskTargetHtml(target, options = {}) {
         <div class="filedesk-file-meta">
           <span>${esc(_fmtBytes(f.size))}</span>
           <span>${esc(_fileModifiedLabel(f.modified))}</span>
-          <span>${esc(f.path || '')}</span>
+          ${metaPath}
         </div>
       </div>
       <div class="filedesk-compat">
@@ -7989,7 +8025,7 @@ function _fileDeskTargetHtml(target, options = {}) {
         : `<button class="filedesk-action-btn filedesk-queue-primary" data-file-action="queue" data-source-id="${esc(target.id)}" data-path="${path}" ${directQueue ? `data-target-printer="${esc(targetPrinterId)}"` : ''} ${printable.length ? '' : 'disabled'}>Queue</button>`}
     </article>`;
   }).join('') : `<div class="filedesk-empty">${target.error ? esc(target.error) : 'No printable files found.'}</div>`;
-  const formatNote = target.actions?.format_sd
+  const formatNote = target.actions?.format_sd && !compactBay
     ? `<div class="filedesk-format-row">
         <span class="filedesk-format-note">Bambu SD cleanout deletes printable jobs only and keeps utility folders.</span>
         <button class="filedesk-danger-btn" data-file-action="clear-sd" data-source-id="${esc(target.id)}">Clear SD prints</button>
@@ -8000,25 +8036,26 @@ function _fileDeskTargetHtml(target, options = {}) {
     <div class="filedesk-bulk-actions">
       ${target.id === 'library' ? '' : `<button class="filedesk-action-btn filedesk-copy-btn" data-file-action="copy-selected" data-source-id="${esc(target.id)}" disabled>Copy to Vault</button>`}
       <button class="filedesk-action-btn filedesk-delete-btn" data-file-action="delete-selected" data-source-id="${esc(target.id)}" disabled>Delete selected</button>
+      ${target.actions?.format_sd && compactBay ? `<button class="filedesk-danger-btn filedesk-danger-btn-compact" data-file-action="clear-sd" data-source-id="${esc(target.id)}">Clear SD prints</button>` : ''}
     </div>
-  </div>` : '';
-  return `<section class="filedesk-target filedesk-${target.kind}">
-    <div class="filedesk-target-head">
-      <div>
-        <h2>${esc(target.label)}</h2>
-        <span>${esc(target.model || target.path || target.kind)}</span>
-      </div>
-      <div class="filedesk-target-meta">
-        <strong>${files.length}</strong>
-        <span>${files.length === 1 ? 'file' : 'files'}</span>
-      </div>
-    </div>
-    <div class="filedesk-source-strip">
-      <span><strong>${summary.ready}</strong> ready</span>
-      <span><strong>${summary.compatible}</strong> compatible printers</span>
-      ${target.id === 'library' ? '' : `<span><strong>${summary.vaulted}</strong> vaulted</span>`}
-      <span><strong>${_fmtBytes(summary.size)}</strong></span>
-    </div>
+  </div>` : (target.actions?.format_sd && compactBay
+    ? `<div class="filedesk-bulk-row filedesk-bulk-row-solo">
+        <button class="filedesk-danger-btn filedesk-danger-btn-compact" data-file-action="clear-sd" data-source-id="${esc(target.id)}">Clear SD prints</button>
+      </div>`
+    : '');
+  const sourceStrip = compactBay
+    ? `<div class="filedesk-source-strip filedesk-source-strip-compact">
+        <span><strong>${summary.ready}</strong> ready</span>
+        <span><strong>${summary.vaulted}</strong> vaulted</span>
+        <span><strong>${_fmtBytes(summary.size)}</strong></span>
+      </div>`
+    : `<div class="filedesk-source-strip">
+        <span><strong>${summary.ready}</strong> ready</span>
+        <span><strong>${summary.compatible}</strong> compatible printers</span>
+        ${target.id === 'library' ? '' : `<span><strong>${summary.vaulted}</strong> vaulted</span>`}
+        <span><strong>${_fmtBytes(summary.size)}</strong></span>
+      </div>`;
+  const listBlock = `${sourceStrip}
     ${formatNote}
     ${bulkBar}
     <div class="filedesk-list-head">
@@ -8027,8 +8064,56 @@ function _fileDeskTargetHtml(target, options = {}) {
     </div>
     <div class="filedesk-list-wrap">
       ${rows}
+    </div>`;
+
+  if (!collapsible) {
+    return `<section class="filedesk-target filedesk-${target.kind}${compactBay ? ' filedesk-target-compact' : ''}">
+      <div class="filedesk-target-head">
+        <div>
+          <h2>${esc(target.label)}</h2>
+          <span>${esc(target.model || target.path || target.kind)}</span>
+        </div>
+        <div class="filedesk-target-meta">
+          <strong>${files.length}</strong>
+          <span>${files.length === 1 ? 'file' : 'files'}</span>
+        </div>
+      </div>
+      ${listBlock}
+    </section>`;
+  }
+
+  const isOpen = _printBayBayShouldOpen(target.id, summary);
+  return `<details class="printbay-bay-card filedesk-${target.kind}" data-bay-id="${esc(target.id)}"${isOpen ? ' open' : ''}>
+    <summary class="printbay-bay-summary">
+      <div class="printbay-bay-title">
+        <strong>${esc(target.label)}</strong>
+        <span>${esc(target.model || target.kind)}</span>
+      </div>
+      <div class="printbay-bay-pills">
+        <span>${files.length} file${files.length === 1 ? '' : 's'}</span>
+        <span>${summary.ready} ready</span>
+        <span>${summary.vaulted} vaulted</span>
+        <span>${esc(_fmtBytes(summary.size))}</span>
+      </div>
+      <button type="button" class="printbay-bay-hide" data-bay-hide="${esc(target.id)}" title="Hide this bay">Hide</button>
+    </summary>
+    <div class="printbay-bay-body filedesk-target filedesk-${target.kind} filedesk-target-compact">
+      ${listBlock}
     </div>
-  </section>`;
+  </details>`;
+}
+
+function _fileDeskPrinterBaysHtml(targets) {
+  const hidden = _printBayHiddenIds();
+  const visible = (targets || []).filter(t => !hidden.has(t.id));
+  const hiddenCount = (targets || []).filter(t => hidden.has(t.id)).length;
+  const cards = visible.map(t => _fileDeskTargetHtml(t, { collapsible: true, compactBay: true })).join('');
+  const toolbar = `<div class="printbay-bay-toolbar">
+    <button type="button" class="settings-save-btn" data-bay-expand-all>Expand all</button>
+    <button type="button" class="settings-save-btn" data-bay-collapse-all>Collapse all</button>
+    ${hiddenCount ? `<button type="button" class="settings-save-btn" data-bay-show-hidden>Show ${hiddenCount} hidden</button>` : ''}
+  </div>`;
+  return `${toolbar}<div class="printbay-bay-stack">${cards || '<div class="filedesk-empty">All printer bays are hidden. Use Show hidden to bring them back.</div>'}</div>`;
 }
 
 let _fileDeskRenderInFlight = false;
@@ -8068,8 +8153,8 @@ function _buildGlobalPrintBayHtml(data, reprintItems, tab = _globalPrintBayTab) 
             </div>
             <span>${printerTargets.length} bay${printerTargets.length === 1 ? '' : 's'}</span>
           </div>
-          <p class="printbay-tab-copy">Files already on each printer. Copy to Vault to archive, or queue directly when compatible.</p>
-          <div class="filedesk-grid">${printerTargets.map(_fileDeskTargetHtml).join('') || '<div class="filedesk-empty">No printer storage found.</div>'}</div>
+          <p class="printbay-tab-copy">Files already on each printer. Expand a bay to queue or copy to Vault — bays with ready jobs open automatically.</p>
+          ${_fileDeskPrinterBaysHtml(printerTargets)}
         </section>`
       : `<section class="printbay-tab-section printbay-reprints-section">${_printBayReprintHtml(reprintItems || [], data.targets || [])}</section>`;
 
@@ -8310,6 +8395,39 @@ function _attachFileDeskEvents(el) {
       _globalPrintBayTab = tab;
       const page = document.getElementById('filedesk-page');
       if (page) _paintGlobalPrintBay(page);
+    });
+  });
+  el.querySelectorAll('[data-bay-hide]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      const id = btn.dataset.bayHide;
+      if (!id) return;
+      const hidden = _printBayHiddenIds();
+      hidden.add(id);
+      _setPrintBayHiddenIds(hidden);
+      _fileDeskLastHtml = '';
+      const page = document.getElementById('filedesk-page');
+      if (page && _globalPrintBayTab === 'printers') _paintGlobalPrintBay(page);
+    });
+  });
+  el.querySelector('[data-bay-show-hidden]')?.addEventListener('click', () => {
+    _setPrintBayHiddenIds(new Set());
+    _fileDeskLastHtml = '';
+    const page = document.getElementById('filedesk-page');
+    if (page) _paintGlobalPrintBay(page);
+  });
+  el.querySelector('[data-bay-expand-all]')?.addEventListener('click', () => {
+    _fileDeskTargets.filter(t => t.id !== 'library').forEach(t => _setPrintBayBayOpen(t.id, true));
+    el.querySelectorAll('.printbay-bay-card[data-bay-id]').forEach(card => { card.open = true; });
+  });
+  el.querySelector('[data-bay-collapse-all]')?.addEventListener('click', () => {
+    _fileDeskTargets.filter(t => t.id !== 'library').forEach(t => _setPrintBayBayOpen(t.id, false));
+    el.querySelectorAll('.printbay-bay-card[data-bay-id]').forEach(card => { card.open = false; });
+  });
+  el.querySelectorAll('.printbay-bay-card[data-bay-id]').forEach(card => {
+    card.addEventListener('toggle', () => {
+      _setPrintBayBayOpen(card.dataset.bayId, card.open);
     });
   });
   el.querySelector('.printbay-vault')?.addEventListener('toggle', e => {

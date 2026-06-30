@@ -18145,6 +18145,118 @@ select optgroup {
   font-size: 1.45rem;
 }
 
+.printbay-bay-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-bottom: 0.55rem;
+}
+
+.printbay-bay-stack {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.printbay-bay-card {
+  border: 1px solid rgba(122,162,216,0.2);
+  border-radius: 0.65rem;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.printbay-bay-card > summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
+  gap: 0.55rem;
+  align-items: center;
+  padding: 0.62rem 0.72rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.printbay-bay-card > summary::-webkit-details-marker { display: none; }
+
+.printbay-bay-title {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.printbay-bay-title strong {
+  color: var(--text);
+  font-size: 0.92rem;
+}
+
+.printbay-bay-title span {
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.printbay-bay-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  justify-content: flex-end;
+}
+
+.printbay-bay-pills span {
+  border: 1px solid rgba(122,162,216,0.16);
+  border-radius: 999px;
+  padding: 0.14rem 0.45rem;
+  color: var(--muted);
+  font-size: 0.64rem;
+  white-space: nowrap;
+}
+
+.printbay-bay-hide {
+  border: 1px solid rgba(122,162,216,0.18);
+  border-radius: 0.4rem;
+  background: rgba(15,23,42,0.35);
+  color: var(--muted);
+  font-size: 0.66rem;
+  padding: 0.28rem 0.5rem;
+  cursor: pointer;
+}
+
+.printbay-bay-hide:hover {
+  color: #fca5a5;
+  border-color: rgba(239,68,68,0.35);
+}
+
+.printbay-bay-body {
+  border-top: 1px solid rgba(122,162,216,0.14);
+}
+
+.printbay-bay-stack .filedesk-list-wrap {
+  max-height: clamp(12rem, 28vh, 24rem);
+}
+
+.filedesk-source-strip-compact {
+  margin-top: 0;
+}
+
+.filedesk-target-compact .filedesk-source-strip {
+  margin: 0.45rem 0.72rem 0;
+}
+
+.filedesk-file-row-compact {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.filedesk-file-row-compact .filedesk-compat {
+  display: none;
+}
+
+.filedesk-danger-btn-compact {
+  padding: 0.28rem 0.5rem;
+  font-size: 0.68rem;
+}
+
+.filedesk-bulk-row-solo {
+  justify-content: flex-end;
+  padding: 0.45rem 0.72rem 0;
+}
+
 .filedesk-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(26rem, 1fr)); gap: 0.7rem; align-items: start; }
 .filedesk-target { min-width: 0; border: 1px solid var(--border); border-radius: 0.65rem; background: var(--surface); overflow: hidden; }
 .filedesk-target-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.025); padding: 0.62rem 0.72rem; }
@@ -19585,7 +19697,8 @@ select optgroup {
 @media (max-width: 1100px) {
   .filedesk-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .filedesk-grid { grid-template-columns: 1fr; }
-  .printbay-tabbar { grid-template-columns: 1fr; }
+  .printbay-bay-card > summary { grid-template-columns: 1fr; }
+  .printbay-bay-pills { justify-content: flex-start; }
   .printer-bay-hero { align-items: flex-start; flex-direction: column; }
   .printer-bay-stats { justify-content: flex-start; }
   .filedesk-hero { align-items: flex-start; flex-direction: column; }
