@@ -389,7 +389,7 @@ let _onMakerWorld = false;      // true while MakerWorld page is active
 let _makerWorldUrl = '';
 let _makerWorldResolved = null;
 let _makerWorldRecent = [];
-let _makerWorldBusy = false;
+let _makerWorldSlicerOverride = 'follow';
 let _renderedSpoolDetailId = null;
 let _lastSpoolsRouteKey = '';
 let _lastMemoryRouteKey = '';
@@ -2818,7 +2818,11 @@ async function _importMakerWorldPlate(url, profileId) {
   return body;
 }
 
-function _makerWorldSlicerHandoff() {
+function _makerWorldSlicerHandoff(override = _makerWorldSlicerOverride) {
+  const pick = String(override || 'follow').trim();
+  if (pick === 'bambu_studio') return { target: 'bambu_studio', label: 'Bambu Studio' };
+  if (pick === 'browser_orca') return { target: 'browser_orca', label: 'Browser Orca' };
+  if (pick === 'desktop_orca') return { target: 'desktop_orca', label: 'Desktop Orca' };
   const openMode = (_serverSettings.slicer_open_mode || 'same').trim() || 'same';
   if (openMode === 'bambu_studio') {
     return { target: 'bambu_studio', label: 'Bambu Studio' };
@@ -3196,6 +3200,15 @@ async function renderMakerWorldView() {
         <input id="makerworld-url-input" class="settings-input" type="url" placeholder="https://makerworld.com/en/models/123456" value="${esc(_makerWorldUrl)}">
         <button type="button" class="settings-save-btn" id="makerworld-resolve-btn">${_makerWorldResolved ? 'Refresh' : 'Resolve'}</button>
       </div>
+      <div class="makerworld-slicer-row">
+        <label class="settings-label" for="makerworld-slicer-pick">Open in</label>
+        <select id="makerworld-slicer-pick" class="settings-input">
+          <option value="follow"${_makerWorldSlicerOverride === 'follow' ? ' selected' : ''}>Follow Settings</option>
+          <option value="bambu_studio"${_makerWorldSlicerOverride === 'bambu_studio' ? ' selected' : ''}>Bambu Studio</option>
+          <option value="browser_orca"${_makerWorldSlicerOverride === 'browser_orca' ? ' selected' : ''}>Browser Orca</option>
+          <option value="desktop_orca"${_makerWorldSlicerOverride === 'desktop_orca' ? ' selected' : ''}>Desktop Orca</option>
+        </select>
+      </div>
       <div class="settings-hint">Accepts locale links, slugs, and <code>#profileId-…</code> fragments. Metadata works without a token; saving plates needs the Bambu Cloud token cookie.</div>
     </section>
 
@@ -3213,6 +3226,10 @@ async function renderMakerWorldView() {
   </div>`;
   _attachBambuCloudMarkEvents(el, () => renderMakerWorldView());
   _attachMakerWorldTokenEvents(el, () => renderMakerWorldView());
+  el.querySelector('#makerworld-slicer-pick')?.addEventListener('change', e => {
+    _makerWorldSlicerOverride = e.target.value || 'follow';
+    if (_makerWorldResolved) renderMakerWorldView();
+  });
 
   el.querySelector('#makerworld-resolve-btn')?.addEventListener('click', async () => {
     if (_makerWorldBusy) return;
@@ -8017,9 +8034,84 @@ function _fileDeskTargetHtml(target, options = {}) {
 let _fileDeskRenderInFlight = false;
 let _fileDeskLastHtml = '';
 let _fileDeskTargets = [];
-let _printBayVaultOpen = false;
+let _printBayVaultOpen = true;
+let _globalPrintBayTab = 'vault';
+let _fileDeskLastData = null;
+let _fileDeskLastReprints = [];
 let _printerBayLastHtml = '';
 let _printerBayLastPrinterId = '';
+
+function _buildGlobalPrintBayHtml(data, reprintItems, tab = _globalPrintBayTab) {
+  _fileDeskTargets = data.targets || [];
+  const vaultTargets = _fileDeskTargets.filter(t => t.id === 'library');
+  const printerTargets = _fileDeskTargets.filter(t => t.id !== 'library');
+  const vaultCount = vaultTargets.reduce((sum, t) => sum + (t.files || []).filter(f => f.kind !== 'dir' && _fileCompatiblePrinters(f, t).length).length, 0);
+  const reprintCount = (reprintItems || []).length;
+  const panelHtml = tab === 'vault'
+    ? `<section class="printbay-tab-section printbay-vault-section">
+        <div class="printbay-section-head printbay-section-head-compact">
+          <div>
+            <div class="mission-eyebrow">Print Vault</div>
+            <h2>Run-ready archive</h2>
+          </div>
+          <span>${vaultCount} file${vaultCount === 1 ? '' : 's'}</span>
+        </div>
+        <p class="printbay-tab-copy">Sliced jobs, MakerWorld imports, and source models staged for queueing. This is the main launch surface.</p>
+        <div class="filedesk-grid printbay-vault-grid">${vaultTargets.map(_fileDeskTargetHtml).join('') || '<div class="filedesk-empty">Print Vault is empty.</div>'}</div>
+      </section>`
+    : tab === 'printers'
+      ? `<section class="printbay-tab-section printbay-active-bays">
+          <div class="printbay-section-head printbay-section-head-compact">
+            <div>
+              <div class="mission-eyebrow">Printer Bays</div>
+              <h2>On-printer storage</h2>
+            </div>
+            <span>${printerTargets.length} bay${printerTargets.length === 1 ? '' : 's'}</span>
+          </div>
+          <p class="printbay-tab-copy">Files already on each printer. Copy to Vault to archive, or queue directly when compatible.</p>
+          <div class="filedesk-grid">${printerTargets.map(_fileDeskTargetHtml).join('') || '<div class="filedesk-empty">No printer storage found.</div>'}</div>
+        </section>`
+      : `<section class="printbay-tab-section printbay-reprints-section">${_printBayReprintHtml(reprintItems || [], data.targets || [])}</section>`;
+
+  return `<div class="filedesk-shell">
+    <section class="filedesk-hero filedesk-hero-compact">
+      <div>
+        <div class="mission-eyebrow">Global Print Bay</div>
+        <h1>Vault first, bays when you need them</h1>
+        <p>Stage sliced jobs in Print Vault, peek at printer storage, or requeue recent work without scrolling past four full bays.</p>
+      </div>
+      <div class="filedesk-hero-actions">
+        <label class="filedesk-upload-source">
+          <input type="file" id="filedesk-source-upload" accept=".stl,.obj,.step,.stp,.3mf,.gcode,.gcode.gz,.ufp">
+          Upload to Vault
+        </label>
+        <div class="filedesk-library-path">${esc(data.library_path || '')}</div>
+      </div>
+    </section>
+    ${_printBayOverview(data.targets || [])}
+    <nav class="printbay-tabbar" aria-label="Print Bay views">
+      <button type="button" class="printbay-tab${tab === 'vault' ? ' active' : ''}" data-printbay-tab="vault">
+        <strong>Print Vault</strong><span>${vaultCount} file${vaultCount === 1 ? '' : 's'}</span>
+      </button>
+      <button type="button" class="printbay-tab${tab === 'printers' ? ' active' : ''}" data-printbay-tab="printers">
+        <strong>Printer Bays</strong><span>${printerTargets.length} printer${printerTargets.length === 1 ? '' : 's'}</span>
+      </button>
+      <button type="button" class="printbay-tab${tab === 'reprints' ? ' active' : ''}" data-printbay-tab="reprints">
+        <strong>Reprints</strong><span>${reprintCount} recent</span>
+      </button>
+    </nav>
+    <div class="printbay-tab-panel">${panelHtml}</div>
+  </div>`;
+}
+
+function _paintGlobalPrintBay(el) {
+  if (!_fileDeskLastData) return;
+  const html = _buildGlobalPrintBayHtml(_fileDeskLastData, _fileDeskLastReprints, _globalPrintBayTab);
+  if (html === _fileDeskLastHtml) return;
+  el.innerHTML = html;
+  _fileDeskLastHtml = html;
+  _attachFileDeskEvents(el);
+}
 
 function _pollPrintBayIfVisible() {
   if (document.hidden) return;
@@ -8056,50 +8148,9 @@ async function renderFileDeskView() {
     const reprints = await fetch('/api/files/reprints?limit=12')
       .then(r => r.ok ? r.json() : { items: [] })
       .catch(() => ({ items: [] }));
-    _fileDeskTargets = data.targets || [];
-    const vaultTargets = _fileDeskTargets.filter(t => t.id === 'library');
-    const printerTargets = _fileDeskTargets.filter(t => t.id !== 'library');
-    const vaultCount = vaultTargets.reduce((sum, t) => sum + (t.files || []).filter(f => f.kind !== 'dir' && _fileCompatiblePrinters(f, t).length).length, 0);
-    const html = `<div class="filedesk-shell">
-      <section class="filedesk-hero">
-        <div>
-          <div class="mission-eyebrow">Print Bay</div>
-          <h1>Run-ready library</h1>
-          <p>Launch from printer bays, keep the deep archive in the vault, and queue compatible jobs without starting them.</p>
-        </div>
-        <div class="filedesk-hero-actions">
-          <label class="filedesk-upload-source">
-            <input type="file" id="filedesk-source-upload" accept=".stl,.obj,.step,.stp,.3mf,.gcode,.gcode.gz,.ufp">
-            Upload Source
-          </label>
-          <div class="filedesk-library-path">${esc(data.library_path || '')}</div>
-        </div>
-      </section>
-      ${_printBayOverview(data.targets || [])}
-      ${_printBayReprintHtml(reprints.items || [], data.targets || [])}
-      <section class="printbay-active-bays">
-        <div class="printbay-section-head printbay-section-head-compact">
-          <div>
-            <div class="mission-eyebrow">Printer Bays</div>
-            <h2>Active storage</h2>
-          </div>
-          <span>${printerTargets.length} bay${printerTargets.length === 1 ? '' : 's'}</span>
-        </div>
-        <div class="filedesk-grid">${printerTargets.map(_fileDeskTargetHtml).join('')}</div>
-      </section>
-      <details class="printbay-vault"${_printBayVaultOpen ? ' open' : ''}>
-        <summary>
-          <span><b>Print Vault</b><small>Pi / USB / HDD backup area</small></span>
-          <em>${vaultCount} file${vaultCount === 1 ? '' : 's'}</em>
-        </summary>
-        <div class="filedesk-grid printbay-vault-grid">${vaultTargets.map(_fileDeskTargetHtml).join('')}</div>
-      </details>
-    </div>`;
-    if (html !== _fileDeskLastHtml) {
-      el.innerHTML = html;
-      _fileDeskLastHtml = html;
-      _attachFileDeskEvents(el);
-    }
+    _fileDeskLastData = data;
+    _fileDeskLastReprints = reprints.items || [];
+    _paintGlobalPrintBay(el);
   } catch (err) {
     if (!_fileDeskLastHtml) el.innerHTML = `<div class="detail-placeholder">File Desk unavailable.</div>`;
   } finally {
@@ -8250,6 +8301,15 @@ function _attachFileDeskEvents(el) {
       const target = _fileDeskTargets.find(t => t.id === btn.dataset.sourceId);
       const files = _selectedFileDeskRows(el, btn.dataset.sourceId);
       if (target && files.length) _openFileDeleteDialog({ target, files });
+    });
+  });
+  el.querySelectorAll('[data-printbay-tab]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.dataset.printbayTab;
+      if (!tab || tab === _globalPrintBayTab) return;
+      _globalPrintBayTab = tab;
+      const page = document.getElementById('filedesk-page');
+      if (page) _paintGlobalPrintBay(page);
     });
   });
   el.querySelector('.printbay-vault')?.addEventListener('toggle', e => {
