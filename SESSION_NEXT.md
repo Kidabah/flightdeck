@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Fix slice modal, MakerWorld token UX, and Desktop Orca handoff`
+- Latest commit: `6e55004` — Fix slice modal, MakerWorld token UX, and Desktop Orca handoff
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
