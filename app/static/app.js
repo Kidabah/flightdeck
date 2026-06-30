@@ -386,6 +386,10 @@ let _onManual = false;          // true while flight manual is active
 let _onDemo = false;            // true while walkthrough mode is active
 let _onAbout = false;           // true while about page is active
 let _onMakerWorld = false;      // true while MakerWorld page is active
+let _makerWorldUrl = '';
+let _makerWorldResolved = null;
+let _makerWorldRecent = [];
+let _makerWorldBusy = false;
 let _renderedSpoolDetailId = null;
 let _lastSpoolsRouteKey = '';
 let _lastMemoryRouteKey = '';
@@ -879,7 +883,7 @@ function _commandStaticItems() {
     ['Global Print Bay', '#/files', 'Files, printer storage, and reprint staging'],
     ['Spools', '#/spools', 'Spool inventory'],
     ['Walkthrough Mode', '#/walkthrough', 'Guided first-look tour for testers'],
-    ['MakerWorld', '#/makerworld', 'Bambu Cloud login, token health, and imports'],
+    ['MakerWorld', '#/makerworld', 'Paste MakerWorld links and import plates into Print Vault'],
     ['Flight Manual', '#/manual', 'Setup, recovery, Bambu and walkthrough notes'],
     ['About Flightdeck', '#/about', 'Origin story, credits, and release notes'],
     ['Settings', '#/settings', 'Configuration'],
@@ -2760,6 +2764,203 @@ async function renderAboutView() {
 
 // ── MakerWorld ─────────────────────────────────────────────────────────────
 
+function _makerWorldThumbUrl(url) {
+  const raw = String(url || '').trim();
+  if (!raw) return '';
+  return `/api/makerworld/thumbnail?url=${encodeURIComponent(raw)}`;
+}
+
+function _makerWorldTokenConfigured() {
+  return Boolean(String(_serverSettings.bambu_cloud_token || '').trim());
+}
+
+async function _fetchMakerWorldStatus() {
+  const r = await fetch('/api/makerworld/status');
+  if (!r.ok) throw new Error('Could not read MakerWorld status');
+  return r.json();
+}
+
+async function _fetchMakerWorldRecent() {
+  const r = await fetch('/api/makerworld/recent?limit=10');
+  if (!r.ok) return { imports: [] };
+  return r.json();
+}
+
+async function _resolveMakerWorldUrl(url) {
+  const r = await fetch('/api/makerworld/resolve', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url: url.trim() }),
+  });
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.detail || 'Could not resolve MakerWorld URL');
+  return body;
+}
+
+async function _importMakerWorldPlate(url, profileId) {
+  const r = await fetch('/api/makerworld/import', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url: url.trim(), profile_id: Number(profileId) }),
+  });
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.detail || 'MakerWorld import failed');
+  return body;
+}
+
+function _makerWorldPlateMeta(plate) {
+  const bits = [];
+  if (plate.weight_g) bits.push(`${plate.weight_g}g`);
+  if (plate.print_time_text) bits.push(plate.print_time_text);
+  if (plate.filament_colors) bits.push(`${plate.filament_colors} colours`);
+  if (plate.need_ams) bits.push('AMS');
+  return bits.join(' · ') || 'Print profile';
+}
+
+function _makerWorldPreviewHtml(data, url) {
+  if (!data) return '';
+  const cover = data.cover_url ? _makerWorldThumbUrl(data.cover_url) : '';
+  const highlight = Number(data.highlight_profile_id || 0);
+  const plates = (data.plates || []).map(plate => {
+    const active = highlight && Number(plate.profile_id) === highlight ? ' makerworld-plate-highlight' : '';
+    const imported = plate.already_imported;
+    const actions = imported
+      ? `<div class="makerworld-plate-actions">
+          <span class="makerworld-plate-badge">In Print Vault</span>
+          ${plate.vault_path ? `<a class="settings-save-btn" href="#/files">Open Vault</a>` : ''}
+        </div>`
+      : `<div class="makerworld-plate-actions">
+          <button type="button" class="settings-save-btn" data-makerworld-import="${esc(String(plate.profile_id))}" ${data.can_download ? '' : 'disabled'}>
+            Save to Vault
+          </button>
+        </div>`;
+    const thumb = plate.cover_url ? _makerWorldThumbUrl(plate.cover_url) : cover;
+    return `<article class="makerworld-plate${active}">
+      <div class="makerworld-plate-thumb">${thumb ? `<img src="${esc(thumb)}" alt="" loading="lazy">` : ''}</div>
+      <div class="makerworld-plate-body">
+        <strong>${esc(plate.title)}</strong>
+        <span>${esc(_makerWorldPlateMeta(plate))}</span>
+        ${imported && plate.vault_name ? `<small>${esc(plate.vault_name)}</small>` : ''}
+      </div>
+      ${actions}
+    </article>`;
+  }).join('');
+
+  const tokenBanner = data.can_download
+    ? `<div class="makerworld-token-banner makerworld-token-banner-ok">Bambu Cloud token ready${data.token_hint ? ` (${esc(data.token_hint)})` : ''}.</div>`
+    : `<div class="makerworld-token-banner makerworld-token-banner-warn">
+        Downloads need your Bambu Cloud token. Add the <code>token</code> cookie from makerworld.com under
+        <a href="#/settings/preferences">Settings → Preferences → Bambu Cloud</a>, then resolve again.
+      </div>`;
+
+  return `<section class="manual-card makerworld-import-card">
+    ${tokenBanner}
+    <div class="makerworld-preview-head">
+      <div class="makerworld-preview-cover">${cover ? `<img src="${esc(cover)}" alt="" loading="lazy">` : ''}</div>
+      <div class="makerworld-preview-copy">
+        <div class="mission-eyebrow">Resolved model</div>
+        <h2>${esc(data.title)}</h2>
+        <p>${esc(data.summary_text || 'MakerWorld model ready to import plate by plate into the Print Vault.')}</p>
+        <div class="makerworld-preview-meta">
+          ${data.creator ? `<span>${esc(data.creator)}</span>` : ''}
+          ${data.license ? `<span>${esc(data.license)}</span>` : ''}
+          ${data.download_count != null ? `<span>${Number(data.download_count).toLocaleString()} downloads</span>` : ''}
+        </div>
+        <div class="makerworld-preview-links">
+          <a href="${esc(data.source_url || url)}" target="_blank" rel="noopener noreferrer">Open on MakerWorld</a>
+          <a href="#/files">Print Vault</a>
+        </div>
+      </div>
+    </div>
+    <div class="makerworld-plates">
+      <div class="makerworld-plates-head">
+        <strong>Print profiles</strong>
+        <span>${(data.plates || []).length} plate${(data.plates || []).length === 1 ? '' : 's'}</span>
+      </div>
+      <div class="makerworld-plate-list">${plates || '<p class="makerworld-empty">No downloadable plates were returned for this model.</p>'}</div>
+    </div>
+  </section>`;
+}
+
+function _makerWorldRecentHtml(imports) {
+  const rows = (imports || []).map(row => {
+    const when = row.imported_at ? new Date(row.imported_at).toLocaleString() : '';
+    return `<a class="makerworld-recent-row" href="#/files">
+      <strong>${esc(row.title || 'MakerWorld import')}</strong>
+      <span>${esc(row.plate_title || row.filename || '')}</span>
+      <small>${esc(when)}${row.vault_path ? ` · ${esc(row.vault_path)}` : ''}</small>
+    </a>`;
+  }).join('');
+  return `<section class="manual-card makerworld-recent-card">
+    <div class="manual-card-head"><span>Recent imports</span></div>
+    ${rows ? `<div class="makerworld-recent-list">${rows}</div>` : '<p class="makerworld-empty">Imported MakerWorld plates will appear here.</p>'}
+  </section>`;
+}
+
+function _attachMakerWorldImportEvents(el, url) {
+  el.querySelectorAll('[data-makerworld-import]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (_makerWorldBusy) return;
+      const profileId = btn.getAttribute('data-makerworld-import');
+      _makerWorldBusy = true;
+      btn.disabled = true;
+      const label = btn.textContent;
+      btn.textContent = 'Importing…';
+      try {
+        const result = await _importMakerWorldPlate(url, profileId);
+        showToast(
+          result.already_existed ? 'Already in Print Vault' : 'Saved to Print Vault',
+          result.path || result.name || '',
+          'success',
+        );
+        _makerWorldResolved = await _resolveMakerWorldUrl(url);
+        _makerWorldRecent = (await _fetchMakerWorldRecent()).imports || [];
+        renderMakerWorldView();
+      } catch (err) {
+        showToast('MakerWorld import failed', err.message || '', 'error');
+        btn.disabled = false;
+        btn.textContent = label;
+      } finally {
+        _makerWorldBusy = false;
+      }
+    });
+  });
+}
+
+function _makerWorldTokenSetupHtml(status = {}) {
+  const hasToken = Boolean(status.has_token || _makerWorldTokenConfigured());
+  const hint = status.token_hint || '';
+  return `<section class="manual-card makerworld-token-setup">
+    <div class="manual-card-head"><span>Bambu Cloud download token</span></div>
+    <p class="makerworld-token-copy">Paste the <code>token</code> cookie from makerworld.com after sign-in. Flightdeck stores it locally and uses it only for MakerWorld 3MF downloads.</p>
+    <div class="makerworld-token-row">
+      <input id="makerworld-token-input" class="settings-input" type="password" autocomplete="off" value="${esc(_serverSettings.bambu_cloud_token || '')}" placeholder="AAB_… paste token cookie here">
+      <button type="button" class="settings-save-btn" id="makerworld-token-save">Save token</button>
+      ${hasToken ? `<span class="makerworld-plate-badge">Saved${hint ? ` · ${esc(hint)}` : ''}</span>` : '<span class="makerworld-token-missing">Not saved yet</span>'}
+    </div>
+    <div class="settings-hint">Browser DevTools → Application → Cookies → <strong>makerworld.com</strong> → copy the value named <strong>token</strong>.</div>
+  </section>`;
+}
+
+function _attachMakerWorldTokenEvents(el, afterSave = null) {
+  el.querySelector('#makerworld-token-save')?.addEventListener('click', async () => {
+    const input = el.querySelector('#makerworld-token-input');
+    const value = (input?.value || '').trim();
+    if (!value) {
+      showToast('Token required', 'Paste the makerworld.com token cookie first.', 'warn');
+      return;
+    }
+    try {
+      await _saveSetting('bambu_cloud_token', value);
+      _serverSettings.bambu_cloud_token = value;
+      showToast('Bambu Cloud token saved', 'MakerWorld downloads are ready.', 'success');
+      if (typeof afterSave === 'function') afterSave();
+    } catch (err) {
+      showToast('Token save failed', err.message || '', 'error');
+    }
+  });
+}
+
 function _makerWorldHealthPanelHtml() {
   const h = _bambuCloudHealth();
   return `<section class="manual-card makerworld-token-card">
@@ -2797,40 +2998,114 @@ function _attachBambuCloudMarkEvents(el, afterSave = null) {
       }
     });
   });
+  el.querySelectorAll('[data-bambu-cloud-token-save]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const row = btn.closest('.bambu-cloud-section') || btn.closest('.settings-section') || el;
+      const input = row?.querySelector('[data-pref-key="bambu_cloud_token"]');
+      const value = (input?.value || '').trim();
+      if (!value) {
+        showToast('Token required', 'Paste the makerworld.com token cookie first.', 'warn');
+        return;
+      }
+      try {
+        await _saveSetting('bambu_cloud_token', value);
+        _serverSettings.bambu_cloud_token = value;
+        showToast('Bambu Cloud token saved', 'MakerWorld downloads are ready.', 'success');
+        if (typeof afterSave === 'function') afterSave();
+      } catch (err) {
+        showToast('Token save failed', err.message || '', 'error');
+      }
+    });
+  });
 }
 
 async function renderMakerWorldView() {
   const el = document.getElementById('makerworld-page');
   if (!el) return;
   const healthPanel = _makerWorldHealthPanelHtml();
+  let status = { has_token: _makerWorldTokenConfigured() };
+  try {
+    status = await _fetchMakerWorldStatus();
+  } catch (_) { /* keep fallback */ }
+  if (!_makerWorldRecent.length) {
+    try {
+      _makerWorldRecent = (await _fetchMakerWorldRecent()).imports || [];
+    } catch (_) {
+      _makerWorldRecent = [];
+    }
+  }
+  const previewHtml = _makerWorldResolved ? _makerWorldPreviewHtml(_makerWorldResolved, _makerWorldUrl) : '';
   el.innerHTML = `<div class="manual-page makerworld-page">
     <section class="manual-hero makerworld-hero">
       <div>
         <div class="mission-eyebrow">MakerWorld</div>
-        <h1>Bambu Cloud doorway for Flightdeck.</h1>
-        <p>Use this page to open MakerWorld, refresh the Bambu Cloud session, and keep Flightdeck's token reminder in step with your real login.</p>
+        <h1>Import MakerWorld models into Flightdeck.</h1>
+        <p>Paste a MakerWorld link, preview the plates, and save 3MF files straight into the Print Vault. Downloads reuse your local Bambu Cloud token — Flightdeck never stores your Bambu password.</p>
       </div>
       <div class="manual-hero-actions">
         <a href="https://makerworld.com/" target="_blank" rel="noopener noreferrer">Open MakerWorld</a>
-        <a href="#/settings/preferences">Token settings</a>
+        <a href="#/settings/preferences">Bambu Cloud token</a>
       </div>
     </section>
 
+    ${_makerWorldTokenSetupHtml(status)}
+
+    <section class="manual-card makerworld-import-bar">
+      <div class="manual-card-head"><span>Import from URL</span></div>
+      <div class="makerworld-url-row">
+        <input id="makerworld-url-input" class="settings-input" type="url" placeholder="https://makerworld.com/en/models/123456" value="${esc(_makerWorldUrl)}">
+        <button type="button" class="settings-save-btn" id="makerworld-resolve-btn">${_makerWorldResolved ? 'Refresh' : 'Resolve'}</button>
+      </div>
+      <div class="settings-hint">Accepts locale links, slugs, and <code>#profileId-…</code> fragments. Metadata works without a token; saving plates needs the Bambu Cloud token cookie.</div>
+    </section>
+
+    ${previewHtml}
+
     <section class="manual-grid makerworld-grid">
       ${healthPanel}
-      ${_manualSection('How To Use It', 'Keep this deliberately simple until the MakerWorld import path earns a deeper integration.', [
-        '<strong>1. Open MakerWorld</strong><span>If it opens already signed in, your browser session is still good.</span>',
-        '<strong>2. Refresh login when needed</strong><span>If MakerWorld asks for sign-in, complete it in the browser.</span>',
-        '<strong>3. Mark today</strong><span>After a successful sign-in, update the local token date so Flightdeck can warn before the next expiry.</span>',
-      ])}
-      ${_manualSection('Current Scope', 'This is a launch and health page, not a cloud account manager. Flightdeck does not store your Bambu password or silently re-authenticate.', [
-        '<strong>Local stays local</strong><span>Printer control and LAN workflows keep working without Bambu Cloud.</span>',
-        '<strong>Cloud is optional</strong><span>MakerWorld and cloud-backed imports depend on the browser/Bambu session.</span>',
-        '<strong>Next step</strong><span>Once this is proven, this page can become the home for model import and plate handoff tools.</span>',
+      ${_makerWorldRecentHtml(_makerWorldRecent)}
+      ${_manualSection('Workflow', 'MakerWorld plates are source 3MF projects — slice them before queueing to a printer.', [
+        '<strong>1. Resolve</strong><span>Paste the shared MakerWorld URL and load the plate list.</span>',
+        '<strong>2. Save to Vault</strong><span>Import one plate at a time into Print Vault → MakerWorld.</span>',
+        '<strong>3. Slice & queue</strong><span>Open the vault file in Bambu Studio or Orca, slice it, then queue the printer-ready job from Print Bay.</span>',
       ])}
     </section>
   </div>`;
   _attachBambuCloudMarkEvents(el, () => renderMakerWorldView());
+  _attachMakerWorldTokenEvents(el, () => renderMakerWorldView());
+
+  el.querySelector('#makerworld-resolve-btn')?.addEventListener('click', async () => {
+    if (_makerWorldBusy) return;
+    const input = el.querySelector('#makerworld-url-input');
+    const url = (input?.value || '').trim();
+    if (!url) {
+      showToast('MakerWorld URL needed', 'Paste a makerworld.com model link first.', 'warn');
+      return;
+    }
+    _makerWorldBusy = true;
+    const btn = el.querySelector('#makerworld-resolve-btn');
+    const label = btn?.textContent || 'Resolve';
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Resolving…';
+    }
+    try {
+      _makerWorldUrl = url;
+      _makerWorldResolved = await _resolveMakerWorldUrl(url);
+      _makerWorldRecent = (await _fetchMakerWorldRecent()).imports || [];
+      renderMakerWorldView();
+    } catch (err) {
+      showToast('MakerWorld resolve failed', err.message || '', 'error');
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = label;
+      }
+    } finally {
+      _makerWorldBusy = false;
+    }
+  });
+
+  _attachMakerWorldImportEvents(el, _makerWorldUrl);
 }
 
 // ── Walkthrough Mode ───────────────────────────────────────────────────────
@@ -14512,6 +14787,12 @@ function _bambuCloudHealthHtml() {
         </div>
         <p>${esc(h.detail)}</p>
       </div>
+      <div class="settings-form-row bambu-cloud-token-row">
+        <label class="settings-label">Cloud token</label>
+        <input class="settings-input pref-input" data-pref-key="bambu_cloud_token" type="password" autocomplete="off" value="${esc(_serverSettings.bambu_cloud_token || '')}" placeholder="AAB_… from makerworld.com cookies">
+        <button type="button" class="settings-save-btn" data-bambu-cloud-token-save>Save token</button>
+      </div>
+      <div class="settings-hint">After signing in to MakerWorld, copy the browser <code>token</code> cookie value here. Flightdeck uses it only for MakerWorld downloads against <code>api.bambulab.com</code>.</div>
       <div class="settings-form-row">
         <label class="settings-label">Last sign-in</label>
         <input class="settings-input pref-input" data-pref-key="bambu_cloud_last_auth_at" type="date" value="${esc(h.lastValue)}">

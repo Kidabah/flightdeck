@@ -28,6 +28,7 @@ DEFAULT_SETTINGS = {
     "queue_strict_colour": "true",
     "ams_auto_claim_enabled": "true",
     "bambu_cloud_last_auth_at": "",
+    "bambu_cloud_token": "",
     "bambu_cloud_token_days": "90",
     "bambu_cloud_warn_days": "75",
     "bambu_cloud_urgent_days": "85",

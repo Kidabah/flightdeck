@@ -6,9 +6,24 @@ Latest GitHub/Pi state:
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=556 / style.css?v=433 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=558 / style.css?v=435 / demo-runtime.js?v=8
 
-### 2026-06-29 UX (AMS HT loadout height match)
+### 2026-06-30 follow-up (MakerWorld token paste)
+
+**Expose Bambu Cloud token paste on MakerWorld page** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Added a visible token field + **Save token** button directly on `#/makerworld`, plus the same explicit save control in Settings → Preferences → Bambu Cloud.
+- Prior importer work was still local-only (never committed), which is why deploy reported nothing to change.
+- Static cache bumped to `app.js?v=558` and `style.css?v=435`; backend restart plus hard refresh required.
+
+
+**Add MakerWorld URL importer** (`app/makerworld.py`, `app/main.py`, `app/db.py`, `app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- MakerWorld page now resolves `makerworld.com/models/…` links against `api.bambulab.com`, previews plates, and saves 3MF files into Print Vault → `MakerWorld/`.
+- Downloads use the locally stored Bambu Cloud bearer token (`Settings → Preferences → Bambu Cloud → Cloud token`, copied from the makerworld.com `token` cookie). Metadata resolve works without a token.
+- Added `/api/makerworld/status`, `/resolve`, `/import`, `/recent`, and host-allowlisted `/thumbnail` proxy. Import history is tracked in `makerworld_imports.json` under the Flightdeck data dir.
+- Static cache bumped to `app.js?v=557` and `style.css?v=434`; backend restart plus frontend refresh required.
+
 
 **Match AMS HT loadout card height to AMS 1** (`app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
 

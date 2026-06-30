@@ -41,7 +41,7 @@ from pydantic import BaseModel
 
 import httpx
 
-from . import db, relay
+from . import db, makerworld, relay
 from .camera import BambuCameraProxy
 from .label_printer import LabelPrinter
 from .models import PrintPreview, PrinterStatus
@@ -4342,6 +4342,66 @@ async def put_setting(key: str, body: SettingUpdate):
         value = "" if not value.strip() else str(_validate_print_library_path(value))
     db.set_setting(key, value)
     return {"ok": True, "value": value}
+
+
+class MakerWorldResolveRequest(BaseModel):
+    url: str
+
+
+class MakerWorldImportRequest(BaseModel):
+    url: str
+    profile_id: int
+
+
+@app.get("/api/makerworld/status")
+async def makerworld_status():
+    token = (db.get_setting("bambu_cloud_token") or "").strip()
+    return {
+        "has_token": bool(token),
+        "token_hint": makerworld._token_hint(token),
+        "import_dir": makerworld.IMPORT_SUBDIR,
+    }
+
+
+@app.post("/api/makerworld/resolve")
+async def makerworld_resolve(body: MakerWorldResolveRequest):
+    token = (db.get_setting("bambu_cloud_token") or "").strip()
+    try:
+        return makerworld.resolve_url(body.url.strip(), token, DATA_DIR)
+    except makerworld.MakerWorldError as exc:
+        raise HTTPException(status_code=exc.status, detail=str(exc))
+
+
+@app.post("/api/makerworld/import")
+async def makerworld_import(body: MakerWorldImportRequest):
+    token = (db.get_setting("bambu_cloud_token") or "").strip()
+    try:
+        return makerworld.import_plate(
+            url=body.url.strip(),
+            profile_id=int(body.profile_id),
+            token=token,
+            data_dir=DATA_DIR,
+            library_root=_print_library_path().resolve(),
+            safe_basename=_safe_basename,
+            safe_join_under=_safe_join_under,
+            enforce_file_size=_enforce_file_size,
+        )
+    except makerworld.MakerWorldError as exc:
+        raise HTTPException(status_code=exc.status, detail=str(exc))
+
+
+@app.get("/api/makerworld/recent")
+async def makerworld_recent(limit: int = 10):
+    return {"imports": makerworld.recent_imports(DATA_DIR, limit)}
+
+
+@app.get("/api/makerworld/thumbnail")
+async def makerworld_thumbnail(url: str):
+    try:
+        data, content_type = makerworld.fetch_thumbnail(url)
+    except makerworld.MakerWorldError as exc:
+        raise HTTPException(status_code=exc.status, detail=str(exc))
+    return Response(content=data, media_type=content_type)
 
 
 _ORCA_PROFILE_VENDORS = ["BBL", "Sovol", "Voron", "Prusa", "Anycubic", "Creality"]

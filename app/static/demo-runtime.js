@@ -294,6 +294,36 @@
 
     if (path === '/api/settings') return jsonResponse({ temp_unit: 'F', time_format: '24h', accent: '#3b82f6' });
     if (path.startsWith('/api/settings/')) return method === 'GET' ? jsonResponse({ value: null }) : jsonResponse({ ok: true, demo: true });
+    if (path === '/api/makerworld/status') return jsonResponse({ has_token: false, token_hint: '', import_dir: 'MakerWorld', demo: true });
+    if (path === '/api/makerworld/recent') return jsonResponse({ imports: [], demo: true });
+    if (path === '/api/makerworld/resolve' && method === 'POST') return jsonResponse({
+      ok: true,
+      demo: true,
+      title: 'Demo MakerWorld model',
+      design_id: 123456,
+      model_id: 'USdemo',
+      summary_text: 'Demo resolve preview only.',
+      cover_url: '',
+      creator: 'Flightdeck Demo',
+      license: 'BY-NC',
+      download_count: 0,
+      print_count: 0,
+      source_url: 'https://makerworld.com/en/models/123456',
+      plates: [{
+        profile_id: 1,
+        title: 'Demo plate',
+        cover_url: '',
+        weight_g: 42,
+        print_time_text: '1h 10m',
+        need_ams: false,
+        filament_colors: 2,
+        is_default: true,
+        already_imported: false,
+      }],
+      can_download: false,
+      token_hint: '',
+    });
+    if (path === '/api/makerworld/import' && method === 'POST') return jsonResponse({ ok: true, demo: true, already_existed: false, name: 'demo.3mf', path: 'MakerWorld/demo.3mf', size: 1024 });
     if (path === '/api/update/status') return jsonResponse({
       version: '0.4.0-beta.1',
       name: 'Bambu beta launch candidate',
