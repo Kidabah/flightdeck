@@ -6109,7 +6109,7 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
             <span>No filament metadata</span>
             <span class="print-spool-grams">
               <strong>Unknown grams</strong>
-              <em>Recover from slicer relay log, then assign a spool</em>
+              <em>Recover from relay log or printer storage, then assign a spool</em>
             </span>
             <span class="print-spool-actions">
               <button class="print-filament-repair" data-print-id="${print.id}">Recover grams</button>
@@ -6303,7 +6303,10 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
         const r = await fetch(`/api/print-memory/${printId}/repair-filament`, { method: 'POST' });
         const data = await r.json();
         if (!r.ok) throw new Error(data.detail || 'Recovery failed');
-        showToast('Filament recovered', `${Number(data.filament_grams || 0).toFixed(1)}g recovered from slicer relay metadata.`, 'success');
+        const source = data.source === 'printer_ftp'
+          ? 'printer storage'
+          : 'slicer relay metadata';
+        showToast('Filament recovered', `${Number(data.filament_grams || 0).toFixed(1)}g recovered from ${source}.`, 'success');
         await _refreshPrintDetailFromServer(printerId, dateStr, printId, targetEl);
       } catch (err) {
         showToast('Recovery failed', err.message || '', 'error');

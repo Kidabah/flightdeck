@@ -2,11 +2,19 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `162dfcd` — Improve spool metadata for direct slicer-to-printer sends
+- Latest commit: (pending) — Recover grams FTP fallback for direct slicer sends
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=566 / style.css?v=442
+- Refresh cachebust currently: app.js?v=567 / style.css?v=442
+
+### 2026-06-30 fix (Recover grams FTP fallback)
+
+**Recover grams tries printer FTP when relay log is missing** (`app/db.py`, `app/printers/bambu_ftp.py`, `app/main.py`, `app/static/app.js`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Direct slicer → printer sends have no relay upload log, so History **Recover grams** failed even when `subtask_name` (e.g. `rack_spool`) and the 3MF still exist on printer SD.
+- Repair now tries relay first, then Bambu FTP (`{subtask}.gcode.3mf`, fuzzy storage match, `plate_N.gcode` header parse).
+- Clearer error when both miss: assign manually. Static cache `app.js?v=567`; **backend restart required** on Pi.
 
 ### 2026-06-30 fix (Direct slicer spool metadata)
 

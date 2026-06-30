@@ -640,6 +640,48 @@ def _preview_from_gcode_bytes(data: bytes) -> Optional[BambuPreview]:
     )
 
 
+_PLATE_GCODE_RE = re.compile(r"(?:^|[/\\])plate_(\d+)\.gcode$", re.IGNORECASE)
+
+
+def _job_stem_from_name(name: str | None) -> Optional[str]:
+    if not name:
+        return None
+    stem = str(name).strip().split("?", 1)[0].rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
+    if not stem or stem in {".", ".."} or _PLATE_GCODE_RE.search(stem):
+        return None
+    lower = stem.lower()
+    for suffix in (".gcode.3mf", ".3mf", ".gcode.gz", ".gcode"):
+        if lower.endswith(suffix):
+            stem = stem[: -len(suffix)].strip()
+            break
+    return stem or None
+
+
+def plate_number_from_job_name(name: str | None) -> Optional[int]:
+    if not name:
+        return None
+    match = _PLATE_GCODE_RE.search(str(name))
+    if not match:
+        return None
+    try:
+        return int(match.group(1))
+    except ValueError:
+        return None
+
+
+def resolve_preview_job_lookup(
+    filename: str | None,
+    subtask_name: str | None,
+) -> tuple[Optional[str], Optional[int]]:
+    """Return (job stem, plate number) for FTP preview lookup on Bambu storage."""
+    plate_number = plate_number_from_job_name(filename) or plate_number_from_job_name(subtask_name)
+    for candidate in (subtask_name, filename):
+        stem = _job_stem_from_name(candidate)
+        if stem:
+            return stem, plate_number
+    return None, plate_number
+
+
 def _storage_name_stem(name: str) -> str:
     stem = str(name or "").rsplit("/", 1)[-1].rsplit("\\", 1)[-1].lower()
     for suffix in (".gcode.3mf", ".3mf", ".gcode.gz", ".gcode"):

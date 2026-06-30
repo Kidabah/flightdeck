@@ -777,8 +777,45 @@ def try_apply_relay_filament_metadata(print_id: int, *, log_event: str = "print_
     return True
 
 
-def repair_print_filament_metadata_from_relay(print_id: int) -> Optional[dict]:
-    """Recover missing filament grams/material from prior slicer relay upload logs."""
+def _find_bambu_ftp_filament_match(
+    *,
+    printer_id: str,
+    filename: str | None,
+    subtask_name: str | None,
+    material_fallback: str | None = None,
+) -> Optional[dict]:
+    from .printer_config import load
+    from .printers.bambu_ftp import fetch_bambu_preview, resolve_preview_job_lookup
+
+    printer = next((p for p in load().printers if p.id == printer_id), None)
+    if not printer or printer.connection.type != "bambu":
+        return None
+    conn = printer.connection
+    stem, plate_number = resolve_preview_job_lookup(filename, subtask_name)
+    if not stem and plate_number is None:
+        return None
+    try:
+        preview = fetch_bambu_preview(
+            conn.host,
+            conn.access_code,
+            stem or "",
+            plate_number=plate_number,
+        )
+    except Exception as exc:
+        log.warning("FTP filament repair failed for %s: %s", printer_id, exc)
+        return None
+    if not preview or not preview.filament_weight_g or preview.filament_weight_g <= 0:
+        return None
+    return {
+        "filament_grams": float(preview.filament_weight_g),
+        "material": preview.filament_type or material_fallback,
+        "source": "printer_ftp",
+        "source_file": stem,
+    }
+
+
+def repair_print_filament_metadata(print_id: int) -> Optional[dict]:
+    """Recover missing filament grams/material from relay logs or printer FTP storage."""
     with _conn() as conn:
         row = conn.execute(
             """SELECT id, printer_id, filename, subtask_name, started_at, ended_at,
@@ -799,6 +836,17 @@ def repair_print_filament_metadata_from_relay(print_id: int) -> Optional[dict]:
         ended_at=row["ended_at"],
         material_fallback=row["material"],
     )
+    source = "relay"
+    if match:
+        match = {**match, "source": source}
+    else:
+        match = _find_bambu_ftp_filament_match(
+            printer_id=row["printer_id"],
+            filename=row["filename"],
+            subtask_name=row["subtask_name"],
+            material_fallback=row["material"],
+        )
+        source = "printer_ftp"
     if not match:
         return {"error": "metadata_not_found"}
     update_print_filament_metadata(
@@ -806,14 +854,25 @@ def repair_print_filament_metadata_from_relay(print_id: int) -> Optional[dict]:
         filament_grams=match["filament_grams"],
         material=match["material"],
     )
-    detail = (
-        f"Recovered filament metadata from relay upload {match.get('source_file') or ''}: "
-        f"{float(match['filament_grams']):.1f}g"
-    )
+    if source == "relay":
+        detail = (
+            f"Recovered filament metadata from relay upload {match.get('source_file') or ''}: "
+            f"{float(match['filament_grams']):.1f}g"
+        )
+    else:
+        detail = (
+            f"Recovered filament metadata from printer FTP {match.get('source_file') or 'job file'}: "
+            f"{float(match['filament_grams']):.1f}g"
+        )
     if match.get("material"):
         detail += f" {match['material']}"
     log_decision(row["printer_id"], "print_filament_metadata_recovered", detail, print_id=print_id)
     return match
+
+
+def repair_print_filament_metadata_from_relay(print_id: int) -> Optional[dict]:
+    """Backward-compatible alias for relay-only callers."""
+    return repair_print_filament_metadata(print_id)
 
 
 def on_print_ended(
