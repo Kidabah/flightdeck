@@ -1774,6 +1774,17 @@ header {
   grid-template-columns: minmax(7rem, auto) minmax(0, 1fr) auto;
 }
 
+.makerworld-import-bar {
+  margin-bottom: 0.85rem;
+}
+
+.makerworld-url-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.55rem;
+  align-items: center;
+}
+
 .makerworld-slicer-row {
   display: grid;
   grid-template-columns: minmax(5rem, auto) minmax(12rem, 18rem);
