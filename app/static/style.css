@@ -1915,10 +1915,17 @@ header {
 
 .makerworld-plates-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
   margin-bottom: 0.55rem;
+}
+
+.makerworld-plates-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  min-width: 0;
 }
 
 .makerworld-plates-head strong {
@@ -1928,6 +1935,11 @@ header {
 .makerworld-plates-head span {
   color: var(--muted);
   font-size: 0.74rem;
+}
+
+.makerworld-import-all-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .makerworld-plate-list {

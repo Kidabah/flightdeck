@@ -376,6 +376,87 @@ def import_plate(
     }
 
 
+def import_all_plates(
+    *,
+    url: str,
+    token: str,
+    data_dir: Path,
+    library_root: Path,
+    safe_basename,
+    safe_join_under,
+    enforce_file_size,
+) -> dict[str, Any]:
+    if not token.strip():
+        raise MakerWorldError("Add your Bambu Cloud token in Settings before downloading.")
+
+    design_id, _ = parse_makerworld_url(url)
+    design = fetch_design(design_id)
+    profile_ids: list[int] = []
+    for row in design.get("instances") or []:
+        if not isinstance(row, dict):
+            continue
+        profile_id = int(row.get("profileId") or 0)
+        if profile_id:
+            profile_ids.append(profile_id)
+    if not profile_ids:
+        raise MakerWorldError("No downloadable plates were found for this model.", status=404)
+
+    results: list[dict[str, Any]] = []
+    imported = 0
+    already_existed = 0
+    failed = 0
+    for profile_id in profile_ids:
+        try:
+            row = import_plate(
+                url=url,
+                profile_id=profile_id,
+                token=token,
+                data_dir=data_dir,
+                library_root=library_root,
+                safe_basename=safe_basename,
+                safe_join_under=safe_join_under,
+                enforce_file_size=enforce_file_size,
+            )
+            if row.get("already_existed"):
+                already_existed += 1
+            else:
+                imported += 1
+            results.append({
+                "ok": True,
+                "profile_id": profile_id,
+                "already_existed": bool(row.get("already_existed")),
+                "name": row.get("name"),
+                "path": row.get("path"),
+                "plate_title": row.get("plate_title"),
+            })
+        except MakerWorldError as exc:
+            failed += 1
+            results.append({
+                "ok": False,
+                "profile_id": profile_id,
+                "error": str(exc),
+            })
+        except Exception as exc:
+            failed += 1
+            log.exception("makerworld: import_all failed for profile %s", profile_id)
+            results.append({
+                "ok": False,
+                "profile_id": profile_id,
+                "error": str(exc) or "Import failed",
+            })
+
+    return {
+        "ok": failed == 0,
+        "design_id": design_id,
+        "title": str(design.get("title") or f"Design {design_id}").strip(),
+        "total": len(profile_ids),
+        "imported": imported,
+        "already_existed": already_existed,
+        "failed": failed,
+        "results": results,
+    }
+
+
 def recent_imports(data_dir: Path, limit: int = 10) -> list[dict[str, Any]]:
     limit = max(1, min(int(limit or 10), 50))
     rows = load_imports(data_dir)[:limit]

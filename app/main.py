@@ -4389,6 +4389,10 @@ class MakerWorldImportRequest(BaseModel):
     profile_id: int
 
 
+class MakerWorldImportAllRequest(BaseModel):
+    url: str
+
+
 def _db_setting(key: str) -> str:
     return str(db.get_all_settings().get(key) or "").strip()
 
@@ -4419,6 +4423,23 @@ async def makerworld_import(body: MakerWorldImportRequest):
         return makerworld.import_plate(
             url=body.url.strip(),
             profile_id=int(body.profile_id),
+            token=token,
+            data_dir=DATA_DIR,
+            library_root=_print_library_path().resolve(),
+            safe_basename=_safe_basename,
+            safe_join_under=_safe_join_under,
+            enforce_file_size=_enforce_file_size,
+        )
+    except makerworld.MakerWorldError as exc:
+        raise HTTPException(status_code=exc.status, detail=str(exc))
+
+
+@app.post("/api/makerworld/import-all")
+async def makerworld_import_all(body: MakerWorldImportAllRequest):
+    token = _db_setting("bambu_cloud_token")
+    try:
+        return makerworld.import_all_plates(
+            url=body.url.strip(),
             token=token,
             data_dir=DATA_DIR,
             library_root=_print_library_path().resolve(),

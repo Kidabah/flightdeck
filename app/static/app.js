@@ -2911,6 +2911,26 @@ async function _importMakerWorldPlate(url, profileId) {
   return body;
 }
 
+async function _importAllMakerWorldPlates(url) {
+  const r = await fetch('/api/makerworld/import-all', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url: url.trim() }),
+  });
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(_apiDetail(body, 'MakerWorld bulk import failed'));
+  return body;
+}
+
+function _makerWorldImportAllSummary(result) {
+  const parts = [];
+  if (result.imported) parts.push(`${result.imported} saved`);
+  if (result.already_existed) parts.push(`${result.already_existed} already in vault`);
+  if (result.failed) parts.push(`${result.failed} failed`);
+  if (!parts.length) return 'No plates to import';
+  return parts.join(', ');
+}
+
 function _makerWorldSlicerHandoff(override = _makerWorldSlicerOverride) {
   const pick = String(override || 'follow').trim();
   if (pick === 'bambu_studio') return { target: 'bambu_studio', label: 'Bambu Studio' };
@@ -3031,6 +3051,14 @@ function _makerWorldPreviewHtml(data, url) {
         <a href="#/settings/preferences">Settings → Preferences → Bambu Cloud</a>, then resolve again.
       </div>`;
 
+  const plateCount = (data.plates || []).length;
+  const pendingCount = (data.plates || []).filter(plate => !plate.already_imported).length;
+  const importAllBtn = plateCount > 1 && data.can_download
+    ? `<button type="button" class="settings-save-btn makerworld-import-all-btn" data-makerworld-import-all ${pendingCount ? '' : 'disabled'}>
+        Import all to Vault${pendingCount && pendingCount < plateCount ? ` (${pendingCount} new)` : ''}
+      </button>`
+    : '';
+
   return `<section class="manual-card makerworld-import-card">
     ${tokenBanner}
     <div class="makerworld-preview-head">
@@ -3052,8 +3080,11 @@ function _makerWorldPreviewHtml(data, url) {
     </div>
     <div class="makerworld-plates">
       <div class="makerworld-plates-head">
-        <strong>Print profiles</strong>
-        <span>${(data.plates || []).length} plate${(data.plates || []).length === 1 ? '' : 's'}</span>
+        <div class="makerworld-plates-title">
+          <strong>Print profiles</strong>
+          <span>${plateCount} plate${plateCount === 1 ? '' : 's'}</span>
+        </div>
+        ${importAllBtn}
       </div>
       <div class="makerworld-plate-list">${plates || '<p class="makerworld-empty">No downloadable plates were returned for this model.</p>'}</div>
     </div>
@@ -3089,6 +3120,34 @@ function _attachMakerWorldImportEvents(el, url) {
     _makerWorldRecent = (await _fetchMakerWorldRecent()).imports || [];
     renderMakerWorldView();
   };
+
+  el.querySelector('[data-makerworld-import-all]')?.addEventListener('click', async () => {
+    if (_makerWorldBusy) return;
+    const btn = el.querySelector('[data-makerworld-import-all]');
+    if (!btn || btn.disabled) return;
+    _makerWorldBusy = true;
+    btn.disabled = true;
+    const label = btn.textContent;
+    btn.textContent = 'Importing all…';
+    try {
+      const result = await _importAllMakerWorldPlates(url);
+      const tone = result.failed ? 'warn' : 'success';
+      const title = result.failed ? 'Import finished with errors' : 'All plates saved';
+      showToast(title, _makerWorldImportAllSummary(result), tone);
+      if (result.failed) {
+        const failed = (result.results || []).filter(row => !row.ok);
+        const detail = failed.map(row => `Plate ${row.profile_id}: ${row.error || 'failed'}`).join('; ');
+        if (detail) showToast('Failed plates', detail, 'error');
+      }
+      await refreshAfterImport();
+    } catch (err) {
+      showToast('Import all failed', err.message || '', 'error');
+      btn.disabled = false;
+      btn.textContent = label;
+    } finally {
+      _makerWorldBusy = false;
+    }
+  });
 
   el.querySelectorAll('[data-makerworld-import]').forEach(btn => {
     btn.addEventListener('click', async () => {
