@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `9164507` — Fix duplicate plateCount breaking app.js module load
-- Refresh cachebust currently: app.js?v=577 / style.css?v=449
+- Latest commit: (pending) — Print Vault folder groups + MakerWorld folder migration
+- Refresh cachebust currently: app.js?v=578 / style.css?v=450
+
+### 2026-06-30 fix (Print Vault folders)
+
+**Print Vault folder groups + MakerWorld re-import into model folders** (`app/main.py`, `app/makerworld.py`, `app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Print Vault (`#/files`) now groups library files into collapsible folders (e.g. `MakerWorld/EasySpooler_1234567/`) instead of one flat list.
+- Multi-plate MakerWorld imports that still sit flat in `MakerWorld/` are re-downloaded into the model subfolder on next import; superseded flat copies are removed.
+- Static cache `app.js?v=578` / `style.css?v=450`; **backend restart required** on Pi.
 
 ### 2026-06-30 hotfix (app.js syntax)
 

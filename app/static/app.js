@@ -8298,6 +8298,85 @@ function _printBayBayShouldOpen(targetId, summary) {
   return (summary.ready || 0) > 0;
 }
 
+function _libraryVaultFolderKey(file) {
+  const raw = String(file?.folder || file?.path || file?.name || '');
+  if (file?.folder != null && file.folder !== '') return String(file.folder);
+  const slash = raw.lastIndexOf('/');
+  return slash >= 0 ? raw.slice(0, slash) : '';
+}
+
+function _fileDeskFileRowHtml(f, target, options = {}) {
+  const targetPrinterId = options.printerId || '';
+  const directQueue = !!options.directQueue && !!targetPrinterId;
+  const compactBay = !!options.compactBay;
+  const inFolder = !!options.inFolder;
+  const path = esc(f.path || f.name);
+  const printers = _fileCompatiblePrinters(f, target);
+  const printable = _filePrintablePrinters(f, target);
+  const isSource = _fileIsSourceModel(f);
+  const ready = printers.filter(p => p.state === 'idle' || p.state === 'finished');
+  const printerChips = compactBay ? '' : printers.slice(0, 4).map(p => `<span class="filedesk-printer-chip${ready.some(r => r.id === p.id) ? ' filedesk-printer-ready' : ''}">${esc(p.model_name || p.custom_name || p.id)}</span>`).join('');
+  const more = compactBay ? '' : (printers.length > 4 ? `<span class="filedesk-printer-chip">+${printers.length - 4}</span>` : '');
+  const vaultChip = f.in_vault && target.id !== 'library'
+    ? `<span class="filedesk-vault-chip" title="Archived in Print Vault${f.vault_path ? ': ' + esc(f.vault_path) : ''}">Vaulted</span>`
+    : '';
+  const metaPath = (compactBay || inFolder) ? '' : `<span>${esc(f.path || '')}</span>`;
+  const compatCell = compactBay ? '' : `<div class="filedesk-compat">
+      ${printerChips}${more}
+    </div>`;
+  return `<article class="filedesk-file-row${compactBay ? ' filedesk-file-row-compact' : ''}${inFolder ? ' filedesk-file-row-folder' : ''}">
+    <input type="checkbox" class="filedesk-select" data-source-id="${esc(target.id)}" data-path="${path}" data-name="${esc(f.name || f.path || 'File')}" aria-label="Select ${esc(f.name || f.path || 'file')}">
+    <div class="filedesk-file-main" title="${esc(f.path || f.name)}">
+      <div class="filedesk-file-title">
+        <span class="filedesk-kind filedesk-kind-${_fileKindClass(f.kind)}">${esc(f.kind || 'file')}</span>
+        ${vaultChip}
+        <strong class="filedesk-name">${esc(f.name || f.path || 'File')}</strong>
+      </div>
+      <div class="filedesk-file-meta">
+        <span>${esc(_fmtBytes(f.size))}</span>
+        <span>${esc(_fileModifiedLabel(f.modified))}</span>
+        ${metaPath}
+      </div>
+    </div>
+    ${compatCell}
+    ${isSource
+      ? `<button class="filedesk-action-btn filedesk-slice-primary" data-file-action="slice" data-source-id="${esc(target.id)}" data-path="${path}" ${targetPrinterId ? `data-target-printer="${esc(targetPrinterId)}"` : ''}>Slice</button>`
+      : `<button class="filedesk-action-btn filedesk-queue-primary" data-file-action="queue" data-source-id="${esc(target.id)}" data-path="${path}" ${directQueue ? `data-target-printer="${esc(targetPrinterId)}"` : ''} ${printable.length ? '' : 'disabled'}>Queue</button>`}
+  </article>`;
+}
+
+function _fileDeskLibraryGroupedRowsHtml(files, target, options = {}) {
+  const groups = new Map();
+  for (const file of files) {
+    const key = _libraryVaultFolderKey(file);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(file);
+  }
+  const keys = [...groups.keys()].sort((a, b) => {
+    if (!a) return -1;
+    if (!b) return 1;
+    return a.localeCompare(b);
+  });
+  if (keys.length <= 1 && (!keys[0] || keys[0] === '')) {
+    return files.map(f => _fileDeskFileRowHtml(f, target, options)).join('');
+  }
+  return keys.map(key => {
+    const groupFiles = groups.get(key) || [];
+    groupFiles.sort((a, b) => String(a.path || a.name).localeCompare(String(b.path || b.name)));
+    const rowOptions = { ...options, inFolder: Boolean(key) };
+    const rows = groupFiles.map(f => _fileDeskFileRowHtml(f, target, rowOptions)).join('');
+    if (!key) return rows;
+    const open = key.startsWith('MakerWorld/') || key === 'MakerWorld';
+    return `<details class="filedesk-folder-group"${open ? ' open' : ''}>
+      <summary class="filedesk-folder-summary">
+        <strong>${esc(key)}</strong>
+        <span>${groupFiles.length} file${groupFiles.length === 1 ? '' : 's'}</span>
+      </summary>
+      <div class="filedesk-folder-body">${rows}</div>
+    </details>`;
+  }).join('');
+}
+
 function _fileDeskTargetHtml(target, options = {}) {
   const targetPrinterId = options.printerId || '';
   const directQueue = !!options.directQueue && !!targetPrinterId;
@@ -8309,41 +8388,11 @@ function _fileDeskTargetHtml(target, options = {}) {
     return targetPrinterId ? printers.some(p => p.id === targetPrinterId) : printers.length;
   });
   const summary = _printBaySourceSummary(target, files);
-  const rows = files.length ? files.map(f => {
-    const path = esc(f.path || f.name);
-    const printers = _fileCompatiblePrinters(f, target);
-    const printable = _filePrintablePrinters(f, target);
-    const isSource = _fileIsSourceModel(f);
-    const ready = printers.filter(p => p.state === 'idle' || p.state === 'finished');
-    const printerChips = compactBay ? '' : printers.slice(0, 4).map(p => `<span class="filedesk-printer-chip${ready.some(r => r.id === p.id) ? ' filedesk-printer-ready' : ''}">${esc(p.model_name || p.custom_name || p.id)}</span>`).join('');
-    const more = compactBay ? '' : (printers.length > 4 ? `<span class="filedesk-printer-chip">+${printers.length - 4}</span>` : '');
-    const vaultChip = f.in_vault && target.id !== 'library'
-      ? `<span class="filedesk-vault-chip" title="Archived in Print Vault${f.vault_path ? ': ' + esc(f.vault_path) : ''}">Vaulted</span>`
-      : '';
-    const metaPath = compactBay ? '' : `<span>${esc(f.path || '')}</span>`;
-    const compatCell = compactBay ? '' : `<div class="filedesk-compat">
-        ${printerChips}${more}
-      </div>`;
-    return `<article class="filedesk-file-row${compactBay ? ' filedesk-file-row-compact' : ''}">
-      <input type="checkbox" class="filedesk-select" data-source-id="${esc(target.id)}" data-path="${path}" data-name="${esc(f.name || f.path || 'File')}" aria-label="Select ${esc(f.name || f.path || 'file')}">
-      <div class="filedesk-file-main" title="${esc(f.path || f.name)}">
-        <div class="filedesk-file-title">
-          <span class="filedesk-kind filedesk-kind-${_fileKindClass(f.kind)}">${esc(f.kind || 'file')}</span>
-          ${vaultChip}
-          <strong class="filedesk-name">${esc(f.name || f.path || 'File')}</strong>
-        </div>
-        <div class="filedesk-file-meta">
-          <span>${esc(_fmtBytes(f.size))}</span>
-          <span>${esc(_fileModifiedLabel(f.modified))}</span>
-          ${metaPath}
-        </div>
-      </div>
-      ${compatCell}
-      ${isSource
-        ? `<button class="filedesk-action-btn filedesk-slice-primary" data-file-action="slice" data-source-id="${esc(target.id)}" data-path="${path}" ${targetPrinterId ? `data-target-printer="${esc(targetPrinterId)}"` : ''}>Slice</button>`
-        : `<button class="filedesk-action-btn filedesk-queue-primary" data-file-action="queue" data-source-id="${esc(target.id)}" data-path="${path}" ${directQueue ? `data-target-printer="${esc(targetPrinterId)}"` : ''} ${printable.length ? '' : 'disabled'}>Queue</button>`}
-    </article>`;
-  }).join('') : `<div class="filedesk-empty">${target.error ? esc(target.error) : 'No printable files found.'}</div>`;
+  const rows = files.length
+    ? (target.id === 'library' && !compactBay
+      ? _fileDeskLibraryGroupedRowsHtml(files, target, { targetPrinterId, directQueue, compactBay })
+      : files.map(f => _fileDeskFileRowHtml(f, target, { targetPrinterId, directQueue, compactBay })).join(''))
+    : `<div class="filedesk-empty">${target.error ? esc(target.error) : 'No printable files found.'}</div>`;
   const formatNote = target.actions?.format_sd && !compactBay
     ? `<div class="filedesk-format-row">
         <span class="filedesk-format-note">Bambu SD cleanout deletes printable jobs only and keeps utility folders.</span>

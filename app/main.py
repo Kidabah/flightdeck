@@ -1295,6 +1295,7 @@ def _local_library_files() -> list[dict]:
         rows.append({
             "name": path.name,
             "path": rel,
+            "folder": path.parent.relative_to(root).as_posix() if path.parent != root else "",
             "kind": _file_kind(path.name),
             "size": stat.st_size,
             "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),

@@ -371,10 +371,14 @@ def import_plate(
 
     imports = load_imports(data_dir)
     existing = _imports_by_profile(imports).get((design_id, profile_id))
+    vault_folder_rel = _design_vault_folder(design, design_id, multi_plate=plate_total > 1)
     if existing and existing.get("vault_path"):
         vault_rel = str(existing["vault_path"])
         dest = safe_join_under(library_root.resolve(), vault_rel, missing_ok=True)
-        if dest.exists():
+        layout_ok = dest.exists() and (
+            plate_total <= 1 or vault_rel.startswith(f"{vault_folder_rel}/")
+        )
+        if layout_ok:
             return {
                 "ok": True,
                 "already_existed": True,
@@ -403,7 +407,6 @@ def import_plate(
         safe_basename=safe_basename,
     )
 
-    vault_folder_rel = _design_vault_folder(design, design_id, multi_plate=plate_total > 1)
     folder = safe_join_under(library_root.resolve(), *vault_folder_rel.split("/"), missing_ok=True)
     folder.mkdir(parents=True, exist_ok=True)
     dest = safe_join_under(folder, stem, missing_ok=True)
@@ -412,6 +415,16 @@ def import_plate(
         suffixes = dest.suffixes or [".3mf"]
         dest = safe_join_under(folder, f"{dest.stem}_{stamp}{''.join(suffixes)}", missing_ok=True)
     dest.write_bytes(data)
+
+    if existing and existing.get("vault_path"):
+        old_rel = str(existing["vault_path"])
+        if old_rel != dest.relative_to(library_root.resolve()).as_posix():
+            try:
+                old_dest = safe_join_under(library_root.resolve(), old_rel, missing_ok=True)
+                if old_dest.is_file():
+                    old_dest.unlink()
+            except Exception:
+                log.warning("makerworld: could not remove superseded vault file %s", old_rel)
 
     vault_rel = dest.relative_to(library_root.resolve()).as_posix()
     record = {

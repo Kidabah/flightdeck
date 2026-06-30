@@ -18496,6 +18496,61 @@ select optgroup {
   max-height: clamp(18rem, 42vh, 34rem);
   overflow: auto;
 }
+
+.filedesk-folder-group {
+  border-bottom: 1px solid rgba(122,162,216,0.14);
+}
+
+.filedesk-folder-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.5rem 0.72rem;
+  cursor: pointer;
+  list-style: none;
+  background: rgba(15,23,42,0.42);
+  color: #dbeafe;
+  font-size: 0.76rem;
+}
+
+.filedesk-folder-summary::-webkit-details-marker {
+  display: none;
+}
+
+.filedesk-folder-summary::before {
+  content: '▸';
+  color: #93c5fd;
+  font-size: 0.72rem;
+  transition: transform 0.15s ease;
+}
+
+.filedesk-folder-group[open] > .filedesk-folder-summary::before {
+  transform: rotate(90deg);
+}
+
+.filedesk-folder-summary strong {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filedesk-folder-summary span {
+  color: var(--muted);
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
+.filedesk-folder-body {
+  border-top: 1px solid rgba(122,162,216,0.1);
+  background: rgba(2,6,23,0.22);
+}
+
+.filedesk-file-row-folder .filedesk-name {
+  font-weight: 600;
+}
+
 .filedesk-select, .filedesk-select-all { width: 0.9rem; height: 0.9rem; accent-color: var(--accent); cursor: pointer; }
 .filedesk-file-row {
   display: grid;
