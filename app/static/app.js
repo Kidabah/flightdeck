@@ -3226,7 +3226,8 @@ function _makerWorldRecentHtml(imports) {
 function _attachMakerWorldRecentEvents(el) {
   el.querySelector('[data-makerworld-clear-recent]')?.addEventListener('click', async () => {
     if (_makerWorldBusy) return;
-    if (!window.confirm('Clear recent MakerWorld import history? Print Vault files are not deleted.')) return;
+    const ok = await _confirmModal('Clear recent MakerWorld import history? Print Vault files are not deleted.');
+    if (!ok) return;
     _makerWorldBusy = true;
     const btn = el.querySelector('[data-makerworld-clear-recent]');
     const label = btn?.textContent || 'Clear all';
