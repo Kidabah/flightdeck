@@ -1761,6 +1761,29 @@ header {
   gap: 0.55rem;
   align-items: center;
 }
+.bambu-token-saved-row,
+.bambu-token-edit-row,
+.bambu-cloud-token-field {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+}
+.bambu-cloud-token-row {
+  align-items: start;
+}
+.bambu-cloud-token-row .bambu-cloud-token-field {
+  flex: 1 1 18rem;
+}
+.bambu-token-input {
+  flex: 1 1 16rem;
+  min-width: 12rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.bambu-token-cancel-btn,
+.bambu-token-replace-btn {
+  flex: 0 0 auto;
+}
 
 .makerworld-token-missing {
   color: #fca5a5;
@@ -12511,6 +12534,11 @@ button.live-route-node:hover {
 }
 .settings-input:focus { border-color: var(--printing); }
 select.settings-input { cursor: pointer; }
+.secret-input {
+  -webkit-text-security: disc;
+  text-security: disc;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
 select,
 select option,
 select optgroup {
@@ -18489,7 +18517,7 @@ select optgroup {
 }
 .filedesk-slice-plan-panel {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(10rem, 0.9fr) minmax(10rem, 0.9fr);
+  grid-template-columns: minmax(0, 1.4fr) minmax(11rem, 0.8fr);
   gap: 0.6rem;
   align-items: end;
   margin-bottom: 0.85rem;
@@ -18499,6 +18527,31 @@ select optgroup {
   background:
     linear-gradient(135deg, rgba(59,130,246,0.11), rgba(15,23,42,0.62)),
     rgba(2,6,23,0.45);
+}
+.filedesk-slice-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.75rem;
+  margin: -0.35rem 0 0.75rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid rgba(251,191,36,0.28);
+  border-radius: 0.45rem;
+  background: rgba(251,191,36,0.08);
+  color: #fde68a;
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+.filedesk-slice-hint .filedesk-slice-link {
+  margin-left: auto;
+}
+.filedesk-slice-advanced {
+  margin-bottom: 0.25rem;
+}
+.filedesk-slice-footnote {
+  margin: 0.35rem 0 0.15rem;
+  font-size: 0.72rem;
+  line-height: 1.4;
 }
 .filedesk-slice-plan-copy {
   display: grid;

@@ -389,7 +389,9 @@ let _onMakerWorld = false;      // true while MakerWorld page is active
 let _makerWorldUrl = '';
 let _makerWorldResolved = null;
 let _makerWorldRecent = [];
+let _makerWorldBusy = false;
 let _makerWorldSlicerOverride = 'follow';
+let _bambuTokenEditorOpen = false;
 let _renderedSpoolDetailId = null;
 let _lastSpoolsRouteKey = '';
 let _lastMemoryRouteKey = '';
@@ -2771,7 +2773,98 @@ function _makerWorldThumbUrl(url) {
 }
 
 function _makerWorldTokenConfigured() {
-  return Boolean(String(_serverSettings.bambu_cloud_token || '').trim());
+  return _serverSettings.bambu_cloud_token_configured === 'true'
+    || Boolean(String(_serverSettings.bambu_cloud_token || '').trim());
+}
+
+function _bambuTokenHint(token) {
+  const fromSettings = String(_serverSettings.bambu_cloud_token_hint || '').trim();
+  if (fromSettings) return fromSettings;
+  const t = String(token || '').trim();
+  if (!t) return '';
+  if (t.length <= 8) return '••••';
+  return `${t.slice(0, 4)}…${t.slice(-4)}`;
+}
+
+function _bambuTokenFieldHtml({
+  inputId = 'bambu-token-input',
+  saveBtnId = '',
+  rowClass = 'makerworld-token-row',
+  configured = _makerWorldTokenConfigured(),
+  hint = _bambuTokenHint(''),
+} = {}) {
+  const showInput = !configured || _bambuTokenEditorOpen;
+  if (!showInput) {
+    return `<div class="${rowClass} bambu-token-saved-row">
+      <span class="makerworld-plate-badge">Token saved${hint ? ` · ${esc(hint)}` : ''}</span>
+      <button type="button" class="settings-save-btn bambu-token-replace-btn" data-bambu-token-replace>Replace token</button>
+    </div>`;
+  }
+  const saveBtn = saveBtnId
+    ? `<button type="button" class="settings-save-btn" id="${esc(saveBtnId)}">Save token</button>`
+    : `<button type="button" class="settings-save-btn" data-bambu-cloud-token-save>Save token</button>`;
+  const cancelBtn = configured
+    ? `<button type="button" class="settings-save-btn bambu-token-cancel-btn" data-bambu-token-cancel>Cancel</button>`
+    : '';
+  const missing = !configured ? '<span class="makerworld-token-missing">Not saved yet</span>' : '';
+  return `<div class="${rowClass} bambu-token-edit-row">
+    ${cancelBtn}
+    <input type="text" id="${esc(inputId)}" class="settings-input bambu-token-input" autocomplete="one-time-code" autocapitalize="off" spellcheck="false" inputmode="verbatim" data-1p-ignore="true" data-lpignore="true" data-bito-ignore="true" data-form-type="other" readonly value="" placeholder="Paste makerworld.com token cookie value">
+    ${saveBtn}
+    ${missing}
+  </div>`;
+}
+
+function _attachBambuTokenFieldEvents(el, afterSave = null) {
+  const refresh = () => { if (typeof afterSave === 'function') afterSave(); };
+  el.querySelector('[data-bambu-token-replace]')?.addEventListener('click', () => {
+    _bambuTokenEditorOpen = true;
+    refresh();
+  });
+  el.querySelector('[data-bambu-token-cancel]')?.addEventListener('click', () => {
+    _bambuTokenEditorOpen = false;
+    refresh();
+  });
+  el.querySelectorAll('.bambu-token-input').forEach(input => {
+    input.addEventListener('focus', () => input.removeAttribute('readonly'));
+  });
+  const saveToken = async input => {
+    if (!input) return;
+    const value = (input.value || '').trim();
+    if (!value) {
+      showToast('Token required', 'Paste the makerworld.com token cookie first.', 'warn');
+      return;
+    }
+    input.value = '';
+    input.setAttribute('readonly', 'readonly');
+    try {
+      const r = await fetch('/api/settings/bambu_cloud_token', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value }),
+      });
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(body.detail || 'Setting save failed');
+      _serverSettings.bambu_cloud_token = '';
+      _serverSettings.bambu_cloud_token_configured = body.configured ? 'true' : 'false';
+      _serverSettings.bambu_cloud_token_hint = body.hint || _bambuTokenHint(value);
+      _bambuTokenEditorOpen = false;
+      showToast('Bambu Cloud token saved', 'MakerWorld downloads are ready.', 'success');
+      refresh();
+    } catch (err) {
+      showToast('Token save failed', err.message || '', 'error');
+      input.removeAttribute('readonly');
+    }
+  };
+  el.querySelector('#makerworld-token-save')?.addEventListener('click', () => {
+    saveToken(el.querySelector('#makerworld-token-input'));
+  });
+  el.querySelectorAll('[data-bambu-cloud-token-save]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const row = btn.closest('.bambu-cloud-token-row, .settings-section, .makerworld-token-setup, .bambu-token-edit-row');
+      saveToken(row?.querySelector('.bambu-token-input') || el.querySelector('.bambu-token-input'));
+    });
+  });
 }
 
 async function _fetchMakerWorldStatus() {
@@ -3073,36 +3166,17 @@ function _attachMakerWorldImportEvents(el, url) {
 
 function _makerWorldTokenSetupHtml(status = {}) {
   const hasToken = Boolean(status.has_token || _makerWorldTokenConfigured());
-  const hint = status.token_hint || '';
+  const hint = status.token_hint || _bambuTokenHint('');
   return `<section class="manual-card makerworld-token-setup">
     <div class="manual-card-head"><span>Bambu Cloud download token</span></div>
     <p class="makerworld-token-copy">Paste the <code>token</code> cookie from makerworld.com after sign-in. Flightdeck stores it locally and uses it only for MakerWorld 3MF downloads.</p>
-    <div class="makerworld-token-row">
-      <input id="makerworld-token-input" class="settings-input" type="password" autocomplete="off" value="${esc(_serverSettings.bambu_cloud_token || '')}" placeholder="AAB_… paste token cookie here">
-      <button type="button" class="settings-save-btn" id="makerworld-token-save">Save token</button>
-      ${hasToken ? `<span class="makerworld-plate-badge">Saved${hint ? ` · ${esc(hint)}` : ''}</span>` : '<span class="makerworld-token-missing">Not saved yet</span>'}
-    </div>
+    ${_bambuTokenFieldHtml({ inputId: 'makerworld-token-input', saveBtnId: 'makerworld-token-save', configured: hasToken, hint })}
     <div class="settings-hint">Browser DevTools → Application → Cookies → <strong>makerworld.com</strong> → copy the value named <strong>token</strong>.</div>
   </section>`;
 }
 
 function _attachMakerWorldTokenEvents(el, afterSave = null) {
-  el.querySelector('#makerworld-token-save')?.addEventListener('click', async () => {
-    const input = el.querySelector('#makerworld-token-input');
-    const value = (input?.value || '').trim();
-    if (!value) {
-      showToast('Token required', 'Paste the makerworld.com token cookie first.', 'warn');
-      return;
-    }
-    try {
-      await _saveSetting('bambu_cloud_token', value);
-      _serverSettings.bambu_cloud_token = value;
-      showToast('Bambu Cloud token saved', 'MakerWorld downloads are ready.', 'success');
-      if (typeof afterSave === 'function') afterSave();
-    } catch (err) {
-      showToast('Token save failed', err.message || '', 'error');
-    }
-  });
+  _attachBambuTokenFieldEvents(el, afterSave);
 }
 
 function _makerWorldHealthPanelHtml() {
@@ -3142,22 +3216,17 @@ function _attachBambuCloudMarkEvents(el, afterSave = null) {
       }
     });
   });
-  el.querySelectorAll('[data-bambu-cloud-token-save]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const row = btn.closest('.bambu-cloud-section') || btn.closest('.settings-section') || el;
-      const input = row?.querySelector('[data-pref-key="bambu_cloud_token"]');
-      const value = (input?.value || '').trim();
-      if (!value) {
-        showToast('Token required', 'Paste the makerworld.com token cookie first.', 'warn');
-        return;
-      }
+  el.querySelectorAll('[data-pref-key="bambu_cloud_last_auth_at"]').forEach(input => {
+    input.addEventListener('change', async () => {
+      const value = (input.value || '').trim();
+      if (!value) return;
       try {
-        await _saveSetting('bambu_cloud_token', value);
-        _serverSettings.bambu_cloud_token = value;
-        showToast('Bambu Cloud token saved', 'MakerWorld downloads are ready.', 'success');
-        if (typeof afterSave === 'function') afterSave();
+        await _saveSetting('bambu_cloud_last_auth_at', value);
+        _serverSettings.bambu_cloud_last_auth_at = value;
+        showToast('Bambu Cloud sign-in tracked', value, 'success');
+        if (typeof afterSave === 'function') afterSave(value);
       } catch (err) {
-        showToast('Token save failed', err.message || '', 'error');
+        showToast('Bambu Cloud setting failed', err.message || '', 'error');
       }
     });
   });
@@ -3232,7 +3301,10 @@ async function renderMakerWorldView() {
   });
 
   el.querySelector('#makerworld-resolve-btn')?.addEventListener('click', async () => {
-    if (_makerWorldBusy) return;
+    if (_makerWorldBusy) {
+      showToast('MakerWorld is busy', 'Wait for the current action to finish.', 'warn');
+      return;
+    }
     const input = el.querySelector('#makerworld-url-input');
     const url = (input?.value || '').trim();
     if (!url) {
@@ -3250,7 +3322,8 @@ async function renderMakerWorldView() {
       _makerWorldUrl = url;
       _makerWorldResolved = await _resolveMakerWorldUrl(url);
       _makerWorldRecent = (await _fetchMakerWorldRecent()).imports || [];
-      renderMakerWorldView();
+      await renderMakerWorldView();
+      showToast('MakerWorld model loaded', _makerWorldResolved?.title || url, 'success');
     } catch (err) {
       showToast('MakerWorld resolve failed', err.message || '', 'error');
       if (btn) {
@@ -3259,6 +3332,13 @@ async function renderMakerWorldView() {
       }
     } finally {
       _makerWorldBusy = false;
+    }
+  });
+
+  el.querySelector('#makerworld-url-input')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      el.querySelector('#makerworld-resolve-btn')?.click();
     }
   });
 
@@ -3504,6 +3584,15 @@ function router() {
   _onAbout = route.view === 'about';
   _onMakerWorld = route.view === 'makerworld';
   if (route.view !== 'spool') _renderedSpoolDetailId = null;
+
+  if (route.view !== 'settings' && wasOnSettings) {
+    const settingsContent = document.getElementById('settings-content');
+    if (settingsContent) settingsContent.innerHTML = '';
+    _bambuTokenEditorOpen = false;
+  }
+  if (route.view !== 'makerworld' && wasOnMakerWorld) {
+    _bambuTokenEditorOpen = false;
+  }
 
   document.getElementById('view-dashboard').hidden = route.view !== 'dashboard';
   document.getElementById('view-mission').hidden   = route.view !== 'mission';
@@ -12984,11 +13073,11 @@ function _slicerCategoryHtml(profileData = null, printers = []) {
         </label>
         <label class="slicer-integration-field">
           <span>Browser Orca username</span>
-          <input class="settings-input slicer-browser-auth-input" data-pref-key="orcaslicer_browser_username" autocomplete="username" value="${esc(dockerUser)}" placeholder="flightdeck">
+          <input class="settings-input slicer-browser-auth-input" data-pref-key="orcaslicer_browser_username" autocomplete="off" autocapitalize="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true" data-form-type="other" value="${esc(dockerUser)}" placeholder="flightdeck">
         </label>
         <label class="slicer-integration-field">
           <span>Browser Orca password</span>
-          <input class="settings-input slicer-browser-auth-input" data-pref-key="orcaslicer_browser_password" type="password" autocomplete="current-password" value="${esc(dockerPassword)}" placeholder="flightdeck">
+          <input class="settings-input slicer-browser-auth-input" data-pref-key="orcaslicer_browser_password" type="text" autocomplete="one-time-code" autocapitalize="off" spellcheck="false" inputmode="verbatim" data-1p-ignore="true" data-lpignore="true" data-bito-ignore="true" data-form-type="other" readonly value="" placeholder="${(_serverSettings.orcaslicer_browser_password_configured === 'true' || dockerPassword) ? 'Saved · paste to replace' : 'flightdeck'}">
         </label>
         <label class="slicer-integration-field slicer-integration-field-wide">
           <span>Slicer API URL</span>
@@ -13077,8 +13166,12 @@ function _slicerOfflineCopy(health) {
 
 function _slicerBrowserCredentials(root = null) {
   const username = (root?.querySelector?.('[data-pref-key="orcaslicer_browser_username"]')?.value ?? _serverSettings.orcaslicer_browser_username ?? 'flightdeck').trim();
-  const password = (root?.querySelector?.('[data-pref-key="orcaslicer_browser_password"]')?.value ?? _serverSettings.orcaslicer_browser_password ?? 'flightdeck').trim();
-  return { username, password };
+  const typedPassword = root?.querySelector?.('[data-pref-key="orcaslicer_browser_password"]')?.value?.trim();
+  if (typedPassword) return { username, password: typedPassword };
+  if (_serverSettings.orcaslicer_browser_password_configured === 'true') {
+    return { username, password: 'flightdeck' };
+  }
+  return { username, password: String(_serverSettings.orcaslicer_browser_password || 'flightdeck').trim() || 'flightdeck' };
 }
 
 function _slicerDockerLaunchUrl(value = '', credentials = null) {
@@ -13265,18 +13358,27 @@ function _attachSlicerEvents(el) {
     });
   });
   el.querySelectorAll('.slicer-browser-auth-input').forEach(input => {
+    input.addEventListener('focus', () => input.removeAttribute('readonly'));
     input.addEventListener('change', async () => {
       const key = input.dataset.prefKey;
       const value = input.value.trim();
+      if (key === 'orcaslicer_browser_password' && !value) return;
+      input.value = '';
       try {
         const saved = await _saveSetting(key, value);
-        input.value = saved || '';
-        _serverSettings[key] = input.value;
+        if (key === 'orcaslicer_browser_password') {
+          _serverSettings.orcaslicer_browser_password = '';
+          input.placeholder = 'Saved · paste to replace';
+          input.setAttribute('readonly', 'readonly');
+        } else {
+          _serverSettings[key] = saved || value;
+          input.value = saved || value;
+        }
         el.querySelectorAll('.slicer-docker-input').forEach(_updateSlicerDockerLaunch);
-        showToast('Browser slicer login saved', key.includes('password') ? 'Password updated' : (input.value || 'Cleared'), 'success');
+        showToast('Browser slicer login saved', key.includes('password') ? 'Password updated' : (value || 'Cleared'), 'success');
       } catch (err) {
         showToast('Setting save failed', err.message || '', 'error');
-        input.value = input.defaultValue;
+        input.removeAttribute('readonly');
       }
     });
   });
@@ -14058,6 +14160,29 @@ async function _uploadSourceModel(file) {
   }
 }
 
+function _sliceWorkflowPrimaryLabel(workflow) {
+  if (workflow === 'auto') return 'Prepare headless slice';
+  if (workflow === 'bambu_studio') return 'Open in Bambu Studio';
+  if (workflow === 'browser_orca') return 'Open in Browser Orca';
+  return 'Open in Desktop Orca';
+}
+
+function _slicePrinterNeedsBambuStudio(printer) {
+  const model = String(printer?.model_name || '').toUpperCase();
+  return printer?.kind === 'bambu' && /\bH2[A-Z]?\b|H2D|H2C/.test(model);
+}
+
+function _slicePrinterHandoffHint(printer, workflow) {
+  if (!printer || workflow === 'bambu_studio' || workflow === 'auto') return '';
+  if (_slicePrinterNeedsBambuStudio(printer)) {
+    return 'H-series printers work best with Bambu Studio. Orca H2C support is still limited.';
+  }
+  if (printer.kind === 'bambu') {
+    return 'Bambu printers usually slice more reliably in Bambu Studio than Orca.';
+  }
+  return '';
+}
+
 async function _openSliceModelDialog({ sourceId, path, file, printers }) {
   document.querySelector('.filedesk-slice-dialog')?.remove();
   const profileData = _slicerProfileData || await fetch('/api/slicer/profiles').then(r => r.ok ? r.json() : null).catch(() => null);
@@ -14114,13 +14239,9 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
             <option value="bambu_studio"${selectedWorkflow === 'bambu_studio' ? ' selected' : ''}>Open in Bambu Studio</option>
           </select>
         </label>
-        <label class="filedesk-slice-field">
-          <span>Slicer bundle</span>
-          <select id="slice-bundle" disabled>
-            <option>None - pick profiles individually</option>
-          </select>
-        </label>
       </div>
+      <div class="filedesk-slice-hint" id="slice-printer-hint" hidden></div>
+      <div class="filedesk-slice-advanced" id="slice-advanced">
       <div class="filedesk-slice-profile-fields">
         <label class="filedesk-slice-field">
           <span>Printer/nozzle</span>
@@ -14172,12 +14293,13 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
           </select>
         </label>
       </div>
+      </div>
       <div class="settings-hint filedesk-slice-option-note" id="slice-option-note"></div>
       <div class="filedesk-dialog-error" id="slice-plan-result" hidden></div>
       <div class="filedesk-slice-actions" id="slice-handoff-actions" hidden></div>
-      <div class="settings-hint">Source models are portable. Flightdeck will create a printer-specific sliced job before queueing or sending it.</div>
+      <div class="settings-hint filedesk-slice-footnote" id="slice-footnote">Source models are portable. Flightdeck will create a printer-specific sliced job before queueing or sending it.</div>
       <div class="modal-actions">
-        <button class="modal-btn modal-btn-primary" id="slice-prepare-plan" type="button">Prepare slice</button>
+        <button class="modal-btn modal-btn-primary" id="slice-prepare-plan" type="button">${esc(_sliceWorkflowPrimaryLabel(selectedWorkflow))}</button>
         <button class="modal-btn" data-dialog-close>Close</button>
       </div>
     </div>`;
@@ -14206,32 +14328,87 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
   };
   const syncSliceOptionControls = () => {
     const optionsApply = selectedWorkflow === 'auto';
+    const isManual = !optionsApply;
     const supportToggle = overlay.querySelector('#slice-support-enabled');
     const brimToggle = overlay.querySelector('#slice-brim-enabled');
     const supportSelect = overlay.querySelector('#slice-support-mode');
     const brimSelect = overlay.querySelector('#slice-brim-mode');
     const note = overlay.querySelector('#slice-option-note');
+    const advanced = overlay.querySelector('#slice-advanced');
+    const footnote = overlay.querySelector('#slice-footnote');
+    const prepareBtn = overlay.querySelector('#slice-prepare-plan');
     if (supportToggle) supportToggle.disabled = !optionsApply;
     if (brimToggle) brimToggle.disabled = !optionsApply;
     if (supportSelect) supportSelect.disabled = !optionsApply || !supportToggle?.checked;
     if (brimSelect) brimSelect.disabled = !optionsApply || !brimToggle?.checked;
     overlay.querySelectorAll('.filedesk-slice-option-row').forEach(row => row.classList.toggle('is-muted', !optionsApply));
+    if (advanced) advanced.hidden = isManual;
+    if (prepareBtn) prepareBtn.textContent = _sliceWorkflowPrimaryLabel(selectedWorkflow);
+    if (footnote) {
+      footnote.textContent = isManual
+        ? 'Manual handoff opens the source model in your slicer. Slice there, export back to Print Vault, then queue from Print Bay.'
+        : 'Headless slice uses the profiles and support/brim settings below, then saves a printer-ready job to Print Vault.';
+    }
     if (note) {
       note.textContent = optionsApply
         ? 'Headless auto slice will bake these support and brim choices into the generated printer-ready job.'
-        : 'Manual slicer review opens the raw model/project. Set supports and brim inside Orca or Bambu Studio before exporting the printer-ready job.';
+        : 'Supports, brim, and profile fields are handled inside your slicer for manual review.';
     }
     const copy = overlay.querySelector('.filedesk-slice-plan-copy');
     if (copy) {
       const title = copy.querySelector('strong');
       const detail = copy.querySelector('span');
-      if (title) title.textContent = optionsApply ? 'Headless auto slice' : 'Manual project review';
+      if (title) title.textContent = optionsApply ? 'Headless auto slice' : 'Manual slicer handoff';
       if (detail) {
         detail.textContent = optionsApply
           ? 'Flightdeck will generate a printer-ready job with the selected profiles, supports, brim, and plate settings.'
-          : 'Open or download the model for painted supports, orientation tweaks, or final slicer inspection.';
+          : 'Pick a printer and slicer, then open the model directly. Slice and export the job back to Print Vault when ready.';
       }
     }
+    updateSlicePrinterHint();
+  };
+  const updateSlicePrinterHint = () => {
+    const hint = overlay.querySelector('#slice-printer-hint');
+    if (!hint) return;
+    const printer = printers.find(p => p.id === selectedPrinterId) || printers[0] || {};
+    const message = _slicePrinterHandoffHint(printer, selectedWorkflow);
+    if (!message) {
+      hint.hidden = true;
+      hint.innerHTML = '';
+      return;
+    }
+    hint.hidden = false;
+    hint.innerHTML = `<span>${esc(message)}</span><button type="button" class="filedesk-slice-link" id="slice-use-bambu-studio">Use Bambu Studio</button>`;
+    hint.querySelector('#slice-use-bambu-studio')?.addEventListener('click', () => {
+      const workflow = overlay.querySelector('#slice-workflow');
+      if (workflow) {
+        workflow.value = 'bambu_studio';
+        workflow.dispatchEvent(new Event('change'));
+      }
+    }, { once: true });
+  };
+  const triggerManualSlicerOpen = async (effectiveOpenMode, browserUrl, bambuStudioUrl) => {
+    if (effectiveOpenMode === 'bambu_studio') {
+      if (bambuStudioUrl) window.open(bambuStudioUrl, '_blank', 'noreferrer');
+      return;
+    }
+    if (effectiveOpenMode === 'browser_orca' && browserUrl) {
+      window.open(browserUrl, '_blank', 'noreferrer');
+    }
+    const r = await fetch('/api/slicer/open', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source_id: sourceId,
+        path,
+        filename: file?.name || path?.split('/').pop() || '',
+        target: effectiveOpenMode,
+      }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Unable to open slicer');
+    const label = effectiveOpenMode === 'browser_orca' ? 'Browser Orca' : 'Desktop Orca';
+    showToast(`Opening in ${label}`, data.forwarded ? 'Sent to Windows Orca worker' : (data.filename || 'Model handed to slicer'), 'success');
   };
   const setProfilesForPrinter = printerId => {
     selectedPrinterId = printerId || selectedPrinterId;
@@ -14270,16 +14447,19 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
       actionsEl.innerHTML = '';
     }
     if (errEl) errEl.hidden = true;
+    updateSlicePrinterHint();
   };
   const preparePlan = async () => {
     if (!selectedPrinterId) return;
     const errEl = overlay.querySelector('#slice-plan-result');
     const actionsEl = overlay.querySelector('#slice-handoff-actions');
     const prepareBtn = overlay.querySelector('#slice-prepare-plan');
+    const manualHandoff = selectedWorkflow !== 'auto';
+    const primaryLabel = _sliceWorkflowPrimaryLabel(selectedWorkflow);
     overlay.querySelectorAll('.filedesk-printer-choice').forEach(b => { b.disabled = true; });
     if (prepareBtn) {
       prepareBtn.disabled = true;
-      prepareBtn.textContent = 'Preparing...';
+      prepareBtn.textContent = manualHandoff ? 'Opening...' : 'Preparing...';
     }
     if (actionsEl) {
       actionsEl.hidden = true;
@@ -14355,14 +14535,36 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
           : effectiveOpenMode === 'browser_orca'
             ? `<a class="filedesk-slice-link" href="${esc(browserUrl || '#')}" target="_blank" rel="noreferrer" data-open-orca data-open-orca-target="browser_orca" data-open-orca-source-id="${esc(sourceId)}" data-open-orca-path="${esc(path)}" data-open-orca-url="${esc(browserUrl || '')}">Open in Browser Orca</a>`
             : `<button class="filedesk-slice-link" type="button" data-open-orca data-open-orca-target="${esc(effectiveOpenMode)}" data-open-orca-source-id="${esc(sourceId)}" data-open-orca-path="${esc(path)}" data-open-orca-url="">Open in Desktop Orca</button>`;
-        if (isBambuHandoff && bambuStudioUrl) {
-          window.open(bambuStudioUrl, '_blank', 'noreferrer');
-          showToast('Opening Bambu Studio', 'Import the downloaded model if it is not already on the plate.', 'success');
-        }
-        actionsEl.hidden = false;
-        actionsEl.dataset.browserUrl = browserUrl || '';
-        actionsEl.dataset.bambuStudioUrl = bambuStudioUrl || '';
-        actionsEl.innerHTML = `
+        if (manualHandoff && !headlessBlocked) {
+          try {
+            await triggerManualSlicerOpen(effectiveOpenMode, browserUrl, bambuStudioUrl);
+            errEl.hidden = false;
+            errEl.classList.add('filedesk-dialog-ok');
+            errEl.textContent = isBambuHandoff
+              ? 'Bambu Studio should be open. Slice there, export to Print Vault, then queue from Print Bay.'
+              : 'Slicer handoff sent. Export the printer-ready job back to Print Vault when slicing is done.';
+            actionsEl.hidden = false;
+            actionsEl.innerHTML = `
+              <div class="filedesk-slice-buttons">
+                ${sourceUrl ? `<a class="filedesk-slice-link" href="${esc(sourceUrl)}" download>${esc(sourceDownloadLabel)}</a>` : ''}
+                ${openRawButton}
+              </div>`;
+          } catch (openErr) {
+            errEl.hidden = false;
+            errEl.classList.remove('filedesk-dialog-ok');
+            errEl.textContent = openErr.message || 'Unable to open slicer';
+            actionsEl.hidden = false;
+            actionsEl.innerHTML = `
+              <div class="filedesk-slice-buttons">
+                ${sourceUrl ? `<a class="filedesk-slice-link" href="${esc(sourceUrl)}" download>${esc(sourceDownloadLabel)}</a>` : ''}
+                ${openRawButton}
+              </div>`;
+          }
+        } else {
+          actionsEl.hidden = false;
+          actionsEl.dataset.browserUrl = browserUrl || '';
+          actionsEl.dataset.bambuStudioUrl = bambuStudioUrl || '';
+          actionsEl.innerHTML = `
           <div class="filedesk-slice-steps">
             <strong>${esc(handoffTitle)}</strong>
             <span>${esc(handoffCopy)}</span>
@@ -14391,8 +14593,9 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
             } catch { /* best-effort */ }
           })();
         }
+        }
       }
-      showToast(data.ready ? 'Slice plan ready' : 'Slicer not configured', data.message || '', data.ready ? 'success' : 'warning');
+      showToast(data.ready ? (manualHandoff ? 'Slicer handoff ready' : 'Slice plan ready') : 'Slicer not configured', data.message || '', data.ready ? 'success' : 'warning');
     } catch (err) {
       errEl.textContent = err.message || 'Unable to prepare slice';
       errEl.hidden = false;
@@ -14400,7 +14603,7 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
       overlay.querySelectorAll('.filedesk-printer-choice').forEach(b => { b.disabled = false; });
       if (prepareBtn) {
         prepareBtn.disabled = false;
-        prepareBtn.textContent = 'Prepare slice';
+        prepareBtn.textContent = primaryLabel;
       }
     }
   };
@@ -15019,6 +15222,17 @@ async function _saveSetting(key, value) {
     throw new Error(body.detail || 'Setting save failed');
   }
   const body = await r.json().catch(() => ({}));
+  if (key === 'bambu_cloud_token') {
+    _serverSettings.bambu_cloud_token = '';
+    _serverSettings.bambu_cloud_token_configured = body.configured ? 'true' : 'false';
+    _serverSettings.bambu_cloud_token_hint = body.hint || '';
+    return body.hint || '';
+  }
+  if (key === 'orcaslicer_browser_password') {
+    _serverSettings.orcaslicer_browser_password = '';
+    _serverSettings.orcaslicer_browser_password_configured = body.configured ? 'true' : 'false';
+    return '';
+  }
   _serverSettings[key] = String(body.value ?? value);
   return _serverSettings[key];
 }
@@ -15108,8 +15322,7 @@ function _bambuCloudHealthHtml() {
       </div>
       <div class="settings-form-row bambu-cloud-token-row">
         <label class="settings-label">Cloud token</label>
-        <input class="settings-input pref-input" data-pref-key="bambu_cloud_token" type="password" autocomplete="off" value="${esc(_serverSettings.bambu_cloud_token || '')}" placeholder="AAB_… from makerworld.com cookies">
-        <button type="button" class="settings-save-btn" data-bambu-cloud-token-save>Save token</button>
+        ${_bambuTokenFieldHtml({ inputId: 'settings-bambu-token-input', rowClass: 'bambu-cloud-token-field', configured: _makerWorldTokenConfigured(), hint: _bambuTokenHint('') })}
       </div>
       <div class="settings-hint">After signing in to MakerWorld, copy the browser <code>token</code> cookie value here. Flightdeck uses it only for MakerWorld downloads against <code>api.bambulab.com</code>.</div>
       <div class="settings-form-row">
@@ -15207,10 +15420,19 @@ function _preferencesCategoryHtml() {
     </div>`;
 }
 
+function _refreshPreferencesPanel(el) {
+  el.innerHTML = _preferencesCategoryHtml();
+  _attachPreferencesEvents(el);
+  const refresh = () => _refreshPreferencesPanel(el);
+  _attachBambuCloudMarkEvents(el, refresh);
+  _attachBambuTokenFieldEvents(el, refresh);
+}
+
 function _attachPreferencesEvents(el) {
   el.querySelectorAll('.pref-input').forEach(input => {
     input.addEventListener('change', async () => {
       const key = input.dataset.prefKey;
+      if (key === 'bambu_cloud_token') return;
       let value = input.value.trim();
       if (input.type === 'url' && value) value = value.replace(/\/+$/, '');
       if (input.type === 'number') {
@@ -15229,8 +15451,7 @@ function _attachPreferencesEvents(el) {
         if (key === 'print_vault_path') showToast('Print Vault path saved', saved || 'Using service default', 'success');
         if (key.startsWith('bambu_cloud_')) {
           _serverSettings[key] = saved;
-          el.innerHTML = _preferencesCategoryHtml();
-          _attachPreferencesEvents(el);
+          _refreshPreferencesPanel(el);
         }
       } catch (err) {
         showToast('Setting save failed', err.message || '', 'error');
@@ -20088,7 +20309,7 @@ async function _renderSettingsContent(category) {
     _attachHardwareEvents(el);
   } else if (category === 'preferences') {
     el.innerHTML = _preferencesCategoryHtml();
-    _attachPreferencesEvents(el);
+    _refreshPreferencesPanel(el);
   } else if (category === 'appearance') {
     el.innerHTML = _appearanceCategoryHtml();
     _attachAppearanceEvents(el);

@@ -2149,38 +2149,45 @@ def _open_orca_model_bytes(filename: str, data: bytes) -> dict:
 def _launch_desktop_orca(path: Path) -> dict:
     if not path.exists():
         raise HTTPException(status_code=404, detail="Model file was not found")
-    if os.name == "nt":
+    resolved = path.resolve()
+    exe = _orca_executable()
+    if exe:
+        args = [str(exe), str(resolved)]
+        kwargs: dict = {
+            "stdout": subprocess.DEVNULL,
+            "stderr": subprocess.DEVNULL,
+            "stdin": subprocess.DEVNULL,
+            "close_fds": True,
+        }
+        if os.name == "nt":
+            detached = getattr(subprocess, "DETACHED_PROCESS", 0)
+            new_group = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+            if detached or new_group:
+                kwargs["creationflags"] = detached | new_group
         try:
-            os.startfile(str(path))  # type: ignore[attr-defined]
+            subprocess.Popen(args, **kwargs)
             return {
                 "ok": True,
-                "filename": path.name,
-                "path": str(path),
+                "filename": resolved.name,
+                "path": str(resolved),
+                "executable": str(exe),
+                "mode": "desktop-orca",
+            }
+        except OSError as exc:
+            log.warning("Desktop Orca executable launch failed for %s: %s", resolved, exc)
+    if os.name == "nt":
+        try:
+            os.startfile(str(resolved))  # type: ignore[attr-defined]
+            return {
+                "ok": True,
+                "filename": resolved.name,
+                "path": str(resolved),
                 "executable": "windows-file-association",
                 "mode": "desktop-file-association",
             }
         except OSError as exc:
-            log.warning("Windows file association open failed for %s: %s", path, exc)
-    exe = _orca_executable()
-    if not exe:
-        raise HTTPException(status_code=404, detail="Desktop OrcaSlicer executable was not found on this machine")
-    args = [str(exe), str(path)]
-    kwargs = {
-        "stdout": subprocess.DEVNULL,
-        "stderr": subprocess.DEVNULL,
-        "stdin": subprocess.DEVNULL,
-        "close_fds": True,
-    }
-    if os.name == "nt":
-        kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
-    subprocess.Popen(args, **kwargs)
-    return {
-        "ok": True,
-        "filename": path.name,
-        "path": str(path),
-        "executable": str(exe),
-        "mode": "desktop-orca",
-    }
+            log.warning("Windows file association open failed for %s: %s", resolved, exc)
+    raise HTTPException(status_code=404, detail="Desktop OrcaSlicer executable was not found on this machine")
 
 
 def _open_desktop_orca_model_bytes(filename: str, data: bytes) -> dict:
@@ -4332,7 +4339,22 @@ class SupportBundleRequest(BaseModel):
 
 @app.get("/api/settings")
 async def get_settings():
-    return db.get_all_settings()
+    settings = dict(db.get_all_settings())
+    token = str(settings.get("bambu_cloud_token") or "").strip()
+    if token:
+        settings["bambu_cloud_token"] = ""
+        settings["bambu_cloud_token_configured"] = "true"
+        settings["bambu_cloud_token_hint"] = makerworld._token_hint(token)
+    else:
+        settings["bambu_cloud_token_configured"] = "false"
+        settings["bambu_cloud_token_hint"] = ""
+    browser_password = str(settings.get("orcaslicer_browser_password") or "").strip()
+    if browser_password:
+        settings["orcaslicer_browser_password"] = ""
+        settings["orcaslicer_browser_password_configured"] = "true"
+    else:
+        settings["orcaslicer_browser_password_configured"] = "false"
+    return settings
 
 
 @app.put("/api/settings/{key}")
@@ -4341,6 +4363,17 @@ async def put_setting(key: str, body: SettingUpdate):
     if key == "print_vault_path":
         value = "" if not value.strip() else str(_validate_print_library_path(value))
     db.set_setting(key, value)
+    if key == "bambu_cloud_token":
+        token = str(value or "").strip()
+        return {
+            "ok": True,
+            "value": "",
+            "configured": bool(token),
+            "hint": makerworld._token_hint(token),
+        }
+    if key == "orcaslicer_browser_password":
+        password = str(value or "").strip()
+        return {"ok": True, "value": "", "configured": bool(password)}
     return {"ok": True, "value": value}
 
 
@@ -4694,6 +4727,12 @@ def _orca_executable() -> Path | None:
     if env_exe:
         candidates.append(Path(env_exe))
     if os.name == "nt":
+        local_app = os.environ.get("LOCALAPPDATA")
+        if local_app:
+            candidates.extend([
+                Path(local_app) / "Programs" / "OrcaSlicer" / "orca-slicer.exe",
+                Path(local_app) / "Programs" / "OrcaSlicer" / "OrcaSlicer.exe",
+            ])
         for base in (os.environ.get("ProgramFiles"), os.environ.get("ProgramFiles(x86)")):
             if base:
                 candidates.append(Path(base) / "OrcaSlicer" / "orca-slicer.exe")

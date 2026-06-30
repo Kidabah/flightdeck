@@ -2,13 +2,21 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `Add quick AMS load by spool number`
+- Latest commit: `Fix slice modal, MakerWorld token UX, and Desktop Orca handoff`
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=560 / style.css?v=436 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=566 / style.css?v=442
 
-### 2026-06-30 feature (MakerWorld Save & Slice)
+### 2026-06-30 fix (Slice modal, MakerWorld token, Desktop Orca)
+
+**Slice modal, MakerWorld fixes, token/password UX, Desktop Orca handoff** (`app/main.py`, `app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- **Slice modal:** Manual workflows hide headless profile/support/brim fields; primary button matches workflow (Open in Desktop Orca / Bambu / headless). H-series printers show Bambu Studio hint. Fixed broken `preparePlan` / `_makerWorldBusy` ReferenceError that broke MakerWorld Resolve.
+- **Desktop Orca:** Windows worker now launches `orca-slicer.exe <file>` directly instead of `os.startfile` first, so models load on the plate instead of opening empty Orca via “pick an app”.
+- **Chrome password popup:** Bambu Cloud token no longer returned from `GET /api/settings`; saved tokens show as “Token saved · hint” + Replace (no credential field in DOM). Browser Orca docker password redacted the same way. Settings/Slicer DOM cleared when leaving those views.
+- Static cache bumped to `app.js?v=566` and `style.css?v=442`; **backend restart required** on Pi for settings redaction + Orca launch path.
+
 
 **Add Save & Slice handoff on MakerWorld plates** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
 
