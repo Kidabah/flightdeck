@@ -2,11 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `ee9f2d5` — Flip skip-object footprints front/back and remove map artefacts
+- Latest commit: `cc0ffaf` — Fix skip-object map depth axis and use bbox footprints
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=570 / style.css?v=445
+- Refresh cachebust currently: app.js?v=571 / style.css?v=446
+
+### 2026-06-30 fix (Skip object map depth axis)
+
+**Fix inverted front/back axis on skip-object map** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Root cause: bed depth used `(by+bh-y)` so objects like Benchy #245 landed on the wrong side; convex-hull gcode polygons drew trapezoid artefacts.
+- Depth now uses `(y-by)` (back=left, front=right); footprints are bbox rects sharing the ID badge transform; Bambu top preview restored with 90° rotation. Static cache `app.js?v=571` / `style.css?v=446`; hard refresh after deploy.
 
 ### 2026-06-30 fix (Skip object footprint flip)
 
