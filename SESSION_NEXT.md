@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — Print Vault folder groups + MakerWorld folder migration
+- Latest commit: `66ed964` — Show Print Vault folders and migrate MakerWorld multi-plate imports
 - Refresh cachebust currently: app.js?v=578 / style.css?v=450
 
 ### 2026-06-30 fix (Print Vault folders)
