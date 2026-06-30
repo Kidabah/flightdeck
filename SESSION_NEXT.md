@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `5fee547` — Fix Bambu skip-object map alignment to gcode footprints
+- Latest commit: `ee9f2d5` — Flip skip-object footprints front/back and remove map artefacts
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
