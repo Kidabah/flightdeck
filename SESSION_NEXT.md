@@ -2,11 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `7ecdef6` — Recover grams from printer FTP when relay log is missing
+- Latest commit: (pending) — Fix H2D nozzle map keyed by filament slot id
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=567 / style.css?v=442
+
+### 2026-06-30 fix (H2D filament slot nozzle index)
+
+**Fix H2D nozzle map keyed by global filament slot id** (`app/printers/bambu_ftp.py`, `SESSION_NEXT.md`)
+
+- Root cause: `filament_nozzle_map` is indexed by **project filament slot** (1, 2, 3…), but `_parse_3mf()` assigned `filament_nozzles[idx]` using the plate XML element index. A plate using only filament **#2** (e.g. grey PLA on `mixed.gcode.3mf`) inherited slot **#1**'s nozzle (right) instead of slot **#2**'s (left), causing false `H2D nozzle/AMS mismatch` blocks.
+- Nozzle assignment now uses `int(filament@id) - 1`, matching the existing gcode T-command indexing comment. Pending H2D queue jobs re-read the stored 3MF at preflight. **Backend restart required**; re-queue or refresh preflight after deploy.
 
 ### 2026-06-30 fix (Recover grams FTP fallback)
 

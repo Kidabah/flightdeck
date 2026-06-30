@@ -151,11 +151,16 @@ def _parse_3mf(buf: io.BytesIO, plate_number: Optional[int] = None) -> BambuPrev
                 try:
                     # XML filament id is 1-indexed (global project slot number);
                     # the gcode uses 0-indexed T commands, so subtract 1.
-                    slice_filament_ids.append(int(el.get("id")) - 1)
+                    filament_slot = int(el.get("id")) - 1
+                    slice_filament_ids.append(filament_slot)
                 except (TypeError, ValueError):
-                    pass
-                if idx < len(filament_nozzles):
-                    filament["nozzle"] = filament_nozzles[idx]
+                    filament_slot = idx
+                try:
+                    nozzle_idx = int(el.get("id")) - 1
+                except (TypeError, ValueError):
+                    nozzle_idx = idx
+                if 0 <= nozzle_idx < len(filament_nozzles):
+                    filament["nozzle"] = filament_nozzles[nozzle_idx]
                 filaments.append(filament)
         for el in plate.findall("object"):
             obj_id = el.get("identify_id")
