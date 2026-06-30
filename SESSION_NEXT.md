@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — MakerWorld clear recent + import-all folder migration
+- Latest commit: `52830e3` — Add MakerWorld clear recent imports and fix import-all for folder migration
 - Refresh cachebust currently: app.js?v=579 / style.css?v=451
 
 ### 2026-07-01 fix (MakerWorld recent + import all)
