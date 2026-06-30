@@ -6,9 +6,16 @@ Latest GitHub/Pi state:
 - Pi repo: /home/flightdeck/flightdeck
 - Data dir: /home/flightdeck/flightdeck-data
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=558 / style.css?v=435 / demo-runtime.js?v=8
+- Refresh cachebust currently: app.js?v=560 / style.css?v=436 / demo-runtime.js?v=8
 
-### 2026-06-30 follow-up (MakerWorld token paste)
+### 2026-06-30 feature (MakerWorld Save & Slice)
+
+**Add Save & Slice handoff on MakerWorld plates** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Each plate now has **Save & open in slicer** (primary) plus **Save to Vault** (secondary). Already-imported plates get **Open in slicer** from the vault copy.
+- Handoff follows Settings → Slicer → **Open in Slicer** (`Bambu Studio Docker`, `Browser Orca`, or `Desktop Orca`). Bambu Studio path opens the browser sidecar and triggers a vault download for import.
+- Recent imports rows also get a slicer shortcut. Static cache bumped to `app.js?v=560` and `style.css?v=436`; frontend refresh required.
+
 
 **Expose Bambu Cloud token paste on MakerWorld page** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
 

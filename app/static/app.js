@@ -2803,7 +2803,7 @@ async function _resolveMakerWorldUrl(url) {
     body: JSON.stringify({ url: url.trim() }),
   });
   const body = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(await _apiDetail(body, 'Could not resolve MakerWorld URL'));
+  if (!r.ok) throw new Error(_apiDetail(body, 'Could not resolve MakerWorld URL'));
   return body;
 }
 
@@ -2814,8 +2814,70 @@ async function _importMakerWorldPlate(url, profileId) {
     body: JSON.stringify({ url: url.trim(), profile_id: Number(profileId) }),
   });
   const body = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(await _apiDetail(body, 'MakerWorld import failed'));
+  if (!r.ok) throw new Error(_apiDetail(body, 'MakerWorld import failed'));
   return body;
+}
+
+function _makerWorldSlicerHandoff() {
+  const openMode = (_serverSettings.slicer_open_mode || 'same').trim() || 'same';
+  if (openMode === 'bambu_studio') {
+    return { target: 'bambu_studio', label: 'Bambu Studio' };
+  }
+  if (openMode === 'orca' || openMode === 'browser_orca') {
+    return { target: 'browser_orca', label: 'Browser Orca' };
+  }
+  return { target: 'desktop_orca', label: 'Desktop Orca' };
+}
+
+async function _openVaultModelInSlicer(vaultPath, filename = '') {
+  const path = String(vaultPath || '').trim().replace(/^\/+/, '');
+  if (!path) throw new Error('Missing Print Vault path');
+  const handoff = _makerWorldSlicerHandoff();
+  if (handoff.target === 'bambu_studio') {
+    const bambuUrl = (_serverSettings.bambustudio_docker_url || '').trim()
+      || _bambuStudioDockerDefaultUrl(_serverSettings.orcaslicer_docker_url || '');
+    if (!bambuUrl) throw new Error('Set the Bambu Studio URL in Settings → Slicer first');
+    window.open(bambuUrl, '_blank', 'noreferrer');
+    const downloadUrl = `/api/files/source/download?source_id=${encodeURIComponent('library')}&path=${encodeURIComponent(path)}`;
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = filename || path.split('/').pop() || 'model.3mf';
+    link.rel = 'noopener';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    showToast('Opening Bambu Studio', 'Import the downloaded 3MF if it is not already on the plate.', 'success');
+    return { ok: true, mode: 'bambu_studio' };
+  }
+
+  const browserUrl = (_serverSettings.orcaslicer_docker_url || '').trim() || _slicerDockerDefaultUrl();
+  if (handoff.target === 'browser_orca') {
+    window.open(browserUrl, '_blank', 'noreferrer');
+  }
+  const r = await fetch('/api/slicer/open', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      source_id: 'library',
+      path,
+      filename: filename || path.split('/').pop() || '',
+      target: handoff.target,
+    }),
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(_apiDetail(data, `Unable to open ${handoff.label}`));
+  showToast(
+    `Opening in ${handoff.label}`,
+    data.forwarded ? 'Sent to Windows Orca worker' : (data.filename || path),
+    'success',
+  );
+  return data;
+}
+
+async function _makerWorldSaveAndSlice(url, profileId) {
+  const result = await _importMakerWorldPlate(url, profileId);
+  await _openVaultModelInSlicer(result.path, result.name);
+  return result;
 }
 
 function _makerWorldPlateMeta(plate) {
@@ -2831,16 +2893,25 @@ function _makerWorldPreviewHtml(data, url) {
   if (!data) return '';
   const cover = data.cover_url ? _makerWorldThumbUrl(data.cover_url) : '';
   const highlight = Number(data.highlight_profile_id || 0);
+  const slicer = _makerWorldSlicerHandoff();
   const plates = (data.plates || []).map(plate => {
     const active = highlight && Number(plate.profile_id) === highlight ? ' makerworld-plate-highlight' : '';
     const imported = plate.already_imported;
+    const vaultPath = plate.vault_path || '';
+    const vaultName = plate.vault_name || '';
     const actions = imported
       ? `<div class="makerworld-plate-actions">
           <span class="makerworld-plate-badge">In Print Vault</span>
-          ${plate.vault_path ? `<a class="settings-save-btn" href="#/files">Open Vault</a>` : ''}
+          <button type="button" class="settings-save-btn makerworld-save-slice-btn" data-makerworld-open-slice data-vault-path="${esc(vaultPath)}" data-vault-name="${esc(vaultName)}" ${vaultPath ? '' : 'disabled'}>
+            Open in ${esc(slicer.label)}
+          </button>
+          ${vaultPath ? `<a class="settings-save-btn" href="#/files">Print Vault</a>` : ''}
         </div>`
       : `<div class="makerworld-plate-actions">
-          <button type="button" class="settings-save-btn" data-makerworld-import="${esc(String(plate.profile_id))}" ${data.can_download ? '' : 'disabled'}>
+          <button type="button" class="settings-save-btn makerworld-save-slice-btn" data-makerworld-save-slice="${esc(String(plate.profile_id))}" ${data.can_download ? '' : 'disabled'}>
+            Save &amp; open in ${esc(slicer.label)}
+          </button>
+          <button type="button" class="settings-save-btn makerworld-save-vault-btn" data-makerworld-import="${esc(String(plate.profile_id))}" ${data.can_download ? '' : 'disabled'}>
             Save to Vault
           </button>
         </div>`;
@@ -2893,13 +2964,21 @@ function _makerWorldPreviewHtml(data, url) {
 }
 
 function _makerWorldRecentHtml(imports) {
+  const slicer = _makerWorldSlicerHandoff();
   const rows = (imports || []).map(row => {
     const when = row.imported_at ? new Date(row.imported_at).toLocaleString() : '';
-    return `<a class="makerworld-recent-row" href="#/files">
-      <strong>${esc(row.title || 'MakerWorld import')}</strong>
-      <span>${esc(row.plate_title || row.filename || '')}</span>
-      <small>${esc(when)}${row.vault_path ? ` · ${esc(row.vault_path)}` : ''}</small>
-    </a>`;
+    const vaultPath = row.vault_path || '';
+    return `<div class="makerworld-recent-row">
+      <div class="makerworld-recent-copy">
+        <strong>${esc(row.title || 'MakerWorld import')}</strong>
+        <span>${esc(row.plate_title || row.filename || '')}</span>
+        <small>${esc(when)}${vaultPath ? ` · ${esc(vaultPath)}` : ''}</small>
+      </div>
+      <div class="makerworld-recent-actions">
+        ${vaultPath ? `<button type="button" class="settings-save-btn makerworld-save-slice-btn" data-makerworld-open-slice data-vault-path="${esc(vaultPath)}" data-vault-name="${esc(row.filename || '')}">${esc(slicer.label)}</button>` : ''}
+        <a class="settings-save-btn" href="#/files">Vault</a>
+      </div>
+    </div>`;
   }).join('');
   return `<section class="manual-card makerworld-recent-card">
     <div class="manual-card-head"><span>Recent imports</span></div>
@@ -2908,6 +2987,12 @@ function _makerWorldRecentHtml(imports) {
 }
 
 function _attachMakerWorldImportEvents(el, url) {
+  const refreshAfterImport = async () => {
+    _makerWorldResolved = await _resolveMakerWorldUrl(url);
+    _makerWorldRecent = (await _fetchMakerWorldRecent()).imports || [];
+    renderMakerWorldView();
+  };
+
   el.querySelectorAll('[data-makerworld-import]').forEach(btn => {
     btn.addEventListener('click', async () => {
       if (_makerWorldBusy) return;
@@ -2923,11 +3008,56 @@ function _attachMakerWorldImportEvents(el, url) {
           result.path || result.name || '',
           'success',
         );
-        _makerWorldResolved = await _resolveMakerWorldUrl(url);
-        _makerWorldRecent = (await _fetchMakerWorldRecent()).imports || [];
-        renderMakerWorldView();
+        await refreshAfterImport();
       } catch (err) {
         showToast('MakerWorld import failed', err.message || '', 'error');
+        btn.disabled = false;
+        btn.textContent = label;
+      } finally {
+        _makerWorldBusy = false;
+      }
+    });
+  });
+
+  el.querySelectorAll('[data-makerworld-save-slice]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (_makerWorldBusy) return;
+      const profileId = btn.getAttribute('data-makerworld-save-slice');
+      _makerWorldBusy = true;
+      btn.disabled = true;
+      const label = btn.textContent;
+      btn.textContent = 'Working…';
+      try {
+        const result = await _makerWorldSaveAndSlice(url, profileId);
+        showToast(
+          result.already_existed ? 'Opened vault copy in slicer' : 'Saved and opened in slicer',
+          result.path || result.name || '',
+          'success',
+        );
+        await refreshAfterImport();
+      } catch (err) {
+        showToast('Save & slice failed', err.message || '', 'error');
+        btn.disabled = false;
+        btn.textContent = label;
+      } finally {
+        _makerWorldBusy = false;
+      }
+    });
+  });
+
+  el.querySelectorAll('[data-makerworld-open-slice]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (_makerWorldBusy) return;
+      const vaultPath = btn.getAttribute('data-vault-path') || '';
+      const vaultName = btn.getAttribute('data-vault-name') || '';
+      _makerWorldBusy = true;
+      btn.disabled = true;
+      const label = btn.textContent;
+      btn.textContent = 'Opening…';
+      try {
+        await _openVaultModelInSlicer(vaultPath, vaultName);
+      } catch (err) {
+        showToast('Slicer handoff failed', err.message || '', 'error');
         btn.disabled = false;
         btn.textContent = label;
       } finally {
@@ -3076,8 +3206,8 @@ async function renderMakerWorldView() {
       ${_makerWorldRecentHtml(_makerWorldRecent)}
       ${_manualSection('Workflow', 'MakerWorld plates are source 3MF projects — slice them before queueing to a printer.', [
         '<strong>1. Resolve</strong><span>Paste the shared MakerWorld URL and load the plate list.</span>',
-        '<strong>2. Save to Vault</strong><span>Import one plate at a time into Print Vault → MakerWorld.</span>',
-        '<strong>3. Slice & queue</strong><span>Open the vault file in Bambu Studio or Orca, slice it, then queue the printer-ready job from Print Bay.</span>',
+        '<strong>2. Save & open in slicer</strong><span>Import a plate and hand it off to your configured slicer (Settings → Slicer → Open in Slicer).</span>',
+        '<strong>3. Slice & queue</strong><span>Export the printer-ready job back to Print Vault, then queue it from Print Bay.</span>',
       ])}
     </section>
   </div>`;
