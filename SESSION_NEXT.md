@@ -2,12 +2,22 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `6f4ff24` — Faster queue from Print Vault with smart printer pick
+- Latest commit: _(pending push)_ — MakerWorld import missing plates only
 - Pi repo: /home/flightdeck/flightdeck
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=584 / style.css?v=454
+- Refresh cachebust currently: app.js?v=585 / style.css?v=454
 - Pi deploy: `cd /home/flightdeck/flightdeck && git pull && sudo systemctl restart flightdeck.service`
 - Pi SSH: `ssh -i C:\Users\Kidabah\.ssh\flightdeck_cursor -o IdentitiesOnly=yes flightdeck@100.106.112.104`
+
+### 2026-06-29 feature (MakerWorld import missing only)
+
+**Bulk import skips plates already in the Print Vault** (`app/makerworld.py`, `app/main.py`, `app/static/app.js`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- `POST /api/makerworld/import-all` accepts `only_missing: true` (default false); bulk UI always sends true.
+- Backend filters to plates not yet imported or needing vault-folder refresh before downloading.
+- Button label **Import missing (N)** when some plates are already saved; **Move missing (N)** when only folder layout needs fixing.
+- Response includes `skipped` count for plates left alone.
+- Static cache `app.js?v=585`; **backend restart required** on Pi.
 
 ### 2026-07-01 feature (smart queue from Print Vault)
 

@@ -2918,11 +2918,16 @@ async function _importMakerWorldPlate(url, profileId) {
   return body;
 }
 
-async function _importAllMakerWorldPlatesLegacy(url, plates = [], onProgress = null) {
-  const profileIds = (plates || [])
+async function _importAllMakerWorldPlatesLegacy(url, plates = [], onProgress = null, onlyMissing = false) {
+  const sourcePlates = plates || [];
+  const actionable = onlyMissing
+    ? sourcePlates.filter(_makerWorldPlateNeedsAction)
+    : sourcePlates;
+  const profileIds = actionable
     .map(plate => Number(plate.profile_id))
     .filter(id => Number.isFinite(id) && id > 0);
   const total = profileIds.length;
+  const skipped = onlyMissing ? Math.max(0, sourcePlates.length - total) : 0;
   const results = [];
   let imported = 0;
   let already_existed = 0;
@@ -2955,24 +2960,31 @@ async function _importAllMakerWorldPlatesLegacy(url, plates = [], onProgress = n
   return {
     ok: failed === 0,
     total,
+    skipped,
     imported,
     already_existed,
     relocated: results.filter(row => row.relocated).length,
     failed,
     results,
+    only_missing: onlyMissing,
     legacy: true,
   };
 }
 
-async function _importAllMakerWorldPlates(url, { plates = null, onProgress = null } = {}) {
+async function _importAllMakerWorldPlates(url, { plates = null, onProgress = null, onlyMissing = true } = {}) {
   const r = await fetch('/api/makerworld/import-all', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url: url.trim() }),
+    body: JSON.stringify({ url: url.trim(), only_missing: Boolean(onlyMissing) }),
   });
   const body = await r.json().catch(() => ({}));
   if (r.status === 404) {
-    return _importAllMakerWorldPlatesLegacy(url, plates || _makerWorldResolved?.plates || [], onProgress);
+    return _importAllMakerWorldPlatesLegacy(
+      url,
+      plates || _makerWorldResolved?.plates || [],
+      onProgress,
+      onlyMissing,
+    );
   }
   if (!r.ok) throw new Error(_apiDetail(body, 'MakerWorld bulk import failed'));
   return body;
@@ -2988,9 +3000,10 @@ function _makerWorldImportAllSummary(result) {
   const parts = [];
   if (result.imported) parts.push(`${result.imported} saved`);
   if (result.relocated) parts.push(`${result.relocated} moved to folder`);
+  if (result.skipped) parts.push(`${result.skipped} already in vault`);
   if (result.already_existed) parts.push(`${result.already_existed} already in vault`);
   if (result.failed) parts.push(`${result.failed} failed`);
-  if (!parts.length) return 'No plates to import';
+  if (!parts.length) return result.skipped ? 'All plates already in vault' : 'No plates to import';
   return parts.join(', ');
 }
 
@@ -3147,13 +3160,17 @@ function _makerWorldPreviewHtml(data, url) {
 
   const pendingCount = plateRows.filter(_makerWorldPlateNeedsAction).length;
   const refreshCount = plateRows.filter(plate => plate.needs_vault_refresh).length;
-  const importAllLabel = refreshCount && !plateRows.some(plate => !plate.already_imported)
-    ? 'Move all to folder'
-    : 'Import all to Vault';
-  const importAllHint = pendingCount
-    ? (refreshCount && pendingCount === refreshCount
-      ? ` (${refreshCount} to move)`
-      : (pendingCount < plateCount ? ` (${pendingCount} to update)` : ''))
+  const missingCount = plateRows.filter(plate => !plate.already_imported).length;
+  const partialPending = pendingCount > 0 && pendingCount < plateCount;
+  const refreshOnly = refreshCount > 0 && missingCount === 0;
+  let importAllLabel = 'Import all to Vault';
+  if (refreshOnly && !partialPending) {
+    importAllLabel = 'Move all to folder';
+  } else if (partialPending) {
+    importAllLabel = refreshOnly ? `Move missing (${pendingCount})` : `Import missing (${pendingCount})`;
+  }
+  const importAllHint = pendingCount && !partialPending && refreshOnly
+    ? ` (${refreshCount} to move)`
     : '';
   const importAllBtn = plateCount > 1 && data.can_download
     ? `<button type="button" class="settings-save-btn makerworld-import-all-btn" data-makerworld-import-all ${pendingCount ? '' : 'disabled'}>
@@ -3274,13 +3291,14 @@ function _attachMakerWorldImportEvents(el, url) {
     _makerWorldBusy = true;
     btn.disabled = true;
     const label = btn.textContent;
-    btn.textContent = 'Importing all…';
+    btn.textContent = 'Importing…';
     try {
       const plates = _makerWorldResolved?.plates || [];
       const result = await _importAllMakerWorldPlates(url, {
         plates,
+        onlyMissing: true,
         onProgress: (current, total) => {
-          btn.textContent = `Importing ${current}/${total}…`;
+          btn.textContent = total ? `Importing ${current}/${total}…` : 'Importing…';
         },
       });
       const tone = result.failed ? 'warn' : 'success';

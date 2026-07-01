@@ -274,6 +274,28 @@ def _plate_vault_filename(
     return stem
 
 
+def _plate_needs_action(
+    *,
+    design_id: int,
+    profile_id: int,
+    imported: dict[str, Any] | None,
+    vault_folder: str,
+    plate_total: int,
+    library_root: Path,
+    safe_join_under,
+) -> bool:
+    if imported is None:
+        return True
+    vault_path = str(imported.get("vault_path") or "")
+    return not _plate_vault_layout_ok(
+        vault_path=vault_path,
+        vault_folder=vault_folder,
+        plate_total=plate_total,
+        library_root=library_root,
+        safe_join_under=safe_join_under,
+    )
+
+
 def _plate_vault_layout_ok(
     *,
     vault_path: str,
@@ -517,18 +539,54 @@ def import_all_plates(
     safe_basename,
     safe_join_under,
     enforce_file_size,
+    only_missing: bool = False,
 ) -> dict[str, Any]:
     if not token.strip():
         raise MakerWorldError("Add your Bambu Cloud token in Settings before downloading.")
 
     design_id, _ = parse_makerworld_url(url)
     design = fetch_design(design_id)
+    instances = _sorted_instances(design)
+    plate_total = len(instances)
+    if not plate_total:
+        raise MakerWorldError("No downloadable plates were found for this model.", status=404)
+
+    vault_folder = _design_vault_folder(design, design_id, multi_plate=plate_total > 1)
+    imports = _imports_by_profile(load_imports(data_dir))
     profile_ids = [
         int(row.get("profileId") or 0)
-        for row in _sorted_instances(design)
+        for row in instances
+        if int(row.get("profileId") or 0)
     ]
+    if only_missing:
+        profile_ids = [
+            profile_id
+            for profile_id in profile_ids
+            if _plate_needs_action(
+                design_id=design_id,
+                profile_id=profile_id,
+                imported=imports.get((design_id, profile_id)),
+                vault_folder=vault_folder,
+                plate_total=plate_total,
+                library_root=library_root,
+                safe_join_under=safe_join_under,
+            )
+        ]
+    skipped = plate_total - len(profile_ids) if only_missing else 0
     if not profile_ids:
-        raise MakerWorldError("No downloadable plates were found for this model.", status=404)
+        return {
+            "ok": True,
+            "design_id": design_id,
+            "title": str(design.get("title") or f"Design {design_id}").strip(),
+            "total": 0,
+            "skipped": skipped,
+            "imported": 0,
+            "already_existed": 0,
+            "relocated": 0,
+            "failed": 0,
+            "results": [],
+            "only_missing": only_missing,
+        }
 
     results: list[dict[str, Any]] = []
     imported = 0
@@ -583,11 +641,13 @@ def import_all_plates(
         "design_id": design_id,
         "title": str(design.get("title") or f"Design {design_id}").strip(),
         "total": len(profile_ids),
+        "skipped": skipped,
         "imported": imported,
         "already_existed": already_existed,
         "relocated": relocated,
         "failed": failed,
         "results": results,
+        "only_missing": only_missing,
     }
 
 

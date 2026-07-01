@@ -4401,6 +4401,7 @@ class MakerWorldImportRequest(BaseModel):
 
 class MakerWorldImportAllRequest(BaseModel):
     url: str
+    only_missing: bool = False
 
 
 def _db_setting(key: str) -> str:
@@ -4462,6 +4463,7 @@ async def makerworld_import_all(body: MakerWorldImportAllRequest):
             safe_basename=_safe_basename,
             safe_join_under=_safe_join_under,
             enforce_file_size=_enforce_file_size,
+            only_missing=body.only_missing,
         )
     except makerworld.MakerWorldError as exc:
         raise HTTPException(status_code=exc.status, detail=str(exc))
