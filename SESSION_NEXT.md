@@ -2,12 +2,21 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `77d1d7d` — Fix false spool_missing warnings for inactive AMS slots
+- Latest commit: `(pending)` — Improve Bambu FTP 553 errors and pre-upload delete
 - Pi repo: /home/flightdeck/flightdeck
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=582 / style.css?v=453
 - Pi deploy: `cd /home/flightdeck/flightdeck && git pull && sudo systemctl restart flightdeck.service`
 - Pi SSH: `ssh -i C:\Users\Kidabah\.ssh\flightdeck_cursor -o IdentitiesOnly=yes flightdeck@100.106.112.104`
+
+### 2026-07-01 fix (Bambu FTP 553 upload errors)
+
+**Clearer 553 messages and delete-before-upload on queue/relay sends** (`app/printers/bambu_ftp.py`, `SESSION_NEXT.md`)
+
+- FTP **553 Could not create file** now explains missing/full SD storage and Studio filename conflicts instead of raw FTP text.
+- **552** storage-full gets its own operator message.
+- Queue and relay uploads delete an existing same-name file on the printer SD before `STOR` (avoids overwrite 553 when Bambu Studio sent the job first).
+- Backend-only; **backend restart required** on Pi. No frontend cache bump.
 
 ### 2026-06-29 fix (Bambu Studio direct print spool_missing)
 

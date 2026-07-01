@@ -646,6 +646,18 @@ def friendly_bambu_ftp_error(exc: Exception) -> str:
             "Bambu storage rejected the upload before it completed. "
             "Check the printer USB/SD storage is inserted, formatted, and not full, then try again."
         )
+    if "553" in lowered or "could not create file" in lowered:
+        return (
+            "Bambu could not write the file to printer storage. "
+            "Check the SD/USB card is inserted, not full, and formatted (FAT32/exFAT). "
+            "If the same file was already sent from Bambu Studio, wait until that print finishes "
+            "or clear it from Print Bay, then retry."
+        )
+    if "552" in lowered or "quota" in lowered or "storage quota" in lowered:
+        return (
+            "Bambu printer storage is full. "
+            "Free space on the SD/USB card or use Print Bay → Clear SD prints, then retry."
+        )
     if "550" in lowered or "no such file" in lowered or "not found" in lowered:
         return (
             "Bambu storage path is not available. "
@@ -862,8 +874,15 @@ def upload_bambu_file(ip: str, access_code: str, filename: str, data: bytes) -> 
         ftp.login("bblp", access_code)
         ftp.prot_p()
         ftp.set_pasv(True)
+        remote = f"/{filename.lstrip('/')}"
+        try:
+            ftp.delete(remote)
+        except ftplib.error_perm as exc:
+            # 550 = file not present; other errors are logged but upload may still succeed.
+            if not str(exc).strip().startswith("550"):
+                log.debug("Bambu pre-upload delete %s: %s", remote, exc)
         buf.seek(0)
-        ftp.storbinary(f"STOR /{filename}", buf)
+        ftp.storbinary(f"STOR {remote}", buf)
     except Exception as exc:
         raise BambuFtpError(friendly_bambu_ftp_error(exc)) from exc
     finally:
