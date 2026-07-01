@@ -1711,6 +1711,7 @@ async def queue_file_from_file_desk(body: FileQueueRequest):
         filament_colors=meta["filament_colors"],
     )
     db.log_decision(printer_id, "filedesk_queued", f"{source_id}:{source_path} -> job #{job_id}")
+    asyncio.create_task(_maybe_auto_advance_queue(printer_id, trigger="filedesk_queue"))
     return {"id": job_id}
 
 

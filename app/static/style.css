@@ -19112,6 +19112,7 @@ select optgroup {
 .filedesk-printer-choice:hover:not(:disabled) { border-color: var(--accent); background: rgba(59,130,246,0.08); }
 .filedesk-printer-choice:disabled { opacity: 0.65; cursor: default; }
 .filedesk-printer-choice.is-working { border-color: #22c55e; background: rgba(34,197,94,0.08); }
+.filedesk-printer-choice.is-recommended { border-color: rgba(59,130,246,0.55); }
 .filedesk-printer-choice span { color: var(--muted); font-size: 0.75rem; }
 .filedesk-dialog-error {
   border: 1px solid rgba(239,68,68,0.38);

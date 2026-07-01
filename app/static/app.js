@@ -8197,7 +8197,63 @@ function _fileCompatiblePrinters(file, sourceTarget = null) {
 
 function _filePrintablePrinters(file, sourceTarget = null) {
   if (_fileIsSourceModel(file)) return [];
-  return _fileCompatiblePrinters(file, sourceTarget);
+  return _fileCompatiblePrinters(file, sourceTarget).filter(p => p.print_enabled !== false);
+}
+
+const _QUEUE_PRINTER_KEY = 'flightdeck.queue.last_printer';
+
+function _lastQueuePrinterId() {
+  return sessionStorage.getItem(_QUEUE_PRINTER_KEY) || '';
+}
+
+function _rememberQueuePrinterId(printerId) {
+  if (printerId) sessionStorage.setItem(_QUEUE_PRINTER_KEY, printerId);
+}
+
+function _printerQueueLabel(p) {
+  return p?.custom_name || p?.model_name || p?.id || 'Printer';
+}
+
+function _printerQueueIdle(p) {
+  const state = String(p?.state || '').toLowerCase();
+  return state === 'idle' || state === 'finished' || state === 'ready' || state === 'standby';
+}
+
+function _idlePrintablePrinters(file, sourceTarget = null) {
+  return _filePrintablePrinters(file, sourceTarget).filter(_printerQueueIdle);
+}
+
+function _pickAutoQueuePrinter(file, sourceTarget = null) {
+  const idle = _idlePrintablePrinters(file, sourceTarget);
+  const last = _lastQueuePrinterId();
+  if (last) {
+    const match = idle.find(p => p.id === last);
+    if (match) return match;
+  }
+  return idle.length === 1 ? idle[0] : null;
+}
+
+function _sortedQueuePrinterChoices(file, sourceTarget = null) {
+  const printers = _filePrintablePrinters(file, sourceTarget).slice();
+  const last = _lastQueuePrinterId();
+  const rank = p => (
+    (p.id === last ? 0 : 10)
+    + (_printerQueueIdle(p) ? 0 : 2)
+  );
+  return printers.sort((a, b) => {
+    const diff = rank(a) - rank(b);
+    if (diff !== 0) return diff;
+    return _printerQueueLabel(a).localeCompare(_printerQueueLabel(b), undefined, { sensitivity: 'base' });
+  });
+}
+
+function _queueButtonLabel(file, target, targetPrinterId) {
+  if (targetPrinterId) {
+    const p = _latestPrinters.find(x => x.id === targetPrinterId);
+    return p ? `Queue → ${_printerQueueLabel(p)}` : 'Queue';
+  }
+  const auto = _pickAutoQueuePrinter(file, target);
+  return auto ? `Queue → ${_printerQueueLabel(auto)}` : 'Queue';
 }
 
 function _fileSliceTargets(file) {
@@ -8417,7 +8473,7 @@ function _fileDeskFileRowHtml(f, target, options = {}) {
     : '';
   const actionBtn = isSource
     ? `<button class="filedesk-action-btn filedesk-slice-primary" data-file-action="slice" data-source-id="${esc(target.id)}" data-path="${path}" ${targetPrinterId ? `data-target-printer="${esc(targetPrinterId)}"` : ''}>Slice</button>`
-    : `<button class="filedesk-action-btn filedesk-queue-primary" data-file-action="queue" data-source-id="${esc(target.id)}" data-path="${path}" ${directQueue ? `data-target-printer="${esc(targetPrinterId)}"` : ''} ${printable.length ? '' : 'disabled'}>Queue</button>`;
+    : `<button class="filedesk-action-btn filedesk-queue-primary" data-file-action="queue" data-source-id="${esc(target.id)}" data-path="${path}" ${directQueue ? `data-target-printer="${esc(targetPrinterId)}"` : ''} ${printable.length ? '' : 'disabled'} title="${printable.length ? 'Add to print queue' : 'No compatible printer'}">${esc(_queueButtonLabel(f, target, targetPrinterId))}</button>`;
   return `<article class="filedesk-file-row${compactBay ? ' filedesk-file-row-compact' : ''}${inFolder ? ' filedesk-file-row-folder' : ''}">
     <input type="checkbox" class="filedesk-select" data-source-id="${esc(target.id)}" data-path="${path}" data-name="${esc(f.name || f.path || 'File')}" aria-label="Select ${esc(f.name || f.path || 'file')}">
     <div class="filedesk-file-body">
@@ -8793,9 +8849,15 @@ function _attachFileDeskEvents(el) {
         _queueFileToPrinter({ sourceId, path, printerId: targetPrinter, button: btn });
         return;
       }
-      const file = (_fileDeskTargets.find(t => t.id === sourceId)?.files || [])
+      const target = _fileDeskTargets.find(t => t.id === sourceId);
+      const file = (target?.files || [])
         .find(f => (f.path || f.name) === path);
-      const printers = _fileCompatiblePrinters(file);
+      const auto = file ? _pickAutoQueuePrinter(file, target) : null;
+      if (auto) {
+        _queueFileToPrinter({ sourceId, path, printerId: auto.id, button: btn });
+        return;
+      }
+      const printers = file ? _sortedQueuePrinterChoices(file, target) : [];
       if (!printers.length) return;
       _openFileQueueDialog({ sourceId, path, file, printers });
     });
@@ -8898,7 +8960,7 @@ function _attachFileDeskEvents(el) {
   });
 }
 
-async function _queueFileToPrinter({ sourceId, path, printerId, button }) {
+async function _queueFileToPrinter({ sourceId, path, printerId, button, goQueue = true }) {
   const old = button?.textContent;
   if (button) {
     button.disabled = true;
@@ -8912,8 +8974,11 @@ async function _queueFileToPrinter({ sourceId, path, printerId, button }) {
     });
     const data = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(data.detail || 'Unable to queue file');
-    showToast('Added to queue', _latestPrinters.find(p => p.id === printerId)?.custom_name || printerId, 'success');
+    _rememberQueuePrinterId(printerId);
+    const name = _printerQueueLabel(_latestPrinters.find(p => p.id === printerId));
+    showToast('Added to queue', `${name} · auto-sends when free`, 'success');
     _updateQueueBadge();
+    if (goQueue) location.hash = '#/queue';
   } catch (err) {
     showToast('Queue failed', err.message || '', 'error');
     if (button) {
@@ -8925,6 +8990,7 @@ async function _queueFileToPrinter({ sourceId, path, printerId, button }) {
 
 function _openFileQueueDialog({ sourceId, path, file, printers }) {
   document.querySelector('.filedesk-queue-dialog')?.remove();
+  const last = _lastQueuePrinterId();
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay filedesk-queue-dialog';
   overlay.innerHTML = `
@@ -8938,10 +9004,14 @@ function _openFileQueueDialog({ sourceId, path, file, printers }) {
         <button class="filedesk-dialog-close" data-dialog-close aria-label="Close">x</button>
       </div>
       <div class="filedesk-queue-options">
-        ${printers.map(p => `<button class="filedesk-printer-choice" data-printer-id="${esc(p.id)}">
-          <strong>${esc(p.custom_name || p.model_name || p.id)}</strong>
-          <span>${esc(p.shop_name || p.model_name || p.kind || '')}</span>
-        </button>`).join('')}
+        ${printers.map(p => {
+          const idle = _printerQueueIdle(p);
+          const note = p.id === last ? 'Last used' : idle ? 'Ready' : String(p.state || 'busy');
+          return `<button class="filedesk-printer-choice${p.id === last ? ' is-recommended' : ''}" data-printer-id="${esc(p.id)}">
+          <strong>${esc(_printerQueueLabel(p))}</strong>
+          <span>${esc(note)}</span>
+        </button>`;
+        }).join('')}
       </div>
       <div class="filedesk-dialog-error" hidden></div>
       <div class="modal-actions">
@@ -8970,6 +9040,7 @@ function _openFileQueueDialog({ sourceId, path, file, printers }) {
       .then(async r => {
         const data = await r.json().catch(() => ({}));
         if (!r.ok) throw new Error(data.detail || 'Unable to queue file');
+        _rememberQueuePrinterId(choice.dataset.printerId);
         close();
         location.hash = '#/queue';
       })

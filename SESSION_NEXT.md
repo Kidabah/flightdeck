@@ -2,12 +2,22 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `d84ed4e` — Auto-dispatch next queue job when printer is free
+- Latest commit: `(pending)` — Faster queue from Print Vault with smart printer pick
 - Pi repo: /home/flightdeck/flightdeck
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=583 / style.css?v=453
+- Refresh cachebust currently: app.js?v=584 / style.css?v=454
 - Pi deploy: `cd /home/flightdeck/flightdeck && git pull && sudo systemctl restart flightdeck.service`
 - Pi SSH: `ssh -i C:\Users\Kidabah\.ssh\flightdeck_cursor -o IdentitiesOnly=yes flightdeck@100.106.112.104`
+
+### 2026-07-01 feature (smart queue from Print Vault)
+
+**One-click vault queue with remembered printer + auto-dispatch** (`app/main.py`, `app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Print Vault **Queue** button shows **Queue → BigBoy** when one idle compatible printer exists, or reuses your **last printer**.
+- Single idle printer or last-used match queues **without** the picker dialog; opens Queue tab after add.
+- Printer picker sorts idle/last-used first with **Last used** / **Ready** hints.
+- `/api/files/queue` now triggers **auto-dispatch** when the printer is free (same as upload path).
+- Static cache `app.js?v=584` / `style.css?v=454`; **backend restart required** on Pi.
 
 ### 2026-07-01 feature (queue auto-dispatch when idle)
 
