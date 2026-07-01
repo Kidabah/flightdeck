@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `(pending)` — Improve Bambu FTP 553 errors and pre-upload delete
+- Latest commit: `4bbd3c3` — Improve Bambu FTP 553 errors and pre-upload delete
 - Pi repo: /home/flightdeck/flightdeck
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=582 / style.css?v=453
