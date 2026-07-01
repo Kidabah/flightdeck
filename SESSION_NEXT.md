@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `9b51051` — MakerWorld import missing plates only
+- Latest commit: `657067e` — MakerWorld vault file detection + import missing
 - Pi repo: /home/flightdeck/flightdeck
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=585 / style.css?v=454
