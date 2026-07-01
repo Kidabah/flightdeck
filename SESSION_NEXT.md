@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `(pending)` — Faster queue from Print Vault with smart printer pick
+- Latest commit: `6f4ff24` — Faster queue from Print Vault with smart printer pick
 - Pi repo: /home/flightdeck/flightdeck
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=584 / style.css?v=454
