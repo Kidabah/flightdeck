@@ -5,7 +5,7 @@ Latest GitHub/Pi state:
 - Latest commit: `657067e` — MakerWorld vault file detection + import missing
 - Pi repo: /home/flightdeck/flightdeck
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=585 / style.css?v=454
+- Refresh cachebust currently: app.js?v=586 / style.css?v=455
 - Pi deploy: `cd /home/flightdeck/flightdeck && git pull && sudo systemctl restart flightdeck.service`
 - Pi SSH: `ssh -i C:\Users\Kidabah\.ssh\flightdeck_cursor -o IdentitiesOnly=yes flightdeck@100.106.112.104`
 

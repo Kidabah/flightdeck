@@ -3164,7 +3164,9 @@ function _makerWorldPreviewHtml(data, url) {
   const partialPending = pendingCount > 0 && pendingCount < plateCount;
   const refreshOnly = refreshCount > 0 && missingCount === 0;
   let importAllLabel = 'Import all to Vault';
-  if (refreshOnly && !partialPending) {
+  if (!pendingCount) {
+    importAllLabel = 'All in vault';
+  } else if (refreshOnly && !partialPending) {
     importAllLabel = 'Move all to folder';
   } else if (partialPending) {
     importAllLabel = refreshOnly ? `Move missing (${pendingCount})` : `Import missing (${pendingCount})`;
