@@ -367,10 +367,13 @@ class BambuPrinter:
                         "spool_id": spool["id"] if spool else None,
                         "remaining_g_at_start": spool["remaining_g"] if spool else None,
                     }
-                    if spool is None:
-                        db.log_decision(self.id, "spool_missing",
-                                       f"No spool assigned to AMS slot {slot_idx}",
-                                       print_id=self._current_print_id)
+                    if spool is None and slot_data.get("active"):
+                        db.log_decision(
+                            self.id,
+                            "spool_missing",
+                            f"No spool assigned to {_ams_slot_decision_label(slot_idx)}",
+                            print_id=self._current_print_id,
+                        )
                 if self._ams_active_slot_at_start is not None:
                     enriched["__meta__"] = {"active_slot": self._ams_active_slot_at_start}
                 db.write_slot_snapshot(self._current_print_id, enriched)
@@ -1806,6 +1809,14 @@ def _split_ams_slot(slot: int) -> tuple[int, int]:
     if slot >= 128:
         return slot, 0
     return slot // 4, slot % 4
+
+
+def _ams_slot_decision_label(slot_idx: int) -> str:
+    """Human-readable AMS bay label for decision-trail messages."""
+    unit, tray = _split_ams_slot(slot_idx)
+    if unit >= 128:
+        return "AMS HT slot 1"
+    return f"AMS {unit + 1} slot {tray + 1}"
 
 
 def _bambu_tray_target(slot: int, regular_ams_slots: int = 0) -> int:

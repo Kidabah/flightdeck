@@ -2,8 +2,21 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `52830e3` — Add MakerWorld clear recent imports and fix import-all for folder migration
-- Refresh cachebust currently: app.js?v=579 / style.css?v=451
+- Latest commit: `(pending)` — Fix false spool_missing warnings for inactive AMS slots
+- Pi repo: /home/flightdeck/flightdeck
+- App URL: https://flightdeck.tail7de73e.ts.net/
+- Refresh cachebust currently: app.js?v=582 / style.css?v=453
+- Pi deploy: `cd /home/flightdeck/flightdeck && git pull && sudo systemctl restart flightdeck.service`
+- Pi SSH: `ssh -i C:\Users\Kidabah\.ssh\id_ed25519 flightdeck@100.106.112.104`
+
+### 2026-06-29 fix (Bambu Studio direct print spool_missing)
+
+**Only warn spool_missing for the active AMS slot at print start** (`app/printers/bambu.py`, `SESSION_NEXT.md`)
+
+- Direct Bambu Studio sends could log `spool_missing` for every loaded AMS tray without a Flightdeck spool — e.g. slot 4 while printing from slot 1.
+- Print-start decision trail now logs `spool_missing` only when the tray is **active** (`tray_now` match).
+- Messages use human labels (`AMS 1 slot 1`) instead of raw internal index (`AMS slot 3`).
+- Backend-only; **backend restart required** on Pi. No frontend cache bump.
 
 ### 2026-07-01 fix (MakerWorld recent + import all)
 
