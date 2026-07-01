@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `(pending)` — Fix false spool_missing warnings for inactive AMS slots
+- Latest commit: `77d1d7d` — Fix false spool_missing warnings for inactive AMS slots
 - Pi repo: /home/flightdeck/flightdeck
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=582 / style.css?v=453
