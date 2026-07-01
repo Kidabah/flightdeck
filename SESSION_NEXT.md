@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: _(pending push)_ — MakerWorld import missing plates only
+- Latest commit: `d2ba4c9` — MakerWorld import missing plates only
 - Pi repo: /home/flightdeck/flightdeck
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=585 / style.css?v=454
