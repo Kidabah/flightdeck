@@ -7,7 +7,7 @@ Latest GitHub/Pi state:
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=582 / style.css?v=453
 - Pi deploy: `cd /home/flightdeck/flightdeck && git pull && sudo systemctl restart flightdeck.service`
-- Pi SSH: `ssh -i C:\Users\Kidabah\.ssh\id_ed25519 flightdeck@100.106.112.104`
+- Pi SSH: `ssh -i C:\Users\Kidabah\.ssh\flightdeck_cursor -o IdentitiesOnly=yes flightdeck@100.106.112.104`
 
 ### 2026-06-29 fix (Bambu Studio direct print spool_missing)
 
