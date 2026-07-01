@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `d2ba4c9` — MakerWorld import missing plates only
+- Latest commit: `9b51051` — MakerWorld import missing plates only
 - Pi repo: /home/flightdeck/flightdeck
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=585 / style.css?v=454
@@ -18,6 +18,14 @@ Latest GitHub/Pi state:
 - Button label **Import missing (N)** when some plates are already saved; **Move missing (N)** when only folder layout needs fixing.
 - Response includes `skipped` count for plates left alone.
 - Static cache `app.js?v=585`; **backend restart required** on Pi.
+
+### 2026-06-29 fix (MakerWorld vault file detection)
+
+**Recognize plates already on disk in the numbered vault folder** (`app/makerworld.py`, `SESSION_NEXT.md`)
+
+- Resolve/import now treat `01 - …` / `02 - …` files in the model folder as already imported, even if MakerWorld recent history was cleared.
+- Stops bulk import re-downloading all plates and creating timestamped duplicate 3MFs.
+- **Backend restart required** on Pi.
 
 ### 2026-07-01 feature (smart queue from Print Vault)
 

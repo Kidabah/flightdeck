@@ -274,26 +274,83 @@ def _plate_vault_filename(
     return stem
 
 
+def _find_plate_vault_path_on_disk(
+    *,
+    vault_folder: str,
+    plate_index: int,
+    plate_total: int,
+    library_root: Path,
+    safe_join_under,
+) -> str | None:
+    if plate_total <= 1 or plate_index <= 0:
+        return None
+    try:
+        folder = safe_join_under(library_root.resolve(), *vault_folder.split("/"), missing_ok=True)
+    except Exception:
+        return None
+    if not folder.is_dir():
+        return None
+    prefix = f"{plate_index:02d} -"
+    matches = [path for path in folder.glob("*.3mf") if path.name.startswith(prefix)]
+    if not matches:
+        return None
+
+    def _sort_key(path: Path) -> tuple[bool, int, float]:
+        stamped = bool(re.search(r"_\d{14}", path.stem))
+        return (stamped, len(path.name), -path.stat().st_mtime)
+
+    best = sorted(matches, key=_sort_key)[0]
+    return best.relative_to(library_root.resolve()).as_posix()
+
+
+def _effective_plate_vault_path(
+    *,
+    imported: dict[str, Any] | None,
+    vault_folder: str,
+    plate_index: int,
+    plate_total: int,
+    library_root: Path | None,
+    safe_join_under=None,
+) -> str | None:
+    vault_path = str((imported or {}).get("vault_path") or "").strip()
+    if vault_path and _plate_vault_layout_ok(
+        vault_path=vault_path,
+        vault_folder=vault_folder,
+        plate_total=plate_total,
+        library_root=library_root,
+        safe_join_under=safe_join_under,
+    ):
+        return vault_path
+    if library_root is None or safe_join_under is None:
+        return None
+    return _find_plate_vault_path_on_disk(
+        vault_folder=vault_folder,
+        plate_index=plate_index,
+        plate_total=plate_total,
+        library_root=library_root,
+        safe_join_under=safe_join_under,
+    )
+
+
 def _plate_needs_action(
     *,
     design_id: int,
     profile_id: int,
     imported: dict[str, Any] | None,
     vault_folder: str,
+    plate_index: int,
     plate_total: int,
     library_root: Path,
     safe_join_under,
 ) -> bool:
-    if imported is None:
-        return True
-    vault_path = str(imported.get("vault_path") or "")
-    return not _plate_vault_layout_ok(
-        vault_path=vault_path,
+    return _effective_plate_vault_path(
+        imported=imported,
         vault_folder=vault_folder,
+        plate_index=plate_index,
         plate_total=plate_total,
         library_root=library_root,
         safe_join_under=safe_join_under,
-    )
+    ) is None
 
 
 def _plate_vault_layout_ok(
@@ -316,6 +373,41 @@ def _plate_vault_layout_ok(
     except Exception:
         return False
     return dest.is_file()
+
+
+def _upsert_import_record(
+    data_dir: Path,
+    imports: list[dict[str, Any]],
+    *,
+    design_id: int,
+    profile_id: int,
+    model_id: str,
+    design_title: str,
+    plate_title: str,
+    vault_rel: str,
+    filename: str,
+    size: int,
+) -> None:
+    record = {
+        "imported_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+        "design_id": design_id,
+        "profile_id": profile_id,
+        "model_id": model_id,
+        "title": design_title,
+        "plate_title": plate_title,
+        "source_url": canonical_source_url(design_id, profile_id),
+        "vault_path": vault_rel,
+        "filename": filename,
+        "size": size,
+    }
+    imports = [record] + [
+        row for row in imports
+        if not (
+            int(row.get("design_id") or -1) == design_id
+            and int(row.get("profile_id") or -1) == profile_id
+        )
+    ]
+    save_imports(data_dir, imports)
 
 
 def _plate_row(instance: dict[str, Any], imported: dict[str, Any] | None) -> dict[str, Any]:
@@ -375,16 +467,23 @@ def resolve_url(
         plate["plate_total"] = plate_total
     vault_folder = _design_vault_folder(design, design_id, multi_plate=plate_total > 1)
     for plate in plates:
-        vault_path = str(plate.get("vault_path") or "")
-        layout_ok = _plate_vault_layout_ok(
-            vault_path=vault_path,
+        profile_id = int(plate.get("profile_id") or 0)
+        imported = imports.get((design_id, profile_id))
+        effective_path = _effective_plate_vault_path(
+            imported=imported,
             vault_folder=vault_folder,
+            plate_index=int(plate.get("plate_index") or 0),
             plate_total=plate_total,
             library_root=library_root,
             safe_join_under=safe_join_under,
         )
+        if effective_path:
+            plate["vault_path"] = effective_path
+            plate["vault_name"] = effective_path.rsplit("/", 1)[-1]
+            plate["already_imported"] = True
+        layout_ok = effective_path is not None
         plate["vault_layout_ok"] = layout_ok
-        plate["needs_vault_refresh"] = bool(plate.get("already_imported") and not layout_ok)
+        plate["needs_vault_refresh"] = bool(imported and not layout_ok)
     needs_refresh = sum(1 for plate in plates if plate.get("needs_vault_refresh"))
     return {
         "ok": True,
@@ -441,13 +540,33 @@ def import_plate(
     imports = load_imports(data_dir)
     existing = _imports_by_profile(imports).get((design_id, profile_id))
     vault_folder_rel = _design_vault_folder(design, design_id, multi_plate=plate_total > 1)
-    if existing and existing.get("vault_path"):
-        vault_rel = str(existing["vault_path"])
+    plate_title = str(instance.get("title") or f"plate_{profile_id}").strip()
+    design_title = str(design.get("title") or f"design_{design_id}").strip()
+
+    vault_rel = _effective_plate_vault_path(
+        imported=existing,
+        vault_folder=vault_folder_rel,
+        plate_index=plate_index,
+        plate_total=plate_total,
+        library_root=library_root,
+        safe_join_under=safe_join_under,
+    )
+    if vault_rel:
         dest = safe_join_under(library_root.resolve(), vault_rel, missing_ok=True)
-        layout_ok = dest.exists() and (
-            plate_total <= 1 or vault_rel.startswith(f"{vault_folder_rel}/")
-        )
-        if layout_ok:
+        if dest.is_file():
+            if not existing or str(existing.get("vault_path") or "") != vault_rel:
+                _upsert_import_record(
+                    data_dir,
+                    imports,
+                    design_id=design_id,
+                    profile_id=profile_id,
+                    model_id=model_id,
+                    design_title=design_title,
+                    plate_title=plate_title,
+                    vault_rel=vault_rel,
+                    filename=dest.name,
+                    size=dest.stat().st_size,
+                )
             return {
                 "ok": True,
                 "already_existed": True,
@@ -456,16 +575,14 @@ def import_plate(
                 "size": dest.stat().st_size,
                 "design_id": design_id,
                 "profile_id": profile_id,
-                "title": existing.get("title") or design.get("title"),
-                "plate_title": existing.get("plate_title") or instance.get("title"),
+                "title": (existing or {}).get("title") or design_title,
+                "plate_title": (existing or {}).get("plate_title") or plate_title,
             }
 
     download_url, upstream_name = fetch_profile_download(profile_id, model_id, token)
     data = download_presigned(download_url)
     enforce_file_size(len(data), label="MakerWorld download")
 
-    plate_title = str(instance.get("title") or f"plate_{profile_id}").strip()
-    design_title = str(design.get("title") or f"design_{design_id}").strip()
     stem = _plate_vault_filename(
         upstream_name=upstream_name,
         profile_id=profile_id,
@@ -479,10 +596,31 @@ def import_plate(
     folder = safe_join_under(library_root.resolve(), *vault_folder_rel.split("/"), missing_ok=True)
     folder.mkdir(parents=True, exist_ok=True)
     dest = safe_join_under(folder, stem, missing_ok=True)
-    if dest.exists():
-        stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
-        suffixes = dest.suffixes or [".3mf"]
-        dest = safe_join_under(folder, f"{dest.stem}_{stamp}{''.join(suffixes)}", missing_ok=True)
+    if dest.exists() and dest.is_file():
+        vault_rel = dest.relative_to(library_root.resolve()).as_posix()
+        _upsert_import_record(
+            data_dir,
+            imports,
+            design_id=design_id,
+            profile_id=profile_id,
+            model_id=model_id,
+            design_title=design_title,
+            plate_title=plate_title,
+            vault_rel=vault_rel,
+            filename=dest.name,
+            size=dest.stat().st_size,
+        )
+        return {
+            "ok": True,
+            "already_existed": True,
+            "name": dest.name,
+            "path": vault_rel,
+            "size": dest.stat().st_size,
+            "design_id": design_id,
+            "profile_id": profile_id,
+            "title": design_title,
+            "plate_title": plate_title,
+        }
     dest.write_bytes(data)
 
     relocated = False
@@ -499,22 +637,18 @@ def import_plate(
                 log.warning("makerworld: could not remove superseded vault file %s", old_rel)
 
     vault_rel = dest.relative_to(library_root.resolve()).as_posix()
-    record = {
-        "imported_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
-        "design_id": design_id,
-        "profile_id": profile_id,
-        "model_id": model_id,
-        "title": design_title,
-        "plate_title": plate_title,
-        "source_url": canonical_source_url(design_id, profile_id),
-        "vault_path": vault_rel,
-        "filename": dest.name,
-        "size": len(data),
-    }
-    imports = [record] + [row for row in imports if not (
-        int(row.get("design_id") or -1) == design_id and int(row.get("profile_id") or -1) == profile_id
-    )]
-    save_imports(data_dir, imports)
+    _upsert_import_record(
+        data_dir,
+        imports,
+        design_id=design_id,
+        profile_id=profile_id,
+        model_id=model_id,
+        design_title=design_title,
+        plate_title=plate_title,
+        vault_rel=vault_rel,
+        filename=dest.name,
+        size=len(data),
+    )
 
     return {
         "ok": True,
@@ -559,19 +693,22 @@ def import_all_plates(
         if int(row.get("profileId") or 0)
     ]
     if only_missing:
-        profile_ids = [
-            profile_id
-            for profile_id in profile_ids
+        profile_ids = []
+        for idx, row in enumerate(instances):
+            profile_id = int(row.get("profileId") or 0)
+            if not profile_id:
+                continue
             if _plate_needs_action(
                 design_id=design_id,
                 profile_id=profile_id,
                 imported=imports.get((design_id, profile_id)),
                 vault_folder=vault_folder,
+                plate_index=idx + 1,
                 plate_total=plate_total,
                 library_root=library_root,
                 safe_join_under=safe_join_under,
-            )
-        ]
+            ):
+                profile_ids.append(profile_id)
     skipped = plate_total - len(profile_ids) if only_missing else 0
     if not profile_ids:
         return {
