@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `(pending)` — Auto-dispatch next queue job when printer is free
+- Latest commit: `d84ed4e` — Auto-dispatch next queue job when printer is free
 - Pi repo: /home/flightdeck/flightdeck
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=583 / style.css?v=453
