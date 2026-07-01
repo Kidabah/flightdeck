@@ -4898,6 +4898,17 @@ def queue_next_pending(printer_id: str) -> Optional[dict]:
     return dict(row) if row else None
 
 
+def queue_has_active(printer_id: str) -> bool:
+    with _conn() as conn:
+        row = conn.execute(
+            """SELECT 1 FROM print_queue
+               WHERE printer_id = ? AND status IN ('printing', 'uploading')
+               LIMIT 1""",
+            (printer_id,),
+        ).fetchone()
+    return row is not None
+
+
 def queue_retry(job_id: int) -> bool:
     """Reset a failed/cancelled/done job to pending at the end of its printer queue."""
     with _conn() as conn:

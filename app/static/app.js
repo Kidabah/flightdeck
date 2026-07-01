@@ -10225,7 +10225,7 @@ function _queuePrinterSection(printerId, printerLabel, jobs, kind) {
 
   const totalSecs = pending.reduce((s, j) => s + (j.estimated_seconds || 0), 0);
   const summary = pending.length
-    ? `${pending.length} pending${totalSecs ? ` · ~${_fmtSeconds(totalSecs)}` : ''}`
+    ? `${pending.length} pending${totalSecs ? ` · ~${_fmtSeconds(totalSecs)}` : ''}${active.length ? '' : ' · auto-sends when free'}`
     : active.length ? 'Printing…' : '';
 
   const jobsHtml = jobs.length

@@ -2,12 +2,21 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `4bbd3c3` — Improve Bambu FTP 553 errors and pre-upload delete
+- Latest commit: `(pending)` — Auto-dispatch next queue job when printer is free
 - Pi repo: /home/flightdeck/flightdeck
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=582 / style.css?v=453
+- Refresh cachebust currently: app.js?v=583 / style.css?v=453
 - Pi deploy: `cd /home/flightdeck/flightdeck && git pull && sudo systemctl restart flightdeck.service`
 - Pi SSH: `ssh -i C:\Users\Kidabah\.ssh\flightdeck_cursor -o IdentitiesOnly=yes flightdeck@100.106.112.104`
+
+### 2026-07-01 feature (queue auto-dispatch when idle)
+
+**Auto-send next pending queue job when a printer is free** (`app/main.py`, `app/db.py`, `app/static/app.js`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Extends print-finish auto-dispatch: also triggers on **queue upload**, **retry**, **print cancel**, **service startup**, stale active-row cleanup, and a ~60s idle poll (picks up jobs when preflight later becomes ready).
+- Skips when the printer is busy, errored, dispatch-locked, or preflight blocks; logs `queue_auto_dispatch` in the decision trail.
+- Queue UI shows **auto-sends when free** on pending rows with no active job.
+- **Backend restart required** on Pi; hard refresh for `app.js?v=583`.
 
 ### 2026-07-01 fix (Bambu FTP 553 upload errors)
 

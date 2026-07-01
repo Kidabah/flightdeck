@@ -904,6 +904,7 @@ def _check_transitions(data: list[dict]) -> None:
                 if not is_simulated:
                     asyncio.create_task(_send_ntfy("Print cancelled", msg, ["x"]))
                 db.queue_cancel_active(pid, "cancelled")
+                asyncio.create_task(_maybe_auto_advance_queue(pid, trigger="print_cancelled"))
         elif curr in ("error", "estop"):
             error_pid = p.get("_error_print_id")
             is_print_failure = prev == "printing" or has_error_print
@@ -932,6 +933,7 @@ def _check_transitions(data: list[dict]) -> None:
             if not is_simulated:
                 asyncio.create_task(_send_ntfy("Print cancelled", msg, ["x"]))
             db.queue_cancel_active(pid, "cancelled")
+            asyncio.create_task(_maybe_auto_advance_queue(pid, trigger="print_cancelled"))
 
 
 async def _push_toast(message: str, sub: str = "", toast_type: str = "warning") -> None:
@@ -947,11 +949,16 @@ async def _push_toast(message: str, sub: str = "", toast_type: str = "warning") 
 
 
 async def _broadcast_loop():
+    poll_counter = 0
     while True:
         await asyncio.sleep(5)
         try:
             data = await _gather_all()
             _check_transitions(data)
+            poll_counter += 1
+            if poll_counter >= 12:
+                poll_counter = 0
+                await _scan_idle_queue_dispatch()
             if not _ws_clients:
                 continue
             msg = json.dumps(data, default=_dt_default)
@@ -1042,6 +1049,7 @@ async def lifespan(app: FastAPI):
 
     _broadcast_task = asyncio.create_task(_broadcast_loop())
     _scale_keep_awake_task = asyncio.create_task(_scale_keep_awake_loop())
+    asyncio.create_task(_boot_queue_auto_dispatch())
 
     yield
 
@@ -8630,8 +8638,9 @@ def _queue_active_age_seconds(job: dict) -> Optional[float]:
     return max(0.0, (datetime.utcnow() - dt).total_seconds())
 
 
-def _reconcile_queue_active_state(jobs: list[dict], statuses: dict[str, dict]) -> bool:
+def _reconcile_queue_active_state(jobs: list[dict], statuses: dict[str, dict]) -> tuple[bool, list[str]]:
     changed = False
+    cleared_printers: list[str] = []
     active_by_printer: dict[str, list[dict]] = {}
     for job in jobs:
         if job.get("status") in {"printing", "uploading"}:
@@ -8659,6 +8668,7 @@ def _reconcile_queue_active_state(jobs: list[dict], statuses: dict[str, dict]) -
             changed = cleared > 0 or changed
             if cleared:
                 db.log_decision(printer_id, "queue_active_cleared", detail)
+                cleared_printers.append(printer_id)
             continue
         if len(active) <= 1:
             continue
@@ -8674,7 +8684,7 @@ def _reconcile_queue_active_state(jobs: list[dict], statuses: dict[str, dict]) -
             int(keep["id"]),
             "Superseded by newer active queue job",
         ) > 0 or changed
-    return changed
+    return changed, cleared_printers
 
 
 def _reconcile_queue_from_printer_state(jobs: list[dict], statuses: dict[str, dict]) -> bool:
@@ -8697,6 +8707,77 @@ def _reconcile_queue_from_printer_state(jobs: list[dict], statuses: dict[str, di
                 f"Restored stale-cleared queue job #{restored['id']} {restored['filename']} after printer reported {state}",
             )
     return changed
+
+
+_QUEUE_PRINTER_BUSY_STATES = {"printing", "paused"}
+_QUEUE_ADVANCE_LOCKS: dict[str, asyncio.Lock] = {}
+
+
+def _queue_printer_ids() -> list[str]:
+    return [pid for pid, *_ in _moonraker] + [p.id for p in _bambu]
+
+
+def _queue_advance_lock(printer_id: str) -> asyncio.Lock:
+    lock = _QUEUE_ADVANCE_LOCKS.get(printer_id)
+    if lock is None:
+        lock = asyncio.Lock()
+        _QUEUE_ADVANCE_LOCKS[printer_id] = lock
+    return lock
+
+
+def _printer_available_for_queue_dispatch(status: Optional[dict]) -> bool:
+    state = str((status or {}).get("state") or "").lower()
+    if state in _QUEUE_PRINTER_BUSY_STATES or state in {"error", "estop"}:
+        return False
+    return True
+
+
+async def _maybe_auto_advance_queue(printer_id: str, *, trigger: str = "unknown") -> None:
+    """Send the next pending queue job when the printer has no active queue row."""
+    if db.queue_has_active(printer_id) or not db.queue_next_pending(printer_id):
+        return
+    statuses = await _printer_status_map()
+    if not _printer_available_for_queue_dispatch(statuses.get(printer_id)):
+        return
+    lock = _queue_advance_lock(printer_id)
+    if lock.locked():
+        return
+    async with lock:
+        if db.queue_has_active(printer_id):
+            return
+        job = db.queue_next_pending(printer_id)
+        if not job:
+            return
+        statuses = await _printer_status_map()
+        status = statuses.get(printer_id)
+        if not _printer_available_for_queue_dispatch(status):
+            return
+        preflight = _queue_preflight(job, status)
+        if not preflight["can_start"]:
+            log.info(
+                "queue auto-dispatch skipped on %s trigger=%s: %s",
+                printer_id,
+                trigger,
+                preflight.get("status"),
+            )
+            return
+        db.log_decision(
+            printer_id,
+            "queue_auto_dispatch",
+            f"Job #{job['id']} {job['filename']} ({trigger})",
+        )
+        await _advance_queue(printer_id)
+
+
+async def _scan_idle_queue_dispatch() -> None:
+    for printer_id in _queue_printer_ids():
+        await _maybe_auto_advance_queue(printer_id, trigger="idle_poll")
+
+
+async def _boot_queue_auto_dispatch() -> None:
+    await asyncio.sleep(10)
+    for printer_id in _queue_printer_ids():
+        await _maybe_auto_advance_queue(printer_id, trigger="startup")
 
 
 async def _advance_queue(printer_id: str) -> None:
@@ -8723,6 +8804,7 @@ async def _advance_queue(printer_id: str) -> None:
             if p.id == printer_id:
                 await asyncio.to_thread(p.send_file, file_path, filename)
                 db.queue_set_started(job_id)
+                await _wait_for_bambu_physical_start(p, job_id, filename)
                 log.info("queue: started job %d on %s (%s)", job_id, printer_id, filename)
                 return
         db.queue_update_status(job_id, "failed", "Printer not found")
@@ -8733,7 +8815,7 @@ async def _advance_queue(printer_id: str) -> None:
 
 async def _on_print_finished_queue(printer_id: str) -> None:
     db.queue_finish_active(printer_id)
-    await _advance_queue(printer_id)
+    await _maybe_auto_advance_queue(printer_id, trigger="print_finished")
 
 
 @app.get("/api/queue/summary")
@@ -8748,9 +8830,11 @@ async def get_queue(printer_id: Optional[str] = None):
     restored = _reconcile_queue_from_printer_state(jobs, statuses)
     if restored:
         jobs = db.queue_list(printer_id)
-    cleared = _reconcile_queue_active_state(jobs, statuses)
+    cleared, cleared_printers = _reconcile_queue_active_state(jobs, statuses)
     if restored or cleared:
         jobs = db.queue_list(printer_id)
+    for pid in cleared_printers:
+        asyncio.create_task(_maybe_auto_advance_queue(pid, trigger="stale_cleared"))
     return _apply_queue_preflight(jobs, statuses)
 
 
@@ -8789,6 +8873,7 @@ async def queue_upload(printer_id: str = Form(...), file: UploadFile = File(...)
         filament_type=meta["filament_type"],
         filament_colors=meta["filament_colors"],
     )
+    asyncio.create_task(_maybe_auto_advance_queue(printer_id, trigger="queue_upload"))
     return {"id": job_id}
 
 
@@ -8842,8 +8927,12 @@ async def reorder_queue_job(job_id: int, body: QueueReorderRequest):
 
 @app.post("/api/queue/{job_id}/retry")
 async def retry_queue_job(job_id: int):
+    job = db.queue_get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
     if not db.queue_retry(job_id):
         raise HTTPException(status_code=404, detail="Job not found or not retryable")
+    asyncio.create_task(_maybe_auto_advance_queue(job["printer_id"], trigger="queue_retry"))
     return {"ok": True}
 
 
