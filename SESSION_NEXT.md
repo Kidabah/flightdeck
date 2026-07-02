@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — Queue polish hero + briefing
+- Latest commit: `463b982` — Queue polish hero + briefing
 - Refresh cachebust currently: app.js?v=596 / style.css?v=464
 
 ### 2026-07-02 polish (Queue hero + briefing)
