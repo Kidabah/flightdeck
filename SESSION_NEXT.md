@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — Print Vault hero + briefing polish
+- Latest commit: `8f74ffd` — Print Vault hero + briefing polish
 - Refresh cachebust currently: app.js?v=598 / style.css?v=465
 
 ### 2026-07-02 polish (Print Vault hero + briefing)
