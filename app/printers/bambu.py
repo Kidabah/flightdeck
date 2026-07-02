@@ -557,7 +557,9 @@ class BambuPrinter:
                 # Service restarted during the print; close any open row as FINISHED
                 # rather than leaving it orphaned for the stale-orphan sweep.
                 closed_ids = db.close_open_prints(self.id, final_state="FINISHED")
+                self._last_timelapse_path = _read_bambu_timelapse_path(self._printer.mqtt_dump())
                 for pid in closed_ids:
+                    self._last_finished_print_id = pid
                     db.log_decision(self.id, "job_cleanup",
                                    "FINISH seen at startup with no tracked job; closed open row as FINISHED",
                                    print_id=pid)

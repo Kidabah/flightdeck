@@ -2,8 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `77f384a` — Print Memory polish + auto Flight Recorder harvest
+- Latest commit: (pending) — Flight Recorder restart-finish harvest fix
 - Refresh cachebust currently: app.js?v=601 / style.css?v=468
+
+### 2026-07-02 fix (Flight Recorder after backend restart mid-print)
+
+**Startup-finish recorder harvest now survives backend restarts** (`app/main.py`, `app/printers/bambu.py`, `SESSION_NEXT.md`)
+
+- H2D print `376` exposed a restart edge case: the backend restarted mid-print, then on boot saw Bambu `FINISH` with no in-memory active job and closed the row via `job_cleanup`.
+- That startup cleanup path previously marked the print `FINISHED` but did not preserve `_last_finished_print_id` or the Bambu MQTT `timelapse_path`, so the new auto Flight Recorder harvest never ran.
+- Bambu startup-finish cleanup now stores the recovered finished `print_id` plus any MQTT timelapse hint, and `_check_transitions()` now kicks off auto-harvest once when a printer first appears in `finished` state after restart.
+- Static cache unchanged: `app.js?v=601` / `style.css?v=468`; backend/service restart required, frontend hard refresh not required.
 
 ### 2026-07-02 polish (Print Memory + Flight Recorder auto-harvest)
 

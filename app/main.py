@@ -889,7 +889,15 @@ def _check_transitions(data: list[dict]) -> None:
         curr = p["state"]
         prev = _prev_states.get(pid)
         _prev_states[pid] = curr
-        if prev is None or prev == curr:
+        is_simulated = bool(p.get("_simulated"))
+        if prev is None:
+            finished_print_id = p.get("_last_finished_print_id")
+            if not is_simulated and curr == "finished" and finished_print_id:
+                asyncio.create_task(_auto_harvest_flight_recorder(
+                    pid, finished_print_id, p.get("_last_timelapse_path"),
+                ))
+            continue
+        if prev == curr:
             continue
         log.info("state transition %s: %s → %s", pid, prev, curr)
         name = p.get("custom_name") or p.get("id")
@@ -898,7 +906,6 @@ def _check_transitions(data: list[dict]) -> None:
         sub = job.get("subtask_name", "").strip()
         label = sub if sub and sub != fname else fname
         has_error_print = p.get("_error_print_id") is not None
-        is_simulated = bool(p.get("_simulated"))
         title_prefix = "SIM " if is_simulated else ""
 
         if prev == "printing" and curr in {"finished", "ready", "standby", "complete"}:
