@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — Print Bay hero + briefing polish
+- Latest commit: `d798c79` — Print Bay hero + briefing polish
 - Refresh cachebust currently: app.js?v=600 / style.css?v=467
 
 ### 2026-07-02 polish (Print Bay hero + briefing)
