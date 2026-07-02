@@ -11262,28 +11262,33 @@ function _fleetWallCardBody(p) {
     `;
 }
 
-function _fleetWallHeadHtml(p) {
-  return `<div class="printer-identity">
-    <div class="printer-icon">${getIcon(p.icon)}</div>
-    ${connDot(p.last_seen)}
-    <div class="printer-names">
-      <span class="printer-custom">${esc(_printerPrimaryLabel(p))}</span>
-      ${_printerModelHtml(p)}
+function _fleetWallFeedCapHtml(p) {
+  const flags = _fleetWallHeaderFlags(p);
+  const secondary = _printerSecondaryLabel(p) || p.model || '';
+  return `<div class="fleet-wall-feed-cap">
+    <div class="fleet-wall-feed-title">
+      ${connDot(p.last_seen)}
+      <span class="fleet-wall-feed-name">${esc(_printerPrimaryLabel(p))}</span>
+      ${secondary ? `<span class="fleet-wall-feed-model">${esc(secondary)}</span>` : ''}
     </div>
-  </div>
-  <div class="fleet-wall-head-right">
-    ${_fleetWallHeaderFlags(p)}
-    <span class="fleet-wall-kind">${esc(p.kind || p.connection?.type || 'printer')}</span>
+    ${flags ? `<div class="fleet-wall-feed-flags">${flags}</div>` : ''}
   </div>`;
+}
+
+function _fleetWallRefreshFeedMedia(feed, p) {
+  const media = feed?.querySelector('.fleet-wall-feed-media');
+  if (media) media.innerHTML = _fleetWallFeedHtml(p);
+}
+
+function _fleetWallHeadHtml(p) {
+  return _fleetWallFeedCapHtml(p);
 }
 
 function _fleetWallCardHtml(p) {
   return `<article class="fleet-wall-card fleet-wall-card-${_fleetWallTone(p)}" data-printer-id="${esc(p.id)}">
-    <div class="fleet-wall-card-head">
-      ${_fleetWallHeadHtml(p)}
-    </div>
     <a class="fleet-wall-feed" href="#/printer/${esc(p.id)}" data-fleet-feed="${esc(p.id)}" data-fleet-live="${esc(p.id)}">
-      ${_fleetWallFeedHtml(p)}
+      <div class="fleet-wall-feed-media">${_fleetWallFeedHtml(p)}</div>
+      ${_fleetWallFeedCapHtml(p)}
     </a>
     <div class="fleet-wall-card-body">${_fleetWallCardBody(p)}</div>
   </article>`;
@@ -11299,7 +11304,7 @@ async function _ensureFleetWallCameraUrls(printers) {
       const printer = (_latestPrinters || []).find(x => x.id === printerId);
       const feed = card?.querySelector('[data-fleet-feed]');
       if (!printer || !feed || printer.state === 'offline') return;
-      feed.innerHTML = _fleetWallFeedHtml(printer);
+      _fleetWallRefreshFeedMedia(feed, printer);
       _attachCameraRetries(feed);
       _fleetWallSignature = '';
     });
@@ -11362,14 +11367,15 @@ async function renderFleetWall() {
       const card = el.querySelector(`.fleet-wall-card[data-printer-id="${CSS.escape(p.id)}"]`);
       if (!card) return;
       card.className = `fleet-wall-card fleet-wall-card-${_fleetWallTone(p)}`;
-      const head = card.querySelector('.fleet-wall-card-head');
-      if (head) head.innerHTML = _fleetWallHeadHtml(p);
+      const cap = card.querySelector('.fleet-wall-feed-cap');
+      if (cap) cap.outerHTML = _fleetWallFeedCapHtml(p);
       const body = card.querySelector('.fleet-wall-card-body');
       if (body) body.innerHTML = _fleetWallCardBody(p);
       const feed = card.querySelector('[data-fleet-feed]');
-      const hasImg = !!feed?.querySelector('img[data-camera-id]');
+      const media = feed?.querySelector('.fleet-wall-feed-media');
+      const hasImg = !!media?.querySelector('img[data-camera-id]');
       const shouldImg = !!_fleetWallCameraSrc(p.id) && p.state !== 'offline';
-      if (feed && hasImg !== shouldImg) feed.innerHTML = _fleetWallFeedHtml(p);
+      if (feed && hasImg !== shouldImg) _fleetWallRefreshFeedMedia(feed, p);
     });
   }
 

@@ -5,7 +5,7 @@ Latest GitHub/Pi state:
 - Latest commit: `0634999` — Fleet Wall polish
 - Pi repo: /home/flightdeck/flightdeck
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=588 / style.css?v=457
+- Refresh cachebust currently: app.js?v=589 / style.css?v=458
 - Pi deploy: `cd /home/flightdeck/flightdeck && git pull && sudo systemctl restart flightdeck.service`
 - Pi SSH: `ssh -i C:\Users\Kidabah\.ssh\flightdeck_cursor -o IdentitiesOnly=yes flightdeck@100.106.112.104`
 
@@ -27,6 +27,15 @@ Latest GitHub/Pi state:
 - Printer tiles get stronger state borders, hover lift, and blue camera-frame glow when active.
 - Progress bar pops more on live prints; per-printer "all clear" warnings use green check banner.
 - Static cache `app.js?v=588` / `style.css?v=457`; hard refresh required.
+
+### 2026-06-30 polish (Fleet Wall subtle name overlay)
+
+**Move printer label onto camera feed instead of header band** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Removed the chunky top banner (icon, bold name, Bambu kind pill).
+- Name + model now sit on a soft bottom gradient over the feed — security-cam style.
+- Warning flags stay as small pills on the overlay when needed.
+- Static cache `app.js?v=589` / `style.css?v=458`; hard refresh required.
 
 ### 2026-06-29 feature (MakerWorld import missing only)
 
