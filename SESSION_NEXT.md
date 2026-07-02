@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — MakerWorld hero + import briefing polish
+- Latest commit: `986fece` — MakerWorld hero + import briefing polish
 - Refresh cachebust currently: app.js?v=599 / style.css?v=466
 
 ### 2026-07-02 polish (MakerWorld hero + briefing)
