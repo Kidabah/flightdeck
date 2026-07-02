@@ -7859,6 +7859,62 @@ async def get_print_timelapse(printer_id: str, print_id: int):
     )
 
 
+@app.get("/api/printers/{printer_id}/prints/{print_id}/timelapse/debug")
+async def debug_print_timelapse(printer_id: str, print_id: int):
+    _assert_printer(printer_id)
+    item = db.get_print_by_id(print_id)
+    if not item or item.get("printer_id") != printer_id:
+        raise HTTPException(status_code=404, detail="print not found")
+
+    statuses = await _printer_status_map()
+    status = statuses.get(printer_id) or {}
+    mqtt_hint = str(status.get("_last_timelapse_path") or "")
+    ftp_hint_paths = _bambu_ftp_paths_from_mqtt_timelapse(mqtt_hint)
+
+    local_candidates = _list_local_recorder_candidates()
+    local_best = _pick_timelapse_candidate(item, local_candidates)
+
+    bambu_candidates: list[dict] = []
+    bambu_best = None
+    bambu_error = None
+    bambu = _find_bambu(printer_id)
+    if bambu:
+        try:
+            bambu_candidates = await _list_bambu_recorder_candidates(bambu)
+            bambu_best = _pick_timelapse_candidate(item, bambu_candidates)
+        except Exception as exc:
+            bambu_error = str(exc)
+
+    def summarise(candidate: dict) -> dict:
+        return {
+            "name": candidate.get("name"),
+            "path": candidate.get("path"),
+            "source": candidate.get("source"),
+            "size": candidate.get("size"),
+            "modified": candidate.get("modified"),
+            "score": candidate.get("_score"),
+        }
+
+    return {
+        "print_id": print_id,
+        "printer_id": printer_id,
+        "has_timelapse": bool(item.get("has_timelapse")),
+        "timelapse_path": item.get("timelapse_path"),
+        "timelapse_source": item.get("timelapse_source"),
+        "printer_state": status.get("state"),
+        "last_finished_print_id": status.get("_last_finished_print_id"),
+        "mqtt_timelapse_hint": mqtt_hint or None,
+        "mqtt_ftp_hint_paths": ftp_hint_paths,
+        "local_candidate_count": len(local_candidates),
+        "local_best": summarise(local_best) if local_best else None,
+        "local_samples": [summarise(c) for c in local_candidates[:8]],
+        "bambu_candidate_count": len(bambu_candidates),
+        "bambu_best": summarise(bambu_best) if bambu_best else None,
+        "bambu_samples": [summarise(c) for c in bambu_candidates[:8]],
+        "bambu_error": bambu_error,
+    }
+
+
 @app.post("/api/printers/{printer_id}/prints/{print_id}/timelapse")
 async def upload_print_timelapse(printer_id: str, print_id: int, file: UploadFile = File(...)):
     _assert_printer(printer_id)

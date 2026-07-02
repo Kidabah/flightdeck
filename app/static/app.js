@@ -6539,6 +6539,10 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
   const recorderUrl = print.has_timelapse
     ? _mediaUrl(`/api/printers/${printerId}/prints/${print.id}/timelapse`, print.filename || 'Flight Recorder')
     : '';
+  const recorderDebugHtml = print.id ? `<details class="flight-recorder-debug" data-print-id="${print.id}" data-printer-id="${printerId}">
+    <summary>Recorder debug</summary>
+    <div class="flight-recorder-debug-body"><span class="decision-empty">Open to inspect timelapse hints and candidate clips.</span></div>
+  </details>` : '';
   const recorderHtml = print.id ? `<div class="flight-recorder-block" data-print-id="${print.id}" data-printer-id="${printerId}">
     <div class="flight-recorder-head">
       <div>
@@ -6556,6 +6560,7 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
     ${print.has_timelapse
       ? `<video class="flight-recorder-video" src="${recorderUrl}" controls preload="metadata"></video>`
       : `<div class="flight-recorder-empty">No recorder clip attached yet.</div>`}
+    ${recorderDebugHtml}
   </div>` : '';
 
   const decisionHtml = print.id
@@ -6701,6 +6706,52 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
         showToast(`Recorder search failed: ${err.message || err}`, 'error');
         discoverBtn.disabled = false;
         discoverBtn.textContent = originalText || 'Find clip';
+      }
+    });
+
+    const debugPanel = recorderBlock.querySelector('.flight-recorder-debug');
+    debugPanel?.addEventListener('toggle', async () => {
+      if (!debugPanel.open || debugPanel.dataset.loaded === 'true' || debugPanel.dataset.loading === 'true') return;
+      const body = debugPanel.querySelector('.flight-recorder-debug-body');
+      if (!body) return;
+      debugPanel.dataset.loading = 'true';
+      body.innerHTML = '<span class="decision-empty">Loading recorder debug…</span>';
+      try {
+        const r = await fetch(`/api/printers/${printerId}/prints/${print.id}/timelapse/debug`);
+        const raw = await r.text();
+        let info = {};
+        try { info = raw ? JSON.parse(raw) : {}; } catch { info = { detail: raw }; }
+        if (!r.ok) throw new Error(info.detail || 'Unable to load recorder debug');
+        const sampleHtml = (items) => (items || []).length
+          ? `<div class="flight-recorder-debug-list">${items.map(item => `
+              <div class="flight-recorder-debug-row">
+                <strong>${esc(item.path || item.name || 'unknown')}</strong>
+                <span>${esc(item.source || 'candidate')}${item.score != null ? ` · score ${Number(item.score).toFixed(1)}` : ''}${item.size ? ` · ${Math.round(Number(item.size) / (1024 * 1024) * 10) / 10} MB` : ''}</span>
+              </div>`).join('')}</div>`
+          : '<span class="decision-empty">No candidates listed.</span>';
+        body.innerHTML = `
+          <div class="flight-recorder-debug-grid">
+            <div><strong>Printer state</strong><span>${esc(info.printer_state || 'unknown')}</span></div>
+            <div><strong>Last finished print</strong><span>${esc(info.last_finished_print_id ?? 'none')}</span></div>
+            <div><strong>MQTT timelapse hint</strong><span>${esc(info.mqtt_timelapse_hint || 'none')}</span></div>
+            <div><strong>Suggested FTP paths</strong><span>${esc((info.mqtt_ftp_hint_paths || []).join(', ') || 'none')}</span></div>
+            <div><strong>Local best</strong><span>${esc(info.local_best?.path || 'none')}</span></div>
+            <div><strong>Bambu best</strong><span>${esc(info.bambu_best?.path || 'none')}</span></div>
+          </div>
+          <div class="flight-recorder-debug-section">
+            <strong>Local samples (${Number(info.local_candidate_count || 0)})</strong>
+            ${sampleHtml(info.local_samples)}
+          </div>
+          <div class="flight-recorder-debug-section">
+            <strong>Bambu samples (${Number(info.bambu_candidate_count || 0)})</strong>
+            ${sampleHtml(info.bambu_samples)}
+            ${info.bambu_error ? `<div class="flight-recorder-debug-error">${esc(info.bambu_error)}</div>` : ''}
+          </div>`;
+        debugPanel.dataset.loaded = 'true';
+      } catch (err) {
+        body.innerHTML = `<div class="flight-recorder-debug-error">${esc(err.message || String(err))}</div>`;
+      } finally {
+        delete debugPanel.dataset.loading;
       }
     });
   }

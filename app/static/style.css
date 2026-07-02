@@ -10790,6 +10790,73 @@ button.live-route-node:hover {
   cursor: pointer;
 }
 
+.flight-recorder-debug {
+  margin-top: 0.65rem;
+  border-top: 1px solid rgba(96, 165, 250, 0.16);
+  padding-top: 0.55rem;
+}
+
+.flight-recorder-debug summary {
+  cursor: pointer;
+  color: #bfdbfe;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.flight-recorder-debug-body {
+  margin-top: 0.45rem;
+}
+
+.flight-recorder-debug-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem 0.65rem;
+  margin-bottom: 0.6rem;
+}
+
+.flight-recorder-debug-grid div {
+  min-width: 0;
+}
+
+.flight-recorder-debug-grid strong,
+.flight-recorder-debug-section strong {
+  display: block;
+  color: var(--text);
+  font-size: 0.68rem;
+}
+
+.flight-recorder-debug-grid span,
+.flight-recorder-debug-row span {
+  display: block;
+  margin-top: 0.12rem;
+  color: var(--muted);
+  font-size: 0.68rem;
+  word-break: break-word;
+}
+
+.flight-recorder-debug-section + .flight-recorder-debug-section {
+  margin-top: 0.55rem;
+}
+
+.flight-recorder-debug-list {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.28rem;
+}
+
+.flight-recorder-debug-row {
+  padding: 0.4rem 0.45rem;
+  border: 1px solid rgba(96, 165, 250, 0.14);
+  border-radius: 0.35rem;
+  background: rgba(15, 23, 42, 0.22);
+}
+
+.flight-recorder-debug-error {
+  margin-top: 0.4rem;
+  color: #fca5a5;
+  font-size: 0.7rem;
+}
+
 .print-notes-block {
   margin-top: 0.75rem;
   border-top: 1px solid var(--border);
