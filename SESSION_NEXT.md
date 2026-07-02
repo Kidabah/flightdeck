@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: _(pending)_ — Dashboard polish hero + briefing
+- Latest commit: `e218a3d` — Dashboard polish hero + briefing
 - Pi repo: /home/flightdeck/flightdeck
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=587 / style.css?v=456
