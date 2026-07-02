@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — Telemetry shop telemetry glow-up
+- Latest commit: `5a35c26` — Telemetry shop telemetry glow-up
 - Pi repo: /home/flightdeck/flightdeck
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=592 / style.css?v=461
