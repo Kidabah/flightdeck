@@ -1189,6 +1189,9 @@ class BambuPrinter:
                 # H-series nozzle IDs are 0=left, 1=right. H2D regular AMS
                 # feeds the left path, while AMS HT feeds the right path.
                 nozzle = 1 if unit_id >= 128 else 0
+            if nozzle is None and self.model_name.upper() == "H2C":
+                # H2C regular AMS feeds the right toolhead path; AMS HT feeds left.
+                nozzle = 0 if unit_id >= 128 else 1
             for slot in unit.get("slots") or []:
                 if slot.get("empty"):
                     continue
@@ -1325,10 +1328,17 @@ def _parse_h_series_nozzles(print_data: dict, model_name: str) -> list[dict]:
         usage_raw = _safe_int(raw.get("p_t"))
 
         if nozzle_id in (0, 1):
-            # Bambu's H-series hotend rack payload reports the physical nozzle
-            # ids opposite to the temperature/extruder payload used elsewhere.
-            position = "left" if nozzle_id == 0 else "right"
-            label = "Left nozzle" if nozzle_id == 0 else "Right nozzle"
+            # H2D uses the opposite toolhead-id sense from extruder temps (0=left).
+            # H2C aligns MQTT toolhead ids with extruder ids: 0=right, 1=left.
+            model_key = str(model_name or "").upper()
+            if model_key == "H2C":
+                position = "right" if nozzle_id == 0 else "left"
+                label = "Right nozzle" if nozzle_id == 0 else "Left nozzle"
+                flightdeck_nozzle = 1 if nozzle_id == 0 else 0
+            else:
+                position = "left" if nozzle_id == 0 else "right"
+                label = "Left nozzle" if nozzle_id == 0 else "Right nozzle"
+                flightdeck_nozzle = nozzle_id
             zone = "toolhead"
             slot = nozzle_id
         elif nozzle_id >= 16:
@@ -1360,6 +1370,7 @@ def _parse_h_series_nozzles(print_data: dict, model_name: str) -> list[dict]:
             "color": colour,
             "filament_id": filament_id,
             "wear": _safe_int(raw.get("wear")),
+            **({"nozzle": flightdeck_nozzle} if zone == "toolhead" else {}),
         })
 
     return sorted(tools, key=lambda item: (0 if item.get("zone") == "toolhead" else 1, item.get("idx") or 0))
@@ -2106,6 +2117,9 @@ def _parse_ams(
             # H-series nozzle IDs are 0=left, 1=right. H2D regular AMS feeds
             # the left path, while AMS HT feeds the right path.
             nozzle = 1 if unit_id >= 128 else 0
+        if nozzle is None and model_key == "H2C":
+            # H2C regular AMS feeds the right toolhead path; AMS HT feeds left.
+            nozzle = 0 if unit_id >= 128 else 1
         dry_setting = unit_data.get("dry_setting") or {}
         dry_time = _safe_int(unit_data.get("dry_time"))
         unit_temp = _safe_float(

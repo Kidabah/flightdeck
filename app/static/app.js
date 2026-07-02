@@ -4665,6 +4665,16 @@ function _activeNozzleIndex(p) {
   const nozzles = _h2dNozzleActivity(p);
   if (nozzles.left && !nozzles.right) return 0;
   if (nozzles.right && !nozzles.left) return 1;
+  if (_isH2CPrinter(p)) {
+    const loaded = _asList(p.toolheads).find(tool => tool?.zone === 'toolhead' && tool.loaded && tool.present);
+    if (loaded) {
+      const nozzle = Number(loaded.nozzle);
+      if (nozzle === 0 || nozzle === 1) return nozzle;
+      const pos = String(loaded.position || '').toLowerCase();
+      if (pos === 'left') return 0;
+      if (pos === 'right') return 1;
+    }
+  }
   return null;
 }
 

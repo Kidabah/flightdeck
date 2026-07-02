@@ -2,12 +2,22 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `3453191` — Live View hover header + H2C nozzle route fix
+- Latest commit: (pending) — H2C toolhead nozzle mapping fix
 - Pi repo: /home/flightdeck/flightdeck
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=594 / style.css?v=463
+- Refresh cachebust currently: app.js?v=595 / style.css?v=463
 - Pi deploy: `cd /home/flightdeck/flightdeck && git pull && sudo systemctl restart flightdeck.service`
 - Pi SSH: `ssh -i C:\Users\Kidabah\.ssh\flightdeck_cursor -o IdentitiesOnly=yes flightdeck@100.106.112.104`
+
+### 2026-07-02 fix (H2C rack toolhead side)
+
+**H2C toolhead ids align with extruder path, not H2D-inverted mapping** (`app/printers/bambu.py`, `app/static/app.js`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Live MQTT on Big Girl puts the mounted hotend on toolhead id `0`, which is the right path (extruder 0 / `hotend_r`), not left.
+- H2C parser now maps id `0` → Right, id `1` → Left; adds Flightdeck `nozzle` index on toolheads for route code.
+- H2C AMS fallback: regular AMS → right nozzle, AMS HT → left (opposite of H2D layout).
+- Idle route label uses loaded toolhead when neither side is actively heating.
+- Static cache `app.js?v=595`; **backend restart required** on Pi.
 
 ### 2026-07-02 polish (Live View hover header + H2C route)
 
