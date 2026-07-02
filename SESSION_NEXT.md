@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — bench order uses Big Girl id o1c2
+- Latest commit: `1569c0a` — bench order uses Big Girl id o1c2
 - Refresh cachebust currently: app.js?v=617 / style.css?v=477
 
 ### 2026-07-02 fix (bench order — Big Girl printer id)
