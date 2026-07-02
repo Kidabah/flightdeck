@@ -6205,6 +6205,45 @@ button.briefing-row {
   display: block;
 }
 
+.camera-rec-indicator {
+  position: absolute;
+  top: 0.65rem;
+  left: 0.65rem;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  padding: 0.22rem 0.5rem 0.22rem 0.42rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  user-select: none;
+}
+
+.camera-rec-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: #ef4444;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.25);
+  animation: camera-rec-pulse 1.1s ease-in-out infinite;
+}
+
+.camera-rec-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #fecaca;
+  line-height: 1;
+}
+
+@keyframes camera-rec-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.88); }
+}
+
 .camera-signal {
   position: absolute;
   right: 0.55rem;

@@ -4227,17 +4227,36 @@ function _detailLiveHeader(p, printerColor, bannerTextColor) {
   </div>`;
 }
 
+function _isTimelapseRecording(p) {
+  return p?.kind === 'bambu'
+    && p?.timelapse_state === 'enable'
+    && ['printing', 'paused'].includes(String(p?.state || ''));
+}
+
+function _detailTimelapseRecOverlay(p) {
+  if (!_isTimelapseRecording(p)) return '';
+  return `<div class="camera-rec-indicator" aria-label="Timelapse recording">
+    <span class="camera-rec-dot" aria-hidden="true"></span>
+    <span class="camera-rec-label">REC</span>
+  </div>`;
+}
+
+function _detailCameraHeroInner(id, p, camSrc, printerColor, bannerTextColor) {
+  return `${_detailTimelapseRecOverlay(p)}<div class="live-hover-header" id="detail-live-head">${_detailLiveHeader(p, printerColor, bannerTextColor)}</div>${_detailCameraContent(id, p, camSrc)}<div class="camera-hud" id="detail-camera-hud">${_detailCameraHud(p)}</div>`;
+}
+
+function _syncTimelapseRecOverlay(heroEl, p) {
+  if (!heroEl) return;
+  const existing = heroEl.querySelector('.camera-rec-indicator');
+  if (_isTimelapseRecording(p)) {
+    if (!existing) heroEl.insertAdjacentHTML('afterbegin', _detailTimelapseRecOverlay(p));
+  } else if (existing) {
+    existing.remove();
+  }
+}
+
 function _detailLiveSignals(p) {
   const signals = [];
-  if (p.kind === 'bambu' && p.timelapse_state) {
-    signals.push({
-      cls: p.timelapse_state === 'enable' ? 'ok' : 'info',
-      label: p.timelapse_state === 'enable' ? 'Timelapse on' : 'Timelapse off',
-      title: p.timelapse_state === 'enable'
-        ? 'Printer timelapse capture is enabled'
-        : 'Printer timelapse capture is disabled',
-    });
-  }
   if (p.state === 'estop') signals.push({ cls: 'danger', label: 'E-stop active' });
   else if (p.state === 'error') signals.push({ cls: 'danger', label: p.error || 'Printer fault' });
   else if (p.state === 'paused') signals.push({ cls: 'warn', label: p.error || 'Print paused' });
@@ -8420,9 +8439,7 @@ async function renderPrinterDetail(id, subtab = 'live') {
 
     try {
       const camSrc = _cameraStreamSrc(id);
-      const camHtml = _detailCameraContent(id, p, camSrc);
       const opsDrawer = _detailLiveOpsDrawer(p);
-
       const printerColor = _printerColor(id);
       const bannerTextColor = p.icon === 'bambu' ? '#22c55e' : p.icon === 'voron' ? '#ef4444' : 'var(--text)';
       el.innerHTML =
@@ -8432,9 +8449,7 @@ async function renderPrinterDetail(id, subtab = 'live') {
             <div class="live-main-deck ${opsDrawer ? 'has-live-ops' : ''}">
               ${opsDrawer}
               <div class="camera-hero">
-                <div class="live-hover-header" id="detail-live-head">${_detailLiveHeader(p, printerColor, bannerTextColor)}</div>
-                ${camHtml}
-                <div class="camera-hud" id="detail-camera-hud">${_detailCameraHud(p)}</div>
+                ${_detailCameraHeroInner(id, p, camSrc, printerColor, bannerTextColor)}
               </div>
             </div>
             <div class="live-strip" id="detail-live-strip">${_detailLiveStrip(p)}</div>
@@ -8506,17 +8521,14 @@ async function renderPrinterDetail(id, subtab = 'live') {
     const shouldShowImg = !!camSrc && p.state !== 'offline';
     const hasImg = !!camImg;
     if (heroEl && shouldShowImg !== hasImg) {
-      const headEl = el.querySelector('#detail-live-head');
-      const headOuter = headEl
-        ? headEl.outerHTML
-        : `<div class="live-hover-header" id="detail-live-head">${_detailLiveHeader(p, printerColor, bannerTextColor)}</div>`;
-      heroEl.innerHTML = `${headOuter}${_detailCameraContent(id, p, camSrc)}<div class="camera-hud" id="detail-camera-hud">${_detailCameraHud(p)}</div>`;
+      heroEl.innerHTML = _detailCameraHeroInner(id, p, camSrc, printerColor, bannerTextColor);
       _attachCameraRetries(el);
     } else if (camImg?.dataset.stopped && camSrc && p.state !== 'offline') {
       delete camImg.dataset.stopped;
       camImg.src = camSrc;
     }
 
+    _syncTimelapseRecOverlay(heroEl, p);
     const headEl = el.querySelector('#detail-live-head');
     if (headEl) headEl.innerHTML = _detailLiveHeader(p, printerColor, bannerTextColor);
     const opsHtml = _detailLiveOps(p);

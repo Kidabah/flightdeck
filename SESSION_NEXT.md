@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `6843996` — Flight Recorder debug + live timelapse badge
-- Refresh cachebust currently: app.js?v=603 / style.css?v=469
+- Latest commit: (pending) — timelapse matcher + visible REC overlay
+- Refresh cachebust currently: app.js?v=604 / style.css?v=470
+
+### 2026-07-02 fix (timelapse matcher + Live REC indicator)
+
+**Bambu timelapse discovery by filename time + always-visible REC overlay** (`app/main.py`, `app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Flight Recorder discovery now parses Bambu `video_YYYY-MM-DD_HH-MM-SS` / `ipcam-record.*` filenames when FTP modified time is missing, scores by proximity to print end and whether the clip falls inside the print window, and strongly prefers `timelapse/` over `ipcam/` chunk files.
+- Live camera view shows a top-left flashing red dot + **REC** badge whenever Bambu timelapse is enabled and the printer is printing or paused (removed the hidden-header timelapse chip).
+- Static cache `app.js?v=604` / `style.css?v=470`; **backend/service restart required** for matcher changes, hard refresh for REC overlay.
 
 ### 2026-07-02 debug (Flight Recorder inspector + Live timelapse badge)
 

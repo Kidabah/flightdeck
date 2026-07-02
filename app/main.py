@@ -7454,6 +7454,28 @@ def _normalise_timelapse_key(value: str) -> str:
     return text
 
 
+_TIMELAPSE_FILENAME_TS = re.compile(
+    r"(?:video|ipcam-record)[._](?P<date>\d{4}-\d{2}-\d{2})[_-](?P<hour>\d{2})[-:](?P<minute>\d{2})[-:](?P<second>\d{2})",
+    re.IGNORECASE,
+)
+
+
+def _parse_timelapse_filename_time(value: str) -> Optional[datetime]:
+    """Parse Bambu-style recorder filenames like video_2026-07-02_07-18-05.mp4."""
+    text = str(value or "")
+    match = _TIMELAPSE_FILENAME_TS.search(text)
+    if not match:
+        return None
+    try:
+        dt = datetime.strptime(
+            f"{match.group('date')} {match.group('hour')}:{match.group('minute')}:{match.group('second')}",
+            "%Y-%m-%d %H:%M:%S",
+        )
+        return dt.replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
 def _parse_timelapse_modified(value) -> Optional[datetime]:
     if value is None:
         return None
@@ -7476,6 +7498,14 @@ def _parse_timelapse_modified(value) -> Optional[datetime]:
         return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
     except ValueError:
         return None
+
+
+def _timelapse_candidate_time(candidate: dict) -> Optional[datetime]:
+    modified = _parse_timelapse_modified(candidate.get("modified"))
+    if modified:
+        return modified
+    name = str(candidate.get("name") or candidate.get("path") or "")
+    return _parse_timelapse_filename_time(name)
 
 
 def _print_time_window(item: dict) -> tuple[Optional[datetime], Optional[datetime]]:
@@ -7503,14 +7533,27 @@ def _timelapse_candidate_score(item: dict, candidate: dict) -> float:
         score += 100
 
     started, ended = _print_time_window(item)
-    modified = _parse_timelapse_modified(candidate.get("modified"))
+    modified = _timelapse_candidate_time(candidate)
     if modified and (started or ended):
-        if ended:
-            delta = abs((modified - ended).total_seconds())
-            if delta <= 6 * 3600:
-                score += max(0.0, 60.0 - (delta / 360.0))
+        anchor = ended or started
+        if anchor:
+            delta = (modified - anchor).total_seconds()
+            abs_delta = abs(delta)
+            # Bambu timelapses usually land near print end; allow a short pre-end window too.
+            if -20 * 60 <= delta <= 6 * 3600:
+                score += max(0.0, 95.0 - (abs_delta / 120.0))
+            elif abs_delta <= 8 * 3600:
+                score += max(0.0, 35.0 - (abs_delta / 900.0))
         if started and modified >= started - timedelta(minutes=10):
-            score += 15
+            score += 10
+        if started and ended and started - timedelta(minutes=10) <= modified <= ended + timedelta(hours=2):
+            score += 45
+
+    path = str(candidate.get("path") or candidate.get("name") or "").lower().replace("\\", "/")
+    if path.startswith("timelapse/") or "/timelapse/" in path:
+        score += 45
+    elif path.startswith("ipcam/") or "/ipcam/" in path or "ipcam-record" in path:
+        score -= 40
 
     size = candidate.get("size")
     if score > 0 and isinstance(size, int) and size > 0:
