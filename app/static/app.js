@@ -4241,15 +4241,24 @@ function _detailTimelapseRecOverlay(p) {
   </div>`;
 }
 
+function _detailCameraBottomStatus(id) {
+  return `<div class="camera-bottom-status" id="detail-camera-status" data-camera-status-for="${esc(id)}"></div>`;
+}
+
 function _detailCameraHeroInner(id, p, camSrc, printerColor, bannerTextColor) {
-  return `${_detailTimelapseRecOverlay(p)}<div class="live-hover-header" id="detail-live-head">${_detailLiveHeader(p, printerColor, bannerTextColor)}</div>${_detailCameraContent(id, p, camSrc)}<div class="camera-hud" id="detail-camera-hud">${_detailCameraHud(p)}</div>`;
+  return `<div class="live-hover-header" id="detail-live-head">${_detailLiveHeader(p, printerColor, bannerTextColor)}</div>${_detailCameraContent(id, p, camSrc)}<div class="camera-hud" id="detail-camera-hud">${_detailCameraHud(p)}</div>${_detailCameraBottomStatus(id)}`;
+}
+
+function _cameraStatusBarFor(img) {
+  return img?.parentElement?.querySelector('#detail-camera-status') || img?.parentElement || null;
 }
 
 function _syncTimelapseRecOverlay(heroEl, p) {
-  if (!heroEl) return;
-  const existing = heroEl.querySelector('.camera-rec-indicator');
+  const statusBar = heroEl?.querySelector('#detail-camera-status');
+  if (!statusBar) return;
+  const existing = statusBar.querySelector('.camera-rec-indicator');
   if (_isTimelapseRecording(p)) {
-    if (!existing) heroEl.insertAdjacentHTML('afterbegin', _detailTimelapseRecOverlay(p));
+    if (!existing) statusBar.insertAdjacentHTML('afterbegin', _detailTimelapseRecOverlay(p));
   } else if (existing) {
     existing.remove();
   }
@@ -8468,6 +8477,7 @@ async function renderPrinterDetail(id, subtab = 'live') {
       return;
     }
     _attachCameraRetries(el);
+    _syncTimelapseRecOverlay(el.querySelector('.camera-hero'), p);
 
     // Click cycles — desktop: normal→wide→fullscreen→normal; mobile: normal↔fullscreen
     _camZoom = 0;
@@ -11451,13 +11461,14 @@ function _cameraSignalText(img, state) {
 }
 
 function _ensureCameraSignal(img) {
-  if (!img?.parentElement) return null;
-  let signal = img.parentElement.querySelector(':scope > .camera-signal');
+  const parent = _cameraStatusBarFor(img);
+  if (!parent) return null;
+  let signal = parent.querySelector(':scope > .camera-signal');
   if (!signal) {
     signal = document.createElement('span');
     signal.className = 'camera-signal';
     signal.setAttribute('aria-live', 'polite');
-    img.parentElement.appendChild(signal);
+    parent.appendChild(signal);
   }
   return signal;
 }

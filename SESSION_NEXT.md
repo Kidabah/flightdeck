@@ -2,10 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `3434bc6` — timelapse matcher + visible REC overlay
-- Refresh cachebust currently: app.js?v=604 / style.css?v=470
+- Latest commit: (pending) — Live header/controls overlap + REC beside stream badge
+- Refresh cachebust currently: app.js?v=605 / style.css?v=471
 
-### 2026-07-02 fix (timelapse matcher + Live REC indicator)
+### 2026-07-02 polish (Live controls click-through + REC placement)
+
+**Keep Controls clickable and move REC beside Stream live** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Live hover header no longer steals clicks from the Controls button: header shell uses `pointer-events: none`, the panel itself stays interactive, Controls sits above at `z-index: 12`, and the header inset clears the button when the ops drawer is present.
+- REC timelapse badge moved to the bottom-right beside the existing **Stream live** camera signal chip (shared `camera-bottom-status` bar).
+- Static cache `app.js?v=605` / `style.css?v=471`; hard refresh only (no backend restart).
+
 
 **Bambu timelapse discovery by filename time + always-visible REC overlay** (`app/main.py`, `app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
 
