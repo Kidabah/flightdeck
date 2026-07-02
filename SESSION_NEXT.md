@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — fix Live view signals crash
+- Latest commit: `46f0e99` — fix Live view signals crash
 - Refresh cachebust currently: app.js?v=609 / style.css?v=475
 
 ### 2026-07-02 polish (compact Live toolbar)
