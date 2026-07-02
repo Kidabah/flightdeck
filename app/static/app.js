@@ -11803,6 +11803,15 @@ function _statsMonthRows(rows) {
   </div>`;
 }
 
+function _statsPrinterStateClass(state) {
+  const s = String(state || '').toLowerCase();
+  if (s === 'printing') return 'printing';
+  if (s === 'paused') return 'paused';
+  if (s === 'offline') return 'offline';
+  if (s === 'error' || s === 'estop') return 'fault';
+  return 'idle';
+}
+
 function _statsPrinterRows(printers, filamentSummary, failureSummary, allSpools = [], usageSummary = []) {
   const byPrinter = Object.fromEntries((filamentSummary.by_printer || []).map(r => [r.printer_id, r.grams]));
   const failures = Object.fromEntries((failureSummary.by_printer || []).map(r => [r.key, r.count]));
@@ -11813,7 +11822,7 @@ function _statsPrinterRows(printers, filamentSummary, failureSummary, allSpools 
     const loadedG = loaded.reduce((sum, s) => sum + Number(s.remaining_g || 0), 0);
     const u = usage[p.id] || {};
     const hours = Number(u.total_seconds || 0) / 3600;
-    return `<a class="stats-printer-row" href="#/printer/${p.id}">
+    return `<a class="stats-printer-row stats-printer-row-${_statsPrinterStateClass(p.state)}" href="#/printer/${p.id}">
       <div>
         <strong>${esc(_dashboardPrinterName(p))}</strong>
         <span>${esc(p.custom_name || '')}</span>
@@ -11974,17 +11983,155 @@ function _statsRhDetail(readings) {
   </section>`;
 }
 
-function _statsActionSummary(jobs, printers) {
-  const pending = jobs.filter(j => j.status === 'pending').length;
-  const blocked = jobs.filter(j => _missionJobReadiness(j).cls === 'blocked').length;
-  const active = printers.filter(p => p.state === 'printing' || p.state === 'paused').length;
-  const offline = printers.filter(p => p.state === 'offline').length;
-  const cls = blocked || offline ? 'stats-pulse-bad' : pending || active ? 'stats-pulse-watch' : 'stats-pulse-ok';
-  const label = blocked ? `${blocked} blocked` : offline ? `${offline} offline` : pending ? `${pending} queued` : active ? `${active} active` : 'clear';
-  return `<div class="stats-pulse ${cls}">
-    <span>Operator pulse</span>
-    <strong>${esc(label)}</strong>
-  </div>`;
+function _telemetryHeroStatusLine(printers, rhReadings, instance, failures, spools) {
+  const snap = _dashboardFleetSnapshot(printers);
+  const maxRh = rhReadings.length ? Math.max(...rhReadings.map(r => r.rh)) : null;
+  const badRh = rhReadings.filter(r => _statsRhClass(r.rh) === 'bad').length;
+  const warnRh = rhReadings.filter(r => _statsRhClass(r.rh) === 'warn').length;
+  const loadPct = Number(instance?.host?.load?.pct);
+  const memoryPct = Number(instance?.host?.memory?.pct);
+  const diskPct = Number(instance?.host?.disk?.pct);
+  const lowStock = Number(spools?.low_stock_count || 0);
+
+  if (badRh) {
+    return `${badRh} AMS sensor${badRh === 1 ? '' : 's'} above drying threshold — humidity needs attention`;
+  }
+  if (loadPct >= 90 || memoryPct >= 88 || diskPct >= 90) {
+    return 'Flightdeck host is under pressure — check system health below';
+  }
+  if (warnRh) {
+    return `Moisture rising on ${warnRh} bay${warnRh === 1 ? '' : 's'} · max ${Math.round(maxRh)}% RH`;
+  }
+  if (lowStock) {
+    return `${lowStock} spool${lowStock === 1 ? '' : 's'} below low-stock threshold — inventory watch`;
+  }
+  if (failures?.total) {
+    return `${failures.total} failure review${failures.total === 1 ? '' : 's'} in the last 30 days`;
+  }
+  if (snap.active) {
+    return `${snap.active} print${snap.active === 1 ? '' : 's'} active · long-view metrics updating live`;
+  }
+  if (snap.offline) {
+    return `${snap.offline} offline · utilisation and RH still tracking for the rest of the fleet`;
+  }
+  return 'Long view looks healthy — filament, utilisation, RH, and host metrics are steady';
+}
+
+function _renderTelemetryHero(printers, rhReadings, instance, failures, spools, filament, active) {
+  const avgRh = rhReadings.length
+    ? Math.round(rhReadings.reduce((sum, r) => sum + r.rh, 0) / rhReadings.length)
+    : null;
+  const maxRh = rhReadings.length ? Math.max(...rhReadings.map(r => r.rh)) : null;
+  const rhTone = maxRh == null ? 'muted' : maxRh >= 45 ? 'warn' : maxRh >= 35 ? 'watch' : '';
+  const failureTone = failures?.total ? 'warn' : '';
+  const hostLoad = Number(instance?.host?.load?.pct);
+  const hostMem = Number(instance?.host?.memory?.pct);
+  const hostTone = (hostLoad >= 90 || hostMem >= 88) ? 'warn' : '';
+
+  return `<section class="telemetry-hero" aria-label="Telemetry snapshot">
+    <div class="telemetry-hero-copy">
+      <span class="telemetry-hero-eyebrow">Fleet telemetry</span>
+      <h1 class="telemetry-hero-title">Shop telemetry</h1>
+      <p class="telemetry-hero-status">${esc(_telemetryHeroStatusLine(printers, rhReadings, instance, failures, spools))}</p>
+    </div>
+    <div class="telemetry-hero-metrics" aria-label="Telemetry summary">
+      <div class="telemetry-hero-metric telemetry-hero-metric-active">
+        <strong>${active}</strong>
+        <span>Active</span>
+      </div>
+      <div class="telemetry-hero-metric${rhTone ? ` telemetry-hero-metric-${rhTone}` : ''}">
+        <strong>${avgRh != null ? `${avgRh}%` : '--'}</strong>
+        <span>Avg RH</span>
+      </div>
+      <div class="telemetry-hero-metric">
+        <strong>${_fmtGrams(filament.total_grams || 0)}</strong>
+        <span>Logged</span>
+      </div>
+      <div class="telemetry-hero-metric${failureTone ? ` telemetry-hero-metric-${failureTone}` : ''}">
+        <strong>${failures?.total || 0}</strong>
+        <span>Failures 30d</span>
+      </div>
+      <div class="telemetry-hero-metric${hostTone ? ` telemetry-hero-metric-${hostTone}` : ''}">
+        <strong>${Number.isFinite(hostLoad) ? `${Math.round(hostLoad)}%` : '--'}</strong>
+        <span>Host CPU</span>
+      </div>
+    </div>
+    <div class="telemetry-hero-links">
+      <a href="#/">Dashboard</a>
+      <a href="#/spools">Spools</a>
+      <a href="#/failures?days=30">Failures</a>
+      <a href="#/settings?category=setup">Setup</a>
+    </div>
+  </section>`;
+}
+
+function _renderTelemetryBriefing(printers, rhReadings, instance, spools, failures) {
+  const badRh = rhReadings.filter(r => _statsRhClass(r.rh) === 'bad');
+  const warnRh = rhReadings.filter(r => _statsRhClass(r.rh) === 'warn');
+  const loadPct = Number(instance?.host?.load?.pct);
+  const memoryPct = Number(instance?.host?.memory?.pct);
+  const diskPct = Number(instance?.host?.disk?.pct);
+  const lowStock = Number(spools?.low_stock_count || 0);
+  const hostStressed = loadPct >= 90 || memoryPct >= 88 || diskPct >= 90;
+
+  if (badRh.length) {
+    const top = badRh[0];
+    return `<section class="telemetry-briefing telemetry-briefing-bad" aria-label="Humidity alert">
+      <div class="telemetry-briefing-icon" aria-hidden="true">💧</div>
+      <div class="telemetry-briefing-copy">
+        <strong>Drying suggested</strong>
+        <span>${esc(top.printer)} · ${esc(top.label)} at ${Math.round(top.rh)}% RH${badRh.length > 1 ? ` · +${badRh.length - 1} more` : ''}</span>
+      </div>
+      <div class="telemetry-briefing-links">
+        <a href="#/stats?focus=rh">RH detail</a>
+        <a href="${top.href}">Open printer</a>
+      </div>
+    </section>`;
+  }
+
+  if (hostStressed) {
+    return `<section class="telemetry-briefing telemetry-briefing-warn" aria-label="Host health alert">
+      <div class="telemetry-briefing-icon" aria-hidden="true">⚙</div>
+      <div class="telemetry-briefing-copy">
+        <strong>Host under load</strong>
+        <span>CPU ${Number.isFinite(loadPct) ? `${Math.round(loadPct)}%` : '--'} · memory ${Number.isFinite(memoryPct) ? `${Math.round(memoryPct)}%` : '--'} · disk ${Number.isFinite(diskPct) ? `${Math.round(diskPct)}%` : '--'}</span>
+      </div>
+      <div class="telemetry-briefing-links">
+        <a href="#/settings?category=setup">Setup</a>
+      </div>
+    </section>`;
+  }
+
+  if (warnRh.length || lowStock || failures?.total) {
+    const bits = [];
+    if (warnRh.length) bits.push(`${warnRh.length} AMS moisture watch`);
+    if (lowStock) bits.push(`${lowStock} low-stock spool${lowStock === 1 ? '' : 's'}`);
+    if (failures?.total) bits.push(`${failures.total} failure review${failures.total === 1 ? '' : 's'}`);
+    return `<section class="telemetry-briefing telemetry-briefing-watch" aria-label="Telemetry watch">
+      <div class="telemetry-briefing-icon" aria-hidden="true">◎</div>
+      <div class="telemetry-briefing-copy">
+        <strong>Worth a glance</strong>
+        <span>${esc(bits.join(' · '))}</span>
+      </div>
+      <div class="telemetry-briefing-links">
+        ${warnRh.length ? '<a href="#/stats?focus=rh">RH detail</a>' : ''}
+        ${lowStock ? '<a href="#/spools?filter=low">Low stock</a>' : ''}
+        ${failures?.total ? '<a href="#/failures?days=30">Failures</a>' : ''}
+      </div>
+    </section>`;
+  }
+
+  return `<section class="telemetry-briefing telemetry-briefing-clear" aria-label="Telemetry clear">
+    <div class="telemetry-briefing-icon" aria-hidden="true">✓</div>
+    <div class="telemetry-briefing-copy">
+      <strong>Long view clear</strong>
+      <span>Humidity, inventory pressure, host health, and recent failures all look comfortable.</span>
+    </div>
+    <div class="telemetry-briefing-links">
+      <a href="#/spools">Spools</a>
+      <a href="#/queue">Queue</a>
+    </div>
+  </section>`;
 }
 
 function _statsHealthTone(pct, warn = 70, bad = 85) {
@@ -12025,9 +12172,9 @@ function _statsSystemHealthPanel(instance) {
     : '--';
   const hardware = info.hardware || info.address || 'Flightdeck host';
   const runtime = [info.runtime, info.address].filter(Boolean).join(' · ') || 'local runtime';
-  return `<div class="stats-panel stats-panel-wide stats-system-panel">
+  return `<div class="stats-panel stats-panel-wide stats-system-panel telemetry-system-panel">
     <div class="stats-panel-head"><span>System Health</span><a href="#/settings?category=setup">Setup</a></div>
-    <div class="stats-system-grid">
+    <div class="stats-system-grid telemetry-system-grid">
       ${_statsHealthCard('Host', hardware, runtime, 'ok')}
       ${_statsHealthCard('CPU Load', loadText, Number.isFinite(loadPct) ? `${Math.round(loadPct)}% of ${load.cores || 1} cores` : 'unavailable', _statsHealthTone(loadPct, 65, 90))}
       ${_statsHealthCard('Memory', memoryText, `${_fmtBytes(memory.used)} used · ${_fmtBytes(memory.available)} free`, _statsHealthTone(memoryPct, 72, 88))}
@@ -12047,13 +12194,12 @@ async function renderStatsView() {
   const focus = params.get('focus') || '';
 
   try {
-    const [filament, spools, allSpools, intel, failures, jobs, printerUsage, instance] = await Promise.all([
+    const [filament, spools, allSpools, intel, failures, printerUsage, instance] = await Promise.all([
       fetch('/api/filament/summary').then(r => r.ok ? r.json() : {}),
       fetch('/api/spools/summary').then(r => r.ok ? r.json() : {}),
       fetch('/api/spools').then(r => r.ok ? r.json() : []),
       fetch('/api/spools/intelligence?days=30').then(r => r.ok ? r.json() : {}),
       fetch('/api/failures?days=30').then(r => r.ok ? r.json() : {}),
-      fetch('/api/queue').then(r => r.ok ? r.json() : []),
       fetch('/api/printers/usage').then(r => r.ok ? r.json() : []),
       fetch('/api/instance').then(r => r.ok ? r.json() : (_instanceInfo || {})),
     ]);
@@ -12061,7 +12207,6 @@ async function renderStatsView() {
 
     const printers = _latestPrinters || [];
     const states = _statsStateCounts(printers);
-    const totalPrints30 = (failures.summary?.by_printer || []).reduce((sum, r) => sum + Number(r.count || 0), 0);
     const spoolAlerts = intel.alerts || [];
     const topSpools = intel.by_spool || [];
     const active = printers.filter(p => p.state === 'printing' || p.state === 'paused').length;
@@ -12071,17 +12216,15 @@ async function renderStatsView() {
       : null;
     const maxRh = rhReadings.length ? Math.max(...rhReadings.map(r => r.rh)) : null;
     const html = `
-      <div class="stats-page">
-        <section class="stats-hero">
-          <div>
-            <div class="mission-eyebrow">Fleet Telemetry</div>
-            <h1>Shop telemetry</h1>
-            <p>${printers.length} printers · ${active} active · ${_fmtGrams(filament.total_grams || 0)} recorded filament · ${spools.total_count || 0} live spools</p>
-          </div>
-          ${_statsActionSummary(jobs, printers)}
-        </section>
+      <div class="stats-page telemetry-page">
+        ${_renderTelemetryHero(printers, rhReadings, instance, failures, spools, filament, active)}
+        ${_renderTelemetryBriefing(printers, rhReadings, instance, spools, failures)}
 
-        <section class="stats-kpi-grid">
+        <div class="telemetry-section-head">
+          <span>At a glance</span>
+          <small>Tap a card to drill into spools, RH, failures, or printer balance</small>
+        </div>
+        <section class="stats-kpi-grid telemetry-kpi-grid">
           <a class="stats-kpi-card" href="#/stats?focus=printers"><strong>${printers.length}</strong><span>Printers</span><small>${states.idle || 0} idle · ${active} active</small></a>
           <a class="stats-kpi-card" href="#/spools?view=catalogue"><strong>${_fmtGrams(filament.total_grams || 0)}</strong><span>Filament used</span><small>${filament.total_cost != null ? `$${filament.total_cost.toFixed(2)} estimated` : 'cost pending'}</small></a>
           <a class="stats-kpi-card" href="#/spools"><strong>${_fmtGrams(spools.total_remaining_g || 0)}</strong><span>Inventory</span><small>${spools.total_count || 0} spools · ${spools.in_printer_count || 0} loaded</small></a>
@@ -12092,7 +12235,11 @@ async function renderStatsView() {
 
         ${focus === 'rh' ? _statsRhDetail(rhReadings) : ''}
 
-        <section class="stats-layout">
+        <div class="telemetry-section-head telemetry-section-head-board">
+          <span>Long view boards</span>
+          <small>Host health, filament trends, RH sensors, and per-printer balance</small>
+        </div>
+        <section class="stats-layout telemetry-layout">
           ${_statsSystemHealthPanel(instance)}
           <div class="stats-panel stats-panel-wide">
             <div class="stats-panel-head"><span>Filament Trend</span><a href="#/spools?view=catalogue">Catalogue</a></div>

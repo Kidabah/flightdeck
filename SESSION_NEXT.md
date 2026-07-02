@@ -2,10 +2,10 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `2de528d` — X1C AMS mapping HT misclass fix
+- Latest commit: (pending) — Telemetry shop telemetry glow-up
 - Pi repo: /home/flightdeck/flightdeck
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=591 / style.css?v=460
+- Refresh cachebust currently: app.js?v=592 / style.css?v=461
 - Pi deploy: `cd /home/flightdeck/flightdeck && git pull && sudo systemctl restart flightdeck.service`
 - Pi SSH: `ssh -i C:\Users\Kidabah\.ssh\flightdeck_cursor -o IdentitiesOnly=yes flightdeck@100.106.112.104`
 
@@ -36,6 +36,16 @@ Latest GitHub/Pi state:
 - Name + model now sit on a soft bottom gradient over the feed — security-cam style.
 - Warning flags stay as small pills on the overlay when needed.
 - Static cache `app.js?v=589` / `style.css?v=458`; hard refresh required.
+
+### 2026-07-02 polish (Telemetry shop telemetry)
+
+**Telemetry glow-up aligned with Dashboard / Fleet Wall / Flight Tower** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Hero card: live status line, Active/Avg RH/Logged/Failures/Host CPU chips, quick links.
+- Briefing banner: clear / watch / humidity / host-stress states with jump links.
+- KPI strip and long-view boards get section headers, hover lift, and warn accents.
+- System health cards and printer balance rows use state-coloured left borders.
+- Static cache `app.js?v=592` / `style.css?v=461`; hard refresh required.
 
 ### 2026-07-02 fix (X1C AMS mapping 07FF-8012)
 
