@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — Controls tab matches header shape
+- Latest commit: `eaba4a5` — Controls tab matches header shape
 - Refresh cachebust currently: app.js?v=606 / style.css?v=472
 
 ### 2026-07-02 polish (Controls tab matches Live header)
