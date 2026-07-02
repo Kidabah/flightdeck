@@ -2,8 +2,15 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `4bdc9e6` — bench order fix (X1C on top, not BigBoy)
-- Refresh cachebust currently: app.js?v=614 / style.css?v=477
+- Latest commit: (pending) — bench order BigBoy → X1 → Big Girl
+- Refresh cachebust currently: app.js?v=615 / style.css?v=477
+
+### 2026-07-02 fix (bench order — X1 directly above Big Girl)
+
+**Left-to-right bench walk on Fleet Filament** (`app/static/app.js`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Order is now BigBoy → X1C → Big Girl: X1 sits immediately above Big Girl with BigBoy first as the left-most bench printer.
+- Static cache `app.js?v=615`; hard refresh only.
 
 ### 2026-07-02 fix (bench printer order)
 
