@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — Fleet Filament Phase 1 room board
+- Latest commit: `14e88bc` — Fleet Filament Phase 1 room board
 - Refresh cachebust currently: app.js?v=611 / style.css?v=476
 
 ### 2026-07-02 feature (Fleet Filament Phase 1)
