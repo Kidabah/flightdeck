@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — Flight Recorder restart-finish harvest fix
+- Latest commit: `623e1fd` — Flight Recorder restart-finish harvest fix
 - Refresh cachebust currently: app.js?v=601 / style.css?v=468
 
 ### 2026-07-02 fix (Flight Recorder after backend restart mid-print)
