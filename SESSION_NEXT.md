@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — controls rail below status bar
+- Latest commit: `55537a9` — controls rail below status bar
 - Refresh cachebust currently: app.js?v=608 / style.css?v=474
 
 ### 2026-07-02 fix (Controls rail no longer clipped by status bar)
