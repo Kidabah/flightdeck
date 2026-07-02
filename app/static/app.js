@@ -12121,17 +12121,7 @@ function _renderTelemetryBriefing(printers, rhReadings, instance, spools, failur
     </section>`;
   }
 
-  return `<section class="telemetry-briefing telemetry-briefing-clear" aria-label="Telemetry clear">
-    <div class="telemetry-briefing-icon" aria-hidden="true">✓</div>
-    <div class="telemetry-briefing-copy">
-      <strong>Long view clear</strong>
-      <span>Humidity, inventory pressure, host health, and recent failures all look comfortable.</span>
-    </div>
-    <div class="telemetry-briefing-links">
-      <a href="#/spools">Spools</a>
-      <a href="#/queue">Queue</a>
-    </div>
-  </section>`;
+  return '';
 }
 
 function _statsHealthTone(pct, warn = 70, bad = 85) {
@@ -12150,7 +12140,7 @@ function _statsHealthCard(label, value, detail, tone = 'ok') {
   </div>`;
 }
 
-function _statsSystemHealthPanel(instance) {
+function _statsSystemHealthCards(instance) {
   const info = instance || _instanceInfo || {};
   const host = info.host || {};
   const load = host.load || {};
@@ -12172,16 +12162,168 @@ function _statsSystemHealthPanel(instance) {
     : '--';
   const hardware = info.hardware || info.address || 'Flightdeck host';
   const runtime = [info.runtime, info.address].filter(Boolean).join(' · ') || 'local runtime';
-  return `<div class="stats-panel stats-panel-wide stats-system-panel telemetry-system-panel">
-    <div class="stats-panel-head"><span>System Health</span><a href="#/settings?category=setup">Setup</a></div>
-    <div class="stats-system-grid telemetry-system-grid">
+  return `
       ${_statsHealthCard('Host', hardware, runtime, 'ok')}
       ${_statsHealthCard('CPU Load', loadText, Number.isFinite(loadPct) ? `${Math.round(loadPct)}% of ${load.cores || 1} cores` : 'unavailable', _statsHealthTone(loadPct, 65, 90))}
       ${_statsHealthCard('Memory', memoryText, `${_fmtBytes(memory.used)} used · ${_fmtBytes(memory.available)} free`, _statsHealthTone(memoryPct, 72, 88))}
       ${_statsHealthCard('Data Disk', diskText, `${_fmtBytes(disk.free)} free`, _statsHealthTone(diskPct, 75, 90))}
-      ${_statsHealthCard('Camera Workers', cameraWorkers.count == null ? '--' : String(cameraWorkers.count), cameraWorkers.detail || 'not checked', cameraTone)}
-    </div>
+      ${_statsHealthCard('Camera Workers', cameraWorkers.count == null ? '--' : String(cameraWorkers.count), cameraWorkers.detail || 'not checked', cameraTone)}`;
+}
+
+function _statsSystemHealthPanel(instance) {
+  return `<div class="stats-panel stats-panel-wide stats-system-panel telemetry-system-panel">
+    <div class="stats-panel-head"><span>System Health</span><a href="#/settings?category=setup">Setup</a></div>
+    <div class="stats-system-grid telemetry-system-grid">${_statsSystemHealthCards(instance)}</div>
   </div>`;
+}
+
+function _telemetryBentoHead(title, href, linkLabel) {
+  return `<div class="telemetry-bento-head">
+    <span>${esc(title)}</span>
+    ${href ? `<a href="${href}">${esc(linkLabel)}</a>` : ''}
+  </div>`;
+}
+
+function _statsFilamentBentoBody(filament, spools) {
+  const months = _statsMonthRows(filament.by_month || []);
+  const materials = _statsBarRows(filament.by_material || [], {
+    total: filament.total_grams || 0,
+    limit: 3,
+  });
+  const lowStock = Number(spools.low_stock_count || 0);
+  return `${months}
+    <div class="telemetry-bento-subhead">Top materials</div>
+    ${materials}
+    <div class="telemetry-bento-foot">
+      <span>${_fmtGrams(spools.total_remaining_g || 0)} in inventory · ${spools.total_count || 0} spools</span>
+      ${lowStock ? `<a href="#/spools?filter=low">${lowStock} low stock</a>` : ''}
+    </div>`;
+}
+
+function _statsRhBentoBody(readings) {
+  if (!readings.length) {
+    return `<div class="stats-empty">No AMS humidity telemetry yet.</div>`;
+  }
+  const watch = _moistureWatch(readings).filter(w => w.level !== 'ok').slice(0, 2);
+  const sensors = readings.slice(0, 3);
+  const watchHtml = watch.length
+    ? `<div class="telemetry-bento-subhead">Moisture watch</div>${_statsMoistureWatchPanel(watch)}`
+    : `<div class="telemetry-bento-okline">All AMS sensors in a comfortable range.</div>`;
+  const sensorHtml = `<div class="telemetry-bento-subhead">Sensors</div>
+    <div class="stats-rh-list telemetry-rh-compact">${sensors.map(r => {
+      const cls = _statsRhClass(r.rh);
+      return `<a class="stats-rh-row stats-rh-${cls}" href="${r.href}">
+        <div><strong>${esc(r.label)} · ${esc(r.printer)}</strong></div>
+        <div><b>${Math.round(r.rh)}%</b></div>
+      </a>`;
+    }).join('')}</div>
+    ${readings.length > sensors.length ? `<div class="telemetry-bento-more">+${readings.length - sensors.length} more in full RH detail</div>` : ''}`;
+  return `${watchHtml}${sensorHtml}`;
+}
+
+function _statsPrinterBentoBody(printers, filamentSummary, failureSummary, allSpools = [], usageSummary = []) {
+  const byPrinter = Object.fromEntries((filamentSummary.by_printer || []).map(r => [r.printer_id, r.grams]));
+  const usage = Object.fromEntries((usageSummary || []).map(r => [r.printer_id, r]));
+  if (!printers.length) return `<div class="stats-empty">No printers configured.</div>`;
+  return `<div class="stats-printer-list telemetry-printer-compact">${printers.map(p => {
+    const u = usage[p.id] || {};
+    const hours = Number(u.total_seconds || 0) / 3600;
+    return `<a class="stats-printer-row stats-printer-row-compact stats-printer-row-${_statsPrinterStateClass(p.state)}" href="#/printer/${p.id}">
+      <div>
+        <strong>${esc(_dashboardPrinterName(p))}</strong>
+        <span>${esc(p.custom_name || p.model_name || '')}</span>
+      </div>
+      <div><b>${esc(p.state || 'unknown')}</b><span>state</span></div>
+      <div><b>${Number(u.total_prints || 0)}</b><span>prints</span></div>
+      <div><b>${hours ? hours.toFixed(0) : '0'}h</b><span>time</span></div>
+      <div><b>${_fmtGrams(byPrinter[p.id] || 0)}</b><span>used</span></div>
+    </a>`;
+  }).join('')}</div>`;
+}
+
+function _renderTelemetryBento(instance, filament, spools, rhReadings, printers, failures, allSpools, printerUsage) {
+  return `<section class="telemetry-bento" aria-label="Shop vitals">
+    <article class="telemetry-bento-tile telemetry-bento-host">
+      ${_telemetryBentoHead('System health', '#/settings?category=setup', 'Setup')}
+      <div class="telemetry-bento-body">
+        <div class="stats-system-grid telemetry-system-grid telemetry-system-compact">${_statsSystemHealthCards(instance)}</div>
+      </div>
+    </article>
+    <article class="telemetry-bento-tile telemetry-bento-filament">
+      ${_telemetryBentoHead('Filament', '#/spools?view=catalogue', 'Catalogue')}
+      <div class="telemetry-bento-body telemetry-bento-body-chart">${_statsFilamentBentoBody(filament, spools)}</div>
+    </article>
+    <article class="telemetry-bento-tile telemetry-bento-rh">
+      ${_telemetryBentoHead('AMS humidity', '#/stats?focus=rh', 'RH detail')}
+      <div class="telemetry-bento-body">${_statsRhBentoBody(rhReadings)}</div>
+    </article>
+    <article class="telemetry-bento-tile telemetry-bento-printers">
+      ${_telemetryBentoHead('Printer balance', '#/stats?focus=printers', 'Full table')}
+      <div class="telemetry-bento-body">${_statsPrinterBentoBody(printers, filament, failures.summary || {}, allSpools, printerUsage)}</div>
+    </article>
+  </section>
+  <div class="telemetry-expand-bar">
+    <a class="telemetry-expand-link" href="#/stats?focus=boards">Expand all boards</a>
+    <span>Full filament trends, spool tracking, and inventory mix</span>
+  </div>`;
+}
+
+function _renderTelemetryBoards(filament, spools, rhReadings, printers, failures, allSpools, printerUsage, intel, instance, focus) {
+  const spoolAlerts = intel.alerts || [];
+  const topSpools = intel.by_spool || [];
+  return `
+    <div class="telemetry-back-bar">
+      <a href="#/stats">← Compact view</a>
+    </div>
+    <div class="telemetry-section-head telemetry-section-head-board">
+      <span>Long view boards</span>
+      <small>Full filament trends, RH lists, spool tracking, and printer balance</small>
+    </div>
+    <section class="stats-layout telemetry-layout">
+      ${_statsSystemHealthPanel(instance)}
+      <div class="stats-panel stats-panel-wide">
+        <div class="stats-panel-head"><span>Filament Trend</span><a href="#/spools?view=catalogue">Catalogue</a></div>
+        ${_statsMonthRows(filament.by_month || [])}
+      </div>
+      <div class="stats-panel">
+        <div class="stats-panel-head"><span>By Material</span><a href="#/spools">Spools</a></div>
+        ${_statsBarRows(filament.by_material || [], { total: filament.total_grams || 0 })}
+      </div>
+      <div class="stats-panel">
+        <div class="stats-panel-head"><span>Inventory Mix</span><a href="#/spools">Open</a></div>
+        ${_statsBarRows(spools.by_material || [], { total: spools.total_remaining_g || 0 })}
+      </div>
+      ${focus !== 'rh' ? `<div class="stats-panel">
+        <div class="stats-panel-head"><span>AMS Humidity</span><a href="#/stats?focus=rh">Detail</a></div>
+        ${_statsMoistureWatchPanel(rhReadings)}
+      </div>` : ''}
+      <div class="stats-panel">
+        <div class="stats-panel-head"><span>AMS Sensors</span><a href="#/stats?focus=rh">Detail</a></div>
+        ${_statsRhPanel(rhReadings)}
+      </div>
+      <div class="stats-panel">
+        <div class="stats-panel-head"><span>Spool Tracking</span><a href="#/spools">Inventory</a></div>
+        <div class="stats-alert-list">
+          ${spoolAlerts.map(a => `<div class="stats-alert stats-alert-${a.level}">${esc(a.message)}</div>`).join('')}
+        </div>
+        <div class="stats-mini-grid">
+          <div><strong>${_fmtGrams(intel.summary?.deducted_g || 0)}</strong><span>deducted 30d</span></div>
+          <div><strong>${intel.summary?.tracked_prints || intel.summary?.deducted_prints || 0}</strong><span>tracked prints</span></div>
+          <div><strong>${intel.summary?.unattributed_prints || 0}</strong><span>unattributed</span></div>
+        </div>
+      </div>
+      <div class="stats-panel">
+        <div class="stats-panel-head"><span>Most Used Spools</span><a href="#/spools">Manage</a></div>
+        ${_statsBarRows(topSpools, {
+          total: topSpools.reduce((sum, r) => sum + Number(r.grams || 0), 0),
+          label: r => `#${r.spool_id} ${[r.color_name, r.material].filter(Boolean).join(' · ')}`,
+        })}
+      </div>
+      <div class="stats-panel stats-panel-wide${focus === 'printers' ? ' stats-panel-focus' : ''}">
+        <div class="stats-panel-head"><span>Printer Balance</span><a href="#/">Dashboard</a></div>
+        ${_statsPrinterRows(printers, filament, failures.summary || {}, allSpools, printerUsage)}
+      </div>
+    </section>`;
 }
 
 async function renderStatsView() {
@@ -12206,84 +12348,33 @@ async function renderStatsView() {
     if (instance?.app) _instanceInfo = instance;
 
     const printers = _latestPrinters || [];
-    const states = _statsStateCounts(printers);
-    const spoolAlerts = intel.alerts || [];
-    const topSpools = intel.by_spool || [];
     const active = printers.filter(p => p.state === 'printing' || p.state === 'paused').length;
     const rhReadings = _statsRhReadings(printers);
-    const avgRh = rhReadings.length
-      ? Math.round(rhReadings.reduce((sum, r) => sum + r.rh, 0) / rhReadings.length)
-      : null;
-    const maxRh = rhReadings.length ? Math.max(...rhReadings.map(r => r.rh)) : null;
+
+    let body = '';
+    if (focus === 'boards') {
+      body = _renderTelemetryBoards(filament, spools, rhReadings, printers, failures, allSpools, printerUsage, intel, instance, focus);
+    } else if (focus === 'rh') {
+      body = `<div class="telemetry-back-bar"><a href="#/stats">← Compact view</a></div>${_statsRhDetail(rhReadings)}`;
+    } else if (focus === 'printers') {
+      body = `<div class="telemetry-back-bar"><a href="#/stats">← Compact view</a></div>
+        <section class="stats-panel stats-panel-wide stats-panel-focus telemetry-printer-drill">
+          <div class="stats-panel-head"><span>Printer Balance</span><a href="#/">Dashboard</a></div>
+          ${_statsPrinterRows(printers, filament, failures.summary || {}, allSpools, printerUsage)}
+        </section>
+        <div class="telemetry-expand-bar">
+          <a class="telemetry-expand-link" href="#/stats?focus=boards">Expand all boards</a>
+        </div>`;
+    } else {
+      body = _renderTelemetryBento(instance, filament, spools, rhReadings, printers, failures, allSpools, printerUsage);
+    }
+
+    const compact = !focus || focus === '';
     const html = `
-      <div class="stats-page telemetry-page">
+      <div class="stats-page telemetry-page${compact ? ' telemetry-page-compact' : ' telemetry-page-expanded'}">
         ${_renderTelemetryHero(printers, rhReadings, instance, failures, spools, filament, active)}
         ${_renderTelemetryBriefing(printers, rhReadings, instance, spools, failures)}
-
-        <div class="telemetry-section-head">
-          <span>At a glance</span>
-          <small>Tap a card to drill into spools, RH, failures, or printer balance</small>
-        </div>
-        <section class="stats-kpi-grid telemetry-kpi-grid">
-          <a class="stats-kpi-card" href="#/stats?focus=printers"><strong>${printers.length}</strong><span>Printers</span><small>${states.idle || 0} idle · ${active} active</small></a>
-          <a class="stats-kpi-card" href="#/spools?view=catalogue"><strong>${_fmtGrams(filament.total_grams || 0)}</strong><span>Filament used</span><small>${filament.total_cost != null ? `$${filament.total_cost.toFixed(2)} estimated` : 'cost pending'}</small></a>
-          <a class="stats-kpi-card" href="#/spools"><strong>${_fmtGrams(spools.total_remaining_g || 0)}</strong><span>Inventory</span><small>${spools.total_count || 0} spools · ${spools.in_printer_count || 0} loaded</small></a>
-          <a class="stats-kpi-card ${maxRh != null && maxRh >= 35 ? 'stats-kpi-warn' : ''}" href="#/stats?focus=rh"><strong>${avgRh != null ? `${avgRh}%` : '--'}</strong><span>AMS RH</span><small>${maxRh != null ? `Max ${Math.round(maxRh)}% · ${rhReadings.length} sensors` : 'no telemetry'}</small></a>
-          <a class="stats-kpi-card ${spools.low_stock_count ? 'stats-kpi-warn' : ''}" href="#/spools?filter=low"><strong>${spools.low_stock_count || 0}</strong><span>Low stock</span><small>Below ${Math.round(spools.low_stock_pct || 20)}%</small></a>
-          <a class="stats-kpi-card ${failures.total ? 'stats-kpi-warn' : ''}" href="#/failures?days=30"><strong>${failures.total || 0}</strong><span>Failure review</span><small>Last 30 days</small></a>
-        </section>
-
-        ${focus === 'rh' ? _statsRhDetail(rhReadings) : ''}
-
-        <div class="telemetry-section-head telemetry-section-head-board">
-          <span>Long view boards</span>
-          <small>Host health, filament trends, RH sensors, and per-printer balance</small>
-        </div>
-        <section class="stats-layout telemetry-layout">
-          ${_statsSystemHealthPanel(instance)}
-          <div class="stats-panel stats-panel-wide">
-            <div class="stats-panel-head"><span>Filament Trend</span><a href="#/spools?view=catalogue">Catalogue</a></div>
-            ${_statsMonthRows(filament.by_month || [])}
-          </div>
-          <div class="stats-panel">
-            <div class="stats-panel-head"><span>By Material</span><a href="#/spools">Spools</a></div>
-            ${_statsBarRows(filament.by_material || [], { total: filament.total_grams || 0 })}
-          </div>
-          <div class="stats-panel">
-            <div class="stats-panel-head"><span>Inventory Mix</span><a href="#/spools">Open</a></div>
-            ${_statsBarRows(spools.by_material || [], { total: spools.total_remaining_g || 0 })}
-          </div>
-          ${focus !== 'rh' ? `<div class="stats-panel">
-            <div class="stats-panel-head"><span>AMS Humidity</span><a href="#/stats?focus=rh">Detail</a></div>
-            ${_statsMoistureWatchPanel(rhReadings)}
-          </div>` : ''}
-          <div class="stats-panel">
-            <div class="stats-panel-head"><span>AMS Sensors</span><a href="#/stats?focus=rh">Detail</a></div>
-            ${_statsRhPanel(rhReadings)}
-          </div>
-          <div class="stats-panel">
-            <div class="stats-panel-head"><span>Spool Tracking</span><a href="#/spools">Inventory</a></div>
-            <div class="stats-alert-list">
-              ${spoolAlerts.map(a => `<div class="stats-alert stats-alert-${a.level}">${esc(a.message)}</div>`).join('')}
-            </div>
-            <div class="stats-mini-grid">
-              <div><strong>${_fmtGrams(intel.summary?.deducted_g || 0)}</strong><span>deducted 30d</span></div>
-              <div><strong>${intel.summary?.tracked_prints || intel.summary?.deducted_prints || 0}</strong><span>tracked prints</span></div>
-              <div><strong>${intel.summary?.unattributed_prints || 0}</strong><span>unattributed</span></div>
-            </div>
-          </div>
-          <div class="stats-panel">
-            <div class="stats-panel-head"><span>Most Used Spools</span><a href="#/spools">Manage</a></div>
-            ${_statsBarRows(topSpools, {
-              total: topSpools.reduce((sum, r) => sum + Number(r.grams || 0), 0),
-              label: r => `#${r.spool_id} ${[r.color_name, r.material].filter(Boolean).join(' · ')}`,
-            })}
-          </div>
-          <div class="stats-panel stats-panel-wide${focus === 'printers' ? ' stats-panel-focus' : ''}">
-            <div class="stats-panel-head"><span>Printer Balance</span><a href="#/">Dashboard</a></div>
-            ${_statsPrinterRows(printers, filament, failures.summary || {}, allSpools, printerUsage)}
-          </div>
-        </section>
+        ${body}
       </div>`;
 
     if (html !== _statsLastHtml) {

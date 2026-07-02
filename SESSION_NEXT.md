@@ -37,6 +37,15 @@ Latest GitHub/Pi state:
 - Warning flags stay as small pills on the overlay when needed.
 - Static cache `app.js?v=589` / `style.css?v=458`; hard refresh required.
 
+### 2026-07-02 polish (Telemetry compact bento)
+
+**One-screen shop vitals default; full boards on demand** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Default Telemetry is a 2×2 bento: host health, filament, RH, printer balance (scroll inside tiles).
+- Removed redundant KPI strip and green briefing when all clear.
+- `?focus=boards` expands all long-view panels; `?focus=rh` / `?focus=printers` for drills.
+- Static cache `app.js?v=593` / `style.css?v=462`; hard refresh required.
+
 ### 2026-07-02 polish (Telemetry shop telemetry)
 
 **Telemetry glow-up aligned with Dashboard / Fleet Wall / Flight Tower** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
