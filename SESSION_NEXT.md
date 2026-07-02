@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — bench order BigBoy → X1 → Big Girl
+- Latest commit: `9cf7a06` — bench order BigBoy → X1 → Big Girl
 - Refresh cachebust currently: app.js?v=615 / style.css?v=477
 
 ### 2026-07-02 fix (bench order — X1 directly above Big Girl)
