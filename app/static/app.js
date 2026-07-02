@@ -9666,7 +9666,7 @@ function _missionHeroStatusLine(printers, { active, pendingCount, blocked, cauti
 }
 
 function _missionPrinterBucket(p, laneJobs, signals) {
-  if (signals.some(s => s.level === 'bad') || ['offline', 'error', 'estop'].includes(p.state)) return 'blocked';
+  if (signals.some(s => s.level === 'bad') || ['offline', 'error', 'estop'].includes(p.state)) return 'offline';
   if (p.state === 'printing') return 'printing';
   if (p.state === 'paused' || signals.some(s => s.level === 'warn') || laneJobs.some(j => _missionJobReadiness(j).cls === 'blocked')) return 'attention';
   return 'ready';
@@ -9674,9 +9674,10 @@ function _missionPrinterBucket(p, laneJobs, signals) {
 
 function _missionControlPrefs() {
   const params = new URLSearchParams(location.hash.split('?')[1] || '');
-  const filter = params.get('filter') || 'all';
+  let filter = params.get('filter') || 'all';
+  if (filter === 'blocked') filter = 'offline';
   return {
-    filter: ['all', 'ready', 'printing', 'attention', 'blocked'].includes(filter) ? filter : 'all',
+    filter: ['all', 'ready', 'printing', 'attention', 'offline'].includes(filter) ? filter : 'all',
     sim: params.get('sim') === '30',
   };
 }
@@ -10218,7 +10219,7 @@ async function renderMissionControl() {
       ['ready', 'Ready', counts.ready || 0],
       ['printing', 'Printing', counts.printing || 0],
       ['attention', 'Needs attention', counts.attention || 0],
-      ['blocked', 'Blocked', counts.blocked || 0],
+      ['offline', 'Offline', counts.offline || 0],
     ].map(([id, label, count]) =>
       `<a class="mission-filter ${prefs.filter === id ? 'active' : ''}" href="${_missionHref(id, prefs.sim)}">${label}<b>${count}</b></a>`
     ).join('');

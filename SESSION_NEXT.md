@@ -2,10 +2,10 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `949fd95` — Flight Tower dispatch center polish
+- Latest commit: (pending) — Flight Tower printer filter Offline label
 - Pi repo: /home/flightdeck/flightdeck
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=590 / style.css?v=459
+- Refresh cachebust currently: app.js?v=591 / style.css?v=460
 - Pi deploy: `cd /home/flightdeck/flightdeck && git pull && sudo systemctl restart flightdeck.service`
 - Pi SSH: `ssh -i C:\Users\Kidabah\.ssh\flightdeck_cursor -o IdentitiesOnly=yes flightdeck@100.106.112.104`
 
@@ -36,6 +36,16 @@ Latest GitHub/Pi state:
 - Name + model now sit on a soft bottom gradient over the feed — security-cam style.
 - Warning flags stay as small pills on the overlay when needed.
 - Static cache `app.js?v=589` / `style.css?v=458`; hard refresh required.
+
+### 2026-06-30 polish (Flight Tower offline filter)
+
+**Rename printer filter Blocked → Offline** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Printer bucket/filter now says **Offline** (matches Dashboard/Fleet Wall when Voron is down).
+- Offline printer lanes use muted slate border instead of red "blocked" styling.
+- Queue **Blocked** KPI/panel unchanged — still for preflight failures.
+- Legacy `?filter=blocked` URLs redirect to offline.
+- Static cache `app.js?v=591` / `style.css?v=460`; hard refresh required.
 
 ### 2026-06-30 polish (Flight Tower dispatch center)
 

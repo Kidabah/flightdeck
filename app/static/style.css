@@ -393,10 +393,10 @@ body.sidebar-resizing {
   box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.06), 0 14px 28px rgba(15, 23, 42, 0.18);
 }
 
-.mission-lane-blocked {
-  border-color: rgba(239, 68, 68, 0.38);
-  border-left-color: #ef4444;
-  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.08), 0 14px 28px rgba(69, 10, 10, 0.14);
+.mission-lane-offline {
+  border-color: rgba(148, 163, 184, 0.34);
+  border-left-color: #94a3b8;
+  box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.08), 0 14px 28px rgba(15, 23, 42, 0.16);
 }
 
 .mission-lanes-head {
