@@ -1178,7 +1178,7 @@ class BambuPrinter:
         # Regular AMS units (unit_id < 128) each occupy 4 sequential print-command slots.
         # AMS HT (unit_id >= 128) follows sequentially after all regular units.
         n_regular_units = sum(1 for u in units if int(u.get("unit", 0)) < 128)
-        regular_ams_slots = n_regular_units * 4
+        regular_ams_slots = _regular_ams_slot_count(units)
         slots = []
         for unit in units:
             unit_id = int(unit.get("unit", 0))
@@ -1224,8 +1224,7 @@ class BambuPrinter:
         )
         # Count regular AMS units from MQTT so we can compute ams_id=128 for AMS HT.
         ams_raw = (self._printer.mqtt_dump().get("print") or {}).get("ams") or {}
-        n_regular = sum(1 for u in ams_raw.get("ams", []) if int(u.get("id", 0)) < 128)
-        regular_ams_slots = n_regular * 4
+        regular_ams_slots = _regular_ams_slot_count(ams_raw.get("ams", []))
         flat_mapping, detailed_mapping = _build_bambu_ams_mappings(ams_mapping, filament_ids, regular_ams_slots)
         db.log_decision(self.id, "queue_bambu_mapping", json.dumps({
             "file": filename,
@@ -1750,6 +1749,7 @@ _BAMBU_ALARM_MESSAGES = {
     "18008012": 'Failed to get AMS mapping table; please select "Resume" to retry.',
     "1E07008012": 'Failed to get AMS mapping table; please select "Resume" to retry.',
     "07008012": 'Failed to get AMS mapping table; please select "Resume" to retry.',
+    "07FF8012": 'Failed to get AMS mapping table; please select "Resume" to retry.',
     "117473298": 'Failed to get AMS mapping table; please select "Resume" to retry.',
 }
 
@@ -1800,6 +1800,30 @@ def _bambu_failed_is_operator_cancel(err_code, alarm_message: Optional[str]) -> 
 def _bambu_slot_index(unit_id: int, tray_id: int) -> int:
     """Return Flightdeck's canonical AMS slot index."""
     return int(unit_id) + int(tray_id) if int(unit_id) >= 128 else int(unit_id) * 4 + int(tray_id)
+
+
+def _ams_unit_id(unit_data: dict) -> int:
+    for key in ("id", "unit"):
+        if key in unit_data:
+            try:
+                return int(unit_data.get(key) or 0)
+            except (TypeError, ValueError):
+                return 0
+    return 0
+
+
+def _regular_ams_slot_count(units: list[dict] | None) -> int:
+    """Flat slot boundary before AMS HT trays in project_file mapping.
+
+    Only meaningful when an AMS HT unit (id >= 128) is present. Printers with
+    only regular AMS — including a lone AMS 2 at unit id 1 — must use 0 so
+    trays like 6 map to ams_id 1 / slot 2 instead of being misclassified as HT.
+    """
+    ams_units = units or []
+    if not any(_ams_unit_id(u) >= 128 for u in ams_units):
+        return 0
+    n_regular = sum(1 for u in ams_units if _ams_unit_id(u) < 128)
+    return n_regular * 4
 
 
 def _split_ams_slot(slot: int) -> tuple[int, int]:
@@ -2073,7 +2097,7 @@ def _parse_ams(
     _AMS_LABELS = {128: "AMS HT"}
     result = []
     n_regular_units = sum(1 for u in ams_raw.get("ams", []) if int(u.get("id", 0)) < 128)
-    regular_ams_slots = n_regular_units * 4
+    regular_ams_slots = _regular_ams_slot_count(ams_raw.get("ams", []))
 
     for unit_data in ams_raw.get("ams", []):
         unit_id = int(unit_data.get("id", 0))
@@ -2236,7 +2260,7 @@ def _snapshot_ams_slots(print_data: dict) -> dict[int, dict]:
         for unit_data in ams_units
         if (_safe_int(unit_data.get("id")) or 0) < 128
     )
-    regular_ams_slots = n_regular_units * 4
+    regular_ams_slots = _regular_ams_slot_count(ams_units)
     result: dict[int, dict] = {}
     for unit_data in ams_units:
         unit_id = _safe_int(unit_data.get("id")) or 0

@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `232d42a` — Flight Tower printer filter Offline label
+- Latest commit: (pending) — X1C AMS mapping HT misclass fix
 - Pi repo: /home/flightdeck/flightdeck
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=591 / style.css?v=460
@@ -36,6 +36,15 @@ Latest GitHub/Pi state:
 - Name + model now sit on a soft bottom gradient over the feed — security-cam style.
 - Warning flags stay as small pills on the overlay when needed.
 - Static cache `app.js?v=589` / `style.css?v=458`; hard refresh required.
+
+### 2026-07-02 fix (X1C AMS mapping 07FF-8012)
+
+**Stop misclassifying regular AMS trays as AMS HT on non-H2D printers** (`app/printers/bambu.py`, `SESSION_NEXT.md`)
+
+- Greyhound Ludicrous (X1C) hit `07FF-8012` / failed AMS mapping table on queue job #144.
+- Root cause: lone AMS 2 at unit id 1 produced flat tray 6, but `regular_ams_slots=4` made `ams_mapping2` point at AMS HT (128) instead of AMS 2 slot 3.
+- `_regular_ams_slot_count()` now returns 0 unless an AMS HT unit is actually present.
+- Added friendly decode for `07FF-8012`. **Backend restart required** on Pi.
 
 ### 2026-06-30 polish (Flight Tower offline filter)
 
