@@ -9645,6 +9645,26 @@ function _missionRecommendation(p, laneJobs, signals) {
   return 'Available for new work';
 }
 
+function _missionHeroStatusLine(printers, { active, pendingCount, blocked, caution, forecast }) {
+  if (blocked) {
+    return `${blocked} queue item${blocked === 1 ? '' : 's'} blocked — clear those before dispatch`;
+  }
+  if (active && pendingCount) {
+    return `${active} printing · ${pendingCount} queued · forecast clear ${forecast}`;
+  }
+  if (active) {
+    return `${active} printer${active === 1 ? '' : 's'} in flight · forecast clear ${forecast}`;
+  }
+  if (pendingCount) {
+    if (caution) return `${pendingCount} queued · ${caution} need a second look`;
+    return `${pendingCount} job${pendingCount === 1 ? '' : 's'} waiting — queue looks healthy`;
+  }
+  if (printers.some(p => p.state === 'offline' || p.state === 'error')) {
+    return 'No queue pressure — check printer faults before loading more work';
+  }
+  return 'Queue is quiet — printers ready for the next job';
+}
+
 function _missionPrinterBucket(p, laneJobs, signals) {
   if (signals.some(s => s.level === 'bad') || ['offline', 'error', 'estop'].includes(p.state)) return 'blocked';
   if (p.state === 'printing') return 'printing';
@@ -10127,9 +10147,12 @@ function _missionActionInbox(jobs, printers, spools, maint) {
     });
 
   if (!unique.length) {
-    return `<div class="mission-action-empty">
-      <strong>Clear deck</strong>
-      <span>No current operator actions</span>
+    return `<div class="mission-action-empty mission-action-empty-hero">
+      <span class="mission-action-empty-icon" aria-hidden="true">✓</span>
+      <div class="mission-action-empty-copy">
+        <strong>Clear deck</strong>
+        <span>No current operator actions</span>
+      </div>
     </div>`;
   }
 
@@ -10268,24 +10291,39 @@ async function renderMissionControl() {
     const dispatchIntel = _missionDispatchIntel(missionJobs, printers, spools, maint);
 
     const html = `
-      <section class="mission-hero">
-        <div>
+      <section class="mission-hero mission-hero-card">
+        <div class="mission-hero-copy">
           <div class="mission-eyebrow">Flight Tower</div>
-          <h1>Farm forecast</h1>
-          <p>${missionPrinters.length} printers${prefs.sim ? ' simulated' : ''} · ${active} active · ${pendingJobs.length} pending · finish forecast ${esc(forecast)}</p>
+          <h1>Dispatch center</h1>
+          <p class="mission-hero-status">${esc(_missionHeroStatusLine(missionPrinters, {
+            active,
+            pendingCount: pendingJobs.length,
+            blocked,
+            caution,
+            forecast,
+          }))}</p>
         </div>
-        <div class="mission-kpis">
-          <div><strong>${pendingJobs.length}</strong><span>Pending</span></div>
-          <div class="${blocked ? 'mission-kpi-bad' : ''}"><strong>${blocked}</strong><span>Blocked</span></div>
-          <div class="${caution ? 'mission-kpi-warn' : ''}"><strong>${caution}</strong><span>Caution</span></div>
-          <div><strong>${_fmtSeconds(forecastSeconds) || '0m'}</strong><span>Queued time</span></div>
+        <div class="mission-hero-side">
+          <div class="mission-kpis">
+            <div><strong>${pendingJobs.length}</strong><span>Pending</span></div>
+            <div class="${blocked ? 'mission-kpi-bad' : ''}"><strong>${blocked}</strong><span>Blocked</span></div>
+            <div class="${caution ? 'mission-kpi-warn' : ''}"><strong>${caution}</strong><span>Caution</span></div>
+            <div><strong>${_fmtSeconds(forecastSeconds) || '0m'}</strong><span>Queued time</span></div>
+          </div>
+          <div class="mission-hero-links">
+            <a href="#/">Dashboard</a>
+            <a href="#/fleet">Fleet Wall</a>
+            <a href="#/queue">Queue</a>
+          </div>
         </div>
       </section>
-      <section class="mission-commandbar">
+      <section class="mission-commandbar mission-commandbar-card">
         <div class="mission-filters">${filterBar}</div>
         ${simToggle}
       </section>
       <section class="mission-dispatch-board" aria-label="Dispatch board">
+        <div class="mission-board-eyebrow">Operator board</div>
+        <div class="mission-dispatch-grid">
         <div class="mission-dispatch-panel mission-dispatch-primary">
           <div class="mission-panel-title">Run Now</div>
           <div class="mission-job-list">${dispatchReady}</div>
@@ -10306,8 +10344,13 @@ async function renderMissionControl() {
           <div class="mission-panel-title">Fix It</div>
           <div class="mission-fix-list">${fixIt}</div>
         </div>
+        </div>
       </section>
       <section class="mission-grid">
+        <div class="mission-lanes-head">
+          <div class="mission-board-eyebrow">Printer lanes</div>
+          <span class="mission-lanes-count">${filteredContexts.length} shown</span>
+        </div>
         <div class="mission-lanes">${lanes}</div>
       </section>`;
     if (html !== _missionLastHtml) {

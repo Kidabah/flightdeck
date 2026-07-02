@@ -5,7 +5,7 @@ Latest GitHub/Pi state:
 - Latest commit: `0634999` — Fleet Wall polish
 - Pi repo: /home/flightdeck/flightdeck
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=589 / style.css?v=458
+- Refresh cachebust currently: app.js?v=590 / style.css?v=459
 - Pi deploy: `cd /home/flightdeck/flightdeck && git pull && sudo systemctl restart flightdeck.service`
 - Pi SSH: `ssh -i C:\Users\Kidabah\.ssh\flightdeck_cursor -o IdentitiesOnly=yes flightdeck@100.106.112.104`
 
@@ -36,6 +36,16 @@ Latest GitHub/Pi state:
 - Name + model now sit on a soft bottom gradient over the feed — security-cam style.
 - Warning flags stay as small pills on the overlay when needed.
 - Static cache `app.js?v=589` / `style.css?v=458`; hard refresh required.
+
+### 2026-06-30 polish (Flight Tower dispatch center)
+
+**Flight Tower glow-up aligned with Dashboard / Fleet Wall** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Hero card: **Dispatch center** with live queue status line, KPI chips, quick links.
+- Operator board + printer lanes section headers.
+- Printer lanes get state-coloured left borders (printing blue, blocked red, etc.) and hover lift.
+- **Clear deck** inbox uses green check banner when nothing needs action.
+- Static cache `app.js?v=590` / `style.css?v=459`; hard refresh required.
 
 ### 2026-06-29 feature (MakerWorld import missing only)
 
