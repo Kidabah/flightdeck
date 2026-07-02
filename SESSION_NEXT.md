@@ -2,10 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `8003a2f` — persistent Live status bar above camera
-- Refresh cachebust currently: app.js?v=607 / style.css?v=473
+- Latest commit: (pending) — controls rail below status bar
+- Refresh cachebust currently: app.js?v=608 / style.css?v=474
 
-### 2026-07-02 polish (persistent Live status bar)
+### 2026-07-02 fix (Controls rail no longer clipped by status bar)
+
+**Scope ops drawer to camera stage so nozzle controls are not hidden** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Wrapped camera feed + controls rail in `live-deck-stage` below the persistent status bar; rail/backdrop no longer extend behind the toolbar.
+- Open controls rail z-index raised above the status bar so temps/nozzle rows at the top are fully visible.
+- Static cache `app.js?v=608` / `style.css?v=474`; hard refresh only.
+
 
 **Replace hover dropdown header with always-visible status bar above camera** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
 

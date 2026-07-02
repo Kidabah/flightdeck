@@ -8473,9 +8473,11 @@ async function renderPrinterDetail(id, subtab = 'live') {
           <div class="detail-left">
             <div class="live-main-deck ${hasOps ? 'has-live-ops' : ''}">
               ${_detailLiveDeckTop(p, printerColor, bannerTextColor)}
-              ${opsDrawer}
-              <div class="camera-hero">
-                ${_detailCameraHeroInner(id, p, camSrc)}
+              <div class="live-deck-stage">
+                ${opsDrawer}
+                <div class="camera-hero">
+                  ${_detailCameraHeroInner(id, p, camSrc)}
+                </div>
               </div>
             </div>
             <div class="live-strip" id="detail-live-strip">${_detailLiveStrip(p)}</div>
