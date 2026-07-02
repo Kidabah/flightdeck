@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — Fleet Filament H2C rack view
+- Latest commit: `f9f77a2` — Fleet Filament H2C rack view
 - Refresh cachebust currently: app.js?v=612 / style.css?v=477
 
 ### 2026-07-02 feature (Fleet Filament H2C rack view)
