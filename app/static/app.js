@@ -4207,7 +4207,7 @@ function _detailLiveToolbarHeader(p, printerColor, bannerTextColor) {
   const statusMeta = job
     ? [progress, _liveEtaText(p)].filter(Boolean).join(' · ')
     : _dashboardIssueText(p);
-  const signals = _detailLiveSignals(p).filter(s => s.cls === 'danger' || s.cls === 'warn');
+  const signals = _liveSignalItems(p).filter(s => s.cls === 'danger' || s.cls === 'warn');
   if (!(p.print_enabled ?? true)) {
     signals.unshift({ cls: 'warn', label: p.print_enabled_note || 'Dispatch locked' });
   }
@@ -4310,7 +4310,7 @@ function _syncTimelapseRecOverlay(heroEl, p) {
   }
 }
 
-function _detailLiveSignals(p) {
+function _liveSignalItems(p) {
   const signals = [];
   if (p.state === 'estop') signals.push({ cls: 'danger', label: 'E-stop active' });
   else if (p.state === 'error') signals.push({ cls: 'danger', label: p.error || 'Printer fault' });
@@ -4341,7 +4341,11 @@ function _detailLiveSignals(p) {
     seen.add(key);
     unique.push(signal);
   });
+  return unique;
+}
 
+function _detailLiveSignals(p) {
+  const unique = _liveSignalItems(p);
   if (!unique.length) return `<span class="live-signal live-signal-ok">Clear skies</span>`;
   return unique.slice(0, 5).map(signal => {
     const title = signal.title || signal.label;
