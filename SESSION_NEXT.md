@@ -2,8 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `3e4497d` — Find clip per-print matching fix
-- Refresh cachebust currently: app.js?v=617 / style.css?v=477
+- Latest commit: (pending) — Fleet Filament phases 2–4 complete
+- Refresh cachebust currently: app.js?v=618 / style.css?v=478
+
+### 2026-07-03 feature (Fleet Filament phases 2–4)
+
+**Room actions, health strip, and queue mapping on Fleet Filament** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Phase 2: Room actions bar — bulk Trust all mismatches, Return empties from reported-empty AMS slots; slot click still quick-loads by spool #.
+- Phase 3: Room health strip — AMS review, unattributed prints, loaded-low, queue filament gaps with links.
+- Phase 4: Dispatch mapping panel — pending queue jobs vs loaded colours/readiness per printer.
+- Static cache `app.js?v=618` / `style.css?v=478`; hard refresh only.
 
 ### 2026-07-03 fix (Find clip reusing same timelapse)
 

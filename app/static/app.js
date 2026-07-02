@@ -4542,6 +4542,239 @@ function _detailLiveAmsLoadoutRows(p) {
   </div>`;
 }
 
+let _fleetFilamentIntelCache = null;
+let _fleetFilamentQueueCache = null;
+let _fleetFilamentActionsBound = false;
+
+function _fleetFilamentMismatchItems(p, loaded = _latestSpoolsByPrinter[p.id] || []) {
+  const items = [];
+  (p.ams || []).forEach(unit => (unit.slots || []).forEach(slot => {
+    const flatSlot = _amsFlatSlot(unit, slot);
+    const spool = loaded.find(s => Number(s.location_slot) === flatSlot);
+    if (!spool || !_slotMismatch(spool, slot)) return;
+    items.push({
+      printer: p,
+      flatSlot,
+      spool,
+      slot,
+      label: _amsSlotLabel(p, flatSlot),
+    });
+  }));
+  return items;
+}
+
+function _fleetFilamentStaleEmptyItems(p, loaded = _latestSpoolsByPrinter[p.id] || []) {
+  const items = [];
+  (p.ams || []).forEach(unit => (unit.slots || []).forEach(slot => {
+    if (!slot.empty) return;
+    const flatSlot = _amsFlatSlot(unit, slot);
+    const spool = loaded.find(s => Number(s.location_slot) === flatSlot);
+    if (!spool) return;
+    items.push({
+      printer: p,
+      flatSlot,
+      spool,
+      label: _amsSlotLabel(p, flatSlot),
+    });
+  }));
+  return items;
+}
+
+function _spoolTrustAmsProfile(spool) {
+  const material = String(spool?.material || 'PLA').trim().toUpperCase();
+  const fallback = _amsProfileTempRange(material);
+  const parsed = _amsProfileParts('', spool);
+  return {
+    profile_name: parsed.profileName || material,
+    tray_type: material,
+    tray_info_idx: _amsGenericFilamentId(material),
+    brand: spool?.brand || '',
+    color: spool?.color_hex || '#808080',
+    nozzle_temp_min: fallback.min,
+    nozzle_temp_max: fallback.max,
+  };
+}
+
+function _fleetFilamentRoomOps(printers) {
+  const mismatches = printers.flatMap(p => _fleetFilamentMismatchItems(p));
+  const staleEmpties = printers.flatMap(p => _fleetFilamentStaleEmptyItems(p));
+  return { mismatches, staleEmpties };
+}
+
+function _fleetFilamentQueueFilamentGaps(jobs = []) {
+  return jobs.filter(job => {
+    if (job.status !== 'pending') return false;
+    const issues = job.preflight?.issues || [];
+    return issues.some(issue => /filament|ams|colour|color|spool|nozzle|loaded/i.test(String(issue.message || '')));
+  });
+}
+
+function _fleetFilamentHealthStrip(intel, room, queueJobs = []) {
+  const summary = intel?.summary || {};
+  const chips = [];
+  if (room.mismatches) {
+    chips.push(`<a class="fleet-filament-health-chip is-warn" href="#/filament">AMS review <strong>${room.mismatches}</strong></a>`);
+  }
+  if (summary.unattributed_prints) {
+    chips.push(`<a class="fleet-filament-health-chip is-watch" href="#/memory">Unattributed <strong>${summary.unattributed_prints}</strong></a>`);
+  }
+  if (summary.loaded_low) {
+    chips.push(`<a class="fleet-filament-health-chip is-warn" href="#/spools?filter=loaded">Loaded low <strong>${summary.loaded_low}</strong></a>`);
+  }
+  const queueGaps = _fleetFilamentQueueFilamentGaps(queueJobs).length;
+  if (queueGaps) {
+    chips.push(`<a class="fleet-filament-health-chip is-watch" href="#/queue">Queue gaps <strong>${queueGaps}</strong></a>`);
+  }
+  if (!chips.length) {
+    chips.push('<span class="fleet-filament-health-chip is-ok">Filament tracking clean</span>');
+  }
+  return `<section class="fleet-filament-health" aria-label="Filament health">
+    <span class="fleet-filament-health-label">Room health</span>
+    <div class="fleet-filament-health-chips">${chips.join('')}</div>
+  </section>`;
+}
+
+function _fleetFilamentActionsBar(ops) {
+  const mismatchCount = ops.mismatches.length;
+  const emptyCount = ops.staleEmpties.length;
+  return `<section class="fleet-filament-actions" aria-label="Room actions">
+    <div class="fleet-filament-actions-copy">
+      <strong>Room actions</strong>
+      <span>Click any slot for quick load by # · bulk fixes below</span>
+    </div>
+    <div class="fleet-filament-actions-buttons">
+      <button type="button" class="fleet-filament-action${mismatchCount ? ' is-warn' : ''}" data-fleet-trust-all ${mismatchCount ? '' : 'disabled'}>
+        Trust all <span>${mismatchCount}</span>
+      </button>
+      <button type="button" class="fleet-filament-action${emptyCount ? '' : ''}" data-fleet-return-empties ${emptyCount ? '' : 'disabled'}>
+        Return empties <span>${emptyCount}</span>
+      </button>
+    </div>
+  </section>`;
+}
+
+function _fleetFilamentQueueMapping(jobs, printers) {
+  const pending = jobs.filter(j => j.status === 'pending');
+  if (!pending.length) return '';
+  const rows = pending.slice(0, 10).map(job => {
+    const printer = printers.find(p => p.id === job.printer_id);
+    const readiness = _missionJobReadiness(job);
+    const requirements = _missionColourRequirements(job);
+    const loaded = _latestSpoolsByPrinter[job.printer_id] || [];
+    const coverage = requirements.length
+      ? _missionCoverageForRequirements(requirements, loaded, printer)
+      : { ok: !!loaded.length, text: loaded.length ? 'Loaded spools present' : 'No loaded spools' };
+    const colours = requirements.map(req => {
+      const ok = coverage.picks?.some(spool => _missionSpoolMatchesColour(spool, req.colour));
+      return `<span class="fleet-filament-queue-colour${ok ? ' is-ready' : ' is-missing'}">${esc(_missionColourLabel(req.colour))}${req.type ? ` ${esc(req.type)}` : ''}</span>`;
+    }).join('');
+    const issue = job.preflight?.issues?.find(i => i.level === 'block' || i.level === 'wait') || job.preflight?.issues?.[0];
+    return `<article class="fleet-filament-queue-row fleet-filament-queue-${readiness.cls}">
+      <div class="fleet-filament-queue-main">
+        <strong>${esc(job.filename.replace(/.*[\\/]/, ''))}</strong>
+        <span>${esc(printer ? _printerPrimaryLabel(printer) : job.printer_id)} · ${esc(job.filament_type || 'Filament')}${job.filament_weight_g ? ` · ${Math.round(job.filament_weight_g)}g` : ''}</span>
+      </div>
+      <div class="fleet-filament-queue-colours">${colours || '<span class="fleet-filament-queue-colour is-neutral">Single material</span>'}</div>
+      <div class="fleet-filament-queue-status">
+        <span class="fleet-filament-queue-badge is-${readiness.cls}">${esc(readiness.label)}</span>
+        <small>${esc(issue?.message || coverage.text || job.preflight?.label || 'Ready to map')}</small>
+      </div>
+      <a class="fleet-filament-queue-link" href="#/queue">Open queue</a>
+    </article>`;
+  }).join('');
+  return `<section class="fleet-filament-queue" aria-label="Queue filament mapping">
+    <header class="fleet-filament-queue-head">
+      <div>
+        <span>Dispatch mapping</span>
+        <strong>Pending queue vs loaded filament</strong>
+      </div>
+      <a href="#/queue">Full queue</a>
+    </header>
+    <div class="fleet-filament-queue-list">${rows}</div>
+  </section>`;
+}
+
+async function _fleetFilamentBulkTrust(items) {
+  let ok = 0;
+  for (const item of items) {
+    const r = await fetch(`/api/spools/${item.spool.id}/move`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        printer_id: item.printer.id,
+        slot: Number(item.flatSlot),
+        ams_profile: _spoolTrustAmsProfile(item.spool),
+        sync_ams: true,
+      }),
+    });
+    if (r.ok) ok += 1;
+  }
+  return ok;
+}
+
+async function _fleetFilamentReturnEmpties(items) {
+  let ok = 0;
+  for (const item of items) {
+    const r = await fetch(`/api/spools/${item.spool.id}/move`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ printer_id: null, slot: null, storage_location_id: null }),
+    });
+    if (r.ok) ok += 1;
+  }
+  return ok;
+}
+
+function _bindFleetFilamentActions() {
+  const page = document.getElementById('fleet-filament-page');
+  if (!page || _fleetFilamentActionsBound) return;
+  _fleetFilamentActionsBound = true;
+  page.addEventListener('click', async e => {
+    const trustBtn = e.target.closest('[data-fleet-trust-all]');
+    if (trustBtn) {
+      const printers = [...(_latestPrinters || [])].sort(_comparePrintersByBench);
+      const items = _fleetFilamentRoomOps(printers).mismatches;
+      if (!items.length) return;
+      const confirmed = await _confirmModal(`Trust Flightdeck on ${items.length} AMS slot${items.length === 1 ? '' : 's'}? This pushes each assigned spool profile back to the printer.`);
+      if (!confirmed) return;
+      trustBtn.disabled = true;
+      trustBtn.classList.add('is-busy');
+      try {
+        const ok = await _fleetFilamentBulkTrust(items);
+        showToast('Trust complete', `${ok}/${items.length} slot${items.length === 1 ? '' : 's'} synced to AMS.`, ok ? 'success' : 'error');
+        await refreshPrinters();
+        await _refreshSpoolsByPrinter();
+        _fleetFilamentSignature = '';
+        renderFleetFilament();
+      } finally {
+        trustBtn.disabled = false;
+        trustBtn.classList.remove('is-busy');
+      }
+      return;
+    }
+    const returnBtn = e.target.closest('[data-fleet-return-empties]');
+    if (returnBtn) {
+      const printers = [...(_latestPrinters || [])].sort(_comparePrintersByBench);
+      const items = _fleetFilamentRoomOps(printers).staleEmpties;
+      if (!items.length) return;
+      const confirmed = await _confirmModal(`Return ${items.length} spool${items.length === 1 ? '' : 's'} from empty AMS slots to home shelves?`);
+      if (!confirmed) return;
+      returnBtn.disabled = true;
+      returnBtn.classList.add('is-busy');
+      try {
+        const ok = await _fleetFilamentReturnEmpties(items);
+        showToast('Return complete', `${ok}/${items.length} spool${items.length === 1 ? '' : 's'} sent home.`, ok ? 'success' : 'error');
+        await _refreshSpoolsByPrinter();
+        _fleetFilamentSignature = '';
+        renderFleetFilament();
+      } finally {
+        returnBtn.disabled = false;
+        returnBtn.classList.remove('is-busy');
+      }
+    }
+  });
+}
+
 function _fleetFilamentPrinterSummary(p) {
   const loaded = (_latestSpoolsByPrinter[p.id] || []).filter(s => !s.archived_at);
   let mismatches = 0;
@@ -4666,9 +4899,10 @@ function _fleetFilamentPrinterCard(p) {
   </article>`;
 }
 
-function renderFleetFilament() {
+async function renderFleetFilament() {
   const el = document.getElementById('fleet-filament-page');
   if (!el) return;
+  _bindFleetFilamentActions();
   const printers = [...(_latestPrinters || [])].sort(_comparePrintersByBench);
   if (!printers.length) {
     el.innerHTML = `<div class="fleet-filament-empty-page">
@@ -4681,10 +4915,24 @@ function renderFleetFilament() {
   }
 
   const room = _fleetFilamentRoomSummary(printers);
+  const ops = _fleetFilamentRoomOps(printers);
+  const [intel, queueJobs] = await Promise.all([
+    fetch('/api/spools/intelligence?days=30').then(r => r.ok ? r.json() : (_fleetFilamentIntelCache || {})).catch(() => (_fleetFilamentIntelCache || {})),
+    fetch('/api/queue').then(r => r.ok ? r.json() : (_fleetFilamentQueueCache || [])).catch(() => (_fleetFilamentQueueCache || [])),
+  ]);
+  _fleetFilamentIntelCache = intel;
+  _fleetFilamentQueueCache = queueJobs;
+
   const signature = [
     room.mismatches,
     room.feeding,
     room.assigned,
+    ops.mismatches.length,
+    ops.staleEmpties.length,
+    intel?.summary?.unattributed_prints || 0,
+    intel?.summary?.loaded_low || 0,
+    _fleetFilamentQueueFilamentGaps(queueJobs).length,
+    queueJobs.filter(j => j.status === 'pending').length,
     printers.map(p => {
       const s = _fleetFilamentPrinterSummary(p);
       const spools = (s.loaded || []).map(x => `${x.id}:${x.location_slot}:${x.remaining_g}`).join(';');
@@ -4704,7 +4952,7 @@ function renderFleetFilament() {
       <div class="fleet-filament-hero-copy">
         <span class="mission-eyebrow">Operations</span>
         <h1>Fleet Filament</h1>
-        <p>Whole-room AMS loadout, feed routes, and spool assignments — every printer on one board.</p>
+        <p>Whole-room AMS loadout, feed routes, spool assignments, and dispatch readiness on one board.</p>
       </div>
       <div class="fleet-filament-hero-stats">
         <div class="fleet-filament-hero-stat">
@@ -4734,9 +4982,12 @@ function renderFleetFilament() {
         <a href="#/queue">Queue</a>
       </div>
     </header>
+    ${_fleetFilamentHealthStrip(intel, room, queueJobs)}
+    ${_fleetFilamentActionsBar(ops)}
     <div class="fleet-filament-briefing">
-      <span>Click any slot to quick-load or open Profile Doctor. Each printer is its own filament island — H2C Track Switch only routes that machine's AMS to its left or right nozzle.</span>
+      <span>Click any slot to quick-load by spool # or open Profile Doctor. Each printer is its own filament island — H2C Track Switch only routes that machine's AMS to its left or right nozzle.</span>
     </div>
+    ${_fleetFilamentQueueMapping(queueJobs, printers)}
     <div class="fleet-filament-grid">
       ${printers.map(_fleetFilamentPrinterCard).join('')}
     </div>

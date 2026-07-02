@@ -12599,6 +12599,255 @@ button.live-route-node:hover {
   }
 }
 
+.fleet-filament-health {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 0.85rem;
+  padding: 0.75rem 0.95rem;
+  border: 1px solid rgba(96, 165, 250, 0.18);
+  border-radius: 0.75rem;
+  background: rgba(8, 13, 26, 0.55);
+}
+
+.fleet-filament-health-label {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.fleet-filament-health-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.fleet-filament-health-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.32rem 0.58rem;
+  border-radius: 999px;
+  border: 1px solid rgba(96, 165, 250, 0.18);
+  background: rgba(15, 23, 42, 0.72);
+  color: #dbeafe;
+  font-size: 0.72rem;
+  text-decoration: none;
+}
+
+.fleet-filament-health-chip strong {
+  font-size: 0.82rem;
+}
+
+.fleet-filament-health-chip.is-ok {
+  border-color: rgba(34, 197, 94, 0.28);
+  color: #bbf7d0;
+}
+
+.fleet-filament-health-chip.is-watch {
+  border-color: rgba(245, 158, 11, 0.28);
+  color: #fde68a;
+}
+
+.fleet-filament-health-chip.is-warn {
+  border-color: rgba(239, 68, 68, 0.28);
+  color: #fecaca;
+}
+
+.fleet-filament-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  padding: 0.8rem 0.95rem;
+  border: 1px solid rgba(96, 165, 250, 0.16);
+  border-radius: 0.75rem;
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.fleet-filament-actions-copy strong {
+  display: block;
+  font-size: 0.84rem;
+}
+
+.fleet-filament-actions-copy span {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.fleet-filament-actions-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.fleet-filament-action {
+  min-height: 2.15rem;
+  padding: 0.38rem 0.72rem;
+  border-radius: 0.55rem;
+  border: 1px solid rgba(96, 165, 250, 0.24);
+  background: rgba(7, 15, 29, 0.82);
+  color: #dbeafe;
+  font-size: 0.74rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.fleet-filament-action span {
+  margin-left: 0.35rem;
+  color: #93c5fd;
+}
+
+.fleet-filament-action.is-warn {
+  border-color: rgba(245, 158, 11, 0.34);
+}
+
+.fleet-filament-action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.fleet-filament-action.is-busy {
+  opacity: 0.7;
+}
+
+.fleet-filament-queue {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid rgba(96, 165, 250, 0.16);
+  border-radius: 0.75rem;
+  background: rgba(8, 13, 26, 0.48);
+}
+
+.fleet-filament-queue-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.fleet-filament-queue-head span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.fleet-filament-queue-head strong {
+  font-size: 0.92rem;
+}
+
+.fleet-filament-queue-head a {
+  color: #93c5fd;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.fleet-filament-queue-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.fleet-filament-queue-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1.1fr) auto;
+  gap: 0.65rem 0.85rem;
+  align-items: center;
+  padding: 0.62rem 0.7rem;
+  border: 1px solid rgba(96, 165, 250, 0.14);
+  border-radius: 0.62rem;
+  background: rgba(7, 15, 29, 0.62);
+}
+
+.fleet-filament-queue-main strong,
+.fleet-filament-queue-main span,
+.fleet-filament-queue-status small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fleet-filament-queue-main span,
+.fleet-filament-queue-status small {
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.fleet-filament-queue-colours {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.fleet-filament-queue-colour {
+  padding: 0.18rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid rgba(96, 165, 250, 0.18);
+  font-size: 0.64rem;
+  font-weight: 800;
+}
+
+.fleet-filament-queue-colour.is-ready {
+  border-color: rgba(34, 197, 94, 0.34);
+  color: #bbf7d0;
+}
+
+.fleet-filament-queue-colour.is-missing {
+  border-color: rgba(239, 68, 68, 0.34);
+  color: #fecaca;
+}
+
+.fleet-filament-queue-colour.is-neutral {
+  color: var(--muted);
+}
+
+.fleet-filament-queue-badge {
+  display: inline-flex;
+  margin-bottom: 0.18rem;
+  padding: 0.12rem 0.42rem;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.fleet-filament-queue-badge.is-ready {
+  background: rgba(22, 101, 52, 0.24);
+  color: #bbf7d0;
+}
+
+.fleet-filament-queue-badge.is-warn {
+  background: rgba(120, 53, 15, 0.24);
+  color: #fde68a;
+}
+
+.fleet-filament-queue-badge.is-blocked {
+  background: rgba(127, 29, 29, 0.24);
+  color: #fecaca;
+}
+
+.fleet-filament-queue-link {
+  color: #93c5fd;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .fleet-filament-queue-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 .fleet-filament-empty,
 .fleet-filament-empty-page {
   padding: 1rem;
