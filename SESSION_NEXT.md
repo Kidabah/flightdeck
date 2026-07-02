@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `0634999` — Fleet Wall polish
+- Latest commit: `949fd95` — Flight Tower dispatch center polish
 - Pi repo: /home/flightdeck/flightdeck
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=590 / style.css?v=459
