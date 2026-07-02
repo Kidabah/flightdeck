@@ -2,8 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `8f74ffd` — Print Vault hero + briefing polish
-- Refresh cachebust currently: app.js?v=598 / style.css?v=465
+- Latest commit: (pending) — MakerWorld hero + import briefing polish
+- Refresh cachebust currently: app.js?v=599 / style.css?v=466
+
+### 2026-07-02 polish (MakerWorld hero + briefing)
+
+**MakerWorld glow-up aligned with Print Vault / Queue** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Hero strip: token/plates/to-import/recent chips, cleaner import status line, and quick links to MakerWorld / Print Vault / token settings.
+- New import briefing banner explains whether the next action is save token, import pending plates, open already-imported plates in the vault, or resume from recent imports.
+- Existing resolve/import/recent workflow stays intact; this is a top-of-page operator UX pass, not a flow rewrite.
+- Static cache `app.js?v=599` / `style.css?v=466`; hard refresh required.
 
 ### 2026-07-02 polish (Print Vault hero + briefing)
 

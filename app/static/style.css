@@ -2435,6 +2435,195 @@ header {
   grid-template-columns: minmax(18rem, 1.1fr) repeat(2, minmax(0, 1fr));
 }
 
+.makerworld-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) auto auto;
+  gap: 1rem 1.25rem;
+  align-items: end;
+}
+
+.makerworld-hero-copy { min-width: 0; }
+
+.makerworld-hero-status {
+  max-width: 38rem;
+  line-height: 1.45;
+}
+
+.makerworld-hero-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  justify-content: flex-end;
+}
+
+.makerworld-hero-metric {
+  min-width: 4.5rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 0.6rem;
+  background: rgba(15, 23, 42, 0.28);
+  text-align: center;
+}
+
+.makerworld-hero-metric strong {
+  display: block;
+  color: var(--text);
+  font-size: 1.28rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.makerworld-hero-metric span {
+  display: block;
+  margin-top: 0.22rem;
+  color: #7aa2d8;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.makerworld-hero-metric-ok strong { color: #a7f3d0; }
+.makerworld-hero-metric-warn {
+  border-color: rgba(245, 158, 11, 0.34);
+  background: rgba(120, 53, 15, 0.18);
+}
+.makerworld-hero-metric-warn strong { color: #fde68a; }
+.makerworld-hero-metric-info {
+  border-color: rgba(59, 130, 246, 0.34);
+  background: rgba(37, 99, 235, 0.14);
+}
+.makerworld-hero-metric-info strong { color: #bfdbfe; }
+.makerworld-hero-metric-muted strong { color: #cbd5e1; }
+
+.makerworld-hero-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: flex-end;
+}
+
+.makerworld-hero-links a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2rem;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid rgba(96, 165, 250, 0.28);
+  border-radius: 0.45rem;
+  background: rgba(15, 23, 42, 0.24);
+  color: #bfdbfe;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.makerworld-hero-links a:hover {
+  border-color: rgba(147, 197, 253, 0.55);
+  background: rgba(37, 99, 235, 0.16);
+  color: #eff6ff;
+}
+
+.makerworld-briefing {
+  border: 1px solid rgba(96, 165, 250, 0.18);
+  border-radius: 0.75rem;
+  background: rgba(15, 23, 42, 0.22);
+  overflow: hidden;
+  margin-bottom: 0.85rem;
+}
+
+.makerworld-briefing-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 0.95rem;
+  border-bottom: 1px solid rgba(96, 165, 250, 0.12);
+}
+
+.makerworld-briefing-head span {
+  display: block;
+  color: #93c5fd;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.makerworld-briefing-head strong {
+  display: block;
+  margin-top: 0.12rem;
+  color: var(--text);
+  font-size: 0.92rem;
+}
+
+.makerworld-briefing-head a {
+  color: #bfdbfe;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.makerworld-briefing-head a:hover { color: #eff6ff; }
+
+.makerworld-briefing-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.75rem;
+}
+
+.makerworld-briefing-calm .makerworld-briefing-list { padding: 0; }
+
+.makerworld-briefing-clear {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.makerworld-briefing-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.65rem;
+  align-items: start;
+  padding: 0.62rem 0.7rem;
+  border: 1px solid rgba(96, 165, 250, 0.14);
+  border-left-width: 3px;
+  border-radius: 0.55rem;
+  background: rgba(2, 6, 23, 0.28);
+}
+
+.makerworld-briefing-ok { border-left-color: #22c55e; }
+.makerworld-briefing-warn { border-left-color: #f59e0b; }
+.makerworld-briefing-info { border-left-color: #60a5fa; }
+.makerworld-briefing-muted { border-left-color: #64748b; }
+
+.makerworld-briefing-kicker {
+  color: #93c5fd;
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.makerworld-briefing-copy strong {
+  display: block;
+  color: var(--text);
+  font-size: 0.82rem;
+  line-height: 1.25;
+}
+
+.makerworld-briefing-copy span {
+  display: block;
+  margin-top: 0.18rem;
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.35;
+}
+
 .makerworld-token-card {
   border-color: rgba(34,197,94,0.24);
   background:
@@ -3805,6 +3994,12 @@ header {
   .demo-tour { grid-row: auto; }
   .stats-panel-wide { grid-column: span 2; }
   .stats-system-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .makerworld-hero {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+  .makerworld-hero-metrics,
+  .makerworld-hero-links { justify-content: flex-start; }
 }
 
 @media (max-width: 720px) {

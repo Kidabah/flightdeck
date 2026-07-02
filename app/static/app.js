@@ -3478,6 +3478,142 @@ function _attachMakerWorldTokenEvents(el, afterSave = null) {
   _attachBambuTokenFieldEvents(el, afterSave);
 }
 
+function _makerWorldSnapshot(status = {}, resolved = null, recent = []) {
+  const plates = Array.isArray(resolved?.plates) ? resolved.plates : [];
+  const imported = plates.filter(plate => plate?.already_imported || plate?.needs_vault_refresh).length;
+  const pending = plates.filter(plate => !(plate?.already_imported || plate?.needs_vault_refresh)).length;
+  return {
+    hasToken: !!status?.has_token,
+    plateCount: plates.length,
+    importedCount: imported,
+    pendingCount: pending,
+    recentCount: Array.isArray(recent) ? recent.length : 0,
+    hasResolved: !!resolved,
+    title: resolved?.title || '',
+  };
+}
+
+function _makerWorldHeroStatusLine(snap) {
+  if (!snap.hasToken && !snap.hasResolved) {
+    return 'Add your MakerWorld token, then paste a model link to preview plates and save them into Print Vault.';
+  }
+  if (snap.hasResolved && snap.pendingCount) {
+    return `${snap.pendingCount} plate${snap.pendingCount === 1 ? '' : 's'} still ready to import from the resolved model.`;
+  }
+  if (snap.hasResolved && snap.importedCount) {
+    return `${snap.importedCount} plate${snap.importedCount === 1 ? '' : 's'} already landed in Print Vault for ${snap.title || 'this model'}.`;
+  }
+  if (snap.hasToken) {
+    return 'Token is ready. Paste a MakerWorld link to pull plates straight into the vault and hand them off to slicers.';
+  }
+  return 'Resolve a MakerWorld link to inspect plates before importing them into Print Vault.';
+}
+
+function _makerWorldHeroHtml(status = {}, resolved = null, recent = []) {
+  const snap = _makerWorldSnapshot(status, resolved, recent);
+  return `<section class="manual-hero makerworld-hero makerworld-hero-polished">
+    <div class="makerworld-hero-copy">
+      <div class="mission-eyebrow">MakerWorld</div>
+      <h1>Import MakerWorld models into Flightdeck.</h1>
+      <p class="makerworld-hero-status">${esc(_makerWorldHeroStatusLine(snap))}</p>
+    </div>
+    <div class="makerworld-hero-metrics" aria-label="MakerWorld counts">
+      <div class="makerworld-hero-metric${snap.hasToken ? ' makerworld-hero-metric-ok' : ' makerworld-hero-metric-warn'}">
+        <strong>${snap.hasToken ? 'Ready' : 'Needed'}</strong>
+        <span>Token</span>
+      </div>
+      <div class="makerworld-hero-metric">
+        <strong>${snap.plateCount}</strong>
+        <span>Plates</span>
+      </div>
+      <div class="makerworld-hero-metric${snap.pendingCount ? ' makerworld-hero-metric-info' : ''}">
+        <strong>${snap.pendingCount}</strong>
+        <span>To Import</span>
+      </div>
+      <div class="makerworld-hero-metric${snap.recentCount ? ' makerworld-hero-metric-muted' : ''}">
+        <strong>${snap.recentCount}</strong>
+        <span>Recent</span>
+      </div>
+    </div>
+    <div class="manual-hero-actions makerworld-hero-links">
+      <a href="https://makerworld.com/" target="_blank" rel="noopener noreferrer">Open MakerWorld</a>
+      <a href="#/files">Print Vault</a>
+      <a href="#/settings/preferences">Bambu Cloud token</a>
+    </div>
+  </section>`;
+}
+
+function _makerWorldBriefingHtml(status = {}, resolved = null, recent = []) {
+  const snap = _makerWorldSnapshot(status, resolved, recent);
+  const rows = [];
+  if (!snap.hasToken) {
+    rows.push({
+      tone: 'warn',
+      kicker: 'Token',
+      title: 'Bambu Cloud token still needed',
+      detail: 'Metadata resolves without it, but downloads and vault imports stay locked until the cookie is saved.',
+    });
+  }
+  if (snap.pendingCount) {
+    rows.push({
+      tone: 'ok',
+      kicker: 'Import',
+      title: `${snap.pendingCount} plate${snap.pendingCount === 1 ? '' : 's'} ready to save to Print Vault`,
+      detail: snap.importedCount
+        ? `${snap.importedCount} already imported from this model`
+        : 'Resolve is done; next step is Save to Vault or Save & open in slicer.',
+    });
+  }
+  if (snap.importedCount && !snap.pendingCount) {
+    rows.push({
+      tone: 'info',
+      kicker: 'Vault',
+      title: 'Resolved plates already exist in Print Vault',
+      detail: 'Open the vault or send them straight into your slicer handoff.',
+    });
+  }
+  if (snap.recentCount) {
+    rows.push({
+      tone: 'muted',
+      kicker: 'Recent',
+      title: `${snap.recentCount} recent import${snap.recentCount === 1 ? '' : 's'} on hand`,
+      detail: 'The recent list below doubles as a quick jump back into slicer or the vault.',
+    });
+  }
+
+  const calm = !rows.length;
+  const body = calm
+    ? `<div class="briefing-clear briefing-clear-hero makerworld-briefing-clear">
+        <div class="briefing-clear-icon" aria-hidden="true">✓</div>
+        <div class="briefing-clear-copy">
+          <strong>Ready to import</strong>
+          <span>Paste a MakerWorld link to preview the plates and start the import path into Print Vault.</span>
+        </div>
+        <div class="briefing-clear-links">
+          <a href="#/files">Open vault</a>
+          <a href="https://makerworld.com/" target="_blank" rel="noopener noreferrer">Browse models</a>
+        </div>
+      </div>`
+    : rows.map(row => `<article class="makerworld-briefing-row makerworld-briefing-${row.tone}">
+        <span class="makerworld-briefing-kicker">${esc(row.kicker)}</span>
+        <div class="makerworld-briefing-copy">
+          <strong>${esc(row.title)}</strong>
+          <span>${esc(row.detail)}</span>
+        </div>
+      </article>`).join('');
+
+  return `<section class="makerworld-briefing${calm ? ' makerworld-briefing-calm' : ''}" aria-label="MakerWorld briefing">
+    <div class="makerworld-briefing-head">
+      <div>
+        <span>Import briefing</span>
+        <strong>${calm ? 'Clear runway' : 'What to do next'}</strong>
+      </div>
+      <a href="#/files">Print Vault</a>
+    </div>
+    <div class="makerworld-briefing-list">${body}</div>
+  </section>`;
+}
+
 function _makerWorldHealthPanelHtml() {
   const h = _bambuCloudHealth();
   return `<section class="manual-card makerworld-token-card">
@@ -3548,17 +3684,8 @@ async function renderMakerWorldView() {
   }
   const previewHtml = _makerWorldResolved ? _makerWorldPreviewHtml(_makerWorldResolved, _makerWorldUrl) : '';
   el.innerHTML = `<div class="manual-page makerworld-page">
-    <section class="manual-hero makerworld-hero">
-      <div>
-        <div class="mission-eyebrow">MakerWorld</div>
-        <h1>Import MakerWorld models into Flightdeck.</h1>
-        <p>Paste a MakerWorld link, preview the plates, and save 3MF files straight into the Print Vault. Downloads reuse your local Bambu Cloud token — Flightdeck never stores your Bambu password.</p>
-      </div>
-      <div class="manual-hero-actions">
-        <a href="https://makerworld.com/" target="_blank" rel="noopener noreferrer">Open MakerWorld</a>
-        <a href="#/settings/preferences">Bambu Cloud token</a>
-      </div>
-    </section>
+    ${_makerWorldHeroHtml(status, _makerWorldResolved, _makerWorldRecent)}
+    ${_makerWorldBriefingHtml(status, _makerWorldResolved, _makerWorldRecent)}
 
     ${_makerWorldTokenSetupHtml(status)}
 
