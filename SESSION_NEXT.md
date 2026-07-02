@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — Live header/controls overlap + REC beside stream badge
+- Latest commit: `e316298` — Live header/controls overlap + REC beside stream badge
 - Refresh cachebust currently: app.js?v=605 / style.css?v=471
 
 ### 2026-07-02 polish (Live controls click-through + REC placement)
