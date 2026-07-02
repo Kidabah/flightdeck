@@ -2,10 +2,10 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `5a35c26` — Telemetry shop telemetry glow-up
+- Latest commit: `4ce7c09` — Telemetry compact bento view
 - Pi repo: /home/flightdeck/flightdeck
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=592 / style.css?v=461
+- Refresh cachebust currently: app.js?v=593 / style.css?v=462
 - Pi deploy: `cd /home/flightdeck/flightdeck && git pull && sudo systemctl restart flightdeck.service`
 - Pi SSH: `ssh -i C:\Users\Kidabah\.ssh\flightdeck_cursor -o IdentitiesOnly=yes flightdeck@100.106.112.104`
 
