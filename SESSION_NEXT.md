@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — bench printer order (H2D → X1C → Big Girl)
+- Latest commit: `d8afa77` — bench printer order (H2D → X1C → Big Girl)
 - Refresh cachebust currently: app.js?v=613 / style.css?v=477
 
 ### 2026-07-02 polish (bench printer order)
