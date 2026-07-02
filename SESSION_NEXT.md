@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — H2C toolhead nozzle mapping fix
+- Latest commit: `23b657f` — H2C toolhead nozzle mapping fix
 - Pi repo: /home/flightdeck/flightdeck
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=595 / style.css?v=463
