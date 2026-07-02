@@ -9163,12 +9163,101 @@ async function _renderPrinterBayBody(printerId) {
     const printerFileCount = printerTarget
       ? (printerTarget.files || []).filter(f => f.kind !== 'dir' && _fileCompatiblePrinters(f, printerTarget).some(p => p.id === printerId)).length
       : 0;
+    const activeJob = _activePrinterJob(printer || {});
+    const stateLabel = _printerDisplayStateLabel(printer || { state: 'idle' });
+    const stateClass = _printerDisplayStateClass(printer || { state: 'idle' });
+    const bayReady = printerTarget
+      ? _printBaySourceSummary(
+        printerTarget,
+        (printerTarget.files || []).filter(f => f.kind !== 'dir' && _fileCompatiblePrinters(f, printerTarget).some(p => p.id === printerId))
+      ).ready
+      : 0;
+    const bayStatus = activeJob?.filename
+      ? `${jobDisplayName(activeJob)}${activeJob.progress != null ? ` · ${Math.round(activeJob.progress * 100)}%` : ''}`
+      : printerFileCount
+        ? `${printerFileCount} local file${printerFileCount === 1 ? '' : 's'} on machine`
+        : 'No machine-local files yet';
+    const briefingRows = [];
+    if (bayReady) {
+      briefingRows.push({
+        tone: 'ok',
+        kicker: 'Launch',
+        title: `${bayReady} machine file${bayReady === 1 ? '' : 's'} ready to queue`,
+        detail: 'Local storage already has launch candidates for this printer.',
+      });
+    }
+    if (vaultFiles) {
+      briefingRows.push({
+        tone: 'info',
+        kicker: 'Vault',
+        title: `${vaultFiles} matching vault file${vaultFiles === 1 ? '' : 's'} available`,
+        detail: 'Open the vault section below to queue or slice compatible files without copying them first.',
+      });
+    }
+    if (recent.length) {
+      briefingRows.push({
+        tone: 'muted',
+        kicker: 'Recent',
+        title: `${recent.length} recent print${recent.length === 1 ? '' : 's'} remembered`,
+        detail: 'Reprints and matching source files are ready in the recent-work panel.',
+      });
+    }
+    const briefingHtml = briefingRows.length
+      ? `<section class="printer-bay-briefing" aria-label="Printer bay briefing">
+          <div class="printer-bay-briefing-head">
+            <div>
+              <span>Bay briefing</span>
+              <strong>Launch surface for ${esc(_dashboardPrinterName(printer || { id: printerId }))}</strong>
+            </div>
+            <a class="filedesk-action-btn" href="#/files">Fleet bay</a>
+          </div>
+          <div class="printer-bay-briefing-list">
+            ${briefingRows.map(row => `<article class="printer-bay-briefing-row printer-bay-briefing-${row.tone}">
+              <span class="printer-bay-briefing-kicker">${esc(row.kicker)}</span>
+              <div class="printer-bay-briefing-copy">
+                <strong>${esc(row.title)}</strong>
+                <span>${esc(row.detail)}</span>
+              </div>
+            </article>`).join('')}
+          </div>
+        </section>`
+      : `<section class="printer-bay-briefing printer-bay-briefing-calm" aria-label="Printer bay briefing">
+          <div class="briefing-clear briefing-clear-hero filedesk-briefing-clear">
+            <div class="briefing-clear-icon" aria-hidden="true">✓</div>
+            <div class="briefing-clear-copy">
+              <strong>Bay standing by</strong>
+              <span>No launch backlog or vault follow-up is asking for attention on this printer.</span>
+            </div>
+            <div class="briefing-clear-links">
+              <a href="#/files">Fleet bay</a>
+              <a href="#/queue">Queue</a>
+            </div>
+          </div>
+        </section>`;
     const html = `<div class="printer-bay-shell">
       <section class="printer-bay-hero">
-        <div>
+        <div class="printer-bay-hero-copy">
           <div class="mission-eyebrow">Print Bay</div>
           <h2>${esc(_dashboardPrinterName(printer || { id: printerId }))}</h2>
-          <p>Machine-local files, recent work, and vault candidates for this printer.</p>
+          <p>${esc(bayStatus)}</p>
+        </div>
+        <div class="printer-bay-hero-metrics">
+          <div class="printer-bay-metric printer-bay-metric-${esc(stateClass)}">
+            <strong>${esc(stateLabel)}</strong>
+            <span>Printer</span>
+          </div>
+          <div class="printer-bay-metric">
+            <strong>${printerFileCount}</strong>
+            <span>Local</span>
+          </div>
+          <div class="printer-bay-metric">
+            <strong>${vaultFiles}</strong>
+            <span>Vault</span>
+          </div>
+          <div class="printer-bay-metric">
+            <strong>${recent.length}</strong>
+            <span>Recent</span>
+          </div>
         </div>
         <div class="printer-bay-hero-actions">
           <label class="filedesk-upload-source">
@@ -9182,6 +9271,7 @@ async function _renderPrinterBayBody(printerId) {
           </div>
         </div>
       </section>
+      ${briefingHtml}
       ${_printBayReprintHtml(recent, _fileDeskTargets)}
       <section class="printbay-active-bays">
         <div class="printbay-section-head printbay-section-head-compact">

@@ -19682,14 +19682,137 @@ select optgroup {
   padding-right: 0.35rem;
 }
 .printer-bay-hero {
-  display: flex;
-  align-items: flex-end;
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) auto minmax(18rem, 1fr);
+  align-items: end;
   justify-content: space-between;
-  gap: 1rem;
-  border: 1px solid var(--border);
-  border-radius: 0.7rem;
-  background: linear-gradient(135deg, rgba(59,130,246,0.08), rgba(255,255,255,0.02));
-  padding: 0.9rem 1rem;
+  gap: 1rem 1.25rem;
+  border: 1px solid rgba(96, 165, 250, 0.22);
+  border-radius: 0.85rem;
+  background:
+    radial-gradient(ellipse at top left, rgba(37, 99, 235, 0.16), transparent 55%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015));
+  box-shadow: 0 18px 40px rgba(2, 6, 23, 0.22);
+  padding: 1.05rem 1.15rem;
+}
+.printer-bay-hero-copy { min-width: 0; }
+.printer-bay-hero-copy p { max-width: 34rem; line-height: 1.45; }
+.printer-bay-hero-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  justify-content: flex-end;
+}
+.printer-bay-metric {
+  min-width: 4.6rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 0.6rem;
+  background: rgba(15, 23, 42, 0.28);
+  text-align: center;
+}
+.printer-bay-metric strong {
+  display: block;
+  color: var(--text);
+  font-size: 1.05rem;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+.printer-bay-metric span {
+  display: block;
+  margin-top: 0.22rem;
+  color: #7aa2d8;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.printer-bay-metric-printing strong,
+.printer-bay-metric-idle strong,
+.printer-bay-metric-paused strong,
+.printer-bay-metric-error strong,
+.printer-bay-metric-offline strong,
+.printer-bay-metric-hold strong {
+  color: var(--text);
+}
+.printer-bay-metric-printing strong { color: #93c5fd; }
+.printer-bay-metric-idle strong { color: #a7f3d0; }
+.printer-bay-metric-paused strong { color: #fde68a; }
+.printer-bay-metric-error strong,
+.printer-bay-metric-offline strong,
+.printer-bay-metric-hold strong { color: #fecaca; }
+.printer-bay-briefing {
+  border: 1px solid rgba(96, 165, 250, 0.18);
+  border-radius: 0.75rem;
+  background: rgba(15, 23, 42, 0.22);
+  overflow: hidden;
+}
+.printer-bay-briefing-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 0.95rem;
+  border-bottom: 1px solid rgba(96, 165, 250, 0.12);
+}
+.printer-bay-briefing-head span {
+  display: block;
+  color: #93c5fd;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.printer-bay-briefing-head strong {
+  display: block;
+  margin-top: 0.12rem;
+  color: var(--text);
+  font-size: 0.92rem;
+}
+.printer-bay-briefing-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.75rem;
+}
+.printer-bay-briefing-calm {
+  border: 0;
+  background: transparent;
+}
+.printer-bay-briefing-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.65rem;
+  align-items: start;
+  padding: 0.62rem 0.7rem;
+  border: 1px solid rgba(96, 165, 250, 0.14);
+  border-left-width: 3px;
+  border-radius: 0.55rem;
+  background: rgba(2, 6, 23, 0.28);
+}
+.printer-bay-briefing-ok { border-left-color: #22c55e; }
+.printer-bay-briefing-info { border-left-color: #60a5fa; }
+.printer-bay-briefing-muted { border-left-color: #64748b; }
+.printer-bay-briefing-kicker {
+  color: #93c5fd;
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.printer-bay-briefing-copy strong {
+  display: block;
+  color: var(--text);
+  font-size: 0.82rem;
+  line-height: 1.25;
+}
+.printer-bay-briefing-copy span {
+  display: block;
+  margin-top: 0.18rem;
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.35;
 }
 .printer-bay-hero h2 {
   margin: 0.2rem 0 0;
@@ -21871,7 +21994,11 @@ select optgroup {
   .filedesk-grid { grid-template-columns: 1fr; }
   .printbay-bay-card > summary { grid-template-columns: 1fr; }
   .printbay-bay-pills { justify-content: flex-start; }
-  .printer-bay-hero { align-items: flex-start; flex-direction: column; }
+  .printer-bay-hero {
+    grid-template-columns: 1fr;
+    align-items: flex-start;
+  }
+  .printer-bay-hero-metrics,
   .printer-bay-stats { justify-content: flex-start; }
   .filedesk-hero { grid-template-columns: 1fr; align-items: start; }
   .filedesk-hero-metrics { justify-content: flex-start; }

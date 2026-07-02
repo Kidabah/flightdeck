@@ -2,8 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `986fece` — MakerWorld hero + import briefing polish
-- Refresh cachebust currently: app.js?v=599 / style.css?v=466
+- Latest commit: (pending) — Print Bay hero + briefing polish
+- Refresh cachebust currently: app.js?v=600 / style.css?v=467
+
+### 2026-07-02 polish (Print Bay hero + briefing)
+
+**Per-printer Print Bay glow-up aligned with Print Vault** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Printer bay hero now shows live machine state, local/vault/recent counts, and a cleaner machine-status line instead of plain descriptive copy.
+- New bay briefing banner calls out local launch-ready files, matching vault files, and recent printer history at a glance.
+- Existing on-machine storage and vault-match panels stay intact; this is a visibility/UX pass over the printer-specific bay view.
+- Static cache `app.js?v=600` / `style.css?v=467`; hard refresh required.
 
 ### 2026-07-02 polish (MakerWorld hero + briefing)
 
