@@ -2,12 +2,21 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `657067e` — MakerWorld vault file detection + import missing
+- Latest commit: _(pending)_ — Dashboard polish hero + briefing
 - Pi repo: /home/flightdeck/flightdeck
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=586 / style.css?v=455
+- Refresh cachebust currently: app.js?v=587 / style.css?v=456
 - Pi deploy: `cd /home/flightdeck/flightdeck && git pull && sudo systemctl restart flightdeck.service`
 - Pi SSH: `ssh -i C:\Users\Kidabah\.ssh\flightdeck_cursor -o IdentitiesOnly=yes flightdeck@100.106.112.104`
+
+### 2026-06-30 polish (Dashboard hero + briefing)
+
+**Dashboard glow-up — fleet snapshot hero, clear skies banner, printer card accents** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- New hero strip: live status line, Active/Idle/Attention/Offline chips, quick links to Fleet Wall / Flight Tower / Queue.
+- Clear skies briefing is now a green celebration banner with camera + tower shortcuts.
+- Printer cards get state-coloured borders (printing blue, paused amber, fault red) and subtle hover lift.
+- Static cache `app.js?v=587` / `style.css?v=456`; hard refresh required.
 
 ### 2026-06-29 feature (MakerWorld import missing only)
 

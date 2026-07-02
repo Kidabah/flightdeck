@@ -1579,6 +1579,67 @@ function _dashboardMoistureRowsByPrinter(printers) {
   return rows;
 }
 
+function _dashboardFleetSnapshot(printers) {
+  const printing = printers.filter(p => p.state === 'printing').length;
+  const paused = printers.filter(p => p.state === 'paused').length;
+  const active = printing + paused;
+  const idle = printers.filter(p => p.state === 'idle' || p.state === 'finished').length;
+  const offline = printers.filter(p => p.state === 'offline').length;
+  const faults = printers.filter(p => p.state === 'error' || p.state === 'estop').length;
+  const attention = printers.filter(p =>
+    _printerPrintLocked(p) ||
+    ['paused', 'offline'].includes(p.state) ||
+    _healthIsActionable(p.health) ||
+    (p.health?.status === 'attention' || p.health?.status === 'watch')
+  ).length;
+  return { printing, paused, active, idle, offline, faults, attention, total: printers.length };
+}
+
+function _renderDashboardHero(printers) {
+  if (!printers.length) return '';
+  const snap = _dashboardFleetSnapshot(printers);
+  const urgent = snap.faults > 0 || snap.attention > 0;
+  let statusLine = 'All printers idle — ready when you are';
+  if (urgent) {
+    statusLine = `${snap.attention} item${snap.attention === 1 ? '' : 's'} need a look — see briefing below`;
+  } else if (snap.active) {
+    statusLine = `${snap.active} print${snap.active === 1 ? '' : 's'} in flight — shop's humming along`;
+  } else if (snap.offline) {
+    statusLine = `${snap.offline} offline · everything else looks clear`;
+  }
+
+  return `<section class="dashboard-hero" aria-label="Fleet snapshot">
+    <div class="dashboard-hero-copy">
+      <span class="dashboard-hero-eyebrow">Print room</span>
+      <h1 class="dashboard-hero-title">Dashboard</h1>
+      <p class="dashboard-hero-status">${esc(statusLine)}</p>
+    </div>
+    <div class="dashboard-hero-metrics" aria-label="Fleet counts">
+      <div class="dash-hero-metric dash-hero-metric-active">
+        <strong>${snap.active}</strong>
+        <span>Active</span>
+      </div>
+      <div class="dash-hero-metric">
+        <strong>${snap.idle}</strong>
+        <span>Idle</span>
+      </div>
+      <div class="dash-hero-metric${snap.attention ? ' dash-hero-metric-warn' : ''}">
+        <strong>${snap.attention}</strong>
+        <span>Attention</span>
+      </div>
+      <div class="dash-hero-metric${snap.offline ? ' dash-hero-metric-muted' : ''}">
+        <strong>${snap.offline}</strong>
+        <span>Offline</span>
+      </div>
+    </div>
+    <div class="dashboard-hero-links">
+      <a href="#/fleet">Fleet Wall</a>
+      <a href="#/mission">Flight Tower</a>
+      <a href="#/queue">Queue</a>
+    </div>
+  </section>`;
+}
+
 function _renderDashboardBriefing(printers) {
   const sorted = [...(printers || [])].sort((a, b) =>
     _dashboardStateRank(a) - _dashboardStateRank(b) ||
@@ -1677,13 +1738,20 @@ function _renderDashboardBriefing(printers) {
 
   const calm = !cardModels.some(card => card.hasRows);
   const body = calm
-    ? `<div class="briefing-clear">
-        <strong>Clear skies</strong>
-        <span>No active printer faults, AMS profile warnings, or loaded spool risks.</span>
+    ? `<div class="briefing-clear briefing-clear-hero">
+        <div class="briefing-clear-icon" aria-hidden="true">✓</div>
+        <div class="briefing-clear-copy">
+          <strong>Clear skies</strong>
+          <span>No active faults, AMS profile warnings, or loaded spool risks.</span>
+        </div>
+        <div class="briefing-clear-links">
+          <a href="#/fleet">Watch cameras</a>
+          <a href="#/mission">Flight Tower</a>
+        </div>
       </div>`
     : cardModels.map(card => card.html).join('');
 
-  return `<section class="dashboard-briefing" aria-label="Flight briefing">
+  return `<section class="dashboard-briefing${calm ? ' dashboard-briefing-calm' : ''}" aria-label="Flight briefing">
     <div class="briefing-head">
       <div>
         <span>Flight Briefing</span>
@@ -1881,7 +1949,7 @@ function renderCard(p) {
     </div>` : '';
 
   return `
-    <div class="card"${tabAttr}${dataAttr}>
+    <div class="card card-state-${badgeClass}"${tabAttr}${dataAttr}>
       <div class="card-header">
         <div class="printer-identity">
           <div class="printer-icon">${getIcon(p.icon)}</div>
@@ -11576,7 +11644,7 @@ function updateDashboard(printers) {
   const printerCards = sortedPrinters.length
     ? sortedPrinters.map(renderCard).join('')
     : _renderAddPrinterCard(true);
-  grid.innerHTML = `${_renderDashboardBriefing(sortedPrinters)}${printerCards}`;
+  grid.innerHTML = `<div class="dashboard-top">${_renderDashboardHero(sortedPrinters)}${_renderDashboardBriefing(sortedPrinters)}</div><div class="dashboard-cards">${printerCards}</div>`;
 
   grid.querySelectorAll('[data-printer-id]').forEach(card => {
     const p = printers.find(x => x.id === card.dataset.printerId);
