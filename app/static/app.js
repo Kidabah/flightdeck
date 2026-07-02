@@ -10467,12 +10467,12 @@ function _renderQueueBriefing(jobs, printers) {
   const cautionJobs = pending.filter(j => _missionJobReadiness(j).cls === 'warn');
   const activeJobs = jobs.filter(j => j.status === 'printing' || j.status === 'uploading');
   const recoverJobs = jobs.filter(j => j.status === 'failed' || j.status === 'cancelled');
-  const rows = [];
+  const attentionRows = [];
 
   blockedJobs.forEach(j => {
     const p = printers.find(x => x.id === j.printer_id);
     const issue = j.preflight?.issues?.find(i => i.level === 'block' || i.level === 'wait') || j.preflight?.issues?.[0];
-    rows.push({
+    attentionRows.push({
       tone: 'critical',
       kicker: 'Blocked',
       title: j.filename.replace(/.*[\\/]/, ''),
@@ -10481,20 +10481,9 @@ function _renderQueueBriefing(jobs, printers) {
     });
   });
 
-  activeJobs.forEach(j => {
-    const p = printers.find(x => x.id === j.printer_id);
-    rows.push({
-      tone: 'ok',
-      kicker: j.status === 'uploading' ? 'Upload' : 'Printing',
-      title: j.filename.replace(/.*[\\/]/, ''),
-      detail: p ? _printerQueueLabel(p) : j.printer_id,
-      printer: '',
-    });
-  });
-
   cautionJobs.slice(0, 4).forEach(j => {
     const p = printers.find(x => x.id === j.printer_id);
-    rows.push({
+    attentionRows.push({
       tone: 'warn',
       kicker: 'Caution',
       title: j.filename.replace(/.*[\\/]/, ''),
@@ -10505,7 +10494,7 @@ function _renderQueueBriefing(jobs, printers) {
 
   recoverJobs.slice(0, 4).forEach(j => {
     const p = printers.find(x => x.id === j.printer_id);
-    rows.push({
+    attentionRows.push({
       tone: 'warn',
       kicker: j.status === 'failed' ? 'Failed' : 'Cancelled',
       title: j.filename.replace(/.*[\\/]/, ''),
@@ -10514,20 +10503,23 @@ function _renderQueueBriefing(jobs, printers) {
     });
   });
 
-  const calm = !rows.length;
+  const calm = !attentionRows.length;
+  const inFlightNote = activeJobs.length
+    ? `${activeJobs.length} job${activeJobs.length === 1 ? '' : 's'} in flight — nothing needs operator action.`
+    : 'Ready jobs auto-send when a printer is free.';
   const body = calm
     ? `<div class="briefing-clear briefing-clear-hero queue-briefing-clear">
         <div class="briefing-clear-icon" aria-hidden="true">✓</div>
         <div class="briefing-clear-copy">
-          <strong>Queues clear</strong>
-          <span>Nothing blocked or waiting on preflight. Ready jobs auto-send when a printer is free.</span>
+          <strong>${activeJobs.length ? 'Dispatch healthy' : 'Queues clear'}</strong>
+          <span>Nothing blocked or waiting on preflight. ${inFlightNote}</span>
         </div>
         <div class="briefing-clear-links">
           <a href="#/files">Print Vault</a>
           <a href="#/mission">Flight Tower</a>
         </div>
       </div>`
-    : rows.map(row => `<article class="queue-briefing-row queue-briefing-${row.tone}">
+    : attentionRows.map(row => `<article class="queue-briefing-row queue-briefing-${row.tone}">
         <span class="queue-briefing-kicker">${esc(row.kicker)}</span>
         <div class="queue-briefing-copy">
           <strong>${esc(row.title)}</strong>
