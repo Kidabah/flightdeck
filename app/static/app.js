@@ -10978,6 +10978,35 @@ function _ensurePrintWatchCameraUrls(printers) {
   });
 }
 
+function _fleetWallHeroStatusLine(printers) {
+  const snap = _dashboardFleetSnapshot(printers);
+  const printing = printers.filter(p => p.state === 'printing');
+  if (printing.length === 1) {
+    const job = _activePrinterJob(printing[0]);
+    const jobName = job ? jobDisplayName(job) : 'a job';
+    return `${_printerPrimaryLabel(printing[0])} printing ${jobName}`;
+  }
+  if (snap.active) {
+    return `${snap.active} printer${snap.active === 1 ? '' : 's'} live on the wall`;
+  }
+  if (snap.attention) {
+    return `${snap.attention} need${snap.attention === 1 ? 's' : ''} eyes — feeds stay up for review`;
+  }
+  if (snap.offline) {
+    return `${snap.offline} offline · ${snap.idle} idle and watching`;
+  }
+  return 'All quiet — cameras ready when you need them';
+}
+
+function _fleetWallSummaryHtml(printers) {
+  const snap = _dashboardFleetSnapshot(printers);
+  return `
+    ${_fleetWallMetric('Live', String(snap.active), snap.active ? 'warm' : '')}
+    ${_fleetWallMetric('Idle', String(snap.idle))}
+    ${_fleetWallMetric('Attention', String(snap.attention), snap.attention ? 'hot' : '')}
+    ${_fleetWallMetric('Offline', String(snap.offline), snap.offline ? 'muted' : '')}`;
+}
+
 function _fleetWallTone(p) {
   if (_printerPrintLocked(p)) return 'locked';
   if (p.state === 'error' || p.state === 'estop') return 'critical';
@@ -11078,7 +11107,15 @@ function _fleetWallWarnings(p) {
       const threshold = Math.max(10, Math.ceil(grams / 10) * 10);
       warnings.push(`#${s.id} <${threshold}g`);
     });
-  if (!warnings.length) return `<div class="fleet-wall-clear">No active warnings</div>`;
+  if (!warnings.length) {
+    return `<div class="fleet-wall-clear fleet-wall-clear-hero">
+      <span class="fleet-wall-clear-icon" aria-hidden="true">✓</span>
+      <div class="fleet-wall-clear-copy">
+        <strong>All clear</strong>
+        <span>No lockouts, faults, or low-spool warnings on this printer.</span>
+      </div>
+    </div>`;
+  }
   return `<div class="fleet-wall-warnings">${warnings.slice(0, 4).map(w => `<span>${esc(w)}</span>`).join('')}</div>`;
 }
 
@@ -11289,19 +11326,21 @@ async function renderFleetWall() {
 
   const signature = `${_fleetWallMode}|${printers.map(p => `${p.id}:${_cameraUrlCache[p.id] ? 'cam' : 'nocam'}`).join('|')}`;
   if (_fleetWallSignature !== signature || !el.querySelector('.fleet-wall-grid')) {
-    const active = printers.filter(p => ['printing', 'paused'].includes(p.state)).length;
-    const attention = printers.filter(p => _printerWarningTarget(p) || _printerPrintLocked(p)).length;
     el.className = `fleet-wall-page fleet-wall-${_fleetWallMode}`;
     el.innerHTML = `<div class="fleet-wall-hero">
-      <div>
-        <span>Fleet Wall</span>
+      <div class="fleet-wall-hero-copy">
+        <span>Camera wall</span>
         <h1>Shop floor live</h1>
+        <p class="fleet-wall-hero-status">${esc(_fleetWallHeroStatusLine(printers))}</p>
       </div>
       ${_fleetWallModeControls()}
-      <div class="fleet-wall-summary">
-        ${_fleetWallMetric('Printers', String(printers.length))}
-        ${_fleetWallMetric('Active', String(active), active ? 'warm' : '')}
-        ${_fleetWallMetric('Attention', String(attention), attention ? 'hot' : '')}
+      <div class="fleet-wall-hero-side">
+        <div class="fleet-wall-summary">${_fleetWallSummaryHtml(printers)}</div>
+        <div class="fleet-wall-hero-links">
+          <a href="#/">Dashboard</a>
+          <a href="#/mission">Flight Tower</a>
+          <a href="#/queue">Queue</a>
+        </div>
       </div>
     </div>
     <div class="fleet-wall-grid">
@@ -11334,14 +11373,13 @@ async function renderFleetWall() {
     });
   }
 
-  const active = printers.filter(p => ['printing', 'paused'].includes(p.state)).length;
-  const attention = printers.filter(p => _printerWarningTarget(p) || _printerPrintLocked(p)).length;
   const summary = el.querySelector('.fleet-wall-summary');
   if (summary) {
-    summary.innerHTML = `
-      ${_fleetWallMetric('Printers', String(printers.length))}
-      ${_fleetWallMetric('Active', String(active), active ? 'warm' : '')}
-      ${_fleetWallMetric('Attention', String(attention), attention ? 'hot' : '')}`;
+    summary.innerHTML = _fleetWallSummaryHtml(printers);
+  }
+  const statusLine = el.querySelector('.fleet-wall-hero-status');
+  if (statusLine) {
+    statusLine.textContent = _fleetWallHeroStatusLine(printers);
   }
   _attachCameraRetries(el);
 }

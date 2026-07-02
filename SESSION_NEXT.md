@@ -2,10 +2,10 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `e218a3d` — Dashboard polish hero + briefing
+- Latest commit: _(pending)_ — Fleet Wall polish
 - Pi repo: /home/flightdeck/flightdeck
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=587 / style.css?v=456
+- Refresh cachebust currently: app.js?v=588 / style.css?v=457
 - Pi deploy: `cd /home/flightdeck/flightdeck && git pull && sudo systemctl restart flightdeck.service`
 - Pi SSH: `ssh -i C:\Users\Kidabah\.ssh\flightdeck_cursor -o IdentitiesOnly=yes flightdeck@100.106.112.104`
 
@@ -17,6 +17,16 @@ Latest GitHub/Pi state:
 - Clear skies briefing is now a green celebration banner with camera + tower shortcuts.
 - Printer cards get state-coloured borders (printing blue, paused amber, fault red) and subtle hover lift.
 - Static cache `app.js?v=587` / `style.css?v=456`; hard refresh required.
+
+### 2026-06-30 polish (Fleet Wall hero + cards)
+
+**Fleet Wall glow-up aligned with Dashboard** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Hero matches Dashboard energy: live status line, Live/Idle/Attention/Offline chips, quick links to Dashboard / Flight Tower / Queue.
+- When one printer is printing, status calls it out by name and job.
+- Printer tiles get stronger state borders, hover lift, and blue camera-frame glow when active.
+- Progress bar pops more on live prints; per-printer "all clear" warnings use green check banner.
+- Static cache `app.js?v=588` / `style.css?v=457`; hard refresh required.
 
 ### 2026-06-29 feature (MakerWorld import missing only)
 
