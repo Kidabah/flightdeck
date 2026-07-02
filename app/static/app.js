@@ -1417,6 +1417,27 @@ function _dashboardPrinterName(p) {
   return _printerNavLabel(p);
 }
 
+// Physical bench layout: H2D (left) → X1C (above) → H2C Big Girl (right/below).
+const _BENCH_PRINTER_ORDER = ['h2d', 'x1c', 'h2c'];
+
+function _printerBenchRank(p) {
+  const id = String(p?.id || '').toLowerCase();
+  const idx = _BENCH_PRINTER_ORDER.indexOf(id);
+  return idx >= 0 ? idx : 1000;
+}
+
+function _comparePrintersByBench(a, b) {
+  const diff = _printerBenchRank(a) - _printerBenchRank(b);
+  if (diff) return diff;
+  return _dashboardPrinterName(a).localeCompare(_dashboardPrinterName(b));
+}
+
+function _comparePrintersForDashboard(a, b) {
+  const diff = _dashboardStateRank(a) - _dashboardStateRank(b);
+  if (diff) return diff;
+  return _comparePrintersByBench(a, b);
+}
+
 function _printerNavLabel(p) {
   return _printerPrimaryLabel(p);
 }
@@ -1479,7 +1500,7 @@ function _printerWarningTarget(p) {
 
 function _firstWarningTarget(printers) {
   return [...(printers || [])]
-    .sort((a, b) => _dashboardStateRank(a) - _dashboardStateRank(b) || _dashboardPrinterName(a).localeCompare(_dashboardPrinterName(b)))
+    .sort((a, b) => _comparePrintersForDashboard(a, b))
     .map(_printerWarningTarget)
     .find(Boolean) || null;
 }
@@ -1645,10 +1666,7 @@ function _renderDashboardHero(printers) {
 }
 
 function _renderDashboardBriefing(printers) {
-  const sorted = [...(printers || [])].sort((a, b) =>
-    _dashboardStateRank(a) - _dashboardStateRank(b) ||
-    _dashboardPrinterName(a).localeCompare(_dashboardPrinterName(b))
-  );
+  const sorted = [...(printers || [])].sort(_comparePrintersForDashboard);
   const rowsByPrinter = Object.fromEntries(sorted.map(p => [p.id, []]));
   const addRow = (printerId, row) => {
     if (!rowsByPrinter[printerId]) rowsByPrinter[printerId] = [];
@@ -1781,7 +1799,7 @@ function _renderDashboardOverview(printers) {
   const offline = counts.offline || 0;
   const attention = printers
     .filter(p => _printerPrintLocked(p) || ['estop', 'error', 'paused', 'offline'].includes(p.state) || _healthIsActionable(p.health))
-    .sort((a, b) => _dashboardStateRank(a) - _dashboardStateRank(b) || _dashboardPrinterName(a).localeCompare(_dashboardPrinterName(b)))
+    .sort((a, b) => _comparePrintersForDashboard(a, b))
     .slice(0, 5);
 
   const attentionHtml = attention.length ? attention.map(p => {
@@ -4124,7 +4142,8 @@ function router() {
 
 function buildTabs(printers) {
   const nav = document.getElementById('tab-strip');
-  const printerGroups = printers.map((p, i) => {
+  const ordered = [...printers].sort(_comparePrintersByBench);
+  const printerGroups = ordered.map((p, i) => {
     const color = _PRINTER_ACCENT_PALETTE[i % _PRINTER_ACCENT_PALETTE.length];
     const label = _printerNavLabel(p);
     const subLabel = _printerSecondaryLabel(p);
@@ -4649,9 +4668,7 @@ function _fleetFilamentPrinterCard(p) {
 function renderFleetFilament() {
   const el = document.getElementById('fleet-filament-page');
   if (!el) return;
-  const printers = [...(_latestPrinters || [])].sort((a, b) =>
-    _dashboardPrinterName(a).localeCompare(_dashboardPrinterName(b))
-  );
+  const printers = [...(_latestPrinters || [])].sort(_comparePrintersByBench);
   if (!printers.length) {
     el.innerHTML = `<div class="fleet-filament-empty-page">
       <strong>No printers configured</strong>
@@ -12415,7 +12432,7 @@ async function renderFleetWall() {
   _fleetWallMode = _safeFleetWallMode(_fleetWallMode);
   const printers = [...(_latestPrinters || [])].sort((a, b) =>
     _dashboardStateRank(a) - _dashboardStateRank(b) ||
-    _dashboardPrinterName(a).localeCompare(_dashboardPrinterName(b))
+    _comparePrintersByBench(a, b)
   );
   if (!printers.length) {
     el.innerHTML = `<div class="fleet-wall-empty">
@@ -12776,10 +12793,7 @@ function updateDashboard(printers) {
     if (_rp?.state === 'printing' || _rp?.state === 'paused') refreshObjectsPanel(_route.id);
   }
 
-  const sortedPrinters = [...printers].sort((a, b) =>
-    _dashboardStateRank(a) - _dashboardStateRank(b) ||
-    _dashboardPrinterName(a).localeCompare(_dashboardPrinterName(b))
-  );
+  const sortedPrinters = [...printers].sort(_comparePrintersForDashboard);
 
   if (parseRoute().view === 'stats') renderStatsView();
 

@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `f9f77a2` — Fleet Filament H2C rack view
-- Refresh cachebust currently: app.js?v=612 / style.css?v=477
+- Latest commit: (pending) — bench printer order (H2D → X1C → Big Girl)
+- Refresh cachebust currently: app.js?v=613 / style.css?v=477
+
+### 2026-07-02 polish (bench printer order)
+
+**Fleet Filament and nav follow physical bench layout** (`app/static/app.js`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Printer cards/tabs now sort H2D → X1C → H2C Big Girl (matches bench: X1 above Big Girl), then any others alphabetically.
+- Applies to Fleet Filament, sidebar printer tabs, Dashboard cards/briefing, and Fleet Wall.
+- Static cache `app.js?v=613`; hard refresh only.
 
 ### 2026-07-02 feature (Fleet Filament H2C rack view)
 
