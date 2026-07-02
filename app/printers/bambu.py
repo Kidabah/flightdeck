@@ -249,6 +249,8 @@ class BambuPrinter:
         self._physical_start_confirmed = False
         self._current_print_id: Optional[int] = None  # prints.id for the active job
         self._error_print_id: Optional[int] = None    # prints.id of the last error (for snapshot)
+        self._last_finished_print_id: Optional[int] = None
+        self._last_timelapse_path: Optional[str] = None
         self._ams_slot_snapshot: dict[int, dict] = {}      # slot_index → slot info at print start
         self._ams_slot_snapshot_print_id: Optional[int] = None  # print_id the snapshot belongs to
         self._ams_active_slot_at_start: Optional[int] = None    # canonical AMS slot at print start
@@ -544,6 +546,8 @@ class BambuPrinter:
                     db.log_decision(self.id, "spool_no_deduction_cancelled",
                                    "Print finished but filament weight unknown; no spool deduction",
                                    print_id=finished_print_id)
+                self._last_finished_print_id = finished_print_id
+                self._last_timelapse_path = _read_bambu_timelapse_path(self._printer.mqtt_dump())
                 self._current_job_key = None
                 self._current_print_id = None
                 self._ams_active_slot_at_start = None
@@ -576,6 +580,8 @@ class BambuPrinter:
             self._error_job_key = None
             self._error_print_id = None
             self._error_seen_at = 0.0
+            self._last_finished_print_id = None
+            self._last_timelapse_path = None
             if self._seen_finish_this_session:
                 closed_ids = db.close_open_prints(self.id, final_state="FINISHED")
                 for pid in closed_ids:
@@ -653,6 +659,8 @@ class BambuPrinter:
             self._error_job_key = None
             self._error_print_id = None
             self._error_seen_at = 0.0
+            self._last_finished_print_id = None
+            self._last_timelapse_path = None
             if _bambu_physical_start_confirmed(job, temps or {}):
                 self._physical_start_confirmed = True
             if self._current_job_key is None:
@@ -759,6 +767,7 @@ class BambuPrinter:
                 self._cancel_requested = False
                 self._error_job_key = job_key
                 self._error_print_id = print_id
+                self._last_timelapse_path = _read_bambu_timelapse_path(self._printer.mqtt_dump())
                 self._error_seen_at = time.monotonic()
                 if print_id:
                     db.log_decision(self.id, "error_resolved", err_msg, print_id=print_id)
@@ -813,6 +822,7 @@ class BambuPrinter:
                     return "idle"
                 self._error_job_key = job_key
                 self._error_print_id = print_id
+                self._last_timelapse_path = _read_bambu_timelapse_path(self._printer.mqtt_dump())
                 self._error_seen_at = time.monotonic()
             return "error"
 
@@ -1686,6 +1696,20 @@ def _derive_bambu_ams_mapping(
         )
 
     return mapping or [0], "; ".join(notes)
+
+
+def _read_bambu_timelapse_path(mqtt_dump: dict) -> Optional[str]:
+    """Return the printer-reported timelapse path from Bambu MQTT, if present."""
+    print_data = (mqtt_dump or {}).get("print") or {}
+    device = print_data.get("device") if isinstance(print_data, dict) else {}
+    cam = (device or {}).get("cam") if isinstance(device, dict) else {}
+    if not isinstance(cam, dict):
+        return None
+    for key in ("timelapse_path", "timelapse"):
+        value = cam.get(key)
+        if value and str(value).strip():
+            return str(value).strip()
+    return None
 
 
 def _read_chamber_temp(mqtt_dump: dict, model_name: str) -> float | None:

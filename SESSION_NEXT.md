@@ -2,8 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `d798c79` — Print Bay hero + briefing polish
-- Refresh cachebust currently: app.js?v=600 / style.css?v=467
+- Latest commit: (pending) — Print Memory polish + auto Flight Recorder harvest
+- Refresh cachebust currently: app.js?v=601 / style.css?v=468
+
+### 2026-07-02 polish (Print Memory + Flight Recorder auto-harvest)
+
+**Print Memory hero/briefing + automatic recorder harvest after print finish** (`app/main.py`, `app/printers/bambu.py`, `app/printers/moonraker.py`, `app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Print Memory now has a reliability-focused hero (score, in-view/finished/failed/clip counts) and an operator-learning briefing for failed prints, missing recorder clips, and excluded stats rows.
+- List rows get state-coloured left accents (finished/failed/cancelled/open); passport panel unchanged.
+- Flight Recorder now auto-harvests after print finish/error: reads Bambu MQTT `timelapse_path` when present, retries local/Bambu SD discovery at 30/90/180s, attaches best match, logs `flight_recorder_auto_mqtt` / `flight_recorder_auto_discovered` / `flight_recorder_auto_miss`.
+- History recorder copy updated; manual Find clip / Add video still available for older prints.
+- Static cache `app.js?v=601` / `style.css?v=468`; **backend/service restart required** for auto-harvest.
 
 ### 2026-07-02 polish (Print Bay hero + briefing)
 

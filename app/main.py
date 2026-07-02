@@ -83,6 +83,12 @@ _FLIGHT_RECORDER_EXTS = {".mp4", ".webm", ".mov", ".avi"}
 _BAMBU_RECORDER_ROOTS = ("timelapse", "video", "movie", "ipcam", "record", "records")
 _MOONRAKER_RECORDER_ROOTS = ("timelapse", "gcodes")
 _LOCAL_RECORDER_SEARCH_NAMES = ("flight_recorder", "timelapse", "timelapses", "recordings", "records", "videos", "camera")
+_FLIGHT_RECORDER_AUTO_RETRY_DELAYS = tuple(
+    int(part.strip())
+    for part in os.getenv("FLIGHTDECK_RECORDER_AUTO_RETRY_SECONDS", "30,90,180").split(",")
+    if part.strip().isdigit()
+) or (30, 90, 180)
+_flight_recorder_harvest_pending: set[tuple[str, int]] = set()
 
 
 def _dt_default(obj):
@@ -133,6 +139,8 @@ async def _gather_all_locked() -> list[dict]:
             d["eta_calibration"] = cal
         d["health"] = db.get_printer_health(id)
         d["_error_print_id"] = moonraker._error_print_id.get(id)
+        d["_last_finished_print_id"] = moonraker._last_finished_print_id.get(id)
+        d["_last_timelapse_path"] = None
         parsed = urllib.parse.urlparse(url)
         d["klipper_ui_url"] = f"{parsed.scheme or 'http'}://{parsed.hostname}" if parsed.hostname else url
         return d
@@ -150,6 +158,8 @@ async def _gather_all_locked() -> list[dict]:
             d["eta_calibration"] = cal
         d["health"] = db.get_printer_health(p.id)
         d["_error_print_id"] = p._error_print_id
+        d["_last_finished_print_id"] = p._last_finished_print_id
+        d["_last_timelapse_path"] = p._last_timelapse_path
         return d
 
     async def _fetch_simulated(id, model_name, custom_name, icon, profile, scenario):
@@ -898,6 +908,12 @@ def _check_transitions(data: list[dict]) -> None:
                 if not is_simulated:
                     asyncio.create_task(_send_ntfy("Print complete", msg, ["white_check_mark"]))
                 asyncio.create_task(_on_print_finished_queue(pid))
+                if not is_simulated:
+                    finished_print_id = p.get("_last_finished_print_id") or db.get_latest_finished_print_id(pid)
+                    if finished_print_id:
+                        asyncio.create_task(_auto_harvest_flight_recorder(
+                            pid, finished_print_id, p.get("_last_timelapse_path"),
+                        ))
             else:
                 msg = f"{name}" + (f" · {label}" if label else "")
                 _notify("warn", f"{title_prefix}Print cancelled", msg, printer_id=pid, link=f"#/printer/{pid}/history")
@@ -910,6 +926,10 @@ def _check_transitions(data: list[dict]) -> None:
             is_print_failure = prev == "printing" or has_error_print
             if is_print_failure:
                 asyncio.create_task(_do_failure_snapshot(pid, error_pid))
+                if error_pid and not is_simulated:
+                    asyncio.create_task(_auto_harvest_flight_recorder(
+                        pid, error_pid, p.get("_last_timelapse_path"),
+                    ))
             if curr == "error" and is_print_failure:
                 msg = f"{name}" + (f" · {label}" if label else "")
                 if p.get("error"):
@@ -7654,6 +7674,168 @@ async def _discover_print_timelapse(printer_id: str, item: dict) -> tuple[dict, 
     raise HTTPException(status_code=404, detail="printer does not support recorder discovery")
 
 
+def _bambu_ftp_paths_from_mqtt_timelapse(mqtt_path: str) -> list[str]:
+    """Map Bambu MQTT timelapse paths onto FTPS paths we can actually download."""
+    raw = str(mqtt_path or "").strip().replace("\\", "/")
+    if not raw:
+        return []
+    stripped = raw.lstrip("/")
+    for prefix in ("userdata/media/", "userdata/"):
+        if stripped.startswith(prefix):
+            stripped = stripped[len(prefix):]
+            break
+    candidates: list[str] = []
+    seen: set[str] = set()
+
+    def add(path: str) -> None:
+        clean = path.strip().lstrip("/")
+        if clean and clean not in seen:
+            seen.add(clean)
+            candidates.append(clean)
+
+    if stripped:
+        add(stripped)
+        name = Path(stripped).name
+        if name:
+            for root in _BAMBU_RECORDER_ROOTS:
+                add(f"{root}/{name}")
+    return candidates
+
+
+async def _save_and_attach_timelapse(
+    printer_id: str,
+    print_id: int,
+    item: dict,
+    candidate: dict,
+    data: bytes,
+    *,
+    source: str,
+    decision_event: str = "flight_recorder_discovered",
+) -> dict:
+    if not data:
+        raise HTTPException(status_code=422, detail="recorder clip is empty")
+    if len(data) > _MAX_FLIGHT_RECORDER_BYTES:
+        raise HTTPException(status_code=413, detail="recorder clip too large")
+    suffix = _timelapse_suffix(candidate.get("name") or candidate.get("path") or "")
+    if not suffix:
+        raise HTTPException(status_code=422, detail="recorder clip type is unsupported")
+    out_path = _timelapse_safe_output_path(printer_id, print_id, item.get("filename") or "print", suffix)
+    out_path.write_bytes(data)
+    if not db.attach_print_timelapse(print_id, out_path, source=source):
+        raise HTTPException(status_code=404, detail="print not found")
+    detail = candidate.get("path") or candidate.get("name") or out_path.name
+    db.log_decision(
+        printer_id,
+        decision_event,
+        f"Attached {source} clip {detail}",
+        print_id=print_id,
+    )
+    updated = db.get_print_by_id(print_id) or item
+    updated["timelapse_url"] = f"/api/printers/{urllib.parse.quote(printer_id)}/prints/{print_id}/timelapse"
+    updated["recorder_candidate"] = {
+        "source": source,
+        "path": candidate.get("path"),
+        "size": candidate.get("size") or len(data),
+        "score": candidate.get("_score"),
+    }
+    return updated
+
+
+async def _try_harvest_bambu_mqtt_timelapse(
+    printer_id: str,
+    print_id: int,
+    item: dict,
+    mqtt_path: str,
+) -> bool:
+    bambu = _find_bambu(printer_id)
+    if not bambu or not mqtt_path:
+        return False
+    from .printers.bambu_ftp import download_bambu_file
+    for ftp_path in _bambu_ftp_paths_from_mqtt_timelapse(mqtt_path):
+        try:
+            data = await asyncio.to_thread(download_bambu_file, bambu._ip, bambu._access_code, ftp_path)
+        except Exception as exc:
+            log.debug("MQTT timelapse download failed for %s:%s: %s", printer_id, ftp_path, exc)
+            continue
+        if not data:
+            continue
+        suffix = _timelapse_suffix(ftp_path)
+        if not suffix:
+            continue
+        candidate = {
+            "name": Path(ftp_path).name,
+            "path": ftp_path,
+            "source": "bambu-mqtt",
+            "size": len(data),
+        }
+        await _save_and_attach_timelapse(
+            printer_id,
+            print_id,
+            item,
+            candidate,
+            data,
+            source="bambu-mqtt",
+            decision_event="flight_recorder_auto_mqtt",
+        )
+        return True
+    return False
+
+
+async def _auto_harvest_flight_recorder(
+    printer_id: str,
+    print_id: int,
+    mqtt_hint: Optional[str] = None,
+) -> None:
+    """Best-effort recorder harvest after a print ends. Retries while printer media catches up."""
+    key = (printer_id, print_id)
+    if key in _flight_recorder_harvest_pending:
+        return
+    _flight_recorder_harvest_pending.add(key)
+    try:
+        delays = (0,) + _FLIGHT_RECORDER_AUTO_RETRY_DELAYS
+        last_detail = "no matching recorder clip found"
+        for attempt, delay in enumerate(delays):
+            if delay:
+                await asyncio.sleep(delay)
+            item = db.get_print_by_id(print_id)
+            if not item or item.get("printer_id") != printer_id:
+                return
+            if item.get("has_timelapse"):
+                return
+            try:
+                if mqtt_hint and await _try_harvest_bambu_mqtt_timelapse(printer_id, print_id, item, mqtt_hint):
+                    log.info("flight recorder auto-attached via MQTT hint: %s print_id=%s", printer_id, print_id)
+                    return
+                candidate, data = await _discover_print_timelapse(printer_id, item)
+                await _save_and_attach_timelapse(
+                    printer_id,
+                    print_id,
+                    item,
+                    candidate,
+                    data,
+                    source=str(candidate.get("source") or "printer-media"),
+                    decision_event="flight_recorder_auto_discovered",
+                )
+                log.info("flight recorder auto-attached via discovery: %s print_id=%s", printer_id, print_id)
+                return
+            except HTTPException as exc:
+                last_detail = str(exc.detail or exc)
+                if exc.status_code not in {404, 422}:
+                    log.warning("flight recorder auto-harvest stopped for %s print_id=%s: %s", printer_id, print_id, last_detail)
+                    return
+            except Exception as exc:
+                log.warning("flight recorder auto-harvest failed for %s print_id=%s: %s", printer_id, print_id, exc)
+                return
+        db.log_decision(
+            printer_id,
+            "flight_recorder_auto_miss",
+            f"No recorder clip after {len(delays)} attempts ({last_detail})",
+            print_id=print_id,
+        )
+    finally:
+        _flight_recorder_harvest_pending.discard(key)
+
+
 @app.get("/api/printers/{printer_id}/prints/{print_id}/timelapse")
 async def get_print_timelapse(printer_id: str, print_id: int):
     _assert_printer(printer_id)
@@ -7721,33 +7903,14 @@ async def discover_print_timelapse(printer_id: str, print_id: int):
         return updated
 
     candidate, data = await _discover_print_timelapse(printer_id, item)
-    if not data:
-        raise HTTPException(status_code=422, detail="recorder clip is empty")
-    if len(data) > _MAX_FLIGHT_RECORDER_BYTES:
-        raise HTTPException(status_code=413, detail="recorder clip too large")
-
-    suffix = _timelapse_suffix(candidate.get("name") or candidate.get("path") or "")
-    if not suffix:
-        raise HTTPException(status_code=422, detail="recorder clip type is unsupported")
-    out_path = _timelapse_safe_output_path(printer_id, print_id, item.get("filename") or "print", suffix)
-    out_path.write_bytes(data)
-    source = str(candidate.get("source") or "printer-media")
-    if not db.attach_print_timelapse(print_id, out_path, source=source):
-        raise HTTPException(status_code=404, detail="print not found")
-    db.log_decision(
+    updated = await _save_and_attach_timelapse(
         printer_id,
-        "flight_recorder_discovered",
-        f"Attached {source} clip {candidate.get('path') or candidate.get('name')}",
-        print_id=print_id,
+        print_id,
+        item,
+        candidate,
+        data,
+        source=str(candidate.get("source") or "printer-media"),
     )
-    updated = db.get_print_by_id(print_id) or item
-    updated["timelapse_url"] = f"/api/printers/{urllib.parse.quote(printer_id)}/prints/{print_id}/timelapse"
-    updated["recorder_candidate"] = {
-        "source": source,
-        "path": candidate.get("path"),
-        "size": candidate.get("size") or len(data),
-        "score": candidate.get("_score"),
-    }
     return updated
 
 @app.post("/api/spools/{spool_id}/move")

@@ -11086,6 +11086,195 @@ button.live-route-node:hover {
 .history-day-loading { font-size: 0.8rem; color: var(--muted); padding: 0.5rem 0; }
 
 /* ── Print Memory ── */
+.memory-page-stack {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.memory-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) auto auto;
+  gap: 0.85rem 1rem;
+  align-items: center;
+  border: 1px solid rgba(122,162,216,0.18);
+  border-radius: 0.7rem;
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgba(59,130,246,0.08), transparent 55%),
+    linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.015));
+  padding: 1rem 1.05rem;
+}
+
+.memory-hero-copy { min-width: 0; }
+
+.memory-hero-eyebrow {
+  color: #7aa2d8;
+  font-size: 0.64rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.memory-hero-title {
+  margin-top: 0.18rem;
+  font-size: 1.45rem;
+  line-height: 1.05;
+}
+
+.memory-hero-status {
+  margin-top: 0.35rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  max-width: 34rem;
+}
+
+.memory-hero-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.42rem;
+  justify-content: flex-end;
+}
+
+.memory-hero-metric {
+  min-width: 4.4rem;
+  border: 1px solid rgba(122,162,216,0.16);
+  border-radius: 0.45rem;
+  background: rgba(3,7,18,0.28);
+  padding: 0.42rem 0.55rem;
+  text-align: center;
+}
+
+.memory-hero-metric strong {
+  display: block;
+  color: var(--text);
+  font-size: 1.02rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.memory-hero-metric span {
+  display: block;
+  margin-top: 0.12rem;
+  color: var(--muted);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.memory-hero-metric-score strong { font-size: 1.18rem; }
+.memory-hero-metric-good strong { color: #86efac; }
+.memory-hero-metric-review {
+  border-color: rgba(252,165,165,0.28);
+  background: rgba(127,29,29,0.12);
+}
+.memory-hero-metric-review strong { color: #fecaca; }
+.memory-score-good strong { color: #86efac; }
+.memory-score-watch strong { color: #fcd34d; }
+.memory-score-review strong { color: #fca5a5; }
+
+.memory-hero-links {
+  display: grid;
+  gap: 0.35rem;
+  align-content: start;
+}
+
+.memory-hero-links a {
+  border: 1px solid rgba(122,162,216,0.18);
+  border-radius: 0.4rem;
+  color: #bfdbfe;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.38rem 0.62rem;
+  text-align: center;
+  text-decoration: none;
+}
+
+.memory-hero-links a:hover {
+  border-color: rgba(147,197,253,0.45);
+  color: #eff6ff;
+}
+
+.memory-briefing {
+  border: 1px solid rgba(122,162,216,0.14);
+  border-radius: 0.65rem;
+  background: rgba(255,255,255,0.02);
+  padding: 0.72rem 0.8rem;
+}
+
+.memory-briefing-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.55rem;
+}
+
+.memory-briefing-head span {
+  display: block;
+  color: #7aa2d8;
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.memory-briefing-head strong {
+  display: block;
+  margin-top: 0.12rem;
+  font-size: 0.92rem;
+}
+
+.memory-briefing-head a {
+  color: #93c5fd;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.memory-briefing-head a:hover { color: #eff6ff; }
+
+.memory-briefing-list {
+  display: grid;
+  gap: 0.42rem;
+}
+
+.memory-briefing-calm .memory-briefing-list { padding: 0; }
+
+.memory-briefing-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.55rem;
+  align-items: start;
+  border: 1px solid rgba(122,162,216,0.12);
+  border-left-width: 3px;
+  border-radius: 0.45rem;
+  background: rgba(3,7,18,0.22);
+  padding: 0.5rem 0.62rem;
+}
+
+.memory-briefing-review { border-left-color: #f87171; }
+.memory-briefing-info { border-left-color: #60a5fa; }
+.memory-briefing-muted { border-left-color: #64748b; }
+
+.memory-briefing-kicker {
+  color: var(--muted);
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.memory-briefing-copy strong {
+  display: block;
+  font-size: 0.82rem;
+}
+
+.memory-briefing-copy span {
+  display: block;
+  margin-top: 0.12rem;
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
 .memory-page {
   padding: 1.5rem;
 }
@@ -11191,8 +11380,24 @@ button.live-route-node:hover {
 
 .memory-row:hover,
 .memory-row.selected {
-  border-color: rgba(59,130,246,0.5);
-  background: rgba(59,130,246,0.07);
+  border-color: rgba(122,162,216,0.35);
+  background: rgba(255,255,255,0.04);
+}
+
+.memory-row-failed {
+  border-left: 3px solid #f87171;
+}
+
+.memory-row-cancelled {
+  border-left: 3px solid #fbbf24;
+}
+
+.memory-row-finished {
+  border-left: 3px solid rgba(134,239,172,0.55);
+}
+
+.memory-row-open {
+  border-left: 3px solid rgba(96,165,250,0.45);
 }
 
 .memory-date,

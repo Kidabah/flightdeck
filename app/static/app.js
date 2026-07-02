@@ -6543,7 +6543,7 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
     <div class="flight-recorder-head">
       <div>
         <span>Flight Recorder</span>
-        <em>${print.has_timelapse ? `Recorded${print.timelapse_source ? ` · ${esc(print.timelapse_source)}` : ''}` : 'Find Pi/Flightdeck clips or attach a video. Printer storage discovery is Bambu-tested for beta.'}</em>
+        <em>${print.has_timelapse ? `Recorded${print.timelapse_source ? ` · ${esc(print.timelapse_source)}` : ''}` : 'Flightdeck auto-harvests Bambu timelapses after finish. Use Find clip for older prints or Add video manually.'}</em>
       </div>
       ${print.has_timelapse ? '' : `<div class="flight-recorder-actions">
         <button type="button" class="flight-recorder-discover">Find clip</button>
@@ -7068,7 +7068,7 @@ function _memoryRow(item) {
   const material = item.material || (item.spool_usage || [])[0]?.material || '';
   const spoolCount = (item.spool_usage || []).length;
   const cost = item.total_cost != null ? ` · $${Number(item.total_cost).toFixed(2)}` : '';
-  return `<button class="memory-row" type="button" data-print-id="${item.id}" data-printer-id="${esc(item.printer_id)}">
+  return `<button class="memory-row ${_memoryRowStateClass(item)}" type="button" data-print-id="${item.id}" data-printer-id="${esc(item.printer_id)}">
     <span class="memory-date"><strong>${esc(dateLabel)}</strong><em>${esc(timeLabel)}</em></span>
     <span class="memory-main">
       <strong title="${esc(item.filename || '')}">${esc(_memoryPrintName(item))}</strong>
@@ -7182,6 +7182,147 @@ function _memoryScorePanel(score) {
   </section>`;
 }
 
+function _memoryRowStateClass(item) {
+  const state = String(item.final_state || '').toUpperCase();
+  if (state === 'ERROR' || state === 'ESTOP') return 'memory-row-failed';
+  if (state === 'CANCELLED') return 'memory-row-cancelled';
+  if (state === 'FINISHED') return 'memory-row-finished';
+  return 'memory-row-open';
+}
+
+function _memorySnapshot(items, score) {
+  const fleet = score?.fleet || {};
+  const failed = items.filter(i => i.final_state === 'ERROR' || i.final_state === 'ESTOP').length;
+  const finished = items.filter(i => i.final_state === 'FINISHED').length;
+  const cancelled = items.filter(i => i.final_state === 'CANCELLED').length;
+  const clips = items.filter(i => i.has_timelapse).length;
+  const missingNotes = items.filter(i => !i.notes && (i.final_state === 'ERROR' || i.final_state === 'ESTOP')).length;
+  const missingClips = items.filter(i => !i.has_timelapse && i.final_state === 'FINISHED').length;
+  const trustedAttempts = Number(fleet.finished || 0) + Number(fleet.failed || 0);
+  return {
+    total: items.length,
+    finished,
+    failed,
+    cancelled,
+    clips,
+    missingNotes,
+    missingClips,
+    score: fleet.score,
+    trustedAttempts,
+    excluded: Number(fleet.excluded || 0),
+  };
+}
+
+function _memoryHeroStatusLine(snap) {
+  if (!snap.total) return 'No prints in this view yet — finish a job to start building memory.';
+  if (snap.failed) return `${snap.failed} failed print${snap.failed === 1 ? '' : 's'} worth reviewing in this range`;
+  if (snap.score != null && snap.score >= 95) return 'Fleet reliability is strong in this window';
+  if (snap.missingClips) return 'Finished prints are landing — recorder clips still catching up';
+  return `${snap.finished} finished print${snap.finished === 1 ? '' : 's'} logged in this view`;
+}
+
+function _renderMemoryHero(items, score) {
+  const snap = _memorySnapshot(items, score);
+  const scoreCls = _memoryScoreClass(snap.score);
+  return `<section class="memory-hero" aria-label="Print Memory snapshot">
+    <div class="memory-hero-copy">
+      <span class="memory-hero-eyebrow">Fleet learning</span>
+      <h1 class="memory-hero-title">Print Memory</h1>
+      <p class="memory-hero-status">${esc(_memoryHeroStatusLine(snap))}</p>
+    </div>
+    <div class="memory-hero-metrics" aria-label="Reliability counts">
+      <div class="memory-hero-metric memory-hero-metric-score ${scoreCls}">
+        <strong>${_memoryScoreLabel(snap.score)}</strong>
+        <span>Score</span>
+      </div>
+      <div class="memory-hero-metric">
+        <strong>${snap.total}</strong>
+        <span>In view</span>
+      </div>
+      <div class="memory-hero-metric memory-hero-metric-good">
+        <strong>${snap.finished}</strong>
+        <span>Finished</span>
+      </div>
+      <div class="memory-hero-metric${snap.failed ? ' memory-hero-metric-review' : ''}">
+        <strong>${snap.failed}</strong>
+        <span>Failed</span>
+      </div>
+      <div class="memory-hero-metric${snap.clips ? ' memory-hero-metric-good' : ''}">
+        <strong>${snap.clips}</strong>
+        <span>Clips</span>
+      </div>
+    </div>
+    <div class="memory-hero-links">
+      <a href="#/failures">Failure Lab</a>
+      <a href="#/mission">Flight Tower</a>
+      <a href="#/">Dashboard</a>
+    </div>
+  </section>`;
+}
+
+function _renderMemoryBriefing(items, score) {
+  const snap = _memorySnapshot(items, score);
+  const rows = [];
+  if (snap.failed) {
+    rows.push({
+      tone: 'review',
+      kicker: 'Review',
+      title: `${snap.failed} failed print${snap.failed === 1 ? '' : 's'} in range`,
+      detail: snap.missingNotes
+        ? `${snap.missingNotes} still missing operator notes`
+        : 'Open a passport to read errors, snapshots, and recorder clips',
+    });
+  }
+  if (snap.missingClips) {
+    rows.push({
+      tone: 'info',
+      kicker: 'Recorder',
+      title: `${snap.missingClips} finished print${snap.missingClips === 1 ? '' : 's'} without a clip yet`,
+      detail: 'Flightdeck now auto-harvests Bambu timelapses after finish; older prints can still use Find clip',
+    });
+  }
+  if (snap.excluded) {
+    rows.push({
+      tone: 'muted',
+      kicker: 'Stats',
+      title: `${snap.excluded} print${snap.excluded === 1 ? '' : 's'} excluded from reliability score`,
+      detail: 'Tagged out of fleet stats but still searchable here',
+    });
+  }
+  const calm = !rows.length;
+  const body = calm
+    ? `<div class="briefing-clear briefing-clear-hero memory-briefing-clear">
+        <div class="briefing-clear-icon" aria-hidden="true">✓</div>
+        <div class="briefing-clear-copy">
+          <strong>${snap.trustedAttempts ? 'Learning loop healthy' : 'Notebook open'}</strong>
+          <span>${snap.trustedAttempts
+            ? `${snap.trustedAttempts} scored attempts in this window. Nothing urgent needs a review pass.`
+            : 'Filter or search prints to build reliability signal and operator notes.'}</span>
+        </div>
+        <div class="briefing-clear-links">
+          <a href="#/failures">Failure Lab</a>
+          <a href="#/queue">Queue</a>
+        </div>
+      </div>`
+    : rows.map(row => `<article class="memory-briefing-row memory-briefing-${row.tone}">
+        <span class="memory-briefing-kicker">${esc(row.kicker)}</span>
+        <div class="memory-briefing-copy">
+          <strong>${esc(row.title)}</strong>
+          <span>${esc(row.detail)}</span>
+        </div>
+      </article>`).join('');
+  return `<section class="memory-briefing${calm ? ' memory-briefing-calm' : ''}" aria-label="Print Memory briefing">
+    <div class="memory-briefing-head">
+      <div>
+        <span>Operator learning</span>
+        <strong>${calm ? 'Nothing urgent to review' : 'Worth a closer look'}</strong>
+      </div>
+      <a href="#/failures">Failure Lab</a>
+    </div>
+    <div class="memory-briefing-list">${body}</div>
+  </section>`;
+}
+
 function _memoryParamsFromControls(page) {
   const params = new URLSearchParams();
   const q = page.querySelector('.memory-search')?.value.trim();
@@ -7244,15 +7385,11 @@ async function renderPrintMemoryView() {
     if (scoreResp.ok) score = await scoreResp.json();
   } catch {}
   const rows = (data.items || []).map(_memoryRow).join('');
-  page.innerHTML = `<div class="memory-shell">
+  page.innerHTML = `<div class="memory-page-stack">
+    ${_renderMemoryHero(data.items || [], score)}
+    ${_renderMemoryBriefing(data.items || [], score)}
+    <div class="memory-shell">
     <section class="memory-list-panel">
-      <div class="memory-head">
-        <div>
-          <span class="memory-eyebrow">Fleet</span>
-          <h2>Print Memory</h2>
-        </div>
-        ${_memorySummary(data.items || [])}
-      </div>
       ${_memoryFiltersHtml(data, params)}
       ${_memoryScorePanel(score)}
       <div class="memory-list">${rows || '<div class="filedesk-empty">No matching prints yet.</div>'}</div>
@@ -7260,7 +7397,7 @@ async function renderPrintMemoryView() {
     <aside class="memory-passport" id="memory-passport">
       <div class="detail-placeholder">Select a print to open its passport.</div>
     </aside>
-  </div>`;
+  </div></div>`;
 
   page.querySelector('.memory-search')?.addEventListener('keydown', e => {
     if (e.key === 'Enter') _memorySetHash(page);

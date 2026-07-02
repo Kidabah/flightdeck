@@ -16,6 +16,7 @@ _prev_raw_state: dict[str, str] = {}           # printer_id → last raw Klipper
 _active_job_key: dict[str, str] = {}           # printer_id → job_key for the running print
 _active_print_id: dict[str, Optional[int]] = {}  # printer_id → prints.id for the running print
 _error_print_id: dict[str, Optional[int]] = {}   # printer_id → prints.id of the last error (for snapshot)
+_last_finished_print_id: dict[str, Optional[int]] = {}  # printer_id → prints.id of the last finish (for recorder)
 _estimated_stored: set[str] = set()            # printer_ids where slicer estimate is already stored
 _filament_grams: dict[str, float] = {}         # printer_id → filament_weight_total from slicer metadata
 _mmu_gate_snapshot: dict[str, dict[int, dict]] = {}       # printer_id → {gate_index: gate_info} at print start
@@ -298,6 +299,7 @@ def _resolve_state(
             _active_print_id[printer_id] = print_id
             _estimated_stored.discard(printer_id)  # new job — fetch estimate fresh
             _error_print_id.pop(printer_id, None)
+            _last_finished_print_id.pop(printer_id, None)
             if is_reattach and print_id:
                 db.log_decision(printer_id, "job_reattached",
                                f"Service restarted mid-print; reattached to existing row key={job_key}",
@@ -325,6 +327,8 @@ def _resolve_state(
                     filament_grams=fg,
                 )
                 pid = closed_id or completed_print_id
+                if pid:
+                    _last_finished_print_id[printer_id] = pid
                 if pid and fg:
                     db.deduct_spool_usage(printer_id, pid, fg)
                 elif pid and _mmu_gate_snapshot_print_id.get(printer_id) == pid:
@@ -399,6 +403,8 @@ def _resolve_state(
             filament_grams=filament_g,
         )
         pid = finished_print_id or completed_print_id
+        if pid:
+            _last_finished_print_id[printer_id] = pid
         if pid and filament_g:
             db.deduct_spool_usage(printer_id, pid)
         elif pid and _mmu_gate_snapshot_print_id.get(printer_id) == pid:
