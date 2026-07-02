@@ -4068,7 +4068,7 @@ function _detailLiveHeader(p, printerColor, bannerTextColor) {
   const signals = _detailLiveSignals(p);
   const disabledNote = (p.print_enabled ?? true) ? '' : (p.print_enabled_note || 'No reason entered');
   const canReprintLast = ['idle', 'finished'].includes(String(p.state || '').toLowerCase());
-  return `<div class="live-command-header" style="--tab-accent:${printerColor}">
+  return `<div class="live-command-header live-hover-command" style="--tab-accent:${printerColor}">
     <div class="live-printer-mark" style="color:${bannerTextColor}">
       <span class="live-printer-name">${esc(primary)}</span>
       ${secondary ? `<span class="live-printer-shop">${esc(secondary)}</span>` : ''}
@@ -4443,7 +4443,7 @@ function _detailLiveHSeriesToolheadRows(p, view = 'nozzles') {
     </div>`;
   };
   const rackSlotNumber = (tool) => {
-    const explicit = [tool.rack_slot, tool.rackSlot, tool.rack_index, tool.slot, tool.slot_id]
+    const explicit = [tool.idx, tool.slot, tool.rack_slot, tool.rackSlot, tool.rack_index, tool.slot_id]
       .map((value) => Number(value))
       .find((value) => Number.isFinite(value) && value >= 1 && value <= 6);
     if (explicit) return explicit;
@@ -4656,15 +4656,15 @@ function _routeNozzleIndex(unit, slot = null) {
 }
 
 function _nozzleLabelFromIndex(nozzle) {
-  if (nozzle === 0) return 'Right nozzle';
-  if (nozzle === 1) return 'Left nozzle';
+  if (nozzle === 0) return 'Left nozzle';
+  if (nozzle === 1) return 'Right nozzle';
   return '';
 }
 
 function _activeNozzleIndex(p) {
   const nozzles = _h2dNozzleActivity(p);
-  if (nozzles.right && !nozzles.left) return 0;
-  if (nozzles.left && !nozzles.right) return 1;
+  if (nozzles.left && !nozzles.right) return 0;
+  if (nozzles.right && !nozzles.left) return 1;
   return null;
 }
 
@@ -4683,8 +4683,8 @@ function _hSeriesSlotRouteSignal(p, unit, slot) {
   if (routeNozzle != null) return !!slot.active || trayState === 27;
   const htLoaded = _asList(p?.ams).some(u => _isAmsHtUnit(u)
     && _asList(u?.slots).some(s => s && !s.empty && _slotTrayStateNumber(s) === 27));
-  if (activeNozzle === 1 && _isAmsHtUnit(unit) && trayState === 27) return true;
-  if (activeNozzle === 1 && htLoaded && !_isAmsHtUnit(unit) && slot.active) return false;
+  if (activeNozzle === 0 && _isAmsHtUnit(unit) && trayState === 27) return true;
+  if (activeNozzle === 0 && htLoaded && !_isAmsHtUnit(unit) && slot.active) return false;
   return null;
 }
 
@@ -8095,10 +8095,13 @@ async function renderPrinterDetail(id, subtab = 'live') {
         _detailSubTabs(id, 'live') +
         `<div class="detail-body">
           <div class="detail-left">
-            <div id="detail-live-head">${_detailLiveHeader(p, printerColor, bannerTextColor)}</div>
             <div class="live-main-deck ${opsDrawer ? 'has-live-ops' : ''}">
               ${opsDrawer}
-              <div class="camera-hero">${camHtml}<div class="camera-hud" id="detail-camera-hud">${_detailCameraHud(p)}</div></div>
+              <div class="camera-hero">
+                <div class="live-hover-header" id="detail-live-head">${_detailLiveHeader(p, printerColor, bannerTextColor)}</div>
+                ${camHtml}
+                <div class="camera-hud" id="detail-camera-hud">${_detailCameraHud(p)}</div>
+              </div>
             </div>
             <div class="live-strip" id="detail-live-strip">${_detailLiveStrip(p)}</div>
           </div>
@@ -8161,21 +8164,25 @@ async function renderPrinterDetail(id, subtab = 'live') {
     if (p.state === 'printing' || p.state === 'paused') refreshObjectsPanel(id);
   } else {
     // Restore camera stream if it was stopped when navigating away and back.
+    const printerColor = _printerColor(id);
+    const bannerTextColor = p.icon === 'bambu' ? '#22c55e' : p.icon === 'voron' ? '#ef4444' : 'var(--text)';
     const heroEl = el.querySelector('.camera-hero');
     const camImg = el.querySelector('#detail-cam-img');
     const camSrc = _cameraStreamSrc(id);
     const shouldShowImg = !!camSrc && p.state !== 'offline';
     const hasImg = !!camImg;
     if (heroEl && shouldShowImg !== hasImg) {
-      heroEl.innerHTML = `${_detailCameraContent(id, p, camSrc)}<div class="camera-hud" id="detail-camera-hud">${_detailCameraHud(p)}</div>`;
+      const headEl = el.querySelector('#detail-live-head');
+      const headOuter = headEl
+        ? headEl.outerHTML
+        : `<div class="live-hover-header" id="detail-live-head">${_detailLiveHeader(p, printerColor, bannerTextColor)}</div>`;
+      heroEl.innerHTML = `${headOuter}${_detailCameraContent(id, p, camSrc)}<div class="camera-hud" id="detail-camera-hud">${_detailCameraHud(p)}</div>`;
       _attachCameraRetries(el);
     } else if (camImg?.dataset.stopped && camSrc && p.state !== 'offline') {
       delete camImg.dataset.stopped;
       camImg.src = camSrc;
     }
 
-    const printerColor = _printerColor(id);
-    const bannerTextColor = p.icon === 'bambu' ? '#22c55e' : p.icon === 'voron' ? '#ef4444' : 'var(--text)';
     const headEl = el.querySelector('#detail-live-head');
     if (headEl) headEl.innerHTML = _detailLiveHeader(p, printerColor, bannerTextColor);
     const opsHtml = _detailLiveOps(p);

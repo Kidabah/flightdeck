@@ -2,12 +2,23 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `4ce7c09` — Telemetry compact bento view
+- Latest commit: (pending) — Live View hover header + H2C nozzle route fix
 - Pi repo: /home/flightdeck/flightdeck
 - App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=593 / style.css?v=462
+- Refresh cachebust currently: app.js?v=594 / style.css?v=463
 - Pi deploy: `cd /home/flightdeck/flightdeck && git pull && sudo systemctl restart flightdeck.service`
 - Pi SSH: `ssh -i C:\Users\Kidabah\.ssh\flightdeck_cursor -o IdentitiesOnly=yes flightdeck@100.106.112.104`
+
+### 2026-07-02 polish (Live View hover header + H2C route)
+
+**Hover-reveal command header on camera; fix H-series nozzle index mapping** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Command header moved inside `.camera-hero` as `.live-hover-header` — drops in on hover/focus for all printers.
+- Touch/coarse pointers: header stays visible at top (no hover).
+- Fixed inverted nozzle labels: backend `0=Left`, `1=Right` now matches filament route + toolhead panel.
+- H2C rack slot lookup prefers `tool.idx` from backend payload.
+- Partial camera refresh preserves hover header wrapper.
+- Static cache `app.js?v=594` / `style.css?v=463`; hard refresh required. No backend restart needed.
 
 ### 2026-06-30 polish (Dashboard hero + briefing)
 
