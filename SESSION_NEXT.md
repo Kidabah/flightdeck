@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — timelapse matcher + visible REC overlay
+- Latest commit: `3434bc6` — timelapse matcher + visible REC overlay
 - Refresh cachebust currently: app.js?v=604 / style.css?v=470
 
 ### 2026-07-02 fix (timelapse matcher + Live REC indicator)
