@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — Fleet Filament phases 2–4 complete
+- Latest commit: `0c3138d` — Fleet Filament phases 2–4 complete
 - Refresh cachebust currently: app.js?v=618 / style.css?v=478
 
 ### 2026-07-03 feature (Fleet Filament phases 2–4)
