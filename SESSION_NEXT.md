@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `46f0e99` — fix Live view signals crash
-- Refresh cachebust currently: app.js?v=609 / style.css?v=475
+- Latest commit: (pending) — Fleet Filament Phase 1 room board
+- Refresh cachebust currently: app.js?v=611 / style.css?v=476
+
+### 2026-07-02 feature (Fleet Filament Phase 1)
+
+**Whole-room AMS loadout board** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- New `#/filament` Fleet Filament ops page: every printer's AMS loadout, feed routes, slot status, and spool assignments on one scroll (reuses Live AMS rows + Fleet Wall route strip).
+- Room hero shows loaded/feeding/review counts; slot click still opens quick-load / Profile Doctor.
+- Static cache `app.js?v=611` / `style.css?v=476`; hard refresh only.
 
 ### 2026-07-02 polish (compact Live toolbar)
 

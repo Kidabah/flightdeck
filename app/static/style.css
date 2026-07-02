@@ -12359,6 +12359,261 @@ button.live-route-node:hover {
   .maint-form-grid { grid-template-columns: 1fr; }
 }
 
+/* ── Fleet Filament ─────────────────────────────────────────────────────── */
+.fleet-filament-page {
+  min-height: 100%;
+  padding: 1.5rem 2rem 2rem;
+}
+
+.fleet-filament-page-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.fleet-filament-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1.2fr) auto;
+  gap: 1rem 1.25rem;
+  align-items: end;
+  border: 1px solid rgba(96, 165, 250, 0.22);
+  border-radius: 0.85rem;
+  background:
+    radial-gradient(ellipse at top left, rgba(34, 197, 94, 0.12), transparent 55%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015));
+  box-shadow: 0 18px 40px rgba(2, 6, 23, 0.22);
+  padding: 1.1rem 1.2rem;
+}
+
+.fleet-filament-hero-copy h1 {
+  margin: 0.2rem 0 0.35rem;
+  font-size: 1.65rem;
+  line-height: 1.05;
+}
+
+.fleet-filament-hero-copy p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.45;
+  max-width: 38rem;
+}
+
+.fleet-filament-hero-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.fleet-filament-hero-stat {
+  min-width: 5.5rem;
+  padding: 0.45rem 0.62rem;
+  border: 1px solid rgba(96, 165, 250, 0.16);
+  border-radius: 0.62rem;
+  background: rgba(3, 7, 18, 0.28);
+}
+
+.fleet-filament-hero-stat strong {
+  display: block;
+  font-size: 1.15rem;
+  line-height: 1.1;
+}
+
+.fleet-filament-hero-stat span {
+  color: var(--muted);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.fleet-filament-hero-stat.is-feeding {
+  border-color: rgba(34, 197, 94, 0.34);
+  background: rgba(22, 101, 52, 0.16);
+}
+
+.fleet-filament-hero-stat.is-warn {
+  border-color: rgba(245, 158, 11, 0.34);
+  background: rgba(120, 53, 15, 0.16);
+}
+
+.fleet-filament-hero-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  justify-content: flex-end;
+}
+
+.fleet-filament-hero-links a {
+  padding: 0.35rem 0.62rem;
+  border: 1px solid rgba(96, 165, 250, 0.24);
+  border-radius: 999px;
+  color: #bfdbfe;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.fleet-filament-briefing {
+  padding: 0.55rem 0.75rem;
+  border: 1px solid rgba(96, 165, 250, 0.14);
+  border-radius: 0.65rem;
+  background: rgba(15, 23, 42, 0.42);
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.fleet-filament-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.fleet-filament-card {
+  border: 1px solid rgba(96, 165, 250, 0.2);
+  border-left: 4px solid var(--printer-accent, var(--accent));
+  border-radius: 0.85rem;
+  background: rgba(8, 13, 26, 0.72);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.22);
+  padding: 0.9rem 1rem 1rem;
+}
+
+.fleet-filament-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  margin-bottom: 0.65rem;
+}
+
+.fleet-filament-card-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.65rem;
+  min-width: 0;
+}
+
+.fleet-filament-card-title h2 {
+  margin: 0;
+  font-size: 1.12rem;
+  line-height: 1.1;
+}
+
+.fleet-filament-card-model {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.fleet-filament-state {
+  font-size: 0.58rem;
+}
+
+.fleet-filament-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 0.85rem;
+}
+
+.fleet-filament-card-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.fleet-filament-stat {
+  padding: 0.18rem 0.48rem;
+  border: 1px solid rgba(96, 165, 250, 0.18);
+  border-radius: 999px;
+  color: #bfdbfe;
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.fleet-filament-stat.is-feeding {
+  border-color: rgba(34, 197, 94, 0.34);
+  color: #bbf7d0;
+}
+
+.fleet-filament-stat.is-warn {
+  border-color: rgba(245, 158, 11, 0.34);
+  color: #fcd34d;
+}
+
+.fleet-filament-card-links {
+  display: flex;
+  gap: 0.55rem;
+}
+
+.fleet-filament-card-links a {
+  color: #93c5fd;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.fleet-filament-track-note {
+  display: block;
+  margin: 0 0 0.55rem;
+  color: rgba(191, 219, 254, 0.72);
+  font-size: 0.68rem;
+}
+
+.fleet-filament-routes {
+  margin-bottom: 0.65rem;
+}
+
+.fleet-filament-routes .fleet-wall-route-strip {
+  margin: 0;
+}
+
+.fleet-filament-loadout .ams-loadout-deck {
+  margin: 0;
+}
+
+.fleet-filament-empty,
+.fleet-filament-empty-page {
+  padding: 1rem;
+  border: 1px dashed rgba(96, 165, 250, 0.22);
+  border-radius: 0.65rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.fleet-filament-empty-page {
+  margin-top: 2rem;
+}
+
+.fleet-filament-empty-page strong {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: var(--text);
+  font-size: 1rem;
+}
+
+@media (max-width: 900px) {
+  .fleet-filament-page {
+    padding: 1rem;
+  }
+
+  .fleet-filament-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .fleet-filament-hero-links {
+    justify-content: flex-start;
+  }
+}
+
 /* ── Fleet Wall ─────────────────────────────────────────────────────────── */
 .fleet-wall-page {
   min-height: 100%;

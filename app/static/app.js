@@ -381,6 +381,8 @@ let _cameraReturnTarget = null; // { printerId, hash } when Fleet Wall opened Li
 let _onSettings = false;        // true while settings view is active
 let _onFailures = false;        // true while failure review is active
 let _onSpools = false;          // true while spool inventory is active
+let _onFilament = false;        // true while Fleet Filament board is active
+let _fleetFilamentSignature = '';
 let _onMemory = false;          // true while Print Memory is active
 let _onManual = false;          // true while flight manual is active
 let _onDemo = false;            // true while walkthrough mode is active
@@ -879,6 +881,7 @@ function _commandStaticItems() {
   const nav = [
     ['Dashboard', '#/', 'Overview and printer cards'],
     ['Fleet Wall', '#/fleet', 'Shop-floor camera and printer wall'],
+    ['Fleet Filament', '#/filament', 'Whole-room AMS loadout and feed routes'],
     ['Flight Tower', '#/mission', 'Dispatch and queue intelligence'],
     ['Telemetry', '#/stats', 'Stats, RH, utilisation'],
     ['Queue', '#/queue', 'Pending print jobs'],
@@ -3948,6 +3951,7 @@ function parseRoute() {
   if (hash === '#/stats' || hash.startsWith('#/stats?')) return { view: 'stats' };
   if (hash === '#/queue') return { view: 'queue' };
   if (hash === '#/fleet') return { view: 'fleet' };
+  if (hash === '#/filament' || hash.startsWith('#/filament?')) return { view: 'filament' };
   if (hash === '#/files') return { view: 'files' };
   if (hash === '#/memory' || hash.startsWith('#/memory?')) return { view: 'memory' };
   if (hash === '#/failures' || hash.startsWith('#/failures?')) return { view: 'failures' };
@@ -4006,9 +4010,13 @@ function router() {
     _stopCameraImages('#fleet-wall-page img');
     _fleetWallSignature = '';
   }
+  if (route.view !== 'filament') {
+    _fleetFilamentSignature = '';
+  }
   const wasOnSettings = _onSettings;
   const wasOnFailures = _onFailures;
   const wasOnSpools = _onSpools;
+  const wasOnFilament = _onFilament;
   const wasOnMemory = _onMemory;
   const wasOnManual = _onManual;
   const wasOnDemo = _onDemo;
@@ -4020,6 +4028,7 @@ function router() {
   _onSettings = route.view === 'settings';
   _onFailures = route.view === 'failures';
   _onSpools = route.view === 'spools';
+  _onFilament = route.view === 'filament';
   _onMemory = route.view === 'memory';
   _onManual = route.view === 'manual';
   _onDemo = route.view === 'demo';
@@ -4039,6 +4048,7 @@ function router() {
   document.getElementById('view-dashboard').hidden = route.view !== 'dashboard';
   document.getElementById('view-mission').hidden   = route.view !== 'mission';
   document.getElementById('view-fleet').hidden     = route.view !== 'fleet';
+  document.getElementById('view-filament').hidden  = route.view !== 'filament';
   document.getElementById('view-stats').hidden     = route.view !== 'stats';
   document.getElementById('view-printer').hidden   = route.view !== 'printer';
   document.getElementById('view-spool').hidden     = route.view !== 'spool';
@@ -4060,6 +4070,7 @@ function router() {
     tab.classList.toggle('active',
       (route.view === 'dashboard' && href === '#/') ||
       (route.view === 'fleet'     && href === '#/fleet') ||
+      (route.view === 'filament'  && href === '#/filament') ||
       (route.view === 'mission'   && href === '#/mission') ||
       (route.view === 'stats'     && href === '#/stats') ||
       printerTabActive ||
@@ -4082,6 +4093,7 @@ function router() {
 
   if (route.view === 'printer') renderPrinterDetail(route.id, route.subtab);
   if (route.view === 'fleet') renderFleetWall();
+  if (route.view === 'filament') renderFleetFilament();
   if (route.view === 'mission') renderMissionControl();
   if (route.view === 'stats') renderStatsView();
   if (route.view === 'spool' && wasSpoolDetailId !== route.id) {
@@ -4139,6 +4151,7 @@ function buildTabs(printers) {
     `<a class="tab" href="#/queue">Queue</a>`,
     `<a class="tab" href="#/files">Global Print Bay</a>`,
     `<a class="tab" href="#/memory">Print Memory</a>`,
+    `<a class="tab" href="#/filament">Fleet Filament</a>`,
     `<a class="tab" href="#/spools">Spools</a>`,
     `<div class="tab-section">System</div>`,
     `<a class="tab" href="#/walkthrough">Walkthrough Mode</a>`,
@@ -4505,6 +4518,174 @@ function _detailLiveAmsLoadoutRows(p) {
   });
   return `<div class="ams-loadout-deck">
     <div class="ams-loadout-units">${units.join('')}</div>
+  </div>`;
+}
+
+function _fleetFilamentPrinterSummary(p) {
+  const loaded = (_latestSpoolsByPrinter[p.id] || []).filter(s => !s.archived_at);
+  let mismatches = 0;
+  let feeding = 0;
+  let slots = 0;
+  let assigned = 0;
+  for (const unit of (p.ams || [])) {
+    for (const slot of (unit.slots || [])) {
+      slots += 1;
+      const flatSlot = _amsFlatSlot(unit, slot);
+      const spool = loaded.find(s => Number(s.location_slot) === flatSlot);
+      if (spool) assigned += 1;
+      if (_slotMismatch(spool, slot)) mismatches += 1;
+      if (_slotRouteActive(p, unit, slot)) feeding += 1;
+    }
+  }
+  if (!slots && loaded.length) {
+    assigned = loaded.length;
+  }
+  return { loaded, mismatches, feeding, slots, assigned };
+}
+
+function _fleetFilamentRoomSummary(printers) {
+  let mismatches = 0;
+  let feeding = 0;
+  let assigned = 0;
+  let slots = 0;
+  printers.forEach(p => {
+    const s = _fleetFilamentPrinterSummary(p);
+    mismatches += s.mismatches;
+    feeding += s.feeding;
+    assigned += s.assigned;
+    slots += s.slots;
+  });
+  return { mismatches, feeding, assigned, slots, printers: printers.length };
+}
+
+function _fleetFilamentPrinterCard(p) {
+  const summary = _fleetFilamentPrinterSummary(p);
+  const tone = _printerDisplayStateClass(p);
+  const primary = _printerPrimaryLabel(p);
+  const secondary = _printerSecondaryLabel(p);
+  const stateLabel = _printerDisplayStateLabel(p);
+  const accent = _printerColor(p.id);
+  const statBits = [
+    summary.slots ? `${summary.assigned}/${summary.slots} slots` : `${summary.assigned} loaded`,
+    summary.feeding ? `${summary.feeding} feeding` : '',
+    summary.mismatches ? `${summary.mismatches} review` : '',
+  ].filter(Boolean);
+  const routeStrip = p.ams?.length ? _fleetWallAmsRouteStrip(p) : '';
+  let loadout = '';
+  if (p.ams?.length) {
+    loadout = _detailLiveAmsLoadoutRows(p);
+  } else if (p.mmu?.length) {
+    loadout = `<div class="fleet-filament-mmu">${_detailLiveMmuRows(p)}</div>`;
+  } else {
+    const chips = _detailLiveSpoolChips(p);
+    loadout = chips
+      ? `<div class="fleet-filament-external">${chips}</div>`
+      : '<div class="fleet-filament-empty">No AMS or loaded spools tracked on this printer.</div>';
+  }
+  const trackNote = _isH2CPrinter(p) || _isH2dPrinter(p)
+    ? '<span class="fleet-filament-track-note">Track Switch routes AMS to either nozzle on this printer.</span>'
+    : '';
+  return `<article class="fleet-filament-card fleet-filament-card-${tone}" data-printer-id="${esc(p.id)}" style="--printer-accent:${accent}">
+    <header class="fleet-filament-card-head">
+      <div class="fleet-filament-card-title">
+        <h2>${esc(primary)}</h2>
+        ${secondary ? `<span class="fleet-filament-card-model">${esc(secondary)}</span>` : ''}
+        <span class="badge badge-${esc(tone)} fleet-filament-state">${esc(stateLabel)}</span>
+      </div>
+      <div class="fleet-filament-card-meta">
+        <div class="fleet-filament-card-stats">
+          ${statBits.map((bit, i) => {
+            const cls = bit.includes('review') ? 'is-warn' : bit.includes('feeding') ? 'is-feeding' : '';
+            return `<span class="fleet-filament-stat ${cls}">${esc(bit)}</span>`;
+          }).join('')}
+        </div>
+        <div class="fleet-filament-card-links">
+          <a href="#/printer/${esc(p.id)}">Live</a>
+          <a href="#/spools?filter=loaded&amp;printer=${encodeURIComponent(p.id)}">Spools</a>
+        </div>
+      </div>
+    </header>
+    ${trackNote}
+    ${routeStrip ? `<div class="fleet-filament-routes">${routeStrip}</div>` : ''}
+    <div class="fleet-filament-loadout">${loadout}</div>
+  </article>`;
+}
+
+function renderFleetFilament() {
+  const el = document.getElementById('fleet-filament-page');
+  if (!el) return;
+  const printers = [...(_latestPrinters || [])].sort((a, b) =>
+    _dashboardPrinterName(a).localeCompare(_dashboardPrinterName(b))
+  );
+  if (!printers.length) {
+    el.innerHTML = `<div class="fleet-filament-empty-page">
+      <strong>No printers configured</strong>
+      <p>Add a printer in Settings to see the room filament map.</p>
+      <a href="#/settings/printers">Add printer</a>
+    </div>`;
+    _fleetFilamentSignature = '';
+    return;
+  }
+
+  const room = _fleetFilamentRoomSummary(printers);
+  const signature = [
+    room.mismatches,
+    room.feeding,
+    room.assigned,
+    printers.map(p => {
+      const s = _fleetFilamentPrinterSummary(p);
+      const spools = (s.loaded || []).map(x => `${x.id}:${x.location_slot}:${x.remaining_g}`).join(';');
+      return `${p.id}:${p.state}:${s.mismatches}:${s.feeding}:${spools}:${JSON.stringify(p.ams || [])}`;
+    }).join('|'),
+  ].join('::');
+
+  if (_fleetFilamentSignature === signature && el.querySelector('.fleet-filament-grid')) {
+    return;
+  }
+  _fleetFilamentSignature = signature;
+
+  const activeJob = printers.filter(p => p.state === 'printing' || p.state === 'paused').length;
+  el.innerHTML = `<div class="fleet-filament-page-inner">
+    <header class="fleet-filament-hero">
+      <div class="fleet-filament-hero-copy">
+        <span class="mission-eyebrow">Operations</span>
+        <h1>Fleet Filament</h1>
+        <p>Whole-room AMS loadout, feed routes, and spool assignments — every printer on one board.</p>
+      </div>
+      <div class="fleet-filament-hero-stats">
+        <div class="fleet-filament-hero-stat">
+          <strong>${room.printers}</strong>
+          <span>printers</span>
+        </div>
+        <div class="fleet-filament-hero-stat">
+          <strong>${room.assigned}</strong>
+          <span>loaded${room.slots ? ` / ${room.slots} slots` : ''}</span>
+        </div>
+        <div class="fleet-filament-hero-stat${room.feeding ? ' is-feeding' : ''}">
+          <strong>${room.feeding}</strong>
+          <span>feeding now</span>
+        </div>
+        <div class="fleet-filament-hero-stat${room.mismatches ? ' is-warn' : ''}">
+          <strong>${room.mismatches}</strong>
+          <span>need review</span>
+        </div>
+        <div class="fleet-filament-hero-stat">
+          <strong>${activeJob}</strong>
+          <span>active jobs</span>
+        </div>
+      </div>
+      <div class="fleet-filament-hero-links">
+        <a href="#/spools">Spool inventory</a>
+        <a href="#/fleet">Fleet Wall</a>
+        <a href="#/queue">Queue</a>
+      </div>
+    </header>
+    <div class="fleet-filament-briefing">
+      <span>Click any slot to quick-load or open Profile Doctor. Each printer is its own filament island — H2C Track Switch only routes that machine's AMS to its left or right nozzle.</span>
+    </div>
+    <div class="fleet-filament-grid">
+      ${printers.map(_fleetFilamentPrinterCard).join('')}
+    </div>
   </div>`;
 }
 
@@ -17718,6 +17899,7 @@ async function _refreshSpoolsByPrinter() {
       }
     }
     _latestSpoolsByPrinter = byPrinter;
+    if (parseRoute().view === 'filament') renderFleetFilament();
   } catch {}
 }
 
