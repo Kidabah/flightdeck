@@ -1687,6 +1687,45 @@ def get_print_timelapse(print_id: int) -> Optional[dict]:
     return dict(row) if row else None
 
 
+def get_claimed_timelapse_paths(*, exclude_print_id: Optional[int] = None) -> set[str]:
+    """Relative flight_recorder paths already attached to other prints."""
+    with _conn() as conn:
+        rows = conn.execute(
+            """SELECT id, timelapse_path
+               FROM prints
+               WHERE timelapse_path IS NOT NULL AND timelapse_path != ''"""
+        ).fetchall()
+    claimed: set[str] = set()
+    for row in rows:
+        if exclude_print_id and int(row["id"]) == int(exclude_print_id):
+            continue
+        path = str(row["timelapse_path"] or "").strip().replace("\\", "/")
+        if path:
+            claimed.add(path)
+    return claimed
+
+
+def get_claimed_timelapse_origins(*, exclude_print_id: Optional[int] = None) -> set[str]:
+    """Printer-origin clip paths already attached to other prints (from timelapse_source)."""
+    with _conn() as conn:
+        rows = conn.execute(
+            """SELECT id, timelapse_source
+               FROM prints
+               WHERE timelapse_source IS NOT NULL AND timelapse_source != ''"""
+        ).fetchall()
+    claimed: set[str] = set()
+    for row in rows:
+        if exclude_print_id and int(row["id"]) == int(exclude_print_id):
+            continue
+        source = str(row["timelapse_source"] or "")
+        if "|" in source:
+            _, origin = source.split("|", 1)
+            origin = origin.strip().replace("\\", "/").lstrip("/")
+            if origin:
+                claimed.add(origin)
+    return claimed
+
+
 def update_print_notes(print_id: int, notes: str) -> bool:
     """Update notes for a print row. Returns True if a row was updated."""
     with _conn() as conn:

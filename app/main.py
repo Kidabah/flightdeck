@@ -89,6 +89,7 @@ _FLIGHT_RECORDER_AUTO_RETRY_DELAYS = tuple(
     if part.strip().isdigit()
 ) or (30, 90, 180)
 _flight_recorder_harvest_pending: set[tuple[str, int]] = set()
+_ATTACHED_TIMELAPSE_NAME_RE = re.compile(r"^(\d+)-")
 
 
 def _dt_default(obj):
@@ -7522,11 +7523,62 @@ def _print_time_window(item: dict) -> tuple[Optional[datetime], Optional[datetim
     return parse(item.get("started_at")), parse(item.get("ended_at"))
 
 
+def _timelapse_has_name_match(item: dict, candidate: dict) -> bool:
+    filename_key = _normalise_timelapse_key(item.get("filename") or "")
+    subtask_key = _normalise_timelapse_key(item.get("subtask_name") or "")
+    candidate_key = _normalise_timelapse_key(candidate.get("name") or candidate.get("path") or "")
+    if not candidate_key:
+        return False
+    if filename_key and (filename_key in candidate_key or candidate_key in filename_key):
+        return True
+    if subtask_key and (subtask_key in candidate_key or candidate_key in subtask_key):
+        return True
+    return False
+
+
+def _timelapse_store_source(candidate: dict) -> str:
+    source = str(candidate.get("source") or "printer-media")
+    origin = str(candidate.get("path") or candidate.get("name") or "").replace("\\", "/").lstrip("/")
+    if origin and source.startswith("bambu"):
+        return f"{source}|{origin}"[:64]
+    return source[:64]
+
+
+def _timelapse_candidate_reserved(item: dict, candidate: dict, claimed_paths: set[str], claimed_origins: set[str]) -> bool:
+    print_id = int(item.get("id") or 0)
+    name = Path(str(candidate.get("local_path") or candidate.get("name") or candidate.get("path") or "")).name
+    owned = _ATTACHED_TIMELAPSE_NAME_RE.match(name)
+    if owned and int(owned.group(1)) != print_id:
+        return True
+
+    rel_path = str(candidate.get("path") or "").replace("\\", "/").lstrip("/")
+    if rel_path and rel_path in claimed_paths:
+        return True
+    if rel_path and rel_path in claimed_origins:
+        return True
+
+    local_path = str(candidate.get("local_path") or "")
+    if local_path:
+        try:
+            rel = Path(local_path).resolve().relative_to(FLIGHT_RECORDER_DIR.resolve())
+            if str(rel).replace("\\", "/") in claimed_paths:
+                return True
+        except Exception:
+            pass
+    return False
+
+
 def _timelapse_candidate_score(item: dict, candidate: dict) -> float:
     filename_key = _normalise_timelapse_key(item.get("filename") or "")
     subtask_key = _normalise_timelapse_key(item.get("subtask_name") or "")
     candidate_key = _normalise_timelapse_key(candidate.get("name") or candidate.get("path") or "")
     score = 0.0
+    print_id = int(item.get("id") or 0)
+    owned = _ATTACHED_TIMELAPSE_NAME_RE.match(
+        Path(str(candidate.get("local_path") or candidate.get("name") or "")).name
+    )
+    if owned and int(owned.group(1)) == print_id:
+        score += 220
     if filename_key and (filename_key in candidate_key or candidate_key in filename_key):
         score += 80
     if subtask_key and (subtask_key in candidate_key or candidate_key in subtask_key):
@@ -7562,8 +7614,13 @@ def _timelapse_candidate_score(item: dict, candidate: dict) -> float:
 
 
 def _pick_timelapse_candidate(item: dict, candidates: list[dict]) -> Optional[dict]:
+    print_id = int(item.get("id") or 0)
+    claimed_paths = db.get_claimed_timelapse_paths(exclude_print_id=print_id)
+    claimed_origins = db.get_claimed_timelapse_origins(exclude_print_id=print_id)
     viable = []
     for candidate in candidates:
+        if _timelapse_candidate_reserved(item, candidate, claimed_paths, claimed_origins):
+            continue
         suffix = _timelapse_suffix(candidate.get("name") or candidate.get("path") or "")
         if not suffix:
             continue
@@ -7579,6 +7636,14 @@ def _pick_timelapse_candidate(item: dict, candidates: list[dict]) -> Optional[di
     best = viable[0]
     if float(best.get("_score") or 0) <= 0:
         return None
+    if not _timelapse_has_name_match(item, best):
+        started, ended = _print_time_window(item)
+        modified = _timelapse_candidate_time(best)
+        if not (started and ended and modified):
+            return None
+        delta = abs((modified - ended).total_seconds())
+        if delta > 25 * 60:
+            return None
     return best
 
 
@@ -7863,7 +7928,7 @@ async def _auto_harvest_flight_recorder(
                     item,
                     candidate,
                     data,
-                    source=str(candidate.get("source") or "printer-media"),
+                    source=_timelapse_store_source(candidate),
                     decision_event="flight_recorder_auto_discovered",
                 )
                 log.info("flight recorder auto-attached via discovery: %s print_id=%s", printer_id, print_id)
@@ -8015,7 +8080,7 @@ async def discover_print_timelapse(printer_id: str, print_id: int):
         item,
         candidate,
         data,
-        source=str(candidate.get("source") or "printer-media"),
+        source=_timelapse_store_source(candidate),
     )
     return updated
 

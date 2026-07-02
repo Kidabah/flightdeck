@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `1569c0a` — bench order uses Big Girl id o1c2
+- Latest commit: (pending) — Find clip per-print matching fix
 - Refresh cachebust currently: app.js?v=617 / style.css?v=477
+
+### 2026-07-03 fix (Find clip reusing same timelapse)
+
+**Per-print Flight Recorder discovery** (`app/main.py`, `app/db.py`, `SESSION_NEXT.md`)
+
+- Find clip no longer re-attaches another print's recorder file from the local pool; Bambu SD paths already used by another print are skipped too.
+- Time-only matches now require a real print start/end window and land within 25 minutes of finish unless the filename/subtask matches.
+- Backend/service restart required; no frontend cache bump.
 
 ### 2026-07-02 fix (bench order — Big Girl printer id)
 
