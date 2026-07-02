@@ -315,6 +315,7 @@ class BambuPrinter:
             bed = self._printer.get_bed_temperature()
             chamber = _read_chamber_temp(dump, self.model_name)
             light_state = _read_light_state(print_data)
+            timelapse_state = _read_bambu_timelapse_state(print_data)
             fan_speeds = _read_fan_speeds(mc)
             if bed is not None:
                 temps["bed"] = TempReading(
@@ -435,7 +436,7 @@ class BambuPrinter:
                 icon=self.icon, kind="bambu", state=state,
                 temps=temps, job=job, substage=substage,
                 idle_info=idle_info, ams=ams, toolheads=toolheads,
-                maintenance=maintenance, light_state=light_state,
+                maintenance=maintenance, light_state=light_state, timelapse_state=timelapse_state,
                 fan_speed=fan_speeds.get("part"),
                 fan_speeds=fan_speeds,
                 error=alarm_message if state in ("paused", "error") else None,
@@ -1712,6 +1713,15 @@ def _read_bambu_timelapse_path(mqtt_dump: dict) -> Optional[str]:
         if value and str(value).strip():
             return str(value).strip()
     return None
+
+
+def _read_bambu_timelapse_state(print_data: dict) -> Optional[str]:
+    """Return Bambu's live timelapse enable/disable state when reported."""
+    ipcam = print_data.get("ipcam") if isinstance(print_data, dict) else {}
+    if not isinstance(ipcam, dict):
+        return None
+    value = str(ipcam.get("timelapse") or "").strip().lower()
+    return value if value in {"enable", "disable"} else None
 
 
 def _read_chamber_temp(mqtt_dump: dict, model_name: str) -> float | None:

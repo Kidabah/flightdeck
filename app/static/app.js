@@ -4229,6 +4229,15 @@ function _detailLiveHeader(p, printerColor, bannerTextColor) {
 
 function _detailLiveSignals(p) {
   const signals = [];
+  if (p.kind === 'bambu' && p.timelapse_state) {
+    signals.push({
+      cls: p.timelapse_state === 'enable' ? 'ok' : 'info',
+      label: p.timelapse_state === 'enable' ? 'Timelapse on' : 'Timelapse off',
+      title: p.timelapse_state === 'enable'
+        ? 'Printer timelapse capture is enabled'
+        : 'Printer timelapse capture is disabled',
+    });
+  }
   if (p.state === 'estop') signals.push({ cls: 'danger', label: 'E-stop active' });
   else if (p.state === 'error') signals.push({ cls: 'danger', label: p.error || 'Printer fault' });
   else if (p.state === 'paused') signals.push({ cls: 'warn', label: p.error || 'Print paused' });

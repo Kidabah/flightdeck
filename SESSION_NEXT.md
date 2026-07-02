@@ -2,8 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `623e1fd` — Flight Recorder restart-finish harvest fix
-- Refresh cachebust currently: app.js?v=601 / style.css?v=468
+- Latest commit: (pending) — Flight Recorder debug + live timelapse badge
+- Refresh cachebust currently: app.js?v=603 / style.css?v=469
+
+### 2026-07-02 debug (Flight Recorder inspector + Live timelapse badge)
+
+**Recorder debug panel and Bambu timelapse-on indicator in Live view** (`app/main.py`, `app/models.py`, `app/printers/bambu.py`, `app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Print History / Passport Flight Recorder card now includes a `Recorder debug` expander that shows the printer state, recovered finished print id, MQTT timelapse hint, mapped FTPS paths, local candidate samples, and Bambu candidate samples.
+- Added `/api/printers/{printer_id}/prints/{print_id}/timelapse/debug` so recorder troubleshooting is visible in the app instead of requiring SSH.
+- Bambu live status now reads MQTT `print.ipcam.timelapse` and surfaces a clear `Timelapse on` / `Timelapse off` signal chip in the Live camera header.
+- Static cache `app.js?v=603` / `style.css?v=469`; backend/service restart required for the new API/status field, hard refresh required for the UI.
 
 ### 2026-07-02 fix (Flight Recorder after backend restart mid-print)
 
