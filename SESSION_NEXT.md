@@ -2,10 +2,19 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `23b657f` — H2C toolhead nozzle mapping fix
-- Pi repo: /home/flightdeck/flightdeck
-- App URL: https://flightdeck.tail7de73e.ts.net/
-- Refresh cachebust currently: app.js?v=595 / style.css?v=463
+- Latest commit: (pending) — Queue polish hero + briefing
+- Refresh cachebust currently: app.js?v=596 / style.css?v=464
+
+### 2026-07-02 polish (Queue hero + briefing)
+
+**Queue glow-up aligned with Dashboard / Fleet / Flight Tower** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Hero strip: live status line, Ready/Blocked/Caution/Active chips, quick links to Dashboard / Flight Tower / Print Vault.
+- Dispatch briefing banner: clear-skies when queues are healthy; blocked/caution/active/recovery rows when not.
+- Printer lanes get state-coloured left borders, live printer badge, and hover lift.
+- Job cards get readiness accents (ready/caution/blocked) and slightly richer thumbs.
+- Static cache `app.js?v=596` / `style.css?v=464`; hard refresh required.
+
 - Pi deploy: `cd /home/flightdeck/flightdeck && git pull && sudo systemctl restart flightdeck.service`
 - Pi SSH: `ssh -i C:\Users\Kidabah\.ssh\flightdeck_cursor -o IdentitiesOnly=yes flightdeck@100.106.112.104`
 

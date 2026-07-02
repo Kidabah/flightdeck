@@ -10384,6 +10384,176 @@ async function renderMissionControl() {
   }
 }
 
+function _queueSnapshot(jobs, printers) {
+  const pending = jobs.filter(j => j.status === 'pending');
+  const active = jobs.filter(j => j.status === 'printing' || j.status === 'uploading');
+  let ready = 0;
+  let blocked = 0;
+  let caution = 0;
+  pending.forEach(j => {
+    const readiness = _missionJobReadiness(j);
+    if (readiness.cls === 'ready') ready += 1;
+    else if (readiness.cls === 'blocked') blocked += 1;
+    else if (readiness.cls === 'warn') caution += 1;
+  });
+  const queuedSeconds = pending.reduce((sum, j) => sum + (j.estimated_seconds || 0), 0);
+  return {
+    pending,
+    active,
+    ready,
+    blocked,
+    caution,
+    queuedSeconds,
+    total: jobs.length,
+    printers: printers.length,
+  };
+}
+
+function _queueHeroStatusLine(snap) {
+  if (snap.blocked) {
+    return `${snap.blocked} blocked job${snap.blocked === 1 ? '' : 's'} need preflight or recovery before dispatch`;
+  }
+  if (snap.active.length) {
+    const lead = snap.active[0]?.filename?.replace(/.*[\\/]/, '') || 'job';
+    return snap.active.length === 1
+      ? `${lead} is uploading or printing now`
+      : `${snap.active.length} jobs in flight · leading with ${lead}`;
+  }
+  if (snap.ready) {
+    const eta = snap.queuedSeconds ? ` · ~${_fmtSeconds(snap.queuedSeconds)} queued` : '';
+    return `${snap.ready} ready to send${eta} · auto-sends when printers are free`;
+  }
+  if (snap.total) return 'Queues are clear — stage sliced jobs from Print Vault';
+  return 'No jobs queued yet — drop a file below or queue from Print Vault';
+}
+
+function _renderQueueHero(jobs, printers) {
+  const snap = _queueSnapshot(jobs, printers);
+  return `<section class="queue-hero" aria-label="Queue snapshot">
+    <div class="queue-hero-copy">
+      <span class="queue-hero-eyebrow">Print bay</span>
+      <h1 class="queue-hero-title">Queue</h1>
+      <p class="queue-hero-status">${esc(_queueHeroStatusLine(snap))}</p>
+    </div>
+    <div class="queue-hero-metrics" aria-label="Queue counts">
+      <div class="queue-hero-metric queue-hero-metric-ready">
+        <strong>${snap.ready}</strong>
+        <span>Ready</span>
+      </div>
+      <div class="queue-hero-metric${snap.blocked ? ' queue-hero-metric-blocked' : ''}">
+        <strong>${snap.blocked}</strong>
+        <span>Blocked</span>
+      </div>
+      <div class="queue-hero-metric${snap.caution ? ' queue-hero-metric-caution' : ''}">
+        <strong>${snap.caution}</strong>
+        <span>Caution</span>
+      </div>
+      <div class="queue-hero-metric${snap.active.length ? ' queue-hero-metric-active' : ''}">
+        <strong>${snap.active.length}</strong>
+        <span>Active</span>
+      </div>
+    </div>
+    <div class="queue-hero-links">
+      <a href="#/">Dashboard</a>
+      <a href="#/mission">Flight Tower</a>
+      <a href="#/files">Print Vault</a>
+    </div>
+  </section>`;
+}
+
+function _renderQueueBriefing(jobs, printers) {
+  const pending = jobs.filter(j => j.status === 'pending');
+  const blockedJobs = pending.filter(j => _missionJobReadiness(j).cls === 'blocked');
+  const cautionJobs = pending.filter(j => _missionJobReadiness(j).cls === 'warn');
+  const activeJobs = jobs.filter(j => j.status === 'printing' || j.status === 'uploading');
+  const recoverJobs = jobs.filter(j => j.status === 'failed' || j.status === 'cancelled');
+  const rows = [];
+
+  blockedJobs.forEach(j => {
+    const p = printers.find(x => x.id === j.printer_id);
+    const issue = j.preflight?.issues?.find(i => i.level === 'block' || i.level === 'wait') || j.preflight?.issues?.[0];
+    rows.push({
+      tone: 'critical',
+      kicker: 'Blocked',
+      title: j.filename.replace(/.*[\\/]/, ''),
+      detail: issue?.message || j.preflight?.label || 'Preflight blocked',
+      printer: p ? _printerQueueLabel(p) : j.printer_id,
+    });
+  });
+
+  activeJobs.forEach(j => {
+    const p = printers.find(x => x.id === j.printer_id);
+    rows.push({
+      tone: 'ok',
+      kicker: j.status === 'uploading' ? 'Upload' : 'Printing',
+      title: j.filename.replace(/.*[\\/]/, ''),
+      detail: p ? _printerQueueLabel(p) : j.printer_id,
+      printer: '',
+    });
+  });
+
+  cautionJobs.slice(0, 4).forEach(j => {
+    const p = printers.find(x => x.id === j.printer_id);
+    rows.push({
+      tone: 'warn',
+      kicker: 'Caution',
+      title: j.filename.replace(/.*[\\/]/, ''),
+      detail: j.preflight?.label || 'Review metadata or filament match',
+      printer: p ? _printerQueueLabel(p) : j.printer_id,
+    });
+  });
+
+  recoverJobs.slice(0, 4).forEach(j => {
+    const p = printers.find(x => x.id === j.printer_id);
+    rows.push({
+      tone: 'warn',
+      kicker: j.status === 'failed' ? 'Failed' : 'Cancelled',
+      title: j.filename.replace(/.*[\\/]/, ''),
+      detail: 'Recovery available',
+      printer: p ? _printerQueueLabel(p) : j.printer_id,
+    });
+  });
+
+  const calm = !rows.length;
+  const body = calm
+    ? `<div class="briefing-clear briefing-clear-hero queue-briefing-clear">
+        <div class="briefing-clear-icon" aria-hidden="true">✓</div>
+        <div class="briefing-clear-copy">
+          <strong>Queues clear</strong>
+          <span>Nothing blocked or waiting on preflight. Ready jobs auto-send when a printer is free.</span>
+        </div>
+        <div class="briefing-clear-links">
+          <a href="#/files">Print Vault</a>
+          <a href="#/mission">Flight Tower</a>
+        </div>
+      </div>`
+    : rows.map(row => `<article class="queue-briefing-row queue-briefing-${row.tone}">
+        <span class="queue-briefing-kicker">${esc(row.kicker)}</span>
+        <div class="queue-briefing-copy">
+          <strong>${esc(row.title)}</strong>
+          <span>${esc(row.detail)}${row.printer ? ` · ${esc(row.printer)}` : ''}</span>
+        </div>
+      </article>`).join('');
+
+  return `<section class="queue-briefing${calm ? ' queue-briefing-calm' : ''}" aria-label="Queue briefing">
+    <div class="queue-briefing-head">
+      <div>
+        <span>Dispatch briefing</span>
+        <strong>${calm ? 'Ready for new work' : 'Items needing a look'}</strong>
+      </div>
+      <a href="#/mission">Flight Tower</a>
+    </div>
+    <div class="queue-briefing-list">${body}</div>
+  </section>`;
+}
+
+function _queuePrinterSectionTone(jobs, printer) {
+  if (jobs.some(j => j.status === 'printing' || j.status === 'uploading')) return 'active';
+  if (jobs.some(j => j.status === 'pending' && _missionJobReadiness(j).cls === 'blocked')) return 'blocked';
+  if (printer?.state === 'offline') return 'offline';
+  return 'idle';
+}
+
 function _queueJobCard(job, isFirst, isLast) {
   const isPending   = job.status === 'pending';
   const isActive    = job.status === 'printing' || job.status === 'uploading';
@@ -10400,7 +10570,9 @@ function _queueJobCard(job, isFirst, isLast) {
     job.estimated_seconds ? _fmtSeconds(job.estimated_seconds) : '',
   ].filter(Boolean).join(' · ');
 
-  return `<div class="queue-job ${isActive ? 'queue-job-active' : ''}" data-job-id="${job.id}">
+  const readiness = _missionJobReadiness(job);
+
+  return `<div class="queue-job ${isActive ? 'queue-job-active' : ''} queue-job-${readiness.cls}" data-job-id="${job.id}">
     <div class="queue-job-thumb">
       ${previewSrc
         ? `<img src="${previewSrc}" alt="" loading="lazy">`
@@ -10436,12 +10608,15 @@ function _queueJobCard(job, isFirst, isLast) {
   </div>`;
 }
 
-function _queuePrinterSection(printerId, printerLabel, jobs, kind) {
+function _queuePrinterSection(printerId, printerLabel, jobs, kind, printer = null) {
   const accept   = kind === 'bambu' ? '.3mf,.gcode.3mf,.step,.stp' : '.gcode,.gcode.gz,.ufp,.step,.stp';
   const acceptedText = kind === 'bambu' ? '.gcode.3mf / .step' : '.gcode / .step';
   const pending  = jobs.filter(j => j.status === 'pending');
   const active   = jobs.filter(j => j.status === 'printing' || j.status === 'uploading');
   const completed = jobs.filter(j => ['done','failed','cancelled'].includes(j.status));
+  const tone = _queuePrinterSectionTone(jobs, printer);
+  const stateLabel = printer ? _printerDisplayStateLabel(printer) : '';
+  const stateClass = printer ? _printerDisplayStateClass(printer) : 'muted';
 
   const totalSecs = pending.reduce((s, j) => s + (j.estimated_seconds || 0), 0);
   const summary = pending.length
@@ -10453,11 +10628,14 @@ function _queuePrinterSection(printerId, printerLabel, jobs, kind) {
         const pIdx = pending.indexOf(j);
         return _queueJobCard(j, pIdx === 0, pIdx === pending.length - 1);
       }).join('')
-    : '<div class="queue-empty">No jobs queued</div>';
+    : '<div class="queue-empty">No jobs queued — drop a file here or queue from Print Vault</div>';
 
-  return `<section class="queue-printer-section" data-printer-id="${printerId}">
+  return `<section class="queue-printer-section queue-printer-section-${tone}" data-printer-id="${printerId}">
     <div class="queue-printer-header">
-      <h2 class="queue-printer-name">${printerLabel}</h2>
+      <div class="queue-printer-title">
+        <h2 class="queue-printer-name">${printerLabel}</h2>
+        ${stateLabel ? `<span class="badge badge-${stateClass} queue-printer-state">${esc(stateLabel)}</span>` : ''}
+      </div>
       ${summary ? `<span class="queue-section-summary">${summary}</span>` : ''}
       <div class="queue-header-right">
         ${completed.length ? `<button class="queue-clear-btn" data-action="clear-completed" data-printer-id="${printerId}">Clear done</button>` : ''}
@@ -10494,10 +10672,19 @@ async function renderQueueView() {
       if (byPrinter[j.printer_id]) byPrinter[j.printer_id].jobs.push(j);
     }
 
-    el.innerHTML = Object.entries(byPrinter)
-      .map(([pid, { label, kind, jobs: pjobs }]) =>
-        _queuePrinterSection(pid, label, pjobs, kind))
+    const printerSections = Object.entries(byPrinter)
+      .map(([pid, { label, kind, jobs: pjobs }]) => {
+        const printer = printers.find(p => p.id === pid) || null;
+        return _queuePrinterSection(pid, label, pjobs, kind, printer);
+      })
       .join('');
+
+    el.innerHTML = `${_renderQueueHero(jobs, printers)}${_renderQueueBriefing(jobs, printers)}
+      <div class="queue-lanes-head">
+        <span class="queue-board-eyebrow">Printer lanes</span>
+        <span>${printers.length} bay${printers.length === 1 ? '' : 's'}</span>
+      </div>
+      <div class="queue-sections">${printerSections}</div>`;
 
     el.querySelectorAll('.queue-file-input').forEach(inp => {
       inp.addEventListener('change', e => _queueHandleFile(e.target));
