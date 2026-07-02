@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — Flight Recorder debug + live timelapse badge
+- Latest commit: `6843996` — Flight Recorder debug + live timelapse badge
 - Refresh cachebust currently: app.js?v=603 / style.css?v=469
 
 ### 2026-07-02 debug (Flight Recorder inspector + Live timelapse badge)
