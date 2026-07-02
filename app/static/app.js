@@ -2300,7 +2300,7 @@ function _detailLiveDeckTop(p, printerColor, bannerTextColor) {
   const toggle = _detailLiveHasOps(p) ? _detailLiveOpsToggle() : '';
   return `<div class="live-deck-top">
     ${toggle}
-    <div class="live-deck-status-bar" id="detail-live-head">${_detailLiveHeader(p, printerColor, bannerTextColor)}</div>
+    <div class="live-deck-status-bar" id="detail-live-head">${_detailLiveToolbarHeader(p, printerColor, bannerTextColor)}</div>
   </div>`;
 }
 
@@ -4194,6 +4194,37 @@ function _liveEtaText(p) {
     return `Flightdeck ${formatEta(Math.round(job.eta_seconds * p.eta_calibration.ratio))}`;
   }
   return `Slicer ${formatEta(job.eta_seconds)}`;
+}
+
+function _detailLiveToolbarHeader(p, printerColor, bannerTextColor) {
+  const stateLabel = _printerDisplayStateLabel(p);
+  const stateClass = _printerDisplayStateClass(p);
+  const primary = _printerPrimaryLabel(p);
+  const secondary = _printerSecondaryLabel(p);
+  const job = _activePrinterJob(p);
+  const progress = job?.progress != null ? `${Math.round(job.progress * 100)}%` : null;
+  const jobName = job ? jobDisplayName(job) : (p.idle_info?.['Last print'] || 'Ready for next job');
+  const statusMeta = job
+    ? [progress, _liveEtaText(p)].filter(Boolean).join(' · ')
+    : _dashboardIssueText(p);
+  const signals = _detailLiveSignals(p).filter(s => s.cls === 'danger' || s.cls === 'warn');
+  if (!(p.print_enabled ?? true)) {
+    signals.unshift({ cls: 'warn', label: p.print_enabled_note || 'Dispatch locked' });
+  }
+  return `<div class="live-command-header live-deck-command live-toolbar-compact" style="--tab-accent:${printerColor}">
+    <div class="live-toolbar-primary">
+      <span class="live-toolbar-name" style="color:${bannerTextColor}">${esc(primary)}</span>
+      ${secondary ? `<span class="live-toolbar-model">${esc(secondary)}</span>` : ''}
+      <span class="live-toolbar-sep" aria-hidden="true">·</span>
+      <span class="live-toolbar-job" title="${esc(job?.filename || jobName)}">${esc(jobName)}</span>
+      ${statusMeta ? `<span class="live-toolbar-meta">${esc(statusMeta)}</span>` : ''}
+    </div>
+    <div class="live-toolbar-trailing">
+      <span class="badge badge-${esc(stateClass)} live-state-badge live-toolbar-badge">${esc(stateLabel)}</span>
+      ${_detailTransportControls(p.id, p)}
+    </div>
+    ${signals.length ? `<div class="live-toolbar-signals">${signals.map(s => `<span class="live-signal live-signal-${esc(s.cls)}">${esc(s.label)}</span>`).join('')}</div>` : ''}
+  </div>`;
 }
 
 function _detailLiveHeader(p, printerColor, bannerTextColor) {
@@ -8559,7 +8590,7 @@ async function renderPrinterDetail(id, subtab = 'live') {
 
     _syncTimelapseRecOverlay(heroEl, p);
     const headEl = el.querySelector('#detail-live-head');
-    if (headEl) headEl.innerHTML = _detailLiveHeader(p, printerColor, bannerTextColor);
+    if (headEl) headEl.innerHTML = _detailLiveToolbarHeader(p, printerColor, bannerTextColor);
     const opsHtml = _detailLiveOps(p);
     const deckEl = el.querySelector('.live-main-deck');
     if (deckEl) deckEl.classList.toggle('has-live-ops', _detailLiveHasOps(p));

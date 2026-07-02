@@ -2,10 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `55537a9` — controls rail below status bar
-- Refresh cachebust currently: app.js?v=608 / style.css?v=474
+- Latest commit: (pending) — compact quiet Live toolbar
+- Refresh cachebust currently: app.js?v=609 / style.css?v=475
 
-### 2026-07-02 fix (Controls rail no longer clipped by status bar)
+### 2026-07-02 polish (compact Live toolbar)
+
+**Slimmer, quieter top bar on Live view** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Replaced the full shouty command header with a compact single-line toolbar: printer · job · state · mini transport controls.
+- Removed heavy shadow/blur, smaller type, thinner accent — camera feed is the focus again.
+- Warnings only appear as a slim second row when something needs attention.
+- Static cache `app.js?v=609` / `style.css?v=475`; hard refresh only.
+
 
 **Scope ops drawer to camera stage so nozzle controls are not hidden** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
 
