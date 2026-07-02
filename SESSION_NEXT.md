@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — Print Memory polish + auto Flight Recorder harvest
+- Latest commit: `77f384a` — Print Memory polish + auto Flight Recorder harvest
 - Refresh cachebust currently: app.js?v=601 / style.css?v=468
 
 ### 2026-07-02 polish (Print Memory + Flight Recorder auto-harvest)
