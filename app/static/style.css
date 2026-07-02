@@ -5272,6 +5272,46 @@ button.briefing-row {
     var(--surface);
 }
 
+.live-hover-header {
+  position: absolute;
+  z-index: 9;
+  top: 0.65rem;
+  left: 0.65rem;
+  right: 0.65rem;
+  transform: translateY(calc(-100% - 0.85rem));
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.22s ease, opacity 0.22s ease;
+}
+
+.camera-hero:hover .live-hover-header,
+.camera-hero:focus-within .live-hover-header {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.live-hover-header .live-command-header,
+.live-hover-command {
+  margin-bottom: 0;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(10px);
+  background:
+    linear-gradient(90deg, rgba(59,130,246,0.14), rgba(59,130,246,0.04)),
+    rgba(15, 23, 42, 0.88);
+}
+
+@media (hover: none), (pointer: coarse) {
+  .live-hover-header {
+    transform: translateY(0);
+    opacity: 0.94;
+    pointer-events: auto;
+    top: 0.45rem;
+    left: 0.45rem;
+    right: 0.45rem;
+  }
+}
+
 .live-printer-mark,
 .live-job-brief {
   min-width: 0;
