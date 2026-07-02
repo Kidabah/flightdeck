@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `14e88bc` — Fleet Filament Phase 1 room board
-- Refresh cachebust currently: app.js?v=611 / style.css?v=476
+- Latest commit: (pending) — Fleet Filament H2C rack view
+- Refresh cachebust currently: app.js?v=612 / style.css?v=477
+
+### 2026-07-02 feature (Fleet Filament H2C rack view)
+
+**H2C hotend rack on Fleet Filament board** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Big Girl's Fleet Filament card now has AMS / Rack tabs (same rack board as Live): toolhead panel + 6-bay induction rack.
+- Card stats include rack loaded count; route strip hides on Rack tab so the board stays focused.
+- Static cache `app.js?v=612` / `style.css?v=477`; hard refresh only.
 
 ### 2026-07-02 feature (Fleet Filament Phase 1)
 

@@ -12579,6 +12579,26 @@ button.live-route-node:hover {
   margin: 0;
 }
 
+.fleet-filament-hseries-tabs {
+  margin: 0 0 0.55rem;
+  padding-bottom: 0.5rem;
+}
+
+.fleet-filament-loadout .hseries-tooldeck {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.fleet-filament-card.is-h2c-rack-view .fleet-filament-loadout .hseries-rack-board {
+  margin: 0;
+}
+
+@media (max-width: 720px) {
+  .fleet-filament-card.is-h2c-rack-view .hseries-rack-board {
+    grid-template-columns: 1fr;
+  }
+}
+
 .fleet-filament-empty,
 .fleet-filament-empty-page {
   padding: 1rem;

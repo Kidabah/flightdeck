@@ -353,6 +353,7 @@ let _tabsBuilt = false;
 let _missionRenderInFlight = false;
 let _missionLastHtml = '';
 let _hSeriesLiveTabByPrinter = {};
+let _hSeriesFleetTabByPrinter = {};
 const _cameraUrlCache = {};     // printer_id → url string or null
 const _cameraMetaCache = {};    // printer_id → camera metadata
 const _CAMERA_STREAM_REFRESH_MS = 45000;
@@ -4558,21 +4559,53 @@ function _fleetFilamentRoomSummary(printers) {
   return { mismatches, feeding, assigned, slots, printers: printers.length };
 }
 
+function _fleetFilamentRackSummary(p) {
+  if (!_isH2CPrinter(p)) return null;
+  const rack = _asList(p.toolheads).filter(tool => tool?.zone === 'rack');
+  if (!rack.length) return null;
+  return {
+    loaded: rack.filter(tool => tool.present).length,
+    total: Math.max(rack.length, 6),
+  };
+}
+
+function _fleetFilamentHSeriesTabs(p) {
+  if (!_isH2CPrinter(p)) return '';
+  const rack = _asList(p.toolheads).filter(tool => tool?.zone === 'rack');
+  if (!rack.length) return '';
+  const active = _hSeriesFleetTabByPrinter[p.id] === 'rack' ? 'rack' : 'ams';
+  const rackCount = rack.filter(tool => tool.present).length;
+  const rackTotal = rack.length || 6;
+  const tab = (key, label, count) => `<button class="hseries-tooldeck-tab fleet-filament-hseries-tab${active === key ? ' is-active' : ''}" type="button" role="tab" aria-selected="${active === key ? 'true' : 'false'}" data-hseries-fleet-tab="${key}" data-printer-id="${esc(p.id)}">${esc(label)} <span>${esc(count)}</span></button>`;
+  return `<div class="hseries-tooldeck-tabs fleet-filament-hseries-tabs" role="tablist" aria-label="H2C loadout view">
+    ${tab('ams', 'AMS', String(_asList(p.ams).length || 0))}
+    ${tab('rack', 'Rack', `${rackCount}/${rackTotal}`)}
+  </div>`;
+}
+
 function _fleetFilamentPrinterCard(p) {
   const summary = _fleetFilamentPrinterSummary(p);
+  const rackSummary = _fleetFilamentRackSummary(p);
   const tone = _printerDisplayStateClass(p);
   const primary = _printerPrimaryLabel(p);
   const secondary = _printerSecondaryLabel(p);
   const stateLabel = _printerDisplayStateLabel(p);
   const accent = _printerColor(p.id);
+  const h2cTabs = _fleetFilamentHSeriesTabs(p);
+  const activeFleetTab = _hSeriesFleetTabByPrinter[p.id] === 'rack' ? 'rack' : 'ams';
+  const showRackPanel = !!h2cTabs && activeFleetTab === 'rack';
   const statBits = [
     summary.slots ? `${summary.assigned}/${summary.slots} slots` : `${summary.assigned} loaded`,
+    rackSummary ? `${rackSummary.loaded}/${rackSummary.total} rack` : '',
     summary.feeding ? `${summary.feeding} feeding` : '',
     summary.mismatches ? `${summary.mismatches} review` : '',
   ].filter(Boolean);
-  const routeStrip = p.ams?.length ? _fleetWallAmsRouteStrip(p) : '';
+  const routeStrip = p.ams?.length && !showRackPanel ? _fleetWallAmsRouteStrip(p) : '';
   let loadout = '';
-  if (p.ams?.length) {
+  if (showRackPanel) {
+    loadout = _detailLiveToolheadRows(p, 'rack')
+      || '<div class="fleet-filament-empty">No hotend rack data reported yet.</div>';
+  } else if (p.ams?.length) {
     loadout = _detailLiveAmsLoadoutRows(p);
   } else if (p.mmu?.length) {
     loadout = `<div class="fleet-filament-mmu">${_detailLiveMmuRows(p)}</div>`;
@@ -4582,10 +4615,11 @@ function _fleetFilamentPrinterCard(p) {
       ? `<div class="fleet-filament-external">${chips}</div>`
       : '<div class="fleet-filament-empty">No AMS or loaded spools tracked on this printer.</div>';
   }
-  const trackNote = _isH2CPrinter(p) || _isH2dPrinter(p)
+  const trackNote = (_isH2CPrinter(p) || _isH2dPrinter(p)) && !showRackPanel
     ? '<span class="fleet-filament-track-note">Track Switch routes AMS to either nozzle on this printer.</span>'
     : '';
-  return `<article class="fleet-filament-card fleet-filament-card-${tone}" data-printer-id="${esc(p.id)}" style="--printer-accent:${accent}">
+  const cardViewClass = h2cTabs ? ` is-h2c-${activeFleetTab}-view` : '';
+  return `<article class="fleet-filament-card fleet-filament-card-${tone}${cardViewClass}" data-printer-id="${esc(p.id)}" style="--printer-accent:${accent}">
     <header class="fleet-filament-card-head">
       <div class="fleet-filament-card-title">
         <h2>${esc(primary)}</h2>
@@ -4607,6 +4641,7 @@ function _fleetFilamentPrinterCard(p) {
     </header>
     ${trackNote}
     ${routeStrip ? `<div class="fleet-filament-routes">${routeStrip}</div>` : ''}
+    ${h2cTabs}
     <div class="fleet-filament-loadout">${loadout}</div>
   </article>`;
 }
@@ -4635,7 +4670,8 @@ function renderFleetFilament() {
     printers.map(p => {
       const s = _fleetFilamentPrinterSummary(p);
       const spools = (s.loaded || []).map(x => `${x.id}:${x.location_slot}:${x.remaining_g}`).join(';');
-      return `${p.id}:${p.state}:${s.mismatches}:${s.feeding}:${spools}:${JSON.stringify(p.ams || [])}`;
+      const rack = _fleetFilamentRackSummary(p);
+      return `${p.id}:${p.state}:${s.mismatches}:${s.feeding}:${spools}:${JSON.stringify(p.ams || [])}:${JSON.stringify(p.toolheads || [])}:${rack ? `${rack.loaded}/${rack.total}` : ''}`;
     }).join('|'),
   ].join('::');
 
@@ -4983,6 +5019,14 @@ function _mmuRouteState(unit = {}) {
 }
 
 document.addEventListener('click', e => {
+  const fleetTab = e.target.closest('[data-hseries-fleet-tab]');
+  if (fleetTab) {
+    const printerId = fleetTab.dataset.printerId || '';
+    _hSeriesFleetTabByPrinter[printerId] = fleetTab.dataset.hseriesFleetTab === 'rack' ? 'rack' : 'ams';
+    _fleetFilamentSignature = '';
+    if (parseRoute().view === 'filament') renderFleetFilament();
+    return;
+  }
   const liveTab = e.target.closest('[data-hseries-live-tab]');
   if (liveTab) {
     const printerId = liveTab.dataset.printerId || '';
