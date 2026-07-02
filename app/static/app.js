@@ -1417,8 +1417,8 @@ function _dashboardPrinterName(p) {
   return _printerNavLabel(p);
 }
 
-// Physical bench layout: H2D (left) → X1C (above) → H2C Big Girl (right/below).
-const _BENCH_PRINTER_ORDER = ['h2d', 'x1c', 'h2c'];
+// Physical bench layout on Fleet Filament: X1C (above) → H2D BigBoy → H2C Big Girl.
+const _BENCH_PRINTER_ORDER = ['x1c', 'h2d', 'h2c'];
 
 function _printerBenchRank(p) {
   const id = String(p?.id || '').toLowerCase();
