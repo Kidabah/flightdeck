@@ -8407,6 +8407,161 @@ function _printBayOverview(targets) {
   </section>`;
 }
 
+function _printBaySnapshot(targets, reprintItems = []) {
+  const sourceSummaries = (targets || []).map(t => {
+    const files = (t.files || []).filter(f => f.kind !== 'dir' && _fileCompatiblePrinters(f, t).length);
+    return { target: t, files, summary: _printBaySourceSummary(t, files) };
+  });
+  const allFiles = sourceSummaries.reduce((sum, s) => sum + s.summary.count, 0);
+  const readyFiles = sourceSummaries.reduce((sum, s) => sum + s.summary.ready, 0);
+  const vaultTarget = sourceSummaries.find(s => s.target.id === 'library');
+  const vaultFiles = vaultTarget?.summary.count || 0;
+  const printerTargets = sourceSummaries.filter(s => s.target.id !== 'library');
+  const printerFiles = sourceSummaries.reduce((sum, s) => sum + (s.target.id === 'library' ? 0 : s.summary.count), 0);
+  const printerBays = printerTargets.length;
+  const hiddenBays = printerTargets.filter(s => _printBayHiddenIds().has(s.target.id)).length;
+  const readyBays = printerTargets.filter(s => s.summary.ready > 0).length;
+  const sourceModels = sourceSummaries.reduce((sum, s) => sum + s.files.filter(_fileIsSourceModel).length, 0);
+  const slicedJobs = allFiles - sourceModels;
+  const historyOnly = (reprintItems || []).filter(item => !_printBayFindMatch(item, targets)).length;
+  return {
+    allFiles,
+    readyFiles,
+    vaultFiles,
+    printerFiles,
+    printerBays,
+    hiddenBays,
+    readyBays,
+    sourceModels,
+    slicedJobs,
+    reprints: (reprintItems || []).length,
+    historyOnly,
+  };
+}
+
+function _printBayHeroStatusLine(snap) {
+  if (!snap.allFiles) return 'Print Vault is empty — drop a model or sliced job in to start staging work.';
+  if (snap.readyFiles) {
+    return `${snap.readyFiles} file${snap.readyFiles === 1 ? '' : 's'} are ready to launch across ${snap.readyBays || 1} bay${snap.readyBays === 1 ? '' : 's'}.`;
+  }
+  if (snap.sourceModels && !snap.slicedJobs) {
+    return `${snap.sourceModels} source model${snap.sourceModels === 1 ? '' : 's'} waiting to be sliced back into the vault.`;
+  }
+  return `${snap.vaultFiles} vault file${snap.vaultFiles === 1 ? '' : 's'} staged, ${snap.printerFiles} already sitting on printers.`;
+}
+
+function _renderPrintBayHero(data, reprintItems = []) {
+  const snap = _printBaySnapshot(data.targets || [], reprintItems);
+  return `<section class="filedesk-hero filedesk-hero-polished" aria-label="Print Vault snapshot">
+    <div class="filedesk-hero-copy">
+      <div class="mission-eyebrow">Global Print Bay</div>
+      <h1>Print Vault</h1>
+      <p class="filedesk-hero-status">${esc(_printBayHeroStatusLine(snap))}</p>
+    </div>
+    <div class="filedesk-hero-metrics" aria-label="Print Vault counts">
+      <div class="filedesk-hero-metric filedesk-hero-metric-ready">
+        <strong>${snap.readyFiles}</strong>
+        <span>Ready</span>
+      </div>
+      <div class="filedesk-hero-metric">
+        <strong>${snap.vaultFiles}</strong>
+        <span>Vault</span>
+      </div>
+      <div class="filedesk-hero-metric${snap.hiddenBays ? ' filedesk-hero-metric-warn' : ''}">
+        <strong>${snap.printerBays - snap.hiddenBays}</strong>
+        <span>Bays Live</span>
+      </div>
+      <div class="filedesk-hero-metric${snap.historyOnly ? ' filedesk-hero-metric-muted' : ''}">
+        <strong>${snap.reprints}</strong>
+        <span>Reprints</span>
+      </div>
+    </div>
+    <div class="filedesk-hero-side">
+      <div class="filedesk-hero-actions">
+        <label class="filedesk-upload-source">
+          <input type="file" id="filedesk-source-upload" accept=".stl,.obj,.step,.stp,.3mf,.gcode,.gcode.gz,.ufp">
+          Upload to Vault
+        </label>
+        <div class="filedesk-library-path">${esc(data.library_path || '')}</div>
+      </div>
+      <div class="filedesk-hero-links">
+        <a href="#/makerworld">MakerWorld</a>
+        <a href="#/queue">Queue</a>
+        <a href="#/mission">Flight Tower</a>
+      </div>
+    </div>
+  </section>`;
+}
+
+function _renderPrintBayBriefing(data, reprintItems = []) {
+  const snap = _printBaySnapshot(data.targets || [], reprintItems);
+  const rows = [];
+  if (snap.readyFiles) {
+    rows.push({
+      tone: 'ok',
+      kicker: 'Launch',
+      title: `${snap.readyFiles} file${snap.readyFiles === 1 ? '' : 's'} ready to queue`,
+      detail: `${snap.readyBays || 1} printer bay${snap.readyBays === 1 ? '' : 's'} can launch work now`,
+    });
+  }
+  if (snap.sourceModels) {
+    rows.push({
+      tone: 'info',
+      kicker: 'Slice',
+      title: `${snap.sourceModels} source model${snap.sourceModels === 1 ? '' : 's'} parked in the vault`,
+      detail: 'Open Slice Model to turn raw files into printer-ready jobs',
+    });
+  }
+  if (snap.historyOnly) {
+    rows.push({
+      tone: 'warn',
+      kicker: 'Reprint',
+      title: `${snap.historyOnly} recent print${snap.historyOnly === 1 ? '' : 's'} missing a source file`,
+      detail: 'History-only items cannot be requeued until the source lands back in the vault or bay',
+    });
+  }
+  if (snap.hiddenBays) {
+    rows.push({
+      tone: 'muted',
+      kicker: 'Hidden',
+      title: `${snap.hiddenBays} printer bay${snap.hiddenBays === 1 ? '' : 's'} hidden`,
+      detail: 'Use Show hidden in Printer Bays if you want every machine storage lane visible again',
+    });
+  }
+
+  const calm = !rows.length;
+  const body = calm
+    ? `<div class="briefing-clear briefing-clear-hero filedesk-briefing-clear">
+        <div class="briefing-clear-icon" aria-hidden="true">✓</div>
+        <div class="briefing-clear-copy">
+          <strong>Vault standing by</strong>
+          <span>No slice backlog, hidden bays, or history-only reprints are asking for attention.</span>
+        </div>
+        <div class="briefing-clear-links">
+          <a href="#/makerworld">Import files</a>
+          <a href="#/queue">Queue jobs</a>
+        </div>
+      </div>`
+    : rows.map(row => `<article class="filedesk-briefing-row filedesk-briefing-${row.tone}">
+        <span class="filedesk-briefing-kicker">${esc(row.kicker)}</span>
+        <div class="filedesk-briefing-copy">
+          <strong>${esc(row.title)}</strong>
+          <span>${esc(row.detail)}</span>
+        </div>
+      </article>`).join('');
+
+  return `<section class="filedesk-briefing${calm ? ' filedesk-briefing-calm' : ''}" aria-label="Print Vault briefing">
+    <div class="filedesk-briefing-head">
+      <div>
+        <span>Vault briefing</span>
+        <strong>${calm ? 'Nothing slowing the launch surface' : 'A few useful nudges'}</strong>
+      </div>
+      <a href="#/files?tab=${encodeURIComponent(_globalPrintBayTab)}">Stay here</a>
+    </div>
+    <div class="filedesk-briefing-list">${body}</div>
+  </section>`;
+}
+
 function _printBayFileKey(name) {
   return String(name || '')
     .replace(/.*[/\\]/, '')
@@ -8783,20 +8938,8 @@ function _buildGlobalPrintBayHtml(data, reprintItems, tab = _globalPrintBayTab) 
       : `<section class="printbay-tab-section printbay-reprints-section">${_printBayReprintHtml(reprintItems || [], data.targets || [])}</section>`;
 
   return `<div class="filedesk-shell">
-    <section class="filedesk-hero filedesk-hero-compact">
-      <div>
-        <div class="mission-eyebrow">Global Print Bay</div>
-        <h1>Vault first, bays when you need them</h1>
-        <p>Stage sliced jobs in Print Vault, peek at printer storage, or requeue recent work without scrolling past four full bays.</p>
-      </div>
-      <div class="filedesk-hero-actions">
-        <label class="filedesk-upload-source">
-          <input type="file" id="filedesk-source-upload" accept=".stl,.obj,.step,.stp,.3mf,.gcode,.gcode.gz,.ufp">
-          Upload to Vault
-        </label>
-        <div class="filedesk-library-path">${esc(data.library_path || '')}</div>
-      </div>
-    </section>
+    ${_renderPrintBayHero(data, reprintItems)}
+    ${_renderPrintBayBriefing(data, reprintItems)}
     ${_printBayOverview(data.targets || [])}
     <nav class="printbay-tabbar" aria-label="Print Bay views">
       <button type="button" class="printbay-tab${tab === 'vault' ? ' active' : ''}" data-printbay-tab="vault">

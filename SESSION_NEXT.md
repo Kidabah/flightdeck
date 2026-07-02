@@ -2,8 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `463b982` — Queue polish hero + briefing
-- Refresh cachebust currently: app.js?v=596 / style.css?v=464
+- Latest commit: (pending) — Print Vault hero + briefing polish
+- Refresh cachebust currently: app.js?v=598 / style.css?v=465
+
+### 2026-07-02 polish (Print Vault hero + briefing)
+
+**Print Vault glow-up aligned with Queue / Dashboard / Flight Tower** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Hero strip: live status line, Ready/Vault/Bays Live/Reprints chips, quick links to MakerWorld / Queue / Flight Tower.
+- New vault briefing banner calls out launch-ready files, source models waiting to be sliced, history-only reprints, and hidden printer bays.
+- Existing Vault / Printer Bays / Reprints tabs stay intact, but the top of the page now reads like an operator launch surface instead of a plain file browser.
+- Static cache `app.js?v=598` / `style.css?v=465`; hard refresh required.
 
 ### 2026-07-02 polish (Queue hero + briefing)
 
