@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `06ef56e` — bench order x1c → h2c → h2d → greyhound
-- Refresh cachebust currently: app.js?v=616 / style.css?v=477
+- Latest commit: (pending) — bench order uses Big Girl id o1c2
+- Refresh cachebust currently: app.js?v=617 / style.css?v=477
+
+### 2026-07-02 fix (bench order — Big Girl printer id)
+
+**Fleet Filament sort now recognises Big Girl as `o1c2`** (`app/static/app.js`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Chris order X1C → Big Girl → BigBoy → Voron was wrong because Big Girl's config id is `o1c2`, not `h2c`; she was falling through to the bottom.
+- H2C model detection still maps to the Big Girl slot if the id ever changes.
+- Static cache `app.js?v=617`; hard refresh only.
 
 ### 2026-07-02 fix (bench order — Chris layout)
 

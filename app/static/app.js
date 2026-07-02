@@ -1418,11 +1418,12 @@ function _dashboardPrinterName(p) {
 }
 
 // Chris bench order (top → bottom): X1C → H2C Big Girl → H2D BigBoy → Voron.
-const _BENCH_PRINTER_ORDER = ['x1c', 'h2c', 'h2d', 'greyhound'];
+const _BENCH_PRINTER_ORDER = ['x1c', 'o1c2', 'h2d', 'greyhound'];
 
 function _printerBenchRank(p) {
   const id = String(p?.id || '').toLowerCase();
-  const idx = _BENCH_PRINTER_ORDER.indexOf(id);
+  let idx = _BENCH_PRINTER_ORDER.indexOf(id);
+  if (idx < 0 && _isH2CPrinter(p)) idx = _BENCH_PRINTER_ORDER.indexOf('o1c2');
   return idx >= 0 ? idx : 1000;
 }
 
