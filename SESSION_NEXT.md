@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — bench order x1c → h2c → h2d → greyhound
+- Latest commit: `06ef56e` — bench order x1c → h2c → h2d → greyhound
 - Refresh cachebust currently: app.js?v=616 / style.css?v=477
 
 ### 2026-07-02 fix (bench order — Chris layout)
