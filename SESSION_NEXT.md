@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — persistent Live status bar above camera
+- Latest commit: `8003a2f` — persistent Live status bar above camera
 - Refresh cachebust currently: app.js?v=607 / style.css?v=473
 
 ### 2026-07-02 polish (persistent Live status bar)
