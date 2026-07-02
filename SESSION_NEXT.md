@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — bench order fix (X1C on top, not BigBoy)
+- Latest commit: `4bdc9e6` — bench order fix (X1C on top, not BigBoy)
 - Refresh cachebust currently: app.js?v=614 / style.css?v=477
 
 ### 2026-07-02 fix (bench printer order)
