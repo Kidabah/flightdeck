@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — Live View hover header + H2C nozzle route fix
+- Latest commit: `3453191` — Live View hover header + H2C nozzle route fix
 - Pi repo: /home/flightdeck/flightdeck
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=594 / style.css?v=463
