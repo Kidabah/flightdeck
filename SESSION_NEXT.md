@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — X1C AMS mapping HT misclass fix
+- Latest commit: `2de528d` — X1C AMS mapping HT misclass fix
 - Pi repo: /home/flightdeck/flightdeck
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=591 / style.css?v=460
