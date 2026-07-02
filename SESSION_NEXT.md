@@ -2,10 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `eaba4a5` — Controls tab matches header shape
-- Refresh cachebust currently: app.js?v=606 / style.css?v=472
+- Latest commit: (pending) — persistent Live status bar above camera
+- Refresh cachebust currently: app.js?v=607 / style.css?v=473
 
-### 2026-07-02 polish (Controls tab matches Live header)
+### 2026-07-02 polish (persistent Live status bar)
+
+**Replace hover dropdown header with always-visible status bar above camera** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Live printer/job/status header now sits in a persistent top bar above the camera feed (same dark card styling); Controls stays as its own separate button beside it.
+- Removed hover-to-reveal dropdown over the camera — feed stays clean, status always readable.
+- Static cache `app.js?v=607` / `style.css?v=473`; hard refresh only.
+
 
 **Controls button restyled to match dropdown header bar** (`app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
 

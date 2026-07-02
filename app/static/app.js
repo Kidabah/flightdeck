@@ -2268,15 +2268,18 @@ function _detailLiveOps(p) {
   return `<div class="live-op-row" aria-label="Live printer shortcuts">${controls}</div>`;
 }
 
+function _detailLiveOpsToggle() {
+  return `<button class="live-controls-toggle" type="button" data-live-ops-toggle aria-expanded="false">
+      <span>Controls</span>
+    </button>`;
+}
+
 function _detailLiveOpsDrawer(p) {
   const ops = _detailLiveOps(p);
   const hasTemps = Object.keys(p.temps || {}).length > 0;
   const temps = hasTemps ? `<div class="live-op-temp-panel" id="detail-temps">${_detailTempsPanel(p)}</div>` : '';
   if (!ops && !temps) return '';
-  return `<button class="live-controls-toggle" type="button" data-live-ops-toggle aria-expanded="false">
-      <span>Controls</span>
-    </button>
-    <button class="live-control-backdrop" type="button" data-live-ops-close aria-label="Close controls"></button>
+  return `<button class="live-control-backdrop" type="button" data-live-ops-close aria-label="Close controls"></button>
     <aside class="live-control-rail" id="detail-live-ops" aria-label="Live printer controls">
       <div class="live-control-rail-head">
         <span>Controls</span>
@@ -2287,6 +2290,18 @@ function _detailLiveOpsDrawer(p) {
         <div id="detail-live-ops-body">${ops}</div>
       </div>
     </aside>`;
+}
+
+function _detailLiveHasOps(p) {
+  return !!_detailLiveOps(p) || Object.keys(p.temps || {}).length > 0;
+}
+
+function _detailLiveDeckTop(p, printerColor, bannerTextColor) {
+  const toggle = _detailLiveHasOps(p) ? _detailLiveOpsToggle() : '';
+  return `<div class="live-deck-top">
+    ${toggle}
+    <div class="live-deck-status-bar" id="detail-live-head">${_detailLiveHeader(p, printerColor, bannerTextColor)}</div>
+  </div>`;
 }
 
 function _updateControlsWidget(id) {
@@ -4195,7 +4210,7 @@ function _detailLiveHeader(p, printerColor, bannerTextColor) {
   const signals = _detailLiveSignals(p);
   const disabledNote = (p.print_enabled ?? true) ? '' : (p.print_enabled_note || 'No reason entered');
   const canReprintLast = ['idle', 'finished'].includes(String(p.state || '').toLowerCase());
-  return `<div class="live-command-header live-hover-command" style="--tab-accent:${printerColor}">
+  return `<div class="live-command-header live-deck-command" style="--tab-accent:${printerColor}">
     <div class="live-printer-mark" style="color:${bannerTextColor}">
       <span class="live-printer-name">${esc(primary)}</span>
       ${secondary ? `<span class="live-printer-shop">${esc(secondary)}</span>` : ''}
@@ -4245,8 +4260,8 @@ function _detailCameraBottomStatus(id) {
   return `<div class="camera-bottom-status" id="detail-camera-status" data-camera-status-for="${esc(id)}"></div>`;
 }
 
-function _detailCameraHeroInner(id, p, camSrc, printerColor, bannerTextColor) {
-  return `<div class="live-hover-header" id="detail-live-head">${_detailLiveHeader(p, printerColor, bannerTextColor)}</div>${_detailCameraContent(id, p, camSrc)}<div class="camera-hud" id="detail-camera-hud">${_detailCameraHud(p)}</div>${_detailCameraBottomStatus(id)}`;
+function _detailCameraHeroInner(id, p, camSrc) {
+  return `${_detailCameraContent(id, p, camSrc)}<div class="camera-hud" id="detail-camera-hud">${_detailCameraHud(p)}</div>${_detailCameraBottomStatus(id)}`;
 }
 
 function _cameraStatusBarFor(img) {
@@ -8449,16 +8464,18 @@ async function renderPrinterDetail(id, subtab = 'live') {
     try {
       const camSrc = _cameraStreamSrc(id);
       const opsDrawer = _detailLiveOpsDrawer(p);
+      const hasOps = _detailLiveHasOps(p);
       const printerColor = _printerColor(id);
       const bannerTextColor = p.icon === 'bambu' ? '#22c55e' : p.icon === 'voron' ? '#ef4444' : 'var(--text)';
       el.innerHTML =
         _detailSubTabs(id, 'live') +
         `<div class="detail-body">
           <div class="detail-left">
-            <div class="live-main-deck ${opsDrawer ? 'has-live-ops' : ''}">
+            <div class="live-main-deck ${hasOps ? 'has-live-ops' : ''}">
+              ${_detailLiveDeckTop(p, printerColor, bannerTextColor)}
               ${opsDrawer}
               <div class="camera-hero">
-                ${_detailCameraHeroInner(id, p, camSrc, printerColor, bannerTextColor)}
+                ${_detailCameraHeroInner(id, p, camSrc)}
               </div>
             </div>
             <div class="live-strip" id="detail-live-strip">${_detailLiveStrip(p)}</div>
@@ -8531,7 +8548,7 @@ async function renderPrinterDetail(id, subtab = 'live') {
     const shouldShowImg = !!camSrc && p.state !== 'offline';
     const hasImg = !!camImg;
     if (heroEl && shouldShowImg !== hasImg) {
-      heroEl.innerHTML = _detailCameraHeroInner(id, p, camSrc, printerColor, bannerTextColor);
+      heroEl.innerHTML = _detailCameraHeroInner(id, p, camSrc);
       _attachCameraRetries(el);
     } else if (camImg?.dataset.stopped && camSrc && p.state !== 'offline') {
       delete camImg.dataset.stopped;
@@ -8543,7 +8560,7 @@ async function renderPrinterDetail(id, subtab = 'live') {
     if (headEl) headEl.innerHTML = _detailLiveHeader(p, printerColor, bannerTextColor);
     const opsHtml = _detailLiveOps(p);
     const deckEl = el.querySelector('.live-main-deck');
-    if (deckEl) deckEl.classList.toggle('has-live-ops', !!opsHtml);
+    if (deckEl) deckEl.classList.toggle('has-live-ops', _detailLiveHasOps(p));
     const opsEl = el.querySelector('#detail-live-ops-body');
     if (opsEl) opsEl.innerHTML = opsHtml;
     const hudEl = el.querySelector('#detail-camera-hud');

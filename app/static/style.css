@@ -5467,31 +5467,23 @@ button.briefing-row {
     var(--surface);
 }
 
-.live-hover-header {
-  position: absolute;
-  z-index: 9;
-  top: 0.65rem;
-  left: 0.65rem;
-  right: 0.65rem;
-  transform: translateY(calc(-100% - 0.85rem));
-  opacity: 0;
-  pointer-events: none;
-  transition: transform 0.22s ease, opacity 0.22s ease;
+.live-deck-top {
+  display: flex;
+  align-items: stretch;
+  gap: 0.45rem;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 10;
+  padding: 0.65rem 0.65rem 0.45rem;
 }
 
-.live-main-deck.has-live-ops .live-hover-header {
-  left: calc(0.5rem + var(--live-controls-slot, 7.15rem) + 0.45rem);
+.live-deck-status-bar {
+  flex: 1;
+  min-width: 0;
 }
 
-.camera-hero:hover .live-hover-header,
-.camera-hero:focus-within .live-hover-header {
-  transform: translateY(0);
-  opacity: 1;
-}
-
-.live-hover-header .live-command-header,
-.live-hover-command {
-  pointer-events: auto;
+.live-deck-status-bar .live-command-header,
+.live-deck-command {
   margin-bottom: 0;
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
   backdrop-filter: blur(10px);
@@ -5500,23 +5492,8 @@ button.briefing-row {
     rgba(15, 23, 42, 0.88);
 }
 
-@media (hover: none), (pointer: coarse) {
-  .live-hover-header {
-    transform: translateY(0);
-    opacity: 0.94;
-    top: 0.45rem;
-    left: 0.45rem;
-    right: 0.45rem;
-  }
-
-  .live-main-deck.has-live-ops .live-hover-header {
-    left: calc(0.45rem + var(--live-controls-slot, 7.15rem) + 0.4rem);
-  }
-
-  .live-controls-toggle {
-    top: 0.45rem;
-    left: 0.45rem;
-  }
+.live-deck-status-bar .live-printer-name {
+  font-size: 1.02rem;
 }
 
 .live-printer-mark,
@@ -5749,8 +5726,8 @@ button.briefing-row {
 .live-main-deck {
   flex: 1;
   min-height: clamp(19rem, 50vh, 39rem);
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   position: relative;
   overflow: hidden;
 }
@@ -5817,10 +5794,10 @@ button.briefing-row {
 }
 
 .live-controls-toggle {
-  position: absolute;
-  z-index: 12;
-  top: 0.65rem;
-  left: 0.5rem;
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  align-self: stretch;
   min-width: 6.35rem;
   min-height: 2.72rem;
   padding: 0.62rem 0.85rem;
@@ -5836,10 +5813,6 @@ button.briefing-row {
   font-size: 0.62rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-}
-
-.live-main-deck.has-live-ops {
-  --live-controls-slot: 7.15rem;
 }
 
 .live-main-deck.live-ops-open .live-controls-toggle {
@@ -6211,13 +6184,14 @@ button.briefing-row {
 }
 
 .detail-body.cam-wide .detail-right,
+.detail-body.cam-wide .live-deck-top,
 .detail-body.cam-wide .live-control-rail,
 .detail-body.cam-wide .live-controls-toggle,
 .detail-body.cam-wide .live-control-backdrop,
 .detail-body.cam-wide .live-strip { display: none; }
 
 .detail-body.cam-wide .live-main-deck {
-  grid-template-columns: minmax(0, 1fr);
+  display: flex;
 }
 
 .detail-body.cam-wide .camera-hero {
@@ -8141,7 +8115,7 @@ button.live-route-node:hover {
   }
   .detail-left { flex: none; }
   .live-main-deck {
-    grid-template-columns: 1fr;
+    min-height: auto;
   }
   .live-control-rail {
     max-height: min(34rem, calc(100vh - 8rem));
