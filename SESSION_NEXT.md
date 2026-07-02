@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — Find clip per-print matching fix
+- Latest commit: `3e4497d` — Find clip per-print matching fix
 - Refresh cachebust currently: app.js?v=617 / style.css?v=477
 
 ### 2026-07-03 fix (Find clip reusing same timelapse)
