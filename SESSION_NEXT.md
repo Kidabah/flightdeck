@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — Flight Tower printer filter Offline label
+- Latest commit: `232d42a` — Flight Tower printer filter Offline label
 - Pi repo: /home/flightdeck/flightdeck
 - App URL: https://flightdeck.tail7de73e.ts.net/
 - Refresh cachebust currently: app.js?v=591 / style.css?v=460
