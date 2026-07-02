@@ -1417,8 +1417,8 @@ function _dashboardPrinterName(p) {
   return _printerNavLabel(p);
 }
 
-// Bench walk left → right: BigBoy (H2D) → X1C shelf above Big Girl → H2C.
-const _BENCH_PRINTER_ORDER = ['h2d', 'x1c', 'h2c'];
+// Chris bench order (top → bottom): X1C → H2C Big Girl → H2D BigBoy → Voron.
+const _BENCH_PRINTER_ORDER = ['x1c', 'h2c', 'h2d', 'greyhound'];
 
 function _printerBenchRank(p) {
   const id = String(p?.id || '').toLowerCase();

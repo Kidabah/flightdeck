@@ -2,8 +2,15 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `9cf7a06` — bench order BigBoy → X1 → Big Girl
-- Refresh cachebust currently: app.js?v=615 / style.css?v=477
+- Latest commit: (pending) — bench order x1c → h2c → h2d → greyhound
+- Refresh cachebust currently: app.js?v=616 / style.css?v=477
+
+### 2026-07-02 fix (bench order — Chris layout)
+
+**Explicit bench order** (`app/static/app.js`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Printers sort X1C → Big Girl H2C → BigBoy H2D → Voron Greyhound everywhere bench order applies.
+- Static cache `app.js?v=616`; hard refresh only.
 
 ### 2026-07-02 fix (bench order — X1 directly above Big Girl)
 
