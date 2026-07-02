@@ -2,10 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `e316298` — Live header/controls overlap + REC beside stream badge
-- Refresh cachebust currently: app.js?v=605 / style.css?v=471
+- Latest commit: (pending) — Controls tab matches header shape
+- Refresh cachebust currently: app.js?v=606 / style.css?v=472
 
-### 2026-07-02 polish (Live controls click-through + REC placement)
+### 2026-07-02 polish (Controls tab matches Live header)
+
+**Controls button restyled to match dropdown header bar** (`app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Controls now uses the same rounded header card shape (0.75rem radius, left accent bar, blur/gradient) instead of a pill.
+- Nudged left and the hover header inset uses a shared slot width so the two bars sit side-by-side without overlapping.
+- Static cache `app.js?v=606` / `style.css?v=472`; hard refresh only.
+
 
 **Keep Controls clickable and move REC beside Stream live** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
 
