@@ -122,14 +122,16 @@ export function buildVase(params) {
   const segments = clamp(Math.round(params.vaseSegments ?? 72), 24, 128);
   const layers = clamp(Math.round(params.vaseLayers ?? 24), 6, 96);
   const drainage = !!params.vaseDrainage;
-  const drainageR = clamp(params.vaseDrainageSize ?? 8, 3, Math.max(4, diameter * 0.25));
 
   const baseR = diameter / 2;
   const outerScale = sampleProfile(style, layers);
-  const innerScale = outerScale.map((s) => Math.max(0.05, s - wall / baseR));
-
+  // Inner radius = outer radius - wall thickness (radial offset).
   const outerRings = outerScale.map((s) => ringXY(baseR * s, segments));
-  const innerRings = innerScale.map((s) => ringXY((baseR * s) - wall, segments));
+  const innerRings = outerScale.map((s) => {
+    const outerR = baseR * s;
+    const innerR = Math.max(2, outerR - wall);
+    return ringXY(innerR, segments);
+  });
 
   const positions = [];
   const indices = [];
@@ -138,54 +140,66 @@ export function buildVase(params) {
   const zTop = height;
   const layerZ = (i) => (i / (layers - 1)) * height;
 
-  // Outer skin — from base (z=0) up
+  // Outer skin
   for (let i = 0; i < layers - 1; i++) {
     loftBetween(positions, indices, outerRings[i], outerRings[i + 1], layerZ(i), layerZ(i + 1), true);
   }
 
-  // Inner skin — from top of floor upward
-  const innerStartLayer = 0;
-  const innerRingsInside = innerRings.map((ring, i) => {
-    const z = layerZ(i);
-    return z < zFloor ? null : ring;
-  });
-  let firstInnerZ = zFloor;
-  let firstInnerRing = null;
+  // Find first layer index at or above floor for the inner surface.
+  let firstAbove = 0;
   for (let i = 0; i < layers; i++) {
-    const z = layerZ(i);
-    if (z >= zFloor && !firstInnerRing) {
-      firstInnerZ = z;
-      firstInnerRing = innerRings[i];
+    if (layerZ(i) >= zFloor) {
+      firstAbove = i;
       break;
     }
   }
-  if (!firstInnerRing) {
-    firstInnerRing = innerRings[layers - 1];
-    firstInnerZ = zTop;
+  // Compute the inner ring at exactly zFloor by interpolating between layer firstAbove-1 and firstAbove.
+  let ringAtFloor;
+  if (firstAbove === 0) {
+    ringAtFloor = innerRings[0];
+  } else {
+    const zA = layerZ(firstAbove - 1);
+    const zB = layerZ(firstAbove);
+    const t = zB === zA ? 0 : (zFloor - zA) / (zB - zA);
+    const rA = baseR * outerScale[firstAbove - 1];
+    const rB = baseR * outerScale[firstAbove];
+    const rMix = rA + (rB - rA) * t;
+    const innerR = Math.max(2, rMix - wall);
+    ringAtFloor = ringXY(innerR, segments);
   }
 
-  for (let i = 0; i < layers - 1; i++) {
-    const zA = layerZ(i);
-    const zB = layerZ(i + 1);
-    if (zB <= zFloor) continue;
-    const ringA = zA < zFloor ? firstInnerRing : innerRings[i];
-    const ringB = innerRings[i + 1];
-    const useZA = Math.max(zA, zFloor);
-    loftBetween(positions, indices, ringA, ringB, useZA, zB, false);
+  // Inner skin from zFloor upward
+  let prevRing = ringAtFloor;
+  let prevZ = zFloor;
+  for (let i = firstAbove; i < layers; i++) {
+    const z = layerZ(i);
+    if (z <= zFloor + 0.001) continue;
+    loftBetween(positions, indices, prevRing, innerRings[i], prevZ, z, false);
+    prevRing = innerRings[i];
+    prevZ = z;
+  }
+  if (prevZ < zTop - 0.001) {
+    loftBetween(positions, indices, prevRing, innerRings[layers - 1], prevZ, zTop, false);
   }
 
   // Bottom cap (outside, facing down) — with optional drainage hole
   if (drainage) {
-    const drain = ringXY(Math.min(drainageR, baseR * outerScale[0] * 0.65), Math.min(segments, 48));
-    capAnnulus(positions, indices, outerRings[0], drain, 0, false);
-    capAnnulus(positions, indices, drain, drain.map(([x, y]) => [x * 0.999, y * 0.999]), 0, false);
-    // Drainage bore walls (through floor)
-    loftBetween(positions, indices, drain, drain, 0, zFloor, false);
-    // Inner floor cap (annulus around drain hole)
-    capAnnulus(positions, indices, firstInnerRing, drain, zFloor, true);
+    const rawR = clamp(params.vaseDrainageSize ?? 8, 3, Math.max(4, diameter * 0.35));
+    const drainR = Math.min(rawR, baseR * outerScale[0] - wall - 2);
+    if (drainR >= 3) {
+      const drain = ringXY(drainR, Math.min(segments, 48));
+      capAnnulus(positions, indices, outerRings[0], drain, 0, false);
+      // Drainage bore walls (through floor)
+      loftBetween(positions, indices, drain, drain, 0, zFloor, false);
+      // Inner floor cap (annulus around drain hole)
+      capAnnulus(positions, indices, ringAtFloor, drain, zFloor, true);
+    } else {
+      capSolid(positions, indices, outerRings[0], 0, false);
+      capSolid(positions, indices, ringAtFloor, zFloor, true);
+    }
   } else {
     capSolid(positions, indices, outerRings[0], 0, false);
-    capSolid(positions, indices, firstInnerRing, zFloor, true);
+    capSolid(positions, indices, ringAtFloor, zFloor, true);
   }
 
   // Top rim (annulus outer→inner at zTop)
