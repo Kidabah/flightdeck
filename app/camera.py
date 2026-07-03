@@ -30,6 +30,10 @@ class BambuCameraProxy:
     def __init__(self, rtsp_url: str, printer_id: str):
         self._url = rtsp_url
         self._id = printer_id
+
+    @property
+    def rtsp_url(self) -> str:
+        return self._url
         self._proc: Optional[asyncio.subprocess.Process] = None
         self._reader: Optional[asyncio.Task] = None
         self._watchdog_task: Optional[asyncio.Task] = None

@@ -1639,6 +1639,18 @@ def get_most_recent_print_id(printer_id: str) -> Optional[int]:
     return row["id"] if row else None
 
 
+def get_open_print_id(printer_id: str) -> Optional[int]:
+    """Return the active (unfinished) print row for this printer, if any."""
+    with _conn() as conn:
+        row = conn.execute(
+            """SELECT id FROM prints
+               WHERE printer_id = ? AND final_state IS NULL
+               ORDER BY started_at DESC LIMIT 1""",
+            (printer_id,),
+        ).fetchone()
+    return row["id"] if row else None
+
+
 def save_print_snapshot(print_id: int, jpeg: bytes) -> None:
     with _conn() as conn:
         conn.execute(

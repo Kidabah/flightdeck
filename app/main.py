@@ -43,6 +43,7 @@ import httpx
 
 from . import db, makerworld, relay
 from .camera import BambuCameraProxy
+from .native_recorder import PrintNativeRecorder
 from .label_printer import LabelPrinter
 from .models import PrintPreview, PrinterStatus
 from .paths import APP_DIR, DATA_DIR, DB_PATH, FLIGHT_RECORDER_DIR, PRINTERS_CONFIG_PATH, PRINT_LIBRARY_DIR, UPLOADS_DIR
@@ -58,6 +59,7 @@ _simulated: list[tuple[str, str, str, str, str, str]] = []  # (id, model_name, c
 _cameras: dict = {}          # printer_id → Camera config
 _presets: dict[str, dict] = {}  # printer_id → temperature_presets dict
 _cam_proxies: dict[str, BambuCameraProxy] = {}  # printer_id → live RTSP proxy
+_native_recorders: dict[str, PrintNativeRecorder] = {}  # printer_id → active RTSP capture
 _ws_clients: set[WebSocket] = set()
 _broadcast_task: asyncio.Task | None = None
 _ntfy: NtfyConfig | None = None
@@ -88,6 +90,9 @@ _FLIGHT_RECORDER_AUTO_RETRY_DELAYS = tuple(
     for part in os.getenv("FLIGHTDECK_RECORDER_AUTO_RETRY_SECONDS", "30,90,180").split(",")
     if part.strip().isdigit()
 ) or (30, 90, 180)
+_NATIVE_RECORDER_ENABLED = os.getenv("FLIGHTDECK_NATIVE_RECORDER", "1").strip().lower() not in {
+    "0", "false", "no", "off",
+}
 _flight_recorder_harvest_pending: set[tuple[str, int]] = set()
 _ATTACHED_TIMELAPSE_NAME_RE = re.compile(r"^(\d+)-")
 
@@ -159,6 +164,7 @@ async def _gather_all_locked() -> list[dict]:
             d["eta_calibration"] = cal
         d["health"] = db.get_printer_health(p.id)
         d["_error_print_id"] = p._error_print_id
+        d["_current_print_id"] = p._current_print_id
         d["_last_finished_print_id"] = p._last_finished_print_id
         d["_last_timelapse_path"] = p._last_timelapse_path
         return d
@@ -884,6 +890,113 @@ def _recently_finished(printer_id: str, ttl: timedelta | None = None) -> bool:
     return (datetime.utcnow() - finished_at) <= ttl
 
 
+def _native_recorder_enabled() -> bool:
+    return _NATIVE_RECORDER_ENABLED
+
+
+def _native_recorder_rtsp_url(printer_id: str) -> Optional[str]:
+    proxy = _cam_proxies.get(printer_id)
+    return proxy.rtsp_url if proxy else None
+
+
+def _resolve_native_print_id(printer_id: str, p: Optional[dict] = None) -> Optional[int]:
+    if p:
+        current = p.get("_current_print_id")
+        if current:
+            return int(current)
+    open_id = db.get_open_print_id(printer_id)
+    if open_id:
+        return int(open_id)
+    return None
+
+
+async def _maybe_start_native_recorder(printer_id: str, p: dict) -> None:
+    if not _native_recorder_enabled():
+        return
+    if printer_id in _native_recorders:
+        return
+    if p.get("kind") != "bambu":
+        return
+    rtsp_url = _native_recorder_rtsp_url(printer_id)
+    if not rtsp_url:
+        return
+    print_id = _resolve_native_print_id(printer_id, p)
+    if not print_id:
+        return
+    item = db.get_print_by_id(print_id)
+    if not item or item.get("printer_id") != printer_id:
+        return
+    if item.get("has_timelapse"):
+        return
+    safe_printer = re.sub(r"[^a-zA-Z0-9_.-]+", "-", printer_id).strip("-") or "printer"
+    work_dir = FLIGHT_RECORDER_DIR / safe_printer / f".{print_id}-capture"
+    output_path = _timelapse_safe_output_path(
+        printer_id,
+        print_id,
+        item.get("filename") or "print",
+        ".mp4",
+    )
+    recorder = PrintNativeRecorder(rtsp_url, printer_id, print_id, work_dir, output_path)
+    try:
+        await recorder.start()
+    except Exception as exc:
+        log.warning("native recorder start failed for %s print_id=%s: %s", printer_id, print_id, exc)
+        return
+    _native_recorders[printer_id] = recorder
+    db.log_decision(
+        printer_id,
+        "flight_recorder_native_start",
+        f"Recording RTSP timelapse for print #{print_id}",
+        print_id=print_id,
+    )
+
+
+async def _stop_native_recorder(printer_id: str, print_id: Optional[int] = None) -> None:
+    recorder = _native_recorders.pop(printer_id, None)
+    if not recorder:
+        return
+    target_print_id = print_id or recorder.print_id
+    try:
+        path = await recorder.stop()
+    except Exception as exc:
+        log.warning("native recorder stop failed for %s: %s", printer_id, exc)
+        return
+    if not path:
+        return
+    if path.stat().st_size > _MAX_FLIGHT_RECORDER_BYTES:
+        log.warning(
+            "native recorder clip too large for %s print_id=%s (%d bytes)",
+            printer_id,
+            target_print_id,
+            path.stat().st_size,
+        )
+        try:
+            path.unlink(missing_ok=True)
+        except Exception:
+            pass
+        return
+    if db.attach_print_timelapse(target_print_id, path, source="flightdeck-native"):
+        db.log_decision(
+            printer_id,
+            "flight_recorder_native",
+            f"Attached native RTSP clip {path.name}",
+            print_id=target_print_id,
+        )
+        log.info("native recorder attached: %s print_id=%s", printer_id, target_print_id)
+    else:
+        log.warning("native recorder attach failed: %s print_id=%s", printer_id, target_print_id)
+
+
+async def _handle_print_recorder_finish(
+    printer_id: str,
+    print_id: Optional[int],
+    mqtt_hint: Optional[str] = None,
+) -> None:
+    await _stop_native_recorder(printer_id, print_id)
+    if print_id:
+        await _auto_harvest_flight_recorder(printer_id, print_id, mqtt_hint)
+
+
 def _check_transitions(data: list[dict]) -> None:
     for p in data:
         pid = p["id"]
@@ -894,11 +1007,15 @@ def _check_transitions(data: list[dict]) -> None:
         if prev is None:
             finished_print_id = p.get("_last_finished_print_id")
             if not is_simulated and curr == "finished" and finished_print_id:
-                asyncio.create_task(_auto_harvest_flight_recorder(
+                asyncio.create_task(_handle_print_recorder_finish(
                     pid, finished_print_id, p.get("_last_timelapse_path"),
                 ))
+            if not is_simulated and curr in ("printing", "paused"):
+                asyncio.create_task(_maybe_start_native_recorder(pid, p))
             continue
         if prev == curr:
+            if not is_simulated and curr in ("printing", "paused") and pid not in _native_recorders:
+                asyncio.create_task(_maybe_start_native_recorder(pid, p))
             continue
         log.info("state transition %s: %s → %s", pid, prev, curr)
         name = p.get("custom_name") or p.get("id")
@@ -919,7 +1036,7 @@ def _check_transitions(data: list[dict]) -> None:
                 if not is_simulated:
                     finished_print_id = p.get("_last_finished_print_id") or db.get_latest_finished_print_id(pid)
                     if finished_print_id:
-                        asyncio.create_task(_auto_harvest_flight_recorder(
+                        asyncio.create_task(_handle_print_recorder_finish(
                             pid, finished_print_id, p.get("_last_timelapse_path"),
                         ))
             else:
@@ -929,13 +1046,17 @@ def _check_transitions(data: list[dict]) -> None:
                     asyncio.create_task(_send_ntfy("Print cancelled", msg, ["x"]))
                 db.queue_cancel_active(pid, "cancelled")
                 asyncio.create_task(_maybe_auto_advance_queue(pid, trigger="print_cancelled"))
+                if not is_simulated:
+                    asyncio.create_task(_handle_print_recorder_finish(
+                        pid, _resolve_native_print_id(pid, p), p.get("_last_timelapse_path"),
+                    ))
         elif curr in ("error", "estop"):
             error_pid = p.get("_error_print_id")
             is_print_failure = prev == "printing" or has_error_print
             if is_print_failure:
                 asyncio.create_task(_do_failure_snapshot(pid, error_pid))
                 if error_pid and not is_simulated:
-                    asyncio.create_task(_auto_harvest_flight_recorder(
+                    asyncio.create_task(_handle_print_recorder_finish(
                         pid, error_pid, p.get("_last_timelapse_path"),
                     ))
             if curr == "error" and is_print_failure:
@@ -962,6 +1083,19 @@ def _check_transitions(data: list[dict]) -> None:
                 asyncio.create_task(_send_ntfy("Print cancelled", msg, ["x"]))
             db.queue_cancel_active(pid, "cancelled")
             asyncio.create_task(_maybe_auto_advance_queue(pid, trigger="print_cancelled"))
+            if not is_simulated:
+                asyncio.create_task(_handle_print_recorder_finish(
+                    pid, _resolve_native_print_id(pid, p), p.get("_last_timelapse_path"),
+                ))
+        elif prev == "paused" and curr not in ("printing", "paused") and not is_simulated:
+            asyncio.create_task(_handle_print_recorder_finish(
+                pid,
+                p.get("_last_finished_print_id") or p.get("_error_print_id") or _resolve_native_print_id(pid, p),
+                p.get("_last_timelapse_path"),
+            ))
+
+        if not is_simulated and prev not in ("printing", "paused") and curr in ("printing", "paused"):
+            asyncio.create_task(_maybe_start_native_recorder(pid, p))
 
 
 async def _push_toast(message: str, sub: str = "", toast_type: str = "warning") -> None:
@@ -1088,6 +1222,12 @@ async def lifespan(app: FastAPI):
     for proxy in _cam_proxies.values():
         await proxy.stop()
     _cam_proxies.clear()
+    for recorder in list(_native_recorders.values()):
+        try:
+            await recorder.stop()
+        except Exception as exc:
+            log.warning("native recorder shutdown failed for %s: %s", recorder.printer_id, exc)
+    _native_recorders.clear()
     for p in _bambu:
         try:
             await asyncio.wait_for(asyncio.to_thread(p.stop), timeout=5)

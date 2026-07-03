@@ -2,8 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `0ef5a32` — H2D nozzle parse + spool label fix
+- Latest commit: (pending) — native RTSP timelapse recorder
 - Refresh cachebust currently: app.js?v=620 / style.css?v=478
+
+### 2026-07-03 feature (native RTSP timelapse recorder)
+
+**Flightdeck-native timelapse from live camera while printing** (`app/native_recorder.py`, `app/main.py`, `app/camera.py`, `app/db.py`, `SESSION_NEXT.md`)
+
+- Bambu printers with RTSP camera now record a timelapse automatically on print start → stop on finish/cancel/error.
+- Saves `{print_id}-{job}.mp4` under `flight_recorder/` and attaches with source `flightdeck-native`.
+- Existing Bambu SD/MQTT auto-harvest still runs as fallback when native clip missing.
+- Env `FLIGHTDECK_NATIVE_RECORDER=0` disables; default on. Backend restart required.
 
 ### 2026-07-03 fix (H2D false nozzle block + spool #98 label)
 
