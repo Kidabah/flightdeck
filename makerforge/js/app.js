@@ -843,6 +843,8 @@ function applyTraceToBox() {
   pushEmbossHistory();
   rebuild();
 }
+
+function updateDecorUi() {
   const supported = shapeSupportsDecor(decorUiShape());
   document.querySelectorAll('.tab[data-tab="accent"], .tab[data-tab="label"], .tab[data-tab="import"], .tab[data-tab="stack"], .tab[data-tab="link"]').forEach((tab) => {
     tab.disabled = !supported;
