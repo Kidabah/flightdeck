@@ -2,7 +2,11 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `6f65f0f` — served at `/makerdeck/` on Flightdeck
+- Latest commit: `681ea88` — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-04 fix (blank preview on Pi)
+
+**`js/app.js`** — moved stray `import` to top of module (mid-file import caused SyntaxError; JS never ran).
 - Prior: `734b8e9` — trace autosave; `e91f615` — full MakerDeck MVP
 
 ### URLs

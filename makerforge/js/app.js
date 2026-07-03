@@ -3,11 +3,11 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, PENCIL_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js";
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec } from "./features.js";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvas, drawTracePreview, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js";
+import { meshToStl, downloadBlob, filenameFor } from "./stl.js";
 
 const SESSION_KEY = "makerdeck-session-v1";
 let saveSessionTimer = null;
 let sessionBooting = true;
-import { meshToStl, downloadBlob, filenameFor } from "./stl.js";
 
 const PRESET_SHAPES = new Set(["pencil", "teardrop", "star", "heart"]);
 
