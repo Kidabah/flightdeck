@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `d7d3a24` — Live controls drawer compact layout
+- Latest commit: `59aabaf` — native timelapse speed + first layer
 - Refresh cachebust currently: app.js?v=623 / style.css?v=480
 
 ### 2026-07-03 fix (native timelapse speed + first-layer start)
