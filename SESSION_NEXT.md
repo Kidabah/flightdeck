@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — camera freeze hardening
+- Latest commit: `9e84a7d` — camera freeze hardening
 - Refresh cachebust currently: app.js?v=621 / style.css?v=478
 
 ### 2026-07-03 fix (camera freeze hardening — H2D live feed)
