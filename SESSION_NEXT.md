@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — desktop Bambu Studio handoff
+- Latest commit: `bbc2aa8` — desktop Bambu Studio handoff
 - Refresh cachebust currently: app.js?v=619 / style.css?v=478
 
 ### 2026-07-03 fix (Bambu Studio opens desktop, not Pi browser)
