@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+
+  <meta charset="UTF-8">
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+  <meta name="theme-color" content="#070b12">
+
+  <title>MakerDeck — Container Generator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Oswald:wght@700&family=Roboto+Mono:wght@700&family=Roboto:wght@700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+
+  <script type="importmap">
+
+  {
+
+    "imports": {
+
+      "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"
+
+    }
+
+  }
+
+  </script>
+
+</head>
+
+<body>
+
+  <div class="app">
+
+    <header class="topbar">
+
+      <div>
+
+        <div class="eyebrow">MakerDeck</div>
+
+        <h1>Container Generator</h1>
+
+        <p class="subtitle">Pick a shape, tune options in the tabs, preview live, export when ready.</p>
+
+      </div>
+
+      <div class="topbar-actions">
+
+        <button type="button" id="btn-export" class="btn btn-primary">Download box</button>
+
+        <button type="button" id="btn-export-lid" class="btn btn-secondary hidden">Download lid</button>
+
+        <button type="button" id="btn-export-accent" class="btn btn-secondary hidden">Download accent</button>
+
+      </div>
+
+    </header>
+
+
+
+    <main class="workspace">
+
+      <aside class="panel controls" id="controls">
+
+        <nav class="tab-bar" role="tablist" aria-label="Settings">
+
+          <button type="button" class="tab active" data-tab="design" role="tab" aria-selected="true">Design</button>
+
+          <button type="button" class="tab" data-tab="lid" role="tab">Lid</button>
+
+          <button type="button" class="tab" data-tab="link" role="tab">Link</button>
+
+          <button type="button" class="tab" data-tab="accent" role="tab">Accent</button>
+
+          <button type="button" class="tab" data-tab="label" role="tab">Label</button>
+
+          <button type="button" class="tab" data-tab="import" role="tab">Import</button>
+
+          <button type="button" class="tab" data-tab="stack" role="tab">Stack</button>
+
+        </nav>
+
+
+
+        <div class="tab-panels">
+
+          <div class="tab-panel active" id="tab-design" role="tabpanel">
+
+            <section class="section">
+
+              <h2>Shape</h2>
+
+              <div class="shape-grid" role="group" aria-label="Container shape">
+
+                <button type="button" class="shape-btn active" data-shape="rect">Box</button>
+
+                <button type="button" class="shape-btn" data-shape="rounded">Rounded</button>
+
+                <button type="button" class="shape-btn" data-shape="hex">Hex</button>
+
+                <button type="button" class="shape-btn" data-shape="circle">Circle</button>
+
+              </div>
+
+              <div class="preset-grid">
+
+                <button type="button" class="shape-btn shape-btn--preset" data-shape="pencil">Pencil case</button>
+
+                <button type="button" class="shape-btn shape-btn--preset" data-shape="teardrop">Teardrop</button>
+
+                <button type="button" class="shape-btn shape-btn--preset" data-shape="star">Star</button>
+
+                <button type="button" class="shape-btn shape-btn--preset" data-shape="heart">Heart</button>
+
+              </div>
+
+            </section>
+
+
+
+            <section class="section" id="section-edges">
+
+              <h2>Edges <span class="unit">mm</span></h2>
+
+              <label class="field" id="field-sides">
+
+                <span class="field-label">Sides</span>
+
+                <input type="range" id="sides" min="3" max="12" step="1" value="6">
+
+                <button type="button" class="value-edit" id="out-sides" data-slider="sides" data-key="sides" aria-label="Edit polygon side count">6</button>
+
+              </label>
+
+              <label class="field" id="field-corner">
+
+                <span class="field-label">Corner radius</span>
+
+                <input type="range" id="corner-radius" min="1" max="24" step="0.5" value="6">
+
+                <button type="button" class="value-edit" id="out-corner" data-slider="corner-radius" data-key="cornerRadius" data-parse="float" aria-label="Edit corner radius in mm">6</button>
+
+              </label>
+
+              <label class="field" id="field-vertex-fillet">
+
+                <span class="field-label" id="label-vertex-fillet">Edge fillet</span>
+
+                <input type="range" id="vertex-fillet" min="0" max="12" step="0.5" value="2">
+
+                <button type="button" class="value-edit" id="out-vertex" data-slider="vertex-fillet" data-key="vertexFillet" data-parse="float" aria-label="Edit edge fillet in mm">2</button>
+
+              </label>
+
+            </section>
+
+
+
+            <section class="section">
+
+              <h2 id="label-inner-size">Inner size <span class="unit">mm</span></h2>
+
+              <label class="field">
+
+                <span class="field-label" id="label-width">Width</span>
+
+                <input type="range" id="inner-width" min="20" max="300" step="1" value="80" tabindex="-1">
+
+                <button type="button" class="value-edit" id="out-width" data-slider="inner-width" data-key="innerWidth" aria-label="Edit width in mm">80</button>
+
+              </label>
+
+              <label class="field" id="field-depth">
+
+                <span class="field-label" id="label-depth">Depth</span>
+
+                <input type="range" id="inner-depth" min="20" max="300" step="1" value="60" tabindex="-1">
+
+                <button type="button" class="value-edit" id="out-depth" data-slider="inner-depth" data-key="innerDepth" aria-label="Edit depth in mm">60</button>
+
+              </label>
+
+              <label class="field">
+
+                <span class="field-label" id="label-height">Height</span>
+
+                <input type="range" id="inner-height" min="10" max="250" step="1" value="40" tabindex="-1">
+
+                <button type="button" class="value-edit" id="out-height" data-slider="inner-height" data-key="innerHeight" aria-label="Edit height in mm">40</button>
+
+              </label>
+
+            </section>
+
+
+
+            <section class="section">
+
+              <h2>Walls <span class="unit">mm</span></h2>
+
+              <label class="field">
+
+                <span class="field-label">Wall</span>
+
+                <input type="range" id="wall" min="1.2" max="6" step="0.2" value="2.4">
+
+                <button type="button" class="value-edit" id="out-wall" data-slider="wall" data-key="wall" data-parse="float" aria-label="Edit wall thickness in mm">2.4</button>
+
+              </label>
+
+              <label class="field">
+
+                <span class="field-label">Floor</span>
+
+                <input type="range" id="floor" min="1.2" max="6" step="0.2" value="2.4">
+
+                <button type="button" class="value-edit" id="out-floor" data-slider="floor" data-key="floor" data-parse="float" aria-label="Edit floor thickness in mm">2.4</button>
+
+              </label>
+
+            </section>
+
+
+
+            <section class="section stats">
+
+              <h2>Estimate</h2>
+
+              <dl class="stat-grid">
+
+                <div><dt>Outer</dt><dd id="stat-outer">—</dd></div>
+
+                <div><dt>Cavity</dt><dd id="stat-cavity">—</dd></div>
+
+                <div><dt>Material</dt><dd id="stat-material">—</dd></div>
+
+                <div><dt>~PLA</dt><dd id="stat-grams">—</dd></div>
+
+              </dl>
+
+            </section>
+
+          </div>
+
+
+
+          <div class="tab-panel" id="tab-lid" role="tabpanel" hidden>
+
+            <section class="section" id="section-lid">
+
+              <h2>Slip lid</h2>
+
+              <label class="field field-toggle">
+
+                <span class="field-label">Enable lid</span>
+
+                <input type="checkbox" id="lid-enabled">
+
+                <span class="toggle-hint">Preview + export</span>
+
+              </label>
+
+              <label class="field" id="field-lid-skirt">
+
+                <span class="field-label">Skirt depth</span>
+
+                <input type="range" id="lid-skirt" min="4" max="25" step="1" value="10" tabindex="-1">
+
+                <button type="button" class="value-edit" id="out-lid-skirt" data-slider="lid-skirt" data-key="lidSkirt" aria-label="Edit lid skirt depth in mm">10</button>
+
+              </label>
+
+              <label class="field" id="field-lid-thickness">
+
+                <span class="field-label">Lid thickness</span>
+
+                <input type="range" id="lid-thickness" min="2" max="6" step="0.2" value="2.4" tabindex="-1">
+
+                <button type="button" class="value-edit" id="out-lid-thickness" data-slider="lid-thickness" data-key="lidThickness" data-parse="float" aria-label="Edit lid thickness in mm">2.4</button>
+
+              </label>
+
+              <p class="field-hint">Exports plate-down on the bed. Skirt sits outside the box walls.</p>
+
+            </section>
+
+          </div>
+
+
+
+          <div class="tab-panel" id="tab-link" role="tabpanel" hidden>
+
+            <section class="section" id="section-joiner">
+
+              <h2>Dovetail joiner</h2>
+
+              <label class="field field-toggle">
+
+                <span class="field-label">Enable joiner</span>
+
+                <input type="checkbox" id="joiner-enabled">
+
+              </label>
+
+              <div class="joiner-hand hidden" id="field-joiner-hand" role="group" aria-label="Joiner hand">
+
+                <button type="button" class="chip active" data-hand="left">Left</button>
+
+                <button type="button" class="chip" data-hand="right">Right</button>
+
+              </div>
+
+              <p class="field-hint hidden" id="joiner-hint">Left = male tab · Right = socket.</p>
+
+              <label class="field hidden" id="field-joiner-width">
+
+                <span class="field-label">Tab width</span>
+
+                <input type="range" id="joiner-width" min="5" max="22" step="0.5" value="9" tabindex="-1">
+
+                <button type="button" class="value-edit" id="out-joiner-width" data-slider="joiner-width" data-key="joinerWidth" data-parse="float">9</button>
+
+              </label>
+
+              <label class="field hidden" id="field-joiner-neck">
+
+                <span class="field-label">Tab neck</span>
+
+                <input type="range" id="joiner-neck" min="3" max="16" step="0.5" value="6" tabindex="-1">
+
+                <button type="button" class="value-edit" id="out-joiner-neck" data-slider="joiner-neck" data-key="joinerNeck" data-parse="float">6</button>
+
+              </label>
+
+              <label class="field hidden" id="field-joiner-protrusion">
+
+                <span class="field-label">Tab depth</span>
+
+                <input type="range" id="joiner-protrusion" min="2" max="10" step="0.2" value="4" tabindex="-1">
+
+                <button type="button" class="value-edit" id="out-joiner-protrusion" data-slider="joiner-protrusion" data-key="joinerProtrusion" data-parse="float">4</button>
+
+              </label>
+
+              <label class="field field-toggle hidden" id="field-joiner-autoscale">
+
+                <span class="field-label">Auto-scale to box size</span>
+
+                <input type="checkbox" id="joiner-autoscale" checked>
+
+              </label>
+
+            </section>
+
+          </div>
+
+
+
+          <div class="tab-panel" id="tab-accent" role="tabpanel" hidden>
+
+            <section class="section" id="section-accent">
+
+              <h2>Accent colour</h2>
+
+              <p class="field-hint">Separate STL for a second filament in AMS.</p>
+
+              <label class="field field-toggle">
+
+                <span class="field-label">Accent band</span>
+
+                <input type="checkbox" id="accent-enabled">
+
+              </label>
+
+              <label class="field hidden" id="field-accent-face">
+
+                <span class="field-label">Face</span>
+
+                <select id="accent-face">
+
+                  <option value="rim">Rim band (all sides)</option>
+
+                  <option value="front">Front panel only</option>
+
+                  <option value="floor">Floor stripe</option>
+
+                </select>
+
+              </label>
+
+              <label class="field hidden" id="field-accent-height">
+
+                <span class="field-label">Band height</span>
+
+                <input type="range" id="accent-height" min="2" max="10" step="0.5" value="4" tabindex="-1">
+
+                <button type="button" class="value-edit" id="out-accent-height" data-slider="accent-height" data-key="accentHeight" data-parse="float">4</button>
+
+              </label>
+
+              <label class="field hidden" id="field-accent-color">
+
+                <span class="field-label">Preview colour</span>
+
+                <input type="color" id="accent-color" value="#f97316">
+
+              </label>
+
+            </section>
+
+          </div>
+
+
+
+          <div class="tab-panel" id="tab-label" role="tabpanel" hidden>
+
+            <section class="section" id="section-label">
+
+              <h2>Embossed label</h2>
+
+              <p class="field-hint">Front face only. Use text <em>or</em> SVG — not both at once. Traced art from <em>Import</em> uses emboss depth below.</p>
+
+              <label class="field" id="field-emboss-text">
+
+                <span class="field-label">Text</span>
+
+                <input type="text" id="emboss-text" maxlength="20" placeholder="Parts">
+
+              </label>
+
+              <label class="field" id="field-emboss-font">
+
+                <span class="field-label">Font</span>
+
+                <select id="emboss-font"></select>
+
+              </label>
+
+              <label class="field" id="field-emboss-height">
+
+                <span class="field-label">Font size <span class="unit">mm</span></span>
+
+                <input type="range" id="emboss-height" min="3" max="18" step="0.5" value="7" tabindex="-1">
+
+                <button type="button" class="value-edit" id="out-emboss-height" data-slider="emboss-height" data-key="embossHeight" data-parse="float">7</button>
+
+              </label>
+
+              <label class="field" id="field-emboss-depth">
+
+                <span class="field-label">Emboss depth</span>
+
+                <input type="range" id="emboss-depth" min="0.3" max="2" step="0.1" value="0.7" tabindex="-1">
+
+                <button type="button" class="value-edit" id="out-emboss-depth" data-slider="emboss-depth" data-key="embossDepth" data-parse="float">0.7</button>
+
+              </label>
+
+              <label class="field field-toggle" id="field-emboss-svg">
+
+                <span class="field-label">Use SVG instead</span>
+
+                <input type="checkbox" id="emboss-svg-enabled">
+
+              </label>
+
+              <label class="field hidden" id="field-svg-file">
+
+                <span class="field-label">SVG file</span>
+
+                <input type="file" id="svg-file" accept=".svg,image/svg+xml">
+
+              </label>
+
+            </section>
+
+          </div>
+
+
+
+          <div class="tab-panel" id="tab-import" role="tabpanel" hidden>
+
+            <section class="section" id="section-import">
+
+              <h2>Image → emboss</h2>
+
+              <p class="field-hint">Black-on-white icons work best. <em>Silhouette</em> keeps holes (vents, bolt circles). Lower threshold if detail vanishes. Set emboss depth on the <em>Label</em> tab.</p>
+
+              <div class="trace-drop" id="trace-drop">
+
+                <input type="file" id="trace-file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+
+                <p class="trace-drop-label">Drop image here, click to browse, or paste</p>
+
+                <p class="trace-drop-hint">PNG · JPG · WEBP · Ctrl+V</p>
+
+              </div>
+
+              <label class="field">
+
+                <span class="field-label">Trace mode</span>
+
+                <select id="trace-mode">
+
+                  <option value="silhouette">Silhouette — solid logo</option>
+
+                  <option value="outline">Outline — line art</option>
+
+                </select>
+
+              </label>
+
+              <label class="field">
+
+                <span class="field-label">Threshold</span>
+
+                <input type="range" id="trace-threshold" min="20" max="235" step="1" value="128" tabindex="-1">
+
+                <button type="button" class="value-edit" id="out-trace-threshold" data-slider="trace-threshold" data-key="traceThreshold" data-parse="int">128</button>
+
+              </label>
+
+              <label class="field field-toggle">
+
+                <span class="field-label">Invert (light logo on dark)</span>
+
+                <input type="checkbox" id="trace-invert">
+
+              </label>
+
+              <label class="field">
+
+                <span class="field-label">Art size <span class="unit">mm</span></span>
+
+                <input type="range" id="trace-size" min="6" max="40" step="0.5" value="16" tabindex="-1">
+
+                <button type="button" class="value-edit" id="out-trace-size" data-slider="trace-size" data-key="embossTraceSize" data-parse="float">16</button>
+
+              </label>
+
+              <div class="trace-preview-wrap hidden" id="trace-preview-wrap">
+
+                <span class="field-label">Preview</span>
+
+                <canvas id="trace-preview" class="trace-preview" width="320" height="200"></canvas>
+
+                <p class="trace-meta" id="trace-meta"></p>
+
+              </div>
+
+              <div class="trace-toolbar">
+
+                <button type="button" id="btn-trace-undo" class="btn btn-secondary btn-icon" disabled title="Undo" aria-label="Undo">↶</button>
+
+                <button type="button" id="btn-trace-redo" class="btn btn-secondary btn-icon" disabled title="Redo" aria-label="Redo">↷</button>
+
+                <button type="button" id="btn-trace-clear" class="btn btn-secondary" disabled>Clear from box</button>
+
+              </div>
+
+              <div class="trace-actions">
+
+                <button type="button" id="btn-trace" class="btn btn-secondary" disabled>Trace</button>
+
+                <button type="button" id="btn-trace-apply" class="btn btn-primary" disabled>Apply to box</button>
+
+                <button type="button" id="btn-trace-svg" class="btn btn-secondary hidden" disabled>Download SVG</button>
+
+              </div>
+
+            </section>
+
+          </div>
+
+
+
+          <div class="tab-panel" id="tab-stack" role="tabpanel" hidden>
+
+            <section class="section" id="section-stack">
+
+              <h2>Stack &amp; texture</h2>
+
+              <p class="field-hint">Honeycomb is decorative. Stack adds feet + rim pockets for nesting.</p>
+
+              <label class="field field-toggle">
+
+                <span class="field-label">Honeycomb stamp</span>
+
+                <input type="checkbox" id="honeycomb-enabled">
+
+              </label>
+
+              <label class="field hidden" id="field-honeycomb-face">
+
+                <span class="field-label">Honeycomb face</span>
+
+                <select id="honeycomb-face">
+
+                  <option value="back">Back wall</option>
+
+                  <option value="front">Front wall</option>
+
+                </select>
+
+              </label>
+
+              <label class="field field-toggle">
+
+                <span class="field-label">Stackable hex</span>
+
+                <input type="checkbox" id="stackable-enabled">
+
+              </label>
+
+            </section>
+
+          </div>
+
+        </div>
+
+      </aside>
+
+
+
+      <section class="panel viewport-wrap">
+
+        <div id="viewport" aria-label="3D preview"></div>
+
+        <div class="viewport-hud">
+
+          <span>Drag to orbit · scroll to zoom</span>
+
+          <button type="button" id="btn-reset-view" class="btn btn-ghost">Reset view</button>
+
+        </div>
+
+      </section>
+
+    </main>
+
+  </div>
+
+
+
+  <script type="module" src="js/app.js"></script>
+
+</body>
+
+</html>
+
+
