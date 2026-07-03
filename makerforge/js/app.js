@@ -1385,5 +1385,12 @@ async function bootMakerDeck() {
   if (meshCache) fitCamera(meshCache.meta);
 }
 
-bootMakerDeck();
+bootMakerDeck().catch((err) => {
+  sessionBooting = false;
+  console.error("MakerDeck boot failed:", err);
+  const banner = document.createElement("p");
+  banner.className = "boot-error";
+  banner.textContent = `MakerDeck failed to start: ${err?.message || err}. Hard refresh (Ctrl+Shift+R).`;
+  document.querySelector(".controls")?.prepend(banner);
+});
 animate();
