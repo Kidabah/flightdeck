@@ -2,9 +2,23 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `cbf8c1a` — MakerDeck at `/makerdeck/`
-- Refresh cachebust currently: app.js?v=623 / style.css?v=480
+- Latest commit: `025bf37` — MakerDeck: face picker + deboss + vase + smoother traces
+- Refresh cachebust currently: MakerDeck app.js?v=12 / style.css?v=7 · Flightdeck app.js?v=623 / style.css?v=480
 - MakerDeck: `https://flightdeck.tail7de73e.ts.net/makerdeck/` — hard refresh after pull
+- Backend restart NOT required (only static files changed).
+
+### 2026-07-04 add (MakerDeck feature batch)
+
+**Face picker, Deboss, Vase / plant pot family, smoother traces** (`makerforge/js/features.js`, `makerforge/js/geometry.js`, `makerforge/js/vase.js` (new), `makerforge/js/contour.js`, `makerforge/js/app.js`, `makerforge/index.html`, `makerforge/css/style.css`)
+
+- Label / Import emboss now lands on the chosen face: Front (visible), Back (opposite), Left, Right. `Front` = preview-visible face; text reads L→R correctly on all four.
+- **Deboss (cut inward)** toggle in Label tab. Preview shows red cutter geometry so you can see where it lands; body STL prints clean (no letters). Separate **"Download deboss cutter"** STL — drop into slicer, set as *Negative Part / Modifier* to subtract.
+- New shape **Vase / pot** with profiles: Cylinder / Tapered / Herbal (narrow top) / Urn (belly) / Amphora (long belly). Optional drainage hole, optional saucer STL.
+- Small trace art (< 20 mm) now uses extra Chaikin passes + gentler simplify — no more chunky pixel stairs on tiny logos.
+- Trace meta text now says "N islands · single colour · applied to <face> face" (previously "N stamps" — sounded like separate STLs).
+- Generic `.hidden` CSS rule so new sections toggle correctly.
+
+**No backend restart required — static-only.** Cachebust updated app.js?v=12 style.css?v=7. Hard refresh browser (Ctrl+Shift+R) after `git pull` on Pi.
 
 ### 2026-07-04 fix (MakerDeck blank preview)
 
