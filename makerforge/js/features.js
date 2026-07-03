@@ -527,27 +527,37 @@ export function shapeSupportsDecor(shape) {
 export function getEmbossFaceFrame(meta, face) {
   const b = rectFeatureBounds(meta);
   const useFace = ["front", "back", "left", "right"].includes(face) ? face : "front";
+  // Convention: default preview camera looks at -Y face → that's the user's "front".
   if (useFace === "front" || useFace === "back") {
+    const yOut = useFace === "front" ? -b.od2 : b.od2;
+    const yDir = useFace === "front" ? -1 : 1;
+    // For "front" (world -Y) text is not mirrored — reads normally.
+    // For "back" (world +Y) mirror X so text reads correctly when viewed from +Y.
+    const mirror = useFace === "back";
     return {
       face: useFace,
       faceW: b.outerW,
       faceH: b.totalH,
       centerZ: b.totalH * 0.72,
       mapPoint: (px, py, offset) => {
-        const y = useFace === "front" ? b.od2 + offset : -b.od2 - offset;
-        const x = useFace === "front" ? -px : px;
+        const y = yOut + yDir * offset;
+        const x = mirror ? -px : px;
         return [x, y, py];
       },
     };
   }
+  // Left = world +X face (camera looks at that side too in default orbit); Right = world -X.
+  const xOut = useFace === "left" ? b.ow2 : -b.ow2;
+  const xDir = useFace === "left" ? 1 : -1;
+  const mirror = useFace === "right";
   return {
     face: useFace,
     faceW: b.outerD,
     faceH: b.totalH,
     centerZ: b.totalH * 0.72,
     mapPoint: (px, py, offset) => {
-      const x = useFace === "right" ? b.ow2 + offset : -b.ow2 - offset;
-      const y = useFace === "right" ? px : -px;
+      const x = xOut + xDir * offset;
+      const y = mirror ? -px : px;
       return [x, y, py];
     },
   };
