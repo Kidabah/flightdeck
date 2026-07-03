@@ -73,19 +73,24 @@ export function chaikinSmooth(points, iterations = 2) {
   return pts;
 }
 
-/** Simplify pixel stairs, then round corners for print-friendly curves. */
-export function prepareContourRing(poly, simplifyTol = 1, round = true) {
+/** Simplify pixel stairs, then round corners for print-friendly curves.
+ * `smoothPasses` controls Chaikin iterations (1 = light, 2 = medium, 3 = extra smooth).
+ */
+export function prepareContourRing(poly, simplifyTol = 1, round = true, smoothPasses = 1) {
   const light = simplifyPolygon(poly, simplifyTol);
-  if (!round) return light;
-  const smooth = chaikinSmooth(light, 1);
-  if (smooth.length > 220) return simplifyPolygon(smooth, simplifyTol * 0.45);
+  const passes = Math.max(0, Math.min(4, smoothPasses));
+  if (!round || passes === 0) return light;
+  const smooth = chaikinSmooth(light, passes);
+  const budget = passes >= 2 ? 320 : 220;
+  if (smooth.length > budget) return simplifyPolygon(smooth, simplifyTol * 0.45);
   return smooth;
 }
 
-export function prepareShapeGroups(groups, simplifyTol = 1) {
+export function prepareShapeGroups(groups, simplifyTol = 1, smoothPasses = 1) {
+  const holePasses = smoothPasses >= 2 ? Math.max(1, smoothPasses - 1) : 0;
   return groups.map(({ outer, holes }) => ({
-    outer: prepareContourRing(outer, simplifyTol, true),
-    holes: holes.map((hole) => prepareContourRing(hole, simplifyTol * 0.5, false)),
+    outer: prepareContourRing(outer, simplifyTol, true, smoothPasses),
+    holes: holes.map((hole) => prepareContourRing(hole, simplifyTol * 0.5, holePasses > 0, holePasses)),
   }));
 }
 

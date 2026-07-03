@@ -305,21 +305,20 @@ function rasterTextRects(text, fontId, fontSizePx = 96) {
   return { rects: merged, width, height };
 }
 
-/** Embossed sans-serif label on front face — real letter shapes from canvas raster. */
+/** Embossed sans-serif label on chosen face — real letter shapes from canvas raster. */
 export function buildEmbossText(meta, params) {
   const text = String(params.embossText || "").trim();
   if (!text) return null;
-  const b = rectFeatureBounds(meta);
-  const depth = clamp(params.embossDepth ?? 0.7, 0.3, 2);
   const labelH = clamp(params.embossHeight ?? 7, 3, 18);
   const raster = rasterTextRects(text, params.embossFont || "inter");
   if (!raster?.rects.length) return null;
 
+  const frame = getEmbossFaceFrame(meta, params.embossFace || "front");
+  const { d0, d1 } = labelOffsets(params);
   const scale = labelH / raster.height;
-  const xOff = -(raster.width * scale) / 2;
-  const zOff = b.totalH * 0.72 - labelH;
-  const y0 = b.od2 + 0.08;
-  const y1 = y0 + depth;
+  const artW = raster.width * scale;
+  const xOff = -artW / 2;
+  const zOff = frame.centerZ - labelH;
   const positions = [];
   const indices = [];
 
@@ -328,26 +327,26 @@ export function buildEmbossText(meta, params) {
     const bx = xOff + (r.x + r.w) * scale;
     const z1 = zOff + (raster.height - r.y) * scale;
     const z0 = z1 - r.h * scale;
-    // Mirror X so label reads correctly on exported STL (viewed from +Y outside).
-    appendBox(positions, indices, -bx, y0, z0, -ax, y1, z1);
+    boxOnFace(positions, indices, frame, ax, bx, z0, z1, d0, d1);
   }
 
   return { positions, indices };
 }
 
-/** Solid silhouette / traced bitmap emboss on front face (+Y). */
+/** Solid silhouette / traced bitmap emboss on chosen face. */
 export function buildEmbossBitmap(meta, params, bitmap) {
   if (!bitmap?.width || !bitmap.height) return null;
-  const b = rectFeatureBounds(meta);
-  const depth = clamp(params.embossDepth ?? 0.7, 0.3, 2);
   const artH = clamp(params.embossTraceSize ?? 16, 6, 40);
-  const maxW = Math.min(b.outerW * 0.62, 56);
+  const frame = getEmbossFaceFrame(meta, params.embossFace || "front");
+  const maxW = Math.min(frame.faceW * 0.62, 56);
   const scale = Math.min(artH / bitmap.height, maxW / bitmap.width);
   if (!Number.isFinite(scale) || scale <= 0) return null;
-  const xOff = -(bitmap.width * scale) / 2;
-  const zOff = b.totalH * 0.72 - bitmap.height * scale;
-  const y0 = b.od2 + 0.08;
-  const y1 = y0 + depth;
+
+  const artWidth = bitmap.width * scale;
+  const artHeight = bitmap.height * scale;
+  const xOff = -artWidth / 2;
+  const zOff = frame.centerZ - artHeight;
+  const { d0, d1 } = labelOffsets(params);
   const positions = [];
   const indices = [];
   const maskW = Math.round(bitmap.width);
@@ -372,22 +371,23 @@ export function buildEmbossBitmap(meta, params, bitmap) {
     return null;
   }
 
-  const mapPoint = (px, py) => [
-    -(xOff + px * scale),
-    y1,
-    zOff + (maskH - py) * scale,
-  ];
-
-  const simplifyTol = Math.max(0.65, maskW / 200);
+  // Art smaller than 20 mm needs extra Chaikin passes so the print doesn't look chunky.
+  const smoothPasses = artH <= 12 ? 3 : artH <= 20 ? 2 : 1;
+  const simplifyTol = Math.max(0.5, maskW / (smoothPasses >= 2 ? 260 : 200));
   const shapeGroups = bitmap.shapeGroups?.length
-    ? prepareShapeGroups(bitmap.shapeGroups, simplifyTol)
+    ? prepareShapeGroups(bitmap.shapeGroups, simplifyTol, smoothPasses)
     : prepareShapeGroups(
         groupPolygonsWithHoles(maskToPolygons(mask, maskW, maskH)),
         simplifyTol,
+        smoothPasses,
       );
 
   for (const group of shapeGroups) {
-    extrudeShapeGroup(positions, indices, group, y0, y1, mapPoint);
+    const remapped = {
+      outer: group.outer.map(([px, py]) => [xOff + px * scale, zOff + (maskH - py) * scale]),
+      holes: group.holes.map((h) => h.map(([px, py]) => [xOff + px * scale, zOff + (maskH - py) * scale])),
+    };
+    extrudeGroupOnFace(positions, indices, frame, remapped, d0, d1);
   }
 
   return positions.length ? { positions, indices } : null;
@@ -448,8 +448,7 @@ export function parseSvgPaths(svgText) {
 export function buildEmbossSvg(meta, params, svgText) {
   const polylines = parseSvgPaths(svgText);
   if (!polylines.length) return null;
-  const b = rectFeatureBounds(meta);
-  const depth = clamp(params.embossDepth ?? 0.7, 0.3, 2);
+  const frame = getEmbossFaceFrame(meta, params.embossFace || "front");
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
@@ -464,16 +463,15 @@ export function buildEmbossSvg(meta, params, svgText) {
   }
   const sw = maxX - minX || 1;
   const sh = maxY - minY || 1;
-  const targetW = Math.min(b.outerW * 0.55, 50);
-  const targetH = Math.min(b.totalH * 0.22, 16);
+  const targetW = Math.min(frame.faceW * 0.55, 50);
+  const targetH = Math.min(frame.faceH * 0.22, 16);
   const s = Math.min(targetW / sw, targetH / sh);
   const cx = (minX + maxX) / 2;
   const cy = (minY + maxY) / 2;
+  const { d0, d1 } = labelOffsets(params);
+  const zMid = frame.centerZ;
   const positions = [];
   const indices = [];
-  const y0 = b.od2 + 0.08;
-  const y1 = y0 + depth;
-  const zMid = b.totalH * 0.72;
 
   for (const line of polylines) {
     for (let i = 0; i < line.length - 1; i++) {
@@ -484,7 +482,11 @@ export function buildEmbossSvg(meta, params, svgText) {
       const bx = (x1 - cx) * s;
       const bz = zMid + (cy - yv1) * s;
       const thick = 0.45;
-      appendBox(positions, indices, -bx - thick, y0, az - thick, -ax + thick, y1, bz + thick);
+      const xL = Math.min(ax, bx) - thick;
+      const xR = Math.max(ax, bx) + thick;
+      const zB = Math.min(az, bz) - thick;
+      const zT = Math.max(az, bz) + thick;
+      boxOnFace(positions, indices, frame, xL, xR, zB, zT, d0, d1);
     }
   }
   return positions.length ? { positions, indices } : null;
@@ -516,15 +518,97 @@ export function shapeSupportsDecor(shape) {
   return shape === "rect" || shape === "rounded" || shape === "pencil";
 }
 
-export function buildLabelEmboss(meta, params, svgText = "") {
-  if (params.embossTraceEnabled && (params.embossTraceRects?.mask?.length || params.embossTraceRects?.rects?.length)) {
-    return buildEmbossBitmap(meta, params, params.embossTraceRects);
+/** Face frame for placing emboss on any of the four side walls.
+ * Returns an object with faceW / faceH (usable dimensions in mm) and a
+ * mapPoint(px, py, offset) helper that projects a 2D art-space point (px, py)
+ * onto the target face at a distance `offset` from the outer surface
+ * (positive = outward, negative = inward for deboss).
+ */
+export function getEmbossFaceFrame(meta, face) {
+  const b = rectFeatureBounds(meta);
+  const useFace = ["front", "back", "left", "right"].includes(face) ? face : "front";
+  if (useFace === "front" || useFace === "back") {
+    return {
+      face: useFace,
+      faceW: b.outerW,
+      faceH: b.totalH,
+      centerZ: b.totalH * 0.72,
+      mapPoint: (px, py, offset) => {
+        const y = useFace === "front" ? b.od2 + offset : -b.od2 - offset;
+        const x = useFace === "front" ? -px : px;
+        return [x, y, py];
+      },
+    };
   }
-  if (params.embossText?.trim() && !params.embossSvgEnabled) {
-    return buildEmbossText(meta, params);
+  return {
+    face: useFace,
+    faceW: b.outerD,
+    faceH: b.totalH,
+    centerZ: b.totalH * 0.72,
+    mapPoint: (px, py, offset) => {
+      const x = useFace === "right" ? b.ow2 + offset : -b.ow2 - offset;
+      const y = useFace === "right" ? px : -px;
+      return [x, y, py];
+    },
+  };
+}
+
+/** Extrude a raster-space rectangle onto a face frame between offsets [d0, d1].
+ * (px range is [xLeft, xRight], py range is [zBottom, zTop] in art space.)
+ */
+function boxOnFace(outPos, outIdx, frame, xLeft, xRight, zBottom, zTop, d0, d1) {
+  const p000 = frame.mapPoint(xLeft, zBottom, d0);
+  const p100 = frame.mapPoint(xRight, zBottom, d0);
+  const p110 = frame.mapPoint(xRight, zTop, d0);
+  const p010 = frame.mapPoint(xLeft, zTop, d0);
+  const p001 = frame.mapPoint(xLeft, zBottom, d1);
+  const p101 = frame.mapPoint(xRight, zBottom, d1);
+  const p111 = frame.mapPoint(xRight, zTop, d1);
+  const p011 = frame.mapPoint(xLeft, zTop, d1);
+  const winding = d1 > d0;
+  const face = (a, b, c, d) => winding
+    ? pushQuad(outPos, outIdx, a, b, c, d)
+    : pushQuad(outPos, outIdx, a, d, c, b);
+  face(p000, p100, p110, p010);
+  face(p001, p011, p111, p101);
+  face(p000, p001, p101, p100);
+  face(p010, p110, p111, p011);
+  face(p000, p010, p011, p001);
+  face(p100, p101, p111, p110);
+}
+
+/** Extrude a shape group (outer ring + holes) onto a face at offsets [d0, d1]. */
+function extrudeGroupOnFace(outPos, outIdx, frame, group, d0, d1) {
+  const mapper = (px, py) => frame.mapPoint(px, py, d1);
+  const swap = d1 < d0;
+  if (swap) {
+    extrudeShapeGroup(outPos, outIdx, group, d1, d0, (px, py) => frame.mapPoint(px, py, d0));
+  } else {
+    extrudeShapeGroup(outPos, outIdx, group, d0, d1, mapper);
   }
-  if (params.embossSvgEnabled && svgText?.trim()) {
-    return buildEmbossSvg(meta, params, svgText);
+}
+
+function labelOffsets(params) {
+  const depth = clamp(params.embossDepth ?? 0.7, 0.3, 2);
+  if (params.__embossMode === "deboss-cutter") {
+    // Slicer-facing cutter STL: pokes 0.4mm past the surface and sinks (depth + 0.05)mm inward
+    // so the boolean subtract is clean at the outer skin.
+    return { d0: -depth - 0.05, d1: 0.4, depth, deboss: true };
+  }
+  // Preview + regular emboss: extrude outward with a tiny bias to avoid z-fighting on shell.
+  return { d0: 0.08, d1: 0.08 + depth, depth, deboss: false };
+}
+
+export function buildLabelEmboss(meta, params, svgText = "", mode = "emboss") {
+  const p = { ...params, __embossMode: mode };
+  if (p.embossTraceEnabled && (p.embossTraceRects?.mask?.length || p.embossTraceRects?.rects?.length)) {
+    return buildEmbossBitmap(meta, p, p.embossTraceRects);
+  }
+  if (p.embossText?.trim() && !p.embossSvgEnabled) {
+    return buildEmbossText(meta, p);
+  }
+  if (p.embossSvgEnabled && svgText?.trim()) {
+    return buildEmbossSvg(meta, p, svgText);
   }
   return null;
 }

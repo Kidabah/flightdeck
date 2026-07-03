@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, PENCIL_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, VASE_STYLES, PENCIL_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js";
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec } from "./features.js";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvas, drawTracePreview, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js";
 import { meshToStl, downloadBlob, filenameFor } from "./stl.js";
@@ -22,6 +22,7 @@ const state = { ...DEFAULTS, shape: "rect" };
 let meshCache = null;
 let lidCache = null;
 let accentCache = null;
+let debossCutterCache = null;
 let traceSourceCanvas = null;
 let traceLastResult = null;
 let traceLastSvg = "";
@@ -129,6 +130,18 @@ const labelMaterial = new THREE.MeshStandardMaterial({
   polygonOffsetUnits: -2,
 });
 
+const debossPreviewMaterial = new THREE.MeshStandardMaterial({
+  color: 0xef4444,
+  metalness: 0.05,
+  roughness: 0.55,
+  side: THREE.DoubleSide,
+  transparent: true,
+  opacity: 0.75,
+  polygonOffset: true,
+  polygonOffsetFactor: -2,
+  polygonOffsetUnits: -2,
+});
+
 function buildParams() {
   return {
     shape: state.shape === "rounded" ? "rect" : state.shape,
@@ -161,6 +174,8 @@ function buildParams() {
     embossFont: state.embossFont,
     embossDepth: state.embossDepth,
     embossHeight: state.embossHeight,
+    embossFace: state.embossFace,
+    embossDeboss: state.embossDeboss,
     embossSvgEnabled: state.embossSvgEnabled,
     embossSvgText: state.embossSvgText,
     embossTraceEnabled: state.embossTraceEnabled,
@@ -174,6 +189,14 @@ function buildParams() {
     stackHexSize: state.stackHexSize,
     stackFootHeight: state.stackFootHeight,
     stackClearance: state.stackClearance,
+    vaseStyle: state.vaseStyle,
+    vaseDiameter: state.vaseDiameter,
+    vaseHeight: state.vaseHeight,
+    vaseWall: state.vaseWall,
+    vaseFloor: state.vaseFloor,
+    vaseDrainage: state.vaseDrainage,
+    vaseDrainageSize: state.vaseDrainageSize,
+    vaseSaucerEnabled: state.vaseSaucerEnabled,
   };
 }
 
@@ -375,6 +398,15 @@ function syncUiFromState() {
   syncSliderUi("emboss-height", "embossHeight", { min: 3, max: 18, value: state.embossHeight, parseKind: "float" });
   syncSliderUi("trace-threshold", "traceThreshold", { min: 20, max: 235, value: state.traceThreshold });
   syncSliderUi("trace-size", "embossTraceSize", { min: 6, max: 40, value: state.embossTraceSize, parseKind: "float" });
+  syncSliderUi("vase-diameter", "vaseDiameter", { min: 30, max: 220, value: state.vaseDiameter, parseKind: "float" });
+  syncSliderUi("vase-height", "vaseHeight", { min: 20, max: 280, value: state.vaseHeight, parseKind: "float" });
+  syncSliderUi("vase-wall", "vaseWall", { min: 1.0, max: 3, value: state.vaseWall, parseKind: "float" });
+  syncSliderUi("vase-floor", "vaseFloor", { min: 1.4, max: 6, value: state.vaseFloor, parseKind: "float" });
+  syncSliderUi("vase-drainage-size", "vaseDrainageSize", { min: 4, max: 30, value: state.vaseDrainageSize, parseKind: "float" });
+  const vaseStyleSel = document.getElementById("vase-style");
+  if (vaseStyleSel) vaseStyleSel.value = state.vaseStyle || "cylinder";
+  document.getElementById("vase-drainage").checked = !!state.vaseDrainage;
+  document.getElementById("vase-saucer").checked = !!state.vaseSaucerEnabled;
 
   document.getElementById("emboss-text").value = state.embossText || "";
   document.getElementById("accent-color").value = state.accentColor || "#f97316";
@@ -403,6 +435,7 @@ function rebuildMesh() {
   const params = buildParams();
 
   meshCache = buildContainer(params);
+  debossCutterCache = meshCache.debossCutterMesh || null;
   if (meshCache.meta.shape === "rect" && state.shape === "rounded") {
     meshCache.meta.shape = "rounded";
   }
@@ -432,7 +465,8 @@ function rebuildMesh() {
 
   if (meshCache.labelMesh) {
     const labelGeom = toBufferGeometry(THREE, meshCache.labelMesh);
-    labelMesh = new THREE.Mesh(labelGeom, labelMaterial);
+    const mat = state.embossDeboss ? debossPreviewMaterial : labelMaterial;
+    labelMesh = new THREE.Mesh(labelGeom, mat);
     labelMesh.castShadow = true;
     labelMesh.receiveShadow = true;
     labelMesh.renderOrder = 8;
@@ -484,11 +518,14 @@ function rebuildMesh() {
   updateLidUi();
   updateJoinerUi();
   updateDecorUi();
+  updateVaseUiVisibility();
 }
 
 function updateStats(meta) {
   const { outer, cavityMl, materialMl, estGrams } = meta;
-  if (meta.shape === "circle") {
+  if (meta.shape === "vase") {
+    document.getElementById("stat-outer").textContent = `${meta.styleLabel || "Vase"} · ⌀${outer.w} × ${outer.h}`;
+  } else if (meta.shape === "circle") {
     document.getElementById("stat-outer").textContent = `⌀${outer.w} × ${outer.h}`;
   } else if (PRESET_SHAPES.has(meta.shape)) {
     if (meta.shape === "star") {
@@ -771,13 +808,17 @@ function updateTraceUi() {
     meta.textContent = "Adjust settings and hit Trace.";
     return;
   }
-  let msg = `${traceLastResult.polygonCount ?? 0} stamp${traceLastResult.polygonCount === 1 ? "" : "s"}`;
+  const count = traceLastResult.polygonCount ?? 0;
+  let msg = `${count} island${count === 1 ? "" : "s"} · single colour`;
   if (traceLastResult.simplified) msg += " · auto-simplified for print";
   if (traceLastResult.tooComplex) {
-    msg = `Too detailed — raise threshold or use Silhouette (max ${MAX_TRACE_POLYGONS} stamps)`;
+    msg = `Too detailed — raise threshold or use Silhouette (max ${MAX_TRACE_POLYGONS} islands)`;
     document.getElementById("btn-trace-apply").disabled = true;
   }
-  if (state.embossTraceEnabled && !traceLastResult.tooComplex) msg += " · applied to front face";
+  if (state.embossTraceEnabled && !traceLastResult.tooComplex) {
+    const faceLabel = { front: "front", back: "back", left: "left side", right: "right side" }[state.embossFace] || "front";
+    msg += ` · applied to ${faceLabel} face`;
+  }
   meta.textContent = msg;
   updateTraceHistoryUi();
 }
@@ -870,9 +911,20 @@ function updateDecorUi() {
   document.getElementById("field-svg-file").classList.toggle("hidden", !svgOn);
   document.getElementById("field-emboss-text").classList.toggle("hidden", svgOn);
   document.getElementById("field-emboss-font").classList.toggle("hidden", svgOn);
+  document.getElementById("emboss-face").value = state.embossFace || "front";
+  document.getElementById("emboss-deboss").checked = !!state.embossDeboss;
+  updateEmbossDebossUi();
   document.getElementById("field-emboss-height").classList.toggle("hidden", svgOn);
   document.getElementById("emboss-font").value = state.embossFont || "inter";
   updateEmbossTextPreviewStyle();
+}
+
+function updateEmbossDebossUi() {
+  const on = !!state.embossDeboss;
+  const hint = document.getElementById("emboss-deboss-hint");
+  if (hint) hint.classList.toggle("hidden", !on);
+  const btn = document.getElementById("btn-export-deboss");
+  if (btn) btn.classList.toggle("hidden", !on || !debossCutterCache);
 }
 
 function updateEmbossTextPreviewStyle() {
@@ -1171,6 +1223,17 @@ document.getElementById("emboss-svg-enabled").addEventListener("change", (e) => 
   rebuild();
 });
 
+document.getElementById("emboss-face").addEventListener("change", (e) => {
+  state.embossFace = e.target.value;
+  rebuild();
+});
+
+document.getElementById("emboss-deboss").addEventListener("change", (e) => {
+  state.embossDeboss = e.target.checked;
+  updateEmbossDebossUi();
+  rebuild();
+});
+
 document.getElementById("honeycomb-face").addEventListener("change", (e) => {
   state.honeycombFace = e.target.value;
   rebuild();
@@ -1293,9 +1356,69 @@ document.querySelectorAll(".shape-btn").forEach((btn) => {
       state.shape = next;
       applySliderProfile("default");
     }
+    updateVaseUiVisibility();
     rebuild();
     if (meshCache) fitCamera(meshCache.meta);
   });
+});
+
+function updateVaseUiVisibility() {
+  const isVase = state.shape === "vase";
+  document.getElementById("section-vase").classList.toggle("hidden", !isVase);
+  document.getElementById("section-classic-size").classList.toggle("hidden", isVase);
+  document.getElementById("section-walls").classList.toggle("hidden", isVase);
+  document.getElementById("section-edges").classList.toggle("hidden", isVase);
+  document.querySelectorAll('.tab[data-tab="accent"], .tab[data-tab="label"], .tab[data-tab="import"], .tab[data-tab="stack"], .tab[data-tab="link"], .tab[data-tab="lid"]').forEach((tab) => {
+    tab.classList.toggle("tab--disabled", isVase);
+    tab.disabled = isVase;
+  });
+  document.getElementById("field-vase-drainage-size").classList.toggle("hidden", !state.vaseDrainage);
+  const saucerBtn = document.getElementById("btn-export-saucer");
+  if (saucerBtn) saucerBtn.classList.toggle("hidden", !(isVase && state.vaseSaucerEnabled));
+}
+
+const vaseStyleSelect = document.getElementById("vase-style");
+for (const s of VASE_STYLES) {
+  const opt = document.createElement("option");
+  opt.value = s.id;
+  opt.textContent = s.label;
+  vaseStyleSelect.appendChild(opt);
+}
+vaseStyleSelect.value = state.vaseStyle || "cylinder";
+
+vaseStyleSelect.addEventListener("change", (e) => {
+  state.vaseStyle = e.target.value;
+  const style = VASE_STYLES.find((s) => s.id === e.target.value);
+  if (style && typeof style.drainageDefault === "boolean") {
+    state.vaseDrainage = style.drainageDefault;
+    document.getElementById("vase-drainage").checked = state.vaseDrainage;
+    updateVaseUiVisibility();
+  }
+  rebuild();
+});
+
+bindRange("vase-diameter", "vaseDiameter", "float");
+bindRange("vase-height", "vaseHeight", "float");
+bindRange("vase-wall", "vaseWall", "float");
+bindRange("vase-floor", "vaseFloor", "float");
+bindRange("vase-drainage-size", "vaseDrainageSize", "float");
+
+document.getElementById("vase-drainage").addEventListener("change", (e) => {
+  state.vaseDrainage = e.target.checked;
+  updateVaseUiVisibility();
+  rebuild();
+});
+
+document.getElementById("vase-saucer").addEventListener("change", (e) => {
+  state.vaseSaucerEnabled = e.target.checked;
+  updateVaseUiVisibility();
+  rebuild();
+});
+
+document.getElementById("btn-export-saucer").addEventListener("click", () => {
+  if (state.shape !== "vase" || !state.vaseSaucerEnabled || !meshCache?.saucerMesh) return;
+  const blob = meshToStl(meshCache.saucerMesh, "makerdeck-saucer");
+  downloadBlob(blob, filenameFor(meshCache.meta, "saucer"));
 });
 
 document.getElementById("btn-export").addEventListener("click", () => {
@@ -1316,6 +1439,12 @@ document.getElementById("btn-export-accent").addEventListener("click", () => {
   if (!state.accentEnabled || !accentCache) return;
   const blob = meshToStl(accentCache, "makerdeck-accent");
   downloadBlob(blob, filenameFor(meshCache.meta, "accent"));
+});
+
+document.getElementById("btn-export-deboss").addEventListener("click", () => {
+  if (!state.embossDeboss || !debossCutterCache) return;
+  const blob = meshToStl(debossCutterCache, "makerdeck-deboss");
+  downloadBlob(blob, filenameFor(meshCache.meta, "deboss-cutter"));
 });
 
 document.getElementById("btn-reset-view").addEventListener("click", () => {

@@ -11,8 +11,9 @@ import {
   resolveJoinerDims,
   shapeSupportsDecor,
 } from "./features.js";
+import { buildVase, buildVaseSaucer, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js";
 
-export { shapeSupportsDecor };
+export { shapeSupportsDecor, VASE_STYLES };
 
 function clamp(n, min, max) {
   return Math.min(max, Math.max(min, n));
@@ -732,6 +733,27 @@ function round1(n) {
 }
 
 export function buildContainer(params) {
+  if (params.shape === "vase") {
+    const vaseMesh = buildVase(params);
+    centerPositions(vaseMesh.positions, 0, 0);
+    const meta = vaseMeta(params);
+    let saucerMesh = null;
+    if (params.vaseSaucerEnabled) {
+      saucerMesh = buildVaseSaucer(params);
+      centerPositions(saucerMesh.positions, 0, 0);
+    }
+    return {
+      positions: vaseMesh.positions,
+      indices: vaseMesh.indices,
+      shellMesh: vaseMesh,
+      meta,
+      totalH: meta.outer.h,
+      accentMesh: null,
+      labelMesh: null,
+      debossCutterMesh: null,
+      saucerMesh,
+    };
+  }
   const resolved = resolveContainer(params);
   const joinerShape = resolved.meta.shape === "rect" && (params.cornerRadius || 0) > 0.5
     ? "rounded"
@@ -767,11 +789,19 @@ export function buildContainer(params) {
   const decorShape = joinerShape;
   let accentMesh = null;
   let labelMesh = null;
+  let debossCutterMesh = null;
   if (shapeSupportsDecor(decorShape)) {
     const shellMesh = applyBodyDecorations(mesh, resolved.meta, params);
-    labelMesh = buildLabelEmboss(resolved.meta, params, params.embossSvgText || "");
+    labelMesh = buildLabelEmboss(resolved.meta, params, params.embossSvgText || "", "emboss");
     if (labelMesh) centerPositions(labelMesh.positions, 0, 0);
-    mesh = labelMesh ? mergeMeshes(shellMesh, labelMesh) : shellMesh;
+    if (params.embossDeboss) {
+      debossCutterMesh = buildLabelEmboss(resolved.meta, params, params.embossSvgText || "", "deboss-cutter");
+      if (debossCutterMesh) centerPositions(debossCutterMesh.positions, 0, 0);
+      // Body STL prints clean; cutter is a separate download for slicer subtraction.
+      mesh = shellMesh;
+    } else {
+      mesh = labelMesh ? mergeMeshes(shellMesh, labelMesh) : shellMesh;
+    }
     if (params.accentEnabled) {
       accentMesh = buildAccentMesh(resolved.meta, params);
       centerPositions(accentMesh.positions, 0, 0);
@@ -784,10 +814,13 @@ export function buildContainer(params) {
         ...resolved.meta,
         joinerHand: useJoiner ? (params.joinerHand === "right" ? "right" : "left") : undefined,
         joinerScale: useJoiner ? resolveJoinerDims(params, resolved.meta.outer.w, resolved.meta.outer.d).scale : undefined,
+        embossFace: params.embossFace || "front",
+        embossDeboss: !!params.embossDeboss,
       },
       totalH: resolved.totalH,
       accentMesh,
       labelMesh,
+      debossCutterMesh,
     };
   }
 
@@ -877,6 +910,7 @@ export const HEART_PRESET = {
 };
 
 export const DEFAULTS = {
+  ...VASE_DEFAULTS,
   shape: "rect",
   innerWidth: 80,
   innerDepth: 60,
@@ -908,6 +942,8 @@ export const DEFAULTS = {
   embossFont: "inter",
   embossDepth: 0.7,
   embossHeight: 7,
+  embossFace: "front",
+  embossDeboss: false,
   embossSvgEnabled: false,
   embossSvgText: "",
   embossTraceEnabled: false,

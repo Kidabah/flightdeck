@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Oswald:wght@700&family=Roboto+Mono:wght@700&family=Roboto:wght@700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=5">
+  <link rel="stylesheet" href="css/style.css?v=6">
 
   <script type="importmap">
 
@@ -57,6 +57,10 @@
         <button type="button" id="btn-export-lid" class="btn btn-secondary hidden">Download lid</button>
 
         <button type="button" id="btn-export-accent" class="btn btn-secondary hidden">Download accent</button>
+
+        <button type="button" id="btn-export-deboss" class="btn btn-secondary hidden">Download deboss cutter</button>
+
+        <button type="button" id="btn-export-saucer" class="btn btn-secondary hidden">Download saucer</button>
 
       </div>
 
@@ -118,6 +122,8 @@
 
                 <button type="button" class="shape-btn shape-btn--preset" data-shape="heart">Heart</button>
 
+                <button type="button" class="shape-btn shape-btn--preset" data-shape="vase">Vase / pot</button>
+
               </div>
 
             </section>
@@ -162,7 +168,91 @@
 
 
 
-            <section class="section">
+            <section class="section hidden" id="section-vase">
+
+              <h2>Vase style</h2>
+
+              <p class="field-hint">Print in <strong>Vase mode</strong> (spiral outer wall) for the smoothest finish. Walls thinner than 1.6 mm need the printer's vase / spiralize option.</p>
+
+              <label class="field">
+
+                <span class="field-label">Style</span>
+
+                <select id="vase-style"></select>
+
+              </label>
+
+              <label class="field">
+
+                <span class="field-label">Diameter <span class="unit">mm</span></span>
+
+                <input type="range" id="vase-diameter" min="30" max="220" step="1" value="80" tabindex="-1">
+
+                <button type="button" class="value-edit" data-slider="vase-diameter" data-key="vaseDiameter" data-parse="float">80</button>
+
+              </label>
+
+              <label class="field">
+
+                <span class="field-label">Height <span class="unit">mm</span></span>
+
+                <input type="range" id="vase-height" min="20" max="280" step="1" value="110" tabindex="-1">
+
+                <button type="button" class="value-edit" data-slider="vase-height" data-key="vaseHeight" data-parse="float">110</button>
+
+              </label>
+
+              <label class="field">
+
+                <span class="field-label">Wall <span class="unit">mm</span></span>
+
+                <input type="range" id="vase-wall" min="1.0" max="3" step="0.1" value="1.6" tabindex="-1">
+
+                <button type="button" class="value-edit" data-slider="vase-wall" data-key="vaseWall" data-parse="float">1.6</button>
+
+              </label>
+
+              <label class="field">
+
+                <span class="field-label">Floor <span class="unit">mm</span></span>
+
+                <input type="range" id="vase-floor" min="1.4" max="6" step="0.2" value="2.4" tabindex="-1">
+
+                <button type="button" class="value-edit" data-slider="vase-floor" data-key="vaseFloor" data-parse="float">2.4</button>
+
+              </label>
+
+              <label class="field field-toggle">
+
+                <span class="field-label">Drainage hole</span>
+
+                <input type="checkbox" id="vase-drainage" checked>
+
+              </label>
+
+              <label class="field hidden" id="field-vase-drainage-size">
+
+                <span class="field-label">Drain diameter <span class="unit">mm</span></span>
+
+                <input type="range" id="vase-drainage-size" min="4" max="30" step="1" value="8" tabindex="-1">
+
+                <button type="button" class="value-edit" data-slider="vase-drainage-size" data-key="vaseDrainageSize" data-parse="float">8</button>
+
+              </label>
+
+              <label class="field field-toggle">
+
+                <span class="field-label">Include saucer STL</span>
+
+                <input type="checkbox" id="vase-saucer">
+
+              </label>
+
+            </section>
+
+
+
+            <section class="section" id="section-classic-size">
 
               <h2 id="label-inner-size">Inner size <span class="unit">mm</span></h2>
 
@@ -200,7 +290,7 @@
 
 
 
-            <section class="section">
+            <section class="section" id="section-walls">
 
               <h2>Walls <span class="unit">mm</span></h2>
 
@@ -424,7 +514,35 @@
 
               <h2>Embossed label</h2>
 
-              <p class="field-hint">Front face only. Use text <em>or</em> SVG — not both at once. Traced art from <em>Import</em> uses emboss depth below.</p>
+              <p class="field-hint">Use text <em>or</em> SVG — not both at once. Traced art from <em>Import</em> uses emboss depth below.</p>
+
+              <label class="field" id="field-emboss-face">
+
+                <span class="field-label">Face</span>
+
+                <select id="emboss-face">
+
+                  <option value="front">Front</option>
+
+                  <option value="back">Back</option>
+
+                  <option value="left">Left side</option>
+
+                  <option value="right">Right side</option>
+
+                </select>
+
+              </label>
+
+              <label class="field field-toggle" id="field-emboss-deboss">
+
+                <span class="field-label">Deboss (cut inward)</span>
+
+                <input type="checkbox" id="emboss-deboss">
+
+              </label>
+
+              <p class="field-hint hidden" id="emboss-deboss-hint">Body prints clean. Use <em>Download deboss cutter</em>, then in your slicer set it as a <strong>negative part / modifier</strong> to subtract.</p>
 
               <label class="field" id="field-emboss-text">
 
@@ -648,7 +766,7 @@
 
 
 
-  <script type="module" src="js/app.js?v=5"></script>
+  <script type="module" src="js/app.js?v=6"></script>
 
 </body>
 
