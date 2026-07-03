@@ -793,6 +793,7 @@ function runTrace() {
   const preview = document.getElementById("trace-preview");
   drawTracePreview(preview, traceSourceCanvas, traceLastResult);
   updateTraceUi();
+  scheduleSaveSession();
 }
 
 async function handleTraceFile(file) {
