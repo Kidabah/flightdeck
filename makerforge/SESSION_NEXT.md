@@ -5,16 +5,13 @@ Latest GitHub state:
 - Latest commit: `734b8e9` — trace autosave + localStorage session restore
 - Prior: `e91f615` — full MakerDeck MVP (geometry, trace emboss, STL export)
 
-### Run locally (not on Pi service)
+### URLs
 
-```bash
-cd makerforge
-python -m http.server 8765
-```
+- **Pi / Tailscale:** `https://flightdeck.tail7de73e.ts.net/makerdeck/`
+- **Local dev server:** `http://localhost:8765` (`cd makerforge && python -m http.server 8765`)
+- **Local Flightdeck:** `http://localhost:8000/makerdeck/` (after backend restart)
 
-Open [http://localhost:8765](http://localhost:8765) — **hard refresh** (`Ctrl+Shift+R`) after pulling JS changes.
-
-No cache-bust query strings on `js/app.js`; browser may cache modules — use hard refresh when UI looks stale.
+**Hard refresh** (`Ctrl+Shift+R`) after pulling JS changes. No cache-bust on `js/app.js`; Flightdeck serves with `no-store`.
 
 ### 2026-07-04 — Import QoL + autosave
 
@@ -24,7 +21,7 @@ No cache-bust query strings on `js/app.js`; browser may cache modules — use ha
 - **Clear from box** — removes applied trace emboss without hard refresh.
 - **Undo / redo** — ↶ ↷ (or Ctrl+Z / Ctrl+Y) for apply vs clear on the box.
 - **Session autosave** — box settings, applied trace, and import image saved to `localStorage` (`makerdeck-session-v1`); survives refresh.
-- Pi `git pull` syncs files only — Flightdeck service does **not** serve MakerDeck; run local http.server above.
+- Served at `/makerdeck/` via `app/main.py` static mount — **backend restart required** after deploy.
 
 ### Working features
 

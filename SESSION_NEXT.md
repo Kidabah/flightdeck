@@ -2,18 +2,23 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `734b8e9` — MakerDeck autosave + trace QoL (`makerforge/`)
+- Latest commit: (see git log) — MakerDeck served at `/makerdeck/`
 - Refresh cachebust currently: app.js?v=623 / style.css?v=480
-- MakerDeck: see `makerforge/SESSION_NEXT.md` — local `python -m http.server 8765` only
+- MakerDeck: `https://flightdeck.tail7de73e.ts.net/makerdeck/` — see `makerforge/SESSION_NEXT.md`
+
+### 2026-07-04 add (MakerDeck on Pi)
+
+**Serve MakerDeck at `/makerdeck/`** (`app/main.py`, `makerforge/`)
+
+- Static mount with no-cache headers; redirect `/makerdeck` → `/makerdeck/`.
+- **Backend restart required** on Pi after `git pull`.
 
 ### 2026-07-04 add (MakerDeck / makerforge)
 
-**Parametric box generator with trace emboss + session autosave** (`makerforge/` — 10 files, commits `e91f615`, `734b8e9`)
+**Parametric box generator with trace emboss + session autosave** (`makerforge/`)
 
-- Standalone vanilla JS + Three.js; not served by Flightdeck yet.
 - Import tab: paste image, trace, apply emboss, clear/undo/redo.
 - `localStorage` restores design on refresh.
-- Pi `git pull` syncs repo; no backend restart needed for MakerDeck itself.
 
 ### 2026-07-03 fix (native timelapse speed + first-layer start)
 

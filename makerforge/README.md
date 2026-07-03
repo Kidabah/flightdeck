@@ -2,7 +2,7 @@
 
 Standalone parametric container generator with live 3D preview and STL export.
 
-**Not wired into Flightdeck yet** — this is its own thing so you can iterate on phone-friendly quoting later without touching the print ops stack.
+Served by Flightdeck at **`/makerdeck/`** (Pi: `https://flightdeck.tail7de73e.ts.net/makerdeck/`). Requires a **backend restart** after deploy.
 
 ## Run locally
 
@@ -16,7 +16,7 @@ python -m http.server 8765
 npx serve .
 ```
 
-Open [http://localhost:8765](http://localhost:8765)
+Open [http://localhost:8765](http://localhost:8765) — or run Flightdeck and use [http://localhost:8000/makerdeck/](http://localhost:8000/makerdeck/) if the app is up locally.
 
 ## MVP features
 

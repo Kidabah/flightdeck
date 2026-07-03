@@ -35,7 +35,7 @@ if not _app_log.handlers:
 log = logging.getLogger(__name__)
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, WebSocket
-from fastapi.responses import FileResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -1276,6 +1276,14 @@ class NoCacheStaticFiles(StaticFiles):
 
 app.mount("/static", NoCacheStaticFiles(directory=_STATIC), name="static")
 
+_MAKERDECK = APP_DIR / "makerforge"
+if _MAKERDECK.is_dir():
+    app.mount(
+        "/makerdeck",
+        NoCacheStaticFiles(directory=_MAKERDECK, html=True),
+        name="makerdeck",
+    )
+
 
 class FileQueueRequest(BaseModel):
     source_id: str
@@ -1364,6 +1372,11 @@ def standalone_demo():
             "Pragma": "no-cache",
         },
     )
+
+
+@app.get("/makerdeck", include_in_schema=False)
+def makerdeck_redirect():
+    return RedirectResponse(url="/makerdeck/", status_code=307)
 
 
 @app.get("/health")
