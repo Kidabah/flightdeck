@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — fix camera black screen + proxy timelapse
+- Latest commit: `bd815ca` — fix camera black screen + proxy timelapse
 - Refresh cachebust currently: app.js?v=620 / style.css?v=478
 
 ### 2026-07-03 fix (camera black screen + single RTSP timelapse)
