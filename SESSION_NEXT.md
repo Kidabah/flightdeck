@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — native RTSP timelapse recorder
+- Latest commit: `47f8c85` — native RTSP timelapse recorder
 - Refresh cachebust currently: app.js?v=620 / style.css?v=478
 
 ### 2026-07-03 feature (native RTSP timelapse recorder)
