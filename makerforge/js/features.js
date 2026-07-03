@@ -546,9 +546,10 @@ export function getEmbossFaceFrame(meta, face) {
       },
     };
   }
-  // Left = world +X face (camera looks at that side too in default orbit); Right = world -X.
-  const xOut = useFace === "left" ? b.ow2 : -b.ow2;
-  const xDir = useFace === "left" ? 1 : -1;
+  // Right = world +X face (visible in default preview orbit); Left = world -X face.
+  const xOut = useFace === "right" ? b.ow2 : -b.ow2;
+  const xDir = useFace === "right" ? 1 : -1;
+  // Right face: viewer looks from +X toward -X → mirror so text reads L-to-R correctly.
   const mirror = useFace === "right";
   return {
     face: useFace,
