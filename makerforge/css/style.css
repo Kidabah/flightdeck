@@ -429,6 +429,9 @@ input[type="range"] {
 #field-vertex-fillet.hidden,
 #section-edges.hidden { display: none; }
 
+/* Generic hidden — anything with .hidden collapses. */
+.hidden { display: none !important; }
+
 @media (max-width: 900px) {
   .workspace {
     grid-template-columns: 1fr;
