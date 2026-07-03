@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `daaa606` — remote calibration + calibrate-before-queue
+- Latest commit: `d7d3a24` — Live controls drawer compact layout
 - Refresh cachebust currently: app.js?v=623 / style.css?v=480
 
 ### 2026-07-03 polish (Live controls drawer header)
