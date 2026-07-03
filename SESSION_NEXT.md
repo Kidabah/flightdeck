@@ -2,9 +2,13 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `6f65f0f` — MakerDeck at `/makerdeck/`
+- Latest commit: `cbf8c1a` — MakerDeck at `/makerdeck/`
 - Refresh cachebust currently: app.js?v=623 / style.css?v=480
-- MakerDeck: `https://flightdeck.tail7de73e.ts.net/makerdeck/` — see `makerforge/SESSION_NEXT.md`
+- MakerDeck: `https://flightdeck.tail7de73e.ts.net/makerdeck/` — hard refresh after pull
+
+### 2026-07-04 fix (MakerDeck blank preview)
+
+**Stray mid-file import in `makerforge/js/app.js`** — module failed to parse; preview and estimates dead.
 
 ### 2026-07-04 add (MakerDeck on Pi)
 
