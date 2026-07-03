@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — remote calibration + calibrate-before-queue
+- Latest commit: `daaa606` — remote calibration + calibrate-before-queue
 - Refresh cachebust currently: app.js?v=622 / style.css?v=479
 
 ### 2026-07-03 feature (remote Bambu calibration + calibrate-before-queue)
