@@ -8674,10 +8674,10 @@ def _coverage_label(coverage: dict) -> str:
     spools = coverage.get("spools") or []
     spool_bits = []
     for spool in spools[:2]:
-        sid = spool.get("id")
+        sid = db._spool_number(spool)
         colour = str(spool.get("color_name") or "").strip()
         brand = str(spool.get("brand") or "").strip()
-        label = " ".join(p for p in [f"#{sid}" if sid else "", colour] if p).strip()
+        label = " ".join(p for p in [f"#{sid}" if sid and sid != "-" else "", colour] if p).strip()
         if brand:
             label = f"{label} ({brand})" if label else brand
         if label:

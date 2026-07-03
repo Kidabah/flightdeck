@@ -329,10 +329,30 @@ def _bambu_nozzle_to_flightdeck(value: int) -> Optional[int]:
 
 def _parse_filament_nozzle_map(project_settings: str, plate: Optional[ET.Element] = None) -> list[int]:
     """Return per-filament nozzle targets in Flightdeck ids (0=left, 1=right)."""
-    nozzle_map = _parse_int_list(_parse_config_value(project_settings, "filament_nozzle_map"))
     physical_map = _parse_int_list(_parse_config_value(project_settings, "physical_extruder_map"))
-    if nozzle_map:
+
+    plate_extruders: list[int] = []
+    if plate is not None:
+        for nozzle_el in plate.findall("nozzle"):
+            raw = (nozzle_el.get("extruder_id") or nozzle_el.get("id") or "").strip()
+            try:
+                plate_extruders.append(int(raw))
+            except (TypeError, ValueError):
+                continue
+    if plate_extruders:
         out: list[int] = []
+        for extruder in plate_extruders:
+            converted = _bambu_nozzle_to_flightdeck(extruder)
+            if converted is not None:
+                out.append(converted)
+        if len(out) == 1 and plate is not None:
+            return out * len(plate.findall("filament"))
+        if out:
+            return out
+
+    nozzle_map = _parse_int_list(_parse_config_value(project_settings, "filament_nozzle_map"))
+    if nozzle_map:
+        out = []
         for nozzle in nozzle_map:
             mapped = nozzle
             if physical_map and 0 <= nozzle < len(physical_map):
@@ -340,27 +360,6 @@ def _parse_filament_nozzle_map(project_settings: str, plate: Optional[ET.Element
             converted = _bambu_nozzle_to_flightdeck(mapped)
             if converted is not None:
                 out.append(converted)
-        return out
-
-    plate_nozzles: list[int] = []
-    if plate is not None:
-        for nozzle_el in plate.findall("nozzle"):
-            try:
-                plate_nozzles.append(int(nozzle_el.get("id")))
-            except (TypeError, ValueError):
-                continue
-
-    out: list[int] = []
-    for nozzle in plate_nozzles:
-        mapped = nozzle
-        if physical_map and 0 <= nozzle < len(physical_map):
-            mapped = physical_map[nozzle]
-        converted = _bambu_nozzle_to_flightdeck(mapped)
-        if converted is not None:
-            out.append(converted)
-    if len(out) == 1 and plate is not None:
-        return out * len(plate.findall("filament"))
-    if out:
         return out
 
     return [

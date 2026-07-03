@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `bbc2aa8` — desktop Bambu Studio handoff
-- Refresh cachebust currently: app.js?v=619 / style.css?v=478
+- Latest commit: (pending) — H2D nozzle parse + spool label fix
+- Refresh cachebust currently: app.js?v=620 / style.css?v=478
+
+### 2026-07-03 fix (H2D false nozzle block + spool #98 label)
+
+**Plate extruder_id nozzle parsing and display spool numbers** (`app/printers/bambu_ftp.py`, `app/main.py`, `app/static/app.js`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Single-plate H2D exports now read `<nozzle extruder_id="…">` from slice_info instead of mis-mapping global `filament_nozzle_map` to the wrong nozzle (Chris PETG job was blocked as right when plate targets left).
+- Queue preflight spool labels and AMS slot badges use `display_id` (#97) instead of internal database id (#98).
+- Backend restart required; static cache `app.js?v=620`.
 
 ### 2026-07-03 fix (Bambu Studio opens desktop, not Pi browser)
 

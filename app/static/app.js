@@ -4488,7 +4488,7 @@ function _detailLiveAmsLoadoutRows(p) {
         </span>
         <span class="ams-loadout-spool" aria-hidden="true">
           <span class="ams-loadout-rim"></span>
-          <span class="ams-loadout-core">${loadedSpool ? `#${loadedSpool.id}` : ''}</span>
+          <span class="ams-loadout-core">${loadedSpool ? esc(_spoolDisplayLabel(loadedSpool)) : ''}</span>
           <span class="ams-loadout-hub"></span>
         </span>
         <span class="ams-loadout-info">
@@ -5873,7 +5873,7 @@ function _detailAmsPanel(p) {
         <button class="ams-slot${activeCls}${emptyCls}${mappedCls}${warnCls}" ${style}
           data-slot-edit data-printer-id="${p.id}" data-slot-index="${flatSlot}"
           data-slot-label="${esc(_amsSlotLabel(p, flatSlot))}" title="${esc([tip, mismatch].filter(Boolean).join(' · '))}"></button>
-        <span class="ams-slot-type">${loaded ? `#${loaded.id}` : (slot.empty ? '' : 'Assign')}</span>
+        <span class="ams-slot-type">${loaded ? esc(_spoolDisplayLabel(loaded)) : (slot.empty ? '' : 'Assign')}</span>
         <button type="button" class="ams-slot-doctor" data-slot-doctor data-printer-id="${p.id}" data-slot-index="${flatSlot}" data-slot-label="${esc(_amsSlotLabel(p, flatSlot))}" title="Full AMS Profile Doctor">⋯</button>
       </div>`;
     }).join('');
@@ -6125,7 +6125,7 @@ function _detailMmuPanel(p) {
       <button class="ams-slot${activeCls}${emptyCls}${bufferedCls}${mappedCls}${warnCls}" ${style}
         data-slot-edit data-printer-id="${p.id}" data-slot-index="${gate.idx}"
         data-slot-label="${esc(_amsSlotLabel(p, gate.idx))}" title="${esc([tip, mismatch].filter(Boolean).join(' · '))}"></button>
-      <span class="ams-slot-type">${loaded ? `#${loaded.id}` : (gate.empty ? '' : (gate.material || ''))}</span>
+      <span class="ams-slot-type">${loaded ? esc(_spoolDisplayLabel(loaded)) : (gate.empty ? '' : (gate.material || ''))}</span>
     </div>`;
   }).join('');
 
