@@ -2,8 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `47f8c85` — native RTSP timelapse recorder
+- Latest commit: (pending) — fix camera black screen + proxy timelapse
 - Refresh cachebust currently: app.js?v=620 / style.css?v=478
+
+### 2026-07-03 fix (camera black screen + single RTSP timelapse)
+
+**Restore broken camera proxy init; record timelapse from shared MJPEG stream** (`app/camera.py`, `app/native_recorder.py`, `app/main.py`, `SESSION_NEXT.md`)
+
+- `rtsp_url` property accidentally truncated `BambuCameraProxy.__init__` — live camera showed black + RECONNECTING.
+- Native recorder now taps proxy frames (image2pipe) instead of opening a second RTSP session on H2D.
+- Recorder holds keep ffmpeg alive while timelapsing with no browser viewers.
+- **Backend restart required** on Pi.
 
 ### 2026-07-03 feature (native RTSP timelapse recorder)
 

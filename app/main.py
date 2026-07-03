@@ -59,7 +59,7 @@ _simulated: list[tuple[str, str, str, str, str, str]] = []  # (id, model_name, c
 _cameras: dict = {}          # printer_id → Camera config
 _presets: dict[str, dict] = {}  # printer_id → temperature_presets dict
 _cam_proxies: dict[str, BambuCameraProxy] = {}  # printer_id → live RTSP proxy
-_native_recorders: dict[str, PrintNativeRecorder] = {}  # printer_id → active RTSP capture
+_native_recorders: dict[str, PrintNativeRecorder] = {}  # printer_id → active camera capture
 _ws_clients: set[WebSocket] = set()
 _broadcast_task: asyncio.Task | None = None
 _ntfy: NtfyConfig | None = None
@@ -894,9 +894,8 @@ def _native_recorder_enabled() -> bool:
     return _NATIVE_RECORDER_ENABLED
 
 
-def _native_recorder_rtsp_url(printer_id: str) -> Optional[str]:
-    proxy = _cam_proxies.get(printer_id)
-    return proxy.rtsp_url if proxy else None
+def _native_recorder_proxy(printer_id: str) -> Optional[BambuCameraProxy]:
+    return _cam_proxies.get(printer_id)
 
 
 def _resolve_native_print_id(printer_id: str, p: Optional[dict] = None) -> Optional[int]:
@@ -917,8 +916,8 @@ async def _maybe_start_native_recorder(printer_id: str, p: dict) -> None:
         return
     if p.get("kind") != "bambu":
         return
-    rtsp_url = _native_recorder_rtsp_url(printer_id)
-    if not rtsp_url:
+    proxy = _native_recorder_proxy(printer_id)
+    if not proxy:
         return
     print_id = _resolve_native_print_id(printer_id, p)
     if not print_id:
@@ -936,7 +935,7 @@ async def _maybe_start_native_recorder(printer_id: str, p: dict) -> None:
         item.get("filename") or "print",
         ".mp4",
     )
-    recorder = PrintNativeRecorder(rtsp_url, printer_id, print_id, work_dir, output_path)
+    recorder = PrintNativeRecorder(proxy, printer_id, print_id, work_dir, output_path)
     try:
         await recorder.start()
     except Exception as exc:
@@ -946,7 +945,7 @@ async def _maybe_start_native_recorder(printer_id: str, p: dict) -> None:
     db.log_decision(
         printer_id,
         "flight_recorder_native_start",
-        f"Recording RTSP timelapse for print #{print_id}",
+        f"Recording camera timelapse for print #{print_id}",
         print_id=print_id,
     )
 

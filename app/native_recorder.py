@@ -5,37 +5,43 @@ import logging
 import shutil
 import time
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    from .camera import BambuCameraProxy
 
 log = logging.getLogger(__name__)
 
-_SEGMENT_SECONDS = 780  # recycle before H2D 15 min RTSP freeze
+_SEGMENT_SECONDS = 780
 _RECORD_WIDTH = "960"
 _RECORD_FPS = "5"
 _RECORD_CRF = "26"
+_FRAME_INTERVAL = 1.0 / float(_RECORD_FPS)
 _STOP_TIMEOUT = 20.0
 
 
 class PrintNativeRecorder:
-    """Record one print job from RTSP into an MP4 under flight_recorder."""
+    """Record one print job from the shared camera proxy into flight_recorder."""
 
     def __init__(
         self,
-        rtsp_url: str,
+        proxy: BambuCameraProxy,
         printer_id: str,
         print_id: int,
         work_dir: Path,
         output_path: Path,
     ):
-        self._url = rtsp_url
+        self._proxy = proxy
         self.printer_id = printer_id
         self.print_id = print_id
         self._work_dir = work_dir
         self._output_path = output_path
         self._proc: Optional[asyncio.subprocess.Process] = None
+        self._writer: Optional[asyncio.Task] = None
         self._watchdog: Optional[asyncio.Task] = None
         self._started_at = 0.0
         self._stopping = False
+        self._held_proxy = False
 
     @property
     def output_path(self) -> Path:
@@ -44,19 +50,28 @@ class PrintNativeRecorder:
     async def start(self) -> None:
         self._work_dir.mkdir(parents=True, exist_ok=True)
         self._started_at = time.monotonic()
+        await self._proxy.hold_for_recorder()
+        self._held_proxy = True
         await self._spawn_segment_writer(self._segment_start_number())
+        log.info(
+            "native recorder started from camera proxy: %s print_id=%s → %s",
+            self.printer_id,
+            self.print_id,
+            self._output_path,
+        )
 
     def _segment_start_number(self) -> int:
         return len(list(self._work_dir.glob("seg_*.mp4")))
 
     async def _spawn_segment_writer(self, start_number: int) -> None:
         pattern = str(self._work_dir / "seg_%03d.mp4")
-        args = [
+        self._proc = await asyncio.create_subprocess_exec(
             "ffmpeg",
             "-hide_banner",
             "-loglevel", "error",
-            "-rtsp_transport", "tcp",
-            "-i", self._url,
+            "-f", "image2pipe",
+            "-vcodec", "mjpeg",
+            "-i", "pipe:0",
             "-vf", f"scale={_RECORD_WIDTH}:-2",
             "-c:v", "libx264",
             "-preset", "ultrafast",
@@ -69,24 +84,32 @@ class PrintNativeRecorder:
             "-segment_format", "mp4",
             "-segment_start_number", str(start_number),
             pattern,
-        ]
-        self._proc = await asyncio.create_subprocess_exec(
-            *args,
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.PIPE,
         )
+        if self._writer and not self._writer.done():
+            self._writer.cancel()
+        self._writer = asyncio.create_task(self._write_frames(self._proc))
         if not self._watchdog or self._watchdog.done():
             self._watchdog = asyncio.create_task(self._watchdog_loop())
-        log.info(
-            "native recorder ffmpeg started: %s print_id=%s (segment %03d)",
-            self.printer_id,
-            self.print_id,
-            start_number,
-        )
+
+    async def _write_frames(self, proc: asyncio.subprocess.Process) -> None:
+        last_sent = None
+        while not self._stopping and proc.returncode is None:
+            frame = self._proxy.latest_frame()
+            if frame and frame is not last_sent and proc.stdin:
+                try:
+                    proc.stdin.write(frame)
+                    await proc.stdin.drain()
+                    last_sent = frame
+                except (BrokenPipeError, ConnectionResetError):
+                    break
+                except Exception:
+                    break
+            await asyncio.sleep(_FRAME_INTERVAL)
 
     async def _watchdog_loop(self) -> None:
-        """Recycle ffmpeg if the RTSP session dies while recording."""
         while not self._stopping:
             await asyncio.sleep(10)
             if self._stopping:
@@ -115,7 +138,17 @@ class PrintNativeRecorder:
             except asyncio.CancelledError:
                 pass
             self._watchdog = None
+        if self._writer:
+            self._writer.cancel()
+            try:
+                await self._writer
+            except asyncio.CancelledError:
+                pass
+            self._writer = None
         await self._stop_proc()
+        if self._held_proxy:
+            self._proxy.release_recorder_hold()
+            self._held_proxy = False
         segments = sorted(
             p for p in self._work_dir.glob("seg_*.mp4")
             if p.is_file() and p.stat().st_size > 0

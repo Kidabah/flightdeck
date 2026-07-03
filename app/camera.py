@@ -30,10 +30,6 @@ class BambuCameraProxy:
     def __init__(self, rtsp_url: str, printer_id: str):
         self._url = rtsp_url
         self._id = printer_id
-
-    @property
-    def rtsp_url(self) -> str:
-        return self._url
         self._proc: Optional[asyncio.subprocess.Process] = None
         self._reader: Optional[asyncio.Task] = None
         self._watchdog_task: Optional[asyncio.Task] = None
@@ -43,8 +39,32 @@ class BambuCameraProxy:
         self._last_frame_sig: Optional[tuple[int, int, int]] = None
         self._started_at: float = 0.0
         self._clients: int = 0
+        self._recorder_holds: int = 0
         self._idle_task: Optional[asyncio.Task] = None
         self._start_lock = asyncio.Lock()
+
+    @property
+    def rtsp_url(self) -> str:
+        return self._url
+
+    @property
+    def has_audience(self) -> bool:
+        return self._clients > 0 or self._recorder_holds > 0
+
+    async def hold_for_recorder(self) -> None:
+        if self._idle_task:
+            self._idle_task.cancel()
+            self._idle_task = None
+        self._recorder_holds += 1
+        await self._start()
+
+    def release_recorder_hold(self) -> None:
+        self._recorder_holds = max(0, self._recorder_holds - 1)
+        if not self.has_audience:
+            self._idle_task = asyncio.create_task(self._idle_shutdown())
+
+    def latest_frame(self) -> Optional[bytes]:
+        return self._latest
 
     # ── lifecycle ──────────────────────────────────────────────────────────
 
@@ -98,7 +118,7 @@ class BambuCameraProxy:
 
     async def _idle_shutdown(self) -> None:
         await asyncio.sleep(_IDLE_TIMEOUT)
-        if self._clients == 0:
+        if not self.has_audience:
             await self.stop()
 
     async def _watchdog(self) -> None:
@@ -107,7 +127,7 @@ class BambuCameraProxy:
         long-lived connections while continuing to send the same frame."""
         while True:
             await asyncio.sleep(5)
-            if self._clients == 0:
+            if not self.has_audience:
                 continue
             now = time.monotonic()
             if not self._proc or self._proc.returncode is not None:
@@ -172,7 +192,7 @@ class BambuCameraProxy:
         # ffmpeg exited — restart if clients are still watching
         if self._proc is proc:
             self._proc = None
-        if self._clients > 0 and self._reader and not self._reader.cancelled():
+        if self.has_audience and self._reader and not self._reader.cancelled():
             log.warning("camera stream dropped, restarting in 3s: %s", self._id)
             await asyncio.sleep(3)
             await self._start()
@@ -210,7 +230,7 @@ class BambuCameraProxy:
                 await asyncio.sleep(0.1)   # ~10 fps
         finally:
             self._clients = max(0, self._clients - 1)
-            if self._clients == 0:
+            if not self.has_audience:
                 self._idle_task = asyncio.create_task(self._idle_shutdown())
 
     async def snapshot(self, timeout: float = 3.0) -> Optional[bytes]:
@@ -232,5 +252,5 @@ class BambuCameraProxy:
             return self._latest
         finally:
             self._clients = max(0, self._clients - 1)
-            if self._clients == 0:
+            if not self.has_audience:
                 self._idle_task = asyncio.create_task(self._idle_shutdown())
