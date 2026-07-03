@@ -131,15 +131,15 @@ const labelMaterial = new THREE.MeshStandardMaterial({
 });
 
 const debossPreviewMaterial = new THREE.MeshStandardMaterial({
-  color: 0xef4444,
+  color: 0xdc2626,
+  emissive: 0x991b1b,
+  emissiveIntensity: 0.35,
   metalness: 0.05,
-  roughness: 0.55,
+  roughness: 0.4,
   side: THREE.DoubleSide,
-  transparent: true,
-  opacity: 0.75,
   polygonOffset: true,
-  polygonOffsetFactor: -2,
-  polygonOffsetUnits: -2,
+  polygonOffsetFactor: -4,
+  polygonOffsetUnits: -4,
 });
 
 function buildParams() {
