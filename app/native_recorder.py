@@ -20,6 +20,27 @@ _FRAME_INTERVAL = 1.0 / float(_RECORD_FPS)
 _STOP_TIMEOUT = 20.0
 
 
+async def _mp4_playable(path: Path) -> bool:
+    if not path.is_file() or path.stat().st_size < 1024:
+        return False
+    proc = await asyncio.create_subprocess_exec(
+        "ffprobe",
+        "-v", "error",
+        "-show_entries", "format=duration",
+        "-of", "default=noprint_wrappers=1:nokey=1",
+        str(path),
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.DEVNULL,
+    )
+    stdout, _ = await proc.communicate()
+    if proc.returncode != 0:
+        return False
+    try:
+        return float(stdout.decode().strip()) > 0
+    except ValueError:
+        return False
+
+
 class PrintNativeRecorder:
     """Record one print job from the shared camera proxy into flight_recorder."""
 
@@ -82,6 +103,7 @@ class PrintNativeRecorder:
             "-segment_time", str(_SEGMENT_SECONDS),
             "-reset_timestamps", "1",
             "-segment_format", "mp4",
+            "-segment_format_options", "movflags=+frag_keyframe+empty_moov+default_base_moof",
             "-segment_start_number", str(start_number),
             pattern,
             stdin=asyncio.subprocess.PIPE,
@@ -149,10 +171,22 @@ class PrintNativeRecorder:
         if self._held_proxy:
             self._proxy.release_recorder_hold()
             self._held_proxy = False
-        segments = sorted(
-            p for p in self._work_dir.glob("seg_*.mp4")
-            if p.is_file() and p.stat().st_size > 0
-        )
+        segments = []
+        for path in sorted(self._work_dir.glob("seg_*.mp4")):
+            if not path.is_file() or path.stat().st_size <= 0:
+                continue
+            if await _mp4_playable(path):
+                segments.append(path)
+            else:
+                log.warning(
+                    "native recorder dropping invalid segment: %s print_id=%s",
+                    path.name,
+                    self.print_id,
+                )
+                try:
+                    path.unlink(missing_ok=True)
+                except Exception:
+                    pass
         if not segments:
             log.info(
                 "native recorder produced no segments: %s print_id=%s",
@@ -171,6 +205,17 @@ class PrintNativeRecorder:
                 self.print_id,
             )
             return None
+        if not await _mp4_playable(self._output_path):
+            log.warning(
+                "native recorder output not playable: %s print_id=%s",
+                self.printer_id,
+                self.print_id,
+            )
+            try:
+                self._output_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+            return None
         elapsed = time.monotonic() - self._started_at
         log.info(
             "native recorder saved %s (%.1fs, %d segments): %s",
@@ -188,8 +233,8 @@ class PrintNativeRecorder:
             return
         try:
             if proc.stdin:
-                proc.stdin.write(b"q")
-                await proc.stdin.drain()
+                proc.stdin.close()
+                await proc.stdin.wait_closed()
         except Exception:
             pass
         try:
@@ -208,7 +253,7 @@ class PrintNativeRecorder:
         if len(segments) == 1:
             try:
                 shutil.move(str(segments[0]), str(output))
-                return True
+                return await _mp4_playable(output)
             except Exception as exc:
                 log.warning("native recorder move failed: %s", exc)
                 return False
@@ -236,4 +281,4 @@ class PrintNativeRecorder:
             detail = (stderr or b"").decode("utf-8", "ignore").strip()
             log.warning("native recorder concat failed (%s): %s", proc.returncode, detail)
             return False
-        return True
+        return await _mp4_playable(output)

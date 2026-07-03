@@ -5,6 +5,14 @@ Latest GitHub/Pi state:
 - Latest commit: `9e84a7d` — camera freeze hardening
 - Refresh cachebust currently: app.js?v=621 / style.css?v=478
 
+### 2026-07-03 fix (native timelapse finalize on cancel)
+
+**Validate MP4 before attach; graceful ffmpeg shutdown on killed prints** (`app/native_recorder.py`, `SESSION_NEXT.md`)
+
+- Killed prints (e.g. #390) could attach a corrupt clip (`moov atom not found`) — player showed 0:00 black with "Recorded · flightdeck-native".
+- Stop now EOFs ffmpeg stdin and uses fragmented segment flags; ffprobe validates output before attach.
+- Invalid clips are discarded — UI shows no timelapse instead of a broken player. Backend restart required.
+
 ### 2026-07-03 fix (camera freeze hardening — H2D live feed)
 
 **Faster frozen-frame recovery and browser-side health polling** (`app/camera.py`, `app/main.py`, `app/static/app.js`, `app/static/index.html`, `SESSION_NEXT.md`)
