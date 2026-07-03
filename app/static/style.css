@@ -6134,6 +6134,34 @@ button.briefing-row {
   background: rgba(34,197,94,0.09);
 }
 
+.live-op-calibrate {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.live-calibrate-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.25rem 0.5rem;
+}
+
+.live-calibrate-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.live-calibrate-status {
+  font-size: 0.72rem;
+  color: #fbbf24;
+}
+
+.live-op-calibrate-btn {
+  width: 100%;
+}
+
 .live-op-slider {
   display: inline-flex;
   align-items: center;
@@ -20365,6 +20393,21 @@ select optgroup {
 .queue-job-error {
   font-size: 0.72rem;
   color: #f87171;
+}
+
+.queue-calibrate-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.15rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.queue-calibrate-toggle input {
+  accent-color: #22c55e;
+}
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

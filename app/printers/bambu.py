@@ -221,6 +221,35 @@ class _SequencedMQTTClient(PrinterMQTTClient):
         })
 
 
+    def start_calibration(
+        self,
+        bed_leveling: bool = False,
+        vibration: bool = False,
+        motor_noise: bool = False,
+        nozzle_offset: bool = False,
+        high_temp_heatbed: bool = False,
+    ) -> bool:
+        option = 0
+        if bed_leveling:
+            option |= 1 << 1
+        if vibration:
+            option |= 1 << 2
+        if motor_noise:
+            option |= 1 << 3
+        if nozzle_offset:
+            option |= 1 << 4
+        if high_temp_heatbed:
+            option |= 1 << 5
+        if option == 0:
+            return False
+        return self._PrinterMQTTClient__publish_command({
+            "print": {
+                "command": "calibration",
+                "option": option,
+            }
+        })
+
+
 class BambuPrinter:
     """Wraps a bambulabs_api.Printer with persistent MQTT connection.
     Status reads are non-blocking; state transitions persist to SQLite."""
@@ -857,6 +886,27 @@ class BambuPrinter:
     def estop(self) -> None:
         self._cancel_requested = True
         self._printer.stop_print()  # Bambu MQTT has no dedicated e-stop
+
+    def start_calibration(
+        self,
+        *,
+        bed_leveling: bool = True,
+        vibration: bool = True,
+        motor_noise: bool = True,
+        nozzle_offset: bool = False,
+        high_temp_heatbed: bool = False,
+    ) -> None:
+        client = self._printer.mqtt_client
+        if not hasattr(client, "start_calibration"):
+            raise RuntimeError("Calibration not supported for this printer connection")
+        if not client.start_calibration(
+            bed_leveling=bed_leveling,
+            vibration=vibration,
+            motor_noise=motor_noise,
+            nozzle_offset=nozzle_offset,
+            high_temp_heatbed=high_temp_heatbed,
+        ):
+            raise RuntimeError("Bambu calibration command was not accepted")
 
     def light_on(self) -> None:
         self._set_light("on")

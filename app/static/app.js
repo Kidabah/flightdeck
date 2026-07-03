@@ -2289,9 +2289,54 @@ function _detailLiveOps(p) {
         </button>`).join('')}
       </div>`
     : '';
-  const controls = [preheat, fan, jog, home, klipper].filter(Boolean).join('');
+  const calibration = isBambu ? _detailCalibrationOps(p) : '';
+  const controls = [preheat, fan, jog, home, calibration, klipper].filter(Boolean).join('');
   if (!controls) return '';
   return `<div class="live-op-row" aria-label="Live printer shortcuts">${controls}</div>`;
+}
+
+function _detailCalibrationOps(p) {
+  const canCalibrate = ['idle', 'ready', 'standby', 'finished'].includes(p.state || '');
+  const running = !!p.calibration?.active || p.calibration?.pending_job_id;
+  const h2 = String(p.model_name || '').toUpperCase().startsWith('H2');
+  const opts = [
+    ['bed_leveling', 'Bed level', true],
+    ['vibration', 'Vibration', true],
+    ['motor_noise', 'Motor noise', true],
+    ['nozzle_offset', 'Nozzle offset', h2],
+    ['high_temp_heatbed', 'High-temp bed', false],
+  ];
+  const checks = opts.map(([key, label, checked]) => `
+    <label class="live-calibrate-opt">
+      <input type="checkbox" data-calibrate-opt="${key}" ${checked ? 'checked' : ''} ${canCalibrate && !running ? '' : 'disabled'}>
+      <span>${esc(label)}</span>
+    </label>`).join('');
+  const status = running
+    ? `<div class="live-calibrate-status">Calibrating${p.calibration?.pending_job_id ? ' before queued job' : ''}…</div>`
+    : '';
+  return `<div class="live-op-group live-op-calibrate" aria-label="Printer calibration">
+    <span class="live-op-group-label">Calibrate</span>
+    ${status}
+    <div class="live-calibrate-grid">${checks}</div>
+    <button class="live-op-btn live-op-calibrate-btn" type="button"
+      data-calibrate-run data-printer-id="${esc(p.id)}" ${canCalibrate && !running ? '' : 'disabled'}>
+      <span>${running ? 'Calibrating' : 'Run calibration'}</span>
+      <small>${running ? 'wait for idle' : 'remote bench check'}</small>
+    </button>
+  </div>`;
+}
+
+async function sendCalibration(id, options) {
+  const r = await fetch(`/api/printers/${encodeURIComponent(id)}/calibration`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(options),
+  });
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}));
+    throw new Error(typeof err.detail === 'string' ? err.detail : err.detail?.message || r.statusText);
+  }
+  return r.json();
 }
 
 function _detailLiveOpsToggle() {
@@ -2607,6 +2652,31 @@ document.getElementById('view-printer').addEventListener('click', e => {
       .finally(() => {
         jogBtn.disabled = false;
         jogBtn.innerHTML = old;
+      });
+    return;
+  }
+
+  const calibrateBtn = e.target.closest('[data-calibrate-run]');
+  if (calibrateBtn && !calibrateBtn.disabled) {
+    const id = calibrateBtn.dataset.printerId;
+    const panel = calibrateBtn.closest('.live-op-calibrate');
+    const options = {};
+    panel?.querySelectorAll('[data-calibrate-opt]').forEach(input => {
+      options[input.dataset.calibrateOpt] = input.checked;
+    });
+    if (!Object.values(options).some(Boolean)) {
+      showToast('Pick at least one calibration step', '', 'warning');
+      return;
+    }
+    const old = calibrateBtn.innerHTML;
+    calibrateBtn.disabled = true;
+    calibrateBtn.innerHTML = '<span>Starting</span><small>calibration</small>';
+    sendCalibration(id, options)
+      .then(() => showToast('Calibration started', 'Watch Live for progress', 'success'))
+      .catch(err => showToast('Calibration failed', err.message || '', 'error'))
+      .finally(() => {
+        calibrateBtn.disabled = false;
+        calibrateBtn.innerHTML = old;
       });
     return;
   }
@@ -11660,7 +11730,7 @@ function _queuePrinterSectionTone(jobs, printer) {
   return 'idle';
 }
 
-function _queueJobCard(job, isFirst, isLast) {
+function _queueJobCard(job, isFirst, isLast, printerKind = '') {
   const isPending   = job.status === 'pending';
   const isActive    = job.status === 'printing' || job.status === 'uploading';
   const isRecoverable = job.status === 'failed' || job.status === 'cancelled';
@@ -11677,6 +11747,12 @@ function _queueJobCard(job, isFirst, isLast) {
   ].filter(Boolean).join(' · ');
 
   const readiness = _missionJobReadiness(job);
+  const calibrateToggle = isPending && printerKind === 'bambu'
+    ? `<label class="queue-calibrate-toggle" title="Run printer calibration before this job starts">
+        <input type="checkbox" data-action="calibrate" data-id="${job.id}" ${job.calibrate_before_start ? 'checked' : ''}>
+        <span>Cal first</span>
+      </label>`
+    : '';
 
   return `<div class="queue-job ${isActive ? 'queue-job-active' : ''} queue-job-${readiness.cls}" data-job-id="${job.id}">
     <div class="queue-job-thumb">
@@ -11693,6 +11769,7 @@ function _queueJobCard(job, isFirst, isLast) {
         ${job.error_msg ? `<span class="queue-job-error" title="${job.error_msg}">⚠ ${job.error_msg}</span>` : ''}
       </div>
       ${_queuePreflightIssues(preflight)}
+      ${calibrateToggle}
     </div>
     <div class="queue-job-actions">
     ${isPending ? `
@@ -11732,7 +11809,7 @@ function _queuePrinterSection(printerId, printerLabel, jobs, kind, printer = nul
   const jobsHtml = jobs.length
     ? jobs.map(j => {
         const pIdx = pending.indexOf(j);
-        return _queueJobCard(j, pIdx === 0, pIdx === pending.length - 1);
+        return _queueJobCard(j, pIdx === 0, pIdx === pending.length - 1, kind);
       }).join('')
     : '<div class="queue-empty">No jobs queued — drop a file here or queue from Print Vault</div>';
 
@@ -11804,6 +11881,24 @@ async function renderQueueView() {
         const inp = area.querySelector('.queue-file-input');
         if (e.dataTransfer.files[0] && inp) {
           _queueHandleFileRaw(inp.dataset.printerId, inp.dataset.kind, e.dataTransfer.files[0], area);
+        }
+      });
+    });
+    el.querySelectorAll('[data-action="calibrate"]').forEach(inp => {
+      inp.addEventListener('change', async () => {
+        const jobId = inp.dataset.id;
+        const enabled = inp.checked;
+        try {
+          await _queueFetchJson(`/api/queue/${jobId}/calibrate-before`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ calibrate_before_start: enabled }),
+          });
+          showToast(enabled ? 'Calibrate before start enabled' : 'Calibrate before start off', '', 'success');
+          await renderQueueView();
+        } catch (err) {
+          inp.checked = !enabled;
+          showToast('Could not update calibration setting', err.message || '', 'error');
         }
       });
     });

@@ -60,6 +60,7 @@ _cameras: dict = {}          # printer_id → Camera config
 _presets: dict[str, dict] = {}  # printer_id → temperature_presets dict
 _cam_proxies: dict[str, BambuCameraProxy] = {}  # printer_id → live RTSP proxy
 _native_recorders: dict[str, PrintNativeRecorder] = {}  # printer_id → active camera capture
+_calibration_sessions: dict[str, dict] = {}  # printer_id → active calibration orchestration
 _ws_clients: set[WebSocket] = set()
 _broadcast_task: asyncio.Task | None = None
 _ntfy: NtfyConfig | None = None
@@ -167,6 +168,12 @@ async def _gather_all_locked() -> list[dict]:
         d["_current_print_id"] = p._current_print_id
         d["_last_finished_print_id"] = p._last_finished_print_id
         d["_last_timelapse_path"] = p._last_timelapse_path
+        cal_session = _calibration_sessions.get(p.id)
+        if cal_session:
+            d["calibration"] = {
+                "active": bool(cal_session.get("active")),
+                "pending_job_id": cal_session.get("pending_job_id"),
+            }
         return d
 
     async def _fetch_simulated(id, model_name, custom_name, icon, profile, scenario):
@@ -1116,6 +1123,7 @@ async def _broadcast_loop():
         try:
             data = await _gather_all()
             _check_transitions(data)
+            _check_calibration_sessions(data)
             poll_counter += 1
             if poll_counter >= 12:
                 poll_counter = 0
@@ -3367,6 +3375,18 @@ class ControlRequest(BaseModel):
     action: str
 
 
+class CalibrationRequest(BaseModel):
+    bed_leveling: bool = True
+    vibration: bool = True
+    motor_noise: bool = True
+    nozzle_offset: bool = False
+    high_temp_heatbed: bool = False
+
+
+class QueueCalibrateRequest(BaseModel):
+    calibrate_before_start: bool
+
+
 class SetTempRequest(BaseModel):
     heater: str
     target: int
@@ -3584,6 +3604,199 @@ async def control_printer(printer_id: str, req: ControlRequest):
             raise HTTPException(status_code=422, detail="simulated printer does not accept hardware control commands")
 
     raise HTTPException(status_code=404, detail="printer not found")
+
+
+def _bambu_printer(printer_id: str) -> Optional[BambuPrinter]:
+    for p in _bambu:
+        if p.id == printer_id:
+            return p
+    return None
+
+
+def _default_calibration_options(printer_status: Optional[dict]) -> dict[str, bool]:
+    h2 = _is_h2_printer_status(printer_status)
+    return {
+        "bed_leveling": True,
+        "vibration": True,
+        "motor_noise": True,
+        "nozzle_offset": h2,
+        "high_temp_heatbed": False,
+    }
+
+
+_CALIBRATION_IDLE_STATES = {"idle", "ready", "standby", "finished"}
+_CALIBRATION_SUBSTAGES = {
+    1, 3, 8, 9, 12, 18, 19, 25, 36, 37, 38, 39, 40, 47, 48,
+}
+
+
+def _is_calibration_substage(substage: object) -> bool:
+    if substage is None:
+        return False
+    try:
+        return int(substage) in _CALIBRATION_SUBSTAGES
+    except (TypeError, ValueError):
+        text = str(substage).lower()
+        return "calibrat" in text or "bed level" in text or "vibration" in text
+
+
+def _printer_idle_for_calibration(status: Optional[dict]) -> bool:
+    return str((status or {}).get("state") or "").lower() in _CALIBRATION_IDLE_STATES
+
+
+def _calibration_option_summary(options: dict[str, bool]) -> str:
+    labels = []
+    if options.get("bed_leveling"):
+        labels.append("bed")
+    if options.get("vibration"):
+        labels.append("vibration")
+    if options.get("motor_noise"):
+        labels.append("motor noise")
+    if options.get("nozzle_offset"):
+        labels.append("nozzle offset")
+    if options.get("high_temp_heatbed"):
+        labels.append("high-temp bed")
+    return ", ".join(labels) or "calibration"
+
+
+async def _begin_bambu_calibration(
+    printer_id: str,
+    *,
+    options: Optional[dict[str, bool]] = None,
+    pending_job_id: Optional[int] = None,
+    notify: bool = True,
+) -> None:
+    if printer_id in _calibration_sessions:
+        raise HTTPException(status_code=409, detail="Calibration already running on this printer")
+    p = _bambu_printer(printer_id)
+    if not p:
+        raise HTTPException(status_code=404, detail="Bambu printer not found")
+    statuses = await _printer_status_map()
+    status = statuses.get(printer_id)
+    if not _printer_idle_for_calibration(status):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Printer is {status.get('state') if status else 'unknown'}; wait until idle before calibrating",
+        )
+    opts = options or _default_calibration_options(status)
+    if not any(opts.values()):
+        raise HTTPException(status_code=422, detail="Select at least one calibration option")
+    try:
+        await asyncio.to_thread(p.start_calibration, **opts)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    _calibration_sessions[printer_id] = {
+        "started_at": time.monotonic(),
+        "pending_job_id": pending_job_id,
+        "options": opts,
+        "active": False,
+    }
+    summary = _calibration_option_summary(opts)
+    db.log_decision(
+        printer_id,
+        "calibration_start",
+        summary + (f" before job #{pending_job_id}" if pending_job_id else ""),
+        print_id=None,
+    )
+    name = (status or {}).get("custom_name") or printer_id
+    if notify:
+        detail = f"{name} · {summary}"
+        if pending_job_id:
+            job = db.queue_get(pending_job_id)
+            if job:
+                detail += f" · then {job['filename']}"
+        _notify("info", "Calibration started", detail, printer_id=printer_id, link=f"#/printer/{printer_id}/live")
+        asyncio.create_task(_send_ntfy("Calibration started", detail, ["gear"]))
+
+
+async def _finish_bambu_calibration(printer_id: str) -> None:
+    session = _calibration_sessions.pop(printer_id, None)
+    if not session:
+        return
+    statuses = await _printer_status_map()
+    status = statuses.get(printer_id) or {}
+    name = status.get("custom_name") or printer_id
+    summary = _calibration_option_summary(session.get("options") or {})
+    db.log_decision(printer_id, "calibration_complete", summary)
+    job_id = session.get("pending_job_id")
+    if job_id:
+        job = db.queue_get(job_id)
+        job_name = job["filename"] if job else f"job #{job_id}"
+        msg = f"{name} calibrated · starting {job_name} next"
+        _notify("success", "Calibration complete", msg, printer_id=printer_id, link="#/queue")
+        asyncio.create_task(_send_ntfy("Calibration complete", msg, ["white_check_mark"]))
+        if job and job["status"] == "pending":
+            asyncio.create_task(_advance_queue_specific(
+                job_id, printer_id, job["filename"], job["file_path"],
+            ))
+    else:
+        msg = f"{name} · {summary}"
+        _notify("success", "Calibration complete", msg, printer_id=printer_id, link=f"#/printer/{printer_id}/live")
+        asyncio.create_task(_send_ntfy("Calibration complete", msg, ["white_check_mark"]))
+
+
+def _check_calibration_sessions(data: list[dict]) -> None:
+    now = time.monotonic()
+    for p in data:
+        pid = p["id"]
+        session = _calibration_sessions.get(pid)
+        if not session:
+            continue
+        state = str(p.get("state") or "").lower()
+        substage = p.get("substage")
+        if state in {"printing", "paused"}:
+            if _is_calibration_substage(substage) or not session.get("active"):
+                session["active"] = True
+            continue
+        if session.get("active") and state in _CALIBRATION_IDLE_STATES:
+            asyncio.create_task(_finish_bambu_calibration(pid))
+        elif not session.get("active") and now - float(session.get("started_at") or now) > 120:
+            _calibration_sessions.pop(pid, None)
+            db.log_decision(pid, "calibration_timeout", "Calibration did not start within 120s")
+        elif now - float(session.get("started_at") or now) > 3600:
+            _calibration_sessions.pop(pid, None)
+
+
+async def _maybe_calibrate_before_queue(printer_id: str, job: dict) -> bool:
+    """Start calibration for a queued job. Returns True if dispatch should wait."""
+    if not bool(job.get("calibrate_before_start")):
+        return False
+    if _bambu_printer(printer_id) is None:
+        return False
+    if printer_id in _calibration_sessions:
+        return True
+    try:
+        await _begin_bambu_calibration(
+            printer_id,
+            pending_job_id=int(job["id"]),
+            notify=True,
+        )
+    except HTTPException as exc:
+        detail = exc.detail if isinstance(exc.detail, str) else str(exc.detail)
+        db.log_decision(printer_id, "calibration_blocked", f"Job #{job['id']}: {detail}")
+        log.warning("queue calibration blocked on %s job #%s: %s", printer_id, job["id"], detail)
+    return True
+
+
+@app.post("/api/printers/{printer_id}/calibration")
+async def start_printer_calibration(printer_id: str, req: CalibrationRequest):
+    await _begin_bambu_calibration(
+        printer_id,
+        options=req.model_dump(),
+        notify=True,
+    )
+    return {"ok": True}
+
+
+@app.get("/api/printers/{printer_id}/calibration/defaults")
+async def printer_calibration_defaults(printer_id: str):
+    statuses = await _printer_status_map()
+    status = statuses.get(printer_id)
+    if not status:
+        raise HTTPException(status_code=404, detail="printer not found")
+    if _bambu_printer(printer_id) is None:
+        raise HTTPException(status_code=422, detail="Calibration is only available for Bambu printers")
+    return _default_calibration_options(status)
 
 
 @app.post("/api/printers/{printer_id}/ams/unload")
@@ -9078,6 +9291,12 @@ def _queue_preflight(job: dict, printer_status: Optional[dict]) -> dict:
             "issues": issues,
         }
 
+    printer_id = job["printer_id"]
+    if printer_id in _calibration_sessions or bool((printer_status or {}).get("calibration", {}).get("active")):
+        issues.append({"level": "wait", "message": "Printer calibrating — dispatch waits until complete"})
+    elif bool(job.get("calibrate_before_start")) and _bambu_printer(printer_id):
+        issues.append({"level": "info", "message": "Will run calibration before dispatch"})
+
     due_maintenance = [m for m in db.get_maintenance_items(job["printer_id"]) if m.get("is_due")]
     if due_maintenance:
         names = ", ".join(m["title"] for m in due_maintenance[:3])
@@ -9326,7 +9545,10 @@ def _queue_advance_lock(printer_id: str) -> asyncio.Lock:
     return lock
 
 
-def _printer_available_for_queue_dispatch(status: Optional[dict]) -> bool:
+def _printer_available_for_queue_dispatch(status: Optional[dict], printer_id: Optional[str] = None) -> bool:
+    pid = printer_id or str((status or {}).get("id") or "")
+    if pid and pid in _calibration_sessions:
+        return False
     state = str((status or {}).get("state") or "").lower()
     if state in _QUEUE_PRINTER_BUSY_STATES or state in {"error", "estop"}:
         return False
@@ -9338,7 +9560,7 @@ async def _maybe_auto_advance_queue(printer_id: str, *, trigger: str = "unknown"
     if db.queue_has_active(printer_id) or not db.queue_next_pending(printer_id):
         return
     statuses = await _printer_status_map()
-    if not _printer_available_for_queue_dispatch(statuses.get(printer_id)):
+    if not _printer_available_for_queue_dispatch(statuses.get(printer_id), printer_id):
         return
     lock = _queue_advance_lock(printer_id)
     if lock.locked():
@@ -9351,7 +9573,7 @@ async def _maybe_auto_advance_queue(printer_id: str, *, trigger: str = "unknown"
             return
         statuses = await _printer_status_map()
         status = statuses.get(printer_id)
-        if not _printer_available_for_queue_dispatch(status):
+        if not _printer_available_for_queue_dispatch(status, printer_id):
             return
         preflight = _queue_preflight(job, status)
         if not preflight["can_start"]:
@@ -9392,6 +9614,8 @@ async def _advance_queue(printer_id: str) -> None:
         reason = "; ".join(i["message"] for i in preflight["issues"] if i["level"] in ("block", "wait"))
         log.info("queue: preflight blocked job %d on %s: %s", job_id, printer_id, reason)
         db.log_decision(printer_id, "queue_preflight_blocked", f"Job #{job_id} {filename}: {reason}")
+        return
+    if await _maybe_calibrate_before_queue(printer_id, job):
         return
     db.queue_update_status(job_id, "uploading")
     try:
@@ -9440,7 +9664,11 @@ async def get_queue(printer_id: Optional[str] = None):
 
 
 @app.post("/api/queue/upload", status_code=201)
-async def queue_upload(printer_id: str = Form(...), file: UploadFile = File(...)):
+async def queue_upload(
+    printer_id: str = Form(...),
+    file: UploadFile = File(...),
+    calibrate_before_start: bool = Form(False),
+):
     kind = _printer_kind(printer_id)
     if kind is None:
         raise HTTPException(status_code=404, detail="printer not found")
@@ -9473,6 +9701,7 @@ async def queue_upload(printer_id: str = Form(...), file: UploadFile = File(...)
         filament_weight_g=meta["filament_weight_g"],
         filament_type=meta["filament_type"],
         filament_colors=meta["filament_colors"],
+        calibrate_before_start=bool(calibrate_before_start and kind == "bambu"),
     )
     asyncio.create_task(_maybe_auto_advance_queue(printer_id, trigger="queue_upload"))
     return {"id": job_id}
@@ -9515,6 +9744,20 @@ async def delete_queue_job(job_id: int):
 
 class QueueReorderRequest(BaseModel):
     direction: str  # "up" | "down"
+
+
+@app.post("/api/queue/{job_id}/calibrate-before")
+async def set_queue_calibrate_before(job_id: int, body: QueueCalibrateRequest):
+    job = db.queue_get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job["status"] != "pending":
+        raise HTTPException(status_code=409, detail="Only pending jobs can change calibration setting")
+    if _bambu_printer(job["printer_id"]) is None and body.calibrate_before_start:
+        raise HTTPException(status_code=422, detail="Calibrate-before-start is only available for Bambu printers")
+    if not db.queue_set_calibrate_before(job_id, body.calibrate_before_start):
+        raise HTTPException(status_code=409, detail="Could not update queue job")
+    return {"ok": True, "calibrate_before_start": body.calibrate_before_start}
 
 
 @app.post("/api/queue/{job_id}/reorder")
@@ -9594,6 +9837,8 @@ async def _advance_queue_specific(job_id: int, printer_id: str,
             log.info("queue send: preflight blocked job %d on %s: %s", job_id, printer_id, reason)
             db.log_decision(printer_id, "queue_preflight_blocked", f"Job #{job_id} {filename}: {reason}")
             return
+    if job and await _maybe_calibrate_before_queue(printer_id, job):
+        return
     db.queue_update_status(job_id, "uploading")
     try:
         for (pid, _, _, _, url, _kind, _toolhead_count) in _moonraker:

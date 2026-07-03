@@ -2,8 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `9e84a7d` — camera freeze hardening
-- Refresh cachebust currently: app.js?v=621 / style.css?v=478
+- Latest commit: (pending) — remote calibration + calibrate-before-queue
+- Refresh cachebust currently: app.js?v=622 / style.css?v=479
+
+### 2026-07-03 feature (remote Bambu calibration + calibrate-before-queue)
+
+**Run calibration from Live; queue can calibrate then auto-start** (`app/printers/bambu.py`, `app/main.py`, `app/db.py`, `app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Live Controls → Calibrate panel for Bambu (bed, vibration, motor noise; H2 adds nozzle offset).
+- Queue pending jobs: **Cal first** checkbox runs calibration before dispatch, then auto-starts when idle.
+- ntfy + decision log on calibration start/complete; preflight shows calibrating/will-calibrate states.
+- Static cache `app.js?v=622` / `style.css?v=479`; **backend restart + hard refresh** required.
 
 ### 2026-07-03 fix (native timelapse finalize on cancel)
 
