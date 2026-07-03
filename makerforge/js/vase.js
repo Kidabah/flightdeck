@@ -187,7 +187,8 @@ export function buildVase(params) {
     const rawR = clamp(params.vaseDrainageSize ?? 8, 3, Math.max(4, diameter * 0.35));
     const drainR = Math.min(rawR, baseR * outerScale[0] - wall - 2);
     if (drainR >= 3) {
-      const drain = ringXY(drainR, Math.min(segments, 48));
+      // Match outer segment count so capAnnulus / loftBetween line up.
+      const drain = ringXY(drainR, segments);
       capAnnulus(positions, indices, outerRings[0], drain, 0, false);
       // Drainage bore walls (through floor)
       loftBetween(positions, indices, drain, drain, 0, zFloor, false);
@@ -210,7 +211,6 @@ export function buildVase(params) {
 
 export function buildVaseSaucer(params) {
   const diameter = clamp(params.vaseDiameter ?? 80, 30, 260);
-  const wall = clamp(params.vaseWall ?? 1.6, 1.0, 4);
   const segments = clamp(Math.round(params.vaseSegments ?? 72), 24, 128);
   const outerR = diameter / 2 + 8;
   const innerR = outerR - 3;
