@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (see git log) — MakerDeck served at `/makerdeck/`
+- Latest commit: `6f65f0f` — MakerDeck at `/makerdeck/`
 - Refresh cachebust currently: app.js?v=623 / style.css?v=480
 - MakerDeck: `https://flightdeck.tail7de73e.ts.net/makerdeck/` — see `makerforge/SESSION_NEXT.md`
 

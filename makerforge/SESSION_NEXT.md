@@ -2,8 +2,8 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `734b8e9` — trace autosave + localStorage session restore
-- Prior: `e91f615` — full MakerDeck MVP (geometry, trace emboss, STL export)
+- Latest commit: `6f65f0f` — served at `/makerdeck/` on Flightdeck
+- Prior: `734b8e9` — trace autosave; `e91f615` — full MakerDeck MVP
 
 ### URLs
 
