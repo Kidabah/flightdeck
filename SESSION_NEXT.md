@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — H2D nozzle parse + spool label fix
+- Latest commit: `0ef5a32` — H2D nozzle parse + spool label fix
 - Refresh cachebust currently: app.js?v=620 / style.css?v=478
 
 ### 2026-07-03 fix (H2D false nozzle block + spool #98 label)
