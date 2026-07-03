@@ -7182,7 +7182,7 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
     <div class="flight-recorder-head">
       <div>
         <span>Flight Recorder</span>
-        <em>${print.has_timelapse ? `Recorded${print.timelapse_source ? ` · ${esc(print.timelapse_source)}` : ''}` : 'Flightdeck auto-harvests Bambu timelapses after finish. Use Find clip for older prints or Add video manually.'}</em>
+        <em>${print.has_timelapse ? `Recorded${print.timelapse_source ? ` · ${esc(print.timelapse_source)}${print.timelapse_source === 'flightdeck-native' ? ' timelapse' : ''}` : ''}` : 'Flightdeck auto-harvests Bambu timelapses after finish. Use Find clip for older prints or Add video manually.'}</em>
       </div>
       ${print.has_timelapse ? '' : `<div class="flight-recorder-actions">
         <button type="button" class="flight-recorder-discover">Find clip</button>
@@ -7193,7 +7193,7 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
       </div>`}
     </div>
     ${print.has_timelapse
-      ? `<video class="flight-recorder-video" src="${recorderUrl}" controls preload="metadata"></video>`
+      ? `<video class="flight-recorder-video${print.timelapse_source === 'flightdeck-native' ? ' flight-recorder-timelapse' : ''}" src="${recorderUrl}" controls preload="metadata"${print.timelapse_source === 'flightdeck-native' ? ' data-timelapse-native="1"' : ''}></video>`
       : `<div class="flight-recorder-empty">No recorder clip attached yet.</div>`}
     ${recorderDebugHtml}
   </div>` : '';
@@ -7299,6 +7299,16 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
 
   const recorderBlock = el.querySelector('.flight-recorder-block');
   if (recorderBlock) {
+    const nativeVideo = recorderBlock.querySelector('[data-timelapse-native="1"]');
+    if (nativeVideo && !nativeVideo.dataset.timelapseTuned) {
+      nativeVideo.dataset.timelapseTuned = '1';
+      nativeVideo.addEventListener('loadedmetadata', () => {
+        const duration = Number(nativeVideo.duration || 0);
+        if (duration > 180) {
+          nativeVideo.playbackRate = Math.min(8, Math.max(2, duration / 120));
+        }
+      }, { once: true });
+    }
     const fileInput = recorderBlock.querySelector('input[type="file"]');
     fileInput?.addEventListener('change', async () => {
       const file = fileInput.files?.[0];

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import shutil
 import time
 from pathlib import Path
@@ -14,9 +15,9 @@ log = logging.getLogger(__name__)
 
 _SEGMENT_SECONDS = 780
 _RECORD_WIDTH = "960"
-_RECORD_FPS = "5"
+_CAPTURE_INTERVAL = float(os.getenv("FLIGHTDECK_TIMELAPSE_INTERVAL", "8"))
+_OUTPUT_FPS = str(os.getenv("FLIGHTDECK_TIMELAPSE_FPS", "30"))
 _RECORD_CRF = "26"
-_FRAME_INTERVAL = 1.0 / float(_RECORD_FPS)
 _STOP_TIMEOUT = 20.0
 
 
@@ -75,10 +76,12 @@ class PrintNativeRecorder:
         self._held_proxy = True
         await self._spawn_segment_writer(self._segment_start_number())
         log.info(
-            "native recorder started from camera proxy: %s print_id=%s → %s",
+            "native recorder started from camera proxy: %s print_id=%s → %s (%.0fs/frame, %sfps)",
             self.printer_id,
             self.print_id,
-            self._output_path,
+            self._output_path.name,
+            _CAPTURE_INTERVAL,
+            _OUTPUT_FPS,
         )
 
     def _segment_start_number(self) -> int:
@@ -97,7 +100,8 @@ class PrintNativeRecorder:
             "-c:v", "libx264",
             "-preset", "ultrafast",
             "-crf", _RECORD_CRF,
-            "-r", _RECORD_FPS,
+            "-r", _OUTPUT_FPS,
+            "-pix_fmt", "yuv420p",
             "-an",
             "-f", "segment",
             "-segment_time", str(_SEGMENT_SECONDS),
@@ -129,7 +133,7 @@ class PrintNativeRecorder:
                     break
                 except Exception:
                     break
-            await asyncio.sleep(_FRAME_INTERVAL)
+            await asyncio.sleep(_CAPTURE_INTERVAL)
 
     async def _watchdog_loop(self) -> None:
         while not self._stopping:

@@ -5,6 +5,15 @@ Latest GitHub/Pi state:
 - Latest commit: `d7d3a24` — Live controls drawer compact layout
 - Refresh cachebust currently: app.js?v=623 / style.css?v=480
 
+### 2026-07-03 fix (native timelapse speed + first-layer start)
+
+**Sparse capture and 30fps output; record from layer 1 not print start** (`app/native_recorder.py`, `app/main.py`, `app/static/app.js`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Was ~5fps wall-clock → playback felt like real-time; now one frame every 8s encoded at 30fps (Bambu-like timelapse).
+- Recorder waits for layer ≥1 (or ~1.5% progress) before capturing — skips AMS prep/calibration preamble.
+- Env: `FLIGHTDECK_TIMELAPSE_INTERVAL`, `FLIGHTDECK_TIMELAPSE_FPS`. Old clips get gentle auto speed-up if still long.
+- Backend restart required; static `app.js?v=624`.
+
 ### 2026-07-03 polish (Live controls drawer header)
 
 **Move Controls close into top bar; compact rail to fit calibration** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)

@@ -916,12 +916,29 @@ def _resolve_native_print_id(printer_id: str, p: Optional[dict] = None) -> Optio
     return None
 
 
+def _native_recorder_first_layer_ready(p: dict) -> bool:
+    """Wait for first-layer extrusion — skip AMS prep / bed heat / calibration."""
+    if str(p.get("state") or "").lower() not in {"printing", "paused"}:
+        return False
+    job = p.get("job") or {}
+    try:
+        layer = job.get("layer_current")
+        if layer is not None and int(layer) >= 1:
+            return True
+    except (TypeError, ValueError):
+        pass
+    progress = float(job.get("progress") or 0)
+    return progress >= 0.015
+
+
 async def _maybe_start_native_recorder(printer_id: str, p: dict) -> None:
     if not _native_recorder_enabled():
         return
     if printer_id in _native_recorders:
         return
     if p.get("kind") != "bambu":
+        return
+    if not _native_recorder_first_layer_ready(p):
         return
     proxy = _native_recorder_proxy(printer_id)
     if not proxy:
@@ -952,7 +969,7 @@ async def _maybe_start_native_recorder(printer_id: str, p: dict) -> None:
     db.log_decision(
         printer_id,
         "flight_recorder_native_start",
-        f"Recording camera timelapse for print #{print_id}",
+        f"Recording timelapse from first layer for print #{print_id}",
         print_id=print_id,
     )
 
