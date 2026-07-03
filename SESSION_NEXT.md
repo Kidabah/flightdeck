@@ -2,8 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `0c3138d` — Fleet Filament phases 2–4 complete
-- Refresh cachebust currently: app.js?v=618 / style.css?v=478
+- Latest commit: (pending) — desktop Bambu Studio handoff
+- Refresh cachebust currently: app.js?v=619 / style.css?v=478
+
+### 2026-07-03 fix (Bambu Studio opens desktop, not Pi browser)
+
+**Desktop Bambu Studio handoff via Windows worker** (`app/main.py`, `app/static/app.js`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- `slicer_open_mode=bambu_studio` and MakerWorld/Print Vault handoffs now call `/api/slicer/open` with `target=bambu_studio` instead of opening the Pi browser Docker URL.
+- Pi forwards model bytes to the configured Windows worker (`orcaslicer_worker_url`); worker launches installed `bambu-studio.exe` on the PC (same pattern as desktop Orca).
+- Settings label updated to **Desktop Bambu Studio**; browser Bambu panel remains for manual Docker use only.
+- Static cache `app.js?v=619`; **backend restart required** on Pi and Windows worker host.
 
 ### 2026-07-03 feature (Fleet Filament phases 2–4)
 

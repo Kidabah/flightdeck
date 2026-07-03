@@ -2236,6 +2236,86 @@ def _open_desktop_orca_model_bytes(filename: str, data: bytes) -> dict:
     return result
 
 
+def _bambu_studio_executable() -> Path | None:
+    candidates: list[Path] = []
+    env_exe = os.environ.get("BAMBUSTUDIO_EXE", "").strip()
+    if env_exe:
+        candidates.append(Path(env_exe))
+    if os.name == "nt":
+        local_app = os.environ.get("LOCALAPPDATA")
+        if local_app:
+            candidates.extend([
+                Path(local_app) / "Programs" / "BambuStudio" / "bambu-studio.exe",
+                Path(local_app) / "Programs" / "Bambu Studio" / "bambu-studio.exe",
+            ])
+        for base in (os.environ.get("ProgramFiles"), os.environ.get("ProgramFiles(x86)")):
+            if base:
+                candidates.append(Path(base) / "Bambu Studio" / "bambu-studio.exe")
+                candidates.append(Path(base) / "BambuStudio" / "bambu-studio.exe")
+    else:
+        candidates.extend([
+            Path("/usr/bin/bambu-studio"),
+            Path("/usr/local/bin/bambu-studio"),
+        ])
+    for path in candidates:
+        if path.exists():
+            return path
+    found = shutil.which("bambu-studio") or shutil.which("bambu-studio.exe")
+    return Path(found) if found else None
+
+
+def _launch_desktop_bambu_studio(path: Path) -> dict:
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Model file was not found")
+    resolved = path.resolve()
+    exe = _bambu_studio_executable()
+    if exe:
+        args = [str(exe), str(resolved)]
+        kwargs: dict = {
+            "stdout": subprocess.DEVNULL,
+            "stderr": subprocess.DEVNULL,
+            "stdin": subprocess.DEVNULL,
+            "close_fds": True,
+        }
+        if os.name == "nt":
+            detached = getattr(subprocess, "DETACHED_PROCESS", 0)
+            new_group = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+            if detached or new_group:
+                kwargs["creationflags"] = detached | new_group
+        try:
+            subprocess.Popen(args, **kwargs)
+            return {
+                "ok": True,
+                "filename": resolved.name,
+                "path": str(resolved),
+                "executable": str(exe),
+                "mode": "desktop-bambu",
+            }
+        except OSError as exc:
+            log.warning("Desktop Bambu Studio executable launch failed for %s: %s", resolved, exc)
+    if os.name == "nt":
+        try:
+            os.startfile(str(resolved))  # type: ignore[attr-defined]
+            return {
+                "ok": True,
+                "filename": resolved.name,
+                "path": str(resolved),
+                "executable": "windows-file-association",
+                "mode": "desktop-file-association",
+            }
+        except OSError as exc:
+            log.warning("Windows file association open failed for %s: %s", resolved, exc)
+    raise HTTPException(status_code=404, detail="Desktop Bambu Studio executable was not found on this machine")
+
+
+def _open_desktop_bambu_studio_model_bytes(filename: str, data: bytes) -> dict:
+    _enforce_file_size(len(data), label="Bambu model")
+    dest, rel = _import_model_for_orca(filename, data)
+    result = _launch_desktop_bambu_studio(dest)
+    result["path"] = rel
+    return result
+
+
 def _suppress_orca_internal_update_prompt() -> dict:
     result = {
         "configured": False,
@@ -2632,7 +2712,9 @@ async def slicer_worker_open(file: UploadFile = File(...), target: str = Form("d
         return await asyncio.to_thread(_open_orca_model_bytes, source_name, source_data)
     if target in {"desktop_orca", "orca", "same"}:
         return await asyncio.to_thread(_open_desktop_orca_model_bytes, source_name, source_data)
-    raise HTTPException(status_code=422, detail="target must be desktop_orca or browser_orca")
+    if target in {"bambu_studio", "desktop_bambu"}:
+        return await asyncio.to_thread(_open_desktop_bambu_studio_model_bytes, source_name, source_data)
+    raise HTTPException(status_code=422, detail="target must be desktop_orca, browser_orca, or bambu_studio")
 
 
 @app.post("/api/slicer/open")
@@ -2647,12 +2729,47 @@ async def open_file_in_orca(body: SlicerOpenRequest):
         target = "desktop_orca"
     if target == "orca":
         target = "desktop_orca"
-    if target not in {"desktop_orca", "browser_orca", "docker_orca"}:
-        raise HTTPException(status_code=422, detail="target must be desktop_orca or browser_orca")
+    if target not in {"desktop_orca", "browser_orca", "docker_orca", "bambu_studio"}:
+        raise HTTPException(status_code=422, detail="target must be desktop_orca, browser_orca, or bambu_studio")
 
     settings = db.get_all_settings()
     worker_url = (settings.get("orcaslicer_worker_url") or "").strip().rstrip("/")
     local_orca = _docker_inspect_container(_ORCA_DOCKER_BROWSER_CONTAINER)
+    if target == "bambu_studio" and worker_url:
+        files = {"file": (filename, data, "application/octet-stream")}
+        form_data = {"target": target}
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(connect=10.0, read=45.0, write=60.0, pool=10.0)) as client:
+                resp = await client.post(f"{worker_url}/api/slicer/worker/open", files=files, data=form_data)
+        except Exception as exc:
+            detail = str(exc).strip() or "connection timed out"
+            raise HTTPException(status_code=502, detail=f"Slicer worker unreachable: {detail}") from exc
+        payload = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
+        if resp.status_code >= 400:
+            detail = payload.get("detail") if isinstance(payload, dict) else resp.text
+            raise HTTPException(status_code=resp.status_code, detail=detail or "Slicer worker could not open desktop Bambu Studio")
+        if isinstance(payload, dict):
+            payload["forwarded"] = True
+            payload["worker_url"] = worker_url
+            return payload
+        return {"ok": True, "forwarded": True, "worker_url": worker_url}
+
+    if target == "bambu_studio":
+        if source_id == "library":
+            try:
+                source_file = _safe_library_path(source_path)
+                result = await asyncio.to_thread(_launch_desktop_bambu_studio, source_file)
+                result["forwarded"] = False
+                return result
+            except HTTPException as exc:
+                if exc.status_code != 404 or not worker_url:
+                    raise
+        elif _bambu_studio_executable():
+            result = await asyncio.to_thread(_open_desktop_bambu_studio_model_bytes, filename, data)
+            result["forwarded"] = False
+            return result
+        raise HTTPException(status_code=404, detail="Desktop Bambu Studio was not found here and no Windows worker is configured")
+
     if target == "desktop_orca" and worker_url:
         files = {"file": (filename, data, "application/octet-stream")}
         form_data = {"target": target}

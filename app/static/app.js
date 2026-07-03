@@ -3132,23 +3132,6 @@ async function _openVaultModelInSlicer(vaultPath, filename = '') {
   const path = String(vaultPath || '').trim().replace(/^\/+/, '');
   if (!path) throw new Error('Missing Print Vault path');
   const handoff = _makerWorldSlicerHandoff();
-  if (handoff.target === 'bambu_studio') {
-    const bambuUrl = (_serverSettings.bambustudio_docker_url || '').trim()
-      || _bambuStudioDockerDefaultUrl(_serverSettings.orcaslicer_docker_url || '');
-    if (!bambuUrl) throw new Error('Set the Bambu Studio URL in Settings → Slicer first');
-    window.open(bambuUrl, '_blank', 'noreferrer');
-    const downloadUrl = `/api/files/source/download?source_id=${encodeURIComponent('library')}&path=${encodeURIComponent(path)}`;
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.download = filename || path.split('/').pop() || 'model.3mf';
-    link.rel = 'noopener';
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    showToast('Opening Bambu Studio', 'Import the downloaded 3MF if it is not already on the plate.', 'success');
-    return { ok: true, mode: 'bambu_studio' };
-  }
-
   const browserUrl = (_serverSettings.orcaslicer_docker_url || '').trim() || _slicerDockerDefaultUrl();
   if (handoff.target === 'browser_orca') {
     window.open(browserUrl, '_blank', 'noreferrer');
@@ -3165,11 +3148,10 @@ async function _openVaultModelInSlicer(vaultPath, filename = '') {
   });
   const data = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(_apiDetail(data, `Unable to open ${handoff.label}`));
-  showToast(
-    `Opening in ${handoff.label}`,
-    data.forwarded ? 'Sent to Windows Orca worker' : (data.filename || path),
-    'success',
-  );
+  const detail = data.forwarded
+    ? (handoff.target === 'bambu_studio' ? 'Sent to Windows Bambu worker' : 'Sent to Windows Orca worker')
+    : (data.filename || path);
+  showToast(`Opening in ${handoff.label}`, detail, 'success');
   return data;
 }
 
@@ -15232,7 +15214,7 @@ function _slicerCategoryHtml(profileData = null, printers = []) {
           <select class="settings-input slicer-mode-input" data-pref-key="slicer_open_mode">
             <option value="same"${openMode === 'same' ? ' selected' : ''}>Desktop OrcaSlicer</option>
             <option value="orca"${openMode === 'orca' ? ' selected' : ''}>Browser OrcaSlicer</option>
-            <option value="bambu_studio"${openMode === 'bambu_studio' ? ' selected' : ''}>Bambu Studio Docker</option>
+            <option value="bambu_studio"${openMode === 'bambu_studio' ? ' selected' : ''}>Desktop Bambu Studio</option>
           </select>
         </label>
         <div class="slicer-integration-field">
@@ -16566,11 +16548,7 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
       }
     }, { once: true });
   };
-  const triggerManualSlicerOpen = async (effectiveOpenMode, browserUrl, bambuStudioUrl) => {
-    if (effectiveOpenMode === 'bambu_studio') {
-      if (bambuStudioUrl) window.open(bambuStudioUrl, '_blank', 'noreferrer');
-      return;
-    }
+  const triggerManualSlicerOpen = async (effectiveOpenMode, browserUrl) => {
     if (effectiveOpenMode === 'browser_orca' && browserUrl) {
       window.open(browserUrl, '_blank', 'noreferrer');
     }
@@ -16586,8 +16564,11 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
     });
     const data = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Unable to open slicer');
-    const label = effectiveOpenMode === 'browser_orca' ? 'Browser Orca' : 'Desktop Orca';
-    showToast(`Opening in ${label}`, data.forwarded ? 'Sent to Windows Orca worker' : (data.filename || 'Model handed to slicer'), 'success');
+    const label = effectiveOpenMode === 'bambu_studio' ? 'Bambu Studio' : effectiveOpenMode === 'browser_orca' ? 'Browser Orca' : 'Desktop Orca';
+    const detail = data.forwarded
+      ? (effectiveOpenMode === 'bambu_studio' ? 'Sent to Windows Bambu worker' : 'Sent to Windows Orca worker')
+      : (data.filename || 'Model handed to slicer');
+    showToast(`Opening in ${label}`, detail, 'success');
   };
   const setProfilesForPrinter = printerId => {
     selectedPrinterId = printerId || selectedPrinterId;
@@ -16703,20 +16684,18 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
         const handoffCopy = headlessBlocked
           ? (data.message || 'Flightdeck cannot run this headless slice until the slicer API/worker path is healthy.')
           : isBambuHandoff
-          ? 'Flightdeck can open Bambu Studio for review. Download/import the model if it is not already on the plate, then set painted/manual supports if needed and export the printer-ready job back to the Print Vault.'
+          ? 'Flightdeck will open desktop Bambu Studio on your Windows PC via the slicer worker. Slice there, export the printer-ready job back to the Print Vault, then queue from Print Bay.'
           : backgroundSlicePaused
           ? `Open the model in ${manualSlicerName}, confirm printer/AMS/supports, then export the sliced job back to the Print Vault.`
           : 'Flightdeck will run the slicer headlessly and bake the selected supports/brim/profile settings into the generated output.';
         const openRawButton = effectiveOpenMode === 'bambu_studio'
-          ? (bambuStudioUrl
-            ? `<a class="filedesk-slice-link" href="${esc(bambuStudioUrl)}" target="_blank" rel="noreferrer">Open Bambu Studio</a>`
-            : `<button class="filedesk-slice-link" type="button" disabled title="Set the Bambu Studio URL in Settings > Slicer first">Open Bambu Studio unavailable</button>`)
+          ? `<button class="filedesk-slice-link" type="button" data-open-orca data-open-orca-target="bambu_studio" data-open-orca-source-id="${esc(sourceId)}" data-open-orca-path="${esc(path)}" data-open-orca-url="">Open in Bambu Studio</button>`
           : effectiveOpenMode === 'browser_orca'
             ? `<a class="filedesk-slice-link" href="${esc(browserUrl || '#')}" target="_blank" rel="noreferrer" data-open-orca data-open-orca-target="browser_orca" data-open-orca-source-id="${esc(sourceId)}" data-open-orca-path="${esc(path)}" data-open-orca-url="${esc(browserUrl || '')}">Open in Browser Orca</a>`
             : `<button class="filedesk-slice-link" type="button" data-open-orca data-open-orca-target="${esc(effectiveOpenMode)}" data-open-orca-source-id="${esc(sourceId)}" data-open-orca-path="${esc(path)}" data-open-orca-url="">Open in Desktop Orca</button>`;
         if (manualHandoff && !headlessBlocked) {
           try {
-            await triggerManualSlicerOpen(effectiveOpenMode, browserUrl, bambuStudioUrl);
+            await triggerManualSlicerOpen(effectiveOpenMode, browserUrl);
             errEl.hidden = false;
             errEl.classList.add('filedesk-dialog-ok');
             errEl.textContent = isBambuHandoff
@@ -16879,8 +16858,14 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
         }),
       });
       const data = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Unable to open Orca');
-      showToast('Opening in Orca', data.forwarded ? 'Sent to Windows Orca worker' : (data.mode === 'desktop-orca' || data.mode === 'desktop-file-association') ? 'Sent to desktop OrcaSlicer' : (data.filename || 'Model handed to Orca'), 'success');
+      if (!r.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Unable to open slicer');
+      const slicerLabel = openTarget === 'bambu_studio' ? 'Bambu Studio' : 'Orca';
+      const detail = data.forwarded
+        ? (openTarget === 'bambu_studio' ? 'Sent to Windows Bambu worker' : 'Sent to Windows Orca worker')
+        : ((data.mode === 'desktop-orca' || data.mode === 'desktop-bambu' || data.mode === 'desktop-file-association')
+          ? `Sent to desktop ${slicerLabel}`
+          : (data.filename || 'Model handed to slicer'));
+      showToast(`Opening in ${slicerLabel}`, detail, 'success');
       if (browserUrl && !browserOpened) window.open(browserUrl, '_blank', 'noreferrer');
     } catch (err) {
       showToast(browserOpened ? 'Browser Orca opened' : 'Open Orca failed', browserOpened ? `Model handoff failed: ${err.message || err}` : (err.message || ''), browserOpened ? 'warning' : 'error');
@@ -16933,7 +16918,7 @@ async function _openSliceModelDialog({ sourceId, path, file, printers }) {
     const openLabel = openTarget === 'browser_orca' ? 'Open in Browser Orca' : 'Open in Desktop Orca';
     const openSlicerButton = (source, modelPath, label = openLabel) => {
       if (openTarget === 'bambu_studio') {
-        return bambuStudioUrl ? `<a class="filedesk-slice-link" href="${esc(bambuStudioUrl)}" target="_blank" rel="noreferrer">Open Bambu Studio</a>` : '';
+        return `<button class="filedesk-slice-link" type="button" data-open-orca data-open-orca-target="bambu_studio" data-open-orca-source-id="${esc(source)}" data-open-orca-path="${esc(modelPath)}" data-open-orca-url="">Open in Bambu Studio</button>`;
       }
       return `<button class="filedesk-slice-link" type="button" data-open-orca data-open-orca-target="${esc(openTarget)}" data-open-orca-source-id="${esc(source)}" data-open-orca-path="${esc(modelPath)}" data-open-orca-url="${esc(openUrl)}">${esc(label)}</button>`;
     };
