@@ -356,8 +356,11 @@ let _hSeriesLiveTabByPrinter = {};
 let _hSeriesFleetTabByPrinter = {};
 const _cameraUrlCache = {};     // printer_id → url string or null
 const _cameraMetaCache = {};    // printer_id → camera metadata
-const _CAMERA_STREAM_REFRESH_MS = 45000;
-const _CAMERA_SIGNAL_STALE_MS = 35000;
+const _CAMERA_STREAM_REFRESH_MS = 25000;
+const _CAMERA_SIGNAL_STALE_MS = 12000;
+const _CAMERA_HEALTH_POLL_MS = 5000;
+const _CAMERA_HEALTH_STALE_MS = 12000;
+const _cameraHealthCache = {};   // printer_id → { changed_seq, checked_at }
 let _renderedDetailId = null;
 let _renderedDetailSubtab = null;
 let _renderedDetailOk = false;
@@ -9853,11 +9856,13 @@ function _pollPrintBayIfVisible() {
 
 setInterval(_pollPrintBayIfVisible, 5000);
 setInterval(() => {
+  _pollCameraHealth();
   _refreshVisibleCameraStreams();
   _refreshCameraSignals();
-}, 30000);
+}, _CAMERA_HEALTH_POLL_MS);
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) {
+    _pollCameraHealth();
     _refreshVisibleCameraStreams(true);
     _refreshCameraSignals();
   }
@@ -12023,11 +12028,13 @@ function _refreshCameraSignals(root = document) {
     const current = img.dataset.cameraSignalState || 'waiting';
     if (current === 'reconnecting' || current === 'refreshing') return;
     const loadedAt = Number(img.dataset.streamLoadedAt || 0);
-    if (loadedAt && (now - loadedAt) > _CAMERA_SIGNAL_STALE_MS) {
+    const lastFrameAt = Number(img.dataset.cameraFrameAt || 0);
+    const freshness = Math.max(loadedAt, lastFrameAt);
+    if (freshness && (now - freshness) > _CAMERA_SIGNAL_STALE_MS) {
       _setCameraSignal(img, 'stale');
       return;
     }
-    _setCameraSignal(img, loadedAt ? 'live' : 'waiting');
+    _setCameraSignal(img, freshness ? 'live' : 'waiting');
   });
 }
 
@@ -12114,7 +12121,9 @@ function _attachCameraRetries(root) {
     });
     img.addEventListener('load', () => {
       tries = 0;
-      img.dataset.streamLoadedAt = String(Date.now());
+      const now = Date.now();
+      img.dataset.streamLoadedAt = String(now);
+      img.dataset.cameraFrameAt = String(now);
       _setCameraSignal(img, 'live');
     });
   });
@@ -12132,9 +12141,52 @@ function _refreshVisibleCameraStreams(force = false) {
     const rect = img.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0 || rect.bottom < 0 || rect.right < 0 || rect.top > window.innerHeight || rect.left > window.innerWidth) return;
     const loadedAt = Number(img.dataset.streamLoadedAt || 0);
-    if (!force && loadedAt && (now - loadedAt) < _CAMERA_STREAM_REFRESH_MS) return;
+    const lastFrameAt = Number(img.dataset.cameraFrameAt || 0);
+    const freshness = Math.max(loadedAt, lastFrameAt);
+    if (!force && freshness && (now - freshness) < _CAMERA_STREAM_REFRESH_MS) return;
     _setCameraImageSrc(img, url, 'refresh');
   });
+}
+
+async function _pollCameraHealth() {
+  if (FLIGHTDECK_DEMO || document.hidden) return;
+  const now = Date.now();
+  const visible = [];
+  document.querySelectorAll('img[data-camera-id]').forEach(img => {
+    if (img.dataset.fleetStill === '1') return;
+    const cameraId = img.dataset.cameraId;
+    const url = _cameraUrlCache[cameraId];
+    if (!url || url.startsWith('data:')) return;
+    const rect = img.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0 || rect.bottom < 0 || rect.right < 0 || rect.top > window.innerHeight || rect.left > window.innerWidth) return;
+    visible.push({ img, cameraId, url });
+  });
+  await Promise.all(visible.map(async ({ img, cameraId, url }) => {
+    try {
+      const r = await fetch(`/api/camera/${encodeURIComponent(cameraId)}/health`);
+      if (!r.ok) return;
+      const body = await r.json();
+      const changedSeq = Number(body?.changed_seq || 0);
+      const prev = _cameraHealthCache[cameraId];
+      _cameraHealthCache[cameraId] = { changed_seq: changedSeq, checked_at: now };
+      if (prev && changedSeq > prev.changed_seq) {
+        img.dataset.cameraFrameAt = String(now);
+        img.dataset.cameraChangedSeq = String(changedSeq);
+        _setCameraSignal(img, 'live');
+        return;
+      }
+      const lastFrameAt = Number(img.dataset.cameraFrameAt || img.dataset.streamLoadedAt || 0);
+      const staleFor = lastFrameAt ? (now - lastFrameAt) : (now - Number(img.dataset.streamLoadedAt || 0));
+      if (staleFor >= _CAMERA_HEALTH_STALE_MS) {
+        _setCameraSignal(img, 'reconnecting');
+        _setCameraImageSrc(img, url, 'health');
+      } else if (staleFor >= _CAMERA_SIGNAL_STALE_MS) {
+        _setCameraSignal(img, 'stale');
+      }
+    } catch {
+      // ignore transient health poll failures
+    }
+  }));
 }
 
 function _camTileHtml(p) {

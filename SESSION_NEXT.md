@@ -2,8 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `bd815ca` — fix camera black screen + proxy timelapse
-- Refresh cachebust currently: app.js?v=620 / style.css?v=478
+- Latest commit: (pending) — camera freeze hardening
+- Refresh cachebust currently: app.js?v=621 / style.css?v=478
+
+### 2026-07-03 fix (camera freeze hardening — H2D live feed)
+
+**Faster frozen-frame recovery and browser-side health polling** (`app/camera.py`, `app/main.py`, `app/static/app.js`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Backend: unified hard-restart on stale/frozen/dropped RTSP (10s frozen, 8min session recycle, 1s reconnect).
+- New `/api/camera/{id}/health` exposes `changed_seq` so the UI detects H2D duplicate-frame freezes.
+- Frontend polls health every 5s and force-reopens MJPEG streams when picture content stalls ~12s.
+- Static cache `app.js?v=621`; **backend restart + hard refresh** on Pi.
 
 ### 2026-07-03 fix (camera black screen + single RTSP timelapse)
 

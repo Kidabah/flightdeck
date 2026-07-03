@@ -3852,6 +3852,14 @@ async def _mjpeg_direct_response(url: str) -> StreamingResponse:
     )
 
 
+@app.get("/api/camera/{printer_id}/health")
+async def camera_health(printer_id: str):
+    proxy = _cam_proxies.get(printer_id)
+    if proxy is None:
+        raise HTTPException(status_code=404, detail="no camera configured")
+    return proxy.health()
+
+
 @app.get("/api/camera/{printer_id}/stream")
 async def camera_stream(printer_id: str):
     camera = _cameras.get(printer_id)
