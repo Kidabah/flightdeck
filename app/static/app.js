@@ -2340,9 +2340,12 @@ async function sendCalibration(id, options) {
 }
 
 function _detailLiveOpsToggle() {
-  return `<button class="live-controls-toggle" type="button" data-live-ops-toggle aria-expanded="false">
+  return `<div class="live-controls-bar">
+    <button class="live-controls-toggle" type="button" data-live-ops-toggle aria-expanded="false">
       <span>Controls</span>
-    </button>`;
+    </button>
+    <button class="live-control-close" type="button" data-live-ops-close aria-label="Close controls">&times;</button>
+  </div>`;
 }
 
 function _detailLiveOpsDrawer(p) {
@@ -2352,10 +2355,6 @@ function _detailLiveOpsDrawer(p) {
   if (!ops && !temps) return '';
   return `<button class="live-control-backdrop" type="button" data-live-ops-close aria-label="Close controls"></button>
     <aside class="live-control-rail" id="detail-live-ops" aria-label="Live printer controls">
-      <div class="live-control-rail-head">
-        <span>Controls</span>
-        <button class="live-control-close" type="button" data-live-ops-close aria-label="Close controls">&times;</button>
-      </div>
       <div class="live-control-scroll">
         ${temps}
         <div id="detail-live-ops-body">${ops}</div>

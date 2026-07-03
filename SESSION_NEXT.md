@@ -3,7 +3,15 @@
 Latest GitHub/Pi state:
 - Branch: main
 - Latest commit: `daaa606` — remote calibration + calibrate-before-queue
-- Refresh cachebust currently: app.js?v=622 / style.css?v=479
+- Refresh cachebust currently: app.js?v=623 / style.css?v=480
+
+### 2026-07-03 polish (Live controls drawer header)
+
+**Move Controls close into top bar; compact rail to fit calibration** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `SESSION_NEXT.md`)
+
+- Removed duplicate Controls header inside the slide-out; close × sits beside the top Controls button when open.
+- Tighter rail padding/gaps so temps + jog + calibrate fit without scrolling on desktop.
+- Static cache `app.js?v=623` / `style.css?v=480`; hard refresh only.
 
 ### 2026-07-03 feature (remote Bambu calibration + calibrate-before-queue)
 
