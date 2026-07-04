@@ -2,8 +2,19 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `a500436` — lid art face default + overlay top-cap sampling
-- Refresh cachebust currently: MakerDeck app.js?v=51 / style.css?v=13
+- Latest commit: `77f1b5e` — lid parent transform + STL sanitize + overlay AABB
+- Refresh cachebust currently: MakerDeck app.js?v=52 / style.css?v=13
+
+### 2026-07-04 fix (MakerDeck lid export + overlay overnight)
+
+**Lid art export and selection frame** (`app.js`, `geometry.js`, `stl.js`)
+
+- Label preview parented to lidMesh (moves with slide lid; no double offset).
+- projectFacePoint uses Three.js localToWorld (matches rendered mesh).
+- Overlay uses screen AABB from mesh vertices; face-corner fallback when needed.
+- Draft edit skips merging applied art into lid/body (no ghost/double text).
+- STL export sanitizes invalid/degenerate triangles; orientLidForPrint guards NaN.
+- Cachebust app.js?v=52. Hard refresh required.
 
 ### 2026-07-04 fix (MakerDeck art on lid + overlay)
 
