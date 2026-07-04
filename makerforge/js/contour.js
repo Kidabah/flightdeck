@@ -50,16 +50,24 @@ export function simplifyPolygon(points, tolerance = 1.25) {
   return out;
 }
 
-/** Round pixel-staircase contours into smoother curves. */
+export function strokePathIsClosed(path, eps = 0.05) {
+  if (!path || path.length < 4) return false;
+  const [x0, y0] = path[0];
+  const [x1, y1] = path[path.length - 1];
+  return Math.hypot(x0 - x1, y0 - y1) < eps;
+}
+
+/** Round pixel-staircase contours into smoother curves. Open polylines are not wrapped. */
 export function chaikinSmooth(points, iterations = 2) {
   if (points.length < 4) return points.slice();
-  const closed = points[0][0] === points[points.length - 1][0] && points[0][1] === points[points.length - 1][1];
+  const closed = strokePathIsClosed(points);
   let pts = closed ? points.slice(0, -1) : points.slice();
   for (let iter = 0; iter < iterations; iter++) {
     const next = [];
-    for (let i = 0; i < pts.length; i++) {
+    const segCount = closed ? pts.length : pts.length - 1;
+    for (let i = 0; i < segCount; i++) {
       const p0 = pts[i];
-      const p1 = pts[(i + 1) % pts.length];
+      const p1 = pts[closed ? (i + 1) % pts.length : i + 1];
       next.push(
         [0.75 * p0[0] + 0.25 * p1[0], 0.75 * p0[1] + 0.25 * p1[1]],
         [0.25 * p0[0] + 0.75 * p1[0], 0.25 * p0[1] + 0.75 * p1[1]],
@@ -261,7 +269,8 @@ export function strokePathsToSvg(paths, width, height, strokeWidth = 1.5) {
   const d = paths
     .map((poly) => {
       const pts = poly.map(([x, y]) => `${x.toFixed(2)} ${y.toFixed(2)}`).join(" L ");
-      return `M ${pts} Z`;
+      const closed = strokePathIsClosed(poly, Math.max(1.5, strokeWidth * 0.5));
+      return closed ? `M ${pts} Z` : `M ${pts}`;
     })
     .join(" ");
   const sw = strokeWidth.toFixed(2);

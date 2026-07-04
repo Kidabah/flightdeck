@@ -12,6 +12,7 @@ import {
   polygonsToSvg,
   prepareShapeGroups,
   prepareStrokePaths,
+  strokePathIsClosed,
   shapeGroupsToStrokePaths,
   strokePathsToSvg,
 } from "./contour.js";
@@ -326,6 +327,38 @@ function outlineCenterlinePaths(inkMask, width, height) {
   const cleaned = openMask(inkMask, width, height);
   const skel = morphologicalSkeleton(cleaned, width, height);
   return skeletonToPolylines(skel, width, height);
+}
+
+function polylineLength(path) {
+  let len = 0;
+  for (let i = 1; i < path.length; i++) {
+    len += Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]);
+  }
+  return len;
+}
+
+/** Detect skeleton ring garbage from double-edge / edge-detected raster art. */
+function shouldFallbackOutline(rawPaths, strokePaths, tw) {
+  if (!strokePaths.length) return true;
+  if (strokePaths.length > 6) return true;
+
+  let ringLike = 0;
+  let totalLen = 0;
+  for (const path of rawPaths) {
+    const len = polylineLength(path);
+    totalLen += len;
+    const gap = Math.hypot(
+      path[0][0] - path[path.length - 1][0],
+      path[0][1] - path[path.length - 1][1],
+    );
+    if (len > 4 && gap < Math.max(4, len * 0.12)) ringLike++;
+  }
+  if (ringLike >= 2 && ringLike / rawPaths.length >= 0.2) return true;
+
+  const avgLen = totalLen / rawPaths.length;
+  if (rawPaths.length >= 3 && avgLen < tw * 0.045) return true;
+
+  return false;
 }
 
 function ensurePrintableWidth(mask, width, height, targetMinPx) {
@@ -695,7 +728,7 @@ export function traceCanvas(canvas, options = {}) {
     let strokePaths = prepareStrokePaths(rawPaths, simplifyTol, smoothPasses);
 
     // Edge-detected / double-line art produces dozens of ring centerlines — use silhouette instead.
-    const outlineFallback = strokePaths.length === 0 || strokePaths.length > 12;
+    const outlineFallback = shouldFallbackOutline(rawPaths, strokePaths, tw);
     if (outlineFallback) {
       workMask = ensurePrintableWidth(workMask, tw, th, Math.max(6, Math.round(th / 100)));
       const fbTol = Math.max(0.28, tw / 480);
@@ -854,7 +887,7 @@ export function drawTracePreview(previewCanvas, sourceCanvas, traceResult) {
         if (i === 0) ctx.moveTo(px, py);
         else ctx.lineTo(px, py);
       }
-      ctx.closePath();
+      if (strokePathIsClosed(path, Math.max(1.5, (traceResult.width || 100) / 400))) ctx.closePath();
       ctx.stroke();
     }
     return;

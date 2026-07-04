@@ -2,10 +2,19 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `3747630` — Smooth SVG emboss edges
-- Refresh cachebust currently: MakerDeck app.js?v=20 / style.css?v=8 · Flightdeck app.js?v=623 / style.css?v=480
+- Latest commit: (pending) — Outline fallback + open-polyline smoothing fix
+- Refresh cachebust currently: MakerDeck app.js?v=22 / style.css?v=8 · Flightdeck app.js?v=623 / style.css?v=480
 - MakerDeck: `https://flightdeck.tail7de73e.ts.net/makerdeck/` — hard refresh after pull
 - Backend restart NOT required (only static files changed).
+
+### 2026-07-04 fix (MakerDeck outline mode ring garbage)
+
+**Skeleton outline auto-fallback + open-polyline fixes** (`makerforge/js/trace.js`, `makerforge/js/contour.js`)
+
+- Outline on double-edge art (converter PNG/SVG, brake-disc icon) now auto-falls back to printable silhouette when >6 paths or ring-like skeleton loops detected.
+- Fixed Chaikin smoothing wrapping open centerlines back to start (was creating spurious closed rings).
+- Trace preview no longer force-closes open stroke paths before drawing.
+- Cachebust app.js?v=22. Hard refresh, hit **Trace** again (or Clear from box + re-import). Status should read `silhouette (auto — this art is double-edge, not single stroke)` for that brake icon.
 
 ### 2026-07-04 fix (MakerDeck smooth SVG/silhouette edges)
 
