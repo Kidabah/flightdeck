@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — Clean slide lid mesh (no z-fight)
+- Latest commit: `8506366` — Clean slide lid mesh (no z-fight)
 - Refresh cachebust currently: MakerDeck app.js?v=37 / style.css?v=10
 
 ### 2026-07-04 fix (MakerDeck slide lid top artifact)
