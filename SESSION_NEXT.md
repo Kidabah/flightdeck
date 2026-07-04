@@ -2,10 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `d6fe17a` — Header toolbar: undo/redo/clear/reset app-wide
+- Latest commit: `d39e378` — Fix SVG import via rasterize + trace
 - Refresh cachebust currently: MakerDeck app.js?v=18 / style.css?v=8 · Flightdeck app.js?v=623 / style.css?v=480
 - MakerDeck: `https://flightdeck.tail7de73e.ts.net/makerdeck/` — hard refresh after pull
 - Backend restart NOT required (only static files changed).
+
+### 2026-07-04 fix (MakerDeck SVG import via rasterize + trace)
+
+**Converter SVGs no longer produce garbled ring geometry** (`makerforge/js/trace.js`, `makerforge/js/app.js`, `makerforge/js/features.js`)
+
+- Label-tab SVG drop now rasterizes the file to a bitmap, auto-detects line art vs solid fill, and runs the same trace pipeline as Import (handles Bezier curves, edge-detected double-line SVGs from online converters).
+- Vector `buildEmbossSvg` kept as fallback only; primary path is trace → emboss on box.
+- Cachebust app.js?v=18. Hard refresh required.
 
 ### 2026-07-04 add (MakerDeck header toolbar)
 
