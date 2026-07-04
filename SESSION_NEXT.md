@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `e536322` — Lid preview fit guides + cap artifact fix
+- Latest commit: `fea87c6` — Lid preview fit guides + cap artifact fix
 - Refresh cachebust currently: MakerDeck app.js?v=29 / style.css?v=9
 
 ### 2026-07-04 fix (MakerDeck lid preview clarity)
