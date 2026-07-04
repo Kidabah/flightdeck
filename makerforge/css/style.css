@@ -651,10 +651,47 @@ input[type="range"] {
 .art-overlay-box {
   position: absolute;
   box-sizing: border-box;
-  border: 2px dashed rgba(125, 211, 252, 0.95);
-  border-radius: 4px;
-  background: rgba(14, 165, 233, 0.06);
+  border: 2px solid rgba(125, 211, 252, 0.95);
+  border-radius: 2px;
+  background: rgba(14, 165, 233, 0.08);
   pointer-events: none;
+  box-shadow: 0 0 0 1px rgba(8, 47, 73, 0.45);
+}
+
+.art-box-frame {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+  cursor: move;
+  touch-action: none;
+}
+
+.art-apply-bar {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(125, 211, 252, 0.22);
+}
+
+.art-draft-status {
+  margin: 0 0 0.65rem;
+  font-size: 0.82rem;
+  color: #94a3b8;
+}
+
+.art-draft-status.is-dirty {
+  color: #fbbf24;
+}
+
+.art-apply-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.art-apply-actions .btn-primary {
+  flex: 1 1 8rem;
 }
 
 .art-handle {
@@ -674,18 +711,18 @@ input[type="range"] {
 .art-handle-sw { left: -7px; bottom: -7px; cursor: nesw-resize; }
 .art-handle-se { right: -7px; bottom: -7px; cursor: nwse-resize; }
 
-.art-handle-move {
+.art-handle-rotate {
   left: 50%;
-  top: 50%;
+  top: -32px;
+  margin-left: -7px;
   width: 14px;
   height: 14px;
-  margin: -7px 0 0 -7px;
   border-radius: 50%;
-  background: #fbbf24;
-  border-color: #78350f;
+  background: #c4b5fd;
+  border-color: #4c1d95;
   cursor: grab;
 }
 
-.art-handle-move:active {
+.art-handle-rotate:active {
   cursor: grabbing;
 }

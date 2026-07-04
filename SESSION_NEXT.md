@@ -2,8 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `d1fd023` — MakerDeck top/lid stencil placement
-- Refresh cachebust currently: MakerDeck app.js?v=43 / style.css?v=11
+- Latest commit: (pending push) — MakerDeck Photoshop-style art editor
+- Refresh cachebust currently: MakerDeck app.js?v=44 / style.css?v=12
+
+### 2026-07-04 feature (MakerDeck Photoshop-style art editor)
+
+**Draft → Apply workflow with transform box** (`art-editor.js`, `app.js`, `index.html`, `style.css`, `features.js`, `decor.js`)
+
+- Art tab edits go to a draft first; mesh updates only when you click **Apply to box**.
+- Preview transform box: drag anywhere to move, corners to resize, purple handle to rotate.
+- Face, font, size, rotation, emboss/deboss all editable before apply. Removed H/V offset sliders.
+- Cachebust app.js?v=44, style.css?v=12. Hard refresh required.
 
 ### 2026-07-04 feature (MakerDeck art on top / lid)
 

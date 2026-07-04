@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Oswald:wght@700&family=Roboto+Mono:wght@700&family=Roboto:wght@700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=11">
+  <link rel="stylesheet" href="css/style.css?v=12">
 
   <script type="importmap">
 
@@ -574,13 +574,37 @@
 
               <h2>Art on box</h2>
 
-              <p class="field-hint">Add embossed text or a traced image. Text exports as smooth stencil shapes — each letter is a separate solid for slicer colour painting. Choose <strong>Lid top</strong> to put art on the lid STL; use drag handles on the preview to move and resize.</p>
+              <p class="field-hint">Type text or trace an image. Drag the box on the preview to move, resize, or rotate — then hit <strong>Apply to box</strong> when it looks right.</p>
 
               <label class="field" id="field-emboss-text">
 
                 <span class="field-label">Text</span>
 
-                <input type="text" id="emboss-text" maxlength="20" placeholder="Parts">
+                <input type="text" id="emboss-text" maxlength="20" placeholder="STENCIL">
+
+              </label>
+
+              <div class="art-divider" aria-hidden="true"><span>transform</span></div>
+
+              <label class="field" id="field-emboss-face">
+
+                <span class="field-label">Face</span>
+
+                <select id="emboss-face">
+
+                  <option value="front">Front</option>
+
+                  <option value="back">Back</option>
+
+                  <option value="left">Left side</option>
+
+                  <option value="right">Right side</option>
+
+                  <option value="top">Top (box rim)</option>
+
+                  <option value="lid">Lid top</option>
+
+                </select>
 
               </label>
 
@@ -594,13 +618,69 @@
 
               <label class="field" id="field-emboss-height">
 
-                <span class="field-label">Font size <span class="unit">mm</span></span>
+                <span class="field-label">Size <span class="unit">mm</span></span>
 
                 <input type="range" id="emboss-height" min="3" max="18" step="0.5" value="7" tabindex="-1">
 
                 <button type="button" class="value-edit" id="out-emboss-height" data-slider="emboss-height" data-key="embossHeight" data-parse="float">7</button>
 
               </label>
+
+              <label class="field" id="field-art-rotation">
+
+                <span class="field-label">Rotation <span class="unit">°</span></span>
+
+                <input type="range" id="art-rotation" min="-180" max="180" step="1" value="0" tabindex="-1">
+
+                <button type="button" class="value-edit" id="out-art-rotation" data-slider="art-rotation" data-key="decorRotation" data-parse="int">0</button>
+
+              </label>
+
+              <label class="field" id="field-trace-size">
+
+                <span class="field-label">Image size <span class="unit">mm</span></span>
+
+                <input type="range" id="trace-size" min="6" max="40" step="0.5" value="16" tabindex="-1">
+
+                <button type="button" class="value-edit" id="out-trace-size" data-slider="trace-size" data-key="embossTraceSize" data-parse="float">16</button>
+
+              </label>
+
+              <div class="art-divider" aria-hidden="true"><span>emboss</span></div>
+
+              <label class="field" id="field-emboss-depth">
+
+                <span class="field-label">Emboss depth</span>
+
+                <input type="range" id="emboss-depth" min="0.3" max="2" step="0.1" value="0.7" tabindex="-1">
+
+                <button type="button" class="value-edit" id="out-emboss-depth" data-slider="emboss-depth" data-key="embossDepth" data-parse="float">0.7</button>
+
+              </label>
+
+              <label class="field field-toggle" id="field-emboss-deboss">
+
+                <span class="field-label">Deboss (cut inward)</span>
+
+                <input type="checkbox" id="emboss-deboss">
+
+              </label>
+
+              <p class="field-hint hidden" id="emboss-deboss-hint">Body prints clean. Use <em>Download deboss cutter</em>, then in your slicer set it as a <strong>negative part / modifier</strong> to subtract.</p>
+
+              <div class="art-apply-bar" id="art-apply-bar">
+
+                <p class="art-draft-status" id="art-draft-status">Add text or an image to start.</p>
+
+                <div class="art-apply-actions">
+
+                  <button type="button" id="btn-art-apply" class="btn btn-primary" disabled>Apply to box</button>
+
+                  <button type="button" id="btn-art-cancel" class="btn btn-secondary hidden">Cancel</button>
+
+                </div>
+
+              </div>
 
               <label class="field field-toggle" id="field-emboss-svg">
 
@@ -662,16 +742,6 @@
 
               </label>
 
-              <label class="field" id="field-trace-size">
-
-                <span class="field-label">Image size <span class="unit">mm</span></span>
-
-                <input type="range" id="trace-size" min="6" max="40" step="0.5" value="16" tabindex="-1">
-
-                <button type="button" class="value-edit" id="out-trace-size" data-slider="trace-size" data-key="embossTraceSize" data-parse="float">16</button>
-
-              </label>
-
               <div class="trace-preview-wrap hidden" id="trace-preview-wrap">
 
                 <span class="field-label">Trace preview</span>
@@ -686,77 +756,11 @@
 
                 <button type="button" id="btn-trace" class="btn btn-secondary" disabled>Trace</button>
 
-                <button type="button" id="btn-trace-apply" class="btn btn-primary" disabled>Apply to box</button>
+                <button type="button" id="btn-trace-apply" class="btn btn-secondary" disabled>Use in editor</button>
 
                 <button type="button" id="btn-trace-svg" class="btn btn-secondary hidden" disabled>Download SVG</button>
 
               </div>
-
-              <div class="art-divider" aria-hidden="true"><span>placement</span></div>
-
-              <label class="field" id="field-emboss-face">
-
-                <span class="field-label">Face</span>
-
-                <select id="emboss-face">
-
-                  <option value="front">Front</option>
-
-                  <option value="back">Back</option>
-
-                  <option value="left">Left side</option>
-
-                  <option value="right">Right side</option>
-
-                  <option value="top">Top (box rim)</option>
-
-                  <option value="lid">Lid top</option>
-
-                </select>
-
-              </label>
-
-              <label class="field" id="field-decor-offset-x">
-
-                <span class="field-label">Horizontal <span class="unit">mm</span></span>
-
-                <input type="range" id="decor-offset-x" min="-40" max="40" step="0.5" value="0" tabindex="-1">
-
-                <button type="button" class="value-edit" id="out-decor-offset-x" data-slider="decor-offset-x" data-key="decorOffsetX" data-parse="float">0</button>
-
-              </label>
-
-              <label class="field" id="field-decor-offset-y">
-
-                <span class="field-label">Vertical <span class="unit">mm</span></span>
-
-                <input type="range" id="decor-offset-y" min="-30" max="30" step="0.5" value="0" tabindex="-1">
-
-                <button type="button" class="value-edit" id="out-decor-offset-y" data-slider="decor-offset-y" data-key="decorOffsetY" data-parse="float">0</button>
-
-              </label>
-
-              <div class="art-divider" aria-hidden="true"><span>emboss</span></div>
-
-              <label class="field" id="field-emboss-depth">
-
-                <span class="field-label">Emboss depth</span>
-
-                <input type="range" id="emboss-depth" min="0.3" max="2" step="0.1" value="0.7" tabindex="-1">
-
-                <button type="button" class="value-edit" id="out-emboss-depth" data-slider="emboss-depth" data-key="embossDepth" data-parse="float">0.7</button>
-
-              </label>
-
-              <label class="field field-toggle" id="field-emboss-deboss">
-
-                <span class="field-label">Deboss (cut inward)</span>
-
-                <input type="checkbox" id="emboss-deboss">
-
-              </label>
-
-              <p class="field-hint hidden" id="emboss-deboss-hint">Body prints clean. Use <em>Download deboss cutter</em>, then in your slicer set it as a <strong>negative part / modifier</strong> to subtract.</p>
 
             </section>
 
@@ -818,11 +822,12 @@
 
         <div id="art-overlay" class="art-overlay hidden" aria-hidden="true">
           <div class="art-overlay-box">
+            <div class="art-box-frame" data-handle="move" title="Move"></div>
             <div class="art-handle art-handle-nw" data-handle="nw" title="Resize"></div>
             <div class="art-handle art-handle-ne" data-handle="ne" title="Resize"></div>
             <div class="art-handle art-handle-sw" data-handle="sw" title="Resize"></div>
             <div class="art-handle art-handle-se" data-handle="se" title="Resize"></div>
-            <div class="art-handle art-handle-move" data-handle="move" title="Move"></div>
+            <div class="art-handle art-handle-rotate" data-handle="rotate" title="Rotate"></div>
           </div>
         </div>
 
@@ -845,7 +850,7 @@
 
 
 
-  <script type="module" src="js/app.js?v=43"></script>
+  <script type="module" src="js/app.js?v=44"></script>
 
 </body>
 

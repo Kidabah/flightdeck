@@ -3,7 +3,7 @@
  */
 
 import { extrudeShapeGroup, extrudeShapeGroupBetween, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, simplifyPolygon } from "./contour.js";
-import { decorPlacementOffsets, decorArtRect } from "./decor.js";
+import { decorPlacementOffsets, decorArtRect, rotateFacePoint, rotateShapeGroup } from "./decor.js";
 import { getSlideLidTopBounds, shapeSupportsSlideLid } from "./slide-lid.js";
 
 export const EMBOSS_FONTS = [
@@ -296,13 +296,13 @@ function rasterTextRects(text, fontId, fontSizePx = 96) {
   return { rects: [{ x: 0, y: 0, w: raster.width, h: raster.height }], width: raster.width, height: raster.height };
 }
 
-function extrudeTextShapeGroups(positions, indices, frame, shapeGroups, xOff, zOff, scale, maskH, d0, d1) {
+function extrudeTextShapeGroups(positions, indices, frame, shapeGroups, xOff, zOff, scale, maskH, d0, d1, rotCx, rotCy, rotation = 0) {
   for (const group of shapeGroups) {
     const remapped = {
       outer: group.outer.map(([px, py]) => [xOff + px * scale, zOff + (maskH - py) * scale]),
       holes: group.holes.map((h) => h.map(([px, py]) => [xOff + px * scale, zOff + (maskH - py) * scale])),
     };
-    extrudeGroupOnFace(positions, indices, frame, remapped, d0, d1);
+    extrudeGroupOnFace(positions, indices, frame, rotateShapeGroup(remapped, rotCx, rotCy, rotation), d0, d1);
   }
 }
 
@@ -321,6 +321,9 @@ export function buildEmbossText(meta, params) {
 
   const artW = raster.width * scale;
   const { xOff, zOff } = decorPlacementOffsets(params, frame, artW, labelH);
+  const rotCx = xOff + artW / 2;
+  const rotCy = zOff + labelH / 2;
+  const rotation = params.decorRotation ?? 0;
   const { d0, d1 } = labelOffsets(params);
   const positions = [];
   const indices = [];
@@ -335,7 +338,7 @@ export function buildEmbossText(meta, params) {
     smoothPasses,
   );
 
-  extrudeTextShapeGroups(positions, indices, frame, shapeGroups, xOff, zOff, scale, maskH, d0, d1);
+  extrudeTextShapeGroups(positions, indices, frame, shapeGroups, xOff, zOff, scale, maskH, d0, d1, rotCx, rotCy, rotation);
   return positions.length ? { positions, indices } : null;
 }
 
@@ -350,6 +353,9 @@ export function buildEmbossBitmap(meta, params, bitmap) {
 
   const artWidth = bitmap.width * scale;
   const { xOff, zOff } = decorPlacementOffsets(params, frame, artWidth, artH);
+  const rotCx = xOff + artWidth / 2;
+  const rotCy = zOff + artH / 2;
+  const rotation = params.decorRotation ?? 0;
   const { d0, d1 } = labelOffsets(params);
   const positions = [];
   const indices = [];
@@ -365,7 +371,7 @@ export function buildEmbossBitmap(meta, params, bitmap) {
     const paths = prepareStrokePaths(bitmap.strokePaths, simplifyTol, smoothPasses);
     const strokePx = bitmap.strokeWidth ?? Math.max(1.35, maskW / 88);
     const lineWidth = clamp(scale * strokePx, 0.45, 1.5);
-    const mapPt = (px, py) => [xOff + px * scale, zOff + (maskH - py) * scale];
+    const mapPt = (px, py) => rotateFacePoint(rotCx, rotCy, xOff + px * scale, zOff + (maskH - py) * scale, rotation);
     extrudeStrokePathList(positions, indices, frame, paths, mapPt, lineWidth, d0, d1);
     if (positions.length) return { positions, indices };
   }
@@ -376,7 +382,7 @@ export function buildEmbossBitmap(meta, params, bitmap) {
         outer: group.outer.map(([px, py]) => [xOff + px * scale, zOff + (maskH - py) * scale]),
         holes: group.holes.map((h) => h.map(([px, py]) => [xOff + px * scale, zOff + (maskH - py) * scale])),
       };
-      extrudeGroupOnFace(positions, indices, frame, remapped, d0, d1);
+      extrudeGroupOnFace(positions, indices, frame, rotateShapeGroup(remapped, rotCx, rotCy, rotation), d0, d1);
     }
     return positions.length ? { positions, indices } : null;
   }
@@ -413,7 +419,7 @@ export function buildEmbossBitmap(meta, params, bitmap) {
       outer: group.outer.map(([px, py]) => [xOff + px * scale, zOff + (maskH - py) * scale]),
       holes: group.holes.map((h) => h.map(([px, py]) => [xOff + px * scale, zOff + (maskH - py) * scale])),
     };
-    extrudeGroupOnFace(positions, indices, frame, remapped, d0, d1);
+    extrudeGroupOnFace(positions, indices, frame, rotateShapeGroup(remapped, rotCx, rotCy, rotation), d0, d1);
   }
 
   return positions.length ? { positions, indices } : null;
@@ -617,6 +623,9 @@ export function buildEmbossSvg(meta, params, svgText) {
   const cx = (minX + maxX) / 2;
   const artW = sw * scale;
   const { xOff, zOff } = decorPlacementOffsets(params, frame, artW, artH);
+  const rotCx = xOff + artW / 2;
+  const rotCy = zOff + artH / 2;
+  const rotation = params.decorRotation ?? 0;
   const svgStroke = parsed.strokeWidth ?? 1.5;
   const lineWidth = clamp(scale * svgStroke, 0.45, 1.5);
   const smoothPasses = artH <= 12 ? 4 : artH <= 20 ? 3 : 2;
@@ -635,7 +644,13 @@ export function buildEmbossSvg(meta, params, svgText) {
   const { d0, d1 } = labelOffsets(params);
   const positions = [];
   const indices = [];
-  const mapPt = (x, y) => [(x - cx) * scale + xOff + artW / 2, zOff + (maxY - y) * scale];
+  const mapPt = (x, y) => rotateFacePoint(
+    rotCx,
+    rotCy,
+    (x - cx) * scale + xOff + artW / 2,
+    zOff + (maxY - y) * scale,
+    rotation,
+  );
 
   extrudeStrokePathList(positions, indices, frame, strokePaths, mapPt, lineWidth, d0, d1);
   return positions.length ? { positions, indices } : null;
@@ -853,7 +868,7 @@ export function measureDecorArt(meta, params) {
     if (!Number.isFinite(scale) || scale <= 0) return null;
     const artW = raster.width * scale;
     const { xOff, zOff } = decorPlacementOffsets(params, frame, artW, labelH);
-    return { frame, kind: "text", ...decorArtRect(frame, xOff, zOff, artW, labelH) };
+    return { frame, kind: "text", rotation: params.decorRotation ?? 0, ...decorArtRect(frame, xOff, zOff, artW, labelH) };
   }
 
   if (hasTrace && traceData?.width && traceData?.height) {
@@ -863,7 +878,7 @@ export function measureDecorArt(meta, params) {
     if (!Number.isFinite(scale) || scale <= 0) return null;
     const artW = traceData.width * scale;
     const { xOff, zOff } = decorPlacementOffsets(params, frame, artW, artH);
-    return { frame, kind: "trace", ...decorArtRect(frame, xOff, zOff, artW, artH) };
+    return { frame, kind: "trace", rotation: params.decorRotation ?? 0, ...decorArtRect(frame, xOff, zOff, artW, artH) };
   }
 
   if (params.embossSvgEnabled && params.embossSvgText?.trim()) {
@@ -891,7 +906,7 @@ export function measureDecorArt(meta, params) {
     if (!Number.isFinite(scale) || scale <= 0) return null;
     const artW = sw * scale;
     const { xOff, zOff } = decorPlacementOffsets(params, frame, artW, artH);
-    return { frame, kind: "svg", ...decorArtRect(frame, xOff, zOff, artW, artH) };
+    return { frame, kind: "svg", rotation: params.decorRotation ?? 0, ...decorArtRect(frame, xOff, zOff, artW, artH) };
   }
 
   return null;
@@ -899,6 +914,7 @@ export function measureDecorArt(meta, params) {
 
 export function buildLabelEmboss(meta, params, svgText = "", mode = "emboss") {
   const p = { ...params, __embossMode: mode };
+  const traceData = p.embossTraceRects;
   const hasTrace =
     p.embossTraceEnabled &&
     (traceData?.shapeGroups?.length ||
