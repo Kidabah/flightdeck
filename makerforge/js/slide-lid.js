@@ -134,39 +134,33 @@ export function buildSlideLidMesh(meta, totalH, params) {
   const {
     clearance,
     grooveHeight,
-    grooveDepth,
     stopLength,
     lidThickness,
     margin,
     railHeight,
-    lipDrop,
   } = opts;
 
   const positions = [];
   const indices = [];
 
   const yEdge = id2 - clearance - WALL_EPS;
-  const yPlate = id2 - grooveDepth - clearance - 0.5;
   const tabLen = Math.min(3.5, stopLength * 0.32);
   const lidLen = Math.max(20, meta.inner.w - stopLength - margin * 2 - tabLen);
   const halfLen = lidLen / 2;
-  const xTab = halfLen;
-  const xLead = -halfLen;
+  const x0 = -halfLen;
+  const x1 = halfLen + tabLen;
 
   const z0 = clearance * 0.5;
-  const zRail = railHeight;
   const zTop = railHeight + lidThickness;
 
-  // Flat slab + edge rails (simple dado rider like wooden pencil cases).
-  capPlate(positions, indices, xLead, xTab + tabLen, -yEdge, yEdge, zRail, zTop);
-  capPlate(positions, indices, xLead, xTab + tabLen, -yEdge, yEdge, z0, zRail);
-  capPlate(positions, indices, xLead, xTab + tabLen, -yPlate, yPlate, z0, z0);
+  // Single watertight slab — no internal faces, no overlapping tops.
+  solidBox(positions, indices, x0, x1, -yEdge, yEdge, z0, zTop);
 
-  buildLongRail(positions, indices, xLead, xTab + tabLen, yEdge, yPlate, z0, zRail);
-  buildLongRail(positions, indices, xLead, xTab + tabLen, -yPlate, -yEdge, z0, zRail);
-
-  buildStopTab(positions, indices, xTab, xTab + tabLen, yPlate * 0.5, z0, zTop);
-  buildThumbNotch(positions, indices, xLead, yPlate * 0.35, zTop - 0.4, lidThickness * 0.55);
+  // Shallow thumb pocket below the top face (walls + floor only — top stays one quad).
+  const thumbW = Math.min(14, lidLen * 0.12);
+  const thumbHalf = Math.min(yEdge * 0.22, 8);
+  const pocketFloor = zTop - Math.min(1.1, lidThickness * 0.45);
+  thumbPocket(positions, indices, x0 + 1.2, x0 + 1.2 + thumbW, -thumbHalf, thumbHalf, pocketFloor, zTop);
 
   const closedX = -stopLength / 2;
   const openX = closedX - iw2 * 0.55;
@@ -189,40 +183,23 @@ export function buildSlideLidMesh(meta, totalH, params) {
   };
 }
 
-function capPlate(outPos, outIdx, x0, x1, y0, y1, z0, z1) {
+/** Axis-aligned box — six faces, no duplicates. */
+function solidBox(outPos, outIdx, x0, x1, y0, y1, z0, z1) {
   pushQuad(outPos, outIdx, vec3(x0, y0, z0), vec3(x1, y0, z0), vec3(x1, y1, z0), vec3(x0, y1, z0));
   pushQuad(outPos, outIdx, vec3(x0, y1, z1), vec3(x1, y1, z1), vec3(x1, y0, z1), vec3(x0, y0, z1));
   pushQuad(outPos, outIdx, vec3(x0, y0, z0), vec3(x0, y1, z0), vec3(x0, y1, z1), vec3(x0, y0, z1));
   pushQuad(outPos, outIdx, vec3(x1, y0, z1), vec3(x1, y1, z1), vec3(x1, y1, z0), vec3(x1, y0, z0));
+  pushQuad(outPos, outIdx, vec3(x0, y0, z0), vec3(x1, y0, z0), vec3(x1, y0, z1), vec3(x0, y0, z1));
+  pushQuad(outPos, outIdx, vec3(x0, y1, z1), vec3(x1, y1, z1), vec3(x1, y1, z0), vec3(x0, y1, z0));
 }
 
-function buildLongRail(outPos, outIdx, x0, x1, yOut, yIn, z0, z1) {
-  pushQuad(outPos, outIdx, vec3(x0, yOut, z0), vec3(x1, yOut, z0), vec3(x1, yOut, z1), vec3(x0, yOut, z1));
-  pushQuad(outPos, outIdx, vec3(x0, yIn, z1), vec3(x1, yIn, z1), vec3(x1, yIn, z0), vec3(x0, yIn, z0));
-}
-
-function buildStopTab(outPos, outIdx, x0, x1, halfY, z0, z1) {
-  pushQuad(outPos, outIdx, vec3(x0, -halfY, z0), vec3(x1, -halfY, z0), vec3(x1, halfY, z0), vec3(x0, halfY, z0));
-  pushQuad(outPos, outIdx, vec3(x0, halfY, z1), vec3(x1, halfY, z1), vec3(x1, -halfY, z1), vec3(x0, -halfY, z1));
-  pushQuad(outPos, outIdx, vec3(x0, -halfY, z0), vec3(x0, halfY, z0), vec3(x0, halfY, z1), vec3(x0, -halfY, z1));
-  pushQuad(outPos, outIdx, vec3(x1, -halfY, z1), vec3(x1, halfY, z1), vec3(x1, halfY, z0), vec3(x1, -halfY, z0));
-}
-
-/** Semi-circular thumb pull on the entry end of the lid (top surface). */
-function buildThumbNotch(outPos, outIdx, xCenter, halfY, z, r) {
-  const steps = 8;
-  const y0 = -halfY;
-  const y1 = halfY;
-  for (let i = 0; i < steps; i++) {
-    const t0 = i / steps;
-    const t1 = (i + 1) / steps;
-    const a0 = Math.PI + t0 * Math.PI;
-    const a1 = Math.PI + t1 * Math.PI;
-    const p0 = vec3(xCenter + Math.cos(a0) * r, Math.sin(a0) * halfY * 0.55, z);
-    const p1 = vec3(xCenter + Math.cos(a1) * r, Math.sin(a1) * halfY * 0.55, z);
-    pushTri(outPos, outIdx, vec3(xCenter, y0, z), p0, p1);
-    pushTri(outPos, outIdx, vec3(xCenter, y1, z), p1, p0);
-  }
+/** Open-top pocket — inset walls + floor, does not duplicate the outer top face. */
+function thumbPocket(outPos, outIdx, x0, x1, y0, y1, zFloor, zTop) {
+  pushQuad(outPos, outIdx, vec3(x0, y0, zFloor), vec3(x1, y0, zFloor), vec3(x1, y1, zFloor), vec3(x0, y1, zFloor));
+  pushQuad(outPos, outIdx, vec3(x0, y0, zFloor), vec3(x0, y0, zTop), vec3(x0, y1, zTop), vec3(x0, y1, zFloor));
+  pushQuad(outPos, outIdx, vec3(x1, y0, zTop), vec3(x1, y0, zFloor), vec3(x1, y1, zFloor), vec3(x1, y1, zTop));
+  pushQuad(outPos, outIdx, vec3(x0, y0, zFloor), vec3(x1, y0, zFloor), vec3(x1, y0, zTop), vec3(x0, y0, zTop));
+  pushQuad(outPos, outIdx, vec3(x0, y1, zTop), vec3(x1, y1, zTop), vec3(x1, y1, zFloor), vec3(x0, y1, zFloor));
 }
 
 export function computeSlideFitGuides(resolved, params, slideMeta) {

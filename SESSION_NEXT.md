@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `4b15d88` — Slide lid artifact fix + dado polish
-- Refresh cachebust currently: MakerDeck app.js?v=36 / style.css?v=10
+- Latest commit: (pending) — Clean slide lid mesh (no z-fight)
+- Refresh cachebust currently: MakerDeck app.js?v=37 / style.css?v=10
+
+### 2026-07-04 fix (MakerDeck slide lid top artifact)
+
+**Lid mesh rebuilt as single watertight box** (`slide-lid.js`)
+
+- Removed degenerate zero-thickness face + overlapping top caps that z-fought on the lid surface.
+- Flat rectangular slab + open-top thumb pocket (walls only, no duplicate top face).
+- Cachebust app.js?v=37. Hard refresh required.
 
 ### 2026-07-04 fix (MakerDeck slide lid artifact + reference polish)
 
