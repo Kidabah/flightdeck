@@ -255,7 +255,7 @@ function capSolid(outPos, outIdx, points, z, normalUp) {
 }
 
 /** Earcut cap — avoids center-fan triangulation edges that show through transparent preview. */
-function capProfileSolid(outPos, outIdx, points, z, normalUp) {
+function cleanCapRing(points) {
   let ring = points;
   if (
     ring.length > 1 &&
@@ -264,15 +264,32 @@ function capProfileSolid(outPos, outIdx, points, z, normalUp) {
   ) {
     ring = ring.slice(0, -1);
   }
+  const out = [];
+  for (const p of ring) {
+    if (!out.length) {
+      out.push(p);
+      continue;
+    }
+    const prev = out[out.length - 1];
+    if (Math.hypot(p[0] - prev[0], p[1] - prev[1]) > 1e-6) out.push(p);
+  }
+  return out.length >= 3 ? out : ring;
+}
+
+function capProfileSolid(outPos, outIdx, points, z, normalUp) {
+  const ring = cleanCapRing(points);
   if (ring.length < 3) return;
   const base = outPos.length / 3;
   for (const [x, y] of ring) {
     const w = vec3(x, y, z);
     outPos.push(w[0], w[1], w[2]);
   }
-  const tri = earcut(ring.flat());
+  let tri = earcut(ring.flat());
   if (!tri.length) {
-    capSolid(outPos, outIdx, points, z, normalUp);
+    for (let i = 1; i < ring.length - 1; i++) {
+      if (normalUp) pushTriIdx(outIdx, base, base + i, base + i + 1);
+      else pushTriIdx(outIdx, base, base + i + 1, base + i);
+    }
     return;
   }
   for (let i = 0; i < tri.length; i += 3) {
@@ -284,13 +301,23 @@ function capProfileSolid(outPos, outIdx, points, z, normalUp) {
   }
 }
 
+const FLOOR_SLAB = 0.08;
+
+function capFloorSlab(outPos, outIdx, profile, zTop, upward) {
+  const zBot = upward ? zTop - FLOOR_SLAB : zTop;
+  const zCap = upward ? zTop : zTop + FLOOR_SLAB;
+  capProfileSolid(outPos, outIdx, profile, zCap, upward);
+  capProfileSolid(outPos, outIdx, profile, zBot, !upward);
+  extrudeProfileSides(outPos, outIdx, profile, zBot, zCap, upward);
+}
+
 function buildProfileShell(outPos, outIdx, outer, inner, floor, totalH, cavityH) {
   const zFloor = floor;
   const zTop = totalH;
   const zCavityTop = floor + cavityH;
 
-  capProfileSolid(outPos, outIdx, outer, 0, false);
-  capProfileSolid(outPos, outIdx, inner, zFloor, true);
+  capFloorSlab(outPos, outIdx, outer, 0, false);
+  capFloorSlab(outPos, outIdx, inner, zFloor, true);
   capRing(outPos, outIdx, outer, inner, zFloor, true);
   extrudeProfileSides(outPos, outIdx, outer, 0, zTop, true);
   extrudeProfileSides(outPos, outIdx, inner, zFloor, zCavityTop, false);
@@ -409,10 +436,10 @@ function buildRectShellWithJoiner(outerW, outerD, innerW, innerD, floor, totalH,
   const id2 = innerD / 2;
   const zCavityTop = floor + cavityH;
 
-  capProfileSolid(positions, indices, [
+  capFloorSlab(positions, indices, [
     [-ow2, -od2], [ow2, -od2], [ow2, od2], [-ow2, od2],
   ], 0, false);
-  capProfileSolid(positions, indices, [
+  capFloorSlab(positions, indices, [
     [-iw2, -id2], [iw2, -id2], [iw2, id2], [-iw2, id2],
   ], floor, true);
   capRing(positions, indices,

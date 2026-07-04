@@ -79,7 +79,7 @@ const material = new THREE.MeshStandardMaterial({
   metalness: 0.15,
   roughness: 0.42,
   flatShading: false,
-  side: THREE.DoubleSide,
+  side: THREE.FrontSide,
   polygonOffset: true,
   polygonOffsetFactor: 1,
   polygonOffsetUnits: 2,
@@ -137,7 +137,7 @@ const lidMaterial = new THREE.MeshStandardMaterial({
   metalness: 0.12,
   roughness: 0.48,
   flatShading: false,
-  side: THREE.DoubleSide,
+  side: THREE.FrontSide,
   polygonOffset: true,
   polygonOffsetFactor: 2,
   polygonOffsetUnits: 3,
@@ -381,7 +381,6 @@ function setPreviewXRayMode(on) {
   material.depthWrite = !on;
   material.metalness = on ? 0.05 : 0.15;
   material.color.setHex(on ? 0x475569 : 0x38bdf8);
-  material.side = on ? THREE.FrontSide : THREE.DoubleSide;
 
   lidMaterial.transparent = on;
   lidMaterial.opacity = on ? 0.42 : 1;
@@ -391,7 +390,11 @@ function setPreviewXRayMode(on) {
   lidMaterial.color.setHex(on ? 0x7dd3fc : 0x93c5fd);
   lidMaterial.polygonOffsetFactor = on ? 5 : 2;
   lidMaterial.polygonOffsetUnits = on ? 8 : 3;
-  lidMaterial.side = on ? THREE.FrontSide : THREE.DoubleSide;
+
+  grid.visible = !on;
+  for (const mat of Array.isArray(grid.material) ? grid.material : [grid.material]) {
+    mat.opacity = on ? 0.12 : 0.55;
+  }
 
   edgeMaterial.opacity = on ? 0.22 : 0.55;
 
@@ -720,7 +723,7 @@ function rebuildMesh() {
   previewRoot.add(bodyMesh);
 
   try {
-    const edges = new THREE.EdgesGeometry(geom, 18);
+    const edges = new THREE.EdgesGeometry(geom, 28);
     edgeLines = new THREE.LineSegments(edges, edgeMaterial);
     edgeLines.renderOrder = 3;
     previewRoot.add(edgeLines);

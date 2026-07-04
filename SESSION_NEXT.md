@@ -2,8 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `47d079f` — X-ray floor cap z-fight fix
-- Refresh cachebust currently: MakerDeck app.js?v=32 / style.css?v=10
+- Latest commit: (pending) — floor centre artifact (grid bleed + slab caps)
+- Refresh cachebust currently: MakerDeck app.js?v=33 / style.css?v=10
+
+### 2026-07-04 fix (MakerDeck floor centre hatch — round 2)
+
+**Grid bleed + zero-thickness floor** (`geometry.js`, `app.js`)
+
+- Floor/bottom caps are thin slabs (0.08 mm) — no more paper-thin z-fighting at centre.
+- Removed center-fan capSolid fallback entirely; earcut + boundary fan only.
+- Hide build-plate grid during X-ray preview fit (grid lines were moiré-ing through transparent floor).
+- Body/lid preview uses FrontSide; body edge threshold raised to 28°.
+- Cachebust app.js?v=33. Hard refresh required.
 
 ### 2026-07-04 fix (MakerDeck X-ray floor diamond artifact)
 
