@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — glyph-sized text frame + Windows fonts + bigger size cap
+- Latest commit: `ddb50e7` — glyph-sized text frame + Windows fonts + bigger size cap
 - Refresh cachebust currently: MakerDeck app.js?v=49 / style.css?v=13
 
 ### 2026-07-04 fix (MakerDeck text frame + size + fonts)
