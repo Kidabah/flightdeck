@@ -281,8 +281,8 @@ function buildProfileShell(outPos, outIdx, outer, inner, floor, totalH, cavityH)
   const zTop = totalH;
   const zCavityTop = floor + cavityH;
 
-  capSolid(outPos, outIdx, outer, 0, false);
-  capSolid(outPos, outIdx, inner, zFloor, true);
+  capProfileSolid(outPos, outIdx, outer, 0, false);
+  capProfileSolid(outPos, outIdx, inner, zFloor, true);
   capRing(outPos, outIdx, outer, inner, zFloor, true);
   extrudeProfileSides(outPos, outIdx, outer, 0, zTop, true);
   extrudeProfileSides(outPos, outIdx, inner, zFloor, zCavityTop, false);
@@ -401,10 +401,10 @@ function buildRectShellWithJoiner(outerW, outerD, innerW, innerD, floor, totalH,
   const id2 = innerD / 2;
   const zCavityTop = floor + cavityH;
 
-  capSolid(positions, indices, [
+  capProfileSolid(positions, indices, [
     [-ow2, -od2], [ow2, -od2], [ow2, od2], [-ow2, od2],
   ], 0, false);
-  capSolid(positions, indices, [
+  capProfileSolid(positions, indices, [
     [-iw2, -id2], [iw2, -id2], [iw2, id2], [-iw2, id2],
   ], floor, true);
   capRing(positions, indices,

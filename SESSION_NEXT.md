@@ -2,8 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `fea87c6` — Lid preview fit guides + cap artifact fix
-- Refresh cachebust currently: MakerDeck app.js?v=29 / style.css?v=9
+- Latest commit: (pending) — Lid fit thumbs-up + floor cap fix + trace defer
+- Refresh cachebust currently: MakerDeck app.js?v=30 / style.css?v=10
+
+### 2026-07-04 fix (MakerDeck lid fit polish + perf)
+
+**Thumbs-up on seated fit + floor artifact fix** (`geometry.js`, `app.js`, `index.html`, `style.css`)
+
+- 👍 green badge with random Aussie phrase when lid seats ("Good as gold!", etc.).
+- Box floor/bottom caps now use earcut (was still center-fan) — fixes dark floor patch in X-ray.
+- Background trace on session restore deferred to idle and only when emboss trace enabled; cancelled during preview fit.
+- Hide body wireframe during X-ray. Skip 3D render when tab hidden (unless animating).
+- Cachebust app.js?v=30, style.css?v=10. Hard refresh required.
 
 ### 2026-07-04 fix (MakerDeck lid preview clarity)
 

@@ -144,6 +144,9 @@ const lidMaterial = new THREE.MeshStandardMaterial({
 });
 
 let previewXRayOn = false;
+let lidFitOkTimer = null;
+
+const LID_FIT_OK_PHRASES = ["Good as gold!", "She'll be right!", "No worries, mate!"];
 
 const accentMaterial = new THREE.MeshStandardMaterial({
   color: 0xf97316,
@@ -406,7 +409,12 @@ function setPreviewXRayMode(on) {
     lidMesh.castShadow = !on;
     lidMesh.renderOrder = on ? 8 : 4;
   }
-  if (edgeLines) edgeLines.renderOrder = on ? 2 : 3;
+  if (edgeLines) {
+    edgeLines.renderOrder = on ? 2 : 3;
+    edgeLines.visible = !on;
+  }
+  if (accentEdgeLines) accentEdgeLines.visible = !on;
+  if (labelEdgeLines) labelEdgeLines.visible = !on;
   syncLidGuideLoops(lidMesh?.position.y ?? lidRestY());
 }
 
@@ -414,9 +422,30 @@ function easeInOutCubic(t) {
   return t < 0.5 ? 4 * t * t * t : 1 - ((-2 * t + 2) ** 3) / 2;
 }
 
+function hideLidFitOk() {
+  const el = document.getElementById("lid-fit-ok");
+  if (!el) return;
+  el.classList.remove("visible");
+  clearTimeout(lidFitOkTimer);
+  lidFitOkTimer = setTimeout(() => el.classList.add("hidden"), 280);
+}
+
+function showLidFitOk() {
+  const el = document.getElementById("lid-fit-ok");
+  if (!el) return;
+  const phrase = LID_FIT_OK_PHRASES[Math.floor(Math.random() * LID_FIT_OK_PHRASES.length)];
+  const text = el.querySelector(".lid-fit-ok-text");
+  if (text) text.textContent = phrase;
+  clearTimeout(lidFitOkTimer);
+  el.classList.remove("hidden");
+  requestAnimationFrame(() => el.classList.add("visible"));
+  lidFitOkTimer = setTimeout(hideLidFitOk, 1100);
+}
+
 function stopLidAnimation(resetToRest = true) {
   const wasAnimating = !!lidAnim;
   lidAnim = null;
+  hideLidFitOk();
   if (wasAnimating || previewXRayOn) setPreviewXRayMode(false);
   const btn = document.getElementById("btn-lid-preview-fit");
   if (btn) btn.disabled = false;
@@ -425,7 +454,10 @@ function stopLidAnimation(resetToRest = true) {
 
 function playLidFitPreview() {
   if (!state.lidEnabled || !lidCache || !lidMesh) return;
+  traceJob += 1;
+  clearTimeout(traceDebounceTimer);
   stopLidAnimation(false);
+  hideLidFitOk();
   setPreviewXRayMode(true);
   const hint = document.getElementById("lid-xray-hint");
   if (hint) hint.textContent = lidFitHintText();
@@ -459,6 +491,7 @@ function updateLidAnimation(now) {
   const y1 = a[phase.y1Key];
   setLidPreviewY(y0 + (y1 - y0) * easeInOutCubic(t));
   if (t >= 1) {
+    if (a.phaseIndex === 0) showLidFitOk();
     a.phaseIndex += 1;
     a.phaseStart = now;
     if (a.phaseIndex >= a.phases.length) stopLidAnimation(true);
@@ -1894,6 +1927,7 @@ window.addEventListener("resize", resize);
 function animate() {
   requestAnimationFrame(animate);
   updateLidAnimation(performance.now());
+  if (document.hidden && !lidAnim) return;
   controls.update();
   renderer.render(scene, camera);
 }
@@ -1917,6 +1951,19 @@ for (const font of EMBOSS_FONTS) {
   opt.value = font.id;
   opt.textContent = font.label;
   embossFontSelect.appendChild(opt);
+}
+
+function scheduleDeferredRestoreTrace() {
+  if (!traceSourceCanvas || traceLastResult || !state.embossTraceEnabled) return;
+  const run = () => {
+    if (!traceSourceCanvas || traceLastResult || !state.embossTraceEnabled || lidAnim) return;
+    runTraceAsync();
+  };
+  if (typeof requestIdleCallback === "function") {
+    requestIdleCallback(run, { timeout: 8000 });
+  } else {
+    setTimeout(run, 2000);
+  }
 }
 
 async function bootMakerDeck() {
@@ -1948,7 +1995,7 @@ async function bootMakerDeck() {
   if (meshCache) fitCamera(meshCache.meta);
 
   if (restored?.needsRestoreTrace && traceSourceCanvas) {
-    await runTraceAsync();
+    scheduleDeferredRestoreTrace();
   }
 }
 
