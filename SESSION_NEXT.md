@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — Channel slide lid (rail grooves)
+- Latest commit: `ceb6544` — Channel slide lid (rail grooves)
 - Refresh cachebust currently: MakerDeck app.js?v=35 / style.css?v=10
 
 ### 2026-07-04 feature (MakerDeck channel slide lid)
