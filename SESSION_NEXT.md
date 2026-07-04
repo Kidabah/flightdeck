@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — Pencil box preset + lid type polish
+- Latest commit: `0fa3f99` — Pencil box preset + lid type polish
 - Refresh cachebust currently: MakerDeck app.js?v=34 / style.css?v=10
 
 ### 2026-07-04 feature (MakerDeck pencil box + lid types done)
