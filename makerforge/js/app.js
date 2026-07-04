@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsLid, shapeSupportsSlideLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, measureDecorArt } from "./features.js";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, measureDecorArt, buildLabelEmboss } from "./features.js";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js";
 import { meshToStl, downloadBlob, filenameFor } from "./stl.js";
 import {
@@ -864,24 +864,6 @@ function rebuildMesh() {
     edgeLines = null;
   }
 
-  if (meshCache.labelMesh && state.embossFace !== "lid") {
-    const labelGeom = toBufferGeometry(THREE, meshCache.labelMesh);
-    const mat = state.embossDeboss ? debossPreviewMaterial : labelMaterial;
-    labelMesh = new THREE.Mesh(labelGeom, mat);
-    labelMesh.castShadow = true;
-    labelMesh.receiveShadow = true;
-    labelMesh.renderOrder = 8;
-    previewRoot.add(labelMesh);
-    try {
-      const labelEdges = new THREE.EdgesGeometry(labelGeom, 20);
-      labelEdgeLines = new THREE.LineSegments(labelEdges, edgeMaterial);
-      labelEdgeLines.renderOrder = 9;
-      previewRoot.add(labelEdgeLines);
-    } catch {
-      labelEdgeLines = null;
-    }
-  }
-
   if (meshCache.accentMesh) {
     accentCache = meshCache.accentMesh;
     accentMaterial.color.set(state.accentColor);
@@ -915,24 +897,12 @@ function rebuildMesh() {
     previewRoot.add(lidMesh);
 
     buildLidGuideLoops();
+  }
 
-    if (state.embossFace === "lid" && lidCache.labelMesh && state.embossDeboss) {
-      const labelGeom = toBufferGeometry(THREE, lidCache.labelMesh);
-      labelMesh = new THREE.Mesh(labelGeom, debossPreviewMaterial);
-      labelMesh.position.set(lidMesh.position.x, lidMesh.position.y, 0);
-      labelMesh.castShadow = true;
-      labelMesh.receiveShadow = true;
-      labelMesh.renderOrder = 8;
-      previewRoot.add(labelMesh);
-      try {
-        const labelEdges = new THREE.EdgesGeometry(labelGeom, 20);
-        labelEdgeLines = new THREE.LineSegments(labelEdges, edgeMaterial);
-        labelEdgeLines.renderOrder = 9;
-        previewRoot.add(labelEdgeLines);
-      } catch {
-        labelEdgeLines = null;
-      }
-    }
+  if (useDraftArtPreview()) {
+    refreshArtPreviewLabel();
+  } else {
+    mountAppliedLabelPreview();
   }
 
   debossCutterCache = state.embossFace === "lid"
@@ -1171,7 +1141,7 @@ function setTab(tabId) {
   }
   scheduleSaveSession();
   syncArtEditorUi();
-  updateArtOverlay();
+  scheduleArtPreviewRefresh(true);
 }
 
 function clearEmbossTrace() {
@@ -1333,6 +1303,96 @@ function artPreviewParams() {
   return getArtDraft() ? buildArtPreviewParams(state, buildParams()) : buildParams();
 }
 
+function useDraftArtPreview() {
+  return isArtTabActive() && getArtDraft() && draftHasContent(getArtDraft());
+}
+
+let artPreviewTimer = null;
+
+function scheduleArtPreviewRefresh(immediate = false) {
+  clearTimeout(artPreviewTimer);
+  const run = () => {
+    if (useDraftArtPreview()) {
+      refreshArtPreviewLabel();
+    } else {
+      disposeLabelPreview();
+      mountAppliedLabelPreview();
+    }
+    updateArtOverlay();
+  };
+  if (immediate) {
+    run();
+    return;
+  }
+  artPreviewTimer = setTimeout(run, 90);
+}
+
+function refreshArtPreviewLabel() {
+  if (!meshCache || !useDraftArtPreview()) return;
+  disposeLabelPreview();
+  const params = artPreviewParams();
+  const labelData = buildLabelEmboss(meshCache.meta, params, params.embossSvgText || "", "emboss");
+  if (!labelData?.positions?.length) return;
+
+  const mat = params.embossDeboss ? debossPreviewMaterial : labelMaterial;
+  const labelGeom = toBufferGeometry(THREE, labelData);
+  labelMesh = new THREE.Mesh(labelGeom, mat);
+  labelMesh.castShadow = true;
+  labelMesh.receiveShadow = true;
+  labelMesh.renderOrder = 8;
+  if (params.embossFace === "lid" && lidMesh) {
+    labelMesh.position.set(lidMesh.position.x, lidMesh.position.y, 0);
+  }
+  previewRoot.add(labelMesh);
+  try {
+    const labelEdges = new THREE.EdgesGeometry(labelGeom, 20);
+    labelEdgeLines = new THREE.LineSegments(labelEdges, edgeMaterial);
+    labelEdgeLines.renderOrder = 9;
+    previewRoot.add(labelEdgeLines);
+  } catch {
+    labelEdgeLines = null;
+  }
+}
+
+function mountAppliedLabelPreview() {
+  if (state.embossFace === "lid") {
+    if (state.embossDeboss && lidCache?.labelMesh && lidMesh) {
+      const labelGeom = toBufferGeometry(THREE, lidCache.labelMesh);
+      labelMesh = new THREE.Mesh(labelGeom, debossPreviewMaterial);
+      labelMesh.position.set(lidMesh.position.x, lidMesh.position.y, 0);
+      labelMesh.castShadow = true;
+      labelMesh.receiveShadow = true;
+      labelMesh.renderOrder = 8;
+      previewRoot.add(labelMesh);
+      try {
+        const labelEdges = new THREE.EdgesGeometry(labelGeom, 20);
+        labelEdgeLines = new THREE.LineSegments(labelEdges, edgeMaterial);
+        labelEdgeLines.renderOrder = 9;
+        previewRoot.add(labelEdgeLines);
+      } catch {
+        labelEdgeLines = null;
+      }
+    }
+    return;
+  }
+  if (!meshCache?.labelMesh) return;
+  const labelGeom = toBufferGeometry(THREE, meshCache.labelMesh);
+  const mat = state.embossDeboss ? debossPreviewMaterial : labelMaterial;
+  labelMesh = new THREE.Mesh(labelGeom, mat);
+  labelMesh.castShadow = true;
+  labelMesh.receiveShadow = true;
+  labelMesh.renderOrder = 8;
+  previewRoot.add(labelMesh);
+  try {
+    const labelEdges = new THREE.EdgesGeometry(labelGeom, 20);
+    labelEdgeLines = new THREE.LineSegments(labelEdges, edgeMaterial);
+    labelEdgeLines.renderOrder = 9;
+    previewRoot.add(labelEdgeLines);
+  } catch {
+    labelEdgeLines = null;
+  }
+}
+
 function shouldShowArtOverlay() {
   if (!isArtTabActive() || !shapeSupportsDecor(decorUiShape()) || !meshCache) return false;
   const draft = getArtDraft();
@@ -1351,10 +1411,10 @@ function syncArtEditorUi() {
 
   if (status) {
     status.textContent = !hasContent
-      ? "Add text or an image to start."
+      ? "Type a word — it appears on the face with handles."
       : dirty
-        ? "Drag the box on the preview — unapplied changes."
-        : "Applied. Edit and apply again to update the box.";
+        ? "Drag the word or handles, then Apply."
+        : "Applied to box.";
     status.classList.toggle("is-dirty", dirty && hasContent);
   }
   if (applyBtn) applyBtn.disabled = !hasContent || !dirty;
@@ -1570,12 +1630,12 @@ async function importSvgAsTrace(svgText, { fileName = "" } = {}) {
 
   const meta = document.getElementById("trace-meta");
   if (meta && fileName) {
-    meta.textContent = `SVG ${fileName} · ready in editor — drag the box, then Apply`;
+    meta.textContent = `SVG ${fileName} · drag handles on preview, then Apply`;
   }
   updateDecorUi();
   syncArtEditorUi();
   updateTraceUi();
-  updateArtOverlay();
+  scheduleArtPreviewRefresh(true);
 }
 
 function applyTraceToBox() {
@@ -1594,7 +1654,7 @@ function applyTraceToBox() {
   updateDecorUi();
   syncArtEditorUi();
   updateTraceUi();
-  updateArtOverlay();
+  scheduleArtPreviewRefresh(true);
 }
 
 function updateDecorUi() {
@@ -1884,7 +1944,7 @@ function bindArtDraftSlider(sliderId, draftKey, parseKind = "float") {
     const val = parseFieldValue(slider.value, parseKind);
     patchArtDraft({ [draftKey]: val });
     syncArtEditorUi();
-    updateArtOverlay();
+    scheduleArtPreviewRefresh();
   });
 }
 
@@ -1973,7 +2033,7 @@ document.getElementById("emboss-text").addEventListener("input", (e) => {
   }
   syncArtEditorUi();
   updateTraceUi();
-  updateArtOverlay();
+  scheduleArtPreviewRefresh(true);
 });
 
 document.getElementById("emboss-font").addEventListener("change", async (e) => {
@@ -1981,7 +2041,7 @@ document.getElementById("emboss-font").addEventListener("change", async (e) => {
   patchArtDraft({ font: e.target.value });
   await ensureEmbossFontLoaded(e.target.value);
   syncArtEditorUi();
-  updateArtOverlay();
+  scheduleArtPreviewRefresh();
 });
 
 document.getElementById("emboss-svg-enabled").addEventListener("change", (e) => {
@@ -1994,7 +2054,7 @@ document.getElementById("emboss-svg-enabled").addEventListener("change", (e) => 
   updateDecorUi();
   syncArtEditorUi();
   updateTraceUi();
-  updateArtOverlay();
+  scheduleArtPreviewRefresh();
 });
 
 document.getElementById("emboss-face").addEventListener("change", (e) => {
@@ -2002,13 +2062,14 @@ document.getElementById("emboss-face").addEventListener("change", (e) => {
   patchArtDraft({ face: e.target.value });
   syncEmbossFaceUi();
   syncArtEditorUi();
-  updateArtOverlay();
+  scheduleArtPreviewRefresh(true);
 });
 
 document.getElementById("emboss-deboss").addEventListener("change", (e) => {
   if (!getArtDraft()) ensureArtDraftFromState(state);
   patchArtDraft({ deboss: e.target.checked });
   syncArtEditorUi();
+  scheduleArtPreviewRefresh(true);
 });
 
 document.getElementById("btn-art-apply").addEventListener("click", () => {
@@ -2026,7 +2087,7 @@ document.getElementById("btn-art-cancel").addEventListener("click", () => {
   syncArtEditorUi();
   updateDecorUi();
   updateTraceUi();
-  updateArtOverlay();
+  scheduleArtPreviewRefresh(true);
 });
 
 document.getElementById("honeycomb-face").addEventListener("change", (e) => {
@@ -2345,7 +2406,7 @@ function onArtDragMove(e) {
       offsetY: artDrag.startOy - (e.clientY - artDrag.startY) * mmPerPxY,
     });
     syncArtEditorUi();
-    updateArtOverlay();
+    scheduleArtPreviewRefresh(true);
     return;
   }
 
@@ -2357,7 +2418,7 @@ function onArtDragMove(e) {
       rotation: artDrag.startRotation + ((a1 - a0) * 180) / Math.PI,
     });
     syncArtEditorUi();
-    updateArtOverlay();
+    scheduleArtPreviewRefresh(true);
     return;
   }
 
@@ -2372,7 +2433,7 @@ function onArtDragMove(e) {
     patchArtDraft({ traceSize: newSize });
   }
   syncArtEditorUi();
-  updateArtOverlay();
+  scheduleArtPreviewRefresh(true);
 }
 
 function endArtDrag() {
@@ -2381,6 +2442,7 @@ function endArtDrag() {
   artDrag = null;
   controls.enabled = true;
   syncArtEditorUi();
+  scheduleArtPreviewRefresh(true);
 }
 
 function startArtDrag(handle, e) {

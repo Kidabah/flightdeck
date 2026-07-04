@@ -5,6 +5,14 @@ Latest GitHub/Pi state:
 - Latest commit: `f4f0d2e` — overlay box rotates with text
 - Refresh cachebust currently: MakerDeck app.js?v=45 / style.css?v=12
 
+### 2026-07-04 feature (MakerDeck Word-style text on face)
+
+**Type word → see it on the lid with selection handles** (`app.js`, `index.html`, `style.css`)
+
+- Live 3D preview while editing (draft); white Word-style frame wraps the actual text bounds.
+- Eight resize handles + rotation handle; transparent frame, not an empty blue box.
+- Cachebust app.js?v=46, style.css?v=13. Hard refresh required.
+
 ### 2026-07-04 fix (MakerDeck art overlay rotation)
 
 **Transform box now rotates instead of expanding** (`app.js`)

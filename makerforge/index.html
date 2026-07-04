@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Oswald:wght@700&family=Roboto+Mono:wght@700&family=Roboto:wght@700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=12">
+  <link rel="stylesheet" href="css/style.css?v=13">
 
   <script type="importmap">
 
@@ -574,7 +574,7 @@
 
               <h2>Art on box</h2>
 
-              <p class="field-hint">Type text or trace an image. Drag the box on the preview to move, resize, or rotate — then hit <strong>Apply to box</strong> when it looks right.</p>
+              <p class="field-hint">Type your word — it appears on the face with a selection frame (like Word). Drag to move, handles to resize or rotate, then <strong>Apply to box</strong>.</p>
 
               <label class="field" id="field-emboss-text">
 
@@ -822,11 +822,15 @@
 
         <div id="art-overlay" class="art-overlay hidden" aria-hidden="true">
           <div class="art-overlay-box">
-            <div class="art-box-frame" data-handle="move" title="Move"></div>
+            <div class="art-selection-frame" data-handle="move" title="Drag to move"></div>
             <div class="art-handle art-handle-nw" data-handle="nw" title="Resize"></div>
+            <div class="art-handle art-handle-n" data-handle="n" title="Resize"></div>
             <div class="art-handle art-handle-ne" data-handle="ne" title="Resize"></div>
-            <div class="art-handle art-handle-sw" data-handle="sw" title="Resize"></div>
+            <div class="art-handle art-handle-e" data-handle="e" title="Resize"></div>
             <div class="art-handle art-handle-se" data-handle="se" title="Resize"></div>
+            <div class="art-handle art-handle-s" data-handle="s" title="Resize"></div>
+            <div class="art-handle art-handle-sw" data-handle="sw" title="Resize"></div>
+            <div class="art-handle art-handle-w" data-handle="w" title="Resize"></div>
             <div class="art-handle art-handle-rotate" data-handle="rotate" title="Rotate"></div>
           </div>
         </div>
@@ -850,7 +854,7 @@
 
 
 
-  <script type="module" src="js/app.js?v=45"></script>
+  <script type="module" src="js/app.js?v=46"></script>
 
 </body>
 
