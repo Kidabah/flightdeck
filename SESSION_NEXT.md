@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — mesh-driven art selection frame (Bambu skip-map pattern)
+- Latest commit: `1b81b2a` — mesh-driven art selection frame (Bambu skip-map pattern)
 - Refresh cachebust currently: MakerDeck app.js?v=50 / style.css?v=13
 
 ### 2026-07-04 fix (MakerDeck art overlay — mesh-driven like skip-object map)
