@@ -2,8 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `d2583cb` — Max-quality 4096px trace + color layer separation
-- Refresh cachebust currently: MakerDeck app.js?v=23 / style.css?v=8 · Flightdeck app.js?v=623 / style.css?v=480
+- Latest commit: `a584fa2` — Async trace fix (page unresponsive)
+
+### 2026-07-04 fix (MakerDeck page freeze on high-res trace)
+
+**Async trace — UI stays responsive** (`makerforge/js/trace.js`, `app.js`, `contour.js`)
+
+- 4096px trace no longer blocks main thread; yields between heavy steps with "Tracing at high resolution…" status.
+- Session restore loads 3D preview first, traces in background after boot.
+- Skips storing 16M-pixel mask when shapeGroups present; pre-simplify long curves before Chaikin.
+- Cachebust app.js?v=24. Hard refresh; page should load instantly, trace runs after.
+
+- Refresh cachebust currently: MakerDeck app.js?v=24 / style.css?v=8 · Flightdeck app.js?v=623 / style.css?v=480
 - MakerDeck: `https://flightdeck.tail7de73e.ts.net/makerdeck/` — hard refresh after pull
 - Backend restart NOT required (only static files changed).
 
