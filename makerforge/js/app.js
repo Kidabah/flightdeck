@@ -796,8 +796,11 @@ function redoApp() {
 }
 
 function boxHasDecor() {
+  const traceData = state.embossTraceRects;
   return (
     state.embossTraceEnabled ||
+    !!traceData?.shapeGroups?.length ||
+    !!traceData?.strokePaths?.length ||
     !!state.embossText?.trim() ||
     (state.embossSvgEnabled && !!state.embossSvgText?.trim())
   );
@@ -815,6 +818,7 @@ function updateHistoryUi() {
 
 function clearDecorFromBox() {
   if (!boxHasDecor()) return;
+  traceJob++;
   clearEmbossTrace();
   state.embossText = "";
   state.embossSvgEnabled = false;
@@ -824,7 +828,9 @@ function clearDecorFromBox() {
   pushAppHistory();
   updateDecorUi();
   updateTraceUi();
+  updateHistoryUi();
   rebuild();
+  scheduleSaveSession();
 }
 
 function isImportTabActive() {

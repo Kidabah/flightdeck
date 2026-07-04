@@ -363,7 +363,17 @@ export function buildEmbossBitmap(meta, params, bitmap) {
     const mapPt = (px, py) => [xOff + px * scale, zOff + (maskH - py) * scale];
     extrudeStrokePathList(positions, indices, frame, paths, mapPt, lineWidth, d0, d1);
     if (positions.length) return { positions, indices };
-    // Fall through to silhouette rebuild if stroke data was empty/corrupt.
+  }
+
+  if (bitmap.shapeGroups?.length) {
+    for (const group of bitmap.shapeGroups) {
+      const remapped = {
+        outer: group.outer.map(([px, py]) => [xOff + px * scale, zOff + (maskH - py) * scale]),
+        holes: group.holes.map((h) => h.map(([px, py]) => [xOff + px * scale, zOff + (maskH - py) * scale])),
+      };
+      extrudeGroupOnFace(positions, indices, frame, remapped, d0, d1);
+    }
+    return positions.length ? { positions, indices } : null;
   }
 
   let mask = null;
@@ -384,19 +394,14 @@ export function buildEmbossBitmap(meta, params, bitmap) {
     return null;
   }
 
-  // High-res traces already carry smoothed shapeGroups — only rebuild from mask when missing.
   const hiRes = maskW >= 1800;
-  const smoothPasses = bitmap.shapeGroups?.length
-    ? 0
-    : hiRes ? 5 : artH <= 12 ? 4 : artH <= 20 ? 3 : 2;
+  const smoothPasses = hiRes ? 5 : artH <= 12 ? 4 : artH <= 20 ? 3 : 2;
   const simplifyTol = hiRes ? Math.max(0.1, maskW / 1400) : Math.max(0.28, maskW / 480);
-  const shapeGroups = bitmap.shapeGroups?.length
-    ? bitmap.shapeGroups
-    : prepareShapeGroups(
-        groupPolygonsWithHoles(maskToPolygons(mask, maskW, maskH)),
-        simplifyTol,
-        smoothPasses,
-      );
+  const shapeGroups = prepareShapeGroups(
+    groupPolygonsWithHoles(maskToPolygons(mask, maskW, maskH)),
+    simplifyTol,
+    smoothPasses,
+  );
 
   for (const group of shapeGroups) {
     const remapped = {
@@ -781,9 +786,13 @@ function labelOffsets(params) {
 
 export function buildLabelEmboss(meta, params, svgText = "", mode = "emboss") {
   const p = { ...params, __embossMode: mode };
+  const traceData = p.embossTraceRects;
   const hasTrace =
     p.embossTraceEnabled &&
-    (p.embossTraceRects?.mask?.length || p.embossTraceRects?.rects?.length);
+    (traceData?.shapeGroups?.length ||
+      traceData?.strokePaths?.length ||
+      traceData?.mask?.length ||
+      traceData?.rects?.length);
   const hasText = !!p.embossText?.trim();
 
   // Label text wins over stale trace/SVG geometry on the box.

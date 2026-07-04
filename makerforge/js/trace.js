@@ -10,6 +10,7 @@ import {
   groupPolygonsWithHoles,
   maskToPolygons,
   polygonsToSvg,
+  prepareContourRing,
   prepareShapeGroups,
   prepareStrokePaths,
   strokePathIsClosed,
