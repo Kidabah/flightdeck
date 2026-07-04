@@ -276,13 +276,30 @@ function buildParams() {
 
 function disposeLabelPreview() {
   if (labelMesh) {
-    previewRoot.remove(labelMesh);
+    labelMesh.parent?.remove(labelMesh);
     labelMesh.geometry.dispose();
     labelMesh = null;
   }
   if (labelEdgeLines) {
-    previewRoot.remove(labelEdgeLines);
+    labelEdgeLines.parent?.remove(labelEdgeLines);
     labelEdgeLines.geometry.dispose();
+    labelEdgeLines = null;
+  }
+}
+
+function attachLabelPreviewMesh(labelGeom, mat, params) {
+  labelMesh = new THREE.Mesh(labelGeom, mat);
+  labelMesh.castShadow = true;
+  labelMesh.receiveShadow = true;
+  labelMesh.renderOrder = 8;
+  const parent = artUsesLidFace(params) && lidMesh ? lidMesh : previewRoot;
+  parent.add(labelMesh);
+  try {
+    const labelEdges = new THREE.EdgesGeometry(labelGeom, 20);
+    labelEdgeLines = new THREE.LineSegments(labelEdges, edgeMaterial);
+    labelEdgeLines.renderOrder = 9;
+    parent.add(labelEdgeLines);
+  } catch {
     labelEdgeLines = null;
   }
 }
@@ -461,18 +478,11 @@ function artUsesLidFace(params = null) {
   return (p.embossFace || "front") === "lid";
 }
 
-function syncLabelMeshToLid() {
-  if (!labelMesh || !lidMesh) return;
-  if (!artUsesLidFace()) return;
-  labelMesh.position.set(lidMesh.position.x, lidMesh.position.y, 0);
-}
-
 function setLidPreviewTransform(y, x = 0) {
   if (lidMesh) {
     lidMesh.position.y = y;
     lidMesh.position.x = x;
   }
-  syncLabelMeshToLid();
   syncLidGuideLoops(y, x);
 }
 
@@ -845,6 +855,9 @@ function rebuildMesh() {
   disposeLabelPreview();
 
   const params = buildParams();
+  if (isArtTabActive() && getArtDraft() && draftHasContent(getArtDraft()) && isArtDraftDirty()) {
+    params._artPreviewDraft = true;
+  }
 
   meshCache = buildContainer(params);
   if (meshCache.meta.shape === "rect" && state.shape === "rounded") {
@@ -1369,59 +1382,21 @@ function refreshArtPreviewLabel() {
 
   const mat = params.embossDeboss ? debossPreviewMaterial : labelMaterial;
   const labelGeom = toBufferGeometry(THREE, labelData);
-  labelMesh = new THREE.Mesh(labelGeom, mat);
-  labelMesh.castShadow = true;
-  labelMesh.receiveShadow = true;
-  labelMesh.renderOrder = 8;
-  syncLabelMeshToLid();
-  previewRoot.add(labelMesh);
-  try {
-    const labelEdges = new THREE.EdgesGeometry(labelGeom, 20);
-    labelEdgeLines = new THREE.LineSegments(labelEdges, edgeMaterial);
-    labelEdgeLines.renderOrder = 9;
-    previewRoot.add(labelEdgeLines);
-  } catch {
-    labelEdgeLines = null;
-  }
+  attachLabelPreviewMesh(labelGeom, mat, params);
 }
 
 function mountAppliedLabelPreview() {
   if (state.embossFace === "lid") {
     if (state.embossDeboss && lidCache?.labelMesh && lidMesh) {
       const labelGeom = toBufferGeometry(THREE, lidCache.labelMesh);
-      labelMesh = new THREE.Mesh(labelGeom, debossPreviewMaterial);
-      labelMesh.position.set(lidMesh.position.x, lidMesh.position.y, 0);
-      labelMesh.castShadow = true;
-      labelMesh.receiveShadow = true;
-      labelMesh.renderOrder = 8;
-      previewRoot.add(labelMesh);
-      try {
-        const labelEdges = new THREE.EdgesGeometry(labelGeom, 20);
-        labelEdgeLines = new THREE.LineSegments(labelEdges, edgeMaterial);
-        labelEdgeLines.renderOrder = 9;
-        previewRoot.add(labelEdgeLines);
-      } catch {
-        labelEdgeLines = null;
-      }
+      attachLabelPreviewMesh(labelGeom, debossPreviewMaterial, buildParams());
     }
     return;
   }
   if (!meshCache?.labelMesh) return;
   const labelGeom = toBufferGeometry(THREE, meshCache.labelMesh);
   const mat = state.embossDeboss ? debossPreviewMaterial : labelMaterial;
-  labelMesh = new THREE.Mesh(labelGeom, mat);
-  labelMesh.castShadow = true;
-  labelMesh.receiveShadow = true;
-  labelMesh.renderOrder = 8;
-  previewRoot.add(labelMesh);
-  try {
-    const labelEdges = new THREE.EdgesGeometry(labelGeom, 20);
-    labelEdgeLines = new THREE.LineSegments(labelEdges, edgeMaterial);
-    labelEdgeLines.renderOrder = 9;
-    previewRoot.add(labelEdgeLines);
-  } catch {
-    labelEdgeLines = null;
-  }
+  attachLabelPreviewMesh(labelGeom, mat, buildParams());
 }
 
 let artPreviewTimer = null;
@@ -1463,7 +1438,7 @@ function syncArtEditorUi() {
       ? "Type a word — it appears on the face with handles."
       : dirty
         ? "Drag the word or handles, then Apply."
-        : "Applied to box.";
+        : (src.face === "lid" ? "Applied to lid." : "Applied to box.");
     status.classList.toggle("is-dirty", dirty && hasContent);
   }
   if (applyBtn) {
@@ -2372,9 +2347,17 @@ document.getElementById("btn-export-lid").addEventListener("click", () => {
       status.classList.add("is-dirty");
     }
   }
-  const printMesh = orientLidForPrint(lidCache);
-  const blob = meshToStl(printMesh, "makerdeck-lid");
-  downloadBlob(blob, filenameFor(lidCache.meta, "lid"));
+  try {
+    const printMesh = orientLidForPrint(lidCache);
+    const blob = meshToStl(printMesh, "makerdeck-lid");
+    downloadBlob(blob, filenameFor(lidCache.meta, "lid"));
+  } catch (err) {
+    const status = document.getElementById("art-draft-status");
+    if (status) {
+      status.textContent = err?.message || "Lid export failed — check art fits on lid face.";
+      status.classList.add("is-dirty");
+    }
+  }
 });
 
 document.getElementById("btn-export-accent").addEventListener("click", () => {
@@ -2399,21 +2382,13 @@ let artDrag = null;
 
 function projectFacePoint(frame, px, py) {
   const mapped = frame.mapPoint(px, py, 0.35);
-  let offsetX = 0;
-  let offsetY = 0;
+  const v = new THREE.Vector3(mapped[0], mapped[2], -mapped[1]);
   if (frame.face === "lid" && lidMesh) {
-    offsetX = lidMesh.position.x;
-    offsetY = lidMesh.position.y;
+    lidMesh.localToWorld(v);
+  } else {
+    previewRoot.localToWorld(v);
   }
-  const v = new THREE.Vector3(mapped[0] + offsetX, BED_LIFT + mapped[2] + offsetY, -mapped[1]);
-  v.project(camera);
-  const w = viewport.clientWidth;
-  const h = viewport.clientHeight;
-  return {
-    x: (v.x * 0.5 + 0.5) * w,
-    y: (-v.y * 0.5 + 0.5) * h,
-    behind: v.z > 1,
-  };
+  return projectWorldToScreen(v);
 }
 
 function projectWorldToScreen(worldVec) {
@@ -2427,62 +2402,72 @@ function projectWorldToScreen(worldVec) {
   };
 }
 
-const _labelWorldBox = new THREE.Box3();
-const _labelWorldCorner = new THREE.Vector3();
-
-/** Bambu skip-map pattern: derive handles from what's actually rendered, not a parallel transform. */
-function collectLabelScreenPoints() {
-  if (!labelMesh?.geometry || !viewport) return null;
-  labelMesh.updateWorldMatrix(true, false);
-  const pos = labelMesh.geometry.getAttribute("position");
-  if (!pos?.count) return null;
-
-  let minWorldY = Infinity;
-  let maxWorldY = -Infinity;
-  const worldYs = new Float32Array(pos.count);
-  for (let i = 0; i < pos.count; i++) {
-    _labelWorldCorner.fromBufferAttribute(pos, i);
-    labelMesh.localToWorld(_labelWorldCorner);
-    worldYs[i] = _labelWorldCorner.y;
-    minWorldY = Math.min(minWorldY, _labelWorldCorner.y);
-    maxWorldY = Math.max(maxWorldY, _labelWorldCorner.y);
-  }
-  const yCut = maxWorldY - Math.max(0.02, (maxWorldY - minWorldY) * 0.35);
+function collectFaceArtScreenPoints(art) {
+  const rot = art.rotation || 0;
+  const corners = [
+    [art.left, art.bottom],
+    [art.right, art.bottom],
+    [art.right, art.top],
+    [art.left, art.top],
+  ];
   const pts = [];
-  for (let i = 0; i < pos.count; i++) {
-    if (worldYs[i] < yCut) continue;
-    _labelWorldCorner.fromBufferAttribute(pos, i);
-    labelMesh.localToWorld(_labelWorldCorner);
-    const p = projectWorldToScreen(_labelWorldCorner);
+  for (const [px, py] of corners) {
+    const [rx, ry] = rotateFacePoint(art.cx, art.cy, px, py, rot);
+    const p = projectFacePoint(art.frame, rx, ry);
     if (p.behind) return null;
     pts.push(p);
   }
-  if (pts.length >= 4) return pts;
-
-  _labelWorldBox.setFromObject(labelMesh);
-  if (_labelWorldBox.isEmpty()) return null;
-  const { min, max } = _labelWorldBox;
-  const corners = [
-    [min.x, min.y, min.z],
-    [max.x, min.y, min.z],
-    [min.x, max.y, min.z],
-    [max.x, max.y, min.z],
-    [min.x, min.y, max.z],
-    [max.x, min.y, max.z],
-    [min.x, max.y, max.z],
-    [max.x, max.y, max.z],
-  ];
-  const fallback = [];
-  for (const [x, y, z] of corners) {
-    _labelWorldCorner.set(x, y, z);
-    const p = projectWorldToScreen(_labelWorldCorner);
-    if (p.behind) return null;
-    fallback.push(p);
-  }
-  return fallback.length ? fallback : null;
+  return pts.length ? pts : null;
 }
 
-function fitOverlayLayoutFromScreenPoints(points, hintAngleDeg = null) {
+const _labelWorldCorner = new THREE.Vector3();
+
+/** Bambu skip-map pattern: derive handles from what's actually rendered, not a parallel transform. */
+function collectLabelScreenPoints(art = null) {
+  if (labelMesh?.geometry && viewport) {
+    labelMesh.updateWorldMatrix(true, false);
+    const pos = labelMesh.geometry.getAttribute("position");
+    if (pos?.count) {
+      const step = pos.count > 6000 ? Math.ceil(pos.count / 3000) : 1;
+      const pts = [];
+      for (let i = 0; i < pos.count; i += step) {
+        _labelWorldCorner.fromBufferAttribute(pos, i);
+        labelMesh.localToWorld(_labelWorldCorner);
+        const p = projectWorldToScreen(_labelWorldCorner);
+        if (p.behind) return art ? collectFaceArtScreenPoints(art) : null;
+        pts.push(p);
+      }
+      if (pts.length >= 4) return pts;
+    }
+  }
+  if (art) return collectFaceArtScreenPoints(art);
+  return null;
+}
+
+function fitOverlayLayoutFromScreenPoints(points, artRotation = 0) {
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (const p of points) {
+    minX = Math.min(minX, p.x);
+    maxX = Math.max(maxX, p.x);
+    minY = Math.min(minY, p.y);
+    maxY = Math.max(maxY, p.y);
+  }
+  const aabbHalfW = (maxX - minX) / 2;
+  const aabbHalfH = (maxY - minY) / 2;
+  if (aabbHalfW < 4 || aabbHalfH < 4) return null;
+
+  if (Math.abs(artRotation) < 0.05) {
+    return {
+      center: { x: (minX + maxX) / 2, y: (minY + maxY) / 2 },
+      halfW: aabbHalfW,
+      halfH: aabbHalfH,
+      angle: 0,
+    };
+  }
+
   let cx = 0;
   let cy = 0;
   for (const p of points) {
@@ -2492,22 +2477,7 @@ function fitOverlayLayoutFromScreenPoints(points, hintAngleDeg = null) {
   cx /= points.length;
   cy /= points.length;
 
-  let angle = hintAngleDeg;
-  if (angle == null || !Number.isFinite(angle)) {
-    let sxx = 0;
-    let syy = 0;
-    let sxy = 0;
-    for (const p of points) {
-      const dx = p.x - cx;
-      const dy = p.y - cy;
-      sxx += dx * dx;
-      syy += dy * dy;
-      sxy += dx * dy;
-    }
-    angle = (Math.atan2(2 * sxy, sxx - syy) * 180) / Math.PI / 2;
-  }
-
-  const rad = (-angle * Math.PI) / 180;
+  const rad = (-artRotation * Math.PI) / 180;
   const cos = Math.cos(rad);
   const sin = Math.sin(rad);
   let minU = Infinity;
@@ -2530,7 +2500,7 @@ function fitOverlayLayoutFromScreenPoints(points, hintAngleDeg = null) {
 
   const uCx = (minU + maxU) / 2;
   const vCy = (minV + maxV) / 2;
-  const outRad = (angle * Math.PI) / 180;
+  const outRad = (artRotation * Math.PI) / 180;
   return {
     center: {
       x: cx + uCx * Math.cos(outRad) - vCy * Math.sin(outRad),
@@ -2538,64 +2508,29 @@ function fitOverlayLayoutFromScreenPoints(points, hintAngleDeg = null) {
     },
     halfW,
     halfH,
-    angle,
+    angle: artRotation,
   };
 }
 
-function artOverlayFaceLayoutAngle(art) {
-  const rot = art.rotation || 0;
-  const cx = art.cx;
-  const cy = art.cy;
-  const faceCorners = [
-    [art.left, art.bottom],
-    [art.right, art.bottom],
-    [art.right, art.top],
-    [art.left, art.top],
-  ];
-  const screen = faceCorners.map(([px, py]) => {
-    const [rx, ry] = rotateFacePoint(cx, cy, px, py, rot);
-    return projectFacePoint(art.frame, rx, ry);
-  });
-  if (screen.some((c) => c.behind)) return null;
-  return (Math.atan2(screen[1].y - screen[0].y, screen[1].x - screen[0].x) * 180) / Math.PI;
-}
-
 function artOverlayScreenLayout(art) {
-  const meshPts = collectLabelScreenPoints();
+  const meshPts = collectLabelScreenPoints(art);
   if (meshPts) {
-    const hintAngle = art ? artOverlayFaceLayoutAngle(art) : null;
-    const layout = fitOverlayLayoutFromScreenPoints(meshPts, hintAngle);
+    const layout = fitOverlayLayoutFromScreenPoints(meshPts, art?.rotation || 0);
     if (layout) return layout;
   }
   if (!art) return null;
 
   const rot = art.rotation || 0;
-  const cx = art.cx;
-  const cy = art.cy;
-  const faceCorners = [
-    [art.left, art.bottom],
-    [art.right, art.bottom],
-    [art.right, art.top],
-    [art.left, art.top],
-  ];
-  const screen = faceCorners.map(([px, py]) => {
-    const [rx, ry] = rotateFacePoint(cx, cy, px, py, rot);
-    return projectFacePoint(art.frame, rx, ry);
-  });
-  if (screen.some((c) => c.behind)) return null;
-  const center = {
-    x: screen.reduce((s, c) => s + c.x, 0) / screen.length,
-    y: screen.reduce((s, c) => s + c.y, 0) / screen.length,
-  };
-  const halfW = Math.hypot(screen[1].x - screen[0].x, screen[1].y - screen[0].y) / 2;
-  const halfH = Math.hypot(screen[3].x - screen[0].x, screen[3].y - screen[0].y) / 2;
-  if (halfW < 4 || halfH < 4) return null;
-  const angle = (Math.atan2(screen[1].y - screen[0].y, screen[1].x - screen[0].x) * 180) / Math.PI;
-  return { center, halfW, halfH, angle };
+  const facePts = collectFaceArtScreenPoints(art);
+  if (facePts) {
+    const layout = fitOverlayLayoutFromScreenPoints(facePts, rot);
+    if (layout) return layout;
+  }
+  return null;
 }
 
 function artDragCenterOnScreen(art) {
-  const meshPts = collectLabelScreenPoints();
+  const meshPts = collectLabelScreenPoints(art);
   if (meshPts?.length) {
     let x = 0;
     let y = 0;

@@ -20,8 +20,60 @@ function writeFloatLE(view, offset, value) {
   view.setFloat32(offset, value, true);
 }
 
+function triArea2(a, b, c) {
+  const ux = b[0] - a[0];
+  const uy = b[1] - a[1];
+  const uz = b[2] - a[2];
+  const vx = c[0] - a[0];
+  const vy = c[1] - a[1];
+  const vz = c[2] - a[2];
+  const nx = uy * vz - uz * vy;
+  const ny = uz * vx - ux * vz;
+  const nz = ux * vy - uy * vx;
+  return Math.hypot(nx, ny, nz);
+}
+
+/** Drop invalid/degenerate triangles so slicers can load the STL. */
+export function sanitizeMeshForStl(mesh) {
+  const positions = mesh?.positions;
+  const indices = mesh?.indices;
+  if (!positions?.length || !indices?.length) return null;
+
+  const vertCount = positions.length / 3;
+  const cleanIdx = [];
+  for (let t = 0; t < indices.length; t += 3) {
+    const ia = indices[t];
+    const ib = indices[t + 1];
+    const ic = indices[t + 2];
+    if (ia < 0 || ib < 0 || ic < 0 || ia >= vertCount || ib >= vertCount || ic >= vertCount) continue;
+
+    const ax = positions[ia * 3];
+    const ay = positions[ia * 3 + 1];
+    const az = positions[ia * 3 + 2];
+    const bx = positions[ib * 3];
+    const by = positions[ib * 3 + 1];
+    const bz = positions[ib * 3 + 2];
+    const cx = positions[ic * 3];
+    const cy = positions[ic * 3 + 1];
+    const cz = positions[ic * 3 + 2];
+    if (![ax, ay, az, bx, by, bz, cx, cy, cz].every(Number.isFinite)) continue;
+
+    const a = [ax, ay, az];
+    const b = [bx, by, bz];
+    const c = [cx, cy, cz];
+    if (triArea2(a, b, c) < 1e-8) continue;
+    cleanIdx.push(ia, ib, ic);
+  }
+
+  if (!cleanIdx.length) return null;
+  return { positions, indices: cleanIdx };
+}
+
 export function meshToStl(mesh, name = "makerdeck") {
-  const triCount = mesh.indices.length / 3;
+  const clean = sanitizeMeshForStl(mesh);
+  if (!clean) throw new Error("No valid triangles to export");
+
+  const triCount = clean.indices.length / 3;
   const buffer = new ArrayBuffer(84 + triCount * 50);
   const view = new DataView(buffer);
   const header = new TextEncoder().encode(name.slice(0, 80));
@@ -29,11 +81,11 @@ export function meshToStl(mesh, name = "makerdeck") {
   view.setUint32(80, triCount, true);
 
   let offset = 84;
-  const pos = mesh.positions;
-  for (let t = 0; t < mesh.indices.length; t += 3) {
-    const ia = mesh.indices[t] * 3;
-    const ib = mesh.indices[t + 1] * 3;
-    const ic = mesh.indices[t + 2] * 3;
+  const pos = clean.positions;
+  for (let t = 0; t < clean.indices.length; t += 3) {
+    const ia = clean.indices[t] * 3;
+    const ib = clean.indices[t + 1] * 3;
+    const ic = clean.indices[t + 2] * 3;
     const a = [pos[ia], pos[ia + 1], pos[ia + 2]];
     const b = [pos[ib], pos[ib + 1], pos[ib + 2]];
     const c = [pos[ic], pos[ic + 1], pos[ic + 2]];

@@ -1003,7 +1003,8 @@ export function buildContainer(params) {
   if (shapeSupportsDecor(decorShape)) {
     const shellMesh = applyBodyDecorations(mesh, resolved.meta, params);
     const isLidFace = params.embossFace === "lid";
-    if (!isLidFace) {
+    const previewDraft = !!params._artPreviewDraft;
+    if (!isLidFace && !previewDraft) {
       labelMesh = buildLabelEmboss(resolved.meta, params, params.embossSvgText || "", "emboss");
       if (labelMesh) centerPositions(labelMesh.positions, 0, 0);
       if (params.embossDeboss) {
@@ -1086,7 +1087,7 @@ export function buildLid(params) {
       : resolved.meta.shape;
   let labelMesh = null;
   let debossCutterMesh = null;
-  if (params.embossFace === "lid" && shapeSupportsDecor(decorShape)) {
+  if (params.embossFace === "lid" && shapeSupportsDecor(decorShape) && !params._artPreviewDraft) {
     labelMesh = buildLabelEmboss(resolved.meta, params, params.embossSvgText || "", "emboss");
     if (labelMesh) centerPositions(labelMesh.positions, 0, 0);
     if (params.embossDeboss) {
@@ -1114,10 +1115,19 @@ export function buildLid(params) {
 
 /** Flip lid so the solid plate sits on the print bed (skirt points up). Preview keeps natural on-box orientation. */
 export function orientLidForPrint(lid) {
-  const h = lid.lidHeight;
+  let h = lid.lidHeight;
+  if (!Number.isFinite(h) || h <= 0) {
+    h = 0;
+    for (let i = 2; i < lid.positions.length; i += 3) {
+      h = Math.max(h, lid.positions[i]);
+    }
+  }
+  if (!Number.isFinite(h) || h <= 0) {
+    return { positions: lid.positions.slice(), indices: lid.indices.slice() };
+  }
   const positions = lid.positions.slice();
   for (let i = 2; i < positions.length; i += 3) positions[i] = h - positions[i];
-  return { positions, indices: lid.indices };
+  return { positions, indices: lid.indices.slice() };
 }
 
 /** Map CAD Z-up (print/STL) coords to Three.js Y-up for preview. */
