@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — Slide lid subdivided top cap (centre z-fight)
+- Latest commit: `9e647ae` — Slide lid subdivided top cap (centre z-fight)
 - Refresh cachebust currently: MakerDeck app.js?v=40 / style.css?v=10
 
 ### 2026-07-04 fix (MakerDeck slide lid centre diamond — mesh)
