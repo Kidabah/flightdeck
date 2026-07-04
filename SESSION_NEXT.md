@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — X-ray floor cap z-fight fix
+- Latest commit: `47d079f` — X-ray floor cap z-fight fix
 - Refresh cachebust currently: MakerDeck app.js?v=32 / style.css?v=10
 
 ### 2026-07-04 fix (MakerDeck X-ray floor diamond artifact)
