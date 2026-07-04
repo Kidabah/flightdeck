@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — floor centre artifact (grid bleed + slab caps)
+- Latest commit: `a81a2fe` — floor centre artifact (grid bleed + slab caps)
 - Refresh cachebust currently: MakerDeck app.js?v=33 / style.css?v=10
 
 ### 2026-07-04 fix (MakerDeck floor centre hatch — round 2)
