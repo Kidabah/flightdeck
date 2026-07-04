@@ -27,6 +27,14 @@ let debossCutterCache = null;
 let traceSourceCanvas = null;
 let traceLastResult = null;
 let traceLastSvg = "";
+const EMBOSS_FACE_LABELS = {
+  front: "front",
+  back: "back",
+  left: "left side",
+  right: "right side",
+  top: "top",
+  lid: "lid top",
+};
 const BED_LIFT = 0.35;
 const LID_PREVIEW_GAP = 0.35;
 const LID_ANIM_LIFT = 14;
@@ -434,6 +442,10 @@ function setLidPreviewTransform(y, x = 0) {
     lidMesh.position.y = y;
     lidMesh.position.x = x;
   }
+  if (labelMesh && state.embossFace === "lid" && state.embossDeboss) {
+    labelMesh.position.y = y;
+    labelMesh.position.x = x;
+  }
   syncLidGuideLoops(y, x);
 }
 
@@ -809,7 +821,6 @@ function rebuildMesh() {
   const params = buildParams();
 
   meshCache = buildContainer(params);
-  debossCutterCache = meshCache.debossCutterMesh || null;
   if (meshCache.meta.shape === "rect" && state.shape === "rounded") {
     meshCache.meta.shape = "rounded";
   }
@@ -837,7 +848,7 @@ function rebuildMesh() {
     edgeLines = null;
   }
 
-  if (meshCache.labelMesh) {
+  if (meshCache.labelMesh && state.embossFace !== "lid") {
     const labelGeom = toBufferGeometry(THREE, meshCache.labelMesh);
     const mat = state.embossDeboss ? debossPreviewMaterial : labelMaterial;
     labelMesh = new THREE.Mesh(labelGeom, mat);
@@ -888,7 +899,30 @@ function rebuildMesh() {
     previewRoot.add(lidMesh);
 
     buildLidGuideLoops();
+
+    if (state.embossFace === "lid" && lidCache.labelMesh && state.embossDeboss) {
+      const labelGeom = toBufferGeometry(THREE, lidCache.labelMesh);
+      labelMesh = new THREE.Mesh(labelGeom, debossPreviewMaterial);
+      labelMesh.position.set(lidMesh.position.x, lidMesh.position.y, 0);
+      labelMesh.castShadow = true;
+      labelMesh.receiveShadow = true;
+      labelMesh.renderOrder = 8;
+      previewRoot.add(labelMesh);
+      try {
+        const labelEdges = new THREE.EdgesGeometry(labelGeom, 20);
+        labelEdgeLines = new THREE.LineSegments(labelEdges, edgeMaterial);
+        labelEdgeLines.renderOrder = 9;
+        previewRoot.add(labelEdgeLines);
+      } catch {
+        labelEdgeLines = null;
+      }
+    }
   }
+
+  debossCutterCache = state.embossFace === "lid"
+    ? (lidCache?.debossCutterMesh || null)
+    : (meshCache.debossCutterMesh || null);
+  updateEmbossDebossUi();
 
   updateStats(meshCache.meta);
   updateLabels();
@@ -1074,6 +1108,7 @@ function updateLidUi() {
   }
   const title = document.getElementById("lid-section-title");
   if (title) title.textContent = on ? type.label : "Lid";
+  syncEmbossFaceUi();
 }
 
 function joinerUiShape() {
@@ -1319,7 +1354,7 @@ function updateTraceUi() {
     document.getElementById("btn-trace-apply").disabled = true;
   }
   if (state.embossTraceEnabled && !traceLastResult.tooComplex) {
-    const faceLabel = { front: "front", back: "back", left: "left side", right: "right side" }[state.embossFace] || "front";
+    const faceLabel = EMBOSS_FACE_LABELS[state.embossFace] || "front";
     msg += ` · applied to ${faceLabel} face`;
   }
   meta.textContent = msg;
@@ -1504,7 +1539,7 @@ function updateDecorUi() {
   document.getElementById("field-svg-file").classList.toggle("hidden", !svgOn);
   document.getElementById("field-emboss-text").classList.toggle("hidden", svgOn);
   document.getElementById("field-emboss-font").classList.toggle("hidden", svgOn);
-  document.getElementById("emboss-face").value = state.embossFace || "front";
+  syncEmbossFaceUi();
   document.getElementById("emboss-deboss").checked = !!state.embossDeboss;
   updateEmbossDebossUi();
   document.getElementById("field-emboss-height").classList.toggle("hidden", svgOn || traceOnBox);
@@ -1514,6 +1549,18 @@ function updateDecorUi() {
   syncSliderUi("decor-offset-y", "decorOffsetY", { min: -30, max: 30, value: state.decorOffsetY ?? 0, parseKind: "float" });
   updateEmbossTextPreviewStyle();
   updateArtOverlay();
+}
+
+function syncEmbossFaceUi() {
+  const select = document.getElementById("emboss-face");
+  if (!select) return;
+  const lidOn = state.lidEnabled && shapeSupportsLid(state.shape);
+  const lidOpt = select.querySelector('option[value="lid"]');
+  if (lidOpt) lidOpt.disabled = !lidOn;
+  if (state.embossFace === "lid" && !lidOn) {
+    state.embossFace = "top";
+  }
+  select.value = state.embossFace || "front";
 }
 
 function updateEmbossDebossUi() {
@@ -2071,7 +2118,11 @@ document.getElementById("btn-export-accent").addEventListener("click", () => {
 
 document.getElementById("btn-export-deboss").addEventListener("click", () => {
   if (!state.embossDeboss || !debossCutterCache) return;
-  const blob = meshToStl(debossCutterCache, "makerdeck-deboss");
+  let exportMesh = debossCutterCache;
+  if (state.embossFace === "lid" && lidCache) {
+    exportMesh = orientLidForPrint({ ...debossCutterCache, lidHeight: lidCache.lidHeight });
+  }
+  const blob = meshToStl(exportMesh, "makerdeck-deboss");
   downloadBlob(blob, filenameFor(meshCache.meta, "deboss-cutter"));
 });
 
@@ -2081,7 +2132,13 @@ let artDrag = null;
 
 function projectFacePoint(frame, px, py) {
   const mapped = frame.mapPoint(px, py, 0.35);
-  const v = new THREE.Vector3(mapped[0], BED_LIFT + mapped[2], -mapped[1]);
+  let offsetX = 0;
+  let offsetY = 0;
+  if (frame.face === "lid" && lidMesh) {
+    offsetX = lidMesh.position.x;
+    offsetY = lidMesh.position.y;
+  }
+  const v = new THREE.Vector3(mapped[0] + offsetX, BED_LIFT + mapped[2] + offsetY, -mapped[1]);
   v.project(camera);
   const w = viewport.clientWidth;
   const h = viewport.clientHeight;

@@ -127,6 +127,29 @@ export function appendSlideChannelsToBody(outPos, outIdx, meta, totalH, params) 
   pushQuad(outPos, outIdx, vec3(xFace, yStop, zShelf), vec3(xFace, yStop, zTop), vec3(xBack, yStop, zTop), vec3(xBack, yStop, zCatch));
 }
 
+/** Top-face bounds for slide lid art placement (CAD mm, Z-up). */
+export function getSlideLidTopBounds(meta, params) {
+  const opts = resolveSlideOpts(params);
+  const id2 = meta.inner.d / 2;
+  const yEdge = id2 - opts.clearance - WALL_EPS;
+  const tabLen = Math.min(3.5, opts.stopLength * 0.32);
+  const lidLen = Math.max(20, meta.inner.w - opts.stopLength - opts.margin * 2 - tabLen);
+  const halfLen = lidLen / 2;
+  const x0 = -halfLen;
+  const x1 = halfLen + tabLen;
+  const zTop = opts.railHeight + opts.lidThickness;
+  return {
+    x0,
+    x1,
+    y0: -yEdge,
+    y1: yEdge,
+    zTop,
+    centerX: (x0 + x1) / 2,
+    faceW: x1 - x0,
+    faceH: 2 * yEdge,
+  };
+}
+
 export function buildSlideLidMesh(meta, totalH, params) {
   const iw2 = meta.inner.w / 2;
   const id2 = meta.inner.d / 2;

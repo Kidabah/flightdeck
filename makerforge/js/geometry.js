@@ -1002,15 +1002,19 @@ export function buildContainer(params) {
   let debossCutterMesh = null;
   if (shapeSupportsDecor(decorShape)) {
     const shellMesh = applyBodyDecorations(mesh, resolved.meta, params);
-    labelMesh = buildLabelEmboss(resolved.meta, params, params.embossSvgText || "", "emboss");
-    if (labelMesh) centerPositions(labelMesh.positions, 0, 0);
-    if (params.embossDeboss) {
-      debossCutterMesh = buildLabelEmboss(resolved.meta, params, params.embossSvgText || "", "deboss-cutter");
-      if (debossCutterMesh) centerPositions(debossCutterMesh.positions, 0, 0);
-      // Body STL prints clean; cutter is a separate download for slicer subtraction.
-      mesh = shellMesh;
+    const isLidFace = params.embossFace === "lid";
+    if (!isLidFace) {
+      labelMesh = buildLabelEmboss(resolved.meta, params, params.embossSvgText || "", "emboss");
+      if (labelMesh) centerPositions(labelMesh.positions, 0, 0);
+      if (params.embossDeboss) {
+        debossCutterMesh = buildLabelEmboss(resolved.meta, params, params.embossSvgText || "", "deboss-cutter");
+        if (debossCutterMesh) centerPositions(debossCutterMesh.positions, 0, 0);
+        mesh = shellMesh;
+      } else {
+        mesh = labelMesh ? mergeMeshes(shellMesh, labelMesh) : shellMesh;
+      }
     } else {
-      mesh = labelMesh ? mergeMeshes(shellMesh, labelMesh) : shellMesh;
+      mesh = shellMesh;
     }
     if (params.accentEnabled) {
       accentMesh = buildAccentMesh(resolved.meta, params);
@@ -1074,6 +1078,25 @@ export function buildLid(params) {
   } else {
     lid = buildSlipLidMesh(resolved.outer, options);
   }
+
+  const decorShape =
+    (resolved.meta.shape === "rect" || resolved.meta.shape === "pencilBox") &&
+    (params.cornerRadius || 0) > 0.5
+      ? "rounded"
+      : resolved.meta.shape;
+  let labelMesh = null;
+  let debossCutterMesh = null;
+  if (params.embossFace === "lid" && shapeSupportsDecor(decorShape)) {
+    labelMesh = buildLabelEmboss(resolved.meta, params, params.embossSvgText || "", "emboss");
+    if (labelMesh) centerPositions(labelMesh.positions, 0, 0);
+    if (params.embossDeboss) {
+      debossCutterMesh = buildLabelEmboss(resolved.meta, params, params.embossSvgText || "", "deboss-cutter");
+      if (debossCutterMesh) centerPositions(debossCutterMesh.positions, 0, 0);
+    } else if (labelMesh) {
+      lid = mergeMeshes(lid, labelMesh);
+    }
+  }
+
   centerPositions(lid.positions, 0, 0);
   const guideParams = { ...params, lidType, slideMeta };
   return {
@@ -1084,6 +1107,8 @@ export function buildLid(params) {
     seatZ: resolved.totalH,
     slideMeta,
     fitGuides: computeLidFitGuides(resolved, guideParams),
+    labelMesh,
+    debossCutterMesh,
   };
 }
 

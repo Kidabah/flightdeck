@@ -2,8 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `1f8d6e6` — MakerDeck stencil text emboss
-- Refresh cachebust currently: MakerDeck app.js?v=42 / style.css?v=11
+- Latest commit: (pending push) — MakerDeck top/lid stencil placement
+- Refresh cachebust currently: MakerDeck app.js?v=43 / style.css?v=11
+
+### 2026-07-04 feature (MakerDeck art on top / lid)
+
+**Stencil placement on horizontal faces** (`features.js`, `geometry.js`, `decor.js`, `slide-lid.js`, `app.js`, `index.html`)
+
+- Art tab Face selector adds **Top (box rim)** and **Lid top** (when lid enabled).
+- Lid-top art merges into the **lid STL** export; body STL stays clean.
+- Preview overlay follows slide-lid position on lid face.
+- Cachebust app.js?v=43. Hard refresh required.
 
 ### 2026-07-04 fix (MakerDeck stencil text emboss)
 

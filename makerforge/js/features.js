@@ -4,6 +4,7 @@
 
 import { extrudeShapeGroup, extrudeShapeGroupBetween, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, simplifyPolygon } from "./contour.js";
 import { decorPlacementOffsets, decorArtRect } from "./decor.js";
+import { getSlideLidTopBounds, shapeSupportsSlideLid } from "./slide-lid.js";
 
 export const EMBOSS_FONTS = [
   { id: "inter", label: "Inter — clean sans", family: 'Inter, system-ui, "Segoe UI", sans-serif', weight: 700 },
@@ -313,7 +314,7 @@ export function buildEmbossText(meta, params) {
   const raster = rasterTextMask(text, params.embossFont || "inter");
   if (!raster?.mask?.length) return null;
 
-  const frame = getEmbossFaceFrame(meta, params.embossFace || "front");
+  const frame = getEmbossFaceFrame(meta, params.embossFace || "front", params);
   const maxW = Math.min(frame.faceW * 0.62, 56);
   const scale = Math.min(labelH / raster.height, maxW / raster.width);
   if (!Number.isFinite(scale) || scale <= 0) return null;
@@ -342,7 +343,7 @@ export function buildEmbossText(meta, params) {
 export function buildEmbossBitmap(meta, params, bitmap) {
   if (!bitmap?.width || !bitmap.height) return null;
   const artH = clamp(params.embossTraceSize ?? 16, 6, 40);
-  const frame = getEmbossFaceFrame(meta, params.embossFace || "front");
+  const frame = getEmbossFaceFrame(meta, params.embossFace || "front", params);
   const maxW = Math.min(frame.faceW * 0.62, 56);
   const scale = Math.min(artH / bitmap.height, maxW / bitmap.width);
   if (!Number.isFinite(scale) || scale <= 0) return null;
@@ -591,7 +592,7 @@ export function buildEmbossSvg(meta, params, svgText) {
   const polylines = parsed.polylines || (Array.isArray(parsed) ? parsed : []);
   if (!polylines.length) return null;
 
-  const frame = getEmbossFaceFrame(meta, params.embossFace || "front");
+  const frame = getEmbossFaceFrame(meta, params.embossFace || "front", params);
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
@@ -672,9 +673,49 @@ export function shapeSupportsDecor(shape) {
  * onto the target face at a distance `offset` from the outer surface
  * (positive = outward, negative = inward for deboss).
  */
-export function getEmbossFaceFrame(meta, face) {
+export function getEmbossFaceFrame(meta, face, params = null) {
   const b = rectFeatureBounds(meta);
-  const useFace = ["front", "back", "left", "right"].includes(face) ? face : "front";
+  const useFace = ["front", "back", "left", "right", "top", "lid"].includes(face) ? face : "front";
+
+  if (useFace === "top") {
+    return {
+      face: "top",
+      faceW: b.outerW,
+      faceH: b.outerD,
+      centerZ: b.totalH * 0.5,
+      horizontal: true,
+      mapPoint: (px, py, offset) => [px, py, b.totalH + offset],
+    };
+  }
+
+  if (useFace === "lid") {
+    const lidType = params?.lidType ?? "slip";
+    if (lidType === "slide" && shapeSupportsSlideLid(meta.shape)) {
+      const bounds = getSlideLidTopBounds(meta, params || {});
+      return {
+        face: "lid",
+        faceW: bounds.faceW,
+        faceH: bounds.faceH,
+        centerZ: 0,
+        horizontal: true,
+        centerX: bounds.centerX,
+        mapPoint: (px, py, offset) => [bounds.centerX + px, py, bounds.zTop + offset],
+      };
+    }
+    const skirtDepth = clamp(params?.lidSkirt ?? 10, 4, 30);
+    const lidThickness = clamp(params?.lidThickness ?? 2.4, 1.2, 8);
+    const zTop = lidType === "flat" ? lidThickness : skirtDepth + lidThickness;
+    return {
+      face: "lid",
+      faceW: b.outerW,
+      faceH: b.outerD,
+      centerZ: 0,
+      horizontal: true,
+      centerX: 0,
+      mapPoint: (px, py, offset) => [px, py, zTop + offset],
+    };
+  }
+
   // Convention: default preview camera looks at -Y face → that's the user's "front".
   if (useFace === "front" || useFace === "back") {
     const yOut = useFace === "front" ? -b.od2 : b.od2;
@@ -772,9 +813,11 @@ function ringPointsLocal(ring) {
 function extrudeGroupOnFace(outPos, outIdx, frame, group, d0, d1) {
   const mapTop = (px, py) => frame.mapPoint(px, py, d1);
   const mapBot = (px, py) => frame.mapPoint(px, py, d0);
-  const flatCoord = frame.face === "left" || frame.face === "right"
-    ? (w) => [w[1], w[2]]
-    : (w) => [w[0], w[2]];
+  const flatCoord = frame.horizontal
+    ? (w) => [w[0], w[1]]
+    : frame.face === "left" || frame.face === "right"
+      ? (w) => [w[1], w[2]]
+      : (w) => [w[0], w[2]];
   extrudeShapeGroupBetween(outPos, outIdx, group, mapTop, mapBot, flatCoord);
 }
 
@@ -791,7 +834,7 @@ function labelOffsets(params) {
 
 /** Measure active art on a face for preview handles (null if none). */
 export function measureDecorArt(meta, params) {
-  const frame = getEmbossFaceFrame(meta, params.embossFace || "front");
+  const frame = getEmbossFaceFrame(meta, params.embossFace || "front", params);
   const traceData = params.embossTraceRects;
   const hasTrace =
     params.embossTraceEnabled &&

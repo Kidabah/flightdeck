@@ -12,7 +12,7 @@ export function decorPlacementOffsets(params, frame, artW, artH) {
   const oy = clamp(params.decorOffsetY ?? 0, -maxOy, maxOy);
   return {
     xOff: -artW / 2 + ox,
-    zOff: frame.centerZ - artH + oy,
+    zOff: frame.horizontal ? -artH / 2 + oy : frame.centerZ - artH + oy,
     ox,
     oy,
   };
