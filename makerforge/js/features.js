@@ -355,24 +355,13 @@ export function buildEmbossBitmap(meta, params, bitmap) {
   const isOutline = bitmap.mode === "outline";
 
   if (isOutline && bitmap.strokePaths?.length) {
-    const smoothPasses = artH <= 12 ? 4 : artH <= 20 ? 3 : 2;
-    const simplifyTol = Math.max(0.35, maskW / 380);
+    const smoothPasses = artH <= 12 ? 5 : artH <= 20 ? 4 : 3;
+    const simplifyTol = Math.max(0.22, maskW / 520);
     const paths = prepareStrokePaths(bitmap.strokePaths, simplifyTol, smoothPasses);
-    const strokePx = bitmap.strokeWidth ?? Math.max(1.2, maskW / 100);
-    const lineWidth = clamp(scale * strokePx, 0.35, 1.4);
-    const half = lineWidth / 2;
-
-    for (const path of paths) {
-      const pts = ringPointsLocal(path);
-      if (pts.length < 2) continue;
-      const remapped = pts.map(([px, py]) => [xOff + px * scale, zOff + (maskH - py) * scale]);
-      for (let i = 0; i < remapped.length; i++) {
-        const j = (i + 1) % remapped.length;
-        const [x0, y0] = remapped[i];
-        const [x1, y1] = remapped[j];
-        extrudeStrokeSegmentOnFace(positions, indices, frame, x0, y0, x1, y1, half, d0, d1);
-      }
-    }
+    const strokePx = bitmap.strokeWidth ?? Math.max(1.35, maskW / 88);
+    const lineWidth = clamp(scale * strokePx, 0.45, 1.5);
+    const mapPt = (px, py) => [xOff + px * scale, zOff + (maskH - py) * scale];
+    extrudeStrokePathList(positions, indices, frame, paths, mapPt, lineWidth, d0, d1);
     if (positions.length) return { positions, indices };
     // Fall through to silhouette rebuild if stroke data was empty/corrupt.
   }
@@ -417,61 +406,172 @@ export function buildEmbossBitmap(meta, params, bitmap) {
   return positions.length ? { positions, indices } : null;
 }
 
-export function parseSvgPaths(svgText) {
-  if (typeof DOMParser === "undefined") return [];
-  const doc = new DOMParser().parseFromString(svgText, "image/svg+xml");
-  const paths = [...doc.querySelectorAll("path")];
-  const polylines = [];
-  for (const path of paths) {
-    const d = path.getAttribute("d");
-    if (!d) continue;
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+function splitPathSubpaths(d) {
+  const trimmed = String(d || "").trim();
+  if (!trimmed) return [];
+  const parts = trimmed.match(/[Mm][^Mm]*/g);
+  return parts?.length ? parts : [trimmed];
+}
+
+function dedupePolylinePoints(points, eps = 0.08) {
+  if (points.length < 2) return points;
+  const out = [points[0]];
+  for (let i = 1; i < points.length; i++) {
+    const prev = out[out.length - 1];
+    const p = points[i];
+    if (Math.hypot(p[0] - prev[0], p[1] - prev[1]) >= eps) out.push(p);
+  }
+  return out;
+}
+
+function sampleSvgPathElement(pathEl, maxPoints = 900) {
+  const len = pathEl.getTotalLength();
+  if (!Number.isFinite(len) || len < 0.02) return [];
+  const count = Math.min(maxPoints, Math.max(24, Math.ceil(len / 0.28)));
+  const step = len / count;
+  const pts = [];
+  for (let i = 0; i <= count; i++) {
+    const pt = pathEl.getPointAtLength(Math.min(i * step, len));
+    pts.push([pt.x, pt.y]);
+  }
+  return dedupePolylinePoints(pts);
+}
+
+function parseSvgViewBox(svg) {
+  const vb = svg.getAttribute("viewBox")?.trim().split(/[\s,]+/).map(Number);
+  if (vb?.length === 4 && vb.every(Number.isFinite)) return vb;
+  const w = parseFloat(String(svg.getAttribute("width") || "").replace(/[^\d.]/g, "")) || 100;
+  const h = parseFloat(String(svg.getAttribute("height") || "").replace(/[^\d.]/g, "")) || 100;
+  return [0, 0, w, h];
+}
+
+function readSvgStrokeWidth(pathEl, svg) {
+  const raw = pathEl?.getAttribute("stroke-width") ?? svg?.getAttribute("stroke-width") ?? "1.5";
+  const n = parseFloat(String(raw).replace(/[^\d.]/g, ""));
+  return Number.isFinite(n) && n > 0 ? n : 1.5;
+}
+
+function polylineFromElement(el) {
+  if (el.tagName === "polyline" || el.tagName === "polygon") {
+    const nums = (el.getAttribute("points") || "").trim().split(/[\s,]+/).map(Number);
     const pts = [];
-    const tokens = d.match(/[a-zA-Z]|-?\d*\.?\d+(?:e[-+]?\d+)?/g) || [];
-    let i = 0;
-    let cmd = "";
-    let cx = 0;
-    let cy = 0;
-    while (i < tokens.length) {
-      const t = tokens[i];
-      if (/^[a-zA-Z]$/.test(t)) {
-        cmd = t;
-        i++;
-        continue;
-      }
-      const x = parseFloat(tokens[i++]);
-      const y = parseFloat(tokens[i++]);
-      if (cmd === "M" || cmd === "L") {
-        cx = x;
-        cy = y;
-        pts.push([cx, cy]);
-      } else if (cmd === "m" || cmd === "l") {
-        cx += x;
-        cy += y;
-        pts.push([cx, cy]);
-      } else if (cmd === "H") {
-        cx = x;
-        pts.push([cx, cy]);
-      } else if (cmd === "h") {
-        cx += x;
-        pts.push([cx, cy]);
-      } else if (cmd === "V") {
-        cy = x;
-        pts.push([cx, cy]);
-      } else if (cmd === "v") {
-        cy += x;
-        pts.push([cx, cy]);
-      } else if (cmd === "Z" || cmd === "z") {
-        if (pts.length) pts.push([pts[0][0], pts[0][1]]);
+    for (let i = 0; i + 1 < nums.length; i += 2) {
+      if (Number.isFinite(nums[i]) && Number.isFinite(nums[i + 1])) pts.push([nums[i], nums[i + 1]]);
+    }
+    if (el.tagName === "polygon" && pts.length >= 3) pts.push([pts[0][0], pts[0][1]]);
+    return dedupePolylinePoints(pts);
+  }
+  if (el.tagName === "line") {
+    const x1 = parseFloat(el.getAttribute("x1") || "0");
+    const y1 = parseFloat(el.getAttribute("y1") || "0");
+    const x2 = parseFloat(el.getAttribute("x2") || "0");
+    const y2 = parseFloat(el.getAttribute("y2") || "0");
+    return [[x1, y1], [x2, y2]];
+  }
+  if (el.tagName === "rect") {
+    const x = parseFloat(el.getAttribute("x") || "0");
+    const y = parseFloat(el.getAttribute("y") || "0");
+    const w = parseFloat(el.getAttribute("width") || "0");
+    const h = parseFloat(el.getAttribute("height") || "0");
+    return [[x, y], [x + w, y], [x + w, y + h], [x, y + h], [x, y]];
+  }
+  if (el.tagName === "circle") {
+    const cx = parseFloat(el.getAttribute("cx") || "0");
+    const cy = parseFloat(el.getAttribute("cy") || "0");
+    const r = parseFloat(el.getAttribute("r") || "0");
+    const pts = [];
+    const n = 48;
+    for (let i = 0; i <= n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      pts.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]);
+    }
+    return pts;
+  }
+  if (el.tagName === "ellipse") {
+    const cx = parseFloat(el.getAttribute("cx") || "0");
+    const cy = parseFloat(el.getAttribute("cy") || "0");
+    const rx = parseFloat(el.getAttribute("rx") || "0");
+    const ry = parseFloat(el.getAttribute("ry") || "0");
+    const pts = [];
+    const n = 48;
+    for (let i = 0; i <= n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      pts.push([cx + Math.cos(a) * rx, cy + Math.sin(a) * ry]);
+    }
+    return pts;
+  }
+  return [];
+}
+
+/** Sample SVG geometry into polylines (handles curves via native path length). */
+export function parseSvgPaths(svgText) {
+  if (typeof DOMParser === "undefined" || typeof document === "undefined") return [];
+  const doc = new DOMParser().parseFromString(svgText, "image/svg+xml");
+  const svg = doc.documentElement;
+  if (!svg || svg.nodeName.toLowerCase() === "parsererror") return [];
+
+  const viewBox = parseSvgViewBox(svg);
+  const scratch = document.createElementNS(SVG_NS, "svg");
+  scratch.setAttribute("xmlns", SVG_NS);
+  scratch.setAttribute("viewBox", svg.getAttribute("viewBox") || `${viewBox[0]} ${viewBox[1]} ${viewBox[2]} ${viewBox[3]}`);
+  scratch.style.cssText = "position:absolute;width:0;height:0;overflow:hidden;visibility:hidden";
+  document.body.appendChild(scratch);
+
+  const polylines = [];
+  let strokeWidth = readSvgStrokeWidth(null, svg);
+
+  try {
+    for (const pathEl of doc.querySelectorAll("path")) {
+      strokeWidth = Math.max(strokeWidth, readSvgStrokeWidth(pathEl, svg));
+      const d = pathEl.getAttribute("d");
+      if (!d) continue;
+      for (const sub of splitPathSubpaths(d)) {
+        const p = document.createElementNS(SVG_NS, "path");
+        p.setAttribute("d", sub);
+        scratch.appendChild(p);
+        const sampled = sampleSvgPathElement(p);
+        scratch.removeChild(p);
+        if (sampled.length >= 2) polylines.push(sampled);
       }
     }
-    if (pts.length > 2) polylines.push(pts);
+    for (const el of doc.querySelectorAll("polyline, polygon, line, rect, circle, ellipse")) {
+      strokeWidth = Math.max(strokeWidth, readSvgStrokeWidth(el, svg));
+      const pts = polylineFromElement(el);
+      if (pts.length >= 2) polylines.push(pts);
+    }
+  } finally {
+    scratch.remove();
   }
-  return polylines;
+
+  return { polylines, viewBox, strokeWidth };
+}
+
+function extrudeStrokePathList(positions, indices, frame, paths, mapPt, lineWidthMm, d0, d1) {
+  const half = lineWidthMm / 2;
+  for (const path of paths) {
+    if (!path?.length) continue;
+    const closed =
+      path.length >= 4 &&
+      Math.hypot(path[0][0] - path[path.length - 1][0], path[0][1] - path[path.length - 1][1]) < 0.85;
+    const pts = closed ? ringPointsLocal(path) : path;
+    const segCount = closed ? pts.length : pts.length - 1;
+    if (segCount < 1) continue;
+    for (let i = 0; i < segCount; i++) {
+      const j = closed ? (i + 1) % pts.length : i + 1;
+      const [x0, y0] = mapPt(pts[i][0], pts[i][1]);
+      const [x1, y1] = mapPt(pts[j][0], pts[j][1]);
+      extrudeStrokeSegmentOnFace(positions, indices, frame, x0, y0, x1, y1, half, d0, d1);
+    }
+  }
 }
 
 export function buildEmbossSvg(meta, params, svgText) {
-  const polylines = parseSvgPaths(svgText);
+  const parsed = parseSvgPaths(svgText);
+  const polylines = parsed.polylines || (Array.isArray(parsed) ? parsed : []);
   if (!polylines.length) return null;
+
   const frame = getEmbossFaceFrame(meta, params.embossFace || "front");
   let minX = Infinity;
   let minY = Infinity;
@@ -485,34 +585,38 @@ export function buildEmbossSvg(meta, params, svgText) {
       maxY = Math.max(maxY, y);
     }
   }
-  const sw = maxX - minX || 1;
-  const sh = maxY - minY || 1;
-  const targetW = Math.min(frame.faceW * 0.55, 50);
-  const targetH = Math.min(frame.faceH * 0.22, 16);
-  const s = Math.min(targetW / sw, targetH / sh);
+  if (!Number.isFinite(minX)) return null;
+
+  const sw = maxX - minX || parsed.viewBox?.[2] || 1;
+  const sh = maxY - minY || parsed.viewBox?.[3] || 1;
+  const artH = clamp(params.embossTraceSize ?? params.embossHeight ?? 16, 6, 40);
+  const maxW = Math.min(frame.faceW * 0.62, 56);
+  const scale = Math.min(artH / sh, maxW / sw);
+  if (!Number.isFinite(scale) || scale <= 0) return null;
+
   const cx = (minX + maxX) / 2;
-  const cy = (minY + maxY) / 2;
+  const zOff = frame.centerZ - artH;
+  const svgStroke = parsed.strokeWidth ?? 1.5;
+  const lineWidth = clamp(scale * svgStroke, 0.45, 1.5);
+  const smoothPasses = artH <= 12 ? 4 : artH <= 20 ? 3 : 2;
+  const simplifyTol = Math.max(0.18, Math.max(sw, sh) / 520);
+  const closedPaths = polylines.map((line) => {
+    if (line.length >= 3) {
+      const [x0, y0] = line[0];
+      const [x1, y1] = line[line.length - 1];
+      if (Math.hypot(x0 - x1, y0 - y1) < Math.max(0.35, Math.max(sw, sh) * 0.004)) {
+        return [...line, line[0]];
+      }
+    }
+    return line;
+  });
+  const strokePaths = prepareStrokePaths(closedPaths, simplifyTol, smoothPasses);
   const { d0, d1 } = labelOffsets(params);
-  const zMid = frame.centerZ;
   const positions = [];
   const indices = [];
+  const mapPt = (x, y) => [(x - cx) * scale, zOff + (maxY - y) * scale];
 
-  for (const line of polylines) {
-    for (let i = 0; i < line.length - 1; i++) {
-      const [x0, yv0] = line[i];
-      const [x1, yv1] = line[i + 1];
-      const ax = (x0 - cx) * s;
-      const az = zMid + (cy - yv0) * s;
-      const bx = (x1 - cx) * s;
-      const bz = zMid + (cy - yv1) * s;
-      const thick = 0.45;
-      const xL = Math.min(ax, bx) - thick;
-      const xR = Math.max(ax, bx) + thick;
-      const zB = Math.min(az, bz) - thick;
-      const zT = Math.max(az, bz) + thick;
-      boxOnFace(positions, indices, frame, xL, xR, zB, zT, d0, d1);
-    }
-  }
+  extrudeStrokePathList(positions, indices, frame, strokePaths, mapPt, lineWidth, d0, d1);
   return positions.length ? { positions, indices } : null;
 }
 

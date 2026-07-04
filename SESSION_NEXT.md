@@ -3,9 +3,18 @@
 Latest GitHub/Pi state:
 - Branch: main
 - Latest commit: `fd18472` — Fix MakerDeck blank preview (duplicate const in trace.js)
-- Refresh cachebust currently: MakerDeck app.js?v=15 / style.css?v=7 · Flightdeck app.js?v=623 / style.css?v=480
+- Refresh cachebust currently: MakerDeck app.js?v=16 / style.css?v=7 · Flightdeck app.js?v=623 / style.css?v=480
 - MakerDeck: `https://flightdeck.tail7de73e.ts.net/makerdeck/` — hard refresh after pull
 - Backend restart NOT required (only static files changed).
+
+### 2026-07-04 fix (MakerDeck SVG import + outline quality)
+
+**SVG drop-in was broken; outline trace quality bumped** (`makerforge/js/features.js`, `makerforge/js/trace.js`, `makerforge/index.html`)
+
+- SVG import now samples paths with native `getPointAtLength()` — handles cubic/quadratic Bezier curves from online converters (old parser only knew M/L/H/V, which produced random stacked rectangles).
+- SVG emboss uses the same oriented stroke extrusion as outline trace, respects `stroke-width`, and sizes with `embossTraceSize` like traced art.
+- Outline trace: 960px source resolution, 4× Chaikin passes, gentler simplify, slightly thicker stroke width.
+- Cachebust app.js?v=16. Hard refresh required.
 
 ### 2026-07-04 fix (MakerDeck Houdini / blank preview)
 

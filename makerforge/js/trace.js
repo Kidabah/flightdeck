@@ -18,7 +18,7 @@ import {
 
 
 
-const MAX_TRACE_PX = 720;
+const MAX_TRACE_PX = 960;
 
 export const MAX_TRACE_RECTS = 2500;
 
@@ -540,8 +540,8 @@ export function traceCanvas(canvas, options = {}) {
 
 
   if (mode === "outline") {
-    const simplifyTol = Math.max(0.35, tw / 380);
-    const smoothPasses = 3;
+    const simplifyTol = Math.max(0.22, tw / 520);
+    const smoothPasses = 4;
     let polygons = maskToPolygons(workMask, tw, th);
     let grouped = groupPolygonsWithHoles(polygons);
     let strokePaths = prepareStrokePaths(shapeGroupsToStrokePaths(grouped), simplifyTol, smoothPasses);
@@ -557,12 +557,12 @@ export function traceCanvas(canvas, options = {}) {
       grouped = groupPolygonsWithHoles(polygons);
       strokePaths = prepareStrokePaths(
         shapeGroupsToStrokePaths(grouped),
-        simplifyTol * 1.15,
-        Math.max(2, smoothPasses - 1),
+        simplifyTol * 1.1,
+        Math.max(3, smoothPasses - 1),
       );
     }
 
-    const strokeWidth = Math.max(1.2, tw / 100);
+    const strokeWidth = Math.max(1.35, tw / 88);
     const svg = strokePathsToSvg(strokePaths, tw, th, strokeWidth);
 
     return {
