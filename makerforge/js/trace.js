@@ -21,10 +21,14 @@ import {
 
 const MAX_TRACE_PX = 4096;
 const SVG_RASTER_PX = 4096;
+const MAX_COLOR_LAYERS = 10;
+const BLUR_SKIP_PIXELS = 1_800_000;
 
 export const MAX_TRACE_RECTS = 50000;
 
 export const MAX_TRACE_POLYGONS = 600;
+
+const traceYield = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 
 
@@ -432,13 +436,28 @@ function maskForInkColor(data, width, height, colorKey, threshold, invert, blur)
   return openMask(mask, width, height);
 }
 
-function traceColorLayerGroups(data, width, height, tw, th, ox, oy, threshold, invert, blur, options, quality) {
+async function prepareShapeGroupsAsync(groups, simplifyTol, smoothPasses) {
+  const holePasses = smoothPasses >= 2 ? Math.max(1, smoothPasses - 1) : 0;
+  const out = [];
+  for (let i = 0; i < groups.length; i++) {
+    if (i % 3 === 0) await traceYield();
+    const { outer, holes } = groups[i];
+    out.push({
+      outer: prepareContourRing(outer, simplifyTol, true, smoothPasses),
+      holes: holes.map((hole) => prepareContourRing(hole, simplifyTol * 0.5, holePasses > 0, holePasses)),
+    });
+  }
+  return out;
+}
+
+async function traceColorLayerGroupsAsync(data, width, height, tw, th, ox, oy, threshold, invert, blur, options, quality) {
   const colorLayers = collectInkColorLayers(data, width, height, threshold, invert, blur);
   if (!colorLayers || colorLayers.length < 2) return null;
 
   const allGroups = [];
   const combined = new Uint8Array(tw * th);
-  for (const colorKey of colorLayers) {
+  for (const colorKey of colorLayers.slice(0, MAX_COLOR_LAYERS)) {
+    await traceYield();
     let layerMask = maskForInkColor(data, width, height, colorKey, threshold, invert, blur);
     if (options.strengthen) layerMask = closeMask(layerMask, width, height);
     const layerCrop = cropMask(layerMask, width, height);
@@ -454,8 +473,8 @@ function traceColorLayerGroups(data, width, height, tw, th, ox, oy, threshold, i
         if (gx >= 0 && gy >= 0 && gx < tw && gy < th) combined[gy * tw + gx] = 1;
       }
     }
-    let polys = maskToPolygons(lm, lw, lh);
-    let groups = prepareShapeGroups(groupPolygonsWithHoles(polys), quality.simplifyTol, quality.smoothPasses);
+    const polys = maskToPolygons(lm, lw, lh);
+    let groups = await prepareShapeGroupsAsync(groupPolygonsWithHoles(polys), quality.simplifyTol, quality.smoothPasses);
     const ds = downsampleUntilComplexity(lm, lw, lh, groups, 1, quality.simplifyTol, quality.smoothPasses);
     groups = ds.groups.map(({ outer, holes }) => ({
       outer: outer.map(([px, py]) => [px + layerCrop.ox - ox, py + layerCrop.oy - oy]),
@@ -464,7 +483,13 @@ function traceColorLayerGroups(data, width, height, tw, th, ox, oy, threshold, i
     allGroups.push(...groups);
   }
   if (allGroups.length < 2) return null;
-  return { shapeGroups: allGroups, combined, colorLayerCount: colorLayers.length };
+  return { shapeGroups: allGroups, combined, colorLayerCount: Math.min(colorLayers.length, MAX_COLOR_LAYERS) };
+}
+
+function compactTraceMask(workMask, shapeGroups) {
+  if (shapeGroups?.length) return [];
+  if (!workMask?.length || workMask.length > 400_000) return [];
+  return workMask.slice();
 }
 
 function finishSilhouetteTrace(workMask, tw, th, ox, oy, shapeGroups, simplifyFactor, width, height, extra = {}) {
@@ -472,7 +497,7 @@ function finishSilhouetteTrace(workMask, tw, th, ox, oy, shapeGroups, simplifyFa
   const svg = polygonsToSvg(shapeGroups, tw, th);
   return {
     rects,
-    mask: workMask.slice(),
+    mask: compactTraceMask(workMask, shapeGroups),
     polygons: [],
     shapeGroups,
     strokePaths: [],
@@ -517,6 +542,7 @@ function downsampleUntilComplexity(workMask, tw, th, shapeGroups, simplifyFactor
 
 
 function blurAlphaMask(data, width, height) {
+  if (width * height > BLUR_SKIP_PIXELS) return null;
   const out = new Uint8Array(width * height);
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
@@ -793,7 +819,9 @@ export function loadImageFromFile(file) {
 
  */
 
-export function traceCanvas(canvas, options = {}) {
+export async function traceCanvasAsync(canvas, options = {}) {
+
+  await traceYield();
 
   const threshold = clamp(options.threshold ?? 128, 1, 254);
 
@@ -811,7 +839,7 @@ export function traceCanvas(canvas, options = {}) {
 
   const blur = blurAlphaMask(data, width, height);
 
-
+  await traceYield();
 
   let ink = binarizeImageData(data, width, height, threshold, invert, "silhouette", blur);
   let mask = openMask(ink, width, height);
@@ -845,8 +873,10 @@ export function traceCanvas(canvas, options = {}) {
 
   const quality = traceQualityParams(tw, options);
 
+  await traceYield();
+
   if (options.colorSeparation !== false) {
-    const colorTrace = traceColorLayerGroups(data, width, height, tw, th, ox, oy, threshold, invert, blur, options, quality);
+    const colorTrace = await traceColorLayerGroupsAsync(data, width, height, tw, th, ox, oy, threshold, invert, blur, options, quality);
     if (colorTrace) {
       let shapeGroups = colorTrace.shapeGroups;
       let combined = colorTrace.combined;
@@ -874,7 +904,8 @@ export function traceCanvas(canvas, options = {}) {
     // Edge-detected / double-line art produces dozens of ring centerlines — use silhouette instead.
     const outlineFallback = shouldFallbackOutline(rawPaths, strokePaths, tw);
     if (outlineFallback) {
-      const colorTrace = traceColorLayerGroups(data, width, height, tw, th, ox, oy, threshold, invert, blur, options, quality);
+      await traceYield();
+      const colorTrace = await traceColorLayerGroupsAsync(data, width, height, tw, th, ox, oy, threshold, invert, blur, options, quality);
       if (colorTrace) {
         let shapeGroups = colorTrace.shapeGroups;
         let combined = colorTrace.combined;
@@ -894,8 +925,9 @@ export function traceCanvas(canvas, options = {}) {
       }
       const fbTol = quality.fbTol;
       const fbPasses = quality.smoothPasses;
+      await traceYield();
       let polygons = maskToPolygons(workMask, tw, th);
-      let shapeGroups = prepareShapeGroups(groupPolygonsWithHoles(polygons), fbTol, fbPasses);
+      let shapeGroups = await prepareShapeGroupsAsync(groupPolygonsWithHoles(polygons), fbTol, fbPasses);
       const ds = downsampleUntilComplexity(workMask, tw, th, shapeGroups, simplifyFactor, fbTol, fbPasses);
       workMask = ds.mask;
       tw = ds.w;
@@ -924,7 +956,7 @@ export function traceCanvas(canvas, options = {}) {
 
     return {
       rects,
-      mask: workMask.slice(),
+      mask: compactTraceMask(workMask, []),
       polygons: [],
       shapeGroups: [],
       strokePaths,
@@ -944,8 +976,9 @@ export function traceCanvas(canvas, options = {}) {
     };
   }
 
+  await traceYield();
   let polygons = maskToPolygons(workMask, tw, th);
-  let shapeGroups = prepareShapeGroups(groupPolygonsWithHoles(polygons), quality.simplifyTol, quality.smoothPasses);
+  let shapeGroups = await prepareShapeGroupsAsync(groupPolygonsWithHoles(polygons), quality.simplifyTol, quality.smoothPasses);
 
   const ds = downsampleUntilComplexity(workMask, tw, th, shapeGroups, simplifyFactor, quality.simplifyTol, quality.smoothPasses);
   workMask = ds.mask;
@@ -961,7 +994,8 @@ export function traceCanvas(canvas, options = {}) {
 
 }
 
-
+/** @deprecated Use traceCanvasAsync — kept as alias for imports. */
+export const traceCanvas = traceCanvasAsync;
 
 /** Render trace preview onto a canvas (source image + green overlay). */
 

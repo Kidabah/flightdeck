@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, VASE_STYLES, PENCIL_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js";
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec } from "./features.js";
-import { loadImageFromFile, loadImageFromDataUrl, traceCanvas, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js";
+import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js";
 import { meshToStl, downloadBlob, filenameFor } from "./stl.js";
 
 const SESSION_KEY = "makerdeck-session-v1";
@@ -359,14 +359,9 @@ async function restoreSession() {
     if (payload.traceImage) {
       const loaded = await loadImageFromDataUrl(payload.traceImage);
       traceSourceCanvas = loaded.canvas;
-      traceLastResult = traceCanvas(traceSourceCanvas, {
-        threshold: state.traceThreshold,
-        invert: state.traceInvert,
-        mode: state.traceMode,
-      });
-      traceLastSvg = traceLastResult.svg || "";
-      const preview = document.getElementById("trace-preview");
-      drawTracePreview(preview, traceSourceCanvas, traceLastResult);
+      traceLastResult = null;
+      traceLastSvg = "";
+      payload.needsRestoreTrace = true;
     } else if (
       payload.state.embossSvgEnabled &&
       payload.state.embossSvgText?.trim() &&
@@ -769,14 +764,9 @@ async function restoreAppHistory(index) {
     try {
       const loaded = await loadImageFromDataUrl(snap.traceImage);
       traceSourceCanvas = loaded.canvas;
-      traceLastResult = traceCanvas(traceSourceCanvas, {
-        threshold: state.traceThreshold,
-        invert: state.traceInvert,
-        mode: state.traceMode,
-      });
-      traceLastSvg = traceLastResult.svg || "";
-      const preview = document.getElementById("trace-preview");
-      if (preview) drawTracePreview(preview, traceSourceCanvas, traceLastResult);
+      traceLastResult = null;
+      traceLastSvg = "";
+      await runTraceAsync();
     } catch {
       traceSourceCanvas = null;
       traceLastResult = null;
@@ -907,18 +897,42 @@ function updateTraceUi() {
   updateHistoryUi();
 }
 
-function runTrace() {
+let traceJob = 0;
+let traceDebounceTimer = null;
+
+async function runTraceAsync() {
   if (!traceSourceCanvas) return;
-  traceLastResult = traceCanvas(traceSourceCanvas, {
-    threshold: state.traceThreshold,
-    invert: state.traceInvert,
-    mode: state.traceMode,
-  });
-  traceLastSvg = traceLastResult.svg || "";
-  const preview = document.getElementById("trace-preview");
-  drawTracePreview(preview, traceSourceCanvas, traceLastResult);
-  updateTraceUi();
-  scheduleSaveSession();
+  const job = ++traceJob;
+  const meta = document.getElementById("trace-meta");
+  const btn = document.getElementById("btn-trace");
+  if (meta) meta.textContent = "Tracing at high resolution…";
+  if (btn) btn.disabled = true;
+  await new Promise((r) => setTimeout(r, 0));
+  try {
+    const result = await traceCanvasAsync(traceSourceCanvas, {
+      threshold: state.traceThreshold,
+      invert: state.traceInvert,
+      mode: state.traceMode,
+    });
+    if (job !== traceJob) return;
+    traceLastResult = result;
+    traceLastSvg = result.svg || "";
+    const preview = document.getElementById("trace-preview");
+    drawTracePreview(preview, traceSourceCanvas, traceLastResult);
+    updateTraceUi();
+    scheduleSaveSession();
+  } catch (err) {
+    if (job !== traceJob) return;
+    if (meta) meta.textContent = err?.message || "Trace failed";
+    console.error("MakerDeck trace failed:", err);
+  } finally {
+    if (job === traceJob && btn) btn.disabled = false;
+  }
+}
+
+function scheduleTrace() {
+  clearTimeout(traceDebounceTimer);
+  traceDebounceTimer = setTimeout(() => runTraceAsync(), 350);
 }
 
 async function handleTraceFile(file) {
@@ -927,7 +941,7 @@ async function handleTraceFile(file) {
     traceSourceCanvas = loaded.canvas;
     traceLastResult = null;
     traceLastSvg = "";
-    runTrace();
+    await runTraceAsync();
   } catch (err) {
     document.getElementById("trace-meta").textContent = err.message || "Could not load image";
     document.getElementById("trace-preview-wrap").classList.remove("hidden");
@@ -938,7 +952,7 @@ async function handleTraceFile(file) {
 function traceResultToEmbossRects(result) {
   return {
     rects: result.rects?.map((r) => ({ x: r.x, y: r.y, w: r.w, h: r.h })) || [],
-    mask: Array.from(result.mask),
+    mask: result.shapeGroups?.length ? [] : (result.mask?.length ? Array.from(result.mask) : []),
     polygons: result.polygons?.map((poly) => poly.map(([x, y]) => [x, y])) || [],
     shapeGroups: result.shapeGroups?.map((g) => ({
       outer: g.outer.map(([x, y]) => [x, y]),
@@ -953,8 +967,12 @@ function traceResultToEmbossRects(result) {
   };
 }
 
+function hasTraceGeometry(result) {
+  return !!(result?.shapeGroups?.length || result?.strokePaths?.length || result?.mask?.length);
+}
+
 function storeTraceOnBox(result, { clearLabel = true, clearSvg = true } = {}) {
-  if (!result?.mask?.length) return false;
+  if (!hasTraceGeometry(result)) return false;
   if (result.tooComplex) return false;
   state.embossTraceEnabled = true;
   state.embossTraceRects = traceResultToEmbossRects(result);
@@ -976,7 +994,7 @@ async function importSvgAsTrace(svgText, { fileName = "" } = {}) {
   const mode = "silhouette";
   state.traceMode = mode;
   document.getElementById("trace-mode").value = mode;
-  traceLastResult = traceCanvas(canvas, {
+  traceLastResult = await traceCanvasAsync(canvas, {
     threshold: Math.min(235, Math.max(160, state.traceThreshold ?? 200)),
     invert: state.traceInvert,
     mode,
@@ -1012,7 +1030,7 @@ async function importSvgAsTrace(svgText, { fileName = "" } = {}) {
 }
 
 function applyTraceToBox() {
-  if (!traceLastResult?.mask?.length) return;
+  if (!hasTraceGeometry(traceLastResult)) return;
   if (traceLastResult.tooComplex) {
     document.getElementById("trace-meta").textContent =
       `Too detailed to emboss — raise threshold or use Silhouette mode (max ${MAX_TRACE_POLYGONS} shapes).`;
@@ -1447,19 +1465,19 @@ document.getElementById("controls").addEventListener("change", (e) => {
 
 document.getElementById("trace-mode").addEventListener("change", (e) => {
   state.traceMode = e.target.value;
-  if (traceSourceCanvas) runTrace();
+  if (traceSourceCanvas) runTraceAsync();
 });
 
 document.getElementById("trace-invert").addEventListener("change", (e) => {
   state.traceInvert = e.target.checked;
-  if (traceSourceCanvas) runTrace();
+  if (traceSourceCanvas) runTraceAsync();
 });
 
 document.getElementById("trace-threshold").addEventListener("input", () => {
-  if (traceSourceCanvas) runTrace();
+  if (traceSourceCanvas) scheduleTrace();
 });
 
-document.getElementById("btn-trace").addEventListener("click", runTrace);
+document.getElementById("btn-trace").addEventListener("click", () => runTraceAsync());
 
 document.getElementById("btn-trace-apply").addEventListener("click", applyTraceToBox);
 
@@ -1664,6 +1682,10 @@ async function bootMakerDeck() {
   sessionBooting = false;
   rebuild();
   if (meshCache) fitCamera(meshCache.meta);
+
+  if (restored?.needsRestoreTrace && traceSourceCanvas) {
+    await runTraceAsync();
+  }
 }
 
 bootMakerDeck().catch((err) => {

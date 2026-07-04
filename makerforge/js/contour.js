@@ -85,11 +85,14 @@ export function chaikinSmooth(points, iterations = 2) {
  * `smoothPasses` controls Chaikin iterations (1 = light, 2 = medium, 3 = extra smooth).
  */
 export function prepareContourRing(poly, simplifyTol = 1, round = true, smoothPasses = 1) {
-  const light = simplifyPolygon(poly, simplifyTol);
+  let light = simplifyPolygon(poly, simplifyTol);
+  if (light.length > 500) light = simplifyPolygon(light, simplifyTol * 1.6);
+  if (light.length > 350) light = simplifyPolygon(light, simplifyTol * 2.2);
   const passes = Math.max(0, Math.min(6, smoothPasses));
   if (!round || passes === 0) return light;
-  const smooth = chaikinSmooth(light, passes);
-  const budget = passes >= 5 ? 1800 : passes >= 4 ? 1400 : passes >= 3 ? 900 : passes >= 2 ? 560 : 320;
+  const budgetPts = light.length > 400 ? Math.min(passes, 4) : passes;
+  const smooth = chaikinSmooth(light, budgetPts);
+  const budget = budgetPts >= 5 ? 1800 : budgetPts >= 4 ? 1400 : budgetPts >= 3 ? 900 : budgetPts >= 2 ? 560 : 320;
   if (smooth.length > budget) return simplifyPolygon(smooth, simplifyTol * 0.22);
   return smooth;
 }
