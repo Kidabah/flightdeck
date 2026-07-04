@@ -2,10 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `4aaea2c` — Lid preview fit animation
-- Refresh cachebust currently: MakerDeck app.js?v=27 / style.css?v=9
+- Latest commit: `694b915` — Lid X-ray preview fit
+- Refresh cachebust currently: MakerDeck app.js?v=28 / style.css?v=9
 
-### 2026-07-04 feature (MakerDeck lid fit animation)
+### 2026-07-04 feature (MakerDeck lid X-ray preview fit)
+
+**Transparent box + ghost lid during Preview fit** (`makerforge/js/app.js`)
+
+- Preview fit toggles X-ray: box walls ~18% opacity, lid ~46% with bright edge outline.
+- See skirt slide over/outside walls (slip) or into cavity (plug). Restores solid view after animation.
+- Cachebust app.js?v=28. Hard refresh required.
+
 
 **Preview fit button on Lid tab** (`makerforge/js/app.js`, `index.html`)
 
