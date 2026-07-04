@@ -18,7 +18,8 @@ import {
 
 
 
-const MAX_TRACE_PX = 960;
+const MAX_TRACE_PX = 1280;
+const SVG_RASTER_PX = 1280;
 
 export const MAX_TRACE_RECTS = 2500;
 
@@ -389,7 +390,7 @@ function scaleCanvasToFit(source, maxPx) {
 }
 
 /** Ensure SVG has explicit dimensions, then rasterize for reliable tracing. */
-export function rasterizeSvgToCanvas(svgText, maxPx = MAX_TRACE_PX) {
+export function rasterizeSvgToCanvas(svgText, maxPx = SVG_RASTER_PX) {
   return new Promise((resolve, reject) => {
     if (!svgText?.trim()) {
       reject(new Error("Empty SVG"));
@@ -414,18 +415,18 @@ export function rasterizeSvgToCanvas(svgText, maxPx = MAX_TRACE_PX) {
     img.onload = () => {
       const iw = img.naturalWidth || img.width || maxPx;
       const ih = img.naturalHeight || img.height || maxPx;
-      const scale = Math.min(1, maxPx / Math.max(iw, ih));
-      const w = Math.max(1, Math.round(iw * scale));
-      const h = Math.max(1, Math.round(ih * scale));
-      const canvas = document.createElement("canvas");
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext("2d");
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, w, h);
-      ctx.drawImage(img, 0, 0, w, h);
+      const hiScale = Math.min(2, maxPx / Math.max(iw, ih));
+      const hiW = Math.max(1, Math.round(iw * hiScale));
+      const hiH = Math.max(1, Math.round(ih * hiScale));
+      const hiCanvas = document.createElement("canvas");
+      hiCanvas.width = hiW;
+      hiCanvas.height = hiH;
+      const hiCtx = hiCanvas.getContext("2d");
+      hiCtx.fillStyle = "#ffffff";
+      hiCtx.fillRect(0, 0, hiW, hiH);
+      hiCtx.drawImage(img, 0, 0, hiW, hiH);
       URL.revokeObjectURL(url);
-      resolve(canvas);
+      resolve(scaleCanvasToFit(hiCanvas, maxPx));
     };
     img.onerror = () => {
       URL.revokeObjectURL(url);
@@ -642,9 +643,10 @@ export function traceCanvas(canvas, options = {}) {
     };
   }
 
-  const simplifyTol = Math.max(0.65, tw / 200);
+  const simplifyTol = Math.max(0.28, tw / 480);
+  const smoothPasses = options.smoothPasses ?? 3;
   let polygons = maskToPolygons(workMask, tw, th);
-  let shapeGroups = prepareShapeGroups(groupPolygonsWithHoles(polygons), simplifyTol);
+  let shapeGroups = prepareShapeGroups(groupPolygonsWithHoles(polygons), simplifyTol, smoothPasses);
 
   if (shapeGroups.length > MAX_TRACE_POLYGONS) {
     const ds = downsampleMask(workMask, tw, th);
@@ -654,7 +656,7 @@ export function traceCanvas(canvas, options = {}) {
     simplifyFactor *= 2;
     rects = maskToRuns(workMask, tw, th);
     polygons = maskToPolygons(workMask, tw, th);
-    shapeGroups = prepareShapeGroups(groupPolygonsWithHoles(polygons), simplifyTol * 1.2);
+    shapeGroups = prepareShapeGroups(groupPolygonsWithHoles(polygons), simplifyTol * 1.1, Math.max(2, smoothPasses - 1));
   }
 
   const svg = polygonsToSvg(shapeGroups, tw, th);

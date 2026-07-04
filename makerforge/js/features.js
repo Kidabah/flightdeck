@@ -385,10 +385,10 @@ export function buildEmbossBitmap(meta, params, bitmap) {
   }
 
   // Art smaller than 20 mm needs extra Chaikin passes so the print doesn't look chunky.
-  const smoothPasses = artH <= 12 ? 3 : artH <= 20 ? 2 : 1;
-  const simplifyTol = Math.max(0.5, maskW / (smoothPasses >= 2 ? 260 : 200));
+  const smoothPasses = artH <= 12 ? 4 : artH <= 20 ? 3 : 2;
+  const simplifyTol = Math.max(0.28, maskW / 480);
   const shapeGroups = bitmap.shapeGroups?.length
-    ? prepareShapeGroups(bitmap.shapeGroups, simplifyTol, smoothPasses)
+    ? bitmap.shapeGroups
     : prepareShapeGroups(
         groupPolygonsWithHoles(maskToPolygons(mask, maskW, maskH)),
         simplifyTol,

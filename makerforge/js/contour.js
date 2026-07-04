@@ -81,8 +81,8 @@ export function prepareContourRing(poly, simplifyTol = 1, round = true, smoothPa
   const passes = Math.max(0, Math.min(4, smoothPasses));
   if (!round || passes === 0) return light;
   const smooth = chaikinSmooth(light, passes);
-  const budget = passes >= 2 ? 320 : 220;
-  if (smooth.length > budget) return simplifyPolygon(smooth, simplifyTol * 0.45);
+  const budget = passes >= 4 ? 560 : passes >= 3 ? 480 : passes >= 2 ? 320 : 220;
+  if (smooth.length > budget) return simplifyPolygon(smooth, simplifyTol * 0.35);
   return smooth;
 }
 

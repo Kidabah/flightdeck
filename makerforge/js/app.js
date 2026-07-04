@@ -972,6 +972,7 @@ async function importSvgAsTrace(svgText, { fileName = "" } = {}) {
     invert: state.traceInvert,
     mode,
     strengthen: true,
+    smoothPasses: 4,
   });
   traceLastSvg = traceLastResult.svg || "";
   const preview = document.getElementById("trace-preview");
