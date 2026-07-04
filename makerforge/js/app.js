@@ -11,6 +11,7 @@ import {
   cancelArtDraft,
   clearArtDraft,
   commitArtDraft,
+  preferredEmbossFace,
   draftHasContent,
   ensureArtDraftFromState,
   getArtDraft,
@@ -455,15 +456,23 @@ function lidClosedX() {
   return lidCache.slideMeta.closedX;
 }
 
+function artUsesLidFace(params = null) {
+  const p = params || artPreviewParams();
+  return (p.embossFace || "front") === "lid";
+}
+
+function syncLabelMeshToLid() {
+  if (!labelMesh || !lidMesh) return;
+  if (!artUsesLidFace()) return;
+  labelMesh.position.set(lidMesh.position.x, lidMesh.position.y, 0);
+}
+
 function setLidPreviewTransform(y, x = 0) {
   if (lidMesh) {
     lidMesh.position.y = y;
     lidMesh.position.x = x;
   }
-  if (labelMesh && state.embossFace === "lid" && state.embossDeboss) {
-    labelMesh.position.y = y;
-    labelMesh.position.x = x;
-  }
+  syncLabelMeshToLid();
   syncLidGuideLoops(y, x);
 }
 
@@ -1364,9 +1373,7 @@ function refreshArtPreviewLabel() {
   labelMesh.castShadow = true;
   labelMesh.receiveShadow = true;
   labelMesh.renderOrder = 8;
-  if (params.embossFace === "lid" && lidMesh) {
-    labelMesh.position.set(lidMesh.position.x, lidMesh.position.y, 0);
-  }
+  syncLabelMeshToLid();
   previewRoot.add(labelMesh);
   try {
     const labelEdges = new THREE.EdgesGeometry(labelGeom, 20);
@@ -1459,7 +1466,11 @@ function syncArtEditorUi() {
         : "Applied to box.";
     status.classList.toggle("is-dirty", dirty && hasContent);
   }
-  if (applyBtn) applyBtn.disabled = !hasContent || !dirty;
+  if (applyBtn) {
+    applyBtn.disabled = !hasContent || !dirty;
+    const face = src.face || "front";
+    applyBtn.textContent = face === "lid" ? "Apply to lid" : "Apply to box";
+  }
   if (cancelBtn) cancelBtn.classList.toggle("hidden", !dirty);
 
   document.getElementById("emboss-text").value = src.text || "";
@@ -1747,7 +1758,23 @@ function syncEmbossFaceUi() {
   if (state.embossFace === "lid" && !lidOn) {
     state.embossFace = "top";
   }
-  select.value = state.embossFace || "front";
+  const draft = getArtDraft();
+  const face = draft?.face ?? state.embossFace ?? "front";
+  select.value = face;
+
+  const hint = document.getElementById("emboss-face-hint");
+  if (hint) {
+    if (lidOn && face === "top") {
+      hint.textContent = "Top puts text on the box body only — Download lid won't include it. Pick Lid top for slide lids.";
+      hint.classList.remove("hidden");
+    } else if (lidOn && face === "lid") {
+      hint.textContent = "Text will emboss on the lid STL (Download lid).";
+      hint.classList.remove("hidden");
+    } else {
+      hint.textContent = "";
+      hint.classList.add("hidden");
+    }
+  }
 }
 
 function updateEmbossDebossUi() {
@@ -2337,7 +2364,14 @@ document.getElementById("btn-export").addEventListener("click", () => {
 
 document.getElementById("btn-export-lid").addEventListener("click", () => {
   if (!state.lidEnabled) return;
-  if (!lidCache) rebuild();
+  rebuild();
+  if (appliedHasArt(state) && state.embossFace !== "lid") {
+    const status = document.getElementById("art-draft-status");
+    if (status) {
+      status.textContent = "Art is on the box body — switch Face to Lid top, Apply, then download lid again.";
+      status.classList.add("is-dirty");
+    }
+  }
   const printMesh = orientLidForPrint(lidCache);
   const blob = meshToStl(printMesh, "makerdeck-lid");
   downloadBlob(blob, filenameFor(lidCache.meta, "lid"));
@@ -2400,9 +2434,33 @@ const _labelWorldCorner = new THREE.Vector3();
 function collectLabelScreenPoints() {
   if (!labelMesh?.geometry || !viewport) return null;
   labelMesh.updateWorldMatrix(true, false);
+  const pos = labelMesh.geometry.getAttribute("position");
+  if (!pos?.count) return null;
+
+  let minWorldY = Infinity;
+  let maxWorldY = -Infinity;
+  const worldYs = new Float32Array(pos.count);
+  for (let i = 0; i < pos.count; i++) {
+    _labelWorldCorner.fromBufferAttribute(pos, i);
+    labelMesh.localToWorld(_labelWorldCorner);
+    worldYs[i] = _labelWorldCorner.y;
+    minWorldY = Math.min(minWorldY, _labelWorldCorner.y);
+    maxWorldY = Math.max(maxWorldY, _labelWorldCorner.y);
+  }
+  const yCut = maxWorldY - Math.max(0.02, (maxWorldY - minWorldY) * 0.35);
+  const pts = [];
+  for (let i = 0; i < pos.count; i++) {
+    if (worldYs[i] < yCut) continue;
+    _labelWorldCorner.fromBufferAttribute(pos, i);
+    labelMesh.localToWorld(_labelWorldCorner);
+    const p = projectWorldToScreen(_labelWorldCorner);
+    if (p.behind) return null;
+    pts.push(p);
+  }
+  if (pts.length >= 4) return pts;
+
   _labelWorldBox.setFromObject(labelMesh);
   if (_labelWorldBox.isEmpty()) return null;
-
   const { min, max } = _labelWorldBox;
   const corners = [
     [min.x, min.y, min.z],
@@ -2414,14 +2472,14 @@ function collectLabelScreenPoints() {
     [min.x, max.y, max.z],
     [max.x, max.y, max.z],
   ];
-  const pts = [];
+  const fallback = [];
   for (const [x, y, z] of corners) {
     _labelWorldCorner.set(x, y, z);
     const p = projectWorldToScreen(_labelWorldCorner);
     if (p.behind) return null;
-    pts.push(p);
+    fallback.push(p);
   }
-  return pts.length ? pts : null;
+  return fallback.length ? fallback : null;
 }
 
 function fitOverlayLayoutFromScreenPoints(points, hintAngleDeg = null) {

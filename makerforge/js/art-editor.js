@@ -87,12 +87,19 @@ export function clearArtDraft() {
   artDraftDirty = false;
 }
 
+export function preferredEmbossFace(state) {
+  if (state.lidEnabled && (state.lidType === "slide" || state.lidType === "slip" || state.lidType === "plug" || state.lidType === "flat")) {
+    return "lid";
+  }
+  return state.embossFace || "front";
+}
+
 export function startBlankArtDraft(state) {
   artDraft = {
     text: "",
     font: state.embossFont || "inter",
     height: state.embossHeight ?? 7,
-    face: state.embossFace || "front",
+    face: preferredEmbossFace(state),
     offsetX: 0,
     offsetY: 0,
     rotation: 0,

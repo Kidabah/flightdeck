@@ -2,8 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `1b81b2a` — mesh-driven art selection frame (Bambu skip-map pattern)
-- Refresh cachebust currently: MakerDeck app.js?v=50 / style.css?v=13
+- Latest commit: (pending) — lid art face default + overlay top-cap sampling
+- Refresh cachebust currently: MakerDeck app.js?v=51 / style.css?v=13
+
+### 2026-07-04 fix (MakerDeck art on lid + overlay)
+
+**Slide-lid text now targets the lid STL; frame samples the visible cap** (`app.js`, `art-editor.js`, `geometry.js`, `index.html`)
+
+- Pencil box preset defaults Face to **Lid top**; hint warns when Top (box body) won't export on Download lid.
+- Apply button reads **Apply to lid** when appropriate; label preview follows sliding lid.
+- Overlay uses top-cap mesh vertices (not full extrusion AABB) for tighter wrap.
+- Cachebust app.js?v=51. Hard refresh required.
 
 ### 2026-07-04 fix (MakerDeck art overlay — mesh-driven like skip-object map)
 

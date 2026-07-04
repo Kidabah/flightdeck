@@ -1160,6 +1160,7 @@ export const PENCIL_BOX_PRESET = {
   slideGrooveDepth: 2.4,
   slideStopLength: 10,
   slideEntryRamp: 10,
+  embossFace: "lid",
 };
 
 export const TEARDROP_PRESET = {
