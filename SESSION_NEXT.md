@@ -2,8 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `2b32eec` — fix art overlay rotation + stuck applied text
-- Refresh cachebust currently: MakerDeck app.js?v=48 / style.css?v=13
+- Latest commit: (pending) — glyph-sized text frame + Windows fonts + bigger size cap
+- Refresh cachebust currently: MakerDeck app.js?v=49 / style.css?v=13
+
+### 2026-07-04 fix (MakerDeck text frame + size + fonts)
+
+**Selection box now wraps the letters; size slider is letter height in mm** (`features.js`, `app.js`, `index.html`)
+
+- Size measured from glyph ink bounds, not padded canvas — fixes frame sitting below the word.
+- Size slider up to 48 mm (face-dependent); width limit relaxed to ~88% of face.
+- Windows/Office fonts first: Segoe UI, Calibri, Arial, Tahoma, Verdana, Times, Cambria, Consolas.
+- Cachebust app.js?v=49. Hard refresh required.
 
 ### 2026-07-04 fix (MakerDeck art overlay + stuck text)
 

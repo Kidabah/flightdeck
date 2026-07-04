@@ -7,11 +7,18 @@ import { decorPlacementOffsets, decorArtRect, rotateFacePoint, rotateShapeGroup 
 import { getSlideLidTopBounds, shapeSupportsSlideLid } from "./slide-lid.js";
 
 export const EMBOSS_FONTS = [
-  { id: "inter", label: "Inter — clean sans", family: 'Inter, system-ui, "Segoe UI", sans-serif', weight: 700 },
-  { id: "arial", label: "Arial — classic", family: "Arial, Helvetica, sans-serif", weight: 700 },
-  { id: "impact", label: "Impact — heavy", family: 'Impact, "Arial Black", sans-serif', weight: 400 },
+  { id: "segoe-ui", label: "Segoe UI — Windows", family: '"Segoe UI Variable", "Segoe UI", system-ui, sans-serif', weight: 700 },
+  { id: "calibri", label: "Calibri — Office", family: 'Calibri, "Segoe UI", Candara, sans-serif', weight: 700 },
+  { id: "arial", label: "Arial — Windows sans", family: "Arial, Helvetica, sans-serif", weight: 700 },
+  { id: "tahoma", label: "Tahoma — Windows UI", family: 'Tahoma, "Segoe UI", sans-serif', weight: 700 },
+  { id: "verdana", label: "Verdana — readable", family: "Verdana, Geneva, sans-serif", weight: 700 },
+  { id: "times", label: "Times New Roman — Office", family: '"Times New Roman", Times, serif', weight: 700 },
   { id: "georgia", label: "Georgia — serif", family: "Georgia, 'Times New Roman', serif", weight: 700 },
-  { id: "courier", label: "Courier — mono", family: '"Courier New", Courier, monospace', weight: 700 },
+  { id: "cambria", label: "Cambria — Office serif", family: "Cambria, Georgia, serif", weight: 700 },
+  { id: "impact", label: "Impact — poster", family: 'Impact, "Arial Black", sans-serif', weight: 400 },
+  { id: "consolas", label: "Consolas — mono", family: 'Consolas, "Courier New", monospace', weight: 700 },
+  { id: "courier", label: "Courier New — mono", family: '"Courier New", Courier, monospace', weight: 700 },
+  { id: "inter", label: "Inter — clean sans", family: 'Inter, "Segoe UI", system-ui, sans-serif', weight: 700 },
   { id: "bebas", label: "Bebas Neue — label", family: '"Bebas Neue", Impact, sans-serif', weight: 400, google: "Bebas Neue" },
   { id: "anton", label: "Anton — display", family: 'Anton, Impact, sans-serif', weight: 400, google: "Anton" },
   { id: "oswald", label: "Oswald — condensed", family: 'Oswald, "Arial Narrow", sans-serif', weight: 700, google: "Oswald" },
@@ -296,49 +303,77 @@ function rasterTextRects(text, fontId, fontSizePx = 96) {
   return { rects: [{ x: 0, y: 0, w: raster.width, h: raster.height }], width: raster.width, height: raster.height };
 }
 
+/** Tight pixel bounds of ink in a text mask. */
+function glyphBoundsFromMask(mask, maskW, maskH) {
+  let left = Infinity;
+  let top = Infinity;
+  let right = -Infinity;
+  let bottom = -Infinity;
+  for (let py = 0; py < maskH; py++) {
+    for (let px = 0; px < maskW; px++) {
+      if (!mask[py * maskW + px]) continue;
+      left = Math.min(left, px);
+      right = Math.max(right, px);
+      top = Math.min(top, py);
+      bottom = Math.max(bottom, py);
+    }
+  }
+  if (!Number.isFinite(left)) return null;
+  return {
+    left,
+    top,
+    right,
+    bottom,
+    width: right - left + 1,
+    height: bottom - top + 1,
+  };
+}
+
+/** Size limits for embossed text on a face (mm). */
+export function textEmbossSizeLimits(meta, face, params = null) {
+  const frame = getEmbossFaceFrame(meta, face || "front", params);
+  return {
+    min: 3,
+    max: Math.min(48, Math.max(20, Math.round(frame.faceH * 0.48 * 2) / 2)),
+    maxWidthMm: Math.max(20, frame.faceW * 0.88),
+  };
+}
+
 /** Shared text layout — keeps 3D mesh and selection handles aligned. */
 function computeTextArtLayout(meta, params) {
   const text = String(params.embossText || "").trim();
   if (!text) return null;
-  const labelH = clamp(params.embossHeight ?? 7, 3, 18);
+  const frame = getEmbossFaceFrame(meta, params.embossFace || "front", params);
+  const limits = textEmbossSizeLimits(meta, frame.face, params);
+  const labelH = clamp(params.embossHeight ?? 7, limits.min, limits.max);
   const raster = rasterTextMask(text, params.embossFont || "inter");
   if (!raster?.mask?.length) return null;
 
-  const frame = getEmbossFaceFrame(meta, params.embossFace || "front", params);
-  const maxW = Math.min(frame.faceW * 0.62, 56);
-  const scale = Math.min(labelH / raster.height, maxW / raster.width);
+  const { mask, width: maskW, height: maskH } = raster;
+  const glyph = glyphBoundsFromMask(mask, maskW, maskH);
+  if (!glyph) return null;
+
+  const scale = Math.min(labelH / glyph.height, limits.maxWidthMm / glyph.width);
   if (!Number.isFinite(scale) || scale <= 0) return null;
 
-  const artW = raster.width * scale;
-  const artH = raster.height * scale;
+  const artW = glyph.width * scale;
+  const artH = glyph.height * scale;
   const { xOff, zOff } = decorPlacementOffsets(params, frame, artW, artH);
-  const { mask, width: maskW, height: maskH } = raster;
+  const left = xOff;
+  const right = xOff + artW;
+  const bottom = zOff;
+  const top = zOff + artH;
+  const cx = xOff + artW / 2;
+  const cy = zOff + artH / 2;
+  const canvasXOff = xOff - glyph.left * scale;
+  const canvasZOff = zOff - (maskH - glyph.bottom) * scale;
 
-  let left = Infinity;
-  let bottom = Infinity;
-  let right = -Infinity;
-  let top = -Infinity;
-  for (let py = 0; py < maskH; py++) {
-    for (let px = 0; px < maskW; px++) {
-      if (!mask[py * maskW + px]) continue;
-      const fx = xOff + px * scale;
-      const fy = zOff + (maskH - py) * scale;
-      left = Math.min(left, fx);
-      right = Math.max(right, fx);
-      bottom = Math.min(bottom, fy);
-      top = Math.max(top, fy);
-    }
-  }
-  if (!Number.isFinite(left)) return null;
-
-  const cx = (left + right) / 2;
-  const cy = (bottom + top) / 2;
   return {
     frame,
     raster,
     scale,
-    xOff,
-    zOff,
+    xOff: canvasXOff,
+    zOff: canvasZOff,
     artW,
     artH,
     maskW,
@@ -350,6 +385,7 @@ function computeTextArtLayout(meta, params) {
     cx,
     cy,
     rotation: params.decorRotation ?? 0,
+    glyphHeightMm: artH,
   };
 }
 
@@ -369,13 +405,13 @@ export function buildEmbossText(meta, params) {
   if (!layout) return null;
 
   const { frame, raster, scale, xOff, zOff, maskW, maskH, cx, cy, rotation } = layout;
-  const labelH = clamp(params.embossHeight ?? 7, 3, 18);
   const { d0, d1 } = labelOffsets(params);
   const positions = [];
   const indices = [];
 
   const simplifyTol = Math.max(0.1, maskW / 1400);
-  const smoothPasses = labelH <= 8 ? 4 : labelH <= 14 ? 3 : 2;
+  const glyphMm = layout.glyphHeightMm ?? 7;
+  const smoothPasses = glyphMm <= 8 ? 4 : glyphMm <= 14 ? 3 : 2;
   const shapeGroups = prepareShapeGroups(
     groupPolygonsWithHoles(maskToPolygons(raster.mask, maskW, maskH)),
     simplifyTol,

@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsLid, shapeSupportsSlideLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, measureDecorArt, buildLabelEmboss } from "./features.js";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, measureDecorArt, buildLabelEmboss, textEmbossSizeLimits } from "./features.js";
 import { rotateFacePoint } from "./decor.js";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js";
 import { meshToStl, downloadBlob, filenameFor } from "./stl.js";
@@ -797,7 +797,7 @@ function syncUiFromState() {
   syncSliderUi("joiner-protrusion", "joinerProtrusion", { min: 2, max: 10, value: state.joinerProtrusion, parseKind: "float" });
   syncSliderUi("accent-height", "accentHeight", { min: 2, max: 10, value: state.accentHeight, parseKind: "float" });
   syncSliderUi("emboss-depth", "embossDepth", { min: 0.3, max: 2, value: state.embossDepth, parseKind: "float" });
-  syncSliderUi("emboss-height", "embossHeight", { min: 3, max: 18, value: state.embossHeight, parseKind: "float" });
+  syncSliderUi("emboss-height", "embossHeight", { min: 3, max: 48, value: state.embossHeight, parseKind: "float" });
   syncSliderUi("trace-threshold", "traceThreshold", { min: 20, max: 235, value: state.traceThreshold });
   syncSliderUi("trace-size", "embossTraceSize", { min: 6, max: 40, value: state.embossTraceSize, parseKind: "float" });
   clearArtDraft();
@@ -1419,6 +1419,29 @@ function mountAppliedLabelPreview() {
 
 let artPreviewTimer = null;
 
+function syncArtSizeSlider() {
+  if (!meshCache) return;
+  const params = artPreviewParams();
+  const face = params.embossFace || "front";
+  const limits = textEmbossSizeLimits(meshCache.meta, face, params);
+  const draft = getArtDraft();
+  const height = draft?.height ?? state.embossHeight ?? 7;
+  const clamped = Math.min(limits.max, Math.max(limits.min, height));
+  if (draft && draft.height !== clamped) {
+    draft.height = clamped;
+  } else if (!draft && state.embossHeight !== clamped) {
+    state.embossHeight = clamped;
+  }
+  syncSliderUi("emboss-height", "embossHeight", {
+    min: limits.min,
+    max: limits.max,
+    value: clamped,
+    parseKind: "float",
+  });
+  const slider = document.getElementById("emboss-height");
+  if (slider) slider.max = String(limits.max);
+}
+
 function syncArtEditorUi() {
   const draft = getArtDraft();
   const src = draft || snapshotAppliedArt(state);
@@ -1456,6 +1479,7 @@ function syncArtEditorUi() {
   document.getElementById("field-emboss-height").classList.toggle("hidden", traceOn);
   document.getElementById("field-trace-size").classList.toggle("hidden", !traceOn);
   document.getElementById("field-art-rotation").classList.toggle("hidden", !hasContent);
+  syncArtSizeSlider();
 }
 
 function pasteImageFromClipboard(e) {
@@ -2362,16 +2386,25 @@ function artOverlayScreenLayout(art) {
   const rot = art.rotation || 0;
   const cx = art.cx;
   const cy = art.cy;
-  const center = projectFacePoint(art.frame, cx, cy);
-  const [rx, ry] = rotateFacePoint(cx, cy, art.right, cy, rot);
-  const [tx, ty] = rotateFacePoint(cx, cy, cx, art.top, rot);
-  const pr = projectFacePoint(art.frame, rx, ry);
-  const pt = projectFacePoint(art.frame, tx, ty);
-  if ([center, pr, pt].some((c) => c.behind)) return null;
-  const halfW = Math.hypot(pr.x - center.x, pr.y - center.y);
-  const halfH = Math.hypot(pt.x - center.x, pt.y - center.y);
+  const faceCorners = [
+    [art.left, art.bottom],
+    [art.right, art.bottom],
+    [art.right, art.top],
+    [art.left, art.top],
+  ];
+  const screen = faceCorners.map(([px, py]) => {
+    const [rx, ry] = rotateFacePoint(cx, cy, px, py, rot);
+    return projectFacePoint(art.frame, rx, ry);
+  });
+  if (screen.some((c) => c.behind)) return null;
+  const center = {
+    x: screen.reduce((s, c) => s + c.x, 0) / screen.length,
+    y: screen.reduce((s, c) => s + c.y, 0) / screen.length,
+  };
+  const halfW = Math.hypot(screen[1].x - screen[0].x, screen[1].y - screen[0].y) / 2;
+  const halfH = Math.hypot(screen[3].x - screen[0].x, screen[3].y - screen[0].y) / 2;
   if (halfW < 4 || halfH < 4) return null;
-  const angle = (Math.atan2(pr.y - center.y, pr.x - center.x) * 180) / Math.PI;
+  const angle = (Math.atan2(screen[1].y - screen[0].y, screen[1].x - screen[0].x) * 180) / Math.PI;
   return { center, halfW, halfH, angle };
 }
 
@@ -2418,7 +2451,12 @@ function faceMmPerPixel(art) {
 }
 
 function clampArtSize(kind, n) {
-  if (kind === "text") return Math.min(18, Math.max(3, n));
+  if (kind === "text") {
+    if (!meshCache) return Math.min(48, Math.max(3, n));
+    const params = artPreviewParams();
+    const limits = textEmbossSizeLimits(meshCache.meta, params.embossFace || "front", params);
+    return Math.min(limits.max, Math.max(limits.min, n));
+  }
   return Math.min(40, Math.max(6, n));
 }
 
@@ -2534,7 +2572,7 @@ syncSliderUi("joiner-neck", "joinerNeck", { min: 3, max: 16, value: state.joiner
 syncSliderUi("joiner-protrusion", "joinerProtrusion", { min: 2, max: 10, value: state.joinerProtrusion, parseKind: "float" });
 syncSliderUi("accent-height", "accentHeight", { min: 2, max: 10, value: state.accentHeight, parseKind: "float" });
 syncSliderUi("emboss-depth", "embossDepth", { min: 0.3, max: 2, value: state.embossDepth, parseKind: "float" });
-syncSliderUi("emboss-height", "embossHeight", { min: 3, max: 18, value: state.embossHeight, parseKind: "float" });
+syncSliderUi("emboss-height", "embossHeight", { min: 3, max: 48, value: state.embossHeight, parseKind: "float" });
 syncSliderUi("trace-threshold", "traceThreshold", { min: 20, max: 235, value: state.traceThreshold });
 syncSliderUi("trace-size", "embossTraceSize", { min: 6, max: 40, value: state.embossTraceSize, parseKind: "float" });
 
