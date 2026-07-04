@@ -1,5 +1,5 @@
 /**
- * Channel slide lid — angled grooves on long walls, beveled lid rails, end stop pocket.
+ * Channel slide lid — rectangular dados on long walls, flat lid slab, end stop pocket.
  * Slide direction: +X (entry at −X short end). Length = inner width (X), width = inner depth (Y).
  */
 
@@ -30,6 +30,9 @@ function stitchSlices(outPos, outIdx, ring0, ring1) {
   }
 }
 
+const WALL_EPS = 0.1;
+const SHELF_DROP = 0.14;
+
 export function shapeSupportsSlideLid(shape) {
   return shape === "rect" || shape === "rounded" || shape === "pencilBox" || shape === "pencil";
 }
@@ -56,10 +59,23 @@ export function resolveSlideOpts(params) {
     margin,
     lipDrop,
     railHeight: Math.max(1.2, railHeight),
+    shelfZ: 0,
   };
 }
 
-/** Append rail lips + end stop pocket to an axis-aligned box shell. */
+function grooveSlice(x, undercutT, signY, id2, grooveDepth, undercut, zTop, zBot, zShelf) {
+  const yOuter = signY * (id2 - WALL_EPS);
+  const yLip = signY * (id2 - WALL_EPS - undercut * undercutT);
+  const yInner = signY * (id2 - grooveDepth);
+  return [
+    vec3(x, yOuter, zTop),
+    vec3(x, yOuter, zShelf),
+    vec3(x, yInner, zShelf),
+    vec3(x, yLip, zTop),
+  ];
+}
+
+/** Rectangular dado grooves on long walls + end stop shelf (inset from shell to avoid z-fighting). */
 export function appendSlideChannelsToBody(outPos, outIdx, meta, totalH, params) {
   const iw2 = meta.inner.w / 2;
   const id2 = meta.inner.d / 2;
@@ -67,58 +83,48 @@ export function appendSlideChannelsToBody(outPos, outIdx, meta, totalH, params) 
   const { grooveHeight, undercut, grooveDepth, stopLength, entryRamp, margin, lipDrop } = opts;
   const zTop = totalH - lipDrop;
   const zBot = totalH - grooveHeight;
+  const zShelf = zBot - SHELF_DROP;
 
-  function lipSlice(x, undercutT, signY) {
-    const yWall = signY * id2;
-    const yLip = signY * (id2 - undercut * undercutT);
-    const yFloor = signY * (id2 - grooveDepth);
-    return [
-      vec3(x, yWall, zTop),
-      vec3(x, yWall, zBot),
-      vec3(x, yFloor, zBot),
-      vec3(x, yLip, zTop),
-    ];
-  }
-
-  function extrudeRamp(signY) {
-    const x0 = -iw2 + margin;
-    const x1 = Math.min(-iw2 + margin + entryRamp, iw2 - stopLength - margin);
+  function extrudeGroove(signY) {
+    const xOpen = -iw2 + margin;
+    const xRunEnd = iw2 - stopLength - margin;
     const steps = Math.max(4, Math.round(entryRamp / 2));
+
     for (let i = 0; i < steps; i++) {
       const t0 = i / steps;
       const t1 = (i + 1) / steps;
+      const x0 = xOpen + t0 * entryRamp;
+      const x1 = xOpen + t1 * entryRamp;
       stitchSlices(
         outPos,
         outIdx,
-        lipSlice(x0 + t0 * entryRamp, t0, signY),
-        lipSlice(x0 + t1 * entryRamp, t1, signY),
+        grooveSlice(x0, t0, signY, id2, grooveDepth, undercut, zTop, zBot, zShelf),
+        grooveSlice(x1, t1, signY, id2, grooveDepth, undercut, zTop, zBot, zShelf),
       );
     }
-    if (x1 < iw2 - stopLength - margin) {
+
+    const xMain0 = Math.min(xOpen + entryRamp, xRunEnd);
+    if (xMain0 < xRunEnd) {
       stitchSlices(
         outPos,
         outIdx,
-        lipSlice(x1, 1, signY),
-        lipSlice(iw2 - stopLength - margin, 1, signY),
+        grooveSlice(xMain0, 1, signY, id2, grooveDepth, undercut, zTop, zBot, zShelf),
+        grooveSlice(xRunEnd, 1, signY, id2, grooveDepth, undercut, zTop, zBot, zShelf),
       );
     }
   }
 
-  extrudeRamp(1);
-  extrudeRamp(-1);
+  extrudeGroove(1);
+  extrudeGroove(-1);
 
-  // End stop pocket on +X short wall — shelf the lid nose drops into.
-  const xWall = iw2;
-  const xIn = iw2 - grooveDepth - 0.6;
-  const yStop = Math.min(id2 * 0.42, id2 - grooveDepth - 1);
-  const zSeat = zBot + 0.8;
-  const p0 = vec3(xWall, -yStop, zBot);
-  const p1 = vec3(xWall, yStop, zBot);
-  const p2 = vec3(xIn, yStop, zSeat);
-  const p3 = vec3(xIn, -yStop, zSeat);
-  pushQuad(outPos, outIdx, p0, p1, p2, p3);
-  pushQuad(outPos, outIdx, p0, p3, vec3(xIn, -yStop, zTop), vec3(xWall, -yStop, zTop));
-  pushQuad(outPos, outIdx, p1, vec3(xWall, yStop, zTop), vec3(xIn, yStop, zTop), p2);
+  // End stop shelf on +X short wall (inset from wall face).
+  const xFace = iw2 - WALL_EPS;
+  const xBack = iw2 - grooveDepth - 0.8;
+  const yStop = Math.min(id2 * 0.38, id2 - grooveDepth - 1.2);
+  const zCatch = zShelf + 0.25;
+  pushQuad(outPos, outIdx, vec3(xFace, -yStop, zShelf), vec3(xFace, yStop, zShelf), vec3(xBack, yStop, zCatch), vec3(xBack, -yStop, zCatch));
+  pushQuad(outPos, outIdx, vec3(xFace, -yStop, zTop), vec3(xBack, -yStop, zTop), vec3(xBack, -yStop, zCatch), vec3(xFace, -yStop, zShelf));
+  pushQuad(outPos, outIdx, vec3(xFace, yStop, zShelf), vec3(xFace, yStop, zTop), vec3(xBack, yStop, zTop), vec3(xBack, yStop, zCatch));
 }
 
 export function buildSlideLidMesh(meta, totalH, params) {
@@ -128,7 +134,6 @@ export function buildSlideLidMesh(meta, totalH, params) {
   const {
     clearance,
     grooveHeight,
-    undercut,
     grooveDepth,
     stopLength,
     lidThickness,
@@ -140,44 +145,32 @@ export function buildSlideLidMesh(meta, totalH, params) {
   const positions = [];
   const indices = [];
 
-  const yRailOut = id2 - clearance;
-  const yRailIn = id2 - grooveDepth + clearance;
-  const yPlateIn = id2 - grooveDepth - clearance - 0.4;
-  const tabLen = Math.min(3.5, stopLength * 0.35);
+  const yEdge = id2 - clearance - WALL_EPS;
+  const yPlate = id2 - grooveDepth - clearance - 0.5;
+  const tabLen = Math.min(3.5, stopLength * 0.32);
   const lidLen = Math.max(20, meta.inner.w - stopLength - margin * 2 - tabLen);
   const halfLen = lidLen / 2;
   const xTab = halfLen;
   const xLead = -halfLen;
 
-  const z0 = 0;
+  const z0 = clearance * 0.5;
   const zRail = railHeight;
   const zTop = railHeight + lidThickness;
 
-  // Top plate
-  capPlate(positions, indices, xLead, xTab + tabLen, -yPlateIn, yPlateIn, zRail, zTop);
+  // Flat slab + edge rails (simple dado rider like wooden pencil cases).
+  capPlate(positions, indices, xLead, xTab + tabLen, -yEdge, yEdge, zRail, zTop);
+  capPlate(positions, indices, xLead, xTab + tabLen, -yEdge, yEdge, z0, zRail);
+  capPlate(positions, indices, xLead, xTab + tabLen, -yPlate, yPlate, z0, z0);
 
-  // Long rail +Y (beveled outer bottom for groove angle)
-  buildLongRail(positions, indices, xLead, xTab, yRailOut, yRailIn, z0, zRail, undercut, 1);
-  buildLongRail(positions, indices, xLead, xTab, -yRailOut, -yRailIn, z0, zRail, undercut, -1);
+  buildLongRail(positions, indices, xLead, xTab + tabLen, yEdge, yPlate, z0, zRail);
+  buildLongRail(positions, indices, xLead, xTab + tabLen, -yPlate, -yEdge, z0, zRail);
 
-  // Entry end (+Y−X corner chamfer on rails — short wall at entry)
-  chamferEntryEnd(positions, indices, xLead, yRailOut, yRailIn, z0, zRail, undercut);
-
-  // Stop nose tab on +X short end
-  buildStopTab(
-    positions,
-    indices,
-    xTab,
-    xTab + tabLen,
-    yPlateIn * 0.55,
-    zRail - 0.5,
-    zTop,
-    grooveDepth,
-  );
+  buildStopTab(positions, indices, xTab, xTab + tabLen, yPlate * 0.5, z0, zTop);
+  buildThumbNotch(positions, indices, xLead, yPlate * 0.35, zTop - 0.4, lidThickness * 0.55);
 
   const closedX = -stopLength / 2;
   const openX = closedX - iw2 * 0.55;
-  const seatY = totalH - grooveHeight;
+  const seatY = totalH - grooveHeight + SHELF_DROP * 0.5;
 
   return {
     positions,
@@ -203,45 +196,33 @@ function capPlate(outPos, outIdx, x0, x1, y0, y1, z0, z1) {
   pushQuad(outPos, outIdx, vec3(x1, y0, z1), vec3(x1, y1, z1), vec3(x1, y1, z0), vec3(x1, y0, z0));
 }
 
-function buildLongRail(outPos, outIdx, x0, x1, yOut, yIn, z0, z1, undercut, signY) {
-  const yBevel = yOut - signY * undercut * 0.85;
-  const zBevel = z0 + (z1 - z0) * 0.42;
-  const a = vec3(x0, yOut, z0);
-  const b = vec3(x1, yOut, z0);
-  const c = vec3(x1, yIn, z1);
-  const d = vec3(x0, yIn, z1);
-  pushQuad(outPos, outIdx, a, b, c, d);
-  pushQuad(outPos, outIdx, a, d, vec3(x0, yIn, zBevel), vec3(x0, yBevel, zBevel));
-  pushQuad(outPos, outIdx, b, vec3(x1, yBevel, zBevel), vec3(x1, yIn, zBevel), c);
-  pushQuad(outPos, outIdx, a, vec3(x0, yBevel, zBevel), vec3(x1, yBevel, zBevel), b);
+function buildLongRail(outPos, outIdx, x0, x1, yOut, yIn, z0, z1) {
+  pushQuad(outPos, outIdx, vec3(x0, yOut, z0), vec3(x1, yOut, z0), vec3(x1, yOut, z1), vec3(x0, yOut, z1));
+  pushQuad(outPos, outIdx, vec3(x0, yIn, z1), vec3(x1, yIn, z1), vec3(x1, yIn, z0), vec3(x0, yIn, z0));
 }
 
-function chamferEntryEnd(outPos, outIdx, xLead, yOut, yIn, z0, z1, undercut) {
-  const xCh = xLead + undercut * 1.2;
-  pushQuad(
-    outPos,
-    outIdx,
-    vec3(xLead, yOut, z0),
-    vec3(xCh, yOut, z0),
-    vec3(xCh, yIn, z1),
-    vec3(xLead, yIn, z1),
-  );
-  pushQuad(
-    outPos,
-    outIdx,
-    vec3(xLead, -yOut, z0),
-    vec3(xLead, -yIn, z1),
-    vec3(xCh, -yIn, z1),
-    vec3(xCh, -yOut, z0),
-  );
-}
-
-function buildStopTab(outPos, outIdx, x0, x1, halfY, z0, z1, grooveDepth) {
-  const xCatch = x1 + Math.min(grooveDepth * 0.5, 2);
-  pushQuad(outPos, outIdx, vec3(x0, -halfY, z0), vec3(xCatch, -halfY, z0), vec3(xCatch, halfY, z0), vec3(x0, halfY, z0));
-  pushQuad(outPos, outIdx, vec3(x0, halfY, z1), vec3(xCatch, halfY, z1), vec3(xCatch, -halfY, z1), vec3(x0, -halfY, z1));
+function buildStopTab(outPos, outIdx, x0, x1, halfY, z0, z1) {
+  pushQuad(outPos, outIdx, vec3(x0, -halfY, z0), vec3(x1, -halfY, z0), vec3(x1, halfY, z0), vec3(x0, halfY, z0));
+  pushQuad(outPos, outIdx, vec3(x0, halfY, z1), vec3(x1, halfY, z1), vec3(x1, -halfY, z1), vec3(x0, -halfY, z1));
   pushQuad(outPos, outIdx, vec3(x0, -halfY, z0), vec3(x0, halfY, z0), vec3(x0, halfY, z1), vec3(x0, -halfY, z1));
-  pushQuad(outPos, outIdx, vec3(xCatch, -halfY, z1), vec3(xCatch, halfY, z1), vec3(xCatch, halfY, z0), vec3(xCatch, -halfY, z0));
+  pushQuad(outPos, outIdx, vec3(x1, -halfY, z1), vec3(x1, halfY, z1), vec3(x1, halfY, z0), vec3(x1, -halfY, z0));
+}
+
+/** Semi-circular thumb pull on the entry end of the lid (top surface). */
+function buildThumbNotch(outPos, outIdx, xCenter, halfY, z, r) {
+  const steps = 8;
+  const y0 = -halfY;
+  const y1 = halfY;
+  for (let i = 0; i < steps; i++) {
+    const t0 = i / steps;
+    const t1 = (i + 1) / steps;
+    const a0 = Math.PI + t0 * Math.PI;
+    const a1 = Math.PI + t1 * Math.PI;
+    const p0 = vec3(xCenter + Math.cos(a0) * r, Math.sin(a0) * halfY * 0.55, z);
+    const p1 = vec3(xCenter + Math.cos(a1) * r, Math.sin(a1) * halfY * 0.55, z);
+    pushTri(outPos, outIdx, vec3(xCenter, y0, z), p0, p1);
+    pushTri(outPos, outIdx, vec3(xCenter, y1, z), p1, p0);
+  }
 }
 
 export function computeSlideFitGuides(resolved, params, slideMeta) {
@@ -258,8 +239,8 @@ export function computeSlideFitGuides(resolved, params, slideMeta) {
     boxOuter: resolved.outer,
     boxInner: resolved.inner,
     slideMeta,
-    channelLineY: id2 - opts.grooveDepth * 0.5,
-    channelZ: (zTop + zBot) / 2,
+    channelLineY: id2 - opts.grooveDepth * 0.55,
+    channelZ: (zTop + zBot) / 2 - SHELF_DROP * 0.5,
     entryX: -iw2,
     stopX: iw2 - opts.stopLength,
     iw2,

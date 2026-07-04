@@ -2,8 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `ceb6544` — Channel slide lid (rail grooves)
-- Refresh cachebust currently: MakerDeck app.js?v=35 / style.css?v=10
+- Latest commit: (pending) — Slide lid artifact fix + dado polish
+- Refresh cachebust currently: MakerDeck app.js?v=36 / style.css?v=10
+
+### 2026-07-04 fix (MakerDeck slide lid artifact + reference polish)
+
+**Dado grooves inset from wall; lid shelf clearance** (`slide-lid.js`, `app.js`)
+
+- Groove geometry offset 0.1 mm from inner wall — stops z-fighting with shell (floor moiré in X-ray).
+- Lower groove shelf + lid seat clearance so rail and body don't share one plane.
+- Simpler flat-slab lid with thumb notch on entry end; rectangular dados like wooden pencil cases.
+- X-ray keeps depthWrite on body/lid with polygon offset for cleaner transparency.
+- Cachebust app.js?v=36. Hard refresh required.
 
 ### 2026-07-04 feature (MakerDeck channel slide lid)
 

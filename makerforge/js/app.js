@@ -445,13 +445,16 @@ function setPreviewXRayMode(on) {
 
   material.transparent = on;
   material.opacity = on ? 0.14 : 1;
-  material.depthWrite = !on;
+  material.depthWrite = true;
   material.metalness = on ? 0.05 : 0.15;
   material.color.setHex(on ? 0x475569 : 0x38bdf8);
+  material.polygonOffset = on;
+  material.polygonOffsetFactor = on ? 3 : 1;
+  material.polygonOffsetUnits = on ? 6 : 2;
 
   lidMaterial.transparent = on;
   lidMaterial.opacity = on ? 0.42 : 1;
-  lidMaterial.depthWrite = !on;
+  lidMaterial.depthWrite = true;
   lidMaterial.emissive.setHex(on ? 0x0ea5e9 : 0x000000);
   lidMaterial.emissiveIntensity = on ? 0.28 : 0;
   lidMaterial.color.setHex(on ? 0x7dd3fc : 0x93c5fd);
@@ -867,6 +870,13 @@ function rebuildMesh() {
     lidMesh.castShadow = true;
     lidMesh.receiveShadow = true;
     lidMesh.renderOrder = 4;
+    if (lidCache.meta?.lidType === "slide") {
+      lidMaterial.polygonOffsetFactor = 4;
+      lidMaterial.polygonOffsetUnits = 6;
+    } else {
+      lidMaterial.polygonOffsetFactor = 2;
+      lidMaterial.polygonOffsetUnits = 3;
+    }
     previewRoot.add(lidMesh);
 
     buildLidGuideLoops();
