@@ -412,6 +412,26 @@
 
               </label>
 
+              <label class="field hidden" id="field-slide-groove">
+
+                <span class="field-label">Groove height</span>
+
+                <input type="range" id="slide-groove" min="4" max="10" step="0.5" value="6" tabindex="-1">
+
+                <button type="button" class="value-edit" data-slider="slide-groove" data-key="slideGrooveHeight" data-parse="float">6</button>
+
+              </label>
+
+              <label class="field hidden" id="field-slide-stop">
+
+                <span class="field-label">End stop length</span>
+
+                <input type="range" id="slide-stop" min="6" max="20" step="1" value="10" tabindex="-1">
+
+                <button type="button" class="value-edit" data-slider="slide-stop" data-key="slideStopLength">10</button>
+
+              </label>
+
               <p class="field-hint" id="lid-type-hint">Exports plate-down on the bed. Skirt sits outside the box walls.</p>
 
               <div class="trace-actions" id="lid-actions">
@@ -801,7 +821,7 @@
 
 
 
-  <script type="module" src="js/app.js?v=34"></script>
+  <script type="module" src="js/app.js?v=35"></script>
 
 </body>
 

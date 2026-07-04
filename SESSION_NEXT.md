@@ -2,8 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `0fa3f99` — Pencil box preset + lid type polish
-- Refresh cachebust currently: MakerDeck app.js?v=34 / style.css?v=10
+- Latest commit: (pending) — Channel slide lid (rail grooves)
+- Refresh cachebust currently: MakerDeck app.js?v=35 / style.css?v=10
+
+### 2026-07-04 feature (MakerDeck channel slide lid)
+
+**True sliding pencil-case lid** (`slide-lid.js`, `geometry.js`, `app.js`, `index.html`)
+
+- New lid type **Channel slide** — angled grooves on long walls, beveled lid rails, end-stop pocket at far short end.
+- Body gets rail lips when slide lid enabled; lid slides in along length (−X entry). Preview fit animates horizontally.
+- **Pencil box** preset defaults to channel slide. Works on rect / rounded / pencil box / pencil tube.
+- Lid tab: groove height + end stop length when channel slide selected.
+- Cachebust app.js?v=35. Hard refresh required.
 
 ### 2026-07-04 feature (MakerDeck pencil box + lid types done)
 

@@ -13,8 +13,14 @@ import {
 } from "./features.js";
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js";
+import {
+  appendSlideChannelsToBody,
+  buildSlideLidMesh,
+  computeSlideFitGuides,
+  shapeSupportsSlideLid,
+} from "./slide-lid.js";
 
-export { shapeSupportsDecor, VASE_STYLES };
+export { shapeSupportsDecor, VASE_STYLES, shapeSupportsSlideLid };
 
 function clamp(n, min, max) {
   return Math.min(max, Math.max(min, n));
@@ -604,7 +610,12 @@ function buildFlatLidShell(outPos, outIdx, boxOuter, lidThickness) {
 function computeLidFitGuides(resolved, params) {
   const clearance = clamp(params.lidClearance ?? 0.35, 0.1, 1.2);
   const lidWall = clamp(params.lidWall ?? params.wall ?? 2.4, 1.2, 6);
-  const lidType = params.lidType === "plug" || params.lidType === "flat" ? params.lidType : "slip";
+  const lidType = params.lidType === "plug" || params.lidType === "flat" || params.lidType === "slide"
+    ? params.lidType
+    : "slip";
+  if (lidType === "slide" && params.slideMeta) {
+    return computeSlideFitGuides(resolved, params, params.slideMeta);
+  }
   const skirtDepth = clamp(params.lidSkirt ?? 10, 4, 30);
   const lidThickness = clamp(params.lidThickness ?? 2.4, 1.2, 8);
   const lidHeight = lidType === "flat" ? lidThickness : skirtDepth + lidThickness;
@@ -673,7 +684,8 @@ function buildFlatLidMesh(boxOuter, options) {
 
 export const LID_TYPES = [
   { id: "slip", label: "Slip-over", optionLabel: "Slip-over — skirt outside", hint: "Skirt wraps outside the box walls — classic loose fit." },
-  { id: "plug", label: "Slide-in", optionLabel: "Slide-in — skirt inside", hint: "Skirt slides inside the opening; top plate sits flush on the rim." },
+  { id: "plug", label: "Inset plug", optionLabel: "Inset plug — skirt inside", hint: "Skirt slides inside the opening; top plate sits flush on the rim." },
+  { id: "slide", label: "Channel slide", optionLabel: "Channel slide — rail grooves", hint: "Angled grooves on the long walls; beveled lid slides in from the short end and seats at the far end." },
   { id: "flat", label: "Flat cap", optionLabel: "Flat cap — plate only", hint: "Single plate that rests on the rim — no skirt." },
 ];
 
@@ -977,6 +989,14 @@ export function buildContainer(params) {
 
   centerPositions(mesh.positions, 0, 0);
 
+  if (
+    params.lidEnabled &&
+    params.lidType === "slide" &&
+    shapeSupportsSlideLid(resolved.meta.shape)
+  ) {
+    appendSlideChannelsToBody(mesh.positions, mesh.indices, resolved.meta, resolved.totalH, params);
+  }
+
   const decorShape = joinerShape;
   let accentMesh = null;
   let labelMesh = null;
@@ -1025,29 +1045,46 @@ export function buildContainer(params) {
 
 export function buildLid(params) {
   const resolved = resolveContainer(params);
-  const lidType = params.lidType === "plug" || params.lidType === "flat" ? params.lidType : "slip";
+  let lidType = params.lidType === "plug" || params.lidType === "flat" || params.lidType === "slide"
+    ? params.lidType
+    : "slip";
+  if (lidType === "slide" && !shapeSupportsSlideLid(resolved.meta.shape)) {
+    lidType = "plug";
+  }
   const options = {
     clearance: params.lidClearance,
     lidWall: params.lidWall ?? params.wall,
     skirtDepth: params.lidSkirt,
     lidThickness: params.lidThickness,
+    slideGrooveHeight: params.slideGrooveHeight,
+    slideUndercut: params.slideUndercut,
+    slideGrooveDepth: params.slideGrooveDepth,
+    slideStopLength: params.slideStopLength,
+    slideEntryRamp: params.slideEntryRamp,
   };
   let lid;
+  let slideMeta = null;
   if (lidType === "flat") {
     lid = buildFlatLidMesh(resolved.outer, options);
   } else if (lidType === "plug") {
     lid = buildPlugLidMesh(resolved.outer, resolved.inner, options);
+  } else if (lidType === "slide") {
+    lid = buildSlideLidMesh(resolved.meta, resolved.totalH, params);
+    slideMeta = lid.slideMeta;
+    lidType = "slide";
   } else {
     lid = buildSlipLidMesh(resolved.outer, options);
   }
   centerPositions(lid.positions, 0, 0);
+  const guideParams = { ...params, lidType, slideMeta };
   return {
     positions: lid.positions,
     indices: lid.indices,
     meta: { ...resolved.meta, part: "lid", lidType },
     lidHeight: lid.lidHeight,
     seatZ: resolved.totalH,
-    fitGuides: computeLidFitGuides(resolved, params),
+    slideMeta,
+    fitGuides: computeLidFitGuides(resolved, guideParams),
   };
 }
 
@@ -1090,10 +1127,15 @@ export const PENCIL_BOX_PRESET = {
   floor: 2.4,
   cornerRadius: 4,
   lidEnabled: true,
-  lidType: "plug",
+  lidType: "slide",
   lidSkirt: 12,
   lidThickness: 2.4,
-  lidClearance: 0.35,
+  lidClearance: 0.25,
+  slideGrooveHeight: 6,
+  slideUndercut: 1.8,
+  slideGrooveDepth: 2.4,
+  slideStopLength: 10,
+  slideEntryRamp: 10,
 };
 
 export const TEARDROP_PRESET = {
@@ -1142,6 +1184,11 @@ export const DEFAULTS = {
   lidSkirt: 10,
   lidThickness: 2.4,
   lidClearance: 0.35,
+  slideGrooveHeight: 6,
+  slideUndercut: 1.8,
+  slideGrooveDepth: 2.4,
+  slideStopLength: 10,
+  slideEntryRamp: 10,
   joinerEnabled: false,
   joinerHand: "left",
   joinerWidth: 9,

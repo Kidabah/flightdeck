@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsLid, shapeSupportsSlideLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js";
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec } from "./features.js";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js";
 import { meshToStl, downloadBlob, filenameFor } from "./stl.js";
@@ -198,6 +198,11 @@ function buildParams() {
     lidThickness: state.lidThickness,
     lidClearance: state.lidClearance,
     lidType: state.lidType,
+    slideGrooveHeight: state.slideGrooveHeight,
+    slideUndercut: state.slideUndercut,
+    slideGrooveDepth: state.slideGrooveDepth,
+    slideStopLength: state.slideStopLength,
+    slideEntryRamp: state.slideEntryRamp,
     lidWall: state.wall,
     joinerEnabled: state.joinerEnabled,
     joinerHand: state.joinerHand,
@@ -277,6 +282,18 @@ function disposeLidGuides() {
   lidGuideLoops = [];
 }
 
+function addSlideGuideSegment(x0, x1, y, z, mat, fixed) {
+  const geom = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(x0, z, -y),
+    new THREE.Vector3(x1, z, -y),
+  ]);
+  const mesh = new THREE.Line(geom, mat);
+  mesh.visible = false;
+  mesh.renderOrder = fixed ? 11 : 12;
+  previewRoot.add(mesh);
+  lidGuideLoops.push({ kind: "segment", x0, x1, y, cadZ: z, fixed, mat, mesh });
+}
+
 function profileLoopPoints(profile, yLevel) {
   const vecs = [];
   for (const [x, py] of profile) {
@@ -311,16 +328,32 @@ function buildLidGuideLoops() {
     addLidGuideLoop(g.skirtOuter, 0, guideSkirtOuterMaterial, false);
     addLidGuideLoop(g.skirtOuter, g.skirtDepth, guideSkirtOuterMaterial, false);
     addLidGuideLoop(g.plateOuter, g.lidHeight, guidePlateMaterial, false);
+  } else if (g.lidType === "slide" && g.slideMeta) {
+    const { entryX, stopX, channelLineY, channelZ, iw2 } = g;
+    addSlideGuideSegment(entryX, stopX, channelLineY, channelZ, guideSkirtOuterMaterial, true);
+    addSlideGuideSegment(entryX, stopX, -channelLineY, channelZ, guideSkirtOuterMaterial, true);
+    addSlideGuideSegment(entryX, entryX + 4, channelLineY, channelZ, guideSkirtInnerMaterial, true);
+    addSlideGuideSegment(entryX, entryX + 4, -channelLineY, channelZ, guideSkirtInnerMaterial, true);
+    addSlideGuideSegment(stopX, iw2, 0, channelZ, guidePlateMaterial, true);
   } else {
     addLidGuideLoop(g.plateOuter, 0, guidePlateMaterial, false);
     addLidGuideLoop(g.plateOuter, g.lidHeight, guidePlateMaterial, false);
   }
 
-  syncLidGuideLoops(lidRestY());
+  syncLidGuideLoops(lidRestY(), lidRestX());
 }
 
-function syncLidGuideLoops(lidY) {
+function syncLidGuideLoops(lidY, lidX = 0) {
   for (const loop of lidGuideLoops) {
+    if (loop.kind === "segment") {
+      const xOff = loop.fixed ? 0 : lidX;
+      const pos = loop.mesh.geometry.attributes.position;
+      pos.setXYZ(0, loop.x0 + xOff, loop.cadZ, -loop.y);
+      pos.setXYZ(1, loop.x1 + xOff, loop.cadZ, -loop.y);
+      pos.needsUpdate = true;
+      loop.mesh.visible = previewXRayOn;
+      continue;
+    }
     const y = loop.fixed ? loop.cadY : loop.cadY + lidY;
     const pos = loop.mesh.geometry.attributes.position;
     for (let i = 0; i < loop.profile.length; i++) {
@@ -333,8 +366,11 @@ function syncLidGuideLoops(lidY) {
 
 function lidFitHintText() {
   const t = lidCache?.fitGuides?.lidType || state.lidType;
+  if (t === "slide") {
+    return "Green lines = angled grooves on the long walls. Lid slides in from the short end (−length) and seats in the far-end pocket.";
+  }
   if (t === "plug") {
-    return "Orange = box rim. Green loops = slide-in skirt inside the opening. White = top plate on the rim.";
+    return "Orange = box rim. Green loops = inset plug skirt inside the opening. White = top plate on the rim.";
   }
   if (t === "flat") {
     return "Orange = box rim. White plate loops rest directly on the rim — no skirt.";
@@ -353,24 +389,54 @@ function disposeLidPreview() {
   stopLidAnimation(false);
 }
 
+function isSlideLid() {
+  return !!(lidCache?.slideMeta?.mode === "slide" || lidCache?.meta?.lidType === "slide");
+}
+
 function lidRestY() {
   if (!lidCache) return LID_PREVIEW_GAP;
+  if (isSlideLid()) return lidCache.slideMeta.seatY;
   return lidCache.seatZ + LID_PREVIEW_GAP;
 }
 
 function lidOpenY() {
   if (!lidCache) return LID_PREVIEW_GAP;
+  if (isSlideLid()) return lidCache.slideMeta.seatY;
   return lidCache.seatZ + LID_PREVIEW_GAP + LID_ANIM_LIFT;
 }
 
 function lidClosedY() {
   if (!lidCache) return 0;
+  if (isSlideLid()) return lidCache.slideMeta.seatY;
   return lidCache.seatZ + 0.02;
 }
 
+function lidRestX() {
+  if (!isSlideLid()) return 0;
+  const sm = lidCache.slideMeta;
+  return sm.closedX + (sm.openX - sm.closedX) * 0.38;
+}
+
+function lidOpenX() {
+  if (!isSlideLid()) return 0;
+  return lidCache.slideMeta.openX;
+}
+
+function lidClosedX() {
+  if (!isSlideLid()) return 0;
+  return lidCache.slideMeta.closedX;
+}
+
+function setLidPreviewTransform(y, x = 0) {
+  if (lidMesh) {
+    lidMesh.position.y = y;
+    lidMesh.position.x = x;
+  }
+  syncLidGuideLoops(y, x);
+}
+
 function setLidPreviewY(y) {
-  if (lidMesh) lidMesh.position.y = y;
-  syncLidGuideLoops(y);
+  setLidPreviewTransform(y, lidMesh?.position.x ?? lidRestX());
 }
 
 function setPreviewXRayMode(on) {
@@ -421,7 +487,7 @@ function setPreviewXRayMode(on) {
   }
   if (accentEdgeLines) accentEdgeLines.visible = !on;
   if (labelEdgeLines) labelEdgeLines.visible = !on;
-  syncLidGuideLoops(lidMesh?.position.y ?? lidRestY());
+  syncLidGuideLoops(lidMesh?.position.y ?? lidRestY(), lidMesh?.position.x ?? lidRestX());
 }
 
 function easeInOutCubic(t) {
@@ -455,7 +521,7 @@ function stopLidAnimation(resetToRest = true) {
   if (wasAnimating || previewXRayOn) setPreviewXRayMode(false);
   const btn = document.getElementById("btn-lid-preview-fit");
   if (btn) btn.disabled = false;
-  if (resetToRest && lidMesh && lidCache) setLidPreviewY(lidRestY());
+  if (resetToRest && lidMesh && lidCache) setLidPreviewTransform(lidRestY(), lidRestX());
 }
 
 function playLidFitPreview() {
@@ -469,8 +535,28 @@ function playLidFitPreview() {
   if (hint) hint.textContent = lidFitHintText();
   const btn = document.getElementById("btn-lid-preview-fit");
   if (btn) btn.disabled = true;
+  if (isSlideLid()) {
+    const sm = lidCache.slideMeta;
+    setLidPreviewTransform(sm.seatY, sm.openX);
+    lidAnim = {
+      mode: "slide",
+      seatY: sm.seatY,
+      openX: sm.openX,
+      closedX: sm.closedX,
+      restX: lidRestX(),
+      phaseIndex: 0,
+      phaseStart: performance.now(),
+      phases: [
+        { x0Key: "openX", x1Key: "closedX", duration: 1100 },
+        { x0Key: "closedX", x1Key: "closedX", duration: 650 },
+        { x0Key: "closedX", x1Key: "restX", duration: 900 },
+      ],
+    };
+    return;
+  }
   setLidPreviewY(lidOpenY());
   lidAnim = {
+    mode: "vertical",
     openY: lidOpenY(),
     closedY: lidClosedY(),
     restY: lidRestY(),
@@ -493,9 +579,15 @@ function updateLidAnimation(now) {
     return;
   }
   const t = Math.min(1, (now - a.phaseStart) / phase.duration);
-  const y0 = a[phase.y0Key];
-  const y1 = a[phase.y1Key];
-  setLidPreviewY(y0 + (y1 - y0) * easeInOutCubic(t));
+  if (a.mode === "slide") {
+    const x0 = a[phase.x0Key];
+    const x1 = a[phase.x1Key];
+    setLidPreviewTransform(a.seatY, x0 + (x1 - x0) * easeInOutCubic(t));
+  } else {
+    const y0 = a[phase.y0Key];
+    const y1 = a[phase.y1Key];
+    setLidPreviewTransform(y0 + (y1 - y0) * easeInOutCubic(t), 0);
+  }
   if (t >= 1) {
     if (a.phaseIndex === 0) showLidFitOk();
     a.phaseIndex += 1;
@@ -659,6 +751,8 @@ function syncUiFromState() {
   syncSliderUi("lid-skirt", "lidSkirt", { min: 4, max: 25, value: state.lidSkirt });
   syncSliderUi("lid-thickness", "lidThickness", { min: 2, max: 6, value: state.lidThickness, parseKind: "float" });
   syncSliderUi("lid-clearance", "lidClearance", { min: 0.15, max: 0.8, value: state.lidClearance, parseKind: "float" });
+  syncSliderUi("slide-groove", "slideGrooveHeight", { min: 4, max: 10, value: state.slideGrooveHeight ?? 6, parseKind: "float" });
+  syncSliderUi("slide-stop", "slideStopLength", { min: 6, max: 20, value: state.slideStopLength ?? 10 });
   syncSliderUi("joiner-width", "joinerWidth", { min: 5, max: 22, value: state.joinerWidth, parseKind: "float" });
   syncSliderUi("joiner-neck", "joinerNeck", { min: 3, max: 16, value: state.joinerNeck, parseKind: "float" });
   syncSliderUi("joiner-protrusion", "joinerProtrusion", { min: 2, max: 10, value: state.joinerProtrusion, parseKind: "float" });
@@ -769,7 +863,7 @@ function rebuildMesh() {
     lidCache = buildLid(params);
     const lidGeom = toBufferGeometry(THREE, lidCache);
     lidMesh = new THREE.Mesh(lidGeom, lidMaterial);
-    setLidPreviewY(lidRestY());
+    setLidPreviewTransform(lidRestY(), lidRestX());
     lidMesh.castShadow = true;
     lidMesh.receiveShadow = true;
     lidMesh.renderOrder = 4;
@@ -852,16 +946,20 @@ function applyPreset(shape) {
     syncSliderUi("corner-radius", "cornerRadius", { min: 1, max: 24, value: state.cornerRadius ?? 4, parseKind: "float" });
     syncSliderUi("lid-skirt", "lidSkirt", { min: 4, max: 25, value: state.lidSkirt ?? 12 });
     syncSliderUi("lid-thickness", "lidThickness", { min: 2, max: 6, value: state.lidThickness ?? 2.4, parseKind: "float" });
-    syncSliderUi("lid-clearance", "lidClearance", { min: 0.15, max: 0.8, value: state.lidClearance ?? 0.35, parseKind: "float" });
+    syncSliderUi("lid-clearance", "lidClearance", { min: 0.15, max: 0.8, value: state.lidClearance ?? 0.25, parseKind: "float" });
+    syncSliderUi("slide-stop", "slideStopLength", { min: 6, max: 20, value: state.slideStopLength ?? 10 });
+    syncSliderUi("slide-groove", "slideGrooveHeight", { min: 4, max: 10, value: state.slideGrooveHeight ?? 6, parseKind: "float" });
   }
 }
 
 function syncLidTypeSelect() {
   const sel = document.getElementById("lid-type");
   if (!sel) return;
-  sel.innerHTML = LID_TYPES.map(
+  const slideOk = shapeSupportsSlideLid(state.shape);
+  sel.innerHTML = LID_TYPES.filter((t) => t.id !== "slide" || slideOk).map(
     (t) => `<option value="${t.id}">${t.optionLabel || t.label}</option>`,
   ).join("");
+  if (state.lidType === "slide" && !slideOk) state.lidType = "plug";
 }
 
 function applySliderProfile(profileKey) {
@@ -935,19 +1033,23 @@ function updateLidUi() {
   const on = state.lidEnabled && supported;
   const type = LID_TYPES.find((t) => t.id === state.lidType) || LID_TYPES[0];
   const isFlat = state.lidType === "flat";
+  const isSlide = state.lidType === "slide";
+  const slideOk = shapeSupportsSlideLid(state.shape);
   document.getElementById("lid-enabled").checked = !!state.lidEnabled && supported;
-  document.getElementById("lid-type").value = type.id;
+  document.getElementById("lid-type").value = isSlide && !slideOk ? "plug" : type.id;
   document.getElementById("btn-export-lid").classList.toggle("hidden", !on);
   document.getElementById("btn-lid-preview-fit").classList.toggle("hidden", !on);
   document.getElementById("lid-xray-hint")?.classList.toggle("hidden", !on);
   document.getElementById("field-lid-type").classList.toggle("hidden", !on);
-  document.getElementById("field-lid-skirt").classList.toggle("hidden", !on || isFlat);
+  document.getElementById("field-lid-skirt").classList.toggle("hidden", !on || isFlat || isSlide);
   document.getElementById("field-lid-thickness").classList.toggle("hidden", !on);
   document.getElementById("field-lid-clearance").classList.toggle("hidden", !on || isFlat);
+  document.getElementById("field-slide-stop")?.classList.toggle("hidden", !on || !isSlide);
+  document.getElementById("field-slide-groove")?.classList.toggle("hidden", !on || !isSlide);
   const hint = document.getElementById("lid-type-hint");
   if (hint) {
     hint.textContent = on
-      ? `${type.hint} Exports plate-down on the bed.`
+      ? `${type.hint}${isSlide ? " Preview animates sliding along the length." : " Exports plate-down on the bed."}`
       : supported
         ? "Enable to preview and export a separate lid STL."
         : "Lids are not available for vase / pot shapes.";
@@ -1601,6 +1703,8 @@ bindRange("sides", "sides");
 bindRange("lid-skirt", "lidSkirt");
 bindRange("lid-thickness", "lidThickness", "float");
 bindRange("lid-clearance", "lidClearance", "float");
+bindRange("slide-groove", "slideGrooveHeight", "float");
+bindRange("slide-stop", "slideStopLength");
 bindRange("joiner-width", "joinerWidth", "float");
 bindRange("joiner-neck", "joinerNeck", "float");
 bindRange("joiner-protrusion", "joinerProtrusion", "float");
@@ -1960,6 +2064,8 @@ resize();
 syncSliderUi("lid-skirt", "lidSkirt", { min: 4, max: 25, value: state.lidSkirt });
 syncSliderUi("lid-thickness", "lidThickness", { min: 2, max: 6, value: state.lidThickness, parseKind: "float" });
 syncSliderUi("lid-clearance", "lidClearance", { min: 0.15, max: 0.8, value: state.lidClearance, parseKind: "float" });
+syncSliderUi("slide-groove", "slideGrooveHeight", { min: 4, max: 10, value: state.slideGrooveHeight ?? 6, parseKind: "float" });
+syncSliderUi("slide-stop", "slideStopLength", { min: 6, max: 20, value: state.slideStopLength ?? 10 });
 syncSliderUi("joiner-width", "joinerWidth", { min: 5, max: 22, value: state.joinerWidth, parseKind: "float" });
 syncSliderUi("joiner-neck", "joinerNeck", { min: 3, max: 16, value: state.joinerNeck, parseKind: "float" });
 syncSliderUi("joiner-protrusion", "joinerProtrusion", { min: 2, max: 10, value: state.joinerProtrusion, parseKind: "float" });
