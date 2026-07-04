@@ -229,20 +229,110 @@ function erodeMask(mask, width, height) {
 
 
 
-function outlineFromMask(mask, width, height) {
+function morphologicalSkeleton(mask, width, height) {
+  const skel = new Uint8Array(width * height);
+  let work = mask.slice();
+  for (let guard = 0; guard < Math.max(width, height); guard++) {
+    const eroded = erodeMask(work, width, height);
+    let any = false;
+    for (let i = 0; i < eroded.length; i++) {
+      if (eroded[i]) {
+        any = true;
+        break;
+      }
+    }
+    if (!any) break;
+    const opened = dilateMask(eroded, width, height);
+    for (let i = 0; i < work.length; i++) {
+      if (work[i] && !opened[i]) skel[i] = 1;
+    }
+    work = eroded;
+  }
+  return skel;
+}
 
-  const eroded = erodeMask(mask, width, height);
+function skeletonDegree(skel, width, height, x, y) {
+  let d = 0;
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      if (!dx && !dy) continue;
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx >= 0 && ny >= 0 && nx < width && ny < height && skel[ny * width + nx]) d++;
+    }
+  }
+  return d;
+}
 
-  const out = new Uint8Array(width * height);
+/** Walk 8-connected skeleton pixels into polylines (centerlines, not boundaries). */
+function skeletonToPolylines(skel, width, height) {
+  const used = new Uint8Array(width * height);
+  const polylines = [];
+  const nbrs = [
+    [1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1],
+  ];
 
-  for (let i = 0; i < width * height; i++) {
-
-    out[i] = mask[i] && !eroded[i] ? 1 : 0;
-
+  function walkFrom(sx, sy) {
+    const path = [[sx, sy]];
+    used[sy * width + sx] = 1;
+    let x = sx;
+    let y = sy;
+    let px = -1;
+    let py = -1;
+    while (true) {
+      let next = null;
+      for (const [dx, dy] of nbrs) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+        if (!skel[ny * width + nx] || used[ny * width + nx]) continue;
+        if (nx === px && ny === py) continue;
+        next = [nx, ny];
+        break;
+      }
+      if (!next) break;
+      path.push(next);
+      used[next[1] * width + next[0]] = 1;
+      px = x;
+      py = y;
+      x = next[0];
+      y = next[1];
+      if (skeletonDegree(skel, width, height, x, y) > 2) break;
+    }
+    return path.length >= 2 ? path : null;
   }
 
-  return out;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = y * width + x;
+      if (!skel[i] || used[i] || skeletonDegree(skel, width, height, x, y) !== 1) continue;
+      const path = walkFrom(x, y);
+      if (path) polylines.push(path);
+    }
+  }
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = y * width + x;
+      if (!skel[i] || used[i]) continue;
+      const path = walkFrom(x, y);
+      if (path) polylines.push(path);
+    }
+  }
+  return polylines;
+}
 
+/** Outline = skeleton centerlines. Double-edge art returns too many paths → caller should fall back. */
+function outlineCenterlinePaths(inkMask, width, height) {
+  const cleaned = openMask(inkMask, width, height);
+  const skel = morphologicalSkeleton(cleaned, width, height);
+  return skeletonToPolylines(skel, width, height);
+}
+
+function ensurePrintableWidth(mask, width, height, targetMinPx) {
+  let out = mask;
+  const passes = Math.min(3, Math.max(0, Math.ceil(targetMinPx / 4) - 1));
+  for (let i = 0; i < passes; i++) out = dilateMask(out, width, height);
+  return out;
 }
 
 
@@ -551,11 +641,13 @@ export function traceCanvas(canvas, options = {}) {
 
 
   let ink = binarizeImageData(data, width, height, threshold, invert, "silhouette", blur);
-  // Both modes start from a clean ink mask; outline traces boundaries as strokes, not 1px rings.
   let mask = openMask(ink, width, height);
-  // SVG / thin line art: thicken ink slightly so silhouette emboss prints as solid strokes.
-  if (options.strengthen) {
-    mask = dilateMask(mask, width, height);
+  if (mode === "silhouette") {
+    if (options.strengthen) {
+      mask = dilateMask(mask, width, height);
+    }
+    const minFeaturePx = Math.max(6, Math.round(height / 100));
+    mask = ensurePrintableWidth(mask, width, height, minFeaturePx);
   }
 
 
@@ -599,9 +691,48 @@ export function traceCanvas(canvas, options = {}) {
   if (mode === "outline") {
     const simplifyTol = Math.max(0.22, tw / 520);
     const smoothPasses = 4;
-    let polygons = maskToPolygons(workMask, tw, th);
-    let grouped = groupPolygonsWithHoles(polygons);
-    let strokePaths = prepareStrokePaths(shapeGroupsToStrokePaths(grouped), simplifyTol, smoothPasses);
+    let rawPaths = outlineCenterlinePaths(workMask, tw, th);
+    let strokePaths = prepareStrokePaths(rawPaths, simplifyTol, smoothPasses);
+
+    // Edge-detected / double-line art produces dozens of ring centerlines — use silhouette instead.
+    const outlineFallback = strokePaths.length === 0 || strokePaths.length > 12;
+    if (outlineFallback) {
+      workMask = ensurePrintableWidth(workMask, tw, th, Math.max(6, Math.round(th / 100)));
+      const fbTol = Math.max(0.28, tw / 480);
+      const fbPasses = options.smoothPasses ?? 3;
+      let polygons = maskToPolygons(workMask, tw, th);
+      let shapeGroups = prepareShapeGroups(groupPolygonsWithHoles(polygons), fbTol, fbPasses);
+      while (shapeGroups.length > MAX_TRACE_POLYGONS && simplifyFactor < 16) {
+        const ds = downsampleMask(workMask, tw, th);
+        workMask = ds.mask;
+        tw = ds.width;
+        th = ds.height;
+        simplifyFactor *= 2;
+        rects = maskToRuns(workMask, tw, th);
+        polygons = maskToPolygons(workMask, tw, th);
+        shapeGroups = prepareShapeGroups(groupPolygonsWithHoles(polygons), fbTol * 1.1, Math.max(2, fbPasses - 1));
+      }
+      const svg = polygonsToSvg(shapeGroups, tw, th);
+      return {
+        rects,
+        mask: workMask.slice(),
+        polygons,
+        shapeGroups,
+        strokePaths: [],
+        width: tw,
+        height: th,
+        cropOx: ox,
+        cropOy: oy,
+        svg,
+        rectCount: rects.length,
+        polygonCount: shapeGroups.length,
+        simplified: simplifyFactor > 1,
+        simplifyFactor,
+        tooComplex: shapeGroups.length > MAX_TRACE_POLYGONS,
+        mode: "silhouette",
+        outlineFallback: true,
+      };
+    }
 
     while (strokePaths.length > MAX_TRACE_POLYGONS && simplifyFactor < 16) {
       const ds = downsampleMask(workMask, tw, th);
@@ -610,22 +741,17 @@ export function traceCanvas(canvas, options = {}) {
       th = ds.height;
       simplifyFactor *= 2;
       rects = maskToRuns(workMask, tw, th);
-      polygons = maskToPolygons(workMask, tw, th);
-      grouped = groupPolygonsWithHoles(polygons);
-      strokePaths = prepareStrokePaths(
-        shapeGroupsToStrokePaths(grouped),
-        simplifyTol * 1.1,
-        Math.max(3, smoothPasses - 1),
-      );
+      rawPaths = outlineCenterlinePaths(workMask, tw, th);
+      strokePaths = prepareStrokePaths(rawPaths, simplifyTol * 1.1, Math.max(3, smoothPasses - 1));
     }
 
-    const strokeWidth = Math.max(1.35, tw / 88);
+    const strokeWidth = Math.max(2.2, tw / 72);
     const svg = strokePathsToSvg(strokePaths, tw, th, strokeWidth);
 
     return {
       rects,
       mask: workMask.slice(),
-      polygons,
+      polygons: [],
       shapeGroups: [],
       strokePaths,
       strokeWidth,
@@ -639,7 +765,8 @@ export function traceCanvas(canvas, options = {}) {
       simplified: simplifyFactor > 1,
       simplifyFactor,
       tooComplex: strokePaths.length > MAX_TRACE_POLYGONS,
-      mode,
+      mode: "outline",
+      outlineFallback: false,
     };
   }
 

@@ -882,10 +882,14 @@ function updateTraceUi() {
     return;
   }
   const count = traceLastResult.polygonCount ?? 0;
-  const isOutline = traceLastResult.mode === "outline";
+  const effectiveMode = traceLastResult.mode || state.traceMode;
+  const isOutline = effectiveMode === "outline";
   let msg = isOutline
     ? `${count} path${count === 1 ? "" : "s"} · line art`
     : `${count} island${count === 1 ? "" : "s"} · single colour`;
+  if (traceLastResult.outlineFallback) {
+    msg = `${count} island${count === 1 ? "" : "s"} · silhouette (auto — this art is double-edge, not single stroke)`;
+  }
   if (traceLastResult.simplified) msg += " · auto-simplified for print";
   if (traceLastResult.tooComplex) {
     msg = `Too detailed — raise threshold or use Silhouette (max ${MAX_TRACE_POLYGONS} islands)`;
@@ -939,6 +943,7 @@ function traceResultToEmbossRects(result) {
     strokePaths: result.strokePaths?.map((p) => p.map(([x, y]) => [x, y])) || [],
     strokeWidth: result.strokeWidth,
     mode: result.mode || state.traceMode || "silhouette",
+    outlineFallback: !!result.outlineFallback,
     width: result.width,
     height: result.height,
   };
