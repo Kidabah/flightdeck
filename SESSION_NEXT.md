@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — Lid fit thumbs-up + floor cap fix + trace defer
+- Latest commit: `e21b84f` — Lid fit thumbs-up + floor cap fix + trace defer
 - Refresh cachebust currently: MakerDeck app.js?v=30 / style.css?v=10
 
 ### 2026-07-04 fix (MakerDeck lid fit polish + perf)
