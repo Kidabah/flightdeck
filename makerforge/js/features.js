@@ -364,6 +364,7 @@ export function buildEmbossBitmap(meta, params, bitmap) {
 
     for (const path of paths) {
       const pts = ringPointsLocal(path);
+      if (pts.length < 2) continue;
       const remapped = pts.map(([px, py]) => [xOff + px * scale, zOff + (maskH - py) * scale]);
       for (let i = 0; i < remapped.length; i++) {
         const j = (i + 1) % remapped.length;
@@ -372,7 +373,8 @@ export function buildEmbossBitmap(meta, params, bitmap) {
         extrudeStrokeSegmentOnFace(positions, indices, frame, x0, y0, x1, y1, half, d0, d1);
       }
     }
-    return positions.length ? { positions, indices } : null;
+    if (positions.length) return { positions, indices };
+    // Fall through to silhouette rebuild if stroke data was empty/corrupt.
   }
 
   let mask = null;

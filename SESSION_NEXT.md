@@ -3,9 +3,13 @@
 Latest GitHub/Pi state:
 - Branch: main
 - Latest commit: `31661c3` — Outline trace: boundary strokes instead of 1px morphological ring
-- Refresh cachebust currently: MakerDeck app.js?v=14 / style.css?v=7 · Flightdeck app.js?v=623 / style.css?v=480
+- Refresh cachebust currently: MakerDeck app.js?v=15 / style.css?v=7 · Flightdeck app.js?v=623 / style.css?v=480
 - MakerDeck: `https://flightdeck.tail7de73e.ts.net/makerdeck/` — hard refresh after pull
 - Backend restart NOT required (only static files changed).
+
+### 2026-07-04 fix (MakerDeck Houdini / blank preview)
+
+**Duplicate `const` in `drawTracePreview`** (`makerforge/js/trace.js`) — `factor`/`ox`/`oy` declared twice in the same function; ES module failed to parse so the whole app never booted (blank 3D viewport). Also added outline stroke fallthrough if saved stroke data is corrupt. Cachebust app.js?v=15. Hard refresh required.
 
 ### 2026-07-04 add (MakerDeck outline trace quality)
 

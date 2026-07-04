@@ -653,12 +653,6 @@ export function drawTracePreview(previewCanvas, sourceCanvas, traceResult) {
 
 
   const factor = traceResult.simplifyFactor || 1;
-
-  const ox = traceResult.cropOx ?? 0;
-
-  const oy = traceResult.cropOy ?? 0;
-
-  const factor = traceResult.simplifyFactor || 1;
   const ox = traceResult.cropOx ?? 0;
   const oy = traceResult.cropOy ?? 0;
 
