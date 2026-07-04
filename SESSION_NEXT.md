@@ -2,8 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `a81a2fe` — floor centre artifact (grid bleed + slab caps)
-- Refresh cachebust currently: MakerDeck app.js?v=33 / style.css?v=10
+- Latest commit: (pending) — Pencil box preset + lid type polish
+- Refresh cachebust currently: MakerDeck app.js?v=34 / style.css?v=10
+
+### 2026-07-04 feature (MakerDeck pencil box + lid types done)
+
+**Rectangular pencil box with slide-in lid** (`geometry.js`, `app.js`, `index.html`, `features.js`, `stl.js`)
+
+- New preset **Pencil box** — rectangular case (200×72×25 mm), corner radius, slide-in lid enabled by default.
+- Renamed **Pencil tube** for the stadium-ended original pencil case.
+- Lid types polished: "Inset plug" → **Slide-in**; dropdown built from `LID_TYPES` (slip / slide-in / flat cap).
+- Cachebust app.js?v=34. Hard refresh required.
 
 ### 2026-07-04 fix (MakerDeck floor centre hatch — round 2)
 

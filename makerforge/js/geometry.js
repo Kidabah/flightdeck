@@ -529,7 +529,7 @@ function buildRectShellWithJoiner(outerW, outerD, innerW, innerD, floor, totalH,
 }
 
 export function shapeSupportsJoiner(shape) {
-  return shape === "rect" || shape === "rounded" || shape === "pencil";
+  return shape === "rect" || shape === "rounded" || shape === "pencil" || shape === "pencilBox";
 }
 
 function offsetProfileOutward(points, offset) {
@@ -672,9 +672,9 @@ function buildFlatLidMesh(boxOuter, options) {
 }
 
 export const LID_TYPES = [
-  { id: "slip", label: "Slip-over", hint: "Skirt wraps outside the box walls — classic loose fit." },
-  { id: "plug", label: "Inset plug", hint: "Skirt slides inside the opening; top plate sits flush on the rim." },
-  { id: "flat", label: "Flat cap", hint: "Single plate that rests on the rim — no skirt." },
+  { id: "slip", label: "Slip-over", optionLabel: "Slip-over — skirt outside", hint: "Skirt wraps outside the box walls — classic loose fit." },
+  { id: "plug", label: "Slide-in", optionLabel: "Slide-in — skirt inside", hint: "Skirt slides inside the opening; top plate sits flush on the rim." },
+  { id: "flat", label: "Flat cap", optionLabel: "Flat cap — plate only", hint: "Single plate that rests on the rim — no skirt." },
 ];
 
 export function shapeSupportsLid(shape) {
@@ -741,6 +741,32 @@ function resolveContainer(params) {
       totalH: innerH + floor,
       cavityH: innerH,
       meta: computeMeta({ innerW: innerL, innerD: innerW, innerH, wall, floor, shape: "pencil" }),
+    };
+  }
+
+  if (shape === "pencilBox") {
+    const innerL = clamp(params.innerWidth, 120, 300);
+    const innerW = clamp(params.innerDepth, 40, 100);
+    const innerH = clamp(params.innerHeight, 15, 60);
+    const corner = clamp(params.cornerRadius ?? 4, 0, Math.min(innerW, innerL) / 2 - 1);
+    const outerL = innerL + wall * 2;
+    const outerW = innerW + wall * 2;
+    let outer;
+    let inner;
+    if (corner > 0.5) {
+      outer = roundedRectOutline(outerL / 2, outerW / 2, corner + wall, 10);
+      inner = roundedRectOutline(innerL / 2, innerW / 2, corner, 10);
+    } else {
+      outer = [[-outerL / 2, -outerW / 2], [outerL / 2, -outerW / 2], [outerL / 2, outerW / 2], [-outerL / 2, outerW / 2]];
+      inner = [[-innerL / 2, -innerW / 2], [innerL / 2, -innerW / 2], [innerL / 2, innerW / 2], [-innerL / 2, innerW / 2]];
+    }
+    return {
+      outer,
+      inner,
+      floor,
+      totalH: innerH + floor,
+      cavityH: innerH,
+      meta: computeMeta({ innerW: innerL, innerD: innerW, innerH, wall, floor, shape: "pencilBox" }),
     };
   }
 
@@ -920,7 +946,7 @@ export function buildContainer(params) {
     };
   }
   const resolved = resolveContainer(params);
-  const joinerShape = resolved.meta.shape === "rect" && (params.cornerRadius || 0) > 0.5
+  const joinerShape = (resolved.meta.shape === "rect" || resolved.meta.shape === "pencilBox") && (params.cornerRadius || 0) > 0.5
     ? "rounded"
     : resolved.meta.shape;
   const useJoiner = params.joinerEnabled && shapeSupportsJoiner(joinerShape);
@@ -1054,6 +1080,20 @@ export const PENCIL_PRESET = {
   innerHeight: 25,
   wall: 2.4,
   floor: 2.4,
+};
+
+export const PENCIL_BOX_PRESET = {
+  innerWidth: 200,
+  innerDepth: 72,
+  innerHeight: 25,
+  wall: 2.4,
+  floor: 2.4,
+  cornerRadius: 4,
+  lidEnabled: true,
+  lidType: "plug",
+  lidSkirt: 12,
+  lidThickness: 2.4,
+  lidClearance: 0.35,
 };
 
 export const TEARDROP_PRESET = {

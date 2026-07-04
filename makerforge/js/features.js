@@ -658,7 +658,7 @@ function round1(n) {
 }
 
 export function shapeSupportsDecor(shape) {
-  return shape === "rect" || shape === "rounded" || shape === "pencil";
+  return shape === "rect" || shape === "rounded" || shape === "pencil" || shape === "pencilBox";
 }
 
 /** Face frame for placing emboss on any of the four side walls.

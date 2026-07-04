@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js";
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec } from "./features.js";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js";
 import { meshToStl, downloadBlob, filenameFor } from "./stl.js";
@@ -9,10 +9,11 @@ const SESSION_KEY = "makerdeck-session-v1";
 let saveSessionTimer = null;
 let sessionBooting = true;
 
-const PRESET_SHAPES = new Set(["pencil", "teardrop", "star", "heart"]);
+const PRESET_SHAPES = new Set(["pencil", "pencilBox", "teardrop", "star", "heart"]);
 
 const PRESET_CONFIG = {
   pencil: { preset: PENCIL_PRESET, profile: "pencil" },
+  pencilBox: { preset: PENCIL_BOX_PRESET, profile: "pencil" },
   teardrop: { preset: TEARDROP_PRESET, profile: "teardrop" },
   star: { preset: STAR_PRESET, profile: "jewel" },
   heart: { preset: HEART_PRESET, profile: "jewel" },
@@ -333,7 +334,7 @@ function syncLidGuideLoops(lidY) {
 function lidFitHintText() {
   const t = lidCache?.fitGuides?.lidType || state.lidType;
   if (t === "plug") {
-    return "Orange = box rim. Green loops = plug skirt inside the opening. White = top plate on the rim.";
+    return "Orange = box rim. Green loops = slide-in skirt inside the opening. White = top plate on the rim.";
   }
   if (t === "flat") {
     return "Orange = box rim. White plate loops rest directly on the rim — no skirt.";
@@ -847,6 +848,20 @@ function applyPreset(shape) {
   if (!cfg) return;
   Object.assign(state, cfg.preset);
   applySliderProfile(cfg.profile);
+  if (shape === "pencilBox") {
+    syncSliderUi("corner-radius", "cornerRadius", { min: 1, max: 24, value: state.cornerRadius ?? 4, parseKind: "float" });
+    syncSliderUi("lid-skirt", "lidSkirt", { min: 4, max: 25, value: state.lidSkirt ?? 12 });
+    syncSliderUi("lid-thickness", "lidThickness", { min: 2, max: 6, value: state.lidThickness ?? 2.4, parseKind: "float" });
+    syncSliderUi("lid-clearance", "lidClearance", { min: 0.15, max: 0.8, value: state.lidClearance ?? 0.35, parseKind: "float" });
+  }
+}
+
+function syncLidTypeSelect() {
+  const sel = document.getElementById("lid-type");
+  if (!sel) return;
+  sel.innerHTML = LID_TYPES.map(
+    (t) => `<option value="${t.id}">${t.optionLabel || t.label}</option>`,
+  ).join("");
 }
 
 function applySliderProfile(profileKey) {
@@ -865,8 +880,10 @@ function updateLabels() {
   const poly = hex;
   const star = shape === "star";
   const heart = shape === "heart";
+  const pencilLike = shape === "pencil" || shape === "pencilBox";
+  const pencilBox = shape === "pencilBox";
 
-  document.getElementById("label-width").textContent = shape === "pencil"
+  document.getElementById("label-width").textContent = pencilLike
     ? "Length"
     : star
       ? "Tip span"
@@ -887,6 +904,7 @@ function updateLabels() {
 
   const sizeHeading = {
     pencil: "Case size",
+    pencilBox: "Case size",
     teardrop: "Drop size",
     star: "Star size",
     heart: "Heart size",
@@ -900,10 +918,10 @@ function updateLabels() {
         : 'Inner size <span class="unit">mm</span>';
 
   document.getElementById("field-depth").classList.toggle("hidden", hex || circle || star);
-  document.getElementById("field-corner").classList.toggle("hidden", !rounded);
-  document.getElementById("field-sides").classList.toggle("hidden", !poly);
-  document.getElementById("field-vertex-fillet").classList.toggle("hidden", circle || rounded || (preset && !star && !heart));
-  document.getElementById("section-edges").classList.toggle("hidden", preset && !star && !heart);
+  document.getElementById("field-corner").classList.toggle("hidden", !rounded && !pencilBox);
+  document.getElementById("field-sides").classList.toggle("hidden", !poly || pencilBox);
+  document.getElementById("field-vertex-fillet").classList.toggle("hidden", circle || rounded || (preset && !star && !heart && !pencilBox));
+  document.getElementById("section-edges").classList.toggle("hidden", preset && !star && !heart && !pencilBox);
 
   const filletLabel = document.getElementById("label-vertex-fillet");
   filletLabel.textContent = poly ? "Vertex fillet" : "Edge fillet";
@@ -947,6 +965,7 @@ function joinerUiShape() {
 function decorUiShape() {
   if (state.shape === "rounded") return "rounded";
   if (state.shape === "pencil") return "pencil";
+  if (state.shape === "pencilBox") return "rect";
   return state.shape === "rect" ? "rect" : null;
 }
 
@@ -1972,6 +1991,7 @@ function scheduleDeferredRestoreTrace() {
 }
 
 async function bootMakerDeck() {
+  syncLidTypeSelect();
   const restored = await restoreSession();
   if (restored) {
     syncUiFromState();
