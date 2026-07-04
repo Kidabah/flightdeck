@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — lid art face default + overlay top-cap sampling
+- Latest commit: `a500436` — lid art face default + overlay top-cap sampling
 - Refresh cachebust currently: MakerDeck app.js?v=51 / style.css?v=13
 
 ### 2026-07-04 fix (MakerDeck art on lid + overlay)
