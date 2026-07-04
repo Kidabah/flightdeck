@@ -2,10 +2,19 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `d39e378` — Fix SVG import via rasterize + trace
+- Latest commit: `e3d9ad9` — Fix SVG ring garbage; text beats stale trace
 - Refresh cachebust currently: MakerDeck app.js?v=19 / style.css?v=8 · Flightdeck app.js?v=623 / style.css?v=480
 - MakerDeck: `https://flightdeck.tail7de73e.ts.net/makerdeck/` — hard refresh after pull
 - Backend restart NOT required (only static files changed).
+
+### 2026-07-04 fix (MakerDeck SVG ring garbage + label priority)
+
+**Silhouette-only SVG import; text label beats stale trace** (`makerforge/js/trace.js`, `makerforge/js/features.js`, `makerforge/js/app.js`)
+
+- SVG import was auto-picking Outline on thin edge-detected art → dozens of concentric ring tubes on the box. Now always Silhouette + slight ink thicken for printable strokes.
+- Label text now renders ahead of stale trace/SVG geometry (typing "Parts" no longer hides behind broken trace).
+- Unchecking "Use SVG instead" clears trace from box. Outline stroke extrusion only closes paths that actually end where they start.
+- Cachebust app.js?v=19. Hard refresh + Clear from box required to drop old session garbage.
 
 ### 2026-07-04 fix (MakerDeck SVG import via rasterize + trace)
 
