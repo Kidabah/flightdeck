@@ -32,7 +32,7 @@ const LID_PREVIEW_GAP = 0.35;
 const LID_ANIM_LIFT = 14;
 
 const viewport = document.getElementById("viewport");
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, logarithmicDepthBuffer: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setClearColor(0x070b12, 1);
 renderer.shadowMap.enabled = true;
@@ -445,25 +445,28 @@ function setPreviewXRayMode(on) {
 
   material.transparent = on;
   material.opacity = on ? 0.14 : 1;
-  material.depthWrite = true;
+  // Coplanar cap tris + grid bleed through transparent walls if depthWrite stays on.
+  material.depthWrite = !on;
   material.metalness = on ? 0.05 : 0.15;
   material.color.setHex(on ? 0x475569 : 0x38bdf8);
-  material.polygonOffset = on;
-  material.polygonOffsetFactor = on ? 3 : 1;
-  material.polygonOffsetUnits = on ? 6 : 2;
+  material.polygonOffset = !on;
+  material.polygonOffsetFactor = 1;
+  material.polygonOffsetUnits = 2;
 
   lidMaterial.transparent = on;
   lidMaterial.opacity = on ? 0.42 : 1;
-  lidMaterial.depthWrite = true;
+  lidMaterial.depthWrite = !on;
   lidMaterial.emissive.setHex(on ? 0x0ea5e9 : 0x000000);
   lidMaterial.emissiveIntensity = on ? 0.28 : 0;
   lidMaterial.color.setHex(on ? 0x7dd3fc : 0x93c5fd);
-  lidMaterial.polygonOffsetFactor = on ? 5 : 2;
-  lidMaterial.polygonOffsetUnits = on ? 8 : 3;
+  lidMaterial.polygonOffset = !on;
+  lidMaterial.polygonOffsetFactor = 2;
+  lidMaterial.polygonOffsetUnits = 3;
 
   grid.visible = !on;
+  grid.position.y = on ? -500 : 0;
   for (const mat of Array.isArray(grid.material) ? grid.material : [grid.material]) {
-    mat.opacity = on ? 0.12 : 0.55;
+    mat.opacity = on ? 0 : 0.55;
   }
 
   edgeMaterial.opacity = on ? 0.22 : 0.55;

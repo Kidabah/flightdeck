@@ -2,8 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `b73cac1` — Remove slide lid thumb pocket z-fight
-- Refresh cachebust currently: MakerDeck app.js?v=38 / style.css?v=10
+- Latest commit: (pending) — X-ray depthWrite + grid hide fix
+- Refresh cachebust currently: MakerDeck app.js?v=39 / style.css?v=10
+
+### 2026-07-04 fix (MakerDeck X-ray floor diamond — real cause)
+
+**Not the lid mesh — floor caps + grid through transparent preview** (`app.js`)
+
+- Preview fit turns on X-ray; disabling the lid also stops X-ray, so it looked lid-specific.
+- Centre diamond = coplanar floor cap tris z-fighting + build grid bleeding through transparent walls.
+- X-ray now uses depthWrite off on body/lid; grid hidden and moved off-screen; log depth buffer on.
+- Cachebust app.js?v=39. Hard refresh required.
 
 ### 2026-07-04 fix (MakerDeck slide lid thumb pocket z-fight)
 
