@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — Remove slide lid thumb pocket z-fight
+- Latest commit: `b73cac1` — Remove slide lid thumb pocket z-fight
 - Refresh cachebust currently: MakerDeck app.js?v=38 / style.css?v=10
 
 ### 2026-07-04 fix (MakerDeck slide lid thumb pocket z-fight)
