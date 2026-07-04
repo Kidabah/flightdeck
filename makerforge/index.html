@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Oswald:wght@700&family=Roboto+Mono:wght@700&family=Roboto:wght@700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=7">
+  <link rel="stylesheet" href="css/style.css?v=8">
 
   <script type="importmap">
 
@@ -52,6 +52,20 @@
 
       <div class="topbar-actions">
 
+        <div class="topbar-tools" role="toolbar" aria-label="Editor tools">
+
+          <button type="button" id="btn-undo" class="btn btn-secondary btn-icon" disabled title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
+
+          <button type="button" id="btn-redo" class="btn btn-secondary btn-icon" disabled title="Redo (Ctrl+Y)" aria-label="Redo">↷</button>
+
+          <button type="button" id="btn-clear-box" class="btn btn-secondary" disabled title="Remove traced art, text, and SVG from the box">Clear from box</button>
+
+          <button type="button" id="btn-reset-view" class="btn btn-ghost" title="Reset camera">Reset view</button>
+
+        </div>
+
+        <div class="topbar-export">
+
         <button type="button" id="btn-export" class="btn btn-primary">Download box</button>
 
         <button type="button" id="btn-export-lid" class="btn btn-secondary hidden">Download lid</button>
@@ -61,6 +75,8 @@
         <button type="button" id="btn-export-deboss" class="btn btn-secondary hidden">Download deboss cutter</button>
 
         <button type="button" id="btn-export-saucer" class="btn btn-secondary hidden">Download saucer</button>
+
+        </div>
 
       </div>
 
@@ -672,16 +688,6 @@
 
               </div>
 
-              <div class="trace-toolbar">
-
-                <button type="button" id="btn-trace-undo" class="btn btn-secondary btn-icon" disabled title="Undo" aria-label="Undo">↶</button>
-
-                <button type="button" id="btn-trace-redo" class="btn btn-secondary btn-icon" disabled title="Redo" aria-label="Redo">↷</button>
-
-                <button type="button" id="btn-trace-clear" class="btn btn-secondary" disabled>Clear from box</button>
-
-              </div>
-
               <div class="trace-actions">
 
                 <button type="button" id="btn-trace" class="btn btn-secondary" disabled>Trace</button>
@@ -754,8 +760,6 @@
 
           <span>Drag to orbit · scroll to zoom</span>
 
-          <button type="button" id="btn-reset-view" class="btn btn-ghost">Reset view</button>
-
         </div>
 
       </section>
@@ -766,7 +770,7 @@
 
 
 
-  <script type="module" src="js/app.js?v=16"></script>
+  <script type="module" src="js/app.js?v=17"></script>
 
 </body>
 

@@ -705,68 +705,123 @@ function cloneEmbossTraceRects(rects) {
   };
 }
 
-function snapshotEmbossOnBox() {
+function snapshotApp() {
   return {
-    embossTraceEnabled: state.embossTraceEnabled,
-    embossTraceRects: cloneEmbossTraceRects(state.embossTraceRects),
+    state: stateForSession(),
+    traceImage: traceSourceCanvas ? traceSourceCanvas.toDataURL("image/jpeg", 0.82) : null,
   };
 }
 
-let embossHistory = [];
-let embossHistoryIndex = -1;
-let embossHistoryLock = false;
-
-function embossSnapshotsEqual(a, b) {
+function appSnapshotsEqual(a, b) {
   if (!a || !b) return false;
-  if (a.embossTraceEnabled !== b.embossTraceEnabled) return false;
-  return JSON.stringify(a.embossTraceRects) === JSON.stringify(b.embossTraceRects);
+  return JSON.stringify(a) === JSON.stringify(b);
 }
 
-function pushEmbossHistory() {
-  if (embossHistoryLock) return;
-  const snap = snapshotEmbossOnBox();
-  if (embossHistoryIndex >= 0 && embossSnapshotsEqual(embossHistory[embossHistoryIndex], snap)) {
-    updateTraceHistoryUi();
+let appHistory = [];
+let appHistoryIndex = -1;
+let appHistoryLock = false;
+
+function pushAppHistory() {
+  if (appHistoryLock || sessionBooting) return;
+  const snap = snapshotApp();
+  if (appHistoryIndex >= 0 && appSnapshotsEqual(appHistory[appHistoryIndex], snap)) {
+    updateHistoryUi();
     return;
   }
-  embossHistory = embossHistory.slice(0, embossHistoryIndex + 1);
-  embossHistory.push(snap);
-  embossHistoryIndex = embossHistory.length - 1;
-  if (embossHistory.length > 40) {
-    embossHistory.shift();
-    embossHistoryIndex -= 1;
+  appHistory = appHistory.slice(0, appHistoryIndex + 1);
+  appHistory.push(snap);
+  appHistoryIndex = appHistory.length - 1;
+  if (appHistory.length > 50) {
+    appHistory.shift();
+    appHistoryIndex -= 1;
   }
-  updateTraceHistoryUi();
+  updateHistoryUi();
 }
 
-function restoreEmbossHistory(index) {
-  const snap = embossHistory[index];
-  if (!snap) return;
-  embossHistoryLock = true;
-  state.embossTraceEnabled = snap.embossTraceEnabled;
-  state.embossTraceRects = cloneEmbossTraceRects(snap.embossTraceRects);
-  embossHistoryIndex = index;
-  embossHistoryLock = false;
-  updateDecorUi();
-  updateTraceUi();
-  updateTraceHistoryUi();
+async function restoreAppHistory(index) {
+  if (index < 0 || index >= appHistory.length) return;
+  const snap = appHistory[index];
+  if (!snap?.state) return;
+  appHistoryLock = true;
+
+  const s = snap.state;
+  for (const key of Object.keys(DEFAULTS)) {
+    if (s[key] !== undefined) state[key] = s[key];
+  }
+  if (s.shape) state.shape = s.shape;
+  if (s.embossTraceRects) {
+    state.embossTraceRects = deserializeEmbossTraceRects(s.embossTraceRects);
+  } else {
+    state.embossTraceRects = null;
+  }
+
+  if (snap.traceImage) {
+    try {
+      const loaded = await loadImageFromDataUrl(snap.traceImage);
+      traceSourceCanvas = loaded.canvas;
+      traceLastResult = traceCanvas(traceSourceCanvas, {
+        threshold: state.traceThreshold,
+        invert: state.traceInvert,
+        mode: state.traceMode,
+      });
+      traceLastSvg = traceLastResult.svg || "";
+      const preview = document.getElementById("trace-preview");
+      if (preview) drawTracePreview(preview, traceSourceCanvas, traceLastResult);
+    } catch {
+      traceSourceCanvas = null;
+      traceLastResult = null;
+      traceLastSvg = "";
+    }
+  } else {
+    traceSourceCanvas = null;
+    traceLastResult = null;
+    traceLastSvg = "";
+  }
+
+  appHistoryIndex = index;
+  appHistoryLock = false;
+  syncUiFromState();
+  updateHistoryUi();
   rebuild();
 }
 
-function updateTraceHistoryUi() {
-  const clearBtn = document.getElementById("btn-trace-clear");
-  const undoBtn = document.getElementById("btn-trace-undo");
-  const redoBtn = document.getElementById("btn-trace-redo");
-  if (!clearBtn) return;
-  clearBtn.disabled = !state.embossTraceEnabled;
-  undoBtn.disabled = embossHistoryIndex <= 0;
-  redoBtn.disabled = embossHistoryIndex < 0 || embossHistoryIndex >= embossHistory.length - 1;
+function undoApp() {
+  if (appHistoryIndex <= 0) return;
+  restoreAppHistory(appHistoryIndex - 1);
 }
 
-function clearTraceFromBox() {
-  if (!state.embossTraceEnabled) return;
+function redoApp() {
+  if (appHistoryIndex < 0 || appHistoryIndex >= appHistory.length - 1) return;
+  restoreAppHistory(appHistoryIndex + 1);
+}
+
+function boxHasDecor() {
+  return (
+    state.embossTraceEnabled ||
+    !!state.embossText?.trim() ||
+    (state.embossSvgEnabled && !!state.embossSvgText?.trim())
+  );
+}
+
+function updateHistoryUi() {
+  const clearBtn = document.getElementById("btn-clear-box");
+  const undoBtn = document.getElementById("btn-undo");
+  const redoBtn = document.getElementById("btn-redo");
+  if (!undoBtn) return;
+  if (clearBtn) clearBtn.disabled = !boxHasDecor();
+  undoBtn.disabled = appHistoryIndex <= 0;
+  redoBtn.disabled = appHistoryIndex < 0 || appHistoryIndex >= appHistory.length - 1;
+}
+
+function clearDecorFromBox() {
+  if (!boxHasDecor()) return;
   clearEmbossTrace();
-  pushEmbossHistory();
+  state.embossText = "";
+  state.embossSvgEnabled = false;
+  state.embossSvgText = "";
+  document.getElementById("emboss-text").value = "";
+  document.getElementById("emboss-svg-enabled").checked = false;
+  pushAppHistory();
   updateDecorUi();
   updateTraceUi();
   rebuild();
@@ -831,7 +886,7 @@ function updateTraceUi() {
     msg += ` · applied to ${faceLabel} face`;
   }
   meta.textContent = msg;
-  updateTraceHistoryUi();
+  updateHistoryUi();
 }
 
 function runTrace() {
@@ -895,7 +950,7 @@ function applyTraceToBox() {
   document.getElementById("emboss-svg-enabled").checked = false;
   updateDecorUi();
   updateTraceUi();
-  pushEmbossHistory();
+  pushAppHistory();
   rebuild();
 }
 
@@ -1044,6 +1099,7 @@ function applySliderValue(slider, key, val, parseKind) {
   const out = document.querySelector(`.value-edit[data-slider="${slider.id}"]`);
   if (out) out.textContent = display;
   rebuild();
+  pushAppHistory();
 }
 
 function bindRange(sliderId, key, parseKind = "int") {
@@ -1056,6 +1112,7 @@ function bindRange(sliderId, key, parseKind = "int") {
     rebuild();
   };
   slider.addEventListener("input", syncFromSlider);
+  slider.addEventListener("change", () => pushAppHistory());
 }
 
 function beginValueEdit(btn) {
@@ -1217,6 +1274,7 @@ document.getElementById("emboss-text").addEventListener("input", (e) => {
   }
   rebuild();
 });
+document.getElementById("emboss-text").addEventListener("change", () => pushAppHistory());
 
 document.getElementById("emboss-font").addEventListener("change", async (e) => {
   state.embossFont = e.target.value;
@@ -1285,26 +1343,29 @@ traceFileInput.addEventListener("change", (e) => {
 document.addEventListener("paste", pasteImageFromClipboard);
 
 document.addEventListener("keydown", (e) => {
-  if (!isImportTabActive()) return;
   if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+  if (e.target.matches("input, textarea, select")) return;
   if (e.key === "z" && !e.shiftKey) {
     e.preventDefault();
-    if (embossHistoryIndex > 0) restoreEmbossHistory(embossHistoryIndex - 1);
+    undoApp();
   } else if (e.key === "y" || (e.key === "z" && e.shiftKey)) {
     e.preventDefault();
-    if (embossHistoryIndex < embossHistory.length - 1) restoreEmbossHistory(embossHistoryIndex + 1);
+    redoApp();
   }
 });
 
-document.getElementById("btn-trace-undo").addEventListener("click", () => {
-  if (embossHistoryIndex > 0) restoreEmbossHistory(embossHistoryIndex - 1);
+document.getElementById("btn-undo").addEventListener("click", undoApp);
+document.getElementById("btn-redo").addEventListener("click", redoApp);
+document.getElementById("btn-clear-box").addEventListener("click", clearDecorFromBox);
+document.getElementById("btn-reset-view").addEventListener("click", () => {
+  if (meshCache) fitCamera(meshCache.meta);
 });
 
-document.getElementById("btn-trace-redo").addEventListener("click", () => {
-  if (embossHistoryIndex < embossHistory.length - 1) restoreEmbossHistory(embossHistoryIndex + 1);
+document.getElementById("controls").addEventListener("change", (e) => {
+  if (sessionBooting || appHistoryLock) return;
+  const t = e.target;
+  if (t.matches('input[type="checkbox"], select')) pushAppHistory();
 });
-
-document.getElementById("btn-trace-clear").addEventListener("click", clearTraceFromBox);
 
 document.getElementById("trace-mode").addEventListener("change", (e) => {
   state.traceMode = e.target.value;
@@ -1344,6 +1405,7 @@ document.getElementById("svg-file").addEventListener("change", (e) => {
     updateDecorUi();
     updateTraceUi();
     rebuild();
+    pushAppHistory();
   };
   reader.readAsText(file);
 });
@@ -1355,6 +1417,7 @@ document.querySelectorAll("#field-joiner-hand .chip").forEach((chip) => {
     chip.classList.add("active");
     updateJoinerUi();
     rebuild();
+    pushAppHistory();
   });
 });
 
@@ -1372,6 +1435,7 @@ document.querySelectorAll(".shape-btn").forEach((btn) => {
     }
     updateVaseUiVisibility();
     rebuild();
+    pushAppHistory();
     if (meshCache) fitCamera(meshCache.meta);
   });
 });
@@ -1461,10 +1525,6 @@ document.getElementById("btn-export-deboss").addEventListener("click", () => {
   downloadBlob(blob, filenameFor(meshCache.meta, "deboss-cutter"));
 });
 
-document.getElementById("btn-reset-view").addEventListener("click", () => {
-  if (meshCache) fitCamera(meshCache.meta);
-});
-
 function resize() {
   const w = viewport.clientWidth;
   const h = viewport.clientHeight;
@@ -1519,9 +1579,9 @@ async function bootMakerDeck() {
     setTab("design");
   }
 
-  embossHistory = [];
-  embossHistoryIndex = -1;
-  pushEmbossHistory();
+  appHistory = [];
+  appHistoryIndex = -1;
+  pushAppHistory();
   updateTraceUi();
 
   await ensureEmbossFontLoaded(state.embossFont);
