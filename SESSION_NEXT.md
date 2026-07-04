@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — Outline fallback + open-polyline smoothing fix
+- Latest commit: `6893c26` — Outline fallback + open-polyline smoothing fix
 - Refresh cachebust currently: MakerDeck app.js?v=22 / style.css?v=8 · Flightdeck app.js?v=623 / style.css?v=480
 - MakerDeck: `https://flightdeck.tail7de73e.ts.net/makerdeck/` — hard refresh after pull
 - Backend restart NOT required (only static files changed).
