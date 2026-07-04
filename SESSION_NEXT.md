@@ -2,10 +2,19 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `84444e8` — Fix SVG emboss import and improve outline trace quality
+- Latest commit: `d6fe17a` — Header toolbar: undo/redo/clear/reset app-wide
 - Refresh cachebust currently: MakerDeck app.js?v=17 / style.css?v=8 · Flightdeck app.js?v=623 / style.css?v=480
 - MakerDeck: `https://flightdeck.tail7de73e.ts.net/makerdeck/` — hard refresh after pull
 - Backend restart NOT required (only static files changed).
+
+### 2026-07-04 add (MakerDeck header toolbar)
+
+**Undo / redo / clear / reset view moved to top bar — app-wide** (`makerforge/index.html`, `makerforge/js/app.js`, `makerforge/css/style.css`)
+
+- Toolbar in header: Undo ↶, Redo ↷, Clear from box, Reset view (left of download buttons).
+- Undo/redo now snapshots full app state (shape, dimensions, label, SVG, trace on box, import image) — works from any tab. Ctrl+Z / Ctrl+Y shortcuts work globally.
+- Clear from box removes traced art, embossed text, and SVG from the box.
+- Cachebust app.js?v=17 style.css?v=8. Hard refresh required.
 
 ### 2026-07-04 fix (MakerDeck SVG import + outline quality)
 
