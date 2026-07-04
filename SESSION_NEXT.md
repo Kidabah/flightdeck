@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `ddb50e7` — glyph-sized text frame + Windows fonts + bigger size cap
-- Refresh cachebust currently: MakerDeck app.js?v=49 / style.css?v=13
+- Latest commit: (pending) — mesh-driven art selection frame (Bambu skip-map pattern)
+- Refresh cachebust currently: MakerDeck app.js?v=50 / style.css?v=13
+
+### 2026-07-04 fix (MakerDeck art overlay — mesh-driven like skip-object map)
+
+**Selection frame now follows the rendered label mesh, not a parallel face transform** (`app.js`)
+
+- Same lesson as Bambu skip-object map (`bbox_objects` on `top_N.png`, not custom gcode axis math): overlay projects the actual Three.js label mesh to screen and fits handles to that.
+- Drag rotate/resize anchors use mesh screen centroid too.
+- Cachebust app.js?v=50. Hard refresh required.
 
 ### 2026-07-04 fix (MakerDeck text frame + size + fonts)
 

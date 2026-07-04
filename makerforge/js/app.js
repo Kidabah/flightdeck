@@ -2382,7 +2382,135 @@ function projectFacePoint(frame, px, py) {
   };
 }
 
+function projectWorldToScreen(worldVec) {
+  const v = worldVec.clone().project(camera);
+  const w = viewport.clientWidth;
+  const h = viewport.clientHeight;
+  return {
+    x: (v.x * 0.5 + 0.5) * w,
+    y: (-v.y * 0.5 + 0.5) * h,
+    behind: v.z > 1,
+  };
+}
+
+const _labelWorldBox = new THREE.Box3();
+const _labelWorldCorner = new THREE.Vector3();
+
+/** Bambu skip-map pattern: derive handles from what's actually rendered, not a parallel transform. */
+function collectLabelScreenPoints() {
+  if (!labelMesh?.geometry || !viewport) return null;
+  labelMesh.updateWorldMatrix(true, false);
+  _labelWorldBox.setFromObject(labelMesh);
+  if (_labelWorldBox.isEmpty()) return null;
+
+  const { min, max } = _labelWorldBox;
+  const corners = [
+    [min.x, min.y, min.z],
+    [max.x, min.y, min.z],
+    [min.x, max.y, min.z],
+    [max.x, max.y, min.z],
+    [min.x, min.y, max.z],
+    [max.x, min.y, max.z],
+    [min.x, max.y, max.z],
+    [max.x, max.y, max.z],
+  ];
+  const pts = [];
+  for (const [x, y, z] of corners) {
+    _labelWorldCorner.set(x, y, z);
+    const p = projectWorldToScreen(_labelWorldCorner);
+    if (p.behind) return null;
+    pts.push(p);
+  }
+  return pts.length ? pts : null;
+}
+
+function fitOverlayLayoutFromScreenPoints(points, hintAngleDeg = null) {
+  let cx = 0;
+  let cy = 0;
+  for (const p of points) {
+    cx += p.x;
+    cy += p.y;
+  }
+  cx /= points.length;
+  cy /= points.length;
+
+  let angle = hintAngleDeg;
+  if (angle == null || !Number.isFinite(angle)) {
+    let sxx = 0;
+    let syy = 0;
+    let sxy = 0;
+    for (const p of points) {
+      const dx = p.x - cx;
+      const dy = p.y - cy;
+      sxx += dx * dx;
+      syy += dy * dy;
+      sxy += dx * dy;
+    }
+    angle = (Math.atan2(2 * sxy, sxx - syy) * 180) / Math.PI / 2;
+  }
+
+  const rad = (-angle * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  let minU = Infinity;
+  let maxU = -Infinity;
+  let minV = Infinity;
+  let maxV = -Infinity;
+  for (const p of points) {
+    const dx = p.x - cx;
+    const dy = p.y - cy;
+    const u = dx * cos - dy * sin;
+    const v = dx * sin + dy * cos;
+    minU = Math.min(minU, u);
+    maxU = Math.max(maxU, u);
+    minV = Math.min(minV, v);
+    maxV = Math.max(maxV, v);
+  }
+  const halfW = (maxU - minU) / 2;
+  const halfH = (maxV - minV) / 2;
+  if (halfW < 4 || halfH < 4) return null;
+
+  const uCx = (minU + maxU) / 2;
+  const vCy = (minV + maxV) / 2;
+  const outRad = (angle * Math.PI) / 180;
+  return {
+    center: {
+      x: cx + uCx * Math.cos(outRad) - vCy * Math.sin(outRad),
+      y: cy + uCx * Math.sin(outRad) + vCy * Math.cos(outRad),
+    },
+    halfW,
+    halfH,
+    angle,
+  };
+}
+
+function artOverlayFaceLayoutAngle(art) {
+  const rot = art.rotation || 0;
+  const cx = art.cx;
+  const cy = art.cy;
+  const faceCorners = [
+    [art.left, art.bottom],
+    [art.right, art.bottom],
+    [art.right, art.top],
+    [art.left, art.top],
+  ];
+  const screen = faceCorners.map(([px, py]) => {
+    const [rx, ry] = rotateFacePoint(cx, cy, px, py, rot);
+    return projectFacePoint(art.frame, rx, ry);
+  });
+  if (screen.some((c) => c.behind)) return null;
+  return (Math.atan2(screen[1].y - screen[0].y, screen[1].x - screen[0].x) * 180) / Math.PI;
+}
+
 function artOverlayScreenLayout(art) {
+  const meshPts = collectLabelScreenPoints();
+  if (meshPts) {
+    const hintAngle = art ? artOverlayFaceLayoutAngle(art) : null;
+    const layout = fitOverlayLayoutFromScreenPoints(meshPts, hintAngle);
+    if (layout) return layout;
+  }
+  if (!art) return null;
+
   const rot = art.rotation || 0;
   const cx = art.cx;
   const cy = art.cy;
@@ -2406,6 +2534,20 @@ function artOverlayScreenLayout(art) {
   if (halfW < 4 || halfH < 4) return null;
   const angle = (Math.atan2(screen[1].y - screen[0].y, screen[1].x - screen[0].x) * 180) / Math.PI;
   return { center, halfW, halfH, angle };
+}
+
+function artDragCenterOnScreen(art) {
+  const meshPts = collectLabelScreenPoints();
+  if (meshPts?.length) {
+    let x = 0;
+    let y = 0;
+    for (const p of meshPts) {
+      x += p.x;
+      y += p.y;
+    }
+    return { x: x / meshPts.length, y: y / meshPts.length };
+  }
+  return projectFacePoint(art.frame, art.cx, art.cy);
 }
 
 function updateArtOverlay() {
@@ -2478,7 +2620,7 @@ function onArtDragMove(e) {
   }
 
   if (artDrag.handle === "rotate") {
-    const center = projectFacePoint(art.frame, art.cx, art.cy);
+    const center = artDragCenterOnScreen(art);
     const a0 = Math.atan2(artDrag.startY - center.y, artDrag.startX - center.x);
     const a1 = Math.atan2(e.clientY - center.y, e.clientX - center.x);
     patchArtDraft({
@@ -2489,7 +2631,7 @@ function onArtDragMove(e) {
     return;
   }
 
-  const center = projectFacePoint(art.frame, art.cx, art.cy);
+  const center = artDragCenterOnScreen(art);
   const dist0 = Math.hypot(artDrag.startX - center.x, artDrag.startY - center.y);
   const dist1 = Math.hypot(e.clientX - center.x, e.clientY - center.y);
   const scale = Math.max(0.35, Math.min(2.8, dist1 / Math.max(8, dist0)));
