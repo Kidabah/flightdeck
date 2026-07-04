@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — Slide lid artifact fix + dado polish
+- Latest commit: `4b15d88` — Slide lid artifact fix + dado polish
 - Refresh cachebust currently: MakerDeck app.js?v=36 / style.css?v=10
 
 ### 2026-07-04 fix (MakerDeck slide lid artifact + reference polish)
