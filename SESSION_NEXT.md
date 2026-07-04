@@ -2,12 +2,22 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — Max-quality 4096px trace + color layer separation
+- Latest commit: `d2583cb` — Max-quality 4096px trace + color layer separation
 - Refresh cachebust currently: MakerDeck app.js?v=23 / style.css?v=8 · Flightdeck app.js?v=623 / style.css?v=480
 - MakerDeck: `https://flightdeck.tail7de73e.ts.net/makerdeck/` — hard refresh after pull
 - Backend restart NOT required (only static files changed).
 
-### 2026-07-04 fix (MakerDeck outline mode ring garbage)
+### 2026-07-04 fix (MakerDeck max-quality trace)
+
+**4096px trace, color-layer separation, no rect downsampling** (`makerforge/js/trace.js`, `contour.js`, `features.js`)
+
+- Trace raster now upscales to 4096px (was 1280 cap + downsample-only). SVG raster uses 2× supersample.
+- Removed rect-count auto-downsample that was crushing quality before polygon extraction.
+- Gentler simplify (tw/1400), 5× Chaikin passes, 1800pt curve budget.
+- Minimal dilation — parts stay separate for slicer paint-by-region.
+- Multi-colour PNG/SVG: each ink colour traced as separate islands (`N colour layers` in status).
+- Cachebust app.js?v=23. Hard refresh + Clear from box + re-Trace. Use coloured source art for best part separation.
+
 
 **Skeleton outline auto-fallback + open-polyline fixes** (`makerforge/js/trace.js`, `makerforge/js/contour.js`)
 
