@@ -381,6 +381,7 @@ function setPreviewXRayMode(on) {
   material.depthWrite = !on;
   material.metalness = on ? 0.05 : 0.15;
   material.color.setHex(on ? 0x475569 : 0x38bdf8);
+  material.side = on ? THREE.FrontSide : THREE.DoubleSide;
 
   lidMaterial.transparent = on;
   lidMaterial.opacity = on ? 0.42 : 1;
@@ -390,6 +391,7 @@ function setPreviewXRayMode(on) {
   lidMaterial.color.setHex(on ? 0x7dd3fc : 0x93c5fd);
   lidMaterial.polygonOffsetFactor = on ? 5 : 2;
   lidMaterial.polygonOffsetUnits = on ? 8 : 3;
+  lidMaterial.side = on ? THREE.FrontSide : THREE.DoubleSide;
 
   edgeMaterial.opacity = on ? 0.22 : 0.55;
 

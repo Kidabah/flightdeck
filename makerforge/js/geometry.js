@@ -550,7 +550,9 @@ function buildSlipLidShell(outPos, outIdx, boxOuter, skirtDepth, lidThickness, c
   extrudeProfileSides(outPos, outIdx, outer, 0, skirtDepth, true);
   extrudeProfileSides(outPos, outIdx, inner, 0, skirtDepth, false);
   capRing(outPos, outIdx, outer, inner, skirtDepth, true);
-  capProfileSolid(outPos, outIdx, outer, zTop, true);
+  extrudeProfileSides(outPos, outIdx, outer, skirtDepth, zTop, true);
+  extrudeProfileSides(outPos, outIdx, inner, skirtDepth, zTop, false);
+  capRing(outPos, outIdx, outer, inner, zTop, true);
 }
 
 function buildPlugLidShell(outPos, outIdx, boxOuter, boxInner, skirtDepth, lidThickness, clearance, lidWall) {

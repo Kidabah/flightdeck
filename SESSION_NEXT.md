@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `91afa5c` — capProfileSolid index fix (restores floor)
-- Refresh cachebust currently: MakerDeck app.js?v=31 / style.css?v=10
+- Latest commit: (pending) — X-ray floor cap z-fight fix
+- Refresh cachebust currently: MakerDeck app.js?v=32 / style.css?v=10
+
+### 2026-07-04 fix (MakerDeck X-ray floor diamond artifact)
+
+**Centre floor moiré was cap z-fighting, not the lid** (`app.js`, `geometry.js`)
+
+- X-ray mode now uses FrontSide on body/lid — zero-thickness floor caps no longer fight front/back faces.
+- Slip lid plate built as annulus + walls (capRing top) instead of solid earcut cap over the skirt hole.
+- Cachebust app.js?v=32. Hard refresh required.
 
 ### 2026-07-04 hotfix (MakerDeck floor missing + mesh corruption)
 
