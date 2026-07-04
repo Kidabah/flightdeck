@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — Outline trace: boundary strokes instead of 1px morphological ring
+- Latest commit: `31661c3` — Outline trace: boundary strokes instead of 1px morphological ring
 - Refresh cachebust currently: MakerDeck app.js?v=14 / style.css?v=7 · Flightdeck app.js?v=623 / style.css?v=480
 - MakerDeck: `https://flightdeck.tail7de73e.ts.net/makerdeck/` — hard refresh after pull
 - Backend restart NOT required (only static files changed).
