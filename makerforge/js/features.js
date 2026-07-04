@@ -550,13 +550,18 @@ export function parseSvgPaths(svgText) {
   return { polylines, viewBox, strokeWidth };
 }
 
+function pathIsExplicitlyClosed(path) {
+  if (!path || path.length < 4) return false;
+  const dx = path[0][0] - path[path.length - 1][0];
+  const dy = path[0][1] - path[path.length - 1][1];
+  return Math.hypot(dx, dy) < 0.05;
+}
+
 function extrudeStrokePathList(positions, indices, frame, paths, mapPt, lineWidthMm, d0, d1) {
   const half = lineWidthMm / 2;
   for (const path of paths) {
     if (!path?.length) continue;
-    const closed =
-      path.length >= 4 &&
-      Math.hypot(path[0][0] - path[path.length - 1][0], path[0][1] - path[path.length - 1][1]) < 0.85;
+    const closed = pathIsExplicitlyClosed(path);
     const pts = closed ? ringPointsLocal(path) : path;
     const segCount = closed ? pts.length : pts.length - 1;
     if (segCount < 1) continue;
@@ -773,11 +778,17 @@ function labelOffsets(params) {
 
 export function buildLabelEmboss(meta, params, svgText = "", mode = "emboss") {
   const p = { ...params, __embossMode: mode };
-  if (p.embossTraceEnabled && (p.embossTraceRects?.mask?.length || p.embossTraceRects?.rects?.length)) {
-    return buildEmbossBitmap(meta, p, p.embossTraceRects);
-  }
-  if (p.embossText?.trim() && !p.embossSvgEnabled) {
+  const hasTrace =
+    p.embossTraceEnabled &&
+    (p.embossTraceRects?.mask?.length || p.embossTraceRects?.rects?.length);
+  const hasText = !!p.embossText?.trim();
+
+  // Label text wins over stale trace/SVG geometry on the box.
+  if (hasText && !p.embossSvgEnabled) {
     return buildEmbossText(meta, p);
+  }
+  if (hasTrace) {
+    return buildEmbossBitmap(meta, p, p.embossTraceRects);
   }
   if (p.embossSvgEnabled && svgText?.trim()) {
     return buildEmbossSvg(meta, p, svgText);

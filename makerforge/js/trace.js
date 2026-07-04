@@ -435,17 +435,9 @@ export function rasterizeSvgToCanvas(svgText, maxPx = MAX_TRACE_PX) {
   });
 }
 
-/** Pick outline for thin line art, silhouette for solid fills. */
-export function detectSvgTraceMode(canvas) {
-  const ctx = canvas.getContext("2d");
-  const { width, height, data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  let dark = 0;
-  for (let i = 0; i < data.length; i += 4) {
-    const lum = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
-    if (lum < 200) dark += 1;
-  }
-  const ratio = dark / (width * height);
-  return ratio < 0.14 ? "outline" : "silhouette";
+/** SVG imports always use silhouette — outline on edge-detected art creates ring garbage. */
+export function detectSvgTraceMode() {
+  return "silhouette";
 }
 
 
@@ -559,7 +551,11 @@ export function traceCanvas(canvas, options = {}) {
 
   let ink = binarizeImageData(data, width, height, threshold, invert, "silhouette", blur);
   // Both modes start from a clean ink mask; outline traces boundaries as strokes, not 1px rings.
-  const mask = openMask(ink, width, height);
+  let mask = openMask(ink, width, height);
+  // SVG / thin line art: thicken ink slightly so silhouette emboss prints as solid strokes.
+  if (options.strengthen) {
+    mask = dilateMask(mask, width, height);
+  }
 
 
 

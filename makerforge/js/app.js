@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, VASE_STYLES, PENCIL_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js";
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec } from "./features.js";
-import { loadImageFromFile, loadImageFromDataUrl, traceCanvas, drawTracePreview, rasterizeSvgToCanvas, detectSvgTraceMode, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js";
+import { loadImageFromFile, loadImageFromDataUrl, traceCanvas, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js";
 import { meshToStl, downloadBlob, filenameFor } from "./stl.js";
 
 const SESSION_KEY = "makerdeck-session-v1";
@@ -964,13 +964,14 @@ function storeTraceOnBox(result, { clearLabel = true, clearSvg = true } = {}) {
 async function importSvgAsTrace(svgText, { fileName = "" } = {}) {
   const canvas = await rasterizeSvgToCanvas(svgText);
   traceSourceCanvas = canvas;
-  const mode = detectSvgTraceMode(canvas);
+  const mode = "silhouette";
   state.traceMode = mode;
   document.getElementById("trace-mode").value = mode;
   traceLastResult = traceCanvas(canvas, {
-    threshold: state.traceThreshold,
+    threshold: Math.min(235, Math.max(160, state.traceThreshold ?? 200)),
     invert: state.traceInvert,
     mode,
+    strengthen: true,
   });
   traceLastSvg = traceLastResult.svg || "";
   const preview = document.getElementById("trace-preview");
@@ -992,7 +993,7 @@ async function importSvgAsTrace(svgText, { fileName = "" } = {}) {
 
   const meta = document.getElementById("trace-meta");
   if (meta && fileName) {
-    meta.textContent = `SVG ${fileName} · ${mode === "outline" ? "line art" : "silhouette"} · applied via trace`;
+    meta.textContent = `SVG ${fileName} · silhouette · applied to box`;
   }
   updateDecorUi();
   updateTraceUi();
@@ -1353,10 +1354,13 @@ document.getElementById("emboss-svg-enabled").addEventListener("change", (e) => 
     clearEmbossTrace();
     state.embossText = "";
     document.getElementById("emboss-text").value = "";
+  } else {
+    clearEmbossTrace();
   }
   updateDecorUi();
   updateTraceUi();
   rebuild();
+  pushAppHistory();
 });
 
 document.getElementById("emboss-face").addEventListener("change", (e) => {
