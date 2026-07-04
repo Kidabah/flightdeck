@@ -388,6 +388,66 @@ function scaleCanvasToFit(source, maxPx) {
 
 }
 
+/** Ensure SVG has explicit dimensions, then rasterize for reliable tracing. */
+export function rasterizeSvgToCanvas(svgText, maxPx = MAX_TRACE_PX) {
+  return new Promise((resolve, reject) => {
+    if (!svgText?.trim()) {
+      reject(new Error("Empty SVG"));
+      return;
+    }
+    let serialized = svgText;
+    if (typeof DOMParser !== "undefined") {
+      const doc = new DOMParser().parseFromString(svgText, "image/svg+xml");
+      const svg = doc.documentElement;
+      if (svg && svg.nodeName.toLowerCase() !== "parsererror") {
+        const vb = svg.getAttribute("viewBox")?.trim().split(/[\s,]+/).map(Number);
+        if (!svg.getAttribute("width") && vb?.length === 4) {
+          svg.setAttribute("width", String(vb[2]));
+          svg.setAttribute("height", String(vb[3]));
+        }
+        serialized = new XMLSerializer().serializeToString(svg);
+      }
+    }
+    const blob = new Blob([serialized], { type: "image/svg+xml" });
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => {
+      const iw = img.naturalWidth || img.width || maxPx;
+      const ih = img.naturalHeight || img.height || maxPx;
+      const scale = Math.min(1, maxPx / Math.max(iw, ih));
+      const w = Math.max(1, Math.round(iw * scale));
+      const h = Math.max(1, Math.round(ih * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      resolve(canvas);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Could not rasterize SVG"));
+    };
+    img.src = url;
+  });
+}
+
+/** Pick outline for thin line art, silhouette for solid fills. */
+export function detectSvgTraceMode(canvas) {
+  const ctx = canvas.getContext("2d");
+  const { width, height, data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  let dark = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    const lum = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+    if (lum < 200) dark += 1;
+  }
+  const ratio = dark / (width * height);
+  return ratio < 0.14 ? "outline" : "silhouette";
+}
+
 
 
 /** Load a data URL (e.g. saved session JPEG) into a trace canvas. */

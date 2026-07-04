@@ -3,7 +3,7 @@
 Latest GitHub/Pi state:
 - Branch: main
 - Latest commit: `d6fe17a` — Header toolbar: undo/redo/clear/reset app-wide
-- Refresh cachebust currently: MakerDeck app.js?v=17 / style.css?v=8 · Flightdeck app.js?v=623 / style.css?v=480
+- Refresh cachebust currently: MakerDeck app.js?v=18 / style.css?v=8 · Flightdeck app.js?v=623 / style.css?v=480
 - MakerDeck: `https://flightdeck.tail7de73e.ts.net/makerdeck/` — hard refresh after pull
 - Backend restart NOT required (only static files changed).
 

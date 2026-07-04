@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, VASE_STYLES, PENCIL_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js";
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec } from "./features.js";
-import { loadImageFromFile, loadImageFromDataUrl, traceCanvas, drawTracePreview, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js";
+import { loadImageFromFile, loadImageFromDataUrl, traceCanvas, drawTracePreview, rasterizeSvgToCanvas, detectSvgTraceMode, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js";
 import { meshToStl, downloadBlob, filenameFor } from "./stl.js";
 
 const SESSION_KEY = "makerdeck-session-v1";
@@ -367,6 +367,16 @@ async function restoreSession() {
       traceLastSvg = traceLastResult.svg || "";
       const preview = document.getElementById("trace-preview");
       drawTracePreview(preview, traceSourceCanvas, traceLastResult);
+    } else if (
+      payload.state.embossSvgEnabled &&
+      payload.state.embossSvgText?.trim() &&
+      !payload.state.embossTraceEnabled
+    ) {
+      try {
+        await importSvgAsTrace(payload.state.embossSvgText, { fileName: "restored" });
+      } catch (err) {
+        console.warn("Could not re-import saved SVG:", err);
+      }
     }
 
     return payload;
@@ -917,6 +927,79 @@ async function handleTraceFile(file) {
   }
 }
 
+function traceResultToEmbossRects(result) {
+  return {
+    rects: result.rects?.map((r) => ({ x: r.x, y: r.y, w: r.w, h: r.h })) || [],
+    mask: Array.from(result.mask),
+    polygons: result.polygons?.map((poly) => poly.map(([x, y]) => [x, y])) || [],
+    shapeGroups: result.shapeGroups?.map((g) => ({
+      outer: g.outer.map(([x, y]) => [x, y]),
+      holes: g.holes.map((h) => h.map(([x, y]) => [x, y])),
+    })) || [],
+    strokePaths: result.strokePaths?.map((p) => p.map(([x, y]) => [x, y])) || [],
+    strokeWidth: result.strokeWidth,
+    mode: result.mode || state.traceMode || "silhouette",
+    width: result.width,
+    height: result.height,
+  };
+}
+
+function storeTraceOnBox(result, { clearLabel = true, clearSvg = true } = {}) {
+  if (!result?.mask?.length) return false;
+  if (result.tooComplex) return false;
+  state.embossTraceEnabled = true;
+  state.embossTraceRects = traceResultToEmbossRects(result);
+  if (clearLabel) {
+    state.embossText = "";
+    document.getElementById("emboss-text").value = "";
+  }
+  if (clearSvg) {
+    state.embossSvgEnabled = false;
+    state.embossSvgText = "";
+    document.getElementById("emboss-svg-enabled").checked = false;
+  }
+  return true;
+}
+
+async function importSvgAsTrace(svgText, { fileName = "" } = {}) {
+  const canvas = await rasterizeSvgToCanvas(svgText);
+  traceSourceCanvas = canvas;
+  const mode = detectSvgTraceMode(canvas);
+  state.traceMode = mode;
+  document.getElementById("trace-mode").value = mode;
+  traceLastResult = traceCanvas(canvas, {
+    threshold: state.traceThreshold,
+    invert: state.traceInvert,
+    mode,
+  });
+  traceLastSvg = traceLastResult.svg || "";
+  const preview = document.getElementById("trace-preview");
+  if (preview) drawTracePreview(preview, traceSourceCanvas, traceLastResult);
+
+  if (!shapeSupportsDecor(decorUiShape())) {
+    throw new Error("Pick a box, rounded, or pencil shape first.");
+  }
+  if (traceLastResult.tooComplex) {
+    throw new Error(`SVG too detailed to emboss (max ${MAX_TRACE_POLYGONS} paths).`);
+  }
+
+  state.embossText = "";
+  document.getElementById("emboss-text").value = "";
+  state.embossSvgText = svgText;
+  state.embossSvgEnabled = true;
+  document.getElementById("emboss-svg-enabled").checked = true;
+  storeTraceOnBox(traceLastResult, { clearLabel: false, clearSvg: false });
+
+  const meta = document.getElementById("trace-meta");
+  if (meta && fileName) {
+    meta.textContent = `SVG ${fileName} · ${mode === "outline" ? "line art" : "silhouette"} · applied via trace`;
+  }
+  updateDecorUi();
+  updateTraceUi();
+  rebuild();
+  pushAppHistory();
+}
+
 function applyTraceToBox() {
   if (!traceLastResult?.mask?.length) return;
   if (traceLastResult.tooComplex) {
@@ -928,26 +1011,7 @@ function applyTraceToBox() {
     document.getElementById("trace-meta").textContent = "Pick a box, rounded, or pencil shape first.";
     return;
   }
-  state.embossTraceEnabled = true;
-  state.embossTraceRects = {
-    rects: traceLastResult.rects?.map((r) => ({ x: r.x, y: r.y, w: r.w, h: r.h })) || [],
-    mask: Array.from(traceLastResult.mask),
-    polygons: traceLastResult.polygons?.map((poly) => poly.map(([x, y]) => [x, y])) || [],
-    shapeGroups: traceLastResult.shapeGroups?.map((g) => ({
-      outer: g.outer.map(([x, y]) => [x, y]),
-      holes: g.holes.map((h) => h.map(([x, y]) => [x, y])),
-    })) || [],
-    strokePaths: traceLastResult.strokePaths?.map((p) => p.map(([x, y]) => [x, y])) || [],
-    strokeWidth: traceLastResult.strokeWidth,
-    mode: traceLastResult.mode || state.traceMode || "silhouette",
-    width: traceLastResult.width,
-    height: traceLastResult.height,
-  };
-  state.embossText = "";
-  state.embossSvgEnabled = false;
-  state.embossSvgText = "";
-  document.getElementById("emboss-text").value = "";
-  document.getElementById("emboss-svg-enabled").checked = false;
+  if (!storeTraceOnBox(traceLastResult)) return;
   updateDecorUi();
   updateTraceUi();
   pushAppHistory();
@@ -1391,23 +1455,21 @@ document.getElementById("btn-trace-svg").addEventListener("click", () => {
   downloadBlob(blob, "traced-art.svg");
 });
 
-document.getElementById("svg-file").addEventListener("change", (e) => {
+document.getElementById("svg-file").addEventListener("change", async (e) => {
   const file = e.target.files?.[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = () => {
-    clearEmbossTrace();
-    state.embossSvgText = String(reader.result || "");
-    state.embossSvgEnabled = true;
-    state.embossText = "";
-    document.getElementById("emboss-text").value = "";
-    document.getElementById("emboss-svg-enabled").checked = true;
-    updateDecorUi();
-    updateTraceUi();
-    rebuild();
-    pushAppHistory();
+  reader.onload = async () => {
+    try {
+      await importSvgAsTrace(String(reader.result || ""), { fileName: file.name });
+    } catch (err) {
+      console.error("SVG import failed:", err);
+      const meta = document.getElementById("trace-meta");
+      if (meta) meta.textContent = err.message || "Could not import SVG";
+    }
   };
   reader.readAsText(file);
+  e.target.value = "";
 });
 
 document.querySelectorAll("#field-joiner-hand .chip").forEach((chip) => {

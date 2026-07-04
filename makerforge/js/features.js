@@ -516,7 +516,9 @@ export function parseSvgPaths(svgText) {
   const scratch = document.createElementNS(SVG_NS, "svg");
   scratch.setAttribute("xmlns", SVG_NS);
   scratch.setAttribute("viewBox", svg.getAttribute("viewBox") || `${viewBox[0]} ${viewBox[1]} ${viewBox[2]} ${viewBox[3]}`);
-  scratch.style.cssText = "position:absolute;width:0;height:0;overflow:hidden;visibility:hidden";
+  scratch.setAttribute("width", String(viewBox[2]));
+  scratch.setAttribute("height", String(viewBox[3]));
+  scratch.style.cssText = "position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden";
   document.body.appendChild(scratch);
 
   const polylines = [];
