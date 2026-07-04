@@ -92,16 +92,38 @@ const edgeMaterial = new THREE.LineBasicMaterial({
   depthWrite: false,
 });
 
-const lidEdgeMaterial = new THREE.LineBasicMaterial({
-  color: 0xe0f2fe,
+const guideRimMaterial = new THREE.LineBasicMaterial({
+  color: 0xffb020,
   transparent: true,
-  opacity: 0.9,
+  opacity: 0.98,
   depthWrite: false,
 });
+
+const guideSkirtOuterMaterial = new THREE.LineBasicMaterial({
+  color: 0x34d399,
+  transparent: true,
+  opacity: 0.98,
+  depthWrite: false,
+});
+
+const guideSkirtInnerMaterial = new THREE.LineBasicMaterial({
+  color: 0x22d3ee,
+  transparent: true,
+  opacity: 0.88,
+  depthWrite: false,
+});
+
+const guidePlateMaterial = new THREE.LineBasicMaterial({
+  color: 0xffffff,
+  transparent: true,
+  opacity: 0.92,
+  depthWrite: false,
+});
+
 let bodyMesh = null;
 let edgeLines = null;
 let lidMesh = null;
-let lidEdgeLines = null;
+let lidGuideLoops = [];
 let lidAnim = null;
 let accentMesh = null;
 let accentEdgeLines = null;
@@ -241,17 +263,88 @@ function disposeAccentPreview() {
   accentCache = null;
 }
 
+function disposeLidGuides() {
+  for (const loop of lidGuideLoops) {
+    if (loop.mesh) {
+      previewRoot.remove(loop.mesh);
+      loop.mesh.geometry.dispose();
+    }
+  }
+  lidGuideLoops = [];
+}
+
+function profileLoopPoints(profile, yLevel) {
+  const vecs = [];
+  for (const [x, py] of profile) {
+    vecs.push(new THREE.Vector3(x, yLevel, -py));
+  }
+  return vecs;
+}
+
+function addLidGuideLoop(profile, yLevel, mat, fixed) {
+  const vecs = profileLoopPoints(profile, yLevel);
+  if (vecs.length < 3) return;
+  const geom = new THREE.BufferGeometry().setFromPoints(vecs);
+  const mesh = new THREE.LineLoop(geom, mat);
+  mesh.visible = false;
+  mesh.renderOrder = fixed ? 11 : 12;
+  previewRoot.add(mesh);
+  lidGuideLoops.push({ profile, cadY: yLevel, fixed, mat, mesh });
+}
+
+function buildLidGuideLoops() {
+  disposeLidGuides();
+  const g = lidCache?.fitGuides;
+  if (!g) return;
+
+  addLidGuideLoop(g.boxOuter, g.seatZ, guideRimMaterial, true);
+
+  if (g.lidType === "slip") {
+    addLidGuideLoop(g.skirtOuter, 0, guideSkirtOuterMaterial, false);
+    addLidGuideLoop(g.skirtOuter, g.skirtDepth, guideSkirtOuterMaterial, false);
+    addLidGuideLoop(g.skirtInner, 0, guideSkirtInnerMaterial, false);
+  } else if (g.lidType === "plug") {
+    addLidGuideLoop(g.skirtOuter, 0, guideSkirtOuterMaterial, false);
+    addLidGuideLoop(g.skirtOuter, g.skirtDepth, guideSkirtOuterMaterial, false);
+    addLidGuideLoop(g.plateOuter, g.lidHeight, guidePlateMaterial, false);
+  } else {
+    addLidGuideLoop(g.plateOuter, 0, guidePlateMaterial, false);
+    addLidGuideLoop(g.plateOuter, g.lidHeight, guidePlateMaterial, false);
+  }
+
+  syncLidGuideLoops(lidRestY());
+}
+
+function syncLidGuideLoops(lidY) {
+  for (const loop of lidGuideLoops) {
+    const y = loop.fixed ? loop.cadY : loop.cadY + lidY;
+    const pos = loop.mesh.geometry.attributes.position;
+    for (let i = 0; i < loop.profile.length; i++) {
+      pos.setXYZ(i, loop.profile[i][0], y, -loop.profile[i][1]);
+    }
+    pos.needsUpdate = true;
+    loop.mesh.visible = previewXRayOn;
+  }
+}
+
+function lidFitHintText() {
+  const t = lidCache?.fitGuides?.lidType || state.lidType;
+  if (t === "plug") {
+    return "Orange = box rim. Green loops = plug skirt inside the opening. White = top plate on the rim.";
+  }
+  if (t === "flat") {
+    return "Orange = box rim. White plate loops rest directly on the rim — no skirt.";
+  }
+  return "Orange = box rim. Green loops = skirt wrapping outside the walls (larger than the rim).";
+}
+
 function disposeLidPreview() {
   if (lidMesh) {
     previewRoot.remove(lidMesh);
     lidMesh.geometry.dispose();
     lidMesh = null;
   }
-  if (lidEdgeLines) {
-    previewRoot.remove(lidEdgeLines);
-    lidEdgeLines.geometry.dispose();
-    lidEdgeLines = null;
-  }
+  disposeLidGuides();
   lidCache = null;
   stopLidAnimation(false);
 }
@@ -273,7 +366,7 @@ function lidClosedY() {
 
 function setLidPreviewY(y) {
   if (lidMesh) lidMesh.position.y = y;
-  if (lidEdgeLines) lidEdgeLines.position.y = y;
+  syncLidGuideLoops(y);
 }
 
 function setPreviewXRayMode(on) {
@@ -281,19 +374,21 @@ function setPreviewXRayMode(on) {
   previewXRayOn = on;
 
   material.transparent = on;
-  material.opacity = on ? 0.18 : 1;
+  material.opacity = on ? 0.14 : 1;
   material.depthWrite = !on;
   material.metalness = on ? 0.05 : 0.15;
+  material.color.setHex(on ? 0x475569 : 0x38bdf8);
 
   lidMaterial.transparent = on;
-  lidMaterial.opacity = on ? 0.46 : 1;
+  lidMaterial.opacity = on ? 0.42 : 1;
   lidMaterial.depthWrite = !on;
-  lidMaterial.emissive.setHex(on ? 0x38bdf8 : 0x000000);
-  lidMaterial.emissiveIntensity = on ? 0.22 : 0;
+  lidMaterial.emissive.setHex(on ? 0x0ea5e9 : 0x000000);
+  lidMaterial.emissiveIntensity = on ? 0.28 : 0;
+  lidMaterial.color.setHex(on ? 0x7dd3fc : 0x93c5fd);
+  lidMaterial.polygonOffsetFactor = on ? 5 : 2;
+  lidMaterial.polygonOffsetUnits = on ? 8 : 3;
 
-  edgeMaterial.opacity = on ? 0.28 : 0.55;
-  lidEdgeMaterial.opacity = on ? 0.98 : 0.9;
-  lidEdgeMaterial.color.setHex(on ? 0xffffff : 0xe0f2fe);
+  edgeMaterial.opacity = on ? 0.22 : 0.55;
 
   labelMaterial.transparent = on;
   labelMaterial.opacity = on ? 0.35 : 1;
@@ -312,7 +407,7 @@ function setPreviewXRayMode(on) {
     lidMesh.renderOrder = on ? 8 : 4;
   }
   if (edgeLines) edgeLines.renderOrder = on ? 2 : 3;
-  if (lidEdgeLines) lidEdgeLines.renderOrder = on ? 9 : 5;
+  syncLidGuideLoops(lidMesh?.position.y ?? lidRestY());
 }
 
 function easeInOutCubic(t) {
@@ -332,6 +427,8 @@ function playLidFitPreview() {
   if (!state.lidEnabled || !lidCache || !lidMesh) return;
   stopLidAnimation(false);
   setPreviewXRayMode(true);
+  const hint = document.getElementById("lid-xray-hint");
+  if (hint) hint.textContent = lidFitHintText();
   const btn = document.getElementById("btn-lid-preview-fit");
   if (btn) btn.disabled = true;
   setLidPreviewY(lidOpenY());
@@ -639,11 +736,7 @@ function rebuildMesh() {
     lidMesh.renderOrder = 4;
     previewRoot.add(lidMesh);
 
-    const lidEdges = new THREE.EdgesGeometry(lidGeom, 18);
-    lidEdgeLines = new THREE.LineSegments(lidEdges, lidEdgeMaterial);
-    lidEdgeLines.position.y = lidMesh.position.y;
-    lidEdgeLines.renderOrder = 5;
-    previewRoot.add(lidEdgeLines);
+    buildLidGuideLoops();
   }
 
   updateStats(meshCache.meta);

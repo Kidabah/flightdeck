@@ -2,8 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `694b915` — Lid X-ray preview fit
-- Refresh cachebust currently: MakerDeck app.js?v=28 / style.css?v=9
+- Latest commit: `e536322` — Lid preview fit guides + cap artifact fix
+- Refresh cachebust currently: MakerDeck app.js?v=29 / style.css?v=9
+
+### 2026-07-04 fix (MakerDeck lid preview clarity)
+
+**Rim guide rings + clean lid caps** (`makerforge/js/geometry.js`, `app.js`, `index.html`)
+
+- Lid top/bottom caps use earcut triangulation instead of center-fan — removes moiré / floating rectangle artifact in X-ray.
+- Preview fit shows coloured profile loops: orange box rim, green skirt (outside slip / inside plug), white plate.
+- Replaced lid EdgesGeometry outline with profile loops that move with the animation.
+- Cachebust app.js?v=29. Hard refresh required.
 
 ### 2026-07-04 feature (MakerDeck lid X-ray preview fit)
 

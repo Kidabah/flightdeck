@@ -11,6 +11,7 @@ import {
   resolveJoinerDims,
   shapeSupportsDecor,
 } from "./features.js";
+import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js";
 
 export { shapeSupportsDecor, VASE_STYLES };
@@ -244,6 +245,32 @@ function capSolid(outPos, outIdx, points, z, normalUp) {
     const a = vec3(points[i][0], points[i][1], z);
     const b = vec3(points[j][0], points[j][1], z);
     const c = vec3(0, 0, z);
+    if (normalUp) pushTri(outPos, outIdx, a, b, c);
+    else pushTri(outPos, outIdx, a, c, b);
+  }
+}
+
+/** Earcut cap — avoids center-fan triangulation edges that show through transparent preview. */
+function capProfileSolid(outPos, outIdx, points, z, normalUp) {
+  let ring = points;
+  if (
+    ring.length > 1 &&
+    ring[0][0] === ring[ring.length - 1][0] &&
+    ring[0][1] === ring[ring.length - 1][1]
+  ) {
+    ring = ring.slice(0, -1);
+  }
+  if (ring.length < 3) return;
+  const base = outPos.length / 3;
+  for (const [x, y] of ring) {
+    const w = vec3(x, y, z);
+    outPos.push(w[0], w[1], w[2]);
+  }
+  const tri = earcut(ring.flat());
+  for (let i = 0; i < tri.length; i += 3) {
+    const a = base + tri[i];
+    const b = base + tri[i + 1];
+    const c = base + tri[i + 2];
     if (normalUp) pushTri(outPos, outIdx, a, b, c);
     else pushTri(outPos, outIdx, a, c, b);
   }
@@ -515,7 +542,7 @@ function buildSlipLidShell(outPos, outIdx, boxOuter, skirtDepth, lidThickness, c
   extrudeProfileSides(outPos, outIdx, outer, 0, skirtDepth, true);
   extrudeProfileSides(outPos, outIdx, inner, 0, skirtDepth, false);
   capRing(outPos, outIdx, outer, inner, skirtDepth, true);
-  capSolid(outPos, outIdx, outer, zTop, true);
+  capProfileSolid(outPos, outIdx, outer, zTop, true);
 }
 
 function buildPlugLidShell(outPos, outIdx, boxOuter, boxInner, skirtDepth, lidThickness, clearance, lidWall) {
@@ -528,13 +555,41 @@ function buildPlugLidShell(outPos, outIdx, boxOuter, boxInner, skirtDepth, lidTh
   extrudeProfileSides(outPos, outIdx, plugInner, 0, skirtDepth, false);
   capRing(outPos, outIdx, plugOuter, plugInner, skirtDepth, true);
   extrudeProfileSides(outPos, outIdx, boxOuter, skirtDepth, zTop, true);
-  capSolid(outPos, outIdx, boxOuter, zTop, true);
+  capProfileSolid(outPos, outIdx, boxOuter, zTop, true);
 }
 
 function buildFlatLidShell(outPos, outIdx, boxOuter, lidThickness) {
-  capSolid(outPos, outIdx, boxOuter, 0, false);
+  capProfileSolid(outPos, outIdx, boxOuter, 0, false);
   extrudeProfileSides(outPos, outIdx, boxOuter, 0, lidThickness, true);
-  capSolid(outPos, outIdx, boxOuter, lidThickness, true);
+  capProfileSolid(outPos, outIdx, boxOuter, lidThickness, true);
+}
+
+function computeLidFitGuides(resolved, params) {
+  const clearance = clamp(params.lidClearance ?? 0.35, 0.1, 1.2);
+  const lidWall = clamp(params.lidWall ?? params.wall ?? 2.4, 1.2, 6);
+  const lidType = params.lidType === "plug" || params.lidType === "flat" ? params.lidType : "slip";
+  const skirtDepth = clamp(params.lidSkirt ?? 10, 4, 30);
+  const lidThickness = clamp(params.lidThickness ?? 2.4, 1.2, 8);
+  const lidHeight = lidType === "flat" ? lidThickness : skirtDepth + lidThickness;
+  const guides = {
+    seatZ: resolved.totalH,
+    lidType,
+    skirtDepth,
+    lidHeight,
+    boxOuter: resolved.outer,
+    boxInner: resolved.inner,
+  };
+  if (lidType === "slip") {
+    guides.skirtOuter = offsetProfileOutward(resolved.outer, clearance + lidWall);
+    guides.skirtInner = offsetProfileOutward(resolved.outer, clearance);
+  } else if (lidType === "plug") {
+    guides.skirtOuter = offsetProfileInward(resolved.inner, clearance);
+    guides.skirtInner = offsetProfileInward(resolved.inner, clearance + lidWall);
+    guides.plateOuter = resolved.outer;
+  } else {
+    guides.plateOuter = resolved.outer;
+  }
+  return guides;
 }
 
 function buildSlipLidMesh(boxOuter, options) {
@@ -929,6 +984,7 @@ export function buildLid(params) {
     meta: { ...resolved.meta, part: "lid", lidType },
     lidHeight: lid.lidHeight,
     seatZ: resolved.totalH,
+    fitGuides: computeLidFitGuides(resolved, params),
   };
 }
 
