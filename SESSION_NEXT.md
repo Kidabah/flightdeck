@@ -2,10 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `e3d9ad9` — Fix SVG ring garbage; text beats stale trace
+- Latest commit: `3747630` — Smooth SVG emboss edges
 - Refresh cachebust currently: MakerDeck app.js?v=20 / style.css?v=8 · Flightdeck app.js?v=623 / style.css?v=480
 - MakerDeck: `https://flightdeck.tail7de73e.ts.net/makerdeck/` — hard refresh after pull
 - Backend restart NOT required (only static files changed).
+
+### 2026-07-04 fix (MakerDeck smooth SVG/silhouette edges)
+
+**Higher-res trace + gentler simplify + no double-smoothing** (`makerforge/js/trace.js`, `makerforge/js/contour.js`, `makerforge/js/features.js`)
+
+- SVG rasterize at 1280px with supersample; silhouette simplify tolerance reduced (tw/480 not tw/200).
+- 4× Chaikin on SVG import; build step no longer re-simplifies already-smoothed shapeGroups (was making stairs worse).
+- Cachebust app.js?v=20. Re-import SVG after hard refresh.
 
 ### 2026-07-04 fix (MakerDeck SVG ring garbage + label priority)
 
