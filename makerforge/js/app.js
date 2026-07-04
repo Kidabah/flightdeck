@@ -27,7 +27,8 @@ let traceSourceCanvas = null;
 let traceLastResult = null;
 let traceLastSvg = "";
 const BED_LIFT = 0.35;
-const LID_GAP = 0.35;
+const LID_PREVIEW_GAP = 0.35;
+const LID_ANIM_LIFT = 14;
 
 const viewport = document.getElementById("viewport");
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -94,6 +95,7 @@ let bodyMesh = null;
 let edgeLines = null;
 let lidMesh = null;
 let lidEdgeLines = null;
+let lidAnim = null;
 let accentMesh = null;
 let accentEdgeLines = null;
 let labelMesh = null;
@@ -240,13 +242,84 @@ function disposeLidPreview() {
     lidEdgeLines = null;
   }
   lidCache = null;
+  stopLidAnimation(false);
+}
+
+function lidRestY() {
+  if (!lidCache) return LID_PREVIEW_GAP;
+  return lidCache.seatZ + LID_PREVIEW_GAP;
+}
+
+function lidOpenY() {
+  if (!lidCache) return LID_PREVIEW_GAP;
+  return lidCache.seatZ + LID_PREVIEW_GAP + LID_ANIM_LIFT;
+}
+
+function lidClosedY() {
+  if (!lidCache) return 0;
+  return lidCache.seatZ + 0.02;
+}
+
+function setLidPreviewY(y) {
+  if (lidMesh) lidMesh.position.y = y;
+  if (lidEdgeLines) lidEdgeLines.position.y = y;
+}
+
+function easeInOutCubic(t) {
+  return t < 0.5 ? 4 * t * t * t : 1 - ((-2 * t + 2) ** 3) / 2;
+}
+
+function stopLidAnimation(resetToRest = true) {
+  lidAnim = null;
+  const btn = document.getElementById("btn-lid-preview-fit");
+  if (btn) btn.disabled = false;
+  if (resetToRest && lidMesh && lidCache) setLidPreviewY(lidRestY());
+}
+
+function playLidFitPreview() {
+  if (!state.lidEnabled || !lidCache || !lidMesh) return;
+  stopLidAnimation(false);
+  const btn = document.getElementById("btn-lid-preview-fit");
+  if (btn) btn.disabled = true;
+  setLidPreviewY(lidOpenY());
+  lidAnim = {
+    openY: lidOpenY(),
+    closedY: lidClosedY(),
+    restY: lidRestY(),
+    phaseIndex: 0,
+    phaseStart: performance.now(),
+    phases: [
+      { y0Key: "openY", y1Key: "closedY", duration: 900 },
+      { y0Key: "closedY", y1Key: "closedY", duration: 650 },
+      { y0Key: "closedY", y1Key: "restY", duration: 900 },
+    ],
+  };
+}
+
+function updateLidAnimation(now) {
+  if (!lidAnim || !lidMesh) return;
+  const a = lidAnim;
+  const phase = a.phases[a.phaseIndex];
+  if (!phase) {
+    stopLidAnimation(true);
+    return;
+  }
+  const t = Math.min(1, (now - a.phaseStart) / phase.duration);
+  const y0 = a[phase.y0Key];
+  const y1 = a[phase.y1Key];
+  setLidPreviewY(y0 + (y1 - y0) * easeInOutCubic(t));
+  if (t >= 1) {
+    a.phaseIndex += 1;
+    a.phaseStart = now;
+    if (a.phaseIndex >= a.phases.length) stopLidAnimation(true);
+  }
 }
 
 function fitCamera(meta) {
   const { w, d, h } = meta.outer;
   let totalH = h;
   if (state.lidEnabled && lidCache) {
-    totalH = lidCache.seatZ + LID_GAP + lidCache.lidHeight;
+    totalH = lidOpenY() + lidCache.lidHeight;
   }
   const span = Math.max(w, d, totalH);
   controls.target.set(0, BED_LIFT + totalH / 2, 0);
@@ -507,7 +580,7 @@ function rebuildMesh() {
     lidCache = buildLid(params);
     const lidGeom = toBufferGeometry(THREE, lidCache);
     lidMesh = new THREE.Mesh(lidGeom, lidMaterial);
-    lidMesh.position.y = lidCache.seatZ + LID_GAP;
+    setLidPreviewY(lidRestY());
     lidMesh.castShadow = true;
     lidMesh.receiveShadow = true;
     lidMesh.renderOrder = 4;
@@ -663,6 +736,7 @@ function updateLidUi() {
   document.getElementById("lid-enabled").checked = !!state.lidEnabled && supported;
   document.getElementById("lid-type").value = type.id;
   document.getElementById("btn-export-lid").classList.toggle("hidden", !on);
+  document.getElementById("btn-lid-preview-fit").classList.toggle("hidden", !on);
   document.getElementById("field-lid-type").classList.toggle("hidden", !on);
   document.getElementById("field-lid-skirt").classList.toggle("hidden", !on || isFlat);
   document.getElementById("field-lid-thickness").classList.toggle("hidden", !on);
@@ -1339,6 +1413,8 @@ document.querySelectorAll(".tab").forEach((tab) => {
   });
 });
 
+document.getElementById("btn-lid-preview-fit").addEventListener("click", () => playLidFitPreview());
+
 document.getElementById("lid-type").addEventListener("change", (e) => {
   state.lidType = e.target.value;
   updateLidUi();
@@ -1670,6 +1746,7 @@ window.addEventListener("resize", resize);
 
 function animate() {
   requestAnimationFrame(animate);
+  updateLidAnimation(performance.now());
   controls.update();
   renderer.render(scene, camera);
 }
