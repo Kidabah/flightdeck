@@ -2,10 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `afffa9a` — Lid types (slip / plug / flat cap)
-- Refresh cachebust currently: MakerDeck app.js?v=26 / style.css?v=9
+- Latest commit: `4aaea2c` — Lid preview fit animation
+- Refresh cachebust currently: MakerDeck app.js?v=27 / style.css?v=9
 
-### 2026-07-04 feature (MakerDeck lid types)
+### 2026-07-04 feature (MakerDeck lid fit animation)
+
+**Preview fit button on Lid tab** (`makerforge/js/app.js`, `index.html`)
+
+- Animates lid: raised → seated → brief hold → back to preview gap (~2.5s).
+- Preview-only; STL export unchanged. Cachebust app.js?v=27.
+
 
 **Slip-over, inset plug, flat cap + fit clearance** (`makerforge/js/geometry.js`, `app.js`, `index.html`)
 
