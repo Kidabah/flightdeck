@@ -2,9 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `a584fa2` — Async trace fix (page unresponsive)
+- Latest commit: `afffa9a` — Lid types (slip / plug / flat cap)
+- Refresh cachebust currently: MakerDeck app.js?v=26 / style.css?v=9
 
-### 2026-07-04 fix (MakerDeck page freeze on high-res trace)
+### 2026-07-04 feature (MakerDeck lid types)
+
+**Slip-over, inset plug, flat cap + fit clearance** (`makerforge/js/geometry.js`, `app.js`, `index.html`)
+
+- Lid tab: type dropdown, skirt depth, thickness, fit clearance (slip/plug only).
+- Flat cap = plate only; plug = skirt inside opening; slip-over = original outside skirt.
+- Separate lid STL export unchanged (plate-down). Hard refresh app.js?v=26.
+
 
 **Async trace — UI stays responsive** (`makerforge/js/trace.js`, `app.js`, `contour.js`)
 
