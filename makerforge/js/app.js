@@ -91,6 +91,13 @@ const edgeMaterial = new THREE.LineBasicMaterial({
   opacity: 0.55,
   depthWrite: false,
 });
+
+const lidEdgeMaterial = new THREE.LineBasicMaterial({
+  color: 0xe0f2fe,
+  transparent: true,
+  opacity: 0.9,
+  depthWrite: false,
+});
 let bodyMesh = null;
 let edgeLines = null;
 let lidMesh = null;
@@ -103,6 +110,8 @@ let labelEdgeLines = null;
 
 const lidMaterial = new THREE.MeshStandardMaterial({
   color: 0x93c5fd,
+  emissive: 0x000000,
+  emissiveIntensity: 0,
   metalness: 0.12,
   roughness: 0.48,
   flatShading: false,
@@ -111,6 +120,8 @@ const lidMaterial = new THREE.MeshStandardMaterial({
   polygonOffsetFactor: 2,
   polygonOffsetUnits: 3,
 });
+
+let previewXRayOn = false;
 
 const accentMaterial = new THREE.MeshStandardMaterial({
   color: 0xf97316,
@@ -265,12 +276,53 @@ function setLidPreviewY(y) {
   if (lidEdgeLines) lidEdgeLines.position.y = y;
 }
 
+function setPreviewXRayMode(on) {
+  if (previewXRayOn === on) return;
+  previewXRayOn = on;
+
+  material.transparent = on;
+  material.opacity = on ? 0.18 : 1;
+  material.depthWrite = !on;
+  material.metalness = on ? 0.05 : 0.15;
+
+  lidMaterial.transparent = on;
+  lidMaterial.opacity = on ? 0.46 : 1;
+  lidMaterial.depthWrite = !on;
+  lidMaterial.emissive.setHex(on ? 0x38bdf8 : 0x000000);
+  lidMaterial.emissiveIntensity = on ? 0.22 : 0;
+
+  edgeMaterial.opacity = on ? 0.28 : 0.55;
+  lidEdgeMaterial.opacity = on ? 0.98 : 0.9;
+  lidEdgeMaterial.color.setHex(on ? 0xffffff : 0xe0f2fe);
+
+  labelMaterial.transparent = on;
+  labelMaterial.opacity = on ? 0.35 : 1;
+  labelMaterial.depthWrite = !on;
+
+  accentMaterial.transparent = on;
+  accentMaterial.opacity = on ? 0.35 : 1;
+  accentMaterial.depthWrite = !on;
+
+  if (bodyMesh) {
+    bodyMesh.castShadow = !on;
+    bodyMesh.renderOrder = on ? 1 : 2;
+  }
+  if (lidMesh) {
+    lidMesh.castShadow = !on;
+    lidMesh.renderOrder = on ? 8 : 4;
+  }
+  if (edgeLines) edgeLines.renderOrder = on ? 2 : 3;
+  if (lidEdgeLines) lidEdgeLines.renderOrder = on ? 9 : 5;
+}
+
 function easeInOutCubic(t) {
   return t < 0.5 ? 4 * t * t * t : 1 - ((-2 * t + 2) ** 3) / 2;
 }
 
 function stopLidAnimation(resetToRest = true) {
+  const wasAnimating = !!lidAnim;
   lidAnim = null;
+  if (wasAnimating || previewXRayOn) setPreviewXRayMode(false);
   const btn = document.getElementById("btn-lid-preview-fit");
   if (btn) btn.disabled = false;
   if (resetToRest && lidMesh && lidCache) setLidPreviewY(lidRestY());
@@ -279,6 +331,7 @@ function stopLidAnimation(resetToRest = true) {
 function playLidFitPreview() {
   if (!state.lidEnabled || !lidCache || !lidMesh) return;
   stopLidAnimation(false);
+  setPreviewXRayMode(true);
   const btn = document.getElementById("btn-lid-preview-fit");
   if (btn) btn.disabled = true;
   setLidPreviewY(lidOpenY());
@@ -587,7 +640,7 @@ function rebuildMesh() {
     previewRoot.add(lidMesh);
 
     const lidEdges = new THREE.EdgesGeometry(lidGeom, 18);
-    lidEdgeLines = new THREE.LineSegments(lidEdges, edgeMaterial);
+    lidEdgeLines = new THREE.LineSegments(lidEdges, lidEdgeMaterial);
     lidEdgeLines.position.y = lidMesh.position.y;
     lidEdgeLines.renderOrder = 5;
     previewRoot.add(lidEdgeLines);
@@ -737,6 +790,7 @@ function updateLidUi() {
   document.getElementById("lid-type").value = type.id;
   document.getElementById("btn-export-lid").classList.toggle("hidden", !on);
   document.getElementById("btn-lid-preview-fit").classList.toggle("hidden", !on);
+  document.getElementById("lid-xray-hint")?.classList.toggle("hidden", !on);
   document.getElementById("field-lid-type").classList.toggle("hidden", !on);
   document.getElementById("field-lid-skirt").classList.toggle("hidden", !on || isFlat);
   document.getElementById("field-lid-thickness").classList.toggle("hidden", !on);
