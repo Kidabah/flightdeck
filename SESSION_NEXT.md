@@ -2,8 +2,8 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `025bf37` — MakerDeck: face picker + deboss + vase + smoother traces
-- Refresh cachebust currently: MakerDeck app.js?v=12 / style.css?v=7 · Flightdeck app.js?v=623 / style.css?v=480
+- Latest commit: `e0d82d1` — Fix traced emboss on chosen face (was landing on box floor)
+- Refresh cachebust currently: MakerDeck app.js?v=13 / style.css?v=7 · Flightdeck app.js?v=623 / style.css?v=480
 - MakerDeck: `https://flightdeck.tail7de73e.ts.net/makerdeck/` — hard refresh after pull
 - Backend restart NOT required (only static files changed).
 
@@ -18,7 +18,15 @@ Latest GitHub/Pi state:
 - Trace meta text now says "N islands · single colour · applied to <face> face" (previously "N stamps" — sounded like separate STLs).
 - Generic `.hidden` CSS rule so new sections toggle correctly.
 
-**No backend restart required — static-only.** Cachebust updated app.js?v=12 style.css?v=7. Hard refresh browser (Ctrl+Shift+R) after `git pull` on Pi.
+**No backend restart required — static-only.** Cachebust updated app.js?v=13 style.css?v=7. Hard refresh browser (Ctrl+Shift+R) after `git pull` on Pi.
+
+### 2026-07-04 fix (MakerDeck traced emboss on wrong face)
+
+**Traced silhouettes landed on box floor instead of chosen face** (`makerforge/js/contour.js`, `makerforge/js/features.js`)
+
+- Face picker worked for text labels (`boxOnFace`) but traced art still used `extrudeShapeGroup`, which hardcoded Y ≈ 0.08 instead of the actual wall coordinate.
+- New `extrudeShapeGroupBetween()` extrudes between full 3D surface points from the face frame — trace art now lands on Front / Back / Left / Right like text does.
+- Cachebust app.js?v=13. Hard refresh required.
 
 ### 2026-07-04 fix (MakerDeck blank preview)
 
