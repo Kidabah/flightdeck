@@ -153,14 +153,8 @@ export function buildSlideLidMesh(meta, totalH, params) {
   const z0 = clearance * 0.5;
   const zTop = railHeight + lidThickness;
 
-  // Single watertight slab — no internal faces, no overlapping tops.
+  // Single watertight slab — one top face only (no inset pocket; coplanar walls z-fought on top).
   solidBox(positions, indices, x0, x1, -yEdge, yEdge, z0, zTop);
-
-  // Shallow thumb pocket below the top face (walls + floor only — top stays one quad).
-  const thumbW = Math.min(14, lidLen * 0.12);
-  const thumbHalf = Math.min(yEdge * 0.22, 8);
-  const pocketFloor = zTop - Math.min(1.1, lidThickness * 0.45);
-  thumbPocket(positions, indices, x0 + 1.2, x0 + 1.2 + thumbW, -thumbHalf, thumbHalf, pocketFloor, zTop);
 
   const closedX = -stopLength / 2;
   const openX = closedX - iw2 * 0.55;
@@ -191,15 +185,6 @@ function solidBox(outPos, outIdx, x0, x1, y0, y1, z0, z1) {
   pushQuad(outPos, outIdx, vec3(x1, y0, z1), vec3(x1, y1, z1), vec3(x1, y1, z0), vec3(x1, y0, z0));
   pushQuad(outPos, outIdx, vec3(x0, y0, z0), vec3(x1, y0, z0), vec3(x1, y0, z1), vec3(x0, y0, z1));
   pushQuad(outPos, outIdx, vec3(x0, y1, z1), vec3(x1, y1, z1), vec3(x1, y1, z0), vec3(x0, y1, z0));
-}
-
-/** Open-top pocket — inset walls + floor, does not duplicate the outer top face. */
-function thumbPocket(outPos, outIdx, x0, x1, y0, y1, zFloor, zTop) {
-  pushQuad(outPos, outIdx, vec3(x0, y0, zFloor), vec3(x1, y0, zFloor), vec3(x1, y1, zFloor), vec3(x0, y1, zFloor));
-  pushQuad(outPos, outIdx, vec3(x0, y0, zFloor), vec3(x0, y0, zTop), vec3(x0, y1, zTop), vec3(x0, y1, zFloor));
-  pushQuad(outPos, outIdx, vec3(x1, y0, zTop), vec3(x1, y0, zFloor), vec3(x1, y1, zFloor), vec3(x1, y1, zTop));
-  pushQuad(outPos, outIdx, vec3(x0, y0, zFloor), vec3(x1, y0, zFloor), vec3(x1, y0, zTop), vec3(x0, y0, zTop));
-  pushQuad(outPos, outIdx, vec3(x0, y1, zTop), vec3(x1, y1, zTop), vec3(x1, y1, zFloor), vec3(x0, y1, zFloor));
 }
 
 export function computeSlideFitGuides(resolved, params, slideMeta) {

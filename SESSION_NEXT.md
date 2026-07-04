@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `8506366` — Clean slide lid mesh (no z-fight)
-- Refresh cachebust currently: MakerDeck app.js?v=37 / style.css?v=10
+- Latest commit: (pending) — Remove slide lid thumb pocket z-fight
+- Refresh cachebust currently: MakerDeck app.js?v=38 / style.css?v=10
+
+### 2026-07-04 fix (MakerDeck slide lid thumb pocket z-fight)
+
+**Removed inset thumb pocket from slide lid** (`slide-lid.js`)
+
+- Pocket wall tops shared the same Z as the outer top face → dark rectangular z-fight patch on lid.
+- Lid is now a plain watertight slab; thumb notch can be added later as a proper cutout.
+- Cachebust app.js?v=38. Hard refresh required.
 
 ### 2026-07-04 fix (MakerDeck slide lid top artifact)
 
