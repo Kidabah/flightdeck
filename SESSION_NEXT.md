@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — X-ray depthWrite + grid hide fix
+- Latest commit: `e138ddc` — X-ray depthWrite + grid hide fix
 - Refresh cachebust currently: MakerDeck app.js?v=39 / style.css?v=10
 
 ### 2026-07-04 fix (MakerDeck X-ray floor diamond — real cause)
