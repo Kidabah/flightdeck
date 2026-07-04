@@ -462,6 +462,7 @@ function setPreviewXRayMode(on) {
   lidMaterial.polygonOffset = !on;
   lidMaterial.polygonOffsetFactor = 2;
   lidMaterial.polygonOffsetUnits = 3;
+  lidMaterial.flatShading = on;
 
   grid.visible = !on;
   grid.position.y = on ? -500 : 0;

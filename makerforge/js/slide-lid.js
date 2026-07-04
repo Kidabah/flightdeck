@@ -177,14 +177,45 @@ export function buildSlideLidMesh(meta, totalH, params) {
   };
 }
 
-/** Axis-aligned box — six faces, no duplicates. */
+/** Axis-aligned box — six faces. Top/bottom use a subdivided grid so no single diagonal crosses the centre (z-fight diamond). */
 function solidBox(outPos, outIdx, x0, x1, y0, y1, z0, z1) {
-  pushQuad(outPos, outIdx, vec3(x0, y0, z0), vec3(x1, y0, z0), vec3(x1, y1, z0), vec3(x0, y1, z0));
-  pushQuad(outPos, outIdx, vec3(x0, y1, z1), vec3(x1, y1, z1), vec3(x1, y0, z1), vec3(x0, y0, z1));
+  pushRectCapSubdivided(outPos, outIdx, x0, x1, y0, y1, z0, false, 6, 4);
+  pushRectCapSubdivided(outPos, outIdx, x0, x1, y0, y1, z1, true, 6, 4);
   pushQuad(outPos, outIdx, vec3(x0, y0, z0), vec3(x0, y1, z0), vec3(x0, y1, z1), vec3(x0, y0, z1));
   pushQuad(outPos, outIdx, vec3(x1, y0, z1), vec3(x1, y1, z1), vec3(x1, y1, z0), vec3(x1, y0, z0));
   pushQuad(outPos, outIdx, vec3(x0, y0, z0), vec3(x1, y0, z0), vec3(x1, y0, z1), vec3(x0, y0, z1));
   pushQuad(outPos, outIdx, vec3(x0, y1, z1), vec3(x1, y1, z1), vec3(x1, y1, z0), vec3(x0, y1, z0));
+}
+
+/** Rect cap split into a grid; alternates diagonal direction per cell to avoid one long centre line. */
+function pushRectCapSubdivided(outPos, outIdx, x0, x1, y0, y1, z, normalUp, cols, rows) {
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const tx0 = x0 + ((x1 - x0) * col) / cols;
+      const tx1 = x0 + ((x1 - x0) * (col + 1)) / cols;
+      const ty0 = y0 + ((y1 - y0) * row) / rows;
+      const ty1 = y0 + ((y1 - y0) * (row + 1)) / rows;
+      const a = vec3(tx0, ty0, z);
+      const b = vec3(tx1, ty0, z);
+      const c = vec3(tx1, ty1, z);
+      const d = vec3(tx0, ty1, z);
+      if ((row + col) % 2 === 0) {
+        if (normalUp) {
+          pushTri(outPos, outIdx, a, b, c);
+          pushTri(outPos, outIdx, a, c, d);
+        } else {
+          pushTri(outPos, outIdx, a, c, b);
+          pushTri(outPos, outIdx, a, d, c);
+        }
+      } else if (normalUp) {
+        pushTri(outPos, outIdx, a, b, d);
+        pushTri(outPos, outIdx, b, c, d);
+      } else {
+        pushTri(outPos, outIdx, a, d, b);
+        pushTri(outPos, outIdx, b, d, c);
+      }
+    }
+  }
 }
 
 export function computeSlideFitGuides(resolved, params, slideMeta) {

@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `e138ddc` — X-ray depthWrite + grid hide fix
-- Refresh cachebust currently: MakerDeck app.js?v=39 / style.css?v=10
+- Latest commit: (pending) — Slide lid subdivided top cap (centre z-fight)
+- Refresh cachebust currently: MakerDeck app.js?v=40 / style.css?v=10
+
+### 2026-07-04 fix (MakerDeck slide lid centre diamond — mesh)
+
+**Lid top was one quad → two coplanar tris through centre** (`slide-lid.js`, `geometry.js`, `app.js`)
+
+- Slide lid slab top/bottom now use a 6×4 subdivided cap grid (no single diagonal across centre).
+- Slide grooves stay on the body whenever lid type is Channel slide (not tied to Enable lid checkbox).
+- Cachebust app.js?v=40. Hard refresh required.
 
 ### 2026-07-04 fix (MakerDeck X-ray floor diamond — real cause)
 
