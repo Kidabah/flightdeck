@@ -2,10 +2,20 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `e0d82d1` — Fix traced emboss on chosen face (was landing on box floor)
-- Refresh cachebust currently: MakerDeck app.js?v=13 / style.css?v=7 · Flightdeck app.js?v=623 / style.css?v=480
+- Latest commit: (pending) — Outline trace: boundary strokes instead of 1px morphological ring
+- Refresh cachebust currently: MakerDeck app.js?v=14 / style.css?v=7 · Flightdeck app.js?v=623 / style.css?v=480
 - MakerDeck: `https://flightdeck.tail7de73e.ts.net/makerdeck/` — hard refresh after pull
 - Backend restart NOT required (only static files changed).
+
+### 2026-07-04 add (MakerDeck outline trace quality)
+
+**Outline mode now traces ink boundaries as smooth stroke paths** (`makerforge/js/trace.js`, `makerforge/js/contour.js`, `makerforge/js/features.js`, `makerforge/js/app.js`, `makerforge/index.html`)
+
+- Replaced morphological 1px ring → filled polygon pipeline with proper boundary tracing (outer + hole perimeters).
+- Preview draws stroked line art; SVG export uses stroke paths (fill=none, round joins) like professional converters.
+- 3D emboss extrudes thick oriented segments on the chosen face instead of paper-thin filled bands.
+- Extra Chaikin smoothing for outline; meta shows "N paths · line art".
+- Cachebust app.js?v=14. Hard refresh required.
 
 ### 2026-07-04 add (MakerDeck feature batch)
 

@@ -2,7 +2,7 @@
  * Accent bands, emboss, honeycomb stamp, stackable hex grid, mesh merge.
  */
 
-import { extrudeShapeGroup, extrudeShapeGroupBetween, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, simplifyPolygon } from "./contour.js";
+import { extrudeShapeGroup, extrudeShapeGroupBetween, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, simplifyPolygon } from "./contour.js";
 
 export const EMBOSS_FONTS = [
   { id: "inter", label: "Inter — clean sans", family: 'Inter, system-ui, "Segoe UI", sans-serif', weight: 700 },
@@ -343,15 +343,37 @@ export function buildEmbossBitmap(meta, params, bitmap) {
   if (!Number.isFinite(scale) || scale <= 0) return null;
 
   const artWidth = bitmap.width * scale;
-  const artHeight = bitmap.height * scale;
   const xOff = -artWidth / 2;
-  const zOff = frame.centerZ - artHeight;
+  const zOff = frame.centerZ - artH;
   const { d0, d1 } = labelOffsets(params);
   const positions = [];
   const indices = [];
   const maskW = Math.round(bitmap.width);
   const maskH = Math.round(bitmap.height);
   if (maskW <= 0 || maskH <= 0) return null;
+
+  const isOutline = bitmap.mode === "outline";
+
+  if (isOutline && bitmap.strokePaths?.length) {
+    const smoothPasses = artH <= 12 ? 4 : artH <= 20 ? 3 : 2;
+    const simplifyTol = Math.max(0.35, maskW / 380);
+    const paths = prepareStrokePaths(bitmap.strokePaths, simplifyTol, smoothPasses);
+    const strokePx = bitmap.strokeWidth ?? Math.max(1.2, maskW / 100);
+    const lineWidth = clamp(scale * strokePx, 0.35, 1.4);
+    const half = lineWidth / 2;
+
+    for (const path of paths) {
+      const pts = ringPointsLocal(path);
+      const remapped = pts.map(([px, py]) => [xOff + px * scale, zOff + (maskH - py) * scale]);
+      for (let i = 0; i < remapped.length; i++) {
+        const j = (i + 1) % remapped.length;
+        const [x0, y0] = remapped[i];
+        const [x1, y1] = remapped[j];
+        extrudeStrokeSegmentOnFace(positions, indices, frame, x0, y0, x1, y1, half, d0, d1);
+      }
+    }
+    return positions.length ? { positions, indices } : null;
+  }
 
   let mask = null;
   if (bitmap.mask?.length === maskW * maskH) {
@@ -586,6 +608,38 @@ function boxOnFace(outPos, outIdx, frame, xLeft, xRight, zBottom, zTop, d0, d1) 
   face(p010, p110, p111, p011);
   face(p000, p010, p011, p001);
   face(p100, p101, p111, p110);
+}
+
+/** Extrude a thick line segment on a face (for outline / stroke emboss). */
+function extrudeStrokeSegmentOnFace(outPos, outIdx, frame, x0, y0, x1, y1, half, d0, d1) {
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  const len = Math.hypot(dx, dy);
+  if (len < 1e-6) return;
+  const nx = (-dy / len) * half;
+  const ny = (dx / len) * half;
+  const winding = d1 > d0;
+  const face = (a, b, c, d) => winding
+    ? pushQuad(outPos, outIdx, a, b, c, d)
+    : pushQuad(outPos, outIdx, a, d, c, b);
+  const p000 = frame.mapPoint(x0 - nx, y0 - ny, d0);
+  const p100 = frame.mapPoint(x1 - nx, y1 - ny, d0);
+  const p110 = frame.mapPoint(x1 + nx, y1 + ny, d0);
+  const p010 = frame.mapPoint(x0 + nx, y0 + ny, d0);
+  const p001 = frame.mapPoint(x0 - nx, y0 - ny, d1);
+  const p101 = frame.mapPoint(x1 - nx, y1 - ny, d1);
+  const p111 = frame.mapPoint(x1 + nx, y1 + ny, d1);
+  const p011 = frame.mapPoint(x0 + nx, y0 + ny, d1);
+  face(p000, p100, p110, p010);
+  face(p001, p011, p111, p101);
+  face(p000, p001, p101, p100);
+  face(p010, p110, p111, p011);
+}
+
+function ringPointsLocal(ring) {
+  return ring[0][0] === ring[ring.length - 1][0] && ring[0][1] === ring[ring.length - 1][1]
+    ? ring.slice(0, -1)
+    : ring.slice();
 }
 
 /** Extrude a shape group (outer ring + holes) onto a face at offsets [d0, d1]. */

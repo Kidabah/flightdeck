@@ -235,6 +235,39 @@ export function polygonsToSvg(groups, width, height) {
   return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}"><path fill="#000" fill-rule="evenodd" d="${d}"/></svg>`;
 }
 
+/** Collect outer + hole perimeters as separate closed stroke loops. */
+export function shapeGroupsToStrokePaths(groups) {
+  const paths = [];
+  for (const { outer, holes } of groups) {
+    if (outer?.length >= 4) paths.push(outer);
+    for (const hole of holes) {
+      if (hole?.length >= 4) paths.push(hole);
+    }
+  }
+  return paths;
+}
+
+/** Smooth boundary loops for line-art emboss / SVG export. */
+export function prepareStrokePaths(paths, simplifyTol = 1, smoothPasses = 2) {
+  const passes = Math.max(1, Math.min(4, smoothPasses));
+  return paths.map((path) => prepareContourRing(path, simplifyTol, true, passes));
+}
+
+/** Stroke-based SVG (line art) matching professional trace converters. */
+export function strokePathsToSvg(paths, width, height, strokeWidth = 1.5) {
+  if (!paths.length) {
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}"></svg>`;
+  }
+  const d = paths
+    .map((poly) => {
+      const pts = poly.map(([x, y]) => `${x.toFixed(2)} ${y.toFixed(2)}`).join(" L ");
+      return `M ${pts} Z`;
+    })
+    .join(" ");
+  const sw = strokeWidth.toFixed(2);
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" fill="none" stroke="#000" stroke-width="${sw}" stroke-linejoin="round" stroke-linecap="round"><path d="${d}"/></svg>`;
+}
+
 function pushTri(outIdx, a, b, c) {
   outIdx.push(a, b, c);
 }

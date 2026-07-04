@@ -6,7 +6,15 @@
 
 
 
-import { groupPolygonsWithHoles, maskToPolygons, polygonsToSvg, prepareContourRing, prepareShapeGroups, simplifyPolygon } from "./contour.js";
+import {
+  groupPolygonsWithHoles,
+  maskToPolygons,
+  polygonsToSvg,
+  prepareShapeGroups,
+  prepareStrokePaths,
+  shapeGroupsToStrokePaths,
+  strokePathsToSvg,
+} from "./contour.js";
 
 
 
@@ -490,23 +498,8 @@ export function traceCanvas(canvas, options = {}) {
 
 
   let ink = binarizeImageData(data, width, height, threshold, invert, "silhouette", blur);
-
-  let mask;
-
-  if (mode === "silhouette") {
-    // Open only — removes speckle without plugging vent holes (close/dilate fills them).
-    mask = openMask(ink, width, height);
-  } else {
-
-    mask = outlineFromMask(ink, width, height);
-
-    mask = dilateMask(mask, width, height);
-
-    mask = dilateMask(mask, width, height);
-
-    mask = closeMask(mask, width, height);
-
-  }
+  // Both modes start from a clean ink mask; outline traces boundaries as strokes, not 1px rings.
+  const mask = openMask(ink, width, height);
 
 
 
@@ -546,68 +539,87 @@ export function traceCanvas(canvas, options = {}) {
 
 
 
+  if (mode === "outline") {
+    const simplifyTol = Math.max(0.35, tw / 380);
+    const smoothPasses = 3;
+    let polygons = maskToPolygons(workMask, tw, th);
+    let grouped = groupPolygonsWithHoles(polygons);
+    let strokePaths = prepareStrokePaths(shapeGroupsToStrokePaths(grouped), simplifyTol, smoothPasses);
+
+    while (strokePaths.length > MAX_TRACE_POLYGONS && simplifyFactor < 16) {
+      const ds = downsampleMask(workMask, tw, th);
+      workMask = ds.mask;
+      tw = ds.width;
+      th = ds.height;
+      simplifyFactor *= 2;
+      rects = maskToRuns(workMask, tw, th);
+      polygons = maskToPolygons(workMask, tw, th);
+      grouped = groupPolygonsWithHoles(polygons);
+      strokePaths = prepareStrokePaths(
+        shapeGroupsToStrokePaths(grouped),
+        simplifyTol * 1.15,
+        Math.max(2, smoothPasses - 1),
+      );
+    }
+
+    const strokeWidth = Math.max(1.2, tw / 100);
+    const svg = strokePathsToSvg(strokePaths, tw, th, strokeWidth);
+
+    return {
+      rects,
+      mask: workMask.slice(),
+      polygons,
+      shapeGroups: [],
+      strokePaths,
+      strokeWidth,
+      width: tw,
+      height: th,
+      cropOx: ox,
+      cropOy: oy,
+      svg,
+      rectCount: rects.length,
+      polygonCount: strokePaths.length,
+      simplified: simplifyFactor > 1,
+      simplifyFactor,
+      tooComplex: strokePaths.length > MAX_TRACE_POLYGONS,
+      mode,
+    };
+  }
+
   const simplifyTol = Math.max(0.65, tw / 200);
-
   let polygons = maskToPolygons(workMask, tw, th);
-
   let shapeGroups = prepareShapeGroups(groupPolygonsWithHoles(polygons), simplifyTol);
 
   if (shapeGroups.length > MAX_TRACE_POLYGONS) {
-
     const ds = downsampleMask(workMask, tw, th);
-
     workMask = ds.mask;
-
     tw = ds.width;
-
     th = ds.height;
-
     simplifyFactor *= 2;
-
     rects = maskToRuns(workMask, tw, th);
-
     polygons = maskToPolygons(workMask, tw, th);
-
     shapeGroups = prepareShapeGroups(groupPolygonsWithHoles(polygons), simplifyTol * 1.2);
-
   }
 
   const svg = polygonsToSvg(shapeGroups, tw, th);
 
-
-
   return {
-
     rects,
-
     mask: workMask.slice(),
-
     polygons,
-
     shapeGroups,
-
+    strokePaths: [],
     width: tw,
-
     height: th,
-
     cropOx: ox,
-
     cropOy: oy,
-
     svg,
-
     rectCount: rects.length,
-
     polygonCount: shapeGroups.length,
-
     simplified: simplifyFactor > 1,
-
     simplifyFactor,
-
     tooComplex: shapeGroups.length > MAX_TRACE_POLYGONS,
-
     mode,
-
   };
 
 }
@@ -645,6 +657,29 @@ export function drawTracePreview(previewCanvas, sourceCanvas, traceResult) {
   const ox = traceResult.cropOx ?? 0;
 
   const oy = traceResult.cropOy ?? 0;
+
+  const factor = traceResult.simplifyFactor || 1;
+  const ox = traceResult.cropOx ?? 0;
+  const oy = traceResult.cropOy ?? 0;
+
+  if (traceResult.mode === "outline" && traceResult.strokePaths?.length) {
+    ctx.strokeStyle = "rgba(56, 189, 248, 0.95)";
+    ctx.lineWidth = Math.max(1.5, (traceResult.width || 100) / 70);
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    for (const path of traceResult.strokePaths) {
+      ctx.beginPath();
+      for (let i = 0; i < path.length; i++) {
+        const px = pad + ox + path[i][0] * factor;
+        const py = pad + oy + path[i][1] * factor;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.stroke();
+    }
+    return;
+  }
 
   ctx.fillStyle = "rgba(56, 189, 248, 0.55)";
 

@@ -697,6 +697,9 @@ function cloneEmbossTraceRects(rects) {
       outer: g.outer.map(([x, y]) => [x, y]),
       holes: g.holes.map((h) => h.map(([x, y]) => [x, y])),
     })) || [],
+    strokePaths: rects.strokePaths?.map((p) => p.map(([x, y]) => [x, y])) || [],
+    strokeWidth: rects.strokeWidth,
+    mode: rects.mode || "silhouette",
     width: rects.width,
     height: rects.height,
   };
@@ -790,7 +793,12 @@ function pasteImageFromClipboard(e) {
 
 function updateTraceUi() {
   const hasImage = !!traceSourceCanvas;
-  const hasTrace = !!(traceLastResult?.shapeGroups?.length || traceLastResult?.polygons?.length || traceLastResult?.rects?.length);
+  const hasTrace = !!(
+    traceLastResult?.shapeGroups?.length ||
+    traceLastResult?.strokePaths?.length ||
+    traceLastResult?.polygons?.length ||
+    traceLastResult?.rects?.length
+  );
   document.getElementById("btn-trace").disabled = !hasImage;
   document.getElementById("btn-trace-apply").disabled = !hasTrace;
   document.getElementById("btn-trace-svg").disabled = !hasTrace;
@@ -809,7 +817,10 @@ function updateTraceUi() {
     return;
   }
   const count = traceLastResult.polygonCount ?? 0;
-  let msg = `${count} island${count === 1 ? "" : "s"} · single colour`;
+  const isOutline = traceLastResult.mode === "outline";
+  let msg = isOutline
+    ? `${count} path${count === 1 ? "" : "s"} · line art`
+    : `${count} island${count === 1 ? "" : "s"} · single colour`;
   if (traceLastResult.simplified) msg += " · auto-simplified for print";
   if (traceLastResult.tooComplex) {
     msg = `Too detailed — raise threshold or use Silhouette (max ${MAX_TRACE_POLYGONS} islands)`;
@@ -871,6 +882,9 @@ function applyTraceToBox() {
       outer: g.outer.map(([x, y]) => [x, y]),
       holes: g.holes.map((h) => h.map(([x, y]) => [x, y])),
     })) || [],
+    strokePaths: traceLastResult.strokePaths?.map((p) => p.map(([x, y]) => [x, y])) || [],
+    strokeWidth: traceLastResult.strokeWidth,
+    mode: traceLastResult.mode || state.traceMode || "silhouette",
     width: traceLastResult.width,
     height: traceLastResult.height,
   };
