@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — capProfileSolid index fix (restores floor)
+- Latest commit: `91afa5c` — capProfileSolid index fix (restores floor)
 - Refresh cachebust currently: MakerDeck app.js?v=31 / style.css?v=10
 
 ### 2026-07-04 hotfix (MakerDeck floor missing + mesh corruption)
