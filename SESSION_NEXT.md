@@ -2,8 +2,15 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `6a6dfd2` — MakerDeck Photoshop-style art editor
-- Refresh cachebust currently: MakerDeck app.js?v=44 / style.css?v=12
+- Latest commit: (pending) — overlay box rotates with text
+- Refresh cachebust currently: MakerDeck app.js?v=45 / style.css?v=12
+
+### 2026-07-04 fix (MakerDeck art overlay rotation)
+
+**Transform box now rotates instead of expanding** (`app.js`)
+
+- Overlay uses unrotated screen size + CSS rotate to match text angle (not axis-aligned bbox).
+- Cachebust app.js?v=45. Hard refresh required.
 
 ### 2026-07-04 feature (MakerDeck Photoshop-style art editor)
 

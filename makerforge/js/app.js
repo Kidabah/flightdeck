@@ -2292,43 +2292,30 @@ function updateArtOverlay() {
     return;
   }
   const rot = art.rotation || 0;
-  const rad = (rot * Math.PI) / 180;
-  const cos = Math.cos(rad);
-  const sin = Math.sin(rad);
-  const localCorners = [
-    [art.left, art.bottom],
-    [art.right, art.bottom],
-    [art.right, art.top],
-    [art.left, art.top],
-  ].map(([px, py]) => {
-    const dx = px - art.cx;
-    const dy = py - art.cy;
-    return [art.cx + dx * cos - dy * sin, art.cy + dx * sin + dy * cos];
-  });
-  const corners = localCorners.map(([px, py]) => projectFacePoint(art.frame, px, py));
-  if (corners.some((c) => c.behind)) {
+  const center = projectFacePoint(art.frame, art.cx, art.cy);
+  const pxAxis = projectFacePoint(art.frame, art.cx + 1, art.cy);
+  const bl = projectFacePoint(art.frame, art.left, art.bottom);
+  const br = projectFacePoint(art.frame, art.right, art.bottom);
+  const tl = projectFacePoint(art.frame, art.left, art.top);
+  if ([center, pxAxis, bl, br, tl].some((c) => c.behind)) {
     artOverlayEl.classList.add("hidden");
     artOverlayEl.setAttribute("aria-hidden", "true");
     return;
   }
-  const xs = corners.map((c) => c.x);
-  const ys = corners.map((c) => c.y);
-  const left = Math.min(...xs);
-  const right = Math.max(...xs);
-  const top = Math.min(...ys);
-  const bottom = Math.max(...ys);
+  const baseDeg = (Math.atan2(pxAxis.y - center.y, pxAxis.x - center.x) * 180) / Math.PI;
+  const screenW = Math.hypot(br.x - bl.x, br.y - bl.y);
+  const screenH = Math.hypot(tl.x - bl.x, tl.y - bl.y);
   const pad = 8;
+  const w = Math.max(32, screenW + pad * 2);
+  const h = Math.max(32, screenH + pad * 2);
   artOverlayEl.classList.remove("hidden");
   artOverlayEl.setAttribute("aria-hidden", "false");
-  artOverlayBox.style.left = `${left - pad}px`;
-  artOverlayBox.style.top = `${top - pad}px`;
-  artOverlayBox.style.width = `${Math.max(32, right - left + pad * 2)}px`;
-  artOverlayBox.style.height = `${Math.max(32, bottom - top + pad * 2)}px`;
-  artOverlayBox.style.transform = "";
-  artOverlayBox.style.transformOrigin = "center center";
-  artOverlayBox.dataset.cx = String((left + right) / 2);
-  artOverlayBox.dataset.cy = String((top + bottom) / 2);
-  artOverlayBox.dataset.rot = String(rot);
+  artOverlayBox.style.left = `${center.x - w / 2}px`;
+  artOverlayBox.style.top = `${center.y - h / 2}px`;
+  artOverlayBox.style.width = `${w}px`;
+  artOverlayBox.style.height = `${h}px`;
+  artOverlayBox.style.transformOrigin = "50% 50%";
+  artOverlayBox.style.transform = `rotate(${baseDeg + rot}deg)`;
 }
 
 function faceMmPerPixel(art) {
