@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Oswald:wght@700&family=Roboto+Mono:wght@700&family=Roboto:wght@700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=8">
+  <link rel="stylesheet" href="css/style.css?v=9">
 
   <script type="importmap">
 
@@ -360,7 +360,7 @@
 
             <section class="section" id="section-lid">
 
-              <h2>Slip lid</h2>
+              <h2 id="lid-section-title">Lid</h2>
 
               <label class="field field-toggle">
 
@@ -369,6 +369,22 @@
                 <input type="checkbox" id="lid-enabled">
 
                 <span class="toggle-hint">Preview + export</span>
+
+              </label>
+
+              <label class="field" id="field-lid-type">
+
+                <span class="field-label">Lid type</span>
+
+                <select id="lid-type">
+
+                  <option value="slip">Slip-over — skirt outside</option>
+
+                  <option value="plug">Inset plug — skirt inside</option>
+
+                  <option value="flat">Flat cap — plate only</option>
+
+                </select>
 
               </label>
 
@@ -392,7 +408,17 @@
 
               </label>
 
-              <p class="field-hint">Exports plate-down on the bed. Skirt sits outside the box walls.</p>
+              <label class="field" id="field-lid-clearance">
+
+                <span class="field-label">Fit clearance</span>
+
+                <input type="range" id="lid-clearance" min="0.15" max="0.8" step="0.05" value="0.35" tabindex="-1">
+
+                <button type="button" class="value-edit" id="out-lid-clearance" data-slider="lid-clearance" data-key="lidClearance" data-parse="float" aria-label="Edit lid fit clearance in mm">0.35</button>
+
+              </label>
+
+              <p class="field-hint" id="lid-type-hint">Exports plate-down on the bed. Skirt sits outside the box walls.</p>
 
             </section>
 
@@ -770,7 +796,7 @@
 
 
 
-  <script type="module" src="js/app.js?v=25"></script>
+  <script type="module" src="js/app.js?v=26"></script>
 
 </body>
 

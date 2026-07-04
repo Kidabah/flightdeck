@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, VASE_STYLES, PENCIL_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js";
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec } from "./features.js";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js";
 import { meshToStl, downloadBlob, filenameFor } from "./stl.js";
@@ -158,6 +158,7 @@ function buildParams() {
     lidSkirt: state.lidSkirt,
     lidThickness: state.lidThickness,
     lidClearance: state.lidClearance,
+    lidType: state.lidType,
     lidWall: state.wall,
     joinerEnabled: state.joinerEnabled,
     joinerHand: state.joinerHand,
@@ -395,6 +396,7 @@ function syncUiFromState() {
   syncSliderUi("sides", "sides", { min: 5, max: 12, value: state.sides });
   syncSliderUi("lid-skirt", "lidSkirt", { min: 4, max: 25, value: state.lidSkirt });
   syncSliderUi("lid-thickness", "lidThickness", { min: 2, max: 6, value: state.lidThickness, parseKind: "float" });
+  syncSliderUi("lid-clearance", "lidClearance", { min: 0.15, max: 0.8, value: state.lidClearance, parseKind: "float" });
   syncSliderUi("joiner-width", "joinerWidth", { min: 5, max: 22, value: state.joinerWidth, parseKind: "float" });
   syncSliderUi("joiner-neck", "joinerNeck", { min: 3, max: 16, value: state.joinerNeck, parseKind: "float" });
   syncSliderUi("joiner-protrusion", "joinerProtrusion", { min: 2, max: 10, value: state.joinerProtrusion, parseKind: "float" });
@@ -501,7 +503,7 @@ function rebuildMesh() {
   }
 
   disposeLidPreview();
-  if (state.lidEnabled) {
+  if (state.lidEnabled && shapeSupportsLid(state.shape)) {
     lidCache = buildLid(params);
     const lidGeom = toBufferGeometry(THREE, lidCache);
     lidMesh = new THREE.Mesh(lidGeom, lidMaterial);
@@ -654,11 +656,27 @@ function updateLabels() {
 }
 
 function updateLidUi() {
-  const on = state.lidEnabled;
-  document.getElementById("lid-enabled").checked = on;
+  const supported = shapeSupportsLid(state.shape);
+  const on = state.lidEnabled && supported;
+  const type = LID_TYPES.find((t) => t.id === state.lidType) || LID_TYPES[0];
+  const isFlat = state.lidType === "flat";
+  document.getElementById("lid-enabled").checked = !!state.lidEnabled && supported;
+  document.getElementById("lid-type").value = type.id;
   document.getElementById("btn-export-lid").classList.toggle("hidden", !on);
-  document.getElementById("field-lid-skirt").classList.toggle("hidden", !on);
+  document.getElementById("field-lid-type").classList.toggle("hidden", !on);
+  document.getElementById("field-lid-skirt").classList.toggle("hidden", !on || isFlat);
   document.getElementById("field-lid-thickness").classList.toggle("hidden", !on);
+  document.getElementById("field-lid-clearance").classList.toggle("hidden", !on || isFlat);
+  const hint = document.getElementById("lid-type-hint");
+  if (hint) {
+    hint.textContent = on
+      ? `${type.hint} Exports plate-down on the bed.`
+      : supported
+        ? "Enable to preview and export a separate lid STL."
+        : "Lids are not available for vase / pot shapes.";
+  }
+  const title = document.getElementById("lid-section-title");
+  if (title) title.textContent = on ? type.label : "Lid";
 }
 
 function joinerUiShape() {
@@ -1304,6 +1322,7 @@ bindRange("vertex-fillet", "vertexFillet", "float");
 bindRange("sides", "sides");
 bindRange("lid-skirt", "lidSkirt");
 bindRange("lid-thickness", "lidThickness", "float");
+bindRange("lid-clearance", "lidClearance", "float");
 bindRange("joiner-width", "joinerWidth", "float");
 bindRange("joiner-neck", "joinerNeck", "float");
 bindRange("joiner-protrusion", "joinerProtrusion", "float");
@@ -1320,10 +1339,20 @@ document.querySelectorAll(".tab").forEach((tab) => {
   });
 });
 
-document.getElementById("lid-enabled").addEventListener("change", (e) => {
-  state.lidEnabled = e.target.checked;
+document.getElementById("lid-type").addEventListener("change", (e) => {
+  state.lidType = e.target.value;
+  updateLidUi();
   rebuild();
   if (meshCache) fitCamera(meshCache.meta);
+  pushAppHistory();
+});
+
+document.getElementById("lid-enabled").addEventListener("change", (e) => {
+  state.lidEnabled = e.target.checked && shapeSupportsLid(state.shape);
+  updateLidUi();
+  rebuild();
+  if (meshCache) fitCamera(meshCache.meta);
+  pushAppHistory();
 });
 
 document.getElementById("joiner-enabled").addEventListener("change", (e) => {
@@ -1534,6 +1563,7 @@ document.querySelectorAll(".shape-btn").forEach((btn) => {
       applySliderProfile("default");
     }
     updateVaseUiVisibility();
+    updateLidUi();
     rebuild();
     pushAppHistory();
     if (meshCache) fitCamera(meshCache.meta);
@@ -1542,6 +1572,9 @@ document.querySelectorAll(".shape-btn").forEach((btn) => {
 
 function updateVaseUiVisibility() {
   const isVase = state.shape === "vase";
+  if (isVase && state.lidEnabled) {
+    state.lidEnabled = false;
+  }
   document.getElementById("section-vase").classList.toggle("hidden", !isVase);
   document.getElementById("section-classic-size").classList.toggle("hidden", isVase);
   document.getElementById("section-walls").classList.toggle("hidden", isVase);
@@ -1644,6 +1677,7 @@ function animate() {
 resize();
 syncSliderUi("lid-skirt", "lidSkirt", { min: 4, max: 25, value: state.lidSkirt });
 syncSliderUi("lid-thickness", "lidThickness", { min: 2, max: 6, value: state.lidThickness, parseKind: "float" });
+syncSliderUi("lid-clearance", "lidClearance", { min: 0.15, max: 0.8, value: state.lidClearance, parseKind: "float" });
 syncSliderUi("joiner-width", "joinerWidth", { min: 5, max: 22, value: state.joinerWidth, parseKind: "float" });
 syncSliderUi("joiner-neck", "joinerNeck", { min: 3, max: 16, value: state.joinerNeck, parseKind: "float" });
 syncSliderUi("joiner-protrusion", "joinerProtrusion", { min: 2, max: 10, value: state.joinerProtrusion, parseKind: "float" });

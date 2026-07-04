@@ -488,17 +488,53 @@ function offsetProfileOutward(points, offset) {
   });
 }
 
+function offsetProfileInward(points, offset) {
+  if (offset <= 0) return points.map((p) => [p[0], p[1]]);
+  let cx = 0;
+  let cy = 0;
+  for (const [x, y] of points) {
+    cx += x;
+    cy += y;
+  }
+  cx /= points.length;
+  cy /= points.length;
+  return points.map(([x, y]) => {
+    const dx = x - cx;
+    const dy = y - cy;
+    const len = Math.hypot(dx, dy) || 1;
+    return [x - (dx / len) * offset, y - (dy / len) * offset];
+  });
+}
+
 function buildSlipLidShell(outPos, outIdx, boxOuter, skirtDepth, lidThickness, clearance, lidWall) {
   const inner = offsetProfileOutward(boxOuter, clearance);
   const outer = offsetProfileOutward(boxOuter, clearance + lidWall);
-  const zSkirt = skirtDepth;
   const zTop = skirtDepth + lidThickness;
 
   capRing(outPos, outIdx, outer, inner, 0, false);
-  extrudeProfileSides(outPos, outIdx, outer, 0, zSkirt, true);
-  extrudeProfileSides(outPos, outIdx, inner, 0, zSkirt, false);
-  capRing(outPos, outIdx, outer, inner, zSkirt, true);
+  extrudeProfileSides(outPos, outIdx, outer, 0, skirtDepth, true);
+  extrudeProfileSides(outPos, outIdx, inner, 0, skirtDepth, false);
+  capRing(outPos, outIdx, outer, inner, skirtDepth, true);
   capSolid(outPos, outIdx, outer, zTop, true);
+}
+
+function buildPlugLidShell(outPos, outIdx, boxOuter, boxInner, skirtDepth, lidThickness, clearance, lidWall) {
+  const plugOuter = offsetProfileInward(boxInner, clearance);
+  const plugInner = offsetProfileInward(boxInner, clearance + lidWall);
+  const zTop = skirtDepth + lidThickness;
+
+  capRing(outPos, outIdx, plugOuter, plugInner, 0, false);
+  extrudeProfileSides(outPos, outIdx, plugOuter, 0, skirtDepth, true);
+  extrudeProfileSides(outPos, outIdx, plugInner, 0, skirtDepth, false);
+  capRing(outPos, outIdx, plugOuter, plugInner, skirtDepth, true);
+  extrudeProfileSides(outPos, outIdx, boxOuter, skirtDepth, zTop, true);
+  capSolid(outPos, outIdx, boxOuter, zTop, true);
+}
+
+function buildFlatLidShell(outPos, outIdx, boxOuter, lidThickness) {
+  capSolid(outPos, outIdx, boxOuter, 0, false);
+  extrudeProfileSides(outPos, outIdx, boxOuter, 0, lidThickness, true);
+  capSolid(outPos, outIdx, boxOuter, lidThickness, true);
 }
 
 function buildSlipLidMesh(boxOuter, options) {
@@ -514,6 +550,43 @@ function buildSlipLidMesh(boxOuter, options) {
     indices,
     lidHeight: skirtDepth + lidThickness,
   };
+}
+
+function buildPlugLidMesh(boxOuter, boxInner, options) {
+  const clearance = clamp(options.clearance ?? 0.35, 0.1, 1.2);
+  const lidWall = clamp(options.lidWall ?? 2.4, 1.2, 6);
+  const skirtDepth = clamp(options.skirtDepth ?? 10, 4, 30);
+  const lidThickness = clamp(options.lidThickness ?? 2.4, 1.2, 8);
+  const positions = [];
+  const indices = [];
+  buildPlugLidShell(positions, indices, boxOuter, boxInner, skirtDepth, lidThickness, clearance, lidWall);
+  return {
+    positions,
+    indices,
+    lidHeight: skirtDepth + lidThickness,
+  };
+}
+
+function buildFlatLidMesh(boxOuter, options) {
+  const lidThickness = clamp(options.lidThickness ?? 2.4, 1.2, 8);
+  const positions = [];
+  const indices = [];
+  buildFlatLidShell(positions, indices, boxOuter, lidThickness);
+  return {
+    positions,
+    indices,
+    lidHeight: lidThickness,
+  };
+}
+
+export const LID_TYPES = [
+  { id: "slip", label: "Slip-over", hint: "Skirt wraps outside the box walls — classic loose fit." },
+  { id: "plug", label: "Inset plug", hint: "Skirt slides inside the opening; top plate sits flush on the rim." },
+  { id: "flat", label: "Flat cap", hint: "Single plate that rests on the rim — no skirt." },
+];
+
+export function shapeSupportsLid(shape) {
+  return shape !== "vase";
 }
 
 function resolveContainer(params) {
@@ -834,17 +907,26 @@ export function buildContainer(params) {
 
 export function buildLid(params) {
   const resolved = resolveContainer(params);
-  const lid = buildSlipLidMesh(resolved.outer, {
+  const lidType = params.lidType === "plug" || params.lidType === "flat" ? params.lidType : "slip";
+  const options = {
     clearance: params.lidClearance,
     lidWall: params.lidWall ?? params.wall,
     skirtDepth: params.lidSkirt,
     lidThickness: params.lidThickness,
-  });
+  };
+  let lid;
+  if (lidType === "flat") {
+    lid = buildFlatLidMesh(resolved.outer, options);
+  } else if (lidType === "plug") {
+    lid = buildPlugLidMesh(resolved.outer, resolved.inner, options);
+  } else {
+    lid = buildSlipLidMesh(resolved.outer, options);
+  }
   centerPositions(lid.positions, 0, 0);
   return {
     positions: lid.positions,
     indices: lid.indices,
-    meta: { ...resolved.meta, part: "lid" },
+    meta: { ...resolved.meta, part: "lid", lidType },
     lidHeight: lid.lidHeight,
     seatZ: resolved.totalH,
   };
@@ -923,6 +1005,7 @@ export const DEFAULTS = {
   starPoints: 5,
   starInset: 0.42,
   lidEnabled: false,
+  lidType: "slip",
   lidSkirt: 10,
   lidThickness: 2.4,
   lidClearance: 0.35,

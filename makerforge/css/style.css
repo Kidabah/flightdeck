@@ -373,8 +373,10 @@ input[type="range"] {
   color: var(--muted);
 }
 
+#field-lid-type.hidden,
 #field-lid-skirt.hidden,
 #field-lid-thickness.hidden,
+#field-lid-clearance.hidden,
 #btn-export-lid.hidden,
 #btn-export-accent.hidden,
 #section-joiner.hidden,
