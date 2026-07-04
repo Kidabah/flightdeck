@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsLid, shapeSupportsSlideLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec } from "./features.js";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, measureDecorArt } from "./features.js";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js";
 import { meshToStl, downloadBlob, filenameFor } from "./stl.js";
 
@@ -226,6 +226,8 @@ function buildParams() {
     embossTraceEnabled: state.embossTraceEnabled,
     embossTraceRects: state.embossTraceRects,
     embossTraceSize: state.embossTraceSize,
+    decorOffsetX: state.decorOffsetX,
+    decorOffsetY: state.decorOffsetY,
     honeycombEnabled: state.honeycombEnabled,
     honeycombFace: state.honeycombFace,
     honeycombSize: state.honeycombSize,
@@ -766,6 +768,8 @@ function syncUiFromState() {
   syncSliderUi("accent-height", "accentHeight", { min: 2, max: 10, value: state.accentHeight, parseKind: "float" });
   syncSliderUi("emboss-depth", "embossDepth", { min: 0.3, max: 2, value: state.embossDepth, parseKind: "float" });
   syncSliderUi("emboss-height", "embossHeight", { min: 3, max: 18, value: state.embossHeight, parseKind: "float" });
+  syncSliderUi("decor-offset-x", "decorOffsetX", { min: -40, max: 40, value: state.decorOffsetX ?? 0, parseKind: "float" });
+  syncSliderUi("decor-offset-y", "decorOffsetY", { min: -30, max: 30, value: state.decorOffsetY ?? 0, parseKind: "float" });
   syncSliderUi("trace-threshold", "traceThreshold", { min: 20, max: 235, value: state.traceThreshold });
   syncSliderUi("trace-size", "embossTraceSize", { min: 6, max: 40, value: state.embossTraceSize, parseKind: "float" });
   syncSliderUi("vase-diameter", "vaseDiameter", { min: 30, max: 220, value: state.vaseDiameter, parseKind: "float" });
@@ -1085,7 +1089,13 @@ function decorUiShape() {
   return state.shape === "rect" ? "rect" : null;
 }
 
+function normalizeRestoredTab(tabId) {
+  if (tabId === "label" || tabId === "import") return "art";
+  return tabId || "design";
+}
+
 function setTab(tabId) {
+  tabId = normalizeRestoredTab(tabId);
   document.querySelectorAll(".tab").forEach((t) => {
     const on = t.dataset.tab === tabId;
     t.classList.toggle("active", on);
@@ -1097,6 +1107,7 @@ function setTab(tabId) {
     p.hidden = !on;
   });
   scheduleSaveSession();
+  updateArtOverlay();
 }
 
 function clearEmbossTrace() {
@@ -1245,13 +1256,13 @@ function clearDecorFromBox() {
   scheduleSaveSession();
 }
 
-function isImportTabActive() {
-  const panel = document.getElementById("tab-import");
-  return panel && !panel.hidden;
+function isArtTabActive() {
+  const tab = document.querySelector('.tab[data-tab="art"]');
+  return tab?.classList.contains("active") && !tab.disabled;
 }
 
 function pasteImageFromClipboard(e) {
-  if (!isImportTabActive()) return;
+  if (!isArtTabActive()) return;
   const items = e.clipboardData?.items;
   if (!items) return;
   for (const item of items) {
@@ -1467,7 +1478,7 @@ function applyTraceToBox() {
 
 function updateDecorUi() {
   const supported = shapeSupportsDecor(decorUiShape());
-  document.querySelectorAll('.tab[data-tab="accent"], .tab[data-tab="label"], .tab[data-tab="import"], .tab[data-tab="stack"], .tab[data-tab="link"]').forEach((tab) => {
+  document.querySelectorAll('.tab[data-tab="accent"], .tab[data-tab="art"], .tab[data-tab="stack"], .tab[data-tab="link"]').forEach((tab) => {
     tab.disabled = !supported;
     tab.classList.toggle("tab--disabled", !supported);
   });
@@ -1487,6 +1498,8 @@ function updateDecorUi() {
   document.getElementById("stackable-enabled").checked = state.stackableEnabled && supported;
 
   const svgOn = state.embossSvgEnabled && supported && !state.embossTraceEnabled;
+  const traceOnBox = !!state.embossTraceEnabled;
+  const textOn = !!state.embossText?.trim();
   document.getElementById("emboss-svg-enabled").checked = svgOn;
   document.getElementById("field-svg-file").classList.toggle("hidden", !svgOn);
   document.getElementById("field-emboss-text").classList.toggle("hidden", svgOn);
@@ -1494,9 +1507,13 @@ function updateDecorUi() {
   document.getElementById("emboss-face").value = state.embossFace || "front";
   document.getElementById("emboss-deboss").checked = !!state.embossDeboss;
   updateEmbossDebossUi();
-  document.getElementById("field-emboss-height").classList.toggle("hidden", svgOn);
+  document.getElementById("field-emboss-height").classList.toggle("hidden", svgOn || traceOnBox);
+  document.getElementById("field-trace-size").classList.toggle("hidden", svgOn || (textOn && !traceOnBox));
   document.getElementById("emboss-font").value = state.embossFont || "inter";
+  syncSliderUi("decor-offset-x", "decorOffsetX", { min: -40, max: 40, value: state.decorOffsetX ?? 0, parseKind: "float" });
+  syncSliderUi("decor-offset-y", "decorOffsetY", { min: -30, max: 30, value: state.decorOffsetY ?? 0, parseKind: "float" });
   updateEmbossTextPreviewStyle();
+  updateArtOverlay();
 }
 
 function updateEmbossDebossUi() {
@@ -1725,6 +1742,8 @@ bindRange("joiner-protrusion", "joinerProtrusion", "float");
 bindRange("accent-height", "accentHeight", "float");
 bindRange("emboss-depth", "embossDepth", "float");
 bindRange("emboss-height", "embossHeight", "float");
+bindRange("decor-offset-x", "decorOffsetX", "float");
+bindRange("decor-offset-y", "decorOffsetY", "float");
 bindRange("trace-threshold", "traceThreshold", "int");
 bindRange("trace-size", "embossTraceSize", "float");
 
@@ -1977,7 +1996,7 @@ function updateVaseUiVisibility() {
   document.getElementById("section-classic-size").classList.toggle("hidden", isVase);
   document.getElementById("section-walls").classList.toggle("hidden", isVase);
   document.getElementById("section-edges").classList.toggle("hidden", isVase);
-  document.querySelectorAll('.tab[data-tab="accent"], .tab[data-tab="label"], .tab[data-tab="import"], .tab[data-tab="stack"], .tab[data-tab="link"], .tab[data-tab="lid"]').forEach((tab) => {
+  document.querySelectorAll('.tab[data-tab="accent"], .tab[data-tab="art"], .tab[data-tab="stack"], .tab[data-tab="link"], .tab[data-tab="lid"]').forEach((tab) => {
     tab.classList.toggle("tab--disabled", isVase);
     tab.disabled = isVase;
   });
@@ -2056,12 +2075,150 @@ document.getElementById("btn-export-deboss").addEventListener("click", () => {
   downloadBlob(blob, filenameFor(meshCache.meta, "deboss-cutter"));
 });
 
+const artOverlayEl = document.getElementById("art-overlay");
+const artOverlayBox = artOverlayEl?.querySelector(".art-overlay-box");
+let artDrag = null;
+
+function projectFacePoint(frame, px, py) {
+  const mapped = frame.mapPoint(px, py, 0.35);
+  const v = new THREE.Vector3(mapped[0], BED_LIFT + mapped[2], -mapped[1]);
+  v.project(camera);
+  const w = viewport.clientWidth;
+  const h = viewport.clientHeight;
+  return {
+    x: (v.x * 0.5 + 0.5) * w,
+    y: (-v.y * 0.5 + 0.5) * h,
+    behind: v.z > 1,
+  };
+}
+
+function updateArtOverlay() {
+  if (!artOverlayEl || !meshCache) return;
+  const show = isArtTabActive() && shapeSupportsDecor(decorUiShape()) && boxHasDecor();
+  if (!show) {
+    artOverlayEl.classList.add("hidden");
+    artOverlayEl.setAttribute("aria-hidden", "true");
+    return;
+  }
+  const art = measureDecorArt(meshCache.meta, buildParams());
+  if (!art) {
+    artOverlayEl.classList.add("hidden");
+    artOverlayEl.setAttribute("aria-hidden", "true");
+    return;
+  }
+  const corners = [
+    projectFacePoint(art.frame, art.left, art.bottom),
+    projectFacePoint(art.frame, art.right, art.bottom),
+    projectFacePoint(art.frame, art.right, art.top),
+    projectFacePoint(art.frame, art.left, art.top),
+  ];
+  if (corners.some((c) => c.behind)) {
+    artOverlayEl.classList.add("hidden");
+    artOverlayEl.setAttribute("aria-hidden", "true");
+    return;
+  }
+  const xs = corners.map((c) => c.x);
+  const ys = corners.map((c) => c.y);
+  const left = Math.min(...xs);
+  const right = Math.max(...xs);
+  const top = Math.min(...ys);
+  const bottom = Math.max(...ys);
+  const pad = 6;
+  artOverlayEl.classList.remove("hidden");
+  artOverlayEl.setAttribute("aria-hidden", "false");
+  artOverlayBox.style.left = `${left - pad}px`;
+  artOverlayBox.style.top = `${top - pad}px`;
+  artOverlayBox.style.width = `${Math.max(28, right - left + pad * 2)}px`;
+  artOverlayBox.style.height = `${Math.max(28, bottom - top + pad * 2)}px`;
+}
+
+function faceMmPerPixel(art) {
+  const c0 = projectFacePoint(art.frame, art.cx, art.cy);
+  const c1 = projectFacePoint(art.frame, art.cx + 1, art.cy);
+  const c2 = projectFacePoint(art.frame, art.cx, art.cy + 1);
+  const mmPerPxX = 1 / Math.max(0.001, Math.hypot(c1.x - c0.x, c1.y - c0.y));
+  const mmPerPxY = 1 / Math.max(0.001, Math.hypot(c2.x - c0.x, c2.y - c0.y));
+  return { mmPerPxX, mmPerPxY };
+}
+
+function clampArtSize(kind, n) {
+  if (kind === "text") return Math.min(18, Math.max(3, n));
+  return Math.min(40, Math.max(6, n));
+}
+
+function onArtDragMove(e) {
+  if (!artDrag || !meshCache) return;
+  const art = measureDecorArt(meshCache.meta, buildParams());
+  if (!art) return;
+
+  if (artDrag.handle === "move") {
+    const { mmPerPxX, mmPerPxY } = faceMmPerPixel(art);
+    state.decorOffsetX = artDrag.startOx + (e.clientX - artDrag.startX) * mmPerPxX;
+    state.decorOffsetY = artDrag.startOy - (e.clientY - artDrag.startY) * mmPerPxY;
+    syncSliderUi("decor-offset-x", "decorOffsetX", { min: -40, max: 40, value: state.decorOffsetX, parseKind: "float" });
+    syncSliderUi("decor-offset-y", "decorOffsetY", { min: -30, max: 30, value: state.decorOffsetY, parseKind: "float" });
+    rebuildMesh();
+    return;
+  }
+
+  const center = projectFacePoint(art.frame, art.cx, art.cy);
+  const dist0 = Math.hypot(artDrag.startX - center.x, artDrag.startY - center.y);
+  const dist1 = Math.hypot(e.clientX - center.x, e.clientY - center.y);
+  const scale = Math.max(0.35, Math.min(2.8, dist1 / Math.max(8, dist0)));
+  const newSize = clampArtSize(artDrag.artKind, artDrag.startSize * scale);
+  if (artDrag.artKind === "text") {
+    state.embossHeight = newSize;
+    syncSliderUi("emboss-height", "embossHeight", { min: 3, max: 18, value: state.embossHeight, parseKind: "float" });
+  } else {
+    state.embossTraceSize = newSize;
+    syncSliderUi("trace-size", "embossTraceSize", { min: 6, max: 40, value: state.embossTraceSize, parseKind: "float" });
+  }
+  rebuildMesh();
+}
+
+function endArtDrag() {
+  if (!artDrag) return;
+  window.removeEventListener("pointermove", onArtDragMove);
+  artDrag = null;
+  controls.enabled = true;
+  pushAppHistory();
+  scheduleSaveSession();
+  updateArtOverlay();
+}
+
+function startArtDrag(handle, e) {
+  if (!meshCache || !boxHasDecor() || !isArtTabActive()) return;
+  const art = measureDecorArt(meshCache.meta, buildParams());
+  if (!art) return;
+  e.preventDefault();
+  e.stopPropagation();
+  controls.enabled = false;
+  artDrag = {
+    handle,
+    startX: e.clientX,
+    startY: e.clientY,
+    startOx: state.decorOffsetX ?? 0,
+    startOy: state.decorOffsetY ?? 0,
+    startSize: art.kind === "text" ? state.embossHeight : state.embossTraceSize,
+    artKind: art.kind,
+  };
+  window.addEventListener("pointermove", onArtDragMove);
+  window.addEventListener("pointerup", endArtDrag, { once: true });
+}
+
+if (artOverlayBox) {
+  for (const handleEl of artOverlayBox.querySelectorAll(".art-handle")) {
+    handleEl.addEventListener("pointerdown", (e) => startArtDrag(handleEl.dataset.handle, e));
+  }
+}
+
 function resize() {
   const w = viewport.clientWidth;
   const h = viewport.clientHeight;
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
+  updateArtOverlay();
 }
 
 window.addEventListener("resize", resize);
@@ -2071,6 +2228,7 @@ function animate() {
   updateLidAnimation(performance.now());
   if (document.hidden && !lidAnim) return;
   controls.update();
+  updateArtOverlay();
   renderer.render(scene, camera);
 }
 

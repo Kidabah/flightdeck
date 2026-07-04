@@ -3,6 +3,7 @@
  */
 
 import { extrudeShapeGroup, extrudeShapeGroupBetween, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, simplifyPolygon } from "./contour.js";
+import { decorPlacementOffsets, decorArtRect } from "./decor.js";
 
 export const EMBOSS_FONTS = [
   { id: "inter", label: "Inter — clean sans", family: 'Inter, system-ui, "Segoe UI", sans-serif', weight: 700 },
@@ -317,8 +318,7 @@ export function buildEmbossText(meta, params) {
   const { d0, d1 } = labelOffsets(params);
   const scale = labelH / raster.height;
   const artW = raster.width * scale;
-  const xOff = -artW / 2;
-  const zOff = frame.centerZ - labelH;
+  const { xOff, zOff } = decorPlacementOffsets(params, frame, artW, labelH);
   const positions = [];
   const indices = [];
 
@@ -343,8 +343,7 @@ export function buildEmbossBitmap(meta, params, bitmap) {
   if (!Number.isFinite(scale) || scale <= 0) return null;
 
   const artWidth = bitmap.width * scale;
-  const xOff = -artWidth / 2;
-  const zOff = frame.centerZ - artH;
+  const { xOff, zOff } = decorPlacementOffsets(params, frame, artWidth, artH);
   const { d0, d1 } = labelOffsets(params);
   const positions = [];
   const indices = [];
@@ -610,7 +609,8 @@ export function buildEmbossSvg(meta, params, svgText) {
   if (!Number.isFinite(scale) || scale <= 0) return null;
 
   const cx = (minX + maxX) / 2;
-  const zOff = frame.centerZ - artH;
+  const artW = sw * scale;
+  const { xOff, zOff } = decorPlacementOffsets(params, frame, artW, artH);
   const svgStroke = parsed.strokeWidth ?? 1.5;
   const lineWidth = clamp(scale * svgStroke, 0.45, 1.5);
   const smoothPasses = artH <= 12 ? 4 : artH <= 20 ? 3 : 2;
@@ -629,7 +629,7 @@ export function buildEmbossSvg(meta, params, svgText) {
   const { d0, d1 } = labelOffsets(params);
   const positions = [];
   const indices = [];
-  const mapPt = (x, y) => [(x - cx) * scale, zOff + (maxY - y) * scale];
+  const mapPt = (x, y) => [(x - cx) * scale + xOff + artW / 2, zOff + (maxY - y) * scale];
 
   extrudeStrokePathList(positions, indices, frame, strokePaths, mapPt, lineWidth, d0, d1);
   return positions.length ? { positions, indices } : null;
@@ -784,9 +784,71 @@ function labelOffsets(params) {
   return { d0: 0.08, d1: 0.08 + depth, depth, deboss: false };
 }
 
+/** Measure active art on a face for preview handles (null if none). */
+export function measureDecorArt(meta, params) {
+  const frame = getEmbossFaceFrame(meta, params.embossFace || "front");
+  const traceData = params.embossTraceRects;
+  const hasTrace =
+    params.embossTraceEnabled &&
+    (traceData?.shapeGroups?.length ||
+      traceData?.strokePaths?.length ||
+      traceData?.mask?.length ||
+      traceData?.rects?.length);
+  const hasText = !!params.embossText?.trim() && !params.embossSvgEnabled;
+
+  if (hasText) {
+    const labelH = clamp(params.embossHeight ?? 7, 3, 18);
+    const raster = rasterTextRects(params.embossText.trim(), params.embossFont || "inter");
+    if (!raster?.rects.length) return null;
+    const scale = labelH / raster.height;
+    const artW = raster.width * scale;
+    const { xOff, zOff } = decorPlacementOffsets(params, frame, artW, labelH);
+    return { frame, kind: "text", ...decorArtRect(frame, xOff, zOff, artW, labelH) };
+  }
+
+  if (hasTrace && traceData?.width && traceData?.height) {
+    const artH = clamp(params.embossTraceSize ?? 16, 6, 40);
+    const maxW = Math.min(frame.faceW * 0.62, 56);
+    const scale = Math.min(artH / traceData.height, maxW / traceData.width);
+    if (!Number.isFinite(scale) || scale <= 0) return null;
+    const artW = traceData.width * scale;
+    const { xOff, zOff } = decorPlacementOffsets(params, frame, artW, artH);
+    return { frame, kind: "trace", ...decorArtRect(frame, xOff, zOff, artW, artH) };
+  }
+
+  if (params.embossSvgEnabled && params.embossSvgText?.trim()) {
+    const parsed = parseSvgPaths(params.embossSvgText);
+    const polylines = parsed.polylines || (Array.isArray(parsed) ? parsed : []);
+    if (!polylines.length) return null;
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const line of polylines) {
+      for (const [x, y] of line) {
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+      }
+    }
+    if (!Number.isFinite(minX)) return null;
+    const sw = maxX - minX || parsed.viewBox?.[2] || 1;
+    const sh = maxY - minY || parsed.viewBox?.[3] || 1;
+    const artH = clamp(params.embossTraceSize ?? params.embossHeight ?? 16, 6, 40);
+    const maxW = Math.min(frame.faceW * 0.62, 56);
+    const scale = Math.min(artH / sh, maxW / sw);
+    if (!Number.isFinite(scale) || scale <= 0) return null;
+    const artW = sw * scale;
+    const { xOff, zOff } = decorPlacementOffsets(params, frame, artW, artH);
+    return { frame, kind: "svg", ...decorArtRect(frame, xOff, zOff, artW, artH) };
+  }
+
+  return null;
+}
+
 export function buildLabelEmboss(meta, params, svgText = "", mode = "emboss") {
   const p = { ...params, __embossMode: mode };
-  const traceData = p.embossTraceRects;
   const hasTrace =
     p.embossTraceEnabled &&
     (traceData?.shapeGroups?.length ||

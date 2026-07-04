@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Oswald:wght@700&family=Roboto+Mono:wght@700&family=Roboto:wght@700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=10">
+  <link rel="stylesheet" href="css/style.css?v=11">
 
   <script type="importmap">
 
@@ -98,9 +98,7 @@
 
           <button type="button" class="tab" data-tab="accent" role="tab">Accent</button>
 
-          <button type="button" class="tab" data-tab="label" role="tab">Label</button>
-
-          <button type="button" class="tab" data-tab="import" role="tab">Import</button>
+          <button type="button" class="tab" data-tab="art" role="tab">Art</button>
 
           <button type="button" class="tab" data-tab="stack" role="tab">Stack</button>
 
@@ -570,41 +568,13 @@
 
 
 
-          <div class="tab-panel" id="tab-label" role="tabpanel" hidden>
+          <div class="tab-panel" id="tab-art" role="tabpanel" hidden>
 
-            <section class="section" id="section-label">
+            <section class="section" id="section-art">
 
-              <h2>Embossed label</h2>
+              <h2>Art on box</h2>
 
-              <p class="field-hint">Use text <em>or</em> SVG — not both at once. Traced art from <em>Import</em> uses emboss depth below.</p>
-
-              <label class="field" id="field-emboss-face">
-
-                <span class="field-label">Face</span>
-
-                <select id="emboss-face">
-
-                  <option value="front">Front</option>
-
-                  <option value="back">Back</option>
-
-                  <option value="left">Left side</option>
-
-                  <option value="right">Right side</option>
-
-                </select>
-
-              </label>
-
-              <label class="field field-toggle" id="field-emboss-deboss">
-
-                <span class="field-label">Deboss (cut inward)</span>
-
-                <input type="checkbox" id="emboss-deboss">
-
-              </label>
-
-              <p class="field-hint hidden" id="emboss-deboss-hint">Body prints clean. Use <em>Download deboss cutter</em>, then in your slicer set it as a <strong>negative part / modifier</strong> to subtract.</p>
+              <p class="field-hint">Add embossed text or a traced image. Drag the box on the preview to move; corner handles resize.</p>
 
               <label class="field" id="field-emboss-text">
 
@@ -632,19 +602,9 @@
 
               </label>
 
-              <label class="field" id="field-emboss-depth">
-
-                <span class="field-label">Emboss depth</span>
-
-                <input type="range" id="emboss-depth" min="0.3" max="2" step="0.1" value="0.7" tabindex="-1">
-
-                <button type="button" class="value-edit" id="out-emboss-depth" data-slider="emboss-depth" data-key="embossDepth" data-parse="float">0.7</button>
-
-              </label>
-
               <label class="field field-toggle" id="field-emboss-svg">
 
-                <span class="field-label">Use SVG instead</span>
+                <span class="field-label">Use SVG file instead</span>
 
                 <input type="checkbox" id="emboss-svg-enabled">
 
@@ -658,19 +618,7 @@
 
               </label>
 
-            </section>
-
-          </div>
-
-
-
-          <div class="tab-panel" id="tab-import" role="tabpanel" hidden>
-
-            <section class="section" id="section-import">
-
-              <h2>Image → emboss</h2>
-
-              <p class="field-hint">Black-on-white icons work best. <em>Silhouette</em> keeps holes (vents, bolt circles). Lower threshold if detail vanishes. Set emboss depth on the <em>Label</em> tab.</p>
+              <div class="art-divider" aria-hidden="true"><span>or image</span></div>
 
               <div class="trace-drop" id="trace-drop">
 
@@ -714,9 +662,9 @@
 
               </label>
 
-              <label class="field">
+              <label class="field" id="field-trace-size">
 
-                <span class="field-label">Art size <span class="unit">mm</span></span>
+                <span class="field-label">Image size <span class="unit">mm</span></span>
 
                 <input type="range" id="trace-size" min="6" max="40" step="0.5" value="16" tabindex="-1">
 
@@ -726,7 +674,7 @@
 
               <div class="trace-preview-wrap hidden" id="trace-preview-wrap">
 
-                <span class="field-label">Preview</span>
+                <span class="field-label">Trace preview</span>
 
                 <canvas id="trace-preview" class="trace-preview" width="320" height="200"></canvas>
 
@@ -743,6 +691,68 @@
                 <button type="button" id="btn-trace-svg" class="btn btn-secondary hidden" disabled>Download SVG</button>
 
               </div>
+
+              <div class="art-divider" aria-hidden="true"><span>placement</span></div>
+
+              <label class="field" id="field-emboss-face">
+
+                <span class="field-label">Face</span>
+
+                <select id="emboss-face">
+
+                  <option value="front">Front</option>
+
+                  <option value="back">Back</option>
+
+                  <option value="left">Left side</option>
+
+                  <option value="right">Right side</option>
+
+                </select>
+
+              </label>
+
+              <label class="field" id="field-decor-offset-x">
+
+                <span class="field-label">Horizontal <span class="unit">mm</span></span>
+
+                <input type="range" id="decor-offset-x" min="-40" max="40" step="0.5" value="0" tabindex="-1">
+
+                <button type="button" class="value-edit" id="out-decor-offset-x" data-slider="decor-offset-x" data-key="decorOffsetX" data-parse="float">0</button>
+
+              </label>
+
+              <label class="field" id="field-decor-offset-y">
+
+                <span class="field-label">Vertical <span class="unit">mm</span></span>
+
+                <input type="range" id="decor-offset-y" min="-30" max="30" step="0.5" value="0" tabindex="-1">
+
+                <button type="button" class="value-edit" id="out-decor-offset-y" data-slider="decor-offset-y" data-key="decorOffsetY" data-parse="float">0</button>
+
+              </label>
+
+              <div class="art-divider" aria-hidden="true"><span>emboss</span></div>
+
+              <label class="field" id="field-emboss-depth">
+
+                <span class="field-label">Emboss depth</span>
+
+                <input type="range" id="emboss-depth" min="0.3" max="2" step="0.1" value="0.7" tabindex="-1">
+
+                <button type="button" class="value-edit" id="out-emboss-depth" data-slider="emboss-depth" data-key="embossDepth" data-parse="float">0.7</button>
+
+              </label>
+
+              <label class="field field-toggle" id="field-emboss-deboss">
+
+                <span class="field-label">Deboss (cut inward)</span>
+
+                <input type="checkbox" id="emboss-deboss">
+
+              </label>
+
+              <p class="field-hint hidden" id="emboss-deboss-hint">Body prints clean. Use <em>Download deboss cutter</em>, then in your slicer set it as a <strong>negative part / modifier</strong> to subtract.</p>
 
             </section>
 
@@ -802,6 +812,16 @@
 
         <div id="viewport" aria-label="3D preview"></div>
 
+        <div id="art-overlay" class="art-overlay hidden" aria-hidden="true">
+          <div class="art-overlay-box">
+            <div class="art-handle art-handle-nw" data-handle="nw" title="Resize"></div>
+            <div class="art-handle art-handle-ne" data-handle="ne" title="Resize"></div>
+            <div class="art-handle art-handle-sw" data-handle="sw" title="Resize"></div>
+            <div class="art-handle art-handle-se" data-handle="se" title="Resize"></div>
+            <div class="art-handle art-handle-move" data-handle="move" title="Move"></div>
+          </div>
+        </div>
+
         <div class="viewport-hud">
 
           <span>Drag to orbit · scroll to zoom</span>
@@ -821,7 +841,7 @@
 
 
 
-  <script type="module" src="js/app.js?v=40"></script>
+  <script type="module" src="js/app.js?v=41"></script>
 
 </body>
 

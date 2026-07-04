@@ -1211,6 +1211,8 @@ export const DEFAULTS = {
   embossTraceEnabled: false,
   embossTraceRects: null,
   embossTraceSize: 16,
+  decorOffsetX: 0,
+  decorOffsetY: 0,
   traceThreshold: 128,
   traceInvert: false,
   traceMode: "silhouette",

@@ -2,8 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `9e647ae` — Slide lid subdivided top cap (centre z-fight)
-- Refresh cachebust currently: MakerDeck app.js?v=40 / style.css?v=10
+- Latest commit: (pending) — MakerDeck Art tab with placement handles
+- Refresh cachebust currently: MakerDeck app.js?v=41 / style.css?v=11
+
+### 2026-07-04 feature (MakerDeck Art tab + placement handles)
+
+**Unified Art tab** — text, image trace, SVG, placement, emboss in one place (`index.html`, `app.js`, `features.js`, `decor.js`, `style.css`)
+
+- Replaced separate Label + Import tabs with **Art**.
+- Horizontal / vertical offset sliders (mm) wired into emboss geometry.
+- Viewport overlay on Art tab: drag centre to move, corner handles to resize (font size or image size).
+- Cachebust app.js?v=41, style.css?v=11. Hard refresh required.
 
 ### 2026-07-04 fix (MakerDeck slide lid centre diamond — mesh)
 
