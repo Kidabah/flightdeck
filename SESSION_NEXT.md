@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — fix art overlay rotation + stuck applied text
+- Latest commit: `2b32eec` — fix art overlay rotation + stuck applied text
 - Refresh cachebust currently: MakerDeck app.js?v=48 / style.css?v=13
 
 ### 2026-07-04 fix (MakerDeck art overlay + stuck text)
