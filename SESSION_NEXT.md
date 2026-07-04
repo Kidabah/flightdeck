@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — align text selection frame to glyphs
+- Latest commit: `f982bc3` — align text selection frame to glyphs
 - Refresh cachebust currently: MakerDeck app.js?v=47 / style.css?v=13
 
 ### 2026-07-04 fix (MakerDeck text selection frame alignment)
