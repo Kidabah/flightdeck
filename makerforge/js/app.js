@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsLid, shapeSupportsSlideLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js";
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, measureDecorArt, buildLabelEmboss } from "./features.js";
+import { rotateFacePoint } from "./decor.js";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js";
 import { meshToStl, downloadBlob, filenameFor } from "./stl.js";
 import {
@@ -901,6 +902,8 @@ function rebuildMesh() {
 
   if (useDraftArtPreview()) {
     refreshArtPreviewLabel();
+  } else if (isArtTabActive()) {
+    disposeLabelPreview();
   } else {
     mountAppliedLabelPreview();
   }
@@ -1136,8 +1139,8 @@ function setTab(tabId) {
     p.classList.toggle("active", on);
     p.hidden = !on;
   });
-  if (tabId === "art" && appliedHasArt(state)) {
-    resetArtDraft(state);
+  if (tabId === "art") {
+    ensureArtDraftActive();
   }
   scheduleSaveSession();
   syncArtEditorUi();
@@ -1287,6 +1290,7 @@ function clearDecorFromBox() {
   document.getElementById("emboss-svg-enabled").checked = false;
   pushAppHistory();
   updateDecorUi();
+  if (isArtTabActive()) startBlankArtDraft(state);
   syncArtEditorUi();
   updateTraceUi();
   updateHistoryUi();
@@ -1300,22 +1304,42 @@ function isArtTabActive() {
 }
 
 function artPreviewParams() {
-  return getArtDraft() ? buildArtPreviewParams(state, buildParams()) : buildParams();
+  if (isArtTabActive()) {
+    ensureArtDraftActive();
+    return buildArtPreviewParams(state, buildParams());
+  }
+  return buildParams();
+}
+
+function ensureArtDraftActive() {
+  if (!isArtTabActive()) return null;
+  if (!getArtDraft()) {
+    if (appliedHasArt(state)) resetArtDraft(state);
+    else startBlankArtDraft(state);
+  }
+  return getArtDraft();
 }
 
 function useDraftArtPreview() {
-  return isArtTabActive() && getArtDraft() && draftHasContent(getArtDraft());
+  if (!isArtTabActive()) return false;
+  const draft = ensureArtDraftActive();
+  return !!(draft && draftHasContent(draft));
 }
 
-let artPreviewTimer = null;
+function shouldShowArtOverlay() {
+  if (!isArtTabActive() || !shapeSupportsDecor(decorUiShape()) || !meshCache) return false;
+  ensureArtDraftActive();
+  return !!measureDecorArt(meshCache.meta, artPreviewParams());
+}
 
 function scheduleArtPreviewRefresh(immediate = false) {
   clearTimeout(artPreviewTimer);
   const run = () => {
     if (useDraftArtPreview()) {
       refreshArtPreviewLabel();
-    } else {
+    } else if (isArtTabActive()) {
       disposeLabelPreview();
+    } else {
       mountAppliedLabelPreview();
     }
     updateArtOverlay();
@@ -1393,12 +1417,7 @@ function mountAppliedLabelPreview() {
   }
 }
 
-function shouldShowArtOverlay() {
-  if (!isArtTabActive() || !shapeSupportsDecor(decorUiShape()) || !meshCache) return false;
-  const draft = getArtDraft();
-  if (draft && draftHasContent(draft)) return true;
-  return appliedHasArt(state);
-}
+let artPreviewTimer = null;
 
 function syncArtEditorUi() {
   const draft = getArtDraft();
@@ -2016,10 +2035,7 @@ document.getElementById("stackable-enabled").addEventListener("change", (e) => {
 
 document.getElementById("emboss-text").addEventListener("input", (e) => {
   const text = e.target.value;
-  if (!getArtDraft()) {
-    if (appliedHasArt(state)) resetArtDraft(state);
-    else startBlankArtDraft(state);
-  }
+  ensureArtDraftActive();
   patchArtDraft({
     text,
     traceEnabled: false,
@@ -2088,6 +2104,10 @@ document.getElementById("btn-art-cancel").addEventListener("click", () => {
   updateDecorUi();
   updateTraceUi();
   scheduleArtPreviewRefresh(true);
+});
+
+document.getElementById("btn-art-clear").addEventListener("click", () => {
+  clearDecorFromBox();
 });
 
 document.getElementById("honeycomb-face").addEventListener("change", (e) => {
@@ -2338,6 +2358,23 @@ function projectFacePoint(frame, px, py) {
   };
 }
 
+function artOverlayScreenLayout(art) {
+  const rot = art.rotation || 0;
+  const cx = art.cx;
+  const cy = art.cy;
+  const center = projectFacePoint(art.frame, cx, cy);
+  const [rx, ry] = rotateFacePoint(cx, cy, art.right, cy, rot);
+  const [tx, ty] = rotateFacePoint(cx, cy, cx, art.top, rot);
+  const pr = projectFacePoint(art.frame, rx, ry);
+  const pt = projectFacePoint(art.frame, tx, ty);
+  if ([center, pr, pt].some((c) => c.behind)) return null;
+  const halfW = Math.hypot(pr.x - center.x, pr.y - center.y);
+  const halfH = Math.hypot(pt.x - center.x, pt.y - center.y);
+  if (halfW < 4 || halfH < 4) return null;
+  const angle = (Math.atan2(pr.y - center.y, pr.x - center.x) * 180) / Math.PI;
+  return { center, halfW, halfH, angle };
+}
+
 function updateArtOverlay() {
   if (!artOverlayEl || !meshCache) return;
   if (!shouldShowArtOverlay()) {
@@ -2352,31 +2389,23 @@ function updateArtOverlay() {
     artOverlayEl.setAttribute("aria-hidden", "true");
     return;
   }
-  const rot = art.rotation || 0;
-  const center = projectFacePoint(art.frame, art.cx, art.cy);
-  const pxAxis = projectFacePoint(art.frame, art.cx + 1, art.cy);
-  const bl = projectFacePoint(art.frame, art.left, art.bottom);
-  const br = projectFacePoint(art.frame, art.right, art.bottom);
-  const tl = projectFacePoint(art.frame, art.left, art.top);
-  if ([center, pxAxis, bl, br, tl].some((c) => c.behind)) {
+  const layout = artOverlayScreenLayout(art);
+  if (!layout) {
     artOverlayEl.classList.add("hidden");
     artOverlayEl.setAttribute("aria-hidden", "true");
     return;
   }
-  const baseDeg = (Math.atan2(pxAxis.y - center.y, pxAxis.x - center.x) * 180) / Math.PI;
-  const screenW = Math.hypot(br.x - bl.x, br.y - bl.y);
-  const screenH = Math.hypot(tl.x - bl.x, tl.y - bl.y);
   const pad = 8;
-  const w = Math.max(32, screenW + pad * 2);
-  const h = Math.max(32, screenH + pad * 2);
+  const w = Math.max(32, layout.halfW * 2 + pad * 2);
+  const h = Math.max(32, layout.halfH * 2 + pad * 2);
   artOverlayEl.classList.remove("hidden");
   artOverlayEl.setAttribute("aria-hidden", "false");
-  artOverlayBox.style.left = `${center.x - w / 2}px`;
-  artOverlayBox.style.top = `${center.y - h / 2}px`;
+  artOverlayBox.style.left = `${layout.center.x - w / 2}px`;
+  artOverlayBox.style.top = `${layout.center.y - h / 2}px`;
   artOverlayBox.style.width = `${w}px`;
   artOverlayBox.style.height = `${h}px`;
   artOverlayBox.style.transformOrigin = "50% 50%";
-  artOverlayBox.style.transform = `rotate(${baseDeg + rot}deg)`;
+  artOverlayBox.style.transform = `rotate(${layout.angle}deg)`;
 }
 
 function faceMmPerPixel(art) {

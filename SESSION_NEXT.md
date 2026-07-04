@@ -2,8 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `f982bc3` — align text selection frame to glyphs
-- Refresh cachebust currently: MakerDeck app.js?v=47 / style.css?v=13
+- Latest commit: (pending) — fix art overlay rotation + stuck applied text
+- Refresh cachebust currently: MakerDeck app.js?v=48 / style.css?v=13
+
+### 2026-07-04 fix (MakerDeck art overlay + stuck text)
+
+**Selection frame now tracks rotated text; applied art no longer ghosts while editing** (`app.js`, `index.html`)
+
+- Overlay projects **rotated** face corners to screen (single angle) — fixes frame vs text mismatch at rotation.
+- Art tab always initializes a draft; preview uses draft only (not old applied label on top).
+- **Remove art** button in Art tab clears text/SVG/trace from the box.
+- Cachebust app.js?v=48. Hard refresh required.
 
 ### 2026-07-04 fix (MakerDeck text selection frame alignment)
 
