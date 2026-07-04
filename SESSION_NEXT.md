@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — overlay box rotates with text
+- Latest commit: `f4f0d2e` — overlay box rotates with text
 - Refresh cachebust currently: MakerDeck app.js?v=45 / style.css?v=12
 
 ### 2026-07-04 fix (MakerDeck art overlay rotation)
