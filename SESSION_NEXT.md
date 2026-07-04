@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — MakerDeck Art tab with placement handles
+- Latest commit: `3c58bf0` — MakerDeck Art tab with placement handles
 - Refresh cachebust currently: MakerDeck app.js?v=41 / style.css?v=11
 
 ### 2026-07-04 feature (MakerDeck Art tab + placement handles)
