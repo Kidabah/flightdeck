@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `e21b84f` — Lid fit thumbs-up + floor cap fix + trace defer
-- Refresh cachebust currently: MakerDeck app.js?v=30 / style.css?v=10
+- Latest commit: (pending) — capProfileSolid index fix (restores floor)
+- Refresh cachebust currently: MakerDeck app.js?v=31 / style.css?v=10
+
+### 2026-07-04 hotfix (MakerDeck floor missing + mesh corruption)
+
+**capProfileSolid used wrong pushTri API** (`geometry.js`)
+
+- Earcut caps were passing vertex indices to pushTri (expects vec3), writing NaN triangles — no floor, random rim notches.
+- Fixed with pushTriIdx; fallback to center-fan capSolid if earcut returns empty.
+- Cachebust app.js?v=31. Hard refresh required.
 
 ### 2026-07-04 fix (MakerDeck lid fit polish + perf)
 
