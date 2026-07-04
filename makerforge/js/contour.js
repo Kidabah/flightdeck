@@ -250,29 +250,44 @@ function ringPoints(ring) {
     : ring.slice();
 }
 
-/** Extrude one shape (outer + holes) as a single solid slab. */
+/** Extrude one shape (outer + holes) as a single solid slab along Y (legacy front-face path). */
 export function extrudeShapeGroup(outPos, outIdx, group, y0, y1, mapPoint) {
+  const mapTop = (px, py) => {
+    const w = mapPoint(px, py);
+    return [w[0], y1, w[2]];
+  };
+  const mapBot = (px, py) => {
+    const w = mapPoint(px, py);
+    return [w[0], y0, w[2]];
+  };
+  extrudeShapeGroupBetween(outPos, outIdx, group, mapTop, mapBot, (w) => [w[0], w[2]]);
+}
+
+/** Extrude one shape (outer + holes) between two full 3D surface mappers.
+ * `flatCoord(w)` projects a world point to 2D for earcut cap triangulation. */
+export function extrudeShapeGroupBetween(outPos, outIdx, group, mapTop, mapBot, flatCoord) {
   const outerPts = ringPoints(group.outer);
   if (outerPts.length < 3) return;
 
   const holeRings = group.holes.map(ringPoints).filter((h) => h.length >= 3);
   const flat = [];
-  const world = [];
+  const topWorld = [];
+  const botWorld = [];
   const holeIndices = [];
 
   for (const p of outerPts) {
-    const w = mapPoint(p[0], p[1]);
-    flat.push(w[0], w[2]);
-    world.push(w);
+    topWorld.push(mapTop(p[0], p[1]));
+    botWorld.push(mapBot(p[0], p[1]));
+    flat.push(...flatCoord(topWorld[topWorld.length - 1]));
   }
   holeIndices.push(outerPts.length);
 
   for (const hole of holeRings) {
     holeIndices.push(holeIndices[holeIndices.length - 1] + hole.length);
     for (const p of hole) {
-      const w = mapPoint(p[0], p[1]);
-      flat.push(w[0], w[2]);
-      world.push(w);
+      topWorld.push(mapTop(p[0], p[1]));
+      botWorld.push(mapBot(p[0], p[1]));
+      flat.push(...flatCoord(topWorld[topWorld.length - 1]));
     }
   }
 
@@ -280,9 +295,9 @@ export function extrudeShapeGroup(outPos, outIdx, group, y0, y1, mapPoint) {
   if (!tri.length) return;
 
   const topBase = outPos.length / 3;
-  for (const w of world) outPos.push(w[0], y1, w[2]);
+  for (const w of topWorld) outPos.push(w[0], w[1], w[2]);
   const botBase = outPos.length / 3;
-  for (const w of world) outPos.push(w[0], y0, w[2]);
+  for (const w of botWorld) outPos.push(w[0], w[1], w[2]);
 
   for (let i = 0; i < tri.length; i += 3) {
     pushTri(outIdx, topBase + tri[i], topBase + tri[i + 1], topBase + tri[i + 2]);

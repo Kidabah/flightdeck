@@ -2,7 +2,7 @@
  * Accent bands, emboss, honeycomb stamp, stackable hex grid, mesh merge.
  */
 
-import { extrudeShapeGroup, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, simplifyPolygon } from "./contour.js";
+import { extrudeShapeGroup, extrudeShapeGroupBetween, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, simplifyPolygon } from "./contour.js";
 
 export const EMBOSS_FONTS = [
   { id: "inter", label: "Inter — clean sans", family: 'Inter, system-ui, "Segoe UI", sans-serif', weight: 700 },
@@ -590,13 +590,12 @@ function boxOnFace(outPos, outIdx, frame, xLeft, xRight, zBottom, zTop, d0, d1) 
 
 /** Extrude a shape group (outer ring + holes) onto a face at offsets [d0, d1]. */
 function extrudeGroupOnFace(outPos, outIdx, frame, group, d0, d1) {
-  const mapper = (px, py) => frame.mapPoint(px, py, d1);
-  const swap = d1 < d0;
-  if (swap) {
-    extrudeShapeGroup(outPos, outIdx, group, d1, d0, (px, py) => frame.mapPoint(px, py, d0));
-  } else {
-    extrudeShapeGroup(outPos, outIdx, group, d0, d1, mapper);
-  }
+  const mapTop = (px, py) => frame.mapPoint(px, py, d1);
+  const mapBot = (px, py) => frame.mapPoint(px, py, d0);
+  const flatCoord = frame.face === "left" || frame.face === "right"
+    ? (w) => [w[1], w[2]]
+    : (w) => [w[0], w[2]];
+  extrudeShapeGroupBetween(outPos, outIdx, group, mapTop, mapBot, flatCoord);
 }
 
 function labelOffsets(params) {
