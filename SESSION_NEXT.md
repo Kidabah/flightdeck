@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `a0fb29a` — Word-style live text on face
-- Refresh cachebust currently: MakerDeck app.js?v=46 / style.css?v=13
+- Latest commit: (pending) — align text selection frame to glyphs
+- Refresh cachebust currently: MakerDeck app.js?v=47 / style.css?v=13
+
+### 2026-07-04 fix (MakerDeck text selection frame alignment)
+
+**Handles now wrap the actual letters, not the empty canvas** (`features.js`, `app.js`)
+
+- Shared `computeTextArtLayout` — tight mask bounds for mesh + overlay + rotation centre.
+- Fixes frame floating above/shifted from PENCILS on top/lid faces.
+- Cachebust app.js?v=47. Hard refresh required.
 
 ### 2026-07-04 feature (MakerDeck Word-style text on face)
 

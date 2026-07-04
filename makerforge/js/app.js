@@ -1427,7 +1427,7 @@ function syncArtEditorUi() {
   syncEmbossFaceUi();
   setArtSlider("emboss-height", src.height ?? 7);
   setArtSlider("emboss-depth", src.depth ?? 0.7);
-  setArtSlider("art-rotation", src.rotation ?? 0, "int");
+  setArtSlider("art-rotation", Math.round((src.rotation ?? 0) * 10) / 10, "float");
   setArtSlider("trace-size", src.traceSize ?? 16);
   updateEmbossTextPreviewStyle();
   updateEmbossDebossUi();
@@ -1950,7 +1950,7 @@ function bindArtDraftSlider(sliderId, draftKey, parseKind = "float") {
 
 bindArtDraftSlider("emboss-height", "height");
 bindArtDraftSlider("emboss-depth", "depth");
-bindArtDraftSlider("art-rotation", "rotation", "int");
+bindArtDraftSlider("art-rotation", "rotation", "float");
 bindArtDraftSlider("trace-size", "traceSize");
 
 document.querySelectorAll(".tab").forEach((tab) => {
@@ -2415,7 +2415,7 @@ function onArtDragMove(e) {
     const a0 = Math.atan2(artDrag.startY - center.y, artDrag.startX - center.x);
     const a1 = Math.atan2(e.clientY - center.y, e.clientX - center.x);
     patchArtDraft({
-      rotation: artDrag.startRotation + ((a1 - a0) * 180) / Math.PI,
+      rotation: Math.round((artDrag.startRotation + ((a1 - a0) * 180) / Math.PI) * 10) / 10,
     });
     syncArtEditorUi();
     scheduleArtPreviewRefresh(true);

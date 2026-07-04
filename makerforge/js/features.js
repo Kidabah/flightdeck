@@ -296,18 +296,8 @@ function rasterTextRects(text, fontId, fontSizePx = 96) {
   return { rects: [{ x: 0, y: 0, w: raster.width, h: raster.height }], width: raster.width, height: raster.height };
 }
 
-function extrudeTextShapeGroups(positions, indices, frame, shapeGroups, xOff, zOff, scale, maskH, d0, d1, rotCx, rotCy, rotation = 0) {
-  for (const group of shapeGroups) {
-    const remapped = {
-      outer: group.outer.map(([px, py]) => [xOff + px * scale, zOff + (maskH - py) * scale]),
-      holes: group.holes.map((h) => h.map(([px, py]) => [xOff + px * scale, zOff + (maskH - py) * scale])),
-    };
-    extrudeGroupOnFace(positions, indices, frame, rotateShapeGroup(remapped, rotCx, rotCy, rotation), d0, d1);
-  }
-}
-
-/** Embossed label text — smooth stencil silhouettes (one solid per letter). */
-export function buildEmbossText(meta, params) {
+/** Shared text layout — keeps 3D mesh and selection handles aligned. */
+function computeTextArtLayout(meta, params) {
   const text = String(params.embossText || "").trim();
   if (!text) return null;
   const labelH = clamp(params.embossHeight ?? 7, 3, 18);
@@ -320,15 +310,69 @@ export function buildEmbossText(meta, params) {
   if (!Number.isFinite(scale) || scale <= 0) return null;
 
   const artW = raster.width * scale;
-  const { xOff, zOff } = decorPlacementOffsets(params, frame, artW, labelH);
-  const rotCx = xOff + artW / 2;
-  const rotCy = zOff + labelH / 2;
-  const rotation = params.decorRotation ?? 0;
+  const artH = raster.height * scale;
+  const { xOff, zOff } = decorPlacementOffsets(params, frame, artW, artH);
+  const { mask, width: maskW, height: maskH } = raster;
+
+  let left = Infinity;
+  let bottom = Infinity;
+  let right = -Infinity;
+  let top = -Infinity;
+  for (let py = 0; py < maskH; py++) {
+    for (let px = 0; px < maskW; px++) {
+      if (!mask[py * maskW + px]) continue;
+      const fx = xOff + px * scale;
+      const fy = zOff + (maskH - py) * scale;
+      left = Math.min(left, fx);
+      right = Math.max(right, fx);
+      bottom = Math.min(bottom, fy);
+      top = Math.max(top, fy);
+    }
+  }
+  if (!Number.isFinite(left)) return null;
+
+  const cx = (left + right) / 2;
+  const cy = (bottom + top) / 2;
+  return {
+    frame,
+    raster,
+    scale,
+    xOff,
+    zOff,
+    artW,
+    artH,
+    maskW,
+    maskH,
+    left,
+    right,
+    bottom,
+    top,
+    cx,
+    cy,
+    rotation: params.decorRotation ?? 0,
+  };
+}
+
+function extrudeTextShapeGroups(positions, indices, frame, shapeGroups, xOff, zOff, scale, maskH, d0, d1, rotCx, rotCy, rotation = 0) {
+  for (const group of shapeGroups) {
+    const remapped = {
+      outer: group.outer.map(([px, py]) => [xOff + px * scale, zOff + (maskH - py) * scale]),
+      holes: group.holes.map((h) => h.map(([px, py]) => [xOff + px * scale, zOff + (maskH - py) * scale])),
+    };
+    extrudeGroupOnFace(positions, indices, frame, rotateShapeGroup(remapped, rotCx, rotCy, rotation), d0, d1);
+  }
+}
+
+/** Embossed label text — smooth stencil silhouettes (one solid per letter). */
+export function buildEmbossText(meta, params) {
+  const layout = computeTextArtLayout(meta, params);
+  if (!layout) return null;
+
+  const { frame, raster, scale, xOff, zOff, maskW, maskH, cx, cy, rotation } = layout;
+  const labelH = clamp(params.embossHeight ?? 7, 3, 18);
   const { d0, d1 } = labelOffsets(params);
   const positions = [];
   const indices = [];
-  const maskW = raster.width;
-  const maskH = raster.height;
 
   const simplifyTol = Math.max(0.1, maskW / 1400);
   const smoothPasses = labelH <= 8 ? 4 : labelH <= 14 ? 3 : 2;
@@ -338,7 +382,7 @@ export function buildEmbossText(meta, params) {
     smoothPasses,
   );
 
-  extrudeTextShapeGroups(positions, indices, frame, shapeGroups, xOff, zOff, scale, maskH, d0, d1, rotCx, rotCy, rotation);
+  extrudeTextShapeGroups(positions, indices, frame, shapeGroups, xOff, zOff, scale, maskH, d0, d1, cx, cy, rotation);
   return positions.length ? { positions, indices } : null;
 }
 
@@ -860,15 +904,21 @@ export function measureDecorArt(meta, params) {
   const hasText = !!params.embossText?.trim() && !params.embossSvgEnabled;
 
   if (hasText) {
-    const labelH = clamp(params.embossHeight ?? 7, 3, 18);
-    const raster = rasterTextMask(params.embossText.trim(), params.embossFont || "inter");
-    if (!raster?.mask?.length) return null;
-    const maxW = Math.min(frame.faceW * 0.62, 56);
-    const scale = Math.min(labelH / raster.height, maxW / raster.width);
-    if (!Number.isFinite(scale) || scale <= 0) return null;
-    const artW = raster.width * scale;
-    const { xOff, zOff } = decorPlacementOffsets(params, frame, artW, labelH);
-    return { frame, kind: "text", rotation: params.decorRotation ?? 0, ...decorArtRect(frame, xOff, zOff, artW, labelH) };
+    const layout = computeTextArtLayout(meta, params);
+    if (!layout) return null;
+    return {
+      frame: layout.frame,
+      kind: "text",
+      rotation: layout.rotation,
+      left: layout.left,
+      right: layout.right,
+      bottom: layout.bottom,
+      top: layout.top,
+      cx: layout.cx,
+      cy: layout.cy,
+      artW: layout.right - layout.left,
+      artH: layout.top - layout.bottom,
+    };
   }
 
   if (hasTrace && traceData?.width && traceData?.height) {
