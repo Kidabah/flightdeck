@@ -19,12 +19,12 @@ import {
 
 
 
-const MAX_TRACE_PX = 1280;
-const SVG_RASTER_PX = 1280;
+const MAX_TRACE_PX = 4096;
+const SVG_RASTER_PX = 4096;
 
-export const MAX_TRACE_RECTS = 2500;
+export const MAX_TRACE_RECTS = 50000;
 
-export const MAX_TRACE_POLYGONS = 240;
+export const MAX_TRACE_POLYGONS = 600;
 
 
 
@@ -363,9 +363,155 @@ function shouldFallbackOutline(rawPaths, strokePaths, tw) {
 
 function ensurePrintableWidth(mask, width, height, targetMinPx) {
   let out = mask;
-  const passes = Math.min(3, Math.max(0, Math.ceil(targetMinPx / 4) - 1));
+  const passes = Math.min(1, Math.max(0, Math.ceil(targetMinPx / 16) - 2));
   for (let i = 0; i < passes; i++) out = dilateMask(out, width, height);
   return out;
+}
+
+function traceQualityParams(tw, options = {}) {
+  const smoothPasses = options.smoothPasses ?? 5;
+  const simplifyTol = Math.max(0.1, tw / 1400);
+  return { smoothPasses, simplifyTol, fbTol: Math.max(0.12, tw / 1200) };
+}
+
+function isBackgroundPixel(r, g, b, a, lum, threshold) {
+  if (a < 16) return true;
+  const bgCutoff = clamp(252 - threshold * 0.55, 170, 252);
+  return lum < bgCutoff ? false : true;
+}
+
+function quantizeInkColor(r, g, b) {
+  const step = 28;
+  return `${Math.round(r / step) * step},${Math.round(g / step) * step},${Math.round(b / step) * step}`;
+}
+
+function collectInkColorLayers(data, width, height, threshold, invert, blur) {
+  const buckets = new Map();
+  const minPixels = Math.max(80, Math.round((width * height) / 25000));
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      const a = data[i + 3];
+      const lum = blur ? blur[y * width + x] : r * 0.299 + g * 0.587 + b * 0.114;
+      let bg = isBackgroundPixel(r, g, b, a, lum, threshold);
+      if (invert) bg = !bg;
+      if (bg) continue;
+      const key = quantizeInkColor(r, g, b);
+      buckets.set(key, (buckets.get(key) || 0) + 1);
+    }
+  }
+  const layers = [...buckets.entries()]
+    .filter(([, count]) => count >= minPixels)
+    .sort((a, b) => b[1] - a[1]);
+  return layers.length >= 2 ? layers.map(([key]) => key) : null;
+}
+
+function maskForInkColor(data, width, height, colorKey, threshold, invert, blur) {
+  const [tr, tg, tb] = colorKey.split(",").map(Number);
+  const tol = 40;
+  const mask = new Uint8Array(width * height);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      const a = data[i + 3];
+      const lum = blur ? blur[y * width + x] : r * 0.299 + g * 0.587 + b * 0.114;
+      let bg = isBackgroundPixel(r, g, b, a, lum, threshold);
+      if (invert) bg = !bg;
+      if (bg) continue;
+      if (Math.abs(r - tr) <= tol && Math.abs(g - tg) <= tol && Math.abs(b - tb) <= tol) {
+        mask[y * width + x] = 1;
+      }
+    }
+  }
+  return openMask(mask, width, height);
+}
+
+function traceColorLayerGroups(data, width, height, tw, th, ox, oy, threshold, invert, blur, options, quality) {
+  const colorLayers = collectInkColorLayers(data, width, height, threshold, invert, blur);
+  if (!colorLayers || colorLayers.length < 2) return null;
+
+  const allGroups = [];
+  const combined = new Uint8Array(tw * th);
+  for (const colorKey of colorLayers) {
+    let layerMask = maskForInkColor(data, width, height, colorKey, threshold, invert, blur);
+    if (options.strengthen) layerMask = closeMask(layerMask, width, height);
+    const layerCrop = cropMask(layerMask, width, height);
+    if (!layerCrop) continue;
+    const lm = layerCrop.mask;
+    const lw = layerCrop.width;
+    const lh = layerCrop.height;
+    for (let y = 0; y < lh; y++) {
+      for (let x = 0; x < lw; x++) {
+        if (!lm[y * lw + x]) continue;
+        const gx = layerCrop.ox - ox + x;
+        const gy = layerCrop.oy - oy + y;
+        if (gx >= 0 && gy >= 0 && gx < tw && gy < th) combined[gy * tw + gx] = 1;
+      }
+    }
+    let polys = maskToPolygons(lm, lw, lh);
+    let groups = prepareShapeGroups(groupPolygonsWithHoles(polys), quality.simplifyTol, quality.smoothPasses);
+    const ds = downsampleUntilComplexity(lm, lw, lh, groups, 1, quality.simplifyTol, quality.smoothPasses);
+    groups = ds.groups.map(({ outer, holes }) => ({
+      outer: outer.map(([px, py]) => [px + layerCrop.ox - ox, py + layerCrop.oy - oy]),
+      holes: holes.map((hole) => hole.map(([px, py]) => [px + layerCrop.ox - ox, py + layerCrop.oy - oy])),
+    }));
+    allGroups.push(...groups);
+  }
+  if (allGroups.length < 2) return null;
+  return { shapeGroups: allGroups, combined, colorLayerCount: colorLayers.length };
+}
+
+function finishSilhouetteTrace(workMask, tw, th, ox, oy, shapeGroups, simplifyFactor, width, height, extra = {}) {
+  const rects = maskToRuns(workMask, tw, th);
+  const svg = polygonsToSvg(shapeGroups, tw, th);
+  return {
+    rects,
+    mask: workMask.slice(),
+    polygons: [],
+    shapeGroups,
+    strokePaths: [],
+    width: tw,
+    height: th,
+    cropOx: ox,
+    cropOy: oy,
+    svg,
+    rectCount: rects.length,
+    polygonCount: shapeGroups.length,
+    simplified: simplifyFactor > 1,
+    simplifyFactor,
+    tooComplex: shapeGroups.length > MAX_TRACE_POLYGONS,
+    mode: "silhouette",
+    tracePx: `${width}×${height}`,
+    ...extra,
+  };
+}
+
+function downsampleUntilComplexity(workMask, tw, th, shapeGroups, simplifyFactor, simplifyTol, smoothPasses) {
+  let mask = workMask;
+  let w = tw;
+  let h = th;
+  let factor = simplifyFactor;
+  let groups = shapeGroups;
+  let tol = simplifyTol;
+  let passes = smoothPasses;
+  while (groups.length > MAX_TRACE_POLYGONS && factor < 8) {
+    const ds = downsampleMask(mask, w, h);
+    mask = ds.mask;
+    w = ds.width;
+    h = ds.height;
+    factor *= 2;
+    tol *= 1.08;
+    passes = Math.max(3, passes - 1);
+    const polygons = maskToPolygons(mask, w, h);
+    groups = prepareShapeGroups(groupPolygonsWithHoles(polygons), tol, passes);
+  }
+  return { mask, w, h, factor, groups, tol, passes };
 }
 
 
@@ -486,30 +632,21 @@ function dilateMask(mask, width, height) {
 
 
 
-function scaleCanvasToFit(source, maxPx) {
-
+function scaleCanvasToMaxPx(source, maxPx) {
   const w = source.width;
-
   const h = source.height;
-
-  const scale = Math.min(1, maxPx / Math.max(w, h));
-
+  if (w <= 0 || h <= 0) return source;
+  const scale = maxPx / Math.max(w, h);
   const tw = Math.max(1, Math.round(w * scale));
-
   const th = Math.max(1, Math.round(h * scale));
-
   const canvas = document.createElement("canvas");
-
   canvas.width = tw;
-
   canvas.height = th;
-
   const ctx = canvas.getContext("2d");
-
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
   ctx.drawImage(source, 0, 0, tw, th);
-
   return canvas;
-
 }
 
 /** Ensure SVG has explicit dimensions, then rasterize for reliable tracing. */
@@ -538,18 +675,21 @@ export function rasterizeSvgToCanvas(svgText, maxPx = SVG_RASTER_PX) {
     img.onload = () => {
       const iw = img.naturalWidth || img.width || maxPx;
       const ih = img.naturalHeight || img.height || maxPx;
-      const hiScale = Math.min(2, maxPx / Math.max(iw, ih));
-      const hiW = Math.max(1, Math.round(iw * hiScale));
-      const hiH = Math.max(1, Math.round(ih * hiScale));
+      const targetScale = maxPx / Math.max(iw, ih);
+      const ss = 2;
+      const hiW = Math.max(1, Math.round(iw * targetScale * ss));
+      const hiH = Math.max(1, Math.round(ih * targetScale * ss));
       const hiCanvas = document.createElement("canvas");
       hiCanvas.width = hiW;
       hiCanvas.height = hiH;
       const hiCtx = hiCanvas.getContext("2d");
       hiCtx.fillStyle = "#ffffff";
       hiCtx.fillRect(0, 0, hiW, hiH);
+      hiCtx.imageSmoothingEnabled = true;
+      hiCtx.imageSmoothingQuality = "high";
       hiCtx.drawImage(img, 0, 0, hiW, hiH);
       URL.revokeObjectURL(url);
-      resolve(scaleCanvasToFit(hiCanvas, maxPx));
+      resolve(scaleCanvasToMaxPx(hiCanvas, maxPx));
     };
     img.onerror = () => {
       URL.revokeObjectURL(url);
@@ -576,7 +716,7 @@ export function loadImageFromDataUrl(dataUrl) {
     }
     const img = new Image();
     img.onload = () => {
-      const scaled = scaleCanvasToFit(img, MAX_TRACE_PX);
+      const scaled = scaleCanvasToMaxPx(img, MAX_TRACE_PX);
       resolve({
         canvas: scaled,
         width: scaled.width,
@@ -609,7 +749,7 @@ export function loadImageFromFile(file) {
 
     img.onload = () => {
 
-      const scaled = scaleCanvasToFit(img, MAX_TRACE_PX);
+      const scaled = scaleCanvasToMaxPx(img, MAX_TRACE_PX);
 
       URL.revokeObjectURL(url);
 
@@ -677,10 +817,12 @@ export function traceCanvas(canvas, options = {}) {
   let mask = openMask(ink, width, height);
   if (mode === "silhouette") {
     if (options.strengthen) {
-      mask = dilateMask(mask, width, height);
+      mask = closeMask(mask, width, height);
     }
-    const minFeaturePx = Math.max(6, Math.round(height / 100));
-    mask = ensurePrintableWidth(mask, width, height, minFeaturePx);
+    if (options.printableWidth !== false) {
+      const minFeaturePx = Math.max(4, Math.round(height / 200));
+      mask = ensurePrintableWidth(mask, width, height, minFeaturePx);
+    }
   }
 
 
@@ -701,70 +843,69 @@ export function traceCanvas(canvas, options = {}) {
 
   let rects = maskToRuns(workMask, tw, th);
 
+  const quality = traceQualityParams(tw, options);
 
-
-  while (rects.length > MAX_TRACE_RECTS && simplifyFactor < 16) {
-
-    const ds = downsampleMask(workMask, tw, th);
-
-    workMask = ds.mask;
-
-    tw = ds.width;
-
-    th = ds.height;
-
-    simplifyFactor *= 2;
-
-    rects = maskToRuns(workMask, tw, th);
-
+  if (options.colorSeparation !== false) {
+    const colorTrace = traceColorLayerGroups(data, width, height, tw, th, ox, oy, threshold, invert, blur, options, quality);
+    if (colorTrace) {
+      let shapeGroups = colorTrace.shapeGroups;
+      let combined = colorTrace.combined;
+      let sf = simplifyFactor;
+      if (shapeGroups.length > MAX_TRACE_POLYGONS) {
+        const ds = downsampleUntilComplexity(combined, tw, th, shapeGroups, sf, quality.simplifyTol, quality.smoothPasses);
+        combined = ds.mask;
+        tw = ds.w;
+        th = ds.h;
+        sf = ds.factor;
+        shapeGroups = ds.groups;
+      }
+      return finishSilhouetteTrace(combined, tw, th, ox, oy, shapeGroups, sf, width, height, {
+        colorLayers: colorTrace.colorLayerCount,
+      });
+    }
   }
 
-
-
   if (mode === "outline") {
-    const simplifyTol = Math.max(0.22, tw / 520);
-    const smoothPasses = 4;
+    const simplifyTol = quality.simplifyTol;
+    const smoothPasses = quality.smoothPasses;
     let rawPaths = outlineCenterlinePaths(workMask, tw, th);
     let strokePaths = prepareStrokePaths(rawPaths, simplifyTol, smoothPasses);
 
     // Edge-detected / double-line art produces dozens of ring centerlines — use silhouette instead.
     const outlineFallback = shouldFallbackOutline(rawPaths, strokePaths, tw);
     if (outlineFallback) {
-      workMask = ensurePrintableWidth(workMask, tw, th, Math.max(6, Math.round(th / 100)));
-      const fbTol = Math.max(0.28, tw / 480);
-      const fbPasses = options.smoothPasses ?? 3;
+      const colorTrace = traceColorLayerGroups(data, width, height, tw, th, ox, oy, threshold, invert, blur, options, quality);
+      if (colorTrace) {
+        let shapeGroups = colorTrace.shapeGroups;
+        let combined = colorTrace.combined;
+        let sf = simplifyFactor;
+        if (shapeGroups.length > MAX_TRACE_POLYGONS) {
+          const ds = downsampleUntilComplexity(combined, tw, th, shapeGroups, sf, quality.simplifyTol, quality.smoothPasses);
+          combined = ds.mask;
+          tw = ds.w;
+          th = ds.h;
+          sf = ds.factor;
+          shapeGroups = ds.groups;
+        }
+        return finishSilhouetteTrace(combined, tw, th, ox, oy, shapeGroups, sf, width, height, {
+          outlineFallback: true,
+          colorLayers: colorTrace.colorLayerCount,
+        });
+      }
+      const fbTol = quality.fbTol;
+      const fbPasses = quality.smoothPasses;
       let polygons = maskToPolygons(workMask, tw, th);
       let shapeGroups = prepareShapeGroups(groupPolygonsWithHoles(polygons), fbTol, fbPasses);
-      while (shapeGroups.length > MAX_TRACE_POLYGONS && simplifyFactor < 16) {
-        const ds = downsampleMask(workMask, tw, th);
-        workMask = ds.mask;
-        tw = ds.width;
-        th = ds.height;
-        simplifyFactor *= 2;
-        rects = maskToRuns(workMask, tw, th);
-        polygons = maskToPolygons(workMask, tw, th);
-        shapeGroups = prepareShapeGroups(groupPolygonsWithHoles(polygons), fbTol * 1.1, Math.max(2, fbPasses - 1));
-      }
-      const svg = polygonsToSvg(shapeGroups, tw, th);
-      return {
-        rects,
-        mask: workMask.slice(),
-        polygons,
-        shapeGroups,
-        strokePaths: [],
-        width: tw,
-        height: th,
-        cropOx: ox,
-        cropOy: oy,
-        svg,
-        rectCount: rects.length,
-        polygonCount: shapeGroups.length,
-        simplified: simplifyFactor > 1,
-        simplifyFactor,
-        tooComplex: shapeGroups.length > MAX_TRACE_POLYGONS,
-        mode: "silhouette",
+      const ds = downsampleUntilComplexity(workMask, tw, th, shapeGroups, simplifyFactor, fbTol, fbPasses);
+      workMask = ds.mask;
+      tw = ds.w;
+      th = ds.h;
+      simplifyFactor = ds.factor;
+      shapeGroups = ds.groups;
+      return finishSilhouetteTrace(workMask, tw, th, ox, oy, shapeGroups, simplifyFactor, width, height, {
         outlineFallback: true,
-      };
+        polygons: maskToPolygons(workMask, tw, th),
+      });
     }
 
     while (strokePaths.length > MAX_TRACE_POLYGONS && simplifyFactor < 16) {
@@ -803,42 +944,20 @@ export function traceCanvas(canvas, options = {}) {
     };
   }
 
-  const simplifyTol = Math.max(0.28, tw / 480);
-  const smoothPasses = options.smoothPasses ?? 3;
   let polygons = maskToPolygons(workMask, tw, th);
-  let shapeGroups = prepareShapeGroups(groupPolygonsWithHoles(polygons), simplifyTol, smoothPasses);
+  let shapeGroups = prepareShapeGroups(groupPolygonsWithHoles(polygons), quality.simplifyTol, quality.smoothPasses);
 
-  if (shapeGroups.length > MAX_TRACE_POLYGONS) {
-    const ds = downsampleMask(workMask, tw, th);
-    workMask = ds.mask;
-    tw = ds.width;
-    th = ds.height;
-    simplifyFactor *= 2;
-    rects = maskToRuns(workMask, tw, th);
-    polygons = maskToPolygons(workMask, tw, th);
-    shapeGroups = prepareShapeGroups(groupPolygonsWithHoles(polygons), simplifyTol * 1.1, Math.max(2, smoothPasses - 1));
-  }
+  const ds = downsampleUntilComplexity(workMask, tw, th, shapeGroups, simplifyFactor, quality.simplifyTol, quality.smoothPasses);
+  workMask = ds.mask;
+  tw = ds.w;
+  th = ds.h;
+  simplifyFactor = ds.factor;
+  shapeGroups = ds.groups;
 
-  const svg = polygonsToSvg(shapeGroups, tw, th);
-
-  return {
-    rects,
-    mask: workMask.slice(),
-    polygons,
-    shapeGroups,
-    strokePaths: [],
-    width: tw,
-    height: th,
-    cropOx: ox,
-    cropOy: oy,
-    svg,
-    rectCount: rects.length,
-    polygonCount: shapeGroups.length,
-    simplified: simplifyFactor > 1,
-    simplifyFactor,
-    tooComplex: shapeGroups.length > MAX_TRACE_POLYGONS,
+  return finishSilhouetteTrace(workMask, tw, th, ox, oy, shapeGroups, simplifyFactor, width, height, {
+    polygons: maskToPolygons(workMask, tw, th),
     mode,
-  };
+  });
 
 }
 

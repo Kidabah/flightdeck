@@ -890,6 +890,10 @@ function updateTraceUi() {
   if (traceLastResult.outlineFallback) {
     msg = `${count} island${count === 1 ? "" : "s"} · silhouette (auto — this art is double-edge, not single stroke)`;
   }
+  if (traceLastResult.colorLayers >= 2) {
+    msg = `${count} island${count === 1 ? "" : "s"} · ${traceLastResult.colorLayers} colour layers`;
+  }
+  if (traceLastResult.tracePx) msg += ` · ${traceLastResult.tracePx}px`;
   if (traceLastResult.simplified) msg += " · auto-simplified for print";
   if (traceLastResult.tooComplex) {
     msg = `Too detailed — raise threshold or use Silhouette (max ${MAX_TRACE_POLYGONS} islands)`;
@@ -977,7 +981,7 @@ async function importSvgAsTrace(svgText, { fileName = "" } = {}) {
     invert: state.traceInvert,
     mode,
     strengthen: true,
-    smoothPasses: 4,
+    smoothPasses: 5,
   });
   traceLastSvg = traceLastResult.svg || "";
   const preview = document.getElementById("trace-preview");

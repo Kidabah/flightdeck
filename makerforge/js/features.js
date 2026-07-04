@@ -384,9 +384,12 @@ export function buildEmbossBitmap(meta, params, bitmap) {
     return null;
   }
 
-  // Art smaller than 20 mm needs extra Chaikin passes so the print doesn't look chunky.
-  const smoothPasses = artH <= 12 ? 4 : artH <= 20 ? 3 : 2;
-  const simplifyTol = Math.max(0.28, maskW / 480);
+  // High-res traces already carry smoothed shapeGroups — only rebuild from mask when missing.
+  const hiRes = maskW >= 1800;
+  const smoothPasses = bitmap.shapeGroups?.length
+    ? 0
+    : hiRes ? 5 : artH <= 12 ? 4 : artH <= 20 ? 3 : 2;
+  const simplifyTol = hiRes ? Math.max(0.1, maskW / 1400) : Math.max(0.28, maskW / 480);
   const shapeGroups = bitmap.shapeGroups?.length
     ? bitmap.shapeGroups
     : prepareShapeGroups(

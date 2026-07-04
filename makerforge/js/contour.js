@@ -74,7 +74,7 @@ export function chaikinSmooth(points, iterations = 2) {
       );
     }
     pts = next;
-    if (pts.length > 360) break;
+    if (pts.length > 1200) break;
   }
   if (!closed) return pts;
   pts.push(pts[0]);
@@ -86,11 +86,11 @@ export function chaikinSmooth(points, iterations = 2) {
  */
 export function prepareContourRing(poly, simplifyTol = 1, round = true, smoothPasses = 1) {
   const light = simplifyPolygon(poly, simplifyTol);
-  const passes = Math.max(0, Math.min(4, smoothPasses));
+  const passes = Math.max(0, Math.min(6, smoothPasses));
   if (!round || passes === 0) return light;
   const smooth = chaikinSmooth(light, passes);
-  const budget = passes >= 4 ? 560 : passes >= 3 ? 480 : passes >= 2 ? 320 : 220;
-  if (smooth.length > budget) return simplifyPolygon(smooth, simplifyTol * 0.35);
+  const budget = passes >= 5 ? 1800 : passes >= 4 ? 1400 : passes >= 3 ? 900 : passes >= 2 ? 560 : 320;
+  if (smooth.length > budget) return simplifyPolygon(smooth, simplifyTol * 0.22);
   return smooth;
 }
 
@@ -257,7 +257,7 @@ export function shapeGroupsToStrokePaths(groups) {
 
 /** Smooth boundary loops for line-art emboss / SVG export. */
 export function prepareStrokePaths(paths, simplifyTol = 1, smoothPasses = 2) {
-  const passes = Math.max(1, Math.min(4, smoothPasses));
+  const passes = Math.max(1, Math.min(6, smoothPasses));
   return paths.map((path) => prepareContourRing(path, simplifyTol, true, passes));
 }
 
