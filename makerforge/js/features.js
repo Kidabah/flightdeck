@@ -264,16 +264,16 @@ function appendBox(outPos, outIdx, x0, y0, z0, x1, y1, z1) {
   for (const f of faces) pushQuad(outPos, outIdx, pts[f[0]], pts[f[1]], pts[f[2]], pts[f[3]]);
 }
 
-/** Rasterise label text to merged rects (browser canvas). */
-function rasterTextRects(text, fontId, fontSizePx = 96) {
+/** Rasterise label text to a high-res alpha mask (stencil contours, not pixel blocks). */
+function rasterTextMask(text, fontId, fontSizePx = 640) {
   if (typeof document === "undefined") return null;
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
   const font = embossFontStack(fontId, fontSizePx);
   ctx.font = font;
-  const pad = Math.ceil(fontSizePx * 0.18);
+  const pad = Math.ceil(fontSizePx * 0.22);
   const width = Math.ceil(ctx.measureText(text).width + pad * 2);
-  const height = Math.ceil(fontSizePx * 1.12);
+  const height = Math.ceil(fontSizePx * 1.14);
   canvas.width = width;
   canvas.height = height;
   ctx.font = font;
@@ -281,56 +281,61 @@ function rasterTextRects(text, fontId, fontSizePx = 96) {
   ctx.textBaseline = "alphabetic";
   ctx.fillText(text, pad, fontSizePx * 0.9);
   const data = ctx.getImageData(0, 0, width, height).data;
-  const runs = [];
-  for (let y = 0; y < height; y++) {
-    let start = -1;
-    for (let x = 0; x <= width; x++) {
-      const on = x < width && data[(y * width + x) * 4 + 3] > 64;
-      if (on && start < 0) start = x;
-      if (!on && start >= 0) {
-        runs.push({ x: start, y, w: x - start, h: 1 });
-        start = -1;
-      }
-    }
+  const mask = new Uint8Array(width * height);
+  for (let i = 0; i < width * height; i++) {
+    if (data[i * 4 + 3] > 64) mask[i] = 1;
   }
-  runs.sort((a, b) => a.x - b.x || a.y - b.y);
-  const merged = [];
-  for (const r of runs) {
-    const prev = merged[merged.length - 1];
-    if (prev && prev.x === r.x && prev.w === r.w && prev.y + prev.h === r.y) {
-      prev.h += 1;
-    } else {
-      merged.push({ x: r.x, y: r.y, w: r.w, h: r.h });
-    }
-  }
-  return { rects: merged, width, height };
+  return { mask, width, height };
 }
 
-/** Embossed sans-serif label on chosen face — real letter shapes from canvas raster. */
+/** @deprecated bounds helper — prefer rasterTextMask dimensions. */
+function rasterTextRects(text, fontId, fontSizePx = 96) {
+  const raster = rasterTextMask(text, fontId, fontSizePx);
+  if (!raster) return null;
+  return { rects: [{ x: 0, y: 0, w: raster.width, h: raster.height }], width: raster.width, height: raster.height };
+}
+
+function extrudeTextShapeGroups(positions, indices, frame, shapeGroups, xOff, zOff, scale, maskH, d0, d1) {
+  for (const group of shapeGroups) {
+    const remapped = {
+      outer: group.outer.map(([px, py]) => [xOff + px * scale, zOff + (maskH - py) * scale]),
+      holes: group.holes.map((h) => h.map(([px, py]) => [xOff + px * scale, zOff + (maskH - py) * scale])),
+    };
+    extrudeGroupOnFace(positions, indices, frame, remapped, d0, d1);
+  }
+}
+
+/** Embossed label text — smooth stencil silhouettes (one solid per letter). */
 export function buildEmbossText(meta, params) {
   const text = String(params.embossText || "").trim();
   if (!text) return null;
   const labelH = clamp(params.embossHeight ?? 7, 3, 18);
-  const raster = rasterTextRects(text, params.embossFont || "inter");
-  if (!raster?.rects.length) return null;
+  const raster = rasterTextMask(text, params.embossFont || "inter");
+  if (!raster?.mask?.length) return null;
 
   const frame = getEmbossFaceFrame(meta, params.embossFace || "front");
-  const { d0, d1 } = labelOffsets(params);
-  const scale = labelH / raster.height;
+  const maxW = Math.min(frame.faceW * 0.62, 56);
+  const scale = Math.min(labelH / raster.height, maxW / raster.width);
+  if (!Number.isFinite(scale) || scale <= 0) return null;
+
   const artW = raster.width * scale;
   const { xOff, zOff } = decorPlacementOffsets(params, frame, artW, labelH);
+  const { d0, d1 } = labelOffsets(params);
   const positions = [];
   const indices = [];
+  const maskW = raster.width;
+  const maskH = raster.height;
 
-  for (const r of raster.rects) {
-    const ax = xOff + r.x * scale;
-    const bx = xOff + (r.x + r.w) * scale;
-    const z1 = zOff + (raster.height - r.y) * scale;
-    const z0 = z1 - r.h * scale;
-    boxOnFace(positions, indices, frame, ax, bx, z0, z1, d0, d1);
-  }
+  const simplifyTol = Math.max(0.1, maskW / 1400);
+  const smoothPasses = labelH <= 8 ? 4 : labelH <= 14 ? 3 : 2;
+  const shapeGroups = prepareShapeGroups(
+    groupPolygonsWithHoles(maskToPolygons(raster.mask, maskW, maskH)),
+    simplifyTol,
+    smoothPasses,
+  );
 
-  return { positions, indices };
+  extrudeTextShapeGroups(positions, indices, frame, shapeGroups, xOff, zOff, scale, maskH, d0, d1);
+  return positions.length ? { positions, indices } : null;
 }
 
 /** Solid silhouette / traced bitmap emboss on chosen face. */
@@ -798,9 +803,11 @@ export function measureDecorArt(meta, params) {
 
   if (hasText) {
     const labelH = clamp(params.embossHeight ?? 7, 3, 18);
-    const raster = rasterTextRects(params.embossText.trim(), params.embossFont || "inter");
-    if (!raster?.rects.length) return null;
-    const scale = labelH / raster.height;
+    const raster = rasterTextMask(params.embossText.trim(), params.embossFont || "inter");
+    if (!raster?.mask?.length) return null;
+    const maxW = Math.min(frame.faceW * 0.62, 56);
+    const scale = Math.min(labelH / raster.height, maxW / raster.width);
+    if (!Number.isFinite(scale) || scale <= 0) return null;
     const artW = raster.width * scale;
     const { xOff, zOff } = decorPlacementOffsets(params, frame, artW, labelH);
     return { frame, kind: "text", ...decorArtRect(frame, xOff, zOff, artW, labelH) };

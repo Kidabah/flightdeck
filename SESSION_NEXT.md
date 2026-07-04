@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `3c58bf0` — MakerDeck Art tab with placement handles
-- Refresh cachebust currently: MakerDeck app.js?v=41 / style.css?v=11
+- Latest commit: (pending push) — MakerDeck stencil text emboss
+- Refresh cachebust currently: MakerDeck app.js?v=42 / style.css?v=11
+
+### 2026-07-04 fix (MakerDeck stencil text emboss)
+
+**Text no longer built from pixel rectangles** (`features.js`, `index.html`)
+
+- Emboss text now uses high-res canvas mask → contour polygons → smooth extrusion (same pipeline as traced images).
+- Each letter is a separate solid with clean edges — no non-manifold stair-steps; suitable for Bambu slicer colour painting per letter.
+- Cachebust app.js?v=42. Hard refresh required.
 
 ### 2026-07-04 feature (MakerDeck Art tab + placement handles)
 
