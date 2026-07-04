@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending push) — MakerDeck top/lid stencil placement
+- Latest commit: `d1fd023` — MakerDeck top/lid stencil placement
 - Refresh cachebust currently: MakerDeck app.js?v=43 / style.css?v=11
 
 ### 2026-07-04 feature (MakerDeck art on top / lid)
