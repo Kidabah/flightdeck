@@ -2,7 +2,15 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `69319a9` — served at `/makerdeck/` on Flightdeck
+- Latest commit: _(pending)_ — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Fat quarters: single-colour export
+
+**What changed:** **Fat quarters** preset dividers match **box colour** in preview. **3MF export** merges Insert into Body (one part, one extruder) for single-filament prints.
+
+**Files:** `js/app.js`, `index.html` — cache-bust `app.js?v=81`
+
+**Deploy:** Pi `git pull`. Hard refresh. Re-export 3MF.
 
 ### 2026-07-05 — Fat quarters preset: flat H-series tray
 

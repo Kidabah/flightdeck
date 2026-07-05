@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=80";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh } from "./features.js?v=80";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=81";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh, mergeMeshes } from "./features.js?v=81";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=73";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=73";
 import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=73";
@@ -424,10 +424,18 @@ function collectColoredExportParts() {
 
   const bodyMesh = separateText ? shell : buildWatertightExportMesh(meshCache, meshCache.meta, params);
   const bodyClean = sanitizeMeshForStl(bodyMesh);
+  const mergeInsertIntoBody = state.shape === "fatQuarters" && state.insertEnabled && insertCache;
   if (bodyClean?.indices?.length) {
+    let exportBody = bodyClean;
+    if (mergeInsertIntoBody) {
+      const insertClean = sanitizeMeshForStl(insertCache);
+      if (insertClean?.indices?.length) {
+        exportBody = mergeMeshes(bodyClean, insertClean);
+      }
+    }
     parts.push({
       name: "Body",
-      mesh: bodyClean,
+      mesh: exportBody,
       color: state.boxColor || "#38bdf8",
       extruder: extruder++,
     });
@@ -458,7 +466,7 @@ function collectColoredExportParts() {
     }
   }
 
-  if (state.insertEnabled && insertCache) {
+  if (state.insertEnabled && insertCache && !mergeInsertIntoBody) {
     const insertClean = sanitizeMeshForStl(insertCache);
     if (insertClean?.indices?.length) {
       parts.push({
@@ -714,10 +722,8 @@ function setLidPreviewY(y) {
 }
 
 function applyInsertPreviewColor() {
-  const shelfHex = state.shape === "fatQuarters" ? "#fbbf24" : (state.boxColor || "#38bdf8");
-  insertMaterial.color.set(shelfHex);
+  insertMaterial.color.set(state.boxColor || "#38bdf8");
   applyFilamentMaterial(insertMaterial);
-  if (previewXRayOn) insertMaterial.color.setHex(0xfbbf24);
 }
 
 function applyBoxPreviewColor() {
@@ -798,7 +804,7 @@ function setPreviewXRayMode(on) {
     edgeLines.visible = on;
   }
   if (accentEdgeLines) accentEdgeLines.visible = on;
-  if (insertEdgeLines) insertEdgeLines.visible = state.shape === "fatQuarters" ? !on : on;
+  if (insertEdgeLines) insertEdgeLines.visible = on;
   if (labelEdgeLines) labelEdgeLines.visible = on;
   syncLidGuideLoops(lidMesh?.position.y ?? lidRestY(), lidMesh?.position.x ?? lidRestX());
 }
@@ -1295,13 +1301,6 @@ function rebuildMesh() {
     insertMesh.receiveShadow = false;
     insertMesh.renderOrder = 5;
     previewRoot.add(insertMesh);
-    if (state.shape === "fatQuarters") {
-      const insertEdges = new THREE.EdgesGeometry(insertGeom, 12);
-      insertEdgeLines = new THREE.LineSegments(insertEdges, edgeMaterial);
-      insertEdgeLines.renderOrder = 6;
-      insertEdgeLines.visible = !previewXRayOn;
-      previewRoot.add(insertEdgeLines);
-    }
   }
 
   if (nextLidMesh) {
