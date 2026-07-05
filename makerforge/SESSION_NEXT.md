@@ -2,7 +2,21 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `cbf8c1a` — served at `/makerdeck/` on Flightdeck
+- Latest commit: `16637fe` — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Live text art (no bounding box)
+
+**What changed:** Removed the misaligned viewport bounding box and draft/Apply workflow. Text edits go straight to the box mesh — type, adjust Size / Move / Rotation sliders, done.
+
+**Files:** `index.html`, `css/style.css`, `js/app.js`, `js/art-editor.js`
+
+- Removed `#art-overlay` handles and all overlay JS/CSS.
+- Removed **Apply to box** / **Cancel** — text updates live via debounced rebuild.
+- Added **Move left/right** and **Move up/down** sliders (`decorOffsetX/Y`).
+- Fixed text vanishing after apply: body preview now uses merged mesh when emboss is on a body face.
+- Cache-bust: `app.js?v=55`
+
+**Deploy:** `git pull` on Pi — static files only; hard refresh (`Ctrl+Shift+R`).
 
 ### 2026-07-04 fix (blank preview on Pi)
 

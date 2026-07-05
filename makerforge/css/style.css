@@ -636,45 +636,7 @@ input[type="range"] {
   background: rgba(148, 163, 184, 0.18);
 }
 
-.art-overlay {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 12;
-  overflow: hidden;
-}
-
-.art-overlay.hidden {
-  display: none;
-}
-
-.art-overlay-box {
-  position: absolute;
-  box-sizing: border-box;
-  border: 1.5px solid rgba(255, 255, 255, 0.92);
-  border-radius: 1px;
-  background: transparent;
-  pointer-events: none;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
-}
-
-.art-selection-frame {
-  position: absolute;
-  inset: 0;
-  pointer-events: auto;
-  cursor: move;
-  touch-action: none;
-}
-
-.art-box-frame {
-  position: absolute;
-  inset: 0;
-  pointer-events: auto;
-  cursor: move;
-  touch-action: none;
-}
-
-.art-apply-bar {
+.art-actions-bar {
   margin-top: 0.75rem;
   padding: 0.75rem;
   border-radius: 8px;
@@ -682,73 +644,10 @@ input[type="range"] {
   border: 1px solid rgba(125, 211, 252, 0.22);
 }
 
-.art-draft-status {
+.art-actions-bar .field-hint {
   margin: 0 0 0.65rem;
-  font-size: 0.82rem;
-  color: #94a3b8;
 }
 
-.art-draft-status.is-dirty {
-  color: #fbbf24;
-}
-
-.art-apply-actions {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.art-apply-actions .btn-primary {
-  flex: 1 1 8rem;
-}
-
-.art-handle {
-  position: absolute;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #fff;
-  border: 1px solid rgba(0, 0, 0, 0.4);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35);
-  pointer-events: auto;
-  touch-action: none;
-  z-index: 2;
-}
-
-.art-handle-nw { left: -6px; top: -6px; cursor: nwse-resize; }
-.art-handle-ne { right: -6px; top: -6px; cursor: nesw-resize; }
-.art-handle-sw { left: -6px; bottom: -6px; cursor: nesw-resize; }
-.art-handle-se { right: -6px; bottom: -6px; cursor: nwse-resize; }
-
-.art-handle-n { left: 50%; top: -6px; margin-left: -5px; cursor: ns-resize; }
-.art-handle-s { left: 50%; bottom: -6px; margin-left: -5px; cursor: ns-resize; }
-.art-handle-e { right: -6px; top: 50%; margin-top: -5px; cursor: ew-resize; }
-.art-handle-w { left: -6px; top: 50%; margin-top: -5px; cursor: ew-resize; }
-
-.art-handle-rotate {
-  left: 50%;
-  top: -34px;
-  margin-left: -8px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #fff;
-  border: 1px solid rgba(0, 0, 0, 0.4);
-  cursor: grab;
-  box-shadow: none;
-}
-
-.art-handle-rotate::before {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 100%;
-  width: 1px;
-  height: 18px;
-  background: rgba(255, 255, 255, 0.85);
-  transform: translateX(-50%);
-}
-
-.art-handle-rotate:active {
-  cursor: grabbing;
+.art-actions-bar .btn {
+  width: 100%;
 }

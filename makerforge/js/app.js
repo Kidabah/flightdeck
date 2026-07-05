@@ -1,27 +1,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsLid, shapeSupportsSlideLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, measureDecorArt, buildLabelEmboss, textEmbossSizeLimits } from "./features.js";
-import { rotateFacePoint } from "./decor.js";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits } from "./features.js";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js";
 import { meshToStl, downloadBlob, filenameFor } from "./stl.js";
-import {
-  appliedHasArt,
-  buildArtPreviewParams,
-  cancelArtDraft,
-  clearArtDraft,
-  commitArtDraft,
-  preferredEmbossFace,
-  draftHasContent,
-  ensureArtDraftFromState,
-  getArtDraft,
-  isArtDraftDirty,
-  loadTraceIntoArtDraft,
-  patchArtDraft,
-  resetArtDraft,
-  snapshotAppliedArt,
-  startBlankArtDraft,
-} from "./art-editor.js";
+import { appliedHasArt } from "./art-editor.js";
 
 const SESSION_KEY = "makerdeck-session-v1";
 let saveSessionTimer = null;
@@ -304,6 +287,18 @@ function attachLabelPreviewMesh(labelGeom, mat, params) {
   }
 }
 
+function mountDebossPreviewIfNeeded() {
+  if (!state.embossDeboss) return;
+  const params = buildParams();
+  if (state.embossFace === "lid" && lidCache?.labelMesh && lidMesh) {
+    const labelGeom = toBufferGeometry(THREE, lidCache.labelMesh);
+    attachLabelPreviewMesh(labelGeom, debossPreviewMaterial, params);
+  } else if (state.embossFace !== "lid" && meshCache?.labelMesh) {
+    const labelGeom = toBufferGeometry(THREE, meshCache.labelMesh);
+    attachLabelPreviewMesh(labelGeom, debossPreviewMaterial, params);
+  }
+}
+
 function disposeAccentPreview() {
   if (accentMesh) {
     previewRoot.remove(accentMesh);
@@ -474,7 +469,7 @@ function lidClosedX() {
 }
 
 function artUsesLidFace(params = null) {
-  const p = params || artPreviewParams();
+  const p = params || buildParams();
   return (p.embossFace || "front") === "lid";
 }
 
@@ -688,7 +683,6 @@ function rebuild() {
 }
 
 function resetToDefaultBox() {
-  clearArtDraft();
   clearEmbossTrace();
   state.embossText = "";
   state.embossSvgEnabled = false;
@@ -842,7 +836,9 @@ function syncUiFromState() {
   syncSliderUi("emboss-height", "embossHeight", { min: 3, max: 48, value: state.embossHeight, parseKind: "float" });
   syncSliderUi("trace-threshold", "traceThreshold", { min: 20, max: 235, value: state.traceThreshold });
   syncSliderUi("trace-size", "embossTraceSize", { min: 6, max: 40, value: state.embossTraceSize, parseKind: "float" });
-  clearArtDraft();
+  syncSliderUi("art-rotation", "decorRotation", { min: -180, max: 180, value: state.decorRotation ?? 0, parseKind: "float" });
+  syncSliderUi("art-offset-x", "decorOffsetX", { min: -40, max: 40, value: state.decorOffsetX ?? 0, parseKind: "float" });
+  syncSliderUi("art-offset-y", "decorOffsetY", { min: -40, max: 40, value: state.decorOffsetY ?? 0, parseKind: "float" });
   syncSliderUi("vase-diameter", "vaseDiameter", { min: 30, max: 220, value: state.vaseDiameter, parseKind: "float" });
   syncSliderUi("vase-height", "vaseHeight", { min: 20, max: 280, value: state.vaseHeight, parseKind: "float" });
   syncSliderUi("vase-wall", "vaseWall", { min: 1.0, max: 3, value: state.vaseWall, parseKind: "float" });
@@ -867,9 +863,6 @@ function syncUiFromState() {
 
 function rebuildMesh() {
   const params = buildParams();
-  if (isArtTabActive() && getArtDraft() && draftHasContent(getArtDraft()) && isArtDraftDirty()) {
-    params._artPreviewDraft = true;
-  }
 
   const nextCache = buildContainer(params);
   if (nextCache.meta.shape === "rect" && state.shape === "rounded") {
@@ -915,8 +908,9 @@ function rebuildMesh() {
   meshCache = nextCache;
   lidCache = nextLidCache;
 
-  const shellMesh = meshCache.shellMesh || meshCache;
-  const geom = toBufferGeometry(THREE, shellMesh);
+  const showEmbossOnBody = meshCache.labelMesh && state.embossFace !== "lid" && !state.embossDeboss;
+  const bodySource = showEmbossOnBody ? meshCache : (meshCache.shellMesh || meshCache);
+  const geom = toBufferGeometry(THREE, bodySource);
   bodyMesh = new THREE.Mesh(geom, material);
   bodyMesh.castShadow = true;
   bodyMesh.receiveShadow = true;
@@ -953,13 +947,7 @@ function rebuildMesh() {
     buildLidGuideLoops();
   }
 
-  if (useDraftArtPreview()) {
-    refreshArtPreviewLabel();
-  } else if (isArtTabActive()) {
-    disposeLabelPreview();
-  } else {
-    mountAppliedLabelPreview();
-  }
+  mountDebossPreviewIfNeeded();
 
   debossCutterCache = state.embossFace === "lid"
     ? (lidCache?.debossCutterMesh || null)
@@ -1276,12 +1264,8 @@ function setTab(tabId) {
     p.classList.toggle("active", on);
     p.hidden = !on;
   });
-  if (tabId === "art") {
-    ensureArtDraftActive();
-  }
   scheduleSaveSession();
   syncArtEditorUi();
-  scheduleArtPreviewRefresh(true);
 }
 
 function clearEmbossTrace() {
@@ -1377,7 +1361,6 @@ async function restoreAppHistory(index) {
 
   appHistoryIndex = index;
   appHistoryLock = false;
-  clearArtDraft();
   syncUiFromState();
   updateHistoryUi();
   rebuild();
@@ -1418,16 +1401,16 @@ function clearDecorFromBox() {
   if (!boxHasDecor()) return;
   traceJob++;
   clearEmbossTrace();
-  clearArtDraft();
   state.embossText = "";
   state.embossSvgEnabled = false;
   state.embossSvgText = "";
   state.decorRotation = 0;
+  state.decorOffsetX = 0;
+  state.decorOffsetY = 0;
   document.getElementById("emboss-text").value = "";
   document.getElementById("emboss-svg-enabled").checked = false;
   pushAppHistory();
   updateDecorUi();
-  if (isArtTabActive()) startBlankArtDraft(state);
   syncArtEditorUi();
   updateTraceUi();
   updateHistoryUi();
@@ -1440,93 +1423,26 @@ function isArtTabActive() {
   return tab?.classList.contains("active") && !tab.disabled;
 }
 
-function artPreviewParams() {
-  if (isArtTabActive()) {
-    ensureArtDraftActive();
-    return buildArtPreviewParams(state, buildParams());
-  }
-  return buildParams();
-}
+let artRebuildTimer = null;
 
-function ensureArtDraftActive() {
-  if (!isArtTabActive()) return null;
-  if (!getArtDraft()) {
-    if (appliedHasArt(state)) resetArtDraft(state);
-    else startBlankArtDraft(state);
-  }
-  return getArtDraft();
-}
-
-function useDraftArtPreview() {
-  if (!isArtTabActive()) return false;
-  const draft = ensureArtDraftActive();
-  return !!(draft && draftHasContent(draft) && isArtDraftDirty());
-}
-
-function shouldShowArtOverlay() {
-  if (!isArtTabActive() || !shapeSupportsDecor(decorUiShape()) || !meshCache) return false;
-  ensureArtDraftActive();
-  return !!measureDecorArt(meshCache.meta, artPreviewParams());
-}
-
-function scheduleArtPreviewRefresh(immediate = false) {
-  clearTimeout(artPreviewTimer);
-  const run = () => {
-    if (useDraftArtPreview()) {
-      refreshArtPreviewLabel();
-    } else if (isArtTabActive()) {
-      disposeLabelPreview();
-    } else {
-      mountAppliedLabelPreview();
-    }
-    updateArtOverlay();
-  };
+function scheduleArtRebuild(immediate = false) {
+  clearTimeout(artRebuildTimer);
+  const run = () => rebuild();
   if (immediate) {
     run();
     return;
   }
-  artPreviewTimer = setTimeout(run, 90);
+  artRebuildTimer = setTimeout(run, 120);
 }
-
-function refreshArtPreviewLabel() {
-  if (!meshCache || !useDraftArtPreview()) return;
-  disposeLabelPreview();
-  const params = artPreviewParams();
-  const labelData = buildLabelEmboss(meshCache.meta, params, params.embossSvgText || "", "emboss");
-  if (!labelData?.positions?.length) return;
-
-  const mat = params.embossDeboss ? debossPreviewMaterial : labelMaterial;
-  const labelGeom = toBufferGeometry(THREE, labelData);
-  attachLabelPreviewMesh(labelGeom, mat, params);
-}
-
-function mountAppliedLabelPreview() {
-  if (state.embossFace === "lid") {
-    if (state.embossDeboss && lidCache?.labelMesh && lidMesh) {
-      const labelGeom = toBufferGeometry(THREE, lidCache.labelMesh);
-      attachLabelPreviewMesh(labelGeom, debossPreviewMaterial, buildParams());
-    }
-    return;
-  }
-  if (!meshCache?.labelMesh) return;
-  const labelGeom = toBufferGeometry(THREE, meshCache.labelMesh);
-  const mat = state.embossDeboss ? debossPreviewMaterial : labelMaterial;
-  attachLabelPreviewMesh(labelGeom, mat, buildParams());
-}
-
-let artPreviewTimer = null;
 
 function syncArtSizeSlider() {
   if (!meshCache) return;
-  const params = artPreviewParams();
+  const params = buildParams();
   const face = params.embossFace || "front";
   const limits = textEmbossSizeLimits(meshCache.meta, face, params);
-  const draft = getArtDraft();
-  const height = draft?.height ?? state.embossHeight ?? 7;
+  const height = state.embossHeight ?? 7;
   const clamped = Math.min(limits.max, Math.max(limits.min, height));
-  if (draft && draft.height !== clamped) {
-    draft.height = clamped;
-  } else if (!draft && state.embossHeight !== clamped) {
+  if (state.embossHeight !== clamped) {
     state.embossHeight = clamped;
   }
   syncSliderUi("emboss-height", "embossHeight", {
@@ -1540,46 +1456,28 @@ function syncArtSizeSlider() {
 }
 
 function syncArtEditorUi() {
-  const draft = getArtDraft();
-  const src = draft || snapshotAppliedArt(state);
-  const status = document.getElementById("art-draft-status");
-  const applyBtn = document.getElementById("btn-art-apply");
-  const cancelBtn = document.getElementById("btn-art-cancel");
-  const hasContent = draft ? draftHasContent(draft) : appliedHasArt(state);
-  const dirty = isArtDraftDirty();
+  const hasContent = appliedHasArt(state) || !!state.embossText?.trim();
+  const traceOn = !!state.embossTraceEnabled;
 
-  if (status) {
-    status.textContent = !hasContent
-      ? "Type a word — it appears on the face with handles."
-      : dirty
-        ? "Drag the word or handles, then Apply."
-        : (src.face === "lid" ? "Applied to lid." : "Applied to box.");
-    status.classList.toggle("is-dirty", dirty && hasContent);
-  }
-  if (applyBtn) {
-    applyBtn.disabled = !hasContent || !dirty;
-    const face = src.face || "front";
-    applyBtn.textContent = face === "lid" ? "Apply to lid" : "Apply to box";
-  }
-  if (cancelBtn) cancelBtn.classList.toggle("hidden", !dirty);
-
-  document.getElementById("emboss-text").value = src.text || "";
-  document.getElementById("emboss-face").value = src.face || "front";
-  document.getElementById("emboss-font").value = src.font || "inter";
-  document.getElementById("emboss-deboss").checked = !!src.deboss;
+  document.getElementById("emboss-text").value = state.embossText || "";
+  document.getElementById("emboss-face").value = state.embossFace || "front";
+  document.getElementById("emboss-font").value = state.embossFont || "inter";
+  document.getElementById("emboss-deboss").checked = !!state.embossDeboss;
   syncEmbossFaceUi();
-  setArtSlider("emboss-height", src.height ?? 7);
-  setArtSlider("emboss-depth", src.depth ?? 0.7);
-  setArtSlider("art-rotation", Math.round((src.rotation ?? 0) * 10) / 10, "float");
-  setArtSlider("trace-size", src.traceSize ?? 16);
+  setArtSlider("emboss-height", state.embossHeight ?? 7);
+  setArtSlider("emboss-depth", state.embossDepth ?? 0.7);
+  setArtSlider("art-rotation", Math.round((state.decorRotation ?? 0) * 10) / 10, "float");
+  setArtSlider("art-offset-x", state.decorOffsetX ?? 0, "float");
+  setArtSlider("art-offset-y", state.decorOffsetY ?? 0, "float");
+  setArtSlider("trace-size", state.embossTraceSize ?? 16);
   updateEmbossTextPreviewStyle();
   updateEmbossDebossUi();
 
-  const traceOn = !!(draft ? draft.traceEnabled : state.embossTraceEnabled);
-  const textOn = !!(src.text?.trim());
   document.getElementById("field-emboss-height").classList.toggle("hidden", traceOn);
   document.getElementById("field-trace-size").classList.toggle("hidden", !traceOn);
   document.getElementById("field-art-rotation").classList.toggle("hidden", !hasContent);
+  document.getElementById("field-art-offset-x").classList.toggle("hidden", !hasContent);
+  document.getElementById("field-art-offset-y").classList.toggle("hidden", !hasContent);
   syncArtSizeSlider();
 }
 
@@ -1641,7 +1539,7 @@ function updateTraceUi() {
     document.getElementById("btn-trace-apply").disabled = true;
   }
   if (state.embossTraceEnabled && !traceLastResult.tooComplex) {
-    const face = getArtDraft()?.face ?? state.embossFace;
+    const face = state.embossFace;
     const faceLabel = EMBOSS_FACE_LABELS[face] || "front";
     msg += ` · ${faceLabel} face`;
   }
@@ -1764,22 +1662,22 @@ async function importSvgAsTrace(svgText, { fileName = "" } = {}) {
     throw new Error(`SVG too detailed to emboss (max ${MAX_TRACE_POLYGONS} paths).`);
   }
 
-  state.embossText = "";
-  document.getElementById("emboss-text").value = "";
+  if (!storeTraceOnBox(traceLastResult, { clearLabel: true, clearSvg: false })) {
+    throw new Error("Could not apply SVG to box.");
+  }
   state.embossSvgText = svgText;
   state.embossSvgEnabled = true;
   document.getElementById("emboss-svg-enabled").checked = true;
-  loadTraceIntoArtDraft(state, traceResultToEmbossRects(traceLastResult), { clearText: false });
-  patchArtDraft({ svgEnabled: true, svgText: svgText });
 
   const meta = document.getElementById("trace-meta");
   if (meta && fileName) {
-    meta.textContent = `SVG ${fileName} · drag handles on preview, then Apply`;
+    meta.textContent = `SVG ${fileName} applied to box.`;
   }
   updateDecorUi();
   syncArtEditorUi();
   updateTraceUi();
-  scheduleArtPreviewRefresh(true);
+  rebuild();
+  pushAppHistory();
 }
 
 function applyTraceToBox() {
@@ -1793,12 +1691,12 @@ function applyTraceToBox() {
     document.getElementById("trace-meta").textContent = "Pick a box, rounded, or pencil shape first.";
     return;
   }
-  loadTraceIntoArtDraft(state, traceResultToEmbossRects(traceLastResult));
-  document.getElementById("emboss-text").value = "";
+  if (!storeTraceOnBox(traceLastResult)) return;
+  rebuild();
+  pushAppHistory();
   updateDecorUi();
   syncArtEditorUi();
   updateTraceUi();
-  scheduleArtPreviewRefresh(true);
 }
 
 function updateDecorUi() {
@@ -1836,7 +1734,6 @@ function updateDecorUi() {
   document.getElementById("field-trace-size").classList.toggle("hidden", svgOn || (textOn && !traceOnBox));
   document.getElementById("emboss-font").value = state.embossFont || "inter";
   syncArtEditorUi();
-  updateArtOverlay();
 }
 
 function syncEmbossFaceUi() {
@@ -1848,8 +1745,7 @@ function syncEmbossFaceUi() {
   if (state.embossFace === "lid" && !lidOn) {
     state.embossFace = "top";
   }
-  const draft = getArtDraft();
-  const face = draft?.face ?? state.embossFace ?? "front";
+  const face = state.embossFace ?? "front";
   select.value = face;
 
   const hint = document.getElementById("emboss-face-hint");
@@ -2093,25 +1989,25 @@ bindRange("joiner-protrusion", "joinerProtrusion", "float");
 bindRange("accent-height", "accentHeight", "float");
 bindRange("trace-threshold", "traceThreshold", "int");
 
-function bindArtDraftSlider(sliderId, draftKey, parseKind = "float") {
+function bindArtStateSlider(sliderId, stateKey, parseKind = "float") {
   const slider = document.getElementById(sliderId);
   if (!slider) return;
   slider.addEventListener("input", () => {
-    if (!getArtDraft()) {
-      if (appliedHasArt(state)) resetArtDraft(state);
-      else startBlankArtDraft(state);
-    }
-    const val = parseFieldValue(slider.value, parseKind);
-    patchArtDraft({ [draftKey]: val });
-    syncArtEditorUi();
-    scheduleArtPreviewRefresh();
+    state[stateKey] = parseFieldValue(slider.value, parseKind);
+    const out = document.querySelector(`.value-edit[data-slider="${sliderId}"]`);
+    if (out) out.textContent = slider.value;
+    if (stateKey === "embossHeight") syncArtSizeSlider();
+    scheduleArtRebuild();
   });
+  slider.addEventListener("change", () => pushAppHistory());
 }
 
-bindArtDraftSlider("emboss-height", "height");
-bindArtDraftSlider("emboss-depth", "depth");
-bindArtDraftSlider("art-rotation", "rotation", "float");
-bindArtDraftSlider("trace-size", "traceSize");
+bindArtStateSlider("emboss-height", "embossHeight");
+bindArtStateSlider("emboss-depth", "embossDepth");
+bindArtStateSlider("art-rotation", "decorRotation", "float");
+bindArtStateSlider("art-offset-x", "decorOffsetX", "float");
+bindArtStateSlider("art-offset-y", "decorOffsetY", "float");
+bindArtStateSlider("trace-size", "embossTraceSize");
 
 document.querySelectorAll(".tab").forEach((tab) => {
   tab.addEventListener("click", () => {
@@ -2175,76 +2071,55 @@ document.getElementById("stackable-enabled").addEventListener("change", (e) => {
 });
 
 document.getElementById("emboss-text").addEventListener("input", (e) => {
-  const text = e.target.value;
-  ensureArtDraftActive();
-  patchArtDraft({
-    text,
-    traceEnabled: false,
-    traceRects: null,
-    svgEnabled: false,
-    svgText: "",
-  });
-  if (text.trim()) {
+  state.embossText = e.target.value;
+  if (state.embossText.trim()) {
     clearEmbossTrace();
+    state.embossSvgEnabled = false;
+    state.embossSvgText = "";
     document.getElementById("emboss-svg-enabled").checked = false;
   }
+  updateDecorUi();
   syncArtEditorUi();
-  updateTraceUi();
-  scheduleArtPreviewRefresh(true);
+  scheduleArtRebuild();
+  scheduleSaveSession();
 });
 
 document.getElementById("emboss-font").addEventListener("change", async (e) => {
-  if (!getArtDraft()) ensureArtDraftFromState(state);
-  patchArtDraft({ font: e.target.value });
+  state.embossFont = e.target.value;
   await ensureEmbossFontLoaded(e.target.value);
-  syncArtEditorUi();
-  scheduleArtPreviewRefresh();
+  updateEmbossTextPreviewStyle();
+  scheduleArtRebuild();
+  pushAppHistory();
 });
 
 document.getElementById("emboss-svg-enabled").addEventListener("change", (e) => {
+  state.embossSvgEnabled = e.target.checked;
   if (e.target.checked) {
-    if (!getArtDraft()) ensureArtDraftFromState(state);
-    patchArtDraft({ text: "", traceEnabled: false, traceRects: null });
+    state.embossText = "";
     clearEmbossTrace();
     document.getElementById("emboss-text").value = "";
+  } else {
+    state.embossSvgText = "";
   }
   updateDecorUi();
   syncArtEditorUi();
-  updateTraceUi();
-  scheduleArtPreviewRefresh();
+  scheduleArtRebuild(true);
+  pushAppHistory();
 });
 
 document.getElementById("emboss-face").addEventListener("change", (e) => {
-  if (!getArtDraft()) ensureArtDraftFromState(state);
-  patchArtDraft({ face: e.target.value });
+  state.embossFace = e.target.value;
   syncEmbossFaceUi();
   syncArtEditorUi();
-  scheduleArtPreviewRefresh(true);
+  scheduleArtRebuild(true);
+  pushAppHistory();
 });
 
 document.getElementById("emboss-deboss").addEventListener("change", (e) => {
-  if (!getArtDraft()) ensureArtDraftFromState(state);
-  patchArtDraft({ deboss: e.target.checked });
+  state.embossDeboss = e.target.checked;
   syncArtEditorUi();
-  scheduleArtPreviewRefresh(true);
-});
-
-document.getElementById("btn-art-apply").addEventListener("click", () => {
-  if (!commitArtDraft(state)) return;
-  rebuild();
+  scheduleArtRebuild(true);
   pushAppHistory();
-  scheduleSaveSession();
-  syncArtEditorUi();
-  updateDecorUi();
-  updateTraceUi();
-});
-
-document.getElementById("btn-art-cancel").addEventListener("click", () => {
-  cancelArtDraft(state);
-  syncArtEditorUi();
-  updateDecorUi();
-  updateTraceUi();
-  scheduleArtPreviewRefresh(true);
 });
 
 document.getElementById("btn-art-clear").addEventListener("click", () => {
@@ -2478,279 +2353,12 @@ document.getElementById("btn-export-deboss").addEventListener("click", () => {
   downloadBlob(blob, filenameFor(meshCache.meta, "deboss-cutter"));
 });
 
-const artOverlayEl = document.getElementById("art-overlay");
-const artOverlayBox = artOverlayEl?.querySelector(".art-overlay-box");
-let artDrag = null;
-
-function projectFacePoint(frame, px, py) {
-  const mapped = frame.mapPoint(px, py, 0.35);
-  const v = new THREE.Vector3(mapped[0], mapped[2], -mapped[1]);
-  if (frame.face === "lid" && lidMesh) {
-    lidMesh.localToWorld(v);
-  } else {
-    previewRoot.localToWorld(v);
-  }
-  return projectWorldToScreen(v);
-}
-
-function projectWorldToScreen(worldVec) {
-  const v = worldVec.clone().project(camera);
-  const w = viewport.clientWidth;
-  const h = viewport.clientHeight;
-  return {
-    x: (v.x * 0.5 + 0.5) * w,
-    y: (-v.y * 0.5 + 0.5) * h,
-    behind: v.z > 1,
-  };
-}
-
-function collectFaceArtScreenPoints(art) {
-  const rot = art.rotation || 0;
-  const corners = [
-    [art.left, art.bottom],
-    [art.right, art.bottom],
-    [art.right, art.top],
-    [art.left, art.top],
-  ];
-  const pts = [];
-  for (const [px, py] of corners) {
-    const [rx, ry] = rotateFacePoint(art.cx, art.cy, px, py, rot);
-    const p = projectFacePoint(art.frame, rx, ry);
-    if (p.behind) return null;
-    pts.push(p);
-  }
-  return pts.length ? pts : null;
-}
-
-function fitOverlayLayoutFromScreenPoints(points, artRotation = 0) {
-  let minX = Infinity;
-  let maxX = -Infinity;
-  let minY = Infinity;
-  let maxY = -Infinity;
-  for (const p of points) {
-    minX = Math.min(minX, p.x);
-    maxX = Math.max(maxX, p.x);
-    minY = Math.min(minY, p.y);
-    maxY = Math.max(maxY, p.y);
-  }
-  const aabbHalfW = (maxX - minX) / 2;
-  const aabbHalfH = (maxY - minY) / 2;
-  if (aabbHalfW < 4 || aabbHalfH < 4) return null;
-
-  if (Math.abs(artRotation) < 0.05) {
-    return {
-      center: { x: (minX + maxX) / 2, y: (minY + maxY) / 2 },
-      halfW: aabbHalfW,
-      halfH: aabbHalfH,
-      angle: 0,
-    };
-  }
-
-  let cx = 0;
-  let cy = 0;
-  for (const p of points) {
-    cx += p.x;
-    cy += p.y;
-  }
-  cx /= points.length;
-  cy /= points.length;
-
-  const rad = (-artRotation * Math.PI) / 180;
-  const cos = Math.cos(rad);
-  const sin = Math.sin(rad);
-  let minU = Infinity;
-  let maxU = -Infinity;
-  let minV = Infinity;
-  let maxV = -Infinity;
-  for (const p of points) {
-    const dx = p.x - cx;
-    const dy = p.y - cy;
-    const u = dx * cos - dy * sin;
-    const v = dx * sin + dy * cos;
-    minU = Math.min(minU, u);
-    maxU = Math.max(maxU, u);
-    minV = Math.min(minV, v);
-    maxV = Math.max(maxV, v);
-  }
-  const halfW = (maxU - minU) / 2;
-  const halfH = (maxV - minV) / 2;
-  if (halfW < 4 || halfH < 4) return null;
-
-  const uCx = (minU + maxU) / 2;
-  const vCy = (minV + maxV) / 2;
-  const outRad = (artRotation * Math.PI) / 180;
-  return {
-    center: {
-      x: cx + uCx * Math.cos(outRad) - vCy * Math.sin(outRad),
-      y: cy + uCx * Math.sin(outRad) + vCy * Math.cos(outRad),
-    },
-    halfW,
-    halfH,
-    angle: artRotation,
-  };
-}
-
-function artOverlayScreenLayout(art) {
-  if (!art) return null;
-  const facePts = collectFaceArtScreenPoints(art);
-  if (!facePts) return null;
-  return fitOverlayLayoutFromScreenPoints(facePts, art.rotation || 0);
-}
-
-function artDragCenterOnScreen(art) {
-  const facePts = collectFaceArtScreenPoints(art);
-  if (facePts?.length) {
-    let x = 0;
-    let y = 0;
-    for (const p of facePts) {
-      x += p.x;
-      y += p.y;
-    }
-    return { x: x / facePts.length, y: y / facePts.length };
-  }
-  return projectFacePoint(art.frame, art.cx, art.cy);
-}
-
-function updateArtOverlay() {
-  if (!artOverlayEl || !meshCache) return;
-  if (!shouldShowArtOverlay()) {
-    artOverlayEl.classList.add("hidden");
-    artOverlayEl.setAttribute("aria-hidden", "true");
-    artOverlayBox.style.transform = "";
-    return;
-  }
-  const art = measureDecorArt(meshCache.meta, artPreviewParams());
-  if (!art) {
-    artOverlayEl.classList.add("hidden");
-    artOverlayEl.setAttribute("aria-hidden", "true");
-    return;
-  }
-  const layout = artOverlayScreenLayout(art);
-  if (!layout) {
-    artOverlayEl.classList.add("hidden");
-    artOverlayEl.setAttribute("aria-hidden", "true");
-    return;
-  }
-  const pad = 8;
-  const w = Math.max(32, layout.halfW * 2 + pad * 2);
-  const h = Math.max(32, layout.halfH * 2 + pad * 2);
-  artOverlayEl.classList.remove("hidden");
-  artOverlayEl.setAttribute("aria-hidden", "false");
-  artOverlayBox.style.left = `${layout.center.x - w / 2}px`;
-  artOverlayBox.style.top = `${layout.center.y - h / 2}px`;
-  artOverlayBox.style.width = `${w}px`;
-  artOverlayBox.style.height = `${h}px`;
-  artOverlayBox.style.transformOrigin = "50% 50%";
-  artOverlayBox.style.transform = `rotate(${layout.angle}deg)`;
-}
-
-function faceMmPerPixel(art) {
-  const c0 = projectFacePoint(art.frame, art.cx, art.cy);
-  const c1 = projectFacePoint(art.frame, art.cx + 1, art.cy);
-  const c2 = projectFacePoint(art.frame, art.cx, art.cy + 1);
-  const mmPerPxX = 1 / Math.max(0.001, Math.hypot(c1.x - c0.x, c1.y - c0.y));
-  const mmPerPxY = 1 / Math.max(0.001, Math.hypot(c2.x - c0.x, c2.y - c0.y));
-  return { mmPerPxX, mmPerPxY };
-}
-
-function clampArtSize(kind, n) {
-  if (kind === "text") {
-    if (!meshCache) return Math.min(48, Math.max(3, n));
-    const params = artPreviewParams();
-    const limits = textEmbossSizeLimits(meshCache.meta, params.embossFace || "front", params);
-    return Math.min(limits.max, Math.max(limits.min, n));
-  }
-  return Math.min(40, Math.max(6, n));
-}
-
-function onArtDragMove(e) {
-  if (!artDrag || !meshCache) return;
-  const art = measureDecorArt(meshCache.meta, artPreviewParams());
-  if (!art) return;
-  if (!getArtDraft()) ensureArtDraftFromState(state);
-
-  if (artDrag.handle === "move") {
-    const { mmPerPxX, mmPerPxY } = faceMmPerPixel(art);
-    patchArtDraft({
-      offsetX: artDrag.startOx + (e.clientX - artDrag.startX) * mmPerPxX,
-      offsetY: artDrag.startOy - (e.clientY - artDrag.startY) * mmPerPxY,
-    });
-    syncArtEditorUi();
-    scheduleArtPreviewRefresh(true);
-    return;
-  }
-
-  if (artDrag.handle === "rotate") {
-    const center = artDragCenterOnScreen(art);
-    const a0 = Math.atan2(artDrag.startY - center.y, artDrag.startX - center.x);
-    const a1 = Math.atan2(e.clientY - center.y, e.clientX - center.x);
-    patchArtDraft({
-      rotation: Math.round((artDrag.startRotation + ((a1 - a0) * 180) / Math.PI) * 10) / 10,
-    });
-    syncArtEditorUi();
-    scheduleArtPreviewRefresh(true);
-    return;
-  }
-
-  const center = artDragCenterOnScreen(art);
-  const dist0 = Math.hypot(artDrag.startX - center.x, artDrag.startY - center.y);
-  const dist1 = Math.hypot(e.clientX - center.x, e.clientY - center.y);
-  const scale = Math.max(0.35, Math.min(2.8, dist1 / Math.max(8, dist0)));
-  const newSize = clampArtSize(artDrag.artKind, artDrag.startSize * scale);
-  if (artDrag.artKind === "text") {
-    patchArtDraft({ height: newSize });
-  } else {
-    patchArtDraft({ traceSize: newSize });
-  }
-  syncArtEditorUi();
-  scheduleArtPreviewRefresh(true);
-}
-
-function endArtDrag() {
-  if (!artDrag) return;
-  window.removeEventListener("pointermove", onArtDragMove);
-  artDrag = null;
-  controls.enabled = true;
-  syncArtEditorUi();
-  scheduleArtPreviewRefresh(true);
-}
-
-function startArtDrag(handle, e) {
-  if (!meshCache || !shouldShowArtOverlay()) return;
-  const art = measureDecorArt(meshCache.meta, artPreviewParams());
-  if (!art) return;
-  if (!getArtDraft()) ensureArtDraftFromState(state);
-  e.preventDefault();
-  e.stopPropagation();
-  controls.enabled = false;
-  const draft = getArtDraft();
-  artDrag = {
-    handle,
-    startX: e.clientX,
-    startY: e.clientY,
-    startOx: draft.offsetX ?? 0,
-    startOy: draft.offsetY ?? 0,
-    startRotation: draft.rotation ?? 0,
-    startSize: art.kind === "text" ? draft.height : draft.traceSize,
-    artKind: art.kind,
-  };
-  window.addEventListener("pointermove", onArtDragMove);
-  window.addEventListener("pointerup", endArtDrag, { once: true });
-}
-
-if (artOverlayBox) {
-  for (const handleEl of artOverlayBox.querySelectorAll("[data-handle]")) {
-    handleEl.addEventListener("pointerdown", (e) => startArtDrag(handleEl.dataset.handle, e));
-  }
-}
-
 function resize() {
   const w = viewport.clientWidth;
   const h = viewport.clientHeight;
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
-  updateArtOverlay();
 }
 
 window.addEventListener("resize", resize);
@@ -2760,7 +2368,6 @@ function animate() {
   updateLidAnimation(performance.now());
   if (document.hidden && !lidAnim) return;
   controls.update();
-  updateArtOverlay();
   renderer.render(scene, camera);
 }
 
@@ -2778,6 +2385,9 @@ syncSliderUi("emboss-depth", "embossDepth", { min: 0.3, max: 2, value: state.emb
 syncSliderUi("emboss-height", "embossHeight", { min: 3, max: 48, value: state.embossHeight, parseKind: "float" });
 syncSliderUi("trace-threshold", "traceThreshold", { min: 20, max: 235, value: state.traceThreshold });
 syncSliderUi("trace-size", "embossTraceSize", { min: 6, max: 40, value: state.embossTraceSize, parseKind: "float" });
+syncSliderUi("art-rotation", "decorRotation", { min: -180, max: 180, value: state.decorRotation ?? 0, parseKind: "float" });
+syncSliderUi("art-offset-x", "decorOffsetX", { min: -40, max: 40, value: state.decorOffsetX ?? 0, parseKind: "float" });
+syncSliderUi("art-offset-y", "decorOffsetY", { min: -40, max: 40, value: state.decorOffsetY ?? 0, parseKind: "float" });
 
 const embossFontSelect = document.getElementById("emboss-font");
 for (const font of EMBOSS_FONTS) {
