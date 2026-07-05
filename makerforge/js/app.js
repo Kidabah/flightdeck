@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=105";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh, mergeMeshes } from "./features.js?v=97";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=106";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance } from "./features.js?v=98";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=73";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=74";
 import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=73";
@@ -299,6 +299,7 @@ function buildParams() {
     insertThickness: state.insertThickness,
     insertClearance: state.insertClearance,
     insertTopClearance: state.insertTopClearance,
+    insertTopClearanceAuto: state.insertTopClearanceAuto !== false,
     insertMount: state.insertMount || "snap",
     insertSlotDepth: state.insertSlotDepth,
     insertSlotRamp: state.insertSlotRamp,
@@ -1088,6 +1089,7 @@ function syncUiFromState() {
   syncSliderUi("insert-slot-depth", "insertSlotDepth", { min: 1, max: 4, value: state.insertSlotDepth ?? 2, parseKind: "float" });
   syncSliderUi("insert-count", "insertCount", { min: 1, max: 4, value: state.insertCount ?? 1, parseKind: "int" });
   syncInsertCountHint();
+  syncInsertTopClearanceUi();
   syncSliderUi("emboss-depth", "embossDepth", { min: 0.3, max: 2, value: state.embossDepth, parseKind: "float" });
   syncSliderUi("emboss-height", "embossHeight", { min: 3, max: 48, value: state.embossHeight, parseKind: "float" });
   syncSliderUi("trace-threshold", "traceThreshold", { min: 20, max: 235, value: state.traceThreshold });
@@ -1553,6 +1555,7 @@ function updateLidUi() {
   );
   syncEmbossFaceUi();
   syncExportFormatOptions();
+  syncInsertTopClearanceUi();
 }
 
 function joinerUiShape() {
@@ -2050,6 +2053,51 @@ function syncInsertCountHint() {
   el.textContent = `${n} divider${n === 1 ? "" : "s"} → ${tiers} compartments`;
 }
 
+function syncInsertTopClearanceUi() {
+  const params = buildParams();
+  const autoOn = state.insertTopClearanceAuto !== false;
+  const effective = effectiveInsertTopClearance(params);
+  const intrusion = lidCavityIntrusion(params);
+  const insertOn = state.insertEnabled && shapeSupportsInsert(insertUiShape());
+
+  document.getElementById("field-insert-top-auto")?.classList.toggle("hidden", !insertOn);
+  document.getElementById("field-insert-top-clearance")?.classList.toggle("hidden", !insertOn);
+
+  const autoCb = document.getElementById("insert-top-auto");
+  if (autoCb) autoCb.checked = autoOn;
+
+  const slider = document.getElementById("insert-top-clearance");
+  const out = document.getElementById("out-insert-top-clearance");
+  if (slider) {
+    const display = formatSliderValue(effective, slider.step);
+    slider.value = display;
+    slider.disabled = autoOn;
+    if (out) {
+      out.textContent = display;
+      out.disabled = autoOn;
+    }
+  }
+
+  const hint = document.getElementById("insert-top-clearance-hint");
+  if (hint && insertOn) {
+    if (autoOn && intrusion > 0) {
+      const src = normalizeLidType(state.lidType) === "plug" ? "inset skirt" : "lip";
+      hint.textContent = `Auto: ${formatSliderValue(effective, "0.5")} mm (${src} ${intrusion} mm + gap). Uncheck Match lid to override.`;
+    } else if (autoOn) {
+      hint.textContent = "Slip-over lid — no internal intrusion. Uncheck Match lid to set a custom top gap.";
+    } else {
+      hint.textContent = "Manual top clearance — shortens dividers below the lid zone.";
+    }
+  }
+
+  const autoHint = document.getElementById("insert-top-auto-hint");
+  if (autoHint && insertOn && !state.lidEnabled) {
+    autoHint.textContent = "Enable an inset plug or flat-cap lid to auto-shorten dividers.";
+  } else if (autoHint) {
+    autoHint.textContent = "Shortens dividers when an inset plug skirt or flat-cap lip hangs inside the cavity.";
+  }
+}
+
 function syncExportFormatOptions() {
   const sel = document.getElementById("export-format");
   if (!sel) return;
@@ -2197,6 +2245,7 @@ function updateDecorUi() {
     "hidden",
     state.shape !== "fatQuarters" || !insertOn,
   );
+  syncInsertTopClearanceUi();
 
   const honeyOn = state.honeycombEnabled && supported;
   document.getElementById("honeycomb-enabled").checked = honeyOn;
@@ -2476,6 +2525,29 @@ bindRange("insert-thickness", "insertThickness", "float");
 bindRange("insert-clearance", "insertClearance", "float");
 bindRange("insert-slot-depth", "insertSlotDepth", "float");
 bindRange("insert-count", "insertCount", "int");
+
+document.getElementById("insert-top-auto")?.addEventListener("change", (e) => {
+  state.insertTopClearanceAuto = e.target.checked;
+  syncInsertTopClearanceUi();
+  rebuild();
+  pushAppHistory();
+});
+
+const insertTopSlider = document.getElementById("insert-top-clearance");
+if (insertTopSlider) {
+  insertTopSlider.addEventListener("input", () => {
+    state.insertTopClearanceAuto = false;
+    const autoCb = document.getElementById("insert-top-auto");
+    if (autoCb) autoCb.checked = false;
+    state.insertTopClearance = parseFieldValue(insertTopSlider.value, "float");
+    const out = document.getElementById("out-insert-top-clearance");
+    if (out) out.textContent = insertTopSlider.value;
+    syncInsertTopClearanceUi();
+    rebuild();
+  });
+  insertTopSlider.addEventListener("change", () => pushAppHistory());
+}
+
 bindRange("trace-threshold", "traceThreshold", "int");
 
 function bindArtStateSlider(sliderId, stateKey, parseKind = "float") {

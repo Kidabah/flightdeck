@@ -1474,6 +1474,7 @@ export const DEFAULTS = {
   insertThickness: 2.4,
   insertClearance: 0.35,
   insertTopClearance: 0.6,
+  insertTopClearanceAuto: true,
   insertMount: "snap",
   insertSlotDepth: 2,
   insertSlotRamp: 8,

@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `0c91e1d` — restore MakerDeck inset plug lid as third KISS option
-- Refresh cachebust: Flightdeck `app.js?v=626` / `style.css?v=481`; MakerDeck iframe `app.js?v=105`
+- Latest commit: (pending) — divider top clearance auto-matches lid skirt/lip
+- Refresh cachebust: Flightdeck `app.js?v=626` / `style.css?v=481`; MakerDeck iframe `app.js?v=106`
+
+### 2026-07-06 feature (MakerDeck divider top clearance)
+
+**Dividers respect inset plug / flat-cap lip** (`makerforge/js/features.js`, `makerforge/js/app.js`, `makerforge/index.html`)
+
+- **Match lid clearance** (default on): divider top gap auto-follows inset skirt or flat lip depth.
+- **Top clearance** slider on Insert tab for manual override (partial-height dividers).
+- Cache `app.js?v=106`. Hard refresh MakerDeck.
 
 ### 2026-07-05 fix (MakerDeck inset plug lid restored)
 

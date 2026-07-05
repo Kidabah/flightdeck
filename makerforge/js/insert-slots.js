@@ -3,7 +3,7 @@
  * Small body gap keeps Bambu from reporting Insert ↔ Body gcode conflicts.
  */
 
-import { rectFeatureBounds } from "./features.js";
+import { rectFeatureBounds, effectiveInsertTopClearance } from "./features.js";
 
 export const INSERT_BODY_GAP = 0.12;
 
@@ -42,7 +42,7 @@ export function computeHorizontalShelfLayout(meta, params) {
   const count = clamp(Math.round(params.insertCount ?? 1), 1, 4);
   const thickness = clamp(params.insertThickness ?? 2.4, 1.2, 5);
   const clearance = clamp(params.insertClearance ?? 0.35, 0.1, 1.2);
-  const topClear = clamp(params.insertTopClearance ?? 0.6, 0, 4);
+  const topClear = effectiveInsertTopClearance(params);
   const bodyGap = INSERT_BODY_GAP;
   const spanH = b.cavityH - (clearance + bodyGap) * 2 - topClear;
   if (spanH < 4) return null;

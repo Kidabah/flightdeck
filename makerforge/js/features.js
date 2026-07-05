@@ -338,6 +338,32 @@ export function shapeSupportsInsert(shape) {
   return shape === "rect" || shape === "rounded" || shape === "pencilBox";
 }
 
+const INSERT_TOP_CLEAR_BUFFER = 0.5;
+
+function insertLidType(lidType) {
+  if (lidType === "flat") return "flat";
+  if (lidType === "plug") return "plug";
+  return "slip";
+}
+
+/** Depth inside the cavity consumed by inset plug skirt or flat-cap lip (mm). */
+export function lidCavityIntrusion(params) {
+  if (!params?.lidEnabled) return 0;
+  const lidType = insertLidType(params.lidType);
+  if (lidType === "plug") return clamp(params.lidSkirt ?? 10, 4, 30);
+  if (lidType === "flat") return clamp(params.lidLipDepth ?? 0, 0, 12);
+  return 0;
+}
+
+/** Top clearance for dividers — auto-matches lid intrusion unless user overrides. */
+export function effectiveInsertTopClearance(params) {
+  const manual = clamp(params?.insertTopClearance ?? 0.6, 0, 40);
+  if (params?.insertTopClearanceAuto === false) return manual;
+  const intrusion = lidCavityIntrusion(params);
+  if (intrusion <= 0) return manual;
+  return Math.max(manual, intrusion + INSERT_TOP_CLEAR_BUFFER);
+}
+
 /** Removable flat divider panels — separate print part(s), splits cavity into equal bays. */
 export function buildDividerInsert(meta, params) {
   const b = rectFeatureBounds(meta);
@@ -345,7 +371,7 @@ export function buildDividerInsert(meta, params) {
   const count = clamp(Math.round(params.insertCount ?? 1), 1, 4);
   const thickness = clamp(params.insertThickness ?? 2.4, 1.2, 5);
   const clearance = clamp(params.insertClearance ?? 0.35, 0.1, 1.2);
-  const topClear = clamp(params.insertTopClearance ?? 0.6, 0, 4);
+  const topClear = effectiveInsertTopClearance(params);
   const fuseToBody = !!params.fuseInsertToBody;
   const bodyGap = fuseToBody ? 0 : (params.insertBodyGap ?? 0.12);
   const mount = params.insertMount === "slot" && axis === "height" ? "slot" : "snap";

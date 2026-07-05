@@ -696,6 +696,28 @@
 
               </label>
 
+              <label class="field field-toggle hidden" id="field-insert-top-auto">
+
+                <span class="field-label">Match lid clearance</span>
+
+                <input type="checkbox" id="insert-top-auto" checked>
+
+                <p class="field-hint" id="insert-top-auto-hint">Shortens dividers when an inset plug skirt or flat-cap lip hangs inside the cavity.</p>
+
+              </label>
+
+              <label class="field hidden" id="field-insert-top-clearance">
+
+                <span class="field-label">Top clearance</span>
+
+                <input type="range" id="insert-top-clearance" min="0" max="30" step="0.5" value="0.6" tabindex="-1">
+
+                <button type="button" class="value-edit" id="out-insert-top-clearance" data-slider="insert-top-clearance" data-key="insertTopClearance" data-parse="float">0.6</button>
+
+                <p class="field-hint" id="insert-top-clearance-hint">Gap below the lid — lowers divider height.</p>
+
+              </label>
+
             </section>
 
           </div>
@@ -1013,7 +1035,7 @@
 
 
 
-  <script type="module" src="js/app.js?v=105"></script>
+  <script type="module" src="js/app.js?v=106"></script>
 
 </body>
 

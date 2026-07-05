@@ -2,7 +2,15 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- `main` commit: `0c91e1d` — inset plug lid restored (3rd KISS type)
+- `main` commit: (pending) — divider top clearance matches lid
+
+### 2026-07-06 — Divider top clearance (match lid)
+
+**What changed:** Insert tab — **Match lid clearance** (default on) shortens dividers when inset plug skirt or flat-cap lip hangs inside. **Top clearance** slider for manual override.
+
+**Files:** `js/features.js?v=98`, `js/insert-slots.js`, `js/app.js?v=106`, `js/geometry.js`, `index.html`
+
+**Deploy:** Pi `git pull`. Hard refresh.
 
 ### 2026-07-05 — Inset plug lid restored
 
