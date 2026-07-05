@@ -2,7 +2,15 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `7d5b8c8` — served at `/makerdeck/` on Flightdeck
+- Latest commit: *(pending)* — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Fix flip hinge lid preview (invisible lid)
+
+**What changed:** Hinge lid preview was offset ~27 mm behind the box (invisible). Now uses a pivot group on the back edge. Picking a lid type also auto-enables **Enable lid** if it was off.
+
+**Files:** `js/app.js`, `js/hinge-lid.js`, `index.html` — cache-bust `app.js?v=89`
+
+**Deploy:** Pi `git pull`. Hard refresh.
 
 ### 2026-07-05 — Lids: flip hinge + roll lock (bayonet)
 

@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, shapeSupportsHingeLid, shapeSupportsRollLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=88";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh, mergeMeshes } from "./features.js?v=88";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, shapeSupportsHingeLid, shapeSupportsRollLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=89";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh, mergeMeshes } from "./features.js?v=89";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=73";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=73";
 import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=73";
@@ -163,6 +163,7 @@ const guidePlateMaterial = new THREE.LineBasicMaterial({
 let bodyMesh = null;
 let edgeLines = null;
 let lidMesh = null;
+let lidPivot = null;
 let lidGuideLoops = [];
 let lidAnim = null;
 let accentMesh = null;
@@ -667,6 +668,10 @@ function lidFitHintText() {
 }
 
 function disposeLidPreview() {
+  if (lidPivot) {
+    previewRoot.remove(lidPivot);
+    lidPivot = null;
+  }
   if (lidMesh) {
     // Label preview may be parented to the lid — detach before disposing geometry.
     while (lidMesh.children.length) {
@@ -674,7 +679,11 @@ function disposeLidPreview() {
       lidMesh.remove(child);
       child.geometry?.dispose();
     }
-    previewRoot.remove(lidMesh);
+    if (lidMesh.parent && lidMesh.parent !== previewRoot) {
+      lidMesh.parent.remove(lidMesh);
+    } else {
+      previewRoot.remove(lidMesh);
+    }
     lidMesh.geometry.dispose();
     lidMesh = null;
   }
@@ -696,16 +705,29 @@ function isRollLid() {
 }
 
 function setHingeLidAngle(angle) {
-  if (!lidMesh || !lidCache?.hingeMeta) return;
+  if (!lidCache?.hingeMeta) return;
+  if (lidPivot) {
+    lidPivot.rotation.x = angle;
+    syncLidGuideLoops(lidCache.hingeMeta.seatZ + LID_PREVIEW_GAP, 0);
+    return;
+  }
+  if (!lidMesh) return;
   const hm = lidCache.hingeMeta;
-  const pivotY = hm.hingeZ + BED_LIFT;
-  const pivotZ = -hm.hingeY;
-  const arm = hm.lidArm;
+  const y = hm.seatZ + LID_PREVIEW_GAP;
   lidMesh.rotation.x = angle;
-  lidMesh.position.y = pivotY + Math.sin(-angle) * arm;
-  lidMesh.position.z = pivotZ + (1 - Math.cos(-angle)) * arm * 0.35;
-  lidMesh.position.x = 0;
-  syncLidGuideLoops(lidMesh.position.y, 0);
+  lidMesh.position.set(0, y, 0);
+  syncLidGuideLoops(y, 0);
+}
+
+function attachHingeLidPreview(mesh, hm, meta) {
+  const od2 = (meta?.outer?.d || 50) / 2;
+  lidPivot = new THREE.Group();
+  lidPivot.position.set(0, hm.seatZ, -od2);
+  mesh.position.set(0, LID_PREVIEW_GAP, od2);
+  mesh.rotation.set(hm.restAngle ?? -0.25, 0, 0);
+  lidPivot.add(mesh);
+  previewRoot.add(lidPivot);
+  lidMesh = mesh;
 }
 
 function setRollLidTransform(y, rotY) {
@@ -718,9 +740,15 @@ function setRollLidTransform(y, rotY) {
 }
 
 function resetLidPreviewPose() {
-  if (!lidMesh || !lidCache) return;
-  if (isHingeLid()) {
-    setHingeLidAngle(lidCache.hingeMeta.restAngle);
+  if (!lidCache) return;
+  if (isHingeLid() && lidMesh) {
+    if (lidPivot) {
+      lidPivot.position.y = lidCache.hingeMeta.seatZ;
+      lidPivot.rotation.x = lidCache.hingeMeta.restAngle ?? -0.25;
+    } else {
+      setHingeLidAngle(lidCache.hingeMeta.restAngle ?? -0.25);
+    }
+    syncLidGuideLoops(lidCache.hingeMeta.seatZ + LID_PREVIEW_GAP, 0);
     return;
   }
   if (isRollLid()) {
@@ -728,6 +756,7 @@ function resetLidPreviewPose() {
     setRollLidTransform(rm.seatY + rm.lift, rm.restRot);
     return;
   }
+  if (!lidMesh) return;
   lidMesh.rotation.set(0, 0, 0);
   setLidPreviewTransform(lidRestY(), lidRestX());
 }
@@ -943,7 +972,7 @@ function playLidFitPreview() {
   }
   if (isHingeLid()) {
     const hm = lidCache.hingeMeta;
-    setHingeLidAngle(hm.restAngle);
+    setHingeLidAngle(hm.restAngle ?? -0.25);
     lidAnim = {
       mode: "hinge",
       hm,
@@ -1420,9 +1449,13 @@ function rebuildMesh() {
   }
 
   if (nextLidMesh) {
-    lidMesh = nextLidMesh;
-    resetLidPreviewPose();
-    previewRoot.add(lidMesh);
+    if (nextLidCache.meta?.lidType === "hinge" && nextLidCache.hingeMeta) {
+      attachHingeLidPreview(nextLidMesh, nextLidCache.hingeMeta, nextLidCache.meta);
+    } else {
+      lidMesh = nextLidMesh;
+      previewRoot.add(lidMesh);
+      resetLidPreviewPose();
+    }
     buildLidGuideLoops();
   }
 
@@ -2726,6 +2759,9 @@ document.getElementById("btn-lid-preview-fit").addEventListener("click", () => p
 
 document.getElementById("lid-type").addEventListener("change", (e) => {
   state.lidType = e.target.value;
+  if (!state.lidEnabled && shapeSupportsLid(state.shape)) {
+    state.lidEnabled = true;
+  }
   updateLidUi();
   rebuild();
   if (meshCache) fitCamera(meshCache.meta);

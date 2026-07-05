@@ -32,7 +32,7 @@ function solidBox(outPos, outIdx, x0, x1, y0, y1, z0, z1) {
 }
 
 export function shapeSupportsHingeLid(shape) {
-  return shape === "rect" || shape === "rounded" || shape === "pencilBox";
+  return shape === "rect" || shape === "rounded" || shape === "pencilBox" || shape === "pencil";
 }
 
 export function resolveHingeOpts(params) {
