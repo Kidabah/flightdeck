@@ -1243,6 +1243,7 @@ export const DEFAULTS = {
   accentColor: "#f97316",
   boxColor: "#38bdf8",
   embossTextColor: "#f8fafc",
+  embossTextAlign: "left",
   embossText: "",
   embossFont: "inter",
   embossDepth: 0.7,

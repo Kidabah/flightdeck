@@ -2,7 +2,16 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `f6e10b6` — served at `/makerdeck/` on Flightdeck
+- Latest commit: _(pending)_ — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Fix 3MF export, pencil box, text align
+
+**What changed:**
+- **3MF download** — replaced fflate CDN zip with built-in writer; guards null mesh indices (fixes "null is not iterable")
+- **Pencil box** — `cornerRadius` now passed to geometry for `pencilBox` shape (was forced to 0); slide lid + rounded case work again
+- **Text align** — Left / Centre / Right buttons on Art tab (multiline lines align within the block)
+
+**Files:** `js/3mf.js`, `js/app.js`, `js/features.js`, `js/geometry.js`, `index.html`, `css/style.css` — `app.js?v=61`, `style.css?v=15`
 
 ### 2026-07-05 — Visual colour pickers + 3MF Orca export + multiline text
 

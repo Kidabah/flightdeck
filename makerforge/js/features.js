@@ -69,7 +69,7 @@ export function mergeMeshes(...parts) {
   const positions = [];
   const indices = [];
   for (const part of parts) {
-    if (!part?.positions?.length) continue;
+    if (!part?.positions?.length || !part?.indices?.length) continue;
     const offset = positions.length / 3;
     const partPos = part.positions;
     for (let i = 0; i < partPos.length; i++) positions.push(partPos[i]);
@@ -273,7 +273,7 @@ function appendBox(outPos, outIdx, x0, y0, z0, x1, y1, z1) {
 }
 
 /** Rasterise label text to a high-res alpha mask (stencil contours, not pixel blocks). */
-function rasterTextMask(text, fontId, fontSizePx = 640) {
+function rasterTextMask(text, fontId, fontSizePx = 640, align = "left") {
   if (typeof document === "undefined") return null;
   const lines = String(text || "")
     .split(/\r?\n/)
@@ -298,8 +298,14 @@ function rasterTextMask(text, fontId, fontSizePx = 640) {
   ctx.font = font;
   ctx.fillStyle = "#000";
   ctx.textBaseline = "alphabetic";
+  const textAlign = align === "center" ? "center" : align === "right" ? "right" : "left";
+  ctx.textAlign = textAlign;
   for (let i = 0; i < lines.length; i++) {
-    ctx.fillText(lines[i], pad, pad + fontSizePx * 0.85 + i * lineHeight);
+    const y = pad + fontSizePx * 0.85 + i * lineHeight;
+    let x = pad;
+    if (textAlign === "center") x = width / 2;
+    else if (textAlign === "right") x = width - pad;
+    ctx.fillText(lines[i], x, y);
   }
   const data = ctx.getImageData(0, 0, width, height).data;
   const mask = new Uint8Array(width * height);
@@ -366,7 +372,7 @@ function computeTextArtLayout(meta, params) {
   const frame = getEmbossFaceFrame(meta, params.embossFace || "front", params);
   const limits = textEmbossSizeLimits(meta, frame.face, params);
   const labelH = clamp(params.embossHeight ?? 7, limits.min, limits.max);
-  const raster = rasterTextMask(text, params.embossFont || "inter");
+  const raster = rasterTextMask(text, params.embossFont || "inter", 640, params.embossTextAlign || "left");
   if (!raster?.mask?.length) return null;
 
   const { mask, width: maskW, height: maskH } = raster;
@@ -558,7 +564,7 @@ function removeWallTrisUnderEmboss(mesh, frame, meta, shapeGroups) {
 }
 
 function appendMesh(positions, indices, mesh) {
-  if (!mesh?.positions?.length) return;
+  if (!mesh?.positions?.length || !mesh?.indices?.length) return;
   const base = positions.length / 3;
   for (let i = 0; i < mesh.positions.length; i++) positions.push(mesh.positions[i]);
   for (const idx of mesh.indices) indices.push(idx + base);

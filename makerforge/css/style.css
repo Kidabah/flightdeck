@@ -617,6 +617,33 @@ input[type="range"] {
   cursor: pointer;
 }
 
+.align-grid {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.align-btn {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 12px;
+  padding: 8px 6px;
+  cursor: pointer;
+}
+
+.align-btn:hover {
+  border-color: #3b5f8c;
+}
+
+.align-btn.active {
+  border-color: var(--accent);
+  background: rgba(56, 189, 248, 0.12);
+  color: #e0f2fe;
+}
+
 .field input[type="color"] {
   width: 100%;
   height: 36px;

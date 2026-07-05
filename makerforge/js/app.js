@@ -206,7 +206,7 @@ function buildParams() {
     innerHeight: state.innerHeight,
     wall: state.wall,
     floor: state.floor,
-    cornerRadius: state.shape === "rounded" ? state.cornerRadius : 0,
+    cornerRadius: state.shape === "rounded" || state.shape === "pencilBox" ? state.cornerRadius : 0,
     vertexFillet: state.vertexFillet,
     sides: state.sides,
     starPoints: state.starPoints,
@@ -233,6 +233,7 @@ function buildParams() {
     accentHeight: state.accentHeight,
     accentInset: state.accentInset,
     embossText: state.embossText,
+    embossTextAlign: state.embossTextAlign || "left",
     embossFont: state.embossFont,
     embossDepth: state.embossDepth,
     embossHeight: state.embossHeight,
@@ -323,6 +324,13 @@ function mountEmbossLabelPreviewIfNeeded() {
   }
 }
 
+function syncTextAlignUi() {
+  const align = state.embossTextAlign || "left";
+  document.querySelectorAll(".align-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.textAlign === align);
+  });
+}
+
 function setupColorPickers() {
   mountColorPicker(document.getElementById("box-color-picker"), {
     value: state.boxColor,
@@ -370,7 +378,7 @@ function collectColoredExportParts() {
 
   const bodyMesh = separateText ? shell : buildWatertightExportMesh(meshCache, meshCache.meta, params);
   const bodyClean = sanitizeMeshForStl(bodyMesh);
-  if (bodyClean) {
+  if (bodyClean?.indices?.length) {
     parts.push({
       name: "Body",
       mesh: bodyClean,
@@ -382,7 +390,7 @@ function collectColoredExportParts() {
   if (separateText) {
     const textMesh = buildTextLabelExportMesh(meshCache.meta, params);
     const textClean = sanitizeMeshForStl(textMesh);
-    if (textClean) {
+    if (textClean?.indices?.length) {
       parts.push({
         name: "Text",
         mesh: textClean,
@@ -394,7 +402,7 @@ function collectColoredExportParts() {
 
   if (state.accentEnabled && accentCache) {
     const accentClean = sanitizeMeshForStl(accentCache);
-    if (accentClean) {
+    if (accentClean?.indices?.length) {
       parts.push({
         name: "Accent",
         mesh: accentClean,
@@ -1006,6 +1014,7 @@ function syncUiFromState() {
 
   document.getElementById("emboss-text").value = state.embossText || "";
   syncColorPickersFromState();
+  syncTextAlignUi();
   const embossFontSelect = document.getElementById("emboss-font");
   if (embossFontSelect) embossFontSelect.value = state.embossFont || "inter";
   updateEmbossTextPreviewStyle();
@@ -1196,6 +1205,11 @@ function applyPreset(shape) {
     syncSliderUi("lid-clearance", "lidClearance", { min: 0.15, max: 0.8, value: state.lidClearance ?? 0.25, parseKind: "float" });
     syncSliderUi("slide-stop", "slideStopLength", { min: 6, max: 20, value: state.slideStopLength ?? 10 });
     syncSliderUi("slide-groove", "slideGrooveHeight", { min: 4, max: 10, value: state.slideGrooveHeight ?? 6, parseKind: "float" });
+    document.getElementById("lid-enabled").checked = true;
+    document.getElementById("lid-type").value = state.lidType || "slide";
+  }
+  if (shape === "pencil") {
+    document.getElementById("lid-enabled").checked = !!state.lidEnabled;
   }
 }
 
@@ -1883,6 +1897,7 @@ function updateDecorUi() {
   document.getElementById("field-svg-file").classList.toggle("hidden", !svgOn);
   document.getElementById("field-emboss-text").classList.toggle("hidden", svgOn);
   document.getElementById("field-text-color").classList.toggle("hidden", svgOn || !textOn || state.embossDeboss);
+  document.getElementById("field-text-align").classList.toggle("hidden", svgOn || !textOn || state.embossDeboss);
   document.getElementById("field-emboss-font").classList.toggle("hidden", svgOn);
   syncEmbossFaceUi();
   document.getElementById("emboss-deboss").checked = !!state.embossDeboss;
@@ -2234,6 +2249,15 @@ document.getElementById("emboss-text").addEventListener("input", (e) => {
   syncArtEditorUi();
   scheduleArtRebuild();
   scheduleSaveSession();
+});
+
+document.querySelectorAll(".align-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    state.embossTextAlign = btn.dataset.textAlign || "left";
+    syncTextAlignUi();
+    scheduleArtRebuild();
+    pushAppHistory();
+  });
 });
 
 document.getElementById("emboss-font").addEventListener("change", async (e) => {

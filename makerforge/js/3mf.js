@@ -1,7 +1,6 @@
 /**
  * Multi-part 3MF project export for Orca / Bambu Studio (filament colours per object).
  */
-import { zipSync, strToU8 } from "https://cdn.jsdelivr.net/npm/fflate@0.8.2/esm/browser.js";
 import { sanitizeMeshForStl } from "./stl.js";
 
 function escapeXml(s) {
@@ -12,9 +11,120 @@ function escapeXml(s) {
     .replace(/"/g, "&quot;");
 }
 
+function textEncoder() {
+  return new TextEncoder();
+}
+
+function encodeText(str) {
+  return textEncoder().encode(str);
+}
+
+const CRC_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let i = 0; i < 256; i++) {
+    let c = i;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+    table[i] = c >>> 0;
+  }
+  return table;
+})();
+
+function crc32(data) {
+  let crc = 0xffffffff;
+  for (let i = 0; i < data.length; i++) crc = CRC_TABLE[(crc ^ data[i]) & 0xff] ^ (crc >>> 8);
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function writeU16(view, offset, value) {
+  view.setUint16(offset, value, true);
+}
+
+function writeU32(view, offset, value) {
+  view.setUint32(offset, value, true);
+}
+
+/** Minimal ZIP (store only, no compression) — avoids CDN dependency for 3MF packaging. */
+function createZipStore(files) {
+  const localParts = [];
+  const centralParts = [];
+  let offset = 0;
+
+  for (const file of files) {
+    const name = encodeText(file.name);
+    const data = file.data instanceof Uint8Array ? file.data : encodeText(String(file.data ?? ""));
+    const crc = crc32(data);
+    const local = new Uint8Array(30 + name.length);
+    const lv = new DataView(local.buffer);
+    writeU32(lv, 0, 0x04034b50);
+    writeU16(lv, 4, 20);
+    writeU16(lv, 6, 0);
+    writeU16(lv, 8, 0);
+    writeU16(lv, 10, 0);
+    writeU16(lv, 12, 0);
+    writeU32(lv, 14, crc);
+    writeU32(lv, 18, data.length);
+    writeU32(lv, 22, data.length);
+    writeU16(lv, 26, name.length);
+    writeU16(lv, 28, 0);
+    local.set(name, 30);
+
+    centralParts.push({ name, data, crc, offset });
+    localParts.push(local, data);
+    offset += local.length + data.length;
+  }
+
+  let centralSize = 0;
+  for (const entry of centralParts) centralSize += 46 + entry.name.length;
+
+  const out = new Uint8Array(offset + centralSize + 22);
+  let pos = 0;
+  for (const part of localParts) {
+    out.set(part, pos);
+    pos += part.length;
+  }
+
+  const centralStart = pos;
+  for (const entry of centralParts) {
+    const hdr = new Uint8Array(46 + entry.name.length);
+    const cv = new DataView(hdr.buffer);
+    writeU32(cv, 0, 0x02014b50);
+    writeU16(cv, 4, 20);
+    writeU16(cv, 6, 20);
+    writeU16(cv, 8, 0);
+    writeU16(cv, 10, 0);
+    writeU16(cv, 12, 0);
+    writeU16(cv, 14, 0);
+    writeU32(cv, 16, entry.crc);
+    writeU32(cv, 20, entry.data.length);
+    writeU32(cv, 24, entry.data.length);
+    writeU16(cv, 28, entry.name.length);
+    writeU16(cv, 30, 0);
+    writeU16(cv, 32, 0);
+    writeU16(cv, 34, 0);
+    writeU16(cv, 36, 0);
+    writeU32(cv, 38, 0);
+    writeU32(cv, 42, entry.offset);
+    hdr.set(entry.name, 46);
+    out.set(hdr, pos);
+    pos += hdr.length;
+  }
+
+  const end = new DataView(out.buffer, pos, 22);
+  writeU32(end, 0, 0x06054b50);
+  writeU16(end, 4, 0);
+  writeU16(end, 6, 0);
+  writeU16(end, 8, centralParts.length);
+  writeU16(end, 10, centralParts.length);
+  writeU32(end, 12, centralSize);
+  writeU32(end, 16, centralStart);
+  writeU16(end, 20, 0);
+
+  return out;
+}
+
 function meshTo3mfResources(mesh, objectId, name, extruder) {
   const clean = sanitizeMeshForStl(mesh);
-  if (!clean?.positions?.length) return null;
+  if (!clean?.positions?.length || !clean?.indices?.length) return null;
 
   const verts = [];
   for (let i = 0; i < clean.positions.length; i += 3) {
@@ -48,7 +158,7 @@ function meshTo3mfResources(mesh, objectId, name, extruder) {
  * @param {Array<{name:string, mesh:object, color:string, extruder:number}>} parts
  */
 export function buildColoredProject3mf(parts, projectName = "makerdeck") {
-  const usable = (parts || []).filter((p) => p?.mesh?.positions?.length);
+  const usable = (parts || []).filter((p) => p?.mesh?.positions?.length && p?.mesh?.indices?.length);
   if (!usable.length) throw new Error("No geometry to export");
 
   const maxExtruder = Math.max(...usable.map((p) => p.extruder || 1));
@@ -119,14 +229,14 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck") {
   <Relationship Target="/3D/3dmodel.model" Id="rel0" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>
 </Relationships>`;
 
-  const zipped = zipSync({
-    mimetype: strToU8("application/vnd.ms-package.3dmanufacturing-3dmodel+xml"),
-    "[Content_Types].xml": strToU8(contentTypes),
-    "_rels/.rels": strToU8(rels),
-    "3D/3dmodel.model": strToU8(modelXml),
-    "Metadata/project_settings.config": strToU8(projectSettings),
-    "Metadata/model_settings.config": strToU8(modelSettings),
-  });
+  const zipped = createZipStore([
+    { name: "mimetype", data: encodeText("application/vnd.ms-package.3dmanufacturing-3dmodel+xml") },
+    { name: "[Content_Types].xml", data: encodeText(contentTypes) },
+    { name: "_rels/.rels", data: encodeText(rels) },
+    { name: "3D/3dmodel.model", data: encodeText(modelXml) },
+    { name: "Metadata/project_settings.config", data: encodeText(projectSettings) },
+    { name: "Metadata/model_settings.config", data: encodeText(modelSettings) },
+  ]);
 
   return new Blob([zipped], { type: "model/3mf" });
 }
