@@ -2,7 +2,15 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `a3d03fd` — served at `/makerdeck/` on Flightdeck
+- Latest commit: *(pending)* — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Circle boxes: smoother wall mesh for slicing
+
+**What changed:** **Circle** shape no longer uses a fixed 56-sided outline. Segment count now scales with diameter (~1.5 mm facet length, 96–256 segments) so Bambu Studio shows round walls instead of chunky flat facets.
+
+**Files:** `js/geometry.js`, `js/app.js`, `index.html` — cache-bust `app.js?v=84`
+
+**Deploy:** Pi `git pull`. Hard refresh. Re-export STL/3MF for circle boxes.
 
 ### 2026-07-05 — Lids polish: flat cap retention lip + stackable lid pockets
 

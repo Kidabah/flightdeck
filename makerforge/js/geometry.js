@@ -88,6 +88,14 @@ function circleVertices(radius, segments = 48) {
   return pts;
 }
 
+/** Circle outline segments — targets ~1.5 mm facet length for smooth FDM walls. */
+function circleSegmentsForRadius(radius) {
+  if (radius <= 0) return 96;
+  const maxFacet = 1.5;
+  const n = Math.ceil((Math.PI * 2 * radius) / maxFacet);
+  return clamp(Math.ceil(n / 4) * 4, 96, 256);
+}
+
 /** Round polygon vertices with circular fillets. */
 function filletedOutline(vertices, filletR, arcSegments = 6) {
   const r = filletR;
@@ -785,9 +793,10 @@ function resolveContainer(params) {
     const innerH = clamp(params.innerHeight, 5, 400);
     const innerR = diameter / 2;
     const outerR = innerR + wall;
+    const segments = circleSegmentsForRadius(outerR);
     return {
-      outer: circleVertices(outerR, 56),
-      inner: circleVertices(innerR, 56),
+      outer: circleVertices(outerR, segments),
+      inner: circleVertices(innerR, segments),
       floor,
       totalH: innerH + floor,
       cavityH: innerH,
