@@ -2,7 +2,7 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: *(pending deploy)* — served at `/makerdeck/` on Flightdeck
+- Latest commit: `a3d03fd` — served at `/makerdeck/` on Flightdeck
 
 ### 2026-07-05 — Lids polish: flat cap retention lip + stackable lid pockets
 
