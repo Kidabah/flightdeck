@@ -1,11 +1,11 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsLid, shapeSupportsSlideLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=68";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh } from "./features.js?v=68";
-import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=68";
-import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=68";
-import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=68";
-import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=68";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsLid, shapeSupportsSlideLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=69";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh } from "./features.js?v=69";
+import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=69";
+import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=69";
+import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=69";
+import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=69";
 import { appliedHasArt } from "./art-editor.js";
 
 const SESSION_KEY = "makerdeck-session-v1";
@@ -188,10 +188,10 @@ const accentMaterial = new THREE.MeshStandardMaterial({
   color: 0xf97316,
   metalness: FILAMENT_PREVIEW.metalness,
   roughness: FILAMENT_PREVIEW.roughness,
-  side: THREE.DoubleSide,
+  side: THREE.FrontSide,
   polygonOffset: true,
-  polygonOffsetFactor: 3,
-  polygonOffsetUnits: 4,
+  polygonOffsetFactor: -4,
+  polygonOffsetUnits: -4,
 });
 
 const labelMaterial = new THREE.MeshStandardMaterial({
@@ -1179,7 +1179,8 @@ function rebuildMesh() {
     applyAccentPreviewColor();
     const accentGeom = toBufferGeometry(THREE, accentCache);
     accentMesh = new THREE.Mesh(accentGeom, accentMaterial);
-    accentMesh.castShadow = true;
+    accentMesh.castShadow = false;
+    accentMesh.receiveShadow = false;
     accentMesh.renderOrder = 6;
     previewRoot.add(accentMesh);
     const accentEdges = new THREE.EdgesGeometry(accentGeom, 18);

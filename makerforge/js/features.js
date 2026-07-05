@@ -107,6 +107,27 @@ function profileIsValid(profile) {
   return Array.isArray(profile) && profile.length >= 3;
 }
 
+/** Nudge accent sleeve outside the body shell — stops preview z-fight (negligible on print). */
+const ACCENT_SKIN_MM = 0.08;
+
+function offsetProfileOutward(points, offset) {
+  if (!offset || offset <= 0) return points;
+  let cx = 0;
+  let cy = 0;
+  for (const [x, y] of points) {
+    cx += x;
+    cy += y;
+  }
+  cx /= points.length;
+  cy /= points.length;
+  return points.map(([x, y]) => {
+    const dx = x - cx;
+    const dy = y - cy;
+    const len = Math.hypot(dx, dy) || 1;
+    return [x + (dx / len) * offset, y + (dy / len) * offset];
+  });
+}
+
 function frontProfileEdgeFilter(points, inset) {
   const maxY = Math.max(...points.map((p) => p[1]));
   const minX = Math.min(...points.map((p) => p[0]));
@@ -129,29 +150,33 @@ export function buildAccentMesh(meta, params, outerProfile = null) {
   const z0 = z1 - bandH;
   const positions = [];
   const indices = [];
+  const skin = ACCENT_SKIN_MM;
+  const accentProfile = profileIsValid(outerProfile)
+    ? offsetProfileOutward(outerProfile, skin)
+    : null;
 
-  if (profileIsValid(outerProfile)) {
+  if (accentProfile) {
     if (face === "rim") {
-      extrudeWallsAlongZ(positions, indices, outerProfile, z0, z1);
+      extrudeWallsAlongZ(positions, indices, accentProfile, z0, z1);
     } else if (face === "front") {
       const inset = clamp(params.accentInset ?? 4, 2, Math.min(b.outerW, b.outerD) / 3);
-      extrudeWallsAlongZ(positions, indices, outerProfile, z0, z1, frontProfileEdgeFilter(outerProfile, inset));
+      extrudeWallsAlongZ(positions, indices, accentProfile, z0, z1, frontProfileEdgeFilter(accentProfile, inset));
     } else if (face === "floor") {
-      extrudeWallsAlongZ(positions, indices, outerProfile, 0, bandH);
+      extrudeWallsAlongZ(positions, indices, accentProfile, 0, bandH);
     }
   } else if (face === "rim") {
-    wallBand(positions, indices, "y", b.od2, -b.ow2, b.ow2, z0, z1);
-    wallBand(positions, indices, "y", -b.od2, -b.ow2, b.ow2, z0, z1);
-    wallBand(positions, indices, "x", b.ow2, -b.od2, b.od2, z0, z1);
-    wallBand(positions, indices, "x", -b.ow2, -b.od2, b.od2, z0, z1);
+    wallBand(positions, indices, "y", b.od2 + skin, -b.ow2 - skin, b.ow2 + skin, z0, z1);
+    wallBand(positions, indices, "y", -b.od2 - skin, -b.ow2 - skin, b.ow2 + skin, z0, z1);
+    wallBand(positions, indices, "x", b.ow2 + skin, -b.od2 - skin, b.od2 + skin, z0, z1);
+    wallBand(positions, indices, "x", -b.ow2 - skin, -b.od2 - skin, b.od2 + skin, z0, z1);
   } else if (face === "front") {
     const inset = clamp(params.accentInset ?? 4, 2, Math.min(b.outerW, b.outerD) / 3);
-    wallBand(positions, indices, "y", b.od2, -b.ow2 + inset, b.ow2 - inset, z0, z1);
+    wallBand(positions, indices, "y", b.od2 + skin, -b.ow2 + inset, b.ow2 - inset, z0, z1);
   } else if (face === "floor") {
-    wallBand(positions, indices, "y", b.od2, -b.ow2, b.ow2, 0, bandH);
-    wallBand(positions, indices, "y", -b.od2, -b.ow2, b.ow2, 0, bandH);
-    wallBand(positions, indices, "x", b.ow2, -b.od2, b.od2, 0, bandH);
-    wallBand(positions, indices, "x", -b.ow2, -b.od2, b.od2, 0, bandH);
+    wallBand(positions, indices, "y", b.od2 + skin, -b.ow2 - skin, b.ow2 + skin, 0, bandH);
+    wallBand(positions, indices, "y", -b.od2 - skin, -b.ow2 - skin, b.ow2 + skin, 0, bandH);
+    wallBand(positions, indices, "x", b.ow2 + skin, -b.od2 - skin, b.od2 + skin, 0, bandH);
+    wallBand(positions, indices, "x", -b.ow2 - skin, -b.od2 - skin, b.od2 + skin, 0, bandH);
   }
 
   return { positions, indices };

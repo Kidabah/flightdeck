@@ -2,7 +2,15 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `92d07fd` — served at `/makerdeck/` on Flightdeck
+- Latest commit: _(pending)_ — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Fix accent preview strobing (z-fight)
+
+**What changed:** Accent band geometry sits **0.08 mm outside** the body shell so it no longer shares the same faces (classic z-fight flicker). Preview accent also skips shadow casting and uses depth bias toward the camera.
+
+**Files:** `js/features.js`, `js/app.js`, `index.html` — cache-bust `app.js?v=69`
+
+**Deploy:** Pi `git pull`. Hard refresh on `/makerdeck/`.
 
 ### 2026-07-05 — Preview matches customer 3MF colours
 
