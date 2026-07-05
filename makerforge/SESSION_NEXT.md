@@ -2,7 +2,15 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `533f9d0` — served at `/makerdeck/` on Flightdeck
+- Latest commit: _(pending)_ — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Divider insert (half split)
+
+**What changed:** New **Insert** tab — optional flat divider splits the cavity into two halves (length or depth). Separate **Insert** part in 3MF export (box filament). **Pencil box** preset enables it by default (length split).
+
+**Files:** `js/features.js`, `js/geometry.js`, `js/app.js`, `js/stl.js`, `index.html` — cache-bust `app.js?v=71`
+
+**Deploy:** Pi `git pull`. Hard refresh on `/makerdeck/`.
 
 ### 2026-07-05 — Fix Bambu 3MF auto filament assignment
 

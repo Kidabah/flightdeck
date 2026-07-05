@@ -308,6 +308,39 @@ export function buildStackableHex(meta, params) {
   return { positions, indices };
 }
 
+export function shapeSupportsInsert(shape) {
+  return shape === "rect" || shape === "rounded" || shape === "pencilBox";
+}
+
+/** Removable flat divider panel — separate print part, splits cavity into two bays. */
+export function buildDividerInsert(meta, params) {
+  const b = rectFeatureBounds(meta);
+  const axis = params.insertAxis === "depth" ? "depth" : "length";
+  const thickness = clamp(params.insertThickness ?? 2.4, 1.2, 5);
+  const clearance = clamp(params.insertClearance ?? 0.35, 0.1, 1.2);
+  const topClear = clamp(params.insertTopClearance ?? 0.6, 0, 4);
+
+  const spanW = b.innerW - clearance * 2;
+  const spanD = b.innerD - clearance * 2;
+  if (spanW < 8 || spanD < 8) return null;
+
+  const z0 = b.floor;
+  const z1 = b.floor + b.cavityH - topClear;
+  if (z1 - z0 < 4) return null;
+
+  const halfT = thickness / 2;
+  const positions = [];
+  const indices = [];
+
+  if (axis === "length") {
+    appendBox(positions, indices, -halfT, -spanD / 2, z0, halfT, spanD / 2, z1);
+  } else {
+    appendBox(positions, indices, -spanW / 2, -halfT, z0, spanW / 2, halfT, z1);
+  }
+
+  return { positions, indices };
+}
+
 function appendBox(outPos, outIdx, x0, y0, z0, x1, y1, z1) {
   const pts = [
     [x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0],

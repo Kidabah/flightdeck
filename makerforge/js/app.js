@@ -1,11 +1,11 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsLid, shapeSupportsSlideLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=69";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh } from "./features.js?v=69";
-import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=69";
-import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=69";
-import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=70";
-import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=69";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=71";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh } from "./features.js?v=71";
+import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=71";
+import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=71";
+import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=71";
+import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=71";
 import { appliedHasArt } from "./art-editor.js";
 
 const SESSION_KEY = "makerdeck-session-v1";
@@ -32,6 +32,7 @@ const state = { ...DEFAULTS, shape: "rect" };
 let meshCache = null;
 let lidCache = null;
 let accentCache = null;
+let insertCache = null;
 let debossCutterCache = null;
 let traceSourceCanvas = null;
 let traceLastResult = null;
@@ -165,6 +166,7 @@ let lidGuideLoops = [];
 let lidAnim = null;
 let accentMesh = null;
 let accentEdgeLines = null;
+let insertMesh = null;
 let labelMesh = null;
 let labelEdgeLines = null;
 
@@ -192,6 +194,16 @@ const accentMaterial = new THREE.MeshStandardMaterial({
   polygonOffset: true,
   polygonOffsetFactor: -4,
   polygonOffsetUnits: -4,
+});
+
+const insertMaterial = new THREE.MeshStandardMaterial({
+  color: 0x38bdf8,
+  metalness: FILAMENT_PREVIEW.metalness,
+  roughness: FILAMENT_PREVIEW.roughness,
+  side: THREE.DoubleSide,
+  polygonOffset: true,
+  polygonOffsetFactor: -2,
+  polygonOffsetUnits: -2,
 });
 
 const labelMaterial = new THREE.MeshStandardMaterial({
@@ -280,6 +292,11 @@ function buildParams() {
     stackHexSize: state.stackHexSize,
     stackFootHeight: state.stackFootHeight,
     stackClearance: state.stackClearance,
+    insertEnabled: state.insertEnabled,
+    insertAxis: state.insertAxis,
+    insertThickness: state.insertThickness,
+    insertClearance: state.insertClearance,
+    insertTopClearance: state.insertTopClearance,
     vaseStyle: state.vaseStyle,
     vaseDiameter: state.vaseDiameter,
     vaseHeight: state.vaseHeight,
@@ -431,6 +448,18 @@ function collectColoredExportParts() {
     }
   }
 
+  if (state.insertEnabled && insertCache) {
+    const insertClean = sanitizeMeshForStl(insertCache);
+    if (insertClean?.indices?.length) {
+      parts.push({
+        name: "Insert",
+        mesh: insertClean,
+        color: state.boxColor || "#38bdf8",
+        extruder: 1,
+      });
+    }
+  }
+
   return parts;
 }
 
@@ -480,6 +509,15 @@ function disposeAccentPreview() {
     accentEdgeLines = null;
   }
   accentCache = null;
+}
+
+function disposeInsertPreview() {
+  if (insertMesh) {
+    previewRoot.remove(insertMesh);
+    insertMesh.geometry.dispose();
+    insertMesh = null;
+  }
+  insertCache = null;
 }
 
 function disposeLidGuides() {
@@ -669,6 +707,8 @@ function applyBoxPreviewColor() {
     applyFilamentMaterial(material);
     lidMaterial.color.set(bodyHex);
     applyFilamentMaterial(lidMaterial);
+    insertMaterial.color.set(bodyHex);
+    applyFilamentMaterial(insertMaterial);
   }
 }
 
@@ -1151,6 +1191,7 @@ function rebuildMesh() {
     edgeLines.geometry.dispose();
   }
   disposeAccentPreview();
+  disposeInsertPreview();
   disposeLabelPreview();
   disposeLidPreview();
 
@@ -1188,6 +1229,17 @@ function rebuildMesh() {
     accentEdgeLines.renderOrder = 7;
     accentEdgeLines.visible = previewXRayOn;
     previewRoot.add(accentEdgeLines);
+  }
+
+  if (meshCache.insertMesh) {
+    insertCache = meshCache.insertMesh;
+    applyBoxPreviewColor();
+    const insertGeom = toBufferGeometry(THREE, insertCache);
+    insertMesh = new THREE.Mesh(insertGeom, insertMaterial);
+    insertMesh.castShadow = false;
+    insertMesh.receiveShadow = false;
+    insertMesh.renderOrder = 5;
+    previewRoot.add(insertMesh);
   }
 
   if (nextLidMesh) {
@@ -1298,6 +1350,8 @@ function applyPreset(shape) {
     syncSliderUi("lid-clearance", "lidClearance", { min: 0.15, max: 0.8, value: state.lidClearance ?? 0.25, parseKind: "float" });
     syncSliderUi("slide-stop", "slideStopLength", { min: 6, max: 20, value: state.slideStopLength ?? 10 });
     syncSliderUi("slide-groove", "slideGrooveHeight", { min: 4, max: 10, value: state.slideGrooveHeight ?? 6, parseKind: "float" });
+    syncSliderUi("insert-thickness", "insertThickness", { min: 1.2, max: 4, value: state.insertThickness ?? 2.4, parseKind: "float" });
+    syncSliderUi("insert-clearance", "insertClearance", { min: 0.15, max: 1, value: state.insertClearance ?? 0.35, parseKind: "float" });
   }
   if (state.embossFace === "lid" && !state.lidEnabled) {
     state.embossFace = "front";
@@ -1510,6 +1564,12 @@ function joinerUiShape() {
 function decorUiShape() {
   if (state.shape === "rounded") return "rounded";
   if (state.shape === "pencil") return "pencil";
+  if (state.shape === "pencilBox") return "pencilBox";
+  return state.shape === "rect" ? "rect" : null;
+}
+
+function insertUiShape() {
+  if (state.shape === "rounded") return "rounded";
   if (state.shape === "pencilBox") return "pencilBox";
   return state.shape === "rect" ? "rect" : null;
 }
@@ -1978,9 +2038,12 @@ function applyTraceToBox() {
 
 function updateDecorUi() {
   const supported = shapeSupportsDecor(decorUiShape());
-  document.querySelectorAll('.tab[data-tab="accent"], .tab[data-tab="art"], .tab[data-tab="stack"], .tab[data-tab="link"]').forEach((tab) => {
-    tab.disabled = !supported;
-    tab.classList.toggle("tab--disabled", !supported);
+  const insertSupported = shapeSupportsInsert(insertUiShape());
+  document.querySelectorAll('.tab[data-tab="accent"], .tab[data-tab="art"], .tab[data-tab="stack"], .tab[data-tab="link"], .tab[data-tab="insert"]').forEach((tab) => {
+    const insertTab = tab.dataset.tab === "insert";
+    const tabOk = insertTab ? insertSupported : supported;
+    tab.disabled = !tabOk;
+    tab.classList.toggle("tab--disabled", !tabOk);
   });
 
   const accentOn = state.accentEnabled && supported;
@@ -1990,6 +2053,14 @@ function updateDecorUi() {
   document.getElementById("field-accent-height").classList.toggle("hidden", !accentOn);
   document.getElementById("field-accent-color").classList.toggle("hidden", !accentOn);
   document.getElementById("accent-face").value = state.accentFace;
+
+  const insertOn = state.insertEnabled && insertSupported;
+  document.getElementById("insert-enabled").checked = insertOn;
+  document.getElementById("btn-export-insert").classList.toggle("hidden", !insertOn);
+  document.getElementById("field-insert-axis").classList.toggle("hidden", !insertOn);
+  document.getElementById("field-insert-thickness").classList.toggle("hidden", !insertOn);
+  document.getElementById("field-insert-clearance").classList.toggle("hidden", !insertOn);
+  document.getElementById("insert-axis").value = state.insertAxis || "length";
 
   const honeyOn = state.honeycombEnabled && supported;
   document.getElementById("honeycomb-enabled").checked = honeyOn;
@@ -2266,6 +2337,8 @@ bindRange("joiner-width", "joinerWidth", "float");
 bindRange("joiner-neck", "joinerNeck", "float");
 bindRange("joiner-protrusion", "joinerProtrusion", "float");
 bindRange("accent-height", "accentHeight", "float");
+bindRange("insert-thickness", "insertThickness", "float");
+bindRange("insert-clearance", "insertClearance", "float");
 bindRange("trace-threshold", "traceThreshold", "int");
 
 function bindArtStateSlider(sliderId, stateKey, parseKind = "float") {
@@ -2331,6 +2404,16 @@ document.getElementById("accent-enabled").addEventListener("change", (e) => {
 
 document.getElementById("accent-face").addEventListener("change", (e) => {
   state.accentFace = e.target.value;
+  rebuild();
+});
+
+document.getElementById("insert-enabled").addEventListener("change", (e) => {
+  state.insertEnabled = e.target.checked;
+  rebuild();
+});
+
+document.getElementById("insert-axis").addEventListener("change", (e) => {
+  state.insertAxis = e.target.value;
   rebuild();
 });
 
@@ -2546,7 +2629,7 @@ function updateVaseUiVisibility() {
   document.getElementById("section-classic-size").classList.toggle("hidden", isVase);
   document.getElementById("section-walls").classList.toggle("hidden", isVase);
   document.getElementById("section-edges").classList.toggle("hidden", isVase);
-  document.querySelectorAll('.tab[data-tab="accent"], .tab[data-tab="art"], .tab[data-tab="stack"], .tab[data-tab="link"], .tab[data-tab="lid"]').forEach((tab) => {
+  document.querySelectorAll('.tab[data-tab="accent"], .tab[data-tab="art"], .tab[data-tab="stack"], .tab[data-tab="link"], .tab[data-tab="lid"], .tab[data-tab="insert"]').forEach((tab) => {
     tab.classList.toggle("tab--disabled", isVase);
     tab.disabled = isVase;
   });
@@ -2658,6 +2741,12 @@ document.getElementById("btn-export-accent").addEventListener("click", () => {
   downloadBlob(blob, filenameFor(meshCache.meta, "accent"));
 });
 
+document.getElementById("btn-export-insert").addEventListener("click", () => {
+  if (!state.insertEnabled || !insertCache) return;
+  const blob = meshToStl(insertCache, "makerdeck-insert");
+  downloadBlob(blob, filenameFor(meshCache.meta, "insert"));
+});
+
 document.getElementById("btn-export-deboss").addEventListener("click", () => {
   if (!state.embossDeboss || !debossCutterCache) return;
   let exportMesh = debossCutterCache;
@@ -2696,6 +2785,8 @@ syncSliderUi("joiner-width", "joinerWidth", { min: 5, max: 22, value: state.join
 syncSliderUi("joiner-neck", "joinerNeck", { min: 3, max: 16, value: state.joinerNeck, parseKind: "float" });
 syncSliderUi("joiner-protrusion", "joinerProtrusion", { min: 2, max: 10, value: state.joinerProtrusion, parseKind: "float" });
 syncSliderUi("accent-height", "accentHeight", { min: 2, max: 10, value: state.accentHeight, parseKind: "float" });
+syncSliderUi("insert-thickness", "insertThickness", { min: 1.2, max: 4, value: state.insertThickness, parseKind: "float" });
+syncSliderUi("insert-clearance", "insertClearance", { min: 0.15, max: 1, value: state.insertClearance, parseKind: "float" });
 syncSliderUi("emboss-depth", "embossDepth", { min: 0.3, max: 2, value: state.embossDepth, parseKind: "float" });
 syncSliderUi("emboss-height", "embossHeight", { min: 3, max: 48, value: state.embossHeight, parseKind: "float" });
 syncSliderUi("trace-threshold", "traceThreshold", { min: 20, max: 235, value: state.traceThreshold });

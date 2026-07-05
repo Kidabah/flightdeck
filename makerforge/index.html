@@ -74,6 +74,8 @@
 
         <button type="button" id="btn-export-accent" class="btn btn-secondary hidden">Download accent</button>
 
+        <button type="button" id="btn-export-insert" class="btn btn-secondary hidden">Download insert</button>
+
         <button type="button" id="btn-export-deboss" class="btn btn-secondary hidden">Download deboss cutter</button>
 
         <button type="button" id="btn-export-saucer" class="btn btn-secondary hidden">Download saucer</button>
@@ -99,6 +101,8 @@
           <button type="button" class="tab" data-tab="link" role="tab">Link</button>
 
           <button type="button" class="tab" data-tab="accent" role="tab">Accent</button>
+
+          <button type="button" class="tab" data-tab="insert" role="tab">Insert</button>
 
           <button type="button" class="tab" data-tab="art" role="tab">Art</button>
 
@@ -592,6 +596,62 @@
 
 
 
+          <div class="tab-panel" id="tab-insert" role="tabpanel" hidden>
+
+            <section class="section" id="section-insert">
+
+              <h2>Divider insert</h2>
+
+              <p class="field-hint">A flat removable panel splits the cavity in half. Exported as its own part in the <strong>3MF</strong> (same box filament by default).</p>
+
+              <label class="field field-toggle">
+
+                <span class="field-label">Half divider</span>
+
+                <input type="checkbox" id="insert-enabled">
+
+              </label>
+
+              <label class="field hidden" id="field-insert-axis">
+
+                <span class="field-label">Split direction</span>
+
+                <select id="insert-axis">
+
+                  <option value="length">Length — left / right halves</option>
+
+                  <option value="depth">Depth — front / back halves</option>
+
+                </select>
+
+              </label>
+
+              <label class="field hidden" id="field-insert-thickness">
+
+                <span class="field-label">Panel thickness</span>
+
+                <input type="range" id="insert-thickness" min="1.2" max="4" step="0.2" value="2.4" tabindex="-1">
+
+                <button type="button" class="value-edit" id="out-insert-thickness" data-slider="insert-thickness" data-key="insertThickness" data-parse="float">2.4</button>
+
+              </label>
+
+              <label class="field hidden" id="field-insert-clearance">
+
+                <span class="field-label">Wall clearance</span>
+
+                <input type="range" id="insert-clearance" min="0.15" max="1" step="0.05" value="0.35" tabindex="-1">
+
+                <button type="button" class="value-edit" id="out-insert-clearance" data-slider="insert-clearance" data-key="insertClearance" data-parse="float">0.35</button>
+
+              </label>
+
+            </section>
+
+          </div>
+
+
+
           <div class="tab-panel" id="tab-art" role="tabpanel" hidden>
 
             <section class="section" id="section-art">
@@ -903,7 +963,7 @@
 
 
 
-  <script type="module" src="js/app.js?v=70"></script>
+  <script type="module" src="js/app.js?v=71"></script>
 
 </body>
 

@@ -7,9 +7,11 @@ import {
   applyBodyDecorations,
   buildLabelEmboss,
   buildAccentMesh,
+  buildDividerInsert,
   mergeMeshes,
   resolveJoinerDims,
   shapeSupportsDecor,
+  shapeSupportsInsert,
 } from "./features.js";
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js";
@@ -20,7 +22,7 @@ import {
   shapeSupportsSlideLid,
 } from "./slide-lid.js";
 
-export { shapeSupportsDecor, VASE_STYLES, shapeSupportsSlideLid };
+export { shapeSupportsDecor, shapeSupportsInsert, VASE_STYLES, shapeSupportsSlideLid };
 
 function clamp(n, min, max) {
   return Math.min(max, Math.max(min, n));
@@ -952,6 +954,7 @@ export function buildContainer(params) {
       meta,
       totalH: meta.outer.h,
       accentMesh: null,
+      insertMesh: null,
       labelMesh: null,
       debossCutterMesh: null,
       saucerMesh,
@@ -999,6 +1002,7 @@ export function buildContainer(params) {
 
   const decorShape = joinerShape;
   let accentMesh = null;
+  let insertMesh = null;
   let labelMesh = null;
   let debossCutterMesh = null;
   if (shapeSupportsDecor(decorShape)) {
@@ -1022,6 +1026,10 @@ export function buildContainer(params) {
       accentMesh = buildAccentMesh(resolved.meta, params, resolved.outer);
       centerPositions(accentMesh.positions, 0, 0);
     }
+    if (params.insertEnabled && shapeSupportsInsert(decorShape)) {
+      insertMesh = buildDividerInsert(resolved.meta, params);
+      if (insertMesh) centerPositions(insertMesh.positions, 0, 0);
+    }
     return {
       positions: mesh.positions,
       indices: mesh.indices,
@@ -1035,6 +1043,7 @@ export function buildContainer(params) {
       },
       totalH: resolved.totalH,
       accentMesh,
+      insertMesh,
       labelMesh,
       debossCutterMesh,
     };
@@ -1045,7 +1054,7 @@ export function buildContainer(params) {
     joinerHand: useJoiner ? (params.joinerHand === "right" ? "right" : "left") : undefined,
     joinerScale: useJoiner ? resolveJoinerDims(params, resolved.meta.outer.w, resolved.meta.outer.d).scale : undefined,
   };
-  return { ...mesh, shellMesh: mesh, meta, totalH: resolved.totalH, accentMesh, labelMesh };
+  return { ...mesh, shellMesh: mesh, meta, totalH: resolved.totalH, accentMesh, insertMesh: null, labelMesh };
 }
 
 export function buildLid(params) {
@@ -1187,6 +1196,11 @@ export const PENCIL_BOX_PRESET = {
   slideGrooveDepth: 2.4,
   slideStopLength: 10,
   slideEntryRamp: 10,
+  insertEnabled: true,
+  insertAxis: "length",
+  insertThickness: 2.4,
+  insertClearance: 0.35,
+  insertTopClearance: 0.6,
   embossFace: "lid",
 };
 
@@ -1281,4 +1295,9 @@ export const DEFAULTS = {
   stackHexSize: 2.8,
   stackFootHeight: 1.4,
   stackClearance: 0.35,
+  insertEnabled: false,
+  insertAxis: "length",
+  insertThickness: 2.4,
+  insertClearance: 0.35,
+  insertTopClearance: 0.6,
 };

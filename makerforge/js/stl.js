@@ -220,6 +220,7 @@ export function filenameFor(meta, part = "body") {
   let name = base;
   if (part === "lid") name = base.replace(/\.stl$/, "-lid.stl");
   if (part === "accent") name = base.replace(/\.stl$/, "-accent.stl");
+  if (part === "insert") name = base.replace(/\.stl$/, "-insert.stl");
   if (meta.joinerHand) {
     name = name.replace(/\.stl$/, `-link-${meta.joinerHand}.stl`);
   }
