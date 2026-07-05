@@ -2,7 +2,7 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `cfd5712` — served at `/makerdeck/` on Flightdeck
+- Latest commit: `610e88b` — served at `/makerdeck/` on Flightdeck
 
 ### 2026-07-05 — Fix flip hinge reverting / clearing lid
 
