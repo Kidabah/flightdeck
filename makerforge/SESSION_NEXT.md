@@ -2,7 +2,7 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- - `main` commit: *(pending)* — served at `/makerdeck/` on Flightdeck
+- - `main` commit: `a2702f7` — served at `/makerdeck/` on Flightdeck
 
 ### 2026-07-05 — Fix blank preview (duplicate export crash)
 
