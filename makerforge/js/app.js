@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=79";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh } from "./features.js?v=79";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=80";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh } from "./features.js?v=80";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=73";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=73";
 import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=73";
@@ -306,7 +306,7 @@ function buildParams() {
     insertSlotDepth: state.insertSlotDepth,
     insertSlotRamp: state.insertSlotRamp,
     insertBodyGap: 0.12,
-    bookcaseOpenFront: state.shape === "fatQuarters" || !!state.bookcaseOpenFront,
+    bookcaseOpenFront: !!state.bookcaseOpenFront,
     vaseStyle: state.vaseStyle,
     vaseDiameter: state.vaseDiameter,
     vaseHeight: state.vaseHeight,
@@ -934,14 +934,6 @@ function fitCamera(meta) {
   }
 
   const pencilLike = meta.shape === "pencil" || meta.shape === "pencilBox";
-  if (state.shape === "fatQuarters") {
-    const topY = Number(meshCache?.totalH) || h;
-    const dist = Math.max(w, topY) * 1.08 + 55;
-    controls.target.set(0, BED_LIFT + topY * 0.48, 0);
-    camera.position.set(0, BED_LIFT + topY * 0.48, -dist);
-    controls.update();
-    return;
-  }
   const span = Math.max(w, d, topY);
   const dist = (pencilLike ? span * 1.35 : span * 1.8) + 40;
   if (!Number.isFinite(dist) || dist <= 0) return;
@@ -1404,8 +1396,8 @@ const SLIDER_PROFILES = {
   },
   fatQuarters: {
     width: { min: 200, max: 360 },
-    depth: { min: 100, max: 180 },
-    height: { min: 100, max: 450 },
+    depth: { min: 200, max: 360 },
+    height: { min: 40, max: 120 },
   },
 };
 
@@ -1433,7 +1425,8 @@ function applyPreset(shape) {
     syncSliderUi("insert-count", "insertCount", { min: 1, max: 4, value: state.insertCount ?? 2, parseKind: "int" });
     syncSliderUi("insert-thickness", "insertThickness", { min: 1.2, max: 4, value: state.insertThickness ?? 2.4, parseKind: "float" });
     syncSliderUi("insert-clearance", "insertClearance", { min: 0.15, max: 1, value: state.insertClearance ?? 0.35, parseKind: "float" });
-    document.getElementById("insert-axis").value = state.insertAxis || "height";
+    document.getElementById("insert-axis").value = state.insertAxis || "length";
+    document.getElementById("insert-mount").value = state.insertMount || "snap";
   }
   if (state.embossFace === "lid" && !state.lidEnabled) {
     state.embossFace = "front";

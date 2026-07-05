@@ -2,7 +2,15 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `26a8293` — served at `/makerdeck/` on Flightdeck
+- Latest commit: _(pending)_ — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Fat quarters preset: flat H-series tray
+
+**What changed:** **Fat quarters** preset matches Chris’s print — **300×300×55 mm** flat tray, **2 vertical dividers** (3 bays ~98 mm), prints on H-series bed (~305×58 mm outer). Removed 400 mm bookcase layout.
+
+**Files:** `js/geometry.js`, `js/app.js`, `index.html` — cache-bust `app.js?v=80`
+
+**Deploy:** Pi `git pull`. Hard refresh. Re-export 3MF.
 
 ### 2026-07-05 — Insert body gap + slide-in shelf slots
 

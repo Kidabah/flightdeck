@@ -1279,20 +1279,20 @@ export const PENCIL_BOX_PRESET = {
 
 export const FAT_QUARTERS_PRESET = {
   innerWidth: 300,
-  innerDepth: 135,
-  innerHeight: 400,
+  innerDepth: 300,
+  innerHeight: 55,
   wall: 2.4,
   floor: 2.4,
   cornerRadius: 6,
   lidEnabled: false,
   accentEnabled: false,
   insertEnabled: true,
-  insertAxis: "height",
+  insertAxis: "length",
   insertCount: 2,
   insertThickness: 2.4,
   insertClearance: 0.35,
   insertTopClearance: 0.6,
-  bookcaseOpenFront: true,
+  insertMount: "snap",
   embossFace: "front",
 };
 
