@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — divider top clearance auto-matches lid skirt/lip
+- Latest commit: `85bc82b` — divider top clearance auto-matches lid skirt/lip
 - Refresh cachebust: Flightdeck `app.js?v=626` / `style.css?v=481`; MakerDeck iframe `app.js?v=106`
 
 ### 2026-07-06 feature (MakerDeck divider top clearance)
