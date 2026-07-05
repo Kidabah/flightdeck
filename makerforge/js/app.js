@@ -1055,6 +1055,90 @@ function applyPreset(shape) {
   }
 }
 
+/** Leaving a preset (pencil box, teardrop, etc.) — drop lid + case dimensions back to a normal box. */
+function resetFromPresetToBasic(shape) {
+  const d = DEFAULTS;
+  state.shape = shape;
+  state.innerWidth = d.innerWidth;
+  state.innerDepth = d.innerDepth;
+  state.innerHeight = d.innerHeight;
+  state.cornerRadius = shape === "rounded" ? d.cornerRadius : 0;
+  state.vertexFillet = d.vertexFillet;
+  state.sides = d.sides;
+  state.lidEnabled = false;
+  state.lidType = d.lidType;
+  state.lidSkirt = d.lidSkirt;
+  state.lidThickness = d.lidThickness;
+  state.lidClearance = d.lidClearance;
+  state.slideGrooveHeight = d.slideGrooveHeight;
+  state.slideStopLength = d.slideStopLength;
+  if (state.embossFace === "lid") state.embossFace = "front";
+  applySliderProfile("default");
+  if (shape === "rounded") {
+    syncSliderUi("corner-radius", "cornerRadius", { min: 1, max: 24, value: state.cornerRadius, parseKind: "float" });
+  }
+}
+
+function applyVaseShape() {
+  state.shape = "vase";
+  state.lidEnabled = false;
+  state.innerWidth = DEFAULTS.vaseDiameter ?? state.vaseDiameter;
+  applySliderProfile("default");
+  syncSliderUi("vase-diameter", "vaseDiameter", { min: 30, max: 220, value: state.vaseDiameter, parseKind: "float" });
+  syncSliderUi("vase-height", "vaseHeight", { min: 20, max: 280, value: state.vaseHeight, parseKind: "float" });
+}
+
+function syncShapeControlsFromState() {
+  document.querySelectorAll(".shape-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.shape === state.shape);
+  });
+  const profileKey = PRESET_CONFIG[state.shape]?.profile || "default";
+  applySliderProfile(profileKey);
+  syncSliderUi("wall", "wall", { min: 1.2, max: 6, value: state.wall, parseKind: "float" });
+  syncSliderUi("floor", "floor", { min: 1.2, max: 6, value: state.floor, parseKind: "float" });
+  syncSliderUi("corner-radius", "cornerRadius", { min: 0, max: 30, value: state.cornerRadius, parseKind: "float" });
+  syncSliderUi("vertex-fillet", "vertexFillet", { min: 0, max: 12, value: state.vertexFillet, parseKind: "float" });
+  syncSliderUi("sides", "sides", { min: 5, max: 12, value: state.sides });
+  syncSliderUi("lid-skirt", "lidSkirt", { min: 4, max: 25, value: state.lidSkirt });
+  syncSliderUi("lid-thickness", "lidThickness", { min: 2, max: 6, value: state.lidThickness, parseKind: "float" });
+  syncSliderUi("lid-clearance", "lidClearance", { min: 0.15, max: 0.8, value: state.lidClearance, parseKind: "float" });
+  syncSliderUi("slide-groove", "slideGrooveHeight", { min: 4, max: 10, value: state.slideGrooveHeight ?? 6, parseKind: "float" });
+  syncSliderUi("slide-stop", "slideStopLength", { min: 6, max: 20, value: state.slideStopLength ?? 10 });
+  document.getElementById("lid-enabled").checked = !!state.lidEnabled;
+  document.getElementById("lid-type").value = state.lidType || "slip";
+  updateLabels();
+}
+
+function selectShape(next) {
+  const prev = state.shape;
+  const leavingPreset = PRESET_SHAPES.has(prev) || prev === "vase";
+
+  if (next === "vase") {
+    applyVaseShape();
+  } else if (PRESET_CONFIG[next]) {
+    state.shape = next;
+    applyPreset(next);
+  } else if (leavingPreset) {
+    resetFromPresetToBasic(next);
+  } else {
+    state.shape = next;
+    applySliderProfile("default");
+    if (next === "rounded") {
+      syncSliderUi("corner-radius", "cornerRadius", { min: 1, max: 24, value: state.cornerRadius ?? DEFAULTS.cornerRadius, parseKind: "float" });
+    }
+  }
+
+  syncLidTypeSelect();
+  syncShapeControlsFromState();
+  updateVaseUiVisibility();
+  updateLidUi();
+  updateDecorUi();
+  updateJoinerUi();
+  rebuild();
+  pushAppHistory();
+  if (meshCache) fitCamera(meshCache.meta);
+}
+
 function syncLidTypeSelect() {
   const sel = document.getElementById("lid-type");
   if (!sel) return;
@@ -2283,21 +2367,7 @@ document.querySelectorAll("#field-joiner-hand .chip").forEach((chip) => {
 
 document.querySelectorAll(".shape-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
-    document.querySelectorAll(".shape-btn").forEach((b) => b.classList.remove("active"));
-    btn.classList.add("active");
-    const next = btn.dataset.shape;
-    if (PRESET_CONFIG[next]) {
-      state.shape = next;
-      applyPreset(next);
-    } else {
-      state.shape = next;
-      applySliderProfile("default");
-    }
-    updateVaseUiVisibility();
-    updateLidUi();
-    rebuild();
-    pushAppHistory();
-    if (meshCache) fitCamera(meshCache.meta);
+    selectShape(btn.dataset.shape);
   });
 });
 

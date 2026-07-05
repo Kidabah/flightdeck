@@ -2,8 +2,15 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `815104f` — fix blank viewport on failed rebuild
-- Refresh cachebust currently: MakerDeck app.js?v=53 / style.css?v=13
+- Latest commit: (pending) — reset lid/dims when leaving pencil box preset
+- Refresh cachebust currently: MakerDeck app.js?v=54 / style.css?v=13
+
+### 2026-07-05 fix (MakerDeck shape switch pencil box → box)
+
+**Box button now resets lid and dimensions after a preset** (`app.js`)
+
+- Leaving pencil box (or any preset) for Box/Rounded/Hex/Circle clears slide lid + case size back to default 80×60×40.
+- Cachebust app.js?v=54. Hard refresh required.
 
 ### 2026-07-05 fix (MakerDeck blank viewport)
 
