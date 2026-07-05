@@ -2,7 +2,7 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- `main` commit: (pending) — inset plug lid restored (3rd KISS type)
+- `main` commit: `0c91e1d` — inset plug lid restored (3rd KISS type)
 
 ### 2026-07-05 — Inset plug lid restored
 

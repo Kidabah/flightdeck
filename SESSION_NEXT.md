@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — restore MakerDeck inset plug lid as third KISS option
+- Latest commit: `0c91e1d` — restore MakerDeck inset plug lid as third KISS option
 - Refresh cachebust: Flightdeck `app.js?v=626` / `style.css?v=481`; MakerDeck iframe `app.js?v=105`
 
 ### 2026-07-05 fix (MakerDeck inset plug lid restored)
