@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: _(pending)_ — MakerDeck tab in Flightdeck sidebar
+- Latest commit: `0f5519e` — MakerDeck tab in Flightdeck sidebar
 - Refresh cachebust: Flightdeck `app.js?v=625` / `style.css?v=481`; MakerDeck iframe `app.js?v=66`
 
 ### 2026-07-05 feature (MakerDeck inside Flightdeck)
