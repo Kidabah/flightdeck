@@ -2,7 +2,17 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `be818ad` — served at `/makerdeck/` on Flightdeck
+- Latest commit: _(pending)_ — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Lids: flat cap default for fat quarters tray
+
+**What changed:** **Fat quarters** preset defaults to **Flat cap** lid type when you enable lid (still off by default). Lid tab shows tray hint for dust cover / stacking.
+
+**Planned next — adjustable removable dividers:** mirrored vertical slot pairs on left/right walls; slot positions on a slider scale so panels slide in and bays resize for on-call custom boxes.
+
+**Files:** `js/geometry.js`, `js/app.js`, `index.html` — cache-bust `app.js?v=82`
+
+**Deploy:** Pi `git pull`. Hard refresh.
 
 ### 2026-07-05 — Fat quarters: single-colour export
 

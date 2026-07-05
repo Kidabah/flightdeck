@@ -1293,6 +1293,9 @@ export const FAT_QUARTERS_PRESET = {
   insertClearance: 0.35,
   insertTopClearance: 0.6,
   insertMount: "snap",
+  lidType: "flat",
+  lidThickness: 2.4,
+  lidClearance: 0.35,
   embossFace: "front",
 };
 
