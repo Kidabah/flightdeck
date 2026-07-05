@@ -2,7 +2,7 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- `main` commit: (pending) — slip lid + vase cap artifact fix
+- `main` commit: `57308fa` — slip lid + vase cap artifact fix
 
 ### 2026-07-06 — Preview artifact fix (slip lid + vase caps)
 

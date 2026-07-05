@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — fix slip lid internal cap artifact + vase earcut caps
+- Latest commit: `57308fa` — fix slip lid internal cap artifact + vase earcut caps
 - Refresh cachebust: MakerDeck `app.js?v=107`
 
 ### 2026-07-06 fix (MakerDeck preview artifacts)
