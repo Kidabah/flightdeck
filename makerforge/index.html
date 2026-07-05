@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Oswald:wght@700&family=Roboto+Mono:wght@700&family=Roboto:wght@700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=17">
+  <link rel="stylesheet" href="css/style.css?v=18">
 
   <script type="importmap">
 
@@ -62,25 +62,33 @@
 
           <button type="button" id="btn-reset-view" class="btn btn-ghost" title="Reset camera">Reset view</button>
 
-          <button type="button" id="btn-reset-defaults" class="btn btn-ghost" title="Reset all settings to defaults">Reset defaults</button>
+          <button type="button" id="btn-reset-defaults" class="btn btn-reset-defaults" title="Reset all settings to defaults">Reset defaults</button>
 
         </div>
 
         <div class="topbar-export">
 
-        <button type="button" id="btn-export" class="btn btn-primary">Download 3MF</button>
+          <select id="export-format" class="export-format-select" aria-label="Download format">
 
-        <button type="button" id="btn-export-stl" class="btn btn-secondary">Download STL</button>
+            <option value="3mf" selected>3MF project</option>
 
-        <button type="button" id="btn-export-lid" class="btn btn-secondary hidden">Download lid</button>
+            <option value="stl">STL body</option>
 
-        <button type="button" id="btn-export-accent" class="btn btn-secondary hidden">Download accent</button>
+            <option value="lid-3mf" data-export-opt="lid">3MF lid</option>
 
-        <button type="button" id="btn-export-insert" class="btn btn-secondary hidden">Download insert</button>
+            <option value="lid-stl" data-export-opt="lid">STL lid</option>
 
-        <button type="button" id="btn-export-deboss" class="btn btn-secondary hidden">Download deboss cutter</button>
+            <option value="accent" data-export-opt="accent">STL accent</option>
 
-        <button type="button" id="btn-export-saucer" class="btn btn-secondary hidden">Download saucer</button>
+            <option value="insert" data-export-opt="insert">STL insert</option>
+
+            <option value="deboss" data-export-opt="deboss">STL deboss cutter</option>
+
+            <option value="saucer" data-export-opt="saucer">STL saucer</option>
+
+          </select>
+
+          <button type="button" id="btn-export-go" class="btn btn-primary">Download</button>
 
         </div>
 
@@ -141,6 +149,8 @@
                 <button type="button" class="shape-btn shape-btn--preset" data-shape="pencil">Pencil tube</button>
 
                 <button type="button" class="shape-btn shape-btn--preset" data-shape="pencilBox">Pencil box</button>
+
+                <button type="button" class="shape-btn shape-btn--preset" data-shape="fatQuarters">Fat quarters</button>
 
                 <button type="button" class="shape-btn shape-btn--preset" data-shape="teardrop">Teardrop</button>
 
@@ -604,13 +614,25 @@
 
               <h2>Divider insert</h2>
 
-              <p class="field-hint">A flat removable panel splits the cavity in half. Exported as its own part in the <strong>3MF</strong> (same box filament by default).</p>
+              <p class="field-hint">Flat removable panels split the cavity into equal bays. Exported as one <strong>Insert</strong> part in the 3MF (same box filament by default).</p>
 
               <label class="field field-toggle">
 
-                <span class="field-label">Half divider</span>
+                <span class="field-label">Divider inserts</span>
 
                 <input type="checkbox" id="insert-enabled">
+
+              </label>
+
+              <label class="field hidden" id="field-insert-count">
+
+                <span class="field-label">Divider count</span>
+
+                <input type="range" id="insert-count" min="1" max="4" step="1" value="1" tabindex="-1">
+
+                <button type="button" class="value-edit" id="out-insert-count" data-slider="insert-count" data-key="insertCount" data-parse="int">1</button>
+
+                <p class="field-hint" id="insert-count-hint">1 divider → 2 compartments</p>
 
               </label>
 
@@ -620,9 +642,9 @@
 
                 <select id="insert-axis">
 
-                  <option value="length">Length — left / right halves</option>
+                  <option value="length">Length — parallel panels</option>
 
-                  <option value="depth">Depth — front / back halves</option>
+                  <option value="depth">Depth — parallel panels</option>
 
                 </select>
 
@@ -965,7 +987,7 @@
 
 
 
-  <script type="module" src="js/app.js?v=72"></script>
+  <script type="module" src="js/app.js?v=74"></script>
 
 </body>
 

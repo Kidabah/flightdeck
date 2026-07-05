@@ -2,7 +2,19 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `fb17a7e` — served at `/makerdeck/` on Flightdeck
+- Latest commit: `f4c35f9` — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Export dropdown, divider count, fat quarters preset
+
+**What changed:**
+- **Download** is now a format dropdown (default **3MF project**) + single Download button — extra formats (lid, accent, insert, deboss cutter, saucer) appear only when relevant.
+- **Reset defaults** button is red normally, flashes green with ✓ on success.
+- **Insert** tab: divider **count** slider (1–4) splits the cavity into equal bays; hint shows compartments.
+- New **Fat quarters** preset: 300×300×50 mm box, 2 dividers (3 bays) for fabric storage.
+
+**Files:** `js/app.js`, `js/features.js`, `js/geometry.js`, `index.html`, `css/style.css` — cache-bust `app.js?v=74`, `style.css?v=18`
+
+**Deploy:** Pi `git pull`. Hard refresh on `/makerdeck/` (Ctrl+Shift+R).
 
 ### 2026-07-05 — Reset defaults button
 

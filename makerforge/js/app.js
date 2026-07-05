@@ -1,18 +1,18 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=72";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh } from "./features.js?v=71";
-import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=71";
-import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=71";
-import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=71";
-import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=71";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=74";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh } from "./features.js?v=74";
+import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=73";
+import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=73";
+import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=73";
+import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
 
 const SESSION_KEY = "makerdeck-session-v1";
 let saveSessionTimer = null;
 let sessionBooting = true;
 
-const PRESET_SHAPES = new Set(["pencil", "pencilBox", "teardrop", "star", "heart"]);
+const PRESET_SHAPES = new Set(["pencil", "pencilBox", "fatQuarters", "teardrop", "star", "heart"]);
 
 function textHasInk(text) {
   return String(text || "")
@@ -23,6 +23,7 @@ function textHasInk(text) {
 const PRESET_CONFIG = {
   pencil: { preset: PENCIL_PRESET, profile: "pencil" },
   pencilBox: { preset: PENCIL_BOX_PRESET, profile: "pencil" },
+  fatQuarters: { preset: FAT_QUARTERS_PRESET, profile: "default" },
   teardrop: { preset: TEARDROP_PRESET, profile: "teardrop" },
   star: { preset: STAR_PRESET, profile: "jewel" },
   heart: { preset: HEART_PRESET, profile: "jewel" },
@@ -236,13 +237,15 @@ function saneNum(value, fallback) {
 function buildParams() {
   const d = DEFAULTS;
   return {
-    shape: state.shape === "rounded" ? "rect" : state.shape,
+    shape: state.shape === "rounded" || state.shape === "fatQuarters" ? "rect" : state.shape,
     innerWidth: saneNum(state.innerWidth, d.innerWidth),
     innerDepth: saneNum(state.innerDepth, d.innerDepth),
     innerHeight: saneNum(state.innerHeight, d.innerHeight),
     wall: saneNum(state.wall, d.wall),
     floor: saneNum(state.floor, d.floor),
-    cornerRadius: state.shape === "rounded" || state.shape === "pencilBox" ? saneNum(state.cornerRadius, d.cornerRadius) : 0,
+    cornerRadius: state.shape === "rounded" || state.shape === "pencilBox" || state.shape === "fatQuarters"
+      ? saneNum(state.cornerRadius, d.cornerRadius)
+      : 0,
     vertexFillet: state.vertexFillet,
     sides: state.sides,
     starPoints: state.starPoints,
@@ -294,6 +297,7 @@ function buildParams() {
     stackClearance: state.stackClearance,
     insertEnabled: state.insertEnabled,
     insertAxis: state.insertAxis,
+    insertCount: state.insertCount,
     insertThickness: state.insertThickness,
     insertClearance: state.insertClearance,
     insertTopClearance: state.insertTopClearance,
@@ -987,6 +991,16 @@ function resetToDefaults() {
   rebuild();
   if (meshCache) fitCamera(meshCache.meta);
   scheduleSaveSession();
+
+  const resetBtn = document.getElementById("btn-reset-defaults");
+  if (resetBtn) {
+    resetBtn.classList.add("is-ok");
+    resetBtn.textContent = "Reset ✓";
+    setTimeout(() => {
+      resetBtn.classList.remove("is-ok");
+      resetBtn.textContent = "Reset defaults";
+    }, 1400);
+  }
 }
 
 function resetToDefaultBox() {
@@ -1128,6 +1142,8 @@ function syncUiFromState() {
   syncSliderUi("accent-height", "accentHeight", { min: 2, max: 10, value: state.accentHeight, parseKind: "float" });
   syncSliderUi("insert-thickness", "insertThickness", { min: 1.2, max: 4, value: state.insertThickness, parseKind: "float" });
   syncSliderUi("insert-clearance", "insertClearance", { min: 0.15, max: 1, value: state.insertClearance, parseKind: "float" });
+  syncSliderUi("insert-count", "insertCount", { min: 1, max: 4, value: state.insertCount ?? 1, parseKind: "int" });
+  syncInsertCountHint();
   syncSliderUi("emboss-depth", "embossDepth", { min: 0.3, max: 2, value: state.embossDepth, parseKind: "float" });
   syncSliderUi("emboss-height", "embossHeight", { min: 3, max: 48, value: state.embossHeight, parseKind: "float" });
   syncSliderUi("trace-threshold", "traceThreshold", { min: 20, max: 235, value: state.traceThreshold });
@@ -1163,7 +1179,7 @@ function rebuildMesh() {
   const params = buildParams();
 
   const nextCache = buildContainer(params);
-  if (nextCache.meta.shape === "rect" && state.shape === "rounded") {
+  if (nextCache.meta.shape === "rect" && (state.shape === "rounded" || state.shape === "fatQuarters")) {
     nextCache.meta.shape = "rounded";
   }
   if (state.shape === "hex" && state.sides !== 6) {
@@ -1373,11 +1389,18 @@ function applyPreset(shape) {
     syncSliderUi("insert-thickness", "insertThickness", { min: 1.2, max: 4, value: state.insertThickness ?? 2.4, parseKind: "float" });
     syncSliderUi("insert-clearance", "insertClearance", { min: 0.15, max: 1, value: state.insertClearance ?? 0.35, parseKind: "float" });
   }
+  if (shape === "fatQuarters") {
+    syncSliderUi("corner-radius", "cornerRadius", { min: 1, max: 24, value: state.cornerRadius ?? 6, parseKind: "float" });
+    syncSliderUi("insert-count", "insertCount", { min: 1, max: 4, value: state.insertCount ?? 2, parseKind: "int" });
+    syncSliderUi("insert-thickness", "insertThickness", { min: 1.2, max: 4, value: state.insertThickness ?? 2.4, parseKind: "float" });
+    syncSliderUi("insert-clearance", "insertClearance", { min: 0.15, max: 1, value: state.insertClearance ?? 0.35, parseKind: "float" });
+  }
   if (state.embossFace === "lid" && !state.lidEnabled) {
     state.embossFace = "front";
   }
   document.getElementById("lid-enabled").checked = !!state.lidEnabled;
   document.getElementById("lid-type").value = state.lidType || "slip";
+  document.getElementById("insert-enabled").checked = !!state.insertEnabled;
 }
 
 /** Leaving a preset (pencil box, teardrop, etc.) — drop lid + case dimensions back to a normal box. */
@@ -1490,6 +1513,7 @@ function updateLabels() {
   const hex = shape === "hex";
   const circle = shape === "circle";
   const rounded = shape === "rounded";
+  const fatQuarters = shape === "fatQuarters";
   const preset = PRESET_SHAPES.has(shape);
   const poly = hex;
   const star = shape === "star";
@@ -1519,6 +1543,7 @@ function updateLabels() {
   const sizeHeading = {
     pencil: "Case size",
     pencilBox: "Case size",
+    fatQuarters: "Box size",
     teardrop: "Drop size",
     star: "Star size",
     heart: "Heart size",
@@ -1532,7 +1557,7 @@ function updateLabels() {
         : 'Inner size <span class="unit">mm</span>';
 
   document.getElementById("field-depth").classList.toggle("hidden", hex || circle || star);
-  document.getElementById("field-corner").classList.toggle("hidden", !rounded && !pencilBox);
+  document.getElementById("field-corner").classList.toggle("hidden", !rounded && !pencilBox && !fatQuarters);
   document.getElementById("field-sides").classList.toggle("hidden", !poly || pencilBox);
   document.getElementById("field-vertex-fillet").classList.toggle("hidden", circle || rounded || (preset && !star && !heart && !pencilBox));
   document.getElementById("section-edges").classList.toggle("hidden", preset && !star && !heart && !pencilBox);
@@ -1553,7 +1578,6 @@ function updateLidUi() {
   const slideOk = shapeSupportsSlideLid(state.shape);
   document.getElementById("lid-enabled").checked = !!state.lidEnabled && supported;
   document.getElementById("lid-type").value = isSlide && !slideOk ? "plug" : type.id;
-  document.getElementById("btn-export-lid").classList.toggle("hidden", !on);
   document.getElementById("btn-lid-preview-fit").classList.toggle("hidden", !on);
   document.getElementById("lid-xray-hint")?.classList.toggle("hidden", !on);
   document.getElementById("field-lid-type").classList.toggle("hidden", !on);
@@ -1573,6 +1597,7 @@ function updateLidUi() {
   const title = document.getElementById("lid-section-title");
   if (title) title.textContent = on ? type.label : "Lid";
   syncEmbossFaceUi();
+  syncExportFormatOptions();
 }
 
 function joinerUiShape() {
@@ -1582,14 +1607,14 @@ function joinerUiShape() {
 }
 
 function decorUiShape() {
-  if (state.shape === "rounded") return "rounded";
+  if (state.shape === "rounded" || state.shape === "fatQuarters") return "rounded";
   if (state.shape === "pencil") return "pencil";
   if (state.shape === "pencilBox") return "pencilBox";
   return state.shape === "rect" ? "rect" : null;
 }
 
 function insertUiShape() {
-  if (state.shape === "rounded") return "rounded";
+  if (state.shape === "rounded" || state.shape === "fatQuarters") return "rounded";
   if (state.shape === "pencilBox") return "pencilBox";
   return state.shape === "rect" ? "rect" : null;
 }
@@ -2056,6 +2081,109 @@ function applyTraceToBox() {
   updateTraceUi();
 }
 
+function syncInsertCountHint() {
+  const el = document.getElementById("insert-count-hint");
+  if (!el) return;
+  const n = Math.max(1, Math.min(4, Math.round(state.insertCount ?? 1)));
+  el.textContent = `${n} divider${n === 1 ? "" : "s"} → ${n + 1} compartments`;
+}
+
+function syncExportFormatOptions() {
+  const sel = document.getElementById("export-format");
+  if (!sel) return;
+  const lidOn = state.lidEnabled && shapeSupportsLid(state.shape);
+  const accentOn = state.accentEnabled && shapeSupportsDecor(decorUiShape());
+  const insertOn = state.insertEnabled && shapeSupportsInsert(insertUiShape());
+  const debossOn = !!state.embossDeboss && !!debossCutterCache;
+  const saucerOn = state.shape === "vase" && state.vaseSaucerEnabled && !!meshCache?.saucerMesh;
+  const show = { lid: lidOn, accent: accentOn, insert: insertOn, deboss: debossOn, saucer: saucerOn };
+  sel.querySelectorAll("option[data-export-opt]").forEach((opt) => {
+    const ok = show[opt.dataset.exportOpt];
+    opt.hidden = !ok;
+    opt.disabled = !ok;
+  });
+  if (sel.selectedOptions[0]?.disabled) sel.value = "3mf";
+}
+
+function runExport(format) {
+  if (!meshCache) rebuild();
+  try {
+    switch (format) {
+      case "3mf": {
+        const parts = collectColoredExportParts();
+        downloadBlob(buildColoredProject3mf(parts, "makerdeck"), filename3mfFor(meshCache.meta, "body"));
+        break;
+      }
+      case "stl": {
+        const exportMesh = buildWatertightExportMesh(meshCache, meshCache.meta, buildParams());
+        downloadBlob(meshToStl(exportMesh, "makerdeck"), filenameFor(meshCache.meta, "body"));
+        break;
+      }
+      case "lid-3mf": {
+        if (!state.lidEnabled || !lidCache) return;
+        rebuild();
+        if (hasSeparateTextExport() && state.embossFace === "lid") {
+          const parts = collectColoredLidExportParts();
+          downloadBlob(buildColoredProject3mf(parts, "makerdeck-lid"), filename3mfFor(lidCache.meta, "lid"));
+        } else {
+          alert("Colored lid 3MF needs text art on the Lid top face. Use STL lid otherwise.");
+        }
+        break;
+      }
+      case "lid-stl": {
+        if (!state.lidEnabled || !lidCache) return;
+        rebuild();
+        if (appliedHasArt(state) && state.embossFace !== "lid") {
+          const status = document.getElementById("art-draft-status");
+          if (status) {
+            status.textContent = "Art is on the box body — switch Face to Lid top, Apply, then download lid again.";
+            status.classList.add("is-dirty");
+          }
+        }
+        try {
+          downloadBlob(meshToStl(orientLidForPrint(lidCache), "makerdeck-lid"), filenameFor(lidCache.meta, "lid"));
+        } catch (err) {
+          const status = document.getElementById("art-draft-status");
+          if (status) {
+            status.textContent = err?.message || "Lid export failed — check art fits on lid face.";
+            status.classList.add("is-dirty");
+          }
+        }
+        break;
+      }
+      case "accent": {
+        if (!state.accentEnabled || !accentCache) return;
+        downloadBlob(meshToStl(accentCache, "makerdeck-accent"), filenameFor(meshCache.meta, "accent"));
+        break;
+      }
+      case "insert": {
+        if (!state.insertEnabled || !insertCache) return;
+        downloadBlob(meshToStl(insertCache, "makerdeck-insert"), filenameFor(meshCache.meta, "insert"));
+        break;
+      }
+      case "deboss": {
+        if (!state.embossDeboss || !debossCutterCache) return;
+        let exportMesh = debossCutterCache;
+        if (state.embossFace === "lid" && lidCache) {
+          exportMesh = orientLidForPrint({ ...debossCutterCache, lidHeight: lidCache.lidHeight });
+        }
+        downloadBlob(meshToStl(exportMesh, "makerdeck-deboss"), filenameFor(meshCache.meta, "deboss-cutter"));
+        break;
+      }
+      case "saucer": {
+        if (state.shape !== "vase" || !state.vaseSaucerEnabled || !meshCache?.saucerMesh) return;
+        downloadBlob(meshToStl(meshCache.saucerMesh, "makerdeck-saucer"), filenameFor(meshCache.meta, "saucer"));
+        break;
+      }
+      default:
+        break;
+    }
+  } catch (err) {
+    console.error("Export failed:", err);
+    alert(err?.message || "Export failed.");
+  }
+}
+
 function updateDecorUi() {
   const supported = shapeSupportsDecor(decorUiShape());
   const insertSupported = shapeSupportsInsert(insertUiShape());
@@ -2068,7 +2196,6 @@ function updateDecorUi() {
 
   const accentOn = state.accentEnabled && supported;
   document.getElementById("accent-enabled").checked = accentOn;
-  document.getElementById("btn-export-accent").classList.toggle("hidden", !accentOn);
   document.getElementById("field-accent-face").classList.toggle("hidden", !accentOn);
   document.getElementById("field-accent-height").classList.toggle("hidden", !accentOn);
   document.getElementById("field-accent-color").classList.toggle("hidden", !accentOn);
@@ -2076,11 +2203,12 @@ function updateDecorUi() {
 
   const insertOn = state.insertEnabled && insertSupported;
   document.getElementById("insert-enabled").checked = insertOn;
-  document.getElementById("btn-export-insert").classList.toggle("hidden", !insertOn);
+  document.getElementById("field-insert-count").classList.toggle("hidden", !insertOn);
   document.getElementById("field-insert-axis").classList.toggle("hidden", !insertOn);
   document.getElementById("field-insert-thickness").classList.toggle("hidden", !insertOn);
   document.getElementById("field-insert-clearance").classList.toggle("hidden", !insertOn);
   document.getElementById("insert-axis").value = state.insertAxis || "length";
+  syncInsertCountHint();
 
   const honeyOn = state.honeycombEnabled && supported;
   document.getElementById("honeycomb-enabled").checked = honeyOn;
@@ -2104,6 +2232,7 @@ function updateDecorUi() {
   document.getElementById("field-trace-size").classList.toggle("hidden", svgOn || (textOn && !traceOnBox));
   document.getElementById("emboss-font").value = state.embossFont || "inter";
   syncArtEditorUi();
+  syncExportFormatOptions();
 }
 
 function syncEmbossFaceUi() {
@@ -2137,8 +2266,7 @@ function updateEmbossDebossUi() {
   const on = !!state.embossDeboss;
   const hint = document.getElementById("emboss-deboss-hint");
   if (hint) hint.classList.toggle("hidden", !on);
-  const btn = document.getElementById("btn-export-deboss");
-  if (btn) btn.classList.toggle("hidden", !on || !debossCutterCache);
+  syncExportFormatOptions();
 }
 
 function updateEmbossTextPreviewStyle() {
@@ -2359,6 +2487,7 @@ bindRange("joiner-protrusion", "joinerProtrusion", "float");
 bindRange("accent-height", "accentHeight", "float");
 bindRange("insert-thickness", "insertThickness", "float");
 bindRange("insert-clearance", "insertClearance", "float");
+bindRange("insert-count", "insertCount", "int");
 bindRange("trace-threshold", "traceThreshold", "int");
 
 function bindArtStateSlider(sliderId, stateKey, parseKind = "float") {
@@ -2658,8 +2787,7 @@ function updateVaseUiVisibility() {
     tab.disabled = isVase;
   });
   document.getElementById("field-vase-drainage-size").classList.toggle("hidden", !state.vaseDrainage);
-  const saucerBtn = document.getElementById("btn-export-saucer");
-  if (saucerBtn) saucerBtn.classList.toggle("hidden", !(isVase && state.vaseSaucerEnabled));
+  syncExportFormatOptions();
 }
 
 const vaseStyleSelect = document.getElementById("vase-style");
@@ -2700,85 +2828,9 @@ document.getElementById("vase-saucer").addEventListener("change", (e) => {
   rebuild();
 });
 
-document.getElementById("btn-export-saucer").addEventListener("click", () => {
-  if (state.shape !== "vase" || !state.vaseSaucerEnabled || !meshCache?.saucerMesh) return;
-  const blob = meshToStl(meshCache.saucerMesh, "makerdeck-saucer");
-  downloadBlob(blob, filenameFor(meshCache.meta, "saucer"));
-});
-
-document.getElementById("btn-export").addEventListener("click", () => {
-  if (!meshCache) rebuild();
-  try {
-    const parts = collectColoredExportParts();
-    const blob = buildColoredProject3mf(parts, "makerdeck");
-    downloadBlob(blob, filename3mfFor(meshCache.meta, "body"));
-  } catch (err) {
-    console.error("3MF export failed:", err);
-    alert(err?.message || "Could not build 3MF export.");
-  }
-});
-
-document.getElementById("btn-export-stl").addEventListener("click", () => {
-  if (!meshCache) rebuild();
-  try {
-    const exportMesh = buildWatertightExportMesh(meshCache, meshCache.meta, buildParams());
-    const blob = meshToStl(exportMesh, "makerdeck");
-    downloadBlob(blob, filenameFor(meshCache.meta, "body"));
-  } catch (err) {
-    console.error("STL export failed:", err);
-    alert(err?.message || "Could not build STL export.");
-  }
-});
-
-document.getElementById("btn-export-lid").addEventListener("click", () => {
-  if (!state.lidEnabled) return;
-  rebuild();
-  if (appliedHasArt(state) && state.embossFace !== "lid") {
-    const status = document.getElementById("art-draft-status");
-    if (status) {
-      status.textContent = "Art is on the box body — switch Face to Lid top, Apply, then download lid again.";
-      status.classList.add("is-dirty");
-    }
-  }
-  try {
-    if (hasSeparateTextExport() && state.embossFace === "lid") {
-      const parts = collectColoredLidExportParts();
-      const blob = buildColoredProject3mf(parts, "makerdeck-lid");
-      downloadBlob(blob, filename3mfFor(lidCache.meta, "lid"));
-      return;
-    }
-    const printMesh = orientLidForPrint(lidCache);
-    const blob = meshToStl(printMesh, "makerdeck-lid");
-    downloadBlob(blob, filenameFor(lidCache.meta, "lid"));
-  } catch (err) {
-    const status = document.getElementById("art-draft-status");
-    if (status) {
-      status.textContent = err?.message || "Lid export failed — check art fits on lid face.";
-      status.classList.add("is-dirty");
-    }
-  }
-});
-
-document.getElementById("btn-export-accent").addEventListener("click", () => {
-  if (!state.accentEnabled || !accentCache) return;
-  const blob = meshToStl(accentCache, "makerdeck-accent");
-  downloadBlob(blob, filenameFor(meshCache.meta, "accent"));
-});
-
-document.getElementById("btn-export-insert").addEventListener("click", () => {
-  if (!state.insertEnabled || !insertCache) return;
-  const blob = meshToStl(insertCache, "makerdeck-insert");
-  downloadBlob(blob, filenameFor(meshCache.meta, "insert"));
-});
-
-document.getElementById("btn-export-deboss").addEventListener("click", () => {
-  if (!state.embossDeboss || !debossCutterCache) return;
-  let exportMesh = debossCutterCache;
-  if (state.embossFace === "lid" && lidCache) {
-    exportMesh = orientLidForPrint({ ...debossCutterCache, lidHeight: lidCache.lidHeight });
-  }
-  const blob = meshToStl(exportMesh, "makerdeck-deboss");
-  downloadBlob(blob, filenameFor(meshCache.meta, "deboss-cutter"));
+document.getElementById("btn-export-go")?.addEventListener("click", () => {
+  const sel = document.getElementById("export-format");
+  runExport(sel?.value || "3mf");
 });
 
 function resize() {

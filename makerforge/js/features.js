@@ -312,10 +312,11 @@ export function shapeSupportsInsert(shape) {
   return shape === "rect" || shape === "rounded" || shape === "pencilBox";
 }
 
-/** Removable flat divider panel — separate print part, splits cavity into two bays. */
+/** Removable flat divider panels — separate print part(s), splits cavity into equal bays. */
 export function buildDividerInsert(meta, params) {
   const b = rectFeatureBounds(meta);
   const axis = params.insertAxis === "depth" ? "depth" : "length";
+  const count = clamp(Math.round(params.insertCount ?? 1), 1, 4);
   const thickness = clamp(params.insertThickness ?? 2.4, 1.2, 5);
   const clearance = clamp(params.insertClearance ?? 0.35, 0.1, 1.2);
   const topClear = clamp(params.insertTopClearance ?? 0.6, 0, 4);
@@ -332,10 +333,15 @@ export function buildDividerInsert(meta, params) {
   const positions = [];
   const indices = [];
 
-  if (axis === "length") {
-    appendBox(positions, indices, -halfT, -spanD / 2, z0, halfT, spanD / 2, z1);
-  } else {
-    appendBox(positions, indices, -spanW / 2, -halfT, z0, spanW / 2, halfT, z1);
+  for (let i = 1; i <= count; i++) {
+    const t = i / (count + 1);
+    if (axis === "length") {
+      const x = -spanW / 2 + t * spanW;
+      appendBox(positions, indices, x - halfT, -spanD / 2, z0, x + halfT, spanD / 2, z1);
+    } else {
+      const y = -spanD / 2 + t * spanD;
+      appendBox(positions, indices, -spanW / 2, y - halfT, z0, spanW / 2, y + halfT, z1);
+    }
   }
 
   return { positions, indices };

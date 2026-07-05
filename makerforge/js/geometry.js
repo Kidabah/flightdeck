@@ -1198,10 +1198,29 @@ export const PENCIL_BOX_PRESET = {
   slideEntryRamp: 10,
   insertEnabled: true,
   insertAxis: "length",
+  insertCount: 1,
   insertThickness: 2.4,
   insertClearance: 0.35,
   insertTopClearance: 0.6,
   embossFace: "lid",
+};
+
+export const FAT_QUARTERS_PRESET = {
+  innerWidth: 300,
+  innerDepth: 300,
+  innerHeight: 50,
+  wall: 2.4,
+  floor: 2.4,
+  cornerRadius: 6,
+  lidEnabled: false,
+  accentEnabled: false,
+  insertEnabled: true,
+  insertAxis: "length",
+  insertCount: 2,
+  insertThickness: 2.4,
+  insertClearance: 0.35,
+  insertTopClearance: 0.6,
+  embossFace: "front",
 };
 
 export const TEARDROP_PRESET = {
@@ -1297,6 +1316,7 @@ export const DEFAULTS = {
   stackClearance: 0.35,
   insertEnabled: false,
   insertAxis: "length",
+  insertCount: 1,
   insertThickness: 2.4,
   insertClearance: 0.35,
   insertTopClearance: 0.6,

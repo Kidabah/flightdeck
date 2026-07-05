@@ -367,6 +367,33 @@ input[type="range"] {
 .btn-secondary:hover { filter: brightness(1.08); }
 .btn-ghost { background: rgba(13, 22, 36, 0.72); }
 
+.btn-reset-defaults {
+  background: linear-gradient(180deg, #dc2626, #b91c1c);
+  border-color: #991b1b;
+  color: #fff;
+}
+
+.btn-reset-defaults:hover {
+  filter: brightness(1.08);
+}
+
+.btn-reset-defaults.is-ok {
+  background: linear-gradient(180deg, #22c55e, #16a34a);
+  border-color: #15803d;
+}
+
+.export-format-select {
+  min-width: 10.5rem;
+  max-width: 14rem;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(13, 22, 36, 0.92);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.92rem;
+}
+
 .topbar-actions {
   display: flex;
   gap: 12px;
@@ -395,6 +422,7 @@ input[type="range"] {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  align-items: center;
 }
 
 .field-toggle {
