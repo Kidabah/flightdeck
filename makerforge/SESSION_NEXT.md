@@ -2,7 +2,15 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `85b3dac` — served at `/makerdeck/` on Flightdeck
+- Latest commit: _(pending)_ — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Fat quarters preset tuned for real folded size
+
+**What changed:** **Fat quarters** preset now uses **1 divider** (2 bays **~147 × 299 mm**) sized for **~130 × 132 × 8 mm** folded quarters. Inner height **45 mm** (~5 stacks at 8 mm); use the height slider for more.
+
+**Files:** `js/geometry.js`, `js/app.js`, `index.html` — cache-bust `app.js?v=75`
+
+**Deploy:** Pi `git pull`. Hard refresh on `/makerdeck/`.
 
 ### 2026-07-05 — Export dropdown, divider count, fat quarters preset
 
@@ -10,7 +18,7 @@ Latest GitHub state:
 - **Download** is now a format dropdown (default **3MF project**) + single Download button — extra formats (lid, accent, insert, deboss cutter, saucer) appear only when relevant.
 - **Reset defaults** button is red normally, flashes green with ✓ on success.
 - **Insert** tab: divider **count** slider (1–4) splits the cavity into equal bays; hint shows compartments.
-- New **Fat quarters** preset: 300×300×50 mm box, 2 dividers (3 bays) for fabric storage.
+- New **Fat quarters** preset: 300×300×45 mm box, 1 divider (2 bays) for ~130×132×8 mm folded fabric.
 
 **Files:** `js/app.js`, `js/features.js`, `js/geometry.js`, `index.html`, `css/style.css` — cache-bust `app.js?v=74`, `style.css?v=18`
 
