@@ -2,7 +2,15 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `01658db` — served at `/makerdeck/` on Flightdeck
+- Latest commit: _(pending)_ — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Reset defaults button
+
+**What changed:** **Reset defaults** in the top bar clears all settings back to the starter box (dimensions, colours, accent, insert, lid, art, etc.) and saves that as the new session. **Reset view** still only moves the camera.
+
+**Files:** `js/app.js`, `index.html` — cache-bust `app.js?v=72`
+
+**Deploy:** Pi `git pull`. Hard refresh on `/makerdeck/`.
 
 ### 2026-07-05 — Divider insert (half split)
 

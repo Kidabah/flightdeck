@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=71";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=72";
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh } from "./features.js?v=71";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=71";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=71";
@@ -958,22 +958,40 @@ function rebuild() {
   }
 }
 
-function resetToDefaultBox() {
+function resetToDefaults() {
+  cancelPendingArtRebuild();
+  stopLidAnimation(true);
+  if (previewXRayOn) setPreviewXRayMode(false);
   clearEmbossTrace();
+  traceSourceCanvas = null;
+  traceLastResult = null;
+  traceLastSvg = "";
+
+  Object.assign(state, { ...DEFAULTS, shape: "rect" });
   state.embossText = "";
   state.embossSvgEnabled = false;
   state.embossSvgText = "";
   state.embossTraceEnabled = false;
   state.embossTraceRects = null;
   state.embossFace = "front";
-  state.shape = "rect";
-  state.lidEnabled = false;
-  Object.assign(state, { ...DEFAULTS, shape: "rect" });
+
   document.getElementById("emboss-text").value = "";
+  applySliderProfile("default");
   syncUiFromState();
+  setTab("design");
+
+  appHistory = [snapshotApp()];
+  appHistoryIndex = 0;
+  updateHistoryUi();
+
+  rebuild();
+  if (meshCache) fitCamera(meshCache.meta);
+  scheduleSaveSession();
+}
+
+function resetToDefaultBox() {
   try {
-    rebuildMesh();
-    if (meshCache) fitCamera(meshCache.meta);
+    resetToDefaults();
   } catch (err) {
     console.error("MakerDeck emergency reset failed:", err);
   }
@@ -1108,6 +1126,8 @@ function syncUiFromState() {
   syncSliderUi("joiner-neck", "joinerNeck", { min: 3, max: 16, value: state.joinerNeck, parseKind: "float" });
   syncSliderUi("joiner-protrusion", "joinerProtrusion", { min: 2, max: 10, value: state.joinerProtrusion, parseKind: "float" });
   syncSliderUi("accent-height", "accentHeight", { min: 2, max: 10, value: state.accentHeight, parseKind: "float" });
+  syncSliderUi("insert-thickness", "insertThickness", { min: 1.2, max: 4, value: state.insertThickness, parseKind: "float" });
+  syncSliderUi("insert-clearance", "insertClearance", { min: 0.15, max: 1, value: state.insertClearance, parseKind: "float" });
   syncSliderUi("emboss-depth", "embossDepth", { min: 0.3, max: 2, value: state.embossDepth, parseKind: "float" });
   syncSliderUi("emboss-height", "embossHeight", { min: 3, max: 48, value: state.embossHeight, parseKind: "float" });
   syncSliderUi("trace-threshold", "traceThreshold", { min: 20, max: 235, value: state.traceThreshold });
@@ -2554,6 +2574,10 @@ document.getElementById("btn-clear-box").addEventListener("click", clearDecorFro
 document.getElementById("btn-reset-view").addEventListener("click", () => {
   if (!meshCache) rebuild();
   if (meshCache) fitCamera(meshCache.meta);
+});
+
+document.getElementById("btn-reset-defaults").addEventListener("click", () => {
+  resetToDefaults();
 });
 
 document.getElementById("controls").addEventListener("change", (e) => {
