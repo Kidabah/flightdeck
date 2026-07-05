@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsLid, shapeSupportsSlideLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits } from "./features.js";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh } from "./features.js";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js";
 import { meshToStl, downloadBlob, filenameFor } from "./stl.js";
 import { appliedHasArt } from "./art-editor.js";
@@ -2310,7 +2310,8 @@ document.getElementById("btn-export-saucer").addEventListener("click", () => {
 
 document.getElementById("btn-export").addEventListener("click", () => {
   if (!meshCache) rebuild();
-  const blob = meshToStl(meshCache, "makerdeck");
+  const exportMesh = buildWatertightExportMesh(meshCache, meshCache.meta, buildParams());
+  const blob = meshToStl(exportMesh, "makerdeck");
   downloadBlob(blob, filenameFor(meshCache.meta, "body"));
 });
 

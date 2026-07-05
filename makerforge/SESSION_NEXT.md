@@ -4,6 +4,12 @@ Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
 - Latest commit: `708268f` — served at `/makerdeck/` on Flightdeck
 
+### 2026-07-05 — Watertight STL export for embossed text
+
+**What changed:** Download box now rebuilds a **watertight export mesh** — solid wall behind letters, closed letter solids, overlapping wall tris stripped under ink. STL pass welds verts + peels non-manifold faces. Preview unchanged.
+
+**Files:** `js/features.js`, `js/stl.js`, `js/app.js`, `index.html` — cache-bust `app.js?v=58`
+
 ### 2026-07-05 — Revert cut-through emboss (restore raised letters)
 
 **What changed:** Rolled back the "punch holes in wall" manifold experiment — it cut straight through the box. Text is **raised emboss** again: flush with the wall, top cap + side walls only (no bottom cap duplicating the face).

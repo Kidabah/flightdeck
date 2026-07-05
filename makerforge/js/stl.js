@@ -33,48 +33,91 @@ function triArea2(a, b, c) {
   return Math.hypot(nx, ny, nz);
 }
 
-/** Drop invalid/degenerate triangles and weld near-duplicate verts for slicer-friendly STLs. */
+function triArea(positions, ia, ib, ic) {
+  return triArea2(
+    [positions[ia * 3], positions[ia * 3 + 1], positions[ia * 3 + 2]],
+    [positions[ib * 3], positions[ib * 3 + 1], positions[ib * 3 + 2]],
+    [positions[ic * 3], positions[ic * 3 + 1], positions[ic * 3 + 2]],
+  );
+}
+
+function edgeKey(a, b) {
+  return a < b ? `${a}|${b}` : `${b}|${a}`;
+}
+
+/** Drop bad tris, weld verts, and peel non-manifold faces for slicers. */
 export function sanitizeMeshForStl(mesh) {
   const positions = mesh?.positions;
   const indices = mesh?.indices;
   if (!positions?.length || !indices?.length) return null;
 
-  const welded = weldMeshVertices(positions, indices, 0.012);
-  const deduped = removeDuplicateTriangles(welded.indices);
-  const cleanIdx = [];
-  const pos = welded.positions;
+  let welded = weldMeshVertices(positions, indices, 0.008);
+  let idx = removeDuplicateTriangles(welded.indices);
+  idx = removeDegenerateTriangles(welded.positions, idx);
+  idx = repairNonManifoldFaces(welded.positions, idx, 4);
 
-  for (let t = 0; t < deduped.length; t += 3) {
-    const ia = deduped[t];
-    const ib = deduped[t + 1];
-    const ic = deduped[t + 2];
-    const vertCount = pos.length / 3;
-    if (ia < 0 || ib < 0 || ic < 0 || ia >= vertCount || ib >= vertCount || ic >= vertCount) continue;
-    if (ia === ib || ib === ic || ia === ic) continue;
-
-    const ax = pos[ia * 3];
-    const ay = pos[ia * 3 + 1];
-    const az = pos[ia * 3 + 2];
-    const bx = pos[ib * 3];
-    const by = pos[ib * 3 + 1];
-    const bz = pos[ib * 3 + 2];
-    const cx = pos[ic * 3];
-    const cy = pos[ic * 3 + 1];
-    const cz = pos[ic * 3 + 2];
-    if (![ax, ay, az, bx, by, bz, cx, cy, cz].every(Number.isFinite)) continue;
-
-    const a = [ax, ay, az];
-    const b = [bx, by, bz];
-    const c = [cx, cy, cz];
-    if (triArea2(a, b, c) < 1e-8) continue;
-    cleanIdx.push(ia, ib, ic);
-  }
-
-  if (!cleanIdx.length) return null;
-  return { positions: pos, indices: cleanIdx };
+  if (!idx.length) return null;
+  return { positions: welded.positions, indices: idx };
 }
 
-function weldMeshVertices(positions, indices, eps = 0.012) {
+function removeDegenerateTriangles(positions, indices) {
+  const out = [];
+  for (let t = 0; t < indices.length; t += 3) {
+    const ia = indices[t];
+    const ib = indices[t + 1];
+    const ic = indices[t + 2];
+    const vertCount = positions.length / 3;
+    if (ia < 0 || ib < 0 || ic < 0 || ia >= vertCount || ib >= vertCount || ic >= vertCount) continue;
+    if (ia === ib || ib === ic || ia === ic) continue;
+    if (triArea(positions, ia, ib, ic) < 1e-8) continue;
+    const coords = [ia, ib, ic].flatMap((v) => [positions[v * 3], positions[v * 3 + 1], positions[v * 3 + 2]]);
+    if (!coords.every(Number.isFinite)) continue;
+    out.push(ia, ib, ic);
+  }
+  return out;
+}
+
+function repairNonManifoldFaces(positions, indices, maxPasses = 4) {
+  let tris = [];
+  for (let t = 0; t < indices.length; t += 3) {
+    tris.push([indices[t], indices[t + 1], indices[t + 2]]);
+  }
+
+  for (let pass = 0; pass < maxPasses; pass++) {
+    const edgeFaces = new Map();
+    for (let fi = 0; fi < tris.length; fi++) {
+      const [a, b, c] = tris[fi];
+      edgeFaces.set(edgeKey(a, b), [...(edgeFaces.get(edgeKey(a, b)) || []), fi]);
+      edgeFaces.set(edgeKey(b, c), [...(edgeFaces.get(edgeKey(b, c)) || []), fi]);
+      edgeFaces.set(edgeKey(c, a), [...(edgeFaces.get(edgeKey(c, a)) || []), fi]);
+    }
+
+    let removed = false;
+    for (const faces of edgeFaces.values()) {
+      if (faces.length <= 2) continue;
+      let worst = faces[0];
+      let worstArea = Infinity;
+      for (const fi of faces) {
+        const [a, b, c] = tris[fi];
+        const area = triArea(positions, a, b, c);
+        if (area < worstArea) {
+          worstArea = area;
+          worst = fi;
+        }
+      }
+      tris[worst] = null;
+      removed = true;
+    }
+    if (!removed) break;
+    tris = tris.filter(Boolean);
+  }
+
+  const out = [];
+  for (const [a, b, c] of tris) out.push(a, b, c);
+  return out;
+}
+
+function weldMeshVertices(positions, indices, eps = 0.008) {
   const table = new Map();
   const outPos = [];
 

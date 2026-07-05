@@ -2,7 +2,7 @@
  * Accent bands, emboss, honeycomb stamp, stackable hex grid, mesh merge.
  */
 
-import { extrudeShapeGroup, extrudeShapeGroupBetween, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, simplifyPolygon } from "./contour.js";
+import { extrudeShapeGroup, extrudeShapeGroupBetween, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, simplifyPolygon, triangulateMappedCap } from "./contour.js";
 import { decorPlacementOffsets, decorArtRect, rotateFacePoint, rotateShapeGroup } from "./decor.js";
 import { getSlideLidTopBounds, shapeSupportsSlideLid } from "./slide-lid.js";
 
@@ -419,6 +419,168 @@ function collectTextEmbossShapeGroups(meta, params) {
     shapeGroups: remapped.map((g) => rotateShapeGroup(g, cx, cy, rotation)),
     depth: clamp(params.embossDepth ?? 0.7, 0.3, 2),
   };
+}
+
+function exteriorFacePlane(frame, meta) {
+  const b = rectFeatureBounds(meta);
+  const eps = 0.06;
+  switch (frame.face) {
+    case "front":
+      return { onPlane: (w) => Math.abs(w[1] + b.od2) <= eps, normal: [0, -1, 0], to2D: (w) => [w[0], w[2]] };
+    case "back":
+      return { onPlane: (w) => Math.abs(w[1] - b.od2) <= eps, normal: [0, 1, 0], to2D: (w) => [w[0], w[2]] };
+    case "right":
+      return { onPlane: (w) => Math.abs(w[0] - b.ow2) <= eps, normal: [1, 0, 0], to2D: (w) => [w[1], w[2]] };
+    case "left":
+      return { onPlane: (w) => Math.abs(w[0] + b.ow2) <= eps, normal: [-1, 0, 0], to2D: (w) => [w[1], w[2]] };
+    case "top":
+      return { onPlane: (w) => Math.abs(w[2] - b.totalH) <= eps, normal: [0, 0, 1], to2D: (w) => [w[0], w[1]] };
+    default:
+      return null;
+  }
+}
+
+function meshTriNormal(positions, ia, ib, ic) {
+  const ax = positions[ia * 3];
+  const ay = positions[ia * 3 + 1];
+  const az = positions[ia * 3 + 2];
+  const bx = positions[ib * 3];
+  const by = positions[ib * 3 + 1];
+  const bz = positions[ib * 3 + 2];
+  const cx = positions[ic * 3];
+  const cy = positions[ic * 3 + 1];
+  const cz = positions[ic * 3 + 2];
+  const ux = bx - ax;
+  const uy = by - ay;
+  const uz = bz - az;
+  const vx = cx - ax;
+  const vy = cy - ay;
+  const vz = cz - az;
+  const nx = uy * vz - uz * vy;
+  const ny = uz * vx - ux * vz;
+  const nz = ux * vy - uy * vx;
+  const len = Math.hypot(nx, ny, nz) || 1;
+  return [nx / len, ny / len, nz / len];
+}
+
+function triOnExteriorFace(positions, ia, ib, ic, spec) {
+  const a = [positions[ia * 3], positions[ia * 3 + 1], positions[ia * 3 + 2]];
+  const b = [positions[ib * 3], positions[ib * 3 + 1], positions[ib * 3 + 2]];
+  const c = [positions[ic * 3], positions[ic * 3 + 1], positions[ic * 3 + 2]];
+  if (!spec.onPlane(a) || !spec.onPlane(b) || !spec.onPlane(c)) return false;
+  const n = meshTriNormal(positions, ia, ib, ic);
+  return n[0] * spec.normal[0] + n[1] * spec.normal[1] + n[2] * spec.normal[2] > 0.5;
+}
+
+function removeExteriorWallTriangles(mesh, frame, meta) {
+  const spec = exteriorFacePlane(frame, meta);
+  if (!spec) return mesh;
+  const positions = mesh.positions;
+  const indices = mesh.indices;
+  const cleanIdx = [];
+  for (let t = 0; t < indices.length; t += 3) {
+    const ia = indices[t];
+    const ib = indices[t + 1];
+    const ic = indices[t + 2];
+    if (triOnExteriorFace(positions, ia, ib, ic, spec)) continue;
+    cleanIdx.push(ia, ib, ic);
+  }
+  return { positions: positions.slice(), indices: cleanIdx };
+}
+
+function pointInRing(x, y, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0];
+    const yi = ring[i][1];
+    const xj = ring[j][0];
+    const yj = ring[j][1];
+    const intersect = yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi + 1e-12) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+function pointInShapeGroup(px, py, group) {
+  if (!pointInRing(px, py, group.outer)) return false;
+  for (const hole of group.holes) {
+    if (hole.length >= 3 && pointInRing(px, py, hole)) return false;
+  }
+  return true;
+}
+
+function removeWallTrisUnderEmboss(mesh, frame, meta, shapeGroups) {
+  const spec = exteriorFacePlane(frame, meta);
+  if (!spec || !shapeGroups?.length) return mesh;
+  const positions = mesh.positions;
+  const cleanIdx = [];
+  for (let t = 0; t < mesh.indices.length; t += 3) {
+    const ia = mesh.indices[t];
+    const ib = mesh.indices[t + 1];
+    const ic = mesh.indices[t + 2];
+    if (triOnExteriorFace(positions, ia, ib, ic, spec)) {
+      const cx = (positions[ia * 3] + positions[ib * 3] + positions[ic * 3]) / 3;
+      const cy = (positions[ia * 3 + 1] + positions[ib * 3 + 1] + positions[ic * 3 + 1]) / 3;
+      const cz = (positions[ia * 3 + 2] + positions[ib * 3 + 2] + positions[ic * 3 + 2]) / 3;
+      const [px, py] = spec.to2D([cx, cy, cz]);
+      let underInk = false;
+      for (const group of shapeGroups) {
+        if (pointInShapeGroup(px, py, group)) {
+          underInk = true;
+          break;
+        }
+      }
+      if (underInk) continue;
+    }
+    cleanIdx.push(ia, ib, ic);
+  }
+  return { positions: positions.slice(), indices: cleanIdx };
+}
+
+function appendMesh(positions, indices, mesh) {
+  if (!mesh?.positions?.length) return;
+  const base = positions.length / 3;
+  for (let i = 0; i < mesh.positions.length; i++) positions.push(mesh.positions[i]);
+  for (const idx of mesh.indices) indices.push(idx + base);
+}
+
+/** Watertight side-face text for STL export — preview still uses fast merge. */
+function buildWatertightTextEmbossExport(shellMesh, meta, params) {
+  const collected = collectTextEmbossShapeGroups(meta, params);
+  if (!collected?.shapeGroups?.length) return null;
+
+  const { frame, shapeGroups, depth } = collected;
+  const positions = [];
+  const indices = [];
+  const stripped = removeExteriorWallTriangles(shellMesh, frame, meta);
+  appendMesh(positions, indices, stripped);
+
+  const fw = frame.faceW;
+  const fh = frame.faceH;
+  const outerRect = [[-fw / 2, 0], [fw / 2, 0], [fw / 2, fh], [-fw / 2, fh]];
+  const mapBot = (px, py) => frame.mapPoint(px, py, 0);
+  const mapTop = (px, py) => frame.mapPoint(px, py, depth);
+  const flatCoord = (w) => flatCoordForFrame(frame, w);
+
+  triangulateMappedCap(positions, indices, mapBot, flatCoord, outerRect, [], true);
+
+  for (const group of shapeGroups) {
+    extrudeShapeGroupBetween(positions, indices, group, mapTop, mapBot, flatCoord, "both");
+  }
+
+  return removeWallTrisUnderEmboss({ positions, indices }, frame, meta, shapeGroups);
+}
+
+export function buildWatertightExportMesh(bodyMesh, meta, params) {
+  if (!bodyMesh || params.embossDeboss) return bodyMesh;
+  const face = params.embossFace || "front";
+  if (face === "lid" || params.joinerEnabled) return bodyMesh;
+
+  const shell = bodyMesh.shellMesh || bodyMesh;
+  if (params.embossText?.trim() && !params.embossSvgEnabled) {
+    return buildWatertightTextEmbossExport(shell, meta, params) || bodyMesh;
+  }
+  return bodyMesh;
 }
 
 /** Embossed label text — smooth stencil silhouettes (one solid per letter). */
