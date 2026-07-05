@@ -2,7 +2,7 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: _(pending push)_ — served at `/makerdeck/` on Flightdeck
+- Latest commit: `c77591a` — served at `/makerdeck/` on Flightdeck
 
 ### 2026-07-05 — Accent bands follow profile + contrast picker
 
