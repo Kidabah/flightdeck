@@ -2,7 +2,15 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `4f03c60` — served at `/makerdeck/` on Flightdeck
+- Latest commit: _(pending)_ — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Fat quarters: open-front bookcase preview
+
+**What changed:** **Fat quarters** now builds an **open-front bookcase** (no front wall — like your reference), **front-facing camera**, **amber shelf** panels with edge lines. Still 300×135×400 mm, 3 tiers, horizontal shelves.
+
+**Files:** `js/geometry.js`, `js/app.js`, `index.html` — cache-bust `app.js?v=78`
+
+**Deploy:** Pi `git pull`. Hard refresh; turn off X-ray if shelves are hard to see.
 
 ### 2026-07-05 — Fat quarters: standing bookcase (horizontal shelves)
 

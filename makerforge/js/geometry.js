@@ -250,6 +250,48 @@ function capRing(outPos, outIdx, outer, inner, z, normalUp) {
   }
 }
 
+/** True when a profile edge lies on the front face (y ≈ min) — skip for open-front bookcases. */
+function isFrontProfileEdge(p0, p1, frontY) {
+  const tol = 0.85;
+  return p0[1] <= frontY + tol && p1[1] <= frontY + tol;
+}
+
+function profileFrontY(points) {
+  let minY = Infinity;
+  for (const p of points) minY = Math.min(minY, p[1]);
+  return minY;
+}
+
+function extrudeProfileSidesSkipFront(outPos, outIdx, points, z0, z1, outward = true) {
+  const frontY = profileFrontY(points);
+  const n = points.length;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    if (isFrontProfileEdge(points[i], points[j], frontY)) continue;
+    const a = vec3(points[i][0], points[i][1], z0);
+    const b = vec3(points[j][0], points[j][1], z0);
+    const c = vec3(points[j][0], points[j][1], z1);
+    const d = vec3(points[i][0], points[i][1], z1);
+    if (outward) pushQuad(outPos, outIdx, a, b, c, d);
+    else pushQuad(outPos, outIdx, a, d, c, b);
+  }
+}
+
+function capRingSkipFront(outPos, outIdx, outer, inner, z, normalUp) {
+  const frontY = profileFrontY(outer);
+  const n = outer.length;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    if (isFrontProfileEdge(outer[i], outer[j], frontY)) continue;
+    const o0 = vec3(outer[i][0], outer[i][1], z);
+    const o1 = vec3(outer[j][0], outer[j][1], z);
+    const i0 = vec3(inner[i][0], inner[i][1], z);
+    const i1 = vec3(inner[j][0], inner[j][1], z);
+    if (normalUp) pushQuad(outPos, outIdx, o0, o1, i1, i0);
+    else pushQuad(outPos, outIdx, o0, i0, i1, o1);
+  }
+}
+
 function capSolid(outPos, outIdx, points, z, normalUp) {
   const n = points.length;
   for (let i = 0; i < n; i++) {
@@ -332,10 +374,28 @@ function buildProfileShell(outPos, outIdx, outer, inner, floor, totalH, cavityH)
   capRing(outPos, outIdx, outer, inner, zTop, true);
 }
 
-function shellFromProfiles(outer, inner, floor, totalH, cavityH) {
+/** Open-front bookcase shell — back + sides + floor + top rim; front face omitted. */
+function buildOpenFrontBookcaseShell(outPos, outIdx, outer, inner, floor, totalH, cavityH) {
+  const zFloor = floor;
+  const zTop = totalH;
+  const zCavityTop = floor + cavityH;
+
+  capFloorSlab(outPos, outIdx, outer, 0, false);
+  capFloorSlab(outPos, outIdx, inner, zFloor, true);
+  capRing(outPos, outIdx, outer, inner, zFloor, true);
+  extrudeProfileSidesSkipFront(outPos, outIdx, outer, 0, zTop, true);
+  extrudeProfileSidesSkipFront(outPos, outIdx, inner, zFloor, zCavityTop, false);
+  capRingSkipFront(outPos, outIdx, outer, inner, zTop, true);
+}
+
+function shellFromProfiles(outer, inner, floor, totalH, cavityH, openFront = false) {
   const positions = [];
   const indices = [];
-  buildProfileShell(positions, indices, outer, inner, floor, totalH, cavityH);
+  if (openFront) {
+    buildOpenFrontBookcaseShell(positions, indices, outer, inner, floor, totalH, cavityH);
+  } else {
+    buildProfileShell(positions, indices, outer, inner, floor, totalH, cavityH);
+  }
   return { positions, indices };
 }
 
@@ -987,6 +1047,7 @@ export function buildContainer(params) {
       resolved.floor,
       resolved.totalH,
       resolved.cavityH,
+      !!params.bookcaseOpenFront,
     );
   }
 
@@ -1220,6 +1281,7 @@ export const FAT_QUARTERS_PRESET = {
   insertThickness: 2.4,
   insertClearance: 0.35,
   insertTopClearance: 0.6,
+  bookcaseOpenFront: true,
   embossFace: "front",
 };
 

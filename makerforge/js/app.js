@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=77";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh } from "./features.js?v=77";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=78";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh } from "./features.js?v=78";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=73";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=73";
 import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=73";
@@ -168,6 +168,7 @@ let lidAnim = null;
 let accentMesh = null;
 let accentEdgeLines = null;
 let insertMesh = null;
+let insertEdgeLines = null;
 let labelMesh = null;
 let labelEdgeLines = null;
 
@@ -301,6 +302,7 @@ function buildParams() {
     insertThickness: state.insertThickness,
     insertClearance: state.insertClearance,
     insertTopClearance: state.insertTopClearance,
+    bookcaseOpenFront: state.shape === "fatQuarters" || !!state.bookcaseOpenFront,
     vaseStyle: state.vaseStyle,
     vaseDiameter: state.vaseDiameter,
     vaseHeight: state.vaseHeight,
@@ -521,6 +523,11 @@ function disposeInsertPreview() {
     insertMesh.geometry.dispose();
     insertMesh = null;
   }
+  if (insertEdgeLines) {
+    previewRoot.remove(insertEdgeLines);
+    insertEdgeLines.geometry.dispose();
+    insertEdgeLines = null;
+  }
   insertCache = null;
 }
 
@@ -702,6 +709,13 @@ function setLidPreviewY(y) {
   setLidPreviewTransform(y, lidMesh?.position.x ?? lidRestX());
 }
 
+function applyInsertPreviewColor() {
+  const shelfHex = state.shape === "fatQuarters" ? "#fbbf24" : (state.boxColor || "#38bdf8");
+  insertMaterial.color.set(shelfHex);
+  applyFilamentMaterial(insertMaterial);
+  if (previewXRayOn) insertMaterial.color.setHex(0xfbbf24);
+}
+
 function applyBoxPreviewColor() {
   if (previewXRayOn) {
     material.color.setHex(0x475569);
@@ -711,9 +725,8 @@ function applyBoxPreviewColor() {
     applyFilamentMaterial(material);
     lidMaterial.color.set(bodyHex);
     applyFilamentMaterial(lidMaterial);
-    insertMaterial.color.set(bodyHex);
-    applyFilamentMaterial(insertMaterial);
   }
+  applyInsertPreviewColor();
 }
 
 function applyAccentPreviewColor(hex = state.accentColor) {
@@ -781,6 +794,7 @@ function setPreviewXRayMode(on) {
     edgeLines.visible = on;
   }
   if (accentEdgeLines) accentEdgeLines.visible = on;
+  if (insertEdgeLines) insertEdgeLines.visible = state.shape === "fatQuarters" ? !on : on;
   if (labelEdgeLines) labelEdgeLines.visible = on;
   syncLidGuideLoops(lidMesh?.position.y ?? lidRestY(), lidMesh?.position.x ?? lidRestX());
 }
@@ -916,6 +930,14 @@ function fitCamera(meta) {
   }
 
   const pencilLike = meta.shape === "pencil" || meta.shape === "pencilBox";
+  if (state.shape === "fatQuarters") {
+    const topY = Number(meshCache?.totalH) || h;
+    const dist = Math.max(w, topY) * 1.08 + 55;
+    controls.target.set(0, BED_LIFT + topY * 0.48, 0);
+    camera.position.set(0, BED_LIFT + topY * 0.48, -dist);
+    controls.update();
+    return;
+  }
   const span = Math.max(w, d, topY);
   const dist = (pencilLike ? span * 1.35 : span * 1.8) + 40;
   if (!Number.isFinite(dist) || dist <= 0) return;
@@ -1269,13 +1291,20 @@ function rebuildMesh() {
 
   if (meshCache.insertMesh) {
     insertCache = meshCache.insertMesh;
-    applyBoxPreviewColor();
+    applyInsertPreviewColor();
     const insertGeom = toBufferGeometry(THREE, insertCache);
     insertMesh = new THREE.Mesh(insertGeom, insertMaterial);
     insertMesh.castShadow = false;
     insertMesh.receiveShadow = false;
     insertMesh.renderOrder = 5;
     previewRoot.add(insertMesh);
+    if (state.shape === "fatQuarters") {
+      const insertEdges = new THREE.EdgesGeometry(insertGeom, 12);
+      insertEdgeLines = new THREE.LineSegments(insertEdges, edgeMaterial);
+      insertEdgeLines.renderOrder = 6;
+      insertEdgeLines.visible = !previewXRayOn;
+      previewRoot.add(insertEdgeLines);
+    }
   }
 
   if (nextLidMesh) {
@@ -1407,6 +1436,7 @@ function applyPreset(shape) {
   document.getElementById("lid-enabled").checked = !!state.lidEnabled;
   document.getElementById("lid-type").value = state.lidType || "slip";
   document.getElementById("insert-enabled").checked = !!state.insertEnabled;
+  if (shape === "fatQuarters" && previewXRayOn) setPreviewXRayMode(false);
 }
 
 /** Leaving a preset (pencil box, teardrop, etc.) — drop lid + case dimensions back to a normal box. */
