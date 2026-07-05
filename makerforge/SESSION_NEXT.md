@@ -2,7 +2,7 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: _(pending)_ — served at `/makerdeck/` on Flightdeck
+- Latest commit: `ee9e218` — served at `/makerdeck/` on Flightdeck
 
 ### 2026-07-05 — Flip hinge v2: flat lid export, pin tunnels, tighter knuckles
 
