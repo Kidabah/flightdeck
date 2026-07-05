@@ -2,7 +2,7 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- - `main` commit: *(pending)* — served at `/makerdeck/` on Flightdeck
+- - `main` commit: `6aab4dc` — served at `/makerdeck/` on Flightdeck
 
 ### 2026-07-05 — Hinge generator presets (butt, strap, barrel)
 
