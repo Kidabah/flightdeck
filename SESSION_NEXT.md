@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — fix blank viewport on failed rebuild
+- Latest commit: `815104f` — fix blank viewport on failed rebuild
 - Refresh cachebust currently: MakerDeck app.js?v=53 / style.css?v=13
 
 ### 2026-07-05 fix (MakerDeck blank viewport)
