@@ -2,7 +2,15 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `9ddce5c` — served at `/makerdeck/` on Flightdeck
+- Latest commit: *(pending)* — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Oval shape + smoother rounded corners
+
+**What changed:** New **Oval** shape (width + depth elliptical box). **Rounded** boxes (and pencil / pencil box / fat quarters rounded corners) now use adaptive corner arc segments (~1.5 mm facet length, scales with corner radius) instead of a fixed 8–10 segments — much smoother walls in Bambu slice preview.
+
+**Files:** `js/geometry.js`, `js/app.js`, `js/stl.js`, `js/3mf.js`, `index.html` — cache-bust `app.js?v=86`
+
+**Deploy:** Pi `git pull`. Hard refresh. Re-export STL/3MF.
 
 ### 2026-07-05 — Circle boxes: smoother wall mesh for slicing
 

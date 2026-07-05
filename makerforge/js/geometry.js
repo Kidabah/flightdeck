@@ -96,6 +96,29 @@ function circleSegmentsForRadius(radius) {
   return clamp(Math.ceil(n / 4) * 4, 96, 256);
 }
 
+function ellipseVertices(rx, ry, segments) {
+  const pts = [];
+  for (let i = 0; i < segments; i++) {
+    const a = ((Math.PI * 2) / segments) * i;
+    pts.push([rx * Math.cos(a), ry * Math.sin(a)]);
+  }
+  return pts;
+}
+
+/** Constant-thickness offset along the ellipse normal. */
+function offsetEllipseProfile(inner, rx, ry, wall) {
+  return inner.map(([x, y]) => {
+    const nx = x / (rx * rx);
+    const ny = y / (ry * ry);
+    const len = Math.hypot(nx, ny) || 1;
+    return [x + (wall * nx) / len, y + (wall * ny) / len];
+  });
+}
+
+function ellipseSegmentsForRadii(rx, ry) {
+  return circleSegmentsForRadius(Math.max(rx, ry));
+}
+
 /** Round polygon vertices with circular fillets. */
 function filletedOutline(vertices, filletR, arcSegments = 6) {
   const r = filletR;
@@ -137,9 +160,17 @@ function filletedOutline(vertices, filletR, arcSegments = 6) {
   return out;
 }
 
+function roundedRectCornerSegments(radius) {
+  if (radius <= 0.5) return 1;
+  const maxFacet = 1.5;
+  const n = Math.ceil(((Math.PI / 2) * radius) / maxFacet);
+  return clamp(n, 4, 64);
+}
+
 /** 2D rounded-rect outline, counter-clockwise, centered at origin. */
-function roundedRectOutline(halfW, halfD, radius, segments = 8) {
+function roundedRectOutline(halfW, halfD, radius, segments) {
   const r = clamp(radius, 0, Math.min(halfW, halfD) - 0.01);
+  const steps = r > 0 ? (segments ?? roundedRectCornerSegments(r)) : 1;
   const pts = [];
   const corners = [
     [halfW - r, halfD - r, 0, Math.PI / 2],
@@ -148,7 +179,6 @@ function roundedRectOutline(halfW, halfD, radius, segments = 8) {
     [halfW - r, -(halfD - r), (3 * Math.PI) / 2, 2 * Math.PI],
   ];
   for (const [cx, cy, a0, a1] of corners) {
-    const steps = r > 0 ? segments : 1;
     for (let i = 0; i <= steps; i++) {
       const t = i / steps;
       const a = a0 + (a1 - a0) * t;
@@ -804,6 +834,25 @@ function resolveContainer(params) {
     };
   }
 
+  if (shape === "oval") {
+    const innerW = clamp(params.innerWidth, 10, 500);
+    const innerD = clamp(params.innerDepth, 10, 500);
+    const innerH = clamp(params.innerHeight, 5, 400);
+    const innerRx = innerW / 2;
+    const innerRy = innerD / 2;
+    const segments = ellipseSegmentsForRadii(innerRx + wall, innerRy + wall);
+    const inner = ellipseVertices(innerRx, innerRy, segments);
+    const outer = offsetEllipseProfile(inner, innerRx, innerRy, wall);
+    return {
+      outer,
+      inner,
+      floor,
+      totalH: innerH + floor,
+      cavityH: innerH,
+      meta: computeMeta({ innerW, innerD, innerH, wall, floor, shape: "oval" }),
+    };
+  }
+
   if (shape === "hex") {
     const flat = clamp(params.innerWidth, 10, 500);
     const innerH = clamp(params.innerHeight, 5, 400);
@@ -837,9 +886,10 @@ function resolveContainer(params) {
     const outerW = innerW + wall * 2;
     const outerEndR = Math.min(endR + wall, outerW / 2 - 0.1);
     const innerEndR = Math.min(endR, innerW / 2 - 0.1);
+    const cornerSegs = roundedRectCornerSegments(outerEndR);
     return {
-      outer: roundedRectOutline(outerL / 2, outerW / 2, outerEndR, 14),
-      inner: roundedRectOutline(innerL / 2, innerW / 2, innerEndR, 14),
+      outer: roundedRectOutline(outerL / 2, outerW / 2, outerEndR, cornerSegs),
+      inner: roundedRectOutline(innerL / 2, innerW / 2, innerEndR, cornerSegs),
       floor,
       totalH: innerH + floor,
       cavityH: innerH,
@@ -857,8 +907,10 @@ function resolveContainer(params) {
     let outer;
     let inner;
     if (corner > 0.5) {
-      outer = roundedRectOutline(outerL / 2, outerW / 2, corner + wall, 10);
-      inner = roundedRectOutline(innerL / 2, innerW / 2, corner, 10);
+      const outerCorner = corner + wall;
+      const cornerSegs = roundedRectCornerSegments(outerCorner);
+      outer = roundedRectOutline(outerL / 2, outerW / 2, outerCorner, cornerSegs);
+      inner = roundedRectOutline(innerL / 2, innerW / 2, corner, cornerSegs);
     } else {
       outer = [[-outerL / 2, -outerW / 2], [outerL / 2, -outerW / 2], [outerL / 2, outerW / 2], [-outerL / 2, outerW / 2]];
       inner = [[-innerL / 2, -innerW / 2], [innerL / 2, -innerW / 2], [innerL / 2, innerW / 2], [-innerL / 2, innerW / 2]];
@@ -945,8 +997,11 @@ function resolveContainer(params) {
   let inner;
   let metaShape = shape;
   if (corner > 0.5) {
-    outer = roundedRectOutline(outerW / 2, outerD / 2, corner + wall, 10);
-    inner = roundedRectOutline(innerW / 2, innerD / 2, Math.max(corner, 0.5), 10);
+    const outerCorner = corner + wall;
+    const innerCorner = Math.max(corner, 0.5);
+    const cornerSegs = roundedRectCornerSegments(outerCorner);
+    outer = roundedRectOutline(outerW / 2, outerD / 2, outerCorner, cornerSegs);
+    inner = roundedRectOutline(innerW / 2, innerD / 2, innerCorner, cornerSegs);
     metaShape = "rounded";
   } else if (edgeFillet > 0.5) {
     const sharpOuter = [[-outerW / 2, -outerD / 2], [outerW / 2, -outerD / 2], [outerW / 2, outerD / 2], [-outerW / 2, outerD / 2]];
@@ -992,6 +1047,15 @@ function computeMeta({ innerW, innerD, innerH, wall, floor, shape, sides = 6, st
     outerMl = (Math.PI * (outerDia / 2) ** 2 * outerH) / 1000;
     outerW = round1(outerDia);
     outerD = round1(outerDia);
+  } else if (shape === "oval") {
+    const a = innerW / 2;
+    const b = innerD / 2;
+    const outerA = a + wall;
+    const outerB = b + wall;
+    cavityMl = (Math.PI * a * b * innerH) / 1000;
+    outerMl = (Math.PI * outerA * outerB * outerH) / 1000;
+    outerW = round1(innerW + wall * 2);
+    outerD = round1(innerD + wall * 2);
   } else if (shape === "hex" || shape === "polygon") {
     const flat = innerW;
     const innerR = flatToCircumradius(flat, sides);

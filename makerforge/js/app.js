@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=84";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh, mergeMeshes } from "./features.js?v=84";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=86";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh, mergeMeshes } from "./features.js?v=86";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=73";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=73";
 import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=73";
@@ -1340,6 +1340,8 @@ function updateStats(meta) {
     document.getElementById("stat-outer").textContent = `${meta.styleLabel || "Vase"} · ⌀${outer.w} × ${outer.h}`;
   } else if (meta.shape === "circle") {
     document.getElementById("stat-outer").textContent = `⌀${outer.w} × ${outer.h}`;
+  } else if (meta.shape === "oval") {
+    document.getElementById("stat-outer").textContent = `Oval ${outer.w} × ${outer.d} × ${outer.h}`;
   } else if (PRESET_SHAPES.has(meta.shape)) {
     if (meta.shape === "star") {
       document.getElementById("stat-outer").textContent = `${meta.starPoints}-pt ${outer.w} × ${outer.h}`;
@@ -1519,6 +1521,9 @@ function selectShape(next) {
   } else {
     state.shape = next;
     applySliderProfile("default");
+    if (next === "oval" && prev === "circle") {
+      state.innerDepth = Math.max(20, Math.round(state.innerWidth * 0.625));
+    }
     if (next === "rounded") {
       syncSliderUi("corner-radius", "cornerRadius", { min: 1, max: 24, value: state.cornerRadius ?? DEFAULTS.cornerRadius, parseKind: "float" });
     }
@@ -1556,6 +1561,7 @@ function updateLabels() {
   const { shape } = state;
   const hex = shape === "hex";
   const circle = shape === "circle";
+  const oval = shape === "oval";
   const rounded = shape === "rounded";
   const fatQuarters = shape === "fatQuarters";
   const preset = PRESET_SHAPES.has(shape);
@@ -1603,7 +1609,7 @@ function updateLabels() {
   document.getElementById("field-depth").classList.toggle("hidden", hex || circle || star);
   document.getElementById("field-corner").classList.toggle("hidden", !rounded && !pencilBox && !fatQuarters);
   document.getElementById("field-sides").classList.toggle("hidden", !poly || pencilBox);
-  document.getElementById("field-vertex-fillet").classList.toggle("hidden", circle || rounded || (preset && !star && !heart && !pencilBox));
+  document.getElementById("field-vertex-fillet").classList.toggle("hidden", circle || oval || rounded || (preset && !star && !heart && !pencilBox));
   document.getElementById("section-edges").classList.toggle("hidden", preset && !star && !heart && !pencilBox);
 
   const filletLabel = document.getElementById("label-vertex-fillet");

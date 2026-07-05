@@ -290,6 +290,7 @@ export function filename3mfFor(meta, part = "body") {
         if (meta.shape === "pencil") return `pencil-${w}x${d}x${h}mm.3mf`;
         if (meta.shape === "pencilBox") return `pencil-box-${w}x${d}x${h}mm.3mf`;
         if (meta.shape === "circle") return `circle-${w}x${h}mm.3mf`;
+        if (meta.shape === "oval") return `oval-${w}x${d}x${h}mm.3mf`;
         if (meta.shape === "rounded") return `round-${w}x${d}x${h}mm.3mf`;
         return `box-${w}x${d}x${h}mm.3mf`;
       })()

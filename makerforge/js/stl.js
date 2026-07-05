@@ -230,6 +230,7 @@ export function filenameFor(meta, part = "body") {
 function baseFilename(meta) {
   const { w, d, h } = meta.inner;
   if (meta.shape === "circle") return `circle-${w}x${h}mm.stl`;
+  if (meta.shape === "oval") return `oval-${w}x${d}x${h}mm.stl`;
   if (meta.shape === "pencil") return `pencil-${w}x${d}x${h}mm.stl`;
   if (meta.shape === "pencilBox") return `pencil-box-${w}x${d}x${h}mm.stl`;
   if (meta.shape === "teardrop") return `teardrop-${w}x${d}x${h}mm.stl`;
