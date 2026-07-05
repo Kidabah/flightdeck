@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, shapeSupportsHingeLid, shapeSupportsRollLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=90";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh, mergeMeshes } from "./features.js?v=90";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, shapeSupportsHingeLid, shapeSupportsRollLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=92";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh, mergeMeshes } from "./features.js?v=92";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=73";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=73";
 import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=73";
@@ -315,6 +315,7 @@ function buildParams() {
     insertSlotDepth: state.insertSlotDepth,
     insertSlotRamp: state.insertSlotRamp,
     insertBodyGap: 0.12,
+    fuseInsertToBody: state.shape === "fatQuarters" && !!state.insertEnabled,
     bookcaseOpenFront: !!state.bookcaseOpenFront,
     vaseStyle: state.vaseStyle,
     vaseDiameter: state.vaseDiameter,

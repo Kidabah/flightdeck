@@ -2,7 +2,15 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `610e88b` — served at `/makerdeck/` on Flightdeck
+- Latest commit: _(pending)_ — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Fat quarters: fuse dividers to floor/walls (print fix)
+
+**What changed:** Fat quarters tray dividers were floating **0.12 mm** above the floor with side gaps — fine for removable inserts, but when merged into one 3MF they printed as weak free-standing walls that delaminated (layer ribbons). Dividers now **fuse to floor and side walls** on the fat quarters preset; default divider thickness **3.2 mm**.
+
+**Files:** `js/features.js`, `js/geometry.js`, `js/app.js`, `index.html` — cache-bust `app.js?v=92`
+
+**Deploy:** Pi `git pull`. Hard refresh. **Re-export 3MF** before reprinting.
 
 ### 2026-07-05 — Fix flip hinge reverting / clearing lid
 

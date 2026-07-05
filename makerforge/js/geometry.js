@@ -1455,7 +1455,7 @@ export const FAT_QUARTERS_PRESET = {
   insertEnabled: true,
   insertAxis: "length",
   insertCount: 2,
-  insertThickness: 2.4,
+  insertThickness: 3.2,
   insertClearance: 0.35,
   insertTopClearance: 0.6,
   insertMount: "snap",

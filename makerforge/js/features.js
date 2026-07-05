@@ -347,9 +347,10 @@ export function buildDividerInsert(meta, params) {
   const thickness = clamp(params.insertThickness ?? 2.4, 1.2, 5);
   const clearance = clamp(params.insertClearance ?? 0.35, 0.1, 1.2);
   const topClear = clamp(params.insertTopClearance ?? 0.6, 0, 4);
-  const bodyGap = params.insertBodyGap ?? 0.12;
+  const fuseToBody = !!params.fuseInsertToBody;
+  const bodyGap = fuseToBody ? 0 : (params.insertBodyGap ?? 0.12);
   const mount = params.insertMount === "slot" && axis === "height" ? "slot" : "snap";
-  const wallClear = clearance + bodyGap;
+  const wallClear = fuseToBody ? 0 : clearance + bodyGap;
 
   const spanW = b.innerW - wallClear * 2;
   const spanD = b.innerD - wallClear * 2;
@@ -383,8 +384,8 @@ export function buildDividerInsert(meta, params) {
     return { positions, indices };
   }
 
-  const z0 = b.floor + bodyGap;
-  const z1 = b.floor + b.cavityH - topClear - bodyGap;
+  const z0 = fuseToBody ? b.floor : b.floor + bodyGap;
+  const z1 = b.floor + b.cavityH - topClear - (fuseToBody ? 0 : bodyGap);
   if (z1 - z0 < 4) return null;
 
   for (let i = 1; i <= count; i++) {
