@@ -2,8 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `77f1b5e` — lid parent transform + STL sanitize + overlay AABB
-- Refresh cachebust currently: MakerDeck app.js?v=52 / style.css?v=13
+- Latest commit: (pending) — fix blank viewport on failed rebuild
+- Refresh cachebust currently: MakerDeck app.js?v=53 / style.css?v=13
+
+### 2026-07-05 fix (MakerDeck blank viewport)
+
+**Box no longer disappears when rebuild fails** (`app.js`)
+
+- Build new mesh before disposing old; auto-recover to default box on failure.
+- Art tab with applied lid art no longer duplicates preview mesh (draft preview only when dirty).
+- Overlay uses face-corner projection only (no giant extrusion bbox).
+- Reset view rebuilds if mesh missing. Cachebust app.js?v=53. Hard refresh required.
 
 ### 2026-07-04 fix (MakerDeck lid export + overlay overnight)
 

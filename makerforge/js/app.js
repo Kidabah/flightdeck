@@ -676,13 +676,36 @@ function rebuild() {
     if (state.embossTraceEnabled) {
       clearEmbossTrace();
       updateTraceUi();
-      try {
-        rebuildMesh();
-        scheduleSaveSession();
-      } catch (retryErr) {
-        console.error("MakerDeck rebuild retry failed:", retryErr);
-      }
     }
+    try {
+      rebuildMesh();
+      scheduleSaveSession();
+    } catch (retryErr) {
+      console.error("MakerDeck rebuild retry failed:", retryErr);
+      resetToDefaultBox();
+    }
+  }
+}
+
+function resetToDefaultBox() {
+  clearArtDraft();
+  clearEmbossTrace();
+  state.embossText = "";
+  state.embossSvgEnabled = false;
+  state.embossSvgText = "";
+  state.embossTraceEnabled = false;
+  state.embossTraceRects = null;
+  state.embossFace = "front";
+  state.shape = "rect";
+  state.lidEnabled = false;
+  Object.assign(state, { ...DEFAULTS, shape: "rect" });
+  document.getElementById("emboss-text").value = "";
+  syncUiFromState();
+  try {
+    rebuildMesh();
+    if (meshCache) fitCamera(meshCache.meta);
+  } catch (err) {
+    console.error("MakerDeck emergency reset failed:", err);
   }
 }
 
@@ -843,6 +866,40 @@ function syncUiFromState() {
 }
 
 function rebuildMesh() {
+  const params = buildParams();
+  if (isArtTabActive() && getArtDraft() && draftHasContent(getArtDraft()) && isArtDraftDirty()) {
+    params._artPreviewDraft = true;
+  }
+
+  const nextCache = buildContainer(params);
+  if (nextCache.meta.shape === "rect" && state.shape === "rounded") {
+    nextCache.meta.shape = "rounded";
+  }
+  if (state.shape === "hex" && state.sides !== 6) {
+    nextCache.meta.shape = "polygon";
+  }
+  if (PRESET_SHAPES.has(state.shape)) {
+    nextCache.meta.shape = state.shape;
+  }
+
+  let nextLidCache = null;
+  let nextLidMesh = null;
+  if (state.lidEnabled && shapeSupportsLid(state.shape)) {
+    nextLidCache = buildLid(params);
+    const lidGeom = toBufferGeometry(THREE, nextLidCache);
+    nextLidMesh = new THREE.Mesh(lidGeom, lidMaterial);
+    nextLidMesh.castShadow = true;
+    nextLidMesh.receiveShadow = true;
+    nextLidMesh.renderOrder = 4;
+    if (nextLidCache.meta?.lidType === "slide") {
+      lidMaterial.polygonOffsetFactor = 4;
+      lidMaterial.polygonOffsetUnits = 6;
+    } else {
+      lidMaterial.polygonOffsetFactor = 2;
+      lidMaterial.polygonOffsetUnits = 3;
+    }
+  }
+
   if (bodyMesh) {
     previewRoot.remove(bodyMesh);
     bodyMesh.geometry.dispose();
@@ -853,22 +910,10 @@ function rebuildMesh() {
   }
   disposeAccentPreview();
   disposeLabelPreview();
+  disposeLidPreview();
 
-  const params = buildParams();
-  if (isArtTabActive() && getArtDraft() && draftHasContent(getArtDraft()) && isArtDraftDirty()) {
-    params._artPreviewDraft = true;
-  }
-
-  meshCache = buildContainer(params);
-  if (meshCache.meta.shape === "rect" && state.shape === "rounded") {
-    meshCache.meta.shape = "rounded";
-  }
-  if (state.shape === "hex" && state.sides !== 6) {
-    meshCache.meta.shape = "polygon";
-  }
-  if (PRESET_SHAPES.has(state.shape)) {
-    meshCache.meta.shape = state.shape;
-  }
+  meshCache = nextCache;
+  lidCache = nextLidCache;
 
   const shellMesh = meshCache.shellMesh || meshCache;
   const geom = toBufferGeometry(THREE, shellMesh);
@@ -901,24 +946,10 @@ function rebuildMesh() {
     previewRoot.add(accentEdgeLines);
   }
 
-  disposeLidPreview();
-  if (state.lidEnabled && shapeSupportsLid(state.shape)) {
-    lidCache = buildLid(params);
-    const lidGeom = toBufferGeometry(THREE, lidCache);
-    lidMesh = new THREE.Mesh(lidGeom, lidMaterial);
+  if (nextLidMesh) {
+    lidMesh = nextLidMesh;
     setLidPreviewTransform(lidRestY(), lidRestX());
-    lidMesh.castShadow = true;
-    lidMesh.receiveShadow = true;
-    lidMesh.renderOrder = 4;
-    if (lidCache.meta?.lidType === "slide") {
-      lidMaterial.polygonOffsetFactor = 4;
-      lidMaterial.polygonOffsetUnits = 6;
-    } else {
-      lidMaterial.polygonOffsetFactor = 2;
-      lidMaterial.polygonOffsetUnits = 3;
-    }
     previewRoot.add(lidMesh);
-
     buildLidGuideLoops();
   }
 
@@ -1345,7 +1376,7 @@ function ensureArtDraftActive() {
 function useDraftArtPreview() {
   if (!isArtTabActive()) return false;
   const draft = ensureArtDraftActive();
-  return !!(draft && draftHasContent(draft));
+  return !!(draft && draftHasContent(draft) && isArtDraftDirty());
 }
 
 function shouldShowArtOverlay() {
@@ -2188,6 +2219,7 @@ document.getElementById("btn-undo").addEventListener("click", undoApp);
 document.getElementById("btn-redo").addEventListener("click", redoApp);
 document.getElementById("btn-clear-box").addEventListener("click", clearDecorFromBox);
 document.getElementById("btn-reset-view").addEventListener("click", () => {
+  if (!meshCache) rebuild();
   if (meshCache) fitCamera(meshCache.meta);
 });
 
@@ -2420,30 +2452,6 @@ function collectFaceArtScreenPoints(art) {
   return pts.length ? pts : null;
 }
 
-const _labelWorldCorner = new THREE.Vector3();
-
-/** Bambu skip-map pattern: derive handles from what's actually rendered, not a parallel transform. */
-function collectLabelScreenPoints(art = null) {
-  if (labelMesh?.geometry && viewport) {
-    labelMesh.updateWorldMatrix(true, false);
-    const pos = labelMesh.geometry.getAttribute("position");
-    if (pos?.count) {
-      const step = pos.count > 6000 ? Math.ceil(pos.count / 3000) : 1;
-      const pts = [];
-      for (let i = 0; i < pos.count; i += step) {
-        _labelWorldCorner.fromBufferAttribute(pos, i);
-        labelMesh.localToWorld(_labelWorldCorner);
-        const p = projectWorldToScreen(_labelWorldCorner);
-        if (p.behind) return art ? collectFaceArtScreenPoints(art) : null;
-        pts.push(p);
-      }
-      if (pts.length >= 4) return pts;
-    }
-  }
-  if (art) return collectFaceArtScreenPoints(art);
-  return null;
-}
-
 function fitOverlayLayoutFromScreenPoints(points, artRotation = 0) {
   let minX = Infinity;
   let maxX = -Infinity;
@@ -2513,32 +2521,22 @@ function fitOverlayLayoutFromScreenPoints(points, artRotation = 0) {
 }
 
 function artOverlayScreenLayout(art) {
-  const meshPts = collectLabelScreenPoints(art);
-  if (meshPts) {
-    const layout = fitOverlayLayoutFromScreenPoints(meshPts, art?.rotation || 0);
-    if (layout) return layout;
-  }
   if (!art) return null;
-
-  const rot = art.rotation || 0;
   const facePts = collectFaceArtScreenPoints(art);
-  if (facePts) {
-    const layout = fitOverlayLayoutFromScreenPoints(facePts, rot);
-    if (layout) return layout;
-  }
-  return null;
+  if (!facePts) return null;
+  return fitOverlayLayoutFromScreenPoints(facePts, art.rotation || 0);
 }
 
 function artDragCenterOnScreen(art) {
-  const meshPts = collectLabelScreenPoints(art);
-  if (meshPts?.length) {
+  const facePts = collectFaceArtScreenPoints(art);
+  if (facePts?.length) {
     let x = 0;
     let y = 0;
-    for (const p of meshPts) {
+    for (const p of facePts) {
       x += p.x;
       y += p.y;
     }
-    return { x: x / meshPts.length, y: y / meshPts.length };
+    return { x: x / facePts.length, y: y / facePts.length };
   }
   return projectFacePoint(art.frame, art.cx, art.cy);
 }
@@ -2758,8 +2756,13 @@ async function bootMakerDeck() {
 
   await ensureEmbossFontLoaded(state.embossFont);
   sessionBooting = false;
-  rebuild();
-  if (meshCache) fitCamera(meshCache.meta);
+  try {
+    rebuild();
+    if (meshCache) fitCamera(meshCache.meta);
+  } catch (err) {
+    console.error("MakerDeck boot rebuild failed:", err);
+    resetToDefaultBox();
+  }
 
   if (restored?.needsRestoreTrace && traceSourceCanvas) {
     scheduleDeferredRestoreTrace();
