@@ -2,7 +2,15 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `7daab6a` — served at `/makerdeck/` on Flightdeck
+- Latest commit: _(pending)_ — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Fix Bambu 3MF auto filament assignment
+
+**What changed:** **Download 3MF** now writes Bambu-compatible colour data — `Metadata/model_settings.config` as **XML** with per-object extruder slots (was JSON, which Bambu ignored), plus `paint_color` on every triangle so Body / Text / Accent import with the right filament without manual repainting.
+
+**Files:** `js/3mf.js`, `js/app.js`, `index.html` — cache-bust `app.js?v=70`
+
+**Deploy:** Pi `git pull`. Re-export 3MF and open in Bambu (fresh import, not merge into existing project).
 
 ### 2026-07-05 — Fix accent preview strobing (z-fight)
 

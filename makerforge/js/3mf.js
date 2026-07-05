@@ -1,7 +1,7 @@
 /**
  * Multi-part 3MF project export for Orca / Bambu Studio (filament colours per object).
  */
-import { sanitizeMeshForStl } from "./stl.js?v=66";
+import { sanitizeMeshForStl } from "./stl.js?v=70";
 
 function escapeXml(s) {
   return String(s)
@@ -18,6 +18,12 @@ function textEncoder() {
 function encodeText(str) {
   return textEncoder().encode(str);
 }
+
+/** Bambu/Orca per-triangle paint codes — slot 1 = "4", slot 2 = "8", slot 3 = "0C", … */
+const PAINT_COLOR_CODES = [
+  "4", "8", "0C", "1C", "2C", "3C", "4C", "5C",
+  "6C", "7C", "8C", "9C", "AC", "BC", "CC", "DC",
+];
 
 const CRC_TABLE = (() => {
   const table = new Uint32Array(256);
@@ -122,10 +128,15 @@ function createZipStore(files) {
   return out;
 }
 
+function paintCodeForExtruder(extruder) {
+  return PAINT_COLOR_CODES[Math.max(0, Math.min(15, (extruder || 1) - 1))];
+}
+
 function meshTo3mfResources(mesh, objectId, name, extruder) {
   const clean = sanitizeMeshForStl(mesh);
   if (!clean?.positions?.length || !clean?.indices?.length) return null;
 
+  const paint = paintCodeForExtruder(extruder);
   const verts = [];
   for (let i = 0; i < clean.positions.length; i += 3) {
     verts.push(
@@ -136,7 +147,7 @@ function meshTo3mfResources(mesh, objectId, name, extruder) {
   const tris = [];
   for (let t = 0; t < clean.indices.length; t += 3) {
     tris.push(
-      `<triangle v1="${clean.indices[t]}" v2="${clean.indices[t + 1]}" v3="${clean.indices[t + 2]}"/>`,
+      `<triangle v1="${clean.indices[t]}" v2="${clean.indices[t + 1]}" v3="${clean.indices[t + 2]}" paint_color="${paint}"/>`,
     );
   }
 
@@ -151,7 +162,42 @@ function meshTo3mfResources(mesh, objectId, name, extruder) {
     </object>`,
     buildItem: `<item objectid="${objectId}"/>`,
     extruder,
+    id: objectId,
+    name,
   };
+}
+
+/** Bambu Studio reads extruder assignment from this XML file (not JSON). */
+function buildBambuModelSettingsXml(objects) {
+  const lines = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    "<config>",
+  ];
+
+  for (const obj of objects) {
+    lines.push(`  <object id="${obj.id}">`);
+    lines.push(`    <metadata key="name" value="${escapeXml(obj.name)}"/>`);
+    lines.push(`    <metadata key="extruder" value="${obj.extruder}"/>`);
+    lines.push("  </object>");
+  }
+
+  lines.push("  <plate>");
+  lines.push('    <metadata key="plater_id" value="1"/>');
+  lines.push('    <metadata key="plater_name" value=""/>');
+  lines.push('    <metadata key="locked" value="false"/>');
+  lines.push('    <metadata key="filament_map_mode" value="Auto For Flush"/>');
+
+  objects.forEach((obj, i) => {
+    lines.push("    <model_instance>");
+    lines.push(`      <metadata key="object_id" value="${obj.id}"/>`);
+    lines.push('      <metadata key="instance_id" value="0"/>');
+    lines.push(`      <metadata key="identify_id" value="${i}"/>`);
+    lines.push("    </model_instance>");
+  });
+
+  lines.push("  </plate>");
+  lines.push("</config>");
+  return lines.join("\n");
 }
 
 /**
@@ -175,18 +221,20 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck") {
 
   const objectXml = [];
   const buildItems = [];
+  const modelObjects = [];
   let objectId = 1;
   for (const part of usable) {
     const built = meshTo3mfResources(part.mesh, objectId, part.name, part.extruder || 1);
     if (!built) continue;
     objectXml.push(built.objectXml);
     buildItems.push(built.buildItem);
+    modelObjects.push({ id: built.id, name: built.name, extruder: built.extruder });
     objectId++;
   }
   if (!objectXml.length) throw new Error("No valid mesh parts to export");
 
   const modelXml = `<?xml version="1.0" encoding="UTF-8"?>
-<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel">
+<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06">
   <metadata name="Application">MakerDeck</metadata>
   <metadata name="Title">${escapeXml(projectName)}</metadata>
   <resources>
@@ -209,13 +257,7 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck") {
     filament_density: filamentDensity,
   });
 
-  const modelSettings = JSON.stringify(
-    usable.map((part, i) => ({
-      id: i + 1,
-      name: part.name,
-      extruder: String(part.extruder || 1),
-    })),
-  );
+  const modelSettings = buildBambuModelSettingsXml(modelObjects);
 
   const contentTypes = `<?xml version="1.0" encoding="UTF-8"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

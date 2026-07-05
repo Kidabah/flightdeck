@@ -4,7 +4,7 @@ import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh } from "./features.js?v=69";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=69";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=69";
-import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=69";
+import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=70";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=69";
 import { appliedHasArt } from "./art-editor.js";
 
