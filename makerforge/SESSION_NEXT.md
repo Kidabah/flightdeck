@@ -2,7 +2,7 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: *(pending — revert cut-through, restore raised emboss)*
+- Latest commit: `708268f` — served at `/makerdeck/` on Flightdeck
 
 ### 2026-07-05 — Revert cut-through emboss (restore raised letters)
 
