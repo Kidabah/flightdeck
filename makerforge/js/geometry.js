@@ -26,6 +26,7 @@ import {
   appendHingeKnucklesToBody,
   buildHingeLidMesh,
   computeHingeFitGuides,
+  orientHingeLidForPrint,
   shapeSupportsHingeLid,
 } from "./hinge-lid.js";
 import {
@@ -833,7 +834,7 @@ export const LID_TYPES = [
   { id: "plug", label: "Inset plug", optionLabel: "Inset plug — skirt inside", hint: "Skirt slides inside the opening; top plate sits flush on the rim." },
   { id: "slide", label: "Channel slide", optionLabel: "Channel slide — rail grooves", hint: "Angled grooves on the long walls; beveled lid slides in from the short end and seats at the far end." },
   { id: "flat", label: "Flat cap", optionLabel: "Flat cap — plate + optional lip", hint: "Plate on the rim with an optional inner lip for alignment — good for storage trays and stacking." },
-  { id: "hinge", label: "Flip hinge", optionLabel: "Flip hinge — back pin knuckles", hint: "Clamshell lid on the back edge — alternating knuckles on box and lid; use 1.75 mm filament as a hinge pin." },
+  { id: "hinge", label: "Flip hinge", optionLabel: "Flip hinge — back pin knuckles", hint: "Vertical knuckles on the back rim interleave (body/lid/body/lid/body). Slide 1.75 mm filament through the pin tunnels from either side. Lid exports flat on the bed." },
   { id: "roll", label: "Roll lock", optionLabel: "Roll lock — push + twist", hint: "Bayonet cap for round containers — push down then twist to lock. Best on circle, oval, or hex shapes." },
 ];
 
@@ -1368,6 +1369,9 @@ export function buildLid(params) {
 
 /** Flip lid so the solid plate sits on the print bed (skirt points up). Preview keeps natural on-box orientation. */
 export function orientLidForPrint(lid) {
+  if (lid?.hingeMeta?.mode === "hinge" || lid?.meta?.lidType === "hinge") {
+    return orientHingeLidForPrint(lid);
+  }
   let h = lid.lidHeight;
   if (!Number.isFinite(h) || h <= 0) {
     h = 0;
@@ -1380,6 +1384,11 @@ export function orientLidForPrint(lid) {
   }
   const positions = lid.positions.slice();
   for (let i = 2; i < positions.length; i += 3) positions[i] = h - positions[i];
+  let minZ = Infinity;
+  for (let i = 2; i < positions.length; i += 3) minZ = Math.min(minZ, positions[i]);
+  if (Number.isFinite(minZ) && minZ !== 0) {
+    for (let i = 2; i < positions.length; i += 3) positions[i] -= minZ;
+  }
   return { positions, indices: lid.indices.slice() };
 }
 
@@ -1519,8 +1528,8 @@ export const DEFAULTS = {
   slideStopLength: 10,
   slideEntryRamp: 10,
   hingePinDiameter: 1.75,
-  hingeKnuckleRadius: 3,
-  hingeKnuckleCount: 3,
+  hingeKnuckleRadius: 4,
+  hingeKnuckleCount: 5,
   rollLugCount: 3,
   rollTurnDegrees: 55,
   rollLugDepth: 1.6,

@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, shapeSupportsHingeLid, shapeSupportsRollLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=92";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh, mergeMeshes } from "./features.js?v=92";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, shapeSupportsHingeLid, shapeSupportsRollLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=93";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh, mergeMeshes } from "./features.js?v=93";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=73";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=73";
 import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=73";
@@ -659,7 +659,7 @@ function lidFitHintText() {
     return "Green lines = angled grooves on the long walls. Lid slides in from the short end (−length) and seats in the far-end pocket.";
   }
   if (t === "hinge") {
-    return "Orange = box rim. Knuckles on the back edge interleave — insert 1.75 mm filament as a hinge pin. Preview flips the lid open.";
+    return "Orange = box rim. Vertical knuckles interleave on the back top edge — slide 1.75 mm filament through the pin tunnels from either side.";
   }
   if (t === "roll") {
     return "Orange = box rim. Push the cap down, twist to lock in the bayonet tracks. Preview shows lift + quarter-turn.";
@@ -727,9 +727,10 @@ function setHingeLidAngle(angle) {
 
 function attachHingeLidPreview(mesh, hm, meta) {
   const od2 = (meta?.outer?.d || 50) / 2;
+  const knuckleH = hm.knuckleHeight ?? 8;
   lidPivot = new THREE.Group();
-  lidPivot.position.set(0, hm.seatZ, -od2);
-  mesh.position.set(0, LID_PREVIEW_GAP, od2);
+  lidPivot.position.set(0, hm.seatZ + knuckleH * 0.5, -od2);
+  mesh.position.set(0, LID_PREVIEW_GAP - knuckleH * 0.5, od2);
   mesh.rotation.set(hm.restAngle ?? -0.25, 0, 0);
   lidPivot.add(mesh);
   previewRoot.add(lidPivot);

@@ -2,7 +2,19 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `0db28a8` — served at `/makerdeck/` on Flightdeck
+- Latest commit: _(pending)_ — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Flip hinge v2: flat lid export, pin tunnels, tighter knuckles
+
+**What changed:** Hinge redesign from Chris’s Bambu slice feedback:
+- **Lid exports flat** on the bed (vertical rim knuckles, no horizontal Y overhang; bottom shifted to Z=0)
+- **5 knuckle positions** (body/lid/body/lid/body) packed with tighter pitch — not 2+1 at the ends
+- **Pin tunnels** through each knuckle (1.75 mm filament slides in from either side along box width)
+- Default knuckle radius **4 mm**, count **5**
+
+**Files:** `js/hinge-lid.js`, `js/geometry.js`, `js/app.js`, `index.html` — cache-bust `app.js?v=93`
+
+**Deploy:** Pi `git pull`. Hard refresh. Re-export body + lid STL/3MF.
 
 ### 2026-07-05 — Fat quarters: fuse dividers to floor/walls (print fix)
 

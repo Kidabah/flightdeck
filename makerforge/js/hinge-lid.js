@@ -1,6 +1,6 @@
 /**
- * Flip / hinge lid — pin knuckles on the back edge (+Y), lid opens like a clamshell.
- * Use 1.75 mm filament as a hinge pin through alternating knuckles.
+ * Flip / hinge lid — vertical rim knuckles on the back top edge.
+ * Pin axis runs along box width (X); insert 1.75 mm filament from either side.
  */
 
 function clamp(n, min, max) {
@@ -23,6 +23,7 @@ function pushQuad(outPos, outIdx, a, b, c, d) {
 }
 
 function solidBox(outPos, outIdx, x0, x1, y0, y1, z0, z1) {
+  if (x1 <= x0 || y1 <= y0 || z1 <= z0) return;
   pushQuad(outPos, outIdx, vec3(x0, y0, z0), vec3(x1, y0, z0), vec3(x1, y1, z0), vec3(x0, y1, z0));
   pushQuad(outPos, outIdx, vec3(x0, y1, z1), vec3(x1, y1, z1), vec3(x1, y0, z1), vec3(x0, y0, z1));
   pushQuad(outPos, outIdx, vec3(x0, y0, z0), vec3(x0, y1, z0), vec3(x0, y1, z1), vec3(x0, y0, z1));
@@ -41,9 +42,11 @@ export function resolveHingeOpts(params) {
   const lidWall = clamp(params.lidWall ?? params.wall ?? 2.4, 1.2, 6);
   const skirtDepth = clamp(params.lidSkirt ?? 8, 4, 18);
   const lidThickness = clamp(params.lidThickness ?? 2.4, 1.2, 6);
-  const knuckleR = clamp(params.hingeKnuckleRadius ?? 3, 2.2, 5);
-  const knuckleCount = clamp(Math.round(params.hingeKnuckleCount ?? 3), 2, 5);
+  const knuckleR = clamp(params.hingeKnuckleRadius ?? 4, 3, 6);
+  const knuckleCount = clamp(Math.round(params.hingeKnuckleCount ?? 5), 3, 7);
   const pinD = clamp(params.hingePinDiameter ?? 1.75, 1.5, 2.2);
+  const knuckleHeight = knuckleR * 2.1;
+  const pitch = pinD + 2 * knuckleR + clearance * 0.45;
   return {
     clearance,
     lidWall,
@@ -52,43 +55,66 @@ export function resolveHingeOpts(params) {
     knuckleR,
     knuckleCount,
     pinD,
-    pinGap: pinD + clearance * 0.6,
+    knuckleHeight,
+    pitch,
+    pinGap: pinD + clearance * 0.5,
   };
 }
 
-function knuckleCenters(count, span) {
-  const n = Math.max(2, count);
+/** Odd count → symmetric B-L-B-L-B… positions packed along the back edge. */
+function knuckleCenters(opts, outerW) {
+  const n = opts.knuckleCount % 2 === 0 ? opts.knuckleCount + 1 : opts.knuckleCount;
+  const pitch = opts.pitch;
+  const span = (n - 1) * pitch;
+  const maxSpan = outerW - opts.knuckleR * 2.5;
+  const scale = span > maxSpan ? maxSpan / span : 1;
   const xs = [];
-  if (n === 1) return [0];
-  const step = span / (n - 1);
-  const x0 = -span / 2;
-  for (let i = 0; i < n; i++) xs.push(x0 + i * step);
+  for (let i = 0; i < n; i++) xs.push((-span / 2 + i * pitch) * scale);
   return xs;
 }
 
-function appendKnuckle(outPos, outIdx, cx, y0, z0, r, depth, signY) {
-  const y1 = y0 + signY * depth;
-  solidBox(outPos, outIdx, cx - r, cx + r, Math.min(y0, y1), Math.max(y0, y1), z0 - r, z0 + r);
+/**
+ * Rim knuckle bracket with pin tunnel along X (filament slides through from either side).
+ * Minimal +Y overhang so the lid STL sits flat on the bed after orientLidForPrint.
+ */
+function appendRimKnuckle(outPos, outIdx, cx, yBack, z0, opts, wall) {
+  const { knuckleR: r, knuckleHeight: height, pinD } = opts;
+  const z1 = z0 + height;
+  const y0 = yBack - r * 0.38;
+  const y1 = yBack + 0.2;
+  const pinHalf = pinD / 2 + 0.22;
+  const cx0 = cx - r;
+  const cx1 = cx + r;
+  const cap = Math.max(wall, 1.1);
+
+  if (pinHalf * 2 >= r * 1.55) {
+    solidBox(outPos, outIdx, cx0, cx1, y0, y1, z0, z1);
+    return;
+  }
+
+  solidBox(outPos, outIdx, cx0, cx - pinHalf, y0, y1, z0, z1);
+  solidBox(outPos, outIdx, cx + pinHalf, cx1, y0, y1, z0, z1);
+  solidBox(outPos, outIdx, cx - pinHalf, cx + pinHalf, y0, yBack - 0.04, z0, z1);
+  solidBox(outPos, outIdx, cx - pinHalf, cx + pinHalf, yBack + pinHalf + 0.04, y1, z0, z1);
+  solidBox(outPos, outIdx, cx0, cx1, y0, y1, z0, z0 + cap);
+  solidBox(outPos, outIdx, cx0, cx1, y0, y1, z1 - cap, z1);
 }
 
-function appendKnuckleRow(outPos, outIdx, meta, zCenter, opts, parity) {
-  const ow2 = meta.outer.w / 2;
+function appendKnuckleRow(outPos, outIdx, meta, z0, opts, parity, wall) {
   const od2 = meta.outer.d / 2;
-  const yFace = od2 - 0.1;
-  const span = Math.min(meta.outer.w * 0.78, meta.outer.w - opts.knuckleR * 4);
-  const xs = knuckleCenters(opts.knuckleCount, span);
-  const depth = opts.knuckleR * 1.55;
+  const yBack = od2 - 0.04;
+  const xs = knuckleCenters(opts, meta.outer.w);
   for (let i = 0; i < xs.length; i++) {
     if (i % 2 !== parity) continue;
-    appendKnuckle(outPos, outIdx, xs[i], yFace, zCenter, opts.knuckleR, depth, 1);
+    appendRimKnuckle(outPos, outIdx, xs[i], yBack, z0, opts, wall);
   }
 }
 
-/** Body knuckles (even indices) on back outer wall. */
+/** Body knuckles (even indices) — grow upward from the back rim. */
 export function appendHingeKnucklesToBody(outPos, outIdx, meta, totalH, params) {
   const opts = resolveHingeOpts(params);
-  const zCenter = totalH - opts.knuckleR - 0.35;
-  appendKnuckleRow(outPos, outIdx, meta, zCenter, opts, 0);
+  const wall = clamp(params.wall ?? 2.4, 1.2, 6);
+  appendKnuckleRow(outPos, outIdx, meta, totalH, opts, 0, wall);
 }
 
 function profileBackY(points) {
@@ -127,6 +153,23 @@ function capRingSkipBack(outPos, outIdx, outer, inner, z, backY, normalUp) {
   }
 }
 
+/** Close the open back edge between knuckle gaps (keeps shell watertight). */
+function capBackStrap(outPos, outIdx, boxOuter, z0, z1, backY, strapHalfW) {
+  const tol = 0.85;
+  const n = boxOuter.length;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    if (pointsOnBack(boxOuter[i], boxOuter[j], backY, tol)) {
+      const mx = (boxOuter[i][0] + boxOuter[j][0]) / 2;
+      solidBox(outPos, outIdx, mx - strapHalfW, mx + strapHalfW, backY - 0.15, backY + 0.05, z0, z1);
+    }
+  }
+}
+
+function pointsOnBack(p0, p1, backY, tol) {
+  return p0[1] >= backY - tol && p1[1] >= backY - tol;
+}
+
 function offsetProfileInward(points, offset) {
   if (offset <= 0) return points.map((p) => [p[0], p[1]]);
   let cx = 0;
@@ -145,7 +188,7 @@ function offsetProfileInward(points, offset) {
   });
 }
 
-function buildHingeLidShell(outPos, outIdx, boxOuter, boxInner, skirtDepth, lidThickness, clearance, lidWall) {
+function buildHingeLidShell(outPos, outIdx, boxOuter, boxInner, skirtDepth, lidThickness, clearance, lidWall, opts, wall) {
   const plugOuter = offsetProfileInward(boxInner, clearance);
   const plugInner = offsetProfileInward(boxInner, clearance + lidWall);
   const backY = profileBackY(boxOuter);
@@ -157,6 +200,7 @@ function buildHingeLidShell(outPos, outIdx, boxOuter, boxInner, skirtDepth, lidT
   capRingSkipBack(outPos, outIdx, plugOuter, plugInner, skirtDepth, backY, true);
   extrudeProfileSidesSkipBack(outPos, outIdx, boxOuter, skirtDepth, zTop, backY, true);
   capProfileSolid(outPos, outIdx, boxOuter, zTop, true);
+  capBackStrap(outPos, outIdx, boxOuter, skirtDepth, zTop, backY, opts.pitch * 0.35);
 }
 
 function capProfileSolid(outPos, outIdx, points, z, normalUp) {
@@ -172,6 +216,7 @@ function capProfileSolid(outPos, outIdx, points, z, normalUp) {
 
 export function buildHingeLidMesh(meta, totalH, params) {
   const opts = resolveHingeOpts(params);
+  const wall = clamp(params.wall ?? params.lidWall ?? 2.4, 1.2, 6);
   const positions = [];
   const indices = [];
   const iw2 = meta.inner.w / 2;
@@ -201,14 +246,15 @@ export function buildHingeLidMesh(meta, totalH, params) {
     opts.lidThickness,
     opts.clearance,
     opts.lidWall,
+    opts,
+    wall,
   );
 
-  const zCenter = opts.skirtDepth + opts.lidThickness * 0.5;
-  appendKnuckleRow(positions, indices, meta, zCenter, opts, 1);
+  const lidHeight = opts.skirtDepth + opts.lidThickness;
+  appendKnuckleRow(positions, indices, meta, lidHeight - opts.knuckleHeight, opts, 1, wall);
 
   const hingeY = od2 - 0.15;
   const seatZ = totalH;
-  const lidHeight = opts.skirtDepth + opts.lidThickness;
 
   return {
     positions,
@@ -218,7 +264,8 @@ export function buildHingeLidMesh(meta, totalH, params) {
       mode: "hinge",
       seatZ,
       hingeY,
-      hingeZ: seatZ,
+      hingeZ: seatZ + opts.knuckleHeight * 0.5,
+      knuckleHeight: opts.knuckleHeight,
       lidArm: lidHeight * 0.92,
       openAngle: -2.15,
       closedAngle: 0,
@@ -239,6 +286,23 @@ export function computeHingeFitGuides(resolved, params) {
     boxInner: resolved.inner,
     plateOuter: resolved.outer,
     hingeY: od2 - 0.15,
-    hingeZ: resolved.totalH,
+    hingeZ: resolved.totalH + opts.knuckleHeight * 0.5,
   };
+}
+
+/** Flip lid for print bed — plate down, skirt up; shift so bottom sits on Z=0. */
+export function orientHingeLidForPrint(lid) {
+  let h = lid.lidHeight;
+  if (!Number.isFinite(h) || h <= 0) {
+    h = 0;
+    for (let i = 2; i < lid.positions.length; i += 3) h = Math.max(h, lid.positions[i]);
+  }
+  const positions = lid.positions.slice();
+  for (let i = 2; i < positions.length; i += 3) positions[i] = h - positions[i];
+  let minZ = Infinity;
+  for (let i = 2; i < positions.length; i += 3) minZ = Math.min(minZ, positions[i]);
+  if (Number.isFinite(minZ) && minZ !== 0) {
+    for (let i = 2; i < positions.length; i += 3) positions[i] -= minZ;
+  }
+  return { positions, indices: lid.indices.slice() };
 }
