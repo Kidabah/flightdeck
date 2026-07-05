@@ -2,7 +2,15 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `503070e` — served at `/makerdeck/` on Flightdeck
+- Latest commit: _(pending)_ — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Fix 3MF export crash on multiline text
+
+**What changed:** **Download 3MF** no longer throws `object null is not iterable` when exporting multiline label text (e.g. FAT / QUARTERS). Root cause was `repairNonManifoldFaces` in `stl.js` nulling a triangle mid-pass then dereferencing it on the same edge. STL export now has try/catch like 3MF.
+
+**Files:** `js/stl.js`, `js/app.js`, `js/3mf.js`, `index.html` — `app.js?v=64`, `stl.js?v=64`
+
+**Deploy:** Hard refresh required (Ctrl+Shift+R). Backend restart not needed.
 
 ### 2026-07-05 — Fix pencil box blank after preset switch (with text)
 

@@ -3,7 +3,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsLid, shapeSupportsSlideLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js";
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh } from "./features.js";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js";
-import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js";
+import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=64";
 import { buildColoredProject3mf, filename3mfFor } from "./3mf.js";
 import { mountColorPicker, setColorPickerValue } from "./color-picker.js";
 import { appliedHasArt } from "./art-editor.js";
@@ -2573,9 +2573,14 @@ document.getElementById("btn-export").addEventListener("click", () => {
 
 document.getElementById("btn-export-stl").addEventListener("click", () => {
   if (!meshCache) rebuild();
-  const exportMesh = buildWatertightExportMesh(meshCache, meshCache.meta, buildParams());
-  const blob = meshToStl(exportMesh, "makerdeck");
-  downloadBlob(blob, filenameFor(meshCache.meta, "body"));
+  try {
+    const exportMesh = buildWatertightExportMesh(meshCache, meshCache.meta, buildParams());
+    const blob = meshToStl(exportMesh, "makerdeck");
+    downloadBlob(blob, filenameFor(meshCache.meta, "body"));
+  } catch (err) {
+    console.error("STL export failed:", err);
+    alert(err?.message || "Could not build STL export.");
+  }
 });
 
 document.getElementById("btn-export-lid").addEventListener("click", () => {

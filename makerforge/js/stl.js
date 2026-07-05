@@ -86,7 +86,9 @@ function repairNonManifoldFaces(positions, indices, maxPasses = 4) {
   for (let pass = 0; pass < maxPasses; pass++) {
     const edgeFaces = new Map();
     for (let fi = 0; fi < tris.length; fi++) {
-      const [a, b, c] = tris[fi];
+      const tri = tris[fi];
+      if (!tri) continue;
+      const [a, b, c] = tri;
       edgeFaces.set(edgeKey(a, b), [...(edgeFaces.get(edgeKey(a, b)) || []), fi]);
       edgeFaces.set(edgeKey(b, c), [...(edgeFaces.get(edgeKey(b, c)) || []), fi]);
       edgeFaces.set(edgeKey(c, a), [...(edgeFaces.get(edgeKey(c, a)) || []), fi]);
@@ -94,17 +96,20 @@ function repairNonManifoldFaces(positions, indices, maxPasses = 4) {
 
     let removed = false;
     for (const faces of edgeFaces.values()) {
-      if (faces.length <= 2) continue;
-      let worst = faces[0];
+      if (!faces?.length || faces.length <= 2) continue;
+      let worst = -1;
       let worstArea = Infinity;
       for (const fi of faces) {
-        const [a, b, c] = tris[fi];
+        const tri = tris[fi];
+        if (!tri) continue;
+        const [a, b, c] = tri;
         const area = triArea(positions, a, b, c);
         if (area < worstArea) {
           worstArea = area;
           worst = fi;
         }
       }
+      if (worst < 0) continue;
       tris[worst] = null;
       removed = true;
     }
@@ -113,7 +118,11 @@ function repairNonManifoldFaces(positions, indices, maxPasses = 4) {
   }
 
   const out = [];
-  for (const [a, b, c] of tris) out.push(a, b, c);
+  for (const tri of tris) {
+    if (!tri) continue;
+    const [a, b, c] = tri;
+    out.push(a, b, c);
+  }
   return out;
 }
 
