@@ -2,7 +2,15 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `0ba6302` — served at `/makerdeck/` on Flightdeck
+- Latest commit: _(pending)_ — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Restore text colour + L/C/R align (cache bust)
+
+**What changed:** Text **colour** picker and **Left / Centre / Right** align stay visible with deboss on (align still positions multiline text). Full module cache-bust (`app.js?v=66`, `features.js?v=66`, `color-picker.js?v=66`, `style.css?v=16`) so Pi/browsers don't serve stale JS without the formatting UI.
+
+**Files:** `js/app.js`, `js/3mf.js`, `index.html`
+
+**Deploy:** Hard refresh (`Ctrl+Shift+R`) on `/makerdeck/`. Backend restart optional (static files).
 
 ### 2026-07-05 — Fix slide lid on pencil tube + grooves when lid off
 

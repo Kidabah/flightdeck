@@ -1,7 +1,7 @@
 /**
  * Multi-part 3MF project export for Orca / Bambu Studio (filament colours per object).
  */
-import { sanitizeMeshForStl } from "./stl.js?v=64";
+import { sanitizeMeshForStl } from "./stl.js?v=66";
 
 function escapeXml(s) {
   return String(s)
