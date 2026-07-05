@@ -863,7 +863,7 @@ export const LID_TYPES = [
   { id: "plug", label: "Inset plug", optionLabel: "Inset plug — skirt inside", hint: "Skirt slides inside the opening; top plate sits flush on the rim." },
   { id: "slide", label: "Channel slide", optionLabel: "Channel slide — rail grooves", hint: "Angled grooves on the long walls; beveled lid slides in from the short end and seats at the far end." },
   { id: "flat", label: "Flat cap", optionLabel: "Flat cap — plate + optional lip", hint: "Plate on the rim with an optional inner lip for alignment — good for storage trays and stacking." },
-  { id: "clip", label: "Clip hinge", optionLabel: "Clip hinge — snap rails + clips", hint: "Clean inset plug lid with snap rails on the back rim. Clip export = 4 fused parts on the bed; pin export = 2 rods. Snap onto rails, pin through barrels." },
+  { id: "clip", label: "Clip hinge", optionLabel: "Clip hinge — snap rails + clips", hint: "Inset plug lid with snap rails on the back rim. Use the Hinge tab to tune rail/clip sizes and download clips + pins." },
   { id: "hinge", label: "Flip hinge", optionLabel: "Flip hinge — back pin knuckles", hint: "Deprecated.", hidden: true },
   { id: "roll", label: "Roll lock", optionLabel: "Roll lock — push + twist", hint: "Bayonet cap for round containers — push down then twist to lock. Best on circle, oval, or hex shapes." },
 ];

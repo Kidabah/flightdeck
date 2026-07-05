@@ -445,6 +445,35 @@ input[type="range"] {
   color: var(--muted);
 }
 
+#section-hinge.hidden,
+#hinge-controls.hidden,
+#hinge-inactive-hint.hidden {
+  display: none;
+}
+
+.hinge-steps {
+  margin: 12px 0 0;
+  padding-left: 1.2rem;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.hinge-steps li + li {
+  margin-top: 6px;
+}
+
+.hinge-export-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.hinge-export-actions .btn {
+  width: 100%;
+}
+
 #field-lid-type.hidden,
 #field-lid-skirt.hidden,
 #field-lid-thickness.hidden,

@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Oswald:wght@700&family=Roboto+Mono:wght@700&family=Roboto:wght@700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=18">
+  <link rel="stylesheet" href="css/style.css?v=19">
 
   <script type="importmap">
 
@@ -86,10 +86,6 @@
 
             <option value="saucer" data-export-opt="saucer">STL saucer</option>
 
-            <option value="clip-stl" data-export-opt="clip">STL hinge clip (×4)</option>
-
-            <option value="clip-pin-stl" data-export-opt="clip">STL hinge pin (×2)</option>
-
           </select>
 
           <button type="button" id="btn-export-go" class="btn btn-primary">Download</button>
@@ -111,6 +107,8 @@
           <button type="button" class="tab active" data-tab="design" role="tab" aria-selected="true">Design</button>
 
           <button type="button" class="tab" data-tab="lid" role="tab">Lid</button>
+
+          <button type="button" class="tab" data-tab="hinge" role="tab">Hinge</button>
 
           <button type="button" class="tab" data-tab="link" role="tab">Link</button>
 
@@ -493,6 +491,92 @@
               </div>
 
               <p class="field-hint hidden" id="lid-xray-hint">Preview fit uses a transparent X-ray view with coloured rim guides.</p>
+
+            </section>
+
+          </div>
+
+
+
+          <div class="tab-panel" id="tab-hinge" role="tabpanel" hidden>
+
+            <section class="section" id="section-hinge">
+
+              <h2>Clip hinge hardware</h2>
+
+              <p class="field-hint" id="hinge-inactive-hint">Enable a lid and choose <strong>Clip hinge</strong> on the Lid tab to tune and export clips + pins here.</p>
+
+              <div id="hinge-controls" class="hidden">
+
+                <p class="field-hint">Snap rails are built into the box and lid exports. Print the clips and pins below, then assemble on the back edge.</p>
+
+                <label class="field">
+
+                  <span class="field-label">Rail diameter</span>
+
+                  <input type="range" id="hinge-rail-d" min="3" max="6" step="0.25" value="4" tabindex="-1">
+
+                  <button type="button" class="value-edit" data-slider="hinge-rail-d" data-key="clipRailDiameter" data-parse="float">4</button>
+
+                </label>
+
+                <label class="field">
+
+                  <span class="field-label">Pin diameter</span>
+
+                  <input type="range" id="hinge-pin-d" min="1.75" max="4" step="0.25" value="3" tabindex="-1">
+
+                  <button type="button" class="value-edit" data-slider="hinge-pin-d" data-key="clipPinDiameter" data-parse="float">3</button>
+
+                </label>
+
+                <label class="field">
+
+                  <span class="field-label">Rail length</span>
+
+                  <input type="range" id="hinge-rail-len" min="8" max="20" step="1" value="12" tabindex="-1">
+
+                  <button type="button" class="value-edit" data-slider="hinge-rail-len" data-key="clipRailLength">12</button>
+
+                </label>
+
+                <label class="field">
+
+                  <span class="field-label">Clip positions</span>
+
+                  <select id="hinge-count">
+
+                    <option value="1">1 — centre</option>
+
+                    <option value="2" selected>2 — spread (4 clips total)</option>
+
+                    <option value="3">3 — spread (6 clips total)</option>
+
+                  </select>
+
+                </label>
+
+                <p class="field-hint" id="hinge-count-hint">2 positions → print 4 clips (2 on box, 2 on lid) + 2 pins.</p>
+
+                <ol class="hinge-steps">
+
+                  <li>Export <strong>body</strong> and <strong>lid</strong> — rails are on the back rim.</li>
+
+                  <li>Print clips and pins from the buttons below.</li>
+
+                  <li>Snap each clip onto a rail; pin through the knuckle barrels.</li>
+
+                </ol>
+
+                <div class="hinge-export-actions">
+
+                  <button type="button" id="btn-export-clips" class="btn btn-primary">Download clips (STL)</button>
+
+                  <button type="button" id="btn-export-pins" class="btn btn-secondary">Download pins (STL)</button>
+
+                </div>
+
+              </div>
 
             </section>
 
@@ -1037,7 +1121,7 @@
 
 
 
-  <script type="module" src="js/app.js?v=99"></script>
+  <script type="module" src="js/app.js?v=100"></script>
 
 </body>
 

@@ -2,7 +2,15 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- - `main` commit: `c440001` — served at `/makerdeck/` on Flightdeck
+- - `main` commit: *(pending)* — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Hinge tab (clip generator)
+
+**What changed:** Dedicated **Hinge** tab for clip hinge hardware — rail/pin/position sliders, assembly steps, and **Download clips / pins** buttons. Clips + pins removed from main export dropdown. Picking Clip hinge on Lid tab jumps you to Hinge.
+
+**Files:** `index.html`, `css/style.css?v=19`, `js/app.js?v=100`, `js/geometry.js`
+
+**Deploy:** Pi `git pull`. Hard refresh.
 
 ### 2026-07-05 — Clip export: one fused part, 4-up on bed
 

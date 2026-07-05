@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, shapeSupportsHingeLid, shapeSupportsRollLid, LID_TYPES, normalizeLidType, clipHingeAvailable, buildHingeClipMesh, buildHingePinMesh, orientClipForPrint, orientPinForPrint, layoutMeshCopies, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=99";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, shapeSupportsHingeLid, shapeSupportsRollLid, LID_TYPES, normalizeLidType, clipHingeAvailable, buildHingeClipMesh, buildHingePinMesh, orientClipForPrint, orientPinForPrint, layoutMeshCopies, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=100";
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh, mergeMeshes } from "./features.js?v=96";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=73";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=74";
@@ -664,7 +664,7 @@ function lidFitHintText() {
     return "Green lines = angled grooves on the long walls. Lid slides in from the short end (−length) and seats in the far-end pocket.";
   }
   if (t === "clip" || t === "hinge") {
-    return "Orange = box rim. Export prints 4 fused clips + 2 pins on the bed — snap clips onto rails, pin through barrels.";
+    return "Orange = box rim. Snap rails on the back — open the Hinge tab to export clips + pins.";
   }
   if (t === "roll") {
     return "Orange = box rim. Push the cap down, twist to lock in the bayonet tracks. Preview shows lift + quarter-turn.";
@@ -1334,6 +1334,9 @@ function syncUiFromState() {
   syncSliderUi("lid-thickness", "lidThickness", { min: 2, max: 6, value: state.lidThickness, parseKind: "float" });
   syncSliderUi("lid-lip", "lidLipDepth", { min: 0, max: 8, value: state.lidLipDepth ?? 0, parseKind: "float" });
   syncSliderUi("lid-clearance", "lidClearance", { min: 0.15, max: 0.8, value: state.lidClearance, parseKind: "float" });
+  syncSliderUi("hinge-rail-d", "clipRailDiameter", { min: 3, max: 6, value: state.clipRailDiameter ?? 4, parseKind: "float" });
+  syncSliderUi("hinge-pin-d", "clipPinDiameter", { min: 1.75, max: 4, value: state.clipPinDiameter ?? 3, parseKind: "float" });
+  syncSliderUi("hinge-rail-len", "clipRailLength", { min: 8, max: 20, value: state.clipRailLength ?? 12 });
   syncSliderUi("slide-groove", "slideGrooveHeight", { min: 4, max: 10, value: state.slideGrooveHeight ?? 6, parseKind: "float" });
   syncSliderUi("slide-stop", "slideStopLength", { min: 6, max: 20, value: state.slideStopLength ?? 10 });
   syncSliderUi("joiner-width", "joinerWidth", { min: 5, max: 22, value: state.joinerWidth, parseKind: "float" });
@@ -1373,6 +1376,7 @@ function syncUiFromState() {
   updateLidUi();
   updateJoinerUi();
   updateDecorUi();
+  updateHingeUi();
   updateTraceUi();
 }
 
@@ -1508,6 +1512,7 @@ function rebuildMesh() {
   updateLidUi();
   updateJoinerUi();
   updateDecorUi();
+  updateHingeUi();
   updateVaseUiVisibility();
 }
 
@@ -1853,6 +1858,7 @@ function updateLidUi() {
   );
   syncEmbossFaceUi();
   syncExportFormatOptions();
+  updateHingeUi();
 }
 
 function joinerUiShape() {
@@ -2348,6 +2354,99 @@ function syncInsertCountHint() {
   el.textContent = `${n} divider${n === 1 ? "" : "s"} → ${tiers} compartments`;
 }
 
+function hingeHardwareActive() {
+  return state.lidEnabled
+    && normalizeLidType(state.lidType) === "clip"
+    && clipHingeAvailable(state.shape);
+}
+
+function hingeClipExportCount() {
+  const n = Math.min(3, Math.max(1, Math.round(state.clipHingeCount ?? 2)));
+  return n * 2;
+}
+
+function hingePinExportCount() {
+  return Math.min(3, Math.max(1, Math.round(state.clipHingeCount ?? 2)));
+}
+
+function updateHingeUi() {
+  const active = hingeHardwareActive();
+  const shapeOk = clipHingeAvailable(state.shape);
+  const tab = document.querySelector('.tab[data-tab="hinge"]');
+  if (tab) {
+    const tabOff = state.shape === "vase" || !shapeSupportsLid(state.shape) || !shapeOk;
+    tab.classList.toggle("tab--disabled", tabOff);
+    tab.disabled = tabOff;
+  }
+  document.getElementById("hinge-inactive-hint")?.classList.toggle("hidden", active);
+  document.getElementById("hinge-controls")?.classList.toggle("hidden", !active);
+  const hint = document.getElementById("hinge-inactive-hint");
+  if (hint && !active) {
+    if (state.shape === "vase" || !shapeOk) {
+      hint.innerHTML = "Clip hinge needs a box, rounded, pencil, or fat-quarters shape.";
+    } else if (!state.lidEnabled) {
+      hint.innerHTML = "Enable a lid on the <strong>Lid</strong> tab, then choose <strong>Clip hinge</strong>.";
+    } else if (normalizeLidType(state.lidType) !== "clip") {
+      hint.innerHTML = "Choose <strong>Clip hinge</strong> on the Lid tab to tune rails, clips, and pins here.";
+    }
+  }
+  if (active) {
+    const count = Math.min(3, Math.max(1, Math.round(state.clipHingeCount ?? 2)));
+    const countSel = document.getElementById("hinge-count");
+    if (countSel) countSel.value = String(count);
+    const clips = hingeClipExportCount();
+    const pins = hingePinExportCount();
+    const countHint = document.getElementById("hinge-count-hint");
+    if (countHint) {
+      countHint.textContent = `${count} position${count === 1 ? "" : "s"} → print ${clips} clips (${count} box + ${count} lid) and ${pins} pin${pins === 1 ? "" : "s"}.`;
+    }
+    const clipBtn = document.getElementById("btn-export-clips");
+    const pinBtn = document.getElementById("btn-export-pins");
+    if (clipBtn) clipBtn.textContent = `Download ${clips} clips (STL)`;
+    if (pinBtn) pinBtn.textContent = `Download ${pins} pin${pins === 1 ? "" : "s"} (STL)`;
+  }
+}
+
+function downloadHingeClips() {
+  if (!hingeHardwareActive()) {
+    alert("Enable lid and choose Clip hinge on the Lid tab first.");
+    return;
+  }
+  if (!meshCache) rebuild();
+  try {
+    const params = buildParams();
+    const one = sanitizeMeshForStl(orientClipForPrint(buildHingeClipMesh(params)));
+    if (!one) throw new Error("Clip mesh empty");
+    const box = meshBounds(one);
+    const count = hingeClipExportCount();
+    const clip = layoutMeshCopies(one, count, box.w + 6, box.d + 6);
+    downloadBlob(meshToStl(clip, "makerdeck-clip"), filenameFor(meshCache.meta, "clip"));
+  } catch (err) {
+    console.error("Clip export failed:", err);
+    alert(err?.message || "Clip export failed.");
+  }
+}
+
+function downloadHingePins() {
+  if (!hingeHardwareActive()) {
+    alert("Enable lid and choose Clip hinge on the Lid tab first.");
+    return;
+  }
+  if (!meshCache) rebuild();
+  try {
+    const params = buildParams();
+    const one = sanitizeMeshForStl(orientPinForPrint(buildHingePinMesh(params)));
+    if (!one) throw new Error("Pin mesh empty");
+    const box = meshBounds(one);
+    const count = hingePinExportCount();
+    const pin = layoutMeshCopies(one, count, box.w + 8, box.d + 8);
+    downloadBlob(meshToStl(pin, "makerdeck-clip-pin"), filenameFor(meshCache.meta, "clip-pin"));
+  } catch (err) {
+    console.error("Pin export failed:", err);
+    alert(err?.message || "Pin export failed.");
+  }
+}
+
 function syncExportFormatOptions() {
   const sel = document.getElementById("export-format");
   if (!sel) return;
@@ -2356,8 +2455,7 @@ function syncExportFormatOptions() {
   const insertOn = state.insertEnabled && shapeSupportsInsert(insertUiShape());
   const debossOn = !!state.embossDeboss && !!debossCutterCache;
   const saucerOn = state.shape === "vase" && state.vaseSaucerEnabled && !!meshCache?.saucerMesh;
-  const clipOn = lidOn && state.lidType === "clip";
-  const show = { lid: lidOn, clip: clipOn, accent: accentOn, insert: insertOn, deboss: debossOn, saucer: saucerOn };
+  const show = { lid: lidOn, accent: accentOn, insert: insertOn, deboss: debossOn, saucer: saucerOn };
   sel.querySelectorAll("option[data-export-opt]").forEach((opt) => {
     const ok = show[opt.dataset.exportOpt];
     opt.hidden = !ok;
@@ -2448,26 +2546,6 @@ function runExport(format) {
       case "saucer": {
         if (state.shape !== "vase" || !state.vaseSaucerEnabled || !meshCache?.saucerMesh) return;
         downloadBlob(meshToStl(meshCache.saucerMesh, "makerdeck-saucer"), filenameFor(meshCache.meta, "saucer"));
-        break;
-      }
-      case "clip-stl": {
-        if (!state.lidEnabled || state.lidType !== "clip") return;
-        const params = buildParams();
-        const one = sanitizeMeshForStl(orientClipForPrint(buildHingeClipMesh(params)));
-        if (!one) throw new Error("Clip mesh empty");
-        const box = meshBounds(one);
-        const clip = layoutMeshCopies(one, 4, box.w + 6, box.d + 6);
-        downloadBlob(meshToStl(clip, "makerdeck-clip"), filenameFor(meshCache.meta, "clip"));
-        break;
-      }
-      case "clip-pin-stl": {
-        if (!state.lidEnabled || state.lidType !== "clip") return;
-        const params = buildParams();
-        const one = sanitizeMeshForStl(orientPinForPrint(buildHingePinMesh(params)));
-        if (!one) throw new Error("Pin mesh empty");
-        const box = meshBounds(one);
-        const pin = layoutMeshCopies(one, 2, box.w + 8, box.d + 8);
-        downloadBlob(meshToStl(pin, "makerdeck-clip-pin"), filenameFor(meshCache.meta, "clip-pin"));
         break;
       }
       default:
@@ -2787,6 +2865,19 @@ bindRange("lid-skirt", "lidSkirt");
 bindRange("lid-thickness", "lidThickness", "float");
 bindRange("lid-clearance", "lidClearance", "float");
 bindRange("lid-lip", "lidLipDepth", "float");
+bindRange("hinge-rail-d", "clipRailDiameter", "float");
+bindRange("hinge-pin-d", "clipPinDiameter", "float");
+bindRange("hinge-rail-len", "clipRailLength");
+
+document.getElementById("hinge-count")?.addEventListener("change", (e) => {
+  state.clipHingeCount = Math.min(3, Math.max(1, parseInt(e.target.value, 10) || 2));
+  updateHingeUi();
+  rebuild();
+  pushAppHistory();
+});
+
+document.getElementById("btn-export-clips")?.addEventListener("click", downloadHingeClips);
+document.getElementById("btn-export-pins")?.addEventListener("click", downloadHingePins);
 bindRange("slide-groove", "slideGrooveHeight", "float");
 bindRange("slide-stop", "slideStopLength");
 bindRange("joiner-width", "joinerWidth", "float");
@@ -2837,6 +2928,9 @@ document.getElementById("lid-type").addEventListener("change", (e) => {
   rebuild();
   if (meshCache) fitCamera(meshCache.meta);
   pushAppHistory();
+  if (normalizeLidType(state.lidType) === "clip" && hingeHardwareActive()) {
+    setTab("hinge");
+  }
 });
 
 document.getElementById("lid-enabled").addEventListener("change", (e) => {
@@ -3107,7 +3201,7 @@ function updateVaseUiVisibility() {
   document.getElementById("section-classic-size").classList.toggle("hidden", isVase);
   document.getElementById("section-walls").classList.toggle("hidden", isVase);
   document.getElementById("section-edges").classList.toggle("hidden", isVase);
-  document.querySelectorAll('.tab[data-tab="accent"], .tab[data-tab="art"], .tab[data-tab="stack"], .tab[data-tab="link"], .tab[data-tab="lid"], .tab[data-tab="insert"]').forEach((tab) => {
+  document.querySelectorAll('.tab[data-tab="accent"], .tab[data-tab="art"], .tab[data-tab="stack"], .tab[data-tab="link"], .tab[data-tab="lid"], .tab[data-tab="hinge"], .tab[data-tab="insert"]').forEach((tab) => {
     tab.classList.toggle("tab--disabled", isVase);
     tab.disabled = isVase;
   });
@@ -3181,6 +3275,9 @@ syncSliderUi("lid-skirt", "lidSkirt", { min: 4, max: 25, value: state.lidSkirt }
 syncSliderUi("lid-thickness", "lidThickness", { min: 2, max: 6, value: state.lidThickness, parseKind: "float" });
 syncSliderUi("lid-lip", "lidLipDepth", { min: 0, max: 8, value: state.lidLipDepth ?? 0, parseKind: "float" });
 syncSliderUi("lid-clearance", "lidClearance", { min: 0.15, max: 0.8, value: state.lidClearance, parseKind: "float" });
+syncSliderUi("hinge-rail-d", "clipRailDiameter", { min: 3, max: 6, value: state.clipRailDiameter ?? 4, parseKind: "float" });
+syncSliderUi("hinge-pin-d", "clipPinDiameter", { min: 1.75, max: 4, value: state.clipPinDiameter ?? 3, parseKind: "float" });
+syncSliderUi("hinge-rail-len", "clipRailLength", { min: 8, max: 20, value: state.clipRailLength ?? 12 });
 syncSliderUi("slide-groove", "slideGrooveHeight", { min: 4, max: 10, value: state.slideGrooveHeight ?? 6, parseKind: "float" });
 syncSliderUi("slide-stop", "slideStopLength", { min: 6, max: 20, value: state.slideStopLength ?? 10 });
 syncSliderUi("joiner-width", "joinerWidth", { min: 5, max: 22, value: state.joinerWidth, parseKind: "float" });
