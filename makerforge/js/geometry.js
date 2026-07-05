@@ -47,7 +47,7 @@ import {
 } from "./roll-lid.js";
 import { appendInsertShelfSlotsToBody } from "./insert-slots.js";
 
-export { shapeSupportsDecor, shapeSupportsInsert, VASE_STYLES, shapeSupportsSlideLid, shapeSupportsHingeLid, shapeSupportsRollLid, shapeSupportsClipHinge, normalizeLidType, clipHingeAvailable, buildHingeClipMesh, buildHingePinMesh, orientClipForPrint, orientPinForPrint };
+export { shapeSupportsDecor, shapeSupportsInsert, VASE_STYLES, shapeSupportsSlideLid, shapeSupportsHingeLid, shapeSupportsRollLid, shapeSupportsClipHinge, buildHingeClipMesh, buildHingePinMesh, orientClipForPrint, orientPinForPrint };
 
 function clamp(n, min, max) {
   return Math.min(max, Math.max(min, n));
@@ -784,6 +784,7 @@ function computeLidFitGuides(resolved, params) {
       ...g,
       seatZ: resolved.totalH,
       lidType: "clip",
+      skirtDepth,
       lidHeight,
       boxOuter: resolved.outer,
       boxInner: resolved.inner,

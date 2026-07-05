@@ -2,7 +2,15 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- - `main` commit: `e007a27` — served at `/makerdeck/` on Flightdeck
+- - `main` commit: *(pending)* — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Fix blank preview (duplicate export crash)
+
+**What changed:** `geometry.js` exported `clipHingeAvailable` and `normalizeLidType` twice — the module failed to load and the viewport showed no box. Removed duplicate re-exports; added missing `skirtDepth` on clip fit guides.
+
+**Files:** `js/geometry.js`, `js/app.js`, `index.html` — cache-bust `app.js?v=98`
+
+**Deploy:** Pi `git pull`. Hard refresh.
 
 ### 2026-07-05 — Clip hinge: snap rails + separate clip/pin exports
 
