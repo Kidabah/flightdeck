@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — MakerDeck KISS lids: slip-over + flat cap only
+- Latest commit: `2d9c7c9` — MakerDeck KISS lids: slip-over + flat cap only
 - Refresh cachebust: Flightdeck `app.js?v=626` / `style.css?v=481`; MakerDeck iframe `app.js?v=104`
 
 ### 2026-07-05 feature (MakerDeck KISS lids)

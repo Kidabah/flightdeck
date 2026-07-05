@@ -2,7 +2,7 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- `main` commit: (pending) — KISS lids: slip-over + flat cap only
+- `main` commit: `2d9c7c9` — KISS lids: slip-over + flat cap only
 
 ### 2026-07-05 — KISS lids (slip-over + flat cap only)
 
