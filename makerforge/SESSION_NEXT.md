@@ -2,7 +2,7 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- `main` commit: (pending) — hinge type dropdown + live viewport preview
+- `main` commit: `a0a1a77` — hinge type dropdown + live viewport preview
 
 ### 2026-07-05 — Hinge dropdown + live 3D preview
 

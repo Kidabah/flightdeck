@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — MakerDeck hinge dropdown + live preview
+- Latest commit: `a0a1a77` — MakerDeck hinge dropdown + live preview
 - Refresh cachebust: Flightdeck `app.js?v=626` / `style.css?v=481`; MakerDeck iframe `app.js?v=102`
 
 ### 2026-07-05 feature (MakerDeck hinge dropdown + live preview)
