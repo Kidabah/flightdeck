@@ -2,7 +2,7 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: *(pending)* — served at `/makerdeck/` on Flightdeck
+- Latest commit: `6eb9e47` — served at `/makerdeck/` on Flightdeck
 
 ### 2026-07-05 — Edge fillet: adaptive arc segments (box shape)
 
