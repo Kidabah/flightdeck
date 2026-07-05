@@ -2,7 +2,7 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `16637fe` — served at `/makerdeck/` on Flightdeck
+- Latest commit: `d4de526` — served at `/makerdeck/` on Flightdeck
 
 ### 2026-07-05 — Live text art (no bounding box)
 
