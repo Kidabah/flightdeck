@@ -2,7 +2,17 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `ee9e218` — served at `/makerdeck/` on Flightdeck
+- Latest commit: _(pending)_ — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Manifold exports (no slicer repair)
+
+**What changed:** Exports should load in Bambu without **Repair**:
+- **Hinge lid** — closed plug shell (no open back wall); pin tunnels capped with washer end-faces
+- **STL sanitize** — stronger non-manifold peel (8 passes) + open-edge check (warns in console if any remain)
+
+**Files:** `js/hinge-lid.js`, `js/stl.js`, `js/app.js`, `js/3mf.js`, `index.html` — cache-bust `app.js?v=94`, `stl.js?v=74`
+
+**Deploy:** Pi `git pull`. Hard refresh. Re-export STLs/3MF.
 
 ### 2026-07-05 — Flip hinge v2: flat lid export, pin tunnels, tighter knuckles
 

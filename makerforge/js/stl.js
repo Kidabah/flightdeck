@@ -45,8 +45,26 @@ function edgeKey(a, b) {
   return a < b ? `${a}|${b}` : `${b}|${a}`;
 }
 
-/** Drop bad tris, weld verts, and peel non-manifold faces for slicers. */
-export function sanitizeMeshForStl(mesh) {
+/** Count boundary edges (each should be 0 for a closed manifold mesh). */
+export function countOpenEdges(positions, indices) {
+  const edgeFaces = new Map();
+  for (let t = 0; t < indices.length; t += 3) {
+    const tri = [indices[t], indices[t + 1], indices[t + 2]];
+    const fi = t / 3;
+    for (let k = 0; k < 3; k++) {
+      const key = edgeKey(tri[k], tri[(k + 1) % 3]);
+      edgeFaces.set(key, [...(edgeFaces.get(key) || []), fi]);
+    }
+  }
+  let open = 0;
+  for (const faces of edgeFaces.values()) {
+    if (faces.length === 1) open += 1;
+  }
+  return open;
+}
+
+/** Drop bad tris, weld verts, peel non-manifold faces, and verify the shell is closed. */
+export function sanitizeMeshForStl(mesh, { strict = true } = {}) {
   const positions = mesh?.positions;
   const indices = mesh?.indices;
   if (!positions?.length || !indices?.length) return null;
@@ -54,10 +72,16 @@ export function sanitizeMeshForStl(mesh) {
   let welded = weldMeshVertices(positions, indices, 0.008);
   let idx = removeDuplicateTriangles(welded.indices);
   idx = removeDegenerateTriangles(welded.positions, idx);
-  idx = repairNonManifoldFaces(welded.positions, idx, 4);
+  idx = repairNonManifoldFaces(welded.positions, idx, 8);
 
   if (!idx.length) return null;
-  return { positions: welded.positions, indices: idx };
+
+  const open = countOpenEdges(welded.positions, idx);
+  if (strict && open > 0) {
+    console.warn(`MakerDeck export: ${open} open edge(s) remain after sanitize — mesh may need repair in slicer`);
+  }
+
+  return { positions: welded.positions, indices: idx, openEdgeCount: open };
 }
 
 function removeDegenerateTriangles(positions, indices) {

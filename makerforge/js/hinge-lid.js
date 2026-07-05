@@ -1,6 +1,6 @@
 /**
  * Flip / hinge lid — vertical rim knuckles on the back top edge.
- * Pin axis runs along box width (X); insert 1.75 mm filament from either side.
+ * All export meshes are closed (manifold); pin tunnels use capped end faces.
  */
 
 function clamp(n, min, max) {
@@ -61,7 +61,6 @@ export function resolveHingeOpts(params) {
   };
 }
 
-/** Odd count → symmetric B-L-B-L-B… positions packed along the back edge. */
 function knuckleCenters(opts, outerW) {
   const n = opts.knuckleCount % 2 === 0 ? opts.knuckleCount + 1 : opts.knuckleCount;
   const pitch = opts.pitch;
@@ -73,10 +72,19 @@ function knuckleCenters(opts, outerW) {
   return xs;
 }
 
-/**
- * Rim knuckle bracket with pin tunnel along X (filament slides through from either side).
- * Minimal +Y overhang so the lid STL sits flat on the bed after orientLidForPrint.
- */
+/** Washer-shaped end cap on a constant-X face — closes the pin tunnel for manifold export. */
+function appendPinEndCap(outPos, outIdx, x, y0, y1, z0, z1, hy0, hy1, hz0, hz1, flip) {
+  const quad = (a, b, c, d) => {
+    if (flip) pushQuad(outPos, outIdx, a, d, c, b);
+    else pushQuad(outPos, outIdx, a, b, c, d);
+  };
+  if (hz0 > z0) quad(vec3(x, y0, z0), vec3(x, y1, z0), vec3(x, y1, hz0), vec3(x, y0, hz0));
+  if (hz1 < z1) quad(vec3(x, y0, hz1), vec3(x, y1, hz1), vec3(x, y1, z1), vec3(x, y0, z1));
+  if (hy0 > y0) quad(vec3(x, y0, hz0), vec3(x, hy0, hz0), vec3(x, hy0, hz1), vec3(x, y0, hz1));
+  if (hy1 < y1) quad(vec3(x, hy1, hz0), vec3(x, y1, hz0), vec3(x, y1, hz1), vec3(x, hy1, hz1));
+}
+
+/** Closed rim knuckle with capped pin tunnel (filament passes through bore, mesh stays watertight). */
 function appendRimKnuckle(outPos, outIdx, cx, yBack, z0, opts, wall) {
   const { knuckleR: r, knuckleHeight: height, pinD } = opts;
   const z1 = z0 + height;
@@ -86,6 +94,10 @@ function appendRimKnuckle(outPos, outIdx, cx, yBack, z0, opts, wall) {
   const cx0 = cx - r;
   const cx1 = cx + r;
   const cap = Math.max(wall, 1.1);
+  const holeZ0 = z0 + cap;
+  const holeZ1 = z1 - cap;
+  const holeY0 = yBack - 0.04;
+  const holeY1 = yBack + pinHalf + 0.04;
 
   if (pinHalf * 2 >= r * 1.55) {
     solidBox(outPos, outIdx, cx0, cx1, y0, y1, z0, z1);
@@ -94,10 +106,12 @@ function appendRimKnuckle(outPos, outIdx, cx, yBack, z0, opts, wall) {
 
   solidBox(outPos, outIdx, cx0, cx - pinHalf, y0, y1, z0, z1);
   solidBox(outPos, outIdx, cx + pinHalf, cx1, y0, y1, z0, z1);
-  solidBox(outPos, outIdx, cx - pinHalf, cx + pinHalf, y0, yBack - 0.04, z0, z1);
-  solidBox(outPos, outIdx, cx - pinHalf, cx + pinHalf, yBack + pinHalf + 0.04, y1, z0, z1);
+  solidBox(outPos, outIdx, cx - pinHalf, cx + pinHalf, y0, holeY0, z0, z1);
+  solidBox(outPos, outIdx, cx - pinHalf, cx + pinHalf, holeY1, y1, z0, z1);
   solidBox(outPos, outIdx, cx0, cx1, y0, y1, z0, z0 + cap);
   solidBox(outPos, outIdx, cx0, cx1, y0, y1, z1 - cap, z1);
+  appendPinEndCap(outPos, outIdx, cx0, y0, y1, z0, z1, holeY0, holeY1, holeZ0, holeZ1, true);
+  appendPinEndCap(outPos, outIdx, cx1, y0, y1, z0, z1, holeY0, holeY1, holeZ0, holeZ1, false);
 }
 
 function appendKnuckleRow(outPos, outIdx, meta, z0, opts, parity, wall) {
@@ -110,64 +124,10 @@ function appendKnuckleRow(outPos, outIdx, meta, z0, opts, parity, wall) {
   }
 }
 
-/** Body knuckles (even indices) — grow upward from the back rim. */
 export function appendHingeKnucklesToBody(outPos, outIdx, meta, totalH, params) {
   const opts = resolveHingeOpts(params);
   const wall = clamp(params.wall ?? 2.4, 1.2, 6);
   appendKnuckleRow(outPos, outIdx, meta, totalH, opts, 0, wall);
-}
-
-function profileBackY(points) {
-  let maxY = -Infinity;
-  for (const [, y] of points) maxY = Math.max(maxY, y);
-  return maxY;
-}
-
-function extrudeProfileSidesSkipBack(outPos, outIdx, points, z0, z1, backY, outward = true) {
-  const n = points.length;
-  const tol = 0.85;
-  for (let i = 0; i < n; i++) {
-    const j = (i + 1) % n;
-    if (points[i][1] >= backY - tol && points[j][1] >= backY - tol) continue;
-    const a = vec3(points[i][0], points[i][1], z0);
-    const b = vec3(points[j][0], points[j][1], z0);
-    const c = vec3(points[j][0], points[j][1], z1);
-    const d = vec3(points[i][0], points[i][1], z1);
-    if (outward) pushQuad(outPos, outIdx, a, b, c, d);
-    else pushQuad(outPos, outIdx, a, d, c, b);
-  }
-}
-
-function capRingSkipBack(outPos, outIdx, outer, inner, z, backY, normalUp) {
-  const n = outer.length;
-  const tol = 0.85;
-  for (let i = 0; i < n; i++) {
-    const j = (i + 1) % n;
-    if (outer[i][1] >= backY - tol && outer[j][1] >= backY - tol) continue;
-    const o0 = vec3(outer[i][0], outer[i][1], z);
-    const o1 = vec3(outer[j][0], outer[j][1], z);
-    const i0 = vec3(inner[i][0], inner[i][1], z);
-    const i1 = vec3(inner[j][0], inner[j][1], z);
-    if (normalUp) pushQuad(outPos, outIdx, o0, o1, i1, i0);
-    else pushQuad(outPos, outIdx, o0, i0, i1, o1);
-  }
-}
-
-/** Close the open back edge between knuckle gaps (keeps shell watertight). */
-function capBackStrap(outPos, outIdx, boxOuter, z0, z1, backY, strapHalfW) {
-  const tol = 0.85;
-  const n = boxOuter.length;
-  for (let i = 0; i < n; i++) {
-    const j = (i + 1) % n;
-    if (pointsOnBack(boxOuter[i], boxOuter[j], backY, tol)) {
-      const mx = (boxOuter[i][0] + boxOuter[j][0]) / 2;
-      solidBox(outPos, outIdx, mx - strapHalfW, mx + strapHalfW, backY - 0.15, backY + 0.05, z0, z1);
-    }
-  }
-}
-
-function pointsOnBack(p0, p1, backY, tol) {
-  return p0[1] >= backY - tol && p1[1] >= backY - tol;
 }
 
 function offsetProfileInward(points, offset) {
@@ -188,19 +148,30 @@ function offsetProfileInward(points, offset) {
   });
 }
 
-function buildHingeLidShell(outPos, outIdx, boxOuter, boxInner, skirtDepth, lidThickness, clearance, lidWall, opts, wall) {
-  const plugOuter = offsetProfileInward(boxInner, clearance);
-  const plugInner = offsetProfileInward(boxInner, clearance + lidWall);
-  const backY = profileBackY(boxOuter);
-  const zTop = skirtDepth + lidThickness;
+function extrudeProfileSides(outPos, outIdx, points, z0, z1, outward = true) {
+  const n = points.length;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const a = vec3(points[i][0], points[i][1], z0);
+    const b = vec3(points[j][0], points[j][1], z0);
+    const c = vec3(points[j][0], points[j][1], z1);
+    const d = vec3(points[i][0], points[i][1], z1);
+    if (outward) pushQuad(outPos, outIdx, a, b, c, d);
+    else pushQuad(outPos, outIdx, a, d, c, b);
+  }
+}
 
-  capRingSkipBack(outPos, outIdx, plugOuter, plugInner, 0, backY, false);
-  extrudeProfileSidesSkipBack(outPos, outIdx, plugOuter, 0, skirtDepth, backY, true);
-  extrudeProfileSidesSkipBack(outPos, outIdx, plugInner, 0, skirtDepth, backY, false);
-  capRingSkipBack(outPos, outIdx, plugOuter, plugInner, skirtDepth, backY, true);
-  extrudeProfileSidesSkipBack(outPos, outIdx, boxOuter, skirtDepth, zTop, backY, true);
-  capProfileSolid(outPos, outIdx, boxOuter, zTop, true);
-  capBackStrap(outPos, outIdx, boxOuter, skirtDepth, zTop, backY, opts.pitch * 0.35);
+function capRing(outPos, outIdx, outer, inner, z, normalUp) {
+  const n = outer.length;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const o0 = vec3(outer[i][0], outer[i][1], z);
+    const o1 = vec3(outer[j][0], outer[j][1], z);
+    const i0 = vec3(inner[i][0], inner[i][1], z);
+    const i1 = vec3(inner[j][0], inner[j][1], z);
+    if (normalUp) pushQuad(outPos, outIdx, o0, o1, i1, i0);
+    else pushQuad(outPos, outIdx, o0, i0, i1, o1);
+  }
 }
 
 function capProfileSolid(outPos, outIdx, points, z, normalUp) {
@@ -212,6 +183,20 @@ function capProfileSolid(outPos, outIdx, points, z, normalUp) {
     if (normalUp) pushTri(outPos, outIdx, a, b, c);
     else pushTri(outPos, outIdx, a, c, b);
   }
+}
+
+/** Closed plug-style lid shell (no open back — knuckles sit on the outer rim). */
+function buildClosedHingeLidShell(outPos, outIdx, boxOuter, boxInner, skirtDepth, lidThickness, clearance, lidWall) {
+  const plugOuter = offsetProfileInward(boxInner, clearance);
+  const plugInner = offsetProfileInward(boxInner, clearance + lidWall);
+  const zTop = skirtDepth + lidThickness;
+
+  capRing(outPos, outIdx, plugOuter, plugInner, 0, false);
+  extrudeProfileSides(outPos, outIdx, plugOuter, 0, skirtDepth, true);
+  extrudeProfileSides(outPos, outIdx, plugInner, 0, skirtDepth, false);
+  capRing(outPos, outIdx, plugOuter, plugInner, skirtDepth, true);
+  extrudeProfileSides(outPos, outIdx, boxOuter, skirtDepth, zTop, true);
+  capProfileSolid(outPos, outIdx, boxOuter, zTop, true);
 }
 
 export function buildHingeLidMesh(meta, totalH, params) {
@@ -237,7 +222,7 @@ export function buildHingeLidMesh(meta, totalH, params) {
     [-iw2, id2],
   ];
 
-  buildHingeLidShell(
+  buildClosedHingeLidShell(
     positions,
     indices,
     outer,
@@ -246,15 +231,10 @@ export function buildHingeLidMesh(meta, totalH, params) {
     opts.lidThickness,
     opts.clearance,
     opts.lidWall,
-    opts,
-    wall,
   );
 
   const lidHeight = opts.skirtDepth + opts.lidThickness;
   appendKnuckleRow(positions, indices, meta, lidHeight - opts.knuckleHeight, opts, 1, wall);
-
-  const hingeY = od2 - 0.15;
-  const seatZ = totalH;
 
   return {
     positions,
@@ -262,9 +242,9 @@ export function buildHingeLidMesh(meta, totalH, params) {
     lidHeight,
     hingeMeta: {
       mode: "hinge",
-      seatZ,
-      hingeY,
-      hingeZ: seatZ + opts.knuckleHeight * 0.5,
+      seatZ: totalH,
+      hingeY: od2 - 0.15,
+      hingeZ: totalH + opts.knuckleHeight * 0.5,
       knuckleHeight: opts.knuckleHeight,
       lidArm: lidHeight * 0.92,
       openAngle: -2.15,
@@ -290,7 +270,6 @@ export function computeHingeFitGuides(resolved, params) {
   };
 }
 
-/** Flip lid for print bed — plate down, skirt up; shift so bottom sits on Z=0. */
 export function orientHingeLidForPrint(lid) {
   let h = lid.lidHeight;
   if (!Number.isFinite(h) || h <= 0) {
