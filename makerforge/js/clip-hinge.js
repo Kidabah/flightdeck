@@ -239,12 +239,24 @@ function appendKnuckleBarrel(outPos, outIdx, x0, x1, y, z, outerR, pinD) {
   appendHollowCylinderX(outPos, outIdx, x0, x1, y, z, outerR, pinD / 2 + 0.22, 18);
 }
 
-/** Single snap clip: C-grip + knuckle barrel (manifold). */
+/** Webs that fuse the C-grip to the knuckle barrel (single printable solid). */
+function appendClipFusionWebs(outPos, outIdx, x0, x1, gripOuterR, barrelY, barrelR) {
+  const webTop = barrelY + barrelR * 0.92;
+  const webBottom = -gripOuterR * 0.35;
+  const webZ = Math.min(gripOuterR * 0.55, barrelR * 0.65);
+  const inset = Math.min(2.4, (x1 - x0) * 0.18);
+  solidBox(outPos, outIdx, x0 + inset, x0 + inset + 2.4, webBottom, webTop, -webZ, webZ);
+  solidBox(outPos, outIdx, x1 - inset - 2.4, x1 - inset, webBottom, webTop, -webZ, webZ);
+  solidBox(outPos, outIdx, x0 + inset + 0.8, x1 - inset - 0.8, webBottom, webBottom + 1.1, -webZ * 0.55, webZ * 0.55);
+}
+
+/** Single snap clip: C-grip + knuckle barrel fused into one solid. */
 export function buildHingeClipMesh(params) {
   const opts = resolveClipHingeOpts(params);
   const positions = [];
   const indices = [];
   const gripWall = 1.4;
+  const gripOuterR = opts.gripInnerR + gripWall;
   const gripLen = opts.railLen + 1.6;
   const x0 = 0;
   const x1 = gripLen;
@@ -254,13 +266,15 @@ export function buildHingeClipMesh(params) {
     x0,
     x1,
     opts.gripInnerR,
-    opts.gripInnerR + gripWall,
+    gripOuterR,
     52,
     14,
   );
-  const by = -opts.gripInnerR - opts.barrelR * 0.55;
-  const bz = 0;
-  appendKnuckleBarrel(positions, indices, x0 + 0.5, x1 - 0.5, by, bz, opts.barrelR, opts.pinD);
+  const openHalf = (52 * Math.PI) / 180 / 2;
+  const gripBottomY = -Math.cos(openHalf) * gripOuterR;
+  const barrelY = gripBottomY - opts.barrelR * 0.88;
+  appendKnuckleBarrel(positions, indices, x0 + 0.8, x1 - 0.8, barrelY, 0, opts.barrelR, opts.pinD);
+  appendClipFusionWebs(positions, indices, x0, x1, gripOuterR, barrelY, opts.barrelR);
   return { positions, indices };
 }
 
@@ -273,7 +287,7 @@ export function buildHingePinMesh(params) {
   return { positions, indices };
 }
 
-/** Rotate clip for bed: grip on side, layers cross the snap flex. */
+/** Lay clip on the bed: barrel down, grip arch above, length along X. */
 export function orientClipForPrint(mesh) {
   const positions = mesh.positions.slice();
   for (let i = 0; i < positions.length; i += 3) {
@@ -282,7 +296,7 @@ export function orientClipForPrint(mesh) {
     const z = positions[i + 2];
     positions[i] = x;
     positions[i + 1] = z;
-    positions[i + 2] = y;
+    positions[i + 2] = -y;
   }
   let minZ = Infinity;
   for (let i = 2; i < positions.length; i += 3) minZ = Math.min(minZ, positions[i]);
@@ -292,12 +306,44 @@ export function orientClipForPrint(mesh) {
   return { positions, indices: mesh.indices.slice() };
 }
 
+/** Duplicate a mesh on the bed (for printing multiple clips/pins per file). */
+export function layoutMeshCopies(mesh, count, pitchX, pitchY = pitchX) {
+  if (count <= 1) return { positions: mesh.positions.slice(), indices: mesh.indices.slice() };
+  const positions = [];
+  const indices = [];
+  const cols = Math.ceil(Math.sqrt(count));
+  for (let n = 0; n < count; n++) {
+    const col = n % cols;
+    const row = Math.floor(n / cols);
+    const ox = col * pitchX;
+    const oy = row * pitchY;
+    const base = positions.length / 3;
+    for (let i = 0; i < mesh.positions.length; i += 3) {
+      positions.push(
+        mesh.positions[i] + ox,
+        mesh.positions[i + 1] + oy,
+        mesh.positions[i + 2],
+      );
+    }
+    for (const idx of mesh.indices) indices.push(idx + base);
+  }
+  return { positions, indices };
+}
+
 export function orientPinForPrint(mesh) {
   const positions = mesh.positions.slice();
-  let minX = Infinity;
-  for (let i = 0; i < positions.length; i += 3) minX = Math.min(minX, positions[i]);
-  if (Number.isFinite(minX) && minX !== 0) {
-    for (let i = 0; i < positions.length; i += 3) positions[i] -= minX;
+  for (let i = 0; i < positions.length; i += 3) {
+    const x = positions[i];
+    const y = positions[i + 1];
+    const z = positions[i + 2];
+    positions[i] = x;
+    positions[i + 1] = y;
+    positions[i + 2] = z;
+  }
+  let minZ = Infinity;
+  for (let i = 2; i < positions.length; i += 3) minZ = Math.min(minZ, positions[i]);
+  if (Number.isFinite(minZ) && minZ !== 0) {
+    for (let i = 2; i < positions.length; i += 3) positions[i] -= minZ;
   }
   return { positions, indices: mesh.indices.slice() };
 }

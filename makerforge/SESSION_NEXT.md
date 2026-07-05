@@ -2,7 +2,18 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- - `main` commit: `a2702f7` — served at `/makerdeck/` on Flightdeck
+- - `main` commit: *(pending)* — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Clip export: one fused part, 4-up on bed
+
+**What changed:** Clip STL was two floating pieces (C-grip + ring) — unusable in Bambu. Now:
+- Grip + knuckle barrel **fused** with web ribs (one solid per clip)
+- **Laid flat on the bed** (barrel down, arch up)
+- Export arranges **4 clips** or **2 pins** on the plate automatically
+
+**Files:** `js/clip-hinge.js`, `js/geometry.js`, `js/app.js`, `index.html` — cache-bust `app.js?v=99`
+
+**Deploy:** Pi `git pull`. Hard refresh. Re-export clip + pin STLs.
 
 ### 2026-07-05 — Fix blank preview (duplicate export crash)
 

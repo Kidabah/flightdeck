@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, shapeSupportsHingeLid, shapeSupportsRollLid, LID_TYPES, normalizeLidType, clipHingeAvailable, buildHingeClipMesh, buildHingePinMesh, orientClipForPrint, orientPinForPrint, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=98";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, shapeSupportsHingeLid, shapeSupportsRollLid, LID_TYPES, normalizeLidType, clipHingeAvailable, buildHingeClipMesh, buildHingePinMesh, orientClipForPrint, orientPinForPrint, layoutMeshCopies, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=99";
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh, mergeMeshes } from "./features.js?v=96";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=73";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=74";
@@ -664,7 +664,7 @@ function lidFitHintText() {
     return "Green lines = angled grooves on the long walls. Lid slides in from the short end (−length) and seats in the far-end pocket.";
   }
   if (t === "clip" || t === "hinge") {
-    return "Orange = box rim. Snap rails on the back top edge — print 4 clips + 2 pins, snap clips onto box/lid rails, pin through knuckles.";
+    return "Orange = box rim. Export prints 4 fused clips + 2 pins on the bed — snap clips onto rails, pin through barrels.";
   }
   if (t === "roll") {
     return "Orange = box rim. Push the cap down, twist to lock in the bayonet tracks. Preview shows lift + quarter-turn.";
@@ -2366,6 +2366,20 @@ function syncExportFormatOptions() {
   if (sel.selectedOptions[0]?.disabled) sel.value = "3mf";
 }
 
+function meshBounds(mesh) {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (let i = 0; i < mesh.positions.length; i += 3) {
+    minX = Math.min(minX, mesh.positions[i]);
+    maxX = Math.max(maxX, mesh.positions[i]);
+    minY = Math.min(minY, mesh.positions[i + 1]);
+    maxY = Math.max(maxY, mesh.positions[i + 1]);
+  }
+  return { minX, minY, maxX, maxY, w: maxX - minX, d: maxY - minY };
+}
+
 function runExport(format) {
   if (!meshCache) rebuild();
   try {
@@ -2439,16 +2453,20 @@ function runExport(format) {
       case "clip-stl": {
         if (!state.lidEnabled || state.lidType !== "clip") return;
         const params = buildParams();
-        const clip = sanitizeMeshForStl(orientClipForPrint(buildHingeClipMesh(params)));
-        if (!clip) throw new Error("Clip mesh empty");
+        const one = sanitizeMeshForStl(orientClipForPrint(buildHingeClipMesh(params)));
+        if (!one) throw new Error("Clip mesh empty");
+        const box = meshBounds(one);
+        const clip = layoutMeshCopies(one, 4, box.w + 6, box.d + 6);
         downloadBlob(meshToStl(clip, "makerdeck-clip"), filenameFor(meshCache.meta, "clip"));
         break;
       }
       case "clip-pin-stl": {
         if (!state.lidEnabled || state.lidType !== "clip") return;
         const params = buildParams();
-        const pin = sanitizeMeshForStl(orientPinForPrint(buildHingePinMesh(params)));
-        if (!pin) throw new Error("Pin mesh empty");
+        const one = sanitizeMeshForStl(orientPinForPrint(buildHingePinMesh(params)));
+        if (!one) throw new Error("Pin mesh empty");
+        const box = meshBounds(one);
+        const pin = layoutMeshCopies(one, 2, box.w + 8, box.d + 8);
         downloadBlob(meshToStl(pin, "makerdeck-clip-pin"), filenameFor(meshCache.meta, "clip-pin"));
         break;
       }
