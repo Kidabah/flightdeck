@@ -33,8 +33,9 @@ function stitchSlices(outPos, outIdx, ring0, ring1) {
 const WALL_EPS = 0.1;
 const SHELF_DROP = 0.14;
 
+/** Channel slide needs straight long walls — not stadium / semicircle ends (pencil tube). */
 export function shapeSupportsSlideLid(shape) {
-  return shape === "rect" || shape === "rounded" || shape === "pencilBox" || shape === "pencil";
+  return shape === "rect" || shape === "rounded" || shape === "pencilBox";
 }
 
 export function resolveSlideOpts(params) {

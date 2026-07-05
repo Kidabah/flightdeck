@@ -2,7 +2,17 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `fc71033` — served at `/makerdeck/` on Flightdeck
+- Latest commit: _(pending)_ — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Fix slide lid on pencil tube + grooves when lid off
+
+**What changed:**
+- **Channel slide** no longer offered on **pencil tube** (stadium ends) — rectangular slide lid/rails were the wrong shape; use slip-over or inset plug instead. **Pencil box** still supports channel slide.
+- **Rail grooves** only carved into the body when **Enable lid** is on — turning the lid off no longer leaves square slider bumps on the case.
+
+**Files:** `js/slide-lid.js`, `js/geometry.js`, `js/app.js`, `index.html` — `app.js?v=65`, `geometry.js?v=65`
+
+**Deploy:** Hard refresh required. Backend restart not needed.
 
 ### 2026-07-05 — Fix 3MF export crash on multiline text
 

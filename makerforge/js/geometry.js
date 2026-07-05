@@ -990,6 +990,7 @@ export function buildContainer(params) {
   centerPositions(mesh.positions, 0, 0);
 
   if (
+    params.lidEnabled &&
     params.lidType === "slide" &&
     shapeSupportsSlideLid(resolved.meta.shape)
   ) {
