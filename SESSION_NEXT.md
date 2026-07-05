@@ -2,8 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `0f5519e` — MakerDeck tab in Flightdeck sidebar
-- Refresh cachebust: Flightdeck `app.js?v=625` / `style.css?v=481`; MakerDeck iframe `app.js?v=66`
+- Latest commit: (pending) — spool display_id + loaded-slot replace fix
+- Refresh cachebust: Flightdeck `app.js?v=626` / `style.css?v=481`; MakerDeck iframe `app.js?v=66`
+
+### 2026-07-05 fix (spool display_id + loaded-slot replace)
+
+**Reserve model UI completion and AMS slot assignment** (`app/static/app.js`, `app/static/index.html`, `app/static/demo.html`)
+
+- Operator-facing labels (live routes, fleet watch, command palette, assign modal, mismatch text, swap toasts) now use `display_id` via `_spoolDisplayLabel()` instead of internal `spools.id`.
+- Spool form save to a loaded printer slot sends `replace_existing: true` + `sync_ams: true` on `/move` (same as quick-assign) so assigning #98 to AMS HT bumps the old occupant to storage and pushes the AMS profile.
+- New spool + restock flows create/restock first, then move to loaded slot with replace+sync (avoids create-time 409 on occupied bays).
+- Static cache `app.js?v=626`; hard refresh required. UI-only — backend restart optional.
 
 ### 2026-07-05 feature (MakerDeck inside Flightdeck)
 

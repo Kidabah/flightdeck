@@ -820,6 +820,17 @@ function _spoolDisplayNumberById(spoolId) {
   return spool?.display_id || spool?.id || spoolId;
 }
 
+function _spoolMovePayload(locMode, printerId, slot, storageLocationId) {
+  const loaded = locMode === 'loaded';
+  return {
+    printer_id: loaded ? printerId : null,
+    slot: loaded ? Number(slot) : null,
+    storage_location_id: !loaded && storageLocationId ? Number(storageLocationId) : null,
+    replace_existing: loaded,
+    sync_ams: loaded,
+  };
+}
+
 function _commandSpoolTitle(s) {
   const name = [s.color_name, s.material, s.subtype].filter(Boolean).join(' ');
   const brand = s.brand ? ` · ${s.brand}` : '';
@@ -1005,7 +1016,7 @@ function _commandSpoolItems() {
   return (_allSpools || [])
     .filter(s => !s.archived_at)
     .flatMap(s => {
-      const spoolWords = `${s.id} ${s.material || ''} ${s.subtype || ''} ${s.brand || ''} ${s.color_name || ''} ${s.color_hex || ''}`;
+      const spoolWords = `${s.display_id || s.id} ${s.id} ${s.material || ''} ${s.subtype || ''} ${s.brand || ''} ${s.color_name || ''} ${s.color_hex || ''}`;
       const cluster = `spool:${s.id}`;
       const clusterLabel = _commandSpoolTitle(s);
       const clusterMeta = _commandSpoolMeta(s);
@@ -1022,7 +1033,7 @@ function _commandSpoolItems() {
           run: () => _commandNavigate(`#/spool/${s.id}`),
         }),
         _commandItem({
-          label: `Edit spool #${s.id}`,
+          label: `Edit spool ${_spoolDisplayLabel(s)}`,
           meta: [s.color_name, s.material, s.brand].filter(Boolean).join(' · '),
           group: 'Spool actions',
           keywords: `${spoolWords} edit change update tare weight colour color`,
@@ -1033,7 +1044,7 @@ function _commandSpoolItems() {
           run: () => _commandOpenSpoolEditor(s.id),
         }),
         _commandItem({
-          label: `Actions for spool #${s.id}`,
+          label: `Actions for spool ${_spoolDisplayLabel(s)}`,
           meta: 'Label, weigh, copy, reset, archive',
           group: 'Spool actions',
           keywords: `${spoolWords} action actions label print weigh weight copy reset archive delete`,
@@ -1580,7 +1591,7 @@ function _dashboardLoadedLowRows(printers) {
     .map(({ printerId, spool, pct }) => {
       const p = printerById[printerId];
       const where = p && spool.location_slot != null ? _amsSlotLabel(p, Number(spool.location_slot)) : 'Loaded';
-      const title = `#${spool.id} ${spool.color_name || spool.material || 'spool'}`;
+      const title = `${_spoolDisplayLabel(spool)} ${spool.color_name || spool.material || 'spool'}`;
       const detail = `${where} · ${Math.round(Number(spool.remaining_g || 0))}g · ${pct}%`;
       return {
         printerId,
@@ -4432,7 +4443,7 @@ function _liveSignalItems(p) {
     .slice(0, 3);
   low.forEach(s => signals.push({
     cls: 'warn',
-    label: `Low spool #${s.id}: ${Math.round(Number(s.remaining_g || 0))}g`,
+    label: `Low spool ${_spoolDisplayLabel(s)}: ${Math.round(Number(s.remaining_g || 0))}g`,
   }));
 
   signals.push(..._amsMismatchSignals(p, loaded));
@@ -4562,7 +4573,7 @@ function _detailLiveAmsLoadoutRows(p) {
         : (slot.empty ? 'Empty' : 'Unassigned');
       const title = [
         label,
-        loadedSpool ? `#${loadedSpool.id} ${loadedSpool.color_name || ''} ${loadedSpool.material || ''}` : '',
+        loadedSpool ? `${_spoolDisplayLabel(loadedSpool)} ${loadedSpool.color_name || ''} ${loadedSpool.material || ''}` : '',
         !slot.empty ? _slotProfileLabel(slot) : '',
         mismatch,
       ].filter(Boolean).join(' · ');
@@ -5075,7 +5086,7 @@ function _detailLiveMmuRows(p) {
       const gateLabel = `T${Number(gate.idx)}`;
       const style = (!gate.empty && gate.color) ? `style="background:${gate.color}"` : '';
       const slotText = loadedSpool
-        ? `#${loadedSpool.id}`
+        ? _spoolDisplayLabel(loadedSpool)
         : (gate.empty ? 'Empty' : (gate.material || gateLabel));
       const status = gate.active ? routeState.gateStatus : gate.status === 2 ? 'Buffered' : gate.empty ? 'Empty' : 'Ready';
       const title = [
@@ -5563,7 +5574,7 @@ function _detailFilamentRoute(p) {
       const colour = spool?.color_hex || '#60a5fa';
       const textColour = _spoolTextColor(colour);
       const spoolLabel = spool
-        ? `#${spool.id} ${[spool.color_name, spool.material].filter(Boolean).join(' · ')}`
+        ? `${_spoolDisplayLabel(spool)} ${[spool.color_name, spool.material].filter(Boolean).join(' · ')}`
         : 'No Flightdeck spool assigned';
       routes.push(`<div class="live-filament-route live-filament-route-snapmaker" style="--route-colour:${colour};--route-text:${textColour}" title="${esc(`${toolLabel} selected · ${spoolLabel}`)}">
         <button class="live-route-node live-route-source" data-slot-edit data-printer-id="${p.id}" data-slot-index="${idx}" data-slot-label="${esc(toolLabel)}">
@@ -5590,7 +5601,7 @@ function _detailFilamentRoute(p) {
       const textColour = _spoolTextColor(colour);
       const slotLabel = _amsSlotLabel(p, flatSlot);
       const spoolLabel = spool
-        ? `#${spool.id} ${[spool.color_name, spool.material].filter(Boolean).join(' · ')}`
+        ? `${_spoolDisplayLabel(spool)} ${[spool.color_name, spool.material].filter(Boolean).join(' · ')}`
         : _slotProfileLabel(slot) || slot.type || 'Loaded filament';
       const dest = _routeDestinationLabel(p, unit, slot);
       const fedNow = _slotRouteFed(p, unit, slot);
@@ -5634,7 +5645,7 @@ function _detailFilamentRoute(p) {
       const textColour = _spoolTextColor(colour);
       const gateLabel = `T${Number(gate.idx)}`;
       const spoolLabel = spool
-        ? `#${spool.id} ${[spool.color_name, spool.material].filter(Boolean).join(' · ')}`
+        ? `${_spoolDisplayLabel(spool)} ${[spool.color_name, spool.material].filter(Boolean).join(' · ')}`
         : _slotProfileLabel(gate) || gate.material || 'Loaded filament';
       const title = `${gateLabel} to ${routeState.destination}${spoolLabel ? ' · ' + spoolLabel : ''}`;
       routes.push(`<div class="live-filament-route live-filament-route-mmu" style="--route-colour:${colour};--route-text:${textColour}" title="${esc(title)}">
@@ -8697,8 +8708,9 @@ function _attachSpoolQuickAssign(root, spoolId) {
         showToast('Spool moved', storageSel?.options[storageSel.selectedIndex]?.textContent || 'Storage', 'success');
       }
       if (payload.replaced_spool_id && resultEl) {
-        resultEl.textContent = `Replaced spool #${payload.replaced_spool_id}; it is now unassigned.`;
-        showToast('Slot assignment replaced', `Spool #${payload.replaced_spool_id} was unassigned.`, 'warning');
+        const replacedLabel = `#${_spoolDisplayNumberById(payload.replaced_spool_id)}`;
+        resultEl.textContent = `Replaced spool ${replacedLabel}; it is now unassigned.`;
+        showToast('Slot assignment replaced', `Spool ${replacedLabel} was unassigned.`, 'warning');
       }
       await _refreshSpoolsByPrinter();
       await renderSpoolDetail(spoolId);
@@ -11025,7 +11037,7 @@ function _missionSpoolLabel(spool, printer) {
   const where = spool.location_printer_id
     ? `${printer ? _amsSlotLabel(printer, spool.location_slot ?? 0) : `slot ${Number(spool.location_slot ?? 0) + 1}`}`
     : (spool.storage_location_name || 'storage');
-  return `#${spool.id} ${material} · ${grams}g · ${where}`;
+  return `${_spoolDisplayLabel(spool)} ${material} · ${grams}g · ${where}`;
 }
 
 function _missionCoverageForRequirements(requirements, spools, printer) {
@@ -18447,7 +18459,7 @@ function _slotMismatch(spool, report) {
     }
     return 'Printer reports filament but no Flightdeck spool is assigned';
   }
-  if (spool && report?.empty) return `Flightdeck has spool #${spool.id} assigned but printer reports empty`;
+  if (spool && report?.empty) return `Flightdeck has spool ${_spoolDisplayLabel(spool)} assigned but printer reports empty`;
   if (!spool || !printerLoaded) return '';
 
   const reportedMat = _normMat(_slotReportedMaterial(report));
@@ -18828,7 +18840,7 @@ async function _openSlotQuickAssign(printerId, slotIndex, slotLabel, anchorEl = 
       const data = await _assignSpoolToAmsSlot(printerId, slotIndex, spool.id, { syncAms: true, replaceExisting: true });
       _spoolMoveSyncToast(data, printer?.custom_name || printerId, slotLabel);
       if (data.replaced_spool_id) {
-        showToast('AMS slot swapped', `Returned spool #${data.replaced_spool_id} and loaded ${_spoolDisplayLabel(spool)}.`, 'success');
+        showToast('AMS slot swapped', `Returned spool #${_spoolDisplayNumberById(data.replaced_spool_id)} and loaded ${_spoolDisplayLabel(spool)}.`, 'success');
       }
       await refreshPrinters();
       await _refreshSpoolsByPrinter();
@@ -19147,7 +19159,7 @@ async function _openSlotEditor(printerId, slotIndex, slotLabel) {
           });
           _spoolMoveSyncToast(data, printer?.custom_name || printerId, slotLabel);
           if (data.replaced_spool_id) {
-            showToast('AMS slot swapped', `Returned spool #${data.replaced_spool_id} home and assigned spool #${id}.`, 'success');
+            showToast('AMS slot swapped', `Returned spool #${_spoolDisplayNumberById(data.replaced_spool_id)} home and assigned spool #${_spoolDisplayNumberById(id)}.`, 'success');
           }
         } catch {
           btn.classList.add('slot-spool-error');
@@ -19504,7 +19516,7 @@ async function _openSpoolAssignModal(spoolId, refresh = _refreshSpoolsSurface) {
     showToast('Spool not found', `Spool #${spoolId} is no longer in the list.`, 'error');
     return;
   }
-  const title = `Assign spool #${spool.id}`;
+  const title = `Assign spool ${_spoolDisplayLabel(spool)}`;
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
@@ -19558,8 +19570,11 @@ async function _openSpoolAssignModal(spoolId, refresh = _refreshSpoolsSurface) {
       return;
     }
     const data = await response.json().catch(() => ({}));
-    if (data.replaced_spool_id) showToast('Slot swapped', `Returned spool #${data.replaced_spool_id} home and assigned spool #${spool.id}.`, 'success');
-    else showToast('Spool assigned', `Spool #${spool.id} location updated.`, 'success');
+    if (data.replaced_spool_id) {
+      showToast('Slot swapped', `Returned spool #${_spoolDisplayNumberById(data.replaced_spool_id)} home and assigned ${_spoolDisplayLabel(spool)}.`, 'success');
+    } else {
+      showToast('Spool assigned', `${_spoolDisplayLabel(spool)} location updated.`, 'success');
+    }
     await _refreshSpoolsByPrinter();
     close();
     await refresh();
@@ -22213,11 +22228,12 @@ function _openSpoolModal(costs, onSaved, prefill = null) {
         // Always update location on edit — handles loaded→storage clearing too
         const mr = await fetch(`/api/spools/${prefill.id}/move`, {
           method: 'POST', headers: {'Content-Type':'application/json'},
-          body: JSON.stringify({
-            printer_id: locMode === 'loaded' ? printerSel.value : null,
-            slot:       locMode === 'loaded' ? parseInt(slotSel.value) : null,
-            storage_location_id: locMode === 'storage' && storageSel.value ? parseInt(storageSel.value, 10) : null,
-          }),
+          body: JSON.stringify(_spoolMovePayload(
+            locMode,
+            printerSel.value,
+            slotSel.value,
+            storageSel.value,
+          )),
         });
         if (mr.status === 409) {
           const err = await mr.json();
@@ -22234,19 +22250,57 @@ function _openSpoolModal(costs, onSaved, prefill = null) {
         });
         if (!r.ok) throw new Error(await _spoolSaveErrorMessage(r, 'Unable to restock spool'));
         savedData = await r.json().catch(() => ({}));
+        if (locMode === 'loaded') {
+          const mr = await fetch(`/api/spools/${prefill.restock_spool_id}/move`, {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(_spoolMovePayload(
+              locMode,
+              printerSel.value,
+              slotSel.value,
+              null,
+            )),
+          });
+          if (mr.status === 409) {
+            const err = await mr.json();
+            btn.textContent = _spoolConflictMessage(err);
+            setTimeout(() => { btn.textContent = submitLabel; btn.disabled = false; }, 3000);
+            return;
+          }
+          if (!mr.ok) throw new Error(await _spoolSaveErrorMessage(mr, 'Unable to move spool'));
+          savedData = await mr.json().catch(() => savedData);
+        }
       } else {
+        const createBody = { ...body };
+        if (locMode === 'loaded') {
+          createBody.location_printer_id = null;
+          createBody.location_slot = null;
+          createBody.storage_location_id = null;
+        }
         const r = await fetch('/api/spools', {
           method: 'POST', headers: {'Content-Type':'application/json'},
-          body: JSON.stringify(body),
+          body: JSON.stringify(createBody),
         });
-        if (r.status === 409) {
-          const err = await r.json();
-          btn.textContent = _spoolConflictMessage(err);
-          setTimeout(() => { btn.textContent = submitLabel; btn.disabled = false; }, 3000);
-          return;
-        }
         if (!r.ok) throw new Error(await _spoolSaveErrorMessage(r, 'Unable to add spool'));
         savedData = await r.json().catch(() => ({}));
+        if (locMode === 'loaded' && savedData?.id) {
+          const mr = await fetch(`/api/spools/${savedData.id}/move`, {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(_spoolMovePayload(
+              locMode,
+              printerSel.value,
+              slotSel.value,
+              null,
+            )),
+          });
+          if (mr.status === 409) {
+            const err = await mr.json();
+            btn.textContent = _spoolConflictMessage(err);
+            setTimeout(() => { btn.textContent = submitLabel; btn.disabled = false; }, 3000);
+            return;
+          }
+          if (!mr.ok) throw new Error(await _spoolSaveErrorMessage(mr, 'Unable to move spool'));
+          savedData = await mr.json().catch(() => savedData);
+        }
       }
       closeSpoolModal();
       if (locMode === 'loaded') {
@@ -22266,7 +22320,14 @@ function _openSpoolModal(costs, onSaved, prefill = null) {
 
 function _spoolConflictMessage(err) {
   const detail = err?.detail;
-  if (detail && typeof detail === 'object') return detail.message || `Slot occupied (#${detail.conflict_spool_id ?? '?'})`;
+  if (detail && typeof detail === 'object') {
+    if (detail.message) return detail.message;
+    const conflict = detail.conflict_spool;
+    const label = conflict
+      ? _spoolDisplayLabel(conflict)
+      : (detail.conflict_spool_id != null ? `#${_spoolDisplayNumberById(detail.conflict_spool_id)}` : '#?');
+    return `Slot occupied (${label})`;
+  }
   return typeof detail === 'string' ? detail : 'Slot occupied';
 }
 
