@@ -108,8 +108,6 @@
 
           <button type="button" class="tab" data-tab="lid" role="tab">Lid</button>
 
-          <button type="button" class="tab" data-tab="hinge" role="tab">Hinge</button>
-
           <button type="button" class="tab" data-tab="link" role="tab">Link</button>
 
           <button type="button" class="tab" data-tab="accent" role="tab">Accent</button>
@@ -462,26 +460,6 @@
 
               </label>
 
-              <label class="field hidden" id="field-slide-groove">
-
-                <span class="field-label">Groove height</span>
-
-                <input type="range" id="slide-groove" min="4" max="10" step="0.5" value="6" tabindex="-1">
-
-                <button type="button" class="value-edit" data-slider="slide-groove" data-key="slideGrooveHeight" data-parse="float">6</button>
-
-              </label>
-
-              <label class="field hidden" id="field-slide-stop">
-
-                <span class="field-label">End stop length</span>
-
-                <input type="range" id="slide-stop" min="6" max="20" step="1" value="10" tabindex="-1">
-
-                <button type="button" class="value-edit" data-slider="slide-stop" data-key="slideStopLength">10</button>
-
-              </label>
-
               <p class="field-hint" id="lid-type-hint">Exports plate-down on the bed. Skirt sits outside the box walls.</p>
 
               <p class="field-hint hidden" id="lid-tray-hint">Storage trays: <strong>Flat cap</strong> with optional retention lip — dust cover and stacking. Enable <strong>Stack</strong> tab hex feet for nestable trays.</p>
@@ -491,167 +469,6 @@
               </div>
 
               <p class="field-hint hidden" id="lid-xray-hint">Preview fit uses a transparent X-ray view with coloured rim guides.</p>
-
-            </section>
-
-          </div>
-
-
-
-          <div class="tab-panel" id="tab-hinge" role="tabpanel" hidden>
-
-            <section class="section" id="section-hinge">
-
-              <h2>Hinge generator</h2>
-
-              <p class="field-hint">Choose a type — preview updates in the viewport. Tune length and width, then download STLs.</p>
-
-              <label class="field">
-                <span class="field-label">Hinge type</span>
-                <select id="hinge-style" aria-label="Hinge type"></select>
-              </label>
-
-              <p class="field-hint" id="hinge-style-hint"></p>
-
-              <p class="field-hint hidden" id="hinge-inactive-hint"></p>
-
-              <div id="hinge-controls-leaf" class="hidden">
-
-                <label class="field">
-
-                  <span class="field-label" id="hinge-leaf-l-label">Length</span>
-
-                  <input type="range" id="hinge-leaf-l" min="16" max="60" step="1" value="28" tabindex="-1">
-
-                  <button type="button" class="value-edit" data-slider="hinge-leaf-l" data-key="hingeLeafLength">28</button>
-
-                </label>
-
-                <label class="field">
-
-                  <span class="field-label" id="hinge-leaf-w-label">Width</span>
-
-                  <input type="range" id="hinge-leaf-w" min="10" max="40" step="1" value="18" tabindex="-1">
-
-                  <button type="button" class="value-edit" data-slider="hinge-leaf-w" data-key="hingeLeafWidth">18</button>
-
-                </label>
-
-                <label class="field">
-
-                  <span class="field-label">Leaf thickness</span>
-
-                  <input type="range" id="hinge-leaf-t" min="1.6" max="5" step="0.2" value="2.4" tabindex="-1">
-
-                  <button type="button" class="value-edit" data-slider="hinge-leaf-t" data-key="hingeLeafThickness" data-parse="float">2.4</button>
-
-                </label>
-
-                <label class="field">
-
-                  <span class="field-label">Knuckle radius</span>
-
-                  <input type="range" id="hinge-knuckle-r" min="2.5" max="7" step="0.25" value="4" tabindex="-1">
-
-                  <button type="button" class="value-edit" data-slider="hinge-knuckle-r" data-key="hingeKnuckleRadius" data-parse="float">4</button>
-
-                </label>
-
-                <label class="field">
-
-                  <span class="field-label">Knuckle count</span>
-
-                  <select id="hinge-knuckle-count">
-
-                    <option value="3" selected>3</option>
-
-                    <option value="4">4</option>
-
-                    <option value="5">5</option>
-
-                    <option value="6">6</option>
-
-                    <option value="7">7</option>
-
-                  </select>
-
-                </label>
-
-                <label class="field">
-
-                  <span class="field-label">Pin diameter</span>
-
-                  <input type="range" id="hinge-leaf-pin-d" min="1.75" max="4" step="0.25" value="3" tabindex="-1">
-
-                  <button type="button" class="value-edit" data-slider="hinge-leaf-pin-d" data-key="hingePinDiameter" data-parse="float">3</button>
-
-                </label>
-
-              </div>
-
-              <div id="hinge-controls-clip" class="hidden">
-
-                <p class="field-hint">Snap rails export with body + lid. Print clips and pins below.</p>
-
-                <label class="field">
-
-                  <span class="field-label" id="hinge-rail-d-label">Width</span>
-
-                  <input type="range" id="hinge-rail-d" min="3" max="6" step="0.25" value="4" tabindex="-1">
-
-                  <button type="button" class="value-edit" data-slider="hinge-rail-d" data-key="clipRailDiameter" data-parse="float">4</button>
-
-                </label>
-
-                <label class="field">
-
-                  <span class="field-label">Pin diameter</span>
-
-                  <input type="range" id="hinge-pin-d" min="1.75" max="4" step="0.25" value="3" tabindex="-1">
-
-                  <button type="button" class="value-edit" data-slider="hinge-pin-d" data-key="clipPinDiameter" data-parse="float">3</button>
-
-                </label>
-
-                <label class="field">
-
-                  <span class="field-label" id="hinge-rail-len-label">Length</span>
-
-                  <input type="range" id="hinge-rail-len" min="8" max="20" step="1" value="12" tabindex="-1">
-
-                  <button type="button" class="value-edit" data-slider="hinge-rail-len" data-key="clipRailLength">12</button>
-
-                </label>
-
-                <label class="field">
-
-                  <span class="field-label">Clip positions</span>
-
-                  <select id="hinge-count">
-
-                    <option value="1">1 — centre</option>
-
-                    <option value="2" selected>2 — spread</option>
-
-                    <option value="3">3 — spread</option>
-
-                  </select>
-
-                </label>
-
-                <p class="field-hint" id="hinge-count-hint"></p>
-
-              </div>
-
-              <ol class="hinge-steps hidden" id="hinge-steps"></ol>
-
-              <div class="hinge-export-actions hidden" id="hinge-export-actions">
-
-                <button type="button" id="btn-export-hinge" class="btn btn-primary">Download hinge (STL)</button>
-
-                <button type="button" id="btn-export-hinge-pin" class="btn btn-secondary">Download pin (STL)</button>
-
-              </div>
 
             </section>
 
@@ -1196,7 +1013,7 @@
 
 
 
-  <script type="module" src="js/app.js?v=102"></script>
+  <script type="module" src="js/app.js?v=104"></script>
 
 </body>
 

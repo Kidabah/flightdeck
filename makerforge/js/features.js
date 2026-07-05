@@ -4,7 +4,6 @@
 
 import { extrudeShapeGroup, extrudeShapeGroupBetween, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, simplifyPolygon, triangulateMappedCap } from "./contour.js";
 import { decorPlacementOffsets, decorArtRect, rotateFacePoint, rotateShapeGroup } from "./decor.js";
-import { getSlideLidTopBounds, shapeSupportsSlideLid } from "./slide-lid.js";
 
 export const EMBOSS_FONTS = [
   { id: "segoe-ui", label: "Segoe UI — Windows", family: '"Segoe UI Variable", "Segoe UI", system-ui, sans-serif', weight: 700 },
@@ -1149,18 +1148,6 @@ export function getEmbossFaceFrame(meta, face, params = null) {
 
   if (useFace === "lid") {
     const lidType = params?.lidType ?? "slip";
-    if (lidType === "slide" && shapeSupportsSlideLid(meta.shape)) {
-      const bounds = getSlideLidTopBounds(meta, params || {});
-      return {
-        face: "lid",
-        faceW: bounds.faceW,
-        faceH: bounds.faceH,
-        centerZ: 0,
-        horizontal: true,
-        centerX: bounds.centerX,
-        mapPoint: (px, py, offset) => [bounds.centerX + px, py, bounds.zTop + offset],
-      };
-    }
     const skirtDepth = clamp(params?.lidSkirt ?? 10, 4, 30);
     const lidThickness = clamp(params?.lidThickness ?? 2.4, 1.2, 8);
     const zTop = lidType === "flat" ? lidThickness : skirtDepth + lidThickness;

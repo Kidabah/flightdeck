@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, shapeSupportsHingeLid, shapeSupportsRollLid, LID_TYPES, normalizeLidType, clipHingeAvailable, buildHingeHardwareMesh, buildHingeHardwarePin, orientHingeHardwareForPrint, orientHingeHardwarePinForPrint, orientHingeHardwareForPreview, orientHingeHardwarePinForPreview, layoutMeshCopies, HINGE_STYLE_PRESETS, normalizeHingeStyle, hingeStyleMeta, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=102";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh, mergeMeshes } from "./features.js?v=96";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=104";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh, mergeMeshes } from "./features.js?v=97";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=73";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=74";
 import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=73";
@@ -163,7 +163,6 @@ const guidePlateMaterial = new THREE.LineBasicMaterial({
 let bodyMesh = null;
 let edgeLines = null;
 let lidMesh = null;
-let lidPivot = null;
 let lidGuideLoops = [];
 let lidAnim = null;
 let accentMesh = null;
@@ -172,27 +171,7 @@ let insertMesh = null;
 let insertEdgeLines = null;
 let labelMesh = null;
 let labelEdgeLines = null;
-let hingePreviewMesh = null;
-let hingePreviewEdges = null;
-let hingePreviewPinMesh = null;
-let hingePreviewPinEdges = null;
 let currentTabId = "design";
-
-const hingePreviewMaterial = new THREE.MeshStandardMaterial({
-  color: 0xf97316,
-  metalness: FILAMENT_PREVIEW.metalness,
-  roughness: FILAMENT_PREVIEW.roughness,
-  flatShading: false,
-  side: THREE.FrontSide,
-});
-
-const hingePreviewPinMaterial = new THREE.MeshStandardMaterial({
-  color: 0xfbbf24,
-  metalness: FILAMENT_PREVIEW.metalness,
-  roughness: FILAMENT_PREVIEW.roughness,
-  flatShading: false,
-  side: THREE.FrontSide,
-});
 
 const lidMaterial = new THREE.MeshStandardMaterial({
   color: 0x38bdf8,
@@ -279,26 +258,6 @@ function buildParams() {
     lidClearance: state.lidClearance,
     lidLipDepth: state.lidLipDepth,
     lidType: normalizeLidType(state.lidType),
-    slideGrooveHeight: state.slideGrooveHeight,
-    slideUndercut: state.slideUndercut,
-    slideGrooveDepth: state.slideGrooveDepth,
-    slideStopLength: state.slideStopLength,
-    slideEntryRamp: state.slideEntryRamp,
-    hingePinDiameter: state.hingePinDiameter,
-    hingeKnuckleRadius: state.hingeKnuckleRadius,
-    hingeKnuckleCount: state.hingeKnuckleCount,
-    clipRailDiameter: state.clipRailDiameter,
-    clipPinDiameter: state.clipPinDiameter,
-    clipHingeCount: state.clipHingeCount,
-    clipRailLength: state.clipRailLength,
-    hingeStyle: normalizeHingeStyle(state.hingeStyle),
-    hingeLeafLength: state.hingeLeafLength,
-    hingeLeafWidth: state.hingeLeafWidth,
-    hingeLeafThickness: state.hingeLeafThickness,
-    rollLugCount: state.rollLugCount,
-    rollTurnDegrees: state.rollTurnDegrees,
-    rollLugDepth: state.rollLugDepth,
-    rollLugHeight: state.rollLugHeight,
     lidWall: state.wall,
     joinerEnabled: state.joinerEnabled,
     joinerHand: state.joinerHand,
@@ -592,18 +551,6 @@ function disposeLidGuides() {
   lidGuideLoops = [];
 }
 
-function addSlideGuideSegment(x0, x1, y, z, mat, fixed) {
-  const geom = new THREE.BufferGeometry().setFromPoints([
-    new THREE.Vector3(x0, z, -y),
-    new THREE.Vector3(x1, z, -y),
-  ]);
-  const mesh = new THREE.Line(geom, mat);
-  mesh.visible = false;
-  mesh.renderOrder = fixed ? 11 : 12;
-  previewRoot.add(mesh);
-  lidGuideLoops.push({ kind: "segment", x0, x1, y, cadZ: z, fixed, mat, mesh });
-}
-
 function profileLoopPoints(profile, yLevel) {
   const vecs = [];
   for (const [x, py] of profile) {
@@ -634,23 +581,6 @@ function buildLidGuideLoops() {
     addLidGuideLoop(g.skirtOuter, 0, guideSkirtOuterMaterial, false);
     addLidGuideLoop(g.skirtOuter, g.skirtDepth, guideSkirtOuterMaterial, false);
     addLidGuideLoop(g.skirtInner, 0, guideSkirtInnerMaterial, false);
-  } else if (g.lidType === "plug") {
-    addLidGuideLoop(g.skirtOuter, 0, guideSkirtOuterMaterial, false);
-    addLidGuideLoop(g.skirtOuter, g.skirtDepth, guideSkirtOuterMaterial, false);
-    addLidGuideLoop(g.plateOuter, g.lidHeight, guidePlateMaterial, false);
-  } else if (g.lidType === "slide" && g.slideMeta) {
-    const { entryX, stopX, channelLineY, channelZ, iw2 } = g;
-    addSlideGuideSegment(entryX, stopX, channelLineY, channelZ, guideSkirtOuterMaterial, true);
-    addSlideGuideSegment(entryX, stopX, -channelLineY, channelZ, guideSkirtOuterMaterial, true);
-    addSlideGuideSegment(entryX, entryX + 4, channelLineY, channelZ, guideSkirtInnerMaterial, true);
-    addSlideGuideSegment(entryX, entryX + 4, -channelLineY, channelZ, guideSkirtInnerMaterial, true);
-    addSlideGuideSegment(stopX, iw2, 0, channelZ, guidePlateMaterial, true);
-  } else if (g.lidType === "clip" || g.lidType === "hinge") {
-    addLidGuideLoop(g.skirtOuter, 0, guideSkirtOuterMaterial, false);
-    addLidGuideLoop(g.skirtOuter, g.skirtDepth, guideSkirtOuterMaterial, false);
-    addLidGuideLoop(g.plateOuter, g.lidHeight, guidePlateMaterial, false);
-  } else if (g.lidType === "roll") {
-    addLidGuideLoop(g.plateOuter || g.boxOuter, g.lidHeight, guidePlateMaterial, false);
   } else {
     addLidGuideLoop(g.plateOuter, 0, guidePlateMaterial, false);
     addLidGuideLoop(g.plateOuter, g.lidHeight, guidePlateMaterial, false);
@@ -659,20 +589,11 @@ function buildLidGuideLoops() {
     }
   }
 
-  syncLidGuideLoops(lidRestY(), lidRestX());
+  syncLidGuideLoops(lidRestY(), 0);
 }
 
 function syncLidGuideLoops(lidY, lidX = 0) {
   for (const loop of lidGuideLoops) {
-    if (loop.kind === "segment") {
-      const xOff = loop.fixed ? 0 : lidX;
-      const pos = loop.mesh.geometry.attributes.position;
-      pos.setXYZ(0, loop.x0 + xOff, loop.cadZ, -loop.y);
-      pos.setXYZ(1, loop.x1 + xOff, loop.cadZ, -loop.y);
-      pos.needsUpdate = true;
-      loop.mesh.visible = previewXRayOn;
-      continue;
-    }
     const y = loop.fixed ? loop.cadY : loop.cadY + lidY;
     const pos = loop.mesh.geometry.attributes.position;
     for (let i = 0; i < loop.profile.length; i++) {
@@ -684,19 +605,7 @@ function syncLidGuideLoops(lidY, lidX = 0) {
 }
 
 function lidFitHintText() {
-  const t = lidCache?.fitGuides?.lidType || state.lidType;
-  if (t === "slide") {
-    return "Green lines = angled grooves on the long walls. Lid slides in from the short end (−length) and seats in the far-end pocket.";
-  }
-  if (t === "clip" || t === "hinge") {
-    return "Orange = box rim. Snap rails on the back — open the Hinge tab to export clips + pins.";
-  }
-  if (t === "roll") {
-    return "Orange = box rim. Push the cap down, twist to lock in the bayonet tracks. Preview shows lift + quarter-turn.";
-  }
-  if (t === "plug") {
-    return "Orange = box rim. Green loops = inset plug skirt inside the opening. White = top plate on the rim.";
-  }
+  const t = lidCache?.fitGuides?.lidType || normalizeLidType(state.lidType);
   if (t === "flat") {
     return "Orange = box rim. White plate loops rest directly on the rim — no skirt.";
   }
@@ -704,22 +613,13 @@ function lidFitHintText() {
 }
 
 function disposeLidPreview() {
-  if (lidPivot) {
-    previewRoot.remove(lidPivot);
-    lidPivot = null;
-  }
   if (lidMesh) {
-    // Label preview may be parented to the lid — detach before disposing geometry.
     while (lidMesh.children.length) {
       const child = lidMesh.children[0];
       lidMesh.remove(child);
       child.geometry?.dispose();
     }
-    if (lidMesh.parent && lidMesh.parent !== previewRoot) {
-      lidMesh.parent.remove(lidMesh);
-    } else {
-      previewRoot.remove(lidMesh);
-    }
+    previewRoot.remove(lidMesh);
     lidMesh.geometry.dispose();
     lidMesh = null;
   }
@@ -728,132 +628,25 @@ function disposeLidPreview() {
   stopLidAnimation(false);
 }
 
-function isSlideLid() {
-  return !!(lidCache?.slideMeta?.mode === "slide" || lidCache?.meta?.lidType === "slide");
-}
-
-function isClipLid() {
-  return !!(lidCache?.clipMeta?.mode === "clip" || lidCache?.meta?.lidType === "clip");
-}
-
-function isHingeLid() {
-  return isClipLid() || !!(lidCache?.hingeMeta?.mode === "hinge" || lidCache?.meta?.lidType === "hinge");
-}
-
-function clipOrHingeMeta() {
-  return lidCache?.clipMeta || lidCache?.hingeMeta;
-}
-
-function isRollLid() {
-  return !!(lidCache?.rollMeta?.mode === "roll" || lidCache?.meta?.lidType === "roll");
-}
-
-function setHingeLidAngle(angle) {
-  const hm = clipOrHingeMeta();
-  if (!hm) return;
-  if (lidPivot) {
-    lidPivot.rotation.x = angle;
-    syncLidGuideLoops(hm.seatZ + LID_PREVIEW_GAP, 0);
-    return;
-  }
-  if (!lidMesh) return;
-  const y = hm.seatZ + LID_PREVIEW_GAP;
-  lidMesh.rotation.x = angle;
-  lidMesh.position.set(0, y, 0);
-  syncLidGuideLoops(y, 0);
-}
-
-function attachHingeLidPreview(mesh, hm, meta) {
-  const od2 = (meta?.outer?.d || 50) / 2;
-  const knuckleH = hm.knuckleHeight ?? 8;
-  lidPivot = new THREE.Group();
-  lidPivot.position.set(0, hm.seatZ + knuckleH * 0.5, -od2);
-  mesh.position.set(0, LID_PREVIEW_GAP - knuckleH * 0.5, od2);
-  mesh.rotation.set(hm.restAngle ?? -0.25, 0, 0);
-  lidPivot.add(mesh);
-  previewRoot.add(lidPivot);
-  lidMesh = mesh;
-}
-
-function setRollLidTransform(y, rotY) {
-  if (!lidMesh) return;
-  lidMesh.rotation.set(0, rotY, 0);
-  lidMesh.position.y = y;
-  lidMesh.position.x = 0;
-  lidMesh.position.z = 0;
-  syncLidGuideLoops(y, 0);
-}
-
 function resetLidPreviewPose() {
-  if (!lidCache) return;
-  if (isHingeLid() && lidMesh) {
-    const hm = clipOrHingeMeta();
-    if (lidPivot && hm) {
-      lidPivot.position.y = hm.seatZ;
-      lidPivot.rotation.x = hm.restAngle ?? -0.25;
-    } else if (hm) {
-      setHingeLidAngle(hm.restAngle ?? -0.25);
-    }
-    syncLidGuideLoops((hm?.seatZ ?? 0) + LID_PREVIEW_GAP, 0);
-    return;
-  }
-  if (isRollLid()) {
-    const rm = lidCache.rollMeta;
-    setRollLidTransform(rm.seatY + rm.lift, rm.restRot);
-    return;
-  }
-  if (!lidMesh) return;
+  if (!lidCache || !lidMesh) return;
   lidMesh.rotation.set(0, 0, 0);
-  setLidPreviewTransform(lidRestY(), lidRestX());
+  setLidPreviewTransform(lidRestY(), 0);
 }
 
 function lidRestY() {
   if (!lidCache) return LID_PREVIEW_GAP;
-  if (isSlideLid()) return lidCache.slideMeta.seatY;
-  if (isRollLid()) return lidCache.rollMeta.seatY + lidCache.rollMeta.lift;
-  if (isHingeLid()) {
-    const hm = clipOrHingeMeta();
-    return (hm?.seatZ ?? 0) + LID_PREVIEW_GAP;
-  }
   return lidCache.seatZ + LID_PREVIEW_GAP;
 }
 
 function lidOpenY() {
   if (!lidCache) return LID_PREVIEW_GAP;
-  if (isSlideLid()) return lidCache.slideMeta.seatY;
-  if (isRollLid()) return lidCache.rollMeta.seatY + lidCache.rollMeta.lift;
-  if (isHingeLid()) {
-    const hm = clipOrHingeMeta();
-    return (hm?.seatZ ?? 0) + LID_PREVIEW_GAP;
-  }
   return lidCache.seatZ + LID_PREVIEW_GAP + LID_ANIM_LIFT;
 }
 
 function lidClosedY() {
   if (!lidCache) return 0;
-  if (isSlideLid()) return lidCache.slideMeta.seatY;
-  if (isRollLid()) return lidCache.rollMeta.seatY + 0.02;
-  if (isHingeLid()) {
-    const hm = clipOrHingeMeta();
-    return (hm?.seatZ ?? 0) + 0.02;
-  }
   return lidCache.seatZ + 0.02;
-}
-
-function lidRestX() {
-  if (!isSlideLid()) return 0;
-  const sm = lidCache.slideMeta;
-  return sm.closedX + (sm.openX - sm.closedX) * 0.38;
-}
-
-function lidOpenX() {
-  if (!isSlideLid()) return 0;
-  return lidCache.slideMeta.openX;
-}
-
-function lidClosedX() {
-  if (!isSlideLid()) return 0;
-  return lidCache.slideMeta.closedX;
 }
 
 function artUsesLidFace(params = null) {
@@ -870,7 +663,7 @@ function setLidPreviewTransform(y, x = 0) {
 }
 
 function setLidPreviewY(y) {
-  setLidPreviewTransform(y, lidMesh?.position.x ?? lidRestX());
+  setLidPreviewTransform(y, 0);
 }
 
 function applyInsertPreviewColor() {
@@ -958,7 +751,7 @@ function setPreviewXRayMode(on) {
   if (accentEdgeLines) accentEdgeLines.visible = on;
   if (insertEdgeLines) insertEdgeLines.visible = on;
   if (labelEdgeLines) labelEdgeLines.visible = on;
-  syncLidGuideLoops(lidMesh?.position.y ?? lidRestY(), lidMesh?.position.x ?? lidRestX());
+  syncLidGuideLoops(lidMesh?.position.y ?? lidRestY(), 0);
 }
 
 function easeInOutCubic(t) {
@@ -1006,59 +799,6 @@ function playLidFitPreview() {
   if (hint) hint.textContent = lidFitHintText();
   const btn = document.getElementById("btn-lid-preview-fit");
   if (btn) btn.disabled = true;
-  if (isSlideLid()) {
-    const sm = lidCache.slideMeta;
-    setLidPreviewTransform(sm.seatY, sm.openX);
-    lidAnim = {
-      mode: "slide",
-      seatY: sm.seatY,
-      openX: sm.openX,
-      closedX: sm.closedX,
-      restX: lidRestX(),
-      phaseIndex: 0,
-      phaseStart: performance.now(),
-      phases: [
-        { x0Key: "openX", x1Key: "closedX", duration: 1100 },
-        { x0Key: "closedX", x1Key: "closedX", duration: 650 },
-        { x0Key: "closedX", x1Key: "restX", duration: 900 },
-      ],
-    };
-    return;
-  }
-  if (isHingeLid()) {
-    const hm = clipOrHingeMeta();
-    setHingeLidAngle(hm?.restAngle ?? -0.25);
-    lidAnim = {
-      mode: "hinge",
-      hm,
-      phaseIndex: 0,
-      phaseStart: performance.now(),
-      phases: [
-        { a0Key: "restAngle", a1Key: "closedAngle", duration: 900 },
-        { a0Key: "closedAngle", a1Key: "closedAngle", duration: 650 },
-        { a0Key: "closedAngle", a1Key: "openAngle", duration: 1100 },
-        { a0Key: "openAngle", a1Key: "openAngle", duration: 500 },
-        { a0Key: "openAngle", a1Key: "restAngle", duration: 900 },
-      ],
-    };
-    return;
-  }
-  if (isRollLid()) {
-    const rm = lidCache.rollMeta;
-    setRollLidTransform(rm.seatY + rm.lift, rm.restRot);
-    lidAnim = {
-      mode: "roll",
-      rm,
-      phaseIndex: 0,
-      phaseStart: performance.now(),
-      phases: [
-        { y0Key: "liftY", y1Key: "seatY", r0Key: "restRot", r1Key: "openRot", duration: 1000 },
-        { y0Key: "seatY", y1Key: "seatY", r0Key: "openRot", r1Key: "openRot", duration: 650 },
-        { y0Key: "seatY", y1Key: "liftY", r0Key: "openRot", r1Key: "restRot", duration: 1000 },
-      ],
-    };
-    return;
-  }
   setLidPreviewY(lidOpenY());
   lidAnim = {
     mode: "vertical",
@@ -1084,28 +824,9 @@ function updateLidAnimation(now) {
     return;
   }
   const t = Math.min(1, (now - a.phaseStart) / phase.duration);
-  if (a.mode === "slide") {
-    const x0 = a[phase.x0Key];
-    const x1 = a[phase.x1Key];
-    setLidPreviewTransform(a.seatY, x0 + (x1 - x0) * easeInOutCubic(t));
-  } else if (a.mode === "hinge") {
-    const a0 = a.hm[phase.a0Key];
-    const a1 = a.hm[phase.a1Key];
-    setHingeLidAngle(a0 + (a1 - a0) * easeInOutCubic(t));
-  } else if (a.mode === "roll") {
-    const rm = a.rm;
-    const liftY = rm.seatY + rm.lift;
-    const seatY = rm.seatY + 0.02;
-    const y0 = phase.y0Key === "liftY" ? liftY : seatY;
-    const y1 = phase.y1Key === "liftY" ? liftY : seatY;
-    const r0 = rm[phase.r0Key];
-    const r1 = rm[phase.r1Key];
-    setRollLidTransform(y0 + (y1 - y0) * easeInOutCubic(t), r0 + (r1 - r0) * easeInOutCubic(t));
-  } else {
-    const y0 = a[phase.y0Key];
-    const y1 = a[phase.y1Key];
-    setLidPreviewTransform(y0 + (y1 - y0) * easeInOutCubic(t), 0);
-  }
+  const y0 = a[phase.y0Key];
+  const y1 = a[phase.y1Key];
+  setLidPreviewTransform(y0 + (y1 - y0) * easeInOutCubic(t), 0);
   if (t >= 1) {
     if (a.phaseIndex === 0) showLidFitOk();
     a.phaseIndex += 1;
@@ -1123,18 +844,10 @@ function fitCamera(meta) {
 
   let topY = Number(meshCache?.totalH) || h;
   if (state.lidEnabled && lidCache) {
-    if (isSlideLid()) {
-      const seatY = Number(lidCache.slideMeta?.seatY);
-      const lidH = Number(lidCache.lidHeight);
-      if (Number.isFinite(seatY) && Number.isFinite(lidH)) {
-        topY = Math.max(topY, seatY + lidH);
-      }
-    } else {
-      const openY = Number(lidOpenY());
-      const lidH = Number(lidCache.lidHeight);
-      if (Number.isFinite(openY) && Number.isFinite(lidH)) {
-        topY = Math.max(topY, openY + lidH);
-      }
+    const openY = Number(lidOpenY());
+    const lidH = Number(lidCache.lidHeight);
+    if (Number.isFinite(openY) && Number.isFinite(lidH)) {
+      topY = Math.max(topY, openY + lidH);
     }
   }
 
@@ -1317,8 +1030,6 @@ async function restoreSession() {
       state.embossTraceRects = deserializeEmbossTraceRects(payload.state.embossTraceRects);
     }
     state.lidType = normalizeLidType(state.lidType);
-    state.hingeStyle = normalizeHingeStyle(state.hingeStyle);
-    state.hingeStyle = normalizeHingeStyle(state.hingeStyle);
 
     if (payload.traceImage) {
       const loaded = await loadImageFromDataUrl(payload.traceImage);
@@ -1361,16 +1072,6 @@ function syncUiFromState() {
   syncSliderUi("lid-thickness", "lidThickness", { min: 2, max: 6, value: state.lidThickness, parseKind: "float" });
   syncSliderUi("lid-lip", "lidLipDepth", { min: 0, max: 8, value: state.lidLipDepth ?? 0, parseKind: "float" });
   syncSliderUi("lid-clearance", "lidClearance", { min: 0.15, max: 0.8, value: state.lidClearance, parseKind: "float" });
-  syncSliderUi("hinge-rail-d", "clipRailDiameter", { min: 3, max: 6, value: state.clipRailDiameter ?? 4, parseKind: "float" });
-  syncSliderUi("hinge-pin-d", "clipPinDiameter", { min: 1.75, max: 4, value: state.clipPinDiameter ?? 3, parseKind: "float" });
-  syncSliderUi("hinge-rail-len", "clipRailLength", { min: 8, max: 20, value: state.clipRailLength ?? 12 });
-  syncSliderUi("hinge-leaf-l", "hingeLeafLength", { min: 16, max: 60, value: state.hingeLeafLength ?? 28 });
-  syncSliderUi("hinge-leaf-w", "hingeLeafWidth", { min: 10, max: 40, value: state.hingeLeafWidth ?? 18 });
-  syncSliderUi("hinge-leaf-t", "hingeLeafThickness", { min: 1.6, max: 5, value: state.hingeLeafThickness ?? 2.4, parseKind: "float" });
-  syncSliderUi("hinge-knuckle-r", "hingeKnuckleRadius", { min: 2.5, max: 7, value: state.hingeKnuckleRadius ?? 4, parseKind: "float" });
-  syncSliderUi("hinge-leaf-pin-d", "hingePinDiameter", { min: 1.75, max: 4, value: state.hingePinDiameter ?? 3, parseKind: "float" });
-  syncSliderUi("slide-groove", "slideGrooveHeight", { min: 4, max: 10, value: state.slideGrooveHeight ?? 6, parseKind: "float" });
-  syncSliderUi("slide-stop", "slideStopLength", { min: 6, max: 20, value: state.slideStopLength ?? 10 });
   syncSliderUi("joiner-width", "joinerWidth", { min: 5, max: 22, value: state.joinerWidth, parseKind: "float" });
   syncSliderUi("joiner-neck", "joinerNeck", { min: 3, max: 16, value: state.joinerNeck, parseKind: "float" });
   syncSliderUi("joiner-protrusion", "joinerProtrusion", { min: 2, max: 10, value: state.joinerProtrusion, parseKind: "float" });
@@ -1408,8 +1109,6 @@ function syncUiFromState() {
   updateLidUi();
   updateJoinerUi();
   updateDecorUi();
-  syncHingeStyleGrid();
-  updateHingeUi();
   updateTraceUi();
 }
 
@@ -1447,13 +1146,8 @@ function rebuildMesh() {
     nextLidMesh.castShadow = true;
     nextLidMesh.receiveShadow = true;
     nextLidMesh.renderOrder = 4;
-    if (nextLidCache.meta?.lidType === "slide") {
-      lidMaterial.polygonOffsetFactor = 4;
-      lidMaterial.polygonOffsetUnits = 6;
-    } else {
-      lidMaterial.polygonOffsetFactor = 2;
-      lidMaterial.polygonOffsetUnits = 3;
-    }
+    lidMaterial.polygonOffsetFactor = 2;
+    lidMaterial.polygonOffsetUnits = 3;
   }
 
   if (bodyMesh) {
@@ -1517,15 +1211,9 @@ function rebuildMesh() {
   }
 
   if (nextLidMesh) {
-    if (nextLidCache.meta?.lidType === "clip" && nextLidCache.clipMeta) {
-      attachHingeLidPreview(nextLidMesh, nextLidCache.clipMeta, nextLidCache.meta);
-    } else if (nextLidCache.meta?.lidType === "hinge" && nextLidCache.hingeMeta) {
-      attachHingeLidPreview(nextLidMesh, nextLidCache.hingeMeta, nextLidCache.meta);
-    } else {
-      lidMesh = nextLidMesh;
-      previewRoot.add(lidMesh);
-      resetLidPreviewPose();
-    }
+    lidMesh = nextLidMesh;
+    previewRoot.add(lidMesh);
+    resetLidPreviewPose();
     buildLidGuideLoops();
   }
 
@@ -1545,7 +1233,6 @@ function rebuildMesh() {
   updateLidUi();
   updateJoinerUi();
   updateDecorUi();
-  updateHingeUi();
   updateVaseUiVisibility();
 }
 
@@ -1636,8 +1323,6 @@ function applyPreset(shape) {
     syncSliderUi("lid-skirt", "lidSkirt", { min: 4, max: 25, value: state.lidSkirt ?? 12 });
     syncSliderUi("lid-thickness", "lidThickness", { min: 2, max: 6, value: state.lidThickness ?? 2.4, parseKind: "float" });
     syncSliderUi("lid-clearance", "lidClearance", { min: 0.15, max: 0.8, value: state.lidClearance ?? 0.25, parseKind: "float" });
-    syncSliderUi("slide-stop", "slideStopLength", { min: 6, max: 20, value: state.slideStopLength ?? 10 });
-    syncSliderUi("slide-groove", "slideGrooveHeight", { min: 4, max: 10, value: state.slideGrooveHeight ?? 6, parseKind: "float" });
     syncSliderUi("insert-thickness", "insertThickness", { min: 1.2, max: 4, value: state.insertThickness ?? 2.4, parseKind: "float" });
     syncSliderUi("insert-clearance", "insertClearance", { min: 0.15, max: 1, value: state.insertClearance ?? 0.35, parseKind: "float" });
   }
@@ -1678,8 +1363,6 @@ function resetFromPresetToBasic(shape) {
   state.lidThickness = d.lidThickness;
   state.lidClearance = d.lidClearance;
   state.lidLipDepth = d.lidLipDepth;
-  state.slideGrooveHeight = d.slideGrooveHeight;
-  state.slideStopLength = d.slideStopLength;
   if (state.embossFace === "lid") state.embossFace = "front";
   applySliderProfile("default");
   if (shape === "rounded") {
@@ -1711,8 +1394,6 @@ function syncShapeControlsFromState() {
   syncSliderUi("lid-thickness", "lidThickness", { min: 2, max: 6, value: state.lidThickness, parseKind: "float" });
   syncSliderUi("lid-lip", "lidLipDepth", { min: 0, max: 8, value: state.lidLipDepth ?? 0, parseKind: "float" });
   syncSliderUi("lid-clearance", "lidClearance", { min: 0.15, max: 0.8, value: state.lidClearance, parseKind: "float" });
-  syncSliderUi("slide-groove", "slideGrooveHeight", { min: 4, max: 10, value: state.slideGrooveHeight ?? 6, parseKind: "float" });
-  syncSliderUi("slide-stop", "slideStopLength", { min: 6, max: 20, value: state.slideStopLength ?? 10 });
   document.getElementById("lid-enabled").checked = !!state.lidEnabled;
   document.getElementById("lid-type").value = state.lidType || "slip";
   updateLabels();
@@ -1758,23 +1439,10 @@ function selectShape(next) {
 function syncLidTypeSelect() {
   const sel = document.getElementById("lid-type");
   if (!sel) return;
-  const slideOk = shapeSupportsSlideLid(state.shape);
-  const clipOk = clipHingeAvailable(state.shape);
-  const rollOk = shapeSupportsRollLid(state.shape);
-  sel.innerHTML = LID_TYPES.filter((t) => {
-    if (t.hidden || t.id === "hinge") return false;
-    if (t.id === "clip") return clipOk;
-    if (t.id === "slide") return slideOk;
-    if (t.id === "roll") return rollOk;
-    return true;
-  }).map(
+  sel.innerHTML = LID_TYPES.map(
     (t) => `<option value="${t.id}">${t.optionLabel || t.label}</option>`,
   ).join("");
   state.lidType = normalizeLidType(state.lidType);
-  if (state.lidType === "slide" && !slideOk) state.lidType = "plug";
-  if (state.lidType === "clip" && !clipOk) state.lidType = "plug";
-  if (state.lidType === "hinge") state.lidType = "plug";
-  if (state.lidType === "roll" && !rollOk) state.lidType = "plug";
 }
 
 function applySliderProfile(profileKey) {
@@ -1849,36 +1517,23 @@ function updateLabels() {
 function updateLidUi() {
   const supported = shapeSupportsLid(state.shape);
   const on = state.lidEnabled && supported;
-  const type = LID_TYPES.find((t) => t.id === state.lidType) || LID_TYPES[0];
-  const isFlat = state.lidType === "flat";
-  const isSlide = state.lidType === "slide";
-  const isClip = state.lidType === "clip";
-  const isRoll = state.lidType === "roll";
+  const lidType = normalizeLidType(state.lidType);
+  const type = LID_TYPES.find((t) => t.id === lidType) || LID_TYPES[0];
+  const isFlat = lidType === "flat";
   const lipOn = isFlat && (state.lidLipDepth ?? 0) > 0.4;
-  const slideOk = shapeSupportsSlideLid(state.shape);
-  const clipOk = clipHingeAvailable(state.shape);
-  const rollOk = shapeSupportsRollLid(state.shape);
   document.getElementById("lid-enabled").checked = !!state.lidEnabled && supported;
-  document.getElementById("lid-type").value = isSlide && !slideOk
-    ? "plug"
-    : isClip && !clipOk
-      ? "plug"
-      : isRoll && !rollOk
-        ? "plug"
-        : type.id;
+  document.getElementById("lid-type").value = type.id;
   document.getElementById("btn-lid-preview-fit").classList.toggle("hidden", !on);
   document.getElementById("lid-xray-hint")?.classList.toggle("hidden", !on);
   document.getElementById("field-lid-type").classList.toggle("hidden", !on);
-  document.getElementById("field-lid-skirt").classList.toggle("hidden", !on || isFlat || isSlide);
+  document.getElementById("field-lid-skirt").classList.toggle("hidden", !on || isFlat);
   document.getElementById("field-lid-thickness").classList.toggle("hidden", !on);
   document.getElementById("field-lid-clearance").classList.toggle("hidden", !on || (isFlat && !lipOn));
   document.getElementById("field-lid-lip")?.classList.toggle("hidden", !on || !isFlat);
-  document.getElementById("field-slide-stop")?.classList.toggle("hidden", !on || !isSlide);
-  document.getElementById("field-slide-groove")?.classList.toggle("hidden", !on || !isSlide);
   const hint = document.getElementById("lid-type-hint");
   if (hint) {
     hint.textContent = on
-      ? `${type.hint}${isSlide ? " Preview animates sliding along the length." : isClip ? " Preview animates flip open on the back clip hinge." : isRoll ? " Preview animates push-down + twist lock." : " Exports plate-down on the bed."}`
+      ? `${type.hint} Exports plate-down on the bed.`
       : supported
         ? "Enable to preview and export a separate lid STL."
         : "Lids are not available for vase / pot shapes.";
@@ -1891,7 +1546,6 @@ function updateLidUi() {
   );
   syncEmbossFaceUi();
   syncExportFormatOptions();
-  updateHingeUi();
 }
 
 function joinerUiShape() {
@@ -1915,6 +1569,7 @@ function insertUiShape() {
 
 function normalizeRestoredTab(tabId) {
   if (tabId === "label" || tabId === "import") return "art";
+  if (tabId === "hinge") return "lid";
   return tabId || "design";
 }
 
@@ -1931,7 +1586,6 @@ function setTab(tabId) {
     p.classList.toggle("active", on);
     p.hidden = !on;
   });
-  syncHingeViewport();
   scheduleSaveSession();
   syncArtEditorUi();
 }
@@ -2389,370 +2043,6 @@ function syncInsertCountHint() {
   el.textContent = `${n} divider${n === 1 ? "" : "s"} → ${tiers} compartments`;
 }
 
-function hingeClipLidActive() {
-  return state.lidEnabled
-    && normalizeLidType(state.lidType) === "clip"
-    && clipHingeAvailable(state.shape);
-}
-
-function currentHingeStyle() {
-  return normalizeHingeStyle(state.hingeStyle);
-}
-
-function hingeStyleReady() {
-  const style = currentHingeStyle();
-  const meta = hingeStyleMeta(style);
-  if (state.shape === "vase") return false;
-  if (meta.needsClipLid) return clipHingeAvailable(state.shape);
-  return true;
-}
-
-function hingeClipExportCount() {
-  const n = Math.min(3, Math.max(1, Math.round(state.clipHingeCount ?? 2)));
-  return n * 2;
-}
-
-function hingePinExportCount() {
-  const style = currentHingeStyle();
-  if (style === "snapClip") {
-    return Math.min(3, Math.max(1, Math.round(state.clipHingeCount ?? 2)));
-  }
-  return 1;
-}
-
-function hingeHardwareExportCount() {
-  const style = currentHingeStyle();
-  if (style === "snapClip") return hingeClipExportCount();
-  return 1;
-}
-
-function hingeStepsHtml(style) {
-  if (style === "snapClip") {
-    return [
-      "Export <strong>body</strong> and <strong>lid</strong> — rails are on the back rim.",
-      "Print clips and pins from the buttons below.",
-      "Snap each clip onto a rail; pin through the knuckle barrels.",
-    ];
-  }
-  if (style === "strapDoor") {
-    return [
-      "Print the hinge pair flat on the bed — long leaf on the door, short leaf on the frame.",
-      "Print the pin; press or slide through the knuckle stack.",
-      "Screw each leaf to your door and frame (pilot holes in the plates).",
-    ];
-  }
-  if (style === "flushBarrel") {
-    return [
-      "Compact barrel hinge for inset or cabinet doors.",
-      "Mount each leaf flush to your parts; pin joins the knuckle stack.",
-    ];
-  }
-  return [
-    "Print the hinge flat — both leaves and knuckles are one fused part on the bed.",
-    "Print the pin separately; slide through the knuckle barrels.",
-    "Screw leaf A and leaf B to your two moving parts.",
-  ];
-}
-
-function syncHingeStyleGrid() {
-  syncHingeStyleSelect();
-}
-
-function syncHingeStyleSelect() {
-  const sel = document.getElementById("hinge-style");
-  if (!sel) return;
-  const style = currentHingeStyle();
-  if (!sel.dataset.ready) {
-    sel.innerHTML = HINGE_STYLE_PRESETS.map(
-      (p) => `<option value="${p.id}">${p.label}</option>`,
-    ).join("");
-    sel.addEventListener("change", () => {
-      state.hingeStyle = normalizeHingeStyle(sel.value);
-      updateHingeUi();
-      if (hingeStyleMeta(state.hingeStyle).needsClipLid) rebuild();
-      else rebuildHingePreview();
-      pushAppHistory();
-    });
-    sel.dataset.ready = "1";
-  }
-  sel.value = style;
-}
-
-function setMainPreviewVisible(visible) {
-  const parts = [
-    bodyMesh,
-    edgeLines,
-    lidMesh,
-    lidPivot,
-    accentMesh,
-    accentEdgeLines,
-    insertMesh,
-    insertEdgeLines,
-    labelMesh,
-    labelEdgeLines,
-  ];
-  for (const part of parts) {
-    if (part) part.visible = visible;
-  }
-  for (const loop of lidGuideLoops) {
-    if (loop?.mesh) loop.mesh.visible = visible;
-  }
-}
-
-function disposeHingePreviewPart(mesh, edges) {
-  if (mesh) {
-    previewRoot.remove(mesh);
-    mesh.geometry?.dispose();
-  }
-  if (edges) {
-    previewRoot.remove(edges);
-    edges.geometry?.dispose();
-  }
-}
-
-function clearHingePreview() {
-  disposeHingePreviewPart(hingePreviewMesh, hingePreviewEdges);
-  disposeHingePreviewPart(hingePreviewPinMesh, hingePreviewPinEdges);
-  hingePreviewMesh = null;
-  hingePreviewEdges = null;
-  hingePreviewPinMesh = null;
-  hingePreviewPinEdges = null;
-}
-
-function offsetMesh(mesh, dx, dy, dz) {
-  const positions = mesh.positions.slice();
-  for (let i = 0; i < positions.length; i += 3) {
-    positions[i] += dx;
-    positions[i + 1] += dy;
-    positions[i + 2] += dz;
-  }
-  return { positions, indices: mesh.indices.slice(), bounds: mesh.bounds };
-}
-
-function mergePreviewMeshes(a, b) {
-  if (!a?.positions?.length) return b;
-  if (!b?.positions?.length) return a;
-  const offset = a.positions.length / 3;
-  const positions = a.positions.concat(b.positions);
-  const indices = a.indices.concat(b.indices.map((i) => i + offset));
-  const bounds = {
-    minX: Math.min(a.bounds?.minX ?? 0, b.bounds?.minX ?? 0),
-    maxX: Math.max(a.bounds?.maxX ?? 0, b.bounds?.maxX ?? 0),
-    minY: Math.min(a.bounds?.minY ?? 0, b.bounds?.minY ?? 0),
-    maxY: Math.max(a.bounds?.maxY ?? 0, b.bounds?.maxY ?? 0),
-    minZ: 0,
-    maxZ: Math.max(a.bounds?.maxZ ?? 0, b.bounds?.maxZ ?? 0),
-  };
-  bounds.w = bounds.maxX - bounds.minX;
-  bounds.d = bounds.maxY - bounds.minY;
-  bounds.h = bounds.maxZ - bounds.minZ;
-  return { positions, indices, bounds };
-}
-
-function addHingePreviewPart(meshData, material, { storeMesh, storeEdges } = {}) {
-  if (!meshData?.positions?.length) return null;
-  const geom = toBufferGeometry(THREE, meshData);
-  const mesh = new THREE.Mesh(geom, material);
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  mesh.renderOrder = 12;
-  previewRoot.add(mesh);
-  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geom, 18), edgeMaterial);
-  edges.renderOrder = 13;
-  previewRoot.add(edges);
-  if (storeMesh === "main") hingePreviewMesh = mesh;
-  if (storeEdges === "main") hingePreviewEdges = edges;
-  if (storeMesh === "pin") hingePreviewPinMesh = mesh;
-  if (storeEdges === "pin") hingePreviewPinEdges = edges;
-  return meshData.bounds;
-}
-
-function fitCameraToHingeBounds(bounds) {
-  if (!bounds) return;
-  const span = Math.max(bounds.w || 0, bounds.d || 0, bounds.h || 0, 18);
-  const dist = span * 2.4 + 36;
-  const midZ = (bounds.maxZ || span) * 0.5;
-  controls.target.set(0, BED_LIFT + midZ, 0);
-  camera.position.set(dist * 0.9, BED_LIFT + dist * 0.55, dist * 0.95);
-  controls.update();
-}
-
-function rebuildHingePreview() {
-  if (currentTabId !== "hinge" || !hingeStyleReady()) {
-    clearHingePreview();
-    return;
-  }
-  clearHingePreview();
-  try {
-    const params = buildParams();
-    const style = currentHingeStyle();
-    const hinge = orientHingeHardwareForPreview(style, buildHingeHardwareMesh(style, params));
-    let bounds = addHingePreviewPart(hinge, hingePreviewMaterial, { storeMesh: "main", storeEdges: "main" });
-    if (style === "snapClip") {
-      const pin = orientHingeHardwarePinForPreview(style, buildHingeHardwarePin(style, params));
-      const gap = Math.max(6, (hinge.bounds?.w || 12) * 0.35);
-      const pinShift = offsetMesh(pin, (hinge.bounds?.maxX || 0) + gap, 0, 0);
-      addHingePreviewPart(pinShift, hingePreviewPinMaterial, { storeMesh: "pin", storeEdges: "pin" });
-      bounds = mergePreviewMeshes(hinge, pinShift)?.bounds || bounds;
-    }
-    fitCameraToHingeBounds(bounds);
-  } catch (err) {
-    console.error("Hinge preview failed:", err);
-    clearHingePreview();
-  }
-}
-
-function syncHingeViewport() {
-  const onHinge = currentTabId === "hinge" && hingeStyleReady();
-  setMainPreviewVisible(!onHinge);
-  if (onHinge) rebuildHingePreview();
-  else {
-    clearHingePreview();
-    if (meshCache?.meta) fitCamera(meshCache.meta);
-  }
-}
-
-function onHingeParamChange() {
-  if (currentTabId === "hinge") rebuildHingePreview();
-  if (hingeStyleMeta(currentHingeStyle()).needsClipLid && hingeClipLidActive()) rebuild();
-}
-
-function updateHingeUi() {
-  const style = currentHingeStyle();
-  const meta = hingeStyleMeta(style);
-  const ready = hingeStyleReady();
-  const tab = document.querySelector('.tab[data-tab="hinge"]');
-  if (tab) {
-    tab.classList.toggle("tab--disabled", state.shape === "vase");
-    tab.disabled = state.shape === "vase";
-  }
-
-  const styleHint = document.getElementById("hinge-style-hint");
-  if (styleHint) styleHint.textContent = meta.hint;
-
-  const inactive = document.getElementById("hinge-inactive-hint");
-  const showInactive = meta.needsClipLid && !hingeClipLidActive();
-  inactive?.classList.toggle("hidden", !showInactive);
-  if (inactive && showInactive) {
-    if (!clipHingeAvailable(state.shape)) {
-      inactive.innerHTML = "Snap clip needs a box, rounded, pencil, or fat-quarters shape.";
-    } else if (!state.lidEnabled) {
-      inactive.innerHTML = "Enable a lid on the <strong>Lid</strong> tab, then choose <strong>Clip hinge</strong>.";
-    } else {
-      inactive.innerHTML = "Choose <strong>Clip hinge</strong> on the Lid tab — rails export with body/lid.";
-    }
-  }
-
-  const leafOn = ready && style !== "snapClip";
-  const clipOn = ready && style === "snapClip";
-  document.getElementById("hinge-controls-leaf")?.classList.toggle("hidden", !leafOn);
-  document.getElementById("hinge-controls-clip")?.classList.toggle("hidden", !clipOn);
-
-  if (clipOn) {
-    const count = Math.min(3, Math.max(1, Math.round(state.clipHingeCount ?? 2)));
-    const countSel = document.getElementById("hinge-count");
-    if (countSel) countSel.value = String(count);
-    const clips = hingeClipExportCount();
-    const pins = hingePinExportCount();
-    const countHint = document.getElementById("hinge-count-hint");
-    if (countHint) {
-      countHint.textContent = `${count} position${count === 1 ? "" : "s"} → print ${clips} clips (${count} box + ${count} lid) and ${pins} pin${pins === 1 ? "" : "s"}.`;
-    }
-  }
-
-  if (leafOn) {
-    const kSel = document.getElementById("hinge-knuckle-count");
-    if (kSel) kSel.value = String(Math.round(state.hingeKnuckleCount ?? 3));
-  }
-
-  const steps = document.getElementById("hinge-steps");
-  const exports = document.getElementById("hinge-export-actions");
-  const showExport = ready;
-  steps?.classList.toggle("hidden", !showExport);
-  exports?.classList.toggle("hidden", !showExport);
-  if (steps && showExport) {
-    steps.innerHTML = hingeStepsHtml(style).map((s) => `<li>${s}</li>`).join("");
-  }
-
-  const hingeBtn = document.getElementById("btn-export-hinge");
-  const pinBtn = document.getElementById("btn-export-hinge-pin");
-  if (hingeBtn && showExport) {
-    const n = hingeHardwareExportCount();
-    if (style === "snapClip") hingeBtn.textContent = `Download ${n} clips (STL)`;
-    else if (style === "strapDoor") hingeBtn.textContent = "Download strap hinge (STL)";
-    else if (style === "flushBarrel") hingeBtn.textContent = "Download barrel hinge (STL)";
-    else hingeBtn.textContent = "Download butt hinge (STL)";
-  }
-  if (pinBtn && showExport) {
-    const n = hingePinExportCount();
-    pinBtn.textContent = `Download ${n} pin${n === 1 ? "" : "s"} (STL)`;
-  }
-
-  syncHingeStyleSelect();
-  const leafLLabel = document.getElementById("hinge-leaf-l-label");
-  const leafWLabel = document.getElementById("hinge-leaf-w-label");
-  if (leafLLabel) {
-    leafLLabel.textContent = style === "strapDoor" ? "Short leaf length" : "Length";
-  }
-  if (leafWLabel) {
-    leafWLabel.textContent = style === "strapDoor" ? "Long leaf width" : "Width";
-  }
-  const railDLabel = document.getElementById("hinge-rail-d-label");
-  if (railDLabel) railDLabel.textContent = "Grip width";
-
-  if (currentTabId === "hinge") syncHingeViewport();
-}
-
-function downloadHingeHardware() {
-  if (!hingeStyleReady()) {
-    alert("Choose a hinge style and enable Clip hinge on the Lid tab if using snap clips.");
-    return;
-  }
-  if (!meshCache) rebuild();
-  try {
-    const params = buildParams();
-    const style = currentHingeStyle();
-    const one = sanitizeMeshForStl(orientHingeHardwareForPrint(style, buildHingeHardwareMesh(style, params)));
-    if (!one) throw new Error("Hinge mesh empty");
-    const count = hingeHardwareExportCount();
-    let mesh = one;
-    if (count > 1) {
-      const box = meshBounds(one);
-      mesh = layoutMeshCopies(one, count, box.w + 6, box.d + 6);
-    }
-    const part = style === "snapClip" ? "clip" : "hinge";
-    downloadBlob(meshToStl(mesh, `makerdeck-${part}`), filenameFor(meshCache.meta, part));
-  } catch (err) {
-    console.error("Hinge export failed:", err);
-    alert(err?.message || "Hinge export failed.");
-  }
-}
-
-function downloadHingePin() {
-  if (!hingeStyleReady()) {
-    alert("Choose a hinge style and enable Clip hinge on the Lid tab if using snap clips.");
-    return;
-  }
-  if (!meshCache) rebuild();
-  try {
-    const params = buildParams();
-    const style = currentHingeStyle();
-    const one = sanitizeMeshForStl(orientHingeHardwarePinForPrint(style, buildHingeHardwarePin(style, params)));
-    if (!one) throw new Error("Pin mesh empty");
-    const count = hingePinExportCount();
-    let mesh = one;
-    if (count > 1) {
-      const box = meshBounds(one);
-      mesh = layoutMeshCopies(one, count, box.w + 8, box.d + 8);
-    }
-    const part = style === "snapClip" ? "clip-pin" : "hinge-pin";
-    downloadBlob(meshToStl(mesh, `makerdeck-${part}`), filenameFor(meshCache.meta, part));
-  } catch (err) {
-    console.error("Pin export failed:", err);
-    alert(err?.message || "Pin export failed.");
-  }
-}
-
 function syncExportFormatOptions() {
   const sel = document.getElementById("export-format");
   if (!sel) return;
@@ -2941,7 +2231,7 @@ function syncEmbossFaceUi() {
   const hint = document.getElementById("emboss-face-hint");
   if (hint) {
     if (lidOn && face === "top") {
-      hint.textContent = "Top puts text on the box body only — Download lid won't include it. Pick Lid top for slide lids.";
+      hint.textContent = "Top puts text on the box body only — Download lid won't include it. Pick Lid top for art on the lid STL.";
       hint.classList.remove("hidden");
     } else if (lidOn && face === "lid") {
       hint.textContent = "Text will emboss on the lid STL (Download lid).";
@@ -3079,19 +2369,6 @@ function bindRange(sliderId, key, parseKind = "int") {
   slider.addEventListener("change", () => pushAppHistory());
 }
 
-function bindHingeRange(sliderId, key, parseKind = "int") {
-  const slider = document.getElementById(sliderId);
-  if (!slider) return;
-  const syncFromSlider = () => {
-    state[key] = parseFieldValue(slider.value, parseKind);
-    const out = document.querySelector(`.value-edit[data-slider="${sliderId}"]`);
-    if (out) out.textContent = slider.value;
-    onHingeParamChange();
-  };
-  slider.addEventListener("input", syncFromSlider);
-  slider.addEventListener("change", () => pushAppHistory());
-}
-
 function beginValueEdit(btn) {
   const slider = document.getElementById(btn.dataset.slider);
   if (!slider || btn.classList.contains("is-editing")) return;
@@ -3184,34 +2461,6 @@ bindRange("lid-skirt", "lidSkirt");
 bindRange("lid-thickness", "lidThickness", "float");
 bindRange("lid-clearance", "lidClearance", "float");
 bindRange("lid-lip", "lidLipDepth", "float");
-bindHingeRange("hinge-rail-d", "clipRailDiameter", "float");
-bindHingeRange("hinge-pin-d", "clipPinDiameter", "float");
-bindHingeRange("hinge-rail-len", "clipRailLength");
-
-document.getElementById("hinge-count")?.addEventListener("change", (e) => {
-  state.clipHingeCount = Math.min(3, Math.max(1, parseInt(e.target.value, 10) || 2));
-  updateHingeUi();
-  onHingeParamChange();
-  pushAppHistory();
-});
-
-document.getElementById("hinge-knuckle-count")?.addEventListener("change", (e) => {
-  state.hingeKnuckleCount = Math.min(7, Math.max(3, parseInt(e.target.value, 10) || 3));
-  updateHingeUi();
-  onHingeParamChange();
-  pushAppHistory();
-});
-
-bindHingeRange("hinge-leaf-l", "hingeLeafLength");
-bindHingeRange("hinge-leaf-w", "hingeLeafWidth");
-bindHingeRange("hinge-leaf-t", "hingeLeafThickness", "float");
-bindHingeRange("hinge-knuckle-r", "hingeKnuckleRadius", "float");
-bindHingeRange("hinge-leaf-pin-d", "hingePinDiameter", "float");
-
-document.getElementById("btn-export-hinge")?.addEventListener("click", downloadHingeHardware);
-document.getElementById("btn-export-hinge-pin")?.addEventListener("click", downloadHingePin);
-bindRange("slide-groove", "slideGrooveHeight", "float");
-bindRange("slide-stop", "slideStopLength");
 bindRange("joiner-width", "joinerWidth", "float");
 bindRange("joiner-neck", "joinerNeck", "float");
 bindRange("joiner-protrusion", "joinerProtrusion", "float");
@@ -3260,9 +2509,6 @@ document.getElementById("lid-type").addEventListener("change", (e) => {
   rebuild();
   if (meshCache) fitCamera(meshCache.meta);
   pushAppHistory();
-  if (normalizeLidType(state.lidType) === "clip" && hingeClipLidActive()) {
-    setTab("hinge");
-  }
 });
 
 document.getElementById("lid-enabled").addEventListener("change", (e) => {
@@ -3533,7 +2779,7 @@ function updateVaseUiVisibility() {
   document.getElementById("section-classic-size").classList.toggle("hidden", isVase);
   document.getElementById("section-walls").classList.toggle("hidden", isVase);
   document.getElementById("section-edges").classList.toggle("hidden", isVase);
-  document.querySelectorAll('.tab[data-tab="accent"], .tab[data-tab="art"], .tab[data-tab="stack"], .tab[data-tab="link"], .tab[data-tab="lid"], .tab[data-tab="hinge"], .tab[data-tab="insert"]').forEach((tab) => {
+  document.querySelectorAll('.tab[data-tab="accent"], .tab[data-tab="art"], .tab[data-tab="stack"], .tab[data-tab="link"], .tab[data-tab="lid"], .tab[data-tab="insert"]').forEach((tab) => {
     tab.classList.toggle("tab--disabled", isVase);
     tab.disabled = isVase;
   });
@@ -3607,16 +2853,6 @@ syncSliderUi("lid-skirt", "lidSkirt", { min: 4, max: 25, value: state.lidSkirt }
 syncSliderUi("lid-thickness", "lidThickness", { min: 2, max: 6, value: state.lidThickness, parseKind: "float" });
 syncSliderUi("lid-lip", "lidLipDepth", { min: 0, max: 8, value: state.lidLipDepth ?? 0, parseKind: "float" });
 syncSliderUi("lid-clearance", "lidClearance", { min: 0.15, max: 0.8, value: state.lidClearance, parseKind: "float" });
-syncSliderUi("hinge-rail-d", "clipRailDiameter", { min: 3, max: 6, value: state.clipRailDiameter ?? 4, parseKind: "float" });
-syncSliderUi("hinge-pin-d", "clipPinDiameter", { min: 1.75, max: 4, value: state.clipPinDiameter ?? 3, parseKind: "float" });
-syncSliderUi("hinge-rail-len", "clipRailLength", { min: 8, max: 20, value: state.clipRailLength ?? 12 });
-syncSliderUi("hinge-leaf-l", "hingeLeafLength", { min: 16, max: 60, value: state.hingeLeafLength ?? 28 });
-syncSliderUi("hinge-leaf-w", "hingeLeafWidth", { min: 10, max: 40, value: state.hingeLeafWidth ?? 18 });
-syncSliderUi("hinge-leaf-t", "hingeLeafThickness", { min: 1.6, max: 5, value: state.hingeLeafThickness ?? 2.4, parseKind: "float" });
-syncSliderUi("hinge-knuckle-r", "hingeKnuckleRadius", { min: 2.5, max: 7, value: state.hingeKnuckleRadius ?? 4, parseKind: "float" });
-syncSliderUi("hinge-leaf-pin-d", "hingePinDiameter", { min: 1.75, max: 4, value: state.hingePinDiameter ?? 3, parseKind: "float" });
-syncSliderUi("slide-groove", "slideGrooveHeight", { min: 4, max: 10, value: state.slideGrooveHeight ?? 6, parseKind: "float" });
-syncSliderUi("slide-stop", "slideStopLength", { min: 6, max: 20, value: state.slideStopLength ?? 10 });
 syncSliderUi("joiner-width", "joinerWidth", { min: 5, max: 22, value: state.joinerWidth, parseKind: "float" });
 syncSliderUi("joiner-neck", "joinerNeck", { min: 3, max: 16, value: state.joinerNeck, parseKind: "float" });
 syncSliderUi("joiner-protrusion", "joinerProtrusion", { min: 2, max: 10, value: state.joinerProtrusion, parseKind: "float" });
@@ -3655,8 +2891,6 @@ function scheduleDeferredRestoreTrace() {
 async function bootMakerDeck() {
   setupColorPickers();
   syncLidTypeSelect();
-  syncHingeStyleGrid();
-  state.hingeStyle = normalizeHingeStyle(state.hingeStyle);
   const restored = await restoreSession();
   if (restored) {
     syncUiFromState();

@@ -2,8 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `a0a1a77` — MakerDeck hinge dropdown + live preview
-- Refresh cachebust: Flightdeck `app.js?v=626` / `style.css?v=481`; MakerDeck iframe `app.js?v=102`
+- Latest commit: (pending) — MakerDeck KISS lids: slip-over + flat cap only
+- Refresh cachebust: Flightdeck `app.js?v=626` / `style.css?v=481`; MakerDeck iframe `app.js?v=104`
+
+### 2026-07-05 feature (MakerDeck KISS lids)
+
+**Drop hinges / slide / roll / clip — two lid types only** (`makerforge/js/geometry.js`, `makerforge/js/app.js`, `makerforge/js/features.js`, `makerforge/index.html`)
+
+- Lid types: **Slip-over** and **Flat cap** only. Hinge tab and all hinge/slide/roll hardware modules removed.
+- Saved sessions map old lid types (`hinge`, `clip`, `slide`, `roll`, `plug`) → slip or flat via `normalizeLidType()`.
+- Fixes knuckle/cylinder preview artifacts on star, heart, teardrop.
+- Cache `makerforge` `app.js?v=104`. Hard refresh `#/makerdeck` or `/makerforge/`.
 
 ### 2026-07-05 feature (MakerDeck hinge dropdown + live preview)
 

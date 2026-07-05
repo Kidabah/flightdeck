@@ -2,7 +2,19 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- `main` commit: `a0a1a77` — hinge type dropdown + live viewport preview
+- `main` commit: (pending) — KISS lids: slip-over + flat cap only
+
+### 2026-07-05 — KISS lids (slip-over + flat cap only)
+
+**What changed:** Chris asked to drop hinges and keep it simple.
+- **Two lid types:** Slip-over skirt outside walls, Flat cap plate on rim (+ optional lip).
+- **Removed:** Hinge tab, clip/slide/roll/hinge lid types, `hinge-hardware.js`, `clip-hinge.js`, `hinge-lid.js`, `slide-lid.js`, `roll-lid.js`.
+- Old saved sessions auto-map `hinge`/`clip`/`slide`/`roll`/`plug` → slip or flat.
+- Preview is vertical lift/lower only — no knuckle cylinders on star/heart/teardrop.
+
+**Files:** `js/geometry.js`, `js/app.js?v=104`, `js/features.js?v=97`, `js/art-editor.js`, `js/stl.js`, `index.html` — deleted hinge/slide modules
+
+**Deploy:** Pi `git pull`. Hard refresh MakerDeck / `#/makerdeck`. UI-only — no backend restart.
 
 ### 2026-07-05 — Hinge dropdown + live 3D preview
 
