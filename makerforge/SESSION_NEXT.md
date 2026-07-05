@@ -2,7 +2,7 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: *(pending)* — served at `/makerdeck/` on Flightdeck
+- Latest commit: `b71c59d` — served at `/makerdeck/` on Flightdeck
 
 ### 2026-07-05 — Fix flip hinge lid preview (invisible lid)
 
