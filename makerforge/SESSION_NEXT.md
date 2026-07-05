@@ -2,7 +2,7 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: _(pending)_ — served at `/makerdeck/` on Flightdeck
+- Latest commit: `f6e10b6` — served at `/makerdeck/` on Flightdeck
 
 ### 2026-07-05 — Visual colour pickers + 3MF Orca export + multiline text
 
