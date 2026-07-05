@@ -2,7 +2,15 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `b462016` — served at `/makerdeck/` on Flightdeck
+- Latest commit: _(pending)_ — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Fat quarters: standing bookcase (horizontal shelves)
+
+**What changed:** **Fat quarters** preset is now a **standing bookcase** — tall box with **2 horizontal shelves** (3 tiers), not a flat tray. New insert axis **Height — horizontal shelves**. Inner **300 × 135 × 400 mm** (~133 mm per tier for ~132 mm standing quarters).
+
+**Files:** `js/features.js`, `js/geometry.js`, `js/app.js`, `index.html` — cache-bust `app.js?v=77`
+
+**Deploy:** Pi `git pull`. Hard refresh on `/makerdeck/`. Print lying on back if build height is tight.
 
 ### 2026-07-05 — Fat quarters preset: bookcase (standing) layout
 

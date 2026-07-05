@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=76";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh } from "./features.js?v=76";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=77";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh } from "./features.js?v=77";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=73";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=73";
 import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=73";
@@ -1371,7 +1371,7 @@ const SLIDER_PROFILES = {
   fatQuarters: {
     width: { min: 200, max: 360 },
     depth: { min: 100, max: 180 },
-    height: { min: 100, max: 180 },
+    height: { min: 100, max: 450 },
   },
 };
 
@@ -1396,9 +1396,10 @@ function applyPreset(shape) {
   }
   if (shape === "fatQuarters") {
     syncSliderUi("corner-radius", "cornerRadius", { min: 1, max: 24, value: state.cornerRadius ?? 6, parseKind: "float" });
-    syncSliderUi("insert-count", "insertCount", { min: 1, max: 4, value: state.insertCount ?? 1, parseKind: "int" });
+    syncSliderUi("insert-count", "insertCount", { min: 1, max: 4, value: state.insertCount ?? 2, parseKind: "int" });
     syncSliderUi("insert-thickness", "insertThickness", { min: 1.2, max: 4, value: state.insertThickness ?? 2.4, parseKind: "float" });
     syncSliderUi("insert-clearance", "insertClearance", { min: 0.15, max: 1, value: state.insertClearance ?? 0.35, parseKind: "float" });
+    document.getElementById("insert-axis").value = state.insertAxis || "height";
   }
   if (state.embossFace === "lid" && !state.lidEnabled) {
     state.embossFace = "front";
@@ -2090,7 +2091,12 @@ function syncInsertCountHint() {
   const el = document.getElementById("insert-count-hint");
   if (!el) return;
   const n = Math.max(1, Math.min(4, Math.round(state.insertCount ?? 1)));
-  el.textContent = `${n} divider${n === 1 ? "" : "s"} → ${n + 1} compartments`;
+  const tiers = n + 1;
+  if (state.insertAxis === "height") {
+    el.textContent = `${n} shelf${n === 1 ? "" : "ves"} → ${tiers} tiers`;
+    return;
+  }
+  el.textContent = `${n} divider${n === 1 ? "" : "s"} → ${tiers} compartments`;
 }
 
 function syncExportFormatOptions() {

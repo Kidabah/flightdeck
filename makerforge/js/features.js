@@ -315,7 +315,7 @@ export function shapeSupportsInsert(shape) {
 /** Removable flat divider panels — separate print part(s), splits cavity into equal bays. */
 export function buildDividerInsert(meta, params) {
   const b = rectFeatureBounds(meta);
-  const axis = params.insertAxis === "depth" ? "depth" : "length";
+  const axis = params.insertAxis === "depth" ? "depth" : params.insertAxis === "height" ? "height" : "length";
   const count = clamp(Math.round(params.insertCount ?? 1), 1, 4);
   const thickness = clamp(params.insertThickness ?? 2.4, 1.2, 5);
   const clearance = clamp(params.insertClearance ?? 0.35, 0.1, 1.2);
@@ -325,13 +325,25 @@ export function buildDividerInsert(meta, params) {
   const spanD = b.innerD - clearance * 2;
   if (spanW < 8 || spanD < 8) return null;
 
-  const z0 = b.floor;
-  const z1 = b.floor + b.cavityH - topClear;
-  if (z1 - z0 < 4) return null;
-
   const halfT = thickness / 2;
   const positions = [];
   const indices = [];
+
+  if (axis === "height") {
+    const spanH = b.cavityH - clearance * 2 - topClear;
+    if (spanH < 4) return null;
+    const zBase = b.floor + clearance;
+    for (let i = 1; i <= count; i++) {
+      const t = i / (count + 1);
+      const z = zBase + t * spanH;
+      appendBox(positions, indices, -spanW / 2, -spanD / 2, z - halfT, spanW / 2, spanD / 2, z + halfT);
+    }
+    return { positions, indices };
+  }
+
+  const z0 = b.floor;
+  const z1 = b.floor + b.cavityH - topClear;
+  if (z1 - z0 < 4) return null;
 
   for (let i = 1; i <= count; i++) {
     const t = i / (count + 1);

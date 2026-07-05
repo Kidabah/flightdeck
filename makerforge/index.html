@@ -150,7 +150,7 @@
 
                 <button type="button" class="shape-btn shape-btn--preset" data-shape="pencilBox">Pencil box</button>
 
-                <button type="button" class="shape-btn shape-btn--preset" data-shape="fatQuarters" title="Bookcase layout: 300×135×135 mm inner — quarters stand on edge (~8 mm thick), 1 divider → 2 rows (~18 per side)">Fat quarters</button>
+                <button type="button" class="shape-btn shape-btn--preset" data-shape="fatQuarters" title="Standing bookcase: 300×135×400 mm — 3 shelf tiers, quarters stand on edge (~8 mm) along each shelf">Fat quarters</button>
 
                 <button type="button" class="shape-btn shape-btn--preset" data-shape="teardrop">Teardrop</button>
 
@@ -616,7 +616,7 @@
 
               <p class="field-hint">Flat removable panels split the cavity into equal bays. Exported as one <strong>Insert</strong> part in the 3MF (same box filament by default).</p>
 
-              <p class="field-hint hidden" id="insert-bookcase-hint">Bookcase layout: quarters stand on edge (~8 mm thick) along the length. Each bay fits ~18 standing pieces (~130 × 132 mm footprint, ~135 mm tall).</p>
+              <p class="field-hint hidden" id="insert-bookcase-hint">Standing bookcase: box sits upright like a shelf unit. Horizontal shelves split the height — quarters stand on edge (~8 mm thick) along each tier (~130 × 132 mm, ~133 mm shelf height).</p>
 
               <label class="field field-toggle">
 
@@ -644,9 +644,11 @@
 
                 <select id="insert-axis">
 
-                  <option value="length">Length — parallel panels</option>
+                  <option value="length">Length — vertical panels</option>
 
-                  <option value="depth">Depth — parallel panels</option>
+                  <option value="depth">Depth — vertical panels</option>
+
+                  <option value="height">Height — horizontal shelves</option>
 
                 </select>
 
@@ -989,7 +991,7 @@
 
 
 
-  <script type="module" src="js/app.js?v=76"></script>
+  <script type="module" src="js/app.js?v=77"></script>
 
 </body>
 
