@@ -2,7 +2,15 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `7df30dd` — served at `/makerdeck/` on Flightdeck
+- Latest commit: _(pending)_ — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Flip hinge hidden (not strong enough yet)
+
+**What changed:** **Flip hinge** removed from the lid-type dropdown for now — filament knuckles aren’t strong enough for real use. Saved sessions with hinge selected fall back to **Inset plug**. Code stays in repo (`HINGE_LID_ENABLED = false`) for a future stronger design.
+
+**Files:** `js/geometry.js`, `js/app.js`, `index.html` — cache-bust `app.js?v=95`
+
+**Deploy:** Pi `git pull`. Hard refresh.
 
 ### 2026-07-05 — Manifold exports (no slicer repair)
 

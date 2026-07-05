@@ -37,7 +37,7 @@ import {
 } from "./roll-lid.js";
 import { appendInsertShelfSlotsToBody } from "./insert-slots.js";
 
-export { shapeSupportsDecor, shapeSupportsInsert, VASE_STYLES, shapeSupportsSlideLid, shapeSupportsHingeLid, shapeSupportsRollLid };
+export { shapeSupportsDecor, shapeSupportsInsert, VASE_STYLES, shapeSupportsSlideLid, shapeSupportsHingeLid, shapeSupportsRollLid, HINGE_LID_ENABLED, normalizeLidType, hingeLidAvailable };
 
 function clamp(n, min, max) {
   return Math.min(max, Math.max(min, n));
@@ -834,9 +834,21 @@ export const LID_TYPES = [
   { id: "plug", label: "Inset plug", optionLabel: "Inset plug — skirt inside", hint: "Skirt slides inside the opening; top plate sits flush on the rim." },
   { id: "slide", label: "Channel slide", optionLabel: "Channel slide — rail grooves", hint: "Angled grooves on the long walls; beveled lid slides in from the short end and seats at the far end." },
   { id: "flat", label: "Flat cap", optionLabel: "Flat cap — plate + optional lip", hint: "Plate on the rim with an optional inner lip for alignment — good for storage trays and stacking." },
-  { id: "hinge", label: "Flip hinge", optionLabel: "Flip hinge — back pin knuckles", hint: "Vertical knuckles on the back rim interleave (body/lid/body/lid/body). Slide 1.75 mm filament through the pin tunnels from either side. Lid exports flat on the bed." },
+  { id: "hinge", label: "Flip hinge", optionLabel: "Flip hinge — back pin knuckles", hint: "Experimental — hidden until a stronger hinge design ships.", hidden: true },
   { id: "roll", label: "Roll lock", optionLabel: "Roll lock — push + twist", hint: "Bayonet cap for round containers — push down then twist to lock. Best on circle, oval, or hex shapes." },
 ];
+
+/** Flip hinge is experimental — off until a stronger printable hinge is ready. */
+export const HINGE_LID_ENABLED = false;
+
+export function normalizeLidType(lidType) {
+  if (lidType === "hinge" && !HINGE_LID_ENABLED) return "plug";
+  return lidType;
+}
+
+export function hingeLidAvailable(shape) {
+  return HINGE_LID_ENABLED && shapeSupportsHingeLid(shape);
+}
 
 export function shapeSupportsLid(shape) {
   return shape !== "vase";
@@ -1204,6 +1216,7 @@ export function buildContainer(params) {
 
   if (
     params.lidEnabled &&
+    HINGE_LID_ENABLED &&
     params.lidType === "hinge" &&
     shapeSupportsHingeLid(resolved.meta.shape)
   ) {
@@ -1276,14 +1289,16 @@ export function buildContainer(params) {
 
 export function buildLid(params) {
   const resolved = resolveContainer(params);
-  let lidType = params.lidType === "plug" || params.lidType === "flat" || params.lidType === "slide"
-    || params.lidType === "hinge" || params.lidType === "roll"
-    ? params.lidType
-    : "slip";
+  let lidType = normalizeLidType(
+    params.lidType === "plug" || params.lidType === "flat" || params.lidType === "slide"
+      || params.lidType === "hinge" || params.lidType === "roll"
+      ? params.lidType
+      : "slip",
+  );
   if (lidType === "slide" && !shapeSupportsSlideLid(resolved.meta.shape)) {
     lidType = "plug";
   }
-  if (lidType === "hinge" && !shapeSupportsHingeLid(resolved.meta.shape)) {
+  if (lidType === "hinge" && !hingeLidAvailable(resolved.meta.shape)) {
     lidType = "plug";
   }
   if (lidType === "roll" && !shapeSupportsRollLid(resolved.meta.shape)) {

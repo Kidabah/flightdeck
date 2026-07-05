@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, shapeSupportsHingeLid, shapeSupportsRollLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=94";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh, mergeMeshes } from "./features.js?v=94";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, shapeSupportsHingeLid, shapeSupportsRollLid, LID_TYPES, normalizeLidType, hingeLidAvailable, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=95";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh, mergeMeshes } from "./features.js?v=95";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=73";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=74";
 import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=73";
@@ -257,7 +257,7 @@ function buildParams() {
     lidThickness: state.lidThickness,
     lidClearance: state.lidClearance,
     lidLipDepth: state.lidLipDepth,
-    lidType: state.lidType,
+    lidType: normalizeLidType(state.lidType),
     slideGrooveHeight: state.slideGrooveHeight,
     slideUndercut: state.slideUndercut,
     slideGrooveDepth: state.slideGrooveDepth,
@@ -1268,6 +1268,7 @@ async function restoreSession() {
     if (payload.state.embossTraceRects) {
       state.embossTraceRects = deserializeEmbossTraceRects(payload.state.embossTraceRects);
     }
+    state.lidType = normalizeLidType(state.lidType);
 
     if (payload.traceImage) {
       const loaded = await loadImageFromDataUrl(payload.traceImage);
@@ -1695,16 +1696,17 @@ function syncLidTypeSelect() {
   const sel = document.getElementById("lid-type");
   if (!sel) return;
   const slideOk = shapeSupportsSlideLid(state.shape);
-  const hingeOk = shapeSupportsHingeLid(state.shape);
+  const hingeOk = hingeLidAvailable(state.shape);
   const rollOk = shapeSupportsRollLid(state.shape);
   sel.innerHTML = LID_TYPES.filter((t) => {
+    if (t.hidden || t.id === "hinge") return hingeOk;
     if (t.id === "slide") return slideOk;
-    if (t.id === "hinge") return hingeOk;
     if (t.id === "roll") return rollOk;
     return true;
   }).map(
     (t) => `<option value="${t.id}">${t.optionLabel || t.label}</option>`,
   ).join("");
+  state.lidType = normalizeLidType(state.lidType);
   if (state.lidType === "slide" && !slideOk) state.lidType = "plug";
   if (state.lidType === "hinge" && !hingeOk) state.lidType = "plug";
   if (state.lidType === "roll" && !rollOk) state.lidType = "plug";
@@ -1789,7 +1791,7 @@ function updateLidUi() {
   const isRoll = state.lidType === "roll";
   const lipOn = isFlat && (state.lidLipDepth ?? 0) > 0.4;
   const slideOk = shapeSupportsSlideLid(state.shape);
-  const hingeOk = shapeSupportsHingeLid(state.shape);
+  const hingeOk = hingeLidAvailable(state.shape);
   const rollOk = shapeSupportsRollLid(state.shape);
   document.getElementById("lid-enabled").checked = !!state.lidEnabled && supported;
   document.getElementById("lid-type").value = isSlide && !slideOk
