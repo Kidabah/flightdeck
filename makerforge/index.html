@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Oswald:wght@700&family=Roboto+Mono:wght@700&family=Roboto:wght@700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=16">
+  <link rel="stylesheet" href="css/style.css?v=17">
 
   <script type="importmap">
 
@@ -540,7 +540,7 @@
 
               <h2>Accent colour</h2>
 
-              <p class="field-hint">Bundled in the <strong>Download 3MF</strong> export as its own filament slot — or use Download accent for a separate STL.</p>
+              <p class="field-hint">Bundled in the <strong>Download 3MF</strong> export as its own filament slot — or use Download accent for a separate STL. Bands follow the box outline (rounded corners included).</p>
 
               <label class="field field-toggle">
 
@@ -560,7 +560,7 @@
 
                   <option value="front">Front panel only</option>
 
-                  <option value="floor">Floor stripe</option>
+                  <option value="floor">Floor stripe (outer base ring)</option>
 
                 </select>
 
@@ -581,6 +581,8 @@
                 <span class="field-label">Band colour</span>
 
                 <div id="accent-color-picker"></div>
+
+                <button type="button" class="btn btn-ghost" id="btn-accent-suggest">Suggest contrast</button>
 
               </label>
 
@@ -901,7 +903,7 @@
 
 
 
-  <script type="module" src="js/app.js?v=66"></script>
+  <script type="module" src="js/app.js?v=67"></script>
 
 </body>
 

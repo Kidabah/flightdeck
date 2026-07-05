@@ -1,11 +1,11 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsLid, shapeSupportsSlideLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=66";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh } from "./features.js?v=66";
-import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=66";
-import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=66";
-import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=66";
-import { mountColorPicker, setColorPickerValue } from "./color-picker.js?v=66";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsLid, shapeSupportsSlideLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=67";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh } from "./features.js?v=67";
+import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=67";
+import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=67";
+import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=67";
+import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=67";
 import { appliedHasArt } from "./art-editor.js";
 
 const SESSION_KEY = "makerdeck-session-v1";
@@ -168,8 +168,10 @@ const LID_FIT_OK_PHRASES = ["Good as gold!", "She'll be right!", "No worries, ma
 
 const accentMaterial = new THREE.MeshStandardMaterial({
   color: 0xf97316,
-  metalness: 0.1,
-  roughness: 0.5,
+  emissive: 0x331508,
+  emissiveIntensity: 1,
+  metalness: 0.08,
+  roughness: 0.42,
   side: THREE.DoubleSide,
   polygonOffset: true,
   polygonOffsetFactor: 3,
@@ -351,7 +353,7 @@ function setupColorPickers() {
     value: state.accentColor,
     onChange: (hex) => {
       state.accentColor = hex;
-      if (accentMesh) accentMaterial.color.set(hex);
+      applyAccentPreviewColor(hex);
       scheduleSaveSession();
     },
   });
@@ -654,6 +656,13 @@ function applyBoxPreviewColor() {
   } else {
     material.color.set(state.boxColor || "#38bdf8");
   }
+}
+
+function applyAccentPreviewColor(hex = state.accentColor) {
+  const c = new THREE.Color(hex || "#f97316");
+  accentMaterial.color.copy(c);
+  accentMaterial.emissive.copy(c).multiplyScalar(0.14);
+  accentMaterial.emissiveIntensity = 1;
 }
 
 function setPreviewXRayMode(on) {
@@ -1148,7 +1157,7 @@ function rebuildMesh() {
 
   if (meshCache.accentMesh) {
     accentCache = meshCache.accentMesh;
-    accentMaterial.color.set(state.accentColor);
+    applyAccentPreviewColor();
     const accentGeom = toBufferGeometry(THREE, accentCache);
     accentMesh = new THREE.Mesh(accentGeom, accentMaterial);
     accentMesh.castShadow = true;
@@ -2302,6 +2311,14 @@ document.getElementById("accent-enabled").addEventListener("change", (e) => {
 document.getElementById("accent-face").addEventListener("change", (e) => {
   state.accentFace = e.target.value;
   rebuild();
+});
+
+document.getElementById("btn-accent-suggest")?.addEventListener("click", () => {
+  const suggested = suggestAccentColor(state.boxColor);
+  state.accentColor = suggested;
+  setColorPickerValue(document.getElementById("accent-color-picker"), suggested);
+  applyAccentPreviewColor(suggested);
+  scheduleSaveSession();
 });
 
 document.getElementById("honeycomb-enabled").addEventListener("change", (e) => {

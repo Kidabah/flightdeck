@@ -103,7 +103,25 @@ function wallBand(outPos, outIdx, axis, wallCoord, t0, t1, z0, z1) {
   pushQuad(outPos, outIdx, a0, a1, a2, a3);
 }
 
-export function buildAccentMesh(meta, params) {
+function profileIsValid(profile) {
+  return Array.isArray(profile) && profile.length >= 3;
+}
+
+function frontProfileEdgeFilter(points, inset) {
+  const maxY = Math.max(...points.map((p) => p[1]));
+  const minX = Math.min(...points.map((p) => p[0]));
+  const maxX = Math.max(...points.map((p) => p[0]));
+  const x0 = minX + inset;
+  const x1 = maxX - inset;
+  const yTol = 0.35;
+  return (a, b) => {
+    const midX = (a[0] + b[0]) / 2;
+    const midY = (a[1] + b[1]) / 2;
+    return midY >= maxY - yTol && midX >= x0 && midX <= x1;
+  };
+}
+
+export function buildAccentMesh(meta, params, outerProfile = null) {
   const bandH = clamp(params.accentHeight ?? 4, 2, 12);
   const face = params.accentFace || "rim";
   const b = rectFeatureBounds(meta);
@@ -112,7 +130,16 @@ export function buildAccentMesh(meta, params) {
   const positions = [];
   const indices = [];
 
-  if (face === "rim") {
+  if (profileIsValid(outerProfile)) {
+    if (face === "rim") {
+      extrudeWallsAlongZ(positions, indices, outerProfile, z0, z1);
+    } else if (face === "front") {
+      const inset = clamp(params.accentInset ?? 4, 2, Math.min(b.outerW, b.outerD) / 3);
+      extrudeWallsAlongZ(positions, indices, outerProfile, z0, z1, frontProfileEdgeFilter(outerProfile, inset));
+    } else if (face === "floor") {
+      extrudeWallsAlongZ(positions, indices, outerProfile, 0, bandH);
+    }
+  } else if (face === "rim") {
     wallBand(positions, indices, "y", b.od2, -b.ow2, b.ow2, z0, z1);
     wallBand(positions, indices, "y", -b.od2, -b.ow2, b.ow2, z0, z1);
     wallBand(positions, indices, "x", b.ow2, -b.od2, b.od2, z0, z1);
@@ -121,18 +148,10 @@ export function buildAccentMesh(meta, params) {
     const inset = clamp(params.accentInset ?? 4, 2, Math.min(b.outerW, b.outerD) / 3);
     wallBand(positions, indices, "y", b.od2, -b.ow2 + inset, b.ow2 - inset, z0, z1);
   } else if (face === "floor") {
-    const zf0 = 0;
-    const zf1 = bandH;
-    pushQuad(positions, indices,
-      vec3(-b.ow2, -b.od2, zf0), vec3(b.ow2, -b.od2, zf0),
-      vec3(b.ow2, b.od2, zf0), vec3(-b.ow2, b.od2, zf0));
-    pushQuad(positions, indices,
-      vec3(-b.ow2, -b.od2, zf1), vec3(-b.ow2, b.od2, zf1),
-      vec3(b.ow2, b.od2, zf1), vec3(b.ow2, -b.od2, zf1));
-    wallBand(positions, indices, "y", b.od2, -b.ow2, b.ow2, zf0, zf1);
-    wallBand(positions, indices, "y", -b.od2, -b.ow2, b.ow2, zf0, zf1);
-    wallBand(positions, indices, "x", b.ow2, -b.od2, b.od2, zf0, zf1);
-    wallBand(positions, indices, "x", -b.ow2, -b.od2, b.od2, zf0, zf1);
+    wallBand(positions, indices, "y", b.od2, -b.ow2, b.ow2, 0, bandH);
+    wallBand(positions, indices, "y", -b.od2, -b.ow2, b.ow2, 0, bandH);
+    wallBand(positions, indices, "x", b.ow2, -b.od2, b.od2, 0, bandH);
+    wallBand(positions, indices, "x", -b.ow2, -b.od2, b.od2, 0, bandH);
   }
 
   return { positions, indices };
@@ -158,13 +177,16 @@ function extrudeWallsAlongY(outPos, outIdx, pts, y0, y1) {
   }
 }
 
-function extrudeWallsAlongZ(outPos, outIdx, pts, z0, z1) {
+function extrudeWallsAlongZ(outPos, outIdx, pts, z0, z1, edgeFilter = null) {
   const n = pts.length;
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
+    const a = pts[i];
+    const b = pts[j];
+    if (edgeFilter && !edgeFilter(a, b, i, j, pts)) continue;
     pushQuad(outPos, outIdx,
-      vec3(pts[i][0], pts[i][1], z0), vec3(pts[j][0], pts[j][1], z0),
-      vec3(pts[j][0], pts[j][1], z1), vec3(pts[i][0], pts[i][1], z1));
+      vec3(a[0], a[1], z0), vec3(b[0], b[1], z0),
+      vec3(b[0], b[1], z1), vec3(a[0], a[1], z1));
   }
 }
 

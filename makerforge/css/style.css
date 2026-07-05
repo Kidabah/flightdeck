@@ -512,6 +512,13 @@ input[type="range"] {
   width: 100%;
 }
 
+#btn-accent-suggest {
+  grid-column: 1 / -1;
+  margin-top: 0.35rem;
+  width: 100%;
+  font-size: 0.82rem;
+}
+
 .color-picker {
   position: relative;
   width: 100%;

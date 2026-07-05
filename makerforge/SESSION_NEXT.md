@@ -2,7 +2,15 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `0f5519e` — served at `/makerdeck/` on Flightdeck
+- Latest commit: _(pending push)_ — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Accent bands follow profile + contrast picker
+
+**What changed:** Accent bands (rim / front / floor) now **follow the box outline** — rounded pencil box corners curve with the body instead of a square axis-aligned skirt. **Floor stripe** is an outer base ring only (no solid fill slab). Preview accent has subtle emissive glow so it reads on the dark viewport. **Suggest contrast** picks a complementary filament swatch from the box colour.
+
+**Files:** `js/features.js`, `js/geometry.js`, `js/color-picker.js`, `js/app.js`, `index.html`, `css/style.css` — cache-bust `app.js?v=67`, `style.css?v=17`
+
+**Deploy:** Pi `git pull`. Hard refresh (`Ctrl+Shift+R`) on `/makerdeck/` or `#/makerdeck`. Backend restart not required.
 
 ### 2026-07-05 — MakerDeck tab inside Flightdeck
 

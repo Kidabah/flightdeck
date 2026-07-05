@@ -110,3 +110,63 @@ export function mountColorPicker(host, { value, onChange }) {
 export function setColorPickerValue(host, hex) {
   host?._setColorPickerValue?.(normalizeHex(hex));
 }
+
+function hexToRgb(hex) {
+  const c = normalizeHex(hex);
+  return [
+    parseInt(c.slice(1, 3), 16),
+    parseInt(c.slice(3, 5), 16),
+    parseInt(c.slice(5, 7), 16),
+  ];
+}
+
+function relativeLuminance(hex) {
+  const [r, g, b] = hexToRgb(hex).map((v) => {
+    const s = v / 255;
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function rgbToHsl(hex) {
+  const [r, g, b] = hexToRgb(hex).map((v) => v / 255);
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  if (max === min) return { h: 0, s: 0, l };
+  const d = max - min;
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  let h;
+  switch (max) {
+    case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+    case g: h = ((b - r) / d + 2) / 6; break;
+    default: h = ((r - g) / d + 4) / 6;
+  }
+  return { h: h * 360, s, l };
+}
+
+function accentScore(boxHex, candidateHex) {
+  const la = relativeLuminance(boxHex);
+  const lb = relativeLuminance(candidateHex);
+  const contrast = (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+  const ha = rgbToHsl(boxHex).h;
+  const hb = rgbToHsl(candidateHex).h;
+  const hueDiff = Math.min(Math.abs(ha - hb), 360 - Math.abs(ha - hb));
+  return contrast * 0.55 + (hueDiff / 180) * 0.45;
+}
+
+/** Pick a filament swatch that contrasts with the box body colour. */
+export function suggestAccentColor(boxHex) {
+  const box = normalizeHex(boxHex, "#38bdf8");
+  let best = FILAMENT_SWATCHES.find((s) => s.id === "orange") || FILAMENT_SWATCHES[4];
+  let bestScore = -1;
+  for (const sw of FILAMENT_SWATCHES) {
+    if (normalizeHex(sw.hex) === box) continue;
+    const score = accentScore(box, sw.hex);
+    if (score > bestScore) {
+      bestScore = score;
+      best = sw;
+    }
+  }
+  return best.hex;
+}

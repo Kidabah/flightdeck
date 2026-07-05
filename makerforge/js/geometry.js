@@ -1019,7 +1019,7 @@ export function buildContainer(params) {
       mesh = shellMesh;
     }
     if (params.accentEnabled) {
-      accentMesh = buildAccentMesh(resolved.meta, params);
+      accentMesh = buildAccentMesh(resolved.meta, params, resolved.outer);
       centerPositions(accentMesh.positions, 0, 0);
     }
     return {
