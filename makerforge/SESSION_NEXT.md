@@ -2,7 +2,7 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: *(pending — clip hinge deploy)* — served at `/makerdeck/` on Flightdeck
+- - `main` commit: `e007a27` — served at `/makerdeck/` on Flightdeck
 
 ### 2026-07-05 — Clip hinge: snap rails + separate clip/pin exports
 
