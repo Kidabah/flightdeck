@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — spool display_id + loaded-slot replace fix
+- Latest commit: `11cbf0f` — spool display_id + loaded-slot replace fix
 - Refresh cachebust: Flightdeck `app.js?v=626` / `style.css?v=481`; MakerDeck iframe `app.js?v=66`
 
 ### 2026-07-05 fix (spool display_id + loaded-slot replace)
