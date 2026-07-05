@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, shapeSupportsHingeLid, shapeSupportsRollLid, LID_TYPES, normalizeLidType, clipHingeAvailable, buildHingeClipMesh, buildHingePinMesh, orientClipForPrint, orientPinForPrint, layoutMeshCopies, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=100";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, shapeSupportsHingeLid, shapeSupportsRollLid, LID_TYPES, normalizeLidType, clipHingeAvailable, buildHingeHardwareMesh, buildHingeHardwarePin, orientHingeHardwareForPrint, orientHingeHardwarePinForPrint, layoutMeshCopies, HINGE_STYLE_PRESETS, normalizeHingeStyle, hingeStyleMeta, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=101";
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh, mergeMeshes } from "./features.js?v=96";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=73";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=74";
@@ -270,6 +270,10 @@ function buildParams() {
     clipPinDiameter: state.clipPinDiameter,
     clipHingeCount: state.clipHingeCount,
     clipRailLength: state.clipRailLength,
+    hingeStyle: normalizeHingeStyle(state.hingeStyle),
+    hingeLeafLength: state.hingeLeafLength,
+    hingeLeafWidth: state.hingeLeafWidth,
+    hingeLeafThickness: state.hingeLeafThickness,
     rollLugCount: state.rollLugCount,
     rollTurnDegrees: state.rollTurnDegrees,
     rollLugDepth: state.rollLugDepth,
@@ -1292,6 +1296,8 @@ async function restoreSession() {
       state.embossTraceRects = deserializeEmbossTraceRects(payload.state.embossTraceRects);
     }
     state.lidType = normalizeLidType(state.lidType);
+    state.hingeStyle = normalizeHingeStyle(state.hingeStyle);
+    state.hingeStyle = normalizeHingeStyle(state.hingeStyle);
 
     if (payload.traceImage) {
       const loaded = await loadImageFromDataUrl(payload.traceImage);
@@ -1337,6 +1343,11 @@ function syncUiFromState() {
   syncSliderUi("hinge-rail-d", "clipRailDiameter", { min: 3, max: 6, value: state.clipRailDiameter ?? 4, parseKind: "float" });
   syncSliderUi("hinge-pin-d", "clipPinDiameter", { min: 1.75, max: 4, value: state.clipPinDiameter ?? 3, parseKind: "float" });
   syncSliderUi("hinge-rail-len", "clipRailLength", { min: 8, max: 20, value: state.clipRailLength ?? 12 });
+  syncSliderUi("hinge-leaf-l", "hingeLeafLength", { min: 16, max: 60, value: state.hingeLeafLength ?? 28 });
+  syncSliderUi("hinge-leaf-w", "hingeLeafWidth", { min: 10, max: 40, value: state.hingeLeafWidth ?? 18 });
+  syncSliderUi("hinge-leaf-t", "hingeLeafThickness", { min: 1.6, max: 5, value: state.hingeLeafThickness ?? 2.4, parseKind: "float" });
+  syncSliderUi("hinge-knuckle-r", "hingeKnuckleRadius", { min: 2.5, max: 7, value: state.hingeKnuckleRadius ?? 4, parseKind: "float" });
+  syncSliderUi("hinge-leaf-pin-d", "hingePinDiameter", { min: 1.75, max: 4, value: state.hingePinDiameter ?? 3, parseKind: "float" });
   syncSliderUi("slide-groove", "slideGrooveHeight", { min: 4, max: 10, value: state.slideGrooveHeight ?? 6, parseKind: "float" });
   syncSliderUi("slide-stop", "slideStopLength", { min: 6, max: 20, value: state.slideStopLength ?? 10 });
   syncSliderUi("joiner-width", "joinerWidth", { min: 5, max: 22, value: state.joinerWidth, parseKind: "float" });
@@ -1376,6 +1387,7 @@ function syncUiFromState() {
   updateLidUi();
   updateJoinerUi();
   updateDecorUi();
+  syncHingeStyleGrid();
   updateHingeUi();
   updateTraceUi();
 }
@@ -2354,10 +2366,21 @@ function syncInsertCountHint() {
   el.textContent = `${n} divider${n === 1 ? "" : "s"} → ${tiers} compartments`;
 }
 
-function hingeHardwareActive() {
+function hingeClipLidActive() {
   return state.lidEnabled
     && normalizeLidType(state.lidType) === "clip"
     && clipHingeAvailable(state.shape);
+}
+
+function currentHingeStyle() {
+  return normalizeHingeStyle(state.hingeStyle);
+}
+
+function hingeStyleReady() {
+  const style = currentHingeStyle();
+  const meta = hingeStyleMeta(style);
+  if (meta.needsClipLid) return hingeClipLidActive();
+  return state.shape !== "vase";
 }
 
 function hingeClipExportCount() {
@@ -2366,31 +2389,105 @@ function hingeClipExportCount() {
 }
 
 function hingePinExportCount() {
-  return Math.min(3, Math.max(1, Math.round(state.clipHingeCount ?? 2)));
+  const style = currentHingeStyle();
+  if (style === "snapClip") {
+    return Math.min(3, Math.max(1, Math.round(state.clipHingeCount ?? 2)));
+  }
+  return 1;
+}
+
+function hingeHardwareExportCount() {
+  const style = currentHingeStyle();
+  if (style === "snapClip") return hingeClipExportCount();
+  return 1;
+}
+
+function hingeStepsHtml(style) {
+  if (style === "snapClip") {
+    return [
+      "Export <strong>body</strong> and <strong>lid</strong> — rails are on the back rim.",
+      "Print clips and pins from the buttons below.",
+      "Snap each clip onto a rail; pin through the knuckle barrels.",
+    ];
+  }
+  if (style === "strapDoor") {
+    return [
+      "Print the hinge pair flat on the bed — long leaf on the door, short leaf on the frame.",
+      "Print the pin; press or slide through the knuckle stack.",
+      "Screw each leaf to your door and frame (pilot holes in the plates).",
+    ];
+  }
+  if (style === "flushBarrel") {
+    return [
+      "Compact barrel hinge for inset or cabinet doors.",
+      "Mount each leaf flush to your parts; pin joins the knuckle stack.",
+    ];
+  }
+  return [
+    "Print the hinge flat — both leaves and knuckles are one fused part on the bed.",
+    "Print the pin separately; slide through the knuckle barrels.",
+    "Screw leaf A and leaf B to your two moving parts.",
+  ];
+}
+
+function syncHingeStyleGrid() {
+  const grid = document.getElementById("hinge-style-grid");
+  if (!grid) return;
+  const style = currentHingeStyle();
+  if (!grid.dataset.ready) {
+    grid.innerHTML = HINGE_STYLE_PRESETS.map(
+      (p) => `<button type="button" class="chip" data-hinge-style="${p.id}">${p.label}</button>`,
+    ).join("");
+    grid.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-hinge-style]");
+      if (!btn) return;
+      state.hingeStyle = btn.dataset.hingeStyle;
+      grid.querySelectorAll("[data-hinge-style]").forEach((b) => {
+        b.classList.toggle("active", b.dataset.hingeStyle === state.hingeStyle);
+      });
+      updateHingeUi();
+      if (hingeStyleMeta(state.hingeStyle).needsClipLid) rebuild();
+      pushAppHistory();
+    });
+    grid.dataset.ready = "1";
+  }
+  grid.querySelectorAll("[data-hinge-style]").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.hingeStyle === style);
+  });
 }
 
 function updateHingeUi() {
-  const active = hingeHardwareActive();
-  const shapeOk = clipHingeAvailable(state.shape);
+  const style = currentHingeStyle();
+  const meta = hingeStyleMeta(style);
+  const ready = hingeStyleReady();
   const tab = document.querySelector('.tab[data-tab="hinge"]');
   if (tab) {
-    const tabOff = state.shape === "vase" || !shapeSupportsLid(state.shape) || !shapeOk;
-    tab.classList.toggle("tab--disabled", tabOff);
-    tab.disabled = tabOff;
+    tab.classList.toggle("tab--disabled", state.shape === "vase");
+    tab.disabled = state.shape === "vase";
   }
-  document.getElementById("hinge-inactive-hint")?.classList.toggle("hidden", active);
-  document.getElementById("hinge-controls")?.classList.toggle("hidden", !active);
-  const hint = document.getElementById("hinge-inactive-hint");
-  if (hint && !active) {
-    if (state.shape === "vase" || !shapeOk) {
-      hint.innerHTML = "Clip hinge needs a box, rounded, pencil, or fat-quarters shape.";
+
+  const styleHint = document.getElementById("hinge-style-hint");
+  if (styleHint) styleHint.textContent = meta.hint;
+
+  const inactive = document.getElementById("hinge-inactive-hint");
+  const showInactive = meta.needsClipLid && !hingeClipLidActive();
+  inactive?.classList.toggle("hidden", !showInactive);
+  if (inactive && showInactive) {
+    if (!clipHingeAvailable(state.shape)) {
+      inactive.innerHTML = "Snap clip needs a box, rounded, pencil, or fat-quarters shape.";
     } else if (!state.lidEnabled) {
-      hint.innerHTML = "Enable a lid on the <strong>Lid</strong> tab, then choose <strong>Clip hinge</strong>.";
-    } else if (normalizeLidType(state.lidType) !== "clip") {
-      hint.innerHTML = "Choose <strong>Clip hinge</strong> on the Lid tab to tune rails, clips, and pins here.";
+      inactive.innerHTML = "Enable a lid on the <strong>Lid</strong> tab, then choose <strong>Clip hinge</strong>.";
+    } else {
+      inactive.innerHTML = "Choose <strong>Clip hinge</strong> on the Lid tab — rails export with body/lid.";
     }
   }
-  if (active) {
+
+  const leafOn = ready && style !== "snapClip";
+  const clipOn = ready && style === "snapClip";
+  document.getElementById("hinge-controls-leaf")?.classList.toggle("hidden", !leafOn);
+  document.getElementById("hinge-controls-clip")?.classList.toggle("hidden", !clipOn);
+
+  if (clipOn) {
     const count = Math.min(3, Math.max(1, Math.round(state.clipHingeCount ?? 2)));
     const countSel = document.getElementById("hinge-count");
     if (countSel) countSel.value = String(count);
@@ -2400,47 +2497,81 @@ function updateHingeUi() {
     if (countHint) {
       countHint.textContent = `${count} position${count === 1 ? "" : "s"} → print ${clips} clips (${count} box + ${count} lid) and ${pins} pin${pins === 1 ? "" : "s"}.`;
     }
-    const clipBtn = document.getElementById("btn-export-clips");
-    const pinBtn = document.getElementById("btn-export-pins");
-    if (clipBtn) clipBtn.textContent = `Download ${clips} clips (STL)`;
-    if (pinBtn) pinBtn.textContent = `Download ${pins} pin${pins === 1 ? "" : "s"} (STL)`;
+  }
+
+  if (leafOn) {
+    const kSel = document.getElementById("hinge-knuckle-count");
+    if (kSel) kSel.value = String(Math.round(state.hingeKnuckleCount ?? 3));
+  }
+
+  const steps = document.getElementById("hinge-steps");
+  const exports = document.getElementById("hinge-export-actions");
+  const showExport = ready;
+  steps?.classList.toggle("hidden", !showExport);
+  exports?.classList.toggle("hidden", !showExport);
+  if (steps && showExport) {
+    steps.innerHTML = hingeStepsHtml(style).map((s) => `<li>${s}</li>`).join("");
+  }
+
+  const hingeBtn = document.getElementById("btn-export-hinge");
+  const pinBtn = document.getElementById("btn-export-hinge-pin");
+  if (hingeBtn && showExport) {
+    const n = hingeHardwareExportCount();
+    if (style === "snapClip") hingeBtn.textContent = `Download ${n} clips (STL)`;
+    else if (style === "strapDoor") hingeBtn.textContent = "Download strap hinge (STL)";
+    else if (style === "flushBarrel") hingeBtn.textContent = "Download barrel hinge (STL)";
+    else hingeBtn.textContent = "Download butt hinge (STL)";
+  }
+  if (pinBtn && showExport) {
+    const n = hingePinExportCount();
+    pinBtn.textContent = `Download ${n} pin${n === 1 ? "" : "s"} (STL)`;
   }
 }
 
-function downloadHingeClips() {
-  if (!hingeHardwareActive()) {
-    alert("Enable lid and choose Clip hinge on the Lid tab first.");
+function downloadHingeHardware() {
+  if (!hingeStyleReady()) {
+    alert("Choose a hinge style and enable Clip hinge on the Lid tab if using snap clips.");
     return;
   }
   if (!meshCache) rebuild();
   try {
     const params = buildParams();
-    const one = sanitizeMeshForStl(orientClipForPrint(buildHingeClipMesh(params)));
-    if (!one) throw new Error("Clip mesh empty");
-    const box = meshBounds(one);
-    const count = hingeClipExportCount();
-    const clip = layoutMeshCopies(one, count, box.w + 6, box.d + 6);
-    downloadBlob(meshToStl(clip, "makerdeck-clip"), filenameFor(meshCache.meta, "clip"));
+    const style = currentHingeStyle();
+    const one = sanitizeMeshForStl(orientHingeHardwareForPrint(style, buildHingeHardwareMesh(style, params)));
+    if (!one) throw new Error("Hinge mesh empty");
+    const count = hingeHardwareExportCount();
+    let mesh = one;
+    if (count > 1) {
+      const box = meshBounds(one);
+      mesh = layoutMeshCopies(one, count, box.w + 6, box.d + 6);
+    }
+    const part = style === "snapClip" ? "clip" : "hinge";
+    downloadBlob(meshToStl(mesh, `makerdeck-${part}`), filenameFor(meshCache.meta, part));
   } catch (err) {
-    console.error("Clip export failed:", err);
-    alert(err?.message || "Clip export failed.");
+    console.error("Hinge export failed:", err);
+    alert(err?.message || "Hinge export failed.");
   }
 }
 
-function downloadHingePins() {
-  if (!hingeHardwareActive()) {
-    alert("Enable lid and choose Clip hinge on the Lid tab first.");
+function downloadHingePin() {
+  if (!hingeStyleReady()) {
+    alert("Choose a hinge style and enable Clip hinge on the Lid tab if using snap clips.");
     return;
   }
   if (!meshCache) rebuild();
   try {
     const params = buildParams();
-    const one = sanitizeMeshForStl(orientPinForPrint(buildHingePinMesh(params)));
+    const style = currentHingeStyle();
+    const one = sanitizeMeshForStl(orientHingeHardwarePinForPrint(style, buildHingeHardwarePin(style, params)));
     if (!one) throw new Error("Pin mesh empty");
-    const box = meshBounds(one);
     const count = hingePinExportCount();
-    const pin = layoutMeshCopies(one, count, box.w + 8, box.d + 8);
-    downloadBlob(meshToStl(pin, "makerdeck-clip-pin"), filenameFor(meshCache.meta, "clip-pin"));
+    let mesh = one;
+    if (count > 1) {
+      const box = meshBounds(one);
+      mesh = layoutMeshCopies(one, count, box.w + 8, box.d + 8);
+    }
+    const part = style === "snapClip" ? "clip-pin" : "hinge-pin";
+    downloadBlob(meshToStl(mesh, `makerdeck-${part}`), filenameFor(meshCache.meta, part));
   } catch (err) {
     console.error("Pin export failed:", err);
     alert(err?.message || "Pin export failed.");
@@ -2876,8 +3007,20 @@ document.getElementById("hinge-count")?.addEventListener("change", (e) => {
   pushAppHistory();
 });
 
-document.getElementById("btn-export-clips")?.addEventListener("click", downloadHingeClips);
-document.getElementById("btn-export-pins")?.addEventListener("click", downloadHingePins);
+document.getElementById("hinge-knuckle-count")?.addEventListener("change", (e) => {
+  state.hingeKnuckleCount = Math.min(7, Math.max(3, parseInt(e.target.value, 10) || 3));
+  updateHingeUi();
+  pushAppHistory();
+});
+
+bindRange("hinge-leaf-l", "hingeLeafLength");
+bindRange("hinge-leaf-w", "hingeLeafWidth");
+bindRange("hinge-leaf-t", "hingeLeafThickness", "float");
+bindRange("hinge-knuckle-r", "hingeKnuckleRadius", "float");
+bindRange("hinge-leaf-pin-d", "hingePinDiameter", "float");
+
+document.getElementById("btn-export-hinge")?.addEventListener("click", downloadHingeHardware);
+document.getElementById("btn-export-hinge-pin")?.addEventListener("click", downloadHingePin);
 bindRange("slide-groove", "slideGrooveHeight", "float");
 bindRange("slide-stop", "slideStopLength");
 bindRange("joiner-width", "joinerWidth", "float");
@@ -2928,7 +3071,7 @@ document.getElementById("lid-type").addEventListener("change", (e) => {
   rebuild();
   if (meshCache) fitCamera(meshCache.meta);
   pushAppHistory();
-  if (normalizeLidType(state.lidType) === "clip" && hingeHardwareActive()) {
+  if (normalizeLidType(state.lidType) === "clip" && hingeClipLidActive()) {
     setTab("hinge");
   }
 });
@@ -3278,6 +3421,11 @@ syncSliderUi("lid-clearance", "lidClearance", { min: 0.15, max: 0.8, value: stat
 syncSliderUi("hinge-rail-d", "clipRailDiameter", { min: 3, max: 6, value: state.clipRailDiameter ?? 4, parseKind: "float" });
 syncSliderUi("hinge-pin-d", "clipPinDiameter", { min: 1.75, max: 4, value: state.clipPinDiameter ?? 3, parseKind: "float" });
 syncSliderUi("hinge-rail-len", "clipRailLength", { min: 8, max: 20, value: state.clipRailLength ?? 12 });
+syncSliderUi("hinge-leaf-l", "hingeLeafLength", { min: 16, max: 60, value: state.hingeLeafLength ?? 28 });
+syncSliderUi("hinge-leaf-w", "hingeLeafWidth", { min: 10, max: 40, value: state.hingeLeafWidth ?? 18 });
+syncSliderUi("hinge-leaf-t", "hingeLeafThickness", { min: 1.6, max: 5, value: state.hingeLeafThickness ?? 2.4, parseKind: "float" });
+syncSliderUi("hinge-knuckle-r", "hingeKnuckleRadius", { min: 2.5, max: 7, value: state.hingeKnuckleRadius ?? 4, parseKind: "float" });
+syncSliderUi("hinge-leaf-pin-d", "hingePinDiameter", { min: 1.75, max: 4, value: state.hingePinDiameter ?? 3, parseKind: "float" });
 syncSliderUi("slide-groove", "slideGrooveHeight", { min: 4, max: 10, value: state.slideGrooveHeight ?? 6, parseKind: "float" });
 syncSliderUi("slide-stop", "slideStopLength", { min: 6, max: 20, value: state.slideStopLength ?? 10 });
 syncSliderUi("joiner-width", "joinerWidth", { min: 5, max: 22, value: state.joinerWidth, parseKind: "float" });
@@ -3318,6 +3466,8 @@ function scheduleDeferredRestoreTrace() {
 async function bootMakerDeck() {
   setupColorPickers();
   syncLidTypeSelect();
+  syncHingeStyleGrid();
+  state.hingeStyle = normalizeHingeStyle(state.hingeStyle);
   const restored = await restoreSession();
   if (restored) {
     syncUiFromState();

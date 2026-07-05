@@ -446,9 +446,27 @@ input[type="range"] {
 }
 
 #section-hinge.hidden,
-#hinge-controls.hidden,
+#hinge-controls-leaf.hidden,
+#hinge-controls-clip.hidden,
+#hinge-export-actions.hidden,
+#hinge-steps.hidden,
 #hinge-inactive-hint.hidden {
   display: none;
+}
+
+.hinge-style-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 10px 0 4px;
+}
+
+.hinge-style-grid .chip {
+  flex: unset;
+  width: 100%;
+  text-align: center;
+  font-size: 12px;
+  padding: 10px 6px;
 }
 
 .hinge-steps {

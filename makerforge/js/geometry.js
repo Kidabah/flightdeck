@@ -34,6 +34,15 @@ import {
   shapeSupportsClipHinge,
 } from "./clip-hinge.js";
 import {
+  HINGE_STYLE_PRESETS,
+  normalizeHingeStyle,
+  buildHingeHardwareMesh,
+  buildHingeHardwarePin,
+  orientHingeHardwareForPrint,
+  orientHingeHardwarePinForPrint,
+  hingeStyleMeta,
+} from "./hinge-hardware.js";
+import {
   appendHingeKnucklesToBody,
   buildHingeLidMesh,
   computeHingeFitGuides,
@@ -48,7 +57,7 @@ import {
 } from "./roll-lid.js";
 import { appendInsertShelfSlotsToBody } from "./insert-slots.js";
 
-export { shapeSupportsDecor, shapeSupportsInsert, VASE_STYLES, shapeSupportsSlideLid, shapeSupportsHingeLid, shapeSupportsRollLid, shapeSupportsClipHinge, buildHingeClipMesh, buildHingePinMesh, orientClipForPrint, orientPinForPrint, layoutMeshCopies };
+export { shapeSupportsDecor, shapeSupportsInsert, VASE_STYLES, shapeSupportsSlideLid, shapeSupportsHingeLid, shapeSupportsRollLid, shapeSupportsClipHinge, buildHingeClipMesh, buildHingePinMesh, orientClipForPrint, orientPinForPrint, layoutMeshCopies, HINGE_STYLE_PRESETS, normalizeHingeStyle, buildHingeHardwareMesh, buildHingeHardwarePin, orientHingeHardwareForPrint, orientHingeHardwarePinForPrint, hingeStyleMeta };
 
 function clamp(n, min, max) {
   return Math.min(max, Math.max(min, n));
@@ -1585,6 +1594,10 @@ export const DEFAULTS = {
   clipPinDiameter: 3,
   clipHingeCount: 2,
   clipRailLength: 12,
+  hingeStyle: "snapClip",
+  hingeLeafLength: 28,
+  hingeLeafWidth: 18,
+  hingeLeafThickness: 2.4,
   rollLugCount: 3,
   rollTurnDegrees: 55,
   rollLugDepth: 1.6,

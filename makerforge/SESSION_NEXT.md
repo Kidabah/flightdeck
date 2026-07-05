@@ -2,7 +2,21 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- - `main` commit: `3208468` — served at `/makerdeck/` on Flightdeck
+- - `main` commit: *(pending)* — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Hinge generator presets (butt, strap, barrel)
+
+**What changed:** Hinge tab is now a **hinge generator** with style presets:
+- **Snap clip** — box rail system (needs Clip hinge lid)
+- **Butt pin** — flat-leaf alternating knuckles
+- **Strap door** — long door leaf + short frame leaf
+- **Flush barrel** — compact cabinet barrel hinge
+
+Each style has tuned sliders, assembly steps, and Download hinge / pin STLs (manifold, flat on bed).
+
+**Files:** `js/hinge-hardware.js` (new), `js/app.js?v=101`, `js/geometry.js`, `js/stl.js`, `index.html`, `css/style.css?v=20`
+
+**Deploy:** Pi `git pull`. Hard refresh.
 
 ### 2026-07-05 — Hinge tab (clip generator)
 

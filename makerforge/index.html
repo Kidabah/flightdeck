@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Oswald:wght@700&family=Roboto+Mono:wght@700&family=Roboto:wght@700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=19">
+  <link rel="stylesheet" href="css/style.css?v=20">
 
   <script type="importmap">
 
@@ -502,13 +502,93 @@
 
             <section class="section" id="section-hinge">
 
-              <h2>Clip hinge hardware</h2>
+              <h2>Hinge generator</h2>
 
-              <p class="field-hint" id="hinge-inactive-hint">Enable a lid and choose <strong>Clip hinge</strong> on the Lid tab to tune and export clips + pins here.</p>
+              <p class="field-hint">Pick a hinge style, tune sizes, download print-ready STLs.</p>
 
-              <div id="hinge-controls" class="hidden">
+              <div class="hinge-style-grid" id="hinge-style-grid" role="group" aria-label="Hinge style"></div>
 
-                <p class="field-hint">Snap rails are built into the box and lid exports. Print the clips and pins below, then assemble on the back edge.</p>
+              <p class="field-hint" id="hinge-style-hint"></p>
+
+              <p class="field-hint hidden" id="hinge-inactive-hint"></p>
+
+              <div id="hinge-controls-leaf" class="hidden">
+
+                <label class="field">
+
+                  <span class="field-label">Leaf length</span>
+
+                  <input type="range" id="hinge-leaf-l" min="16" max="60" step="1" value="28" tabindex="-1">
+
+                  <button type="button" class="value-edit" data-slider="hinge-leaf-l" data-key="hingeLeafLength">28</button>
+
+                </label>
+
+                <label class="field">
+
+                  <span class="field-label">Leaf width</span>
+
+                  <input type="range" id="hinge-leaf-w" min="10" max="40" step="1" value="18" tabindex="-1">
+
+                  <button type="button" class="value-edit" data-slider="hinge-leaf-w" data-key="hingeLeafWidth">18</button>
+
+                </label>
+
+                <label class="field">
+
+                  <span class="field-label">Leaf thickness</span>
+
+                  <input type="range" id="hinge-leaf-t" min="1.6" max="5" step="0.2" value="2.4" tabindex="-1">
+
+                  <button type="button" class="value-edit" data-slider="hinge-leaf-t" data-key="hingeLeafThickness" data-parse="float">2.4</button>
+
+                </label>
+
+                <label class="field">
+
+                  <span class="field-label">Knuckle radius</span>
+
+                  <input type="range" id="hinge-knuckle-r" min="2.5" max="7" step="0.25" value="4" tabindex="-1">
+
+                  <button type="button" class="value-edit" data-slider="hinge-knuckle-r" data-key="hingeKnuckleRadius" data-parse="float">4</button>
+
+                </label>
+
+                <label class="field">
+
+                  <span class="field-label">Knuckle count</span>
+
+                  <select id="hinge-knuckle-count">
+
+                    <option value="3" selected>3</option>
+
+                    <option value="4">4</option>
+
+                    <option value="5">5</option>
+
+                    <option value="6">6</option>
+
+                    <option value="7">7</option>
+
+                  </select>
+
+                </label>
+
+                <label class="field">
+
+                  <span class="field-label">Pin diameter</span>
+
+                  <input type="range" id="hinge-leaf-pin-d" min="1.75" max="4" step="0.25" value="3" tabindex="-1">
+
+                  <button type="button" class="value-edit" data-slider="hinge-leaf-pin-d" data-key="hingePinDiameter" data-parse="float">3</button>
+
+                </label>
+
+              </div>
+
+              <div id="hinge-controls-clip" class="hidden">
+
+                <p class="field-hint">Snap rails export with body + lid. Print clips and pins below.</p>
 
                 <label class="field">
 
@@ -548,33 +628,25 @@
 
                     <option value="1">1 — centre</option>
 
-                    <option value="2" selected>2 — spread (4 clips total)</option>
+                    <option value="2" selected>2 — spread</option>
 
-                    <option value="3">3 — spread (6 clips total)</option>
+                    <option value="3">3 — spread</option>
 
                   </select>
 
                 </label>
 
-                <p class="field-hint" id="hinge-count-hint">2 positions → print 4 clips (2 on box, 2 on lid) + 2 pins.</p>
+                <p class="field-hint" id="hinge-count-hint"></p>
 
-                <ol class="hinge-steps">
+              </div>
 
-                  <li>Export <strong>body</strong> and <strong>lid</strong> — rails are on the back rim.</li>
+              <ol class="hinge-steps hidden" id="hinge-steps"></ol>
 
-                  <li>Print clips and pins from the buttons below.</li>
+              <div class="hinge-export-actions hidden" id="hinge-export-actions">
 
-                  <li>Snap each clip onto a rail; pin through the knuckle barrels.</li>
+                <button type="button" id="btn-export-hinge" class="btn btn-primary">Download hinge (STL)</button>
 
-                </ol>
-
-                <div class="hinge-export-actions">
-
-                  <button type="button" id="btn-export-clips" class="btn btn-primary">Download clips (STL)</button>
-
-                  <button type="button" id="btn-export-pins" class="btn btn-secondary">Download pins (STL)</button>
-
-                </div>
+                <button type="button" id="btn-export-hinge-pin" class="btn btn-secondary">Download pin (STL)</button>
 
               </div>
 
@@ -1121,7 +1193,7 @@
 
 
 
-  <script type="module" src="js/app.js?v=100"></script>
+  <script type="module" src="js/app.js?v=101"></script>
 
 </body>
 
