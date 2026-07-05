@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: (pending) — reset lid/dims when leaving pencil box preset
+- Latest commit: `5d070a7` — reset lid/dims when leaving pencil box preset
 - Refresh cachebust currently: MakerDeck app.js?v=54 / style.css?v=13
 
 ### 2026-07-05 fix (MakerDeck shape switch pencil box → box)
