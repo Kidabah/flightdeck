@@ -2,7 +2,15 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `0dcd140` — served at `/makerdeck/` on Flightdeck
+- Latest commit: _(pending)_ — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Fat quarters preset: bookcase (standing) layout
+
+**What changed:** **Fat quarters** preset reworked for **bookcase storage** — quarters stand on edge (~8 mm thick), not flat. Inner **300 × 135 × 135 mm**, **1 divider** → two rows (~**148 × 134 mm** each, ~18 quarters per row). Insert tab shows bookcase hint on this preset.
+
+**Files:** `js/geometry.js`, `js/app.js`, `index.html` — cache-bust `app.js?v=76`
+
+**Deploy:** Pi `git pull`. Hard refresh on `/makerdeck/`.
 
 ### 2026-07-05 — Fat quarters preset tuned for real folded size
 

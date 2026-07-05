@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=75";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh } from "./features.js?v=75";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=76";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh } from "./features.js?v=76";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=73";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=73";
 import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=73";
@@ -23,7 +23,7 @@ function textHasInk(text) {
 const PRESET_CONFIG = {
   pencil: { preset: PENCIL_PRESET, profile: "pencil" },
   pencilBox: { preset: PENCIL_BOX_PRESET, profile: "pencil" },
-  fatQuarters: { preset: FAT_QUARTERS_PRESET, profile: "default" },
+  fatQuarters: { preset: FAT_QUARTERS_PRESET, profile: "fatQuarters" },
   teardrop: { preset: TEARDROP_PRESET, profile: "teardrop" },
   star: { preset: STAR_PRESET, profile: "jewel" },
   heart: { preset: HEART_PRESET, profile: "jewel" },
@@ -1368,6 +1368,11 @@ const SLIDER_PROFILES = {
     depth: { min: 35, max: 180 },
     height: { min: 15, max: 120 },
   },
+  fatQuarters: {
+    width: { min: 200, max: 360 },
+    depth: { min: 100, max: 180 },
+    height: { min: 100, max: 180 },
+  },
 };
 
 function applyPreset(shape) {
@@ -2209,6 +2214,10 @@ function updateDecorUi() {
   document.getElementById("field-insert-clearance").classList.toggle("hidden", !insertOn);
   document.getElementById("insert-axis").value = state.insertAxis || "length";
   syncInsertCountHint();
+  document.getElementById("insert-bookcase-hint")?.classList.toggle(
+    "hidden",
+    state.shape !== "fatQuarters" || !insertOn,
+  );
 
   const honeyOn = state.honeycombEnabled && supported;
   document.getElementById("honeycomb-enabled").checked = honeyOn;

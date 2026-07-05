@@ -1207,9 +1207,8 @@ export const PENCIL_BOX_PRESET = {
 
 export const FAT_QUARTERS_PRESET = {
   innerWidth: 300,
-  innerDepth: 300,
-  /** ~5 stacks at 8 mm per folded quarter (40 mm) + headroom; bump height slider for more. */
-  innerHeight: 45,
+  innerDepth: 135,
+  innerHeight: 135,
   wall: 2.4,
   floor: 2.4,
   cornerRadius: 6,
