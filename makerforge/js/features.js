@@ -2,7 +2,7 @@
  * Accent bands, emboss, honeycomb stamp, stackable hex grid, mesh merge.
  */
 
-import { extrudeShapeGroup, extrudeShapeGroupBetween, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, simplifyPolygon, triangulateMappedCap } from "./contour.js";
+import { extrudeShapeGroup, extrudeShapeGroupBetween, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, simplifyPolygon } from "./contour.js";
 import { decorPlacementOffsets, decorArtRect, rotateFacePoint, rotateShapeGroup } from "./decor.js";
 import { getSlideLidTopBounds, shapeSupportsSlideLid } from "./slide-lid.js";
 
@@ -421,114 +421,6 @@ function collectTextEmbossShapeGroups(meta, params) {
   };
 }
 
-function exteriorFacePlane(frame, meta) {
-  const b = rectFeatureBounds(meta);
-  const eps = 0.06;
-  switch (frame.face) {
-    case "front":
-      return { onPlane: (w) => Math.abs(w[1] + b.od2) <= eps, normal: [0, -1, 0] };
-    case "back":
-      return { onPlane: (w) => Math.abs(w[1] - b.od2) <= eps, normal: [0, 1, 0] };
-    case "right":
-      return { onPlane: (w) => Math.abs(w[0] - b.ow2) <= eps, normal: [1, 0, 0] };
-    case "left":
-      return { onPlane: (w) => Math.abs(w[0] + b.ow2) <= eps, normal: [-1, 0, 0] };
-    case "top":
-      return { onPlane: (w) => Math.abs(w[2] - b.totalH) <= eps, normal: [0, 0, 1] };
-    default:
-      return null;
-  }
-}
-
-function meshTriNormal(positions, ia, ib, ic) {
-  const ax = positions[ia * 3];
-  const ay = positions[ia * 3 + 1];
-  const az = positions[ia * 3 + 2];
-  const bx = positions[ib * 3];
-  const by = positions[ib * 3 + 1];
-  const bz = positions[ib * 3 + 2];
-  const cx = positions[ic * 3];
-  const cy = positions[ic * 3 + 1];
-  const cz = positions[ic * 3 + 2];
-  const ux = bx - ax;
-  const uy = by - ay;
-  const uz = bz - az;
-  const vx = cx - ax;
-  const vy = cy - ay;
-  const vz = cz - az;
-  const nx = uy * vz - uz * vy;
-  const ny = uz * vx - ux * vz;
-  const nz = ux * vy - uy * vx;
-  const len = Math.hypot(nx, ny, nz) || 1;
-  return [nx / len, ny / len, nz / len];
-}
-
-function removeExteriorWallTriangles(mesh, frame, meta) {
-  const spec = exteriorFacePlane(frame, meta);
-  if (!spec) return mesh;
-  const positions = mesh.positions;
-  const indices = mesh.indices;
-  const cleanIdx = [];
-  for (let t = 0; t < indices.length; t += 3) {
-    const ia = indices[t];
-    const ib = indices[t + 1];
-    const ic = indices[t + 2];
-    const a = [positions[ia * 3], positions[ia * 3 + 1], positions[ia * 3 + 2]];
-    const b = [positions[ib * 3], positions[ib * 3 + 1], positions[ib * 3 + 2]];
-    const c = [positions[ic * 3], positions[ic * 3 + 1], positions[ic * 3 + 2]];
-    if (spec.onPlane(a) && spec.onPlane(b) && spec.onPlane(c)) {
-      const n = meshTriNormal(positions, ia, ib, ic);
-      const dot = n[0] * spec.normal[0] + n[1] * spec.normal[1] + n[2] * spec.normal[2];
-      if (dot > 0.5) continue;
-    }
-    cleanIdx.push(ia, ib, ic);
-  }
-  return { positions: positions.slice(), indices: cleanIdx };
-}
-
-function buildManifoldFaceEmboss(frame, shapeGroups, depth) {
-  const positions = [];
-  const indices = [];
-  const fw = frame.faceW;
-  const fh = frame.faceH;
-  const outerRect = [[-fw / 2, 0], [fw / 2, 0], [fw / 2, fh], [-fw / 2, fh]];
-  const letterHoles = shapeGroups.map((g) => g.outer).filter((r) => r.length >= 3);
-  const mapAt = (offset) => (px, py) => frame.mapPoint(px, py, offset);
-  const mapBot = mapAt(0);
-  const mapTop = mapAt(depth);
-  const flatCoord = (w) => flatCoordForFrame(frame, w);
-
-  triangulateMappedCap(positions, indices, mapBot, flatCoord, outerRect, letterHoles, true);
-
-  for (const group of shapeGroups) {
-    extrudeGroupOnFaceManifold(positions, indices, frame, group, depth, flatCoord);
-  }
-
-  return positions.length ? { positions, indices } : null;
-}
-
-function extrudeGroupOnFaceManifold(outPos, outIdx, frame, group, depth, flatCoord) {
-  const mapTop = (px, py) => frame.mapPoint(px, py, depth);
-  const mapBot = (px, py) => frame.mapPoint(px, py, 0);
-  extrudeShapeGroupBetween(outPos, outIdx, group, mapTop, mapBot, flatCoord, "both");
-}
-
-/** Merge shell + side-face emboss as one watertight mesh (avoids Orca non-manifold warnings). */
-export function buildShellWithManifoldEmboss(shellMesh, meta, params) {
-  if (params.embossDeboss) return null;
-  const face = params.embossFace || "front";
-  if (face === "lid" || params.joinerEnabled) return null;
-  if (!!params.embossText?.trim() && !params.embossSvgEnabled) {
-    const collected = collectTextEmbossShapeGroups(meta, params);
-    if (!collected?.shapeGroups?.length) return null;
-    const shellStripped = removeExteriorWallTriangles(shellMesh, collected.frame, meta);
-    const faceEmboss = buildManifoldFaceEmboss(collected.frame, collected.shapeGroups, collected.depth);
-    if (!faceEmboss) return null;
-    return mergeMeshes(shellStripped, faceEmboss);
-  }
-  return null;
-}
-
 /** Embossed label text — smooth stencil silhouettes (one solid per letter). */
 export function buildEmbossText(meta, params) {
   const collected = collectTextEmbossShapeGroups(meta, params);
@@ -542,7 +434,7 @@ export function buildEmbossText(meta, params) {
   const mapBot = (px, py) => collected.frame.mapPoint(px, py, d0);
 
   for (const group of collected.shapeGroups) {
-    extrudeShapeGroupBetween(positions, indices, group, mapTop, mapBot, flatCoord);
+    extrudeShapeGroupBetween(positions, indices, group, mapTop, mapBot, flatCoord, "top");
   }
   return positions.length ? { positions, indices } : null;
 }
@@ -1038,7 +930,7 @@ function extrudeGroupOnFace(outPos, outIdx, frame, group, d0, d1) {
     : frame.face === "left" || frame.face === "right"
       ? (w) => [w[1], w[2]]
       : (w) => [w[0], w[2]];
-  extrudeShapeGroupBetween(outPos, outIdx, group, mapTop, mapBot, flatCoord);
+  extrudeShapeGroupBetween(outPos, outIdx, group, mapTop, mapBot, flatCoord, d0 < 0 ? "both" : "top");
 }
 
 function labelOffsets(params) {
@@ -1048,8 +940,8 @@ function labelOffsets(params) {
     // so the boolean subtract is clean at the outer skin.
     return { d0: -depth - 0.05, d1: 0.4, depth, deboss: true };
   }
-  // Preview + regular emboss: extrude outward with a tiny bias to avoid z-fighting on shell.
-  return { d0: 0.08, d1: 0.08 + depth, depth, deboss: false };
+  // Raised emboss: flush with outer wall, top cap + side walls only (wall is the floor).
+  return { d0: 0, d1: depth, depth, deboss: false };
 }
 
 /** Measure active art on a face for preview handles (null if none). */

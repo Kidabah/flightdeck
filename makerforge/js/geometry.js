@@ -7,7 +7,6 @@ import {
   applyBodyDecorations,
   buildLabelEmboss,
   buildAccentMesh,
-  buildShellWithManifoldEmboss,
   mergeMeshes,
   resolveJoinerDims,
   shapeSupportsDecor,
@@ -1013,8 +1012,7 @@ export function buildContainer(params) {
         if (debossCutterMesh) centerPositions(debossCutterMesh.positions, 0, 0);
         mesh = shellMesh;
       } else {
-        const manifold = buildShellWithManifoldEmboss(shellMesh, resolved.meta, params);
-        mesh = manifold || (labelMesh ? mergeMeshes(shellMesh, labelMesh) : shellMesh);
+        mesh = labelMesh ? mergeMeshes(shellMesh, labelMesh) : shellMesh;
       }
     } else {
       mesh = shellMesh;

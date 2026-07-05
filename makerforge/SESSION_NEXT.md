@@ -2,7 +2,16 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `2b37807` — served at `/makerdeck/` on Flightdeck
+- Latest commit: *(pending — revert cut-through, restore raised emboss)*
+
+### 2026-07-05 — Revert cut-through emboss (restore raised letters)
+
+**What changed:** Rolled back the "punch holes in wall" manifold experiment — it cut straight through the box. Text is **raised emboss** again: flush with the wall, top cap + side walls only (no bottom cap duplicating the face).
+
+**Files:** `js/features.js`, `js/geometry.js`, `index.html`
+
+- STL export still welds vertices / drops duplicate tris (may reduce Orca warnings vs before).
+- Cache-bust: `app.js?v=57`
 
 ### 2026-07-05 — Manifold STL export (Orca non-manifold fix)
 
