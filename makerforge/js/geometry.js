@@ -9,6 +9,7 @@ import {
   buildAccentMesh,
   buildDividerInsert,
   mergeMeshes,
+  appendStackableLidPockets,
   resolveJoinerDims,
   shapeSupportsDecor,
   shapeSupportsInsert,
@@ -664,10 +665,36 @@ function buildPlugLidShell(outPos, outIdx, boxOuter, boxInner, skirtDepth, lidTh
   capProfileSolid(outPos, outIdx, boxOuter, zTop, true);
 }
 
-function buildFlatLidShell(outPos, outIdx, boxOuter, lidThickness) {
+function buildFlatLidShell(outPos, outIdx, boxOuter, boxInner, lidThickness, lipDepth, clearance) {
   capProfileSolid(outPos, outIdx, boxOuter, 0, false);
   extrudeProfileSides(outPos, outIdx, boxOuter, 0, lidThickness, true);
   capProfileSolid(outPos, outIdx, boxOuter, lidThickness, true);
+
+  if (lipDepth > 0.4 && boxInner?.length >= 3) {
+    const lipOuter = offsetProfileInward(boxInner, clearance);
+    const lipInner = offsetProfileInward(lipOuter, Math.min(1.4, clearance + 0.9));
+    extrudeProfileSides(outPos, outIdx, lipOuter, -lipDepth, 0, true);
+    extrudeProfileSides(outPos, outIdx, lipInner, -lipDepth, 0, false);
+    capRing(outPos, outIdx, lipOuter, lipInner, -lipDepth, false);
+    capRing(outPos, outIdx, lipOuter, lipInner, 0, true);
+  }
+}
+
+function buildFlatLidMesh(boxOuter, boxInner, meta, params, options) {
+  const lidThickness = clamp(options.lidThickness ?? 2.4, 1.2, 8);
+  const lipDepth = clamp(options.lipDepth ?? 0, 0, 12);
+  const clearance = clamp(options.clearance ?? 0.35, 0.1, 1.2);
+  const positions = [];
+  const indices = [];
+  buildFlatLidShell(positions, indices, boxOuter, boxInner, lidThickness, lipDepth, clearance);
+  if (params?.stackableEnabled && meta) {
+    appendStackableLidPockets(positions, indices, meta, params, lidThickness);
+  }
+  return {
+    positions,
+    indices,
+    lidHeight: lidThickness + lipDepth,
+  };
 }
 
 function computeLidFitGuides(resolved, params) {
@@ -681,7 +708,8 @@ function computeLidFitGuides(resolved, params) {
   }
   const skirtDepth = clamp(params.lidSkirt ?? 10, 4, 30);
   const lidThickness = clamp(params.lidThickness ?? 2.4, 1.2, 8);
-  const lidHeight = lidType === "flat" ? lidThickness : skirtDepth + lidThickness;
+  const lipDepth = clamp(params.lidLipDepth ?? 0, 0, 12);
+  const lidHeight = lidType === "flat" ? lidThickness + lipDepth : skirtDepth + lidThickness;
   const guides = {
     seatZ: resolved.totalH,
     lidType,
@@ -699,6 +727,9 @@ function computeLidFitGuides(resolved, params) {
     guides.plateOuter = resolved.outer;
   } else {
     guides.plateOuter = resolved.outer;
+    if (lipDepth > 0.4) {
+      guides.lipOuter = offsetProfileInward(resolved.inner, clearance);
+    }
   }
   return guides;
 }
@@ -733,23 +764,11 @@ function buildPlugLidMesh(boxOuter, boxInner, options) {
   };
 }
 
-function buildFlatLidMesh(boxOuter, options) {
-  const lidThickness = clamp(options.lidThickness ?? 2.4, 1.2, 8);
-  const positions = [];
-  const indices = [];
-  buildFlatLidShell(positions, indices, boxOuter, lidThickness);
-  return {
-    positions,
-    indices,
-    lidHeight: lidThickness,
-  };
-}
-
 export const LID_TYPES = [
   { id: "slip", label: "Slip-over", optionLabel: "Slip-over — skirt outside", hint: "Skirt wraps outside the box walls — classic loose fit." },
   { id: "plug", label: "Inset plug", optionLabel: "Inset plug — skirt inside", hint: "Skirt slides inside the opening; top plate sits flush on the rim." },
   { id: "slide", label: "Channel slide", optionLabel: "Channel slide — rail grooves", hint: "Angled grooves on the long walls; beveled lid slides in from the short end and seats at the far end." },
-  { id: "flat", label: "Flat cap", optionLabel: "Flat cap — plate only", hint: "Single plate that rests on the rim — no skirt." },
+  { id: "flat", label: "Flat cap", optionLabel: "Flat cap — plate + optional lip", hint: "Plate on the rim with an optional inner lip for alignment — good for storage trays and stacking." },
 ];
 
 export function shapeSupportsLid(shape) {
@@ -1151,7 +1170,10 @@ export function buildLid(params) {
   let lid;
   let slideMeta = null;
   if (lidType === "flat") {
-    lid = buildFlatLidMesh(resolved.outer, options);
+    lid = buildFlatLidMesh(resolved.outer, resolved.inner, resolved.meta, params, {
+      ...options,
+      lipDepth: params.lidLipDepth,
+    });
   } else if (lidType === "plug") {
     lid = buildPlugLidMesh(resolved.outer, resolved.inner, options);
   } else if (lidType === "slide") {
@@ -1296,6 +1318,7 @@ export const FAT_QUARTERS_PRESET = {
   lidType: "flat",
   lidThickness: 2.4,
   lidClearance: 0.35,
+  lidLipDepth: 3,
   embossFace: "front",
 };
 
@@ -1345,6 +1368,7 @@ export const DEFAULTS = {
   lidSkirt: 10,
   lidThickness: 2.4,
   lidClearance: 0.35,
+  lidLipDepth: 0,
   slideGrooveHeight: 6,
   slideUndercut: 1.8,
   slideGrooveDepth: 2.4,

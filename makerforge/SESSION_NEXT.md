@@ -2,7 +2,17 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `655442d` — served at `/makerdeck/` on Flightdeck
+- Latest commit: *(pending deploy)* — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Lids polish: flat cap retention lip + stackable lid pockets
+
+**What changed:** **Flat cap** lids now support an optional **retention lip** (inner skirt that drops into the opening for alignment). New **Retention lip** slider on the Lid tab (flat cap only). **Fat quarters** preset defaults to **3 mm** lip when lid is enabled. When **Stack** hex feet are enabled, matching **pockets are cut into the top of flat lids** so trays can nest lid-on-tray. Preview fit guides show the lip ring.
+
+**Planned next — adjustable removable dividers:** mirrored vertical slot pairs on left/right walls; slot positions on a slider scale so panels slide in and bays resize for on-call custom boxes.
+
+**Files:** `js/geometry.js`, `js/features.js`, `js/app.js`, `index.html` — cache-bust `app.js?v=83`
+
+**Deploy:** Pi `git pull`. Hard refresh. UI-only — no backend restart required.
 
 ### 2026-07-05 — Lids: flat cap default for fat quarters tray
 

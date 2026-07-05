@@ -308,6 +308,33 @@ export function buildStackableHex(meta, params) {
   return { positions, indices };
 }
 
+/** Recessed hex pockets on the top face of a flat lid — mates with stackable feet on another box. */
+export function appendStackableLidPockets(outPos, outIdx, meta, params, lidThickness) {
+  const b = rectFeatureBounds(meta);
+  const cellR = clamp(params.stackHexSize ?? 3, 2, 5);
+  const footH = clamp(params.stackFootHeight ?? 1.6, 0.8, 3);
+  const clearance = params.stackClearance ?? 0.35;
+  const margin = Math.max(10, cellR * 3);
+  const gridW = b.innerW - margin * 2;
+  const gridD = b.innerD - margin * 2;
+  if (gridW < cellR * 4 || gridD < cellR * 4) return;
+
+  const footR = cellR - clearance * 0.4;
+  const pocketOuterR = cellR + clearance;
+  const pocketInnerR = Math.max(footR - 0.2, cellR * 0.55);
+  const zTop = lidThickness;
+  const pocketD = footH + clearance;
+
+  forEachHexGrid(gridW, gridD, cellR, (cx, cy) => {
+    const outer = hexVerts(cx, cy, pocketOuterR);
+    const inner = hexVerts(cx, cy, pocketInnerR);
+    capRingXZ(outPos, outIdx, outer, inner, zTop, true);
+    extrudeWallsAlongZ(outPos, outIdx, outer, zTop - pocketD, zTop);
+    extrudeWallsAlongZ(outPos, outIdx, inner, zTop - pocketD, zTop);
+    capRingXZ(outPos, outIdx, outer, inner, zTop - pocketD, false);
+  });
+}
+
 export function shapeSupportsInsert(shape) {
   return shape === "rect" || shape === "rounded" || shape === "pencilBox";
 }
