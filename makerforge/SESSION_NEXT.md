@@ -2,7 +2,17 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `6eb9e47` — served at `/makerdeck/` on Flightdeck
+- Latest commit: *(pending)* — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Lids: flip hinge + roll lock (bayonet)
+
+**What changed:** Two new lid types on the Lid tab:
+- **Flip hinge** — pin knuckles on the back edge (box + lid interleave). Use **1.75 mm filament** as hinge pin. Best on box / rounded / pencil box. Preview animates clamshell open.
+- **Roll lock** — push-down + twist bayonet cap for **circle, oval, hex**. Body gets inner rim tracks; lid gets radial lugs. Preview animates lift + quarter-turn.
+
+**Files:** `js/hinge-lid.js`, `js/roll-lid.js`, `js/geometry.js`, `js/app.js`, `js/art-editor.js`, `index.html` — cache-bust `app.js?v=88`
+
+**Deploy:** Pi `git pull`. Hard refresh. Re-export body + lid STLs.
 
 ### 2026-07-05 — Edge fillet: adaptive arc segments (box shape)
 

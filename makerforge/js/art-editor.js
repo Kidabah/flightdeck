@@ -19,7 +19,9 @@ export function preferredEmbossFace(state) {
     (state.lidType === "slide" ||
       state.lidType === "slip" ||
       state.lidType === "plug" ||
-      state.lidType === "flat")
+      state.lidType === "flat" ||
+      state.lidType === "hinge" ||
+      state.lidType === "roll")
   ) {
     return "lid";
   }

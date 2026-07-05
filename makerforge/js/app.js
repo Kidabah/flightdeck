@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=87";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh, mergeMeshes } from "./features.js?v=87";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, shapeSupportsHingeLid, shapeSupportsRollLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=88";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh, mergeMeshes } from "./features.js?v=88";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=73";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=73";
 import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=73";
@@ -262,6 +262,13 @@ function buildParams() {
     slideGrooveDepth: state.slideGrooveDepth,
     slideStopLength: state.slideStopLength,
     slideEntryRamp: state.slideEntryRamp,
+    hingePinDiameter: state.hingePinDiameter,
+    hingeKnuckleRadius: state.hingeKnuckleRadius,
+    hingeKnuckleCount: state.hingeKnuckleCount,
+    rollLugCount: state.rollLugCount,
+    rollTurnDegrees: state.rollTurnDegrees,
+    rollLugDepth: state.rollLugDepth,
+    rollLugHeight: state.rollLugHeight,
     lidWall: state.wall,
     joinerEnabled: state.joinerEnabled,
     joinerHand: state.joinerHand,
@@ -644,6 +651,12 @@ function lidFitHintText() {
   if (t === "slide") {
     return "Green lines = angled grooves on the long walls. Lid slides in from the short end (−length) and seats in the far-end pocket.";
   }
+  if (t === "hinge") {
+    return "Orange = box rim. Knuckles on the back edge interleave — insert 1.75 mm filament as a hinge pin. Preview flips the lid open.";
+  }
+  if (t === "roll") {
+    return "Orange = box rim. Push the cap down, twist to lock in the bayonet tracks. Preview shows lift + quarter-turn.";
+  }
   if (t === "plug") {
     return "Orange = box rim. Green loops = inset plug skirt inside the opening. White = top plate on the rim.";
   }
@@ -674,21 +687,72 @@ function isSlideLid() {
   return !!(lidCache?.slideMeta?.mode === "slide" || lidCache?.meta?.lidType === "slide");
 }
 
+function isHingeLid() {
+  return !!(lidCache?.hingeMeta?.mode === "hinge" || lidCache?.meta?.lidType === "hinge");
+}
+
+function isRollLid() {
+  return !!(lidCache?.rollMeta?.mode === "roll" || lidCache?.meta?.lidType === "roll");
+}
+
+function setHingeLidAngle(angle) {
+  if (!lidMesh || !lidCache?.hingeMeta) return;
+  const hm = lidCache.hingeMeta;
+  const pivotY = hm.hingeZ + BED_LIFT;
+  const pivotZ = -hm.hingeY;
+  const arm = hm.lidArm;
+  lidMesh.rotation.x = angle;
+  lidMesh.position.y = pivotY + Math.sin(-angle) * arm;
+  lidMesh.position.z = pivotZ + (1 - Math.cos(-angle)) * arm * 0.35;
+  lidMesh.position.x = 0;
+  syncLidGuideLoops(lidMesh.position.y, 0);
+}
+
+function setRollLidTransform(y, rotY) {
+  if (!lidMesh) return;
+  lidMesh.rotation.set(0, rotY, 0);
+  lidMesh.position.y = y;
+  lidMesh.position.x = 0;
+  lidMesh.position.z = 0;
+  syncLidGuideLoops(y, 0);
+}
+
+function resetLidPreviewPose() {
+  if (!lidMesh || !lidCache) return;
+  if (isHingeLid()) {
+    setHingeLidAngle(lidCache.hingeMeta.restAngle);
+    return;
+  }
+  if (isRollLid()) {
+    const rm = lidCache.rollMeta;
+    setRollLidTransform(rm.seatY + rm.lift, rm.restRot);
+    return;
+  }
+  lidMesh.rotation.set(0, 0, 0);
+  setLidPreviewTransform(lidRestY(), lidRestX());
+}
+
 function lidRestY() {
   if (!lidCache) return LID_PREVIEW_GAP;
   if (isSlideLid()) return lidCache.slideMeta.seatY;
+  if (isRollLid()) return lidCache.rollMeta.seatY + lidCache.rollMeta.lift;
+  if (isHingeLid()) return lidCache.hingeMeta.seatZ + LID_PREVIEW_GAP;
   return lidCache.seatZ + LID_PREVIEW_GAP;
 }
 
 function lidOpenY() {
   if (!lidCache) return LID_PREVIEW_GAP;
   if (isSlideLid()) return lidCache.slideMeta.seatY;
+  if (isRollLid()) return lidCache.rollMeta.seatY + lidCache.rollMeta.lift;
+  if (isHingeLid()) return lidCache.hingeMeta.seatZ + LID_PREVIEW_GAP;
   return lidCache.seatZ + LID_PREVIEW_GAP + LID_ANIM_LIFT;
 }
 
 function lidClosedY() {
   if (!lidCache) return 0;
   if (isSlideLid()) return lidCache.slideMeta.seatY;
+  if (isRollLid()) return lidCache.rollMeta.seatY + 0.02;
+  if (isHingeLid()) return lidCache.hingeMeta.seatZ + 0.02;
   return lidCache.seatZ + 0.02;
 }
 
@@ -844,7 +908,7 @@ function stopLidAnimation(resetToRest = true) {
   if (wasAnimating || previewXRayOn) setPreviewXRayMode(false);
   const btn = document.getElementById("btn-lid-preview-fit");
   if (btn) btn.disabled = false;
-  if (resetToRest && lidMesh && lidCache) setLidPreviewTransform(lidRestY(), lidRestX());
+  if (resetToRest && lidMesh && lidCache) resetLidPreviewPose();
 }
 
 function playLidFitPreview() {
@@ -873,6 +937,40 @@ function playLidFitPreview() {
         { x0Key: "openX", x1Key: "closedX", duration: 1100 },
         { x0Key: "closedX", x1Key: "closedX", duration: 650 },
         { x0Key: "closedX", x1Key: "restX", duration: 900 },
+      ],
+    };
+    return;
+  }
+  if (isHingeLid()) {
+    const hm = lidCache.hingeMeta;
+    setHingeLidAngle(hm.restAngle);
+    lidAnim = {
+      mode: "hinge",
+      hm,
+      phaseIndex: 0,
+      phaseStart: performance.now(),
+      phases: [
+        { a0Key: "restAngle", a1Key: "closedAngle", duration: 900 },
+        { a0Key: "closedAngle", a1Key: "closedAngle", duration: 650 },
+        { a0Key: "closedAngle", a1Key: "openAngle", duration: 1100 },
+        { a0Key: "openAngle", a1Key: "openAngle", duration: 500 },
+        { a0Key: "openAngle", a1Key: "restAngle", duration: 900 },
+      ],
+    };
+    return;
+  }
+  if (isRollLid()) {
+    const rm = lidCache.rollMeta;
+    setRollLidTransform(rm.seatY + rm.lift, rm.restRot);
+    lidAnim = {
+      mode: "roll",
+      rm,
+      phaseIndex: 0,
+      phaseStart: performance.now(),
+      phases: [
+        { y0Key: "liftY", y1Key: "seatY", r0Key: "restRot", r1Key: "openRot", duration: 1000 },
+        { y0Key: "seatY", y1Key: "seatY", r0Key: "openRot", r1Key: "openRot", duration: 650 },
+        { y0Key: "seatY", y1Key: "liftY", r0Key: "openRot", r1Key: "restRot", duration: 1000 },
       ],
     };
     return;
@@ -906,6 +1004,19 @@ function updateLidAnimation(now) {
     const x0 = a[phase.x0Key];
     const x1 = a[phase.x1Key];
     setLidPreviewTransform(a.seatY, x0 + (x1 - x0) * easeInOutCubic(t));
+  } else if (a.mode === "hinge") {
+    const a0 = a.hm[phase.a0Key];
+    const a1 = a.hm[phase.a1Key];
+    setHingeLidAngle(a0 + (a1 - a0) * easeInOutCubic(t));
+  } else if (a.mode === "roll") {
+    const rm = a.rm;
+    const liftY = rm.seatY + rm.lift;
+    const seatY = rm.seatY + 0.02;
+    const y0 = phase.y0Key === "liftY" ? liftY : seatY;
+    const y1 = phase.y1Key === "liftY" ? liftY : seatY;
+    const r0 = rm[phase.r0Key];
+    const r1 = rm[phase.r1Key];
+    setRollLidTransform(y0 + (y1 - y0) * easeInOutCubic(t), r0 + (r1 - r0) * easeInOutCubic(t));
   } else {
     const y0 = a[phase.y0Key];
     const y1 = a[phase.y1Key];
@@ -1310,7 +1421,7 @@ function rebuildMesh() {
 
   if (nextLidMesh) {
     lidMesh = nextLidMesh;
-    setLidPreviewTransform(lidRestY(), lidRestX());
+    resetLidPreviewPose();
     previewRoot.add(lidMesh);
     buildLidGuideLoops();
   }
@@ -1544,10 +1655,19 @@ function syncLidTypeSelect() {
   const sel = document.getElementById("lid-type");
   if (!sel) return;
   const slideOk = shapeSupportsSlideLid(state.shape);
-  sel.innerHTML = LID_TYPES.filter((t) => t.id !== "slide" || slideOk).map(
+  const hingeOk = shapeSupportsHingeLid(state.shape);
+  const rollOk = shapeSupportsRollLid(state.shape);
+  sel.innerHTML = LID_TYPES.filter((t) => {
+    if (t.id === "slide") return slideOk;
+    if (t.id === "hinge") return hingeOk;
+    if (t.id === "roll") return rollOk;
+    return true;
+  }).map(
     (t) => `<option value="${t.id}">${t.optionLabel || t.label}</option>`,
   ).join("");
   if (state.lidType === "slide" && !slideOk) state.lidType = "plug";
+  if (state.lidType === "hinge" && !hingeOk) state.lidType = "plug";
+  if (state.lidType === "roll" && !rollOk) state.lidType = "plug";
 }
 
 function applySliderProfile(profileKey) {
@@ -1625,10 +1745,20 @@ function updateLidUi() {
   const type = LID_TYPES.find((t) => t.id === state.lidType) || LID_TYPES[0];
   const isFlat = state.lidType === "flat";
   const isSlide = state.lidType === "slide";
+  const isHinge = state.lidType === "hinge";
+  const isRoll = state.lidType === "roll";
   const lipOn = isFlat && (state.lidLipDepth ?? 0) > 0.4;
   const slideOk = shapeSupportsSlideLid(state.shape);
+  const hingeOk = shapeSupportsHingeLid(state.shape);
+  const rollOk = shapeSupportsRollLid(state.shape);
   document.getElementById("lid-enabled").checked = !!state.lidEnabled && supported;
-  document.getElementById("lid-type").value = isSlide && !slideOk ? "plug" : type.id;
+  document.getElementById("lid-type").value = isSlide && !slideOk
+    ? "plug"
+    : isHinge && !hingeOk
+      ? "plug"
+      : isRoll && !rollOk
+        ? "plug"
+        : type.id;
   document.getElementById("btn-lid-preview-fit").classList.toggle("hidden", !on);
   document.getElementById("lid-xray-hint")?.classList.toggle("hidden", !on);
   document.getElementById("field-lid-type").classList.toggle("hidden", !on);
@@ -1641,7 +1771,7 @@ function updateLidUi() {
   const hint = document.getElementById("lid-type-hint");
   if (hint) {
     hint.textContent = on
-      ? `${type.hint}${isSlide ? " Preview animates sliding along the length." : " Exports plate-down on the bed."}`
+      ? `${type.hint}${isSlide ? " Preview animates sliding along the length." : isHinge ? " Preview animates flip open on the back hinge." : isRoll ? " Preview animates push-down + twist lock." : " Exports plate-down on the bed."}`
       : supported
         ? "Enable to preview and export a separate lid STL."
         : "Lids are not available for vase / pot shapes.";
