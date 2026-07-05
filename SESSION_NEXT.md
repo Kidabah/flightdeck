@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `85bc82b` — divider top clearance auto-matches lid skirt/lip
-- Refresh cachebust: Flightdeck `app.js?v=626` / `style.css?v=481`; MakerDeck iframe `app.js?v=106`
+- Latest commit: (pending) — fix slip lid internal cap artifact + vase earcut caps
+- Refresh cachebust: MakerDeck `app.js?v=107`
+
+### 2026-07-06 fix (MakerDeck preview artifacts)
+
+**Slip lid + vase cap triangulation** (`makerforge/js/geometry.js`, `makerforge/js/vase.js`)
+
+- Slip-over lid was a hollow rim at the top — internal skirt floor showed as a floating horizontal plane in preview. Top plate is now solid (earcut cap).
+- Vase/pot floor caps use earcut instead of center-fan triangulation (no spoke artifact).
+- Cache `app.js?v=107`. Hard refresh MakerDeck.
 
 ### 2026-07-06 feature (MakerDeck divider top clearance)
 

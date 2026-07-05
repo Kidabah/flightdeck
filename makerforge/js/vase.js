@@ -4,6 +4,8 @@
  * Returns { positions, indices } in mm, Z-up, centered on XY, base at z=0.
  */
 
+import { earcut } from "three/examples/jsm/utils/EarCut.js";
+
 function clamp(n, min, max) {
   return Math.min(max, Math.max(min, n));
 }
@@ -66,17 +68,39 @@ function sampleProfile(styleId, layers) {
   return out;
 }
 
-/** Cap a closed ring at the given z, winding controls face normal (up=true → normal +Z). */
-function capSolid(outPos, outIdx, ring, z, up) {
-  const n = ring.length;
-  for (let i = 0; i < n; i++) {
-    const j = (i + 1) % n;
-    const a = [ring[i][0], ring[i][1], z];
-    const b = [ring[j][0], ring[j][1], z];
-    const c = [0, 0, z];
-    if (up) pushTri(outPos, outIdx, a, b, c);
-    else pushTri(outPos, outIdx, a, c, b);
+/** Earcut cap — avoids center-fan triangulation spokes visible in preview. */
+function capProfileSolid(outPos, outIdx, ring, z, up) {
+  let clean = ring;
+  if (
+    clean.length > 1 &&
+    clean[0][0] === clean[clean.length - 1][0] &&
+    clean[0][1] === clean[clean.length - 1][1]
+  ) {
+    clean = clean.slice(0, -1);
   }
+  if (clean.length < 3) return;
+  const base = outPos.length / 3;
+  for (const [x, y] of clean) outPos.push(x, y, z);
+  const tri = earcut(clean.flat());
+  if (!tri.length) {
+    for (let i = 1; i < clean.length - 1; i++) {
+      if (up) outIdx.push(base, base + i, base + i + 1);
+      else outIdx.push(base, base + i + 1, base + i);
+    }
+    return;
+  }
+  for (let i = 0; i < tri.length; i += 3) {
+    const a = base + tri[i];
+    const b = base + tri[i + 1];
+    const c = base + tri[i + 2];
+    if (up) outIdx.push(a, b, c);
+    else outIdx.push(a, c, b);
+  }
+}
+
+/** @deprecated use capProfileSolid */
+function capSolid(outPos, outIdx, ring, z, up) {
+  capProfileSolid(outPos, outIdx, ring, z, up);
 }
 
 /** Ring-shaped cap (annulus) between outer and inner ring at same z. */

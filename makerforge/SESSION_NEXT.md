@@ -2,7 +2,15 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- `main` commit: `85bc82b` — divider top clearance matches lid
+- `main` commit: (pending) — slip lid + vase cap artifact fix
+
+### 2026-07-06 — Preview artifact fix (slip lid + vase caps)
+
+**What changed:** Slip-over lids had a hollow top rim so the internal skirt floor looked like a floating plane in every lidded preview. Solid earcut top plate now. Vase floors use earcut caps too.
+
+**Files:** `js/geometry.js`, `js/vase.js`, `index.html` — `app.js?v=107`
+
+**Deploy:** Pi `git pull`. Hard refresh.
 
 ### 2026-07-06 — Divider top clearance (match lid)
 

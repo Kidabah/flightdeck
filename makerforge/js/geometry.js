@@ -280,7 +280,11 @@ function extrudeProfileSides(outPos, outIdx, points, z0, z1, outward = true) {
 }
 
 function capRing(outPos, outIdx, outer, inner, z, normalUp) {
-  const n = outer.length;
+  const n = Math.min(outer.length, inner.length);
+  if (n < 3) return;
+  if (outer.length !== inner.length) {
+    console.warn("MakerDeck capRing: outer/inner point count mismatch", outer.length, inner.length);
+  }
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
     const o0 = vec3(outer[i][0], outer[i][1], z);
@@ -683,13 +687,15 @@ function buildSlipLidShell(outPos, outIdx, boxOuter, skirtDepth, lidThickness, c
   const outer = offsetProfileOutward(boxOuter, clearance + lidWall);
   const zTop = skirtDepth + lidThickness;
 
+  // Hollow skirt tube
   capRing(outPos, outIdx, outer, inner, 0, false);
   extrudeProfileSides(outPos, outIdx, outer, 0, skirtDepth, true);
   extrudeProfileSides(outPos, outIdx, inner, 0, skirtDepth, false);
-  capRing(outPos, outIdx, outer, inner, skirtDepth, true);
+
+  // Solid top plate — no hollow rim (avoids visible internal skirt floor in preview)
+  capProfileSolid(outPos, outIdx, outer, skirtDepth, true);
   extrudeProfileSides(outPos, outIdx, outer, skirtDepth, zTop, true);
-  extrudeProfileSides(outPos, outIdx, inner, skirtDepth, zTop, false);
-  capRing(outPos, outIdx, outer, inner, zTop, true);
+  capProfileSolid(outPos, outIdx, outer, zTop, true);
 }
 
 function buildPlugLidShell(outPos, outIdx, boxOuter, boxInner, skirtDepth, lidThickness, clearance, lidWall) {
