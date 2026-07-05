@@ -485,6 +485,14 @@ function setLidPreviewY(y) {
   setLidPreviewTransform(y, lidMesh?.position.x ?? lidRestX());
 }
 
+function applyBoxPreviewColor() {
+  if (previewXRayOn) {
+    material.color.setHex(0x475569);
+  } else {
+    material.color.set(state.boxColor || "#38bdf8");
+  }
+}
+
 function setPreviewXRayMode(on) {
   if (previewXRayOn === on) return;
   previewXRayOn = on;
@@ -494,7 +502,7 @@ function setPreviewXRayMode(on) {
   // Coplanar cap tris + grid bleed through transparent walls if depthWrite stays on.
   material.depthWrite = !on;
   material.metalness = on ? 0.05 : 0.15;
-  material.color.setHex(on ? 0x475569 : 0x38bdf8);
+  applyBoxPreviewColor();
   material.polygonOffset = !on;
   material.polygonOffsetFactor = 1;
   material.polygonOffsetUnits = 2;
@@ -851,6 +859,7 @@ function syncUiFromState() {
 
   document.getElementById("emboss-text").value = state.embossText || "";
   document.getElementById("accent-color").value = state.accentColor || "#f97316";
+  document.getElementById("box-color").value = state.boxColor || "#38bdf8";
   const embossFontSelect = document.getElementById("emboss-font");
   if (embossFontSelect) embossFontSelect.value = state.embossFont || "inter";
   updateEmbossTextPreviewStyle();
@@ -911,6 +920,7 @@ function rebuildMesh() {
   const showEmbossOnBody = meshCache.labelMesh && state.embossFace !== "lid" && !state.embossDeboss;
   const bodySource = showEmbossOnBody ? meshCache : (meshCache.shellMesh || meshCache);
   const geom = toBufferGeometry(THREE, bodySource);
+  applyBoxPreviewColor();
   bodyMesh = new THREE.Mesh(geom, material);
   bodyMesh.castShadow = true;
   bodyMesh.receiveShadow = true;
@@ -2058,6 +2068,11 @@ document.getElementById("accent-face").addEventListener("change", (e) => {
 document.getElementById("accent-color").addEventListener("input", (e) => {
   state.accentColor = e.target.value;
   if (accentMesh) accentMaterial.color.set(state.accentColor);
+});
+
+document.getElementById("box-color").addEventListener("input", (e) => {
+  state.boxColor = e.target.value;
+  applyBoxPreviewColor();
 });
 
 document.getElementById("honeycomb-enabled").addEventListener("change", (e) => {

@@ -2,7 +2,15 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `104fffa` — served at `/makerdeck/` on Flightdeck
+- Latest commit: _(pending)_ — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Box preview colour picker
+
+**What changed:** Design tab → **Preview colour** → **Box** colour picker. Updates the 3D preview body material; saved in session like accent colour. STL export unchanged (pick filament in slicer).
+
+**Files:** `js/geometry.js`, `js/app.js`, `index.html` — cache-bust `app.js?v=59`
+
+**Deploy:** Pi `git pull` + hard refresh (UI-only; restart optional).
 
 ### 2026-07-05 — Watertight STL export for embossed text
 

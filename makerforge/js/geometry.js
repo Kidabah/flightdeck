@@ -1236,6 +1236,7 @@ export const DEFAULTS = {
   accentHeight: 4,
   accentInset: 4,
   accentColor: "#f97316",
+  boxColor: "#38bdf8",
   embossText: "",
   embossFont: "inter",
   embossDepth: 0.7,
