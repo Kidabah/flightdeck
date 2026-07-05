@@ -32,7 +32,8 @@ function solidBox(outPos, outIdx, x0, x1, y0, y1, z0, z1) {
 }
 
 export function shapeSupportsHingeLid(shape) {
-  return shape === "rect" || shape === "rounded" || shape === "pencilBox" || shape === "pencil";
+  return shape === "rect" || shape === "rounded" || shape === "fatQuarters"
+    || shape === "pencilBox" || shape === "pencil";
 }
 
 export function resolveHingeOpts(params) {
@@ -236,6 +237,7 @@ export function computeHingeFitGuides(resolved, params) {
     lidHeight: opts.skirtDepth + opts.lidThickness,
     boxOuter: resolved.outer,
     boxInner: resolved.inner,
+    plateOuter: resolved.outer,
     hingeY: od2 - 0.15,
     hingeZ: resolved.totalH,
   };

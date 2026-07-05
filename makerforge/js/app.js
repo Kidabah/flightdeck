@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, shapeSupportsHingeLid, shapeSupportsRollLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=89";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh, mergeMeshes } from "./features.js?v=89";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, shapeSupportsHingeLid, shapeSupportsRollLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=90";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh, mergeMeshes } from "./features.js?v=90";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=73";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=73";
 import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=73";
@@ -615,6 +615,11 @@ function buildLidGuideLoops() {
     addSlideGuideSegment(entryX, entryX + 4, channelLineY, channelZ, guideSkirtInnerMaterial, true);
     addSlideGuideSegment(entryX, entryX + 4, -channelLineY, channelZ, guideSkirtInnerMaterial, true);
     addSlideGuideSegment(stopX, iw2, 0, channelZ, guidePlateMaterial, true);
+  } else if (g.lidType === "hinge") {
+    addLidGuideLoop(g.boxInner, 0, guideSkirtInnerMaterial, false);
+    addLidGuideLoop(g.plateOuter || g.boxOuter, g.lidHeight, guidePlateMaterial, false);
+  } else if (g.lidType === "roll") {
+    addLidGuideLoop(g.plateOuter || g.boxOuter, g.lidHeight, guidePlateMaterial, false);
   } else {
     addLidGuideLoop(g.plateOuter, 0, guidePlateMaterial, false);
     addLidGuideLoop(g.plateOuter, g.lidHeight, guidePlateMaterial, false);

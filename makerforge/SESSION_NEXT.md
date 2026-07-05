@@ -2,7 +2,15 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `b71c59d` — served at `/makerdeck/` on Flightdeck
+- Latest commit: `cfd5712` — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Fix flip hinge reverting / clearing lid
+
+**What changed:** Selecting **Flip hinge** was crashing during preview guide setup (`plateOuter` missing on hinge fit guides → rebuild error → emergency reset to default box). Hinge guides now use the correct rim/plate loops; fat quarters preset also listed as hinge-capable.
+
+**Files:** `js/app.js`, `js/hinge-lid.js`, `index.html` — cache-bust `app.js?v=90`
+
+**Deploy:** Pi `git pull`. Hard refresh.
 
 ### 2026-07-05 — Fix flip hinge lid preview (invisible lid)
 
