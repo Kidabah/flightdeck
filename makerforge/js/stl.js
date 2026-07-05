@@ -33,29 +33,34 @@ function triArea2(a, b, c) {
   return Math.hypot(nx, ny, nz);
 }
 
-/** Drop invalid/degenerate triangles so slicers can load the STL. */
+/** Drop invalid/degenerate triangles and weld near-duplicate verts for slicer-friendly STLs. */
 export function sanitizeMeshForStl(mesh) {
   const positions = mesh?.positions;
   const indices = mesh?.indices;
   if (!positions?.length || !indices?.length) return null;
 
-  const vertCount = positions.length / 3;
+  const welded = weldMeshVertices(positions, indices, 0.012);
+  const deduped = removeDuplicateTriangles(welded.indices);
   const cleanIdx = [];
-  for (let t = 0; t < indices.length; t += 3) {
-    const ia = indices[t];
-    const ib = indices[t + 1];
-    const ic = indices[t + 2];
-    if (ia < 0 || ib < 0 || ic < 0 || ia >= vertCount || ib >= vertCount || ic >= vertCount) continue;
+  const pos = welded.positions;
 
-    const ax = positions[ia * 3];
-    const ay = positions[ia * 3 + 1];
-    const az = positions[ia * 3 + 2];
-    const bx = positions[ib * 3];
-    const by = positions[ib * 3 + 1];
-    const bz = positions[ib * 3 + 2];
-    const cx = positions[ic * 3];
-    const cy = positions[ic * 3 + 1];
-    const cz = positions[ic * 3 + 2];
+  for (let t = 0; t < deduped.length; t += 3) {
+    const ia = deduped[t];
+    const ib = deduped[t + 1];
+    const ic = deduped[t + 2];
+    const vertCount = pos.length / 3;
+    if (ia < 0 || ib < 0 || ic < 0 || ia >= vertCount || ib >= vertCount || ic >= vertCount) continue;
+    if (ia === ib || ib === ic || ia === ic) continue;
+
+    const ax = pos[ia * 3];
+    const ay = pos[ia * 3 + 1];
+    const az = pos[ia * 3 + 2];
+    const bx = pos[ib * 3];
+    const by = pos[ib * 3 + 1];
+    const bz = pos[ib * 3 + 2];
+    const cx = pos[ic * 3];
+    const cy = pos[ic * 3 + 1];
+    const cz = pos[ic * 3 + 2];
     if (![ax, ay, az, bx, by, bz, cx, cy, cz].every(Number.isFinite)) continue;
 
     const a = [ax, ay, az];
@@ -66,7 +71,48 @@ export function sanitizeMeshForStl(mesh) {
   }
 
   if (!cleanIdx.length) return null;
-  return { positions, indices: cleanIdx };
+  return { positions: pos, indices: cleanIdx };
+}
+
+function weldMeshVertices(positions, indices, eps = 0.012) {
+  const table = new Map();
+  const outPos = [];
+
+  function indexOf(x, y, z) {
+    const k = `${Math.round(x / eps)}|${Math.round(y / eps)}|${Math.round(z / eps)}`;
+    let idx = table.get(k);
+    if (idx === undefined) {
+      idx = outPos.length / 3;
+      outPos.push(x, y, z);
+      table.set(k, idx);
+    }
+    return idx;
+  }
+
+  const outIdx = [];
+  for (let t = 0; t < indices.length; t += 3) {
+    const ia = indices[t];
+    const ib = indices[t + 1];
+    const ic = indices[t + 2];
+    outIdx.push(
+      indexOf(positions[ia * 3], positions[ia * 3 + 1], positions[ia * 3 + 2]),
+      indexOf(positions[ib * 3], positions[ib * 3 + 1], positions[ib * 3 + 2]),
+      indexOf(positions[ic * 3], positions[ic * 3 + 1], positions[ic * 3 + 2]),
+    );
+  }
+  return { positions: outPos, indices: outIdx };
+}
+
+function removeDuplicateTriangles(indices) {
+  const seen = new Set();
+  const out = [];
+  for (let t = 0; t < indices.length; t += 3) {
+    const tri = [indices[t], indices[t + 1], indices[t + 2]].sort((a, b) => a - b).join("|");
+    if (seen.has(tri)) continue;
+    seen.add(tri);
+    out.push(indices[t], indices[t + 1], indices[t + 2]);
+  }
+  return out;
 }
 
 export function meshToStl(mesh, name = "makerdeck") {

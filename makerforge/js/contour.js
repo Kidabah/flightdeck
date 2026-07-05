@@ -308,9 +308,52 @@ export function extrudeShapeGroup(outPos, outIdx, group, y0, y1, mapPoint) {
   extrudeShapeGroupBetween(outPos, outIdx, group, mapTop, mapBot, (w) => [w[0], w[2]]);
 }
 
+/** Triangulate a planar region (outer ring + optional holes) on a mapped 3D surface. */
+export function triangulateMappedCap(outPos, outIdx, mapPoint, flatCoord, outerRing, holeRings, outward = true) {
+  const outerPts = ringPoints(outerRing);
+  if (outerPts.length < 3) return;
+
+  const flat = [];
+  const world = [];
+  const holeIndices = [];
+
+  for (const p of outerPts) {
+    const w = mapPoint(p[0], p[1]);
+    world.push(w);
+    flat.push(...flatCoord(w));
+  }
+  holeIndices.push(outerPts.length);
+
+  for (const hole of holeRings) {
+    const hp = ringPoints(hole);
+    if (hp.length < 3) continue;
+    holeIndices.push(holeIndices[holeIndices.length - 1] + hp.length);
+    for (const p of hp) {
+      const w = mapPoint(p[0], p[1]);
+      world.push(w);
+      flat.push(...flatCoord(w));
+    }
+  }
+
+  const tri = earcut(flat, holeIndices.length > 1 ? holeIndices.slice(0, -1) : null);
+  if (!tri.length) return;
+
+  const base = outPos.length / 3;
+  for (const w of world) outPos.push(w[0], w[1], w[2]);
+
+  for (let i = 0; i < tri.length; i += 3) {
+    const a = base + tri[i];
+    const b = base + tri[i + 1];
+    const c = base + tri[i + 2];
+    if (outward) pushTri(outIdx, a, b, c);
+    else pushTri(outIdx, a, c, b);
+  }
+}
+
 /** Extrude one shape (outer + holes) between two full 3D surface mappers.
- * `flatCoord(w)` projects a world point to 2D for earcut cap triangulation. */
-export function extrudeShapeGroupBetween(outPos, outIdx, group, mapTop, mapBot, flatCoord) {
+ * `flatCoord(w)` projects a world point to 2D for earcut cap triangulation.
+ * `caps`: "both" (default), "top", "bottom", or "none" — omit caps for manifold shell joins. */
+export function extrudeShapeGroupBetween(outPos, outIdx, group, mapTop, mapBot, flatCoord, caps = "both") {
   const outerPts = ringPoints(group.outer);
   if (outerPts.length < 3) return;
 
@@ -344,9 +387,15 @@ export function extrudeShapeGroupBetween(outPos, outIdx, group, mapTop, mapBot, 
   const botBase = outPos.length / 3;
   for (const w of botWorld) outPos.push(w[0], w[1], w[2]);
 
-  for (let i = 0; i < tri.length; i += 3) {
-    pushTri(outIdx, topBase + tri[i], topBase + tri[i + 1], topBase + tri[i + 2]);
-    pushTri(outIdx, botBase + tri[i + 2], botBase + tri[i + 1], botBase + tri[i]);
+  if (caps === "both" || caps === "top") {
+    for (let i = 0; i < tri.length; i += 3) {
+      pushTri(outIdx, topBase + tri[i], topBase + tri[i + 1], topBase + tri[i + 2]);
+    }
+  }
+  if (caps === "both" || caps === "bottom") {
+    for (let i = 0; i < tri.length; i += 3) {
+      pushTri(outIdx, botBase + tri[i + 2], botBase + tri[i + 1], botBase + tri[i]);
+    }
   }
 
   let vertOffset = 0;

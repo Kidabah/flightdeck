@@ -2,7 +2,19 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `d4de526` — served at `/makerdeck/` on Flightdeck
+- Latest commit: *(pending — manifold STL export)* — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Manifold STL export (Orca non-manifold fix)
+
+**What changed:** Text emboss is now **integrated into the shell face** (punch holes + shared edges) instead of stacking two meshes. STL export also welds nearby vertices and drops duplicate triangles.
+
+**Files:** `js/features.js`, `js/contour.js`, `js/geometry.js`, `js/stl.js`, `index.html`
+
+- Side-face text (front/back/left/right/top) builds one watertight mesh — no 400+ non-manifold edges in Orca.
+- Lid / joiner / trace art still use the legacy merge + weld fallback.
+- Cache-bust: `app.js?v=56`
+
+**Deploy:** Pi `git pull` + hard refresh.
 
 ### 2026-07-05 — Live text art (no bounding box)
 
