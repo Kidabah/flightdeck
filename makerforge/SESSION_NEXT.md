@@ -2,7 +2,7 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: *(pending — manifold STL export)* — served at `/makerdeck/` on Flightdeck
+- Latest commit: `2b37807` — served at `/makerdeck/` on Flightdeck
 
 ### 2026-07-05 — Manifold STL export (Orca non-manifold fix)
 
