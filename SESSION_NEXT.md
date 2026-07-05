@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `5d070a7` — reset lid/dims when leaving pencil box preset
-- Refresh cachebust currently: MakerDeck app.js?v=54 / style.css?v=13
+- Latest commit: _(pending)_ — MakerDeck tab in Flightdeck sidebar
+- Refresh cachebust: Flightdeck `app.js?v=625` / `style.css?v=481`; MakerDeck iframe `app.js?v=66`
+
+### 2026-07-05 feature (MakerDeck inside Flightdeck)
+
+**MakerDeck sidebar tab** (`app/static/index.html`, `app.js`, `style.css`)
+
+- New nav item **MakerDeck** → `#/makerdeck` embeds `/makerdeck/` full-height iframe (same origin, works on Tailscale HTTPS).
+- Command palette entry added. Standalone `/makerdeck/` still works.
+- **Restart flightdeck.service** after pull.
 
 ### 2026-07-05 fix (MakerDeck shape switch pencil box → box)
 

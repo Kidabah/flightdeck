@@ -2,7 +2,15 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `7bed013` — served at `/makerdeck/` on Flightdeck
+- Latest commit: _(pending)_ — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — MakerDeck tab inside Flightdeck
+
+**What changed:** **MakerDeck** is now a sidebar page in Flightdeck (`#/makerdeck`) — no separate URL or port. Opens `/makerdeck/` in a full-height iframe on the same origin (Tailscale HTTPS works).
+
+**Files:** `app/static/index.html`, `app/static/app.js?v=625`, `app/static/style.css?v=481`
+
+**Deploy:** Pi `git pull` + **restart flightdeck.service** (Flightdeck static JS changed). MakerDeck iframe still uses `app.js?v=66`.
 
 ### 2026-07-05 — Restore text colour + L/C/R align (cache bust)
 
