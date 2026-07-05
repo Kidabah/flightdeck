@@ -21,6 +21,7 @@ import {
   computeSlideFitGuides,
   shapeSupportsSlideLid,
 } from "./slide-lid.js";
+import { appendInsertShelfSlotsToBody } from "./insert-slots.js";
 
 export { shapeSupportsDecor, shapeSupportsInsert, VASE_STYLES, shapeSupportsSlideLid };
 
@@ -1053,6 +1054,17 @@ export function buildContainer(params) {
 
   centerPositions(mesh.positions, 0, 0);
 
+  const decorShape = joinerShape;
+
+  if (
+    params.insertEnabled &&
+    params.insertMount === "slot" &&
+    params.insertAxis === "height" &&
+    shapeSupportsInsert(decorShape)
+  ) {
+    appendInsertShelfSlotsToBody(mesh.positions, mesh.indices, resolved.meta, params);
+  }
+
   if (
     params.lidEnabled &&
     params.lidType === "slide" &&
@@ -1061,7 +1073,6 @@ export function buildContainer(params) {
     appendSlideChannelsToBody(mesh.positions, mesh.indices, resolved.meta, resolved.totalH, params);
   }
 
-  const decorShape = joinerShape;
   let accentMesh = null;
   let insertMesh = null;
   let labelMesh = null;
@@ -1382,4 +1393,8 @@ export const DEFAULTS = {
   insertThickness: 2.4,
   insertClearance: 0.35,
   insertTopClearance: 0.6,
+  insertMount: "snap",
+  insertSlotDepth: 2,
+  insertSlotRamp: 8,
+  insertBodyGap: 0.12,
 };

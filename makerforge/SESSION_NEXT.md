@@ -2,7 +2,15 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `3576cdd` — served at `/makerdeck/` on Flightdeck
+- Latest commit: _(pending)_ — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Insert body gap + slide-in shelf slots
+
+**What changed:** **0.12 mm air gap** between Insert and Body (fixes Bambu Insert ↔ Body gcode conflicts). Insert gets its own extruder slot in 3MF. New **Mount** option: **Slide-in slots** (horizontal shelves only) — dados on side walls, shelves slide in from the front.
+
+**Files:** `js/insert-slots.js`, `js/features.js`, `js/geometry.js`, `js/app.js`, `index.html` — cache-bust `app.js?v=79`
+
+**Deploy:** Pi `git pull`. Hard refresh. Re-export 3MF.
 
 ### 2026-07-05 — Fat quarters: open-front bookcase preview
 

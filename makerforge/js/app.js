@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=78";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh } from "./features.js?v=78";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=79";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh } from "./features.js?v=79";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=73";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=73";
 import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=73";
@@ -302,6 +302,10 @@ function buildParams() {
     insertThickness: state.insertThickness,
     insertClearance: state.insertClearance,
     insertTopClearance: state.insertTopClearance,
+    insertMount: state.insertMount || "snap",
+    insertSlotDepth: state.insertSlotDepth,
+    insertSlotRamp: state.insertSlotRamp,
+    insertBodyGap: 0.12,
     bookcaseOpenFront: state.shape === "fatQuarters" || !!state.bookcaseOpenFront,
     vaseStyle: state.vaseStyle,
     vaseDiameter: state.vaseDiameter,
@@ -461,7 +465,7 @@ function collectColoredExportParts() {
         name: "Insert",
         mesh: insertClean,
         color: state.boxColor || "#38bdf8",
-        extruder: 1,
+        extruder: extruder++,
       });
     }
   }
@@ -1164,6 +1168,7 @@ function syncUiFromState() {
   syncSliderUi("accent-height", "accentHeight", { min: 2, max: 10, value: state.accentHeight, parseKind: "float" });
   syncSliderUi("insert-thickness", "insertThickness", { min: 1.2, max: 4, value: state.insertThickness, parseKind: "float" });
   syncSliderUi("insert-clearance", "insertClearance", { min: 0.15, max: 1, value: state.insertClearance, parseKind: "float" });
+  syncSliderUi("insert-slot-depth", "insertSlotDepth", { min: 1, max: 4, value: state.insertSlotDepth ?? 2, parseKind: "float" });
   syncSliderUi("insert-count", "insertCount", { min: 1, max: 4, value: state.insertCount ?? 1, parseKind: "int" });
   syncInsertCountHint();
   syncSliderUi("emboss-depth", "embossDepth", { min: 0.3, max: 2, value: state.embossDepth, parseKind: "float" });
@@ -2248,7 +2253,15 @@ function updateDecorUi() {
   document.getElementById("field-insert-axis").classList.toggle("hidden", !insertOn);
   document.getElementById("field-insert-thickness").classList.toggle("hidden", !insertOn);
   document.getElementById("field-insert-clearance").classList.toggle("hidden", !insertOn);
+  document.getElementById("field-insert-mount").classList.toggle("hidden", !insertOn);
+  const slotMount = state.insertMount === "slot" && state.insertAxis === "height";
+  document.getElementById("field-insert-slot-depth").classList.toggle("hidden", !insertOn || !slotMount);
+  document.getElementById("insert-mount-hint")?.classList.toggle(
+    "hidden",
+    !insertOn || state.insertAxis === "height",
+  );
   document.getElementById("insert-axis").value = state.insertAxis || "length";
+  document.getElementById("insert-mount").value = state.insertMount === "slot" ? "slot" : "snap";
   syncInsertCountHint();
   document.getElementById("insert-bookcase-hint")?.classList.toggle(
     "hidden",
@@ -2532,6 +2545,7 @@ bindRange("joiner-protrusion", "joinerProtrusion", "float");
 bindRange("accent-height", "accentHeight", "float");
 bindRange("insert-thickness", "insertThickness", "float");
 bindRange("insert-clearance", "insertClearance", "float");
+bindRange("insert-slot-depth", "insertSlotDepth", "float");
 bindRange("insert-count", "insertCount", "int");
 bindRange("trace-threshold", "traceThreshold", "int");
 
@@ -2608,6 +2622,19 @@ document.getElementById("insert-enabled").addEventListener("change", (e) => {
 
 document.getElementById("insert-axis").addEventListener("change", (e) => {
   state.insertAxis = e.target.value;
+  if (state.insertMount === "slot" && state.insertAxis !== "height") {
+    state.insertMount = "snap";
+    document.getElementById("insert-mount").value = "snap";
+  }
+  rebuild();
+});
+
+document.getElementById("insert-mount").addEventListener("change", (e) => {
+  state.insertMount = e.target.value;
+  if (state.insertMount === "slot" && state.insertAxis !== "height") {
+    state.insertAxis = "height";
+    document.getElementById("insert-axis").value = "height";
+  }
   rebuild();
 });
 
