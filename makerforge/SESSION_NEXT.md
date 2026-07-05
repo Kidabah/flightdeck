@@ -2,7 +2,7 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: *(pending)* — served at `/makerdeck/` on Flightdeck
+- Latest commit: `9ddce5c` — served at `/makerdeck/` on Flightdeck
 
 ### 2026-07-05 — Circle boxes: smoother wall mesh for slicing
 
