@@ -2,7 +2,15 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `848095a` — served at `/makerdeck/` on Flightdeck
+- Latest commit: *(pending)* — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Edge fillet: adaptive arc segments (box shape)
+
+**What changed:** **Box + edge fillet** (the `box-*.stl` path, not the Rounded shape) now uses adaptive arc segments — ~1 mm facet target, min 12 / max 96 per corner. A **12 mm fillet** goes from 6 segments to **~19** per corner.
+
+**Files:** `js/geometry.js`, `js/app.js`, `index.html` — cache-bust `app.js?v=87`
+
+**Deploy:** Pi `git pull`. Hard refresh. Re-export STL/3MF.
 
 ### 2026-07-05 — Oval shape + smoother rounded corners
 

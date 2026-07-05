@@ -119,8 +119,15 @@ function ellipseSegmentsForRadii(rx, ry) {
   return circleSegmentsForRadius(Math.max(rx, ry));
 }
 
+function filletArcSegments(radius, sweepRadians = Math.PI / 2) {
+  if (radius <= 0.5) return 4;
+  const maxFacet = 1.0;
+  const n = Math.ceil((sweepRadians * radius) / maxFacet);
+  return clamp(n, 12, 96);
+}
+
 /** Round polygon vertices with circular fillets. */
-function filletedOutline(vertices, filletR, arcSegments = 6) {
+function filletedOutline(vertices, filletR, arcSegments) {
   const r = filletR;
   if (r < 0.2 || vertices.length < 3) return vertices.map((p) => [p[0], p[1]]);
 
@@ -150,7 +157,7 @@ function filletedOutline(vertices, filletR, arcSegments = 6) {
     let sweep = a2 - a1;
     while (sweep <= 0) sweep += Math.PI * 2;
     while (sweep > Math.PI * 2) sweep -= Math.PI * 2;
-    const steps = Math.max(2, arcSegments);
+    const steps = Math.max(2, arcSegments ?? filletArcSegments(r, sweep));
     for (let s = 1; s < steps; s++) {
       const a = a1 + sweep * (s / steps);
       out.push([center[0] + r * Math.cos(a), center[1] + r * Math.sin(a)]);
@@ -863,8 +870,10 @@ function resolveContainer(params) {
     let outer = regularPolygonVertices(sides, outerR);
     let inner = regularPolygonVertices(sides, innerR);
     if (vertexFillet > 0.3) {
-      outer = filletedOutline(outer, vertexFillet + wall * 0.5, 6);
-      inner = filletedOutline(inner, vertexFillet, 6);
+      const outerFillet = vertexFillet + wall * 0.5;
+      const filletSegs = filletArcSegments(outerFillet);
+      outer = filletedOutline(outer, outerFillet, filletSegs);
+      inner = filletedOutline(inner, vertexFillet, filletSegs);
     }
     const polyShape = sides === 6 ? "hex" : "polygon";
     return {
@@ -950,8 +959,10 @@ function resolveContainer(params) {
     let outer = starOutline(outerTipR, inset, points);
     let inner = starOutline(innerTipR, inset, points);
     if (vertexFillet > 0.3) {
-      outer = filletedOutline(outer, vertexFillet + wall * 0.35, 5);
-      inner = filletedOutline(inner, vertexFillet, 5);
+      const outerFillet = vertexFillet + wall * 0.35;
+      const filletSegs = filletArcSegments(outerFillet);
+      outer = filletedOutline(outer, outerFillet, filletSegs);
+      inner = filletedOutline(inner, vertexFillet, filletSegs);
     }
     return {
       outer,
@@ -973,8 +984,10 @@ function resolveContainer(params) {
     let outer = heartOutline(innerW + wall * 2, innerD + wall * 2, 52);
     let inner = heartOutline(innerW, innerD, 52);
     if (vertexFillet > 0.3) {
-      outer = filletedOutline(outer, vertexFillet + wall * 0.35, 6);
-      inner = filletedOutline(inner, vertexFillet, 6);
+      const outerFillet = vertexFillet + wall * 0.35;
+      const filletSegs = filletArcSegments(outerFillet);
+      outer = filletedOutline(outer, outerFillet, filletSegs);
+      inner = filletedOutline(inner, vertexFillet, filletSegs);
     }
     return {
       outer,
@@ -1006,8 +1019,10 @@ function resolveContainer(params) {
   } else if (edgeFillet > 0.5) {
     const sharpOuter = [[-outerW / 2, -outerD / 2], [outerW / 2, -outerD / 2], [outerW / 2, outerD / 2], [-outerW / 2, outerD / 2]];
     const sharpInner = [[-innerW / 2, -innerD / 2], [innerW / 2, -innerD / 2], [innerW / 2, innerD / 2], [-innerW / 2, innerD / 2]];
-    outer = filletedOutline(sharpOuter, edgeFillet + wall, 6);
-    inner = filletedOutline(sharpInner, edgeFillet, 6);
+    const outerFillet = edgeFillet + wall;
+    const filletSegs = filletArcSegments(outerFillet);
+    outer = filletedOutline(sharpOuter, outerFillet, filletSegs);
+    inner = filletedOutline(sharpInner, edgeFillet, filletSegs);
   } else {
     outer = [[-outerW / 2, -outerD / 2], [outerW / 2, -outerD / 2], [outerW / 2, outerD / 2], [-outerW / 2, outerD / 2]];
     inner = [[-innerW / 2, -innerD / 2], [innerW / 2, -innerD / 2], [innerW / 2, innerD / 2], [-innerW / 2, innerD / 2]];
