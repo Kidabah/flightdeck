@@ -2,7 +2,13 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `ffce025` — served at `/makerdeck/` on Flightdeck
+- Latest commit: `bd75411` — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Fix pencil preset switching blank viewport
+
+**What changed:** Pencil tube / pencil box no longer bleed lid+slide state into each other. Rebuild validates new geometry before removing old preview. `PENCIL_PRESET` resets lid off + front face.
+
+**Files:** `js/app.js`, `js/geometry.js`, `index.html` — `app.js?v=62`
 
 ### 2026-07-05 — Fix 3MF export, pencil box, text align
 
