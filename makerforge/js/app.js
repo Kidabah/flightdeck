@@ -198,15 +198,21 @@ const debossPreviewMaterial = new THREE.MeshStandardMaterial({
   polygonOffsetUnits: -4,
 });
 
+function saneNum(value, fallback) {
+  const n = typeof value === "number" ? value : parseFloat(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 function buildParams() {
+  const d = DEFAULTS;
   return {
     shape: state.shape === "rounded" ? "rect" : state.shape,
-    innerWidth: state.innerWidth,
-    innerDepth: state.innerDepth,
-    innerHeight: state.innerHeight,
-    wall: state.wall,
-    floor: state.floor,
-    cornerRadius: state.shape === "rounded" || state.shape === "pencilBox" ? state.cornerRadius : 0,
+    innerWidth: saneNum(state.innerWidth, d.innerWidth),
+    innerDepth: saneNum(state.innerDepth, d.innerDepth),
+    innerHeight: saneNum(state.innerHeight, d.innerHeight),
+    wall: saneNum(state.wall, d.wall),
+    floor: saneNum(state.floor, d.floor),
+    cornerRadius: state.shape === "rounded" || state.shape === "pencilBox" ? saneNum(state.cornerRadius, d.cornerRadius) : 0,
     vertexFillet: state.vertexFillet,
     sides: state.sides,
     starPoints: state.starPoints,
@@ -1039,12 +1045,23 @@ function rebuildMesh() {
     nextCache.meta.shape = state.shape;
   }
 
+  const useSeparateLabel = nextCache.labelMesh && !state.embossDeboss;
+  const bodySource = useSeparateLabel ? (nextCache.shellMesh || nextCache) : nextCache;
+  if (!bodySource?.positions?.length || !bodySource?.indices?.length) {
+    throw new Error(`Empty ${state.shape || "box"} geometry`);
+  }
+  const bodyGeom = toBufferGeometry(THREE, bodySource);
+
   let nextLidCache = null;
   let nextLidMesh = null;
+  let nextLidGeom = null;
   if (state.lidEnabled && shapeSupportsLid(state.shape)) {
     nextLidCache = buildLid(params);
-    const lidGeom = toBufferGeometry(THREE, nextLidCache);
-    nextLidMesh = new THREE.Mesh(lidGeom, lidMaterial);
+    if (!nextLidCache?.positions?.length || !nextLidCache?.indices?.length) {
+      throw new Error("Empty lid geometry");
+    }
+    nextLidGeom = toBufferGeometry(THREE, nextLidCache);
+    nextLidMesh = new THREE.Mesh(nextLidGeom, lidMaterial);
     nextLidMesh.castShadow = true;
     nextLidMesh.receiveShadow = true;
     nextLidMesh.renderOrder = 4;
@@ -1072,18 +1089,15 @@ function rebuildMesh() {
   meshCache = nextCache;
   lidCache = nextLidCache;
 
-  const useSeparateLabel = meshCache.labelMesh && !state.embossDeboss;
-  const bodySource = useSeparateLabel ? (meshCache.shellMesh || meshCache) : meshCache;
-  const geom = toBufferGeometry(THREE, bodySource);
   applyBoxPreviewColor();
-  bodyMesh = new THREE.Mesh(geom, material);
+  bodyMesh = new THREE.Mesh(bodyGeom, material);
   bodyMesh.castShadow = true;
   bodyMesh.receiveShadow = true;
   bodyMesh.renderOrder = 2;
   previewRoot.add(bodyMesh);
 
   try {
-    const edges = new THREE.EdgesGeometry(geom, 28);
+    const edges = new THREE.EdgesGeometry(bodyGeom, 28);
     edgeLines = new THREE.LineSegments(edges, edgeMaterial);
     edgeLines.renderOrder = 3;
     previewRoot.add(edgeLines);
@@ -1196,6 +1210,7 @@ const SLIDER_PROFILES = {
 function applyPreset(shape) {
   const cfg = PRESET_CONFIG[shape];
   if (!cfg) return;
+  state.shape = shape;
   Object.assign(state, cfg.preset);
   applySliderProfile(cfg.profile);
   if (shape === "pencilBox") {
@@ -1205,12 +1220,12 @@ function applyPreset(shape) {
     syncSliderUi("lid-clearance", "lidClearance", { min: 0.15, max: 0.8, value: state.lidClearance ?? 0.25, parseKind: "float" });
     syncSliderUi("slide-stop", "slideStopLength", { min: 6, max: 20, value: state.slideStopLength ?? 10 });
     syncSliderUi("slide-groove", "slideGrooveHeight", { min: 4, max: 10, value: state.slideGrooveHeight ?? 6, parseKind: "float" });
-    document.getElementById("lid-enabled").checked = true;
-    document.getElementById("lid-type").value = state.lidType || "slide";
   }
-  if (shape === "pencil") {
-    document.getElementById("lid-enabled").checked = !!state.lidEnabled;
+  if (state.embossFace === "lid" && !state.lidEnabled) {
+    state.embossFace = "front";
   }
+  document.getElementById("lid-enabled").checked = !!state.lidEnabled;
+  document.getElementById("lid-type").value = state.lidType || "slip";
 }
 
 /** Leaving a preset (pencil box, teardrop, etc.) — drop lid + case dimensions back to a normal box. */
@@ -1413,7 +1428,7 @@ function joinerUiShape() {
 function decorUiShape() {
   if (state.shape === "rounded") return "rounded";
   if (state.shape === "pencil") return "pencil";
-  if (state.shape === "pencilBox") return "rect";
+  if (state.shape === "pencilBox") return "pencilBox";
   return state.shape === "rect" ? "rect" : null;
 }
 

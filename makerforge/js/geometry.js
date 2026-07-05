@@ -1044,7 +1044,7 @@ export function buildContainer(params) {
     joinerHand: useJoiner ? (params.joinerHand === "right" ? "right" : "left") : undefined,
     joinerScale: useJoiner ? resolveJoinerDims(params, resolved.meta.outer.w, resolved.meta.outer.d).scale : undefined,
   };
-  return { ...mesh, meta, totalH: resolved.totalH, accentMesh, labelMesh };
+  return { ...mesh, shellMesh: mesh, meta, totalH: resolved.totalH, accentMesh, labelMesh };
 }
 
 export function buildLid(params) {
@@ -1137,6 +1137,9 @@ export function orientLidForPrint(lid) {
 
 /** Map CAD Z-up (print/STL) coords to Three.js Y-up for preview. */
 export function toBufferGeometry(THREE, mesh) {
+  if (!mesh?.positions?.length || !mesh?.indices?.length) {
+    throw new Error("Empty mesh — nothing to preview");
+  }
   const geom = new THREE.BufferGeometry();
   const pos = new Float32Array(mesh.indices.length * 3);
   for (let i = 0; i < mesh.indices.length; i++) {
@@ -1156,6 +1159,13 @@ export const PENCIL_PRESET = {
   innerHeight: 25,
   wall: 2.4,
   floor: 2.4,
+  cornerRadius: 0,
+  lidEnabled: false,
+  lidType: "slip",
+  lidSkirt: 10,
+  lidThickness: 2.4,
+  lidClearance: 0.35,
+  embossFace: "front",
 };
 
 export const PENCIL_BOX_PRESET = {
