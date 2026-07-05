@@ -2,7 +2,7 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: _(pending)_ — served at `/makerdeck/` on Flightdeck
+- Latest commit: `4f03c60` — served at `/makerdeck/` on Flightdeck
 
 ### 2026-07-05 — Fat quarters: standing bookcase (horizontal shelves)
 
