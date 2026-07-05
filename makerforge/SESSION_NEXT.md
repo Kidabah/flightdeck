@@ -2,7 +2,7 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `708268f` — served at `/makerdeck/` on Flightdeck
+- Latest commit: `104fffa` — served at `/makerdeck/` on Flightdeck
 
 ### 2026-07-05 — Watertight STL export for embossed text
 
