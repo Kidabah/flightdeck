@@ -2,7 +2,20 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- - `main` commit: `6aab4dc` — served at `/makerdeck/` on Flightdeck
+- `main` commit: (pending) — hinge type dropdown + live viewport preview
+
+### 2026-07-05 — Hinge dropdown + live 3D preview
+
+**What changed:** Hinge tab now works like a real hinge generator:
+- **Hinge type** dropdown (Snap clip, Butt pin, Strap door, Flush barrel)
+- Switching type shows that hinge in the **viewport** (orange hardware; snap clip also shows gold pin)
+- **Length / width** sliders update the preview live; leaf types also expose thickness, knuckle, and pin controls
+- Box hides while the Hinge tab is active so the hardware is easy to inspect
+- Standalone leaf hinges preview without needing a box; snap clip previews on supported shapes even before Clip hinge lid is enabled
+
+**Files:** `js/hinge-hardware.js`, `js/app.js?v=102`, `js/geometry.js?v=102`, `index.html`
+
+**Deploy:** Pi `git pull`. Hard refresh MakerDeck / `#/makerdeck`.
 
 ### 2026-07-05 — Hinge generator presets (butt, strap, barrel)
 

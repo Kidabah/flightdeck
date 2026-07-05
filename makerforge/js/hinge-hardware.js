@@ -292,6 +292,80 @@ export function orientHingeHardwarePinForPrint(style, mesh) {
   return { positions, indices: mesh.indices.slice() };
 }
 
+function mapPositions(positions, fn) {
+  const out = positions.slice();
+  for (let i = 0; i < out.length; i += 3) {
+    const mapped = fn(out[i], out[i + 1], out[i + 2]);
+    out[i] = mapped[0];
+    out[i + 1] = mapped[1];
+    out[i + 2] = mapped[2];
+  }
+  return out;
+}
+
+function rotatePositionsX(positions, rad) {
+  const c = Math.cos(rad);
+  const s = Math.sin(rad);
+  return mapPositions(positions, (x, y, z) => [x, y * c - z * s, y * s + z * c]);
+}
+
+function rotatePositionsY(positions, rad) {
+  const c = Math.cos(rad);
+  const s = Math.sin(rad);
+  return mapPositions(positions, (x, y, z) => [x * c + z * s, y, -x * s + z * c]);
+}
+
+function floorAndCenterMesh(mesh) {
+  const positions = mesh.positions.slice();
+  const indices = mesh.indices.slice();
+  let minX = Infinity;
+  let minY = Infinity;
+  let minZ = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  let maxZ = -Infinity;
+  for (let i = 0; i < positions.length; i += 3) {
+    minX = Math.min(minX, positions[i]);
+    maxX = Math.max(maxX, positions[i]);
+    minY = Math.min(minY, positions[i + 1]);
+    maxY = Math.max(maxY, positions[i + 1]);
+    minZ = Math.min(minZ, positions[i + 2]);
+    maxZ = Math.max(maxZ, positions[i + 2]);
+  }
+  const cx = (minX + maxX) / 2;
+  const cy = (minY + maxY) / 2;
+  for (let i = 0; i < positions.length; i += 3) {
+    positions[i] -= cx;
+    positions[i + 1] -= cy;
+    positions[i + 2] -= minZ;
+  }
+  return { positions, indices, bounds: { minX: - (maxX - minX) / 2, maxX: (maxX - minX) / 2, minY: - (maxY - minY) / 2, maxY: (maxY - minY) / 2, minZ: 0, maxZ: maxZ - minZ, w: maxX - minX, d: maxY - minY, h: maxZ - minZ } };
+}
+
+/** Stand hinge on the bed for viewport preview (knuckle / grip facing the camera). */
+export function orientHingeHardwareForPreview(style, mesh) {
+  const id = normalizeHingeStyle(style);
+  let positions = mesh.positions.slice();
+  const indices = mesh.indices.slice();
+  if (id === "snapClip") {
+    const laid = orientClipForPrint({ positions, indices });
+    positions = rotatePositionsY(laid.positions, Math.PI / 2);
+  } else {
+    positions = rotatePositionsX(positions, Math.PI / 2);
+  }
+  return floorAndCenterMesh({ positions, indices });
+}
+
+export function orientHingeHardwarePinForPreview(style, mesh) {
+  const id = normalizeHingeStyle(style);
+  if (id === "snapClip") {
+    const laid = orientPinForPrint(mesh);
+    const positions = rotatePositionsY(laid.positions, Math.PI / 2);
+    return floorAndCenterMesh({ positions, indices: laid.indices.slice() });
+  }
+  return orientHingeHardwarePinForPrint(style, mesh);
+}
+
 export function hingeStyleMeta(style) {
   return HINGE_STYLE_PRESETS.find((p) => p.id === normalizeHingeStyle(style)) || HINGE_STYLE_PRESETS[0];
 }

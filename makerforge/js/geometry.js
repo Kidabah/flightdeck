@@ -40,6 +40,8 @@ import {
   buildHingeHardwarePin,
   orientHingeHardwareForPrint,
   orientHingeHardwarePinForPrint,
+  orientHingeHardwareForPreview,
+  orientHingeHardwarePinForPreview,
   hingeStyleMeta,
 } from "./hinge-hardware.js";
 import {
@@ -57,7 +59,7 @@ import {
 } from "./roll-lid.js";
 import { appendInsertShelfSlotsToBody } from "./insert-slots.js";
 
-export { shapeSupportsDecor, shapeSupportsInsert, VASE_STYLES, shapeSupportsSlideLid, shapeSupportsHingeLid, shapeSupportsRollLid, shapeSupportsClipHinge, buildHingeClipMesh, buildHingePinMesh, orientClipForPrint, orientPinForPrint, layoutMeshCopies, HINGE_STYLE_PRESETS, normalizeHingeStyle, buildHingeHardwareMesh, buildHingeHardwarePin, orientHingeHardwareForPrint, orientHingeHardwarePinForPrint, hingeStyleMeta };
+export { shapeSupportsDecor, shapeSupportsInsert, VASE_STYLES, shapeSupportsSlideLid, shapeSupportsHingeLid, shapeSupportsRollLid, shapeSupportsClipHinge, buildHingeClipMesh, buildHingePinMesh, orientClipForPrint, orientPinForPrint, layoutMeshCopies, HINGE_STYLE_PRESETS, normalizeHingeStyle, buildHingeHardwareMesh, buildHingeHardwarePin, orientHingeHardwareForPrint, orientHingeHardwarePinForPrint, orientHingeHardwareForPreview, orientHingeHardwarePinForPreview, hingeStyleMeta };
 
 function clamp(n, min, max) {
   return Math.min(max, Math.max(min, n));

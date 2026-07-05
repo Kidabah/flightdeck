@@ -2,8 +2,15 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `11cbf0f` — spool display_id + loaded-slot replace fix
-- Refresh cachebust: Flightdeck `app.js?v=626` / `style.css?v=481`; MakerDeck iframe `app.js?v=66`
+- Latest commit: (pending) — MakerDeck hinge dropdown + live preview
+- Refresh cachebust: Flightdeck `app.js?v=626` / `style.css?v=481`; MakerDeck iframe `app.js?v=102`
+
+### 2026-07-05 feature (MakerDeck hinge dropdown + live preview)
+
+**Hinge generator viewport preview** (`makerforge/js/hinge-hardware.js`, `makerforge/js/app.js`, `makerforge/index.html`)
+
+- Hinge tab: type dropdown, live 3D preview of selected hinge (length/width sliders update in viewport).
+- Cache `makerforge` `app.js?v=102`. Hard refresh `#/makerdeck` or standalone `/makerdeck/`.
 
 ### 2026-07-05 fix (spool display_id + loaded-slot replace)
 

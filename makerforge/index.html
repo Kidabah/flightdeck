@@ -504,9 +504,12 @@
 
               <h2>Hinge generator</h2>
 
-              <p class="field-hint">Pick a hinge style, tune sizes, download print-ready STLs.</p>
+              <p class="field-hint">Choose a type — preview updates in the viewport. Tune length and width, then download STLs.</p>
 
-              <div class="hinge-style-grid" id="hinge-style-grid" role="group" aria-label="Hinge style"></div>
+              <label class="field">
+                <span class="field-label">Hinge type</span>
+                <select id="hinge-style" aria-label="Hinge type"></select>
+              </label>
 
               <p class="field-hint" id="hinge-style-hint"></p>
 
@@ -516,7 +519,7 @@
 
                 <label class="field">
 
-                  <span class="field-label">Leaf length</span>
+                  <span class="field-label" id="hinge-leaf-l-label">Length</span>
 
                   <input type="range" id="hinge-leaf-l" min="16" max="60" step="1" value="28" tabindex="-1">
 
@@ -526,7 +529,7 @@
 
                 <label class="field">
 
-                  <span class="field-label">Leaf width</span>
+                  <span class="field-label" id="hinge-leaf-w-label">Width</span>
 
                   <input type="range" id="hinge-leaf-w" min="10" max="40" step="1" value="18" tabindex="-1">
 
@@ -592,7 +595,7 @@
 
                 <label class="field">
 
-                  <span class="field-label">Rail diameter</span>
+                  <span class="field-label" id="hinge-rail-d-label">Width</span>
 
                   <input type="range" id="hinge-rail-d" min="3" max="6" step="0.25" value="4" tabindex="-1">
 
@@ -612,7 +615,7 @@
 
                 <label class="field">
 
-                  <span class="field-label">Rail length</span>
+                  <span class="field-label" id="hinge-rail-len-label">Length</span>
 
                   <input type="range" id="hinge-rail-len" min="8" max="20" step="1" value="12" tabindex="-1">
 
@@ -1193,7 +1196,7 @@
 
 
 
-  <script type="module" src="js/app.js?v=101"></script>
+  <script type="module" src="js/app.js?v=102"></script>
 
 </body>
 

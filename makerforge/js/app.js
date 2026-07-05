@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, shapeSupportsHingeLid, shapeSupportsRollLid, LID_TYPES, normalizeLidType, clipHingeAvailable, buildHingeHardwareMesh, buildHingeHardwarePin, orientHingeHardwareForPrint, orientHingeHardwarePinForPrint, layoutMeshCopies, HINGE_STYLE_PRESETS, normalizeHingeStyle, hingeStyleMeta, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=101";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, shapeSupportsHingeLid, shapeSupportsRollLid, LID_TYPES, normalizeLidType, clipHingeAvailable, buildHingeHardwareMesh, buildHingeHardwarePin, orientHingeHardwareForPrint, orientHingeHardwarePinForPrint, orientHingeHardwareForPreview, orientHingeHardwarePinForPreview, layoutMeshCopies, HINGE_STYLE_PRESETS, normalizeHingeStyle, hingeStyleMeta, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=102";
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh, mergeMeshes } from "./features.js?v=96";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=73";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=74";
@@ -172,6 +172,27 @@ let insertMesh = null;
 let insertEdgeLines = null;
 let labelMesh = null;
 let labelEdgeLines = null;
+let hingePreviewMesh = null;
+let hingePreviewEdges = null;
+let hingePreviewPinMesh = null;
+let hingePreviewPinEdges = null;
+let currentTabId = "design";
+
+const hingePreviewMaterial = new THREE.MeshStandardMaterial({
+  color: 0xf97316,
+  metalness: FILAMENT_PREVIEW.metalness,
+  roughness: FILAMENT_PREVIEW.roughness,
+  flatShading: false,
+  side: THREE.FrontSide,
+});
+
+const hingePreviewPinMaterial = new THREE.MeshStandardMaterial({
+  color: 0xfbbf24,
+  metalness: FILAMENT_PREVIEW.metalness,
+  roughness: FILAMENT_PREVIEW.roughness,
+  flatShading: false,
+  side: THREE.FrontSide,
+});
 
 const lidMaterial = new THREE.MeshStandardMaterial({
   color: 0x38bdf8,
@@ -1899,6 +1920,7 @@ function normalizeRestoredTab(tabId) {
 
 function setTab(tabId) {
   tabId = normalizeRestoredTab(tabId);
+  currentTabId = tabId;
   document.querySelectorAll(".tab").forEach((t) => {
     const on = t.dataset.tab === tabId;
     t.classList.toggle("active", on);
@@ -1909,6 +1931,7 @@ function setTab(tabId) {
     p.classList.toggle("active", on);
     p.hidden = !on;
   });
+  syncHingeViewport();
   scheduleSaveSession();
   syncArtEditorUi();
 }
@@ -2379,8 +2402,9 @@ function currentHingeStyle() {
 function hingeStyleReady() {
   const style = currentHingeStyle();
   const meta = hingeStyleMeta(style);
-  if (meta.needsClipLid) return hingeClipLidActive();
-  return state.shape !== "vase";
+  if (state.shape === "vase") return false;
+  if (meta.needsClipLid) return clipHingeAvailable(state.shape);
+  return true;
 }
 
 function hingeClipExportCount() {
@@ -2431,29 +2455,166 @@ function hingeStepsHtml(style) {
 }
 
 function syncHingeStyleGrid() {
-  const grid = document.getElementById("hinge-style-grid");
-  if (!grid) return;
+  syncHingeStyleSelect();
+}
+
+function syncHingeStyleSelect() {
+  const sel = document.getElementById("hinge-style");
+  if (!sel) return;
   const style = currentHingeStyle();
-  if (!grid.dataset.ready) {
-    grid.innerHTML = HINGE_STYLE_PRESETS.map(
-      (p) => `<button type="button" class="chip" data-hinge-style="${p.id}">${p.label}</button>`,
+  if (!sel.dataset.ready) {
+    sel.innerHTML = HINGE_STYLE_PRESETS.map(
+      (p) => `<option value="${p.id}">${p.label}</option>`,
     ).join("");
-    grid.addEventListener("click", (e) => {
-      const btn = e.target.closest("[data-hinge-style]");
-      if (!btn) return;
-      state.hingeStyle = btn.dataset.hingeStyle;
-      grid.querySelectorAll("[data-hinge-style]").forEach((b) => {
-        b.classList.toggle("active", b.dataset.hingeStyle === state.hingeStyle);
-      });
+    sel.addEventListener("change", () => {
+      state.hingeStyle = normalizeHingeStyle(sel.value);
       updateHingeUi();
       if (hingeStyleMeta(state.hingeStyle).needsClipLid) rebuild();
+      else rebuildHingePreview();
       pushAppHistory();
     });
-    grid.dataset.ready = "1";
+    sel.dataset.ready = "1";
   }
-  grid.querySelectorAll("[data-hinge-style]").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.hingeStyle === style);
-  });
+  sel.value = style;
+}
+
+function setMainPreviewVisible(visible) {
+  const parts = [
+    bodyMesh,
+    edgeLines,
+    lidMesh,
+    lidPivot,
+    accentMesh,
+    accentEdgeLines,
+    insertMesh,
+    insertEdgeLines,
+    labelMesh,
+    labelEdgeLines,
+  ];
+  for (const part of parts) {
+    if (part) part.visible = visible;
+  }
+  for (const loop of lidGuideLoops) {
+    if (loop?.mesh) loop.mesh.visible = visible;
+  }
+}
+
+function disposeHingePreviewPart(mesh, edges) {
+  if (mesh) {
+    previewRoot.remove(mesh);
+    mesh.geometry?.dispose();
+  }
+  if (edges) {
+    previewRoot.remove(edges);
+    edges.geometry?.dispose();
+  }
+}
+
+function clearHingePreview() {
+  disposeHingePreviewPart(hingePreviewMesh, hingePreviewEdges);
+  disposeHingePreviewPart(hingePreviewPinMesh, hingePreviewPinEdges);
+  hingePreviewMesh = null;
+  hingePreviewEdges = null;
+  hingePreviewPinMesh = null;
+  hingePreviewPinEdges = null;
+}
+
+function offsetMesh(mesh, dx, dy, dz) {
+  const positions = mesh.positions.slice();
+  for (let i = 0; i < positions.length; i += 3) {
+    positions[i] += dx;
+    positions[i + 1] += dy;
+    positions[i + 2] += dz;
+  }
+  return { positions, indices: mesh.indices.slice(), bounds: mesh.bounds };
+}
+
+function mergePreviewMeshes(a, b) {
+  if (!a?.positions?.length) return b;
+  if (!b?.positions?.length) return a;
+  const offset = a.positions.length / 3;
+  const positions = a.positions.concat(b.positions);
+  const indices = a.indices.concat(b.indices.map((i) => i + offset));
+  const bounds = {
+    minX: Math.min(a.bounds?.minX ?? 0, b.bounds?.minX ?? 0),
+    maxX: Math.max(a.bounds?.maxX ?? 0, b.bounds?.maxX ?? 0),
+    minY: Math.min(a.bounds?.minY ?? 0, b.bounds?.minY ?? 0),
+    maxY: Math.max(a.bounds?.maxY ?? 0, b.bounds?.maxY ?? 0),
+    minZ: 0,
+    maxZ: Math.max(a.bounds?.maxZ ?? 0, b.bounds?.maxZ ?? 0),
+  };
+  bounds.w = bounds.maxX - bounds.minX;
+  bounds.d = bounds.maxY - bounds.minY;
+  bounds.h = bounds.maxZ - bounds.minZ;
+  return { positions, indices, bounds };
+}
+
+function addHingePreviewPart(meshData, material, { storeMesh, storeEdges } = {}) {
+  if (!meshData?.positions?.length) return null;
+  const geom = toBufferGeometry(THREE, meshData);
+  const mesh = new THREE.Mesh(geom, material);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  mesh.renderOrder = 12;
+  previewRoot.add(mesh);
+  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geom, 18), edgeMaterial);
+  edges.renderOrder = 13;
+  previewRoot.add(edges);
+  if (storeMesh === "main") hingePreviewMesh = mesh;
+  if (storeEdges === "main") hingePreviewEdges = edges;
+  if (storeMesh === "pin") hingePreviewPinMesh = mesh;
+  if (storeEdges === "pin") hingePreviewPinEdges = edges;
+  return meshData.bounds;
+}
+
+function fitCameraToHingeBounds(bounds) {
+  if (!bounds) return;
+  const span = Math.max(bounds.w || 0, bounds.d || 0, bounds.h || 0, 18);
+  const dist = span * 2.4 + 36;
+  const midZ = (bounds.maxZ || span) * 0.5;
+  controls.target.set(0, BED_LIFT + midZ, 0);
+  camera.position.set(dist * 0.9, BED_LIFT + dist * 0.55, dist * 0.95);
+  controls.update();
+}
+
+function rebuildHingePreview() {
+  if (currentTabId !== "hinge" || !hingeStyleReady()) {
+    clearHingePreview();
+    return;
+  }
+  clearHingePreview();
+  try {
+    const params = buildParams();
+    const style = currentHingeStyle();
+    const hinge = orientHingeHardwareForPreview(style, buildHingeHardwareMesh(style, params));
+    let bounds = addHingePreviewPart(hinge, hingePreviewMaterial, { storeMesh: "main", storeEdges: "main" });
+    if (style === "snapClip") {
+      const pin = orientHingeHardwarePinForPreview(style, buildHingeHardwarePin(style, params));
+      const gap = Math.max(6, (hinge.bounds?.w || 12) * 0.35);
+      const pinShift = offsetMesh(pin, (hinge.bounds?.maxX || 0) + gap, 0, 0);
+      addHingePreviewPart(pinShift, hingePreviewPinMaterial, { storeMesh: "pin", storeEdges: "pin" });
+      bounds = mergePreviewMeshes(hinge, pinShift)?.bounds || bounds;
+    }
+    fitCameraToHingeBounds(bounds);
+  } catch (err) {
+    console.error("Hinge preview failed:", err);
+    clearHingePreview();
+  }
+}
+
+function syncHingeViewport() {
+  const onHinge = currentTabId === "hinge" && hingeStyleReady();
+  setMainPreviewVisible(!onHinge);
+  if (onHinge) rebuildHingePreview();
+  else {
+    clearHingePreview();
+    if (meshCache?.meta) fitCamera(meshCache.meta);
+  }
+}
+
+function onHingeParamChange() {
+  if (currentTabId === "hinge") rebuildHingePreview();
+  if (hingeStyleMeta(currentHingeStyle()).needsClipLid && hingeClipLidActive()) rebuild();
 }
 
 function updateHingeUi() {
@@ -2526,6 +2687,20 @@ function updateHingeUi() {
     const n = hingePinExportCount();
     pinBtn.textContent = `Download ${n} pin${n === 1 ? "" : "s"} (STL)`;
   }
+
+  syncHingeStyleSelect();
+  const leafLLabel = document.getElementById("hinge-leaf-l-label");
+  const leafWLabel = document.getElementById("hinge-leaf-w-label");
+  if (leafLLabel) {
+    leafLLabel.textContent = style === "strapDoor" ? "Short leaf length" : "Length";
+  }
+  if (leafWLabel) {
+    leafWLabel.textContent = style === "strapDoor" ? "Long leaf width" : "Width";
+  }
+  const railDLabel = document.getElementById("hinge-rail-d-label");
+  if (railDLabel) railDLabel.textContent = "Grip width";
+
+  if (currentTabId === "hinge") syncHingeViewport();
 }
 
 function downloadHingeHardware() {
@@ -2904,6 +3079,19 @@ function bindRange(sliderId, key, parseKind = "int") {
   slider.addEventListener("change", () => pushAppHistory());
 }
 
+function bindHingeRange(sliderId, key, parseKind = "int") {
+  const slider = document.getElementById(sliderId);
+  if (!slider) return;
+  const syncFromSlider = () => {
+    state[key] = parseFieldValue(slider.value, parseKind);
+    const out = document.querySelector(`.value-edit[data-slider="${sliderId}"]`);
+    if (out) out.textContent = slider.value;
+    onHingeParamChange();
+  };
+  slider.addEventListener("input", syncFromSlider);
+  slider.addEventListener("change", () => pushAppHistory());
+}
+
 function beginValueEdit(btn) {
   const slider = document.getElementById(btn.dataset.slider);
   if (!slider || btn.classList.contains("is-editing")) return;
@@ -2996,28 +3184,29 @@ bindRange("lid-skirt", "lidSkirt");
 bindRange("lid-thickness", "lidThickness", "float");
 bindRange("lid-clearance", "lidClearance", "float");
 bindRange("lid-lip", "lidLipDepth", "float");
-bindRange("hinge-rail-d", "clipRailDiameter", "float");
-bindRange("hinge-pin-d", "clipPinDiameter", "float");
-bindRange("hinge-rail-len", "clipRailLength");
+bindHingeRange("hinge-rail-d", "clipRailDiameter", "float");
+bindHingeRange("hinge-pin-d", "clipPinDiameter", "float");
+bindHingeRange("hinge-rail-len", "clipRailLength");
 
 document.getElementById("hinge-count")?.addEventListener("change", (e) => {
   state.clipHingeCount = Math.min(3, Math.max(1, parseInt(e.target.value, 10) || 2));
   updateHingeUi();
-  rebuild();
+  onHingeParamChange();
   pushAppHistory();
 });
 
 document.getElementById("hinge-knuckle-count")?.addEventListener("change", (e) => {
   state.hingeKnuckleCount = Math.min(7, Math.max(3, parseInt(e.target.value, 10) || 3));
   updateHingeUi();
+  onHingeParamChange();
   pushAppHistory();
 });
 
-bindRange("hinge-leaf-l", "hingeLeafLength");
-bindRange("hinge-leaf-w", "hingeLeafWidth");
-bindRange("hinge-leaf-t", "hingeLeafThickness", "float");
-bindRange("hinge-knuckle-r", "hingeKnuckleRadius", "float");
-bindRange("hinge-leaf-pin-d", "hingePinDiameter", "float");
+bindHingeRange("hinge-leaf-l", "hingeLeafLength");
+bindHingeRange("hinge-leaf-w", "hingeLeafWidth");
+bindHingeRange("hinge-leaf-t", "hingeLeafThickness", "float");
+bindHingeRange("hinge-knuckle-r", "hingeKnuckleRadius", "float");
+bindHingeRange("hinge-leaf-pin-d", "hingePinDiameter", "float");
 
 document.getElementById("btn-export-hinge")?.addEventListener("click", downloadHingeHardware);
 document.getElementById("btn-export-hinge-pin")?.addEventListener("click", downloadHingePin);
