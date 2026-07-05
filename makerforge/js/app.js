@@ -1,11 +1,11 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsLid, shapeSupportsSlideLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=67";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh } from "./features.js?v=67";
-import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=67";
-import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=67";
-import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=67";
-import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=67";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsLid, shapeSupportsSlideLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=68";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh } from "./features.js?v=68";
+import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=68";
+import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=68";
+import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=68";
+import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=68";
 import { appliedHasArt } from "./art-editor.js";
 
 const SESSION_KEY = "makerdeck-session-v1";
@@ -48,10 +48,26 @@ const BED_LIFT = 0.35;
 const LID_PREVIEW_GAP = 0.35;
 const LID_ANIM_LIFT = 14;
 
+/** Preview shading tuned to match matte PLA filament (same hex as 3MF export). */
+const FILAMENT_PREVIEW = {
+  metalness: 0.02,
+  roughness: 0.78,
+  emissiveIntensity: 0,
+};
+
+function applyFilamentMaterial(mat) {
+  mat.metalness = FILAMENT_PREVIEW.metalness;
+  mat.roughness = FILAMENT_PREVIEW.roughness;
+  mat.emissive.setHex(0x000000);
+  mat.emissiveIntensity = FILAMENT_PREVIEW.emissiveIntensity;
+}
+
 const viewport = document.getElementById("viewport");
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, logarithmicDepthBuffer: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setClearColor(0x070b12, 1);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.NoToneMapping;
 renderer.shadowMap.enabled = true;
 viewport.appendChild(renderer.domElement);
 
@@ -66,17 +82,21 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.06;
 controls.target.set(0, BED_LIFT + 20, 0);
 
-const hemi = new THREE.HemisphereLight(0xbfd7ff, 0x1a2438, 0.9);
+const hemi = new THREE.HemisphereLight(0xdce8f5, 0x243044, 1.05);
 scene.add(hemi);
 
-const key = new THREE.DirectionalLight(0xffffff, 1.1);
+const key = new THREE.DirectionalLight(0xffffff, 0.88);
 key.position.set(80, 120, 60);
 key.castShadow = true;
 scene.add(key);
 
-const fill = new THREE.DirectionalLight(0x60a5fa, 0.35);
+const fill = new THREE.DirectionalLight(0xffffff, 0.52);
 fill.position.set(-60, 40, -40);
 scene.add(fill);
+
+const rim = new THREE.DirectionalLight(0xffffff, 0.28);
+rim.position.set(0, 20, -100);
+scene.add(rim);
 
 const grid = new THREE.GridHelper(260, 26, 0x2a3f5f, 0x162033);
 grid.position.y = 0;
@@ -94,8 +114,8 @@ scene.add(previewRoot);
 
 const material = new THREE.MeshStandardMaterial({
   color: 0x38bdf8,
-  metalness: 0.15,
-  roughness: 0.42,
+  metalness: FILAMENT_PREVIEW.metalness,
+  roughness: FILAMENT_PREVIEW.roughness,
   flatShading: false,
   side: THREE.FrontSide,
   polygonOffset: true,
@@ -149,11 +169,9 @@ let labelMesh = null;
 let labelEdgeLines = null;
 
 const lidMaterial = new THREE.MeshStandardMaterial({
-  color: 0x93c5fd,
-  emissive: 0x000000,
-  emissiveIntensity: 0,
-  metalness: 0.12,
-  roughness: 0.48,
+  color: 0x38bdf8,
+  metalness: FILAMENT_PREVIEW.metalness,
+  roughness: FILAMENT_PREVIEW.roughness,
   flatShading: false,
   side: THREE.FrontSide,
   polygonOffset: true,
@@ -168,10 +186,8 @@ const LID_FIT_OK_PHRASES = ["Good as gold!", "She'll be right!", "No worries, ma
 
 const accentMaterial = new THREE.MeshStandardMaterial({
   color: 0xf97316,
-  emissive: 0x331508,
-  emissiveIntensity: 1,
-  metalness: 0.08,
-  roughness: 0.42,
+  metalness: FILAMENT_PREVIEW.metalness,
+  roughness: FILAMENT_PREVIEW.roughness,
   side: THREE.DoubleSide,
   polygonOffset: true,
   polygonOffsetFactor: 3,
@@ -180,8 +196,8 @@ const accentMaterial = new THREE.MeshStandardMaterial({
 
 const labelMaterial = new THREE.MeshStandardMaterial({
   color: 0xf8fafc,
-  metalness: 0.05,
-  roughness: 0.55,
+  metalness: FILAMENT_PREVIEW.metalness,
+  roughness: FILAMENT_PREVIEW.roughness,
   side: THREE.DoubleSide,
   polygonOffset: true,
   polygonOffsetFactor: -2,
@@ -299,6 +315,7 @@ function attachLabelPreviewMesh(labelGeom, mat, params) {
     const labelEdges = new THREE.EdgesGeometry(labelGeom, 20);
     labelEdgeLines = new THREE.LineSegments(labelEdges, edgeMaterial);
     labelEdgeLines.renderOrder = 9;
+    labelEdgeLines.visible = previewXRayOn;
     parent.add(labelEdgeLines);
   } catch {
     labelEdgeLines = null;
@@ -306,24 +323,14 @@ function attachLabelPreviewMesh(labelGeom, mat, params) {
 }
 
 function mountDebossPreviewIfNeeded() {
-  if (!state.embossDeboss) return;
-  const params = buildParams();
-  if (state.embossFace === "lid" && lidCache?.labelMesh && lidMesh) {
-    const labelGeom = toBufferGeometry(THREE, lidCache.labelMesh);
-    attachLabelPreviewMesh(labelGeom, debossPreviewMaterial, params);
-  } else if (state.embossFace !== "lid" && meshCache?.labelMesh) {
-    const labelGeom = toBufferGeometry(THREE, meshCache.labelMesh);
-    attachLabelPreviewMesh(labelGeom, debossPreviewMaterial, params);
-  }
+  // Deboss geometry is already cut into the body/lid shell — same single filament as export.
 }
 
 function mountEmbossLabelPreviewIfNeeded() {
-  if (state.embossDeboss) {
-    mountDebossPreviewIfNeeded();
-    return;
-  }
+  if (state.embossDeboss) return;
   const params = buildParams();
   labelMaterial.color.set(state.embossTextColor || "#f8fafc");
+  applyFilamentMaterial(labelMaterial);
   if (state.embossFace === "lid" && lidCache?.labelMesh && lidMesh) {
     const labelGeom = toBufferGeometry(THREE, lidCache.labelMesh);
     attachLabelPreviewMesh(labelGeom, labelMaterial, params);
@@ -361,7 +368,10 @@ function setupColorPickers() {
     value: state.embossTextColor,
     onChange: (hex) => {
       state.embossTextColor = hex;
-      if (labelMesh) labelMaterial.color.set(hex);
+      if (labelMesh) {
+        labelMaterial.color.set(hex);
+        applyFilamentMaterial(labelMaterial);
+      }
       scheduleSaveSession();
     },
   });
@@ -654,15 +664,17 @@ function applyBoxPreviewColor() {
   if (previewXRayOn) {
     material.color.setHex(0x475569);
   } else {
-    material.color.set(state.boxColor || "#38bdf8");
+    const bodyHex = state.boxColor || "#38bdf8";
+    material.color.set(bodyHex);
+    applyFilamentMaterial(material);
+    lidMaterial.color.set(bodyHex);
+    applyFilamentMaterial(lidMaterial);
   }
 }
 
 function applyAccentPreviewColor(hex = state.accentColor) {
-  const c = new THREE.Color(hex || "#f97316");
-  accentMaterial.color.copy(c);
-  accentMaterial.emissive.copy(c).multiplyScalar(0.14);
-  accentMaterial.emissiveIntensity = 1;
+  accentMaterial.color.set(hex || "#f97316");
+  applyFilamentMaterial(accentMaterial);
 }
 
 function setPreviewXRayMode(on) {
@@ -673,7 +685,8 @@ function setPreviewXRayMode(on) {
   material.opacity = on ? 0.14 : 1;
   // Coplanar cap tris + grid bleed through transparent walls if depthWrite stays on.
   material.depthWrite = !on;
-  material.metalness = on ? 0.05 : 0.15;
+  material.metalness = on ? 0.05 : FILAMENT_PREVIEW.metalness;
+  material.roughness = on ? 0.5 : FILAMENT_PREVIEW.roughness;
   applyBoxPreviewColor();
   material.polygonOffset = !on;
   material.polygonOffsetFactor = 1;
@@ -684,7 +697,12 @@ function setPreviewXRayMode(on) {
   lidMaterial.depthWrite = !on;
   lidMaterial.emissive.setHex(on ? 0x0ea5e9 : 0x000000);
   lidMaterial.emissiveIntensity = on ? 0.28 : 0;
-  lidMaterial.color.setHex(on ? 0x7dd3fc : 0x93c5fd);
+  if (on) {
+    lidMaterial.color.setHex(0x7dd3fc);
+  } else {
+    lidMaterial.color.set(state.boxColor || "#38bdf8");
+    applyFilamentMaterial(lidMaterial);
+  }
   lidMaterial.polygonOffset = !on;
   lidMaterial.polygonOffsetFactor = 2;
   lidMaterial.polygonOffsetUnits = 3;
@@ -716,10 +734,10 @@ function setPreviewXRayMode(on) {
   }
   if (edgeLines) {
     edgeLines.renderOrder = on ? 2 : 3;
-    edgeLines.visible = !on;
+    edgeLines.visible = on;
   }
-  if (accentEdgeLines) accentEdgeLines.visible = !on;
-  if (labelEdgeLines) labelEdgeLines.visible = !on;
+  if (accentEdgeLines) accentEdgeLines.visible = on;
+  if (labelEdgeLines) labelEdgeLines.visible = on;
   syncLidGuideLoops(lidMesh?.position.y ?? lidRestY(), lidMesh?.position.x ?? lidRestX());
 }
 
@@ -1150,6 +1168,7 @@ function rebuildMesh() {
     const edges = new THREE.EdgesGeometry(bodyGeom, 28);
     edgeLines = new THREE.LineSegments(edges, edgeMaterial);
     edgeLines.renderOrder = 3;
+    edgeLines.visible = previewXRayOn;
     previewRoot.add(edgeLines);
   } catch {
     edgeLines = null;
@@ -1166,6 +1185,7 @@ function rebuildMesh() {
     const accentEdges = new THREE.EdgesGeometry(accentGeom, 18);
     accentEdgeLines = new THREE.LineSegments(accentEdges, edgeMaterial);
     accentEdgeLines.renderOrder = 7;
+    accentEdgeLines.visible = previewXRayOn;
     previewRoot.add(accentEdgeLines);
   }
 

@@ -2,7 +2,15 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `c77591a` — served at `/makerdeck/` on Flightdeck
+- Latest commit: _(pending)_ — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Preview matches customer 3MF colours
+
+**What changed:** Viewport preview now mirrors what ships in **Download 3MF** — body and lid use the same box filament colour (was a hardcoded grey-blue lid), accent/text use their picker hex with matte PLA shading (no fake glow), deboss no longer shows a red dev overlay, and wireframe edges only appear in X-ray mode.
+
+**Files:** `js/app.js`, `index.html` — cache-bust `app.js?v=68`
+
+**Deploy:** Pi `git pull`. Hard refresh on `/makerdeck/` or `#/makerdeck`.
 
 ### 2026-07-05 — Accent bands follow profile + contrast picker
 
