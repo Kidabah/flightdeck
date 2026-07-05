@@ -577,6 +577,12 @@ function lidFitHintText() {
 
 function disposeLidPreview() {
   if (lidMesh) {
+    // Label preview may be parented to the lid — detach before disposing geometry.
+    while (lidMesh.children.length) {
+      const child = lidMesh.children[0];
+      lidMesh.remove(child);
+      child.geometry?.dispose();
+    }
     previewRoot.remove(lidMesh);
     lidMesh.geometry.dispose();
     lidMesh = null;
@@ -814,15 +820,35 @@ function updateLidAnimation(now) {
 }
 
 function fitCamera(meta) {
-  const { w, d, h } = meta.outer;
-  let totalH = h;
+  if (!meta?.outer) return;
+  const w = Number(meta.outer.w);
+  const d = Number(meta.outer.d);
+  const h = Number(meta.outer.h);
+  if (!Number.isFinite(w) || !Number.isFinite(d) || !Number.isFinite(h)) return;
+
+  let topY = Number(meshCache?.totalH) || h;
   if (state.lidEnabled && lidCache) {
-    totalH = lidOpenY() + lidCache.lidHeight;
+    if (isSlideLid()) {
+      const seatY = Number(lidCache.slideMeta?.seatY);
+      const lidH = Number(lidCache.lidHeight);
+      if (Number.isFinite(seatY) && Number.isFinite(lidH)) {
+        topY = Math.max(topY, seatY + lidH);
+      }
+    } else {
+      const openY = Number(lidOpenY());
+      const lidH = Number(lidCache.lidHeight);
+      if (Number.isFinite(openY) && Number.isFinite(lidH)) {
+        topY = Math.max(topY, openY + lidH);
+      }
+    }
   }
+
   const pencilLike = meta.shape === "pencil" || meta.shape === "pencilBox";
-  const span = Math.max(w, d, totalH);
-  controls.target.set(0, BED_LIFT + totalH / 2, 0);
+  const span = Math.max(w, d, topY);
   const dist = (pencilLike ? span * 1.35 : span * 1.8) + 40;
+  if (!Number.isFinite(dist) || dist <= 0) return;
+
+  controls.target.set(0, BED_LIFT + topY * 0.5, 0);
   camera.position.set(
     dist * (pencilLike ? 0.95 : 0.85),
     BED_LIFT + dist * (pencilLike ? 0.55 : 0.65),
@@ -832,21 +858,34 @@ function fitCamera(meta) {
 }
 
 function rebuild() {
+  if (rebuildBusy) {
+    rebuildAgain = true;
+    return;
+  }
+  rebuildBusy = true;
   try {
-    rebuildMesh();
-    scheduleSaveSession();
-  } catch (err) {
-    console.error("MakerDeck rebuild failed:", err);
-    if (state.embossTraceEnabled) {
-      clearEmbossTrace();
-      updateTraceUi();
-    }
     try {
       rebuildMesh();
       scheduleSaveSession();
-    } catch (retryErr) {
-      console.error("MakerDeck rebuild retry failed:", retryErr);
-      resetToDefaultBox();
+    } catch (err) {
+      console.error("MakerDeck rebuild failed:", err);
+      if (state.embossTraceEnabled) {
+        clearEmbossTrace();
+        updateTraceUi();
+      }
+      try {
+        rebuildMesh();
+        scheduleSaveSession();
+      } catch (retryErr) {
+        console.error("MakerDeck rebuild retry failed:", retryErr);
+        resetToDefaultBox();
+      }
+    }
+  } finally {
+    rebuildBusy = false;
+    if (rebuildAgain) {
+      rebuildAgain = false;
+      rebuild();
     }
   }
 }
@@ -1128,6 +1167,10 @@ function rebuildMesh() {
 
   mountEmbossLabelPreviewIfNeeded();
 
+  if (!bodyMesh?.parent) {
+    throw new Error("Preview body not attached after rebuild");
+  }
+
   debossCutterCache = state.embossFace === "lid"
     ? (lidCache?.debossCutterMesh || null)
     : (meshCache.debossCutterMesh || null);
@@ -1210,6 +1253,9 @@ const SLIDER_PROFILES = {
 function applyPreset(shape) {
   const cfg = PRESET_CONFIG[shape];
   if (!cfg) return;
+  cancelPendingArtRebuild();
+  stopLidAnimation(true);
+  if (previewXRayOn) setPreviewXRayMode(false);
   state.shape = shape;
   Object.assign(state, cfg.preset);
   applySliderProfile(cfg.profile);
@@ -1283,6 +1329,10 @@ function syncShapeControlsFromState() {
 }
 
 function selectShape(next) {
+  cancelPendingArtRebuild();
+  stopLidAnimation(true);
+  if (previewXRayOn) setPreviewXRayMode(false);
+
   const prev = state.shape;
   const leavingPreset = PRESET_SHAPES.has(prev) || prev === "vase";
 
@@ -1609,15 +1659,25 @@ function isArtTabActive() {
 }
 
 let artRebuildTimer = null;
+let rebuildBusy = false;
+let rebuildAgain = false;
 
 function scheduleArtRebuild(immediate = false) {
   clearTimeout(artRebuildTimer);
-  const run = () => rebuild();
+  const run = () => {
+    artRebuildTimer = null;
+    rebuild();
+  };
   if (immediate) {
     run();
     return;
   }
   artRebuildTimer = setTimeout(run, 120);
+}
+
+function cancelPendingArtRebuild() {
+  clearTimeout(artRebuildTimer);
+  artRebuildTimer = null;
 }
 
 function syncArtSizeSlider() {

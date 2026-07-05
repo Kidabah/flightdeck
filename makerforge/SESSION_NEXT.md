@@ -2,7 +2,15 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `bd75411` — served at `/makerdeck/` on Flightdeck
+- Latest commit: (pending) — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Fix pencil box blank after preset switch (with text)
+
+**What changed:** Switching pencil tube ↔ pencil box with label text no longer wipes the viewport. Rebuild is serialized (no overlapping art-timer + preset rebuilds), pending art rebuilds cancel on preset change, lid+label children dispose cleanly, camera fit guards NaN.
+
+**Files:** `js/app.js`, `js/geometry.js`, `index.html` — `app.js?v=63`
+
+**Deploy:** Hard refresh required (Ctrl+Shift+R). Backend restart not needed.
 
 ### 2026-07-05 — Fix pencil preset switching blank viewport
 

@@ -1150,6 +1150,7 @@ export function toBufferGeometry(THREE, mesh) {
   }
   geom.setAttribute("position", new THREE.BufferAttribute(pos, 3));
   geom.computeVertexNormals();
+  geom.computeBoundingSphere();
   return geom;
 }
 
