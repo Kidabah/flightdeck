@@ -2,7 +2,7 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: _(pending)_ — served at `/makerdeck/` on Flightdeck
+- Latest commit: `fc71033` — served at `/makerdeck/` on Flightdeck
 
 ### 2026-07-05 — Fix 3MF export crash on multiline text
 
