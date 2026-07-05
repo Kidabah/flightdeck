@@ -756,6 +756,10 @@ function computeLidFitGuides(resolved, params) {
   if (lidType === "slip") {
     guides.skirtOuter = offsetProfileOutward(resolved.outer, clearance + lidWall);
     guides.skirtInner = offsetProfileOutward(resolved.outer, clearance);
+  } else if (lidType === "plug") {
+    guides.skirtOuter = offsetProfileInward(resolved.inner, clearance);
+    guides.skirtInner = offsetProfileInward(resolved.inner, clearance + lidWall);
+    guides.plateOuter = resolved.outer;
   } else {
     guides.plateOuter = resolved.outer;
     if (lipDepth > 0.4) {
@@ -797,11 +801,14 @@ function buildPlugLidMesh(boxOuter, boxInner, options) {
 
 export const LID_TYPES = [
   { id: "slip", label: "Slip-over", optionLabel: "Slip-over — skirt outside", hint: "Skirt wraps outside the box walls — classic loose fit." },
+  { id: "plug", label: "Inset plug", optionLabel: "Inset plug — skirt inside", hint: "Skirt slides inside the opening; top plate sits flush on the rim." },
   { id: "flat", label: "Flat cap", optionLabel: "Flat cap — plate + optional lip", hint: "Plate on the rim with an optional inner lip for alignment — good for storage trays and stacking." },
 ];
 
 export function normalizeLidType(lidType) {
-  return lidType === "flat" ? "flat" : "slip";
+  if (lidType === "flat") return "flat";
+  if (lidType === "plug") return "plug";
+  return "slip";
 }
 
 export function shapeSupportsLid(shape) {
@@ -1231,6 +1238,8 @@ export function buildLid(params) {
       ...options,
       lipDepth: params.lidLipDepth,
     });
+  } else if (lidType === "plug") {
+    lid = buildPlugLidMesh(resolved.outer, resolved.inner, options);
   } else {
     lid = buildSlipLidMesh(resolved.outer, options);
   }

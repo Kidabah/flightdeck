@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=104";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=105";
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh, mergeMeshes } from "./features.js?v=97";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=73";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=74";
@@ -581,6 +581,10 @@ function buildLidGuideLoops() {
     addLidGuideLoop(g.skirtOuter, 0, guideSkirtOuterMaterial, false);
     addLidGuideLoop(g.skirtOuter, g.skirtDepth, guideSkirtOuterMaterial, false);
     addLidGuideLoop(g.skirtInner, 0, guideSkirtInnerMaterial, false);
+  } else if (g.lidType === "plug") {
+    addLidGuideLoop(g.skirtOuter, 0, guideSkirtOuterMaterial, false);
+    addLidGuideLoop(g.skirtOuter, g.skirtDepth, guideSkirtOuterMaterial, false);
+    addLidGuideLoop(g.plateOuter, g.lidHeight, guidePlateMaterial, false);
   } else {
     addLidGuideLoop(g.plateOuter, 0, guidePlateMaterial, false);
     addLidGuideLoop(g.plateOuter, g.lidHeight, guidePlateMaterial, false);
@@ -608,6 +612,9 @@ function lidFitHintText() {
   const t = lidCache?.fitGuides?.lidType || normalizeLidType(state.lidType);
   if (t === "flat") {
     return "Orange = box rim. White plate loops rest directly on the rim — no skirt.";
+  }
+  if (t === "plug") {
+    return "Orange = box rim. Green loops = inset plug skirt inside the opening. White = top plate on the rim.";
   }
   return "Orange = box rim. Green loops = skirt wrapping outside the walls (larger than the rim).";
 }

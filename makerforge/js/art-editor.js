@@ -14,7 +14,7 @@ export function appliedHasArt(state) {
 }
 
 export function preferredEmbossFace(state) {
-  if (state.lidEnabled && (state.lidType === "slip" || state.lidType === "flat")) {
+  if (state.lidEnabled && (state.lidType === "slip" || state.lidType === "plug" || state.lidType === "flat")) {
     return "lid";
   }
   return state.embossFace || "front";

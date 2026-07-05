@@ -2,7 +2,15 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- `main` commit: `2d9c7c9` — KISS lids: slip-over + flat cap only
+- `main` commit: (pending) — inset plug lid restored (3rd KISS type)
+
+### 2026-07-05 — Inset plug lid restored
+
+**What changed:** Inset plug (skirt inside the opening) is back as a third simple lid — distinct from slip-over and flat cap. Hinges/slide/roll still gone.
+
+**Files:** `js/geometry.js`, `js/app.js?v=105`, `js/art-editor.js`, `index.html`
+
+**Deploy:** Pi `git pull`. Hard refresh.
 
 ### 2026-07-05 — KISS lids (slip-over + flat cap only)
 

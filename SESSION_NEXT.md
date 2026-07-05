@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `2d9c7c9` — MakerDeck KISS lids: slip-over + flat cap only
-- Refresh cachebust: Flightdeck `app.js?v=626` / `style.css?v=481`; MakerDeck iframe `app.js?v=104`
+- Latest commit: (pending) — restore MakerDeck inset plug lid as third KISS option
+- Refresh cachebust: Flightdeck `app.js?v=626` / `style.css?v=481`; MakerDeck iframe `app.js?v=105`
+
+### 2026-07-05 fix (MakerDeck inset plug lid restored)
+
+**Third simple lid type back** (`makerforge/js/geometry.js`, `makerforge/js/app.js`, `makerforge/index.html`)
+
+- **Inset plug** (skirt inside the opening) restored alongside slip-over and flat cap — still no hinges/slide/roll.
+- Old saved `plug` sessions map to inset plug again (not slip-over).
+- Cache `app.js?v=105`. Hard refresh MakerDeck.
 
 ### 2026-07-05 feature (MakerDeck KISS lids)
 
