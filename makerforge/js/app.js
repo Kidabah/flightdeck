@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, shapeSupportsHingeLid, shapeSupportsRollLid, LID_TYPES, normalizeLidType, hingeLidAvailable, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=95";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh, mergeMeshes } from "./features.js?v=95";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, shapeSupportsSlideLid, shapeSupportsHingeLid, shapeSupportsRollLid, LID_TYPES, normalizeLidType, clipHingeAvailable, buildHingeClipMesh, buildHingePinMesh, orientClipForPrint, orientPinForPrint, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=97";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh, mergeMeshes } from "./features.js?v=96";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=73";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=74";
 import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=73";
@@ -266,6 +266,10 @@ function buildParams() {
     hingePinDiameter: state.hingePinDiameter,
     hingeKnuckleRadius: state.hingeKnuckleRadius,
     hingeKnuckleCount: state.hingeKnuckleCount,
+    clipRailDiameter: state.clipRailDiameter,
+    clipPinDiameter: state.clipPinDiameter,
+    clipHingeCount: state.clipHingeCount,
+    clipRailLength: state.clipRailLength,
     rollLugCount: state.rollLugCount,
     rollTurnDegrees: state.rollTurnDegrees,
     rollLugDepth: state.rollLugDepth,
@@ -616,9 +620,10 @@ function buildLidGuideLoops() {
     addSlideGuideSegment(entryX, entryX + 4, channelLineY, channelZ, guideSkirtInnerMaterial, true);
     addSlideGuideSegment(entryX, entryX + 4, -channelLineY, channelZ, guideSkirtInnerMaterial, true);
     addSlideGuideSegment(stopX, iw2, 0, channelZ, guidePlateMaterial, true);
-  } else if (g.lidType === "hinge") {
-    addLidGuideLoop(g.boxInner, 0, guideSkirtInnerMaterial, false);
-    addLidGuideLoop(g.plateOuter || g.boxOuter, g.lidHeight, guidePlateMaterial, false);
+  } else if (g.lidType === "clip" || g.lidType === "hinge") {
+    addLidGuideLoop(g.skirtOuter, 0, guideSkirtOuterMaterial, false);
+    addLidGuideLoop(g.skirtOuter, g.skirtDepth, guideSkirtOuterMaterial, false);
+    addLidGuideLoop(g.plateOuter, g.lidHeight, guidePlateMaterial, false);
   } else if (g.lidType === "roll") {
     addLidGuideLoop(g.plateOuter || g.boxOuter, g.lidHeight, guidePlateMaterial, false);
   } else {
@@ -658,8 +663,8 @@ function lidFitHintText() {
   if (t === "slide") {
     return "Green lines = angled grooves on the long walls. Lid slides in from the short end (−length) and seats in the far-end pocket.";
   }
-  if (t === "hinge") {
-    return "Orange = box rim. Vertical knuckles interleave on the back top edge — slide 1.75 mm filament through the pin tunnels from either side.";
+  if (t === "clip" || t === "hinge") {
+    return "Orange = box rim. Snap rails on the back top edge — print 4 clips + 2 pins, snap clips onto box/lid rails, pin through knuckles.";
   }
   if (t === "roll") {
     return "Orange = box rim. Push the cap down, twist to lock in the bayonet tracks. Preview shows lift + quarter-turn.";
@@ -702,8 +707,16 @@ function isSlideLid() {
   return !!(lidCache?.slideMeta?.mode === "slide" || lidCache?.meta?.lidType === "slide");
 }
 
+function isClipLid() {
+  return !!(lidCache?.clipMeta?.mode === "clip" || lidCache?.meta?.lidType === "clip");
+}
+
 function isHingeLid() {
-  return !!(lidCache?.hingeMeta?.mode === "hinge" || lidCache?.meta?.lidType === "hinge");
+  return isClipLid() || !!(lidCache?.hingeMeta?.mode === "hinge" || lidCache?.meta?.lidType === "hinge");
+}
+
+function clipOrHingeMeta() {
+  return lidCache?.clipMeta || lidCache?.hingeMeta;
 }
 
 function isRollLid() {
@@ -711,14 +724,14 @@ function isRollLid() {
 }
 
 function setHingeLidAngle(angle) {
-  if (!lidCache?.hingeMeta) return;
+  const hm = clipOrHingeMeta();
+  if (!hm) return;
   if (lidPivot) {
     lidPivot.rotation.x = angle;
-    syncLidGuideLoops(lidCache.hingeMeta.seatZ + LID_PREVIEW_GAP, 0);
+    syncLidGuideLoops(hm.seatZ + LID_PREVIEW_GAP, 0);
     return;
   }
   if (!lidMesh) return;
-  const hm = lidCache.hingeMeta;
   const y = hm.seatZ + LID_PREVIEW_GAP;
   lidMesh.rotation.x = angle;
   lidMesh.position.set(0, y, 0);
@@ -749,13 +762,14 @@ function setRollLidTransform(y, rotY) {
 function resetLidPreviewPose() {
   if (!lidCache) return;
   if (isHingeLid() && lidMesh) {
-    if (lidPivot) {
-      lidPivot.position.y = lidCache.hingeMeta.seatZ;
-      lidPivot.rotation.x = lidCache.hingeMeta.restAngle ?? -0.25;
-    } else {
-      setHingeLidAngle(lidCache.hingeMeta.restAngle ?? -0.25);
+    const hm = clipOrHingeMeta();
+    if (lidPivot && hm) {
+      lidPivot.position.y = hm.seatZ;
+      lidPivot.rotation.x = hm.restAngle ?? -0.25;
+    } else if (hm) {
+      setHingeLidAngle(hm.restAngle ?? -0.25);
     }
-    syncLidGuideLoops(lidCache.hingeMeta.seatZ + LID_PREVIEW_GAP, 0);
+    syncLidGuideLoops((hm?.seatZ ?? 0) + LID_PREVIEW_GAP, 0);
     return;
   }
   if (isRollLid()) {
@@ -772,7 +786,10 @@ function lidRestY() {
   if (!lidCache) return LID_PREVIEW_GAP;
   if (isSlideLid()) return lidCache.slideMeta.seatY;
   if (isRollLid()) return lidCache.rollMeta.seatY + lidCache.rollMeta.lift;
-  if (isHingeLid()) return lidCache.hingeMeta.seatZ + LID_PREVIEW_GAP;
+  if (isHingeLid()) {
+    const hm = clipOrHingeMeta();
+    return (hm?.seatZ ?? 0) + LID_PREVIEW_GAP;
+  }
   return lidCache.seatZ + LID_PREVIEW_GAP;
 }
 
@@ -780,7 +797,10 @@ function lidOpenY() {
   if (!lidCache) return LID_PREVIEW_GAP;
   if (isSlideLid()) return lidCache.slideMeta.seatY;
   if (isRollLid()) return lidCache.rollMeta.seatY + lidCache.rollMeta.lift;
-  if (isHingeLid()) return lidCache.hingeMeta.seatZ + LID_PREVIEW_GAP;
+  if (isHingeLid()) {
+    const hm = clipOrHingeMeta();
+    return (hm?.seatZ ?? 0) + LID_PREVIEW_GAP;
+  }
   return lidCache.seatZ + LID_PREVIEW_GAP + LID_ANIM_LIFT;
 }
 
@@ -788,7 +808,10 @@ function lidClosedY() {
   if (!lidCache) return 0;
   if (isSlideLid()) return lidCache.slideMeta.seatY;
   if (isRollLid()) return lidCache.rollMeta.seatY + 0.02;
-  if (isHingeLid()) return lidCache.hingeMeta.seatZ + 0.02;
+  if (isHingeLid()) {
+    const hm = clipOrHingeMeta();
+    return (hm?.seatZ ?? 0) + 0.02;
+  }
   return lidCache.seatZ + 0.02;
 }
 
@@ -978,8 +1001,8 @@ function playLidFitPreview() {
     return;
   }
   if (isHingeLid()) {
-    const hm = lidCache.hingeMeta;
-    setHingeLidAngle(hm.restAngle ?? -0.25);
+    const hm = clipOrHingeMeta();
+    setHingeLidAngle(hm?.restAngle ?? -0.25);
     lidAnim = {
       mode: "hinge",
       hm,
@@ -1457,7 +1480,9 @@ function rebuildMesh() {
   }
 
   if (nextLidMesh) {
-    if (nextLidCache.meta?.lidType === "hinge" && nextLidCache.hingeMeta) {
+    if (nextLidCache.meta?.lidType === "clip" && nextLidCache.clipMeta) {
+      attachHingeLidPreview(nextLidMesh, nextLidCache.clipMeta, nextLidCache.meta);
+    } else if (nextLidCache.meta?.lidType === "hinge" && nextLidCache.hingeMeta) {
       attachHingeLidPreview(nextLidMesh, nextLidCache.hingeMeta, nextLidCache.meta);
     } else {
       lidMesh = nextLidMesh;
@@ -1696,10 +1721,11 @@ function syncLidTypeSelect() {
   const sel = document.getElementById("lid-type");
   if (!sel) return;
   const slideOk = shapeSupportsSlideLid(state.shape);
-  const hingeOk = hingeLidAvailable(state.shape);
+  const clipOk = clipHingeAvailable(state.shape);
   const rollOk = shapeSupportsRollLid(state.shape);
   sel.innerHTML = LID_TYPES.filter((t) => {
-    if (t.hidden || t.id === "hinge") return hingeOk;
+    if (t.hidden || t.id === "hinge") return false;
+    if (t.id === "clip") return clipOk;
     if (t.id === "slide") return slideOk;
     if (t.id === "roll") return rollOk;
     return true;
@@ -1708,7 +1734,8 @@ function syncLidTypeSelect() {
   ).join("");
   state.lidType = normalizeLidType(state.lidType);
   if (state.lidType === "slide" && !slideOk) state.lidType = "plug";
-  if (state.lidType === "hinge" && !hingeOk) state.lidType = "plug";
+  if (state.lidType === "clip" && !clipOk) state.lidType = "plug";
+  if (state.lidType === "hinge") state.lidType = "plug";
   if (state.lidType === "roll" && !rollOk) state.lidType = "plug";
 }
 
@@ -1787,16 +1814,16 @@ function updateLidUi() {
   const type = LID_TYPES.find((t) => t.id === state.lidType) || LID_TYPES[0];
   const isFlat = state.lidType === "flat";
   const isSlide = state.lidType === "slide";
-  const isHinge = state.lidType === "hinge";
+  const isClip = state.lidType === "clip";
   const isRoll = state.lidType === "roll";
   const lipOn = isFlat && (state.lidLipDepth ?? 0) > 0.4;
   const slideOk = shapeSupportsSlideLid(state.shape);
-  const hingeOk = hingeLidAvailable(state.shape);
+  const clipOk = clipHingeAvailable(state.shape);
   const rollOk = shapeSupportsRollLid(state.shape);
   document.getElementById("lid-enabled").checked = !!state.lidEnabled && supported;
   document.getElementById("lid-type").value = isSlide && !slideOk
     ? "plug"
-    : isHinge && !hingeOk
+    : isClip && !clipOk
       ? "plug"
       : isRoll && !rollOk
         ? "plug"
@@ -1813,7 +1840,7 @@ function updateLidUi() {
   const hint = document.getElementById("lid-type-hint");
   if (hint) {
     hint.textContent = on
-      ? `${type.hint}${isSlide ? " Preview animates sliding along the length." : isHinge ? " Preview animates flip open on the back hinge." : isRoll ? " Preview animates push-down + twist lock." : " Exports plate-down on the bed."}`
+      ? `${type.hint}${isSlide ? " Preview animates sliding along the length." : isClip ? " Preview animates flip open on the back clip hinge." : isRoll ? " Preview animates push-down + twist lock." : " Exports plate-down on the bed."}`
       : supported
         ? "Enable to preview and export a separate lid STL."
         : "Lids are not available for vase / pot shapes.";
@@ -2329,7 +2356,8 @@ function syncExportFormatOptions() {
   const insertOn = state.insertEnabled && shapeSupportsInsert(insertUiShape());
   const debossOn = !!state.embossDeboss && !!debossCutterCache;
   const saucerOn = state.shape === "vase" && state.vaseSaucerEnabled && !!meshCache?.saucerMesh;
-  const show = { lid: lidOn, accent: accentOn, insert: insertOn, deboss: debossOn, saucer: saucerOn };
+  const clipOn = lidOn && state.lidType === "clip";
+  const show = { lid: lidOn, clip: clipOn, accent: accentOn, insert: insertOn, deboss: debossOn, saucer: saucerOn };
   sel.querySelectorAll("option[data-export-opt]").forEach((opt) => {
     const ok = show[opt.dataset.exportOpt];
     opt.hidden = !ok;
@@ -2406,6 +2434,22 @@ function runExport(format) {
       case "saucer": {
         if (state.shape !== "vase" || !state.vaseSaucerEnabled || !meshCache?.saucerMesh) return;
         downloadBlob(meshToStl(meshCache.saucerMesh, "makerdeck-saucer"), filenameFor(meshCache.meta, "saucer"));
+        break;
+      }
+      case "clip-stl": {
+        if (!state.lidEnabled || state.lidType !== "clip") return;
+        const params = buildParams();
+        const clip = sanitizeMeshForStl(orientClipForPrint(buildHingeClipMesh(params)));
+        if (!clip) throw new Error("Clip mesh empty");
+        downloadBlob(meshToStl(clip, "makerdeck-clip"), filenameFor(meshCache.meta, "clip"));
+        break;
+      }
+      case "clip-pin-stl": {
+        if (!state.lidEnabled || state.lidType !== "clip") return;
+        const params = buildParams();
+        const pin = sanitizeMeshForStl(orientPinForPrint(buildHingePinMesh(params)));
+        if (!pin) throw new Error("Pin mesh empty");
+        downloadBlob(meshToStl(pin, "makerdeck-clip-pin"), filenameFor(meshCache.meta, "clip-pin"));
         break;
       }
       default:

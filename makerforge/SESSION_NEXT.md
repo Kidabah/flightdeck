@@ -2,7 +2,19 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `1260d2e` — served at `/makerdeck/` on Flightdeck
+- Latest commit: *(pending — clip hinge deploy)* — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Clip hinge: snap rails + separate clip/pin exports
+
+**What changed:** Replaced the hidden integrated flip hinge with a focused **clip hinge** system:
+- **Clip hinge** lid type — clean inset plug + snap rails on box/lid back rim (no integrated knuckles)
+- **Separate exports:** STL hinge clip (×4) and STL hinge pin (×2) in the download dropdown
+- Clip + pin meshes are **manifold** (0 open edges after sanitize) — no Bambu Repair
+- Preview reuses flip animation on back edge; saved `hinge` lid type maps to `clip`
+
+**Files:** `js/clip-hinge.js` (new), `js/geometry.js`, `js/app.js`, `js/stl.js`, `js/art-editor.js`, `index.html` — cache-bust `app.js?v=97`
+
+**Deploy:** Pi `git pull`. Hard refresh. Enable lid → Clip hinge → export body, lid, clips, pins.
 
 ### 2026-07-05 — Flip hinge hidden (not strong enough yet)
 

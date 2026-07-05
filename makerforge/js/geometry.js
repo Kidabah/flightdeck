@@ -23,6 +23,16 @@ import {
   shapeSupportsSlideLid,
 } from "./slide-lid.js";
 import {
+  appendClipHingeRailsToBody,
+  appendClipHingeRailsToLid,
+  buildHingeClipMesh,
+  buildHingePinMesh,
+  computeClipHingeMeta,
+  orientClipForPrint,
+  orientPinForPrint,
+  shapeSupportsClipHinge,
+} from "./clip-hinge.js";
+import {
   appendHingeKnucklesToBody,
   buildHingeLidMesh,
   computeHingeFitGuides,
@@ -37,7 +47,7 @@ import {
 } from "./roll-lid.js";
 import { appendInsertShelfSlotsToBody } from "./insert-slots.js";
 
-export { shapeSupportsDecor, shapeSupportsInsert, VASE_STYLES, shapeSupportsSlideLid, shapeSupportsHingeLid, shapeSupportsRollLid, HINGE_LID_ENABLED, normalizeLidType, hingeLidAvailable };
+export { shapeSupportsDecor, shapeSupportsInsert, VASE_STYLES, shapeSupportsSlideLid, shapeSupportsHingeLid, shapeSupportsRollLid, shapeSupportsClipHinge, normalizeLidType, clipHingeAvailable, buildHingeClipMesh, buildHingePinMesh, orientClipForPrint, orientPinForPrint };
 
 function clamp(n, min, max) {
   return Math.min(max, Math.max(min, n));
@@ -759,11 +769,28 @@ function computeLidFitGuides(resolved, params) {
   const clearance = clamp(params.lidClearance ?? 0.35, 0.1, 1.2);
   const lidWall = clamp(params.lidWall ?? params.wall ?? 2.4, 1.2, 6);
   const lidType = params.lidType === "plug" || params.lidType === "flat" || params.lidType === "slide"
-    || params.lidType === "hinge" || params.lidType === "roll"
+    || params.lidType === "hinge" || params.lidType === "clip" || params.lidType === "roll"
     ? params.lidType
     : "slip";
   if (lidType === "slide" && params.slideMeta) {
     return computeSlideFitGuides(resolved, params, params.slideMeta);
+  }
+  if (lidType === "clip") {
+    const skirtDepth = clamp(params.lidSkirt ?? 10, 4, 30);
+    const lidThickness = clamp(params.lidThickness ?? 2.4, 1.2, 8);
+    const lidHeight = skirtDepth + lidThickness;
+    const g = computeClipHingeMeta(resolved, params, lidHeight);
+    return {
+      ...g,
+      seatZ: resolved.totalH,
+      lidType: "clip",
+      lidHeight,
+      boxOuter: resolved.outer,
+      boxInner: resolved.inner,
+      plateOuter: resolved.outer,
+      skirtOuter: offsetProfileInward(resolved.inner, clearance),
+      skirtInner: offsetProfileInward(resolved.inner, clearance + lidWall),
+    };
   }
   if (lidType === "hinge") {
     return computeHingeFitGuides(resolved, params);
@@ -834,20 +861,18 @@ export const LID_TYPES = [
   { id: "plug", label: "Inset plug", optionLabel: "Inset plug — skirt inside", hint: "Skirt slides inside the opening; top plate sits flush on the rim." },
   { id: "slide", label: "Channel slide", optionLabel: "Channel slide — rail grooves", hint: "Angled grooves on the long walls; beveled lid slides in from the short end and seats at the far end." },
   { id: "flat", label: "Flat cap", optionLabel: "Flat cap — plate + optional lip", hint: "Plate on the rim with an optional inner lip for alignment — good for storage trays and stacking." },
-  { id: "hinge", label: "Flip hinge", optionLabel: "Flip hinge — back pin knuckles", hint: "Experimental — hidden until a stronger hinge design ships.", hidden: true },
+  { id: "clip", label: "Clip hinge", optionLabel: "Clip hinge — snap rails + clips", hint: "Clean inset plug lid with snap rails on the back rim. Export clips + pins separately (print 4 clips, 2 pins); snap onto rails and pin through knuckles." },
+  { id: "hinge", label: "Flip hinge", optionLabel: "Flip hinge — back pin knuckles", hint: "Deprecated.", hidden: true },
   { id: "roll", label: "Roll lock", optionLabel: "Roll lock — push + twist", hint: "Bayonet cap for round containers — push down then twist to lock. Best on circle, oval, or hex shapes." },
 ];
 
-/** Flip hinge is experimental — off until a stronger printable hinge is ready. */
-export const HINGE_LID_ENABLED = false;
-
 export function normalizeLidType(lidType) {
-  if (lidType === "hinge" && !HINGE_LID_ENABLED) return "plug";
+  if (lidType === "hinge") return "clip";
   return lidType;
 }
 
-export function hingeLidAvailable(shape) {
-  return HINGE_LID_ENABLED && shapeSupportsHingeLid(shape);
+export function clipHingeAvailable(shape) {
+  return shapeSupportsClipHinge(shape);
 }
 
 export function shapeSupportsLid(shape) {
@@ -1216,11 +1241,10 @@ export function buildContainer(params) {
 
   if (
     params.lidEnabled &&
-    HINGE_LID_ENABLED &&
-    params.lidType === "hinge" &&
-    shapeSupportsHingeLid(resolved.meta.shape)
+    params.lidType === "clip" &&
+    shapeSupportsClipHinge(resolved.meta.shape)
   ) {
-    appendHingeKnucklesToBody(mesh.positions, mesh.indices, resolved.meta, resolved.totalH, params);
+    appendClipHingeRailsToBody(mesh.positions, mesh.indices, resolved.meta, resolved.totalH, params);
   }
 
   if (
@@ -1291,14 +1315,17 @@ export function buildLid(params) {
   const resolved = resolveContainer(params);
   let lidType = normalizeLidType(
     params.lidType === "plug" || params.lidType === "flat" || params.lidType === "slide"
-      || params.lidType === "hinge" || params.lidType === "roll"
+      || params.lidType === "hinge" || params.lidType === "clip" || params.lidType === "roll"
       ? params.lidType
       : "slip",
   );
   if (lidType === "slide" && !shapeSupportsSlideLid(resolved.meta.shape)) {
     lidType = "plug";
   }
-  if (lidType === "hinge" && !hingeLidAvailable(resolved.meta.shape)) {
+  if (lidType === "clip" && !clipHingeAvailable(resolved.meta.shape)) {
+    lidType = "plug";
+  }
+  if (lidType === "hinge") {
     lidType = "plug";
   }
   if (lidType === "roll" && !shapeSupportsRollLid(resolved.meta.shape)) {
@@ -1318,6 +1345,7 @@ export function buildLid(params) {
   let lid;
   let slideMeta = null;
   let hingeMeta = null;
+  let clipMeta = null;
   let rollMeta = null;
   if (lidType === "flat") {
     lid = buildFlatLidMesh(resolved.outer, resolved.inner, resolved.meta, params, {
@@ -1330,6 +1358,11 @@ export function buildLid(params) {
     lid = buildSlideLidMesh(resolved.meta, resolved.totalH, params);
     slideMeta = lid.slideMeta;
     lidType = "slide";
+  } else if (lidType === "clip") {
+    lid = buildPlugLidMesh(resolved.outer, resolved.inner, options);
+    appendClipHingeRailsToLid(lid.positions, lid.indices, resolved.meta, lid.lidHeight, params);
+    clipMeta = computeClipHingeMeta(resolved, params, lid.lidHeight);
+    lidType = "clip";
   } else if (lidType === "hinge") {
     lid = buildHingeLidMesh(resolved.meta, resolved.totalH, params);
     hingeMeta = lid.hingeMeta;
@@ -1349,7 +1382,7 @@ export function buildLid(params) {
       : resolved.meta.shape;
   let labelMesh = null;
   let debossCutterMesh = null;
-  const guideParams = { ...params, lidType, slideMeta, hingeMeta, rollMeta };
+  const guideParams = { ...params, lidType, slideMeta, hingeMeta, clipMeta, rollMeta };
   const shellLid = { positions: lid.positions.slice(), indices: lid.indices.slice() };
 
   if (params.embossFace === "lid" && shapeSupportsDecor(decorShape) && !params._artPreviewDraft) {
@@ -1374,6 +1407,7 @@ export function buildLid(params) {
     seatZ: resolved.totalH,
     slideMeta,
     hingeMeta,
+    clipMeta,
     rollMeta,
     fitGuides: computeLidFitGuides(resolved, guideParams),
     labelMesh,
@@ -1545,6 +1579,10 @@ export const DEFAULTS = {
   hingePinDiameter: 1.75,
   hingeKnuckleRadius: 4,
   hingeKnuckleCount: 5,
+  clipRailDiameter: 4,
+  clipPinDiameter: 3,
+  clipHingeCount: 2,
+  clipRailLength: 12,
   rollLugCount: 3,
   rollTurnDegrees: 55,
   rollLugDepth: 1.6,

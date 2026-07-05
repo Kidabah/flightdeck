@@ -20,6 +20,7 @@ export function preferredEmbossFace(state) {
       state.lidType === "slip" ||
       state.lidType === "plug" ||
       state.lidType === "flat" ||
+      state.lidType === "clip" ||
       state.lidType === "hinge" ||
       state.lidType === "roll")
   ) {

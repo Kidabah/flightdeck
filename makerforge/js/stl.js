@@ -245,6 +245,8 @@ export function filenameFor(meta, part = "body") {
   if (part === "lid") name = base.replace(/\.stl$/, "-lid.stl");
   if (part === "accent") name = base.replace(/\.stl$/, "-accent.stl");
   if (part === "insert") name = base.replace(/\.stl$/, "-insert.stl");
+  if (part === "clip") name = base.replace(/\.stl$/, "-hinge-clip.stl");
+  if (part === "clip-pin") name = base.replace(/\.stl$/, "-hinge-pin.stl");
   if (meta.joinerHand) {
     name = name.replace(/\.stl$/, `-link-${meta.joinerHand}.stl`);
   }
