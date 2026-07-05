@@ -6,7 +6,9 @@ export function appliedHasArt(state) {
     state.embossTraceEnabled ||
     !!trace?.shapeGroups?.length ||
     !!trace?.strokePaths?.length ||
-    !!state.embossText?.trim() ||
+    !!String(state.embossText || "")
+      .split(/\r?\n/)
+      .some((l) => l.trim()) ||
     (state.embossSvgEnabled && !!state.embossSvgText?.trim())
   );
 }

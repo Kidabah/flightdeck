@@ -2,7 +2,20 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `100e58c` — served at `/makerdeck/` on Flightdeck
+- Latest commit: _(pending)_ — served at `/makerdeck/` on Flightdeck
+
+### 2026-07-05 — Visual colour pickers + 3MF Orca export + multiline text
+
+**What changed:**
+- **Colour pickers** — swatch grid + hex chip (box, text, accent) instead of tiny native colour input
+- **Download 3MF** — body / text / accent as separate objects with `filament_colour` for Orca; **Download STL** kept for single mesh
+- **Multiline text** — textarea, Enter for new line (up to 4 lines)
+- **Preview** — text shown as separate coloured mesh matching export slots
+- **Pencil presets** — "Quick presets" heading + better camera framing for pencil tube/box
+
+**Files:** `js/color-picker.js`, `js/3mf.js`, `js/app.js`, `js/features.js`, `js/geometry.js`, `js/art-editor.js`, `index.html`, `css/style.css` — cache-bust `app.js?v=60`, `style.css?v=14`
+
+**Deploy:** Pi `git pull` + hard refresh.
 
 ### 2026-07-05 — Box preview colour picker
 

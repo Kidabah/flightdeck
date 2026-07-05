@@ -1,9 +1,11 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsLid, shapeSupportsSlideLid, LID_TYPES, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh } from "./features.js";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh } from "./features.js";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js";
-import { meshToStl, downloadBlob, filenameFor } from "./stl.js";
+import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js";
+import { buildColoredProject3mf, filename3mfFor } from "./3mf.js";
+import { mountColorPicker, setColorPickerValue } from "./color-picker.js";
 import { appliedHasArt } from "./art-editor.js";
 
 const SESSION_KEY = "makerdeck-session-v1";
@@ -11,6 +13,12 @@ let saveSessionTimer = null;
 let sessionBooting = true;
 
 const PRESET_SHAPES = new Set(["pencil", "pencilBox", "teardrop", "star", "heart"]);
+
+function textHasInk(text) {
+  return String(text || "")
+    .split(/\r?\n/)
+    .some((l) => l.trim());
+}
 
 const PRESET_CONFIG = {
   pencil: { preset: PENCIL_PRESET, profile: "pencil" },
@@ -297,6 +305,140 @@ function mountDebossPreviewIfNeeded() {
     const labelGeom = toBufferGeometry(THREE, meshCache.labelMesh);
     attachLabelPreviewMesh(labelGeom, debossPreviewMaterial, params);
   }
+}
+
+function mountEmbossLabelPreviewIfNeeded() {
+  if (state.embossDeboss) {
+    mountDebossPreviewIfNeeded();
+    return;
+  }
+  const params = buildParams();
+  labelMaterial.color.set(state.embossTextColor || "#f8fafc");
+  if (state.embossFace === "lid" && lidCache?.labelMesh && lidMesh) {
+    const labelGeom = toBufferGeometry(THREE, lidCache.labelMesh);
+    attachLabelPreviewMesh(labelGeom, labelMaterial, params);
+  } else if (state.embossFace !== "lid" && meshCache?.labelMesh) {
+    const labelGeom = toBufferGeometry(THREE, meshCache.labelMesh);
+    attachLabelPreviewMesh(labelGeom, labelMaterial, params);
+  }
+}
+
+function setupColorPickers() {
+  mountColorPicker(document.getElementById("box-color-picker"), {
+    value: state.boxColor,
+    onChange: (hex) => {
+      state.boxColor = hex;
+      applyBoxPreviewColor();
+      scheduleSaveSession();
+    },
+  });
+  mountColorPicker(document.getElementById("accent-color-picker"), {
+    value: state.accentColor,
+    onChange: (hex) => {
+      state.accentColor = hex;
+      if (accentMesh) accentMaterial.color.set(hex);
+      scheduleSaveSession();
+    },
+  });
+  mountColorPicker(document.getElementById("text-color-picker"), {
+    value: state.embossTextColor,
+    onChange: (hex) => {
+      state.embossTextColor = hex;
+      if (labelMesh) labelMaterial.color.set(hex);
+      scheduleSaveSession();
+    },
+  });
+}
+
+function syncColorPickersFromState() {
+  setColorPickerValue(document.getElementById("box-color-picker"), state.boxColor || "#38bdf8");
+  setColorPickerValue(document.getElementById("accent-color-picker"), state.accentColor || "#f97316");
+  setColorPickerValue(document.getElementById("text-color-picker"), state.embossTextColor || "#f8fafc");
+}
+
+function hasSeparateTextExport(params = buildParams()) {
+  return textHasInk(params.embossText) && !params.embossSvgEnabled && !params.embossDeboss;
+}
+
+function collectColoredExportParts() {
+  if (!meshCache) return [];
+  const params = buildParams();
+  const parts = [];
+  let extruder = 1;
+  const shell = meshCache.shellMesh || meshCache;
+  const separateText = hasSeparateTextExport(params) && params.embossFace !== "lid";
+
+  const bodyMesh = separateText ? shell : buildWatertightExportMesh(meshCache, meshCache.meta, params);
+  const bodyClean = sanitizeMeshForStl(bodyMesh);
+  if (bodyClean) {
+    parts.push({
+      name: "Body",
+      mesh: bodyClean,
+      color: state.boxColor || "#38bdf8",
+      extruder: extruder++,
+    });
+  }
+
+  if (separateText) {
+    const textMesh = buildTextLabelExportMesh(meshCache.meta, params);
+    const textClean = sanitizeMeshForStl(textMesh);
+    if (textClean) {
+      parts.push({
+        name: "Text",
+        mesh: textClean,
+        color: state.embossTextColor || "#f8fafc",
+        extruder: extruder++,
+      });
+    }
+  }
+
+  if (state.accentEnabled && accentCache) {
+    const accentClean = sanitizeMeshForStl(accentCache);
+    if (accentClean) {
+      parts.push({
+        name: "Accent",
+        mesh: accentClean,
+        color: state.accentColor || "#f97316",
+        extruder: extruder++,
+      });
+    }
+  }
+
+  return parts;
+}
+
+function collectColoredLidExportParts() {
+  if (!lidCache) return [];
+  const params = buildParams();
+  const parts = [];
+  let extruder = 1;
+  const separateText = hasSeparateTextExport(params) && params.embossFace === "lid";
+  const shell = lidCache.shellLid || lidCache;
+  const lidBody = separateText ? shell : lidCache;
+  const lidClean = sanitizeMeshForStl(orientLidForPrint(lidBody));
+  if (lidClean) {
+    parts.push({
+      name: "Lid",
+      mesh: lidClean,
+      color: state.boxColor || "#38bdf8",
+      extruder: extruder++,
+    });
+  }
+  if (separateText && lidCache.labelMesh) {
+    const textMesh = buildTextLabelExportMesh(lidCache.meta, params);
+    if (textMesh) {
+      const textClean = sanitizeMeshForStl(orientLidForPrint({ ...textMesh, lidHeight: lidCache.lidHeight }));
+      if (textClean) {
+        parts.push({
+          name: "Lid text",
+          mesh: textClean,
+          color: state.embossTextColor || "#f8fafc",
+          extruder: extruder++,
+        });
+      }
+    }
+  }
+  return parts;
 }
 
 function disposeAccentPreview() {
@@ -663,10 +805,15 @@ function fitCamera(meta) {
   if (state.lidEnabled && lidCache) {
     totalH = lidOpenY() + lidCache.lidHeight;
   }
+  const pencilLike = meta.shape === "pencil" || meta.shape === "pencilBox";
   const span = Math.max(w, d, totalH);
   controls.target.set(0, BED_LIFT + totalH / 2, 0);
-  const dist = span * 1.8 + 40;
-  camera.position.set(dist * 0.85, BED_LIFT + dist * 0.65, dist * 0.9);
+  const dist = (pencilLike ? span * 1.35 : span * 1.8) + 40;
+  camera.position.set(
+    dist * (pencilLike ? 0.95 : 0.85),
+    BED_LIFT + dist * (pencilLike ? 0.55 : 0.65),
+    dist * (pencilLike ? 0.75 : 0.9),
+  );
   controls.update();
 }
 
@@ -858,8 +1005,7 @@ function syncUiFromState() {
   document.getElementById("vase-saucer").checked = !!state.vaseSaucerEnabled;
 
   document.getElementById("emboss-text").value = state.embossText || "";
-  document.getElementById("accent-color").value = state.accentColor || "#f97316";
-  document.getElementById("box-color").value = state.boxColor || "#38bdf8";
+  syncColorPickersFromState();
   const embossFontSelect = document.getElementById("emboss-font");
   if (embossFontSelect) embossFontSelect.value = state.embossFont || "inter";
   updateEmbossTextPreviewStyle();
@@ -917,8 +1063,8 @@ function rebuildMesh() {
   meshCache = nextCache;
   lidCache = nextLidCache;
 
-  const showEmbossOnBody = meshCache.labelMesh && state.embossFace !== "lid" && !state.embossDeboss;
-  const bodySource = showEmbossOnBody ? meshCache : (meshCache.shellMesh || meshCache);
+  const useSeparateLabel = meshCache.labelMesh && !state.embossDeboss;
+  const bodySource = useSeparateLabel ? (meshCache.shellMesh || meshCache) : meshCache;
   const geom = toBufferGeometry(THREE, bodySource);
   applyBoxPreviewColor();
   bodyMesh = new THREE.Mesh(geom, material);
@@ -957,7 +1103,7 @@ function rebuildMesh() {
     buildLidGuideLoops();
   }
 
-  mountDebossPreviewIfNeeded();
+  mountEmbossLabelPreviewIfNeeded();
 
   debossCutterCache = state.embossFace === "lid"
     ? (lidCache?.debossCutterMesh || null)
@@ -1732,10 +1878,11 @@ function updateDecorUi() {
 
   const svgOn = state.embossSvgEnabled && supported && !state.embossTraceEnabled;
   const traceOnBox = !!state.embossTraceEnabled;
-  const textOn = !!state.embossText?.trim();
+  const textOn = textHasInk(state.embossText);
   document.getElementById("emboss-svg-enabled").checked = svgOn;
   document.getElementById("field-svg-file").classList.toggle("hidden", !svgOn);
   document.getElementById("field-emboss-text").classList.toggle("hidden", svgOn);
+  document.getElementById("field-text-color").classList.toggle("hidden", svgOn || !textOn || state.embossDeboss);
   document.getElementById("field-emboss-font").classList.toggle("hidden", svgOn);
   syncEmbossFaceUi();
   document.getElementById("emboss-deboss").checked = !!state.embossDeboss;
@@ -2065,16 +2212,6 @@ document.getElementById("accent-face").addEventListener("change", (e) => {
   rebuild();
 });
 
-document.getElementById("accent-color").addEventListener("input", (e) => {
-  state.accentColor = e.target.value;
-  if (accentMesh) accentMaterial.color.set(state.accentColor);
-});
-
-document.getElementById("box-color").addEventListener("input", (e) => {
-  state.boxColor = e.target.value;
-  applyBoxPreviewColor();
-});
-
 document.getElementById("honeycomb-enabled").addEventListener("change", (e) => {
   state.honeycombEnabled = e.target.checked;
   rebuild();
@@ -2087,7 +2224,7 @@ document.getElementById("stackable-enabled").addEventListener("change", (e) => {
 
 document.getElementById("emboss-text").addEventListener("input", (e) => {
   state.embossText = e.target.value;
-  if (state.embossText.trim()) {
+  if (textHasInk(state.embossText)) {
     clearEmbossTrace();
     state.embossSvgEnabled = false;
     state.embossSvgText = "";
@@ -2325,6 +2462,18 @@ document.getElementById("btn-export-saucer").addEventListener("click", () => {
 
 document.getElementById("btn-export").addEventListener("click", () => {
   if (!meshCache) rebuild();
+  try {
+    const parts = collectColoredExportParts();
+    const blob = buildColoredProject3mf(parts, "makerdeck");
+    downloadBlob(blob, filename3mfFor(meshCache.meta, "body"));
+  } catch (err) {
+    console.error("3MF export failed:", err);
+    alert(err?.message || "Could not build 3MF export.");
+  }
+});
+
+document.getElementById("btn-export-stl").addEventListener("click", () => {
+  if (!meshCache) rebuild();
   const exportMesh = buildWatertightExportMesh(meshCache, meshCache.meta, buildParams());
   const blob = meshToStl(exportMesh, "makerdeck");
   downloadBlob(blob, filenameFor(meshCache.meta, "body"));
@@ -2341,6 +2490,12 @@ document.getElementById("btn-export-lid").addEventListener("click", () => {
     }
   }
   try {
+    if (hasSeparateTextExport() && state.embossFace === "lid") {
+      const parts = collectColoredLidExportParts();
+      const blob = buildColoredProject3mf(parts, "makerdeck-lid");
+      downloadBlob(blob, filename3mfFor(lidCache.meta, "lid"));
+      return;
+    }
     const printMesh = orientLidForPrint(lidCache);
     const blob = meshToStl(printMesh, "makerdeck-lid");
     downloadBlob(blob, filenameFor(lidCache.meta, "lid"));
@@ -2427,6 +2582,7 @@ function scheduleDeferredRestoreTrace() {
 }
 
 async function bootMakerDeck() {
+  setupColorPickers();
   syncLidTypeSelect();
   const restored = await restoreSession();
   if (restored) {

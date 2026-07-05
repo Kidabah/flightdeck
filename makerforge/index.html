@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Oswald:wght@700&family=Roboto+Mono:wght@700&family=Roboto:wght@700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=13">
+  <link rel="stylesheet" href="css/style.css?v=14">
 
   <script type="importmap">
 
@@ -66,7 +66,9 @@
 
         <div class="topbar-export">
 
-        <button type="button" id="btn-export" class="btn btn-primary">Download box</button>
+        <button type="button" id="btn-export" class="btn btn-primary">Download 3MF</button>
+
+        <button type="button" id="btn-export-stl" class="btn btn-secondary">Download STL</button>
 
         <button type="button" id="btn-export-lid" class="btn btn-secondary hidden">Download lid</button>
 
@@ -125,6 +127,8 @@
                 <button type="button" class="shape-btn" data-shape="circle">Circle</button>
 
               </div>
+
+              <h2 class="section-sub">Quick presets</h2>
 
               <div class="preset-grid">
 
@@ -336,17 +340,17 @@
 
             <section class="section" id="section-preview-colour">
 
-              <h2>Preview colour</h2>
+              <h2>Box colour</h2>
 
-              <label class="field">
+              <div class="field field-color">
 
-                <span class="field-label">Box</span>
+                <span class="field-label">Filament</span>
 
-                <input type="color" id="box-color" value="#38bdf8">
+                <div id="box-color-picker"></div>
 
-              </label>
+              </div>
 
-              <p class="field-hint">Preview only — pick matching filament in your slicer after export.</p>
+              <p class="field-hint">Included in the 3MF export — Orca assigns this filament slot to the body.</p>
 
             </section>
 
@@ -536,7 +540,7 @@
 
               <h2>Accent colour</h2>
 
-              <p class="field-hint">Separate STL for a second filament in AMS.</p>
+              <p class="field-hint">Bundled in the <strong>Download 3MF</strong> export as its own filament slot — or use Download accent for a separate STL.</p>
 
               <label class="field field-toggle">
 
@@ -572,11 +576,11 @@
 
               </label>
 
-              <label class="field hidden" id="field-accent-color">
+              <label class="field field-color hidden" id="field-accent-color">
 
-                <span class="field-label">Preview colour</span>
+                <span class="field-label">Band colour</span>
 
-                <input type="color" id="accent-color" value="#f97316">
+                <div id="accent-color-picker"></div>
 
               </label>
 
@@ -592,13 +596,21 @@
 
               <h2>Art on box</h2>
 
-              <p class="field-hint">Type your word — it appears on the face with a selection frame (like Word). Drag to move, handles to resize or rotate, then <strong>Apply to box</strong>.</p>
+              <p class="field-hint">Type your text — it updates on the box live. Press <strong>Enter</strong> for a new line (up to 4 lines).</p>
 
-              <label class="field" id="field-emboss-text">
+              <label class="field field-textarea" id="field-emboss-text">
 
                 <span class="field-label">Text</span>
 
-                <input type="text" id="emboss-text" maxlength="20" placeholder="STENCIL">
+                <textarea id="emboss-text" rows="3" maxlength="80" placeholder="GOODS&#10;IN&#10;HERE"></textarea>
+
+              </label>
+
+              <label class="field field-color" id="field-text-color">
+
+                <span class="field-label">Text colour</span>
+
+                <div id="text-color-picker"></div>
 
               </label>
 
@@ -873,7 +885,7 @@
 
 
 
-  <script type="module" src="js/app.js?v=59"></script>
+  <script type="module" src="js/app.js?v=60"></script>
 
 </body>
 

@@ -275,19 +275,32 @@ function appendBox(outPos, outIdx, x0, y0, z0, x1, y1, z1) {
 /** Rasterise label text to a high-res alpha mask (stencil contours, not pixel blocks). */
 function rasterTextMask(text, fontId, fontSizePx = 640) {
   if (typeof document === "undefined") return null;
+  const lines = String(text || "")
+    .split(/\r?\n/)
+    .slice(0, 4)
+    .map((l) => l.trimEnd());
+  if (!lines.some((l) => l.trim())) return null;
+
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
   const font = embossFontStack(fontId, fontSizePx);
   ctx.font = font;
   const pad = Math.ceil(fontSizePx * 0.22);
-  const width = Math.ceil(ctx.measureText(text).width + pad * 2);
-  const height = Math.ceil(fontSizePx * 1.14);
+  let maxLineW = 0;
+  for (const line of lines) {
+    maxLineW = Math.max(maxLineW, ctx.measureText(line).width);
+  }
+  const lineHeight = fontSizePx * 1.12;
+  const width = Math.ceil(maxLineW + pad * 2);
+  const height = Math.ceil(pad * 2 + (lines.length - 1) * lineHeight + fontSizePx);
   canvas.width = width;
   canvas.height = height;
   ctx.font = font;
   ctx.fillStyle = "#000";
   ctx.textBaseline = "alphabetic";
-  ctx.fillText(text, pad, fontSizePx * 0.9);
+  for (let i = 0; i < lines.length; i++) {
+    ctx.fillText(lines[i], pad, pad + fontSizePx * 0.85 + i * lineHeight);
+  }
   const data = ctx.getImageData(0, 0, width, height).data;
   const mask = new Uint8Array(width * height);
   for (let i = 0; i < width * height; i++) {
@@ -339,10 +352,17 @@ export function textEmbossSizeLimits(meta, face, params = null) {
   };
 }
 
+/** True when text has at least one non-empty line. */
+function textHasInk(text) {
+  return String(text || "")
+    .split(/\r?\n/)
+    .some((l) => l.trim());
+}
+
 /** Shared text layout — keeps 3D mesh and selection handles aligned. */
 function computeTextArtLayout(meta, params) {
-  const text = String(params.embossText || "").trim();
-  if (!text) return null;
+  const text = String(params.embossText || "");
+  if (!textHasInk(text)) return null;
   const frame = getEmbossFaceFrame(meta, params.embossFace || "front", params);
   const limits = textEmbossSizeLimits(meta, frame.face, params);
   const labelH = clamp(params.embossHeight ?? 7, limits.min, limits.max);
@@ -569,6 +589,24 @@ function buildWatertightTextEmbossExport(shellMesh, meta, params) {
   }
 
   return removeWallTrisUnderEmboss({ positions, indices }, frame, meta, shapeGroups);
+}
+
+/** Closed letter solids for separate-colour export (no wall interaction). */
+export function buildTextLabelExportMesh(meta, params) {
+  const collected = collectTextEmbossShapeGroups(meta, params);
+  if (!collected?.shapeGroups?.length) return null;
+
+  const { frame, shapeGroups, depth } = collected;
+  const positions = [];
+  const indices = [];
+  const mapBot = (px, py) => frame.mapPoint(px, py, 0);
+  const mapTop = (px, py) => frame.mapPoint(px, py, depth);
+  const flatCoord = (w) => flatCoordForFrame(frame, w);
+
+  for (const group of shapeGroups) {
+    extrudeShapeGroupBetween(positions, indices, group, mapTop, mapBot, flatCoord, "both");
+  }
+  return positions.length ? { positions, indices } : null;
 }
 
 export function buildWatertightExportMesh(bodyMesh, meta, params) {

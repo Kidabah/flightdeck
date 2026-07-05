@@ -1087,19 +1087,23 @@ export function buildLid(params) {
       : resolved.meta.shape;
   let labelMesh = null;
   let debossCutterMesh = null;
+  const guideParams = { ...params, lidType, slideMeta };
+  const shellLid = { positions: lid.positions.slice(), indices: lid.indices.slice() };
+
   if (params.embossFace === "lid" && shapeSupportsDecor(decorShape) && !params._artPreviewDraft) {
     labelMesh = buildLabelEmboss(resolved.meta, params, params.embossSvgText || "", "emboss");
     if (labelMesh) centerPositions(labelMesh.positions, 0, 0);
     if (params.embossDeboss) {
       debossCutterMesh = buildLabelEmboss(resolved.meta, params, params.embossSvgText || "", "deboss-cutter");
       if (debossCutterMesh) centerPositions(debossCutterMesh.positions, 0, 0);
+      lid = shellLid;
     } else if (labelMesh) {
-      lid = mergeMeshes(lid, labelMesh);
+      lid = mergeMeshes(shellLid, labelMesh);
     }
   }
 
   centerPositions(lid.positions, 0, 0);
-  const guideParams = { ...params, lidType, slideMeta };
+  centerPositions(shellLid.positions, 0, 0);
   return {
     positions: lid.positions,
     indices: lid.indices,
@@ -1110,6 +1114,7 @@ export function buildLid(params) {
     fitGuides: computeLidFitGuides(resolved, guideParams),
     labelMesh,
     debossCutterMesh,
+    shellLid,
   };
 }
 
@@ -1237,6 +1242,7 @@ export const DEFAULTS = {
   accentInset: 4,
   accentColor: "#f97316",
   boxColor: "#38bdf8",
+  embossTextColor: "#f8fafc",
   embossText: "",
   embossFont: "inter",
   embossDepth: 0.7,
