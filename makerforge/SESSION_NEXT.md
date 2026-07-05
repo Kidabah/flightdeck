@@ -2,7 +2,7 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- - `main` commit: *(pending)* — served at `/makerdeck/` on Flightdeck
+- - `main` commit: `c440001` — served at `/makerdeck/` on Flightdeck
 
 ### 2026-07-05 — Clip export: one fused part, 4-up on bed
 
