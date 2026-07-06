@@ -42,7 +42,7 @@
 
       <div>
 
-        <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b118</span></div>
+        <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b119</span></div>
 
         <h1>Container Generator</h1>
 
@@ -618,11 +618,45 @@
 
               <p class="field-hint hidden" id="accent-pos-hint">Slide the band anywhere on the wall — 0% sits on the base, 50% is halfway, 100% hugs the rim. Type exact values (25, 33, 50) via the number button.</p>
 
+              <label class="field hidden" id="field-accent-edge">
+
+                <span class="field-label">Band edge</span>
+
+                <select id="accent-edge">
+
+                  <option value="straight">Straight ring</option>
+
+                  <option value="wave">Wavy (up-n-down)</option>
+
+                </select>
+
+              </label>
+
+              <label class="field hidden" id="field-accent-wave-amp">
+
+                <span class="field-label">Wave height <span class="unit">mm</span></span>
+
+                <input type="range" id="accent-wave-amp" min="0.5" max="10" step="0.5" value="3" tabindex="-1">
+
+                <button type="button" class="value-edit" data-slider="accent-wave-amp" data-key="accentWaveAmp" data-parse="float">3</button>
+
+              </label>
+
+              <label class="field hidden" id="field-accent-wave-count">
+
+                <span class="field-label">Waves around</span>
+
+                <input type="range" id="accent-wave-count" min="2" max="16" step="1" value="6" tabindex="-1">
+
+                <button type="button" class="value-edit" data-slider="accent-wave-count" data-key="accentWaveCount" data-parse="int">6</button>
+
+              </label>
+
               <label class="field hidden" id="field-accent-height">
 
                 <span class="field-label">Band height</span>
 
-                <input type="range" id="accent-height" min="2" max="10" step="0.5" value="4" tabindex="-1">
+                <input type="range" id="accent-height" min="2" max="80" step="0.5" value="4" tabindex="-1">
 
                 <button type="button" class="value-edit" id="out-accent-height" data-slider="accent-height" data-key="accentHeight" data-parse="float">4</button>
 
@@ -1077,7 +1111,7 @@
 
 
 
-  <script type="module" src="js/app.js?v=118"></script>
+  <script type="module" src="js/app.js?v=119"></script>
 
 </body>
 

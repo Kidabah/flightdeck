@@ -4,6 +4,17 @@ Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
 - `main` commit: see b114 entry below
 
+### 2026-07-06 — b119: Taller accent bands + wavy band edge
+
+**What changed:** More of Chris's accent ideas.
+- **Band height** now goes 2–80 mm (was 10) — proper two-tone vases. Clamped to the part height on both vases and boxes.
+- **Band edge** select (vase only): **Straight ring** or **Wavy (up-n-down)** — the whole ribbon undulates around the circumference. Wave height 0.5–10 mm, waves-around 2–16. Band height stays constant along the wave; wave flattens at the very base/rim so it never runs off the part.
+- Node-verified: 55 mm tall band and wavy band (amp 4, 6 waves) both hug the wall with positive gap everywhere on fluted+twisted urns/goblets; all position/legacy tests still pass.
+
+**Files:** `js/vase.js?v=119`, `js/geometry.js?v=119`, `js/features.js?v=100`, `js/app.js?v=119`, `index.html` — header **b119**
+
+**Deploy:** Pi `git pull`. Hard refresh — confirm header shows **b119**. Try: goblet, accent on, height 30, position 40%, edge Wavy.
+
 ### 2026-07-06 — b118: Movable vase accent band + z-fighting fix
 
 **What changed:** Chris's idea — slide the accent band anywhere on the vase wall.

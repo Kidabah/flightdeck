@@ -439,7 +439,7 @@ export function buildVaseAccentMesh(params) {
   const surf = vaseSurface(params);
   const skin = 0.12;
   const { height, segments, layers } = surf;
-  const bandH = Math.min(clamp(params.accentHeight ?? 4, 2, 12), height);
+  const bandH = Math.min(clamp(params.accentHeight ?? 4, 2, 80), height);
   let pos;
   if (params.accentPos != null) {
     pos = clamp(params.accentPos, 0, 100) / 100;
@@ -448,6 +448,13 @@ export function buildVaseAccentMesh(params) {
   }
   const z0 = (height - bandH) * pos;
   const z1 = z0 + bandH;
+
+  // Wavy edge: the whole ribbon shifts up/down sinusoidally around the
+  // circumference (both edges in phase, so band height stays constant).
+  const wavy = params.accentEdge === "wave";
+  const waveAmp = wavy ? clamp(params.accentWaveAmp ?? 3, 0.5, 10) : 0;
+  const waveCount = wavy ? clamp(Math.round(params.accentWaveCount ?? 6), 2, 16) : 0;
+  const waveAt = (k) => (wavy ? waveAmp * Math.sin(waveCount * ((k / segments) * Math.PI * 2)) : 0);
 
   // Body outer rings — identical construction to buildVase.
   const outerScale = sampleProfile(surf.style, layers);
@@ -463,38 +470,48 @@ export function buildVaseAccentMesh(params) {
     }
     return r;
   };
-  // Per-vertex lerp between the body layers straddling z — matches the body
-  // wall exactly, including mid-layer flute fade and twist.
-  const ringAt = (z) => {
-    const fi = (z / height) * (layers - 1);
+  // Body wall point for vertex column k at height z — per-vertex lerp between
+  // the straddling body layer rings, which matches the wall triangulation
+  // (vertical edges are linear in z), then pushed radially out by the skin.
+  const wallPointOut = (z, k) => {
+    const zc = clamp(z, 0, height);
+    const fi = (zc / height) * (layers - 1);
     const i = clamp(Math.floor(fi), 0, layers - 2);
     const t = clamp(fi - i, 0, 1);
-    const a = bodyRingCached(i);
-    const b = bodyRingCached(i + 1);
-    return a.map(([x, y], k) => [x + (b[k][0] - x) * t, y + (b[k][1] - y) * t]);
+    const a = bodyRingCached(i)[k];
+    const b = bodyRingCached(i + 1)[k];
+    const x = a[0] + (b[0] - a[0]) * t;
+    const y = a[1] + (b[1] - a[1]) * t;
+    const r = Math.hypot(x, y) || 1;
+    const s = (r + skin) / r;
+    return [x * s, y * s, zc];
   };
-  const offsetOut = (ring) =>
-    ring.map(([x, y]) => {
-      const r = Math.hypot(x, y) || 1;
-      const s = (r + skin) / r;
-      return [x * s, y * s];
-    });
 
-  // Slice at the band edges plus every body layer boundary inside the band.
-  const zs = [z0];
+  // Slice fractions: band edges, every body layer inside the band, plus
+  // extra subdivisions when wavy so columns crossing layers stay snug.
+  const fs = new Set([0, 1]);
   for (let i = 0; i < layers; i++) {
     const z = layerZ(i);
-    if (z > z0 + 0.001 && z < z1 - 0.001) zs.push(z);
+    if (z > z0 + 0.001 && z < z1 - 0.001) fs.add((z - z0) / bandH);
   }
-  zs.push(z1);
+  const extra = wavy ? Math.max(6, Math.ceil(bandH / 1.5)) : 0;
+  for (let i = 1; i < extra; i++) fs.add(i / extra);
+  const fracs = [...fs].sort((a, b) => a - b);
+
+  // Build slices as 3D rings (per-vertex z includes the wave offset).
+  const slices = fracs.map((f) =>
+    Array.from({ length: segments }, (_, k) => wallPointOut(z0 + bandH * f + waveAt(k), k)),
+  );
 
   const positions = [];
   const indices = [];
-  let prevRing = offsetOut(ringAt(zs[0]));
-  for (let i = 1; i < zs.length; i++) {
-    const ring = offsetOut(ringAt(zs[i]));
-    loftBetween(positions, indices, prevRing, ring, zs[i - 1], zs[i], true);
-    prevRing = ring;
+  for (let s = 0; s < slices.length - 1; s++) {
+    const cur = slices[s];
+    const nxt = slices[s + 1];
+    for (let k = 0; k < segments; k++) {
+      const k2 = (k + 1) % segments;
+      pushQuad(positions, indices, cur[k], cur[k2], nxt[k2], nxt[k]);
+    }
   }
   return { positions, indices };
 }

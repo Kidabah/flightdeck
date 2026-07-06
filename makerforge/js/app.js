@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=118";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance } from "./features.js?v=99";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=119";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance } from "./features.js?v=100";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=73";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=74";
 import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=73";
@@ -272,6 +272,9 @@ function buildParams() {
     accentFace: state.accentFace,
     accentPos: state.accentPos,
     accentHeight: state.accentHeight,
+    accentEdge: state.accentEdge,
+    accentWaveAmp: state.accentWaveAmp,
+    accentWaveCount: state.accentWaveCount,
     accentInset: state.accentInset,
     embossText: state.embossText,
     embossTextAlign: state.embossTextAlign || "left",
@@ -1092,8 +1095,12 @@ function syncUiFromState() {
   syncSliderUi("joiner-width", "joinerWidth", { min: 5, max: 22, value: state.joinerWidth, parseKind: "float" });
   syncSliderUi("joiner-neck", "joinerNeck", { min: 3, max: 16, value: state.joinerNeck, parseKind: "float" });
   syncSliderUi("joiner-protrusion", "joinerProtrusion", { min: 2, max: 10, value: state.joinerProtrusion, parseKind: "float" });
-  syncSliderUi("accent-height", "accentHeight", { min: 2, max: 10, value: state.accentHeight, parseKind: "float" });
+  syncSliderUi("accent-height", "accentHeight", { min: 2, max: 80, value: state.accentHeight, parseKind: "float" });
   syncSliderUi("accent-pos", "accentPos", { min: 0, max: 100, value: state.accentPos ?? 100, parseKind: "float" });
+  syncSliderUi("accent-wave-amp", "accentWaveAmp", { min: 0.5, max: 10, value: state.accentWaveAmp ?? 3, parseKind: "float" });
+  syncSliderUi("accent-wave-count", "accentWaveCount", { min: 2, max: 16, value: state.accentWaveCount ?? 6 });
+  const accentEdgeSel = document.getElementById("accent-edge");
+  if (accentEdgeSel) accentEdgeSel.value = state.accentEdge || "straight";
   syncSliderUi("insert-thickness", "insertThickness", { min: 1.2, max: 4, value: state.insertThickness, parseKind: "float" });
   syncSliderUi("insert-clearance", "insertClearance", { min: 0.15, max: 1, value: state.insertClearance, parseKind: "float" });
   syncSliderUi("insert-slot-depth", "insertSlotDepth", { min: 1, max: 4, value: state.insertSlotDepth ?? 2, parseKind: "float" });
@@ -2249,6 +2256,11 @@ function updateDecorUi() {
   document.getElementById("field-accent-face").classList.toggle("hidden", !accentOn || isVase);
   document.getElementById("field-accent-pos").classList.toggle("hidden", !accentOn || !isVase);
   document.getElementById("accent-pos-hint")?.classList.toggle("hidden", !accentOn || !isVase);
+  const wavyOn = accentOn && isVase && state.accentEdge === "wave";
+  document.getElementById("field-accent-edge").classList.toggle("hidden", !accentOn || !isVase);
+  document.getElementById("field-accent-wave-amp").classList.toggle("hidden", !wavyOn);
+  document.getElementById("field-accent-wave-count").classList.toggle("hidden", !wavyOn);
+  document.getElementById("accent-edge").value = state.accentEdge || "straight";
   document.getElementById("field-accent-height").classList.toggle("hidden", !accentOn);
   document.getElementById("field-accent-color").classList.toggle("hidden", !accentOn);
   document.getElementById("accent-face").value = state.accentFace;
@@ -2550,6 +2562,13 @@ bindRange("joiner-neck", "joinerNeck", "float");
 bindRange("joiner-protrusion", "joinerProtrusion", "float");
 bindRange("accent-height", "accentHeight", "float");
 bindRange("accent-pos", "accentPos", "float");
+bindRange("accent-wave-amp", "accentWaveAmp", "float");
+bindRange("accent-wave-count", "accentWaveCount");
+document.getElementById("accent-edge").addEventListener("change", (e) => {
+  state.accentEdge = e.target.value;
+  updateDecorUi();
+  rebuild();
+});
 bindRange("insert-thickness", "insertThickness", "float");
 bindRange("insert-clearance", "insertClearance", "float");
 bindRange("insert-slot-depth", "insertSlotDepth", "float");
@@ -2974,7 +2993,7 @@ syncSliderUi("lid-clearance", "lidClearance", { min: 0.15, max: 0.8, value: stat
 syncSliderUi("joiner-width", "joinerWidth", { min: 5, max: 22, value: state.joinerWidth, parseKind: "float" });
 syncSliderUi("joiner-neck", "joinerNeck", { min: 3, max: 16, value: state.joinerNeck, parseKind: "float" });
 syncSliderUi("joiner-protrusion", "joinerProtrusion", { min: 2, max: 10, value: state.joinerProtrusion, parseKind: "float" });
-syncSliderUi("accent-height", "accentHeight", { min: 2, max: 10, value: state.accentHeight, parseKind: "float" });
+syncSliderUi("accent-height", "accentHeight", { min: 2, max: 80, value: state.accentHeight, parseKind: "float" });
 syncSliderUi("insert-thickness", "insertThickness", { min: 1.2, max: 4, value: state.insertThickness, parseKind: "float" });
 syncSliderUi("insert-clearance", "insertClearance", { min: 0.15, max: 1, value: state.insertClearance, parseKind: "float" });
 syncSliderUi("emboss-depth", "embossDepth", { min: 0.3, max: 2, value: state.embossDepth, parseKind: "float" });

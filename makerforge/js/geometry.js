@@ -15,7 +15,7 @@ import {
   shapeSupportsInsert,
 } from "./features.js";
 import earcut from "https://esm.sh/earcut@2.2.4";
-import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=118";
+import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=119";
 
 import { appendInsertShelfSlotsToBody } from "./insert-slots.js";
 
@@ -1779,6 +1779,9 @@ export const DEFAULTS = {
   accentFace: "rim",
   accentPos: 100,
   accentHeight: 4,
+  accentEdge: "straight",
+  accentWaveAmp: 3,
+  accentWaveCount: 6,
   accentInset: 4,
   accentColor: "#f97316",
   boxColor: "#38bdf8",

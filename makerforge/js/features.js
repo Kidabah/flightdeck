@@ -142,9 +142,9 @@ function frontProfileEdgeFilter(points, inset) {
 }
 
 export function buildAccentMesh(meta, params, outerProfile = null) {
-  const bandH = clamp(params.accentHeight ?? 4, 2, 12);
   const face = params.accentFace || "rim";
   const b = rectFeatureBounds(meta);
+  const bandH = Math.min(clamp(params.accentHeight ?? 4, 2, 80), b.totalH);
   const z1 = b.totalH;
   const z0 = z1 - bandH;
   const positions = [];
