@@ -2,7 +2,15 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- `main` commit: `70de6cf` — radial capRing + earcut annulus caps (b110)
+- `main` commit: *(pending)* — fix earcut annulus crash (b111)
+
+### 2026-07-06 — Houdini fix: earcut annulus crash (b111)
+
+**What changed:** b110 passed only outer coords to `earcut()` while declaring a hole index — earcut threw, preview went blank. Now passes outer+hole flat coords; try/catch falls back to radial `capRing`.
+
+**Files:** `js/geometry.js`, `index.html`, `js/app.js` — `app.js?v=111`, header **b111**
+
+**Deploy:** Pi `git pull`. Hard refresh.
 
 ### 2026-07-06 — Floor artifacts v2 (radial pairing + earcut annulus)
 

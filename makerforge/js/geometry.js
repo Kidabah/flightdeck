@@ -485,21 +485,22 @@ function capProfileAnnulus(outPos, outIdx, outer, hole, z, normalUp) {
   if (outerRing.length < 3 || holeRing.length < 3) return;
   // Earcut expects hole winding opposite to outer.
   holeRing = holeRing.slice().reverse();
-  const base = outPos.length / 3;
-  for (const [x, y] of outerRing) outPos.push(x, y, z);
-  const holeStart = outerRing.length;
-  for (const [x, y] of holeRing) outPos.push(x, y, z);
-  const tri = earcut(outerRing.flat(), [holeStart]);
-  if (!tri.length) {
+  try {
+    const flat = outerRing.flat().concat(holeRing.flat());
+    const tri = earcut(flat, [outerRing.length]);
+    if (!tri.length) throw new Error("empty annulus");
+    const base = outPos.length / 3;
+    for (const [x, y] of outerRing) outPos.push(x, y, z);
+    for (const [x, y] of holeRing) outPos.push(x, y, z);
+    for (let i = 0; i < tri.length; i += 3) {
+      const a = base + tri[i];
+      const b = base + tri[i + 1];
+      const c = base + tri[i + 2];
+      if (normalUp) pushTriIdx(outIdx, a, b, c);
+      else pushTriIdx(outIdx, a, c, b);
+    }
+  } catch {
     capRing(outPos, outIdx, outerRing, holeRing, z, normalUp);
-    return;
-  }
-  for (let i = 0; i < tri.length; i += 3) {
-    const a = base + tri[i];
-    const b = base + tri[i + 1];
-    const c = base + tri[i + 2];
-    if (normalUp) pushTriIdx(outIdx, a, b, c);
-    else pushTriIdx(outIdx, a, c, b);
   }
 }
 
