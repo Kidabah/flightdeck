@@ -2,7 +2,7 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- `main` commit: *(pending)* — fix vase.js earcut import (Houdini blank preview)
+- `main` commit: `7718edc` — fix vase.js earcut import (Houdini blank preview)
 
 ### 2026-07-06 — Houdini fix (vase earcut import)
 
