@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: see "2026-07-06 fix (H2D queue nozzle grouping)" below
+- Latest commit: see "2026-07-07 fix (restock reserve spool 500)" below
 - Refresh cachebust: MakerDeck `app.js?v=113`
+
+### 2026-07-07 fix (restock reserve spool 500)
+
+**Restocking a reserved/archived spool failed with "Unable to restock spool"** (`app/db.py`)
+
+- `restock_spool_line()` runs `UPDATE spools ... SET updated_at = CURRENT_TIMESTAMP`, but the `spools` table never had an `updated_at` column — sqlite threw `OperationalError: no such column: updated_at`, surfacing as HTTP 500 on `POST /api/spools/{id}/restock`. Two other paths (auto-archive empty spool, storage-location delete archive) referenced the same missing column and would have failed the same way.
+- Added `ALTER TABLE spools ADD COLUMN updated_at TIMESTAMP` to the startup migration list in `init_db()`. Verified the restock UPDATE succeeds against a copy of the live Pi DB after migration.
+- Backend change: Pi restart required (migration runs on startup). No cache bust.
 
 ### 2026-07-06 fix (H2D queue nozzle grouping)
 

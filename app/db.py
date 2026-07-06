@@ -323,6 +323,7 @@ def init() -> None:
             "ALTER TABLE spools ADD COLUMN color_hex_2 TEXT",
             "ALTER TABLE spools ADD COLUMN color_hex_3 TEXT",
             "ALTER TABLE spools ADD COLUMN display_id INTEGER",
+            "ALTER TABLE spools ADD COLUMN updated_at TIMESTAMP",
             "ALTER TABLE incoming_stock_rolls ADD COLUMN cancelled_at TEXT",
             "ALTER TABLE incoming_stock_rolls ADD COLUMN cancel_reason TEXT",
             "ALTER TABLE print_queue ADD COLUMN filament_colors TEXT",
