@@ -862,14 +862,19 @@ function buildFlatLidShell(outPos, outIdx, boxOuter, boxInner, lidThickness, lip
   }
 }
 
-/** Printable jar thread — coarse 2-start trapezoid, ~45° flanks. */
+/** Printable jar thread — coarse 2-start trapezoid. */
 const SCREW_THREAD = {
-  pitch: 3.2,
+  pitch: 4.0,
   starts: 2,
-  depth: 1.2,
-  rootHalfWidth: 0.95,
-  crestHalfWidth: 0.45,
+  depth: 1.4,
+  rootHalfWidth: 1.1,
+  crestHalfWidth: 0.5,
   embed: 0.2,
+  // FDM compensation: lid bores print undersize and external threads print
+  // oversize, so the cap gets extra radial room and narrower thread flanks
+  // on top of the user-facing Fit clearance.
+  fitRadialComp: 0.25,
+  fitFlankComp: 0.15,
 };
 
 /** Scalloped circle — vertical grip flutes on the screw lid outside. */
@@ -992,7 +997,8 @@ function buildScrewLidMesh(bodyOuterR, options, params) {
   const lidThickness = clamp(options.lidThickness ?? 2.4, 1.2, 8);
   const knurlAmp = 0.8;
 
-  const innerR = bodyOuterR + t.depth + clearance;
+  // Bore = body crest + fit clearance + FDM compensation (bores print small).
+  const innerR = bodyOuterR + t.depth + clearance + t.fitRadialComp;
   const outerR = innerR + Math.max(lidWall, t.depth + 1.2) + knurlAmp;
   const zTop = skirtDepth + lidThickness;
   const segments = Math.max(circleSegmentsForRadius(outerR), 192);
@@ -1018,8 +1024,10 @@ function buildScrewLidMesh(bodyOuterR, options, params) {
       lead,
       phase: (Math.PI * 2 * s) / t.starts,
       depth: t.depth,
-      rootHalfWidth: t.rootHalfWidth,
-      crestHalfWidth: t.crestHalfWidth,
+      // Slimmer flanks on the internal thread so it doesn't bind axially
+      // against the neck thread once both parts swell in print.
+      rootHalfWidth: t.rootHalfWidth - t.fitFlankComp,
+      crestHalfWidth: Math.max(0.25, t.crestHalfWidth - t.fitFlankComp),
       embed: t.embed,
     });
   }
@@ -1069,8 +1077,8 @@ function computeLidFitGuides(resolved, params) {
     guides.skirtInner = offsetProfileOutward(resolved.outer, clearance);
   } else if (lidType === "screw") {
     const t = SCREW_THREAD;
-    guides.skirtInner = offsetProfileOutward(resolved.outer, clearance + t.depth);
-    guides.skirtOuter = offsetProfileOutward(resolved.outer, clearance + t.depth + Math.max(lidWall, t.depth + 1.2) + 0.8);
+    guides.skirtInner = offsetProfileOutward(resolved.outer, clearance + t.depth + t.fitRadialComp);
+    guides.skirtOuter = offsetProfileOutward(resolved.outer, clearance + t.depth + t.fitRadialComp + Math.max(lidWall, t.depth + 1.2) + 0.8);
   } else if (lidType === "plug") {
     guides.skirtOuter = offsetProfileInward(resolved.inner, clearance);
     guides.skirtInner = offsetProfileInward(resolved.inner, clearance + lidWall);

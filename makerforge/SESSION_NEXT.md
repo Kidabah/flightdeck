@@ -4,6 +4,18 @@ Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
 - `main` commit: see b114 entry below
 
+### 2026-07-06 — b115: Screw lid fit fix (first print wouldn't thread on)
+
+**What changed:** Chris's printed 35mm screw lid wouldn't screw on — modelled pass-over clearance was only 0.35 mm, which FDM perimeter swell (bore prints small, external threads print big) eats entirely.
+- **FDM fit compensation**: lid bore gets +0.25 mm radial on top of the Fit clearance (pass-over now 0.6 mm at default 0.35), and the lid's internal thread flanks are slimmed 0.15 mm so they can't bind axially.
+- **Chunkier thread**: pitch 3.2 → 4.0, depth 1.2 → 1.4, wider root — coarser thread is more forgiving of stringing/blobs and keeps 0.8 mm radial engagement despite the extra bore room.
+- Node-verified at 80 mm and at the printed 35 mm size: engagement 0.80 mm, pass-over 0.60 mm, watertight components unchanged.
+- Bodies and lids must be **re-exported together** — old body + new lid mixes thread pitches.
+
+**Files:** `js/geometry.js?v=115`, `js/app.js?v=115`, `index.html` — header **b115**
+
+**Deploy:** Pi `git pull`. Hard refresh — confirm header shows **b115**. Re-export both STLs and reprint; if still snug, raise Fit clearance slider (each +0.1 = +0.1 radial all round).
+
 ### 2026-07-06 — b114: Vase studio — new styles, flutes, twist
 
 **What changed:** Vase / pot generator got a designer upgrade.
