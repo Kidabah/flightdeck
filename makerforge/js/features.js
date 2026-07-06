@@ -1174,7 +1174,9 @@ export function getEmbossFaceFrame(meta, face, params = null) {
 
   if (useFace === "lid") {
     const lidType = params?.lidType ?? "slip";
-    const skirtDepth = clamp(params?.lidSkirt ?? 10, 4, 30);
+    const skirtDepth = lidType === "screw"
+      ? clamp(params?.lidSkirt ?? 10, 6, 30)
+      : clamp(params?.lidSkirt ?? 10, 4, 30);
     const lidThickness = clamp(params?.lidThickness ?? 2.4, 1.2, 8);
     const zTop = lidType === "flat" ? lidThickness : skirtDepth + lidThickness;
     return {

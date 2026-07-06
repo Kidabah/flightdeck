@@ -2,7 +2,22 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- `main` commit: `a57799a` — b112: shadow acne + reflex fillet knuckles + smooth heart/teardrop
+- `main` commit: *(pending)* — b113: screw-top lids for round containers
+
+### 2026-07-06 — b113: Screw-top lids (round containers)
+
+**What changed:** New **Screw top** lid type, offered only when shape = Circle.
+- Coarse 2-start trapezoid thread (pitch 3.2, lead 6.4, depth 1.2 mm, tapered run-in/out) — prints without support on vertical walls.
+- Body gets matching external neck threads over the skirt zone; lid is a knurled cap (24 grip flutes) with internal threads.
+- Existing sliders drive it: **Skirt** = thread engagement depth (8–12 mm sweet spot), **Clearance** = radial fit (0.35 default), **Thickness** = top plate.
+- Node-verified: 0.85 mm radial thread engagement, 0.35 mm pass-over clearance, lid/body watertight (shell + 2 thread-start solids each), print orientation plate-down.
+- Non-circle shapes never see the option; saved sessions with screw on other shapes normalize to slip.
+
+**Files:** `js/geometry.js`, `js/app.js?v=113`, `js/features.js?v=99`, `js/art-editor.js`, `index.html` — header **b113**
+
+**Deploy:** Pi `git pull`. Hard refresh — confirm header shows **b113**. Try: Circle → Lid tab → enable → Screw top.
+
+### 2026-07-06 — b112: floor marks, heart knuckles, smooth curves — `a57799a`
 
 ### 2026-07-06 — b112: floor marks, heart knuckles, smooth curves
 

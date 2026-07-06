@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=112";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance } from "./features.js?v=98";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=113";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance } from "./features.js?v=99";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=73";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=74";
 import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=73";
@@ -259,7 +259,7 @@ function buildParams() {
     lidThickness: state.lidThickness,
     lidClearance: state.lidClearance,
     lidLipDepth: state.lidLipDepth,
-    lidType: normalizeLidType(state.lidType),
+    lidType: normalizeLidType(state.lidType, state.shape),
     lidWall: state.wall,
     joinerEnabled: state.joinerEnabled,
     joinerHand: state.joinerHand,
@@ -580,7 +580,7 @@ function buildLidGuideLoops() {
 
   addLidGuideLoop(g.boxOuter, g.seatZ, guideRimMaterial, true);
 
-  if (g.lidType === "slip") {
+  if (g.lidType === "slip" || g.lidType === "screw") {
     addLidGuideLoop(g.skirtOuter, 0, guideSkirtOuterMaterial, false);
     addLidGuideLoop(g.skirtOuter, g.skirtDepth, guideSkirtOuterMaterial, false);
     addLidGuideLoop(g.skirtInner, 0, guideSkirtInnerMaterial, false);
@@ -612,12 +612,15 @@ function syncLidGuideLoops(lidY, lidX = 0) {
 }
 
 function lidFitHintText() {
-  const t = lidCache?.fitGuides?.lidType || normalizeLidType(state.lidType);
+  const t = lidCache?.fitGuides?.lidType || normalizeLidType(state.lidType, state.shape);
   if (t === "flat") {
     return "Orange = box rim. White plate loops rest directly on the rim — no skirt.";
   }
   if (t === "plug") {
     return "Orange = box rim. Green loops = inset plug skirt inside the opening. White = top plate on the rim.";
+  }
+  if (t === "screw") {
+    return "Orange = box rim. Green loops = threaded cap over the neck — twist clockwise to close.";
   }
   return "Orange = box rim. Green loops = skirt wrapping outside the walls (larger than the rim).";
 }
@@ -1039,7 +1042,7 @@ async function restoreSession() {
     if (payload.state.embossTraceRects) {
       state.embossTraceRects = deserializeEmbossTraceRects(payload.state.embossTraceRects);
     }
-    state.lidType = normalizeLidType(state.lidType);
+    state.lidType = normalizeLidType(state.lidType, state.shape);
 
     if (payload.traceImage) {
       const loaded = await loadImageFromDataUrl(payload.traceImage);
@@ -1450,10 +1453,11 @@ function selectShape(next) {
 function syncLidTypeSelect() {
   const sel = document.getElementById("lid-type");
   if (!sel) return;
-  sel.innerHTML = LID_TYPES.map(
+  const types = LID_TYPES.filter((t) => !t.circleOnly || state.shape === "circle");
+  sel.innerHTML = types.map(
     (t) => `<option value="${t.id}">${t.optionLabel || t.label}</option>`,
   ).join("");
-  state.lidType = normalizeLidType(state.lidType);
+  state.lidType = normalizeLidType(state.lidType, state.shape);
 }
 
 function applySliderProfile(profileKey) {
@@ -1528,7 +1532,7 @@ function updateLabels() {
 function updateLidUi() {
   const supported = shapeSupportsLid(state.shape);
   const on = state.lidEnabled && supported;
-  const lidType = normalizeLidType(state.lidType);
+  const lidType = normalizeLidType(state.lidType, state.shape);
   const type = LID_TYPES.find((t) => t.id === lidType) || LID_TYPES[0];
   const isFlat = lidType === "flat";
   const lipOn = isFlat && (state.lidLipDepth ?? 0) > 0.4;

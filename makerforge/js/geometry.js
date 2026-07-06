@@ -862,6 +862,175 @@ function buildFlatLidShell(outPos, outIdx, boxOuter, boxInner, lidThickness, lip
   }
 }
 
+/** Printable jar thread — coarse 2-start trapezoid, ~45° flanks. */
+const SCREW_THREAD = {
+  pitch: 3.2,
+  starts: 2,
+  depth: 1.2,
+  rootHalfWidth: 0.95,
+  crestHalfWidth: 0.45,
+  embed: 0.2,
+};
+
+/** Scalloped circle — vertical grip flutes on the screw lid outside. */
+function knurledCircleVertices(radius, segments, lobes = 24, amp = 0.8) {
+  const pts = [];
+  for (let i = 0; i < segments; i++) {
+    const a = ((Math.PI * 2) / segments) * i;
+    const r = radius - amp * (0.5 + 0.5 * Math.cos(lobes * a));
+    pts.push([r * Math.cos(a), r * Math.sin(a)]);
+  }
+  return pts;
+}
+
+/**
+ * Helical thread solid swept around the Z axis.
+ * direction +1 grows outward from baseRadius (box neck), -1 inward (lid skirt).
+ * Root is embedded into the wall so slicers union it with the shell.
+ */
+function appendThreadHelix(outPos, outIdx, opts) {
+  const {
+    baseRadius,
+    direction,
+    zStart,
+    zEnd,
+    lead,
+    phase = 0,
+    depth,
+    rootHalfWidth,
+    crestHalfWidth,
+    embed = 0.2,
+    segmentsPerTurn = 96,
+  } = opts;
+  const height = zEnd - zStart;
+  if (height <= rootHalfWidth * 2 || lead <= 0) return;
+
+  const turns = height / lead;
+  const steps = Math.max(12, Math.ceil(turns * segmentsPerTurn));
+  const taperSteps = Math.max(4, Math.round(segmentsPerTurn * 0.15));
+  const r0 = baseRadius - embed * direction;
+
+  const rings = [];
+  for (let i = 0; i <= steps; i++) {
+    const f = i / steps;
+    const theta = phase + Math.PI * 2 * turns * f;
+    const zc = zStart + height * f;
+    // Depth tapers to zero at both ends so the thread fades into the wall.
+    const dScale = Math.min(1, i / taperSteps, (steps - i) / taperSteps);
+    const r1 = baseRadius + depth * Math.max(0, dScale) * direction;
+    const cos = Math.cos(theta);
+    const sin = Math.sin(theta);
+    const section = [
+      [r0, -rootHalfWidth],
+      [r1, -crestHalfWidth],
+      [r1, crestHalfWidth],
+      [r0, rootHalfWidth],
+    ];
+    rings.push(section.map(([r, dz]) => [r * cos, r * sin, zc + dz]));
+  }
+
+  const flip = direction < 0;
+  const quad = (a, b, c, d) => {
+    if (flip) pushQuad(outPos, outIdx, a, d, c, b);
+    else pushQuad(outPos, outIdx, a, b, c, d);
+  };
+  for (let i = 0; i < steps; i++) {
+    const cur = rings[i];
+    const nxt = rings[i + 1];
+    for (let k = 0; k < 4; k++) {
+      const k2 = (k + 1) % 4;
+      quad(cur[k], nxt[k], nxt[k2], cur[k2]);
+    }
+  }
+  const first = rings[0];
+  const last = rings[steps];
+  quad(first[0], first[1], first[2], first[3]);
+  quad(last[3], last[2], last[1], last[0]);
+}
+
+function profileMaxRadius(points) {
+  let r = 0;
+  for (const [x, y] of points) r = Math.max(r, Math.hypot(x, y));
+  return r;
+}
+
+function screwSkirtDepth(params) {
+  return clamp(params.lidSkirt ?? 10, 6, 30);
+}
+
+/** External threads on the round box neck for the screw-top lid. */
+function appendBodyNeckThreads(outPos, outIdx, resolved, params) {
+  const t = SCREW_THREAD;
+  const skirtDepth = screwSkirtDepth(params);
+  const outerR = profileMaxRadius(resolved.outer);
+  const lead = t.pitch * t.starts;
+  // Margin must exceed rootHalfWidth so the thread never pokes past the rim.
+  const zTop = resolved.totalH - (t.rootHalfWidth + 0.3);
+  const zBot = Math.max(resolved.floor + 1, resolved.totalH - skirtDepth + t.rootHalfWidth + 0.3);
+  for (let s = 0; s < t.starts; s++) {
+    appendThreadHelix(outPos, outIdx, {
+      baseRadius: outerR,
+      direction: 1,
+      zStart: zBot,
+      zEnd: zTop,
+      lead,
+      phase: (Math.PI * 2 * s) / t.starts,
+      depth: t.depth,
+      rootHalfWidth: t.rootHalfWidth,
+      crestHalfWidth: t.crestHalfWidth,
+      embed: t.embed,
+    });
+  }
+}
+
+/** Screw-top lid: knurled cap with internal threads matching the neck. */
+function buildScrewLidMesh(bodyOuterR, options, params) {
+  const t = SCREW_THREAD;
+  const clearance = clamp(options.clearance ?? 0.35, 0.15, 0.8);
+  const lidWall = clamp(options.lidWall ?? 2.4, 1.6, 6);
+  const skirtDepth = screwSkirtDepth(params);
+  const lidThickness = clamp(options.lidThickness ?? 2.4, 1.2, 8);
+  const knurlAmp = 0.8;
+
+  const innerR = bodyOuterR + t.depth + clearance;
+  const outerR = innerR + Math.max(lidWall, t.depth + 1.2) + knurlAmp;
+  const zTop = skirtDepth + lidThickness;
+  const segments = Math.max(circleSegmentsForRadius(outerR), 192);
+
+  const inner = circleVertices(innerR, segments);
+  const outer = knurledCircleVertices(outerR, segments, 24, knurlAmp);
+
+  const positions = [];
+  const indices = [];
+  capRing(positions, indices, outer, inner, 0, false);
+  extrudeProfileSides(positions, indices, outer, 0, zTop, true);
+  extrudeProfileSides(positions, indices, inner, 0, skirtDepth, false);
+  capProfileSolid(positions, indices, inner, skirtDepth, false);
+  capProfileSolid(positions, indices, outer, zTop, true);
+
+  const lead = t.pitch * t.starts;
+  for (let s = 0; s < t.starts; s++) {
+    appendThreadHelix(positions, indices, {
+      baseRadius: innerR,
+      direction: -1,
+      zStart: t.rootHalfWidth + 0.3,
+      zEnd: skirtDepth - (t.rootHalfWidth + 0.3),
+      lead,
+      phase: (Math.PI * 2 * s) / t.starts,
+      depth: t.depth,
+      rootHalfWidth: t.rootHalfWidth,
+      crestHalfWidth: t.crestHalfWidth,
+      embed: t.embed,
+    });
+  }
+
+  return {
+    positions,
+    indices,
+    lidHeight: zTop,
+  };
+}
+
 function buildFlatLidMesh(boxOuter, boxInner, meta, params, options) {
   const lidThickness = clamp(options.lidThickness ?? 2.4, 1.2, 8);
   const lipDepth = clamp(options.lipDepth ?? 0, 0, 12);
@@ -882,8 +1051,8 @@ function buildFlatLidMesh(boxOuter, boxInner, meta, params, options) {
 function computeLidFitGuides(resolved, params) {
   const clearance = clamp(params.lidClearance ?? 0.35, 0.1, 1.2);
   const lidWall = clamp(params.lidWall ?? params.wall ?? 2.4, 1.2, 6);
-  const lidType = normalizeLidType(params.lidType);
-  const skirtDepth = clamp(params.lidSkirt ?? 10, 4, 30);
+  const lidType = normalizeLidType(params.lidType, params.shape);
+  const skirtDepth = lidType === "screw" ? screwSkirtDepth(params) : clamp(params.lidSkirt ?? 10, 4, 30);
   const lidThickness = clamp(params.lidThickness ?? 2.4, 1.2, 8);
   const lipDepth = clamp(params.lidLipDepth ?? 0, 0, 12);
   const lidHeight = lidType === "flat" ? lidThickness + lipDepth : skirtDepth + lidThickness;
@@ -898,6 +1067,10 @@ function computeLidFitGuides(resolved, params) {
   if (lidType === "slip") {
     guides.skirtOuter = offsetProfileOutward(resolved.outer, clearance + lidWall);
     guides.skirtInner = offsetProfileOutward(resolved.outer, clearance);
+  } else if (lidType === "screw") {
+    const t = SCREW_THREAD;
+    guides.skirtInner = offsetProfileOutward(resolved.outer, clearance + t.depth);
+    guides.skirtOuter = offsetProfileOutward(resolved.outer, clearance + t.depth + Math.max(lidWall, t.depth + 1.2) + 0.8);
   } else if (lidType === "plug") {
     guides.skirtOuter = offsetProfileInward(resolved.inner, clearance);
     guides.skirtInner = offsetProfileInward(resolved.inner, clearance + lidWall);
@@ -944,12 +1117,14 @@ function buildPlugLidMesh(boxOuter, boxInner, options) {
 export const LID_TYPES = [
   { id: "slip", label: "Slip-over", optionLabel: "Slip-over — skirt outside", hint: "Skirt wraps outside the box walls — classic loose fit." },
   { id: "plug", label: "Inset plug", optionLabel: "Inset plug — skirt inside", hint: "Skirt slides inside the opening; top plate sits flush on the rim." },
+  { id: "screw", label: "Screw top", optionLabel: "Screw top — threaded jar lid", hint: "Twist-on jar lid — matching threads print onto the box neck. Round containers only; a 8–12 mm skirt works best.", circleOnly: true },
   { id: "flat", label: "Flat cap", optionLabel: "Flat cap — plate + optional lip", hint: "Plate on the rim with an optional inner lip for alignment — good for storage trays and stacking." },
 ];
 
-export function normalizeLidType(lidType) {
+export function normalizeLidType(lidType, shape) {
   if (lidType === "flat") return "flat";
   if (lidType === "plug") return "plug";
+  if (lidType === "screw") return !shape || shape === "circle" ? "screw" : "slip";
   return "slip";
 }
 
@@ -1298,6 +1473,14 @@ export function buildContainer(params) {
 
   centerPositions(mesh.positions, 0, 0);
 
+  if (
+    params.lidEnabled &&
+    params.shape === "circle" &&
+    normalizeLidType(params.lidType, params.shape) === "screw"
+  ) {
+    appendBodyNeckThreads(mesh.positions, mesh.indices, resolved, params);
+  }
+
   const decorShape = joinerShape;
 
   if (
@@ -1367,7 +1550,7 @@ export function buildContainer(params) {
 
 export function buildLid(params) {
   const resolved = resolveContainer(params);
-  const lidType = normalizeLidType(params.lidType);
+  const lidType = normalizeLidType(params.lidType, params.shape);
   const options = {
     clearance: params.lidClearance,
     lidWall: params.lidWall ?? params.wall,
@@ -1382,6 +1565,8 @@ export function buildLid(params) {
     });
   } else if (lidType === "plug") {
     lid = buildPlugLidMesh(resolved.outer, resolved.inner, options);
+  } else if (lidType === "screw") {
+    lid = buildScrewLidMesh(profileMaxRadius(resolved.outer), options, params);
   } else {
     lid = buildSlipLidMesh(resolved.outer, options);
   }
