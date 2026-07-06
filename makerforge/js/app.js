@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=117";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=118";
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance } from "./features.js?v=99";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=73";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=74";
@@ -270,6 +270,7 @@ function buildParams() {
     joinerAutoScale: state.joinerAutoScale,
     accentEnabled: state.accentEnabled,
     accentFace: state.accentFace,
+    accentPos: state.accentPos,
     accentHeight: state.accentHeight,
     accentInset: state.accentInset,
     embossText: state.embossText,
@@ -1092,6 +1093,7 @@ function syncUiFromState() {
   syncSliderUi("joiner-neck", "joinerNeck", { min: 3, max: 16, value: state.joinerNeck, parseKind: "float" });
   syncSliderUi("joiner-protrusion", "joinerProtrusion", { min: 2, max: 10, value: state.joinerProtrusion, parseKind: "float" });
   syncSliderUi("accent-height", "accentHeight", { min: 2, max: 10, value: state.accentHeight, parseKind: "float" });
+  syncSliderUi("accent-pos", "accentPos", { min: 0, max: 100, value: state.accentPos ?? 100, parseKind: "float" });
   syncSliderUi("insert-thickness", "insertThickness", { min: 1.2, max: 4, value: state.insertThickness, parseKind: "float" });
   syncSliderUi("insert-clearance", "insertClearance", { min: 0.15, max: 1, value: state.insertClearance, parseKind: "float" });
   syncSliderUi("insert-slot-depth", "insertSlotDepth", { min: 1, max: 4, value: state.insertSlotDepth ?? 2, parseKind: "float" });
@@ -2243,7 +2245,10 @@ function updateDecorUi() {
 
   const accentOn = state.accentEnabled && accentSupported;
   document.getElementById("accent-enabled").checked = accentOn;
-  document.getElementById("field-accent-face").classList.toggle("hidden", !accentOn);
+  // Vases use the position slider instead of the face select.
+  document.getElementById("field-accent-face").classList.toggle("hidden", !accentOn || isVase);
+  document.getElementById("field-accent-pos").classList.toggle("hidden", !accentOn || !isVase);
+  document.getElementById("accent-pos-hint")?.classList.toggle("hidden", !accentOn || !isVase);
   document.getElementById("field-accent-height").classList.toggle("hidden", !accentOn);
   document.getElementById("field-accent-color").classList.toggle("hidden", !accentOn);
   document.getElementById("accent-face").value = state.accentFace;
@@ -2544,6 +2549,7 @@ bindRange("joiner-width", "joinerWidth", "float");
 bindRange("joiner-neck", "joinerNeck", "float");
 bindRange("joiner-protrusion", "joinerProtrusion", "float");
 bindRange("accent-height", "accentHeight", "float");
+bindRange("accent-pos", "accentPos", "float");
 bindRange("insert-thickness", "insertThickness", "float");
 bindRange("insert-clearance", "insertClearance", "float");
 bindRange("insert-slot-depth", "insertSlotDepth", "float");

@@ -4,6 +4,16 @@ Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
 - `main` commit: see b114 entry below
 
+### 2026-07-06 — b118: Movable vase accent band + z-fighting fix
+
+**What changed:** Chris's idea — slide the accent band anywhere on the vase wall.
+- **Band position slider** (vase only, replaces the face select): 0% = base, 25/33/50 = part-way, 100% = rim. Type exact values via the number button. Legacy floor/rim sessions map to 0/100.
+- **Red-through-grey patches fixed**: the band previously sampled the smooth analytic surface while the body wall is piecewise-linear between layers, so the skin cut in and out of the body (z-fighting patches in Chris's screenshots). Band slices now reuse the body's exact layer rings (per-vertex lerp between layers) pushed radially out by a fatter 0.12mm skin — verified constant 0.12mm gap at every matched sample across 4 styles × 5 positions with flutes 12 + twist 90.
+
+**Files:** `js/vase.js?v=118`, `js/geometry.js?v=118`, `js/app.js?v=118`, `index.html` — header **b118**
+
+**Deploy:** Pi `git pull`. Hard refresh — confirm header shows **b118**. Try: vase accent on → drag Band position to 33%.
+
 ### 2026-07-06 — b117: Accent bands on vases / pots
 
 **What changed:** The Accent tab now works for vase / pot shapes.

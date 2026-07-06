@@ -424,32 +424,77 @@ export function vaseMeta(params) {
 }
 
 /**
- * Accent colour band hugging the vase outer surface (0.08mm skin, same as
- * container accents). Follows the profile curve, flutes and twist.
- * face: "rim" = band below the top edge, "floor" = band above the base.
+ * Accent colour band hugging the vase outer surface. Follows the profile
+ * curve, flutes and twist.
+ *
+ * Band placement: params.accentPos (0-100, bottom→top) slides the band along
+ * the wall; legacy accentFace "floor"/"rim" maps to 0/100.
+ *
+ * To avoid z-fighting with the body, band slices reuse the body's exact layer
+ * rings (the body wall is piecewise-linear between layers, so sampling the
+ * smooth analytic surface would cut in and out of it). Rings between layers
+ * are per-vertex lerps of the body rings, then pushed radially outward.
  */
 export function buildVaseAccentMesh(params) {
   const surf = vaseSurface(params);
-  const skin = 0.08;
-  const bandH = clamp(params.accentHeight ?? 4, 2, 12);
-  const face = params.accentFace === "floor" ? "floor" : "rim";
-  const z0 = face === "floor" ? 0 : Math.max(0, surf.height - bandH);
-  const z1 = face === "floor" ? Math.min(surf.height, bandH) : surf.height;
+  const skin = 0.12;
+  const { height, segments, layers } = surf;
+  const bandH = Math.min(clamp(params.accentHeight ?? 4, 2, 12), height);
+  let pos;
+  if (params.accentPos != null) {
+    pos = clamp(params.accentPos, 0, 100) / 100;
+  } else {
+    pos = params.accentFace === "floor" ? 0 : 1;
+  }
+  const z0 = (height - bandH) * pos;
+  const z1 = z0 + bandH;
 
-  // Enough slices to follow profile curvature and twist through the band.
-  const twistInBand = Math.abs(surf.twistRad) * ((z1 - z0) / surf.height);
-  const steps = Math.max(4, Math.ceil((z1 - z0) / 1.5), Math.ceil((twistInBand / (Math.PI * 2)) * 48));
+  // Body outer rings — identical construction to buildVase.
+  const outerScale = sampleProfile(surf.style, layers);
+  const layerZ = (i) => (i / (layers - 1)) * height;
+  const bodyRing = (i) =>
+    flutedRing(surf.baseR * outerScale[i], segments, surf.flutes, surf.fluteDepthAt(layerZ(i)), surf.phaseAtZ(layerZ(i)));
+  const ringCache = new Map();
+  const bodyRingCached = (i) => {
+    let r = ringCache.get(i);
+    if (!r) {
+      r = bodyRing(i);
+      ringCache.set(i, r);
+    }
+    return r;
+  };
+  // Per-vertex lerp between the body layers straddling z — matches the body
+  // wall exactly, including mid-layer flute fade and twist.
+  const ringAt = (z) => {
+    const fi = (z / height) * (layers - 1);
+    const i = clamp(Math.floor(fi), 0, layers - 2);
+    const t = clamp(fi - i, 0, 1);
+    const a = bodyRingCached(i);
+    const b = bodyRingCached(i + 1);
+    return a.map(([x, y], k) => [x + (b[k][0] - x) * t, y + (b[k][1] - y) * t]);
+  };
+  const offsetOut = (ring) =>
+    ring.map(([x, y]) => {
+      const r = Math.hypot(x, y) || 1;
+      const s = (r + skin) / r;
+      return [x * s, y * s];
+    });
+
+  // Slice at the band edges plus every body layer boundary inside the band.
+  const zs = [z0];
+  for (let i = 0; i < layers; i++) {
+    const z = layerZ(i);
+    if (z > z0 + 0.001 && z < z1 - 0.001) zs.push(z);
+  }
+  zs.push(z1);
 
   const positions = [];
   const indices = [];
-  let prevRing = surf.outerRingAt(z0, skin);
-  let prevZ = z0;
-  for (let i = 1; i <= steps; i++) {
-    const z = z0 + ((z1 - z0) * i) / steps;
-    const ring = surf.outerRingAt(z, skin);
-    loftBetween(positions, indices, prevRing, ring, prevZ, z, true);
+  let prevRing = offsetOut(ringAt(zs[0]));
+  for (let i = 1; i < zs.length; i++) {
+    const ring = offsetOut(ringAt(zs[i]));
+    loftBetween(positions, indices, prevRing, ring, zs[i - 1], zs[i], true);
     prevRing = ring;
-    prevZ = z;
   }
   return { positions, indices };
 }

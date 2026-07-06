@@ -42,7 +42,7 @@
 
       <div>
 
-        <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b117</span></div>
+        <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b118</span></div>
 
         <h1>Container Generator</h1>
 
@@ -606,6 +606,18 @@
 
               </label>
 
+              <label class="field hidden" id="field-accent-pos">
+
+                <span class="field-label">Band position <span class="unit">%</span></span>
+
+                <input type="range" id="accent-pos" min="0" max="100" step="1" value="100" tabindex="-1">
+
+                <button type="button" class="value-edit" data-slider="accent-pos" data-key="accentPos" data-parse="float">100</button>
+
+              </label>
+
+              <p class="field-hint hidden" id="accent-pos-hint">Slide the band anywhere on the wall — 0% sits on the base, 50% is halfway, 100% hugs the rim. Type exact values (25, 33, 50) via the number button.</p>
+
               <label class="field hidden" id="field-accent-height">
 
                 <span class="field-label">Band height</span>
@@ -1065,7 +1077,7 @@
 
 
 
-  <script type="module" src="js/app.js?v=117"></script>
+  <script type="module" src="js/app.js?v=118"></script>
 
 </body>
 
