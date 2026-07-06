@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=115";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=116";
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance } from "./features.js?v=99";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=73";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=74";
@@ -2876,6 +2876,7 @@ function updateVaseUiVisibility() {
   });
   document.getElementById("field-vase-drainage-size").classList.toggle("hidden", !state.vaseDrainage);
   document.getElementById("field-vase-flute-depth").classList.toggle("hidden", !(state.vaseFlutes > 0));
+  document.getElementById("field-vase-twist").classList.toggle("hidden", !(state.vaseFlutes > 0));
   syncExportFormatOptions();
 }
 
@@ -2908,7 +2909,9 @@ bindRange("vase-flutes", "vaseFlutes");
 bindRange("vase-flute-depth", "vaseFluteDepth", "float");
 bindRange("vase-twist", "vaseTwist", "float");
 document.getElementById("vase-flutes").addEventListener("input", () => {
-  document.getElementById("field-vase-flute-depth").classList.toggle("hidden", !(state.vaseFlutes > 0));
+  const flutesOn = state.vaseFlutes > 0;
+  document.getElementById("field-vase-flute-depth").classList.toggle("hidden", !flutesOn);
+  document.getElementById("field-vase-twist").classList.toggle("hidden", !flutesOn);
 });
 
 document.getElementById("vase-drainage").addEventListener("change", (e) => {

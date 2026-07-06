@@ -4,6 +4,16 @@ Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
 - `main` commit: see b114 entry below
 
+### 2026-07-06 — b116: Vase twist fix (slider did ~nothing)
+
+**What changed:** Twist was applied as `cos(flutes*a - phase)` — the rib pattern only rotated by twist/fluteCount (90° slider = 7.5° visible with 12 flutes). Now `cos(flutes*(a - phase))` so ribs rotate by the full twist angle.
+- Node-verified: crest rotation between z-bands matches the expected twist fraction for 0/45/90/−120°; full 9-style watertight grid still ALL OK.
+- Twist slider now hides when Flutes = 0 (twist has no visible effect on a smooth surface of revolution).
+
+**Files:** `js/vase.js?v=116`, `js/geometry.js?v=116`, `js/app.js?v=116`, `index.html` — header **b116**
+
+**Deploy:** Pi `git pull`. Hard refresh — confirm header shows **b116**. Try: flutes 12, twist 90° — ribs should visibly spiral a quarter turn.
+
 ### 2026-07-06 — b115: Screw lid fit fix (first print wouldn't thread on)
 
 **What changed:** Chris's printed 35mm screw lid wouldn't screw on — modelled pass-over clearance was only 0.35 mm, which FDM perimeter swell (bore prints small, external threads print big) eats entirely.

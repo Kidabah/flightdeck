@@ -31,9 +31,10 @@ function ringXY(radius, segments) {
 }
 
 /**
- * Ring with optional flute (rib) modulation and twist phase.
- * r(a) = radius + (depth/2) * cos(flutes * a - phase), so the mean radius is
- * preserved and depth is the total peak-to-valley amplitude in mm.
+ * Ring with optional flute (rib) modulation, rotated by `phase` radians.
+ * r(a) = radius + (depth/2) * cos(flutes * (a - phase)) — the whole rib
+ * pattern rotates by phase (not phase/flutes), the mean radius is preserved,
+ * and depth is the total peak-to-valley amplitude in mm.
  */
 function flutedRing(radius, segments, flutes, depth, phase) {
   if (!flutes || depth <= 0.01) return ringXY(radius, segments);
@@ -41,7 +42,7 @@ function flutedRing(radius, segments, flutes, depth, phase) {
   const half = depth / 2;
   for (let i = 0; i < segments; i++) {
     const a = (i / segments) * Math.PI * 2;
-    const r = Math.max(1, radius + half * Math.cos(flutes * a - phase));
+    const r = Math.max(1, radius + half * Math.cos(flutes * (a - phase)));
     pts.push([r * Math.cos(a), r * Math.sin(a)]);
   }
   return pts;
