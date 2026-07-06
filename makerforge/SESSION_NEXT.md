@@ -4,6 +4,21 @@ Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
 - `main` commit: see b114 entry below
 
+### 2026-07-06 — b121: Vase rim finishes (bevel / bullnose / rolled lip)
+
+**What changed:** Chris's idea — the vase rim was a dead-flat annulus. New **Rim finish** select in the vase section:
+- **Square (flat)** — unchanged default.
+- **Bevelled** — 45° chamfer on both rim edges.
+- **Rounded (bullnose)** — half-circle sweep across the wall top.
+- **Rolled lip** — the wall flares outward near the top (smoothstep, ~4.5% of diameter, clamped 2.2–6mm) and finishes in a bullnose, like a thrown-pottery rolled rim. Inner wall follows the flare so wall thickness stays constant (vase-mode safe).
+- Rim sweep lerps per-vertex between the outer and inner rings so flutes + twist carry through the rim profile.
+- Accent bands clamp below the rim sweep and track the rolled-lip flare (fixed the accent's z→layer interpolation to use rim-clamped layer heights).
+- Node-verified: watertight (open=0) and exact height for all 9 styles × bevel/round/rolled incl. fluted+twisted; new ray-cast accent test on a rolled-lip wavy band at the rim passes; all prior accent/twist tests still ALL OK.
+
+**Files:** `js/vase.js?v=121`, `js/geometry.js?v=121`, `js/app.js?v=121`, `index.html` — header **b121**
+
+**Deploy:** Pi `git pull`. Hard refresh — confirm header shows **b121**. Try: urn, Rim finish → Rolled lip.
+
 ### 2026-07-06 — b120: Wavy accent band bleed-through fix (twisted/fluted vases)
 
 **What changed:** Chris's screenshot showed the red body poking through the grey wavy band on a twisted goblet. Three root causes, all in `buildVaseAccentMesh`:

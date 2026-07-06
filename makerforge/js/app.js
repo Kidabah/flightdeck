@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=120";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=121";
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance } from "./features.js?v=100";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=73";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=74";
@@ -323,6 +323,7 @@ function buildParams() {
     vaseFlutes: state.vaseFlutes,
     vaseFluteDepth: state.vaseFluteDepth,
     vaseTwist: state.vaseTwist,
+    vaseRim: state.vaseRim,
   };
 }
 
@@ -1124,6 +1125,8 @@ function syncUiFromState() {
   syncSliderUi("vase-twist", "vaseTwist", { min: -180, max: 180, value: state.vaseTwist ?? 0, parseKind: "float" });
   const vaseStyleSel = document.getElementById("vase-style");
   if (vaseStyleSel) vaseStyleSel.value = state.vaseStyle || "cylinder";
+  const vaseRimSel = document.getElementById("vase-rim");
+  if (vaseRimSel) vaseRimSel.value = state.vaseRim || "square";
   document.getElementById("vase-drainage").checked = !!state.vaseDrainage;
   document.getElementById("vase-saucer").checked = !!state.vaseSaucerEnabled;
 
@@ -2948,6 +2951,11 @@ document.getElementById("vase-flutes").addEventListener("input", () => {
   const flutesOn = state.vaseFlutes > 0;
   document.getElementById("field-vase-flute-depth").classList.toggle("hidden", !flutesOn);
   document.getElementById("field-vase-twist").classList.toggle("hidden", !flutesOn);
+});
+
+document.getElementById("vase-rim").addEventListener("change", (e) => {
+  state.vaseRim = e.target.value;
+  rebuild();
 });
 
 document.getElementById("vase-drainage").addEventListener("change", (e) => {

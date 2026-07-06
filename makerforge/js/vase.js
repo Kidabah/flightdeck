@@ -220,17 +220,27 @@ function vaseSurface(params) {
   const diameter = clamp(params.vaseDiameter ?? 80, 30, 260);
   const height = clamp(params.vaseHeight ?? 100, 20, 320);
   const floor = clamp(params.vaseFloor ?? 2.4, 1.4, 6);
+  const wall = clamp(params.vaseWall ?? 1.6, 1.0, 4);
 
   const flutes = clamp(Math.round(params.vaseFlutes ?? 0), 0, 36);
   const fluteDepth = flutes ? clamp(params.vaseFluteDepth ?? 2, 0, Math.min(8, diameter * 0.12)) : 0;
   const twistDeg = clamp(params.vaseTwist ?? 0, -360, 360);
   const twistRad = (twistDeg * Math.PI) / 180;
 
+  // Rim finish: square (flat annulus), bevel (45° chamfer), round (bullnose
+  // half-circle across the wall) or rolled (outward flare + bullnose).
+  // rimDrop = how far below the total height the straight wall stops.
+  const rimStyle = ["bevel", "round", "rolled"].includes(params.vaseRim) ? params.vaseRim : "square";
+  const rimDrop = rimStyle === "square" ? 0 : rimStyle === "bevel" ? Math.min(wall * 0.45, 1.5) : wall / 2;
+  const lipR = rimStyle === "rolled" ? clamp(diameter * 0.045, 2.2, 6) : 0;
+  const lipLen = lipR * 2.4;
+
   // Flutes and twist need finer tessellation to stay smooth.
   let segments = clamp(Math.round(params.vaseSegments ?? 72), 24, 128);
   if (flutes && fluteDepth > 0.01) segments = clamp(Math.max(segments, flutes * 10), 24, 240);
   let layers = clamp(Math.round(params.vaseLayers ?? 24), 6, 96);
   if (Math.abs(twistDeg) > 1) layers = clamp(Math.max(layers, Math.ceil(Math.abs(twistDeg) / 4)), 6, 160);
+  if (lipR) layers = clamp(Math.max(layers, Math.ceil(height / 2.5)), 6, 160);
 
   const baseR = diameter / 2;
   const sampler = profileSampler(style);
@@ -239,117 +249,139 @@ function vaseSurface(params) {
   // (better bed adhesion, clean bottom cap) and reach full depth ~8mm up.
   const fluteDepthAt = (z) => fluteDepth * smoothstep(0, Math.max(floor + 1, 8), z);
   const phaseAtZ = (z) => twistRad * (z / height);
-  const outerRadiusAt = (z) => baseR * sampler(clamp(z / height, 0, 1));
+  const outerRadiusAt = (z) =>
+    baseR * sampler(clamp(z / height, 0, 1)) +
+    (lipR ? lipR * smoothstep(height - lipLen, height, clamp(z, 0, height)) : 0);
   const outerRingAt = (z, radialOffset = 0) =>
     flutedRing(outerRadiusAt(z) + radialOffset, segments, flutes, fluteDepthAt(z), phaseAtZ(z));
 
   return {
-    style, diameter, height, floor, flutes, fluteDepth, twistRad,
-    segments, layers, baseR,
+    style, diameter, height, floor, wall, flutes, fluteDepth, twistRad,
+    segments, layers, baseR, rimStyle, rimDrop, lipR,
     fluteDepthAt, phaseAtZ, outerRadiusAt, outerRingAt,
   };
 }
 
+/**
+ * Rim finish sweep from the outer wall top over to the inner wall top.
+ * Profile points are [s, z] where s lerps per-vertex from the outer ring (0)
+ * to the inner ring (1), so flutes and twist carry through the rim.
+ */
+function rimSweep(outPos, outIdx, ringO, ringI, zRim, style, wall, height) {
+  const prof = [];
+  if (style === "bevel") {
+    const c = height - zRim;
+    const sC = Math.min(0.45, c / wall);
+    prof.push([0, zRim], [sC, height], [1 - sC, height], [1, zRim]);
+  } else {
+    // Bullnose: half-circle of radius wall/2 spanning the wall thickness.
+    const rr = height - zRim;
+    const N = 10;
+    for (let i = 0; i <= N; i++) {
+      const a = Math.PI - (i / N) * Math.PI;
+      prof.push([0.5 + 0.5 * Math.cos(a), zRim + rr * Math.sin(a)]);
+    }
+  }
+  const ringAt = (s) => ringO.map((p, k) => [p[0] + (ringI[k][0] - p[0]) * s, p[1] + (ringI[k][1] - p[1]) * s]);
+  let prev = null;
+  let prevZ = 0;
+  for (const [s, z] of prof) {
+    const ring = ringAt(s);
+    if (prev) loftBetween(outPos, outIdx, prev, ring, prevZ, z, true);
+    prev = ring;
+    prevZ = z;
+  }
+}
+
 /** Build the vase mesh. */
 export function buildVase(params) {
-  const wall = clamp(params.vaseWall ?? 1.6, 1.0, 4);
   const drainage = !!params.vaseDrainage;
   const surf = vaseSurface(params);
-  const { height, floor, flutes, segments, layers, baseR, fluteDepthAt } = surf;
+  const { height, floor, wall, flutes, segments, layers, fluteDepthAt } = surf;
 
-  const outerScale = sampleProfile(surf.style, layers);
-  const layerT = (i) => i / (layers - 1);
-  const phaseAt = (t) => surf.twistRad * t;
+  const layerZ = (i) => (i / (layers - 1)) * height;
 
   // Inner radius = outer radius - wall thickness (radial offset).
   // Inner surface follows the same flute wave so wall thickness stays
   // constant — required for spiral/vase-mode printing.
-  const outerRings = outerScale.map((s, i) => {
-    const z = layerT(i) * height;
-    return flutedRing(baseR * s, segments, flutes, fluteDepthAt(z), phaseAt(layerT(i)));
-  });
-  const innerRings = outerScale.map((s, i) => {
-    const outerR = baseR * s;
-    const innerR = Math.max(2, outerR - wall);
-    const z = layerT(i) * height;
+  const innerRingAt = (z) => {
+    const innerR = Math.max(2, surf.outerRadiusAt(z) - wall);
     const innerDepth = Math.min(fluteDepthAt(z), Math.max(0, (innerR - 2) * 2));
-    return flutedRing(innerR, segments, flutes, innerDepth, phaseAt(layerT(i)));
-  });
+    return flutedRing(innerR, segments, flutes, innerDepth, surf.phaseAtZ(z));
+  };
 
   const positions = [];
   const indices = [];
 
   const zFloor = floor;
-  const zTop = height;
-  const layerZ = (i) => (i / (layers - 1)) * height;
+  // Straight walls stop at zRim; the rim finish sweep covers the rest.
+  const zRim = height - surf.rimDrop;
 
   // Outer skin
-  for (let i = 0; i < layers - 1; i++) {
-    loftBetween(positions, indices, outerRings[i], outerRings[i + 1], layerZ(i), layerZ(i + 1), true);
+  let prevO = surf.outerRingAt(0);
+  let prevOz = 0;
+  for (let i = 1; i < layers; i++) {
+    const z = Math.min(layerZ(i), zRim);
+    if (z <= prevOz + 0.001) continue;
+    const ring = surf.outerRingAt(z);
+    loftBetween(positions, indices, prevO, ring, prevOz, z, true);
+    prevO = ring;
+    prevOz = z;
+  }
+  if (prevOz < zRim - 0.001) {
+    const ring = surf.outerRingAt(zRim);
+    loftBetween(positions, indices, prevO, ring, prevOz, zRim, true);
+    prevO = ring;
   }
 
-  // Find first layer index at or above floor for the inner surface.
-  let firstAbove = 0;
-  for (let i = 0; i < layers; i++) {
-    if (layerZ(i) >= zFloor) {
-      firstAbove = i;
-      break;
-    }
-  }
-  // Compute the inner ring at exactly zFloor by interpolating between layer firstAbove-1 and firstAbove.
-  let ringAtFloor;
-  if (firstAbove === 0) {
-    ringAtFloor = innerRings[0];
-  } else {
-    const zA = layerZ(firstAbove - 1);
-    const zB = layerZ(firstAbove);
-    const t = zB === zA ? 0 : (zFloor - zA) / (zB - zA);
-    const rA = baseR * outerScale[firstAbove - 1];
-    const rB = baseR * outerScale[firstAbove];
-    const rMix = rA + (rB - rA) * t;
-    const innerR = Math.max(2, rMix - wall);
-    const tFloor = zFloor / height;
-    const innerDepth = Math.min(fluteDepthAt(zFloor), Math.max(0, (innerR - 2) * 2));
-    ringAtFloor = flutedRing(innerR, segments, flutes, innerDepth, phaseAt(tFloor));
-  }
+  const ringAtFloor = innerRingAt(zFloor);
 
-  // Inner skin from zFloor upward
+  // Inner skin from zFloor up to zRim
   let prevRing = ringAtFloor;
   let prevZ = zFloor;
-  for (let i = firstAbove; i < layers; i++) {
-    const z = layerZ(i);
-    if (z <= zFloor + 0.001) continue;
-    loftBetween(positions, indices, prevRing, innerRings[i], prevZ, z, false);
-    prevRing = innerRings[i];
+  for (let i = 0; i < layers; i++) {
+    const z = Math.min(layerZ(i), zRim);
+    if (z <= prevZ + 0.001) continue;
+    const ring = innerRingAt(z);
+    loftBetween(positions, indices, prevRing, ring, prevZ, z, false);
+    prevRing = ring;
     prevZ = z;
   }
-  if (prevZ < zTop - 0.001) {
-    loftBetween(positions, indices, prevRing, innerRings[layers - 1], prevZ, zTop, false);
+  if (prevZ < zRim - 0.001) {
+    const ring = innerRingAt(zRim);
+    loftBetween(positions, indices, prevRing, ring, prevZ, zRim, false);
+    prevRing = ring;
   }
+
+  const bottomRing = surf.outerRingAt(0);
 
   // Bottom cap (outside, facing down) — with optional drainage hole
   if (drainage) {
     const rawR = clamp(params.vaseDrainageSize ?? 8, 3, Math.max(4, surf.diameter * 0.35));
-    const drainR = Math.min(rawR, baseR * outerScale[0] - wall - 2);
+    const drainR = Math.min(rawR, surf.outerRadiusAt(0) - wall - 2);
     if (drainR >= 3) {
       // Match outer segment count so capAnnulus / loftBetween line up.
       const drain = ringXY(drainR, segments);
-      capAnnulus(positions, indices, outerRings[0], drain, 0, false);
+      capAnnulus(positions, indices, bottomRing, drain, 0, false);
       // Drainage bore walls (through floor)
       loftBetween(positions, indices, drain, drain, 0, zFloor, false);
       // Inner floor cap (annulus around drain hole)
       capAnnulus(positions, indices, ringAtFloor, drain, zFloor, true);
     } else {
-      capSolid(positions, indices, outerRings[0], 0, false);
+      capSolid(positions, indices, bottomRing, 0, false);
       capSolid(positions, indices, ringAtFloor, zFloor, true);
     }
   } else {
-    capSolid(positions, indices, outerRings[0], 0, false);
+    capSolid(positions, indices, bottomRing, 0, false);
     capSolid(positions, indices, ringAtFloor, zFloor, true);
   }
 
-  // Top rim (annulus outer→inner at zTop)
-  capAnnulus(positions, indices, outerRings[layers - 1], innerRings[layers - 1], zTop, true);
+  // Rim: flat annulus (square) or a bevel / bullnose sweep to the top.
+  if (surf.rimStyle === "square") {
+    capAnnulus(positions, indices, prevO, prevRing, zRim, true);
+  } else {
+    rimSweep(positions, indices, prevO, prevRing, zRim, surf.rimStyle, wall, height);
+  }
 
   return { positions, indices };
 }
@@ -409,7 +441,8 @@ export function vaseMeta(params) {
 
   const flutes = Math.round(params.vaseFlutes ?? 0);
   const fluteDepth = flutes ? clamp(params.vaseFluteDepth ?? 2, 0, Math.min(8, diameter * 0.12)) : 0;
-  const maxR = outerR * Math.max(...profile) + fluteDepth / 2;
+  const lipR = params.vaseRim === "rolled" ? clamp(diameter * 0.045, 2.2, 6) : 0;
+  const maxR = outerR * Math.max(...profile) + fluteDepth / 2 + lipR;
   const outerW = Math.round(maxR * 2 * 10) / 10;
   return {
     shape: "vase",
@@ -439,14 +472,16 @@ export function buildVaseAccentMesh(params) {
   const surf = vaseSurface(params);
   const skin = 0.12;
   const { height, segments, layers } = surf;
-  const bandH = Math.min(clamp(params.accentHeight ?? 4, 2, 80), height);
+  // Keep the band on the straight wall, below any rim finish sweep.
+  const zLimit = height - surf.rimDrop;
+  const bandH = Math.min(clamp(params.accentHeight ?? 4, 2, 80), zLimit);
   let pos;
   if (params.accentPos != null) {
     pos = clamp(params.accentPos, 0, 100) / 100;
   } else {
     pos = params.accentFace === "floor" ? 0 : 1;
   }
-  const z0 = (height - bandH) * pos;
+  const z0 = (zLimit - bandH) * pos;
   const z1 = z0 + bandH;
 
   // Wavy edge: the whole ribbon shifts up/down sinusoidally around the
@@ -456,11 +491,10 @@ export function buildVaseAccentMesh(params) {
   const waveCount = wavy ? clamp(Math.round(params.accentWaveCount ?? 6), 2, 16) : 0;
   const waveAt = (k) => (wavy ? waveAmp * Math.sin(waveCount * ((k / segments) * Math.PI * 2)) : 0);
 
-  // Body outer rings — identical construction to buildVase.
-  const outerScale = sampleProfile(surf.style, layers);
+  // Body outer rings — identical construction to buildVase (outerRingAt
+  // includes the rolled-lip flare, so the band tracks it too).
   const layerZ = (i) => (i / (layers - 1)) * height;
-  const bodyRing = (i) =>
-    flutedRing(surf.baseR * outerScale[i], segments, surf.flutes, surf.fluteDepthAt(layerZ(i)), surf.phaseAtZ(layerZ(i)));
+  const bodyRing = (i) => surf.outerRingAt(Math.min(layerZ(i), zLimit));
   const ringCache = new Map();
   const bodyRingCached = (i) => {
     let r = ringCache.get(i);
@@ -505,11 +539,16 @@ export function buildVaseAccentMesh(params) {
   // Body wall point at height z and (possibly fractional) column kf —
   // bilinear on the straddling body layer rings, which stays within the
   // sag pad of the wall triangulation, then pushed radially out.
+  // Layer z positions clamp at zLimit (matching the body's rim-clamped
+  // lofts), so interpolation uses the actual span, not the uniform spacing.
+  const zOfLayer = (i) => Math.min(layerZ(i), zLimit);
   const wallPointOut = (z, kf) => {
-    const zc = clamp(z, 0, height);
+    const zc = clamp(z, 0, zLimit);
     const fi = (zc / height) * (layers - 1);
     const i = clamp(Math.floor(fi), 0, layers - 2);
-    const t = clamp(fi - i, 0, 1);
+    const zA = zOfLayer(i);
+    const zB = zOfLayer(i + 1);
+    const t = zB - zA > 1e-9 ? clamp((zc - zA) / (zB - zA), 0, 1) : 0;
     const k = Math.floor(kf) % segments;
     const k2 = (k + 1) % segments;
     const u = kf - Math.floor(kf);
@@ -578,4 +617,5 @@ export const VASE_DEFAULTS = {
   vaseFlutes: 0,
   vaseFluteDepth: 2,
   vaseTwist: 0,
+  vaseRim: "square",
 };
