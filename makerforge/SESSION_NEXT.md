@@ -2,7 +2,7 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- `main` commit: *(pending)* — capRing radial fix + synced fillets (b112)
+- `main` commit: `bcc65e6` — capRing radial fix + synced fillets (b112)
 
 ### 2026-07-06 — Floor/wall artifacts + smooth fillets (b112)
 
