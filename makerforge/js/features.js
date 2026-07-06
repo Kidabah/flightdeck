@@ -409,7 +409,10 @@ export function buildDividerInsert(meta, params) {
     return { positions, indices };
   }
 
-  const z0 = fuseToBody ? b.floor : b.floor + bodyGap;
+  // Welded panels bite slightly into the walls and floor so the merged mesh
+  // overlaps the body — coplanar touching faces can slice as a hairline gap.
+  const weld = fuseToBody ? 0.5 : 0;
+  const z0 = fuseToBody ? b.floor - weld : b.floor + bodyGap;
   const z1 = b.floor + b.cavityH - topClear - (fuseToBody ? 0 : bodyGap);
   if (z1 - z0 < 4) return null;
 
@@ -417,10 +420,10 @@ export function buildDividerInsert(meta, params) {
     const t = i / (count + 1);
     if (axis === "length") {
       const x = -spanW / 2 + t * spanW;
-      appendBox(positions, indices, x - halfT, -spanD / 2, z0, x + halfT, spanD / 2, z1);
+      appendBox(positions, indices, x - halfT, -spanD / 2 - weld, z0, x + halfT, spanD / 2 + weld, z1);
     } else {
       const y = -spanD / 2 + t * spanD;
-      appendBox(positions, indices, -spanW / 2, y - halfT, z0, spanW / 2, y + halfT, z1);
+      appendBox(positions, indices, -spanW / 2 - weld, y - halfT, z0, spanW / 2 + weld, y + halfT, z1);
     }
   }
 

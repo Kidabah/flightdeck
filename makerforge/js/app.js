@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=122";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance } from "./features.js?v=100";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=123";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance } from "./features.js?v=101";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=73";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=74";
 import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=122";
@@ -310,7 +310,7 @@ function buildParams() {
     insertSlotDepth: state.insertSlotDepth,
     insertSlotRamp: state.insertSlotRamp,
     insertBodyGap: 0.12,
-    fuseInsertToBody: state.shape === "fatQuarters" && !!state.insertEnabled,
+    fuseInsertToBody: (state.shape === "fatQuarters" || state.insertMount === "fixed") && !!state.insertEnabled,
     bookcaseOpenFront: !!state.bookcaseOpenFront,
     vaseStyle: state.vaseStyle,
     vaseDiameter: state.vaseDiameter,
@@ -433,7 +433,7 @@ function collectColoredExportParts() {
 
   const bodyMesh = separateText ? shell : buildWatertightExportMesh(meshCache, meshCache.meta, params);
   const bodyClean = sanitizeMeshForStl(bodyMesh);
-  const mergeInsertIntoBody = state.shape === "fatQuarters" && state.insertEnabled && insertCache;
+  const mergeInsertIntoBody = (state.shape === "fatQuarters" || state.insertMount === "fixed") && state.insertEnabled && insertCache;
   if (bodyClean?.indices?.length) {
     let exportBody = bodyClean;
     if (mergeInsertIntoBody) {
@@ -1368,9 +1368,10 @@ function applyPreset(shape) {
     syncSliderUi("lid-thickness", "lidThickness", { min: 2, max: 6, value: state.lidThickness ?? 2.4, parseKind: "float" });
     syncSliderUi("lid-lip", "lidLipDepth", { min: 0, max: 8, value: state.lidLipDepth ?? 3, parseKind: "float" });
     syncSliderUi("lid-clearance", "lidClearance", { min: 0.15, max: 0.8, value: state.lidClearance ?? 0.35, parseKind: "float" });
-    document.getElementById("insert-axis").value = state.insertAxis || "length";
-    document.getElementById("insert-mount").value = state.insertMount || "snap";
-    document.getElementById("lid-type").value = state.lidType || "flat";
+  document.getElementById("insert-axis").value = state.insertAxis || "length";
+  document.getElementById("insert-mount").value = state.insertMount || "snap";
+  document.getElementById("insert-fixed-hint")?.classList.toggle("hidden", state.insertMount !== "fixed");
+  document.getElementById("lid-type").value = state.lidType || "flat";
   }
   if (state.embossFace === "lid" && !state.lidEnabled) {
     state.embossFace = "front";
@@ -2165,7 +2166,11 @@ function runExport(format) {
         break;
       }
       case "stl": {
-        const exportMesh = buildWatertightExportMesh(meshCache, meshCache.meta, buildParams());
+        let exportMesh = buildWatertightExportMesh(meshCache, meshCache.meta, buildParams());
+        // Welded dividers ship inside the body STL — they're one piece.
+        if (state.insertEnabled && state.insertMount === "fixed" && insertCache) {
+          exportMesh = mergeMeshes(sanitizeMeshForStl(exportMesh) || exportMesh, insertCache);
+        }
         downloadBlob(meshToStl(exportMesh, "makerdeck"), filenameFor(meshCache.meta, "body"));
         break;
       }
@@ -2275,16 +2280,19 @@ function updateDecorUi() {
   document.getElementById("field-insert-count").classList.toggle("hidden", !insertOn);
   document.getElementById("field-insert-axis").classList.toggle("hidden", !insertOn);
   document.getElementById("field-insert-thickness").classList.toggle("hidden", !insertOn);
-  document.getElementById("field-insert-clearance").classList.toggle("hidden", !insertOn);
+  const fixedMount = state.insertMount === "fixed";
+  // Welded dividers have no clearance to tune.
+  document.getElementById("field-insert-clearance").classList.toggle("hidden", !insertOn || fixedMount);
   document.getElementById("field-insert-mount").classList.toggle("hidden", !insertOn);
   const slotMount = state.insertMount === "slot" && state.insertAxis === "height";
   document.getElementById("field-insert-slot-depth").classList.toggle("hidden", !insertOn || !slotMount);
   document.getElementById("insert-mount-hint")?.classList.toggle(
     "hidden",
-    !insertOn || state.insertAxis === "height",
+    !insertOn || state.insertAxis === "height" || fixedMount,
   );
+  document.getElementById("insert-fixed-hint")?.classList.toggle("hidden", !insertOn || !fixedMount);
   document.getElementById("insert-axis").value = state.insertAxis || "length";
-  document.getElementById("insert-mount").value = state.insertMount === "slot" ? "slot" : "snap";
+  document.getElementById("insert-mount").value = ["slot", "fixed"].includes(state.insertMount) ? state.insertMount : "snap";
   syncInsertCountHint();
   document.getElementById("insert-bookcase-hint")?.classList.toggle(
     "hidden",
@@ -2683,6 +2691,11 @@ document.getElementById("insert-axis").addEventListener("change", (e) => {
     state.insertMount = "snap";
     document.getElementById("insert-mount").value = "snap";
   }
+  // Welded shelves would print mid-air — fixed mount is vertical-only.
+  if (state.insertMount === "fixed" && state.insertAxis === "height") {
+    state.insertMount = "snap";
+    document.getElementById("insert-mount").value = "snap";
+  }
   rebuild();
 });
 
@@ -2691,6 +2704,10 @@ document.getElementById("insert-mount").addEventListener("change", (e) => {
   if (state.insertMount === "slot" && state.insertAxis !== "height") {
     state.insertAxis = "height";
     document.getElementById("insert-axis").value = "height";
+  }
+  if (state.insertMount === "fixed" && state.insertAxis === "height") {
+    state.insertAxis = "length";
+    document.getElementById("insert-axis").value = "length";
   }
   rebuild();
 });

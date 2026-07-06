@@ -4,6 +4,19 @@ Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
 - `main` commit: see b114 entry below
 
+### 2026-07-06 — b123: Fixed (welded) divider option
+
+**What changed:** Chris's snap-fit divider shifted mid-print and wrecked the print. New **Mount → Fixed — welded to body** option:
+- Divider panels print as one piece with the box: zero clearance, panels bite 0.5mm into the walls and floor so the merged mesh overlaps firmly (coplanar faces can slice as a hairline gap).
+- Exports: 3MF merges the dividers into the Body part; plain STL body download also includes them. No separate loose insert.
+- Fixed is vertical-panels only (a welded horizontal shelf would print mid-air) — picking Fixed with Height shelves flips the axis back to Length, and vice versa, same interlock as slide-in slots.
+- Wall-clearance slider hides when Fixed (nothing to tune); hint explains the one-piece print.
+- Node-verified: welded panels exceed the cavity span (bite) but stay inside the outer shell and floor; snap panels still float clear.
+
+**Files:** `js/features.js?v=101`, `js/geometry.js?v=123`, `js/app.js?v=123`, `index.html` — header **b123**
+
+**Deploy:** Pi `git pull`. Hard refresh — confirm header shows **b123**. Try: rect box → Insert tab → Mount → Fixed — welded to body.
+
 ### 2026-07-06 — b122: Sliceable vase accents — solid band + single-object 3MF
 
 **What changed:** Chris's 3MF looked right in MakerDeck but "reverted" in Bambu Studio — errors: empty first layer, floating regions, collision. Two root causes:
