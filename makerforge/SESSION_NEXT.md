@@ -2,7 +2,7 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- `main` commit: *(pending)* — b112: shadow acne + reflex fillet knuckles + smooth heart/teardrop
+- `main` commit: `a57799a` — b112: shadow acne + reflex fillet knuckles + smooth heart/teardrop
 
 ### 2026-07-06 — b112: floor marks, heart knuckles, smooth curves
 
