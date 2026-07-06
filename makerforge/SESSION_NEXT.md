@@ -2,7 +2,7 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- `main` commit: *(pending)* — radial capRing + earcut annulus caps (b110)
+- `main` commit: `70de6cf` — radial capRing + earcut annulus caps (b110)
 
 ### 2026-07-06 — Floor artifacts v2 (radial pairing + earcut annulus)
 
