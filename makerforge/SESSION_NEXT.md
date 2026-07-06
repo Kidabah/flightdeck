@@ -2,7 +2,15 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- `main` commit: `7718edc` — fix vase.js earcut import (Houdini blank preview)
+- `main` commit: *(pending)* — floor/capRing artifact fix
+
+### 2026-07-06 — Preview floor artifacts (all shapes)
+
+**What changed:** Center floor slivers and star/heart “knuckle” spikes were from (1) duplicate coplanar floor caps in `capFloorSlab` and (2) `capRing` pairing outer/inner vertices by index when filleted profiles had different point counts. Inner rings are now arc-length resampled to match outer; floor slabs use a single cap face.
+
+**Files:** `js/geometry.js`, `index.html`, `js/app.js` — `app.js?v=109`
+
+**Deploy:** Pi `git pull`. Hard refresh (Ctrl+Shift+R).
 
 ### 2026-07-06 — Houdini fix (vase earcut import)
 

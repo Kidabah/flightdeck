@@ -280,17 +280,15 @@ function extrudeProfileSides(outPos, outIdx, points, z0, z1, outward = true) {
 }
 
 function capRing(outPos, outIdx, outer, inner, z, normalUp) {
-  const n = Math.min(outer.length, inner.length);
+  const innerRing = outer.length === inner.length ? inner : matchInnerToOuter(outer, inner);
+  const n = innerRing.length;
   if (n < 3) return;
-  if (outer.length !== inner.length) {
-    console.warn("MakerDeck capRing: outer/inner point count mismatch", outer.length, inner.length);
-  }
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
     const o0 = vec3(outer[i][0], outer[i][1], z);
     const o1 = vec3(outer[j][0], outer[j][1], z);
-    const i0 = vec3(inner[i][0], inner[i][1], z);
-    const i1 = vec3(inner[j][0], inner[j][1], z);
+    const i0 = vec3(innerRing[i][0], innerRing[i][1], z);
+    const i1 = vec3(innerRing[j][0], innerRing[j][1], z);
     if (normalUp) pushQuad(outPos, outIdx, o0, o1, i1, i0);
     else pushQuad(outPos, outIdx, o0, i0, i1, o1);
   }
@@ -324,6 +322,7 @@ function extrudeProfileSidesSkipFront(outPos, outIdx, points, z0, z1, outward = 
 }
 
 function capRingSkipFront(outPos, outIdx, outer, inner, z, normalUp) {
+  const innerRing = matchInnerToOuter(outer, inner);
   const frontY = profileFrontY(outer);
   const n = outer.length;
   for (let i = 0; i < n; i++) {
@@ -331,23 +330,58 @@ function capRingSkipFront(outPos, outIdx, outer, inner, z, normalUp) {
     if (isFrontProfileEdge(outer[i], outer[j], frontY)) continue;
     const o0 = vec3(outer[i][0], outer[i][1], z);
     const o1 = vec3(outer[j][0], outer[j][1], z);
-    const i0 = vec3(inner[i][0], inner[i][1], z);
-    const i1 = vec3(inner[j][0], inner[j][1], z);
+    const i0 = vec3(innerRing[i][0], innerRing[i][1], z);
+    const i1 = vec3(innerRing[j][0], innerRing[j][1], z);
     if (normalUp) pushQuad(outPos, outIdx, o0, o1, i1, i0);
     else pushQuad(outPos, outIdx, o0, i0, i1, o1);
   }
 }
 
 function capSolid(outPos, outIdx, points, z, normalUp) {
+  capProfileSolid(outPos, outIdx, points, z, normalUp);
+}
+
+/** Resample a closed profile to a target vertex count (arc-length spacing). */
+function resampleProfileClosed(points, targetCount) {
+  if (targetCount < 3 || points.length < 3) return points.map((p) => [p[0], p[1]]);
+  if (points.length === targetCount) return points.map((p) => [p[0], p[1]]);
+
   const n = points.length;
+  const dists = [];
+  let total = 0;
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
-    const a = vec3(points[i][0], points[i][1], z);
-    const b = vec3(points[j][0], points[j][1], z);
-    const c = vec3(0, 0, z);
-    if (normalUp) pushTri(outPos, outIdx, a, b, c);
-    else pushTri(outPos, outIdx, a, c, b);
+    const d = Math.hypot(points[j][0] - points[i][0], points[j][1] - points[i][1]);
+    dists.push(d);
+    total += d;
   }
+  if (total < 1e-9) return points.map((p) => [p[0], p[1]]);
+
+  const out = [];
+  for (let k = 0; k < targetCount; k++) {
+    const target = (k / targetCount) * total;
+    let acc = 0;
+    for (let i = 0; i < n; i++) {
+      const seg = dists[i];
+      const next = acc + seg;
+      if (next >= target - 1e-9 || i === n - 1) {
+        const t = seg > 1e-9 ? clamp((target - acc) / seg, 0, 1) : 0;
+        const j = (i + 1) % n;
+        out.push([
+          points[i][0] + (points[j][0] - points[i][0]) * t,
+          points[i][1] + (points[j][1] - points[i][1]) * t,
+        ]);
+        break;
+      }
+      acc = next;
+    }
+  }
+  return out;
+}
+
+/** Match inner ring vertices to outer count so capRing / wall quads don't twist. */
+function matchInnerToOuter(outer, inner) {
+  return resampleProfileClosed(inner, outer.length);
 }
 
 /** Earcut cap — avoids center-fan triangulation edges that show through transparent preview. */
@@ -402,22 +436,27 @@ const FLOOR_SLAB = 0.08;
 function capFloorSlab(outPos, outIdx, profile, zTop, upward) {
   const zBot = upward ? zTop - FLOOR_SLAB : zTop;
   const zCap = upward ? zTop : zTop + FLOOR_SLAB;
-  capProfileSolid(outPos, outIdx, profile, zCap, upward);
-  capProfileSolid(outPos, outIdx, profile, zBot, !upward);
-  extrudeProfileSides(outPos, outIdx, profile, zBot, zCap, upward);
+  if (upward) {
+    extrudeProfileSides(outPos, outIdx, profile, zBot, zTop, true);
+    capProfileSolid(outPos, outIdx, profile, zTop, true);
+  } else {
+    extrudeProfileSides(outPos, outIdx, profile, zBot, zCap, true);
+    capProfileSolid(outPos, outIdx, profile, zBot, false);
+  }
 }
 
 function buildProfileShell(outPos, outIdx, outer, inner, floor, totalH, cavityH) {
   const zFloor = floor;
   const zTop = totalH;
   const zCavityTop = floor + cavityH;
+  const innerRing = matchInnerToOuter(outer, inner);
 
   capFloorSlab(outPos, outIdx, outer, 0, false);
-  capFloorSlab(outPos, outIdx, inner, zFloor, true);
-  capRing(outPos, outIdx, outer, inner, zFloor, true);
+  capFloorSlab(outPos, outIdx, innerRing, zFloor, true);
+  capRing(outPos, outIdx, outer, innerRing, zFloor, true);
   extrudeProfileSides(outPos, outIdx, outer, 0, zTop, true);
-  extrudeProfileSides(outPos, outIdx, inner, zFloor, zCavityTop, false);
-  capRing(outPos, outIdx, outer, inner, zTop, true);
+  extrudeProfileSides(outPos, outIdx, innerRing, zFloor, zCavityTop, false);
+  capRing(outPos, outIdx, outer, innerRing, zTop, true);
 }
 
 /** Open-front bookcase shell — back + sides + floor + top rim; front face omitted. */
@@ -425,13 +464,14 @@ function buildOpenFrontBookcaseShell(outPos, outIdx, outer, inner, floor, totalH
   const zFloor = floor;
   const zTop = totalH;
   const zCavityTop = floor + cavityH;
+  const innerRing = matchInnerToOuter(outer, inner);
 
   capFloorSlab(outPos, outIdx, outer, 0, false);
-  capFloorSlab(outPos, outIdx, inner, zFloor, true);
-  capRing(outPos, outIdx, outer, inner, zFloor, true);
+  capFloorSlab(outPos, outIdx, innerRing, zFloor, true);
+  capRing(outPos, outIdx, outer, innerRing, zFloor, true);
   extrudeProfileSidesSkipFront(outPos, outIdx, outer, 0, zTop, true);
-  extrudeProfileSidesSkipFront(outPos, outIdx, inner, zFloor, zCavityTop, false);
-  capRingSkipFront(outPos, outIdx, outer, inner, zTop, true);
+  extrudeProfileSidesSkipFront(outPos, outIdx, innerRing, zFloor, zCavityTop, false);
+  capRingSkipFront(outPos, outIdx, outer, innerRing, zTop, true);
 }
 
 function shellFromProfiles(outer, inner, floor, totalH, cavityH, openFront = false) {
