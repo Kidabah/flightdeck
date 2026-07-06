@@ -2,7 +2,15 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- `main` commit: `82df9af` — floor/capRing artifact fix
+- `main` commit: *(pending)* — radial capRing + earcut annulus caps (b110)
+
+### 2026-07-06 — Floor artifacts v2 (radial pairing + earcut annulus)
+
+**What changed:** v109 arc-length resample was not enough — capRing quads still crossed the floor when fillet counts matched but angles did not. Now: radial ray-cast pairing, horizontal rims use earcut annulus (hole winding fixed), build tag **b110** in header so you can confirm the loaded bundle.
+
+**Files:** `js/geometry.js`, `index.html`, `css/style.css?v=21`, `js/app.js` — `app.js?v=110`
+
+**Deploy:** Pi `git pull`. Hard refresh — confirm header shows **b110**.
 
 ### 2026-07-06 — Preview floor artifacts (all shapes)
 

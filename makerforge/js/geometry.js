@@ -280,8 +280,8 @@ function extrudeProfileSides(outPos, outIdx, points, z0, z1, outward = true) {
 }
 
 function capRing(outPos, outIdx, outer, inner, z, normalUp) {
-  const innerRing = outer.length === inner.length ? inner : matchInnerToOuter(outer, inner);
-  const n = innerRing.length;
+  const innerRing = radialMatchInner(outer, inner);
+  const n = outer.length;
   if (n < 3) return;
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
@@ -322,7 +322,7 @@ function extrudeProfileSidesSkipFront(outPos, outIdx, points, z0, z1, outward = 
 }
 
 function capRingSkipFront(outPos, outIdx, outer, inner, z, normalUp) {
-  const innerRing = matchInnerToOuter(outer, inner);
+  const innerRing = radialMatchInner(outer, inner);
   const frontY = profileFrontY(outer);
   const n = outer.length;
   for (let i = 0; i < n; i++) {
@@ -379,9 +379,56 @@ function resampleProfileClosed(points, targetCount) {
   return out;
 }
 
-/** Match inner ring vertices to outer count so capRing / wall quads don't twist. */
+function profileCentroid(points) {
+  let cx = 0;
+  let cy = 0;
+  for (const [x, y] of points) {
+    cx += x;
+    cy += y;
+  }
+  const n = points.length || 1;
+  return [cx / n, cy / n];
+}
+
+/** Ray from (cx,cy) along (dx,dy) hits a profile edge; return closest hit distance. */
+function rayProfileHit(points, cx, cy, dx, dy) {
+  let bestT = Infinity;
+  let best = null;
+  const n = points.length;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const x1 = points[i][0];
+    const y1 = points[i][1];
+    const x2 = points[j][0];
+    const y2 = points[j][1];
+    const sx = x2 - x1;
+    const sy = y2 - y1;
+    const denom = dx * sy - dy * sx;
+    if (Math.abs(denom) < 1e-12) continue;
+    const t = ((x1 - cx) * sy - (y1 - cy) * sx) / denom;
+    const s = ((x1 - cx) * dy - (y1 - cy) * dx) / denom;
+    if (t > 1e-9 && s >= -1e-9 && s <= 1 + 1e-9 && t < bestT) {
+      bestT = t;
+      best = [cx + dx * t, cy + dy * t];
+    }
+  }
+  return best;
+}
+
+/** Pair each outer vertex with the inner profile point at the same angle from centroid. */
+function radialMatchInner(outer, inner) {
+  const [cx, cy] = profileCentroid(outer);
+  return outer.map(([ox, oy]) => {
+    const ang = Math.atan2(oy - cy, ox - cx);
+    const dx = Math.cos(ang);
+    const dy = Math.sin(ang);
+    return rayProfileHit(inner, cx, cy, dx, dy) ?? [ox, oy];
+  });
+}
+
+/** @deprecated arc-length resample — use radialMatchInner for capRing pairing */
 function matchInnerToOuter(outer, inner) {
-  return resampleProfileClosed(inner, outer.length);
+  return radialMatchInner(outer, inner);
 }
 
 /** Earcut cap — avoids center-fan triangulation edges that show through transparent preview. */
@@ -431,6 +478,31 @@ function capProfileSolid(outPos, outIdx, points, z, normalUp) {
   }
 }
 
+/** Earcut annulus cap (outer ring + inner hole) — no twisted capRing quads. */
+function capProfileAnnulus(outPos, outIdx, outer, hole, z, normalUp) {
+  const outerRing = cleanCapRing(outer);
+  let holeRing = cleanCapRing(hole);
+  if (outerRing.length < 3 || holeRing.length < 3) return;
+  // Earcut expects hole winding opposite to outer.
+  holeRing = holeRing.slice().reverse();
+  const base = outPos.length / 3;
+  for (const [x, y] of outerRing) outPos.push(x, y, z);
+  const holeStart = outerRing.length;
+  for (const [x, y] of holeRing) outPos.push(x, y, z);
+  const tri = earcut(outerRing.flat(), [holeStart]);
+  if (!tri.length) {
+    capRing(outPos, outIdx, outerRing, holeRing, z, normalUp);
+    return;
+  }
+  for (let i = 0; i < tri.length; i += 3) {
+    const a = base + tri[i];
+    const b = base + tri[i + 1];
+    const c = base + tri[i + 2];
+    if (normalUp) pushTriIdx(outIdx, a, b, c);
+    else pushTriIdx(outIdx, a, c, b);
+  }
+}
+
 const FLOOR_SLAB = 0.08;
 
 function capFloorSlab(outPos, outIdx, profile, zTop, upward) {
@@ -449,14 +521,13 @@ function buildProfileShell(outPos, outIdx, outer, inner, floor, totalH, cavityH)
   const zFloor = floor;
   const zTop = totalH;
   const zCavityTop = floor + cavityH;
-  const innerRing = matchInnerToOuter(outer, inner);
 
   capFloorSlab(outPos, outIdx, outer, 0, false);
-  capFloorSlab(outPos, outIdx, innerRing, zFloor, true);
-  capRing(outPos, outIdx, outer, innerRing, zFloor, true);
+  capProfileSolid(outPos, outIdx, inner, zFloor, true);
+  capProfileAnnulus(outPos, outIdx, outer, inner, zFloor, true);
   extrudeProfileSides(outPos, outIdx, outer, 0, zTop, true);
-  extrudeProfileSides(outPos, outIdx, innerRing, zFloor, zCavityTop, false);
-  capRing(outPos, outIdx, outer, innerRing, zTop, true);
+  extrudeProfileSides(outPos, outIdx, inner, zFloor, zCavityTop, false);
+  capProfileAnnulus(outPos, outIdx, outer, inner, zTop, true);
 }
 
 /** Open-front bookcase shell — back + sides + floor + top rim; front face omitted. */
@@ -464,14 +535,13 @@ function buildOpenFrontBookcaseShell(outPos, outIdx, outer, inner, floor, totalH
   const zFloor = floor;
   const zTop = totalH;
   const zCavityTop = floor + cavityH;
-  const innerRing = matchInnerToOuter(outer, inner);
 
   capFloorSlab(outPos, outIdx, outer, 0, false);
-  capFloorSlab(outPos, outIdx, innerRing, zFloor, true);
-  capRing(outPos, outIdx, outer, innerRing, zFloor, true);
+  capProfileSolid(outPos, outIdx, inner, zFloor, true);
+  capProfileAnnulus(outPos, outIdx, outer, inner, zFloor, true);
   extrudeProfileSidesSkipFront(outPos, outIdx, outer, 0, zTop, true);
-  extrudeProfileSidesSkipFront(outPos, outIdx, innerRing, zFloor, zCavityTop, false);
-  capRingSkipFront(outPos, outIdx, outer, innerRing, zTop, true);
+  extrudeProfileSidesSkipFront(outPos, outIdx, inner, zFloor, zCavityTop, false);
+  capProfileAnnulus(outPos, outIdx, outer, inner, zTop, true);
 }
 
 function shellFromProfiles(outer, inner, floor, totalH, cavityH, openFront = false) {

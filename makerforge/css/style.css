@@ -58,6 +58,13 @@ html, body {
   text-transform: uppercase;
 }
 
+.build-tag {
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  margin-left: 6px;
+}
+
 h1, h2, p { margin: 0; }
 
 h1 {
