@@ -2,7 +2,7 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- `main` commit: *(pending)* — fix earcut annulus crash (b111)
+- `main` commit: `e772aa4` — fix earcut annulus crash (b111)
 
 ### 2026-07-06 — Houdini fix: earcut annulus crash (b111)
 
