@@ -2,7 +2,15 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- `main` commit: `e772aa4` — fix earcut annulus crash (b111)
+- `main` commit: *(pending)* — capRing radial fix + synced fillets (b112)
+
+### 2026-07-06 — Floor/wall artifacts + smooth fillets (b112)
+
+**What changed:** Cap rings now ray-cast from centroid to inner wall (never snap to outer coords — that caused heart/star spikes). Removed overlapping earcut annulus caps at floor. Outer/inner fillets use matched arc steps for smoother printable curves. Heart outline denser (72 pts). Header **b112**.
+
+**Files:** `js/geometry.js`, `js/app.js?v=112`, `index.html`
+
+**Deploy:** Pi `git pull`. Hard refresh — confirm **b112**.
 
 ### 2026-07-06 — Houdini fix: earcut annulus crash (b111)
 
