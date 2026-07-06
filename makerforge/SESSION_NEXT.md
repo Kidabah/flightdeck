@@ -4,6 +4,16 @@ Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
 - `main` commit: see b114 entry below
 
+### 2026-07-07 — b124: Retire Fat quarters preset + clean download filenames
+
+**What changed:** Two tidy-ups Chris asked for.
+- **Fat quarters preset removed** — shape button, preset config, size profile, and all special-case wiring (fuse-to-body is now purely the Fixed mount's job, from b123). Old saved sessions with the preset restore as a plain rounded box, same dimensions.
+- **Filenames no longer full of float noise** (`box-93.39999999999999x93.39999999999999x154.6mm.3mf` → `box-93.4x93.4x154.6mm.3mf`). New shared `baseModelName()` in `stl.js` rounds to 0.1mm and drops trailing zeros; STL + 3MF now name identically. Bonus fixes: vases finally get proper names (`goblet-88.7x110mm.3mf` instead of generic `box-…`/`makerdeck`), and saucer / deboss-cutter STLs get `-saucer` / `-deboss-cutter` suffixes instead of silently reusing the body filename.
+
+**Files:** `js/stl.js?v=75`, `js/3mf.js?v=124`, `js/geometry.js?v=124`, `js/app.js?v=124`, `index.html` — header **b124**
+
+**Deploy:** Pi `git pull`. Hard refresh — confirm header shows **b124** and the Fat quarters button is gone; download any 3MF and check the tidy filename.
+
 ### 2026-07-06 — b123: Fixed (welded) divider option
 
 **What changed:** Chris's snap-fit divider shifted mid-print and wrecked the print. New **Mount → Fixed — welded to body** option:

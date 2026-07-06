@@ -1704,29 +1704,6 @@ export const PENCIL_BOX_PRESET = {
   embossFace: "lid",
 };
 
-export const FAT_QUARTERS_PRESET = {
-  innerWidth: 300,
-  innerDepth: 300,
-  innerHeight: 55,
-  wall: 2.4,
-  floor: 2.4,
-  cornerRadius: 6,
-  lidEnabled: false,
-  accentEnabled: false,
-  insertEnabled: true,
-  insertAxis: "length",
-  insertCount: 2,
-  insertThickness: 3.2,
-  insertClearance: 0.35,
-  insertTopClearance: 0.6,
-  insertMount: "snap",
-  lidType: "flat",
-  lidThickness: 2.4,
-  lidClearance: 0.35,
-  lidLipDepth: 3,
-  embossFace: "front",
-};
-
 export const TEARDROP_PRESET = {
   innerWidth: 110,
   innerDepth: 80,

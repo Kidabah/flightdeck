@@ -1,7 +1,7 @@
 /**
  * Multi-part 3MF project export for Orca / Bambu Studio (filament colours per object).
  */
-import { sanitizeMeshForStl } from "./stl.js?v=74";
+import { sanitizeMeshForStl, baseModelName } from "./stl.js?v=75";
 
 function escapeXml(s) {
   return String(s)
@@ -296,17 +296,7 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck") {
 }
 
 export function filename3mfFor(meta, part = "body") {
-  const base = meta?.inner
-    ? (() => {
-        const { w, d, h } = meta.inner;
-        if (meta.shape === "pencil") return `pencil-${w}x${d}x${h}mm.3mf`;
-        if (meta.shape === "pencilBox") return `pencil-box-${w}x${d}x${h}mm.3mf`;
-        if (meta.shape === "circle") return `circle-${w}x${h}mm.3mf`;
-        if (meta.shape === "oval") return `oval-${w}x${d}x${h}mm.3mf`;
-        if (meta.shape === "rounded") return `round-${w}x${d}x${h}mm.3mf`;
-        return `box-${w}x${d}x${h}mm.3mf`;
-      })()
-    : "makerdeck.3mf";
+  const base = `${baseModelName(meta)}.3mf`;
   if (part === "lid") return base.replace(/\.3mf$/, "-lid.3mf");
   return base;
 }

@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=123";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=124";
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance } from "./features.js?v=101";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=73";
-import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=74";
-import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=122";
+import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=75";
+import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=124";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
 
@@ -12,7 +12,7 @@ const SESSION_KEY = "makerdeck-session-v1";
 let saveSessionTimer = null;
 let sessionBooting = true;
 
-const PRESET_SHAPES = new Set(["pencil", "pencilBox", "fatQuarters", "teardrop", "star", "heart"]);
+const PRESET_SHAPES = new Set(["pencil", "pencilBox", "teardrop", "star", "heart"]);
 
 function textHasInk(text) {
   return String(text || "")
@@ -23,7 +23,6 @@ function textHasInk(text) {
 const PRESET_CONFIG = {
   pencil: { preset: PENCIL_PRESET, profile: "pencil" },
   pencilBox: { preset: PENCIL_BOX_PRESET, profile: "pencil" },
-  fatQuarters: { preset: FAT_QUARTERS_PRESET, profile: "fatQuarters" },
   teardrop: { preset: TEARDROP_PRESET, profile: "teardrop" },
   star: { preset: STAR_PRESET, profile: "jewel" },
   heart: { preset: HEART_PRESET, profile: "jewel" },
@@ -241,13 +240,13 @@ function saneNum(value, fallback) {
 function buildParams() {
   const d = DEFAULTS;
   return {
-    shape: state.shape === "rounded" || state.shape === "fatQuarters" ? "rect" : state.shape,
+    shape: state.shape === "rounded" ? "rect" : state.shape,
     innerWidth: saneNum(state.innerWidth, d.innerWidth),
     innerDepth: saneNum(state.innerDepth, d.innerDepth),
     innerHeight: saneNum(state.innerHeight, d.innerHeight),
     wall: saneNum(state.wall, d.wall),
     floor: saneNum(state.floor, d.floor),
-    cornerRadius: state.shape === "rounded" || state.shape === "pencilBox" || state.shape === "fatQuarters"
+    cornerRadius: state.shape === "rounded" || state.shape === "pencilBox"
       ? saneNum(state.cornerRadius, d.cornerRadius)
       : 0,
     vertexFillet: state.vertexFillet,
@@ -310,7 +309,7 @@ function buildParams() {
     insertSlotDepth: state.insertSlotDepth,
     insertSlotRamp: state.insertSlotRamp,
     insertBodyGap: 0.12,
-    fuseInsertToBody: (state.shape === "fatQuarters" || state.insertMount === "fixed") && !!state.insertEnabled,
+    fuseInsertToBody: state.insertMount === "fixed" && !!state.insertEnabled,
     bookcaseOpenFront: !!state.bookcaseOpenFront,
     vaseStyle: state.vaseStyle,
     vaseDiameter: state.vaseDiameter,
@@ -433,7 +432,7 @@ function collectColoredExportParts() {
 
   const bodyMesh = separateText ? shell : buildWatertightExportMesh(meshCache, meshCache.meta, params);
   const bodyClean = sanitizeMeshForStl(bodyMesh);
-  const mergeInsertIntoBody = (state.shape === "fatQuarters" || state.insertMount === "fixed") && state.insertEnabled && insertCache;
+  const mergeInsertIntoBody = state.insertMount === "fixed" && state.insertEnabled && insertCache;
   if (bodyClean?.indices?.length) {
     let exportBody = bodyClean;
     if (mergeInsertIntoBody) {
@@ -1049,6 +1048,8 @@ async function restoreSession() {
       if (payload.state[key] !== undefined) state[key] = payload.state[key];
     }
     if (payload.state.shape) state.shape = payload.state.shape;
+    // Retired preset — restore old sessions as a plain rounded box.
+    if (state.shape === "fatQuarters") state.shape = "rounded";
     if (payload.state.embossTraceRects) {
       state.embossTraceRects = deserializeEmbossTraceRects(payload.state.embossTraceRects);
     }
@@ -1150,7 +1151,7 @@ function rebuildMesh() {
   const params = buildParams();
 
   const nextCache = buildContainer(params);
-  if (nextCache.meta.shape === "rect" && (state.shape === "rounded" || state.shape === "fatQuarters")) {
+  if (nextCache.meta.shape === "rect" && state.shape === "rounded") {
     nextCache.meta.shape = "rounded";
   }
   if (state.shape === "hex" && state.sides !== 6) {
@@ -1336,11 +1337,6 @@ const SLIDER_PROFILES = {
     depth: { min: 35, max: 180 },
     height: { min: 15, max: 120 },
   },
-  fatQuarters: {
-    width: { min: 200, max: 360 },
-    depth: { min: 200, max: 360 },
-    height: { min: 40, max: 120 },
-  },
 };
 
 function applyPreset(shape) {
@@ -1360,26 +1356,12 @@ function applyPreset(shape) {
     syncSliderUi("insert-thickness", "insertThickness", { min: 1.2, max: 4, value: state.insertThickness ?? 2.4, parseKind: "float" });
     syncSliderUi("insert-clearance", "insertClearance", { min: 0.15, max: 1, value: state.insertClearance ?? 0.35, parseKind: "float" });
   }
-  if (shape === "fatQuarters") {
-    syncSliderUi("corner-radius", "cornerRadius", { min: 1, max: 24, value: state.cornerRadius ?? 6, parseKind: "float" });
-    syncSliderUi("insert-count", "insertCount", { min: 1, max: 4, value: state.insertCount ?? 2, parseKind: "int" });
-    syncSliderUi("insert-thickness", "insertThickness", { min: 1.2, max: 4, value: state.insertThickness ?? 2.4, parseKind: "float" });
-    syncSliderUi("insert-clearance", "insertClearance", { min: 0.15, max: 1, value: state.insertClearance ?? 0.35, parseKind: "float" });
-    syncSliderUi("lid-thickness", "lidThickness", { min: 2, max: 6, value: state.lidThickness ?? 2.4, parseKind: "float" });
-    syncSliderUi("lid-lip", "lidLipDepth", { min: 0, max: 8, value: state.lidLipDepth ?? 3, parseKind: "float" });
-    syncSliderUi("lid-clearance", "lidClearance", { min: 0.15, max: 0.8, value: state.lidClearance ?? 0.35, parseKind: "float" });
-  document.getElementById("insert-axis").value = state.insertAxis || "length";
-  document.getElementById("insert-mount").value = state.insertMount || "snap";
-  document.getElementById("insert-fixed-hint")?.classList.toggle("hidden", state.insertMount !== "fixed");
-  document.getElementById("lid-type").value = state.lidType || "flat";
-  }
   if (state.embossFace === "lid" && !state.lidEnabled) {
     state.embossFace = "front";
   }
   document.getElementById("lid-enabled").checked = !!state.lidEnabled;
   document.getElementById("lid-type").value = state.lidType || "slip";
   document.getElementById("insert-enabled").checked = !!state.insertEnabled;
-  if (shape === "fatQuarters" && previewXRayOn) setPreviewXRayMode(false);
 }
 
 /** Leaving a preset (pencil box, teardrop, etc.) — drop lid + case dimensions back to a normal box. */
@@ -1494,7 +1476,6 @@ function updateLabels() {
   const circle = shape === "circle";
   const oval = shape === "oval";
   const rounded = shape === "rounded";
-  const fatQuarters = shape === "fatQuarters";
   const preset = PRESET_SHAPES.has(shape);
   const poly = hex;
   const star = shape === "star";
@@ -1524,7 +1505,6 @@ function updateLabels() {
   const sizeHeading = {
     pencil: "Case size",
     pencilBox: "Case size",
-    fatQuarters: "Box size",
     teardrop: "Drop size",
     star: "Star size",
     heart: "Heart size",
@@ -1538,7 +1518,7 @@ function updateLabels() {
         : 'Inner size <span class="unit">mm</span>';
 
   document.getElementById("field-depth").classList.toggle("hidden", hex || circle || star);
-  document.getElementById("field-corner").classList.toggle("hidden", !rounded && !pencilBox && !fatQuarters);
+  document.getElementById("field-corner").classList.toggle("hidden", !rounded && !pencilBox);
   document.getElementById("field-sides").classList.toggle("hidden", !poly || pencilBox);
   document.getElementById("field-vertex-fillet").classList.toggle("hidden", circle || oval || rounded || (preset && !star && !heart && !pencilBox));
   document.getElementById("section-edges").classList.toggle("hidden", preset && !star && !heart && !pencilBox);
@@ -1576,10 +1556,7 @@ function updateLidUi() {
   }
   const title = document.getElementById("lid-section-title");
   if (title) title.textContent = on ? type.label : "Lid";
-  document.getElementById("lid-tray-hint")?.classList.toggle(
-    "hidden",
-    state.shape !== "fatQuarters" || !on,
-  );
+  document.getElementById("lid-tray-hint")?.classList.add("hidden");
   syncEmbossFaceUi();
   syncExportFormatOptions();
   syncInsertTopClearanceUi();
@@ -1592,14 +1569,14 @@ function joinerUiShape() {
 }
 
 function decorUiShape() {
-  if (state.shape === "rounded" || state.shape === "fatQuarters") return "rounded";
+  if (state.shape === "rounded") return "rounded";
   if (state.shape === "pencil") return "pencil";
   if (state.shape === "pencilBox") return "pencilBox";
   return state.shape === "rect" ? "rect" : null;
 }
 
 function insertUiShape() {
-  if (state.shape === "rounded" || state.shape === "fatQuarters") return "rounded";
+  if (state.shape === "rounded") return "rounded";
   if (state.shape === "pencilBox") return "pencilBox";
   return state.shape === "rect" ? "rect" : null;
 }
@@ -2294,10 +2271,6 @@ function updateDecorUi() {
   document.getElementById("insert-axis").value = state.insertAxis || "length";
   document.getElementById("insert-mount").value = ["slot", "fixed"].includes(state.insertMount) ? state.insertMount : "snap";
   syncInsertCountHint();
-  document.getElementById("insert-bookcase-hint")?.classList.toggle(
-    "hidden",
-    state.shape !== "fatQuarters" || !insertOn,
-  );
   syncInsertTopClearanceUi();
 
   const honeyOn = state.honeycombEnabled && supported;

@@ -240,28 +240,39 @@ export function downloadBlob(blob, filename) {
 }
 
 export function filenameFor(meta, part = "body") {
-  const base = baseFilename(meta);
-  let name = base;
-  if (part === "lid") name = base.replace(/\.stl$/, "-lid.stl");
-  if (part === "accent") name = base.replace(/\.stl$/, "-accent.stl");
-  if (part === "insert") name = base.replace(/\.stl$/, "-insert.stl");
+  let name = `${baseModelName(meta)}.stl`;
+  if (part && part !== "body") name = name.replace(/\.stl$/, `-${part}.stl`);
   if (meta.joinerHand) {
     name = name.replace(/\.stl$/, `-link-${meta.joinerHand}.stl`);
   }
   return name;
 }
 
-function baseFilename(meta) {
-  const { w, d, h } = meta.inner;
-  if (meta.shape === "circle") return `circle-${w}x${h}mm.stl`;
-  if (meta.shape === "oval") return `oval-${w}x${d}x${h}mm.stl`;
-  if (meta.shape === "pencil") return `pencil-${w}x${d}x${h}mm.stl`;
-  if (meta.shape === "pencilBox") return `pencil-box-${w}x${d}x${h}mm.stl`;
-  if (meta.shape === "teardrop") return `teardrop-${w}x${d}x${h}mm.stl`;
-  if (meta.shape === "star") return `star${meta.starPoints || 5}-${w}x${h}mm.stl`;
-  if (meta.shape === "heart") return `heart-${w}x${d}x${h}mm.stl`;
-  if (meta.shape === "hex") return `hex-${w}x${h}mm.stl`;
-  if (meta.shape === "polygon") return `poly${meta.sides}-${w}x${h}mm.stl`;
-  if (meta.shape === "rounded") return `round-${w}x${d}x${h}mm.stl`;
-  return `box-${w}x${d}x${h}mm.stl`;
+/** Round to 0.1mm and drop float noise (93.39999999999999 → 93.4, 80 → 80). */
+function fmtMm(n) {
+  const r = Math.round((Number(n) || 0) * 10) / 10;
+  return Number.isInteger(r) ? String(r) : r.toFixed(1);
+}
+
+/** Shared base name (no extension) for STL / 3MF downloads. */
+export function baseModelName(meta) {
+  if (meta?.shape === "vase") {
+    const style = meta.style || "vase";
+    return `${style}-${fmtMm(meta.outer?.w ?? 0)}x${fmtMm(meta.outer?.h ?? 0)}mm`;
+  }
+  if (!meta?.inner) return "makerdeck";
+  const w = fmtMm(meta.inner.w);
+  const d = fmtMm(meta.inner.d);
+  const h = fmtMm(meta.inner.h);
+  if (meta.shape === "circle") return `circle-${w}x${h}mm`;
+  if (meta.shape === "oval") return `oval-${w}x${d}x${h}mm`;
+  if (meta.shape === "pencil") return `pencil-${w}x${d}x${h}mm`;
+  if (meta.shape === "pencilBox") return `pencil-box-${w}x${d}x${h}mm`;
+  if (meta.shape === "teardrop") return `teardrop-${w}x${d}x${h}mm`;
+  if (meta.shape === "star") return `star${meta.starPoints || 5}-${w}x${h}mm`;
+  if (meta.shape === "heart") return `heart-${w}x${d}x${h}mm`;
+  if (meta.shape === "hex") return `hex-${w}x${h}mm`;
+  if (meta.shape === "polygon") return `poly${meta.sides}-${w}x${h}mm`;
+  if (meta.shape === "rounded") return `round-${w}x${d}x${h}mm`;
+  return `box-${w}x${d}x${h}mm`;
 }
