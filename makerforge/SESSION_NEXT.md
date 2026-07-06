@@ -4,6 +4,17 @@ Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
 - `main` commit: see b114 entry below
 
+### 2026-07-06 — b122: Sliceable vase accents — solid band + single-object 3MF
+
+**What changed:** Chris's 3MF looked right in MakerDeck but "reverted" in Bambu Studio — errors: empty first layer, floating regions, collision. Two root causes:
+- **The accent was a zero-thickness skin** floating 0.12mm off the wall — unprintable, and Bambu's auto-repair mangles it. Exports now use a new **solid** variant (`buildVaseAccentMesh` with `accentSolid: true`): outer surface = the preview skin, inner surface bites ~0.6–1mm **into** the body wall (never through — always leaves ≥0.4mm), edges capped → watertight ring with firm slicer overlap. Preview still uses the thin skin (crisp, no bleed).
+- **3MF exported each mesh as a separate build object**, so Bambu saw a free-floating "Accent" model. `buildColoredProject3mf` now emits one assembled object with component parts (Bambu `<part>` entries in model_settings.config, per-part extruders). Body + accent (+ text/insert) import as a single model — parts mid-air are fine because the object as a whole sits on the plate.
+- Node-verified: solid band watertight (open=0) for straight/wavy/base-wave/rolled-rim on fluted+twisted goblet; 3MF structure test checks assembly + parts + extruders; all prior accent/grid tests ALL OK.
+
+**Files:** `js/vase.js?v=122`, `js/geometry.js?v=122`, `js/3mf.js?v=122`, `js/app.js?v=122`, `index.html` — header **b122**
+
+**Deploy:** Pi `git pull`. Hard refresh — confirm header shows **b122**. Re-download the 3MF and drop into Bambu Studio: should import as ONE object with a Body + Accent part, no errors.
+
 ### 2026-07-06 — b121: Vase rim finishes (bevel / bullnose / rolled lip)
 
 **What changed:** Chris's idea — the vase rim was a dead-flat annulus. New **Rim finish** select in the vase section:

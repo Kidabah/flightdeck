@@ -167,34 +167,38 @@ function meshTo3mfResources(mesh, objectId, name, extruder) {
   };
 }
 
-/** Bambu Studio reads extruder assignment from this XML file (not JSON). */
-function buildBambuModelSettingsXml(objects) {
+/**
+ * Bambu Studio reads extruder assignment from this XML file (not JSON).
+ * All meshes are PARTS of one assembled object so the slicer treats them as
+ * a single model — parts mid-air (accent bands, floating text) are supported
+ * by the body instead of erroring with "empty first layer".
+ */
+function buildBambuModelSettingsXml(assemblyId, name, parts) {
   const lines = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     "<config>",
+    `  <object id="${assemblyId}">`,
+    `    <metadata key="name" value="${escapeXml(name)}"/>`,
   ];
 
-  for (const obj of objects) {
-    lines.push(`  <object id="${obj.id}">`);
-    lines.push(`    <metadata key="name" value="${escapeXml(obj.name)}"/>`);
-    lines.push(`    <metadata key="extruder" value="${obj.extruder}"/>`);
-    lines.push("  </object>");
+  for (const part of parts) {
+    lines.push(`    <part id="${part.id}" subtype="normal_part">`);
+    lines.push(`      <metadata key="name" value="${escapeXml(part.name)}"/>`);
+    lines.push(`      <metadata key="extruder" value="${part.extruder}"/>`);
+    lines.push("    </part>");
   }
 
+  lines.push("  </object>");
   lines.push("  <plate>");
   lines.push('    <metadata key="plater_id" value="1"/>');
   lines.push('    <metadata key="plater_name" value=""/>');
   lines.push('    <metadata key="locked" value="false"/>');
   lines.push('    <metadata key="filament_map_mode" value="Auto For Flush"/>');
-
-  objects.forEach((obj, i) => {
-    lines.push("    <model_instance>");
-    lines.push(`      <metadata key="object_id" value="${obj.id}"/>`);
-    lines.push('      <metadata key="instance_id" value="0"/>');
-    lines.push(`      <metadata key="identify_id" value="${i}"/>`);
-    lines.push("    </model_instance>");
-  });
-
+  lines.push("    <model_instance>");
+  lines.push(`      <metadata key="object_id" value="${assemblyId}"/>`);
+  lines.push('      <metadata key="instance_id" value="0"/>');
+  lines.push('      <metadata key="identify_id" value="0"/>');
+  lines.push("    </model_instance>");
   lines.push("  </plate>");
   lines.push("</config>");
   return lines.join("\n");
@@ -219,19 +223,27 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck") {
   const filamentDiameter = slotColors.map(() => "1.75");
   const filamentDensity = slotColors.map(() => "1.24");
 
+  // Each mesh is a component object referenced by one assembled parent, so
+  // Bambu Studio imports them as parts of a single model (no floating-part
+  // or collision complaints for accent bands hugging the body).
   const objectXml = [];
-  const buildItems = [];
-  const modelObjects = [];
+  const modelParts = [];
   let objectId = 1;
   for (const part of usable) {
     const built = meshTo3mfResources(part.mesh, objectId, part.name, part.extruder || 1);
     if (!built) continue;
     objectXml.push(built.objectXml);
-    buildItems.push(built.buildItem);
-    modelObjects.push({ id: built.id, name: built.name, extruder: built.extruder });
+    modelParts.push({ id: built.id, name: built.name, extruder: built.extruder });
     objectId++;
   }
   if (!objectXml.length) throw new Error("No valid mesh parts to export");
+
+  const assemblyId = objectId;
+  const componentsXml = modelParts.map((p) => `<component objectid="${p.id}"/>`).join("");
+  objectXml.push(`<object id="${assemblyId}" type="model">
+      <metadata name="Name">${escapeXml(projectName)}</metadata>
+      <components>${componentsXml}</components>
+    </object>`);
 
   const modelXml = `<?xml version="1.0" encoding="UTF-8"?>
 <model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06">
@@ -241,7 +253,7 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck") {
     ${objectXml.join("\n    ")}
   </resources>
   <build>
-    ${buildItems.join("\n    ")}
+    <item objectid="${assemblyId}"/>
   </build>
 </model>`;
 
@@ -257,7 +269,7 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck") {
     filament_density: filamentDensity,
   });
 
-  const modelSettings = buildBambuModelSettingsXml(modelObjects);
+  const modelSettings = buildBambuModelSettingsXml(assemblyId, projectName, modelParts);
 
   const contentTypes = `<?xml version="1.0" encoding="UTF-8"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

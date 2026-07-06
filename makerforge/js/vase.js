@@ -471,6 +471,7 @@ export function vaseMeta(params) {
 export function buildVaseAccentMesh(params) {
   const surf = vaseSurface(params);
   const skin = 0.12;
+  const solid = !!params.accentSolid;
   const { height, segments, layers } = surf;
   // Keep the band on the straight wall, below any rim finish sweep.
   const zLimit = height - surf.rimDrop;
@@ -505,13 +506,14 @@ export function buildVaseAccentMesh(params) {
     return r;
   };
   // A radial offset shrinks (measured normal to the wall) where the profile
-  // leans — e.g. a goblet's base flare — so scale the skin by the wall slope
-  // to keep a constant true gap. Prevents the band cutting into steep walls.
-  const skinAt = (z) => {
+  // leans — e.g. a goblet's base flare — so scale offsets by the wall slope
+  // to keep a constant true distance from the leaning wall.
+  const slopeFactorAt = (z) => {
     const zc = clamp(z, 0.5, height - 0.5);
     const slope = Math.abs(surf.outerRadiusAt(zc + 0.5) - surf.outerRadiusAt(zc - 0.5));
-    return Math.min(0.5, skin * Math.hypot(1, slope));
+    return Math.min(4, Math.hypot(1, slope));
   };
+  const skinAt = (z) => Math.min(0.5, skin * slopeFactorAt(z));
 
   // Twist + flutes make the body's wall quads non-planar, so its triangles
   // bulge outside the ruled (vertex-lerped) surface by up to half the gap
@@ -542,7 +544,7 @@ export function buildVaseAccentMesh(params) {
   // Layer z positions clamp at zLimit (matching the body's rim-clamped
   // lofts), so interpolation uses the actual span, not the uniform spacing.
   const zOfLayer = (i) => Math.min(layerZ(i), zLimit);
-  const wallPointOut = (z, kf) => {
+  const wallPointAt = (z, kf, radialOffset) => {
     const zc = clamp(z, 0, zLimit);
     const fi = (zc / height) * (layers - 1);
     const i = clamp(Math.floor(fi), 0, layers - 2);
@@ -561,9 +563,10 @@ export function buildVaseAccentMesh(params) {
     const x = ax + (bx - ax) * t;
     const y = ay + (by - ay) * t;
     const r = Math.hypot(x, y) || 1;
-    const s = (r + skinAt(zc) + sagAt(i)) / r;
+    const s = Math.max(0.05, (r + radialOffset(zc, i)) / r);
     return [x * s, y * s, zc];
   };
+  const wallPointOut = (z, kf) => wallPointAt(z, kf, (zc, i) => skinAt(zc) + sagAt(i));
 
   // Slice fractions: band edges, every body layer inside the band, plus
   // dense subdivisions when wavy — the wave crosses body layer kinks
@@ -586,20 +589,47 @@ export function buildVaseAccentMesh(params) {
   const waveAtCol = (c) => (wavy ? waveAmp * Math.sin(waveCount * ((c / cols) * Math.PI * 2)) : 0);
 
   // Build slices as 3D rings (per-vertex z includes the wave offset).
-  const slices = fracs.map((f) =>
-    Array.from({ length: cols }, (_, c) => wallPointOut(z0 + bandH * f + waveAtCol(c), c / sub)),
-  );
+  const makeSlices = (radialOffset) =>
+    fracs.map((f) =>
+      Array.from({ length: cols }, (_, c) => wallPointAt(z0 + bandH * f + waveAtCol(c), c / sub, radialOffset)),
+    );
+  const outerSlices = makeSlices((zc, i) => skinAt(zc) + sagAt(i));
 
   const positions = [];
   const indices = [];
-  for (let s = 0; s < slices.length - 1; s++) {
-    const cur = slices[s];
-    const nxt = slices[s + 1];
+  const loftSlices = (slices, outward) => {
+    for (let s = 0; s < slices.length - 1; s++) {
+      const cur = slices[s];
+      const nxt = slices[s + 1];
+      for (let c = 0; c < cols; c++) {
+        const c2 = (c + 1) % cols;
+        if (outward) pushQuad(positions, indices, cur[c], cur[c2], nxt[c2], nxt[c]);
+        else pushQuad(positions, indices, cur[c], nxt[c], nxt[c2], cur[c2]);
+      }
+    }
+  };
+  loftSlices(outerSlices, true);
+
+  if (!solid) return { positions, indices };
+
+  // Solid band for slicing/printing: the zero-thickness preview skin can't
+  // be printed (empty first layer / floating shell in Bambu). The solid's
+  // inner surface bites into the body wall so the slicer sees firm overlap,
+  // and the top/bottom edges are capped, giving a watertight ring.
+  const wall = surf.wall;
+  const bite = Math.max(0.3, Math.min(wall - 0.4, 1.0));
+  const innerSlices = makeSlices(() => -bite);
+  loftSlices(innerSlices, false);
+  const capEdge = (out, inn, up) => {
     for (let c = 0; c < cols; c++) {
       const c2 = (c + 1) % cols;
-      pushQuad(positions, indices, cur[c], cur[c2], nxt[c2], nxt[c]);
+      if (up) pushQuad(positions, indices, out[c], out[c2], inn[c2], inn[c]);
+      else pushQuad(positions, indices, out[c], inn[c], inn[c2], out[c2]);
     }
-  }
+  };
+  capEdge(outerSlices[0], innerSlices[0], false);
+  capEdge(outerSlices[outerSlices.length - 1], innerSlices[innerSlices.length - 1], true);
+
   return { positions, indices };
 }
 

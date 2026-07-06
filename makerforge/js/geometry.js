@@ -15,7 +15,7 @@ import {
   shapeSupportsInsert,
 } from "./features.js";
 import earcut from "https://esm.sh/earcut@2.2.4";
-import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=121";
+import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=122";
 
 import { appendInsertShelfSlotsToBody } from "./insert-slots.js";
 
@@ -1436,9 +1436,14 @@ export function buildContainer(params) {
       centerPositions(saucerMesh.positions, 0, 0);
     }
     let accentMesh = null;
+    let accentSolidMesh = null;
     if (params.accentEnabled) {
       accentMesh = buildVaseAccentMesh(params);
       centerPositions(accentMesh.positions, 0, 0);
+      // Printable variant: watertight ring that bites into the wall, for
+      // slicer export (the preview skin has zero thickness and can't print).
+      accentSolidMesh = buildVaseAccentMesh({ ...params, accentSolid: true });
+      centerPositions(accentSolidMesh.positions, 0, 0);
     }
     return {
       positions: vaseMesh.positions,
@@ -1447,6 +1452,7 @@ export function buildContainer(params) {
       meta,
       totalH: meta.outer.h,
       accentMesh,
+      accentSolidMesh,
       insertMesh: null,
       labelMesh: null,
       debossCutterMesh: null,
