@@ -70,7 +70,9 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setClearColor(0x070b12, 1);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.NoToneMapping;
-renderer.shadowMap.enabled = true;
+// Shadows disabled: only the model itself could receive them, and the default
+// directional shadow camera caused self-shadow acne patches on box floors.
+renderer.shadowMap.enabled = false;
 viewport.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -1183,7 +1185,7 @@ function rebuildMesh() {
   previewRoot.add(bodyMesh);
 
   try {
-    const edges = new THREE.EdgesGeometry(bodyGeom, 45);
+    const edges = new THREE.EdgesGeometry(bodyGeom, 28);
     edgeLines = new THREE.LineSegments(edges, edgeMaterial);
     edgeLines.renderOrder = 3;
     edgeLines.visible = previewXRayOn;

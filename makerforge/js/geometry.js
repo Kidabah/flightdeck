@@ -115,89 +115,76 @@ function ellipseSegmentsForRadii(rx, ry) {
 }
 
 function filletArcSegments(radius, sweepRadians = Math.PI / 2) {
-  if (radius <= 0.5) return 6;
-  const maxFacet = 0.65;
+  if (radius <= 0.5) return 4;
+  const maxFacet = 1.0;
   const n = Math.ceil((sweepRadians * radius) / maxFacet);
-  return clamp(n, 8, 128);
+  return clamp(n, 12, 96);
 }
 
-/** Single corner fillet arc; optional fixedSteps keeps outer/inner fillets aligned. */
-function filletCornerPoints(prev, curr, next, filletR, fixedSteps) {
-  const r = filletR;
-  if (r < 0.2) return { points: [[curr[0], curr[1]]], steps: 0 };
-
-  const inDir = norm2(prev[0] - curr[0], prev[1] - curr[1]);
-  const outDir = norm2(next[0] - curr[0], next[1] - curr[1]);
-  const dot = clamp(inDir[0] * outDir[0] + inDir[1] * outDir[1], -1, 1);
-  const theta = Math.acos(dot);
-  if (theta < 0.08 || theta > Math.PI - 0.08) {
-    return { points: [[curr[0], curr[1]]], steps: 0 };
+function polygonSignedArea2(pts) {
+  let area = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const j = (i + 1) % pts.length;
+    area += pts[i][0] * pts[j][1] - pts[j][0] * pts[i][1];
   }
-
-  const trim = Math.min(
-    r / Math.tan(theta / 2),
-    Math.hypot(prev[0] - curr[0], prev[1] - curr[1]) * 0.42,
-    Math.hypot(next[0] - curr[0], next[1] - curr[1]) * 0.42,
-  );
-  const p1 = [curr[0] + inDir[0] * trim, curr[1] + inDir[1] * trim];
-  const p2 = [curr[0] + outDir[0] * trim, curr[1] + outDir[1] * trim];
-  const bis = norm2(inDir[0] + outDir[0], inDir[1] + outDir[1]);
-  const distCenter = r / Math.sin(theta / 2);
-  const center = [curr[0] + bis[0] * distCenter, curr[1] + bis[1] * distCenter];
-  const a1 = Math.atan2(p1[1] - center[1], p1[0] - center[0]);
-  const a2 = Math.atan2(p2[1] - center[1], p2[0] - center[0]);
-  let sweep = a2 - a1;
-  while (sweep <= 0) sweep += Math.PI * 2;
-  while (sweep > Math.PI * 2) sweep -= Math.PI * 2;
-  const steps = fixedSteps ?? Math.max(2, filletArcSegments(r, sweep));
-  const points = [p1];
-  for (let s = 1; s < steps; s++) {
-    const a = a1 + sweep * (s / steps);
-    points.push([center[0] + r * Math.cos(a), center[1] + r * Math.sin(a)]);
-  }
-  points.push(p2);
-  return { points, steps };
+  return area / 2;
 }
 
-/** Round polygon vertices with circular fillets. */
+/** Round polygon vertices with circular fillets — convex corners only.
+ * Reflex corners (heart notch, star inner points) are skipped: forcing an
+ * arc there sweeps the wrong way and draws full-circle "knuckles". */
 function filletedOutline(vertices, filletR, arcSegments) {
   const r = filletR;
   if (r < 0.2 || vertices.length < 3) return vertices.map((p) => [p[0], p[1]]);
 
+  const ccw = polygonSignedArea2(vertices) > 0;
   const n = vertices.length;
   const out = [];
   for (let i = 0; i < n; i++) {
     const prev = vertices[(i + n - 1) % n];
     const curr = vertices[i];
     const next = vertices[(i + 1) % n];
-    const corner = filletCornerPoints(prev, curr, next, r, arcSegments);
-    out.push(...corner.points);
+    const inDir = norm2(prev[0] - curr[0], prev[1] - curr[1]);
+    const outDir = norm2(next[0] - curr[0], next[1] - curr[1]);
+    const dot = clamp(inDir[0] * outDir[0] + inDir[1] * outDir[1], -1, 1);
+    const theta = Math.acos(dot);
+    const cross = inDir[0] * outDir[1] - inDir[1] * outDir[0];
+    const convex = ccw ? cross < 0 : cross > 0;
+    if (!convex || theta < 0.08 || theta > Math.PI - 0.08) {
+      out.push([curr[0], curr[1]]);
+      continue;
+    }
+    const trim = Math.min(r / Math.tan(theta / 2), Math.hypot(prev[0] - curr[0], prev[1] - curr[1]) * 0.42, Math.hypot(next[0] - curr[0], next[1] - curr[1]) * 0.42);
+    if (trim < 0.05) {
+      out.push([curr[0], curr[1]]);
+      continue;
+    }
+    // Effective radius from the (possibly clamped) trim so the arc stays
+    // tangent to both edges even on short segments near sharp tips.
+    const rEff = trim * Math.tan(theta / 2);
+    const p1 = [curr[0] + inDir[0] * trim, curr[1] + inDir[1] * trim];
+    const p2 = [curr[0] + outDir[0] * trim, curr[1] + outDir[1] * trim];
+    const bis = norm2(inDir[0] + outDir[0], inDir[1] + outDir[1]);
+    const distCenter = rEff / Math.sin(theta / 2);
+    const center = [curr[0] + bis[0] * distCenter, curr[1] + bis[1] * distCenter];
+    const a1 = Math.atan2(p1[1] - center[1], p1[0] - center[0]);
+    const a2 = Math.atan2(p2[1] - center[1], p2[0] - center[0]);
+    let sweep = a2 - a1;
+    while (sweep <= -Math.PI) sweep += Math.PI * 2;
+    while (sweep > Math.PI) sweep -= Math.PI * 2;
+    if (Math.abs(sweep) < 1e-4) {
+      out.push([curr[0], curr[1]]);
+      continue;
+    }
+    const steps = Math.max(2, arcSegments ?? filletArcSegments(rEff, Math.abs(sweep)));
+    out.push(p1);
+    for (let s = 1; s < steps; s++) {
+      const a = a1 + sweep * (s / steps);
+      out.push([center[0] + rEff * Math.cos(a), center[1] + rEff * Math.sin(a)]);
+    }
+    out.push(p2);
   }
   return out;
-}
-
-/** Fillet outer + inner outlines with matched arc steps per corner (smooth printable curves). */
-function filletedOutlinePair(outerVerts, innerVerts, filletROuter, filletRInner, arcSegments) {
-  if (filletROuter < 0.2 && filletRInner < 0.2) {
-    return [outerVerts.map((p) => [p[0], p[1]]), innerVerts.map((p) => [p[0], p[1]])];
-  }
-  const n = outerVerts.length;
-  const outerOut = [];
-  const innerOut = [];
-  for (let i = 0; i < n; i++) {
-    const prevO = outerVerts[(i + n - 1) % n];
-    const currO = outerVerts[i];
-    const nextO = outerVerts[(i + 1) % n];
-    const prevI = innerVerts[(i + n - 1) % n];
-    const currI = innerVerts[i];
-    const nextI = innerVerts[(i + 1) % n];
-    const draftO = filletCornerPoints(prevO, currO, nextO, filletROuter, null);
-    const draftI = filletCornerPoints(prevI, currI, nextI, filletRInner, null);
-    const steps = Math.max(draftO.steps || 2, draftI.steps || 2, arcSegments ?? 8);
-    outerOut.push(...filletCornerPoints(prevO, currO, nextO, filletROuter, steps).points);
-    innerOut.push(...filletCornerPoints(prevI, currI, nextI, filletRInner, steps).points);
-  }
-  return [outerOut, innerOut];
 }
 
 function roundedRectCornerSegments(radius) {
@@ -318,17 +305,15 @@ function extrudeProfileSides(outPos, outIdx, points, z0, z1, outward = true) {
 }
 
 function capRing(outPos, outIdx, outer, inner, z, normalUp) {
-  const [cx, cy] = profileCentroid(outer);
+  const innerRing = radialMatchInner(outer, inner);
   const n = outer.length;
   if (n < 3) return;
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
-    const ip0 = innerPointForOuter(outer[i], inner, cx, cy);
-    const ip1 = innerPointForOuter(outer[j], inner, cx, cy);
     const o0 = vec3(outer[i][0], outer[i][1], z);
     const o1 = vec3(outer[j][0], outer[j][1], z);
-    const i0 = vec3(ip0[0], ip0[1], z);
-    const i1 = vec3(ip1[0], ip1[1], z);
+    const i0 = vec3(innerRing[i][0], innerRing[i][1], z);
+    const i1 = vec3(innerRing[j][0], innerRing[j][1], z);
     if (normalUp) pushQuad(outPos, outIdx, o0, o1, i1, i0);
     else pushQuad(outPos, outIdx, o0, i0, i1, o1);
   }
@@ -362,18 +347,16 @@ function extrudeProfileSidesSkipFront(outPos, outIdx, points, z0, z1, outward = 
 }
 
 function capRingSkipFront(outPos, outIdx, outer, inner, z, normalUp) {
-  const [cx, cy] = profileCentroid(outer);
+  const innerRing = radialMatchInner(outer, inner);
   const frontY = profileFrontY(outer);
   const n = outer.length;
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
     if (isFrontProfileEdge(outer[i], outer[j], frontY)) continue;
-    const ip0 = innerPointForOuter(outer[i], inner, cx, cy);
-    const ip1 = innerPointForOuter(outer[j], inner, cx, cy);
     const o0 = vec3(outer[i][0], outer[i][1], z);
     const o1 = vec3(outer[j][0], outer[j][1], z);
-    const i0 = vec3(ip0[0], ip0[1], z);
-    const i1 = vec3(ip1[0], ip1[1], z);
+    const i0 = vec3(innerRing[i][0], innerRing[i][1], z);
+    const i1 = vec3(innerRing[j][0], innerRing[j][1], z);
     if (normalUp) pushQuad(outPos, outIdx, o0, o1, i1, i0);
     else pushQuad(outPos, outIdx, o0, i0, i1, o1);
   }
@@ -457,50 +440,15 @@ function rayProfileHit(points, cx, cy, dx, dy) {
   return best;
 }
 
-/** Closest point on a closed profile boundary. */
-function nearestPointOnProfile(points, px, py) {
-  let best = points[0];
-  let bestD = Infinity;
-  const n = points.length;
-  for (let i = 0; i < n; i++) {
-    const j = (i + 1) % n;
-    const x1 = points[i][0];
-    const y1 = points[i][1];
-    const x2 = points[j][0];
-    const y2 = points[j][1];
-    const dx = x2 - x1;
-    const dy = y2 - y1;
-    const len2 = dx * dx + dy * dy;
-    const t = len2 > 1e-12 ? clamp(((px - x1) * dx + (py - y1) * dy) / len2, 0, 1) : 0;
-    const qx = x1 + dx * t;
-    const qy = y1 + dy * t;
-    const d = Math.hypot(px - qx, py - qy);
-    if (d < bestD) {
-      bestD = d;
-      best = [qx, qy];
-    }
-  }
-  return best;
-}
-
-/** Inner cavity point aligned with an outer vertex (never falls back to outer coords). */
-function innerPointForOuter(outerPt, inner, cx, cy) {
-  const ox = outerPt[0];
-  const oy = outerPt[1];
-  const dx = ox - cx;
-  const dy = oy - cy;
-  const len = Math.hypot(dx, dy);
-  if (len > 1e-9) {
-    const hit = rayProfileHit(inner, cx, cy, dx / len, dy / len);
-    if (hit) return hit;
-  }
-  return nearestPointOnProfile(inner, ox, oy);
-}
-
 /** Pair each outer vertex with the inner profile point at the same angle from centroid. */
 function radialMatchInner(outer, inner) {
   const [cx, cy] = profileCentroid(outer);
-  return outer.map((pt) => innerPointForOuter(pt, inner, cx, cy));
+  return outer.map(([ox, oy]) => {
+    const ang = Math.atan2(oy - cy, ox - cx);
+    const dx = Math.cos(ang);
+    const dy = Math.sin(ang);
+    return rayProfileHit(inner, cx, cy, dx, dy) ?? [ox, oy];
+  });
 }
 
 /** @deprecated arc-length resample — use radialMatchInner for capRing pairing */
@@ -577,7 +525,7 @@ function capProfileAnnulus(outPos, outIdx, outer, hole, z, normalUp) {
       else pushTriIdx(outIdx, a, c, b);
     }
   } catch {
-    capRing(outPos, outIdx, outerRing, hole, z, normalUp);
+    capRing(outPos, outIdx, outerRing, holeRing, z, normalUp);
   }
 }
 
@@ -602,10 +550,10 @@ function buildProfileShell(outPos, outIdx, outer, inner, floor, totalH, cavityH)
 
   capFloorSlab(outPos, outIdx, outer, 0, false);
   capProfileSolid(outPos, outIdx, inner, zFloor, true);
-  capRing(outPos, outIdx, outer, inner, zFloor, true);
+  capProfileAnnulus(outPos, outIdx, outer, inner, zFloor, true);
   extrudeProfileSides(outPos, outIdx, outer, 0, zTop, true);
   extrudeProfileSides(outPos, outIdx, inner, zFloor, zCavityTop, false);
-  capRing(outPos, outIdx, outer, inner, zTop, true);
+  capProfileAnnulus(outPos, outIdx, outer, inner, zTop, true);
 }
 
 /** Open-front bookcase shell — back + sides + floor + top rim; front face omitted. */
@@ -616,10 +564,10 @@ function buildOpenFrontBookcaseShell(outPos, outIdx, outer, inner, floor, totalH
 
   capFloorSlab(outPos, outIdx, outer, 0, false);
   capProfileSolid(outPos, outIdx, inner, zFloor, true);
-  capRing(outPos, outIdx, outer, inner, zFloor, true);
+  capProfileAnnulus(outPos, outIdx, outer, inner, zFloor, true);
   extrudeProfileSidesSkipFront(outPos, outIdx, outer, 0, zTop, true);
   extrudeProfileSidesSkipFront(outPos, outIdx, inner, zFloor, zCavityTop, false);
-  capRingSkipFront(outPos, outIdx, outer, inner, zTop, true);
+  capProfileAnnulus(outPos, outIdx, outer, inner, zTop, true);
 }
 
 function shellFromProfiles(outer, inner, floor, totalH, cavityH, openFront = false) {
@@ -1060,7 +1008,9 @@ function resolveContainer(params) {
     let inner = regularPolygonVertices(sides, innerR);
     if (vertexFillet > 0.3) {
       const outerFillet = vertexFillet + wall * 0.5;
-      [outer, inner] = filletedOutlinePair(outer, inner, outerFillet, vertexFillet, filletArcSegments(outerFillet));
+      const filletSegs = filletArcSegments(outerFillet);
+      outer = filletedOutline(outer, outerFillet, filletSegs);
+      inner = filletedOutline(inner, vertexFillet, filletSegs);
     }
     const polyShape = sides === 6 ? "hex" : "polygon";
     return {
@@ -1126,8 +1076,8 @@ function resolveContainer(params) {
     const innerW = clamp(params.innerDepth, 30, 160);
     const innerH = clamp(params.innerHeight, 15, 120);
     return {
-      outer: teardropOutline(innerL + wall * 2, innerW + wall * 2, 48),
-      inner: teardropOutline(innerL, innerW, 48),
+      outer: teardropOutline(innerL + wall * 2, innerW + wall * 2, 72),
+      inner: teardropOutline(innerL, innerW, 72),
       floor,
       totalH: innerH + floor,
       cavityH: innerH,
@@ -1147,7 +1097,9 @@ function resolveContainer(params) {
     let inner = starOutline(innerTipR, inset, points);
     if (vertexFillet > 0.3) {
       const outerFillet = vertexFillet + wall * 0.35;
-      [outer, inner] = filletedOutlinePair(outer, inner, outerFillet, vertexFillet, filletArcSegments(outerFillet));
+      const filletSegs = filletArcSegments(outerFillet);
+      outer = filletedOutline(outer, outerFillet, filletSegs);
+      inner = filletedOutline(inner, vertexFillet, filletSegs);
     }
     return {
       outer,
@@ -1166,11 +1118,13 @@ function resolveContainer(params) {
     const innerD = clamp(params.innerDepth, 35, 180);
     const innerH = clamp(params.innerHeight, 15, 120);
     const vertexFillet = clamp(params.vertexFillet || 0, 0, Math.min(innerW, innerD) / 8);
-    let outer = heartOutline(innerW + wall * 2, innerD + wall * 2, 72);
-    let inner = heartOutline(innerW, innerD, 72);
+    let outer = heartOutline(innerW + wall * 2, innerD + wall * 2, 160);
+    let inner = heartOutline(innerW, innerD, 160);
     if (vertexFillet > 0.3) {
       const outerFillet = vertexFillet + wall * 0.35;
-      [outer, inner] = filletedOutlinePair(outer, inner, outerFillet, vertexFillet, filletArcSegments(outerFillet));
+      const filletSegs = filletArcSegments(outerFillet);
+      outer = filletedOutline(outer, outerFillet, filletSegs);
+      inner = filletedOutline(inner, vertexFillet, filletSegs);
     }
     return {
       outer,
@@ -1203,7 +1157,9 @@ function resolveContainer(params) {
     const sharpOuter = [[-outerW / 2, -outerD / 2], [outerW / 2, -outerD / 2], [outerW / 2, outerD / 2], [-outerW / 2, outerD / 2]];
     const sharpInner = [[-innerW / 2, -innerD / 2], [innerW / 2, -innerD / 2], [innerW / 2, innerD / 2], [-innerW / 2, innerD / 2]];
     const outerFillet = edgeFillet + wall;
-    [outer, inner] = filletedOutlinePair(sharpOuter, sharpInner, outerFillet, edgeFillet, filletArcSegments(outerFillet));
+    const filletSegs = filletArcSegments(outerFillet);
+    outer = filletedOutline(sharpOuter, outerFillet, filletSegs);
+    inner = filletedOutline(sharpInner, edgeFillet, filletSegs);
   } else {
     outer = [[-outerW / 2, -outerD / 2], [outerW / 2, -outerD / 2], [outerW / 2, outerD / 2], [-outerW / 2, outerD / 2]];
     inner = [[-innerW / 2, -innerD / 2], [innerW / 2, -innerD / 2], [innerW / 2, innerD / 2], [-innerW / 2, innerD / 2]];

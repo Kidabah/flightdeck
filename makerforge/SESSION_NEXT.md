@@ -2,15 +2,20 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- `main` commit: `bcc65e6` — capRing radial fix + synced fillets (b112)
+- `main` commit: *(pending)* — b112: shadow acne + reflex fillet knuckles + smooth heart/teardrop
 
-### 2026-07-06 — Floor/wall artifacts + smooth fillets (b112)
+### 2026-07-06 — b112: floor marks, heart knuckles, smooth curves
 
-**What changed:** Cap rings now ray-cast from centroid to inner wall (never snap to outer coords — that caused heart/star spikes). Removed overlapping earcut annulus caps at floor. Outer/inner fillets use matched arc steps for smoother printable curves. Heart outline denser (72 pts). Header **b112**.
+**What changed:**
+- **Floor marks on every shape** were shadow-map acne (self-shadowing from the key light), not geometry — verified with a Node mesh scan (all shapes = 1 watertight component, no flipped floor tris). Shadows now disabled in the preview renderer.
+- **Heart/star knuckle balls**: `filletedOutline` forced every arc CCW, so reflex corners (heart notch, star inner points) drew near-full circles. Fillets now skip reflex corners and sweep the short way; radius adapts to clamped trim so sharp tips stay tangent. This also removed a stray 23-tri patch on the heart floor.
+- **Smoother curves**: heart outline 52 → 160 segments, teardrop 32 → 72 — prints and previews smooth instead of faceted.
 
-**Files:** `js/geometry.js`, `js/app.js?v=112`, `index.html`
+**Files:** `js/geometry.js`, `js/app.js`, `index.html` — `app.js?v=112`, header **b112**
 
-**Deploy:** Pi `git pull`. Hard refresh — confirm **b112**.
+**Deploy:** Pi `git pull`. Hard refresh — confirm header shows **b112**.
+
+### 2026-07-06 — Houdini fix: earcut annulus crash (b111) — `e772aa4`
 
 ### 2026-07-06 — Houdini fix: earcut annulus crash (b111)
 
