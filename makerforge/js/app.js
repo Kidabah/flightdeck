@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=116";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=117";
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance } from "./features.js?v=99";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=73";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=74";
@@ -2114,7 +2114,7 @@ function syncExportFormatOptions() {
   const sel = document.getElementById("export-format");
   if (!sel) return;
   const lidOn = state.lidEnabled && shapeSupportsLid(state.shape);
-  const accentOn = state.accentEnabled && shapeSupportsDecor(decorUiShape());
+  const accentOn = state.accentEnabled && accentSupportedForShape();
   const insertOn = state.insertEnabled && shapeSupportsInsert(insertUiShape());
   const debossOn = !!state.embossDeboss && !!debossCutterCache;
   const saucerOn = state.shape === "vase" && state.vaseSaucerEnabled && !!meshCache?.saucerMesh;
@@ -2220,17 +2220,28 @@ function runExport(format) {
   }
 }
 
+function accentSupportedForShape() {
+  return shapeSupportsDecor(decorUiShape()) || state.shape === "vase";
+}
+
 function updateDecorUi() {
   const supported = shapeSupportsDecor(decorUiShape());
+  const accentSupported = accentSupportedForShape();
   const insertSupported = shapeSupportsInsert(insertUiShape());
   document.querySelectorAll('.tab[data-tab="accent"], .tab[data-tab="art"], .tab[data-tab="stack"], .tab[data-tab="link"], .tab[data-tab="insert"]').forEach((tab) => {
     const insertTab = tab.dataset.tab === "insert";
-    const tabOk = insertTab ? insertSupported : supported;
+    const tabOk = insertTab ? insertSupported : tab.dataset.tab === "accent" ? accentSupported : supported;
     tab.disabled = !tabOk;
     tab.classList.toggle("tab--disabled", !tabOk);
   });
 
-  const accentOn = state.accentEnabled && supported;
+  // Vases have no flat front face — accent bands wrap the whole revolve.
+  const isVase = state.shape === "vase";
+  const frontOpt = document.querySelector('#accent-face option[value="front"]');
+  if (frontOpt) frontOpt.hidden = isVase;
+  if (isVase && state.accentFace === "front") state.accentFace = "rim";
+
+  const accentOn = state.accentEnabled && accentSupported;
   document.getElementById("accent-enabled").checked = accentOn;
   document.getElementById("field-accent-face").classList.toggle("hidden", !accentOn);
   document.getElementById("field-accent-height").classList.toggle("hidden", !accentOn);
@@ -2870,7 +2881,7 @@ function updateVaseUiVisibility() {
   document.getElementById("section-classic-size").classList.toggle("hidden", isVase);
   document.getElementById("section-walls").classList.toggle("hidden", isVase);
   document.getElementById("section-edges").classList.toggle("hidden", isVase);
-  document.querySelectorAll('.tab[data-tab="accent"], .tab[data-tab="art"], .tab[data-tab="stack"], .tab[data-tab="link"], .tab[data-tab="lid"], .tab[data-tab="insert"]').forEach((tab) => {
+  document.querySelectorAll('.tab[data-tab="art"], .tab[data-tab="stack"], .tab[data-tab="link"], .tab[data-tab="lid"], .tab[data-tab="insert"]').forEach((tab) => {
     tab.classList.toggle("tab--disabled", isVase);
     tab.disabled = isVase;
   });

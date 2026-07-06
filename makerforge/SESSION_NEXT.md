@@ -4,6 +4,19 @@ Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
 - `main` commit: see b114 entry below
 
+### 2026-07-06 — b117: Accent bands on vases / pots
+
+**What changed:** The Accent tab now works for vase / pot shapes.
+- Band is a 0.08mm skin that follows the full outer surface — profile curve, flutes and twist included — so it prints as a clean second-colour ring even on spiralled vases.
+- Faces: **Rim band** (below the top edge) or **Floor band** (above the base). "Front" is hidden for vases (no flat front on a revolve).
+- Bundled in Download 3MF as its own filament slot, or exportable as a separate accent STL — same flow as boxes.
+- Refactored `vase.js` with a shared `vaseSurface()` resolver so body + accent always agree on geometry.
+- Node-verified: accent hugs the surface at exactly 0.08mm across cylinder/urn/goblet/bud × rim/floor with flutes 12 + twist 90°; full watertight grid + twist tests still ALL OK.
+
+**Files:** `js/vase.js?v=117`, `js/geometry.js?v=117`, `js/app.js?v=117`, `index.html` — header **b117**
+
+**Deploy:** Pi `git pull`. Hard refresh — confirm header shows **b117**. Try: Vase → flutes 12, twist 90 → Accent tab → enable, Floor band, 8mm.
+
 ### 2026-07-06 — b116: Vase twist fix (slider did ~nothing)
 
 **What changed:** Twist was applied as `cos(flutes*a - phase)` — the rib pattern only rotated by twist/fluteCount (90° slider = 7.5° visible with 12 flutes). Now `cos(flutes*(a - phase))` so ribs rotate by the full twist angle.

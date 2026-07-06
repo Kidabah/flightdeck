@@ -15,7 +15,7 @@ import {
   shapeSupportsInsert,
 } from "./features.js";
 import earcut from "https://esm.sh/earcut@2.2.4";
-import { buildVase, buildVaseSaucer, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=116";
+import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=117";
 
 import { appendInsertShelfSlotsToBody } from "./insert-slots.js";
 
@@ -1435,13 +1435,18 @@ export function buildContainer(params) {
       saucerMesh = buildVaseSaucer(params);
       centerPositions(saucerMesh.positions, 0, 0);
     }
+    let accentMesh = null;
+    if (params.accentEnabled) {
+      accentMesh = buildVaseAccentMesh(params);
+      centerPositions(accentMesh.positions, 0, 0);
+    }
     return {
       positions: vaseMesh.positions,
       indices: vaseMesh.indices,
       shellMesh: vaseMesh,
       meta,
       totalH: meta.outer.h,
-      accentMesh: null,
+      accentMesh,
       insertMesh: null,
       labelMesh: null,
       debossCutterMesh: null,

@@ -211,14 +211,15 @@ function scaledRing(baseRing, factor) {
   return baseRing.map(([x, y]) => [x * factor, y * factor]);
 }
 
-/** Build the vase mesh. */
-export function buildVase(params) {
+/**
+ * Resolve the shared outer-surface parameters (profile sampler, flute fade,
+ * twist phase, tessellation) used by both the vase body and the accent band.
+ */
+function vaseSurface(params) {
   const style = params.vaseStyle || "cylinder";
   const diameter = clamp(params.vaseDiameter ?? 80, 30, 260);
   const height = clamp(params.vaseHeight ?? 100, 20, 320);
-  const wall = clamp(params.vaseWall ?? 1.6, 1.0, 4);
   const floor = clamp(params.vaseFloor ?? 2.4, 1.4, 6);
-  const drainage = !!params.vaseDrainage;
 
   const flutes = clamp(Math.round(params.vaseFlutes ?? 0), 0, 36);
   const fluteDepth = flutes ? clamp(params.vaseFluteDepth ?? 2, 0, Math.min(8, diameter * 0.12)) : 0;
@@ -232,13 +233,33 @@ export function buildVase(params) {
   if (Math.abs(twistDeg) > 1) layers = clamp(Math.max(layers, Math.ceil(Math.abs(twistDeg) / 4)), 6, 160);
 
   const baseR = diameter / 2;
-  const outerScale = sampleProfile(style, layers);
+  const sampler = profileSampler(style);
 
   // Flutes fade in above the floor so the base perimeter stays circular
   // (better bed adhesion, clean bottom cap) and reach full depth ~8mm up.
-  const layerT = (i) => i / (layers - 1);
   const fluteDepthAt = (z) => fluteDepth * smoothstep(0, Math.max(floor + 1, 8), z);
-  const phaseAt = (t) => twistRad * t;
+  const phaseAtZ = (z) => twistRad * (z / height);
+  const outerRadiusAt = (z) => baseR * sampler(clamp(z / height, 0, 1));
+  const outerRingAt = (z, radialOffset = 0) =>
+    flutedRing(outerRadiusAt(z) + radialOffset, segments, flutes, fluteDepthAt(z), phaseAtZ(z));
+
+  return {
+    style, diameter, height, floor, flutes, fluteDepth, twistRad,
+    segments, layers, baseR,
+    fluteDepthAt, phaseAtZ, outerRadiusAt, outerRingAt,
+  };
+}
+
+/** Build the vase mesh. */
+export function buildVase(params) {
+  const wall = clamp(params.vaseWall ?? 1.6, 1.0, 4);
+  const drainage = !!params.vaseDrainage;
+  const surf = vaseSurface(params);
+  const { height, floor, flutes, segments, layers, baseR, fluteDepthAt } = surf;
+
+  const outerScale = sampleProfile(surf.style, layers);
+  const layerT = (i) => i / (layers - 1);
+  const phaseAt = (t) => surf.twistRad * t;
 
   // Inner radius = outer radius - wall thickness (radial offset).
   // Inner surface follows the same flute wave so wall thickness stays
@@ -308,7 +329,7 @@ export function buildVase(params) {
 
   // Bottom cap (outside, facing down) — with optional drainage hole
   if (drainage) {
-    const rawR = clamp(params.vaseDrainageSize ?? 8, 3, Math.max(4, diameter * 0.35));
+    const rawR = clamp(params.vaseDrainageSize ?? 8, 3, Math.max(4, surf.diameter * 0.35));
     const drainR = Math.min(rawR, baseR * outerScale[0] - wall - 2);
     if (drainR >= 3) {
       // Match outer segment count so capAnnulus / loftBetween line up.
@@ -400,6 +421,37 @@ export function vaseMeta(params) {
     materialMl: Math.round(materialMl * 10) / 10,
     estGrams: Math.round(materialMl * 1.24 * 10) / 10,
   };
+}
+
+/**
+ * Accent colour band hugging the vase outer surface (0.08mm skin, same as
+ * container accents). Follows the profile curve, flutes and twist.
+ * face: "rim" = band below the top edge, "floor" = band above the base.
+ */
+export function buildVaseAccentMesh(params) {
+  const surf = vaseSurface(params);
+  const skin = 0.08;
+  const bandH = clamp(params.accentHeight ?? 4, 2, 12);
+  const face = params.accentFace === "floor" ? "floor" : "rim";
+  const z0 = face === "floor" ? 0 : Math.max(0, surf.height - bandH);
+  const z1 = face === "floor" ? Math.min(surf.height, bandH) : surf.height;
+
+  // Enough slices to follow profile curvature and twist through the band.
+  const twistInBand = Math.abs(surf.twistRad) * ((z1 - z0) / surf.height);
+  const steps = Math.max(4, Math.ceil((z1 - z0) / 1.5), Math.ceil((twistInBand / (Math.PI * 2)) * 48));
+
+  const positions = [];
+  const indices = [];
+  let prevRing = surf.outerRingAt(z0, skin);
+  let prevZ = z0;
+  for (let i = 1; i <= steps; i++) {
+    const z = z0 + ((z1 - z0) * i) / steps;
+    const ring = surf.outerRingAt(z, skin);
+    loftBetween(positions, indices, prevRing, ring, prevZ, z, true);
+    prevRing = ring;
+    prevZ = z;
+  }
+  return { positions, indices };
 }
 
 export const VASE_DEFAULTS = {
