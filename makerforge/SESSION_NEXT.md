@@ -2,7 +2,7 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- `main` commit: *(pending)* — floor/capRing artifact fix
+- `main` commit: `82df9af` — floor/capRing artifact fix
 
 ### 2026-07-06 — Preview floor artifacts (all shapes)
 
