@@ -2,7 +2,15 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- `main` commit: `57308fa` — slip lid + vase cap artifact fix
+- `main` commit: *(pending)* — fix vase.js earcut import (Houdini blank preview)
+
+### 2026-07-06 — Houdini fix (vase earcut import)
+
+**What changed:** `vase.js` imported earcut from `three/examples/...` which is not in the import map — module load failed and the whole preview went blank ("Houdini"). Switched to same `esm.sh/earcut` as `geometry.js`.
+
+**Files:** `js/vase.js`, `index.html`, `js/app.js` — `app.js?v=108`
+
+**Deploy:** Pi `git pull`. Hard refresh (Ctrl+Shift+R).
 
 ### 2026-07-06 — Preview artifact fix (slip lid + vase caps)
 

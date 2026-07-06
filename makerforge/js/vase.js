@@ -4,7 +4,7 @@
  * Returns { positions, indices } in mm, Z-up, centered on XY, base at z=0.
  */
 
-import { earcut } from "three/examples/jsm/utils/EarCut.js";
+import earcut from "https://esm.sh/earcut@2.2.4";
 
 function clamp(n, min, max) {
   return Math.min(max, Math.max(min, n));
