@@ -470,37 +470,85 @@ export function buildVaseAccentMesh(params) {
     }
     return r;
   };
-  // Body wall point for vertex column k at height z — per-vertex lerp between
-  // the straddling body layer rings, which matches the wall triangulation
-  // (vertical edges are linear in z), then pushed radially out by the skin.
-  const wallPointOut = (z, k) => {
+  // A radial offset shrinks (measured normal to the wall) where the profile
+  // leans — e.g. a goblet's base flare — so scale the skin by the wall slope
+  // to keep a constant true gap. Prevents the band cutting into steep walls.
+  const skinAt = (z) => {
+    const zc = clamp(z, 0.5, height - 0.5);
+    const slope = Math.abs(surf.outerRadiusAt(zc + 0.5) - surf.outerRadiusAt(zc - 0.5));
+    return Math.min(0.5, skin * Math.hypot(1, slope));
+  };
+
+  // Twist + flutes make the body's wall quads non-planar, so its triangles
+  // bulge outside the ruled (vertex-lerped) surface by up to half the gap
+  // between the quad's two diagonals. Both the body and the band can deviate
+  // that much, so pad by the full diagonal gap for the straddled layer.
+  const sagCache = new Map();
+  const sagAt = (i) => {
+    let v = sagCache.get(i);
+    if (v == null) {
+      const A = bodyRingCached(i);
+      const B = bodyRingCached(i + 1);
+      v = 0;
+      for (let k = 0; k < segments; k++) {
+        const k2 = (k + 1) % segments;
+        const dx = (A[k][0] + B[k2][0] - A[k2][0] - B[k][0]) / 2;
+        const dy = (A[k][1] + B[k2][1] - A[k2][1] - B[k][1]) / 2;
+        const d = Math.hypot(dx, dy);
+        if (d > v) v = d;
+      }
+      sagCache.set(i, v);
+    }
+    return v;
+  };
+
+  // Body wall point at height z and (possibly fractional) column kf —
+  // bilinear on the straddling body layer rings, which stays within the
+  // sag pad of the wall triangulation, then pushed radially out.
+  const wallPointOut = (z, kf) => {
     const zc = clamp(z, 0, height);
     const fi = (zc / height) * (layers - 1);
     const i = clamp(Math.floor(fi), 0, layers - 2);
     const t = clamp(fi - i, 0, 1);
-    const a = bodyRingCached(i)[k];
-    const b = bodyRingCached(i + 1)[k];
-    const x = a[0] + (b[0] - a[0]) * t;
-    const y = a[1] + (b[1] - a[1]) * t;
+    const k = Math.floor(kf) % segments;
+    const k2 = (k + 1) % segments;
+    const u = kf - Math.floor(kf);
+    const A = bodyRingCached(i);
+    const B = bodyRingCached(i + 1);
+    const ax = A[k][0] + (A[k2][0] - A[k][0]) * u;
+    const ay = A[k][1] + (A[k2][1] - A[k][1]) * u;
+    const bx = B[k][0] + (B[k2][0] - B[k][0]) * u;
+    const by = B[k][1] + (B[k2][1] - B[k][1]) * u;
+    const x = ax + (bx - ax) * t;
+    const y = ay + (by - ay) * t;
     const r = Math.hypot(x, y) || 1;
-    const s = (r + skin) / r;
+    const s = (r + skinAt(zc) + sagAt(i)) / r;
     return [x * s, y * s, zc];
   };
 
   // Slice fractions: band edges, every body layer inside the band, plus
-  // extra subdivisions when wavy so columns crossing layers stay snug.
+  // dense subdivisions when wavy — the wave crosses body layer kinks
+  // diagonally, so short chords are needed to keep the ribbon outside.
   const fs = new Set([0, 1]);
   for (let i = 0; i < layers; i++) {
     const z = layerZ(i);
     if (z > z0 + 0.001 && z < z1 - 0.001) fs.add((z - z0) / bandH);
   }
-  const extra = wavy ? Math.max(6, Math.ceil(bandH / 1.5)) : 0;
+  const extra = wavy ? Math.max(16, Math.ceil(bandH / 0.5)) : 0;
   for (let i = 1; i < extra; i++) fs.add(i / extra);
   const fracs = [...fs].sort((a, b) => a - b);
 
+  // Steep waves shift z by several mm between adjacent columns, so their
+  // horizontal chords would cut across body layer kinks. Subdivide columns
+  // until each step's wave delta is small enough to hug the wall.
+  const maxWaveStep = wavy ? (waveAmp * waveCount * Math.PI * 2) / segments : 0;
+  const sub = Math.max(1, Math.ceil(maxWaveStep / 0.5));
+  const cols = segments * sub;
+  const waveAtCol = (c) => (wavy ? waveAmp * Math.sin(waveCount * ((c / cols) * Math.PI * 2)) : 0);
+
   // Build slices as 3D rings (per-vertex z includes the wave offset).
   const slices = fracs.map((f) =>
-    Array.from({ length: segments }, (_, k) => wallPointOut(z0 + bandH * f + waveAt(k), k)),
+    Array.from({ length: cols }, (_, c) => wallPointOut(z0 + bandH * f + waveAtCol(c), c / sub)),
   );
 
   const positions = [];
@@ -508,9 +556,9 @@ export function buildVaseAccentMesh(params) {
   for (let s = 0; s < slices.length - 1; s++) {
     const cur = slices[s];
     const nxt = slices[s + 1];
-    for (let k = 0; k < segments; k++) {
-      const k2 = (k + 1) % segments;
-      pushQuad(positions, indices, cur[k], cur[k2], nxt[k2], nxt[k]);
+    for (let c = 0; c < cols; c++) {
+      const c2 = (c + 1) % cols;
+      pushQuad(positions, indices, cur[c], cur[c2], nxt[c2], nxt[c]);
     }
   }
   return { positions, indices };

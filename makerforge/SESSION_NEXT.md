@@ -4,6 +4,18 @@ Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
 - `main` commit: see b114 entry below
 
+### 2026-07-06 — b120: Wavy accent band bleed-through fix (twisted/fluted vases)
+
+**What changed:** Chris's screenshot showed the red body poking through the grey wavy band on a twisted goblet. Three root causes, all in `buildVaseAccentMesh`:
+- **Non-planar body quads**: with flutes + twist the body's wall quads aren't flat, so its triangles bulge up to ~0.3mm outside the vertex-lerped surface the band was tracking. Band now pads its offset by the measured per-layer diagonal sag (`sagAt`).
+- **Steep walls**: a fixed radial 0.12mm offset shrinks to almost nothing measured perpendicular to a leaning wall (goblet base flare). Skin is now slope-compensated (`skinAt`), capped at 0.5mm.
+- **Wave chords cutting corners**: steep waves shift z by several mm between adjacent columns, so horizontal chords sliced diagonally through body layer kinks. Wavy bands now subdivide columns until each step's wave delta is ≤0.5mm, and use denser vertical slices (every 0.5mm).
+- New ray-cast test (Möller–Trumbore against actual body triangles, sampling band vertices + edge midpoints): positive gap everywhere on twisted goblet with wavy band at the base flare, including max amp 10 / 16 waves. Old binned tests still pass (gap ceiling raised to 0.7 for the sag pad).
+
+**Files:** `js/vase.js?v=120`, `js/geometry.js?v=120`, `js/app.js?v=120`, `index.html` — header **b120**
+
+**Deploy:** Pi `git pull`. Hard refresh — confirm header shows **b120**. Try: goblet, flutes 12, twist 90, accent on, wavy edge near the base — no red patches.
+
 ### 2026-07-06 — b119: Taller accent bands + wavy band edge
 
 **What changed:** More of Chris's accent ideas.
