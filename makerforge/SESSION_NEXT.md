@@ -2,7 +2,20 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- `main` commit: `a853822` — b113: screw-top lids for round containers
+- `main` commit: see b114 entry below
+
+### 2026-07-06 — b114: Vase studio — new styles, flutes, twist
+
+**What changed:** Vase / pot generator got a designer upgrade.
+- **4 new styles**: Bowl planter (low + wide), Goblet (stem + cup), Hourglass (pinched waist), Bud vase (narrow neck) — alongside the existing five.
+- **Smooth profiles**: control points now interpolate with a monotone cubic spline (Fritsch–Carlson) instead of straight lines — bellies and necks curve naturally with no overshoot. Applies to all styles including the old ones.
+- **Flutes (ribs)**: 0–24 vertical ribs, depth 0.5–6 mm. Cosine modulation preserves mean radius; inner wall follows the wave so wall thickness stays constant (vase-mode friendly). Flutes fade to circular at the base for bed adhesion and a clean bottom cap.
+- **Twist**: −180° to +180° over the height — turns flutes into spirals. Tessellation auto-densifies (segments up to 240, layers up to 160) so twisted/fluted surfaces stay smooth.
+- Node-verified watertight (0 open edges) across all 9 styles × 7 variant combos (flutes, twist, deep ribs, small diameter, no-drain).
+
+**Files:** `js/vase.js?v=114`, `js/geometry.js?v=114`, `js/app.js?v=114`, `index.html` — header **b114**
+
+**Deploy:** Pi `git pull` (static only, restart optional). Hard refresh — confirm header shows **b114**. Try: Vase / pot → Goblet, Flutes 12, Twist 90°.
 
 ### 2026-07-06 — b113: Screw-top lids (round containers)
 

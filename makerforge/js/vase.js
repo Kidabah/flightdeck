@@ -30,6 +30,29 @@ function ringXY(radius, segments) {
   return pts;
 }
 
+/**
+ * Ring with optional flute (rib) modulation and twist phase.
+ * r(a) = radius + (depth/2) * cos(flutes * a - phase), so the mean radius is
+ * preserved and depth is the total peak-to-valley amplitude in mm.
+ */
+function flutedRing(radius, segments, flutes, depth, phase) {
+  if (!flutes || depth <= 0.01) return ringXY(radius, segments);
+  const pts = [];
+  const half = depth / 2;
+  for (let i = 0; i < segments; i++) {
+    const a = (i / segments) * Math.PI * 2;
+    const r = Math.max(1, radius + half * Math.cos(flutes * a - phase));
+    pts.push([r * Math.cos(a), r * Math.sin(a)]);
+  }
+  return pts;
+}
+
+/** Smoothstep 0→1 between edges. */
+function smoothstep(edge0, edge1, x) {
+  const t = clamp((x - edge0) / Math.max(1e-9, edge1 - edge0), 0, 1);
+  return t * t * (3 - 2 * t);
+}
+
 /** Vase profile presets — return list of [t, radiusScale] where t is 0..1 bottom→top. */
 const PROFILES = {
   cylinder: [[0, 1], [1, 1]],
@@ -37,34 +60,85 @@ const PROFILES = {
   potted: [[0, 0.86], [1, 1]],
   urn: [[0, 0.9], [0.15, 1.02], [0.35, 1.16], [0.55, 1.14], [0.75, 0.95], [1, 0.86]],
   amphora: [[0, 0.75], [0.15, 0.88], [0.35, 1.05], [0.55, 1.06], [0.75, 0.9], [0.9, 0.78], [1, 0.82]],
+  goblet: [[0, 1.0], [0.14, 0.58], [0.34, 0.52], [0.55, 0.78], [0.8, 0.98], [1, 1.06]],
+  hourglass: [[0, 1.02], [0.5, 0.58], [1, 1.02]],
+  bud: [[0, 0.72], [0.22, 1.04], [0.45, 0.85], [0.7, 0.46], [0.88, 0.4], [1, 0.5]],
+  bowl: [[0, 0.55], [0.35, 0.92], [0.7, 1.08], [1, 1.16]],
 };
 
 export const VASE_STYLES = [
   { id: "cylinder", label: "Cylinder pot", drainageDefault: true },
   { id: "tapered", label: "Tapered pot (wider top)", drainageDefault: true },
   { id: "potted", label: "Herbal pot (narrow top)", drainageDefault: true },
+  { id: "bowl", label: "Bowl planter (low + wide)", drainageDefault: true },
   { id: "urn", label: "Urn (belly)", drainageDefault: false },
   { id: "amphora", label: "Amphora (long belly)", drainageDefault: false },
+  { id: "goblet", label: "Goblet (stem + cup)", drainageDefault: false },
+  { id: "hourglass", label: "Hourglass (pinched waist)", drainageDefault: false },
+  { id: "bud", label: "Bud vase (narrow neck)", drainageDefault: false },
 ];
 
-function sampleProfile(styleId, layers) {
-  const profile = PROFILES[styleId] || PROFILES.cylinder;
-  const out = new Array(layers);
-  for (let i = 0; i < layers; i++) {
-    const t = i / (layers - 1);
-    let a = profile[0];
-    let b = profile[profile.length - 1];
-    for (let j = 0; j < profile.length - 1; j++) {
-      if (t >= profile[j][0] && t <= profile[j + 1][0]) {
-        a = profile[j];
-        b = profile[j + 1];
-        break;
-      }
-    }
-    const span = b[0] - a[0] || 1;
-    const local = (t - a[0]) / span;
-    out[i] = a[1] + (b[1] - a[1]) * local;
+/**
+ * Monotone cubic (Fritsch-Carlson) interpolation through profile control
+ * points — smooth bellies and necks with no overshoot, so radii never go
+ * negative or wobble past the control values. Linear data stays linear.
+ */
+function monotoneSampler(points) {
+  const xs = points.map((p) => p[0]);
+  const ys = points.map((p) => p[1]);
+  const n = xs.length;
+  if (n === 1) return () => ys[0];
+  const dx = [];
+  const slope = [];
+  for (let i = 0; i < n - 1; i++) {
+    dx.push(xs[i + 1] - xs[i] || 1e-9);
+    slope.push((ys[i + 1] - ys[i]) / (dx[i] || 1e-9));
   }
+  const m = new Array(n);
+  m[0] = slope[0];
+  m[n - 1] = slope[n - 2];
+  for (let i = 1; i < n - 1; i++) {
+    if (slope[i - 1] * slope[i] <= 0) {
+      m[i] = 0;
+    } else {
+      const w1 = 2 * dx[i] + dx[i - 1];
+      const w2 = dx[i] + 2 * dx[i - 1];
+      m[i] = (w1 + w2) / (w1 / slope[i - 1] + w2 / slope[i]);
+    }
+  }
+  return (t) => {
+    if (t <= xs[0]) return ys[0];
+    if (t >= xs[n - 1]) return ys[n - 1];
+    let i = 0;
+    while (i < n - 2 && t > xs[i + 1]) i++;
+    const h = dx[i];
+    const s = (t - xs[i]) / h;
+    const s2 = s * s;
+    const s3 = s2 * s;
+    return (
+      (2 * s3 - 3 * s2 + 1) * ys[i] +
+      (s3 - 2 * s2 + s) * h * m[i] +
+      (-2 * s3 + 3 * s2) * ys[i + 1] +
+      (s3 - s2) * h * m[i + 1]
+    );
+  };
+}
+
+const _samplerCache = new Map();
+
+function profileSampler(styleId) {
+  let fn = _samplerCache.get(styleId);
+  if (!fn) {
+    fn = monotoneSampler(PROFILES[styleId] || PROFILES.cylinder);
+    _samplerCache.set(styleId, fn);
+  }
+  return fn;
+}
+
+function sampleProfile(styleId, layers) {
+  const at = profileSampler(styleId);
+  const out = new Array(layers);
+  for (let i = 0; i < layers; i++) out[i] = at(i / (layers - 1));
   return out;
 }
 
@@ -143,18 +217,41 @@ export function buildVase(params) {
   const height = clamp(params.vaseHeight ?? 100, 20, 320);
   const wall = clamp(params.vaseWall ?? 1.6, 1.0, 4);
   const floor = clamp(params.vaseFloor ?? 2.4, 1.4, 6);
-  const segments = clamp(Math.round(params.vaseSegments ?? 72), 24, 128);
-  const layers = clamp(Math.round(params.vaseLayers ?? 24), 6, 96);
   const drainage = !!params.vaseDrainage;
+
+  const flutes = clamp(Math.round(params.vaseFlutes ?? 0), 0, 36);
+  const fluteDepth = flutes ? clamp(params.vaseFluteDepth ?? 2, 0, Math.min(8, diameter * 0.12)) : 0;
+  const twistDeg = clamp(params.vaseTwist ?? 0, -360, 360);
+  const twistRad = (twistDeg * Math.PI) / 180;
+
+  // Flutes and twist need finer tessellation to stay smooth.
+  let segments = clamp(Math.round(params.vaseSegments ?? 72), 24, 128);
+  if (flutes && fluteDepth > 0.01) segments = clamp(Math.max(segments, flutes * 10), 24, 240);
+  let layers = clamp(Math.round(params.vaseLayers ?? 24), 6, 96);
+  if (Math.abs(twistDeg) > 1) layers = clamp(Math.max(layers, Math.ceil(Math.abs(twistDeg) / 4)), 6, 160);
 
   const baseR = diameter / 2;
   const outerScale = sampleProfile(style, layers);
+
+  // Flutes fade in above the floor so the base perimeter stays circular
+  // (better bed adhesion, clean bottom cap) and reach full depth ~8mm up.
+  const layerT = (i) => i / (layers - 1);
+  const fluteDepthAt = (z) => fluteDepth * smoothstep(0, Math.max(floor + 1, 8), z);
+  const phaseAt = (t) => twistRad * t;
+
   // Inner radius = outer radius - wall thickness (radial offset).
-  const outerRings = outerScale.map((s) => ringXY(baseR * s, segments));
-  const innerRings = outerScale.map((s) => {
+  // Inner surface follows the same flute wave so wall thickness stays
+  // constant — required for spiral/vase-mode printing.
+  const outerRings = outerScale.map((s, i) => {
+    const z = layerT(i) * height;
+    return flutedRing(baseR * s, segments, flutes, fluteDepthAt(z), phaseAt(layerT(i)));
+  });
+  const innerRings = outerScale.map((s, i) => {
     const outerR = baseR * s;
     const innerR = Math.max(2, outerR - wall);
-    return ringXY(innerR, segments);
+    const z = layerT(i) * height;
+    const innerDepth = Math.min(fluteDepthAt(z), Math.max(0, (innerR - 2) * 2));
+    return flutedRing(innerR, segments, flutes, innerDepth, phaseAt(layerT(i)));
   });
 
   const positions = [];
@@ -189,7 +286,9 @@ export function buildVase(params) {
     const rB = baseR * outerScale[firstAbove];
     const rMix = rA + (rB - rA) * t;
     const innerR = Math.max(2, rMix - wall);
-    ringAtFloor = ringXY(innerR, segments);
+    const tFloor = zFloor / height;
+    const innerDepth = Math.min(fluteDepthAt(zFloor), Math.max(0, (innerR - 2) * 2));
+    ringAtFloor = flutedRing(innerR, segments, flutes, innerDepth, phaseAt(tFloor));
   }
 
   // Inner skin from zFloor upward
@@ -286,7 +385,9 @@ export function vaseMeta(params) {
   const materialMl = Math.max(0, (outerVol - cavityVol) / 1000);
   const cavityMl = cavityVol / 1000;
 
-  const maxR = outerR * Math.max(...profile);
+  const flutes = Math.round(params.vaseFlutes ?? 0);
+  const fluteDepth = flutes ? clamp(params.vaseFluteDepth ?? 2, 0, Math.min(8, diameter * 0.12)) : 0;
+  const maxR = outerR * Math.max(...profile) + fluteDepth / 2;
   const outerW = Math.round(maxR * 2 * 10) / 10;
   return {
     shape: "vase",
@@ -311,4 +412,7 @@ export const VASE_DEFAULTS = {
   vaseSaucerEnabled: false,
   vaseSegments: 72,
   vaseLayers: 24,
+  vaseFlutes: 0,
+  vaseFluteDepth: 2,
+  vaseTwist: 0,
 };

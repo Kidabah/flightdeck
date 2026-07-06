@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=113";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, FAT_QUARTERS_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=114";
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance } from "./features.js?v=99";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=73";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=74";
@@ -316,6 +316,9 @@ function buildParams() {
     vaseDrainage: state.vaseDrainage,
     vaseDrainageSize: state.vaseDrainageSize,
     vaseSaucerEnabled: state.vaseSaucerEnabled,
+    vaseFlutes: state.vaseFlutes,
+    vaseFluteDepth: state.vaseFluteDepth,
+    vaseTwist: state.vaseTwist,
   };
 }
 
@@ -1107,6 +1110,9 @@ function syncUiFromState() {
   syncSliderUi("vase-wall", "vaseWall", { min: 1.0, max: 3, value: state.vaseWall, parseKind: "float" });
   syncSliderUi("vase-floor", "vaseFloor", { min: 1.4, max: 6, value: state.vaseFloor, parseKind: "float" });
   syncSliderUi("vase-drainage-size", "vaseDrainageSize", { min: 4, max: 30, value: state.vaseDrainageSize, parseKind: "float" });
+  syncSliderUi("vase-flutes", "vaseFlutes", { min: 0, max: 24, value: state.vaseFlutes ?? 0 });
+  syncSliderUi("vase-flute-depth", "vaseFluteDepth", { min: 0.5, max: 6, value: state.vaseFluteDepth ?? 2, parseKind: "float" });
+  syncSliderUi("vase-twist", "vaseTwist", { min: -180, max: 180, value: state.vaseTwist ?? 0, parseKind: "float" });
   const vaseStyleSel = document.getElementById("vase-style");
   if (vaseStyleSel) vaseStyleSel.value = state.vaseStyle || "cylinder";
   document.getElementById("vase-drainage").checked = !!state.vaseDrainage;
@@ -2869,6 +2875,7 @@ function updateVaseUiVisibility() {
     tab.disabled = isVase;
   });
   document.getElementById("field-vase-drainage-size").classList.toggle("hidden", !state.vaseDrainage);
+  document.getElementById("field-vase-flute-depth").classList.toggle("hidden", !(state.vaseFlutes > 0));
   syncExportFormatOptions();
 }
 
@@ -2897,6 +2904,12 @@ bindRange("vase-height", "vaseHeight", "float");
 bindRange("vase-wall", "vaseWall", "float");
 bindRange("vase-floor", "vaseFloor", "float");
 bindRange("vase-drainage-size", "vaseDrainageSize", "float");
+bindRange("vase-flutes", "vaseFlutes");
+bindRange("vase-flute-depth", "vaseFluteDepth", "float");
+bindRange("vase-twist", "vaseTwist", "float");
+document.getElementById("vase-flutes").addEventListener("input", () => {
+  document.getElementById("field-vase-flute-depth").classList.toggle("hidden", !(state.vaseFlutes > 0));
+});
 
 document.getElementById("vase-drainage").addEventListener("change", (e) => {
   state.vaseDrainage = e.target.checked;

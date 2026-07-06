@@ -42,7 +42,7 @@
 
       <div>
 
-        <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b113</span></div>
+        <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b114</span></div>
 
         <h1>Container Generator</h1>
 
@@ -275,6 +275,36 @@
                 <input type="range" id="vase-drainage-size" min="4" max="30" step="1" value="8" tabindex="-1">
 
                 <button type="button" class="value-edit" data-slider="vase-drainage-size" data-key="vaseDrainageSize" data-parse="float">8</button>
+
+              </label>
+
+              <label class="field">
+
+                <span class="field-label">Flutes (ribs)</span>
+
+                <input type="range" id="vase-flutes" min="0" max="24" step="1" value="0" tabindex="-1">
+
+                <button type="button" class="value-edit" data-slider="vase-flutes" data-key="vaseFlutes" data-parse="int">0</button>
+
+              </label>
+
+              <label class="field hidden" id="field-vase-flute-depth">
+
+                <span class="field-label">Flute depth <span class="unit">mm</span></span>
+
+                <input type="range" id="vase-flute-depth" min="0.5" max="6" step="0.5" value="2" tabindex="-1">
+
+                <button type="button" class="value-edit" data-slider="vase-flute-depth" data-key="vaseFluteDepth" data-parse="float">2</button>
+
+              </label>
+
+              <label class="field">
+
+                <span class="field-label">Twist <span class="unit">°</span></span>
+
+                <input type="range" id="vase-twist" min="-180" max="180" step="5" value="0" tabindex="-1">
+
+                <button type="button" class="value-edit" data-slider="vase-twist" data-key="vaseTwist" data-parse="float">0</button>
 
               </label>
 
@@ -1035,7 +1065,7 @@
 
 
 
-  <script type="module" src="js/app.js?v=113"></script>
+  <script type="module" src="js/app.js?v=114"></script>
 
 </body>
 
