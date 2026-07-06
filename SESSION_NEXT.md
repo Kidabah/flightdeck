@@ -14,6 +14,12 @@ Latest GitHub/Pi state:
 - Verified against real uploads: box-270x300x55mm (right, was misread as left), PETG tests plate 4 (right), 4-way splitter (left).
 - Backend change: Pi restart required. No cache bust.
 
+### 2026-07-06 infra (Pi passwordless service restart)
+
+- `sudo systemctl restart flightdeck.service` had started prompting for a password over SSH, breaking the deploy protocol.
+- Installed `/etc/sudoers.d/flightdeck-restart` on the Pi: NOPASSWD for `systemctl restart|status|is-active flightdeck.service` (flightdeck user only). Written via a root docker container since the flightdeck user is in the docker group.
+- Full deploy sequence (`git pull && sudo systemctl restart flightdeck.service`) verified working end to end.
+
 ### 2026-07-06 fix (MakerDeck preview artifacts)
 
 **Slip lid + vase cap triangulation** (`makerforge/js/geometry.js`, `makerforge/js/vase.js`)
