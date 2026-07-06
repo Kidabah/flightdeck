@@ -328,23 +328,58 @@ def _bambu_nozzle_to_flightdeck(value: int) -> Optional[int]:
 
 
 def _parse_filament_nozzle_map(project_settings: str, plate: Optional[ET.Element] = None) -> list[int]:
-    """Return per-filament nozzle targets in Flightdeck ids (0=left, 1=right)."""
+    """Return per-filament nozzle targets in Flightdeck ids (0=left, 1=right).
+
+    The authoritative post-slice grouping is the per-plate ``filament_maps``
+    metadata in slice_info.config: one 1-based group per global filament slot
+    (1=left extruder, 2=right). project_settings ``filament_map`` can be stale
+    when filament_map_mode is auto ("Auto For Flush"), so it must not win.
+    """
     physical_map = _parse_int_list(_parse_config_value(project_settings, "physical_extruder_map"))
+
+    def logical_to_flightdeck(logical: int) -> Optional[int]:
+        # Logical extruder ids (0-based) map to physical MQTT ids via
+        # physical_extruder_map (H2D: [1, 0]), and physical ids use 0=right,
+        # 1=left. Without a physical map, logical order already matches
+        # Flightdeck's 0=left/1=right labelling.
+        if 0 <= logical < len(physical_map):
+            return _bambu_nozzle_to_flightdeck(physical_map[logical])
+        return logical if logical in (0, 1) else None
+
+    if plate is not None:
+        maps_el = plate.find("metadata[@key='filament_maps']")
+        if maps_el is not None:
+            maps = _parse_int_list(maps_el.get("value"))
+            out = []
+            for group in maps:
+                converted = logical_to_flightdeck(group - 1)
+                if converted is None:
+                    break
+                out.append(converted)
+            if out and len(out) == len(maps):
+                return out
 
     plate_extruders: list[int] = []
     if plate is not None:
         for nozzle_el in plate.findall("nozzle"):
-            raw = (nozzle_el.get("extruder_id") or nozzle_el.get("id") or "").strip()
+            # <nozzle extruder_id=...> is a 1-based logical extruder id;
+            # the id attribute is the same value 0-based.
+            raw_ext = (nozzle_el.get("extruder_id") or "").strip()
+            raw_id = (nozzle_el.get("id") or "").strip()
             try:
-                plate_extruders.append(int(raw))
+                if raw_ext:
+                    plate_extruders.append(int(raw_ext) - 1)
+                elif raw_id:
+                    plate_extruders.append(int(raw_id))
             except (TypeError, ValueError):
                 continue
     if plate_extruders:
-        out: list[int] = []
-        for extruder in plate_extruders:
-            converted = _bambu_nozzle_to_flightdeck(extruder)
-            if converted is not None:
-                out.append(converted)
+        out = [
+            converted
+            for logical in plate_extruders
+            for converted in [logical_to_flightdeck(logical)]
+            if converted is not None
+        ]
         if len(out) == 1 and plate is not None:
             return out * len(plate.findall("filament"))
         if out:

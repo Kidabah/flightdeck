@@ -2,8 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: `57308fa` — fix slip lid internal cap artifact + vase earcut caps
-- Refresh cachebust: MakerDeck `app.js?v=107`
+- Latest commit: see "2026-07-06 fix (H2D queue nozzle grouping)" below
+- Refresh cachebust: MakerDeck `app.js?v=113`
+
+### 2026-07-06 fix (H2D queue nozzle grouping)
+
+**False "sliced for left nozzle" block on right-nozzle jobs** (`app/printers/bambu_ftp.py`)
+
+- `_parse_filament_nozzle_map()` treated `<nozzle extruder_id="2">` as a physical MQTT id (0=right/1=left) and swapped it, so a right-nozzle job (logical extruder 2) parsed as nozzle 0 (left) and preflight blocked with "H2D nozzle/AMS mismatch: job is sliced for left nozzle".
+- `extruder_id` is actually a **1-based logical** extruder id (1=left, 2=right). Now the per-plate `filament_maps` metadata from slice_info.config is the primary source (one group per filament, mapped through `physical_extruder_map` to physical then to Flightdeck 0=left/1=right), with the corrected `<nozzle>` interpretation as fallback. Stale `filament_map` in project_settings ("Auto For Flush" mode) is never trusted over plate metadata.
+- Verified against real uploads: box-270x300x55mm (right, was misread as left), PETG tests plate 4 (right), 4-way splitter (left).
+- Backend change: Pi restart required. No cache bust.
 
 ### 2026-07-06 fix (MakerDeck preview artifacts)
 
