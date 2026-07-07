@@ -133,15 +133,6 @@ function wallBand(outPos, outIdx, axis, wallCoord, t0, t1, z0, z1) {
   pushQuad(outPos, outIdx, a0, a1, a2, a3);
 }
 
-/** Inner cavity wall — winding matches shellFromProfiles outward=false. */
-function innerWallBand(outPos, outIdx, axis, wallCoord, t0, t1, z0, z1) {
-  const a0 = axis === "y" ? vec3(t0, wallCoord, z0) : vec3(wallCoord, t0, z0);
-  const a1 = axis === "y" ? vec3(t1, wallCoord, z0) : vec3(wallCoord, t1, z0);
-  const a2 = axis === "y" ? vec3(t1, wallCoord, z1) : vec3(wallCoord, t1, z1);
-  const a3 = axis === "y" ? vec3(t0, wallCoord, z1) : vec3(wallCoord, t0, z1);
-  pushQuad(outPos, outIdx, a0, a3, a2, a1);
-}
-
 function profileIsValid(profile) {
   return Array.isArray(profile) && profile.length >= 3;
 }
@@ -493,38 +484,6 @@ function wallSegments(span0, span1, gaps) {
   return segs;
 }
 
-function computeDividerWallGaps(panels, params) {
-  const axis = params.insertAxis === "depth" ? "depth" : "length";
-  const gaps = { left: [], right: [], front: [], back: [] };
-  for (const panel of panels) {
-    if (axis === "depth") {
-      gaps.left.push([panel.y0, panel.y1]);
-      gaps.right.push([panel.y0, panel.y1]);
-    } else {
-      gaps.front.push([panel.x0, panel.x1]);
-      gaps.back.push([panel.x0, panel.x1]);
-    }
-  }
-  return gaps;
-}
-
-function classifyInnerWallTri(positions, ia, ib, ic, b, eps = 0.08) {
-  const verts = [ia, ib, ic].map((v) => [
-    positions[v * 3], positions[v * 3 + 1], positions[v * 3 + 2],
-  ]);
-  const minZ = Math.min(...verts.map((v) => v[2]));
-  const maxZ = Math.max(...verts.map((v) => v[2]));
-  if (maxZ < b.floor - eps || minZ > b.floor + b.cavityH + eps) return null;
-
-  const cx = (verts[0][0] + verts[1][0] + verts[2][0]) / 3;
-  const cy = (verts[0][1] + verts[1][1] + verts[2][1]) / 3;
-  if (Math.abs(cx + b.iw2) < eps) return "left";
-  if (Math.abs(cx - b.iw2) < eps) return "right";
-  if (Math.abs(cy + b.id2) < eps) return "back";
-  if (Math.abs(cy - b.id2) < eps) return "front";
-  return null;
-}
-
 function fixedDividerFloorStripBoxes(meta, params) {
   const b = rectFeatureBounds(meta);
   const panels = dividerPanelBoxes(meta, params);
@@ -537,19 +496,37 @@ function fixedDividerFloorStripBoxes(meta, params) {
   }));
 }
 
-function appendSegmentedInnerWalls(outPos, outIdx, b, gaps, z0, z1) {
-  const { iw2, id2 } = b;
-  for (const [ya, yb] of wallSegments(-id2, id2, gaps.left)) {
-    innerWallBand(outPos, outIdx, "x", -iw2, ya, yb, z0, z1);
+/** Shared vertex pool — every corner appears once in the export mesh. */
+class WeldPool {
+  constructor(eps = 0.01) {
+    this.eps = eps;
+    this.positions = [];
+    this.indices = [];
+    this.table = new Map();
   }
-  for (const [ya, yb] of wallSegments(-id2, id2, gaps.right)) {
-    innerWallBand(outPos, outIdx, "x", iw2, ya, yb, z0, z1);
+
+  v(x, y, z) {
+    const k = `${Math.round(x / this.eps)}|${Math.round(y / this.eps)}|${Math.round(z / this.eps)}`;
+    let i = this.table.get(k);
+    if (i === undefined) {
+      i = this.positions.length / 3;
+      this.positions.push(x, y, z);
+      this.table.set(k, i);
+    }
+    return i;
   }
-  for (const [xa, xb] of wallSegments(-iw2, iw2, gaps.back)) {
-    innerWallBand(outPos, outIdx, "y", -id2, xa, xb, z0, z1);
+
+  tri(a, b, c) {
+    this.indices.push(this.v(a[0], a[1], a[2]), this.v(b[0], b[1], b[2]), this.v(c[0], c[1], c[2]));
   }
-  for (const [xa, xb] of wallSegments(-iw2, iw2, gaps.front)) {
-    innerWallBand(outPos, outIdx, "y", id2, xa, xb, z0, z1);
+
+  quad(a, b, c, d) {
+    this.tri(a, b, c);
+    this.tri(a, c, d);
+  }
+
+  mesh() {
+    return { positions: this.positions, indices: this.indices };
   }
 }
 
@@ -559,75 +536,117 @@ function isSharpRectProfile(meta, params) {
     && (params.vertexFillet || 0) <= 0.5;
 }
 
-/** Rounded/filleted shells — peel coplanar contact patches, snap-merge divider. */
-function buildWatertightFixedDividerExportStrip(shell, meta, params, insert) {
-  const b = rectFeatureBounds(meta);
+/** Two cavity-facing faces per divider panel (not a solid 6-face box). */
+function buildDividerPanelFaces(meta, params) {
   const panels = dividerPanelBoxes(meta, params);
-  const pad = 0.08;
-  const zones = fixedDividerFloorStripBoxes(meta, params);
+  if (!panels?.length) return null;
+  const b = rectFeatureBounds(meta);
+  const { iw2, id2 } = b;
+  const zF = b.floor;
+  const zT = b.floor + b.cavityH;
+  const axis = params.insertAxis === "depth" ? "depth" : "length";
+  const pool = new WeldPool();
+
   for (const panel of panels) {
-    if (panel.x0 <= -b.iw2 + pad) {
-      zones.push({
-        x0: -b.iw2 - pad, x1: -b.iw2 + pad,
-        y0: panel.y0 - pad, y1: panel.y1 + pad,
-        z0: b.floor - pad, z1: b.floor + b.cavityH + pad,
-      });
-    }
-    if (panel.x1 >= b.iw2 - pad) {
-      zones.push({
-        x0: b.iw2 - pad, x1: b.iw2 + pad,
-        y0: panel.y0 - pad, y1: panel.y1 + pad,
-        z0: b.floor - pad, z1: b.floor + b.cavityH + pad,
-      });
-    }
-    if (panel.y0 <= -b.id2 + pad) {
-      zones.push({
-        x0: panel.x0 - pad, x1: panel.x1 + pad,
-        y0: -b.id2 - pad, y1: -b.id2 + pad,
-        z0: b.floor - pad, z1: b.floor + b.cavityH + pad,
-      });
-    }
-    if (panel.y1 >= b.id2 - pad) {
-      zones.push({
-        x0: panel.x0 - pad, x1: panel.x1 + pad,
-        y0: b.id2 - pad, y1: b.id2 + pad,
-        z0: b.floor - pad, z1: b.floor + b.cavityH + pad,
-      });
+    if (axis === "depth") {
+      pool.quad([-iw2, panel.y0, zF], [-iw2, panel.y0, zT], [iw2, panel.y0, zT], [iw2, panel.y0, zF]);
+      pool.quad([-iw2, panel.y1, zF], [iw2, panel.y1, zF], [iw2, panel.y1, zT], [-iw2, panel.y1, zT]);
+    } else {
+      pool.quad([panel.x0, -id2, zF], [panel.x0, -id2, zT], [panel.x0, id2, zT], [panel.x0, id2, zF]);
+      pool.quad([panel.x1, -id2, zF], [panel.x1, id2, zF], [panel.x1, id2, zT], [panel.x1, -id2, zT]);
     }
   }
-  const positions = shell.positions.slice();
-  const cleanIdx = [];
-  for (let t = 0; t < shell.indices.length; t += 3) {
-    const ia = shell.indices[t];
-    const ib = shell.indices[t + 1];
-    const ic = shell.indices[t + 2];
-    if (zones.some((box) => triFullyInsideBox(shell.positions, ia, ib, ic, box))) continue;
-    cleanIdx.push(ia, ib, ic);
-  }
-  return mergeMeshesSnap({ positions, indices: cleanIdx }, insert);
+  return pool.mesh();
 }
 
-/** Fixed divider export — segmented inner walls + snapped divider merge. */
+/** Sharp rect hollow box + welded divider(s) — single watertight mesh, shared verts. */
+function buildSharpWeldedBoxExport(meta, params) {
+  const panels = dividerPanelBoxes(meta, params);
+  if (!panels?.length) return null;
+  const b = rectFeatureBounds(meta);
+  const { ow2, od2, iw2, id2 } = b;
+  const z0 = 0;
+  const zF = b.floor;
+  const zT = b.totalH;
+  const axis = params.insertAxis === "depth" ? "depth" : "length";
+  const pool = new WeldPool();
+
+  pool.quad([-ow2, -od2, z0], [ow2, -od2, z0], [ow2, od2, z0], [-ow2, od2, z0]);
+
+  pool.quad([-ow2, -od2, z0], [-ow2, -od2, zT], [ow2, -od2, zT], [ow2, -od2, z0]);
+  pool.quad([ow2, -od2, z0], [ow2, -od2, zT], [ow2, od2, zT], [ow2, od2, z0]);
+  pool.quad([ow2, od2, z0], [ow2, od2, zT], [-ow2, od2, zT], [-ow2, od2, z0]);
+  pool.quad([-ow2, od2, z0], [-ow2, od2, zT], [-ow2, -od2, zT], [-ow2, -od2, z0]);
+
+  pool.quad([-ow2, -od2, zT], [ow2, -od2, zT], [iw2, -id2, zT], [-iw2, -id2, zT]);
+  pool.quad([ow2, -od2, zT], [ow2, od2, zT], [iw2, id2, zT], [iw2, -id2, zT]);
+  pool.quad([ow2, od2, zT], [-ow2, od2, zT], [-iw2, id2, zT], [iw2, id2, zT]);
+  pool.quad([-ow2, od2, zT], [-ow2, -od2, zT], [-iw2, -id2, zT], [-iw2, id2, zT]);
+
+  const sorted = panels.slice().sort((a, b) => (axis === "depth" ? a.y0 - b.y0 : a.x0 - b.x0));
+
+  if (axis === "depth") {
+    const yGaps = sorted.map((p) => [p.y0, p.y1]);
+    for (const [ya, yb] of wallSegments(-id2, id2, yGaps)) {
+      pool.quad([-iw2, ya, zF], [-iw2, ya, zT], [-iw2, yb, zT], [-iw2, yb, zF]);
+      pool.quad([iw2, yb, zF], [iw2, yb, zT], [iw2, ya, zT], [iw2, ya, zF]);
+    }
+    pool.quad([iw2, -id2, zF], [iw2, -id2, zT], [-iw2, -id2, zT], [-iw2, -id2, zF]);
+    pool.quad([-iw2, id2, zF], [-iw2, id2, zT], [iw2, id2, zT], [iw2, id2, zF]);
+
+    let yCursor = -id2;
+    for (const panel of sorted) {
+      if (panel.y0 > yCursor + 0.02) {
+        pool.quad([-iw2, yCursor, zF], [iw2, yCursor, zF], [iw2, panel.y0, zF], [-iw2, panel.y0, zF]);
+      }
+      pool.quad([-iw2, panel.y0, zF], [-iw2, panel.y0, zT], [iw2, panel.y0, zT], [iw2, panel.y0, zF]);
+      pool.quad([-iw2, panel.y1, zF], [iw2, panel.y1, zF], [iw2, panel.y1, zT], [-iw2, panel.y1, zT]);
+      yCursor = panel.y1;
+    }
+    if (id2 > yCursor + 0.02) {
+      pool.quad([-iw2, yCursor, zF], [iw2, yCursor, zF], [iw2, id2, zF], [-iw2, id2, zF]);
+    }
+  } else {
+    pool.quad([-iw2, -id2, zF], [-iw2, -id2, zT], [-iw2, id2, zT], [-iw2, id2, zF]);
+    pool.quad([iw2, id2, zF], [iw2, id2, zT], [iw2, -id2, zT], [iw2, -id2, zF]);
+    const xGaps = sorted.map((p) => [p.x0, p.x1]);
+    for (const [xa, xb] of wallSegments(-iw2, iw2, xGaps)) {
+      pool.quad([xa, -id2, zF], [xa, -id2, zT], [xb, -id2, zT], [xb, -id2, zF]);
+      pool.quad([xb, id2, zF], [xb, id2, zT], [xa, id2, zT], [xa, id2, zF]);
+    }
+
+    let xCursor = -iw2;
+    for (const panel of sorted) {
+      if (panel.x0 > xCursor + 0.02) {
+        pool.quad([xCursor, -id2, zF], [panel.x0, -id2, zF], [panel.x0, id2, zF], [xCursor, id2, zF]);
+      }
+      pool.quad([panel.x0, -id2, zF], [panel.x0, -id2, zT], [panel.x0, id2, zT], [panel.x0, id2, zF]);
+      pool.quad([panel.x1, -id2, zF], [panel.x1, id2, zF], [panel.x1, id2, zT], [panel.x1, -id2, zT]);
+      xCursor = panel.x1;
+    }
+    if (iw2 > xCursor + 0.02) {
+      pool.quad([xCursor, -id2, zF], [iw2, -id2, zF], [iw2, id2, zF], [xCursor, id2, zF]);
+    }
+  }
+
+  return pool.mesh();
+}
+
+/** Fixed divider export — sharp boxes rebuilt watertight; rounded shells floor-strip + panel faces. */
 export function buildWatertightFixedDividerExport(bodyMesh, meta, params) {
   if (!params?.fuseInsertToBody) return null;
   const panels = dividerPanelBoxes(meta, params);
   if (!panels?.length) return null;
-  const insert = buildDividerInsert(meta, params);
-  if (!insert?.indices?.length) return null;
 
-  const shell = bodyMesh?.shellMesh || bodyMesh;
-  if (!shell?.indices?.length) return insert;
-
-  if (!isSharpRectProfile(meta, params)) {
-    return buildWatertightFixedDividerExportStrip(shell, meta, params, insert);
+  if (isSharpRectProfile(meta, params)) {
+    return buildSharpWeldedBoxExport(meta, params);
   }
 
-  const b = rectFeatureBounds(meta);
-  const gaps = computeDividerWallGaps(panels, params);
-  const floorZones = fixedDividerFloorStripBoxes(meta, params);
-  const zInner0 = b.floor;
-  const zInner1 = b.floor + b.cavityH;
+  const shell = bodyMesh?.shellMesh || bodyMesh;
+  const dividerFaces = buildDividerPanelFaces(meta, params);
+  if (!shell?.indices?.length) return dividerFaces;
 
+  const floorZones = fixedDividerFloorStripBoxes(meta, params);
   const positions = shell.positions.slice();
   const cleanIdx = [];
   for (let t = 0; t < shell.indices.length; t += 3) {
@@ -635,12 +654,9 @@ export function buildWatertightFixedDividerExport(bodyMesh, meta, params) {
     const ib = shell.indices[t + 1];
     const ic = shell.indices[t + 2];
     if (floorZones.some((box) => triFullyInsideBox(shell.positions, ia, ib, ic, box))) continue;
-    if (classifyInnerWallTri(shell.positions, ia, ib, ic, b)) continue;
     cleanIdx.push(ia, ib, ic);
   }
-
-  appendSegmentedInnerWalls(positions, cleanIdx, b, gaps, zInner0, zInner1);
-  return mergeMeshesSnap({ positions, indices: cleanIdx }, insert);
+  return mergeMeshesSnap({ positions, indices: cleanIdx }, dividerFaces);
 }
 
 /** Removable flat divider panels — separate print part(s), splits cavity into equal bays. */

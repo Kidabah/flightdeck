@@ -2,7 +2,18 @@
 
 Latest GitHub state:
 - Branch: `main`
-- Latest commit: `1ed604a` — b133 segmented welded divider walls
+- Latest commit: (pending) — b134 from-scratch welded box mesh
+
+### 2026-07-07 — b134: From-scratch watertight welded box mesh
+
+**What changed:** b133 made things worse (16 open edges). Bambu Repair then filled the cavity solid (2.3kg). Root cause: merging a 6-face divider box into a stripped shell left T-junctions; depth-axis dividers only need left/right wall slots, not front/back.
+- **`buildSharpWeldedBoxExport()`** — sharp rect welded exports are now one mesh from a shared `WeldPool`: shell + split floor patches + two divider faces per panel (not a solid box).
+- **Correct wall slots** — depth axis segments left/right walls only; length axis segments front/back only; perpendicular walls stay full height.
+- **Rounded fallback** — floor strip + two divider faces, no wall stripping.
+
+**Files:** `js/features.js?v=134`, `js/app.js?v=134`, `index.html` — header **b134**
+
+**Deploy:** Pi `git pull`. Hard refresh. Re-download — do **not** use Bambu Repair. Should show ~36 tris, 0 open edges.
 
 ### 2026-07-07 — b133: Segmented welded divider walls (manifold fix)
 
