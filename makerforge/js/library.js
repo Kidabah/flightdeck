@@ -1,4 +1,4 @@
-/** MakerDeck design library — auto-archive exports to Flightdeck Print Vault. */
+/** MakerDeck design library — auto-save exports for reloading prior designs. */
 
 export function libraryApiAvailable() {
   return window.location.protocol !== "file:" && window.location.origin.length > 0;
@@ -33,7 +33,7 @@ export async function saveExportToLibrary({ blob, filename, format, part, state,
   const res = await fetch("/api/makerdeck/exports", { method: "POST", body: form });
   if (!res.ok) {
     const detail = await res.text();
-    throw new Error(detail || `Library save failed (${res.status})`);
+    throw new Error(detail || `Design library save failed (${res.status})`);
   }
   return res.json();
 }
@@ -41,7 +41,7 @@ export async function saveExportToLibrary({ blob, filename, format, part, state,
 export async function listLibraryDesigns(limit = 50) {
   if (!libraryApiAvailable()) return [];
   const res = await fetch(`/api/makerdeck/designs?limit=${limit}`);
-  if (!res.ok) throw new Error(`Could not load library (${res.status})`);
+  if (!res.ok) throw new Error(`Could not load design library (${res.status})`);
   const payload = await res.json();
   return Array.isArray(payload?.designs) ? payload.designs : [];
 }

@@ -2,7 +2,15 @@
 
 Latest GitHub state:
 - Branch: `main`
-- Latest commit: `be1df18` — b138 watermark fix
+- Latest commit: (pending) — b139 design library copy
+
+### 2026-07-07 — b139: Design library copy cleanup
+
+**What changed:** User-facing labels stay **Design library** (Library tab). Removed Print Vault / recall wording from hints, export status, and delete confirm.
+
+**Files:** `index.html`, `js/app.js?v=139`, `js/library.js?v=139` — header **b139**
+
+**Deploy:** Pi `git pull`. Hard refresh.
 
 ### 2026-07-07 — b138: Watermark orientation fix
 

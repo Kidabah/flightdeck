@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=138";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark } from "./features.js?v=138";
-import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=138";
-import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=138";
-import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=138";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=139";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, buildWatermarkPreviewMesh } from "./features.js?v=139";
+import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=139";
+import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=139";
+import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=139";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
 import {
@@ -14,7 +14,7 @@ import {
   listLibraryDesigns,
   fetchDesignParams,
   deleteLibraryDesign,
-} from "./library.js?v=138";
+} from "./library.js?v=139";
 
 const SESSION_KEY = "makerdeck-session-v1";
 let saveSessionTimer = null;
@@ -1210,7 +1210,7 @@ async function refreshLibraryUi() {
   if (!grid) return;
   if (!libraryApiAvailable()) {
     grid.innerHTML = "";
-    if (status) status.textContent = "Library needs MakerDeck inside Flightdeck (not a local file).";
+    if (status) status.textContent = "Design library needs MakerDeck inside Flightdeck (not a local file).";
     return;
   }
   if (status) status.textContent = "Loading…";
@@ -1260,9 +1260,9 @@ async function refreshLibraryUi() {
       card.append(thumb, body);
       grid.appendChild(card);
     }
-    if (status) status.textContent = `${designs.length} design${designs.length === 1 ? "" : "s"} in Print Vault → MakerDeck/`;
+    if (status) status.textContent = `${designs.length} saved design${designs.length === 1 ? "" : "s"}`;
   } catch (err) {
-    if (status) status.textContent = err?.message || "Could not load library.";
+    if (status) status.textContent = err?.message || "Could not load design library.";
     grid.innerHTML = "";
   }
 }
@@ -1295,7 +1295,7 @@ async function loadLibraryDesign(designId) {
 }
 
 async function removeLibraryDesign(designId) {
-  if (!confirm("Delete this design from the library? The vault file will be removed.")) return;
+  if (!confirm("Delete this design from the library?")) return;
   try {
     await deleteLibraryDesign(designId);
     await refreshLibraryUi();
@@ -2430,7 +2430,7 @@ function runExport(format) {
         downloadBlob(blob, fname);
         void archiveBodyExport(blob, fname, { format: "3mf", stamp }).then((design) => {
           if (status && design) {
-            status.textContent += " · saved to library";
+            status.textContent += " · saved to design library";
           }
         });
         if (status) {
@@ -2459,7 +2459,7 @@ function runExport(format) {
         const status = document.getElementById("export-status");
         void archiveBodyExport(stlBlob, stlName, { format: "stl", stamp }).then((design) => {
           if (status && design) {
-            status.textContent = `STL downloaded · saved to library${stamp ? ` · watermark #${String(stamp.serial).padStart(4, "0")}` : ""}`;
+            status.textContent = `STL downloaded · saved to design library${stamp ? ` · watermark #${String(stamp.serial).padStart(4, "0")}` : ""}`;
           } else if (status) {
             status.textContent = `STL downloaded${stamp ? ` · watermark #${String(stamp.serial).padStart(4, "0")}` : ""}`;
           }
