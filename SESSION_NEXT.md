@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: see "2026-07-07 fix (MakerDeck band 2 colour picker b143)" below
-- Refresh cachebust: MakerDeck `app.js?v=143`, `style.css?v=24`
+- Latest commit: see "2026-07-07 fix (MakerDeck accent on teardrop/star/heart b144)" below
+- Refresh cachebust: MakerDeck `app.js?v=144`
+
+### 2026-07-07 fix (MakerDeck accent on teardrop/star/heart b144)
+
+**Accent bands invisible on teardrop, star, and heart** (`features.js`, `accent-bands.js`, `app.js`)
+
+- Centroid radial offset pushed concave profile points inward — bands ended up inside the wall. Now offsets along vertex normals so star/heart/teardrop outlines get a proper exterior ribbon.
+- Profile shapes (teardrop, star, heart, circle, oval, hex) use a **position %** slider like vases instead of rim/floor face only.
+- Cache `app.js?v=144`. Hard refresh MakerDeck.
 
 ### 2026-07-07 fix (MakerDeck band 2 colour picker b143)
 

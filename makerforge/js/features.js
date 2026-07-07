@@ -158,6 +158,70 @@ function offsetProfileOutward(points, offset) {
   });
 }
 
+function polygonSignedArea2(pts) {
+  let area = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const j = (i + 1) % pts.length;
+    area += pts[i][0] * pts[j][1] - pts[j][0] * pts[i][1];
+  }
+  return area / 2;
+}
+
+/** Offset a closed profile along vertex normals — correct on concave outlines (star, heart). */
+function offsetProfileByNormals(points, offset) {
+  if (!offset || offset <= 0 || points.length < 3) return points;
+  const ccw = polygonSignedArea2(points) > 0;
+  const sign = ccw ? 1 : -1;
+  const n = points.length;
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const prev = points[(i - 1 + n) % n];
+    const curr = points[i];
+    const next = points[(i + 1) % n];
+    const e0x = curr[0] - prev[0];
+    const e0y = curr[1] - prev[1];
+    const e1x = next[0] - curr[0];
+    const e1y = next[1] - curr[1];
+    const l0 = Math.hypot(e0x, e0y) || 1;
+    const l1 = Math.hypot(e1x, e1y) || 1;
+    const n0x = sign * -e0y / l0;
+    const n0y = sign * e0x / l0;
+    const n1x = sign * -e1y / l1;
+    const n1y = sign * e1x / l1;
+    let nx = n0x + n1x;
+    let ny = n0y + n1y;
+    const nl = Math.hypot(nx, ny);
+    if (nl < 1e-9) {
+      out.push([curr[0] + n0x * offset, curr[1] + n0y * offset]);
+      continue;
+    }
+    nx /= nl;
+    ny /= nl;
+    const miter = 1 / Math.max(0.2, n0x * nx + n0y * ny);
+    const dist = offset * Math.min(miter, 4);
+    out.push([curr[0] + nx * dist, curr[1] + ny * dist]);
+  }
+  return out;
+}
+
+function profileAccentOffset(points) {
+  return offsetProfileByNormals(points, ACCENT_SKIN_MM);
+}
+
+function profileBandZRange(face, bandH, totalH, accentPos) {
+  if (face === "front") {
+    const z1 = totalH;
+    return { z0: z1 - bandH, z1 };
+  }
+  const pos = face === "floor"
+    ? 0
+    : accentPos != null
+      ? clamp(accentPos, 0, 100) / 100
+      : 1;
+  const z0 = (totalH - bandH) * pos;
+  return { z0, z1: z0 + bandH };
+}
+
 function frontProfileEdgeFilter(points, inset) {
   const maxY = Math.max(...points.map((p) => p[1]));
   const minX = Math.min(...points.map((p) => p[0]));
@@ -176,30 +240,31 @@ export function buildAccentMesh(meta, params, outerProfile = null) {
   const face = params.accentFace || "rim";
   const b = rectFeatureBounds(meta);
   const bandH = Math.min(clamp(params.accentHeight ?? 4, 2, 80), b.totalH);
-  const z1 = b.totalH;
-  const z0 = z1 - bandH;
   const positions = [];
   const indices = [];
   const skin = ACCENT_SKIN_MM;
   const accentProfile = profileIsValid(outerProfile)
-    ? offsetProfileOutward(outerProfile, skin)
+    ? profileAccentOffset(outerProfile)
     : null;
 
   if (accentProfile) {
-    if (face === "rim") {
-      extrudeWallsAlongZ(positions, indices, accentProfile, z0, z1);
-    } else if (face === "front") {
+    const { z0, z1 } = profileBandZRange(face, bandH, b.totalH, params.accentPos);
+    if (face === "front") {
       const inset = clamp(params.accentInset ?? 4, 2, Math.min(b.outerW, b.outerD) / 3);
       extrudeWallsAlongZ(positions, indices, accentProfile, z0, z1, frontProfileEdgeFilter(accentProfile, inset));
-    } else if (face === "floor") {
-      extrudeWallsAlongZ(positions, indices, accentProfile, 0, bandH);
+    } else {
+      extrudeWallsAlongZ(positions, indices, accentProfile, z0, z1);
     }
   } else if (face === "rim") {
+    const z1 = b.totalH;
+    const z0 = z1 - bandH;
     wallBand(positions, indices, "y", b.od2 + skin, -b.ow2 - skin, b.ow2 + skin, z0, z1);
     wallBand(positions, indices, "y", -b.od2 - skin, -b.ow2 - skin, b.ow2 + skin, z0, z1);
     wallBand(positions, indices, "x", b.ow2 + skin, -b.od2 - skin, b.od2 + skin, z0, z1);
     wallBand(positions, indices, "x", -b.ow2 - skin, -b.od2 - skin, b.od2 + skin, z0, z1);
   } else if (face === "front") {
+    const z1 = b.totalH;
+    const z0 = z1 - bandH;
     const inset = clamp(params.accentInset ?? 4, 2, Math.min(b.outerW, b.outerD) / 3);
     wallBand(positions, indices, "y", b.od2 + skin, -b.ow2 + inset, b.ow2 - inset, z0, z1);
   } else if (face === "floor") {

@@ -47,14 +47,19 @@ export function normalizeAccentBands(params) {
 
 /** Per-band build params for vase/box accent mesh builders. */
 export function bandToBuildParams(baseParams, band) {
+  let pos = band.pos;
+  if (pos == null) {
+    pos = band.face === "floor" ? 0 : 100;
+  }
+  const floorFace = band.face === "floor" && pos <= 0.5;
   return {
     ...baseParams,
-    accentPos: band.pos ?? 100,
+    accentPos: pos,
     accentHeight: band.height ?? 4,
     accentEdge: band.edge ?? "straight",
     accentWaveAmp: band.waveAmp ?? 3,
     accentWaveCount: band.waveCount ?? 6,
-    accentFace: band.face ?? "rim",
+    accentFace: band.face === "front" ? "front" : floorFace ? "floor" : "rim",
   };
 }
 

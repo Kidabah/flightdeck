@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=143";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark } from "./features.js?v=143";
-import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=143";
-import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=143";
-import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=143";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=144";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark } from "./features.js?v=144";
+import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=144";
+import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=144";
+import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=144";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
 import {
@@ -12,7 +12,7 @@ import {
   newAccentBand,
   ensureStateAccentBands,
   syncFlatAccentFromBands,
-} from "./accent-bands.js?v=143";
+} from "./accent-bands.js?v=144";
 import {
   libraryApiAvailable,
   capturePreviewThumbnail,
@@ -20,7 +20,7 @@ import {
   listLibraryDesigns,
   fetchDesignParams,
   deleteLibraryDesign,
-} from "./library.js?v=143";
+} from "./library.js?v=144";
 
 const SESSION_KEY = "makerdeck-session-v1";
 let saveSessionTimer = null;
@@ -2593,6 +2593,9 @@ function bindAccentBandSlider(slider, bandIndex, key, parseKind = "float") {
     const val = parseFieldValue(slider.value, parseKind);
     if (!state.accentBands[bandIndex]) return;
     state.accentBands[bandIndex][key] = val;
+    if (key === "pos" && accentUiMode() === "profile") {
+      state.accentBands[bandIndex].face = val <= 0.5 ? "floor" : "rim";
+    }
     syncFlatAccentFromBands(state);
     const out = slider.parentElement?.querySelector(".value-edit");
     if (out) out.textContent = slider.value;
@@ -2642,6 +2645,13 @@ function addAccentBand() {
       ...defaults,
       pos: Math.max(5, Math.min(95, (first?.pos ?? 50) - 28)),
       edge: "straight",
+      color,
+    }));
+  } else if (mode === "profile") {
+    state.accentBands.push(newAccentBand({
+      ...defaults,
+      pos: Math.max(5, Math.min(95, (first?.pos ?? 85) - 30)),
+      face: "rim",
       color,
     }));
   } else {
@@ -2716,18 +2726,15 @@ function renderAccentBandsUi(force = false) {
     }
     card.appendChild(header);
 
-    if (mode === "box" || mode === "profile") {
+    if (mode === "box") {
       const faceField = document.createElement("label");
       faceField.className = "field";
       faceField.innerHTML = `<span class="field-label">Face</span>`;
       const faceSel = document.createElement("select");
       faceSel.id = `accent-band-${i}-face`;
-      faceSel.innerHTML = mode === "box"
-        ? `<option value="rim">Rim band (all sides)</option>
+      faceSel.innerHTML = `<option value="rim">Rim band (all sides)</option>
            <option value="front">Front panel only</option>
-           <option value="floor">Floor stripe (outer base ring)</option>`
-        : `<option value="rim">Rim band (wraps outline)</option>
-           <option value="floor">Base stripe (wraps outline)</option>`;
+           <option value="floor">Floor stripe (outer base ring)</option>`;
       faceSel.value = band.face || "rim";
       faceSel.addEventListener("change", (e) => {
         const target = state.accentBands[i];
@@ -2741,7 +2748,10 @@ function renderAccentBandsUi(force = false) {
       card.appendChild(faceField);
     }
 
-    if (mode === "vase") {
+    if (mode === "vase" || mode === "profile") {
+      if (mode === "profile" && band.pos == null) {
+        band.pos = band.face === "floor" ? 0 : 85;
+      }
       const posField = document.createElement("label");
       posField.className = "field";
       posField.innerHTML = `<span class="field-label">Position <span class="unit">%</span></span>`;
@@ -2762,6 +2772,7 @@ function renderAccentBandsUi(force = false) {
       card.appendChild(posField);
       bindAccentBandSlider(posSlider, i, "pos", "float");
 
+      if (mode === "vase") {
       const edgeField = document.createElement("label");
       edgeField.className = "field";
       edgeField.innerHTML = `<span class="field-label">Band edge</span>`;
@@ -2828,6 +2839,7 @@ function renderAccentBandsUi(force = false) {
       waveCountField.append(waveCountSlider, waveCountOut);
       card.appendChild(waveCountField);
       bindAccentBandSlider(waveCountSlider, i, "waveCount", "int");
+      }
     }
 
     const heightField = document.createElement("label");
