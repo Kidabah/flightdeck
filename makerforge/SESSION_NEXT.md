@@ -2,7 +2,18 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `f04b891` — b127 3MF model_settings single-mesh fix
+- Latest commit: *(pending — b128 plain 3MF)*
+
+### 2026-07-07 — b128: Plain 3MF for single-colour body (Bambu still 40 tris)
+
+**What changed:** Chris's fixed-divider box 3MF still showed 40 triangles / 8 non-manifold in Bambu after b127. Headless export still had 328 triangles in the mesh XML — Bambu was ignoring the mesh when Bambu project metadata was present.
+- **Root cause:** `Metadata/model_settings.config` + `project_settings.config` make Bambu treat the file as a multi-part project and look up triangle-range part volumes instead of the mesh object. With no valid ranges, it validates an empty shell (~40 tris, 8 non-manifold).
+- **Fix:** single-part / single-extruder exports now write a **plain core 3MF** — mesh only, no `Metadata/` folder, no `paint_color`, no Bambu assembly metadata. Multi-colour exports (body + accent/text) still use the full Bambu coloured project format.
+- Download status now says `plain 3MF` vs `colored 3MF` with triangle count.
+
+**Files:** `js/3mf.js?v=128`, `js/app.js?v=128`, `index.html` — header **b128**
+
+**Deploy:** Pi `git pull`. Hard refresh. Re-download — status should read **`plain 3MF downloaded — 328 triangles (Body)`**. Bambu should show ~328 tris, 0 non-manifold.
 
 ### 2026-07-07 — b127: 3MF model_settings single-mesh fix (Bambu still 40 tris)
 

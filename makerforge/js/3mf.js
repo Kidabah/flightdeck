@@ -132,7 +132,7 @@ function paintCodeForExtruder(extruder) {
   return PAINT_COLOR_CODES[Math.max(0, Math.min(15, (extruder || 1) - 1))];
 }
 
-function meshTo3mfResources(mesh, objectId, name, extruder, { resanitize = false } = {}) {
+function meshTo3mfResources(mesh, objectId, name, extruder, { resanitize = false, plain = false } = {}) {
   const clean = resanitize ? sanitizeMeshForStl(mesh) : mesh;
   if (!clean?.positions?.length || !clean?.indices?.length) return null;
 
@@ -146,15 +146,25 @@ function meshTo3mfResources(mesh, objectId, name, extruder, { resanitize = false
 
   const tris = [];
   for (let t = 0; t < clean.indices.length; t += 3) {
-    tris.push(
-      `<triangle v1="${clean.indices[t]}" v2="${clean.indices[t + 1]}" v3="${clean.indices[t + 2]}" paint_color="${paint}"/>`,
-    );
+    if (plain) {
+      tris.push(
+        `<triangle v1="${clean.indices[t]}" v2="${clean.indices[t + 1]}" v3="${clean.indices[t + 2]}"/>`,
+      );
+    } else {
+      tris.push(
+        `<triangle v1="${clean.indices[t]}" v2="${clean.indices[t + 1]}" v3="${clean.indices[t + 2]}" paint_color="${paint}"/>`,
+      );
+    }
   }
+
+  const metaXml = plain
+    ? `<metadata name="Name">${escapeXml(name)}</metadata>`
+    : `<metadata name="Name">${escapeXml(name)}</metadata>
+      <metadata name="slic3rpe:extruder">${extruder}</metadata>`;
 
   return {
     objectXml: `<object id="${objectId}" type="model">
-      <metadata name="Name">${escapeXml(name)}</metadata>
-      <metadata name="slic3rpe:extruder">${extruder}</metadata>
+      ${metaXml}
       <mesh>
         <vertices>${verts.join("")}</vertices>
         <triangles>${tris.join("")}</triangles>
@@ -219,6 +229,7 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck") {
   if (!usable.length) throw new Error("No geometry to export");
 
   const maxExtruder = Math.max(...usable.map((p) => p.extruder || 1));
+  const plainSingle = usable.length === 1 && maxExtruder === 1;
   const slotColors = Array.from({ length: maxExtruder }, (_, i) => {
     const part = usable.find((p) => (p.extruder || 1) === i + 1);
     return (part?.color || "#ffffff").toUpperCase();
@@ -237,7 +248,10 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck") {
   const modelParts = [];
   let objectId = 1;
   for (const part of usable) {
-    const built = meshTo3mfResources(part.mesh, objectId, part.name, part.extruder || 1, { resanitize: false });
+    const built = meshTo3mfResources(part.mesh, objectId, part.name, part.extruder || 1, {
+      resanitize: false,
+      plain: plainSingle,
+    });
     if (!built) continue;
     objectXml.push(built.objectXml);
     modelParts.push({ id: built.id, name: built.name, extruder: built.extruder });
@@ -265,7 +279,20 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck") {
     </object>`);
   }
 
-  const modelXml = `<?xml version="1.0" encoding="UTF-8"?>
+  const modelXml = plainSingle
+    ? `<?xml version="1.0" encoding="UTF-8"?>
+<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">
+  <metadata name="Application">MakerDeck</metadata>
+  <metadata name="Title">${escapeXml(projectName)}</metadata>
+  <metadata name="MakerDeck-Triangles">${triangleCount}</metadata>
+  <resources>
+    ${objectXml.join("\n    ")}
+  </resources>
+  <build>
+    <item objectid="${buildObjectId}"/>
+  </build>
+</model>`
+    : `<?xml version="1.0" encoding="UTF-8"?>
 <model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06">
   <metadata name="Application">MakerDeck</metadata>
   <metadata name="Title">${escapeXml(projectName)}</metadata>
@@ -297,7 +324,13 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck") {
     { singlePart },
   );
 
-  const contentTypes = `<?xml version="1.0" encoding="UTF-8"?>
+  const contentTypes = plainSingle
+    ? `<?xml version="1.0" encoding="UTF-8"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/>
+</Types>`
+    : `<?xml version="1.0" encoding="UTF-8"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
   <Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/>
@@ -309,14 +342,20 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck") {
   <Relationship Target="/3D/3dmodel.model" Id="rel0" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>
 </Relationships>`;
 
-  const zipped = createZipStore([
+  const zipFiles = [
     { name: "mimetype", data: encodeText("application/vnd.ms-package.3dmanufacturing-3dmodel+xml") },
     { name: "[Content_Types].xml", data: encodeText(contentTypes) },
     { name: "_rels/.rels", data: encodeText(rels) },
     { name: "3D/3dmodel.model", data: encodeText(modelXml) },
-    { name: "Metadata/project_settings.config", data: encodeText(projectSettings) },
-    { name: "Metadata/model_settings.config", data: encodeText(modelSettings) },
-  ]);
+  ];
+  if (!plainSingle) {
+    zipFiles.push(
+      { name: "Metadata/project_settings.config", data: encodeText(projectSettings) },
+      { name: "Metadata/model_settings.config", data: encodeText(modelSettings) },
+    );
+  }
+
+  const zipped = createZipStore(zipFiles);
 
   return new Blob([zipped], { type: "model/3mf" });
 }

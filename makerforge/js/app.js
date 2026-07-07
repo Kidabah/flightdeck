@@ -4,7 +4,7 @@ import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance } from "./features.js?v=102";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=73";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=76";
-import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=127";
+import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=128";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
 
@@ -2149,7 +2149,10 @@ function runExport(format) {
         const triCount = parts.reduce((sum, part) => sum + Math.floor((part.mesh?.indices?.length || 0) / 3), 0);
         downloadBlob(buildColoredProject3mf(parts, baseModelName(meshCache.meta)), filename3mfFor(meshCache.meta, "body"));
         const status = document.getElementById("export-status");
-        if (status) status.textContent = `3MF downloaded — ${triCount} triangles (${parts.map((p) => p.name).join(" + ")})`;
+        if (status) {
+          const kind = parts.length === 1 && parts[0].extruder === 1 ? "plain 3MF" : "colored 3MF";
+          status.textContent = `${kind} downloaded — ${triCount} triangles (${parts.map((p) => p.name).join(" + ")})`;
+        }
         break;
       }
       case "stl": {
