@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=130";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance } from "./features.js?v=130";
-import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=130";
-import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=130";
-import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=130";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=131";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance } from "./features.js?v=131";
+import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=131";
+import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=131";
+import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=131";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
 
@@ -437,10 +437,30 @@ function syncExportStateFromUi() {
   if (joinerOn) state.joinerEnabled = joinerOn.checked;
 }
 
-function resolveBodyExportMesh(params, separateText) {
-  const shell = meshCache.shellMesh || meshCache;
+/** Build export geometry from current UI state — never reuse a stale preview cache. */
+function buildFreshExportCache() {
+  const params = buildParams();
+  const cache = buildContainer(params);
+  if (cache.meta.shape === "rect" && state.shape === "rounded") {
+    cache.meta.shape = "rounded";
+  }
+  if (state.shape === "hex" && state.sides !== 6) {
+    cache.meta.shape = "polygon";
+  }
+  if (PRESET_SHAPES.has(state.shape)) {
+    cache.meta.shape = state.shape;
+  }
+  return cache;
+}
+
+function exportShellTriCount(exportCache) {
+  return Math.floor(((exportCache?.shellMesh || exportCache)?.indices?.length || 0) / 3);
+}
+
+function resolveBodyExportMesh(exportCache, params, separateText) {
+  const shell = exportCache.shellMesh || exportCache;
   if (state.insertEnabled && state.insertMount === "fixed") {
-    const welded = buildWatertightFixedDividerExport(meshCache, meshCache.meta, {
+    const welded = buildWatertightFixedDividerExport(exportCache, exportCache.meta, {
       ...params,
       fuseInsertToBody: true,
     });
@@ -448,18 +468,18 @@ function resolveBodyExportMesh(params, separateText) {
     throw new Error("Fixed divider export failed — use Width or Depth axis (not Height shelves).");
   }
   if (separateText) return shell;
-  return buildWatertightExportMesh(meshCache, meshCache.meta, params);
+  return buildWatertightExportMesh(exportCache, exportCache.meta, params);
 }
 
-function collectColoredExportParts() {
-  if (!meshCache) return [];
+function collectColoredExportParts(exportCache) {
+  if (!exportCache) return [];
   const params = buildParams();
   const parts = [];
   let extruder = 1;
   const separateText = hasSeparateTextExport(params) && params.embossFace !== "lid";
   const mergeInsertIntoBody = mergeInsertIntoBodyExport();
 
-  const bodyMesh = resolveBodyExportMesh(params, separateText);
+  const bodyMesh = resolveBodyExportMesh(exportCache, params, separateText);
   const bodyClean = sanitizeMeshForStl(bodyMesh);
   if (bodyClean?.indices?.length) {
     parts.push({
@@ -471,7 +491,7 @@ function collectColoredExportParts() {
   }
 
   if (separateText) {
-    const textMesh = buildTextLabelExportMesh(meshCache.meta, params);
+    const textMesh = buildTextLabelExportMesh(exportCache.meta, params);
     const textClean = sanitizeMeshForStl(textMesh);
     if (textClean?.indices?.length) {
       parts.push({
@@ -483,10 +503,10 @@ function collectColoredExportParts() {
     }
   }
 
-  if (state.accentEnabled && accentCache) {
+  if (state.accentEnabled && exportCache.accentMesh) {
     // Vases carry a printable solid variant (the preview skin has zero
     // thickness and slicers reject it); boxes use the skin as-is.
-    const accentClean = sanitizeMeshForStl(meshCache.accentSolidMesh || accentCache);
+    const accentClean = sanitizeMeshForStl(exportCache.accentSolidMesh || exportCache.accentMesh);
     if (accentClean?.indices?.length) {
       parts.push({
         name: "Accent",
@@ -497,8 +517,8 @@ function collectColoredExportParts() {
     }
   }
 
-  if (state.insertEnabled && insertCache && !mergeInsertIntoBody) {
-    const insertClean = sanitizeMeshForStl(insertCache);
+  if (state.insertEnabled && exportCache.insertMesh && !mergeInsertIntoBody) {
+    const insertClean = sanitizeMeshForStl(exportCache.insertMesh);
     if (insertClean?.indices?.length) {
       parts.push({
         name: "Insert",
@@ -2164,19 +2184,22 @@ function runExport(format) {
           alert("Link joiner and welded dividers don't mix — turn off Joiner on the Link tab, then download again.");
           return;
         }
+        const exportCache = buildFreshExportCache();
         rebuild();
-        const parts = collectColoredExportParts();
+        const parts = collectColoredExportParts(exportCache);
         const triCount = parts.reduce((sum, part) => sum + Math.floor((part.mesh?.indices?.length || 0) / 3), 0);
         const expectDivider = state.insertEnabled && state.insertMount === "fixed";
+        const shellTris = exportShellTriCount(exportCache);
         const status = document.getElementById("export-status");
         if (expectDivider && triCount < 200) {
+          const diag = `shell=${shellTris}, joiner=${state.joinerEnabled ? "on" : "off"}, axis=${state.insertAxis}, mount=${state.insertMount}`;
           if (status) {
-            status.textContent = `Export blocked — only ${triCount} triangles (expected ~300+). Insert mount must be Fixed (welded), Joiner off, axis Width or Depth.`;
+            status.textContent = `Export blocked — only ${triCount} triangles (expected ~300+). ${diag}`;
           }
-          alert(`Export blocked: only ${triCount} triangles.\n\nFor a welded divider box you should see ~300+ triangles.\n\nCheck:\n• Insert → Mount = Fixed (welded)\n• Link tab → Joiner OFF\n• Divider axis = Width or Depth`);
+          alert(`Export blocked: only ${triCount} triangles.\n\nFor a welded divider box you should see ~300+ triangles.\n\nCheck:\n• Insert → Mount = Fixed (welded)\n• Link tab → Joiner OFF\n• Divider axis = Width or Depth\n\nDiagnostic: ${diag}`);
           return;
         }
-        downloadBlob(buildColoredProject3mf(parts, baseModelName(meshCache.meta)), filename3mfFor(meshCache.meta, "body"));
+        downloadBlob(buildColoredProject3mf(parts, baseModelName(exportCache.meta)), filename3mfFor(exportCache.meta, "body"));
         if (status) {
           const kind = parts.length === 1 && parts[0].extruder === 1 ? "plain 3MF" : "colored 3MF";
           status.textContent = `${kind} downloaded — ${triCount} triangles (${parts.map((p) => p.name).join(" + ")})`;
@@ -2185,13 +2208,14 @@ function runExport(format) {
       }
       case "stl": {
         syncExportStateFromUi();
+        const exportCache = buildFreshExportCache();
         rebuild();
         const params = buildParams();
-        let exportMesh = buildWatertightExportMesh(meshCache, meshCache.meta, params);
+        let exportMesh = buildWatertightExportMesh(exportCache, exportCache.meta, params);
         if (state.insertEnabled && state.insertMount === "fixed") {
-          exportMesh = buildWatertightFixedDividerExport(meshCache, meshCache.meta, { ...params, fuseInsertToBody: true }) || exportMesh;
+          exportMesh = buildWatertightFixedDividerExport(exportCache, exportCache.meta, { ...params, fuseInsertToBody: true }) || exportMesh;
         }
-        downloadBlob(meshToStl(exportMesh, "makerdeck"), filenameFor(meshCache.meta, "body"));
+        downloadBlob(meshToStl(exportMesh, "makerdeck"), filenameFor(exportCache.meta, "body"));
         break;
       }
       case "lid-3mf": {

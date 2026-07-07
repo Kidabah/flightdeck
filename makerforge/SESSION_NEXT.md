@@ -2,7 +2,18 @@
 
 Latest GitHub state:
 - Branch: `main`
-- Latest commit: `ab7169c` — b130 welded divider export root cause fix
+- Latest commit: *(pending — b131 fresh export geometry)*
+
+### 2026-07-07 — b131: Export builds fresh geometry (fixes stale 40-tri joiner cache)
+
+**What changed:** Chris still hit the b130 export block (40 triangles) even with Fixed welded + Joiner off. Headless export with the same params produces **328 triangles** — so the browser was exporting **stale preview meshCache** (e.g. joiner shell left over from before toggling Joiner off, or `rebuild()` skipped while `rebuildBusy`).
+- **`buildFreshExportCache()`** — export always calls `buildContainer(buildParams())` from current UI state instead of reusing preview cache.
+- **`collectColoredExportParts(exportCache)`** / STL export use the fresh cache for body, accent, and insert parts.
+- Blocked-export alert now includes a **diagnostic line** (`shell=`, `joiner=`, `axis=`, `mount=`) to spot mismatches quickly.
+
+**Files:** `js/app.js?v=131`, `js/3mf.js?v=131`, `index.html` — header **b131**
+
+**Deploy:** Pi `git pull` — UI-only; restart optional but harmless. Hard refresh MakerDeck (Ctrl+Shift+R) to load `app.js?v=131`.
 
 ### 2026-07-07 — b130: Root cause — 40-tri joiner shell export, not Bambu packaging
 
