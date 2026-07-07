@@ -1527,6 +1527,29 @@ export function shapeSupportsDecor(shape) {
   return shape === "rect" || shape === "rounded" || shape === "pencil" || shape === "pencilBox";
 }
 
+/** Accent bands wrap the outer wall profile — all container shapes except open specials. */
+export function shapeSupportsAccent(shape) {
+  return (
+    shape === "vase"
+    || shape === "rect"
+    || shape === "rounded"
+    || shape === "pencil"
+    || shape === "pencilBox"
+    || shape === "circle"
+    || shape === "oval"
+    || shape === "hex"
+    || shape === "polygon"
+    || shape === "teardrop"
+    || shape === "star"
+    || shape === "heart"
+  );
+}
+
+/** Front-panel-only accent band — flat box faces only. */
+export function shapeSupportsAccentFrontFace(shape) {
+  return shape === "rect" || shape === "rounded" || shape === "pencil" || shape === "pencilBox";
+}
+
 /** Face frame for placing emboss on any of the four side walls.
  * Returns an object with faceW / faceH (usable dimensions in mm) and a
  * mapPoint(px, py, offset) helper that projects a 2D art-space point (px, py)

@@ -13,14 +13,16 @@ import {
   resolveJoinerDims,
   shapeSupportsDecor,
   shapeSupportsInsert,
-} from "./features.js?v=141";
+  shapeSupportsAccent,
+  shapeSupportsAccentFrontFace,
+} from "./features.js?v=143";
 import earcut from "https://esm.sh/earcut@2.2.4";
-import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=141";
-import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=141";
+import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=143";
+import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=143";
 
 import { appendInsertShelfSlotsToBody } from "./insert-slots.js";
 
-export { shapeSupportsDecor, shapeSupportsInsert, VASE_STYLES };
+export { shapeSupportsDecor, shapeSupportsInsert, shapeSupportsAccent, shapeSupportsAccentFrontFace, VASE_STYLES };
 
 function clamp(n, min, max) {
   return Math.min(max, Math.max(min, n));
@@ -1540,6 +1542,10 @@ export function buildContainer(params) {
   }
 
   let accentMeshes = [];
+  if (params.accentEnabled && shapeSupportsAccent(resolved.meta.shape)) {
+    accentMeshes = buildAccentBandMeshes(params, resolved.meta, resolved.outer, false);
+  }
+
   let insertMesh = null;
   let labelMesh = null;
   let debossCutterMesh = null;
@@ -1559,9 +1565,6 @@ export function buildContainer(params) {
       }
     } else {
       mesh = shellMesh;
-    }
-    if (params.accentEnabled) {
-      accentMeshes = buildAccentBandMeshes(params, resolved.meta, resolved.outer, false);
     }
     if (params.insertEnabled && shapeSupportsInsert(decorShape)) {
       insertMesh = buildDividerInsert(resolved.meta, params);

@@ -679,6 +679,8 @@ input[type="range"] {
 }
 
 .accent-band-card {
+  position: relative;
+  z-index: 0;
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 12px;
@@ -702,8 +704,8 @@ input[type="range"] {
   letter-spacing: 0.02em;
 }
 
-.accent-band-card .field {
-  margin-bottom: 0.65rem;
+.accent-band-card:has(.color-picker-panel:not(.hidden)) {
+  z-index: 5;
 }
 
 .accent-band-card .btn-accent-remove {

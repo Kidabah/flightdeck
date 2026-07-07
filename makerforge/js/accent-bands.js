@@ -58,14 +58,18 @@ export function bandToBuildParams(baseParams, band) {
   };
 }
 
+function normalizeBandFields(band, index = 0) {
+  if (!band.id) band.id = `b${index}`;
+  for (const [key, value] of Object.entries(DEFAULT_ACCENT_BAND)) {
+    if (band[key] === undefined || band[key] === null) band[key] = value;
+  }
+  return band;
+}
+
 /** Migrate app state from legacy single-band fields to accentBands[]. */
 export function ensureStateAccentBands(state) {
   if (Array.isArray(state.accentBands) && state.accentBands.length) {
-    state.accentBands = state.accentBands.map((band, i) => ({
-      ...newAccentBand(),
-      ...band,
-      id: band.id || `b${i}`,
-    }));
+    state.accentBands.forEach((band, i) => normalizeBandFields(band, i));
     syncFlatAccentFromBands(state);
     return;
   }

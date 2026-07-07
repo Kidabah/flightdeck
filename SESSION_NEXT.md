@@ -2,8 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: see "2026-07-07 feature (MakerDeck multi-accent bands b141)" below
-- Refresh cachebust: MakerDeck `app.js?v=141`, `style.css?v=23`
+- Latest commit: see "2026-07-07 fix (MakerDeck band 2 colour picker b143)" below
+- Refresh cachebust: MakerDeck `app.js?v=143`, `style.css?v=24`
+
+### 2026-07-07 fix (MakerDeck band 2 colour picker b143)
+
+**Second accent band colour picker stopped working after slider tweaks** (`accent-bands.js`, `color-picker.js`, `app.js`)
+
+- `ensureStateAccentBands` was replacing band objects on every UI refresh, so Band 2's picker updated a stale copy while preview/export read the live state array.
+- Colour handlers now update `state.accentBands[i]` by index; band objects are normalized in place. Picker document listeners clean up on remount; open panel z-index fixed for Band 2 card.
+- Also ships accent bands on all profile shapes (teardrop, star, heart, circle, oval, hex) from prior b142 work.
+- Cache `app.js?v=143`, `style.css?v=24`. Hard refresh MakerDeck.
 
 ### 2026-07-07 feature (MakerDeck multi-accent bands b141)
 

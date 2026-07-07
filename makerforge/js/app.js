@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=141";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark } from "./features.js?v=141";
-import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=141";
-import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=141";
-import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=141";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=143";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark } from "./features.js?v=143";
+import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=143";
+import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=143";
+import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=143";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
 import {
@@ -12,7 +12,7 @@ import {
   newAccentBand,
   ensureStateAccentBands,
   syncFlatAccentFromBands,
-} from "./accent-bands.js?v=141";
+} from "./accent-bands.js?v=143";
 import {
   libraryApiAvailable,
   capturePreviewThumbnail,
@@ -20,7 +20,7 @@ import {
   listLibraryDesigns,
   fetchDesignParams,
   deleteLibraryDesign,
-} from "./library.js?v=141";
+} from "./library.js?v=143";
 
 const SESSION_KEY = "makerdeck-session-v1";
 let saveSessionTimer = null;
@@ -2564,13 +2564,28 @@ function runExport(format) {
   }
 }
 
+function accentShapeKey() {
+  if (state.shape === "rounded") return "rounded";
+  if (state.shape === "hex") return "hex";
+  if (state.shape === "polygon") return "polygon";
+  if (PRESET_SHAPES.has(state.shape)) return state.shape;
+  return state.shape;
+}
+
+function accentUiMode() {
+  const key = accentShapeKey();
+  if (key === "vase") return "vase";
+  if (shapeSupportsAccentFrontFace(key)) return "box";
+  if (shapeSupportsAccent(key)) return "profile";
+  return "none";
+}
+
 function accentSupportedForShape() {
-  return shapeSupportsDecor(decorUiShape()) || state.shape === "vase";
+  return shapeSupportsAccent(accentShapeKey());
 }
 
 function accentBandsUiSignature() {
-  const isVase = state.shape === "vase" ? "v" : "b";
-  return `${state.accentBands.length}:${isVase}:${state.accentBands.map((b) => b.id).join(",")}`;
+  return `${state.accentBands.length}:${accentUiMode()}:${state.accentBands.map((b) => b.id).join(",")}`;
 }
 
 function bindAccentBandSlider(slider, bandIndex, key, parseKind = "float") {
@@ -2589,7 +2604,7 @@ function bindAccentBandSlider(slider, bandIndex, key, parseKind = "float") {
 }
 
 function syncAccentBandControlsFromState() {
-  const isVase = state.shape === "vase";
+  const mode = accentUiMode();
   state.accentBands.forEach((band, i) => {
     const setSlider = (suffix, val) => {
       const slider = document.getElementById(`accent-band-${i}-${suffix}`);
@@ -2608,7 +2623,7 @@ function syncAccentBandControlsFromState() {
     const face = document.getElementById(`accent-band-${i}-face`);
     if (face) face.value = band.face || "rim";
     setColorPickerValue(document.getElementById(`accent-band-${i}-color`), band.color || "#f97316");
-    const wavyOn = isVase && band.edge === "wave";
+    const wavyOn = mode === "vase" && band.edge === "wave";
     document.getElementById(`accent-band-${i}-wave-amp-field`)?.classList.toggle("hidden", !wavyOn);
     document.getElementById(`accent-band-${i}-wave-count-field`)?.classList.toggle("hidden", !wavyOn);
   });
@@ -2616,20 +2631,28 @@ function syncAccentBandControlsFromState() {
 
 function addAccentBand() {
   if (state.accentBands.length >= MAX_ACCENT_BANDS) return;
-  const isVase = state.shape === "vase";
+  const mode = accentUiMode();
   const first = state.accentBands[0];
   const usedColors = new Set(state.accentBands.map((b) => b.color));
   let color = suggestAccentColor(state.boxColor);
   if (usedColors.has(color)) color = suggestAccentColor("#64748b");
-  state.accentBands.push(newAccentBand({
-    pos: isVase ? Math.max(5, Math.min(95, (first?.pos ?? 50) - 28)) : (first?.pos ?? 100),
-    height: first?.height ?? 4,
-    edge: isVase ? "straight" : (first?.edge ?? "straight"),
-    waveAmp: first?.waveAmp ?? 3,
-    waveCount: first?.waveCount ?? 6,
-    face: first?.face === "floor" ? "rim" : "floor",
-    color,
-  }));
+  const defaults = { height: first?.height ?? 4, waveAmp: first?.waveAmp ?? 3, waveCount: first?.waveCount ?? 6 };
+  if (mode === "vase") {
+    state.accentBands.push(newAccentBand({
+      ...defaults,
+      pos: Math.max(5, Math.min(95, (first?.pos ?? 50) - 28)),
+      edge: "straight",
+      color,
+    }));
+  } else {
+    state.accentBands.push(newAccentBand({
+      ...defaults,
+      pos: first?.pos ?? 100,
+      edge: first?.edge ?? "straight",
+      face: first?.face === "floor" ? "rim" : "floor",
+      color,
+    }));
+  }
   syncFlatAccentFromBands(state);
   scheduleSaveSession();
   renderAccentBandsUi(true);
@@ -2668,9 +2691,10 @@ function renderAccentBandsUi(force = false) {
   container.dataset.sig = sig;
   container.innerHTML = "";
 
-  const isVase = state.shape === "vase";
+  const mode = accentUiMode();
   state.accentBands.forEach((band, i) => {
-    if (isVase && band.face === "front") band.face = "rim";
+    if (mode === "profile" && band.face === "front") band.face = "rim";
+    if (mode === "vase" && band.face === "front") band.face = "rim";
 
     const card = document.createElement("div");
     card.className = "accent-band-card";
@@ -2692,19 +2716,23 @@ function renderAccentBandsUi(force = false) {
     }
     card.appendChild(header);
 
-    if (!isVase) {
+    if (mode === "box" || mode === "profile") {
       const faceField = document.createElement("label");
       faceField.className = "field";
       faceField.innerHTML = `<span class="field-label">Face</span>`;
       const faceSel = document.createElement("select");
       faceSel.id = `accent-band-${i}-face`;
-      faceSel.innerHTML = `
-        <option value="rim">Rim band (all sides)</option>
-        <option value="front">Front panel only</option>
-        <option value="floor">Floor stripe (outer base ring)</option>`;
+      faceSel.innerHTML = mode === "box"
+        ? `<option value="rim">Rim band (all sides)</option>
+           <option value="front">Front panel only</option>
+           <option value="floor">Floor stripe (outer base ring)</option>`
+        : `<option value="rim">Rim band (wraps outline)</option>
+           <option value="floor">Base stripe (wraps outline)</option>`;
       faceSel.value = band.face || "rim";
       faceSel.addEventListener("change", (e) => {
-        band.face = e.target.value;
+        const target = state.accentBands[i];
+        if (!target) return;
+        target.face = e.target.value;
         syncFlatAccentFromBands(state);
         scheduleSaveSession();
         rebuild();
@@ -2713,7 +2741,7 @@ function renderAccentBandsUi(force = false) {
       card.appendChild(faceField);
     }
 
-    if (isVase) {
+    if (mode === "vase") {
       const posField = document.createElement("label");
       posField.className = "field";
       posField.innerHTML = `<span class="field-label">Position <span class="unit">%</span></span>`;
@@ -2744,7 +2772,9 @@ function renderAccentBandsUi(force = false) {
         <option value="wave">Wavy (up-n-down)</option>`;
       edgeSel.value = band.edge || "straight";
       edgeSel.addEventListener("change", (e) => {
-        band.edge = e.target.value;
+        const target = state.accentBands[i];
+        if (!target) return;
+        target.edge = e.target.value;
         syncFlatAccentFromBands(state);
         document.getElementById(`accent-band-${i}-wave-amp-field`)?.classList.toggle("hidden", e.target.value !== "wave");
         document.getElementById(`accent-band-${i}-wave-count-field`)?.classList.toggle("hidden", e.target.value !== "wave");
@@ -2820,7 +2850,7 @@ function renderAccentBandsUi(force = false) {
     card.appendChild(heightField);
     bindAccentBandSlider(heightSlider, i, "height", "float");
 
-    const colorField = document.createElement("label");
+    const colorField = document.createElement("div");
     colorField.className = "field field-color";
     colorField.innerHTML = `<span class="field-label">Band colour</span>`;
     const pickerHost = document.createElement("div");
@@ -2831,8 +2861,10 @@ function renderAccentBandsUi(force = false) {
     suggestBtn.className = "btn btn-ghost accent-band-suggest";
     suggestBtn.textContent = "Suggest contrast";
     suggestBtn.addEventListener("click", () => {
+      const target = state.accentBands[i];
+      if (!target) return;
       const suggested = suggestAccentColor(state.boxColor);
-      band.color = suggested;
+      target.color = suggested;
       syncFlatAccentFromBands(state);
       setColorPickerValue(pickerHost, suggested);
       applyAccentPreviewColors();
@@ -2844,7 +2876,9 @@ function renderAccentBandsUi(force = false) {
     mountColorPicker(pickerHost, {
       value: band.color || "#f97316",
       onChange: (hex) => {
-        band.color = hex;
+        const target = state.accentBands[i];
+        if (!target) return;
+        target.color = hex;
         syncFlatAccentFromBands(state);
         applyAccentPreviewColors();
         scheduleSaveSession();

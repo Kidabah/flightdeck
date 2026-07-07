@@ -33,6 +33,8 @@ function swatchButton(s, selectedHex) {
 /** Replace a host element's contents with a colour picker UI. */
 export function mountColorPicker(host, { value, onChange }) {
   if (!host) return;
+  host._colorPickerDocHandler?.();
+
   const current = normalizeHex(value);
   host.classList.add("color-picker-host");
   host.innerHTML = `
@@ -99,9 +101,11 @@ export function mountColorPicker(host, { value, onChange }) {
 
   native.addEventListener("input", (e) => pick(e.target.value));
 
-  document.addEventListener("click", (e) => {
+  function closeOnDocClick(e) {
     if (!host.contains(e.target)) closePanel();
-  });
+  }
+  document.addEventListener("click", closeOnDocClick);
+  host._colorPickerDocHandler = () => document.removeEventListener("click", closeOnDocClick);
 
   host._setColorPickerValue = setUi;
   setUi(current);
