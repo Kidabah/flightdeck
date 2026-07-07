@@ -2,7 +2,17 @@
 
 Latest GitHub state:
 - Branch: `main`
-- Latest commit: `5645a42` — b135 solid divider slab
+- Latest commit: (pending) — b136 watermark + SVG lid emboss
+
+### 2026-07-07 — b136: Bottom watermark + SVG lid emboss polish
+
+**What changed:**
+- **Bottom watermark** — every body 3MF/STL export gets a shallow 0.6mm deboss on the underside: chunky **MD** monogram + `MakerDeck · YYYY-MM-DD · #NNNN`. Mirrored for read-from-below. Toggle in top bar (**Watermark** checkbox, on by default). Serial counter in `localStorage` (`makerdeck-export-serial`).
+- **SVG stroke emboss** — SVG uploads now use native path extrusion (`buildEmbossSvg`) instead of rasterize-and-trace. **Mechanic badge sample** button on Label tab. Badge sample auto-sets Face → Lid top when lid is enabled.
+
+**Files:** `js/features.js?v=136`, `js/app.js?v=136`, `js/geometry.js?v=136`, `index.html` — header **b136**, `css/style.css`
+
+**Deploy:** Pi `git pull`. Hard refresh (Ctrl+F5). Backend restart optional (UI-only).
 
 ### 2026-07-07 — b135: Solid divider slab (0 open edges in Bambu)
 

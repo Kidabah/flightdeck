@@ -13,9 +13,9 @@ import {
   resolveJoinerDims,
   shapeSupportsDecor,
   shapeSupportsInsert,
-} from "./features.js?v=135";
+} from "./features.js?v=136";
 import earcut from "https://esm.sh/earcut@2.2.4";
-import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=135";
+import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=136";
 
 import { appendInsertShelfSlotsToBody } from "./insert-slots.js";
 
@@ -1786,6 +1786,7 @@ export const DEFAULTS = {
   embossHeight: 7,
   embossFace: "front",
   embossDeboss: false,
+  watermarkEnabled: true,
   embossSvgEnabled: false,
   embossSvgText: "",
   embossTraceEnabled: false,

@@ -42,7 +42,7 @@
 
       <div>
 
-        <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b135</span></div>
+        <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b136</span></div>
 
         <h1>Container Generator</h1>
 
@@ -87,6 +87,11 @@
             <option value="saucer" data-export-opt="saucer">STL saucer</option>
 
           </select>
+
+          <label class="field field-toggle export-watermark-toggle" title="Shallow bottom deboss: MD monogram, date, and print number">
+            <span class="field-label">Watermark</span>
+            <input type="checkbox" id="watermark-enabled" checked>
+          </label>
 
           <button type="button" id="btn-export-go" class="btn btn-primary">Download</button>
           <span id="export-status" class="export-status" aria-live="polite"></span>
@@ -984,6 +989,14 @@
 
               </label>
 
+              <div class="art-actions-bar hidden" id="field-svg-samples">
+
+                <button type="button" id="btn-load-badge-sample" class="btn btn-secondary">Mechanic badge sample</button>
+
+                <p class="field-hint">Line-art SVG — set Face to <strong>Lid top</strong> for lid emboss.</p>
+
+              </div>
+
               <div class="art-divider" aria-hidden="true"><span>or image</span></div>
 
               <div class="trace-drop" id="trace-drop">
@@ -1125,7 +1138,7 @@
 
 
 
-  <script type="module" src="js/app.js?v=135"></script>
+  <script type="module" src="js/app.js?v=136"></script>
 
 </body>
 

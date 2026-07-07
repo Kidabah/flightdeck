@@ -425,6 +425,16 @@ input[type="range"] {
   line-height: 1;
 }
 
+.export-watermark-toggle {
+  margin: 0;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.export-watermark-toggle .field-label {
+  color: var(--muted, #94a3b8);
+}
+
 .topbar-export {
   display: flex;
   gap: 8px;

@@ -875,6 +875,8 @@ function exteriorFacePlane(frame, meta) {
       return { onPlane: (w) => Math.abs(w[0] + b.ow2) <= eps, normal: [-1, 0, 0], to2D: (w) => [w[1], w[2]] };
     case "top":
       return { onPlane: (w) => Math.abs(w[2] - b.totalH) <= eps, normal: [0, 0, 1], to2D: (w) => [w[0], w[1]] };
+    case "bottom":
+      return { onPlane: (w) => Math.abs(w[2]) <= eps, normal: [0, 0, -1], to2D: (w) => [w[0], w[1]] };
     default:
       return null;
   }
@@ -1039,6 +1041,115 @@ export function buildWatertightExportMesh(bodyMesh, meta, params) {
     return buildWatertightTextEmbossExport(shell, meta, params) || bodyMesh;
   }
   return bodyMesh;
+}
+
+const WATERMARK_DEPTH = 0.6;
+
+function textMaskToShapeGroups(text, fontId, labelHMm, xOff, zOff) {
+  const raster = rasterTextMask(text, fontId, 640, "left");
+  if (!raster?.mask?.length) return [];
+  const { mask, width: maskW, height: maskH } = raster;
+  const glyph = glyphBoundsFromMask(mask, maskW, maskH);
+  if (!glyph) return [];
+  const scale = labelHMm / glyph.height;
+  if (!Number.isFinite(scale) || scale <= 0) return [];
+  const canvasXOff = xOff - glyph.left * scale;
+  const canvasZOff = zOff - (maskH - glyph.bottom) * scale;
+  const simplifyTol = Math.max(0.08, maskW / 1600);
+  const smoothPasses = labelHMm <= 4 ? 3 : 2;
+  const shapeGroups = prepareShapeGroups(
+    groupPolygonsWithHoles(maskToPolygons(mask, maskW, maskH)),
+    simplifyTol,
+    smoothPasses,
+  );
+  return shapeGroups.map((group) => ({
+    outer: group.outer.map(([px, py]) => [canvasXOff + px * scale, canvasZOff + (maskH - py) * scale]),
+    holes: group.holes.map((h) => h.map(([px, py]) => [canvasXOff + px * scale, canvasZOff + (maskH - py) * scale])),
+  }));
+}
+
+function monogramShapeGroups(frame) {
+  const inset = 6;
+  const monoH = 7;
+  const xOff = -frame.faceW / 2 + inset;
+  const zOff = -frame.faceH / 2 + inset;
+  const raster = rasterTextMask("MD", "impact", 320, "left");
+  if (!raster?.mask?.length) return [];
+  const { mask, width: maskW, height: maskH } = raster;
+  const glyph = glyphBoundsFromMask(mask, maskW, maskH);
+  if (!glyph) return [];
+  const scale = monoH / glyph.height;
+  const canvasXOff = xOff - glyph.left * scale;
+  const canvasZOff = zOff - (maskH - glyph.bottom) * scale;
+  const shapeGroups = prepareShapeGroups(
+    groupPolygonsWithHoles(maskToPolygons(mask, maskW, maskH)),
+    Math.max(0.1, maskW / 1400),
+    2,
+  );
+  return shapeGroups.map((group) => ({
+    outer: group.outer.map(([px, py]) => [canvasXOff + px * scale, canvasZOff + (maskH - py) * scale]),
+    holes: group.holes.map((h) => h.map(([px, py]) => [canvasXOff + px * scale, canvasZOff + (maskH - py) * scale])),
+  }));
+}
+
+function collectWatermarkShapeGroups(meta, stamp) {
+  const frame = getEmbossFaceFrame(meta, "bottom", null);
+  const inset = 6;
+  const monoH = 7;
+  const labelH = 3.2;
+  const monoGroups = monogramShapeGroups(frame);
+  let monoW = monoH * 1.35;
+  if (monoGroups.length) {
+    let minX = Infinity;
+    let maxX = -Infinity;
+    for (const group of monoGroups) {
+      for (const [px] of group.outer) {
+        minX = Math.min(minX, px);
+        maxX = Math.max(maxX, px);
+      }
+    }
+    if (Number.isFinite(minX)) monoW = maxX - minX;
+  }
+  const line = `MakerDeck · ${stamp.dateStr} · #${String(stamp.serial).padStart(4, "0")}`;
+  const textX = -frame.faceW / 2 + inset + monoW + 2.5;
+  const textZ = -frame.faceH / 2 + inset + (monoH - labelH) * 0.35;
+  const textGroups = textMaskToShapeGroups(line, "consolas", labelH, textX, textZ);
+  const shapeGroups = [...monoGroups, ...textGroups];
+  if (!shapeGroups.length) return null;
+  return { frame, shapeGroups, depth: WATERMARK_DEPTH };
+}
+
+function buildWatertightBottomDebossExport(shellMesh, meta, shapeGroups, depth = WATERMARK_DEPTH) {
+  const frame = getEmbossFaceFrame(meta, "bottom", null);
+  const positions = [];
+  const indices = [];
+  const stripped = removeExteriorWallTriangles(shellMesh, frame, meta);
+  appendMesh(positions, indices, stripped);
+
+  const fw = frame.faceW;
+  const fh = frame.faceH;
+  const outerRect = [[-fw / 2, -fh / 2], [fw / 2, -fh / 2], [fw / 2, fh / 2], [-fw / 2, fh / 2]];
+  const mapSurf = (px, py) => frame.mapPoint(px, py, 0);
+  const mapDeep = (px, py) => frame.mapPoint(px, py, -depth);
+  const flatCoord = (w) => flatCoordForFrame(frame, w);
+
+  triangulateMappedCap(positions, indices, mapSurf, flatCoord, outerRect, [], true);
+
+  for (const group of shapeGroups) {
+    extrudeShapeGroupBetween(positions, indices, group, mapSurf, mapDeep, flatCoord, "both");
+  }
+
+  return removeWallTrisUnderEmboss({ positions, indices }, frame, meta, shapeGroups);
+}
+
+/** Shallow bottom deboss — MD monogram + date/serial, mirrored for read-from-below. */
+export function applyExportWatermark(mesh, meta, params, stamp) {
+  if (!mesh || params.watermarkEnabled === false || !stamp) return mesh;
+  if (!shapeSupportsDecor(meta.shape)) return mesh;
+  const collected = collectWatermarkShapeGroups(meta, stamp);
+  if (!collected?.shapeGroups?.length) return mesh;
+  const shell = mesh.shellMesh || mesh;
+  return buildWatertightBottomDebossExport(shell, meta, collected.shapeGroups, collected.depth) || mesh;
 }
 
 /** Embossed label text — smooth stencil silhouettes (one solid per letter). */
@@ -1407,7 +1518,18 @@ export function shapeSupportsDecor(shape) {
  */
 export function getEmbossFaceFrame(meta, face, params = null) {
   const b = rectFeatureBounds(meta);
-  const useFace = ["front", "back", "left", "right", "top", "lid"].includes(face) ? face : "front";
+  const useFace = ["front", "back", "left", "right", "top", "lid", "bottom"].includes(face) ? face : "front";
+
+  if (useFace === "bottom") {
+    return {
+      face: "bottom",
+      faceW: b.outerW,
+      faceH: b.outerD,
+      centerZ: 0,
+      horizontal: true,
+      mapPoint: (px, py, offset) => [-px, -py, -offset],
+    };
+  }
 
   if (useFace === "top") {
     return {
@@ -1640,11 +1762,11 @@ export function buildLabelEmboss(meta, params, svgText = "", mode = "emboss") {
   if (hasText && !p.embossSvgEnabled) {
     return buildEmbossText(meta, p);
   }
+  if (p.embossSvgEnabled && svgText?.trim() && !hasTrace) {
+    return buildEmbossSvg(meta, p, svgText);
+  }
   if (hasTrace) {
     return buildEmbossBitmap(meta, p, p.embossTraceRects);
-  }
-  if (p.embossSvgEnabled && svgText?.trim()) {
-    return buildEmbossSvg(meta, p, svgText);
   }
   return null;
 }

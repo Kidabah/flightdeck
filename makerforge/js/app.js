@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=135";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance } from "./features.js?v=135";
-import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=135";
-import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=135";
-import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=135";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=136";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark } from "./features.js?v=136";
+import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=136";
+import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=136";
+import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=136";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
 
@@ -282,6 +282,7 @@ function buildParams() {
     embossHeight: state.embossHeight,
     embossFace: state.embossFace,
     embossDeboss: state.embossDeboss,
+    watermarkEnabled: state.watermarkEnabled !== false,
     embossSvgEnabled: state.embossSvgEnabled,
     embossSvgText: state.embossSvgText,
     embossTraceEnabled: state.embossTraceEnabled,
@@ -422,6 +423,22 @@ function hasSeparateTextExport(params = buildParams()) {
   return textHasInk(params.embossText) && !params.embossSvgEnabled && !params.embossDeboss;
 }
 
+const WATERMARK_SERIAL_KEY = "makerdeck-export-serial";
+
+function acquireWatermarkStamp() {
+  const raw = parseInt(localStorage.getItem(WATERMARK_SERIAL_KEY) || "0", 10);
+  const serial = (Number.isFinite(raw) ? raw : 0) + 1;
+  localStorage.setItem(WATERMARK_SERIAL_KEY, String(serial));
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  return { serial, dateStr };
+}
+
+function finalizeBodyExportMesh(mesh, meta, params, stamp) {
+  if (!stamp || params.watermarkEnabled === false) return mesh;
+  return applyExportWatermark(mesh, meta, params, stamp);
+}
+
 function mergeInsertIntoBodyExport() {
   return state.insertMount === "fixed" && state.insertEnabled;
 }
@@ -476,21 +493,26 @@ function weldedDividerExportLooksBroken(exportCache, params, triCount) {
   return false;
 }
 
-function resolveBodyExportMesh(exportCache, params, separateText) {
+function resolveBodyExportMesh(exportCache, params, separateText, stamp = null) {
   const shell = exportCache.shellMesh || exportCache;
   if (state.insertEnabled && state.insertMount === "fixed") {
     const welded = buildWatertightFixedDividerExport(exportCache, exportCache.meta, {
       ...params,
       fuseInsertToBody: true,
     });
-    if (welded?.indices?.length) return welded;
+    if (welded?.indices?.length) {
+      return finalizeBodyExportMesh(welded, exportCache.meta, params, stamp);
+    }
     throw new Error("Fixed divider export failed — use Width or Depth axis (not Height shelves).");
   }
-  if (separateText) return shell;
-  return buildWatertightExportMesh(exportCache, exportCache.meta, params);
+  if (separateText) {
+    return finalizeBodyExportMesh(shell, exportCache.meta, params, stamp);
+  }
+  const mesh = buildWatertightExportMesh(exportCache, exportCache.meta, params);
+  return finalizeBodyExportMesh(mesh, exportCache.meta, params, stamp);
 }
 
-function collectColoredExportParts(exportCache) {
+function collectColoredExportParts(exportCache, stamp = null) {
   if (!exportCache) return [];
   const params = buildParams();
   const parts = [];
@@ -498,7 +520,7 @@ function collectColoredExportParts(exportCache) {
   const separateText = hasSeparateTextExport(params) && params.embossFace !== "lid";
   const mergeInsertIntoBody = mergeInsertIntoBodyExport();
 
-  const bodyMesh = resolveBodyExportMesh(exportCache, params, separateText);
+  const bodyMesh = resolveBodyExportMesh(exportCache, params, separateText, stamp);
   const bodyClean = sanitizeMeshForStl(bodyMesh);
   if (bodyClean?.indices?.length) {
     parts.push({
@@ -1129,7 +1151,7 @@ async function restoreSession() {
       !payload.state.embossTraceEnabled
     ) {
       try {
-        await importSvgAsTrace(payload.state.embossSvgText, { fileName: "restored" });
+        await importSvgFile(payload.state.embossSvgText, { fileName: "restored" });
       } catch (err) {
         console.warn("Could not re-import saved SVG:", err);
       }
@@ -2046,6 +2068,43 @@ function storeTraceOnBox(result, { clearLabel = true, clearSvg = true } = {}) {
   return true;
 }
 
+async function importSvgDirectEmboss(svgText, { fileName = "" } = {}) {
+  if (!shapeSupportsDecor(decorUiShape())) {
+    throw new Error("Pick a box, rounded, or pencil shape first.");
+  }
+  state.embossText = "";
+  state.embossTraceEnabled = false;
+  state.embossTraceRects = null;
+  traceSourceCanvas = null;
+  traceLastResult = null;
+  traceLastSvg = "";
+  const previewWrap = document.getElementById("trace-preview-wrap");
+  if (previewWrap) previewWrap.classList.add("hidden");
+
+  state.embossSvgText = svgText;
+  state.embossSvgEnabled = true;
+  document.getElementById("emboss-svg-enabled").checked = true;
+
+  const meta = document.getElementById("trace-meta");
+  if (meta) {
+    meta.textContent = fileName
+      ? `SVG ${fileName} — stroke emboss (set Face to Lid top for lid art).`
+      : "SVG loaded — stroke emboss.";
+  }
+  updateDecorUi();
+  syncArtEditorUi();
+  updateTraceUi();
+  rebuild();
+  pushAppHistory();
+}
+
+async function importSvgFile(svgText, { fileName = "" } = {}) {
+  if (!shapeSupportsDecor(decorUiShape())) {
+    throw new Error("Pick a box, rounded, or pencil shape first.");
+  }
+  await importSvgDirectEmboss(svgText, { fileName });
+}
+
 async function importSvgAsTrace(svgText, { fileName = "" } = {}) {
   const canvas = await rasterizeSvgToCanvas(svgText);
   traceSourceCanvas = canvas;
@@ -2207,13 +2266,14 @@ function runExport(format) {
         }
         const exportCache = buildFreshExportCache();
         rebuild();
-        const parts = collectColoredExportParts(exportCache);
+        const params = buildParams();
+        const stamp = params.watermarkEnabled !== false ? acquireWatermarkStamp() : null;
+        const parts = collectColoredExportParts(exportCache, stamp);
         const triCount = parts.reduce((sum, part) => sum + Math.floor((part.mesh?.indices?.length || 0) / 3), 0);
         const expectDivider = state.insertEnabled && state.insertMount === "fixed";
         const shellTris = exportShellTriCount(exportCache);
         const status = document.getElementById("export-status");
-        if (expectDivider && weldedDividerExportLooksBroken(exportCache, buildParams(), triCount)) {
-          const params = buildParams();
+        if (expectDivider && weldedDividerExportLooksBroken(exportCache, params, triCount)) {
           const rounded = (params.cornerRadius || 0) > 0.5 || (params.vertexFillet || 0) > 0.5;
           const expectHint = rounded ? "~300+ triangles" : "~40 triangles (sharp corners)";
           const diag = `shell=${shellTris}, joiner=${state.joinerEnabled ? "on" : "off"}, axis=${state.insertAxis}, mount=${state.insertMount}, rounded=${rounded ? "yes" : "no"}`;
@@ -2228,7 +2288,8 @@ function runExport(format) {
           const kind = parts.length === 1 && parts[0].extruder === 1 ? "plain 3MF" : "colored 3MF";
           const open = parts.reduce((sum, p) => sum + (p.mesh?.openEdgeCount || 0), 0);
           const openNote = open > 0 ? ` — ${open} open edge(s), try Bambu Repair` : "";
-          status.textContent = `${kind} downloaded — ${triCount} triangles (${parts.map((p) => p.name).join(" + ")})${openNote}`;
+          const wmNote = stamp ? ` · watermark #${String(stamp.serial).padStart(4, "0")}` : "";
+          status.textContent = `${kind} downloaded — ${triCount} triangles (${parts.map((p) => p.name).join(" + ")})${openNote}${wmNote}`;
         }
         break;
       }
@@ -2237,10 +2298,12 @@ function runExport(format) {
         const exportCache = buildFreshExportCache();
         rebuild();
         const params = buildParams();
+        const stamp = params.watermarkEnabled !== false ? acquireWatermarkStamp() : null;
         let exportMesh = buildWatertightExportMesh(exportCache, exportCache.meta, params);
         if (state.insertEnabled && state.insertMount === "fixed") {
           exportMesh = buildWatertightFixedDividerExport(exportCache, exportCache.meta, { ...params, fuseInsertToBody: true }) || exportMesh;
         }
+        exportMesh = finalizeBodyExportMesh(exportMesh, exportCache.meta, params, stamp);
         downloadBlob(meshToStl(exportMesh, "makerdeck"), filenameFor(exportCache.meta, "body"));
         break;
       }
@@ -2377,6 +2440,9 @@ function updateDecorUi() {
   const textOn = textHasInk(state.embossText);
   document.getElementById("emboss-svg-enabled").checked = svgOn;
   document.getElementById("field-svg-file").classList.toggle("hidden", !svgOn);
+  document.getElementById("field-svg-samples").classList.toggle("hidden", !svgOn);
+  const wm = document.getElementById("watermark-enabled");
+  if (wm) wm.checked = state.watermarkEnabled !== false;
   document.getElementById("field-emboss-text").classList.toggle("hidden", svgOn);
   document.getElementById("field-text-color").classList.toggle("hidden", svgOn || !textOn);
   document.getElementById("field-text-align").classList.toggle("hidden", svgOn || !textOn);
@@ -2385,7 +2451,7 @@ function updateDecorUi() {
   document.getElementById("emboss-deboss").checked = !!state.embossDeboss;
   updateEmbossDebossUi();
   document.getElementById("field-emboss-height").classList.toggle("hidden", svgOn || traceOnBox);
-  document.getElementById("field-trace-size").classList.toggle("hidden", svgOn || (textOn && !traceOnBox));
+  document.getElementById("field-trace-size").classList.toggle("hidden", !(svgOn || traceOnBox));
   document.getElementById("emboss-font").value = state.embossFont || "inter";
   syncArtEditorUi();
   syncExportFormatOptions();
@@ -2409,7 +2475,10 @@ function syncEmbossFaceUi() {
       hint.textContent = "Top puts text on the box body only — Download lid won't include it. Pick Lid top for art on the lid STL.";
       hint.classList.remove("hidden");
     } else if (lidOn && face === "lid") {
-      hint.textContent = "Text will emboss on the lid STL (Download lid).";
+      const svgOn = state.embossSvgEnabled && !!state.embossSvgText?.trim();
+      hint.textContent = svgOn
+        ? "SVG stroke emboss on the lid STL (Download lid)."
+        : "Text will emboss on the lid STL (Download lid).";
       hint.classList.remove("hidden");
     } else {
       hint.textContent = "";
@@ -2962,7 +3031,7 @@ document.getElementById("svg-file").addEventListener("change", async (e) => {
   const reader = new FileReader();
   reader.onload = async () => {
     try {
-      await importSvgAsTrace(String(reader.result || ""), { fileName: file.name });
+      await importSvgFile(String(reader.result || ""), { fileName: file.name });
     } catch (err) {
       console.error("SVG import failed:", err);
       const meta = document.getElementById("trace-meta");
@@ -2971,6 +3040,29 @@ document.getElementById("svg-file").addEventListener("change", async (e) => {
   };
   reader.readAsText(file);
   e.target.value = "";
+});
+
+document.getElementById("btn-load-badge-sample")?.addEventListener("click", async () => {
+  try {
+    const res = await fetch("samples/mechanic-badge.svg");
+    if (!res.ok) throw new Error("Could not load mechanic badge sample");
+    await importSvgFile(await res.text(), { fileName: "mechanic-badge.svg" });
+    if (state.lidEnabled && shapeSupportsLid(state.shape)) {
+      state.embossFace = "lid";
+      document.getElementById("emboss-face").value = "lid";
+      syncEmbossFaceUi();
+      rebuild();
+    }
+  } catch (err) {
+    console.error("Badge sample failed:", err);
+    const meta = document.getElementById("trace-meta");
+    if (meta) meta.textContent = err.message || "Could not load badge sample";
+  }
+});
+
+document.getElementById("watermark-enabled")?.addEventListener("change", (e) => {
+  state.watermarkEnabled = e.target.checked;
+  scheduleSaveSession();
 });
 
 document.querySelectorAll("#field-joiner-hand .chip").forEach((chip) => {
