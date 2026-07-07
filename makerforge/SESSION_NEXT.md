@@ -2,7 +2,15 @@
 
 Latest GitHub state:
 - Branch: `main`
-- Latest commit: `bba68ac` — b137 design library
+- Latest commit: (pending) — b138 watermark fix
+
+### 2026-07-07 — b138: Watermark orientation fix
+
+**What changed:** Bottom watermark was double-mirrored (`-px, -py`) so text read backwards in Bambu. Now maps normally on the exterior underside — reads correctly on layer 1 / when you flip the part over.
+
+**Files:** `js/features.js?v=138`, cache-bust **b138**
+
+**Deploy:** Pi `git pull`. Hard refresh. Re-download export.
 
 ### 2026-07-07 — b137: Design library (auto-save on export)
 

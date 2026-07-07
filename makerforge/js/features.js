@@ -1142,7 +1142,7 @@ function buildWatertightBottomDebossExport(shellMesh, meta, shapeGroups, depth =
   return removeWallTrisUnderEmboss({ positions, indices }, frame, meta, shapeGroups);
 }
 
-/** Shallow bottom deboss — MD monogram + date/serial, mirrored for read-from-below. */
+/** Shallow bottom deboss — MD monogram + date/serial on the exterior underside. */
 export function applyExportWatermark(mesh, meta, params, stamp) {
   if (!mesh || params.watermarkEnabled === false || !stamp) return mesh;
   if (!shapeSupportsDecor(meta.shape)) return mesh;
@@ -1527,7 +1527,8 @@ export function getEmbossFaceFrame(meta, face, params = null) {
       faceH: b.outerD,
       centerZ: 0,
       horizontal: true,
-      mapPoint: (px, py, offset) => [-px, -py, -offset],
+      // Exterior bottom at z=0; inward deboss = +Z (offset negative).
+      mapPoint: (px, py, offset) => [px, py, -offset],
     };
   }
 
