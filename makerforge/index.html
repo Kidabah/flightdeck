@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Oswald:wght@700&family=Roboto+Mono:wght@700&family=Roboto:wght@700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=22">
+  <link rel="stylesheet" href="css/style.css?v=23">
 
   <script type="importmap">
 
@@ -42,7 +42,7 @@
 
       <div>
 
-        <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b140</span></div>
+        <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b141</span></div>
 
         <h1>Container Generator</h1>
 
@@ -597,99 +597,27 @@
 
             <section class="section" id="section-accent">
 
-              <h2>Accent colour</h2>
+              <h2>Accent colours</h2>
 
-              <p class="field-hint">Bundled in the <strong>Download 3MF</strong> export as its own filament slot — or use Download accent for a separate STL. Bands follow the box outline (rounded corners included) — on vases they wrap the profile, flutes and twist too.</p>
+              <p class="field-hint">Each band gets its own filament in <strong>Download 3MF</strong> — or use Download accent for a merged STL. Bands follow the box outline (rounded corners included) — on vases they wrap the profile, flutes and twist too.</p>
 
               <label class="field field-toggle">
 
-                <span class="field-label">Accent band</span>
+                <span class="field-label">Accent bands</span>
 
                 <input type="checkbox" id="accent-enabled">
 
               </label>
 
-              <label class="field hidden" id="field-accent-face">
+              <div id="accent-bands-wrap" class="hidden">
 
-                <span class="field-label">Face</span>
+                <div id="accent-bands"></div>
 
-                <select id="accent-face">
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-accent-add-band">+ Add band</button>
 
-                  <option value="rim">Rim band (all sides)</option>
+                <p class="field-hint" id="accent-band-limit-hint">Up to 2 accent colours — each is a separate filament slot in the 3MF.</p>
 
-                  <option value="front">Front panel only</option>
-
-                  <option value="floor">Floor stripe (outer base ring)</option>
-
-                </select>
-
-              </label>
-
-              <label class="field hidden" id="field-accent-pos">
-
-                <span class="field-label">Band position <span class="unit">%</span></span>
-
-                <input type="range" id="accent-pos" min="0" max="100" step="1" value="100" tabindex="-1">
-
-                <button type="button" class="value-edit" data-slider="accent-pos" data-key="accentPos" data-parse="float">100</button>
-
-              </label>
-
-              <p class="field-hint hidden" id="accent-pos-hint">Slide the band anywhere on the wall — 0% sits on the base, 50% is halfway, 100% hugs the rim. Type exact values (25, 33, 50) via the number button.</p>
-
-              <label class="field hidden" id="field-accent-edge">
-
-                <span class="field-label">Band edge</span>
-
-                <select id="accent-edge">
-
-                  <option value="straight">Straight ring</option>
-
-                  <option value="wave">Wavy (up-n-down)</option>
-
-                </select>
-
-              </label>
-
-              <label class="field hidden" id="field-accent-wave-amp">
-
-                <span class="field-label">Wave height <span class="unit">mm</span></span>
-
-                <input type="range" id="accent-wave-amp" min="0.5" max="10" step="0.5" value="3" tabindex="-1">
-
-                <button type="button" class="value-edit" data-slider="accent-wave-amp" data-key="accentWaveAmp" data-parse="float">3</button>
-
-              </label>
-
-              <label class="field hidden" id="field-accent-wave-count">
-
-                <span class="field-label">Waves around</span>
-
-                <input type="range" id="accent-wave-count" min="2" max="16" step="1" value="6" tabindex="-1">
-
-                <button type="button" class="value-edit" data-slider="accent-wave-count" data-key="accentWaveCount" data-parse="int">6</button>
-
-              </label>
-
-              <label class="field hidden" id="field-accent-height">
-
-                <span class="field-label">Band height</span>
-
-                <input type="range" id="accent-height" min="2" max="80" step="0.5" value="4" tabindex="-1">
-
-                <button type="button" class="value-edit" id="out-accent-height" data-slider="accent-height" data-key="accentHeight" data-parse="float">4</button>
-
-              </label>
-
-              <label class="field field-color hidden" id="field-accent-color">
-
-                <span class="field-label">Band colour</span>
-
-                <div id="accent-color-picker"></div>
-
-                <button type="button" class="btn btn-ghost" id="btn-accent-suggest">Suggest contrast</button>
-
-              </label>
+              </div>
 
             </section>
 
@@ -1158,7 +1086,7 @@
 
 
 
-  <script type="module" src="js/app.js?v=140"></script>
+  <script type="module" src="js/app.js?v=141"></script>
 
 </body>
 

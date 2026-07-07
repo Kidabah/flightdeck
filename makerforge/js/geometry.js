@@ -13,9 +13,10 @@ import {
   resolveJoinerDims,
   shapeSupportsDecor,
   shapeSupportsInsert,
-} from "./features.js?v=140";
+} from "./features.js?v=141";
 import earcut from "https://esm.sh/earcut@2.2.4";
-import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=140";
+import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=141";
+import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=141";
 
 import { appendInsertShelfSlotsToBody } from "./insert-slots.js";
 
@@ -1435,6 +1436,33 @@ function round1(n) {
   return Math.round(n * 10) / 10;
 }
 
+function buildAccentBandMeshes(params, meta, outerProfile, isVase) {
+  const bands = normalizeAccentBands(params);
+  if (!bands.length) return [];
+  const meshes = [];
+  for (const band of bands) {
+    const bandParams = bandToBuildParams(params, band);
+    let mesh;
+    let solidMesh = null;
+    if (isVase) {
+      mesh = buildVaseAccentMesh(bandParams);
+      centerPositions(mesh.positions, 0, 0);
+      solidMesh = buildVaseAccentMesh({ ...bandParams, accentSolid: true });
+      centerPositions(solidMesh.positions, 0, 0);
+    } else {
+      mesh = buildAccentMesh(meta, bandParams, outerProfile);
+      centerPositions(mesh.positions, 0, 0);
+    }
+    meshes.push({
+      mesh,
+      solidMesh,
+      color: band.color || "#f97316",
+      id: band.id,
+    });
+  }
+  return meshes;
+}
+
 export function buildContainer(params) {
   if (params.shape === "vase") {
     const vaseMesh = buildVase(params);
@@ -1445,24 +1473,14 @@ export function buildContainer(params) {
       saucerMesh = buildVaseSaucer(params);
       centerPositions(saucerMesh.positions, 0, 0);
     }
-    let accentMesh = null;
-    let accentSolidMesh = null;
-    if (params.accentEnabled) {
-      accentMesh = buildVaseAccentMesh(params);
-      centerPositions(accentMesh.positions, 0, 0);
-      // Printable variant: watertight ring that bites into the wall, for
-      // slicer export (the preview skin has zero thickness and can't print).
-      accentSolidMesh = buildVaseAccentMesh({ ...params, accentSolid: true });
-      centerPositions(accentSolidMesh.positions, 0, 0);
-    }
+    const accentMeshes = buildAccentBandMeshes(params, meta, null, true);
     return {
       positions: vaseMesh.positions,
       indices: vaseMesh.indices,
       shellMesh: vaseMesh,
       meta,
       totalH: meta.outer.h,
-      accentMesh,
-      accentSolidMesh,
+      accentMeshes,
       insertMesh: null,
       labelMesh: null,
       debossCutterMesh: null,
@@ -1521,7 +1539,7 @@ export function buildContainer(params) {
     appendInsertShelfSlotsToBody(mesh.positions, mesh.indices, resolved.meta, params);
   }
 
-  let accentMesh = null;
+  let accentMeshes = [];
   let insertMesh = null;
   let labelMesh = null;
   let debossCutterMesh = null;
@@ -1543,8 +1561,7 @@ export function buildContainer(params) {
       mesh = shellMesh;
     }
     if (params.accentEnabled) {
-      accentMesh = buildAccentMesh(resolved.meta, params, resolved.outer);
-      centerPositions(accentMesh.positions, 0, 0);
+      accentMeshes = buildAccentBandMeshes(params, resolved.meta, resolved.outer, false);
     }
     if (params.insertEnabled && shapeSupportsInsert(decorShape)) {
       insertMesh = buildDividerInsert(resolved.meta, params);
@@ -1562,7 +1579,7 @@ export function buildContainer(params) {
         embossDeboss: !!params.embossDeboss,
       },
       totalH: resolved.totalH,
-      accentMesh,
+      accentMeshes,
       insertMesh,
       labelMesh,
       debossCutterMesh,
@@ -1574,7 +1591,7 @@ export function buildContainer(params) {
     joinerHand: useJoiner ? (params.joinerHand === "right" ? "right" : "left") : undefined,
     joinerScale: useJoiner ? resolveJoinerDims(params, resolved.meta.outer.w, resolved.meta.outer.d).scale : undefined,
   };
-  return { ...mesh, shellMesh: mesh, meta, totalH: resolved.totalH, accentMesh, insertMesh: null, labelMesh };
+  return { ...mesh, shellMesh: mesh, meta, totalH: resolved.totalH, accentMeshes: [], insertMesh: null, labelMesh };
 }
 
 export function buildLid(params) {
@@ -1769,6 +1786,7 @@ export const DEFAULTS = {
   joinerClearance: 0.3,
   joinerAutoScale: true,
   accentEnabled: false,
+  accentBands: [],
   accentFace: "rim",
   accentPos: 100,
   accentHeight: 4,

@@ -1,12 +1,18 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=140";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark } from "./features.js?v=140";
-import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=140";
-import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=140";
-import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=140";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=141";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark } from "./features.js?v=141";
+import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=141";
+import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=141";
+import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=141";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
+import {
+  MAX_ACCENT_BANDS,
+  newAccentBand,
+  ensureStateAccentBands,
+  syncFlatAccentFromBands,
+} from "./accent-bands.js?v=141";
 import {
   libraryApiAvailable,
   capturePreviewThumbnail,
@@ -14,7 +20,7 @@ import {
   listLibraryDesigns,
   fetchDesignParams,
   deleteLibraryDesign,
-} from "./library.js?v=140";
+} from "./library.js?v=141";
 
 const SESSION_KEY = "makerdeck-session-v1";
 let saveSessionTimer = null;
@@ -39,7 +45,7 @@ const PRESET_CONFIG = {
 const state = { ...DEFAULTS, shape: "rect" };
 let meshCache = null;
 let lidCache = null;
-let accentCache = null;
+let accentPreviewParts = [];
 let insertCache = null;
 let debossCutterCache = null;
 let traceSourceCanvas = null;
@@ -174,8 +180,6 @@ let edgeLines = null;
 let lidMesh = null;
 let lidGuideLoops = [];
 let lidAnim = null;
-let accentMesh = null;
-let accentEdgeLines = null;
 let insertMesh = null;
 let insertEdgeLines = null;
 let labelMesh = null;
@@ -198,15 +202,17 @@ let lidFitOkTimer = null;
 
 const LID_FIT_OK_PHRASES = ["Good as gold!", "She'll be right!", "No worries, mate!"];
 
-const accentMaterial = new THREE.MeshStandardMaterial({
-  color: 0xf97316,
-  metalness: FILAMENT_PREVIEW.metalness,
-  roughness: FILAMENT_PREVIEW.roughness,
-  side: THREE.FrontSide,
-  polygonOffset: true,
-  polygonOffsetFactor: -4,
-  polygonOffsetUnits: -4,
-});
+function buildAccentMaterial(color) {
+  return new THREE.MeshStandardMaterial({
+    color: color || "#f97316",
+    metalness: FILAMENT_PREVIEW.metalness,
+    roughness: FILAMENT_PREVIEW.roughness,
+    side: THREE.FrontSide,
+    polygonOffset: true,
+    polygonOffsetFactor: -4,
+    polygonOffsetUnits: -4,
+  });
+}
 
 const insertMaterial = new THREE.MeshStandardMaterial({
   color: 0x38bdf8,
@@ -276,6 +282,7 @@ function buildParams() {
     joinerClearance: state.joinerClearance,
     joinerAutoScale: state.joinerAutoScale,
     accentEnabled: state.accentEnabled,
+    accentBands: state.accentEnabled ? state.accentBands.map((band) => ({ ...band })) : [],
     accentFace: state.accentFace,
     accentPos: state.accentPos,
     accentHeight: state.accentHeight,
@@ -400,14 +407,6 @@ function setupColorPickers() {
       scheduleSaveSession();
     },
   });
-  mountColorPicker(document.getElementById("accent-color-picker"), {
-    value: state.accentColor,
-    onChange: (hex) => {
-      state.accentColor = hex;
-      applyAccentPreviewColor(hex);
-      scheduleSaveSession();
-    },
-  });
   mountColorPicker(document.getElementById("text-color-picker"), {
     value: state.embossTextColor,
     onChange: (hex) => {
@@ -423,7 +422,6 @@ function setupColorPickers() {
 
 function syncColorPickersFromState() {
   setColorPickerValue(document.getElementById("box-color-picker"), state.boxColor || "#38bdf8");
-  setColorPickerValue(document.getElementById("accent-color-picker"), state.accentColor || "#f97316");
   setColorPickerValue(document.getElementById("text-color-picker"), state.embossTextColor || "#f8fafc");
 }
 
@@ -552,18 +550,17 @@ function collectColoredExportParts(exportCache, stamp = null) {
     }
   }
 
-  if (state.accentEnabled && exportCache.accentMesh) {
-    // Vases carry a printable solid variant (the preview skin has zero
-    // thickness and slicers reject it); boxes use the skin as-is.
-    const accentClean = sanitizeMeshForStl(exportCache.accentSolidMesh || exportCache.accentMesh);
-    if (accentClean?.indices?.length) {
+  if (state.accentEnabled && exportCache.accentMeshes?.length) {
+    exportCache.accentMeshes.forEach((part, i) => {
+      const accentClean = sanitizeMeshForStl(part.solidMesh || part.mesh);
+      if (!accentClean?.indices?.length) return;
       parts.push({
-        name: "Accent",
+        name: exportCache.accentMeshes.length > 1 ? `Accent ${i + 1}` : "Accent",
         mesh: accentClean,
-        color: state.accentColor || "#f97316",
+        color: part.color || state.accentBands[i]?.color || "#f97316",
         extruder: extruder++,
       });
-    }
+    });
   }
 
   if (state.insertEnabled && exportCache.insertMesh && !mergeInsertIntoBody) {
@@ -616,17 +613,16 @@ function collectColoredLidExportParts() {
 }
 
 function disposeAccentPreview() {
-  if (accentMesh) {
-    previewRoot.remove(accentMesh);
-    accentMesh.geometry.dispose();
-    accentMesh = null;
+  for (const part of accentPreviewParts) {
+    previewRoot.remove(part.mesh);
+    part.mesh.geometry.dispose();
+    if (part.edgeLines) {
+      previewRoot.remove(part.edgeLines);
+      part.edgeLines.geometry.dispose();
+    }
+    part.material.dispose();
   }
-  if (accentEdgeLines) {
-    previewRoot.remove(accentEdgeLines);
-    accentEdgeLines.geometry.dispose();
-    accentEdgeLines = null;
-  }
-  accentCache = null;
+  accentPreviewParts = [];
 }
 
 function disposeInsertPreview() {
@@ -796,9 +792,21 @@ function applyBoxPreviewColor() {
   applyInsertPreviewColor();
 }
 
-function applyAccentPreviewColor(hex = state.accentColor) {
-  accentMaterial.color.set(hex || "#f97316");
-  applyFilamentMaterial(accentMaterial);
+function applyAccentPreviewColors() {
+  accentPreviewParts.forEach((part, i) => {
+    const hex = state.accentBands[i]?.color || "#f97316";
+    part.material.color.set(hex);
+    applyFilamentMaterial(part.material);
+  });
+}
+
+function setAccentPreviewXRay(on) {
+  for (const part of accentPreviewParts) {
+    part.material.transparent = on;
+    part.material.opacity = on ? 0.35 : 1;
+    part.material.depthWrite = !on;
+    if (part.edgeLines) part.edgeLines.visible = on;
+  }
 }
 
 function setPreviewXRayMode(on) {
@@ -844,9 +852,7 @@ function setPreviewXRayMode(on) {
   labelMaterial.opacity = on ? 0.35 : 1;
   labelMaterial.depthWrite = !on;
 
-  accentMaterial.transparent = on;
-  accentMaterial.opacity = on ? 0.35 : 1;
-  accentMaterial.depthWrite = !on;
+  setAccentPreviewXRay(on);
 
   if (bodyMesh) {
     bodyMesh.castShadow = !on;
@@ -860,7 +866,6 @@ function setPreviewXRayMode(on) {
     edgeLines.renderOrder = on ? 2 : 3;
     edgeLines.visible = on;
   }
-  if (accentEdgeLines) accentEdgeLines.visible = on;
   if (insertEdgeLines) insertEdgeLines.visible = on;
   if (labelEdgeLines) labelEdgeLines.visible = on;
   syncLidGuideLoops(lidMesh?.position.y ?? lidRestY(), 0);
@@ -1140,6 +1145,7 @@ async function applySessionPayload(payload) {
     state.embossTraceRects = deserializeEmbossTraceRects(payload.state.embossTraceRects);
   }
   state.lidType = normalizeLidType(state.lidType, state.shape);
+  ensureStateAccentBands(state);
 
   if (payload.traceImage) {
     const loaded = await loadImageFromDataUrl(payload.traceImage);
@@ -1340,12 +1346,6 @@ function syncUiFromState() {
   syncSliderUi("joiner-width", "joinerWidth", { min: 5, max: 22, value: state.joinerWidth, parseKind: "float" });
   syncSliderUi("joiner-neck", "joinerNeck", { min: 3, max: 16, value: state.joinerNeck, parseKind: "float" });
   syncSliderUi("joiner-protrusion", "joinerProtrusion", { min: 2, max: 10, value: state.joinerProtrusion, parseKind: "float" });
-  syncSliderUi("accent-height", "accentHeight", { min: 2, max: 80, value: state.accentHeight, parseKind: "float" });
-  syncSliderUi("accent-pos", "accentPos", { min: 0, max: 100, value: state.accentPos ?? 100, parseKind: "float" });
-  syncSliderUi("accent-wave-amp", "accentWaveAmp", { min: 0.5, max: 10, value: state.accentWaveAmp ?? 3, parseKind: "float" });
-  syncSliderUi("accent-wave-count", "accentWaveCount", { min: 2, max: 16, value: state.accentWaveCount ?? 6 });
-  const accentEdgeSel = document.getElementById("accent-edge");
-  if (accentEdgeSel) accentEdgeSel.value = state.accentEdge || "straight";
   syncSliderUi("insert-thickness", "insertThickness", { min: 1.2, max: 4, value: state.insertThickness, parseKind: "float" });
   syncSliderUi("insert-clearance", "insertClearance", { min: 0.15, max: 1, value: state.insertClearance, parseKind: "float" });
   syncSliderUi("insert-slot-depth", "insertSlotDepth", { min: 1, max: 4, value: state.insertSlotDepth ?? 2, parseKind: "float" });
@@ -1459,20 +1459,29 @@ function rebuildMesh() {
     edgeLines = null;
   }
 
-  if (meshCache.accentMesh) {
-    accentCache = meshCache.accentMesh;
-    applyAccentPreviewColor();
-    const accentGeom = toBufferGeometry(THREE, accentCache);
-    accentMesh = new THREE.Mesh(accentGeom, accentMaterial);
-    accentMesh.castShadow = false;
-    accentMesh.receiveShadow = false;
-    accentMesh.renderOrder = 6;
-    previewRoot.add(accentMesh);
-    const accentEdges = new THREE.EdgesGeometry(accentGeom, 18);
-    accentEdgeLines = new THREE.LineSegments(accentEdges, edgeMaterial);
-    accentEdgeLines.renderOrder = 7;
-    accentEdgeLines.visible = previewXRayOn;
-    previewRoot.add(accentEdgeLines);
+  if (meshCache.accentMeshes?.length) {
+    meshCache.accentMeshes.forEach((part) => {
+      const mat = buildAccentMaterial(part.color);
+      const accentGeom = toBufferGeometry(THREE, part.mesh);
+      const mesh = new THREE.Mesh(accentGeom, mat);
+      mesh.castShadow = false;
+      mesh.receiveShadow = false;
+      mesh.renderOrder = 6;
+      previewRoot.add(mesh);
+      let edgeLines = null;
+      try {
+        const accentEdges = new THREE.EdgesGeometry(accentGeom, 18);
+        edgeLines = new THREE.LineSegments(accentEdges, edgeMaterial);
+        edgeLines.renderOrder = 7;
+        edgeLines.visible = previewXRayOn;
+        previewRoot.add(edgeLines);
+      } catch {
+        edgeLines = null;
+      }
+      accentPreviewParts.push({ mesh, edgeLines, material: mat });
+    });
+    applyAccentPreviewColors();
+    setAccentPreviewXRay(previewXRayOn);
   }
 
   if (meshCache.insertMesh) {
@@ -2517,8 +2526,14 @@ function runExport(format) {
         break;
       }
       case "accent": {
-        if (!state.accentEnabled || !accentCache) return;
-        downloadBlob(meshToStl(meshCache.accentSolidMesh || accentCache, "makerdeck-accent"), filenameFor(meshCache.meta, "accent"));
+        const accentParts = meshCache.accentMeshes || [];
+        if (!state.accentEnabled || !accentParts.length) return;
+        const exportMeshes = accentParts
+          .map((part) => sanitizeMeshForStl(part.solidMesh || part.mesh))
+          .filter((mesh) => mesh?.indices?.length);
+        if (!exportMeshes.length) return;
+        const merged = exportMeshes.length === 1 ? exportMeshes[0] : mergeMeshes(...exportMeshes);
+        downloadBlob(meshToStl(merged, "makerdeck-accent"), filenameFor(meshCache.meta, "accent"));
         break;
       }
       case "insert": {
@@ -2553,6 +2568,298 @@ function accentSupportedForShape() {
   return shapeSupportsDecor(decorUiShape()) || state.shape === "vase";
 }
 
+function accentBandsUiSignature() {
+  const isVase = state.shape === "vase" ? "v" : "b";
+  return `${state.accentBands.length}:${isVase}:${state.accentBands.map((b) => b.id).join(",")}`;
+}
+
+function bindAccentBandSlider(slider, bandIndex, key, parseKind = "float") {
+  const sync = () => {
+    const val = parseFieldValue(slider.value, parseKind);
+    if (!state.accentBands[bandIndex]) return;
+    state.accentBands[bandIndex][key] = val;
+    syncFlatAccentFromBands(state);
+    const out = slider.parentElement?.querySelector(".value-edit");
+    if (out) out.textContent = slider.value;
+    scheduleSaveSession();
+    rebuild();
+  };
+  slider.addEventListener("input", sync);
+  slider.addEventListener("change", () => pushAppHistory());
+}
+
+function syncAccentBandControlsFromState() {
+  const isVase = state.shape === "vase";
+  state.accentBands.forEach((band, i) => {
+    const setSlider = (suffix, val) => {
+      const slider = document.getElementById(`accent-band-${i}-${suffix}`);
+      const out = document.getElementById(`accent-band-${i}-${suffix}-out`);
+      if (!slider) return;
+      const display = formatSliderValue(val, slider.step);
+      slider.value = display;
+      if (out) out.textContent = display;
+    };
+    setSlider("pos", band.pos ?? 50);
+    setSlider("height", band.height ?? 4);
+    setSlider("wave-amp", band.waveAmp ?? 3);
+    setSlider("wave-count", band.waveCount ?? 6);
+    const edge = document.getElementById(`accent-band-${i}-edge`);
+    if (edge) edge.value = band.edge || "straight";
+    const face = document.getElementById(`accent-band-${i}-face`);
+    if (face) face.value = band.face || "rim";
+    setColorPickerValue(document.getElementById(`accent-band-${i}-color`), band.color || "#f97316");
+    const wavyOn = isVase && band.edge === "wave";
+    document.getElementById(`accent-band-${i}-wave-amp-field`)?.classList.toggle("hidden", !wavyOn);
+    document.getElementById(`accent-band-${i}-wave-count-field`)?.classList.toggle("hidden", !wavyOn);
+  });
+}
+
+function addAccentBand() {
+  if (state.accentBands.length >= MAX_ACCENT_BANDS) return;
+  const isVase = state.shape === "vase";
+  const first = state.accentBands[0];
+  const usedColors = new Set(state.accentBands.map((b) => b.color));
+  let color = suggestAccentColor(state.boxColor);
+  if (usedColors.has(color)) color = suggestAccentColor("#64748b");
+  state.accentBands.push(newAccentBand({
+    pos: isVase ? Math.max(5, Math.min(95, (first?.pos ?? 50) - 28)) : (first?.pos ?? 100),
+    height: first?.height ?? 4,
+    edge: isVase ? "straight" : (first?.edge ?? "straight"),
+    waveAmp: first?.waveAmp ?? 3,
+    waveCount: first?.waveCount ?? 6,
+    face: first?.face === "floor" ? "rim" : "floor",
+    color,
+  }));
+  syncFlatAccentFromBands(state);
+  scheduleSaveSession();
+  renderAccentBandsUi(true);
+  rebuild();
+  pushAppHistory();
+}
+
+function removeAccentBand(index) {
+  if (state.accentBands.length <= 1) return;
+  state.accentBands.splice(index, 1);
+  syncFlatAccentFromBands(state);
+  scheduleSaveSession();
+  renderAccentBandsUi(true);
+  rebuild();
+  pushAppHistory();
+}
+
+function renderAccentBandsUi(force = false) {
+  const wrap = document.getElementById("accent-bands-wrap");
+  const container = document.getElementById("accent-bands");
+  const addBtn = document.getElementById("btn-accent-add-band");
+  const accentOn = state.accentEnabled && accentSupportedForShape();
+  wrap?.classList.toggle("hidden", !accentOn);
+  if (!accentOn || !container) return;
+
+  ensureStateAccentBands(state);
+  const sig = accentBandsUiSignature();
+  if (!force && container.dataset.sig === sig) {
+    syncAccentBandControlsFromState();
+    if (addBtn) {
+      addBtn.disabled = state.accentBands.length >= MAX_ACCENT_BANDS;
+      addBtn.classList.toggle("hidden", state.accentBands.length >= MAX_ACCENT_BANDS);
+    }
+    return;
+  }
+  container.dataset.sig = sig;
+  container.innerHTML = "";
+
+  const isVase = state.shape === "vase";
+  state.accentBands.forEach((band, i) => {
+    if (isVase && band.face === "front") band.face = "rim";
+
+    const card = document.createElement("div");
+    card.className = "accent-band-card";
+    card.dataset.bandIndex = String(i);
+
+    const header = document.createElement("div");
+    header.className = "accent-band-card-header";
+    const title = document.createElement("h3");
+    title.className = "accent-band-card-title";
+    title.textContent = `Band ${i + 1}`;
+    header.appendChild(title);
+    if (state.accentBands.length > 1) {
+      const removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className = "btn btn-ghost btn-sm btn-accent-remove";
+      removeBtn.textContent = "Remove";
+      removeBtn.addEventListener("click", () => removeAccentBand(i));
+      header.appendChild(removeBtn);
+    }
+    card.appendChild(header);
+
+    if (!isVase) {
+      const faceField = document.createElement("label");
+      faceField.className = "field";
+      faceField.innerHTML = `<span class="field-label">Face</span>`;
+      const faceSel = document.createElement("select");
+      faceSel.id = `accent-band-${i}-face`;
+      faceSel.innerHTML = `
+        <option value="rim">Rim band (all sides)</option>
+        <option value="front">Front panel only</option>
+        <option value="floor">Floor stripe (outer base ring)</option>`;
+      faceSel.value = band.face || "rim";
+      faceSel.addEventListener("change", (e) => {
+        band.face = e.target.value;
+        syncFlatAccentFromBands(state);
+        scheduleSaveSession();
+        rebuild();
+      });
+      faceField.appendChild(faceSel);
+      card.appendChild(faceField);
+    }
+
+    if (isVase) {
+      const posField = document.createElement("label");
+      posField.className = "field";
+      posField.innerHTML = `<span class="field-label">Position <span class="unit">%</span></span>`;
+      const posSlider = document.createElement("input");
+      posSlider.type = "range";
+      posSlider.id = `accent-band-${i}-pos`;
+      posSlider.min = "0";
+      posSlider.max = "100";
+      posSlider.step = "1";
+      posSlider.value = String(band.pos ?? 50);
+      posSlider.tabIndex = -1;
+      const posOut = document.createElement("button");
+      posOut.type = "button";
+      posOut.className = "value-edit";
+      posOut.id = `accent-band-${i}-pos-out`;
+      posOut.textContent = String(band.pos ?? 50);
+      posField.append(posSlider, posOut);
+      card.appendChild(posField);
+      bindAccentBandSlider(posSlider, i, "pos", "float");
+
+      const edgeField = document.createElement("label");
+      edgeField.className = "field";
+      edgeField.innerHTML = `<span class="field-label">Band edge</span>`;
+      const edgeSel = document.createElement("select");
+      edgeSel.id = `accent-band-${i}-edge`;
+      edgeSel.innerHTML = `
+        <option value="straight">Straight ring</option>
+        <option value="wave">Wavy (up-n-down)</option>`;
+      edgeSel.value = band.edge || "straight";
+      edgeSel.addEventListener("change", (e) => {
+        band.edge = e.target.value;
+        syncFlatAccentFromBands(state);
+        document.getElementById(`accent-band-${i}-wave-amp-field`)?.classList.toggle("hidden", e.target.value !== "wave");
+        document.getElementById(`accent-band-${i}-wave-count-field`)?.classList.toggle("hidden", e.target.value !== "wave");
+        scheduleSaveSession();
+        rebuild();
+      });
+      edgeField.appendChild(edgeSel);
+      card.appendChild(edgeField);
+
+      const wavyOn = band.edge === "wave";
+      const waveAmpField = document.createElement("label");
+      waveAmpField.className = "field";
+      waveAmpField.id = `accent-band-${i}-wave-amp-field`;
+      waveAmpField.classList.toggle("hidden", !wavyOn);
+      waveAmpField.innerHTML = `<span class="field-label">Wave height <span class="unit">mm</span></span>`;
+      const waveAmpSlider = document.createElement("input");
+      waveAmpSlider.type = "range";
+      waveAmpSlider.id = `accent-band-${i}-wave-amp`;
+      waveAmpSlider.min = "0.5";
+      waveAmpSlider.max = "10";
+      waveAmpSlider.step = "0.5";
+      waveAmpSlider.value = String(band.waveAmp ?? 3);
+      waveAmpSlider.tabIndex = -1;
+      const waveAmpOut = document.createElement("button");
+      waveAmpOut.type = "button";
+      waveAmpOut.className = "value-edit";
+      waveAmpOut.id = `accent-band-${i}-wave-amp-out`;
+      waveAmpOut.textContent = String(band.waveAmp ?? 3);
+      waveAmpField.append(waveAmpSlider, waveAmpOut);
+      card.appendChild(waveAmpField);
+      bindAccentBandSlider(waveAmpSlider, i, "waveAmp", "float");
+
+      const waveCountField = document.createElement("label");
+      waveCountField.className = "field";
+      waveCountField.id = `accent-band-${i}-wave-count-field`;
+      waveCountField.classList.toggle("hidden", !wavyOn);
+      waveCountField.innerHTML = `<span class="field-label">Waves around</span>`;
+      const waveCountSlider = document.createElement("input");
+      waveCountSlider.type = "range";
+      waveCountSlider.id = `accent-band-${i}-wave-count`;
+      waveCountSlider.min = "2";
+      waveCountSlider.max = "16";
+      waveCountSlider.step = "1";
+      waveCountSlider.value = String(band.waveCount ?? 6);
+      waveCountSlider.tabIndex = -1;
+      const waveCountOut = document.createElement("button");
+      waveCountOut.type = "button";
+      waveCountOut.className = "value-edit";
+      waveCountOut.id = `accent-band-${i}-wave-count-out`;
+      waveCountOut.textContent = String(band.waveCount ?? 6);
+      waveCountField.append(waveCountSlider, waveCountOut);
+      card.appendChild(waveCountField);
+      bindAccentBandSlider(waveCountSlider, i, "waveCount", "int");
+    }
+
+    const heightField = document.createElement("label");
+    heightField.className = "field";
+    heightField.innerHTML = `<span class="field-label">Band height <span class="unit">mm</span></span>`;
+    const heightSlider = document.createElement("input");
+    heightSlider.type = "range";
+    heightSlider.id = `accent-band-${i}-height`;
+    heightSlider.min = "2";
+    heightSlider.max = "80";
+    heightSlider.step = "0.5";
+    heightSlider.value = String(band.height ?? 4);
+    heightSlider.tabIndex = -1;
+    const heightOut = document.createElement("button");
+    heightOut.type = "button";
+    heightOut.className = "value-edit";
+    heightOut.id = `accent-band-${i}-height-out`;
+    heightOut.textContent = String(band.height ?? 4);
+    heightField.append(heightSlider, heightOut);
+    card.appendChild(heightField);
+    bindAccentBandSlider(heightSlider, i, "height", "float");
+
+    const colorField = document.createElement("label");
+    colorField.className = "field field-color";
+    colorField.innerHTML = `<span class="field-label">Band colour</span>`;
+    const pickerHost = document.createElement("div");
+    pickerHost.id = `accent-band-${i}-color`;
+    colorField.appendChild(pickerHost);
+    const suggestBtn = document.createElement("button");
+    suggestBtn.type = "button";
+    suggestBtn.className = "btn btn-ghost accent-band-suggest";
+    suggestBtn.textContent = "Suggest contrast";
+    suggestBtn.addEventListener("click", () => {
+      const suggested = suggestAccentColor(state.boxColor);
+      band.color = suggested;
+      syncFlatAccentFromBands(state);
+      setColorPickerValue(pickerHost, suggested);
+      applyAccentPreviewColors();
+      scheduleSaveSession();
+    });
+    colorField.appendChild(suggestBtn);
+    card.appendChild(colorField);
+
+    mountColorPicker(pickerHost, {
+      value: band.color || "#f97316",
+      onChange: (hex) => {
+        band.color = hex;
+        syncFlatAccentFromBands(state);
+        applyAccentPreviewColors();
+        scheduleSaveSession();
+      },
+    });
+
+    container.appendChild(card);
+  });
+
+  if (addBtn) {
+    addBtn.disabled = state.accentBands.length >= MAX_ACCENT_BANDS;
+    addBtn.classList.toggle("hidden", state.accentBands.length >= MAX_ACCENT_BANDS);
+  }
+}
+
 function updateDecorUi() {
   const supported = shapeSupportsDecor(decorUiShape());
   const accentSupported = accentSupportedForShape();
@@ -2564,26 +2871,9 @@ function updateDecorUi() {
     tab.classList.toggle("tab--disabled", !tabOk);
   });
 
-  // Vases have no flat front face — accent bands wrap the whole revolve.
-  const isVase = state.shape === "vase";
-  const frontOpt = document.querySelector('#accent-face option[value="front"]');
-  if (frontOpt) frontOpt.hidden = isVase;
-  if (isVase && state.accentFace === "front") state.accentFace = "rim";
-
   const accentOn = state.accentEnabled && accentSupported;
   document.getElementById("accent-enabled").checked = accentOn;
-  // Vases use the position slider instead of the face select.
-  document.getElementById("field-accent-face").classList.toggle("hidden", !accentOn || isVase);
-  document.getElementById("field-accent-pos").classList.toggle("hidden", !accentOn || !isVase);
-  document.getElementById("accent-pos-hint")?.classList.toggle("hidden", !accentOn || !isVase);
-  const wavyOn = accentOn && isVase && state.accentEdge === "wave";
-  document.getElementById("field-accent-edge").classList.toggle("hidden", !accentOn || !isVase);
-  document.getElementById("field-accent-wave-amp").classList.toggle("hidden", !wavyOn);
-  document.getElementById("field-accent-wave-count").classList.toggle("hidden", !wavyOn);
-  document.getElementById("accent-edge").value = state.accentEdge || "straight";
-  document.getElementById("field-accent-height").classList.toggle("hidden", !accentOn);
-  document.getElementById("field-accent-color").classList.toggle("hidden", !accentOn);
-  document.getElementById("accent-face").value = state.accentFace;
+  renderAccentBandsUi();
 
   const insertOn = state.insertEnabled && insertSupported;
   document.getElementById("insert-enabled").checked = insertOn;
@@ -2885,15 +3175,6 @@ bindRange("lid-lip", "lidLipDepth", "float");
 bindRange("joiner-width", "joinerWidth", "float");
 bindRange("joiner-neck", "joinerNeck", "float");
 bindRange("joiner-protrusion", "joinerProtrusion", "float");
-bindRange("accent-height", "accentHeight", "float");
-bindRange("accent-pos", "accentPos", "float");
-bindRange("accent-wave-amp", "accentWaveAmp", "float");
-bindRange("accent-wave-count", "accentWaveCount");
-document.getElementById("accent-edge").addEventListener("change", (e) => {
-  state.accentEdge = e.target.value;
-  updateDecorUi();
-  rebuild();
-});
 bindRange("insert-thickness", "insertThickness", "float");
 bindRange("insert-clearance", "insertClearance", "float");
 bindRange("insert-slot-depth", "insertSlotDepth", "float");
@@ -2984,13 +3265,13 @@ document.getElementById("joiner-autoscale").addEventListener("change", (e) => {
 
 document.getElementById("accent-enabled").addEventListener("change", (e) => {
   state.accentEnabled = e.target.checked;
+  ensureStateAccentBands(state);
+  renderAccentBandsUi(true);
+  updateDecorUi();
   rebuild();
 });
 
-document.getElementById("accent-face").addEventListener("change", (e) => {
-  state.accentFace = e.target.value;
-  rebuild();
-});
+document.getElementById("btn-accent-add-band")?.addEventListener("click", () => addAccentBand());
 
 document.getElementById("insert-enabled").addEventListener("change", (e) => {
   state.insertEnabled = e.target.checked;
@@ -3027,14 +3308,6 @@ document.getElementById("insert-mount").addEventListener("change", (e) => {
     document.getElementById("insert-axis").value = "length";
   }
   rebuild();
-});
-
-document.getElementById("btn-accent-suggest")?.addEventListener("click", () => {
-  const suggested = suggestAccentColor(state.boxColor);
-  state.accentColor = suggested;
-  setColorPickerValue(document.getElementById("accent-color-picker"), suggested);
-  applyAccentPreviewColor(suggested);
-  scheduleSaveSession();
 });
 
 document.getElementById("honeycomb-enabled").addEventListener("change", (e) => {
@@ -3360,7 +3633,6 @@ syncSliderUi("lid-clearance", "lidClearance", { min: 0.15, max: 0.8, value: stat
 syncSliderUi("joiner-width", "joinerWidth", { min: 5, max: 22, value: state.joinerWidth, parseKind: "float" });
 syncSliderUi("joiner-neck", "joinerNeck", { min: 3, max: 16, value: state.joinerNeck, parseKind: "float" });
 syncSliderUi("joiner-protrusion", "joinerProtrusion", { min: 2, max: 10, value: state.joinerProtrusion, parseKind: "float" });
-syncSliderUi("accent-height", "accentHeight", { min: 2, max: 80, value: state.accentHeight, parseKind: "float" });
 syncSliderUi("insert-thickness", "insertThickness", { min: 1.2, max: 4, value: state.insertThickness, parseKind: "float" });
 syncSliderUi("insert-clearance", "insertClearance", { min: 0.15, max: 1, value: state.insertClearance, parseKind: "float" });
 syncSliderUi("emboss-depth", "embossDepth", { min: 0.3, max: 2, value: state.embossDepth, parseKind: "float" });
@@ -3395,6 +3667,7 @@ function scheduleDeferredRestoreTrace() {
 async function bootMakerDeck() {
   setupColorPickers();
   syncLidTypeSelect();
+  ensureStateAccentBands(state);
   const restored = await restoreSession();
   if (restored) {
     syncUiFromState();

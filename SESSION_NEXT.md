@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: see "2026-07-07 fix (MakerDeck boot + library thumbnails b140)" below
-- Refresh cachebust: MakerDeck `app.js?v=140`
+- Latest commit: see "2026-07-07 feature (MakerDeck multi-accent bands b141)" below
+- Refresh cachebust: MakerDeck `app.js?v=141`, `style.css?v=23`
+
+### 2026-07-07 feature (MakerDeck multi-accent bands b141)
+
+**Up to 2 stacked accent colour bands** (`makerforge/js/accent-bands.js`, `geometry.js`, `app.js`, `index.html`)
+
+- Accent tab now supports **Band 1 / Band 2** cards — each with its own position, height, edge (vase wavy), face (box), and colour picker. **+ Add band** capped at 2 accents (separate 3MF filament slots).
+- Legacy single-band sessions auto-migrate to `accentBands[]`. STL accent export merges all bands into one file.
+- Cache `app.js?v=141`, `style.css?v=23`. Hard refresh MakerDeck. UI-only — Pi pull sufficient (no backend restart).
 
 ### 2026-07-07 fix (MakerDeck boot + library thumbnails b140)
 

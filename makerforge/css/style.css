@@ -674,6 +674,60 @@ input[type="range"] {
   width: 100%;
 }
 
+#accent-bands-wrap {
+  margin-top: 0.5rem;
+}
+
+.accent-band-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 10px;
+  background: rgba(15, 23, 42, 0.35);
+}
+
+.accent-band-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.accent-band-card-title {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+
+.accent-band-card .field {
+  margin-bottom: 0.65rem;
+}
+
+.accent-band-card .btn-accent-remove {
+  font-size: 0.78rem;
+  padding: 0.2rem 0.55rem;
+}
+
+#btn-accent-add-band {
+  width: 100%;
+  margin-top: 0.25rem;
+}
+
+#btn-accent-add-band:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.accent-band-suggest {
+  grid-column: 1 / -1;
+  margin-top: 0.35rem;
+  width: 100%;
+  font-size: 0.82rem;
+}
+
 #btn-accent-suggest {
   grid-column: 1 / -1;
   margin-top: 0.35rem;
