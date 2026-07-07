@@ -2,7 +2,19 @@
 
 Latest GitHub state:
 - Branch: `main`
-- Latest commit: `8eab65f` — b131 fresh export geometry
+- Latest commit: (pending) — b132 welded divider manifold + export guard fix
+
+### 2026-07-07 — b132: Welded divider wall-strip + sharp-box export guard
+
+**What changed:** Chris's export alert showed `shell=28, joiner=off` and blocked at 40 triangles — looked like the old joiner-shell leak, but **28 tris is the correct sharp-corner rect shell** (4-point profile = ~28 faces). The `<200` triangle guard was a false positive; Bambu non-manifold on welded dividers was duplicate **inner-wall** faces where the panel meets the cavity walls (only the floor was being stripped before merge).
+- **`fixedDividerStripBoxes()`** — also strips inner-wall tris along welded divider edges (left/right/front/back contact patches), not just the floor footprint.
+- **`weldedDividerExportLooksBroken()`** — shape-aware guard: sharp boxes expect ~40 tris total; rounded/filleted boxes still require ~300+ (catches real joiner-shell leaks).
+- **`buildParams()`** — forces `joinerEnabled: false` when mount is Fixed; session restore does the same.
+- **Cache-bust** all MakerDeck modules to `v=132` (geometry.js was still importing `features.js?v=102`).
+
+**Files:** `js/features.js?v=132`, `js/geometry.js?v=132`, `js/app.js?v=132`, `js/3mf.js?v=132`, `js/stl.js?v=132`, `index.html` — header **b132**
+
+**Deploy:** Pi `git pull`. Hard refresh (Ctrl+Shift+R). Re-download 3MF — sharp-corner box should show **~40 triangles** and pass; Bambu should report **0 non-manifold edges**. Rounded-corner boxes still expect ~328 tris.
 
 ### 2026-07-07 — b131: Export builds fresh geometry (fixes stale 40-tri joiner cache)
 

@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=131";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance } from "./features.js?v=131";
-import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=131";
-import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=131";
-import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=131";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=132";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance } from "./features.js?v=132";
+import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=132";
+import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=132";
+import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=132";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
 
@@ -260,7 +260,7 @@ function buildParams() {
     lidLipDepth: state.lidLipDepth,
     lidType: normalizeLidType(state.lidType, state.shape),
     lidWall: state.wall,
-    joinerEnabled: state.joinerEnabled,
+    joinerEnabled: state.insertMount === "fixed" ? false : state.joinerEnabled,
     joinerHand: state.joinerHand,
     joinerWidth: state.joinerWidth,
     joinerNeck: state.joinerNeck,
@@ -455,6 +455,25 @@ function buildFreshExportCache() {
 
 function exportShellTriCount(exportCache) {
   return Math.floor(((exportCache?.shellMesh || exportCache)?.indices?.length || 0) / 3);
+}
+
+/** Sharp rect shells are ~28 tris; rounded profiles are 200+. Detect joiner/stale leaks only. */
+function weldedDividerExportLooksBroken(exportCache, params, triCount) {
+  const shellTris = exportShellTriCount(exportCache);
+  const corner = params.cornerRadius || 0;
+  const fillet = params.vertexFillet || 0;
+  const roundedProfile = corner > 0.5 || fillet > 0.5;
+
+  if (params.joinerEnabled) return true;
+
+  // Rounded boxes should never export a ~28-tri shell (that's the joiner-link path).
+  if (roundedProfile && shellTris < 100) return true;
+  if (roundedProfile && triCount < 180) return true;
+
+  // Sharp rect + one welded divider ≈ 28 + 12 = 40 tris — valid.
+  if (!roundedProfile) return shellTris < 20 || triCount < 32;
+
+  return false;
 }
 
 function resolveBodyExportMesh(exportCache, params, separateText) {
@@ -1091,6 +1110,8 @@ async function restoreSession() {
     if (payload.state.shape) state.shape = payload.state.shape;
     // Retired preset — restore old sessions as a plain rounded box.
     if (state.shape === "fatQuarters") state.shape = "rounded";
+    // Welded dividers and link joiner are mutually exclusive.
+    if (state.insertMount === "fixed") state.joinerEnabled = false;
     if (payload.state.embossTraceRects) {
       state.embossTraceRects = deserializeEmbossTraceRects(payload.state.embossTraceRects);
     }
@@ -2191,12 +2212,15 @@ function runExport(format) {
         const expectDivider = state.insertEnabled && state.insertMount === "fixed";
         const shellTris = exportShellTriCount(exportCache);
         const status = document.getElementById("export-status");
-        if (expectDivider && triCount < 200) {
-          const diag = `shell=${shellTris}, joiner=${state.joinerEnabled ? "on" : "off"}, axis=${state.insertAxis}, mount=${state.insertMount}`;
+        if (expectDivider && weldedDividerExportLooksBroken(exportCache, buildParams(), triCount)) {
+          const params = buildParams();
+          const rounded = (params.cornerRadius || 0) > 0.5 || (params.vertexFillet || 0) > 0.5;
+          const expectHint = rounded ? "~300+ triangles" : "~40 triangles (sharp corners)";
+          const diag = `shell=${shellTris}, joiner=${state.joinerEnabled ? "on" : "off"}, axis=${state.insertAxis}, mount=${state.insertMount}, rounded=${rounded ? "yes" : "no"}`;
           if (status) {
-            status.textContent = `Export blocked — only ${triCount} triangles (expected ~300+). ${diag}`;
+            status.textContent = `Export blocked — only ${triCount} triangles (expected ${expectHint}). ${diag}`;
           }
-          alert(`Export blocked: only ${triCount} triangles.\n\nFor a welded divider box you should see ~300+ triangles.\n\nCheck:\n• Insert → Mount = Fixed (welded)\n• Link tab → Joiner OFF\n• Divider axis = Width or Depth\n\nDiagnostic: ${diag}`);
+          alert(`Export blocked: only ${triCount} triangles.\n\nExpected ${expectHint} for this box.\n\nCheck:\n• Insert → Mount = Fixed (welded)\n• Link tab → Joiner OFF\n• Divider axis = Width or Depth\n\nDiagnostic: ${diag}`);
           return;
         }
         downloadBlob(buildColoredProject3mf(parts, baseModelName(exportCache.meta)), filename3mfFor(exportCache.meta, "body"));

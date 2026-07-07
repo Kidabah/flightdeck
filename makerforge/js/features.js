@@ -439,7 +439,7 @@ function triFullyInsideBox(positions, ia, ib, ic, box) {
   return true;
 }
 
-/** Body faces that duplicate welded divider contact patches (floor under panel). */
+/** Body faces that duplicate welded divider contact patches (floor + inner walls). */
 function fixedDividerStripBoxes(meta, params) {
   const b = rectFeatureBounds(meta);
   const panels = dividerPanelBoxes(meta, params);
@@ -452,6 +452,36 @@ function fixedDividerStripBoxes(meta, params) {
       y0: panel.y0 - pad, y1: panel.y1 + pad,
       z0: b.floor - pad, z1: b.floor + pad,
     });
+    // Welded panels span wall-to-wall — peel coplanar inner-wall tris or slicers
+    // see duplicate faces (non-manifold) along the panel edges.
+    if (panel.x0 <= -b.iw2 + pad) {
+      zones.push({
+        x0: -b.iw2 - pad, x1: -b.iw2 + pad,
+        y0: panel.y0 - pad, y1: panel.y1 + pad,
+        z0: panel.z0 - pad, z1: panel.z1 + pad,
+      });
+    }
+    if (panel.x1 >= b.iw2 - pad) {
+      zones.push({
+        x0: b.iw2 - pad, x1: b.iw2 + pad,
+        y0: panel.y0 - pad, y1: panel.y1 + pad,
+        z0: panel.z0 - pad, z1: panel.z1 + pad,
+      });
+    }
+    if (panel.y0 <= -b.id2 + pad) {
+      zones.push({
+        x0: panel.x0 - pad, x1: panel.x1 + pad,
+        y0: -b.id2 - pad, y1: -b.id2 + pad,
+        z0: panel.z0 - pad, z1: panel.z1 + pad,
+      });
+    }
+    if (panel.y1 >= b.id2 - pad) {
+      zones.push({
+        x0: panel.x0 - pad, x1: panel.x1 + pad,
+        y0: b.id2 - pad, y1: b.id2 + pad,
+        z0: panel.z0 - pad, z1: panel.z1 + pad,
+      });
+    }
   }
   return zones;
 }
