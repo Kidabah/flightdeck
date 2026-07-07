@@ -2,7 +2,7 @@
 
 Latest GitHub state:
 - Branch: `main`
-- Latest commit: *(pending — b131 fresh export geometry)*
+- Latest commit: `8eab65f` — b131 fresh export geometry
 
 ### 2026-07-07 — b131: Export builds fresh geometry (fixes stale 40-tri joiner cache)
 
