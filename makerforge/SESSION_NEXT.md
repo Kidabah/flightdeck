@@ -2,7 +2,18 @@
 
 Latest GitHub state:
 - Branch: `main`
-- Latest commit: (pending) — b134 from-scratch welded box mesh
+- Latest commit: (pending) — b135 solid divider slab
+
+### 2026-07-07 — b135: Solid divider slab (0 open edges in Bambu)
+
+**What changed:** Bambu still reported 8 open edges on b134 — divider panels were zero-thickness sheets (2 faces only), leaving open top edges at the cavity rim.
+- **`appendWeldedDividerSolid()`** — welded dividers are now a proper 6-face slab (floor, top cap, bay faces, wall-plane sides) with shared `WeldPool` verts.
+- Sharp + rounded export paths both use the solid slab.
+- Expect **~46 triangles** and **0 open edges** in Bambu without Repair.
+
+**Files:** `js/features.js?v=135`, `js/app.js?v=135`, `index.html` — header **b135**
+
+**Deploy:** Pi `git pull`. Hard refresh. Re-download for next print — current job on b134 is fine to finish.
 
 ### 2026-07-07 — b134: From-scratch watertight welded box mesh
 

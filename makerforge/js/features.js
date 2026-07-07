@@ -536,26 +536,32 @@ function isSharpRectProfile(meta, params) {
     && (params.vertexFillet || 0) <= 0.5;
 }
 
-/** Two cavity-facing faces per divider panel (not a solid 6-face box). */
+/** Solid welded divider slab — closes open top/side edges (not zero-thickness sheets). */
+function appendWeldedDividerSolid(pool, panel, axis) {
+  const { x0, x1, y0, y1, z0, z1 } = panel;
+  if (axis === "depth") {
+    pool.quad([x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0]);
+    pool.quad([x0, y0, z0], [x0, y0, z1], [x1, y0, z1], [x1, y0, z0]);
+    pool.quad([x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]);
+    pool.quad([x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]);
+    pool.quad([x0, y0, z0], [x0, y1, z0], [x0, y1, z1], [x0, y0, z1]);
+    pool.quad([x1, y1, z0], [x1, y0, z0], [x1, y0, z1], [x1, y1, z1]);
+  } else {
+    pool.quad([x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0]);
+    pool.quad([x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0]);
+    pool.quad([x1, y0, z0], [x1, y1, z0], [x1, y1, z1], [x1, y0, z1]);
+    pool.quad([x0, y0, z1], [x0, y1, z1], [x1, y1, z1], [x1, y0, z1]);
+    pool.quad([x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1]);
+    pool.quad([x0, y1, z0], [x0, y1, z1], [x1, y1, z1], [x1, y1, z0]);
+  }
+}
+
 function buildDividerPanelFaces(meta, params) {
   const panels = dividerPanelBoxes(meta, params);
   if (!panels?.length) return null;
-  const b = rectFeatureBounds(meta);
-  const { iw2, id2 } = b;
-  const zF = b.floor;
-  const zT = b.floor + b.cavityH;
   const axis = params.insertAxis === "depth" ? "depth" : "length";
   const pool = new WeldPool();
-
-  for (const panel of panels) {
-    if (axis === "depth") {
-      pool.quad([-iw2, panel.y0, zF], [-iw2, panel.y0, zT], [iw2, panel.y0, zT], [iw2, panel.y0, zF]);
-      pool.quad([-iw2, panel.y1, zF], [iw2, panel.y1, zF], [iw2, panel.y1, zT], [-iw2, panel.y1, zT]);
-    } else {
-      pool.quad([panel.x0, -id2, zF], [panel.x0, -id2, zT], [panel.x0, id2, zT], [panel.x0, id2, zF]);
-      pool.quad([panel.x1, -id2, zF], [panel.x1, id2, zF], [panel.x1, id2, zT], [panel.x1, -id2, zT]);
-    }
-  }
+  for (const panel of panels) appendWeldedDividerSolid(pool, panel, axis);
   return pool.mesh();
 }
 
@@ -599,8 +605,7 @@ function buildSharpWeldedBoxExport(meta, params) {
       if (panel.y0 > yCursor + 0.02) {
         pool.quad([-iw2, yCursor, zF], [iw2, yCursor, zF], [iw2, panel.y0, zF], [-iw2, panel.y0, zF]);
       }
-      pool.quad([-iw2, panel.y0, zF], [-iw2, panel.y0, zT], [iw2, panel.y0, zT], [iw2, panel.y0, zF]);
-      pool.quad([-iw2, panel.y1, zF], [iw2, panel.y1, zF], [iw2, panel.y1, zT], [-iw2, panel.y1, zT]);
+      appendWeldedDividerSolid(pool, panel, "depth");
       yCursor = panel.y1;
     }
     if (id2 > yCursor + 0.02) {
@@ -620,8 +625,7 @@ function buildSharpWeldedBoxExport(meta, params) {
       if (panel.x0 > xCursor + 0.02) {
         pool.quad([xCursor, -id2, zF], [panel.x0, -id2, zF], [panel.x0, id2, zF], [xCursor, id2, zF]);
       }
-      pool.quad([panel.x0, -id2, zF], [panel.x0, -id2, zT], [panel.x0, id2, zT], [panel.x0, id2, zF]);
-      pool.quad([panel.x1, -id2, zF], [panel.x1, id2, zF], [panel.x1, id2, zT], [panel.x1, -id2, zT]);
+      appendWeldedDividerSolid(pool, panel, "length");
       xCursor = panel.x1;
     }
     if (iw2 > xCursor + 0.02) {
