@@ -1,7 +1,7 @@
 /**
  * Multi-part 3MF project export for Orca / Bambu Studio (filament colours per object).
  */
-import { sanitizeMeshForStl, baseModelName } from "./stl.js?v=76";
+import { sanitizeMeshForStl, baseModelName } from "./stl.js";
 
 function escapeXml(s) {
   return String(s)
@@ -132,8 +132,8 @@ function paintCodeForExtruder(extruder) {
   return PAINT_COLOR_CODES[Math.max(0, Math.min(15, (extruder || 1) - 1))];
 }
 
-function meshTo3mfResources(mesh, objectId, name, extruder, { resanitize = false } = {}) {
-  const clean = resanitize ? sanitizeMeshForStl(mesh) : mesh;
+function meshTo3mfResources(mesh, objectId, name, extruder) {
+  const clean = sanitizeMeshForStl(mesh);
   if (!clean?.positions?.length || !clean?.indices?.length) return null;
 
   const paint = paintCodeForExtruder(extruder);
@@ -230,7 +230,7 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck") {
   const modelParts = [];
   let objectId = 1;
   for (const part of usable) {
-    const built = meshTo3mfResources(part.mesh, objectId, part.name, part.extruder || 1, { resanitize: false });
+    const built = meshTo3mfResources(part.mesh, objectId, part.name, part.extruder || 1);
     if (!built) continue;
     objectXml.push(built.objectXml);
     modelParts.push({ id: built.id, name: built.name, extruder: built.extruder });
@@ -238,9 +238,6 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck") {
   }
   if (!objectXml.length) throw new Error("No valid mesh parts to export");
 
-  // Single mesh — reference it directly. A one-child assembly shell has no
-  // triangles and Bambu Studio validates that empty wrapper (40-ish tris,
-  // non-manifold errors) instead of the real Body geometry.
   const singlePart = modelParts.length === 1;
   let buildObjectId;
 

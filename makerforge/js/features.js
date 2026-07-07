@@ -456,11 +456,11 @@ function fixedDividerStripBoxes(meta, params) {
   return zones;
 }
 
-/** Fixed divider export — strip body faces inside the welded panel, then merge. */
+/** Fixed divider export — strip duplicate floor tris, merge solid panel. */
 export function buildWatertightFixedDividerExport(bodyMesh, meta, params) {
   if (!params?.fuseInsertToBody) return null;
-  const boxes = dividerPanelBoxes(meta, params);
-  if (!boxes?.length) return null;
+  const panels = dividerPanelBoxes(meta, params);
+  if (!panels?.length) return null;
   const insert = buildDividerInsert(meta, params);
   if (!insert?.indices?.length) return null;
 
@@ -468,16 +468,16 @@ export function buildWatertightFixedDividerExport(bodyMesh, meta, params) {
   if (!shell?.indices?.length) return insert;
 
   const stripZones = fixedDividerStripBoxes(meta, params);
-  const positions = shell.positions;
+  const positions = shell.positions.slice();
   const cleanIdx = [];
   for (let t = 0; t < shell.indices.length; t += 3) {
     const ia = shell.indices[t];
     const ib = shell.indices[t + 1];
     const ic = shell.indices[t + 2];
-    if (stripZones.some((box) => triFullyInsideBox(positions, ia, ib, ic, box))) continue;
+    if (stripZones.some((box) => triFullyInsideBox(shell.positions, ia, ib, ic, box))) continue;
     cleanIdx.push(ia, ib, ic);
   }
-  return mergeMeshes({ positions: positions.slice(), indices: cleanIdx }, insert);
+  return mergeMeshes({ positions, indices: cleanIdx }, insert);
 }
 
 /** Removable flat divider panels — separate print part(s), splits cavity into equal bays. */

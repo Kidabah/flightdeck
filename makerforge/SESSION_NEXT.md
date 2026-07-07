@@ -4,6 +4,18 @@ Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
 - `main` commit: see b114 entry below
 
+### 2026-07-07 — b126: 3MF single-part export fix (Bambu 40 tris / non-manifold)
+
+**What changed:** Chris's fixed-divider box 3MF still showed ~40 triangles and 8 non-manifold edges in Bambu after b125.
+- **Root cause:** single-part 3MF exports wrapped the real Body mesh in an empty assembly object (`<components>` only, 0 triangles). Bambu validates that shell as "makerdeck" instead of the 328-triangle Body geometry.
+- **Fix:** when only one coloured part is exported, reference the mesh object directly — no assembly wrapper. Multi-part exports (body + accent/text) still use the assembly pattern.
+- 3MF object name now uses the proper model name (`box-300x275x130mm`) instead of generic "makerdeck".
+- Skip redundant second sanitize pass when writing 3MF (parts are already cleaned).
+
+**Files:** `js/3mf.js?v=126`, `js/app.js?v=126`, `index.html` — header **b126**
+
+**Deploy:** Pi `git pull`. Hard refresh (Ctrl+Shift+R). Re-download 3MF — Bambu should show ~328 triangles and 0 non-manifold edges.
+
 ### 2026-07-07 — b125: Manifold STL export (welded dividers + sanitize)
 
 **What changed:** Bambu Studio flagged Chris's 300×270×130 box with a fixed divider as non-manifold (4 bad edges). Root cause: welded dividers were naïvely merged into the body shell, leaving duplicate internal faces where the panel overlaps the cavity floor and walls.
