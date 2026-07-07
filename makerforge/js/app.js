@@ -4,7 +4,7 @@ import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance } from "./features.js?v=102";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=73";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=76";
-import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=128";
+import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=129";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
 
@@ -423,7 +423,9 @@ function hasSeparateTextExport(params = buildParams()) {
 }
 
 function mergeInsertIntoBodyExport() {
-  return state.insertMount === "fixed" && state.insertEnabled && insertCache;
+  return state.insertMount === "fixed"
+    && state.insertEnabled
+    && !!(insertCache || meshCache?.insertMesh);
 }
 
 function resolveBodyExportMesh(params, separateText) {
@@ -2147,9 +2149,16 @@ function runExport(format) {
         rebuild();
         const parts = collectColoredExportParts();
         const triCount = parts.reduce((sum, part) => sum + Math.floor((part.mesh?.indices?.length || 0) / 3), 0);
+        const expectDivider = state.insertEnabled && state.insertMount === "fixed";
+        if (expectDivider && triCount < 200) {
+          const status = document.getElementById("export-status");
+          if (status) {
+            status.textContent = `Warning: only ${triCount} triangles exported — fixed divider may be missing. Check Link tab (joiner off?) and Insert mount = Fixed (welded), then download again.`;
+          }
+        }
         downloadBlob(buildColoredProject3mf(parts, baseModelName(meshCache.meta)), filename3mfFor(meshCache.meta, "body"));
         const status = document.getElementById("export-status");
-        if (status) {
+        if (status && !(expectDivider && triCount < 200)) {
           const kind = parts.length === 1 && parts[0].extruder === 1 ? "plain 3MF" : "colored 3MF";
           status.textContent = `${kind} downloaded — ${triCount} triangles (${parts.map((p) => p.name).join(" + ")})`;
         }

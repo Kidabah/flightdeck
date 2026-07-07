@@ -2,7 +2,15 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: `52288df` — b128 plain core 3MF for single-colour body
+- Latest commit: *(pending — b129 export guard)*
+
+### 2026-07-07 — b129: Export guard after repaired.3mf diff
+
+**What changed:** Chris shared Bambu-repaired 3MF; diff showed the original MakerDeck file only had **40 triangles** (`MakerDeck-Triangles=40`), not 328 misread by Bambu. Bambu split that into a 28-tri shell + 12-tri divider panel. 40-tri export matches the **joiner/link shell path** when the welded divider is not merged.
+- Export merge check now falls back to `meshCache.insertMesh` if preview insert cache is stale.
+- 3MF download warns when fixed divider is enabled but export has &lt;200 triangles (likely joiner on or mount not Fixed welded).
+
+**Files:** `js/app.js?v=129`, `index.html` — header **b129**
 
 ### 2026-07-07 — b128: Plain 3MF for single-colour body (Bambu still 40 tris)
 
