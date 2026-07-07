@@ -2,7 +2,7 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: *(pending — b127 3MF model_settings fix)*
+- Latest commit: `f04b891` — b127 3MF model_settings single-mesh fix
 
 ### 2026-07-07 — b127: 3MF model_settings single-mesh fix (Bambu still 40 tris)
 
