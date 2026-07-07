@@ -2,7 +2,19 @@
 
 Latest GitHub state:
 - Branch: `main`
-- Latest commit: `638f599` — b132 welded divider manifold + export guard fix
+- Latest commit: (pending) — b133 segmented welded divider walls
+
+### 2026-07-07 — b133: Segmented welded divider walls (manifold fix)
+
+**What changed:** Chris's sharp-corner welded divider box exported (~40 tris) but Bambu still reported **8 non-manifold edges** at top corners + divider/wall junctions. Partial face stripping left T-junctions; divider and shell didn't share vertices.
+- **Segmented inner walls** — for sharp rect profiles, remove full-height inner wall quads and rebuild only the wall bands above/below the divider slot; divider panel fills the gap with shared corners via `mergeMeshesSnap()`.
+- **Welded divider height** — fixed mount panels now run floor-to-cavity-top (no lid-clearance gap that left open side walls).
+- **Rounded fallback** — curved inner walls still use coplanar strip + snap merge.
+- Export sanitize vertex weld tightened to **0.05 mm**; download status shows open-edge count if any remain.
+
+**Files:** `js/features.js?v=133`, `js/stl.js?v=133`, `js/app.js?v=133`, `js/geometry.js?v=133`, `js/3mf.js?v=133`, `index.html` — header **b133**
+
+**Deploy:** Pi `git pull`. Hard refresh (Ctrl+Shift+R). Re-download 3MF — Bambu should show **0 non-manifold edges** without Repair.
 
 ### 2026-07-07 — b132: Welded divider wall-strip + sharp-box export guard
 

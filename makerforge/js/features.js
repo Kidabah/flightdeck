@@ -77,6 +77,37 @@ export function mergeMeshes(...parts) {
   return { positions, indices };
 }
 
+/** Merge meshes with vertex snapping — welded dividers must share shell corner verts. */
+export function mergeMeshesSnap(...parts) {
+  const eps = 0.015;
+  const positions = [];
+  const indices = [];
+  const table = new Map();
+
+  function vertexIndex(x, y, z) {
+    const k = `${Math.round(x / eps)}|${Math.round(y / eps)}|${Math.round(z / eps)}`;
+    let idx = table.get(k);
+    if (idx === undefined) {
+      idx = positions.length / 3;
+      positions.push(x, y, z);
+      table.set(k, idx);
+    }
+    return idx;
+  }
+
+  for (const part of parts) {
+    if (!part?.positions?.length || !part?.indices?.length) continue;
+    const remap = new Array(part.positions.length / 3);
+    for (let v = 0; v < part.positions.length; v += 3) {
+      remap[v / 3] = vertexIndex(part.positions[v], part.positions[v + 1], part.positions[v + 2]);
+    }
+    for (let t = 0; t < part.indices.length; t++) {
+      indices.push(remap[part.indices[t]]);
+    }
+  }
+  return { positions, indices };
+}
+
 export function rectFeatureBounds(meta) {
   const { inner, outer } = meta;
   return {
@@ -100,6 +131,15 @@ function wallBand(outPos, outIdx, axis, wallCoord, t0, t1, z0, z1) {
   const a2 = axis === "y" ? vec3(t1, wallCoord, z1) : vec3(wallCoord, t1, z1);
   const a3 = axis === "y" ? vec3(t0, wallCoord, z1) : vec3(wallCoord, t0, z1);
   pushQuad(outPos, outIdx, a0, a1, a2, a3);
+}
+
+/** Inner cavity wall — winding matches shellFromProfiles outward=false. */
+function innerWallBand(outPos, outIdx, axis, wallCoord, t0, t1, z0, z1) {
+  const a0 = axis === "y" ? vec3(t0, wallCoord, z0) : vec3(wallCoord, t0, z0);
+  const a1 = axis === "y" ? vec3(t1, wallCoord, z0) : vec3(wallCoord, t1, z0);
+  const a2 = axis === "y" ? vec3(t1, wallCoord, z1) : vec3(wallCoord, t1, z1);
+  const a3 = axis === "y" ? vec3(t0, wallCoord, z1) : vec3(wallCoord, t0, z1);
+  pushQuad(outPos, outIdx, a0, a3, a2, a1);
 }
 
 function profileIsValid(profile) {
@@ -405,7 +445,9 @@ function dividerPanelBoxes(meta, params) {
 
   const weld = 0;
   const z0 = fuseToBody ? b.floor : b.floor + bodyGap;
-  const z1 = b.floor + b.cavityH - topClear - (fuseToBody ? 0 : bodyGap);
+  const z1 = fuseToBody
+    ? b.floor + b.cavityH
+    : b.floor + b.cavityH - topClear - bodyGap;
   if (z1 - z0 < 4) return null;
 
   for (let i = 1; i <= count; i++) {
@@ -439,54 +481,133 @@ function triFullyInsideBox(positions, ia, ib, ic, box) {
   return true;
 }
 
-/** Body faces that duplicate welded divider contact patches (floor + inner walls). */
-function fixedDividerStripBoxes(meta, params) {
+function wallSegments(span0, span1, gaps) {
+  const segs = [];
+  let t = span0;
+  const sorted = (gaps || []).slice().sort((a, b) => a[0] - b[0]);
+  for (const [g0, g1] of sorted) {
+    if (g0 > t + 0.02) segs.push([t, g0]);
+    t = Math.max(t, g1);
+  }
+  if (span1 > t + 0.02) segs.push([t, span1]);
+  return segs;
+}
+
+function computeDividerWallGaps(panels, params) {
+  const axis = params.insertAxis === "depth" ? "depth" : "length";
+  const gaps = { left: [], right: [], front: [], back: [] };
+  for (const panel of panels) {
+    if (axis === "depth") {
+      gaps.left.push([panel.y0, panel.y1]);
+      gaps.right.push([panel.y0, panel.y1]);
+    } else {
+      gaps.front.push([panel.x0, panel.x1]);
+      gaps.back.push([panel.x0, panel.x1]);
+    }
+  }
+  return gaps;
+}
+
+function classifyInnerWallTri(positions, ia, ib, ic, b, eps = 0.08) {
+  const verts = [ia, ib, ic].map((v) => [
+    positions[v * 3], positions[v * 3 + 1], positions[v * 3 + 2],
+  ]);
+  const minZ = Math.min(...verts.map((v) => v[2]));
+  const maxZ = Math.max(...verts.map((v) => v[2]));
+  if (maxZ < b.floor - eps || minZ > b.floor + b.cavityH + eps) return null;
+
+  const cx = (verts[0][0] + verts[1][0] + verts[2][0]) / 3;
+  const cy = (verts[0][1] + verts[1][1] + verts[2][1]) / 3;
+  if (Math.abs(cx + b.iw2) < eps) return "left";
+  if (Math.abs(cx - b.iw2) < eps) return "right";
+  if (Math.abs(cy + b.id2) < eps) return "back";
+  if (Math.abs(cy - b.id2) < eps) return "front";
+  return null;
+}
+
+function fixedDividerFloorStripBoxes(meta, params) {
   const b = rectFeatureBounds(meta);
   const panels = dividerPanelBoxes(meta, params);
   if (!panels?.length || !params?.fuseInsertToBody) return [];
   const pad = 0.08;
-  const zones = [];
+  return panels.map((panel) => ({
+    x0: panel.x0 - pad, x1: panel.x1 + pad,
+    y0: panel.y0 - pad, y1: panel.y1 + pad,
+    z0: b.floor - pad, z1: b.floor + pad,
+  }));
+}
+
+function appendSegmentedInnerWalls(outPos, outIdx, b, gaps, z0, z1) {
+  const { iw2, id2 } = b;
+  for (const [ya, yb] of wallSegments(-id2, id2, gaps.left)) {
+    innerWallBand(outPos, outIdx, "x", -iw2, ya, yb, z0, z1);
+  }
+  for (const [ya, yb] of wallSegments(-id2, id2, gaps.right)) {
+    innerWallBand(outPos, outIdx, "x", iw2, ya, yb, z0, z1);
+  }
+  for (const [xa, xb] of wallSegments(-iw2, iw2, gaps.back)) {
+    innerWallBand(outPos, outIdx, "y", -id2, xa, xb, z0, z1);
+  }
+  for (const [xa, xb] of wallSegments(-iw2, iw2, gaps.front)) {
+    innerWallBand(outPos, outIdx, "y", id2, xa, xb, z0, z1);
+  }
+}
+
+function isSharpRectProfile(meta, params) {
+  return (meta.shape === "rect" || meta.shape === "rounded")
+    && (params.cornerRadius || 0) <= 0.5
+    && (params.vertexFillet || 0) <= 0.5;
+}
+
+/** Rounded/filleted shells — peel coplanar contact patches, snap-merge divider. */
+function buildWatertightFixedDividerExportStrip(shell, meta, params, insert) {
+  const b = rectFeatureBounds(meta);
+  const panels = dividerPanelBoxes(meta, params);
+  const pad = 0.08;
+  const zones = fixedDividerFloorStripBoxes(meta, params);
   for (const panel of panels) {
-    zones.push({
-      x0: panel.x0 - pad, x1: panel.x1 + pad,
-      y0: panel.y0 - pad, y1: panel.y1 + pad,
-      z0: b.floor - pad, z1: b.floor + pad,
-    });
-    // Welded panels span wall-to-wall — peel coplanar inner-wall tris or slicers
-    // see duplicate faces (non-manifold) along the panel edges.
     if (panel.x0 <= -b.iw2 + pad) {
       zones.push({
         x0: -b.iw2 - pad, x1: -b.iw2 + pad,
         y0: panel.y0 - pad, y1: panel.y1 + pad,
-        z0: panel.z0 - pad, z1: panel.z1 + pad,
+        z0: b.floor - pad, z1: b.floor + b.cavityH + pad,
       });
     }
     if (panel.x1 >= b.iw2 - pad) {
       zones.push({
         x0: b.iw2 - pad, x1: b.iw2 + pad,
         y0: panel.y0 - pad, y1: panel.y1 + pad,
-        z0: panel.z0 - pad, z1: panel.z1 + pad,
+        z0: b.floor - pad, z1: b.floor + b.cavityH + pad,
       });
     }
     if (panel.y0 <= -b.id2 + pad) {
       zones.push({
         x0: panel.x0 - pad, x1: panel.x1 + pad,
         y0: -b.id2 - pad, y1: -b.id2 + pad,
-        z0: panel.z0 - pad, z1: panel.z1 + pad,
+        z0: b.floor - pad, z1: b.floor + b.cavityH + pad,
       });
     }
     if (panel.y1 >= b.id2 - pad) {
       zones.push({
         x0: panel.x0 - pad, x1: panel.x1 + pad,
         y0: b.id2 - pad, y1: b.id2 + pad,
-        z0: panel.z0 - pad, z1: panel.z1 + pad,
+        z0: b.floor - pad, z1: b.floor + b.cavityH + pad,
       });
     }
   }
-  return zones;
+  const positions = shell.positions.slice();
+  const cleanIdx = [];
+  for (let t = 0; t < shell.indices.length; t += 3) {
+    const ia = shell.indices[t];
+    const ib = shell.indices[t + 1];
+    const ic = shell.indices[t + 2];
+    if (zones.some((box) => triFullyInsideBox(shell.positions, ia, ib, ic, box))) continue;
+    cleanIdx.push(ia, ib, ic);
+  }
+  return mergeMeshesSnap({ positions, indices: cleanIdx }, insert);
 }
 
-/** Fixed divider export — strip duplicate floor tris, merge solid panel. */
+/** Fixed divider export — segmented inner walls + snapped divider merge. */
 export function buildWatertightFixedDividerExport(bodyMesh, meta, params) {
   if (!params?.fuseInsertToBody) return null;
   const panels = dividerPanelBoxes(meta, params);
@@ -497,17 +618,29 @@ export function buildWatertightFixedDividerExport(bodyMesh, meta, params) {
   const shell = bodyMesh?.shellMesh || bodyMesh;
   if (!shell?.indices?.length) return insert;
 
-  const stripZones = fixedDividerStripBoxes(meta, params);
+  if (!isSharpRectProfile(meta, params)) {
+    return buildWatertightFixedDividerExportStrip(shell, meta, params, insert);
+  }
+
+  const b = rectFeatureBounds(meta);
+  const gaps = computeDividerWallGaps(panels, params);
+  const floorZones = fixedDividerFloorStripBoxes(meta, params);
+  const zInner0 = b.floor;
+  const zInner1 = b.floor + b.cavityH;
+
   const positions = shell.positions.slice();
   const cleanIdx = [];
   for (let t = 0; t < shell.indices.length; t += 3) {
     const ia = shell.indices[t];
     const ib = shell.indices[t + 1];
     const ic = shell.indices[t + 2];
-    if (stripZones.some((box) => triFullyInsideBox(shell.positions, ia, ib, ic, box))) continue;
+    if (floorZones.some((box) => triFullyInsideBox(shell.positions, ia, ib, ic, box))) continue;
+    if (classifyInnerWallTri(shell.positions, ia, ib, ic, b)) continue;
     cleanIdx.push(ia, ib, ic);
   }
-  return mergeMeshes({ positions, indices: cleanIdx }, insert);
+
+  appendSegmentedInnerWalls(positions, cleanIdx, b, gaps, zInner0, zInner1);
+  return mergeMeshesSnap({ positions, indices: cleanIdx }, insert);
 }
 
 /** Removable flat divider panels — separate print part(s), splits cavity into equal bays. */

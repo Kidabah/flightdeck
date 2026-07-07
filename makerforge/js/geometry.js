@@ -13,9 +13,9 @@ import {
   resolveJoinerDims,
   shapeSupportsDecor,
   shapeSupportsInsert,
-} from "./features.js?v=132";
+} from "./features.js?v=133";
 import earcut from "https://esm.sh/earcut@2.2.4";
-import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=132";
+import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=133";
 
 import { appendInsertShelfSlotsToBody } from "./insert-slots.js";
 

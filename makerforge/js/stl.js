@@ -69,7 +69,7 @@ export function sanitizeMeshForStl(mesh, { strict = true } = {}) {
   const indices = mesh?.indices;
   if (!positions?.length || !indices?.length) return null;
 
-  let welded = weldMeshVertices(positions, indices, 0.04);
+  let welded = weldMeshVertices(positions, indices, 0.05);
   let idx = removeDuplicateTriangles(welded.indices);
   idx = removeDegenerateTriangles(welded.positions, idx);
   idx = removeDuplicateCoplanarTriangles(welded.positions, idx);

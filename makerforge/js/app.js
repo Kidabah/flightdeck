@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=132";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance } from "./features.js?v=132";
-import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=132";
-import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=132";
-import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=132";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=133";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance } from "./features.js?v=133";
+import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=133";
+import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=133";
+import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=133";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
 
@@ -2226,7 +2226,9 @@ function runExport(format) {
         downloadBlob(buildColoredProject3mf(parts, baseModelName(exportCache.meta)), filename3mfFor(exportCache.meta, "body"));
         if (status) {
           const kind = parts.length === 1 && parts[0].extruder === 1 ? "plain 3MF" : "colored 3MF";
-          status.textContent = `${kind} downloaded — ${triCount} triangles (${parts.map((p) => p.name).join(" + ")})`;
+          const open = parts.reduce((sum, p) => sum + (p.mesh?.openEdgeCount || 0), 0);
+          const openNote = open > 0 ? ` — ${open} open edge(s), try Bambu Repair` : "";
+          status.textContent = `${kind} downloaded — ${triCount} triangles (${parts.map((p) => p.name).join(" + ")})${openNote}`;
         }
         break;
       }
