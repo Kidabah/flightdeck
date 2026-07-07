@@ -2,7 +2,7 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: *(pending — b128 plain 3MF)*
+- Latest commit: `52288df` — b128 plain core 3MF for single-colour body
 
 ### 2026-07-07 — b128: Plain 3MF for single-colour body (Bambu still 40 tris)
 
