@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
+import re
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -45,8 +47,51 @@ def load_designs(data_dir: Path) -> list[dict[str, Any]]:
 def save_designs(data_dir: Path, rows: list[dict[str, Any]]) -> None:
     path = imports_path(data_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
-    trimmed = rows[:_MAX_DESIGNS]
+    trimmed = [_public_record(row) for row in rows[:_MAX_DESIGNS]]
     path.write_text(json.dumps({"designs": trimmed}, indent=2), encoding="utf-8")
+
+
+def _public_record(row: dict[str, Any]) -> dict[str, Any]:
+    """Manifest rows stay small — thumbnails live in separate image files."""
+    thumb_path = row.get("thumbnail_path")
+    has_thumb = bool(thumb_path) or bool(row.get("thumbnail"))
+    return {
+        "id": row.get("id"),
+        "name": row.get("name"),
+        "format": row.get("format"),
+        "part": row.get("part"),
+        "exported_at": row.get("exported_at"),
+        "watermark_serial": row.get("watermark_serial"),
+        "vault_path": row.get("vault_path"),
+        "sidecar_path": row.get("sidecar_path"),
+        "thumbnail_path": thumb_path,
+        "has_thumbnail": has_thumb,
+        "size": row.get("size"),
+    }
+
+
+def _write_thumbnail_file(
+    folder: Path,
+    stem: str,
+    data_url: str,
+    library_root: Path,
+    safe_join_under: Callable[..., Path],
+) -> str | None:
+    if not data_url or not data_url.startswith("data:image"):
+        return None
+    match = re.match(r"data:image/(jpeg|jpg|png|webp);base64,(.+)", data_url, re.I)
+    if not match:
+        return None
+    ext = "jpg" if match.group(1).lower() in {"jpeg", "jpg"} else match.group(1).lower()
+    try:
+        raw = base64.b64decode(match.group(2), validate=True)
+    except Exception:
+        return None
+    if not raw:
+        return None
+    thumb = safe_join_under(folder, f"{stem}.thumb.{ext}", missing_ok=True)
+    thumb.write_bytes(raw)
+    return thumb.relative_to(library_root.resolve()).as_posix()
 
 
 def _utc_now() -> str:
@@ -108,6 +153,7 @@ def save_export(
     thumbnail = str(meta.get("thumbnail") or "")
     state = meta.get("state") if isinstance(meta.get("state"), dict) else {}
     trace_image = meta.get("traceImage") if isinstance(meta.get("traceImage"), str) else ""
+    thumbnail_path = _write_thumbnail_file(dest.parent, dest.stem, thumbnail, library_root, safe_join_under)
 
     sidecar_name = f"{dest.stem}{SIDECAR_SUFFIX}"
     sidecar = safe_join_under(folder, sidecar_name, missing_ok=True)
@@ -134,7 +180,8 @@ def save_export(
         "watermark_serial": meta.get("watermark_serial"),
         "vault_path": vault_rel,
         "sidecar_path": sidecar_rel,
-        "thumbnail": thumbnail,
+        "thumbnail_path": thumbnail_path,
+        "has_thumbnail": bool(thumbnail_path),
         "size": len(file_bytes),
     }
 
@@ -145,28 +192,47 @@ def save_export(
 
     return {
         "ok": True,
-        "design": record,
+        "design": _public_record(record),
     }
+
+
+def ensure_compact_manifest(
+    data_dir: Path,
+    library_root: Path,
+    safe_join_under: Callable[..., Path],
+) -> None:
+    rows = load_designs(data_dir)
+    if not rows:
+        return
+    changed = False
+    for row in rows:
+        inline = row.get("thumbnail")
+        if isinstance(inline, str) and inline.startswith("data:image"):
+            if not row.get("thumbnail_path"):
+                vault_rel = str(row.get("vault_path") or "").strip()
+                if vault_rel:
+                    model = safe_join_under(library_root.resolve(), vault_rel, missing_ok=True)
+                    if model.is_file():
+                        rel = _write_thumbnail_file(
+                            model.parent,
+                            model.stem,
+                            inline,
+                            library_root,
+                            safe_join_under,
+                        )
+                        if rel:
+                            row["thumbnail_path"] = rel
+                            row["has_thumbnail"] = True
+            row.pop("thumbnail", None)
+            changed = True
+    if changed:
+        save_designs(data_dir, rows)
 
 
 def recent_designs(data_dir: Path, limit: int = 50) -> list[dict[str, Any]]:
     rows = load_designs(data_dir)
     cap = max(1, min(limit, _MAX_DESIGNS))
-    out = []
-    for row in rows[:cap]:
-        out.append({
-            "id": row.get("id"),
-            "name": row.get("name"),
-            "format": row.get("format"),
-            "part": row.get("part"),
-            "exported_at": row.get("exported_at"),
-            "watermark_serial": row.get("watermark_serial"),
-            "vault_path": row.get("vault_path"),
-            "sidecar_path": row.get("sidecar_path"),
-            "thumbnail": row.get("thumbnail"),
-            "size": row.get("size"),
-        })
-    return out
+    return [_public_record(row) for row in rows[:cap]]
 
 
 def _find_design(data_dir: Path, design_id: str) -> dict[str, Any] | None:
@@ -203,6 +269,33 @@ def design_params(
     return payload
 
 
+def design_thumbnail(
+    data_dir: Path,
+    library_root: Path,
+    design_id: str,
+    safe_join_under: Callable[..., Path],
+) -> tuple[bytes, str]:
+    row = _find_design(data_dir, design_id)
+    if not row:
+        raise MakerDeckLibraryError("Design not found.", status=404)
+    thumb_rel = str(row.get("thumbnail_path") or "").strip()
+    if thumb_rel:
+        thumb = safe_join_under(library_root.resolve(), thumb_rel, missing_ok=True)
+        if thumb.is_file():
+            ext = thumb.suffix.lower()
+            media = "image/jpeg" if ext in {".jpg", ".jpeg"} else "image/png" if ext == ".png" else "image/webp"
+            return thumb.read_bytes(), media
+    inline = row.get("thumbnail")
+    if isinstance(inline, str) and inline.startswith("data:image"):
+        match = re.match(r"data:(image/[^;]+);base64,(.+)", inline, re.I)
+        if match:
+            try:
+                return base64.b64decode(match.group(2), validate=True), match.group(1)
+            except Exception:
+                pass
+    raise MakerDeckLibraryError("Thumbnail not found.", status=404)
+
+
 def delete_design(
     data_dir: Path,
     library_root: Path,
@@ -212,7 +305,7 @@ def delete_design(
     row = _find_design(data_dir, design_id)
     if not row:
         return False
-    for key in ("vault_path", "sidecar_path"):
+    for key in ("vault_path", "sidecar_path", "thumbnail_path"):
         rel = str(row.get(key) or "").strip()
         if not rel:
             continue

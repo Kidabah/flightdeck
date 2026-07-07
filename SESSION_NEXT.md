@@ -2,10 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: see "2026-07-07 fix (restock reserve spool 500)" below
-- Refresh cachebust: MakerDeck `app.js?v=113`
+- Latest commit: see "2026-07-07 fix (MakerDeck boot + library thumbnails b140)" below
+- Refresh cachebust: MakerDeck `app.js?v=140`
 
-### 2026-07-07 fix (restock reserve spool 500)
+### 2026-07-07 fix (MakerDeck boot + library thumbnails b140)
+
+**MakerDeck would not load at all after b139** (`makerforge/js/app.js`, `makerforge/js/features.js`)
+
+- b139 imported `buildWatermarkPreviewMesh` from `features.js` but the export was never shipped — ES module load failed and the whole MakerDeck UI was dead. Removed the unused import; preview helper kept in `features.js` for later.
+- Design library list API was returning ~1MB+ JSON with inline base64 thumbnails, hanging the Library tab. Thumbnails now save as separate `.thumb.jpg` files; manifest rows stay small; new `GET /api/makerdeck/designs/{id}/thumbnail` endpoint; existing manifests auto-compact on list.
+- Library tab refreshes after export save; thumbnail cards load from the new endpoint.
+- Cache `app.js?v=140` (and geometry/3mf/features imports). **Backend restart required** (new route + manifest migration). Hard refresh MakerDeck.
+
 
 **Restocking a reserved/archived spool failed with "Unable to restock spool"** (`app/db.py`)
 

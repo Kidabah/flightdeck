@@ -1152,6 +1152,23 @@ export function applyExportWatermark(mesh, meta, params, stamp) {
   return buildWatertightBottomDebossExport(shell, meta, collected.shapeGroups, collected.depth) || mesh;
 }
 
+/** Preview-only groove mesh for the underside watermark (no shell surgery). */
+export function buildWatermarkPreviewMesh(meta, stamp) {
+  if (!stamp || !shapeSupportsDecor(meta.shape)) return null;
+  const collected = collectWatermarkShapeGroups(meta, stamp);
+  if (!collected?.shapeGroups?.length) return null;
+  const { frame, shapeGroups, depth } = collected;
+  const positions = [];
+  const indices = [];
+  const mapSurf = (px, py) => frame.mapPoint(px, py, 0);
+  const mapDeep = (px, py) => frame.mapPoint(px, py, -depth);
+  const flatCoord = (w) => flatCoordForFrame(frame, w);
+  for (const group of shapeGroups) {
+    extrudeShapeGroupBetween(positions, indices, group, mapSurf, mapDeep, flatCoord, "both");
+  }
+  return positions.length ? { positions, indices } : null;
+}
+
 /** Embossed label text — smooth stencil silhouettes (one solid per letter). */
 export function buildEmbossText(meta, params) {
   const collected = collectTextEmbossShapeGroups(meta, params);

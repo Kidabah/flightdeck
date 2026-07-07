@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=139";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, buildWatermarkPreviewMesh } from "./features.js?v=139";
-import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=139";
-import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=139";
-import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=139";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=140";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark } from "./features.js?v=140";
+import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=140";
+import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=140";
+import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=140";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
 import {
@@ -14,7 +14,7 @@ import {
   listLibraryDesigns,
   fetchDesignParams,
   deleteLibraryDesign,
-} from "./library.js?v=139";
+} from "./library.js?v=140";
 
 const SESSION_KEY = "makerdeck-session-v1";
 let saveSessionTimer = null;
@@ -1190,8 +1190,17 @@ async function archiveBodyExport(blob, filename, { format, stamp }) {
     });
     return result?.design || null;
   } catch (err) {
-    console.warn("MakerDeck library save failed:", err);
+    console.warn("MakerDeck design library save failed:", err);
     return null;
+  }
+}
+
+function notifyLibrarySaved(design) {
+  if (currentTabId === "library") void refreshLibraryUi();
+  if (!design) return;
+  const status = document.getElementById("library-status");
+  if (status && currentTabId === "library") {
+    status.textContent = `Saved “${design.name || "design"}”.`;
   }
 }
 
@@ -1228,7 +1237,14 @@ async function refreshLibraryUi() {
       thumb.className = "library-thumb";
       if (design.thumbnail) {
         const img = document.createElement("img");
-        img.src = design.thumbnail;
+        img.loading = "lazy";
+        img.src = `/api/makerdeck/designs/${encodeURIComponent(design.id)}/thumbnail`;
+        img.alt = "";
+        thumb.appendChild(img);
+      } else if (design.has_thumbnail) {
+        const img = document.createElement("img");
+        img.loading = "lazy";
+        img.src = `/api/makerdeck/designs/${encodeURIComponent(design.id)}/thumbnail`;
         img.alt = "";
         thumb.appendChild(img);
       } else {
@@ -2432,6 +2448,7 @@ function runExport(format) {
           if (status && design) {
             status.textContent += " · saved to design library";
           }
+          notifyLibrarySaved(design);
         });
         if (status) {
           const kind = parts.length === 1 && parts[0].extruder === 1 ? "plain 3MF" : "colored 3MF";
@@ -2463,6 +2480,7 @@ function runExport(format) {
           } else if (status) {
             status.textContent = `STL downloaded${stamp ? ` · watermark #${String(stamp.serial).padStart(4, "0")}` : ""}`;
           }
+          notifyLibrarySaved(design);
         });
         break;
       }

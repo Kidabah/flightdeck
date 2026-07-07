@@ -5047,7 +5047,22 @@ async def makerdeck_save_export(file: UploadFile = File(...), meta: str = Form("
 
 @app.get("/api/makerdeck/designs")
 async def makerdeck_list_designs(limit: int = 50):
+    makerdeck_library.ensure_compact_manifest(DATA_DIR, _print_library_path().resolve(), _safe_join_under)
     return {"designs": makerdeck_library.recent_designs(DATA_DIR, limit)}
+
+
+@app.get("/api/makerdeck/designs/{design_id}/thumbnail")
+async def makerdeck_design_thumbnail(design_id: str):
+    try:
+        data, media = makerdeck_library.design_thumbnail(
+            DATA_DIR,
+            _print_library_path().resolve(),
+            design_id,
+            _safe_join_under,
+        )
+    except makerdeck_library.MakerDeckLibraryError as exc:
+        raise HTTPException(status_code=exc.status, detail=str(exc))
+    return Response(content=data, media_type=media, headers={"Cache-Control": "no-store, max-age=0"})
 
 
 @app.get("/api/makerdeck/designs/{design_id}/params")
