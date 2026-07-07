@@ -1,12 +1,20 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=136";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark } from "./features.js?v=136";
-import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=136";
-import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=136";
-import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=136";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=137";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark } from "./features.js?v=137";
+import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=137";
+import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=137";
+import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=137";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
+import {
+  libraryApiAvailable,
+  capturePreviewThumbnail,
+  saveExportToLibrary,
+  listLibraryDesigns,
+  fetchDesignParams,
+  deleteLibraryDesign,
+} from "./library.js?v=137";
 
 const SESSION_KEY = "makerdeck-session-v1";
 let saveSessionTimer = null;
@@ -1119,48 +1127,181 @@ function saveSession() {
   }
 }
 
+async function applySessionPayload(payload) {
+  if (!payload?.state) return false;
+
+  for (const key of Object.keys(DEFAULTS)) {
+    if (payload.state[key] !== undefined) state[key] = payload.state[key];
+  }
+  if (payload.state.shape) state.shape = payload.state.shape;
+  if (state.shape === "fatQuarters") state.shape = "rounded";
+  if (state.insertMount === "fixed") state.joinerEnabled = false;
+  if (payload.state.embossTraceRects) {
+    state.embossTraceRects = deserializeEmbossTraceRects(payload.state.embossTraceRects);
+  }
+  state.lidType = normalizeLidType(state.lidType, state.shape);
+
+  if (payload.traceImage) {
+    const loaded = await loadImageFromDataUrl(payload.traceImage);
+    traceSourceCanvas = loaded.canvas;
+    traceLastResult = null;
+    traceLastSvg = "";
+    payload.needsRestoreTrace = true;
+  } else if (
+    payload.state.embossSvgEnabled &&
+    payload.state.embossSvgText?.trim() &&
+    !payload.state.embossTraceEnabled
+  ) {
+    try {
+      await importSvgFile(payload.state.embossSvgText, { fileName: "restored" });
+    } catch (err) {
+      console.warn("Could not re-import saved SVG:", err);
+    }
+  }
+  return true;
+}
+
 async function restoreSession() {
   try {
     const raw = localStorage.getItem(SESSION_KEY);
     if (!raw) return null;
     const payload = JSON.parse(raw);
-    if (!payload?.state) return null;
-
-    for (const key of Object.keys(DEFAULTS)) {
-      if (payload.state[key] !== undefined) state[key] = payload.state[key];
-    }
-    if (payload.state.shape) state.shape = payload.state.shape;
-    // Retired preset — restore old sessions as a plain rounded box.
-    if (state.shape === "fatQuarters") state.shape = "rounded";
-    // Welded dividers and link joiner are mutually exclusive.
-    if (state.insertMount === "fixed") state.joinerEnabled = false;
-    if (payload.state.embossTraceRects) {
-      state.embossTraceRects = deserializeEmbossTraceRects(payload.state.embossTraceRects);
-    }
-    state.lidType = normalizeLidType(state.lidType, state.shape);
-
-    if (payload.traceImage) {
-      const loaded = await loadImageFromDataUrl(payload.traceImage);
-      traceSourceCanvas = loaded.canvas;
-      traceLastResult = null;
-      traceLastSvg = "";
-      payload.needsRestoreTrace = true;
-    } else if (
-      payload.state.embossSvgEnabled &&
-      payload.state.embossSvgText?.trim() &&
-      !payload.state.embossTraceEnabled
-    ) {
-      try {
-        await importSvgFile(payload.state.embossSvgText, { fileName: "restored" });
-      } catch (err) {
-        console.warn("Could not re-import saved SVG:", err);
-      }
-    }
-
+    await applySessionPayload(payload);
     return payload;
   } catch (err) {
     console.warn("MakerDeck could not restore session:", err);
     return null;
+  }
+}
+
+async function archiveBodyExport(blob, filename, { format, stamp }) {
+  if (!libraryApiAvailable()) return null;
+  try {
+    renderer.render(scene, camera);
+    const result = await saveExportToLibrary({
+      blob,
+      filename,
+      format,
+      part: "body",
+      stamp,
+      thumbnail: capturePreviewThumbnail(renderer),
+      traceImage: traceSourceCanvas ? traceSourceCanvas.toDataURL("image/jpeg", 0.82) : null,
+      state: stateForSession(),
+    });
+    return result?.design || null;
+  } catch (err) {
+    console.warn("MakerDeck library save failed:", err);
+    return null;
+  }
+}
+
+function formatLibraryWhen(iso) {
+  if (!iso) return "";
+  try {
+    return new Date(iso).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+  } catch {
+    return iso;
+  }
+}
+
+async function refreshLibraryUi() {
+  const grid = document.getElementById("library-grid");
+  const status = document.getElementById("library-status");
+  if (!grid) return;
+  if (!libraryApiAvailable()) {
+    grid.innerHTML = "";
+    if (status) status.textContent = "Library needs MakerDeck inside Flightdeck (not a local file).";
+    return;
+  }
+  if (status) status.textContent = "Loading…";
+  try {
+    const designs = await listLibraryDesigns(48);
+    grid.innerHTML = "";
+    if (!designs.length) {
+      if (status) status.textContent = "No saved designs yet — download a body STL or 3MF to add one.";
+      return;
+    }
+    for (const design of designs) {
+      const card = document.createElement("article");
+      card.className = "library-card";
+      const thumb = document.createElement("div");
+      thumb.className = "library-thumb";
+      if (design.thumbnail) {
+        const img = document.createElement("img");
+        img.src = design.thumbnail;
+        img.alt = "";
+        thumb.appendChild(img);
+      } else {
+        thumb.textContent = (design.format || "?").toUpperCase();
+      }
+      const body = document.createElement("div");
+      body.className = "library-card-body";
+      const title = document.createElement("h3");
+      title.className = "library-card-title";
+      title.textContent = design.name || "Untitled";
+      const meta = document.createElement("p");
+      meta.className = "library-card-meta";
+      const serial = design.watermark_serial ? ` · #${String(design.watermark_serial).padStart(4, "0")}` : "";
+      meta.textContent = `${(design.format || "").toUpperCase()}${serial} · ${formatLibraryWhen(design.exported_at)}`;
+      const actions = document.createElement("div");
+      actions.className = "library-card-actions";
+      const loadBtn = document.createElement("button");
+      loadBtn.type = "button";
+      loadBtn.className = "btn btn-primary btn-sm";
+      loadBtn.textContent = "Load";
+      loadBtn.addEventListener("click", () => void loadLibraryDesign(design.id));
+      const delBtn = document.createElement("button");
+      delBtn.type = "button";
+      delBtn.className = "btn btn-secondary btn-sm";
+      delBtn.textContent = "Delete";
+      delBtn.addEventListener("click", () => void removeLibraryDesign(design.id));
+      actions.append(loadBtn, delBtn);
+      body.append(title, meta, actions);
+      card.append(thumb, body);
+      grid.appendChild(card);
+    }
+    if (status) status.textContent = `${designs.length} design${designs.length === 1 ? "" : "s"} in Print Vault → MakerDeck/`;
+  } catch (err) {
+    if (status) status.textContent = err?.message || "Could not load library.";
+    grid.innerHTML = "";
+  }
+}
+
+async function loadLibraryDesign(designId) {
+  const status = document.getElementById("library-status");
+  if (status) status.textContent = "Loading design…";
+  try {
+    const payload = await fetchDesignParams(designId);
+    sessionBooting = true;
+    await applySessionPayload({
+      state: payload.state,
+      traceImage: payload.traceImage || null,
+    });
+    sessionBooting = false;
+    syncUiFromState();
+    updateDecorUi();
+    syncArtEditorUi();
+    updateTraceUi();
+    rebuild();
+    if (meshCache) fitCamera(meshCache.meta);
+    pushAppHistory();
+    scheduleDeferredRestoreTrace();
+    if (status) status.textContent = `Loaded “${payload.name || "design"}”.`;
+    setTab("design");
+  } catch (err) {
+    sessionBooting = false;
+    if (status) status.textContent = err?.message || "Could not load design.";
+  }
+}
+
+async function removeLibraryDesign(designId) {
+  if (!confirm("Delete this design from the library? The vault file will be removed.")) return;
+  try {
+    await deleteLibraryDesign(designId);
+    await refreshLibraryUi();
+  } catch (err) {
+    const status = document.getElementById("library-status");
+    if (status) status.textContent = err?.message || "Delete failed.";
   }
 }
 
@@ -1686,6 +1827,7 @@ function setTab(tabId) {
   });
   scheduleSaveSession();
   syncArtEditorUi();
+  if (tabId === "library") void refreshLibraryUi();
 }
 
 function clearEmbossTrace() {
@@ -2283,7 +2425,14 @@ function runExport(format) {
           alert(`Export blocked: only ${triCount} triangles.\n\nExpected ${expectHint} for this box.\n\nCheck:\n• Insert → Mount = Fixed (welded)\n• Link tab → Joiner OFF\n• Divider axis = Width or Depth\n\nDiagnostic: ${diag}`);
           return;
         }
-        downloadBlob(buildColoredProject3mf(parts, baseModelName(exportCache.meta)), filename3mfFor(exportCache.meta, "body"));
+        const blob = buildColoredProject3mf(parts, baseModelName(exportCache.meta));
+        const fname = filename3mfFor(exportCache.meta, "body");
+        downloadBlob(blob, fname);
+        void archiveBodyExport(blob, fname, { format: "3mf", stamp }).then((design) => {
+          if (status && design) {
+            status.textContent += " · saved to library";
+          }
+        });
         if (status) {
           const kind = parts.length === 1 && parts[0].extruder === 1 ? "plain 3MF" : "colored 3MF";
           const open = parts.reduce((sum, p) => sum + (p.mesh?.openEdgeCount || 0), 0);
@@ -2304,7 +2453,17 @@ function runExport(format) {
           exportMesh = buildWatertightFixedDividerExport(exportCache, exportCache.meta, { ...params, fuseInsertToBody: true }) || exportMesh;
         }
         exportMesh = finalizeBodyExportMesh(exportMesh, exportCache.meta, params, stamp);
-        downloadBlob(meshToStl(exportMesh, "makerdeck"), filenameFor(exportCache.meta, "body"));
+        const stlBlob = meshToStl(exportMesh, "makerdeck");
+        const stlName = filenameFor(exportCache.meta, "body");
+        downloadBlob(stlBlob, stlName);
+        const status = document.getElementById("export-status");
+        void archiveBodyExport(stlBlob, stlName, { format: "stl", stamp }).then((design) => {
+          if (status && design) {
+            status.textContent = `STL downloaded · saved to library${stamp ? ` · watermark #${String(stamp.serial).padStart(4, "0")}` : ""}`;
+          } else if (status) {
+            status.textContent = `STL downloaded${stamp ? ` · watermark #${String(stamp.serial).padStart(4, "0")}` : ""}`;
+          }
+        });
         break;
       }
       case "lid-3mf": {

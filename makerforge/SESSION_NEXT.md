@@ -2,7 +2,18 @@
 
 Latest GitHub state:
 - Branch: `main`
-- Latest commit: `82074f4` — b136 watermark + SVG lid emboss
+- Latest commit: (pending) — b137 design library
+
+### 2026-07-07 — b137: Design library (auto-save on export)
+
+**What changed:**
+- **Auto-archive** — body **3MF** and **STL** downloads POST to `POST /api/makerdeck/exports`. Files land in Print Vault `MakerDeck/` with a `.makerdeck.json` sidecar (full slider state + trace thumbnail).
+- **Library tab** — browse saved designs, **Load** restores params, **Delete** removes vault file + manifest entry.
+- **Backend** — `app/makerdeck_library.py`, manifest `makerdeck_designs.json` on Pi.
+
+**Files:** `app/makerdeck_library.py`, `app/main.py`, `js/library.js?v=137`, `js/app.js?v=137`, `index.html` — header **b137**
+
+**Deploy:** Pi `git pull` + **restart flightdeck.service** (backend routes added). Hard refresh MakerDeck.
 
 ### 2026-07-07 — b136: Bottom watermark + SVG lid emboss polish
 

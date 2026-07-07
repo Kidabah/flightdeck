@@ -41,7 +41,7 @@ from pydantic import BaseModel
 
 import httpx
 
-from . import db, makerworld, relay
+from . import db, makerdeck_library, makerworld, relay
 from .camera import BambuCameraProxy
 from .native_recorder import PrintNativeRecorder
 from .label_printer import LabelPrinter
@@ -5022,6 +5022,58 @@ async def makerworld_thumbnail(url: str):
     except makerworld.MakerWorldError as exc:
         raise HTTPException(status_code=exc.status, detail=str(exc))
     return Response(content=data, media_type=content_type)
+
+
+@app.post("/api/makerdeck/exports", status_code=201)
+async def makerdeck_save_export(file: UploadFile = File(...), meta: str = Form("")):
+    raw_name = _safe_basename(file.filename, "makerdeck-export")
+    ext = _queue_file_extension(raw_name)
+    if ext not in {".stl", ".3mf"}:
+        raise HTTPException(status_code=422, detail="Only STL and 3MF exports are supported")
+    data = await _read_upload_bytes(file, label="MakerDeck export")
+    try:
+        return makerdeck_library.save_export(
+            library_root=_print_library_path().resolve(),
+            data_dir=DATA_DIR,
+            filename=raw_name,
+            file_bytes=data,
+            meta_json=meta,
+            safe_join_under=_safe_join_under,
+            safe_basename=_safe_basename,
+        )
+    except makerdeck_library.MakerDeckLibraryError as exc:
+        raise HTTPException(status_code=exc.status, detail=str(exc))
+
+
+@app.get("/api/makerdeck/designs")
+async def makerdeck_list_designs(limit: int = 50):
+    return {"designs": makerdeck_library.recent_designs(DATA_DIR, limit)}
+
+
+@app.get("/api/makerdeck/designs/{design_id}/params")
+async def makerdeck_design_params(design_id: str):
+    try:
+        return makerdeck_library.design_params(
+            DATA_DIR,
+            _print_library_path().resolve(),
+            design_id,
+            _safe_join_under,
+        )
+    except makerdeck_library.MakerDeckLibraryError as exc:
+        raise HTTPException(status_code=exc.status, detail=str(exc))
+
+
+@app.delete("/api/makerdeck/designs/{design_id}")
+async def makerdeck_delete_design(design_id: str):
+    deleted = makerdeck_library.delete_design(
+        DATA_DIR,
+        _print_library_path().resolve(),
+        design_id,
+        _safe_join_under,
+    )
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Design not found")
+    return {"ok": True}
 
 
 _ORCA_PROFILE_VENDORS = ["BBL", "Sovol", "Voron", "Prusa", "Anycubic", "Creality"]
