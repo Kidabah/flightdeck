@@ -13,7 +13,7 @@ import {
   resolveJoinerDims,
   shapeSupportsDecor,
   shapeSupportsInsert,
-} from "./features.js?v=101";
+} from "./features.js?v=102";
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=122";
 
@@ -529,28 +529,15 @@ function capProfileAnnulus(outPos, outIdx, outer, hole, z, normalUp) {
   }
 }
 
-const FLOOR_SLAB = 0.08;
-
-function capFloorSlab(outPos, outIdx, profile, zTop, upward) {
-  const zBot = upward ? zTop - FLOOR_SLAB : zTop;
-  const zCap = upward ? zTop : zTop + FLOOR_SLAB;
-  if (upward) {
-    extrudeProfileSides(outPos, outIdx, profile, zBot, zTop, true);
-    capProfileSolid(outPos, outIdx, profile, zTop, true);
-  } else {
-    extrudeProfileSides(outPos, outIdx, profile, zBot, zCap, true);
-    capProfileSolid(outPos, outIdx, profile, zBot, false);
-  }
-}
-
+// Watertight shell: bottom cap + outer wall + top rim + inner wall + cavity floor.
+// No internal faces — extra coplanar/buried geometry reads as non-manifold in slicers.
 function buildProfileShell(outPos, outIdx, outer, inner, floor, totalH, cavityH) {
   const zFloor = floor;
   const zTop = totalH;
   const zCavityTop = floor + cavityH;
 
-  capFloorSlab(outPos, outIdx, outer, 0, false);
+  capProfileSolid(outPos, outIdx, outer, 0, false);
   capProfileSolid(outPos, outIdx, inner, zFloor, true);
-  capProfileAnnulus(outPos, outIdx, outer, inner, zFloor, true);
   extrudeProfileSides(outPos, outIdx, outer, 0, zTop, true);
   extrudeProfileSides(outPos, outIdx, inner, zFloor, zCavityTop, false);
   capProfileAnnulus(outPos, outIdx, outer, inner, zTop, true);
@@ -562,9 +549,8 @@ function buildOpenFrontBookcaseShell(outPos, outIdx, outer, inner, floor, totalH
   const zTop = totalH;
   const zCavityTop = floor + cavityH;
 
-  capFloorSlab(outPos, outIdx, outer, 0, false);
+  capProfileSolid(outPos, outIdx, outer, 0, false);
   capProfileSolid(outPos, outIdx, inner, zFloor, true);
-  capProfileAnnulus(outPos, outIdx, outer, inner, zFloor, true);
   extrudeProfileSidesSkipFront(outPos, outIdx, outer, 0, zTop, true);
   extrudeProfileSidesSkipFront(outPos, outIdx, inner, zFloor, zCavityTop, false);
   capProfileAnnulus(outPos, outIdx, outer, inner, zTop, true);
@@ -686,17 +672,13 @@ function buildRectShellWithJoiner(outerW, outerD, innerW, innerD, floor, totalH,
   const id2 = innerD / 2;
   const zCavityTop = floor + cavityH;
 
-  capFloorSlab(positions, indices, [
+  capProfileSolid(positions, indices, [
     [-ow2, -od2], [ow2, -od2], [ow2, od2], [-ow2, od2],
   ], 0, false);
-  capFloorSlab(positions, indices, [
+  capProfileSolid(positions, indices, [
     [-iw2, -id2], [iw2, -id2], [iw2, id2], [-iw2, id2],
   ], floor, true);
-  capRing(positions, indices,
-    [[-ow2, -od2], [ow2, -od2], [ow2, od2], [-ow2, od2]],
-    [[-iw2, -id2], [iw2, -id2], [iw2, id2], [-iw2, id2]],
-    floor, true);
-  capRing(positions, indices,
+  capProfileAnnulus(positions, indices,
     [[-ow2, -od2], [ow2, -od2], [ow2, od2], [-ow2, od2]],
     [[-iw2, -id2], [iw2, -id2], [iw2, id2], [-iw2, id2]],
     totalH, true);
@@ -782,40 +764,64 @@ export function shapeSupportsJoiner(shape) {
   return shape === "rect" || shape === "rounded" || shape === "pencil" || shape === "pencilBox";
 }
 
+/**
+ * Miter offset along local edge normals — uniform wall clearance on any
+ * profile, including concave ones (heart cleft, star notches) where the old
+ * centroid-ray offset skewed points sideways and could self-intersect.
+ */
+function offsetProfileMiter(points, offset) {
+  const n = points.length;
+  if (!offset || n < 3) return points.map((p) => [p[0], p[1]]);
+
+  let area = 0;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    area += points[i][0] * points[j][1] - points[j][0] * points[i][1];
+  }
+  const windingSign = area >= 0 ? 1 : -1; // outward normal of CCW edge = (dy, -dx)
+
+  const edgeNormal = (i) => {
+    const j = (i + 1) % n;
+    const dx = points[j][0] - points[i][0];
+    const dy = points[j][1] - points[i][1];
+    const len = Math.hypot(dx, dy);
+    if (len < 1e-9) return null;
+    return [(dy / len) * windingSign, (-dx / len) * windingSign];
+  };
+
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    let prev = null;
+    for (let k = 1; k <= n && !prev; k++) prev = edgeNormal((i - k + n) % n);
+    let next = edgeNormal(i) || prev;
+    if (!prev) prev = next;
+    if (!prev || !next) return points.map((p) => [p[0], p[1]]);
+    let bx = prev[0] + next[0];
+    let by = prev[1] + next[1];
+    const blen = Math.hypot(bx, by);
+    if (blen < 1e-9) {
+      bx = next[0];
+      by = next[1];
+    } else {
+      bx /= blen;
+      by /= blen;
+    }
+    // Miter scale = 1/cos(θ/2), clamped so sharp corners don't spike.
+    const cosHalf = Math.max(0.35, (bx * next[0] + by * next[1]) || 1);
+    const d = offset / cosHalf;
+    out.push([points[i][0] + bx * d, points[i][1] + by * d]);
+  }
+  return out;
+}
+
 function offsetProfileOutward(points, offset) {
   if (offset <= 0) return points.map((p) => [p[0], p[1]]);
-  let cx = 0;
-  let cy = 0;
-  for (const [x, y] of points) {
-    cx += x;
-    cy += y;
-  }
-  cx /= points.length;
-  cy /= points.length;
-  return points.map(([x, y]) => {
-    const dx = x - cx;
-    const dy = y - cy;
-    const len = Math.hypot(dx, dy) || 1;
-    return [x + (dx / len) * offset, y + (dy / len) * offset];
-  });
+  return offsetProfileMiter(points, offset);
 }
 
 function offsetProfileInward(points, offset) {
   if (offset <= 0) return points.map((p) => [p[0], p[1]]);
-  let cx = 0;
-  let cy = 0;
-  for (const [x, y] of points) {
-    cx += x;
-    cy += y;
-  }
-  cx /= points.length;
-  cy /= points.length;
-  return points.map(([x, y]) => {
-    const dx = x - cx;
-    const dy = y - cy;
-    const len = Math.hypot(dx, dy) || 1;
-    return [x - (dx / len) * offset, y - (dy / len) * offset];
-  });
+  return offsetProfileMiter(points, -offset);
 }
 
 function buildSlipLidShell(outPos, outIdx, boxOuter, skirtDepth, lidThickness, clearance, lidWall) {
@@ -823,14 +829,11 @@ function buildSlipLidShell(outPos, outIdx, boxOuter, skirtDepth, lidThickness, c
   const outer = offsetProfileOutward(boxOuter, clearance + lidWall);
   const zTop = skirtDepth + lidThickness;
 
-  // Hollow skirt tube
-  capRing(outPos, outIdx, outer, inner, 0, false);
-  extrudeProfileSides(outPos, outIdx, outer, 0, skirtDepth, true);
+  // Solid = top plate over the full outer profile + hollow skirt below it.
+  capProfileAnnulus(outPos, outIdx, outer, inner, 0, false);
+  extrudeProfileSides(outPos, outIdx, outer, 0, zTop, true);
   extrudeProfileSides(outPos, outIdx, inner, 0, skirtDepth, false);
-
-  // Solid top plate — no hollow rim (avoids visible internal skirt floor in preview)
-  capProfileSolid(outPos, outIdx, outer, skirtDepth, true);
-  extrudeProfileSides(outPos, outIdx, outer, skirtDepth, zTop, true);
+  capProfileSolid(outPos, outIdx, inner, skirtDepth, false);
   capProfileSolid(outPos, outIdx, outer, zTop, true);
 }
 
@@ -839,27 +842,34 @@ function buildPlugLidShell(outPos, outIdx, boxOuter, boxInner, skirtDepth, lidTh
   const plugInner = offsetProfileInward(boxInner, clearance + lidWall);
   const zTop = skirtDepth + lidThickness;
 
-  capRing(outPos, outIdx, plugOuter, plugInner, 0, false);
+  // Solid = plate (boxOuter, skirt→top) + hollow plug band hanging below it.
+  capProfileAnnulus(outPos, outIdx, plugOuter, plugInner, 0, false);
   extrudeProfileSides(outPos, outIdx, plugOuter, 0, skirtDepth, true);
   extrudeProfileSides(outPos, outIdx, plugInner, 0, skirtDepth, false);
-  capRing(outPos, outIdx, plugOuter, plugInner, skirtDepth, true);
+  capProfileSolid(outPos, outIdx, plugInner, skirtDepth, false);
+  capProfileAnnulus(outPos, outIdx, boxOuter, plugOuter, skirtDepth, false);
   extrudeProfileSides(outPos, outIdx, boxOuter, skirtDepth, zTop, true);
   capProfileSolid(outPos, outIdx, boxOuter, zTop, true);
 }
 
 function buildFlatLidShell(outPos, outIdx, boxOuter, boxInner, lidThickness, lipDepth, clearance) {
-  capProfileSolid(outPos, outIdx, boxOuter, 0, false);
+  const hasLip = lipDepth > 0.4 && boxInner?.length >= 3;
   extrudeProfileSides(outPos, outIdx, boxOuter, 0, lidThickness, true);
   capProfileSolid(outPos, outIdx, boxOuter, lidThickness, true);
 
-  if (lipDepth > 0.4 && boxInner?.length >= 3) {
-    const lipOuter = offsetProfileInward(boxInner, clearance);
-    const lipInner = offsetProfileInward(lipOuter, Math.min(1.4, clearance + 0.9));
-    extrudeProfileSides(outPos, outIdx, lipOuter, -lipDepth, 0, true);
-    extrudeProfileSides(outPos, outIdx, lipInner, -lipDepth, 0, false);
-    capRing(outPos, outIdx, lipOuter, lipInner, -lipDepth, false);
-    capRing(outPos, outIdx, lipOuter, lipInner, 0, true);
+  if (!hasLip) {
+    capProfileSolid(outPos, outIdx, boxOuter, 0, false);
+    return;
   }
+
+  const lipOuter = offsetProfileInward(boxInner, clearance);
+  const lipInner = offsetProfileInward(lipOuter, Math.min(1.4, clearance + 0.9));
+  // Plate underside: ring outside the lip + disk inside the lip bore.
+  capProfileAnnulus(outPos, outIdx, boxOuter, lipOuter, 0, false);
+  capProfileSolid(outPos, outIdx, lipInner, 0, false);
+  extrudeProfileSides(outPos, outIdx, lipOuter, -lipDepth, 0, true);
+  extrudeProfileSides(outPos, outIdx, lipInner, -lipDepth, 0, false);
+  capProfileAnnulus(outPos, outIdx, lipOuter, lipInner, -lipDepth, false);
 }
 
 /** Printable jar thread — coarse 2-start trapezoid. */

@@ -439,7 +439,6 @@ function triFullyInsideBox(positions, ia, ib, ic, box) {
   return true;
 }
 
-/** Body faces that duplicate welded divider contact patches (floor under panel). */
 function fixedDividerStripBoxes(meta, params) {
   const b = rectFeatureBounds(meta);
   const panels = dividerPanelBoxes(meta, params);

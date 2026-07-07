@@ -4,6 +4,17 @@ Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
 - `main` commit: see b114 entry below
 
+### 2026-07-07 — b125: Manifold STL export (welded dividers + sanitize)
+
+**What changed:** Bambu Studio flagged Chris's 300×270×130 box with a fixed divider as non-manifold (4 bad edges). Root cause: welded dividers were naïvely merged into the body shell, leaving duplicate internal faces where the panel overlaps the cavity floor and walls.
+- New **`buildWatertightFixedDividerExport()`** — strips cavity-floor tris under the divider footprint, then merges the panel into one body mesh (STL + 3MF Body part).
+- Fixed dividers are now **flush** with inner walls/floor (removed the 0.5mm overlap bite that created parallel duplicate faces).
+- **STL sanitize** tightened for export: 0.04mm vertex weld, coplanar duplicate peel, 12 non-manifold repair passes.
+
+**Files:** `js/features.js?v=102`, `js/stl.js?v=76`, `js/app.js?v=125`, `js/3mf.js?v=125`, `js/geometry.js?v=125`, `index.html` — header **b125**
+
+**Deploy:** Pi `git pull`. Hard refresh MakerDeck (Ctrl+Shift+R). Re-download the box STL/3MF — Bambu should report 0 non-manifold edges.
+
 ### 2026-07-07 — b124: Retire Fat quarters preset + clean download filenames
 
 **What changed:** Two tidy-ups Chris asked for.

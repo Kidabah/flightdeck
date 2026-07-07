@@ -69,10 +69,11 @@ export function sanitizeMeshForStl(mesh, { strict = true } = {}) {
   const indices = mesh?.indices;
   if (!positions?.length || !indices?.length) return null;
 
-  let welded = weldMeshVertices(positions, indices, 0.008);
+  let welded = weldMeshVertices(positions, indices, 0.04);
   let idx = removeDuplicateTriangles(welded.indices);
   idx = removeDegenerateTriangles(welded.positions, idx);
-  idx = repairNonManifoldFaces(welded.positions, idx, 8);
+  idx = removeDuplicateCoplanarTriangles(welded.positions, idx);
+  idx = repairNonManifoldFaces(welded.positions, idx, 12);
 
   if (!idx.length) return null;
 
@@ -96,6 +97,34 @@ function removeDegenerateTriangles(positions, indices) {
     if (triArea(positions, ia, ib, ic) < 1e-8) continue;
     const coords = [ia, ib, ic].flatMap((v) => [positions[v * 3], positions[v * 3 + 1], positions[v * 3 + 2]]);
     if (!coords.every(Number.isFinite)) continue;
+    out.push(ia, ib, ic);
+  }
+  return out;
+}
+
+function removeDuplicateCoplanarTriangles(positions, indices) {
+  const seen = new Set();
+  const out = [];
+  for (let t = 0; t < indices.length; t += 3) {
+    const ia = indices[t];
+    const ib = indices[t + 1];
+    const ic = indices[t + 2];
+    const ax = positions[ia * 3], ay = positions[ia * 3 + 1], az = positions[ia * 3 + 2];
+    const bx = positions[ib * 3], by = positions[ib * 3 + 1], bz = positions[ib * 3 + 2];
+    const cx = positions[ic * 3], cy = positions[ic * 3 + 1], cz = positions[ic * 3 + 2];
+    let nx = (by - ay) * (cz - az) - (bz - az) * (cy - ay);
+    let ny = (bz - az) * (cx - ax) - (bx - ax) * (cz - az);
+    let nz = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+    const len = Math.hypot(nx, ny, nz) || 1;
+    nx /= len; ny /= len; nz /= len;
+    const d = nx * ax + ny * ay + nz * az;
+    if (nx < -0.001 || (Math.abs(nx) <= 0.001 && ny < -0.001) || (Math.abs(nx) <= 0.001 && Math.abs(ny) <= 0.001 && nz < 0)) {
+      nx = -nx; ny = -ny; nz = -nz;
+    }
+    const verts = [ia, ib, ic].sort((a, b) => a - b).join("|");
+    const key = `${Math.round(nx * 500)}|${Math.round(ny * 500)}|${Math.round(nz * 500)}|${Math.round(d * 40)}|${verts}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
     out.push(ia, ib, ic);
   }
   return out;

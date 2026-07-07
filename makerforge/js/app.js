@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=124";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance } from "./features.js?v=101";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=125";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance } from "./features.js?v=102";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=73";
-import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=75";
-import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=124";
+import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl } from "./stl.js?v=76";
+import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=125";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
 
@@ -429,21 +429,19 @@ function collectColoredExportParts() {
   let extruder = 1;
   const shell = meshCache.shellMesh || meshCache;
   const separateText = hasSeparateTextExport(params) && params.embossFace !== "lid";
-
-  const bodyMesh = separateText ? shell : buildWatertightExportMesh(meshCache, meshCache.meta, params);
-  const bodyClean = sanitizeMeshForStl(bodyMesh);
   const mergeInsertIntoBody = state.insertMount === "fixed" && state.insertEnabled && insertCache;
+
+  const bodyMesh = separateText
+    ? shell
+    : (mergeInsertIntoBody
+      ? buildWatertightFixedDividerExport(meshCache, meshCache.meta, params)
+        || buildWatertightExportMesh(meshCache, meshCache.meta, params)
+      : buildWatertightExportMesh(meshCache, meshCache.meta, params));
+  const bodyClean = sanitizeMeshForStl(bodyMesh);
   if (bodyClean?.indices?.length) {
-    let exportBody = bodyClean;
-    if (mergeInsertIntoBody) {
-      const insertClean = sanitizeMeshForStl(insertCache);
-      if (insertClean?.indices?.length) {
-        exportBody = mergeMeshes(bodyClean, insertClean);
-      }
-    }
     parts.push({
       name: "Body",
-      mesh: exportBody,
+      mesh: bodyClean,
       color: state.boxColor || "#38bdf8",
       extruder: extruder++,
     });
@@ -2143,10 +2141,10 @@ function runExport(format) {
         break;
       }
       case "stl": {
-        let exportMesh = buildWatertightExportMesh(meshCache, meshCache.meta, buildParams());
-        // Welded dividers ship inside the body STL — they're one piece.
+        const params = buildParams();
+        let exportMesh = buildWatertightExportMesh(meshCache, meshCache.meta, params);
         if (state.insertEnabled && state.insertMount === "fixed" && insertCache) {
-          exportMesh = mergeMeshes(sanitizeMeshForStl(exportMesh) || exportMesh, insertCache);
+          exportMesh = buildWatertightFixedDividerExport(meshCache, meshCache.meta, params) || exportMesh;
         }
         downloadBlob(meshToStl(exportMesh, "makerdeck"), filenameFor(meshCache.meta, "body"));
         break;
