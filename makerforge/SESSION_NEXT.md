@@ -2,7 +2,20 @@
 
 Latest GitHub state:
 - Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- `main` commit: see b114 entry below
+- Latest commit: *(pending — b127 3MF model_settings fix)*
+
+### 2026-07-07 — b127: 3MF model_settings single-mesh fix (Bambu still 40 tris)
+
+**What changed:** Chris's fixed-divider box 3MF still showed ~40 triangles / 8 non-manifold edges in Bambu after b126 hard refresh. Headless export already had 328 triangles in the XML — Bambu was mis-reading the file.
+- **Root cause:** `Metadata/model_settings.config` wrapped a lone mesh object in `<part id="1">` tags. Bambu treats that like an empty multi-part assembly shell (~40 tris, non-manifold) instead of the real Body geometry.
+- **Fix:** single-part exports now write object-level extruder metadata only (no `<part>` children). Multi-part exports (body + accent/text) unchanged.
+- 3MF model metadata now includes `MakerDeck-Triangles` count for verification.
+- Export always rebuilds geometry first; Download shows triangle count under the button.
+- Separate-colour text export still welds fixed dividers into the Body mesh.
+
+**Files:** `js/3mf.js?v=127`, `js/app.js?v=127`, `index.html`, `css/style.css?v=22` — header **b127**
+
+**Deploy:** Pi `git pull`. Hard refresh (Ctrl+Shift+R). Re-download 3MF (don't reopen an old file). Bambu should show **~328 triangles** and **0 non-manifold edges**. Download status should say `328 triangles (Body)`.
 
 ### 2026-07-07 — b126: 3MF single-part export fix (Bambu 40 tris / non-manifold)
 

@@ -173,7 +173,7 @@ function meshTo3mfResources(mesh, objectId, name, extruder, { resanitize = false
  * a single model — parts mid-air (accent bands, floating text) are supported
  * by the body instead of erroring with "empty first layer".
  */
-function buildBambuModelSettingsXml(assemblyId, name, parts) {
+function buildBambuModelSettingsXml(assemblyId, name, parts, { singlePart = false } = {}) {
   const lines = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     "<config>",
@@ -181,11 +181,18 @@ function buildBambuModelSettingsXml(assemblyId, name, parts) {
     `    <metadata key="name" value="${escapeXml(name)}"/>`,
   ];
 
-  for (const part of parts) {
-    lines.push(`    <part id="${part.id}" subtype="normal_part">`);
-    lines.push(`      <metadata key="name" value="${escapeXml(part.name)}"/>`);
-    lines.push(`      <metadata key="extruder" value="${part.extruder}"/>`);
-    lines.push("    </part>");
+  // One mesh object referenced directly by build — do not wrap it in <part>
+  // entries. Bambu treats that as an empty assembly shell (~40 tris, non-manifold)
+  // instead of the real Body geometry.
+  if (singlePart && parts.length === 1) {
+    lines.push(`    <metadata key="extruder" value="${parts[0].extruder}"/>`);
+  } else {
+    for (const part of parts) {
+      lines.push(`    <part id="${part.id}" subtype="normal_part">`);
+      lines.push(`      <metadata key="name" value="${escapeXml(part.name)}"/>`);
+      lines.push(`      <metadata key="extruder" value="${part.extruder}"/>`);
+      lines.push("    </part>");
+    }
   }
 
   lines.push("  </object>");
@@ -238,6 +245,8 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck") {
   }
   if (!objectXml.length) throw new Error("No valid mesh parts to export");
 
+  const triangleCount = usable.reduce((sum, part) => sum + Math.floor((part.mesh.indices?.length || 0) / 3), 0);
+
   // Single mesh — reference it directly. A one-child assembly shell has no
   // triangles and Bambu Studio validates that empty wrapper (40-ish tris,
   // non-manifold errors) instead of the real Body geometry.
@@ -260,6 +269,7 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck") {
 <model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06">
   <metadata name="Application">MakerDeck</metadata>
   <metadata name="Title">${escapeXml(projectName)}</metadata>
+  <metadata name="MakerDeck-Triangles">${triangleCount}</metadata>
   <resources>
     ${objectXml.join("\n    ")}
   </resources>
@@ -280,7 +290,12 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck") {
     filament_density: filamentDensity,
   });
 
-  const modelSettings = buildBambuModelSettingsXml(buildObjectId, singlePart ? modelParts[0].name : projectName, modelParts);
+  const modelSettings = buildBambuModelSettingsXml(
+    buildObjectId,
+    singlePart ? modelParts[0].name : projectName,
+    modelParts,
+    { singlePart },
+  );
 
   const contentTypes = `<?xml version="1.0" encoding="UTF-8"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

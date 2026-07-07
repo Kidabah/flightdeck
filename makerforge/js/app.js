@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=126";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=127";
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance } from "./features.js?v=102";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=73";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=76";
-import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=126";
+import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=127";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
 
@@ -422,21 +422,29 @@ function hasSeparateTextExport(params = buildParams()) {
   return textHasInk(params.embossText) && !params.embossSvgEnabled && !params.embossDeboss;
 }
 
+function mergeInsertIntoBodyExport() {
+  return state.insertMount === "fixed" && state.insertEnabled && insertCache;
+}
+
+function resolveBodyExportMesh(params, separateText) {
+  const shell = meshCache.shellMesh || meshCache;
+  if (mergeInsertIntoBodyExport()) {
+    const welded = buildWatertightFixedDividerExport(meshCache, meshCache.meta, params);
+    if (welded) return welded;
+  }
+  if (separateText) return shell;
+  return buildWatertightExportMesh(meshCache, meshCache.meta, params);
+}
+
 function collectColoredExportParts() {
   if (!meshCache) return [];
   const params = buildParams();
   const parts = [];
   let extruder = 1;
-  const shell = meshCache.shellMesh || meshCache;
   const separateText = hasSeparateTextExport(params) && params.embossFace !== "lid";
-  const mergeInsertIntoBody = state.insertMount === "fixed" && state.insertEnabled && insertCache;
+  const mergeInsertIntoBody = mergeInsertIntoBodyExport();
 
-  const bodyMesh = separateText
-    ? shell
-    : (mergeInsertIntoBody
-      ? buildWatertightFixedDividerExport(meshCache, meshCache.meta, params)
-        || buildWatertightExportMesh(meshCache, meshCache.meta, params)
-      : buildWatertightExportMesh(meshCache, meshCache.meta, params));
+  const bodyMesh = resolveBodyExportMesh(params, separateText);
   const bodyClean = sanitizeMeshForStl(bodyMesh);
   if (bodyClean?.indices?.length) {
     parts.push({
@@ -2136,8 +2144,12 @@ function runExport(format) {
   try {
     switch (format) {
       case "3mf": {
+        rebuild();
         const parts = collectColoredExportParts();
+        const triCount = parts.reduce((sum, part) => sum + Math.floor((part.mesh?.indices?.length || 0) / 3), 0);
         downloadBlob(buildColoredProject3mf(parts, baseModelName(meshCache.meta)), filename3mfFor(meshCache.meta, "body"));
+        const status = document.getElementById("export-status");
+        if (status) status.textContent = `3MF downloaded — ${triCount} triangles (${parts.map((p) => p.name).join(" + ")})`;
         break;
       }
       case "stl": {
