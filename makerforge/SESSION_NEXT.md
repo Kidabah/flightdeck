@@ -1,8 +1,21 @@
 ## MakerDeck session handoff
 
 Latest GitHub state:
-- Branch: `main` (same repo as Flightdeck — `makerforge/` folder)
-- Latest commit: *(pending — b129 export guard)*
+- Branch: `main`
+- Latest commit: *(pending — b130 export root cause)*
+
+### 2026-07-07 — b130: Root cause — 40-tri joiner shell export, not Bambu packaging
+
+**What we missed:** Headless tests used `.ref/mdtest/` copies of geometry/features — **not the same files** as `makerforge/js/` served to the browser. The repaired.3MF Chris shared preserved `MakerDeck-Triangles: 40`, proving the downloaded file literally contained **40 triangles**, not 328 misread by Bambu. That count exactly matches the **Link/joiner shell** export path when the welded divider merge does not run.
+
+**Fixes:**
+- Fixed (welded) divider export no longer depends on preview `insertCache` — always calls `buildWatertightFixedDividerExport` when mount is Fixed.
+- Sync insert/joiner controls from DOM right before export (guards stale state).
+- Block 3MF download when fixed divider expected but &lt;200 triangles — shows alert instead of silently shipping broken mesh.
+- Block fixed divider + joiner together; selecting Fixed mount auto-disables joiner.
+- **Cache-bust all modules to v=130** (features.js was stuck at ?v=102 through b125–b129).
+
+**Files:** `js/app.js?v=130`, `js/features.js?v=130`, `js/geometry.js?v=130`, `js/3mf.js?v=130`, `js/stl.js?v=130`, `index.html` — header **b130**
 
 ### 2026-07-07 — b129: Export guard after repaired.3mf diff
 

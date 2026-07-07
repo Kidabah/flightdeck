@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=127";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance } from "./features.js?v=102";
-import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=73";
-import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=76";
-import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=129";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=130";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance } from "./features.js?v=130";
+import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=130";
+import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=130";
+import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=130";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
 
@@ -423,16 +423,29 @@ function hasSeparateTextExport(params = buildParams()) {
 }
 
 function mergeInsertIntoBodyExport() {
-  return state.insertMount === "fixed"
-    && state.insertEnabled
-    && !!(insertCache || meshCache?.insertMesh);
+  return state.insertMount === "fixed" && state.insertEnabled;
+}
+
+function syncExportStateFromUi() {
+  const insertOn = document.getElementById("insert-enabled");
+  const insertMount = document.getElementById("insert-mount");
+  const insertAxis = document.getElementById("insert-axis");
+  const joinerOn = document.getElementById("joiner-enabled");
+  if (insertOn) state.insertEnabled = insertOn.checked;
+  if (insertMount) state.insertMount = insertMount.value || state.insertMount || "snap";
+  if (insertAxis) state.insertAxis = insertAxis.value || state.insertAxis || "length";
+  if (joinerOn) state.joinerEnabled = joinerOn.checked;
 }
 
 function resolveBodyExportMesh(params, separateText) {
   const shell = meshCache.shellMesh || meshCache;
-  if (mergeInsertIntoBodyExport()) {
-    const welded = buildWatertightFixedDividerExport(meshCache, meshCache.meta, params);
-    if (welded) return welded;
+  if (state.insertEnabled && state.insertMount === "fixed") {
+    const welded = buildWatertightFixedDividerExport(meshCache, meshCache.meta, {
+      ...params,
+      fuseInsertToBody: true,
+    });
+    if (welded?.indices?.length) return welded;
+    throw new Error("Fixed divider export failed — use Width or Depth axis (not Height shelves).");
   }
   if (separateText) return shell;
   return buildWatertightExportMesh(meshCache, meshCache.meta, params);
@@ -2146,29 +2159,37 @@ function runExport(format) {
   try {
     switch (format) {
       case "3mf": {
+        syncExportStateFromUi();
+        if (state.insertEnabled && state.insertMount === "fixed" && state.joinerEnabled) {
+          alert("Link joiner and welded dividers don't mix — turn off Joiner on the Link tab, then download again.");
+          return;
+        }
         rebuild();
         const parts = collectColoredExportParts();
         const triCount = parts.reduce((sum, part) => sum + Math.floor((part.mesh?.indices?.length || 0) / 3), 0);
         const expectDivider = state.insertEnabled && state.insertMount === "fixed";
+        const status = document.getElementById("export-status");
         if (expectDivider && triCount < 200) {
-          const status = document.getElementById("export-status");
           if (status) {
-            status.textContent = `Warning: only ${triCount} triangles exported — fixed divider may be missing. Check Link tab (joiner off?) and Insert mount = Fixed (welded), then download again.`;
+            status.textContent = `Export blocked — only ${triCount} triangles (expected ~300+). Insert mount must be Fixed (welded), Joiner off, axis Width or Depth.`;
           }
+          alert(`Export blocked: only ${triCount} triangles.\n\nFor a welded divider box you should see ~300+ triangles.\n\nCheck:\n• Insert → Mount = Fixed (welded)\n• Link tab → Joiner OFF\n• Divider axis = Width or Depth`);
+          return;
         }
         downloadBlob(buildColoredProject3mf(parts, baseModelName(meshCache.meta)), filename3mfFor(meshCache.meta, "body"));
-        const status = document.getElementById("export-status");
-        if (status && !(expectDivider && triCount < 200)) {
+        if (status) {
           const kind = parts.length === 1 && parts[0].extruder === 1 ? "plain 3MF" : "colored 3MF";
           status.textContent = `${kind} downloaded — ${triCount} triangles (${parts.map((p) => p.name).join(" + ")})`;
         }
         break;
       }
       case "stl": {
+        syncExportStateFromUi();
+        rebuild();
         const params = buildParams();
         let exportMesh = buildWatertightExportMesh(meshCache, meshCache.meta, params);
-        if (state.insertEnabled && state.insertMount === "fixed" && insertCache) {
-          exportMesh = buildWatertightFixedDividerExport(meshCache, meshCache.meta, params) || exportMesh;
+        if (state.insertEnabled && state.insertMount === "fixed") {
+          exportMesh = buildWatertightFixedDividerExport(meshCache, meshCache.meta, { ...params, fuseInsertToBody: true }) || exportMesh;
         }
         downloadBlob(meshToStl(exportMesh, "makerdeck"), filenameFor(meshCache.meta, "body"));
         break;
@@ -2696,6 +2717,11 @@ document.getElementById("insert-axis").addEventListener("change", (e) => {
 
 document.getElementById("insert-mount").addEventListener("change", (e) => {
   state.insertMount = e.target.value;
+  if (state.insertMount === "fixed" && state.joinerEnabled) {
+    state.joinerEnabled = false;
+    document.getElementById("joiner-enabled").checked = false;
+    updateJoinerUi();
+  }
   if (state.insertMount === "slot" && state.insertAxis !== "height") {
     state.insertAxis = "height";
     document.getElementById("insert-axis").value = "height";
