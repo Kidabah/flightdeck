@@ -10671,6 +10671,19 @@ button.live-route-node:hover {
 /* ── History tab ── */
 .history-body { padding: 1.5rem 2rem 2rem; display: flex; flex-direction: column; gap: 1rem; }
 
+.history-body.history-passport-open > :not(#history-day-detail) {
+  display: none;
+}
+
+.history-body.history-passport-open {
+  padding-top: 1rem;
+}
+
+.history-body.history-passport-open #history-day-detail {
+  flex: 1;
+  min-height: 0;
+}
+
 .history-section { }
 
 /* Year navigation */

@@ -5,6 +5,14 @@ Latest GitHub/Pi state:
 - Latest commit: see entries below (Flightdeck core)
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
 
+### 2026-07-08 fix (sidebar open + history passport focus)
+
+**Sidebar sections default open; heatmap hides when passport open** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`)
+
+- Operations + System sidebar groups default **expanded** again (new localStorage key resets prior collapsed state).
+- Printer History hides the year heatmap while a print passport is open — back arrow returns to the day list and calendar.
+- Cache `app.js?v=629` `style.css?v=484`. Hard refresh required.
+
 ### 2026-07-08 fix (passport collapsible sections + scroll)
 
 **Print passport sections collapse; decision trail scroll trap** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`)

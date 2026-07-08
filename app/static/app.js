@@ -4240,7 +4240,7 @@ function router() {
   if (route.view === 'about' && !wasOnAbout) renderAboutView();
 }
 
-const _SIDEBAR_SECTIONS_KEY = 'flightdeck-sidebar-sections';
+const _SIDEBAR_SECTIONS_KEY = 'flightdeck-sidebar-sections-v2';
 
 function _sidebarSectionsState() {
   try {
@@ -4306,7 +4306,7 @@ function buildTabs(printers) {
       `<a class="tab" href="#/memory">Print Memory</a>`,
       `<a class="tab" href="#/filament">Fleet Filament</a>`,
       `<a class="tab" href="#/spools">Spools</a>`,
-    ].join(''), false),
+    ].join(''), true),
     section('system', 'System', [
       `<a class="tab" href="#/walkthrough">Walkthrough Mode</a>`,
       `<a class="tab" href="#/makerworld">MakerWorld</a>`,
@@ -4317,7 +4317,7 @@ function buildTabs(printers) {
         <a class="tab tab-settings-root" href="#/settings">Settings</a>
         <div class="tab-flyout-menu">${settingsLinks}</div>
       </div>`,
-    ].join(''), false),
+    ].join(''), true),
   ].join('');
   _tabsBuilt = true;
   _bindSidebarSections();
@@ -7206,6 +7206,10 @@ async function _showSpoolUsageAssignmentModal({ print, printerId }) {
   });
 }
 
+function _setHistoryPassportMode(active) {
+  document.getElementById('history-body')?.classList.toggle('history-passport-open', !!active);
+}
+
 function _passportSection(title, bodyHtml, { open = false, extraClass = '' } = {}) {
   const cls = ['print-passport-section', extraClass].filter(Boolean).join(' ');
   return `<details class="${cls}"${open ? ' open' : ''}>
@@ -7735,9 +7739,11 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
   }
 
   el.querySelector('.print-detail-panel')?.scrollIntoView({ block: 'nearest' });
+  _setHistoryPassportMode(el.id === 'history-day-detail');
 }
 
 function _renderDayList(printerId, dateStr, prints, el) {
+  _setHistoryPassportMode(false);
   const d = new Date(dateStr + 'T00:00:00Z');
   const header = d.toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
   if (!prints.length) {
