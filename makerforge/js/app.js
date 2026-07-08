@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=158";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark } from "./features.js?v=158";
-import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=158";
-import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=158";
-import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=158";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=159";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark } from "./features.js?v=159";
+import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=159";
+import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=159";
+import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=159";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
 import {
@@ -12,7 +12,7 @@ import {
   newAccentBand,
   ensureStateAccentBands,
   syncFlatAccentFromBands,
-} from "./accent-bands.js?v=158";
+} from "./accent-bands.js?v=159";
 import {
   libraryApiAvailable,
   capturePreviewThumbnail,
@@ -20,7 +20,7 @@ import {
   listLibraryDesigns,
   fetchDesignParams,
   deleteLibraryDesign,
-} from "./library.js?v=158";
+} from "./library.js?v=159";
 
 const SESSION_KEY = "makerdeck-session-v1";
 let saveSessionTimer = null;
@@ -2105,6 +2105,19 @@ function syncArtEditorUi() {
   document.getElementById("field-art-rotation").classList.toggle("hidden", !hasContent);
   document.getElementById("field-art-offset-x").classList.toggle("hidden", !hasContent);
   document.getElementById("field-art-offset-y").classList.toggle("hidden", !hasContent);
+  const wrapArt = shapeSupportsProfileArt(state.shape);
+  const offsetXLabel = document.querySelector("#field-art-offset-x .field-label");
+  const offsetYLabel = document.querySelector("#field-art-offset-y .field-label");
+  if (offsetXLabel) {
+    offsetXLabel.innerHTML = wrapArt
+      ? 'Around wall <span class="unit">mm</span>'
+      : 'Move left / right <span class="unit">mm</span>';
+  }
+  if (offsetYLabel) {
+    offsetYLabel.innerHTML = wrapArt
+      ? 'Height <span class="unit">mm</span>'
+      : 'Move up / down <span class="unit">mm</span>';
+  }
   syncArtSizeSlider();
 }
 
@@ -2267,7 +2280,7 @@ function storeTraceOnBox(result, { clearLabel = true, clearSvg = true } = {}) {
 
 async function importSvgDirectEmboss(svgText, { fileName = "" } = {}) {
   if (!shapeSupportsArt(artUiShape() || state.shape)) {
-    throw new Error("Pick a box, rounded, or pencil shape first.");
+    throw new Error("Pick a box, rounded, pencil, or profile pot shape first.");
   }
   state.embossText = "";
   state.embossTraceEnabled = false;
@@ -2297,7 +2310,7 @@ async function importSvgDirectEmboss(svgText, { fileName = "" } = {}) {
 
 async function importSvgFile(svgText, { fileName = "" } = {}) {
   if (!shapeSupportsArt(artUiShape() || state.shape)) {
-    throw new Error("Pick a box, rounded, or pencil shape first.");
+    throw new Error("Pick a box, rounded, pencil, or profile pot shape first.");
   }
   await importSvgDirectEmboss(svgText, { fileName });
 }
@@ -2320,7 +2333,7 @@ async function importSvgAsTrace(svgText, { fileName = "" } = {}) {
   if (preview) drawTracePreview(preview, traceSourceCanvas, traceLastResult);
 
   if (!shapeSupportsArt(artUiShape() || state.shape)) {
-    throw new Error("Pick a box, rounded, or pencil shape first.");
+    throw new Error("Pick a box, rounded, pencil, or profile pot shape first.");
   }
   if (traceLastResult.tooComplex) {
     throw new Error(`SVG too detailed to emboss (max ${MAX_TRACE_POLYGONS} paths).`);
@@ -2352,7 +2365,7 @@ function applyTraceToBox() {
     return;
   }
   if (!shapeSupportsArt(artUiShape() || state.shape)) {
-    document.getElementById("trace-meta").textContent = "Pick a box, rounded, or pencil shape first.";
+    document.getElementById("trace-meta").textContent = "Pick a box, rounded, pencil, or profile pot shape first.";
     return;
   }
   if (!storeTraceOnBox(traceLastResult)) return;

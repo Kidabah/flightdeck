@@ -31,6 +31,14 @@ export function decorPlacementOffsets(params, frame, artW, artH) {
   const maxOy = Math.max(4, frame.faceH * 0.42 - artH * 0.5);
   const ox = clamp(params.decorOffsetX ?? 0, -maxOx, maxOx);
   const oy = clamp(params.decorOffsetY ?? 0, -maxOy, maxOy);
+  if (frame.face === "wrap") {
+    return {
+      xOff: frame.faceW / 2 - artW / 2 + ox,
+      zOff: (frame.faceH - artH) / 2 + oy,
+      ox,
+      oy,
+    };
+  }
   return {
     xOff: -artW / 2 + ox,
     zOff: frame.horizontal ? -artH / 2 + oy : frame.centerZ - artH + oy,

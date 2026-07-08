@@ -352,8 +352,9 @@ export function triangulateMappedCap(outPos, outIdx, mapPoint, flatCoord, outerR
 
 /** Extrude one shape (outer + holes) between two full 3D surface mappers.
  * `flatCoord(w)` projects a world point to 2D for earcut cap triangulation.
+ * Pass `flatFromArt(px, py)` when world XY is not planar (profile wall wrap).
  * `caps`: "both" (default), "top", "bottom", or "none" — omit caps for manifold shell joins. */
-export function extrudeShapeGroupBetween(outPos, outIdx, group, mapTop, mapBot, flatCoord, caps = "both") {
+export function extrudeShapeGroupBetween(outPos, outIdx, group, mapTop, mapBot, flatCoord, caps = "both", flatFromArt = null) {
   const outerPts = ringPoints(group.outer);
   if (outerPts.length < 3) return;
 
@@ -363,10 +364,14 @@ export function extrudeShapeGroupBetween(outPos, outIdx, group, mapTop, mapBot, 
   const botWorld = [];
   const holeIndices = [];
 
+  const pushFlat = (p, w) => {
+    flat.push(...(flatFromArt ? flatFromArt(p[0], p[1]) : flatCoord(w)));
+  };
+
   for (const p of outerPts) {
     topWorld.push(mapTop(p[0], p[1]));
     botWorld.push(mapBot(p[0], p[1]));
-    flat.push(...flatCoord(topWorld[topWorld.length - 1]));
+    pushFlat(p, topWorld[topWorld.length - 1]);
   }
   holeIndices.push(outerPts.length);
 
@@ -375,7 +380,7 @@ export function extrudeShapeGroupBetween(outPos, outIdx, group, mapTop, mapBot, 
     for (const p of hole) {
       topWorld.push(mapTop(p[0], p[1]));
       botWorld.push(mapBot(p[0], p[1]));
-      flat.push(...flatCoord(topWorld[topWorld.length - 1]));
+      pushFlat(p, topWorld[topWorld.length - 1]);
     }
   }
 

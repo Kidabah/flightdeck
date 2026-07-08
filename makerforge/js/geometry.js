@@ -18,10 +18,10 @@ import {
   shapeSupportsProfileTexture,
   shapeSupportsProfileArt,
   shapeSupportsArt,
-} from "./features.js?v=158";
+} from "./features.js?v=159";
 import earcut from "https://esm.sh/earcut@2.2.4";
-import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=158";
-import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=158";
+import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=159";
+import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=159";
 import {
   resolveVaseTexture,
   densifyClosedProfile,

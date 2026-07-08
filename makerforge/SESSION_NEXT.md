@@ -2,10 +2,20 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: see **b158** below
-- Cache-bust: `app.js?v=158` (hard refresh `/makerdeck/` or `#/makerdeck`)
+- Latest commit: see **b159** below
+- Cache-bust: `app.js?v=159` (hard refresh `/makerdeck/` or `#/makerdeck`)
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-08 — b159: Profile wrap art polish
+
+**Wall-wrap emboss fixes** (`js/contour.js`, `js/decor.js`, `js/features.js`, `js/app.js`, `index.html`)
+
+- Cap triangulation uses art-space (arc × height) on curved walls — no more twisted caps on heart/teardrop.
+- Art anchors on the front (-Y) of the profile; vertical centering on wrap pots.
+- Seam unwrap keeps polygons near their anchor so edges don't chord across the perimeter.
+- Offset sliders relabel for wrap: **Around wall** / **Height**.
+- Cache **b159**. Hard refresh + re-export.
 
 ### 2026-07-08 — b158: Profile wall-wrap art + box textures
 

@@ -1097,20 +1097,64 @@ function profilePointAtArc(outer, normals, arcLen) {
   return { x: outer[0][0], y: outer[0][1], nx: normals[0][0], ny: normals[0][1] };
 }
 
+/** Arc length to the profile point facing the default camera (-Y). */
+function profileArcFrontOffset(outer) {
+  let bestY = Infinity;
+  let bestArc = 0;
+  let acc = 0;
+  const n = outer.length;
+  for (let i = 0; i < n; i++) {
+    const y = outer[i][1];
+    if (y < bestY) {
+      bestY = y;
+      bestArc = acc;
+    }
+    const j = (i + 1) % n;
+    acc += Math.hypot(outer[j][0] - outer[i][0], outer[j][1] - outer[i][1]);
+  }
+  return bestArc;
+}
+
+function unwrapWrapX(x, anchor, perim) {
+  let dx = x - anchor;
+  dx -= perim * Math.round(dx / perim);
+  return anchor + dx;
+}
+
+/** Keep wall-wrap polygons near their anchor so edges don't chord across the seam. */
+function normalizeWrapShapeGroups(shapeGroups, perim, anchorX) {
+  if (!shapeGroups?.length || !Number.isFinite(perim) || perim <= 0) return shapeGroups;
+  const mapPt = ([x, y]) => [unwrapWrapX(x, anchorX, perim), y];
+  return shapeGroups.map((group) => ({
+    outer: group.outer.map(mapPt),
+    holes: group.holes.map((hole) => hole.map(mapPt)),
+  }));
+}
+
+function wrapFlatFromArt() {
+  return (px, py) => [px, py];
+}
+
+function wrapExtrudeCaps(frame, caps) {
+  return frame.face === "wrap" ? { caps, flatFromArt: wrapFlatFromArt() } : { caps };
+}
+
 /** Wall-wrap frame — art maps around the outer profile (arc length × height). */
 export function getProfileWrapFaceFrame(outerProfile, meta) {
   const outer = outerProfile.map((p) => [p[0], p[1]]);
   const normals = profileOutlineNormals(outer);
   const metrics = profileOutlineArcMetrics(outer);
   const totalH = meta.outer?.h ?? meta.totalH ?? 40;
+  const arcOrigin = profileArcFrontOffset(outer);
   return {
     face: "wrap",
     faceW: metrics.perimeter,
     faceH: totalH,
     centerZ: totalH * 0.5,
     horizontal: false,
+    arcOrigin,
     mapPoint: (px, py, offset) => {
-      const pt = profilePointAtArc(outer, normals, px);
+      const pt = profilePointAtArc(outer, normals, px + arcOrigin);
       const z = clamp(py, 0, totalH);
       return [pt.x + pt.nx * offset, pt.y + pt.ny * offset, z];
     },
@@ -1136,9 +1180,14 @@ function collectTextEmbossShapeGroups(meta, params) {
     holes: group.holes.map((h) => h.map(([px, py]) => [xOff + px * scale, zOff + (maskH - py) * scale])),
   }));
 
+  let shaped = remapped.map((g) => rotateShapeGroup(g, cx, cy, rotation));
+  if (frame.face === "wrap") {
+    shaped = normalizeWrapShapeGroups(shaped, frame.faceW, cx);
+  }
+
   return {
     frame,
-    shapeGroups: remapped.map((g) => rotateShapeGroup(g, cx, cy, rotation)),
+    shapeGroups: shaped,
     depth: clamp(params.embossDepth ?? 0.7, 0.3, 2),
   };
 }
@@ -1289,7 +1338,8 @@ function buildWatertightTextEmbossExport(shellMesh, meta, params) {
   triangulateMappedCap(positions, indices, mapBot, flatCoord, outerRect, [], true);
 
   for (const group of shapeGroups) {
-    extrudeShapeGroupBetween(positions, indices, group, mapTop, mapBot, flatCoord, "both");
+    const { caps, flatFromArt } = wrapExtrudeCaps(frame, "both");
+    extrudeShapeGroupBetween(positions, indices, group, mapTop, mapBot, flatCoord, caps, flatFromArt);
   }
 
   return removeWallTrisUnderEmboss({ positions, indices }, frame, meta, shapeGroups);
@@ -1308,7 +1358,8 @@ export function buildTextLabelExportMesh(meta, params) {
   const flatCoord = (w) => flatCoordForFrame(frame, w);
 
   for (const group of shapeGroups) {
-    extrudeShapeGroupBetween(positions, indices, group, mapTop, mapBot, flatCoord, "both");
+    const { caps, flatFromArt } = wrapExtrudeCaps(frame, "both");
+    extrudeShapeGroupBetween(positions, indices, group, mapTop, mapBot, flatCoord, caps, flatFromArt);
   }
   return positions.length ? { positions, indices } : null;
 }
@@ -1316,7 +1367,7 @@ export function buildTextLabelExportMesh(meta, params) {
 export function buildWatertightExportMesh(bodyMesh, meta, params) {
   if (!bodyMesh || params.embossDeboss) return bodyMesh;
   const face = params.embossFace || "front";
-  if (face === "lid" || params.joinerEnabled) return bodyMesh;
+  if (face === "lid" || face === "wrap" || params.joinerEnabled) return bodyMesh;
 
   const shell = bodyMesh.shellMesh || bodyMesh;
   if (params.embossText?.trim() && !params.embossSvgEnabled) {
@@ -1464,7 +1515,8 @@ export function buildEmbossText(meta, params) {
   const mapBot = (px, py) => collected.frame.mapPoint(px, py, d0);
 
   for (const group of collected.shapeGroups) {
-    extrudeShapeGroupBetween(positions, indices, group, mapTop, mapBot, flatCoord, "top");
+    const { caps, flatFromArt } = wrapExtrudeCaps(collected.frame, "top");
+    extrudeShapeGroupBetween(positions, indices, group, mapTop, mapBot, flatCoord, caps, flatFromArt);
   }
   return positions.length ? { positions, indices } : null;
 }
@@ -1509,7 +1561,9 @@ export function buildEmbossBitmap(meta, params, bitmap) {
         outer: group.outer.map(([px, py]) => [xOff + px * scale, zOff + (maskH - py) * scale]),
         holes: group.holes.map((h) => h.map(([px, py]) => [xOff + px * scale, zOff + (maskH - py) * scale])),
       };
-      extrudeGroupOnFace(positions, indices, frame, rotateShapeGroup(remapped, rotCx, rotCy, rotation), d0, d1);
+      let shaped = rotateShapeGroup(remapped, rotCx, rotCy, rotation);
+      if (frame.face === "wrap") shaped = normalizeWrapShapeGroups([shaped], frame.faceW, rotCx)[0];
+      extrudeGroupOnFace(positions, indices, frame, shaped, d0, d1);
     }
     return positions.length ? { positions, indices } : null;
   }
@@ -1546,7 +1600,9 @@ export function buildEmbossBitmap(meta, params, bitmap) {
       outer: group.outer.map(([px, py]) => [xOff + px * scale, zOff + (maskH - py) * scale]),
       holes: group.holes.map((h) => h.map(([px, py]) => [xOff + px * scale, zOff + (maskH - py) * scale])),
     };
-    extrudeGroupOnFace(positions, indices, frame, rotateShapeGroup(remapped, rotCx, rotCy, rotation), d0, d1);
+    let shaped = rotateShapeGroup(remapped, rotCx, rotCy, rotation);
+    if (frame.face === "wrap") shaped = normalizeWrapShapeGroups([shaped], frame.faceW, rotCx)[0];
+    extrudeGroupOnFace(positions, indices, frame, shaped, d0, d1);
   }
 
   return positions.length ? { positions, indices } : null;
@@ -2015,7 +2071,9 @@ function extrudeGroupOnFace(outPos, outIdx, frame, group, d0, d1) {
   const mapTop = (px, py) => frame.mapPoint(px, py, d1);
   const mapBot = (px, py) => frame.mapPoint(px, py, d0);
   const flatCoord = (w) => flatCoordForFrame(frame, w);
-  extrudeShapeGroupBetween(outPos, outIdx, group, mapTop, mapBot, flatCoord, d0 < 0 ? "both" : "top");
+  const capMode = d0 < 0 ? "both" : "top";
+  const { caps, flatFromArt } = wrapExtrudeCaps(frame, capMode);
+  extrudeShapeGroupBetween(outPos, outIdx, group, mapTop, mapBot, flatCoord, caps, flatFromArt);
 }
 
 function labelOffsets(params) {
