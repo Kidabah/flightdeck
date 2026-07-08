@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=159";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark } from "./features.js?v=159";
-import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=159";
-import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=159";
-import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=159";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=160";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark } from "./features.js?v=160";
+import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=160";
+import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=160";
+import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=160";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
 import {
@@ -12,7 +12,7 @@ import {
   newAccentBand,
   ensureStateAccentBands,
   syncFlatAccentFromBands,
-} from "./accent-bands.js?v=159";
+} from "./accent-bands.js?v=160";
 import {
   libraryApiAvailable,
   capturePreviewThumbnail,
@@ -20,7 +20,7 @@ import {
   listLibraryDesigns,
   fetchDesignParams,
   deleteLibraryDesign,
-} from "./library.js?v=159";
+} from "./library.js?v=160";
 
 const SESSION_KEY = "makerdeck-session-v1";
 let saveSessionTimer = null;
@@ -2649,6 +2649,35 @@ function bindAccentBandSlider(slider, bandIndex, key, parseKind = "float") {
   slider.addEventListener("change", () => pushAppHistory());
 }
 
+function createAccentBandValueEdit(sliderId, bandIndex, key, parseKind, display) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "value-edit";
+  btn.id = `${sliderId}-out`;
+  btn.dataset.slider = sliderId;
+  btn.dataset.accentBand = String(bandIndex);
+  btn.dataset.accentKey = key;
+  btn.dataset.parse = parseKind;
+  btn.textContent = String(display);
+  return btn;
+}
+
+function applyAccentBandSliderValue(slider, bandIndex, key, val, parseKind) {
+  const display = formatSliderValue(val, slider.step);
+  slider.value = display;
+  const band = state.accentBands[bandIndex];
+  if (!band) return;
+  band[key] = parseFieldValue(display, parseKind);
+  if (key === "pos" && accentUiMode() === "profile") {
+    band.face = band.pos <= 0.5 ? "floor" : "rim";
+  }
+  syncFlatAccentFromBands(state);
+  const out = slider.parentElement?.querySelector(".value-edit");
+  if (out) out.textContent = display;
+  rebuild();
+  pushAppHistory();
+}
+
 function syncAccentBandControlsFromState() {
   const mode = accentUiMode();
   state.accentBands.forEach((band, i) => {
@@ -2806,11 +2835,7 @@ function renderAccentBandsUi(force = false) {
       posSlider.step = "1";
       posSlider.value = String(band.pos ?? 50);
       posSlider.tabIndex = -1;
-      const posOut = document.createElement("button");
-      posOut.type = "button";
-      posOut.className = "value-edit";
-      posOut.id = `accent-band-${i}-pos-out`;
-      posOut.textContent = String(band.pos ?? 50);
+      const posOut = createAccentBandValueEdit(posSlider.id, i, "pos", "float", band.pos ?? 50);
       posField.append(posSlider, posOut);
       card.appendChild(posField);
       bindAccentBandSlider(posSlider, i, "pos", "float");
@@ -2852,11 +2877,7 @@ function renderAccentBandsUi(force = false) {
       waveAmpSlider.step = "0.5";
       waveAmpSlider.value = String(band.waveAmp ?? 3);
       waveAmpSlider.tabIndex = -1;
-      const waveAmpOut = document.createElement("button");
-      waveAmpOut.type = "button";
-      waveAmpOut.className = "value-edit";
-      waveAmpOut.id = `accent-band-${i}-wave-amp-out`;
-      waveAmpOut.textContent = String(band.waveAmp ?? 3);
+      const waveAmpOut = createAccentBandValueEdit(waveAmpSlider.id, i, "waveAmp", "float", band.waveAmp ?? 3);
       waveAmpField.append(waveAmpSlider, waveAmpOut);
       card.appendChild(waveAmpField);
       bindAccentBandSlider(waveAmpSlider, i, "waveAmp", "float");
@@ -2874,11 +2895,7 @@ function renderAccentBandsUi(force = false) {
       waveCountSlider.step = "1";
       waveCountSlider.value = String(band.waveCount ?? 6);
       waveCountSlider.tabIndex = -1;
-      const waveCountOut = document.createElement("button");
-      waveCountOut.type = "button";
-      waveCountOut.className = "value-edit";
-      waveCountOut.id = `accent-band-${i}-wave-count-out`;
-      waveCountOut.textContent = String(band.waveCount ?? 6);
+      const waveCountOut = createAccentBandValueEdit(waveCountSlider.id, i, "waveCount", "int", band.waveCount ?? 6);
       waveCountField.append(waveCountSlider, waveCountOut);
       card.appendChild(waveCountField);
       bindAccentBandSlider(waveCountSlider, i, "waveCount", "int");
@@ -2896,11 +2913,7 @@ function renderAccentBandsUi(force = false) {
     heightSlider.step = "0.5";
     heightSlider.value = String(band.height ?? 4);
     heightSlider.tabIndex = -1;
-    const heightOut = document.createElement("button");
-    heightOut.type = "button";
-    heightOut.className = "value-edit";
-    heightOut.id = `accent-band-${i}-height-out`;
-    heightOut.textContent = String(band.height ?? 4);
+    const heightOut = createAccentBandValueEdit(heightSlider.id, i, "height", "float", band.height ?? 4);
     heightField.append(heightSlider, heightOut);
     card.appendChild(heightField);
     bindAccentBandSlider(heightSlider, i, "height", "float");
@@ -3214,7 +3227,11 @@ function beginValueEdit(btn) {
   const finish = (commit) => {
     if (commit) {
       const val = clampToSlider(slider, input.value, parseKind);
-      applySliderValue(slider, btn.dataset.key, val, parseKind);
+      if (btn.dataset.accentBand != null && btn.dataset.accentKey) {
+        applyAccentBandSliderValue(slider, Number(btn.dataset.accentBand), btn.dataset.accentKey, val, parseKind);
+      } else {
+        applySliderValue(slider, btn.dataset.key, val, parseKind);
+      }
     }
     input.remove();
     btn.hidden = false;

@@ -2,10 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: see **b159** below
-- Cache-bust: `app.js?v=159` (hard refresh `/makerdeck/` or `#/makerdeck`)
+- Latest commit: see **b160** below
+- Cache-bust: `app.js?v=160` (hard refresh `/makerdeck/` or `#/makerdeck`)
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-08 — b160: Accent band click-to-edit values
+
+**Accent tab** (`js/app.js`, `index.html`)
+
+- Band height, position %, and wave sliders now wire `data-slider` like box dimensions — click the number to type a value.
+- Works on boxes, profile pots, and vases.
+- Cache **b160**. Hard refresh.
 
 ### 2026-07-08 — b159: Profile wrap art polish
 
