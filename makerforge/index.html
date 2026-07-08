@@ -42,7 +42,7 @@
 
       <div>
 
-        <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b156</span></div>
+        <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b157</span></div>
 
         <h1>Container Generator</h1>
 
@@ -442,6 +442,35 @@
                 <button type="button" class="value-edit" id="out-floor" data-slider="floor" data-key="floor" data-parse="float" aria-label="Edit floor thickness in mm">2.4</button>
 
               </label>
+
+              <div id="section-profile-texture" class="hidden">
+                <h2 class="section-sub">Surface texture</h2>
+                <p class="field-hint">Relief on the outer wall — ripple, scales, bark, weave, or knit.</p>
+                <label class="field field-toggle">
+                  <span class="field-label">Surface texture</span>
+                  <input type="checkbox" id="profile-texture-enabled">
+                </label>
+                <label class="field hidden" id="field-profile-texture-style">
+                  <span class="field-label">Texture style</span>
+                  <select id="profile-texture-style">
+                    <option value="ripple">Ripple (horizontal waves)</option>
+                    <option value="scales">Scales</option>
+                    <option value="bark">Bark (vertical ridges)</option>
+                    <option value="weave">Basket weave</option>
+                    <option value="knit">Knitted</option>
+                  </select>
+                </label>
+                <label class="field hidden" id="field-profile-texture-depth">
+                  <span class="field-label">Texture depth <span class="unit">mm</span></span>
+                  <input type="range" id="profile-texture-depth" min="0.3" max="3" step="0.1" value="1.2" tabindex="-1">
+                  <button type="button" class="value-edit" data-slider="profile-texture-depth" data-key="vaseTextureDepth" data-parse="float">1.2</button>
+                </label>
+                <label class="field hidden" id="field-profile-texture-scale">
+                  <span class="field-label">Texture scale <span class="unit">mm</span></span>
+                  <input type="range" id="profile-texture-scale" min="6" max="40" step="1" value="14" tabindex="-1">
+                  <button type="button" class="value-edit" data-slider="profile-texture-scale" data-key="vaseTextureScale" data-parse="float">14</button>
+                </label>
+              </div>
 
             </section>
 
@@ -1128,7 +1157,7 @@
 
 
 
-  <script type="module" src="js/app.js?v=156"></script>
+  <script type="module" src="js/app.js?v=157"></script>
 
 </body>
 

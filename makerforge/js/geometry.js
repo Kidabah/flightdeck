@@ -15,14 +15,25 @@ import {
   shapeSupportsInsert,
   shapeSupportsAccent,
   shapeSupportsAccentFrontFace,
-} from "./features.js?v=156";
+  shapeSupportsProfileTexture,
+} from "./features.js?v=157";
 import earcut from "https://esm.sh/earcut@2.2.4";
-import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=156";
-import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=156";
+import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=157";
+import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=157";
+import {
+  resolveVaseTexture,
+  densifyClosedProfile,
+  profileOutlineNormals,
+  profileOutlineArcMetrics,
+  displacedProfileRings,
+  profileWallTextureLayers,
+  profileTextureMaxEdge,
+  profileOutlinePerimeter,
+} from "./vase-textures.js";
 
 import { appendInsertShelfSlotsToBody } from "./insert-slots.js";
 
-export { shapeSupportsDecor, shapeSupportsInsert, shapeSupportsAccent, shapeSupportsAccentFrontFace, VASE_STYLES };
+export { shapeSupportsDecor, shapeSupportsInsert, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, VASE_STYLES };
 
 function clamp(n, min, max) {
   return Math.min(max, Math.max(min, n));
@@ -587,6 +598,83 @@ function shellFromProfiles(outer, inner, floor, totalH, cavityH, openFront = fal
     buildProfileShell(positions, indices, outer, inner, floor, totalH, cavityH);
   }
   return { positions, indices };
+}
+
+function loftProfileRings(outPos, outIdx, ringA, ringB, zA, zB, outward) {
+  const n = ringA.length;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const a0 = vec3(ringA[i][0], ringA[i][1], zA);
+    const a1 = vec3(ringA[j][0], ringA[j][1], zA);
+    const b1 = vec3(ringB[j][0], ringB[j][1], zB);
+    const b0 = vec3(ringB[i][0], ringB[i][1], zB);
+    if (outward) pushQuad(outPos, outIdx, a0, a1, b1, b0);
+    else pushQuad(outPos, outIdx, a0, b0, b1, a1);
+  }
+}
+
+function shellFromTexturedProfiles(outer, inner, floor, totalH, cavityH, textureSpec) {
+  const positions = [];
+  const indices = [];
+  const normals = profileOutlineNormals(outer);
+  const metrics = profileOutlineArcMetrics(outer);
+  const spec = {
+    ...textureSpec,
+    height: totalH,
+    floor,
+    diameter: metrics.effectiveDiameter,
+  };
+  const layers = profileWallTextureLayers(spec, totalH, floor, 16);
+  const layerZ = (i) => (i / (layers - 1)) * totalH;
+  const ringAt = (z) => displacedProfileRings(outer, inner, normals, z, spec, metrics);
+
+  const zFloor = floor;
+  const zCavityTop = floor + cavityH;
+  const floorRing = ringAt(0);
+  capProfileSolid(positions, indices, floorRing.outer, 0, false);
+  capProfileSolid(positions, indices, ringAt(zFloor).inner, zFloor, true);
+
+  let prevO = floorRing.outer;
+  let prevOz = 0;
+  for (let i = 1; i < layers; i++) {
+    const z = layerZ(i);
+    const ring = ringAt(z).outer;
+    loftProfileRings(positions, indices, prevO, ring, prevOz, z, true);
+    prevO = ring;
+    prevOz = z;
+  }
+
+  const topRing = ringAt(totalH);
+  capProfileAnnulus(positions, indices, topRing.outer, topRing.inner, totalH, true);
+
+  const innerLayers = clamp(Math.round(layers * (cavityH / Math.max(totalH, 1))), 6, layers);
+  const innerLayerZ = (i) => zFloor + (i / (innerLayers - 1)) * cavityH;
+  let prevI = ringAt(zFloor).inner;
+  let prevIz = zFloor;
+  for (let i = 1; i < innerLayers; i++) {
+    const z = innerLayerZ(i);
+    const ring = ringAt(z).inner;
+    loftProfileRings(positions, indices, prevI, ring, prevIz, z, false);
+    prevI = ring;
+    prevIz = z;
+  }
+
+  return { positions, indices };
+}
+
+function prepareProfileWallTexture(params, shape, outer, inner, totalH, floor, wall) {
+  if (!params?.vaseTextureEnabled || !shapeSupportsProfileTexture(shape)) return null;
+  const perim = profileOutlinePerimeter(outer);
+  const spec = resolveVaseTexture(params, {
+    height: totalH,
+    floor,
+    diameter: perim / Math.PI,
+  });
+  if (!spec || spec.style === "none" || spec.depth <= 0) return null;
+  const maxEdge = profileTextureMaxEdge(spec);
+  const outerDense = densifyClosedProfile(outer, maxEdge);
+  const innerDense = offsetProfileInward(outerDense, wall);
+  return { spec, outer: outerDense, inner: innerDense };
 }
 
 /** Dovetail joiner on a long flat wall — Left = male (+), Right = female (−) along the long axis. */
@@ -1531,14 +1619,36 @@ export function buildContainer(params) {
       joiner,
     );
   } else {
-    mesh = shellFromProfiles(
-      resolved.outer,
-      resolved.inner,
-      resolved.floor,
-      resolved.totalH,
-      resolved.cavityH,
-      !!params.bookcaseOpenFront,
-    );
+    const textured = !params.bookcaseOpenFront
+      ? prepareProfileWallTexture(
+        params,
+        resolved.meta.shape,
+        resolved.outer,
+        resolved.inner,
+        resolved.totalH,
+        resolved.floor,
+        params.wall ?? 2.4,
+      )
+      : null;
+    if (textured) {
+      mesh = shellFromTexturedProfiles(
+        textured.outer,
+        textured.inner,
+        resolved.floor,
+        resolved.totalH,
+        resolved.cavityH,
+        textured.spec,
+      );
+    } else {
+      mesh = shellFromProfiles(
+        resolved.outer,
+        resolved.inner,
+        resolved.floor,
+        resolved.totalH,
+        resolved.cavityH,
+        !!params.bookcaseOpenFront,
+      );
+    }
   }
 
   centerPositions(mesh.positions, 0, 0);

@@ -174,3 +174,117 @@ export function vaseTextureTessellation(spec, diameter, height, segments, layers
   }
   return { segments: seg, layers: lay };
 }
+
+function polygonSignedArea2(pts) {
+  let area = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const j = (i + 1) % pts.length;
+    area += pts[i][0] * pts[j][1] - pts[j][0] * pts[i][1];
+  }
+  return area / 2;
+}
+
+/** Subdivide long profile edges so relief tessellation stays smooth. */
+export function densifyClosedProfile(points, maxEdgeLen) {
+  if (!points?.length || maxEdgeLen <= 0) return points.map((p) => [p[0], p[1]]);
+  const out = [];
+  const n = points.length;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const a = points[i];
+    const b = points[j];
+    out.push([a[0], a[1]]);
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const steps = Math.max(0, Math.ceil(len / maxEdgeLen) - 1);
+    for (let s = 1; s <= steps; s++) {
+      const t = s / (steps + 1);
+      out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);
+    }
+  }
+  return out;
+}
+
+export function profileOutlinePerimeter(points) {
+  let perim = 0;
+  for (let i = 0; i < points.length; i++) {
+    const j = (i + 1) % points.length;
+    perim += Math.hypot(points[j][0] - points[i][0], points[j][1] - points[i][1]);
+  }
+  return perim;
+}
+
+/** Outward unit normals for a CCW closed profile. */
+export function profileOutlineNormals(points) {
+  const n = points.length;
+  const ccw = polygonSignedArea2(points) > 0;
+  const sign = ccw ? 1 : -1;
+  const normals = [];
+  for (let i = 0; i < n; i++) {
+    let nx = 0;
+    let ny = 0;
+    for (const e of [i, (i - 1 + n) % n]) {
+      const j = (e + 1) % n;
+      const dx = points[j][0] - points[e][0];
+      const dy = points[j][1] - points[e][1];
+      const len = Math.hypot(dx, dy) || 1;
+      nx += sign * (dy / len);
+      ny += sign * (-dx / len);
+    }
+    const len = Math.hypot(nx, ny) || 1;
+    normals.push([nx / len, ny / len]);
+  }
+  return normals;
+}
+
+export function profileOutlineArcMetrics(points) {
+  const n = points.length;
+  let perim = 0;
+  const arcAt = new Array(n);
+  for (let i = 0; i < n; i++) {
+    arcAt[i] = perim;
+    const j = (i + 1) % n;
+    perim += Math.hypot(points[j][0] - points[i][0], points[j][1] - points[i][1]);
+  }
+  return { perimeter: perim, arcAt, effectiveDiameter: perim / Math.PI };
+}
+
+/** Max edge length for profile densification from an active texture spec. */
+export function profileTextureMaxEdge(spec) {
+  if (!spec || spec.style === "none") return 0;
+  const scale = Math.max(4, spec.scale);
+  if (spec.style === "knit" || spec.style === "weave") return scale * 0.45;
+  if (spec.style === "ripple") return scale * 0.65;
+  return scale * 0.55;
+}
+
+/** Outer/inner rings with matching normal displacement — constant wall thickness. */
+export function displacedProfileRings(outerBase, innerBase, normals, z, textureSpec, metrics) {
+  if (!textureSpec || textureSpec.style === "none" || textureSpec.depth <= 0) {
+    return {
+      outer: outerBase.map((p) => [p[0], p[1]]),
+      inner: innerBase.map((p) => [p[0], p[1]]),
+    };
+  }
+  const spec = { ...textureSpec, diameter: metrics.effectiveDiameter };
+  const n = outerBase.length;
+  const outer = new Array(n);
+  const inner = new Array(n);
+  for (let i = 0; i < n; i++) {
+    const angle = metrics.perimeter > 1e-6
+      ? (metrics.arcAt[i] / metrics.perimeter) * Math.PI * 2 - Math.PI
+      : 0;
+    const dr = vaseTextureDisplacement(angle, z, spec);
+    const nx = normals[i][0];
+    const ny = normals[i][1];
+    outer[i] = [outerBase[i][0] + nx * dr, outerBase[i][1] + ny * dr];
+    inner[i] = [innerBase[i][0] + nx * dr, innerBase[i][1] + ny * dr];
+  }
+  return { outer, inner };
+}
+
+export function profileWallTextureLayers(textureSpec, height, floor, baseLayers = 16) {
+  if (!textureSpec || textureSpec.style === "none") return baseLayers;
+  const d = textureSpec.diameter || 80;
+  const { layers } = vaseTextureTessellation(textureSpec, d, height, 24, baseLayers);
+  return clamp(layers, 10, 120);
+}

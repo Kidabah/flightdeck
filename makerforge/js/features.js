@@ -1761,6 +1761,17 @@ export function shapeSupportsDecor(shape) {
   return shape === "rect" || shape === "rounded" || shape === "pencil" || shape === "pencilBox";
 }
 
+/** Parametric wall relief on curved profile containers (pots, tubes). */
+export function shapeSupportsProfileTexture(shape) {
+  return (
+    shape === "teardrop"
+    || shape === "heart"
+    || shape === "star"
+    || shape === "circle"
+    || shape === "oval"
+  );
+}
+
 /** Accent bands wrap the outer wall profile — all container shapes except open specials. */
 export function shapeSupportsAccent(shape) {
   return (

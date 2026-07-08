@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=156";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark } from "./features.js?v=156";
-import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=156";
-import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=156";
-import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=156";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=157";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark } from "./features.js?v=157";
+import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=157";
+import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=157";
+import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=157";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
 import {
@@ -12,7 +12,7 @@ import {
   newAccentBand,
   ensureStateAccentBands,
   syncFlatAccentFromBands,
-} from "./accent-bands.js?v=156";
+} from "./accent-bands.js?v=157";
 import {
   libraryApiAvailable,
   capturePreviewThumbnail,
@@ -20,7 +20,7 @@ import {
   listLibraryDesigns,
   fetchDesignParams,
   deleteLibraryDesign,
-} from "./library.js?v=156";
+} from "./library.js?v=157";
 
 const SESSION_KEY = "makerdeck-session-v1";
 let saveSessionTimer = null;
@@ -1375,6 +1375,12 @@ function syncUiFromState() {
   syncSliderUi("vase-twist", "vaseTwist", { min: -180, max: 180, value: state.vaseTwist ?? 0, parseKind: "float" });
   syncSliderUi("vase-texture-depth", "vaseTextureDepth", { min: 0.3, max: 3, value: state.vaseTextureDepth ?? 1.2, parseKind: "float" });
   syncSliderUi("vase-texture-scale", "vaseTextureScale", { min: 6, max: 40, value: state.vaseTextureScale ?? 14, parseKind: "float" });
+  syncSliderUi("profile-texture-depth", "vaseTextureDepth", { min: 0.3, max: 3, value: state.vaseTextureDepth ?? 1.2, parseKind: "float" });
+  syncSliderUi("profile-texture-scale", "vaseTextureScale", { min: 6, max: 40, value: state.vaseTextureScale ?? 14, parseKind: "float" });
+  const profileTextureSel = document.getElementById("profile-texture-style");
+  if (profileTextureSel) profileTextureSel.value = state.vaseTextureStyle || "ripple";
+  const profileTextureOn = document.getElementById("profile-texture-enabled");
+  if (profileTextureOn) profileTextureOn.checked = !!state.vaseTextureEnabled;
   const vaseStyleSel = document.getElementById("vase-style");
   if (vaseStyleSel) vaseStyleSel.value = state.vaseStyle || "cylinder";
   const vaseRimSel = document.getElementById("vase-rim");
@@ -3590,6 +3596,15 @@ document.querySelectorAll(".shape-btn").forEach((btn) => {
   });
 });
 
+function updateProfileTextureUiVisibility() {
+  const supported = shapeSupportsProfileTexture(state.shape);
+  const textureOn = !!state.vaseTextureEnabled;
+  document.getElementById("section-profile-texture")?.classList.toggle("hidden", !supported);
+  document.getElementById("field-profile-texture-style")?.classList.toggle("hidden", !supported || !textureOn);
+  document.getElementById("field-profile-texture-depth")?.classList.toggle("hidden", !supported || !textureOn);
+  document.getElementById("field-profile-texture-scale")?.classList.toggle("hidden", !supported || !textureOn);
+}
+
 function updateVaseUiVisibility() {
   const isVase = state.shape === "vase";
   if (isVase && state.lidEnabled) {
@@ -3610,6 +3625,7 @@ function updateVaseUiVisibility() {
   document.getElementById("field-vase-texture-style")?.classList.toggle("hidden", !textureOn);
   document.getElementById("field-vase-texture-depth")?.classList.toggle("hidden", !textureOn);
   document.getElementById("field-vase-texture-scale")?.classList.toggle("hidden", !textureOn);
+  updateProfileTextureUiVisibility();
   syncExportFormatOptions();
 }
 
@@ -3649,6 +3665,17 @@ document.getElementById("vase-flutes").addEventListener("input", () => {
 
 document.getElementById("vase-texture-enabled")?.addEventListener("change", (e) => {
   state.vaseTextureEnabled = e.target.checked;
+  const profileOn = document.getElementById("profile-texture-enabled");
+  if (profileOn) profileOn.checked = state.vaseTextureEnabled;
+  updateVaseUiVisibility();
+  scheduleSaveSession();
+  rebuild();
+});
+
+document.getElementById("profile-texture-enabled")?.addEventListener("change", (e) => {
+  state.vaseTextureEnabled = e.target.checked;
+  const vaseOn = document.getElementById("vase-texture-enabled");
+  if (vaseOn) vaseOn.checked = state.vaseTextureEnabled;
   updateVaseUiVisibility();
   scheduleSaveSession();
   rebuild();
@@ -3656,12 +3683,24 @@ document.getElementById("vase-texture-enabled")?.addEventListener("change", (e) 
 
 document.getElementById("vase-texture-style")?.addEventListener("change", (e) => {
   state.vaseTextureStyle = e.target.value;
+  const profileSel = document.getElementById("profile-texture-style");
+  if (profileSel) profileSel.value = state.vaseTextureStyle;
+  scheduleSaveSession();
+  rebuild();
+});
+
+document.getElementById("profile-texture-style")?.addEventListener("change", (e) => {
+  state.vaseTextureStyle = e.target.value;
+  const vaseSel = document.getElementById("vase-texture-style");
+  if (vaseSel) vaseSel.value = state.vaseTextureStyle;
   scheduleSaveSession();
   rebuild();
 });
 
 bindRange("vase-texture-depth", "vaseTextureDepth", "float");
 bindRange("vase-texture-scale", "vaseTextureScale", "float");
+bindRange("profile-texture-depth", "vaseTextureDepth", "float");
+bindRange("profile-texture-scale", "vaseTextureScale", "float");
 
 document.getElementById("vase-rim").addEventListener("change", (e) => {
   state.vaseRim = e.target.value;

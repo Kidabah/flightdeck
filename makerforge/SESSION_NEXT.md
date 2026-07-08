@@ -2,10 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: see **b156** below
-- Cache-bust: `app.js?v=156` (hard refresh `/makerdeck/` or `#/makerdeck`)
+- Latest commit: see **b157** below
+- Cache-bust: `app.js?v=157` (hard refresh `/makerdeck/` or `#/makerdeck`)
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-08 — b157: Profile pot wall textures
+
+**Surface relief on teardrop / heart / star / circle / oval** (`js/vase-textures.js`, `js/geometry.js`, `js/app.js`, `index.html`)
+
+- Reuses vase texture styles (ripple, scales, bark, weave, knit) on profile containers — outward-normal displacement, constant wall thickness.
+- Walls tab → **Surface texture** when a supported preset/round shape is selected.
+- Cache **b157**. Hard refresh + re-export.
 
 ### 2026-07-08 — b156: Heart accent cleft — whisker more
 
