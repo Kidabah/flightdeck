@@ -2,10 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: see **b154** below
-- Cache-bust: `app.js?v=154` (hard refresh `/makerdeck/` or `#/makerdeck`)
+- Latest commit: see **b155** below
+- Cache-bust: `app.js?v=155` (hard refresh `/makerdeck/` or `#/makerdeck`)
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-08 — b155: Heart wall smoothing (adaptive segments)
+
+**Faceted lobe walls on heart accent + body** (`js/geometry.js`)
+
+- Heart profile now uses adaptive segment count (~1 mm facets, 256–512) instead of fixed 160 — lobe curves ~2.3 mm facets → ~1 mm.
+- Cache **b155**. Hard refresh + re-export.
 
 ### 2026-07-08 — b154: Heart accent cleft — extend band slightly
 

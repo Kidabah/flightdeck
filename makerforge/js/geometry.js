@@ -15,10 +15,10 @@ import {
   shapeSupportsInsert,
   shapeSupportsAccent,
   shapeSupportsAccentFrontFace,
-} from "./features.js?v=154";
+} from "./features.js?v=155";
 import earcut from "https://esm.sh/earcut@2.2.4";
-import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=154";
-import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=154";
+import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=155";
+import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=155";
 
 import { appendInsertShelfSlotsToBody } from "./insert-slots.js";
 
@@ -298,6 +298,19 @@ function heartOutline(width, height, segments = 52) {
   }
   if (area < 0) pts.reverse();
   return pts;
+}
+
+/** Heart outline segments — ~1 mm facets on lobe curves for smooth walls. */
+function heartSegmentsForSize(width, height) {
+  const sample = heartOutline(width, height, 72);
+  let perim = 0;
+  for (let i = 0; i < sample.length; i++) {
+    const j = (i + 1) % sample.length;
+    perim += Math.hypot(sample[j][0] - sample[i][0], sample[j][1] - sample[i][1]);
+  }
+  const maxFacet = 1.0;
+  const n = Math.ceil(perim / maxFacet);
+  return clamp(Math.ceil(n / 8) * 8, 256, 512);
 }
 
 function extrudeProfileSides(outPos, outIdx, points, z0, z1, outward = true) {
@@ -1320,8 +1333,9 @@ function resolveContainer(params) {
     const innerD = clamp(params.innerDepth, 35, 180);
     const innerH = clamp(params.innerHeight, 15, 120);
     const vertexFillet = clamp(params.vertexFillet || 0, 0, Math.min(innerW, innerD) / 8);
-    let outer = heartOutline(innerW + wall * 2, innerD + wall * 2, 160);
-    let inner = heartOutline(innerW, innerD, 160);
+    const heartSegs = heartSegmentsForSize(innerW + wall * 2, innerD + wall * 2);
+    let outer = heartOutline(innerW + wall * 2, innerD + wall * 2, heartSegs);
+    let inner = heartOutline(innerW, innerD, heartSegs);
     if (vertexFillet > 0.3) {
       const outerFillet = vertexFillet + wall * 0.35;
       const filletSegs = filletArcSegments(outerFillet);
