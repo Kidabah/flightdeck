@@ -2,10 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: see **b153** below
-- Cache-bust: `app.js?v=153` (hard refresh `/makerdeck/` or `#/makerdeck`)
+- Latest commit: see **b154** below
+- Cache-bust: `app.js?v=154` (hard refresh `/makerdeck/` or `#/makerdeck`)
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-08 — b154: Heart accent cleft — extend band slightly
+
+**Back V gap a touch wide after b153** (`js/features.js`)
+
+- Narrower pinch taper (8 passes / 0.10) and lower edge cutoff (0.28) so the band carries a bit further into the cleft without reintroducing bleed.
+- Cache **b154**. Hard refresh + re-export.
 
 ### 2026-07-08 — b153: Heart accent cleft overflow fix
 
