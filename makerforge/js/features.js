@@ -231,44 +231,73 @@ function offsetProfileEdgeJoin(points, offset) {
   return out;
 }
 
+function isProfileConcaveVertex(points, i) {
+  const n = points.length;
+  const ccw = polygonSignedArea2(points) > 0;
+  const prev = points[(i - 1 + n) % n];
+  const curr = points[i];
+  const next = points[(i + 1) % n];
+  const e0x = curr[0] - prev[0];
+  const e0y = curr[1] - prev[1];
+  const e1x = next[0] - curr[0];
+  const e1y = next[1] - curr[1];
+  const cross = e0x * e1y - e0y * e1x;
+  return ccw ? cross < -1e-9 : cross > 1e-9;
+}
+
+function profileEdgeOutwardNormal(points, i) {
+  const n = points.length;
+  const j = (i + 1) % n;
+  const ccw = polygonSignedArea2(points) > 0;
+  const sign = ccw ? 1 : -1;
+  const dx = points[j][0] - points[i][0];
+  const dy = points[j][1] - points[i][1];
+  const len = Math.hypot(dx, dy) || 1;
+  return [sign * (dy / len), sign * (-dx / len)];
+}
+
 function profileAccentOffset(points) {
   return offsetProfileByNormals(ensureProfileCCW(points), ACCENT_SKIN_MM);
 }
 
-/** Thin solid sleeve hugging the exterior wall — profile shapes (teardrop, star, heart, …). */
+/**
+ * Thin solid sleeve on profile shapes — per-edge parallel offset.
+ * Skips edges touching concave vertices (heart cleft, star notches) so the
+ * band cannot fold through the wall into the cavity.
+ */
 function buildProfileAccentSleeve(outerProfile, z0, z1) {
   const profile = ensureProfileCCW(outerProfile);
   const positions = [];
   const indices = [];
-  const inner = profile;
-  const outer = offsetProfileByNormals(profile, ACCENT_SKIN_MM + ACCENT_BAND_THICKNESS_MM);
-  extrudeProfileAnnulusWalls(positions, indices, inner, outer, z0, z1);
-  capRingXZ(positions, indices, outer, inner, z0, false);
-  capRingXZ(positions, indices, outer, inner, z1, true);
-  return { positions, indices };
-}
+  const offset = ACCENT_SKIN_MM + ACCENT_BAND_THICKNESS_MM;
+  const n = profile.length;
 
-function extrudeProfileAnnulusWalls(outPos, outIdx, inner, outer, z0, z1) {
-  const ccw = polygonSignedArea2(inner) > 0;
-  const n = inner.length;
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
-    const o0 = vec3(outer[i][0], outer[i][1], z0);
-    const o1 = vec3(outer[j][0], outer[j][1], z0);
-    const o2 = vec3(outer[j][0], outer[j][1], z1);
-    const o3 = vec3(outer[i][0], outer[i][1], z1);
-    const i0 = vec3(inner[i][0], inner[i][1], z0);
-    const i1 = vec3(inner[j][0], inner[j][1], z0);
-    const i2 = vec3(inner[j][0], inner[j][1], z1);
-    const i3 = vec3(inner[i][0], inner[i][1], z1);
-    if (ccw) {
-      pushQuad(outPos, outIdx, o0, o1, o2, o3);
-      pushQuad(outPos, outIdx, i1, i0, i3, i2);
-    } else {
-      pushQuad(outPos, outIdx, o0, o3, o2, o1);
-      pushQuad(outPos, outIdx, i1, i2, i3, i0);
-    }
+    if (isProfileConcaveVertex(profile, i) || isProfileConcaveVertex(profile, j)) continue;
+
+    const [nx, ny] = profileEdgeOutwardNormal(profile, i);
+    const a = profile[i];
+    const b = profile[j];
+    const oa = [a[0] + nx * offset, a[1] + ny * offset];
+    const ob = [b[0] + nx * offset, b[1] + ny * offset];
+
+    const ia0 = vec3(a[0], a[1], z0);
+    const ib0 = vec3(b[0], b[1], z0);
+    const ia1 = vec3(a[0], a[1], z1);
+    const ib1 = vec3(b[0], b[1], z1);
+    const oa0 = vec3(oa[0], oa[1], z0);
+    const ob0 = vec3(ob[0], ob[1], z0);
+    const oa1 = vec3(oa[0], oa[1], z1);
+    const ob1 = vec3(ob[0], ob[1], z1);
+
+    pushQuad(positions, indices, oa0, ob0, ob1, oa1);
+    pushQuad(positions, indices, ib0, ia0, ia1, ib1);
+    pushQuad(positions, indices, ia0, oa0, ob0, ib0);
+    pushQuad(positions, indices, ia1, ib1, ob1, oa1);
   }
+
+  return { positions, indices };
 }
 
 function profileBandZRange(face, bandH, totalH, accentPos) {

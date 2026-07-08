@@ -2,10 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: see **b149** below
-- Cache-bust: `app.js?v=149` (hard refresh `/makerdeck/` or `#/makerdeck`)
+- Latest commit: see **b150** below
+- Cache-bust: `app.js?v=150` (hard refresh `/makerdeck/` or `#/makerdeck`)
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-08 — b150: Heart accent skip concave cleft edges
+
+**Gold band bleeding inside heart notch** (`js/features.js`)
+
+- Cleft has dozens of concave profile vertices — joined offset ring still folded through the wall at the back V.
+- Accent sleeve now extrudes **per-edge** with parallel outward offset; edges touching any concave vertex are skipped (small gap at notch, no interior bleed).
+- Cache **b150**. Hard refresh MakerDeck.
 
 ### 2026-07-08 — b149: Basket weave + knit textures; heart accent cleft fix
 
