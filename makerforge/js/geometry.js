@@ -15,10 +15,10 @@ import {
   shapeSupportsInsert,
   shapeSupportsAccent,
   shapeSupportsAccentFrontFace,
-} from "./features.js?v=146";
+} from "./features.js?v=147";
 import earcut from "https://esm.sh/earcut@2.2.4";
-import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=146";
-import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=146";
+import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=147";
+import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=147";
 
 import { appendInsertShelfSlotsToBody } from "./insert-slots.js";
 
@@ -246,6 +246,12 @@ function teardropOutline(length, width, arcSegments = 28) {
     pts.push([cx + r * Math.cos(a), r * Math.sin(a)]);
   }
   pts.push([tipX, 0]);
+  let area = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const j = (i + 1) % pts.length;
+    area += pts[i][0] * pts[j][1] - pts[j][0] * pts[i][1];
+  }
+  if (area < 0) pts.reverse();
   return pts;
 }
 
@@ -1454,6 +1460,7 @@ function buildAccentBandMeshes(params, meta, outerProfile, isVase) {
     } else {
       mesh = buildAccentMesh(meta, bandParams, outerProfile);
       centerPositions(mesh.positions, 0, 0);
+      if (outerProfile?.length >= 3) solidMesh = mesh;
     }
     meshes.push({
       mesh,

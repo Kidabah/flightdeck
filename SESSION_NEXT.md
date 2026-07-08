@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: see "2026-07-08 fix (MakerDeck accent outside profile b146)" below
-- Refresh cachebust: MakerDeck `app.js?v=146`
+- Latest commit: see "2026-07-08 fix (MakerDeck profile accent solid b147)" below
+- Refresh cachebust: MakerDeck `app.js?v=147`
+
+### 2026-07-08 fix (MakerDeck profile accent solid b147)
+
+**Teardrop accent invisible / body looked like inside-out ribbon** (`geometry.js`, `features.js`)
+
+- Teardrop footprint was CW while star/heart/circle are CCW — wall quads faced inward so accent on the exterior was backface-culled. Teardrop outline now normalizes to CCW like heart.
+- Profile accent was a 0.08 mm zero-thickness skin (visible inside before b146, invisible outside after). Now a 0.45 mm solid sleeve on the exterior wall with winding-aware quads.
+- Cache `app.js?v=147`. Hard refresh MakerDeck.
 
 ### 2026-07-08 fix (MakerDeck accent outside profile b146)
 

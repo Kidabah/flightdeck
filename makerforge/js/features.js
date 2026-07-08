@@ -138,7 +138,14 @@ function profileIsValid(profile) {
 }
 
 /** Nudge accent sleeve outside the body shell — stops preview z-fight (negligible on print). */
-const ACCENT_SKIN_MM = 0.08;
+const ACCENT_SKIN_MM = 0.12;
+/** Radial depth of profile accent bands — visible in preview and slicer-safe for multi-material. */
+const ACCENT_BAND_THICKNESS_MM = 0.45;
+
+function ensureProfileCCW(points) {
+  if (polygonSignedArea2(points) < 0) return points.slice().reverse();
+  return points;
+}
 
 function offsetProfileOutward(points, offset) {
   if (!offset || offset <= 0) return points;
@@ -206,7 +213,43 @@ function offsetProfileByNormals(points, offset) {
 }
 
 function profileAccentOffset(points) {
-  return offsetProfileByNormals(points, ACCENT_SKIN_MM);
+  return offsetProfileByNormals(ensureProfileCCW(points), ACCENT_SKIN_MM);
+}
+
+/** Thin solid sleeve hugging the exterior wall — profile shapes (teardrop, star, heart, …). */
+function buildProfileAccentSleeve(outerProfile, z0, z1) {
+  const profile = ensureProfileCCW(outerProfile);
+  const positions = [];
+  const indices = [];
+  const inner = profile;
+  const outer = offsetProfileByNormals(profile, ACCENT_SKIN_MM + ACCENT_BAND_THICKNESS_MM);
+  extrudeProfileAnnulusWalls(positions, indices, inner, outer, z0, z1);
+  capRingXZ(positions, indices, outer, inner, z0, false);
+  capRingXZ(positions, indices, outer, inner, z1, true);
+  return { positions, indices };
+}
+
+function extrudeProfileAnnulusWalls(outPos, outIdx, inner, outer, z0, z1) {
+  const ccw = polygonSignedArea2(inner) > 0;
+  const n = inner.length;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const o0 = vec3(outer[i][0], outer[i][1], z0);
+    const o1 = vec3(outer[j][0], outer[j][1], z0);
+    const o2 = vec3(outer[j][0], outer[j][1], z1);
+    const o3 = vec3(outer[i][0], outer[i][1], z1);
+    const i0 = vec3(inner[i][0], inner[i][1], z0);
+    const i1 = vec3(inner[j][0], inner[j][1], z0);
+    const i2 = vec3(inner[j][0], inner[j][1], z1);
+    const i3 = vec3(inner[i][0], inner[i][1], z1);
+    if (ccw) {
+      pushQuad(outPos, outIdx, o0, o1, o2, o3);
+      pushQuad(outPos, outIdx, i1, i0, i3, i2);
+    } else {
+      pushQuad(outPos, outIdx, o0, o3, o2, o1);
+      pushQuad(outPos, outIdx, i1, i2, i3, i0);
+    }
+  }
 }
 
 function profileBandZRange(face, bandH, totalH, accentPos) {
@@ -248,13 +291,13 @@ export function buildAccentMesh(meta, params, outerProfile = null) {
     ? profileAccentOffset(outerProfile)
     : null;
 
-  if (accentProfile) {
+  if (profileIsValid(outerProfile)) {
     const { z0, z1 } = profileBandZRange(face, bandH, b.totalH, params.accentPos);
     if (face === "front") {
       const inset = clamp(params.accentInset ?? 4, 2, Math.min(b.outerW, b.outerD) / 3);
       extrudeWallsAlongZ(positions, indices, accentProfile, z0, z1, frontProfileEdgeFilter(accentProfile, inset));
     } else {
-      extrudeWallsAlongZ(positions, indices, accentProfile, z0, z1);
+      return buildProfileAccentSleeve(outerProfile, z0, z1);
     }
   } else if (face === "rim") {
     const z1 = b.totalH;
@@ -299,15 +342,19 @@ function extrudeWallsAlongY(outPos, outIdx, pts, y0, y1) {
 }
 
 function extrudeWallsAlongZ(outPos, outIdx, pts, z0, z1, edgeFilter = null) {
+  const ccw = polygonSignedArea2(pts) > 0;
   const n = pts.length;
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
     const a = pts[i];
     const b = pts[j];
     if (edgeFilter && !edgeFilter(a, b, i, j, pts)) continue;
-    pushQuad(outPos, outIdx,
-      vec3(a[0], a[1], z0), vec3(b[0], b[1], z0),
-      vec3(b[0], b[1], z1), vec3(a[0], a[1], z1));
+    const p0 = vec3(a[0], a[1], z0);
+    const p1 = vec3(b[0], b[1], z0);
+    const p2 = vec3(b[0], b[1], z1);
+    const p3 = vec3(a[0], a[1], z1);
+    if (ccw) pushQuad(outPos, outIdx, p0, p1, p2, p3);
+    else pushQuad(outPos, outIdx, p0, p3, p2, p1);
   }
 }
 
