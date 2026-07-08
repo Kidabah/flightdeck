@@ -7206,6 +7206,14 @@ async function _showSpoolUsageAssignmentModal({ print, printerId }) {
   });
 }
 
+function _passportSection(title, bodyHtml, { open = false, extraClass = '' } = {}) {
+  const cls = ['print-passport-section', extraClass].filter(Boolean).join(' ');
+  return `<details class="${cls}"${open ? ' open' : ''}>
+    <summary>${title}</summary>
+    <div class="print-passport-section-body">${bodyHtml}</div>
+  </details>`;
+}
+
 function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
   const el = targetEl || document.getElementById('history-day-detail');
   if (!el) return;
@@ -7282,9 +7290,9 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
   </div>` : '';
 
   const decisionHtml = print.id
-    ? `<details class="decision-trail" data-print-id="${print.id}" data-printer-id="${printerId}">
+    ? `<details class="print-passport-section decision-trail" data-print-id="${print.id}" data-printer-id="${printerId}">
          <summary>Decision trail</summary>
-         <div class="decision-list"><span class="decision-empty">Loading…</span></div>
+         <div class="decision-list"><span class="decision-empty">Expand to load event log.</span></div>
        </details>`
     : '';
 
@@ -7362,7 +7370,9 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
         </div>`
     : '';
 
-  el.innerHTML = `<div class="history-day-panel">
+  const statsHtml = `<div class="print-passport-stats">${rows.join('')}</div>`;
+
+  el.innerHTML = `<div class="history-day-panel print-detail-panel">
     <div class="print-detail-nav">
       <button class="print-detail-back" data-back-date="${dateStr}">&larr; ${dateLabel}</button>
     </div>
@@ -7371,12 +7381,12 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
       <span class="badge badge-${cls}" style="font-size:0.6rem;padding:0.15rem 0.5rem">${label}</span>
     </div>
     ${snapshotHtml}
-    ${recorderHtml}
     ${errorHtml}
-    <div>${rows.join('')}</div>
-    ${spoolUsageHtml}
-    ${notesHtml}
-    ${memoryMetaHtml}
+    ${recorderHtml ? _passportSection('Flight Recorder', recorderHtml, { open: true, extraClass: 'print-passport-recorder' }) : ''}
+    ${_passportSection('Print details', statsHtml, { open: true, extraClass: 'print-passport-compact' })}
+    ${spoolUsageHtml ? _passportSection('Spool usage', spoolUsageHtml, { open: true }) : ''}
+    ${_passportSection('Notes', notesHtml, { open: !!print.notes })}
+    ${memoryMetaHtml ? _passportSection('Memory tags', memoryMetaHtml, { open: !!(print.tags || []).length || print.exclude_from_stats }) : ''}
     ${decisionHtml}
   </div>`;
 
@@ -7685,11 +7695,18 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
       const list = this.querySelector('.decision-list');
       if (list.dataset.loaded) return;
       list.dataset.loaded = '1';
+      list.innerHTML = '<span class="decision-empty">Loading…</span>';
       const pid = this.dataset.printId;
       const prid = this.dataset.printerId;
       fetch(`/api/printers/${prid}/prints/${pid}/decisions`)
         .then(r => r.ok ? r.json() : [])
         .then(decisions => {
+          const summary = trail.querySelector('summary');
+          if (summary) {
+            summary.textContent = decisions.length
+              ? `Decision trail (${decisions.length})`
+              : 'Decision trail';
+          }
           if (!decisions.length) {
             list.innerHTML = '<span class="decision-empty">No decisions recorded.</span>';
             return;
@@ -7716,6 +7733,8 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
         .catch(() => { list.innerHTML = '<span class="decision-empty">Failed to load.</span>'; });
     });
   }
+
+  el.querySelector('.print-detail-panel')?.scrollIntoView({ block: 'nearest' });
 }
 
 function _renderDayList(printerId, dateStr, prints, el) {

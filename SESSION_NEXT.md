@@ -5,6 +5,15 @@ Latest GitHub/Pi state:
 - Latest commit: see entries below (Flightdeck core)
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
 
+### 2026-07-08 fix (passport collapsible sections + scroll)
+
+**Print passport sections collapse; decision trail scroll trap** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`)
+
+- Print passport (History + Print Memory) now uses collapsible sections: Flight Recorder, Print details, Spool usage, Notes, Memory tags, Decision trail (closed by default).
+- Fixed Print Memory passport scroll trap: sticky panel now has `max-height` + internal scroll so the bottom (decision trail) is reachable.
+- Decision trail shows entry count when loaded; larger scroll area.
+- Cache `app.js?v=628` `style.css?v=483`. Hard refresh required.
+
 ### 2026-07-08 fix (timelapse low coverage + collapsible sidebar)
 
 **Fat quarters box timelapse only ~24s of 15h print** (`app/main.py`, `app/native_recorder.py`, `app/static/app.js`, `app/static/style.css`, `app/static/index.html`)
