@@ -2,8 +2,15 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: see "2026-07-07 fix (MakerDeck accent on teardrop/star/heart b144)" below
-- Refresh cachebust: MakerDeck `app.js?v=144`
+- Latest commit: see "2026-07-08 fix (MakerDeck profile accent bands b145)" below
+- Refresh cachebust: MakerDeck `app.js?v=145`
+
+### 2026-07-08 fix (MakerDeck profile accent bands b145)
+
+**Teardrop, star, heart (and circle/oval/hex) accent bands never appeared** (`makerforge/js/geometry.js`)
+
+- Root cause: `buildContainer` built `accentMeshes` for profile shapes but the non-box return path hard-coded `accentMeshes: []` — only rect/rounded boxes kept bands. b144 offset work was fine; output was discarded.
+- Cache `app.js?v=145`. Hard refresh MakerDeck.
 
 ### 2026-07-07 fix (MakerDeck accent on teardrop/star/heart b144)
 
