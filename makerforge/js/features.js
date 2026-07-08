@@ -242,88 +242,89 @@ function isProfileConcaveVertex(points, i) {
   const e1x = next[0] - curr[0];
   const e1y = next[1] - curr[1];
   const cross = e0x * e1y - e0y * e1x;
-  return ccw ? cross < -1e-9 : cross > 1e-9;
+  const len = Math.hypot(e0x, e0y) * Math.hypot(e1x, e1y);
+  if (len < 1e-9) return false;
+  const sinHalf = cross / len;
+  return ccw ? sinHalf < -0.12 : sinHalf > 0.12;
 }
 
-function profileVertexCross(points, i) {
+/** 0 at concave notches, 1 on convex wall — smooth taper between. */
+function profileAccentPinchWeights(points) {
   const n = points.length;
-  const prev = points[(i - 1 + n) % n];
-  const curr = points[i];
-  const next = points[(i + 1) % n];
-  const e0x = curr[0] - prev[0];
-  const e0y = curr[1] - prev[1];
-  const e1x = next[0] - curr[0];
-  const e1y = next[1] - curr[1];
-  return e0x * e1y - e0y * e1x;
-}
-
-function pointInProfile(pt, poly) {
-  let inside = false;
-  const n = poly.length;
-  for (let i = 0, j = n - 1; i < n; j = i++) {
-    const xi = poly[i][0];
-    const yi = poly[i][1];
-    const xj = poly[j][0];
-    const yj = poly[j][1];
-    const hit = (yi > pt[1]) !== (yj > pt[1])
-      && pt[0] < ((xj - xi) * (pt[1] - yi)) / (yj - yi + 1e-12) + xi;
-    if (hit) inside = !inside;
-  }
-  return inside;
-}
-
-/** Sharpest concave apex per re-entrant run (heart cleft, star notches). */
-function profileConcaveApexIndices(points) {
-  const n = points.length;
-  const apexes = [];
-  let i = 0;
-  while (i < n) {
-    if (!isProfileConcaveVertex(points, i)) {
-      i++;
-      continue;
-    }
-    let bestI = i;
-    let bestCross = 0;
-    while (i < n && isProfileConcaveVertex(points, i)) {
-      const cross = profileVertexCross(points, i);
-      if (cross < bestCross) {
-        bestCross = cross;
-        bestI = i;
-      }
-      i++;
-    }
-    apexes.push(bestI);
-  }
-  return apexes;
-}
-
-function profileAccentSkipMask(points, dilateHops = 16) {
-  const n = points.length;
-  const skip = new Array(n).fill(false);
+  const w = new Array(n).fill(1);
   for (let i = 0; i < n; i++) {
-    if (isProfileConcaveVertex(points, i)) skip[i] = true;
+    if (isProfileConcaveVertex(points, i)) w[i] = 0;
   }
-  for (let h = 0; h < dilateHops; h++) {
-    const next = skip.slice();
+  for (let pass = 0; pass < 10; pass++) {
     for (let i = 0; i < n; i++) {
-      if (!skip[i]) continue;
-      next[(i - 1 + n) % n] = true;
-      next[(i + 1) % n] = true;
+      if (w[i] <= 0) continue;
+      const wl = w[(i - 1 + n) % n];
+      const wr = w[(i + 1) % n];
+      const neighbor = Math.min(wl, wr);
+      if (neighbor < w[i]) w[i] = Math.max(neighbor, w[i] - 0.12);
     }
-    skip.splice(0, n, ...next);
   }
-  return skip;
+  return w;
 }
 
-function profileEdgeOutwardNormal(points, i) {
-  const n = points.length;
-  const j = (i + 1) % n;
-  const ccw = polygonSignedArea2(points) > 0;
-  const sign = ccw ? 1 : -1;
-  const dx = points[j][0] - points[i][0];
-  const dy = points[j][1] - points[i][1];
-  const len = Math.hypot(dx, dy) || 1;
-  return [sign * (dy / len), sign * (-dx / len)];
+function pinchProfileAccentOuter(profile, outer) {
+  const weights = profileAccentPinchWeights(profile);
+  for (let i = 0; i < profile.length; i++) {
+    const t = weights[i];
+    outer[i][0] = profile[i][0] + (outer[i][0] - profile[i][0]) * t;
+    outer[i][1] = profile[i][1] + (outer[i][1] - profile[i][1]) * t;
+  }
+}
+
+function profileAccentWallWidth(inner, outer, i) {
+  return Math.hypot(outer[i][0] - inner[i][0], outer[i][1] - inner[i][1]);
+}
+
+function extrudeProfileAnnulusWalls(outPos, outIdx, inner, outer, z0, z1) {
+  const ccw = polygonSignedArea2(inner) > 0;
+  const n = inner.length;
+  const minW = 0.05;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    if (profileAccentWallWidth(inner, outer, i) < minW && profileAccentWallWidth(inner, outer, j) < minW) continue;
+    const o0 = vec3(outer[i][0], outer[i][1], z0);
+    const o1 = vec3(outer[j][0], outer[j][1], z0);
+    const o2 = vec3(outer[j][0], outer[j][1], z1);
+    const o3 = vec3(outer[i][0], outer[i][1], z1);
+    const i0 = vec3(inner[i][0], inner[i][1], z0);
+    const i1 = vec3(inner[j][0], inner[j][1], z0);
+    const i2 = vec3(inner[j][0], inner[j][1], z1);
+    const i3 = vec3(inner[i][0], inner[i][1], z1);
+    if (ccw) {
+      pushQuad(outPos, outIdx, o0, o1, o2, o3);
+      pushQuad(outPos, outIdx, i1, i0, i3, i2);
+    } else {
+      pushQuad(outPos, outIdx, o0, o3, o2, o1);
+      pushQuad(outPos, outIdx, i1, i2, i3, i0);
+    }
+  }
+}
+
+function capProfileAccentRing(outPos, outIdx, outer, inner, z, normalUp) {
+  const ccw = polygonSignedArea2(inner) > 0;
+  const n = inner.length;
+  const minW = 0.05;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    if (profileAccentWallWidth(inner, outer, i) < minW && profileAccentWallWidth(inner, outer, j) < minW) continue;
+    const o0 = vec3(outer[i][0], outer[i][1], z);
+    const o1 = vec3(outer[j][0], outer[j][1], z);
+    const i0 = vec3(inner[i][0], inner[i][1], z);
+    const i1 = vec3(inner[j][0], inner[j][1], z);
+    if (ccw) {
+      if (normalUp) pushQuad(outPos, outIdx, o0, o1, i1, i0);
+      else pushQuad(outPos, outIdx, o0, i0, i1, o1);
+    } else if (normalUp) {
+      pushQuad(outPos, outIdx, o0, i0, i1, o1);
+    } else {
+      pushQuad(outPos, outIdx, o0, o1, i1, i0);
+    }
+  }
 }
 
 function profileAccentOffset(points) {
@@ -331,58 +332,20 @@ function profileAccentOffset(points) {
 }
 
 /**
- * Thin solid sleeve on profile shapes — per-edge parallel offset.
- * Skips concave zones (dilated) and any edge whose offset lands inside the
- * footprint (heart cleft bleed).
+ * Continuous accent sleeve — outer ring offset then pinched to zero at concave
+ * notches (heart cleft) so the band fades out instead of folding through.
  */
 function buildProfileAccentSleeve(outerProfile, z0, z1) {
   const profile = ensureProfileCCW(outerProfile);
   const positions = [];
   const indices = [];
   const offset = ACCENT_SKIN_MM + ACCENT_BAND_THICKNESS_MM;
-  const n = profile.length;
-  const skip = profileAccentSkipMask(profile, 16);
-  const apexes = profileConcaveApexIndices(profile);
-  const apexClearMm = Math.max(14, offset * 24);
-
-  for (let i = 0; i < n; i++) {
-    const j = (i + 1) % n;
-    if (skip[i] || skip[j]) continue;
-
-    const a = profile[i];
-    const b = profile[j];
-    const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
-    let nearApex = false;
-    for (const ai of apexes) {
-      const ap = profile[ai];
-      const d = Math.hypot(mid[0] - ap[0], mid[1] - ap[1]);
-      if (d < apexClearMm) {
-        nearApex = true;
-        break;
-      }
-    }
-    if (nearApex) continue;
-
-    const [nx, ny] = profileEdgeOutwardNormal(profile, i);
-    const oa = [a[0] + nx * offset, a[1] + ny * offset];
-    const ob = [b[0] + nx * offset, b[1] + ny * offset];
-    if (pointInProfile(oa, profile) || pointInProfile(ob, profile)) continue;
-
-    const ia0 = vec3(a[0], a[1], z0);
-    const ib0 = vec3(b[0], b[1], z0);
-    const ia1 = vec3(a[0], a[1], z1);
-    const ib1 = vec3(b[0], b[1], z1);
-    const oa0 = vec3(oa[0], oa[1], z0);
-    const ob0 = vec3(ob[0], ob[1], z0);
-    const oa1 = vec3(oa[0], oa[1], z1);
-    const ob1 = vec3(ob[0], ob[1], z1);
-
-    pushQuad(positions, indices, oa0, ob0, ob1, oa1);
-    pushQuad(positions, indices, ib0, ia0, ia1, ib1);
-    pushQuad(positions, indices, ia0, oa0, ob0, ib0);
-    pushQuad(positions, indices, ia1, ib1, ob1, oa1);
-  }
-
+  const inner = profile.map((p) => [p[0], p[1]]);
+  const outer = offsetProfileEdgeJoin(profile, offset);
+  pinchProfileAccentOuter(profile, outer);
+  extrudeProfileAnnulusWalls(positions, indices, inner, outer, z0, z1);
+  capProfileAccentRing(positions, indices, outer, inner, z0, false);
+  capProfileAccentRing(positions, indices, outer, inner, z1, true);
   return { positions, indices };
 }
 

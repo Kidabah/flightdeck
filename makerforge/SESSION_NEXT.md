@@ -2,10 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: see **b151** below
-- Cache-bust: `app.js?v=151` (hard refresh `/makerdeck/` or `#/makerdeck`)
+- Latest commit: see **b152** below
+- Cache-bust: `app.js?v=152` (hard refresh `/makerdeck/` or `#/makerdeck`)
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-08 — b152: Heart accent pinch at cleft (revert fragment patches)
+
+**b150/b151 broke the band into lobe patches** (`js/features.js`)
+
+- Skipping whole edge runs left disjoint orange slabs — not the goal.
+- New approach: **continuous** accent ring, but thickness **pinches to zero** at concave notches (heart cleft) with a smooth taper — band fades out at the V instead of punching through.
+- Cache **b152**. Hard refresh + re-export.
 
 ### 2026-07-08 — b151: Heart accent wide cleft exclusion zone
 
