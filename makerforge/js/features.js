@@ -4,6 +4,7 @@
 
 import { extrudeShapeGroup, extrudeShapeGroupBetween, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, simplifyPolygon, triangulateMappedCap } from "./contour.js";
 import { decorPlacementOffsets, decorArtRect, rotateFacePoint, rotateShapeGroup } from "./decor.js";
+import { profileOutlineNormals, profileOutlineArcMetrics } from "./vase-textures.js";
 
 export const EMBOSS_FONTS = [
   { id: "segoe-ui", label: "Segoe UI — Windows", family: '"Segoe UI Variable", "Segoe UI", system-ui, sans-serif', weight: 700 },
@@ -1064,9 +1065,56 @@ function computeTextArtLayout(meta, params) {
 }
 
 function flatCoordForFrame(frame, w) {
+  if (frame.face === "wrap") return [w[0], w[1]];
   if (frame.horizontal) return [w[0], w[1]];
   if (frame.face === "left" || frame.face === "right") return [w[1], w[2]];
   return [w[0], w[2]];
+}
+
+function profilePointAtArc(outer, normals, arcLen) {
+  const n = outer.length;
+  const perim = profileOutlineArcMetrics(outer).perimeter;
+  const t = ((arcLen % perim) + perim) % perim;
+  let acc = 0;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const ax = outer[i][0];
+    const ay = outer[i][1];
+    const bx = outer[j][0];
+    const by = outer[j][1];
+    const segLen = Math.hypot(bx - ax, by - ay);
+    if (acc + segLen >= t - 1e-9 || i === n - 1) {
+      const u = segLen > 1e-9 ? (t - acc) / segLen : 0;
+      const x = ax + (bx - ax) * u;
+      const y = ay + (by - ay) * u;
+      const nx = normals[i][0] + (normals[j][0] - normals[i][0]) * u;
+      const ny = normals[i][1] + (normals[j][1] - normals[i][1]) * u;
+      const nlen = Math.hypot(nx, ny) || 1;
+      return { x, y, nx: nx / nlen, ny: ny / nlen };
+    }
+    acc += segLen;
+  }
+  return { x: outer[0][0], y: outer[0][1], nx: normals[0][0], ny: normals[0][1] };
+}
+
+/** Wall-wrap frame — art maps around the outer profile (arc length × height). */
+export function getProfileWrapFaceFrame(outerProfile, meta) {
+  const outer = outerProfile.map((p) => [p[0], p[1]]);
+  const normals = profileOutlineNormals(outer);
+  const metrics = profileOutlineArcMetrics(outer);
+  const totalH = meta.outer?.h ?? meta.totalH ?? 40;
+  return {
+    face: "wrap",
+    faceW: metrics.perimeter,
+    faceH: totalH,
+    centerZ: totalH * 0.5,
+    horizontal: false,
+    mapPoint: (px, py, offset) => {
+      const pt = profilePointAtArc(outer, normals, px);
+      const z = clamp(py, 0, totalH);
+      return [pt.x + pt.nx * offset, pt.y + pt.ny * offset, z];
+    },
+  };
 }
 
 function collectTextEmbossShapeGroups(meta, params) {
@@ -1769,7 +1817,26 @@ export function shapeSupportsProfileTexture(shape) {
     || shape === "star"
     || shape === "circle"
     || shape === "oval"
+    || shape === "rect"
+    || shape === "rounded"
+    || shape === "pencil"
+    || shape === "pencilBox"
   );
+}
+
+/** SVG / trace / text art on profile wall wrap. */
+export function shapeSupportsProfileArt(shape) {
+  return (
+    shape === "teardrop"
+    || shape === "heart"
+    || shape === "star"
+    || shape === "circle"
+    || shape === "oval"
+  );
+}
+
+export function shapeSupportsArt(shape) {
+  return shapeSupportsDecor(shape) || shapeSupportsProfileArt(shape);
 }
 
 /** Accent bands wrap the outer wall profile — all container shapes except open specials. */
@@ -1802,8 +1869,12 @@ export function shapeSupportsAccentFrontFace(shape) {
  * (positive = outward, negative = inward for deboss).
  */
 export function getEmbossFaceFrame(meta, face, params = null) {
+  const useFace = ["front", "back", "left", "right", "top", "lid", "bottom", "wrap"].includes(face) ? face : "front";
+  if (useFace === "wrap" && meta.outerProfile?.length >= 3) {
+    return getProfileWrapFaceFrame(meta.outerProfile, meta);
+  }
+
   const b = rectFeatureBounds(meta);
-  const useFace = ["front", "back", "left", "right", "top", "lid", "bottom"].includes(face) ? face : "front";
 
   if (useFace === "bottom") {
     return {
@@ -1943,11 +2014,7 @@ function ringPointsLocal(ring) {
 function extrudeGroupOnFace(outPos, outIdx, frame, group, d0, d1) {
   const mapTop = (px, py) => frame.mapPoint(px, py, d1);
   const mapBot = (px, py) => frame.mapPoint(px, py, d0);
-  const flatCoord = frame.horizontal
-    ? (w) => [w[0], w[1]]
-    : frame.face === "left" || frame.face === "right"
-      ? (w) => [w[1], w[2]]
-      : (w) => [w[0], w[2]];
+  const flatCoord = (w) => flatCoordForFrame(frame, w);
   extrudeShapeGroupBetween(outPos, outIdx, group, mapTop, mapBot, flatCoord, d0 < 0 ? "both" : "top");
 }
 

@@ -16,10 +16,12 @@ import {
   shapeSupportsAccent,
   shapeSupportsAccentFrontFace,
   shapeSupportsProfileTexture,
-} from "./features.js?v=157";
+  shapeSupportsProfileArt,
+  shapeSupportsArt,
+} from "./features.js?v=158";
 import earcut from "https://esm.sh/earcut@2.2.4";
-import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=157";
-import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=157";
+import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=158";
+import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=158";
 import {
   resolveVaseTexture,
   densifyClosedProfile,
@@ -33,7 +35,7 @@ import {
 
 import { appendInsertShelfSlotsToBody } from "./insert-slots.js";
 
-export { shapeSupportsDecor, shapeSupportsInsert, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, VASE_STYLES };
+export { shapeSupportsDecor, shapeSupportsInsert, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, VASE_STYLES };
 
 function clamp(n, min, max) {
   return Math.min(max, Math.max(min, n));
@@ -1605,6 +1607,7 @@ export function buildContainer(params) {
   const useJoiner = params.joinerEnabled && shapeSupportsJoiner(joinerShape);
 
   let mesh;
+  let texturedPrep = null;
   if (useJoiner) {
     const { inner, outer } = resolved.meta;
     const joiner = resolveJoinerDims(params, outer.w, outer.d);
@@ -1619,7 +1622,7 @@ export function buildContainer(params) {
       joiner,
     );
   } else {
-    const textured = !params.bookcaseOpenFront
+    texturedPrep = !params.bookcaseOpenFront
       ? prepareProfileWallTexture(
         params,
         resolved.meta.shape,
@@ -1630,14 +1633,14 @@ export function buildContainer(params) {
         params.wall ?? 2.4,
       )
       : null;
-    if (textured) {
+    if (texturedPrep) {
       mesh = shellFromTexturedProfiles(
-        textured.outer,
-        textured.inner,
+        texturedPrep.outer,
+        texturedPrep.inner,
         resolved.floor,
         resolved.totalH,
         resolved.cavityH,
-        textured.spec,
+        texturedPrep.spec,
       );
     } else {
       mesh = shellFromProfiles(
@@ -1662,6 +1665,14 @@ export function buildContainer(params) {
   }
 
   const decorShape = joinerShape;
+  const profileArt = shapeSupportsProfileArt(resolved.meta.shape);
+  const boxDecor = shapeSupportsDecor(decorShape);
+  const artOuter = texturedPrep?.outer ?? resolved.outer;
+  const artMeta = {
+    ...resolved.meta,
+    totalH: resolved.totalH,
+    outerProfile: profileArt ? artOuter : undefined,
+  };
 
   if (
     params.insertEnabled &&
@@ -1680,15 +1691,15 @@ export function buildContainer(params) {
   let insertMesh = null;
   let labelMesh = null;
   let debossCutterMesh = null;
-  if (shapeSupportsDecor(decorShape)) {
-    const shellMesh = applyBodyDecorations(mesh, resolved.meta, params);
+  if (boxDecor || profileArt) {
+    const shellMesh = applyBodyDecorations(mesh, artMeta, params);
     const isLidFace = params.embossFace === "lid";
     const previewDraft = !!params._artPreviewDraft;
     if (!isLidFace && !previewDraft) {
-      labelMesh = buildLabelEmboss(resolved.meta, params, params.embossSvgText || "", "emboss");
+      labelMesh = buildLabelEmboss(artMeta, params, params.embossSvgText || "", "emboss");
       if (labelMesh) centerPositions(labelMesh.positions, 0, 0);
       if (params.embossDeboss) {
-        debossCutterMesh = buildLabelEmboss(resolved.meta, params, params.embossSvgText || "", "deboss-cutter");
+        debossCutterMesh = buildLabelEmboss(artMeta, params, params.embossSvgText || "", "deboss-cutter");
         if (debossCutterMesh) centerPositions(debossCutterMesh.positions, 0, 0);
         mesh = shellMesh;
       } else {
@@ -1706,10 +1717,10 @@ export function buildContainer(params) {
       indices: mesh.indices,
       shellMesh,
       meta: {
-        ...resolved.meta,
+        ...artMeta,
         joinerHand: useJoiner ? (params.joinerHand === "right" ? "right" : "left") : undefined,
         joinerScale: useJoiner ? resolveJoinerDims(params, resolved.meta.outer.w, resolved.meta.outer.d).scale : undefined,
-        embossFace: params.embossFace || "front",
+        embossFace: params.embossFace || (profileArt ? "wrap" : "front"),
         embossDeboss: !!params.embossDeboss,
       },
       totalH: resolved.totalH,

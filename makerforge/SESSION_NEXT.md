@@ -2,10 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: see **b157** below
-- Cache-bust: `app.js?v=157` (hard refresh `/makerdeck/` or `#/makerdeck`)
+- Latest commit: see **b158** below
+- Cache-bust: `app.js?v=158` (hard refresh `/makerdeck/` or `#/makerdeck`)
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-08 — b158: Profile wall-wrap art + box textures
+
+**Art tab on profile pots** (`js/features.js`, `js/geometry.js`, `js/app.js`, `index.html`)
+
+- Teardrop / heart / star / circle / oval: **Art** tab enabled with **Wrap (around wall)** face — text, SVG, and trace emboss follow the outer profile.
+- Box / rounded / pencil shapes: **Surface texture** (Walls tab) now supported via profile relief path.
+- Cache **b158**. Hard refresh + re-export.
 
 ### 2026-07-08 — b157: Profile pot wall textures
 
