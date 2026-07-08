@@ -2,8 +2,15 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: see "2026-07-08 fix (MakerDeck profile accent bands b145)" below
-- Refresh cachebust: MakerDeck `app.js?v=145`
+- Latest commit: see "2026-07-08 fix (MakerDeck accent outside profile b146)" below
+- Refresh cachebust: MakerDeck `app.js?v=146`
+
+### 2026-07-08 fix (MakerDeck accent outside profile b146)
+
+**Profile-shape accent bands on interior wall** (`makerforge/js/features.js`)
+
+- Vertex-normal offset used the inward normal for CCW footprints (teardrop, star, heart) — bands hugged the cavity side. Flipped to exterior normals.
+- Cache `app.js?v=146`. Hard refresh MakerDeck.
 
 ### 2026-07-08 fix (MakerDeck profile accent bands b145)
 

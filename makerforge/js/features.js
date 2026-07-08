@@ -167,11 +167,12 @@ function polygonSignedArea2(pts) {
   return area / 2;
 }
 
-/** Offset a closed profile along vertex normals — correct on concave outlines (star, heart). */
+/** Offset a closed profile along exterior vertex normals — correct on concave outlines (star, heart). */
 function offsetProfileByNormals(points, offset) {
   if (!offset || offset <= 0 || points.length < 3) return points;
   const ccw = polygonSignedArea2(points) > 0;
-  const sign = ccw ? 1 : -1;
+  // CCW boundary: interior is on the left → outward is the right normal (negate left).
+  const sign = ccw ? -1 : 1;
   const n = points.length;
   const out = [];
   for (let i = 0; i < n; i++) {
