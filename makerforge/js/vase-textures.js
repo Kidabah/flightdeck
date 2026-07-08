@@ -16,6 +16,8 @@ export const VASE_TEXTURE_STYLES = [
   { id: "ripple", label: "Ripple (horizontal waves)" },
   { id: "scales", label: "Scales" },
   { id: "bark", label: "Bark (vertical ridges)" },
+  { id: "weave", label: "Basket weave" },
+  { id: "knit", label: "Knitted" },
 ];
 
 export function resolveVaseTexture(params, ctx) {
@@ -84,6 +86,37 @@ export function vaseTextureDisplacement(angle, z, spec) {
       const wobble = Math.sin(z * 0.35 + angle * 2.4);
       return depth * (0.42 * ridge + 0.18 * wobble);
     }
+    case "weave": {
+      const cell = scale;
+      const circumference = Math.PI * spec.diameter;
+      const u = ((angle + Math.PI) / (2 * Math.PI)) * circumference;
+      const row = Math.floor(z / cell);
+      const uLocal = (u % cell) / cell;
+      const zLocal = (z % cell) / cell;
+      const over = row % 2 === 0;
+      const strand = over
+        ? Math.sin(uLocal * Math.PI) * (0.35 + 0.65 * Math.sin(zLocal * Math.PI * 2) ** 2)
+        : Math.sin(zLocal * Math.PI) * (0.35 + 0.65 * Math.sin(uLocal * Math.PI * 2) ** 2);
+      const groove = Math.cos((u / cell) * Math.PI * 2) * Math.cos((z / cell) * Math.PI * 2);
+      return depth * (0.55 * strand + 0.15 * groove);
+    }
+    case "knit": {
+      const stitchW = scale * 0.62;
+      const stitchH = scale * 0.82;
+      const circumference = Math.PI * spec.diameter;
+      const u = ((angle + Math.PI) / (2 * Math.PI)) * circumference;
+      const col = Math.floor(u / stitchW);
+      const row = Math.floor(z / stitchH);
+      const uLocal = (u % stitchW) / stitchW;
+      const zLocal = (z % stitchH) / stitchH;
+      const rowShift = (col % 2) * 0.5;
+      const zAdj = (zLocal + rowShift) % 1;
+      const vShape = 1 - Math.abs(uLocal - 0.5) * 2;
+      const stitch = Math.max(0, vShape) ** 1.15 * Math.sin(zAdj * Math.PI);
+      const purl = row % 2 === 1 ? 0.28 : 1;
+      const gutter = 0.12 * Math.cos((u / stitchW) * Math.PI * 2);
+      return depth * (0.62 * stitch * purl + gutter);
+    }
     default:
       return 0;
   }
@@ -131,6 +164,10 @@ export function vaseTextureTessellation(spec, diameter, height, segments, layers
   let lay = layers;
   if (spec.style === "ripple") {
     lay = clamp(Math.max(lay, Math.ceil(height / Math.max(2, scale / 2.5))), 6, 200);
+  } else if (spec.style === "knit" || spec.style === "weave") {
+    const fine = scale * 0.45;
+    seg = clamp(Math.max(seg, Math.ceil(circ / fine)), 24, 320);
+    lay = clamp(Math.max(lay, Math.ceil(height / fine)), 6, 240);
   } else {
     seg = clamp(Math.max(seg, Math.ceil(circ / (scale * 0.55))), 24, 280);
     lay = clamp(Math.max(lay, Math.ceil(height / (scale * 0.55))), 6, 200);

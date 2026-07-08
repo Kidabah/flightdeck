@@ -2,10 +2,21 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: see **b148** below
-- Cache-bust: `app.js?v=148` (hard refresh `/makerdeck/` or `#/makerdeck`)
+- Latest commit: see **b149** below
+- Cache-bust: `app.js?v=149` (hard refresh `/makerdeck/` or `#/makerdeck`)
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-08 — b149: Basket weave + knit textures; heart accent cleft fix
+
+**Vase textures** (`js/vase-textures.js`, `index.html`)
+- New styles: **Basket weave** (alternating over/under strands) and **Knitted** (staggered V-stitch rows)
+- Finer auto-tessellation for weave/knit
+
+**Heart/star accent at cleft and tip** (`js/features.js`)
+- Profile accent sleeve used vertex-normal miters that folded **through** concave corners (heart notch) and spiked at sharp tips — gold band showed on the inside. Now uses edge-intersection outward offset with spike clamp.
+
+- Cache **b149**. Hard refresh MakerDeck.
 
 ### 2026-07-08 — b148: Vase surface textures (ripple, scales, bark)
 

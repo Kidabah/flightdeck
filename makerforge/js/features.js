@@ -177,37 +177,56 @@ function polygonSignedArea2(pts) {
 /** Offset a closed profile along exterior vertex normals — correct on concave outlines (star, heart). */
 function offsetProfileByNormals(points, offset) {
   if (!offset || offset <= 0 || points.length < 3) return points;
+  return offsetProfileEdgeJoin(points, offset);
+}
+
+function lineLineIntersect(a0, a1, b0, b1) {
+  const dax = a1[0] - a0[0];
+  const day = a1[1] - a0[1];
+  const dbx = b1[0] - b0[0];
+  const dby = b1[1] - b0[1];
+  const denom = dax * dby - day * dbx;
+  if (Math.abs(denom) < 1e-12) return null;
+  const t = ((b0[0] - a0[0]) * dby - (b0[1] - a0[1]) * dbx) / denom;
+  return [a0[0] + dax * t, a0[1] + day * t];
+}
+
+/**
+ * Robust outward offset — intersects parallel offset edges (fixes heart cleft /
+ * star notches where vertex-normal miters fold through the wall).
+ */
+function offsetProfileEdgeJoin(points, offset) {
   const ccw = polygonSignedArea2(points) > 0;
-  // CCW boundary: interior is on the left → outward is the right normal (negate left).
-  const sign = ccw ? -1 : 1;
+  const sign = ccw ? 1 : -1;
   const n = points.length;
-  const out = [];
+  const edges = [];
   for (let i = 0; i < n; i++) {
-    const prev = points[(i - 1 + n) % n];
-    const curr = points[i];
-    const next = points[(i + 1) % n];
-    const e0x = curr[0] - prev[0];
-    const e0y = curr[1] - prev[1];
-    const e1x = next[0] - curr[0];
-    const e1y = next[1] - curr[1];
-    const l0 = Math.hypot(e0x, e0y) || 1;
-    const l1 = Math.hypot(e1x, e1y) || 1;
-    const n0x = sign * -e0y / l0;
-    const n0y = sign * e0x / l0;
-    const n1x = sign * -e1y / l1;
-    const n1y = sign * e1x / l1;
-    let nx = n0x + n1x;
-    let ny = n0y + n1y;
-    const nl = Math.hypot(nx, ny);
-    if (nl < 1e-9) {
-      out.push([curr[0] + n0x * offset, curr[1] + n0y * offset]);
-      continue;
+    const j = (i + 1) % n;
+    const dx = points[j][0] - points[i][0];
+    const dy = points[j][1] - points[i][1];
+    const len = Math.hypot(dx, dy) || 1;
+    const nx = sign * (dy / len);
+    const ny = sign * (-dx / len);
+    edges.push({
+      p0: [points[i][0] + nx * offset, points[i][1] + ny * offset],
+      p1: [points[j][0] + nx * offset, points[j][1] + ny * offset],
+      nx,
+      ny,
+    });
+  }
+  const out = [];
+  const maxSpike = offset * 2.8;
+  for (let i = 0; i < n; i++) {
+    const prev = edges[(i - 1 + n) % n];
+    const curr = edges[i];
+    const currPt = points[i];
+    let pt = lineLineIntersect(prev.p0, prev.p1, curr.p0, curr.p1);
+    if (!pt) {
+      pt = [currPt[0] + curr.nx * offset, currPt[1] + curr.ny * offset];
+    } else if (Math.hypot(pt[0] - currPt[0], pt[1] - currPt[1]) > maxSpike) {
+      pt = [(prev.p1[0] + curr.p0[0]) / 2, (prev.p1[1] + curr.p0[1]) / 2];
     }
-    nx /= nl;
-    ny /= nl;
-    const miter = 1 / Math.max(0.2, n0x * nx + n0y * ny);
-    const dist = offset * Math.min(miter, 4);
-    out.push([curr[0] + nx * dist, curr[1] + ny * dist]);
+    out.push(pt);
   }
   return out;
 }
