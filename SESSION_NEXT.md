@@ -2,65 +2,10 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: see "2026-07-08 fix (MakerDeck profile accent solid b147)" below
-- Refresh cachebust: MakerDeck `app.js?v=147`
+- Latest commit: see entries below (Flightdeck core)
+- **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
 
-### 2026-07-08 fix (MakerDeck profile accent solid b147)
-
-**Teardrop accent invisible / body looked like inside-out ribbon** (`geometry.js`, `features.js`)
-
-- Teardrop footprint was CW while star/heart/circle are CCW — wall quads faced inward so accent on the exterior was backface-culled. Teardrop outline now normalizes to CCW like heart.
-- Profile accent was a 0.08 mm zero-thickness skin (visible inside before b146, invisible outside after). Now a 0.45 mm solid sleeve on the exterior wall with winding-aware quads.
-- Cache `app.js?v=147`. Hard refresh MakerDeck.
-
-### 2026-07-08 fix (MakerDeck accent outside profile b146)
-
-**Profile-shape accent bands on interior wall** (`makerforge/js/features.js`)
-
-- Vertex-normal offset used the inward normal for CCW footprints (teardrop, star, heart) — bands hugged the cavity side. Flipped to exterior normals.
-- Cache `app.js?v=146`. Hard refresh MakerDeck.
-
-### 2026-07-08 fix (MakerDeck profile accent bands b145)
-
-**Teardrop, star, heart (and circle/oval/hex) accent bands never appeared** (`makerforge/js/geometry.js`)
-
-- Root cause: `buildContainer` built `accentMeshes` for profile shapes but the non-box return path hard-coded `accentMeshes: []` — only rect/rounded boxes kept bands. b144 offset work was fine; output was discarded.
-- Cache `app.js?v=145`. Hard refresh MakerDeck.
-
-### 2026-07-07 fix (MakerDeck accent on teardrop/star/heart b144)
-
-**Accent bands invisible on teardrop, star, and heart** (`features.js`, `accent-bands.js`, `app.js`)
-
-- Centroid radial offset pushed concave profile points inward — bands ended up inside the wall. Now offsets along vertex normals so star/heart/teardrop outlines get a proper exterior ribbon.
-- Profile shapes (teardrop, star, heart, circle, oval, hex) use a **position %** slider like vases instead of rim/floor face only.
-- Cache `app.js?v=144`. Hard refresh MakerDeck.
-
-### 2026-07-07 fix (MakerDeck band 2 colour picker b143)
-
-**Second accent band colour picker stopped working after slider tweaks** (`accent-bands.js`, `color-picker.js`, `app.js`)
-
-- `ensureStateAccentBands` was replacing band objects on every UI refresh, so Band 2's picker updated a stale copy while preview/export read the live state array.
-- Colour handlers now update `state.accentBands[i]` by index; band objects are normalized in place. Picker document listeners clean up on remount; open panel z-index fixed for Band 2 card.
-- Also ships accent bands on all profile shapes (teardrop, star, heart, circle, oval, hex) from prior b142 work.
-- Cache `app.js?v=143`, `style.css?v=24`. Hard refresh MakerDeck.
-
-### 2026-07-07 feature (MakerDeck multi-accent bands b141)
-
-**Up to 2 stacked accent colour bands** (`makerforge/js/accent-bands.js`, `geometry.js`, `app.js`, `index.html`)
-
-- Accent tab now supports **Band 1 / Band 2** cards — each with its own position, height, edge (vase wavy), face (box), and colour picker. **+ Add band** capped at 2 accents (separate 3MF filament slots).
-- Legacy single-band sessions auto-migrate to `accentBands[]`. STL accent export merges all bands into one file.
-- Cache `app.js?v=141`, `style.css?v=23`. Hard refresh MakerDeck. UI-only — Pi pull sufficient (no backend restart).
-
-### 2026-07-07 fix (MakerDeck boot + library thumbnails b140)
-
-**MakerDeck would not load at all after b139** (`makerforge/js/app.js`, `makerforge/js/features.js`)
-
-- b139 imported `buildWatermarkPreviewMesh` from `features.js` but the export was never shipped — ES module load failed and the whole MakerDeck UI was dead. Removed the unused import; preview helper kept in `features.js` for later.
-- Design library list API was returning ~1MB+ JSON with inline base64 thumbnails, hanging the Library tab. Thumbnails now save as separate `.thumb.jpg` files; manifest rows stay small; new `GET /api/makerdeck/designs/{id}/thumbnail` endpoint; existing manifests auto-compact on list.
-- Library tab refreshes after export save; thumbnail cards load from the new endpoint.
-- Cache `app.js?v=140` (and geometry/3mf/features imports). **Backend restart required** (new route + manifest migration). Hard refresh MakerDeck.
-
+### 2026-07-07 fix (spool restock)
 
 **Restocking a reserved/archived spool failed with "Unable to restock spool"** (`app/db.py`)
 

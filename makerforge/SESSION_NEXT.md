@@ -1,8 +1,49 @@
 ## MakerDeck session handoff
 
-Latest GitHub state:
+Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `882f2ea` — b139 design library copy
+- Latest commit: see **b147** below
+- Cache-bust: `app.js?v=147` (hard refresh `/makerdeck/` or `#/makerdeck`)
+
+> MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-08 — b147: Profile accent solid sleeve + teardrop CCW
+
+**Teardrop accent invisible / body looked like inside-out ribbon** (`geometry.js`, `features.js`)
+
+- Teardrop footprint was CW while star/heart/circle are CCW — wall quads faced inward; exterior accent was backface-culled.
+- Profile accent was a 0.08 mm skin (visible inside before b146, invisible outside after). Now a **0.45 mm solid sleeve** on the exterior wall.
+- Cache **b147**. Hard refresh MakerDeck.
+
+### 2026-07-08 — b146: Accent offset to exterior wall
+
+- Vertex-normal offset used inward normal for CCW footprints — bands hugged cavity side. Flipped to exterior normals.
+- Cache **b146**. Hard refresh.
+
+### 2026-07-08 — b145: Profile accent meshes discarded
+
+- `buildContainer` built `accentMeshes` for profile shapes but non-box return path hard-coded `accentMeshes: []`.
+- Cache **b145**. Hard refresh.
+
+### 2026-07-07 — b144: Profile accent normal offset + position %
+
+- Centroid radial offset wrong on concave profiles; now vertex-normal offset. Profile shapes use position % slider like vases.
+- Cache **b144**. Hard refresh.
+
+### 2026-07-07 — b143: Band 2 colour picker
+
+- `ensureStateAccentBands` replaced band objects on UI refresh — Band 2 picker updated stale copy. Fixed in-place + index handlers.
+- Cache **b143**. Hard refresh.
+
+### 2026-07-07 — b141: Multi-accent bands (up to 2)
+
+- Accent tab: Band 1 / Band 2 cards, separate 3MF filament slots. Legacy sessions migrate to `accentBands[]`.
+- Cache **b141**. UI-only — Pi pull sufficient.
+
+### 2026-07-07 — b140: Boot fix + library thumbnails
+
+- Missing `buildWatermarkPreviewMesh` export broke entire app load. Library thumbnails moved to separate files + `GET /api/makerdeck/designs/{id}/thumbnail`.
+- Cache **b140**. **Backend restart required.**
 
 ### 2026-07-07 — b139: Design library copy cleanup
 
