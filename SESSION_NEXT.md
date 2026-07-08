@@ -5,6 +5,15 @@ Latest GitHub/Pi state:
 - Latest commit: see entries below (Flightdeck core)
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
 
+### 2026-07-08 feature (native recorder survives restart)
+
+**Mid-print Flightdeck restart no longer wipes timelapse segments** (`app/native_recorder.py`, `app/main.py`)
+
+- Service shutdown now **suspends** native recorder (stops ffmpeg, keeps `.{print_id}-capture/seg_*.mp4`) instead of concatenating + deleting mid-print.
+- On resume after `job_reattached`, recorder continues segment numbering from the highest existing `seg_*.mp4` and logs `flight_recorder_native_resume`.
+- Print finish concatenates **all** segments (pre- and post-restart) before attach; orphan capture dirs finalize if the in-memory recorder is gone.
+- **Backend restart required** on Pi. No frontend cache bump.
+
 ### 2026-07-08 fix (history passport scroll)
 
 **Printer History passport was clipped with no scrollbar** (`app/static/style.css`, `app/static/index.html`)

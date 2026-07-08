@@ -43,7 +43,7 @@ import httpx
 
 from . import db, makerdeck_library, makerworld, relay
 from .camera import BambuCameraProxy
-from .native_recorder import PrintNativeRecorder
+from .native_recorder import PrintNativeRecorder, finalize_capture_dir
 from .label_printer import LabelPrinter
 from .models import PrintPreview, PrinterStatus
 from .paths import APP_DIR, DATA_DIR, DB_PATH, FLIGHT_RECORDER_DIR, PRINTERS_CONFIG_PATH, PRINT_LIBRARY_DIR, UPLOADS_DIR
@@ -931,6 +931,67 @@ def _native_recorder_first_layer_ready(p: dict) -> bool:
     return progress >= 0.015
 
 
+def _native_capture_paths(printer_id: str, print_id: int, filename: str = "print") -> tuple[Path, Path]:
+    safe_printer = re.sub(r"[^a-zA-Z0-9_.-]+", "-", printer_id).strip("-") or "printer"
+    work_dir = FLIGHT_RECORDER_DIR / safe_printer / f".{print_id}-capture"
+    output_path = _timelapse_safe_output_path(printer_id, print_id, filename or "print", ".mp4")
+    return work_dir, output_path
+
+
+def _attach_native_timelapse_path(printer_id: str, print_id: int, path: Path) -> bool:
+    if path.stat().st_size > _MAX_FLIGHT_RECORDER_BYTES:
+        log.warning(
+            "native recorder clip too large for %s print_id=%s (%d bytes)",
+            printer_id,
+            print_id,
+            path.stat().st_size,
+        )
+        try:
+            path.unlink(missing_ok=True)
+        except Exception:
+            pass
+        return False
+    if db.attach_print_timelapse(print_id, path, source="flightdeck-native"):
+        db.log_decision(
+            printer_id,
+            "flight_recorder_native",
+            f"Attached native RTSP clip {path.name}",
+            print_id=print_id,
+        )
+        log.info("native recorder attached: %s print_id=%s", printer_id, print_id)
+        return True
+    log.warning("native recorder attach failed: %s print_id=%s", printer_id, print_id)
+    return False
+
+
+async def _finalize_orphan_native_capture(printer_id: str, print_id: int) -> bool:
+    """Concat leftover seg_*.mp4 for a finished print when no in-memory recorder is running."""
+    item = db.get_print_by_id(print_id)
+    if not item or item.get("printer_id") != printer_id:
+        return False
+    if item.get("has_timelapse"):
+        return False
+    work_dir, output_path = _native_capture_paths(printer_id, print_id, item.get("filename") or "print")
+    if not work_dir.is_dir():
+        return False
+    if not any(work_dir.glob("seg_*.mp4")):
+        shutil.rmtree(work_dir, ignore_errors=True)
+        return False
+    try:
+        path = await finalize_capture_dir(
+            work_dir,
+            output_path,
+            printer_id=printer_id,
+            print_id=print_id,
+        )
+    except Exception as exc:
+        log.warning("orphan native finalize failed for %s print_id=%s: %s", printer_id, print_id, exc)
+        return False
+    if not path:
+        return False
+    return _attach_native_timelapse_path(printer_id, print_id, path)
+
+
 async def _maybe_start_native_recorder(printer_id: str, p: dict) -> None:
     if not _native_recorder_enabled():
         return
@@ -951,63 +1012,45 @@ async def _maybe_start_native_recorder(printer_id: str, p: dict) -> None:
         return
     if item.get("has_timelapse"):
         return
-    safe_printer = re.sub(r"[^a-zA-Z0-9_.-]+", "-", printer_id).strip("-") or "printer"
-    work_dir = FLIGHT_RECORDER_DIR / safe_printer / f".{print_id}-capture"
-    output_path = _timelapse_safe_output_path(
-        printer_id,
-        print_id,
-        item.get("filename") or "print",
-        ".mp4",
-    )
+    work_dir, output_path = _native_capture_paths(printer_id, print_id, item.get("filename") or "print")
     recorder = PrintNativeRecorder(proxy, printer_id, print_id, work_dir, output_path)
+    prior_segments = recorder.existing_segment_count()
     try:
         await recorder.start()
     except Exception as exc:
         log.warning("native recorder start failed for %s print_id=%s: %s", printer_id, print_id, exc)
         return
     _native_recorders[printer_id] = recorder
-    db.log_decision(
-        printer_id,
-        "flight_recorder_native_start",
-        f"Recording timelapse from first layer for print #{print_id}",
-        print_id=print_id,
-    )
+    if prior_segments:
+        db.log_decision(
+            printer_id,
+            "flight_recorder_native_resume",
+            f"Resumed native timelapse for print #{print_id} with {prior_segments} existing segment(s)",
+            print_id=print_id,
+        )
+    else:
+        db.log_decision(
+            printer_id,
+            "flight_recorder_native_start",
+            f"Recording timelapse from first layer for print #{print_id}",
+            print_id=print_id,
+        )
 
 
 async def _stop_native_recorder(printer_id: str, print_id: Optional[int] = None) -> None:
     recorder = _native_recorders.pop(printer_id, None)
-    if not recorder:
-        return
-    target_print_id = print_id or recorder.print_id
-    try:
-        path = await recorder.stop()
-    except Exception as exc:
-        log.warning("native recorder stop failed for %s: %s", printer_id, exc)
-        return
-    if not path:
-        return
-    if path.stat().st_size > _MAX_FLIGHT_RECORDER_BYTES:
-        log.warning(
-            "native recorder clip too large for %s print_id=%s (%d bytes)",
-            printer_id,
-            target_print_id,
-            path.stat().st_size,
-        )
+    target_print_id = print_id or (recorder.print_id if recorder else None)
+    if recorder:
         try:
-            path.unlink(missing_ok=True)
-        except Exception:
-            pass
-        return
-    if db.attach_print_timelapse(target_print_id, path, source="flightdeck-native"):
-        db.log_decision(
-            printer_id,
-            "flight_recorder_native",
-            f"Attached native RTSP clip {path.name}",
-            print_id=target_print_id,
-        )
-        log.info("native recorder attached: %s print_id=%s", printer_id, target_print_id)
-    else:
-        log.warning("native recorder attach failed: %s print_id=%s", printer_id, target_print_id)
+            path = await recorder.stop()
+        except Exception as exc:
+            log.warning("native recorder stop failed for %s: %s", printer_id, exc)
+            path = None
+        if path and target_print_id:
+            _attach_native_timelapse_path(printer_id, target_print_id, path)
+            return
+    if target_print_id:
+        await _finalize_orphan_native_capture(printer_id, target_print_id)
 
 
 async def _handle_print_recorder_finish(
@@ -1246,11 +1289,18 @@ async def lifespan(app: FastAPI):
     for proxy in _cam_proxies.values():
         await proxy.stop()
     _cam_proxies.clear()
+    # Suspend only — keep seg_*.mp4 so a mid-print restart can resume the same capture.
     for recorder in list(_native_recorders.values()):
         try:
-            await recorder.stop()
+            kept = await recorder.suspend()
+            log.info(
+                "native recorder suspended on shutdown: %s print_id=%s segments=%s",
+                recorder.printer_id,
+                recorder.print_id,
+                kept,
+            )
         except Exception as exc:
-            log.warning("native recorder shutdown failed for %s: %s", recorder.printer_id, exc)
+            log.warning("native recorder suspend failed for %s: %s", recorder.printer_id, exc)
     _native_recorders.clear()
     for p in _bambu:
         try:
