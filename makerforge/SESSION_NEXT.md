@@ -2,10 +2,19 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: see **b150** below
-- Cache-bust: `app.js?v=150` (hard refresh `/makerdeck/` or `#/makerdeck`)
+- Latest commit: see **b151** below
+- Cache-bust: `app.js?v=151` (hard refresh `/makerdeck/` or `#/makerdeck`)
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-08 — b151: Heart accent wide cleft exclusion zone
+
+**Gold still bleeding inside heart notch** (`js/features.js`)
+
+- b150 skipped concave edges only; adjacent lobe edges still offset into the footprint.
+- Now: dilated skip mask (16 hops), 14 mm+ clearance from sharpest concave apex, drop edge if parallel offset lands inside profile polygon.
+- Band may have a wider intentional gap at the back V — no interior bleed.
+- Cache **b151**. Hard refresh + re-export.
 
 ### 2026-07-08 — b150: Heart accent skip concave cleft edges
 
