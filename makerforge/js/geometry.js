@@ -1549,7 +1549,9 @@ function round1(n) {
 }
 
 function buildAccentBandMeshes(params, meta, outerProfile, isVase) {
-  const bands = normalizeAccentBands(params);
+  const bands = normalizeAccentBands(params)
+    .slice()
+    .sort((a, b) => Number(!!a.onTop) - Number(!!b.onTop));
   if (!bands.length) return [];
   const meshes = [];
   for (const band of bands) {
@@ -1571,6 +1573,7 @@ function buildAccentBandMeshes(params, meta, outerProfile, isVase) {
       solidMesh,
       color: band.color || "#f97316",
       id: band.id,
+      onTop: !!band.onTop,
     });
   }
   return meshes;

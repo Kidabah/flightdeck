@@ -142,6 +142,8 @@ function profileIsValid(profile) {
 const ACCENT_SKIN_MM = 0.12;
 /** Radial depth of profile accent bands — visible in preview and slicer-safe for multi-material. */
 const ACCENT_BAND_THICKNESS_MM = 0.45;
+/** Extra radial push when a band is marked "on top" over another. */
+const ACCENT_LAYER_BUMP_MM = 0.22;
 
 function ensureProfileCCW(points) {
   if (polygonSignedArea2(points) < 0) return points.slice().reverse();
@@ -359,11 +361,11 @@ function profileAccentOffset(points) {
  * Continuous accent sleeve — outer ring offset then pinched where the offset
  * folds inside the profile (heart cleft) so the band fades instead of bleeding.
  */
-function buildProfileAccentSleeve(outerProfile, z0, z1) {
+function buildProfileAccentSleeve(outerProfile, z0, z1, onTop = false) {
   const profile = ensureProfileCCW(outerProfile);
   const positions = [];
   const indices = [];
-  const offset = ACCENT_SKIN_MM + ACCENT_BAND_THICKNESS_MM;
+  const offset = ACCENT_SKIN_MM + ACCENT_BAND_THICKNESS_MM + (onTop ? ACCENT_LAYER_BUMP_MM : 0);
   const inner = profile.map((p) => [p[0], p[1]]);
   const outer = offsetProfileEdgeJoin(profile, offset);
   const weights = profileAccentPinchWeights(profile, outer);
@@ -408,7 +410,7 @@ export function buildAccentMesh(meta, params, outerProfile = null) {
   const bandH = Math.min(clamp(params.accentHeight ?? 4, 2, 80), b.totalH);
   const positions = [];
   const indices = [];
-  const skin = ACCENT_SKIN_MM;
+  const skin = ACCENT_SKIN_MM + (params.accentOnTop ? ACCENT_LAYER_BUMP_MM : 0);
   const accentProfile = profileIsValid(outerProfile)
     ? profileAccentOffset(outerProfile)
     : null;
@@ -419,7 +421,7 @@ export function buildAccentMesh(meta, params, outerProfile = null) {
       const inset = clamp(params.accentInset ?? 4, 2, Math.min(b.outerW, b.outerD) / 3);
       extrudeWallsAlongZ(positions, indices, accentProfile, z0, z1, frontProfileEdgeFilter(accentProfile, inset));
     } else {
-      return buildProfileAccentSleeve(outerProfile, z0, z1);
+      return buildProfileAccentSleeve(outerProfile, z0, z1, !!params.accentOnTop);
     }
   } else if (face === "rim") {
     const z1 = b.totalH;

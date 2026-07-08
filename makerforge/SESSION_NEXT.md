@@ -2,10 +2,19 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: see **b160** below
-- Cache-bust: `app.js?v=160` (hard refresh `/makerdeck/` or `#/makerdeck`)
+- Latest commit: see **b161** below
+- Cache-bust: `app.js?v=161` (hard refresh `/makerdeck/` or `#/makerdeck`)
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-08 — b161: Accent rotation + on-top layering
+
+**Multi-band accents** (`js/accent-bands.js`, `js/vase.js`, `js/features.js`, `js/geometry.js`, `js/app.js`, `index.html`)
+
+- **Rotate pattern** (°) on wavy vase bands — spins the wave around the pot.
+- **On top** checkbox per band when two colours — mutually exclusive; top band sits ~0.22 mm further out so it crosses over the other (preview + print).
+- New second band defaults to on top.
+- Cache **b161**. Hard refresh.
 
 ### 2026-07-08 — b160: Accent band click-to-edit values
 

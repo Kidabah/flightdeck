@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=160";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark } from "./features.js?v=160";
-import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=160";
-import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=160";
-import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=160";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=161";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark } from "./features.js?v=161";
+import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=161";
+import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=161";
+import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=161";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
 import {
@@ -12,7 +12,7 @@ import {
   newAccentBand,
   ensureStateAccentBands,
   syncFlatAccentFromBands,
-} from "./accent-bands.js?v=160";
+} from "./accent-bands.js?v=161";
 import {
   libraryApiAvailable,
   capturePreviewThumbnail,
@@ -20,7 +20,7 @@ import {
   listLibraryDesigns,
   fetchDesignParams,
   deleteLibraryDesign,
-} from "./library.js?v=160";
+} from "./library.js?v=161";
 
 const SESSION_KEY = "makerdeck-session-v1";
 let saveSessionTimer = null;
@@ -1484,13 +1484,13 @@ function rebuildMesh() {
       const mesh = new THREE.Mesh(accentGeom, mat);
       mesh.castShadow = false;
       mesh.receiveShadow = false;
-      mesh.renderOrder = 6;
+      mesh.renderOrder = part.onTop ? 8 : 6;
       previewRoot.add(mesh);
       let edgeLines = null;
       try {
         const accentEdges = new THREE.EdgesGeometry(accentGeom, 18);
         edgeLines = new THREE.LineSegments(accentEdges, edgeMaterial);
-        edgeLines.renderOrder = 7;
+        edgeLines.renderOrder = part.onTop ? 9 : 7;
         edgeLines.visible = previewXRayOn;
         previewRoot.add(edgeLines);
       } catch {
@@ -2628,7 +2628,7 @@ function accentSupportedForShape() {
 }
 
 function accentBandsUiSignature() {
-  return `${state.accentBands.length}:${accentUiMode()}:${state.accentBands.map((b) => b.id).join(",")}`;
+  return `${state.accentBands.length}:${accentUiMode()}:${state.accentBands.map((b) => `${b.id}:${b.onTop ? 1 : 0}`).join(",")}`;
 }
 
 function bindAccentBandSlider(slider, bandIndex, key, parseKind = "float") {
@@ -2691,16 +2691,20 @@ function syncAccentBandControlsFromState() {
     };
     setSlider("pos", band.pos ?? 50);
     setSlider("height", band.height ?? 4);
+    setSlider("rotation", band.rotation ?? 0);
     setSlider("wave-amp", band.waveAmp ?? 3);
     setSlider("wave-count", band.waveCount ?? 6);
     const edge = document.getElementById(`accent-band-${i}-edge`);
     if (edge) edge.value = band.edge || "straight";
     const face = document.getElementById(`accent-band-${i}-face`);
     if (face) face.value = band.face || "rim";
+    const onTop = document.getElementById(`accent-band-${i}-on-top`);
+    if (onTop) onTop.checked = !!band.onTop;
     setColorPickerValue(document.getElementById(`accent-band-${i}-color`), band.color || "#f97316");
     const wavyOn = mode === "vase" && band.edge === "wave";
     document.getElementById(`accent-band-${i}-wave-amp-field`)?.classList.toggle("hidden", !wavyOn);
     document.getElementById(`accent-band-${i}-wave-count-field`)?.classList.toggle("hidden", !wavyOn);
+    document.getElementById(`accent-band-${i}-rotation-field`)?.classList.toggle("hidden", !wavyOn);
   });
 }
 
@@ -2712,12 +2716,15 @@ function addAccentBand() {
   let color = suggestAccentColor(state.boxColor);
   if (usedColors.has(color)) color = suggestAccentColor("#64748b");
   const defaults = { height: first?.height ?? 4, waveAmp: first?.waveAmp ?? 3, waveCount: first?.waveCount ?? 6 };
+  const makeOnTop = state.accentBands.length >= 1;
+  if (makeOnTop) state.accentBands.forEach((b) => { b.onTop = false; });
   if (mode === "vase") {
     state.accentBands.push(newAccentBand({
       ...defaults,
       pos: Math.max(5, Math.min(95, (first?.pos ?? 50) - 28)),
       edge: "straight",
       color,
+      onTop: makeOnTop,
     }));
   } else if (mode === "profile") {
     state.accentBands.push(newAccentBand({
@@ -2725,6 +2732,7 @@ function addAccentBand() {
       pos: Math.max(5, Math.min(95, (first?.pos ?? 85) - 30)),
       face: "rim",
       color,
+      onTop: makeOnTop,
     }));
   } else {
     state.accentBands.push(newAccentBand({
@@ -2733,6 +2741,7 @@ function addAccentBand() {
       edge: first?.edge ?? "straight",
       face: first?.face === "floor" ? "rim" : "floor",
       color,
+      onTop: makeOnTop,
     }));
   }
   syncFlatAccentFromBands(state);
@@ -2857,11 +2866,30 @@ function renderAccentBandsUi(force = false) {
         syncFlatAccentFromBands(state);
         document.getElementById(`accent-band-${i}-wave-amp-field`)?.classList.toggle("hidden", e.target.value !== "wave");
         document.getElementById(`accent-band-${i}-wave-count-field`)?.classList.toggle("hidden", e.target.value !== "wave");
+        document.getElementById(`accent-band-${i}-rotation-field`)?.classList.toggle("hidden", e.target.value !== "wave");
         scheduleSaveSession();
         rebuild();
       });
       edgeField.appendChild(edgeSel);
       card.appendChild(edgeField);
+
+      const rotField = document.createElement("label");
+      rotField.className = "field";
+      rotField.id = `accent-band-${i}-rotation-field`;
+      rotField.classList.toggle("hidden", band.edge !== "wave");
+      rotField.innerHTML = `<span class="field-label">Rotate pattern <span class="unit">°</span></span>`;
+      const rotSlider = document.createElement("input");
+      rotSlider.type = "range";
+      rotSlider.id = `accent-band-${i}-rotation`;
+      rotSlider.min = "0";
+      rotSlider.max = "360";
+      rotSlider.step = "1";
+      rotSlider.value = String(band.rotation ?? 0);
+      rotSlider.tabIndex = -1;
+      const rotOut = createAccentBandValueEdit(rotSlider.id, i, "rotation", "float", band.rotation ?? 0);
+      rotField.append(rotSlider, rotOut);
+      card.appendChild(rotField);
+      bindAccentBandSlider(rotSlider, i, "rotation", "float");
 
       const wavyOn = band.edge === "wave";
       const waveAmpField = document.createElement("label");
@@ -2917,6 +2945,32 @@ function renderAccentBandsUi(force = false) {
     heightField.append(heightSlider, heightOut);
     card.appendChild(heightField);
     bindAccentBandSlider(heightSlider, i, "height", "float");
+
+    if (state.accentBands.length > 1) {
+      const topField = document.createElement("label");
+      topField.className = "field field-toggle";
+      topField.innerHTML = `<span class="field-label">On top</span>`;
+      const topCb = document.createElement("input");
+      topCb.type = "checkbox";
+      topCb.id = `accent-band-${i}-on-top`;
+      topCb.checked = !!band.onTop;
+      topCb.addEventListener("change", () => {
+        if (topCb.checked) {
+          state.accentBands.forEach((b, j) => { b.onTop = j === i; });
+        } else {
+          const other = i === 0 ? 1 : 0;
+          state.accentBands[i].onTop = false;
+          if (state.accentBands[other]) state.accentBands[other].onTop = true;
+        }
+        syncFlatAccentFromBands(state);
+        syncAccentBandControlsFromState();
+        scheduleSaveSession();
+        rebuild();
+        pushAppHistory();
+      });
+      topField.appendChild(topCb);
+      card.appendChild(topField);
+    }
 
     const colorField = document.createElement("div");
     colorField.className = "field field-color";

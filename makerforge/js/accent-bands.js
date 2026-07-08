@@ -11,6 +11,8 @@ export const DEFAULT_ACCENT_BAND = {
   waveCount: 6,
   face: "rim",
   color: "#f97316",
+  rotation: 0,
+  onTop: false,
 };
 
 export function newAccentBand(overrides = {}) {
@@ -60,6 +62,8 @@ export function bandToBuildParams(baseParams, band) {
     accentWaveAmp: band.waveAmp ?? 3,
     accentWaveCount: band.waveCount ?? 6,
     accentFace: band.face === "front" ? "front" : floorFace ? "floor" : "rim",
+    accentRotation: band.rotation ?? 0,
+    accentOnTop: !!band.onTop,
   };
 }
 
@@ -75,6 +79,9 @@ function normalizeBandFields(band, index = 0) {
 export function ensureStateAccentBands(state) {
   if (Array.isArray(state.accentBands) && state.accentBands.length) {
     state.accentBands.forEach((band, i) => normalizeBandFields(band, i));
+    if (state.accentBands.length > 1 && !state.accentBands.some((b) => b.onTop)) {
+      state.accentBands[state.accentBands.length - 1].onTop = true;
+    }
     syncFlatAccentFromBands(state);
     return;
   }

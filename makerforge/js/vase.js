@@ -511,7 +511,8 @@ export function buildVaseAccentMesh(params) {
   const wavy = params.accentEdge === "wave";
   const waveAmp = wavy ? clamp(params.accentWaveAmp ?? 3, 0.5, 10) : 0;
   const waveCount = wavy ? clamp(Math.round(params.accentWaveCount ?? 6), 2, 16) : 0;
-  const waveAt = (k) => (wavy ? waveAmp * Math.sin(waveCount * ((k / segments) * Math.PI * 2)) : 0);
+  const rotRad = ((params.accentRotation ?? 0) * Math.PI) / 180;
+  const waveAt = (k) => (wavy ? waveAmp * Math.sin(waveCount * ((k / segments) * Math.PI * 2) + rotRad) : 0);
 
   // Body outer rings — identical construction to buildVase (outerRingAt
   // includes the rolled-lip flare, so the band tracks it too).
@@ -607,14 +608,15 @@ export function buildVaseAccentMesh(params) {
   const maxWaveStep = wavy ? (waveAmp * waveCount * Math.PI * 2) / segments : 0;
   const sub = Math.max(1, Math.ceil(maxWaveStep / 0.5));
   const cols = segments * sub;
-  const waveAtCol = (c) => (wavy ? waveAmp * Math.sin(waveCount * ((c / cols) * Math.PI * 2)) : 0);
+  const waveAtCol = (c) => (wavy ? waveAmp * Math.sin(waveCount * ((c / cols) * Math.PI * 2) + rotRad) : 0);
 
   // Build slices as 3D rings (per-vertex z includes the wave offset).
   const makeSlices = (radialOffset) =>
     fracs.map((f) =>
       Array.from({ length: cols }, (_, c) => wallPointAt(z0 + bandH * f + waveAtCol(c), c / sub, radialOffset)),
     );
-  const outerSlices = makeSlices((zc, i) => skinAt(zc) + sagAt(i));
+  const layerBump = params.accentOnTop ? 0.22 : 0;
+  const outerSlices = makeSlices((zc, i) => skinAt(zc) + sagAt(i) + layerBump);
 
   const positions = [];
   const indices = [];
