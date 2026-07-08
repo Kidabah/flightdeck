@@ -1569,6 +1569,41 @@ header {
   border-top: none;
 }
 
+.tab-section-group {
+  margin: 0;
+  border: 0;
+}
+
+.tab-section-group > summary.tab-section {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+
+.tab-section-group > summary.tab-section::-webkit-details-marker {
+  display: none;
+}
+
+.tab-section-group > summary.tab-section::after {
+  content: '▾';
+  float: right;
+  opacity: 0.55;
+  font-size: 0.72rem;
+}
+
+.tab-section-group:not([open]) > summary.tab-section::after {
+  content: '▸';
+}
+
+.tab-section-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.flight-recorder-low-coverage {
+  outline: 1px solid color-mix(in srgb, var(--warning, #f59e0b) 55%, transparent);
+}
+
 .tab-printer {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;

@@ -1259,6 +1259,25 @@ function formatTime(seconds) {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
+function _timelapseRecorderCaption(print) {
+  const cov = print.timelapse_coverage;
+  if (!cov) {
+    return print.timelapse_source
+      ? `Recorded · ${print.timelapse_source}${print.timelapse_source === 'flightdeck-native' ? ' timelapse' : ''}`
+      : 'Recorded';
+  }
+  const vid = formatTime(Math.round(cov.video_seconds || 0));
+  const pr = formatTime(cov.print_seconds || 0);
+  const pct = Math.round((cov.coverage || 0) * 100);
+  if (cov.low_coverage) {
+    return `${vid} clip · ~${pct}% of ${pr} print — try Find better clip`;
+  }
+  if (print.timelapse_source === 'flightdeck-native') {
+    return `${vid} timelapse · ${pr} print`;
+  }
+  return `${vid} clip · ${pr} print`;
+}
+
 
 // ── Event wiring ───────────────────────────────────────────────────────────
 
@@ -4221,6 +4240,35 @@ function router() {
   if (route.view === 'about' && !wasOnAbout) renderAboutView();
 }
 
+const _SIDEBAR_SECTIONS_KEY = 'flightdeck-sidebar-sections';
+
+function _sidebarSectionsState() {
+  try {
+    return JSON.parse(localStorage.getItem(_SIDEBAR_SECTIONS_KEY) || '{}') || {};
+  } catch {
+    return {};
+  }
+}
+
+function _sidebarSectionOpen(id, defaultOpen = true) {
+  const state = _sidebarSectionsState();
+  return state[id] !== undefined ? !!state[id] : defaultOpen;
+}
+
+function _bindSidebarSections() {
+  document.querySelectorAll('[data-sidebar-section]').forEach((el) => {
+    if (el.dataset.bound === '1') return;
+    el.dataset.bound = '1';
+    el.addEventListener('toggle', () => {
+      const id = el.dataset.sidebarSection;
+      if (!id) return;
+      const state = _sidebarSectionsState();
+      state[id] = el.open;
+      localStorage.setItem(_SIDEBAR_SECTIONS_KEY, JSON.stringify(state));
+    });
+  });
+}
+
 function buildTabs(printers) {
   const nav = document.getElementById('tab-strip');
   const ordered = [...printers].sort(_comparePrintersByBench);
@@ -4241,31 +4289,38 @@ function buildTabs(printers) {
   const settingsLinks = _SETTINGS_CATEGORIES.map(c =>
     `<a class="tab-settings-child tab" href="#/settings/${c.id}">${esc(c.label)}</a>`
   ).join('');
+  const section = (id, title, body, defaultOpen = true) =>
+    `<details class="tab-section-group" data-sidebar-section="${id}"${_sidebarSectionOpen(id, defaultOpen) ? ' open' : ''}>
+      <summary class="tab-section">${title}</summary>
+      <div class="tab-section-body">${body}</div>
+    </details>`;
   nav.innerHTML = [
     `<a class="tab" href="#/">Dashboard</a>`,
     `<a class="tab" href="#/fleet">Fleet Wall</a>`,
     `<a class="tab" href="#/mission">Flight Tower</a>`,
     `<a class="tab" href="#/stats">Telemetry</a>`,
-    `<div class="tab-section">Printers</div>`,
-    printerGroups,
-    `<div class="tab-section">Operations</div>`,
-    `<a class="tab" href="#/queue">Queue</a>`,
-    `<a class="tab" href="#/files">Global Print Bay</a>`,
-    `<a class="tab" href="#/memory">Print Memory</a>`,
-    `<a class="tab" href="#/filament">Fleet Filament</a>`,
-    `<a class="tab" href="#/spools">Spools</a>`,
-    `<div class="tab-section">System</div>`,
-    `<a class="tab" href="#/walkthrough">Walkthrough Mode</a>`,
-    `<a class="tab" href="#/makerworld">MakerWorld</a>`,
-    `<a class="tab" href="#/makerdeck">MakerDeck</a>`,
-    `<a class="tab" href="#/manual">Flight Manual</a>`,
-    `<a class="tab" href="#/about">About</a>`,
-    `<div class="tab-flyout">
-      <a class="tab tab-settings-root" href="#/settings">Settings</a>
-      <div class="tab-flyout-menu">${settingsLinks}</div>
-    </div>`,
+    section('printers', 'Printers', printerGroups, true),
+    section('operations', 'Operations', [
+      `<a class="tab" href="#/queue">Queue</a>`,
+      `<a class="tab" href="#/files">Global Print Bay</a>`,
+      `<a class="tab" href="#/memory">Print Memory</a>`,
+      `<a class="tab" href="#/filament">Fleet Filament</a>`,
+      `<a class="tab" href="#/spools">Spools</a>`,
+    ].join(''), false),
+    section('system', 'System', [
+      `<a class="tab" href="#/walkthrough">Walkthrough Mode</a>`,
+      `<a class="tab" href="#/makerworld">MakerWorld</a>`,
+      `<a class="tab" href="#/makerdeck">MakerDeck</a>`,
+      `<a class="tab" href="#/manual">Flight Manual</a>`,
+      `<a class="tab" href="#/about">About</a>`,
+      `<div class="tab-flyout">
+        <a class="tab tab-settings-root" href="#/settings">Settings</a>
+        <div class="tab-flyout-menu">${settingsLinks}</div>
+      </div>`,
+    ].join(''), false),
   ].join('');
   _tabsBuilt = true;
+  _bindSidebarSections();
   router();
 }
 
@@ -7201,6 +7256,7 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
   const recorderUrl = print.has_timelapse
     ? _mediaUrl(`/api/printers/${printerId}/prints/${print.id}/timelapse`, print.filename || 'Flight Recorder')
     : '';
+  const recorderNeedsUpgrade = !!print.timelapse_should_upgrade;
   const recorderDebugHtml = print.id ? `<details class="flight-recorder-debug" data-print-id="${print.id}" data-printer-id="${printerId}">
     <summary>Recorder debug</summary>
     <div class="flight-recorder-debug-body"><span class="decision-empty">Open to inspect timelapse hints and candidate clips.</span></div>
@@ -7209,18 +7265,18 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
     <div class="flight-recorder-head">
       <div>
         <span>Flight Recorder</span>
-        <em>${print.has_timelapse ? `Recorded${print.timelapse_source ? ` · ${esc(print.timelapse_source)}${print.timelapse_source === 'flightdeck-native' ? ' timelapse' : ''}` : ''}` : 'Flightdeck auto-harvests Bambu timelapses after finish. Use Find clip for older prints or Add video manually.'}</em>
+        <em>${print.has_timelapse ? esc(_timelapseRecorderCaption(print)) : 'Flightdeck auto-harvests Bambu timelapses after finish. Use Find clip for older prints or Add video manually.'}</em>
       </div>
-      ${print.has_timelapse ? '' : `<div class="flight-recorder-actions">
-        <button type="button" class="flight-recorder-discover">Find clip</button>
-        <label class="flight-recorder-upload">
+      ${!print.has_timelapse || recorderNeedsUpgrade ? `<div class="flight-recorder-actions">
+        <button type="button" class="flight-recorder-discover">${recorderNeedsUpgrade ? 'Find better clip' : 'Find clip'}</button>
+        ${print.has_timelapse ? '' : `<label class="flight-recorder-upload">
           <input type="file" accept="video/mp4,video/webm,video/quicktime,video/x-msvideo">
           <span>Add video</span>
-        </label>
-      </div>`}
+        </label>`}
+      </div>` : ''}
     </div>
     ${print.has_timelapse
-      ? `<video class="flight-recorder-video${print.timelapse_source === 'flightdeck-native' ? ' flight-recorder-timelapse' : ''}" src="${recorderUrl}" controls preload="metadata"${print.timelapse_source === 'flightdeck-native' ? ' data-timelapse-native="1"' : ''}></video>`
+      ? `<video class="flight-recorder-video${print.timelapse_source === 'flightdeck-native' ? ' flight-recorder-timelapse' : ''}${recorderNeedsUpgrade ? ' flight-recorder-low-coverage' : ''}" src="${recorderUrl}" controls preload="metadata"${print.timelapse_source === 'flightdeck-native' ? ' data-timelapse-native="1"' : ''}></video>`
       : `<div class="flight-recorder-empty">No recorder clip attached yet.</div>`}
     ${recorderDebugHtml}
   </div>` : '';
@@ -7331,7 +7387,7 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
       nativeVideo.dataset.timelapseTuned = '1';
       nativeVideo.addEventListener('loadedmetadata', () => {
         const duration = Number(nativeVideo.duration || 0);
-        if (duration > 180) {
+        if (duration > 180 && !nativeVideo.classList.contains('flight-recorder-low-coverage')) {
           nativeVideo.playbackRate = Math.min(8, Math.max(2, duration / 120));
         }
       }, { once: true });

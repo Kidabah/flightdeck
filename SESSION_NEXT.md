@@ -5,6 +5,17 @@ Latest GitHub/Pi state:
 - Latest commit: see entries below (Flightdeck core)
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
 
+### 2026-07-08 fix (timelapse low coverage + collapsible sidebar)
+
+**Fat quarters box timelapse only ~24s of 15h print** (`app/main.py`, `app/native_recorder.py`, `app/static/app.js`, `app/static/style.css`, `app/static/index.html`)
+
+- Diagnosed print #430 on h2d: **24s clip / 56 369s print (~10% coverage)** — native recorder likely started late (service restart mid-job) and auto-harvest was blocked once the short native clip attached.
+- Auto-harvest and **Find better clip** now retry when coverage &lt; 45% or source is `ipcam/*` — can replace with a longer Bambu SD timelapse.
+- Passport shows **coverage caption** (e.g. `24m clip · ~10% of 15h 39m print`) + **Find better clip** button on low coverage.
+- Multi-segment native concat re-encodes (fixes timestamp glitches on very long jobs).
+- Sidebar **Printers / Operations / System** are collapsible `<details>` sections (state saved in localStorage; Operations + System default collapsed).
+- Cache `app.js?v=627` `style.css?v=482`. **Backend restart required** on Pi.
+
 ### 2026-07-07 fix (spool restock)
 
 **Restocking a reserved/archived spool failed with "Unable to restock spool"** (`app/db.py`)

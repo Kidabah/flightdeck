@@ -4189,7 +4189,7 @@ async def get_history_day(printer_id: str, date: str):
     if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date):
         raise HTTPException(status_code=400, detail="date must be YYYY-MM-DD")
     _assert_printer(printer_id)
-    return db.get_prints_for_day(printer_id, date)
+    return [_enrich_print_timelapse_meta(item) for item in db.get_prints_for_day(printer_id, date)]
 
 
 @app.get("/api/print-memory")
@@ -8022,6 +8022,100 @@ def _timelapse_path_from_record(record: dict) -> Path:
         raise HTTPException(status_code=404, detail="timelapse path unavailable") from exc
 
 
+def _timelapse_realtime_factor() -> float:
+    interval = float(os.getenv("FLIGHTDECK_TIMELAPSE_INTERVAL", "8"))
+    fps = float(os.getenv("FLIGHTDECK_TIMELAPSE_FPS", "30"))
+    return max(1.0, interval * fps)
+
+
+def _ffprobe_video_duration(path: Path) -> Optional[float]:
+    if not path.is_file() or path.stat().st_size < 1024:
+        return None
+    try:
+        proc = subprocess.run(
+            [
+                "ffprobe",
+                "-v", "error",
+                "-show_entries", "format=duration",
+                "-of", "default=noprint_wrappers=1:nokey=1",
+                str(path),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=12,
+            check=False,
+        )
+        if proc.returncode != 0:
+            return None
+        return float(proc.stdout.strip())
+    except (ValueError, subprocess.TimeoutExpired, OSError):
+        return None
+
+
+def _timelapse_native_coverage(item: dict, video_seconds: float) -> float:
+    print_sec = float(item.get("duration_seconds") or 0)
+    if print_sec <= 0 or video_seconds <= 0:
+        return 1.0
+    expected = print_sec / _timelapse_realtime_factor()
+    if expected <= 0:
+        return 1.0
+    return min(1.0, video_seconds / expected)
+
+
+def _timelapse_should_upgrade(item: dict) -> bool:
+    source = str(item.get("timelapse_source") or "")
+    if "ipcam" in source:
+        return True
+    if not source.startswith("flightdeck-native"):
+        return False
+    try:
+        path = _timelapse_path_from_record(item)
+    except HTTPException:
+        return True
+    video_seconds = _ffprobe_video_duration(path)
+    if video_seconds is None:
+        return True
+    return _timelapse_native_coverage(item, video_seconds) < 0.45
+
+
+def _timelapse_coverage_meta(item: dict) -> Optional[dict]:
+    if not item.get("has_timelapse"):
+        return None
+    print_sec = float(item.get("duration_seconds") or 0)
+    if print_sec <= 0:
+        return None
+    try:
+        path = _timelapse_path_from_record(item)
+    except HTTPException:
+        return None
+    video_seconds = _ffprobe_video_duration(path)
+    if video_seconds is None:
+        return None
+    source = str(item.get("timelapse_source") or "")
+    if source.startswith("flightdeck-native"):
+        coverage = _timelapse_native_coverage(item, video_seconds)
+        expected_video = print_sec / _timelapse_realtime_factor()
+    else:
+        coverage = min(1.0, video_seconds / print_sec) if print_sec > 0 else 1.0
+        expected_video = print_sec
+    return {
+        "video_seconds": round(video_seconds, 1),
+        "print_seconds": round(print_sec),
+        "coverage": round(coverage, 3),
+        "low_coverage": coverage < 0.45,
+        "expected_video_seconds": round(expected_video, 1),
+    }
+
+
+def _enrich_print_timelapse_meta(item: dict) -> dict:
+    out = dict(item)
+    coverage = _timelapse_coverage_meta(item)
+    if coverage:
+        out["timelapse_coverage"] = coverage
+        out["timelapse_should_upgrade"] = _timelapse_should_upgrade(item)
+    return out
+
+
 def _normalise_timelapse_key(value: str) -> str:
     text = Path(value or "").stem.lower()
     text = re.sub(r"\.gcode$", "", text)
@@ -8179,7 +8273,9 @@ def _timelapse_candidate_score(item: dict, candidate: dict) -> float:
     if path.startswith("timelapse/") or "/timelapse/" in path:
         score += 45
     elif path.startswith("ipcam/") or "/ipcam/" in path or "ipcam-record" in path:
-        score -= 40
+        score -= 80
+        if not _timelapse_has_name_match(item, candidate):
+            score -= 40
 
     size = candidate.get("size")
     if score > 0 and isinstance(size, int) and size > 0:
@@ -8489,7 +8585,7 @@ async def _auto_harvest_flight_recorder(
             item = db.get_print_by_id(print_id)
             if not item or item.get("printer_id") != printer_id:
                 return
-            if item.get("has_timelapse"):
+            if item.get("has_timelapse") and not _timelapse_should_upgrade(item):
                 return
             try:
                 if mqtt_hint and await _try_harvest_bambu_mqtt_timelapse(printer_id, print_id, item, mqtt_hint):
@@ -8594,6 +8690,8 @@ async def debug_print_timelapse(printer_id: str, print_id: int):
         "bambu_best": summarise(bambu_best) if bambu_best else None,
         "bambu_samples": [summarise(c) for c in bambu_candidates[:8]],
         "bambu_error": bambu_error,
+        "timelapse_coverage": _timelapse_coverage_meta(item),
+        "timelapse_should_upgrade": _timelapse_should_upgrade(item),
     }
 
 
@@ -8642,10 +8740,18 @@ async def discover_print_timelapse(printer_id: str, print_id: int):
     item = db.get_print_by_id(print_id)
     if not item or item.get("printer_id") != printer_id:
         raise HTTPException(status_code=404, detail="print not found")
-    if item.get("has_timelapse"):
+    if item.get("has_timelapse") and not _timelapse_should_upgrade(item):
         updated = db.get_print_by_id(print_id) or item
         updated["timelapse_url"] = f"/api/printers/{urllib.parse.quote(printer_id)}/prints/{print_id}/timelapse"
         return updated
+
+    if item.get("has_timelapse") and _timelapse_should_upgrade(item):
+        try:
+            old_path = _timelapse_path_from_record(item)
+            if old_path.exists():
+                old_path.unlink(missing_ok=True)
+        except Exception:
+            pass
 
     candidate, data = await _discover_print_timelapse(printer_id, item)
     updated = await _save_and_attach_timelapse(
@@ -8655,6 +8761,7 @@ async def discover_print_timelapse(printer_id: str, print_id: int):
         candidate,
         data,
         source=_timelapse_store_source(candidate),
+        decision_event="flight_recorder_upgraded" if item.get("has_timelapse") else "flight_recorder_discovered",
     )
     return updated
 
