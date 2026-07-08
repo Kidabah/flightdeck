@@ -245,6 +245,76 @@ function isProfileConcaveVertex(points, i) {
   return ccw ? cross < -1e-9 : cross > 1e-9;
 }
 
+function profileVertexCross(points, i) {
+  const n = points.length;
+  const prev = points[(i - 1 + n) % n];
+  const curr = points[i];
+  const next = points[(i + 1) % n];
+  const e0x = curr[0] - prev[0];
+  const e0y = curr[1] - prev[1];
+  const e1x = next[0] - curr[0];
+  const e1y = next[1] - curr[1];
+  return e0x * e1y - e0y * e1x;
+}
+
+function pointInProfile(pt, poly) {
+  let inside = false;
+  const n = poly.length;
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const xi = poly[i][0];
+    const yi = poly[i][1];
+    const xj = poly[j][0];
+    const yj = poly[j][1];
+    const hit = (yi > pt[1]) !== (yj > pt[1])
+      && pt[0] < ((xj - xi) * (pt[1] - yi)) / (yj - yi + 1e-12) + xi;
+    if (hit) inside = !inside;
+  }
+  return inside;
+}
+
+/** Sharpest concave apex per re-entrant run (heart cleft, star notches). */
+function profileConcaveApexIndices(points) {
+  const n = points.length;
+  const apexes = [];
+  let i = 0;
+  while (i < n) {
+    if (!isProfileConcaveVertex(points, i)) {
+      i++;
+      continue;
+    }
+    let bestI = i;
+    let bestCross = 0;
+    while (i < n && isProfileConcaveVertex(points, i)) {
+      const cross = profileVertexCross(points, i);
+      if (cross < bestCross) {
+        bestCross = cross;
+        bestI = i;
+      }
+      i++;
+    }
+    apexes.push(bestI);
+  }
+  return apexes;
+}
+
+function profileAccentSkipMask(points, dilateHops = 16) {
+  const n = points.length;
+  const skip = new Array(n).fill(false);
+  for (let i = 0; i < n; i++) {
+    if (isProfileConcaveVertex(points, i)) skip[i] = true;
+  }
+  for (let h = 0; h < dilateHops; h++) {
+    const next = skip.slice();
+    for (let i = 0; i < n; i++) {
+      if (!skip[i]) continue;
+      next[(i - 1 + n) % n] = true;
+      next[(i + 1) % n] = true;
+    }
+    skip.splice(0, n, ...next);
+  }
+  return skip;
+}
+
 function profileEdgeOutwardNormal(points, i) {
   const n = points.length;
   const j = (i + 1) % n;
@@ -262,8 +332,8 @@ function profileAccentOffset(points) {
 
 /**
  * Thin solid sleeve on profile shapes — per-edge parallel offset.
- * Skips edges touching concave vertices (heart cleft, star notches) so the
- * band cannot fold through the wall into the cavity.
+ * Skips concave zones (dilated) and any edge whose offset lands inside the
+ * footprint (heart cleft bleed).
  */
 function buildProfileAccentSleeve(outerProfile, z0, z1) {
   const profile = ensureProfileCCW(outerProfile);
@@ -271,16 +341,32 @@ function buildProfileAccentSleeve(outerProfile, z0, z1) {
   const indices = [];
   const offset = ACCENT_SKIN_MM + ACCENT_BAND_THICKNESS_MM;
   const n = profile.length;
+  const skip = profileAccentSkipMask(profile, 16);
+  const apexes = profileConcaveApexIndices(profile);
+  const apexClearMm = Math.max(14, offset * 24);
 
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
-    if (isProfileConcaveVertex(profile, i) || isProfileConcaveVertex(profile, j)) continue;
+    if (skip[i] || skip[j]) continue;
 
-    const [nx, ny] = profileEdgeOutwardNormal(profile, i);
     const a = profile[i];
     const b = profile[j];
+    const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    let nearApex = false;
+    for (const ai of apexes) {
+      const ap = profile[ai];
+      const d = Math.hypot(mid[0] - ap[0], mid[1] - ap[1]);
+      if (d < apexClearMm) {
+        nearApex = true;
+        break;
+      }
+    }
+    if (nearApex) continue;
+
+    const [nx, ny] = profileEdgeOutwardNormal(profile, i);
     const oa = [a[0] + nx * offset, a[1] + ny * offset];
     const ob = [b[0] + nx * offset, b[1] + ny * offset];
+    if (pointInProfile(oa, profile) || pointInProfile(ob, profile)) continue;
 
     const ia0 = vec3(a[0], a[1], z0);
     const ib0 = vec3(b[0], b[1], z0);
