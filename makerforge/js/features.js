@@ -248,27 +248,45 @@ function isProfileConcaveVertex(points, i) {
   return ccw ? sinHalf < -0.12 : sinHalf > 0.12;
 }
 
-/** 0 at concave notches, 1 on convex wall — smooth taper between. */
-function profileAccentPinchWeights(points) {
-  const n = points.length;
-  const w = new Array(n).fill(1);
-  for (let i = 0; i < n; i++) {
-    if (isProfileConcaveVertex(points, i)) w[i] = 0;
+function pointInProfile(pt, poly) {
+  let inside = false;
+  const n = poly.length;
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const xi = poly[i][0];
+    const yi = poly[i][1];
+    const xj = poly[j][0];
+    const yj = poly[j][1];
+    const hit = (yi > pt[1]) !== (yj > pt[1])
+      && pt[0] < ((xj - xi) * (pt[1] - yi)) / (yj - yi + 1e-12) + xi;
+    if (hit) inside = !inside;
   }
-  for (let pass = 0; pass < 10; pass++) {
+  return inside;
+}
+
+const PROFILE_ACCENT_EDGE_MIN = 0.35;
+
+/** 0 where offset folds inside the wall or at reflex corners — smooth taper between. */
+function profileAccentPinchWeights(profile, outerRaw) {
+  const n = profile.length;
+  let w = new Array(n).fill(1);
+  for (let i = 0; i < n; i++) {
+    if (pointInProfile(outerRaw[i], profile) || isProfileConcaveVertex(profile, i)) w[i] = 0;
+  }
+  for (let pass = 0; pass < 12; pass++) {
+    const next = w.slice();
     for (let i = 0; i < n; i++) {
       if (w[i] <= 0) continue;
       const wl = w[(i - 1 + n) % n];
       const wr = w[(i + 1) % n];
       const neighbor = Math.min(wl, wr);
-      if (neighbor < w[i]) w[i] = Math.max(neighbor, w[i] - 0.12);
+      if (neighbor < w[i]) next[i] = Math.max(neighbor, w[i] - 0.12);
     }
+    w = next;
   }
   return w;
 }
 
-function pinchProfileAccentOuter(profile, outer) {
-  const weights = profileAccentPinchWeights(profile);
+function pinchProfileAccentOuter(profile, outer, weights) {
   for (let i = 0; i < profile.length; i++) {
     const t = weights[i];
     outer[i][0] = profile[i][0] + (outer[i][0] - profile[i][0]) * t;
@@ -280,13 +298,19 @@ function profileAccentWallWidth(inner, outer, i) {
   return Math.hypot(outer[i][0] - inner[i][0], outer[i][1] - inner[i][1]);
 }
 
-function extrudeProfileAnnulusWalls(outPos, outIdx, inner, outer, z0, z1) {
+function profileAccentEdgeOk(profile, inner, outer, weights, i, j) {
+  if (Math.min(weights[i], weights[j]) < PROFILE_ACCENT_EDGE_MIN) return false;
+  if (pointInProfile(outer[i], profile) || pointInProfile(outer[j], profile)) return false;
+  if (profileAccentWallWidth(inner, outer, i) < 0.05 && profileAccentWallWidth(inner, outer, j) < 0.05) return false;
+  return true;
+}
+
+function extrudeProfileAnnulusWalls(outPos, outIdx, profile, inner, outer, weights, z0, z1) {
   const ccw = polygonSignedArea2(inner) > 0;
   const n = inner.length;
-  const minW = 0.05;
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
-    if (profileAccentWallWidth(inner, outer, i) < minW && profileAccentWallWidth(inner, outer, j) < minW) continue;
+    if (!profileAccentEdgeOk(profile, inner, outer, weights, i, j)) continue;
     const o0 = vec3(outer[i][0], outer[i][1], z0);
     const o1 = vec3(outer[j][0], outer[j][1], z0);
     const o2 = vec3(outer[j][0], outer[j][1], z1);
@@ -305,13 +329,12 @@ function extrudeProfileAnnulusWalls(outPos, outIdx, inner, outer, z0, z1) {
   }
 }
 
-function capProfileAccentRing(outPos, outIdx, outer, inner, z, normalUp) {
+function capProfileAccentRing(outPos, outIdx, profile, outer, inner, weights, z, normalUp) {
   const ccw = polygonSignedArea2(inner) > 0;
   const n = inner.length;
-  const minW = 0.05;
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
-    if (profileAccentWallWidth(inner, outer, i) < minW && profileAccentWallWidth(inner, outer, j) < minW) continue;
+    if (!profileAccentEdgeOk(profile, inner, outer, weights, i, j)) continue;
     const o0 = vec3(outer[i][0], outer[i][1], z);
     const o1 = vec3(outer[j][0], outer[j][1], z);
     const i0 = vec3(inner[i][0], inner[i][1], z);
@@ -332,8 +355,8 @@ function profileAccentOffset(points) {
 }
 
 /**
- * Continuous accent sleeve — outer ring offset then pinched to zero at concave
- * notches (heart cleft) so the band fades out instead of folding through.
+ * Continuous accent sleeve — outer ring offset then pinched where the offset
+ * folds inside the profile (heart cleft) so the band fades instead of bleeding.
  */
 function buildProfileAccentSleeve(outerProfile, z0, z1) {
   const profile = ensureProfileCCW(outerProfile);
@@ -342,10 +365,11 @@ function buildProfileAccentSleeve(outerProfile, z0, z1) {
   const offset = ACCENT_SKIN_MM + ACCENT_BAND_THICKNESS_MM;
   const inner = profile.map((p) => [p[0], p[1]]);
   const outer = offsetProfileEdgeJoin(profile, offset);
-  pinchProfileAccentOuter(profile, outer);
-  extrudeProfileAnnulusWalls(positions, indices, inner, outer, z0, z1);
-  capProfileAccentRing(positions, indices, outer, inner, z0, false);
-  capProfileAccentRing(positions, indices, outer, inner, z1, true);
+  const weights = profileAccentPinchWeights(profile, outer);
+  pinchProfileAccentOuter(profile, outer, weights);
+  extrudeProfileAnnulusWalls(positions, indices, profile, inner, outer, weights, z0, z1);
+  capProfileAccentRing(positions, indices, profile, outer, inner, weights, z0, false);
+  capProfileAccentRing(positions, indices, profile, outer, inner, weights, z1, true);
   return { positions, indices };
 }
 

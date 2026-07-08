@@ -2,10 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: see **b152** below
-- Cache-bust: `app.js?v=152` (hard refresh `/makerdeck/` or `#/makerdeck`)
+- Latest commit: see **b153** below
+- Cache-bust: `app.js?v=153` (hard refresh `/makerdeck/` or `#/makerdeck`)
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-08 — b153: Heart accent cleft overflow fix
+
+**Orange still bleeding inside back V after b152** (`js/features.js`)
+
+- Heart cleft vertices are tessellated convex — concave-only pinch never fired.
+- Pinch now keys off **offset points inside the profile** (where the band folds through the wall), plus edge skip on low-weight bridge quads.
+- Cache **b153**. Hard refresh + re-export.
 
 ### 2026-07-08 — b152: Heart accent pinch at cleft (revert fragment patches)
 
