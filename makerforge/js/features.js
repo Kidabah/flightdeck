@@ -263,7 +263,7 @@ function pointInProfile(pt, poly) {
   return inside;
 }
 
-const PROFILE_ACCENT_EDGE_MIN = 0.28;
+const PROFILE_ACCENT_EDGE_MIN = 0.25;
 
 /** 0 where offset folds inside the wall or at reflex corners — smooth taper between. */
 function profileAccentPinchWeights(profile, outerRaw) {
@@ -279,7 +279,7 @@ function profileAccentPinchWeights(profile, outerRaw) {
       const wl = w[(i - 1 + n) % n];
       const wr = w[(i + 1) % n];
       const neighbor = Math.min(wl, wr);
-      if (neighbor < w[i]) next[i] = Math.max(neighbor, w[i] - 0.1);
+      if (neighbor < w[i]) next[i] = Math.max(neighbor, w[i] - 0.09);
     }
     w = next;
   }

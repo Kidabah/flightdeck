@@ -15,10 +15,10 @@ import {
   shapeSupportsInsert,
   shapeSupportsAccent,
   shapeSupportsAccentFrontFace,
-} from "./features.js?v=155";
+} from "./features.js?v=156";
 import earcut from "https://esm.sh/earcut@2.2.4";
-import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=155";
-import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=155";
+import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=156";
+import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=156";
 
 import { appendInsertShelfSlotsToBody } from "./insert-slots.js";
 

@@ -2,10 +2,17 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: see **b155** below
-- Cache-bust: `app.js?v=155` (hard refresh `/makerdeck/` or `#/makerdeck`)
+- Latest commit: see **b156** below
+- Cache-bust: `app.js?v=156` (hard refresh `/makerdeck/` or `#/makerdeck`)
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-08 — b156: Heart accent cleft — whisker more
+
+**Tiny extra carry into back V** (`js/features.js`)
+
+- Edge cutoff 0.28 → 0.25, taper step 0.10 → 0.09 — band nudges a whisker closer without bleed.
+- Cache **b156**. Hard refresh + re-export.
 
 ### 2026-07-08 — b155: Heart wall smoothing (adaptive segments)
 
