@@ -15,10 +15,10 @@ import {
   shapeSupportsInsert,
   shapeSupportsAccent,
   shapeSupportsAccentFrontFace,
-} from "./features.js?v=143";
+} from "./features.js?v=145";
 import earcut from "https://esm.sh/earcut@2.2.4";
-import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=143";
-import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=143";
+import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=145";
+import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=145";
 
 import { appendInsertShelfSlotsToBody } from "./insert-slots.js";
 
@@ -1594,7 +1594,7 @@ export function buildContainer(params) {
     joinerHand: useJoiner ? (params.joinerHand === "right" ? "right" : "left") : undefined,
     joinerScale: useJoiner ? resolveJoinerDims(params, resolved.meta.outer.w, resolved.meta.outer.d).scale : undefined,
   };
-  return { ...mesh, shellMesh: mesh, meta, totalH: resolved.totalH, accentMeshes: [], insertMesh: null, labelMesh };
+  return { ...mesh, shellMesh: mesh, meta, totalH: resolved.totalH, accentMeshes, insertMesh: null, labelMesh };
 }
 
 export function buildLid(params) {
