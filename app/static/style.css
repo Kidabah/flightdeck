@@ -10669,7 +10669,21 @@ button.live-route-node:hover {
 }
 
 /* ── History tab ── */
-.history-body { padding: 1.5rem 2rem 2rem; display: flex; flex-direction: column; gap: 1rem; }
+.history-body {
+  padding: 1.5rem 2rem 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+#printer-detail > .history-body {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
 
 .history-body.history-passport-open > :not(#history-day-detail) {
   display: none;
@@ -10677,11 +10691,6 @@ button.live-route-node:hover {
 
 .history-body.history-passport-open {
   padding-top: 1rem;
-}
-
-.history-body.history-passport-open #history-day-detail {
-  flex: 1;
-  min-height: 0;
 }
 
 .history-section { }
@@ -11421,14 +11430,10 @@ button.live-route-node:hover {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
-  max-height: min(32rem, 65vh);
-  overflow-y: auto;
-  overscroll-behavior: contain;
   padding: 0.55rem 0.6rem;
   border: none;
   border-radius: 0;
   background: rgba(15, 23, 42, 0.22);
-  scrollbar-gutter: stable;
 }
 .decision-item {
   display: grid;
@@ -11465,10 +11470,6 @@ button.live-route-node:hover {
 .decision-empty { color: var(--muted); font-size: 0.78rem; }
 
 @media (max-width: 760px) {
-  .decision-list {
-    max-height: 16rem;
-    padding-right: 0.35rem;
-  }
   .decision-item {
     grid-template-columns: 4.6rem 1fr;
     gap: 0.25rem 0.45rem;

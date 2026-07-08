@@ -5,6 +5,14 @@ Latest GitHub/Pi state:
 - Latest commit: see entries below (Flightdeck core)
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
 
+### 2026-07-08 fix (history passport scroll)
+
+**Printer History passport was clipped with no scrollbar** (`app/static/style.css`, `app/static/index.html`)
+
+- `#printer-detail > .history-body` now scrolls (`flex:1`, `overflow-y:auto`) like Print Bay — passport content is no longer trapped by parent `overflow:hidden`.
+- Removed flex clip on `#history-day-detail`; decision trail uses page scroll instead of a nested dead-end scroll area.
+- Cache `style.css?v=485`. Hard refresh required.
+
 ### 2026-07-08 fix (sidebar open + history passport focus)
 
 **Sidebar sections default open; heatmap hides when passport open** (`app/static/app.js`, `app/static/style.css`, `app/static/index.html`)
