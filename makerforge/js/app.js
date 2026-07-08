@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=147";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark } from "./features.js?v=147";
-import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=147";
-import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=147";
-import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=147";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=148";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark } from "./features.js?v=148";
+import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=148";
+import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=148";
+import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=148";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
 import {
@@ -12,7 +12,7 @@ import {
   newAccentBand,
   ensureStateAccentBands,
   syncFlatAccentFromBands,
-} from "./accent-bands.js?v=147";
+} from "./accent-bands.js?v=148";
 import {
   libraryApiAvailable,
   capturePreviewThumbnail,
@@ -20,7 +20,7 @@ import {
   listLibraryDesigns,
   fetchDesignParams,
   deleteLibraryDesign,
-} from "./library.js?v=147";
+} from "./library.js?v=148";
 
 const SESSION_KEY = "makerdeck-session-v1";
 let saveSessionTimer = null;
@@ -339,6 +339,12 @@ function buildParams() {
     vaseFluteDepth: state.vaseFluteDepth,
     vaseTwist: state.vaseTwist,
     vaseRim: state.vaseRim,
+    vaseTextureEnabled: state.vaseTextureEnabled,
+    vaseTextureStyle: state.vaseTextureStyle,
+    vaseTextureDepth: state.vaseTextureDepth,
+    vaseTextureScale: state.vaseTextureScale,
+    vaseTextureBandLo: state.vaseTextureBandLo,
+    vaseTextureBandHi: state.vaseTextureBandHi,
   };
 }
 
@@ -1367,10 +1373,16 @@ function syncUiFromState() {
   syncSliderUi("vase-flutes", "vaseFlutes", { min: 0, max: 24, value: state.vaseFlutes ?? 0 });
   syncSliderUi("vase-flute-depth", "vaseFluteDepth", { min: 0.5, max: 6, value: state.vaseFluteDepth ?? 2, parseKind: "float" });
   syncSliderUi("vase-twist", "vaseTwist", { min: -180, max: 180, value: state.vaseTwist ?? 0, parseKind: "float" });
+  syncSliderUi("vase-texture-depth", "vaseTextureDepth", { min: 0.3, max: 3, value: state.vaseTextureDepth ?? 1.2, parseKind: "float" });
+  syncSliderUi("vase-texture-scale", "vaseTextureScale", { min: 6, max: 40, value: state.vaseTextureScale ?? 14, parseKind: "float" });
   const vaseStyleSel = document.getElementById("vase-style");
   if (vaseStyleSel) vaseStyleSel.value = state.vaseStyle || "cylinder";
   const vaseRimSel = document.getElementById("vase-rim");
   if (vaseRimSel) vaseRimSel.value = state.vaseRim || "square";
+  const vaseTextureSel = document.getElementById("vase-texture-style");
+  if (vaseTextureSel) vaseTextureSel.value = state.vaseTextureStyle || "ripple";
+  const vaseTextureOn = document.getElementById("vase-texture-enabled");
+  if (vaseTextureOn) vaseTextureOn.checked = !!state.vaseTextureEnabled;
   document.getElementById("vase-drainage").checked = !!state.vaseDrainage;
   document.getElementById("vase-saucer").checked = !!state.vaseSaucerEnabled;
 
@@ -3594,6 +3606,10 @@ function updateVaseUiVisibility() {
   document.getElementById("field-vase-drainage-size").classList.toggle("hidden", !state.vaseDrainage);
   document.getElementById("field-vase-flute-depth").classList.toggle("hidden", !(state.vaseFlutes > 0));
   document.getElementById("field-vase-twist").classList.toggle("hidden", !(state.vaseFlutes > 0));
+  const textureOn = !!state.vaseTextureEnabled;
+  document.getElementById("field-vase-texture-style")?.classList.toggle("hidden", !textureOn);
+  document.getElementById("field-vase-texture-depth")?.classList.toggle("hidden", !textureOn);
+  document.getElementById("field-vase-texture-scale")?.classList.toggle("hidden", !textureOn);
   syncExportFormatOptions();
 }
 
@@ -3630,6 +3646,22 @@ document.getElementById("vase-flutes").addEventListener("input", () => {
   document.getElementById("field-vase-flute-depth").classList.toggle("hidden", !flutesOn);
   document.getElementById("field-vase-twist").classList.toggle("hidden", !flutesOn);
 });
+
+document.getElementById("vase-texture-enabled")?.addEventListener("change", (e) => {
+  state.vaseTextureEnabled = e.target.checked;
+  updateVaseUiVisibility();
+  scheduleSaveSession();
+  rebuild();
+});
+
+document.getElementById("vase-texture-style")?.addEventListener("change", (e) => {
+  state.vaseTextureStyle = e.target.value;
+  scheduleSaveSession();
+  rebuild();
+});
+
+bindRange("vase-texture-depth", "vaseTextureDepth", "float");
+bindRange("vase-texture-scale", "vaseTextureScale", "float");
 
 document.getElementById("vase-rim").addEventListener("change", (e) => {
   state.vaseRim = e.target.value;

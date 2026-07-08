@@ -5,6 +5,11 @@
  */
 
 import earcut from "https://esm.sh/earcut@2.2.4";
+import {
+  resolveVaseTexture,
+  surfaceRing,
+  vaseTextureTessellation,
+} from "./vase-textures.js";
 
 function clamp(n, min, max) {
   return Math.min(max, Math.max(min, n));
@@ -31,21 +36,17 @@ function ringXY(radius, segments) {
 }
 
 /**
- * Ring with optional flute (rib) modulation, rotated by `phase` radians.
- * r(a) = radius + (depth/2) * cos(flutes * (a - phase)) — the whole rib
- * pattern rotates by phase (not phase/flutes), the mean radius is preserved,
- * and depth is the total peak-to-valley amplitude in mm.
+ * @deprecated use surfaceRing from vase-textures.js
  */
 function flutedRing(radius, segments, flutes, depth, phase) {
-  if (!flutes || depth <= 0.01) return ringXY(radius, segments);
-  const pts = [];
-  const half = depth / 2;
-  for (let i = 0; i < segments; i++) {
-    const a = (i / segments) * Math.PI * 2;
-    const r = Math.max(1, radius + half * Math.cos(flutes * (a - phase)));
-    pts.push([r * Math.cos(a), r * Math.sin(a)]);
-  }
-  return pts;
+  return surfaceRing(
+    radius,
+    segments,
+    0,
+    { count: flutes, depth },
+    { style: "none" },
+    phase,
+  );
 }
 
 /** Smoothstep 0→1 between edges. */
@@ -242,6 +243,9 @@ function vaseSurface(params) {
   if (Math.abs(twistDeg) > 1) layers = clamp(Math.max(layers, Math.ceil(Math.abs(twistDeg) / 4)), 6, 160);
   if (lipR) layers = clamp(Math.max(layers, Math.ceil(height / 2.5)), 6, 160);
 
+  const textureSpec = resolveVaseTexture(params, { height, floor, diameter });
+  ({ segments, layers } = vaseTextureTessellation(textureSpec, diameter, height, segments, layers));
+
   const baseR = diameter / 2;
   const sampler = profileSampler(style);
 
@@ -252,13 +256,21 @@ function vaseSurface(params) {
   const outerRadiusAt = (z) =>
     baseR * sampler(clamp(z / height, 0, 1)) +
     (lipR ? lipR * smoothstep(height - lipLen, height, clamp(z, 0, height)) : 0);
+  const fluteSpecAt = (z) => ({ count: flutes, depth: fluteDepthAt(z) });
   const outerRingAt = (z, radialOffset = 0) =>
-    flutedRing(outerRadiusAt(z) + radialOffset, segments, flutes, fluteDepthAt(z), phaseAtZ(z));
+    surfaceRing(
+      outerRadiusAt(z) + radialOffset,
+      segments,
+      z,
+      fluteSpecAt(z),
+      textureSpec,
+      phaseAtZ(z),
+    );
 
   return {
     style, diameter, height, floor, wall, flutes, fluteDepth, twistRad,
-    segments, layers, baseR, rimStyle, rimDrop, lipR,
-    fluteDepthAt, phaseAtZ, outerRadiusAt, outerRingAt,
+    segments, layers, baseR, rimStyle, rimDrop, lipR, textureSpec,
+    fluteDepthAt, phaseAtZ, outerRadiusAt, outerRingAt, fluteSpecAt,
   };
 }
 
@@ -297,7 +309,7 @@ function rimSweep(outPos, outIdx, ringO, ringI, zRim, style, wall, height) {
 export function buildVase(params) {
   const drainage = !!params.vaseDrainage;
   const surf = vaseSurface(params);
-  const { height, floor, wall, flutes, segments, layers, fluteDepthAt } = surf;
+  const { height, floor, wall, flutes, segments, layers } = surf;
 
   const layerZ = (i) => (i / (layers - 1)) * height;
 
@@ -306,8 +318,15 @@ export function buildVase(params) {
   // constant — required for spiral/vase-mode printing.
   const innerRingAt = (z) => {
     const innerR = Math.max(2, surf.outerRadiusAt(z) - wall);
-    const innerDepth = Math.min(fluteDepthAt(z), Math.max(0, (innerR - 2) * 2));
-    return flutedRing(innerR, segments, flutes, innerDepth, surf.phaseAtZ(z));
+    const innerDepth = Math.min(surf.fluteDepthAt(z), Math.max(0, (innerR - 2) * 2));
+    return surfaceRing(
+      innerR,
+      segments,
+      z,
+      { count: flutes, depth: innerDepth },
+      surf.textureSpec,
+      surf.phaseAtZ(z),
+    );
   };
 
   const positions = [];
@@ -441,8 +460,10 @@ export function vaseMeta(params) {
 
   const flutes = Math.round(params.vaseFlutes ?? 0);
   const fluteDepth = flutes ? clamp(params.vaseFluteDepth ?? 2, 0, Math.min(8, diameter * 0.12)) : 0;
+  const textureSpec = resolveVaseTexture(params, { height, floor, diameter });
+  const texturePad = textureSpec.style !== "none" ? textureSpec.depth * 0.55 : 0;
   const lipR = params.vaseRim === "rolled" ? clamp(diameter * 0.045, 2.2, 6) : 0;
-  const maxR = outerR * Math.max(...profile) + fluteDepth / 2 + lipR;
+  const maxR = outerR * Math.max(...profile) + fluteDepth / 2 + texturePad + lipR;
   const outerW = Math.round(maxR * 2 * 10) / 10;
   return {
     shape: "vase",
@@ -633,6 +654,8 @@ export function buildVaseAccentMesh(params) {
   return { positions, indices };
 }
 
+export { VASE_TEXTURE_STYLES } from "./vase-textures.js";
+
 export const VASE_DEFAULTS = {
   vaseStyle: "cylinder",
   vaseDiameter: 80,
@@ -648,4 +671,10 @@ export const VASE_DEFAULTS = {
   vaseFluteDepth: 2,
   vaseTwist: 0,
   vaseRim: "square",
+  vaseTextureEnabled: false,
+  vaseTextureStyle: "ripple",
+  vaseTextureDepth: 1.2,
+  vaseTextureScale: 14,
+  vaseTextureBandLo: 8,
+  vaseTextureBandHi: 94,
 };

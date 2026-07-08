@@ -42,7 +42,7 @@
 
       <div>
 
-        <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b147</span></div>
+        <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b148</span></div>
 
         <h1>Container Generator</h1>
 
@@ -311,6 +311,46 @@
                 <input type="range" id="vase-twist" min="-180" max="180" step="5" value="0" tabindex="-1">
 
                 <button type="button" class="value-edit" data-slider="vase-twist" data-key="vaseTwist" data-parse="float">0</button>
+
+              </label>
+
+              <label class="field field-toggle">
+
+                <span class="field-label">Surface texture</span>
+
+                <input type="checkbox" id="vase-texture-enabled">
+
+              </label>
+
+              <label class="field hidden" id="field-vase-texture-style">
+
+                <span class="field-label">Texture style</span>
+
+                <select id="vase-texture-style">
+                  <option value="ripple">Ripple (horizontal waves)</option>
+                  <option value="scales">Scales</option>
+                  <option value="bark">Bark (vertical ridges)</option>
+                </select>
+
+              </label>
+
+              <label class="field hidden" id="field-vase-texture-depth">
+
+                <span class="field-label">Texture depth <span class="unit">mm</span></span>
+
+                <input type="range" id="vase-texture-depth" min="0.3" max="3" step="0.1" value="1.2" tabindex="-1">
+
+                <button type="button" class="value-edit" data-slider="vase-texture-depth" data-key="vaseTextureDepth" data-parse="float">1.2</button>
+
+              </label>
+
+              <label class="field hidden" id="field-vase-texture-scale">
+
+                <span class="field-label">Texture scale <span class="unit">mm</span></span>
+
+                <input type="range" id="vase-texture-scale" min="6" max="40" step="1" value="14" tabindex="-1">
+
+                <button type="button" class="value-edit" data-slider="vase-texture-scale" data-key="vaseTextureScale" data-parse="float">14</button>
 
               </label>
 
@@ -1086,7 +1126,7 @@
 
 
 
-  <script type="module" src="js/app.js?v=147"></script>
+  <script type="module" src="js/app.js?v=148"></script>
 
 </body>
 

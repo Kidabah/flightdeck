@@ -2,10 +2,20 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: see **b147** below
-- Cache-bust: `app.js?v=147` (hard refresh `/makerdeck/` or `#/makerdeck`)
+- Latest commit: see **b148** below
+- Cache-bust: `app.js?v=148` (hard refresh `/makerdeck/` or `#/makerdeck`)
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-08 — b148: Vase surface textures (ripple, scales, bark)
+
+**Parametric relief on vase/pot walls** (`js/vase-textures.js`, `js/vase.js`, `js/app.js`, `index.html`)
+
+- New **Surface texture** toggle on Vase tab — styles: **Ripple**, **Scales**, **Bark**
+- Depth + scale sliders; fades at floor (bed adhesion) and near rim
+- Inner wall mirrors outer displacement for constant wall thickness (vase mode safe)
+- Accent bands follow textured surface via `outerRingAt`
+- Cache **b148**. Hard refresh MakerDeck. UI-only — Pi pull sufficient.
 
 ### 2026-07-08 — b147: Profile accent solid sleeve + teardrop CCW
 
