@@ -2,10 +2,20 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: see **b161** below
-- Cache-bust: `app.js?v=161` (hard refresh `/makerdeck/` or `#/makerdeck`)
+- Latest commit: see **b162** below
+- Cache-bust: `app.js?v=162` (hard refresh `/makerdeck/` or `#/makerdeck`)
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-09 — b162: Kitchen canister presets
+
+**Square canister + round jar** (`js/geometry.js`, `js/features.js`, `js/app.js`, `index.html`, `css/style.css`)
+
+- New presets: **Square canister** (flat front label, flat stackable lid) and **Round jar** (wrap label, optional screw lid).
+- Contents picker: Coffee / Tea / Sugar / Biscuits / Custom — sets label text on Art tab.
+- Size chips: Small / Medium / Large footprint presets.
+- Food-contact filament hint in Design tab.
+- Cache **b162**. Hard refresh MakerDeck.
 
 ### 2026-07-08 — b161: Accent rotation + on-top layering
 

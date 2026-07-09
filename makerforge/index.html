@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Oswald:wght@700&family=Roboto+Mono:wght@700&family=Roboto:wght@700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=24">
+  <link rel="stylesheet" href="css/style.css?v=25">
 
   <script type="importmap">
 
@@ -169,6 +169,37 @@
                 <button type="button" class="shape-btn shape-btn--preset" data-shape="vase">Vase / pot</button>
 
               </div>
+
+              <h2 class="section-sub">Kitchen canisters</h2>
+
+              <section class="section section-canister hidden" id="section-canister">
+                <div class="preset-grid">
+                  <button type="button" class="shape-btn shape-btn--preset" data-shape="canisterSquare">Square canister</button>
+                  <button type="button" class="shape-btn shape-btn--preset" data-shape="canisterJar">Round jar</button>
+                </div>
+
+                <label class="field field-select" id="field-canister-content">
+                  <span class="field-label">Contents</span>
+                  <select id="canister-content">
+                    <option value="coffee">Coffee</option>
+                    <option value="tea">Tea</option>
+                    <option value="sugar">Sugar</option>
+                    <option value="biscuits">Biscuits</option>
+                    <option value="custom">Custom label</option>
+                  </select>
+                </label>
+
+                <div class="canister-size-row" role="group" aria-label="Canister size">
+                  <span class="field-label">Size</span>
+                  <div class="chip-row">
+                    <button type="button" class="chip-btn" data-canister-size="sm">Small</button>
+                    <button type="button" class="chip-btn active" data-canister-size="md">Medium</button>
+                    <button type="button" class="chip-btn" data-canister-size="lg">Large</button>
+                  </div>
+                </div>
+
+                <p class="hint canister-food-hint">Use food-contact rated filament (smooth PETG or certified PLA). Lids are dust covers, not airtight seals.</p>
+              </section>
 
             </section>
 
@@ -1159,7 +1190,7 @@
 
 
 
-  <script type="module" src="js/app.js?v=161"></script>
+  <script type="module" src="js/app.js?v=162"></script>
 
 </body>
 

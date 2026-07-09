@@ -873,7 +873,7 @@ function buildRectShellWithJoiner(outerW, outerD, innerW, innerD, floor, totalH,
 }
 
 export function shapeSupportsJoiner(shape) {
-  return shape === "rect" || shape === "rounded" || shape === "pencil" || shape === "pencilBox";
+  return shape === "rect" || shape === "rounded" || shape === "pencil" || shape === "pencilBox" || shape === "canisterSquare";
 }
 
 /**
@@ -1254,7 +1254,7 @@ export const LID_TYPES = [
 export function normalizeLidType(lidType, shape) {
   if (lidType === "flat") return "flat";
   if (lidType === "plug") return "plug";
-  if (lidType === "screw") return !shape || shape === "circle" ? "screw" : "slip";
+  if (lidType === "screw") return !shape || shape === "circle" || shape === "canisterJar" ? "screw" : "slip";
   return "slip";
 }
 
@@ -1267,19 +1267,20 @@ function resolveContainer(params) {
   const wall = clamp(params.wall, 1.2, 10);
   const floor = clamp(params.floor, 1.2, 10);
 
-  if (shape === "circle") {
+  if (shape === "circle" || shape === "canisterJar") {
     const diameter = clamp(params.innerWidth, 10, 500);
     const innerH = clamp(params.innerHeight, 5, 400);
     const innerR = diameter / 2;
     const outerR = innerR + wall;
     const segments = circleSegmentsForRadius(outerR);
+    const metaShape = shape === "canisterJar" ? "canisterJar" : "circle";
     return {
       outer: circleVertices(outerR, segments),
       inner: circleVertices(innerR, segments),
       floor,
       totalH: innerH + floor,
       cavityH: innerH,
-      meta: computeMeta({ innerW: diameter, innerD: diameter, innerH, wall, floor, shape: "circle" }),
+      meta: computeMeta({ innerW: diameter, innerD: diameter, innerH, wall, floor, shape: metaShape }),
     };
   }
 
@@ -1348,11 +1349,13 @@ function resolveContainer(params) {
     };
   }
 
-  if (shape === "pencilBox") {
-    const innerL = clamp(params.innerWidth, 120, 300);
-    const innerW = clamp(params.innerDepth, 40, 100);
-    const innerH = clamp(params.innerHeight, 15, 60);
-    const corner = clamp(params.cornerRadius ?? 4, 0, Math.min(innerW, innerL) / 2 - 1);
+  if (shape === "pencilBox" || shape === "canisterSquare") {
+    const isCanister = shape === "canisterSquare";
+    const innerL = clamp(params.innerWidth, isCanister ? 70 : 120, isCanister ? 200 : 300);
+    const innerW = clamp(params.innerDepth, isCanister ? 70 : 40, isCanister ? 200 : 100);
+    const innerH = clamp(params.innerHeight, isCanister ? 80 : 15, isCanister ? 220 : 60);
+    const cornerDefault = isCanister ? 10 : 4;
+    const corner = clamp(params.cornerRadius ?? cornerDefault, 0, Math.min(innerW, innerL) / 2 - 1);
     const outerL = innerL + wall * 2;
     const outerW = innerW + wall * 2;
     let outer;
@@ -1366,13 +1369,14 @@ function resolveContainer(params) {
       outer = [[-outerL / 2, -outerW / 2], [outerL / 2, -outerW / 2], [outerL / 2, outerW / 2], [-outerL / 2, outerW / 2]];
       inner = [[-innerL / 2, -innerW / 2], [innerL / 2, -innerW / 2], [innerL / 2, innerW / 2], [-innerL / 2, innerW / 2]];
     }
+    const metaShape = isCanister ? "canisterSquare" : "pencilBox";
     return {
       outer,
       inner,
       floor,
       totalH: innerH + floor,
       cavityH: innerH,
-      meta: computeMeta({ innerW: innerL, innerD: innerW, innerH, wall, floor, shape: "pencilBox" }),
+      meta: computeMeta({ innerW: innerL, innerD: innerW, innerH, wall, floor, shape: metaShape }),
     };
   }
 
@@ -1604,7 +1608,7 @@ export function buildContainer(params) {
     };
   }
   const resolved = resolveContainer(params);
-  const joinerShape = (resolved.meta.shape === "rect" || resolved.meta.shape === "pencilBox") && (params.cornerRadius || 0) > 0.5
+  const joinerShape = (resolved.meta.shape === "rect" || resolved.meta.shape === "pencilBox" || resolved.meta.shape === "canisterSquare") && (params.cornerRadius || 0) > 0.5
     ? "rounded"
     : resolved.meta.shape;
   const useJoiner = params.joinerEnabled && shapeSupportsJoiner(joinerShape);
@@ -1661,7 +1665,7 @@ export function buildContainer(params) {
 
   if (
     params.lidEnabled &&
-    params.shape === "circle" &&
+    (params.shape === "circle" || params.shape === "canisterJar") &&
     normalizeLidType(params.lidType, params.shape) === "screw"
   ) {
     appendBodyNeckThreads(mesh.positions, mesh.indices, resolved, params);
@@ -1843,6 +1847,55 @@ export function toBufferGeometry(THREE, mesh) {
   return geom;
 }
 
+export const CANISTER_SQUARE_PRESET = {
+  innerWidth: 110,
+  innerDepth: 110,
+  innerHeight: 140,
+  wall: 2.4,
+  floor: 2.8,
+  cornerRadius: 10,
+  lidEnabled: true,
+  lidType: "flat",
+  lidSkirt: 10,
+  lidThickness: 2.4,
+  lidClearance: 0.3,
+  lidLipDepth: 2.5,
+  stackableEnabled: true,
+  insertEnabled: false,
+  joinerEnabled: false,
+  embossFace: "front",
+  embossFont: "bebas",
+  embossText: "COFFEE",
+  embossHeight: 12,
+  embossTextAlign: "center",
+  canisterContent: "coffee",
+  canisterSize: "md",
+};
+
+export const CANISTER_JAR_PRESET = {
+  innerWidth: 100,
+  innerDepth: 100,
+  innerHeight: 140,
+  wall: 2.4,
+  floor: 2.8,
+  lidEnabled: true,
+  lidType: "flat",
+  lidSkirt: 10,
+  lidThickness: 2.4,
+  lidClearance: 0.3,
+  lidLipDepth: 2.5,
+  stackableEnabled: false,
+  insertEnabled: false,
+  joinerEnabled: false,
+  embossFace: "wrap",
+  embossFont: "bebas",
+  embossText: "COFFEE",
+  embossHeight: 10,
+  embossTextAlign: "center",
+  canisterContent: "coffee",
+  canisterSize: "md",
+};
+
 export const PENCIL_PRESET = {
   innerWidth: 200,
   innerDepth: 72,
@@ -1983,4 +2036,6 @@ export const DEFAULTS = {
   insertSlotDepth: 2,
   insertSlotRamp: 8,
   insertBodyGap: 0.12,
+  canisterContent: "custom",
+  canisterSize: "md",
 };

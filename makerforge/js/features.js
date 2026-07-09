@@ -603,7 +603,7 @@ export function appendStackableLidPockets(outPos, outIdx, meta, params, lidThick
 }
 
 export function shapeSupportsInsert(shape) {
-  return shape === "rect" || shape === "rounded" || shape === "pencilBox";
+  return shape === "rect" || shape === "rounded" || shape === "pencilBox" || shape === "canisterSquare";
 }
 
 const INSERT_TOP_CLEAR_BUFFER = 0.5;
@@ -1864,7 +1864,7 @@ function round1(n) {
 }
 
 export function shapeSupportsDecor(shape) {
-  return shape === "rect" || shape === "rounded" || shape === "pencil" || shape === "pencilBox";
+  return shape === "rect" || shape === "rounded" || shape === "pencil" || shape === "pencilBox" || shape === "canisterSquare";
 }
 
 /** Parametric wall relief on curved profile containers (pots, tubes). */
@@ -1879,6 +1879,8 @@ export function shapeSupportsProfileTexture(shape) {
     || shape === "rounded"
     || shape === "pencil"
     || shape === "pencilBox"
+    || shape === "canisterSquare"
+    || shape === "canisterJar"
   );
 }
 
@@ -1890,6 +1892,7 @@ export function shapeSupportsProfileArt(shape) {
     || shape === "star"
     || shape === "circle"
     || shape === "oval"
+    || shape === "canisterJar"
   );
 }
 
@@ -1905,6 +1908,8 @@ export function shapeSupportsAccent(shape) {
     || shape === "rounded"
     || shape === "pencil"
     || shape === "pencilBox"
+    || shape === "canisterSquare"
+    || shape === "canisterJar"
     || shape === "circle"
     || shape === "oval"
     || shape === "hex"
@@ -1917,7 +1922,7 @@ export function shapeSupportsAccent(shape) {
 
 /** Front-panel-only accent band — flat box faces only. */
 export function shapeSupportsAccentFrontFace(shape) {
-  return shape === "rect" || shape === "rounded" || shape === "pencil" || shape === "pencilBox";
+  return shape === "rect" || shape === "rounded" || shape === "pencil" || shape === "pencilBox" || shape === "canisterSquare";
 }
 
 /** Face frame for placing emboss on any of the four side walls.

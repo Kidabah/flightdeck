@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET } from "./geometry.js?v=161";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark } from "./features.js?v=161";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET } from "./geometry.js?v=162";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark } from "./features.js?v=162";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=161";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=161";
 import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=161";
@@ -12,7 +12,7 @@ import {
   newAccentBand,
   ensureStateAccentBands,
   syncFlatAccentFromBands,
-} from "./accent-bands.js?v=161";
+} from "./accent-bands.js?v=162";
 import {
   libraryApiAvailable,
   capturePreviewThumbnail,
@@ -26,7 +26,34 @@ const SESSION_KEY = "makerdeck-session-v1";
 let saveSessionTimer = null;
 let sessionBooting = true;
 
-const PRESET_SHAPES = new Set(["pencil", "pencilBox", "teardrop", "star", "heart"]);
+const PRESET_SHAPES = new Set(["pencil", "pencilBox", "teardrop", "star", "heart", "canisterSquare", "canisterJar"]);
+
+const CANISTER_CONTENT_LABELS = {
+  coffee: "COFFEE",
+  tea: "TEA",
+  sugar: "SUGAR",
+  biscuits: "BISCUITS",
+  custom: "",
+};
+
+const CANISTER_SIZE_TABLE = {
+  sm: {
+    square: { innerWidth: 90, innerDepth: 90, innerHeight: 120 },
+    jar: { innerWidth: 90, innerDepth: 90, innerHeight: 120 },
+  },
+  md: {
+    square: { innerWidth: 110, innerDepth: 110, innerHeight: 140 },
+    jar: { innerWidth: 100, innerDepth: 100, innerHeight: 140 },
+  },
+  lg: {
+    square: { innerWidth: 130, innerDepth: 130, innerHeight: 170 },
+    jar: { innerWidth: 120, innerDepth: 120, innerHeight: 170 },
+  },
+};
+
+function isCanisterShape(shape = state.shape) {
+  return shape === "canisterSquare" || shape === "canisterJar";
+}
 
 function textHasInk(text) {
   return String(text || "")
@@ -40,6 +67,8 @@ const PRESET_CONFIG = {
   teardrop: { preset: TEARDROP_PRESET, profile: "teardrop" },
   star: { preset: STAR_PRESET, profile: "jewel" },
   heart: { preset: HEART_PRESET, profile: "jewel" },
+  canisterSquare: { preset: CANISTER_SQUARE_PRESET, profile: "canister" },
+  canisterJar: { preset: CANISTER_JAR_PRESET, profile: "canister" },
 };
 
 const state = { ...DEFAULTS, shape: "rect" };
@@ -260,7 +289,7 @@ function buildParams() {
     innerHeight: saneNum(state.innerHeight, d.innerHeight),
     wall: saneNum(state.wall, d.wall),
     floor: saneNum(state.floor, d.floor),
-    cornerRadius: state.shape === "rounded" || state.shape === "pencilBox"
+    cornerRadius: state.shape === "rounded" || state.shape === "pencilBox" || state.shape === "canisterSquare"
       ? saneNum(state.cornerRadius, d.cornerRadius)
       : 0,
     vertexFillet: state.vertexFillet,
@@ -1605,7 +1634,55 @@ const SLIDER_PROFILES = {
     depth: { min: 35, max: 180 },
     height: { min: 15, max: 120 },
   },
+  canister: {
+    width: { min: 70, max: 200 },
+    depth: { min: 70, max: 200 },
+    height: { min: 80, max: 220 },
+  },
 };
+
+function applyCanisterContent(content, { rebuildNow = true } = {}) {
+  const key = CANISTER_CONTENT_LABELS[content] !== undefined ? content : "custom";
+  state.canisterContent = key;
+  if (key !== "custom") {
+    state.embossText = CANISTER_CONTENT_LABELS[key];
+  }
+  const sel = document.getElementById("canister-content");
+  if (sel) sel.value = key;
+  if (rebuildNow) {
+    rebuild();
+    pushAppHistory();
+  }
+}
+
+function applyCanisterSize(size, { rebuildNow = true } = {}) {
+  const key = CANISTER_SIZE_TABLE[size] ? size : "md";
+  state.canisterSize = key;
+  const kind = state.shape === "canisterJar" ? "jar" : "square";
+  const dims = CANISTER_SIZE_TABLE[key][kind];
+  state.innerWidth = dims.innerWidth;
+  state.innerDepth = dims.innerDepth;
+  state.innerHeight = dims.innerHeight;
+  document.querySelectorAll("[data-canister-size]").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.canisterSize === key);
+  });
+  syncShapeControlsFromState();
+  if (rebuildNow) {
+    rebuild();
+    pushAppHistory();
+  }
+}
+
+function syncCanisterControlsFromState() {
+  const on = isCanisterShape();
+  document.getElementById("section-canister")?.classList.toggle("hidden", !on);
+  if (!on) return;
+  const sel = document.getElementById("canister-content");
+  if (sel) sel.value = state.canisterContent || "custom";
+  document.querySelectorAll("[data-canister-size]").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.canisterSize === (state.canisterSize || "md"));
+  });
+}
 
 function applyPreset(shape) {
   const cfg = PRESET_CONFIG[shape];
@@ -1616,13 +1693,28 @@ function applyPreset(shape) {
   state.shape = shape;
   Object.assign(state, cfg.preset);
   applySliderProfile(cfg.profile);
-  if (shape === "pencilBox") {
-    syncSliderUi("corner-radius", "cornerRadius", { min: 1, max: 24, value: state.cornerRadius ?? 4, parseKind: "float" });
+  if (shape === "pencilBox" || shape === "canisterSquare") {
+    syncSliderUi("corner-radius", "cornerRadius", { min: 1, max: 24, value: state.cornerRadius ?? (shape === "canisterSquare" ? 10 : 4), parseKind: "float" });
     syncSliderUi("lid-skirt", "lidSkirt", { min: 4, max: 25, value: state.lidSkirt ?? 12 });
     syncSliderUi("lid-thickness", "lidThickness", { min: 2, max: 6, value: state.lidThickness ?? 2.4, parseKind: "float" });
-    syncSliderUi("lid-clearance", "lidClearance", { min: 0.15, max: 0.8, value: state.lidClearance ?? 0.25, parseKind: "float" });
-    syncSliderUi("insert-thickness", "insertThickness", { min: 1.2, max: 4, value: state.insertThickness ?? 2.4, parseKind: "float" });
-    syncSliderUi("insert-clearance", "insertClearance", { min: 0.15, max: 1, value: state.insertClearance ?? 0.35, parseKind: "float" });
+    syncSliderUi("lid-clearance", "lidClearance", { min: 0.15, max: 0.8, value: state.lidClearance ?? (shape === "canisterSquare" ? 0.3 : 0.25), parseKind: "float" });
+    if (shape === "pencilBox") {
+      syncSliderUi("insert-thickness", "insertThickness", { min: 1.2, max: 4, value: state.insertThickness ?? 2.4, parseKind: "float" });
+      syncSliderUi("insert-clearance", "insertClearance", { min: 0.15, max: 1, value: state.insertClearance ?? 0.35, parseKind: "float" });
+    }
+    if (shape === "canisterSquare") {
+      syncSliderUi("lid-lip", "lidLipDepth", { min: 0, max: 8, value: state.lidLipDepth ?? 2.5, parseKind: "float" });
+    }
+  }
+  if (shape === "canisterJar") {
+    syncSliderUi("lid-skirt", "lidSkirt", { min: 4, max: 25, value: state.lidSkirt ?? 10 });
+    syncSliderUi("lid-thickness", "lidThickness", { min: 2, max: 6, value: state.lidThickness ?? 2.4, parseKind: "float" });
+    syncSliderUi("lid-clearance", "lidClearance", { min: 0.15, max: 0.8, value: state.lidClearance ?? 0.3, parseKind: "float" });
+    syncSliderUi("lid-lip", "lidLipDepth", { min: 0, max: 8, value: state.lidLipDepth ?? 2.5, parseKind: "float" });
+  }
+  if (isCanisterShape(shape)) {
+    document.getElementById("stackable-enabled").checked = !!state.stackableEnabled;
+    syncCanisterControlsFromState();
   }
   if (state.embossFace === "lid" && !state.lidEnabled) {
     state.embossFace = "front";
@@ -1718,6 +1810,7 @@ function selectShape(next) {
 
   syncLidTypeSelect();
   syncShapeControlsFromState();
+  syncCanisterControlsFromState();
   updateVaseUiVisibility();
   updateLidUi();
   updateDecorUi();
@@ -1730,7 +1823,7 @@ function selectShape(next) {
 function syncLidTypeSelect() {
   const sel = document.getElementById("lid-type");
   if (!sel) return;
-  const types = LID_TYPES.filter((t) => !t.circleOnly || state.shape === "circle");
+  const types = LID_TYPES.filter((t) => !t.circleOnly || state.shape === "circle" || state.shape === "canisterJar");
   sel.innerHTML = types.map(
     (t) => `<option value="${t.id}">${t.optionLabel || t.label}</option>`,
   ).join("");
@@ -1747,7 +1840,7 @@ function applySliderProfile(profileKey) {
 function updateLabels() {
   const { shape } = state;
   const hex = shape === "hex";
-  const circle = shape === "circle";
+  const circle = shape === "circle" || shape === "canisterJar";
   const oval = shape === "oval";
   const rounded = shape === "rounded";
   const preset = PRESET_SHAPES.has(shape);
@@ -1756,6 +1849,7 @@ function updateLabels() {
   const heart = shape === "heart";
   const pencilLike = shape === "pencil" || shape === "pencilBox";
   const pencilBox = shape === "pencilBox";
+  const canisterSquare = shape === "canisterSquare";
 
   document.getElementById("label-width").textContent = pencilLike
     ? "Length"
@@ -1782,6 +1876,8 @@ function updateLabels() {
     teardrop: "Drop size",
     star: "Star size",
     heart: "Heart size",
+    canisterSquare: "Canister size",
+    canisterJar: "Jar size",
   };
   document.getElementById("label-inner-size").innerHTML = sizeHeading[shape]
     ? `${sizeHeading[shape]} <span class="unit">mm</span>`
@@ -1792,10 +1888,10 @@ function updateLabels() {
         : 'Inner size <span class="unit">mm</span>';
 
   document.getElementById("field-depth").classList.toggle("hidden", hex || circle || star);
-  document.getElementById("field-corner").classList.toggle("hidden", !rounded && !pencilBox);
+  document.getElementById("field-corner").classList.toggle("hidden", !rounded && !pencilBox && !canisterSquare);
   document.getElementById("field-sides").classList.toggle("hidden", !poly || pencilBox);
-  document.getElementById("field-vertex-fillet").classList.toggle("hidden", circle || oval || rounded || (preset && !star && !heart && !pencilBox));
-  document.getElementById("section-edges").classList.toggle("hidden", preset && !star && !heart && !pencilBox);
+  document.getElementById("field-vertex-fillet").classList.toggle("hidden", circle || oval || rounded || (preset && !star && !heart && !pencilBox && !canisterSquare));
+  document.getElementById("section-edges").classList.toggle("hidden", preset && !star && !heart && !pencilBox && !canisterSquare);
 
   const filletLabel = document.getElementById("label-vertex-fillet");
   filletLabel.textContent = poly ? "Vertex fillet" : "Edge fillet";
@@ -1830,7 +1926,7 @@ function updateLidUi() {
   }
   const title = document.getElementById("lid-section-title");
   if (title) title.textContent = on ? type.label : "Lid";
-  document.getElementById("lid-tray-hint")?.classList.add("hidden");
+  document.getElementById("lid-tray-hint")?.classList.toggle("hidden", !(on && isFlat && state.stackableEnabled && isCanisterShape()));
   syncEmbossFaceUi();
   syncExportFormatOptions();
   syncInsertTopClearanceUi();
@@ -1847,6 +1943,7 @@ function decorUiShape() {
   if (state.shape === "rounded") return "rounded";
   if (state.shape === "pencil") return "pencil";
   if (state.shape === "pencilBox") return "pencilBox";
+  if (state.shape === "canisterSquare") return "canisterSquare";
   return state.shape === "rect" ? "rect" : null;
 }
 
@@ -1858,6 +1955,7 @@ function artUiShape() {
 function insertUiShape() {
   if (state.shape === "rounded") return "rounded";
   if (state.shape === "pencilBox") return "pencilBox";
+  if (state.shape === "canisterSquare") return "canisterSquare";
   return state.shape === "rect" ? "rect" : null;
 }
 
@@ -3712,6 +3810,19 @@ document.querySelectorAll(".shape-btn").forEach((btn) => {
     selectShape(btn.dataset.shape);
   });
 });
+
+document.getElementById("canister-content")?.addEventListener("change", (e) => {
+  applyCanisterContent(e.target.value);
+});
+
+document.querySelectorAll("[data-canister-size]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    applyCanisterSize(btn.dataset.canisterSize);
+  });
+});
+
+// Hide canister controls until a kitchen preset is active.
+syncCanisterControlsFromState();
 
 function updateProfileTextureUiVisibility() {
   const supported = shapeSupportsProfileTexture(state.shape);
