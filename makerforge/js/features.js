@@ -8,16 +8,35 @@ import { profileOutlineNormals, profileOutlineArcMetrics } from "./vase-textures
 
 export const EMBOSS_FONTS = [
   { id: "segoe-ui", label: "Segoe UI — Windows", family: '"Segoe UI Variable", "Segoe UI", system-ui, sans-serif', weight: 700 },
+  { id: "bahnschrift", label: "Bahnschrift — Windows", family: 'Bahnschrift, "Segoe UI", sans-serif', weight: 600 },
   { id: "calibri", label: "Calibri — Office", family: 'Calibri, "Segoe UI", Candara, sans-serif', weight: 700 },
+  { id: "candara", label: "Candara — Office", family: 'Candara, Calibri, sans-serif', weight: 700 },
+  { id: "corbel", label: "Corbel — Office", family: 'Corbel, Calibri, sans-serif', weight: 700 },
+  { id: "constantia", label: "Constantia — Office serif", family: "Constantia, Georgia, serif", weight: 700 },
+  { id: "cambria", label: "Cambria — Office serif", family: "Cambria, Georgia, serif", weight: 700 },
   { id: "arial", label: "Arial — Windows sans", family: "Arial, Helvetica, sans-serif", weight: 700 },
+  { id: "arial-black", label: "Arial Black — heavy", family: '"Arial Black", Arial, sans-serif', weight: 900 },
   { id: "tahoma", label: "Tahoma — Windows UI", family: 'Tahoma, "Segoe UI", sans-serif', weight: 700 },
+  { id: "trebuchet", label: "Trebuchet MS — friendly", family: '"Trebuchet MS", Tahoma, sans-serif', weight: 700 },
   { id: "verdana", label: "Verdana — readable", family: "Verdana, Geneva, sans-serif", weight: 700 },
+  { id: "segoe-print", label: "Segoe Print — casual", family: '"Segoe Print", "Segoe UI", cursive', weight: 400 },
+  { id: "segoe-script", label: "Segoe Script — script", family: '"Segoe Script", "Segoe UI", cursive', weight: 400 },
+  { id: "gabriola", label: "Gabriola — decorative", family: 'Gabriola, "Segoe UI", serif', weight: 400 },
+  { id: "franklin", label: "Franklin Gothic — poster", family: '"Franklin Gothic Medium", Arial, sans-serif', weight: 500 },
+  { id: "century-gothic", label: "Century Gothic — geometric", family: '"Century Gothic", Arial, sans-serif', weight: 700 },
+  { id: "lucida-sans", label: "Lucida Sans — humanist", family: '"Lucida Sans Unicode", "Segoe UI", sans-serif', weight: 700 },
+  { id: "palatino", label: "Palatino Linotype — book", family: '"Palatino Linotype", Georgia, serif', weight: 700 },
+  { id: "book-antiqua", label: "Book Antiqua — classic", family: '"Book Antiqua", Palatino, serif', weight: 700 },
+  { id: "garamond", label: "Garamond — elegant", family: 'Garamond, "Times New Roman", serif', weight: 700 },
   { id: "times", label: "Times New Roman — Office", family: '"Times New Roman", Times, serif', weight: 700 },
   { id: "georgia", label: "Georgia — serif", family: "Georgia, 'Times New Roman', serif", weight: 700 },
-  { id: "cambria", label: "Cambria — Office serif", family: "Cambria, Georgia, serif", weight: 700 },
+  { id: "sitka", label: "Sitka — reading", family: 'Sitka, Georgia, serif', weight: 700 },
   { id: "impact", label: "Impact — poster", family: 'Impact, "Arial Black", sans-serif', weight: 400 },
+  { id: "haettenschweiler", label: "Haettenschweiler — narrow", family: "Haettenschweiler, Impact, sans-serif", weight: 400 },
+  { id: "ms-sans", label: "Microsoft Sans Serif", family: '"Microsoft Sans Serif", Tahoma, sans-serif', weight: 400 },
   { id: "consolas", label: "Consolas — mono", family: 'Consolas, "Courier New", monospace', weight: 700 },
   { id: "courier", label: "Courier New — mono", family: '"Courier New", Courier, monospace', weight: 700 },
+  { id: "lucida-console", label: "Lucida Console — mono", family: '"Lucida Console", Consolas, monospace', weight: 400 },
   { id: "inter", label: "Inter — clean sans", family: 'Inter, "Segoe UI", system-ui, sans-serif', weight: 700 },
   { id: "bebas", label: "Bebas Neue — label", family: '"Bebas Neue", Impact, sans-serif', weight: 400, google: "Bebas Neue" },
   { id: "anton", label: "Anton — display", family: 'Anton, Impact, sans-serif', weight: 400, google: "Anton" },
@@ -1143,6 +1162,83 @@ function rasterTextMask(text, fontId, fontSizePx = 640, align = "left") {
   return { mask, width, height };
 }
 
+/** Rasterise one line of text along a circular arc (for logo plaques). */
+function rasterArcTextMask(text, fontId, fontSizePx = 640, options = {}) {
+  if (typeof document === "undefined") return null;
+  const line = String(text || "")
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .find((l) => l) || "";
+  if (!line) return null;
+
+  const chars = [...line];
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  const font = embossFontStack(fontId, fontSizePx);
+  ctx.font = font;
+
+  const letterSpacing = 1.1;
+  const charWidths = chars.map((c) => ctx.measureText(c).width);
+  const totalWidth = charWidths.reduce((a, b) => a + b, 0) * letterSpacing;
+  const sweepDeg = clamp(options.sweepDeg ?? 220, 90, 320);
+  const sweepRad = (sweepDeg * Math.PI) / 180;
+  const radiusPx = Math.max(
+    fontSizePx * 0.85,
+    options.radiusPx ?? (totalWidth / sweepRad) * 1.05,
+  );
+  const pad = Math.ceil(fontSizePx * 0.4);
+  const size = Math.ceil((radiusPx + fontSizePx) * 2 + pad * 2);
+
+  canvas.width = size;
+  canvas.height = size;
+  const ocx = size / 2;
+  const ocy = size / 2;
+
+  const startAngle = ((options.startDeg ?? -90) * Math.PI) / 180;
+  const arcLen = radiusPx * sweepRad;
+  const pxPerRad = totalWidth / arcLen;
+
+  ctx.font = font;
+  ctx.fillStyle = "#000";
+  ctx.textBaseline = "middle";
+  ctx.textAlign = "center";
+
+  let dist = 0;
+  for (let i = 0; i < chars.length; i++) {
+    const w = charWidths[i] * letterSpacing;
+    const angle = startAngle + (dist + w / 2) * pxPerRad / radiusPx;
+    const x = ocx + Math.cos(angle) * radiusPx;
+    const y = ocy + Math.sin(angle) * radiusPx;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle + Math.PI / 2);
+    ctx.fillText(chars[i], 0, 0);
+    ctx.restore();
+    dist += w;
+  }
+
+  const data = ctx.getImageData(0, 0, size, size).data;
+  const mask = new Uint8Array(size * size);
+  for (let i = 0; i < size * size; i++) {
+    if (data[i * 4 + 3] > 64) mask[i] = 1;
+  }
+  return { mask, width: size, height: size, arcCenterPx: [ocx, ocy], radiusPx };
+}
+
+function autoArcRadiusMm(frame, meta, params, labelH) {
+  const minDim = Math.min(frame.faceW, frame.faceH);
+  let radius = minDim * 0.34;
+  if (params.embossSvgEnabled && params.embossSvgText?.trim()) {
+    const parsed = parseSvgPaths(params.embossSvgText);
+    const svgLayout = computeSvgArtLayout(parsed, meta, params);
+    if (svgLayout) {
+      const svgR = Math.max(svgLayout.artW, svgLayout.artH) * 0.52 + labelH * 0.35;
+      radius = Math.max(radius, svgR);
+    }
+  }
+  return clamp(radius, 8, minDim * 0.46);
+}
+
 /** @deprecated bounds helper — prefer rasterTextMask dimensions. */
 function rasterTextRects(text, fontId, fontSizePx = 96) {
   const raster = rasterTextMask(text, fontId, fontSizePx);
@@ -1200,7 +1296,23 @@ function computeTextArtLayout(meta, params) {
   const frame = getEmbossFaceFrame(meta, params.embossFace || "front", params);
   const limits = textEmbossSizeLimits(meta, frame.face, params);
   const labelH = clamp(params.embossHeight ?? 7, limits.min, limits.max);
-  const raster = rasterTextMask(text, params.embossFont || "inter", 640, params.embossTextAlign || "left");
+  const arcMode = (params.embossTextLayout || "flat") === "arc";
+  const fontId = params.embossFont || "inter";
+  const fontSizePx = 640;
+
+  let raster;
+  if (arcMode) {
+    const radiusMm = params.embossArcRadius > 0
+      ? clamp(params.embossArcRadius, 6, limits.maxWidthMm * 0.5)
+      : autoArcRadiusMm(frame, meta, params, labelH);
+    const radiusPx = (radiusMm / labelH) * fontSizePx;
+    raster = rasterArcTextMask(text, fontId, fontSizePx, {
+      sweepDeg: params.embossArcSweep ?? 220,
+      radiusPx,
+    });
+  } else {
+    raster = rasterTextMask(text, fontId, fontSizePx, params.embossTextAlign || "left");
+  }
   if (!raster?.mask?.length) return null;
 
   const { mask, width: maskW, height: maskH } = raster;
@@ -1240,6 +1352,7 @@ function computeTextArtLayout(meta, params) {
     cy,
     rotation: params.decorRotation ?? 0,
     glyphHeightMm: artH,
+    arcMode,
   };
 }
 
@@ -1549,7 +1662,7 @@ export function buildWatertightExportMesh(bodyMesh, meta, params) {
   if (face === "lid" || face === "wrap" || params.joinerEnabled) return bodyMesh;
 
   const shell = bodyMesh.shellMesh || bodyMesh;
-  if (params.embossText?.trim() && !params.embossSvgEnabled) {
+  if (params.embossText?.trim() && !params.embossDeboss) {
     return buildWatertightTextEmbossExport(shell, meta, params) || bodyMesh;
   }
   return bodyMesh;
@@ -2444,25 +2557,86 @@ export function measureDecorArt(meta, params) {
       traceData?.strokePaths?.length ||
       traceData?.mask?.length ||
       traceData?.rects?.length);
-  const hasText = !!params.embossText?.trim() && !params.embossSvgEnabled;
+  const hasText = textHasInk(params.embossText);
+  const hasSvg = params.embossSvgEnabled && !!params.embossSvgText?.trim();
 
+  let textRect = null;
   if (hasText) {
     const layout = computeTextArtLayout(meta, params);
-    if (!layout) return null;
+    if (layout) {
+      textRect = {
+        frame: layout.frame,
+        kind: "text",
+        rotation: layout.rotation,
+        left: layout.left,
+        right: layout.right,
+        bottom: layout.bottom,
+        top: layout.top,
+        cx: layout.cx,
+        cy: layout.cy,
+        artW: layout.right - layout.left,
+        artH: layout.top - layout.bottom,
+      };
+    }
+  }
+
+  let svgRect = null;
+  if (hasSvg) {
+    const parsed = parseSvgPaths(params.embossSvgText);
+    const strokePaths = parsed.strokePaths || [];
+    const fillRings = parsed.fillRings || [];
+    const polylines = parsed.polylines || [...strokePaths, ...fillRings];
+    if (polylines.length) {
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      for (const line of polylines) {
+        for (const [x, y] of line) {
+          minX = Math.min(minX, x);
+          minY = Math.min(minY, y);
+          maxX = Math.max(maxX, x);
+          maxY = Math.max(maxY, y);
+        }
+      }
+      if (Number.isFinite(minX)) {
+        const sw = maxX - minX || parsed.viewBox?.[2] || 1;
+        const sh = maxY - minY || parsed.viewBox?.[3] || 1;
+        const artH = clamp(params.embossTraceSize ?? params.embossHeight ?? 16, 6, 40);
+        const wrap = frame.face === "wrap";
+        const maxW = wrap ? Math.min(frame.faceW * 0.55, 72) : Math.min(frame.faceW * 0.62, 56);
+        const scale = Math.min(artH / sh, maxW / sw);
+        if (Number.isFinite(scale) && scale > 0) {
+          const artW = sw * scale;
+          const { xOff, zOff } = decorPlacementOffsets(params, frame, artW, artH);
+          svgRect = {
+            frame,
+            kind: "svg",
+            rotation: params.decorRotation ?? 0,
+            ...decorArtRect(frame, xOff, zOff, artW, artH),
+          };
+        }
+      }
+    }
+  }
+
+  if (textRect && svgRect) {
     return {
-      frame: layout.frame,
-      kind: "text",
-      rotation: layout.rotation,
-      left: layout.left,
-      right: layout.right,
-      bottom: layout.bottom,
-      top: layout.top,
-      cx: layout.cx,
-      cy: layout.cy,
-      artW: layout.right - layout.left,
-      artH: layout.top - layout.bottom,
+      frame,
+      kind: "combo",
+      rotation: textRect.rotation,
+      left: Math.min(textRect.left, svgRect.left),
+      right: Math.max(textRect.right, svgRect.right),
+      bottom: Math.min(textRect.bottom, svgRect.bottom),
+      top: Math.max(textRect.top, svgRect.top),
+      cx: (textRect.cx + svgRect.cx) / 2,
+      cy: (textRect.cy + svgRect.cy) / 2,
+      artW: Math.max(textRect.right, svgRect.right) - Math.min(textRect.left, svgRect.left),
+      artH: Math.max(textRect.top, svgRect.top) - Math.min(textRect.bottom, svgRect.bottom),
     };
   }
+  if (textRect) return textRect;
+  if (svgRect) return svgRect;
 
   if (hasTrace && traceData?.width && traceData?.height) {
     const artH = clamp(params.embossTraceSize ?? 16, 6, 40);
@@ -2474,41 +2648,10 @@ export function measureDecorArt(meta, params) {
     return { frame, kind: "trace", rotation: params.decorRotation ?? 0, ...decorArtRect(frame, xOff, zOff, artW, artH) };
   }
 
-  if (params.embossSvgEnabled && params.embossSvgText?.trim()) {
-    const parsed = parseSvgPaths(params.embossSvgText);
-    const strokePaths = parsed.strokePaths || [];
-    const fillRings = parsed.fillRings || [];
-    const polylines = parsed.polylines || [...strokePaths, ...fillRings];
-    if (!polylines.length) return null;
-    let minX = Infinity;
-    let minY = Infinity;
-    let maxX = -Infinity;
-    let maxY = -Infinity;
-    for (const line of polylines) {
-      for (const [x, y] of line) {
-        minX = Math.min(minX, x);
-        minY = Math.min(minY, y);
-        maxX = Math.max(maxX, x);
-        maxY = Math.max(maxY, y);
-      }
-    }
-    if (!Number.isFinite(minX)) return null;
-    const sw = maxX - minX || parsed.viewBox?.[2] || 1;
-    const sh = maxY - minY || parsed.viewBox?.[3] || 1;
-    const artH = clamp(params.embossTraceSize ?? params.embossHeight ?? 16, 6, 40);
-    const wrap = frame.face === "wrap";
-    const maxW = wrap ? Math.min(frame.faceW * 0.55, 72) : Math.min(frame.faceW * 0.62, 56);
-    const scale = Math.min(artH / sh, maxW / sw);
-    if (!Number.isFinite(scale) || scale <= 0) return null;
-    const artW = sw * scale;
-    const { xOff, zOff } = decorPlacementOffsets(params, frame, artW, artH);
-    return { frame, kind: "svg", rotation: params.decorRotation ?? 0, ...decorArtRect(frame, xOff, zOff, artW, artH) };
-  }
-
   return null;
 }
 
-export function buildLabelEmboss(meta, params, svgText = "", mode = "emboss") {
+function labelEmbossParts(meta, params, svgText = "", mode = "emboss") {
   const p = { ...params, __embossMode: mode };
   const traceData = p.embossTraceRects;
   const hasTrace =
@@ -2517,19 +2660,31 @@ export function buildLabelEmboss(meta, params, svgText = "", mode = "emboss") {
       traceData?.strokePaths?.length ||
       traceData?.mask?.length ||
       traceData?.rects?.length);
-  const hasText = !!p.embossText?.trim();
+  const hasText = textHasInk(p.embossText);
+  const hasSvg = p.embossSvgEnabled && !!svgText?.trim() && !hasTrace;
 
-  // Label text wins over stale trace/SVG geometry on the box.
-  if (hasText && !p.embossSvgEnabled) {
-    return buildEmbossText(meta, p);
-  }
-  if (p.embossSvgEnabled && svgText?.trim() && !hasTrace) {
-    return buildEmbossSvg(meta, p, svgText);
-  }
-  if (hasTrace) {
-    return buildEmbossBitmap(meta, p, p.embossTraceRects);
-  }
-  return null;
+  let text = null;
+  let graphic = null;
+  if (hasText) text = buildEmbossText(meta, p);
+  if (hasSvg) graphic = buildEmbossSvg(meta, p, svgText);
+  if (hasTrace) graphic = buildEmbossBitmap(meta, p, traceData);
+  return { text, graphic };
+}
+
+/** Text and graphic meshes separately (for preview colours and export). */
+export function buildLabelEmbossParts(meta, params, svgText = "", mode = "emboss") {
+  return labelEmbossParts(meta, params, svgText, mode);
+}
+
+/** Graphic-only label (SVG/trace) — for body export when text is a separate colour. */
+export function buildLabelGraphicEmboss(meta, params, svgText = "", mode = "emboss") {
+  return labelEmbossParts(meta, { ...params, embossText: "" }, svgText, mode).graphic;
+}
+
+export function buildLabelEmboss(meta, params, svgText = "", mode = "emboss") {
+  const { text, graphic } = labelEmbossParts(meta, params, svgText, mode);
+  const parts = [text, graphic].filter(Boolean);
+  return parts.length ? mergeMeshes(...parts) : null;
 }
 
 export function applyBodyDecorations(bodyMesh, meta, params) {

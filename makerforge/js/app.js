@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=169";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=169";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=170";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=170";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=161";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=161";
 import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=161";
@@ -358,6 +358,9 @@ function buildParams() {
     accentInset: state.accentInset,
     embossText: state.embossText,
     embossTextAlign: state.embossTextAlign || "left",
+    embossTextLayout: state.embossTextLayout || "flat",
+    embossArcRadius: state.embossArcRadius ?? 0,
+    embossArcSweep: state.embossArcSweep ?? 220,
     embossFont: state.embossFont,
     embossDepth: state.embossDepth,
     embossHeight: state.embossHeight,
@@ -474,6 +477,17 @@ function syncTextAlignUi() {
   });
 }
 
+function syncTextLayoutUi() {
+  const layout = state.embossTextLayout || "flat";
+  document.querySelectorAll(".layout-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.textLayout === layout);
+  });
+  const arcOn = layout === "arc";
+  document.getElementById("field-text-align")?.classList.toggle("hidden", arcOn);
+  document.getElementById("field-arc-radius")?.classList.toggle("hidden", !arcOn);
+  document.getElementById("field-arc-sweep")?.classList.toggle("hidden", !arcOn);
+}
+
 function setupColorPickers() {
   mountColorPicker(document.getElementById("box-color-picker"), {
     value: state.boxColor,
@@ -502,7 +516,7 @@ function syncColorPickersFromState() {
 }
 
 function hasSeparateTextExport(params = buildParams()) {
-  return textHasInk(params.embossText) && !params.embossSvgEnabled && !params.embossDeboss;
+  return textHasInk(params.embossText) && !params.embossDeboss;
 }
 
 const WATERMARK_SERIAL_KEY = "makerdeck-export-serial";
@@ -588,6 +602,11 @@ function resolveBodyExportMesh(exportCache, params, separateText, stamp = null) 
     throw new Error("Fixed divider export failed — use Width or Depth axis (not Height shelves).");
   }
   if (separateText) {
+    const shell = exportCache.shellMesh || exportCache;
+    const graphic = buildLabelGraphicEmboss(exportCache.meta, params, params.embossSvgText || "", "emboss");
+    if (graphic?.indices?.length) {
+      return finalizeBodyExportMesh(mergeMeshes(shell, graphic), exportCache.meta, params, stamp);
+    }
     return finalizeBodyExportMesh(shell, exportCache.meta, params, stamp);
   }
   const mesh = buildWatertightExportMesh(exportCache, exportCache.meta, params);
@@ -661,7 +680,13 @@ function collectColoredLidExportParts() {
   let extruder = 1;
   const separateText = hasSeparateTextExport(params) && params.embossFace === "lid";
   const shell = lidCache.shellLid || lidCache;
-  const lidBody = separateText ? shell : lidCache;
+  let lidBody = shell;
+  if (separateText) {
+    const graphic = buildLabelGraphicEmboss(lidCache.meta, params, params.embossSvgText || "", "emboss");
+    if (graphic?.indices?.length) lidBody = mergeMeshes(shell, graphic);
+  } else {
+    lidBody = lidCache;
+  }
   const lidClean = sanitizeMeshForStl(orientLidForPrint(lidBody));
   if (lidClean) {
     parts.push({
@@ -1441,6 +1466,9 @@ function syncUiFromState() {
   syncInsertTopClearanceUi();
   syncSliderUi("emboss-depth", "embossDepth", { min: 0.3, max: 2, value: state.embossDepth, parseKind: "float" });
   syncSliderUi("emboss-height", "embossHeight", { min: 3, max: 48, value: state.embossHeight, parseKind: "float" });
+  syncSliderUi("emboss-arc-radius", "embossArcRadius", { min: 0, max: 80, value: state.embossArcRadius ?? 0, parseKind: "float" });
+  syncSliderUi("emboss-arc-sweep", "embossArcSweep", { min: 120, max: 300, value: state.embossArcSweep ?? 220, parseKind: "float" });
+  syncArcRadiusUi();
   syncSliderUi("trace-threshold", "traceThreshold", { min: 20, max: 235, value: state.traceThreshold });
   syncSliderUi("trace-size", "embossTraceSize", { min: 6, max: 40, value: state.embossTraceSize, parseKind: "float" });
   syncSliderUi("art-rotation", "decorRotation", { min: -180, max: 180, value: state.decorRotation ?? 0, parseKind: "float" });
@@ -1476,6 +1504,7 @@ function syncUiFromState() {
   document.getElementById("emboss-text").value = state.embossText || "";
   syncColorPickersFromState();
   syncTextAlignUi();
+  syncTextLayoutUi();
   const embossFontSelect = document.getElementById("emboss-font");
   if (embossFontSelect) embossFontSelect.value = state.embossFont || "inter";
   updateEmbossTextPreviewStyle();
@@ -1501,8 +1530,7 @@ function rebuildMesh() {
     nextCache.meta.shape = state.shape;
   }
 
-  const useSeparateLabel = nextCache.labelMesh && !state.embossDeboss;
-  const bodySource = useSeparateLabel ? (nextCache.shellMesh || nextCache) : nextCache;
+  const bodySource = nextCache;
   if (!bodySource?.positions?.length || !bodySource?.indices?.length) {
     throw new Error(`Empty ${state.shape || "box"} geometry`);
   }
@@ -2269,6 +2297,12 @@ function cancelPendingArtRebuild() {
   artRebuildTimer = null;
 }
 
+function syncArcRadiusUi() {
+  const out = document.getElementById("out-emboss-arc-radius");
+  const r = state.embossArcRadius ?? 0;
+  if (out) out.textContent = r > 0 ? String(r) : "Auto";
+}
+
 function syncArtSizeSlider() {
   if (!meshCache) return;
   const params = buildParams();
@@ -2304,6 +2338,10 @@ function syncArtEditorUi() {
   setArtSlider("art-offset-x", state.decorOffsetX ?? 0, "float");
   setArtSlider("art-offset-y", state.decorOffsetY ?? 0, "float");
   setArtSlider("trace-size", state.embossTraceSize ?? 16);
+  setArtSlider("emboss-arc-radius", state.embossArcRadius ?? 0);
+  setArtSlider("emboss-arc-sweep", state.embossArcSweep ?? 220);
+  syncArcRadiusUi();
+  syncTextLayoutUi();
   updateEmbossTextPreviewStyle();
   updateEmbossDebossUi();
 
@@ -2489,7 +2527,6 @@ async function importSvgDirectEmboss(svgText, { fileName = "", importMode = "vec
   if (!shapeSupportsArt(artUiShape() || state.shape)) {
     throw new Error("Pick a box, rounded, pencil, or profile pot shape first.");
   }
-  state.embossText = "";
   state.embossTraceEnabled = false;
   state.embossTraceRects = null;
   traceSourceCanvas = null;
@@ -3295,14 +3332,16 @@ function updateDecorUi() {
   document.getElementById("field-svg-samples").classList.toggle("hidden", !svgOn);
   const wm = document.getElementById("watermark-enabled");
   if (wm) wm.checked = state.watermarkEnabled !== false;
-  document.getElementById("field-emboss-text").classList.toggle("hidden", svgOn);
-  document.getElementById("field-text-color").classList.toggle("hidden", svgOn || !textOn);
-  document.getElementById("field-text-align").classList.toggle("hidden", svgOn || !textOn);
-  document.getElementById("field-emboss-font").classList.toggle("hidden", svgOn);
+  document.getElementById("field-text-color").classList.toggle("hidden", !textOn);
+  document.getElementById("field-text-align").classList.toggle("hidden", !textOn || (state.embossTextLayout || "flat") === "arc");
+  document.getElementById("field-text-layout").classList.toggle("hidden", !textOn);
+  document.getElementById("field-arc-radius").classList.toggle("hidden", !textOn || (state.embossTextLayout || "flat") !== "arc");
+  document.getElementById("field-arc-sweep").classList.toggle("hidden", !textOn || (state.embossTextLayout || "flat") !== "arc");
+  document.getElementById("field-emboss-font").classList.toggle("hidden", !textOn);
   syncEmbossFaceUi();
   document.getElementById("emboss-deboss").checked = !!state.embossDeboss;
   updateEmbossDebossUi();
-  document.getElementById("field-emboss-height").classList.toggle("hidden", svgOn || traceOnBox);
+  document.getElementById("field-emboss-height").classList.toggle("hidden", !textOn);
   document.getElementById("field-trace-size").classList.toggle("hidden", !(svgOn || traceOnBox));
   document.getElementById("emboss-font").value = state.embossFont || "inter";
   syncArtEditorUi();
@@ -3349,9 +3388,14 @@ function syncEmbossFaceUi() {
       hint.classList.remove("hidden");
     } else if (lidOn && face === "lid") {
       const svgOn = state.embossSvgEnabled && !!state.embossSvgText?.trim();
-      hint.textContent = svgOn
-        ? "SVG stroke emboss on the lid STL (Download lid)."
-        : "Text will emboss on the lid STL (Download lid).";
+      const textOn = textHasInk(state.embossText);
+      if (svgOn && textOn) {
+        hint.textContent = "SVG on the lid STL; text exports as a separate colour part.";
+      } else if (svgOn) {
+        hint.textContent = "SVG emboss on the lid STL (Download lid).";
+      } else {
+        hint.textContent = "Text will emboss on the lid STL (Download lid).";
+      }
       hint.classList.remove("hidden");
     } else {
       hint.textContent = "";
@@ -3624,6 +3668,7 @@ function bindArtStateSlider(sliderId, stateKey, parseKind = "float") {
     const out = document.querySelector(`.value-edit[data-slider="${sliderId}"]`);
     if (out) out.textContent = slider.value;
     if (stateKey === "embossHeight") syncArtSizeSlider();
+    if (stateKey === "embossArcRadius") syncArcRadiusUi();
     scheduleArtRebuild();
   });
   slider.addEventListener("change", () => pushAppHistory());
@@ -3631,6 +3676,8 @@ function bindArtStateSlider(sliderId, stateKey, parseKind = "float") {
 
 bindArtStateSlider("emboss-height", "embossHeight");
 bindArtStateSlider("emboss-depth", "embossDepth");
+bindArtStateSlider("emboss-arc-radius", "embossArcRadius", "float");
+bindArtStateSlider("emboss-arc-sweep", "embossArcSweep", "float");
 bindArtStateSlider("art-rotation", "decorRotation", "float");
 bindArtStateSlider("art-offset-x", "decorOffsetX", "float");
 bindArtStateSlider("art-offset-y", "decorOffsetY", "float");
@@ -3743,9 +3790,6 @@ document.getElementById("emboss-text").addEventListener("input", (e) => {
   state.embossText = e.target.value;
   if (textHasInk(state.embossText)) {
     clearEmbossTrace();
-    state.embossSvgEnabled = false;
-    state.embossSvgText = "";
-    document.getElementById("emboss-svg-enabled").checked = false;
   }
   updateDecorUi();
   syncArtEditorUi();
@@ -3762,6 +3806,16 @@ document.querySelectorAll(".align-btn").forEach((btn) => {
   });
 });
 
+document.querySelectorAll(".layout-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    state.embossTextLayout = btn.dataset.textLayout || "flat";
+    syncTextLayoutUi();
+    updateDecorUi();
+    scheduleArtRebuild();
+    pushAppHistory();
+  });
+});
+
 document.getElementById("emboss-font").addEventListener("change", async (e) => {
   state.embossFont = e.target.value;
   await ensureEmbossFontLoaded(e.target.value);
@@ -3773,9 +3827,7 @@ document.getElementById("emboss-font").addEventListener("change", async (e) => {
 document.getElementById("emboss-svg-enabled").addEventListener("change", (e) => {
   state.embossSvgEnabled = e.target.checked;
   if (e.target.checked) {
-    state.embossText = "";
     clearEmbossTrace();
-    document.getElementById("emboss-text").value = "";
   } else {
     state.embossSvgText = "";
   }
@@ -4130,6 +4182,9 @@ syncSliderUi("insert-thickness", "insertThickness", { min: 1.2, max: 4, value: s
 syncSliderUi("insert-clearance", "insertClearance", { min: 0.15, max: 1, value: state.insertClearance, parseKind: "float" });
 syncSliderUi("emboss-depth", "embossDepth", { min: 0.3, max: 2, value: state.embossDepth, parseKind: "float" });
 syncSliderUi("emboss-height", "embossHeight", { min: 3, max: 48, value: state.embossHeight, parseKind: "float" });
+syncSliderUi("emboss-arc-radius", "embossArcRadius", { min: 0, max: 80, value: state.embossArcRadius ?? 0, parseKind: "float" });
+syncSliderUi("emboss-arc-sweep", "embossArcSweep", { min: 120, max: 300, value: state.embossArcSweep ?? 220, parseKind: "float" });
+syncArcRadiusUi();
 syncSliderUi("trace-threshold", "traceThreshold", { min: 20, max: 235, value: state.traceThreshold });
 syncSliderUi("trace-size", "embossTraceSize", { min: 6, max: 40, value: state.embossTraceSize, parseKind: "float" });
 syncSliderUi("art-rotation", "decorRotation", { min: -180, max: 180, value: state.decorRotation ?? 0, parseKind: "float" });

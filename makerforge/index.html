@@ -900,7 +900,7 @@
 
               <h2>Art on box</h2>
 
-              <p class="field-hint">Type your text — it updates on the box live. Press <strong>Enter</strong> for a new line (up to 4 lines).</p>
+              <p class="field-hint">Type text and/or add an SVG — both can show together. Use <strong>Arc</strong> to curve a word around a centre graphic (e.g. COFFEE around coffee beans).</p>
 
               <label class="field field-textarea" id="field-emboss-text">
 
@@ -933,6 +933,40 @@
                 </div>
 
               </div>
+
+              <div class="field" id="field-text-layout">
+
+                <span class="field-label">Text path</span>
+
+                <div class="align-grid" role="group" aria-label="Text path">
+
+                  <button type="button" class="layout-btn active" data-text-layout="flat">Flat</button>
+
+                  <button type="button" class="layout-btn" data-text-layout="arc">Arc</button>
+
+                </div>
+
+              </div>
+
+              <label class="field hidden" id="field-arc-radius">
+
+                <span class="field-label">Arc radius <span class="unit">mm</span> <span class="field-hint-inline">0 = auto</span></span>
+
+                <input type="range" id="emboss-arc-radius" min="0" max="80" step="0.5" value="0" tabindex="-1">
+
+                <button type="button" class="value-edit" id="out-emboss-arc-radius" data-slider="emboss-arc-radius" data-key="embossArcRadius" data-parse="float">Auto</button>
+
+              </label>
+
+              <label class="field hidden" id="field-arc-sweep">
+
+                <span class="field-label">Arc span <span class="unit">°</span></span>
+
+                <input type="range" id="emboss-arc-sweep" min="120" max="300" step="5" value="220" tabindex="-1">
+
+                <button type="button" class="value-edit" id="out-emboss-arc-sweep" data-slider="emboss-arc-sweep" data-key="embossArcSweep" data-parse="float">220</button>
+
+              </label>
 
               <div class="art-divider" aria-hidden="true"><span>transform</span></div>
 
@@ -1044,7 +1078,7 @@
 
               <div class="art-actions-bar">
 
-                <p class="field-hint">Type your word — use Size, Move, and Rotation. It updates live on the box.</p>
+                <p class="field-hint">Text and SVG can combine — use Size, Move, and Rotation. Arc curves one line around the centre.</p>
 
                 <button type="button" id="btn-art-clear" class="btn btn-secondary">Remove art</button>
 
@@ -1052,7 +1086,7 @@
 
               <label class="field field-toggle" id="field-emboss-svg">
 
-                <span class="field-label">Use SVG file instead</span>
+                <span class="field-label">Add SVG graphic</span>
 
                 <input type="checkbox" id="emboss-svg-enabled">
 
@@ -1233,7 +1267,7 @@
 
 
 
-  <script type="module" src="js/app.js?v=169"></script>
+  <script type="module" src="js/app.js?v=170"></script>
 
 </body>
 

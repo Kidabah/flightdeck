@@ -2,10 +2,20 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `5d80596` — **b169**
-- Cache-bust: `app.js?v=169` (hard refresh `/makerdeck/` or `#/makerdeck`)
+- Latest commit: (pending) — **b170**
+- Cache-bust: `app.js?v=170` (hard refresh `/makerdeck/` or `#/makerdeck`)
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-09 — b170: Text + SVG together, arc labels, Windows fonts
+
+**Art tab** (`js/features.js`, `js/geometry.js`, `js/app.js`, `index.html`)
+
+- **Text and SVG at the same time** — type COFFEE while a coffee-bean SVG stays on the face; 3MF exports body (with graphic) + separate Text colour part.
+- **Arc text path** — Flat | Arc chips; arc span + radius (0 = auto around centre graphic).
+- **36 Windows/office fonts** — Bahnschrift, Candara, Gabriola, Franklin Gothic, Palatino, etc.
+- SVG toggle renamed **Add SVG graphic**; text fields stay visible when SVG is on.
+- Cache **b170**. Hard refresh MakerDeck. UI-only — pull on Pi sufficient (restart harmless).
 
 ### 2026-07-09 — b169: SVG import overhaul (filled paths + smart fallback)
 

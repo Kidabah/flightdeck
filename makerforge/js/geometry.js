@@ -6,6 +6,7 @@
 import {
   applyBodyDecorations,
   buildLabelEmboss,
+  buildLabelEmbossParts,
   buildAccentMesh,
   buildDividerInsert,
   mergeMeshes,
@@ -21,7 +22,7 @@ import {
   shapeSupportsProfileTexture,
   shapeSupportsProfileArt,
   shapeSupportsArt,
-} from "./features.js?v=169";
+} from "./features.js?v=170";
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=161";
 import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=161";
@@ -1713,14 +1714,22 @@ export function buildContainer(params) {
     const isLidFace = params.embossFace === "lid";
     const previewDraft = !!params._artPreviewDraft;
     if (!isLidFace && !previewDraft) {
-      labelMesh = buildLabelEmboss(artMeta, params, params.embossSvgText || "", "emboss");
-      if (labelMesh) centerPositions(labelMesh.positions, 0, 0);
       if (params.embossDeboss) {
+        labelMesh = buildLabelEmboss(artMeta, params, params.embossSvgText || "", "emboss");
+        if (labelMesh) centerPositions(labelMesh.positions, 0, 0);
         debossCutterMesh = buildLabelEmboss(artMeta, params, params.embossSvgText || "", "deboss-cutter");
         if (debossCutterMesh) centerPositions(debossCutterMesh.positions, 0, 0);
         mesh = shellMesh;
       } else {
-        mesh = labelMesh ? mergeMeshes(shellMesh, labelMesh) : shellMesh;
+        const parts = buildLabelEmbossParts(artMeta, params, params.embossSvgText || "", "emboss");
+        labelMesh = parts.text;
+        if (labelMesh) centerPositions(labelMesh.positions, 0, 0);
+        if (parts.graphic) {
+          centerPositions(parts.graphic.positions, 0, 0);
+          mesh = mergeMeshes(shellMesh, parts.graphic);
+        } else {
+          mesh = shellMesh;
+        }
       }
     } else {
       mesh = shellMesh;
@@ -1790,14 +1799,22 @@ export function buildLid(params) {
   const shellLid = { positions: lid.positions.slice(), indices: lid.indices.slice() };
 
   if (params.embossFace === "lid" && shapeSupportsDecor(decorShape) && !params._artPreviewDraft) {
-    labelMesh = buildLabelEmboss(resolved.meta, params, params.embossSvgText || "", "emboss");
-    if (labelMesh) centerPositions(labelMesh.positions, 0, 0);
     if (params.embossDeboss) {
+      labelMesh = buildLabelEmboss(resolved.meta, params, params.embossSvgText || "", "emboss");
+      if (labelMesh) centerPositions(labelMesh.positions, 0, 0);
       debossCutterMesh = buildLabelEmboss(resolved.meta, params, params.embossSvgText || "", "deboss-cutter");
       if (debossCutterMesh) centerPositions(debossCutterMesh.positions, 0, 0);
       lid = shellLid;
-    } else if (labelMesh) {
-      lid = mergeMeshes(shellLid, labelMesh);
+    } else {
+      const parts = buildLabelEmbossParts(resolved.meta, params, params.embossSvgText || "", "emboss");
+      labelMesh = parts.text;
+      if (labelMesh) centerPositions(labelMesh.positions, 0, 0);
+      if (parts.graphic) {
+        centerPositions(parts.graphic.positions, 0, 0);
+        lid = mergeMeshes(shellLid, parts.graphic);
+      } else {
+        lid = shellLid;
+      }
     }
   }
 
@@ -2067,6 +2084,9 @@ export const DEFAULTS = {
   boxColor: "#38bdf8",
   embossTextColor: "#f8fafc",
   embossTextAlign: "left",
+  embossTextLayout: "flat",
+  embossArcRadius: 0,
+  embossArcSweep: 220,
   embossText: "",
   embossFont: "inter",
   embossDepth: 0.7,
