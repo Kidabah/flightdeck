@@ -10,6 +10,7 @@ import {
   buildDividerInsert,
   mergeMeshes,
   appendStackableLidPockets,
+  appendNestStackLidRim,
   resolveJoinerDims,
   shapeSupportsDecor,
   shapeSupportsInsert,
@@ -18,7 +19,7 @@ import {
   shapeSupportsProfileTexture,
   shapeSupportsProfileArt,
   shapeSupportsArt,
-} from "./features.js?v=163";
+} from "./features.js?v=167";
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=161";
 import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=161";
@@ -1169,7 +1170,11 @@ function buildFlatLidMesh(boxOuter, boxInner, meta, params, options) {
   const indices = [];
   buildFlatLidShell(positions, indices, boxOuter, boxInner, lidThickness, lipDepth, clearance);
   if (params?.stackableEnabled && meta) {
-    appendStackableLidPockets(positions, indices, meta, params, lidThickness);
+    if ((params.stackStyle || "hex") === "nest") {
+      appendNestStackLidRim(positions, indices, boxOuter, params, lidThickness);
+    } else {
+      appendStackableLidPockets(positions, indices, meta, params, lidThickness);
+    }
   }
   return {
     positions,
@@ -1254,7 +1259,7 @@ export const LID_TYPES = [
 export function normalizeLidType(lidType, shape) {
   if (lidType === "flat") return "flat";
   if (lidType === "plug") return "plug";
-  if (lidType === "screw") return !shape || shape === "circle" || shape === "canisterJar" ? "screw" : "slip";
+  if (lidType === "screw") return !shape || shape === "circle" || shape === "canisterJar" || shape === "canisterStack" ? "screw" : "slip";
   return "slip";
 }
 
@@ -1267,13 +1272,13 @@ function resolveContainer(params) {
   const wall = clamp(params.wall, 1.2, 10);
   const floor = clamp(params.floor, 1.2, 10);
 
-  if (shape === "circle" || shape === "canisterJar") {
+  if (shape === "circle" || shape === "canisterJar" || shape === "canisterStack") {
     const diameter = clamp(params.innerWidth, 10, 500);
     const innerH = clamp(params.innerHeight, 5, 400);
     const innerR = diameter / 2;
     const outerR = innerR + wall;
     const segments = circleSegmentsForRadius(outerR);
-    const metaShape = shape === "canisterJar" ? "canisterJar" : "circle";
+    const metaShape = shape === "canisterJar" || shape === "canisterStack" ? "canisterJar" : "circle";
     return {
       outer: circleVertices(outerR, segments),
       inner: circleVertices(innerR, segments),
@@ -1665,7 +1670,7 @@ export function buildContainer(params) {
 
   if (
     params.lidEnabled &&
-    (params.shape === "circle" || params.shape === "canisterJar") &&
+    (params.shape === "circle" || params.shape === "canisterJar" || params.shape === "canisterStack") &&
     normalizeLidType(params.lidType, params.shape) === "screw"
   ) {
     appendBodyNeckThreads(mesh.positions, mesh.indices, resolved, params);
@@ -1861,6 +1866,7 @@ export const CANISTER_SQUARE_PRESET = {
   lidClearance: 0.3,
   lidLipDepth: 2.5,
   stackableEnabled: true,
+  stackStyle: "hex",
   insertEnabled: false,
   joinerEnabled: false,
   embossFace: "front",
@@ -1885,6 +1891,7 @@ export const CANISTER_JAR_PRESET = {
   lidClearance: 0.3,
   lidLipDepth: 2.5,
   stackableEnabled: false,
+  stackStyle: "hex",
   insertEnabled: false,
   joinerEnabled: false,
   embossFace: "wrap",
@@ -1894,6 +1901,39 @@ export const CANISTER_JAR_PRESET = {
   embossTextAlign: "center",
   canisterContent: "coffee",
   canisterSize: "md",
+};
+
+/** Uniform 250 g round jars — nest-stack lids, single-letter labels (T/C/S). */
+export const CANISTER_STACK_PRESET = {
+  innerWidth: 94,
+  innerDepth: 94,
+  innerHeight: 127,
+  wall: 2.4,
+  floor: 2.8,
+  lidEnabled: true,
+  lidType: "flat",
+  lidSkirt: 10,
+  lidThickness: 2.8,
+  lidClearance: 0.3,
+  lidLipDepth: 0,
+  stackableEnabled: true,
+  stackStyle: "nest",
+  stackNestRimWidth: 5,
+  stackNestRimHeight: 2.8,
+  stackNestDepth: 4,
+  stackClearance: 0.35,
+  insertEnabled: false,
+  joinerEnabled: false,
+  embossFace: "wrap",
+  embossFont: "bebas",
+  embossText: "C",
+  embossHeight: 22,
+  embossTextAlign: "center",
+  canisterContent: "coffee",
+  canisterSize: "md",
+  boxColor: "#6d7f64",
+  lidColor: "#c4a574",
+  embossTextColor: "#f8fafc",
 };
 
 export const PENCIL_PRESET = {
@@ -2022,9 +2062,14 @@ export const DEFAULTS = {
   honeycombSize: 2.5,
   honeycombDepth: 0.6,
   stackableEnabled: false,
+  stackStyle: "hex",
   stackHexSize: 2.8,
   stackFootHeight: 1.4,
   stackClearance: 0.35,
+  stackNestRimWidth: 5,
+  stackNestRimHeight: 2.8,
+  stackNestDepth: 4,
+  lidColor: "",
   insertEnabled: false,
   insertAxis: "length",
   insertCount: 1,

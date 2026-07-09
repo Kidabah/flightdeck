@@ -575,6 +575,45 @@ export function buildStackableHex(meta, params) {
   return { positions, indices };
 }
 
+function profileMaxRadius(profile) {
+  let maxR = 0;
+  for (const [x, y] of profile) maxR = Math.max(maxR, Math.hypot(x, y));
+  return maxR;
+}
+
+function scaleProfileXY(profile, factor) {
+  if (!factor || Math.abs(factor - 1) < 1e-6) return profile;
+  return profile.map(([x, y]) => [x * factor, y * factor]);
+}
+
+/**
+ * Nest-stack flat lid — outer seating groove + raised lip (kitchen tower jars).
+ * The next jar's bottom wall registers in the outer band; centre stays flat.
+ */
+export function appendNestStackLidRim(outPos, outIdx, boxOuter, params, lidThickness) {
+  const outerR = profileMaxRadius(boxOuter);
+  if (outerR < 8) return;
+
+  const rimWidth = clamp(params.stackNestRimWidth ?? 5, 3, 12);
+  const rimHeight = clamp(params.stackNestRimHeight ?? 2.8, 1.5, 6);
+  const nestDepth = clamp(params.stackNestDepth ?? 4, 2, 10);
+  const rimInnerScale = Math.max((outerR - rimWidth) / outerR, 0.55);
+  const rimInner = scaleProfileXY(boxOuter, rimInnerScale);
+
+  const zTop = lidThickness;
+  const zGroove = zTop - nestDepth;
+  const zLip = zTop + rimHeight;
+
+  capRingXZ(outPos, outIdx, boxOuter, rimInner, zTop, true);
+  extrudeWallsAlongZ(outPos, outIdx, boxOuter, zGroove, zTop);
+  extrudeWallsAlongZ(outPos, outIdx, rimInner, zGroove, zTop);
+  capRingXZ(outPos, outIdx, boxOuter, rimInner, zGroove, false);
+
+  capRingXZ(outPos, outIdx, boxOuter, rimInner, zLip, true);
+  extrudeWallsAlongZ(outPos, outIdx, boxOuter, zTop, zLip);
+  extrudeWallsAlongZ(outPos, outIdx, rimInner, zTop, zLip);
+}
+
 /** Recessed hex pockets on the top face of a flat lid — mates with stackable feet on another box. */
 export function appendStackableLidPockets(outPos, outIdx, meta, params, lidThickness) {
   const b = rectFeatureBounds(meta);
@@ -1968,6 +2007,7 @@ export function shapeSupportsProfileTexture(shape) {
     || shape === "pencilBox"
     || shape === "canisterSquare"
     || shape === "canisterJar"
+    || shape === "canisterStack"
   );
 }
 
@@ -1980,6 +2020,7 @@ export function shapeSupportsProfileArt(shape) {
     || shape === "circle"
     || shape === "oval"
     || shape === "canisterJar"
+    || shape === "canisterStack"
   );
 }
 
@@ -2282,7 +2323,7 @@ export function applyBodyDecorations(bodyMesh, meta, params) {
     const honey = buildHoneycombStamp(meta, params);
     if (honey) parts.push(honey);
   }
-  if (params.stackableEnabled) {
+  if (params.stackableEnabled && (params.stackStyle || "hex") !== "nest") {
     const stack = buildStackableHex(meta, params);
     if (stack) parts.push(stack);
   }

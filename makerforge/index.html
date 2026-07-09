@@ -175,6 +175,7 @@
               <div class="preset-grid canister-preset-grid">
                 <button type="button" class="shape-btn shape-btn--preset" data-shape="canisterSquare">Square canister</button>
                 <button type="button" class="shape-btn shape-btn--preset" data-shape="canisterJar">Round jar</button>
+                <button type="button" class="shape-btn shape-btn--preset" data-shape="canisterStack">Stack set</button>
               </div>
 
               <section class="section section-canister hidden" id="section-canister">
@@ -189,7 +190,7 @@
                   </select>
                 </label>
 
-                <div class="canister-size-row" role="group" aria-label="Canister size">
+                <div class="canister-size-row" id="canister-size-row" role="group" aria-label="Canister size">
                   <span class="field-label">Size</span>
                   <div class="chip-row">
                     <button type="button" class="chip-btn" data-canister-size="sm" title="250 ml tin · ~83×95 mm outer">125g</button>
@@ -199,7 +200,17 @@
                   </div>
                 </div>
 
+                <div class="canister-size-row hidden" id="canister-stack-row" role="group" aria-label="Stack set member">
+                  <span class="field-label">Stack trio</span>
+                  <div class="chip-row">
+                    <button type="button" class="chip-btn" data-stack-member="tea" title="Tea · letter T · cream body">T · Tea</button>
+                    <button type="button" class="chip-btn active" data-stack-member="coffee" title="Coffee · letter C · sage body">C · Coffee</button>
+                    <button type="button" class="chip-btn" data-stack-member="sugar" title="Sugar · letter S · blue-grey body">S · Sugar</button>
+                  </div>
+                </div>
+
                 <p class="hint canister-food-hint">Coffee/tea/sugar use standard tin footprints; biscuits default to the wide <strong>1.5kg</strong> tin. Use food-contact filament; lids are dust covers, not airtight seals.</p>
+                <p class="hint hidden" id="canister-stack-hint">Uniform <strong>250g</strong> round jars with nest-stack lids. Export body + lid 3MF for each letter — print lids in a wood-tone filament.</p>
               </section>
 
             </section>
@@ -615,6 +626,7 @@
               <p class="field-hint" id="lid-type-hint">Exports plate-down on the bed. Skirt sits outside the box walls.</p>
 
               <p class="field-hint hidden" id="lid-tray-hint">Storage trays: <strong>Flat cap</strong> with optional retention lip — dust cover and stacking. Enable <strong>Stack</strong> tab hex feet for nestable trays.</p>
+              <p class="field-hint hidden" id="lid-nest-hint">Nest-stack lid: raised outer rim + seating groove. The next jar drops into the lid below — export each body + lid pair for the T/C/S trio.</p>
 
               <div class="trace-actions" id="lid-actions">
                 <button type="button" id="btn-lid-preview-fit" class="btn btn-secondary hidden">Preview fit</button>
@@ -1132,7 +1144,7 @@
 
               </label>
 
-              <label class="field field-toggle">
+              <label class="field field-toggle" id="field-stackable-hex">
 
                 <span class="field-label">Stackable hex</span>
 
@@ -1191,7 +1203,7 @@
 
 
 
-  <script type="module" src="js/app.js?v=166"></script>
+  <script type="module" src="js/app.js?v=167"></script>
 
 </body>
 

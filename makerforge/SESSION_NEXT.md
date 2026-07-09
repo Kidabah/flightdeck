@@ -1,9 +1,14 @@
-## MakerDeck session handoff
+### 2026-07-09 — b167: Kitchen stack set (nest-stack lids)
 
-Latest GitHub/Pi state:
-- Branch: `main`
-- Latest commit: see **b166** below
-- Cache-bust: `app.js?v=166` (hard refresh `/makerdeck/` or `#/makerdeck`)
+**Uniform T/C/S jar tower** (`js/features.js`, `js/geometry.js`, `js/app.js`, `index.html`)
+
+- New **Stack set** preset — 250g round jars, nest-stack flat lids (raised rim + outer seating groove), single-letter wrap labels.
+- **Stack trio** chips: T · Tea, C · Coffee, S · Sugar — auto body colour + wood-tone `lidColor` for 3MF export.
+- `stackStyle: "nest"` vs hex feet; nest geometry in `appendNestStackLidRim`.
+- Cache **b167** (`app.js?v=167`, `geometry.js?v=167`, `features.js?v=167`). Hard refresh MakerDeck.
+
+**Latest commit:** b167 (see git log)
+
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
 

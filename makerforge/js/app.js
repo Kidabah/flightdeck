@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET } from "./geometry.js?v=163";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=167";
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark } from "./features.js?v=163";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=161";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=161";
@@ -26,7 +26,7 @@ const SESSION_KEY = "makerdeck-session-v1";
 let saveSessionTimer = null;
 let sessionBooting = true;
 
-const PRESET_SHAPES = new Set(["pencil", "pencilBox", "teardrop", "star", "heart", "canisterSquare", "canisterJar"]);
+const PRESET_SHAPES = new Set(["pencil", "pencilBox", "teardrop", "star", "heart", "canisterSquare", "canisterJar", "canisterStack"]);
 
 const CANISTER_CONTENT_LABELS = {
   coffee: "COFFEE",
@@ -34,6 +34,14 @@ const CANISTER_CONTENT_LABELS = {
   sugar: "SUGAR",
   biscuits: "BISCUITS",
   custom: "",
+};
+
+/** Stack-set colours + single-letter wrap labels. */
+const CANISTER_CONTENT_META = {
+  coffee: { label: "COFFEE", letter: "C", color: "#6d7f64", lidColor: "#c4a574", textColor: "#f8fafc" },
+  tea: { label: "TEA", letter: "T", color: "#e8e6df", lidColor: "#c4a574", textColor: "#3d4a3a" },
+  sugar: { label: "SUGAR", letter: "S", color: "#6d8498", lidColor: "#c4a574", textColor: "#f8fafc" },
+  biscuits: { label: "BISCUITS", letter: "B", color: "#c4a882", lidColor: "#c4a574", textColor: "#3d3428" },
 };
 
 /** OEM coffee-tin chart (outer Ø × height mm) → inner cavity after 2.4 mm wall + 2.8 mm floor. */
@@ -65,7 +73,18 @@ const CANISTER_SIZE_TABLE = {
 };
 
 function isCanisterShape(shape = state.shape) {
-  return shape === "canisterSquare" || shape === "canisterJar";
+  return shape === "canisterSquare" || shape === "canisterJar" || shape === "canisterStack";
+}
+
+function isStackSetShape(shape = state.shape) {
+  return shape === "canisterStack";
+}
+
+function canisterEmbossText(content, shape = state.shape) {
+  const meta = CANISTER_CONTENT_META[content];
+  if (!meta) return "";
+  if (shape === "canisterStack") return meta.letter;
+  return meta.label || CANISTER_CONTENT_LABELS[content] || "";
 }
 
 function textHasInk(text) {
@@ -82,6 +101,7 @@ const PRESET_CONFIG = {
   heart: { preset: HEART_PRESET, profile: "jewel" },
   canisterSquare: { preset: CANISTER_SQUARE_PRESET, profile: "canister" },
   canisterJar: { preset: CANISTER_JAR_PRESET, profile: "canister" },
+  canisterStack: { preset: CANISTER_STACK_PRESET, profile: "canister" },
 };
 
 const state = { ...DEFAULTS, shape: "rect" };
@@ -353,9 +373,13 @@ function buildParams() {
     honeycombSize: state.honeycombSize,
     honeycombDepth: state.honeycombDepth,
     stackableEnabled: state.stackableEnabled,
+    stackStyle: state.stackStyle || "hex",
     stackHexSize: state.stackHexSize,
     stackFootHeight: state.stackFootHeight,
     stackClearance: state.stackClearance,
+    stackNestRimWidth: state.stackNestRimWidth,
+    stackNestRimHeight: state.stackNestRimHeight,
+    stackNestDepth: state.stackNestDepth,
     insertEnabled: state.insertEnabled,
     insertAxis: state.insertAxis,
     insertCount: state.insertCount,
@@ -639,7 +663,7 @@ function collectColoredLidExportParts() {
     parts.push({
       name: "Lid",
       mesh: lidClean,
-      color: state.boxColor || "#38bdf8",
+      color: state.lidColor || state.boxColor || "#38bdf8",
       extruder: extruder++,
     });
   }
@@ -834,7 +858,7 @@ function applyBoxPreviewColor() {
     const bodyHex = state.boxColor || "#38bdf8";
     material.color.set(bodyHex);
     applyFilamentMaterial(material);
-    lidMaterial.color.set(bodyHex);
+    lidMaterial.color.set(state.lidColor || bodyHex);
     applyFilamentMaterial(lidMaterial);
   }
   applyInsertPreviewColor();
@@ -880,7 +904,7 @@ function setPreviewXRayMode(on) {
   if (on) {
     lidMaterial.color.setHex(0x7dd3fc);
   } else {
-    lidMaterial.color.set(state.boxColor || "#38bdf8");
+    lidMaterial.color.set(state.lidColor || state.boxColor || "#38bdf8");
     applyFilamentMaterial(lidMaterial);
   }
   lidMaterial.polygonOffset = !on;
@@ -1658,13 +1682,22 @@ function applyCanisterContent(content, { rebuildNow = true } = {}) {
   const key = CANISTER_CONTENT_LABELS[content] !== undefined ? content : "custom";
   state.canisterContent = key;
   if (key !== "custom") {
-    state.embossText = CANISTER_CONTENT_LABELS[key];
+    state.embossText = canisterEmbossText(key);
+    const meta = CANISTER_CONTENT_META[key];
+    if (isStackSetShape() && meta) {
+      state.boxColor = meta.color;
+      state.lidColor = meta.lidColor;
+      state.embossTextColor = meta.textColor;
+      setColorPickerValue(document.getElementById("box-color-picker"), state.boxColor);
+      setColorPickerValue(document.getElementById("text-color-picker"), state.embossTextColor);
+    }
   }
   const sel = document.getElementById("canister-content");
   if (sel) sel.value = key;
-  if (key === "biscuits" && isCanisterShape()) {
+  if (key === "biscuits" && isCanisterShape() && !isStackSetShape()) {
     applyCanisterSize("xl", { rebuildNow: false });
   }
+  syncCanisterControlsFromState();
   if (rebuildNow) {
     rebuild();
     pushAppHistory();
@@ -1674,7 +1707,7 @@ function applyCanisterContent(content, { rebuildNow = true } = {}) {
 function applyCanisterSize(size, { rebuildNow = true } = {}) {
   const key = CANISTER_SIZE_TABLE[size] ? size : "md";
   state.canisterSize = key;
-  const kind = state.shape === "canisterJar" ? "jar" : "square";
+  const kind = state.shape === "canisterJar" || state.shape === "canisterStack" ? "jar" : "square";
   const dims = CANISTER_SIZE_TABLE[key][kind];
   state.innerWidth = dims.innerWidth;
   state.innerDepth = dims.innerDepth;
@@ -1695,7 +1728,12 @@ function applyCanisterSize(size, { rebuildNow = true } = {}) {
 
 function syncCanisterControlsFromState() {
   const on = isCanisterShape();
+  const stackSet = isStackSetShape();
   document.getElementById("section-canister")?.classList.toggle("hidden", !on);
+  document.getElementById("canister-size-row")?.classList.toggle("hidden", stackSet);
+  document.getElementById("canister-stack-row")?.classList.toggle("hidden", !stackSet);
+  document.querySelector(".canister-food-hint")?.classList.toggle("hidden", stackSet);
+  document.getElementById("canister-stack-hint")?.classList.toggle("hidden", !stackSet);
   if (!on) return;
   const sel = document.getElementById("canister-content");
   if (sel) sel.value = state.canisterContent || "custom";
@@ -1705,6 +1743,9 @@ function syncCanisterControlsFromState() {
     btn.classList.toggle("active", active);
     if (entry?.label) btn.textContent = entry.label;
     if (entry?.hint) btn.title = entry.hint;
+  });
+  document.querySelectorAll("[data-stack-member]").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.stackMember === (state.canisterContent || "coffee"));
   });
 }
 
@@ -1730,15 +1771,18 @@ function applyPreset(shape) {
       syncSliderUi("lid-lip", "lidLipDepth", { min: 0, max: 8, value: state.lidLipDepth ?? 2.5, parseKind: "float" });
     }
   }
-  if (shape === "canisterJar") {
+  if (shape === "canisterJar" || shape === "canisterStack") {
     syncSliderUi("lid-skirt", "lidSkirt", { min: 4, max: 25, value: state.lidSkirt ?? 10 });
     syncSliderUi("lid-thickness", "lidThickness", { min: 2, max: 6, value: state.lidThickness ?? 2.4, parseKind: "float" });
     syncSliderUi("lid-clearance", "lidClearance", { min: 0.15, max: 0.8, value: state.lidClearance ?? 0.3, parseKind: "float" });
-    syncSliderUi("lid-lip", "lidLipDepth", { min: 0, max: 8, value: state.lidLipDepth ?? 2.5, parseKind: "float" });
+    syncSliderUi("lid-lip", "lidLipDepth", { min: 0, max: 8, value: state.lidLipDepth ?? (shape === "canisterStack" ? 0 : 2.5), parseKind: "float" });
   }
   if (isCanisterShape(shape)) {
     document.getElementById("stackable-enabled").checked = !!state.stackableEnabled;
     syncCanisterControlsFromState();
+    if (shape === "canisterStack") {
+      applyCanisterContent(state.canisterContent || "coffee", { rebuildNow: false });
+    }
   }
   if (state.embossFace === "lid" && !state.lidEnabled) {
     state.embossFace = "front";
@@ -1764,6 +1808,9 @@ function resetFromPresetToBasic(shape) {
   state.lidThickness = d.lidThickness;
   state.lidClearance = d.lidClearance;
   state.lidLipDepth = d.lidLipDepth;
+  state.stackableEnabled = d.stackableEnabled;
+  state.stackStyle = d.stackStyle;
+  state.lidColor = d.lidColor;
   if (state.embossFace === "lid") state.embossFace = "front";
   applySliderProfile("default");
   if (shape === "rounded") {
@@ -1847,7 +1894,7 @@ function selectShape(next) {
 function syncLidTypeSelect() {
   const sel = document.getElementById("lid-type");
   if (!sel) return;
-  const types = LID_TYPES.filter((t) => !t.circleOnly || state.shape === "circle" || state.shape === "canisterJar");
+  const types = LID_TYPES.filter((t) => !t.circleOnly || state.shape === "circle" || state.shape === "canisterJar" || state.shape === "canisterStack");
   sel.innerHTML = types.map(
     (t) => `<option value="${t.id}">${t.optionLabel || t.label}</option>`,
   ).join("");
@@ -1864,7 +1911,7 @@ function applySliderProfile(profileKey) {
 function updateLabels() {
   const { shape } = state;
   const hex = shape === "hex";
-  const circle = shape === "circle" || shape === "canisterJar";
+  const circle = shape === "circle" || shape === "canisterJar" || shape === "canisterStack";
   const oval = shape === "oval";
   const rounded = shape === "rounded";
   const preset = PRESET_SHAPES.has(shape);
@@ -1902,6 +1949,7 @@ function updateLabels() {
     heart: "Heart size",
     canisterSquare: "Canister size",
     canisterJar: "Jar size",
+    canisterStack: "Stack jar size",
   };
   document.getElementById("label-inner-size").innerHTML = sizeHeading[shape]
     ? `${sizeHeading[shape]} <span class="unit">mm</span>`
@@ -1950,7 +1998,14 @@ function updateLidUi() {
   }
   const title = document.getElementById("lid-section-title");
   if (title) title.textContent = on ? type.label : "Lid";
-  document.getElementById("lid-tray-hint")?.classList.toggle("hidden", !(on && isFlat && state.stackableEnabled && isCanisterShape()));
+  document.getElementById("lid-tray-hint")?.classList.toggle(
+    "hidden",
+    !(on && isFlat && state.stackableEnabled && isCanisterShape() && (state.stackStyle || "hex") === "hex"),
+  );
+  document.getElementById("lid-nest-hint")?.classList.toggle(
+    "hidden",
+    !(on && isFlat && state.stackableEnabled && isStackSetShape()),
+  );
   syncEmbossFaceUi();
   syncExportFormatOptions();
   syncInsertTopClearanceUi();
@@ -3178,7 +3233,8 @@ function updateDecorUi() {
   document.getElementById("honeycomb-enabled").checked = honeyOn;
   document.getElementById("field-honeycomb-face").classList.toggle("hidden", !honeyOn);
   document.getElementById("honeycomb-face").value = state.honeycombFace || "back";
-  document.getElementById("stackable-enabled").checked = state.stackableEnabled && supported;
+  document.getElementById("stackable-enabled").checked = state.stackableEnabled && supported && (state.stackStyle || "hex") !== "nest";
+  document.getElementById("field-stackable-hex")?.classList.toggle("hidden", (state.stackStyle || "hex") === "nest");
 
   const svgOn = state.embossSvgEnabled && supported && !state.embossTraceEnabled;
   const traceOnBox = !!state.embossTraceEnabled;
@@ -3842,6 +3898,12 @@ document.getElementById("canister-content")?.addEventListener("change", (e) => {
 document.querySelectorAll("[data-canister-size]").forEach((btn) => {
   btn.addEventListener("click", () => {
     applyCanisterSize(btn.dataset.canisterSize);
+  });
+});
+
+document.querySelectorAll("[data-stack-member]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    applyCanisterContent(btn.dataset.stackMember);
   });
 });
 
