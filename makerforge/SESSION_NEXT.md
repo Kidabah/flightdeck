@@ -2,10 +2,20 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `8061d9d` — **b171**
-- Cache-bust: `app.js?v=171` (hard refresh `/makerdeck/` or `#/makerdeck`)
+- Latest commit: (pending) — **b172**
+- Cache-bust: `app.js?v=172` (hard refresh `/makerdeck/` or `#/makerdeck`)
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-09 — b172: Independent text vs graphic placement
+
+**Art tab** (`js/decor.js`, `js/features.js`, `js/app.js`, `js/geometry.js`, `index.html`)
+
+- Typing text **no longer clears** traced/SVG line art.
+- **Separate move/rotate** for text vs graphic (text position sliders + graphic sliders).
+- Typing text while art is on auto-switches to **Arc** path so COFFEE curves around the graphic.
+- Wider move sliders (±80 mm); graphic size up to 56 mm.
+- Cache **b172**. Hard refresh MakerDeck.
 
 ### 2026-07-09 — b171: Art colour picker (SVG / trace)
 

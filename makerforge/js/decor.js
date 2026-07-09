@@ -26,11 +26,14 @@ export function rotateShapeGroup(group, cx, cy, deg) {
 }
 
 /** Horizontal (px) and vertical (py / CAD Z) offsets from default centred position. */
-export function decorPlacementOffsets(params, frame, artW, artH) {
-  const maxOx = Math.max(4, frame.faceW * 0.48 - artW * 0.5);
-  const maxOy = Math.max(4, frame.faceH * 0.42 - artH * 0.5);
-  const ox = clamp(params.decorOffsetX ?? 0, -maxOx, maxOx);
-  const oy = clamp(params.decorOffsetY ?? 0, -maxOy, maxOy);
+export function decorPlacementOffsets(params, frame, artW, artH, kind = "graphic") {
+  const isText = kind === "text";
+  const oxIn = isText ? (params.textOffsetX ?? 0) : (params.decorOffsetX ?? 0);
+  const oyIn = isText ? (params.textOffsetY ?? 0) : (params.decorOffsetY ?? 0);
+  const maxOx = Math.max(8, frame.faceW * 0.52 - artW * 0.12);
+  const maxOy = Math.max(8, frame.faceH * 0.46 - artH * 0.12);
+  const ox = clamp(oxIn, -maxOx, maxOx);
+  const oy = clamp(oyIn, -maxOy, maxOy);
   if (frame.face === "wrap") {
     return {
       xOff: frame.faceW / 2 - artW / 2 + ox,

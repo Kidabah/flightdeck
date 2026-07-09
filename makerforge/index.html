@@ -968,6 +968,38 @@
 
               </label>
 
+              <div class="art-divider hidden" id="field-text-transform-div" aria-hidden="true"><span>text position</span></div>
+
+              <label class="field hidden" id="field-text-offset-x">
+
+                <span class="field-label">Text left / right <span class="unit">mm</span></span>
+
+                <input type="range" id="text-offset-x" min="-80" max="80" step="0.5" value="0" tabindex="-1">
+
+                <button type="button" class="value-edit" id="out-text-offset-x" data-slider="text-offset-x" data-key="textOffsetX" data-parse="float">0</button>
+
+              </label>
+
+              <label class="field hidden" id="field-text-offset-y">
+
+                <span class="field-label">Text up / down <span class="unit">mm</span></span>
+
+                <input type="range" id="text-offset-y" min="-80" max="80" step="0.5" value="0" tabindex="-1">
+
+                <button type="button" class="value-edit" id="out-text-offset-y" data-slider="text-offset-y" data-key="textOffsetY" data-parse="float">0</button>
+
+              </label>
+
+              <label class="field hidden" id="field-text-rotation">
+
+                <span class="field-label">Text rotation <span class="unit">°</span></span>
+
+                <input type="range" id="text-rotation" min="-180" max="180" step="0.5" value="0" tabindex="-1">
+
+                <button type="button" class="value-edit" id="out-text-rotation" data-slider="text-rotation" data-key="textRotation" data-parse="float">0</button>
+
+              </label>
+
               <div class="art-divider" aria-hidden="true"><span>transform</span></div>
 
               <label class="field" id="field-emboss-face">
@@ -1016,7 +1048,7 @@
 
               <label class="field hidden" id="field-art-rotation">
 
-                <span class="field-label">Rotation <span class="unit">°</span></span>
+                <span class="field-label">Graphic rotation <span class="unit">°</span></span>
 
                 <input type="range" id="art-rotation" min="-180" max="180" step="0.5" value="0" tabindex="-1">
 
@@ -1026,9 +1058,9 @@
 
               <label class="field hidden" id="field-art-offset-x">
 
-                <span class="field-label">Move left / right <span class="unit">mm</span></span>
+                <span class="field-label">Graphic left / right <span class="unit">mm</span></span>
 
-                <input type="range" id="art-offset-x" min="-40" max="40" step="0.5" value="0" tabindex="-1">
+                <input type="range" id="art-offset-x" min="-80" max="80" step="0.5" value="0" tabindex="-1">
 
                 <button type="button" class="value-edit" id="out-art-offset-x" data-slider="art-offset-x" data-key="decorOffsetX" data-parse="float">0</button>
 
@@ -1036,9 +1068,9 @@
 
               <label class="field hidden" id="field-art-offset-y">
 
-                <span class="field-label">Move up / down <span class="unit">mm</span></span>
+                <span class="field-label">Graphic up / down <span class="unit">mm</span></span>
 
-                <input type="range" id="art-offset-y" min="-40" max="40" step="0.5" value="0" tabindex="-1">
+                <input type="range" id="art-offset-y" min="-80" max="80" step="0.5" value="0" tabindex="-1">
 
                 <button type="button" class="value-edit" id="out-art-offset-y" data-slider="art-offset-y" data-key="decorOffsetY" data-parse="float">0</button>
 
@@ -1048,7 +1080,7 @@
 
                 <span class="field-label">Image size <span class="unit">mm</span></span>
 
-                <input type="range" id="trace-size" min="6" max="40" step="0.5" value="16" tabindex="-1">
+                <input type="range" id="trace-size" min="6" max="56" step="0.5" value="16" tabindex="-1">
 
                 <button type="button" class="value-edit" id="out-trace-size" data-slider="trace-size" data-key="embossTraceSize" data-parse="float">16</button>
 
@@ -1277,7 +1309,7 @@
 
 
 
-  <script type="module" src="js/app.js?v=171"></script>
+  <script type="module" src="js/app.js?v=172"></script>
 
 </body>
 

@@ -1324,7 +1324,7 @@ function computeTextArtLayout(meta, params) {
 
   const artW = glyph.width * scale;
   const artH = glyph.height * scale;
-  const { xOff, zOff } = decorPlacementOffsets(params, frame, artW, artH);
+  const { xOff, zOff } = decorPlacementOffsets(params, frame, artW, artH, "text");
   const left = xOff;
   const right = xOff + artW;
   const bottom = zOff;
@@ -1350,7 +1350,7 @@ function computeTextArtLayout(meta, params) {
     top,
     cx,
     cy,
-    rotation: params.decorRotation ?? 0,
+    rotation: params.textRotation ?? 0,
     glyphHeightMm: artH,
     arcMode,
   };
@@ -1816,7 +1816,7 @@ export function buildEmbossText(meta, params) {
 /** Solid silhouette / traced bitmap emboss on chosen face. */
 export function buildEmbossBitmap(meta, params, bitmap) {
   if (!bitmap?.width || !bitmap.height) return null;
-  const artH = clamp(params.embossTraceSize ?? 16, 6, 40);
+  const artH = clamp(params.embossTraceSize ?? 16, 6, 56);
   const frame = getEmbossFaceFrame(meta, params.embossFace || "front", params);
   const maxW = Math.min(frame.faceW * 0.62, 56);
   const scale = Math.min(artH / bitmap.height, maxW / bitmap.width);
@@ -2192,7 +2192,7 @@ function computeSvgArtLayout(parsed, meta, params) {
 
   const sw = maxX - minX || parsed.viewBox?.[2] || 1;
   const sh = maxY - minY || parsed.viewBox?.[3] || 1;
-  const artH = clamp(params.embossTraceSize ?? params.embossHeight ?? 16, 6, 40);
+  const artH = clamp(params.embossTraceSize ?? params.embossHeight ?? 16, 6, 56);
   const wrap = frame.face === "wrap";
   const maxW = wrap ? Math.min(frame.faceW * 0.55, 72) : Math.min(frame.faceW * 0.62, 56);
   const scale = Math.min(artH / sh, maxW / sw);
@@ -2602,7 +2602,7 @@ export function measureDecorArt(meta, params) {
       if (Number.isFinite(minX)) {
         const sw = maxX - minX || parsed.viewBox?.[2] || 1;
         const sh = maxY - minY || parsed.viewBox?.[3] || 1;
-        const artH = clamp(params.embossTraceSize ?? params.embossHeight ?? 16, 6, 40);
+        const artH = clamp(params.embossTraceSize ?? params.embossHeight ?? 16, 6, 56);
         const wrap = frame.face === "wrap";
         const maxW = wrap ? Math.min(frame.faceW * 0.55, 72) : Math.min(frame.faceW * 0.62, 56);
         const scale = Math.min(artH / sh, maxW / sw);
@@ -2639,7 +2639,7 @@ export function measureDecorArt(meta, params) {
   if (svgRect) return svgRect;
 
   if (hasTrace && traceData?.width && traceData?.height) {
-    const artH = clamp(params.embossTraceSize ?? 16, 6, 40);
+    const artH = clamp(params.embossTraceSize ?? 16, 6, 56);
     const maxW = Math.min(frame.faceW * 0.62, 56);
     const scale = Math.min(artH / traceData.height, maxW / traceData.width);
     if (!Number.isFinite(scale) || scale <= 0) return null;

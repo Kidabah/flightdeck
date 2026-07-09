@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=171";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=171";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=172";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=172";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=161";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=161";
 import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=161";
@@ -373,6 +373,9 @@ function buildParams() {
     embossTextLayout: state.embossTextLayout || "flat",
     embossArcRadius: state.embossArcRadius ?? 0,
     embossArcSweep: state.embossArcSweep ?? 220,
+    textOffsetX: state.textOffsetX ?? 0,
+    textOffsetY: state.textOffsetY ?? 0,
+    textRotation: state.textRotation ?? 0,
     embossFont: state.embossFont,
     embossDepth: state.embossDepth,
     embossHeight: state.embossHeight,
@@ -1587,10 +1590,13 @@ function syncUiFromState() {
   syncSliderUi("emboss-arc-sweep", "embossArcSweep", { min: 120, max: 300, value: state.embossArcSweep ?? 220, parseKind: "float" });
   syncArcRadiusUi();
   syncSliderUi("trace-threshold", "traceThreshold", { min: 20, max: 235, value: state.traceThreshold });
-  syncSliderUi("trace-size", "embossTraceSize", { min: 6, max: 40, value: state.embossTraceSize, parseKind: "float" });
+  syncSliderUi("trace-size", "embossTraceSize", { min: 6, max: 56, value: state.embossTraceSize, parseKind: "float" });
   syncSliderUi("art-rotation", "decorRotation", { min: -180, max: 180, value: state.decorRotation ?? 0, parseKind: "float" });
-  syncSliderUi("art-offset-x", "decorOffsetX", { min: -40, max: 40, value: state.decorOffsetX ?? 0, parseKind: "float" });
-  syncSliderUi("art-offset-y", "decorOffsetY", { min: -40, max: 40, value: state.decorOffsetY ?? 0, parseKind: "float" });
+  syncSliderUi("art-offset-x", "decorOffsetX", { min: -80, max: 80, value: state.decorOffsetX ?? 0, parseKind: "float" });
+  syncSliderUi("art-offset-y", "decorOffsetY", { min: -80, max: 80, value: state.decorOffsetY ?? 0, parseKind: "float" });
+  syncSliderUi("text-offset-x", "textOffsetX", { min: -80, max: 80, value: state.textOffsetX ?? 0, parseKind: "float" });
+  syncSliderUi("text-offset-y", "textOffsetY", { min: -80, max: 80, value: state.textOffsetY ?? 0, parseKind: "float" });
+  syncSliderUi("text-rotation", "textRotation", { min: -180, max: 180, value: state.textRotation ?? 0, parseKind: "float" });
   syncSliderUi("vase-diameter", "vaseDiameter", { min: 30, max: 220, value: state.vaseDiameter, parseKind: "float" });
   syncSliderUi("vase-height", "vaseHeight", { min: 20, max: 280, value: state.vaseHeight, parseKind: "float" });
   syncSliderUi("vase-wall", "vaseWall", { min: 1.0, max: 3, value: state.vaseWall, parseKind: "float" });
@@ -2380,6 +2386,9 @@ function clearDecorFromBox() {
   state.decorRotation = 0;
   state.decorOffsetX = 0;
   state.decorOffsetY = 0;
+  state.textOffsetX = 0;
+  state.textOffsetY = 0;
+  state.textRotation = 0;
   document.getElementById("emboss-text").value = "";
   document.getElementById("emboss-svg-enabled").checked = false;
   pushAppHistory();
@@ -2445,8 +2454,11 @@ function syncArtSizeSlider() {
 }
 
 function syncArtEditorUi() {
-  const hasContent = appliedHasArt(state) || !!state.embossText?.trim();
+  const textOn = textHasInk(state.embossText);
   const traceOn = !!state.embossTraceEnabled;
+  const svgOn = state.embossSvgEnabled && !!state.embossSvgText?.trim();
+  const artOn = hasGraphicArt(buildParams());
+  const hasContent = appliedHasArt(state) || textOn;
 
   document.getElementById("emboss-text").value = state.embossText || "";
   document.getElementById("emboss-face").value = state.embossFace || "front";
@@ -2458,6 +2470,9 @@ function syncArtEditorUi() {
   setArtSlider("art-rotation", Math.round((state.decorRotation ?? 0) * 10) / 10, "float");
   setArtSlider("art-offset-x", state.decorOffsetX ?? 0, "float");
   setArtSlider("art-offset-y", state.decorOffsetY ?? 0, "float");
+  setArtSlider("text-offset-x", state.textOffsetX ?? 0, "float");
+  setArtSlider("text-offset-y", state.textOffsetY ?? 0, "float");
+  setArtSlider("text-rotation", Math.round((state.textRotation ?? 0) * 10) / 10, "float");
   setArtSlider("trace-size", state.embossTraceSize ?? 16);
   setArtSlider("emboss-arc-radius", state.embossArcRadius ?? 0);
   setArtSlider("emboss-arc-sweep", state.embossArcSweep ?? 220);
@@ -2466,23 +2481,27 @@ function syncArtEditorUi() {
   updateEmbossTextPreviewStyle();
   updateEmbossDebossUi();
 
-  document.getElementById("field-emboss-height").classList.toggle("hidden", traceOn);
-  document.getElementById("field-trace-size").classList.toggle("hidden", !traceOn);
-  document.getElementById("field-art-rotation").classList.toggle("hidden", !hasContent);
-  document.getElementById("field-art-offset-x").classList.toggle("hidden", !hasContent);
-  document.getElementById("field-art-offset-y").classList.toggle("hidden", !hasContent);
+  document.getElementById("field-emboss-height").classList.toggle("hidden", !textOn);
+  document.getElementById("field-trace-size").classList.toggle("hidden", !(traceOn || svgOn));
+  document.getElementById("field-art-rotation").classList.toggle("hidden", !artOn);
+  document.getElementById("field-art-offset-x").classList.toggle("hidden", !artOn);
+  document.getElementById("field-art-offset-y").classList.toggle("hidden", !artOn);
+  document.getElementById("field-text-transform-div")?.classList.toggle("hidden", !textOn);
+  document.getElementById("field-text-offset-x")?.classList.toggle("hidden", !textOn);
+  document.getElementById("field-text-offset-y")?.classList.toggle("hidden", !textOn);
+  document.getElementById("field-text-rotation")?.classList.toggle("hidden", !textOn);
   const wrapArt = shapeSupportsProfileArt(state.shape);
   const offsetXLabel = document.querySelector("#field-art-offset-x .field-label");
   const offsetYLabel = document.querySelector("#field-art-offset-y .field-label");
   if (offsetXLabel) {
     offsetXLabel.innerHTML = wrapArt
-      ? 'Around wall <span class="unit">mm</span>'
-      : 'Move left / right <span class="unit">mm</span>';
+      ? 'Graphic around wall <span class="unit">mm</span>'
+      : 'Graphic left / right <span class="unit">mm</span>';
   }
   if (offsetYLabel) {
     offsetYLabel.innerHTML = wrapArt
-      ? 'Height <span class="unit">mm</span>'
-      : 'Move up / down <span class="unit">mm</span>';
+      ? 'Graphic height <span class="unit">mm</span>'
+      : 'Graphic up / down <span class="unit">mm</span>';
   }
   syncArtSizeSlider();
 }
@@ -2627,7 +2646,7 @@ function hasTraceGeometry(result) {
   return !!(result?.shapeGroups?.length || result?.strokePaths?.length || result?.mask?.length);
 }
 
-function storeTraceOnBox(result, { clearLabel = true, clearSvg = true } = {}) {
+function storeTraceOnBox(result, { clearLabel = false, clearSvg = false } = {}) {
   if (!hasTraceGeometry(result)) return false;
   if (result.tooComplex) return false;
   state.embossTraceEnabled = true;
@@ -2724,7 +2743,7 @@ async function importSvgAsTrace(svgText, { fileName = "" } = {}) {
     throw new Error(`SVG too detailed to emboss (max ${MAX_TRACE_POLYGONS} paths).`);
   }
 
-  if (!storeTraceOnBox(traceLastResult, { clearLabel: true, clearSvg: false })) {
+  if (!storeTraceOnBox(traceLastResult, { clearLabel: false, clearSvg: false })) {
     throw new Error("Could not apply SVG to box.");
   }
   state.embossSvgText = svgText;
@@ -3801,6 +3820,9 @@ bindArtStateSlider("emboss-height", "embossHeight");
 bindArtStateSlider("emboss-depth", "embossDepth");
 bindArtStateSlider("emboss-arc-radius", "embossArcRadius", "float");
 bindArtStateSlider("emboss-arc-sweep", "embossArcSweep", "float");
+bindArtStateSlider("text-offset-x", "textOffsetX", "float");
+bindArtStateSlider("text-offset-y", "textOffsetY", "float");
+bindArtStateSlider("text-rotation", "textRotation", "float");
 bindArtStateSlider("art-rotation", "decorRotation", "float");
 bindArtStateSlider("art-offset-x", "decorOffsetX", "float");
 bindArtStateSlider("art-offset-y", "decorOffsetY", "float");
@@ -3911,8 +3933,9 @@ document.getElementById("stackable-enabled").addEventListener("change", (e) => {
 
 document.getElementById("emboss-text").addEventListener("input", (e) => {
   state.embossText = e.target.value;
-  if (textHasInk(state.embossText)) {
-    clearEmbossTrace();
+  if (textHasInk(state.embossText) && hasGraphicArt(buildParams()) && (state.embossTextLayout || "flat") === "flat") {
+    state.embossTextLayout = "arc";
+    syncTextLayoutUi();
   }
   updateDecorUi();
   syncArtEditorUi();
@@ -4309,10 +4332,13 @@ syncSliderUi("emboss-arc-radius", "embossArcRadius", { min: 0, max: 80, value: s
 syncSliderUi("emboss-arc-sweep", "embossArcSweep", { min: 120, max: 300, value: state.embossArcSweep ?? 220, parseKind: "float" });
 syncArcRadiusUi();
 syncSliderUi("trace-threshold", "traceThreshold", { min: 20, max: 235, value: state.traceThreshold });
-syncSliderUi("trace-size", "embossTraceSize", { min: 6, max: 40, value: state.embossTraceSize, parseKind: "float" });
+syncSliderUi("trace-size", "embossTraceSize", { min: 6, max: 56, value: state.embossTraceSize, parseKind: "float" });
 syncSliderUi("art-rotation", "decorRotation", { min: -180, max: 180, value: state.decorRotation ?? 0, parseKind: "float" });
-syncSliderUi("art-offset-x", "decorOffsetX", { min: -40, max: 40, value: state.decorOffsetX ?? 0, parseKind: "float" });
-syncSliderUi("art-offset-y", "decorOffsetY", { min: -40, max: 40, value: state.decorOffsetY ?? 0, parseKind: "float" });
+syncSliderUi("art-offset-x", "decorOffsetX", { min: -80, max: 80, value: state.decorOffsetX ?? 0, parseKind: "float" });
+syncSliderUi("art-offset-y", "decorOffsetY", { min: -80, max: 80, value: state.decorOffsetY ?? 0, parseKind: "float" });
+syncSliderUi("text-offset-x", "textOffsetX", { min: -80, max: 80, value: state.textOffsetX ?? 0, parseKind: "float" });
+syncSliderUi("text-offset-y", "textOffsetY", { min: -80, max: 80, value: state.textOffsetY ?? 0, parseKind: "float" });
+syncSliderUi("text-rotation", "textRotation", { min: -180, max: 180, value: state.textRotation ?? 0, parseKind: "float" });
 
 const embossFontSelect = document.getElementById("emboss-font");
 for (const font of EMBOSS_FONTS) {
