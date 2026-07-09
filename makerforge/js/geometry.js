@@ -22,7 +22,7 @@ import {
   shapeSupportsProfileTexture,
   shapeSupportsProfileArt,
   shapeSupportsArt,
-} from "./features.js?v=170";
+} from "./features.js?v=171";
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=161";
 import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=161";
@@ -1708,6 +1708,7 @@ export function buildContainer(params) {
 
   let insertMesh = null;
   let labelMesh = null;
+  let graphicMesh = null;
   let debossCutterMesh = null;
   if (boxDecor || profileArt) {
     const shellMesh = applyBodyDecorations(mesh, artMeta, params);
@@ -1723,13 +1724,10 @@ export function buildContainer(params) {
       } else {
         const parts = buildLabelEmbossParts(artMeta, params, params.embossSvgText || "", "emboss");
         labelMesh = parts.text;
+        graphicMesh = parts.graphic;
         if (labelMesh) centerPositions(labelMesh.positions, 0, 0);
-        if (parts.graphic) {
-          centerPositions(parts.graphic.positions, 0, 0);
-          mesh = mergeMeshes(shellMesh, parts.graphic);
-        } else {
-          mesh = shellMesh;
-        }
+        if (graphicMesh) centerPositions(graphicMesh.positions, 0, 0);
+        mesh = shellMesh;
       }
     } else {
       mesh = shellMesh;
@@ -1753,6 +1751,7 @@ export function buildContainer(params) {
       accentMeshes,
       insertMesh,
       labelMesh,
+      graphicMesh,
       debossCutterMesh,
     };
   }
@@ -1794,6 +1793,7 @@ export function buildLid(params) {
       ? "rounded"
       : resolved.meta.shape;
   let labelMesh = null;
+  let graphicMesh = null;
   let debossCutterMesh = null;
   const guideParams = { ...params, lidType };
   const shellLid = { positions: lid.positions.slice(), indices: lid.indices.slice() };
@@ -1808,13 +1808,10 @@ export function buildLid(params) {
     } else {
       const parts = buildLabelEmbossParts(resolved.meta, params, params.embossSvgText || "", "emboss");
       labelMesh = parts.text;
+      graphicMesh = parts.graphic;
       if (labelMesh) centerPositions(labelMesh.positions, 0, 0);
-      if (parts.graphic) {
-        centerPositions(parts.graphic.positions, 0, 0);
-        lid = mergeMeshes(shellLid, parts.graphic);
-      } else {
-        lid = shellLid;
-      }
+      if (graphicMesh) centerPositions(graphicMesh.positions, 0, 0);
+      lid = shellLid;
     }
   }
 
@@ -1834,6 +1831,7 @@ export function buildLid(params) {
     seatZ: resolved.totalH,
     fitGuides: computeLidFitGuides(resolved, guideParams),
     labelMesh,
+    graphicMesh,
     debossCutterMesh,
     shellLid,
     gasketRingMesh,
@@ -1975,6 +1973,7 @@ export const CANISTER_STACK_PRESET = {
   boxColor: "#6d7f64",
   lidColor: "#c4a574",
   embossTextColor: "#f8fafc",
+  embossArtColor: "#4a3728",
 };
 
 export const PENCIL_PRESET = {
@@ -2083,6 +2082,7 @@ export const DEFAULTS = {
   accentColor: "#f97316",
   boxColor: "#38bdf8",
   embossTextColor: "#f8fafc",
+  embossArtColor: "#4a3728",
   embossTextAlign: "left",
   embossTextLayout: "flat",
   embossArcRadius: 0,

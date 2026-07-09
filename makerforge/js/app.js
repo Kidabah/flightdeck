@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=170";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=170";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=171";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=171";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=161";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=161";
 import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=161";
@@ -38,7 +38,7 @@ const CANISTER_CONTENT_LABELS = {
 
 /** Stack-set colours + single-letter wrap labels. */
 const CANISTER_CONTENT_META = {
-  coffee: { label: "COFFEE", letter: "C", color: "#6d7f64", lidColor: "#c4a574", textColor: "#f8fafc" },
+  coffee: { label: "COFFEE", letter: "C", color: "#6d7f64", lidColor: "#c4a574", textColor: "#f8fafc", artColor: "#4a3728" },
   tea: { label: "TEA", letter: "T", color: "#e8e6df", lidColor: "#c4a574", textColor: "#3d4a3a" },
   sugar: { label: "SUGAR", letter: "S", color: "#6d8498", lidColor: "#c4a574", textColor: "#f8fafc" },
   biscuits: { label: "BISCUITS", letter: "B", color: "#c4a882", lidColor: "#c4a574", textColor: "#3d3428" },
@@ -246,6 +246,8 @@ let insertMesh = null;
 let insertEdgeLines = null;
 let labelMesh = null;
 let labelEdgeLines = null;
+let artMesh = null;
+let artEdgeLines = null;
 let currentTabId = "design";
 
 const lidMaterial = new THREE.MeshStandardMaterial({
@@ -294,6 +296,16 @@ const labelMaterial = new THREE.MeshStandardMaterial({
   polygonOffset: true,
   polygonOffsetFactor: -2,
   polygonOffsetUnits: -2,
+});
+
+const artMaterial = new THREE.MeshStandardMaterial({
+  color: 0x4a3728,
+  metalness: FILAMENT_PREVIEW.metalness,
+  roughness: FILAMENT_PREVIEW.roughness,
+  side: THREE.DoubleSide,
+  polygonOffset: true,
+  polygonOffsetFactor: -3,
+  polygonOffsetUnits: -3,
 });
 
 const debossPreviewMaterial = new THREE.MeshStandardMaterial({
@@ -434,6 +446,37 @@ function disposeLabelPreview() {
   }
 }
 
+function disposeArtPreview() {
+  if (artMesh) {
+    artMesh.parent?.remove(artMesh);
+    artMesh.geometry.dispose();
+    artMesh = null;
+  }
+  if (artEdgeLines) {
+    artEdgeLines.parent?.remove(artEdgeLines);
+    artEdgeLines.geometry.dispose();
+    artEdgeLines = null;
+  }
+}
+
+function attachArtPreviewMesh(artGeom, mat, params) {
+  artMesh = new THREE.Mesh(artGeom, mat);
+  artMesh.castShadow = true;
+  artMesh.receiveShadow = true;
+  artMesh.renderOrder = 7;
+  const parent = artUsesLidFace(params) && lidMesh ? lidMesh : previewRoot;
+  parent.add(artMesh);
+  try {
+    const edges = new THREE.EdgesGeometry(artGeom, 20);
+    artEdgeLines = new THREE.LineSegments(edges, edgeMaterial);
+    artEdgeLines.renderOrder = 8;
+    artEdgeLines.visible = previewXRayOn;
+    parent.add(artEdgeLines);
+  } catch {
+    artEdgeLines = null;
+  }
+}
+
 function attachLabelPreviewMesh(labelGeom, mat, params) {
   labelMesh = new THREE.Mesh(labelGeom, mat);
   labelMesh.castShadow = true;
@@ -454,6 +497,17 @@ function attachLabelPreviewMesh(labelGeom, mat, params) {
 
 function mountDebossPreviewIfNeeded() {
   // Deboss geometry is already cut into the body/lid shell — same single filament as export.
+}
+
+function mountArtPreviewIfNeeded() {
+  if (state.embossDeboss) return;
+  const params = buildParams();
+  const cache = state.embossFace === "lid" ? lidCache : meshCache;
+  if (!cache?.graphicMesh) return;
+  artMaterial.color.set(state.embossArtColor || "#4a3728");
+  applyFilamentMaterial(artMaterial);
+  const artGeom = toBufferGeometry(THREE, cache.graphicMesh);
+  attachArtPreviewMesh(artGeom, artMaterial, params);
 }
 
 function mountEmbossLabelPreviewIfNeeded() {
@@ -508,11 +562,39 @@ function setupColorPickers() {
       scheduleSaveSession();
     },
   });
+  mountColorPicker(document.getElementById("art-color-picker"), {
+    value: state.embossArtColor,
+    onChange: (hex) => {
+      state.embossArtColor = hex;
+      if (artMesh) {
+        artMaterial.color.set(hex);
+        applyFilamentMaterial(artMaterial);
+      }
+      scheduleSaveSession();
+    },
+  });
 }
 
 function syncColorPickersFromState() {
   setColorPickerValue(document.getElementById("box-color-picker"), state.boxColor || "#38bdf8");
   setColorPickerValue(document.getElementById("text-color-picker"), state.embossTextColor || "#f8fafc");
+  setColorPickerValue(document.getElementById("art-color-picker"), state.embossArtColor || "#4a3728");
+}
+
+function hasGraphicArt(params = buildParams()) {
+  const hasSvg = params.embossSvgEnabled && !!params.embossSvgText?.trim();
+  const traceData = params.embossTraceRects;
+  const hasTrace =
+    params.embossTraceEnabled &&
+    (traceData?.shapeGroups?.length ||
+      traceData?.strokePaths?.length ||
+      traceData?.mask?.length ||
+      traceData?.rects?.length);
+  return !!(hasSvg || hasTrace);
+}
+
+function hasSeparateArtExport(params = buildParams()) {
+  return hasGraphicArt(params) && !params.embossDeboss;
 }
 
 function hasSeparateTextExport(params = buildParams()) {
@@ -589,6 +671,18 @@ function weldedDividerExportLooksBroken(exportCache, params, triCount) {
   return false;
 }
 
+function previewBodySource(cache) {
+  if (!cache || state.embossDeboss) return cache;
+  if (cache.graphicMesh || cache.labelMesh) return cache.shellMesh || cache;
+  return cache;
+}
+
+function previewLidSource(cache) {
+  if (!cache || state.embossDeboss) return cache;
+  if (cache.graphicMesh || cache.labelMesh) return cache.shellLid || cache;
+  return cache;
+}
+
 function resolveBodyExportMesh(exportCache, params, separateText, stamp = null) {
   const shell = exportCache.shellMesh || exportCache;
   if (state.insertEnabled && state.insertMount === "fixed") {
@@ -601,12 +695,7 @@ function resolveBodyExportMesh(exportCache, params, separateText, stamp = null) 
     }
     throw new Error("Fixed divider export failed — use Width or Depth axis (not Height shelves).");
   }
-  if (separateText) {
-    const shell = exportCache.shellMesh || exportCache;
-    const graphic = buildLabelGraphicEmboss(exportCache.meta, params, params.embossSvgText || "", "emboss");
-    if (graphic?.indices?.length) {
-      return finalizeBodyExportMesh(mergeMeshes(shell, graphic), exportCache.meta, params, stamp);
-    }
+  if (separateText || hasSeparateArtExport(params)) {
     return finalizeBodyExportMesh(shell, exportCache.meta, params, stamp);
   }
   const mesh = buildWatertightExportMesh(exportCache, exportCache.meta, params);
@@ -619,6 +708,7 @@ function collectColoredExportParts(exportCache, stamp = null) {
   const parts = [];
   let extruder = 1;
   const separateText = hasSeparateTextExport(params) && params.embossFace !== "lid";
+  const separateArt = hasSeparateArtExport(params) && params.embossFace !== "lid";
   const mergeInsertIntoBody = mergeInsertIntoBodyExport();
 
   const bodyMesh = resolveBodyExportMesh(exportCache, params, separateText, stamp);
@@ -630,6 +720,19 @@ function collectColoredExportParts(exportCache, stamp = null) {
       color: state.boxColor || "#38bdf8",
       extruder: extruder++,
     });
+  }
+
+  if (separateArt) {
+    const artMesh = buildLabelGraphicEmboss(exportCache.meta, params, params.embossSvgText || "", "emboss");
+    const artClean = sanitizeMeshForStl(artMesh);
+    if (artClean?.indices?.length) {
+      parts.push({
+        name: "Art",
+        mesh: artClean,
+        color: state.embossArtColor || "#4a3728",
+        extruder: extruder++,
+      });
+    }
   }
 
   if (separateText) {
@@ -679,14 +782,9 @@ function collectColoredLidExportParts() {
   const parts = [];
   let extruder = 1;
   const separateText = hasSeparateTextExport(params) && params.embossFace === "lid";
+  const separateArt = hasSeparateArtExport(params) && params.embossFace === "lid";
   const shell = lidCache.shellLid || lidCache;
-  let lidBody = shell;
-  if (separateText) {
-    const graphic = buildLabelGraphicEmboss(lidCache.meta, params, params.embossSvgText || "", "emboss");
-    if (graphic?.indices?.length) lidBody = mergeMeshes(shell, graphic);
-  } else {
-    lidBody = lidCache;
-  }
+  const lidBody = separateArt || separateText ? shell : lidCache;
   const lidClean = sanitizeMeshForStl(orientLidForPrint(lidBody));
   if (lidClean) {
     parts.push({
@@ -695,6 +793,20 @@ function collectColoredLidExportParts() {
       color: state.lidColor || state.boxColor || "#38bdf8",
       extruder: extruder++,
     });
+  }
+  if (separateArt) {
+    const artMesh = buildLabelGraphicEmboss(lidCache.meta, params, params.embossSvgText || "", "emboss");
+    if (artMesh) {
+      const artClean = sanitizeMeshForStl(orientLidForPrint({ ...artMesh, lidHeight: lidCache.lidHeight }));
+      if (artClean) {
+        parts.push({
+          name: "Lid art",
+          mesh: artClean,
+          color: state.embossArtColor || "#4a3728",
+          extruder: extruder++,
+        });
+      }
+    }
   }
   if (separateText && lidCache.labelMesh) {
     const textMesh = buildTextLabelExportMesh(lidCache.meta, params);
@@ -964,6 +1076,10 @@ function setPreviewXRayMode(on) {
   labelMaterial.opacity = on ? 0.35 : 1;
   labelMaterial.depthWrite = !on;
 
+  artMaterial.transparent = on;
+  artMaterial.opacity = on ? 0.35 : 1;
+  artMaterial.depthWrite = !on;
+
   setAccentPreviewXRay(on);
 
   if (bodyMesh) {
@@ -980,6 +1096,7 @@ function setPreviewXRayMode(on) {
   }
   if (insertEdgeLines) insertEdgeLines.visible = on;
   if (labelEdgeLines) labelEdgeLines.visible = on;
+  if (artEdgeLines) artEdgeLines.visible = on;
   syncLidGuideLoops(lidMesh?.position.y ?? lidRestY(), 0);
 }
 
@@ -1530,7 +1647,7 @@ function rebuildMesh() {
     nextCache.meta.shape = state.shape;
   }
 
-  const bodySource = nextCache;
+  const bodySource = previewBodySource(nextCache);
   if (!bodySource?.positions?.length || !bodySource?.indices?.length) {
     throw new Error(`Empty ${state.shape || "box"} geometry`);
   }
@@ -1544,7 +1661,7 @@ function rebuildMesh() {
     if (!nextLidCache?.positions?.length || !nextLidCache?.indices?.length) {
       throw new Error("Empty lid geometry");
     }
-    nextLidGeom = toBufferGeometry(THREE, nextLidCache);
+    nextLidGeom = toBufferGeometry(THREE, previewLidSource(nextLidCache));
     nextLidMesh = new THREE.Mesh(nextLidGeom, lidMaterial);
     nextLidMesh.castShadow = true;
     nextLidMesh.receiveShadow = true;
@@ -1564,6 +1681,7 @@ function rebuildMesh() {
   disposeAccentPreview();
   disposeInsertPreview();
   disposeLabelPreview();
+  disposeArtPreview();
   disposeLidPreview();
 
   meshCache = nextCache;
@@ -1629,6 +1747,7 @@ function rebuildMesh() {
     buildLidGuideLoops();
   }
 
+  mountArtPreviewIfNeeded();
   mountEmbossLabelPreviewIfNeeded();
 
   if (!bodyMesh?.parent) {
@@ -1731,8 +1850,10 @@ function applyCanisterContent(content, { rebuildNow = true } = {}) {
       state.boxColor = meta.color;
       state.lidColor = meta.lidColor;
       state.embossTextColor = meta.textColor;
+      if (meta.artColor) state.embossArtColor = meta.artColor;
       setColorPickerValue(document.getElementById("box-color-picker"), state.boxColor);
       setColorPickerValue(document.getElementById("text-color-picker"), state.embossTextColor);
+      setColorPickerValue(document.getElementById("art-color-picker"), state.embossArtColor || "#4a3728");
     }
   }
   const sel = document.getElementById("canister-content");
@@ -3326,6 +3447,7 @@ function updateDecorUi() {
 
   const svgOn = state.embossSvgEnabled && supported && !state.embossTraceEnabled;
   const traceOnBox = !!state.embossTraceEnabled;
+  const artOn = hasGraphicArt(buildParams());
   const textOn = textHasInk(state.embossText);
   document.getElementById("emboss-svg-enabled").checked = svgOn;
   document.getElementById("field-svg-file").classList.toggle("hidden", !svgOn);
@@ -3333,6 +3455,7 @@ function updateDecorUi() {
   const wm = document.getElementById("watermark-enabled");
   if (wm) wm.checked = state.watermarkEnabled !== false;
   document.getElementById("field-text-color").classList.toggle("hidden", !textOn);
+  document.getElementById("field-art-color").classList.toggle("hidden", !artOn || !!state.embossDeboss);
   document.getElementById("field-text-align").classList.toggle("hidden", !textOn || (state.embossTextLayout || "flat") === "arc");
   document.getElementById("field-text-layout").classList.toggle("hidden", !textOn);
   document.getElementById("field-arc-radius").classList.toggle("hidden", !textOn || (state.embossTextLayout || "flat") !== "arc");

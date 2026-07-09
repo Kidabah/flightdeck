@@ -2,10 +2,20 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `7a89582` — **b170**
-- Cache-bust: `app.js?v=170` (hard refresh `/makerdeck/` or `#/makerdeck`)
+- Latest commit: (pending) — **b171**
+- Cache-bust: `app.js?v=171` (hard refresh `/makerdeck/` or `#/makerdeck`)
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-09 — b171: Art colour picker (SVG / trace)
+
+**Art tab** (`js/app.js`, `js/geometry.js`, `index.html`)
+
+- **Art colour** picker for SVG and traced image art — separate from body and text colours.
+- Preview shows graphic in chosen colour (brown `#4a3728` default — good on white canisters).
+- **3MF export** adds an **Art** part (separate filament slot) alongside Body / Text.
+- Coffee canister preset seeds `artColor: #4a3728`.
+- Cache **b171**. Hard refresh MakerDeck.
 
 ### 2026-07-09 — b170: Text + SVG together, arc labels, Windows fonts
 
