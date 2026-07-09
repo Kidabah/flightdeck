@@ -2,8 +2,8 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `c9cded9` — b163 true 2-manifold welded divider
-- Cache-bust: `app.js?v=163` (hard refresh `/makerdeck/` or `#/makerdeck`)
+- Latest commit: see **b164** below
+- Cache-bust: `app.js?v=164` (hard refresh `/makerdeck/` or `#/makerdeck`)
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
 
@@ -16,6 +16,14 @@ Latest GitHub/Pi state:
 - Depth + length axes, 1–3 dividers: audit shows **0 open edges, 0 overused edges** (~76 tris for one divider).
 - Export guard expects ≥50 tris for sharp welded boxes.
 - Cache **b163**. Hard refresh. Re-download 3MF — Bambu should show **0 non-manifold** without Repair. Do **not** Repair old b134/b135 files.
+
+### 2026-07-09 — b164: Canister preset buttons always visible
+
+**Kitchen canister UX** (`index.html`, `css/style.css`)
+
+- Square canister / Round jar preset buttons now always show under **Kitchen canisters** (were hidden until already on a canister — catch-22).
+- Contents + Size chips appear after you pick a preset.
+- Cache **b164**. Hard refresh.
 
 ### 2026-07-09 — b162: Kitchen canister presets
 
