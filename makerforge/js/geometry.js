@@ -1351,9 +1351,9 @@ function resolveContainer(params) {
 
   if (shape === "pencilBox" || shape === "canisterSquare") {
     const isCanister = shape === "canisterSquare";
-    const innerL = clamp(params.innerWidth, isCanister ? 70 : 120, isCanister ? 200 : 300);
-    const innerW = clamp(params.innerDepth, isCanister ? 70 : 40, isCanister ? 200 : 100);
-    const innerH = clamp(params.innerHeight, isCanister ? 80 : 15, isCanister ? 185 : 60);
+    const innerL = clamp(params.innerWidth, isCanister ? 70 : 120, isCanister ? 160 : 300);
+    const innerW = clamp(params.innerDepth, isCanister ? 70 : 40, isCanister ? 160 : 100);
+    const innerH = clamp(params.innerHeight, isCanister ? 80 : 15, isCanister ? 250 : 60);
     const cornerDefault = isCanister ? 10 : 4;
     const corner = clamp(params.cornerRadius ?? cornerDefault, 0, Math.min(innerW, innerL) / 2 - 1);
     const outerL = innerL + wall * 2;

@@ -2,8 +2,8 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: see **b165** below
-- Cache-bust: `app.js?v=165` (hard refresh `/makerdeck/` or `#/makerdeck`)
+- Latest commit: see **b166** below
+- Cache-bust: `app.js?v=166` (hard refresh `/makerdeck/` or `#/makerdeck`)
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
 
@@ -16,6 +16,14 @@ Latest GitHub/Pi state:
 - Depth + length axes, 1–3 dividers: audit shows **0 open edges, 0 overused edges** (~76 tris for one divider).
 - Export guard expects ≥50 tris for sharp welded boxes.
 - Cache **b163**. Hard refresh. Re-download 3MF — Bambu should show **0 non-manifold** without Repair. Do **not** Repair old b134/b135 files.
+
+### 2026-07-09 — b166: 1.5 kg biscuit canister size
+
+**Fourth size tier for biscuits** (`js/app.js`, `js/geometry.js`, `index.html`)
+
+- New **1.5kg** chip — wide square biscuit tin (150×115×165 mm inner) or tall round jar (145×232 mm).
+- Picking **Biscuits** in Contents auto-selects 1.5kg.
+- Cache **b166**. Hard refresh.
 
 ### 2026-07-09 — b165: Canister sizes from OEM coffee-tin chart
 

@@ -56,6 +56,12 @@ const CANISTER_SIZE_TABLE = {
     square: { innerWidth: 115, innerDepth: 115, innerHeight: 177 },
     jar: { innerWidth: 115, innerDepth: 115, innerHeight: 177 },
   },
+  xl: {
+    label: "1.5kg",
+    hint: "Biscuit tin · ~155×240 mm outer · 1–1.5 kg",
+    square: { innerWidth: 150, innerDepth: 115, innerHeight: 165 },
+    jar: { innerWidth: 145, innerDepth: 145, innerHeight: 232 },
+  },
 };
 
 function isCanisterShape(shape = state.shape) {
@@ -1642,9 +1648,9 @@ const SLIDER_PROFILES = {
     height: { min: 15, max: 120 },
   },
   canister: {
-    width: { min: 70, max: 130 },
-    depth: { min: 70, max: 130 },
-    height: { min: 80, max: 185 },
+    width: { min: 70, max: 160 },
+    depth: { min: 70, max: 160 },
+    height: { min: 80, max: 250 },
   },
 };
 
@@ -1656,6 +1662,9 @@ function applyCanisterContent(content, { rebuildNow = true } = {}) {
   }
   const sel = document.getElementById("canister-content");
   if (sel) sel.value = key;
+  if (key === "biscuits" && isCanisterShape()) {
+    applyCanisterSize("xl", { rebuildNow: false });
+  }
   if (rebuildNow) {
     rebuild();
     pushAppHistory();
