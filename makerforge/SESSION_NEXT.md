@@ -1,3 +1,12 @@
+## MakerDeck session handoff
+
+Latest GitHub/Pi state:
+- Branch: `main`
+- Latest commit: `4674794` — **b167**
+- Cache-bust: `app.js?v=167` (hard refresh `/makerdeck/` or `#/makerdeck`)
+
+> MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
 ### 2026-07-09 — b167: Kitchen stack set (nest-stack lids)
 
 **Uniform T/C/S jar tower** (`js/features.js`, `js/geometry.js`, `js/app.js`, `index.html`)
@@ -5,12 +14,7 @@
 - New **Stack set** preset — 250g round jars, nest-stack flat lids (raised rim + outer seating groove), single-letter wrap labels.
 - **Stack trio** chips: T · Tea, C · Coffee, S · Sugar — auto body colour + wood-tone `lidColor` for 3MF export.
 - `stackStyle: "nest"` vs hex feet; nest geometry in `appendNestStackLidRim`.
-- Cache **b167** (`app.js?v=167`, `geometry.js?v=167`, `features.js?v=167`). Hard refresh MakerDeck.
-
-**Latest commit:** b167 (see git log)
-
-
-> MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+- Cache **b167** (`app.js?v=167`, `geometry.js?v=167`, `features.js?v=167`). Hard refresh MakerDeck. Pi deployed + restarted.
 
 ### 2026-07-09 — b163: True 2-manifold welded divider (0 open / 0 overused)
 
