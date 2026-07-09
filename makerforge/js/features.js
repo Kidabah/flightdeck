@@ -1807,17 +1807,85 @@ function dedupePolylinePoints(points, eps = 0.08) {
   return out;
 }
 
-function sampleSvgPathElement(pathEl, maxPoints = 900) {
+function transformSvgPoint(ctm, x, y) {
+  if (!ctm) return [x, y];
+  return [
+    ctm.a * x + ctm.c * y + ctm.e,
+    ctm.b * x + ctm.d * y + ctm.f,
+  ];
+}
+
+function sampleSvgPathElementWithCtm(pathEl, maxPoints = 900) {
+  const ctm = pathEl.getCTM?.() || null;
   const len = pathEl.getTotalLength();
   if (!Number.isFinite(len) || len < 0.02) return [];
   const count = Math.min(maxPoints, Math.max(24, Math.ceil(len / 0.28)));
-  const step = len / count;
   const pts = [];
   for (let i = 0; i <= count; i++) {
-    const pt = pathEl.getPointAtLength(Math.min(i * step, len));
-    pts.push([pt.x, pt.y]);
+    const pt = pathEl.getPointAtLength(Math.min((i / count) * len, len));
+    pts.push(transformSvgPoint(ctm, pt.x, pt.y));
   }
   return dedupePolylinePoints(pts);
+}
+
+function polylineFromElementWithCtm(el) {
+  const raw = polylineFromElement(el);
+  const ctm = el.getCTM?.() || null;
+  if (!ctm) return raw;
+  return raw.map(([x, y]) => transformSvgPoint(ctm, x, y));
+}
+
+function svgEffectivePresentation(el, attr, root) {
+  let node = el;
+  while (node && node.nodeType === 1) {
+    const val = node.getAttribute?.(attr);
+    if (val != null && String(val).trim() !== "") return String(val).trim();
+    if (node === root) break;
+    node = node.parentNode;
+  }
+  return null;
+}
+
+/** Resolve fill/stroke intent — honours inherited SVG presentation attributes. */
+function svgElementPaintMode(el, root) {
+  const fill = svgEffectivePresentation(el, "fill", root);
+  const stroke = svgEffectivePresentation(el, "stroke", root);
+  const hasFill = fill != null ? fill !== "none" : true;
+  const hasStroke = stroke != null && stroke !== "none";
+  if (hasFill && hasStroke) return "both";
+  if (hasFill) return "fill";
+  if (hasStroke) return "stroke";
+  return "none";
+}
+
+function closeSvgRing(points) {
+  if (points.length < 3) return points;
+  const [x0, y0] = points[0];
+  const [x1, y1] = points[points.length - 1];
+  if (Math.hypot(x0 - x1, y0 - y1) < 0.05) return points;
+  return [...points, [x0, y0]];
+}
+
+function routeSvgSample(points, mode, strokePaths, fillRings) {
+  if (!points || points.length < 2) return;
+  const closed = pathIsExplicitlyClosed(points);
+  if (mode === "fill") {
+    if (closed && points.length >= 3) fillRings.push(closeSvgRing(points));
+    else strokePaths.push(points);
+    return;
+  }
+  if (mode === "stroke") {
+    strokePaths.push(points);
+    return;
+  }
+  if (mode === "both") {
+    if (closed && points.length >= 3) fillRings.push(closeSvgRing(points));
+    else strokePaths.push(points);
+  }
+}
+
+function sampleSvgPathElement(pathEl, maxPoints = 900) {
+  return sampleSvgPathElementWithCtm(pathEl, maxPoints);
 }
 
 function parseSvgViewBox(svg) {
@@ -1886,49 +1954,82 @@ function polylineFromElement(el) {
   return [];
 }
 
-/** Sample SVG geometry into polylines (handles curves via native path length). */
+/** Sample SVG geometry — transform-aware, split into stroke paths and filled rings. */
 export function parseSvgPaths(svgText) {
-  if (typeof DOMParser === "undefined" || typeof document === "undefined") return [];
+  if (typeof DOMParser === "undefined" || typeof document === "undefined") {
+    return { polylines: [], strokePaths: [], fillRings: [], viewBox: [0, 0, 100, 100], strokeWidth: 1.5 };
+  }
   const doc = new DOMParser().parseFromString(svgText, "image/svg+xml");
   const svg = doc.documentElement;
-  if (!svg || svg.nodeName.toLowerCase() === "parsererror") return [];
+  if (!svg || svg.nodeName.toLowerCase() === "parsererror") {
+    return { polylines: [], strokePaths: [], fillRings: [], viewBox: [0, 0, 100, 100], strokeWidth: 1.5 };
+  }
 
   const viewBox = parseSvgViewBox(svg);
   const scratch = document.createElementNS(SVG_NS, "svg");
   scratch.setAttribute("xmlns", SVG_NS);
-  scratch.setAttribute("viewBox", svg.getAttribute("viewBox") || `${viewBox[0]} ${viewBox[1]} ${viewBox[2]} ${viewBox[3]}`);
+  scratch.setAttribute(
+    "viewBox",
+    svg.getAttribute("viewBox") || `${viewBox[0]} ${viewBox[1]} ${viewBox[2]} ${viewBox[3]}`,
+  );
   scratch.setAttribute("width", String(viewBox[2]));
   scratch.setAttribute("height", String(viewBox[3]));
   scratch.style.cssText = "position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden";
+  for (const child of [...svg.childNodes]) {
+    if (child.nodeType !== 1) continue;
+    if (child.tagName?.toLowerCase() === "defs") continue;
+    scratch.appendChild(document.importNode(child, true));
+  }
   document.body.appendChild(scratch);
 
-  const polylines = [];
+  const strokePaths = [];
+  const fillRings = [];
   let strokeWidth = readSvgStrokeWidth(null, svg);
 
   try {
-    for (const pathEl of doc.querySelectorAll("path")) {
+    for (const pathEl of scratch.querySelectorAll("path")) {
+      if (pathEl.closest("defs")) continue;
+      const mode = svgElementPaintMode(pathEl, svg);
+      if (mode === "none") continue;
       strokeWidth = Math.max(strokeWidth, readSvgStrokeWidth(pathEl, svg));
       const d = pathEl.getAttribute("d");
       if (!d) continue;
+      const parent = pathEl.parentNode || scratch;
       for (const sub of splitPathSubpaths(d)) {
-        const p = document.createElementNS(SVG_NS, "path");
-        p.setAttribute("d", sub);
-        scratch.appendChild(p);
-        const sampled = sampleSvgPathElement(p);
-        scratch.removeChild(p);
-        if (sampled.length >= 2) polylines.push(sampled);
+        const temp = document.createElementNS(SVG_NS, "path");
+        temp.setAttribute("d", sub);
+        parent.insertBefore(temp, pathEl);
+        const sampled = sampleSvgPathElementWithCtm(temp);
+        temp.remove();
+        routeSvgSample(sampled, mode, strokePaths, fillRings);
       }
     }
-    for (const el of doc.querySelectorAll("polyline, polygon, line, rect, circle, ellipse")) {
+    for (const el of scratch.querySelectorAll("polyline, polygon, line, rect, circle, ellipse")) {
+      if (el.closest("defs")) continue;
+      const mode = svgElementPaintMode(el, svg);
+      if (mode === "none") continue;
       strokeWidth = Math.max(strokeWidth, readSvgStrokeWidth(el, svg));
-      const pts = polylineFromElement(el);
-      if (pts.length >= 2) polylines.push(pts);
+      const sampled = polylineFromElementWithCtm(el);
+      routeSvgSample(sampled, mode, strokePaths, fillRings);
     }
   } finally {
     scratch.remove();
   }
 
-  return { polylines, viewBox, strokeWidth };
+  const polylines = [...strokePaths, ...fillRings];
+  return { polylines, strokePaths, fillRings, viewBox, strokeWidth };
+}
+
+export function parsedSvgHasFill(svgText) {
+  const parsed = parseSvgPaths(svgText);
+  return (parsed.fillRings?.length || 0) > 0;
+}
+
+/** True when vector SVG parsing yields emboss geometry for the current shape/face. */
+export function svgEmbossProducesMesh(meta, params, svgText) {
+  if (!meta || !svgText?.trim()) return false;
+  const mesh = buildEmbossSvg(meta, params, svgText);
+  return !!(mesh?.positions?.length && mesh?.indices?.length);
 }
 
 function pathIsExplicitlyClosed(path) {
@@ -1955,9 +2056,10 @@ function extrudeStrokePathList(positions, indices, frame, paths, mapPt, lineWidt
   }
 }
 
-export function buildEmbossSvg(meta, params, svgText) {
-  const parsed = parseSvgPaths(svgText);
-  const polylines = parsed.polylines || (Array.isArray(parsed) ? parsed : []);
+function computeSvgArtLayout(parsed, meta, params) {
+  const strokePaths = parsed.strokePaths || [];
+  const fillRings = parsed.fillRings || [];
+  const polylines = parsed.polylines || [...strokePaths, ...fillRings];
   if (!polylines.length) return null;
 
   const frame = getEmbossFaceFrame(meta, params.embossFace || "front", params);
@@ -1978,7 +2080,8 @@ export function buildEmbossSvg(meta, params, svgText) {
   const sw = maxX - minX || parsed.viewBox?.[2] || 1;
   const sh = maxY - minY || parsed.viewBox?.[3] || 1;
   const artH = clamp(params.embossTraceSize ?? params.embossHeight ?? 16, 6, 40);
-  const maxW = Math.min(frame.faceW * 0.62, 56);
+  const wrap = frame.face === "wrap";
+  const maxW = wrap ? Math.min(frame.faceW * 0.55, 72) : Math.min(frame.faceW * 0.62, 56);
   const scale = Math.min(artH / sh, maxW / sw);
   if (!Number.isFinite(scale) || scale <= 0) return null;
 
@@ -1987,34 +2090,92 @@ export function buildEmbossSvg(meta, params, svgText) {
   const { xOff, zOff } = decorPlacementOffsets(params, frame, artW, artH);
   const rotCx = xOff + artW / 2;
   const rotCy = zOff + artH / 2;
-  const rotation = params.decorRotation ?? 0;
-  const svgStroke = parsed.strokeWidth ?? 1.5;
-  const lineWidth = clamp(scale * svgStroke, 0.45, 1.5);
-  const smoothPasses = artH <= 12 ? 4 : artH <= 20 ? 3 : 2;
-  const simplifyTol = Math.max(0.18, Math.max(sw, sh) / 520);
-  const closedPaths = polylines.map((line) => {
-    if (line.length >= 3) {
-      const [x0, y0] = line[0];
-      const [x1, y1] = line[line.length - 1];
-      if (Math.hypot(x0 - x1, y0 - y1) < Math.max(0.35, Math.max(sw, sh) * 0.004)) {
-        return [...line, line[0]];
-      }
-    }
-    return line;
-  });
-  const strokePaths = prepareStrokePaths(closedPaths, simplifyTol, smoothPasses);
-  const { d0, d1 } = labelOffsets(params);
-  const positions = [];
-  const indices = [];
-  const mapPt = (x, y) => rotateFacePoint(
+  return {
+    frame,
+    scale,
+    cx,
+    minX,
+    minY,
+    maxX,
+    maxY,
+    sw,
+    sh,
+    artW,
+    artH,
+    xOff,
+    zOff,
+    rotCx,
+    rotCy,
+    rotation: params.decorRotation ?? 0,
+  };
+}
+
+function mapSvgArtPoint(layout, x, y) {
+  const { rotCx, rotCy, cx, maxY, scale, xOff, artW, zOff, rotation } = layout;
+  return rotateFacePoint(
     rotCx,
     rotCy,
     (x - cx) * scale + xOff + artW / 2,
     zOff + (maxY - y) * scale,
     rotation,
   );
+}
 
-  extrudeStrokePathList(positions, indices, frame, strokePaths, mapPt, lineWidth, d0, d1);
+function extrudeSvgFillRings(outPos, outIdx, fillRings, layout, params) {
+  if (!fillRings.length) return;
+  const { frame, scale, rotCx, artH, sw, sh } = layout;
+  const { d0, d1 } = labelOffsets(params);
+  const simplifyTol = Math.max(0.12, Math.max(sw, sh) / 480);
+  const smoothPasses = artH <= 12 ? 4 : artH <= 20 ? 3 : 2;
+  const rawGroups = fillRings.map((ring) => ({ outer: ring, holes: [] }));
+  const shapeGroups = prepareShapeGroups(rawGroups, simplifyTol, smoothPasses);
+  for (const group of shapeGroups) {
+    const remapped = {
+      outer: group.outer.map(([x, y]) => mapSvgArtPoint(layout, x, y)),
+      holes: group.holes.map((h) => h.map(([x, y]) => mapSvgArtPoint(layout, x, y))),
+    };
+    let shaped = remapped;
+    if (frame.face === "wrap") {
+      shaped = normalizeWrapShapeGroups([remapped], frame.faceW, rotCx)[0];
+    }
+    extrudeGroupOnFace(outPos, outIdx, frame, shaped, d0, d1);
+  }
+}
+
+export function buildEmbossSvg(meta, params, svgText) {
+  const parsed = parseSvgPaths(svgText);
+  const layout = computeSvgArtLayout(parsed, meta, params);
+  if (!layout) return null;
+
+  const strokePaths = parsed.strokePaths || [];
+  const fillRings = parsed.fillRings || [];
+  const { frame, sw, sh, artH, scale } = layout;
+  const { d0, d1 } = labelOffsets(params);
+  const positions = [];
+  const indices = [];
+
+  extrudeSvgFillRings(positions, indices, fillRings, layout, params);
+
+  if (strokePaths.length) {
+    const svgStroke = parsed.strokeWidth ?? 1.5;
+    const lineWidth = clamp(scale * svgStroke, 0.45, 1.5);
+    const smoothPasses = artH <= 12 ? 4 : artH <= 20 ? 3 : 2;
+    const simplifyTol = Math.max(0.18, Math.max(sw, sh) / 520);
+    const closedPaths = strokePaths.map((line) => {
+      if (line.length >= 3) {
+        const [x0, y0] = line[0];
+        const [x1, y1] = line[line.length - 1];
+        if (Math.hypot(x0 - x1, y0 - y1) < Math.max(0.35, Math.max(sw, sh) * 0.004)) {
+          return [...line, line[0]];
+        }
+      }
+      return line;
+    });
+    const prepared = prepareStrokePaths(closedPaths, simplifyTol, smoothPasses);
+    const mapPt = (x, y) => mapSvgArtPoint(layout, x, y);
+    extrudeStrokePathList(positions, indices, frame, prepared, mapPt, lineWidth, d0, d1);
+  }
+
   return positions.length ? { positions, indices } : null;
 }
 
@@ -2315,7 +2476,9 @@ export function measureDecorArt(meta, params) {
 
   if (params.embossSvgEnabled && params.embossSvgText?.trim()) {
     const parsed = parseSvgPaths(params.embossSvgText);
-    const polylines = parsed.polylines || (Array.isArray(parsed) ? parsed : []);
+    const strokePaths = parsed.strokePaths || [];
+    const fillRings = parsed.fillRings || [];
+    const polylines = parsed.polylines || [...strokePaths, ...fillRings];
     if (!polylines.length) return null;
     let minX = Infinity;
     let minY = Infinity;
@@ -2333,7 +2496,8 @@ export function measureDecorArt(meta, params) {
     const sw = maxX - minX || parsed.viewBox?.[2] || 1;
     const sh = maxY - minY || parsed.viewBox?.[3] || 1;
     const artH = clamp(params.embossTraceSize ?? params.embossHeight ?? 16, 6, 40);
-    const maxW = Math.min(frame.faceW * 0.62, 56);
+    const wrap = frame.face === "wrap";
+    const maxW = wrap ? Math.min(frame.faceW * 0.55, 72) : Math.min(frame.faceW * 0.62, 56);
     const scale = Math.min(artH / sh, maxW / sw);
     if (!Number.isFinite(scale) || scale <= 0) return null;
     const artW = sw * scale;

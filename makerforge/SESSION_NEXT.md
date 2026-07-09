@@ -2,10 +2,21 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `6ca160d` — **b168**
-- Cache-bust: `app.js?v=168` (hard refresh `/makerdeck/` or `#/makerdeck`)
+- Latest commit: see **b169** below
+- Cache-bust: `app.js?v=169` (hard refresh `/makerdeck/` or `#/makerdeck`)
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-09 — b169: SVG import overhaul (filled paths + smart fallback)
+
+**Art tab SVG** (`js/features.js`, `js/app.js`, `index.html`)
+
+- **Filled SVG** paths emboss as solid geometry (logos, plaques) — not just stroke outlines.
+- **Transform-aware** parsing (`getCTM`) — grouped/scaled SVGs land in the right place.
+- **Wrap face** uses same seam normalization as text/trace for jar plaques.
+- **Smart import**: vector first; auto-fallback to silhouette trace when paths are empty.
+- Status line reports `filled vector`, `stroke vector`, or `traced silhouette`.
+- Cache **b169**. Hard refresh MakerDeck.
 
 ### 2026-07-09 — b168: Flat-lid gasket groove + TPU ring export
 

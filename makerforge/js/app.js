@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=168";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark } from "./features.js?v=163";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=169";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=169";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=161";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=161";
 import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=161";
@@ -2485,7 +2485,7 @@ function storeTraceOnBox(result, { clearLabel = true, clearSvg = true } = {}) {
   return true;
 }
 
-async function importSvgDirectEmboss(svgText, { fileName = "" } = {}) {
+async function importSvgDirectEmboss(svgText, { fileName = "", importMode = "vector" } = {}) {
   if (!shapeSupportsArt(artUiShape() || state.shape)) {
     throw new Error("Pick a box, rounded, pencil, or profile pot shape first.");
   }
@@ -2502,11 +2502,16 @@ async function importSvgDirectEmboss(svgText, { fileName = "" } = {}) {
   state.embossSvgEnabled = true;
   document.getElementById("emboss-svg-enabled").checked = true;
 
+  const modeLabel = importMode === "trace"
+    ? "traced silhouette"
+    : parsedSvgHasFill(svgText)
+      ? "filled vector"
+      : "stroke vector";
   const meta = document.getElementById("trace-meta");
   if (meta) {
     meta.textContent = fileName
-      ? `SVG ${fileName} — stroke emboss (set Face to Lid top for lid art).`
-      : "SVG loaded — stroke emboss.";
+      ? `SVG ${fileName} — ${modeLabel}. Use Size + Move; Face → Lid top for lid art.`
+      : `SVG loaded — ${modeLabel}.`;
   }
   updateDecorUi();
   syncArtEditorUi();
@@ -2519,7 +2524,22 @@ async function importSvgFile(svgText, { fileName = "" } = {}) {
   if (!shapeSupportsArt(artUiShape() || state.shape)) {
     throw new Error("Pick a box, rounded, pencil, or profile pot shape first.");
   }
-  await importSvgDirectEmboss(svgText, { fileName });
+  if (!meshCache?.meta) rebuild();
+  const params = buildParams();
+  const vectorOk = meshCache?.meta && svgEmbossProducesMesh(meshCache.meta, params, svgText);
+  if (vectorOk) {
+    await importSvgDirectEmboss(svgText, { fileName, importMode: "vector" });
+    return;
+  }
+  try {
+    await importSvgAsTrace(svgText, { fileName });
+    const meta = document.getElementById("trace-meta");
+    if (meta && fileName) {
+      meta.textContent = `SVG ${fileName} — traced silhouette (vector paths were empty).`;
+    }
+  } catch (err) {
+    throw new Error(err?.message || "Could not import SVG — try a simpler file or PNG trace.");
+  }
 }
 
 async function importSvgAsTrace(svgText, { fileName = "" } = {}) {
@@ -2551,6 +2571,7 @@ async function importSvgAsTrace(svgText, { fileName = "" } = {}) {
   }
   state.embossSvgText = svgText;
   state.embossSvgEnabled = true;
+  state.embossTraceEnabled = true;
   document.getElementById("emboss-svg-enabled").checked = true;
 
   const meta = document.getElementById("trace-meta");
