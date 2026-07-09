@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=175";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=175";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=176";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=176";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=161";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=161";
 import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=161";
@@ -44,12 +44,24 @@ const CANISTER_CONTENT_META = {
   biscuits: { label: "BISCUITS", letter: "B", color: "#c4a882", lidColor: "#c4a574", textColor: "#3d3428" },
 };
 
-/** Word-style arc presets — one click sets sweep/start; curve slider bends radius. */
+/** Word-style arc presets — one click sets sweep/start/side; curve slider bends radius. */
 const ARC_TEXT_PRESETS = {
-  "arch-up": { startDeg: -90, sweep: 240, curve: 60, spacing: 1 },
-  "arch-down": { startDeg: 90, sweep: 240, curve: 60, spacing: 1 },
-  banner: { startDeg: -90, sweep: 200, curve: 82, spacing: 1 },
+  "arch-up": { startDeg: -90, sweep: 240, curve: 60, spacing: 1, side: "up" },
+  "arch-down": { startDeg: 180, sweep: 200, curve: 60, spacing: 1, side: "down" },
+  banner: { startDeg: -90, sweep: 155, curve: 88, spacing: 1, side: "up" },
 };
+
+function nudgeArcCentreForPreset(id) {
+  const graphicMm = state.embossTraceSize ?? state.embossHeight ?? 16;
+  const textMm = state.embossHeight ?? 7;
+  if (id === "arch-down") {
+    state.textOffsetY = graphicMm * 0.55 + textMm * 0.4;
+  } else if (id === "banner") {
+    state.textOffsetY = -(graphicMm * 0.65 + textMm * 0.15);
+  } else {
+    state.textOffsetY = -(graphicMm * 0.85 + textMm * 0.25);
+  }
+}
 
 /** OEM coffee-tin chart (outer Ø × height mm) → inner cavity after 2.4 mm wall + 2.8 mm floor. */
 const CANISTER_SIZE_TABLE = {
@@ -385,6 +397,7 @@ function buildParams() {
     embossArcSpacing: state.embossArcSpacing ?? 1,
     embossArcCurve: state.embossArcCurve ?? 60,
     embossArcPreset: state.embossArcPreset || "arch-up",
+    embossArcSide: state.embossArcSide === "down" ? "down" : "up",
     textOffsetX: state.textOffsetX ?? 0,
     textOffsetY: state.textOffsetY ?? 0,
     textRotation: state.textRotation ?? 0,
@@ -561,12 +574,13 @@ function applyArcPreset(id, { nudgeGraphic = false } = {}) {
   state.embossArcSweep = preset.sweep;
   state.embossArcCurve = preset.curve;
   state.embossArcSpacing = preset.spacing;
+  state.embossArcSide = preset.side || "up";
   state.embossArcTilt = 0;
   state.textRotation = 0;
   state.embossArcRadius = 0;
-  if (nudgeGraphic && hasGraphicArt(buildParams())) {
-    const graphicMm = state.embossTraceSize ?? state.embossHeight ?? 16;
-    state.textOffsetY = -(graphicMm * 0.85 + (state.embossHeight ?? 7) * 0.25);
+  if (nudgeGraphic || hasGraphicArt(buildParams())) {
+    nudgeArcCentreForPreset(id);
+    setArtSlider("text-offset-y", Math.round((state.textOffsetY ?? 0) * 10) / 10, "float");
   }
   syncArcPresetUi();
   setArtSlider("emboss-arc-curve", state.embossArcCurve ?? 60);

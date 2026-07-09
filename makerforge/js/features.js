@@ -1182,6 +1182,8 @@ function rasterArcTextMask(text, fontId, fontSizePx = 640, options = {}) {
   const totalWidth = charWidths.reduce((a, b) => a + b, 0) * letterSpacing;
   const sweepDeg = clamp(options.sweepDeg ?? 220, 35, 360);
   const sweepRad = (sweepDeg * Math.PI) / 180;
+  const side = options.side === "down" ? "down" : "up";
+  const sweepDir = side === "down" ? -1 : 1;
   const radiusPx = Math.max(
     fontSizePx * 0.85,
     options.radiusPx ?? (totalWidth / sweepRad) * 1.05,
@@ -1194,7 +1196,9 @@ function rasterArcTextMask(text, fontId, fontSizePx = 640, options = {}) {
   const ocx = size / 2;
   const ocy = size / 2;
 
-  const startAngle = ((options.startDeg ?? -90) * Math.PI) / 180;
+  const defaultStart = side === "down" ? 180 : -90;
+  const startAngle = ((options.startDeg ?? defaultStart) * Math.PI) / 180;
+  const rotSign = side === "down" ? -1 : 1;
 
   ctx.font = font;
   ctx.fillStyle = "#000";
@@ -1211,12 +1215,13 @@ function rasterArcTextMask(text, fontId, fontSizePx = 640, options = {}) {
   let dist = 0;
   for (let i = 0; i < chars.length; i++) {
     const w = charWidths[i] * letterSpacing;
-    const angle = startAngle + angleOffset + (dist + w / 2) / radiusPx;
+    const along = angleOffset + (dist + w / 2) / radiusPx;
+    const angle = startAngle + sweepDir * along;
     const x = ocx + Math.cos(angle) * radiusPx;
     const y = ocy + Math.sin(angle) * radiusPx;
     ctx.save();
     ctx.translate(x, y);
-    ctx.rotate(angle + Math.PI / 2);
+    ctx.rotate(angle + rotSign * (Math.PI / 2));
     ctx.fillText(chars[i], 0, 0);
     ctx.restore();
     dist += w;
@@ -1357,6 +1362,7 @@ function computeTextArtLayout(meta, params) {
       radiusPx,
       startDeg: params.embossArcStartDeg ?? -90,
       spacing: params.embossArcSpacing ?? 1,
+      side: params.embossArcSide === "down" ? "down" : "up",
     });
   } else {
     raster = rasterTextMask(text, fontId, fontSizePx, params.embossTextAlign || "left");

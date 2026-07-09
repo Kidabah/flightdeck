@@ -2092,6 +2092,7 @@ export const DEFAULTS = {
   embossArcSpacing: 1,
   embossArcCurve: 60,
   embossArcPreset: "arch-up",
+  embossArcSide: "up",
   embossArcAdvanced: false,
   textOffsetX: 0,
   textOffsetY: 0,

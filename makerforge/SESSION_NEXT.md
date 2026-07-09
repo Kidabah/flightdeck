@@ -2,10 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `9a095fa` — **b175**
-- Cache-bust: `app.js?v=175` (hard refresh `/makerdeck/` or `#/makerdeck`)
+- Latest commit: (b176 deploy pending)
+- Cache-bust: `app.js?v=176` (hard refresh `/makerdeck/` or `#/makerdeck`)
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-09 — b176: Fix arch down + wide preset
+
+**Arc text geometry** (`js/features.js`, `js/app.js`, `index.html`, `js/geometry.js`)
+
+- **Arch down** — text on bottom of circle, right-side up (C left, E right under the graphic); auto-nudges below the art.
+- **Wide** (was Banner) — shallow arch over the top, same orientation as arch up.
+- Cache **b176**. Hard refresh MakerDeck.
 
 ### 2026-07-09 — b175: Word-style arc text (presets + curve slider)
 
