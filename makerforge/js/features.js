@@ -773,36 +773,39 @@ function isSharpRectProfile(meta, params) {
     && (params.vertexFillet || 0) <= 0.5;
 }
 
-/** Solid welded divider slab — closes open top/side edges (not zero-thickness sheets). */
-function appendWeldedDividerSolid(pool, panel, axis) {
-  const { x0, x1, y0, y1, z0, z1 } = panel;
-  if (axis === "depth") {
-    pool.quad([x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0]);
-    pool.quad([x0, y0, z0], [x0, y0, z1], [x1, y0, z1], [x1, y0, z0]);
-    pool.quad([x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]);
-    pool.quad([x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]);
-    pool.quad([x0, y0, z0], [x0, y1, z0], [x0, y1, z1], [x0, y0, z1]);
-    pool.quad([x1, y1, z0], [x1, y0, z0], [x1, y0, z1], [x1, y1, z1]);
-  } else {
-    pool.quad([x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0]);
-    pool.quad([x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0]);
-    pool.quad([x1, y0, z0], [x1, y1, z0], [x1, y1, z1], [x1, y0, z1]);
-    pool.quad([x0, y0, z1], [x0, y1, z1], [x1, y1, z1], [x1, y0, z1]);
-    pool.quad([x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1]);
-    pool.quad([x0, y1, z0], [x0, y1, z1], [x1, y1, z1], [x1, y1, z0]);
-  }
+function uniqSortedCuts(vals) {
+  return [...new Set(vals.map((v) => Math.round(v * 1000) / 1000))].sort((a, b) => a - b);
 }
 
+/**
+ * Divider faces for rounded fallback — bay faces + top only (no end caps / bottom).
+ * End caps caused n=3 T-junctions with gapped inner walls.
+ */
 function buildDividerPanelFaces(meta, params) {
   const panels = dividerPanelBoxes(meta, params);
   if (!panels?.length) return null;
   const axis = params.insertAxis === "depth" ? "depth" : "length";
   const pool = new WeldPool();
-  for (const panel of panels) appendWeldedDividerSolid(pool, panel, axis);
+  for (const panel of panels) {
+    const { x0, x1, y0, y1, z0, z1 } = panel;
+    if (axis === "depth") {
+      pool.quad([x0, y0, z0], [x0, y0, z1], [x1, y0, z1], [x1, y0, z0]);
+      pool.quad([x1, y1, z0], [x1, y1, z1], [x0, y1, z1], [x0, y1, z0]);
+      pool.quad([x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]);
+    } else {
+      pool.quad([x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0]);
+      pool.quad([x1, y1, z0], [x1, y1, z1], [x1, y0, z1], [x1, y0, z0]);
+      pool.quad([x0, y0, z1], [x0, y1, z1], [x1, y1, z1], [x1, y0, z1]);
+    }
+  }
   return pool.mesh();
 }
 
-/** Sharp rect hollow box + welded divider(s) — single watertight mesh, shared verts. */
+/**
+ * Sharp rect + welded divider(s) — true 2-manifold open-top shell.
+ * Split rim / outer walls at divider stations so every edge has exactly 2 faces.
+ * Divider = bay faces + top only (no end caps / bottom — those caused n=3 edges).
+ */
 function buildSharpWeldedBoxExport(meta, params) {
   const panels = dividerPanelBoxes(meta, params);
   if (!panels?.length) return null;
@@ -813,24 +816,48 @@ function buildSharpWeldedBoxExport(meta, params) {
   const zT = b.totalH;
   const axis = params.insertAxis === "depth" ? "depth" : "length";
   const pool = new WeldPool();
-
-  pool.quad([-ow2, -od2, z0], [ow2, -od2, z0], [ow2, od2, z0], [-ow2, od2, z0]);
-
-  pool.quad([-ow2, -od2, z0], [-ow2, -od2, zT], [ow2, -od2, zT], [ow2, -od2, z0]);
-  pool.quad([ow2, -od2, z0], [ow2, -od2, zT], [ow2, od2, zT], [ow2, od2, z0]);
-  pool.quad([ow2, od2, z0], [ow2, od2, zT], [-ow2, od2, zT], [-ow2, od2, z0]);
-  pool.quad([-ow2, od2, z0], [-ow2, od2, zT], [-ow2, -od2, zT], [-ow2, -od2, z0]);
-
-  pool.quad([-ow2, -od2, zT], [ow2, -od2, zT], [iw2, -id2, zT], [-iw2, -id2, zT]);
-  pool.quad([ow2, -od2, zT], [ow2, od2, zT], [iw2, id2, zT], [iw2, -id2, zT]);
-  pool.quad([ow2, od2, zT], [-ow2, od2, zT], [-iw2, id2, zT], [iw2, id2, zT]);
-  pool.quad([-ow2, od2, zT], [-ow2, -od2, zT], [-iw2, -id2, zT], [-iw2, id2, zT]);
-
-  const sorted = panels.slice().sort((a, b) => (axis === "depth" ? a.y0 - b.y0 : a.x0 - b.x0));
+  const sorted = panels.slice().sort((a, c) => (axis === "depth" ? a.y0 - c.y0 : a.x0 - c.x0));
 
   if (axis === "depth") {
     const yGaps = sorted.map((p) => [p.y0, p.y1]);
-    for (const [ya, yb] of wallSegments(-id2, id2, yGaps)) {
+    const wallSegs = wallSegments(-id2, id2, yGaps);
+    const yCuts = uniqSortedCuts([-od2, -id2, ...sorted.flatMap((p) => [p.y0, p.y1]), id2, od2]);
+
+    for (let i = 0; i < yCuts.length - 1; i++) {
+      const ya = yCuts[i];
+      const yb = yCuts[i + 1];
+      if (yb - ya < 0.02) continue;
+      pool.quad([-ow2, ya, z0], [ow2, ya, z0], [ow2, yb, z0], [-ow2, yb, z0]);
+    }
+
+    pool.quad([-ow2, -od2, z0], [-ow2, -od2, zT], [ow2, -od2, zT], [ow2, -od2, z0]);
+    pool.quad([ow2, od2, z0], [ow2, od2, zT], [-ow2, od2, zT], [-ow2, od2, z0]);
+
+    for (let i = 0; i < yCuts.length - 1; i++) {
+      const ya = yCuts[i];
+      const yb = yCuts[i + 1];
+      if (yb - ya < 0.02) continue;
+      pool.quad([ow2, ya, z0], [ow2, ya, zT], [ow2, yb, zT], [ow2, yb, z0]);
+      pool.quad([-ow2, yb, z0], [-ow2, yb, zT], [-ow2, ya, zT], [-ow2, ya, z0]);
+    }
+
+    pool.quad([-ow2, -od2, zT], [ow2, -od2, zT], [iw2, -id2, zT], [-iw2, -id2, zT]);
+    pool.quad([ow2, od2, zT], [-ow2, od2, zT], [-iw2, id2, zT], [iw2, id2, zT]);
+    pool.tri([ow2, -od2, zT], [ow2, -id2, zT], [iw2, -id2, zT]);
+    pool.tri([ow2, od2, zT], [iw2, id2, zT], [ow2, id2, zT]);
+    pool.tri([-ow2, -od2, zT], [-iw2, -id2, zT], [-ow2, -id2, zT]);
+    pool.tri([-ow2, od2, zT], [-ow2, id2, zT], [-iw2, id2, zT]);
+
+    const rimInner = uniqSortedCuts([-id2, ...sorted.flatMap((p) => [p.y0, p.y1]), id2]);
+    for (let i = 0; i < rimInner.length - 1; i++) {
+      const ya = rimInner[i];
+      const yb = rimInner[i + 1];
+      if (yb - ya < 0.02) continue;
+      pool.quad([ow2, ya, zT], [ow2, yb, zT], [iw2, yb, zT], [iw2, ya, zT]);
+      pool.quad([-ow2, yb, zT], [-ow2, ya, zT], [-iw2, ya, zT], [-iw2, yb, zT]);
+    }
+
+    for (const [ya, yb] of wallSegs) {
       pool.quad([-iw2, ya, zF], [-iw2, ya, zT], [-iw2, yb, zT], [-iw2, yb, zF]);
       pool.quad([iw2, yb, zF], [iw2, yb, zT], [iw2, ya, zT], [iw2, ya, zF]);
     }
@@ -842,17 +869,75 @@ function buildSharpWeldedBoxExport(meta, params) {
       if (panel.y0 > yCursor + 0.02) {
         pool.quad([-iw2, yCursor, zF], [iw2, yCursor, zF], [iw2, panel.y0, zF], [-iw2, panel.y0, zF]);
       }
-      appendWeldedDividerSolid(pool, panel, "depth");
+      pool.quad([-iw2, panel.y0, zF], [-iw2, panel.y0, zT], [iw2, panel.y0, zT], [iw2, panel.y0, zF]);
+      pool.quad([iw2, panel.y1, zF], [iw2, panel.y1, zT], [-iw2, panel.y1, zT], [-iw2, panel.y1, zF]);
+      pool.quad([-iw2, panel.y0, zT], [iw2, panel.y0, zT], [iw2, panel.y1, zT], [-iw2, panel.y1, zT]);
       yCursor = panel.y1;
     }
     if (id2 > yCursor + 0.02) {
       pool.quad([-iw2, yCursor, zF], [iw2, yCursor, zF], [iw2, id2, zF], [-iw2, id2, zF]);
     }
   } else {
+    const xGaps = sorted.map((p) => [p.x0, p.x1]);
+    const wallSegs = wallSegments(-iw2, iw2, xGaps);
+    const xCuts = uniqSortedCuts([-ow2, -iw2, ...sorted.flatMap((p) => [p.x0, p.x1]), iw2, ow2]);
+    const ySideCuts = uniqSortedCuts([-od2, -id2, id2, od2]);
+
+    for (let i = 0; i < xCuts.length - 1; i++) {
+      const xa = xCuts[i];
+      const xb = xCuts[i + 1];
+      if (xb - xa < 0.02) continue;
+      for (let j = 0; j < ySideCuts.length - 1; j++) {
+        const ya = ySideCuts[j];
+        const yb = ySideCuts[j + 1];
+        if (yb - ya < 0.02) continue;
+        pool.quad([xa, ya, z0], [xb, ya, z0], [xb, yb, z0], [xa, yb, z0]);
+      }
+    }
+
+    for (let j = 0; j < ySideCuts.length - 1; j++) {
+      const ya = ySideCuts[j];
+      const yb = ySideCuts[j + 1];
+      if (yb - ya < 0.02) continue;
+      pool.quad([-ow2, ya, z0], [-ow2, ya, zT], [-ow2, yb, zT], [-ow2, yb, z0]);
+      pool.quad([ow2, yb, z0], [ow2, yb, zT], [ow2, ya, zT], [ow2, ya, z0]);
+    }
+
+    for (let i = 0; i < xCuts.length - 1; i++) {
+      const xa = xCuts[i];
+      const xb = xCuts[i + 1];
+      if (xb - xa < 0.02) continue;
+      pool.quad([xa, -od2, z0], [xb, -od2, z0], [xb, -od2, zT], [xa, -od2, zT]);
+      pool.quad([xb, od2, z0], [xa, od2, z0], [xa, od2, zT], [xb, od2, zT]);
+    }
+
+    // Left / right flanges only over cavity span (ears cover corners)
+    pool.quad([-ow2, -id2, zT], [-ow2, id2, zT], [-iw2, id2, zT], [-iw2, -id2, zT]);
+    pool.quad([ow2, -id2, zT], [iw2, -id2, zT], [iw2, id2, zT], [ow2, id2, zT]);
+
+    pool.tri([-ow2, -od2, zT], [-iw2, -id2, zT], [-ow2, -id2, zT]);
+    pool.tri([-ow2, od2, zT], [-ow2, id2, zT], [-iw2, id2, zT]);
+    pool.tri([ow2, -od2, zT], [ow2, -id2, zT], [iw2, -id2, zT]);
+    pool.tri([ow2, od2, zT], [iw2, id2, zT], [ow2, id2, zT]);
+
+    // Corner flange tris (outer front/back to inner) — complete the rim at ±ow2 ends
+    pool.tri([-ow2, -od2, zT], [-iw2, -od2, zT], [-iw2, -id2, zT]);
+    pool.tri([ow2, -od2, zT], [iw2, -id2, zT], [iw2, -od2, zT]);
+    pool.tri([-ow2, od2, zT], [-iw2, id2, zT], [-iw2, od2, zT]);
+    pool.tri([ow2, od2, zT], [iw2, od2, zT], [iw2, id2, zT]);
+
+    const rimInner = uniqSortedCuts([-iw2, ...sorted.flatMap((p) => [p.x0, p.x1]), iw2]);
+    for (let i = 0; i < rimInner.length - 1; i++) {
+      const xa = rimInner[i];
+      const xb = rimInner[i + 1];
+      if (xb - xa < 0.02) continue;
+      pool.quad([xa, -od2, zT], [xb, -od2, zT], [xb, -id2, zT], [xa, -id2, zT]);
+      pool.quad([xb, od2, zT], [xa, od2, zT], [xa, id2, zT], [xb, id2, zT]);
+    }
+
     pool.quad([-iw2, -id2, zF], [-iw2, -id2, zT], [-iw2, id2, zT], [-iw2, id2, zF]);
     pool.quad([iw2, id2, zF], [iw2, id2, zT], [iw2, -id2, zT], [iw2, -id2, zF]);
-    const xGaps = sorted.map((p) => [p.x0, p.x1]);
-    for (const [xa, xb] of wallSegments(-iw2, iw2, xGaps)) {
+    for (const [xa, xb] of wallSegs) {
       pool.quad([xa, -id2, zF], [xa, -id2, zT], [xb, -id2, zT], [xb, -id2, zF]);
       pool.quad([xb, id2, zF], [xb, id2, zT], [xa, id2, zT], [xa, id2, zF]);
     }
@@ -862,7 +947,9 @@ function buildSharpWeldedBoxExport(meta, params) {
       if (panel.x0 > xCursor + 0.02) {
         pool.quad([xCursor, -id2, zF], [panel.x0, -id2, zF], [panel.x0, id2, zF], [xCursor, id2, zF]);
       }
-      appendWeldedDividerSolid(pool, panel, "length");
+      pool.quad([panel.x0, -id2, zF], [panel.x0, -id2, zT], [panel.x0, id2, zT], [panel.x0, id2, zF]);
+      pool.quad([panel.x1, id2, zF], [panel.x1, id2, zT], [panel.x1, -id2, zT], [panel.x1, -id2, zF]);
+      pool.quad([panel.x0, -id2, zT], [panel.x1, -id2, zT], [panel.x1, id2, zT], [panel.x0, id2, zT]);
       xCursor = panel.x1;
     }
     if (iw2 > xCursor + 0.02) {
