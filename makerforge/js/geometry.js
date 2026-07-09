@@ -1353,7 +1353,7 @@ function resolveContainer(params) {
     const isCanister = shape === "canisterSquare";
     const innerL = clamp(params.innerWidth, isCanister ? 70 : 120, isCanister ? 200 : 300);
     const innerW = clamp(params.innerDepth, isCanister ? 70 : 40, isCanister ? 200 : 100);
-    const innerH = clamp(params.innerHeight, isCanister ? 80 : 15, isCanister ? 220 : 60);
+    const innerH = clamp(params.innerHeight, isCanister ? 80 : 15, isCanister ? 185 : 60);
     const cornerDefault = isCanister ? 10 : 4;
     const corner = clamp(params.cornerRadius ?? cornerDefault, 0, Math.min(innerW, innerL) / 2 - 1);
     const outerL = innerL + wall * 2;
@@ -1848,9 +1848,9 @@ export function toBufferGeometry(THREE, mesh) {
 }
 
 export const CANISTER_SQUARE_PRESET = {
-  innerWidth: 110,
-  innerDepth: 110,
-  innerHeight: 140,
+  innerWidth: 94,
+  innerDepth: 94,
+  innerHeight: 127,
   wall: 2.4,
   floor: 2.8,
   cornerRadius: 10,
@@ -1873,9 +1873,9 @@ export const CANISTER_SQUARE_PRESET = {
 };
 
 export const CANISTER_JAR_PRESET = {
-  innerWidth: 100,
-  innerDepth: 100,
-  innerHeight: 140,
+  innerWidth: 94,
+  innerDepth: 94,
+  innerHeight: 127,
   wall: 2.4,
   floor: 2.8,
   lidEnabled: true,

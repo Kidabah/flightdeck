@@ -36,18 +36,25 @@ const CANISTER_CONTENT_LABELS = {
   custom: "",
 };
 
+/** OEM coffee-tin chart (outer Ø × height mm) → inner cavity after 2.4 mm wall + 2.8 mm floor. */
 const CANISTER_SIZE_TABLE = {
   sm: {
-    square: { innerWidth: 90, innerDepth: 90, innerHeight: 120 },
-    jar: { innerWidth: 90, innerDepth: 90, innerHeight: 120 },
+    label: "125g",
+    hint: "250 ml tin · ~83×95 mm outer",
+    square: { innerWidth: 78, innerDepth: 78, innerHeight: 92 },
+    jar: { innerWidth: 78, innerDepth: 78, innerHeight: 92 },
   },
   md: {
-    square: { innerWidth: 110, innerDepth: 110, innerHeight: 140 },
-    jar: { innerWidth: 100, innerDepth: 100, innerHeight: 140 },
+    label: "250g",
+    hint: "500 ml tin · ~99×130 mm outer",
+    square: { innerWidth: 94, innerDepth: 94, innerHeight: 127 },
+    jar: { innerWidth: 94, innerDepth: 94, innerHeight: 127 },
   },
   lg: {
-    square: { innerWidth: 130, innerDepth: 130, innerHeight: 170 },
-    jar: { innerWidth: 120, innerDepth: 120, innerHeight: 170 },
+    label: "500g",
+    hint: "1 L tin · ~120×180 mm outer",
+    square: { innerWidth: 115, innerDepth: 115, innerHeight: 177 },
+    jar: { innerWidth: 115, innerDepth: 115, innerHeight: 177 },
   },
 };
 
@@ -1635,9 +1642,9 @@ const SLIDER_PROFILES = {
     height: { min: 15, max: 120 },
   },
   canister: {
-    width: { min: 70, max: 200 },
-    depth: { min: 70, max: 200 },
-    height: { min: 80, max: 220 },
+    width: { min: 70, max: 130 },
+    depth: { min: 70, max: 130 },
+    height: { min: 80, max: 185 },
   },
 };
 
@@ -1664,7 +1671,11 @@ function applyCanisterSize(size, { rebuildNow = true } = {}) {
   state.innerDepth = dims.innerDepth;
   state.innerHeight = dims.innerHeight;
   document.querySelectorAll("[data-canister-size]").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.canisterSize === key);
+    const entry = CANISTER_SIZE_TABLE[btn.dataset.canisterSize];
+    const active = btn.dataset.canisterSize === key;
+    btn.classList.toggle("active", active);
+    if (entry?.label) btn.textContent = entry.label;
+    if (entry?.hint) btn.title = entry.hint;
   });
   syncShapeControlsFromState();
   if (rebuildNow) {
@@ -1680,7 +1691,11 @@ function syncCanisterControlsFromState() {
   const sel = document.getElementById("canister-content");
   if (sel) sel.value = state.canisterContent || "custom";
   document.querySelectorAll("[data-canister-size]").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.canisterSize === (state.canisterSize || "md"));
+    const entry = CANISTER_SIZE_TABLE[btn.dataset.canisterSize];
+    const active = btn.dataset.canisterSize === (state.canisterSize || "md");
+    btn.classList.toggle("active", active);
+    if (entry?.label) btn.textContent = entry.label;
+    if (entry?.hint) btn.title = entry.hint;
   });
 }
 

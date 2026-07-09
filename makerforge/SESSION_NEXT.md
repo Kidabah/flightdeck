@@ -2,8 +2,8 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: see **b164** below
-- Cache-bust: `app.js?v=164` (hard refresh `/makerdeck/` or `#/makerdeck`)
+- Latest commit: see **b165** below
+- Cache-bust: `app.js?v=165` (hard refresh `/makerdeck/` or `#/makerdeck`)
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
 
@@ -16,6 +16,15 @@ Latest GitHub/Pi state:
 - Depth + length axes, 1–3 dividers: audit shows **0 open edges, 0 overused edges** (~76 tris for one divider).
 - Export guard expects ≥50 tris for sharp welded boxes.
 - Cache **b163**. Hard refresh. Re-download 3MF — Bambu should show **0 non-manifold** without Repair. Do **not** Repair old b134/b135 files.
+
+### 2026-07-09 — b165: Canister sizes from OEM coffee-tin chart
+
+**125g / 250g / 500g footprints** (`js/app.js`, `js/geometry.js`, `index.html`)
+
+- Size chips now match common tin outer dimensions (250 ml → 125g, 500 ml → 250g, 1 L → 500g).
+- Inner cavity derived from chart Ø×height minus wall + floor; hover chip for outer mm reference.
+- Default preset = **250g** (500 ml tin).
+- Cache **b165**. Hard refresh.
 
 ### 2026-07-09 — b164: Canister preset buttons always visible
 
