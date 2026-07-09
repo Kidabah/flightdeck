@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=172";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=172";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=173";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=173";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=161";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=161";
 import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=161";
@@ -1586,7 +1586,7 @@ function syncUiFromState() {
   syncInsertTopClearanceUi();
   syncSliderUi("emboss-depth", "embossDepth", { min: 0.3, max: 2, value: state.embossDepth, parseKind: "float" });
   syncSliderUi("emboss-height", "embossHeight", { min: 3, max: 48, value: state.embossHeight, parseKind: "float" });
-  syncSliderUi("emboss-arc-radius", "embossArcRadius", { min: 0, max: 80, value: state.embossArcRadius ?? 0, parseKind: "float" });
+  syncSliderUi("emboss-arc-radius", "embossArcRadius", { min: 0, max: 150, value: state.embossArcRadius ?? 0, parseKind: "float" });
   syncSliderUi("emboss-arc-sweep", "embossArcSweep", { min: 120, max: 300, value: state.embossArcSweep ?? 220, parseKind: "float" });
   syncArcRadiusUi();
   syncSliderUi("trace-threshold", "traceThreshold", { min: 20, max: 235, value: state.traceThreshold });
@@ -2433,6 +2433,27 @@ function syncArcRadiusUi() {
   if (out) out.textContent = r > 0 ? String(r) : "Auto";
 }
 
+function syncArtArcRadiusSlider() {
+  if (!meshCache) return;
+  const params = buildParams();
+  const face = params.embossFace || "front";
+  const limits = arcRadiusLimits(meshCache.meta, face, params);
+  const r = state.embossArcRadius ?? 0;
+  const clamped = r > 0 ? Math.min(limits.max, Math.max(8, r)) : 0;
+  if (r > 0 && state.embossArcRadius !== clamped) {
+    state.embossArcRadius = clamped;
+  }
+  syncSliderUi("emboss-arc-radius", "embossArcRadius", {
+    min: 0,
+    max: limits.max,
+    value: clamped,
+    parseKind: "float",
+  });
+  const slider = document.getElementById("emboss-arc-radius");
+  if (slider) slider.max = String(limits.max);
+  syncArcRadiusUi();
+}
+
 function syncArtSizeSlider() {
   if (!meshCache) return;
   const params = buildParams();
@@ -2477,6 +2498,7 @@ function syncArtEditorUi() {
   setArtSlider("emboss-arc-radius", state.embossArcRadius ?? 0);
   setArtSlider("emboss-arc-sweep", state.embossArcSweep ?? 220);
   syncArcRadiusUi();
+  syncArtArcRadiusSlider();
   syncTextLayoutUi();
   updateEmbossTextPreviewStyle();
   updateEmbossDebossUi();
@@ -2504,6 +2526,7 @@ function syncArtEditorUi() {
       : 'Graphic up / down <span class="unit">mm</span>';
   }
   syncArtSizeSlider();
+  syncArtArcRadiusSlider();
 }
 
 function pasteImageFromClipboard(e) {
@@ -3811,6 +3834,7 @@ function bindArtStateSlider(sliderId, stateKey, parseKind = "float") {
     if (out) out.textContent = slider.value;
     if (stateKey === "embossHeight") syncArtSizeSlider();
     if (stateKey === "embossArcRadius") syncArcRadiusUi();
+    if (stateKey === "embossTraceSize" && (state.embossTextLayout || "flat") === "arc") syncArtArcRadiusSlider();
     scheduleArtRebuild();
   });
   slider.addEventListener("change", () => pushAppHistory());
@@ -4328,7 +4352,7 @@ syncSliderUi("insert-thickness", "insertThickness", { min: 1.2, max: 4, value: s
 syncSliderUi("insert-clearance", "insertClearance", { min: 0.15, max: 1, value: state.insertClearance, parseKind: "float" });
 syncSliderUi("emboss-depth", "embossDepth", { min: 0.3, max: 2, value: state.embossDepth, parseKind: "float" });
 syncSliderUi("emboss-height", "embossHeight", { min: 3, max: 48, value: state.embossHeight, parseKind: "float" });
-syncSliderUi("emboss-arc-radius", "embossArcRadius", { min: 0, max: 80, value: state.embossArcRadius ?? 0, parseKind: "float" });
+syncSliderUi("emboss-arc-radius", "embossArcRadius", { min: 0, max: 150, value: state.embossArcRadius ?? 0, parseKind: "float" });
 syncSliderUi("emboss-arc-sweep", "embossArcSweep", { min: 120, max: 300, value: state.embossArcSweep ?? 220, parseKind: "float" });
 syncArcRadiusUi();
 syncSliderUi("trace-threshold", "traceThreshold", { min: 20, max: 235, value: state.traceThreshold });

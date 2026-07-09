@@ -2,10 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `680f0fa` — **b172**
-- Cache-bust: `app.js?v=172` (hard refresh `/makerdeck/` or `#/makerdeck`)
+- Latest commit: (pending) — **b173**
+- Cache-bust: `app.js?v=173` (hard refresh `/makerdeck/` or `#/makerdeck`)
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-09 — b173: Larger arc radius for label text
+
+**Art tab arc text** (`js/features.js`, `js/app.js`, `index.html`)
+
+- Auto arc radius now sizes from **traced/SVG graphic** bounds (not just SVG).
+- Bigger auto radius + manual slider up to ~92% of face width.
+- Cache **b173**. Hard refresh MakerDeck.
 
 ### 2026-07-09 — b172: Independent text vs graphic placement
 

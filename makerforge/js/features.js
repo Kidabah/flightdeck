@@ -1225,18 +1225,48 @@ function rasterArcTextMask(text, fontId, fontSizePx = 640, options = {}) {
   return { mask, width: size, height: size, arcCenterPx: [ocx, ocy], radiusPx };
 }
 
-function autoArcRadiusMm(frame, meta, params, labelH) {
-  const minDim = Math.min(frame.faceW, frame.faceH);
-  let radius = minDim * 0.34;
+function estimateGraphicArtSizeMm(frame, meta, params) {
+  const traceData = params.embossTraceRects;
+  const hasTrace =
+    params.embossTraceEnabled &&
+    traceData?.width &&
+    traceData?.height;
+  if (hasTrace) {
+    const artH = clamp(params.embossTraceSize ?? 16, 6, 56);
+    const maxW = Math.min(frame.faceW * 0.62, 56);
+    const scale = Math.min(artH / traceData.height, maxW / traceData.width);
+    if (!Number.isFinite(scale) || scale <= 0) return null;
+    return { artW: traceData.width * scale, artH: traceData.height * scale };
+  }
   if (params.embossSvgEnabled && params.embossSvgText?.trim()) {
     const parsed = parseSvgPaths(params.embossSvgText);
-    const svgLayout = computeSvgArtLayout(parsed, meta, params);
-    if (svgLayout) {
-      const svgR = Math.max(svgLayout.artW, svgLayout.artH) * 0.52 + labelH * 0.35;
-      radius = Math.max(radius, svgR);
-    }
+    const layout = computeSvgArtLayout(parsed, meta, params);
+    if (layout) return { artW: layout.artW, artH: layout.artH };
   }
-  return clamp(radius, 8, minDim * 0.46);
+  return null;
+}
+
+/** Arc radius slider limits for a face (mm). 0 = auto. */
+export function arcRadiusLimits(meta, face, params = null) {
+  const frame = getEmbossFaceFrame(meta, face || "front", params);
+  const minDim = Math.min(frame.faceW, frame.faceH);
+  return {
+    min: 0,
+    max: Math.max(100, Math.round(minDim * 0.92)),
+    maxAuto: Math.max(50, minDim * 0.72),
+  };
+}
+
+function autoArcRadiusMm(frame, meta, params, labelH) {
+  const limits = arcRadiusLimits(meta, frame.face, params);
+  const minDim = Math.min(frame.faceW, frame.faceH);
+  let radius = minDim * 0.42;
+  const graphic = estimateGraphicArtSizeMm(frame, meta, params);
+  if (graphic) {
+    const g = Math.max(graphic.artW, graphic.artH);
+    radius = Math.max(radius, g * 0.72 + labelH * 0.65);
+  }
+  return clamp(radius, 12, limits.maxAuto);
 }
 
 /** @deprecated bounds helper — prefer rasterTextMask dimensions. */
@@ -1302,8 +1332,9 @@ function computeTextArtLayout(meta, params) {
 
   let raster;
   if (arcMode) {
+    const arcLimits = arcRadiusLimits(meta, frame.face, params);
     const radiusMm = params.embossArcRadius > 0
-      ? clamp(params.embossArcRadius, 6, limits.maxWidthMm * 0.5)
+      ? clamp(params.embossArcRadius, 8, arcLimits.max)
       : autoArcRadiusMm(frame, meta, params, labelH);
     const radiusPx = (radiusMm / labelH) * fontSizePx;
     raster = rasterArcTextMask(text, fontId, fontSizePx, {
