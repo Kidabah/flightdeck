@@ -11,6 +11,8 @@ import {
   mergeMeshes,
   appendStackableLidPockets,
   appendNestStackLidRim,
+  appendFlatLidGasketGroove,
+  buildFlatLidGasketRing,
   resolveJoinerDims,
   shapeSupportsDecor,
   shapeSupportsInsert,
@@ -19,7 +21,7 @@ import {
   shapeSupportsProfileTexture,
   shapeSupportsProfileArt,
   shapeSupportsArt,
-} from "./features.js?v=167";
+} from "./features.js?v=168";
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=161";
 import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=161";
@@ -1169,6 +1171,9 @@ function buildFlatLidMesh(boxOuter, boxInner, meta, params, options) {
   const positions = [];
   const indices = [];
   buildFlatLidShell(positions, indices, boxOuter, boxInner, lidThickness, lipDepth, clearance);
+  if (params?.lidGasketEnabled) {
+    appendFlatLidGasketGroove(positions, indices, boxOuter, params);
+  }
   if (params?.stackableEnabled && meta) {
     if ((params.stackStyle || "hex") === "nest") {
       appendNestStackLidRim(positions, indices, boxOuter, params, lidThickness);
@@ -1796,6 +1801,12 @@ export function buildLid(params) {
     }
   }
 
+  let gasketRingMesh = null;
+  if (lidType === "flat" && params.lidGasketEnabled && params.lidGasketExportRing !== false) {
+    gasketRingMesh = buildFlatLidGasketRing(resolved.outer, params);
+    if (gasketRingMesh) centerPositions(gasketRingMesh.positions, 0, 0);
+  }
+
   centerPositions(lid.positions, 0, 0);
   centerPositions(shellLid.positions, 0, 0);
   return {
@@ -1808,6 +1819,7 @@ export function buildLid(params) {
     labelMesh,
     debossCutterMesh,
     shellLid,
+    gasketRingMesh,
   };
 }
 
@@ -1865,6 +1877,10 @@ export const CANISTER_SQUARE_PRESET = {
   lidThickness: 2.4,
   lidClearance: 0.3,
   lidLipDepth: 2.5,
+  lidGasketEnabled: true,
+  lidGasketWidth: 2,
+  lidGasketDepth: 1.2,
+  lidGasketExportRing: true,
   stackableEnabled: true,
   stackStyle: "hex",
   insertEnabled: false,
@@ -1890,6 +1906,10 @@ export const CANISTER_JAR_PRESET = {
   lidThickness: 2.4,
   lidClearance: 0.3,
   lidLipDepth: 2.5,
+  lidGasketEnabled: true,
+  lidGasketWidth: 2,
+  lidGasketDepth: 1.2,
+  lidGasketExportRing: true,
   stackableEnabled: false,
   stackStyle: "hex",
   insertEnabled: false,
@@ -1916,6 +1936,10 @@ export const CANISTER_STACK_PRESET = {
   lidThickness: 2.8,
   lidClearance: 0.3,
   lidLipDepth: 0,
+  lidGasketEnabled: true,
+  lidGasketWidth: 2,
+  lidGasketDepth: 1.2,
+  lidGasketExportRing: true,
   stackableEnabled: true,
   stackStyle: "nest",
   stackNestRimWidth: 5,
@@ -2019,6 +2043,10 @@ export const DEFAULTS = {
   lidThickness: 2.4,
   lidClearance: 0.35,
   lidLipDepth: 0,
+  lidGasketEnabled: false,
+  lidGasketWidth: 2,
+  lidGasketDepth: 1.2,
+  lidGasketExportRing: true,
   joinerEnabled: false,
   joinerHand: "left",
   joinerWidth: 9,

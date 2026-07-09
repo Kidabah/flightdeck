@@ -150,6 +150,11 @@ function ensureProfileCCW(points) {
   return points;
 }
 
+function offsetProfileInward(points, offset) {
+  if (!offset || offset <= 0) return points;
+  return offsetProfileEdgeJoin(points, -offset);
+}
+
 function offsetProfileOutward(points, offset) {
   if (!offset || offset <= 0) return points;
   let cx = 0;
@@ -584,6 +589,52 @@ function profileMaxRadius(profile) {
 function scaleProfileXY(profile, factor) {
   if (!factor || Math.abs(factor - 1) < 1e-6) return profile;
   return profile.map(([x, y]) => [x * factor, y * factor]);
+}
+
+function flatLidGasketProfiles(boxOuter, params) {
+  if (!params?.lidGasketEnabled || !profileIsValid(boxOuter)) return null;
+  const gasketWidth = clamp(params.lidGasketWidth ?? 2, 1.2, 4);
+  const gasketDepth = clamp(params.lidGasketDepth ?? 1.2, 0.6, 2.5);
+  const wall = params.wall ?? params.lidWall ?? 2.4;
+  const gasketInset = clamp(params.lidGasketInset ?? wall * 0.85, 1.5, 14);
+  const outerR = profileMaxRadius(boxOuter);
+  const inset = Math.min(gasketInset, Math.max(1.5, outerR - gasketWidth - 1.5));
+  const outerGroove = offsetProfileInward(boxOuter, Math.max(0.5, inset - gasketWidth / 2));
+  const innerGroove = offsetProfileInward(boxOuter, inset + gasketWidth / 2);
+  if (!profileIsValid(innerGroove) || profileMaxRadius(innerGroove) < 2) return null;
+  return { outerGroove, innerGroove, gasketDepth, gasketWidth };
+}
+
+/** Underside annular groove on flat lids — seats a printed TPU ring or cord. */
+export function appendFlatLidGasketGroove(outPos, outIdx, boxOuter, params) {
+  const groove = flatLidGasketProfiles(boxOuter, params);
+  if (!groove) return;
+  const { outerGroove, innerGroove, gasketDepth } = groove;
+  const z0 = 0;
+  const z1 = gasketDepth;
+  capRingXZ(outPos, outIdx, outerGroove, innerGroove, z0, false);
+  extrudeWallsAlongZ(outPos, outIdx, outerGroove, z0, z1);
+  extrudeWallsAlongZ(outPos, outIdx, innerGroove, z0, z1);
+  capRingXZ(outPos, outIdx, outerGroove, innerGroove, z1, true);
+}
+
+/** Printable TPU washer — mates with {@link appendFlatLidGasketGroove}. */
+export function buildFlatLidGasketRing(boxOuter, params) {
+  const groove = flatLidGasketProfiles(boxOuter, params);
+  if (!groove) return null;
+  const { outerGroove, innerGroove, gasketDepth } = groove;
+  const fit = 0.12;
+  const outerRing = offsetProfileInward(outerGroove, fit);
+  const innerRing = offsetProfileOutward(innerGroove, fit);
+  if (!profileIsValid(outerRing) || !profileIsValid(innerRing)) return null;
+  const ringHeight = gasketDepth * 0.88;
+  const positions = [];
+  const indices = [];
+  capRingXZ(positions, indices, outerRing, innerRing, 0, false);
+  extrudeWallsAlongZ(positions, indices, outerRing, 0, ringHeight);
+  extrudeWallsAlongZ(positions, indices, innerRing, 0, ringHeight);
+  capRingXZ(positions, indices, outerRing, innerRing, ringHeight, true);
+  return { positions, indices, ringHeight };
 }
 
 /**

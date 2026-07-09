@@ -2,12 +2,20 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `4674794` — **b167**
-- Cache-bust: `app.js?v=167` (hard refresh `/makerdeck/` or `#/makerdeck`)
+- Latest commit: see **b168** below
+- Cache-bust: `app.js?v=168` (hard refresh `/makerdeck/` or `#/makerdeck`)
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
 
-### 2026-07-09 — b167: Kitchen stack set (nest-stack lids)
+### 2026-07-09 — b168: Flat-lid gasket groove + TPU ring export
+
+**Optional dust seal for canisters** (`js/features.js`, `js/geometry.js`, `js/app.js`, `index.html`)
+
+- **Gasket groove** toggle on Lid tab (flat cap) — underside annular channel; on by default for kitchen canister presets.
+- Lid **3MF** exports a third **Gasket** part (grey slot) sized to the groove — print in TPU; or press in 2 mm cord.
+- Sliders: groove width / depth. Not fully airtight — better dust seal than bare plastic-on-plastic.
+- Cache **b168**. Hard refresh MakerDeck.
+
 
 **Uniform T/C/S jar tower** (`js/features.js`, `js/geometry.js`, `js/app.js`, `index.html`)
 

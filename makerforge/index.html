@@ -209,8 +209,8 @@
                   </div>
                 </div>
 
-                <p class="hint canister-food-hint">Coffee/tea/sugar use standard tin footprints; biscuits default to the wide <strong>1.5kg</strong> tin. Use food-contact filament; lids are dust covers, not airtight seals.</p>
-                <p class="hint hidden" id="canister-stack-hint">Uniform <strong>250g</strong> round jars with nest-stack lids. Export body + lid 3MF for each letter — print lids in a wood-tone filament.</p>
+                <p class="hint canister-food-hint">Coffee/tea/sugar use standard tin footprints; biscuits default to the wide <strong>1.5kg</strong> tin. Use food-contact filament. Flat lids include an optional gasket groove — print the <strong>Gasket</strong> part in TPU (or use 2&nbsp;mm cord).</p>
+                <p class="hint hidden" id="canister-stack-hint">Uniform <strong>250g</strong> round jars with nest-stack lids and gasket groove. Export body + lid 3MF per letter — print lids wood-tone PLA, <strong>Gasket</strong> in TPU.</p>
               </section>
 
             </section>
@@ -622,6 +622,36 @@
                 <button type="button" class="value-edit" id="out-lid-lip" data-slider="lid-lip" data-key="lidLipDepth" data-parse="float" aria-label="Edit flat lid retention lip depth in mm">0</button>
 
               </label>
+
+              <label class="field field-toggle hidden" id="field-lid-gasket">
+
+                <span class="field-label">Gasket groove</span>
+
+                <input type="checkbox" id="lid-gasket-enabled">
+
+              </label>
+
+              <label class="field hidden" id="field-lid-gasket-width">
+
+                <span class="field-label">Groove width</span>
+
+                <input type="range" id="lid-gasket-width" min="1.2" max="4" step="0.2" value="2" tabindex="-1">
+
+                <button type="button" class="value-edit" id="out-lid-gasket-width" data-slider="lid-gasket-width" data-key="lidGasketWidth" data-parse="float" aria-label="Edit gasket groove width in mm">2</button>
+
+              </label>
+
+              <label class="field hidden" id="field-lid-gasket-depth">
+
+                <span class="field-label">Groove depth</span>
+
+                <input type="range" id="lid-gasket-depth" min="0.6" max="2.5" step="0.1" value="1.2" tabindex="-1">
+
+                <button type="button" class="value-edit" id="out-lid-gasket-depth" data-slider="lid-gasket-depth" data-key="lidGasketDepth" data-parse="float" aria-label="Edit gasket groove depth in mm">1.2</button>
+
+              </label>
+
+              <p class="field-hint hidden" id="lid-gasket-hint">Underside groove for a printed <strong>Gasket</strong> part (included in lid 3MF) or 2&nbsp;mm TPU cord. Improves dust seal — not fully airtight.</p>
 
               <p class="field-hint" id="lid-type-hint">Exports plate-down on the bed. Skirt sits outside the box walls.</p>
 
@@ -1203,7 +1233,7 @@
 
 
 
-  <script type="module" src="js/app.js?v=167"></script>
+  <script type="module" src="js/app.js?v=168"></script>
 
 </body>
 

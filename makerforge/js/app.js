@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=167";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=168";
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark } from "./features.js?v=163";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=161";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=161";
@@ -334,6 +334,10 @@ function buildParams() {
     lidThickness: state.lidThickness,
     lidClearance: state.lidClearance,
     lidLipDepth: state.lidLipDepth,
+    lidGasketEnabled: !!state.lidGasketEnabled,
+    lidGasketWidth: state.lidGasketWidth,
+    lidGasketDepth: state.lidGasketDepth,
+    lidGasketExportRing: state.lidGasketExportRing !== false,
     lidType: normalizeLidType(state.lidType, state.shape),
     lidWall: state.wall,
     joinerEnabled: state.insertMount === "fixed" ? false : state.joinerEnabled,
@@ -679,6 +683,17 @@ function collectColoredLidExportParts() {
           extruder: extruder++,
         });
       }
+    }
+  }
+  if (params.lidGasketEnabled && lidCache.gasketRingMesh?.indices?.length) {
+    const gasketClean = sanitizeMeshForStl(orientLidForPrint(lidCache.gasketRingMesh));
+    if (gasketClean?.indices?.length) {
+      parts.push({
+        name: "Gasket",
+        mesh: gasketClean,
+        color: "#94a3b8",
+        extruder: extruder++,
+      });
     }
   }
   return parts;
@@ -1808,6 +1823,10 @@ function resetFromPresetToBasic(shape) {
   state.lidThickness = d.lidThickness;
   state.lidClearance = d.lidClearance;
   state.lidLipDepth = d.lidLipDepth;
+  state.lidGasketEnabled = d.lidGasketEnabled;
+  state.lidGasketWidth = d.lidGasketWidth;
+  state.lidGasketDepth = d.lidGasketDepth;
+  state.lidGasketExportRing = d.lidGasketExportRing !== false;
   state.stackableEnabled = d.stackableEnabled;
   state.stackStyle = d.stackStyle;
   state.lidColor = d.lidColor;
@@ -1979,6 +1998,7 @@ function updateLidUi() {
   const type = LID_TYPES.find((t) => t.id === lidType) || LID_TYPES[0];
   const isFlat = lidType === "flat";
   const lipOn = isFlat && (state.lidLipDepth ?? 0) > 0.4;
+  const gasketOn = isFlat && !!state.lidGasketEnabled;
   document.getElementById("lid-enabled").checked = !!state.lidEnabled && supported;
   document.getElementById("lid-type").value = type.id;
   document.getElementById("btn-lid-preview-fit").classList.toggle("hidden", !on);
@@ -1988,6 +2008,16 @@ function updateLidUi() {
   document.getElementById("field-lid-thickness").classList.toggle("hidden", !on);
   document.getElementById("field-lid-clearance").classList.toggle("hidden", !on || (isFlat && !lipOn));
   document.getElementById("field-lid-lip")?.classList.toggle("hidden", !on || !isFlat);
+  document.getElementById("field-lid-gasket")?.classList.toggle("hidden", !on || !isFlat);
+  document.getElementById("field-lid-gasket-width")?.classList.toggle("hidden", !on || !isFlat || !gasketOn);
+  document.getElementById("field-lid-gasket-depth")?.classList.toggle("hidden", !on || !isFlat || !gasketOn);
+  document.getElementById("lid-gasket-hint")?.classList.toggle("hidden", !on || !isFlat || !gasketOn);
+  const gasketToggle = document.getElementById("lid-gasket-enabled");
+  if (gasketToggle) gasketToggle.checked = gasketOn;
+  if (isFlat) {
+    syncSliderUi("lid-gasket-width", "lidGasketWidth", { min: 1.2, max: 4, value: state.lidGasketWidth ?? 2, parseKind: "float" });
+    syncSliderUi("lid-gasket-depth", "lidGasketDepth", { min: 0.6, max: 2.5, value: state.lidGasketDepth ?? 1.2, parseKind: "float" });
+  }
   const hint = document.getElementById("lid-type-hint");
   if (hint) {
     hint.textContent = on
@@ -3531,6 +3561,8 @@ bindRange("lid-skirt", "lidSkirt");
 bindRange("lid-thickness", "lidThickness", "float");
 bindRange("lid-clearance", "lidClearance", "float");
 bindRange("lid-lip", "lidLipDepth", "float");
+bindRange("lid-gasket-width", "lidGasketWidth", "float");
+bindRange("lid-gasket-depth", "lidGasketDepth", "float");
 bindRange("joiner-width", "joinerWidth", "float");
 bindRange("joiner-neck", "joinerNeck", "float");
 bindRange("joiner-protrusion", "joinerProtrusion", "float");
@@ -3608,6 +3640,13 @@ document.getElementById("lid-enabled").addEventListener("change", (e) => {
   updateLidUi();
   rebuild();
   if (meshCache) fitCamera(meshCache.meta);
+  pushAppHistory();
+});
+
+document.getElementById("lid-gasket-enabled")?.addEventListener("change", (e) => {
+  state.lidGasketEnabled = e.target.checked;
+  updateLidUi();
+  rebuild();
   pushAppHistory();
 });
 
@@ -4060,6 +4099,8 @@ resize();
 syncSliderUi("lid-skirt", "lidSkirt", { min: 4, max: 25, value: state.lidSkirt });
 syncSliderUi("lid-thickness", "lidThickness", { min: 2, max: 6, value: state.lidThickness, parseKind: "float" });
 syncSliderUi("lid-lip", "lidLipDepth", { min: 0, max: 8, value: state.lidLipDepth ?? 0, parseKind: "float" });
+syncSliderUi("lid-gasket-width", "lidGasketWidth", { min: 1.2, max: 4, value: state.lidGasketWidth ?? 2, parseKind: "float" });
+syncSliderUi("lid-gasket-depth", "lidGasketDepth", { min: 0.6, max: 2.5, value: state.lidGasketDepth ?? 1.2, parseKind: "float" });
 syncSliderUi("lid-clearance", "lidClearance", { min: 0.15, max: 0.8, value: state.lidClearance, parseKind: "float" });
 syncSliderUi("joiner-width", "joinerWidth", { min: 5, max: 22, value: state.joinerWidth, parseKind: "float" });
 syncSliderUi("joiner-neck", "joinerNeck", { min: 3, max: 16, value: state.joinerNeck, parseKind: "float" });
