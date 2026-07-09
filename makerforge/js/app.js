@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=173";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=173";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=174";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=174";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=161";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=161";
 import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=161";
@@ -373,6 +373,9 @@ function buildParams() {
     embossTextLayout: state.embossTextLayout || "flat",
     embossArcRadius: state.embossArcRadius ?? 0,
     embossArcSweep: state.embossArcSweep ?? 220,
+    embossArcStartDeg: state.embossArcStartDeg ?? -90,
+    embossArcTilt: state.embossArcTilt ?? 0,
+    embossArcSpacing: state.embossArcSpacing ?? 1,
     textOffsetX: state.textOffsetX ?? 0,
     textOffsetY: state.textOffsetY ?? 0,
     textRotation: state.textRotation ?? 0,
@@ -543,6 +546,22 @@ function syncTextLayoutUi() {
   document.getElementById("field-text-align")?.classList.toggle("hidden", arcOn);
   document.getElementById("field-arc-radius")?.classList.toggle("hidden", !arcOn);
   document.getElementById("field-arc-sweep")?.classList.toggle("hidden", !arcOn);
+  document.getElementById("field-arc-start")?.classList.toggle("hidden", !arcOn);
+  document.getElementById("field-arc-tilt")?.classList.toggle("hidden", !arcOn);
+  document.getElementById("field-arc-spacing")?.classList.toggle("hidden", !arcOn);
+  document.getElementById("field-text-rotation")?.classList.toggle("hidden", arcOn);
+  const textOx = document.querySelector("#field-text-offset-x .field-label");
+  const textOy = document.querySelector("#field-text-offset-y .field-label");
+  if (textOx) {
+    textOx.innerHTML = arcOn
+      ? 'Arc centre left / right <span class="unit">mm</span>'
+      : 'Text left / right <span class="unit">mm</span>';
+  }
+  if (textOy) {
+    textOy.innerHTML = arcOn
+      ? 'Arc centre up / down <span class="unit">mm</span>'
+      : 'Text up / down <span class="unit">mm</span>';
+  }
 }
 
 function setupColorPickers() {
@@ -1587,7 +1606,10 @@ function syncUiFromState() {
   syncSliderUi("emboss-depth", "embossDepth", { min: 0.3, max: 2, value: state.embossDepth, parseKind: "float" });
   syncSliderUi("emboss-height", "embossHeight", { min: 3, max: 48, value: state.embossHeight, parseKind: "float" });
   syncSliderUi("emboss-arc-radius", "embossArcRadius", { min: 0, max: 150, value: state.embossArcRadius ?? 0, parseKind: "float" });
-  syncSliderUi("emboss-arc-sweep", "embossArcSweep", { min: 120, max: 300, value: state.embossArcSweep ?? 220, parseKind: "float" });
+  syncSliderUi("emboss-arc-sweep", "embossArcSweep", { min: 40, max: 360, value: state.embossArcSweep ?? 220, parseKind: "float" });
+  syncSliderUi("emboss-arc-start", "embossArcStartDeg", { min: -180, max: 180, value: state.embossArcStartDeg ?? -90, parseKind: "float" });
+  syncSliderUi("emboss-arc-tilt", "embossArcTilt", { min: -180, max: 180, value: state.embossArcTilt ?? 0, parseKind: "float" });
+  syncSliderUi("emboss-arc-spacing", "embossArcSpacing", { min: 0.7, max: 1.8, value: state.embossArcSpacing ?? 1, parseKind: "float" });
   syncArcRadiusUi();
   syncSliderUi("trace-threshold", "traceThreshold", { min: 20, max: 235, value: state.traceThreshold });
   syncSliderUi("trace-size", "embossTraceSize", { min: 6, max: 56, value: state.embossTraceSize, parseKind: "float" });
@@ -2389,6 +2411,8 @@ function clearDecorFromBox() {
   state.textOffsetX = 0;
   state.textOffsetY = 0;
   state.textRotation = 0;
+  state.embossArcTilt = 0;
+  state.embossArcStartDeg = -90;
   document.getElementById("emboss-text").value = "";
   document.getElementById("emboss-svg-enabled").checked = false;
   pushAppHistory();
@@ -2439,7 +2463,7 @@ function syncArtArcRadiusSlider() {
   const face = params.embossFace || "front";
   const limits = arcRadiusLimits(meshCache.meta, face, params);
   const r = state.embossArcRadius ?? 0;
-  const clamped = r > 0 ? Math.min(limits.max, Math.max(8, r)) : 0;
+  const clamped = r > 0 ? Math.min(limits.max, Math.max(15, r)) : 0;
   if (r > 0 && state.embossArcRadius !== clamped) {
     state.embossArcRadius = clamped;
   }
@@ -2497,6 +2521,9 @@ function syncArtEditorUi() {
   setArtSlider("trace-size", state.embossTraceSize ?? 16);
   setArtSlider("emboss-arc-radius", state.embossArcRadius ?? 0);
   setArtSlider("emboss-arc-sweep", state.embossArcSweep ?? 220);
+  setArtSlider("emboss-arc-start", state.embossArcStartDeg ?? -90, "float");
+  setArtSlider("emboss-arc-tilt", Math.round((state.embossArcTilt ?? 0) * 10) / 10, "float");
+  setArtSlider("emboss-arc-spacing", state.embossArcSpacing ?? 1, "float");
   syncArcRadiusUi();
   syncArtArcRadiusSlider();
   syncTextLayoutUi();
@@ -3844,6 +3871,9 @@ bindArtStateSlider("emboss-height", "embossHeight");
 bindArtStateSlider("emboss-depth", "embossDepth");
 bindArtStateSlider("emboss-arc-radius", "embossArcRadius", "float");
 bindArtStateSlider("emboss-arc-sweep", "embossArcSweep", "float");
+bindArtStateSlider("emboss-arc-start", "embossArcStartDeg", "float");
+bindArtStateSlider("emboss-arc-tilt", "embossArcTilt", "float");
+bindArtStateSlider("emboss-arc-spacing", "embossArcSpacing", "float");
 bindArtStateSlider("text-offset-x", "textOffsetX", "float");
 bindArtStateSlider("text-offset-y", "textOffsetY", "float");
 bindArtStateSlider("text-rotation", "textRotation", "float");
@@ -3959,6 +3989,8 @@ document.getElementById("emboss-text").addEventListener("input", (e) => {
   state.embossText = e.target.value;
   if (textHasInk(state.embossText) && hasGraphicArt(buildParams()) && (state.embossTextLayout || "flat") === "flat") {
     state.embossTextLayout = "arc";
+    state.textRotation = 0;
+    state.embossArcTilt = 0;
     syncTextLayoutUi();
   }
   updateDecorUi();
@@ -4352,8 +4384,11 @@ syncSliderUi("insert-thickness", "insertThickness", { min: 1.2, max: 4, value: s
 syncSliderUi("insert-clearance", "insertClearance", { min: 0.15, max: 1, value: state.insertClearance, parseKind: "float" });
 syncSliderUi("emboss-depth", "embossDepth", { min: 0.3, max: 2, value: state.embossDepth, parseKind: "float" });
 syncSliderUi("emboss-height", "embossHeight", { min: 3, max: 48, value: state.embossHeight, parseKind: "float" });
-syncSliderUi("emboss-arc-radius", "embossArcRadius", { min: 0, max: 150, value: state.embossArcRadius ?? 0, parseKind: "float" });
-syncSliderUi("emboss-arc-sweep", "embossArcSweep", { min: 120, max: 300, value: state.embossArcSweep ?? 220, parseKind: "float" });
+syncSliderUi("emboss-arc-radius", "embossArcRadius", { min: 0, max: 200, value: state.embossArcRadius ?? 0, parseKind: "float" });
+syncSliderUi("emboss-arc-sweep", "embossArcSweep", { min: 40, max: 360, value: state.embossArcSweep ?? 220, parseKind: "float" });
+syncSliderUi("emboss-arc-start", "embossArcStartDeg", { min: -180, max: 180, value: state.embossArcStartDeg ?? -90, parseKind: "float" });
+syncSliderUi("emboss-arc-tilt", "embossArcTilt", { min: -180, max: 180, value: state.embossArcTilt ?? 0, parseKind: "float" });
+syncSliderUi("emboss-arc-spacing", "embossArcSpacing", { min: 0.7, max: 1.8, value: state.embossArcSpacing ?? 1, parseKind: "float" });
 syncArcRadiusUi();
 syncSliderUi("trace-threshold", "traceThreshold", { min: 20, max: 235, value: state.traceThreshold });
 syncSliderUi("trace-size", "embossTraceSize", { min: 6, max: 56, value: state.embossTraceSize, parseKind: "float" });

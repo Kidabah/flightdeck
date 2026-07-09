@@ -2,10 +2,20 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `1a17806` — **b173**
-- Cache-bust: `app.js?v=173` (hard refresh `/makerdeck/` or `#/makerdeck`)
+- Latest commit: (pending) — **b174**
+- Cache-bust: `app.js?v=174` (hard refresh `/makerdeck/` or `#/makerdeck`)
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-09 — b174: Full arc text controls
+
+**Arc text tuning** (`js/features.js`, `js/app.js`, `index.html`, `js/geometry.js`)
+
+- Arc centre moves independently (left/right + up/down position the circle centre, not just the bbox).
+- New sliders: **Arc start** (−90 = top), **Arc tilt**, **Letter spacing**.
+- Arc span 40–360°; radius up to ~115% of face width; auto sizes wider around traced art.
+- Flat-mode **Text rotation** hidden in arc mode — use **Arc tilt** instead (fixes the 104° mess).
+- Cache **b174**. Hard refresh MakerDeck.
 
 ### 2026-07-09 — b173: Larger arc radius for label text
 

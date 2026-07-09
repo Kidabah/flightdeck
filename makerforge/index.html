@@ -962,9 +962,39 @@
 
                 <span class="field-label">Arc span <span class="unit">°</span></span>
 
-                <input type="range" id="emboss-arc-sweep" min="120" max="300" step="5" value="220" tabindex="-1">
+                <input type="range" id="emboss-arc-sweep" min="40" max="360" step="5" value="220" tabindex="-1">
 
                 <button type="button" class="value-edit" id="out-emboss-arc-sweep" data-slider="emboss-arc-sweep" data-key="embossArcSweep" data-parse="float">220</button>
+
+              </label>
+
+              <label class="field hidden" id="field-arc-start">
+
+                <span class="field-label">Arc start <span class="unit">°</span> <span class="field-hint-inline">−90 = top</span></span>
+
+                <input type="range" id="emboss-arc-start" min="-180" max="180" step="5" value="-90" tabindex="-1">
+
+                <button type="button" class="value-edit" id="out-emboss-arc-start" data-slider="emboss-arc-start" data-key="embossArcStartDeg" data-parse="float">-90</button>
+
+              </label>
+
+              <label class="field hidden" id="field-arc-tilt">
+
+                <span class="field-label">Arc tilt <span class="unit">°</span></span>
+
+                <input type="range" id="emboss-arc-tilt" min="-180" max="180" step="0.5" value="0" tabindex="-1">
+
+                <button type="button" class="value-edit" id="out-emboss-arc-tilt" data-slider="emboss-arc-tilt" data-key="embossArcTilt" data-parse="float">0</button>
+
+              </label>
+
+              <label class="field hidden" id="field-arc-spacing">
+
+                <span class="field-label">Letter spacing</span>
+
+                <input type="range" id="emboss-arc-spacing" min="0.7" max="1.8" step="0.05" value="1" tabindex="-1">
+
+                <button type="button" class="value-edit" id="out-emboss-arc-spacing" data-slider="emboss-arc-spacing" data-key="embossArcSpacing" data-parse="float">1</button>
 
               </label>
 
@@ -1309,7 +1339,7 @@
 
 
 
-  <script type="module" src="js/app.js?v=173"></script>
+  <script type="module" src="js/app.js?v=174"></script>
 
 </body>
 

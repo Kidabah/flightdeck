@@ -1177,10 +1177,10 @@ function rasterArcTextMask(text, fontId, fontSizePx = 640, options = {}) {
   const font = embossFontStack(fontId, fontSizePx);
   ctx.font = font;
 
-  const letterSpacing = 1.1;
+  const letterSpacing = clamp(options.spacing ?? 1.1, 0.55, 2.2);
   const charWidths = chars.map((c) => ctx.measureText(c).width);
   const totalWidth = charWidths.reduce((a, b) => a + b, 0) * letterSpacing;
-  const sweepDeg = clamp(options.sweepDeg ?? 220, 90, 320);
+  const sweepDeg = clamp(options.sweepDeg ?? 220, 35, 360);
   const sweepRad = (sweepDeg * Math.PI) / 180;
   const radiusPx = Math.max(
     fontSizePx * 0.85,
@@ -1250,23 +1250,24 @@ function estimateGraphicArtSizeMm(frame, meta, params) {
 export function arcRadiusLimits(meta, face, params = null) {
   const frame = getEmbossFaceFrame(meta, face || "front", params);
   const minDim = Math.min(frame.faceW, frame.faceH);
+  const maxDim = Math.max(frame.faceW, frame.faceH);
   return {
     min: 0,
-    max: Math.max(100, Math.round(minDim * 0.92)),
-    maxAuto: Math.max(50, minDim * 0.72),
+    max: Math.max(140, Math.round(maxDim * 1.15)),
+    maxAuto: Math.max(60, minDim * 0.88),
   };
 }
 
 function autoArcRadiusMm(frame, meta, params, labelH) {
   const limits = arcRadiusLimits(meta, frame.face, params);
   const minDim = Math.min(frame.faceW, frame.faceH);
-  let radius = minDim * 0.42;
+  let radius = minDim * 0.48;
   const graphic = estimateGraphicArtSizeMm(frame, meta, params);
   if (graphic) {
     const g = Math.max(graphic.artW, graphic.artH);
-    radius = Math.max(radius, g * 0.72 + labelH * 0.65);
+    radius = Math.max(radius, g * 0.88 + labelH * 0.75);
   }
-  return clamp(radius, 12, limits.maxAuto);
+  return clamp(radius, 18, limits.maxAuto);
 }
 
 /** @deprecated bounds helper — prefer rasterTextMask dimensions. */
@@ -1334,12 +1335,14 @@ function computeTextArtLayout(meta, params) {
   if (arcMode) {
     const arcLimits = arcRadiusLimits(meta, frame.face, params);
     const radiusMm = params.embossArcRadius > 0
-      ? clamp(params.embossArcRadius, 8, arcLimits.max)
+      ? clamp(params.embossArcRadius, 15, arcLimits.max)
       : autoArcRadiusMm(frame, meta, params, labelH);
     const radiusPx = (radiusMm / labelH) * fontSizePx;
     raster = rasterArcTextMask(text, fontId, fontSizePx, {
       sweepDeg: params.embossArcSweep ?? 220,
       radiusPx,
+      startDeg: params.embossArcStartDeg ?? -90,
+      spacing: params.embossArcSpacing ?? 1,
     });
   } else {
     raster = rasterTextMask(text, fontId, fontSizePx, params.embossTextAlign || "left");
@@ -1355,15 +1358,43 @@ function computeTextArtLayout(meta, params) {
 
   const artW = glyph.width * scale;
   const artH = glyph.height * scale;
-  const { xOff, zOff } = decorPlacementOffsets(params, frame, artW, artH, "text");
-  const left = xOff;
-  const right = xOff + artW;
-  const bottom = zOff;
-  const top = zOff + artH;
-  const cx = xOff + artW / 2;
-  const cy = zOff + artH / 2;
-  const canvasXOff = xOff - glyph.left * scale;
-  const canvasZOff = zOff - (maskH - glyph.bottom) * scale;
+
+  let left;
+  let right;
+  let bottom;
+  let top;
+  let cx;
+  let cy;
+  let canvasXOff;
+  let canvasZOff;
+  let rotation;
+
+  if (arcMode && raster.arcCenterPx) {
+    const [acxPx, acyPx] = raster.arcCenterPx;
+    const faceCy = frame.horizontal ? 0 : frame.centerZ;
+    const targetCx = params.textOffsetX ?? 0;
+    const targetCy = faceCy + (params.textOffsetY ?? 0);
+    canvasXOff = targetCx - acxPx * scale;
+    canvasZOff = targetCy - (maskH - acyPx) * scale;
+    left = canvasXOff + glyph.left * scale;
+    right = canvasXOff + (glyph.right + 1) * scale;
+    bottom = canvasZOff + (maskH - glyph.bottom - 1) * scale;
+    top = canvasZOff + (maskH - glyph.top) * scale;
+    cx = targetCx;
+    cy = targetCy;
+    rotation = params.embossArcTilt ?? 0;
+  } else {
+    const { xOff, zOff } = decorPlacementOffsets(params, frame, artW, artH, "text");
+    left = xOff;
+    right = xOff + artW;
+    bottom = zOff;
+    top = zOff + artH;
+    cx = xOff + artW / 2;
+    cy = zOff + artH / 2;
+    canvasXOff = xOff - glyph.left * scale;
+    canvasZOff = zOff - (maskH - glyph.bottom) * scale;
+    rotation = params.textRotation ?? 0;
+  }
 
   return {
     frame,
@@ -1381,7 +1412,7 @@ function computeTextArtLayout(meta, params) {
     top,
     cx,
     cy,
-    rotation: params.textRotation ?? 0,
+    rotation,
     glyphHeightMm: artH,
     arcMode,
   };
