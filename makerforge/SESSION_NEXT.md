@@ -2,12 +2,22 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `8b81631` — **b174**
-- Cache-bust: `app.js?v=174` (hard refresh `/makerdeck/` or `#/makerdeck`)
+- Latest commit: (b175 deploy pending)
+- Cache-bust: `app.js?v=175` (hard refresh `/makerdeck/` or `#/makerdeck`)
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
 
-### 2026-07-09 — b174: Full arc text controls
+### 2026-07-09 — b175: Word-style arc text (presets + curve slider)
+
+**Arc text UX** (`js/features.js`, `js/app.js`, `js/geometry.js`, `index.html`)
+
+- **Curve style** presets: Arch up, Arch down, Banner (like Word WordArt).
+- Single **Curve amount** slider (0–100) bends radius; old radius/sweep/start/tilt/spacing tucked under **Fine tune arc…**
+- Letter spacing now **centres the word** on the arc (no more “rotating” the whole word).
+- Typing text with a graphic auto-applies **Arch up** and nudges text above the art.
+- Flat **Text rotation** hidden in arc mode (syncArtEditorUi fix).
+- Cache **b175**. Hard refresh MakerDeck.
+
 
 **Arc text tuning** (`js/features.js`, `js/app.js`, `index.html`, `js/geometry.js`)
 

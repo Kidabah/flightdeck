@@ -1195,18 +1195,23 @@ function rasterArcTextMask(text, fontId, fontSizePx = 640, options = {}) {
   const ocy = size / 2;
 
   const startAngle = ((options.startDeg ?? -90) * Math.PI) / 180;
-  const arcLen = radiusPx * sweepRad;
-  const pxPerRad = totalWidth / arcLen;
 
   ctx.font = font;
   ctx.fillStyle = "#000";
   ctx.textBaseline = "middle";
   ctx.textAlign = "center";
 
+  let totalDist = 0;
+  for (let i = 0; i < chars.length; i++) {
+    totalDist += charWidths[i] * letterSpacing;
+  }
+  const letterSpanRad = totalDist / radiusPx;
+  const angleOffset = Math.max(0, (sweepRad - letterSpanRad) / 2);
+
   let dist = 0;
   for (let i = 0; i < chars.length; i++) {
     const w = charWidths[i] * letterSpacing;
-    const angle = startAngle + (dist + w / 2) * pxPerRad / radiusPx;
+    const angle = startAngle + angleOffset + (dist + w / 2) / radiusPx;
     const x = ocx + Math.cos(angle) * radiusPx;
     const y = ocy + Math.sin(angle) * radiusPx;
     ctx.save();
@@ -1268,6 +1273,18 @@ function autoArcRadiusMm(frame, meta, params, labelH) {
     radius = Math.max(radius, g * 0.88 + labelH * 0.75);
   }
   return clamp(radius, 18, limits.maxAuto);
+}
+
+/** Curve slider 0–100 → radius mm (Word-style “how bent”). */
+export function resolveArcRadiusMm(frame, meta, params, labelH) {
+  const limits = arcRadiusLimits(meta, frame.face, params);
+  if (params.embossArcRadius > 0) {
+    return clamp(params.embossArcRadius, 15, limits.max);
+  }
+  const auto = autoArcRadiusMm(frame, meta, params, labelH);
+  const curve = clamp(params.embossArcCurve ?? 60, 0, 100);
+  const scale = 0.48 + (curve / 100) * 1.05;
+  return clamp(auto * scale, 15, limits.max);
 }
 
 /** @deprecated bounds helper — prefer rasterTextMask dimensions. */
@@ -1333,10 +1350,7 @@ function computeTextArtLayout(meta, params) {
 
   let raster;
   if (arcMode) {
-    const arcLimits = arcRadiusLimits(meta, frame.face, params);
-    const radiusMm = params.embossArcRadius > 0
-      ? clamp(params.embossArcRadius, 15, arcLimits.max)
-      : autoArcRadiusMm(frame, meta, params, labelH);
+    const radiusMm = resolveArcRadiusMm(frame, meta, params, labelH);
     const radiusPx = (radiusMm / labelH) * fontSizePx;
     raster = rasterArcTextMask(text, fontId, fontSizePx, {
       sweepDeg: params.embossArcSweep ?? 220,

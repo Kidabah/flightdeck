@@ -948,6 +948,42 @@
 
               </div>
 
+              <div class="field hidden" id="field-arc-style">
+
+                <span class="field-label">Curve style</span>
+
+                <p class="field-hint">Like Word — pick a shape, then drag <strong>Curve amount</strong>.</p>
+
+                <div class="align-grid" role="group" aria-label="Curve style">
+
+                  <button type="button" class="align-btn arc-preset-btn active" data-arc-preset="arch-up">Arch up</button>
+
+                  <button type="button" class="align-btn arc-preset-btn" data-arc-preset="arch-down">Arch down</button>
+
+                  <button type="button" class="align-btn arc-preset-btn" data-arc-preset="banner">Banner</button>
+
+                </div>
+
+              </div>
+
+              <label class="field hidden" id="field-arc-curve">
+
+                <span class="field-label">Curve amount</span>
+
+                <input type="range" id="emboss-arc-curve" min="0" max="100" step="1" value="60" tabindex="-1">
+
+                <button type="button" class="value-edit" id="out-emboss-arc-curve" data-slider="emboss-arc-curve" data-key="embossArcCurve" data-parse="int">60</button>
+
+              </label>
+
+              <div class="art-actions-bar hidden" id="field-arc-advanced-toggle">
+
+                <button type="button" id="btn-arc-advanced" class="btn btn-secondary">Fine tune arc…</button>
+
+              </div>
+
+              <div id="field-arc-advanced" class="hidden">
+
               <label class="field hidden" id="field-arc-radius">
 
                 <span class="field-label">Arc radius <span class="unit">mm</span> <span class="field-hint-inline">0 = auto</span></span>
@@ -998,7 +1034,9 @@
 
               </label>
 
-              <div class="art-divider hidden" id="field-text-transform-div" aria-hidden="true"><span>text position</span></div>
+              </div>
+
+              <div class="art-divider hidden" id="field-text-transform-div" aria-hidden="true"><span>move text</span></div>
 
               <label class="field hidden" id="field-text-offset-x">
 
@@ -1339,7 +1377,7 @@
 
 
 
-  <script type="module" src="js/app.js?v=174"></script>
+  <script type="module" src="js/app.js?v=175"></script>
 
 </body>
 
