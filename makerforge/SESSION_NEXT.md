@@ -2,10 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `80510d8` — **b176**
-- Cache-bust: `app.js?v=176` (hard refresh `/makerdeck/` or `#/makerdeck`)
+- Latest commit: (b177 deploy pending)
+- Cache-bust: `app.js?v=177` (hard refresh `/makerdeck/` or `#/makerdeck`)
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-10 — b177: Fix missing front wall on multi-colour export
+
+**Export** (`js/features.js`, `js/app.js`, `index.html`)
+
+- Body export now **punches wall pockets only under art + text** instead of leaving a coplanar face Bambu strips away.
+- Art/Text parts fill those pockets; wall remains everywhere else on the front face.
+- Cache **b177**. Hard refresh and re-export 3MF.
 
 ### 2026-07-09 — b176: Fix arch down + wide preset
 

@@ -1566,6 +1566,227 @@ function collectTextEmbossShapeGroups(meta, params) {
   };
 }
 
+function inflateShapeGroups(shapeGroups, padMm = 0.25) {
+  if (!padMm || !shapeGroups?.length) return shapeGroups;
+  return shapeGroups.map((group) => ({
+    outer: inflateRing(group.outer, padMm),
+    holes: group.holes.map((hole) => inflateRing(hole, -padMm)),
+  }));
+}
+
+function inflateRing(ring, pad) {
+  if (!ring?.length || !pad) return ring;
+  const pts = ring[0][0] === ring[ring.length - 1][0] && ring[0][1] === ring[ring.length - 1][1]
+    ? ring.slice(0, -1)
+    : ring.slice();
+  let cx = 0;
+  let cy = 0;
+  for (const [x, y] of pts) {
+    cx += x;
+    cy += y;
+  }
+  cx /= pts.length;
+  cy /= pts.length;
+  const out = pts.map(([x, y]) => {
+    const dx = x - cx;
+    const dy = y - cy;
+    const len = Math.hypot(dx, dy) || 1;
+    return [x + (dx / len) * pad, y + (dy / len) * pad];
+  });
+  if (out.length) out.push(out[0]);
+  return out;
+}
+
+function collectBitmapGraphicShapeGroups(meta, params, bitmap) {
+  if (!bitmap?.width || !bitmap.height) return null;
+  const artH = clamp(params.embossTraceSize ?? 16, 6, 56);
+  const frame = getEmbossFaceFrame(meta, params.embossFace || "front", params);
+  const maxW = Math.min(frame.faceW * 0.62, 56);
+  const scale = Math.min(artH / bitmap.height, maxW / bitmap.width);
+  if (!Number.isFinite(scale) || scale <= 0) return null;
+
+  const artWidth = bitmap.width * scale;
+  const { xOff, zOff } = decorPlacementOffsets(params, frame, artWidth, artH);
+  const rotCx = xOff + artWidth / 2;
+  const rotCy = zOff + artH / 2;
+  const rotation = params.decorRotation ?? 0;
+  const maskW = Math.round(bitmap.width);
+  const maskH = Math.round(bitmap.height);
+  if (maskW <= 0 || maskH <= 0) return null;
+
+  const mapFaceGroup = (group) => {
+    const remapped = {
+      outer: group.outer.map(([px, py]) => [xOff + px * scale, zOff + (maskH - py) * scale]),
+      holes: group.holes.map((h) => h.map(([px, py]) => [xOff + px * scale, zOff + (maskH - py) * scale])),
+    };
+    let shaped = rotateShapeGroup(remapped, rotCx, rotCy, rotation);
+    if (frame.face === "wrap") shaped = normalizeWrapShapeGroups([shaped], frame.faceW, rotCx)[0];
+    return shaped;
+  };
+
+  const groups = [];
+  if (bitmap.shapeGroups?.length) {
+    for (const group of bitmap.shapeGroups) groups.push(mapFaceGroup(group));
+  } else if (bitmap.mask?.length === maskW * maskH) {
+    const mask = bitmap.mask instanceof Uint8Array ? bitmap.mask : new Uint8Array(bitmap.mask);
+    const hiRes = maskW >= 1800;
+    const smoothPasses = hiRes ? 5 : artH <= 12 ? 4 : artH <= 20 ? 3 : 2;
+    const simplifyTol = hiRes ? Math.max(0.1, maskW / 1400) : Math.max(0.28, maskW / 480);
+    const shapeGroups = prepareShapeGroups(
+      groupPolygonsWithHoles(maskToPolygons(mask, maskW, maskH)),
+      simplifyTol,
+      smoothPasses,
+    );
+    for (const group of shapeGroups) groups.push(mapFaceGroup(group));
+  } else if (bitmap.strokePaths?.length) {
+    const smoothPasses = artH <= 12 ? 5 : artH <= 20 ? 4 : 3;
+    const simplifyTol = Math.max(0.22, maskW / 520);
+    const paths = prepareStrokePaths(bitmap.strokePaths, simplifyTol, smoothPasses);
+    const strokePx = bitmap.strokeWidth ?? Math.max(1.35, maskW / 88);
+    const halfW = clamp(scale * strokePx * 0.55, 0.35, 1.8);
+    const mapPt = (px, py) => rotateFacePoint(rotCx, rotCy, xOff + px * scale, zOff + (maskH - py) * scale, rotation);
+    for (const path of paths) {
+      if (path.length < 2) continue;
+      for (let i = 0; i < path.length - 1; i++) {
+        const [x0, y0] = mapPt(path[i][0], path[i][1]);
+        const [x1, y1] = mapPt(path[i + 1][0], path[i + 1][1]);
+        const dx = x1 - x0;
+        const dy = y1 - y0;
+        const len = Math.hypot(dx, dy) || 1;
+        const nx = (-dy / len) * halfW;
+        const ny = (dx / len) * halfW;
+        groups.push({
+          outer: [
+            [x0 + nx, y0 + ny],
+            [x1 + nx, y1 + ny],
+            [x1 - nx, y1 - ny],
+            [x0 - nx, y0 - ny],
+            [x0 + nx, y0 + ny],
+          ],
+          holes: [],
+        });
+      }
+    }
+  }
+
+  return groups.length ? { frame, shapeGroups: groups } : null;
+}
+
+function collectSvgGraphicShapeGroups(meta, params, svgText) {
+  const parsed = parseSvgPaths(svgText);
+  const layout = computeSvgArtLayout(parsed, meta, params);
+  if (!layout) return null;
+
+  const { frame, sw, sh, artH, scale } = layout;
+  const strokePaths = parsed.strokePaths || [];
+  const fillRings = parsed.fillRings || [];
+  const groups = [];
+
+  if (fillRings.length) {
+    const simplifyTol = Math.max(0.12, Math.max(sw, sh) / 480);
+    const smoothPasses = artH <= 12 ? 4 : artH <= 20 ? 3 : 2;
+    const rawGroups = fillRings.map((ring) => ({ outer: ring, holes: [] }));
+    const shapeGroups = prepareShapeGroups(rawGroups, simplifyTol, smoothPasses);
+    for (const group of shapeGroups) {
+      const remapped = {
+        outer: group.outer.map(([x, y]) => mapSvgArtPoint(layout, x, y)),
+        holes: group.holes.map((h) => h.map(([x, y]) => mapSvgArtPoint(layout, x, y))),
+      };
+      let shaped = remapped;
+      if (frame.face === "wrap") shaped = normalizeWrapShapeGroups([remapped], frame.faceW, layout.rotCx)[0];
+      groups.push(shaped);
+    }
+  }
+
+  if (strokePaths.length) {
+    const svgStroke = parsed.strokeWidth ?? 1.5;
+    const halfW = clamp(scale * svgStroke * 0.55, 0.35, 1.8);
+    const smoothPasses = artH <= 12 ? 4 : artH <= 20 ? 3 : 2;
+    const simplifyTol = Math.max(0.18, Math.max(sw, sh) / 520);
+    const closedPaths = strokePaths.map((line) => {
+      if (line.length < 2) return line;
+      const a = line[0];
+      const b = line[line.length - 1];
+      if (Math.hypot(a[0] - b[0], a[1] - b[1]) < 0.5) return line;
+      return [...line, a];
+    });
+    const paths = prepareStrokePaths(closedPaths, simplifyTol, smoothPasses);
+    for (const path of paths) {
+      if (path.length < 2) continue;
+      for (let i = 0; i < path.length - 1; i++) {
+        const [x0, y0] = mapSvgArtPoint(layout, path[i][0], path[i][1]);
+        const [x1, y1] = mapSvgArtPoint(layout, path[i + 1][0], path[i + 1][1]);
+        const dx = x1 - x0;
+        const dy = y1 - y0;
+        const len = Math.hypot(dx, dy) || 1;
+        const nx = (-dy / len) * halfW;
+        const ny = (dx / len) * halfW;
+        groups.push({
+          outer: [
+            [x0 + nx, y0 + ny],
+            [x1 + nx, y1 + ny],
+            [x1 - nx, y1 - ny],
+            [x0 - nx, y0 - ny],
+            [x0 + nx, y0 + ny],
+          ],
+          holes: [],
+        });
+      }
+    }
+  }
+
+  return groups.length ? { frame, shapeGroups: groups } : null;
+}
+
+function collectGraphicEmbossShapeGroups(meta, params, svgText = "") {
+  const traceData = params.embossTraceRects;
+  const hasTrace =
+    params.embossTraceEnabled &&
+    (traceData?.shapeGroups?.length ||
+      traceData?.strokePaths?.length ||
+      traceData?.mask?.length ||
+      traceData?.rects?.length);
+  const hasSvg = params.embossSvgEnabled && !!svgText?.trim() && !hasTrace;
+  if (hasTrace) return collectBitmapGraphicShapeGroups(meta, params, traceData);
+  if (hasSvg) return collectSvgGraphicShapeGroups(meta, params, svgText);
+  return null;
+}
+
+/** Combined text + graphic ink footprint on the label face (for export wall pockets). */
+export function collectLabelEmbossShapeGroups(meta, params, svgText = "") {
+  const groups = [];
+  let frame = null;
+  const textCol = collectTextEmbossShapeGroups(meta, params);
+  if (textCol) {
+    frame = textCol.frame;
+    groups.push(...textCol.shapeGroups);
+  }
+  const graphicCol = collectGraphicEmbossShapeGroups(meta, params, svgText);
+  if (graphicCol) {
+    frame = frame || graphicCol.frame;
+    if (graphicCol.frame?.face !== frame?.face) return textCol || graphicCol;
+    groups.push(...graphicCol.shapeGroups);
+  }
+  if (!groups.length || !frame) return null;
+  return { frame, shapeGroups: groups };
+}
+
+/** Cut wall pockets under separate-colour art so the slicer keeps the rest of the face. */
+export function punchBodyShellForLabelExport(shellMesh, meta, params, svgText = "") {
+  if (!shellMesh?.indices?.length) return shellMesh;
+  const face = params.embossFace || "front";
+  if (face === "lid" || face === "wrap" || params.embossDeboss) return shellMesh;
+  const collected = collectLabelEmbossShapeGroups(meta, params, svgText);
+  if (!collected?.shapeGroups?.length) return shellMesh;
+  const inflated = inflateShapeGroups(collected.shapeGroups, 0.3);
+  return removeWallTrisUnderEmboss(
+    { positions: shellMesh.positions.slice(), indices: shellMesh.indices.slice() },
+    collected.frame,
+    meta,
+    inflated,
+  );
+}
+
 function exteriorFacePlane(frame, meta) {
   const b = rectFeatureBounds(meta);
   const eps = 0.06;

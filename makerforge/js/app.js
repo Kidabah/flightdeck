@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=176";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=176";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=177";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, punchBodyShellForLabelExport } from "./features.js?v=177";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=161";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=161";
 import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=161";
@@ -781,7 +781,11 @@ function resolveBodyExportMesh(exportCache, params, separateText, stamp = null) 
     throw new Error("Fixed divider export failed — use Width or Depth axis (not Height shelves).");
   }
   if (separateText || hasSeparateArtExport(params)) {
-    return finalizeBodyExportMesh(shell, exportCache.meta, params, stamp);
+    let body = shell;
+    if ((params.embossFace || "front") !== "lid") {
+      body = punchBodyShellForLabelExport(shell, exportCache.meta, params, params.embossSvgText || "");
+    }
+    return finalizeBodyExportMesh(body, exportCache.meta, params, stamp);
   }
   const mesh = buildWatertightExportMesh(exportCache, exportCache.meta, params);
   return finalizeBodyExportMesh(mesh, exportCache.meta, params, stamp);
@@ -3041,11 +3045,19 @@ function runExport(format) {
         rebuild();
         const params = buildParams();
         const stamp = params.watermarkEnabled !== false ? acquireWatermarkStamp() : null;
-        let exportMesh = buildWatertightExportMesh(exportCache, exportCache.meta, params);
+        const separateText = hasSeparateTextExport(params);
+        const separateColor = separateText || hasSeparateArtExport(params);
+        let exportMesh = separateColor
+          ? resolveBodyExportMesh(exportCache, params, separateText, stamp)
+          : finalizeBodyExportMesh(
+            buildWatertightExportMesh(exportCache, exportCache.meta, params),
+            exportCache.meta,
+            params,
+            stamp,
+          );
         if (state.insertEnabled && state.insertMount === "fixed") {
           exportMesh = buildWatertightFixedDividerExport(exportCache, exportCache.meta, { ...params, fuseInsertToBody: true }) || exportMesh;
         }
-        exportMesh = finalizeBodyExportMesh(exportMesh, exportCache.meta, params, stamp);
         const stlBlob = meshToStl(exportMesh, "makerdeck");
         const stlName = filenameFor(exportCache.meta, "body");
         downloadBlob(stlBlob, stlName);
