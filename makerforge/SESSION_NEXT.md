@@ -2,10 +2,19 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `6520bca` — fix 2-plate Bambu placement
-- Cache-bust: `app.js?v=205` — header **b205**
+- Latest commit: _(pending b206 push)_
+- Cache-bust: `app.js?v=206` — header **b206**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-10 — b206: Fix Bambu H2D multi-plate tabs (plate_N.json)
+
+**Export** (`js/3mf.js`, `js/app.js`, `index.html`, `.ref/multi-plate-3mf-verify.mjs`)
+
+- **Root cause:** b205 added `<plate>` + `<assemble>` + build transforms, but Bambu Studio still lumped container+lid on plate 1 because **`Metadata/plate_1.json` / `Metadata/plate_2.json` were missing**. BS/Orca GUI loader requires per-plate JSON bbox files to register separate plate tabs (Orca #13729).
+- **Fix:** emit `Metadata/plate_N.json` (bbox_all + bbox_objects with identify_id), minimal `plate_N.png` + top/pick/no_light stubs, plate thumbnail paths in `model_settings.config`, identify_id aligned to assembly object id, multi-plate build items with `printable="1" auto_drop="1"`.
+- Verify: `node .ref/multi-plate-3mf-verify.mjs`
+- Cache **b206**. Hard refresh, re-download 3MF, open in Bambu H2D — expect **Plate 1 Container** tab and **Plate 2 Lid** tab.
 
 ### 2026-07-10 — b205: Fix 2-plate Bambu/Orca lid placement
 
@@ -13,7 +22,7 @@ Latest GitHub/Pi state:
 
 - **Root cause:** multi-plate 3MF had two `<plate>` blocks but build items had no transforms and no `<assemble>` section — Bambu Studio imported both assemblies at origin on plate 1.
 - **Fix:** plate-grid transforms on build items (+303 mm X for plate 2), `<assemble>` block with matching `assemble_item` entries, unique `identify_id` per plate.
-- Cache **b205**. Hard refresh, re-download 3MF, open in Bambu — expect **Plate 1 Container** and **Plate 2 Lid**.
+- Cache **b205**. Superseded by **b206** (missing plate JSON).
 
 ### 2026-07-10 — b204: Export top bar + save dialog rework
 

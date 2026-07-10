@@ -183,8 +183,81 @@ function meshTo3mfResources(mesh, objectId, name, extruder, { resanitize = false
 const BAMBU_PLATE_GRID_X_MM = 256 + 47;
 const BAMBU_PLATE_GRID_Y_MM = 256 + 47;
 
+/** 1×1 PNG — Bambu plate tabs look for Metadata/plate_N.png alongside plate_N.json. */
+const MINIMAL_PLATE_PNG = new Uint8Array([
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+  0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4,
+  0x89, 0x00, 0x00, 0x00, 0x0a, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x63, 0x00, 0x01, 0x00, 0x00,
+  0x05, 0x00, 0x01, 0x0d, 0x0a, 0x2d, 0xb4, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae,
+  0x42, 0x60, 0x82,
+]);
+
 function formatTransform3x4(tx = 0, ty = 0, tz = 0) {
   return `1 0 0 0 0 1 0 0 0 0 1 0 ${tx} ${ty} ${tz}`;
+}
+
+function meshAxisAlignedBBox(mesh) {
+  const positions = mesh?.positions;
+  if (!positions?.length) return null;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (let i = 0; i < positions.length; i += 3) {
+    const x = positions[i];
+    const y = positions[i + 1];
+    if (x < minX) minX = x;
+    if (y < minY) minY = y;
+    if (x > maxX) maxX = x;
+    if (y > maxY) maxY = y;
+  }
+  if (!Number.isFinite(minX)) return null;
+  return { minX, minY, maxX, maxY };
+}
+
+function unionAxisAlignedBBox(a, b) {
+  if (!a) return b;
+  if (!b) return a;
+  return {
+    minX: Math.min(a.minX, b.minX),
+    minY: Math.min(a.minY, b.minY),
+    maxX: Math.max(a.maxX, b.maxX),
+    maxY: Math.max(a.maxY, b.maxY),
+  };
+}
+
+function translateAxisAlignedBBox(bbox, tx = 0, ty = 0) {
+  if (!bbox) return null;
+  return {
+    minX: bbox.minX + tx,
+    minY: bbox.minY + ty,
+    maxX: bbox.maxX + tx,
+    maxY: bbox.maxY + ty,
+  };
+}
+
+/** Bambu GUI requires Metadata/plate_N.json per plate (Orca #13729 / BS loader). */
+function buildBambuPlateJson({ identifyId, name, bbox, layerHeight = 0.2, nozzleDiameter = 0.4 }) {
+  const { minX, minY, maxX, maxY } = bbox;
+  const width = Math.max(0.001, maxX - minX);
+  const depth = Math.max(0.001, maxY - minY);
+  return JSON.stringify({
+    version: 2,
+    bbox_all: [minX, minY, maxX, maxY],
+    bbox_objects: [{
+      id: identifyId,
+      name,
+      bbox: [minX, minY, maxX, maxY],
+      area: width * depth,
+      layer_height: layerHeight,
+    }],
+    bed_type: "auto",
+    filament_colors: [],
+    filament_ids: [],
+    first_extruder: 0,
+    is_seq_print: false,
+    nozzle_diameter: nozzleDiameter,
+  });
 }
 
 function plateGridOffset(plateId) {
@@ -198,7 +271,11 @@ function plateGridOffset(plateId) {
   };
 }
 
-function buildItemXml(objectId, transform = null) {
+function buildItemXml(objectId, transform = null, { multiPlate = false } = {}) {
+  if (multiPlate) {
+    const matrix = transform || formatTransform3x4(0, 0, 0);
+    return `<item objectid="${objectId}" transform="${matrix}" printable="1" auto_drop="1"/>`;
+  }
   if (transform) {
     return `<item objectid="${objectId}" transform="${transform}" printable="1"/>`;
   }
@@ -227,6 +304,10 @@ function appendModelSettingsPlate(lines, plateId, plateName, assemblyId, identif
   lines.push(`    <metadata key="plater_name" value="${escapeXml(plateName || "")}"/>`);
   lines.push('    <metadata key="locked" value="false"/>');
   lines.push('    <metadata key="filament_map_mode" value="Auto For Flush"/>');
+  lines.push(`    <metadata key="thumbnail_file" value="Metadata/plate_${plateId}.png"/>`);
+  lines.push(`    <metadata key="thumbnail_no_light_file" value="Metadata/plate_no_light_${plateId}.png"/>`);
+  lines.push(`    <metadata key="top_file" value="Metadata/top_${plateId}.png"/>`);
+  lines.push(`    <metadata key="pick_file" value="Metadata/pick_${plateId}.png"/>`);
   lines.push("    <model_instance>");
   lines.push(`      <metadata key="object_id" value="${assemblyId}"/>`);
   lines.push('      <metadata key="instance_id" value="0"/>');
@@ -350,6 +431,7 @@ function buildAssemblyFromParts(usable, projectName, startObjectId, { plainSingl
   const objectXml = [];
   const modelParts = [];
   let objectId = startObjectId;
+  let localBBox = null;
   for (const part of usable) {
     const built = meshTo3mfResources(part.mesh, objectId, part.name, part.extruder || 1, {
       resanitize: false,
@@ -359,6 +441,7 @@ function buildAssemblyFromParts(usable, projectName, startObjectId, { plainSingl
     if (!built) continue;
     objectXml.push(built.objectXml);
     modelParts.push({ id: built.id, name: built.name, extruder: built.extruder });
+    localBBox = unionAxisAlignedBBox(localBBox, meshAxisAlignedBBox(part.mesh));
     objectId++;
   }
   if (!objectXml.length) return null;
@@ -389,6 +472,7 @@ function buildAssemblyFromParts(usable, projectName, startObjectId, { plainSingl
     singlePart,
     triangleCount,
     nextObjectId: objectId,
+    localBBox,
   };
 }
 
@@ -400,10 +484,12 @@ function packColoredProject3mf({
   filament,
   modelSettings,
   plainSingle = false,
+  extraZipFiles = [],
+  multiPlate = false,
 }) {
   const buildItems = buildEntries.map((entry) => {
-    if (typeof entry === "number") return buildItemXml(entry);
-    return buildItemXml(entry.objectId, entry.transform ?? null);
+    if (typeof entry === "number") return buildItemXml(entry, null, { multiPlate });
+    return buildItemXml(entry.objectId, entry.transform ?? null, { multiPlate });
   }).join("\n    ");
   const modelXml = plainSingle
     ? `<?xml version="1.0" encoding="UTF-8"?>
@@ -473,6 +559,7 @@ function packColoredProject3mf({
       { name: "Metadata/model_settings.config", data: encodeText(modelSettings) },
     );
   }
+  if (extraZipFiles.length) zipFiles.push(...extraZipFiles);
 
   const zipped = createZipStore(zipFiles);
   return new Blob([zipped], { type: "model/3mf" });
@@ -495,6 +582,7 @@ export function buildMultiPlateColoredProject3mf(plates, projectName = "makerdec
   const assemblies = [];
   const objectXml = [];
   const buildEntries = [];
+  const extraZipFiles = [];
   let objectId = 1;
   let triangleCount = 0;
 
@@ -504,6 +592,12 @@ export function buildMultiPlateColoredProject3mf(plates, projectName = "makerdec
     objectXml.push(...built.objectXml);
     const plateId = plate.plateId ?? index + 1;
     const grid = plateGridOffset(plateId);
+    const identifyId = built.buildObjectId;
+    const plateBBox = translateAxisAlignedBBox(
+      built.localBBox || { minX: 0, minY: 0, maxX: 1, maxY: 1 },
+      grid.x,
+      grid.y,
+    );
     buildEntries.push({
       objectId: built.buildObjectId,
       transform: formatTransform3x4(grid.x, grid.y, grid.z),
@@ -517,8 +611,23 @@ export function buildMultiPlateColoredProject3mf(plates, projectName = "makerdec
       singlePart: built.singlePart,
       plateId,
       plateName: plate.plateName || "",
-      identifyId: 100 + index * 100,
+      identifyId,
+      plateBBox,
     });
+    extraZipFiles.push(
+      {
+        name: `Metadata/plate_${plateId}.json`,
+        data: encodeText(buildBambuPlateJson({
+          identifyId,
+          name: plate.name || projectName,
+          bbox: plateBBox,
+        })),
+      },
+      { name: `Metadata/plate_${plateId}.png`, data: MINIMAL_PLATE_PNG },
+      { name: `Metadata/plate_no_light_${plateId}.png`, data: MINIMAL_PLATE_PNG },
+      { name: `Metadata/top_${plateId}.png`, data: MINIMAL_PLATE_PNG },
+      { name: `Metadata/pick_${plateId}.png`, data: MINIMAL_PLATE_PNG },
+    );
   });
 
   if (!assemblies.length) throw new Error("No valid mesh parts to export");
@@ -532,6 +641,8 @@ export function buildMultiPlateColoredProject3mf(plates, projectName = "makerdec
     filament,
     modelSettings,
     plainSingle: false,
+    extraZipFiles,
+    multiPlate: true,
   });
 }
 
