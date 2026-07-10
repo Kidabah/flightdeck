@@ -498,8 +498,9 @@ function buildProfileAccentSleeve(outerProfile, z0, z1, onTop = false) {
 
 function profileBandZRange(face, bandH, totalH, accentPos) {
   if (face === "front") {
-    const z1 = totalH;
-    return { z0: z1 - bandH, z1 };
+    const pos = accentPos != null ? clamp(accentPos, 0, 100) / 100 : 0.85;
+    const z0 = (totalH - bandH) * pos;
+    return { z0, z1: z0 + bandH };
   }
   const pos = face === "floor"
     ? 0
@@ -511,7 +512,7 @@ function profileBandZRange(face, bandH, totalH, accentPos) {
 }
 
 function frontProfileEdgeFilter(points, inset) {
-  const maxY = Math.max(...points.map((p) => p[1]));
+  const frontY = Math.min(...points.map((p) => p[1]));
   const minX = Math.min(...points.map((p) => p[0]));
   const maxX = Math.max(...points.map((p) => p[0]));
   const x0 = minX + inset;
@@ -520,7 +521,7 @@ function frontProfileEdgeFilter(points, inset) {
   return (a, b) => {
     const midX = (a[0] + b[0]) / 2;
     const midY = (a[1] + b[1]) / 2;
-    return midY >= maxY - yTol && midX >= x0 && midX <= x1;
+    return midY <= frontY + yTol && midX >= x0 && midX <= x1;
   };
 }
 
@@ -551,10 +552,9 @@ export function buildAccentMesh(meta, params, outerProfile = null) {
     wallBand(positions, indices, "x", b.ow2 + skin, -b.od2 - skin, b.od2 + skin, z0, z1);
     wallBand(positions, indices, "x", -b.ow2 - skin, -b.od2 - skin, b.od2 + skin, z0, z1);
   } else if (face === "front") {
-    const z1 = b.totalH;
-    const z0 = z1 - bandH;
+    const { z0, z1 } = profileBandZRange(face, bandH, b.totalH, params.accentPos);
     const inset = clamp(params.accentInset ?? 4, 2, Math.min(b.outerW, b.outerD) / 3);
-    wallBand(positions, indices, "y", b.od2 + skin, -b.ow2 + inset, b.ow2 - inset, z0, z1);
+    wallBand(positions, indices, "y", -b.od2 - skin, -b.ow2 + inset, b.ow2 - inset, z0, z1);
   } else if (face === "floor") {
     wallBand(positions, indices, "y", b.od2 + skin, -b.ow2 - skin, b.ow2 + skin, 0, bandH);
     wallBand(positions, indices, "y", -b.od2 - skin, -b.ow2 - skin, b.ow2 + skin, 0, bandH);

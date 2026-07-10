@@ -2,10 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `feb7c39` — accent-style face decal export
-- Cache-bust: `app.js?v=201` — header **b201**
+- Latest commit: `8ae1b9b` — accent front/floor placement fix
+- Cache-bust: `app.js?v=202` — header **b202**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-10 — b202: Accent front panel + floor stripe placement
+
+**Accent** (`js/features.js`, `js/accent-bands.js`, `js/app.js`, `index.html`)
+
+- **Front panel only** was on the back: `frontProfileEdgeFilter` used `maxY` (back) and rect front band used `+Y`; front is `-Y` / `minY` (same as COFFEE text).
+- **Floor stripe** appeared at top: `bandToBuildParams` treated `face: floor` as rim when default `pos` was 50; floor face now always maps to floor ring. UI sets `pos=0` when floor is selected.
+- Cache **b202**. Hard refresh only (UI/static JS). Pi pull still required.
 
 ### 2026-07-10 — b201: Art/text export like accent bands (horizontal wall slabs)
 

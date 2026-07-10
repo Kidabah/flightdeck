@@ -23,7 +23,7 @@ import {
 } from "./library.js?v=201";
 
 const SESSION_KEY = "makerdeck-session-v1";
-const MAKERDECK_BUILD = "b201";
+const MAKERDECK_BUILD = "b202";
 let saveSessionTimer = null;
 let sessionBooting = true;
 
@@ -3630,6 +3630,8 @@ function renderAccentBandsUi(force = false) {
         const target = state.accentBands[i];
         if (!target) return;
         target.face = e.target.value;
+        if (target.face === "floor") target.pos = 0;
+        else if (target.face === "rim" && (target.pos == null || target.pos <= 0.5)) target.pos = 100;
         syncFlatAccentFromBands(state);
         scheduleSaveSession();
         rebuild();
