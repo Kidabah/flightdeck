@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending b210 deploy)
+- Latest commit: `9eb1668` — Ship reliable container+lid ZIP export for MakerDeck (b210)
 - Cache-bust: `app.js?v=210` — header **b210**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
