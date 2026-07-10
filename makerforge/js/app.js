@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, STUBBY_HOLDER_PRESET } from "./geometry.js?v=214";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=214";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, DRINK_HOLDER_PRESET, STUBBY_HOLDER_PRESET, isDrinkHolderShape } from "./geometry.js?v=215";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=215";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=161";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=201";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=210";
@@ -23,7 +23,7 @@ import {
 } from "./library.js?v=201";
 
 const SESSION_KEY = "makerdeck-session-v1";
-const MAKERDECK_BUILD = "b214";
+const MAKERDECK_BUILD = "b215";
 const DISPLAY_UNITS = ["mm", "cm", "in"];
 const MM_PER_IN = 25.4;
 let saveSessionTimer = null;
@@ -217,13 +217,14 @@ const PRESET_CONFIG = {
   canisterSquare: { preset: CANISTER_SQUARE_PRESET, profile: "canister" },
   canisterJar: { preset: CANISTER_JAR_PRESET, profile: "canister" },
   canisterStack: { preset: CANISTER_STACK_PRESET, profile: "canister" },
-  stubbyHolder: { preset: STUBBY_HOLDER_PRESET, profile: "stubby" },
+  stubbyHolder: { preset: DRINK_HOLDER_PRESET, profile: "stubby" },
 };
 
 const state = { ...DEFAULTS, shape: "rect", displayUnit: "mm" };
 let meshCache = null;
 let lidCache = null;
 let accentPreviewParts = [];
+let holderPreviewParts = [];
 let insertCache = null;
 let debossCutterCache = null;
 let traceSourceCanvas = null;
@@ -240,6 +241,7 @@ const EMBOSS_FACE_LABELS = {
 const BED_LIFT = 0.35;
 const LID_PREVIEW_GAP = 0.35;
 const LID_ANIM_LIFT = 14;
+const HOLDER_PREVIEW_GAP = 12;
 
 /** Preview shading tuned to match matte PLA filament (same hex as 3MF export). */
 const FILAMENT_PREVIEW = {
@@ -562,6 +564,8 @@ function buildParams() {
     twistOpenerDepth: state.twistOpenerDepth,
     twistOpenerWidth: state.twistOpenerWidth,
     twistOpenerOffsetZ: state.twistOpenerOffsetZ,
+    holderMode: state.holderMode || "can",
+    holderPartColor: state.holderPartColor || "#64748b",
   };
 }
 
@@ -947,7 +951,7 @@ function collectColoredExportParts(exportCache, stamp = null) {
     });
     if (bodyClean?.indices?.length) {
       parts.push({
-        name: "Body",
+        name: isDrinkHolderShape(state.shape) ? "Base" : "Body",
         mesh: bodyClean,
         color: state.boxColor || "#38bdf8",
         extruder: extruder++,
@@ -981,7 +985,7 @@ function collectColoredExportParts(exportCache, stamp = null) {
     const bodyClean = sanitizeMeshForStl(bodyMesh);
     if (bodyClean?.indices?.length) {
       parts.push({
-        name: "Body",
+        name: isDrinkHolderShape(state.shape) ? "Base" : "Body",
         mesh: bodyClean,
         color: state.boxColor || "#38bdf8",
         extruder: extruder++,
@@ -1017,41 +1021,96 @@ function collectColoredExportParts(exportCache, stamp = null) {
   return parts;
 }
 
+function exportIncludesHolderStack(exportCache = meshCache) {
+  return isDrinkHolderShape(state.shape) && !!exportCache?.holderParts?.parts?.length;
+}
+
+function collectHolderStackExportParts(exportCache) {
+  if (!exportCache?.holderParts?.parts?.length) return [];
+  const stackColor = state.holderPartColor || "#64748b";
+  const capColor = state.lidColor || stackColor;
+  let extruder = 2;
+  return exportCache.holderParts.parts.map((part) => {
+    const clean = sanitizeMeshForStl({
+      positions: part.mesh.positions,
+      indices: part.mesh.indices,
+    });
+    if (!clean?.indices?.length) return null;
+    return {
+      name: part.name,
+      mesh: clean,
+      color: part.id === "cap" ? capColor : stackColor,
+      extruder: extruder++,
+    };
+  }).filter(Boolean);
+}
+
 function exportIncludesLidPlate() {
   return !!state.lidEnabled && !!lidCache && shapeSupportsLid(state.shape);
 }
 
 const CONTAINER_LID_README = "Import both files in Bambu Studio. Slice container first, then lid.";
+const HOLDER_STACK_README = "Import both 3MF files in Bambu Studio. Print the base first, then stack parts (can ring OR neck + cap). Snap-fit rims in v1 — test fit on your printer.";
 
 async function buildBody3mfExport(exportCache, parts) {
   const projectName = baseModelName(exportCache.meta);
-  if (!exportIncludesLidPlate()) {
-    return { blob: buildColoredProject3mf(parts, projectName), zipExport: false, lidPartCount: 0 };
+  const holderOn = exportIncludesHolderStack(exportCache);
+  const lidOn = exportIncludesLidPlate();
+
+  if (!holderOn && !lidOn) {
+    return { blob: buildColoredProject3mf(parts, projectName), zipExport: false, lidPartCount: 0, holderPartCount: 0 };
   }
-  const lidParts = collectColoredLidExportParts();
-  if (!lidParts.length) {
-    return { blob: buildColoredProject3mf(parts, projectName), zipExport: false, lidPartCount: 0 };
-  }
+
   const containerBlob = buildColoredProject3mf(parts, projectName);
-  const lidBlob = buildColoredProject3mf(lidParts, `${projectName} lid`);
-  const containerFile = filename3mfFor(exportCache.meta, "container");
-  const lidFile = filename3mfFor(exportCache.meta, "lid");
-  const [containerData, lidData] = await Promise.all([
-    containerBlob.arrayBuffer().then((buf) => new Uint8Array(buf)),
-    lidBlob.arrayBuffer().then((buf) => new Uint8Array(buf)),
-  ]);
-  const zipBlob = createZipArchiveBlob([
-    { name: containerFile, data: containerData },
-    { name: lidFile, data: lidData },
-    { name: "README.txt", data: CONTAINER_LID_README },
-  ]);
+  const containerFile = isDrinkHolderShape(state.shape)
+    ? filename3mfFor(exportCache.meta, "base")
+    : filename3mfFor(exportCache.meta, "container");
+
+  const zipEntries = [];
+  const containerData = await containerBlob.arrayBuffer().then((buf) => new Uint8Array(buf));
+  zipEntries.push({ name: containerFile, data: containerData });
+
+  let holderPartCount = 0;
+  let lidPartCount = 0;
+  let holderFile = null;
+  let lidFile = null;
+  let readme = "";
+
+  if (holderOn) {
+    const holderParts = collectHolderStackExportParts(exportCache);
+    holderPartCount = holderParts.length;
+    if (holderParts.length) {
+      const holderBlob = buildColoredProject3mf(holderParts, `${projectName} stack`);
+      holderFile = filename3mfFor(exportCache.meta, "stack");
+      const holderData = await holderBlob.arrayBuffer().then((buf) => new Uint8Array(buf));
+      zipEntries.push({ name: holderFile, data: holderData });
+      readme = HOLDER_STACK_README;
+    }
+  }
+
+  if (lidOn) {
+    const lidParts = collectColoredLidExportParts();
+    lidPartCount = lidParts.length;
+    if (lidParts.length) {
+      const lidBlob = buildColoredProject3mf(lidParts, `${projectName} lid`);
+      lidFile = filename3mfFor(exportCache.meta, "lid");
+      const lidData = await lidBlob.arrayBuffer().then((buf) => new Uint8Array(buf));
+      zipEntries.push({ name: lidFile, data: lidData });
+      readme = readme ? `${readme}\n\n${CONTAINER_LID_README}` : CONTAINER_LID_README;
+    }
+  }
+
+  if (readme) zipEntries.push({ name: "README.txt", data: readme });
+  const zipBlob = createZipArchiveBlob(zipEntries);
   return {
     blob: zipBlob,
     zipExport: true,
-    lidPartCount: lidParts.length,
+    lidPartCount,
+    holderPartCount,
     containerBlob,
     containerFile,
     lidFile,
+    holderFile,
   };
 }
 
@@ -1126,6 +1185,35 @@ function disposeAccentPreview() {
     part.material.dispose();
   }
   accentPreviewParts = [];
+}
+
+function disposeHolderPreview() {
+  for (const part of holderPreviewParts) {
+    previewRoot.remove(part.mesh);
+    part.mesh.geometry.dispose();
+    part.material.dispose();
+  }
+  holderPreviewParts = [];
+}
+
+function mountHolderPreviewIfNeeded() {
+  disposeHolderPreview();
+  if (!meshCache?.holderParts?.parts?.length) return;
+  const stackColor = state.holderPartColor || "#64748b";
+  const capColor = state.lidColor || stackColor;
+  meshCache.holderParts.parts.forEach((part, i) => {
+    const hex = part.id === "cap" ? capColor : (part.color || stackColor);
+    const mat = new THREE.MeshStandardMaterial({ color: hex });
+    applyFilamentMaterial(mat);
+    const geom = toBufferGeometry(THREE, part.mesh);
+    const mesh = new THREE.Mesh(geom, mat);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.renderOrder = 6 + i;
+    mesh.position.y = (part.seatZ ?? meshCache.totalH) + HOLDER_PREVIEW_GAP * (i + 1);
+    previewRoot.add(mesh);
+    holderPreviewParts.push({ mesh, material: mat });
+  });
 }
 
 function disposeInsertPreview() {
@@ -2022,6 +2110,7 @@ function rebuildMesh() {
     edgeLines.geometry.dispose();
   }
   disposeAccentPreview();
+  disposeHolderPreview();
   disposeInsertPreview();
   disposeLabelPreview();
   disposeArtPreview();
@@ -2092,6 +2181,7 @@ function rebuildMesh() {
 
   mountArtPreviewIfNeeded();
   mountEmbossLabelPreviewIfNeeded();
+  mountHolderPreviewIfNeeded();
 
   if (!bodyMesh?.parent) {
     throw new Error("Preview body not attached after rebuild");
@@ -2308,11 +2398,9 @@ function applyPreset(shape) {
     syncSliderUi("lid-lip", "lidLipDepth", { min: 0, max: 8, value: state.lidLipDepth ?? (shape === "canisterStack" ? 0 : 2.5), parseKind: "float" });
   }
   if (shape === "stubbyHolder") {
+    state.holderMode = state.holderMode || "can";
+    state.twistOpenerEnabled = false;
     syncSliderUi("top-rim-roll", "topRimRoll", { min: 0, max: 8, value: state.topRimRoll ?? 3, parseKind: "float" });
-    syncSliderUi("twist-opener-height", "twistOpenerHeight", { min: 10, max: 30, value: state.twistOpenerHeight ?? 16, parseKind: "float" });
-    syncSliderUi("twist-opener-depth", "twistOpenerDepth", { min: 2.5, max: 10, value: state.twistOpenerDepth ?? 5, parseKind: "float" });
-    syncSliderUi("twist-opener-width", "twistOpenerWidth", { min: 8, max: 24, value: state.twistOpenerWidth ?? 14, parseKind: "float" });
-    syncSliderUi("twist-opener-offset", "twistOpenerOffsetZ", { min: 2, max: 40, value: state.twistOpenerOffsetZ ?? 8, parseKind: "float" });
     syncStubbyFitChips();
   }
   if (isCanisterShape(shape)) {
@@ -2360,6 +2448,8 @@ function resetFromPresetToBasic(shape) {
   state.twistOpenerDepth = d.twistOpenerDepth;
   state.twistOpenerWidth = d.twistOpenerWidth;
   state.twistOpenerOffsetZ = d.twistOpenerOffsetZ;
+  state.holderMode = d.holderMode;
+  state.holderPartColor = d.holderPartColor;
   if (state.embossFace === "lid") state.embossFace = "front";
   applySliderProfile("default");
   if (shape === "rounded") {
@@ -2377,11 +2467,11 @@ function applyVaseShape() {
 }
 
 function isStubbyShape(shape = state.shape) {
-  return shape === "stubbyHolder";
+  return isDrinkHolderShape(shape);
 }
 
 function isRoundTwistShape(shape = state.shape) {
-  return shape === "stubbyHolder" || shape === "circle" || shape === "canisterJar";
+  return shape === "circle" || shape === "canisterJar";
 }
 
 function syncStubbyFitChips() {
@@ -2408,23 +2498,29 @@ function applyStubbyFit(fit, { rebuildNow = true } = {}) {
 }
 
 function updateStubbyUi() {
-  const stubby = isStubbyShape();
+  const drink = isDrinkHolderShape();
   const roundTwist = isRoundTwistShape();
   const rimOn = state.topRimRollEnabled !== false && (state.topRimRoll ?? 0) > 0.3;
   const openerOn = !!state.twistOpenerEnabled;
-  document.getElementById("section-stubby")?.classList.toggle("hidden", !stubby && !roundTwist);
-  document.getElementById("stubby-preset-hint")?.classList.toggle("hidden", !stubby);
-  document.getElementById("stubby-fit-row")?.classList.toggle("hidden", !stubby);
+  document.getElementById("section-stubby")?.classList.toggle("hidden", !drink && !roundTwist);
+  document.getElementById("stubby-preset-hint")?.classList.toggle("hidden", !drink);
+  document.getElementById("field-holder-mode")?.classList.toggle("hidden", !drink);
+  document.getElementById("holder-mode-hint")?.classList.toggle("hidden", !drink);
+  document.getElementById("holder-stack-hint")?.classList.toggle("hidden", !drink);
+  document.getElementById("stubby-fit-row")?.classList.toggle("hidden", !drink || state.holderMode === "bottle");
+  document.getElementById("holder-twist-legacy")?.classList.toggle("hidden", drink || !roundTwist);
   document.getElementById("field-top-rim-roll")?.classList.toggle("hidden", !rimOn);
-  document.getElementById("field-twist-opener-height")?.classList.toggle("hidden", !openerOn);
-  document.getElementById("field-twist-opener-depth")?.classList.toggle("hidden", !openerOn);
-  document.getElementById("field-twist-opener-width")?.classList.toggle("hidden", !openerOn);
-  document.getElementById("field-twist-opener-offset")?.classList.toggle("hidden", !openerOn);
+  document.getElementById("field-twist-opener-height")?.classList.toggle("hidden", !openerOn || drink);
+  document.getElementById("field-twist-opener-depth")?.classList.toggle("hidden", !openerOn || drink);
+  document.getElementById("field-twist-opener-width")?.classList.toggle("hidden", !openerOn || drink);
+  document.getElementById("field-twist-opener-offset")?.classList.toggle("hidden", !openerOn || drink);
   const rimToggle = document.getElementById("top-rim-roll-enabled");
   if (rimToggle) rimToggle.checked = state.topRimRollEnabled !== false;
   const openerToggle = document.getElementById("twist-opener-enabled");
   if (openerToggle) openerToggle.checked = openerOn;
-  if (stubby) syncStubbyFitChips();
+  const modeSel = document.getElementById("holder-mode");
+  if (modeSel) modeSel.value = state.holderMode === "bottle" ? "bottle" : "can";
+  if (drink) syncStubbyFitChips();
 }
 
 function syncShapeControlsFromState() {
@@ -2552,7 +2648,7 @@ function updateLabels() {
     canisterSquare: "Canister size",
     canisterJar: "Jar size",
     canisterStack: "Stack jar size",
-    stubbyHolder: "Stubby size",
+    stubbyHolder: "Drink holder",
   };
   document.getElementById("label-inner-size").innerHTML = sizeHeading[shape]
     ? `${sizeHeading[shape]} ${unitLenSpan()}`
@@ -3625,11 +3721,18 @@ function runExport(format, options = {}) {
             const fname = pickExportFilename(format, options);
             downloadBlob(blob, fname);
             const partNames = packed.zipExport
-              ? `${parts.map((p) => p.name).join(" + ")} + Lid`
+              ? [
+                parts.map((p) => p.name).join(" + "),
+                packed.holderPartCount ? "Stack" : null,
+                packed.lidPartCount ? "Lid" : null,
+              ].filter(Boolean).join(" + ")
               : parts.map((p) => p.name).join(" + ");
-            const zipNote = packed.zipExport ? ` · ${packed.containerFile} + ${packed.lidFile}` : "";
+            const zipFiles = packed.zipExport
+              ? [packed.containerFile, packed.holderFile, packed.lidFile].filter(Boolean).join(" + ")
+              : "";
+            const zipNote = zipFiles ? ` · ${zipFiles}` : "";
             const wmNote = stamp ? ` · watermark #${String(stamp.serial).padStart(4, "0")}` : "";
-            const bodyPart = parts.find((p) => p.name === "Body");
+            const bodyPart = parts.find((p) => p.name === "Body" || p.name === "Base");
             const paints = bodyPart?.triangleExtruders;
             let openNote = "";
             let hasOpenEdges = false;
@@ -3640,7 +3743,7 @@ function runExport(format, options = {}) {
               hasOpenEdges = bodyOpen > 0;
               openNote = ` · art ${artTris} tris, text ${textTris} tris, open ${bodyOpen}`;
             } else {
-              const bodyOpen = partOpenEdgeCount(parts.find((p) => p.name === "Body"));
+              const bodyOpen = partOpenEdgeCount(parts.find((p) => p.name === "Body" || p.name === "Base"));
               const artOpen = partOpenEdgeCount(parts.find((p) => p.name === "Art"));
               const textOpen = partOpenEdgeCount(parts.find((p) => p.name === "Text"));
               const accentOpen = parts
@@ -3656,7 +3759,9 @@ function runExport(format, options = {}) {
               openNote += " — avoid Bambu Repair (remeshes parts); re-export after update";
             }
             const exportHeadline = packed.zipExport
-              ? "ZIP downloaded — open container.3mf and lid.3mf in Bambu"
+              ? (packed.holderPartCount
+                ? "ZIP downloaded — open base.3mf and stack.3mf in Bambu"
+                : "ZIP downloaded — open container.3mf and lid.3mf in Bambu")
               : `${parts.length > 1 ? `${parts.length}-part` : "Plain"} 3MF exported — ${partNames}`;
             const exportDetail = `${triCount} triangles${zipNote}${openNote}${wmNote}`;
             setExportStatus(exportHeadline, { detail: exportDetail });
@@ -5029,6 +5134,15 @@ document.querySelectorAll("[data-stack-member]").forEach((btn) => {
 
 // Hide canister controls until a kitchen preset is active.
 syncCanisterControlsFromState();
+
+document.getElementById("holder-mode")?.addEventListener("change", (e) => {
+  if (!isDrinkHolderShape()) return;
+  state.holderMode = e.target.value === "bottle" ? "bottle" : "can";
+  updateStubbyUi();
+  scheduleSaveSession();
+  rebuild();
+  pushAppHistory();
+});
 
 document.getElementById("top-rim-roll-enabled")?.addEventListener("change", (e) => {
   state.topRimRollEnabled = e.target.checked;

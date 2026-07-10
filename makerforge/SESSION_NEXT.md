@@ -2,12 +2,41 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `cb15487` (b214)
-- Cache-bust: `app.js?v=214` — header **b214**
+- Latest commit: `(pending b215 push)`
+- Cache-bust: `app.js?v=215` — header **b215**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
 
-### 2026-07-10 — b214: Stubby holder preset (375 ml Australian stubby)
+### 2026-07-10 — b215: Modular drink holder (pivot from b214 koozie)
+
+**Design tab** (`js/geometry.js`, `js/app.js`, `js/3mf.js`, `index.html`)
+
+**What was wrong (b214):** Simple cylinder koozie + L-hook twist opener at base — not the reference modular insulated drink holder Chris wanted.
+
+**b215 direction — modular stack:**
+- Preset renamed **Drink holder** (internal shape id `stubbyHolder` unchanged).
+- **Holder mode** dropdown: **Can (375 ml)** | **Bottle (350 ml stack)**.
+- **Base cup** — 375 ml stubby dimensions (68 mm easy / 67.5 snug), rolled top edge, male snap bead on outer rim.
+- **Can mode** — exports ZIP: `*-base.3mf` + `*-stack.3mf` (Can ring adapter).
+- **Bottle mode** — exports ZIP: `*-base.3mf` + `*-stack.3mf` (Neck sleeve + Cap + pry opener on **cap top**).
+- Exploded stack preview — grey stack parts float above base.
+- Wrap art / accent bands still work on base body.
+- Twist opener at bottom **removed** from drink holder (legacy only on plain round jar/circle).
+
+**Honest v1 limits:**
+- Single-wall shell (no double-wall insulation yet).
+- Snap-fit rims, not real ISO threads.
+- Can ring is integrated export part (not separate screw-on STL workflow in UI yet).
+
+**Phase 2 roadmap:**
+- Real printable threads (reuse jar screw-top helix).
+- Double-wall insulated base + optional foam-fill cavity.
+- Separate can-ring-only export toggle; fit tuning per filament.
+- Cap opener profile refinement from reference dims.
+
+- Cache **b215** (`app.js?v=215`, `geometry.js?v=215`, `features.js?v=215`, `3mf.js?v=215`). Hard refresh MakerDeck. **Backend restart required** (geometry.js changed).
+
+### 2026-07-10 — b214: Stubby holder preset (375 ml Australian stubby) — superseded by b215
 
 **Design tab** (`js/geometry.js`, `js/features.js`, `js/app.js`, `index.html`)
 

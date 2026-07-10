@@ -44,7 +44,7 @@
 
         <div class="topbar-brand">
 
-          <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b214</span></div>
+          <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b215</span></div>
 
           <h1>Container Generator</h1>
 
@@ -181,7 +181,7 @@
 
                 <button type="button" class="shape-btn shape-btn--preset" data-shape="vase">Vase / pot</button>
 
-                <button type="button" class="shape-btn shape-btn--preset" data-shape="stubbyHolder">Stubby holder</button>
+                <button type="button" class="shape-btn shape-btn--preset" data-shape="stubbyHolder">Drink holder</button>
 
               </div>
 
@@ -229,8 +229,16 @@
               </section>
 
               <section class="section hidden" id="section-stubby">
-                <h2 class="section-sub">Stubby holder</h2>
-                <p class="hint" id="stubby-preset-hint">Sized for standard 375 ml stubby (~66 mm can).</p>
+                <h2 class="section-sub">Drink holder</h2>
+                <p class="hint" id="stubby-preset-hint">Modular insulated drink holder — base cup + stack parts. Sized for 375 ml stubby / 350 ml long-neck bottle.</p>
+                <label class="field field-select" id="field-holder-mode">
+                  <span class="field-label">Holder mode</span>
+                  <select id="holder-mode">
+                    <option value="can" selected>Can (375 ml)</option>
+                    <option value="bottle">Bottle (350 ml stack)</option>
+                  </select>
+                </label>
+                <p class="field-hint" id="holder-mode-hint">Can mode exports <strong>Base</strong> + <strong>Can ring</strong>. Bottle mode exports <strong>Base</strong> + <strong>Neck sleeve</strong> + <strong>Cap + opener</strong>.</p>
                 <div class="canister-size-row hidden" id="stubby-fit-row" role="group" aria-label="Can fit">
                   <span class="field-label">Can fit</span>
                   <div class="chip-row">
@@ -247,11 +255,13 @@
                   <input type="range" id="top-rim-roll" min="0.5" max="8" step="0.5" value="3" tabindex="-1">
                   <button type="button" class="value-edit" data-slider="top-rim-roll" data-key="topRimRoll" data-parse="float">3</button>
                 </label>
+                <p class="field-hint" id="holder-stack-hint">Preview shows exploded stack parts above the base. Pry opener is on the <strong>cap top</strong> (bottle mode). Snap-fit rims — not real threads in v1.</p>
+                <div class="hidden" id="holder-twist-legacy">
                 <label class="field field-toggle">
                   <span class="field-label">Twist opener (bottom)</span>
                   <input type="checkbox" id="twist-opener-enabled">
                 </label>
-                <p class="field-hint">L-hook on the front wall near the base — v1 cap-twist aid. Test on your filament before relying on it.</p>
+                <p class="field-hint">L-hook on the front wall near the base — legacy round-container aid only.</p>
                 <label class="field hidden" id="field-twist-opener-height">
                   <span class="field-label">Hook height <span class="unit unit-len">mm</span></span>
                   <input type="range" id="twist-opener-height" min="10" max="30" step="0.5" value="16" tabindex="-1">
@@ -272,6 +282,7 @@
                   <input type="range" id="twist-opener-offset" min="2" max="40" step="0.5" value="8" tabindex="-1">
                   <button type="button" class="value-edit" data-slider="twist-opener-offset" data-key="twistOpenerOffsetZ" data-parse="float">8</button>
                 </label>
+                </div>
               </section>
 
             </section>
@@ -1480,7 +1491,7 @@
     </form>
   </dialog>
 
-  <script type="module" src="js/app.js?v=214"></script>
+  <script type="module" src="js/app.js?v=215"></script>
 
 </body>
 
