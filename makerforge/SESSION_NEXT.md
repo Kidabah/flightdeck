@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `f9693b3` (b224)
+- Latest commit: `e7bd78e` (b224)
 - Cache-bust: `app.js?v=224` — header **b224**
 
 ### 2026-07-11 — b224: Wrap emboss via raster slabs (fix shredded 3D mesh)
