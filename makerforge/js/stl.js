@@ -64,7 +64,7 @@ export function countOpenEdges(positions, indices) {
 }
 
 /** Drop bad tris, weld verts, peel non-manifold faces, and verify the shell is closed. */
-export function sanitizeMeshForStl(mesh, { strict = true } = {}) {
+export function sanitizeMeshForStl(mesh, { strict = true, repair = true } = {}) {
   const positions = mesh?.positions;
   const indices = mesh?.indices;
   if (!positions?.length || !indices?.length) return null;
@@ -73,7 +73,7 @@ export function sanitizeMeshForStl(mesh, { strict = true } = {}) {
   let idx = removeDuplicateTriangles(welded.indices);
   idx = removeDegenerateTriangles(welded.positions, idx);
   idx = removeDuplicateCoplanarTriangles(welded.positions, idx);
-  idx = repairNonManifoldFaces(welded.positions, idx, 12);
+  if (repair) idx = repairNonManifoldFaces(welded.positions, idx, 12);
 
   if (!idx.length) return null;
 

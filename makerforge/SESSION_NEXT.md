@@ -2,10 +2,20 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending b191 push) — duplicate pointInRing syntax fix
-- Cache-bust: `app.js?v=191`, `contour.js?v=191` — header **b191**
+- Latest commit: (pending b192 push) — fast trace union export
+- Cache-bust: `app.js?v=192`, `contour.js?v=192`, `stl.js?v=192` — header **b192**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-10 — b192: Fix 3MF export freeze (Page Unresponsive)
+
+**Export** (`js/contour.js`, `js/stl.js`, `js/app.js`, `index.html`)
+
+- **Root cause:** b191 unioned traced art by testing every pixel × every shape group (billions of point-in-polygon hits on coffee-sack traces) — browser froze on Download.
+- Union now uses **canvas fill** + **1024px max** working resolution.
+- Art/text export skips heavy non-manifold repair (already solid union mesh).
+- 3MF export is **async** with status text ("Preparing…", "Building meshes…").
+- Cache **b192**. Hard refresh, re-download coffee jar 3MF.
 
 ### 2026-07-10 — b191: Fix blank canvas (duplicate pointInRing in contour.js)
 

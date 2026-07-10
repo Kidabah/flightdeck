@@ -1,9 +1,9 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=191";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=191";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=192";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=192";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=161";
-import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName } from "./stl.js?v=181";
+import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName } from "./stl.js?v=192";
 import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=180";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
@@ -20,10 +20,10 @@ import {
   listLibraryDesigns,
   fetchDesignParams,
   deleteLibraryDesign,
-} from "./library.js?v=191";
+} from "./library.js?v=192";
 
 const SESSION_KEY = "makerdeck-session-v1";
-const MAKERDECK_BUILD = "b191";
+const MAKERDECK_BUILD = "b192";
 let saveSessionTimer = null;
 let sessionBooting = true;
 
@@ -812,7 +812,7 @@ function collectColoredExportParts(exportCache, stamp = null) {
     }
     if (separateArt) {
       const artMesh = buildLabelGraphicEmboss(exportCache.meta, exportParams, params.embossSvgText || "", "emboss");
-      const artClean = artMesh ? sanitizeMeshForStl(prepareMeshFor3mf(artMesh), { strict: false }) : null;
+      const artClean = artMesh ? sanitizeMeshForStl(prepareMeshFor3mf(artMesh), { strict: false, repair: false }) : null;
       if (artClean?.indices?.length) {
         parts.push({
           name: "Art",
@@ -824,7 +824,7 @@ function collectColoredExportParts(exportCache, stamp = null) {
     }
     if (separateText) {
       const textMesh = buildTextLabelExportMesh(exportCache.meta, exportParams);
-      const textClean = textMesh ? sanitizeMeshForStl(prepareMeshFor3mf(textMesh), { strict: false }) : null;
+      const textClean = textMesh ? sanitizeMeshForStl(prepareMeshFor3mf(textMesh), { strict: false, repair: false }) : null;
       if (textClean?.indices?.length) {
         parts.push({
           name: "Text",
@@ -3194,49 +3194,63 @@ function runExport(format, options = {}) {
           alert("Link joiner and welded dividers don't mix — turn off Joiner on the Link tab, then download again.");
           return;
         }
-        const exportCache = buildFreshExportCache();
-        rebuild();
-        const params = buildParams();
-        const stamp = params.watermarkEnabled !== false ? acquireWatermarkStamp() : null;
-        const parts = collectColoredExportParts(exportCache, stamp);
-        const triCount = parts.reduce((sum, part) => sum + Math.floor((part.mesh?.indices?.length || 0) / 3), 0);
-        const expectDivider = state.insertEnabled && state.insertMount === "fixed";
-        const shellTris = exportShellTriCount(exportCache);
         const status = document.getElementById("export-status");
-        if (expectDivider && weldedDividerExportLooksBroken(exportCache, params, triCount)) {
-          const rounded = (params.cornerRadius || 0) > 0.5 || (params.vertexFillet || 0) > 0.5;
-          const expectHint = rounded ? "~300+ triangles" : "~40 triangles (sharp corners)";
-          const diag = `shell=${shellTris}, joiner=${state.joinerEnabled ? "on" : "off"}, axis=${state.insertAxis}, mount=${state.insertMount}, rounded=${rounded ? "yes" : "no"}`;
-          if (status) {
-            status.textContent = `Export blocked — only ${triCount} triangles (expected ${expectHint}). ${diag}`;
+        if (status) status.textContent = "Preparing 3MF export…";
+        void (async () => {
+          await new Promise((resolve) => setTimeout(resolve, 0));
+          try {
+            const exportCache = buildFreshExportCache();
+            rebuild();
+            const params = buildParams();
+            const stamp = params.watermarkEnabled !== false ? acquireWatermarkStamp() : null;
+            if (status) status.textContent = "Building export meshes…";
+            await new Promise((resolve) => setTimeout(resolve, 0));
+            const parts = collectColoredExportParts(exportCache, stamp);
+            const triCount = parts.reduce((sum, part) => sum + Math.floor((part.mesh?.indices?.length || 0) / 3), 0);
+            const expectDivider = state.insertEnabled && state.insertMount === "fixed";
+            const shellTris = exportShellTriCount(exportCache);
+            if (expectDivider && weldedDividerExportLooksBroken(exportCache, params, triCount)) {
+              const rounded = (params.cornerRadius || 0) > 0.5 || (params.vertexFillet || 0) > 0.5;
+              const expectHint = rounded ? "~300+ triangles" : "~40 triangles (sharp corners)";
+              const diag = `shell=${shellTris}, joiner=${state.joinerEnabled ? "on" : "off"}, axis=${state.insertAxis}, mount=${state.insertMount}, rounded=${rounded ? "yes" : "no"}`;
+              if (status) {
+                status.textContent = `Export blocked — only ${triCount} triangles (expected ${expectHint}). ${diag}`;
+              }
+              alert(`Export blocked: only ${triCount} triangles.\n\nExpected ${expectHint} for this box.\n\nCheck:\n• Insert → Mount = Fixed (welded)\n• Link tab → Joiner OFF\n• Divider axis = Width or Depth\n\nDiagnostic: ${diag}`);
+              return;
+            }
+            if (status) status.textContent = "Packing 3MF…";
+            await new Promise((resolve) => setTimeout(resolve, 0));
+            const blob = buildColoredProject3mf(parts, baseModelName(exportCache.meta));
+            const fname = pickExportFilename(format, options);
+            downloadBlob(blob, fname);
+            void archiveBodyExport(blob, fname, { format: "3mf", stamp, saveToLibrary: options.saveToLibrary }).then((result) => {
+              if (result?.error && status) {
+                status.textContent += ` · library failed: ${result.error}`;
+              } else if (status && result?.id) {
+                status.textContent += " · saved to design library";
+              }
+              notifyLibrarySaved(result?.id ? result : null);
+            });
+            if (status) {
+              const kind = parts.length > 1
+                ? `${parts.length}-part colored 3MF`
+                : parts.length === 1 && parts[0].triangleExtruders?.length
+                  ? "AMS merged 3MF"
+                  : parts.length === 1 && parts[0].extruder === 1
+                    ? "plain 3MF"
+                    : "colored 3MF";
+              const bodyOpen = parts.find((p) => p.name === "Body")?.mesh?.openEdgeCount || 0;
+              const openNote = bodyOpen > 0 ? ` — body ${bodyOpen} open edge(s)` : "";
+              const wmNote = stamp ? ` · watermark #${String(stamp.serial).padStart(4, "0")}` : "";
+              status.textContent = `${kind} downloaded — ${triCount} triangles (${parts.map((p) => p.name).join(" + ")})${openNote}${wmNote}`;
+            }
+          } catch (err) {
+            console.error("3MF export failed:", err);
+            if (status) status.textContent = err?.message || "3MF export failed";
+            alert(err?.message || "3MF export failed.");
           }
-          alert(`Export blocked: only ${triCount} triangles.\n\nExpected ${expectHint} for this box.\n\nCheck:\n• Insert → Mount = Fixed (welded)\n• Link tab → Joiner OFF\n• Divider axis = Width or Depth\n\nDiagnostic: ${diag}`);
-          return;
-        }
-        const blob = buildColoredProject3mf(parts, baseModelName(exportCache.meta));
-        const fname = pickExportFilename(format, options);
-        downloadBlob(blob, fname);
-        void archiveBodyExport(blob, fname, { format: "3mf", stamp, saveToLibrary: options.saveToLibrary }).then((result) => {
-          if (result?.error && status) {
-            status.textContent += ` · library failed: ${result.error}`;
-          } else if (status && result?.id) {
-            status.textContent += " · saved to design library";
-          }
-          notifyLibrarySaved(result?.id ? result : null);
-        });
-        if (status) {
-          const kind = parts.length > 1
-            ? `${parts.length}-part colored 3MF`
-            : parts.length === 1 && parts[0].triangleExtruders?.length
-              ? "AMS merged 3MF"
-              : parts.length === 1 && parts[0].extruder === 1
-                ? "plain 3MF"
-                : "colored 3MF";
-          const bodyOpen = parts.find((p) => p.name === "Body")?.mesh?.openEdgeCount || 0;
-          const openNote = bodyOpen > 0 ? ` — body ${bodyOpen} open edge(s)` : "";
-          const wmNote = stamp ? ` · watermark #${String(stamp.serial).padStart(4, "0")}` : "";
-          status.textContent = `${kind} downloaded — ${triCount} triangles (${parts.map((p) => p.name).join(" + ")})${openNote}${wmNote}`;
-        }
+        })();
         break;
       }
       case "stl": {

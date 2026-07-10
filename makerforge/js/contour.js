@@ -261,10 +261,58 @@ function pointInShapeGroup(x, y, group) {
   return true;
 }
 
-/** Flatten outer + hole groups into one ink mask (even-odd). */
+function ringPointsForRaster(ring) {
+  if (!ring?.length) return [];
+  const closed =
+    ring.length > 1 &&
+    ring[0][0] === ring[ring.length - 1][0] &&
+    ring[0][1] === ring[ring.length - 1][1];
+  return closed ? ring.slice(0, -1) : ring.slice();
+}
+
+function scaleShapeGroups(groups, scale) {
+  if (!scale || scale === 1) return groups;
+  return groups.map((group) => ({
+    outer: group.outer.map(([x, y]) => [x * scale, y * scale]),
+    holes: group.holes.map((hole) => hole.map(([x, y]) => [x * scale, y * scale])),
+  }));
+}
+
+/** Flatten outer + hole groups into one ink mask (even-odd). Uses canvas — not O(pixels×groups). */
 export function rasterizeShapeGroupsToMask(groups, width, height) {
   const mask = new Uint8Array(width * height);
   if (!groups?.length || width <= 0 || height <= 0) return mask;
+
+  if (typeof document !== "undefined") {
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (ctx) {
+      ctx.fillStyle = "#000";
+      for (const { outer, holes } of groups) {
+        ctx.beginPath();
+        const addRing = (ring) => {
+          const pts = ringPointsForRaster(ring);
+          if (pts.length < 3) return;
+          ctx.moveTo(pts[0][0], pts[0][1]);
+          for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+          ctx.closePath();
+        };
+        addRing(outer);
+        for (const hole of holes) addRing(hole);
+        ctx.fill("evenodd");
+      }
+      const data = ctx.getImageData(0, 0, width, height).data;
+      for (let i = 0; i < width * height; i++) {
+        if (data[i * 4 + 3] > 64) mask[i] = 1;
+      }
+      return mask;
+    }
+  }
+
+  // Tiny masks only — full-res CPU fallback freezes the browser on traced art.
+  if (width * height > 256 * 256) return mask;
   for (let y = 0; y < height; y++) {
     const py = y + 0.5;
     for (let x = 0; x < width; x++) {
@@ -283,10 +331,16 @@ export function rasterizeShapeGroupsToMask(groups, width, height) {
 /** Union many trace polygons into one printable silhouette (avoids adjacent solid slivers). */
 export function unionShapeGroupsToPrepared(groups, width, height, simplifyTol = 1, smoothPasses = 1, dilatePasses = 2) {
   if (!groups?.length || width <= 0 || height <= 0) return [];
-  let mask = rasterizeShapeGroupsToMask(groups, width, height);
-  if (dilatePasses > 0) mask = dilateMask(mask, width, height, dilatePasses);
-  const polys = maskToPolygons(mask, width, height);
-  return prepareShapeGroups(groupPolygonsWithHoles(polys), simplifyTol, smoothPasses);
+  const maxDim = 1024;
+  const scale = Math.min(1, maxDim / Math.max(width, height));
+  const w = Math.max(1, Math.round(width * scale));
+  const h = Math.max(1, Math.round(height * scale));
+  const scaledGroups = scaleShapeGroups(groups, scale);
+  const tol = scale < 1 ? simplifyTol * Math.max(0.35, scale) : simplifyTol;
+  let mask = rasterizeShapeGroupsToMask(scaledGroups, w, h);
+  if (dilatePasses > 0) mask = dilateMask(mask, w, h, dilatePasses);
+  const polys = maskToPolygons(mask, w, h);
+  return prepareShapeGroups(groupPolygonsWithHoles(polys), tol, smoothPasses);
 }
 
 /** Rasterise stroke centerlines into a solid binary mask (filled pens). */
