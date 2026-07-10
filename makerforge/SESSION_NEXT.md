@@ -2,10 +2,19 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `8ae1b9b` — accent front/floor placement fix
-- Cache-bust: `app.js?v=202` — header **b202**
+- Latest commit: `20a1b8b` — 2-plate container + lid 3MF export
+- Cache-bust: `app.js?v=203` — header **b203**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-10 — b203: 2-plate 3MF when lid is enabled
+
+**Export** (`js/3mf.js`, `js/app.js`, `index.html`)
+
+- **3MF project** download now auto-includes **Container on plate 1** and **Lid on plate 2** when lid is enabled (Bambu/Orca multi-plate `model_settings.config`).
+- Lid parts are plate-down (`orientLidForPrint`) with filament slots offset after body/art/text/accent colours.
+- Save dialog hint updated when lid is on. Separate **3MF lid** export still available for lid-only.
+- Cache **b203**. Hard refresh, re-download 3MF, open in Bambu Studio — expect two plates.
 
 ### 2026-07-10 — b202: Accent front panel + floor stripe placement
 

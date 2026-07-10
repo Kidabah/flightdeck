@@ -179,6 +179,36 @@ function meshTo3mfResources(mesh, objectId, name, extruder, { resanitize = false
   };
 }
 
+function appendModelSettingsObject(lines, assemblyId, name, modelParts, singlePart) {
+  lines.push(`  <object id="${assemblyId}">`);
+  lines.push(`    <metadata key="name" value="${escapeXml(name)}"/>`);
+  if (singlePart && modelParts.length === 1) {
+    lines.push(`    <metadata key="extruder" value="${modelParts[0].extruder}"/>`);
+  } else {
+    for (const part of modelParts) {
+      lines.push(`    <part id="${part.id}" subtype="normal_part">`);
+      lines.push(`      <metadata key="name" value="${escapeXml(part.name)}"/>`);
+      lines.push(`      <metadata key="extruder" value="${part.extruder}"/>`);
+      lines.push("    </part>");
+    }
+  }
+  lines.push("  </object>");
+}
+
+function appendModelSettingsPlate(lines, plateId, plateName, assemblyId, identifyId = 0) {
+  lines.push("  <plate>");
+  lines.push(`    <metadata key="plater_id" value="${plateId}"/>`);
+  lines.push(`    <metadata key="plater_name" value="${escapeXml(plateName || "")}"/>`);
+  lines.push('    <metadata key="locked" value="false"/>');
+  lines.push('    <metadata key="filament_map_mode" value="Auto For Flush"/>');
+  lines.push("    <model_instance>");
+  lines.push(`      <metadata key="object_id" value="${assemblyId}"/>`);
+  lines.push('      <metadata key="instance_id" value="0"/>');
+  lines.push(`      <metadata key="identify_id" value="${identifyId}"/>`);
+  lines.push("    </model_instance>");
+  lines.push("  </plate>");
+}
+
 /**
  * Bambu Studio reads extruder assignment from this XML file (not JSON).
  * All meshes are PARTS of one assembled object so the slicer treats them as
@@ -189,41 +219,29 @@ function buildBambuModelSettingsXml(assemblyId, name, parts, { singlePart = fals
   const lines = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     "<config>",
-    `  <object id="${assemblyId}">`,
-    `    <metadata key="name" value="${escapeXml(name)}"/>`,
   ];
-
-  // One mesh object referenced directly by build — do not wrap it in <part>
-  // entries. Bambu treats that as an empty assembly shell (~40 tris, non-manifold)
-  // instead of the real Body geometry.
-  if (singlePart && parts.length === 1) {
-    lines.push(`    <metadata key="extruder" value="${parts[0].extruder}"/>`);
-  } else {
-    for (const part of parts) {
-      lines.push(`    <part id="${part.id}" subtype="normal_part">`);
-      lines.push(`      <metadata key="name" value="${escapeXml(part.name)}"/>`);
-      lines.push(`      <metadata key="extruder" value="${part.extruder}"/>`);
-      lines.push("    </part>");
-    }
-  }
-
-  lines.push("  </object>");
-  lines.push("  <plate>");
-  lines.push('    <metadata key="plater_id" value="1"/>');
-  lines.push('    <metadata key="plater_name" value=""/>');
-  lines.push('    <metadata key="locked" value="false"/>');
-  lines.push('    <metadata key="filament_map_mode" value="Auto For Flush"/>');
-  lines.push("    <model_instance>");
-  lines.push(`      <metadata key="object_id" value="${assemblyId}"/>`);
-  lines.push('      <metadata key="instance_id" value="0"/>');
-  lines.push('      <metadata key="identify_id" value="0"/>');
-  lines.push("    </model_instance>");
-  lines.push("  </plate>");
+  appendModelSettingsObject(lines, assemblyId, name, parts, singlePart);
+  appendModelSettingsPlate(lines, 1, "", assemblyId, 0);
   lines.push("</config>");
   return lines.join("\n");
 }
 
-function partMaxExtruder(part) {
+function buildBambuMultiPlateModelSettingsXml(assemblies) {
+  const lines = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    "<config>",
+  ];
+  for (const asm of assemblies) {
+    appendModelSettingsObject(lines, asm.assemblyId, asm.name, asm.modelParts, asm.singlePart);
+  }
+  for (const asm of assemblies) {
+    appendModelSettingsPlate(lines, asm.plateId, asm.plateName, asm.assemblyId, asm.identifyId ?? 0);
+  }
+  lines.push("</config>");
+  return lines.join("\n");
+}
+
+export function partMaxExtruder(part) {
   if (part.extruderColors) {
     let max = 1;
     for (const key of Object.keys(part.extruderColors)) {
@@ -242,15 +260,38 @@ function partMaxExtruder(part) {
   return part.extruder || 1;
 }
 
-/**
- * @param {Array<{name:string, mesh:object, color:string, extruder:number}>} parts
- */
-export function buildColoredProject3mf(parts, projectName = "makerdeck") {
-  const usable = (parts || []).filter((p) => p?.mesh?.positions?.length && p?.mesh?.indices?.length);
-  if (!usable.length) throw new Error("No geometry to export");
+/** Shift filament slot indices when merging lid parts after body parts. */
+export function offsetPartExtruders(parts, offset) {
+  if (!offset) return parts;
+  return parts.map((part) => {
+    const next = {
+      ...part,
+      extruder: (part.extruder || 1) + offset,
+    };
+    if (part.extruderColors) {
+      next.extruderColors = {};
+      for (const [key, value] of Object.entries(part.extruderColors)) {
+        next.extruderColors[Number(key) + offset] = value;
+      }
+    }
+    const paints = part.triangleExtruders || part.mesh?.triangleExtruders;
+    if (paints?.length) {
+      const shifted = paints.map((slot) => slot + offset);
+      if (part.triangleExtruders) next.triangleExtruders = shifted;
+      if (part.mesh?.triangleExtruders) {
+        next.mesh = { ...part.mesh, triangleExtruders: shifted };
+      }
+    }
+    return next;
+  });
+}
 
-  const maxExtruder = Math.max(...usable.map((p) => partMaxExtruder(p)));
-  const plainSingle = usable.length === 1 && maxExtruder === 1 && !usable[0].triangleExtruders?.length;
+function filterUsableParts(parts) {
+  return (parts || []).filter((p) => p?.mesh?.positions?.length && p?.mesh?.indices?.length);
+}
+
+function buildFilamentSlots(usable) {
+  const maxExtruder = Math.max(1, ...usable.map((p) => partMaxExtruder(p)));
   const slotColors = Array.from({ length: maxExtruder }, (_, i) => {
     const slot = i + 1;
     for (const part of usable) {
@@ -259,19 +300,21 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck") {
     }
     return "#FFFFFF";
   });
+  return {
+    maxExtruder,
+    slotColors,
+    filamentType: slotColors.map(() => "PLA"),
+    filamentIds: slotColors.map(() => "GFL99"),
+    filamentVendor: slotColors.map(() => "Generic"),
+    filamentDiameter: slotColors.map(() => "1.75"),
+    filamentDensity: slotColors.map(() => "1.24"),
+  };
+}
 
-  const filamentType = slotColors.map(() => "PLA");
-  const filamentIds = slotColors.map(() => "GFL99");
-  const filamentVendor = slotColors.map(() => "Generic");
-  const filamentDiameter = slotColors.map(() => "1.75");
-  const filamentDensity = slotColors.map(() => "1.24");
-
-  // Each mesh is a component object referenced by one assembled parent, so
-  // Bambu Studio imports them as parts of a single model (no floating-part
-  // or collision complaints for accent bands hugging the body).
+function buildAssemblyFromParts(usable, projectName, startObjectId, { plainSingle = false } = {}) {
   const objectXml = [];
   const modelParts = [];
-  let objectId = 1;
+  let objectId = startObjectId;
   for (const part of usable) {
     const built = meshTo3mfResources(part.mesh, objectId, part.name, part.extruder || 1, {
       resanitize: false,
@@ -283,16 +326,14 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck") {
     modelParts.push({ id: built.id, name: built.name, extruder: built.extruder });
     objectId++;
   }
-  if (!objectXml.length) throw new Error("No valid mesh parts to export");
+  if (!objectXml.length) return null;
 
-  const triangleCount = usable.reduce((sum, part) => sum + Math.floor((part.mesh.indices?.length || 0) / 3), 0);
-
-  // Single mesh — reference it directly. A one-child assembly shell has no
-  // triangles and Bambu Studio validates that empty wrapper (40-ish tris,
-  // non-manifold errors) instead of the real Body geometry.
+  const triangleCount = usable.reduce(
+    (sum, part) => sum + Math.floor((part.mesh.indices?.length || 0) / 3),
+    0,
+  );
   const singlePart = modelParts.length === 1;
   let buildObjectId;
-
   if (singlePart) {
     buildObjectId = modelParts[0].id;
   } else {
@@ -303,8 +344,29 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck") {
       <metadata name="Name">${escapeXml(projectName)}</metadata>
       <components>${componentsXml}</components>
     </object>`);
+    objectId++;
   }
 
+  return {
+    objectXml,
+    modelParts,
+    buildObjectId,
+    singlePart,
+    triangleCount,
+    nextObjectId: objectId,
+  };
+}
+
+function packColoredProject3mf({
+  projectName,
+  objectXml,
+  buildObjectIds,
+  triangleCount,
+  filament,
+  modelSettings,
+  plainSingle = false,
+}) {
+  const buildItems = buildObjectIds.map((id) => `<item objectid="${id}"/>`).join("\n    ");
   const modelXml = plainSingle
     ? `<?xml version="1.0" encoding="UTF-8"?>
 <model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">
@@ -315,7 +377,7 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck") {
     ${objectXml.join("\n    ")}
   </resources>
   <build>
-    <item objectid="${buildObjectId}"/>
+    ${buildItems}
   </build>
 </model>`
     : `<?xml version="1.0" encoding="UTF-8"?>
@@ -327,7 +389,7 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck") {
     ${objectXml.join("\n    ")}
   </resources>
   <build>
-    <item objectid="${buildObjectId}"/>
+    ${buildItems}
   </build>
 </model>`;
 
@@ -335,20 +397,13 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck") {
     from: "MakerDeck",
     name: projectName,
     version: "2.2.0",
-    filament_type: filamentType,
-    filament_colour: slotColors,
-    filament_ids: filamentIds,
-    filament_vendor: filamentVendor,
-    filament_diameter: filamentDiameter,
-    filament_density: filamentDensity,
+    filament_type: filament.filamentType,
+    filament_colour: filament.slotColors,
+    filament_ids: filament.filamentIds,
+    filament_vendor: filament.filamentVendor,
+    filament_diameter: filament.filamentDiameter,
+    filament_density: filament.filamentDensity,
   });
-
-  const modelSettings = buildBambuModelSettingsXml(
-    buildObjectId,
-    singlePart ? modelParts[0].name : projectName,
-    modelParts,
-    { singlePart },
-  );
 
   const contentTypes = plainSingle
     ? `<?xml version="1.0" encoding="UTF-8"?>
@@ -382,8 +437,92 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck") {
   }
 
   const zipped = createZipStore(zipFiles);
-
   return new Blob([zipped], { type: "model/3mf" });
+}
+
+/**
+ * @param {Array<{plateId:number, plateName:string, name:string, parts:Array}>} plates
+ */
+export function buildMultiPlateColoredProject3mf(plates, projectName = "makerdeck") {
+  const normalized = (plates || [])
+    .map((plate) => ({ ...plate, parts: filterUsableParts(plate.parts) }))
+    .filter((plate) => plate.parts.length);
+  if (!normalized.length) throw new Error("No geometry to export");
+  if (normalized.length === 1) {
+    return buildColoredProject3mf(normalized[0].parts, normalized[0].name || projectName);
+  }
+
+  const allParts = normalized.flatMap((plate) => plate.parts);
+  const filament = buildFilamentSlots(allParts);
+  const assemblies = [];
+  const objectXml = [];
+  const buildObjectIds = [];
+  let objectId = 1;
+  let triangleCount = 0;
+
+  normalized.forEach((plate, index) => {
+    const built = buildAssemblyFromParts(plate.parts, plate.name || projectName, objectId, { plainSingle: false });
+    if (!built) return;
+    objectXml.push(...built.objectXml);
+    buildObjectIds.push(built.buildObjectId);
+    triangleCount += built.triangleCount;
+    objectId = built.nextObjectId;
+    assemblies.push({
+      assemblyId: built.buildObjectId,
+      name: plate.name || projectName,
+      modelParts: built.modelParts,
+      singlePart: built.singlePart,
+      plateId: plate.plateId ?? index + 1,
+      plateName: plate.plateName || "",
+      identifyId: index,
+    });
+  });
+
+  if (!assemblies.length) throw new Error("No valid mesh parts to export");
+
+  const modelSettings = buildBambuMultiPlateModelSettingsXml(assemblies);
+  return packColoredProject3mf({
+    projectName,
+    objectXml,
+    buildObjectIds,
+    triangleCount,
+    filament,
+    modelSettings,
+    plainSingle: false,
+  });
+}
+
+/**
+ * @param {Array<{name:string, mesh:object, color:string, extruder:number}>} parts
+ */
+export function buildColoredProject3mf(parts, projectName = "makerdeck") {
+  const usable = filterUsableParts(parts);
+  if (!usable.length) throw new Error("No geometry to export");
+
+  const filament = buildFilamentSlots(usable);
+  const plainSingle = usable.length === 1
+    && filament.maxExtruder === 1
+    && !usable[0].triangleExtruders?.length;
+
+  const built = buildAssemblyFromParts(usable, projectName, 1, { plainSingle });
+  if (!built) throw new Error("No valid mesh parts to export");
+
+  const modelSettings = buildBambuModelSettingsXml(
+    built.buildObjectId,
+    built.singlePart ? built.modelParts[0].name : projectName,
+    built.modelParts,
+    { singlePart: built.singlePart },
+  );
+
+  return packColoredProject3mf({
+    projectName,
+    objectXml: built.objectXml,
+    buildObjectIds: [built.buildObjectId],
+    triangleCount: built.triangleCount,
+    filament,
+    modelSettings,
+    plainSingle,
+  });
 }
 
 export function filename3mfFor(meta, part = "body") {

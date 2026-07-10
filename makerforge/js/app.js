@@ -4,7 +4,7 @@ import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=201";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=161";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=201";
-import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=180";
+import { buildColoredProject3mf, buildMultiPlateColoredProject3mf, filename3mfFor, offsetPartExtruders, partMaxExtruder } from "./3mf.js?v=203";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
 import {
@@ -23,7 +23,7 @@ import {
 } from "./library.js?v=201";
 
 const SESSION_KEY = "makerdeck-session-v1";
-const MAKERDECK_BUILD = "b202";
+const MAKERDECK_BUILD = "b203";
 let saveSessionTimer = null;
 let sessionBooting = true;
 
@@ -912,6 +912,31 @@ function collectColoredExportParts(exportCache, stamp = null) {
   }
 
   return parts;
+}
+
+function exportIncludesLidPlate() {
+  return !!state.lidEnabled && !!lidCache && shapeSupportsLid(state.shape);
+}
+
+function buildBody3mfExport(exportCache, parts) {
+  const projectName = baseModelName(exportCache.meta);
+  if (!exportIncludesLidPlate()) {
+    return { blob: buildColoredProject3mf(parts, projectName), multiPlate: false, lidPartCount: 0 };
+  }
+  const lidParts = collectColoredLidExportParts();
+  if (!lidParts.length) {
+    return { blob: buildColoredProject3mf(parts, projectName), multiPlate: false, lidPartCount: 0 };
+  }
+  const bodyMaxExtruder = Math.max(1, ...parts.map((part) => partMaxExtruder(part)));
+  const offsetLidParts = offsetPartExtruders(lidParts, bodyMaxExtruder);
+  const blob = buildMultiPlateColoredProject3mf(
+    [
+      { plateId: 1, plateName: "Container", name: projectName, parts },
+      { plateId: 2, plateName: "Lid", name: `${projectName} lid`, parts: offsetLidParts },
+    ],
+    projectName,
+  );
+  return { blob, multiPlate: true, lidPartCount: lidParts.length };
 }
 
 function collectColoredLidExportParts() {
@@ -3103,7 +3128,7 @@ function exportFormatExt(format) {
 
 function exportFormatLabel(format) {
   const labels = {
-    "3mf": "3MF project — body",
+    "3mf": exportIncludesLidPlate() ? "3MF project — container + lid" : "3MF project — body",
     stl: "STL — body",
     "lid-3mf": "3MF — lid",
     "lid-stl": "STL — lid",
@@ -3184,9 +3209,13 @@ function openExportDialog(format) {
     libCheck.checked = localStorage.getItem("makerdeck-export-save-library") !== "0";
   }
   if (hint) {
-    hint.textContent = canSave
-      ? "Library saves your sliders and art so you can reload this design later."
-      : "Only body STL and 3MF can be saved to the design library.";
+    if (canSave && format === "3mf" && exportIncludesLidPlate()) {
+      hint.textContent = "Includes Container on plate 1 and Lid on plate 2. Library saves your sliders and art for reload.";
+    } else if (canSave) {
+      hint.textContent = "Library saves your sliders and art so you can reload this design later.";
+    } else {
+      hint.textContent = "Only body STL and 3MF can be saved to the design library.";
+    }
   }
 
   return new Promise((resolve) => {
@@ -3262,7 +3291,8 @@ function runExport(format, options = {}) {
             }
             if (status) status.textContent = "Packing 3MF…";
             await new Promise((resolve) => setTimeout(resolve, 0));
-            const blob = buildColoredProject3mf(parts, baseModelName(exportCache.meta));
+            const packed = buildBody3mfExport(exportCache, parts);
+            const blob = packed.blob;
             const fname = pickExportFilename(format, options);
             downloadBlob(blob, fname);
             void archiveBodyExport(blob, fname, { format: "3mf", stamp, saveToLibrary: options.saveToLibrary }).then((result) => {
@@ -3274,13 +3304,16 @@ function runExport(format, options = {}) {
               notifyLibrarySaved(result?.id ? result : null);
             });
             if (status) {
-              const kind = parts.length > 1
-                ? `${parts.length}-part colored 3MF`
-                : parts.length === 1 && parts[0].triangleExtruders?.length
-                  ? "AMS painted 3MF"
-                  : parts.length === 1 && parts[0].extruder === 1
-                    ? "plain 3MF"
-                    : "colored 3MF";
+              const plateNote = packed.multiPlate ? " · plate 1 Container + plate 2 Lid" : "";
+              const kind = packed.multiPlate
+                ? "2-plate colored 3MF"
+                : parts.length > 1
+                  ? `${parts.length}-part colored 3MF`
+                  : parts.length === 1 && parts[0].triangleExtruders?.length
+                    ? "AMS painted 3MF"
+                    : parts.length === 1 && parts[0].extruder === 1
+                      ? "plain 3MF"
+                      : "colored 3MF";
               const bodyPart = parts.find((p) => p.name === "Body");
               const paints = bodyPart?.triangleExtruders;
               let openNote = "";
@@ -3297,8 +3330,11 @@ function runExport(format, options = {}) {
                   openNote = ` — open edges: body ${bodyOpen}, art ${artOpen}, text ${textOpen}`;
                 }
               }
+              const partNames = packed.multiPlate
+                ? `${parts.map((p) => p.name).join(" + ")} + Lid`
+                : parts.map((p) => p.name).join(" + ");
               const wmNote = stamp ? ` · watermark #${String(stamp.serial).padStart(4, "0")}` : "";
-              status.textContent = `${kind} downloaded — ${triCount} triangles (${parts.map((p) => p.name).join(" + ")})${openNote}${wmNote}`;
+              status.textContent = `${kind} downloaded — ${triCount} triangles (${partNames})${plateNote}${openNote}${wmNote}`;
             }
           } catch (err) {
             console.error("3MF export failed:", err);
@@ -3348,12 +3384,12 @@ function runExport(format, options = {}) {
       case "lid-3mf": {
         if (!state.lidEnabled || !lidCache) return;
         rebuild();
-        if (hasSeparateTextExport() && state.embossFace === "lid") {
-          const parts = collectColoredLidExportParts();
-          downloadBlob(buildColoredProject3mf(parts, "makerdeck-lid"), pickExportFilename(format, options));
-        } else {
-          alert("Colored lid 3MF needs text art on the Lid top face. Use STL lid otherwise.");
-        }
+        const lidParts = collectColoredLidExportParts();
+        if (!lidParts.length) return;
+        downloadBlob(
+          buildColoredProject3mf(lidParts, `${baseModelName(lidCache.meta || meshCache.meta)} lid`),
+          pickExportFilename(format, options),
+        );
         break;
       }
       case "lid-stl": {
