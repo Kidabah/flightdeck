@@ -16,7 +16,7 @@ import {
   strokePathIsClosed,
   shapeGroupsToStrokePaths,
   strokePathsToSvg,
-} from "./contour.js";
+} from "./contour.js?v=191";
 
 
 

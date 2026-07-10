@@ -253,19 +253,6 @@ export function dilateMask(mask, width, height, passes = 1) {
   return work;
 }
 
-function pointInRing(x, y, ring) {
-  let inside = false;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const xi = ring[i][0];
-    const yi = ring[i][1];
-    const xj = ring[j][0];
-    const yj = ring[j][1];
-    const hit = yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi + 1e-12) + xi;
-    if (hit) inside = !inside;
-  }
-  return inside;
-}
-
 function pointInShapeGroup(x, y, group) {
   if (!pointInRing(x, y, group.outer)) return false;
   for (const hole of group.holes) {

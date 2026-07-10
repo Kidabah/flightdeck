@@ -2,10 +2,26 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending b189 push) — union trace art for manifold export
-- Cache-bust: `app.js?v=189`, `features.js?v=189` — header **b189**
+- Latest commit: (pending b191 push) — duplicate pointInRing syntax fix
+- Cache-bust: `app.js?v=191`, `contour.js?v=191` — header **b191**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-10 — b191: Fix blank canvas (duplicate pointInRing in contour.js)
+
+**Boot** (`js/contour.js`, cache-bust **b191**)
+
+- **Root cause:** b189 added a second `pointInRing` in `contour.js` — file already had one at line 127. ES module parse error: `Identifier 'pointInRing' has already been declared` → entire app dead, blank viewport.
+- Removed duplicate; kept `pointInShapeGroup` + union helpers.
+- Hard refresh until header shows **b191**.
+
+### 2026-07-10 — b190: Fix blank canvas after b189 (contour.js cache)
+
+**Boot** (`js/features.js`, `js/trace.js`, `js/app.js`, `index.html`)
+
+- **Root cause:** b189 added `unionShapeGroupsToPrepared` to `contour.js` but imports were unversioned — browser kept stale `contour.js`, `features.js?v=189` failed to load (`export not found`) → blank viewport, header stuck on HTML **b189**.
+- Versioned `contour.js?v=190`; bumped all module tags to **b190**; fixed `MAKERDECK_BUILD` constant.
+- Hard refresh (`Ctrl+Shift+R`) until header shows **b190** and preview renders.
 
 ### 2026-07-10 — b189: Union traced art for manifold 3MF export
 
