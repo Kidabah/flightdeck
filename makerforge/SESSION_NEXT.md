@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: _(pending — b222 deploy)_
+- Latest commit: `e370dc5` (b222)
 - Cache-bust: `app.js?v=222` — header **b222**
 
 ### 2026-07-10 — b222: Fix freeze *during* Tracing… on large heraldic PNGs
