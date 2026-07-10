@@ -2,10 +2,20 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `7e9b78d` — Fix Bambu multi-plate plate-tab layout (b208)
-- Cache-bust: `app.js?v=208` — header **b208**
+- Latest commit: (pending b209 deploy)
+- Cache-bust: `app.js?v=209` — header **b209**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-10 — b209: Fix Bambu H2D multi-plate tabs (H2D grid stride)
+
+**Export** (`js/3mf.js`, `js/app.js`, `index.html`, `.ref/multi-plate-3mf-verify.mjs`)
+
+- **Golden reference:** Bambu `PartPlate.cpp` `reload_all_objects()` — plate tabs come from **bbox intersection** with each plate's world grid box, not `model_instance` alone. H2D `printable_area` 350×320 from `.ref/repaired-unzip/Metadata/project_settings.config`.
+- **Root cause:** b208 used **256 mm** bed for transforms; Chris opens on **H2D (350 mm)**. Plate stride = 350×1.2 = **420 mm**. Lid at ~431 mm still intersected plate 0 (0–350) → both objects on plate 1; plate 2 empty → tab deleted.
+- **Fix:** default bed **350×320**, `plateGridOffset()` + `worldTransformForPlate()` (local centre + grid offset) on build + assemble. `plate_N.json` stays plate-local. `project_settings` embeds H2D `printable_area`. Verify simulates Bambu plate intersection.
+- Verify: `node .ref/multi-plate-3mf-verify.mjs`
+- Cache **b209**. Hard refresh, re-download 3MF, open in Bambu H2D — expect **Plate 01 Container** + **Plate 02 Lid** tabs.
 
 ### 2026-07-10 — b208: Fix Bambu H2D multi-plate tabs (plate-local layout)
 

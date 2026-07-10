@@ -179,9 +179,11 @@ function meshTo3mfResources(mesh, objectId, name, extruder, { resanitize = false
   };
 }
 
-/** Default Bambu build plate size (mm) — used to centre assemblies on each plate tab. */
-const BAMBU_BED_WIDTH_MM = 256;
-const BAMBU_BED_DEPTH_MM = 256;
+/** Bambu H2D printable bed (mm) — plate stride = width × 1.2 (PartPlate.cpp LOGICAL_PART_PLATE_GAP). */
+const BAMBU_BED_WIDTH_MM = 350;
+const BAMBU_BED_DEPTH_MM = 320;
+const BAMBU_PLATE_GRID_GAP_RATIO = 0.2;
+const BAMBU_PLATE_GRID_COLS = 2;
 
 /** 1×1 PNG — Bambu plate tabs look for Metadata/plate_N.png alongside plate_N.json. */
 const MINIMAL_PLATE_PNG = new Uint8Array([
@@ -261,7 +263,7 @@ function buildBambuPlateJson({ identifyId, name, bbox, layerHeight = 0.2, nozzle
   });
 }
 
-/** Translate assembly bbox centre onto bed centre (plate-local coords, not world grid). */
+/** Translate assembly bbox centre onto bed centre (plate-local, before grid offset). */
 function centeringOffsetOnBed(bbox, bedWidth = BAMBU_BED_WIDTH_MM, bedDepth = BAMBU_BED_DEPTH_MM) {
   if (!bbox) return { x: 0, y: 0, z: 0 };
   const cx = (bbox.minX + bbox.maxX) / 2;
@@ -271,6 +273,33 @@ function centeringOffsetOnBed(bbox, bedWidth = BAMBU_BED_WIDTH_MM, bedDepth = BA
     y: bedDepth / 2 - cy,
     z: 0,
   };
+}
+
+/** World grid origin for plate N — Bambu reload_all_objects() uses bbox intersection with this. */
+function plateGridOffset(plateId, bedWidth = BAMBU_BED_WIDTH_MM, bedDepth = BAMBU_BED_DEPTH_MM) {
+  const index = Math.max(0, (plateId ?? 1) - 1);
+  const col = index % BAMBU_PLATE_GRID_COLS;
+  const row = Math.floor(index / BAMBU_PLATE_GRID_COLS);
+  const strideX = bedWidth * (1 + BAMBU_PLATE_GRID_GAP_RATIO);
+  const strideY = bedDepth * (1 + BAMBU_PLATE_GRID_GAP_RATIO);
+  return { x: col * strideX, y: -row * strideY, z: 0 };
+}
+
+function plateStrideMm(bedWidth = BAMBU_BED_WIDTH_MM, bedDepth = BAMBU_BED_DEPTH_MM) {
+  return {
+    x: bedWidth * (1 + BAMBU_PLATE_GRID_GAP_RATIO),
+    y: bedDepth * (1 + BAMBU_PLATE_GRID_GAP_RATIO),
+  };
+}
+
+/** Build + assemble transforms: plate-local centre + multi-plate world grid offset. */
+function worldTransformForPlate(centerOffset, plateId, bedWidth = BAMBU_BED_WIDTH_MM, bedDepth = BAMBU_BED_DEPTH_MM) {
+  const grid = plateGridOffset(plateId, bedWidth, bedDepth);
+  return formatTransform3x4(
+    grid.x + (centerOffset?.x ?? 0),
+    grid.y + (centerOffset?.y ?? 0),
+    grid.z + (centerOffset?.z ?? 0),
+  );
 }
 
 function buildItemXml(objectId, transform = null, { multiPlate = false } = {}) {
@@ -349,8 +378,8 @@ function buildBambuMultiPlateModelSettingsXml(assemblies) {
   }
   lines.push("  <assemble>");
   for (const asm of assemblies) {
-    const center = asm.centerOffset || { x: 0, y: 0, z: 0 };
-    const transform = formatTransform3x4(center.x, center.y, center.z);
+    const transform = asm.worldTransform
+      || worldTransformForPlate(asm.centerOffset || { x: 0, y: 0, z: 0 }, asm.plateId);
     lines.push(
       `   <assemble_item object_id="${asm.assemblyId}" instance_id="0" transform="${transform}" offset="0 0 0" />`,
     );
@@ -524,6 +553,9 @@ function packColoredProject3mf({
     from: "MakerDeck",
     name: projectName,
     version: "2.2.0",
+    printer_model: "Bambu Lab H2D 0.4 nozzle",
+    printable_area: ["0x0", `${BAMBU_BED_WIDTH_MM}x0`, `${BAMBU_BED_WIDTH_MM}x${BAMBU_BED_DEPTH_MM}`, `0x${BAMBU_BED_DEPTH_MM}`],
+    printable_height: "325",
     filament_type: filament.filamentType,
     filament_colour: filament.slotColors,
     filament_ids: filament.filamentIds,
@@ -596,6 +628,7 @@ export function buildMultiPlateColoredProject3mf(plates, projectName = "makerdec
     const plateId = plate.plateId ?? index + 1;
     const identifyId = built.buildObjectId;
     const centerOffset = centeringOffsetOnBed(built.localBBox);
+    const worldTransform = worldTransformForPlate(centerOffset, plateId);
     // plate_N.json bbox is plate-local (centred on bed), not world grid coordinates
     const plateBBox = translateAxisAlignedBBox(
       built.localBBox || { minX: 0, minY: 0, maxX: 1, maxY: 1 },
@@ -604,7 +637,7 @@ export function buildMultiPlateColoredProject3mf(plates, projectName = "makerdec
     );
     buildEntries.push({
       objectId: built.buildObjectId,
-      transform: formatTransform3x4(centerOffset.x, centerOffset.y, centerOffset.z),
+      transform: worldTransform,
     });
     triangleCount += built.triangleCount;
     objectId = built.nextObjectId;
@@ -618,6 +651,7 @@ export function buildMultiPlateColoredProject3mf(plates, projectName = "makerdec
       identifyId,
       plateBBox,
       centerOffset,
+      worldTransform,
     });
     extraZipFiles.push(
       {
@@ -689,3 +723,14 @@ export function filename3mfFor(meta, part = "body") {
   if (part === "lid") return base.replace(/\.3mf$/, "-lid.3mf");
   return base;
 }
+
+/** @internal verify / diagnostics */
+export {
+  BAMBU_BED_WIDTH_MM,
+  BAMBU_BED_DEPTH_MM,
+  BAMBU_PLATE_GRID_GAP_RATIO,
+  plateGridOffset,
+  plateStrideMm,
+  worldTransformForPlate,
+  centeringOffsetOnBed,
+};
