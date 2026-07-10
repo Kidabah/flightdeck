@@ -2,10 +2,19 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `0988d76` — solid art/text, no standoff seam
-- Cache-bust: `app.js?v=198` — header **b198**
+- Latest commit: (pending b199 push) — shallow export emboss
+- Cache-bust: `app.js?v=199` — header **b199**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-10 — b199: Shallow export emboss (sticker skin, fewer text seams)
+
+**Export** (`js/features.js`, `index.html`)
+
+- White dashes in Bambu preview are **Seams** (confirmed) — thick 1.0 mm plaques multiply perimeter loops on arc COFFEE.
+- Export caps: **text 0.36 mm**, **art 0.48 mm** (respects lower Emboss depth slider). Top-cap-only on flush skin.
+- Preview still uses full emboss depth; only 3MF export is shallow.
+- Cache **b199**. Hard refresh, re-export. Tip: Emboss depth slider → 0.3–0.4 for even flatter.
 
 ### 2026-07-10 — b198: Fix white layer-gap seams in art + COFFEE text
 

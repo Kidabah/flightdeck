@@ -2,7 +2,7 @@
  * Accent bands, emboss, honeycomb stamp, stackable hex grid, mesh merge.
  */
 
-import { dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap, unionShapeGroupsToPrepared } from "./contour.js?v=198";
+import { dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap, unionShapeGroupsToPrepared } from "./contour.js?v=199";
 import { decorPlacementOffsets, decorArtRect, rotateFacePoint, rotateShapeGroup } from "./decor.js";
 import {
   profileOutlineNormals,
@@ -2090,11 +2090,12 @@ function buildWatertightTextEmbossExport(shellMesh, meta, params) {
 
 /** Closed letter solids for separate-colour export (no wall interaction). */
 export function buildTextLabelExportMesh(meta, params) {
-  const collected = collectTextEmbossShapeGroups(meta, params);
+  const p = { ...params, __labelExportKind: "text" };
+  const collected = collectTextEmbossShapeGroups(meta, p);
   if (!collected?.shapeGroups?.length) return null;
 
   const { frame, shapeGroups } = collected;
-  const { d0, d1 } = labelOffsets(params);
+  const { d0, d1 } = labelOffsets(p);
   const positions = [];
   const indices = [];
   const mapBot = (px, py) => frame.mapPoint(px, py, d0);
@@ -2102,7 +2103,7 @@ export function buildTextLabelExportMesh(meta, params) {
   const flatCoord = (w) => flatCoordForFrame(frame, w);
 
   for (const group of shapeGroups) {
-    const { caps, flatFromArt } = wrapExtrudeCaps(frame, embossExportCaps(params, d0));
+    const { caps, flatFromArt } = wrapExtrudeCaps(frame, embossExportCaps(p, d0));
     extrudeShapeGroupBetween(positions, indices, group, mapTop, mapBot, flatCoord, caps, flatFromArt);
   }
   return positions.length ? { positions, indices } : null;
@@ -2110,11 +2111,12 @@ export function buildTextLabelExportMesh(meta, params) {
 
 /** Closed graphic solids for separate-colour export (trace/SVG — not thin stroke quads). */
 export function buildGraphicLabelExportMesh(meta, params, svgText = "") {
-  const collected = collectGraphicEmbossShapeGroups(meta, params, svgText);
+  const p = { ...params, __labelExportKind: "art" };
+  const collected = collectGraphicEmbossShapeGroups(meta, p, svgText);
   if (!collected?.shapeGroups?.length) return null;
 
   const { frame, shapeGroups } = collected;
-  const { d0, d1 } = labelOffsets(params);
+  const { d0, d1 } = labelOffsets(p);
   const positions = [];
   const indices = [];
   const mapBot = (px, py) => frame.mapPoint(px, py, d0);
@@ -2122,7 +2124,7 @@ export function buildGraphicLabelExportMesh(meta, params, svgText = "") {
   const flatCoord = (w) => flatCoordForFrame(frame, w);
 
   for (const group of shapeGroups) {
-    const { caps, flatFromArt } = wrapExtrudeCaps(frame, embossExportCaps(params, d0));
+    const { caps, flatFromArt } = wrapExtrudeCaps(frame, embossExportCaps(p, d0));
     extrudeShapeGroupBetween(positions, indices, group, mapTop, mapBot, flatCoord, caps, flatFromArt);
   }
   return positions.length ? { positions, indices } : null;
@@ -3041,19 +3043,27 @@ function extrudeGroupOnFace(outPos, outIdx, frame, group, d0, d1, params = null)
   extrudeShapeGroupBetween(outPos, outIdx, group, mapTop, mapBot, flatCoord, caps, flatFromArt);
 }
 
+function exportEmbossDepth(params) {
+  let depth = clamp(params.embossDepth ?? 0.7, 0.3, 2);
+  if (!params?.__labelExportStandoff) return depth;
+  // Shallow sticker-like skin — fewer seam loops than thick plaques (esp. arc text).
+  const maxMm = params.__labelExportKind === "text" ? 0.36 : 0.48;
+  depth = Math.min(depth, maxMm);
+  return Math.max(0.32, Math.round(depth / 0.2) * 0.2);
+}
+
 function embossExportCaps(params, d0) {
-  // Separate-colour export: closed solids proud of the wall (slicer-friendly).
-  if (params?.__labelExportStandoff) return "both";
+  if (params?.__labelExportStandoff) {
+    const depth = exportEmbossDepth(params);
+    // Flush on body — bottom mates the wall; top cap + sides only.
+    if (params.__labelExportEmbedded && depth <= 0.48) return "top";
+    return "both";
+  }
   return d0 < 0 ? "both" : "top";
 }
 
 function labelOffsets(params) {
-  let depth = clamp(params.embossDepth ?? 0.7, 0.3, 2);
-  if (params.__labelExportStandoff) {
-    // Snap to 0.2 mm layers so thin proud plaques don't fall between slice planes.
-    depth = Math.max(depth, 1.0);
-    depth = Math.round(depth / 0.2) * 0.2;
-  }
+  const depth = exportEmbossDepth(params);
   if (params.__embossMode === "deboss-cutter") {
     // Slicer-facing cutter STL: pokes 0.4mm past the surface and sinks (depth + 0.05)mm inward
     // so the boolean subtract is clean at the outer skin.
