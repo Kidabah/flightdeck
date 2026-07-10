@@ -1,9 +1,9 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=193";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=193";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=194";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMergedAmsExportMesh, punchBodyShellForLabelExport, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=194";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=161";
-import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=193";
+import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=194";
 import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=180";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
@@ -20,10 +20,10 @@ import {
   listLibraryDesigns,
   fetchDesignParams,
   deleteLibraryDesign,
-} from "./library.js?v=193";
+} from "./library.js?v=194";
 
 const SESSION_KEY = "makerdeck-session-v1";
-const MAKERDECK_BUILD = "b193";
+const MAKERDECK_BUILD = "b194";
 let saveSessionTimer = null;
 let sessionBooting = true;
 
@@ -807,37 +807,41 @@ function collectColoredExportParts(exportCache, stamp = null) {
   const bodyMesh = resolveBodyExportMesh(exportCache, params, separateText, stamp);
 
   if (separateColor && (params.embossFace || "front") !== "lid") {
-    const exportParams = { ...params, __labelExportStandoff: true };
-    const bodyClean = prepareMeshFor3mf(bodyMesh);
-    if (bodyClean?.indices?.length) {
-      parts.push({
-        name: "Body",
-        mesh: bodyClean,
-        color: state.boxColor || "#38bdf8",
-        extruder: extruder++,
-      });
-    }
-    if (separateArt) {
-      const artMesh = buildLabelGraphicEmboss(exportCache.meta, exportParams, params.embossSvgText || "", "emboss");
-      const artClean = artMesh ? sanitizeMeshForStl(prepareMeshFor3mf(artMesh), { strict: false, repair: true }) : null;
-      if (artClean?.indices?.length) {
+    // One watertight mesh with per-triangle AMS colours — separate floating parts
+    // cause empty layers and shattered toolpaths in Bambu Studio.
+    const exportParams = {
+      ...params,
+      __labelExportStandoff: true,
+      __labelExportEmbedded: true,
+    };
+    const boxShell = exportCache.boxShell || exportCache.shellMesh || exportCache;
+    const punched = punchBodyShellForLabelExport(
+      { positions: boxShell.positions.slice(), indices: boxShell.indices.slice() },
+      exportCache.meta,
+      exportParams,
+      params.embossSvgText || "",
+    );
+    const merged = buildMergedAmsExportMesh(
+      punched,
+      exportCache.meta,
+      exportParams,
+      params.embossSvgText || "",
+      { includeArt: separateArt, includeText: separateText },
+    );
+    if (merged?.indices?.length) {
+      const clean = prepareMeshFor3mf(merged);
+      if (clean?.indices?.length) {
         parts.push({
-          name: "Art",
-          mesh: artClean,
-          color: state.embossArtColor || "#4a3728",
-          extruder: extruder++,
-        });
-      }
-    }
-    if (separateText) {
-      const textMesh = buildTextLabelExportMesh(exportCache.meta, exportParams);
-      const textClean = textMesh ? sanitizeMeshForStl(prepareMeshFor3mf(textMesh), { strict: false, repair: true }) : null;
-      if (textClean?.indices?.length) {
-        parts.push({
-          name: "Text",
-          mesh: textClean,
-          color: state.embossTextColor || "#f8fafc",
-          extruder: extruder++,
+          name: "Body",
+          mesh: clean,
+          color: state.boxColor || "#38bdf8",
+          extruder: 1,
+          triangleExtruders: merged.triangleExtruders,
+          extruderColors: {
+            1: (state.boxColor || "#38bdf8").toUpperCase(),
+            2: (state.embossArtColor || "#4a3728").toUpperCase(),
+            3: (state.embossTextColor || "#f8fafc").toUpperCase(),
+          },
         });
       }
     }
@@ -3243,7 +3247,7 @@ function runExport(format, options = {}) {
               const kind = parts.length > 1
                 ? `${parts.length}-part colored 3MF`
                 : parts.length === 1 && parts[0].triangleExtruders?.length
-                  ? "AMS merged 3MF"
+                  ? "AMS painted 3MF"
                   : parts.length === 1 && parts[0].extruder === 1
                     ? "plain 3MF"
                     : "colored 3MF";

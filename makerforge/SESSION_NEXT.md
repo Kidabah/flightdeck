@@ -2,10 +2,22 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending b193 push) — clean box + united text export
-- Cache-bust: `app.js?v=193` — header **b193**
+- Latest commit: (pending b194 push) — single AMS mesh, embedded art/text
+- Cache-bust: `app.js?v=194` — header **b194**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-10 — b194: Single AMS mesh (fix empty layers + shattered art)
+
+**Export** (`js/app.js`, `js/features.js`, `index.html`)
+
+- **Root cause of “worse”:** b193 exported **3 separate floating parts** (Body + Art + Text). Bambu saw empty layers at 129.8–130.2 mm (box top) and sparse red dots — floating 0.2 mm standoff meshes don’t slice as one solid.
+- **Fix:** multi-colour export now builds **one watertight mesh** via `buildMergedAmsExportMesh` + `punchBodyShellForLabelExport` on plain `boxShell` (no stack feet).
+- Art/text **embedded flush** (`__labelExportEmbedded`) — no air gap; pockets cut in front wall under ink.
+- Min emboss depth **0.8 mm** on label export for reliable toolpaths.
+- Heavier trace union dilate (4–5 passes) for hatch-heavy coffee-sack traces.
+- Export status shows **“AMS painted 3MF”** (one object, per-triangle filament colours).
+- Cache **b194**. Run `DEPLOY-B194.bat`, hard refresh, **re-export** — do not reuse old `coffee jar (3).3mf`.
 
 ### 2026-07-10 — b193: Fix coffee canister slice (manifold body + united COFFEE text)
 

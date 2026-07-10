@@ -2,7 +2,7 @@
  * Accent bands, emboss, honeycomb stamp, stackable hex grid, mesh merge.
  */
 
-import { dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap, unionShapeGroupsToPrepared } from "./contour.js?v=193";
+import { dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap, unionShapeGroupsToPrepared } from "./contour.js?v=194";
 import { decorPlacementOffsets, decorArtRect, rotateFacePoint, rotateShapeGroup } from "./decor.js";
 import {
   profileOutlineNormals,
@@ -1621,7 +1621,7 @@ function collectTextEmbossShapeGroups(meta, params) {
   let shapeGroups;
   if (isLabelExport(params)) {
     const rawGroups = groupPolygonsWithHoles(maskToPolygons(textMask, maskW, maskH));
-    const united = unionShapeGroupsToPrepared(rawGroups, maskW, maskH, simplifyTol, 0, 2);
+    const united = unionShapeGroupsToPrepared(rawGroups, maskW, maskH, simplifyTol, 0, rawGroups.length > 12 ? 4 : 2);
     shapeGroups = united.length ? united : prepareShapeGroups(rawGroups, simplifyTol, 0);
   } else {
     shapeGroups = prepareShapeGroups(
@@ -1715,7 +1715,8 @@ function collectBitmapGraphicShapeGroups(meta, params, bitmap) {
     if (isLabelExport(params) && sourceGroups.length > 1) {
       const simplifyTol = Math.max(0.06, maskW / 4000);
       const smoothPasses = labelSmoothPasses(artH, params);
-      const united = unionShapeGroupsToPrepared(sourceGroups, maskW, maskH, simplifyTol, smoothPasses, 2);
+      const dilate = sourceGroups.length > 30 ? 5 : sourceGroups.length > 8 ? 4 : 2;
+      const united = unionShapeGroupsToPrepared(sourceGroups, maskW, maskH, simplifyTol, smoothPasses, dilate);
       if (united.length) sourceGroups = united;
     }
     for (const group of sourceGroups) groups.push(mapFaceGroup(group));
@@ -3030,18 +3031,21 @@ function embossExportCaps(params, d0) {
 }
 
 function labelOffsets(params) {
-  const depth = clamp(params.embossDepth ?? 0.7, 0.3, 2);
+  let depth = clamp(params.embossDepth ?? 0.7, 0.3, 2);
+  if (params.__labelExportStandoff) depth = Math.max(depth, 0.8);
   if (params.__embossMode === "deboss-cutter") {
     // Slicer-facing cutter STL: pokes 0.4mm past the surface and sinks (depth + 0.05)mm inward
     // so the boolean subtract is clean at the outer skin.
     return { d0: -depth - 0.05, d1: 0.4, depth, deboss: true };
   }
-  // Raised emboss: flush in preview; proud standoff on separate-colour export.
-  // Textured wrap walls need a bit more clearance so peaks don't pierce thin art.
-  let standoff = params.__labelExportStandoff ? 0.2 : 0;
-  if (params.__labelExportStandoff && params.vaseTextureEnabled) {
-    const texDepth = clamp(params.vaseTextureDepth ?? 1.2, 0.2, 3);
-    standoff = Math.max(standoff, 0.35 + texDepth * 0.15);
+  // Raised emboss: flush in preview; export embeds into wall pockets (no air gap).
+  let standoff = 0;
+  if (!params.__labelExportEmbedded) {
+    standoff = params.__labelExportStandoff ? 0.2 : 0;
+    if (params.__labelExportStandoff && params.vaseTextureEnabled) {
+      const texDepth = clamp(params.vaseTextureDepth ?? 1.2, 0.2, 3);
+      standoff = Math.max(standoff, 0.35 + texDepth * 0.15);
+    }
   }
   return { d0: standoff, d1: standoff + depth, depth, deboss: false };
 }
