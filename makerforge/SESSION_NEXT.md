@@ -2,10 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `409cbb3` — export top bar rework
-- Cache-bust: `app.js?v=204`, `style.css?v=28` — header **b204**
+- Latest commit: `12778e0` — fix 2-plate Bambu placement
+- Cache-bust: `app.js?v=205` — header **b205**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-10 — b205: Fix 2-plate Bambu/Orca lid placement
+
+**Export** (`js/3mf.js`, `js/app.js`, `index.html`)
+
+- **Root cause:** multi-plate 3MF had two `<plate>` blocks but build items had no transforms and no `<assemble>` section — Bambu Studio imported both assemblies at origin on plate 1.
+- **Fix:** plate-grid transforms on build items (+303 mm X for plate 2), `<assemble>` block with matching `assemble_item` entries, unique `identify_id` per plate.
+- Cache **b205**. Hard refresh, re-download 3MF, open in Bambu — expect **Plate 1 Container** and **Plate 2 Lid**.
 
 ### 2026-07-10 — b204: Export top bar + save dialog rework
 

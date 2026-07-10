@@ -179,6 +179,32 @@ function meshTo3mfResources(mesh, objectId, name, extruder, { resanitize = false
   };
 }
 
+/** Bambu/Orca plate grid stride (bed width + gap) — plate 2 sits at +X. */
+const BAMBU_PLATE_GRID_X_MM = 256 + 47;
+const BAMBU_PLATE_GRID_Y_MM = 256 + 47;
+
+function formatTransform3x4(tx = 0, ty = 0, tz = 0) {
+  return `1 0 0 0 0 1 0 0 0 0 1 0 ${tx} ${ty} ${tz}`;
+}
+
+function plateGridOffset(plateId) {
+  const index = Math.max(0, (plateId || 1) - 1);
+  const col = index % 2;
+  const row = Math.floor(index / 2);
+  return {
+    x: col * BAMBU_PLATE_GRID_X_MM,
+    y: -row * BAMBU_PLATE_GRID_Y_MM,
+    z: 0,
+  };
+}
+
+function buildItemXml(objectId, transform = null) {
+  if (transform) {
+    return `<item objectid="${objectId}" transform="${transform}" printable="1"/>`;
+  }
+  return `<item objectid="${objectId}"/>`;
+}
+
 function appendModelSettingsObject(lines, assemblyId, name, modelParts, singlePart) {
   lines.push(`  <object id="${assemblyId}">`);
   lines.push(`    <metadata key="name" value="${escapeXml(name)}"/>`);
@@ -237,6 +263,15 @@ function buildBambuMultiPlateModelSettingsXml(assemblies) {
   for (const asm of assemblies) {
     appendModelSettingsPlate(lines, asm.plateId, asm.plateName, asm.assemblyId, asm.identifyId ?? 0);
   }
+  lines.push("  <assemble>");
+  for (const asm of assemblies) {
+    const offset = plateGridOffset(asm.plateId);
+    const transform = formatTransform3x4(offset.x, offset.y, offset.z);
+    lines.push(
+      `   <assemble_item object_id="${asm.assemblyId}" instance_id="0" transform="${transform}" offset="0 0 0" />`,
+    );
+  }
+  lines.push("  </assemble>");
   lines.push("</config>");
   return lines.join("\n");
 }
@@ -360,13 +395,16 @@ function buildAssemblyFromParts(usable, projectName, startObjectId, { plainSingl
 function packColoredProject3mf({
   projectName,
   objectXml,
-  buildObjectIds,
+  buildEntries,
   triangleCount,
   filament,
   modelSettings,
   plainSingle = false,
 }) {
-  const buildItems = buildObjectIds.map((id) => `<item objectid="${id}"/>`).join("\n    ");
+  const buildItems = buildEntries.map((entry) => {
+    if (typeof entry === "number") return buildItemXml(entry);
+    return buildItemXml(entry.objectId, entry.transform ?? null);
+  }).join("\n    ");
   const modelXml = plainSingle
     ? `<?xml version="1.0" encoding="UTF-8"?>
 <model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">
@@ -456,7 +494,7 @@ export function buildMultiPlateColoredProject3mf(plates, projectName = "makerdec
   const filament = buildFilamentSlots(allParts);
   const assemblies = [];
   const objectXml = [];
-  const buildObjectIds = [];
+  const buildEntries = [];
   let objectId = 1;
   let triangleCount = 0;
 
@@ -464,7 +502,12 @@ export function buildMultiPlateColoredProject3mf(plates, projectName = "makerdec
     const built = buildAssemblyFromParts(plate.parts, plate.name || projectName, objectId, { plainSingle: false });
     if (!built) return;
     objectXml.push(...built.objectXml);
-    buildObjectIds.push(built.buildObjectId);
+    const plateId = plate.plateId ?? index + 1;
+    const grid = plateGridOffset(plateId);
+    buildEntries.push({
+      objectId: built.buildObjectId,
+      transform: formatTransform3x4(grid.x, grid.y, grid.z),
+    });
     triangleCount += built.triangleCount;
     objectId = built.nextObjectId;
     assemblies.push({
@@ -472,9 +515,9 @@ export function buildMultiPlateColoredProject3mf(plates, projectName = "makerdec
       name: plate.name || projectName,
       modelParts: built.modelParts,
       singlePart: built.singlePart,
-      plateId: plate.plateId ?? index + 1,
+      plateId,
       plateName: plate.plateName || "",
-      identifyId: index,
+      identifyId: 100 + index * 100,
     });
   });
 
@@ -484,7 +527,7 @@ export function buildMultiPlateColoredProject3mf(plates, projectName = "makerdec
   return packColoredProject3mf({
     projectName,
     objectXml,
-    buildObjectIds,
+    buildEntries,
     triangleCount,
     filament,
     modelSettings,
@@ -517,7 +560,7 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck") {
   return packColoredProject3mf({
     projectName,
     objectXml: built.objectXml,
-    buildObjectIds: [built.buildObjectId],
+    buildEntries: [built.buildObjectId],
     triangleCount: built.triangleCount,
     filament,
     modelSettings,
