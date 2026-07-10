@@ -2,10 +2,19 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `e45b4c2` — shallow export emboss
-- Cache-bust: `app.js?v=199` — header **b199**
+- Latest commit: (pending b200 push) — Lid colour picker
+- Cache-bust: `app.js?v=200` — header **b200**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-10 — b200: Lid colour picker on Lid tab
+
+**UI** (`index.html`, `js/app.js`)
+
+- **Lid** tab → **Lid colour** swatch + **Match body** (clears separate lid colour).
+- **Size** tab **Box colour** hint updated — body only.
+- Lid colour saved in session and used for lid 3MF export.
+- Cache **b200**. Hard refresh.
 
 ### 2026-07-10 — b199: Shallow export emboss (sticker skin, fewer text seams)
 

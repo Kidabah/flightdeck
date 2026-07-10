@@ -42,7 +42,7 @@
 
       <div>
 
-        <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b199</span></div>
+        <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b200</span></div>
 
         <h1>Container Generator</h1>
 
@@ -531,7 +531,7 @@
 
               </div>
 
-              <p class="field-hint">Preview and 3MF export — body and lid share this filament slot.</p>
+              <p class="field-hint">Body only — set lid colour on the <strong>Lid</strong> tab.</p>
 
             </section>
 
@@ -574,6 +574,18 @@
                 <span class="toggle-hint">Preview + export</span>
 
               </label>
+
+              <div class="field field-color" id="field-lid-color">
+
+                <span class="field-label">Lid colour</span>
+
+                <div id="lid-color-picker"></div>
+
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-lid-match-body">Match body</button>
+
+                <p class="field-hint">Preview and <strong>3MF lid</strong> export — can differ from body colour (e.g. wood-tone cap).</p>
+
+              </div>
 
               <label class="field" id="field-lid-type">
 
@@ -1395,7 +1407,7 @@
     </form>
   </dialog>
 
-  <script type="module" src="js/app.js?v=199"></script>
+  <script type="module" src="js/app.js?v=200"></script>
 
 </body>
 
