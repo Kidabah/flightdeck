@@ -2,10 +2,19 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `2f80a61` — Fix Bambu multi-plate 3MF with plate_N.json metadata (b206)
-- Cache-bust: `app.js?v=206` — header **b206**
+- Latest commit: `(pending b207)` — Fix Bambu multi-plate 3MF 12-value transforms (b207)
+- Cache-bust: `app.js?v=207` — header **b207**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-10 — b207: Fix Bambu H2D multi-plate stacking (12-value transforms)
+
+**Export** (`js/3mf.js`, `js/app.js`, `index.html`, `.ref/multi-plate-3mf-verify.mjs`)
+
+- **Root cause:** b205/b206 wrote **15-number** transform strings (`1 0 0 0 0 1 0 0 0 0 1 0 tx ty tz`). Bambu/Orca `bbs_get_transform_from_3mf_specs_string` requires **exactly 12** values (4×3 column-major); anything else → **identity**. Both container+lid landed at origin on plate 1; `auto_drop="1"` stacked lid on container bbox. plate_2.json bbox was also world-offset (+303 mm) instead of plate-local.
+- **Fix:** `formatTransform3x4` → `1 0 0 0 1 0 0 0 1 tx ty tz` (12 values). plate_N.json bbox uses plate-local coords. Added `pattern_bbox_file` metadata per Orca export. Verify script checks transform length, +303 mm plate-2 offset, local bbox.
+- Verify: `node .ref/multi-plate-3mf-verify.mjs`
+- Cache **b207**. Hard refresh, re-download 3MF, open in Bambu H2D — expect **Plate 1 Container** + **Plate 2 Lid** tabs, lid on its own bed.
 
 ### 2026-07-10 — b206: Fix Bambu H2D multi-plate tabs (plate_N.json)
 

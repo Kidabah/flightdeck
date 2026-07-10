@@ -192,8 +192,9 @@ const MINIMAL_PLATE_PNG = new Uint8Array([
   0x42, 0x60, 0x82,
 ]);
 
+/** 3MF 4×3 transform (12 values, column-major) — Bambu/Orca reject !=12 and use identity. */
 function formatTransform3x4(tx = 0, ty = 0, tz = 0) {
-  return `1 0 0 0 0 1 0 0 0 0 1 0 ${tx} ${ty} ${tz}`;
+  return `1 0 0 0 1 0 0 0 1 ${tx} ${ty} ${tz}`;
 }
 
 function meshAxisAlignedBBox(mesh) {
@@ -308,6 +309,7 @@ function appendModelSettingsPlate(lines, plateId, plateName, assemblyId, identif
   lines.push(`    <metadata key="thumbnail_no_light_file" value="Metadata/plate_no_light_${plateId}.png"/>`);
   lines.push(`    <metadata key="top_file" value="Metadata/top_${plateId}.png"/>`);
   lines.push(`    <metadata key="pick_file" value="Metadata/pick_${plateId}.png"/>`);
+  lines.push(`    <metadata key="pattern_bbox_file" value="Metadata/plate_${plateId}.json"/>`);
   lines.push("    <model_instance>");
   lines.push(`      <metadata key="object_id" value="${assemblyId}"/>`);
   lines.push('      <metadata key="instance_id" value="0"/>');
@@ -593,11 +595,8 @@ export function buildMultiPlateColoredProject3mf(plates, projectName = "makerdec
     const plateId = plate.plateId ?? index + 1;
     const grid = plateGridOffset(plateId);
     const identifyId = built.buildObjectId;
-    const plateBBox = translateAxisAlignedBBox(
-      built.localBBox || { minX: 0, minY: 0, maxX: 1, maxY: 1 },
-      grid.x,
-      grid.y,
-    );
+    // plate_N.json bbox is plate-local (bed origin), not world grid coordinates
+    const plateBBox = built.localBBox || { minX: 0, minY: 0, maxX: 1, maxY: 1 };
     buildEntries.push({
       objectId: built.buildObjectId,
       transform: formatTransform3x4(grid.x, grid.y, grid.z),
