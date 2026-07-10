@@ -253,6 +253,55 @@ export function dilateMask(mask, width, height, passes = 1) {
   return work;
 }
 
+function pointInRing(x, y, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0];
+    const yi = ring[i][1];
+    const xj = ring[j][0];
+    const yj = ring[j][1];
+    const hit = yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi + 1e-12) + xi;
+    if (hit) inside = !inside;
+  }
+  return inside;
+}
+
+function pointInShapeGroup(x, y, group) {
+  if (!pointInRing(x, y, group.outer)) return false;
+  for (const hole of group.holes) {
+    if (hole.length >= 3 && pointInRing(x, y, hole)) return false;
+  }
+  return true;
+}
+
+/** Flatten outer + hole groups into one ink mask (even-odd). */
+export function rasterizeShapeGroupsToMask(groups, width, height) {
+  const mask = new Uint8Array(width * height);
+  if (!groups?.length || width <= 0 || height <= 0) return mask;
+  for (let y = 0; y < height; y++) {
+    const py = y + 0.5;
+    for (let x = 0; x < width; x++) {
+      const px = x + 0.5;
+      for (const group of groups) {
+        if (pointInShapeGroup(px, py, group)) {
+          mask[y * width + x] = 1;
+          break;
+        }
+      }
+    }
+  }
+  return mask;
+}
+
+/** Union many trace polygons into one printable silhouette (avoids adjacent solid slivers). */
+export function unionShapeGroupsToPrepared(groups, width, height, simplifyTol = 1, smoothPasses = 1, dilatePasses = 2) {
+  if (!groups?.length || width <= 0 || height <= 0) return [];
+  let mask = rasterizeShapeGroupsToMask(groups, width, height);
+  if (dilatePasses > 0) mask = dilateMask(mask, width, height, dilatePasses);
+  const polys = maskToPolygons(mask, width, height);
+  return prepareShapeGroups(groupPolygonsWithHoles(polys), simplifyTol, smoothPasses);
+}
+
 /** Rasterise stroke centerlines into a solid binary mask (filled pens). */
 export function rasterizeStrokePathsToMask(paths, width, height, strokeWidthPx = 2) {
   const mask = new Uint8Array(width * height);

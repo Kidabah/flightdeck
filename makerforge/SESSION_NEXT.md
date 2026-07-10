@@ -2,10 +2,19 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `92ee713` — b188 wrap art follows surface texture
-- Cache-bust: `app.js?v=188`, `features.js?v=188` — header **b188**
+- Latest commit: (pending b189 push) — union trace art for manifold export
+- Cache-bust: `app.js?v=189`, `features.js?v=189` — header **b189**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-10 — b189: Union traced art for manifold 3MF export
+
+**Export** (`js/contour.js`, `js/features.js`, `js/app.js`, `index.html`)
+
+- **Root cause:** silhouette / colour-separated traces store hundreds of `shapeGroups` (coffee-sack hatching). Export extruded each as its own solid — adjacent slivers share faces → 3000+ open edges, 284 non-manifold, Bambu swiss-cheese toolpaths. b186–b188 only fixed the `strokePaths` branch; `shapeGroups` was still broken.
+- New `unionShapeGroupsToPrepared` — rasterises all trace loops to one ink mask, re-polygonises, extrudes as a single solid.
+- Art/text 3MF parts now run through `sanitizeMeshForStl` after weld (non-manifold peel).
+- Cache **b189**. Hard refresh, **re-export** coffee jar 3MF (old `coffee jar (3).3mf` will still be broken).
 
 ### 2026-07-10 — b188: Wrap art follows surface texture (swiss-cheese fix)
 

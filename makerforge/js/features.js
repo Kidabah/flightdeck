@@ -2,7 +2,7 @@
  * Accent bands, emboss, honeycomb stamp, stackable hex grid, mesh merge.
  */
 
-import { dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap } from "./contour.js";
+import { dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap, unionShapeGroupsToPrepared } from "./contour.js";
 import { decorPlacementOffsets, decorArtRect, rotateFacePoint, rotateShapeGroup } from "./decor.js";
 import {
   profileOutlineNormals,
@@ -1702,7 +1702,16 @@ function collectBitmapGraphicShapeGroups(meta, params, bitmap) {
 
   const groups = [];
   if (bitmap.shapeGroups?.length) {
-    for (const group of bitmap.shapeGroups) groups.push(mapFaceGroup(group));
+    let sourceGroups = bitmap.shapeGroups;
+    // Color-separated / hatched traces store hundreds of adjacent loops — extruding
+    // each as its own solid creates non-manifold contact edges in the slicer.
+    if (isLabelExport(params) && sourceGroups.length > 1) {
+      const simplifyTol = Math.max(0.06, maskW / 4000);
+      const smoothPasses = labelSmoothPasses(artH, params);
+      const united = unionShapeGroupsToPrepared(sourceGroups, maskW, maskH, simplifyTol, smoothPasses, 2);
+      if (united.length) sourceGroups = united;
+    }
+    for (const group of sourceGroups) groups.push(mapFaceGroup(group));
   } else if (bitmap.mask?.length === maskW * maskH) {
     const mask = bitmap.mask instanceof Uint8Array ? bitmap.mask : new Uint8Array(bitmap.mask);
     const hiRes = maskW >= 1800;
