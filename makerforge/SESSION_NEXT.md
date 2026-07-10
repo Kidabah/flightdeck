@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: _(pending — b223 deploy)_
+- Latest commit: `9bb3e04` (b223)
 - Cache-bust: `app.js?v=223` — header **b223**
 
 ### 2026-07-10 — b223: Fix blue wedge / diagonal mesh on heraldic trace (7 islands)
