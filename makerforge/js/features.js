@@ -1954,7 +1954,7 @@ export function buildTextLabelExportMesh(meta, params) {
   const flatCoord = (w) => flatCoordForFrame(frame, w);
 
   for (const group of shapeGroups) {
-    const { caps, flatFromArt } = wrapExtrudeCaps(frame, "top");
+    const { caps, flatFromArt } = wrapExtrudeCaps(frame, embossExportCaps(params, d0));
     extrudeShapeGroupBetween(positions, indices, group, mapTop, mapBot, flatCoord, caps, flatFromArt);
   }
   return positions.length ? { positions, indices } : null;
@@ -2192,7 +2192,7 @@ export function buildEmbossBitmap(meta, params, bitmap) {
       };
       let shaped = rotateShapeGroup(remapped, rotCx, rotCy, rotation);
       if (frame.face === "wrap") shaped = normalizeWrapShapeGroups([shaped], frame.faceW, rotCx)[0];
-      extrudeGroupOnFace(positions, indices, frame, shaped, d0, d1);
+      extrudeGroupOnFace(positions, indices, frame, shaped, d0, d1, params);
     }
     return positions.length ? { positions, indices } : null;
   }
@@ -2231,7 +2231,7 @@ export function buildEmbossBitmap(meta, params, bitmap) {
     };
     let shaped = rotateShapeGroup(remapped, rotCx, rotCy, rotation);
     if (frame.face === "wrap") shaped = normalizeWrapShapeGroups([shaped], frame.faceW, rotCx)[0];
-    extrudeGroupOnFace(positions, indices, frame, shaped, d0, d1);
+    extrudeGroupOnFace(positions, indices, frame, shaped, d0, d1, params);
   }
 
   return positions.length ? { positions, indices } : null;
@@ -2588,7 +2588,7 @@ function extrudeSvgFillRings(outPos, outIdx, fillRings, layout, params) {
     if (frame.face === "wrap") {
       shaped = normalizeWrapShapeGroups([remapped], frame.faceW, rotCx)[0];
     }
-    extrudeGroupOnFace(outPos, outIdx, frame, shaped, d0, d1);
+    extrudeGroupOnFace(outPos, outIdx, frame, shaped, d0, d1, params);
   }
 }
 
@@ -2864,13 +2864,19 @@ function ringPointsLocal(ring) {
 }
 
 /** Extrude a shape group (outer ring + holes) onto a face at offsets [d0, d1]. */
-function extrudeGroupOnFace(outPos, outIdx, frame, group, d0, d1) {
+function extrudeGroupOnFace(outPos, outIdx, frame, group, d0, d1, params = null) {
   const mapTop = (px, py) => frame.mapPoint(px, py, d1);
   const mapBot = (px, py) => frame.mapPoint(px, py, d0);
   const flatCoord = (w) => flatCoordForFrame(frame, w);
-  const capMode = d0 < 0 ? "both" : "top";
+  const capMode = params ? embossExportCaps(params, d0) : (d0 < 0 ? "both" : "top");
   const { caps, flatFromArt } = wrapExtrudeCaps(frame, capMode);
   extrudeShapeGroupBetween(outPos, outIdx, group, mapTop, mapBot, flatCoord, caps, flatFromArt);
+}
+
+function embossExportCaps(params, d0) {
+  // Separate-colour export: closed solids proud of the wall (slicer-friendly).
+  if (params?.__labelExportStandoff) return "both";
+  return d0 < 0 ? "both" : "top";
 }
 
 function labelOffsets(params) {
@@ -2880,9 +2886,8 @@ function labelOffsets(params) {
     // so the boolean subtract is clean at the outer skin.
     return { d0: -depth - 0.05, d1: 0.4, depth, deboss: true };
   }
-  // Raised emboss: flush in preview; tiny proud standoff on separate-colour export
-  // so Bambu does not strip coplanar wall faces.
-  const standoff = params.__labelExportStandoff ? 0.06 : 0;
+  // Raised emboss: flush in preview; ~one-layer proud standoff on separate-colour export.
+  const standoff = params.__labelExportStandoff ? 0.2 : 0;
   return { d0: standoff, d1: standoff + depth, depth, deboss: false };
 }
 

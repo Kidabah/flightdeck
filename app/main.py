@@ -5075,19 +5075,35 @@ async def makerworld_thumbnail(url: str):
 
 
 @app.post("/api/makerdeck/exports", status_code=201)
-async def makerdeck_save_export(
-    file: UploadFile = File(...),
-    meta: str = Form(""),
-    thumbnail: UploadFile | None = File(None),
-    trace_image: UploadFile | None = File(None),
-):
-    raw_name = _safe_basename(file.filename, "makerdeck-export")
+async def makerdeck_save_export(request: Request):
+    max_bytes = _MAX_PRINT_FILE_BYTES
+    try:
+        form = await request.form(max_part_size=max_bytes, max_file_size=max_bytes)
+    except Exception as exc:
+        raise HTTPException(status_code=413, detail=str(exc)) from exc
+
+    upload = form.get("file")
+    if upload is None or not hasattr(upload, "read"):
+        raise HTTPException(status_code=422, detail="Missing export file")
+    raw_name = _safe_basename(getattr(upload, "filename", None), "makerdeck-export")
     ext = _queue_file_extension(raw_name)
     if ext not in {".stl", ".3mf"}:
         raise HTTPException(status_code=422, detail="Only STL and 3MF exports are supported")
-    data = await _read_upload_bytes(file, label="MakerDeck export")
-    thumb_data = await thumbnail.read() if thumbnail and thumbnail.filename else b""
-    trace_data = await trace_image.read() if trace_image and trace_image.filename else b""
+    data = await _read_upload_bytes(upload, label="MakerDeck export")
+
+    thumb_field = form.get("thumbnail")
+    thumb_data = b""
+    if thumb_field is not None and hasattr(thumb_field, "read"):
+        thumb_data = await thumb_field.read()
+
+    trace_field = form.get("trace_image")
+    trace_data = b""
+    if trace_field is not None and hasattr(trace_field, "read"):
+        trace_data = await trace_field.read()
+
+    meta_field = form.get("meta")
+    meta = meta_field if isinstance(meta_field, str) else ""
+
     try:
         return makerdeck_library.save_export(
             library_root=_print_library_path().resolve(),

@@ -2,12 +2,21 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: see **b183** below
-- Cache-bust: `app.js?v=183`, `features.js?v=183` — header **b183**
+- Latest commit: see **b184** below
+- Cache-bust: `app.js?v=184`, `features.js?v=184` — header **b184**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
 
-### 2026-07-10 — b183: Fix 3MF colours + library save
+### 2026-07-10 — b184: Closed export solids + library upload limit
+
+**Export** (`js/features.js`, `js/app.js`, `app/main.py`, `index.html`)
+
+- Art/text export meshes are now **closed solids** (not open-bottom shells) with **0.2 mm** standoff — fixes empty layers and pitting when sliced upright.
+- Library POST raised Starlette multipart limit (was 1 MB — blocked large 3MF saves).
+- Open-edge warning now reports **body only** (art/text open bottoms no longer scare you).
+- Print canisters **standing upright** (lid flat separately). Cache **b184**. Hard refresh + **backend restart**.
+
+### 2026-07-10 — b183: Fix 3MF colours (separate parts) + library save
 
 **Export** (`js/app.js`, `js/features.js`, `index.html`)
 
