@@ -4,7 +4,12 @@
 
 import { dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap } from "./contour.js";
 import { decorPlacementOffsets, decorArtRect, rotateFacePoint, rotateShapeGroup } from "./decor.js";
-import { profileOutlineNormals, profileOutlineArcMetrics } from "./vase-textures.js";
+import {
+  profileOutlineNormals,
+  profileOutlineArcMetrics,
+  resolveVaseTexture,
+  vaseTextureDisplacement,
+} from "./vase-textures.js";
 
 export const EMBOSS_FONTS = [
   { id: "segoe-ui", label: "Segoe UI — Windows", family: '"Segoe UI Variable", "Segoe UI", system-ui, sans-serif', weight: 700 },
@@ -1513,13 +1518,28 @@ function wrapExtrudeCaps(frame, caps) {
   return frame.face === "wrap" ? { caps, flatFromArt: wrapFlatFromArt() } : { caps };
 }
 
-/** Wall-wrap frame — art maps around the outer profile (arc length × height). */
-export function getProfileWrapFaceFrame(outerProfile, meta) {
+/** Wall-wrap frame — art maps around the outer profile (arc length × height).
+ * When surface texture is on, offsets ride the same displacement as the body wall
+ * so emboss/decals are not shredded by ripple peaks punching through flat art. */
+export function getProfileWrapFaceFrame(outerProfile, meta, params = null) {
   const outer = outerProfile.map((p) => [p[0], p[1]]);
   const normals = profileOutlineNormals(outer);
   const metrics = profileOutlineArcMetrics(outer);
   const totalH = meta.outer?.h ?? meta.totalH ?? 40;
+  const floor = meta.outer?.h != null && meta.inner?.h != null
+    ? meta.outer.h - meta.inner.h
+    : (meta.floor ?? 0);
   const arcOrigin = profileArcFrontOffset(outer);
+  const textureSpec = resolveVaseTexture(params || {}, {
+    height: totalH,
+    floor,
+    diameter: metrics.effectiveDiameter,
+  });
+  const textured = textureSpec && textureSpec.style !== "none" && textureSpec.depth > 0;
+  const texSpec = textured
+    ? { ...textureSpec, height: totalH, floor, diameter: metrics.effectiveDiameter }
+    : null;
+
   return {
     face: "wrap",
     faceW: metrics.perimeter,
@@ -1527,10 +1547,20 @@ export function getProfileWrapFaceFrame(outerProfile, meta) {
     centerZ: totalH * 0.5,
     horizontal: false,
     arcOrigin,
+    textured: !!textured,
     mapPoint: (px, py, offset) => {
-      const pt = profilePointAtArc(outer, normals, px + arcOrigin);
+      const arcLen = px + arcOrigin;
+      const pt = profilePointAtArc(outer, normals, arcLen);
       const z = clamp(py, 0, totalH);
-      return [pt.x + pt.nx * offset, pt.y + pt.ny * offset, z];
+      let surfaceDr = 0;
+      if (texSpec) {
+        const perim = metrics.perimeter || 1;
+        const t = ((arcLen % perim) + perim) % perim;
+        const angle = (t / perim) * Math.PI * 2 - Math.PI;
+        surfaceDr = vaseTextureDisplacement(angle, z, texSpec);
+      }
+      const r = surfaceDr + offset;
+      return [pt.x + pt.nx * r, pt.y + pt.ny * r, z];
     },
   };
 }
@@ -2824,7 +2854,7 @@ export function shapeSupportsAccentFrontFace(shape) {
 export function getEmbossFaceFrame(meta, face, params = null) {
   const useFace = ["front", "back", "left", "right", "top", "lid", "bottom", "wrap"].includes(face) ? face : "front";
   if (useFace === "wrap" && meta.outerProfile?.length >= 3) {
-    return getProfileWrapFaceFrame(meta.outerProfile, meta);
+    return getProfileWrapFaceFrame(meta.outerProfile, meta, params);
   }
 
   const b = rectFeatureBounds(meta);
@@ -2986,8 +3016,13 @@ function labelOffsets(params) {
     // so the boolean subtract is clean at the outer skin.
     return { d0: -depth - 0.05, d1: 0.4, depth, deboss: true };
   }
-  // Raised emboss: flush in preview; ~one-layer proud standoff on separate-colour export.
-  const standoff = params.__labelExportStandoff ? 0.2 : 0;
+  // Raised emboss: flush in preview; proud standoff on separate-colour export.
+  // Textured wrap walls need a bit more clearance so peaks don't pierce thin art.
+  let standoff = params.__labelExportStandoff ? 0.2 : 0;
+  if (params.__labelExportStandoff && params.vaseTextureEnabled) {
+    const texDepth = clamp(params.vaseTextureDepth ?? 1.2, 0.2, 3);
+    standoff = Math.max(standoff, 0.35 + texDepth * 0.15);
+  }
   return { d0: standoff, d1: standoff + depth, depth, deboss: false };
 }
 

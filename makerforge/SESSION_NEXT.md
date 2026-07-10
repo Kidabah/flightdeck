@@ -2,10 +2,20 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: see **b187** below
-- Cache-bust: `app.js?v=187`, `features.js?v=187` — header **b187**
+- Latest commit: see **b188** below
+- Cache-bust: `app.js?v=188`, `features.js?v=188` — header **b188**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-10 — b188: Wrap art follows surface texture (swiss-cheese fix)
+
+**Export / preview** (`js/features.js`, `js/geometry.js`, `js/app.js`, `index.html`)
+
+- **Root cause:** wall-wrap emboss sat on the *smooth* cylinder while ripple/scales displaced the body wall outward — texture peaks punched through COFFEE / coffee-sack art → Bambu swiss-cheese toolpaths.
+- Wrap `mapPoint` now adds the same `vaseTextureDisplacement` as the body shell, then emboss depth on top.
+- Separate-colour export standoff grows with texture depth so peaks never pierce thin art.
+- Also bumped stale `geometry.js` → `features.js?v=188` (was stuck on v=174).
+- Cache **b188**. Hard refresh and **re-export** coffee jar 3MF (don't reuse old files).
 
 ### 2026-07-10 — b187: Export actually uses solid art mesh path
 
