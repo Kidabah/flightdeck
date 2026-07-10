@@ -23,9 +23,99 @@ import {
 } from "./library.js?v=201";
 
 const SESSION_KEY = "makerdeck-session-v1";
-const MAKERDECK_BUILD = "b212";
+const MAKERDECK_BUILD = "b213";
+const DISPLAY_UNITS = ["mm", "cm", "in"];
+const MM_PER_IN = 25.4;
 let saveSessionTimer = null;
 let sessionBooting = true;
+
+const LENGTH_STATE_KEYS = new Set([
+  "innerWidth", "innerDepth", "innerHeight",
+  "wall", "floor", "cornerRadius", "vertexFillet",
+  "lidSkirt", "lidThickness", "lidLipDepth", "lidClearance", "lidGasketWidth", "lidGasketDepth",
+  "joinerWidth", "joinerNeck", "joinerProtrusion",
+  "insertThickness", "insertClearance", "insertSlotDepth", "insertTopClearance",
+  "vaseDiameter", "vaseHeight", "vaseWall", "vaseFloor", "vaseDrainageSize", "vaseFluteDepth",
+  "vaseTextureDepth", "vaseTextureScale",
+  "embossDepth", "embossHeight", "embossArcRadius", "embossTraceSize",
+  "textOffsetX", "textOffsetY", "decorOffsetX", "decorOffsetY",
+]);
+
+const LENGTH_ACCENT_KEYS = new Set(["height", "waveAmp"]);
+
+function normalizeDisplayUnit(unit) {
+  return DISPLAY_UNITS.includes(unit) ? unit : "mm";
+}
+
+function displayUnitLabel(unit = state.displayUnit) {
+  const u = normalizeDisplayUnit(unit);
+  return u === "in" ? "in" : u;
+}
+
+function displayUnitFactor(unit = state.displayUnit) {
+  const u = normalizeDisplayUnit(unit);
+  if (u === "cm") return 10;
+  if (u === "in") return MM_PER_IN;
+  return 1;
+}
+
+function isLengthKey(key) {
+  return !!(key && (LENGTH_STATE_KEYS.has(key) || LENGTH_ACCENT_KEYS.has(key)));
+}
+
+function mmToDisplay(mm, unit = state.displayUnit) {
+  return mm / displayUnitFactor(unit);
+}
+
+function displayToMm(display, unit = state.displayUnit) {
+  return display * displayUnitFactor(unit);
+}
+
+function ensureSliderMmStep(slider) {
+  if (!slider?.dataset.mmStep) slider.dataset.mmStep = String(slider.step || 1);
+  return parseFloat(slider.dataset.mmStep) || 1;
+}
+
+function displayDecimalsForStep(dispStep) {
+  const stepText = String(dispStep);
+  let decimals = stepText.includes(".") ? stepText.split(".")[1].length : 0;
+  const u = normalizeDisplayUnit(state.displayUnit);
+  if (u === "in" && decimals < 2) decimals = 2;
+  if (u === "cm" && decimals < 1) decimals = Math.max(decimals, 1);
+  return decimals;
+}
+
+function formatDisplayValue(val, dispStep) {
+  const decimals = displayDecimalsForStep(dispStep);
+  const n = Number(val);
+  if (!Number.isFinite(n)) return "0";
+  if (decimals) return n.toFixed(decimals);
+  return String(Math.round(n));
+}
+
+function fmtDimReadout(mm) {
+  const factor = displayUnitFactor();
+  const disp = mm / factor;
+  const step = factor === 1 ? 1 : (factor === 10 ? 0.1 : 0.01);
+  return formatDisplayValue(disp, step);
+}
+
+function unitLenSpan() {
+  return `<span class="unit unit-len">${displayUnitLabel()}</span>`;
+}
+
+function applyLengthSliderRange(slider, mmMin, mmMax, mmValue) {
+  const mmStep = ensureSliderMmStep(slider);
+  slider.dataset.mmMin = String(mmMin);
+  slider.dataset.mmMax = String(mmMax);
+  const dStep = mmStep / displayUnitFactor();
+  slider.min = formatDisplayValue(mmMin / displayUnitFactor(), dStep);
+  slider.max = formatDisplayValue(mmMax / displayUnitFactor(), dStep);
+  slider.step = String(dStep);
+  const display = formatDisplayValue(mmValue / displayUnitFactor(), dStep);
+  slider.value = display;
+  return display;
+}
 
 const PRESET_SHAPES = new Set(["pencil", "pencilBox", "teardrop", "star", "heart", "canisterSquare", "canisterJar", "canisterStack"]);
 
@@ -124,7 +214,7 @@ const PRESET_CONFIG = {
   canisterStack: { preset: CANISTER_STACK_PRESET, profile: "canister" },
 };
 
-const state = { ...DEFAULTS, shape: "rect" };
+const state = { ...DEFAULTS, shape: "rect", displayUnit: "mm" };
 let meshCache = null;
 let lidCache = null;
 let accentPreviewParts = [];
@@ -617,13 +707,13 @@ function syncTextLayoutUi() {
   const textOy = document.querySelector("#field-text-offset-y .field-label");
   if (textOx) {
     textOx.innerHTML = arcOn
-      ? 'Move left / right <span class="unit">mm</span>'
-      : 'Text left / right <span class="unit">mm</span>';
+      ? `Move left / right ${unitLenSpan()}`
+      : `Text left / right ${unitLenSpan()}`;
   }
   if (textOy) {
     textOy.innerHTML = arcOn
-      ? 'Move up / down <span class="unit">mm</span>'
-      : 'Text up / down <span class="unit">mm</span>';
+      ? `Move up / down ${unitLenSpan()}`
+      : `Text up / down ${unitLenSpan()}`;
   }
   syncArcPresetUi();
 }
@@ -1510,6 +1600,7 @@ function stateForSession() {
   const snap = {};
   for (const key of Object.keys(DEFAULTS)) snap[key] = state[key];
   snap.shape = state.shape;
+  snap.displayUnit = normalizeDisplayUnit(state.displayUnit);
   if (state.embossTraceRects) {
     snap.embossTraceRects = serializeEmbossTraceRects(state.embossTraceRects);
   }
@@ -1544,6 +1635,7 @@ async function applySessionPayload(payload) {
     if (payload.state[key] !== undefined) state[key] = payload.state[key];
   }
   if (payload.state.shape) state.shape = payload.state.shape;
+  if (payload.state.displayUnit) state.displayUnit = normalizeDisplayUnit(payload.state.displayUnit);
   if (state.shape === "fatQuarters") state.shape = "rounded";
   if (state.insertMount === "fixed") state.joinerEnabled = false;
   if (payload.state.embossTraceRects) {
@@ -2007,23 +2099,25 @@ function rebuildMesh() {
 
 function updateStats(meta) {
   const { outer, cavityMl, materialMl, estGrams } = meta;
+  const u = displayUnitLabel();
+  const fmt = (n) => fmtDimReadout(n);
   if (meta.shape === "vase") {
-    document.getElementById("stat-outer").textContent = `${meta.styleLabel || "Vase"} · ⌀${outer.w} × ${outer.h}`;
+    document.getElementById("stat-outer").textContent = `${meta.styleLabel || "Vase"} · ⌀${fmt(outer.w)} × ${fmt(outer.h)} ${u}`;
   } else if (meta.shape === "circle") {
-    document.getElementById("stat-outer").textContent = `⌀${outer.w} × ${outer.h}`;
+    document.getElementById("stat-outer").textContent = `⌀${fmt(outer.w)} × ${fmt(outer.h)} ${u}`;
   } else if (meta.shape === "oval") {
-    document.getElementById("stat-outer").textContent = `Oval ${outer.w} × ${outer.d} × ${outer.h}`;
+    document.getElementById("stat-outer").textContent = `Oval ${fmt(outer.w)} × ${fmt(outer.d)} × ${fmt(outer.h)} ${u}`;
   } else if (PRESET_SHAPES.has(meta.shape)) {
     if (meta.shape === "star") {
-      document.getElementById("stat-outer").textContent = `${meta.starPoints}-pt ${outer.w} × ${outer.h}`;
+      document.getElementById("stat-outer").textContent = `${meta.starPoints}-pt ${fmt(outer.w)} × ${fmt(outer.h)} ${u}`;
     } else {
-      document.getElementById("stat-outer").textContent = `${outer.w} × ${outer.d} × ${outer.h}`;
+      document.getElementById("stat-outer").textContent = `${fmt(outer.w)} × ${fmt(outer.d)} × ${fmt(outer.h)} ${u}`;
     }
   } else if (meta.shape === "hex" || meta.shape === "polygon") {
     const sideLabel = meta.sides === 6 ? "hex" : `${meta.sides}-gon`;
-    document.getElementById("stat-outer").textContent = `${sideLabel} ${outer.w} flat × ${outer.h}`;
+    document.getElementById("stat-outer").textContent = `${sideLabel} ${fmt(outer.w)} flat × ${fmt(outer.h)} ${u}`;
   } else {
-    document.getElementById("stat-outer").textContent = `${outer.w} × ${outer.d} × ${outer.h}`;
+    document.getElementById("stat-outer").textContent = `${fmt(outer.w)} × ${fmt(outer.d)} × ${fmt(outer.h)} ${u}`;
   }
   document.getElementById("stat-cavity").textContent = `${cavityMl} ml`;
   document.getElementById("stat-material").textContent = `${materialMl} ml`;
@@ -2032,12 +2126,19 @@ function updateStats(meta) {
 
 function syncSliderUi(sliderId, key, { min, max, value, parseKind = "int" }) {
   const slider = document.getElementById(sliderId);
+  if (!slider) return;
   const out = document.querySelector(`.value-edit[data-slider="${sliderId}"]`);
-  slider.min = String(min);
-  slider.max = String(max);
-  const display = formatSliderValue(value, slider.step);
-  slider.value = display;
-  if (key) state[key] = parseKind === "float" ? parseFloat(display) : Number(display);
+  let display;
+  if (isLengthKey(key)) {
+    display = applyLengthSliderRange(slider, min, max, value);
+    if (key) state[key] = parseKind === "float" ? parseFloat(value) : Number(value);
+  } else {
+    slider.min = String(min);
+    slider.max = String(max);
+    display = formatSliderValue(value, slider.step);
+    slider.value = display;
+    if (key) state[key] = parseKind === "float" ? parseFloat(value) : Number(value);
+  }
   if (out) out.textContent = display;
 }
 
@@ -2045,8 +2146,16 @@ function setArtSlider(sliderId, value, parseKind = "float") {
   const slider = document.getElementById(sliderId);
   const out = document.querySelector(`.value-edit[data-slider="${sliderId}"]`);
   if (!slider) return;
-  const display = formatSliderValue(value, slider.step);
-  slider.value = display;
+  const key = out?.dataset?.key;
+  let display;
+  if (isLengthKey(key)) {
+    const mmMin = parseFloat(slider.dataset.mmMin ?? slider.min);
+    const mmMax = parseFloat(slider.dataset.mmMax ?? slider.max);
+    display = applyLengthSliderRange(slider, mmMin, mmMax, value);
+  } else {
+    display = formatSliderValue(value, slider.step);
+    slider.value = display;
+  }
   if (out) out.textContent = display;
 }
 
@@ -2359,12 +2468,12 @@ function updateLabels() {
     canisterStack: "Stack jar size",
   };
   document.getElementById("label-inner-size").innerHTML = sizeHeading[shape]
-    ? `${sizeHeading[shape]} <span class="unit">mm</span>`
+    ? `${sizeHeading[shape]} ${unitLenSpan()}`
     : circle
-      ? 'Size <span class="unit">mm</span>'
+      ? `Size ${unitLenSpan()}`
       : hex
-        ? 'Flat size <span class="unit">mm</span>'
-        : 'Inner size <span class="unit">mm</span>';
+        ? `Flat size ${unitLenSpan()}`
+        : `Inner size ${unitLenSpan()}`;
 
   document.getElementById("field-depth").classList.toggle("hidden", hex || circle || star);
   document.getElementById("field-corner").classList.toggle("hidden", !rounded && !pencilBox && !canisterSquare);
@@ -2673,7 +2782,16 @@ function cancelPendingArtRebuild() {
 function syncArcRadiusUi() {
   const out = document.getElementById("out-emboss-arc-radius");
   const r = state.embossArcRadius ?? 0;
-  if (out) out.textContent = r > 0 ? String(r) : "Auto";
+  if (out) {
+    if (r > 0) {
+      const slider = document.getElementById("emboss-arc-radius");
+      const mmStep = slider ? ensureSliderMmStep(slider) : 1;
+      const dStep = mmStep / displayUnitFactor();
+      out.textContent = formatDisplayValue(mmToDisplay(r), dStep);
+    } else {
+      out.textContent = "Auto";
+    }
+  }
 }
 
 function syncArtArcRadiusSlider() {
@@ -2692,8 +2810,6 @@ function syncArtArcRadiusSlider() {
     value: clamped,
     parseKind: "float",
   });
-  const slider = document.getElementById("emboss-arc-radius");
-  if (slider) slider.max = String(limits.max);
   syncArcRadiusUi();
 }
 
@@ -2713,8 +2829,6 @@ function syncArtSizeSlider() {
     value: clamped,
     parseKind: "float",
   });
-  const slider = document.getElementById("emboss-height");
-  if (slider) slider.max = String(limits.max);
 }
 
 function syncArtEditorUi() {
@@ -2765,13 +2879,13 @@ function syncArtEditorUi() {
   const offsetYLabel = document.querySelector("#field-art-offset-y .field-label");
   if (offsetXLabel) {
     offsetXLabel.innerHTML = wrapArt
-      ? 'Graphic around wall <span class="unit">mm</span>'
-      : 'Graphic left / right <span class="unit">mm</span>';
+      ? `Graphic around wall ${unitLenSpan()}`
+      : `Graphic left / right ${unitLenSpan()}`;
   }
   if (offsetYLabel) {
     offsetYLabel.innerHTML = wrapArt
-      ? 'Graphic height <span class="unit">mm</span>'
-      : 'Graphic up / down <span class="unit">mm</span>';
+      ? `Graphic height ${unitLenSpan()}`
+      : `Graphic up / down ${unitLenSpan()}`;
   }
   syncArtSizeSlider();
   syncArtArcRadiusSlider();
@@ -3080,8 +3194,9 @@ function syncInsertTopClearanceUi() {
   const slider = document.getElementById("insert-top-clearance");
   const out = document.getElementById("out-insert-top-clearance");
   if (slider) {
-    const display = formatSliderValue(effective, slider.step);
-    slider.value = display;
+    const mmMin = 0.2;
+    const mmMax = 8;
+    const display = applyLengthSliderRange(slider, mmMin, mmMax, effective);
     slider.disabled = autoOn;
     if (out) {
       out.textContent = display;
@@ -3091,9 +3206,10 @@ function syncInsertTopClearanceUi() {
 
   const hint = document.getElementById("insert-top-clearance-hint");
   if (hint && insertOn) {
+    const u = displayUnitLabel();
     if (autoOn && intrusion > 0) {
       const src = normalizeLidType(state.lidType) === "plug" ? "inset skirt" : "lip";
-      hint.textContent = `Auto: ${formatSliderValue(effective, "0.5")} mm (${src} ${intrusion} mm + gap). Uncheck Match lid to override.`;
+      hint.textContent = `Auto: ${fmtDimReadout(effective)} ${u} (${src} ${fmtDimReadout(intrusion)} ${u} + gap). Uncheck Match lid to override.`;
     } else if (autoOn) {
       hint.textContent = "Slip-over lid — no internal intrusion. Uncheck Match lid to set a custom top gap.";
     } else {
@@ -3615,7 +3731,8 @@ function accentBandsUiSignature() {
 
 function bindAccentBandSlider(slider, bandIndex, key, parseKind = "float") {
   const sync = () => {
-    const val = parseFieldValue(slider.value, parseKind);
+    let val = parseFieldValue(slider.value, parseKind);
+    if (isLengthKey(key)) val = displayToMm(val);
     if (!state.accentBands[bandIndex]) return;
     state.accentBands[bandIndex][key] = val;
     if (key === "pos" && accentUiMode() === "profile") {
@@ -3645,11 +3762,20 @@ function createAccentBandValueEdit(sliderId, bandIndex, key, parseKind, display)
 }
 
 function applyAccentBandSliderValue(slider, bandIndex, key, val, parseKind) {
-  const display = formatSliderValue(val, slider.step);
-  slider.value = display;
+  const mmVal = isLengthKey(key) ? displayToMm(val) : val;
+  const stored = parseKind === "float" ? parseFloat(mmVal) : Number(mmVal);
   const band = state.accentBands[bandIndex];
   if (!band) return;
-  band[key] = parseFieldValue(display, parseKind);
+  band[key] = stored;
+  let display;
+  if (isLengthKey(key)) {
+    const mmMin = parseFloat(slider.dataset.mmMin ?? slider.min);
+    const mmMax = parseFloat(slider.dataset.mmMax ?? slider.max);
+    display = applyLengthSliderRange(slider, mmMin, mmMax, stored);
+  } else {
+    display = formatSliderValue(val, slider.step);
+    slider.value = display;
+  }
   if (key === "pos" && accentUiMode() === "profile") {
     band.face = band.pos <= 0.5 ? "floor" : "rim";
   }
@@ -3663,19 +3789,26 @@ function applyAccentBandSliderValue(slider, bandIndex, key, val, parseKind) {
 function syncAccentBandControlsFromState() {
   const mode = accentUiMode();
   state.accentBands.forEach((band, i) => {
-    const setSlider = (suffix, val) => {
+    const setSlider = (suffix, val, key) => {
       const slider = document.getElementById(`accent-band-${i}-${suffix}`);
       const out = document.getElementById(`accent-band-${i}-${suffix}-out`);
       if (!slider) return;
-      const display = formatSliderValue(val, slider.step);
-      slider.value = display;
+      let display;
+      if (isLengthKey(key)) {
+        const mmMin = parseFloat(slider.dataset.mmMin ?? slider.min);
+        const mmMax = parseFloat(slider.dataset.mmMax ?? slider.max);
+        display = applyLengthSliderRange(slider, mmMin, mmMax, val);
+      } else {
+        display = formatSliderValue(val, slider.step);
+        slider.value = display;
+      }
       if (out) out.textContent = display;
     };
-    setSlider("pos", band.pos ?? 50);
-    setSlider("height", band.height ?? 4);
-    setSlider("rotation", band.rotation ?? 0);
-    setSlider("wave-amp", band.waveAmp ?? 3);
-    setSlider("wave-count", band.waveCount ?? 6);
+    setSlider("pos", band.pos ?? 50, "pos");
+    setSlider("height", band.height ?? 4, "height");
+    setSlider("rotation", band.rotation ?? 0, "rotation");
+    setSlider("wave-amp", band.waveAmp ?? 3, "waveAmp");
+    setSlider("wave-count", band.waveCount ?? 6, "waveCount");
     const edge = document.getElementById(`accent-band-${i}-edge`);
     if (edge) edge.value = band.edge || "straight";
     const face = document.getElementById(`accent-band-${i}-face`);
@@ -3880,7 +4013,7 @@ function renderAccentBandsUi(force = false) {
       waveAmpField.className = "field";
       waveAmpField.id = `accent-band-${i}-wave-amp-field`;
       waveAmpField.classList.toggle("hidden", !wavyOn);
-      waveAmpField.innerHTML = `<span class="field-label">Wave height <span class="unit">mm</span></span>`;
+      waveAmpField.innerHTML = `<span class="field-label">Wave height ${unitLenSpan()}</span>`;
       const waveAmpSlider = document.createElement("input");
       waveAmpSlider.type = "range";
       waveAmpSlider.id = `accent-band-${i}-wave-amp`;
@@ -3916,7 +4049,7 @@ function renderAccentBandsUi(force = false) {
 
     const heightField = document.createElement("label");
     heightField.className = "field";
-    heightField.innerHTML = `<span class="field-label">Band height <span class="unit">mm</span></span>`;
+    heightField.innerHTML = `<span class="field-label">Band height ${unitLenSpan()}</span>`;
     const heightSlider = document.createElement("input");
     heightSlider.type = "range";
     heightSlider.id = `accent-band-${i}-height`;
@@ -4195,14 +4328,21 @@ function updateDimensionTabOrder() {
 }
 
 function updateDimensionAriaLabels() {
+  const unit = displayUnitLabel();
   for (const { btnId, labelId, sliderId } of DIMENSION_EDITS) {
     const btn = document.getElementById(btnId);
     const label = document.getElementById(labelId);
     const slider = document.getElementById(sliderId);
     if (!btn || !label || !slider) continue;
-    const unit = slider.step && String(slider.step).includes(".") ? "mm" : "mm";
     btn.setAttribute("aria-label", `Edit ${label.textContent.toLowerCase()} in ${unit}`);
   }
+  document.querySelectorAll(".value-edit[data-key]").forEach((btn) => {
+    if (!isLengthKey(btn.dataset.key)) return;
+    const field = btn.closest(".field");
+    const labelEl = field?.querySelector(".field-label");
+    const labelText = labelEl?.textContent?.replace(/\s*(mm|cm|in)\s*$/i, "").trim() || btn.dataset.key;
+    btn.setAttribute("aria-label", `Edit ${labelText.toLowerCase()} in ${unit}`);
+  });
 }
 
 function parseFieldValue(raw, kind) {
@@ -4227,11 +4367,21 @@ function clampToSlider(slider, raw, parseKind) {
 }
 
 function applySliderValue(slider, key, val, parseKind) {
-  const display = formatSliderValue(val, slider.step);
-  slider.value = display;
-  state[key] = parseFieldValue(display, parseKind);
+  const mmVal = isLengthKey(key) ? displayToMm(val) : val;
+  const stored = parseKind === "float" ? parseFloat(mmVal) : Number(mmVal);
+  state[key] = stored;
+  let display;
+  if (isLengthKey(key)) {
+    const mmMin = parseFloat(slider.dataset.mmMin ?? slider.min);
+    const mmMax = parseFloat(slider.dataset.mmMax ?? slider.max);
+    display = applyLengthSliderRange(slider, mmMin, mmMax, stored);
+  } else {
+    display = formatSliderValue(val, slider.step);
+    slider.value = display;
+  }
   const out = document.querySelector(`.value-edit[data-slider="${slider.id}"]`);
   if (out) out.textContent = display;
+  if (key === "embossArcRadius") syncArcRadiusUi();
   rebuild();
   pushAppHistory();
 }
@@ -4239,7 +4389,8 @@ function applySliderValue(slider, key, val, parseKind) {
 function bindRange(sliderId, key, parseKind = "int") {
   const slider = document.getElementById(sliderId);
   const syncFromSlider = () => {
-    const val = parseFieldValue(slider.value, parseKind);
+    let val = parseFieldValue(slider.value, parseKind);
+    if (isLengthKey(key)) val = displayToMm(val);
     state[key] = val;
     const out = document.querySelector(`.value-edit[data-slider="${sliderId}"]`);
     if (out) out.textContent = slider.value;
@@ -4368,7 +4519,7 @@ if (insertTopSlider) {
     state.insertTopClearanceAuto = false;
     const autoCb = document.getElementById("insert-top-auto");
     if (autoCb) autoCb.checked = false;
-    state.insertTopClearance = parseFieldValue(insertTopSlider.value, "float");
+    state.insertTopClearance = displayToMm(parseFieldValue(insertTopSlider.value, "float"));
     const out = document.getElementById("out-insert-top-clearance");
     if (out) out.textContent = insertTopSlider.value;
     syncInsertTopClearanceUi();
@@ -4390,7 +4541,9 @@ function bindArtStateSlider(sliderId, stateKey, parseKind = "float") {
     "embossArcSpacing",
   ]);
   slider.addEventListener("input", () => {
-    state[stateKey] = parseFieldValue(slider.value, parseKind);
+    let val = parseFieldValue(slider.value, parseKind);
+    if (isLengthKey(stateKey)) val = displayToMm(val);
+    state[stateKey] = val;
     const out = document.querySelector(`.value-edit[data-slider="${sliderId}"]`);
     if (out) out.textContent = slider.value;
     if (arcAdvancedKeys.has(stateKey)) state.embossArcPreset = "custom";
@@ -4913,6 +5066,39 @@ document.getElementById("vase-saucer").addEventListener("change", (e) => {
   rebuild();
 });
 
+function updateLengthUnitLabels() {
+  document.querySelectorAll(".unit-len").forEach((el) => {
+    el.textContent = displayUnitLabel();
+  });
+}
+
+function refreshDisplayUnitUi() {
+  updateLengthUnitLabels();
+  syncShapeControlsFromState();
+  syncCanisterControlsFromState();
+  updateVaseUiVisibility();
+  updateLidUi();
+  updateJoinerUi();
+  updateDecorUi();
+  syncArtEditorUi();
+  syncInsertTopClearanceUi();
+  syncAccentBandControlsFromState();
+  if (meshCache?.meta) updateStats(meshCache.meta);
+  updateDimensionAriaLabels();
+}
+
+function setDisplayUnit(unit) {
+  state.displayUnit = normalizeDisplayUnit(unit);
+  const sel = document.getElementById("display-unit");
+  if (sel && sel.value !== state.displayUnit) sel.value = state.displayUnit;
+  refreshDisplayUnitUi();
+  scheduleSaveSession();
+}
+
+document.getElementById("display-unit")?.addEventListener("change", (e) => {
+  setDisplayUnit(e.target.value);
+});
+
 document.getElementById("export-format")?.addEventListener("change", () => syncExportPlanUi());
 
 document.getElementById("btn-export-go")?.addEventListener("click", async () => {
@@ -4999,6 +5185,8 @@ async function bootMakerDeck() {
   syncLidTypeSelect();
   ensureStateAccentBands(state);
   const restored = await restoreSession();
+  const unitSel = document.getElementById("display-unit");
+  if (unitSel) unitSel.value = normalizeDisplayUnit(state.displayUnit);
   if (restored) {
     syncUiFromState();
     setTab(restored.activeTab || "design");
@@ -5021,6 +5209,7 @@ async function bootMakerDeck() {
   updateTraceUi();
 
   await ensureEmbossFontLoaded(state.embossFont);
+  refreshDisplayUnitUi();
   const buildTag = document.getElementById("makerdeck-build");
   if (buildTag) buildTag.textContent = MAKERDECK_BUILD;
   sessionBooting = false;

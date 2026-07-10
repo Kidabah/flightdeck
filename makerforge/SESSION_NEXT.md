@@ -2,10 +2,20 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `6ff0cdd` (b212)
-- Cache-bust: `app.js?v=212` — header **b212**
+- Latest commit: (pending — b213)
+- Cache-bust: `app.js?v=213` — header **b213**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-10 — b213: Display unit dropdown (mm / cm / in)
+
+**Design UI** (`js/app.js`, `index.html`, `css/style.css`)
+
+- **Topbar** dropdown: **mm** | **cm** | **in** (imperial inches). Internal geometry stays mm; only sliders, value-edits, labels, and **Outer** stat readout convert.
+- `state.displayUnit` persisted in session save/restore (`makerdeck-session-v1`).
+- Conversion: cm ÷10 display / ×10 input; in ÷25.4 / ×25.4. Export filenames unchanged (always mm in STL/3MF names).
+- Length fields: inner W/D/H, walls/floor, edges, lid dims, joiner, insert, vase, emboss/art offsets & sizes, accent band height/wave.
+- Cache **b213**. Hard refresh MakerDeck. UI-only — Pi pull sufficient; restart optional.
 
 ### 2026-07-10 — b212: Separate gasket groove from gasket 3MF export
 

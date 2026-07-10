@@ -44,7 +44,7 @@
 
         <div class="topbar-brand">
 
-          <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b212</span></div>
+          <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b213</span></div>
 
           <h1>Container Generator</h1>
 
@@ -61,6 +61,12 @@
           <button type="button" id="btn-clear-box" class="btn btn-secondary" disabled title="Remove traced art, text, and SVG from the box">Clear from box</button>
 
           <button type="button" id="btn-reset-view" class="btn btn-ghost" title="Reset camera">Reset view</button>
+
+          <select id="display-unit" class="display-unit-select" aria-label="Display units" title="Size display units">
+            <option value="mm" selected>mm</option>
+            <option value="cm">cm</option>
+            <option value="in">in</option>
+          </select>
 
           <button type="button" id="btn-reset-defaults" class="btn btn-reset-defaults" title="Reset all settings to defaults">Reset defaults</button>
 
@@ -226,7 +232,7 @@
 
             <section class="section" id="section-edges">
 
-              <h2>Edges <span class="unit">mm</span></h2>
+              <h2>Edges <span class="unit unit-len">mm</span></h2>
 
               <label class="field" id="field-sides">
 
@@ -278,7 +284,7 @@
 
               <label class="field">
 
-                <span class="field-label">Diameter <span class="unit">mm</span></span>
+                <span class="field-label">Diameter <span class="unit unit-len">mm</span></span>
 
                 <input type="range" id="vase-diameter" min="30" max="220" step="1" value="80" tabindex="-1">
 
@@ -288,7 +294,7 @@
 
               <label class="field">
 
-                <span class="field-label">Height <span class="unit">mm</span></span>
+                <span class="field-label">Height <span class="unit unit-len">mm</span></span>
 
                 <input type="range" id="vase-height" min="20" max="280" step="1" value="110" tabindex="-1">
 
@@ -298,7 +304,7 @@
 
               <label class="field">
 
-                <span class="field-label">Wall <span class="unit">mm</span></span>
+                <span class="field-label">Wall <span class="unit unit-len">mm</span></span>
 
                 <input type="range" id="vase-wall" min="1.0" max="3" step="0.1" value="1.6" tabindex="-1">
 
@@ -308,7 +314,7 @@
 
               <label class="field">
 
-                <span class="field-label">Floor <span class="unit">mm</span></span>
+                <span class="field-label">Floor <span class="unit unit-len">mm</span></span>
 
                 <input type="range" id="vase-floor" min="1.4" max="6" step="0.2" value="2.4" tabindex="-1">
 
@@ -326,7 +332,7 @@
 
               <label class="field hidden" id="field-vase-drainage-size">
 
-                <span class="field-label">Drain diameter <span class="unit">mm</span></span>
+                <span class="field-label">Drain diameter <span class="unit unit-len">mm</span></span>
 
                 <input type="range" id="vase-drainage-size" min="4" max="30" step="1" value="8" tabindex="-1">
 
@@ -346,7 +352,7 @@
 
               <label class="field hidden" id="field-vase-flute-depth">
 
-                <span class="field-label">Flute depth <span class="unit">mm</span></span>
+                <span class="field-label">Flute depth <span class="unit unit-len">mm</span></span>
 
                 <input type="range" id="vase-flute-depth" min="0.5" max="6" step="0.5" value="2" tabindex="-1">
 
@@ -388,7 +394,7 @@
 
               <label class="field hidden" id="field-vase-texture-depth">
 
-                <span class="field-label">Texture depth <span class="unit">mm</span></span>
+                <span class="field-label">Texture depth <span class="unit unit-len">mm</span></span>
 
                 <input type="range" id="vase-texture-depth" min="0.3" max="3" step="0.1" value="1.2" tabindex="-1">
 
@@ -398,7 +404,7 @@
 
               <label class="field hidden" id="field-vase-texture-scale">
 
-                <span class="field-label">Texture scale <span class="unit">mm</span></span>
+                <span class="field-label">Texture scale <span class="unit unit-len">mm</span></span>
 
                 <input type="range" id="vase-texture-scale" min="6" max="40" step="1" value="14" tabindex="-1">
 
@@ -433,7 +439,7 @@
 
             <section class="section" id="section-classic-size">
 
-              <h2 id="label-inner-size">Inner size <span class="unit">mm</span></h2>
+              <h2 id="label-inner-size">Inner size <span class="unit unit-len">mm</span></h2>
 
               <label class="field">
 
@@ -471,7 +477,7 @@
 
             <section class="section" id="section-walls">
 
-              <h2>Walls <span class="unit">mm</span></h2>
+              <h2>Walls <span class="unit unit-len">mm</span></h2>
 
               <label class="field">
 
@@ -511,12 +517,12 @@
                   </select>
                 </label>
                 <label class="field hidden" id="field-profile-texture-depth">
-                  <span class="field-label">Texture depth <span class="unit">mm</span></span>
+                  <span class="field-label">Texture depth <span class="unit unit-len">mm</span></span>
                   <input type="range" id="profile-texture-depth" min="0.3" max="3" step="0.1" value="1.2" tabindex="-1">
                   <button type="button" class="value-edit" data-slider="profile-texture-depth" data-key="vaseTextureDepth" data-parse="float">1.2</button>
                 </label>
                 <label class="field hidden" id="field-profile-texture-scale">
-                  <span class="field-label">Texture scale <span class="unit">mm</span></span>
+                  <span class="field-label">Texture scale <span class="unit unit-len">mm</span></span>
                   <input type="range" id="profile-texture-scale" min="6" max="40" step="1" value="14" tabindex="-1">
                   <button type="button" class="value-edit" data-slider="profile-texture-scale" data-key="vaseTextureScale" data-parse="float">14</button>
                 </label>
@@ -1015,7 +1021,7 @@
 
               <label class="field hidden" id="field-arc-radius">
 
-                <span class="field-label">Arc radius <span class="unit">mm</span> <span class="field-hint-inline">0 = auto</span></span>
+                <span class="field-label">Arc radius <span class="unit unit-len">mm</span> <span class="field-hint-inline">0 = auto</span></span>
 
                 <input type="range" id="emboss-arc-radius" min="0" max="150" step="0.5" value="0" tabindex="-1">
 
@@ -1069,7 +1075,7 @@
 
               <label class="field hidden" id="field-text-offset-x">
 
-                <span class="field-label">Text left / right <span class="unit">mm</span></span>
+                <span class="field-label">Text left / right <span class="unit unit-len">mm</span></span>
 
                 <input type="range" id="text-offset-x" min="-80" max="80" step="0.5" value="0" tabindex="-1">
 
@@ -1079,7 +1085,7 @@
 
               <label class="field hidden" id="field-text-offset-y">
 
-                <span class="field-label">Text up / down <span class="unit">mm</span></span>
+                <span class="field-label">Text up / down <span class="unit unit-len">mm</span></span>
 
                 <input type="range" id="text-offset-y" min="-80" max="80" step="0.5" value="0" tabindex="-1">
 
@@ -1135,7 +1141,7 @@
 
               <label class="field" id="field-emboss-height">
 
-                <span class="field-label">Size <span class="unit">mm</span></span>
+                <span class="field-label">Size <span class="unit unit-len">mm</span></span>
 
                 <input type="range" id="emboss-height" min="3" max="48" step="0.5" value="7" tabindex="-1">
 
@@ -1155,7 +1161,7 @@
 
               <label class="field hidden" id="field-art-offset-x">
 
-                <span class="field-label">Graphic left / right <span class="unit">mm</span></span>
+                <span class="field-label">Graphic left / right <span class="unit unit-len">mm</span></span>
 
                 <input type="range" id="art-offset-x" min="-80" max="80" step="0.5" value="0" tabindex="-1">
 
@@ -1165,7 +1171,7 @@
 
               <label class="field hidden" id="field-art-offset-y">
 
-                <span class="field-label">Graphic up / down <span class="unit">mm</span></span>
+                <span class="field-label">Graphic up / down <span class="unit unit-len">mm</span></span>
 
                 <input type="range" id="art-offset-y" min="-80" max="80" step="0.5" value="0" tabindex="-1">
 
@@ -1175,7 +1181,7 @@
 
               <label class="field" id="field-trace-size">
 
-                <span class="field-label">Image size <span class="unit">mm</span></span>
+                <span class="field-label">Image size <span class="unit unit-len">mm</span></span>
 
                 <input type="range" id="trace-size" min="6" max="56" step="0.5" value="16" tabindex="-1">
 
@@ -1426,7 +1432,7 @@
     </form>
   </dialog>
 
-  <script type="module" src="js/app.js?v=212"></script>
+  <script type="module" src="js/app.js?v=213"></script>
 
 </body>
 
