@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `12778e0` — fix 2-plate Bambu placement
+- Latest commit: `6520bca` — fix 2-plate Bambu placement
 - Cache-bust: `app.js?v=205` — header **b205**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
