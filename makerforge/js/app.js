@@ -2949,6 +2949,10 @@ function updateTraceUi() {
   }
   if (traceLastResult.colorLayers >= 2) {
     msg = `${count} island${count === 1 ? "" : "s"} · ${traceLastResult.colorLayers} colour layers`;
+    if (count > 80) msg += " · tip: Silhouette mode prints cleaner";
+  }
+  if (traceLastResult.outlineFallback && count > 80) {
+    msg += " · tip: use Silhouette for line art like this";
   }
   if (traceLastResult.tracePx) msg += ` · ${traceLastResult.tracePx}px`;
   if (traceLastResult.simplified) msg += " · auto-simplified for print";

@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `e257408` (b217)
+- Latest commit: `(pending b217b deploy)`
 - Cache-bust: `app.js?v=217` — header **b217**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
@@ -17,9 +17,12 @@ Latest GitHub/Pi state:
 
 **Fix:**
 - New `unionDenseTraceShapeGroups` — rasterise + dilate + re-polygonise when >8 islands; used in **preview** (`buildEmbossBitmap`) and export (`collectBitmapGraphicShapeGroups`).
-- `trace.js`: skip colour-layer separation when trace mode is **Outline** (fallback silhouette path unchanged).
+- `trace.js`: skip colour-layer separation when trace mode is **Outline**; outline fallback uses **single silhouette** (not 7 halo layers).
+- Silhouette colour layers union when >30 islands (`unionDenseColorLayerGroups`, dilate 5–7).
+- Preview emboss depth floor **0.35 mm** (stops z-fight white seams).
+- Trace meta hints when many islands: prefer **Silhouette** for line art.
 
-**Workaround if still patchy:** re-trace as **Silhouette** (single colour), or raise emboss depth ≥0.3 mm (slider min).
+**Workaround if still patchy:** re-trace as **Silhouette** (single colour), Emboss depth ≥ 0.4 mm, Apply to box, hard refresh.
 
 - Cache **b217** (`app.js?v=217`, `features.js?v=217`, `trace.js?v=217`). Hard refresh MakerDeck. UI-only — Pi pull sufficient; restart optional.
 

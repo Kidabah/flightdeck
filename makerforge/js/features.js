@@ -3189,7 +3189,9 @@ function labelOffsets(params) {
       standoff = Math.max(standoff, 0.35 + texDepth * 0.15);
     }
   }
-  return { d0: standoff, d1: standoff + depth, depth, deboss: false };
+  // Preview floor — very shallow emboss z-fights the wall and reads as white seams.
+  const useDepth = params.__labelExportStandoff ? depth : Math.max(depth, 0.35);
+  return { d0: standoff, d1: standoff + useDepth, depth: useDepth, deboss: false };
 }
 
 /** Measure active art on a face for preview handles (null if none). */
