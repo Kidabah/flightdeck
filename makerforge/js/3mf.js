@@ -1,7 +1,7 @@
 /**
  * Multi-part 3MF project export for Orca / Bambu Studio (filament colours per object).
  */
-import { sanitizeMeshForStl, prepareMeshFor3mf, baseModelName } from "./stl.js?v=179";
+import { sanitizeMeshForStl, prepareMeshFor3mf, baseModelName } from "./stl.js?v=180";
 
 function escapeXml(s) {
   return String(s)
@@ -132,11 +132,11 @@ function paintCodeForExtruder(extruder) {
   return PAINT_COLOR_CODES[Math.max(0, Math.min(15, (extruder || 1) - 1))];
 }
 
-function meshTo3mfResources(mesh, objectId, name, extruder, { resanitize = false, plain = false } = {}) {
+function meshTo3mfResources(mesh, objectId, name, extruder, { resanitize = false, plain = false, triangleExtruders = null } = {}) {
   const clean = resanitize ? sanitizeMeshForStl(mesh) : mesh;
   if (!clean?.positions?.length || !clean?.indices?.length) return null;
 
-  const perTriPaint = clean.triangleExtruders;
+  const perTriPaint = triangleExtruders || clean.triangleExtruders;
   const defaultPaint = paintCodeForExtruder(extruder);
   const verts = [];
   for (let i = 0; i < clean.positions.length; i += 3) {
@@ -223,6 +223,25 @@ function buildBambuModelSettingsXml(assemblyId, name, parts, { singlePart = fals
   return lines.join("\n");
 }
 
+function partMaxExtruder(part) {
+  if (part.extruderColors) {
+    let max = 1;
+    for (const key of Object.keys(part.extruderColors)) {
+      max = Math.max(max, Number(key) || 1);
+    }
+    return max;
+  }
+  const paints = part.triangleExtruders || part.mesh?.triangleExtruders;
+  if (paints?.length) {
+    let max = 1;
+    for (let i = 0; i < paints.length; i++) {
+      if (paints[i] > max) max = paints[i];
+    }
+    return max;
+  }
+  return part.extruder || 1;
+}
+
 /**
  * @param {Array<{name:string, mesh:object, color:string, extruder:number}>} parts
  */
@@ -230,17 +249,7 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck") {
   const usable = (parts || []).filter((p) => p?.mesh?.positions?.length && p?.mesh?.indices?.length);
   if (!usable.length) throw new Error("No geometry to export");
 
-  const maxExtruder = Math.max(
-    ...usable.map((p) => {
-      if (p.triangleExtruders?.length) {
-        return Math.max(...p.triangleExtruders);
-      }
-      if (p.extruderColors) {
-        return Math.max(...Object.keys(p.extruderColors).map((k) => Number(k)));
-      }
-      return p.extruder || 1;
-    }),
-  );
+  const maxExtruder = Math.max(...usable.map((p) => partMaxExtruder(p)));
   const plainSingle = usable.length === 1 && maxExtruder === 1 && !usable[0].triangleExtruders?.length;
   const slotColors = Array.from({ length: maxExtruder }, (_, i) => {
     const slot = i + 1;
@@ -267,6 +276,7 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck") {
     const built = meshTo3mfResources(part.mesh, objectId, part.name, part.extruder || 1, {
       resanitize: false,
       plain: plainSingle,
+      triangleExtruders: part.triangleExtruders || part.mesh?.triangleExtruders,
     });
     if (!built) continue;
     objectXml.push(built.objectXml);
