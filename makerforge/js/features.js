@@ -2880,8 +2880,10 @@ function labelOffsets(params) {
     // so the boolean subtract is clean at the outer skin.
     return { d0: -depth - 0.05, d1: 0.4, depth, deboss: true };
   }
-  // Raised emboss: flush on wall; open bottom (top cap + walls) — wall is the floor.
-  return { d0: 0, d1: depth, depth, deboss: false };
+  // Raised emboss: flush in preview; tiny proud standoff on separate-colour export
+  // so Bambu does not strip coplanar wall faces.
+  const standoff = params.__labelExportStandoff ? 0.06 : 0;
+  return { d0: standoff, d1: standoff + depth, depth, deboss: false };
 }
 
 /** Measure active art on a face for preview handles (null if none). */

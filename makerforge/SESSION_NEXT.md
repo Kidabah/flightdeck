@@ -2,10 +2,19 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: see **b182** below
-- Cache-bust: `app.js?v=182`, `library.js?v=182`, `style.css?v=27` — header **b182**
+- Latest commit: see **b183** below
+- Cache-bust: `app.js?v=183`, `features.js?v=183` — header **b183**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-10 — b183: Fix 3MF colours + library save
+
+**Export** (`js/app.js`, `js/features.js`, `index.html`)
+
+- Reverted merged single-mesh AMS export — it created ~20k open edges and Bambu imported one grey body with no filament colours.
+- Body + art + text export as **3 separate 3MF objects** (extruders 1–3) with **0.06 mm proud standoff** on art/text.
+- Library save compresses preview/trace images before upload; retries without trace if needed; shows error text in export status.
+- Cache **b183**. Hard refresh and re-export coffee canister 3MF.
 
 ### 2026-07-10 — b182: Export filename dialog + optional library save
 

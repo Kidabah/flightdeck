@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=180";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMergedAmsExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=180";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=183";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=183";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=161";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName } from "./stl.js?v=181";
 import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=180";
@@ -20,10 +20,10 @@ import {
   listLibraryDesigns,
   fetchDesignParams,
   deleteLibraryDesign,
-} from "./library.js?v=182";
+} from "./library.js?v=183";
 
 const SESSION_KEY = "makerdeck-session-v1";
-const MAKERDECK_BUILD = "b182";
+const MAKERDECK_BUILD = "b183";
 let saveSessionTimer = null;
 let sessionBooting = true;
 
@@ -800,28 +800,39 @@ function collectColoredExportParts(exportCache, stamp = null) {
   const bodyMesh = resolveBodyExportMesh(exportCache, params, separateText, stamp);
 
   if (separateColor && (params.embossFace || "front") !== "lid") {
-    const merged = buildMergedAmsExportMesh(
-      bodyMesh,
-      exportCache.meta,
-      params,
-      params.embossSvgText || "",
-      { includeArt: separateArt, includeText: separateText },
-    );
-    const clean = prepareMeshFor3mf(merged);
-    if (clean?.indices?.length) {
-      const extruderColors = { 1: state.boxColor || "#38bdf8" };
-      let nextEx = 2;
-      if (separateArt) extruderColors[nextEx++] = state.embossArtColor || "#4a3728";
-      if (separateText) extruderColors[nextEx++] = state.embossTextColor || "#f8fafc";
-      extruder = nextEx;
+    const exportParams = { ...params, __labelExportStandoff: true };
+    const bodyClean = prepareMeshFor3mf(bodyMesh);
+    if (bodyClean?.indices?.length) {
       parts.push({
         name: "Body",
-        mesh: clean,
-        triangleExtruders: clean.triangleExtruders,
-        extruderColors,
+        mesh: bodyClean,
         color: state.boxColor || "#38bdf8",
-        extruder: 1,
+        extruder: extruder++,
       });
+    }
+    if (separateArt) {
+      const artMesh = buildLabelGraphicEmboss(exportCache.meta, exportParams, params.embossSvgText || "", "emboss");
+      const artClean = artMesh ? prepareMeshFor3mf(artMesh) : null;
+      if (artClean?.indices?.length) {
+        parts.push({
+          name: "Art",
+          mesh: artClean,
+          color: state.embossArtColor || "#4a3728",
+          extruder: extruder++,
+        });
+      }
+    }
+    if (separateText) {
+      const textMesh = buildTextLabelExportMesh(exportCache.meta, exportParams);
+      const textClean = textMesh ? prepareMeshFor3mf(textMesh) : null;
+      if (textClean?.indices?.length) {
+        parts.push({
+          name: "Text",
+          mesh: textClean,
+          color: state.embossTextColor || "#f8fafc",
+          extruder: extruder++,
+        });
+      }
     }
   } else if (bodyMesh?.indices?.length) {
     const bodyClean = sanitizeMeshForStl(bodyMesh);
@@ -1496,21 +1507,65 @@ async function restoreSession() {
   }
 }
 
+async function compressDataUrl(dataUrl, maxDim = 480, quality = 0.72) {
+  if (!dataUrl?.startsWith("data:")) return "";
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const w = img.naturalWidth || img.width;
+      const h = img.naturalHeight || img.height;
+      if (!w || !h) {
+        resolve("");
+        return;
+      }
+      const scale = Math.min(1, maxDim / Math.max(w, h));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(w * scale));
+      canvas.height = Math.max(1, Math.round(h * scale));
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        resolve("");
+        return;
+      }
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      try {
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      } catch {
+        resolve("");
+      }
+    };
+    img.onerror = () => resolve("");
+    img.src = dataUrl;
+  });
+}
+
 async function archiveBodyExport(blob, filename, { format, stamp, saveToLibrary = false }) {
   if (!saveToLibrary || !libraryApiAvailable()) return null;
   try {
     renderer.render(scene, camera);
-    const result = await saveExportToLibrary({
+    const thumbnail = await compressDataUrl(capturePreviewThumbnail(renderer), 480, 0.72);
+    const traceRaw = traceSourceCanvas ? traceSourceCanvas.toDataURL("image/jpeg", 0.82) : null;
+    const traceImage = traceRaw ? await compressDataUrl(traceRaw, 640, 0.7) : null;
+    const payload = {
       blob,
       filename,
       format,
       part: "body",
       stamp,
-      thumbnail: capturePreviewThumbnail(renderer),
-      traceImage: traceSourceCanvas ? traceSourceCanvas.toDataURL("image/jpeg", 0.82) : null,
+      thumbnail,
+      traceImage,
       state: stateForSession(),
-    });
-    return result?.design || null;
+    };
+    try {
+      const result = await saveExportToLibrary(payload);
+      return result?.design || null;
+    } catch (err) {
+      if (traceImage) {
+        const result = await saveExportToLibrary({ ...payload, traceImage: null });
+        return result?.design || null;
+      }
+      throw err;
+    }
   } catch (err) {
     console.warn("MakerDeck design library save failed:", err);
     return { error: err?.message || String(err) };
@@ -3152,18 +3207,20 @@ function runExport(format, options = {}) {
         downloadBlob(blob, fname);
         void archiveBodyExport(blob, fname, { format: "3mf", stamp, saveToLibrary: options.saveToLibrary }).then((result) => {
           if (result?.error && status) {
-            status.textContent += ` · library save failed`;
+            status.textContent += ` · library failed: ${result.error}`;
           } else if (status && result?.id) {
             status.textContent += " · saved to design library";
           }
           notifyLibrarySaved(result?.id ? result : null);
         });
         if (status) {
-          const kind = parts.length === 1 && parts[0].triangleExtruders?.length
-            ? "AMS merged 3MF"
-            : parts.length === 1 && parts[0].extruder === 1
-              ? "plain 3MF"
-              : "colored 3MF";
+          const kind = parts.length > 1
+            ? `${parts.length}-part colored 3MF`
+            : parts.length === 1 && parts[0].triangleExtruders?.length
+              ? "AMS merged 3MF"
+              : parts.length === 1 && parts[0].extruder === 1
+                ? "plain 3MF"
+                : "colored 3MF";
           const open = parts.reduce((sum, p) => sum + (p.mesh?.openEdgeCount || 0), 0);
           const openNote = open > 0 ? ` — ${open} open edge(s), try Bambu Repair` : "";
           const wmNote = stamp ? ` · watermark #${String(stamp.serial).padStart(4, "0")}` : "";
@@ -3197,7 +3254,7 @@ function runExport(format, options = {}) {
         void archiveBodyExport(stlBlob, stlName, { format: "stl", stamp, saveToLibrary: options.saveToLibrary }).then((result) => {
           if (result?.error) {
             if (status) {
-              status.textContent = `STL downloaded${stamp ? ` · watermark #${String(stamp.serial).padStart(4, "0")}` : ""} · library save failed`;
+              status.textContent = `STL downloaded${stamp ? ` · watermark #${String(stamp.serial).padStart(4, "0")}` : ""} · library failed: ${result.error}`;
             }
           } else if (status && result?.id) {
             status.textContent = `STL downloaded · saved to design library${stamp ? ` · watermark #${String(stamp.serial).padStart(4, "0")}` : ""}`;
