@@ -186,12 +186,14 @@ function scaleShapeGroupsToLocal(groups, minX, minY, stepMm) {
   }));
 }
 
-/** Accent-style face decal — horizontal 0.2 mm slabs hugging the wall (slicer-friendly). */
-function buildFaceDecalSlabMesh(frame, shapeGroups) {
+/** Accent-style face decal — horizontal slabs hugging the wall (flat faces + wrap). */
+function buildFaceDecalSlabMesh(frame, shapeGroups, opts = {}) {
   if (!shapeGroups?.length || !frame?.mapPoint) return null;
-  if (!["front", "back", "left", "right"].includes(frame.face)) return null;
+  if (!["front", "back", "left", "right", "wrap"].includes(frame.face)) return null;
 
-  const stepMm = DECAL_LAYER_MM;
+  const stepMm = opts.stepMm ?? DECAL_LAYER_MM;
+  const d0 = opts.d0 ?? ACCENT_SKIN_MM;
+  const d1 = opts.d1 ?? (ACCENT_SKIN_MM + ACCENT_BAND_THICKNESS_MM);
   const bounds = shapeGroupsBounds2d(shapeGroups);
   if (!bounds) return null;
 
@@ -208,8 +210,6 @@ function buildFaceDecalSlabMesh(frame, shapeGroups) {
   let mask = rasterizeShapeGroupsToMask(local, cols, rows);
   mask = dilateMask(mask, cols, rows, 1);
 
-  const d0 = ACCENT_SKIN_MM;
-  const d1 = ACCENT_SKIN_MM + ACCENT_BAND_THICKNESS_MM;
   const positions = [];
   const indices = [];
   const w = (i, j, k) => [positions[i], positions[j], positions[k]];
@@ -257,6 +257,8 @@ const ACCENT_SKIN_MM = 0.12;
 const ACCENT_BAND_THICKNESS_MM = 0.45;
 /** Layer-height slabs for face decals (same slice strategy as accent bands). */
 const DECAL_LAYER_MM = 0.2;
+/** Wrap preview art — raster slabs (no earcut on curved wall). */
+const WRAP_DECAL_STEP_MM = 0.4;
 /** Extra radial push when a band is marked "on top" over another. */
 const ACCENT_LAYER_BUMP_MM = 0.22;
 
@@ -2193,7 +2195,8 @@ export function buildTextLabelExportMesh(meta, params) {
   if (!collected?.shapeGroups?.length) return null;
 
   if (isLabelExport(p)) {
-    const slab = buildFaceDecalSlabMesh(collected.frame, collected.shapeGroups);
+    const { d0, d1 } = labelOffsets(p);
+    const slab = buildFaceDecalSlabMesh(collected.frame, collected.shapeGroups, { d0, d1 });
     if (slab?.indices?.length) return slab;
   }
 
@@ -2201,14 +2204,7 @@ export function buildTextLabelExportMesh(meta, params) {
   const { d0, d1 } = labelOffsets(p);
   const positions = [];
   const indices = [];
-  const mapBot = (px, py) => frame.mapPoint(px, py, d0);
-  const mapTop = (px, py) => frame.mapPoint(px, py, d1);
-  const flatCoord = (w) => flatCoordForFrame(frame, w);
-
-  for (const group of shapeGroups) {
-    const { caps, flatFromArt } = wrapExtrudeCaps(frame, embossExportCaps(p, d0));
-    extrudeShapeGroupBetween(positions, indices, group, mapTop, mapBot, flatCoord, caps, flatFromArt);
-  }
+  extrudeGroupsOnFace(positions, indices, frame, shapeGroups, d0, d1, p);
   return positions.length ? { positions, indices } : null;
 }
 
@@ -2219,7 +2215,8 @@ export function buildGraphicLabelExportMesh(meta, params, svgText = "") {
   if (!collected?.shapeGroups?.length) return null;
 
   if (isLabelExport(p)) {
-    const slab = buildFaceDecalSlabMesh(collected.frame, collected.shapeGroups);
+    const { d0, d1 } = labelOffsets(p);
+    const slab = buildFaceDecalSlabMesh(collected.frame, collected.shapeGroups, { d0, d1 });
     if (slab?.indices?.length) return slab;
   }
 
@@ -2227,14 +2224,7 @@ export function buildGraphicLabelExportMesh(meta, params, svgText = "") {
   const { d0, d1 } = labelOffsets(p);
   const positions = [];
   const indices = [];
-  const mapBot = (px, py) => frame.mapPoint(px, py, d0);
-  const mapTop = (px, py) => frame.mapPoint(px, py, d1);
-  const flatCoord = (w) => flatCoordForFrame(frame, w);
-
-  for (const group of shapeGroups) {
-    const { caps, flatFromArt } = wrapExtrudeCaps(frame, embossExportCaps(p, d0));
-    extrudeShapeGroupBetween(positions, indices, group, mapTop, mapBot, flatCoord, caps, flatFromArt);
-  }
+  extrudeGroupsOnFace(positions, indices, frame, shapeGroups, d0, d1, p);
   return positions.length ? { positions, indices } : null;
 }
 
@@ -2466,15 +2456,8 @@ export function buildEmbossBitmap(meta, params, bitmap) {
 
   if (bitmap.shapeGroups?.length) {
     const sourceGroups = unionDenseTraceShapeGroups(bitmap.shapeGroups, maskW, maskH, artH, params, bitmap);
-    for (const group of sourceGroups) {
-      const remapped = {
-        outer: group.outer.map(([px, py]) => [xOff + px * scale, zOff + (maskH - py) * scale]),
-        holes: group.holes.map((h) => h.map(([px, py]) => [xOff + px * scale, zOff + (maskH - py) * scale])),
-      };
-      let shaped = rotateShapeGroup(remapped, rotCx, rotCy, rotation);
-      if (frame.face === "wrap") shaped = normalizeWrapShapeGroups([shaped], frame.faceW, rotCx)[0];
-      extrudeGroupOnFace(positions, indices, frame, shaped, d0, d1, params);
-    }
+    const faceGroups = remappedBitmapFaceGroups(bitmap, frame, params, sourceGroups, maskW, maskH, artH);
+    extrudeGroupsOnFace(positions, indices, frame, faceGroups, d0, d1, params);
     return positions.length ? { positions, indices } : null;
   }
 
@@ -2505,15 +2488,8 @@ export function buildEmbossBitmap(meta, params, bitmap) {
     smoothPasses,
   );
 
-  for (const group of shapeGroups) {
-    const remapped = {
-      outer: group.outer.map(([px, py]) => [xOff + px * scale, zOff + (maskH - py) * scale]),
-      holes: group.holes.map((h) => h.map(([px, py]) => [xOff + px * scale, zOff + (maskH - py) * scale])),
-    };
-    let shaped = rotateShapeGroup(remapped, rotCx, rotCy, rotation);
-    if (frame.face === "wrap") shaped = normalizeWrapShapeGroups([shaped], frame.faceW, rotCx)[0];
-    extrudeGroupOnFace(positions, indices, frame, shaped, d0, d1, params);
-  }
+  const faceGroups = remappedBitmapFaceGroups(bitmap, frame, params, shapeGroups, maskW, maskH, artH);
+  extrudeGroupsOnFace(positions, indices, frame, faceGroups, d0, d1, params);
 
   return positions.length ? { positions, indices } : null;
 }
@@ -2860,16 +2836,12 @@ function extrudeSvgFillRings(outPos, outIdx, fillRings, layout, params) {
   const smoothPasses = artH <= 12 ? 4 : artH <= 20 ? 3 : 2;
   const rawGroups = fillRings.map((ring) => ({ outer: ring, holes: [] }));
   const shapeGroups = prepareShapeGroups(rawGroups, simplifyTol, smoothPasses);
-  for (const group of shapeGroups) {
-    const remapped = {
-      outer: group.outer.map(([x, y]) => mapSvgArtPoint(layout, x, y)),
-      holes: group.holes.map((h) => h.map(([x, y]) => mapSvgArtPoint(layout, x, y))),
-    };
-    let shaped = remapped;
-    if (frame.face === "wrap") {
-      shaped = normalizeWrapShapeGroups([remapped], frame.faceW, rotCx)[0];
-    }
-    extrudeGroupOnFace(outPos, outIdx, frame, shaped, d0, d1, params);
+  const faceGroups = shapeGroups.map((group) => ({
+    outer: group.outer.map(([x, y]) => mapSvgArtPoint(layout, x, y)),
+    holes: group.holes.map((h) => h.map(([x, y]) => mapSvgArtPoint(layout, x, y))),
+  }));
+  if (faceGroups.length) {
+    extrudeGroupsOnFace(outPos, outIdx, frame, faceGroups, d0, d1, params);
   }
 }
 
@@ -3136,6 +3108,42 @@ function extrudeStrokeSegmentOnFace(outPos, outIdx, frame, x0, y0, x1, y1, half,
   face(p001, p011, p111, p101);
   face(p000, p001, p101, p100);
   face(p010, p110, p111, p011);
+}
+
+/** Extrude remapped art groups — wrap uses raster wall slabs (avoids earcut slash garbage). */
+function extrudeGroupsOnFace(outPos, outIdx, frame, faceGroups, d0, d1, params = null) {
+  if (frame.face === "wrap" && faceGroups.length) {
+    const stepMm = params?.__labelExportStandoff ? DECAL_LAYER_MM : WRAP_DECAL_STEP_MM;
+    const slab = buildFaceDecalSlabMesh(frame, faceGroups, { d0, d1, stepMm });
+    if (slab?.indices?.length) {
+      const base = outPos.length / 3;
+      for (let i = 0; i < slab.positions.length; i++) outPos.push(slab.positions[i]);
+      for (let i = 0; i < slab.indices.length; i++) outIdx.push(slab.indices[i] + base);
+      return;
+    }
+  }
+  for (const group of faceGroups) {
+    extrudeGroupOnFace(outPos, outIdx, frame, group, d0, d1, params);
+  }
+}
+
+function remappedBitmapFaceGroups(bitmap, frame, params, sourceGroups, maskW, maskH, artH) {
+  const maxW = Math.min(frame.faceW * 0.62, 56);
+  const scale = Math.min(artH / bitmap.height, maxW / bitmap.width);
+  const artWidth = bitmap.width * scale;
+  const { xOff, zOff } = decorPlacementOffsets(params, frame, artWidth, artH);
+  const rotCx = xOff + artWidth / 2;
+  const rotCy = zOff + artH / 2;
+  const rotation = params.decorRotation ?? 0;
+  const faceGroups = [];
+  for (const group of sourceGroups) {
+    const remapped = {
+      outer: group.outer.map(([px, py]) => [xOff + px * scale, zOff + (maskH - py) * scale]),
+      holes: group.holes.map((h) => h.map(([px, py]) => [xOff + px * scale, zOff + (maskH - py) * scale])),
+    };
+    faceGroups.push(rotateShapeGroup(remapped, rotCx, rotCy, rotation));
+  }
+  return faceGroups;
 }
 
 function ringPointsLocal(ring) {

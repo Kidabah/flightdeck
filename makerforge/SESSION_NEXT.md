@@ -2,8 +2,20 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `9bb3e04` (b223)
-- Cache-bust: `app.js?v=223` — header **b223**
+- Latest commit: `f9693b3` (b224)
+- Cache-bust: `app.js?v=224` — header **b224**
+
+### 2026-07-11 — b224: Wrap emboss via raster slabs (fix shredded 3D mesh)
+
+**Symptom:** Heraldic trace on cylinder wrap still showed diagonal slash triangles / horizontal slice garbage in 3D preview (earcut on complex wrap polygons).
+
+**Fix (`features.js`):**
+- `buildFaceDecalSlabMesh` extended to **wrap** face (accent-band style horizontal raster slabs)
+- `extrudeGroupsOnFace` routes wrap art through slabs (`WRAP_DECAL_STEP_MM = 0.4`) instead of `extrudeShapeGroupBetween` + earcut
+- `buildEmbossBitmap`, SVG fill rings, label export paths use same slab route on wrap
+- Restored broken `appendColoredMeshPart` helper
+
+- Cache **b224**. Hard refresh, re-drop heraldic image, check 3D wrap preview (solid art, no slashes).
 
 ### 2026-07-10 — b223: Fix blue wedge / diagonal mesh on heraldic trace (7 islands)
 
