@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=201";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=201";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, STUBBY_HOLDER_PRESET } from "./geometry.js?v=214";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=214";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=161";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=201";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=210";
@@ -23,7 +23,7 @@ import {
 } from "./library.js?v=201";
 
 const SESSION_KEY = "makerdeck-session-v1";
-const MAKERDECK_BUILD = "b213";
+const MAKERDECK_BUILD = "b214";
 const DISPLAY_UNITS = ["mm", "cm", "in"];
 const MM_PER_IN = 25.4;
 let saveSessionTimer = null;
@@ -117,7 +117,12 @@ function applyLengthSliderRange(slider, mmMin, mmMax, mmValue) {
   return display;
 }
 
-const PRESET_SHAPES = new Set(["pencil", "pencilBox", "teardrop", "star", "heart", "canisterSquare", "canisterJar", "canisterStack"]);
+const PRESET_SHAPES = new Set(["pencil", "pencilBox", "teardrop", "star", "heart", "canisterSquare", "canisterJar", "canisterStack", "stubbyHolder"]);
+
+const STUBBY_FIT_TABLE = {
+  easy: { innerWidth: 68, label: "Easy (68 mm)", hint: "68 mm ID · easy slide on ~66 mm can" },
+  snug: { innerWidth: 67.5, label: "Snug (67.5 mm)", hint: "67.5 mm ID · snug grip on ~66 mm can" },
+};
 
 const CANISTER_CONTENT_LABELS = {
   coffee: "COFFEE",
@@ -212,6 +217,7 @@ const PRESET_CONFIG = {
   canisterSquare: { preset: CANISTER_SQUARE_PRESET, profile: "canister" },
   canisterJar: { preset: CANISTER_JAR_PRESET, profile: "canister" },
   canisterStack: { preset: CANISTER_STACK_PRESET, profile: "canister" },
+  stubbyHolder: { preset: STUBBY_HOLDER_PRESET, profile: "stubby" },
 };
 
 const state = { ...DEFAULTS, shape: "rect", displayUnit: "mm" };
@@ -549,6 +555,13 @@ function buildParams() {
     vaseTextureScale: state.vaseTextureScale,
     vaseTextureBandLo: state.vaseTextureBandLo,
     vaseTextureBandHi: state.vaseTextureBandHi,
+    topRimRollEnabled: state.topRimRollEnabled !== false,
+    topRimRoll: state.topRimRoll ?? 0,
+    twistOpenerEnabled: !!state.twistOpenerEnabled,
+    twistOpenerHeight: state.twistOpenerHeight,
+    twistOpenerDepth: state.twistOpenerDepth,
+    twistOpenerWidth: state.twistOpenerWidth,
+    twistOpenerOffsetZ: state.twistOpenerOffsetZ,
   };
 }
 
@@ -2185,6 +2198,11 @@ const SLIDER_PROFILES = {
     depth: { min: 70, max: 160 },
     height: { min: 80, max: 250 },
   },
+  stubby: {
+    width: { min: 64, max: 72 },
+    depth: { min: 64, max: 72 },
+    height: { min: 110, max: 140 },
+  },
 };
 
 function applyCanisterContent(content, { rebuildNow = true } = {}) {
@@ -2289,6 +2307,14 @@ function applyPreset(shape) {
     syncSliderUi("lid-clearance", "lidClearance", { min: 0.15, max: 0.8, value: state.lidClearance ?? 0.3, parseKind: "float" });
     syncSliderUi("lid-lip", "lidLipDepth", { min: 0, max: 8, value: state.lidLipDepth ?? (shape === "canisterStack" ? 0 : 2.5), parseKind: "float" });
   }
+  if (shape === "stubbyHolder") {
+    syncSliderUi("top-rim-roll", "topRimRoll", { min: 0, max: 8, value: state.topRimRoll ?? 3, parseKind: "float" });
+    syncSliderUi("twist-opener-height", "twistOpenerHeight", { min: 10, max: 30, value: state.twistOpenerHeight ?? 16, parseKind: "float" });
+    syncSliderUi("twist-opener-depth", "twistOpenerDepth", { min: 2.5, max: 10, value: state.twistOpenerDepth ?? 5, parseKind: "float" });
+    syncSliderUi("twist-opener-width", "twistOpenerWidth", { min: 8, max: 24, value: state.twistOpenerWidth ?? 14, parseKind: "float" });
+    syncSliderUi("twist-opener-offset", "twistOpenerOffsetZ", { min: 2, max: 40, value: state.twistOpenerOffsetZ ?? 8, parseKind: "float" });
+    syncStubbyFitChips();
+  }
   if (isCanisterShape(shape)) {
     document.getElementById("stackable-enabled").checked = !!state.stackableEnabled;
     syncCanisterControlsFromState();
@@ -2327,6 +2353,13 @@ function resetFromPresetToBasic(shape) {
   state.stackableEnabled = d.stackableEnabled;
   state.stackStyle = d.stackStyle;
   state.lidColor = d.lidColor;
+  state.topRimRollEnabled = d.topRimRollEnabled;
+  state.topRimRoll = d.topRimRoll;
+  state.twistOpenerEnabled = d.twistOpenerEnabled;
+  state.twistOpenerHeight = d.twistOpenerHeight;
+  state.twistOpenerDepth = d.twistOpenerDepth;
+  state.twistOpenerWidth = d.twistOpenerWidth;
+  state.twistOpenerOffsetZ = d.twistOpenerOffsetZ;
   if (state.embossFace === "lid") state.embossFace = "front";
   applySliderProfile("default");
   if (shape === "rounded") {
@@ -2341,6 +2374,57 @@ function applyVaseShape() {
   applySliderProfile("default");
   syncSliderUi("vase-diameter", "vaseDiameter", { min: 30, max: 220, value: state.vaseDiameter, parseKind: "float" });
   syncSliderUi("vase-height", "vaseHeight", { min: 20, max: 280, value: state.vaseHeight, parseKind: "float" });
+}
+
+function isStubbyShape(shape = state.shape) {
+  return shape === "stubbyHolder";
+}
+
+function isRoundTwistShape(shape = state.shape) {
+  return shape === "stubbyHolder" || shape === "circle" || shape === "canisterJar";
+}
+
+function syncStubbyFitChips() {
+  const id = state.innerWidth <= 67.6 ? "snug" : "easy";
+  document.querySelectorAll("[data-stubby-fit]").forEach((btn) => {
+    const entry = STUBBY_FIT_TABLE[btn.dataset.stubbyFit];
+    const active = btn.dataset.stubbyFit === id;
+    btn.classList.toggle("active", active);
+    if (entry?.label) btn.textContent = entry.label;
+    if (entry?.hint) btn.title = entry.hint;
+  });
+}
+
+function applyStubbyFit(fit, { rebuildNow = true } = {}) {
+  const entry = STUBBY_FIT_TABLE[fit] || STUBBY_FIT_TABLE.easy;
+  state.innerWidth = entry.innerWidth;
+  state.innerDepth = entry.innerWidth;
+  syncStubbyFitChips();
+  syncShapeControlsFromState();
+  if (rebuildNow) {
+    rebuild();
+    pushAppHistory();
+  }
+}
+
+function updateStubbyUi() {
+  const stubby = isStubbyShape();
+  const roundTwist = isRoundTwistShape();
+  const rimOn = state.topRimRollEnabled !== false && (state.topRimRoll ?? 0) > 0.3;
+  const openerOn = !!state.twistOpenerEnabled;
+  document.getElementById("section-stubby")?.classList.toggle("hidden", !stubby && !roundTwist);
+  document.getElementById("stubby-preset-hint")?.classList.toggle("hidden", !stubby);
+  document.getElementById("stubby-fit-row")?.classList.toggle("hidden", !stubby);
+  document.getElementById("field-top-rim-roll")?.classList.toggle("hidden", !rimOn);
+  document.getElementById("field-twist-opener-height")?.classList.toggle("hidden", !openerOn);
+  document.getElementById("field-twist-opener-depth")?.classList.toggle("hidden", !openerOn);
+  document.getElementById("field-twist-opener-width")?.classList.toggle("hidden", !openerOn);
+  document.getElementById("field-twist-opener-offset")?.classList.toggle("hidden", !openerOn);
+  const rimToggle = document.getElementById("top-rim-roll-enabled");
+  if (rimToggle) rimToggle.checked = state.topRimRollEnabled !== false;
+  const openerToggle = document.getElementById("twist-opener-enabled");
+  if (openerToggle) openerToggle.checked = openerOn;
+  if (stubby) syncStubbyFitChips();
 }
 
 function syncShapeControlsFromState() {
@@ -2361,6 +2445,7 @@ function syncShapeControlsFromState() {
   document.getElementById("lid-enabled").checked = !!state.lidEnabled;
   document.getElementById("lid-type").value = state.lidType || "slip";
   updateLabels();
+  updateStubbyUi();
 }
 
 function selectShape(next) {
@@ -2402,6 +2487,7 @@ function selectShape(next) {
   updateLidUi();
   updateDecorUi();
   updateJoinerUi();
+  updateStubbyUi();
   rebuild();
   pushAppHistory();
   if (meshCache) fitCamera(meshCache.meta);
@@ -2427,7 +2513,7 @@ function applySliderProfile(profileKey) {
 function updateLabels() {
   const { shape } = state;
   const hex = shape === "hex";
-  const circle = shape === "circle" || shape === "canisterJar" || shape === "canisterStack";
+  const circle = shape === "circle" || shape === "canisterJar" || shape === "canisterStack" || shape === "stubbyHolder";
   const oval = shape === "oval";
   const rounded = shape === "rounded";
   const preset = PRESET_SHAPES.has(shape);
@@ -2466,6 +2552,7 @@ function updateLabels() {
     canisterSquare: "Canister size",
     canisterJar: "Jar size",
     canisterStack: "Stack jar size",
+    stubbyHolder: "Stubby size",
   };
   document.getElementById("label-inner-size").innerHTML = sizeHeading[shape]
     ? `${sizeHeading[shape]} ${unitLenSpan()}`
@@ -4942,6 +5029,35 @@ document.querySelectorAll("[data-stack-member]").forEach((btn) => {
 
 // Hide canister controls until a kitchen preset is active.
 syncCanisterControlsFromState();
+
+document.getElementById("top-rim-roll-enabled")?.addEventListener("change", (e) => {
+  state.topRimRollEnabled = e.target.checked;
+  updateStubbyUi();
+  scheduleSaveSession();
+  rebuild();
+});
+
+document.getElementById("twist-opener-enabled")?.addEventListener("change", (e) => {
+  state.twistOpenerEnabled = e.target.checked;
+  updateStubbyUi();
+  scheduleSaveSession();
+  rebuild();
+});
+
+document.querySelectorAll("[data-stubby-fit]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    if (!isStubbyShape()) return;
+    applyStubbyFit(btn.dataset.stubbyFit);
+  });
+});
+
+bindRange("top-rim-roll", "topRimRoll", "float");
+bindRange("twist-opener-height", "twistOpenerHeight", "float");
+bindRange("twist-opener-depth", "twistOpenerDepth", "float");
+bindRange("twist-opener-width", "twistOpenerWidth", "float");
+bindRange("twist-opener-offset", "twistOpenerOffsetZ", "float");
+
+updateStubbyUi();
 
 function updateProfileTextureUiVisibility() {
   const supported = shapeSupportsProfileTexture(state.shape);

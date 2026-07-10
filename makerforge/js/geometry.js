@@ -22,7 +22,7 @@ import {
   shapeSupportsProfileTexture,
   shapeSupportsProfileArt,
   shapeSupportsArt,
-} from "./features.js?v=201";
+} from "./features.js?v=214";
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=161";
 import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=161";
@@ -582,6 +582,78 @@ function buildProfileShell(outPos, outIdx, outer, inner, floor, totalH, cavityH)
   capProfileAnnulus(outPos, outIdx, outer, inner, zTop, true);
 }
 
+function lerpProfileOffset(base, target, t) {
+  return base.map((p, i) => [
+    p[0] + (target[i][0] - p[0]) * t,
+    p[1] + (target[i][1] - p[1]) * t,
+  ]);
+}
+
+/** Outward roll on the top outer rim — koozie / stubby holder lip. */
+function buildProfileShellWithTopRoll(outPos, outIdx, outer, inner, floor, totalH, cavityH, topRimRoll) {
+  const roll = clamp(topRimRoll, 0.3, Math.min(12, cavityH * 0.2));
+  const zFloor = floor;
+  const zTop = totalH;
+  const zCavityTop = floor + cavityH;
+  const zRollStart = zTop - roll;
+  const rollBulge = roll * 0.75;
+  const rollOuter = offsetProfileOutward(outer, rollBulge);
+  const rollSteps = Math.max(4, Math.ceil(roll / 0.7));
+
+  capProfileSolid(outPos, outIdx, outer, 0, false);
+  capProfileSolid(outPos, outIdx, inner, zFloor, true);
+  extrudeProfileSides(outPos, outIdx, outer, 0, zRollStart, true);
+  extrudeProfileSides(outPos, outIdx, inner, zFloor, zCavityTop, false);
+  extrudeProfileSides(outPos, outIdx, inner, zCavityTop, zTop, false);
+
+  let prevRing = outer;
+  let prevZ = zRollStart;
+  for (let i = 1; i <= rollSteps; i++) {
+    const t = i / rollSteps;
+    const factor = Math.sin(t * Math.PI / 2);
+    const ring = lerpProfileOffset(outer, rollOuter, factor);
+    const z = zRollStart + t * roll;
+    loftProfileRings(outPos, outIdx, prevRing, ring, prevZ, z, true);
+    prevRing = ring;
+    prevZ = z;
+  }
+  capProfileAnnulus(outPos, outIdx, prevRing, inner, zTop, true);
+}
+
+function appendSolidBox(outPos, outIdx, x0, y0, z0, x1, y1, z1) {
+  const xmin = Math.min(x0, x1);
+  const xmax = Math.max(x0, x1);
+  const ymin = Math.min(y0, y1);
+  const ymax = Math.max(y0, y1);
+  const zmin = Math.min(z0, z1);
+  const zmax = Math.max(z0, z1);
+  const corners = [
+    vec3(xmin, ymin, zmin), vec3(xmax, ymin, zmin), vec3(xmax, ymax, zmin), vec3(xmin, ymax, zmin),
+    vec3(xmin, ymin, zmax), vec3(xmax, ymin, zmax), vec3(xmax, ymax, zmax), vec3(xmin, ymax, zmax),
+  ];
+  pushQuad(outPos, outIdx, corners[0], corners[2], corners[1], corners[3]);
+  pushQuad(outPos, outIdx, corners[4], corners[5], corners[6], corners[7]);
+  pushQuad(outPos, outIdx, corners[0], corners[1], corners[5], corners[4]);
+  pushQuad(outPos, outIdx, corners[3], corners[7], corners[6], corners[2]);
+  pushQuad(outPos, outIdx, corners[0], corners[4], corners[7], corners[3]);
+  pushQuad(outPos, outIdx, corners[1], corners[2], corners[6], corners[5]);
+}
+
+/** Simple L-hook on the front wall near the base — v1 twist-cap opener (fused to body). */
+function appendTwistOpenerMesh(positions, indices, outerR, params) {
+  if (!params.twistOpenerEnabled) return;
+  const W = clamp(params.twistOpenerWidth ?? 14, 8, 28);
+  const H = clamp(params.twistOpenerHeight ?? 16, 10, 35);
+  const D = clamp(params.twistOpenerDepth ?? 5, 2.5, 12);
+  const lipD = clamp(D * 0.55, 1.5, 8);
+  const z0 = clamp(params.twistOpenerOffsetZ ?? 8, 2, 50) + clamp(params.floor ?? 2, 1.2, 6);
+  const yWall = outerR;
+
+  appendSolidBox(positions, indices, -W / 2, yWall - 0.4, z0, W / 2, yWall + D, z0 + H * 0.7);
+  appendSolidBox(positions, indices, -W / 2, yWall + D - 0.5, z0 + H * 0.55, W / 2, yWall + D + lipD, z0 + H);
+  appendSolidBox(positions, indices, -W * 0.42, yWall + D * 0.25, z0, W * 0.42, yWall + D + lipD * 0.4, z0 + H * 0.22);
+}
+
 /** Open-front bookcase shell — back + sides + floor + top rim; front face omitted. */
 function buildOpenFrontBookcaseShell(outPos, outIdx, outer, inner, floor, totalH, cavityH) {
   const zFloor = floor;
@@ -595,11 +667,13 @@ function buildOpenFrontBookcaseShell(outPos, outIdx, outer, inner, floor, totalH
   capProfileAnnulus(outPos, outIdx, outer, inner, zTop, true);
 }
 
-function shellFromProfiles(outer, inner, floor, totalH, cavityH, openFront = false) {
+function shellFromProfiles(outer, inner, floor, totalH, cavityH, openFront = false, topRimRoll = 0) {
   const positions = [];
   const indices = [];
   if (openFront) {
     buildOpenFrontBookcaseShell(positions, indices, outer, inner, floor, totalH, cavityH);
+  } else if (topRimRoll > 0.3) {
+    buildProfileShellWithTopRoll(positions, indices, outer, inner, floor, totalH, cavityH, topRimRoll);
   } else {
     buildProfileShell(positions, indices, outer, inner, floor, totalH, cavityH);
   }
@@ -1278,13 +1352,17 @@ function resolveContainer(params) {
   const wall = clamp(params.wall, 1.2, 10);
   const floor = clamp(params.floor, 1.2, 10);
 
-  if (shape === "circle" || shape === "canisterJar" || shape === "canisterStack") {
+  if (shape === "circle" || shape === "canisterJar" || shape === "canisterStack" || shape === "stubbyHolder") {
     const diameter = clamp(params.innerWidth, 10, 500);
     const innerH = clamp(params.innerHeight, 5, 400);
     const innerR = diameter / 2;
     const outerR = innerR + wall;
     const segments = circleSegmentsForRadius(outerR);
-    const metaShape = shape === "canisterJar" || shape === "canisterStack" ? "canisterJar" : "circle";
+    const metaShape = shape === "stubbyHolder"
+      ? "stubbyHolder"
+      : shape === "canisterJar" || shape === "canisterStack"
+        ? "canisterJar"
+        : "circle";
     return {
       outer: circleVertices(outerR, segments),
       inner: circleVertices(innerR, segments),
@@ -1624,6 +1702,10 @@ export function buildContainer(params) {
     : resolved.meta.shape;
   const useJoiner = params.joinerEnabled && shapeSupportsJoiner(joinerShape);
 
+  const rimRoll = params.topRimRollEnabled !== false && (params.topRimRoll ?? 0) > 0.3
+    ? clamp(params.topRimRoll ?? 0, 0.5, 12)
+    : 0;
+
   let mesh;
   let texturedPrep = null;
   if (useJoiner) {
@@ -1640,7 +1722,7 @@ export function buildContainer(params) {
       joiner,
     );
   } else {
-    texturedPrep = !params.bookcaseOpenFront
+    texturedPrep = !params.bookcaseOpenFront && rimRoll <= 0.3
       ? prepareProfileWallTexture(
         params,
         resolved.meta.shape,
@@ -1668,11 +1750,20 @@ export function buildContainer(params) {
         resolved.totalH,
         resolved.cavityH,
         !!params.bookcaseOpenFront,
+        rimRoll,
       );
     }
   }
 
   centerPositions(mesh.positions, 0, 0);
+
+  if (
+    params.twistOpenerEnabled
+    && (params.shape === "stubbyHolder" || params.shape === "circle" || params.shape === "canisterJar")
+  ) {
+    const outerR = resolved.meta.inner.w / 2 + (params.wall ?? 2.4);
+    appendTwistOpenerMesh(mesh.positions, mesh.indices, outerR, params);
+  }
 
   if (
     params.lidEnabled &&
@@ -1883,6 +1974,25 @@ export function toBufferGeometry(THREE, mesh) {
   geom.computeBoundingSphere();
   return geom;
 }
+
+/** 375 ml Australian stubby koozie — ~66 mm can OD, 68 mm easy-slide ID. */
+export const STUBBY_HOLDER_PRESET = {
+  innerWidth: 68,
+  innerDepth: 68,
+  innerHeight: 122,
+  wall: 2.2,
+  floor: 2,
+  lidEnabled: false,
+  topRimRollEnabled: true,
+  topRimRoll: 3,
+  twistOpenerEnabled: true,
+  twistOpenerHeight: 16,
+  twistOpenerDepth: 5,
+  twistOpenerWidth: 14,
+  twistOpenerOffsetZ: 8,
+  embossFace: "wrap",
+  boxColor: "#38bdf8",
+};
 
 export const CANISTER_SQUARE_PRESET = {
   innerWidth: 94,
@@ -2146,4 +2256,11 @@ export const DEFAULTS = {
   insertBodyGap: 0.12,
   canisterContent: "custom",
   canisterSize: "md",
+  topRimRollEnabled: false,
+  topRimRoll: 0,
+  twistOpenerEnabled: false,
+  twistOpenerHeight: 16,
+  twistOpenerDepth: 5,
+  twistOpenerWidth: 14,
+  twistOpenerOffsetZ: 8,
 };

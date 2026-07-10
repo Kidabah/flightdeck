@@ -44,7 +44,7 @@
 
         <div class="topbar-brand">
 
-          <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b213</span></div>
+          <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b214</span></div>
 
           <h1>Container Generator</h1>
 
@@ -181,6 +181,8 @@
 
                 <button type="button" class="shape-btn shape-btn--preset" data-shape="vase">Vase / pot</button>
 
+                <button type="button" class="shape-btn shape-btn--preset" data-shape="stubbyHolder">Stubby holder</button>
+
               </div>
 
               <h2 class="section-sub">Kitchen canisters</h2>
@@ -224,6 +226,52 @@
 
                 <p class="hint canister-food-hint">Coffee/tea/sugar use standard tin footprints; biscuits default to the wide <strong>1.5kg</strong> tin. Use food-contact filament. Flat lids include an optional gasket groove — print the <strong>Gasket</strong> part in TPU (or use 2&nbsp;mm cord).</p>
                 <p class="hint hidden" id="canister-stack-hint">Uniform <strong>250g</strong> round jars with nest-stack lids and gasket groove. Export body + lid 3MF per letter — print lids wood-tone PLA, <strong>Gasket</strong> in TPU.</p>
+              </section>
+
+              <section class="section hidden" id="section-stubby">
+                <h2 class="section-sub">Stubby holder</h2>
+                <p class="hint" id="stubby-preset-hint">Sized for standard 375 ml stubby (~66 mm can).</p>
+                <div class="canister-size-row hidden" id="stubby-fit-row" role="group" aria-label="Can fit">
+                  <span class="field-label">Can fit</span>
+                  <div class="chip-row">
+                    <button type="button" class="chip-btn active" data-stubby-fit="easy" title="68 mm ID · easy slide on ~66 mm can">Easy (68 mm)</button>
+                    <button type="button" class="chip-btn" data-stubby-fit="snug" title="67.5 mm ID · snug grip on ~66 mm can">Snug (67.5 mm)</button>
+                  </div>
+                </div>
+                <label class="field field-toggle">
+                  <span class="field-label">Rolled top edge</span>
+                  <input type="checkbox" id="top-rim-roll-enabled">
+                </label>
+                <label class="field hidden" id="field-top-rim-roll">
+                  <span class="field-label">Roll depth <span class="unit unit-len">mm</span></span>
+                  <input type="range" id="top-rim-roll" min="0.5" max="8" step="0.5" value="3" tabindex="-1">
+                  <button type="button" class="value-edit" data-slider="top-rim-roll" data-key="topRimRoll" data-parse="float">3</button>
+                </label>
+                <label class="field field-toggle">
+                  <span class="field-label">Twist opener (bottom)</span>
+                  <input type="checkbox" id="twist-opener-enabled">
+                </label>
+                <p class="field-hint">L-hook on the front wall near the base — v1 cap-twist aid. Test on your filament before relying on it.</p>
+                <label class="field hidden" id="field-twist-opener-height">
+                  <span class="field-label">Hook height <span class="unit unit-len">mm</span></span>
+                  <input type="range" id="twist-opener-height" min="10" max="30" step="0.5" value="16" tabindex="-1">
+                  <button type="button" class="value-edit" data-slider="twist-opener-height" data-key="twistOpenerHeight" data-parse="float">16</button>
+                </label>
+                <label class="field hidden" id="field-twist-opener-depth">
+                  <span class="field-label">Hook depth <span class="unit unit-len">mm</span></span>
+                  <input type="range" id="twist-opener-depth" min="2.5" max="10" step="0.5" value="5" tabindex="-1">
+                  <button type="button" class="value-edit" data-slider="twist-opener-depth" data-key="twistOpenerDepth" data-parse="float">5</button>
+                </label>
+                <label class="field hidden" id="field-twist-opener-width">
+                  <span class="field-label">Hook width <span class="unit unit-len">mm</span></span>
+                  <input type="range" id="twist-opener-width" min="8" max="24" step="0.5" value="14" tabindex="-1">
+                  <button type="button" class="value-edit" data-slider="twist-opener-width" data-key="twistOpenerWidth" data-parse="float">14</button>
+                </label>
+                <label class="field hidden" id="field-twist-opener-offset">
+                  <span class="field-label">Height from floor <span class="unit unit-len">mm</span></span>
+                  <input type="range" id="twist-opener-offset" min="2" max="40" step="0.5" value="8" tabindex="-1">
+                  <button type="button" class="value-edit" data-slider="twist-opener-offset" data-key="twistOpenerOffsetZ" data-parse="float">8</button>
+                </label>
               </section>
 
             </section>
@@ -1432,7 +1480,7 @@
     </form>
   </dialog>
 
-  <script type="module" src="js/app.js?v=213"></script>
+  <script type="module" src="js/app.js?v=214"></script>
 
 </body>
 

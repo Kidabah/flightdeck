@@ -2941,6 +2941,7 @@ export function shapeSupportsProfileTexture(shape) {
     || shape === "canisterSquare"
     || shape === "canisterJar"
     || shape === "canisterStack"
+    || shape === "stubbyHolder"
   );
 }
 
@@ -2954,6 +2955,7 @@ export function shapeSupportsProfileArt(shape) {
     || shape === "oval"
     || shape === "canisterJar"
     || shape === "canisterStack"
+    || shape === "stubbyHolder"
   );
 }
 
@@ -2972,6 +2974,7 @@ export function shapeSupportsAccent(shape) {
     || shape === "canisterSquare"
     || shape === "canisterJar"
     || shape === "circle"
+    || shape === "stubbyHolder"
     || shape === "oval"
     || shape === "hex"
     || shape === "polygon"

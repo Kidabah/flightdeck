@@ -2,10 +2,23 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `3c253e1` (b213)
-- Cache-bust: `app.js?v=213` — header **b213**
+- Latest commit: `b4a9288` (b214)
+- Cache-bust: `app.js?v=214` — header **b214**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-10 — b214: Stubby holder preset (375 ml Australian stubby)
+
+**Design tab** (`js/geometry.js`, `js/features.js`, `js/app.js`, `index.html`)
+
+- New **Stubby holder** quick preset — cylinder koozie sized for standard **375 ml stubby** (~66 mm can OD).
+- Default cavity: **68 mm ID** (easy slide), **122 mm** inner height, **2.2 mm** wall, **2 mm** floor.
+- **Can fit** chips: Easy (68 mm) / Snug (67.5 mm).
+- Hint: "Sized for standard 375 ml stubby (~66 mm can)."
+- **Rolled top edge** toggle + roll depth slider (`topRimRoll`) — outward lip on top outer rim.
+- **Twist opener (bottom)** toggle + hook height/depth/width/offset sliders — v1 L-hook fused to front wall near base (cap-twist aid; not industrial CAD).
+- Wrap art, accent bands, and surface texture supported on round profile. Rolled rim disables wall texture for now.
+- Cache **b214** (`app.js?v=214`, `geometry.js?v=214`, `features.js?v=214`). Hard refresh MakerDeck. **Backend restart required** (geometry.js changed).
 
 ### 2026-07-10 — b213: Display unit dropdown (mm / cm / in)
 
