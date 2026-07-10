@@ -18,16 +18,19 @@ import {
   strokePathsToSvg,
   previewMergeTraceShapeGroups,
   rasterizeShapeGroupsToMask,
-} from "./contour.js?v=221";
+} from "./contour.js?v=222";
 
-export { unionDenseEmbossShapeGroups } from "./contour.js?v=221";
+export { unionDenseEmbossShapeGroups } from "./contour.js?v=222";
 
 
 
-const MAX_TRACE_PX = 4096;
+const MAX_TRACE_PX = 2400;
 const SVG_RASTER_PX = 4096;
 const MAX_COLOR_LAYERS = 10;
 const BLUR_SKIP_PIXELS = 1_800_000;
+/** Above this pixel count, skip skeleton / full-res polygonise (freezes the tab). */
+const TRACE_FAST_PIXELS = 900_000;
+const TRACE_POLYGON_MAX_DIM = 1280;
 
 export const MAX_TRACE_RECTS = 50000;
 
@@ -240,9 +243,11 @@ function erodeMask(mask, width, height) {
 
 
 function morphologicalSkeleton(mask, width, height) {
+  if (width * height > TRACE_FAST_PIXELS) return new Uint8Array(width * height);
   const skel = new Uint8Array(width * height);
   let work = mask.slice();
-  for (let guard = 0; guard < Math.max(width, height); guard++) {
+  const maxIter = Math.min(64, Math.max(width, height));
+  for (let guard = 0; guard < maxIter; guard++) {
     const eroded = erodeMask(work, width, height);
     let any = false;
     for (let i = 0; i < eroded.length; i++) {
@@ -486,6 +491,7 @@ async function traceColorLayerGroupsAsync(data, width, height, tw, th, ox, oy, t
       holes: holes.map((hole) => hole.map(([px, py]) => [px + layerCrop.ox - ox, py + layerCrop.oy - oy])),
     }));
     allGroups.push(...groups);
+    if (allGroups.length > 40) return null;
   }
   if (allGroups.length < 2) return null;
   // Multi-layer traces on heraldic art explode into hundreds of islands — use single silhouette instead.
@@ -557,6 +563,43 @@ function downsampleUntilComplexity(workMask, tw, th, shapeGroups, simplifyFactor
     groups = prepareShapeGroups(groupPolygonsWithHoles(polygons), tol, passes);
   }
   return { mask, w, h, factor, groups, tol, passes };
+}
+
+function downsampleMaskToTracePoly(mask, width, height) {
+  let m = mask;
+  let w = width;
+  let h = height;
+  let factor = 1;
+  while (w * h > TRACE_FAST_PIXELS || Math.max(w, h) > TRACE_POLYGON_MAX_DIM) {
+    const ds = downsampleMask(m, w, h);
+    m = ds.mask;
+    w = ds.width;
+    h = ds.height;
+    factor *= 2;
+    if (factor > 32) break;
+  }
+  return { mask: m, width: w, height: h, factor };
+}
+
+function scaleShapeGroupsUp(groups, factor) {
+  if (factor <= 1) return groups;
+  return groups.map((g) => ({
+    outer: g.outer.map(([x, y]) => [x * factor, y * factor]),
+    holes: g.holes.map((h) => h.map(([x, y]) => [x * factor, y * factor])),
+  }));
+}
+
+/** Polygonise at reduced resolution then scale back — keeps trace responsive on heraldic PNGs. */
+async function polygonizeMaskGroups(workMask, tw, th, simplifyTol, smoothPasses) {
+  await traceYield();
+  const scaled = downsampleMaskToTracePoly(workMask, tw, th);
+  await traceYield();
+  const polys = maskToPolygons(scaled.mask, scaled.width, scaled.height);
+  const passes = scaled.factor > 2 ? 1 : Math.min(2, smoothPasses);
+  const tol = simplifyTol * Math.max(1, scaled.factor * 0.45);
+  let groups = await prepareShapeGroupsAsync(groupPolygonsWithHoles(polys), tol, passes);
+  if (scaled.factor > 1) groups = scaleShapeGroupsUp(groups, scaled.factor);
+  return { groups, factor: scaled.factor };
 }
 
 
@@ -921,20 +964,28 @@ export async function traceCanvasAsync(canvas, options = {}) {
   if (mode === "outline") {
     const simplifyTol = quality.simplifyTol;
     const smoothPasses = quality.smoothPasses;
+
+    // Skeleton on multi-megapixel masks runs thousands of erode passes — skip straight to silhouette.
+    if (tw * th > TRACE_FAST_PIXELS) {
+      const fbTol = quality.fbTol;
+      const { groups, factor } = await polygonizeMaskGroups(workMask, tw, th, fbTol, smoothPasses);
+      return finishSilhouetteTrace(workMask, tw, th, ox, oy, groups, factor, width, height, {
+        outlineFallback: true,
+        simplifyTol: fbTol,
+        smoothPasses,
+      });
+    }
+
     let rawPaths = outlineCenterlinePaths(workMask, tw, th);
     let strokePaths = prepareStrokePaths(rawPaths, simplifyTol, smoothPasses);
 
     // Edge-detected / double-line art produces dozens of ring centerlines — use silhouette instead.
     const outlineFallback = shouldFallbackOutline(rawPaths, strokePaths, tw);
     if (outlineFallback) {
-      // Single-colour silhouette — colour separation on edge halos leaves gapty island stacks.
-      await traceYield();
       const fbTol = quality.fbTol;
       const fbPasses = quality.smoothPasses;
-      await traceYield();
-      let polygons = maskToPolygons(workMask, tw, th);
-      let shapeGroups = await prepareShapeGroupsAsync(groupPolygonsWithHoles(polygons), fbTol, fbPasses);
-      const ds = downsampleUntilComplexity(workMask, tw, th, shapeGroups, simplifyFactor, fbTol, fbPasses);
+      let { groups: shapeGroups, factor: sf } = await polygonizeMaskGroups(workMask, tw, th, fbTol, fbPasses);
+      const ds = downsampleUntilComplexity(workMask, tw, th, shapeGroups, simplifyFactor * sf, fbTol, fbPasses);
       workMask = ds.mask;
       tw = ds.w;
       th = ds.h;
@@ -942,7 +993,6 @@ export async function traceCanvasAsync(canvas, options = {}) {
       shapeGroups = ds.groups;
       return finishSilhouetteTrace(workMask, tw, th, ox, oy, shapeGroups, simplifyFactor, width, height, {
         outlineFallback: true,
-        polygons: maskToPolygons(workMask, tw, th),
         simplifyTol: fbTol,
         smoothPasses: fbPasses,
       });
@@ -985,10 +1035,11 @@ export async function traceCanvasAsync(canvas, options = {}) {
   }
 
   await traceYield();
-  let polygons = maskToPolygons(workMask, tw, th);
-  let shapeGroups = await prepareShapeGroupsAsync(groupPolygonsWithHoles(polygons), quality.simplifyTol, quality.smoothPasses);
+  let { groups: shapeGroups, factor: polyFactor } = await polygonizeMaskGroups(
+    workMask, tw, th, quality.simplifyTol, quality.smoothPasses,
+  );
 
-  const ds = downsampleUntilComplexity(workMask, tw, th, shapeGroups, simplifyFactor, quality.simplifyTol, quality.smoothPasses);
+  const ds = downsampleUntilComplexity(workMask, tw, th, shapeGroups, simplifyFactor * polyFactor, quality.simplifyTol, quality.smoothPasses);
   workMask = ds.mask;
   tw = ds.w;
   th = ds.h;
@@ -996,7 +1047,6 @@ export async function traceCanvasAsync(canvas, options = {}) {
   shapeGroups = ds.groups;
 
   return finishSilhouetteTrace(workMask, tw, th, ox, oy, shapeGroups, simplifyFactor, width, height, {
-    polygons: maskToPolygons(workMask, tw, th),
     mode,
     simplifyTol: quality.simplifyTol,
     smoothPasses: quality.smoothPasses,

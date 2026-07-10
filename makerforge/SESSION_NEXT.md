@@ -2,8 +2,25 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `df52f6c` (b221)
-- Cache-bust: `app.js?v=221` — header **b221**
+- Latest commit: _(pending — b222 deploy)_
+- Cache-bust: `app.js?v=222` — header **b222**
+
+### 2026-07-10 — b222: Fix freeze *during* Tracing… on large heraldic PNGs
+
+**Symptom:** Tab hung while meta still said Tracing… (before 3D preview).
+
+**Root cause:** Outline mode ran **morphological skeleton** on ~3k×4k masks (thousands of full-size erode/dilate passes). Silhouette path ran **full-res maskToPolygons** (589 islands). Colour layers scanned 16M pixels × 7 layers.
+
+**Fix (`trace.js`, `app.js`):**
+- Large crops skip skeleton → fast silhouette polygonise
+- `polygonizeMaskGroups` downsamples before polygonise, scales back
+- Skeleton capped at 64 iterations; disabled above 900k pixels
+- Colour-layer loop aborts early; `colorSeparation: false` on image trace
+- Max trace load 2400px (was 4096)
+
+- Cache **b222**. Hard refresh, drop image again.
+
+### 2026-07-10 — b221: Image drop trace merge — freeze was during trace; see b222
 
 ### 2026-07-10 — b221: Fix image drop / trace freeze (restore fast add-image flow)
 
