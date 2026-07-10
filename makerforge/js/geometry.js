@@ -22,7 +22,7 @@ import {
   shapeSupportsProfileTexture,
   shapeSupportsProfileArt,
   shapeSupportsArt,
-} from "./features.js?v=216";
+} from "./features.js?v=218";
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=161";
 import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=161";
@@ -604,6 +604,305 @@ function shellFromProfiles(outer, inner, floor, totalH, cavityH, openFront = fal
     buildProfileShell(positions, indices, outer, inner, floor, totalH, cavityH);
   }
   return { positions, indices };
+}
+
+function lerpProfileOffset(base, target, t) {
+  return base.map((p, i) => [
+    p[0] + (target[i][0] - p[0]) * t,
+    p[1] + (target[i][1] - p[1]) * t,
+  ]);
+}
+
+function appendSolidBox(outPos, outIdx, x0, y0, z0, x1, y1, z1) {
+  const xmin = Math.min(x0, x1);
+  const xmax = Math.max(x0, x1);
+  const ymin = Math.min(y0, y1);
+  const ymax = Math.max(y0, y1);
+  const zmin = Math.min(z0, z1);
+  const zmax = Math.max(z0, z1);
+  const corners = [
+    vec3(xmin, ymin, zmin), vec3(xmax, ymin, zmin), vec3(xmax, ymax, zmin), vec3(xmin, ymax, zmin),
+    vec3(xmin, ymin, zmax), vec3(xmax, ymin, zmax), vec3(xmax, ymax, zmax), vec3(xmin, ymax, zmax),
+  ];
+  pushQuad(outPos, outIdx, corners[0], corners[2], corners[1], corners[3]);
+  pushQuad(outPos, outIdx, corners[4], corners[5], corners[6], corners[7]);
+  pushQuad(outPos, outIdx, corners[0], corners[1], corners[5], corners[4]);
+  pushQuad(outPos, outIdx, corners[3], corners[7], corners[6], corners[2]);
+  pushQuad(outPos, outIdx, corners[0], corners[4], corners[7], corners[3]);
+  pushQuad(outPos, outIdx, corners[1], corners[2], corners[6], corners[5]);
+}
+
+/** Coarse snap-fit rim for modular drink-holder stack (v1 — not ISO threads). */
+const HOLDER_SNAP = {
+  clearance: 0.35,
+  beadHeight: 2.4,
+  beadBulge: 0.75,
+  skirtDepth: 8,
+  skirtWall: 2,
+  canRingHeight: 22,
+  neckHeight: 44,
+  neckTopInnerD: 28,
+  capThickness: 3,
+  capSkirtDepth: 7,
+};
+
+export const HOLDER_MODES = {
+  can: { id: "can", label: "Can (375 ml)" },
+  bottle: { id: "bottle", label: "Bottle (350 ml stack)" },
+};
+
+export function isDrinkHolderShape(shape) {
+  return shape === "stubbyHolder";
+}
+
+/** Male snap bead on the base cup outer rim — mates with ring / neck skirts. */
+function appendBaseMaleSnapRing(outPos, outIdx, outer, zTop, snap = HOLDER_SNAP) {
+  const beadH = snap.beadHeight;
+  const z0 = zTop - beadH;
+  const bulgeOuter = offsetProfileOutward(outer, snap.beadBulge);
+  const steps = 4;
+  let prevRing = outer;
+  let prevZ = z0;
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps;
+    const ring = lerpProfileOffset(outer, bulgeOuter, Math.sin(t * Math.PI / 2));
+    const z = z0 + t * beadH;
+    loftProfileRings(outPos, outIdx, prevRing, ring, prevZ, z, true);
+    prevRing = ring;
+    prevZ = z;
+  }
+  capProfileSolid(outPos, outIdx, prevRing, zTop, true);
+}
+
+/** Bottom skirt that slides over the base snap bead (export meshes). */
+function appendHolderFemaleSkirt(outPos, outIdx, baseOuterR, snap = HOLDER_SNAP) {
+  const skirtDepth = snap.skirtDepth;
+  const skirtOuterR = baseOuterR + snap.skirtWall + snap.beadBulge;
+  const skirtInnerR = baseOuterR + snap.clearance;
+  const segments = circleSegmentsForRadius(skirtOuterR);
+  const skirtOuter = circleVertices(skirtOuterR, segments);
+  const skirtInner = circleVertices(skirtInnerR, segments);
+  capProfileAnnulus(outPos, outIdx, skirtOuter, skirtInner, 0, false);
+  extrudeProfileSides(outPos, outIdx, skirtOuter, 0, skirtDepth, true);
+  extrudeProfileSides(outPos, outIdx, skirtInner, 0, skirtDepth, false);
+  return { skirtDepth, segments };
+}
+
+function buildHollowCylinderShell(outPos, outIdx, innerR, outerR, z0, z1, segments) {
+  const inner = circleVertices(innerR, segments);
+  const outer = circleVertices(outerR, segments);
+  capProfileAnnulus(outPos, outIdx, outer, inner, z0, false);
+  extrudeProfileSides(outPos, outIdx, outer, z0, z1, true);
+  extrudeProfileSides(outPos, outIdx, inner, z0, z1, false);
+  capProfileAnnulus(outPos, outIdx, outer, inner, z1, true);
+  return { inner, outer };
+}
+
+function buildTaperedNeckShell(outPos, outIdx, bottomInnerR, topInnerR, wall, z0, z1, segments) {
+  const steps = Math.max(8, Math.ceil((z1 - z0) / 3));
+  const bottomOuterR = bottomInnerR + wall;
+  const topOuterR = topInnerR + wall;
+  let prevInner = circleVertices(bottomInnerR, segments);
+  let prevOuter = circleVertices(bottomOuterR, segments);
+  let prevZ = z0;
+  capProfileAnnulus(outPos, outIdx, prevOuter, prevInner, z0, false);
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps;
+    const innerR = bottomInnerR + (topInnerR - bottomInnerR) * t;
+    const outerR = bottomOuterR + (topOuterR - bottomOuterR) * t;
+    const inner = circleVertices(innerR, segments);
+    const outer = circleVertices(outerR, segments);
+    const z = z0 + t * (z1 - z0);
+    loftProfileRings(outPos, outIdx, prevOuter, outer, prevZ, z, true);
+    loftProfileRings(outPos, outIdx, prevInner, inner, prevZ, z, false);
+    prevInner = inner;
+    prevOuter = outer;
+    prevZ = z;
+  }
+  capProfileAnnulus(outPos, outIdx, prevOuter, prevInner, z1, true);
+  return { topInnerR, topOuterR, topOuter: prevOuter, topInner: prevInner };
+}
+
+/** Pry bottle opener on the cap top face (reference-style bump). */
+function appendPryBottleOpener(outPos, outIdx, capOuterR, zTop) {
+  const hookW = clamp(capOuterR * 0.95, 14, 22);
+  const hookReach = clamp(capOuterR * 0.55, 8, 14);
+  const hookH = 4.8;
+  const lipD = 3.2;
+  const yWall = capOuterR;
+  appendSolidBox(outPos, outIdx, -hookW / 2, yWall - hookReach * 0.15, zTop, hookW / 2, yWall + hookReach, zTop + hookH);
+  appendSolidBox(outPos, outIdx, -hookW / 2, yWall + hookReach - 1.2, zTop - 0.4, hookW / 2, yWall + hookReach + lipD, zTop + 2.4);
+  appendSolidBox(outPos, outIdx, -hookW * 0.38, yWall + hookReach * 0.35, zTop + hookH * 0.55, hookW * 0.38, yWall + hookReach + lipD * 0.55, zTop + hookH + 1.6);
+}
+
+/** Clean can ring for preview — solid grip band, no snap skirt (avoids z-fight through cup wall). */
+function buildHolderCanRingPreview(params, resolved, snap = HOLDER_SNAP) {
+  const wall = clamp(params.wall ?? 2.4, 1.2, 6);
+  const canInnerR = resolved.meta.inner.w / 2;
+  const canOuterR = canInnerR + wall + 1.2;
+  const ringH = snap.canRingHeight;
+  const segments = circleSegmentsForRadius(canOuterR);
+  const positions = [];
+  const indices = [];
+  buildHollowCylinderShell(positions, indices, canInnerR, canOuterR, 0, ringH, segments);
+  const lipBulge = offsetProfileOutward(circleVertices(canOuterR, segments), 1);
+  loftProfileRings(positions, indices, circleVertices(canOuterR, segments), lipBulge, ringH - 2, ringH, true);
+  return { positions, indices, partHeight: ringH };
+}
+
+/** Can ring export — snap skirt + grip cylinder. */
+function buildHolderCanRingExport(params, resolved, snap = HOLDER_SNAP) {
+  const wall = clamp(params.wall ?? 2.4, 1.2, 6);
+  const baseOuterR = profileMaxRadius(resolved.outer);
+  const canInnerR = resolved.meta.inner.w / 2;
+  const canOuterR = canInnerR + wall;
+  const positions = [];
+  const indices = [];
+  const skirt = appendHolderFemaleSkirt(positions, indices, baseOuterR, snap);
+  const z0 = skirt.skirtDepth;
+  const z1 = z0 + snap.canRingHeight;
+  buildHollowCylinderShell(positions, indices, canInnerR, canOuterR, z0, z1, skirt.segments);
+  const lipBulge = offsetProfileOutward(circleVertices(canOuterR, skirt.segments), 1.2);
+  loftProfileRings(positions, indices, circleVertices(canOuterR, skirt.segments), lipBulge, z1 - 2.2, z1, true);
+  return { positions, indices, partHeight: z1 };
+}
+
+/** Tapered neck preview — solid frustum, no downward skirt. */
+function buildHolderNeckPreview(params, resolved, snap = HOLDER_SNAP) {
+  const wall = clamp(params.wall ?? 2.4, 1.2, 6);
+  const bottomInnerR = resolved.meta.inner.w / 2 - 1;
+  const topInnerR = snap.neckTopInnerD / 2;
+  const segments = circleSegmentsForRadius(bottomInnerR + wall + 4);
+  const positions = [];
+  const indices = [];
+  const neck = buildTaperedNeckShell(positions, indices, bottomInnerR, topInnerR, wall, 0, snap.neckHeight, segments);
+  appendBaseMaleSnapRing(positions, indices, neck.topOuter, snap.neckHeight + snap.beadHeight, snap);
+  return {
+    positions,
+    indices,
+    partHeight: snap.neckHeight + snap.beadHeight,
+    topOuterR: neck.topOuterR + snap.beadBulge,
+  };
+}
+
+/** Neck export — snap skirt + tapered sleeve. */
+function buildHolderNeckExport(params, resolved, snap = HOLDER_SNAP) {
+  const wall = clamp(params.wall ?? 2.4, 1.2, 6);
+  const baseOuterR = profileMaxRadius(resolved.outer);
+  const bottomInnerR = resolved.meta.inner.w / 2 - 1;
+  const topInnerR = snap.neckTopInnerD / 2;
+  const positions = [];
+  const indices = [];
+  const skirt = appendHolderFemaleSkirt(positions, indices, baseOuterR, snap);
+  const z0 = skirt.skirtDepth;
+  const z1 = z0 + snap.neckHeight;
+  const neck = buildTaperedNeckShell(positions, indices, bottomInnerR, topInnerR, wall, z0, z1, skirt.segments);
+  appendBaseMaleSnapRing(positions, indices, neck.topOuter, z1 + snap.beadHeight, snap);
+  return {
+    positions,
+    indices,
+    partHeight: z1 + snap.beadHeight,
+    topOuterR: neck.topOuterR + snap.beadBulge,
+  };
+}
+
+/** Cap preview — solid disc + short wall + opener bump. */
+function buildHolderCapPreview(params, neckMeta, snap = HOLDER_SNAP) {
+  const wall = clamp(params.wall ?? 2.4, 1.2, 6);
+  const neckTopOuterR = neckMeta?.topOuterR ?? (snap.neckTopInnerD / 2 + wall + snap.beadBulge);
+  const capOuterR = neckTopOuterR + wall * 0.6;
+  const capInnerR = neckTopOuterR + snap.clearance;
+  const segments = circleSegmentsForRadius(capOuterR);
+  const positions = [];
+  const indices = [];
+  const skirtDepth = 5;
+  const lidThick = snap.capThickness;
+  const zTop = skirtDepth + lidThick;
+  const skirtOuter = circleVertices(capOuterR, segments);
+  const skirtInner = circleVertices(capInnerR, segments);
+  capProfileAnnulus(positions, indices, skirtOuter, skirtInner, 0, false);
+  extrudeProfileSides(positions, indices, skirtOuter, 0, zTop, true);
+  extrudeProfileSides(positions, indices, skirtInner, 0, skirtDepth, false);
+  capProfileSolid(positions, indices, skirtInner, skirtDepth, false);
+  capProfileSolid(positions, indices, skirtOuter, zTop, true);
+  appendPryBottleOpener(positions, indices, capOuterR, zTop);
+  const openerH = 6;
+  return { positions, indices, partHeight: zTop + openerH };
+}
+
+/** Cap export — mates to neck sleeve with full skirt. */
+function buildHolderCapExport(params, neckMeta, snap = HOLDER_SNAP) {
+  const wall = clamp(params.wall ?? 2.4, 1.2, 6);
+  const neckTopOuterR = neckMeta?.topOuterR ?? (snap.neckTopInnerD / 2 + wall + snap.beadBulge);
+  const capOuterR = neckTopOuterR + wall;
+  const capInnerR = neckTopOuterR + snap.clearance;
+  const segments = circleSegmentsForRadius(capOuterR);
+  const positions = [];
+  const indices = [];
+  const skirtDepth = snap.capSkirtDepth;
+  const lidThick = snap.capThickness;
+  const zTop = skirtDepth + lidThick;
+  const skirtOuter = circleVertices(capOuterR, segments);
+  const skirtInner = circleVertices(capInnerR, segments);
+  capProfileAnnulus(positions, indices, skirtOuter, skirtInner, 0, false);
+  extrudeProfileSides(positions, indices, skirtOuter, 0, zTop, true);
+  extrudeProfileSides(positions, indices, skirtInner, 0, skirtDepth, false);
+  capProfileSolid(positions, indices, skirtInner, skirtDepth, false);
+  capProfileSolid(positions, indices, skirtOuter, zTop, true);
+  appendPryBottleOpener(positions, indices, capOuterR, zTop);
+  return { positions, indices, partHeight: zTop + 6 };
+}
+
+/** Modular drink-holder add-ons — separate export / preview meshes. */
+export function buildHolderModularParts(params, resolved) {
+  if (!isDrinkHolderShape(params.shape)) return null;
+  const mode = params.holderMode === "bottle" ? "bottle" : "can";
+  const stackColor = params.holderPartColor || params.boxColor || "#141416";
+  const parts = [];
+  if (mode === "can") {
+    const exportMesh = buildHolderCanRingExport(params, resolved);
+    const previewMesh = buildHolderCanRingPreview(params, resolved);
+    centerPositions(exportMesh.positions, 0, 0);
+    centerPositions(previewMesh.positions, 0, 0);
+    parts.push({
+      id: "canRing",
+      name: "Can ring",
+      mesh: exportMesh,
+      previewMesh,
+      previewHeight: previewMesh.partHeight,
+      color: stackColor,
+    });
+  } else {
+    const neckExport = buildHolderNeckExport(params, resolved);
+    const neckPreview = buildHolderNeckPreview(params, resolved);
+    centerPositions(neckExport.positions, 0, 0);
+    centerPositions(neckPreview.positions, 0, 0);
+    const capExport = buildHolderCapExport(params, {
+      topOuterR: neckExport.topOuterR,
+    });
+    const capPreview = buildHolderCapPreview(params, {
+      topOuterR: neckPreview.topOuterR,
+    });
+    centerPositions(capExport.positions, 0, 0);
+    centerPositions(capPreview.positions, 0, 0);
+    parts.push({
+      id: "neck",
+      name: "Neck sleeve",
+      mesh: neckExport,
+      previewMesh: neckPreview,
+      previewHeight: neckPreview.partHeight,
+      color: stackColor,
+    });
+    parts.push({
+      id: "cap",
+      name: "Cap + opener",
+      mesh: capExport,
+      previewMesh: capPreview,
+      previewHeight: capPreview.partHeight,
+      color: stackColor,
+    });
+  }
+  return { mode, parts };
 }
 
 function loftProfileRings(outPos, outIdx, ringA, ringB, zA, zB, outward) {
@@ -1278,15 +1577,17 @@ function resolveContainer(params) {
   const wall = clamp(params.wall, 1.2, 10);
   const floor = clamp(params.floor, 1.2, 10);
 
-  if (shape === "circle" || shape === "canisterJar" || shape === "canisterStack") {
+  if (shape === "circle" || shape === "canisterJar" || shape === "canisterStack" || shape === "stubbyHolder") {
     const diameter = clamp(params.innerWidth, 10, 500);
     const innerH = clamp(params.innerHeight, 5, 400);
     const innerR = diameter / 2;
     const outerR = innerR + wall;
     const segments = circleSegmentsForRadius(outerR);
-    const metaShape = shape === "canisterJar" || shape === "canisterStack"
-      ? "canisterJar"
-      : "circle";
+    const metaShape = shape === "stubbyHolder"
+      ? "stubbyHolder"
+      : shape === "canisterJar" || shape === "canisterStack"
+        ? "canisterJar"
+        : "circle";
     return {
       outer: circleVertices(outerR, segments),
       inner: circleVertices(innerR, segments),
@@ -1515,7 +1816,7 @@ function computeMeta({ innerW, innerD, innerH, wall, floor, shape, sides = 6, st
   let outerW;
   let outerD;
 
-  if (shape === "circle") {
+  if (shape === "circle" || shape === "stubbyHolder") {
     const r = innerW / 2;
     const outerDia = innerW + wall * 2;
     cavityMl = (Math.PI * r * r * innerH) / 1000;
@@ -1642,7 +1943,7 @@ export function buildContainer(params) {
       joiner,
     );
   } else {
-    texturedPrep = !params.bookcaseOpenFront
+    texturedPrep = !params.bookcaseOpenFront && !isDrinkHolderShape(params.shape)
       ? prepareProfileWallTexture(
         params,
         resolved.meta.shape,
@@ -1675,6 +1976,12 @@ export function buildContainer(params) {
   }
 
   centerPositions(mesh.positions, 0, 0);
+
+  let holderParts = null;
+  if (isDrinkHolderShape(params.shape)) {
+    appendBaseMaleSnapRing(mesh.positions, mesh.indices, resolved.outer, resolved.totalH);
+    holderParts = buildHolderModularParts(params, resolved);
+  }
 
   if (
     params.lidEnabled &&
@@ -1753,6 +2060,7 @@ export function buildContainer(params) {
         joinerScale: useJoiner ? resolveJoinerDims(params, resolved.meta.outer.w, resolved.meta.outer.d).scale : undefined,
         embossFace: params.embossFace || (profileArt ? "wrap" : "front"),
         embossDeboss: !!params.embossDeboss,
+        holderMode: holderParts?.mode,
       },
       totalH: resolved.totalH,
       accentMeshes,
@@ -1760,6 +2068,7 @@ export function buildContainer(params) {
       labelMesh,
       graphicMesh,
       debossCutterMesh,
+      holderParts,
     };
   }
 
@@ -1767,8 +2076,9 @@ export function buildContainer(params) {
     ...resolved.meta,
     joinerHand: useJoiner ? (params.joinerHand === "right" ? "right" : "left") : undefined,
     joinerScale: useJoiner ? resolveJoinerDims(params, resolved.meta.outer.w, resolved.meta.outer.d).scale : undefined,
+    holderMode: holderParts?.mode,
   };
-  return { ...mesh, shellMesh: mesh, boxShell: mesh, meta, totalH: resolved.totalH, accentMeshes, insertMesh: null, labelMesh: null };
+  return { ...mesh, shellMesh: mesh, boxShell: mesh, meta, totalH: resolved.totalH, accentMeshes, insertMesh: null, labelMesh: null, holderParts };
 }
 
 export function buildLid(params) {

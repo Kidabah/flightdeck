@@ -2,12 +2,30 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `bff6e7d` (b217)
-- Cache-bust: `app.js?v=217` — header **b217**
+- Latest commit: `(pending b218 push)`
+- Cache-bust: `app.js?v=218` — header **b218**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
 
-### 2026-07-10 — b217: Preview union for dense trace emboss (cylinder wrap gap fix)
+### 2026-07-10 — b218: Fix preview freeze from b217 dense-trace union
+
+**Art / trace / preview** (`js/contour.js`, `js/trace.js`, `js/features.js`, `js/app.js`, `js/geometry.js`, `index.html`)
+
+**Symptom:** MakerDeck **Page Unresponsive** during 3D preview after b217 — St George trace (589 islands · 7 layers · 3357×4096 px) freezes browser with red geometry visible.
+
+**Root cause:** b217 added `unionDenseTraceShapeGroups` in **preview** (`buildEmbossBitmap`) and export, running sync rasterise + dilate + re-polygonise on **every preview rebuild** (slider ticks, move art, etc.). With 589 islands that blocks the main thread for seconds each call.
+
+**Fix:**
+- New shared `unionDenseEmbossShapeGroups` in `contour.js` — runs **once at trace time** inside `finishSilhouetteTrace` (all silhouette paths: colour layers, plain silhouette, outline fallback).
+- Trace result stores `shapeGroupsUnited: true`; preview/export skip re-union when flag set.
+- `ensureEmbossTraceUnited()` in `app.js` — one-time migration for b217 sessions already on the box (589-island stored trace); runs once on first rebuild, then never again.
+- b217 gap fix retained (united silhouette closes wrap white band); outline mode still skips colour separation.
+
+**Re-trace?** Not required if art already on box — first preview after hard refresh may pause ~1–2 s while legacy union runs once. Re-trace + Apply is cleaner for new `shapeGroupsUnited` data.
+
+- Cache **b218** (`app.js?v=218`, `features.js?v=218`, `trace.js?v=218`, `geometry.js?v=218`). Hard refresh MakerDeck (Ctrl+Shift+R). UI-only — Pi pull sufficient; restart optional.
+
+### 2026-07-10 — b217: Preview union for dense trace emboss (cylinder wrap gap fix) — caused preview hang; superseded by b218
 
 **Art / trace / preview** (`js/features.js`, `js/trace.js`, `js/app.js`, `index.html`)
 

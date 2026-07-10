@@ -16,8 +16,10 @@ import {
   strokePathIsClosed,
   shapeGroupsToStrokePaths,
   strokePathsToSvg,
-  unionShapeGroupsToPrepared,
+  unionDenseEmbossShapeGroups,
 } from "./contour.js?v=201";
+
+export { unionDenseEmbossShapeGroups };
 
 
 
@@ -494,22 +496,25 @@ function compactTraceMask(workMask, shapeGroups) {
   return workMask.slice();
 }
 
-/** Merge anti-alias colour slivers into one solid silhouette (closes horizontal gap bands). */
-function unionDenseColorLayerGroups(shapeGroups, tw, th, simplifyTol, smoothPasses) {
-  if (!shapeGroups?.length || shapeGroups.length <= 30) return shapeGroups;
-  const dilate = shapeGroups.length > 120 ? 7 : 5;
-  const united = unionShapeGroupsToPrepared(shapeGroups, tw, th, simplifyTol, smoothPasses, dilate);
-  return united.length ? united : shapeGroups;
-}
-
 function finishSilhouetteTrace(workMask, tw, th, ox, oy, shapeGroups, simplifyFactor, width, height, extra = {}) {
+  let groups = shapeGroups;
+  let shapeGroupsUnited = false;
+  if (extra.simplifyTol != null) {
+    const united = unionDenseEmbossShapeGroups(groups, tw, th, {
+      simplifyTol: extra.simplifyTol,
+      smoothPasses: extra.smoothPasses ?? 3,
+    });
+    groups = united.groups;
+    shapeGroupsUnited = united.united;
+  }
   const rects = maskToRuns(workMask, tw, th);
-  const svg = polygonsToSvg(shapeGroups, tw, th);
+  const svg = polygonsToSvg(groups, tw, th);
   return {
     rects,
-    mask: compactTraceMask(workMask, shapeGroups),
+    mask: compactTraceMask(workMask, groups),
     polygons: [],
-    shapeGroups,
+    shapeGroups: groups,
+    shapeGroupsUnited,
     strokePaths: [],
     width: tw,
     height: th,
@@ -889,13 +894,7 @@ export async function traceCanvasAsync(canvas, options = {}) {
   if (options.colorSeparation !== false && mode !== "outline") {
     const colorTrace = await traceColorLayerGroupsAsync(data, width, height, tw, th, ox, oy, threshold, invert, blur, options, quality);
     if (colorTrace) {
-      let shapeGroups = unionDenseColorLayerGroups(
-        colorTrace.shapeGroups,
-        tw,
-        th,
-        quality.simplifyTol,
-        quality.smoothPasses,
-      );
+      let shapeGroups = colorTrace.shapeGroups;
       let combined = colorTrace.combined;
       let sf = simplifyFactor;
       if (shapeGroups.length > MAX_TRACE_POLYGONS) {
@@ -908,6 +907,8 @@ export async function traceCanvasAsync(canvas, options = {}) {
       }
       return finishSilhouetteTrace(combined, tw, th, ox, oy, shapeGroups, sf, width, height, {
         colorLayers: colorTrace.colorLayerCount,
+        simplifyTol: quality.simplifyTol,
+        smoothPasses: quality.smoothPasses,
       });
     }
   }
@@ -937,6 +938,8 @@ export async function traceCanvasAsync(canvas, options = {}) {
       return finishSilhouetteTrace(workMask, tw, th, ox, oy, shapeGroups, simplifyFactor, width, height, {
         outlineFallback: true,
         polygons: maskToPolygons(workMask, tw, th),
+        simplifyTol: fbTol,
+        smoothPasses: fbPasses,
       });
     }
 
@@ -990,6 +993,8 @@ export async function traceCanvasAsync(canvas, options = {}) {
   return finishSilhouetteTrace(workMask, tw, th, ox, oy, shapeGroups, simplifyFactor, width, height, {
     polygons: maskToPolygons(workMask, tw, th),
     mode,
+    simplifyTol: quality.simplifyTol,
+    smoothPasses: quality.smoothPasses,
   });
 
 }

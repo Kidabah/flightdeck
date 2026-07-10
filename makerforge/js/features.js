@@ -2,7 +2,7 @@
  * Accent bands, emboss, honeycomb stamp, stackable hex grid, mesh merge.
  */
 
-import { dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, rasterizeShapeGroupsToMask, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap, unionShapeGroupsToPrepared } from "./contour.js?v=201";
+import { dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, rasterizeShapeGroupsToMask, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap, unionDenseEmbossShapeGroups, unionShapeGroupsToPrepared } from "./contour.js?v=201";
 import { decorPlacementOffsets, decorArtRect, rotateFacePoint, rotateShapeGroup } from "./decor.js";
 import {
   profileOutlineNormals,
@@ -1777,21 +1777,17 @@ function inflateRing(ring, pad) {
   return out;
 }
 
-/** Merge dense trace islands / colour layers into one solid mask (closes layer-gap slivers). */
-function unionDenseTraceShapeGroups(sourceGroups, maskW, maskH, artH, params) {
+/** Use pre-unioned trace groups from trace time; legacy dense traces union once on read. */
+function unionDenseTraceShapeGroups(sourceGroups, maskW, maskH, artH, params, bitmap) {
+  if (bitmap?.shapeGroupsUnited) return sourceGroups;
   if (!sourceGroups?.length || sourceGroups.length <= 8) return sourceGroups;
   const forExport = isLabelExport(params);
   const simplifyTol = forExport
     ? Math.max(0.06, maskW / 4000)
     : Math.max(0.08, maskW / 3500);
   const smoothPasses = forExport ? 1 : labelSmoothPasses(artH, params, { hiRes: maskW >= 1800 });
-  const dilate = sourceGroups.length > 120
-    ? 7
-    : sourceGroups.length > 30
-      ? 6
-      : 5;
-  const united = unionShapeGroupsToPrepared(sourceGroups, maskW, maskH, simplifyTol, smoothPasses, dilate);
-  return united.length ? united : sourceGroups;
+  const { groups } = unionDenseEmbossShapeGroups(sourceGroups, maskW, maskH, { simplifyTol, smoothPasses });
+  return groups;
 }
 
 function collectBitmapGraphicShapeGroups(meta, params, bitmap) {
@@ -1823,7 +1819,7 @@ function collectBitmapGraphicShapeGroups(meta, params, bitmap) {
 
   const groups = [];
   if (bitmap.shapeGroups?.length) {
-    const sourceGroups = unionDenseTraceShapeGroups(bitmap.shapeGroups, maskW, maskH, artH, params);
+    const sourceGroups = unionDenseTraceShapeGroups(bitmap.shapeGroups, maskW, maskH, artH, params, bitmap);
     for (const group of sourceGroups) groups.push(mapFaceGroup(group));
   } else if (bitmap.mask?.length === maskW * maskH) {
     const mask = bitmap.mask instanceof Uint8Array ? bitmap.mask : new Uint8Array(bitmap.mask);
@@ -2465,7 +2461,7 @@ export function buildEmbossBitmap(meta, params, bitmap) {
   }
 
   if (bitmap.shapeGroups?.length) {
-    const sourceGroups = unionDenseTraceShapeGroups(bitmap.shapeGroups, maskW, maskH, artH, params);
+    const sourceGroups = unionDenseTraceShapeGroups(bitmap.shapeGroups, maskW, maskH, artH, params, bitmap);
     for (const group of sourceGroups) {
       const remapped = {
         outer: group.outer.map(([px, py]) => [xOff + px * scale, zOff + (maskH - py) * scale]),

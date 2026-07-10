@@ -328,6 +328,25 @@ export function rasterizeShapeGroupsToMask(groups, width, height) {
   return mask;
 }
 
+/** Merge dense trace islands into one solid silhouette (closes layer-gap slivers). */
+export function unionDenseEmbossShapeGroups(sourceGroups, maskW, maskH, {
+  simplifyTol = 1,
+  smoothPasses = 1,
+  islandThreshold = 8,
+} = {}) {
+  if (!sourceGroups?.length || sourceGroups.length <= islandThreshold) {
+    return { groups: sourceGroups, united: false };
+  }
+  const dilate = sourceGroups.length > 120
+    ? 7
+    : sourceGroups.length > 30
+      ? 6
+      : 5;
+  const united = unionShapeGroupsToPrepared(sourceGroups, maskW, maskH, simplifyTol, smoothPasses, dilate);
+  const groups = united.length ? united : sourceGroups;
+  return { groups, united: !!united.length };
+}
+
 /** Union many trace polygons into one printable silhouette (avoids adjacent solid slivers). */
 export function unionShapeGroupsToPrepared(groups, width, height, simplifyTol = 1, smoothPasses = 1, dilatePasses = 2) {
   if (!groups?.length || width <= 0 || height <= 0) return [];
