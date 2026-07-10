@@ -2,10 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `c67d4b9` — hollow body, no wall punch
-- Cache-bust: `app.js?v=197` — header **b197**
+- Latest commit: (pending b198 push) — solid art/text, no standoff seam
+- Cache-bust: `app.js?v=198` — header **b198**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-10 — b198: Fix white layer-gap seams in art + COFFEE text
+
+**Export** (`js/features.js`, `js/app.js`, `index.html`)
+
+- **Root cause:** (1) 0.2 mm proud standoff left an air gap between body and art — grey shows through as white horizontal seams. (2) Hatch trace slivers not fully unioned → slicer drops sparse layers inside the sack/letters.
+- **Fix:** flush embed on outer skin (no standoff gap, still no wall punch). Always raster-union trace art on export with heavier dilate. Text mask dilate 4. Emboss depth snapped to 1.0 mm (0.2 mm layer grid).
+- Cache **b198**. Hard refresh, re-export.
 
 ### 2026-07-10 — b197: Hollow body export (stop punching front-wall holes)
 

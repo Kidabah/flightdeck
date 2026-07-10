@@ -2,7 +2,7 @@
  * Accent bands, emboss, honeycomb stamp, stackable hex grid, mesh merge.
  */
 
-import { dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap, unionShapeGroupsToPrepared } from "./contour.js?v=196";
+import { dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap, unionShapeGroupsToPrepared } from "./contour.js?v=198";
 import { decorPlacementOffsets, decorArtRect, rotateFacePoint, rotateShapeGroup } from "./decor.js";
 import {
   profileOutlineNormals,
@@ -1606,7 +1606,8 @@ function shapeGroupsFromStrokePathsForExport(paths, maskW, maskH, strokePx, artH
 function prepareTextExportMask(mask, maskW, maskH, params) {
   if (!isLabelExport(params)) return mask;
   const out = mask instanceof Uint8Array ? mask.slice() : new Uint8Array(mask);
-  return dilateMask(out, maskW, maskH, 2);
+  // Close anti-alias pinholes that read as horizontal layer gaps in the slicer.
+  return dilateMask(out, maskW, maskH, 4);
 }
 
 function collectTextEmbossShapeGroups(meta, params) {
@@ -1715,12 +1716,11 @@ function collectBitmapGraphicShapeGroups(meta, params, bitmap) {
   const groups = [];
   if (bitmap.shapeGroups?.length) {
     let sourceGroups = bitmap.shapeGroups;
-    // Color-separated / hatched traces store hundreds of adjacent loops — extruding
-    // each as its own solid creates non-manifold contact edges in the slicer.
-    if (isLabelExport(params) && sourceGroups.length > 1) {
+    // Hatch / colour-separated traces → one solid silhouette (no layer-gap slivers).
+    if (isLabelExport(params)) {
       const simplifyTol = Math.max(0.06, maskW / 4000);
       const smoothPasses = labelSmoothPasses(artH, params);
-      const dilate = sourceGroups.length > 30 ? 5 : sourceGroups.length > 8 ? 4 : 2;
+      const dilate = sourceGroups.length > 30 ? 6 : sourceGroups.length > 8 ? 5 : 4;
       const united = unionShapeGroupsToPrepared(sourceGroups, maskW, maskH, simplifyTol, smoothPasses, dilate);
       if (united.length) sourceGroups = united;
     }
@@ -1741,7 +1741,7 @@ function collectBitmapGraphicShapeGroups(meta, params, bitmap) {
   } else if (bitmap.strokePaths?.length) {
     const strokePx = bitmap.strokeWidth ?? Math.max(1.35, maskW / 88);
     if (isLabelExport(params)) {
-      const shapeGroups = shapeGroupsFromStrokePathsForExport(
+      let shapeGroups = shapeGroupsFromStrokePathsForExport(
         bitmap.strokePaths,
         maskW,
         maskH,
@@ -1749,6 +1749,18 @@ function collectBitmapGraphicShapeGroups(meta, params, bitmap) {
         artH,
         params,
       );
+      if (shapeGroups.length > 1) {
+        const simplifyTol = Math.max(0.06, maskW / 4000);
+        const united = unionShapeGroupsToPrepared(
+          shapeGroups,
+          maskW,
+          maskH,
+          simplifyTol,
+          1,
+          4,
+        );
+        if (united.length) shapeGroups = united;
+      }
       for (const group of shapeGroups) groups.push(mapFaceGroup(group));
     } else {
       const smoothPasses = labelSmoothPasses(artH, params);
@@ -3037,7 +3049,11 @@ function embossExportCaps(params, d0) {
 
 function labelOffsets(params) {
   let depth = clamp(params.embossDepth ?? 0.7, 0.3, 2);
-  if (params.__labelExportStandoff) depth = Math.max(depth, 0.8);
+  if (params.__labelExportStandoff) {
+    // Snap to 0.2 mm layers so thin proud plaques don't fall between slice planes.
+    depth = Math.max(depth, 1.0);
+    depth = Math.round(depth / 0.2) * 0.2;
+  }
   if (params.__embossMode === "deboss-cutter") {
     // Slicer-facing cutter STL: pokes 0.4mm past the surface and sinks (depth + 0.05)mm inward
     // so the boolean subtract is clean at the outer skin.
