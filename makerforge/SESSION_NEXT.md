@@ -2,10 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `9aee25b` — **b180**
-- Cache-bust: `app.js?v=180` — header must show **b180** (was stuck on b163)
+- Latest commit: see **b181** below
+- Cache-bust: `app.js?v=181`, `stl.js?v=181` — header must show **b181**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-10 — b181: Fix blank preview (duplicate stl export)
+
+**Boot** (`js/stl.js`, `js/app.js`, `js/3mf.js`, `index.html`)
+
+- `prepareMeshFor3mf` was declared **twice** in `stl.js` — ES module parse error killed the whole app (header showed b180 from HTML but viewport stayed empty).
+- Removed duplicate; kept the version that preserves `triangleExtruders` for AMS export.
+- Cache **b181**. Hard refresh (Ctrl+Shift+R); header must show **b181** and box preview should render.
 
 ### 2026-07-10 — b180: Fix export crash (stack overflow)
 
