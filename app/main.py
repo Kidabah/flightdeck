@@ -5075,12 +5075,19 @@ async def makerworld_thumbnail(url: str):
 
 
 @app.post("/api/makerdeck/exports", status_code=201)
-async def makerdeck_save_export(file: UploadFile = File(...), meta: str = Form("")):
+async def makerdeck_save_export(
+    file: UploadFile = File(...),
+    meta: str = Form(""),
+    thumbnail: UploadFile | None = File(None),
+    trace_image: UploadFile | None = File(None),
+):
     raw_name = _safe_basename(file.filename, "makerdeck-export")
     ext = _queue_file_extension(raw_name)
     if ext not in {".stl", ".3mf"}:
         raise HTTPException(status_code=422, detail="Only STL and 3MF exports are supported")
     data = await _read_upload_bytes(file, label="MakerDeck export")
+    thumb_data = await thumbnail.read() if thumbnail and thumbnail.filename else b""
+    trace_data = await trace_image.read() if trace_image and trace_image.filename else b""
     try:
         return makerdeck_library.save_export(
             library_root=_print_library_path().resolve(),
@@ -5090,6 +5097,8 @@ async def makerdeck_save_export(file: UploadFile = File(...), meta: str = Form("
             meta_json=meta,
             safe_join_under=_safe_join_under,
             safe_basename=_safe_basename,
+            thumbnail_bytes=thumb_data or None,
+            trace_image_bytes=trace_data or None,
         )
     except makerdeck_library.MakerDeckLibraryError as exc:
         raise HTTPException(status_code=exc.status, detail=str(exc))

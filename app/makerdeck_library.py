@@ -70,6 +70,21 @@ def _public_record(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _write_thumbnail_bytes(
+    folder: Path,
+    stem: str,
+    raw: bytes,
+    library_root: Path,
+    safe_join_under: Callable[..., Path],
+    ext: str = "jpg",
+) -> str | None:
+    if not raw:
+        return None
+    thumb = safe_join_under(folder, f"{stem}.thumb.{ext}", missing_ok=True)
+    thumb.write_bytes(raw)
+    return thumb.relative_to(library_root.resolve()).as_posix()
+
+
 def _write_thumbnail_file(
     folder: Path,
     stem: str,
@@ -128,6 +143,8 @@ def save_export(
     meta_json: str,
     safe_join_under: Callable[..., Path],
     safe_basename: Callable[[str | None, str], str],
+    thumbnail_bytes: bytes | None = None,
+    trace_image_bytes: bytes | None = None,
 ) -> dict[str, Any]:
     if not file_bytes:
         raise MakerDeckLibraryError("Empty export file.")
@@ -153,7 +170,17 @@ def save_export(
     thumbnail = str(meta.get("thumbnail") or "")
     state = meta.get("state") if isinstance(meta.get("state"), dict) else {}
     trace_image = meta.get("traceImage") if isinstance(meta.get("traceImage"), str) else ""
-    thumbnail_path = _write_thumbnail_file(dest.parent, dest.stem, thumbnail, library_root, safe_join_under)
+    if thumbnail_bytes:
+        thumbnail_path = _write_thumbnail_bytes(dest.parent, dest.stem, thumbnail_bytes, library_root, safe_join_under)
+    else:
+        thumbnail_path = _write_thumbnail_file(dest.parent, dest.stem, thumbnail, library_root, safe_join_under)
+
+    trace_image_path = None
+    if trace_image_bytes:
+        trace_file = safe_join_under(folder, f"{dest.stem}.trace.jpg", missing_ok=True)
+        trace_file.write_bytes(trace_image_bytes)
+        trace_image_path = trace_file.relative_to(library_root.resolve()).as_posix()
+        trace_image = ""
 
     sidecar_name = f"{dest.stem}{SIDECAR_SUFFIX}"
     sidecar = safe_join_under(folder, sidecar_name, missing_ok=True)
@@ -167,6 +194,7 @@ def save_export(
         "vault_path": vault_rel,
         "state": state,
         "traceImage": trace_image,
+        "trace_image_path": trace_image_path,
     }
     sidecar.write_text(json.dumps(sidecar_payload, indent=2), encoding="utf-8")
     sidecar_rel = sidecar.relative_to(library_root.resolve()).as_posix()
@@ -266,6 +294,18 @@ def design_params(
         raise MakerDeckLibraryError("Could not read design sidecar.") from exc
     if not isinstance(payload, dict):
         raise MakerDeckLibraryError("Invalid design sidecar.")
+    trace_rel = str(payload.get("trace_image_path") or "").strip()
+    if trace_rel and not payload.get("traceImage"):
+        trace_file = safe_join_under(library_root.resolve(), trace_rel, missing_ok=True)
+        if trace_file.is_file():
+            try:
+                raw = trace_file.read_bytes()
+                payload = {
+                    **payload,
+                    "traceImage": f"data:image/jpeg;base64,{base64.b64encode(raw).decode('ascii')}",
+                }
+            except Exception:
+                log.warning("makerdeck: could not read trace image for %s", design_id)
     return payload
 
 
@@ -315,6 +355,19 @@ def delete_design(
                 path.unlink()
         except Exception:
             log.warning("makerdeck: could not delete %s for design %s", key, design_id)
+    sidecar_rel = str(row.get("sidecar_path") or "").strip()
+    if sidecar_rel:
+        try:
+            sidecar = safe_join_under(library_root.resolve(), sidecar_rel, missing_ok=True)
+            if sidecar.is_file():
+                payload = json.loads(sidecar.read_text(encoding="utf-8"))
+                trace_rel = str(payload.get("trace_image_path") or "").strip()
+                if trace_rel:
+                    trace = safe_join_under(library_root.resolve(), trace_rel, missing_ok=True)
+                    if trace.is_file():
+                        trace.unlink()
+        except Exception:
+            pass
     rows = [r for r in load_designs(data_dir) if str(r.get("id")) != design_id]
     save_designs(data_dir, rows)
     return True

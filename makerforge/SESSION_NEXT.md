@@ -2,10 +2,19 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: see **b181** below
-- Cache-bust: `app.js?v=181`, `stl.js?v=181` — header must show **b181**
+- Latest commit: see **b182** below
+- Cache-bust: `app.js?v=182`, `library.js?v=182`, `style.css?v=27` — header **b182**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-10 — b182: Export filename dialog + optional library save
+
+**Export** (`index.html`, `js/app.js`, `js/library.js`, `css/style.css`, `app/makerdeck_library.py`, `app/main.py`)
+
+- **Download** opens a dialog — edit the file name before saving (all STL / 3MF formats).
+- **Save to design library** checkbox (body STL + 3MF only); preference remembered in localStorage.
+- Library upload no longer stuffs huge trace/thumbnail data into JSON — separate multipart files fix silent save failures.
+- Cache **b182**. Hard refresh. **Backend restart required** (library API change).
 
 ### 2026-07-10 — b181: Fix blank preview (duplicate stl export)
 

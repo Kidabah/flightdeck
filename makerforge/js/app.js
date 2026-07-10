@@ -20,10 +20,10 @@ import {
   listLibraryDesigns,
   fetchDesignParams,
   deleteLibraryDesign,
-} from "./library.js?v=161";
+} from "./library.js?v=182";
 
 const SESSION_KEY = "makerdeck-session-v1";
-const MAKERDECK_BUILD = "b181";
+const MAKERDECK_BUILD = "b182";
 let saveSessionTimer = null;
 let sessionBooting = true;
 
@@ -1496,8 +1496,8 @@ async function restoreSession() {
   }
 }
 
-async function archiveBodyExport(blob, filename, { format, stamp }) {
-  if (!libraryApiAvailable()) return null;
+async function archiveBodyExport(blob, filename, { format, stamp, saveToLibrary = false }) {
+  if (!saveToLibrary || !libraryApiAvailable()) return null;
   try {
     renderer.render(scene, camera);
     const result = await saveExportToLibrary({
@@ -1513,7 +1513,7 @@ async function archiveBodyExport(blob, filename, { format, stamp }) {
     return result?.design || null;
   } catch (err) {
     console.warn("MakerDeck design library save failed:", err);
-    return null;
+    return { error: err?.message || String(err) };
   }
 }
 
@@ -2990,7 +2990,135 @@ function meshBounds(mesh) {
   return { minX, minY, maxX, maxY, w: maxX - minX, d: maxY - minY };
 }
 
-function runExport(format) {
+function exportFormatExt(format) {
+  return format === "3mf" || format === "lid-3mf" ? ".3mf" : ".stl";
+}
+
+function exportFormatLabel(format) {
+  const labels = {
+    "3mf": "3MF project — body",
+    stl: "STL — body",
+    "lid-3mf": "3MF — lid",
+    "lid-stl": "STL — lid",
+    accent: "STL — accent bands",
+    insert: "STL — insert / divider",
+    deboss: "STL — deboss cutter",
+    saucer: "STL — vase saucer",
+  };
+  return labels[format] || format;
+}
+
+function bodyFormatSupportsLibrary(format) {
+  return format === "3mf" || format === "stl";
+}
+
+function suggestExportFilename(format) {
+  if (!meshCache) rebuild();
+  switch (format) {
+    case "3mf":
+      return filename3mfFor(meshCache.meta, "body");
+    case "stl":
+      return filenameFor(meshCache.meta, "body");
+    case "lid-3mf":
+      return filename3mfFor(lidCache?.meta || meshCache.meta, "lid");
+    case "lid-stl":
+      return filenameFor(lidCache?.meta || meshCache.meta, "lid");
+    case "accent":
+      return filenameFor(meshCache.meta, "accent");
+    case "insert":
+      return filenameFor(meshCache.meta, "insert");
+    case "deboss":
+      return filenameFor(meshCache.meta, "deboss-cutter");
+    case "saucer":
+      return filenameFor(meshCache.meta, "saucer");
+    default:
+      return `makerdeck-export${exportFormatExt(format)}`;
+  }
+}
+
+function sanitizeExportFilename(raw, ext) {
+  let name = String(raw || "").trim().replace(/[/\\?%*:|"<>]/g, "-");
+  if (!name) name = "makerdeck-export";
+  const lowerExt = ext.toLowerCase();
+  if (!name.toLowerCase().endsWith(lowerExt)) {
+    name = name.replace(/\.[^.]+$/, "") + lowerExt;
+  }
+  return name;
+}
+
+let exportDialogFormat = "3mf";
+let exportDialogResolve = null;
+
+function closeExportDialog(result) {
+  const dialog = document.getElementById("export-dialog");
+  if (dialog?.open) dialog.close();
+  const resolve = exportDialogResolve;
+  exportDialogResolve = null;
+  resolve?.(result);
+}
+
+function openExportDialog(format) {
+  const dialog = document.getElementById("export-dialog");
+  const input = document.getElementById("export-dialog-filename");
+  const kind = document.getElementById("export-dialog-kind");
+  const libWrap = document.getElementById("export-dialog-library-wrap");
+  const libCheck = document.getElementById("export-dialog-library");
+  const hint = document.getElementById("export-dialog-hint");
+  if (!dialog || !input) return Promise.resolve(null);
+
+  exportDialogFormat = format;
+  const ext = exportFormatExt(format);
+  input.value = suggestExportFilename(format);
+  if (kind) kind.textContent = exportFormatLabel(format);
+
+  const canSave = bodyFormatSupportsLibrary(format) && libraryApiAvailable();
+  if (libWrap) libWrap.hidden = !canSave;
+  if (libCheck && canSave) {
+    libCheck.checked = localStorage.getItem("makerdeck-export-save-library") !== "0";
+  }
+  if (hint) {
+    hint.textContent = canSave
+      ? "Library saves your sliders and art so you can reload this design later."
+      : "Only body STL and 3MF can be saved to the design library.";
+  }
+
+  return new Promise((resolve) => {
+    exportDialogResolve = resolve;
+    dialog.showModal();
+    input.focus();
+    input.select();
+  });
+}
+
+function initExportDialog() {
+  const dialog = document.getElementById("export-dialog");
+  const form = document.getElementById("export-dialog-form");
+  const cancel = document.getElementById("export-dialog-cancel");
+  if (!dialog || !form) return;
+
+  cancel?.addEventListener("click", () => closeExportDialog(null));
+  dialog.addEventListener("cancel", (e) => {
+    e.preventDefault();
+    closeExportDialog(null);
+  });
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const input = document.getElementById("export-dialog-filename");
+    const libCheck = document.getElementById("export-dialog-library");
+    const ext = exportFormatExt(exportDialogFormat);
+    const filename = sanitizeExportFilename(input?.value, ext);
+    const saveToLibrary = !!libCheck?.checked && bodyFormatSupportsLibrary(exportDialogFormat);
+    localStorage.setItem("makerdeck-export-save-library", saveToLibrary ? "1" : "0");
+    closeExportDialog({ filename, saveToLibrary });
+  });
+}
+
+function pickExportFilename(format, options = {}) {
+  if (options.filename) return options.filename;
+  return suggestExportFilename(format);
+}
+
+function runExport(format, options = {}) {
   if (!meshCache) rebuild();
   try {
     switch (format) {
@@ -3020,13 +3148,15 @@ function runExport(format) {
           return;
         }
         const blob = buildColoredProject3mf(parts, baseModelName(exportCache.meta));
-        const fname = filename3mfFor(exportCache.meta, "body");
+        const fname = pickExportFilename(format, options);
         downloadBlob(blob, fname);
-        void archiveBodyExport(blob, fname, { format: "3mf", stamp }).then((design) => {
-          if (status && design) {
+        void archiveBodyExport(blob, fname, { format: "3mf", stamp, saveToLibrary: options.saveToLibrary }).then((result) => {
+          if (result?.error && status) {
+            status.textContent += ` · library save failed`;
+          } else if (status && result?.id) {
             status.textContent += " · saved to design library";
           }
-          notifyLibrarySaved(design);
+          notifyLibrarySaved(result?.id ? result : null);
         });
         if (status) {
           const kind = parts.length === 1 && parts[0].triangleExtruders?.length
@@ -3061,16 +3191,20 @@ function runExport(format) {
           exportMesh = buildWatertightFixedDividerExport(exportCache, exportCache.meta, { ...params, fuseInsertToBody: true }) || exportMesh;
         }
         const stlBlob = meshToStl(exportMesh, "makerdeck");
-        const stlName = filenameFor(exportCache.meta, "body");
+        const stlName = pickExportFilename(format, options);
         downloadBlob(stlBlob, stlName);
         const status = document.getElementById("export-status");
-        void archiveBodyExport(stlBlob, stlName, { format: "stl", stamp }).then((design) => {
-          if (status && design) {
+        void archiveBodyExport(stlBlob, stlName, { format: "stl", stamp, saveToLibrary: options.saveToLibrary }).then((result) => {
+          if (result?.error) {
+            if (status) {
+              status.textContent = `STL downloaded${stamp ? ` · watermark #${String(stamp.serial).padStart(4, "0")}` : ""} · library save failed`;
+            }
+          } else if (status && result?.id) {
             status.textContent = `STL downloaded · saved to design library${stamp ? ` · watermark #${String(stamp.serial).padStart(4, "0")}` : ""}`;
           } else if (status) {
             status.textContent = `STL downloaded${stamp ? ` · watermark #${String(stamp.serial).padStart(4, "0")}` : ""}`;
           }
-          notifyLibrarySaved(design);
+          notifyLibrarySaved(result?.id ? result : null);
         });
         break;
       }
@@ -3079,7 +3213,7 @@ function runExport(format) {
         rebuild();
         if (hasSeparateTextExport() && state.embossFace === "lid") {
           const parts = collectColoredLidExportParts();
-          downloadBlob(buildColoredProject3mf(parts, "makerdeck-lid"), filename3mfFor(lidCache.meta, "lid"));
+          downloadBlob(buildColoredProject3mf(parts, "makerdeck-lid"), pickExportFilename(format, options));
         } else {
           alert("Colored lid 3MF needs text art on the Lid top face. Use STL lid otherwise.");
         }
@@ -3096,7 +3230,7 @@ function runExport(format) {
           }
         }
         try {
-          downloadBlob(meshToStl(orientLidForPrint(lidCache), "makerdeck-lid"), filenameFor(lidCache.meta, "lid"));
+          downloadBlob(meshToStl(orientLidForPrint(lidCache), "makerdeck-lid"), pickExportFilename(format, options));
         } catch (err) {
           const status = document.getElementById("art-draft-status");
           if (status) {
@@ -3114,12 +3248,12 @@ function runExport(format) {
           .filter((mesh) => mesh?.indices?.length);
         if (!exportMeshes.length) return;
         const merged = exportMeshes.length === 1 ? exportMeshes[0] : mergeMeshes(...exportMeshes);
-        downloadBlob(meshToStl(merged, "makerdeck-accent"), filenameFor(meshCache.meta, "accent"));
+        downloadBlob(meshToStl(merged, "makerdeck-accent"), pickExportFilename(format, options));
         break;
       }
       case "insert": {
         if (!state.insertEnabled || !insertCache) return;
-        downloadBlob(meshToStl(insertCache, "makerdeck-insert"), filenameFor(meshCache.meta, "insert"));
+        downloadBlob(meshToStl(insertCache, "makerdeck-insert"), pickExportFilename(format, options));
         break;
       }
       case "deboss": {
@@ -3128,12 +3262,12 @@ function runExport(format) {
         if (state.embossFace === "lid" && lidCache) {
           exportMesh = orientLidForPrint({ ...debossCutterCache, lidHeight: lidCache.lidHeight });
         }
-        downloadBlob(meshToStl(exportMesh, "makerdeck-deboss"), filenameFor(meshCache.meta, "deboss-cutter"));
+        downloadBlob(meshToStl(exportMesh, "makerdeck-deboss"), pickExportFilename(format, options));
         break;
       }
       case "saucer": {
         if (state.shape !== "vase" || !state.vaseSaucerEnabled || !meshCache?.saucerMesh) return;
-        downloadBlob(meshToStl(meshCache.saucerMesh, "makerdeck-saucer"), filenameFor(meshCache.meta, "saucer"));
+        downloadBlob(meshToStl(meshCache.saucerMesh, "makerdeck-saucer"), pickExportFilename(format, options));
         break;
       }
       default:
@@ -4460,10 +4594,15 @@ document.getElementById("vase-saucer").addEventListener("change", (e) => {
   rebuild();
 });
 
-document.getElementById("btn-export-go")?.addEventListener("click", () => {
+document.getElementById("btn-export-go")?.addEventListener("click", async () => {
   const sel = document.getElementById("export-format");
-  runExport(sel?.value || "3mf");
+  const format = sel?.value || "3mf";
+  const choice = await openExportDialog(format);
+  if (!choice) return;
+  runExport(format, choice);
 });
+
+initExportDialog();
 
 function resize() {
   const w = viewport.clientWidth;

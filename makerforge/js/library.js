@@ -13,6 +13,34 @@ export function capturePreviewThumbnail(renderer) {
   }
 }
 
+function dataUrlToBlob(dataUrl) {
+  if (!dataUrl?.startsWith("data:")) return null;
+  const comma = dataUrl.indexOf(",");
+  if (comma < 0) return null;
+  const header = dataUrl.slice(0, comma);
+  const b64 = dataUrl.slice(comma + 1);
+  const mime = header.match(/data:([^;]+)/i)?.[1] || "application/octet-stream";
+  try {
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new Blob([bytes], { type: mime });
+  } catch {
+    return null;
+  }
+}
+
+/** Drop bulky trace mask from state — trace image ships as a separate upload. */
+export function leanStateForLibrary(state) {
+  if (!state || typeof state !== "object") return state || {};
+  const out = { ...state };
+  if (out.embossTraceRects && typeof out.embossTraceRects === "object") {
+    const { maskB64, ...rest } = out.embossTraceRects;
+    out.embossTraceRects = rest;
+  }
+  return out;
+}
+
 export async function saveExportToLibrary({ blob, filename, format, part, state, stamp, thumbnail, traceImage }) {
   if (!libraryApiAvailable() || !blob) return null;
   const form = new FormData();
@@ -25,11 +53,14 @@ export async function saveExportToLibrary({ blob, filename, format, part, state,
       part,
       exported_at: new Date().toISOString(),
       watermark_serial: stamp?.serial ?? null,
-      thumbnail: thumbnail || "",
-      state: state || {},
-      traceImage: traceImage || null,
+      state: leanStateForLibrary(state || {}),
     }),
   );
+  const thumbBlob = dataUrlToBlob(thumbnail);
+  if (thumbBlob) form.append("thumbnail", thumbBlob, "thumb.jpg");
+  const traceBlob = dataUrlToBlob(traceImage);
+  if (traceBlob) form.append("trace_image", traceBlob, "trace.jpg");
+
   const res = await fetch("/api/makerdeck/exports", { method: "POST", body: form });
   if (!res.ok) {
     const detail = await res.text();

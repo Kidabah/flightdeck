@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Oswald:wght@700&family=Roboto+Mono:wght@700&family=Roboto:wght@700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=26">
+  <link rel="stylesheet" href="css/style.css?v=27">
 
   <script type="importmap">
 
@@ -42,7 +42,7 @@
 
       <div>
 
-        <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b181</span></div>
+        <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b182</span></div>
 
         <h1>Container Generator</h1>
 
@@ -1338,7 +1338,7 @@
 
               <h2>Design library</h2>
 
-              <p class="field-hint">Body STL and 3MF downloads auto-save here. Load a design to restore all sliders and art.</p>
+              <p class="field-hint">Body STL and 3MF downloads can be saved to the library — tick the checkbox in the download dialog. Load a design to restore all sliders and art.</p>
 
               <div id="library-grid" class="library-grid" aria-live="polite"></div>
 
@@ -1375,9 +1375,27 @@
 
   </div>
 
+  <dialog id="export-dialog" class="export-dialog" aria-labelledby="export-dialog-title">
+    <form id="export-dialog-form" class="export-dialog-panel" method="dialog">
+      <h2 id="export-dialog-title">Download</h2>
+      <p id="export-dialog-kind" class="field-hint"></p>
+      <label class="field">
+        <span class="field-label">File name</span>
+        <input type="text" id="export-dialog-filename" class="text-input" autocomplete="off" spellcheck="false" required>
+      </label>
+      <label class="field field-toggle" id="export-dialog-library-wrap">
+        <span class="field-label">Save to design library</span>
+        <input type="checkbox" id="export-dialog-library">
+      </label>
+      <p id="export-dialog-hint" class="field-hint export-dialog-hint"></p>
+      <div class="export-dialog-actions">
+        <button type="button" class="btn btn-secondary" id="export-dialog-cancel">Cancel</button>
+        <button type="submit" class="btn btn-primary" value="confirm">Download</button>
+      </div>
+    </form>
+  </dialog>
 
-
-  <script type="module" src="js/app.js?v=181"></script>
+  <script type="module" src="js/app.js?v=182"></script>
 
 </body>
 
