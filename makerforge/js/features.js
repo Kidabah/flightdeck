@@ -2,7 +2,7 @@
  * Accent bands, emboss, honeycomb stamp, stackable hex grid, mesh merge.
  */
 
-import { dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap, unionShapeGroupsToPrepared } from "./contour.js?v=200";
+import { dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, rasterizeShapeGroupsToMask, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap, unionShapeGroupsToPrepared } from "./contour.js?v=201";
 import { decorPlacementOffsets, decorArtRect, rotateFacePoint, rotateShapeGroup } from "./decor.js";
 import {
   profileOutlineNormals,
@@ -158,6 +158,95 @@ function wallBand(outPos, outIdx, axis, wallCoord, t0, t1, z0, z1) {
   pushQuad(outPos, outIdx, a0, a1, a2, a3);
 }
 
+function shapeGroupsBounds2d(groups) {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const group of groups) {
+    for (const ring of [group.outer, ...group.holes]) {
+      for (const [x, y] of ring) {
+        if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+      }
+    }
+  }
+  if (!Number.isFinite(minX)) return null;
+  return { minX, minY, maxX, maxY };
+}
+
+function scaleShapeGroupsToLocal(groups, minX, minY, stepMm) {
+  const inv = 1 / stepMm;
+  return groups.map((group) => ({
+    outer: group.outer.map(([x, y]) => [(x - minX) * inv, (y - minY) * inv]),
+    holes: group.holes.map((hole) => hole.map(([x, y]) => [(x - minX) * inv, (y - minY) * inv])),
+  }));
+}
+
+/** Accent-style face decal — horizontal 0.2 mm slabs hugging the wall (slicer-friendly). */
+function buildFaceDecalSlabMesh(frame, shapeGroups) {
+  if (!shapeGroups?.length || !frame?.mapPoint) return null;
+  if (!["front", "back", "left", "right"].includes(frame.face)) return null;
+
+  const stepMm = DECAL_LAYER_MM;
+  const bounds = shapeGroupsBounds2d(shapeGroups);
+  if (!bounds) return null;
+
+  const pad = stepMm;
+  const minX = bounds.minX - pad;
+  const minY = bounds.minY - pad;
+  const maxX = bounds.maxX + pad;
+  const maxY = bounds.maxY + pad;
+  const cols = Math.max(1, Math.ceil((maxX - minX) / stepMm));
+  const rows = Math.max(1, Math.ceil((maxY - minY) / stepMm));
+  if (cols > 2048 || rows > 2048) return null;
+
+  const local = scaleShapeGroupsToLocal(shapeGroups, minX, minY, stepMm);
+  let mask = rasterizeShapeGroupsToMask(local, cols, rows);
+  mask = dilateMask(mask, cols, rows, 1);
+
+  const d0 = ACCENT_SKIN_MM;
+  const d1 = ACCENT_SKIN_MM + ACCENT_BAND_THICKNESS_MM;
+  const positions = [];
+  const indices = [];
+  const w = (i, j, k) => [positions[i], positions[j], positions[k]];
+
+  for (let row = 0; row < rows; row++) {
+    const py0 = minY + row * stepMm;
+    const py1 = py0 + stepMm;
+    let col = 0;
+    while (col < cols) {
+      while (col < cols && !mask[row * cols + col]) col++;
+      const start = col;
+      while (col < cols && mask[row * cols + col]) col++;
+      if (col <= start) continue;
+      const px0 = minX + start * stepMm;
+      const px1 = minX + col * stepMm;
+
+      const c00 = frame.mapPoint(px0, py0, d0);
+      const c10 = frame.mapPoint(px1, py0, d0);
+      const c11 = frame.mapPoint(px1, py1, d0);
+      const c01 = frame.mapPoint(px0, py1, d0);
+      const o00 = frame.mapPoint(px0, py0, d1);
+      const o10 = frame.mapPoint(px1, py0, d1);
+      const o11 = frame.mapPoint(px1, py1, d1);
+      const o01 = frame.mapPoint(px0, py1, d1);
+
+      pushQuad(positions, indices, vec3(...o00), vec3(...o10), vec3(...o11), vec3(...o01));
+      pushQuad(positions, indices, vec3(...c00), vec3(...c01), vec3(...c11), vec3(...c10));
+      pushQuad(positions, indices, vec3(...c00), vec3(...c10), vec3(...o10), vec3(...o00));
+      pushQuad(positions, indices, vec3(...c01), vec3(...o01), vec3(...o11), vec3(...c11));
+      pushQuad(positions, indices, vec3(...c00), vec3(...o00), vec3(...o01), vec3(...c01));
+      pushQuad(positions, indices, vec3(...c10), vec3(...c11), vec3(...o11), vec3(...o10));
+    }
+  }
+
+  return indices.length ? { positions, indices } : null;
+}
+
 function profileIsValid(profile) {
   return Array.isArray(profile) && profile.length >= 3;
 }
@@ -166,6 +255,8 @@ function profileIsValid(profile) {
 const ACCENT_SKIN_MM = 0.12;
 /** Radial depth of profile accent bands — visible in preview and slicer-safe for multi-material. */
 const ACCENT_BAND_THICKNESS_MM = 0.45;
+/** Layer-height slabs for face decals (same slice strategy as accent bands). */
+const DECAL_LAYER_MM = 0.2;
 /** Extra radial push when a band is marked "on top" over another. */
 const ACCENT_LAYER_BUMP_MM = 0.22;
 
@@ -2094,6 +2185,11 @@ export function buildTextLabelExportMesh(meta, params) {
   const collected = collectTextEmbossShapeGroups(meta, p);
   if (!collected?.shapeGroups?.length) return null;
 
+  if (isLabelExport(p)) {
+    const slab = buildFaceDecalSlabMesh(collected.frame, collected.shapeGroups);
+    if (slab?.indices?.length) return slab;
+  }
+
   const { frame, shapeGroups } = collected;
   const { d0, d1 } = labelOffsets(p);
   const positions = [];
@@ -2114,6 +2210,11 @@ export function buildGraphicLabelExportMesh(meta, params, svgText = "") {
   const p = { ...params, __labelExportKind: "art" };
   const collected = collectGraphicEmbossShapeGroups(meta, p, svgText);
   if (!collected?.shapeGroups?.length) return null;
+
+  if (isLabelExport(p)) {
+    const slab = buildFaceDecalSlabMesh(collected.frame, collected.shapeGroups);
+    if (slab?.indices?.length) return slab;
+  }
 
   const { frame, shapeGroups } = collected;
   const { d0, d1 } = labelOffsets(p);

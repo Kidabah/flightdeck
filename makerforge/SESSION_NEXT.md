@@ -2,10 +2,19 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `18a9882` — Lid colour picker
-- Cache-bust: `app.js?v=200` — header **b200**
+- Latest commit: (pending b201 push) — accent-style face decal export
+- Cache-bust: `app.js?v=201` — header **b201**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-10 — b201: Art/text export like accent bands (horizontal wall slabs)
+
+**Export** (`js/features.js`, `index.html`)
+
+- **Insight:** accent rim bands slice cleanly because they're **horizontal wall slabs** per layer — not thin plaques extruded into the wall.
+- Art + COFFEE text now export via `buildFaceDecalSlabMesh` — 0.2 mm rows, 0.12+0.45 mm proud (same skin/thickness as accent).
+- Preview still uses normal emboss; only 3MF Art/Text parts use slab path.
+- Cache **b201**. Hard refresh, re-export.
 
 ### 2026-07-10 — b200: Lid colour picker on Lid tab
 
