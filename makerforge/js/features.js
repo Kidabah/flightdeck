@@ -2,7 +2,7 @@
  * Accent bands, emboss, honeycomb stamp, stackable hex grid, mesh merge.
  */
 
-import { extrudeShapeGroup, extrudeShapeGroupBetween, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, simplifyPolygon, triangulateMappedCap } from "./contour.js";
+import { dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap } from "./contour.js";
 import { decorPlacementOffsets, decorArtRect, rotateFacePoint, rotateShapeGroup } from "./decor.js";
 import { profileOutlineNormals, profileOutlineArcMetrics } from "./vase-textures.js";
 
@@ -1555,7 +1555,28 @@ function labelSmoothPasses(sizeMm, params, { hiRes = false } = {}) {
 
 function finishExportShapeGroups(groups, params) {
   if (!groups?.length || !isLabelExport(params)) return groups;
-  return inflateShapeGroups(groups, 0.12);
+  return inflateShapeGroups(groups, 0.15);
+}
+
+/** Solid filled regions from outline strokes — avoids dashed quad segments in export. */
+function shapeGroupsFromStrokePathsForExport(paths, maskW, maskH, strokePx, artH, params) {
+  const smoothPasses = labelSmoothPasses(artH, params);
+  const simplifyTol = Math.max(0.05, maskW / 4500);
+  const prepared = prepareStrokePaths(paths, simplifyTol, smoothPasses);
+  const exportStrokePx = strokePx * 1.2;
+  let mask = rasterizeStrokePathsToMask(prepared, maskW, maskH, exportStrokePx);
+  mask = dilateMask(mask, maskW, maskH, 1);
+  return prepareShapeGroups(
+    groupPolygonsWithHoles(maskToPolygons(mask, maskW, maskH)),
+    simplifyTol,
+    0,
+  );
+}
+
+function prepareTextExportMask(mask, maskW, maskH, params) {
+  if (!isLabelExport(params)) return mask;
+  const out = mask instanceof Uint8Array ? mask.slice() : new Uint8Array(mask);
+  return dilateMask(out, maskW, maskH, 1);
 }
 
 function collectTextEmbossShapeGroups(meta, params) {
@@ -1565,9 +1586,10 @@ function collectTextEmbossShapeGroups(meta, params) {
   const { frame, raster, scale, xOff, zOff, maskW, maskH, cx, cy, rotation } = layout;
   const simplifyTol = labelMaskSimplifyTol(maskW, params);
   const glyphMm = layout.glyphHeightMm ?? 7;
-  const smoothPasses = labelSmoothPasses(glyphMm, params);
+  const smoothPasses = isLabelExport(params) ? 0 : labelSmoothPasses(glyphMm, params);
+  const textMask = prepareTextExportMask(raster.mask, maskW, maskH, params);
   const shapeGroups = prepareShapeGroups(
-    groupPolygonsWithHoles(maskToPolygons(raster.mask, maskW, maskH)),
+    groupPolygonsWithHoles(maskToPolygons(textMask, maskW, maskH)),
     simplifyTol,
     smoothPasses,
   );
@@ -1665,32 +1687,44 @@ function collectBitmapGraphicShapeGroups(meta, params, bitmap) {
     );
     for (const group of shapeGroups) groups.push(mapFaceGroup(group));
   } else if (bitmap.strokePaths?.length) {
-    const smoothPasses = labelSmoothPasses(artH, params);
-    const simplifyTol = isLabelExport(params) ? Math.max(0.08, maskW / 2000) : Math.max(0.22, maskW / 520);
-    const paths = prepareStrokePaths(bitmap.strokePaths, simplifyTol, smoothPasses);
     const strokePx = bitmap.strokeWidth ?? Math.max(1.35, maskW / 88);
-    const halfW = clamp(scale * strokePx * 0.55, isLabelExport(params) ? 0.55 : 0.35, 2.2);
-    const mapPt = (px, py) => rotateFacePoint(rotCx, rotCy, xOff + px * scale, zOff + (maskH - py) * scale, rotation);
-    for (const path of paths) {
-      if (path.length < 2) continue;
-      for (let i = 0; i < path.length - 1; i++) {
-        const [x0, y0] = mapPt(path[i][0], path[i][1]);
-        const [x1, y1] = mapPt(path[i + 1][0], path[i + 1][1]);
-        const dx = x1 - x0;
-        const dy = y1 - y0;
-        const len = Math.hypot(dx, dy) || 1;
-        const nx = (-dy / len) * halfW;
-        const ny = (dx / len) * halfW;
-        groups.push({
-          outer: [
-            [x0 + nx, y0 + ny],
-            [x1 + nx, y1 + ny],
-            [x1 - nx, y1 - ny],
-            [x0 - nx, y0 - ny],
-            [x0 + nx, y0 + ny],
-          ],
-          holes: [],
-        });
+    if (isLabelExport(params)) {
+      const shapeGroups = shapeGroupsFromStrokePathsForExport(
+        bitmap.strokePaths,
+        maskW,
+        maskH,
+        strokePx,
+        artH,
+        params,
+      );
+      for (const group of shapeGroups) groups.push(mapFaceGroup(group));
+    } else {
+      const smoothPasses = labelSmoothPasses(artH, params);
+      const simplifyTol = Math.max(0.22, maskW / 520);
+      const paths = prepareStrokePaths(bitmap.strokePaths, simplifyTol, smoothPasses);
+      const halfW = clamp(scale * strokePx * 0.55, 0.35, 2.2);
+      const mapPt = (px, py) => rotateFacePoint(rotCx, rotCy, xOff + px * scale, zOff + (maskH - py) * scale, rotation);
+      for (const path of paths) {
+        if (path.length < 2) continue;
+        for (let i = 0; i < path.length - 1; i++) {
+          const [x0, y0] = mapPt(path[i][0], path[i][1]);
+          const [x1, y1] = mapPt(path[i + 1][0], path[i + 1][1]);
+          const dx = x1 - x0;
+          const dy = y1 - y0;
+          const len = Math.hypot(dx, dy) || 1;
+          const nx = (-dy / len) * halfW;
+          const ny = (dx / len) * halfW;
+          groups.push({
+            outer: [
+              [x0 + nx, y0 + ny],
+              [x1 + nx, y1 + ny],
+              [x1 - nx, y1 - ny],
+              [x0 - nx, y0 - ny],
+              [x0 + nx, y0 + ny],
+            ],
+            holes: [],
+          });
+        }
       }
     }
   }
@@ -1728,39 +1762,59 @@ function collectSvgGraphicShapeGroups(meta, params, svgText) {
 
   if (strokePaths.length) {
     const svgStroke = parsed.strokeWidth ?? 1.5;
-    const halfW = clamp(scale * svgStroke * 0.55, isLabelExport(params) ? 0.55 : 0.35, 2.2);
-    const smoothPasses = labelSmoothPasses(artH, params);
-    const simplifyTol = isLabelExport(params)
-      ? Math.max(0.08, Math.max(sw, sh) / 1200)
-      : Math.max(0.18, Math.max(sw, sh) / 520);
-    const closedPaths = strokePaths.map((line) => {
-      if (line.length < 2) return line;
-      const a = line[0];
-      const b = line[line.length - 1];
-      if (Math.hypot(a[0] - b[0], a[1] - b[1]) < 0.5) return line;
-      return [...line, a];
-    });
-    const paths = prepareStrokePaths(closedPaths, simplifyTol, smoothPasses);
-    for (const path of paths) {
-      if (path.length < 2) continue;
-      for (let i = 0; i < path.length - 1; i++) {
-        const [x0, y0] = mapSvgArtPoint(layout, path[i][0], path[i][1]);
-        const [x1, y1] = mapSvgArtPoint(layout, path[i + 1][0], path[i + 1][1]);
-        const dx = x1 - x0;
-        const dy = y1 - y0;
-        const len = Math.hypot(dx, dy) || 1;
-        const nx = (-dy / len) * halfW;
-        const ny = (dx / len) * halfW;
-        groups.push({
-          outer: [
-            [x0 + nx, y0 + ny],
-            [x1 + nx, y1 + ny],
-            [x1 - nx, y1 - ny],
-            [x0 - nx, y0 - ny],
-            [x0 + nx, y0 + ny],
-          ],
-          holes: [],
-        });
+    const maskW = Math.max(1, Math.round(sw));
+    const maskH = Math.max(1, Math.round(sh));
+    if (isLabelExport(params)) {
+      const shapeGroups = shapeGroupsFromStrokePathsForExport(
+        strokePaths,
+        maskW,
+        maskH,
+        svgStroke,
+        artH,
+        params,
+      );
+      for (const group of shapeGroups) {
+        const remapped = {
+          outer: group.outer.map(([x, y]) => mapSvgArtPoint(layout, x, y)),
+          holes: group.holes.map((h) => h.map(([x, y]) => mapSvgArtPoint(layout, x, y))),
+        };
+        let shaped = remapped;
+        if (frame.face === "wrap") shaped = normalizeWrapShapeGroups([remapped], frame.faceW, layout.rotCx)[0];
+        groups.push(shaped);
+      }
+    } else {
+      const halfW = clamp(scale * svgStroke * 0.55, 0.35, 2.2);
+      const smoothPasses = labelSmoothPasses(artH, params);
+      const simplifyTol = Math.max(0.18, Math.max(sw, sh) / 520);
+      const closedPaths = strokePaths.map((line) => {
+        if (line.length < 2) return line;
+        const a = line[0];
+        const b = line[line.length - 1];
+        if (Math.hypot(a[0] - b[0], a[1] - b[1]) < 0.5) return line;
+        return [...line, a];
+      });
+      const paths = prepareStrokePaths(closedPaths, simplifyTol, smoothPasses);
+      for (const path of paths) {
+        if (path.length < 2) continue;
+        for (let i = 0; i < path.length - 1; i++) {
+          const [x0, y0] = mapSvgArtPoint(layout, path[i][0], path[i][1]);
+          const [x1, y1] = mapSvgArtPoint(layout, path[i + 1][0], path[i + 1][1]);
+          const dx = x1 - x0;
+          const dy = y1 - y0;
+          const len = Math.hypot(dx, dy) || 1;
+          const nx = (-dy / len) * halfW;
+          const ny = (dx / len) * halfW;
+          groups.push({
+            outer: [
+              [x0 + nx, y0 + ny],
+              [x1 + nx, y1 + ny],
+              [x1 - nx, y1 - ny],
+              [x0 - nx, y0 - ny],
+              [x0 + nx, y0 + ny],
+            ],
+            holes: [],
+          });
+        }
       }
     }
   }

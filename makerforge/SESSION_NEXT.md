@@ -2,10 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: see **b185** below
-- Cache-bust: `app.js?v=185`, `features.js?v=185` — header **b185**
+- Latest commit: see **b186** below
+- Cache-bust: `app.js?v=186`, `features.js?v=186` — header **b186**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-10 — b186: Solid trace + arc text export
+
+**Export** (`js/contour.js`, `js/features.js`, `js/app.js`, `index.html`)
+
+- Outline trace art (coffee sack line art) now **rasterises to filled solids** on export instead of thousands of thin quad segments — fixes horizontal gaps / missing chunks in Bambu.
+- Arc text export: 1px mask dilate, no smooth pass, slightly more inflate (0.15 mm).
+- Cache **b186**. Hard refresh and re-export coffee canister 3MF (upright on base).
 
 ### 2026-07-10 — b185: Library upload fix + export art detail
 

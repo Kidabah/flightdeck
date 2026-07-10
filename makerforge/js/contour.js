@@ -230,6 +230,65 @@ export function maskToPolygons(mask, width, height) {
   return polygons;
 }
 
+/** Expand a binary mask by one 3×3 neighbourhood per pass. */
+export function dilateMask(mask, width, height, passes = 1) {
+  let work = mask instanceof Uint8Array ? mask : new Uint8Array(mask);
+  for (let pass = 0; pass < passes; pass++) {
+    const out = new Uint8Array(width * height);
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        let on = 0;
+        for (let dy = -1; dy <= 1 && !on; dy++) {
+          for (let dx = -1; dx <= 1 && !on; dx++) {
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx >= 0 && ny >= 0 && nx < width && ny < height && work[ny * width + nx]) on = 1;
+          }
+        }
+        out[y * width + x] = on;
+      }
+    }
+    work = out;
+  }
+  return work;
+}
+
+/** Rasterise stroke centerlines into a solid binary mask (filled pens). */
+export function rasterizeStrokePathsToMask(paths, width, height, strokeWidthPx = 2) {
+  const mask = new Uint8Array(width * height);
+  const radius = Math.max(1, strokeWidthPx * 0.5);
+  const r2 = radius * radius;
+
+  const stampDisc = (cx, cy) => {
+    const ix0 = Math.max(0, Math.floor(cx - radius));
+    const ix1 = Math.min(width - 1, Math.ceil(cx + radius));
+    const iy0 = Math.max(0, Math.floor(cy - radius));
+    const iy1 = Math.min(height - 1, Math.ceil(cy + radius));
+    for (let py = iy0; py <= iy1; py++) {
+      for (let px = ix0; px <= ix1; px++) {
+        const dx = px - cx;
+        const dy = py - cy;
+        if (dx * dx + dy * dy <= r2) mask[py * width + px] = 1;
+      }
+    }
+  };
+
+  for (const path of paths) {
+    if (!path || path.length < 2) continue;
+    for (let i = 0; i < path.length - 1; i++) {
+      const [x0, y0] = path[i];
+      const [x1, y1] = path[i + 1];
+      const dist = Math.hypot(x1 - x0, y1 - y0);
+      const steps = Math.max(1, Math.ceil(dist));
+      for (let s = 0; s <= steps; s++) {
+        const t = s / steps;
+        stampDisc(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t);
+      }
+    }
+  }
+  return mask;
+}
+
 export function polygonsToSvg(groups, width, height) {
   if (!groups.length) {
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}"></svg>`;
