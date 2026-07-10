@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending — b227)
+- Latest commit: `c3821cc` (b227)
 - Cache-bust: `app.js?v=227` — header **b227**
 
 ### 2026-07-11 — b227: Wrap 3D from pixel mask (match trace preview)
