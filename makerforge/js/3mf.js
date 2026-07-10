@@ -179,9 +179,9 @@ function meshTo3mfResources(mesh, objectId, name, extruder, { resanitize = false
   };
 }
 
-/** Bambu/Orca plate grid stride (bed width + gap) — plate 2 sits at +X. */
-const BAMBU_PLATE_GRID_X_MM = 256 + 47;
-const BAMBU_PLATE_GRID_Y_MM = 256 + 47;
+/** Default Bambu build plate size (mm) — used to centre assemblies on each plate tab. */
+const BAMBU_BED_WIDTH_MM = 256;
+const BAMBU_BED_DEPTH_MM = 256;
 
 /** 1×1 PNG — Bambu plate tabs look for Metadata/plate_N.png alongside plate_N.json. */
 const MINIMAL_PLATE_PNG = new Uint8Array([
@@ -261,13 +261,14 @@ function buildBambuPlateJson({ identifyId, name, bbox, layerHeight = 0.2, nozzle
   });
 }
 
-function plateGridOffset(plateId) {
-  const index = Math.max(0, (plateId || 1) - 1);
-  const col = index % 2;
-  const row = Math.floor(index / 2);
+/** Translate assembly bbox centre onto bed centre (plate-local coords, not world grid). */
+function centeringOffsetOnBed(bbox, bedWidth = BAMBU_BED_WIDTH_MM, bedDepth = BAMBU_BED_DEPTH_MM) {
+  if (!bbox) return { x: 0, y: 0, z: 0 };
+  const cx = (bbox.minX + bbox.maxX) / 2;
+  const cy = (bbox.minY + bbox.maxY) / 2;
   return {
-    x: col * BAMBU_PLATE_GRID_X_MM,
-    y: -row * BAMBU_PLATE_GRID_Y_MM,
+    x: bedWidth / 2 - cx,
+    y: bedDepth / 2 - cy,
     z: 0,
   };
 }
@@ -348,8 +349,8 @@ function buildBambuMultiPlateModelSettingsXml(assemblies) {
   }
   lines.push("  <assemble>");
   for (const asm of assemblies) {
-    const offset = plateGridOffset(asm.plateId);
-    const transform = formatTransform3x4(offset.x, offset.y, offset.z);
+    const center = asm.centerOffset || { x: 0, y: 0, z: 0 };
+    const transform = formatTransform3x4(center.x, center.y, center.z);
     lines.push(
       `   <assemble_item object_id="${asm.assemblyId}" instance_id="0" transform="${transform}" offset="0 0 0" />`,
     );
@@ -593,13 +594,17 @@ export function buildMultiPlateColoredProject3mf(plates, projectName = "makerdec
     if (!built) return;
     objectXml.push(...built.objectXml);
     const plateId = plate.plateId ?? index + 1;
-    const grid = plateGridOffset(plateId);
     const identifyId = built.buildObjectId;
-    // plate_N.json bbox is plate-local (bed origin), not world grid coordinates
-    const plateBBox = built.localBBox || { minX: 0, minY: 0, maxX: 1, maxY: 1 };
+    const centerOffset = centeringOffsetOnBed(built.localBBox);
+    // plate_N.json bbox is plate-local (centred on bed), not world grid coordinates
+    const plateBBox = translateAxisAlignedBBox(
+      built.localBBox || { minX: 0, minY: 0, maxX: 1, maxY: 1 },
+      centerOffset.x,
+      centerOffset.y,
+    );
     buildEntries.push({
       objectId: built.buildObjectId,
-      transform: formatTransform3x4(grid.x, grid.y, grid.z),
+      transform: formatTransform3x4(centerOffset.x, centerOffset.y, centerOffset.z),
     });
     triangleCount += built.triangleCount;
     objectId = built.nextObjectId;
@@ -612,6 +617,7 @@ export function buildMultiPlateColoredProject3mf(plates, projectName = "makerdec
       plateName: plate.plateName || "",
       identifyId,
       plateBBox,
+      centerOffset,
     });
     extraZipFiles.push(
       {

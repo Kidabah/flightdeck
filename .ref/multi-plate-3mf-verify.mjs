@@ -62,6 +62,12 @@ function transformValues(transformAttr) {
   return transformAttr.trim().split(/\s+/).map(Number);
 }
 
+function plateObjectId(plateXml) {
+  const inst = plateXml.match(/<model_instance>([\s\S]*?)<\/model_instance>/);
+  if (!inst) return null;
+  return inst[1].match(/object_id" value="(\d+)"/)?.[1] ?? null;
+}
+
 const zipFiles = listZipNames(buf);
 const cfgStart = text.indexOf("<config>");
 const cfg = cfgStart >= 0 ? text.slice(cfgStart, text.indexOf("</config>", cfgStart) + 9) : "";
@@ -70,6 +76,11 @@ const model = modelStart >= 0 ? text.slice(modelStart, text.indexOf("</model>", 
 
 const buildTransforms = [...model.matchAll(/<item[^>]*transform="([^"]+)"/g)].map((m) => m[1]);
 const assembleTransforms = [...cfg.matchAll(/assemble_item[^>]*transform="([^"]+)"/g)].map((m) => m[1]);
+const plateBlocks = [...cfg.matchAll(/<plate>([\s\S]*?)<\/plate>/g)].map((m) => m[1]);
+const plate1ObjId = plateObjectId(plateBlocks[0] || "");
+const plate2ObjId = plateObjectId(plateBlocks[1] || "");
+const buildObjectIds = [...model.matchAll(/<item[^>]*objectid="(\d+)"/g)].map((m) => m[1]);
+
 const plate1Json = JSON.parse(readZipEntry(buf, "Metadata/plate_1.json"));
 const plate2Json = JSON.parse(readZipEntry(buf, "Metadata/plate_2.json"));
 
@@ -93,23 +104,28 @@ check("two build items", (model.match(/<item /g) || []).length === 2);
 check("build transforms are 12-value 3MF matrices", buildTransforms.every((t) => transformValues(t).length === 12));
 check("assemble transforms are 12-value 3MF matrices", assembleTransforms.every((t) => transformValues(t).length === 12));
 
+check("plate 1 model_instance references container assembly", plate1ObjId === buildObjectIds[0]);
+check("plate 2 model_instance references lid assembly", plate2ObjId === buildObjectIds[1]);
+check("plate 1 and 2 reference different assemblies", plate1ObjId && plate2ObjId && plate1ObjId !== plate2ObjId);
+check("lid assembly not assigned to plate 1", plate1ObjId !== plate2ObjId);
+
+const plate1Build = transformValues(buildTransforms[0]);
 const plate2Build = transformValues(buildTransforms[1]);
-check(
-  `plate 2 build X offset ≈ ${BAMBU_PLATE_GRID_X_MM}mm`,
-  Math.abs(plate2Build[9] - BAMBU_PLATE_GRID_X_MM) < 0.01,
-);
+check("plate 1 build X is plate-local (not grid +303)", Math.abs(plate1Build[9]) < BAMBU_PLATE_GRID_X_MM - 50);
+check("plate 2 build X is plate-local (not grid +303)", Math.abs(plate2Build[9] - BAMBU_PLATE_GRID_X_MM) > 50);
+check("plate 2 build X matches plate 1 (separate tabs, not side-by-side)", Math.abs(plate2Build[9] - plate1Build[9]) < 50);
 
 const plate2Assemble = transformValues(assembleTransforms[1]);
-check(
-  `plate 2 assemble X offset ≈ ${BAMBU_PLATE_GRID_X_MM}mm`,
-  Math.abs(plate2Assemble[9] - BAMBU_PLATE_GRID_X_MM) < 0.01,
-);
+check("plate 2 assemble X is plate-local (not grid +303)", Math.abs(plate2Assemble[9] - BAMBU_PLATE_GRID_X_MM) > 50);
 
-check("plate_1.json bbox starts at origin", plate1Json.bbox_all[0] === 0 && plate1Json.bbox_all[1] === 0);
-check("plate_2.json bbox is plate-local (not +303 world)", plate2Json.bbox_all[0] < 100);
+check("plate_1.json bbox centred on bed", plate1Json.bbox_all[0] >= 70 && plate1Json.bbox_all[2] <= 190);
+check("plate_2.json bbox centred on bed", plate2Json.bbox_all[0] >= 80 && plate2Json.bbox_all[2] <= 180);
+check("plate_2.json bbox is plate-local (not +303 world)", plate2Json.bbox_all[0] < 200);
 
 console.log("build transforms:", buildTransforms);
 console.log("assemble transforms:", assembleTransforms);
+console.log("plate object ids:", { plate1ObjId, plate2ObjId, buildObjectIds });
+console.log("plate_1 bbox_all:", plate1Json.bbox_all);
 console.log("plate_2 bbox_all:", plate2Json.bbox_all);
 console.log(`zip entries: ${zipFiles.length}`);
 console.log(failures ? `${failures} FAILURES` : "ALL OK — multi-plate Bambu metadata complete");

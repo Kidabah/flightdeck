@@ -2,10 +2,19 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `(pending b207)` — Fix Bambu multi-plate 3MF 12-value transforms (b207)
-- Cache-bust: `app.js?v=207` — header **b207**
+- Latest commit: `(pending b208 push)` — Fix Bambu multi-plate plate-tab layout (b208)
+- Cache-bust: `app.js?v=208` — header **b208**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-10 — b208: Fix Bambu H2D multi-plate tabs (plate-local layout)
+
+**Export** (`js/3mf.js`, `js/app.js`, `index.html`, `.ref/multi-plate-3mf-verify.mjs`)
+
+- **Root cause:** b207 applied **+303 mm plate-grid X offset** to build + assemble transforms. That offset is for Bambu project-overview thumbnail layout, not plate-tab separation. Both container+lid rendered side-by-side on plate 01; container partially off bed; only one plate tab.
+- **Fix:** remove `plateGridOffset`; plate assignment via `<model_instance>` only. Build + assemble transforms use **plate-local bed-centring** (`centeringOffsetOnBed` on 256×256 mm bed). `plate_N.json` bbox translated to match. Verify script checks separate plate object assignment and rejects +303 mm grid offsets.
+- Verify: `node .ref/multi-plate-3mf-verify.mjs`
+- Cache **b208**. Hard refresh, re-download 3MF, open in Bambu H2D — expect **Plate 01 Container** + **Plate 02 Lid** tabs, each centred on its own bed.
 
 ### 2026-07-10 — b207: Fix Bambu H2D multi-plate stacking (12-value transforms)
 
