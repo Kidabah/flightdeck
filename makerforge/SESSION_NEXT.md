@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `(pending b208 push)` — Fix Bambu multi-plate plate-tab layout (b208)
+- Latest commit: `7e9b78d` — Fix Bambu multi-plate plate-tab layout (b208)
 - Cache-bust: `app.js?v=208` — header **b208**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
