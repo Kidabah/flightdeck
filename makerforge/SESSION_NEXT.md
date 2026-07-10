@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: _(pending — b219 deploy)_
+- Latest commit: `5f35b50` (b219)
 - Cache-bust: `app.js?v=219` — header **b219**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
