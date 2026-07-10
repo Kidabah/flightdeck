@@ -2,10 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `4a83703` — **b179**
-- Cache-bust: `app.js?v=179` (hard refresh `/makerdeck/` or `#/makerdeck`)
+- Latest commit: `9aee25b` — **b180**
+- Cache-bust: `app.js?v=180` — header must show **b180** (was stuck on b163)
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-10 — b180: Fix export crash (stack overflow)
+
+**Export** (`js/3mf.js`, `js/app.js`, `index.html`)
+
+- b179 export crashed silently: `Math.max(...triangleExtruders)` overflowed on large meshes → no download.
+- Visible build tag now updates to **b180** so you can confirm fresh JS loaded.
+- Cache **b180**. Hard refresh; check header says **b180** before exporting.
 
 ### 2026-07-10 — b179: AMS merged export + arc text mesh fix
 
