@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `20a1b8b` — 2-plate container + lid 3MF export
+- Latest commit: `907e92c` — 2-plate container + lid 3MF export
 - Cache-bust: `app.js?v=203` — header **b203**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
