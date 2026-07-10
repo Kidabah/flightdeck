@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending b195 push) — fix trace union scale + arc text export
+- Latest commit: `bd7b424` — fix trace union scale + arc text export
 - Cache-bust: `app.js?v=195` — header **b195**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
