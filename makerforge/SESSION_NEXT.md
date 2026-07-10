@@ -2,10 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `c4b8b5c` — Align b210 ZIP export UI copy to spec
-- Cache-bust: `app.js?v=210` — header **b210**
+- Latest commit: (pending b211)
+- Cache-bust: `app.js?v=211` — header **b211**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-10 — b211: Art/Text manifold sanitize + export open-edge warning
+
+**Export** (`js/app.js`, `index.html`)
+
+- **Root cause:** Body+Art+Text+Accent multi-part 3MF had correct `model_settings.config` extruder slots, but Art/Text still used `prepareMeshFor3mf` (light weld only). Open/non-manifold art meshes made Bambu block AMS colour assignment until **Repair** — Repair then remeshes/merges parts and breaks filament slots.
+- **Fix:** Art and Text export parts now run through `sanitizeMeshForStl` (weld + non-manifold peel). Export status reports open edges for accent too; warns to avoid Bambu Repair when any part has open edges.
+- Cache **b211**. Hard refresh, re-export — status should show `open edges: body 0, art 0, text 0, accent 0`.
 
 ### 2026-07-10 — b210: Dual-file ZIP export (container + lid 3MF)
 

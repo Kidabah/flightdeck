@@ -23,7 +23,7 @@ import {
 } from "./library.js?v=201";
 
 const SESSION_KEY = "makerdeck-session-v1";
-const MAKERDECK_BUILD = "b210";
+const MAKERDECK_BUILD = "b211";
 let saveSessionTimer = null;
 let sessionBooting = true;
 
@@ -852,7 +852,7 @@ function collectColoredExportParts(exportCache, stamp = null) {
     }
     if (separateArt) {
       const artMesh = buildLabelGraphicEmboss(exportCache.meta, exportParams, params.embossSvgText || "", "emboss");
-      const artClean = artMesh ? prepareMeshFor3mf(artMesh) : null;
+      const artClean = artMesh ? sanitizeMeshForStl(artMesh, { strict: false }) : null;
       if (artClean?.indices?.length) {
         parts.push({
           name: "Art",
@@ -864,7 +864,7 @@ function collectColoredExportParts(exportCache, stamp = null) {
     }
     if (separateText) {
       const textMesh = buildTextLabelExportMesh(exportCache.meta, exportParams);
-      const textClean = textMesh ? prepareMeshFor3mf(textMesh) : null;
+      const textClean = textMesh ? sanitizeMeshForStl(textMesh, { strict: false }) : null;
       if (textClean?.indices?.length) {
         parts.push({
           name: "Text",
@@ -3424,18 +3424,28 @@ function runExport(format, options = {}) {
             const bodyPart = parts.find((p) => p.name === "Body");
             const paints = bodyPart?.triangleExtruders;
             let openNote = "";
+            let hasOpenEdges = false;
             if (paints?.length) {
               const artTris = paints.filter((e) => e === 2).length;
               const textTris = paints.filter((e) => e === 3).length;
               const bodyOpen = partOpenEdgeCount(bodyPart);
+              hasOpenEdges = bodyOpen > 0;
               openNote = ` · art ${artTris} tris, text ${textTris} tris, open ${bodyOpen}`;
             } else {
               const bodyOpen = partOpenEdgeCount(parts.find((p) => p.name === "Body"));
               const artOpen = partOpenEdgeCount(parts.find((p) => p.name === "Art"));
               const textOpen = partOpenEdgeCount(parts.find((p) => p.name === "Text"));
-              if (bodyOpen > 0 || artOpen > 0 || textOpen > 0) {
-                openNote = ` · open edges: body ${bodyOpen}, art ${artOpen}, text ${textOpen}`;
+              const accentOpen = parts
+                .filter((p) => p.name === "Accent" || /^Accent \d+$/.test(p.name))
+                .reduce((sum, p) => sum + partOpenEdgeCount(p), 0);
+              const totalOpen = bodyOpen + artOpen + textOpen + accentOpen;
+              hasOpenEdges = totalOpen > 0;
+              if (totalOpen > 0) {
+                openNote = ` · open edges: body ${bodyOpen}, art ${artOpen}, text ${textOpen}, accent ${accentOpen}`;
               }
+            }
+            if (hasOpenEdges) {
+              openNote += " — avoid Bambu Repair (remeshes parts); re-export after update";
             }
             const exportHeadline = packed.zipExport
               ? "ZIP downloaded — open container.3mf and lid.3mf in Bambu"
