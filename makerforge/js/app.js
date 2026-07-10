@@ -1,9 +1,9 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=196";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, punchBodyShellForLabelExport, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=196";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=197";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=197";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=161";
-import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=196";
+import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=197";
 import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=180";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
@@ -20,10 +20,10 @@ import {
   listLibraryDesigns,
   fetchDesignParams,
   deleteLibraryDesign,
-} from "./library.js?v=196";
+} from "./library.js?v=197";
 
 const SESSION_KEY = "makerdeck-session-v1";
-const MAKERDECK_BUILD = "b196";
+const MAKERDECK_BUILD = "b197";
 let saveSessionTimer = null;
 let sessionBooting = true;
 
@@ -807,21 +807,18 @@ function collectColoredExportParts(exportCache, stamp = null) {
   const bodyMesh = resolveBodyExportMesh(exportCache, params, separateText, stamp);
 
   if (separateColor && (params.embossFace || "front") !== "lid") {
-    // Separate Body / Art / Text objects — Bambu assigns one filament per part.
-    // (Merged AMS paint_color loses extruder tags when the mesh is welded.)
+    // Separate Body / Art / Text — each part gets its own filament slot.
+    // Do NOT punch wall holes: removed tris open through-holes and slicers fill the cavity solid.
     const exportParams = {
       ...params,
       __labelExportStandoff: true,
-      __labelExportEmbedded: true,
+      __labelExportEmbedded: false,
     };
     const boxShell = exportCache.boxShell || exportCache.shellMesh || exportCache;
-    const punched = punchBodyShellForLabelExport(
-      { positions: boxShell.positions.slice(), indices: boxShell.indices.slice() },
-      exportCache.meta,
-      exportParams,
-      params.embossSvgText || "",
-    );
-    const bodyClean = prepareMeshFor3mf(punched);
+    const bodyClean = prepareMeshFor3mf({
+      positions: boxShell.positions.slice(),
+      indices: boxShell.indices.slice(),
+    });
     if (bodyClean?.indices?.length) {
       parts.push({
         name: "Body",

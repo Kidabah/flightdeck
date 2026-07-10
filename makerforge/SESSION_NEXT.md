@@ -2,10 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `228dc0c` — 3-part Body/Art/Text export
-- Cache-bust: `app.js?v=196` — header **b196**
+- Latest commit: (pending b197 push) — hollow body, no wall punch
+- Cache-bust: `app.js?v=197` — header **b197**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-10 — b197: Hollow body export (stop punching front-wall holes)
+
+**Export** (`js/app.js`, `index.html`)
+
+- **Root cause:** `punchBodyShellForLabelExport` deleted front-wall triangles under art → **through-holes** into the cavity. Bambu treated the canister as a solid block (red infill filling the interior).
+- **Fix:** export intact hollow `boxShell` (no punch). Art/Text sit **0.2 mm proud** of the wall (`__labelExportEmbedded: false`) so filaments stay separate without breaching the shell.
+- Cache **b197**. Hard refresh, re-export.
 
 ### 2026-07-10 — b196: Restore 3-part export (Body + Art + Text filaments)
 
