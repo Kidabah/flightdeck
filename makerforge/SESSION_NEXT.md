@@ -2,10 +2,19 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: see **b186** below
-- Cache-bust: `app.js?v=186`, `features.js?v=186` — header **b186**
+- Latest commit: see **b187** below
+- Cache-bust: `app.js?v=187`, `features.js?v=187` — header **b187**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-10 — b187: Export actually uses solid art mesh path
+
+**Export** (`js/features.js`, `js/app.js`, `index.html`)
+
+- **Root cause:** b186 improved `collectBitmapGraphicShapeGroups` but export still called `buildEmbossBitmap`, which bypassed it and extruded thin stroke quads for outline traces.
+- New `buildGraphicLabelExportMesh` — export now routes through solid filled shape groups + closed caps.
+- Removed centroid inflate on export (was breaking concave letters like C/E); wider stroke raster + more mask dilate instead.
+- Arc text export raster at 1280px. Cache **b187**. Hard refresh and re-export.
 
 ### 2026-07-10 — b186: Solid trace + arc text export
 

@@ -1351,7 +1351,7 @@ function computeTextArtLayout(meta, params) {
   const labelH = clamp(params.embossHeight ?? 7, limits.min, limits.max);
   const arcMode = (params.embossTextLayout || "flat") === "arc";
   const fontId = params.embossFont || "inter";
-  const fontSizePx = 640;
+  const fontSizePx = isLabelExport(params) ? 1280 : 640;
 
   let raster;
   if (arcMode) {
@@ -1540,7 +1540,7 @@ function isLabelExport(params) {
 }
 
 function labelMaskSimplifyTol(maskW, params) {
-  if (isLabelExport(params)) return Math.max(0.04, maskW / 4000);
+  if (isLabelExport(params)) return Math.max(0.02, maskW / 8000);
   return Math.max(0.1, maskW / 1400);
 }
 
@@ -1555,17 +1555,17 @@ function labelSmoothPasses(sizeMm, params, { hiRes = false } = {}) {
 
 function finishExportShapeGroups(groups, params) {
   if (!groups?.length || !isLabelExport(params)) return groups;
-  return inflateShapeGroups(groups, 0.15);
+  return groups;
 }
 
 /** Solid filled regions from outline strokes — avoids dashed quad segments in export. */
 function shapeGroupsFromStrokePathsForExport(paths, maskW, maskH, strokePx, artH, params) {
   const smoothPasses = labelSmoothPasses(artH, params);
-  const simplifyTol = Math.max(0.05, maskW / 4500);
+  const simplifyTol = Math.max(0.03, maskW / 6000);
   const prepared = prepareStrokePaths(paths, simplifyTol, smoothPasses);
-  const exportStrokePx = strokePx * 1.2;
+  const exportStrokePx = strokePx * 1.85;
   let mask = rasterizeStrokePathsToMask(prepared, maskW, maskH, exportStrokePx);
-  mask = dilateMask(mask, maskW, maskH, 1);
+  mask = dilateMask(mask, maskW, maskH, 3);
   return prepareShapeGroups(
     groupPolygonsWithHoles(maskToPolygons(mask, maskW, maskH)),
     simplifyTol,
@@ -1576,7 +1576,7 @@ function shapeGroupsFromStrokePathsForExport(paths, maskW, maskH, strokePx, artH
 function prepareTextExportMask(mask, maskW, maskH, params) {
   if (!isLabelExport(params)) return mask;
   const out = mask instanceof Uint8Array ? mask.slice() : new Uint8Array(mask);
-  return dilateMask(out, maskW, maskH, 1);
+  return dilateMask(out, maskW, maskH, 2);
 }
 
 function collectTextEmbossShapeGroups(meta, params) {
@@ -2040,6 +2040,22 @@ export function buildTextLabelExportMesh(meta, params) {
   for (const group of shapeGroups) {
     const { caps, flatFromArt } = wrapExtrudeCaps(frame, embossExportCaps(params, d0));
     extrudeShapeGroupBetween(positions, indices, group, mapTop, mapBot, flatCoord, caps, flatFromArt);
+  }
+  return positions.length ? { positions, indices } : null;
+}
+
+/** Closed graphic solids for separate-colour export (trace/SVG — not thin stroke quads). */
+export function buildGraphicLabelExportMesh(meta, params, svgText = "") {
+  const collected = collectGraphicEmbossShapeGroups(meta, params, svgText);
+  if (!collected?.shapeGroups?.length) return null;
+
+  const { frame, shapeGroups } = collected;
+  const { d0, d1 } = labelOffsets(params);
+  const positions = [];
+  const indices = [];
+
+  for (const group of shapeGroups) {
+    extrudeGroupOnFace(positions, indices, frame, group, d0, d1, params);
   }
   return positions.length ? { positions, indices } : null;
 }
@@ -3106,7 +3122,9 @@ export function buildLabelEmbossParts(meta, params, svgText = "", mode = "emboss
 
 /** Graphic-only label (SVG/trace) — for body export when text is a separate colour. */
 export function buildLabelGraphicEmboss(meta, params, svgText = "", mode = "emboss") {
-  return labelEmbossParts(meta, { ...params, embossText: "" }, svgText, mode).graphic;
+  const p = { ...params, embossText: "", __embossMode: mode };
+  if (isLabelExport(p)) return buildGraphicLabelExportMesh(meta, p, svgText);
+  return labelEmbossParts(meta, p, svgText, mode).graphic;
 }
 
 export function buildLabelEmboss(meta, params, svgText = "", mode = "emboss") {
