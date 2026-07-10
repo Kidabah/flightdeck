@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending b196 push) — 3-part Body/Art/Text export
+- Latest commit: `228dc0c` — 3-part Body/Art/Text export
 - Cache-bust: `app.js?v=196` — header **b196**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
