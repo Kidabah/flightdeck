@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending b194 push) — single AMS mesh, embedded art/text
+- Latest commit: `e92689b` — single AMS mesh, embedded art/text
 - Cache-bust: `app.js?v=194` — header **b194**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
