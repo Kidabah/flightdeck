@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending — b225)
+- Latest commit: `88b3e94` (b225)
 - Cache-bust: `app.js?v=225` — header **b225**
 
 ### 2026-07-11 — b225: Finer wrap slab resolution (fix blocky heraldic preview)
