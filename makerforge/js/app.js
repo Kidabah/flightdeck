@@ -918,7 +918,7 @@ function exportIncludesLidPlate() {
   return !!state.lidEnabled && !!lidCache && shapeSupportsLid(state.shape);
 }
 
-const CONTAINER_LID_README = "Open both in Bambu Studio — container and lid are separate plates/projects. Slice plate 1 then plate 2.";
+const CONTAINER_LID_README = "Import both files in Bambu Studio. Slice container first, then lid.";
 
 async function buildBody3mfExport(exportCache, parts) {
   const projectName = baseModelName(exportCache.meta);
@@ -3129,7 +3129,7 @@ function describeExportPlan(format = "3mf") {
       plate1Label: bodyParts.join(" + "),
       plate2Label: lidParts.length ? lidParts.join(" + ") : "Lid",
       summary: zipExport
-        ? "2 files · container.3mf + lid.3mf"
+        ? "ZIP · container + lid"
         : bodyParts.join(" + "),
     };
   }
@@ -3164,7 +3164,7 @@ function syncExportPlanUi() {
   const info = describeExportPlan(format);
   const opt3mf = sel.querySelector('option[value="3mf"]');
   if (opt3mf) {
-    opt3mf.textContent = exportIncludesLidPlate() ? "3MF · container + lid (ZIP)" : "3MF project";
+    opt3mf.textContent = exportIncludesLidPlate() ? "3MF · ZIP (container + lid)" : "3MF project";
   }
   if (format !== "3mf" && format !== "lid-3mf") {
     plan.hidden = true;
@@ -3173,7 +3173,7 @@ function syncExportPlanUi() {
   }
   plan.hidden = false;
   if (info.zipExport) {
-    plan.innerHTML = `<span class="export-plan-plates">2 files</span><span class="export-plan-parts">container.3mf + lid.3mf</span>`;
+    plan.innerHTML = `<span class="export-plan-parts">ZIP · container + lid</span>`;
   } else {
     plan.innerHTML = `<span class="export-plan-parts">${info.summary}</span>`;
   }
@@ -3218,7 +3218,7 @@ function exportFormatExt(format) {
 
 function exportFormatLabel(format) {
   const labels = {
-    "3mf": exportIncludesLidPlate() ? "3MF · container + lid (ZIP)" : "3MF project — body",
+    "3mf": exportIncludesLidPlate() ? "3MF · ZIP (container + lid)" : "3MF project — body",
     stl: "STL — body",
     "lid-3mf": "3MF — lid",
     "lid-stl": "STL — lid",
@@ -3438,7 +3438,7 @@ function runExport(format, options = {}) {
               }
             }
             const exportHeadline = packed.zipExport
-              ? "ZIP downloaded — container + lid 3MF (open both in Bambu)"
+              ? "ZIP downloaded — open container.3mf and lid.3mf in Bambu"
               : `${parts.length > 1 ? `${parts.length}-part` : "Plain"} 3MF exported — ${partNames}`;
             const exportDetail = `${triCount} triangles${zipNote}${openNote}${wmNote}`;
             setExportStatus(exportHeadline, { detail: exportDetail });

@@ -15,8 +15,8 @@ Latest GitHub/Pi state:
 - **Fix:** when lid is enabled, **3MF project** download is now a **ZIP** with:
   - `{name}-container.3mf` — Body + Art + Text + Accent (single plate, known working)
   - `{name}-lid.3mf` — Lid + Gasket (+ lid art if any), plate-down (known working)
-  - `README.txt` — open both in Bambu Studio
-- Uses browser `createZipStore` (no CDN). UI: export plan chip **2 files · container.3mf + lid.3mf**, dropdown **3MF · container + lid (ZIP)**, status **ZIP downloaded — container + lid 3MF (open both in Bambu)**.
+  - `README.txt` — Import both files in Bambu Studio. Slice container first, then lid.
+- Uses browser `createZipStore` (no CDN). UI: export plan chip **ZIP · container + lid**, dropdown **3MF · ZIP (container + lid)**, status **ZIP downloaded — open container.3mf and lid.3mf in Bambu**.
 - **Removed** broken single-file multi-plate path from `buildBody3mfExport` (multi-plate builder remains in `3mf.js` for verify script only).
 - **Bambu workflow:** unzip → open `container.3mf` → slice plate 1 → open `lid.3mf` → slice plate 1 (lid is plate-down).
 - Cache **b210**. Hard refresh, re-download with lid on — expect `.zip` not `.3mf`.
