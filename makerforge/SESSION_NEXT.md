@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: _(pending — b221 deploy)_
+- Latest commit: `df52f6c` (b221)
 - Cache-bust: `app.js?v=221` — header **b221**
 
 ### 2026-07-10 — b221: Fix image drop / trace freeze (restore fast add-image flow)
