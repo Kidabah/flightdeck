@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending b197 push) — hollow body, no wall punch
+- Latest commit: `c67d4b9` — hollow body, no wall punch
 - Cache-bust: `app.js?v=197` — header **b197**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
