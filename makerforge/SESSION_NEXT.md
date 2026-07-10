@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending b201 push) — accent-style face decal export
+- Latest commit: `feb7c39` — accent-style face decal export
 - Cache-bust: `app.js?v=201` — header **b201**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
