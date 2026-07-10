@@ -1945,11 +1945,12 @@ export function buildTextLabelExportMesh(meta, params) {
   const collected = collectTextEmbossShapeGroups(meta, params);
   if (!collected?.shapeGroups?.length) return null;
 
-  const { frame, shapeGroups, depth } = collected;
+  const { frame, shapeGroups } = collected;
+  const { d0, d1 } = labelOffsets(params);
   const positions = [];
   const indices = [];
-  const mapBot = (px, py) => frame.mapPoint(px, py, 0);
-  const mapTop = (px, py) => frame.mapPoint(px, py, depth);
+  const mapBot = (px, py) => frame.mapPoint(px, py, d0);
+  const mapTop = (px, py) => frame.mapPoint(px, py, d1);
   const flatCoord = (w) => flatCoordForFrame(frame, w);
 
   for (const group of shapeGroups) {
@@ -2846,8 +2847,9 @@ function labelOffsets(params) {
     // so the boolean subtract is clean at the outer skin.
     return { d0: -depth - 0.05, d1: 0.4, depth, deboss: true };
   }
-  // Raised emboss: flush with outer wall, top cap + side walls only (wall is the floor).
-  return { d0: 0, d1: depth, depth, deboss: false };
+  // Separate-colour export: nudge art 0.06 mm proud so Bambu keeps the body wall (no coplanar cull).
+  const standoff = params.__labelExportSeparate ? 0.06 : 0;
+  return { d0: standoff, d1: depth + standoff, depth, deboss: false };
 }
 
 /** Measure active art on a face for preview handles (null if none). */

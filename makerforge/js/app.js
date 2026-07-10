@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=177";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, punchBodyShellForLabelExport } from "./features.js?v=177";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=178";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=178";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=161";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=161";
 import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=161";
@@ -781,11 +781,7 @@ function resolveBodyExportMesh(exportCache, params, separateText, stamp = null) 
     throw new Error("Fixed divider export failed — use Width or Depth axis (not Height shelves).");
   }
   if (separateText || hasSeparateArtExport(params)) {
-    let body = shell;
-    if ((params.embossFace || "front") !== "lid") {
-      body = punchBodyShellForLabelExport(shell, exportCache.meta, params, params.embossSvgText || "");
-    }
-    return finalizeBodyExportMesh(body, exportCache.meta, params, stamp);
+    return finalizeBodyExportMesh(shell, exportCache.meta, params, stamp);
   }
   const mesh = buildWatertightExportMesh(exportCache, exportCache.meta, params);
   return finalizeBodyExportMesh(mesh, exportCache.meta, params, stamp);
@@ -798,10 +794,12 @@ function collectColoredExportParts(exportCache, stamp = null) {
   let extruder = 1;
   const separateText = hasSeparateTextExport(params) && params.embossFace !== "lid";
   const separateArt = hasSeparateArtExport(params) && params.embossFace !== "lid";
+  const separateColor = separateText || separateArt;
+  const exportParams = separateColor ? { ...params, __labelExportSeparate: true } : params;
   const mergeInsertIntoBody = mergeInsertIntoBodyExport();
 
   const bodyMesh = resolveBodyExportMesh(exportCache, params, separateText, stamp);
-  const bodyClean = sanitizeMeshForStl(bodyMesh);
+  const bodyClean = sanitizeMeshForStl(bodyMesh, { strict: !separateColor });
   if (bodyClean?.indices?.length) {
     parts.push({
       name: "Body",
@@ -812,8 +810,8 @@ function collectColoredExportParts(exportCache, stamp = null) {
   }
 
   if (separateArt) {
-    const artMesh = buildLabelGraphicEmboss(exportCache.meta, params, params.embossSvgText || "", "emboss");
-    const artClean = sanitizeMeshForStl(artMesh);
+    const artMesh = buildLabelGraphicEmboss(exportCache.meta, exportParams, exportParams.embossSvgText || "", "emboss");
+    const artClean = sanitizeMeshForStl(artMesh, { strict: false });
     if (artClean?.indices?.length) {
       parts.push({
         name: "Art",
@@ -825,8 +823,8 @@ function collectColoredExportParts(exportCache, stamp = null) {
   }
 
   if (separateText) {
-    const textMesh = buildTextLabelExportMesh(exportCache.meta, params);
-    const textClean = sanitizeMeshForStl(textMesh);
+    const textMesh = buildTextLabelExportMesh(exportCache.meta, exportParams);
+    const textClean = sanitizeMeshForStl(textMesh, { strict: false });
     if (textClean?.indices?.length) {
       parts.push({
         name: "Text",
