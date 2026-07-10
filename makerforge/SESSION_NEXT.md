@@ -2,10 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: see **b184** below
-- Cache-bust: `app.js?v=184`, `features.js?v=184` — header **b184**
+- Latest commit: see **b185** below
+- Cache-bust: `app.js?v=185`, `features.js?v=185` — header **b185**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-10 — b185: Library upload fix + export art detail
+
+**Export / library** (`app/main.py`, `js/features.js`, `js/library.js`, `index.html`)
+
+- Fixed library save crash: `max_file_size` not supported on Pi Starlette — bump `MultiPartParser` limits at boot instead.
+- Export art/text: finer simplify, thicker strokes, slight inflate so COFFEE letters and trace lines don't lose chunks in Bambu.
+- Cache **b185**. Hard refresh + **backend restart required**.
 
 ### 2026-07-10 — b184: Closed export solids + library upload limit
 

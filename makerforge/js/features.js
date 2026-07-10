@@ -1535,14 +1535,37 @@ export function getProfileWrapFaceFrame(outerProfile, meta) {
   };
 }
 
+function isLabelExport(params) {
+  return !!params?.__labelExportStandoff;
+}
+
+function labelMaskSimplifyTol(maskW, params) {
+  if (isLabelExport(params)) return Math.max(0.04, maskW / 4000);
+  return Math.max(0.1, maskW / 1400);
+}
+
+function labelSmoothPasses(sizeMm, params, { hiRes = false } = {}) {
+  if (isLabelExport(params)) return 1;
+  if (hiRes) return 5;
+  if (sizeMm <= 8) return 4;
+  if (sizeMm <= 14) return 3;
+  if (sizeMm <= 20) return 3;
+  return 2;
+}
+
+function finishExportShapeGroups(groups, params) {
+  if (!groups?.length || !isLabelExport(params)) return groups;
+  return inflateShapeGroups(groups, 0.12);
+}
+
 function collectTextEmbossShapeGroups(meta, params) {
   const layout = computeTextArtLayout(meta, params);
   if (!layout) return null;
 
   const { frame, raster, scale, xOff, zOff, maskW, maskH, cx, cy, rotation } = layout;
-  const simplifyTol = Math.max(0.1, maskW / 1400);
+  const simplifyTol = labelMaskSimplifyTol(maskW, params);
   const glyphMm = layout.glyphHeightMm ?? 7;
-  const smoothPasses = glyphMm <= 8 ? 4 : glyphMm <= 14 ? 3 : 2;
+  const smoothPasses = labelSmoothPasses(glyphMm, params);
   const shapeGroups = prepareShapeGroups(
     groupPolygonsWithHoles(maskToPolygons(raster.mask, maskW, maskH)),
     simplifyTol,
@@ -1558,6 +1581,7 @@ function collectTextEmbossShapeGroups(meta, params) {
   if (frame.face === "wrap") {
     shaped = normalizeWrapShapeGroups(shaped, frame.faceW, cx);
   }
+  shaped = finishExportShapeGroups(shaped, params);
 
   return {
     frame,
@@ -1630,8 +1654,10 @@ function collectBitmapGraphicShapeGroups(meta, params, bitmap) {
   } else if (bitmap.mask?.length === maskW * maskH) {
     const mask = bitmap.mask instanceof Uint8Array ? bitmap.mask : new Uint8Array(bitmap.mask);
     const hiRes = maskW >= 1800;
-    const smoothPasses = hiRes ? 5 : artH <= 12 ? 4 : artH <= 20 ? 3 : 2;
-    const simplifyTol = hiRes ? Math.max(0.1, maskW / 1400) : Math.max(0.28, maskW / 480);
+    const smoothPasses = labelSmoothPasses(artH, params, { hiRes });
+    const simplifyTol = isLabelExport(params)
+      ? Math.max(0.06, maskW / 4000)
+      : hiRes ? Math.max(0.1, maskW / 1400) : Math.max(0.28, maskW / 480);
     const shapeGroups = prepareShapeGroups(
       groupPolygonsWithHoles(maskToPolygons(mask, maskW, maskH)),
       simplifyTol,
@@ -1639,11 +1665,11 @@ function collectBitmapGraphicShapeGroups(meta, params, bitmap) {
     );
     for (const group of shapeGroups) groups.push(mapFaceGroup(group));
   } else if (bitmap.strokePaths?.length) {
-    const smoothPasses = artH <= 12 ? 5 : artH <= 20 ? 4 : 3;
-    const simplifyTol = Math.max(0.22, maskW / 520);
+    const smoothPasses = labelSmoothPasses(artH, params);
+    const simplifyTol = isLabelExport(params) ? Math.max(0.08, maskW / 2000) : Math.max(0.22, maskW / 520);
     const paths = prepareStrokePaths(bitmap.strokePaths, simplifyTol, smoothPasses);
     const strokePx = bitmap.strokeWidth ?? Math.max(1.35, maskW / 88);
-    const halfW = clamp(scale * strokePx * 0.55, 0.35, 1.8);
+    const halfW = clamp(scale * strokePx * 0.55, isLabelExport(params) ? 0.55 : 0.35, 2.2);
     const mapPt = (px, py) => rotateFacePoint(rotCx, rotCy, xOff + px * scale, zOff + (maskH - py) * scale, rotation);
     for (const path of paths) {
       if (path.length < 2) continue;
@@ -1669,7 +1695,7 @@ function collectBitmapGraphicShapeGroups(meta, params, bitmap) {
     }
   }
 
-  return groups.length ? { frame, shapeGroups: groups } : null;
+  return groups.length ? { frame, shapeGroups: finishExportShapeGroups(groups, params) } : null;
 }
 
 function collectSvgGraphicShapeGroups(meta, params, svgText) {
@@ -1683,8 +1709,10 @@ function collectSvgGraphicShapeGroups(meta, params, svgText) {
   const groups = [];
 
   if (fillRings.length) {
-    const simplifyTol = Math.max(0.12, Math.max(sw, sh) / 480);
-    const smoothPasses = artH <= 12 ? 4 : artH <= 20 ? 3 : 2;
+    const simplifyTol = isLabelExport(params)
+      ? Math.max(0.06, Math.max(sw, sh) / 1200)
+      : Math.max(0.12, Math.max(sw, sh) / 480);
+    const smoothPasses = labelSmoothPasses(artH, params);
     const rawGroups = fillRings.map((ring) => ({ outer: ring, holes: [] }));
     const shapeGroups = prepareShapeGroups(rawGroups, simplifyTol, smoothPasses);
     for (const group of shapeGroups) {
@@ -1700,9 +1728,11 @@ function collectSvgGraphicShapeGroups(meta, params, svgText) {
 
   if (strokePaths.length) {
     const svgStroke = parsed.strokeWidth ?? 1.5;
-    const halfW = clamp(scale * svgStroke * 0.55, 0.35, 1.8);
-    const smoothPasses = artH <= 12 ? 4 : artH <= 20 ? 3 : 2;
-    const simplifyTol = Math.max(0.18, Math.max(sw, sh) / 520);
+    const halfW = clamp(scale * svgStroke * 0.55, isLabelExport(params) ? 0.55 : 0.35, 2.2);
+    const smoothPasses = labelSmoothPasses(artH, params);
+    const simplifyTol = isLabelExport(params)
+      ? Math.max(0.08, Math.max(sw, sh) / 1200)
+      : Math.max(0.18, Math.max(sw, sh) / 520);
     const closedPaths = strokePaths.map((line) => {
       if (line.length < 2) return line;
       const a = line[0];
@@ -1735,7 +1765,7 @@ function collectSvgGraphicShapeGroups(meta, params, svgText) {
     }
   }
 
-  return groups.length ? { frame, shapeGroups: groups } : null;
+  return groups.length ? { frame, shapeGroups: finishExportShapeGroups(groups, params) } : null;
 }
 
 function collectGraphicEmbossShapeGroups(meta, params, svgText = "") {

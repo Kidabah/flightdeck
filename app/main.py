@@ -1227,9 +1227,23 @@ async def _scale_keep_awake_loop():
             log.debug("scale keep-awake ping failed: %s", exc)
 
 
+def _raise_multipart_limits() -> None:
+    """Starlette defaults to 1 MB per multipart part — too small for MakerDeck 3MF library saves."""
+    try:
+        from starlette import formparsers
+
+        cap = _MAX_PRINT_FILE_BYTES
+        formparsers.MultiPartParser.max_part_size = cap
+        if hasattr(formparsers.MultiPartParser, "max_file_size"):
+            formparsers.MultiPartParser.max_file_size = cap
+    except Exception:
+        log.warning("Could not raise Starlette multipart upload limits", exc_info=True)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _broadcast_task, _scale_keep_awake_task, _ntfy
+    _raise_multipart_limits()
     db.init()
     _last_seen_cache.update(db.get_all_last_seen())
     cfg = load()
@@ -5078,7 +5092,7 @@ async def makerworld_thumbnail(url: str):
 async def makerdeck_save_export(request: Request):
     max_bytes = _MAX_PRINT_FILE_BYTES
     try:
-        form = await request.form(max_part_size=max_bytes, max_file_size=max_bytes)
+        form = await request.form(max_part_size=max_bytes)
     except Exception as exc:
         raise HTTPException(status_code=413, detail=str(exc)) from exc
 

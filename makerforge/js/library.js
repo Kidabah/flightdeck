@@ -63,7 +63,13 @@ export async function saveExportToLibrary({ blob, filename, format, part, state,
 
   const res = await fetch("/api/makerdeck/exports", { method: "POST", body: form });
   if (!res.ok) {
-    const detail = await res.text();
+    let detail = await res.text();
+    try {
+      const parsed = JSON.parse(detail);
+      if (parsed?.detail) detail = String(parsed.detail);
+    } catch {
+      /* plain text */
+    }
     throw new Error(detail || `Design library save failed (${res.status})`);
   }
   return res.json();
