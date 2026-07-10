@@ -1,7 +1,7 @@
 /**
  * Multi-part 3MF project export for Orca / Bambu Studio (filament colours per object).
  */
-import { sanitizeMeshForStl, baseModelName } from "./stl.js?v=146";
+import { sanitizeMeshForStl, prepareMeshFor3mf, baseModelName } from "./stl.js?v=179";
 
 function escapeXml(s) {
   return String(s)
@@ -136,7 +136,8 @@ function meshTo3mfResources(mesh, objectId, name, extruder, { resanitize = false
   const clean = resanitize ? sanitizeMeshForStl(mesh) : mesh;
   if (!clean?.positions?.length || !clean?.indices?.length) return null;
 
-  const paint = paintCodeForExtruder(extruder);
+  const perTriPaint = clean.triangleExtruders;
+  const defaultPaint = paintCodeForExtruder(extruder);
   const verts = [];
   for (let i = 0; i < clean.positions.length; i += 3) {
     verts.push(
@@ -146,6 +147,7 @@ function meshTo3mfResources(mesh, objectId, name, extruder, { resanitize = false
 
   const tris = [];
   for (let t = 0; t < clean.indices.length; t += 3) {
+    const paint = perTriPaint?.length ? paintCodeForExtruder(perTriPaint[t / 3]) : defaultPaint;
     if (plain) {
       tris.push(
         `<triangle v1="${clean.indices[t]}" v2="${clean.indices[t + 1]}" v3="${clean.indices[t + 2]}"/>`,
@@ -228,11 +230,25 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck") {
   const usable = (parts || []).filter((p) => p?.mesh?.positions?.length && p?.mesh?.indices?.length);
   if (!usable.length) throw new Error("No geometry to export");
 
-  const maxExtruder = Math.max(...usable.map((p) => p.extruder || 1));
-  const plainSingle = usable.length === 1 && maxExtruder === 1;
+  const maxExtruder = Math.max(
+    ...usable.map((p) => {
+      if (p.triangleExtruders?.length) {
+        return Math.max(...p.triangleExtruders);
+      }
+      if (p.extruderColors) {
+        return Math.max(...Object.keys(p.extruderColors).map((k) => Number(k)));
+      }
+      return p.extruder || 1;
+    }),
+  );
+  const plainSingle = usable.length === 1 && maxExtruder === 1 && !usable[0].triangleExtruders?.length;
   const slotColors = Array.from({ length: maxExtruder }, (_, i) => {
-    const part = usable.find((p) => (p.extruder || 1) === i + 1);
-    return (part?.color || "#ffffff").toUpperCase();
+    const slot = i + 1;
+    for (const part of usable) {
+      if (part.extruderColors?.[slot]) return String(part.extruderColors[slot]).toUpperCase();
+      if ((part.extruder || 1) === slot) return (part.color || "#ffffff").toUpperCase();
+    }
+    return "#FFFFFF";
   });
 
   const filamentType = slotColors.map(() => "PLA");

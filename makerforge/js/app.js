@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=178";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=178";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=179";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMergedAmsExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=179";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=161";
-import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, baseModelName } from "./stl.js?v=161";
-import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=161";
+import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName } from "./stl.js?v=179";
+import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=179";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
 import {
@@ -795,41 +795,40 @@ function collectColoredExportParts(exportCache, stamp = null) {
   const separateText = hasSeparateTextExport(params) && params.embossFace !== "lid";
   const separateArt = hasSeparateArtExport(params) && params.embossFace !== "lid";
   const separateColor = separateText || separateArt;
-  const exportParams = separateColor ? { ...params, __labelExportSeparate: true } : params;
   const mergeInsertIntoBody = mergeInsertIntoBodyExport();
-
   const bodyMesh = resolveBodyExportMesh(exportCache, params, separateText, stamp);
-  const bodyClean = sanitizeMeshForStl(bodyMesh, { strict: !separateColor });
-  if (bodyClean?.indices?.length) {
-    parts.push({
-      name: "Body",
-      mesh: bodyClean,
-      color: state.boxColor || "#38bdf8",
-      extruder: extruder++,
-    });
-  }
 
-  if (separateArt) {
-    const artMesh = buildLabelGraphicEmboss(exportCache.meta, exportParams, exportParams.embossSvgText || "", "emboss");
-    const artClean = sanitizeMeshForStl(artMesh, { strict: false });
-    if (artClean?.indices?.length) {
+  if (separateColor && (params.embossFace || "front") !== "lid") {
+    const merged = buildMergedAmsExportMesh(
+      bodyMesh,
+      exportCache.meta,
+      params,
+      params.embossSvgText || "",
+      { includeArt: separateArt, includeText: separateText },
+    );
+    const clean = prepareMeshFor3mf(merged);
+    if (clean?.indices?.length) {
+      const extruderColors = { 1: state.boxColor || "#38bdf8" };
+      let nextEx = 2;
+      if (separateArt) extruderColors[nextEx++] = state.embossArtColor || "#4a3728";
+      if (separateText) extruderColors[nextEx++] = state.embossTextColor || "#f8fafc";
+      extruder = nextEx;
       parts.push({
-        name: "Art",
-        mesh: artClean,
-        color: state.embossArtColor || "#4a3728",
-        extruder: extruder++,
+        name: "Body",
+        mesh: clean,
+        triangleExtruders: clean.triangleExtruders,
+        extruderColors,
+        color: state.boxColor || "#38bdf8",
+        extruder: 1,
       });
     }
-  }
-
-  if (separateText) {
-    const textMesh = buildTextLabelExportMesh(exportCache.meta, exportParams);
-    const textClean = sanitizeMeshForStl(textMesh, { strict: false });
-    if (textClean?.indices?.length) {
+  } else if (bodyMesh?.indices?.length) {
+    const bodyClean = sanitizeMeshForStl(bodyMesh);
+    if (bodyClean?.indices?.length) {
       parts.push({
-        name: "Text",
-        mesh: textClean,
-        color: state.embossTextColor || "#f8fafc",
+        name: "Body",
+        mesh: bodyClean,
+        color: state.boxColor || "#38bdf8",
         extruder: extruder++,
       });
     }
@@ -3029,7 +3028,11 @@ function runExport(format) {
           notifyLibrarySaved(design);
         });
         if (status) {
-          const kind = parts.length === 1 && parts[0].extruder === 1 ? "plain 3MF" : "colored 3MF";
+          const kind = parts.length === 1 && parts[0].triangleExtruders?.length
+            ? "AMS merged 3MF"
+            : parts.length === 1 && parts[0].extruder === 1
+              ? "plain 3MF"
+              : "colored 3MF";
           const open = parts.reduce((sum, p) => sum + (p.mesh?.openEdgeCount || 0), 0);
           const openNote = open > 0 ? ` — ${open} open edge(s), try Bambu Repair` : "";
           const wmNote = stamp ? ` · watermark #${String(stamp.serial).padStart(4, "0")}` : "";

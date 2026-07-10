@@ -85,6 +85,45 @@ export function sanitizeMeshForStl(mesh, { strict = true } = {}) {
   return { positions: welded.positions, indices: idx, openEdgeCount: open };
 }
 
+/** Light weld for 3MF — never peels faces (stackable + AMS shells must stay closed). */
+export function prepareMeshFor3mf(mesh) {
+  const positions = mesh?.positions;
+  const indices = mesh?.indices;
+  if (!positions?.length || !indices?.length) return null;
+
+  let welded = weldMeshVertices(positions, indices, 0.04);
+  let idx = removeDuplicateTriangles(welded.indices);
+  idx = removeDegenerateTriangles(welded.positions, idx);
+  if (!idx.length) return null;
+
+  const open = countOpenEdges(welded.positions, idx);
+  return {
+    positions: welded.positions,
+    indices: idx,
+    openEdgeCount: open,
+    triangleExtruders: mesh.triangleExtruders,
+  };
+}
+
+/** Light weld for 3MF — never peel faces (stack feet + profile shells break under repair). */
+export function prepareMeshFor3mf(mesh) {
+  const positions = mesh?.positions;
+  const indices = mesh?.indices;
+  if (!positions?.length || !indices?.length) return null;
+
+  const welded = weldMeshVertices(positions, indices, 0.04);
+  let idx = removeDuplicateTriangles(welded.indices);
+  idx = removeDegenerateTriangles(welded.positions, idx);
+  if (!idx.length) return null;
+
+  const open = countOpenEdges(welded.positions, idx);
+  const out = { positions: welded.positions, indices: idx, openEdgeCount: open };
+  if (mesh.triangleExtruders?.length === idx.length / 3) {
+    out.triangleExtruders = mesh.triangleExtruders;
+  }
+  return out;
+}
+
 function removeDegenerateTriangles(positions, indices) {
   const out = [];
   for (let t = 0; t < indices.length; t += 3) {

@@ -1954,10 +1954,43 @@ export function buildTextLabelExportMesh(meta, params) {
   const flatCoord = (w) => flatCoordForFrame(frame, w);
 
   for (const group of shapeGroups) {
-    const { caps, flatFromArt } = wrapExtrudeCaps(frame, "both");
+    const { caps, flatFromArt } = wrapExtrudeCaps(frame, "top");
     extrudeShapeGroupBetween(positions, indices, group, mapTop, mapBot, flatCoord, caps, flatFromArt);
   }
   return positions.length ? { positions, indices } : null;
+}
+
+function appendColoredMeshPart(positions, indices, triangleExtruders, mesh, extruder) {
+  if (!mesh?.indices?.length) return;
+  const vBase = positions.length / 3;
+  for (let i = 0; i < mesh.positions.length; i++) positions.push(mesh.positions[i]);
+  for (let t = 0; t < mesh.indices.length; t += 3) {
+    indices.push(mesh.indices[t] + vBase, mesh.indices[t + 1] + vBase, mesh.indices[t + 2] + vBase);
+    triangleExtruders.push(extruder);
+  }
+}
+
+/** One AMS object — body wall intact, art/text painted per triangle (no Bambu face cull). */
+export function buildMergedAmsExportMesh(shellMesh, meta, params, svgText = "", { includeArt = true, includeText = true } = {}) {
+  if (!shellMesh?.indices?.length) return null;
+  const exportParams = { ...params, __labelExportMerged: true };
+  const positions = [];
+  const indices = [];
+  const triangleExtruders = [];
+
+  appendColoredMeshPart(positions, indices, triangleExtruders, shellMesh, 1);
+  let extruder = 2;
+  if (includeArt) {
+    const artMesh = buildLabelGraphicEmboss(meta, exportParams, svgText, "emboss");
+    appendColoredMeshPart(positions, indices, triangleExtruders, artMesh, extruder);
+    extruder += 1;
+  }
+  if (includeText) {
+    const textMesh = buildTextLabelExportMesh(meta, exportParams);
+    appendColoredMeshPart(positions, indices, triangleExtruders, textMesh, extruder);
+  }
+
+  return indices.length ? { positions, indices, triangleExtruders } : null;
 }
 
 export function buildWatertightExportMesh(bodyMesh, meta, params) {
@@ -2847,9 +2880,8 @@ function labelOffsets(params) {
     // so the boolean subtract is clean at the outer skin.
     return { d0: -depth - 0.05, d1: 0.4, depth, deboss: true };
   }
-  // Separate-colour export: nudge art 0.06 mm proud so Bambu keeps the body wall (no coplanar cull).
-  const standoff = params.__labelExportSeparate ? 0.06 : 0;
-  return { d0: standoff, d1: depth + standoff, depth, deboss: false };
+  // Raised emboss: flush on wall; open bottom (top cap + walls) — wall is the floor.
+  return { d0: 0, d1: depth, depth, deboss: false };
 }
 
 /** Measure active art on a face for preview handles (null if none). */
