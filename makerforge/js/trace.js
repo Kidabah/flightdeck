@@ -16,10 +16,11 @@ import {
   strokePathIsClosed,
   shapeGroupsToStrokePaths,
   strokePathsToSvg,
-  unionDenseEmbossShapeGroups,
-} from "./contour.js?v=220";
+  previewMergeTraceShapeGroups,
+  rasterizeShapeGroupsToMask,
+} from "./contour.js?v=221";
 
-export { unionDenseEmbossShapeGroups };
+export { unionDenseEmbossShapeGroups } from "./contour.js?v=221";
 
 
 
@@ -487,6 +488,8 @@ async function traceColorLayerGroupsAsync(data, width, height, tw, th, ox, oy, t
     allGroups.push(...groups);
   }
   if (allGroups.length < 2) return null;
+  // Multi-layer traces on heraldic art explode into hundreds of islands — use single silhouette instead.
+  if (allGroups.length > 40) return null;
   return { shapeGroups: allGroups, combined, colorLayerCount: Math.min(colorLayers.length, MAX_COLOR_LAYERS) };
 }
 
@@ -499,13 +502,14 @@ function compactTraceMask(workMask, shapeGroups) {
 function finishSilhouetteTrace(workMask, tw, th, ox, oy, shapeGroups, simplifyFactor, width, height, extra = {}) {
   let groups = shapeGroups;
   let shapeGroupsUnited = false;
-  if (extra.simplifyTol != null) {
-    const united = unionDenseEmbossShapeGroups(groups, tw, th, {
-      simplifyTol: extra.simplifyTol,
-      smoothPasses: extra.smoothPasses ?? 3,
-    });
-    groups = united.groups;
-    shapeGroupsUnited = united.united;
+  let previewShapeGroups = null;
+  if (groups.length > 8) {
+    const merged = previewMergeTraceShapeGroups(groups, tw, th);
+    if (merged.length) {
+      groups = merged;
+      previewShapeGroups = merged;
+      shapeGroupsUnited = merged.length < shapeGroups.length;
+    }
   }
   const rects = maskToRuns(workMask, tw, th);
   const svg = polygonsToSvg(groups, tw, th);
@@ -515,6 +519,7 @@ function finishSilhouetteTrace(workMask, tw, th, ox, oy, shapeGroups, simplifyFa
     polygons: [],
     shapeGroups: groups,
     shapeGroupsUnited,
+    previewShapeGroups,
     strokePaths: [],
     width: tw,
     height: th,
@@ -522,10 +527,10 @@ function finishSilhouetteTrace(workMask, tw, th, ox, oy, shapeGroups, simplifyFa
     cropOy: oy,
     svg,
     rectCount: rects.length,
-    polygonCount: shapeGroups.length,
+    polygonCount: groups.length,
     simplified: simplifyFactor > 1,
     simplifyFactor,
-    tooComplex: shapeGroups.length > MAX_TRACE_POLYGONS,
+    tooComplex: groups.length > MAX_TRACE_POLYGONS,
     mode: "silhouette",
     tracePx: `${width}×${height}`,
     ...extra,
@@ -1054,6 +1059,30 @@ export function drawTracePreview(previewCanvas, sourceCanvas, traceResult) {
   ctx.fillStyle = "rgba(56, 189, 248, 0.55)";
 
   const groups = traceResult.shapeGroups?.length ? traceResult.shapeGroups : null;
+
+  if (groups?.length > 48) {
+    const tw = traceResult.width || 1;
+    const th = traceResult.height || 1;
+    const mask = rasterizeShapeGroupsToMask(groups, tw, th);
+    const preview = document.createElement("canvas");
+    preview.width = tw;
+    preview.height = th;
+    const pctx = preview.getContext("2d");
+    if (pctx) {
+      const img = pctx.createImageData(tw, th);
+      for (let i = 0; i < tw * th; i++) {
+        const on = mask[i];
+        const j = i * 4;
+        img.data[j] = 56;
+        img.data[j + 1] = 189;
+        img.data[j + 2] = 248;
+        img.data[j + 3] = on ? 140 : 0;
+      }
+      pctx.putImageData(img, 0, 0);
+      ctx.drawImage(preview, pad + ox, pad + oy, tw * factor, th * factor);
+    }
+    return;
+  }
 
   if (groups?.length) {
 

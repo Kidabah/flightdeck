@@ -2,8 +2,24 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `c32265b` (b220)
-- Cache-bust: `app.js?v=220` — header **b220**
+- Latest commit: _(pending — b221 deploy)_
+- Cache-bust: `app.js?v=221` — header **b221**
+
+### 2026-07-10 — b221: Fix image drop / trace freeze (restore fast add-image flow)
+
+**Symptom:** Dropping heraldic PNG used to work; b217–b220 froze on trace.
+
+**Root cause:** `finishSilhouetteTrace` ran **full-res union** on hundreds of islands the moment you dropped an image. Colour-layer separation also exploded island count.
+
+**Fix (`trace.js`, `app.js`):**
+- Trace ends with **fast 256px merge** (few groups), not blocking full union
+- Skip colour-layer separation when it would create >40 islands
+- Dense trace preview draws raster bitmap, not 589 canvas paths
+- **Auto-apply to box** after successful image trace (like before — drop image → see it on cylinder)
+
+- Cache **b221**. Hard refresh, drop your St George image again.
+
+### 2026-07-10 — b220: Wrap preview freeze — see b221 for image drop
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
 

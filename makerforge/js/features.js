@@ -2,7 +2,7 @@
  * Accent bands, emboss, honeycomb stamp, stackable hex grid, mesh merge.
  */
 
-import { dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, previewMergeTraceShapeGroups, rasterizeShapeGroupsToMask, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap, unionDenseEmbossShapeGroups, unionShapeGroupsToPrepared } from "./contour.js?v=220";
+import { dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, previewMergeTraceShapeGroups, rasterizeShapeGroupsToMask, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap, unionDenseEmbossShapeGroups, unionShapeGroupsToPrepared } from "./contour.js?v=221";
 import { decorPlacementOffsets, decorArtRect, rotateFacePoint, rotateShapeGroup } from "./decor.js";
 import {
   profileOutlineNormals,
