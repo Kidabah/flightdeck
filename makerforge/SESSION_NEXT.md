@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending b199 push) — shallow export emboss
+- Latest commit: `e45b4c2` — shallow export emboss
 - Cache-bust: `app.js?v=199` — header **b199**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
