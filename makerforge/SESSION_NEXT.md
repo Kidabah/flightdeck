@@ -2,12 +2,26 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending b209 deploy)
-- Cache-bust: `app.js?v=209` — header **b209**
+- Latest commit: (pending b210 deploy)
+- Cache-bust: `app.js?v=210` — header **b210**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
 
-### 2026-07-10 — b209: Fix Bambu H2D multi-plate tabs (H2D grid stride)
+### 2026-07-10 — b210: Dual-file ZIP export (container + lid 3MF)
+
+**Export** (`js/3mf.js`, `js/app.js`, `index.html`)
+
+- **Problem:** b203–b209 single-file multi-plate 3MF never produced separate Bambu plate tabs on Chris's H2D — container+lid always landed on plate 1. No working 2-plate golden reference in repo.
+- **Fix:** when lid is enabled, **3MF project** download is now a **ZIP** with:
+  - `{name}-container.3mf` — Body + Art + Text + Accent (single plate, known working)
+  - `{name}-lid.3mf` — Lid + Gasket (+ lid art if any), plate-down (known working)
+  - `README.txt` — open both in Bambu Studio
+- Uses browser `createZipStore` (no CDN). UI: export plan chip **2 files · container.3mf + lid.3mf**, dropdown **3MF · container + lid (ZIP)**, status **ZIP downloaded — container + lid 3MF (open both in Bambu)**.
+- **Removed** broken single-file multi-plate path from `buildBody3mfExport` (multi-plate builder remains in `3mf.js` for verify script only).
+- **Bambu workflow:** unzip → open `container.3mf` → slice plate 1 → open `lid.3mf` → slice plate 1 (lid is plate-down).
+- Cache **b210**. Hard refresh, re-download with lid on — expect `.zip` not `.3mf`.
+
+### 2026-07-10 — b209: Fix Bambu H2D multi-plate tabs (H2D grid stride) — SUPERSEDED by b210 ZIP export
 
 **Export** (`js/3mf.js`, `js/app.js`, `index.html`, `.ref/multi-plate-3mf-verify.mjs`)
 

@@ -721,7 +721,14 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck") {
 export function filename3mfFor(meta, part = "body") {
   const base = `${baseModelName(meta)}.3mf`;
   if (part === "lid") return base.replace(/\.3mf$/, "-lid.3mf");
+  if (part === "container") return base.replace(/\.3mf$/, "-container.3mf");
   return base;
+}
+
+/** Pack arbitrary files into a minimal store-only ZIP (browser-safe, no CDN). */
+export function createZipArchiveBlob(files, { mimeType = "application/zip" } = {}) {
+  const zipped = createZipStore(files);
+  return new Blob([zipped], { type: mimeType });
 }
 
 /** @internal verify / diagnostics */

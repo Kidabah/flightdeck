@@ -4,7 +4,7 @@ import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=201";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=161";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=201";
-import { buildColoredProject3mf, buildMultiPlateColoredProject3mf, filename3mfFor, offsetPartExtruders, partMaxExtruder } from "./3mf.js?v=209";
+import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=210";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
 import {
@@ -23,7 +23,7 @@ import {
 } from "./library.js?v=201";
 
 const SESSION_KEY = "makerdeck-session-v1";
-const MAKERDECK_BUILD = "b209";
+const MAKERDECK_BUILD = "b210";
 let saveSessionTimer = null;
 let sessionBooting = true;
 
@@ -918,25 +918,38 @@ function exportIncludesLidPlate() {
   return !!state.lidEnabled && !!lidCache && shapeSupportsLid(state.shape);
 }
 
-function buildBody3mfExport(exportCache, parts) {
+const CONTAINER_LID_README = "Open both in Bambu Studio — container and lid are separate plates/projects. Slice plate 1 then plate 2.";
+
+async function buildBody3mfExport(exportCache, parts) {
   const projectName = baseModelName(exportCache.meta);
   if (!exportIncludesLidPlate()) {
-    return { blob: buildColoredProject3mf(parts, projectName), multiPlate: false, lidPartCount: 0 };
+    return { blob: buildColoredProject3mf(parts, projectName), zipExport: false, lidPartCount: 0 };
   }
   const lidParts = collectColoredLidExportParts();
   if (!lidParts.length) {
-    return { blob: buildColoredProject3mf(parts, projectName), multiPlate: false, lidPartCount: 0 };
+    return { blob: buildColoredProject3mf(parts, projectName), zipExport: false, lidPartCount: 0 };
   }
-  const bodyMaxExtruder = Math.max(1, ...parts.map((part) => partMaxExtruder(part)));
-  const offsetLidParts = offsetPartExtruders(lidParts, bodyMaxExtruder);
-  const blob = buildMultiPlateColoredProject3mf(
-    [
-      { plateId: 1, plateName: "Container", name: projectName, parts },
-      { plateId: 2, plateName: "Lid", name: `${projectName} lid`, parts: offsetLidParts },
-    ],
-    projectName,
-  );
-  return { blob, multiPlate: true, lidPartCount: lidParts.length };
+  const containerBlob = buildColoredProject3mf(parts, projectName);
+  const lidBlob = buildColoredProject3mf(lidParts, `${projectName} lid`);
+  const containerFile = filename3mfFor(exportCache.meta, "container");
+  const lidFile = filename3mfFor(exportCache.meta, "lid");
+  const [containerData, lidData] = await Promise.all([
+    containerBlob.arrayBuffer().then((buf) => new Uint8Array(buf)),
+    lidBlob.arrayBuffer().then((buf) => new Uint8Array(buf)),
+  ]);
+  const zipBlob = createZipArchiveBlob([
+    { name: containerFile, data: containerData },
+    { name: lidFile, data: lidData },
+    { name: "README.txt", data: CONTAINER_LID_README },
+  ]);
+  return {
+    blob: zipBlob,
+    zipExport: true,
+    lidPartCount: lidParts.length,
+    containerBlob,
+    containerFile,
+    lidFile,
+  };
 }
 
 function collectColoredLidExportParts() {
@@ -3107,15 +3120,16 @@ function describeBodyExportParts() {
 function describeExportPlan(format = "3mf") {
   if (format === "3mf") {
     const bodyParts = describeBodyExportParts();
-    const multiPlate = exportIncludesLidPlate();
+    const zipExport = exportIncludesLidPlate();
+    const lidParts = zipExport ? describeExportPlan("lid-3mf").bodyParts : [];
     return {
       format,
       bodyParts,
-      multiPlate,
+      zipExport,
       plate1Label: bodyParts.join(" + "),
-      plate2Label: "Lid",
-      summary: multiPlate
-        ? `2 plates · P1 ${bodyParts.join(" + ")} · P2 Lid`
+      plate2Label: lidParts.length ? lidParts.join(" + ") : "Lid",
+      summary: zipExport
+        ? "2 files · container.3mf + lid.3mf"
         : bodyParts.join(" + "),
     };
   }
@@ -3128,7 +3142,7 @@ function describeExportPlan(format = "3mf") {
     return {
       format,
       bodyParts: lidParts,
-      multiPlate: false,
+      zipExport: false,
       plate1Label: lidParts.join(" + "),
       summary: lidParts.join(" + "),
     };
@@ -3136,7 +3150,7 @@ function describeExportPlan(format = "3mf") {
   return {
     format,
     bodyParts: [],
-    multiPlate: false,
+    zipExport: false,
     plate1Label: exportFormatLabel(format),
     summary: exportFormatLabel(format),
   };
@@ -3150,7 +3164,7 @@ function syncExportPlanUi() {
   const info = describeExportPlan(format);
   const opt3mf = sel.querySelector('option[value="3mf"]');
   if (opt3mf) {
-    opt3mf.textContent = exportIncludesLidPlate() ? "3MF · 2 plates" : "3MF project";
+    opt3mf.textContent = exportIncludesLidPlate() ? "3MF · container + lid (ZIP)" : "3MF project";
   }
   if (format !== "3mf" && format !== "lid-3mf") {
     plan.hidden = true;
@@ -3158,8 +3172,8 @@ function syncExportPlanUi() {
     return;
   }
   plan.hidden = false;
-  if (info.multiPlate) {
-    plan.innerHTML = `<span class="export-plan-plates">2 plates</span><span class="export-plan-parts">P1 ${info.plate1Label} · P2 ${info.plate2Label}</span>`;
+  if (info.zipExport) {
+    plan.innerHTML = `<span class="export-plan-plates">2 files</span><span class="export-plan-parts">container.3mf + lid.3mf</span>`;
   } else {
     plan.innerHTML = `<span class="export-plan-parts">${info.summary}</span>`;
   }
@@ -3198,12 +3212,13 @@ function meshBounds(mesh) {
 }
 
 function exportFormatExt(format) {
+  if (format === "3mf" && exportIncludesLidPlate()) return ".zip";
   return format === "3mf" || format === "lid-3mf" ? ".3mf" : ".stl";
 }
 
 function exportFormatLabel(format) {
   const labels = {
-    "3mf": exportIncludesLidPlate() ? "3MF project — container + lid" : "3MF project — body",
+    "3mf": exportIncludesLidPlate() ? "3MF · container + lid (ZIP)" : "3MF project — body",
     stl: "STL — body",
     "lid-3mf": "3MF — lid",
     "lid-stl": "STL — lid",
@@ -3223,7 +3238,9 @@ function suggestExportFilename(format) {
   if (!meshCache) rebuild();
   switch (format) {
     case "3mf":
-      return filename3mfFor(meshCache.meta, "body");
+      return exportIncludesLidPlate()
+        ? `${baseModelName(meshCache.meta)}.zip`
+        : filename3mfFor(meshCache.meta, "body");
     case "stl":
       return filenameFor(meshCache.meta, "body");
     case "lid-3mf":
@@ -3287,11 +3304,11 @@ function openExportDialog(format) {
   input.value = suggestExportFilename(format);
   if (kind) kind.textContent = exportFormatLabel(format);
   if (plates) {
-    if (plan.multiPlate) {
+    if (plan.zipExport) {
       plates.hidden = false;
       plates.innerHTML = [
-        `<span class="export-plate-chip"><strong>Plate 1</strong> Container · ${plan.plate1Label}</span>`,
-        `<span class="export-plate-chip"><strong>Plate 2</strong> Lid · ${plan.plate2Label}</span>`,
+        `<span class="export-plate-chip"><strong>container.3mf</strong> ${plan.plate1Label}</span>`,
+        `<span class="export-plate-chip"><strong>lid.3mf</strong> ${plan.plate2Label}</span>`,
       ].join("");
     } else if (format === "3mf" || format === "lid-3mf") {
       plates.hidden = false;
@@ -3313,8 +3330,8 @@ function openExportDialog(format) {
     libCheck.checked = localStorage.getItem("makerdeck-export-save-library") !== "0";
   }
   if (hint) {
-    if (canSave && plan.multiPlate) {
-      hint.textContent = "Opens in Bambu Studio / Orca with Container on plate 1 and Lid on plate 2. Library saves sliders and art for reload.";
+    if (canSave && plan.zipExport) {
+      hint.textContent = "ZIP contains container.3mf and lid.3mf — open both in Bambu Studio. Library saves the container 3MF and your sliders.";
     } else if (canSave) {
       hint.textContent = "Library saves your sliders and art so you can reload this design later.";
     } else {
@@ -3395,14 +3412,14 @@ function runExport(format, options = {}) {
             }
             if (status) setExportStatus("Packing 3MF…");
             await new Promise((resolve) => setTimeout(resolve, 0));
-            const packed = buildBody3mfExport(exportCache, parts);
+            const packed = await buildBody3mfExport(exportCache, parts);
             const blob = packed.blob;
             const fname = pickExportFilename(format, options);
             downloadBlob(blob, fname);
-            const partNames = packed.multiPlate
+            const partNames = packed.zipExport
               ? `${parts.map((p) => p.name).join(" + ")} + Lid`
               : parts.map((p) => p.name).join(" + ");
-            const plateNote = packed.multiPlate ? " · plate 1 Container + plate 2 Lid" : "";
+            const zipNote = packed.zipExport ? ` · ${packed.containerFile} + ${packed.lidFile}` : "";
             const wmNote = stamp ? ` · watermark #${String(stamp.serial).padStart(4, "0")}` : "";
             const bodyPart = parts.find((p) => p.name === "Body");
             const paints = bodyPart?.triangleExtruders;
@@ -3420,12 +3437,16 @@ function runExport(format, options = {}) {
                 openNote = ` · open edges: body ${bodyOpen}, art ${artOpen}, text ${textOpen}`;
               }
             }
-            const exportHeadline = packed.multiPlate
-              ? `2-plate 3MF exported — ${partNames}`
+            const exportHeadline = packed.zipExport
+              ? "ZIP downloaded — container + lid 3MF (open both in Bambu)"
               : `${parts.length > 1 ? `${parts.length}-part` : "Plain"} 3MF exported — ${partNames}`;
-            const exportDetail = `${triCount} triangles${plateNote}${openNote}${wmNote}`;
+            const exportDetail = `${triCount} triangles${zipNote}${openNote}${wmNote}`;
             setExportStatus(exportHeadline, { detail: exportDetail });
-            void archiveBodyExport(blob, fname, { format: "3mf", stamp, saveToLibrary: options.saveToLibrary }).then((result) => {
+            void archiveBodyExport(
+              packed.zipExport ? packed.containerBlob : blob,
+              packed.zipExport ? packed.containerFile : fname,
+              { format: "3mf", stamp, saveToLibrary: options.saveToLibrary },
+            ).then((result) => {
               let headline = exportHeadline;
               let detail = exportDetail;
               if (result?.error) {
