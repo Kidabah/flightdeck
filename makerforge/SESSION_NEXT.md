@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending — b226)
+- Latest commit: `f2696f6` (b226)
 - Cache-bust: `app.js?v=226` — header **b226**
 
 ### 2026-07-11 — b226: Remove blue spike wedge from trace silhouette (1-island garbage)
