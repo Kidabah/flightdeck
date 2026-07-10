@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending b200 push) — Lid colour picker
+- Latest commit: `18a9882` — Lid colour picker
 - Cache-bust: `app.js?v=200` — header **b200**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
