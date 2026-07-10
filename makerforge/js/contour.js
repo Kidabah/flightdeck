@@ -350,8 +350,8 @@ export function unionDenseEmbossShapeGroups(sourceGroups, maskW, maskH, {
 /** Fast low-res merge for live preview — one extrude instead of hundreds. */
 export function previewMergeTraceShapeGroups(sourceGroups, maskW, maskH) {
   if (!sourceGroups?.length || sourceGroups.length <= 8) return sourceGroups;
-  const simplifyTol = Math.max(0.18, maskW / 2200);
-  const merged = unionShapeGroupsToPrepared(sourceGroups, maskW, maskH, simplifyTol, 1, 5, 384);
+  const simplifyTol = Math.max(0.22, maskW / 1800);
+  const merged = unionShapeGroupsToPrepared(sourceGroups, maskW, maskH, simplifyTol, 0, 4, 256);
   return merged.length ? merged : sourceGroups;
 }
 

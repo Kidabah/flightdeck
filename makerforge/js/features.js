@@ -2,7 +2,7 @@
  * Accent bands, emboss, honeycomb stamp, stackable hex grid, mesh merge.
  */
 
-import { dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, previewMergeTraceShapeGroups, rasterizeShapeGroupsToMask, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap, unionDenseEmbossShapeGroups, unionShapeGroupsToPrepared } from "./contour.js?v=219";
+import { dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, previewMergeTraceShapeGroups, rasterizeShapeGroupsToMask, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap, unionDenseEmbossShapeGroups, unionShapeGroupsToPrepared } from "./contour.js?v=220";
 import { decorPlacementOffsets, decorArtRect, rotateFacePoint, rotateShapeGroup } from "./decor.js";
 import {
   profileOutlineNormals,
@@ -1777,7 +1777,7 @@ function inflateRing(ring, pad) {
   return out;
 }
 
-/** Pre-unioned at trace time, or fast preview merge — never sync full union on slider rebuilds. */
+/** Pre-unioned at trace time, or fast cached preview merge — never sync full union on slider rebuilds. */
 function unionDenseTraceShapeGroups(sourceGroups, maskW, maskH, artH, params, bitmap) {
   if (bitmap?.shapeGroupsUnited) return sourceGroups;
   if (!sourceGroups?.length || sourceGroups.length <= 8) return sourceGroups;
@@ -1786,7 +1786,10 @@ function unionDenseTraceShapeGroups(sourceGroups, maskW, maskH, artH, params, bi
     const { groups } = unionDenseEmbossShapeGroups(sourceGroups, maskW, maskH, { simplifyTol, smoothPasses: 1 });
     return groups;
   }
-  return previewMergeTraceShapeGroups(sourceGroups, maskW, maskH);
+  if (bitmap?.previewShapeGroups?.length) return bitmap.previewShapeGroups;
+  const merged = previewMergeTraceShapeGroups(sourceGroups, maskW, maskH);
+  if (bitmap && merged !== sourceGroups) bitmap.previewShapeGroups = merged;
+  return merged;
 }
 
 function collectBitmapGraphicShapeGroups(meta, params, bitmap) {
@@ -2447,8 +2450,10 @@ export function buildEmbossBitmap(meta, params, bitmap) {
   if (maskW <= 0 || maskH <= 0) return null;
 
   const isOutline = bitmap.mode === "outline";
+  const denseTrace = (bitmap.shapeGroups?.length ?? 0) > 8;
 
-  if (isOutline && bitmap.strokePaths?.length) {
+  // Outline stroke extrusion is per-segment — freezes wrap preview on heraldic traces. Prefer merged solids.
+  if (isOutline && bitmap.strokePaths?.length && !denseTrace && bitmap.strokePaths.length <= 12) {
     const smoothPasses = artH <= 12 ? 5 : artH <= 20 ? 4 : 3;
     const simplifyTol = Math.max(0.22, maskW / 520);
     const paths = prepareStrokePaths(bitmap.strokePaths, simplifyTol, smoothPasses);

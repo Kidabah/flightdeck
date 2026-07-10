@@ -1,8 +1,8 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=218";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=219";
-import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS, unionDenseEmbossShapeGroups } from "./trace.js?v=219";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=220";
+import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=220";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=201";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=210";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
@@ -23,7 +23,7 @@ import {
 } from "./library.js?v=201";
 
 const SESSION_KEY = "makerdeck-session-v1";
-const MAKERDECK_BUILD = "b219";
+const MAKERDECK_BUILD = "b220";
 const DISPLAY_UNITS = ["mm", "cm", "in"];
 const MM_PER_IN = 25.4;
 let saveSessionTimer = null;
@@ -1614,6 +1614,25 @@ function stateForSession() {
   return snap;
 }
 
+/** Undo snapshots — omit trace polygon blobs (589 islands JSON.stringify was freezing the tab). */
+function stateForHistory() {
+  const snap = {};
+  for (const key of Object.keys(DEFAULTS)) snap[key] = state[key];
+  snap.shape = state.shape;
+  snap.displayUnit = normalizeDisplayUnit(state.displayUnit);
+  snap.embossTraceEnabled = state.embossTraceEnabled;
+  if (state.embossTraceRects) {
+    snap.embossTraceRects = {
+      width: state.embossTraceRects.width,
+      height: state.embossTraceRects.height,
+      mode: state.embossTraceRects.mode,
+      shapeGroupsUnited: !!state.embossTraceRects.shapeGroupsUnited,
+      traceGeometryRef: true,
+    };
+  }
+  return snap;
+}
+
 function scheduleSaveSession() {
   if (sessionBooting) return;
   clearTimeout(saveSessionTimer);
@@ -1972,7 +1991,6 @@ function syncUiFromState() {
 }
 
 function rebuildMesh() {
-  scheduleEmbossTraceUnion();
   const params = buildParams();
 
   const nextCache = buildContainer(params);
@@ -2622,60 +2640,15 @@ function cloneEmbossTraceRects(rects) {
     strokeWidth: rects.strokeWidth,
     mode: rects.mode || "silhouette",
     shapeGroupsUnited: !!rects.shapeGroupsUnited,
+    previewShapeGroups: null,
     width: rects.width,
     height: rects.height,
   };
 }
 
-/** Background full-res union for export-quality stored trace (never blocks preview rebuild). */
-let embossTraceUnionQueued = false;
-let embossTraceUnionRunning = false;
-
-function scheduleEmbossTraceUnion() {
-  const rects = state.embossTraceRects;
-  if (!rects?.shapeGroups?.length || rects.shapeGroupsUnited || rects.shapeGroups.length <= 8) return;
-  if (embossTraceUnionQueued || embossTraceUnionRunning) return;
-  embossTraceUnionQueued = true;
-  requestAnimationFrame(() => {
-    embossTraceUnionQueued = false;
-    const r = state.embossTraceRects;
-    if (!r?.shapeGroups?.length || r.shapeGroupsUnited || r.shapeGroups.length <= 8) return;
-    if (embossTraceUnionRunning) return;
-    embossTraceUnionRunning = true;
-    const maskW = Math.round(r.width);
-    const maskH = Math.round(r.height);
-    if (maskW <= 0 || maskH <= 0) {
-      embossTraceUnionRunning = false;
-      return;
-    }
-    setTimeout(() => {
-      try {
-        const hiRes = maskW >= 1800;
-        const simplifyTol = Math.max(0.08, maskW / 3500);
-        const smoothPasses = hiRes ? 5 : 3;
-        const { groups, united } = unionDenseEmbossShapeGroups(r.shapeGroups, maskW, maskH, { simplifyTol, smoothPasses });
-        if (!united) return;
-        state.embossTraceRects = {
-          ...r,
-          shapeGroups: groups.map((g) => ({
-            outer: g.outer.map(([x, y]) => [x, y]),
-            holes: g.holes.map((h) => h.map(([x, y]) => [x, y])),
-          })),
-          shapeGroupsUnited: true,
-          mask: [],
-        };
-        scheduleSaveSession();
-        rebuild();
-      } finally {
-        embossTraceUnionRunning = false;
-      }
-    }, 0);
-  });
-}
-
 function snapshotApp() {
   return {
-    state: stateForSession(),
+    state: stateForHistory(),
     traceImage: traceSourceCanvas ? traceSourceCanvas.toDataURL("image/jpeg", 0.82) : null,
   };
 }
@@ -2717,9 +2690,11 @@ async function restoreAppHistory(index) {
     if (s[key] !== undefined) state[key] = s[key];
   }
   if (s.shape) state.shape = s.shape;
-  if (s.embossTraceRects) {
+  if (s.embossTraceRects?.traceGeometryRef) {
+    if (!s.embossTraceEnabled) state.embossTraceRects = null;
+  } else if (s.embossTraceRects) {
     state.embossTraceRects = deserializeEmbossTraceRects(s.embossTraceRects);
-  } else {
+  } else if (!s.embossTraceEnabled) {
     state.embossTraceRects = null;
   }
 
@@ -3083,6 +3058,7 @@ function traceResultToEmbossRects(result) {
     mode: result.mode || state.traceMode || "silhouette",
     outlineFallback: !!result.outlineFallback,
     shapeGroupsUnited: !!result.shapeGroupsUnited,
+    previewShapeGroups: null,
     width: result.width,
     height: result.height,
   };

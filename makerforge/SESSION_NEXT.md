@@ -2,12 +2,31 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `5f35b50` (b219)
-- Cache-bust: `app.js?v=219` — header **b219**
+- Latest commit: _(pending — b220 deploy)_
+- Cache-bust: `app.js?v=220` — header **b220**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
 
-### 2026-07-10 — b219: Actually fix preview freeze (b218 still hung)
+### 2026-07-10 — b220: Stop wrap-preview freeze (b219 still hung)
+
+**Symptom:** Page Unresponsive still on dense St George wrap art after b219.
+
+**Root causes b219 missed:**
+1. **Outline stroke path** — preview extruded every stroke segment on wrap (bypassed island merge)
+2. **Preview merge re-ran every rebuild** — no cache on `embossTraceRects`
+3. **Background async union** — `scheduleEmbossTraceUnion` still ran full 589-island union + `rebuild()` (second hang)
+4. **Undo history** — `JSON.stringify` of 589 island polygons on every art slider `change`
+
+**Fix:**
+- Cache `previewShapeGroups` on trace rects (merge once)
+- Dense outline traces use merged `shapeGroups`, not per-segment stroke extrusion
+- Preview merge downscaled to 256px, 0 smooth passes
+- Removed background async union from rebuild path
+- `stateForHistory()` omits trace polygon blobs
+
+- Cache **b220**. Hard refresh MakerDeck.
+
+### 2026-07-10 — b219: Fast preview merge — incomplete; see b220
 
 **Symptom:** Chris still got Page Unresponsive on dense St George trace after b218.
 
