@@ -44,7 +44,7 @@
 
         <div class="topbar-brand">
 
-          <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b210</span></div>
+          <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b212</span></div>
 
           <h1>Container Generator</h1>
 
@@ -670,7 +670,17 @@
 
               </label>
 
-              <p class="field-hint hidden" id="lid-gasket-hint">Underside groove for a printed <strong>Gasket</strong> part (included in lid 3MF) or 2&nbsp;mm TPU cord. Improves dust seal — not fully airtight.</p>
+              <label class="field field-toggle hidden" id="field-lid-gasket-export">
+
+                <span class="field-label">Include gasket in 3MF</span>
+
+                <input type="checkbox" id="lid-gasket-export-ring" checked>
+
+              </label>
+
+              <p class="field-hint hidden" id="lid-gasket-hint">Underside groove for a printed <strong>Gasket</strong> part or 2&nbsp;mm TPU cord. Improves dust seal — not fully airtight.</p>
+
+              <p class="field-hint hidden" id="lid-gasket-export-hint">Uncheck to keep the groove for TPU cord but export lid-only in the 3MF.</p>
 
               <p class="field-hint" id="lid-type-hint">Exports plate-down on the bed. Skirt sits outside the box walls.</p>
 
@@ -1416,7 +1426,7 @@
     </form>
   </dialog>
 
-  <script type="module" src="js/app.js?v=211"></script>
+  <script type="module" src="js/app.js?v=212"></script>
 
 </body>
 

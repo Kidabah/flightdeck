@@ -23,7 +23,7 @@ import {
 } from "./library.js?v=201";
 
 const SESSION_KEY = "makerdeck-session-v1";
-const MAKERDECK_BUILD = "b211";
+const MAKERDECK_BUILD = "b212";
 let saveSessionTimer = null;
 let sessionBooting = true;
 
@@ -998,7 +998,7 @@ function collectColoredLidExportParts() {
       }
     }
   }
-  if (params.lidGasketEnabled && lidCache.gasketRingMesh?.indices?.length) {
+  if (params.lidGasketEnabled && params.lidGasketExportRing !== false && lidCache.gasketRingMesh?.indices?.length) {
     const gasketClean = sanitizeMeshForStl(orientLidForPrint(lidCache.gasketRingMesh));
     if (gasketClean?.indices?.length) {
       parts.push({
@@ -2387,6 +2387,7 @@ function updateLidUi() {
   const isFlat = lidType === "flat";
   const lipOn = isFlat && (state.lidLipDepth ?? 0) > 0.4;
   const gasketOn = isFlat && !!state.lidGasketEnabled;
+  const gasketExportOn = gasketOn && state.lidGasketExportRing !== false;
   document.getElementById("lid-enabled").checked = !!state.lidEnabled && supported;
   document.getElementById("lid-type").value = type.id;
   document.getElementById("btn-lid-preview-fit").classList.toggle("hidden", !on);
@@ -2399,9 +2400,13 @@ function updateLidUi() {
   document.getElementById("field-lid-gasket")?.classList.toggle("hidden", !on || !isFlat);
   document.getElementById("field-lid-gasket-width")?.classList.toggle("hidden", !on || !isFlat || !gasketOn);
   document.getElementById("field-lid-gasket-depth")?.classList.toggle("hidden", !on || !isFlat || !gasketOn);
+  document.getElementById("field-lid-gasket-export")?.classList.toggle("hidden", !on || !isFlat || !gasketOn);
   document.getElementById("lid-gasket-hint")?.classList.toggle("hidden", !on || !isFlat || !gasketOn);
+  document.getElementById("lid-gasket-export-hint")?.classList.toggle("hidden", !on || !isFlat || !gasketOn);
   const gasketToggle = document.getElementById("lid-gasket-enabled");
   if (gasketToggle) gasketToggle.checked = gasketOn;
+  const gasketExportToggle = document.getElementById("lid-gasket-export-ring");
+  if (gasketExportToggle) gasketExportToggle.checked = gasketExportOn;
   if (isFlat) {
     syncSliderUi("lid-gasket-width", "lidGasketWidth", { min: 1.2, max: 4, value: state.lidGasketWidth ?? 2, parseKind: "float" });
     syncSliderUi("lid-gasket-depth", "lidGasketDepth", { min: 0.6, max: 2.5, value: state.lidGasketDepth ?? 1.2, parseKind: "float" });
@@ -4444,6 +4449,13 @@ document.getElementById("lid-enabled").addEventListener("change", (e) => {
 
 document.getElementById("lid-gasket-enabled")?.addEventListener("change", (e) => {
   state.lidGasketEnabled = e.target.checked;
+  updateLidUi();
+  rebuild();
+  pushAppHistory();
+});
+
+document.getElementById("lid-gasket-export-ring")?.addEventListener("change", (e) => {
+  state.lidGasketExportRing = e.target.checked;
   updateLidUi();
   rebuild();
   pushAppHistory();

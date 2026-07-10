@@ -2,10 +2,19 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending b211)
-- Cache-bust: `app.js?v=211` — header **b211**
+- Latest commit: (pending b212)
+- Cache-bust: `app.js?v=212` — header **b212**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-10 — b212: Separate gasket groove from gasket 3MF export
+
+**Lid tab** (`js/app.js`, `index.html`)
+
+- **Problem:** Unchecking **Gasket groove** removed both the underside groove (needed for TPU cord) and the separate **Gasket** part in lid 3MF — no way to keep groove-only.
+- **Fix:** New toggle **Include gasket in 3MF** (`lidGasketExportRing`, default on) appears when groove is enabled. Uncheck to keep groove geometry in the lid but export lid-only (no Gasket part). Hint: "Uncheck to keep the groove for TPU cord but export lid-only in the 3MF."
+- `collectColoredLidExportParts` respects `lidGasketExportRing`; session save/restore and presets already carried the param.
+- Cache **b212**. Hard refresh MakerDeck. UI-only — Pi pull sufficient; restart optional.
 
 ### 2026-07-10 — b211: Art/Text manifold sanitize + export open-edge warning
 
