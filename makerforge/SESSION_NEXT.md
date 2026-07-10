@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: see **b188** below
+- Latest commit: `92ee713` — b188 wrap art follows surface texture
 - Cache-bust: `app.js?v=188`, `features.js?v=188` — header **b188**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
