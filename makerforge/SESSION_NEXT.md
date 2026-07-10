@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending b198 push) — solid art/text, no standoff seam
+- Latest commit: `0988d76` — solid art/text, no standoff seam
 - Cache-bust: `app.js?v=198` — header **b198**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
