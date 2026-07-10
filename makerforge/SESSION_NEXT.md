@@ -2,10 +2,19 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `2f97bea` — **b178**
-- Cache-bust: `app.js?v=178` (hard refresh `/makerdeck/` or `#/makerdeck`)
+- Latest commit: `4a83703` — **b179**
+- Cache-bust: `app.js?v=179` (hard refresh `/makerdeck/` or `#/makerdeck`)
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-10 — b179: AMS merged export + arc text mesh fix
+
+**Export** (`js/features.js`, `js/app.js`, `js/stl.js`, `js/3mf.js`, `index.html`)
+
+- Body + art + text export as **one mesh** with per-triangle filament paint (stops Bambu stripping the front wall).
+- Body shell uses **light 3MF prep** only — no face-peeling sanitize.
+- Text export uses **open-bottom** shells (top cap + walls), matching preview — fixes arc letter glitches like the striped **F**.
+- Cache **b179**. Hard refresh and re-export 3MF.
 
 ### 2026-07-10 — b178: Keep body wall on multi-colour export (standoff fix)
 
