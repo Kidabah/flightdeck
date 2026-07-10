@@ -2,10 +2,21 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending b192 push) — fast trace union export
-- Cache-bust: `app.js?v=192`, `contour.js?v=192`, `stl.js?v=192` — header **b192**
+- Latest commit: (pending b193 push) — clean box + united text export
+- Cache-bust: `app.js?v=193` — header **b193**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-10 — b193: Fix coffee canister slice (manifold body + united COFFEE text)
+
+**Export** (`js/geometry.js`, `js/features.js`, `js/app.js`)
+
+- **Body:** exported plain `boxShell` without stack feet / honeycomb (those merged ~5k open edges in Bambu).
+- **Text:** export unions all letters into **one** solid (letter solids touching = non-manifold).
+- **Art:** closed-cap extrude path aligned with text (watertight plaque).
+- **Watermark:** skipped on multi-part AMS export (bottom deboss broke body shell).
+- Export status shows open-edge counts per part (body / art / text) — all should be 0.
+- Cache **b193**. Deploy, hard refresh, **re-export** coffee jar (old 3MF still broken).
 
 ### 2026-07-10 — b192: Fix 3MF export freeze (Page Unresponsive)
 

@@ -2,7 +2,7 @@
  * Accent bands, emboss, honeycomb stamp, stackable hex grid, mesh merge.
  */
 
-import { dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap, unionShapeGroupsToPrepared } from "./contour.js?v=192";
+import { dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap, unionShapeGroupsToPrepared } from "./contour.js?v=193";
 import { decorPlacementOffsets, decorArtRect, rotateFacePoint, rotateShapeGroup } from "./decor.js";
 import {
   profileOutlineNormals,
@@ -1618,11 +1618,18 @@ function collectTextEmbossShapeGroups(meta, params) {
   const glyphMm = layout.glyphHeightMm ?? 7;
   const smoothPasses = isLabelExport(params) ? 0 : labelSmoothPasses(glyphMm, params);
   const textMask = prepareTextExportMask(raster.mask, maskW, maskH, params);
-  const shapeGroups = prepareShapeGroups(
-    groupPolygonsWithHoles(maskToPolygons(textMask, maskW, maskH)),
-    simplifyTol,
-    smoothPasses,
-  );
+  let shapeGroups;
+  if (isLabelExport(params)) {
+    const rawGroups = groupPolygonsWithHoles(maskToPolygons(textMask, maskW, maskH));
+    const united = unionShapeGroupsToPrepared(rawGroups, maskW, maskH, simplifyTol, 0, 2);
+    shapeGroups = united.length ? united : prepareShapeGroups(rawGroups, simplifyTol, 0);
+  } else {
+    shapeGroups = prepareShapeGroups(
+      groupPolygonsWithHoles(maskToPolygons(textMask, maskW, maskH)),
+      simplifyTol,
+      smoothPasses,
+    );
+  }
 
   const remapped = shapeGroups.map((group) => ({
     outer: group.outer.map(([px, py]) => [xOff + px * scale, zOff + (maskH - py) * scale]),
@@ -2092,9 +2099,13 @@ export function buildGraphicLabelExportMesh(meta, params, svgText = "") {
   const { d0, d1 } = labelOffsets(params);
   const positions = [];
   const indices = [];
+  const mapBot = (px, py) => frame.mapPoint(px, py, d0);
+  const mapTop = (px, py) => frame.mapPoint(px, py, d1);
+  const flatCoord = (w) => flatCoordForFrame(frame, w);
 
   for (const group of shapeGroups) {
-    extrudeGroupOnFace(positions, indices, frame, group, d0, d1, params);
+    const { caps, flatFromArt } = wrapExtrudeCaps(frame, embossExportCaps(params, d0));
+    extrudeShapeGroupBetween(positions, indices, group, mapTop, mapBot, flatCoord, caps, flatFromArt);
   }
   return positions.length ? { positions, indices } : null;
 }

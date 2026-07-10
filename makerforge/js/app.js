@@ -1,9 +1,9 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=192";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=192";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=193";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=193";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=161";
-import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName } from "./stl.js?v=192";
+import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=193";
 import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=180";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
@@ -20,10 +20,10 @@ import {
   listLibraryDesigns,
   fetchDesignParams,
   deleteLibraryDesign,
-} from "./library.js?v=192";
+} from "./library.js?v=193";
 
 const SESSION_KEY = "makerdeck-session-v1";
-const MAKERDECK_BUILD = "b192";
+const MAKERDECK_BUILD = "b193";
 let saveSessionTimer = null;
 let sessionBooting = true;
 
@@ -699,8 +699,13 @@ function acquireWatermarkStamp() {
 }
 
 function finalizeBodyExportMesh(mesh, meta, params, stamp) {
-  if (!stamp || params.watermarkEnabled === false) return mesh;
+  if (!stamp || params.watermarkEnabled === false || params.__exportSeparateColors) return mesh;
   return applyExportWatermark(mesh, meta, params, stamp);
+}
+
+function partOpenEdgeCount(part) {
+  if (!part?.mesh?.positions?.length || !part?.mesh?.indices?.length) return 0;
+  return part.mesh.openEdgeCount ?? countOpenEdges(part.mesh.positions, part.mesh.indices);
 }
 
 function mergeInsertIntoBodyExport() {
@@ -770,6 +775,7 @@ function previewLidSource(cache) {
 }
 
 function resolveBodyExportMesh(exportCache, params, separateText, stamp = null) {
+  const cleanBox = exportCache.boxShell || exportCache.shellMesh || exportCache;
   const shell = exportCache.shellMesh || exportCache;
   if (state.insertEnabled && state.insertMount === "fixed") {
     const welded = buildWatertightFixedDividerExport(exportCache, exportCache.meta, {
@@ -782,7 +788,8 @@ function resolveBodyExportMesh(exportCache, params, separateText, stamp = null) 
     throw new Error("Fixed divider export failed — use Width or Depth axis (not Height shelves).");
   }
   if (separateText || hasSeparateArtExport(params)) {
-    return finalizeBodyExportMesh(shell, exportCache.meta, params, stamp);
+    // Stack feet / honeycomb merged into shellMesh are non-manifold in slicers — export plain box.
+    return finalizeBodyExportMesh(cleanBox, exportCache.meta, { ...params, __exportSeparateColors: true }, stamp);
   }
   const mesh = buildWatertightExportMesh(exportCache, exportCache.meta, params);
   return finalizeBodyExportMesh(mesh, exportCache.meta, params, stamp);
@@ -812,7 +819,7 @@ function collectColoredExportParts(exportCache, stamp = null) {
     }
     if (separateArt) {
       const artMesh = buildLabelGraphicEmboss(exportCache.meta, exportParams, params.embossSvgText || "", "emboss");
-      const artClean = artMesh ? sanitizeMeshForStl(prepareMeshFor3mf(artMesh), { strict: false, repair: false }) : null;
+      const artClean = artMesh ? sanitizeMeshForStl(prepareMeshFor3mf(artMesh), { strict: false, repair: true }) : null;
       if (artClean?.indices?.length) {
         parts.push({
           name: "Art",
@@ -824,7 +831,7 @@ function collectColoredExportParts(exportCache, stamp = null) {
     }
     if (separateText) {
       const textMesh = buildTextLabelExportMesh(exportCache.meta, exportParams);
-      const textClean = textMesh ? sanitizeMeshForStl(prepareMeshFor3mf(textMesh), { strict: false, repair: false }) : null;
+      const textClean = textMesh ? sanitizeMeshForStl(prepareMeshFor3mf(textMesh), { strict: false, repair: true }) : null;
       if (textClean?.indices?.length) {
         parts.push({
           name: "Text",
@@ -3240,8 +3247,12 @@ function runExport(format, options = {}) {
                   : parts.length === 1 && parts[0].extruder === 1
                     ? "plain 3MF"
                     : "colored 3MF";
-              const bodyOpen = parts.find((p) => p.name === "Body")?.mesh?.openEdgeCount || 0;
-              const openNote = bodyOpen > 0 ? ` — body ${bodyOpen} open edge(s)` : "";
+              const bodyOpen = partOpenEdgeCount(parts.find((p) => p.name === "Body"));
+              const artOpen = partOpenEdgeCount(parts.find((p) => p.name === "Art"));
+              const textOpen = partOpenEdgeCount(parts.find((p) => p.name === "Text"));
+              const openNote = bodyOpen > 0 || artOpen > 0 || textOpen > 0
+                ? ` — open edges: body ${bodyOpen}, art ${artOpen}, text ${textOpen}`
+                : "";
               const wmNote = stamp ? ` · watermark #${String(stamp.serial).padStart(4, "0")}` : "";
               status.textContent = `${kind} downloaded — ${triCount} triangles (${parts.map((p) => p.name).join(" + ")})${openNote}${wmNote}`;
             }

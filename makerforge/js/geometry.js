@@ -22,7 +22,7 @@ import {
   shapeSupportsProfileTexture,
   shapeSupportsProfileArt,
   shapeSupportsArt,
-} from "./features.js?v=192";
+} from "./features.js?v=193";
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=161";
 import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=161";
@@ -1711,6 +1711,10 @@ export function buildContainer(params) {
   let graphicMesh = null;
   let debossCutterMesh = null;
   if (boxDecor || profileArt) {
+    const boxShell = {
+      positions: mesh.positions.slice(),
+      indices: mesh.indices.slice(),
+    };
     const shellMesh = applyBodyDecorations(mesh, artMeta, params);
     const isLidFace = params.embossFace === "lid";
     const previewDraft = !!params._artPreviewDraft;
@@ -1740,6 +1744,7 @@ export function buildContainer(params) {
       positions: mesh.positions,
       indices: mesh.indices,
       shellMesh,
+      boxShell,
       meta: {
         ...artMeta,
         joinerHand: useJoiner ? (params.joinerHand === "right" ? "right" : "left") : undefined,
@@ -1761,7 +1766,7 @@ export function buildContainer(params) {
     joinerHand: useJoiner ? (params.joinerHand === "right" ? "right" : "left") : undefined,
     joinerScale: useJoiner ? resolveJoinerDims(params, resolved.meta.outer.w, resolved.meta.outer.d).scale : undefined,
   };
-  return { ...mesh, shellMesh: mesh, meta, totalH: resolved.totalH, accentMeshes, insertMesh: null, labelMesh };
+  return { ...mesh, shellMesh: mesh, boxShell: mesh, meta, totalH: resolved.totalH, accentMeshes, insertMesh: null, labelMesh };
 }
 
 export function buildLid(params) {
