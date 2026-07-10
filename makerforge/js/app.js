@@ -1,9 +1,9 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=194";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMergedAmsExportMesh, punchBodyShellForLabelExport, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=194";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=195";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMergedAmsExportMesh, punchBodyShellForLabelExport, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=195";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=161";
-import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=194";
+import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=195";
 import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=180";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
@@ -20,10 +20,10 @@ import {
   listLibraryDesigns,
   fetchDesignParams,
   deleteLibraryDesign,
-} from "./library.js?v=194";
+} from "./library.js?v=195";
 
 const SESSION_KEY = "makerdeck-session-v1";
-const MAKERDECK_BUILD = "b194";
+const MAKERDECK_BUILD = "b195";
 let saveSessionTimer = null;
 let sessionBooting = true;
 
@@ -3251,12 +3251,22 @@ function runExport(format, options = {}) {
                   : parts.length === 1 && parts[0].extruder === 1
                     ? "plain 3MF"
                     : "colored 3MF";
-              const bodyOpen = partOpenEdgeCount(parts.find((p) => p.name === "Body"));
-              const artOpen = partOpenEdgeCount(parts.find((p) => p.name === "Art"));
-              const textOpen = partOpenEdgeCount(parts.find((p) => p.name === "Text"));
-              const openNote = bodyOpen > 0 || artOpen > 0 || textOpen > 0
-                ? ` — open edges: body ${bodyOpen}, art ${artOpen}, text ${textOpen}`
-                : "";
+              const bodyPart = parts.find((p) => p.name === "Body");
+              const paints = bodyPart?.triangleExtruders;
+              let openNote = "";
+              if (paints?.length) {
+                const artTris = paints.filter((e) => e === 2).length;
+                const textTris = paints.filter((e) => e === 3).length;
+                const bodyOpen = partOpenEdgeCount(bodyPart);
+                openNote = ` — art ${artTris} tris, text ${textTris} tris, open ${bodyOpen}`;
+              } else {
+                const bodyOpen = partOpenEdgeCount(parts.find((p) => p.name === "Body"));
+                const artOpen = partOpenEdgeCount(parts.find((p) => p.name === "Art"));
+                const textOpen = partOpenEdgeCount(parts.find((p) => p.name === "Text"));
+                if (bodyOpen > 0 || artOpen > 0 || textOpen > 0) {
+                  openNote = ` — open edges: body ${bodyOpen}, art ${artOpen}, text ${textOpen}`;
+                }
+              }
               const wmNote = stamp ? ` · watermark #${String(stamp.serial).padStart(4, "0")}` : "";
               status.textContent = `${kind} downloaded — ${triCount} triangles (${parts.map((p) => p.name).join(" + ")})${openNote}${wmNote}`;
             }

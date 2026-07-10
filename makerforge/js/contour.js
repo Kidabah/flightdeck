@@ -332,15 +332,24 @@ export function rasterizeShapeGroupsToMask(groups, width, height) {
 export function unionShapeGroupsToPrepared(groups, width, height, simplifyTol = 1, smoothPasses = 1, dilatePasses = 2) {
   if (!groups?.length || width <= 0 || height <= 0) return [];
   const maxDim = 1024;
-  const scale = Math.min(1, maxDim / Math.max(width, height));
-  const w = Math.max(1, Math.round(width * scale));
-  const h = Math.max(1, Math.round(height * scale));
-  const scaledGroups = scaleShapeGroups(groups, scale);
-  const tol = scale < 1 ? simplifyTol * Math.max(0.35, scale) : simplifyTol;
+  const rasterScale = Math.min(1, maxDim / Math.max(width, height));
+  const w = Math.max(1, Math.round(width * rasterScale));
+  const h = Math.max(1, Math.round(height * rasterScale));
+  const scaledGroups = scaleShapeGroups(groups, rasterScale);
+  const tol = rasterScale < 1 ? simplifyTol * Math.max(0.35, rasterScale) : simplifyTol;
   let mask = rasterizeShapeGroupsToMask(scaledGroups, w, h);
   if (dilatePasses > 0) mask = dilateMask(mask, w, h, dilatePasses);
   const polys = maskToPolygons(mask, w, h);
-  return prepareShapeGroups(groupPolygonsWithHoles(polys), tol, smoothPasses);
+  let prepared = prepareShapeGroups(groupPolygonsWithHoles(polys), tol, smoothPasses);
+  // Polygonise runs in the downscaled raster — map back to caller pixel space.
+  if (rasterScale < 1) {
+    const inv = 1 / rasterScale;
+    prepared = prepared.map((group) => ({
+      outer: group.outer.map(([x, y]) => [x * inv, y * inv]),
+      holes: group.holes.map((hole) => hole.map(([x, y]) => [x * inv, y * inv])),
+    }));
+  }
+  return prepared;
 }
 
 /** Rasterise stroke centerlines into a solid binary mask (filled pens). */

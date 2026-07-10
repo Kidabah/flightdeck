@@ -2,7 +2,7 @@
  * Accent bands, emboss, honeycomb stamp, stackable hex grid, mesh merge.
  */
 
-import { dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap, unionShapeGroupsToPrepared } from "./contour.js?v=194";
+import { dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap, unionShapeGroupsToPrepared } from "./contour.js?v=195";
 import { decorPlacementOffsets, decorArtRect, rotateFacePoint, rotateShapeGroup } from "./decor.js";
 import {
   profileOutlineNormals,
@@ -1621,8 +1621,13 @@ function collectTextEmbossShapeGroups(meta, params) {
   let shapeGroups;
   if (isLabelExport(params)) {
     const rawGroups = groupPolygonsWithHoles(maskToPolygons(textMask, maskW, maskH));
-    const united = unionShapeGroupsToPrepared(rawGroups, maskW, maskH, simplifyTol, 0, rawGroups.length > 12 ? 4 : 2);
-    shapeGroups = united.length ? united : prepareShapeGroups(rawGroups, simplifyTol, 0);
+    // Arc letters are spaced on a curve — union would merge/warp them.
+    if (layout.arcMode) {
+      shapeGroups = prepareShapeGroups(rawGroups, simplifyTol, 0);
+    } else {
+      const united = unionShapeGroupsToPrepared(rawGroups, maskW, maskH, simplifyTol, 0, rawGroups.length > 12 ? 4 : 2);
+      shapeGroups = united.length ? united : prepareShapeGroups(rawGroups, simplifyTol, 0);
+    }
   } else {
     shapeGroups = prepareShapeGroups(
       groupPolygonsWithHoles(maskToPolygons(textMask, maskW, maskH)),

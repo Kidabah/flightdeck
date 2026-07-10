@@ -2,10 +2,20 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `e92689b` — single AMS mesh, embedded art/text
-- Cache-bust: `app.js?v=194` — header **b194**
+- Latest commit: (pending b195 push) — fix trace union scale + arc text export
+- Cache-bust: `app.js?v=195` — header **b195**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-10 — b195: Fix shrunk bag + missing COFFEE text on export
+
+**Export** (`js/contour.js`, `js/features.js`, `js/app.js`, `index.html`)
+
+- **Root cause:** `unionShapeGroupsToPrepared` rasterised at 1024px but returned polygons in **downscaled** coordinates. Export then mapped them with the full-resolution scale → bag ~50% size, text shifted off-face / invisible. Status falsely showed `art 0, text 0` (no separate Art/Text parts in merged AMS).
+- **Fix:** rescale united polygons back to original trace/mask pixel space before placement.
+- Arc **COFFEE** text no longer unioned (letters stay on the curve).
+- Export status now shows `art N tris, text N tris` for AMS painted mesh.
+- Cache **b195**. Hard refresh, re-export.
 
 ### 2026-07-10 — b194: Single AMS mesh (fix empty layers + shattered art)
 
