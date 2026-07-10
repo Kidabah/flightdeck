@@ -2,8 +2,21 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `f2696f6` (b226)
-- Cache-bust: `app.js?v=226` — header **b226**
+- Latest commit: (pending — b227)
+- Cache-bust: `app.js?v=227` — header **b227**
+
+### 2026-07-11 — b227: Wrap 3D from pixel mask (match trace preview)
+
+**Symptom:** Trace preview clean (b226) but 3D wrap still a horizontal shredded band.
+
+**Root cause:** Preview rasterises trace in **pixel space**; 3D remapped polygons to mm first, then re-rasterised — bbox/seam drift produced wrong slab rows on the cylinder.
+
+**Fix (`features.js`):**
+- `buildWrapTraceSlabMesh` — rasterise shape groups at trace resolution, map pixel rows directly to wrap mm
+- Same mask as blue trace preview overlay → solid wrap emboss
+- `remappedBitmapFaceGroups` uses true art height + `normalizeWrapShapeGroups`
+
+- Cache **b227**. Hard refresh, re-drop image, 3D wrap should match trace preview silhouette.
 
 ### 2026-07-11 — b226: Remove blue spike wedge from trace silhouette (1-island garbage)
 

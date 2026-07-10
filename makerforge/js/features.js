@@ -2,7 +2,7 @@
  * Accent bands, emboss, honeycomb stamp, stackable hex grid, mesh merge.
  */
 
-import { dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, filterDegenerateShapeGroups, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, previewMergeTraceShapeGroups, rasterizeShapeGroupsToMask, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap, unionDenseEmbossShapeGroups, unionShapeGroupsToPrepared } from "./contour.js?v=226";
+import { dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, filterDegenerateShapeGroups, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, previewMergeTraceShapeGroups, rasterizeShapeGroupsToMask, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap, unionDenseEmbossShapeGroups, unionShapeGroupsToPrepared } from "./contour.js?v=227";
 import { decorPlacementOffsets, decorArtRect, rotateFacePoint, rotateShapeGroup } from "./decor.js";
 import {
   profileOutlineNormals,
@@ -228,21 +228,7 @@ function buildFaceDecalSlabMesh(frame, shapeGroups, opts = {}) {
       const px0 = minX + start * effStep;
       const px1 = minX + col * effStep;
 
-      const c00 = frame.mapPoint(px0, py0, d0);
-      const c10 = frame.mapPoint(px1, py0, d0);
-      const c11 = frame.mapPoint(px1, py1, d0);
-      const c01 = frame.mapPoint(px0, py1, d0);
-      const o00 = frame.mapPoint(px0, py0, d1);
-      const o10 = frame.mapPoint(px1, py0, d1);
-      const o11 = frame.mapPoint(px1, py1, d1);
-      const o01 = frame.mapPoint(px0, py1, d1);
-
-      pushQuad(positions, indices, vec3(...o00), vec3(...o10), vec3(...o11), vec3(...o01));
-      pushQuad(positions, indices, vec3(...c00), vec3(...c01), vec3(...c11), vec3(...c10));
-      pushQuad(positions, indices, vec3(...c00), vec3(...c10), vec3(...o10), vec3(...o00));
-      pushQuad(positions, indices, vec3(...c01), vec3(...o01), vec3(...o11), vec3(...c11));
-      pushQuad(positions, indices, vec3(...c00), vec3(...o00), vec3(...o01), vec3(...c01));
-      pushQuad(positions, indices, vec3(...c10), vec3(...c11), vec3(...o11), vec3(...o10));
+      pushFaceSlabQuad(positions, indices, frame, px0, py0, px1, py1, d0, d1);
     }
   }
 
@@ -284,6 +270,83 @@ function resolveSlabGrid(bounds, stepMm, pad, maxCells = 2048) {
     rows = Math.max(1, Math.ceil(h / step));
   }
   return { stepMm: step, cols, rows };
+}
+
+function pushFaceSlabQuad(positions, indices, frame, px0, py0, px1, py1, d0, d1) {
+  const c00 = frame.mapPoint(px0, py0, d0);
+  const c10 = frame.mapPoint(px1, py0, d0);
+  const c11 = frame.mapPoint(px1, py1, d0);
+  const c01 = frame.mapPoint(px0, py1, d0);
+  const o00 = frame.mapPoint(px0, py0, d1);
+  const o10 = frame.mapPoint(px1, py0, d1);
+  const o11 = frame.mapPoint(px1, py1, d1);
+  const o01 = frame.mapPoint(px0, py1, d1);
+  pushQuad(positions, indices, vec3(...o00), vec3(...o10), vec3(...o11), vec3(...o01));
+  pushQuad(positions, indices, vec3(...c00), vec3(...c01), vec3(...c11), vec3(...c10));
+  pushQuad(positions, indices, vec3(...c00), vec3(...c10), vec3(...o10), vec3(...o00));
+  pushQuad(positions, indices, vec3(...c01), vec3(...o01), vec3(...o11), vec3(...c11));
+  pushQuad(positions, indices, vec3(...c00), vec3(...o00), vec3(...o01), vec3(...c01));
+  pushQuad(positions, indices, vec3(...c10), vec3(...c11), vec3(...o11), vec3(...o10));
+}
+
+function bitmapWrapPlacement(frame, params, bitmap) {
+  const artHCap = clamp(params.embossTraceSize ?? 16, 6, 56);
+  const maxW = Math.min(frame.faceW * 0.62, 56);
+  const maskW = Math.max(1, Math.round(bitmap.width));
+  const maskH = Math.max(1, Math.round(bitmap.height));
+  const scale = Math.min(artHCap / maskH, maxW / maskW);
+  if (!Number.isFinite(scale) || scale <= 0) return null;
+  const artW = maskW * scale;
+  const artHeight = maskH * scale;
+  const { xOff, zOff } = decorPlacementOffsets(params, frame, artW, artHeight);
+  return { maskW, maskH, scale, artW, artHeight, xOff, zOff };
+}
+
+/** Wrap trace slabs from pixel mask — matches trace preview raster (avoids mm polygon bbox drift). */
+function buildWrapTraceSlabMesh(frame, bitmap, params, shapeGroups, d0, d1) {
+  const place = bitmapWrapPlacement(frame, params, bitmap);
+  if (!place || !shapeGroups?.length) return null;
+  const { maskW, maskH, scale, artW, xOff, zOff } = place;
+  const anchorX = xOff + artW / 2;
+  const rotation = params.decorRotation ?? 0;
+  let groups = shapeGroups;
+  if (rotation) {
+    groups = shapeGroups.map((g) => rotateShapeGroup(g, maskW / 2, maskH / 2, rotation));
+  }
+  let mask = rasterizeShapeGroupsToMask(groups, maskW, maskH);
+  const stepMm = params?.__labelExportStandoff
+    ? DECAL_LAYER_MM
+    : clamp(artW / WRAP_DECAL_TARGET_COLS, WRAP_DECAL_STEP_MIN_MM, WRAP_DECAL_STEP_MAX_MM);
+  let stepPx = Math.max(1, Math.round(stepMm / scale));
+  const maxRows = 2048;
+  if (Math.ceil(maskH / stepPx) > maxRows) stepPx = Math.max(1, Math.ceil(maskH / maxRows));
+
+  const positions = [];
+  const indices = [];
+  for (let row = 0; row < maskH; row += stepPx) {
+    const py0 = row;
+    const py1 = Math.min(maskH, row + stepPx);
+    const my0 = zOff + (maskH - py1) * scale;
+    const my1 = zOff + (maskH - py0) * scale;
+    let col = 0;
+    while (col < maskW) {
+      while (col < maskW && !bandMaskFilled(mask, maskW, py0, py1, col)) col++;
+      const start = col;
+      while (col < maskW && bandMaskFilled(mask, maskW, py0, py1, col)) col++;
+      if (col <= start) continue;
+      const px0 = unwrapWrapX(xOff + start * scale, anchorX, frame.faceW);
+      const px1 = unwrapWrapX(xOff + col * scale, anchorX, frame.faceW);
+      pushFaceSlabQuad(positions, indices, frame, px0, my0, px1, my1, d0, d1);
+    }
+  }
+  return indices.length ? { positions, indices } : null;
+}
+
+function bandMaskFilled(mask, width, py0, py1, col) {
+  for (let py = py0; py < py1; py++) {
+    if (mask[py * width + col]) return true;
+  }
+  return false;
 }
 /** Extra radial push when a band is marked "on top" over another. */
 const ACCENT_LAYER_BUMP_MM = 0.22;
@@ -1829,9 +1892,10 @@ function collectBitmapGraphicShapeGroups(meta, params, bitmap) {
   if (!Number.isFinite(scale) || scale <= 0) return null;
 
   const artWidth = bitmap.width * scale;
-  const { xOff, zOff } = decorPlacementOffsets(params, frame, artWidth, artH);
+  const artHeight = bitmap.height * scale;
+  const { xOff, zOff } = decorPlacementOffsets(params, frame, artWidth, artHeight);
   const rotCx = xOff + artWidth / 2;
-  const rotCy = zOff + artH / 2;
+  const rotCy = zOff + artHeight / 2;
   const rotation = params.decorRotation ?? 0;
   const maskW = Math.round(bitmap.width);
   const maskH = Math.round(bitmap.height);
@@ -2482,6 +2546,10 @@ export function buildEmbossBitmap(meta, params, bitmap) {
 
   if (bitmap.shapeGroups?.length) {
     const sourceGroups = unionDenseTraceShapeGroups(bitmap.shapeGroups, maskW, maskH, artH, params, bitmap);
+    if (frame.face === "wrap") {
+      const slab = buildWrapTraceSlabMesh(frame, bitmap, params, sourceGroups, d0, d1);
+      if (slab?.indices?.length) return slab;
+    }
     const faceGroups = remappedBitmapFaceGroups(bitmap, frame, params, sourceGroups, maskW, maskH, artH);
     extrudeGroupsOnFace(positions, indices, frame, faceGroups, d0, d1, params);
     return positions.length ? { positions, indices } : null;
@@ -3158,9 +3226,10 @@ function remappedBitmapFaceGroups(bitmap, frame, params, sourceGroups, maskW, ma
   const maxW = Math.min(frame.faceW * 0.62, 56);
   const scale = Math.min(artH / bitmap.height, maxW / bitmap.width);
   const artWidth = bitmap.width * scale;
-  const { xOff, zOff } = decorPlacementOffsets(params, frame, artWidth, artH);
+  const artHeight = bitmap.height * scale;
+  const { xOff, zOff } = decorPlacementOffsets(params, frame, artWidth, artHeight);
   const rotCx = xOff + artWidth / 2;
-  const rotCy = zOff + artH / 2;
+  const rotCy = zOff + artHeight / 2;
   const rotation = params.decorRotation ?? 0;
   const faceGroups = [];
   for (const group of sourceGroups) {
@@ -3170,6 +3239,7 @@ function remappedBitmapFaceGroups(bitmap, frame, params, sourceGroups, maskW, ma
     };
     faceGroups.push(rotateShapeGroup(remapped, rotCx, rotCy, rotation));
   }
+  if (frame.face === "wrap") return normalizeWrapShapeGroups(faceGroups, frame.faceW, rotCx);
   return faceGroups;
 }
 
