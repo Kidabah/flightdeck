@@ -18,9 +18,10 @@ import {
   strokePathsToSvg,
   previewMergeTraceShapeGroups,
   rasterizeShapeGroupsToMask,
-} from "./contour.js?v=222";
+  filterDegenerateShapeGroups,
+} from "./contour.js?v=223";
 
-export { unionDenseEmbossShapeGroups } from "./contour.js?v=222";
+export { unionDenseEmbossShapeGroups } from "./contour.js?v=223";
 
 
 
@@ -506,15 +507,15 @@ function compactTraceMask(workMask, shapeGroups) {
 }
 
 function finishSilhouetteTrace(workMask, tw, th, ox, oy, shapeGroups, simplifyFactor, width, height, extra = {}) {
-  let groups = shapeGroups;
+  let groups = filterDegenerateShapeGroups(shapeGroups, tw, th);
   let shapeGroupsUnited = false;
   let previewShapeGroups = null;
-  if (groups.length > 8) {
+  if (groups.length > 1) {
     const merged = previewMergeTraceShapeGroups(groups, tw, th);
     if (merged.length) {
       groups = merged;
       previewShapeGroups = merged;
-      shapeGroupsUnited = merged.length < shapeGroups.length;
+      shapeGroupsUnited = true;
     }
   }
   const rects = maskToRuns(workMask, tw, th);

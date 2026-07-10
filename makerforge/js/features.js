@@ -2,7 +2,7 @@
  * Accent bands, emboss, honeycomb stamp, stackable hex grid, mesh merge.
  */
 
-import { dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, previewMergeTraceShapeGroups, rasterizeShapeGroupsToMask, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap, unionDenseEmbossShapeGroups, unionShapeGroupsToPrepared } from "./contour.js?v=221";
+import { dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, filterDegenerateShapeGroups, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, previewMergeTraceShapeGroups, rasterizeShapeGroupsToMask, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap, unionDenseEmbossShapeGroups, unionShapeGroupsToPrepared } from "./contour.js?v=223";
 import { decorPlacementOffsets, decorArtRect, rotateFacePoint, rotateShapeGroup } from "./decor.js";
 import {
   profileOutlineNormals,
@@ -1780,7 +1780,7 @@ function inflateRing(ring, pad) {
 /** Pre-unioned at trace time, or fast cached preview merge — never sync full union on slider rebuilds. */
 function unionDenseTraceShapeGroups(sourceGroups, maskW, maskH, artH, params, bitmap) {
   if (bitmap?.shapeGroupsUnited) return sourceGroups;
-  if (!sourceGroups?.length || sourceGroups.length <= 8) return sourceGroups;
+  if (!sourceGroups?.length || sourceGroups.length <= 1) return sourceGroups;
   if (isLabelExport(params)) {
     const simplifyTol = Math.max(0.06, maskW / 4000);
     const { groups } = unionDenseEmbossShapeGroups(sourceGroups, maskW, maskH, { simplifyTol, smoothPasses: 1 });

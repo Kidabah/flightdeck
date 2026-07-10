@@ -2,8 +2,20 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `e370dc5` (b222)
-- Cache-bust: `app.js?v=222` — header **b222**
+- Latest commit: _(pending — b223 deploy)_
+- Cache-bust: `app.js?v=223` — header **b223**
+
+### 2026-07-10 — b223: Fix blue wedge / diagonal mesh on heraldic trace (7 islands)
+
+**Symptom:** Trace preview showed blue trapezoid wedge; 3D wrap had diagonal slash triangles through horse.
+
+**Root cause:** Merge only ran when **>8 islands** — Chris's trace had **7**, so one garbage spike polygon from downscaled polygonise survived. Earcut fanned across it on wrap extrude.
+
+**Fix:** Filter degenerate spike polygons; **always merge when >1 island**; single solid silhouette for import + model.
+
+- Cache **b223**. Hard refresh, re-drop image.
+
+### 2026-07-10 — b222: Trace hang during Tracing… — see b223 for wedge fix
 
 ### 2026-07-10 — b222: Fix freeze *during* Tracing… on large heraldic PNGs
 

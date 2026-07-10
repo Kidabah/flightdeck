@@ -349,10 +349,50 @@ export function unionDenseEmbossShapeGroups(sourceGroups, maskW, maskH, {
 
 /** Fast low-res merge for live preview — one extrude instead of hundreds. */
 export function previewMergeTraceShapeGroups(sourceGroups, maskW, maskH) {
-  if (!sourceGroups?.length || sourceGroups.length <= 8) return sourceGroups;
+  if (!sourceGroups?.length || sourceGroups.length <= 1) return sourceGroups;
   const simplifyTol = Math.max(0.22, maskW / 1800);
   const merged = unionShapeGroupsToPrepared(sourceGroups, maskW, maskH, simplifyTol, 0, 4, 256);
   return merged.length ? merged : sourceGroups;
+}
+
+function ringSignedArea(ring) {
+  let a = 0;
+  const n = ring.length;
+  for (let i = 0; i < n; i++) {
+    const [x0, y0] = ring[i];
+    const [x1, y1] = ring[(i + 1) % n];
+    a += x0 * y1 - x1 * y0;
+  }
+  return a * 0.5;
+}
+
+/** Drop spike/trapezoid polygons from downscaled polygonise (blue wedge in trace preview). */
+export function filterDegenerateShapeGroups(groups, maskW, maskH) {
+  if (!groups?.length) return groups;
+  const canvasArea = Math.max(1, maskW * maskH);
+  const filtered = groups.filter((g) => {
+    const outer = g.outer;
+    if (!outer?.length || outer.length < 4) return false;
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+    for (const [x, y] of outer) {
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+      minY = Math.min(minY, y);
+      maxY = Math.max(maxY, y);
+    }
+    const bw = maxX - minX;
+    const bh = maxY - minY;
+    const bboxArea = bw * bh;
+    const area = Math.abs(ringSignedArea(outer));
+    if (area < 2) return false;
+    if (bw > maskW * 0.28 && outer.length <= 7 && area < bboxArea * 0.2) return false;
+    if (bboxArea > canvasArea * 0.2 && area < bboxArea * 0.08) return false;
+    return true;
+  });
+  return filtered.length ? filtered : groups;
 }
 
 /** Union many trace polygons into one printable silhouette (avoids adjacent solid slivers). */
