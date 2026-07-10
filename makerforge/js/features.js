@@ -198,33 +198,35 @@ function buildFaceDecalSlabMesh(frame, shapeGroups, opts = {}) {
   if (!bounds) return null;
 
   const pad = stepMm;
+  const grid = resolveSlabGrid(bounds, stepMm, pad);
+  const effStep = grid.stepMm;
   const minX = bounds.minX - pad;
   const minY = bounds.minY - pad;
   const maxX = bounds.maxX + pad;
   const maxY = bounds.maxY + pad;
-  const cols = Math.max(1, Math.ceil((maxX - minX) / stepMm));
-  const rows = Math.max(1, Math.ceil((maxY - minY) / stepMm));
-  if (cols > 2048 || rows > 2048) return null;
+  const cols = grid.cols;
+  const rows = grid.rows;
 
-  const local = scaleShapeGroupsToLocal(shapeGroups, minX, minY, stepMm);
+  const local = scaleShapeGroupsToLocal(shapeGroups, minX, minY, effStep);
   let mask = rasterizeShapeGroupsToMask(local, cols, rows);
-  mask = dilateMask(mask, cols, rows, 1);
+  const dilatePasses = opts.dilatePasses ?? 1;
+  if (dilatePasses > 0) mask = dilateMask(mask, cols, rows, dilatePasses);
 
   const positions = [];
   const indices = [];
   const w = (i, j, k) => [positions[i], positions[j], positions[k]];
 
   for (let row = 0; row < rows; row++) {
-    const py0 = minY + row * stepMm;
-    const py1 = py0 + stepMm;
+    const py0 = minY + row * effStep;
+    const py1 = py0 + effStep;
     let col = 0;
     while (col < cols) {
       while (col < cols && !mask[row * cols + col]) col++;
       const start = col;
       while (col < cols && mask[row * cols + col]) col++;
       if (col <= start) continue;
-      const px0 = minX + start * stepMm;
-      const px1 = minX + col * stepMm;
+      const px0 = minX + start * effStep;
+      const px1 = minX + col * effStep;
 
       const c00 = frame.mapPoint(px0, py0, d0);
       const c10 = frame.mapPoint(px1, py0, d0);
@@ -259,6 +261,30 @@ const ACCENT_BAND_THICKNESS_MM = 0.45;
 const DECAL_LAYER_MM = 0.2;
 /** Wrap preview art — raster slabs (no earcut on curved wall). */
 const WRAP_DECAL_STEP_MM = 0.4;
+const WRAP_DECAL_TARGET_COLS = 560;
+const WRAP_DECAL_STEP_MIN_MM = 0.08;
+const WRAP_DECAL_STEP_MAX_MM = 0.26;
+
+function wrapDecalStepMm(shapeGroups) {
+  const bounds = shapeGroupsBounds2d(shapeGroups);
+  if (!bounds) return WRAP_DECAL_STEP_MM;
+  const span = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY, 1);
+  return clamp(span / WRAP_DECAL_TARGET_COLS, WRAP_DECAL_STEP_MIN_MM, WRAP_DECAL_STEP_MAX_MM);
+}
+
+function resolveSlabGrid(bounds, stepMm, pad, maxCells = 2048) {
+  const w = Math.max(bounds.maxX - bounds.minX + pad * 2, stepMm);
+  const h = Math.max(bounds.maxY - bounds.minY + pad * 2, stepMm);
+  let step = stepMm;
+  let cols = Math.max(1, Math.ceil(w / step));
+  let rows = Math.max(1, Math.ceil(h / step));
+  while (Math.max(cols, rows) > maxCells && step < 1.2) {
+    step *= 1.2;
+    cols = Math.max(1, Math.ceil(w / step));
+    rows = Math.max(1, Math.ceil(h / step));
+  }
+  return { stepMm: step, cols, rows };
+}
 /** Extra radial push when a band is marked "on top" over another. */
 const ACCENT_LAYER_BUMP_MM = 0.22;
 
@@ -3113,14 +3139,15 @@ function extrudeStrokeSegmentOnFace(outPos, outIdx, frame, x0, y0, x1, y1, half,
 /** Extrude remapped art groups — wrap uses raster wall slabs (avoids earcut slash garbage). */
 function extrudeGroupsOnFace(outPos, outIdx, frame, faceGroups, d0, d1, params = null) {
   if (frame.face === "wrap" && faceGroups.length) {
-    const stepMm = params?.__labelExportStandoff ? DECAL_LAYER_MM : WRAP_DECAL_STEP_MM;
-    const slab = buildFaceDecalSlabMesh(frame, faceGroups, { d0, d1, stepMm });
+    const stepMm = params?.__labelExportStandoff ? DECAL_LAYER_MM : wrapDecalStepMm(faceGroups);
+    const slab = buildFaceDecalSlabMesh(frame, faceGroups, { d0, d1, stepMm, dilatePasses: 0 });
     if (slab?.indices?.length) {
       const base = outPos.length / 3;
       for (let i = 0; i < slab.positions.length; i++) outPos.push(slab.positions[i]);
       for (let i = 0; i < slab.indices.length; i++) outIdx.push(slab.indices[i] + base);
       return;
     }
+    return;
   }
   for (const group of faceGroups) {
     extrudeGroupOnFace(outPos, outIdx, frame, group, d0, d1, params);

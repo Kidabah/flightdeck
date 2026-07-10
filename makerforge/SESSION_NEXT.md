@@ -2,8 +2,20 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `e7bd78e` (b224)
-- Cache-bust: `app.js?v=224` — header **b224**
+- Latest commit: (pending — b225)
+- Cache-bust: `app.js?v=225` — header **b225**
+
+### 2026-07-11 — b225: Finer wrap slab resolution (fix blocky heraldic preview)
+
+**Symptom:** b224 stopped earcut slashes but wrap art looked chunky/pixelated — visible horizontal slab steps.
+
+**Fix (`features.js`):**
+- Adaptive `wrapDecalStepMm` (~560 cols along longest art edge, 0.08–0.26 mm)
+- Slab grid auto-coarsens if >2048 cells (no null → earcut fallback)
+- No mask dilate on wrap slabs (was bloating edges by one 0.4 mm cell)
+- Wrap path never falls back to earcut extrusion
+
+- Cache **b225**. Hard refresh, re-check 3D wrap (should read as solid heraldic art, not blocks).
 
 ### 2026-07-11 — b224: Wrap emboss via raster slabs (fix shredded 3D mesh)
 
