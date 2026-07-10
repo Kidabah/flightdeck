@@ -2,10 +2,26 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `c7bb72b` (b216)
-- Cache-bust: `app.js?v=216` — header **b216**
+- Latest commit: `(pending b217)`
+- Cache-bust: `app.js?v=217` — header **b217**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-10 — b217: Preview union for dense trace emboss (cylinder wrap gap fix)
+
+**Art / trace / preview** (`js/features.js`, `js/trace.js`, `js/app.js`, `index.html`)
+
+**Symptom:** Horizontal white gap / fragmented emboss on cylinder wrap preview — knight/dragon heraldic trace (589 islands · 7 colour layers · Outline mode).
+
+**Root cause:** b189+ unioned trace islands for **export** only (`collectBitmapGraphicShapeGroups` + `isLabelExport`). **Preview** still used `buildEmbossBitmap`, extruding each of 589 colour-layer islands as separate solids — micro-gaps between adjacent slivers show as white body through the art band (especially upper third where ink layers don't meet). Also: colour-layer separation ran **before** Outline mode, so "Outline" traces silently became multi-layer silhouettes.
+
+**Fix:**
+- New `unionDenseTraceShapeGroups` — rasterise + dilate + re-polygonise when >8 islands; used in **preview** (`buildEmbossBitmap`) and export (`collectBitmapGraphicShapeGroups`).
+- `trace.js`: skip colour-layer separation when trace mode is **Outline** (fallback silhouette path unchanged).
+
+**Workaround if still patchy:** re-trace as **Silhouette** (single colour), or raise emboss depth ≥0.3 mm (slider min).
+
+- Cache **b217** (`app.js?v=217`, `features.js?v=217`, `trace.js?v=217`). Hard refresh MakerDeck. UI-only — Pi pull sufficient; restart optional.
 
 ### 2026-07-10 — b216: Remove stubby / drink holder preset (wrong direction)
 

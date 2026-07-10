@@ -1777,6 +1777,23 @@ function inflateRing(ring, pad) {
   return out;
 }
 
+/** Merge dense trace islands / colour layers into one solid mask (closes layer-gap slivers). */
+function unionDenseTraceShapeGroups(sourceGroups, maskW, maskH, artH, params) {
+  if (!sourceGroups?.length || sourceGroups.length <= 8) return sourceGroups;
+  const forExport = isLabelExport(params);
+  const simplifyTol = forExport
+    ? Math.max(0.06, maskW / 4000)
+    : Math.max(0.08, maskW / 3500);
+  const smoothPasses = forExport ? 1 : labelSmoothPasses(artH, params, { hiRes: maskW >= 1800 });
+  const dilate = sourceGroups.length > 120
+    ? 7
+    : sourceGroups.length > 30
+      ? 6
+      : 5;
+  const united = unionShapeGroupsToPrepared(sourceGroups, maskW, maskH, simplifyTol, smoothPasses, dilate);
+  return united.length ? united : sourceGroups;
+}
+
 function collectBitmapGraphicShapeGroups(meta, params, bitmap) {
   if (!bitmap?.width || !bitmap.height) return null;
   const artH = clamp(params.embossTraceSize ?? 16, 6, 56);
@@ -1806,15 +1823,7 @@ function collectBitmapGraphicShapeGroups(meta, params, bitmap) {
 
   const groups = [];
   if (bitmap.shapeGroups?.length) {
-    let sourceGroups = bitmap.shapeGroups;
-    // Hatch / colour-separated traces → one solid silhouette (no layer-gap slivers).
-    if (isLabelExport(params)) {
-      const simplifyTol = Math.max(0.06, maskW / 4000);
-      const smoothPasses = labelSmoothPasses(artH, params);
-      const dilate = sourceGroups.length > 30 ? 6 : sourceGroups.length > 8 ? 5 : 4;
-      const united = unionShapeGroupsToPrepared(sourceGroups, maskW, maskH, simplifyTol, smoothPasses, dilate);
-      if (united.length) sourceGroups = united;
-    }
+    const sourceGroups = unionDenseTraceShapeGroups(bitmap.shapeGroups, maskW, maskH, artH, params);
     for (const group of sourceGroups) groups.push(mapFaceGroup(group));
   } else if (bitmap.mask?.length === maskW * maskH) {
     const mask = bitmap.mask instanceof Uint8Array ? bitmap.mask : new Uint8Array(bitmap.mask);
@@ -2456,7 +2465,8 @@ export function buildEmbossBitmap(meta, params, bitmap) {
   }
 
   if (bitmap.shapeGroups?.length) {
-    for (const group of bitmap.shapeGroups) {
+    const sourceGroups = unionDenseTraceShapeGroups(bitmap.shapeGroups, maskW, maskH, artH, params);
+    for (const group of sourceGroups) {
       const remapped = {
         outer: group.outer.map(([px, py]) => [xOff + px * scale, zOff + (maskH - py) * scale]),
         holes: group.holes.map((h) => h.map(([px, py]) => [xOff + px * scale, zOff + (maskH - py) * scale])),

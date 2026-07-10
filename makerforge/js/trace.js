@@ -876,7 +876,8 @@ export async function traceCanvasAsync(canvas, options = {}) {
 
   await traceYield();
 
-  if (options.colorSeparation !== false) {
+  // Outline mode should produce stroke paths — colour layers run only on silhouette / fallback.
+  if (options.colorSeparation !== false && mode !== "outline") {
     const colorTrace = await traceColorLayerGroupsAsync(data, width, height, tw, th, ox, oy, threshold, invert, blur, options, quality);
     if (colorTrace) {
       let shapeGroups = colorTrace.shapeGroups;
