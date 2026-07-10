@@ -2,8 +2,21 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `88b3e94` (b225)
-- Cache-bust: `app.js?v=225` — header **b225**
+- Latest commit: (pending — b226)
+- Cache-bust: `app.js?v=226` — header **b226**
+
+### 2026-07-11 — b226: Remove blue spike wedge from trace silhouette (1-island garbage)
+
+**Symptom:** Trace preview showed odd light-blue polygon blob beside dragon; same geometry shredded wrap 3D mesh.
+
+**Root cause:** Polygonise can bake a spike/trapezoid into a **single** outer ring. Filter + merge only ran on multi-island traces, so "1 island" still carried garbage. Blue overlay = exact emboss shape.
+
+**Fix (`contour.js`, `trace.js`):**
+- `cleanTraceSilhouetteGroups` — always re-rasterize silhouette after trace
+- `finishSilhouetteTrace` runs clean pass before merge
+- Trace meta now labels **wrap** face correctly
+
+- Cache **b226**. Hard refresh, **re-drop image** (old trace keeps bad geometry), blue fill should match knight/dragon only.
 
 ### 2026-07-11 — b225: Finer wrap slab resolution (fix blocky heraldic preview)
 

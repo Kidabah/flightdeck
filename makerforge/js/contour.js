@@ -355,6 +355,14 @@ export function previewMergeTraceShapeGroups(sourceGroups, maskW, maskH) {
   return merged.length ? merged : sourceGroups;
 }
 
+/** Re-rasterize silhouette — drops spike wedges polygonise can bake into one outer ring. */
+export function cleanTraceSilhouetteGroups(groups, maskW, maskH) {
+  if (!groups?.length) return groups;
+  const simplifyTol = Math.max(0.18, maskW / 2000);
+  const cleaned = unionShapeGroupsToPrepared(groups, maskW, maskH, simplifyTol, 1, 2, 384);
+  return cleaned.length ? cleaned : groups;
+}
+
 function ringSignedArea(ring) {
   let a = 0;
   const n = ring.length;
