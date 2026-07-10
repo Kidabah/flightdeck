@@ -2,52 +2,36 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `1380749` (b215)
-- Cache-bust: `app.js?v=215` — header **b215**
+- Latest commit: _(pending — b216 deploy)_
+- Cache-bust: `app.js?v=216` — header **b216**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
 
-### 2026-07-10 — b215: Modular drink holder (pivot from b214 koozie)
+### 2026-07-10 — b216: Remove stubby / drink holder preset (wrong direction)
 
-**Design tab** (`js/geometry.js`, `js/app.js`, `js/3mf.js`, `index.html`)
+**Scrapped b214 + b215 drink-holder work** per Chris — clean removal, working MakerDeck.
 
-**What was wrong (b214):** Simple cylinder koozie + L-hook twist opener at base — not the reference modular insulated drink holder Chris wanted.
+**Removed:**
+- **Stubby holder** / **Drink holder** preset chip in Design tab
+- Entire `#section-stubby` UI (Can fit chips, rolled top, twist opener, holder mode)
+- `stubbyHolder` shape, `STUBBY_HOLDER_PRESET`, `DRINK_HOLDER_PRESET`
+- Modular holder geometry (`buildHolderModularParts`, snap rings, can ring / neck / cap)
+- `topRimRoll`, twist opener hooks, holder stack ZIP export + exploded preview
+- b215 WIP holder-mode UI (never shipped cleanly)
 
-**b215 direction — modular stack:**
-- Preset renamed **Drink holder** (internal shape id `stubbyHolder` unchanged).
-- **Holder mode** dropdown: **Can (375 ml)** | **Bottle (350 ml stack)**.
-- **Base cup** — 375 ml stubby dimensions (68 mm easy / 67.5 snug), rolled top edge, male snap bead on outer rim.
-- **Can mode** — exports ZIP: `*-base.3mf` + `*-stack.3mf` (Can ring adapter).
-- **Bottle mode** — exports ZIP: `*-base.3mf` + `*-stack.3mf` (Neck sleeve + Cap + pry opener on **cap top**).
-- Exploded stack preview — grey stack parts float above base.
-- Wrap art / accent bands still work on base body.
-- Twist opener at bottom **removed** from drink holder (legacy only on plain round jar/circle).
+**Kept:** Unit dropdown (b213), ZIP container+lid export, gasket toggle, kitchen canisters, all other presets.
 
-**Honest v1 limits:**
-- Single-wall shell (no double-wall insulation yet).
-- Snap-fit rims, not real ISO threads.
-- Can ring is integrated export part (not separate screw-on STL workflow in UI yet).
+**Session restore:** saved `stubbyHolder` sessions fall back to **circle**.
 
-**Phase 2 roadmap:**
-- Real printable threads (reuse jar screw-top helix).
-- Double-wall insulated base + optional foam-fill cavity.
-- Separate can-ring-only export toggle; fit tuning per filament.
-- Cap opener profile refinement from reference dims.
+- Cache **b216** (`app.js?v=216`, `geometry.js?v=216`, `features.js?v=216`). Hard refresh MakerDeck. **Backend restart required** (geometry.js changed).
 
-- Cache **b215** (`app.js?v=215`, `geometry.js?v=215`, `features.js?v=215`, `3mf.js?v=215`). Hard refresh MakerDeck. **Backend restart required** (geometry.js changed).
+### 2026-07-10 — b215: Modular drink holder — **SCRAPPED** (see b216)
 
-### 2026-07-10 — b214: Stubby holder preset (375 ml Australian stubby) — superseded by b215
+Wrong direction — removed entirely in b216. Notes kept for history only.
 
-**Design tab** (`js/geometry.js`, `js/features.js`, `js/app.js`, `index.html`)
+### 2026-07-10 — b214: Stubby holder preset — **SCRAPPED** (see b216)
 
-- New **Stubby holder** quick preset — cylinder koozie sized for standard **375 ml stubby** (~66 mm can OD).
-- Default cavity: **68 mm ID** (easy slide), **122 mm** inner height, **2.2 mm** wall, **2 mm** floor.
-- **Can fit** chips: Easy (68 mm) / Snug (67.5 mm).
-- Hint: "Sized for standard 375 ml stubby (~66 mm can)."
-- **Rolled top edge** toggle + roll depth slider (`topRimRoll`) — outward lip on top outer rim.
-- **Twist opener (bottom)** toggle + hook height/depth/width/offset sliders — v1 L-hook fused to front wall near base (cap-twist aid; not industrial CAD).
-- Wrap art, accent bands, and surface texture supported on round profile. Rolled rim disables wall texture for now.
-- Cache **b214** (`app.js?v=214`, `geometry.js?v=214`, `features.js?v=214`). Hard refresh MakerDeck. **Backend restart required** (geometry.js changed).
+Wrong direction — removed entirely in b216. Notes kept for history only.
 
 ### 2026-07-10 — b213: Display unit dropdown (mm / cm / in)
 

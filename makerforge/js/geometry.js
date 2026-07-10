@@ -22,7 +22,7 @@ import {
   shapeSupportsProfileTexture,
   shapeSupportsProfileArt,
   shapeSupportsArt,
-} from "./features.js?v=215";
+} from "./features.js?v=216";
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=161";
 import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=161";
@@ -582,269 +582,6 @@ function buildProfileShell(outPos, outIdx, outer, inner, floor, totalH, cavityH)
   capProfileAnnulus(outPos, outIdx, outer, inner, zTop, true);
 }
 
-function lerpProfileOffset(base, target, t) {
-  return base.map((p, i) => [
-    p[0] + (target[i][0] - p[0]) * t,
-    p[1] + (target[i][1] - p[1]) * t,
-  ]);
-}
-
-/** Outward roll on the top outer rim — koozie / stubby holder lip. */
-function buildProfileShellWithTopRoll(outPos, outIdx, outer, inner, floor, totalH, cavityH, topRimRoll) {
-  const roll = clamp(topRimRoll, 0.3, Math.min(12, cavityH * 0.2));
-  const zFloor = floor;
-  const zTop = totalH;
-  const zCavityTop = floor + cavityH;
-  const zRollStart = zTop - roll;
-  const rollBulge = roll * 0.75;
-  const rollOuter = offsetProfileOutward(outer, rollBulge);
-  const rollSteps = Math.max(4, Math.ceil(roll / 0.7));
-
-  capProfileSolid(outPos, outIdx, outer, 0, false);
-  capProfileSolid(outPos, outIdx, inner, zFloor, true);
-  extrudeProfileSides(outPos, outIdx, outer, 0, zRollStart, true);
-  extrudeProfileSides(outPos, outIdx, inner, zFloor, zCavityTop, false);
-  extrudeProfileSides(outPos, outIdx, inner, zCavityTop, zTop, false);
-
-  let prevRing = outer;
-  let prevZ = zRollStart;
-  for (let i = 1; i <= rollSteps; i++) {
-    const t = i / rollSteps;
-    const factor = Math.sin(t * Math.PI / 2);
-    const ring = lerpProfileOffset(outer, rollOuter, factor);
-    const z = zRollStart + t * roll;
-    loftProfileRings(outPos, outIdx, prevRing, ring, prevZ, z, true);
-    prevRing = ring;
-    prevZ = z;
-  }
-  capProfileAnnulus(outPos, outIdx, prevRing, inner, zTop, true);
-}
-
-function appendSolidBox(outPos, outIdx, x0, y0, z0, x1, y1, z1) {
-  const xmin = Math.min(x0, x1);
-  const xmax = Math.max(x0, x1);
-  const ymin = Math.min(y0, y1);
-  const ymax = Math.max(y0, y1);
-  const zmin = Math.min(z0, z1);
-  const zmax = Math.max(z0, z1);
-  const corners = [
-    vec3(xmin, ymin, zmin), vec3(xmax, ymin, zmin), vec3(xmax, ymax, zmin), vec3(xmin, ymax, zmin),
-    vec3(xmin, ymin, zmax), vec3(xmax, ymin, zmax), vec3(xmax, ymax, zmax), vec3(xmin, ymax, zmax),
-  ];
-  pushQuad(outPos, outIdx, corners[0], corners[2], corners[1], corners[3]);
-  pushQuad(outPos, outIdx, corners[4], corners[5], corners[6], corners[7]);
-  pushQuad(outPos, outIdx, corners[0], corners[1], corners[5], corners[4]);
-  pushQuad(outPos, outIdx, corners[3], corners[7], corners[6], corners[2]);
-  pushQuad(outPos, outIdx, corners[0], corners[4], corners[7], corners[3]);
-  pushQuad(outPos, outIdx, corners[1], corners[2], corners[6], corners[5]);
-}
-
-/** Simple L-hook on the front wall near the base — legacy round-container aid (not drink holder). */
-function appendTwistOpenerMesh(positions, indices, outerR, params) {
-  if (!params.twistOpenerEnabled || params.shape === "stubbyHolder") return;
-  const W = clamp(params.twistOpenerWidth ?? 14, 8, 28);
-  const H = clamp(params.twistOpenerHeight ?? 16, 10, 35);
-  const D = clamp(params.twistOpenerDepth ?? 5, 2.5, 12);
-  const lipD = clamp(D * 0.55, 1.5, 8);
-  const z0 = clamp(params.twistOpenerOffsetZ ?? 8, 2, 50) + clamp(params.floor ?? 2, 1.2, 6);
-  const yWall = outerR;
-
-  appendSolidBox(positions, indices, -W / 2, yWall - 0.4, z0, W / 2, yWall + D, z0 + H * 0.7);
-  appendSolidBox(positions, indices, -W / 2, yWall + D - 0.5, z0 + H * 0.55, W / 2, yWall + D + lipD, z0 + H);
-  appendSolidBox(positions, indices, -W * 0.42, yWall + D * 0.25, z0, W * 0.42, yWall + D + lipD * 0.4, z0 + H * 0.22);
-}
-
-/** Coarse snap-fit rim for modular drink-holder stack (v1 — not ISO threads). */
-const HOLDER_SNAP = {
-  clearance: 0.35,
-  beadHeight: 2.6,
-  beadBulge: 0.9,
-  skirtDepth: 9,
-  skirtWall: 2.2,
-  canRingHeight: 28,
-  neckHeight: 48,
-  neckTopInnerD: 28,
-  capThickness: 2.6,
-  capSkirtDepth: 8,
-};
-
-export const HOLDER_MODES = {
-  can: { id: "can", label: "Can (375 ml)" },
-  bottle: { id: "bottle", label: "Bottle (350 ml stack)" },
-};
-
-export function isDrinkHolderShape(shape) {
-  return shape === "stubbyHolder";
-}
-
-/** Male snap bead on the base cup outer wall — mates with ring / neck skirts. */
-function appendBaseMaleSnapRing(outPos, outIdx, outer, zTop, snap = HOLDER_SNAP) {
-  const beadH = snap.beadHeight;
-  const z0 = zTop - beadH;
-  const bulgeOuter = offsetProfileOutward(outer, snap.beadBulge);
-  const steps = 4;
-  let prevRing = outer;
-  let prevZ = z0;
-  for (let i = 1; i <= steps; i++) {
-    const t = i / steps;
-    const ring = lerpProfileOffset(outer, bulgeOuter, Math.sin(t * Math.PI / 2));
-    const z = z0 + t * beadH;
-    loftProfileRings(outPos, outIdx, prevRing, ring, prevZ, z, true);
-    prevRing = ring;
-    prevZ = z;
-  }
-  capProfileSolid(outPos, outIdx, prevRing, zTop, true);
-}
-
-/** Bottom skirt that slides over the base snap bead. */
-function appendHolderFemaleSkirt(outPos, outIdx, baseOuterR, wall, snap = HOLDER_SNAP) {
-  const skirtDepth = snap.skirtDepth;
-  const skirtOuterR = baseOuterR + snap.skirtWall + snap.beadBulge;
-  const skirtInnerR = baseOuterR + snap.clearance;
-  const segments = circleSegmentsForRadius(skirtOuterR);
-  const skirtOuter = circleVertices(skirtOuterR, segments);
-  const skirtInner = circleVertices(skirtInnerR, segments);
-  capProfileAnnulus(outPos, outIdx, skirtOuter, skirtInner, 0, false);
-  extrudeProfileSides(outPos, outIdx, skirtOuter, 0, skirtDepth, true);
-  extrudeProfileSides(outPos, outIdx, skirtInner, 0, skirtDepth, false);
-  return { skirtDepth, skirtOuter, skirtInner, segments };
-}
-
-function buildHollowCylinderShell(outPos, outIdx, innerR, outerR, z0, z1, segments) {
-  const inner = circleVertices(innerR, segments);
-  const outer = circleVertices(outerR, segments);
-  capProfileAnnulus(outPos, outIdx, outer, inner, z0, false);
-  extrudeProfileSides(outPos, outIdx, outer, z0, z1, true);
-  extrudeProfileSides(outPos, outIdx, inner, z0, z1, false);
-  capProfileAnnulus(outPos, outIdx, outer, inner, z1, true);
-  return { inner, outer };
-}
-
-function buildTaperedNeckShell(outPos, outIdx, bottomInnerR, topInnerR, wall, z0, z1, segments) {
-  const steps = Math.max(8, Math.ceil((z1 - z0) / 3));
-  const bottomOuterR = bottomInnerR + wall;
-  const topOuterR = topInnerR + wall;
-  let prevInner = circleVertices(bottomInnerR, segments);
-  let prevOuter = circleVertices(bottomOuterR, segments);
-  let prevZ = z0;
-  capProfileAnnulus(outPos, outIdx, prevOuter, prevInner, z0, false);
-  for (let i = 1; i <= steps; i++) {
-    const t = i / steps;
-    const innerR = bottomInnerR + (topInnerR - bottomInnerR) * t;
-    const outerR = bottomOuterR + (topOuterR - bottomOuterR) * t;
-    const inner = circleVertices(innerR, segments);
-    const outer = circleVertices(outerR, segments);
-    const z = z0 + t * (z1 - z0);
-    loftProfileRings(outPos, outIdx, prevOuter, outer, prevZ, z, true);
-    loftProfileRings(outPos, outIdx, prevInner, inner, prevZ, z, false);
-    prevInner = inner;
-    prevOuter = outer;
-    prevZ = z;
-  }
-  capProfileAnnulus(outPos, outIdx, prevOuter, prevInner, z1, true);
-  return { topInnerR, topOuterR, topOuter: prevOuter, topInner: prevInner };
-}
-
-/** Pry bottle opener integrated on the top face of the cap (reference-style). */
-function appendPryBottleOpener(outPos, outIdx, capOuterR, zTop, snap = HOLDER_SNAP) {
-  const hookW = clamp(capOuterR * 0.95, 14, 22);
-  const hookReach = clamp(capOuterR * 0.55, 8, 14);
-  const hookH = 4.8;
-  const lipD = 3.2;
-  const yWall = capOuterR;
-  const zBar = zTop;
-  appendSolidBox(outPos, outIdx, -hookW / 2, yWall - hookReach * 0.15, zBar, hookW / 2, yWall + hookReach, zBar + hookH);
-  appendSolidBox(outPos, outIdx, -hookW / 2, yWall + hookReach - 1.2, zBar - 0.4, hookW / 2, yWall + hookReach + lipD, zBar + 2.4);
-  appendSolidBox(outPos, outIdx, -hookW * 0.38, yWall + hookReach * 0.35, zBar + hookH * 0.55, hookW * 0.38, yWall + hookReach + lipD * 0.55, zBar + hookH + 1.6);
-}
-
-/** 375 ml can adapter — snaps onto base rim, grips ~66 mm stubby. */
-function buildHolderCanRingMesh(params, resolved, snap = HOLDER_SNAP) {
-  const wall = clamp(params.wall ?? 2.2, 1.2, 6);
-  const baseOuterR = profileMaxRadius(resolved.outer);
-  const canInnerR = resolved.meta.inner.w / 2;
-  const canOuterR = canInnerR + wall;
-  const positions = [];
-  const indices = [];
-  const skirt = appendHolderFemaleSkirt(positions, indices, baseOuterR, wall, snap);
-  const z0 = skirt.skirtDepth;
-  const z1 = z0 + snap.canRingHeight;
-  buildHollowCylinderShell(positions, indices, canInnerR, canOuterR, z0, z1, skirt.segments);
-  const lipBulge = offsetProfileOutward(circleVertices(canOuterR, skirt.segments), 1.2);
-  loftProfileRings(positions, indices, circleVertices(canOuterR, skirt.segments), lipBulge, z1 - 2.2, z1, true);
-  return { positions, indices, partHeight: z1, seatZ: resolved.totalH };
-}
-
-/** Tapered neck sleeve for ~350 ml long-neck bottle — snaps onto base. */
-function buildHolderNeckSleeveMesh(params, resolved, snap = HOLDER_SNAP) {
-  const wall = clamp(params.wall ?? 2.2, 1.2, 6);
-  const baseOuterR = profileMaxRadius(resolved.outer);
-  const bottomInnerR = resolved.meta.inner.w / 2 - 1;
-  const topInnerR = snap.neckTopInnerD / 2;
-  const positions = [];
-  const indices = [];
-  const skirt = appendHolderFemaleSkirt(positions, indices, baseOuterR, wall, snap);
-  const z0 = skirt.skirtDepth;
-  const z1 = z0 + snap.neckHeight;
-  const neck = buildTaperedNeckShell(positions, indices, bottomInnerR, topInnerR, wall, z0, z1, skirt.segments);
-  appendBaseMaleSnapRing(positions, indices, neck.topOuter, z1 + snap.beadHeight, snap);
-  const topMateR = neck.topOuterR + snap.beadBulge;
-  return {
-    positions,
-    indices,
-    partHeight: z1 + snap.beadHeight,
-    seatZ: resolved.totalH,
-    topOuterR: topMateR,
-  };
-}
-
-/** Sealing cap with pry opener on top — mates to neck sleeve. */
-function buildHolderCapMesh(params, resolved, neckMeta, snap = HOLDER_SNAP) {
-  const wall = clamp(params.wall ?? 2.2, 1.2, 6);
-  const neckTopOuterR = neckMeta?.topOuterR ?? (snap.neckTopInnerD / 2 + wall + snap.beadBulge);
-  const capOuterR = neckTopOuterR + wall;
-  const capInnerR = neckTopOuterR + snap.clearance;
-  const positions = [];
-  const indices = [];
-  const segments = circleSegmentsForRadius(capOuterR);
-  const skirtOuter = circleVertices(capOuterR, segments);
-  const skirtInner = circleVertices(capInnerR, segments);
-  const skirtDepth = snap.capSkirtDepth;
-  const lidThick = snap.capThickness;
-  const zTop = skirtDepth + lidThick;
-  capProfileAnnulus(positions, indices, skirtOuter, skirtInner, 0, false);
-  extrudeProfileSides(positions, indices, skirtOuter, 0, zTop, true);
-  extrudeProfileSides(positions, indices, skirtInner, 0, skirtDepth, false);
-  capProfileSolid(positions, indices, skirtInner, skirtDepth, false);
-  capProfileSolid(positions, indices, skirtOuter, zTop, true);
-  appendPryBottleOpener(positions, indices, capOuterR, zTop, snap);
-  return { positions, indices, partHeight: zTop + 6, seatZ: resolved.totalH + (neckMeta?.partHeight ?? snap.neckHeight) };
-}
-
-/** Modular drink-holder add-ons — separate export / preview meshes. */
-export function buildHolderModularParts(params, resolved) {
-  if (!isDrinkHolderShape(params.shape)) return null;
-  const mode = params.holderMode === "bottle" ? "bottle" : "can";
-  const wall = clamp(params.wall ?? 2.2, 1.2, 6);
-  const parts = [];
-  if (mode === "can") {
-    const ring = buildHolderCanRingMesh(params, resolved);
-    centerPositions(ring.positions, 0, 0);
-    parts.push({ id: "canRing", name: "Can ring", mesh: ring, seatZ: ring.seatZ, color: params.holderPartColor });
-  } else {
-    const neck = buildHolderNeckSleeveMesh(params, resolved);
-    centerPositions(neck.positions, 0, 0);
-    const cap = buildHolderCapMesh(params, resolved, {
-      topOuterR: neck.topOuterR,
-      partHeight: neck.partHeight,
-    });
-    centerPositions(cap.positions, 0, 0);
-    parts.push({ id: "neck", name: "Neck sleeve", mesh: neck, seatZ: neck.seatZ, color: params.holderPartColor });
-    parts.push({ id: "cap", name: "Cap + opener", mesh: cap, seatZ: cap.seatZ, color: params.holderPartColor || params.lidColor });
-  }
-  return { mode, parts, wall };
-}
-
 /** Open-front bookcase shell — back + sides + floor + top rim; front face omitted. */
 function buildOpenFrontBookcaseShell(outPos, outIdx, outer, inner, floor, totalH, cavityH) {
   const zFloor = floor;
@@ -858,13 +595,11 @@ function buildOpenFrontBookcaseShell(outPos, outIdx, outer, inner, floor, totalH
   capProfileAnnulus(outPos, outIdx, outer, inner, zTop, true);
 }
 
-function shellFromProfiles(outer, inner, floor, totalH, cavityH, openFront = false, topRimRoll = 0) {
+function shellFromProfiles(outer, inner, floor, totalH, cavityH, openFront = false) {
   const positions = [];
   const indices = [];
   if (openFront) {
     buildOpenFrontBookcaseShell(positions, indices, outer, inner, floor, totalH, cavityH);
-  } else if (topRimRoll > 0.3) {
-    buildProfileShellWithTopRoll(positions, indices, outer, inner, floor, totalH, cavityH, topRimRoll);
   } else {
     buildProfileShell(positions, indices, outer, inner, floor, totalH, cavityH);
   }
@@ -1543,17 +1278,15 @@ function resolveContainer(params) {
   const wall = clamp(params.wall, 1.2, 10);
   const floor = clamp(params.floor, 1.2, 10);
 
-  if (shape === "circle" || shape === "canisterJar" || shape === "canisterStack" || shape === "stubbyHolder") {
+  if (shape === "circle" || shape === "canisterJar" || shape === "canisterStack") {
     const diameter = clamp(params.innerWidth, 10, 500);
     const innerH = clamp(params.innerHeight, 5, 400);
     const innerR = diameter / 2;
     const outerR = innerR + wall;
     const segments = circleSegmentsForRadius(outerR);
-    const metaShape = shape === "stubbyHolder"
-      ? "stubbyHolder"
-      : shape === "canisterJar" || shape === "canisterStack"
-        ? "canisterJar"
-        : "circle";
+    const metaShape = shape === "canisterJar" || shape === "canisterStack"
+      ? "canisterJar"
+      : "circle";
     return {
       outer: circleVertices(outerR, segments),
       inner: circleVertices(innerR, segments),
@@ -1893,10 +1626,6 @@ export function buildContainer(params) {
     : resolved.meta.shape;
   const useJoiner = params.joinerEnabled && shapeSupportsJoiner(joinerShape);
 
-  const rimRoll = params.topRimRollEnabled !== false && (params.topRimRoll ?? 0) > 0.3
-    ? clamp(params.topRimRoll ?? 0, 0.5, 12)
-    : 0;
-
   let mesh;
   let texturedPrep = null;
   if (useJoiner) {
@@ -1913,7 +1642,7 @@ export function buildContainer(params) {
       joiner,
     );
   } else {
-    texturedPrep = !params.bookcaseOpenFront && rimRoll <= 0.3
+    texturedPrep = !params.bookcaseOpenFront
       ? prepareProfileWallTexture(
         params,
         resolved.meta.shape,
@@ -1941,28 +1670,11 @@ export function buildContainer(params) {
         resolved.totalH,
         resolved.cavityH,
         !!params.bookcaseOpenFront,
-        rimRoll,
       );
     }
   }
 
   centerPositions(mesh.positions, 0, 0);
-
-  if (
-    params.twistOpenerEnabled
-    && params.shape !== "stubbyHolder"
-    && (params.shape === "circle" || params.shape === "canisterJar")
-  ) {
-    const outerR = resolved.meta.inner.w / 2 + (params.wall ?? 2.4);
-    appendTwistOpenerMesh(mesh.positions, mesh.indices, outerR, params);
-  }
-
-  let holderParts = null;
-  if (isDrinkHolderShape(params.shape)) {
-    const snapZ = resolved.totalH - (rimRoll > 0.3 ? rimRoll * 0.35 : 0);
-    appendBaseMaleSnapRing(mesh.positions, mesh.indices, resolved.outer, snapZ);
-    holderParts = buildHolderModularParts(params, resolved);
-  }
 
   if (
     params.lidEnabled &&
@@ -2041,7 +1753,6 @@ export function buildContainer(params) {
         joinerScale: useJoiner ? resolveJoinerDims(params, resolved.meta.outer.w, resolved.meta.outer.d).scale : undefined,
         embossFace: params.embossFace || (profileArt ? "wrap" : "front"),
         embossDeboss: !!params.embossDeboss,
-        holderMode: holderParts?.mode,
       },
       totalH: resolved.totalH,
       accentMeshes,
@@ -2049,7 +1760,6 @@ export function buildContainer(params) {
       labelMesh,
       graphicMesh,
       debossCutterMesh,
-      holderParts,
     };
   }
 
@@ -2057,9 +1767,8 @@ export function buildContainer(params) {
     ...resolved.meta,
     joinerHand: useJoiner ? (params.joinerHand === "right" ? "right" : "left") : undefined,
     joinerScale: useJoiner ? resolveJoinerDims(params, resolved.meta.outer.w, resolved.meta.outer.d).scale : undefined,
-    holderMode: holderParts?.mode,
   };
-  return { ...mesh, shellMesh: mesh, boxShell: mesh, meta, totalH: resolved.totalH, accentMeshes, insertMesh: null, labelMesh: null, holderParts };
+  return { ...mesh, shellMesh: mesh, boxShell: mesh, meta, totalH: resolved.totalH, accentMeshes, insertMesh: null, labelMesh: null };
 }
 
 export function buildLid(params) {
@@ -2176,26 +1885,6 @@ export function toBufferGeometry(THREE, mesh) {
   geom.computeBoundingSphere();
   return geom;
 }
-
-/** 375 ml modular drink holder base — ~66 mm can OD, snap rim for stack parts. */
-export const DRINK_HOLDER_PRESET = {
-  innerWidth: 68,
-  innerDepth: 68,
-  innerHeight: 122,
-  wall: 2.2,
-  floor: 2,
-  lidEnabled: false,
-  holderMode: "can",
-  topRimRollEnabled: true,
-  topRimRoll: 3,
-  twistOpenerEnabled: false,
-  embossFace: "wrap",
-  boxColor: "#38bdf8",
-  holderPartColor: "#64748b",
-};
-
-/** @deprecated use DRINK_HOLDER_PRESET */
-export const STUBBY_HOLDER_PRESET = DRINK_HOLDER_PRESET;
 
 export const CANISTER_SQUARE_PRESET = {
   innerWidth: 94,
@@ -2459,13 +2148,4 @@ export const DEFAULTS = {
   insertBodyGap: 0.12,
   canisterContent: "custom",
   canisterSize: "md",
-  holderMode: "can",
-  holderPartColor: "#64748b",
-  topRimRollEnabled: false,
-  topRimRoll: 0,
-  twistOpenerEnabled: false,
-  twistOpenerHeight: 16,
-  twistOpenerDepth: 5,
-  twistOpenerWidth: 14,
-  twistOpenerOffsetZ: 8,
 };
