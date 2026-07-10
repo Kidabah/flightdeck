@@ -2,7 +2,7 @@
  * Accent bands, emboss, honeycomb stamp, stackable hex grid, mesh merge.
  */
 
-import { dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, rasterizeShapeGroupsToMask, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap, unionDenseEmbossShapeGroups, unionShapeGroupsToPrepared } from "./contour.js?v=201";
+import { dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, previewMergeTraceShapeGroups, rasterizeShapeGroupsToMask, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap, unionDenseEmbossShapeGroups, unionShapeGroupsToPrepared } from "./contour.js?v=219";
 import { decorPlacementOffsets, decorArtRect, rotateFacePoint, rotateShapeGroup } from "./decor.js";
 import {
   profileOutlineNormals,
@@ -1777,17 +1777,16 @@ function inflateRing(ring, pad) {
   return out;
 }
 
-/** Use pre-unioned trace groups from trace time; legacy dense traces union once on read. */
+/** Pre-unioned at trace time, or fast preview merge — never sync full union on slider rebuilds. */
 function unionDenseTraceShapeGroups(sourceGroups, maskW, maskH, artH, params, bitmap) {
   if (bitmap?.shapeGroupsUnited) return sourceGroups;
   if (!sourceGroups?.length || sourceGroups.length <= 8) return sourceGroups;
-  const forExport = isLabelExport(params);
-  const simplifyTol = forExport
-    ? Math.max(0.06, maskW / 4000)
-    : Math.max(0.08, maskW / 3500);
-  const smoothPasses = forExport ? 1 : labelSmoothPasses(artH, params, { hiRes: maskW >= 1800 });
-  const { groups } = unionDenseEmbossShapeGroups(sourceGroups, maskW, maskH, { simplifyTol, smoothPasses });
-  return groups;
+  if (isLabelExport(params)) {
+    const simplifyTol = Math.max(0.06, maskW / 4000);
+    const { groups } = unionDenseEmbossShapeGroups(sourceGroups, maskW, maskH, { simplifyTol, smoothPasses: 1 });
+    return groups;
+  }
+  return previewMergeTraceShapeGroups(sourceGroups, maskW, maskH);
 }
 
 function collectBitmapGraphicShapeGroups(meta, params, bitmap) {

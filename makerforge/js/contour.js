@@ -347,10 +347,17 @@ export function unionDenseEmbossShapeGroups(sourceGroups, maskW, maskH, {
   return { groups, united: !!united.length };
 }
 
+/** Fast low-res merge for live preview — one extrude instead of hundreds. */
+export function previewMergeTraceShapeGroups(sourceGroups, maskW, maskH) {
+  if (!sourceGroups?.length || sourceGroups.length <= 8) return sourceGroups;
+  const simplifyTol = Math.max(0.18, maskW / 2200);
+  const merged = unionShapeGroupsToPrepared(sourceGroups, maskW, maskH, simplifyTol, 1, 5, 384);
+  return merged.length ? merged : sourceGroups;
+}
+
 /** Union many trace polygons into one printable silhouette (avoids adjacent solid slivers). */
-export function unionShapeGroupsToPrepared(groups, width, height, simplifyTol = 1, smoothPasses = 1, dilatePasses = 2) {
+export function unionShapeGroupsToPrepared(groups, width, height, simplifyTol = 1, smoothPasses = 1, dilatePasses = 2, maxDim = 1024) {
   if (!groups?.length || width <= 0 || height <= 0) return [];
-  const maxDim = 1024;
   const rasterScale = Math.min(1, maxDim / Math.max(width, height));
   const w = Math.max(1, Math.round(width * rasterScale));
   const h = Math.max(1, Math.round(height * rasterScale));

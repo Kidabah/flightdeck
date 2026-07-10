@@ -17,7 +17,7 @@ import {
   shapeGroupsToStrokePaths,
   strokePathsToSvg,
   unionDenseEmbossShapeGroups,
-} from "./contour.js?v=201";
+} from "./contour.js?v=219";
 
 export { unionDenseEmbossShapeGroups };
 

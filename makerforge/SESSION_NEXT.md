@@ -2,12 +2,25 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `e10966a` (b218)
-- Cache-bust: `app.js?v=218` — header **b218**
+- Latest commit: _(pending — b219 deploy)_
+- Cache-bust: `app.js?v=219` — header **b219**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
 
-### 2026-07-10 — b218: Fix preview freeze from b217 dense-trace union
+### 2026-07-10 — b219: Actually fix preview freeze (b218 still hung)
+
+**Symptom:** Chris still got Page Unresponsive on dense St George trace after b218.
+
+**Root cause (b218 gap):** `ensureEmbossTraceUnited()` still ran **sync at start of every `rebuildMesh()`** until union finished; preview also **extruded each of 589 islands** when union hadn't completed.
+
+**Fix (`contour.js`, `features.js`, `app.js`, `index.html`):**
+- `previewMergeTraceShapeGroups` — low-res (384px) raster merge for live preview → **one extrude**, not 589
+- Preview never runs full `unionDenseEmbossShapeGroups` on slider rebuilds
+- `scheduleEmbossTraceUnion()` — full-res union runs **async** after first paint
+
+- Cache **b219** (`app.js?v=219`, `features.js?v=219`). Hard refresh MakerDeck.
+
+### 2026-07-10 — b218: Fix preview freeze from b217 dense-trace union — incomplete; see b219
 
 **Art / trace / preview** (`js/contour.js`, `js/trace.js`, `js/features.js`, `js/app.js`, `js/geometry.js`, `index.html`)
 

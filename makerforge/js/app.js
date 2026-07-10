@@ -1,8 +1,8 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=218";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=218";
-import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS, unionDenseEmbossShapeGroups } from "./trace.js?v=218";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=219";
+import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS, unionDenseEmbossShapeGroups } from "./trace.js?v=219";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=201";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=210";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
@@ -23,7 +23,7 @@ import {
 } from "./library.js?v=201";
 
 const SESSION_KEY = "makerdeck-session-v1";
-const MAKERDECK_BUILD = "b218";
+const MAKERDECK_BUILD = "b219";
 const DISPLAY_UNITS = ["mm", "cm", "in"];
 const MM_PER_IN = 25.4;
 let saveSessionTimer = null;
@@ -1972,7 +1972,7 @@ function syncUiFromState() {
 }
 
 function rebuildMesh() {
-  ensureEmbossTraceUnited();
+  scheduleEmbossTraceUnion();
   const params = buildParams();
 
   const nextCache = buildContainer(params);
@@ -2627,28 +2627,50 @@ function cloneEmbossTraceRects(rects) {
   };
 }
 
-/** One-time union for b217 traces stored with hundreds of islands (avoids preview rebuild freeze). */
-function ensureEmbossTraceUnited() {
+/** Background full-res union for export-quality stored trace (never blocks preview rebuild). */
+let embossTraceUnionQueued = false;
+let embossTraceUnionRunning = false;
+
+function scheduleEmbossTraceUnion() {
   const rects = state.embossTraceRects;
   if (!rects?.shapeGroups?.length || rects.shapeGroupsUnited || rects.shapeGroups.length <= 8) return;
-  const maskW = Math.round(rects.width);
-  const maskH = Math.round(rects.height);
-  if (maskW <= 0 || maskH <= 0) return;
-  const hiRes = maskW >= 1800;
-  const simplifyTol = Math.max(0.08, maskW / 3500);
-  const smoothPasses = hiRes ? 5 : 3;
-  const { groups, united } = unionDenseEmbossShapeGroups(rects.shapeGroups, maskW, maskH, { simplifyTol, smoothPasses });
-  if (!united) return;
-  state.embossTraceRects = {
-    ...rects,
-    shapeGroups: groups.map((g) => ({
-      outer: g.outer.map(([x, y]) => [x, y]),
-      holes: g.holes.map((h) => h.map(([x, y]) => [x, y])),
-    })),
-    shapeGroupsUnited: true,
-    mask: [],
-  };
-  scheduleSaveSession();
+  if (embossTraceUnionQueued || embossTraceUnionRunning) return;
+  embossTraceUnionQueued = true;
+  requestAnimationFrame(() => {
+    embossTraceUnionQueued = false;
+    const r = state.embossTraceRects;
+    if (!r?.shapeGroups?.length || r.shapeGroupsUnited || r.shapeGroups.length <= 8) return;
+    if (embossTraceUnionRunning) return;
+    embossTraceUnionRunning = true;
+    const maskW = Math.round(r.width);
+    const maskH = Math.round(r.height);
+    if (maskW <= 0 || maskH <= 0) {
+      embossTraceUnionRunning = false;
+      return;
+    }
+    setTimeout(() => {
+      try {
+        const hiRes = maskW >= 1800;
+        const simplifyTol = Math.max(0.08, maskW / 3500);
+        const smoothPasses = hiRes ? 5 : 3;
+        const { groups, united } = unionDenseEmbossShapeGroups(r.shapeGroups, maskW, maskH, { simplifyTol, smoothPasses });
+        if (!united) return;
+        state.embossTraceRects = {
+          ...r,
+          shapeGroups: groups.map((g) => ({
+            outer: g.outer.map(([x, y]) => [x, y]),
+            holes: g.holes.map((h) => h.map(([x, y]) => [x, y])),
+          })),
+          shapeGroupsUnited: true,
+          mask: [],
+        };
+        scheduleSaveSession();
+        rebuild();
+      } finally {
+        embossTraceUnionRunning = false;
+      }
+    }, 0);
+  });
 }
 
 function snapshotApp() {
