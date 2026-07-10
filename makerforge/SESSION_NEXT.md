@@ -2,10 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `bd7b424` — fix trace union scale + arc text export
-- Cache-bust: `app.js?v=195` — header **b195**
+- Latest commit: (pending b196 push) — 3-part Body/Art/Text export
+- Cache-bust: `app.js?v=196` — header **b196**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-10 — b196: Restore 3-part export (Body + Art + Text filaments)
+
+**Export** (`js/app.js`, `index.html`)
+
+- **Root cause:** b194 merged AMS mesh painted art+text per-triangle, but `prepareMeshFor3mf` weld/dedup dropped `triangleExtruders` alignment → Bambu saw one "Body" object with art colour on everything.
+- **Fix:** back to **3 separate parts** (Body / Art / Text), each with its own filament slot. Keeps b195 scale fix + flush embedded placement (no 0.2 mm air gap).
+- Cache **b196**. Hard refresh, re-export. Bambu object list should show Body + Art + Text.
 
 ### 2026-07-10 — b195: Fix shrunk bag + missing COFFEE text on export
 

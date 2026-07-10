@@ -1,9 +1,9 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=195";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMergedAmsExportMesh, punchBodyShellForLabelExport, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=195";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=196";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, punchBodyShellForLabelExport, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=196";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=161";
-import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=195";
+import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=196";
 import { buildColoredProject3mf, filename3mfFor } from "./3mf.js?v=180";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
@@ -20,10 +20,10 @@ import {
   listLibraryDesigns,
   fetchDesignParams,
   deleteLibraryDesign,
-} from "./library.js?v=195";
+} from "./library.js?v=196";
 
 const SESSION_KEY = "makerdeck-session-v1";
-const MAKERDECK_BUILD = "b195";
+const MAKERDECK_BUILD = "b196";
 let saveSessionTimer = null;
 let sessionBooting = true;
 
@@ -807,8 +807,8 @@ function collectColoredExportParts(exportCache, stamp = null) {
   const bodyMesh = resolveBodyExportMesh(exportCache, params, separateText, stamp);
 
   if (separateColor && (params.embossFace || "front") !== "lid") {
-    // One watertight mesh with per-triangle AMS colours — separate floating parts
-    // cause empty layers and shattered toolpaths in Bambu Studio.
+    // Separate Body / Art / Text objects — Bambu assigns one filament per part.
+    // (Merged AMS paint_color loses extruder tags when the mesh is welded.)
     const exportParams = {
       ...params,
       __labelExportStandoff: true,
@@ -821,27 +821,36 @@ function collectColoredExportParts(exportCache, stamp = null) {
       exportParams,
       params.embossSvgText || "",
     );
-    const merged = buildMergedAmsExportMesh(
-      punched,
-      exportCache.meta,
-      exportParams,
-      params.embossSvgText || "",
-      { includeArt: separateArt, includeText: separateText },
-    );
-    if (merged?.indices?.length) {
-      const clean = prepareMeshFor3mf(merged);
-      if (clean?.indices?.length) {
+    const bodyClean = prepareMeshFor3mf(punched);
+    if (bodyClean?.indices?.length) {
+      parts.push({
+        name: "Body",
+        mesh: bodyClean,
+        color: state.boxColor || "#38bdf8",
+        extruder: extruder++,
+      });
+    }
+    if (separateArt) {
+      const artMesh = buildLabelGraphicEmboss(exportCache.meta, exportParams, params.embossSvgText || "", "emboss");
+      const artClean = artMesh ? prepareMeshFor3mf(artMesh) : null;
+      if (artClean?.indices?.length) {
         parts.push({
-          name: "Body",
-          mesh: clean,
-          color: state.boxColor || "#38bdf8",
-          extruder: 1,
-          triangleExtruders: merged.triangleExtruders,
-          extruderColors: {
-            1: (state.boxColor || "#38bdf8").toUpperCase(),
-            2: (state.embossArtColor || "#4a3728").toUpperCase(),
-            3: (state.embossTextColor || "#f8fafc").toUpperCase(),
-          },
+          name: "Art",
+          mesh: artClean,
+          color: state.embossArtColor || "#4a3728",
+          extruder: extruder++,
+        });
+      }
+    }
+    if (separateText) {
+      const textMesh = buildTextLabelExportMesh(exportCache.meta, exportParams);
+      const textClean = textMesh ? prepareMeshFor3mf(textMesh) : null;
+      if (textClean?.indices?.length) {
+        parts.push({
+          name: "Text",
+          mesh: textClean,
+          color: state.embossTextColor || "#f8fafc",
+          extruder: extruder++,
         });
       }
     }
