@@ -2,10 +2,20 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `907e92c` — 2-plate container + lid 3MF export
-- Cache-bust: `app.js?v=203` — header **b203**
+- Latest commit: `409cbb3` — export top bar rework
+- Cache-bust: `app.js?v=204`, `style.css?v=28` — header **b204**
 
 > MakerDeck session notes live here — not in the repo-root `SESSION_NEXT.md` (Flightdeck farm/queue/UI only).
+
+### 2026-07-10 — b204: Export top bar + save dialog rework
+
+**UI** (`index.html`, `css/style.css`, `js/app.js`)
+
+- Top bar split: title/tools row, then dedicated **export dock** underneath.
+- Live **export plan** chip shows plate layout before download (`2 plates · P1 Body + Art · P2 Lid`).
+- Status line moved to full-width bar below export controls (shorter headline, hover for detail).
+- Export dialog renamed **Export** with plate chips + parts list; submit button **Export**.
+- Cache **b204**. Hard refresh.
 
 ### 2026-07-10 — b203: 2-plate 3MF when lid is enabled
 

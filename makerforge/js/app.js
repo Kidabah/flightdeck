@@ -23,7 +23,7 @@ import {
 } from "./library.js?v=201";
 
 const SESSION_KEY = "makerdeck-session-v1";
-const MAKERDECK_BUILD = "b203";
+const MAKERDECK_BUILD = "b204";
 let saveSessionTimer = null;
 let sessionBooting = true;
 
@@ -3091,6 +3091,80 @@ function syncInsertTopClearanceUi() {
   }
 }
 
+function describeBodyExportParts() {
+  const params = buildParams();
+  const parts = ["Body"];
+  if (hasSeparateArtExport(params) && params.embossFace !== "lid") parts.push("Art");
+  if (hasSeparateTextExport(params) && params.embossFace !== "lid") parts.push("Text");
+  if (state.accentEnabled && accentSupportedForShape()) {
+    const bandCount = state.accentBands?.filter((band) => band?.onTop !== false).length || 1;
+    parts.push(bandCount > 1 ? `Accent ×${bandCount}` : "Accent");
+  }
+  if (state.insertEnabled && !mergeInsertIntoBodyExport()) parts.push("Insert");
+  return parts;
+}
+
+function describeExportPlan(format = "3mf") {
+  if (format === "3mf") {
+    const bodyParts = describeBodyExportParts();
+    const multiPlate = exportIncludesLidPlate();
+    return {
+      format,
+      bodyParts,
+      multiPlate,
+      plate1Label: bodyParts.join(" + "),
+      plate2Label: "Lid",
+      summary: multiPlate
+        ? `2 plates · P1 ${bodyParts.join(" + ")} · P2 Lid`
+        : bodyParts.join(" + "),
+    };
+  }
+  if (format === "lid-3mf" || format === "lid-stl") {
+    const lidParts = ["Lid"];
+    const params = buildParams();
+    if (hasSeparateArtExport(params) && params.embossFace === "lid") lidParts.push("Art");
+    if (hasSeparateTextExport(params) && params.embossFace === "lid") lidParts.push("Text");
+    if (params.lidGasketEnabled && params.lidGasketExportRing !== false) lidParts.push("Gasket");
+    return {
+      format,
+      bodyParts: lidParts,
+      multiPlate: false,
+      plate1Label: lidParts.join(" + "),
+      summary: lidParts.join(" + "),
+    };
+  }
+  return {
+    format,
+    bodyParts: [],
+    multiPlate: false,
+    plate1Label: exportFormatLabel(format),
+    summary: exportFormatLabel(format),
+  };
+}
+
+function syncExportPlanUi() {
+  const plan = document.getElementById("export-plan");
+  const sel = document.getElementById("export-format");
+  if (!plan || !sel) return;
+  const format = sel.value || "3mf";
+  const info = describeExportPlan(format);
+  const opt3mf = sel.querySelector('option[value="3mf"]');
+  if (opt3mf) {
+    opt3mf.textContent = exportIncludesLidPlate() ? "3MF · 2 plates" : "3MF project";
+  }
+  if (format !== "3mf" && format !== "lid-3mf") {
+    plan.hidden = true;
+    plan.textContent = "";
+    return;
+  }
+  plan.hidden = false;
+  if (info.multiPlate) {
+    plan.innerHTML = `<span class="export-plan-plates">2 plates</span><span class="export-plan-parts">P1 ${info.plate1Label} · P2 ${info.plate2Label}</span>`;
+  } else {
+    plan.innerHTML = `<span class="export-plan-parts">${info.summary}</span>`;
+  }
+}
+
 function syncExportFormatOptions() {
   const sel = document.getElementById("export-format");
   if (!sel) return;
@@ -3106,6 +3180,7 @@ function syncExportFormatOptions() {
     opt.disabled = !ok;
   });
   if (sel.selectedOptions[0]?.disabled) sel.value = "3mf";
+  syncExportPlanUi();
 }
 
 function meshBounds(mesh) {
@@ -3189,19 +3264,48 @@ function closeExportDialog(result) {
   resolve?.(result);
 }
 
+function setExportStatus(message, { detail = "" } = {}) {
+  const status = document.getElementById("export-status");
+  if (!status) return;
+  status.textContent = message;
+  status.title = detail || message;
+}
+
 function openExportDialog(format) {
   const dialog = document.getElementById("export-dialog");
   const input = document.getElementById("export-dialog-filename");
   const kind = document.getElementById("export-dialog-kind");
+  const plates = document.getElementById("export-dialog-plates");
+  const partsLine = document.getElementById("export-dialog-parts");
   const libWrap = document.getElementById("export-dialog-library-wrap");
   const libCheck = document.getElementById("export-dialog-library");
   const hint = document.getElementById("export-dialog-hint");
   if (!dialog || !input) return Promise.resolve(null);
 
   exportDialogFormat = format;
-  const ext = exportFormatExt(format);
+  const plan = describeExportPlan(format);
   input.value = suggestExportFilename(format);
   if (kind) kind.textContent = exportFormatLabel(format);
+  if (plates) {
+    if (plan.multiPlate) {
+      plates.hidden = false;
+      plates.innerHTML = [
+        `<span class="export-plate-chip"><strong>Plate 1</strong> Container · ${plan.plate1Label}</span>`,
+        `<span class="export-plate-chip"><strong>Plate 2</strong> Lid · ${plan.plate2Label}</span>`,
+      ].join("");
+    } else if (format === "3mf" || format === "lid-3mf") {
+      plates.hidden = false;
+      plates.innerHTML = `<span class="export-plate-chip"><strong>Plate 1</strong> ${plan.plate1Label}</span>`;
+    } else {
+      plates.hidden = true;
+      plates.innerHTML = "";
+    }
+  }
+  if (partsLine) {
+    partsLine.textContent = plan.bodyParts.length
+      ? `Parts: ${plan.bodyParts.join(", ")}`
+      : "";
+  }
 
   const canSave = bodyFormatSupportsLibrary(format) && libraryApiAvailable();
   if (libWrap) libWrap.hidden = !canSave;
@@ -3209,8 +3313,8 @@ function openExportDialog(format) {
     libCheck.checked = localStorage.getItem("makerdeck-export-save-library") !== "0";
   }
   if (hint) {
-    if (canSave && format === "3mf" && exportIncludesLidPlate()) {
-      hint.textContent = "Includes Container on plate 1 and Lid on plate 2. Library saves your sliders and art for reload.";
+    if (canSave && plan.multiPlate) {
+      hint.textContent = "Opens in Bambu Studio / Orca with Container on plate 1 and Lid on plate 2. Library saves sliders and art for reload.";
     } else if (canSave) {
       hint.textContent = "Library saves your sliders and art so you can reload this design later.";
     } else {
@@ -3265,7 +3369,7 @@ function runExport(format, options = {}) {
           return;
         }
         const status = document.getElementById("export-status");
-        if (status) status.textContent = "Preparing 3MF export…";
+        if (status) setExportStatus("Preparing 3MF export…");
         void (async () => {
           await new Promise((resolve) => setTimeout(resolve, 0));
           try {
@@ -3289,56 +3393,53 @@ function runExport(format, options = {}) {
               alert(`Export blocked: only ${triCount} triangles.\n\nExpected ${expectHint} for this box.\n\nCheck:\n• Insert → Mount = Fixed (welded)\n• Link tab → Joiner OFF\n• Divider axis = Width or Depth\n\nDiagnostic: ${diag}`);
               return;
             }
-            if (status) status.textContent = "Packing 3MF…";
+            if (status) setExportStatus("Packing 3MF…");
             await new Promise((resolve) => setTimeout(resolve, 0));
             const packed = buildBody3mfExport(exportCache, parts);
             const blob = packed.blob;
             const fname = pickExportFilename(format, options);
             downloadBlob(blob, fname);
-            void archiveBodyExport(blob, fname, { format: "3mf", stamp, saveToLibrary: options.saveToLibrary }).then((result) => {
-              if (result?.error && status) {
-                status.textContent += ` · library failed: ${result.error}`;
-              } else if (status && result?.id) {
-                status.textContent += " · saved to design library";
+            const partNames = packed.multiPlate
+              ? `${parts.map((p) => p.name).join(" + ")} + Lid`
+              : parts.map((p) => p.name).join(" + ");
+            const plateNote = packed.multiPlate ? " · plate 1 Container + plate 2 Lid" : "";
+            const wmNote = stamp ? ` · watermark #${String(stamp.serial).padStart(4, "0")}` : "";
+            const bodyPart = parts.find((p) => p.name === "Body");
+            const paints = bodyPart?.triangleExtruders;
+            let openNote = "";
+            if (paints?.length) {
+              const artTris = paints.filter((e) => e === 2).length;
+              const textTris = paints.filter((e) => e === 3).length;
+              const bodyOpen = partOpenEdgeCount(bodyPart);
+              openNote = ` · art ${artTris} tris, text ${textTris} tris, open ${bodyOpen}`;
+            } else {
+              const bodyOpen = partOpenEdgeCount(parts.find((p) => p.name === "Body"));
+              const artOpen = partOpenEdgeCount(parts.find((p) => p.name === "Art"));
+              const textOpen = partOpenEdgeCount(parts.find((p) => p.name === "Text"));
+              if (bodyOpen > 0 || artOpen > 0 || textOpen > 0) {
+                openNote = ` · open edges: body ${bodyOpen}, art ${artOpen}, text ${textOpen}`;
               }
+            }
+            const exportHeadline = packed.multiPlate
+              ? `2-plate 3MF exported — ${partNames}`
+              : `${parts.length > 1 ? `${parts.length}-part` : "Plain"} 3MF exported — ${partNames}`;
+            const exportDetail = `${triCount} triangles${plateNote}${openNote}${wmNote}`;
+            setExportStatus(exportHeadline, { detail: exportDetail });
+            void archiveBodyExport(blob, fname, { format: "3mf", stamp, saveToLibrary: options.saveToLibrary }).then((result) => {
+              let headline = exportHeadline;
+              let detail = exportDetail;
+              if (result?.error) {
+                headline += " · library failed";
+                detail += ` · ${result.error}`;
+              } else if (result?.id) {
+                headline += " · saved to library";
+              }
+              setExportStatus(headline, { detail });
               notifyLibrarySaved(result?.id ? result : null);
             });
-            if (status) {
-              const plateNote = packed.multiPlate ? " · plate 1 Container + plate 2 Lid" : "";
-              const kind = packed.multiPlate
-                ? "2-plate colored 3MF"
-                : parts.length > 1
-                  ? `${parts.length}-part colored 3MF`
-                  : parts.length === 1 && parts[0].triangleExtruders?.length
-                    ? "AMS painted 3MF"
-                    : parts.length === 1 && parts[0].extruder === 1
-                      ? "plain 3MF"
-                      : "colored 3MF";
-              const bodyPart = parts.find((p) => p.name === "Body");
-              const paints = bodyPart?.triangleExtruders;
-              let openNote = "";
-              if (paints?.length) {
-                const artTris = paints.filter((e) => e === 2).length;
-                const textTris = paints.filter((e) => e === 3).length;
-                const bodyOpen = partOpenEdgeCount(bodyPart);
-                openNote = ` — art ${artTris} tris, text ${textTris} tris, open ${bodyOpen}`;
-              } else {
-                const bodyOpen = partOpenEdgeCount(parts.find((p) => p.name === "Body"));
-                const artOpen = partOpenEdgeCount(parts.find((p) => p.name === "Art"));
-                const textOpen = partOpenEdgeCount(parts.find((p) => p.name === "Text"));
-                if (bodyOpen > 0 || artOpen > 0 || textOpen > 0) {
-                  openNote = ` — open edges: body ${bodyOpen}, art ${artOpen}, text ${textOpen}`;
-                }
-              }
-              const partNames = packed.multiPlate
-                ? `${parts.map((p) => p.name).join(" + ")} + Lid`
-                : parts.map((p) => p.name).join(" + ");
-              const wmNote = stamp ? ` · watermark #${String(stamp.serial).padStart(4, "0")}` : "";
-              status.textContent = `${kind} downloaded — ${triCount} triangles (${partNames})${plateNote}${openNote}${wmNote}`;
-            }
           } catch (err) {
             console.error("3MF export failed:", err);
-            if (status) status.textContent = err?.message || "3MF export failed";
+            setExportStatus(err?.message || "3MF export failed");
             alert(err?.message || "3MF export failed.");
           }
         })();
@@ -4768,6 +4869,8 @@ document.getElementById("vase-saucer").addEventListener("change", (e) => {
   updateVaseUiVisibility();
   rebuild();
 });
+
+document.getElementById("export-format")?.addEventListener("change", () => syncExportPlanUi());
 
 document.getElementById("btn-export-go")?.addEventListener("click", async () => {
   const sel = document.getElementById("export-format");

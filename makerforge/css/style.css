@@ -43,11 +43,22 @@ html, body {
 
 .topbar {
   display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 18px;
+}
+
+.topbar-head {
+  display: flex;
   flex-wrap: wrap;
   gap: 16px;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  padding: 16px 18px;
+}
+
+.topbar-brand {
+  min-width: 0;
+  flex: 1 1 240px;
 }
 
 .eyebrow {
@@ -465,21 +476,13 @@ input[type="range"] {
   font-size: 0.92rem;
 }
 
-.topbar-actions {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-}
-
 .topbar-tools {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  padding-right: 12px;
-  border-right: 1px solid var(--border);
+  justify-content: flex-end;
+  flex: 1 1 320px;
 }
 
 .topbar-tools .btn-icon {
@@ -499,17 +502,84 @@ input[type="range"] {
   color: var(--muted, #94a3b8);
 }
 
-.topbar-export {
+.topbar-export-dock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.topbar-export-row {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
   align-items: center;
 }
 
-.export-status {
-  flex: 1 1 100%;
+.export-plan {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 180px;
+  min-width: 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  background: rgba(56, 189, 248, 0.08);
+  color: #bae6fd;
+  font-size: 0.74rem;
+  line-height: 1.3;
+}
+
+.export-plan-plates {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #7dd3fc;
+  white-space: nowrap;
+}
+
+.export-plan-parts {
+  color: #dbeafe;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.export-status-bar {
+  margin: 0;
+  min-height: 1.1em;
   font-size: 0.72rem;
+  line-height: 1.45;
   color: var(--muted, #94a3b8);
+}
+
+.export-dialog-plates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.export-plate-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(13, 22, 36, 0.92);
+  font-size: 0.76rem;
+  color: #dbeafe;
+}
+
+.export-plate-chip strong {
+  color: #7dd3fc;
+  font-weight: 700;
+}
+
+.export-dialog-parts {
+  margin: 0;
 }
 
 .export-dialog {
@@ -1012,26 +1082,28 @@ input[type="range"] {
 
   #viewport { min-height: 52vh; }
 
-  .topbar-actions {
-    width: 100%;
+  .topbar-head {
     flex-direction: column;
     align-items: stretch;
   }
 
   .topbar-tools {
     width: 100%;
-    padding-right: 0;
-    border-right: none;
-    padding-bottom: 10px;
-    border-bottom: 1px solid var(--border);
+    justify-content: flex-start;
+    padding-bottom: 0;
+    border-bottom: none;
   }
 
-  .topbar-export {
+  .topbar-export-row {
     width: 100%;
   }
 
-  .topbar-actions .btn {
+  .topbar-export-row .btn-primary {
     width: 100%;
+  }
+
+  .export-plan {
+    flex-basis: 100%;
   }
 }
 

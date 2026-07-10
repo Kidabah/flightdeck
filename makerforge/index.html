@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Oswald:wght@700&family=Roboto+Mono:wght@700&family=Roboto:wght@700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=27">
+  <link rel="stylesheet" href="css/style.css?v=28">
 
   <script type="importmap">
 
@@ -40,17 +40,17 @@
 
     <header class="topbar">
 
-      <div>
+      <div class="topbar-head">
 
-        <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b203</span></div>
+        <div class="topbar-brand">
 
-        <h1>Container Generator</h1>
+          <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b204</span></div>
 
-        <p class="subtitle">Pick a shape, tune options in the tabs, preview live, export when ready.</p>
+          <h1>Container Generator</h1>
 
-      </div>
+          <p class="subtitle">Pick a shape, tune options in the tabs, preview live, export when ready.</p>
 
-      <div class="topbar-actions">
+        </div>
 
         <div class="topbar-tools" role="toolbar" aria-label="Editor tools">
 
@@ -66,7 +66,11 @@
 
         </div>
 
-        <div class="topbar-export">
+      </div>
+
+      <div class="topbar-export-dock" aria-label="Export">
+
+        <div class="topbar-export-row">
 
           <select id="export-format" class="export-format-select" aria-label="Download format">
 
@@ -93,10 +97,13 @@
             <input type="checkbox" id="watermark-enabled" checked>
           </label>
 
+          <div id="export-plan" class="export-plan hidden" aria-live="polite"></div>
+
           <button type="button" id="btn-export-go" class="btn btn-primary">Download</button>
-          <span id="export-status" class="export-status" aria-live="polite"></span>
 
         </div>
+
+        <p id="export-status" class="export-status-bar" aria-live="polite"></p>
 
       </div>
 
@@ -1389,8 +1396,10 @@
 
   <dialog id="export-dialog" class="export-dialog" aria-labelledby="export-dialog-title">
     <form id="export-dialog-form" class="export-dialog-panel" method="dialog">
-      <h2 id="export-dialog-title">Download</h2>
+      <h2 id="export-dialog-title">Export</h2>
       <p id="export-dialog-kind" class="field-hint"></p>
+      <div id="export-dialog-plates" class="export-dialog-plates hidden" aria-label="Print plates"></div>
+      <p id="export-dialog-parts" class="export-dialog-parts field-hint"></p>
       <label class="field">
         <span class="field-label">File name</span>
         <input type="text" id="export-dialog-filename" class="text-input" autocomplete="off" spellcheck="false" required>
@@ -1402,12 +1411,12 @@
       <p id="export-dialog-hint" class="field-hint export-dialog-hint"></p>
       <div class="export-dialog-actions">
         <button type="button" class="btn btn-secondary" id="export-dialog-cancel">Cancel</button>
-        <button type="submit" class="btn btn-primary" value="confirm">Download</button>
+        <button type="submit" class="btn btn-primary" value="confirm">Export</button>
       </div>
     </form>
   </dialog>
 
-  <script type="module" src="js/app.js?v=203"></script>
+  <script type="module" src="js/app.js?v=204"></script>
 
 </body>
 
