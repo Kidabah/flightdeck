@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending b275)
+- Latest commit: `1063bcd` (b275)
 - Cache-bust: `app.js?v=275` — header **b275**
 
 ### 2026-07-11 — b275: Unfreeze broncs — raster silhouette, cap wrap mesh budget
