@@ -534,6 +534,9 @@ function colorLogoMask(data, width, height, threshold, invert) {
   let m = seed;
   const mergePasses = clamp(Math.round(span / 180), 2, 6);
   for (let i = 0; i < mergePasses; i++) m = dilateMask(m, width, height);
+  // Bridge arched title text (e.g. BRISBANE) down toward shield without full 8-neighbour spread.
+  const vertPasses = clamp(Math.round(span / 220), 2, 5);
+  for (let i = 0; i < vertPasses; i++) m = dilateMaskVertical(m, width, height, 2);
   const closeR = clamp(Math.round(span / 100), 3, 10);
   m = closeMask(m, width, height, closeR);
   m = fillInteriorEnclosedByOutline(m, width, height);
@@ -1104,9 +1107,12 @@ function finishSilhouetteTrace(workMask, tw, th, ox, oy, shapeGroups, simplifyFa
     );
   let inkMask = workMask;
   if (needsSolidify) inkMask = lineArtMaskToSolidFill(workMask, tw, th);
+  const span = Math.max(tw, th);
   let silhouetteMask = pruneSilhouetteMask(inkMask, tw, th, {
     skipOpen: needsSolidify,
     keepLogoSatellites: !!extra.colorLogo,
+    minIslandRatio: extra.colorLogo ? 0.007 : undefined,
+    maxIslandDist: extra.colorLogo ? span * 0.55 : undefined,
   });
   if (needsSolidify) {
     silhouetteMask = unionMasks(silhouetteMask, workMask, tw, th);
@@ -1126,11 +1132,13 @@ function finishSilhouetteTrace(workMask, tw, th, ox, oy, shapeGroups, simplifyFa
   const rects = maskToRuns(silhouetteMask, tw, th);
   const svg = polygonsToSvg(groups, tw, th);
   const maskFillPct = Math.round(maskFillRatio(silhouetteMask, tw, th) * 100);
+  const islandCount = findMaskComponents(silhouetteMask, tw, th).comps.length;
   return {
     rects,
     mask: compactTraceMask(silhouetteMask, groups),
     silhouetteMask,
     maskFillPct,
+    islandCount,
     polygons: [],
     shapeGroups: groups,
     shapeGroupsUnited,
@@ -1235,19 +1243,23 @@ async function traceColorLogoCanvasAsync(canvas, options = {}) {
 function traceAutoScore(result) {
   if (!result || result.tooComplex) return -1e9;
   const fill = (result.maskFillPct ?? 0) / 100;
+  const islands = result.islandCount ?? result.polygonCount ?? 0;
   let score = 0;
   if (fill < 0.006 || fill > 0.72) score -= 220;
   if (fill >= 0.02 && fill <= 0.46) score += 80;
   if (fill >= 0.05 && fill <= 0.38) score += 45;
-  if (result.mode === "silhouette") {
+  if (result.mode === "silhouette" && !result.colorLogo) {
     score += 30;
     score -= Math.max(0, (result.polygonCount ?? 0) - 24) * 0.8;
     if ((result.polygonCount ?? 0) <= 12) score += 20;
   }
   if (result.colorLogo) {
-    score += 110;
-    if (fill >= 0.02 && fill <= 0.62) score += 55;
-    if ((result.polygonCount ?? 0) <= 24) score += 22;
+    score += 120;
+    if (fill >= 0.08 && fill <= 0.55) score += 70;
+    else if (fill >= 0.02 && fill <= 0.62) score += 45;
+    if (islands >= 2 && islands <= 32) score += 40;
+    if ((result.polygonCount ?? 0) <= 28) score += 18;
+    score -= Math.max(0, (result.polygonCount ?? 0) - 36) * 0.35;
   }
   if (result.mode === "outline") {
     score += 20;
@@ -1265,9 +1277,27 @@ function traceAutoScore(result) {
 function chooseAutoTraceResult(outlineResult, silhouetteResult, colorLogoResult = null) {
   const outlineScore = traceAutoScore(outlineResult);
   const silhouetteScore = traceAutoScore(silhouetteResult);
-  const colorLogoScore = traceAutoScore(colorLogoResult);
+  const colorLogoScore = colorLogoResult ? traceAutoScore(colorLogoResult) : -1e9;
   let picked = outlineScore >= silhouetteScore ? outlineResult : silhouetteResult;
-  if (colorLogoResult && colorLogoScore >= Math.max(outlineScore, silhouetteScore)) picked = colorLogoResult;
+  const bestScore = Math.max(outlineScore, silhouetteScore);
+  if (colorLogoResult) {
+    const colorFill = (colorLogoResult.maskFillPct ?? 0) / 100;
+    const colorIslands = colorLogoResult.islandCount ?? colorLogoResult.polygonCount ?? 0;
+    const silIslands = silhouetteResult?.islandCount ?? silhouetteResult?.polygonCount ?? 0;
+    const silFill = (silhouetteResult?.maskFillPct ?? 0) / 100;
+    const competitive = colorLogoScore >= bestScore - 25;
+    const meaningfulFill = colorFill >= 0.08;
+    const moreDetail = colorIslands > silIslands
+      || colorFill > silFill * 1.12
+      || (colorIslands >= 2 && silIslands <= 1);
+    if (
+      colorLogoScore >= bestScore
+      || (meaningfulFill && competitive && moreDetail)
+      || (colorFill >= 0.1 && competitive)
+    ) {
+      picked = colorLogoResult;
+    }
+  }
   return {
     ...picked,
     autoTrace: true,
@@ -1456,6 +1486,22 @@ function dilateMask(mask, width, height) {
 
   return out;
 
+}
+
+/** Vertical-only dilate — connects arched crest text to shield without widening horizontally. */
+function dilateMaskVertical(mask, width, height, radius = 1) {
+  const out = new Uint8Array(width * height);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      let on = 0;
+      for (let dy = -radius; dy <= radius && !on; dy++) {
+        const ny = y + dy;
+        if (ny >= 0 && ny < height && mask[ny * width + x]) on = 1;
+      }
+      out[y * width + x] = on;
+    }
+  }
+  return out;
 }
 
 

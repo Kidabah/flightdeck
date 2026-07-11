@@ -2,8 +2,21 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `4f426fd` (b258)
-- Cache-bust: `app.js?v=258` — header **b258**
+- Latest commit: `(pending b259)`
+- Cache-bust: `app.js?v=259` — header **b259**
+
+### 2026-07-11 — b259: Auto prefer colour logo + keep BRISBANE satellite text
+
+**Symptom:** Broncos crest Auto picked **solid logo** (1 island, ~21% fill). Shield/horse embossed but **BRISBANE** arched text missing — separate island pruned because `keepLogoSatellites` only applied on colour-logo path and silhouette won auto scoring.
+
+**Fix (`trace.js`):**
+- `chooseAutoTraceResult` — prefer colour-logo when fill ≥8% and score within ~25 of silhouette, or when it captures more islands/detail.
+- `traceAutoScore` — mascot crest colour-logo gets fill/island bonuses; silhouette-only bonuses no longer stack on colour path.
+- `colorLogoMask` — vertical dilate passes bridge arched title toward shield.
+- `pruneSilhouetteMask` for colour logo — `minIslandRatio` 0.007, wider `maxIslandDist` (55% span) keeps small text islands.
+- Meta uses `islandCount` from mask (not merged polygon count).
+
+- Cache **b259** (`app.js?v=259`, `trace.js?v=259`). Hard refresh, Clear, **Auto — logo / mascot**, re-drop Broncos crest. Expect meta like **`2+ islands · colour logo · auto picked colour logo · mask 25%+ fill`** with BRISBANE on emboss.
 
 ### 2026-07-11 — b258: Solidify colour-logo interior (shield + white horse stripes)
 
