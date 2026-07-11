@@ -4,9 +4,11 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
+- Latest commit: `2b6a84a` — **b288** deployed Pi + GitHub
 - Golden build: **b284** (tag: `makerdeck-golden-b284`) — trace preview + jar emboss
 - Current: **b288** — full raster import reset (no hidden SVG state)
 - Cache-bust: `app.js?v=288` — header **b288**
+- Hard refresh required (Ctrl+Shift+R) if header still shows b285
 
 ### 2026-07-11 — b288: Drop PNG/JPG — clear hidden SVG + old trace state
 
