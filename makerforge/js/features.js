@@ -2728,6 +2728,12 @@ export function buildEmbossBitmap(meta, params, bitmap) {
     if (slab?.indices?.length) return slab;
   }
 
+  // Wrap silhouettes — ink pixel slabs (coffee-bag strategy). Avoids broken multi-island contour on curve.
+  if (frame.face === "wrap" && bitmap.mask?.length === maskW * maskH && !bitmap.outlineRaster) {
+    const slab = buildWrapTraceSlabMesh(frame, bitmap, params, [], d0, d1);
+    if (slab?.indices?.length) return slab;
+  }
+
   // Outline stroke extrusion is per-segment — freezes wrap preview on heraldic traces. Prefer merged solids.
   if (isOutline && bitmap.strokePaths?.length && !denseTrace && bitmap.strokePaths.length <= 12) {
     const smoothPasses = artH <= 12 ? 5 : artH <= 20 ? 4 : 3;

@@ -1,11 +1,27 @@
 ## MakerDeck session handoff
 
+> **GOLDEN BASELINE: b284** — see `makerforge/GOLDEN_BASELINE.md`. Coffee bag trace + jar emboss confirmed good. Do not change `drawTracePreview` ink-mask order or revert b278 emboss without reading that file.
+
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (b284 — pending push)
-- Cache-bust: `app.js?v=284`, `trace.js?v=284`, `features.js?v=284` — header **b284**
+- Golden build: **b284** (tag: `makerdeck-golden-b284`) — trace preview + jar emboss
+- Current: **b285** — wrap uses coffee-bag ink mask; canister defaults to front face
+- Cache-bust: `app.js?v=285`, `trace.js?v=285`, `features.js?v=285` — header **b285**
 
-### 2026-07-11 — b284: Trace preview — full cyan ink overlay, not edge strokes
+### 2026-07-11 — b285: Wrap + SVG — coffee-bag defaults (front face, ink mask emboss)
+
+**Symptom:** drags.svg on cooler wrap — trace preview OK but 3D shows broken hook shard; canister auto-switches to Wrap face.
+
+**Why:** Coffee bag uses Auto + ink pixel mask on emboss. SVG silhouettes on wrap used multi-island contour/art slabs → partial geometry. Canister shape forced `embossFace = "wrap"`.
+
+**Fix:**
+- Canister keeps **Front** face by default (wrap opt-in).
+- Wrap silhouettes: **ink pixel slabs** (same as coffee bag line art) before shapeGroups extrude.
+- SVG import keeps **Auto** in trace mode UI (fast silhouette raster path unchanged).
+
+- Cache **b285**. Hard refresh, re-drop drags.svg on front first, then try wrap.
+
+### 2026-07-11 — GOLDEN: b284 locked (trace preview + b278 emboss)
 
 **Symptom:** Trace meta says `line art mask · 6977 ink runs · mask 14% fill` but preview shows thin cyan edge strokes only, not full ink overlay like b278.
 

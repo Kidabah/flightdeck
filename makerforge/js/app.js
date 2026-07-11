@@ -1,8 +1,8 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=254";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette } from "./features.js?v=284";
-import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=284";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette } from "./features.js?v=285";
+import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=285";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=201";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=210";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
@@ -23,7 +23,9 @@ import {
 } from "./library.js?v=201";
 
 const SESSION_KEY = "makerdeck-session-v1";
-const MAKERDECK_BUILD = "b284";
+/** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
+const MAKERDECK_BUILD = "b285";
+const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
 const MM_PER_IN = 25.4;
@@ -2435,7 +2437,7 @@ function selectShape(next) {
   }
 
   if (shapeSupportsProfileArt(next)) {
-    state.embossFace = "wrap";
+    // Keep front as default — wrap is opt-in (coffee-bag flat face is the safe baseline).
   } else if (state.embossFace === "wrap") {
     state.embossFace = "front";
   }
@@ -3376,13 +3378,19 @@ async function importSvgAsTrace(svgText, { fileName = "", importMode = "silhouet
   const canvas = await rasterizeSvgToCanvas(svgText, SVG_FAST_RASTER_PX);
   flattenCanvasToInkSilhouette(canvas);
   traceSourceCanvas = canvas;
-  const mode = importMode === "outline" ? "outline" : "silhouette";
-  state.traceMode = mode;
-  document.getElementById("trace-mode").value = mode;
+  if (importMode === "outline") {
+    state.traceMode = "outline";
+    document.getElementById("trace-mode").value = "outline";
+  }
   await yieldToBrowser();
 
   traceLastResult = await traceFlattenedSvgCanvasAsync(canvas);
   traceLastSvg = traceLastResult.svg || "";
+  // Coffee-bag default — keep Auto in UI even when SVG uses fast silhouette raster path.
+  if (importMode !== "outline") {
+    state.traceMode = "auto";
+    document.getElementById("trace-mode").value = "auto";
+  }
   const preview = document.getElementById("trace-preview");
   if (preview) drawTracePreview(preview, traceSourceCanvas, traceLastResult);
   const previewWrap = document.getElementById("trace-preview-wrap");
