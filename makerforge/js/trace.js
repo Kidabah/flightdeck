@@ -1270,7 +1270,12 @@ function traceAutoScore(result) {
   }
   if (result.mode === "outline") {
     score += 20;
-    if (result.outlineRaster) score += 26;
+    if (result.outlineRaster) {
+      score += 40;
+      const fill = (result.maskFillPct ?? 0) / 100;
+      if (fill >= 0.06 && fill <= 0.42) score += 70;
+      if ((result.rectCount ?? 0) > 60) score += 35;
+    }
     if (result.rasterSimplified) score += 8;
     const runs = result.rectCount ?? 0;
     if (runs > 12000) score -= (runs - 12000) / 120;
@@ -1281,13 +1286,33 @@ function traceAutoScore(result) {
   return score;
 }
 
+function traceLooksLikeLineArt(result) {
+  if (!result || result.tooComplex) return false;
+  const fill = (result.maskFillPct ?? 0) / 100;
+  if (result.outlineRaster && (result.rectCount ?? 0) > 40 && fill >= 0.04 && fill <= 0.45) return true;
+  if (result.mode === "outline" && (result.strokePaths?.length ?? 0) > 6 && fill <= 0.4) return true;
+  return false;
+}
+
 function chooseAutoTraceResult(outlineResult, silhouetteResult, colorLogoResult = null) {
+  if (traceLooksLikeLineArt(outlineResult)) {
+    return {
+      ...outlineResult,
+      autoTrace: true,
+      autoPickedMode: "outline",
+      autoScores: {
+        outline: Math.round(traceAutoScore(outlineResult)),
+        silhouette: Math.round(traceAutoScore(silhouetteResult)),
+        colorLogo: colorLogoResult ? Math.round(traceAutoScore(colorLogoResult)) : -1e9,
+      },
+    };
+  }
   const outlineScore = traceAutoScore(outlineResult);
   const silhouetteScore = traceAutoScore(silhouetteResult);
   const colorLogoScore = colorLogoResult ? traceAutoScore(colorLogoResult) : -1e9;
   let picked = outlineScore >= silhouetteScore ? outlineResult : silhouetteResult;
   const bestScore = Math.max(outlineScore, silhouetteScore);
-  if (colorLogoResult) {
+  if (colorLogoResult && !traceLooksLikeLineArt(outlineResult)) {
     const colorFill = (colorLogoResult.maskFillPct ?? 0) / 100;
     const colorIslands = colorLogoResult.islandCount ?? colorLogoResult.polygonCount ?? 0;
     const silIslands = silhouetteResult?.islandCount ?? silhouetteResult?.polygonCount ?? 0;
@@ -1929,7 +1954,9 @@ export function drawTracePreview(previewCanvas, sourceCanvas, traceResult) {
 
   ctx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
 
+  ctx.globalAlpha = 0.28;
   ctx.drawImage(sourceCanvas, pad, pad);
+  ctx.globalAlpha = 1;
 
 
 

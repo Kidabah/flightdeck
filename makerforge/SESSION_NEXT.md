@@ -2,8 +2,19 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `d134012` (b277)
-- Cache-bust: `app.js?v=277` — header **b277**
+- Latest commit: (pending b278)
+- Cache-bust: `app.js?v=278` — header **b278**
+
+### 2026-07-11 — b278: Trace = container — auto picks line art not silhouette blob
+
+**Insight:** Preview and container match — problem is **what gets traced**. Auto picked solid silhouette (21% fill, 1 island) for coffee-bag line art; ink lines never traced.
+
+**Fix:**
+- Auto mode detects **line art** (low fill + many ink runs) → picks outline raster, not silhouette blob.
+- Emboss uses **full ink pixel mask** for outline raster (every traced line, not polygonised outer shell).
+- Trace preview dims source image — cyan overlay is what embosses.
+
+- Cache **b278**. Coffee bag: re-trace on Auto or Outline. broncs SVG unchanged (silhouette path).
 
 ### 2026-07-11 — b277: Wrap logo — direct contour extrude, not broken slab strips
 
