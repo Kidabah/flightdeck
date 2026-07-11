@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending — b264)
+- Latest commit: `e41bb71` (b264)
 - Cache-bust: `app.js?v=264` — header **b264**
 
 ### 2026-07-11 — b264: SVG file picker feedback — visible loaded filename
