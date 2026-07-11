@@ -2,8 +2,20 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `2f7034c` (b262)
-- Cache-bust: `app.js?v=262` — header **b262**
+- Latest commit: (pending — b263)
+- Cache-bust: `app.js?v=263` — header **b263**
+
+### 2026-07-11 — b263: Fix invisible SVG — relaxed path closure + vector prep first
+
+**Symptom:** b262 loaded fast but **no art visible** on Wrap — fill rings empty because path closure check was 0.05 px; raster-only union returned nothing.
+
+**Fix:**
+- `svgSampleIsFillRing` — trust explicit `Z`, scale closure eps to path size (~0.4% span).
+- Union **all** non-background ink layers (not dark-only pick that dropped rings).
+- **Vector prep first**, raster union fallback; raw groups last resort.
+- Stroke fallback when fill extrusion produces no mesh.
+
+- Cache **b263** (`app.js?v=263`, `features.js?v=263`). Hard refresh, Clear, re-load broncs.svg.
 
 ### 2026-07-11 — b262: SVG wrap speed + fix earcut mesh gore
 
