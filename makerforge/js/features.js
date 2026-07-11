@@ -258,7 +258,19 @@ const WRAP_SVG_DECAL_STEP_MAX_MM = 0.075;
 const WRAP_SVG_DECAL_STEP_MAX_MM_PREVIEW = 0.11;
 const WRAP_SVG_MASK_MAX_CELLS = 3072;
 const WRAP_SVG_PREVIEW_MAX_INDICES = 96000;
+const WRAP_TRACE_PREVIEW_MAX_ROWS = 420;
 const WRAP_ART_VERTICAL_GUTTER_MM = 1.4;
+
+/** Coarsen row step uniformly so preview stays under triangle budget — never chop mid-art. */
+function wrapSlabRowStepPx(maskH, stepPx, { maxRows = 2048, maxPreviewIndices = 0 } = {}) {
+  let step = Math.max(1, stepPx || 1);
+  if (maskH > maxRows * step) step = Math.max(step, Math.ceil(maskH / maxRows));
+  if (maxPreviewIndices > 0) {
+    const rowCap = Math.max(24, Math.floor(maxPreviewIndices / (3 * 36)));
+    if (Math.ceil(maskH / step) > rowCap) step = Math.max(step, Math.ceil(maskH / rowCap));
+  }
+  return step;
+}
 
 function wrapSafeArtHeight(frame, requestedHeight) {
   const target = clamp(requestedHeight ?? 16, 6, 56);
@@ -409,14 +421,16 @@ function buildWrapTraceSlabMesh(frame, bitmap, params, shapeGroups, d0, d1) {
   } else {
     mask = rasterizeShapeGroupsToMask(groups, maskW, maskH);
   }
-  const maxRows = 2048;
+  const preview = svgIsPreview(params);
+  const maxRows = preview ? WRAP_TRACE_PREVIEW_MAX_ROWS : 2048;
   let stepPx = 1;
   if (params?.__labelExportStandoff) {
     stepPx = Math.max(1, Math.round(DECAL_LAYER_MM / scale));
-    if (Math.ceil(maskH / stepPx) > maxRows) stepPx = Math.max(1, Math.ceil(maskH / maxRows));
-  } else if (maskH > maxRows) {
-    stepPx = Math.ceil(maskH / maxRows);
   }
+  stepPx = wrapSlabRowStepPx(maskH, stepPx, {
+    maxRows,
+    maxPreviewIndices: preview ? WRAP_SVG_PREVIEW_MAX_INDICES : 0,
+  });
 
   const positions = [];
   const indices = [];
@@ -476,13 +490,15 @@ function buildWrapArtSlabMesh(frame, shapeGroups, d0, d1, opts = {}) {
   const maxRows = opts.maxRows ?? 2048;
   let stepPx = 1;
   if (maskH > maxRows) stepPx = Math.max(1, Math.ceil(maskH / maxRows));
+  stepPx = wrapSlabRowStepPx(maskH, stepPx, {
+    maxRows: opts.previewMaxRows ?? maxRows,
+    maxPreviewIndices: opts.maxPreviewIndices ?? 0,
+  });
 
   const positions = [];
   const indices = [];
   const exportSolid = opts.solid !== false;
-  const indexBudget = opts.maxPreviewIndices ?? (exportSolid && svgIsPreview(opts.params) ? WRAP_SVG_PREVIEW_MAX_INDICES : 0);
   for (let row = 0; row < maskH; row += stepPx) {
-    if (indexBudget > 0 && indices.length >= indexBudget) break;
     const py0 = row;
     const py1 = Math.min(maskH, row + stepPx);
     const my0 = minY + py0 * scale;
@@ -2722,6 +2738,10 @@ export function buildEmbossBitmap(meta, params, bitmap) {
     const sourceGroups = bitmap.shapeGroups?.length
       ? unionDenseTraceShapeGroups(bitmap.shapeGroups, maskW, maskH, artH, params, bitmap)
       : [];
+    if (frame.face === "wrap" && bitmap.mask?.length === maskW * maskH) {
+      const slab = buildWrapTraceSlabMesh(frame, bitmap, params, sourceGroups, d0, d1);
+      if (slab?.indices?.length) return slab;
+    }
     if (frame.face === "wrap" && shouldUseWrapRunSlabs(bitmap)) {
       const slab = buildWrapTraceSlabMesh(frame, bitmap, params, sourceGroups, d0, d1);
       if (slab?.indices?.length) return slab;
@@ -3663,6 +3683,7 @@ function extrudeGroupsOnFace(outPos, outIdx, frame, faceGroups, d0, d1, params =
       stepMin: isSvg ? WRAP_SVG_DECAL_STEP_MIN_MM : WRAP_DECAL_STEP_MIN_MM,
       stepMax: isSvg ? (preview ? WRAP_SVG_DECAL_STEP_MAX_MM_PREVIEW : WRAP_SVG_DECAL_STEP_MAX_MM) : WRAP_DECAL_STEP_MAX_MM,
       maxCells: svgWrapMaskMaxCells(params, isSvg),
+      previewMaxRows: preview ? WRAP_TRACE_PREVIEW_MAX_ROWS : 2048,
       maxPreviewIndices: preview ? WRAP_SVG_PREVIEW_MAX_INDICES : 0,
       dilatePasses: 1,
       solid: true,

@@ -2,8 +2,20 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `1063bcd` (b275)
-- Cache-bust: `app.js?v=275` — header **b275**
+- Latest commit: (pending b276)
+- Cache-bust: `app.js?v=276` — header **b276**
+
+### 2026-07-11 — b276: Full logo on wrap — fix mid-mesh chop + direct SVG silhouette
+
+**Symptom:** b275 showed distorted BRISBANE text only — horse/shield missing. Preview triangle budget cut mesh **top-to-bottom** mid-row.
+
+**Fix:**
+- **No mid-mesh chop** — coarsen row step uniformly across full art height.
+- Wrap trace uses **pixel mask slabs** (full silhouette bitmap, not simplified polygons).
+- New `traceFlattenedSvgCanvasAsync` — direct mask from flattened SVG, morphological close + fill.
+- Preview capped at 420 rows evenly spaced (whole logo, slightly softer detail).
+
+- Cache **b276**. Hard refresh → **b276**, re-drop broncs.svg.
 
 ### 2026-07-11 — b275: Unfreeze broncs — raster silhouette, cap wrap mesh budget
 

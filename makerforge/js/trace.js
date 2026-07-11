@@ -1528,6 +1528,37 @@ function scaleCanvasToMaxPx(source, maxPx) {
   return canvas;
 }
 
+/** Direct silhouette from pre-flattened SVG canvas — skip threshold re-binarize. */
+export async function traceFlattenedSvgCanvasAsync(canvas, options = {}) {
+  await traceYield();
+  const ctx = canvas.getContext("2d");
+  const { width, height } = canvas;
+  const { data } = ctx.getImageData(0, 0, width, height);
+  let mask = new Uint8Array(width * height);
+  for (let i = 0; i < data.length; i += 4) {
+    mask[i / 4] = data[i] < 140 ? 1 : 0;
+  }
+  const span = Math.max(width, height);
+  const closeR = clamp(Math.round(span / 110), 3, 9);
+  mask = closeMask(mask, width, height, closeR);
+  const vertPasses = clamp(Math.round(span / 200), 2, 5);
+  for (let i = 0; i < vertPasses; i++) mask = dilateMaskVertical(mask, width, height, 2);
+  mask = fillInteriorEnclosedByOutline(mask, width, height);
+  mask = closeMask(mask, width, height, 2);
+
+  const cropped = cropMask(mask, width, height);
+  if (!cropped) {
+    return { rects: [], width: 0, height: 0, svg: "", rectCount: 0, simplified: false, simplifyFactor: 1, tooComplex: false };
+  }
+  const { mask: workMask, width: tw, height: th, ox, oy } = cropped;
+  return finishSilhouetteTrace(workMask, tw, th, ox, oy, [], 1, width, height, {
+    mode: "silhouette",
+    solidSilhouetteFill: true,
+    simplifyTol: Math.max(0.1, tw / 2800),
+    smoothPasses: 2,
+  });
+}
+
 /** Collapse any non-white SVG ink (dark + light layers) to a black silhouette on white. */
 export function flattenCanvasToInkSilhouette(canvas) {
   const ctx = canvas.getContext("2d");
