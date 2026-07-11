@@ -2,8 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `247b752` (b240)
-- Cache-bust: `app.js?v=240` — header **b240**
+- Latest commit: (pending — b241)
+- Cache-bust: `app.js?v=241` — header **b241**
+
+### 2026-07-11 — b241: Sync emboss mask when trace re-runs (preview ≠ 3D)
+
+**Symptom:** Trace preview solid blue (b240 mask) but 3D wrap still hollow outline — "back here again".
+
+**Root cause:** `runTraceAsync` updated preview/`traceLastResult` but never called `storeTraceOnBox` — emboss kept stale `embossTraceRects.mask` from session or prior trace. Threshold tweaks and deferred restore re-traced preview only.
+
+**Fix (`app.js`):** After successful trace, if emboss trace enabled, `storeTraceOnBox` + `rebuild` so wrap uses same `silhouetteMask` as preview.
+
+- Cache **b241**. Hard refresh — nudge threshold or re-drop image; preview and wrap should match.
 
 ### 2026-07-11 — b240: Solid silhouette binarize for double-edge auto (not outline ink + flood)
 
