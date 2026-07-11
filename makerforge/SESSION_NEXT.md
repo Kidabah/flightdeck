@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending — b233)
+- Latest commit: `87d7540` (b233)
 - Cache-bust: `app.js?v=233` — header **b233**
 
 ### 2026-07-11 — b233: Wrap radial shells from mask (past earcut + row z-fight)
