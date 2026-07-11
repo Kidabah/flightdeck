@@ -2,8 +2,23 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `8c69670` (b265)
-- Cache-bust: `app.js?v=265` — header **b265**
+- Latest commit: (pending b266)
+- Cache-bust: `app.js?v=266`, `style.css?v=29` — header **b266**
+
+### 2026-07-11 — b266: SVG drag-and-drop + reliable vector silhouette
+
+**Symptom:** Could not drag broncs.svg onto MakerDeck; plain file input had no drop target. SVG still invisible on wrap after b265.
+
+**Fix:**
+- **SVG drop zone** (`#svg-drop`) — dashed box with drag-over highlight, click-to-browse, always visible on Art tab (profile/box shapes).
+- Shared `wireArtDropZone()` — `dragenter`/`dragleave` depth counter, `dropEffect=copy`, Windows `DataTransferItem` fallback.
+- Image drop zone (`#trace-drop`) uses same hardened handlers.
+- **Vector parse:** sample paths in SVG user units only (no `getCTM` in scratch parse) — avoids hidden-SVG scale bugs.
+- **Silhouette prep:** union dual ink layers first, then extrude slabs on wrap.
+
+**Files:** `index.html`, `css/style.css`, `js/app.js`, `js/features.js`
+
+- Cache **b266**. Hard refresh (Ctrl+Shift+R). Art tab → drop broncs.svg on **SVG import** box or **or image** box. Meta: `Loaded: broncs.svg · filled vector · on box`.
 
 ### 2026-07-11 — b265: Fix invisible SVG — CTM squashed paths to 1px coords
 

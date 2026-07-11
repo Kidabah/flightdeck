@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Oswald:wght@700&family=Roboto+Mono:wght@700&family=Roboto:wght@700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=28">
+  <link rel="stylesheet" href="css/style.css?v=29">
 
   <script type="importmap">
 
@@ -44,7 +44,7 @@
 
         <div class="topbar-brand">
 
-          <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b265</span></div>
+          <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b266</span></div>
 
           <h1>Container Generator</h1>
 
@@ -1229,21 +1229,29 @@
 
               </label>
 
+              <label class="field hidden" id="field-svg-file">
+
+                <span class="field-label">SVG import</span>
+
+                <div class="trace-drop trace-drop--svg" id="svg-drop" role="button" tabindex="0" aria-label="Drop SVG file or click to browse">
+
+                  <input type="file" id="svg-file" accept=".svg,image/svg+xml" hidden>
+
+                  <p class="trace-drop-label">Drop SVG here or click to browse</p>
+
+                  <p class="trace-drop-hint">.svg · filled vector or auto-trace</p>
+
+                </div>
+
+                <p class="trace-meta hidden" id="svg-import-meta"></p>
+
+              </label>
+
               <label class="field field-toggle" id="field-emboss-svg">
 
                 <span class="field-label">Add SVG graphic</span>
 
                 <input type="checkbox" id="emboss-svg-enabled">
-
-              </label>
-
-              <label class="field hidden" id="field-svg-file">
-
-                <span class="field-label">SVG file</span>
-
-                <input type="file" id="svg-file" accept=".svg,image/svg+xml">
-
-                <p class="trace-meta hidden" id="svg-import-meta"></p>
 
               </label>
 
@@ -1438,7 +1446,7 @@
     </form>
   </dialog>
 
-  <script type="module" src="js/app.js?v=265"></script>
+  <script type="module" src="js/app.js?v=266"></script>
 
 </body>
 

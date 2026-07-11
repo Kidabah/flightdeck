@@ -2789,23 +2789,22 @@ function svgPrepareFillShapeGroups(fillRingItems, viewBox, sw, sh, artH, params)
   const rawGroups = groupPolygonsWithHoles(rings);
   if (!rawGroups.length) return [];
 
-  let groups = prepareSvgShapeGroups(rawGroups, simplifyTol, smoothPasses);
-  groups = filterDegenerateShapeGroups(groups, maskW, maskH);
-  if (groups.length) return groups;
-
-  groups = unionShapeGroupsToPrepared(
+  let groups = unionShapeGroupsToPrepared(
     rawGroups,
     maskW,
     maskH,
     simplifyTol,
-    0,
+    smoothPasses,
     1,
     SVG_SILHOUETTE_MAX_DIM,
   );
-  if (groups.length) {
-    const cleaned = filterDegenerateShapeGroups(groups, maskW, maskH);
-    return cleaned.length ? cleaned : groups;
-  }
+  groups = filterDegenerateShapeGroups(groups, maskW, maskH);
+  if (groups.length) return groups;
+
+  groups = prepareSvgShapeGroups(rawGroups, simplifyTol, smoothPasses);
+  groups = filterDegenerateShapeGroups(groups, maskW, maskH);
+  if (groups.length) return groups;
+
   return rawGroups;
 }
 
@@ -2839,6 +2838,18 @@ function transformSvgPoint(ctm, x, y) {
     ctm.a * x + ctm.c * y + ctm.e,
     ctm.b * x + ctm.d * y + ctm.f,
   ];
+}
+
+function sampleSvgPathElementRaw(pathEl, maxPoints = SVG_PATH_MAX_POINTS) {
+  const len = pathEl.getTotalLength();
+  if (!Number.isFinite(len) || len < 0.02) return [];
+  const count = Math.min(maxPoints, Math.max(32, Math.ceil(len / SVG_PATH_SAMPLE_SPACING)));
+  const pts = [];
+  for (let i = 0; i <= count; i++) {
+    const pt = pathEl.getPointAtLength(Math.min((i / count) * len, len));
+    pts.push([pt.x, pt.y]);
+  }
+  return dedupePolylinePoints(pts, SVG_PATH_DEDUPE_EPS);
 }
 
 function sampleSvgPathElementWithCtm(pathEl, maxPoints = SVG_PATH_MAX_POINTS) {
@@ -2913,7 +2924,7 @@ function routeSvgSample(points, mode, strokePaths, fillRingItems, fillColor = "#
 }
 
 function sampleSvgPathElement(pathEl, maxPoints = SVG_PATH_MAX_POINTS) {
-  return sampleSvgPathElementWithCtm(pathEl, maxPoints);
+  return sampleSvgPathElementRaw(pathEl, maxPoints);
 }
 
 function parseSvgViewBox(svg) {
@@ -3029,7 +3040,7 @@ export function parseSvgPaths(svgText) {
         const temp = document.createElementNS(SVG_NS, "path");
         temp.setAttribute("d", sub);
         parent.insertBefore(temp, pathEl);
-        const sampled = sampleSvgPathElementWithCtm(temp);
+        const sampled = sampleSvgPathElementRaw(temp);
         temp.remove();
         if (!sampled || sampled.length < 2) continue;
         if ((mode === "fill" || mode === "both") && svgSampleIsFillRing(sampled, sub, viewBox)) {
@@ -3050,7 +3061,7 @@ export function parseSvgPaths(svgText) {
       if (mode === "none") continue;
       strokeWidth = Math.max(strokeWidth, readSvgStrokeWidth(el, svg));
       const fillColor = svgEffectivePresentation(el, "fill", svg) || "#000000";
-      const sampled = polylineFromElementWithCtm(el);
+      const sampled = polylineFromElement(el);
       routeSvgSample(sampled, mode, strokePaths, fillRingItems, fillColor, viewBox);
     }
   } finally {

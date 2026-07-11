@@ -1186,6 +1186,11 @@ input[type="range"] {
   color: var(--muted);
 }
 
+.trace-drop--svg {
+  min-height: 92px;
+  margin-top: 0;
+}
+
 .trace-drop:focus {
   outline: 2px solid #0ea5e9;
   outline-offset: 2px;

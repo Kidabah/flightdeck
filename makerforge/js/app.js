@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=254";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=265";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=266";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=259";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=201";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=210";
@@ -23,7 +23,7 @@ import {
 } from "./library.js?v=201";
 
 const SESSION_KEY = "makerdeck-session-v1";
-const MAKERDECK_BUILD = "b265";
+const MAKERDECK_BUILD = "b266";
 const DISPLAY_UNITS = ["mm", "cm", "in"];
 const MM_PER_IN = 25.4;
 let saveSessionTimer = null;
@@ -4371,7 +4371,7 @@ function updateDecorUi() {
   const artOn = hasGraphicArt(buildParams());
   const textOn = textHasInk(state.embossText);
   document.getElementById("emboss-svg-enabled").checked = svgOn;
-  document.getElementById("field-svg-file").classList.toggle("hidden", !svgOn);
+  document.getElementById("field-svg-file").classList.toggle("hidden", !supported);
   document.getElementById("field-svg-samples").classList.toggle("hidden", !svgOn);
   const wm = document.getElementById("watermark-enabled");
   if (wm) wm.checked = state.watermarkEnabled !== false;
@@ -4977,26 +4977,67 @@ document.getElementById("honeycomb-face").addEventListener("change", (e) => {
 
 const traceDrop = document.getElementById("trace-drop");
 const traceFileInput = document.getElementById("trace-file");
+const svgDrop = document.getElementById("svg-drop");
+const svgFileInput = document.getElementById("svg-file");
 
-traceDrop.setAttribute("tabindex", "0");
+function fileFromDropEvent(e) {
+  const dt = e.dataTransfer;
+  if (!dt) return null;
+  if (dt.files?.length) return dt.files[0];
+  const items = [...(dt.items || [])];
+  const fileItem = items.find((item) => item.kind === "file");
+  return fileItem?.getAsFile() || null;
+}
 
-traceDrop.addEventListener("click", () => traceFileInput.click());
+function wireArtDropZone(el, onFile, { openInput = null } = {}) {
+  if (!el) return;
+  let dragDepth = 0;
+  const overCls = "trace-drop--over";
+  const setOver = (on) => el.classList.toggle(overCls, on);
 
-traceDrop.addEventListener("dragover", (e) => {
-  e.preventDefault();
-  traceDrop.classList.add("trace-drop--over");
-});
+  el.addEventListener("click", (e) => {
+    if (e.target.closest('input[type="file"]')) return;
+    openInput?.click();
+  });
+  el.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      openInput?.click();
+    }
+  });
+  el.addEventListener("dragenter", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragDepth += 1;
+    setOver(true);
+  });
+  el.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+    setOver(true);
+  });
+  el.addEventListener("dragleave", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (dragDepth === 0) setOver(false);
+  });
+  el.addEventListener("drop", async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragDepth = 0;
+    setOver(false);
+    const file = fileFromDropEvent(e);
+    if (file) await onFile(file);
+  });
+}
 
-traceDrop.addEventListener("dragleave", () => {
-  traceDrop.classList.remove("trace-drop--over");
-});
+wireArtDropZone(traceDrop, handleTraceFile, { openInput: traceFileInput });
+wireArtDropZone(svgDrop, handleTraceFile, { openInput: svgFileInput });
 
-traceDrop.addEventListener("drop", (e) => {
-  e.preventDefault();
-  traceDrop.classList.remove("trace-drop--over");
-  const file = e.dataTransfer?.files?.[0];
-  if (file) handleTraceFile(file);
-});
+if (traceDrop) traceDrop.setAttribute("tabindex", "0");
+if (svgDrop) svgDrop.setAttribute("tabindex", "0");
 
 traceFileInput.addEventListener("change", (e) => {
   const file = e.target.files?.[0];
