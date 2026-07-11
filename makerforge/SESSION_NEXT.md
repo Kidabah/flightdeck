@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `bad415b` (b244)
-- Cache-bust: `app.js?v=244` — header **b244**
+- Latest commit: `d590ce1` (b245)
+- Cache-bust: `app.js?v=245` — header **b245**
+
+### 2026-07-11 — b245: Plug interior wedge holes (forehead triangular voids)
+
+**Symptom:** Mask mostly fills but forehead has dark triangular wedges — interior holes between double-edge pairs not closed by row extent alone.
+
+**Fix:** After row extent + gap bridge + sandwich: `closeMask` then `fillInteriorEnclosedByOutline` + second row extent. Wider neighbor span (3 rows) and gap bridge span/18.
+
+- Cache **b245**. Hard refresh, re-drop — forehead wedges should be solid teal; meta `mask N% fill` should rise.
 
 ### 2026-07-11 — b244: Row-extent fill (preview downscale was lying)
 
