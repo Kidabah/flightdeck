@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending — b228)
+- Latest commit: `2617420` (b228)
 - Cache-bust: `app.js?v=228` — header **b228**
 
 ### 2026-07-11 — b228: Mask-first silhouette (fix blue wedge regression)
