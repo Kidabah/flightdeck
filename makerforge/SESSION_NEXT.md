@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending — b237)
+- Latest commit: `fe78d7e` (b237)
 - Cache-bust: `app.js?v=237` — header **b237**
 
 ### 2026-07-11 — b237: Fix stale build tag (MAKERDECK_BUILD was stuck on b234)
