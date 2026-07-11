@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending — b265)
+- Latest commit: `8c69670` (b265)
 - Cache-bust: `app.js?v=265` — header **b265**
 
 ### 2026-07-11 — b265: Fix invisible SVG — CTM squashed paths to 1px coords
