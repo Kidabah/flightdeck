@@ -2,19 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `9abed74` (b230)
-- Cache-bust: `app.js?v=230` — header **b230**
+- Latest commit: (pending — b231)
+- Cache-bust: `app.js?v=231` — header **b231**
 
-### 2026-07-11 — b230: Polish heraldic wrap — collapse double-edge, pixel-row slabs
+### 2026-07-11 — b231: Revert b230 (horizontal gaps worse on wrap)
 
-**Symptom:** Nearly there — trace preview good but 3D wrap showed horizontal scanline banding; double-edge art still slightly thick.
+**Symptom:** b230 introduced thick horizontal voids through knight/horse on cylinder wrap.
 
-**Fix:**
-- `collapseDoubleEdgeMask` on outline fallback — merge double-line pairs to single printable band
-- Wrap preview uses **1px row slabs** when mask ≤1600px (no visible horizontal steps)
-- Finer export slab constants; wrap path works from stored mask alone
+**Action:** Rolled back b230 changes — removed `collapseDoubleEdgeMask` and 1px preview row slabs; restored b229 trace + wrap slab behaviour.
 
-- Cache **b230**. Hard refresh, re-drop image.
+- Cache **b231**. Hard refresh, re-drop image — should match b229 “nearly there” state.
+
+### 2026-07-11 — b230: REVERTED — double-edge collapse + 1px slabs made wrap worse
 
 ### 2026-07-11 — b229: Fix inverted heraldic mask (blue rectangle / frame emboss)
 

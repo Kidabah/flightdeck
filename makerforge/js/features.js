@@ -2,7 +2,7 @@
  * Accent bands, emboss, honeycomb stamp, stackable hex grid, mesh merge.
  */
 
-import { dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, filterDegenerateShapeGroups, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, previewMergeTraceShapeGroups, rasterizeShapeGroupsToMask, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap, unionDenseEmbossShapeGroups, unionShapeGroupsToPrepared } from "./contour.js?v=230";
+import { dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, filterDegenerateShapeGroups, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, previewMergeTraceShapeGroups, rasterizeShapeGroupsToMask, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap, unionDenseEmbossShapeGroups, unionShapeGroupsToPrepared } from "./contour.js?v=231";
 import { decorPlacementOffsets, decorArtRect, rotateFacePoint, rotateShapeGroup } from "./decor.js";
 import {
   profileOutlineNormals,
@@ -247,10 +247,9 @@ const ACCENT_BAND_THICKNESS_MM = 0.45;
 const DECAL_LAYER_MM = 0.2;
 /** Wrap preview art — raster slabs (no earcut on curved wall). */
 const WRAP_DECAL_STEP_MM = 0.4;
-const WRAP_DECAL_TARGET_COLS = 720;
-const WRAP_DECAL_STEP_MIN_MM = 0.05;
-const WRAP_DECAL_STEP_MAX_MM = 0.2;
-const WRAP_PREVIEW_MAX_MASK_H = 1600;
+const WRAP_DECAL_TARGET_COLS = 560;
+const WRAP_DECAL_STEP_MIN_MM = 0.08;
+const WRAP_DECAL_STEP_MAX_MM = 0.26;
 
 function wrapDecalStepMm(shapeGroups) {
   const bounds = shapeGroupsBounds2d(shapeGroups);
@@ -306,30 +305,24 @@ function bitmapWrapPlacement(frame, params, bitmap) {
 /** Wrap trace slabs from pixel mask — matches trace preview raster (avoids mm polygon bbox drift). */
 function buildWrapTraceSlabMesh(frame, bitmap, params, shapeGroups, d0, d1) {
   const place = bitmapWrapPlacement(frame, params, bitmap);
-  if (!place) return null;
-  const { maskW, maskH, scale, artW, artHeight, xOff, zOff } = place;
-  const hasMask = bitmap.mask?.length === maskW * maskH;
-  if (!hasMask && !shapeGroups?.length) return null;
+  if (!place || !shapeGroups?.length) return null;
+  const { maskW, maskH, scale, artW, xOff, zOff } = place;
   const anchorX = xOff + artW / 2;
   const rotation = params.decorRotation ?? 0;
   let groups = shapeGroups;
-  if (rotation && groups?.length) {
+  if (rotation) {
     groups = shapeGroups.map((g) => rotateShapeGroup(g, maskW / 2, maskH / 2, rotation));
   }
   let mask;
-  if (hasMask) {
+  if (bitmap.mask?.length === maskW * maskH) {
     mask = bitmap.mask instanceof Uint8Array ? bitmap.mask : new Uint8Array(bitmap.mask);
   } else {
     mask = rasterizeShapeGroupsToMask(groups, maskW, maskH);
   }
-  let stepPx = 1;
-  if (params?.__labelExportStandoff) {
-    const stepMm = DECAL_LAYER_MM;
-    stepPx = Math.max(1, Math.round(stepMm / scale));
-  } else if (maskH > WRAP_PREVIEW_MAX_MASK_H) {
-    const stepMm = clamp(artHeight / WRAP_DECAL_TARGET_COLS, WRAP_DECAL_STEP_MIN_MM, WRAP_DECAL_STEP_MAX_MM);
-    stepPx = Math.max(1, Math.round(stepMm / scale));
-  }
+  const stepMm = params?.__labelExportStandoff
+    ? DECAL_LAYER_MM
+    : clamp(artW / WRAP_DECAL_TARGET_COLS, WRAP_DECAL_STEP_MIN_MM, WRAP_DECAL_STEP_MAX_MM);
+  let stepPx = Math.max(1, Math.round(stepMm / scale));
   const maxRows = 2048;
   if (Math.ceil(maskH / stepPx) > maxRows) stepPx = Math.max(1, Math.ceil(maskH / maxRows));
 
@@ -2556,10 +2549,8 @@ export function buildEmbossBitmap(meta, params, bitmap) {
     if (positions.length) return { positions, indices };
   }
 
-  if (bitmap.shapeGroups?.length || bitmap.mask?.length) {
-    const sourceGroups = bitmap.shapeGroups?.length
-      ? unionDenseTraceShapeGroups(bitmap.shapeGroups, maskW, maskH, artH, params, bitmap)
-      : [];
+  if (bitmap.shapeGroups?.length) {
+    const sourceGroups = unionDenseTraceShapeGroups(bitmap.shapeGroups, maskW, maskH, artH, params, bitmap);
     if (frame.face === "wrap") {
       const slab = buildWrapTraceSlabMesh(frame, bitmap, params, sourceGroups, d0, d1);
       if (slab?.indices?.length) return slab;
