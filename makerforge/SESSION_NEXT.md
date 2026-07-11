@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending b273)
+- Latest commit: `c225f42` (b273)
 - Cache-bust: `app.js?v=273`, `trace.js?v=273` — header **b273**
 
 ### 2026-07-11 — b273: Stop page freeze on broncs.svg — fast logo import path
