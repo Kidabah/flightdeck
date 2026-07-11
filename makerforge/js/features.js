@@ -346,14 +346,14 @@ function buildWrapTraceSlabMesh(frame, bitmap, params, shapeGroups, d0, d1) {
     mask = rasterizeShapeGroupsToMask(groups, maskW, maskH);
   }
   const exportSolid = !!params?.__labelExportStandoff;
+  const maxRows = 2048;
   let stepPx = 1;
-  if (exportSolid || maskH > 1400) {
-    const stepMm = exportSolid
-      ? DECAL_LAYER_MM
-      : clamp(artHeight / WRAP_DECAL_TARGET_COLS, WRAP_DECAL_STEP_MIN_MM, WRAP_DECAL_STEP_MAX_MM);
-    stepPx = Math.max(1, Math.round(stepMm / scale));
-    const maxRows = 2048;
+  if (exportSolid) {
+    stepPx = Math.max(1, Math.round(DECAL_LAYER_MM / scale));
     if (Math.ceil(maskH / stepPx) > maxRows) stepPx = Math.max(1, Math.ceil(maskH / maxRows));
+  } else if (maskH > maxRows) {
+    // Preview: 1px mask rows — only coarsen when row count would exceed mesh budget.
+    stepPx = Math.ceil(maskH / maxRows);
   }
 
   const positions = [];

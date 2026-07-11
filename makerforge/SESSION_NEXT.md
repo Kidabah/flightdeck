@@ -2,8 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `6c81856` (b235)
-- Cache-bust: `app.js?v=235` — header **b235**
+- Latest commit: `cf6d0b2` (b236)
+- Cache-bust: `app.js?v=236` — header **b236**
+
+### 2026-07-11 — b236: Wrap preview 1px rows for tall traces (fix top scan-line gaps)
+
+**Symptom:** Tiger (2400×1920, silhouette auto, wrap face): trace preview top third darker/speckled blue; 3D wrap top of head thin horizontal scan-line texture; jaw/sides solid.
+
+**Root cause:** `buildWrapTraceSlabMesh` coarsened preview row step when `maskH > 1400` (~10px bands for 1920px traces). Empty 10-row bands in sparse mask regions (forehead/ears) → horizontal voids in radial shells. Dense jaw rows still had ink every band → looked solid. Preview mask is pixel-true; 3D was skipping empty bands.
+
+**Fix (`features.js`):** Preview keeps **1px mask rows** unless row count exceeds 2048 mesh budget. Adaptive `wrapDecalStepMm` coarsening only for label export (`exportSolid`).
+
+- Cache **b236**. Hard refresh, re-drop tiger (or any tall wrap trace) — top emboss should match bottom solidity; no horizontal scan lines at crown.
 
 ### 2026-07-11 — b235: Morphological close + row bridge for outline fallback (fix knight bands)
 
