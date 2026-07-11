@@ -1528,6 +1528,28 @@ function scaleCanvasToMaxPx(source, maxPx) {
   return canvas;
 }
 
+/** Collapse any non-white SVG ink (dark + light layers) to a black silhouette on white. */
+export function flattenCanvasToInkSilhouette(canvas) {
+  const ctx = canvas.getContext("2d");
+  const { width, height } = canvas;
+  const { data } = ctx.getImageData(0, 0, width, height);
+  const out = ctx.createImageData(width, height);
+  for (let i = 0; i < data.length; i += 4) {
+    const a = data[i + 3];
+    const dr = 255 - data[i];
+    const dg = 255 - data[i + 1];
+    const db = 255 - data[i + 2];
+    const ink = a > 16 && dr + dg + db > 36;
+    const v = ink ? 0 : 255;
+    out.data[i] = v;
+    out.data[i + 1] = v;
+    out.data[i + 2] = v;
+    out.data[i + 3] = 255;
+  }
+  ctx.putImageData(out, 0, 0);
+  return canvas;
+}
+
 /** Ensure SVG has explicit dimensions, then rasterize for reliable tracing. */
 export function rasterizeSvgToCanvas(svgText, maxPx = SVG_RASTER_PX) {
   return new Promise((resolve, reject) => {

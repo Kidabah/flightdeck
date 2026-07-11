@@ -2,8 +2,25 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `c225f42` (b273)
-- Cache-bust: `app.js?v=273`, `trace.js?v=273` — header **b273**
+- Latest commit: (pending b274)
+- Cache-bust: `app.js?v=274`, `trace.js?v=274` — header **b274**
+
+### 2026-07-11 — b274: Fix broncs.svg — strip bg frame, solid wrap slabs, vector-first
+
+**Symptom:** Outline/silhouette showed logo inside full **rect frame** with horizontal slits; auto logo = two vertical bars only.
+
+**Root causes:**
+1. Fast-logo path rasterized full-canvas `#222` background rect → trace saw a picture frame not a logo.
+2. Wrap trace slabs used hollow preview shells (`solid: false`) → horizontal gaps between rows.
+3. Trace path ignored united `shapeGroups` and used raw pixel mask slabs instead.
+
+**Fix:**
+- `prepareSvgForImport()` strips full-viewBox background subpaths before import.
+- SVG fill imports use **vector silhouette** (b272 raster merge) — not broken fast-logo trace.
+- Trace fallback: `flattenCanvasToInkSilhouette()` unions dark + light ink layers.
+- Wrap slabs always **solid**; prefer `shapeGroups` over raw mask on wrap.
+
+- Cache **b274**. Hard refresh → **b274**, re-drop broncs.svg. Expect solid filled horse shield on wrap — no frame, no slits, no twin bars.
 
 ### 2026-07-11 — b273: Stop page freeze on broncs.svg — fast logo import path
 

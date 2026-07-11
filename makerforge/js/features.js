@@ -347,6 +347,7 @@ function pushWrapRunShell(outPos, outIdx, frame, px0, py0, px1, py1, d0, d1, { s
 }
 
 function shouldUseWrapRunSlabs(bitmap) {
+  if (bitmap.shapeGroups?.length && bitmap.shapeGroupsUnited) return false;
   if (!bitmap?.mask?.length) return true;
   if (bitmap.rasterSimplified) return false;
   if (bitmap.mode === "outline" && (bitmap.rects?.length ?? 0) > 3500) return false;
@@ -405,14 +406,12 @@ function buildWrapTraceSlabMesh(frame, bitmap, params, shapeGroups, d0, d1) {
   } else {
     mask = rasterizeShapeGroupsToMask(groups, maskW, maskH);
   }
-  const exportSolid = !!params?.__labelExportStandoff;
   const maxRows = 2048;
   let stepPx = 1;
-  if (exportSolid) {
+  if (params?.__labelExportStandoff) {
     stepPx = Math.max(1, Math.round(DECAL_LAYER_MM / scale));
     if (Math.ceil(maskH / stepPx) > maxRows) stepPx = Math.max(1, Math.ceil(maskH / maxRows));
   } else if (maskH > maxRows) {
-    // Preview: 1px mask rows — only coarsen when row count would exceed mesh budget.
     stepPx = Math.ceil(maskH / maxRows);
   }
 
@@ -431,7 +430,7 @@ function buildWrapTraceSlabMesh(frame, bitmap, params, shapeGroups, d0, d1) {
       if (col <= start) continue;
       const px0 = unwrapWrapX(xOff + start * scale, anchorX, frame.faceW);
       const px1 = unwrapWrapX(xOff + col * scale, anchorX, frame.faceW);
-      pushWrapRunShell(positions, indices, frame, px0, my0, px1, my1, d0, d1, { solid: exportSolid });
+      pushWrapRunShell(positions, indices, frame, px0, my0, px1, my1, d0, d1, { solid: true });
     }
   }
   return indices.length ? { positions, indices } : null;
@@ -3189,18 +3188,55 @@ export function parsedSvgHasFill(svgText) {
   return (parsed.fillRings?.length || 0) > 0;
 }
 
-/** Fast heuristic — avoid full DOM path parse on auto-traced team logos. */
-export function svgLooksComplex(svgText) {
-  if (!svgText?.trim()) return false;
-  if (svgText.length > 80000) return true;
-  const paths = (svgText.match(/<path\b/gi) || []).length;
-  if (paths >= 5) return true;
-  const fills = new Set();
-  for (const m of svgText.matchAll(/fill\s*=\s*["']([^"']+)["']/gi)) {
-    const c = m[1].trim().toLowerCase();
-    if (c && c !== "none") fills.add(c);
+/** Strip full-canvas background rects from auto-traced SVG exports (e.g. broncs.svg). */
+export function prepareSvgForImport(svgText) {
+  if (!svgText?.trim() || typeof DOMParser === "undefined") return svgText;
+  const doc = new DOMParser().parseFromString(svgText, "image/svg+xml");
+  const svg = doc.documentElement;
+  if (!svg || svg.nodeName.toLowerCase() === "parsererror") return svgText;
+  const viewBox = parseSvgViewBox(svg);
+  const viewArea = Math.max(1, viewBox[2] * viewBox[3]);
+
+  for (const pathEl of svg.querySelectorAll("path")) {
+    const d = pathEl.getAttribute("d");
+    if (!d) continue;
+    const kept = [];
+    for (const sub of splitPathSubpaths(d)) {
+      const nums = sub.match(/-?\d*\.?\d+/g)?.map(Number) || [];
+      if (nums.length < 8) {
+        kept.push(sub);
+        continue;
+      }
+      const xs = [];
+      const ys = [];
+      for (let i = 0; i + 1 < nums.length; i += 2) {
+        xs.push(nums[i]);
+        ys.push(nums[i + 1]);
+      }
+      if (!xs.length) {
+        kept.push(sub);
+        continue;
+      }
+      const bbox = {
+        minX: Math.min(...xs),
+        maxX: Math.max(...xs),
+        minY: Math.min(...ys),
+        maxY: Math.max(...ys),
+      };
+      const area = (bbox.maxX - bbox.minX) * (bbox.maxY - bbox.minY);
+      if (area > viewArea * 0.88) continue;
+      kept.push(sub);
+    }
+    if (!kept.length) {
+      pathEl.remove();
+    } else if (kept.length === 1 && kept[0] !== d.trim()) {
+      pathEl.setAttribute("d", kept[0]);
+    } else if (kept.length > 1) {
+      pathEl.setAttribute("d", kept.join(" "));
+    }
   }
-  return fills.size >= 2 && paths >= 2;
+
+  return new XMLSerializer().serializeToString(svg);
 }
 
 /** True when vector SVG parsing yields emboss geometry for the current shape/face. */
