@@ -2,8 +2,21 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `2617420` (b228)
-- Cache-bust: `app.js?v=228` — header **b228**
+- Latest commit: (pending — b229)
+- Cache-bust: `app.js?v=229` — header **b229**
+
+### 2026-07-11 — b229: Fix inverted heraldic mask (blue rectangle / frame emboss)
+
+**Symptom:** Trace preview = solid blue rectangle with white dragon inside; 3D = embossed rectangular patch around art.
+
+**Root cause:** High threshold (235) + silhouette binarize treated dark ornate **frame** as ink (mask ~full crop). Dragon was the hole. Outline fallback still used silhouette flood mask.
+
+**Fix (`trace.js`):**
+- `autoCorrectSilhouettePolarity` — invert when fill >40% or crop edges mostly ink
+- Outline fallback uses **outline ink** crop (line art), not silhouette bg flood
+- Preview + wrap still use `silhouetteMask` after correction
+
+- Cache **b229**. Hard refresh, re-drop image. Blue should trace **dragon/knight ink only**, not the frame box.
 
 ### 2026-07-11 — b228: Mask-first silhouette (fix blue wedge regression)
 

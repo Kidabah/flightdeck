@@ -21,9 +21,9 @@ import {
   unionShapeGroupsToPrepared,
   rasterizeShapeGroupsToMask,
   filterDegenerateShapeGroups,
-} from "./contour.js?v=228";
+} from "./contour.js?v=229";
 
-export { unionDenseEmbossShapeGroups } from "./contour.js?v=228";
+export { unionDenseEmbossShapeGroups } from "./contour.js?v=229";
 
 
 
@@ -502,11 +502,77 @@ async function traceColorLayerGroupsAsync(data, width, height, tw, th, ox, oy, t
   return { shapeGroups: allGroups, combined, colorLayerCount: Math.min(colorLayers.length, MAX_COLOR_LAYERS) };
 }
 
+function maskFillRatio(mask, width, height) {
+  let ink = 0;
+  for (let i = 0; i < width * height; i++) if (mask[i]) ink++;
+  return ink / Math.max(1, width * height);
+}
+
+function maskEdgeInkRatio(mask, width, height) {
+  if (width < 2 || height < 2) return 0;
+  let edge = 0;
+  let ink = 0;
+  for (let x = 0; x < width; x++) {
+    if (mask[x]) ink++;
+    edge++;
+    const b = (height - 1) * width + x;
+    if (mask[b]) ink++;
+    edge++;
+  }
+  for (let y = 1; y < height - 1; y++) {
+    if (mask[y * width]) ink++;
+    edge++;
+    if (mask[y * width + width - 1]) ink++;
+    edge++;
+  }
+  return ink / Math.max(1, edge);
+}
+
+function invertMask(mask, width, height) {
+  const out = new Uint8Array(width * height);
+  for (let i = 0; i < width * height; i++) out[i] = mask[i] ? 0 : 1;
+  return out;
+}
+
+/** Heraldic PNGs with dark borders often binarize as frame=ink — flip when fill is implausibly high. */
+function autoCorrectSilhouettePolarity(mask, width, height) {
+  const fill = maskFillRatio(mask, width, height);
+  const edgeInk = maskEdgeInkRatio(mask, width, height);
+  if (fill <= 0.4 && edgeInk <= 0.68) return mask;
+  const inv = invertMask(mask, width, height);
+  const invFill = maskFillRatio(inv, width, height);
+  if (invFill >= 0.008 && invFill <= 0.42 && invFill < fill) return inv;
+  return mask;
+}
+
+/** Outline-mode ink crop — tight line art for double-edge heraldic fallback (not silhouette bg flood). */
+function outlineInkCrop(data, fullW, fullH, threshold, invert, blur) {
+  let ink = binarizeImageData(data, fullW, fullH, threshold, invert, "outline", blur);
+  ink = openMask(ink, fullW, fullH);
+  return cropMask(ink, fullW, fullH);
+}
+
+function finishOutlineFallbackSilhouette(data, fullW, fullH, threshold, invert, blur, width, height, extra = {}) {
+  const cropped = outlineInkCrop(data, fullW, fullH, threshold, invert, blur);
+  if (!cropped) {
+    return {
+      rects: [], width: 0, height: 0, svg: "", rectCount: 0, simplified: false, simplifyFactor: 1,
+    };
+  }
+  const { mask: workMask, width: tw, height: th, ox, oy } = cropped;
+  const quality = traceQualityParams(tw, extra);
+  return finishSilhouetteTrace(workMask, tw, th, ox, oy, [], 1, width, height, {
+    outlineFallback: true,
+    simplifyTol: quality.fbTol,
+    smoothPasses: quality.smoothPasses,
+    ...extra,
+  });
+}
+
 function compactTraceMask(workMask, shapeGroups) {
   if (workMask?.length) return workMask.slice();
   if (shapeGroups?.length) return [];
-  if (!workMask?.length || workMask.length > 400_000) return [];
-  return workMask.slice();
+  return [];
 }
 
 /** Flood-fill connected components in a binary mask. */
@@ -554,9 +620,10 @@ function findMaskComponents(mask, width, height) {
 
 /** Drop threshold-noise islands and thin spikes before polygonise. */
 function pruneSilhouetteMask(mask, width, height) {
-  const { labels, comps } = findMaskComponents(mask, width, height);
-  if (!comps.length) return mask;
-  if (comps.length === 1) return openMask(mask, width, height);
+  let m = autoCorrectSilhouettePolarity(mask, width, height);
+  const { labels, comps } = findMaskComponents(m, width, height);
+  if (!comps.length) return m;
+  if (comps.length === 1) return openMask(m, width, height);
   comps.sort((a, b) => b.area - a.area);
   const main = comps[0];
   const mainCx = main.sumX / main.area;
@@ -574,7 +641,7 @@ function pruneSilhouetteMask(mask, width, height) {
       if (labels[i] === comp.label) out[i] = 1;
     }
   }
-  return out.some((v) => v) ? out : mask;
+  return out.some((v) => v) ? out : m;
 }
 
 function silhouetteGroupsFromMask(mask, tw, th, simplifyTol, smoothPasses) {
@@ -1056,13 +1123,7 @@ export async function traceCanvasAsync(canvas, options = {}) {
 
     // Skeleton on multi-megapixel masks runs thousands of erode passes — skip straight to silhouette.
     if (tw * th > TRACE_FAST_PIXELS) {
-      const fbTol = quality.fbTol;
-      const { groups, factor } = await polygonizeMaskGroups(workMask, tw, th, fbTol, smoothPasses);
-      return finishSilhouetteTrace(workMask, tw, th, ox, oy, groups, factor, width, height, {
-        outlineFallback: true,
-        simplifyTol: fbTol,
-        smoothPasses,
-      });
+      return finishOutlineFallbackSilhouette(data, width, height, threshold, invert, blur, width, height);
     }
 
     let rawPaths = outlineCenterlinePaths(workMask, tw, th);
@@ -1071,19 +1132,9 @@ export async function traceCanvasAsync(canvas, options = {}) {
     // Edge-detected / double-line art produces dozens of ring centerlines — use silhouette instead.
     const outlineFallback = shouldFallbackOutline(rawPaths, strokePaths, tw);
     if (outlineFallback) {
-      const fbTol = quality.fbTol;
-      const fbPasses = quality.smoothPasses;
-      let { groups: shapeGroups, factor: sf } = await polygonizeMaskGroups(workMask, tw, th, fbTol, fbPasses);
-      const ds = downsampleUntilComplexity(workMask, tw, th, shapeGroups, simplifyFactor * sf, fbTol, fbPasses);
-      workMask = ds.mask;
-      tw = ds.w;
-      th = ds.h;
-      simplifyFactor = ds.factor;
-      shapeGroups = ds.groups;
-      return finishSilhouetteTrace(workMask, tw, th, ox, oy, shapeGroups, simplifyFactor, width, height, {
-        outlineFallback: true,
-        simplifyTol: fbTol,
-        smoothPasses: fbPasses,
+      return finishOutlineFallbackSilhouette(data, width, height, threshold, invert, blur, width, height, {
+        simplifyTol: quality.simplifyTol,
+        smoothPasses: quality.smoothPasses,
       });
     }
 
