@@ -2771,7 +2771,7 @@ const SVG_PATH_MAX_POINTS_PREVIEW = 880;
 const SVG_PATH_DEDUPE_EPS = 0.04;
 /** Raster silhouette cap for SVG prep (speed — avoids megapixel unions). */
 const SVG_SILHOUETTE_MAX_DIM = 1280;
-const SVG_SILHOUETTE_MAX_DIM_PREVIEW = 704;
+const SVG_SILHOUETTE_MAX_DIM_PREVIEW = 896;
 const WRAP_SVG_MASK_MAX_CELLS_PREVIEW = 1664;
 
 function svgIsPreview(params) {
@@ -2872,10 +2872,39 @@ function svgPrepareFillShapeGroups(fillRingItems, viewBox, sw, sh, artH, params)
   const maskH = Math.max(8, Math.round(sh));
   const simplifyTol = svgVectorSimplifyTol(sw, sh);
   const smoothPasses = svgVectorSmoothPasses(artH);
-  const islandGroups = svgInkIslandGroups(rings);
-  const dilate = rings.length > 6 ? (svgIsPreview(params) ? 2 : 3) : 2;
-  const silhouetteDim = svgSilhouetteMaxDim(params);
+  const maxDim = svgSilhouetteMaxDim(params);
+  const rasterScale = Math.min(1, maxDim / Math.max(maskW, maskH));
+  const w = Math.max(8, Math.round(maskW * rasterScale));
+  const h = Math.max(8, Math.round(maskH * rasterScale));
+  const inv = 1 / rasterScale;
+  const dilate = rings.length > 6 ? 3 : 2;
 
+  const scaledIslands = rings.map((ring) => ({
+    outer: ring.map(([x, y]) => [x * rasterScale, y * rasterScale]),
+    holes: [],
+  }));
+
+  let mask = rasterizeShapeGroupsToMask(scaledIslands, w, h);
+  mask = dilateMask(mask, w, h, dilate);
+  mask = closeBitmapMask(mask, w, h, 1);
+
+  const polys = maskToPolygons(mask, w, h);
+  if (polys.length) {
+    const grouped = groupPolygonsWithHoles(
+      polys.map((poly) => poly.map(([x, y]) => [x * inv, y * inv])),
+    );
+    let best = null;
+    for (const group of grouped) {
+      const area = svgRingAbsArea(group.outer);
+      if (!best || area > best.area) best = { outer: group.outer, area };
+    }
+    if (best?.outer?.length >= 4) {
+      const solid = prepareSvgShapeGroups([{ outer: best.outer, holes: [] }], simplifyTol, smoothPasses);
+      if (solid.length) return solid;
+    }
+  }
+
+  const islandGroups = svgInkIslandGroups(rings);
   let groups = unionShapeGroupsToPrepared(
     islandGroups,
     maskW,
@@ -2883,15 +2912,10 @@ function svgPrepareFillShapeGroups(fillRingItems, viewBox, sw, sh, artH, params)
     simplifyTol,
     smoothPasses,
     dilate,
-    silhouetteDim,
+    maxDim,
   );
   groups = filterDegenerateShapeGroups(groups, maskW, maskH);
-  if (groups.length) return groups;
-
-  const nested = groupPolygonsWithHoles(rings);
-  groups = unionShapeGroupsToPrepared(nested, maskW, maskH, simplifyTol, smoothPasses, dilate, silhouetteDim);
-  groups = filterDegenerateShapeGroups(groups, maskW, maskH);
-  return groups.length ? groups : islandGroups;
+  return groups.length ? groups.map((g) => ({ outer: g.outer, holes: [] })) : islandGroups;
 }
 
 function splitPathSubpaths(d) {

@@ -2,8 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `46c337b` (b271)
-- Cache-bust: `app.js?v=271` — header **b271**
+- Latest commit: (pending b272)
+- Cache-bust: `app.js?v=272` — header **b272**
+
+### 2026-07-11 — b272: Solid SVG silhouette — fill horse, not hollow outline
+
+**Symptom:** broncs showed arched text + shield **outline only** — empty interior, horse missing.
+
+**Cause:** Dual-layer paths nested as polygon holes; union kept outline rings, dropped solid fill.
+
+**Fix:** Raster-merge **all ink islands** to one mask (both #222 + #e3e3e3), dilate/close, extract **largest solid outer** with **zero holes** — one filled plaque for emboss.
+
+- Cache **b272**. Hard refresh, re-drop broncs.svg.
 
 ### 2026-07-11 — b271: Faster SVG preview + loading status
 
