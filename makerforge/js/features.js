@@ -2767,9 +2767,29 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 /** Native SVG path sampling — balanced for speed + curve fidelity on flat faces. */
 const SVG_PATH_SAMPLE_SPACING = 0.1;
 const SVG_PATH_MAX_POINTS = 1600;
+const SVG_PATH_MAX_POINTS_PREVIEW = 880;
 const SVG_PATH_DEDUPE_EPS = 0.04;
 /** Raster silhouette cap for SVG prep (speed — avoids megapixel unions). */
 const SVG_SILHOUETTE_MAX_DIM = 1280;
+const SVG_SILHOUETTE_MAX_DIM_PREVIEW = 704;
+const WRAP_SVG_MASK_MAX_CELLS_PREVIEW = 1664;
+
+function svgIsPreview(params) {
+  return !params?.__labelExportStandoff;
+}
+
+function svgPathMaxPoints(params) {
+  return svgIsPreview(params) ? SVG_PATH_MAX_POINTS_PREVIEW : SVG_PATH_MAX_POINTS;
+}
+
+function svgSilhouetteMaxDim(params) {
+  return svgIsPreview(params) ? SVG_SILHOUETTE_MAX_DIM_PREVIEW : SVG_SILHOUETTE_MAX_DIM;
+}
+
+function svgWrapMaskMaxCells(params, isSvg) {
+  if (!isSvg) return 2048;
+  return svgIsPreview(params) ? WRAP_SVG_MASK_MAX_CELLS_PREVIEW : WRAP_SVG_MASK_MAX_CELLS;
+}
 
 function svgVectorSimplifyTol(sw, sh) {
   return Math.max(0.08, Math.max(sw, sh) / 1100);
@@ -2853,7 +2873,8 @@ function svgPrepareFillShapeGroups(fillRingItems, viewBox, sw, sh, artH, params)
   const simplifyTol = svgVectorSimplifyTol(sw, sh);
   const smoothPasses = svgVectorSmoothPasses(artH);
   const islandGroups = svgInkIslandGroups(rings);
-  const dilate = rings.length > 6 ? 3 : 2;
+  const dilate = rings.length > 6 ? (svgIsPreview(params) ? 2 : 3) : 2;
+  const silhouetteDim = svgSilhouetteMaxDim(params);
 
   let groups = unionShapeGroupsToPrepared(
     islandGroups,
@@ -2862,13 +2883,13 @@ function svgPrepareFillShapeGroups(fillRingItems, viewBox, sw, sh, artH, params)
     simplifyTol,
     smoothPasses,
     dilate,
-    SVG_SILHOUETTE_MAX_DIM,
+    silhouetteDim,
   );
   groups = filterDegenerateShapeGroups(groups, maskW, maskH);
   if (groups.length) return groups;
 
   const nested = groupPolygonsWithHoles(rings);
-  groups = unionShapeGroupsToPrepared(nested, maskW, maskH, simplifyTol, smoothPasses, dilate, SVG_SILHOUETTE_MAX_DIM);
+  groups = unionShapeGroupsToPrepared(nested, maskW, maskH, simplifyTol, smoothPasses, dilate, silhouetteDim);
   groups = filterDegenerateShapeGroups(groups, maskW, maskH);
   return groups.length ? groups : islandGroups;
 }
@@ -3059,7 +3080,8 @@ function polylineFromElement(el) {
 }
 
 /** Sample SVG geometry — transform-aware, split into stroke paths and filled rings. */
-export function parseSvgPaths(svgText) {
+export function parseSvgPaths(svgText, opts = {}) {
+  const pathMaxPoints = opts.maxPoints ?? SVG_PATH_MAX_POINTS;
   if (typeof DOMParser === "undefined" || typeof document === "undefined") {
     return { polylines: [], strokePaths: [], fillRings: [], viewBox: [0, 0, 100, 100], strokeWidth: 1.5 };
   }
@@ -3105,7 +3127,7 @@ export function parseSvgPaths(svgText) {
         const temp = document.createElementNS(SVG_NS, "path");
         temp.setAttribute("d", sub);
         parent.insertBefore(temp, pathEl);
-        const sampled = sampleSvgPathElementRaw(temp);
+        const sampled = sampleSvgPathElementRaw(temp, pathMaxPoints);
         temp.remove();
         if (!sampled || sampled.length < 2) continue;
         if ((mode === "fill" || mode === "both") && svgSampleIsFillRing(sampled, sub, viewBox)) {
@@ -3283,7 +3305,7 @@ function extrudeSvgFillRings(outPos, outIdx, fillRingItems, layout, params, view
 }
 
 export function buildEmbossSvg(meta, params, svgText) {
-  const parsed = parseSvgPaths(svgText);
+  const parsed = parseSvgPaths(svgText, { maxPoints: svgPathMaxPoints(params) });
   const layout = computeSvgArtLayout(parsed, meta, params);
   if (!layout) return null;
 
@@ -3561,7 +3583,7 @@ function extrudeGroupsOnFace(outPos, outIdx, frame, faceGroups, d0, d1, params =
       targetCols: isSvg ? WRAP_SVG_DECAL_TARGET_COLS : WRAP_DECAL_TARGET_COLS,
       stepMin: isSvg ? WRAP_SVG_DECAL_STEP_MIN_MM : WRAP_DECAL_STEP_MIN_MM,
       stepMax: isSvg ? WRAP_SVG_DECAL_STEP_MAX_MM : WRAP_DECAL_STEP_MAX_MM,
-      maxCells: isSvg ? WRAP_SVG_MASK_MAX_CELLS : 2048,
+      maxCells: svgWrapMaskMaxCells(params, isSvg),
       dilatePasses: 1,
       solid: true,
     });

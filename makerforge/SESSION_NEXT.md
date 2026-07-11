@@ -2,8 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `d36757c` (b270)
-- Cache-bust: `app.js?v=270` — header **b270**
+- Latest commit: (pending b271)
+- Cache-bust: `app.js?v=271` — header **b271**
+
+### 2026-07-11 — b271: Faster SVG preview + loading status
+
+**Symptom:** broncs.svg eventually appeared but felt slow — heavy union + wrap slab grid blocked UI with no feedback.
+
+**Fix:**
+- Preview tier: lower path samples (880), silhouette union (704px), wrap mask (1664 cells); export unchanged.
+- `Processing broncs.svg…` / `Tracing…` status while import runs; yield to browser before rebuild.
+
+- Cache **b271**. Hard refresh → **b271**.
 
 ### 2026-07-11 — b270: Hotfix blank b269 — restore applyTraceToBox, vector-first SVG
 
