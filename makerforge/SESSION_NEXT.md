@@ -2,8 +2,22 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `c3821cc` (b227)
-- Cache-bust: `app.js?v=227` — header **b227**
+- Latest commit: (pending — b228)
+- Cache-bust: `app.js?v=228` — header **b228**
+
+### 2026-07-11 — b228: Mask-first silhouette (fix blue wedge regression)
+
+**Symptom:** Blue overlay wedge returned; 3D wrap shredded again after b227.
+
+**Root cause:** Low-res polygonise → scale-up reintroduced spike geometry; cleaning polygons couldn't fix mask noise from high threshold (235). Preview drew polygons, 3D drew polygons — both wrong when mask had extra blob.
+
+**Fix (`trace.js`, `features.js`, `app.js`):**
+- `pruneSilhouetteMask` — drop detached noise islands, open thin spikes
+- `silhouetteGroupsFromMask` — rebuild from pruned mask (not scaled polygonise)
+- Preview + emboss store/use `silhouetteMask` (same raster for blue overlay and wrap slabs)
+- `buildWrapTraceSlabMesh` prefers stored mask over polygon raster
+
+- Cache **b228**. Hard refresh, re-drop image. Blue fill = mask truth; 3D should match.
 
 ### 2026-07-11 — b227: Wrap 3D from pixel mask (match trace preview)
 

@@ -18,11 +18,12 @@ import {
   strokePathsToSvg,
   previewMergeTraceShapeGroups,
   cleanTraceSilhouetteGroups,
+  unionShapeGroupsToPrepared,
   rasterizeShapeGroupsToMask,
   filterDegenerateShapeGroups,
-} from "./contour.js?v=226";
+} from "./contour.js?v=228";
 
-export { unionDenseEmbossShapeGroups } from "./contour.js?v=226";
+export { unionDenseEmbossShapeGroups } from "./contour.js?v=228";
 
 
 
@@ -502,36 +503,114 @@ async function traceColorLayerGroupsAsync(data, width, height, tw, th, ox, oy, t
 }
 
 function compactTraceMask(workMask, shapeGroups) {
+  if (workMask?.length) return workMask.slice();
   if (shapeGroups?.length) return [];
   if (!workMask?.length || workMask.length > 400_000) return [];
   return workMask.slice();
 }
 
-function finishSilhouetteTrace(workMask, tw, th, ox, oy, shapeGroups, simplifyFactor, width, height, extra = {}) {
-  let groups = filterDegenerateShapeGroups(shapeGroups, tw, th);
-  let shapeGroupsUnited = false;
-  let previewShapeGroups = null;
-  if (groups.length) {
-    const cleaned = cleanTraceSilhouetteGroups(groups, tw, th);
-    if (cleaned.length) {
-      groups = cleaned;
-      shapeGroupsUnited = true;
-      previewShapeGroups = cleaned;
+/** Flood-fill connected components in a binary mask. */
+function findMaskComponents(mask, width, height) {
+  const labels = new Int32Array(width * height);
+  const comps = [];
+  let nextLabel = 0;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const start = y * width + x;
+      if (!mask[start] || labels[start]) continue;
+      nextLabel += 1;
+      const comp = { label: nextLabel, area: 0, sumX: 0, sumY: 0 };
+      const stack = [start];
+      labels[start] = nextLabel;
+      while (stack.length) {
+        const idx = stack.pop();
+        comp.area += 1;
+        const px = idx % width;
+        const py = (idx / width) | 0;
+        comp.sumX += px;
+        comp.sumY += py;
+        if (px > 0) {
+          const n = idx - 1;
+          if (mask[n] && !labels[n]) { labels[n] = nextLabel; stack.push(n); }
+        }
+        if (px < width - 1) {
+          const n = idx + 1;
+          if (mask[n] && !labels[n]) { labels[n] = nextLabel; stack.push(n); }
+        }
+        if (py > 0) {
+          const n = idx - width;
+          if (mask[n] && !labels[n]) { labels[n] = nextLabel; stack.push(n); }
+        }
+        if (py < height - 1) {
+          const n = idx + width;
+          if (mask[n] && !labels[n]) { labels[n] = nextLabel; stack.push(n); }
+        }
+      }
+      comps.push(comp);
     }
+  }
+  return { labels, comps };
+}
+
+/** Drop threshold-noise islands and thin spikes before polygonise. */
+function pruneSilhouetteMask(mask, width, height) {
+  const { labels, comps } = findMaskComponents(mask, width, height);
+  if (!comps.length) return mask;
+  if (comps.length === 1) return openMask(mask, width, height);
+  comps.sort((a, b) => b.area - a.area);
+  const main = comps[0];
+  const mainCx = main.sumX / main.area;
+  const mainCy = main.sumY / main.area;
+  const span = Math.max(width, height);
+  const out = new Uint8Array(width * height);
+  for (const comp of comps) {
+    const cx = comp.sumX / comp.area;
+    const cy = comp.sumY / comp.area;
+    const dist = Math.hypot(cx - mainCx, cy - mainCy);
+    const keep = comp === main
+      || (comp.area >= main.area * 0.1 && dist < span * 0.4);
+    if (!keep) continue;
+    for (let i = 0; i < labels.length; i++) {
+      if (labels[i] === comp.label) out[i] = 1;
+    }
+  }
+  return out.some((v) => v) ? out : mask;
+}
+
+function silhouetteGroupsFromMask(mask, tw, th, simplifyTol, smoothPasses) {
+  const polys = maskToPolygons(mask, tw, th);
+  const raw = groupPolygonsWithHoles(polys);
+  if (!raw.length) return [];
+  const seed = raw.map(({ outer, holes }) => ({ outer, holes: holes || [] }));
+  const merged = unionShapeGroupsToPrepared(seed, tw, th, simplifyTol, smoothPasses, 2, 768);
+  const groups = merged.length
+    ? merged
+    : prepareShapeGroups(seed, simplifyTol, smoothPasses);
+  return filterDegenerateShapeGroups(groups, tw, th);
+}
+
+function finishSilhouetteTrace(workMask, tw, th, ox, oy, shapeGroups, simplifyFactor, width, height, extra = {}) {
+  const simplifyTol = extra.simplifyTol ?? Math.max(0.18, tw / 2000);
+  const smoothPasses = extra.smoothPasses ?? 1;
+  const silhouetteMask = pruneSilhouetteMask(workMask, tw, th);
+  let groups = silhouetteGroupsFromMask(silhouetteMask, tw, th, simplifyTol, smoothPasses);
+  if (!groups.length && shapeGroups?.length) {
+    groups = filterDegenerateShapeGroups(shapeGroups, tw, th);
+    const cleaned = cleanTraceSilhouetteGroups(groups, tw, th);
+    if (cleaned.length) groups = cleaned;
   }
   if (groups.length > 1) {
     const merged = previewMergeTraceShapeGroups(groups, tw, th);
-    if (merged.length) {
-      groups = merged;
-      previewShapeGroups = merged;
-      shapeGroupsUnited = true;
-    }
+    if (merged.length) groups = merged;
   }
-  const rects = maskToRuns(workMask, tw, th);
+  const shapeGroupsUnited = true;
+  const previewShapeGroups = groups;
+  const rects = maskToRuns(silhouetteMask, tw, th);
   const svg = polygonsToSvg(groups, tw, th);
   return {
     rects,
-    mask: compactTraceMask(workMask, groups),
+    mask: compactTraceMask(silhouetteMask, groups),
+    silhouetteMask,
     polygons: [],
     shapeGroups: groups,
     shapeGroupsUnited,
@@ -1117,6 +1196,31 @@ export function drawTracePreview(previewCanvas, sourceCanvas, traceResult) {
   }
 
   ctx.fillStyle = "rgba(56, 189, 248, 0.55)";
+
+  const tw = traceResult.width || 1;
+  const th = traceResult.height || 1;
+  const silMask = traceResult.silhouetteMask;
+  if (silMask?.length === tw * th) {
+    const preview = document.createElement("canvas");
+    preview.width = tw;
+    preview.height = th;
+    const pctx = preview.getContext("2d");
+    if (pctx) {
+      const img = pctx.createImageData(tw, th);
+      for (let i = 0; i < tw * th; i++) {
+        const on = silMask[i];
+        const j = i * 4;
+        img.data[j] = 56;
+        img.data[j + 1] = 189;
+        img.data[j + 2] = 248;
+        img.data[j + 3] = on ? 140 : 0;
+      }
+      pctx.putImageData(img, 0, 0);
+      const factor = traceResult.simplifyFactor || 1;
+      ctx.drawImage(preview, pad + (traceResult.cropOx ?? 0), pad + (traceResult.cropOy ?? 0), tw * factor, th * factor);
+    }
+    return;
+  }
 
   const groups = traceResult.shapeGroups?.length ? traceResult.shapeGroups : null;
 
