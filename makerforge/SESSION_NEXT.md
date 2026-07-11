@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending — b232)
+- Latest commit: `cfc163c` (b232)
 - Cache-bust: `app.js?v=232` — header **b232**
 
 ### 2026-07-11 — b232: United heraldic wrap — polygon extrude not row slabs
