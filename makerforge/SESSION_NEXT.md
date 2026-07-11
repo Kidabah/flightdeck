@@ -2,8 +2,22 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `4f5ee6a` (b241)
-- Cache-bust: `app.js?v=241` — header **b241**
+- Latest commit: (pending — b242)
+- Cache-bust: `app.js?v=242` — header **b242**
+
+### 2026-07-11 — b242: Root-cause fix — line art ≠ solid silhouette (scale-aware interior fill)
+
+**Root cause (line-by-line audit):**
+1. `silhouetteFillUsable` treated 0.8–52% ink as “solid” — double-edge tiger/heraldic is ~3–12% (edges only) → `solidSilhouetteFill: true` **skipped** interior fill entirely (b240 bug).
+2. `solidifyOutlineSilhouetteMask` used hRadius≤10 on 2400px crops — double-edge gaps are 30–80px → flood exterior leaked through → hollow outline emboss.
+3. Secondary: full-res masks (4.6M px) couldn’t persist in localStorage → stale/wrong `embossTraceRects.mask` on restore fell back to hollow `shapeGroups`.
+
+**Fix:**
+- `isSolidSilhouetteMask` — only skip solidify when fill ≥14% AND no band-gap pattern.
+- `solidifyOutlineSilhouetteMask` — close radii scale with image size (hRadius ~span/55, gap ~span/25), retry with thicker wall.
+- Session: skip maskB64 when >1.5M px; re-trace on restore (b241 sync keeps preview ≡ emboss).
+
+- Cache **b242**. Hard refresh, re-drop image — preview AND wrap must both be solid fill.
 
 ### 2026-07-11 — b241: Sync emboss mask when trace re-runs (preview ≠ 3D)
 

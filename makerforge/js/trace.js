@@ -559,36 +559,28 @@ function silhouetteInkCrop(data, fullW, fullH, threshold, invert, blur) {
   return cropMask(ink, fullW, fullH);
 }
 
-function silhouetteFillUsable(mask, width, height) {
+/** Minimum ink coverage for a pre-filled silhouette (below = line art needing interior fill). */
+const SOLID_SILHOUETTE_MIN_FILL = 0.14;
+
+function isSolidSilhouetteMask(mask, width, height) {
   const fill = maskFillRatio(mask, width, height);
-  return fill >= 0.008 && fill <= 0.52;
+  if (fill < SOLID_SILHOUETTE_MIN_FILL || fill > 0.55) return false;
+  return !maskNeedsDoubleEdgeSolidify(mask, width, height);
 }
 
 function finishOutlineFallbackSilhouette(data, fullW, fullH, threshold, invert, blur, width, height, extra = {}) {
   const silCropped = silhouetteInkCrop(data, fullW, fullH, threshold, invert, blur);
-  if (silCropped) {
-    const { mask: silMask, width: tw, height: th, ox, oy } = silCropped;
-    if (silhouetteFillUsable(silMask, tw, th)) {
-      const quality = traceQualityParams(tw, extra);
-      return finishSilhouetteTrace(silMask, tw, th, ox, oy, [], 1, width, height, {
-        outlineFallback: true,
-        solidSilhouetteFill: true,
-        simplifyTol: quality.fbTol,
-        smoothPasses: quality.smoothPasses,
-        ...extra,
-      });
-    }
-  }
-  const cropped = outlineInkCrop(data, fullW, fullH, threshold, invert, blur);
-  if (!cropped) {
+  if (!silCropped) {
     return {
       rects: [], width: 0, height: 0, svg: "", rectCount: 0, simplified: false, simplifyFactor: 1,
     };
   }
-  const { mask: workMask, width: tw, height: th, ox, oy } = cropped;
+  const { mask: workMask, width: tw, height: th, ox, oy } = silCropped;
   const quality = traceQualityParams(tw, extra);
+  const solidSilhouetteFill = isSolidSilhouetteMask(workMask, tw, th);
   return finishSilhouetteTrace(workMask, tw, th, ox, oy, [], 1, width, height, {
     outlineFallback: true,
+    solidSilhouetteFill,
     simplifyTol: quality.fbTol,
     smoothPasses: quality.smoothPasses,
     ...extra,
@@ -820,31 +812,48 @@ function maskNeedsDoubleEdgeSolidify(mask, width, height) {
   return bandRows >= Math.max(6, Math.round(height * 0.006));
 }
 
-/** Close outline boundary, then flood-fill interior for solid emboss (reverse of edge extract). */
+/** Close line-art boundary (scale-aware), flood exterior, fill interior — one solid emboss mask. */
 function solidifyOutlineSilhouetteMask(mask, width, height) {
   const span = Math.min(width, height);
-  const hRadius = span > 1600 ? 10 : span > 1200 ? 9 : span > 900 ? 8 : span > 500 ? 6 : 4;
-  const radius = span > 1600 ? 8 : span > 1200 ? 7 : span > 900 ? 6 : span > 500 ? 5 : 4;
-  let boundary = closeMaskHorizontal(mask, width, height, hRadius);
-  boundary = closeMask(boundary, width, height, radius);
-  const maxGap = Math.max(20, Math.round(span / 45));
-  boundary = bridgeRowGapsInMask(boundary, width, height, maxGap);
-  boundary = dilateMask(boundary, width, height);
-  let filled = fillInteriorEnclosedByOutline(boundary, width, height);
-  const fill = maskFillRatio(filled, width, height);
-  if (fill < 0.04) {
-    const wider = closeMask(boundary, width, height, Math.min(12, radius + 4));
-    const retry = fillInteriorEnclosedByOutline(dilateMask(wider, width, height), width, height);
-    if (maskFillRatio(retry, width, height) > fill) filled = retry;
+  const hRadius = clamp(Math.round(span / 55), 12, 56);
+  const radius = clamp(Math.round(span / 45), 10, 48);
+  const maxGap = clamp(Math.round(span / 25), 40, 120);
+
+  const buildFilled = (seed, hR, r, gap) => {
+    let boundary = closeMaskHorizontal(seed, width, height, hR);
+    boundary = closeMask(boundary, width, height, r);
+    boundary = bridgeRowGapsInMask(boundary, width, height, gap);
+    boundary = dilateMask(boundary, width, height);
+    return fillInteriorEnclosedByOutline(boundary, width, height);
+  };
+
+  let filled = buildFilled(mask, hRadius, radius, maxGap);
+  let fill = maskFillRatio(filled, width, height);
+  if (fill < SOLID_SILHOUETTE_MIN_FILL) {
+    const retry = buildFilled(
+      dilateMask(mask, width, height),
+      Math.min(64, hRadius + 8),
+      Math.min(56, radius + 8),
+      Math.min(160, maxGap + 24),
+    );
+    const retryFill = maskFillRatio(retry, width, height);
+    if (retryFill > fill) {
+      filled = retry;
+      fill = retryFill;
+    }
   }
-  return filled;
+  return fill >= maskFillRatio(mask, width, height) ? filled : mask;
 }
 
 function finishSilhouetteTrace(workMask, tw, th, ox, oy, shapeGroups, simplifyFactor, width, height, extra = {}) {
   const simplifyTol = extra.simplifyTol ?? Math.max(0.18, tw / 2000);
   const smoothPasses = extra.smoothPasses ?? 1;
   const needsSolidify = !extra.solidSilhouetteFill
-    && (!!extra.outlineFallback || maskNeedsDoubleEdgeSolidify(workMask, tw, th));
+    && (
+      !!extra.outlineFallback
+      || maskNeedsDoubleEdgeSolidify(workMask, tw, th)
+      || maskFillRatio(workMask, tw, th) < SOLID_SILHOUETTE_MIN_FILL
+    );
   let inkMask = workMask;
   if (needsSolidify) inkMask = solidifyOutlineSilhouetteMask(workMask, tw, th);
   const silhouetteMask = pruneSilhouetteMask(inkMask, tw, th, { skipOpen: needsSolidify });
