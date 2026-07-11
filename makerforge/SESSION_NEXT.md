@@ -2,8 +2,19 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `141d69b` (b231)
-- Cache-bust: `app.js?v=231` — header **b231**
+- Latest commit: (pending — b232)
+- Cache-bust: `app.js?v=232` — header **b232**
+
+### 2026-07-11 — b232: United heraldic wrap — polygon extrude not row slabs
+
+**Symptom:** Horizontal void bands through knight on cylinder (b231 revert unchanged — slabs z-fight row-on-row).
+
+**Fix (`features.js`):**
+- 1-island united silhouettes on wrap use **solid polygon extrude** (earcut on clean mask polygon)
+- Row slabs kept only as fallback for dense multi-island art
+- Slightly higher wrap preview standoff (0.22mm) off wall
+
+- Cache **b232**. Hard refresh, re-drop image.
 
 ### 2026-07-11 — b231: Revert b230 (horizontal gaps worse on wrap)
 

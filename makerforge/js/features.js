@@ -2,7 +2,7 @@
  * Accent bands, emboss, honeycomb stamp, stackable hex grid, mesh merge.
  */
 
-import { dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, filterDegenerateShapeGroups, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, previewMergeTraceShapeGroups, rasterizeShapeGroupsToMask, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap, unionDenseEmbossShapeGroups, unionShapeGroupsToPrepared } from "./contour.js?v=231";
+import { dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, filterDegenerateShapeGroups, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, previewMergeTraceShapeGroups, rasterizeShapeGroupsToMask, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap, unionDenseEmbossShapeGroups, unionShapeGroupsToPrepared } from "./contour.js?v=232";
 import { decorPlacementOffsets, decorArtRect, rotateFacePoint, rotateShapeGroup } from "./decor.js";
 import {
   profileOutlineNormals,
@@ -2551,11 +2551,20 @@ export function buildEmbossBitmap(meta, params, bitmap) {
 
   if (bitmap.shapeGroups?.length) {
     const sourceGroups = unionDenseTraceShapeGroups(bitmap.shapeGroups, maskW, maskH, artH, params, bitmap);
+    const faceGroups = remappedBitmapFaceGroups(bitmap, frame, params, sourceGroups, maskW, maskH, artH);
+    const unitedWrap = frame.face === "wrap"
+      && (bitmap.shapeGroupsUnited || sourceGroups.length <= 1);
+    // United heraldic silhouettes — solid polygon extrude (horizontal row slabs z-fight on cylinder).
+    if (unitedWrap && faceGroups.length) {
+      for (const group of faceGroups) {
+        extrudeGroupOnFace(positions, indices, frame, group, d0, d1, params);
+      }
+      if (positions.length) return { positions, indices };
+    }
     if (frame.face === "wrap") {
       const slab = buildWrapTraceSlabMesh(frame, bitmap, params, sourceGroups, d0, d1);
       if (slab?.indices?.length) return slab;
     }
-    const faceGroups = remappedBitmapFaceGroups(bitmap, frame, params, sourceGroups, maskW, maskH, artH);
     extrudeGroupsOnFace(positions, indices, frame, faceGroups, d0, d1, params);
     return positions.length ? { positions, indices } : null;
   }
@@ -3294,6 +3303,9 @@ function labelOffsets(params) {
   let standoff = 0;
   if (!params.__labelExportEmbedded) {
     standoff = params.__labelExportStandoff ? 0.2 : 0;
+    if ((params.embossFace || "front") === "wrap" && !params.__labelExportStandoff) {
+      standoff = 0.22;
+    }
     if (params.__labelExportStandoff && params.vaseTextureEnabled) {
       const texDepth = clamp(params.vaseTextureDepth ?? 1.2, 0.2, 3);
       standoff = Math.max(standoff, 0.35 + texDepth * 0.15);
