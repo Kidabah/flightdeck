@@ -250,6 +250,10 @@ const WRAP_DECAL_STEP_MM = 0.4;
 const WRAP_DECAL_TARGET_COLS = 560;
 const WRAP_DECAL_STEP_MIN_MM = 0.08;
 const WRAP_DECAL_STEP_MAX_MM = 0.26;
+/** Finer slabs for vector SVG on wrap — still no earcut (slash-free). */
+const WRAP_SVG_DECAL_TARGET_COLS = 880;
+const WRAP_SVG_DECAL_STEP_MIN_MM = 0.05;
+const WRAP_SVG_DECAL_STEP_MAX_MM = 0.16;
 const WRAP_ART_VERTICAL_GUTTER_MM = 1.4;
 
 function wrapSafeArtHeight(frame, requestedHeight) {
@@ -264,6 +268,13 @@ function wrapDecalStepMm(shapeGroups) {
   if (!bounds) return WRAP_DECAL_STEP_MM;
   const span = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY, 1);
   return clamp(span / WRAP_DECAL_TARGET_COLS, WRAP_DECAL_STEP_MIN_MM, WRAP_DECAL_STEP_MAX_MM);
+}
+
+function wrapSvgDecalStepMm(shapeGroups) {
+  const bounds = shapeGroupsBounds2d(shapeGroups);
+  if (!bounds) return WRAP_SVG_DECAL_STEP_MIN_MM;
+  const span = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY, 1);
+  return clamp(span / WRAP_SVG_DECAL_TARGET_COLS, WRAP_SVG_DECAL_STEP_MIN_MM, WRAP_SVG_DECAL_STEP_MAX_MM);
 }
 
 function resolveSlabGrid(bounds, stepMm, pad, maxCells = 2048) {
@@ -2691,17 +2702,19 @@ export function buildEmbossBitmap(meta, params, bitmap) {
 }
 
 const SVG_NS = "http://www.w3.org/2000/svg";
-/** Native SVG path sampling — finer than trace bitmaps; browser curves → print polylines. */
-const SVG_PATH_SAMPLE_SPACING = 0.06;
-const SVG_PATH_MAX_POINTS = 6400;
-const SVG_PATH_DEDUPE_EPS = 0.025;
+/** Native SVG path sampling — balanced for speed + curve fidelity on flat faces. */
+const SVG_PATH_SAMPLE_SPACING = 0.1;
+const SVG_PATH_MAX_POINTS = 1600;
+const SVG_PATH_DEDUPE_EPS = 0.04;
+/** Raster silhouette cap for SVG prep (speed — avoids megapixel unions). */
+const SVG_SILHOUETTE_MAX_DIM = 768;
 
 function svgVectorSimplifyTol(sw, sh) {
-  return Math.max(0.035, Math.max(sw, sh) / 2200);
+  return Math.max(0.08, Math.max(sw, sh) / 1100);
 }
 
 function svgVectorSmoothPasses(artH) {
-  return artH <= 14 ? 2 : 1;
+  return artH <= 14 ? 1 : 0;
 }
 
 function svgUsesVectorExtrude(params) {
@@ -2790,19 +2803,26 @@ function svgPrepareFillShapeGroups(fillRingItems, viewBox, sw, sh, artH, params)
   const rings = pickPrimarySvgFillRings(fillRingItems, viewBox);
   if (!rings.length) return [];
 
-  const simplifyTol = svgVectorSimplifyTol(sw, sh);
-  const smoothPasses = svgVectorSmoothPasses(artH);
   const maskW = Math.max(8, Math.round(sw));
   const maskH = Math.max(8, Math.round(sh));
+  const simplifyTol = svgVectorSimplifyTol(sw, sh);
+  const rawGroups = groupPolygonsWithHoles(rings);
+  if (!rawGroups.length) return [];
 
-  let groups = prepareSvgShapeGroups(groupPolygonsWithHoles(rings), simplifyTol, smoothPasses);
+  // Fast silhouette — one raster union instead of earcut on thousands of curve points.
+  let groups = unionShapeGroupsToPrepared(
+    rawGroups,
+    maskW,
+    maskH,
+    simplifyTol,
+    0,
+    1,
+    SVG_SILHOUETTE_MAX_DIM,
+  );
   groups = filterDegenerateShapeGroups(groups, maskW, maskH);
+  if (groups.length) return groups;
 
-  if (groups.length > 10 && !isLabelExport(params)) {
-    groups = unionShapeGroupsToPrepared(groups, maskW, maskH, simplifyTol, smoothPasses, 1, 2560);
-    groups = filterDegenerateShapeGroups(groups, maskW, maskH);
-  }
-  return groups;
+  return prepareSvgShapeGroups(rawGroups, simplifyTol, svgVectorSmoothPasses(artH));
 }
 
 function splitPathSubpaths(d) {
@@ -3059,8 +3079,12 @@ export function parsedSvgHasFill(svgText) {
 /** True when vector SVG parsing yields emboss geometry for the current shape/face. */
 export function svgEmbossProducesMesh(meta, params, svgText) {
   if (!meta || !svgText?.trim()) return false;
-  const mesh = buildEmbossSvg(meta, params, svgText);
-  return !!(mesh?.positions?.length && mesh?.indices?.length);
+  const parsed = parseSvgPaths(svgText);
+  const fillItems = parsed.fillRingItems || [];
+  if (fillItems.length) {
+    return pickPrimarySvgFillRings(fillItems, parsed.viewBox).length > 0;
+  }
+  return (parsed.strokePaths?.length || 0) > 0;
 }
 
 function pathIsExplicitlyClosed(path) {
@@ -3184,7 +3208,8 @@ export function buildEmbossSvg(meta, params, svgText) {
 
   extrudeSvgFillRings(positions, indices, fillRingItems, layout, params, parsed.viewBox);
 
-  if (strokePaths.length) {
+  const hasFillInk = fillRingItems.length > 0;
+  if (!hasFillInk && strokePaths.length) {
     const svgStroke = parsed.strokeWidth ?? 1.5;
     const lineWidth = clamp(scale * svgStroke, 0.45, 1.5);
     const smoothPasses = svgVectorSmoothPasses(artH);
@@ -3435,11 +3460,14 @@ function extrudeStrokeSegmentOnFace(outPos, outIdx, frame, x0, y0, x1, y1, half,
   face(p010, p110, p111, p011);
 }
 
-/** Extrude remapped art groups — trace/bitmap wrap uses raster slabs; SVG vectors use earcut extrusion. */
+/** Extrude remapped art groups — wrap always uses raster slabs (earcut slashes on curved walls). */
 function extrudeGroupsOnFace(outPos, outIdx, frame, faceGroups, d0, d1, params = null) {
-  const vectorWrap = frame.face === "wrap" && faceGroups.length && svgUsesVectorExtrude(params);
-  if (frame.face === "wrap" && faceGroups.length && !vectorWrap) {
-    const stepMm = params?.__labelExportStandoff ? DECAL_LAYER_MM : wrapDecalStepMm(faceGroups);
+  if (frame.face === "wrap" && faceGroups.length) {
+    const stepMm = params?.__labelExportStandoff
+      ? DECAL_LAYER_MM
+      : svgUsesVectorExtrude(params)
+        ? wrapSvgDecalStepMm(faceGroups)
+        : wrapDecalStepMm(faceGroups);
     const slab = buildFaceDecalSlabMesh(frame, faceGroups, { d0, d1, stepMm, dilatePasses: 0 });
     if (slab?.indices?.length) {
       const base = outPos.length / 3;

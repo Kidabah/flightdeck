@@ -2,8 +2,21 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `179b06a` (b261)
-- Cache-bust: `app.js?v=261` — header **b261**
+- Latest commit: (pending — b262)
+- Cache-bust: `app.js?v=262` — header **b262**
+
+### 2026-07-11 — b262: SVG wrap speed + fix earcut mesh gore
+
+**Symptom:** b261 loaded forever and preview showed earcut slash garbage (spiky triangle soup) on Wrap.
+
+**Fix:**
+- **Wrap always uses raster slabs** — reverted earcut on curved walls (root cause of mesh gore).
+- **Finer SVG wrap slabs** — 880 cols, 0.05–0.16 mm step (was 560 / 0.08–0.26 for trace).
+- **Fast SVG silhouette prep** — single 768px raster union instead of chaikin + earcut on 6400-pt polylines.
+- **Reduced path sampling** — 1600 pt cap, 0.1 spacing (was 6400 / 0.06).
+- **Import speed** — skip full mesh build on import; stroke extrusion skipped when fills present.
+
+- Cache **b262** (`app.js?v=262`, `features.js?v=262`). Hard refresh, Clear, re-load broncs.svg on Wrap — should load quickly with clean slab emboss, no triangle soup.
 
 ### 2026-07-11 — b261: SVG compound paths — hole grouping, bg filter, single ink layer
 
