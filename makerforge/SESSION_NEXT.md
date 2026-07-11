@@ -2,8 +2,21 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (b281 — pending push)
-- Cache-bust: `app.js?v=281`, `features.js?v=281` — header **b281**
+- Latest commit: (b282 — pending push)
+- Cache-bust: `app.js?v=282`, `features.js?v=282` — header **b282**
+
+### 2026-07-11 — b282: Fix broken wrap logos — per-island contour, no merge
+
+**Symptom:** Heraldic/knight logo on cooler wrap shows fragmented shards (shield corners + thin sliver only).
+
+**Cause:** b279 `mergeWrapSolidLogoGroups` unioned multi-island logos into one ring (holes stripped) → self-intersecting polygon → partial/broken contour extrude.
+
+**Fix:**
+- **Removed** island merge on wrap — extrude each trace island separately (same as jar).
+- Wrap solids: per-group contour → art slabs → fine mask slab last resort.
+- Line art on wrap unchanged (ink pixel slabs).
+
+- Cache **b282**. Hard refresh, re-drop knight/broncs on cooler wrap.
 
 ### 2026-07-11 — b281: Fix wrap scan lines — no pixel-row fallback for solid logos
 
