@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending b272)
+- Latest commit: `e3e02b4` (b272)
 - Cache-bust: `app.js?v=272` — header **b272**
 
 ### 2026-07-11 — b272: Solid SVG silhouette — fill horse, not hollow outline
