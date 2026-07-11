@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `dbb2236` (b236)
-- Cache-bust: `app.js?v=236` — header **b236**
+- Latest commit: (pending — b237)
+- Cache-bust: `app.js?v=237` — header **b237**
+
+### 2026-07-11 — b237: Fix stale build tag (MAKERDECK_BUILD was stuck on b234)
+
+**Symptom:** Pi had b236 code but `app.js` overwrote header with `MAKERDECK_BUILD = "b234"` on boot — UI showed 2 builds behind.
+
+**Fix:** Align `MAKERDECK_BUILD`, `index.html` tag, and `app.js?v=` to **b237**.
+
+- Cache **b237**. Hard refresh `https://flightdeck.tail7de73e.ts.net/#/makerdeck` — header must show **b237**.
 
 ### 2026-07-11 — b236: Wrap preview 1px rows for tall traces (fix top scan-line gaps)
 
