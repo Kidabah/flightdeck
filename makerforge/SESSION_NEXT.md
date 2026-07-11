@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending b271)
+- Latest commit: `46c337b` (b271)
 - Cache-bust: `app.js?v=271` — header **b271**
 
 ### 2026-07-11 — b271: Faster SVG preview + loading status
