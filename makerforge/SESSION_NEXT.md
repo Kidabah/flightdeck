@@ -2,8 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `8dd3dd4` (b279)
-- Cache-bust: `app.js?v=279`, `features.js?v=279` — header **b279**
+- Latest commit: (b280 — pending push)
+- Cache-bust: `app.js?v=280`, `features.js?v=280` — header **b280**
+
+### 2026-07-11 — b280: Fix blank wrap emboss (`opts` ReferenceError)
+
+**Symptom:** After b279, emboss blank on cooler wrap (and any wrap fallback path). `buildWrapTraceSlabMesh` referenced `opts.fineRows` but `opts` was never a parameter — `ReferenceError` on fallback.
+
+**Fix:**
+- Add `opts = {}` to `buildWrapTraceSlabMesh` signature.
+- Wrap contour extrude only returns early when geometry was actually produced; mask slab fallback can run when contour fails.
+
+- Cache **b280**. Hard refresh (Ctrl+Shift+R), re-drop logo on cooler wrap.
 
 ### 2026-07-11 — b279: Cooler wrap logos — contour extrude, not row slabs
 
