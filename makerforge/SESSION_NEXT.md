@@ -2,8 +2,19 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `ad24606` (b278)
-- Cache-bust: `app.js?v=278` — header **b278**
+- Latest commit: (pending b279)
+- Cache-bust: `app.js?v=279`, `features.js?v=279` — header **b279**
+
+### 2026-07-11 — b279: Cooler wrap logos — contour extrude, not row slabs
+
+**Symptom:** Knight/heraldic logo perfect on jar; cooler shows horizontal black bars through art. Trace correct — cooler wrap used row-slab mesh on multi-part silhouette.
+
+**Fix:**
+- Merge wrap logo islands to **one solid contour** before extrude.
+- Solid silhouettes on wrap → **direct contour extrude** (same as jar).
+- Row slabs only for line-art raster (`outlineRaster`).
+
+- Cache **b279**. Hard refresh, re-drop logo on cooler wrap.
 
 ### 2026-07-11 — b278: Trace = container — auto picks line art not silhouette blob
 

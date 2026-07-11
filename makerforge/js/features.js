@@ -361,7 +361,31 @@ function pushWrapRunShell(outPos, outIdx, frame, px0, py0, px1, py1, d0, d1, { s
   pushQuad(outPos, outIdx, i10, i11, o11, o10);
 }
 
+/** Merge heraldic/logo silhouettes to one solid ring for wrap contour extrude (cooler — no row slabs). */
+function mergeWrapSolidLogoGroups(groups, maskW, maskH, bitmap, params) {
+  if (!groups?.length || bitmap?.outlineRaster) return groups;
+  if (groups.length === 1 && !(groups[0].holes?.length)) return groups;
+  const maxDim = svgIsPreview(params) ? 768 : 1280;
+  const simplifyTol = Math.max(0.06, maskW / 3200);
+  const merged = unionShapeGroupsToPrepared(
+    groups.map((g) => ({ outer: g.outer, holes: [] })),
+    maskW,
+    maskH,
+    simplifyTol,
+    1,
+    3,
+    maxDim,
+  );
+  return merged.length ? merged.map((g) => ({ outer: g.outer, holes: [] })) : groups;
+}
+
 function shouldUseWrapRunSlabs(bitmap) {
+  if (bitmap.shapeGroups?.length && bitmap.shapeGroupsUnited) return false;
+  if (!bitmap?.mask?.length) return true;
+  if (bitmap.rasterSimplified) return false;
+  if (bitmap.mode === "outline" && (bitmap.rects?.length ?? 0) > 3500) return false;
+  return true;
+}
   if (bitmap.shapeGroups?.length && bitmap.shapeGroupsUnited) return false;
   if (!bitmap?.mask?.length) return true;
   if (bitmap.rasterSimplified) return false;
@@ -2740,15 +2764,20 @@ export function buildEmbossBitmap(meta, params, bitmap) {
   }
 
   if (bitmap.shapeGroups?.length || bitmap.mask?.length) {
-    const sourceGroups = bitmap.shapeGroups?.length
+    let sourceGroups = bitmap.shapeGroups?.length
       ? unionDenseTraceShapeGroups(bitmap.shapeGroups, maskW, maskH, artH, params, bitmap)
       : [];
+    if (frame.face === "wrap") {
+      sourceGroups = mergeWrapSolidLogoGroups(sourceGroups, maskW, maskH, bitmap, params);
+    }
     if (sourceGroups.length) {
       const faceGroups = remappedBitmapFaceGroups(bitmap, frame, params, sourceGroups, maskW, maskH, artH);
-      extrudeGroupsOnFace(positions, indices, frame, faceGroups, d0, d1, params);
+      extrudeGroupsOnFace(positions, indices, frame, faceGroups, d0, d1, params, bitmap);
       return positions.length ? { positions, indices } : null;
     }
-    if (frame.face === "wrap" && shouldUseWrapRunSlabs(bitmap)) {
+    if (frame.face === "wrap" && bitmap.mask?.length === maskW * maskH && !bitmap.outlineRaster) {
+      // Silhouette logos — never row-slab (horizontal bars on cooler); build one solid group from mask.
+    } else if (frame.face === "wrap" && shouldUseWrapRunSlabs(bitmap)) {
       const slab = buildWrapTraceSlabMesh(frame, bitmap, params, sourceGroups, d0, d1);
       if (slab?.indices?.length) return slab;
     }
@@ -2787,7 +2816,7 @@ export function buildEmbossBitmap(meta, params, bitmap) {
   );
 
   const faceGroups = remappedBitmapFaceGroups(bitmap, frame, params, shapeGroups, maskW, maskH, artH);
-  extrudeGroupsOnFace(positions, indices, frame, faceGroups, d0, d1, params);
+  extrudeGroupsOnFace(positions, indices, frame, faceGroups, d0, d1, params, bitmap);
 
   return positions.length ? { positions, indices } : null;
 }
@@ -3671,10 +3700,11 @@ function extrudeStrokeSegmentOnFace(outPos, outIdx, frame, x0, y0, x1, y1, half,
   face(p010, p110, p111, p011);
 }
 
-/** Extrude remapped art groups — wrap uses direct extrude for simple solids, slabs for complex art. */
-function extrudeGroupsOnFace(outPos, outIdx, frame, faceGroups, d0, d1, params = null) {
+/** Extrude remapped art groups — wrap: solid logos use contour extrude; line art uses slabs. */
+function extrudeGroupsOnFace(outPos, outIdx, frame, faceGroups, d0, d1, params = null, bitmap = null) {
   if (frame.face === "wrap" && faceGroups.length) {
-    const simpleSolid = faceGroups.length === 1 && !(faceGroups[0].holes?.length);
+    const lineArt = bitmap?.outlineRaster;
+    const simpleSolid = !lineArt && faceGroups.length === 1 && !(faceGroups[0].holes?.length);
     if (simpleSolid) {
       extrudeGroupOnFace(outPos, outIdx, frame, faceGroups[0], d0, d1, params);
       return;
