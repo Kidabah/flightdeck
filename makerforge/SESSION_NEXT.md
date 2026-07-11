@@ -2,8 +2,20 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `e3e02b4` (b272)
-- Cache-bust: `app.js?v=272` — header **b272**
+- Latest commit: (pending b273)
+- Cache-bust: `app.js?v=273`, `trace.js?v=273` — header **b273**
+
+### 2026-07-11 — b273: Stop page freeze on broncs.svg — fast logo import path
+
+**Symptom:** Browser **Page Unresponsive** on SVG drop — vector parse + triple auto-trace blocked main thread for seconds.
+
+**Fix:**
+- **Complex SVGs** (dual colour, 5+ paths, e.g. broncs) skip vector parse entirely.
+- One **1280px raster + single colourLogo trace** (not slow auto triple-trace).
+- Yields to browser between raster / trace / rebuild; `Loading broncs.svg…` status.
+- Simple SVGs still use lightweight vector path.
+
+- Cache **b273**. Hard refresh → **b273**, re-drop SVG. Click **Wait** if prompt appears once — should finish in ~2–4s not hang.
 
 ### 2026-07-11 — b272: Solid SVG silhouette — fill horse, not hollow outline
 

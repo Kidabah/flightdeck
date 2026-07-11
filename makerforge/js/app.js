@@ -1,8 +1,8 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=254";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=272";
-import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=259";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, svgLooksComplex } from "./features.js?v=273";
+import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceSvgLogoCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=273";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=201";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=210";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
@@ -23,7 +23,8 @@ import {
 } from "./library.js?v=201";
 
 const SESSION_KEY = "makerdeck-session-v1";
-const MAKERDECK_BUILD = "b272";
+const MAKERDECK_BUILD = "b273";
+const SVG_FAST_RASTER_PX = 1280;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
 const MM_PER_IN = 25.4;
 let saveSessionTimer = null;
@@ -3258,6 +3259,57 @@ function yieldToBrowser() {
   });
 }
 
+async function rebuildDeferred() {
+  await yieldToBrowser();
+  rebuild();
+}
+
+async function applySvgTraceResult(svgText, traceResult, { fileName = "" } = {}) {
+  if (!traceResult || traceResult.tooComplex) {
+    throw new Error(`SVG too detailed to emboss (max ${MAX_TRACE_POLYGONS} paths).`);
+  }
+  if (!storeTraceOnBox(traceResult, { clearLabel: false, clearSvg: false })) {
+    throw new Error("Could not apply SVG to box.");
+  }
+  state.embossSvgText = svgText;
+  state.embossSvgFileName = fileName || state.embossSvgFileName || "";
+  state.embossSvgEnabled = true;
+  state.embossTraceEnabled = true;
+  document.getElementById("emboss-svg-enabled").checked = true;
+  updateDecorUi();
+  syncArtEditorUi();
+  syncSvgImportUi();
+  updateTraceUi();
+  await rebuildDeferred();
+  pushAppHistory();
+}
+
+/** Complex / dual-colour SVGs — one raster + colourLogo trace (skips heavy vector parse). */
+async function importSvgFastLogo(svgText, { fileName = "" } = {}) {
+  if (!shapeSupportsArt(artUiShape() || state.shape)) {
+    throw new Error("Pick a box, rounded, pencil, or profile pot shape first.");
+  }
+  setSvgImportStatus(fileName ? `Loading ${fileName}…` : "Loading SVG…");
+  await yieldToBrowser();
+
+  const canvas = await rasterizeSvgToCanvas(svgText, SVG_FAST_RASTER_PX);
+  traceSourceCanvas = canvas;
+  state.traceMode = "auto";
+  document.getElementById("trace-mode").value = "auto";
+  await yieldToBrowser();
+
+  traceLastResult = await traceSvgLogoCanvasAsync(canvas, {
+    threshold: Math.min(254, Math.max(160, state.traceThreshold ?? 200)),
+    invert: state.traceInvert,
+    smoothPasses: 3,
+  });
+  traceLastSvg = traceLastResult.svg || "";
+  const previewWrap = document.getElementById("trace-preview-wrap");
+  if (previewWrap) previewWrap.classList.add("hidden");
+
+  await applySvgTraceResult(svgText, traceLastResult, { fileName });
+}
+
 async function importSvgDirectEmboss(svgText, { fileName = "", importMode = "vector" } = {}) {
   if (!shapeSupportsArt(artUiShape() || state.shape)) {
     throw new Error("Pick a box, rounded, pencil, or profile pot shape first.");
@@ -3279,7 +3331,7 @@ async function importSvgDirectEmboss(svgText, { fileName = "", importMode = "vec
   document.getElementById("emboss-svg-enabled").checked = true;
 
   updateDecorUi();
-  rebuild();
+  await rebuildDeferred();
   syncArtEditorUi();
   syncSvgImportUi();
   updateTraceUi();
@@ -3292,14 +3344,18 @@ async function importSvgFile(svgText, { fileName = "" } = {}) {
   }
   if (!meshCache?.meta) rebuild();
 
+  if (svgLooksComplex(svgText)) {
+    await importSvgFastLogo(svgText, { fileName });
+    return;
+  }
+
   const hasFill = parsedSvgHasFill(svgText);
   if (hasFill) {
     await importSvgDirectEmboss(svgText, { fileName, importMode: "vector" });
     syncSvgImportUi();
     const cache = state.embossFace === "lid" ? lidCache : meshCache;
     if (!cache?.graphicMesh?.positions?.length) {
-      await importSvgAsTrace(svgText, { fileName, importMode: "auto" });
-      syncSvgImportUi();
+      await importSvgFastLogo(svgText, { fileName });
     }
     return;
   }
@@ -3325,18 +3381,26 @@ async function importSvgAsTrace(svgText, { fileName = "", importMode = "auto" } 
   setSvgImportStatus(fileName ? `Tracing ${fileName}…` : "Tracing SVG…");
   await yieldToBrowser();
 
-  const canvas = await rasterizeSvgToCanvas(svgText);
+  const canvas = await rasterizeSvgToCanvas(svgText, SVG_FAST_RASTER_PX);
   traceSourceCanvas = canvas;
   const mode = importMode === "silhouette" || importMode === "outline" ? importMode : "auto";
   state.traceMode = mode;
   document.getElementById("trace-mode").value = mode;
-  traceLastResult = await traceCanvasAsync(canvas, {
-    threshold: Math.min(254, Math.max(160, state.traceThreshold ?? 200)),
-    invert: state.traceInvert,
-    mode,
-    strengthen: true,
-    smoothPasses: 5,
-  });
+  await yieldToBrowser();
+
+  traceLastResult = mode === "auto"
+    ? await traceSvgLogoCanvasAsync(canvas, {
+      threshold: Math.min(254, Math.max(160, state.traceThreshold ?? 200)),
+      invert: state.traceInvert,
+      smoothPasses: 3,
+    })
+    : await traceCanvasAsync(canvas, {
+      threshold: Math.min(254, Math.max(160, state.traceThreshold ?? 200)),
+      invert: state.traceInvert,
+      mode,
+      strengthen: true,
+      smoothPasses: 5,
+    });
   traceLastSvg = traceLastResult.svg || "";
   const preview = document.getElementById("trace-preview");
   if (preview) drawTracePreview(preview, traceSourceCanvas, traceLastResult);
@@ -3346,25 +3410,8 @@ async function importSvgAsTrace(svgText, { fileName = "", importMode = "auto" } 
   if (!shapeSupportsArt(artUiShape() || state.shape)) {
     throw new Error("Pick a box, rounded, pencil, or profile pot shape first.");
   }
-  if (traceLastResult.tooComplex) {
-    throw new Error(`SVG too detailed to emboss (max ${MAX_TRACE_POLYGONS} paths).`);
-  }
 
-  if (!storeTraceOnBox(traceLastResult, { clearLabel: false, clearSvg: false })) {
-    throw new Error("Could not apply SVG to box.");
-  }
-  state.embossSvgText = svgText;
-  state.embossSvgFileName = fileName || state.embossSvgFileName || "";
-  state.embossSvgEnabled = true;
-  state.embossTraceEnabled = true;
-  document.getElementById("emboss-svg-enabled").checked = true;
-
-  updateDecorUi();
-  syncArtEditorUi();
-  syncSvgImportUi();
-  updateTraceUi();
-  rebuild();
-  pushAppHistory();
+  await applySvgTraceResult(svgText, traceLastResult, { fileName });
 }
 
 function applyTraceToBox() {

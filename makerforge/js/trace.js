@@ -1215,6 +1215,11 @@ function finishRasterInkTrace(workMask, tw, th, ox, oy, simplifyFactor, width, h
   };
 }
 
+/** Single-pass colour-logo trace — for SVG raster import (skip slow auto triple-trace). */
+export async function traceSvgLogoCanvasAsync(canvas, options = {}) {
+  return traceColorLogoCanvasAsync(canvas, options);
+}
+
 async function traceColorLogoCanvasAsync(canvas, options = {}) {
   await traceYield();
   const threshold = clamp(options.threshold ?? 128, 1, 254);

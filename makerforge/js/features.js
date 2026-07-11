@@ -3189,18 +3189,18 @@ export function parsedSvgHasFill(svgText) {
   return (parsed.fillRings?.length || 0) > 0;
 }
 
-function normalizeSvgInkColor(fill) {
-  return String(fill || "#000000").trim().toLowerCase().replace(/\s+/g, "");
-}
-
-/** Auto-traced / multi-colour filled SVGs — vector hole nesting breaks silhouettes. */
-export function parsedSvgIsMultiInk(svgText) {
-  const parsed = parseSvgPaths(svgText);
-  const items = filterSvgBackgroundRings(parsed.fillRingItems || [], parsed.viewBox);
-  if (items.length >= 8) return true;
-  const colors = new Set(items.map(({ fill }) => normalizeSvgInkColor(fill)));
-  colors.delete("none");
-  return colors.size >= 2;
+/** Fast heuristic — avoid full DOM path parse on auto-traced team logos. */
+export function svgLooksComplex(svgText) {
+  if (!svgText?.trim()) return false;
+  if (svgText.length > 80000) return true;
+  const paths = (svgText.match(/<path\b/gi) || []).length;
+  if (paths >= 5) return true;
+  const fills = new Set();
+  for (const m of svgText.matchAll(/fill\s*=\s*["']([^"']+)["']/gi)) {
+    const c = m[1].trim().toLowerCase();
+    if (c && c !== "none") fills.add(c);
+  }
+  return fills.size >= 2 && paths >= 2;
 }
 
 /** True when vector SVG parsing yields emboss geometry for the current shape/face. */
