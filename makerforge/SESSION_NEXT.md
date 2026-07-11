@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending — b229)
+- Latest commit: `698856b` (b229)
 - Cache-bust: `app.js?v=229` — header **b229**
 
 ### 2026-07-11 — b229: Fix inverted heraldic mask (blue rectangle / frame emboss)
