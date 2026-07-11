@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending b278)
+- Latest commit: `ad24606` (b278)
 - Cache-bust: `app.js?v=278` — header **b278**
 
 ### 2026-07-11 — b278: Trace = container — auto picks line art not silhouette blob
