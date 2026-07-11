@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending b269)
+- Latest commit: `99e348a` (b269)
 - Cache-bust: `app.js?v=269` — header **b269**
 
 ### 2026-07-11 — b269: Complete SVG logo import — multi-ink trace + island union
