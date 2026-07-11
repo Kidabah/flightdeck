@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending — b231)
+- Latest commit: `141d69b` (b231)
 - Cache-bust: `app.js?v=231` — header **b231**
 
 ### 2026-07-11 — b231: Revert b230 (horizontal gaps worse on wrap)
