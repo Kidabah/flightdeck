@@ -812,31 +812,88 @@ function maskNeedsDoubleEdgeSolidify(mask, width, height) {
   return bandRows >= Math.max(6, Math.round(height * 0.006));
 }
 
-/** Line art (double-edge) → solid fill: dilate to merge strokes, polygonize envelope, re-rasterize. */
+/** Per scanline: fill between leftmost and rightmost ink (closes interior for side-view line art). */
+function fillRowExtents(mask, width, height) {
+  const out = mask.slice();
+  for (let y = 0; y < height; y++) {
+    const row = y * width;
+    let minX = width;
+    let maxX = -1;
+    for (let x = 0; x < width; x++) {
+      if (!mask[row + x]) continue;
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+    }
+    if (maxX > minX) {
+      for (let x = minX; x <= maxX; x++) out[row + x] = 1;
+    }
+  }
+  return out;
+}
+
+/** Fill empty rows sandwiched between rows that have ink (bridge horizontal band gaps). */
+function fillSandwichedEmptyRows(mask, width, height) {
+  const out = mask.slice();
+  for (let y = 1; y < height - 1; y++) {
+    const row = y * width;
+    let rowInk = 0;
+    for (let x = 0; x < width; x++) if (mask[row + x]) rowInk++;
+    if (rowInk > 0) continue;
+    let above = 0;
+    let below = 0;
+    for (let x = 0; x < width; x++) {
+      if (mask[row - width + x]) above++;
+      if (mask[row + width + x]) below++;
+    }
+    if (above < width * 0.008 || below < width * 0.008) continue;
+    let minX = width;
+    let maxX = -1;
+    for (const yy of [y - 1, y + 1]) {
+      const r = yy * width;
+      for (let x = 0; x < width; x++) {
+        if (!mask[r + x]) continue;
+        minX = Math.min(minX, x);
+        maxX = Math.max(maxX, x);
+      }
+    }
+    if (maxX > minX) {
+      for (let x = minX; x <= maxX; x++) out[row + x] = 1;
+    }
+  }
+  return out;
+}
+
+/** Line art (double-edge) → solid fill: row extent + sandwich fill, then polygon envelope if needed. */
 function lineArtMaskToSolidFill(mask, width, height) {
   const span = Math.min(width, height);
   const startFill = maskFillRatio(mask, width, height);
   if (isSolidSilhouetteMask(mask, width, height)) return mask;
 
-  const mergePasses = clamp(Math.round(span / 100), 8, 36);
-  let wall = mask;
-  for (let i = 0; i < mergePasses; i++) wall = dilateMask(wall, width, height);
-  wall = closeMaskHorizontal(wall, width, height, clamp(Math.round(span / 50), 14, 64));
-  wall = closeMask(wall, width, height, clamp(Math.round(span / 40), 12, 52));
+  const mergePasses = clamp(Math.round(span / 200), 2, 10);
+  let m = mask;
+  for (let i = 0; i < mergePasses; i++) m = dilateMask(m, width, height);
 
-  const polys = maskToPolygons(wall, width, height);
+  for (let pass = 0; pass < 4; pass++) {
+    m = fillRowExtents(m, width, height);
+    m = fillSandwichedEmptyRows(m, width, height);
+  }
+  m = closeMask(m, width, height, clamp(Math.round(span / 80), 2, 16));
+
+  let fill = maskFillRatio(m, width, height);
+  if (fill >= SOLID_SILHOUETTE_MIN_FILL) return m;
+
+  const polys = maskToPolygons(m, width, height);
   const grouped = groupPolygonsWithHoles(polys);
   if (grouped.length) {
-    const largest = grouped[0];
-    const solid = rasterizeShapeGroupsToMask([{ outer: largest.outer, holes: largest.holes || [] }], width, height);
-    const solidFill = maskFillRatio(solid, width, height);
-    if (solidFill >= Math.max(startFill, SOLID_SILHOUETTE_MIN_FILL)) return solid;
+    const solid = rasterizeShapeGroupsToMask([{ outer: grouped[0].outer, holes: grouped[0].holes || [] }], width, height);
+    fill = maskFillRatio(solid, width, height);
+    if (fill >= SOLID_SILHOUETTE_MIN_FILL) return solid;
+    if (fill > maskFillRatio(m, width, height)) m = solid;
   }
 
-  // Fallback: flood interior of thickened wall
-  let filled = fillInteriorEnclosedByOutline(dilateMask(wall, width, height), width, height);
-  if (maskFillRatio(filled, width, height) > startFill) return filled;
-  return wall;
+  const flooded = fillInteriorEnclosedByOutline(closeMask(dilateMask(m, width, height), width, height, 4), width, height);
+  if (maskFillRatio(flooded, width, height) > maskFillRatio(m, width, height)) return flooded;
+  return m;
 }
 
 function finishSilhouetteTrace(workMask, tw, th, ox, oy, shapeGroups, simplifyFactor, width, height, extra = {}) {
@@ -865,10 +922,12 @@ function finishSilhouetteTrace(workMask, tw, th, ox, oy, shapeGroups, simplifyFa
   const previewShapeGroups = groups;
   const rects = maskToRuns(silhouetteMask, tw, th);
   const svg = polygonsToSvg(groups, tw, th);
+  const maskFillPct = Math.round(maskFillRatio(silhouetteMask, tw, th) * 100);
   return {
     rects,
     mask: compactTraceMask(silhouetteMask, groups),
     silhouetteMask,
+    maskFillPct,
     polygons: [],
     shapeGroups: groups,
     shapeGroupsUnited,

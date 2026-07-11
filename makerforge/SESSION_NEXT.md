@@ -2,10 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `dd3bd2b` (b243)
-- Cache-bust: `app.js?v=243` — header **b243**
+- Latest commit: (pending — b244)
+- Cache-bust: `app.js?v=244` — header **b244**
 
-### 2026-07-11 — b243: Polygon re-rasterize for line art (correct interior fill)
+### 2026-07-11 — b244: Row-extent fill (preview downscale was lying)
+
+**Root cause:** Trace preview downscales 2400px mask into ~300px — thin edge ink (~5% fill) merges visually and looks solid blue. 3D wrap uses mask 1:1 → only edge strokes emboss. Outline/silhouette modes identical because both produce same low-fill edge mask.
+
+**Fix:** `fillRowExtents` + `fillSandwichedEmptyRows` in `lineArtMaskToSolidFill` — fill between left/right ink per row. Trace meta now shows `mask N% fill` (need ≥14% for solid wrap).
+
+- Cache **b244**. Hard refresh, re-drop — meta should show **mask 20%+ fill**.
+
+### 2026-07-11 — b243: Polygon re-rasterize for line art
 
 **Audit finding:** Outline vs silhouette looked the same because both large traces end in `finishSilhouetteTrace` with low-fill edge mask (~3–12%). Flood-fill interior failed on open double-edge boundaries. Emboss sometimes had no mask blob (localStorage limit) and fell back to hollow shapeGroups.
 
