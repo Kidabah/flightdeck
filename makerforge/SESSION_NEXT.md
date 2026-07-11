@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending — b261)
+- Latest commit: `179b06a` (b261)
 - Cache-bust: `app.js?v=261` — header **b261**
 
 ### 2026-07-11 — b261: SVG compound paths — hole grouping, bg filter, single ink layer
