@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending — b262)
+- Latest commit: `2f7034c` (b262)
 - Cache-bust: `app.js?v=262` — header **b262**
 
 ### 2026-07-11 — b262: SVG wrap speed + fix earcut mesh gore
