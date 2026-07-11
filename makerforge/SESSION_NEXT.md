@@ -2,8 +2,21 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `6035e1f` (b274)
-- Cache-bust: `app.js?v=274`, `trace.js?v=274` — header **b274**
+- Latest commit: (pending b275)
+- Cache-bust: `app.js?v=275` — header **b275**
+
+### 2026-07-11 — b275: Unfreeze broncs — raster silhouette, cap wrap mesh budget
+
+**Symptom:** b274 vector path froze tab; preview showed hollow red shield outline only.
+
+**Fix:**
+- Dual-layer SVGs (broncs) → **raster silhouette only** — skip vector parse entirely.
+- Single silhouette trace (never auto triple-trace on SVG import).
+- SVG trace mode changes forced to silhouette (not auto).
+- Wrap preview mesh **index budget** 96k; coarser slab grid (380 cols vs 1600).
+- Yields before/after rebuild; 896px raster cap.
+
+- Cache **b275**. Hard refresh → **b275**, re-drop broncs.svg. Should trace in ~2s, solid filled logo, tab stays alive.
 
 ### 2026-07-11 — b274: Fix broncs.svg — strip bg frame, solid wrap slabs, vector-first
 

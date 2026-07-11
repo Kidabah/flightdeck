@@ -252,9 +252,12 @@ const WRAP_DECAL_STEP_MIN_MM = 0.08;
 const WRAP_DECAL_STEP_MAX_MM = 0.26;
 /** Finer slabs for vector SVG on wrap — seam-unwrapped run shells (no earcut on curve). */
 const WRAP_SVG_DECAL_TARGET_COLS = 1600;
+const WRAP_SVG_DECAL_TARGET_COLS_PREVIEW = 380;
 const WRAP_SVG_DECAL_STEP_MIN_MM = 0.03;
 const WRAP_SVG_DECAL_STEP_MAX_MM = 0.075;
+const WRAP_SVG_DECAL_STEP_MAX_MM_PREVIEW = 0.11;
 const WRAP_SVG_MASK_MAX_CELLS = 3072;
+const WRAP_SVG_PREVIEW_MAX_INDICES = 96000;
 const WRAP_ART_VERTICAL_GUTTER_MM = 1.4;
 
 function wrapSafeArtHeight(frame, requestedHeight) {
@@ -477,7 +480,9 @@ function buildWrapArtSlabMesh(frame, shapeGroups, d0, d1, opts = {}) {
   const positions = [];
   const indices = [];
   const exportSolid = opts.solid !== false;
+  const indexBudget = opts.maxPreviewIndices ?? (exportSolid && svgIsPreview(opts.params) ? WRAP_SVG_PREVIEW_MAX_INDICES : 0);
   for (let row = 0; row < maskH; row += stepPx) {
+    if (indexBudget > 0 && indices.length >= indexBudget) break;
     const py0 = row;
     const py1 = Math.min(maskH, row + stepPx);
     const my0 = minY + py0 * scale;
@@ -2770,8 +2775,8 @@ const SVG_PATH_MAX_POINTS_PREVIEW = 880;
 const SVG_PATH_DEDUPE_EPS = 0.04;
 /** Raster silhouette cap for SVG prep (speed — avoids megapixel unions). */
 const SVG_SILHOUETTE_MAX_DIM = 1280;
-const SVG_SILHOUETTE_MAX_DIM_PREVIEW = 896;
-const WRAP_SVG_MASK_MAX_CELLS_PREVIEW = 1664;
+const SVG_SILHOUETTE_MAX_DIM_PREVIEW = 768;
+const WRAP_SVG_MASK_MAX_CELLS_PREVIEW = 640;
 
 function svgIsPreview(params) {
   return !params?.__labelExportStandoff;
@@ -3239,6 +3244,18 @@ export function prepareSvgForImport(svgText) {
   return new XMLSerializer().serializeToString(svg);
 }
 
+/** Auto-traced team logos (dual ink layers) — vector parse freezes; use raster silhouette. */
+export function svgPrefersRasterSilhouette(svgText) {
+  if (!svgText?.trim()) return false;
+  const fills = new Set();
+  for (const m of svgText.matchAll(/fill\s*=\s*["']([^"']+)["']/gi)) {
+    const c = m[1].trim().toLowerCase();
+    if (c && c !== "none") fills.add(c);
+  }
+  const paths = (svgText.match(/<path\b/gi) || []).length;
+  return fills.size >= 2 || paths >= 6 || svgText.length > 48000;
+}
+
 /** True when vector SVG parsing yields emboss geometry for the current shape/face. */
 export function svgEmbossProducesMesh(meta, params, svgText) {
   if (!meta || !svgText?.trim()) return false;
@@ -3638,12 +3655,15 @@ function extrudeGroupsOnFace(outPos, outIdx, frame, faceGroups, d0, d1, params =
       : isSvg
         ? wrapSvgDecalStepMm(faceGroups)
         : wrapDecalStepMm(faceGroups);
+    const preview = svgIsPreview(params);
     const slab = buildWrapArtSlabMesh(frame, faceGroups, d0, d1, {
+      params,
       stepMm,
-      targetCols: isSvg ? WRAP_SVG_DECAL_TARGET_COLS : WRAP_DECAL_TARGET_COLS,
+      targetCols: isSvg ? (preview ? WRAP_SVG_DECAL_TARGET_COLS_PREVIEW : WRAP_SVG_DECAL_TARGET_COLS) : WRAP_DECAL_TARGET_COLS,
       stepMin: isSvg ? WRAP_SVG_DECAL_STEP_MIN_MM : WRAP_DECAL_STEP_MIN_MM,
-      stepMax: isSvg ? WRAP_SVG_DECAL_STEP_MAX_MM : WRAP_DECAL_STEP_MAX_MM,
+      stepMax: isSvg ? (preview ? WRAP_SVG_DECAL_STEP_MAX_MM_PREVIEW : WRAP_SVG_DECAL_STEP_MAX_MM) : WRAP_DECAL_STEP_MAX_MM,
       maxCells: svgWrapMaskMaxCells(params, isSvg),
+      maxPreviewIndices: preview ? WRAP_SVG_PREVIEW_MAX_INDICES : 0,
       dilatePasses: 1,
       solid: true,
     });

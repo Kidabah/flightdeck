@@ -1,8 +1,8 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=254";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport } from "./features.js?v=274";
-import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceSvgLogoCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=274";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette } from "./features.js?v=275";
+import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=275";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=201";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=210";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
@@ -23,8 +23,8 @@ import {
 } from "./library.js?v=201";
 
 const SESSION_KEY = "makerdeck-session-v1";
-const MAKERDECK_BUILD = "b274";
-const SVG_FAST_RASTER_PX = 1280;
+const MAKERDECK_BUILD = "b275";
+const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
 const MM_PER_IN = 25.4;
 let saveSessionTimer = null;
@@ -3070,6 +3070,7 @@ function updateTraceUi() {
 
 let traceJob = 0;
 let traceDebounceTimer = null;
+let traceSvgImport = false;
 
 async function runTraceAsync() {
   if (!traceSourceCanvas) return;
@@ -3080,11 +3081,14 @@ async function runTraceAsync() {
   if (btn) btn.disabled = true;
   await new Promise((r) => setTimeout(r, 0));
   try {
+    let mode = state.traceMode;
+    if (traceSvgImport && mode === "auto") mode = "silhouette";
     const result = await traceCanvasAsync(traceSourceCanvas, {
       threshold: state.traceThreshold,
       invert: state.traceInvert,
-      mode: state.traceMode,
+      mode,
       colorSeparation: false,
+      strengthen: mode === "silhouette",
     });
     if (job !== traceJob) return;
     traceLastResult = result;
@@ -3099,7 +3103,7 @@ async function runTraceAsync() {
       shapeSupportsArt(artUiShape() || state.shape) &&
       storeTraceOnBox(traceLastResult)
     ) {
-      rebuild();
+      await rebuildDeferred();
       updateDecorUi();
       syncArtEditorUi();
     }
@@ -3261,7 +3265,9 @@ function yieldToBrowser() {
 
 async function rebuildDeferred() {
   await yieldToBrowser();
+  await new Promise((resolve) => setTimeout(resolve, 0));
   rebuild();
+  await yieldToBrowser();
 }
 
 async function applySvgTraceResult(svgText, traceResult, { fileName = "" } = {}) {
@@ -3293,6 +3299,7 @@ async function importSvgDirectEmboss(svgText, { fileName = "", importMode = "vec
   if (!shapeSupportsArt(artUiShape() || state.shape)) {
     throw new Error("Pick a box, rounded, pencil, or profile pot shape first.");
   }
+  traceSvgImport = false;
   setSvgImportStatus(fileName ? `Processing ${fileName}…` : "Processing SVG…");
   await yieldToBrowser();
 
@@ -3324,6 +3331,12 @@ async function importSvgFile(svgText, { fileName = "" } = {}) {
   if (!meshCache?.meta) rebuild();
 
   const prepped = prepareSvgForImport(svgText);
+  await yieldToBrowser();
+
+  if (svgPrefersRasterSilhouette(prepped)) {
+    await importSvgAsTrace(prepped, { fileName, importMode: "silhouette" });
+    return;
+  }
 
   const hasFill = parsedSvgHasFill(prepped);
   if (hasFill) {
@@ -3343,7 +3356,7 @@ async function importSvgFile(svgText, { fileName = "" } = {}) {
     return;
   }
   try {
-    await importSvgAsTrace(prepped, { fileName, importMode: "auto" });
+    await importSvgAsTrace(prepped, { fileName, importMode: "silhouette" });
     const meta = document.getElementById("trace-meta");
     if (meta && fileName) {
       meta.textContent = `SVG ${fileName} — traced silhouette (vector paths were empty).`;
@@ -3353,31 +3366,26 @@ async function importSvgFile(svgText, { fileName = "" } = {}) {
   }
 }
 
-async function importSvgAsTrace(svgText, { fileName = "", importMode = "auto" } = {}) {
+async function importSvgAsTrace(svgText, { fileName = "", importMode = "silhouette" } = {}) {
+  traceSvgImport = true;
   setSvgImportStatus(fileName ? `Tracing ${fileName}…` : "Tracing SVG…");
   await yieldToBrowser();
 
   const canvas = await rasterizeSvgToCanvas(svgText, SVG_FAST_RASTER_PX);
   flattenCanvasToInkSilhouette(canvas);
   traceSourceCanvas = canvas;
-  const mode = importMode === "silhouette" || importMode === "outline" ? importMode : "auto";
+  const mode = importMode === "outline" ? "outline" : "silhouette";
   state.traceMode = mode;
   document.getElementById("trace-mode").value = mode;
   await yieldToBrowser();
 
-  traceLastResult = mode === "auto"
-    ? await traceSvgLogoCanvasAsync(canvas, {
-      threshold: Math.min(254, Math.max(160, state.traceThreshold ?? 200)),
-      invert: state.traceInvert,
-      smoothPasses: 3,
-    })
-    : await traceCanvasAsync(canvas, {
-      threshold: Math.min(254, Math.max(160, state.traceThreshold ?? 200)),
-      invert: state.traceInvert,
-      mode,
-      strengthen: true,
-      smoothPasses: 5,
-    });
+  traceLastResult = await traceCanvasAsync(canvas, {
+    threshold: Math.min(254, Math.max(160, state.traceThreshold ?? 200)),
+    invert: state.traceInvert,
+    mode,
+    strengthen: true,
+    smoothPasses: mode === "silhouette" ? 4 : 5,
+  });
   traceLastSvg = traceLastResult.svg || "";
   const preview = document.getElementById("trace-preview");
   if (preview) drawTracePreview(preview, traceSourceCanvas, traceLastResult);
