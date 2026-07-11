@@ -2,8 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `87d7540` (b233)
-- Cache-bust: `app.js?v=233` — header **b233**
+- Latest commit: (pending — b234)
+- Cache-bust: `app.js?v=234` — header **b234**
+
+### 2026-07-11 — b234: Solidify outline double-edge mask (fix knight horizontal gaps)
+
+**Symptom:** b233 dragon perfect; knight/horse upper body still had horizontal void bands.
+
+**Root cause:** Outline ink mask is thin double-edge lines — horizontal rows between line pairs have no ink. Dragon area denser/solid; knight upper hollow.
+
+**Fix (`trace.js`):** `solidifyOutlineSilhouetteMask` — 2–3px dilate on outline fallback before wrap/preview mask.
+
+- Cache **b234**. Hard refresh, re-drop image.
 
 ### 2026-07-11 — b233: Wrap radial shells from mask (past earcut + row z-fight)
 

@@ -21,9 +21,9 @@ import {
   unionShapeGroupsToPrepared,
   rasterizeShapeGroupsToMask,
   filterDegenerateShapeGroups,
-} from "./contour.js?v=233";
+} from "./contour.js?v=234";
 
-export { unionDenseEmbossShapeGroups } from "./contour.js?v=233";
+export { unionDenseEmbossShapeGroups } from "./contour.js?v=234";
 
 
 
@@ -656,10 +656,20 @@ function silhouetteGroupsFromMask(mask, tw, th, simplifyTol, smoothPasses) {
   return filterDegenerateShapeGroups(groups, tw, th);
 }
 
+/** Fill gaps between double-edge line pairs so wrap emboss is solid (dragon OK, knight was hollow bands). */
+function solidifyOutlineSilhouetteMask(mask, width, height) {
+  const passes = Math.min(width, height) > 800 ? 3 : 2;
+  let m = mask;
+  for (let i = 0; i < passes; i++) m = dilateMask(m, width, height);
+  return m;
+}
+
 function finishSilhouetteTrace(workMask, tw, th, ox, oy, shapeGroups, simplifyFactor, width, height, extra = {}) {
   const simplifyTol = extra.simplifyTol ?? Math.max(0.18, tw / 2000);
   const smoothPasses = extra.smoothPasses ?? 1;
-  const silhouetteMask = pruneSilhouetteMask(workMask, tw, th);
+  let inkMask = workMask;
+  if (extra.outlineFallback) inkMask = solidifyOutlineSilhouetteMask(workMask, tw, th);
+  const silhouetteMask = pruneSilhouetteMask(inkMask, tw, th);
   let groups = silhouetteGroupsFromMask(silhouetteMask, tw, th, simplifyTol, smoothPasses);
   if (!groups.length && shapeGroups?.length) {
     groups = filterDegenerateShapeGroups(shapeGroups, tw, th);
