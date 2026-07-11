@@ -2827,6 +2827,12 @@ function dedupePolylinePoints(points, eps = 0.08) {
   return out;
 }
 
+function ctmPreservesSvgUserSpace(ctm) {
+  if (!ctm) return false;
+  const scale = Math.hypot(ctm.a, ctm.b);
+  return scale >= 0.25;
+}
+
 function transformSvgPoint(ctm, x, y) {
   if (!ctm) return [x, y];
   return [
@@ -2837,13 +2843,14 @@ function transformSvgPoint(ctm, x, y) {
 
 function sampleSvgPathElementWithCtm(pathEl, maxPoints = SVG_PATH_MAX_POINTS) {
   const ctm = pathEl.getCTM?.() || null;
+  const useCtm = ctmPreservesSvgUserSpace(ctm);
   const len = pathEl.getTotalLength();
   if (!Number.isFinite(len) || len < 0.02) return [];
   const count = Math.min(maxPoints, Math.max(32, Math.ceil(len / SVG_PATH_SAMPLE_SPACING)));
   const pts = [];
   for (let i = 0; i <= count; i++) {
     const pt = pathEl.getPointAtLength(Math.min((i / count) * len, len));
-    pts.push(transformSvgPoint(ctm, pt.x, pt.y));
+    pts.push(useCtm ? transformSvgPoint(ctm, pt.x, pt.y) : [pt.x, pt.y]);
   }
   return dedupePolylinePoints(pts, SVG_PATH_DEDUPE_EPS);
 }
@@ -2851,7 +2858,7 @@ function sampleSvgPathElementWithCtm(pathEl, maxPoints = SVG_PATH_MAX_POINTS) {
 function polylineFromElementWithCtm(el) {
   const raw = polylineFromElement(el);
   const ctm = el.getCTM?.() || null;
-  if (!ctm) return raw;
+  if (!ctmPreservesSvgUserSpace(ctm)) return raw;
   return raw.map(([x, y]) => transformSvgPoint(ctm, x, y));
 }
 
@@ -2995,7 +3002,7 @@ export function parseSvgPaths(svgText) {
   );
   scratch.setAttribute("width", String(viewBox[2]));
   scratch.setAttribute("height", String(viewBox[3]));
-  scratch.style.cssText = "position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden";
+  scratch.style.cssText = `position:absolute;left:-9999px;top:0;visibility:hidden;overflow:hidden;width:${viewBox[2]}px;height:${viewBox[3]}px`;
   for (const child of [...svg.childNodes]) {
     if (child.nodeType !== 1) continue;
     if (child.tagName?.toLowerCase() === "defs") continue;

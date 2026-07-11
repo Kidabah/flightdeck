@@ -2,8 +2,21 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `e41bb71` (b264)
-- Cache-bust: `app.js?v=264` — header **b264**
+- Latest commit: (pending — b265)
+- Cache-bust: `app.js?v=265` — header **b265**
+
+### 2026-07-11 — b265: Fix invisible SVG — CTM squashed paths to 1px coords
+
+**Symptom:** SVG showed loaded but **no emboss mesh** — blank cylinder.
+
+**Root cause:** Hidden scratch `<svg>` had CSS `width:1px;height:1px`. `getCTM()` scaled viewBox coords (395×578) down to ~0–1 px; background filter then discarded all rings as noise.
+
+**Fix:**
+- Scratch SVG uses full viewBox pixel size (hidden off-screen).
+- Skip destructive CTM when scale &lt; 0.25 — sample in SVG user units.
+- Status line shows **on box** vs **no emboss mesh yet** after rebuild.
+
+- Cache **b265**. Hard refresh, Clear, re-load broncs.svg — meta should say `Loaded: broncs.svg · filled vector · on box`.
 
 ### 2026-07-11 — b264: SVG file picker feedback — visible loaded filename
 
