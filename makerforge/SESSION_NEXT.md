@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (b282 — pending push)
-- Cache-bust: `app.js?v=282`, `features.js?v=282` — header **b282**
+- Latest commit: (b283 — pending push)
+- Cache-bust: `app.js?v=283`, `features.js?v=283` — header **b283**
+
+### 2026-07-11 — b283: Revert emboss path to b278 (ad24606)
+
+**Symptom:** b279–b282 wrap experiments broke coffee bag line art, heraldic logos, scan quality.
+
+**Fix:** Restore `features.js` emboss/wrap extrude logic from **b278** (`ad24606`). Trace/auto line-art detection unchanged (already b278 in `trace.js`).
+
+- Cache **b283**. Hard refresh — coffee bag + knight on jar should match b278 “perfect” again.
 
 ### 2026-07-11 — b282: Fix broken wrap logos — per-island contour, no merge
 
