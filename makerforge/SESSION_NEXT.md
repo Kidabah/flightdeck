@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending — b230)
+- Latest commit: `9abed74` (b230)
 - Cache-bust: `app.js?v=230` — header **b230**
 
 ### 2026-07-11 — b230: Polish heraldic wrap — collapse double-edge, pixel-row slabs
