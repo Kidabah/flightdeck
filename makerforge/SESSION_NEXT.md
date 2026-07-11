@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending — b238)
+- Latest commit: `5f8fa5d` (b238)
 - Cache-bust: `app.js?v=238` — header **b238**
 
 ### 2026-07-11 — b238: Stronger double-edge span fill (fix heraldic knight bands)
