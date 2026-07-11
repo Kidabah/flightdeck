@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending — b242)
+- Latest commit: `3df5902` (b242)
 - Cache-bust: `app.js?v=242` — header **b242**
 
 ### 2026-07-11 — b242: Root-cause fix — line art ≠ solid silhouette (scale-aware interior fill)
