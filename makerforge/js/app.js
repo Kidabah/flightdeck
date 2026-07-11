@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=254";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=268";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, parsedSvgIsMultiInk } from "./features.js?v=269";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=259";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=201";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=210";
@@ -23,7 +23,7 @@ import {
 } from "./library.js?v=201";
 
 const SESSION_KEY = "makerdeck-session-v1";
-const MAKERDECK_BUILD = "b268";
+const MAKERDECK_BUILD = "b269";
 const DISPLAY_UNITS = ["mm", "cm", "in"];
 const MM_PER_IN = 25.4;
 let saveSessionTimer = null;
@@ -2889,7 +2889,9 @@ function syncArtSizeSlider() {
 }
 
 function svgImportModeLabel(svgText, importMode = "vector") {
-  if (importMode === "trace") return "traced silhouette";
+  if (importMode === "trace" || (state.embossTraceEnabled && state.embossSvgText?.trim())) {
+    return "traced silhouette";
+  }
   return parsedSvgHasFill(svgText) ? "filled vector" : "stroke vector";
 }
 
@@ -3263,6 +3265,7 @@ async function importSvgDirectEmboss(svgText, { fileName = "", importMode = "vec
   updateDecorUi();
   rebuild();
   syncArtEditorUi();
+  syncSvgImportUi();
   updateTraceUi();
   pushAppHistory();
 }
@@ -3272,11 +3275,25 @@ async function importSvgFile(svgText, { fileName = "" } = {}) {
     throw new Error("Pick a box, rounded, pencil, or profile pot shape first.");
   }
   if (!meshCache?.meta) rebuild();
+
   const hasFill = parsedSvgHasFill(svgText);
-  if (hasFill) {
-    await importSvgDirectEmboss(svgText, { fileName, importMode: "vector" });
+  if (hasFill && parsedSvgIsMultiInk(svgText)) {
+    await importSvgAsTrace(svgText, { fileName, importMode: "auto" });
+    syncSvgImportUi();
     return;
   }
+
+  if (hasFill) {
+    await importSvgDirectEmboss(svgText, { fileName, importMode: "vector" });
+    syncSvgImportUi();
+    const cache = state.embossFace === "lid" ? lidCache : meshCache;
+    if (!cache?.graphicMesh?.positions?.length) {
+      await importSvgAsTrace(svgText, { fileName, importMode: "auto" });
+      syncSvgImportUi();
+    }
+    return;
+  }
+
   const params = buildParams();
   const vectorOk = meshCache?.meta && svgEmbossProducesMesh(meshCache.meta, params, svgText);
   if (vectorOk) {
@@ -3284,7 +3301,7 @@ async function importSvgFile(svgText, { fileName = "" } = {}) {
     return;
   }
   try {
-    await importSvgAsTrace(svgText, { fileName });
+    await importSvgAsTrace(svgText, { fileName, importMode: "auto" });
     const meta = document.getElementById("trace-meta");
     if (meta && fileName) {
       meta.textContent = `SVG ${fileName} — traced silhouette (vector paths were empty).`;
@@ -3294,10 +3311,10 @@ async function importSvgFile(svgText, { fileName = "" } = {}) {
   }
 }
 
-async function importSvgAsTrace(svgText, { fileName = "" } = {}) {
+async function importSvgAsTrace(svgText, { fileName = "", importMode = "auto" } = {}) {
   const canvas = await rasterizeSvgToCanvas(svgText);
   traceSourceCanvas = canvas;
-  const mode = "silhouette";
+  const mode = importMode === "silhouette" || importMode === "outline" ? importMode : "auto";
   state.traceMode = mode;
   document.getElementById("trace-mode").value = mode;
   traceLastResult = await traceCanvasAsync(canvas, {
@@ -3310,6 +3327,8 @@ async function importSvgAsTrace(svgText, { fileName = "" } = {}) {
   traceLastSvg = traceLastResult.svg || "";
   const preview = document.getElementById("trace-preview");
   if (preview) drawTracePreview(preview, traceSourceCanvas, traceLastResult);
+  const previewWrap = document.getElementById("trace-preview-wrap");
+  if (previewWrap) previewWrap.classList.add("hidden");
 
   if (!shapeSupportsArt(artUiShape() || state.shape)) {
     throw new Error("Pick a box, rounded, pencil, or profile pot shape first.");
@@ -3322,22 +3341,18 @@ async function importSvgAsTrace(svgText, { fileName = "" } = {}) {
     throw new Error("Could not apply SVG to box.");
   }
   state.embossSvgText = svgText;
+  state.embossSvgFileName = fileName || state.embossSvgFileName || "";
   state.embossSvgEnabled = true;
   state.embossTraceEnabled = true;
   document.getElementById("emboss-svg-enabled").checked = true;
 
-  const meta = document.getElementById("trace-meta");
-  if (meta && fileName) {
-    meta.textContent = `SVG ${fileName} applied to box.`;
-  }
   updateDecorUi();
   syncArtEditorUi();
+  syncSvgImportUi();
   updateTraceUi();
   rebuild();
   pushAppHistory();
 }
-
-function applyTraceToBox() {
   if (!hasTraceGeometry(traceLastResult)) return;
   if (traceLastResult.tooComplex) {
     document.getElementById("trace-meta").textContent =
@@ -4366,13 +4381,13 @@ function updateDecorUi() {
   document.getElementById("stackable-enabled").checked = state.stackableEnabled && supported && (state.stackStyle || "hex") !== "nest";
   document.getElementById("field-stackable-hex")?.classList.toggle("hidden", (state.stackStyle || "hex") === "nest");
 
-  const svgOn = state.embossSvgEnabled && supported && !state.embossTraceEnabled;
+  const svgLoaded = state.embossSvgEnabled && supported;
   const traceOnBox = !!state.embossTraceEnabled;
   const artOn = hasGraphicArt(buildParams());
   const textOn = textHasInk(state.embossText);
-  document.getElementById("emboss-svg-enabled").checked = svgOn;
+  document.getElementById("emboss-svg-enabled").checked = svgLoaded;
   document.getElementById("field-svg-file").classList.toggle("hidden", !supported);
-  document.getElementById("field-svg-samples").classList.toggle("hidden", !svgOn);
+  document.getElementById("field-svg-samples").classList.toggle("hidden", !svgLoaded);
   const wm = document.getElementById("watermark-enabled");
   if (wm) wm.checked = state.watermarkEnabled !== false;
   document.getElementById("field-text-color").classList.toggle("hidden", !textOn);
@@ -4384,7 +4399,7 @@ function updateDecorUi() {
   document.getElementById("emboss-deboss").checked = !!state.embossDeboss;
   updateEmbossDebossUi();
   document.getElementById("field-emboss-height").classList.toggle("hidden", !textOn);
-  document.getElementById("field-trace-size").classList.toggle("hidden", !(svgOn || traceOnBox));
+  document.getElementById("field-trace-size").classList.toggle("hidden", !(svgLoaded || traceOnBox));
   document.getElementById("emboss-font").value = state.embossFont || "inter";
   syncArtEditorUi();
   syncExportFormatOptions();

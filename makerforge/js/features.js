@@ -2769,7 +2769,7 @@ const SVG_PATH_SAMPLE_SPACING = 0.1;
 const SVG_PATH_MAX_POINTS = 1600;
 const SVG_PATH_DEDUPE_EPS = 0.04;
 /** Raster silhouette cap for SVG prep (speed — avoids megapixel unions). */
-const SVG_SILHOUETTE_MAX_DIM = 1024;
+const SVG_SILHOUETTE_MAX_DIM = 1280;
 
 function svgVectorSimplifyTol(sw, sh) {
   return Math.max(0.08, Math.max(sw, sh) / 1100);
@@ -2840,6 +2840,10 @@ function svgSampleIsFillRing(sampled, subD, viewBox) {
   return /[zZ]\s*$/.test(String(subD || "").trim());
 }
 
+function svgInkIslandGroups(rings) {
+  return rings.map((ring) => ({ outer: ring, holes: [] }));
+}
+
 function svgPrepareFillShapeGroups(fillRingItems, viewBox, sw, sh, artH, params) {
   const rings = pickPrimarySvgFillRings(fillRingItems, viewBox);
   if (!rings.length) return [];
@@ -2848,26 +2852,25 @@ function svgPrepareFillShapeGroups(fillRingItems, viewBox, sw, sh, artH, params)
   const maskH = Math.max(8, Math.round(sh));
   const simplifyTol = svgVectorSimplifyTol(sw, sh);
   const smoothPasses = svgVectorSmoothPasses(artH);
-  const rawGroups = groupPolygonsWithHoles(rings);
-  if (!rawGroups.length) return [];
+  const islandGroups = svgInkIslandGroups(rings);
+  const dilate = rings.length > 6 ? 3 : 2;
 
   let groups = unionShapeGroupsToPrepared(
-    rawGroups,
+    islandGroups,
     maskW,
     maskH,
     simplifyTol,
     smoothPasses,
-    1,
+    dilate,
     SVG_SILHOUETTE_MAX_DIM,
   );
   groups = filterDegenerateShapeGroups(groups, maskW, maskH);
   if (groups.length) return groups;
 
-  groups = prepareSvgShapeGroups(rawGroups, simplifyTol, smoothPasses);
+  const nested = groupPolygonsWithHoles(rings);
+  groups = unionShapeGroupsToPrepared(nested, maskW, maskH, simplifyTol, smoothPasses, dilate, SVG_SILHOUETTE_MAX_DIM);
   groups = filterDegenerateShapeGroups(groups, maskW, maskH);
-  if (groups.length) return groups;
-
-  return rawGroups;
+  return groups.length ? groups : islandGroups;
 }
 
 function splitPathSubpaths(d) {
@@ -3138,6 +3141,20 @@ export function parseSvgPaths(svgText) {
 export function parsedSvgHasFill(svgText) {
   const parsed = parseSvgPaths(svgText);
   return (parsed.fillRings?.length || 0) > 0;
+}
+
+function normalizeSvgInkColor(fill) {
+  return String(fill || "#000000").trim().toLowerCase().replace(/\s+/g, "");
+}
+
+/** Auto-traced / multi-colour filled SVGs — vector hole nesting breaks silhouettes. */
+export function parsedSvgIsMultiInk(svgText) {
+  const parsed = parseSvgPaths(svgText);
+  const items = filterSvgBackgroundRings(parsed.fillRingItems || [], parsed.viewBox);
+  if (items.length >= 8) return true;
+  const colors = new Set(items.map(({ fill }) => normalizeSvgInkColor(fill)));
+  colors.delete("none");
+  return colors.size >= 2;
 }
 
 /** True when vector SVG parsing yields emboss geometry for the current shape/face. */

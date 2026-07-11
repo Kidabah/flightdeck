@@ -2,8 +2,25 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending b268)
-- Cache-bust: `app.js?v=268` — header **b268**
+- Latest commit: (pending b269)
+- Cache-bust: `app.js?v=269` — header **b269**
+
+### 2026-07-11 — b269: Complete SVG logo import — multi-ink trace + island union
+
+**Symptom:** broncs.svg showed horizontal band gap (false holes), shattered earcut (b267), or incomplete silhouette — not matching browser SVG.
+
+**Root causes:**
+1. Dual-layer auto-traced paths nested as **holes** inside shield → text band carved out.
+2. b267 **earcut on wrap** → triangle slashes on curved wall.
+3. Filled SVG always forced **vector** path, bypassing proven **colorLogo** trace.
+
+**Fix:**
+- **Multi-ink SVGs** (≥2 fill colours or ≥8 rings, e.g. broncs.svg) → raster + **auto trace** (colorLogo silhouette) + wrap trace slabs.
+- **Simple SVGs** → vector with **ink island union** (no hole nesting before merge).
+- Vector failure → auto fallback to trace.
+- UI: SVG checkbox stays on; meta shows `traced silhouette · on box`.
+
+- Cache **b269**. Hard refresh, re-drop broncs.svg.
 
 ### 2026-07-11 — b268: Fix wrap SVG earcut slashes — slabs only
 
