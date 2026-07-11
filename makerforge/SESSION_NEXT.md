@@ -2,8 +2,23 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `5f8fa5d` (b238)
-- Cache-bust: `app.js?v=238` — header **b238**
+- Latest commit: (b239 — pending push)
+- Cache-bust: `app.js?v=239` — header **b239**
+
+### 2026-07-11 — b239: Flood-fill interior from closed outline (fix hollow emboss)
+
+**Symptom:** After b238, trace/emboss captures outline edges well but interior is hollow — tiger shows only jagged outer edges embossed; heraldic knight/dragon is a fragmented outline shell with gaps where solid body should be.
+
+**Root cause:** b238 row-span hacks (`fillRowInkSpans`, `fillInteriorRowsBetweenInk`, `fillSparseRowsBetweenNeighborInk`) only fill horizontal spans on rows that already have *some* ink. Rows in the true interior (zero ink) stay empty → outline shell, not solid silhouette.
+
+**Fix (`trace.js`):**
+- `floodExteriorEmpty` — BFS from image border through non-ink pixels.
+- `fillInteriorEnclosedByOutline` — fill pixels neither ink nor exterior (enclosed by closed boundary).
+- `solidifyOutlineSilhouetteMask` — close/bridge outline boundary (keep b238 horizontal close + gap bridge), 1px dilate to plug pinholes, then flood-fill interior; retry with wider close if fill still &lt; 4%.
+- Removed row-span hacks that caused hollow horizontal-band fills.
+- `silhouetteMask` unchanged path — preview + wrap still use same mask after solidify.
+
+- Cache **b239**. Hard refresh, re-drop tiger + heraldic — trace preview mask should be solid black fill inside outline; wrap emboss solid through body/face.
 
 ### 2026-07-11 — b238: Stronger double-edge span fill (fix heraldic knight bands)
 

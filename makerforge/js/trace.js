@@ -21,9 +21,9 @@ import {
   unionShapeGroupsToPrepared,
   rasterizeShapeGroupsToMask,
   filterDegenerateShapeGroups,
-} from "./contour.js?v=238";
+} from "./contour.js?v=239";
 
-export { unionDenseEmbossShapeGroups } from "./contour.js?v=238";
+export { unionDenseEmbossShapeGroups } from "./contour.js?v=239";
 
 
 
@@ -696,24 +696,6 @@ function closeMaskHorizontal(mask, width, height, radius = 1) {
   return out;
 }
 
-/** If a row has any ink, fill the span from leftmost to rightmost ink pixel. */
-function fillRowInkSpans(mask, width, height) {
-  const out = mask.slice();
-  for (let y = 0; y < height; y++) {
-    const base = y * width;
-    let minX = width;
-    let maxX = -1;
-    for (let x = 0; x < width; x++) {
-      if (!mask[base + x]) continue;
-      minX = Math.min(minX, x);
-      maxX = Math.max(maxX, x);
-    }
-    if (maxX < minX) continue;
-    for (let x = minX; x <= maxX; x++) out[base + x] = 1;
-  }
-  return out;
-}
-
 /** Bridge small horizontal gaps between ink runs on one scanline (double-edge pairs on a row). */
 function bridgeRowGapsInMask(mask, width, height, maxGap) {
   const out = mask.slice();
@@ -739,47 +721,54 @@ function bridgeRowGapsInMask(mask, width, height, maxGap) {
   return out;
 }
 
-/** Fill completely empty rows sandwiched between ink above+below (thick horizontal void bands). */
-function fillInteriorRowsBetweenInk(mask, width, height) {
-  const out = mask.slice();
-  for (let y = 1; y < height - 1; y++) {
-    const row = y * width;
-    let rowInk = 0;
-    for (let x = 0; x < width; x++) if (mask[row + x]) rowInk++;
-    if (rowInk > 0) continue;
-    let minX = width;
-    let maxX = -1;
-    let sandwiched = false;
-    for (let x = 0; x < width; x++) {
-      const above = mask[row - width + x];
-      const below = mask[row + width + x];
-      if (!above && !below) continue;
-      minX = Math.min(minX, x);
-      maxX = Math.max(maxX, x);
-      if (above && below) sandwiched = true;
-    }
-    if (!sandwiched || maxX < minX) continue;
-    for (let x = minX; x <= maxX; x++) out[row + x] = 1;
+/** Mark empty pixels reachable from the image border (outline ink is a wall). */
+function floodExteriorEmpty(mask, width, height) {
+  const exterior = new Uint8Array(width * height);
+  const stack = [];
+  const seed = (x, y) => {
+    const idx = y * width + x;
+    if (mask[idx] || exterior[idx]) return;
+    exterior[idx] = 1;
+    stack.push(idx);
+  };
+  for (let x = 0; x < width; x++) {
+    seed(x, 0);
+    seed(x, height - 1);
   }
-  return out;
+  for (let y = 0; y < height; y++) {
+    seed(0, y);
+    seed(width - 1, y);
+  }
+  while (stack.length) {
+    const idx = stack.pop();
+    const x = idx % width;
+    const y = (idx / width) | 0;
+    if (x > 0) {
+      const n = idx - 1;
+      if (!mask[n] && !exterior[n]) { exterior[n] = 1; stack.push(n); }
+    }
+    if (x < width - 1) {
+      const n = idx + 1;
+      if (!mask[n] && !exterior[n]) { exterior[n] = 1; stack.push(n); }
+    }
+    if (y > 0) {
+      const n = idx - width;
+      if (!mask[n] && !exterior[n]) { exterior[n] = 1; stack.push(n); }
+    }
+    if (y < height - 1) {
+      const n = idx + width;
+      if (!mask[n] && !exterior[n]) { exterior[n] = 1; stack.push(n); }
+    }
+  }
+  return exterior;
 }
 
-/** Fill empty rows sandwiched between ink above+below (horizontal void bands between double lines). */
-function fillSparseRowsBetweenNeighborInk(mask, width, height) {
-  const out = mask.slice();
-  for (let y = 1; y < height - 1; y++) {
-    const row = y * width;
-    let rowInk = 0;
-    for (let x = 0; x < width; x++) if (mask[row + x]) rowInk++;
-    if (rowInk / width > 0.05) continue;
-    let bridged = 0;
-    for (let x = 0; x < width; x++) {
-      if (mask[row - width + x] && mask[row + width + x]) bridged++;
-    }
-    if (bridged / width < 0.015) continue;
-    for (let x = 0; x < width; x++) {
-      if (mask[row - width + x] && mask[row + width + x]) out[row + x] = 1;
-    }
+/** Flood exterior, then fill enclosed interior — solid silhouette from closed outline. */
+function fillInteriorEnclosedByOutline(boundaryMask, width, height) {
+  const exterior = floodExteriorEmpty(boundaryMask, width, height);
+  const out = boundaryMask.slice();
+  for (let i = 0; i < out.length; i++) {
+    if (!boundaryMask[i] && !exterior[i]) out[i] = 1;
   }
   return out;
 }
@@ -805,20 +794,24 @@ function maskNeedsDoubleEdgeSolidify(mask, width, height) {
   return bandRows >= Math.max(6, Math.round(height * 0.006));
 }
 
-/** Fill gaps between double-edge line pairs so wrap emboss is solid (dragon OK, knight was hollow bands). */
+/** Close outline boundary, then flood-fill interior for solid emboss (reverse of edge extract). */
 function solidifyOutlineSilhouetteMask(mask, width, height) {
   const span = Math.min(width, height);
   const hRadius = span > 1600 ? 10 : span > 1200 ? 9 : span > 900 ? 8 : span > 500 ? 6 : 4;
   const radius = span > 1600 ? 8 : span > 1200 ? 7 : span > 900 ? 6 : span > 500 ? 5 : 4;
-  let m = closeMaskHorizontal(mask, width, height, hRadius);
-  m = closeMask(m, width, height, radius);
-  m = fillRowInkSpans(m, width, height);
+  let boundary = closeMaskHorizontal(mask, width, height, hRadius);
+  boundary = closeMask(boundary, width, height, radius);
   const maxGap = Math.max(20, Math.round(span / 45));
-  m = bridgeRowGapsInMask(m, width, height, maxGap);
-  m = fillInteriorRowsBetweenInk(m, width, height);
-  m = fillSparseRowsBetweenNeighborInk(m, width, height);
-  m = fillRowInkSpans(m, width, height);
-  return m;
+  boundary = bridgeRowGapsInMask(boundary, width, height, maxGap);
+  boundary = dilateMask(boundary, width, height);
+  let filled = fillInteriorEnclosedByOutline(boundary, width, height);
+  const fill = maskFillRatio(filled, width, height);
+  if (fill < 0.04) {
+    const wider = closeMask(boundary, width, height, Math.min(12, radius + 4));
+    const retry = fillInteriorEnclosedByOutline(dilateMask(wider, width, height), width, height);
+    if (maskFillRatio(retry, width, height) > fill) filled = retry;
+  }
+  return filled;
 }
 
 function finishSilhouetteTrace(workMask, tw, th, ox, oy, shapeGroups, simplifyFactor, width, height, extra = {}) {
