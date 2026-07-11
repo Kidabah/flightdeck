@@ -1932,8 +1932,47 @@ export async function traceCanvasAsync(canvas, options = {}) {
 /** @deprecated Use traceCanvasAsync — kept as alias for imports. */
 export const traceCanvas = traceCanvasAsync;
 
-/** Render trace preview onto a canvas (source image + green overlay). */
+function resolveTracePreviewMask(traceResult) {
+  const tw = traceResult.width || 1;
+  const th = traceResult.height || 1;
+  const need = tw * th;
+  if (traceResult.silhouetteMask?.length === need) return traceResult.silhouetteMask;
+  if (traceResult.mask?.length === need) return traceResult.mask;
+  return null;
+}
 
+function drawTraceInkMaskOverlay(ctx, pad, ox, oy, mask, tw, th, factor) {
+  const preview = document.createElement("canvas");
+  preview.width = tw;
+  preview.height = th;
+  const pctx = preview.getContext("2d");
+  if (!pctx) return false;
+  const img = pctx.createImageData(tw, th);
+  for (let i = 0; i < tw * th; i++) {
+    const on = mask[i];
+    const j = i * 4;
+    img.data[j] = 56;
+    img.data[j + 1] = 189;
+    img.data[j + 2] = 248;
+    img.data[j + 3] = on ? 140 : 0;
+  }
+  pctx.putImageData(img, 0, 0);
+  ctx.drawImage(preview, pad + ox, pad + oy, tw * factor, th * factor);
+  return true;
+}
+
+function drawTraceInkRunOverlay(ctx, pad, ox, oy, rects, factor) {
+  if (!rects?.length) return false;
+  ctx.fillStyle = "rgba(56, 189, 248, 0.55)";
+  for (const r of rects) {
+    const w = Math.max(factor, r.w * factor);
+    const h = Math.max(factor, r.h * factor);
+    ctx.fillRect(pad + ox + r.x * factor, pad + oy + r.y * factor, w, h);
+  }
+  return true;
+}
+
+/** Render trace preview onto a canvas (source image + cyan ink overlay). */
 export function drawTracePreview(previewCanvas, sourceCanvas, traceResult) {
 
   const ctx = previewCanvas.getContext("2d");
@@ -1963,8 +2002,20 @@ export function drawTracePreview(previewCanvas, sourceCanvas, traceResult) {
   const factor = traceResult.simplifyFactor || 1;
   const ox = traceResult.cropOx ?? 0;
   const oy = traceResult.cropOy ?? 0;
+  const tw = traceResult.width || 1;
+  const th = traceResult.height || 1;
 
-  if (traceResult.mode === "outline" && traceResult.strokePaths?.length) {
+  // Raster ink mask — line art (outlineRaster) + silhouettes: full cyan fill on every ink pixel.
+  const inkMask = resolveTracePreviewMask(traceResult);
+  if (inkMask) {
+    ctx.fillStyle = "rgba(56, 189, 248, 0.55)";
+    if (drawTraceInkMaskOverlay(ctx, pad, ox, oy, inkMask, tw, th, factor)) return;
+  }
+  if (traceResult.outlineRaster && traceResult.rects?.length) {
+    if (drawTraceInkRunOverlay(ctx, pad, ox, oy, traceResult.rects, factor)) return;
+  }
+
+  if (traceResult.mode === "outline" && traceResult.strokePaths?.length && !traceResult.outlineRaster) {
     ctx.strokeStyle = "rgba(56, 189, 248, 0.95)";
     ctx.lineWidth = Math.max(1.5, (traceResult.width || 100) / 70);
     ctx.lineJoin = "round";
@@ -1985,55 +2036,11 @@ export function drawTracePreview(previewCanvas, sourceCanvas, traceResult) {
 
   ctx.fillStyle = "rgba(56, 189, 248, 0.55)";
 
-  const tw = traceResult.width || 1;
-  const th = traceResult.height || 1;
-  const silMask = traceResult.silhouetteMask;
-  if (silMask?.length === tw * th) {
-    const preview = document.createElement("canvas");
-    preview.width = tw;
-    preview.height = th;
-    const pctx = preview.getContext("2d");
-    if (pctx) {
-      const img = pctx.createImageData(tw, th);
-      for (let i = 0; i < tw * th; i++) {
-        const on = silMask[i];
-        const j = i * 4;
-        img.data[j] = 56;
-        img.data[j + 1] = 189;
-        img.data[j + 2] = 248;
-        img.data[j + 3] = on ? 140 : 0;
-      }
-      pctx.putImageData(img, 0, 0);
-      const factor = traceResult.simplifyFactor || 1;
-      ctx.drawImage(preview, pad + (traceResult.cropOx ?? 0), pad + (traceResult.cropOy ?? 0), tw * factor, th * factor);
-    }
-    return;
-  }
-
   const groups = traceResult.shapeGroups?.length ? traceResult.shapeGroups : null;
 
   if (groups?.length > 48) {
-    const tw = traceResult.width || 1;
-    const th = traceResult.height || 1;
     const mask = rasterizeShapeGroupsToMask(groups, tw, th);
-    const preview = document.createElement("canvas");
-    preview.width = tw;
-    preview.height = th;
-    const pctx = preview.getContext("2d");
-    if (pctx) {
-      const img = pctx.createImageData(tw, th);
-      for (let i = 0; i < tw * th; i++) {
-        const on = mask[i];
-        const j = i * 4;
-        img.data[j] = 56;
-        img.data[j + 1] = 189;
-        img.data[j + 2] = 248;
-        img.data[j + 3] = on ? 140 : 0;
-      }
-      pctx.putImageData(img, 0, 0);
-      ctx.drawImage(preview, pad + ox, pad + oy, tw * factor, th * factor);
-    }
-    return;
+    if (drawTraceInkMaskOverlay(ctx, pad, ox, oy, mask, tw, th, factor)) return;
   }
 
   if (groups?.length) {

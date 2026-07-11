@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (b283 — 51d5787 pushed)
-- Cache-bust: `app.js?v=283`, `features.js?v=283` — header **b283**
+- Latest commit: (b284 — pending push)
+- Cache-bust: `app.js?v=284`, `trace.js?v=284`, `features.js?v=284` — header **b284**
+
+### 2026-07-11 — b284: Trace preview — full cyan ink overlay, not edge strokes
+
+**Symptom:** Trace meta says `line art mask · 6977 ink runs · mask 14% fill` but preview shows thin cyan edge strokes only, not full ink overlay like b278.
+
+**Fix:** `drawTracePreview` now prioritises raster ink mask (`silhouetteMask` / `mask` / ink runs) before vector stroke paths. `outlineRaster` never uses centerline stroke preview.
+
+- Cache **b284**. Hard refresh, Clear, re-trace coffee bag (Auto) — cyan should cover all ink pixels.
 
 ### 2026-07-11 — b283: Revert emboss path to b278 (ad24606)
 
