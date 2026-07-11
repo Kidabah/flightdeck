@@ -2,8 +2,21 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending b266)
-- Cache-bust: `app.js?v=266`, `style.css?v=29` — header **b266**
+- Latest commit: (pending b267)
+- Cache-bust: `app.js?v=267` — header **b267**
+
+### 2026-07-11 — b267: Cleaner SVG on wrap — vector extrude + seam-unwrapped slabs
+
+**Symptom:** broncs.svg visible on wrap but **horizontal scanlines**, gaps in upper half, centre seam — coarse `buildFaceDecalSlabMesh` without wrap seam unwrap.
+
+**Fix:**
+- **Vector first** for united SVG silhouettes (≤8 groups, ≤1600 pts) — solid earcut extrusion on wrap arc space.
+- **Fallback:** `buildWrapArtSlabMesh` — same pixel-mask + `unwrapWrapX` + `pushWrapRunShell` strategy as traced bitmap (not flat face slabs).
+- Finer SVG slab grid (1280 cols, 0.035–0.09 mm step), mask dilate + close to fill pinholes.
+
+**Files:** `js/features.js`, `js/app.js`, `index.html`
+
+- Cache **b267**. Hard refresh, re-drop broncs.svg — logo should be solid maroon, no horizontal slicing.
 
 ### 2026-07-11 — b266: SVG drag-and-drop + reliable vector silhouette
 

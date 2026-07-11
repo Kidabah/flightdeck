@@ -250,10 +250,12 @@ const WRAP_DECAL_STEP_MM = 0.4;
 const WRAP_DECAL_TARGET_COLS = 560;
 const WRAP_DECAL_STEP_MIN_MM = 0.08;
 const WRAP_DECAL_STEP_MAX_MM = 0.26;
-/** Finer slabs for vector SVG on wrap — still no earcut (slash-free). */
-const WRAP_SVG_DECAL_TARGET_COLS = 880;
-const WRAP_SVG_DECAL_STEP_MIN_MM = 0.05;
-const WRAP_SVG_DECAL_STEP_MAX_MM = 0.16;
+/** Finer slabs for vector SVG on wrap fallback — seam-unwrapped run shells. */
+const WRAP_SVG_DECAL_TARGET_COLS = 1280;
+const WRAP_SVG_DECAL_STEP_MIN_MM = 0.035;
+const WRAP_SVG_DECAL_STEP_MAX_MM = 0.09;
+const WRAP_SVG_VECTOR_MAX_GROUPS = 8;
+const WRAP_SVG_VECTOR_MAX_PTS = 1600;
 const WRAP_ART_VERTICAL_GUTTER_MM = 1.4;
 
 function wrapSafeArtHeight(frame, requestedHeight) {
@@ -435,6 +437,83 @@ function buildWrapTraceSlabMesh(frame, bitmap, params, shapeGroups, d0, d1) {
   }
   return indices.length ? { positions, indices } : null;
 }
+
+function shapeGroupPointCount(groups) {
+  let n = 0;
+  for (const g of groups) {
+    n += g.outer?.length || 0;
+    for (const h of g.holes || []) n += h.length;
+  }
+  return n;
+}
+
+/** United SVG silhouettes are smooth enough for wrap earcut; dense traces stay on slabs. */
+function wrapSvgPreferVectorExtrude(params, faceGroups) {
+  if (!svgUsesVectorExtrude(params) || !faceGroups?.length) return false;
+  if (faceGroups.length > WRAP_SVG_VECTOR_MAX_GROUPS) return false;
+  return shapeGroupPointCount(faceGroups) <= WRAP_SVG_VECTOR_MAX_PTS;
+}
+
+/** Wrap art slabs — pixel mask + seam-unwrapped runs (same strategy as traced bitmap). */
+function buildWrapArtSlabMesh(frame, shapeGroups, d0, d1, opts = {}) {
+  const bounds = shapeGroupsBounds2d(shapeGroups);
+  if (!bounds || !frame?.mapPoint) return null;
+
+  const spanX = Math.max(bounds.maxX - bounds.minX, 0.4);
+  const spanY = Math.max(bounds.maxY - bounds.minY, 0.4);
+  const targetCols = opts.targetCols ?? WRAP_SVG_DECAL_TARGET_COLS;
+  const stepMin = opts.stepMin ?? WRAP_SVG_DECAL_STEP_MIN_MM;
+  const stepMax = opts.stepMax ?? WRAP_SVG_DECAL_STEP_MAX_MM;
+  let stepMm = opts.stepMm ?? clamp(spanX / targetCols, stepMin, stepMax);
+  stepMm = clamp(stepMm, stepMin, stepMax);
+
+  const pad = stepMm;
+  const minX = bounds.minX - pad;
+  const minY = bounds.minY - pad;
+  let maskW = Math.max(8, Math.ceil((spanX + pad * 2) / stepMm));
+  let maskH = Math.max(8, Math.ceil((spanY + pad * 2) / stepMm));
+  const maxCells = opts.maxCells ?? 2048;
+  while (Math.max(maskW, maskH) > maxCells && stepMm < 1.2) {
+    stepMm *= 1.15;
+    maskW = Math.max(8, Math.ceil((spanX + pad * 2) / stepMm));
+    maskH = Math.max(8, Math.ceil((spanY + pad * 2) / stepMm));
+  }
+
+  const local = scaleShapeGroupsToLocal(shapeGroups, minX, minY, stepMm);
+  let mask = rasterizeShapeGroupsToMask(local, maskW, maskH);
+  const dilate = opts.dilatePasses ?? 1;
+  if (dilate > 0) mask = dilateMask(mask, maskW, maskH, dilate);
+  if (dilate > 0) mask = closeBitmapMask(mask, maskW, maskH, 1);
+
+  const anchorX = (bounds.minX + bounds.maxX) / 2;
+  const scale = stepMm;
+  const xOff = minX;
+  const maxRows = opts.maxRows ?? 2048;
+  let stepPx = 1;
+  if (maskH > maxRows) stepPx = Math.max(1, Math.ceil(maskH / maxRows));
+
+  const positions = [];
+  const indices = [];
+  const exportSolid = !!opts.solid;
+  for (let row = 0; row < maskH; row += stepPx) {
+    const py0 = row;
+    const py1 = Math.min(maskH, row + stepPx);
+    const my0 = minY + py0 * scale;
+    const my1 = minY + py1 * scale;
+    let col = 0;
+    while (col < maskW) {
+      while (col < maskW && !bandMaskFilled(mask, maskW, py0, py1, col)) col++;
+      const start = col;
+      while (col < maskW && bandMaskFilled(mask, maskW, py0, py1, col)) col++;
+      if (col <= start) continue;
+      const px0 = unwrapWrapX(xOff + start * scale, anchorX, frame.faceW);
+      const px1 = unwrapWrapX(xOff + col * scale, anchorX, frame.faceW);
+      pushWrapRunShell(positions, indices, frame, px0, my0, px1, my1, d0, d1, { solid: exportSolid });
+    }
+  }
+  return indices.length ? { positions, indices } : null;
+}
+
 /** Extra radial push when a band is marked "on top" over another. */
 const ACCENT_LAYER_BUMP_MM = 0.22;
 
@@ -3465,15 +3544,31 @@ function extrudeStrokeSegmentOnFace(outPos, outIdx, frame, x0, y0, x1, y1, half,
   face(p010, p110, p111, p011);
 }
 
-/** Extrude remapped art groups — wrap always uses raster slabs (earcut slashes on curved walls). */
+/** Extrude remapped art groups — wrap uses vector silhouettes or seam-unwrapped slab runs. */
 function extrudeGroupsOnFace(outPos, outIdx, frame, faceGroups, d0, d1, params = null) {
   if (frame.face === "wrap" && faceGroups.length) {
+    if (wrapSvgPreferVectorExtrude(params, faceGroups)) {
+      const before = outPos.length;
+      for (const group of faceGroups) {
+        extrudeGroupOnFace(outPos, outIdx, frame, group, d0, d1, params);
+      }
+      if (outPos.length > before) return;
+    }
+
+    const isSvg = svgUsesVectorExtrude(params);
     const stepMm = params?.__labelExportStandoff
       ? DECAL_LAYER_MM
-      : svgUsesVectorExtrude(params)
+      : isSvg
         ? wrapSvgDecalStepMm(faceGroups)
         : wrapDecalStepMm(faceGroups);
-    const slab = buildFaceDecalSlabMesh(frame, faceGroups, { d0, d1, stepMm, dilatePasses: 0 });
+    const slab = buildWrapArtSlabMesh(frame, faceGroups, d0, d1, {
+      stepMm,
+      targetCols: isSvg ? WRAP_SVG_DECAL_TARGET_COLS : WRAP_DECAL_TARGET_COLS,
+      stepMin: isSvg ? WRAP_SVG_DECAL_STEP_MIN_MM : WRAP_DECAL_STEP_MIN_MM,
+      stepMax: isSvg ? WRAP_SVG_DECAL_STEP_MAX_MM : WRAP_DECAL_STEP_MAX_MM,
+      dilatePasses: 1,
+      solid: !!params?.__labelExportStandoff,
+    });
     if (slab?.indices?.length) {
       const base = outPos.length / 3;
       for (let i = 0; i < slab.positions.length; i++) outPos.push(slab.positions[i]);
