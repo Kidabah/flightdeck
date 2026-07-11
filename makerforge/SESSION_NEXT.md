@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (b235 — see git log)
+- Latest commit: `6c81856` (b235)
 - Cache-bust: `app.js?v=235` — header **b235**
 
 ### 2026-07-11 — b235: Morphological close + row bridge for outline fallback (fix knight bands)
