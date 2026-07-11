@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending — b234)
+- Latest commit: `8882613` (b234)
 - Cache-bust: `app.js?v=234` — header **b234**
 
 ### 2026-07-11 — b234: Solidify outline double-edge mask (fix knight horizontal gaps)
