@@ -552,7 +552,33 @@ function outlineInkCrop(data, fullW, fullH, threshold, invert, blur) {
   return cropMask(ink, fullW, fullH);
 }
 
+/** Silhouette binarize + polarity fix — solid fill inside art (reverse of thin outline extract). */
+function silhouetteInkCrop(data, fullW, fullH, threshold, invert, blur) {
+  let ink = binarizeImageData(data, fullW, fullH, threshold, invert, "silhouette", blur);
+  ink = autoCorrectSilhouettePolarity(ink, fullW, fullH);
+  return cropMask(ink, fullW, fullH);
+}
+
+function silhouetteFillUsable(mask, width, height) {
+  const fill = maskFillRatio(mask, width, height);
+  return fill >= 0.008 && fill <= 0.52;
+}
+
 function finishOutlineFallbackSilhouette(data, fullW, fullH, threshold, invert, blur, width, height, extra = {}) {
+  const silCropped = silhouetteInkCrop(data, fullW, fullH, threshold, invert, blur);
+  if (silCropped) {
+    const { mask: silMask, width: tw, height: th, ox, oy } = silCropped;
+    if (silhouetteFillUsable(silMask, tw, th)) {
+      const quality = traceQualityParams(tw, extra);
+      return finishSilhouetteTrace(silMask, tw, th, ox, oy, [], 1, width, height, {
+        outlineFallback: true,
+        solidSilhouetteFill: true,
+        simplifyTol: quality.fbTol,
+        smoothPasses: quality.smoothPasses,
+        ...extra,
+      });
+    }
+  }
   const cropped = outlineInkCrop(data, fullW, fullH, threshold, invert, blur);
   if (!cropped) {
     return {
@@ -817,7 +843,8 @@ function solidifyOutlineSilhouetteMask(mask, width, height) {
 function finishSilhouetteTrace(workMask, tw, th, ox, oy, shapeGroups, simplifyFactor, width, height, extra = {}) {
   const simplifyTol = extra.simplifyTol ?? Math.max(0.18, tw / 2000);
   const smoothPasses = extra.smoothPasses ?? 1;
-  const needsSolidify = !!extra.outlineFallback || maskNeedsDoubleEdgeSolidify(workMask, tw, th);
+  const needsSolidify = !extra.solidSilhouetteFill
+    && (!!extra.outlineFallback || maskNeedsDoubleEdgeSolidify(workMask, tw, th));
   let inkMask = workMask;
   if (needsSolidify) inkMask = solidifyOutlineSilhouetteMask(workMask, tw, th);
   const silhouetteMask = pruneSilhouetteMask(inkMask, tw, th, { skipOpen: needsSolidify });
