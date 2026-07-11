@@ -2,8 +2,21 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `c469812` (b263)
-- Cache-bust: `app.js?v=263` — header **b263**
+- Latest commit: (pending — b264)
+- Cache-bust: `app.js?v=264` — header **b264**
+
+### 2026-07-11 — b264: SVG file picker feedback — visible loaded filename
+
+**Symptom:** After choosing broncs.svg, native input showed **No file chosen** and no status — looked like import failed.
+
+**Cause:** Handler cleared `input.value` immediately; status went to hidden `#trace-meta` then `updateTraceUi()` wiped it.
+
+**Fix:**
+- Visible `#svg-import-meta` under SVG file field — `Loaded: broncs.svg · filled vector`.
+- Store `embossSvgFileName` in state; `syncSvgImportUi()` on load/clear.
+- Drop zone + trace file picker accept **SVG** and route to vector import.
+
+- Cache **b264**. Hard refresh, tick **Add SVG graphic**, choose file — meta line shows filename even though browser input resets.
 
 ### 2026-07-11 — b263: Fix invisible SVG — relaxed path closure + vector prep first
 

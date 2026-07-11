@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=254";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=263";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=264";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=259";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=201";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=210";
@@ -23,7 +23,7 @@ import {
 } from "./library.js?v=201";
 
 const SESSION_KEY = "makerdeck-session-v1";
-const MAKERDECK_BUILD = "b263";
+const MAKERDECK_BUILD = "b264";
 const DISPLAY_UNITS = ["mm", "cm", "in"];
 const MM_PER_IN = 25.4;
 let saveSessionTimer = null;
@@ -1531,6 +1531,9 @@ function resetToDefaults() {
   state.embossText = "";
   state.embossSvgEnabled = false;
   state.embossSvgText = "";
+  state.embossSvgFileName = "";
+  const svgFile = document.getElementById("svg-file");
+  if (svgFile) svgFile.value = "";
   state.embossTraceEnabled = false;
   state.embossTraceRects = null;
   state.embossFace = "front";
@@ -1695,7 +1698,9 @@ async function applySessionPayload(payload) {
     !payload.state.embossTraceEnabled
   ) {
     try {
-      await importSvgFile(payload.state.embossSvgText, { fileName: "restored" });
+      await importSvgFile(payload.state.embossSvgText, {
+        fileName: payload.state.embossSvgFileName || "restored.svg",
+      });
     } catch (err) {
       console.warn("Could not re-import saved SVG:", err);
     }
@@ -2779,6 +2784,9 @@ function clearDecorFromBox() {
   state.embossText = "";
   state.embossSvgEnabled = false;
   state.embossSvgText = "";
+  state.embossSvgFileName = "";
+  const svgFile = document.getElementById("svg-file");
+  if (svgFile) svgFile.value = "";
   state.decorRotation = 0;
   state.decorOffsetX = 0;
   state.decorOffsetY = 0;
@@ -2880,6 +2888,26 @@ function syncArtSizeSlider() {
   });
 }
 
+function svgImportModeLabel(svgText, importMode = "vector") {
+  if (importMode === "trace") return "traced silhouette";
+  return parsedSvgHasFill(svgText) ? "filled vector" : "stroke vector";
+}
+
+function syncSvgImportUi() {
+  const meta = document.getElementById("svg-import-meta");
+  if (!meta) return;
+  const loaded = state.embossSvgEnabled && !!state.embossSvgText?.trim();
+  if (!loaded) {
+    meta.textContent = "";
+    meta.classList.add("hidden");
+    return;
+  }
+  const mode = svgImportModeLabel(state.embossSvgText);
+  const name = state.embossSvgFileName?.trim();
+  meta.textContent = name ? `Loaded: ${name} · ${mode}` : `SVG loaded · ${mode}`;
+  meta.classList.remove("hidden");
+}
+
 function syncArtEditorUi() {
   const textOn = textHasInk(state.embossText);
   const traceOn = !!state.embossTraceEnabled;
@@ -2938,6 +2966,7 @@ function syncArtEditorUi() {
   }
   syncArtSizeSlider();
   syncArtArcRadiusSlider();
+  syncSvgImportUi();
 }
 
 function pasteImageFromClipboard(e) {
@@ -3108,6 +3137,23 @@ function clearTraceImageAndEmboss() {
 }
 
 async function handleTraceFile(file) {
+  const name = file.name?.toLowerCase() || "";
+  const isSvg = file.type === "image/svg+xml" || name.endsWith(".svg");
+  if (isSvg) {
+    try {
+      const text = await file.text();
+      state.embossSvgEnabled = true;
+      document.getElementById("emboss-svg-enabled").checked = true;
+      await importSvgFile(text, { fileName: file.name });
+    } catch (err) {
+      const meta = document.getElementById("svg-import-meta");
+      if (meta) {
+        meta.textContent = err.message || "Could not import SVG";
+        meta.classList.remove("hidden");
+      }
+    }
+    return;
+  }
   try {
     const loaded = await loadImageFromFile(file);
     traceSourceCanvas = loaded.canvas;
@@ -3184,7 +3230,10 @@ function storeTraceOnBox(result, { clearLabel = false, clearSvg = false } = {}) 
   if (clearSvg) {
     state.embossSvgEnabled = false;
     state.embossSvgText = "";
+    state.embossSvgFileName = "";
     document.getElementById("emboss-svg-enabled").checked = false;
+    const svgFile = document.getElementById("svg-file");
+    if (svgFile) svgFile.value = "";
   }
   return true;
 }
@@ -3202,20 +3251,10 @@ async function importSvgDirectEmboss(svgText, { fileName = "", importMode = "vec
   if (previewWrap) previewWrap.classList.add("hidden");
 
   state.embossSvgText = svgText;
+  state.embossSvgFileName = fileName || state.embossSvgFileName || "";
   state.embossSvgEnabled = true;
   document.getElementById("emboss-svg-enabled").checked = true;
 
-  const modeLabel = importMode === "trace"
-    ? "traced silhouette"
-    : parsedSvgHasFill(svgText)
-      ? "filled vector"
-      : "stroke vector";
-  const meta = document.getElementById("trace-meta");
-  if (meta) {
-    meta.textContent = fileName
-      ? `SVG ${fileName} — ${modeLabel}. Use Size + Move; Face → Lid top for lid art.`
-      : `SVG loaded — ${modeLabel}.`;
-  }
   updateDecorUi();
   syncArtEditorUi();
   updateTraceUi();
@@ -4897,6 +4936,9 @@ document.getElementById("emboss-svg-enabled").addEventListener("change", (e) => 
     clearEmbossTrace();
   } else {
     state.embossSvgText = "";
+    state.embossSvgFileName = "";
+    const svgFile = document.getElementById("svg-file");
+    if (svgFile) svgFile.value = "";
   }
   updateDecorUi();
   syncArtEditorUi();
@@ -5016,7 +5058,8 @@ document.getElementById("btn-trace-svg").addEventListener("click", () => {
 });
 
 document.getElementById("svg-file").addEventListener("change", async (e) => {
-  const file = e.target.files?.[0];
+  const input = e.target;
+  const file = input.files?.[0];
   if (!file) return;
   const reader = new FileReader();
   reader.onload = async () => {
@@ -5024,12 +5067,24 @@ document.getElementById("svg-file").addEventListener("change", async (e) => {
       await importSvgFile(String(reader.result || ""), { fileName: file.name });
     } catch (err) {
       console.error("SVG import failed:", err);
-      const meta = document.getElementById("trace-meta");
-      if (meta) meta.textContent = err.message || "Could not import SVG";
+      const meta = document.getElementById("svg-import-meta");
+      if (meta) {
+        meta.textContent = err.message || "Could not import SVG";
+        meta.classList.remove("hidden");
+      }
+    } finally {
+      input.value = "";
     }
   };
+  reader.onerror = () => {
+    const meta = document.getElementById("svg-import-meta");
+    if (meta) {
+      meta.textContent = "Could not read SVG file";
+      meta.classList.remove("hidden");
+    }
+    input.value = "";
+  };
   reader.readAsText(file);
-  e.target.value = "";
 });
 
 document.getElementById("btn-load-badge-sample")?.addEventListener("click", async () => {

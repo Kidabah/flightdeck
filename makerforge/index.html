@@ -44,7 +44,7 @@
 
         <div class="topbar-brand">
 
-          <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b263</span></div>
+          <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b264</span></div>
 
           <h1>Container Generator</h1>
 
@@ -1243,6 +1243,8 @@
 
                 <input type="file" id="svg-file" accept=".svg,image/svg+xml">
 
+                <p class="trace-meta hidden" id="svg-import-meta"></p>
+
               </label>
 
               <div class="art-actions-bar hidden" id="field-svg-samples">
@@ -1257,11 +1259,11 @@
 
               <div class="trace-drop" id="trace-drop">
 
-                <input type="file" id="trace-file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+                <input type="file" id="trace-file" accept="image/png,image/jpeg,image/webp,image/gif,.svg,image/svg+xml" hidden>
 
-                <p class="trace-drop-label">Drop image here, click to browse, or paste</p>
+                <p class="trace-drop-label">Drop image or SVG here, click to browse, or paste</p>
 
-                <p class="trace-drop-hint">PNG · JPG · WEBP · Ctrl+V</p>
+                <p class="trace-drop-hint">PNG · JPG · WEBP · SVG · Ctrl+V</p>
 
               </div>
 
@@ -1436,7 +1438,7 @@
     </form>
   </dialog>
 
-  <script type="module" src="js/app.js?v=263"></script>
+  <script type="module" src="js/app.js?v=264"></script>
 
 </body>
 
