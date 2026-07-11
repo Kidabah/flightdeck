@@ -440,6 +440,7 @@ function buildWrapTraceSlabMesh(frame, bitmap, params, shapeGroups, d0, d1, opts
   }
   const preview = svgIsPreview(params);
   const maxRows = preview ? WRAP_TRACE_PREVIEW_MAX_ROWS : 2048;
+  const anchorX = xOff + artW / 2;
   let stepPx = 1;
   if (params?.__labelExportStandoff) {
     stepPx = Math.max(1, Math.round(DECAL_LAYER_MM / scale));
@@ -462,8 +463,8 @@ function buildWrapTraceSlabMesh(frame, bitmap, params, shapeGroups, d0, d1, opts
       const start = col;
       while (col < maskW && bandMaskFilled(mask, maskW, py0, py1, col)) col++;
       if (col <= start) continue;
-      const px0 = xOff + start * scale;
-      const px1 = xOff + col * scale;
+      const px0 = unwrapWrapX(xOff + start * scale, anchorX, frame.faceW);
+      const px1 = unwrapWrapX(xOff + col * scale, anchorX, frame.faceW);
       pushWrapRunShell(positions, indices, frame, px0, my0, px1, my1, d0, d1, { solid: true });
     }
   }
@@ -2741,7 +2742,7 @@ export function buildEmbossBitmap(meta, params, bitmap) {
 
   // Line-art raster mask — extrude every ink pixel (matches trace preview overlay).
   if (bitmap.outlineRaster && bitmap.mask?.length === maskW * maskH) {
-    const slab = buildWrapTraceSlabMesh(frame, bitmap, params, [], d0, d1);
+    const slab = buildWrapTraceSlabMesh(frame, bitmap, params, [], d0, d1, { fineRows: true });
     if (slab?.indices?.length) return slab;
   }
 
@@ -2769,14 +2770,14 @@ export function buildEmbossBitmap(meta, params, bitmap) {
       extrudeGroupsOnFace(positions, indices, frame, faceGroups, d0, d1, params, bitmap);
       if (positions.length) return { positions, indices };
     }
-    if (frame.face === "wrap" && bitmap.mask?.length === maskW * maskH) {
-      const fineSlab = !bitmap.outlineRaster;
+    // Pixel-row wrap shells only for line-art ink masks — solid logos use contour + art slabs above.
+    if (frame.face === "wrap" && bitmap.outlineRaster && bitmap.mask?.length === maskW * maskH) {
       const slab = buildWrapTraceSlabMesh(frame, bitmap, params, sourceGroups, d0, d1, {
-        fineRows: fineSlab,
+        fineRows: true,
       });
       if (slab?.indices?.length) return slab;
     }
-    if (frame.face === "wrap" && shouldUseWrapRunSlabs(bitmap)) {
+    if (frame.face === "wrap" && shouldUseWrapRunSlabs(bitmap) && !bitmap.shapeGroups?.length) {
       const slab = buildWrapTraceSlabMesh(frame, bitmap, params, sourceGroups, d0, d1);
       if (slab?.indices?.length) return slab;
     }
@@ -3704,8 +3705,7 @@ function extrudeGroupsOnFace(outPos, outIdx, frame, faceGroups, d0, d1, params =
       const before = outPos.length;
       extrudeGroupOnFace(outPos, outIdx, frame, faceGroups[0], d0, d1, params);
       if (outPos.length > before) return;
-      // Contour failed on wrap — caller falls back to fine mask slabs.
-      return;
+      // Contour failed — fall through to seam-unwrapped art slabs (not pixel-row scan shells).
     }
     const isSvg = svgUsesVectorExtrude(params);
     const stepMm = params?.__labelExportStandoff

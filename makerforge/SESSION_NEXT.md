@@ -2,8 +2,21 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (b280 — pending push)
-- Cache-bust: `app.js?v=280`, `features.js?v=280` — header **b280**
+- Latest commit: (b281 — pending push)
+- Cache-bust: `app.js?v=281`, `features.js?v=281` — header **b281**
+
+### 2026-07-11 — b281: Fix wrap scan lines — no pixel-row fallback for solid logos
+
+**Symptom:** After b280 blank fix, cooler wrap logos show horizontal scan lines again.
+
+**Cause:** b280 enabled `buildWrapTraceSlabMesh` pixel-row fallback for solid silhouettes when contour extrude failed. Row shells without seam unwrap = scan-line texture on wrap.
+
+**Fix:**
+- Solid logos on wrap: contour extrude → seam-unwrapped **art slabs** if contour fails (never pixel-row mask slabs).
+- Pixel-row wrap shells **only** for `outlineRaster` line art (always `fineRows`).
+- `buildWrapTraceSlabMesh` uses `unwrapWrapX` at wrap seam for line art.
+
+- Cache **b281**. Hard refresh, re-test knight/broncs on cooler wrap + coffee bag on jar.
 
 ### 2026-07-11 — b280: Fix blank wrap emboss (`opts` ReferenceError)
 
