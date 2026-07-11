@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending — b263)
+- Latest commit: `c469812` (b263)
 - Cache-bust: `app.js?v=263` — header **b263**
 
 ### 2026-07-11 — b263: Fix invisible SVG — relaxed path closure + vector prep first
