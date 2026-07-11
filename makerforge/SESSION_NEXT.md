@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending b279)
+- Latest commit: `8dd3dd4` (b279)
 - Cache-bust: `app.js?v=279`, `features.js?v=279` — header **b279**
 
 ### 2026-07-11 — b279: Cooler wrap logos — contour extrude, not row slabs
