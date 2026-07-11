@@ -2,21 +2,22 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `cfc163c` (b232)
-- Cache-bust: `app.js?v=232` — header **b232**
+- Latest commit: (pending — b233)
+- Cache-bust: `app.js?v=233` — header **b233**
 
-### 2026-07-11 — b232: United heraldic wrap — polygon extrude not row slabs
+### 2026-07-11 — b233: Wrap radial shells from mask (past earcut + row z-fight)
 
-**Symptom:** Horizontal void bands through knight on cylinder (b231 revert unchanged — slabs z-fight row-on-row).
+**Symptom:** b232 earcut slashes returned; row slabs had horizontal z-fight voids — stuck between two broken paths.
 
 **Fix (`features.js`):**
-- 1-island united silhouettes on wrap use **solid polygon extrude** (earcut on clean mask polygon)
-- Row slabs kept only as fallback for dense multi-island art
-- Slightly higher wrap preview standoff (0.22mm) off wall
+- Wrap always uses **mask raster → radial outer shells** (no earcut on curved wall)
+- Dropped full 6-face row boxes — only outer skin + side walls (no coplanar horizontal caps between rows)
+- Preview: 1px rows, outer skin only; export: solid radial shell
+- Removed united-silhouette polygon extrude fallback
 
-- Cache **b232**. Hard refresh, re-drop image.
+- Cache **b233**. Hard refresh, re-drop image — solid heraldic wrap, no slashes or band voids.
 
-### 2026-07-11 — b231: Revert b230 (horizontal gaps worse on wrap)
+### 2026-07-11 — b232: REVERTED path — earcut slashes on united wrap
 
 **Symptom:** b230 introduced thick horizontal voids through knight/horse on cylinder wrap.
 
