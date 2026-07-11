@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (b239 — pending push)
+- Latest commit: `45648b1` (b239)
 - Cache-bust: `app.js?v=239` — header **b239**
 
 ### 2026-07-11 — b239: Flood-fill interior from closed outline (fix hollow emboss)
