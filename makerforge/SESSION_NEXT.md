@@ -2,10 +2,20 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `3df5902` (b242)
-- Cache-bust: `app.js?v=242` — header **b242**
+- Latest commit: (pending — b243)
+- Cache-bust: `app.js?v=243` — header **b243**
 
-### 2026-07-11 — b242: Root-cause fix — line art ≠ solid silhouette (scale-aware interior fill)
+### 2026-07-11 — b243: Polygon re-rasterize for line art (correct interior fill)
+
+**Audit finding:** Outline vs silhouette looked the same because both large traces end in `finishSilhouetteTrace` with low-fill edge mask (~3–12%). Flood-fill interior failed on open double-edge boundaries. Emboss sometimes had no mask blob (localStorage limit) and fell back to hollow shapeGroups.
+
+**Fix:**
+- `lineArtMaskToSolidFill` — dilate/merge double-edge strokes → `maskToPolygons` → largest outer → `rasterizeShapeGroupsToMask` (true solid fill). Flood only as fallback.
+- `ensureEmbossBitmapMask` — rebuild mask from rects when session omitted large mask.
+
+- Cache **b243**. Hard refresh, re-drop image.
+
+### 2026-07-11 — b242: Root-cause fix — line art ≠ solid silhouette
 
 **Root cause (line-by-line audit):**
 1. `silhouetteFillUsable` treated 0.8–52% ink as “solid” — double-edge tiger/heraldic is ~3–12% (edges only) → `solidSilhouetteFill: true` **skipped** interior fill entirely (b240 bug).

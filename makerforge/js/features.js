@@ -2537,7 +2537,31 @@ export function buildEmbossText(meta, params) {
 }
 
 /** Solid silhouette / traced bitmap emboss on chosen face. */
+/** Solid emboss mask — prefer pixel mask; rebuild from rects if session omitted large mask blob. */
+function ensureEmbossBitmapMask(bitmap) {
+  const maskW = Math.round(bitmap?.width || 0);
+  const maskH = Math.round(bitmap?.height || 0);
+  if (!maskW || !maskH || !bitmap) return bitmap;
+  const expected = maskW * maskH;
+  if (bitmap.mask?.length === expected) return bitmap;
+  if (bitmap.rects?.length) {
+    const mask = new Uint8Array(expected);
+    for (const r of bitmap.rects) {
+      const x0 = clamp(Math.floor(r.x), 0, maskW);
+      const x1 = clamp(Math.ceil(r.x + r.w), 0, maskW);
+      const y0 = clamp(Math.floor(r.y), 0, maskH);
+      const y1 = clamp(Math.ceil(r.y + r.h), 0, maskH);
+      for (let py = y0; py < y1; py++) {
+        for (let px = x0; px < x1; px++) mask[py * maskW + px] = 1;
+      }
+    }
+    return { ...bitmap, mask: Array.from(mask) };
+  }
+  return bitmap;
+}
+
 export function buildEmbossBitmap(meta, params, bitmap) {
+  bitmap = ensureEmbossBitmapMask(bitmap);
   if (!bitmap?.width || !bitmap.height) return null;
   const artH = clamp(params.embossTraceSize ?? 16, 6, 56);
   const frame = getEmbossFaceFrame(meta, params.embossFace || "front", params);

@@ -812,37 +812,31 @@ function maskNeedsDoubleEdgeSolidify(mask, width, height) {
   return bandRows >= Math.max(6, Math.round(height * 0.006));
 }
 
-/** Close line-art boundary (scale-aware), flood exterior, fill interior — one solid emboss mask. */
-function solidifyOutlineSilhouetteMask(mask, width, height) {
+/** Line art (double-edge) → solid fill: dilate to merge strokes, polygonize envelope, re-rasterize. */
+function lineArtMaskToSolidFill(mask, width, height) {
   const span = Math.min(width, height);
-  const hRadius = clamp(Math.round(span / 55), 12, 56);
-  const radius = clamp(Math.round(span / 45), 10, 48);
-  const maxGap = clamp(Math.round(span / 25), 40, 120);
+  const startFill = maskFillRatio(mask, width, height);
+  if (isSolidSilhouetteMask(mask, width, height)) return mask;
 
-  const buildFilled = (seed, hR, r, gap) => {
-    let boundary = closeMaskHorizontal(seed, width, height, hR);
-    boundary = closeMask(boundary, width, height, r);
-    boundary = bridgeRowGapsInMask(boundary, width, height, gap);
-    boundary = dilateMask(boundary, width, height);
-    return fillInteriorEnclosedByOutline(boundary, width, height);
-  };
+  const mergePasses = clamp(Math.round(span / 100), 8, 36);
+  let wall = mask;
+  for (let i = 0; i < mergePasses; i++) wall = dilateMask(wall, width, height);
+  wall = closeMaskHorizontal(wall, width, height, clamp(Math.round(span / 50), 14, 64));
+  wall = closeMask(wall, width, height, clamp(Math.round(span / 40), 12, 52));
 
-  let filled = buildFilled(mask, hRadius, radius, maxGap);
-  let fill = maskFillRatio(filled, width, height);
-  if (fill < SOLID_SILHOUETTE_MIN_FILL) {
-    const retry = buildFilled(
-      dilateMask(mask, width, height),
-      Math.min(64, hRadius + 8),
-      Math.min(56, radius + 8),
-      Math.min(160, maxGap + 24),
-    );
-    const retryFill = maskFillRatio(retry, width, height);
-    if (retryFill > fill) {
-      filled = retry;
-      fill = retryFill;
-    }
+  const polys = maskToPolygons(wall, width, height);
+  const grouped = groupPolygonsWithHoles(polys);
+  if (grouped.length) {
+    const largest = grouped[0];
+    const solid = rasterizeShapeGroupsToMask([{ outer: largest.outer, holes: largest.holes || [] }], width, height);
+    const solidFill = maskFillRatio(solid, width, height);
+    if (solidFill >= Math.max(startFill, SOLID_SILHOUETTE_MIN_FILL)) return solid;
   }
-  return fill >= maskFillRatio(mask, width, height) ? filled : mask;
+
+  // Fallback: flood interior of thickened wall
+  let filled = fillInteriorEnclosedByOutline(dilateMask(wall, width, height), width, height);
+  if (maskFillRatio(filled, width, height) > startFill) return filled;
+  return wall;
 }
 
 function finishSilhouetteTrace(workMask, tw, th, ox, oy, shapeGroups, simplifyFactor, width, height, extra = {}) {
@@ -855,7 +849,7 @@ function finishSilhouetteTrace(workMask, tw, th, ox, oy, shapeGroups, simplifyFa
       || maskFillRatio(workMask, tw, th) < SOLID_SILHOUETTE_MIN_FILL
     );
   let inkMask = workMask;
-  if (needsSolidify) inkMask = solidifyOutlineSilhouetteMask(workMask, tw, th);
+  if (needsSolidify) inkMask = lineArtMaskToSolidFill(workMask, tw, th);
   const silhouetteMask = pruneSilhouetteMask(inkMask, tw, th, { skipOpen: needsSolidify });
   let groups = silhouetteGroupsFromMask(silhouetteMask, tw, th, simplifyTol, smoothPasses);
   if (!groups.length && shapeGroups?.length) {
