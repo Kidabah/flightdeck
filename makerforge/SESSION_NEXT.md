@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending — b258)
+- Latest commit: `4f426fd` (b258)
 - Cache-bust: `app.js?v=258` — header **b258**
 
 ### 2026-07-11 — b258: Solidify colour-logo interior (shield + white horse stripes)
