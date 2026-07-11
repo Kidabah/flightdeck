@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `cf6d0b2` (b236)
+- Latest commit: `dbb2236` (b236)
 - Cache-bust: `app.js?v=236` — header **b236**
 
 ### 2026-07-11 — b236: Wrap preview 1px rows for tall traces (fix top scan-line gaps)
