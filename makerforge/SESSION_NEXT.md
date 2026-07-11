@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending — b260)
+- Latest commit: `5f028d9` (b260)
 - Cache-bust: `app.js?v=260` — header **b260**
 
 ### 2026-07-11 — b260: SVG vector quality — fine path sampling + wrap extrusion
