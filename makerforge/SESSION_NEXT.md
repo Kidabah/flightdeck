@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending b276)
+- Latest commit: `879628e` (b276)
 - Cache-bust: `app.js?v=276` — header **b276**
 
 ### 2026-07-11 — b276: Full logo on wrap — fix mid-mesh chop + direct SVG silhouette
