@@ -832,7 +832,7 @@ function fillRowExtents(mask, width, height) {
 }
 
 /** Fill empty rows sandwiched between rows that have ink (bridge horizontal band gaps). */
-function fillSandwichedEmptyRows(mask, width, height) {
+function fillSandwichedEmptyRows(mask, width, height, neighborSpan = 2) {
   const out = mask.slice();
   for (let y = 1; y < height - 1; y++) {
     const row = y * width;
@@ -841,19 +841,28 @@ function fillSandwichedEmptyRows(mask, width, height) {
     if (rowInk > 0) continue;
     let above = 0;
     let below = 0;
-    for (let x = 0; x < width; x++) {
-      if (mask[row - width + x]) above++;
-      if (mask[row + width + x]) below++;
+    for (let d = 1; d <= neighborSpan; d++) {
+      if (y - d >= 0) {
+        const r = (y - d) * width;
+        for (let x = 0; x < width; x++) if (mask[r + x]) above++;
+      }
+      if (y + d < height) {
+        const r = (y + d) * width;
+        for (let x = 0; x < width; x++) if (mask[r + x]) below++;
+      }
     }
-    if (above < width * 0.008 || below < width * 0.008) continue;
+    if (above < width * 0.006 || below < width * 0.006) continue;
     let minX = width;
     let maxX = -1;
-    for (const yy of [y - 1, y + 1]) {
-      const r = yy * width;
-      for (let x = 0; x < width; x++) {
-        if (!mask[r + x]) continue;
-        minX = Math.min(minX, x);
-        maxX = Math.max(maxX, x);
+    for (let d = 1; d <= neighborSpan; d++) {
+      for (const yy of [y - d, y + d]) {
+        if (yy < 0 || yy >= height) continue;
+        const r = yy * width;
+        for (let x = 0; x < width; x++) {
+          if (!mask[r + x]) continue;
+          minX = Math.min(minX, x);
+          maxX = Math.max(maxX, x);
+        }
       }
     }
     if (maxX > minX) {
@@ -863,7 +872,7 @@ function fillSandwichedEmptyRows(mask, width, height) {
   return out;
 }
 
-/** Line art (double-edge) → solid fill: row extent + sandwich fill, then polygon envelope if needed. */
+/** Line art (double-edge) → solid fill: row extent + sandwich + interior hole plug. */
 function lineArtMaskToSolidFill(mask, width, height) {
   const span = Math.min(width, height);
   const startFill = maskFillRatio(mask, width, height);
@@ -873,16 +882,22 @@ function lineArtMaskToSolidFill(mask, width, height) {
   let m = mask;
   for (let i = 0; i < mergePasses; i++) m = dilateMask(m, width, height);
 
-  for (let pass = 0; pass < 4; pass++) {
+  for (let pass = 0; pass < 6; pass++) {
     m = fillRowExtents(m, width, height);
-    m = fillSandwichedEmptyRows(m, width, height);
+    m = bridgeRowGapsInMask(m, width, height, clamp(Math.round(span / 18), 24, 140));
+    m = fillSandwichedEmptyRows(m, width, height, 3);
   }
-  m = closeMask(m, width, height, clamp(Math.round(span / 80), 2, 16));
+
+  const closeR = clamp(Math.round(span / 70), 4, 24);
+  m = closeMask(m, width, height, closeR);
+  // Plug triangular wedges / interior holes (forehead voids between double-edge pairs).
+  m = fillInteriorEnclosedByOutline(m, width, height);
+  m = fillRowExtents(m, width, height);
 
   let fill = maskFillRatio(m, width, height);
   if (fill >= SOLID_SILHOUETTE_MIN_FILL) return m;
 
-  const polys = maskToPolygons(m, width, height);
+  const polys = maskToPolygons(closeMask(m, width, height, closeR + 4), width, height);
   const grouped = groupPolygonsWithHoles(polys);
   if (grouped.length) {
     const solid = rasterizeShapeGroupsToMask([{ outer: grouped[0].outer, holes: grouped[0].holes || [] }], width, height);
@@ -891,7 +906,7 @@ function lineArtMaskToSolidFill(mask, width, height) {
     if (fill > maskFillRatio(m, width, height)) m = solid;
   }
 
-  const flooded = fillInteriorEnclosedByOutline(closeMask(dilateMask(m, width, height), width, height, 4), width, height);
+  const flooded = fillInteriorEnclosedByOutline(closeMask(dilateMask(m, width, height), width, height, 6), width, height);
   if (maskFillRatio(flooded, width, height) > maskFillRatio(m, width, height)) return flooded;
   return m;
 }
