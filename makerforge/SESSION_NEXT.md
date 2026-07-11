@@ -2,8 +2,29 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `fe78d7e` (b237)
-- Cache-bust: `app.js?v=237` — header **b237**
+- Latest commit: (pending — b238)
+- Cache-bust: `app.js?v=238` — header **b238**
+
+### 2026-07-11 — b238: Stronger double-edge span fill (fix heraldic knight bands)
+
+**Symptom:** Heraldic knight/dragon wrap still has 2–3 thick horizontal void bands through knight/horse upper body after b235–b237. Tiger improved with b236; heraldic bands persist. Art metadata: `1 island · silhouette (auto — double-edge)`.
+
+**Root cause:** `outlineFallback` path was correct and solidify ran, but b235 fixes were too weak for sparse heraldic hatching:
+- Outline ink mask is thin double-edge lines with **entire empty rows** between line pairs (knight upper body sparser than dragon).
+- `bridgeRowGapsInMask` max gap was only `span/100` (~24px on 2400px crops) — too small for wide double-line spacing.
+- `fillSparseRowsBetweenNeighborInk` only filled column-aligned pixels where both neighbors had ink; did not span-fill rows.
+- No horizontal 1D morphological close before vertical close.
+- Solidify only ran when `outlineFallback` flag set (heraldic does set it, but detection now also catches auto silhouette double-edge).
+
+**Fix (`trace.js`):**
+- `closeMaskHorizontal` — 1D morphological close per scanline before 2D close (bridges wide horizontal gaps).
+- `fillRowInkSpans` — if a row has any ink, fill minX→maxX span.
+- `fillInteriorRowsBetweenInk` — fill completely empty sandwiched rows across neighbor ink span.
+- Stronger params: hRadius up to 10, close radius up to 8, maxGap `span/45` (min 20).
+- `maskNeedsDoubleEdgeSolidify` — auto-solidify any silhouette with band-gap row pattern, not only outline fallback.
+- `pruneSilhouetteMask` skipOpen whenever solidify runs.
+
+- Cache **b238**. Hard refresh, re-drop heraldic image on wrap face — knight upper body should be solid emboss like dragon; trace preview mask should show no horizontal void bands.
 
 ### 2026-07-11 — b237: Fix stale build tag (MAKERDECK_BUILD was stuck on b234)
 

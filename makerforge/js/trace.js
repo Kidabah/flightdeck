@@ -21,9 +21,9 @@ import {
   unionShapeGroupsToPrepared,
   rasterizeShapeGroupsToMask,
   filterDegenerateShapeGroups,
-} from "./contour.js?v=235";
+} from "./contour.js?v=238";
 
-export { unionDenseEmbossShapeGroups } from "./contour.js?v=235";
+export { unionDenseEmbossShapeGroups } from "./contour.js?v=238";
 
 
 
@@ -656,6 +656,64 @@ function silhouetteGroupsFromMask(mask, tw, th, simplifyTol, smoothPasses) {
   return filterDegenerateShapeGroups(groups, tw, th);
 }
 
+function dilateRow1D(row, width, radius) {
+  const out = new Uint8Array(width);
+  for (let x = 0; x < width; x++) {
+    let on = 0;
+    for (let dx = -radius; dx <= radius && !on; dx++) {
+      const nx = x + dx;
+      if (nx >= 0 && nx < width && row[nx]) on = 1;
+    }
+    out[x] = on;
+  }
+  return out;
+}
+
+function erodeRow1D(row, width, radius) {
+  const out = new Uint8Array(width);
+  for (let x = 0; x < width; x++) {
+    let keep = 1;
+    for (let dx = -radius; dx <= radius && keep; dx++) {
+      const nx = x + dx;
+      if (nx < 0 || nx >= width || !row[nx]) keep = 0;
+    }
+    out[x] = keep;
+  }
+  return out;
+}
+
+/** 1D morphological close along each scanline — bridges wide double-edge gaps before vertical close. */
+function closeMaskHorizontal(mask, width, height, radius = 1) {
+  const out = new Uint8Array(width * height);
+  for (let y = 0; y < height; y++) {
+    const base = y * width;
+    const row = mask.subarray(base, base + width);
+    let m = row;
+    for (let i = 0; i < radius; i++) m = dilateRow1D(m, width, 1);
+    for (let i = 0; i < radius; i++) m = erodeRow1D(m, width, 1);
+    out.set(m, base);
+  }
+  return out;
+}
+
+/** If a row has any ink, fill the span from leftmost to rightmost ink pixel. */
+function fillRowInkSpans(mask, width, height) {
+  const out = mask.slice();
+  for (let y = 0; y < height; y++) {
+    const base = y * width;
+    let minX = width;
+    let maxX = -1;
+    for (let x = 0; x < width; x++) {
+      if (!mask[base + x]) continue;
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+    }
+    if (maxX < minX) continue;
+    for (let x = minX; x <= maxX; x++) out[base + x] = 1;
+  }
+  return out;
+}
+
 /** Bridge small horizontal gaps between ink runs on one scanline (double-edge pairs on a row). */
 function bridgeRowGapsInMask(mask, width, height, maxGap) {
   const out = mask.slice();
@@ -681,6 +739,31 @@ function bridgeRowGapsInMask(mask, width, height, maxGap) {
   return out;
 }
 
+/** Fill completely empty rows sandwiched between ink above+below (thick horizontal void bands). */
+function fillInteriorRowsBetweenInk(mask, width, height) {
+  const out = mask.slice();
+  for (let y = 1; y < height - 1; y++) {
+    const row = y * width;
+    let rowInk = 0;
+    for (let x = 0; x < width; x++) if (mask[row + x]) rowInk++;
+    if (rowInk > 0) continue;
+    let minX = width;
+    let maxX = -1;
+    let sandwiched = false;
+    for (let x = 0; x < width; x++) {
+      const above = mask[row - width + x];
+      const below = mask[row + width + x];
+      if (!above && !below) continue;
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+      if (above && below) sandwiched = true;
+    }
+    if (!sandwiched || maxX < minX) continue;
+    for (let x = minX; x <= maxX; x++) out[row + x] = 1;
+  }
+  return out;
+}
+
 /** Fill empty rows sandwiched between ink above+below (horizontal void bands between double lines). */
 function fillSparseRowsBetweenNeighborInk(mask, width, height) {
   const out = mask.slice();
@@ -701,23 +784,50 @@ function fillSparseRowsBetweenNeighborInk(mask, width, height) {
   return out;
 }
 
+/** Detect thin double-edge line art that still has horizontal band gaps after binarize. */
+function maskNeedsDoubleEdgeSolidify(mask, width, height) {
+  const fill = maskFillRatio(mask, width, height);
+  if (fill > 0.38 || fill < 0.003) return false;
+  let bandRows = 0;
+  for (let y = 1; y < height - 1; y++) {
+    const row = y * width;
+    let rowInk = 0;
+    for (let x = 0; x < width; x++) if (mask[row + x]) rowInk++;
+    if (rowInk / width > 0.04) continue;
+    let above = 0;
+    let below = 0;
+    for (let x = 0; x < width; x++) {
+      if (mask[row - width + x]) above++;
+      if (mask[row + width + x]) below++;
+    }
+    if (above / width > 0.02 && below / width > 0.02) bandRows++;
+  }
+  return bandRows >= Math.max(6, Math.round(height * 0.006));
+}
+
 /** Fill gaps between double-edge line pairs so wrap emboss is solid (dragon OK, knight was hollow bands). */
 function solidifyOutlineSilhouetteMask(mask, width, height) {
   const span = Math.min(width, height);
-  const radius = span > 1400 ? 6 : span > 900 ? 5 : span > 500 ? 4 : 3;
-  let m = closeMask(mask, width, height, radius);
-  const maxGap = Math.max(10, Math.round(span / 100));
+  const hRadius = span > 1600 ? 10 : span > 1200 ? 9 : span > 900 ? 8 : span > 500 ? 6 : 4;
+  const radius = span > 1600 ? 8 : span > 1200 ? 7 : span > 900 ? 6 : span > 500 ? 5 : 4;
+  let m = closeMaskHorizontal(mask, width, height, hRadius);
+  m = closeMask(m, width, height, radius);
+  m = fillRowInkSpans(m, width, height);
+  const maxGap = Math.max(20, Math.round(span / 45));
   m = bridgeRowGapsInMask(m, width, height, maxGap);
+  m = fillInteriorRowsBetweenInk(m, width, height);
   m = fillSparseRowsBetweenNeighborInk(m, width, height);
+  m = fillRowInkSpans(m, width, height);
   return m;
 }
 
 function finishSilhouetteTrace(workMask, tw, th, ox, oy, shapeGroups, simplifyFactor, width, height, extra = {}) {
   const simplifyTol = extra.simplifyTol ?? Math.max(0.18, tw / 2000);
   const smoothPasses = extra.smoothPasses ?? 1;
+  const needsSolidify = !!extra.outlineFallback || maskNeedsDoubleEdgeSolidify(workMask, tw, th);
   let inkMask = workMask;
-  if (extra.outlineFallback) inkMask = solidifyOutlineSilhouetteMask(workMask, tw, th);
-  const silhouetteMask = pruneSilhouetteMask(inkMask, tw, th, { skipOpen: !!extra.outlineFallback });
+  if (needsSolidify) inkMask = solidifyOutlineSilhouetteMask(workMask, tw, th);
+  const silhouetteMask = pruneSilhouetteMask(inkMask, tw, th, { skipOpen: needsSolidify });
   let groups = silhouetteGroupsFromMask(silhouetteMask, tw, th, simplifyTol, smoothPasses);
   if (!groups.length && shapeGroups?.length) {
     groups = filterDegenerateShapeGroups(shapeGroups, tw, th);
