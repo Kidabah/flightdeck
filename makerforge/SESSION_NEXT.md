@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending b277)
+- Latest commit: `d134012` (b277)
 - Cache-bust: `app.js?v=277` — header **b277**
 
 ### 2026-07-11 — b277: Wrap logo — direct contour extrude, not broken slab strips
