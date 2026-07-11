@@ -2,8 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `45648b1` (b239)
-- Cache-bust: `app.js?v=239` — header **b239**
+- Latest commit: `247b752` (b240)
+- Cache-bust: `app.js?v=240` — header **b240**
+
+### 2026-07-11 — b240: Solid silhouette binarize for double-edge auto (not outline ink + flood)
+
+**Symptom:** b239 no visible change — emboss still hollow outline shell on tiger + heraldic.
+
+**Root cause:** Outline fallback used thin `outlineInkCrop` lines. Flood-fill interior fails when double-edge gaps let exterior flood leak through — only edge strokes emboss.
+
+**Fix (`trace.js`):** `finishOutlineFallbackSilhouette` prefers `silhouetteInkCrop` (silhouette binarize + polarity fix) for solid interior. Skips solidify hacks when fill is usable. Outline ink + flood only as fallback.
+
+- Cache **b240**. Hard refresh, re-drop image — preview solid blue fill, not edge ring.
 
 ### 2026-07-11 — b239: Flood-fill interior from closed outline (fix hollow emboss)
 
