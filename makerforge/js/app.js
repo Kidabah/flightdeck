@@ -1,8 +1,8 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=218";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=243";
-import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=245";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=254";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill } from "./features.js?v=254";
+import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=257";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=201";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=210";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
@@ -23,7 +23,7 @@ import {
 } from "./library.js?v=201";
 
 const SESSION_KEY = "makerdeck-session-v1";
-const MAKERDECK_BUILD = "b245";
+const MAKERDECK_BUILD = "b257";
 const DISPLAY_UNITS = ["mm", "cm", "in"];
 const MM_PER_IN = 25.4;
 let saveSessionTimer = null;
@@ -1952,7 +1952,7 @@ function syncUiFromState() {
   syncSliderUi("emboss-arc-tilt", "embossArcTilt", { min: -180, max: 180, value: state.embossArcTilt ?? 0, parseKind: "float" });
   syncSliderUi("emboss-arc-spacing", "embossArcSpacing", { min: 0.7, max: 1.8, value: state.embossArcSpacing ?? 1, parseKind: "float" });
   syncArcRadiusUi();
-  syncSliderUi("trace-threshold", "traceThreshold", { min: 20, max: 235, value: state.traceThreshold });
+  syncSliderUi("trace-threshold", "traceThreshold", { min: 20, max: 254, value: state.traceThreshold });
   syncSliderUi("trace-size", "embossTraceSize", { min: 6, max: 56, value: state.embossTraceSize, parseKind: "float" });
   syncSliderUi("art-rotation", "decorRotation", { min: -180, max: 180, value: state.decorRotation ?? 0, parseKind: "float" });
   syncSliderUi("art-offset-x", "decorOffsetX", { min: -80, max: 80, value: state.decorOffsetX ?? 0, parseKind: "float" });
@@ -2651,7 +2651,13 @@ function cloneEmbossTraceRects(rects) {
     strokePaths: rects.strokePaths?.map((p) => p.map(([x, y]) => [x, y])) || [],
     strokeWidth: rects.strokeWidth,
     mode: rects.mode || "silhouette",
+    autoTrace: !!rects.autoTrace,
+    autoPickedMode: rects.autoPickedMode,
+    colorLogo: !!rects.colorLogo,
+    outlineRaster: !!rects.outlineRaster,
     shapeGroupsUnited: !!rects.shapeGroupsUnited,
+    rasterSimplified: !!rects.rasterSimplified,
+    maskFillPct: rects.maskFillPct,
     previewShapeGroups: null,
     width: rects.width,
     height: rects.height,
@@ -2959,9 +2965,10 @@ function updateTraceUi() {
   document.getElementById("btn-trace").disabled = !hasImage;
   document.getElementById("btn-trace-apply").disabled = !hasTrace;
   document.getElementById("btn-trace-svg").disabled = !hasTrace;
+  document.getElementById("btn-trace-clear").disabled = !(hasImage || hasTrace || state.embossTraceEnabled);
   document.getElementById("btn-trace-svg").classList.toggle("hidden", !hasTrace);
   document.getElementById("trace-preview-wrap").classList.toggle("hidden", !hasImage);
-  document.getElementById("trace-mode").value = state.traceMode || "silhouette";
+  document.getElementById("trace-mode").value = state.traceMode || "auto";
   document.getElementById("trace-invert").checked = !!state.traceInvert;
 
   const meta = document.getElementById("trace-meta");
@@ -2979,8 +2986,13 @@ function updateTraceUi() {
   let msg = isOutline
     ? `${count} path${count === 1 ? "" : "s"} · line art`
     : `${count} island${count === 1 ? "" : "s"} · single colour`;
+  if (traceLastResult.outlineRaster) {
+    msg = `${traceLastResult.rectCount ?? 0} ink run${traceLastResult.rectCount === 1 ? "" : "s"} · line art mask`;
+  }
   if (traceLastResult.outlineFallback) {
-    msg = `${count} island${count === 1 ? "" : "s"} · silhouette (auto — this art is double-edge, not single stroke)`;
+    msg = traceLastResult.outlineRaster
+      ? `${traceLastResult.rectCount ?? 0} ink run${traceLastResult.rectCount === 1 ? "" : "s"} · line art mask (auto — complex double-edge art)`
+      : `${count} island${count === 1 ? "" : "s"} · silhouette (auto — this art is double-edge, not single stroke)`;
   }
   if (traceLastResult.colorLayers >= 2) {
     msg = `${count} island${count === 1 ? "" : "s"} · ${traceLastResult.colorLayers} colour layers`;
@@ -2989,8 +3001,20 @@ function updateTraceUi() {
   if (traceLastResult.outlineFallback && count > 80) {
     msg += " · tip: use Silhouette for line art like this";
   }
+  if (traceLastResult.colorLogo) {
+    msg = `${count} island${count === 1 ? "" : "s"} · colour logo`;
+  }
+  if (traceLastResult.autoTrace) {
+    const picked = traceLastResult.autoPickedMode === "outline"
+      ? "line art"
+      : traceLastResult.autoPickedMode === "color-logo"
+        ? "colour logo"
+        : "solid logo";
+    msg += ` · auto picked ${picked}`;
+  }
   if (traceLastResult.tracePx) msg += ` · ${traceLastResult.tracePx}px`;
   if (traceLastResult.simplified) msg += " · auto-simplified for print";
+  if (traceLastResult.rasterSimplified) msg += " · smoothed complex mask";
   if (traceLastResult.tooComplex) {
     msg = `Too detailed — raise threshold or use Silhouette (max ${MAX_TRACE_POLYGONS} islands)`;
     document.getElementById("btn-trace-apply").disabled = true;
@@ -3057,6 +3081,32 @@ function scheduleTrace() {
   traceDebounceTimer = setTimeout(() => runTraceAsync(), 350);
 }
 
+function clearTraceImageAndEmboss() {
+  const hadTrace = !!(traceSourceCanvas || traceLastResult || traceLastSvg || state.embossTraceEnabled);
+  traceJob++;
+  traceSourceCanvas = null;
+  traceLastResult = null;
+  traceLastSvg = "";
+  clearEmbossTrace();
+  const traceFile = document.getElementById("trace-file");
+  if (traceFile) traceFile.value = "";
+  const preview = document.getElementById("trace-preview");
+  const ctx = preview?.getContext("2d");
+  if (preview && ctx) ctx.clearRect(0, 0, preview.width, preview.height);
+  const meta = document.getElementById("trace-meta");
+  if (meta) meta.textContent = "";
+  document.getElementById("trace-preview-wrap")?.classList.add("hidden");
+  updateTraceUi();
+  updateDecorUi();
+  syncArtEditorUi();
+  updateHistoryUi();
+  if (hadTrace) {
+    rebuild();
+    pushAppHistory();
+    scheduleSaveSession();
+  }
+}
+
 async function handleTraceFile(file) {
   try {
     const loaded = await loadImageFromFile(file);
@@ -3098,7 +3148,13 @@ function traceResultToEmbossRects(result) {
     strokePaths: result.strokePaths?.map((p) => p.map(([x, y]) => [x, y])) || [],
     strokeWidth: result.strokeWidth,
     mode: result.mode || state.traceMode || "silhouette",
+    autoTrace: !!result.autoTrace,
+    autoPickedMode: result.autoPickedMode,
+    colorLogo: !!result.colorLogo,
+    outlineRaster: !!result.outlineRaster,
     outlineFallback: !!result.outlineFallback,
+    rasterSimplified: !!result.rasterSimplified,
+    maskFillPct: result.maskFillPct,
     shapeGroupsUnited: !!result.shapeGroupsUnited,
     previewShapeGroups: result.previewShapeGroups?.map((g) => ({
       outer: g.outer.map(([x, y]) => [x, y]),
@@ -3196,7 +3252,7 @@ async function importSvgAsTrace(svgText, { fileName = "" } = {}) {
   state.traceMode = mode;
   document.getElementById("trace-mode").value = mode;
   traceLastResult = await traceCanvasAsync(canvas, {
-    threshold: Math.min(235, Math.max(160, state.traceThreshold ?? 200)),
+    threshold: Math.min(254, Math.max(160, state.traceThreshold ?? 200)),
     invert: state.traceInvert,
     mode,
     strengthen: true,
@@ -4946,6 +5002,8 @@ document.getElementById("btn-trace").addEventListener("click", () => runTraceAsy
 
 document.getElementById("btn-trace-apply").addEventListener("click", applyTraceToBox);
 
+document.getElementById("btn-trace-clear").addEventListener("click", clearTraceImageAndEmboss);
+
 document.getElementById("btn-trace-svg").addEventListener("click", () => {
   if (!traceLastSvg) return;
   const blob = new Blob([traceLastSvg], { type: "image/svg+xml" });
@@ -5235,7 +5293,7 @@ syncSliderUi("emboss-arc-start", "embossArcStartDeg", { min: -180, max: 180, val
 syncSliderUi("emboss-arc-tilt", "embossArcTilt", { min: -180, max: 180, value: state.embossArcTilt ?? 0, parseKind: "float" });
 syncSliderUi("emboss-arc-spacing", "embossArcSpacing", { min: 0.7, max: 1.8, value: state.embossArcSpacing ?? 1, parseKind: "float" });
 syncArcRadiusUi();
-syncSliderUi("trace-threshold", "traceThreshold", { min: 20, max: 235, value: state.traceThreshold });
+syncSliderUi("trace-threshold", "traceThreshold", { min: 20, max: 254, value: state.traceThreshold });
 syncSliderUi("trace-size", "embossTraceSize", { min: 6, max: 56, value: state.embossTraceSize, parseKind: "float" });
 syncSliderUi("art-rotation", "decorRotation", { min: -180, max: 180, value: state.decorRotation ?? 0, parseKind: "float" });
 syncSliderUi("art-offset-x", "decorOffsetX", { min: -80, max: 80, value: state.decorOffsetX ?? 0, parseKind: "float" });

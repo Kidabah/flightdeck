@@ -2,8 +2,104 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `d590ce1` (b245)
-- Cache-bust: `app.js?v=245` — header **b245**
+- Latest commit: (pending — b257)
+- Cache-bust: `app.js?v=257` — header **b257**
+
+### 2026-07-11 — b257: Flood foreground logo mask (BRISBANE + white horse detail)
+
+**Symptom:** Broncos/B&W crest on white background — Auto picked single-colour silhouette. White horse stripes and BRISBANE text missing from emboss because white pixels matched border background; thin text island pruned.
+
+**Fix:** `colorLogoMask` floods **background-only** from image border (not “reject all white pixels”). White detail inside maroon shield stays foreground. Colour-logo prune keeps small satellite islands (text). Auto should show **auto picked colour logo**.
+
+- Cache **b257**. Hard refresh, Clear, Auto — logo/mascot, re-drop crest. Meta should include BRISBANE + horse detail in blue preview and red emboss.
+
+### 2026-07-11 — b256: Dark-background logo foreground detection
+
+**Symptom:** B&W Broncos image traced better overall, but missed **BRISBANE** and white horse detail because the colour-logo candidate treated near-white as background. That works for logos on white, but fails for logos on a dark tile/background.
+
+**Fix:** Colour-logo tracing now samples the image border/corners to infer the real background. If the background is dark/low-chroma, it keeps pixels that differ from that background, including white text and white/cyan detail. White-background logos still use the previous "ignore white" rule.
+
+- Cache **b256** (`app.js?v=256`, `trace.js?v=256`). Hard refresh, Clear, keep **Auto — logo / mascot**, re-drop the B&W Broncos image. Expect BRISBANE and light horse detail to be included.
+
+### 2026-07-11 — b255: Auto colour-logo trace + threshold max 254
+
+**Symptom:** Broncos-style colour logos were choppy or changed unpredictably with threshold. Threshold 97/121/235 did not solve it because the old Auto candidates were still mostly brightness-based, so coloured logo art on white background could turn into partial masks or filled slabs.
+
+**Fix:** Auto trace now includes a **colour logo** candidate: ignore transparent/white background, keep saturated or dark logo pixels, then score that against line-art and solid-logo candidates. Trace status can now say **auto picked colour logo**. Threshold slider max is exposed as **254** (the internal clamp), up from 235.
+
+- Cache **b255** (`app.js?v=255`, `trace.js?v=255`). Hard refresh, Clear, keep mode on **Auto — logo / mascot**, re-drop Broncos/Bulldogs-style logos. For colour logos, expect **auto picked colour logo** rather than fighting threshold.
+
+### 2026-07-11 — b254: Auto trace for logo/mascot workflow
+
+**Goal:** MakerDeck should support the normal shop workflow: pick cooler colours, drop a Bulldogs/mascot/logo image on the face, trace, and send to print without hand-tuning every artwork.
+
+**Fix:** Added **Auto — logo / mascot** trace mode and made it the default. Auto runs the existing solid-logo and line-art trace paths, scores both for printability, and picks the better result. Status text shows whether Auto picked **line art** or **solid logo**. Manual Silhouette and Outline modes remain available for overrides.
+
+- Cache **b254** (`app.js?v=254`, `geometry.js?v=254`, `features.js?v=254`, `trace.js?v=254`). Hard refresh. Default trace mode should be **Auto — logo / mascot**.
+
+### 2026-07-11 — b253: Close smoothed masks before contour wrap
+
+**Symptom:** b252 switched smoothed complex masks away from row slabs, but rider/dragon still showed fine horizontal texture in filled areas because the contour path was polygonising the raw stair-stepped mask.
+
+**Fix:** Before contour extrusion, `rasterSimplified` trace masks get a small morphological close. This plugs tiny alternating scanline holes and smooths mask edges before polygonising. Normal traces still bypass this cleanup.
+
+- Cache **b253** (`app.js?v=253`, `features.js?v=253`). Hard refresh, Clear, re-drop/re-trace rider/dragon. Expect less horizontal texture in filled rider/leg areas.
+
+### 2026-07-11 — b252: Use contour wrap for complex masks
+
+**Symptom:** b251 reduced bloating, but rider/dragon wrap still showed a stacked-strip look because wrap preview built smoothed masks as thousands of horizontal run slabs.
+
+**Fix:** Applied trace metadata now preserves `outlineRaster`, `rasterSimplified`, and `maskFillPct`. Wrap emboss uses the old row-slab path for normal traces, but smoothed/very busy outline masks now use contour extrusion instead. This should keep the fixed tiger path stable while making complex rider/dragon art less banded.
+
+- Cache **b252** (`app.js?v=252`, `features.js?v=252`, `trace.js?v=252`). Hard refresh, Clear, re-drop/re-trace rider/dragon. If it still says **smoothed complex mask**, the wrap should use contour geometry rather than row slabs.
+
+### 2026-07-11 — b251: Coverage smoothing for complex line art
+
+**Symptom:** b250 reduced the rider/dragon from 12,239 to 6,109 ink runs, but the OR-style downsample fattened thin lines and left chunky filled patches.
+
+**Fix:** Complex line-art smoothing now uses coverage downsample instead of "any ink wins" downsample. A 2x2 block must have enough ink before it survives, reducing run count without swelling fine detail. Trigger lowered to 9,000 runs so near-edge complex art is handled consistently.
+
+- Cache **b251**. Hard refresh, Clear, re-drop/re-trace rider/dragon. Expect less bloating than b250 while still showing **smoothed complex mask** when triggered.
+
+### 2026-07-11 — b250: Smooth over-complex line-art masks
+
+**Symptom:** The tiger is fixed, but very busy black/white art could become thousands of tiny direct ink runs on wrap preview/export. Example: rider/dragon art showed **12,239 ink runs**, producing ragged bands and chunky fragments on the cooler.
+
+**Fix:** Direct line-art masks now auto-simplify when they exceed 12,000 horizontal runs. The source art is still traced as an ink mask, but the mask is downsampled just enough to reduce geometry noise before wrapping. The trace meta adds **smoothed complex mask** when this triggers.
+
+- Cache **b250**. Hard refresh, clear/re-drop the rider/dragon image, then trace. Expect fewer ink runs and less shredded wrap geometry.
+
+### 2026-07-11 — b249: Add trace preview Clear button
+
+**Symptom:** When debugging image trace, there was no local clear/reset control beside the preview, making it hard to rule out stale preview or applied trace state.
+
+**Fix:** Added a **Clear** button in the trace action row. It clears the loaded trace image, preview canvas, trace result/SVG state, and any applied traced emboss while leaving typed text and SVG art alone.
+
+- Cache **b249**. Hard refresh MakerDeck; the trace action row should show **Trace / Use in editor / Clear / Download SVG**.
+
+### 2026-07-11 — b248: Outline trace preserves exact ink mask
+
+**Symptom:** b247 still did not change the tiger. The trace preview continued to leave dark forehead/top marks uncovered, because outline tracing had already erased fine isolated ink with an open/cleanup pass before the double-edge fallback ran.
+
+**Fix:** Outline mode now binarizes with the outline threshold and keeps the raw detected ink mask as the emboss source. Complex/double-edge art no longer falls back to a filled silhouette island; it uses a direct line-art pixel mask so thin separated details survive into preview and 3D wrap.
+
+- Cache **b248**. Hard refresh, re-drop/re-trace the tiger. The meta should say **line art mask** and the preview should put blue over all detected ink, including the top/forehead marks.
+
+### 2026-07-11 — b247: Preserve original ink after double-edge solidify
+
+**Symptom:** b246 did not change the tiger result. The trace preview itself still showed dark/unembossed forehead/crown details, so wrap placement was not the cause.
+
+**Fix:** After double-edge line art is solidified, the final trace mask now unions the original traced ink back into the cleaned solid mask. This prevents cleanup from discarding separate interior detail islands such as the tiger forehead/top stripe while keeping the filled body mask.
+
+- Cache **b247**. Hard refresh, re-trace/re-drop the tiger; the trace preview should show blue over the top/forehead ink before checking the 3D wrap.
+
+### 2026-07-11 — b246: Keep wrap trace inside cooler wall bounds
+
+**Symptom:** Large traced wrap art at max image size could sit flush to the top of the cooler/canister wall, making the top of the tiger trace appear cut off.
+
+**Fix:** Wrap art now uses a small vertical gutter when resolving image height and clamps wrap placement inside that safe wall band. Trace/SVG measurement now uses the actual scaled art height when width-limited, so preview handles, live wrap mesh, and export placement agree.
+
+- Cache **b246**. Hard refresh, re-drop or re-trace the image; if the tiger still feels high, the Move vertical control should now stop before it clips the top edge.
 
 ### 2026-07-11 — b245: Plug interior wedge holes (forehead triangular voids)
 

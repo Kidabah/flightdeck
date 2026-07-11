@@ -34,6 +34,8 @@ const BLUR_SKIP_PIXELS = 1_800_000;
 /** Above this pixel count, skip skeleton / full-res polygonise (freezes the tab). */
 const TRACE_FAST_PIXELS = 900_000;
 const TRACE_POLYGON_MAX_DIM = 1280;
+const COMPLEX_RASTER_RUN_LIMIT = 9000;
+const COMPLEX_RASTER_MAX_FACTOR = 4;
 
 export const MAX_TRACE_RECTS = 50000;
 
@@ -397,6 +399,129 @@ function isBackgroundPixel(r, g, b, a, lum, threshold) {
   return lum < bgCutoff ? false : true;
 }
 
+function colorLogoPixelIsInk(r, g, b, a, threshold) {
+  if (a < 16) return false;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const chroma = max - min;
+  const lum = r * 0.299 + g * 0.587 + b * 0.114;
+  const whiteLum = clamp(238 + (threshold - 128) * 0.04, 234, 246);
+  const lowChroma = clamp(28 + (threshold - 128) * 0.04, 22, 34);
+  if (lum >= whiteLum && chroma <= lowChroma) return false;
+  if (lum >= 248 && chroma <= 48) return false;
+  return chroma >= 18 || lum <= 215;
+}
+
+function sampleLogoBackground(data, width, height) {
+  const samples = [];
+  const add = (x, y) => {
+    const px = clamp(Math.round(x), 0, width - 1);
+    const py = clamp(Math.round(y), 0, height - 1);
+    const i = (py * width + px) * 4;
+    if (data[i + 3] < 16) return;
+    samples.push([data[i], data[i + 1], data[i + 2]]);
+  };
+  const xs = [0, width * 0.04, width * 0.12, width * 0.5, width * 0.88, width * 0.96, width - 1];
+  const ys = [0, height * 0.04, height * 0.12, height * 0.5, height * 0.88, height * 0.96, height - 1];
+  for (const x of xs) {
+    add(x, 0);
+    add(x, height - 1);
+  }
+  for (const y of ys) {
+    add(0, y);
+    add(width - 1, y);
+  }
+  if (!samples.length) return null;
+  samples.sort((a, b) => (a[0] + a[1] + a[2]) - (b[0] + b[1] + b[2]));
+  const mid = samples[(samples.length / 2) | 0];
+  const lum = mid[0] * 0.299 + mid[1] * 0.587 + mid[2] * 0.114;
+  const chroma = Math.max(...mid) - Math.min(...mid);
+  return { r: mid[0], g: mid[1], b: mid[2], lum, chroma };
+}
+
+function colorDistanceSq(r, g, b, bg) {
+  const dr = r - bg.r;
+  const dg = g - bg.g;
+  const db = b - bg.b;
+  return dr * dr + dg * dg + db * db;
+}
+
+function floodImageBackgroundExterior(data, width, height, bgTolSq) {
+  const bg = sampleLogoBackground(data, width, height) || { r: 255, g: 255, b: 255 };
+  const exterior = new Uint8Array(width * height);
+  const stack = [];
+  const isBgAt = (x, y) => {
+    const i = (y * width + x) * 4;
+    const a = data[i + 3];
+    if (a < 16) return true;
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    return colorDistanceSq(r, g, b, bg) <= bgTolSq;
+  };
+  const seed = (x, y) => {
+    const idx = y * width + x;
+    if (!isBgAt(x, y) || exterior[idx]) return;
+    exterior[idx] = 1;
+    stack.push(idx);
+  };
+  for (let x = 0; x < width; x++) {
+    seed(x, 0);
+    seed(x, height - 1);
+  }
+  for (let y = 0; y < height; y++) {
+    seed(0, y);
+    seed(width - 1, y);
+  }
+  while (stack.length) {
+    const idx = stack.pop();
+    const x = idx % width;
+    const y = (idx / width) | 0;
+    if (x > 0) {
+      const n = idx - 1;
+      if (!exterior[n] && isBgAt(x - 1, y)) { exterior[n] = 1; stack.push(n); }
+    }
+    if (x < width - 1) {
+      const n = idx + 1;
+      if (!exterior[n] && isBgAt(x + 1, y)) { exterior[n] = 1; stack.push(n); }
+    }
+    if (y > 0) {
+      const n = idx - width;
+      if (!exterior[n] && isBgAt(x, y - 1)) { exterior[n] = 1; stack.push(n); }
+    }
+    if (y < height - 1) {
+      const n = idx + width;
+      if (!exterior[n] && isBgAt(x, y + 1)) { exterior[n] = 1; stack.push(n); }
+    }
+  }
+  return exterior;
+}
+
+function colorLogoMask(data, width, height, threshold, invert) {
+  const bg = sampleLogoBackground(data, width, height);
+  const bgIsDark = bg && bg.lum < 85 && bg.chroma < 42;
+  const bgTol = bgIsDark
+    ? clamp(34 + Math.max(0, threshold - 128) * 0.05, 24, 56)
+    : clamp(16 + Math.max(0, 210 - threshold) * 0.06, 14, 38);
+  const bgTolSq = bgTol * bgTol;
+  const exterior = floodImageBackgroundExterior(data, width, height, bgTolSq);
+  const mask = new Uint8Array(width * height);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const idx = y * width + x;
+      const i = idx * 4;
+      let on = data[i + 3] >= 16 && !exterior[idx];
+      if (!on && !bgIsDark) {
+        // Fallback for flat white-bg logos: keep saturated/dark pixels even if flood mislabels a fringe.
+        on = colorLogoPixelIsInk(data[i], data[i + 1], data[i + 2], data[i + 3], threshold);
+      }
+      if (invert) on = !on;
+      mask[idx] = on ? 1 : 0;
+    }
+  }
+  return closeMask(mask, width, height, 2);
+}
+
 function quantizeInkColor(r, g, b) {
   const step = 28;
   return `${Math.round(r / step) * step},${Math.round(g / step) * step},${Math.round(b / step) * step}`;
@@ -593,6 +718,35 @@ function compactTraceMask(workMask, shapeGroups) {
   return [];
 }
 
+function downsampleMaskCoverage(mask, width, height, minOn = 2) {
+  const nw = Math.max(1, Math.floor(width / 2));
+  const nh = Math.max(1, Math.floor(height / 2));
+  const out = new Uint8Array(nw * nh);
+  for (let y = 0; y < nh; y++) {
+    for (let x = 0; x < nw; x++) {
+      let count = 0;
+      for (let dy = 0; dy < 2; dy++) {
+        for (let dx = 0; dx < 2; dx++) {
+          const sx = x * 2 + dx;
+          const sy = y * 2 + dy;
+          if (sx < width && sy < height && mask[sy * width + sx]) count++;
+        }
+      }
+      out[y * nw + x] = count >= minOn ? 1 : 0;
+    }
+  }
+  return { mask: out, width: nw, height: nh };
+}
+
+function unionMasks(a, b, width, height) {
+  const len = width * height;
+  const out = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    out[i] = a[i] || b[i] ? 1 : 0;
+  }
+  return out;
+}
+
 /** Flood-fill connected components in a binary mask. */
 function findMaskComponents(mask, width, height) {
   const labels = new Int32Array(width * height);
@@ -647,13 +801,15 @@ function pruneSilhouetteMask(mask, width, height, options = {}) {
   const mainCx = main.sumX / main.area;
   const mainCy = main.sumY / main.area;
   const span = Math.max(width, height);
+  const minRatio = options.minIslandRatio ?? (options.keepLogoSatellites ? 0.015 : 0.1);
+  const maxDist = options.maxIslandDist ?? (options.keepLogoSatellites ? span * 0.48 : span * 0.4);
   const out = new Uint8Array(width * height);
   for (const comp of comps) {
     const cx = comp.sumX / comp.area;
     const cy = comp.sumY / comp.area;
     const dist = Math.hypot(cx - mainCx, cy - mainCy);
     const keep = comp === main
-      || (comp.area >= main.area * 0.1 && dist < span * 0.4);
+      || (comp.area >= main.area * minRatio && dist < maxDist);
     if (!keep) continue;
     for (let i = 0; i < labels.length; i++) {
       if (labels[i] === comp.label) out[i] = 1;
@@ -922,7 +1078,13 @@ function finishSilhouetteTrace(workMask, tw, th, ox, oy, shapeGroups, simplifyFa
     );
   let inkMask = workMask;
   if (needsSolidify) inkMask = lineArtMaskToSolidFill(workMask, tw, th);
-  const silhouetteMask = pruneSilhouetteMask(inkMask, tw, th, { skipOpen: needsSolidify });
+  let silhouetteMask = pruneSilhouetteMask(inkMask, tw, th, {
+    skipOpen: needsSolidify,
+    keepLogoSatellites: !!extra.colorLogo,
+  });
+  if (needsSolidify) {
+    silhouetteMask = unionMasks(silhouetteMask, workMask, tw, th);
+  }
   let groups = silhouetteGroupsFromMask(silhouetteMask, tw, th, simplifyTol, smoothPasses);
   if (!groups.length && shapeGroups?.length) {
     groups = filterDegenerateShapeGroups(shapeGroups, tw, th);
@@ -961,6 +1123,134 @@ function finishSilhouetteTrace(workMask, tw, th, ox, oy, shapeGroups, simplifyFa
     mode: "silhouette",
     tracePx: `${width}×${height}`,
     ...extra,
+  };
+}
+
+function simplifyComplexRasterInkMask(mask, width, height, simplifyFactor) {
+  let inkMask = mask instanceof Uint8Array ? mask.slice() : new Uint8Array(mask);
+  let tw = width;
+  let th = height;
+  let factor = simplifyFactor || 1;
+  let rects = maskToRuns(inkMask, tw, th);
+  let simplified = false;
+  while (rects.length > COMPLEX_RASTER_RUN_LIMIT && factor < COMPLEX_RASTER_MAX_FACTOR) {
+    const ds = downsampleMaskCoverage(inkMask, tw, th, 2);
+    inkMask = ds.mask;
+    tw = ds.width;
+    th = ds.height;
+    factor *= 2;
+    rects = maskToRuns(inkMask, tw, th);
+    simplified = true;
+  }
+  return { inkMask, tw, th, factor, rects, simplified, rawRunCount: rects.length };
+}
+
+function finishRasterInkTrace(workMask, tw, th, ox, oy, simplifyFactor, width, height, extra = {}) {
+  const cleaned = simplifyComplexRasterInkMask(workMask, tw, th, simplifyFactor);
+  const inkMask = cleaned.inkMask;
+  tw = cleaned.tw;
+  th = cleaned.th;
+  simplifyFactor = cleaned.factor;
+  const rects = maskToRuns(inkMask, tw, th);
+  const maskFillPct = Math.round(maskFillRatio(inkMask, tw, th) * 100);
+  return {
+    rects,
+    mask: compactTraceMask(inkMask, []),
+    silhouetteMask: inkMask,
+    maskFillPct,
+    polygons: [],
+    shapeGroups: [],
+    shapeGroupsUnited: false,
+    previewShapeGroups: [],
+    strokePaths: [],
+    width: tw,
+    height: th,
+    cropOx: ox,
+    cropOy: oy,
+    svg: "",
+    rectCount: rects.length,
+    polygonCount: 0,
+    simplified: simplifyFactor > 1,
+    simplifyFactor,
+    tooComplex: false,
+    mode: "outline",
+    outlineRaster: true,
+    rasterSimplified: cleaned.simplified,
+    tracePx: `${width}×${height}`,
+    ...extra,
+  };
+}
+
+async function traceColorLogoCanvasAsync(canvas, options = {}) {
+  await traceYield();
+  const threshold = clamp(options.threshold ?? 128, 1, 254);
+  const invert = !!options.invert;
+  const ctx = canvas.getContext("2d");
+  const { width, height } = canvas;
+  const { data } = ctx.getImageData(0, 0, width, height);
+  const mask = colorLogoMask(data, width, height, threshold, invert);
+  const cropped = cropMask(mask, width, height);
+  if (!cropped) {
+    return { rects: [], width: 0, height: 0, svg: "", rectCount: 0, simplified: false, simplifyFactor: 1, tooComplex: false };
+  }
+  const { mask: workMask, width: tw, height: th, ox, oy } = cropped;
+  const quality = traceQualityParams(tw, { ...options, smoothPasses: 4 });
+  const result = finishSilhouetteTrace(workMask, tw, th, ox, oy, [], 1, width, height, {
+    mode: "silhouette",
+    colorLogo: true,
+    solidSilhouetteFill: true,
+    simplifyTol: Math.max(0.12, quality.simplifyTol),
+    smoothPasses: 3,
+  });
+  result.tracePx = `${width}×${height}`;
+  return result;
+}
+
+function traceAutoScore(result) {
+  if (!result || result.tooComplex) return -1e9;
+  const fill = (result.maskFillPct ?? 0) / 100;
+  let score = 0;
+  if (fill < 0.006 || fill > 0.72) score -= 220;
+  if (fill >= 0.02 && fill <= 0.46) score += 80;
+  if (fill >= 0.05 && fill <= 0.38) score += 45;
+  if (result.mode === "silhouette") {
+    score += 30;
+    score -= Math.max(0, (result.polygonCount ?? 0) - 24) * 0.8;
+    if ((result.polygonCount ?? 0) <= 12) score += 20;
+  }
+  if (result.colorLogo) {
+    score += 110;
+    if (fill >= 0.02 && fill <= 0.62) score += 55;
+    if ((result.polygonCount ?? 0) <= 24) score += 22;
+  }
+  if (result.mode === "outline") {
+    score += 20;
+    if (result.outlineRaster) score += 26;
+    if (result.rasterSimplified) score += 8;
+    const runs = result.rectCount ?? 0;
+    if (runs > 12000) score -= (runs - 12000) / 120;
+    if (runs > 24000) score -= 120;
+    if ((result.strokePaths?.length ?? 0) && result.outlineFallback === false) score += 18;
+  }
+  if (result.colorLayers >= 2) score += 20;
+  return score;
+}
+
+function chooseAutoTraceResult(outlineResult, silhouetteResult, colorLogoResult = null) {
+  const outlineScore = traceAutoScore(outlineResult);
+  const silhouetteScore = traceAutoScore(silhouetteResult);
+  const colorLogoScore = traceAutoScore(colorLogoResult);
+  let picked = outlineScore >= silhouetteScore ? outlineResult : silhouetteResult;
+  if (colorLogoResult && colorLogoScore >= Math.max(outlineScore, silhouetteScore)) picked = colorLogoResult;
+  return {
+    ...picked,
+    autoTrace: true,
+    autoPickedMode: picked?.colorLogo ? "color-logo" : (picked?.mode || "silhouette"),
+    autoScores: {
+      outline: Math.round(outlineScore),
+      silhouette: Math.round(silhouetteScore),
+      colorLogo: Math.round(colorLogoScore),
+    },
   };
 }
 
@@ -1313,6 +1603,23 @@ export async function traceCanvasAsync(canvas, options = {}) {
 
   const invert = !!options.invert;
 
+  if (options.mode === "auto") {
+    const colorLogoResult = await traceColorLogoCanvasAsync(canvas, options);
+    await traceYield();
+    const outlineResult = await traceCanvasAsync(canvas, {
+      ...options,
+      mode: "outline",
+      colorSeparation: false,
+    });
+    await traceYield();
+    const silhouetteResult = await traceCanvasAsync(canvas, {
+      ...options,
+      mode: "silhouette",
+      strengthen: true,
+    });
+    return chooseAutoTraceResult(outlineResult, silhouetteResult, colorLogoResult);
+  }
+
   const mode = options.mode === "outline" ? "outline" : "silhouette";
 
 
@@ -1327,8 +1634,8 @@ export async function traceCanvasAsync(canvas, options = {}) {
 
   await traceYield();
 
-  let ink = binarizeImageData(data, width, height, threshold, invert, "silhouette", blur);
-  let mask = openMask(ink, width, height);
+  let ink = binarizeImageData(data, width, height, threshold, invert, mode === "outline" ? "outline" : "silhouette", blur);
+  let mask = mode === "outline" ? ink : openMask(ink, width, height);
   if (mode === "silhouette") {
     if (options.strengthen) {
       mask = closeMask(mask, width, height);
@@ -1390,7 +1697,9 @@ export async function traceCanvasAsync(canvas, options = {}) {
 
     // Skeleton on multi-megapixel masks runs thousands of erode passes — skip straight to silhouette.
     if (tw * th > TRACE_FAST_PIXELS) {
-      return finishOutlineFallbackSilhouette(data, width, height, threshold, invert, blur, width, height);
+      return finishRasterInkTrace(workMask, tw, th, ox, oy, simplifyFactor, width, height, {
+        outlineFallback: true,
+      });
     }
 
     let rawPaths = outlineCenterlinePaths(workMask, tw, th);
@@ -1399,7 +1708,8 @@ export async function traceCanvasAsync(canvas, options = {}) {
     // Edge-detected / double-line art produces dozens of ring centerlines — use silhouette instead.
     const outlineFallback = shouldFallbackOutline(rawPaths, strokePaths, tw);
     if (outlineFallback) {
-      return finishOutlineFallbackSilhouette(data, width, height, threshold, invert, blur, width, height, {
+      return finishRasterInkTrace(workMask, tw, th, ox, oy, simplifyFactor, width, height, {
+        outlineFallback: true,
         simplifyTol: quality.simplifyTol,
         smoothPasses: quality.smoothPasses,
       });

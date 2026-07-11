@@ -44,7 +44,7 @@
 
         <div class="topbar-brand">
 
-          <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b245</span></div>
+          <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b257</span></div>
 
           <h1>Container Generator</h1>
 
@@ -1271,6 +1271,8 @@
 
                 <select id="trace-mode">
 
+                  <option value="auto">Auto — logo / mascot</option>
+
                   <option value="silhouette">Silhouette — solid logo</option>
 
                   <option value="outline">Outline — line art</option>
@@ -1283,7 +1285,7 @@
 
                 <span class="field-label">Threshold</span>
 
-                <input type="range" id="trace-threshold" min="20" max="235" step="1" value="128" tabindex="-1">
+                <input type="range" id="trace-threshold" min="20" max="254" step="1" value="128" tabindex="-1">
 
                 <button type="button" class="value-edit" id="out-trace-threshold" data-slider="trace-threshold" data-key="traceThreshold" data-parse="int">128</button>
 
@@ -1312,6 +1314,8 @@
                 <button type="button" id="btn-trace" class="btn btn-secondary" disabled>Trace</button>
 
                 <button type="button" id="btn-trace-apply" class="btn btn-secondary" disabled>Use in editor</button>
+
+                <button type="button" id="btn-trace-clear" class="btn btn-secondary" disabled>Clear</button>
 
                 <button type="button" id="btn-trace-svg" class="btn btn-secondary hidden" disabled>Download SVG</button>
 
@@ -1432,7 +1436,7 @@
     </form>
   </dialog>
 
-  <script type="module" src="js/app.js?v=245"></script>
+  <script type="module" src="js/app.js?v=257"></script>
 
 </body>
 
