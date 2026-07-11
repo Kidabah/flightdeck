@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending — b241)
+- Latest commit: `4f5ee6a` (b241)
 - Cache-bust: `app.js?v=241` — header **b241**
 
 ### 2026-07-11 — b241: Sync emboss mask when trace re-runs (preview ≠ 3D)
