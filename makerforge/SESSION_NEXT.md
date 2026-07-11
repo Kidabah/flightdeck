@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (b283 — pending push)
+- Latest commit: (b283 — 51d5787 pushed)
 - Cache-bust: `app.js?v=283`, `features.js?v=283` — header **b283**
 
 ### 2026-07-11 — b283: Revert emboss path to b278 (ad24606)
