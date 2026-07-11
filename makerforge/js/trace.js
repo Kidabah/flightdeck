@@ -21,9 +21,9 @@ import {
   unionShapeGroupsToPrepared,
   rasterizeShapeGroupsToMask,
   filterDegenerateShapeGroups,
-} from "./contour.js?v=229";
+} from "./contour.js?v=230";
 
-export { unionDenseEmbossShapeGroups } from "./contour.js?v=229";
+export { unionDenseEmbossShapeGroups } from "./contour.js?v=230";
 
 
 
@@ -644,6 +644,16 @@ function pruneSilhouetteMask(mask, width, height) {
   return out.some((v) => v) ? out : m;
 }
 
+/** Merge double-edge line pairs into one printable band (heraldic outline fallback). */
+function collapseDoubleEdgeMask(mask, width, height) {
+  const span = Math.min(width, height);
+  const passes = span > 900 ? 2 : 1;
+  let m = mask;
+  for (let i = 0; i < passes; i++) m = erodeMask(m, width, height);
+  for (let i = 0; i < passes; i++) m = dilateMask(m, width, height);
+  return m;
+}
+
 function silhouetteGroupsFromMask(mask, tw, th, simplifyTol, smoothPasses) {
   const polys = maskToPolygons(mask, tw, th);
   const raw = groupPolygonsWithHoles(polys);
@@ -659,7 +669,9 @@ function silhouetteGroupsFromMask(mask, tw, th, simplifyTol, smoothPasses) {
 function finishSilhouetteTrace(workMask, tw, th, ox, oy, shapeGroups, simplifyFactor, width, height, extra = {}) {
   const simplifyTol = extra.simplifyTol ?? Math.max(0.18, tw / 2000);
   const smoothPasses = extra.smoothPasses ?? 1;
-  const silhouetteMask = pruneSilhouetteMask(workMask, tw, th);
+  let inkMask = workMask;
+  if (extra.outlineFallback) inkMask = collapseDoubleEdgeMask(workMask, tw, th);
+  const silhouetteMask = pruneSilhouetteMask(inkMask, tw, th);
   let groups = silhouetteGroupsFromMask(silhouetteMask, tw, th, simplifyTol, smoothPasses);
   if (!groups.length && shapeGroups?.length) {
     groups = filterDegenerateShapeGroups(shapeGroups, tw, th);
