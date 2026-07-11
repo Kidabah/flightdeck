@@ -2,7 +2,7 @@
  * Accent bands, emboss, honeycomb stamp, stackable hex grid, mesh merge.
  */
 
-import { dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, filterDegenerateShapeGroups, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareSvgShapeGroups, prepareStrokePaths, previewMergeTraceShapeGroups, rasterizeShapeGroupsToMask, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap, unionDenseEmbossShapeGroups, unionShapeGroupsToPrepared } from "./contour.js?v=240";
+import { dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, filterDegenerateShapeGroups, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareSvgShapeGroups, prepareStrokePaths, previewMergeTraceShapeGroups, rasterizeShapeGroupsToMask, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap, unionDenseEmbossShapeGroups, unionShapeGroupsToPrepared } from "./contour.js?v=241";
 import { decorPlacementOffsets, decorArtRect, rotateFacePoint, rotateShapeGroup } from "./decor.js";
 import {
   profileOutlineNormals,
@@ -2070,15 +2070,11 @@ function collectSvgGraphicShapeGroups(meta, params, svgText) {
   const { frame, sw, sh, artH, scale } = layout;
   const strokePaths = parsed.strokePaths || [];
   const fillRings = parsed.fillRings || [];
+  const fillRingItems = parsed.fillRingItems || fillRings.map((ring) => ({ ring, fill: "#000000" }));
   const groups = [];
 
-  if (fillRings.length) {
-    const simplifyTol = isLabelExport(params)
-      ? Math.max(0.04, Math.max(sw, sh) / 2400)
-      : svgVectorSimplifyTol(sw, sh);
-    const smoothPasses = isLabelExport(params) ? labelSmoothPasses(artH, params) : svgVectorSmoothPasses(artH);
-    const rawGroups = fillRings.map((ring) => ({ outer: ring, holes: [] }));
-    const shapeGroups = prepareSvgShapeGroups(rawGroups, simplifyTol, smoothPasses);
+  if (fillRingItems.length) {
+    const shapeGroups = svgPrepareFillShapeGroups(fillRingItems, parsed.viewBox, sw, sh, artH, params);
     for (const group of shapeGroups) {
       const remapped = {
         outer: group.outer.map(([x, y]) => mapSvgArtPoint(layout, x, y)),
@@ -2712,6 +2708,103 @@ function svgUsesVectorExtrude(params) {
   return !!(params?.embossSvgEnabled && !params?.embossTraceEnabled);
 }
 
+function svgRingBBox(ring) {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const [x, y] of ring) {
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
+  }
+  return { minX, minY, maxX, maxY, area: Math.max(0, maxX - minX) * Math.max(0, maxY - minY) };
+}
+
+function svgRingAbsArea(ring) {
+  if (!ring || ring.length < 3) return 0;
+  let area = 0;
+  for (let i = 0; i < ring.length - 1; i++) {
+    area += ring[i][0] * ring[i + 1][1] - ring[i + 1][0] * ring[i][1];
+  }
+  return Math.abs(area / 2);
+}
+
+function normalizeSvgFillKey(fill) {
+  if (!fill || fill === "none") return "";
+  return String(fill).toLowerCase().replace(/\s/g, "");
+}
+
+function svgFillLuminance(fillKey) {
+  const hex = fillKey.replace(/^#/, "");
+  if (hex.length < 6) return 0.5;
+  const r = parseInt(hex.slice(0, 2), 16) / 255;
+  const g = parseInt(hex.slice(2, 4), 16) / 255;
+  const b = parseInt(hex.slice(4, 6), 16) / 255;
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/** Drop full-canvas background rects and speck noise from auto-traced SVG exports. */
+function filterSvgBackgroundRings(fillRingItems, viewBox) {
+  const [, , vw, vh] = viewBox || [0, 0, 100, 100];
+  const viewArea = Math.max(1, vw * vh);
+  return fillRingItems.filter(({ ring }) => {
+    if (!ring || ring.length < 4) return false;
+    const bbox = svgRingBBox(ring);
+    if (bbox.area > viewArea * 0.9) return false;
+    if (bbox.area < viewArea * 0.00004) return false;
+    const ink = svgRingAbsArea(ring);
+    if (ink < viewArea * 0.00002) return false;
+    return true;
+  });
+}
+
+/** Dual-layer traced SVGs ship dark + light fills — emboss the primary ink layer only. */
+function pickPrimarySvgFillRings(fillRingItems, viewBox) {
+  const filtered = filterSvgBackgroundRings(fillRingItems, viewBox);
+  if (!filtered.length) return [];
+
+  const byFill = new Map();
+  for (const item of filtered) {
+    const key = normalizeSvgFillKey(item.fill) || "#000000";
+    if (!byFill.has(key)) byFill.set(key, []);
+    byFill.get(key).push(item.ring);
+  }
+  if (byFill.size <= 1) return [...byFill.values()][0];
+
+  let bestRings = filtered.map((item) => item.ring);
+  let bestScore = -1;
+  for (const [key, rings] of byFill) {
+    const inkArea = rings.reduce((sum, ring) => sum + svgRingAbsArea(ring), 0);
+    const score = inkArea * (1.1 - svgFillLuminance(key) * 0.35);
+    if (score > bestScore) {
+      bestScore = score;
+      bestRings = rings;
+    }
+  }
+  return bestRings;
+}
+
+function svgPrepareFillShapeGroups(fillRingItems, viewBox, sw, sh, artH, params) {
+  const rings = pickPrimarySvgFillRings(fillRingItems, viewBox);
+  if (!rings.length) return [];
+
+  const simplifyTol = svgVectorSimplifyTol(sw, sh);
+  const smoothPasses = svgVectorSmoothPasses(artH);
+  const maskW = Math.max(8, Math.round(sw));
+  const maskH = Math.max(8, Math.round(sh));
+
+  let groups = prepareSvgShapeGroups(groupPolygonsWithHoles(rings), simplifyTol, smoothPasses);
+  groups = filterDegenerateShapeGroups(groups, maskW, maskH);
+
+  if (groups.length > 10 && !isLabelExport(params)) {
+    groups = unionShapeGroupsToPrepared(groups, maskW, maskH, simplifyTol, smoothPasses, 1, 2560);
+    groups = filterDegenerateShapeGroups(groups, maskW, maskH);
+  }
+  return groups;
+}
+
 function splitPathSubpaths(d) {
   const trimmed = String(d || "").trim();
   if (!trimmed) return [];
@@ -2789,11 +2882,11 @@ function closeSvgRing(points) {
   return [...points, [x0, y0]];
 }
 
-function routeSvgSample(points, mode, strokePaths, fillRings) {
+function routeSvgSample(points, mode, strokePaths, fillRingItems, fillColor = "#000") {
   if (!points || points.length < 2) return;
   const closed = pathIsExplicitlyClosed(points);
   if (mode === "fill") {
-    if (closed && points.length >= 3) fillRings.push(closeSvgRing(points));
+    if (closed && points.length >= 3) fillRingItems.push({ ring: closeSvgRing(points), fill: fillColor });
     else strokePaths.push(points);
     return;
   }
@@ -2802,7 +2895,7 @@ function routeSvgSample(points, mode, strokePaths, fillRings) {
     return;
   }
   if (mode === "both") {
-    if (closed && points.length >= 3) fillRings.push(closeSvgRing(points));
+    if (closed && points.length >= 3) fillRingItems.push({ ring: closeSvgRing(points), fill: fillColor });
     else strokePaths.push(points);
   }
 }
@@ -2906,7 +2999,7 @@ export function parseSvgPaths(svgText) {
   document.body.appendChild(scratch);
 
   const strokePaths = [];
-  const fillRings = [];
+  const fillRingItems = [];
   let strokeWidth = readSvgStrokeWidth(null, svg);
 
   try {
@@ -2915,16 +3008,29 @@ export function parseSvgPaths(svgText) {
       const mode = svgElementPaintMode(pathEl, svg);
       if (mode === "none") continue;
       strokeWidth = Math.max(strokeWidth, readSvgStrokeWidth(pathEl, svg));
+      const fillColor = svgEffectivePresentation(pathEl, "fill", svg) || "#000000";
       const d = pathEl.getAttribute("d");
       if (!d) continue;
       const parent = pathEl.parentNode || scratch;
+      const subRings = [];
       for (const sub of splitPathSubpaths(d)) {
         const temp = document.createElementNS(SVG_NS, "path");
         temp.setAttribute("d", sub);
         parent.insertBefore(temp, pathEl);
         const sampled = sampleSvgPathElementWithCtm(temp);
         temp.remove();
-        routeSvgSample(sampled, mode, strokePaths, fillRings);
+        if (!sampled || sampled.length < 2) continue;
+        const closed = pathIsExplicitlyClosed(sampled);
+        if ((mode === "fill" || mode === "both") && closed && sampled.length >= 3) {
+          subRings.push(closeSvgRing(sampled));
+        } else {
+          routeSvgSample(sampled, mode, strokePaths, fillRingItems, fillColor);
+        }
+      }
+      if (subRings.length === 1) {
+        fillRingItems.push({ ring: subRings[0], fill: fillColor });
+      } else if (subRings.length > 1) {
+        for (const ring of subRings) fillRingItems.push({ ring, fill: fillColor });
       }
     }
     for (const el of scratch.querySelectorAll("polyline, polygon, line, rect, circle, ellipse")) {
@@ -2932,15 +3038,17 @@ export function parseSvgPaths(svgText) {
       const mode = svgElementPaintMode(el, svg);
       if (mode === "none") continue;
       strokeWidth = Math.max(strokeWidth, readSvgStrokeWidth(el, svg));
+      const fillColor = svgEffectivePresentation(el, "fill", svg) || "#000000";
       const sampled = polylineFromElementWithCtm(el);
-      routeSvgSample(sampled, mode, strokePaths, fillRings);
+      routeSvgSample(sampled, mode, strokePaths, fillRingItems, fillColor);
     }
   } finally {
     scratch.remove();
   }
 
+  const fillRings = fillRingItems.map((item) => item.ring);
   const polylines = [...strokePaths, ...fillRings];
-  return { polylines, strokePaths, fillRings, viewBox, strokeWidth };
+  return { polylines, strokePaths, fillRings, fillRingItems, viewBox, strokeWidth };
 }
 
 export function parsedSvgHasFill(svgText) {
@@ -3045,14 +3153,11 @@ function mapSvgArtPoint(layout, x, y) {
   );
 }
 
-function extrudeSvgFillRings(outPos, outIdx, fillRings, layout, params) {
-  if (!fillRings.length) return;
-  const { frame, scale, rotCx, artH, sw, sh } = layout;
+function extrudeSvgFillRings(outPos, outIdx, fillRingItems, layout, params, viewBox) {
+  if (!fillRingItems?.length) return;
+  const { frame, rotCx, sw, sh, artH } = layout;
   const { d0, d1 } = labelOffsets(params);
-  const simplifyTol = svgVectorSimplifyTol(sw, sh);
-  const smoothPasses = svgVectorSmoothPasses(artH);
-  const rawGroups = fillRings.map((ring) => ({ outer: ring, holes: [] }));
-  const shapeGroups = prepareSvgShapeGroups(rawGroups, simplifyTol, smoothPasses);
+  const shapeGroups = svgPrepareFillShapeGroups(fillRingItems, viewBox, sw, sh, artH, params);
   let faceGroups = shapeGroups.map((group) => ({
     outer: group.outer.map(([x, y]) => mapSvgArtPoint(layout, x, y)),
     holes: group.holes.map((h) => h.map(([x, y]) => mapSvgArtPoint(layout, x, y))),
@@ -3071,13 +3176,13 @@ export function buildEmbossSvg(meta, params, svgText) {
   if (!layout) return null;
 
   const strokePaths = parsed.strokePaths || [];
-  const fillRings = parsed.fillRings || [];
+  const fillRingItems = parsed.fillRingItems || (parsed.fillRings || []).map((ring) => ({ ring, fill: "#000000" }));
   const { frame, sw, sh, artH, scale } = layout;
   const { d0, d1 } = labelOffsets(params);
   const positions = [];
   const indices = [];
 
-  extrudeSvgFillRings(positions, indices, fillRings, layout, params);
+  extrudeSvgFillRings(positions, indices, fillRingItems, layout, params, parsed.viewBox);
 
   if (strokePaths.length) {
     const svgStroke = parsed.strokeWidth ?? 1.5;

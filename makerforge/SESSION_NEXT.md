@@ -2,8 +2,21 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `5f028d9` (b260)
-- Cache-bust: `app.js?v=260` — header **b260**
+- Latest commit: (pending — b261)
+- Cache-bust: `app.js?v=261` — header **b261**
+
+### 2026-07-11 — b261: SVG compound paths — hole grouping, bg filter, single ink layer
+
+**Symptom:** b260 still jagged/messy on Wrap — overlapping solids, full-canvas background rect extruded, dual #222+#e3e3e3 layers doubled geometry.
+
+**Fix (`features.js`):**
+- Track fill colour per ring; **pick primary dark ink layer** (skip light duplicate layer from auto-traced SVGs).
+- **Filter full-viewBox background rects** and speck noise.
+- **groupPolygonsWithHoles** on all fill rings (compound path cutouts become holes, not stacked solids).
+- Per-path multi-`M` subpaths collected before global hole grouping.
+- `filterDegenerateShapeGroups` before extrude; fragment union only when >10 loose groups.
+
+- Cache **b261** (`app.js?v=261`, `features.js?v=261`, `contour.js?v=241`). Hard refresh, Clear, re-load broncs.svg on Wrap. Expect **filled vector**, clean shield silhouette with BRISBANE text island — no scribbly overlap.
 
 ### 2026-07-11 — b260: SVG vector quality — fine path sampling + wrap extrusion
 
