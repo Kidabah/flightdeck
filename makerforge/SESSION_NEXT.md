@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending b270)
+- Latest commit: `d36757c` (b270)
 - Cache-bust: `app.js?v=270` — header **b270**
 
 ### 2026-07-11 — b270: Hotfix blank b269 — restore applyTraceToBox, vector-first SVG
