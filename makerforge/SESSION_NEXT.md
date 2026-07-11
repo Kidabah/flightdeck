@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending — b243)
+- Latest commit: `dd3bd2b` (b243)
 - Cache-bust: `app.js?v=243` — header **b243**
 
 ### 2026-07-11 — b243: Polygon re-rasterize for line art (correct interior fill)
