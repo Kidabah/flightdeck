@@ -21,9 +21,9 @@ import {
   unionShapeGroupsToPrepared,
   rasterizeShapeGroupsToMask,
   filterDegenerateShapeGroups,
-} from "./contour.js?v=234";
+} from "./contour.js?v=235";
 
-export { unionDenseEmbossShapeGroups } from "./contour.js?v=234";
+export { unionDenseEmbossShapeGroups } from "./contour.js?v=235";
 
 
 
@@ -619,11 +619,11 @@ function findMaskComponents(mask, width, height) {
 }
 
 /** Drop threshold-noise islands and thin spikes before polygonise. */
-function pruneSilhouetteMask(mask, width, height) {
+function pruneSilhouetteMask(mask, width, height, options = {}) {
   let m = autoCorrectSilhouettePolarity(mask, width, height);
   const { labels, comps } = findMaskComponents(m, width, height);
   if (!comps.length) return m;
-  if (comps.length === 1) return openMask(m, width, height);
+  if (comps.length === 1) return options.skipOpen ? m : openMask(m, width, height);
   comps.sort((a, b) => b.area - a.area);
   const main = comps[0];
   const mainCx = main.sumX / main.area;
@@ -656,11 +656,59 @@ function silhouetteGroupsFromMask(mask, tw, th, simplifyTol, smoothPasses) {
   return filterDegenerateShapeGroups(groups, tw, th);
 }
 
+/** Bridge small horizontal gaps between ink runs on one scanline (double-edge pairs on a row). */
+function bridgeRowGapsInMask(mask, width, height, maxGap) {
+  const out = mask.slice();
+  for (let y = 0; y < height; y++) {
+    const base = y * width;
+    const runs = [];
+    let x = 0;
+    while (x < width) {
+      while (x < width && !mask[base + x]) x++;
+      if (x >= width) break;
+      const start = x;
+      while (x < width && mask[base + x]) x++;
+      runs.push([start, x]);
+    }
+    for (let i = 0; i < runs.length - 1; i++) {
+      const gapStart = runs[i][1];
+      const gapEnd = runs[i + 1][0];
+      if (gapEnd - gapStart <= maxGap) {
+        for (let g = gapStart; g < gapEnd; g++) out[base + g] = 1;
+      }
+    }
+  }
+  return out;
+}
+
+/** Fill empty rows sandwiched between ink above+below (horizontal void bands between double lines). */
+function fillSparseRowsBetweenNeighborInk(mask, width, height) {
+  const out = mask.slice();
+  for (let y = 1; y < height - 1; y++) {
+    const row = y * width;
+    let rowInk = 0;
+    for (let x = 0; x < width; x++) if (mask[row + x]) rowInk++;
+    if (rowInk / width > 0.05) continue;
+    let bridged = 0;
+    for (let x = 0; x < width; x++) {
+      if (mask[row - width + x] && mask[row + width + x]) bridged++;
+    }
+    if (bridged / width < 0.015) continue;
+    for (let x = 0; x < width; x++) {
+      if (mask[row - width + x] && mask[row + width + x]) out[row + x] = 1;
+    }
+  }
+  return out;
+}
+
 /** Fill gaps between double-edge line pairs so wrap emboss is solid (dragon OK, knight was hollow bands). */
 function solidifyOutlineSilhouetteMask(mask, width, height) {
-  const passes = Math.min(width, height) > 800 ? 3 : 2;
-  let m = mask;
-  for (let i = 0; i < passes; i++) m = dilateMask(m, width, height);
+  const span = Math.min(width, height);
+  const radius = span > 1400 ? 6 : span > 900 ? 5 : span > 500 ? 4 : 3;
+  let m = closeMask(mask, width, height, radius);
+  const maxGap = Math.max(10, Math.round(span / 100));
+  m = bridgeRowGapsInMask(m, width, height, maxGap);
+  m = fillSparseRowsBetweenNeighborInk(m, width, height);
   return m;
 }
 
@@ -669,7 +717,7 @@ function finishSilhouetteTrace(workMask, tw, th, ox, oy, shapeGroups, simplifyFa
   const smoothPasses = extra.smoothPasses ?? 1;
   let inkMask = workMask;
   if (extra.outlineFallback) inkMask = solidifyOutlineSilhouetteMask(workMask, tw, th);
-  const silhouetteMask = pruneSilhouetteMask(inkMask, tw, th);
+  const silhouetteMask = pruneSilhouetteMask(inkMask, tw, th, { skipOpen: !!extra.outlineFallback });
   let groups = silhouetteGroupsFromMask(silhouetteMask, tw, th, simplifyTol, smoothPasses);
   if (!groups.length && shapeGroups?.length) {
     groups = filterDegenerateShapeGroups(shapeGroups, tw, th);
@@ -844,9 +892,11 @@ function openMask(mask, width, height) {
   return dilateMask(eroded, width, height);
 }
 
-function closeMask(mask, width, height) {
-  const dilated = dilateMask(mask, width, height);
-  return erodeMask(dilated, width, height);
+function closeMask(mask, width, height, radius = 1) {
+  let m = mask;
+  for (let i = 0; i < radius; i++) m = dilateMask(m, width, height);
+  for (let i = 0; i < radius; i++) m = erodeMask(m, width, height);
+  return m;
 }
 
 

@@ -2,8 +2,21 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `8882613` (b234)
-- Cache-bust: `app.js?v=234` — header **b234**
+- Latest commit: (b235 — see git log)
+- Cache-bust: `app.js?v=235` — header **b235**
+
+### 2026-07-11 — b235: Morphological close + row bridge for outline fallback (fix knight bands)
+
+**Symptom:** b233 dragon perfect; b234 2–3px dilate still left horizontal void bands on knight/horse upper body.
+
+**Root cause:** Outline fallback mask is thin double-edge lines — rows between line pairs have zero ink. b234 dilate alone did not bridge wider gaps; then `pruneSilhouetteMask` called `openMask` (1px erode) on single-component masks, re-hollowing filled rows.
+
+**Fix (`trace.js`):**
+- `solidifyOutlineSilhouetteMask` — size-scaled morphological **close** (3–6px radius), then `bridgeRowGapsInMask` + `fillSparseRowsBetweenNeighborInk`
+- `pruneSilhouetteMask` — `skipOpen` for outline fallback so solidified mask is not re-eroded
+- Preview + wrap both use same `silhouetteMask` (unchanged path)
+
+- Cache **b235**. Hard refresh, re-drop heraldic image — knight upper body should be solid black emboss like dragon.
 
 ### 2026-07-11 — b234: Solidify outline double-edge mask (fix knight horizontal gaps)
 
