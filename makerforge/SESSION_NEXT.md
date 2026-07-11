@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending — b257)
+- Latest commit: `d8c3262` (b257)
 - Cache-bust: `app.js?v=257` — header **b257**
 
 ### 2026-07-11 — b257: Flood foreground logo mask (BRISBANE + white horse detail)
