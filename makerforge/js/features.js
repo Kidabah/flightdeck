@@ -2,7 +2,7 @@
  * Accent bands, emboss, honeycomb stamp, stackable hex grid, mesh merge.
  */
 
-import { dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, filterDegenerateShapeGroups, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareStrokePaths, previewMergeTraceShapeGroups, rasterizeShapeGroupsToMask, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap, unionDenseEmbossShapeGroups, unionShapeGroupsToPrepared } from "./contour.js?v=235";
+import { dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, filterDegenerateShapeGroups, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareSvgShapeGroups, prepareStrokePaths, previewMergeTraceShapeGroups, rasterizeShapeGroupsToMask, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap, unionDenseEmbossShapeGroups, unionShapeGroupsToPrepared } from "./contour.js?v=240";
 import { decorPlacementOffsets, decorArtRect, rotateFacePoint, rotateShapeGroup } from "./decor.js";
 import {
   profileOutlineNormals,
@@ -250,6 +250,14 @@ const WRAP_DECAL_STEP_MM = 0.4;
 const WRAP_DECAL_TARGET_COLS = 560;
 const WRAP_DECAL_STEP_MIN_MM = 0.08;
 const WRAP_DECAL_STEP_MAX_MM = 0.26;
+const WRAP_ART_VERTICAL_GUTTER_MM = 1.4;
+
+function wrapSafeArtHeight(frame, requestedHeight) {
+  const target = clamp(requestedHeight ?? 16, 6, 56);
+  if (frame?.face !== "wrap") return target;
+  const usable = Math.max(6, (frame.faceH ?? target) - WRAP_ART_VERTICAL_GUTTER_MM * 2);
+  return Math.min(target, usable);
+}
 
 function wrapDecalStepMm(shapeGroups) {
   const bounds = shapeGroupsBounds2d(shapeGroups);
@@ -290,7 +298,7 @@ function pushFaceSlabQuad(positions, indices, frame, px0, py0, px1, py1, d0, d1)
 }
 
 function bitmapWrapPlacement(frame, params, bitmap) {
-  const artHCap = clamp(params.embossTraceSize ?? 16, 6, 56);
+  const artHCap = wrapSafeArtHeight(frame, params.embossTraceSize ?? 16);
   const maxW = Math.min(frame.faceW * 0.62, 56);
   const maskW = Math.max(1, Math.round(bitmap.width));
   const maskH = Math.max(1, Math.round(bitmap.height));
@@ -324,6 +332,46 @@ function pushWrapRunShell(outPos, outIdx, frame, px0, py0, px1, py1, d0, d1, { s
   pushQuad(outPos, outIdx, i00, i01, i11, i10);
   pushQuad(outPos, outIdx, i00, o00, o01, i01);
   pushQuad(outPos, outIdx, i10, i11, o11, o10);
+}
+
+function shouldUseWrapRunSlabs(bitmap) {
+  if (!bitmap?.mask?.length) return true;
+  if (bitmap.rasterSimplified) return false;
+  if (bitmap.mode === "outline" && (bitmap.rects?.length ?? 0) > 3500) return false;
+  return true;
+}
+
+function erodeBitmapMask(mask, width, height) {
+  const out = new Uint8Array(width * height);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const idx = y * width + x;
+      if (!mask[idx]) continue;
+      let keep = 1;
+      for (let dy = -1; dy <= 1 && keep; dy++) {
+        for (let dx = -1; dx <= 1 && keep; dx++) {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= width || ny >= height || !mask[ny * width + nx]) keep = 0;
+        }
+      }
+      out[idx] = keep;
+    }
+  }
+  return out;
+}
+
+function closeBitmapMask(mask, width, height, passes = 1) {
+  let out = mask instanceof Uint8Array ? mask.slice() : new Uint8Array(mask);
+  for (let i = 0; i < passes; i++) out = dilateMask(out, width, height);
+  for (let i = 0; i < passes; i++) out = erodeBitmapMask(out, width, height);
+  return out;
+}
+
+function prepareComplexTraceMaskForContours(mask, width, height, bitmap) {
+  if (!bitmap?.rasterSimplified) return mask;
+  const passes = width >= 1400 ? 2 : 1;
+  return closeBitmapMask(mask, width, height, passes);
 }
 
 /** Wrap trace from pixel mask — radial shells (no earcut slashes, no row-cap z-fight). */
@@ -1457,7 +1505,7 @@ function estimateGraphicArtSizeMm(frame, meta, params) {
     traceData?.width &&
     traceData?.height;
   if (hasTrace) {
-    const artH = clamp(params.embossTraceSize ?? 16, 6, 56);
+    const artH = wrapSafeArtHeight(frame, params.embossTraceSize ?? 16);
     const maxW = Math.min(frame.faceW * 0.62, 56);
     const scale = Math.min(artH / traceData.height, maxW / traceData.width);
     if (!Number.isFinite(scale) || scale <= 0) return null;
@@ -1913,8 +1961,8 @@ function unionDenseTraceShapeGroups(sourceGroups, maskW, maskH, artH, params, bi
 
 function collectBitmapGraphicShapeGroups(meta, params, bitmap) {
   if (!bitmap?.width || !bitmap.height) return null;
-  const artH = clamp(params.embossTraceSize ?? 16, 6, 56);
   const frame = getEmbossFaceFrame(meta, params.embossFace || "front", params);
+  const artH = wrapSafeArtHeight(frame, params.embossTraceSize ?? 16);
   const maxW = Math.min(frame.faceW * 0.62, 56);
   const scale = Math.min(artH / bitmap.height, maxW / bitmap.width);
   if (!Number.isFinite(scale) || scale <= 0) return null;
@@ -2026,11 +2074,11 @@ function collectSvgGraphicShapeGroups(meta, params, svgText) {
 
   if (fillRings.length) {
     const simplifyTol = isLabelExport(params)
-      ? Math.max(0.06, Math.max(sw, sh) / 1200)
-      : Math.max(0.12, Math.max(sw, sh) / 480);
-    const smoothPasses = labelSmoothPasses(artH, params);
+      ? Math.max(0.04, Math.max(sw, sh) / 2400)
+      : svgVectorSimplifyTol(sw, sh);
+    const smoothPasses = isLabelExport(params) ? labelSmoothPasses(artH, params) : svgVectorSmoothPasses(artH);
     const rawGroups = fillRings.map((ring) => ({ outer: ring, holes: [] }));
-    const shapeGroups = prepareShapeGroups(rawGroups, simplifyTol, smoothPasses);
+    const shapeGroups = prepareSvgShapeGroups(rawGroups, simplifyTol, smoothPasses);
     for (const group of shapeGroups) {
       const remapped = {
         outer: group.outer.map(([x, y]) => mapSvgArtPoint(layout, x, y)),
@@ -2563,16 +2611,17 @@ function ensureEmbossBitmapMask(bitmap) {
 export function buildEmbossBitmap(meta, params, bitmap) {
   bitmap = ensureEmbossBitmapMask(bitmap);
   if (!bitmap?.width || !bitmap.height) return null;
-  const artH = clamp(params.embossTraceSize ?? 16, 6, 56);
   const frame = getEmbossFaceFrame(meta, params.embossFace || "front", params);
+  const artH = wrapSafeArtHeight(frame, params.embossTraceSize ?? 16);
   const maxW = Math.min(frame.faceW * 0.62, 56);
   const scale = Math.min(artH / bitmap.height, maxW / bitmap.width);
   if (!Number.isFinite(scale) || scale <= 0) return null;
 
   const artWidth = bitmap.width * scale;
-  const { xOff, zOff } = decorPlacementOffsets(params, frame, artWidth, artH);
+  const artHeight = bitmap.height * scale;
+  const { xOff, zOff } = decorPlacementOffsets(params, frame, artWidth, artHeight);
   const rotCx = xOff + artWidth / 2;
-  const rotCy = zOff + artH / 2;
+  const rotCy = zOff + artHeight / 2;
   const rotation = params.decorRotation ?? 0;
   const { d0, d1 } = labelOffsets(params);
   const positions = [];
@@ -2600,7 +2649,7 @@ export function buildEmbossBitmap(meta, params, bitmap) {
     const sourceGroups = bitmap.shapeGroups?.length
       ? unionDenseTraceShapeGroups(bitmap.shapeGroups, maskW, maskH, artH, params, bitmap)
       : [];
-    if (frame.face === "wrap") {
+    if (frame.face === "wrap" && shouldUseWrapRunSlabs(bitmap)) {
       const slab = buildWrapTraceSlabMesh(frame, bitmap, params, sourceGroups, d0, d1);
       if (slab?.indices?.length) return slab;
     }
@@ -2614,6 +2663,7 @@ export function buildEmbossBitmap(meta, params, bitmap) {
   let mask = null;
   if (bitmap.mask?.length === maskW * maskH) {
     mask = bitmap.mask instanceof Uint8Array ? bitmap.mask : new Uint8Array(bitmap.mask);
+    mask = prepareComplexTraceMaskForContours(mask, maskW, maskH, bitmap);
   } else if (bitmap.rects?.length) {
     mask = new Uint8Array(maskW * maskH);
     for (const r of bitmap.rects) {
@@ -2645,6 +2695,22 @@ export function buildEmbossBitmap(meta, params, bitmap) {
 }
 
 const SVG_NS = "http://www.w3.org/2000/svg";
+/** Native SVG path sampling — finer than trace bitmaps; browser curves → print polylines. */
+const SVG_PATH_SAMPLE_SPACING = 0.06;
+const SVG_PATH_MAX_POINTS = 6400;
+const SVG_PATH_DEDUPE_EPS = 0.025;
+
+function svgVectorSimplifyTol(sw, sh) {
+  return Math.max(0.035, Math.max(sw, sh) / 2200);
+}
+
+function svgVectorSmoothPasses(artH) {
+  return artH <= 14 ? 2 : 1;
+}
+
+function svgUsesVectorExtrude(params) {
+  return !!(params?.embossSvgEnabled && !params?.embossTraceEnabled);
+}
 
 function splitPathSubpaths(d) {
   const trimmed = String(d || "").trim();
@@ -2672,17 +2738,17 @@ function transformSvgPoint(ctm, x, y) {
   ];
 }
 
-function sampleSvgPathElementWithCtm(pathEl, maxPoints = 900) {
+function sampleSvgPathElementWithCtm(pathEl, maxPoints = SVG_PATH_MAX_POINTS) {
   const ctm = pathEl.getCTM?.() || null;
   const len = pathEl.getTotalLength();
   if (!Number.isFinite(len) || len < 0.02) return [];
-  const count = Math.min(maxPoints, Math.max(24, Math.ceil(len / 0.28)));
+  const count = Math.min(maxPoints, Math.max(32, Math.ceil(len / SVG_PATH_SAMPLE_SPACING)));
   const pts = [];
   for (let i = 0; i <= count; i++) {
     const pt = pathEl.getPointAtLength(Math.min((i / count) * len, len));
     pts.push(transformSvgPoint(ctm, pt.x, pt.y));
   }
-  return dedupePolylinePoints(pts);
+  return dedupePolylinePoints(pts, SVG_PATH_DEDUPE_EPS);
 }
 
 function polylineFromElementWithCtm(el) {
@@ -2741,7 +2807,7 @@ function routeSvgSample(points, mode, strokePaths, fillRings) {
   }
 }
 
-function sampleSvgPathElement(pathEl, maxPoints = 900) {
+function sampleSvgPathElement(pathEl, maxPoints = SVG_PATH_MAX_POINTS) {
   return sampleSvgPathElementWithCtm(pathEl, maxPoints);
 }
 
@@ -2936,7 +3002,7 @@ function computeSvgArtLayout(parsed, meta, params) {
 
   const sw = maxX - minX || parsed.viewBox?.[2] || 1;
   const sh = maxY - minY || parsed.viewBox?.[3] || 1;
-  const artH = clamp(params.embossTraceSize ?? params.embossHeight ?? 16, 6, 56);
+  const artH = wrapSafeArtHeight(frame, params.embossTraceSize ?? params.embossHeight ?? 16);
   const wrap = frame.face === "wrap";
   const maxW = wrap ? Math.min(frame.faceW * 0.55, 72) : Math.min(frame.faceW * 0.62, 56);
   const scale = Math.min(artH / sh, maxW / sw);
@@ -2944,9 +3010,10 @@ function computeSvgArtLayout(parsed, meta, params) {
 
   const cx = (minX + maxX) / 2;
   const artW = sw * scale;
-  const { xOff, zOff } = decorPlacementOffsets(params, frame, artW, artH);
+  const artHeight = sh * scale;
+  const { xOff, zOff } = decorPlacementOffsets(params, frame, artW, artHeight);
   const rotCx = xOff + artW / 2;
-  const rotCy = zOff + artH / 2;
+  const rotCy = zOff + artHeight / 2;
   return {
     frame,
     scale,
@@ -2958,7 +3025,7 @@ function computeSvgArtLayout(parsed, meta, params) {
     sw,
     sh,
     artW,
-    artH,
+    artH: artHeight,
     xOff,
     zOff,
     rotCx,
@@ -2982,14 +3049,17 @@ function extrudeSvgFillRings(outPos, outIdx, fillRings, layout, params) {
   if (!fillRings.length) return;
   const { frame, scale, rotCx, artH, sw, sh } = layout;
   const { d0, d1 } = labelOffsets(params);
-  const simplifyTol = Math.max(0.12, Math.max(sw, sh) / 480);
-  const smoothPasses = artH <= 12 ? 4 : artH <= 20 ? 3 : 2;
+  const simplifyTol = svgVectorSimplifyTol(sw, sh);
+  const smoothPasses = svgVectorSmoothPasses(artH);
   const rawGroups = fillRings.map((ring) => ({ outer: ring, holes: [] }));
-  const shapeGroups = prepareShapeGroups(rawGroups, simplifyTol, smoothPasses);
-  const faceGroups = shapeGroups.map((group) => ({
+  const shapeGroups = prepareSvgShapeGroups(rawGroups, simplifyTol, smoothPasses);
+  let faceGroups = shapeGroups.map((group) => ({
     outer: group.outer.map(([x, y]) => mapSvgArtPoint(layout, x, y)),
     holes: group.holes.map((h) => h.map(([x, y]) => mapSvgArtPoint(layout, x, y))),
   }));
+  if (frame.face === "wrap") {
+    faceGroups = normalizeWrapShapeGroups(faceGroups, frame.faceW, rotCx);
+  }
   if (faceGroups.length) {
     extrudeGroupsOnFace(outPos, outIdx, frame, faceGroups, d0, d1, params);
   }
@@ -3012,8 +3082,8 @@ export function buildEmbossSvg(meta, params, svgText) {
   if (strokePaths.length) {
     const svgStroke = parsed.strokeWidth ?? 1.5;
     const lineWidth = clamp(scale * svgStroke, 0.45, 1.5);
-    const smoothPasses = artH <= 12 ? 4 : artH <= 20 ? 3 : 2;
-    const simplifyTol = Math.max(0.18, Math.max(sw, sh) / 520);
+    const smoothPasses = svgVectorSmoothPasses(artH);
+    const simplifyTol = Math.max(0.06, Math.max(sw, sh) / 1800);
     const closedPaths = strokePaths.map((line) => {
       if (line.length >= 3) {
         const [x0, y0] = line[0];
@@ -3260,9 +3330,10 @@ function extrudeStrokeSegmentOnFace(outPos, outIdx, frame, x0, y0, x1, y1, half,
   face(p010, p110, p111, p011);
 }
 
-/** Extrude remapped art groups — wrap uses raster wall slabs (avoids earcut slash garbage). */
+/** Extrude remapped art groups — trace/bitmap wrap uses raster slabs; SVG vectors use earcut extrusion. */
 function extrudeGroupsOnFace(outPos, outIdx, frame, faceGroups, d0, d1, params = null) {
-  if (frame.face === "wrap" && faceGroups.length) {
+  const vectorWrap = frame.face === "wrap" && faceGroups.length && svgUsesVectorExtrude(params);
+  if (frame.face === "wrap" && faceGroups.length && !vectorWrap) {
     const stepMm = params?.__labelExportStandoff ? DECAL_LAYER_MM : wrapDecalStepMm(faceGroups);
     const slab = buildFaceDecalSlabMesh(frame, faceGroups, { d0, d1, stepMm, dilatePasses: 0 });
     if (slab?.indices?.length) {
@@ -3280,7 +3351,8 @@ function extrudeGroupsOnFace(outPos, outIdx, frame, faceGroups, d0, d1, params =
 
 function remappedBitmapFaceGroups(bitmap, frame, params, sourceGroups, maskW, maskH, artH) {
   const maxW = Math.min(frame.faceW * 0.62, 56);
-  const scale = Math.min(artH / bitmap.height, maxW / bitmap.width);
+  const safeArtH = wrapSafeArtHeight(frame, artH);
+  const scale = Math.min(safeArtH / bitmap.height, maxW / bitmap.width);
   const artWidth = bitmap.width * scale;
   const artHeight = bitmap.height * scale;
   const { xOff, zOff } = decorPlacementOffsets(params, frame, artWidth, artHeight);
@@ -3413,18 +3485,19 @@ export function measureDecorArt(meta, params) {
       if (Number.isFinite(minX)) {
         const sw = maxX - minX || parsed.viewBox?.[2] || 1;
         const sh = maxY - minY || parsed.viewBox?.[3] || 1;
-        const artH = clamp(params.embossTraceSize ?? params.embossHeight ?? 16, 6, 56);
+        const artH = wrapSafeArtHeight(frame, params.embossTraceSize ?? params.embossHeight ?? 16);
         const wrap = frame.face === "wrap";
         const maxW = wrap ? Math.min(frame.faceW * 0.55, 72) : Math.min(frame.faceW * 0.62, 56);
         const scale = Math.min(artH / sh, maxW / sw);
         if (Number.isFinite(scale) && scale > 0) {
           const artW = sw * scale;
-          const { xOff, zOff } = decorPlacementOffsets(params, frame, artW, artH);
+          const artHeight = sh * scale;
+          const { xOff, zOff } = decorPlacementOffsets(params, frame, artW, artHeight);
           svgRect = {
             frame,
             kind: "svg",
             rotation: params.decorRotation ?? 0,
-            ...decorArtRect(frame, xOff, zOff, artW, artH),
+            ...decorArtRect(frame, xOff, zOff, artW, artHeight),
           };
         }
       }
@@ -3450,13 +3523,14 @@ export function measureDecorArt(meta, params) {
   if (svgRect) return svgRect;
 
   if (hasTrace && traceData?.width && traceData?.height) {
-    const artH = clamp(params.embossTraceSize ?? 16, 6, 56);
+    const artH = wrapSafeArtHeight(frame, params.embossTraceSize ?? 16);
     const maxW = Math.min(frame.faceW * 0.62, 56);
     const scale = Math.min(artH / traceData.height, maxW / traceData.width);
     if (!Number.isFinite(scale) || scale <= 0) return null;
     const artW = traceData.width * scale;
-    const { xOff, zOff } = decorPlacementOffsets(params, frame, artW, artH);
-    return { frame, kind: "trace", rotation: params.decorRotation ?? 0, ...decorArtRect(frame, xOff, zOff, artW, artH) };
+    const artHeight = traceData.height * scale;
+    const { xOff, zOff } = decorPlacementOffsets(params, frame, artW, artHeight);
+    return { frame, kind: "trace", rotation: params.decorRotation ?? 0, ...decorArtRect(frame, xOff, zOff, artW, artHeight) };
   }
 
   return null;

@@ -2,8 +2,21 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `dc7227b` (b259)
-- Cache-bust: `app.js?v=259` — header **b259**
+- Latest commit: (pending — b260)
+- Cache-bust: `app.js?v=260` — header **b260**
+
+### 2026-07-11 — b260: SVG vector quality — fine path sampling + wrap extrusion
+
+**Symptom:** Proper SVG logos (e.g. Broncos broncs.svg) looked crisp in browser but jagged/stepped in MakerDeck 3D preview — especially on **Wrap** face (horizontal slab ribs).
+
+**Fix:**
+- `features.js` — SVG path sampling: 6400 pt cap, 0.06 spacing (was 900 / 0.28); lighter dedupe.
+- `contour.js` — new `prepareSvgShapeGroups` keeps native vector detail (no trace-style pixel stair smoothing).
+- `features.js` — SVG fill simplify tol ~`max(sw,sh)/2200` (was `/480`); wrap face uses **vector earcut extrusion** for SVG imports instead of raster slabs.
+- `features.js` — `normalizeWrapShapeGroups` on SVG fill rings before extrusion.
+- `app.js` — filled SVGs always take vector import path (no trace fallback).
+
+- Cache **b260** (`app.js?v=260`, `features.js?v=260`, `contour.js?v=240`, `geometry.js?v=260`). Hard refresh, Clear, re-load broncs.svg on Wrap face. Status should say **filled vector**; preview should show smooth curves not horizontal steps.
 
 ### 2026-07-11 — b259: Auto prefer colour logo + keep BRISBANE satellite text
 

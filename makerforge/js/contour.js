@@ -105,6 +105,26 @@ export function prepareShapeGroups(groups, simplifyTol = 1, smoothPasses = 1) {
   }));
 }
 
+/** Native SVG vectors — keep curve detail; avoid trace-style pixel stair smoothing. */
+function prepareSvgContourRing(poly, simplifyTol, smoothPasses = 1) {
+  let light = simplifyPolygon(poly, simplifyTol);
+  if (light.length > 2800) light = simplifyPolygon(light, simplifyTol * 1.35);
+  const passes = Math.max(0, Math.min(3, smoothPasses));
+  if (passes === 0) return light;
+  const smooth = chaikinSmooth(light, passes);
+  const budget = passes >= 2 ? 3600 : 2800;
+  if (smooth.length > budget) return simplifyPolygon(smooth, simplifyTol * 0.12);
+  return smooth;
+}
+
+export function prepareSvgShapeGroups(groups, simplifyTol, smoothPasses = 1) {
+  const holePasses = smoothPasses >= 2 ? Math.max(1, smoothPasses - 1) : 0;
+  return groups.map(({ outer, holes }) => ({
+    outer: prepareSvgContourRing(outer, simplifyTol, smoothPasses),
+    holes: holes.map((hole) => prepareSvgContourRing(hole, simplifyTol * 0.45, holePasses)),
+  }));
+}
+
 function ringArea(ring) {
   let area = 0;
   for (let i = 0; i < ring.length - 1; i++) {

@@ -21,9 +21,9 @@ import {
   unionShapeGroupsToPrepared,
   rasterizeShapeGroupsToMask,
   filterDegenerateShapeGroups,
-} from "./contour.js?v=239";
+} from "./contour.js?v=240";
 
-export { unionDenseEmbossShapeGroups } from "./contour.js?v=239";
+export { unionDenseEmbossShapeGroups } from "./contour.js?v=240";
 
 
 
