@@ -2,8 +2,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `99e348a` (b269)
-- Cache-bust: `app.js?v=269` — header **b269**
+- Latest commit: (pending b270)
+- Cache-bust: `app.js?v=270` — header **b270**
+
+### 2026-07-11 — b270: Hotfix blank b269 — restore applyTraceToBox, vector-first SVG
+
+**Symptom:** b269 blank preview — app.js syntax break (`applyTraceToBox` body orphaned at module scope).
+
+**Fix:**
+- Restore `applyTraceToBox()` function.
+- SVG import: **vector first** (island union), trace fallback only if mesh empty — drop forced multi-ink trace route.
+
+- Cache **b270**. Hard refresh — must show **b270**, re-drop broncs.svg.
 
 ### 2026-07-11 — b269: Complete SVG logo import — multi-ink trace + island union
 
