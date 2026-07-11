@@ -1972,7 +1972,8 @@ function drawTraceInkRunOverlay(ctx, pad, ox, oy, rects, factor) {
   return true;
 }
 
-/** Render trace preview onto a canvas (source image + cyan ink overlay). */
+/** Render trace preview onto a canvas (source image + cyan ink overlay).
+ * GOLDEN (b284): raster ink mask BEFORE stroke paths — see GOLDEN_BASELINE.md */
 export function drawTracePreview(previewCanvas, sourceCanvas, traceResult) {
 
   const ctx = previewCanvas.getContext("2d");

@@ -404,7 +404,7 @@ function prepareComplexTraceMaskForContours(mask, width, height, bitmap) {
 }
 
 /** Wrap trace from pixel mask — radial shells (no earcut slashes, no row-cap z-fight). */
-function buildWrapTraceSlabMesh(frame, bitmap, params, shapeGroups, d0, d1) {
+function buildWrapTraceSlabMesh(frame, bitmap, params, shapeGroups, d0, d1, opts = {}) {
   const place = bitmapWrapPlacement(frame, params, bitmap);
   if (!place) return null;
   const { maskW, maskH, scale, artW, artHeight, xOff, zOff } = place;
@@ -428,8 +428,8 @@ function buildWrapTraceSlabMesh(frame, bitmap, params, shapeGroups, d0, d1) {
     stepPx = Math.max(1, Math.round(DECAL_LAYER_MM / scale));
   }
   stepPx = wrapSlabRowStepPx(maskH, stepPx, {
-    maxRows,
-    maxPreviewIndices: preview ? WRAP_SVG_PREVIEW_MAX_INDICES : 0,
+    maxRows: opts.fineRows ? maskH : maxRows,
+    maxPreviewIndices: opts.fineRows ? 0 : (preview ? WRAP_SVG_PREVIEW_MAX_INDICES : 0),
   });
 
   const positions = [];
@@ -2681,6 +2681,10 @@ function ensureEmbossBitmapMask(bitmap) {
   if (!maskW || !maskH || !bitmap) return bitmap;
   const expected = maskW * maskH;
   if (bitmap.mask?.length === expected) return bitmap;
+  if (bitmap.shapeGroups?.length) {
+    const mask = rasterizeShapeGroupsToMask(bitmap.shapeGroups, maskW, maskH);
+    if (mask?.length === expected) return { ...bitmap, mask: Array.from(mask) };
+  }
   if (bitmap.rects?.length) {
     const mask = new Uint8Array(expected);
     for (const r of bitmap.rects) {
@@ -2730,7 +2734,7 @@ export function buildEmbossBitmap(meta, params, bitmap) {
 
   // Wrap silhouettes — ink pixel slabs (coffee-bag strategy). Avoids broken multi-island contour on curve.
   if (frame.face === "wrap" && bitmap.mask?.length === maskW * maskH && !bitmap.outlineRaster) {
-    const slab = buildWrapTraceSlabMesh(frame, bitmap, params, [], d0, d1);
+    const slab = buildWrapTraceSlabMesh(frame, bitmap, params, [], d0, d1, { fineRows: true });
     if (slab?.indices?.length) return slab;
   }
 

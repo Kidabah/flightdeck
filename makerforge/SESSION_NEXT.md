@@ -5,8 +5,32 @@
 Latest GitHub/Pi state:
 - Branch: `main`
 - Golden build: **b284** (tag: `makerdeck-golden-b284`) — trace preview + jar emboss
-- Current: **b285** — wrap uses coffee-bag ink mask; canister defaults to front face
-- Cache-bust: `app.js?v=285`, `trace.js?v=285`, `features.js?v=285` — header **b285**
+- Current: **b288** — full raster import reset (no hidden SVG state)
+- Cache-bust: `app.js?v=288` — header **b288**
+
+### 2026-07-11 — b288: Drop PNG/JPG — clear hidden SVG + old trace state
+
+**Symptom:** Dropping coffee bag after SVG still wrong; old SVG details seem to linger.
+
+**Cause:** Only canvas swapped — `traceSvgImport`, `embossSvgText`, `embossSvgEnabled`, old `embossTraceRects`, Add SVG checkbox all stayed from prior import.
+
+**Fix:** `resetTraceImportForRaster()` on PNG/JPG drop/paste; Clear also wipes SVG UI state.
+
+### 2026-07-11 — b287: Coffee bag broken after SVG — clear traceSvgImport
+
+**Symptom:** Coffee bag on Auto shows `2 islands · single colour · 29% fill` (silhouette blob) instead of `6977 ink runs · line art mask · 14% fill`.
+
+**Cause:** After SVG import, `traceSvgImport` stayed true. Pasting/dropping PNG still ran `traceFlattenedSvgCanvasAsync` (silhouette) instead of Auto triple-trace.
+
+**Fix:** Reset `traceSvgImport = false` on PNG/JPG load and Clear.
+
+### 2026-07-11 — b286: Wrap JPG/silhouette — fine-row ink mask
+
+**Symptom:** JPG paste + Auto on wrap — trace preview OK (1 island · 42% fill) but 3D broken/empty. SVG same on wrap.
+
+**Cause:** Wrap ink slab coarsened to zero tris (preview index cap) → fell back to broken shapeGroups extrude.
+
+**Fix:** Wrap silhouette slabs use `fineRows` (full mask, no preview cap). Rebuild mask from shapeGroups when session mask missing.
 
 ### 2026-07-11 — b285: Wrap + SVG — coffee-bag defaults (front face, ink mask emboss)
 
