@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending b274)
+- Latest commit: `6035e1f` (b274)
 - Cache-bust: `app.js?v=274`, `trace.js?v=274` — header **b274**
 
 ### 2026-07-11 — b274: Fix broncs.svg — strip bg frame, solid wrap slabs, vector-first
