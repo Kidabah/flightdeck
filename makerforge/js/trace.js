@@ -505,21 +505,47 @@ function colorLogoMask(data, width, height, threshold, invert) {
     : clamp(16 + Math.max(0, 210 - threshold) * 0.06, 14, 38);
   const bgTolSq = bgTol * bgTol;
   const exterior = floodImageBackgroundExterior(data, width, height, bgTolSq);
-  const mask = new Uint8Array(width * height);
+  const span = Math.min(width, height);
+  const darkLum = clamp(212 - threshold * 0.18, 168, 210);
+  const minChroma = clamp(14 + (128 - threshold) * 0.03, 12, 20);
+
+  const seed = new Uint8Array(width * height);
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const idx = y * width + x;
       const i = idx * 4;
-      let on = data[i + 3] >= 16 && !exterior[idx];
-      if (!on && !bgIsDark) {
-        // Fallback for flat white-bg logos: keep saturated/dark pixels even if flood mislabels a fringe.
-        on = colorLogoPixelIsInk(data[i], data[i + 1], data[i + 2], data[i + 3], threshold);
-      }
+      const a = data[i + 3];
+      if (a < 16) continue;
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      const lum = r * 0.299 + g * 0.587 + b * 0.114;
+      const chroma = Math.max(r, g, b) - Math.min(r, g, b);
+      let on = !exterior[idx]
+        || lum <= darkLum
+        || chroma >= minChroma
+        || (!bgIsDark && colorLogoPixelIsInk(r, g, b, a, threshold));
       if (invert) on = !on;
-      mask[idx] = on ? 1 : 0;
+      seed[idx] = on ? 1 : 0;
     }
   }
-  return closeMask(mask, width, height, 2);
+
+  // Solidify mascot interior: white horse stripes / shield fill inside closed outline.
+  let m = seed;
+  const mergePasses = clamp(Math.round(span / 180), 2, 6);
+  for (let i = 0; i < mergePasses; i++) m = dilateMask(m, width, height);
+  const closeR = clamp(Math.round(span / 100), 3, 10);
+  m = closeMask(m, width, height, closeR);
+  m = fillInteriorEnclosedByOutline(m, width, height);
+  m = unionMasks(m, seed, width, height);
+  m = fillRowExtents(m, width, height);
+
+  if (invert) {
+    const inv = new Uint8Array(width * height);
+    for (let i = 0; i < inv.length; i++) inv[i] = m[i] ? 0 : 1;
+    m = inv;
+  }
+  return closeMask(m, width, height, 2);
 }
 
 function quantizeInkColor(r, g, b) {

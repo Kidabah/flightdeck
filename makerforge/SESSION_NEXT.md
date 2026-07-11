@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `d8c3262` (b257)
-- Cache-bust: `app.js?v=257` — header **b257**
+- Latest commit: (pending — b258)
+- Cache-bust: `app.js?v=258` — header **b258**
+
+### 2026-07-11 — b258: Solidify colour-logo interior (shield + white horse stripes)
+
+**Symptom:** b257 got BRISBANE text but shield/horse hollow — white interior flooded as page background (17% mask). Only bottom outline fragment embossed.
+
+**Fix:** Colour-logo seeds dark + chromatic pixels, dilate/close outline, `fillInteriorEnclosedByOutline` + row extent — fills shield interior including white horse detail.
+
+- Cache **b258**. Hard refresh, Clear, re-drop crest — mask fill should rise (~25%+), full horse+shield in preview and emboss.
 
 ### 2026-07-11 — b257: Flood foreground logo mask (BRISBANE + white horse detail)
 
