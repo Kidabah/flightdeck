@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending — b244)
+- Latest commit: `bad415b` (b244)
 - Cache-bust: `app.js?v=244` — header **b244**
 
 ### 2026-07-11 — b244: Row-extent fill (preview downscale was lying)
