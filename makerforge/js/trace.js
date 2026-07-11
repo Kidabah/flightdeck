@@ -1109,10 +1109,10 @@ function finishSilhouetteTrace(workMask, tw, th, ox, oy, shapeGroups, simplifyFa
   if (needsSolidify) inkMask = lineArtMaskToSolidFill(workMask, tw, th);
   const span = Math.max(tw, th);
   let silhouetteMask = pruneSilhouetteMask(inkMask, tw, th, {
-    skipOpen: needsSolidify,
-    keepLogoSatellites: !!extra.colorLogo,
-    minIslandRatio: extra.colorLogo ? 0.007 : undefined,
-    maxIslandDist: extra.colorLogo ? span * 0.55 : undefined,
+    skipOpen: needsSolidify || !!extra.solidSilhouetteFill,
+    keepLogoSatellites: !!extra.colorLogo || !!extra.solidSilhouetteFill,
+    minIslandRatio: extra.solidSilhouetteFill ? 0.004 : undefined,
+    maxIslandDist: extra.solidSilhouetteFill ? span * 0.62 : undefined,
   });
   if (needsSolidify) {
     silhouetteMask = unionMasks(silhouetteMask, workMask, tw, th);
@@ -1124,7 +1124,9 @@ function finishSilhouetteTrace(workMask, tw, th, ox, oy, shapeGroups, simplifyFa
     if (cleaned.length) groups = cleaned;
   }
   if (groups.length > 1) {
-    const merged = previewMergeTraceShapeGroups(groups, tw, th);
+    const merged = extra.solidSilhouetteFill
+      ? unionShapeGroupsToPrepared(groups, tw, th, Math.max(0.06, tw / 3200), 1, 3, 768)
+      : previewMergeTraceShapeGroups(groups, tw, th);
     if (merged.length) groups = merged;
   }
   const shapeGroupsUnited = true;
@@ -1544,6 +1546,7 @@ export async function traceFlattenedSvgCanvasAsync(canvas, options = {}) {
   const vertPasses = clamp(Math.round(span / 200), 2, 5);
   for (let i = 0; i < vertPasses; i++) mask = dilateMaskVertical(mask, width, height, 2);
   mask = fillInteriorEnclosedByOutline(mask, width, height);
+  mask = fillRowExtents(mask, width, height);
   mask = closeMask(mask, width, height, 2);
 
   const cropped = cropMask(mask, width, height);
@@ -1554,8 +1557,8 @@ export async function traceFlattenedSvgCanvasAsync(canvas, options = {}) {
   return finishSilhouetteTrace(workMask, tw, th, ox, oy, [], 1, width, height, {
     mode: "silhouette",
     solidSilhouetteFill: true,
-    simplifyTol: Math.max(0.1, tw / 2800),
-    smoothPasses: 2,
+    simplifyTol: Math.max(0.06, tw / 3200),
+    smoothPasses: 1,
   });
 }
 

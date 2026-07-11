@@ -409,7 +409,6 @@ function buildWrapTraceSlabMesh(frame, bitmap, params, shapeGroups, d0, d1) {
   const { maskW, maskH, scale, artW, artHeight, xOff, zOff } = place;
   const hasMask = bitmap.mask?.length === maskW * maskH;
   if (!hasMask && !shapeGroups?.length) return null;
-  const anchorX = xOff + artW / 2;
   const rotation = params.decorRotation ?? 0;
   let groups = shapeGroups;
   if (rotation && groups?.length) {
@@ -445,8 +444,8 @@ function buildWrapTraceSlabMesh(frame, bitmap, params, shapeGroups, d0, d1) {
       const start = col;
       while (col < maskW && bandMaskFilled(mask, maskW, py0, py1, col)) col++;
       if (col <= start) continue;
-      const px0 = unwrapWrapX(xOff + start * scale, anchorX, frame.faceW);
-      const px1 = unwrapWrapX(xOff + col * scale, anchorX, frame.faceW);
+      const px0 = xOff + start * scale;
+      const px1 = xOff + col * scale;
       pushWrapRunShell(positions, indices, frame, px0, my0, px1, my1, d0, d1, { solid: true });
     }
   }
@@ -2738,18 +2737,18 @@ export function buildEmbossBitmap(meta, params, bitmap) {
     const sourceGroups = bitmap.shapeGroups?.length
       ? unionDenseTraceShapeGroups(bitmap.shapeGroups, maskW, maskH, artH, params, bitmap)
       : [];
-    if (frame.face === "wrap" && bitmap.mask?.length === maskW * maskH) {
-      const slab = buildWrapTraceSlabMesh(frame, bitmap, params, sourceGroups, d0, d1);
-      if (slab?.indices?.length) return slab;
+    if (sourceGroups.length) {
+      const faceGroups = remappedBitmapFaceGroups(bitmap, frame, params, sourceGroups, maskW, maskH, artH);
+      extrudeGroupsOnFace(positions, indices, frame, faceGroups, d0, d1, params);
+      return positions.length ? { positions, indices } : null;
     }
     if (frame.face === "wrap" && shouldUseWrapRunSlabs(bitmap)) {
       const slab = buildWrapTraceSlabMesh(frame, bitmap, params, sourceGroups, d0, d1);
       if (slab?.indices?.length) return slab;
     }
-    if (sourceGroups.length) {
-      const faceGroups = remappedBitmapFaceGroups(bitmap, frame, params, sourceGroups, maskW, maskH, artH);
-      extrudeGroupsOnFace(positions, indices, frame, faceGroups, d0, d1, params);
-      return positions.length ? { positions, indices } : null;
+    if (frame.face === "wrap" && bitmap.mask?.length === maskW * maskH) {
+      const slab = buildWrapTraceSlabMesh(frame, bitmap, params, [], d0, d1);
+      if (slab?.indices?.length) return slab;
     }
   }
 
@@ -3666,9 +3665,14 @@ function extrudeStrokeSegmentOnFace(outPos, outIdx, frame, x0, y0, x1, y1, half,
   face(p010, p110, p111, p011);
 }
 
-/** Extrude remapped art groups — wrap always uses seam-unwrapped slab runs (earcut slashes on curve). */
+/** Extrude remapped art groups — wrap uses direct extrude for simple solids, slabs for complex art. */
 function extrudeGroupsOnFace(outPos, outIdx, frame, faceGroups, d0, d1, params = null) {
   if (frame.face === "wrap" && faceGroups.length) {
+    const simpleSolid = faceGroups.length === 1 && !(faceGroups[0].holes?.length);
+    if (simpleSolid) {
+      extrudeGroupOnFace(outPos, outIdx, frame, faceGroups[0], d0, d1, params);
+      return;
+    }
     const isSvg = svgUsesVectorExtrude(params);
     const stepMm = params?.__labelExportStandoff
       ? DECAL_LAYER_MM

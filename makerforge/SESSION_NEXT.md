@@ -2,8 +2,22 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `879628e` (b276)
-- Cache-bust: `app.js?v=276` — header **b276**
+- Latest commit: (pending b277)
+- Cache-bust: `app.js?v=277` — header **b277**
+
+### 2026-07-11 — b277: Wrap logo — direct contour extrude, not broken slab strips
+
+**Symptom:** b276 showed jagged partial shape — straight edge, missing left side (slab-run artefact).
+
+**Root cause:** Wrap path preferred pixel **slab runs** over traced **shapeGroups** — column strips mapped wrong on cylinder.
+
+**Fix:**
+- Traced silhouettes use **direct wrap extrude** (earcut in arc-length space) for single solid shapes.
+- Slab runs only for complex multi-island / holed art fallback.
+- Merge text+shield islands into one group before extrude.
+- Keep BRISBANE banner satellites; fill row extents in SVG trace.
+
+- Cache **b277**. Hard refresh → **b277**, re-drop broncs.svg.
 
 ### 2026-07-11 — b276: Full logo on wrap — fix mid-mesh chop + direct SVG silhouette
 
