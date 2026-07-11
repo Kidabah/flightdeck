@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `(pending b259)`
+- Latest commit: `dc7227b` (b259)
 - Cache-bust: `app.js?v=259` — header **b259**
 
 ### 2026-07-11 — b259: Auto prefer colour logo + keep BRISBANE satellite text
