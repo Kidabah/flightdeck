@@ -2,8 +2,19 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: (pending b267)
-- Cache-bust: `app.js?v=267` — header **b267**
+- Latest commit: (pending b268)
+- Cache-bust: `app.js?v=268` — header **b268**
+
+### 2026-07-11 — b268: Fix wrap SVG earcut slashes — slabs only
+
+**Symptom:** b267 vector earcut on wrap → shattered triangle web inside bronco logo.
+
+**Fix:**
+- **Never earcut on wrap** — always `buildWrapArtSlabMesh` (seam-unwrapped pixel runs).
+- Finer mask (1600 cols, 3072 cell cap, 0.03 mm step), solid depth shells in preview.
+- Layout bbox uses filtered ink rings only (drops full-canvas background from sizing).
+
+- Cache **b268**. Hard refresh, re-load broncs.svg.
 
 ### 2026-07-11 — b267: Cleaner SVG on wrap — vector extrude + seam-unwrapped slabs
 

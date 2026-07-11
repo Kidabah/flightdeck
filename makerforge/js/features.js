@@ -250,12 +250,11 @@ const WRAP_DECAL_STEP_MM = 0.4;
 const WRAP_DECAL_TARGET_COLS = 560;
 const WRAP_DECAL_STEP_MIN_MM = 0.08;
 const WRAP_DECAL_STEP_MAX_MM = 0.26;
-/** Finer slabs for vector SVG on wrap fallback — seam-unwrapped run shells. */
-const WRAP_SVG_DECAL_TARGET_COLS = 1280;
-const WRAP_SVG_DECAL_STEP_MIN_MM = 0.035;
-const WRAP_SVG_DECAL_STEP_MAX_MM = 0.09;
-const WRAP_SVG_VECTOR_MAX_GROUPS = 8;
-const WRAP_SVG_VECTOR_MAX_PTS = 1600;
+/** Finer slabs for vector SVG on wrap — seam-unwrapped run shells (no earcut on curve). */
+const WRAP_SVG_DECAL_TARGET_COLS = 1600;
+const WRAP_SVG_DECAL_STEP_MIN_MM = 0.03;
+const WRAP_SVG_DECAL_STEP_MAX_MM = 0.075;
+const WRAP_SVG_MASK_MAX_CELLS = 3072;
 const WRAP_ART_VERTICAL_GUTTER_MM = 1.4;
 
 function wrapSafeArtHeight(frame, requestedHeight) {
@@ -438,22 +437,6 @@ function buildWrapTraceSlabMesh(frame, bitmap, params, shapeGroups, d0, d1) {
   return indices.length ? { positions, indices } : null;
 }
 
-function shapeGroupPointCount(groups) {
-  let n = 0;
-  for (const g of groups) {
-    n += g.outer?.length || 0;
-    for (const h of g.holes || []) n += h.length;
-  }
-  return n;
-}
-
-/** United SVG silhouettes are smooth enough for wrap earcut; dense traces stay on slabs. */
-function wrapSvgPreferVectorExtrude(params, faceGroups) {
-  if (!svgUsesVectorExtrude(params) || !faceGroups?.length) return false;
-  if (faceGroups.length > WRAP_SVG_VECTOR_MAX_GROUPS) return false;
-  return shapeGroupPointCount(faceGroups) <= WRAP_SVG_VECTOR_MAX_PTS;
-}
-
 /** Wrap art slabs — pixel mask + seam-unwrapped runs (same strategy as traced bitmap). */
 function buildWrapArtSlabMesh(frame, shapeGroups, d0, d1, opts = {}) {
   const bounds = shapeGroupsBounds2d(shapeGroups);
@@ -472,7 +455,7 @@ function buildWrapArtSlabMesh(frame, shapeGroups, d0, d1, opts = {}) {
   const minY = bounds.minY - pad;
   let maskW = Math.max(8, Math.ceil((spanX + pad * 2) / stepMm));
   let maskH = Math.max(8, Math.ceil((spanY + pad * 2) / stepMm));
-  const maxCells = opts.maxCells ?? 2048;
+  const maxCells = opts.maxCells ?? WRAP_SVG_MASK_MAX_CELLS;
   while (Math.max(maskW, maskH) > maxCells && stepMm < 1.2) {
     stepMm *= 1.15;
     maskW = Math.max(8, Math.ceil((spanX + pad * 2) / stepMm));
@@ -494,7 +477,7 @@ function buildWrapArtSlabMesh(frame, shapeGroups, d0, d1, opts = {}) {
 
   const positions = [];
   const indices = [];
-  const exportSolid = !!opts.solid;
+  const exportSolid = opts.solid !== false;
   for (let row = 0; row < maskH; row += stepPx) {
     const py0 = row;
     const py1 = Math.min(maskH, row + stepPx);
@@ -2786,7 +2769,7 @@ const SVG_PATH_SAMPLE_SPACING = 0.1;
 const SVG_PATH_MAX_POINTS = 1600;
 const SVG_PATH_DEDUPE_EPS = 0.04;
 /** Raster silhouette cap for SVG prep (speed — avoids megapixel unions). */
-const SVG_SILHOUETTE_MAX_DIM = 768;
+const SVG_SILHOUETTE_MAX_DIM = 1024;
 
 function svgVectorSimplifyTol(sw, sh) {
   return Math.max(0.08, Math.max(sw, sh) / 1100);
@@ -3197,8 +3180,11 @@ function extrudeStrokePathList(positions, indices, frame, paths, mapPt, lineWidt
 
 function computeSvgArtLayout(parsed, meta, params) {
   const strokePaths = parsed.strokePaths || [];
-  const fillRings = parsed.fillRings || [];
-  const polylines = parsed.polylines || [...strokePaths, ...fillRings];
+  const fillItems = parsed.fillRingItems || (parsed.fillRings || []).map((ring) => ({ ring, fill: "#000000" }));
+  const inkRings = pickPrimarySvgFillRings(fillItems, parsed.viewBox);
+  const polylines = inkRings.length
+    ? [...strokePaths, ...inkRings]
+    : (parsed.polylines || [...strokePaths, ...(parsed.fillRings || [])]);
   if (!polylines.length) return null;
 
   const frame = getEmbossFaceFrame(meta, params.embossFace || "front", params);
@@ -3544,17 +3530,9 @@ function extrudeStrokeSegmentOnFace(outPos, outIdx, frame, x0, y0, x1, y1, half,
   face(p010, p110, p111, p011);
 }
 
-/** Extrude remapped art groups — wrap uses vector silhouettes or seam-unwrapped slab runs. */
+/** Extrude remapped art groups — wrap always uses seam-unwrapped slab runs (earcut slashes on curve). */
 function extrudeGroupsOnFace(outPos, outIdx, frame, faceGroups, d0, d1, params = null) {
   if (frame.face === "wrap" && faceGroups.length) {
-    if (wrapSvgPreferVectorExtrude(params, faceGroups)) {
-      const before = outPos.length;
-      for (const group of faceGroups) {
-        extrudeGroupOnFace(outPos, outIdx, frame, group, d0, d1, params);
-      }
-      if (outPos.length > before) return;
-    }
-
     const isSvg = svgUsesVectorExtrude(params);
     const stepMm = params?.__labelExportStandoff
       ? DECAL_LAYER_MM
@@ -3566,8 +3544,9 @@ function extrudeGroupsOnFace(outPos, outIdx, frame, faceGroups, d0, d1, params =
       targetCols: isSvg ? WRAP_SVG_DECAL_TARGET_COLS : WRAP_DECAL_TARGET_COLS,
       stepMin: isSvg ? WRAP_SVG_DECAL_STEP_MIN_MM : WRAP_DECAL_STEP_MIN_MM,
       stepMax: isSvg ? WRAP_SVG_DECAL_STEP_MAX_MM : WRAP_DECAL_STEP_MAX_MM,
+      maxCells: isSvg ? WRAP_SVG_MASK_MAX_CELLS : 2048,
       dilatePasses: 1,
-      solid: !!params?.__labelExportStandoff,
+      solid: true,
     });
     if (slab?.indices?.length) {
       const base = outPos.length / 3;
