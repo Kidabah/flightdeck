@@ -434,6 +434,9 @@ function buildWrapTraceSlabMesh(frame, bitmap, params, shapeGroups, d0, d1, opts
 
   const positions = [];
   const indices = [];
+  const wrapSeam = frame.face === "wrap" && frame.faceW > 0;
+  const anchorX = xOff + artW / 2;
+  const mapRunX = (px) => (wrapSeam ? unwrapWrapX(px, anchorX, frame.faceW) : px);
   for (let row = 0; row < maskH; row += stepPx) {
     const py0 = row;
     const py1 = Math.min(maskH, row + stepPx);
@@ -445,8 +448,8 @@ function buildWrapTraceSlabMesh(frame, bitmap, params, shapeGroups, d0, d1, opts
       const start = col;
       while (col < maskW && bandMaskFilled(mask, maskW, py0, py1, col)) col++;
       if (col <= start) continue;
-      const px0 = xOff + start * scale;
-      const px1 = xOff + col * scale;
+      const px0 = mapRunX(xOff + start * scale);
+      const px1 = mapRunX(xOff + col * scale);
       pushWrapRunShell(positions, indices, frame, px0, my0, px1, my1, d0, d1, { solid: true });
     }
   }
@@ -2726,15 +2729,10 @@ export function buildEmbossBitmap(meta, params, bitmap) {
   const isOutline = bitmap.mode === "outline";
   const denseTrace = (bitmap.shapeGroups?.length ?? 0) > 8;
 
-  // Line-art raster mask — extrude every ink pixel (matches trace preview overlay).
+  // Line-art raster mask — row slabs (wrap uses seam-unwrapped runs + fine rows).
   if (bitmap.outlineRaster && bitmap.mask?.length === maskW * maskH) {
-    const slab = buildWrapTraceSlabMesh(frame, bitmap, params, [], d0, d1);
-    if (slab?.indices?.length) return slab;
-  }
-
-  // Wrap silhouettes — ink pixel slabs (coffee-bag strategy). Avoids broken multi-island contour on curve.
-  if (frame.face === "wrap" && bitmap.mask?.length === maskW * maskH && !bitmap.outlineRaster) {
-    const slab = buildWrapTraceSlabMesh(frame, bitmap, params, [], d0, d1, { fineRows: true });
+    const slabOpts = frame.face === "wrap" ? { fineRows: true } : {};
+    const slab = buildWrapTraceSlabMesh(frame, bitmap, params, [], d0, d1, slabOpts);
     if (slab?.indices?.length) return slab;
   }
 

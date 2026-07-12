@@ -4,11 +4,24 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: `2b6a84a` — **b288** deployed Pi + GitHub
+- Current: **b289** — cooler wrap seam unwrap + contour path for silhouettes
+- Previous: **b288** — full raster import reset (coffee bag after SVG)
 - Golden build: **b284** (tag: `makerdeck-golden-b284`) — trace preview + jar emboss
-- Current: **b288** — full raster import reset (no hidden SVG state)
-- Cache-bust: `app.js?v=288` — header **b288**
-- Hard refresh required (Ctrl+Shift+R) if header still shows b285
+- Cache-bust: `app.js?v=289`, `features.js?v=289` — header **b289**
+- Hard refresh required (Ctrl+Shift+R)
+
+### 2026-07-12 — b289: Circle cooler wrap — seam unwrap + contour silhouettes
+
+**Symptom:** Wests Tigers / solid logos on circle cooler **Wrap** — horizontal black bars, shredded text at bottom. Jar/front still OK.
+
+**Cause:** b286 forced all wrap silhouettes through `buildWrapTraceSlabMesh` **before** contour/shapeGroups path. Row slabs had no `unwrapWrapX` at the cylinder seam (unlike `buildWrapArtSlabMesh`).
+
+**Fix:**
+- `buildWrapTraceSlabMesh` — seam-unwrap runs via `unwrapWrapX` (anchor = art centre).
+- Removed early wrap-silhouette slab shortcut — silhouettes use `extrudeGroupsOnFace` (single island → direct contour; multi → art slabs with unwrap).
+- Wrap line art keeps fine-row slabs with seam unwrap.
+
+**Test:** Jar/front coffee bag first, then Wests Tigers PNG on circle cooler **Wrap**.
 
 ### 2026-07-11 — b288: Drop PNG/JPG — clear hidden SVG + old trace state
 
