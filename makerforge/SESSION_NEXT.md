@@ -4,8 +4,16 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b321** — Wrap arch up/down banner bow
-- Cache-bust: `app.js?v=321` — header **b321**
+- Current: **b322** — Fix stale build tag (header showed b315 while on b321 code)
+- Cache-bust: `app.js?v=322` — header **b322**
+
+### 2026-07-12 — b322: Fix stale build tag (MAKERDECK_BUILD stuck on b315)
+
+**Symptom:** Pi had b321 wrap-arc code but `MAKERDECK_BUILD = "b315"` — header showed 315 after load.
+
+**Fix:** Align `MAKERDECK_BUILD`, `index.html` `app.js?v=`, to **b322**. Hard refresh required.
+
+**Files:** `app.js`, `index.html`
 
 ### 2026-07-12 — b321: Wrap arch up / arch down banner bow
 
