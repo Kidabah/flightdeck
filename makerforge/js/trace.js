@@ -1294,18 +1294,47 @@ function traceLooksLikeLineArt(result) {
   return false;
 }
 
+function wrapOutlineTraceUsable(result) {
+  if (!result?.outlineRaster || result.tooComplex) return false;
+  if (traceLooksLikeLineArt(result)) return true;
+  const fill = (result.maskFillPct ?? 0) / 100;
+  const runs = result.rectCount ?? 0;
+  // Megapixel outline fast-path bins the whole crop (lum<threshold) — not line art.
+  return runs > 40 && fill >= 0.04 && fill <= 0.45;
+}
+
+function wrapSilhouetteTraceUsable(result) {
+  if (!result || result.tooComplex) return false;
+  const fill = (result.maskFillPct ?? 0) / 100;
+  return fill >= 0.04 && fill <= 0.50;
+}
+
 function chooseAutoTraceResult(outlineResult, silhouetteResult, colorLogoResult = null, options = {}) {
-  if (options.preferWrapLineArt && outlineResult?.outlineRaster && !outlineResult?.tooComplex) {
-    return {
-      ...outlineResult,
-      autoTrace: true,
-      autoPickedMode: "outline",
-      autoScores: {
-        outline: Math.round(traceAutoScore(outlineResult)),
-        silhouette: Math.round(traceAutoScore(silhouetteResult)),
-        colorLogo: colorLogoResult ? Math.round(traceAutoScore(colorLogoResult)) : -1e9,
-      },
-    };
+  if (options.preferWrapLineArt) {
+    if (wrapOutlineTraceUsable(outlineResult)) {
+      return {
+        ...outlineResult,
+        autoTrace: true,
+        autoPickedMode: "outline",
+        autoScores: {
+          outline: Math.round(traceAutoScore(outlineResult)),
+          silhouette: Math.round(traceAutoScore(silhouetteResult)),
+          colorLogo: colorLogoResult ? Math.round(traceAutoScore(colorLogoResult)) : -1e9,
+        },
+      };
+    }
+    if (wrapSilhouetteTraceUsable(silhouetteResult)) {
+      return {
+        ...silhouetteResult,
+        autoTrace: true,
+        autoPickedMode: "silhouette",
+        autoScores: {
+          outline: Math.round(traceAutoScore(outlineResult)),
+          silhouette: Math.round(traceAutoScore(silhouetteResult)),
+          colorLogo: colorLogoResult ? Math.round(traceAutoScore(colorLogoResult)) : -1e9,
+        },
+      };
+    }
   }
   if (options.preferWrapLineArt && traceLooksLikeLineArt(outlineResult)) {
     return {

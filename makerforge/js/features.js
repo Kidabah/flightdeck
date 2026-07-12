@@ -2812,6 +2812,11 @@ function buildWrapGoldenSlabEmboss(frame, bitmap, params, maskW, maskH, d0, d1) 
     slabH = ds.maskH;
   }
   let slabBitmap = { ...b, mask: slabMask, width: slabW, height: slabH };
+  let onPx = 0;
+  for (let i = 0; i < slabMask.length; i++) if (slabMask[i]) onPx++;
+  const slabFill = slabMask.length ? onPx / slabMask.length : 0;
+  // Outline fast-path on megapixel art floods the crop — embosses a solid slab, not the logo.
+  if (b.outlineRaster && slabFill > 0.52 && !b.colorLogo) return null;
   const fill = b.maskFillPct ?? 0;
   const runCount = b.rectCount ?? b.rects?.length ?? 0;
   // Only close gaps for dense line-art masks — morphological close erodes thin logo text on solid silhouettes.

@@ -4,8 +4,16 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b298** — wrap solid logo: skip morphological close (thin text erode fix)
-- Cache-bust: `app.js?v=298`, `trace.js?v=298`, `features.js?v=298` — header **b298**
+- Current: **b299** — fix wrap solid slab blob (bad outline flood fill on megapixel art)
+- Cache-bust: `app.js?v=299`, `trace.js?v=299`, `features.js?v=299` — header **b299**
+
+### 2026-07-12 — b299: Stop wrap emboss solid black slab (outline flood fill)
+
+**Symptom:** b298 made logos worse — solid dark rectangle on wrap, no detail.
+
+**Cause:** b298 always picked `outlineRaster` on wrap. Megapixel outline fast-path bins entire crop (lum < threshold) → ~100% fill mask → row shells = solid slab.
+
+**Fix:** Wrap auto only picks outline when fill 4–45% or line-art meta. Otherwise solid silhouette. Reject outline blob masks >52% fill at emboss time.
 
 ### 2026-07-12 — b298: Broncos/Warriors — stop mask close eroding thin logo text
 
