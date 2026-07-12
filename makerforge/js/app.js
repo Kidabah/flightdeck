@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=307";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette } from "./features.js?v=316";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette } from "./features.js?v=317";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=304";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=201";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=210";
@@ -5180,7 +5180,8 @@ document.getElementById("emboss-text").addEventListener("input", (e) => {
   state.embossText = e.target.value;
   if (textHasInk(state.embossText) && hasGraphicArt(buildParams()) && (state.embossTextLayout || "flat") === "flat") {
     state.embossTextLayout = "arc";
-    applyArcPreset("arch-up", { nudgeGraphic: true });
+    const wrapArc = state.embossFace === "wrap";
+    applyArcPreset(wrapArc ? "banner" : "arch-up", { nudgeGraphic: true });
     syncTextLayoutUi();
   }
   updateDecorUi();
@@ -5204,7 +5205,7 @@ document.querySelectorAll(".layout-btn").forEach((btn) => {
     state.embossTextLayout = next;
     if (next === "arc") {
       if (!state.embossArcPreset || state.embossArcPreset === "custom") {
-        applyArcPreset("arch-up", { nudgeGraphic: state.embossFace === "wrap" && hasGraphicArt(buildParams()) });
+        applyArcPreset(state.embossFace === "wrap" ? "banner" : "arch-up", { nudgeGraphic: state.embossFace === "wrap" && hasGraphicArt(buildParams()) });
       }
       state.textRotation = 0;
     }

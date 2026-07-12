@@ -1716,6 +1716,9 @@ function autoArcRadiusMm(frame, meta, params, labelH) {
   if (graphic) {
     const g = Math.max(graphic.artW, graphic.artH);
     radius = Math.max(radius, g * 0.88 + labelH * 0.75);
+    if (frame.face === "wrap") {
+      radius = Math.max(radius, graphic.artW * 1.35 + labelH * 1.1);
+    }
   }
   return clamp(radius, 18, limits.maxAuto);
 }
@@ -1730,6 +1733,44 @@ export function resolveArcRadiusMm(frame, meta, params, labelH) {
   const curve = clamp(params.embossArcCurve ?? 60, 0, 100);
   const scale = 0.48 + (curve / 100) * 1.05;
   return clamp(auto * scale, 15, limits.max);
+}
+
+/** Face-local bounds after mapping arc raster pixels to mm. */
+function arcGlyphFaceBounds(canvasXOff, canvasZOff, glyph, scale, maskH) {
+  const left = canvasXOff + glyph.left * scale;
+  const right = canvasXOff + (glyph.right + 1) * scale;
+  const bottom = canvasZOff + (maskH - glyph.bottom - 1) * scale;
+  const top = canvasZOff + (maskH - glyph.top) * scale;
+  return { canvasXOff, canvasZOff, left, right, bottom, top };
+}
+
+function shiftArcGlyphBounds(bounds, dx, dz) {
+  return {
+    canvasXOff: bounds.canvasXOff + dx,
+    canvasZOff: bounds.canvasZOff + dz,
+    left: bounds.left + dx,
+    right: bounds.right + dx,
+    bottom: bounds.bottom + dz,
+    top: bounds.top + dz,
+  };
+}
+
+/** Pin arc ink above/below a wrap graphic — centre on logo, not arc circle origin. */
+function anchorWrapArcToGraphic(bounds, anchor, params, labelH) {
+  const gap = Math.max(1.2, labelH * 0.1);
+  const glyphCx = (bounds.left + bounds.right) / 2;
+  const dx = anchor.cx + (params.textOffsetX ?? 0) - glyphCx;
+  const side = params.embossArcSide === "down" ? "down" : "up";
+  const oy = params.textOffsetY ?? 0;
+  const dz = side === "down"
+    ? anchor.bottom - gap + oy - bounds.top
+    : anchor.top + gap + oy - bounds.bottom;
+  const shifted = shiftArcGlyphBounds(bounds, dx, dz);
+  return {
+    ...shifted,
+    cx: anchor.cx + (params.textOffsetX ?? 0),
+    cy: (shifted.bottom + shifted.top) / 2,
+  };
 }
 
 /** @deprecated bounds helper — prefer rasterTextMask dimensions. */
@@ -1832,35 +1873,49 @@ function computeTextArtLayout(meta, params) {
   if (arcMode && raster.arcCenterPx) {
     const [acxPx, acyPx] = raster.arcCenterPx;
     const faceCy = frame.horizontal ? 0 : frame.centerZ;
-    let targetCx;
-    let targetCy;
+    const seedCx = frame.face === "wrap" ? frame.faceW / 2 : (params.textOffsetX ?? 0);
+    const seedCy = faceCy;
+    let bounds = arcGlyphFaceBounds(
+      seedCx - acxPx * scale,
+      seedCy - (maskH - acyPx) * scale,
+      glyph,
+      scale,
+      maskH,
+    );
     if (frame.face === "wrap") {
       const anchor = graphicArtAnchor(frame, meta, params);
       if (anchor) {
-        targetCx = anchor.cx + (params.textOffsetX ?? 0);
-        const side = params.embossArcSide === "down" ? "down" : "up";
-        const gap = artH * 0.12;
-        const baseCy = side === "down"
-          ? anchor.bottom - artH * 0.42 - gap
-          : anchor.top + artH * 0.42 + gap;
-        targetCy = baseCy + (params.textOffsetY ?? 0);
+        const anchored = anchorWrapArcToGraphic(bounds, anchor, params, labelH);
+        bounds = anchored;
+        cx = anchored.cx;
+        cy = anchored.cy;
       } else {
         const { xOff, zOff } = decorPlacementOffsets(params, frame, artW, artH, "text");
-        targetCx = xOff + artW / 2;
-        targetCy = zOff + artH / 2;
+        const dx = xOff + artW / 2 - (bounds.left + bounds.right) / 2;
+        const dz = zOff + artH / 2 - (bounds.bottom + bounds.top) / 2;
+        bounds = shiftArcGlyphBounds(bounds, dx, dz);
+        cx = (bounds.left + bounds.right) / 2;
+        cy = (bounds.bottom + bounds.top) / 2;
       }
     } else {
-      targetCx = params.textOffsetX ?? 0;
-      targetCy = faceCy + (params.textOffsetY ?? 0);
+      const targetCx = params.textOffsetX ?? 0;
+      const targetCy = faceCy + (params.textOffsetY ?? 0);
+      bounds = arcGlyphFaceBounds(
+        targetCx - acxPx * scale,
+        targetCy - (maskH - acyPx) * scale,
+        glyph,
+        scale,
+        maskH,
+      );
+      cx = targetCx;
+      cy = targetCy;
     }
-    canvasXOff = targetCx - acxPx * scale;
-    canvasZOff = targetCy - (maskH - acyPx) * scale;
-    left = canvasXOff + glyph.left * scale;
-    right = canvasXOff + (glyph.right + 1) * scale;
-    bottom = canvasZOff + (maskH - glyph.bottom - 1) * scale;
-    top = canvasZOff + (maskH - glyph.top) * scale;
-    cx = targetCx;
-    cy = targetCy;
+    canvasXOff = bounds.canvasXOff;
+    canvasZOff = bounds.canvasZOff;
+    left = bounds.left;
+    right = bounds.right;
+    bottom = bounds.bottom;
+    top = bounds.top;
     rotation = params.embossArcTilt ?? 0;
   } else {
     const { xOff, zOff } = decorPlacementOffsets(params, frame, artW, artH, "text");

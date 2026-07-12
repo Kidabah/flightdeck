@@ -4,8 +4,21 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b316** — Wrap arc text anchors above/below graphic
-- Cache-bust: `app.js?v=316` — header **b316**
+- Current: **b317** — Wrap arc text pins to graphic ink bounds
+- Cache-bust: `app.js?v=317` — header **b317**
+
+### 2026-07-12 — b317: Wrap arc text glyph anchoring
+
+**Problem:** b316 put arc text on the right side of the wrap but still offset (arc circle origin ≠ ink centre) and tilted — titles did not sit centred above/below the logo.
+
+**Fix:**
+- Anchor to **glyph ink bounds**, not arc raster centre — horizontal centre on logo, bottom/top edge above/below graphic
+- Wider auto arc radius on wrap (flatter title bar)
+- Auto arc preset on wrap + graphic → **Wide (banner)** instead of tight arch-up
+
+**Files:** `features.js`, `app.js`, `index.html`
+
+**Test:** Mustang wrap → MUSTANG centred above car, same face. Hard refresh `app.js?v=317`.
 
 ### 2026-07-12 — b316: Wrap arc text above/below graphic
 
