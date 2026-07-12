@@ -2,7 +2,7 @@
  * Accent bands, emboss, honeycomb stamp, stackable hex grid, mesh merge.
  */
 
-import { dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, filterDegenerateShapeGroups, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareSvgShapeGroups, prepareStrokePaths, previewMergeTraceShapeGroups, rasterizeShapeGroupsToMask, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap, unionDenseEmbossShapeGroups, unionShapeGroupsToPrepared } from "./contour.js?v=241";
+import { cleanTraceSilhouetteGroups, dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, filterDegenerateShapeGroups, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareSvgShapeGroups, prepareStrokePaths, previewMergeTraceShapeGroups, rasterizeShapeGroupsToMask, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap, unionDenseEmbossShapeGroups, unionShapeGroupsToPrepared } from "./contour.js?v=241";
 import { decorPlacementOffsets, decorArtRect, rotateFacePoint, rotateShapeGroup } from "./decor.js";
 import {
   profileOutlineNormals,
@@ -434,7 +434,7 @@ function downsampleBitmapMask(mask, maskW, maskH, factor = 2) {
   return { mask: out, maskW: nw, maskH: nh };
 }
 
-/** Close ink mask → contour extrude on wrap (correct Y via remappedBitmapFaceGroups). */
+/** Close ink mask → united solid contour on wrap (never row-slab fallback). */
 function buildWrapDenseLineArtEmboss(frame, bitmap, params, maskW, maskH, artH, d0, d1) {
   let mask = bitmap.mask instanceof Uint8Array ? bitmap.mask : new Uint8Array(bitmap.mask);
   let w = maskW;
@@ -442,19 +442,37 @@ function buildWrapDenseLineArtEmboss(frame, bitmap, params, maskW, maskH, artH, 
   if (svgIsPreview(params) && Math.max(w, h) > 1200) {
     ({ mask, maskW: w, maskH: h } = downsampleBitmapMask(mask, w, h, 2));
   }
-  mask = closeBitmapMask(mask, w, h, 2);
+  mask = closeBitmapMask(mask, w, h, 3);
   const hiRes = w >= 1200;
-  const simplifyTol = hiRes ? Math.max(0.1, w / 1200) : Math.max(0.22, w / 500);
-  const shapeGroups = prepareShapeGroups(
+  const simplifyTol = hiRes ? Math.max(0.08, w / 1400) : Math.max(0.2, w / 550);
+
+  let groups = prepareShapeGroups(
     groupPolygonsWithHoles(maskToPolygons(mask, w, h)),
     simplifyTol,
-    hiRes ? 2 : 1,
+    1,
   );
-  if (!shapeGroups.length) return null;
+  groups = filterDegenerateShapeGroups(groups, w, h);
+  if (groups.length > 1) {
+    const merged = unionShapeGroupsToPrepared(groups, w, h, simplifyTol, 1, 6, 640);
+    if (merged.length) groups = merged;
+  }
+  if (groups.length > 1) {
+    const { groups: united } = unionDenseEmbossShapeGroups(groups, w, h, {
+      simplifyTol,
+      smoothPasses: 1,
+      islandThreshold: 1,
+    });
+    if (united?.length) groups = united;
+  }
+  groups = cleanTraceSilhouetteGroups(groups, w, h);
+  if (!groups.length) return null;
+
   const positions = [];
   const indices = [];
-  const faceGroups = remappedBitmapFaceGroups(bitmap, frame, params, shapeGroups, w, h, artH);
-  extrudeGroupsOnFace(positions, indices, frame, faceGroups, d0, d1, params);
+  const faceGroups = remappedBitmapFaceGroups(bitmap, frame, params, groups, w, h, artH);
+  for (const group of faceGroups) {
+    extrudeGroupOnFace(positions, indices, frame, group, d0, d1, params);
+  }
   return positions.length ? { positions, indices } : null;
 }
 
@@ -2784,15 +2802,16 @@ export function buildEmbossBitmap(meta, params, bitmap) {
   const isOutline = bitmap.mode === "outline";
   const denseTrace = (bitmap.shapeGroups?.length ?? 0) > 8;
 
-  // Line-art raster mask — fine 1px rows for sparse art (coffee bag); dense wrap logos → solid contour.
+  // Line-art raster mask — sparse wrap (coffee bag) uses fine rows; dense logos → united solid contour only.
   if (bitmap.outlineRaster && bitmap.mask?.length === maskW * maskH) {
     if (frame.face === "wrap" && wrapLineArtNeedsSolidEmboss(bitmap)) {
       const solid = buildWrapDenseLineArtEmboss(frame, bitmap, params, maskW, maskH, artH, d0, d1);
       if (solid?.indices?.length) return solid;
+    } else {
+      const slabOpts = frame.face === "wrap" ? { fineRows: true } : {};
+      const slab = buildWrapTraceSlabMesh(frame, bitmap, params, [], d0, d1, slabOpts);
+      if (slab?.indices?.length) return slab;
     }
-    const slabOpts = frame.face === "wrap" ? { fineRows: true } : {};
-    const slab = buildWrapTraceSlabMesh(frame, bitmap, params, [], d0, d1, slabOpts);
-    if (slab?.indices?.length) return slab;
   }
 
   // Outline stroke extrusion is per-segment — freezes wrap preview on heraldic traces. Prefer merged solids.

@@ -4,19 +4,16 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b291** — dense wrap line art → solid contour (fixes upside-down + bars)
-- Previous: **b290** — dense grid slabs (superseded)
-- Cache-bust: `app.js?v=291`, `features.js?v=291` — header **b291**
+- Current: **b292** — dense wrap logos united to single solid contour (no row-slab fallback)
+- Cache-bust: `app.js?v=292`, `features.js?v=292` — header **b292**
 
-### 2026-07-12 — b291: Dense wrap line art — solid contour not grid slabs
+### 2026-07-12 — b292: Wests Tigers wrap — union to single solid contour
 
-**Symptom:** b290 Wests Tigers upside down + still shredded. Coffee bag wrap still good.
+**Symptom:** b291 still shredded; coffee bag wrap still perfect.
 
-**Cause:** b290 grid slabs used wrong Y (no mask flip). Row shells still glitch on block text.
+**Cause:** Multi-island contour hit `buildWrapArtSlabMesh` row fallback; dense logos also fell back to 1px rows when union failed.
 
-**Fix:** Dense wrap line art (≥28% fill) → close mask → `extrudeGroupsOnFace` contour (same Y as coffee bag via `remappedBitmapFaceGroups`). Coffee bag unchanged (sparse fine rows).
-
-**Test:** Coffee bag wrap, then Wests Tigers wrap — right way up, clean text.
+**Fix:** Close mask → union all islands → `extrudeGroupOnFace` per group directly (no art-slab rows). Dense wrap never falls back to fine pixel rows.
 
 ### 2026-07-12 — b289: Circle cooler wrap — seam unwrap + contour silhouettes
 
