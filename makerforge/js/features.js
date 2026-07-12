@@ -434,58 +434,34 @@ function downsampleBitmapMask(mask, maskW, maskH, factor = 2) {
   return { mask: out, maskW: nw, maskH: nh };
 }
 
-function largestShapeGroup(groups) {
-  if (!groups?.length) return [];
-  if (groups.length === 1) return groups;
-  let best = groups[0];
-  let bestArea = 0;
-  for (const g of groups) {
-    const b = shapeGroupsBounds2d([g]);
-    if (!b) continue;
-    const area = (b.maxX - b.minX) * (b.maxY - b.minY);
-    if (area > bestArea) {
-      bestArea = area;
-      best = g;
-    }
-  }
-  return [best];
+/** Light mask close for dense wrap line art — same row shells as coffee bag. */
+function preprocessWrapDenseLineArtMask(bitmap, maskW, maskH) {
+  let mask = bitmap.mask instanceof Uint8Array ? bitmap.mask.slice() : new Uint8Array(bitmap.mask);
+  mask = closeBitmapMask(mask, maskW, maskH, 1);
+  return { ...bitmap, mask: Array.from(mask) };
 }
 
-/** Heavy wrap line art — merge to one solid, seam-unwrapped art slabs (no earcut, no 1px shards). */
-function buildWrapDenseLineArtEmboss(frame, bitmap, params, maskW, maskH, artH, d0, d1) {
-  let mask = bitmap.mask instanceof Uint8Array ? bitmap.mask : new Uint8Array(bitmap.mask);
-  let w = maskW;
-  let h = maskH;
-  if (svgIsPreview(params) && Math.max(w, h) > 1200) {
-    ({ mask, maskW: w, maskH: h } = downsampleBitmapMask(mask, w, h, 2));
+/** Split wide horizontal runs so quads hug the cylinder (full-width text rows). */
+function pushWrapRunShellSpan(outPos, outIdx, frame, px0, px1, my0, my1, d0, d1, opts = {}) {
+  const maxRunMm = opts.maxRunMm;
+  if (frame.face !== "wrap" || !maxRunMm || maxRunMm <= 0) {
+    pushWrapRunShell(outPos, outIdx, frame, px0, my0, px1, my1, d0, d1, opts);
+    return;
   }
-  mask = closeBitmapMask(mask, w, h, 2);
-  mask = dilateMask(mask, w, h, 1);
-  mask = closeBitmapMask(mask, w, h, 1);
-  const simplifyTol = Math.max(0.12, w / 900);
-  let groups = prepareShapeGroups(
-    groupPolygonsWithHoles(maskToPolygons(mask, w, h)),
-    simplifyTol,
-    1,
-  );
-  groups = filterDegenerateShapeGroups(groups, w, h);
-  if (groups.length > 1) {
-    const united = unionShapeGroupsToPrepared(groups, w, h, simplifyTol, 1, 4, 512);
-    groups = united.length ? united : largestShapeGroup(groups);
+  let a = px0;
+  let b = px1;
+  if (b < a) [a, b] = [b, a];
+  const span = b - a;
+  if (span <= maxRunMm) {
+    pushWrapRunShell(outPos, outIdx, frame, a, my0, b, my1, d0, d1, opts);
+    return;
   }
-  if (!groups.length) return null;
-  const faceGroups = remappedBitmapFaceGroups(bitmap, frame, params, groups, w, h, artH);
-  const preview = svgIsPreview(params);
-  return buildWrapArtSlabMesh(frame, faceGroups, d0, d1, {
-    targetCols: preview ? 320 : WRAP_DECAL_TARGET_COLS,
-    stepMin: WRAP_DECAL_STEP_MIN_MM,
-    stepMax: preview ? 0.22 : WRAP_DECAL_STEP_MAX_MM,
-    maxCells: preview ? 640 : 1536,
-    dilatePasses: 2,
-    solid: true,
-    previewMaxRows: WRAP_TRACE_PREVIEW_MAX_ROWS,
-    maxPreviewIndices: preview ? WRAP_SVG_PREVIEW_MAX_INDICES : 0,
-  });
+  const n = Math.ceil(span / maxRunMm);
+  for (let i = 0; i < n; i++) {
+    const sx0 = a + (span * i) / n;
+    const sx1 = a + (span * (i + 1)) / n;
+    pushWrapRunShell(outPos, outIdx, frame, sx0, my0, sx1, my1, d0, d1, opts);
+  }
 }
 
 /** Wrap trace from pixel mask — radial shells (no earcut slashes, no row-cap z-fight). */
@@ -522,6 +498,10 @@ function buildWrapTraceSlabMesh(frame, bitmap, params, shapeGroups, d0, d1, opts
   const wrapSeam = frame.face === "wrap" && frame.faceW > 0;
   const anchorX = xOff + artW / 2;
   const mapRunX = (px) => (wrapSeam ? unwrapWrapX(px, anchorX, frame.faceW) : px);
+  const runOpts = {
+    solid: true,
+    maxRunMm: wrapSeam ? clamp(artW * 0.12, 3.5, 8) : 0,
+  };
   for (let row = 0; row < maskH; row += stepPx) {
     const py0 = row;
     const py1 = Math.min(maskH, row + stepPx);
@@ -535,7 +515,7 @@ function buildWrapTraceSlabMesh(frame, bitmap, params, shapeGroups, d0, d1, opts
       if (col <= start) continue;
       const px0 = mapRunX(xOff + start * scale);
       const px1 = mapRunX(xOff + col * scale);
-      pushWrapRunShell(positions, indices, frame, px0, my0, px1, my1, d0, d1, { solid: true });
+      pushWrapRunShellSpan(positions, indices, frame, px0, px1, my0, my1, d0, d1, runOpts);
     }
   }
   return indices.length ? { positions, indices } : null;
@@ -2814,16 +2794,15 @@ export function buildEmbossBitmap(meta, params, bitmap) {
   const isOutline = bitmap.mode === "outline";
   const denseTrace = (bitmap.shapeGroups?.length ?? 0) > 8;
 
-  // Line-art raster mask — sparse wrap (coffee bag) uses fine rows; dense logos → united solid contour only.
+  // Line-art raster — coffee-bag row shells on wrap; dense logos get light mask close + wide-run split.
   if (bitmap.outlineRaster && bitmap.mask?.length === maskW * maskH) {
+    let slabBitmap = bitmap;
     if (frame.face === "wrap" && wrapLineArtNeedsSolidEmboss(bitmap)) {
-      const solid = buildWrapDenseLineArtEmboss(frame, bitmap, params, maskW, maskH, artH, d0, d1);
-      if (solid?.indices?.length) return solid;
-    } else {
-      const slabOpts = frame.face === "wrap" ? { fineRows: true } : {};
-      const slab = buildWrapTraceSlabMesh(frame, bitmap, params, [], d0, d1, slabOpts);
-      if (slab?.indices?.length) return slab;
+      slabBitmap = preprocessWrapDenseLineArtMask(bitmap, maskW, maskH);
     }
+    const slabOpts = frame.face === "wrap" ? { fineRows: true } : {};
+    const slab = buildWrapTraceSlabMesh(frame, slabBitmap, params, [], d0, d1, slabOpts);
+    if (slab?.indices?.length) return slab;
   }
 
   // Outline stroke extrusion is per-segment — freezes wrap preview on heraldic traces. Prefer merged solids.

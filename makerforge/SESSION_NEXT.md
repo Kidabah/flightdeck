@@ -4,14 +4,14 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b294** — dense wrap: merge solid + art slabs (outward, no earcut/shards)
-- Cache-bust: `app.js?v=294` — header **b294**
+- Current: **b295** — dense wrap back to coffee-bag row shells + wide-run split
+- Cache-bust: `app.js?v=295` — header **b295**
 
-### 2026-07-12 — b294: Dense wrap — merged art slabs outward (not pocket/earcut)
+### 2026-07-12 — b295: Dense wrap — coffee-bag path + split wide text runs
 
-**Symptom:** b293 pocket embed = tiny shards. b292 earcut = horizontal slices. Coffee bag wrap still perfect.
+**Symptom:** b292–b294 experiments (earcut, pocket, art slabs) all worse. Coffee bag wrap still perfect.
 
-**Fix:** Close+dilate mask → union one solid → `buildWrapArtSlabMesh` with normal outward standoff + seam unwrap. Trace stays line art; 3D reads as one raised logo.
+**Fix:** Revert dense logos to **same row shells as coffee bag**. Dense only adds light mask close + **split wide horizontal runs** (~8mm max) so full-width text rows hug the cylinder.
 
 ### 2026-07-12 — b289: Circle cooler wrap — seam unwrap + contour silhouettes
 
