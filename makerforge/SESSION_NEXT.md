@@ -4,8 +4,24 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b309** — Multi-colour palette merge (max 6 AMS layers, no overlap)
-- Cache-bust: `app.js?v=309` — header **b309**
+- Current: **b310** — Multi-colour contour clean edges (no dilate bleed)
+- Cache-bust: `app.js?v=310` — header **b310**
+
+### 2026-07-12 — b310: Multi-colour contour clean edges (St George mesh fix)
+
+**Problem:** After b309 palette merge, preview still showed hairy/scratchy outlines and triangulation noise — especially on heraldic crests (St George).
+
+**Cause:** Each AMS layer ran `unionShapeGroupsToPrepared` with **dilatePasses=3**, expanding contours outward into neighbouring colour regions. All layers shared the same emboss depth → z-fighting and messy seam lines. Trace-time shapeGroups were also too detailed (low simplifyTol) and cached into mesh build.
+
+**Fix:**
+- Rebuild contours at mesh time only — ignore cached trace shapeGroups
+- **dilatePasses=0** for multi-colour layers (no outward bleed)
+- Stronger simplify (`max(0.14, w/1100)`) + 5 smooth passes for clean wrap curves
+- Trace stores masks only (faster trace, mesh always uses fresh contours)
+
+**Files:** `features.js`, `trace.js`, `app.js`, `index.html`
+
+**Test:** Re-trace St George → smooth colour fills, no scratchy overlap at boundaries. Hard refresh `app.js?v=310`.
 
 ### 2026-07-12 — b309: Multi-colour palette merge (St George fix)
 

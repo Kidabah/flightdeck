@@ -2532,11 +2532,15 @@ export function buildTextLabelExportMesh(meta, params) {
   return positions.length ? { positions, indices } : null;
 }
 
-function layerToEmbossBitmap(traceData, layer) {
+function layerToEmbossBitmap(traceData, layer, params = null) {
   const mask = layer.mask instanceof Uint8Array ? layer.mask : Uint8Array.from(layer.mask || []);
-  const shapeGroups = layer.shapeGroups?.length
-    ? layer.shapeGroups
-    : multiColourLayerShapeGroups(mask, traceData.width, traceData.height, { __embossMode: "emboss" });
+  // Always rebuild at mesh time — trace-time groups are too tight; cached dilate bleeds into neighbours.
+  const shapeGroups = multiColourLayerShapeGroups(
+    mask,
+    traceData.width,
+    traceData.height,
+    params || { __embossMode: "emboss" },
+  );
   return {
     mask,
     silhouetteMask: mask,
@@ -2553,25 +2557,23 @@ function layerToEmbossBitmap(traceData, layer) {
 
 function multiColourLayerShapeGroups(mask, maskW, maskH, params) {
   if (!mask?.length || maskW <= 0 || maskH <= 0) return [];
-  const isExport = isLabelExport(params);
-  const simplifyTol = isExport
-    ? Math.max(0.03, maskW / 5600)
-    : Math.max(0.05, maskW / 4200);
-  const smoothPasses = isExport ? 5 : 4;
+  const simplifyTol = Math.max(0.14, maskW / 1100);
+  const smoothPasses = 5;
   const raw = groupPolygonsWithHoles(maskToPolygons(mask, maskW, maskH));
   if (!raw.length) return [];
   const seed = raw.map(({ outer, holes }) => ({ outer, holes: holes || [] }));
-  const united = unionShapeGroupsToPrepared(seed, maskW, maskH, simplifyTol, smoothPasses, 3, 1024);
-  let groups = united.length
-    ? united
-    : prepareShapeGroups(seed, simplifyTol, smoothPasses);
+  // dilatePasses=0 — exclusive AMS layers; outward dilate caused z-fighting / hairy seams at colour edges.
+  let groups = unionShapeGroupsToPrepared(seed, maskW, maskH, simplifyTol, smoothPasses, 0, 1024);
+  if (!groups.length) {
+    groups = prepareShapeGroups(seed, simplifyTol, smoothPasses);
+  }
   groups = filterDegenerateShapeGroups(groups, maskW, maskH);
   return finishExportShapeGroups(groups, params);
 }
 
 /** Vector contour extrusion for one multi-colour layer — smooth wrap curves (not pixel row shells). */
 function buildMultiColourContourEmboss(meta, params, traceData, layer) {
-  const bitmap = layerToEmbossBitmap(traceData, layer);
+  const bitmap = layerToEmbossBitmap(traceData, layer, params);
   if (!bitmap.shapeGroups?.length) return null;
   const frame = getEmbossFaceFrame(meta, params.embossFace || "front", params);
   const maskW = traceData.width;

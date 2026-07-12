@@ -1438,8 +1438,6 @@ export async function traceMultiColourCanvasAsync(canvas, options = {}) {
     const n = (usedLabels.get(label) || 0) + 1;
     usedLabels.set(label, n);
     if (n > 1) label = `${label} ${n}`;
-    const simplifyTol = Math.max(0.035, tw / 5200);
-    const shapeGroups = silhouetteGroupsFromMask(cropMaskLayer, tw, th, simplifyTol, 4);
     colorLayers.push({
       rgb: [r, g, b],
       hex: rgbToHex(r, g, b),
@@ -1447,7 +1445,7 @@ export async function traceMultiColourCanvasAsync(canvas, options = {}) {
       mask: cropMaskLayer,
       rects: maskToRuns(cropMaskLayer, tw, th),
       maskFillPct: Math.round(fill * 100),
-      shapeGroups,
+      shapeGroups: [],
     });
   }
 
