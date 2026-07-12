@@ -1773,6 +1773,55 @@ function anchorWrapArcToGraphic(bounds, anchor, params, labelH) {
   };
 }
 
+/** Flat text band on a face — same placement as non-arc layout (respects move sliders). */
+function computeFlatTextBand(meta, params, frame, labelH, fontId, fontSizePx) {
+  const text = String(params.embossText || "");
+  const raster = rasterTextMask(text, fontId, fontSizePx, params.embossTextAlign || "left");
+  if (!raster?.mask?.length) return null;
+  const { width: maskW, height: maskH } = raster;
+  const glyph = glyphBoundsFromMask(raster.mask, maskW, maskH);
+  if (!glyph) return null;
+  const limits = textEmbossSizeLimits(meta, frame.face, params);
+  const scale = Math.min(labelH / glyph.height, limits.maxWidthMm / glyph.width);
+  if (!Number.isFinite(scale) || scale <= 0) return null;
+  const artW = glyph.width * scale;
+  const artH = glyph.height * scale;
+  const { xOff, zOff } = decorPlacementOffsets(params, frame, artW, artH, "text");
+  return {
+    cx: xOff + artW / 2,
+    cy: zOff + artH / 2,
+    top: zOff + artH,
+    bottom: zOff,
+  };
+}
+
+/** Wrap arc placement — inherit flat move sliders; stack on logo when offsets are zero. */
+function anchorWrapArcForWrap(bounds, flatBand, anchor, params, labelH) {
+  const glyphCx = (bounds.left + bounds.right) / 2;
+  const glyphCy = (bounds.bottom + bounds.top) / 2;
+  const ox = params.textOffsetX ?? 0;
+  const oy = params.textOffsetY ?? 0;
+  const moved = Math.abs(ox) > 0.05 || Math.abs(oy) > 0.05;
+
+  if (flatBand && moved) {
+    const dx = flatBand.cx - glyphCx;
+    const dz = flatBand.cy - glyphCy;
+    const shifted = shiftArcGlyphBounds(bounds, dx, dz);
+    return { ...shifted, cx: flatBand.cx, cy: flatBand.cy };
+  }
+  if (anchor) {
+    return anchorWrapArcToGraphic(bounds, anchor, params, labelH);
+  }
+  if (flatBand) {
+    const dx = flatBand.cx - glyphCx;
+    const dz = flatBand.cy - glyphCy;
+    const shifted = shiftArcGlyphBounds(bounds, dx, dz);
+    return { ...shifted, cx: flatBand.cx, cy: flatBand.cy };
+  }
+  const shifted = shiftArcGlyphBounds(bounds, 0, 0);
+  return { ...shifted, cx: glyphCx, cy: glyphCy };
+}
+
 /** @deprecated bounds helper — prefer rasterTextMask dimensions. */
 function rasterTextRects(text, fontId, fontSizePx = 96) {
   const raster = rasterTextMask(text, fontId, fontSizePx);
@@ -1883,20 +1932,12 @@ function computeTextArtLayout(meta, params) {
       maskH,
     );
     if (frame.face === "wrap") {
+      const flatBand = computeFlatTextBand(meta, params, frame, labelH, fontId, fontSizePx);
       const anchor = graphicArtAnchor(frame, meta, params);
-      if (anchor) {
-        const anchored = anchorWrapArcToGraphic(bounds, anchor, params, labelH);
-        bounds = anchored;
-        cx = anchored.cx;
-        cy = anchored.cy;
-      } else {
-        const { xOff, zOff } = decorPlacementOffsets(params, frame, artW, artH, "text");
-        const dx = xOff + artW / 2 - (bounds.left + bounds.right) / 2;
-        const dz = zOff + artH / 2 - (bounds.bottom + bounds.top) / 2;
-        bounds = shiftArcGlyphBounds(bounds, dx, dz);
-        cx = (bounds.left + bounds.right) / 2;
-        cy = (bounds.bottom + bounds.top) / 2;
-      }
+      const anchored = anchorWrapArcForWrap(bounds, flatBand, anchor, params, labelH);
+      bounds = anchored;
+      cx = anchored.cx;
+      cy = anchored.cy;
     } else {
       const targetCx = params.textOffsetX ?? 0;
       const targetCy = faceCy + (params.textOffsetY ?? 0);

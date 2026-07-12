@@ -4,8 +4,21 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b317** — Wrap arc text pins to graphic ink bounds
-- Cache-bust: `app.js?v=317` — header **b317**
+- Current: **b318** — Flat→arc keeps wrap text position
+- Cache-bust: `app.js?v=318` — header **b318**
+
+### 2026-07-12 — b318: Flat→arc inherits move sliders on wrap
+
+**Problem:** Flat MUSTANG at up/down 2.70 was easy to place; switching Text path to Arc jumped to the opposite side — arc ignored flat move sliders and preset clicks wiped offsets.
+
+**Fix:**
+- Wrap arc **inherits flat text band** when move sliders are non-zero (same spot, now arched)
+- Flat→Arc switch always refreshes arc params but **preserves** left/right + up/down
+- Arc preset buttons only reset offsets when explicitly nudging (Arch up/down), not on every graphic load
+
+**Files:** `features.js`, `app.js`, `index.html`
+
+**Test:** Flat MUSTANG above car at up/down 2.70 → switch Arc → stays above car, arched. Hard refresh `app.js?v=318`.
 
 ### 2026-07-12 — b317: Wrap arc text glyph anchoring
 
