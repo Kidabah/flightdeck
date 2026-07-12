@@ -28,6 +28,8 @@ export { unionDenseEmbossShapeGroups } from "./contour.js?v=241";
 
 
 const MAX_TRACE_PX = 2400;
+/** Multi-colour logos need extra mask resolution — row shells show pixel stairs otherwise. */
+const MULTI_COLOUR_MIN_MAX_PX = 1600;
 const SVG_RASTER_PX = 4096;
 const MAX_COLOR_LAYERS = 10;
 const BLUR_SKIP_PIXELS = 1_800_000;
@@ -1256,23 +1258,18 @@ function collectForegroundColorLayers(data, width, height, threshold, invert, bl
 }
 
 function maskForColourKeyInForeground(data, width, height, colorKey, fgMask, threshold, invert, blur) {
-  const [tr, tg, tb] = colorKey.split(",").map(Number);
-  const tol = 42;
   const mask = new Uint8Array(width * height);
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const idx = y * width + x;
       if (!fgMask[idx]) continue;
       const i = idx * 4;
-      const r = data[i];
-      const g = data[i + 1];
-      const b = data[i + 2];
-      if (Math.abs(r - tr) <= tol && Math.abs(g - tg) <= tol && Math.abs(b - tb) <= tol) {
-        mask[idx] = 1;
-      }
+      const key = quantizeInkColor(data[i], data[i + 1], data[i + 2]);
+      if (key === colorKey) mask[idx] = 1;
     }
   }
-  return openMask(mask, width, height);
+  // Horizontal close only — full open/close erodes thin crest edges into pixel stairs.
+  return closeMaskHorizontal(mask, width, height, 1);
 }
 
 function extractAlignedCropMask(fullMask, fullW, fullH, tw, th, ox, oy) {
@@ -1292,6 +1289,7 @@ function extractAlignedCropMask(fullMask, fullW, fullH, tw, th, ox, oy) {
 /** Multi-colour logo trace — one ink mask per detected filament colour. */
 export async function traceMultiColourCanvasAsync(canvas, options = {}) {
   await traceYield();
+  canvas = upscaleCanvasMinMaxPx(canvas, MULTI_COLOUR_MIN_MAX_PX);
   const threshold = clamp(options.threshold ?? 128, 1, 254);
   const invert = !!options.invert;
   const ctx = canvas.getContext("2d");
@@ -1794,6 +1792,25 @@ function scaleCanvasToMaxPx(source, maxPx) {
   const h = source.height;
   if (w <= 0 || h <= 0) return source;
   const scale = maxPx / Math.max(w, h);
+  const tw = Math.max(1, Math.round(w * scale));
+  const th = Math.max(1, Math.round(h * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = tw;
+  canvas.height = th;
+  const ctx = canvas.getContext("2d");
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(source, 0, 0, tw, th);
+  return canvas;
+}
+
+function upscaleCanvasMinMaxPx(source, minMaxPx) {
+  const w = source.width;
+  const h = source.height;
+  if (w <= 0 || h <= 0) return source;
+  const longest = Math.max(w, h);
+  if (longest >= minMaxPx || longest * 2 > MAX_TRACE_PX) return source;
+  const scale = Math.min(2, minMaxPx / longest);
   const tw = Math.max(1, Math.round(w * scale));
   const th = Math.max(1, Math.round(h * scale));
   const canvas = document.createElement("canvas");

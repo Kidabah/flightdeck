@@ -4,8 +4,16 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b302** — multi-colour logo trace + per-colour AMS export
-- Cache-bust: `app.js?v=302`, `trace.js?v=302`, `features.js?v=302`, `geometry.js?v=302` — header **b302**
+- Current: **b303** — multi-colour sharper mask edges (upscale + quantize match)
+- Cache-bust: `app.js?v=303`, `trace.js?v=303`, `features.js?v=303`, `geometry.js?v=303` — header **b303**
+
+### 2026-07-12 — b303: Sharper multi-colour logo edges
+
+**Symptom:** b302 Tigers preview/export showed stair-stepped white border and pixel noise between colour layers.
+
+**Fix:** Upscale source to ≥1600px longest side before colour split. Match layers via `quantizeInkColor` (not ±42 RGB tolerance). Horizontal close only on layer masks — skip open/close that erodes thin crest edges.
+
+**Re-test:** Hard refresh, re-trace Wests Tigers in **Multi-colour** mode, export 3MF.
 
 ### 2026-07-12 — b302: Multi-colour logo trace (team logos → AMS slots)
 
