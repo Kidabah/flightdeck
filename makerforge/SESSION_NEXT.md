@@ -4,16 +4,14 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b293** — dense wrap: closed mask + row shells, inward pocket (not earcut/add)
-- Cache-bust: `app.js?v=293` — header **b293**
+- Current: **b294** — dense wrap: merge solid + art slabs (outward, no earcut/shards)
+- Cache-bust: `app.js?v=294` — header **b294**
 
-### 2026-07-12 — b293: Dense wrap — pocket embed not outward earcut solid
+### 2026-07-12 — b294: Dense wrap — merged art slabs outward (not pocket/earcut)
 
-**Symptom:** b292 united contour made Wests worse (horizontal slices). Coffee bag wrap still perfect. B&W made no difference.
+**Symptom:** b293 pocket embed = tiny shards. b292 earcut = horizontal slices. Coffee bag wrap still perfect.
 
-**Cause:** earcut caps on curved wrap for large united solids = slice artifacts. Outward standoff add z-fights on dense fill.
-
-**Fix:** Dense wrap → close mask → same row shells as coffee bag, but **inward pocket** (d0=-depth, d1=0 flush on wall) instead of outward add. No earcut on wrap.
+**Fix:** Close+dilate mask → union one solid → `buildWrapArtSlabMesh` with normal outward standoff + seam unwrap. Trace stays line art; 3D reads as one raised logo.
 
 ### 2026-07-12 — b289: Circle cooler wrap — seam unwrap + contour silhouettes
 

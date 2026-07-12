@@ -434,7 +434,24 @@ function downsampleBitmapMask(mask, maskW, maskH, factor = 2) {
   return { mask: out, maskW: nw, maskH: nh };
 }
 
-/** Heavy wrap line art — closed mask + row shells (no earcut on curve). Pocket embed, not outward add. */
+function largestShapeGroup(groups) {
+  if (!groups?.length) return [];
+  if (groups.length === 1) return groups;
+  let best = groups[0];
+  let bestArea = 0;
+  for (const g of groups) {
+    const b = shapeGroupsBounds2d([g]);
+    if (!b) continue;
+    const area = (b.maxX - b.minX) * (b.maxY - b.minY);
+    if (area > bestArea) {
+      bestArea = area;
+      best = g;
+    }
+  }
+  return [best];
+}
+
+/** Heavy wrap line art — merge to one solid, seam-unwrapped art slabs (no earcut, no 1px shards). */
 function buildWrapDenseLineArtEmboss(frame, bitmap, params, maskW, maskH, artH, d0, d1) {
   let mask = bitmap.mask instanceof Uint8Array ? bitmap.mask : new Uint8Array(bitmap.mask);
   let w = maskW;
@@ -443,12 +460,32 @@ function buildWrapDenseLineArtEmboss(frame, bitmap, params, maskW, maskH, artH, 
     ({ mask, maskW: w, maskH: h } = downsampleBitmapMask(mask, w, h, 2));
   }
   mask = closeBitmapMask(mask, w, h, 2);
-  const closedBitmap = { ...bitmap, mask: Array.from(mask), width: w, height: h };
-  const depth = Math.max(exportEmbossDepth(params), 0.35);
-  // Inward pocket (minus) — outer skin flush on wall, volume sinks in. Outward add z-fights on dense solids.
-  const pocketD0 = -depth;
-  const pocketD1 = 0;
-  return buildWrapTraceSlabMesh(frame, closedBitmap, params, [], pocketD0, pocketD1, { fineRows: true });
+  mask = dilateMask(mask, w, h, 1);
+  mask = closeBitmapMask(mask, w, h, 1);
+  const simplifyTol = Math.max(0.12, w / 900);
+  let groups = prepareShapeGroups(
+    groupPolygonsWithHoles(maskToPolygons(mask, w, h)),
+    simplifyTol,
+    1,
+  );
+  groups = filterDegenerateShapeGroups(groups, w, h);
+  if (groups.length > 1) {
+    const united = unionShapeGroupsToPrepared(groups, w, h, simplifyTol, 1, 4, 512);
+    groups = united.length ? united : largestShapeGroup(groups);
+  }
+  if (!groups.length) return null;
+  const faceGroups = remappedBitmapFaceGroups(bitmap, frame, params, groups, w, h, artH);
+  const preview = svgIsPreview(params);
+  return buildWrapArtSlabMesh(frame, faceGroups, d0, d1, {
+    targetCols: preview ? 320 : WRAP_DECAL_TARGET_COLS,
+    stepMin: WRAP_DECAL_STEP_MIN_MM,
+    stepMax: preview ? 0.22 : WRAP_DECAL_STEP_MAX_MM,
+    maxCells: preview ? 640 : 1536,
+    dilatePasses: 2,
+    solid: true,
+    previewMaxRows: WRAP_TRACE_PREVIEW_MAX_ROWS,
+    maxPreviewIndices: preview ? WRAP_SVG_PREVIEW_MAX_INDICES : 0,
+  });
 }
 
 /** Wrap trace from pixel mask — radial shells (no earcut slashes, no row-cap z-fight). */
