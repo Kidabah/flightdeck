@@ -403,6 +403,78 @@ function prepareComplexTraceMaskForContours(mask, width, height, bitmap) {
   return closeBitmapMask(mask, width, height, passes);
 }
 
+/** Dense wrap line art (heavy fill / block text) — coarser closed grid, not 1px row shells. */
+function wrapLineArtNeedsDenseSlabs(bitmap) {
+  const fill = bitmap.maskFillPct ?? 0;
+  if (fill >= 28) return true;
+  if (fill >= 22 && (bitmap.rectCount ?? 0) >= 5000) return true;
+  return false;
+}
+
+function buildWrapDenseLineArtSlabMesh(frame, bitmap, params, d0, d1) {
+  const place = bitmapWrapPlacement(frame, params, bitmap);
+  if (!place) return null;
+  const { maskW, maskH, artW, artHeight, xOff, zOff } = place;
+  if (bitmap.mask?.length !== maskW * maskH) return null;
+
+  let mask = bitmap.mask instanceof Uint8Array ? bitmap.mask.slice() : new Uint8Array(bitmap.mask);
+  mask = closeBitmapMask(mask, maskW, maskH, 1);
+
+  const spanX = Math.max(artW, 0.4);
+  const spanY = Math.max(artHeight, 0.4);
+  let stepMm = clamp(spanX / WRAP_DECAL_TARGET_COLS, WRAP_DECAL_STEP_MIN_MM, WRAP_DECAL_STEP_MAX_MM);
+  const pad = stepMm;
+  const minX = xOff - pad;
+  const minY = zOff - pad;
+  let gridW = Math.max(8, Math.ceil((spanX + pad * 2) / stepMm));
+  let gridH = Math.max(8, Math.ceil((spanY + pad * 2) / stepMm));
+  const preview = svgIsPreview(params);
+  const maxCells = preview ? 768 : WRAP_SVG_MASK_MAX_CELLS;
+  while (Math.max(gridW, gridH) > maxCells && stepMm < 0.55) {
+    stepMm *= 1.12;
+    gridW = Math.max(8, Math.ceil((spanX + pad * 2) / stepMm));
+    gridH = Math.max(8, Math.ceil((spanY + pad * 2) / stepMm));
+  }
+
+  const grid = new Uint8Array(gridW * gridH);
+  for (let gy = 0; gy < gridH; gy++) {
+    const py0 = Math.floor((gy / gridH) * maskH);
+    const py1 = Math.max(py0 + 1, Math.floor(((gy + 1) / gridH) * maskH));
+    for (let gx = 0; gx < gridW; gx++) {
+      const px0 = Math.floor((gx / gridW) * maskW);
+      const px1 = Math.max(px0 + 1, Math.floor(((gx + 1) / gridW) * maskW));
+      let on = 0;
+      for (let py = py0; py < py1 && !on; py++) {
+        for (let px = px0; px < px1; px++) {
+          if (mask[py * maskW + px]) { on = 1; break; }
+        }
+      }
+      if (on) grid[gy * gridW + gx] = 1;
+    }
+  }
+  let gridMask = dilateMask(grid, gridW, gridH, 1);
+  gridMask = closeBitmapMask(gridMask, gridW, gridH, 1);
+
+  const anchorX = xOff + artW / 2;
+  const positions = [];
+  const indices = [];
+  for (let row = 0; row < gridH; row++) {
+    const my0 = minY + row * stepMm;
+    const my1 = my0 + stepMm;
+    let col = 0;
+    while (col < gridW) {
+      while (col < gridW && !bandMaskFilled(gridMask, gridW, row, row + 1, col)) col++;
+      const start = col;
+      while (col < gridW && bandMaskFilled(gridMask, gridW, row, row + 1, col)) col++;
+      if (col <= start) continue;
+      const px0 = unwrapWrapX(minX + start * stepMm, anchorX, frame.faceW);
+      const px1 = unwrapWrapX(minX + col * stepMm, anchorX, frame.faceW);
+      pushWrapRunShell(positions, indices, frame, px0, my0, px1, my1, d0, d1, { solid: true });
+    }
+  }
+  return indices.length ? { positions, indices } : null;
+}
+
 /** Wrap trace from pixel mask — radial shells (no earcut slashes, no row-cap z-fight). */
 function buildWrapTraceSlabMesh(frame, bitmap, params, shapeGroups, d0, d1, opts = {}) {
   const place = bitmapWrapPlacement(frame, params, bitmap);
@@ -2729,8 +2801,12 @@ export function buildEmbossBitmap(meta, params, bitmap) {
   const isOutline = bitmap.mode === "outline";
   const denseTrace = (bitmap.shapeGroups?.length ?? 0) > 8;
 
-  // Line-art raster mask — row slabs (wrap uses seam-unwrapped runs + fine rows).
+  // Line-art raster mask — fine 1px rows for sparse art (coffee bag); dense wrap logos use closed grid slabs.
   if (bitmap.outlineRaster && bitmap.mask?.length === maskW * maskH) {
+    if (frame.face === "wrap" && wrapLineArtNeedsDenseSlabs(bitmap)) {
+      const dense = buildWrapDenseLineArtSlabMesh(frame, bitmap, params, d0, d1);
+      if (dense?.indices?.length) return dense;
+    }
     const slabOpts = frame.face === "wrap" ? { fineRows: true } : {};
     const slab = buildWrapTraceSlabMesh(frame, bitmap, params, [], d0, d1, slabOpts);
     if (slab?.indices?.length) return slab;

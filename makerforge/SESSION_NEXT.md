@@ -4,11 +4,21 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b289** — cooler wrap seam unwrap + contour path for silhouettes
-- Previous: **b288** — full raster import reset (coffee bag after SVG)
+- Current: **b290** — dense wrap line art grid slabs (Wests Tigers text blocks)
+- Previous: **b289** — cooler wrap seam unwrap + contour silhouettes
 - Golden build: **b284** (tag: `makerdeck-golden-b284`) — trace preview + jar emboss
-- Cache-bust: `app.js?v=289`, `features.js?v=289` — header **b289**
+- Cache-bust: `app.js?v=290`, `features.js?v=290` — header **b290**
 - Hard refresh required (Ctrl+Shift+R)
+
+### 2026-07-12 — b290: Dense wrap line art — Wests Tigers text blocks
+
+**Symptom:** Coffee bag line art perfect on cooler wrap (~14% fill). Wests Tigers trace perfect but 3D bottom shredded (~38% fill, block text).
+
+**Cause:** All wrap line art used 1px row shells. Sparse line art OK; dense horizontal text rows band and glitch on the cylinder.
+
+**Fix:** `wrapLineArtNeedsDenseSlabs()` — fill ≥28% (or ≥22% with 5000+ runs) uses `buildWrapDenseLineArtSlabMesh`: closed mm-grid + seam unwrap. Coffee bag stays on fine pixel rows.
+
+**Test:** Coffee bag wrap first, then Wests Tigers wrap.
 
 ### 2026-07-12 — b289: Circle cooler wrap — seam unwrap + contour silhouettes
 
