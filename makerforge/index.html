@@ -985,22 +985,21 @@
                   <button type="button" id="btn-load-badge-sample" class="btn btn-secondary btn-compact">Mechanic badge sample</button>
                 </div>
 
-                <div class="trace-options-grid" id="field-trace-options">
-                  <label class="field">
-                    <span class="field-label">Trace mode</span>
-                    <select id="trace-mode">
-                      <option value="auto">Auto — logo / mascot</option>
-                      <option value="multi-colour">Multi-colour — team logo (AMS)</option>
-                      <option value="silhouette">Silhouette — solid logo</option>
-                      <option value="outline">Outline — line art</option>
-                    </select>
-                  </label>
-                  <label class="field">
-                    <span class="field-label">Threshold</span>
-                    <input type="range" id="trace-threshold" min="20" max="254" step="1" value="128" tabindex="-1">
-                    <button type="button" class="value-edit" id="out-trace-threshold" data-slider="trace-threshold" data-key="traceThreshold" data-parse="int">128</button>
-                  </label>
-                </div>
+                <label class="field" id="field-trace-mode">
+                  <span class="field-label">Trace mode</span>
+                  <select id="trace-mode">
+                    <option value="multi-colour">Multi-colour — team logo (AMS)</option>
+                    <option value="auto">Auto — logo / mascot</option>
+                    <option value="silhouette">Silhouette — solid logo</option>
+                    <option value="outline">Outline — line art</option>
+                  </select>
+                </label>
+
+                <label class="field" id="field-trace-threshold">
+                  <span class="field-label">Threshold</span>
+                  <input type="range" id="trace-threshold" min="20" max="254" step="1" value="128" tabindex="-1">
+                  <button type="button" class="value-edit" id="out-trace-threshold" data-slider="trace-threshold" data-key="traceThreshold" data-parse="int">128</button>
+                </label>
 
                 <label class="field field-toggle">
                   <span class="field-label">Invert (light logo on dark)</span>
@@ -1278,7 +1277,7 @@
     </form>
   </dialog>
 
-  <script type="module" src="js/app.js?v=305"></script>
+  <script type="module" src="js/app.js?v=306"></script>
 
 </body>
 

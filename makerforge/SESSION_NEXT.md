@@ -4,16 +4,12 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b305** — Art tab tidy: Graphic / Text sub-tabs, one import drop
-- Cache-bust: `app.js?v=305`, `style.css?v=30` — header **b305**
+- Current: **b306** — multi-colour default trace mode (no auto reset on import)
+- Cache-bust: `app.js?v=306`, `geometry.js?v=306` — header **b306**
 
-### 2026-07-12 — b305: Art tab layout — Graphic / Text sub-tabs
+### 2026-07-12 — b306: Multi-colour default trace mode sticks on import
 
-**Problem:** Two import boxes (SVG + image), long scroll on Art tab.
-
-**Fix:** Single drop zone (PNG/JPG/SVG/paste). **Graphic | Text** sub-tabs inside Art. Shared strip always visible: Face, emboss depth, deboss, Clear all. Coffee-bag / multi-colour workflows unchanged.
-
-**Deploy:** Hard refresh (Ctrl+Shift+R).
+**Fix:** `traceMode` default is **multi-colour** in code (not just dropdown order). Removed raster/SVG import paths that forced **Auto**. Trace mode and threshold each on their own line (no truncated select).
 
 ### 2026-07-12 — b302: Multi-colour logo trace (team logos → AMS slots)
 
