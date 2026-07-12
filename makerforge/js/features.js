@@ -501,7 +501,7 @@ function buildWrapTraceSlabMesh(frame, bitmap, params, shapeGroups, d0, d1, opts
   const mapRunX = (px) => (wrapSeam ? unwrapWrapX(px, anchorX, frame.faceW) : px);
   const runOpts = {
     solid: true,
-    maxRunMm: wrapSeam ? clamp(artW * 0.12, 3.5, 8) : 0,
+    maxRunMm: wrapSeam ? clamp(artW * (params?.__labelExportStandoff ? 0.18 : 0.12), 3.5, params?.__labelExportStandoff ? 14 : 8) : 0,
   };
   for (let row = 0; row < maskH; row += stepPx) {
     const py0 = row;
@@ -2797,6 +2797,7 @@ function ensureEmbossBitmapMask(bitmap) {
 }
 
 const WRAP_EMBOSS_MASK_MAX_CELLS = 1_200_000;
+const WRAP_EMBOSS_MASK_MAX_CELLS_EXPORT = 4_000_000;
 
 function downsampleEmbossMaskToFit(mask, maskW, maskH, maxCells = WRAP_EMBOSS_MASK_MAX_CELLS) {
   let m = mask instanceof Uint8Array ? mask : Uint8Array.from(mask);
@@ -2820,8 +2821,9 @@ function buildWrapGoldenSlabEmboss(frame, bitmap, params, maskW, maskH, d0, d1) 
   let slabW = maskW;
   let slabH = maskH;
   let slabMask = b.mask instanceof Uint8Array ? b.mask : Uint8Array.from(b.mask);
-  if (expected > WRAP_EMBOSS_MASK_MAX_CELLS) {
-    const ds = downsampleEmbossMaskToFit(slabMask, slabW, slabH);
+  const maxCells = params?.__labelExportStandoff ? WRAP_EMBOSS_MASK_MAX_CELLS_EXPORT : WRAP_EMBOSS_MASK_MAX_CELLS;
+  if (expected > maxCells) {
+    const ds = downsampleEmbossMaskToFit(slabMask, slabW, slabH, maxCells);
     slabMask = ds.mask;
     slabW = ds.maskW;
     slabH = ds.maskH;
@@ -2832,14 +2834,8 @@ function buildWrapGoldenSlabEmboss(frame, bitmap, params, maskW, maskH, d0, d1) 
   const slabFill = slabMask.length ? onPx / slabMask.length : 0;
   // Outline fast-path on megapixel art floods the crop — embosses a solid slab, not the logo.
   if (b.outlineRaster && slabFill > 0.52 && !b.colorLogo) return null;
-  const fill = b.maskFillPct ?? 0;
-  const runCount = b.rectCount ?? b.rects?.length ?? 0;
-  // Only close gaps for dense line-art masks — morphological close erodes thin logo text on solid silhouettes.
-  const needsClose = !!b.outlineRaster && (
-    b.colorLogo
-    || wrapLineArtNeedsSolidEmboss(b)
-    || (runCount >= 5000 && fill >= 18)
-  );
+  // Only close for heavy block fills — dense heraldic line art (Tigers ~7k runs) erodes into horizontal strips.
+  const needsClose = !!b.outlineRaster && (b.colorLogo || wrapLineArtNeedsSolidEmboss(b));
   if (needsClose) slabBitmap = preprocessWrapDenseLineArtMask(slabBitmap, slabW, slabH);
   return buildWrapTraceSlabMesh(frame, slabBitmap, params, [], d0, d1, { fineRows: true });
 }

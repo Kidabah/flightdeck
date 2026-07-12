@@ -4,8 +4,16 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b300** — export uses same wrap trace mesh as preview (fixes slicer striations)
-- Cache-bust: `app.js?v=300`, `features.js?v=300` — header **b300**
+- Current: **b301** — Tigers export: no mask close on dense line art + finer export mask
+- Cache-bust: `app.js?v=301`, `features.js?v=301` — header **b301**
+
+### 2026-07-12 — b301: Dense heraldic line art — skip wrap mask close (Tigers striations)
+
+**Symptom:** b300 close but Tigers still horizontal strips in slicer/preview.
+
+**Cause:** `needsClose` triggered for outlineRaster with ≥5000 runs + ≥18% fill — morphological close eroded Tigers ink into broken row fragments. Export also downsampled mask to 1.2M cells.
+
+**Fix:** Only close for colour logo or fill ≥28% block art. Export keeps up to 4M mask cells; wider run spans on export (fewer vertical slice seams).
 
 ### 2026-07-12 — b300: Slicer export matches preview for wrap trace art
 
