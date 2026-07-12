@@ -24,7 +24,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b307";
+const MAKERDECK_BUILD = "b308";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -726,10 +726,11 @@ function applyArcPreset(id, { nudgeGraphic = false } = {}) {
 
 function syncTextLayoutUi() {
   const layout = state.embossTextLayout || "flat";
+  const textOn = textHasInk(state.embossText);
   document.querySelectorAll(".layout-btn").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.textLayout === layout);
   });
-  const arcOn = layout === "arc";
+  const arcOn = textOn && layout === "arc";
   const adv = !!state.embossArcAdvanced;
   document.getElementById("field-text-align")?.classList.toggle("hidden", arcOn);
   document.getElementById("field-arc-style")?.classList.toggle("hidden", !arcOn);
@@ -3094,7 +3095,7 @@ function syncArtEditorUi() {
   updateEmbossTextPreviewStyle();
   updateEmbossDebossUi();
 
-  document.getElementById("field-emboss-height").classList.toggle("hidden", !textOn);
+  document.getElementById("field-emboss-height")?.classList.remove("hidden");
   document.getElementById("field-trace-size").classList.toggle("hidden", !(traceOn || svgOn));
   document.getElementById("field-art-rotation").classList.toggle("hidden", !artOn);
   document.getElementById("field-art-offset-x").classList.toggle("hidden", !artOn);
@@ -4659,7 +4660,7 @@ function updateDecorUi() {
   if (svgCb) svgCb.checked = svgLoaded;
   const wm = document.getElementById("watermark-enabled");
   if (wm) wm.checked = state.watermarkEnabled !== false;
-  document.getElementById("field-text-color").classList.toggle("hidden", !textOn);
+  document.getElementById("field-text-color").classList.remove("hidden");
   const multiColourArt = !!(state.embossTraceRects?.multiColour && state.embossTraceRects?.colorLayers?.length > 1);
   document.getElementById("field-art-color").classList.toggle("hidden", !artOn || !!state.embossDeboss || multiColourArt);
   const artColorHint = document.getElementById("art-color-hint");
@@ -4669,12 +4670,12 @@ function updateDecorUi() {
       : "Single-colour art — pick a contrast filament.";
   }
   document.getElementById("field-text-align").classList.toggle("hidden", !textOn || (state.embossTextLayout || "flat") === "arc");
-  document.getElementById("field-text-layout").classList.toggle("hidden", !textOn);
-  document.getElementById("field-emboss-font").classList.toggle("hidden", !textOn);
+  document.getElementById("field-text-layout").classList.remove("hidden");
+  document.getElementById("field-emboss-font").classList.remove("hidden");
   syncEmbossFaceUi();
   document.getElementById("emboss-deboss").checked = !!state.embossDeboss;
   updateEmbossDebossUi();
-  document.getElementById("field-emboss-height").classList.toggle("hidden", !textOn);
+  document.getElementById("field-emboss-height")?.classList.remove("hidden");
   document.getElementById("field-trace-size").classList.toggle("hidden", !(svgLoaded || traceOnBox));
   document.getElementById("emboss-font").value = state.embossFont || "bebas";
   syncArtEditorUi();

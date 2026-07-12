@@ -4,12 +4,12 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b307** — font on own line; Bebas default in code
-- Cache-bust: `app.js?v=307`, `geometry.js?v=307` — header **b307**
+- Current: **b308** — Text tab font/colour/size always visible
+- Cache-bust: `app.js?v=308` — header **b308**
 
-### 2026-07-12 — b307: Font full-width row + Bebas default
+### 2026-07-12 — b308: Font always visible on Text tab
 
-**Fix:** Text **Font** on its own line (not squeezed beside colour picker). Default `embossFont` is **bebas** in `DEFAULTS` — matches cooler presets, no silent fallback to Inter.
+**Fix:** Font, text colour, size, and Flat/Arc path no longer hidden until text is typed — arc controls only show when text + Arc mode.
 
 ### 2026-07-12 — b302: Multi-colour logo trace (team logos → AMS slots)
 
