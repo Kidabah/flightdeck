@@ -1681,6 +1681,21 @@ function estimateGraphicArtSizeMm(frame, meta, params) {
   return null;
 }
 
+/** Active graphic band on a face — used to park arc text above/below the logo on wrap. */
+function graphicArtAnchor(frame, meta, params) {
+  const graphic = estimateGraphicArtSizeMm(frame, meta, params);
+  if (!graphic) return null;
+  const { xOff, zOff } = decorPlacementOffsets(params, frame, graphic.artW, graphic.artH, "graphic");
+  return {
+    cx: xOff + graphic.artW / 2,
+    cy: zOff + graphic.artH / 2,
+    top: zOff + graphic.artH,
+    bottom: zOff,
+    artW: graphic.artW,
+    artH: graphic.artH,
+  };
+}
+
 /** Arc radius slider limits for a face (mm). 0 = auto. */
 export function arcRadiusLimits(meta, face, params = null) {
   const frame = getEmbossFaceFrame(meta, face || "front", params);
@@ -1817,8 +1832,27 @@ function computeTextArtLayout(meta, params) {
   if (arcMode && raster.arcCenterPx) {
     const [acxPx, acyPx] = raster.arcCenterPx;
     const faceCy = frame.horizontal ? 0 : frame.centerZ;
-    const targetCx = params.textOffsetX ?? 0;
-    const targetCy = faceCy + (params.textOffsetY ?? 0);
+    let targetCx;
+    let targetCy;
+    if (frame.face === "wrap") {
+      const anchor = graphicArtAnchor(frame, meta, params);
+      if (anchor) {
+        targetCx = anchor.cx + (params.textOffsetX ?? 0);
+        const side = params.embossArcSide === "down" ? "down" : "up";
+        const gap = artH * 0.12;
+        const baseCy = side === "down"
+          ? anchor.bottom - artH * 0.42 - gap
+          : anchor.top + artH * 0.42 + gap;
+        targetCy = baseCy + (params.textOffsetY ?? 0);
+      } else {
+        const { xOff, zOff } = decorPlacementOffsets(params, frame, artW, artH, "text");
+        targetCx = xOff + artW / 2;
+        targetCy = zOff + artH / 2;
+      }
+    } else {
+      targetCx = params.textOffsetX ?? 0;
+      targetCy = faceCy + (params.textOffsetY ?? 0);
+    }
     canvasXOff = targetCx - acxPx * scale;
     canvasZOff = targetCy - (maskH - acyPx) * scale;
     left = canvasXOff + glyph.left * scale;

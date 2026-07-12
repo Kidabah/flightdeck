@@ -4,8 +4,22 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b315** — Multi-colour wrap uses row shells (not earcut)
-- Cache-bust: `app.js?v=315` — header **b315**
+- Current: **b316** — Wrap arc text anchors above/below graphic
+- Cache-bust: `app.js?v=316` — header **b316**
+
+### 2026-07-12 — b316: Wrap arc text above/below graphic
+
+**Problem:** Arc text on wrap (e.g. MUSTANG above car graphic) landed on the **opposite side** of the cylinder from the logo, often upside-down — arc centre used X=0 instead of the graphic’s wrap centre (`faceW/2`).
+
+**Fix:**
+- Arc text on **wrap** anchors horizontally to the **graphic centre** (same as trace placement)
+- **Arch up / Wide** → text above the logo; **Arch down** → below
+- Move up/down sliders fine-tune from that auto position
+- Flat faces unchanged
+
+**Files:** `features.js`, `app.js`, `index.html`
+
+**Test:** Mustang (or any wrap + graphic) → Arc + MUSTANG sits above/below the graphic on the same side. Hard refresh `app.js?v=316`.
 
 ### 2026-07-12 — b315: Multi-colour wrap row shells (fix earcut gaps)
 
