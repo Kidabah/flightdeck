@@ -4,8 +4,21 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b310** — Multi-colour contour clean edges (no dilate bleed)
-- Cache-bust: `app.js?v=310` — header **b310**
+- Current: **b311** — Smaller multi-colour 3MF export
+- Cache-bust: `app.js?v=311` — header **b311**
+
+### 2026-07-12 — b311: Smaller multi-colour 3MF export
+
+**Problem:** Multi-colour heraldic exports produced huge 3MF files — full-res contour extrusion × 6 AMS layers.
+
+**Fix:**
+- **Export (wrap):** compact row shells on downsampled masks (~320k px/layer) with ~0.2 mm row stepping — same strategy as coffee-bag art
+- **Preview:** unchanged smooth contours, masks downsampled to ~900k px before polygonise (faster rebuild)
+- Export flat-face fallback uses coarse contour if row path unavailable
+
+**Files:** `features.js`, `app.js`, `index.html`
+
+**Test:** Export St George 3MF — file size should drop dramatically; slicer colours still separate. Hard refresh `app.js?v=311`.
 
 ### 2026-07-12 — b310: Multi-colour contour clean edges (St George mesh fix)
 

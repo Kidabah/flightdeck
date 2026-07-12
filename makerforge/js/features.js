@@ -2532,6 +2532,20 @@ export function buildTextLabelExportMesh(meta, params) {
   return positions.length ? { positions, indices } : null;
 }
 
+function fitMultiColourLayerMask(layer, maskW, maskH, params) {
+  let mask = layer.mask instanceof Uint8Array ? layer.mask.slice() : Uint8Array.from(layer.mask || []);
+  let w = maskW;
+  let h = maskH;
+  const maxCells = isLabelExport(params) ? MULTI_COLOUR_EXPORT_MAX_CELLS : MULTI_COLOUR_PREVIEW_MAX_CELLS;
+  if (w * h > maxCells) {
+    const ds = downsampleEmbossMaskToFit(mask, w, h, maxCells);
+    mask = ds.mask;
+    w = ds.maskW;
+    h = ds.maskH;
+  }
+  return { mask, maskW: w, maskH: h };
+}
+
 function layerToEmbossBitmap(traceData, layer, params = null) {
   const mask = layer.mask instanceof Uint8Array ? layer.mask : Uint8Array.from(layer.mask || []);
   // Always rebuild at mesh time — trace-time groups are too tight; cached dilate bleeds into neighbours.
@@ -2557,13 +2571,17 @@ function layerToEmbossBitmap(traceData, layer, params = null) {
 
 function multiColourLayerShapeGroups(mask, maskW, maskH, params) {
   if (!mask?.length || maskW <= 0 || maskH <= 0) return [];
-  const simplifyTol = Math.max(0.14, maskW / 1100);
-  const smoothPasses = 5;
+  const isExport = isLabelExport(params);
+  const simplifyTol = isExport
+    ? Math.max(0.4, maskW / 320)
+    : Math.max(0.14, maskW / 1100);
+  const smoothPasses = isExport ? 3 : 5;
+  const maxDim = isExport ? 480 : 896;
   const raw = groupPolygonsWithHoles(maskToPolygons(mask, maskW, maskH));
   if (!raw.length) return [];
   const seed = raw.map(({ outer, holes }) => ({ outer, holes: holes || [] }));
   // dilatePasses=0 — exclusive AMS layers; outward dilate caused z-fighting / hairy seams at colour edges.
-  let groups = unionShapeGroupsToPrepared(seed, maskW, maskH, simplifyTol, smoothPasses, 0, 1024);
+  let groups = unionShapeGroupsToPrepared(seed, maskW, maskH, simplifyTol, smoothPasses, 0, maxDim);
   if (!groups.length) {
     groups = prepareShapeGroups(seed, simplifyTol, smoothPasses);
   }
@@ -2573,13 +2591,34 @@ function multiColourLayerShapeGroups(mask, maskW, maskH, params) {
 
 /** Vector contour extrusion for one multi-colour layer — smooth wrap curves (not pixel row shells). */
 function buildMultiColourContourEmboss(meta, params, traceData, layer) {
-  const bitmap = layerToEmbossBitmap(traceData, layer, params);
-  if (!bitmap.shapeGroups?.length) return null;
+  const { mask, maskW, maskH } = fitMultiColourLayerMask(layer, traceData.width, traceData.height, params);
   const frame = getEmbossFaceFrame(meta, params.embossFace || "front", params);
-  const maskW = traceData.width;
-  const maskH = traceData.height;
-  const artH = params.embossTraceSize ?? 16;
   const { d0, d1 } = labelOffsets(params);
+  const isExport = isLabelExport(params);
+
+  // Export wrap — compact row shells (~0.2 mm stepping), not full-res contour caps × 6 colours.
+  if (isExport && frame.face === "wrap") {
+    const rowMesh = buildWrapTraceSlabMesh(
+      frame,
+      { mask, width: maskW, height: maskH, mode: "silhouette", outlineRaster: false },
+      params,
+      [],
+      d0,
+      d1,
+      {},
+    );
+    if (rowMesh?.indices?.length) return rowMesh;
+  }
+
+  const bitmap = layerToEmbossBitmap({ width: maskW, height: maskH }, { ...layer, mask }, params);
+  if (!bitmap.shapeGroups?.length) {
+    if (isExport) {
+      const fallback = buildEmbossBitmap(meta, params, { ...bitmap, mask, shapeGroups: [] });
+      if (fallback?.indices?.length) return fallback;
+    }
+    return null;
+  }
+  const artH = params.embossTraceSize ?? 16;
   const faceGroups = remappedBitmapFaceGroups(bitmap, frame, params, bitmap.shapeGroups, maskW, maskH, artH);
   if (!faceGroups?.length) return null;
   const positions = [];
@@ -2881,6 +2920,10 @@ function ensureEmbossBitmapMask(bitmap) {
 
 const WRAP_EMBOSS_MASK_MAX_CELLS = 1_200_000;
 const WRAP_EMBOSS_MASK_MAX_CELLS_EXPORT = 4_000_000;
+/** Multi-colour contour preview — full-res trace masks are megapixel; downscale before polygonise. */
+const MULTI_COLOUR_PREVIEW_MAX_CELLS = 900_000;
+/** Multi-colour 3MF export — row shells on a smaller mask keep AMS registration without huge XML. */
+const MULTI_COLOUR_EXPORT_MAX_CELLS = 320_000;
 
 function downsampleEmbossMaskToFit(mask, maskW, maskH, maxCells = WRAP_EMBOSS_MASK_MAX_CELLS) {
   let m = mask instanceof Uint8Array ? mask : Uint8Array.from(mask);
