@@ -4,12 +4,12 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b306** — multi-colour default trace mode (no auto reset on import)
-- Cache-bust: `app.js?v=306`, `geometry.js?v=306` — header **b306**
+- Current: **b307** — font on own line; Bebas default in code
+- Cache-bust: `app.js?v=307`, `geometry.js?v=307` — header **b307**
 
-### 2026-07-12 — b306: Multi-colour default trace mode sticks on import
+### 2026-07-12 — b307: Font full-width row + Bebas default
 
-**Fix:** `traceMode` default is **multi-colour** in code (not just dropdown order). Removed raster/SVG import paths that forced **Auto**. Trace mode and threshold each on their own line (no truncated select).
+**Fix:** Text **Font** on its own line (not squeezed beside colour picker). Default `embossFont` is **bebas** in `DEFAULTS` — matches cooler presets, no silent fallback to Inter.
 
 ### 2026-07-12 — b302: Multi-colour logo trace (team logos → AMS slots)
 

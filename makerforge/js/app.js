@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=306";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=307";
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette } from "./features.js?v=304";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=304";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=201";
@@ -24,7 +24,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b306";
+const MAKERDECK_BUILD = "b307";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -2094,7 +2094,7 @@ function syncUiFromState() {
   syncTextAlignUi();
   syncTextLayoutUi();
   const embossFontSelect = document.getElementById("emboss-font");
-  if (embossFontSelect) embossFontSelect.value = state.embossFont || "inter";
+  if (embossFontSelect) embossFontSelect.value = state.embossFont || "bebas";
   updateEmbossTextPreviewStyle();
   updateLabels();
   syncLidTypeSelect();
@@ -3070,7 +3070,7 @@ function syncArtEditorUi() {
 
   document.getElementById("emboss-text").value = state.embossText || "";
   document.getElementById("emboss-face").value = state.embossFace || "front";
-  document.getElementById("emboss-font").value = state.embossFont || "inter";
+  document.getElementById("emboss-font").value = state.embossFont || "bebas";
   document.getElementById("emboss-deboss").checked = !!state.embossDeboss;
   syncEmbossFaceUi();
   setArtSlider("emboss-height", state.embossHeight ?? 7);
@@ -4676,7 +4676,7 @@ function updateDecorUi() {
   updateEmbossDebossUi();
   document.getElementById("field-emboss-height").classList.toggle("hidden", !textOn);
   document.getElementById("field-trace-size").classList.toggle("hidden", !(svgLoaded || traceOnBox));
-  document.getElementById("emboss-font").value = state.embossFont || "inter";
+  document.getElementById("emboss-font").value = state.embossFont || "bebas";
   syncArtEditorUi();
   syncArtSubPane();
   syncExportFormatOptions();
@@ -4747,7 +4747,7 @@ function updateEmbossDebossUi() {
 
 function updateEmbossTextPreviewStyle() {
   const input = document.getElementById("emboss-text");
-  const f = embossFontSpec(state.embossFont || "inter");
+  const f = embossFontSpec(state.embossFont || "bebas");
   input.style.fontFamily = f.family;
   input.style.fontWeight = String(f.weight);
 }
@@ -5713,7 +5713,7 @@ async function bootMakerDeck() {
         : `Session restored from ${when}`;
     }
   } else {
-    embossFontSelect.value = state.embossFont || "inter";
+    embossFontSelect.value = state.embossFont || "bebas";
     updateEmbossTextPreviewStyle();
     setTab("design");
   }

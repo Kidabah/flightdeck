@@ -22,7 +22,7 @@ import {
   shapeSupportsProfileTexture,
   shapeSupportsProfileArt,
   shapeSupportsArt,
-} from "./features.js?v=306";
+} from "./features.js?v=307";
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=161";
 import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=161";
@@ -2427,7 +2427,7 @@ export const DEFAULTS = {
   textOffsetY: 0,
   textRotation: 0,
   embossText: "",
-  embossFont: "inter",
+  embossFont: "bebas",
   embossDepth: 0.7,
   embossHeight: 7,
   embossFace: "front",
