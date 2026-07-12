@@ -4,21 +4,19 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b290** — dense wrap line art grid slabs (Wests Tigers text blocks)
-- Previous: **b289** — cooler wrap seam unwrap + contour silhouettes
-- Golden build: **b284** (tag: `makerdeck-golden-b284`) — trace preview + jar emboss
-- Cache-bust: `app.js?v=290`, `features.js?v=290` — header **b290**
-- Hard refresh required (Ctrl+Shift+R)
+- Current: **b291** — dense wrap line art → solid contour (fixes upside-down + bars)
+- Previous: **b290** — dense grid slabs (superseded)
+- Cache-bust: `app.js?v=291`, `features.js?v=291` — header **b291**
 
-### 2026-07-12 — b290: Dense wrap line art — Wests Tigers text blocks
+### 2026-07-12 — b291: Dense wrap line art — solid contour not grid slabs
 
-**Symptom:** Coffee bag line art perfect on cooler wrap (~14% fill). Wests Tigers trace perfect but 3D bottom shredded (~38% fill, block text).
+**Symptom:** b290 Wests Tigers upside down + still shredded. Coffee bag wrap still good.
 
-**Cause:** All wrap line art used 1px row shells. Sparse line art OK; dense horizontal text rows band and glitch on the cylinder.
+**Cause:** b290 grid slabs used wrong Y (no mask flip). Row shells still glitch on block text.
 
-**Fix:** `wrapLineArtNeedsDenseSlabs()` — fill ≥28% (or ≥22% with 5000+ runs) uses `buildWrapDenseLineArtSlabMesh`: closed mm-grid + seam unwrap. Coffee bag stays on fine pixel rows.
+**Fix:** Dense wrap line art (≥28% fill) → close mask → `extrudeGroupsOnFace` contour (same Y as coffee bag via `remappedBitmapFaceGroups`). Coffee bag unchanged (sparse fine rows).
 
-**Test:** Coffee bag wrap first, then Wests Tigers wrap.
+**Test:** Coffee bag wrap, then Wests Tigers wrap — right way up, clean text.
 
 ### 2026-07-12 — b289: Circle cooler wrap — seam unwrap + contour silhouettes
 
