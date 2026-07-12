@@ -2592,11 +2592,26 @@ function multiColourLayerShapeGroups(mask, maskW, maskH, params) {
 /** Vector contour extrusion for one multi-colour layer — smooth wrap curves (not pixel row shells). */
 function buildMultiColourContourEmboss(meta, params, traceData, layer) {
   const { mask, maskW, maskH } = fitMultiColourLayerMask(layer, traceData.width, traceData.height, params);
+  const frame = getEmbossFaceFrame(meta, params.embossFace || "front", params);
+  const { d0, d1 } = labelOffsets(params);
+
+  // Wrap — ink-mask row shells (coffee-bag golden path). Earcut contours fold/gap on curved walls.
+  if (frame.face === "wrap") {
+    const slabBitmap = ensureEmbossBitmapMask({
+      mask,
+      width: maskW,
+      height: maskH,
+      mode: "silhouette",
+      outlineRaster: false,
+    });
+    const wrapSlab = buildWrapGoldenSlabEmboss(frame, slabBitmap, params, maskW, maskH, d0, d1);
+    if (wrapSlab?.indices?.length) return wrapSlab;
+    return null;
+  }
+
   const bitmap = layerToEmbossBitmap({ width: maskW, height: maskH }, { ...layer, mask }, params);
   if (!bitmap.shapeGroups?.length) return null;
-  const frame = getEmbossFaceFrame(meta, params.embossFace || "front", params);
   const artH = params.embossTraceSize ?? 16;
-  const { d0, d1 } = labelOffsets(params);
   const faceGroups = remappedBitmapFaceGroups(bitmap, frame, params, bitmap.shapeGroups, maskW, maskH, artH);
   if (!faceGroups?.length) return null;
 
@@ -2901,8 +2916,8 @@ const WRAP_EMBOSS_MASK_MAX_CELLS = 1_200_000;
 const WRAP_EMBOSS_MASK_MAX_CELLS_EXPORT = 4_000_000;
 /** Multi-colour contour preview — full-res trace masks are megapixel; downscale before polygonise. */
 const MULTI_COLOUR_PREVIEW_MAX_CELLS = 900_000;
-/** Multi-colour 3MF export — one downsample pass keeps contours printable without megapixel XML. */
-const MULTI_COLOUR_EXPORT_MAX_CELLS = 1_050_000;
+/** Multi-colour 3MF export — one downsample pass keeps wrap row shells printable without megapixel XML. */
+const MULTI_COLOUR_EXPORT_MAX_CELLS = 520_000;
 
 function downsampleEmbossMaskToFit(mask, maskW, maskH, maxCells = WRAP_EMBOSS_MASK_MAX_CELLS) {
   let m = mask instanceof Uint8Array ? mask : Uint8Array.from(mask);
@@ -2926,7 +2941,9 @@ function buildWrapGoldenSlabEmboss(frame, bitmap, params, maskW, maskH, d0, d1) 
   let slabW = maskW;
   let slabH = maskH;
   let slabMask = b.mask instanceof Uint8Array ? b.mask : Uint8Array.from(b.mask);
-  const maxCells = params?.__labelExportStandoff ? WRAP_EMBOSS_MASK_MAX_CELLS_EXPORT : WRAP_EMBOSS_MASK_MAX_CELLS;
+  const maxCells = params?.__multiColourAmsExport
+    ? MULTI_COLOUR_EXPORT_MAX_CELLS
+    : (params?.__labelExportStandoff ? WRAP_EMBOSS_MASK_MAX_CELLS_EXPORT : WRAP_EMBOSS_MASK_MAX_CELLS);
   if (expected > maxCells) {
     const ds = downsampleEmbossMaskToFit(slabMask, slabW, slabH, maxCells);
     slabMask = ds.mask;

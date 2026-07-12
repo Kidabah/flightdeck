@@ -4,8 +4,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b314** — Multi-colour trace resolution + closed contour export
-- Cache-bust: `app.js?v=314` — header **b314**
+- Current: **b315** — Multi-colour wrap uses row shells (not earcut)
+- Cache-bust: `app.js?v=315` — header **b315**
+
+### 2026-07-12 — b315: Multi-colour wrap row shells (fix earcut gaps)
+
+**Problem:** St George preview/export on wrap showed broken top edge, horizontal splits, giant folded triangles — earcut contour caps fold on curved walls.
+
+**Fix:** Wrap face multi-colour layers use **ink-mask row shells** (coffee-bag golden path) per AMS colour. Flat faces still use vector contours. Export masks capped ~520k px/layer.
+
+**Files:** `features.js`, `app.js`, `index.html`
+
+**Test:** Re-trace Dragons on wrap → solid fills, no top-edge holes. Hard refresh `app.js?v=315`.
 
 ### 2026-07-12 — b314: Multi-colour resolution + closed contour export
 
