@@ -35,9 +35,11 @@ export function decorPlacementOffsets(params, frame, artW, artH, kind = "graphic
   const ox = clamp(oxIn, -maxOx, maxOx);
   const oy = clamp(oyIn, -maxOy, maxOy);
   if (frame.face === "wrap") {
+    const gutter = Math.min(1.4, Math.max(0, (frame.faceH - artH) / 2));
+    const zOff = clamp((frame.faceH - artH) / 2 + oy, gutter, Math.max(gutter, frame.faceH - artH - gutter));
     return {
       xOff: frame.faceW / 2 - artW / 2 + ox,
-      zOff: (frame.faceH - artH) / 2 + oy,
+      zOff,
       ox,
       oy,
     };

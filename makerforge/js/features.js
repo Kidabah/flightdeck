@@ -2532,19 +2532,60 @@ export function buildTextLabelExportMesh(meta, params) {
   return positions.length ? { positions, indices } : null;
 }
 
+function layerToEmbossBitmap(traceData, layer) {
+  const mask = layer.mask instanceof Uint8Array ? layer.mask : Uint8Array.from(layer.mask || []);
+  return {
+    mask,
+    silhouetteMask: mask,
+    rects: layer.rects?.map((r) => ({ ...r })) || [],
+    width: traceData.width,
+    height: traceData.height,
+    mode: "silhouette",
+    maskFillPct: layer.maskFillPct,
+    outlineRaster: false,
+    shapeGroups: [],
+  };
+}
+
+/** Per-colour wrap/front emboss meshes for multi-colour logo traces. */
+export function buildMultiColourGraphicEmboss(meta, params, traceData) {
+  if (!traceData?.multiColour || !traceData.colorLayers?.length) return null;
+  const parts = [];
+  for (const layer of traceData.colorLayers) {
+    if (!layer.mask?.length) continue;
+    const bitmap = layerToEmbossBitmap(traceData, layer);
+    const mesh = buildEmbossBitmap(meta, params, bitmap);
+    if (mesh?.indices?.length) {
+      parts.push({
+        mesh,
+        color: layer.hex,
+        name: `Art ${layer.label || layer.hex}`,
+        label: layer.label,
+      });
+    }
+  }
+  return parts.length ? parts : null;
+}
+
 /** Closed graphic solids for separate-colour export (trace/SVG — not thin stroke quads). */
 export function buildGraphicLabelExportMesh(meta, params, svgText = "") {
   const p = { ...params, __labelExportKind: "art" };
   const traceData = p.embossTraceRects;
   const hasTrace =
     p.embossTraceEnabled &&
-    (traceData?.shapeGroups?.length ||
-      traceData?.strokePaths?.length ||
-      traceData?.mask?.length ||
-      traceData?.rects?.length ||
-      traceData?.silhouetteMask?.length);
+    (traceData?.multiColour && traceData.colorLayers?.length
+      || traceData?.shapeGroups?.length
+      || traceData?.strokePaths?.length
+      || traceData?.mask?.length
+      || traceData?.rects?.length
+      || traceData?.silhouetteMask?.length);
+  if (hasTrace && traceData?.multiColour && traceData.colorLayers?.length) {
+    const colourParts = buildMultiColourGraphicEmboss(meta, p, traceData);
+    if (colourParts?.length === 1) return colourParts[0].mesh;
+    if (colourParts?.length > 1) return mergeMeshes(...colourParts.map((cp) => cp.mesh));
+  }
   // Trace export must match preview — ink-mask row shells, not shapeGroup earcut / coarse decals.
-  if (hasTrace) {
+  if (hasTrace && !traceData?.multiColour) {
     const mesh = buildEmbossBitmap(meta, p, traceData);
     if (mesh?.indices?.length) return mesh;
   }
@@ -4054,19 +4095,29 @@ function labelEmbossParts(meta, params, svgText = "", mode = "emboss") {
   const traceData = p.embossTraceRects;
   const hasTrace =
     p.embossTraceEnabled &&
-    (traceData?.shapeGroups?.length ||
-      traceData?.strokePaths?.length ||
-      traceData?.mask?.length ||
-      traceData?.rects?.length);
+    ((traceData?.multiColour && traceData.colorLayers?.length)
+      || traceData?.shapeGroups?.length
+      || traceData?.strokePaths?.length
+      || traceData?.mask?.length
+      || traceData?.rects?.length
+      || traceData?.silhouetteMask?.length);
   const hasText = textHasInk(p.embossText);
   const hasSvg = p.embossSvgEnabled && !!svgText?.trim() && !hasTrace;
 
   let text = null;
   let graphic = null;
+  let graphicColourParts = null;
   if (hasText) text = buildEmbossText(meta, p);
   if (hasSvg) graphic = buildEmbossSvg(meta, p, svgText);
-  if (hasTrace) graphic = buildEmbossBitmap(meta, p, traceData);
-  return { text, graphic };
+  if (hasTrace && traceData?.multiColour && traceData.colorLayers?.length) {
+    graphicColourParts = buildMultiColourGraphicEmboss(meta, p, traceData);
+    if (graphicColourParts?.length) {
+      graphic = mergeMeshes(...graphicColourParts.map((cp) => cp.mesh));
+    }
+  } else if (hasTrace) {
+    graphic = buildEmbossBitmap(meta, p, traceData);
+  }
+  return { text, graphic, graphicColourParts };
 }
 
 /** Text and graphic meshes separately (for preview colours and export). */

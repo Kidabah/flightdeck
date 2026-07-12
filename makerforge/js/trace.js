@@ -1217,6 +1217,198 @@ function finishRasterInkTrace(workMask, tw, th, ox, oy, simplifyFactor, width, h
   };
 }
 
+function rgbToHex(r, g, b) {
+  const c = (n) => clamp(Math.round(n), 0, 255).toString(16).padStart(2, "0");
+  return `#${c(r)}${c(g)}${c(b)}`;
+}
+
+function colourLayerLabel(r, g, b) {
+  const lum = r * 0.299 + g * 0.587 + b * 0.114;
+  const chroma = Math.max(r, g, b) - Math.min(r, g, b);
+  if (lum > 215 && chroma < 55) return "White";
+  if (lum < 48 && chroma < 40) return "Black";
+  if (r > g + 28 && r > b + 28) return "Red";
+  if (r > 150 && g > 70 && b < 90 && r >= g) return "Orange";
+  if (b > r + 24 && b > g + 12) return "Blue";
+  if (g > r + 20 && g > b + 10) return "Green";
+  if (chroma < 35) return lum > 128 ? "Grey" : "Dark grey";
+  return "Colour";
+}
+
+/** Quantize ink inside colour-logo foreground — skips stripe/background noise. */
+function collectForegroundColorLayers(data, width, height, threshold, invert, blur) {
+  const fg = colorLogoMask(data, width, height, threshold, invert);
+  const buckets = new Map();
+  const minPixels = Math.max(48, Math.round((width * height) / 32000));
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const idx = y * width + x;
+      if (!fg[idx]) continue;
+      const i = idx * 4;
+      const key = quantizeInkColor(data[i], data[i + 1], data[i + 2]);
+      buckets.set(key, (buckets.get(key) || 0) + 1);
+    }
+  }
+  const layers = [...buckets.entries()]
+    .filter(([, count]) => count >= minPixels)
+    .sort((a, b) => b[1] - a[1]);
+  return layers.length >= 2 ? layers.map(([key]) => key) : null;
+}
+
+function maskForColourKeyInForeground(data, width, height, colorKey, fgMask, threshold, invert, blur) {
+  const [tr, tg, tb] = colorKey.split(",").map(Number);
+  const tol = 42;
+  const mask = new Uint8Array(width * height);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const idx = y * width + x;
+      if (!fgMask[idx]) continue;
+      const i = idx * 4;
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      if (Math.abs(r - tr) <= tol && Math.abs(g - tg) <= tol && Math.abs(b - tb) <= tol) {
+        mask[idx] = 1;
+      }
+    }
+  }
+  return openMask(mask, width, height);
+}
+
+function extractAlignedCropMask(fullMask, fullW, fullH, tw, th, ox, oy) {
+  const out = new Uint8Array(tw * th);
+  for (let y = 0; y < th; y++) {
+    for (let x = 0; x < tw; x++) {
+      const fx = ox + x;
+      const fy = oy + y;
+      if (fx >= 0 && fy >= 0 && fx < fullW && fy < fullH && fullMask[fy * fullW + fx]) {
+        out[y * tw + x] = 1;
+      }
+    }
+  }
+  return out;
+}
+
+/** Multi-colour logo trace — one ink mask per detected filament colour. */
+export async function traceMultiColourCanvasAsync(canvas, options = {}) {
+  await traceYield();
+  const threshold = clamp(options.threshold ?? 128, 1, 254);
+  const invert = !!options.invert;
+  const ctx = canvas.getContext("2d");
+  const { width, height } = canvas;
+  const { data } = ctx.getImageData(0, 0, width, height);
+  const blur = blurAlphaMask(data, width, height);
+  const fgMask = colorLogoMask(data, width, height, threshold, invert);
+  let colorKeys = collectForegroundColorLayers(data, width, height, threshold, invert, blur);
+  if (!colorKeys) {
+    colorKeys = collectInkColorLayers(data, width, height, threshold, invert, blur);
+  }
+  if (!colorKeys || colorKeys.length < 2) {
+    return {
+      rects: [],
+      width: 0,
+      height: 0,
+      svg: "",
+      rectCount: 0,
+      simplified: false,
+      simplifyFactor: 1,
+      tooComplex: false,
+      mode: "multi-colour",
+      multiColour: true,
+      colorLayers: [],
+    };
+  }
+
+  const combined = fgMask.slice();
+  const layerMasks = [];
+  for (const key of colorKeys.slice(0, MAX_COLOR_LAYERS)) {
+    await traceYield();
+    let layerMask = maskForColourKeyInForeground(data, width, height, key, fgMask, threshold, invert, blur);
+    if (options.strengthen) layerMask = closeMask(layerMask, width, height);
+    for (let i = 0; i < combined.length; i++) if (layerMask[i]) combined[i] = 1;
+    layerMasks.push({ key, mask: layerMask });
+  }
+
+  const cropped = cropMask(combined, width, height);
+  if (!cropped) {
+    return {
+      rects: [],
+      width: 0,
+      height: 0,
+      svg: "",
+      rectCount: 0,
+      simplified: false,
+      simplifyFactor: 1,
+      tooComplex: false,
+      mode: "multi-colour",
+      multiColour: true,
+      colorLayers: [],
+    };
+  }
+
+  const { width: tw, height: th, ox, oy } = cropped;
+  const colorLayers = [];
+  const usedLabels = new Map();
+  for (const { key, mask } of layerMasks) {
+    const cropMaskLayer = extractAlignedCropMask(mask, width, height, tw, th, ox, oy);
+    const fill = maskFillRatio(cropMaskLayer, tw, th);
+    if (fill < 0.002) continue;
+    const [r, g, b] = key.split(",").map(Number);
+    let label = colourLayerLabel(r, g, b);
+    const n = (usedLabels.get(label) || 0) + 1;
+    usedLabels.set(label, n);
+    if (n > 1) label = `${label} ${n}`;
+    colorLayers.push({
+      rgb: [r, g, b],
+      hex: rgbToHex(r, g, b),
+      label,
+      mask: cropMaskLayer,
+      rects: maskToRuns(cropMaskLayer, tw, th),
+      maskFillPct: Math.round(fill * 100),
+    });
+  }
+
+  if (colorLayers.length < 2) {
+    return {
+      rects: [],
+      width: tw,
+      height: th,
+      svg: "",
+      rectCount: 0,
+      simplified: false,
+      simplifyFactor: 1,
+      tooComplex: false,
+      mode: "multi-colour",
+      multiColour: true,
+      colorLayers: [],
+    };
+  }
+
+  return {
+    rects: [],
+    mask: [],
+    polygons: [],
+    shapeGroups: [],
+    strokePaths: [],
+    width: tw,
+    height: th,
+    cropOx: ox,
+    cropOy: oy,
+    svg: "",
+    rectCount: 0,
+    polygonCount: colorLayers.length,
+    islandCount: colorLayers.length,
+    simplified: false,
+    simplifyFactor: 1,
+    tooComplex: colorLayers.length > MAX_COLOR_LAYERS,
+    mode: "multi-colour",
+    multiColour: true,
+    colorLayers,
+    colorLayerCount: colorLayers.length,
+    tracePx: `${width}×${height}`,
+  };
+}
+
 /** Single-pass colour-logo trace — for SVG raster import (skip slow auto triple-trace). */
 export async function traceSvgLogoCanvasAsync(canvas, options = {}) {
   return traceColorLogoCanvasAsync(canvas, options);
@@ -1839,6 +2031,10 @@ export async function traceCanvasAsync(canvas, options = {}) {
     });
   }
 
+  if (options.mode === "multi-colour") {
+    return traceMultiColourCanvasAsync(canvas, options);
+  }
+
   const mode = options.mode === "outline" ? "outline" : "silhouette";
 
 
@@ -2002,7 +2198,7 @@ function resolveTracePreviewMask(traceResult) {
   return null;
 }
 
-function drawTraceInkMaskOverlay(ctx, pad, ox, oy, mask, tw, th, factor) {
+function drawTraceInkMaskOverlay(ctx, pad, ox, oy, mask, tw, th, factor, rgba = [56, 189, 248, 140]) {
   const preview = document.createElement("canvas");
   preview.width = tw;
   preview.height = th;
@@ -2012,14 +2208,23 @@ function drawTraceInkMaskOverlay(ctx, pad, ox, oy, mask, tw, th, factor) {
   for (let i = 0; i < tw * th; i++) {
     const on = mask[i];
     const j = i * 4;
-    img.data[j] = 56;
-    img.data[j + 1] = 189;
-    img.data[j + 2] = 248;
-    img.data[j + 3] = on ? 140 : 0;
+    img.data[j] = rgba[0];
+    img.data[j + 1] = rgba[1];
+    img.data[j + 2] = rgba[2];
+    img.data[j + 3] = on ? rgba[3] : 0;
   }
   pctx.putImageData(img, 0, 0);
   ctx.drawImage(preview, pad + ox, pad + oy, tw * factor, th * factor);
   return true;
+}
+
+function hexToRgba(hex, alpha = 180) {
+  const h = (hex || "#000000").replace("#", "");
+  if (h.length < 6) return [56, 189, 248, alpha];
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return [r, g, b, alpha];
 }
 
 function drawTraceInkRunOverlay(ctx, pad, ox, oy, rects, factor) {
@@ -2066,6 +2271,14 @@ export function drawTracePreview(previewCanvas, sourceCanvas, traceResult) {
   const oy = traceResult.cropOy ?? 0;
   const tw = traceResult.width || 1;
   const th = traceResult.height || 1;
+
+  if (traceResult.multiColour && traceResult.colorLayers?.length) {
+    for (const layer of traceResult.colorLayers) {
+      if (!layer.mask?.length) continue;
+      drawTraceInkMaskOverlay(ctx, pad, ox, oy, layer.mask, tw, th, factor, hexToRgba(layer.hex, 200));
+    }
+    return;
+  }
 
   // Raster ink mask — line art (outlineRaster) + silhouettes: full cyan fill on every ink pixel.
   const inkMask = resolveTracePreviewMask(traceResult);

@@ -4,8 +4,24 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b301** — Tigers export: no mask close on dense line art + finer export mask
-- Cache-bust: `app.js?v=301`, `features.js?v=301` — header **b301**
+- Current: **b302** — multi-colour logo trace + per-colour AMS export
+- Cache-bust: `app.js?v=302`, `trace.js?v=302`, `features.js?v=302`, `geometry.js?v=302` — header **b302**
+
+### 2026-07-12 — b302: Multi-colour logo trace (team logos → AMS slots)
+
+**Goal:** Stop fighting solid-logo line-art traces for heraldic/team crests. Detect colours from PNG, emboss each separately, export one 3MF part per colour.
+
+**Changes:**
+- **Trace mode:** `Multi-colour — team logo (AMS)` splits foreground into per-colour ink masks (`traceMultiColourCanvasAsync`).
+- **Preview:** Each colour layer renders in its detected hex on the wrap.
+- **Export:** Separate 3MF parts (`Art Orange`, `Art White`, etc.) — one AMS filament slot each. Uses golden `buildEmbossBitmap` row shells per layer (same path as coffee-bag preview).
+- **UI:** Art colour picker hidden when multi-colour trace active; export plan lists each colour part.
+
+**Files:** `trace.js`, `features.js`, `app.js`, `geometry.js`, `index.html`
+
+**Test:** Wests Tigers / Broncos PNG → trace mode **Multi-colour** → cooler wrap → export 3MF. Expect Body + Art Orange + Art White + Art Black (colours vary by asset). Coffee bag line-art path unchanged (Auto/Outline).
+
+**Deploy:** Hard refresh (Ctrl+Shift+R). Pi pull + restart.
 
 ### 2026-07-12 — b301: Dense heraldic line art — skip wrap mask close (Tigers striations)
 

@@ -22,7 +22,7 @@ import {
   shapeSupportsProfileTexture,
   shapeSupportsProfileArt,
   shapeSupportsArt,
-} from "./features.js?v=301";
+} from "./features.js?v=302";
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=161";
 import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=161";
@@ -2018,6 +2018,7 @@ export function buildContainer(params) {
   let insertMesh = null;
   let labelMesh = null;
   let graphicMesh = null;
+  let graphicColourParts = null;
   let debossCutterMesh = null;
   if (boxDecor || profileArt) {
     const boxShell = {
@@ -2038,8 +2039,12 @@ export function buildContainer(params) {
         const parts = buildLabelEmbossParts(artMeta, params, params.embossSvgText || "", "emboss");
         labelMesh = parts.text;
         graphicMesh = parts.graphic;
+        graphicColourParts = parts.graphicColourParts || null;
         if (labelMesh) centerPositions(labelMesh.positions, 0, 0);
         if (graphicMesh) centerPositions(graphicMesh.positions, 0, 0);
+        if (graphicColourParts?.length) {
+          for (const cp of graphicColourParts) centerPositions(cp.mesh.positions, 0, 0);
+        }
         mesh = shellMesh;
       }
     } else {
@@ -2067,6 +2072,7 @@ export function buildContainer(params) {
       insertMesh,
       labelMesh,
       graphicMesh,
+      graphicColourParts,
       debossCutterMesh,
       holderParts,
     };
@@ -2111,6 +2117,7 @@ export function buildLid(params) {
       : resolved.meta.shape;
   let labelMesh = null;
   let graphicMesh = null;
+  let graphicColourParts = null;
   let debossCutterMesh = null;
   const guideParams = { ...params, lidType };
   const shellLid = { positions: lid.positions.slice(), indices: lid.indices.slice() };
@@ -2126,8 +2133,12 @@ export function buildLid(params) {
       const parts = buildLabelEmbossParts(resolved.meta, params, params.embossSvgText || "", "emboss");
       labelMesh = parts.text;
       graphicMesh = parts.graphic;
+      graphicColourParts = parts.graphicColourParts || null;
       if (labelMesh) centerPositions(labelMesh.positions, 0, 0);
       if (graphicMesh) centerPositions(graphicMesh.positions, 0, 0);
+      if (graphicColourParts?.length) {
+        for (const cp of graphicColourParts) centerPositions(cp.mesh.positions, 0, 0);
+      }
       lid = shellLid;
     }
   }
@@ -2149,6 +2160,7 @@ export function buildLid(params) {
     fitGuides: computeLidFitGuides(resolved, guideParams),
     labelMesh,
     graphicMesh,
+    graphicColourParts,
     debossCutterMesh,
     shellLid,
     gasketRingMesh,
