@@ -1660,6 +1660,64 @@ function rasterArcTextMask(text, fontId, fontSizePx = 640, options = {}) {
   return { mask, width: size, height: size, arcCenterPx: [ocx, ocy], radiusPx };
 }
 
+/** Horizontal banner bow for cylinder wrap — upright letters, arch in height (not plaque circle). */
+function rasterWrapBannerTextMask(text, fontId, fontSizePx = 640, options = {}) {
+  if (typeof document === "undefined") return null;
+  const line = String(text || "")
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .find((l) => l) || "";
+  if (!line) return null;
+
+  const chars = [...line];
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  const font = embossFontStack(fontId, fontSizePx);
+  ctx.font = font;
+
+  const letterSpacing = clamp(options.spacing ?? 1, 0.7, 1.8);
+  const charWidths = chars.map((c) => ctx.measureText(c).width);
+  const totalW = charWidths.reduce((a, b) => a + b, 0) * letterSpacing;
+  const side = options.side === "down" ? "down" : "up";
+  const curve = clamp(options.curveAmount ?? 60, 0, 100) / 100;
+  const bowPx = fontSizePx * (0.1 + curve * 0.38);
+  const padX = Math.ceil(fontSizePx * 0.35);
+  const padY = Math.ceil(fontSizePx * 0.4 + bowPx);
+
+  canvas.width = Math.max(8, Math.ceil(totalW + padX * 2));
+  canvas.height = Math.max(8, Math.ceil(fontSizePx * 1.35 + bowPx * 2 + padY));
+
+  ctx.font = font;
+  ctx.fillStyle = "#000";
+  ctx.textBaseline = "middle";
+  ctx.textAlign = "center";
+
+  const midX = totalW / 2;
+  let x = padX;
+  const baseY = side === "down"
+    ? padY + fontSizePx * 0.52
+    : canvas.height - padY - fontSizePx * 0.52;
+
+  for (let i = 0; i < chars.length; i++) {
+    const w = charWidths[i] * letterSpacing;
+    const cx = x + w / 2;
+    const t = midX > 0 ? (cx - padX - midX) / midX : 0;
+    const parab = Math.max(0, 1 - t * t);
+    const y = side === "down"
+      ? baseY + parab * bowPx
+      : baseY - parab * bowPx;
+    ctx.fillText(chars[i], cx, y);
+    x += w;
+  }
+
+  const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+  const mask = new Uint8Array(canvas.width * canvas.height);
+  for (let i = 0; i < canvas.width * canvas.height; i++) {
+    if (data[i * 4 + 3] > 64) mask[i] = 1;
+  }
+  return { mask, width: canvas.width, height: canvas.height };
+}
+
 function estimateGraphicArtSizeMm(frame, meta, params) {
   const traceData = params.embossTraceRects;
   const hasTrace =
@@ -1798,7 +1856,7 @@ function computeFlatTextBand(meta, params, frame, labelH, fontId, fontSizePx) {
 }
 
 /** Where wrap text should sit — move sliders, or stacked above/below the traced graphic. */
-function resolveWrapTextBand(params, flatBand, anchor, labelH) {
+function resolveWrapTextBand(params, flatBand, anchor, labelH, artHOverride = null) {
   if (!flatBand) return null;
   const ox = params.textOffsetX ?? 0;
   const oy = params.textOffsetY ?? 0;
@@ -1807,17 +1865,18 @@ function resolveWrapTextBand(params, flatBand, anchor, labelH) {
   const arcMode = (params.embossTextLayout || "flat") === "arc";
   const side = arcMode && params.embossArcSide === "down" ? "down" : "up";
   const gap = Math.max(1.2, labelH * 0.1);
+  const bandH = artHOverride ?? flatBand.artH;
   const bottom = side === "down"
-    ? anchor.bottom - gap - flatBand.artH
+    ? anchor.bottom - gap - bandH
     : anchor.top + gap;
-  const top = bottom + flatBand.artH;
+  const top = bottom + bandH;
   return {
     cx: flatBand.cx,
     cy: (top + bottom) / 2,
     top,
     bottom,
     artW: flatBand.artW,
-    artH: flatBand.artH,
+    artH: bandH,
   };
 }
 
@@ -1907,9 +1966,16 @@ function computeTextArtLayout(meta, params) {
   const arcMode = (params.embossTextLayout || "flat") === "arc";
   const fontId = params.embossFont || "bebas";
   const fontSizePx = isLabelExport(params) ? 1280 : 640;
+  const wrapArc = arcMode && frame.face === "wrap";
 
   let raster;
-  if (arcMode) {
+  if (wrapArc) {
+    raster = rasterWrapBannerTextMask(text, fontId, fontSizePx, {
+      side: params.embossArcSide === "down" ? "down" : "up",
+      curveAmount: params.embossArcCurve ?? 60,
+      spacing: params.embossArcSpacing ?? 1,
+    });
+  } else if (arcMode) {
     const radiusMm = resolveArcRadiusMm(frame, meta, params, labelH);
     const radiusPx = (radiusMm / labelH) * fontSizePx;
     raster = rasterArcTextMask(text, fontId, fontSizePx, {
@@ -1944,53 +2010,26 @@ function computeTextArtLayout(meta, params) {
   let canvasZOff;
   let rotation;
 
-  if (arcMode && raster.arcCenterPx) {
+  if (arcMode && raster.arcCenterPx && !wrapArc) {
     const [acxPx, acyPx] = raster.arcCenterPx;
     const faceCy = frame.horizontal ? 0 : frame.centerZ;
-    const seedCx = frame.face === "wrap" ? frame.faceW / 2 : (params.textOffsetX ?? 0);
-    const seedCy = faceCy;
-    let bounds = arcGlyphFaceBounds(
-      seedCx - acxPx * scale,
-      seedCy - (maskH - acyPx) * scale,
+    const targetCx = params.textOffsetX ?? 0;
+    const targetCy = faceCy + (params.textOffsetY ?? 0);
+    const bounds = arcGlyphFaceBounds(
+      targetCx - acxPx * scale,
+      targetCy - (maskH - acyPx) * scale,
       glyph,
       scale,
       maskH,
     );
-    if (frame.face === "wrap") {
-      const flatBand = computeFlatTextBand(meta, params, frame, labelH, fontId, fontSizePx);
-      const anchor = graphicArtAnchor(frame, meta, params);
-      const band = resolveWrapTextBand(params, flatBand, anchor, labelH);
-      if (band) {
-        const aligned = alignBoundsToWrapBand(bounds, band);
-        bounds = aligned;
-        cx = aligned.cx;
-        cy = aligned.cy;
-        left = aligned.left;
-        right = aligned.right;
-        bottom = aligned.bottom;
-        top = aligned.top;
-        canvasXOff = aligned.canvasXOff;
-        canvasZOff = aligned.canvasZOff;
-      }
-    } else {
-      const targetCx = params.textOffsetX ?? 0;
-      const targetCy = faceCy + (params.textOffsetY ?? 0);
-      bounds = arcGlyphFaceBounds(
-        targetCx - acxPx * scale,
-        targetCy - (maskH - acyPx) * scale,
-        glyph,
-        scale,
-        maskH,
-      );
-      cx = targetCx;
-      cy = targetCy;
-    }
     canvasXOff = bounds.canvasXOff;
     canvasZOff = bounds.canvasZOff;
     left = bounds.left;
     right = bounds.right;
     bottom = bounds.bottom;
     top = bounds.top;
+    cx = targetCx;
+    cy = targetCy;
     rotation = params.embossArcTilt ?? 0;
   } else {
     const { xOff, zOff } = decorPlacementOffsets(params, frame, artW, artH, "text");
@@ -2005,10 +2044,10 @@ function computeTextArtLayout(meta, params) {
     rotation = params.textRotation ?? 0;
   }
 
-  if (frame.face === "wrap" && !arcMode) {
+  if (frame.face === "wrap") {
     const flatBand = computeFlatTextBand(meta, params, frame, labelH, fontId, fontSizePx);
     const anchor = graphicArtAnchor(frame, meta, params);
-    const band = resolveWrapTextBand(params, flatBand, anchor, labelH);
+    const band = resolveWrapTextBand(params, flatBand, anchor, labelH, artH);
     if (band) {
       const face = applyWrapTextBandToFaceRect(band, glyph, scale, maskH, artW, artH);
       left = face.left;

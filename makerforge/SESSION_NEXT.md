@@ -4,8 +4,21 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b320** — Wrap text move sliders + face-space row shells
-- Cache-bust: `app.js?v=320` — header **b320**
+- Current: **b321** — Wrap arch up/down banner bow
+- Cache-bust: `app.js?v=321` — header **b321**
+
+### 2026-07-12 — b321: Wrap arch up / arch down banner bow
+
+**Problem:** Arch up/down on wrap used circular plaque arc — letters tilted sideways on the cylinder. Preset clicks didn't reposition above/below graphic when move sliders were set.
+
+**Fix:**
+- Wrap arc uses **horizontal banner bow** (upright letters, curve in height) — not circular plaque arc
+- **Arch up** → above graphic, bow upward; **Arch down** → below, bow downward
+- Preset buttons on wrap reset offsets and snap to logo stack
+
+**Files:** `features.js`, `app.js`, `index.html`
+
+**Test:** MUSTANG wrap → Arch up above car (level arch); Arch down below. Hard refresh `app.js?v=321`.
 
 ### 2026-07-12 — b320: Wrap text move sliders work (flat + arc)
 
