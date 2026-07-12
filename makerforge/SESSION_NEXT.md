@@ -4,18 +4,16 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b304** — multi-colour vector contour emboss (smooth slicer edges)
-- Cache-bust: `app.js?v=304`, `trace.js?v=304`, `features.js?v=304`, `geometry.js?v=304` — header **b304**
+- Current: **b305** — Art tab tidy: Graphic / Text sub-tabs, one import drop
+- Cache-bust: `app.js?v=305`, `style.css?v=30` — header **b305**
 
-### 2026-07-12 — b304: Multi-colour vector contours (sharp slicer edges)
+### 2026-07-12 — b305: Art tab layout — Graphic / Text sub-tabs
 
-**Symptom:** b303 multi-colour export worked in AMS but slicer showed pixel stair-steps on curves and fragmented thin outlines (Warriors/Tigers).
+**Problem:** Two import boxes (SVG + image), long scroll on Art tab.
 
-**Cause:** Per-layer emboss used wrap **row shells** from pixel masks — same as line-art path, wrong for solid colour fills.
+**Fix:** Single drop zone (PNG/JPG/SVG/paste). **Graphic | Text** sub-tabs inside Art. Shared strip always visible: Face, emboss depth, deboss, Clear all. Coffee-bag / multi-colour workflows unchanged.
 
-**Fix:** Each colour layer → `maskToPolygons` → smooth shapeGroups → `extrudeShapeGroupBetween` on wrap (vector walls, not horizontal run slabs). Trace stores shapeGroups per layer at 2000px upscale. Coffee-bag Auto/Outline row-shell path unchanged.
-
-**Re-test:** Hard refresh, re-trace, export 3MF, check slicer toolpaths on curved crest edges before PETG print.
+**Deploy:** Hard refresh (Ctrl+Shift+R).
 
 ### 2026-07-12 — b302: Multi-colour logo trace (team logos → AMS slots)
 

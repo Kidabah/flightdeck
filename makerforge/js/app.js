@@ -24,7 +24,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b304";
+const MAKERDECK_BUILD = "b305";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -2918,6 +2918,31 @@ function clearDecorFromBox() {
   scheduleSaveSession();
 }
 
+let artSubPane = "graphic";
+
+function setArtSubPane(pane) {
+  artSubPane = pane === "text" ? "text" : "graphic";
+  document.querySelectorAll(".art-subnav-btn").forEach((btn) => {
+    const on = btn.dataset.artPane === artSubPane;
+    btn.classList.toggle("active", on);
+    btn.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  const graphicPane = document.getElementById("art-pane-graphic");
+  const textPane = document.getElementById("art-pane-text");
+  if (graphicPane) {
+    graphicPane.hidden = artSubPane !== "graphic";
+    graphicPane.classList.toggle("hidden", artSubPane !== "graphic");
+  }
+  if (textPane) {
+    textPane.hidden = artSubPane !== "text";
+    textPane.classList.toggle("hidden", artSubPane !== "text");
+  }
+}
+
+function syncArtSubPane() {
+  setArtSubPane(artSubPane);
+}
+
 function isArtTabActive() {
   const tab = document.querySelector('.tab[data-tab="art"]');
   return tab?.classList.contains("active") && !tab.disabled;
@@ -3006,22 +3031,34 @@ function svgImportModeLabel(svgText, importMode = "vector") {
 
 function syncSvgImportUi() {
   const meta = document.getElementById("svg-import-meta");
-  if (!meta) return;
+  const importMeta = document.getElementById("art-import-meta");
   const loaded = state.embossSvgEnabled && !!state.embossSvgText?.trim();
   if (!loaded) {
-    meta.textContent = "";
-    meta.classList.add("hidden");
+    if (meta) {
+      meta.textContent = "";
+      meta.classList.add("hidden");
+    }
+    if (importMeta && !traceSourceCanvas) {
+      importMeta.textContent = "";
+      importMeta.classList.add("hidden");
+    }
     return;
   }
   const mode = svgImportModeLabel(state.embossSvgText);
   const name = state.embossSvgFileName?.trim();
   const cache = state.embossFace === "lid" ? lidCache : meshCache;
   const hasMesh = !!(cache?.graphicColourParts?.length || cache?.graphicMesh?.positions?.length);
-  let msg = name ? `Loaded: ${name} · ${mode}` : `SVG loaded · ${mode}`;
-  if (!hasMesh) msg += " · no emboss mesh yet";
+  let msg = name ? `${name} · ${mode}` : `SVG · ${mode}`;
+  if (!hasMesh) msg += " · no mesh yet";
   else msg += " · on box";
-  meta.textContent = msg;
-  meta.classList.remove("hidden");
+  if (meta) {
+    meta.textContent = msg;
+    meta.classList.remove("hidden");
+  }
+  if (importMeta) {
+    importMeta.textContent = msg;
+    importMeta.classList.remove("hidden");
+  }
 }
 
 function syncArtEditorUi() {
@@ -3083,6 +3120,7 @@ function syncArtEditorUi() {
   syncArtSizeSlider();
   syncArtArcRadiusSlider();
   syncSvgImportUi();
+  syncArtSubPane();
 }
 
 function pasteImageFromClipboard(e) {
@@ -3305,6 +3343,7 @@ function clearTraceImageAndEmboss() {
 async function handleTraceFile(file) {
   const name = file.name?.toLowerCase() || "";
   const isSvg = file.type === "image/svg+xml" || name.endsWith(".svg");
+  setArtSubPane("graphic");
   if (isSvg) {
     try {
       const text = await file.text();
@@ -4624,19 +4663,18 @@ function updateDecorUi() {
   const traceOnBox = !!state.embossTraceEnabled;
   const artOn = hasGraphicArt(buildParams());
   const textOn = textHasInk(state.embossText);
-  document.getElementById("emboss-svg-enabled").checked = svgLoaded;
-  document.getElementById("field-svg-file").classList.toggle("hidden", !supported);
-  document.getElementById("field-svg-samples").classList.toggle("hidden", !svgLoaded);
+  const svgCb = document.getElementById("emboss-svg-enabled");
+  if (svgCb) svgCb.checked = svgLoaded;
   const wm = document.getElementById("watermark-enabled");
   if (wm) wm.checked = state.watermarkEnabled !== false;
   document.getElementById("field-text-color").classList.toggle("hidden", !textOn);
   const multiColourArt = !!(state.embossTraceRects?.multiColour && state.embossTraceRects?.colorLayers?.length > 1);
   document.getElementById("field-art-color").classList.toggle("hidden", !artOn || !!state.embossDeboss || multiColourArt);
-  const artColorHint = document.querySelector("#field-art-color .field-hint");
+  const artColorHint = document.getElementById("art-color-hint");
   if (artColorHint) {
     artColorHint.textContent = multiColourArt
-      ? "Multi-colour trace — each detected colour exports as its own AMS filament slot."
-      : "SVG or traced art — pick a contrast colour (e.g. brown on white).";
+      ? "Multi-colour trace — each colour exports as its own AMS slot."
+      : "Single-colour art — pick a contrast filament.";
   }
   document.getElementById("field-text-align").classList.toggle("hidden", !textOn || (state.embossTextLayout || "flat") === "arc");
   document.getElementById("field-text-layout").classList.toggle("hidden", !textOn);
@@ -4648,6 +4686,7 @@ function updateDecorUi() {
   document.getElementById("field-trace-size").classList.toggle("hidden", !(svgLoaded || traceOnBox));
   document.getElementById("emboss-font").value = state.embossFont || "inter";
   syncArtEditorUi();
+  syncArtSubPane();
   syncExportFormatOptions();
 }
 
@@ -5196,7 +5235,7 @@ document.getElementById("emboss-font").addEventListener("change", async (e) => {
   pushAppHistory();
 });
 
-document.getElementById("emboss-svg-enabled").addEventListener("change", (e) => {
+document.getElementById("emboss-svg-enabled")?.addEventListener("change", (e) => {
   state.embossSvgEnabled = e.target.checked;
   if (e.target.checked) {
     clearEmbossTrace();
@@ -5239,8 +5278,13 @@ document.getElementById("honeycomb-face").addEventListener("change", (e) => {
 
 const traceDrop = document.getElementById("trace-drop");
 const traceFileInput = document.getElementById("trace-file");
-const svgDrop = document.getElementById("svg-drop");
-const svgFileInput = document.getElementById("svg-file");
+
+document.querySelectorAll(".art-subnav-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    setArtSubPane(btn.dataset.artPane || "graphic");
+    scheduleSaveSession();
+  });
+});
 
 function fileFromDropEvent(e) {
   const dt = e.dataTransfer;
@@ -5296,10 +5340,8 @@ function wireArtDropZone(el, onFile, { openInput = null } = {}) {
 }
 
 wireArtDropZone(traceDrop, handleTraceFile, { openInput: traceFileInput });
-wireArtDropZone(svgDrop, handleTraceFile, { openInput: svgFileInput });
 
 if (traceDrop) traceDrop.setAttribute("tabindex", "0");
-if (svgDrop) svgDrop.setAttribute("tabindex", "0");
 
 traceFileInput.addEventListener("change", (e) => {
   const file = e.target.files?.[0];
@@ -5363,36 +5405,6 @@ document.getElementById("btn-trace-svg").addEventListener("click", () => {
   if (!traceLastSvg) return;
   const blob = new Blob([traceLastSvg], { type: "image/svg+xml" });
   downloadBlob(blob, "traced-art.svg");
-});
-
-document.getElementById("svg-file").addEventListener("change", async (e) => {
-  const input = e.target;
-  const file = input.files?.[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = async () => {
-    try {
-      await importSvgFile(String(reader.result || ""), { fileName: file.name });
-    } catch (err) {
-      console.error("SVG import failed:", err);
-      const meta = document.getElementById("svg-import-meta");
-      if (meta) {
-        meta.textContent = err.message || "Could not import SVG";
-        meta.classList.remove("hidden");
-      }
-    } finally {
-      input.value = "";
-    }
-  };
-  reader.onerror = () => {
-    const meta = document.getElementById("svg-import-meta");
-    if (meta) {
-      meta.textContent = "Could not read SVG file";
-      meta.classList.remove("hidden");
-    }
-    input.value = "";
-  };
-  reader.readAsText(file);
 });
 
 document.getElementById("btn-load-badge-sample")?.addEventListener("click", async () => {

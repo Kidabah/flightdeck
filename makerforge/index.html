@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Oswald:wght@700&family=Roboto+Mono:wght@700&family=Roboto:wght@700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=29">
+  <link rel="stylesheet" href="css/style.css?v=30">
 
   <script type="importmap">
 
@@ -935,401 +935,231 @@
 
               <h2>Art on box</h2>
 
-              <p class="field-hint">Type text and/or add an SVG — both can show together. Use <strong>Arc</strong> to curve a word around a centre graphic (e.g. COFFEE around coffee beans).</p>
+              <div class="art-shared" id="art-shared">
+                <label class="field" id="field-emboss-face">
+                  <span class="field-label">Face</span>
+                  <select id="emboss-face">
+                    <option value="wrap" id="emboss-face-wrap">Wrap (around wall)</option>
+                    <option value="front">Front</option>
+                    <option value="back">Back</option>
+                    <option value="left">Left side</option>
+                    <option value="right">Right side</option>
+                    <option value="top">Top (box body — not the lid)</option>
+                    <option value="lid">Lid top</option>
+                  </select>
+                  <p class="field-hint hidden" id="emboss-face-hint"></p>
+                </label>
+                <div class="art-shared-row">
+                  <label class="field" id="field-emboss-depth">
+                    <span class="field-label">Emboss depth</span>
+                    <input type="range" id="emboss-depth" min="0.3" max="2" step="0.1" value="0.7" tabindex="-1">
+                    <button type="button" class="value-edit" id="out-emboss-depth" data-slider="emboss-depth" data-key="embossDepth" data-parse="float">0.7</button>
+                  </label>
+                  <label class="field field-toggle" id="field-emboss-deboss">
+                    <span class="field-label">Deboss</span>
+                    <input type="checkbox" id="emboss-deboss">
+                  </label>
+                  <button type="button" id="btn-art-clear" class="btn btn-secondary btn-compact">Clear all</button>
+                </div>
+                <p class="field-hint hidden" id="emboss-deboss-hint">Body prints clean. Use <em>Download deboss cutter</em>, then in your slicer set it as a <strong>negative part / modifier</strong> to subtract.</p>
+              </div>
 
-              <label class="field field-textarea" id="field-emboss-text">
+              <nav class="art-subnav" role="tablist" aria-label="Art editor">
+                <button type="button" class="art-subnav-btn active" data-art-pane="graphic" role="tab" aria-selected="true">Graphic</button>
+                <button type="button" class="art-subnav-btn" data-art-pane="text" role="tab" aria-selected="false">Text</button>
+              </nav>
 
-                <span class="field-label">Text</span>
+              <input type="checkbox" id="emboss-svg-enabled" hidden>
+              <p class="trace-meta hidden" id="svg-import-meta"></p>
 
-                <textarea id="emboss-text" rows="3" maxlength="80" placeholder="GOODS&#10;IN&#10;HERE"></textarea>
+              <div class="art-pane" id="art-pane-graphic" role="tabpanel">
 
-              </label>
+                <div class="trace-drop trace-drop--compact" id="trace-drop" tabindex="0" role="button" aria-label="Drop logo image or SVG">
+                  <input type="file" id="trace-file" accept="image/png,image/jpeg,image/webp,image/gif,.svg,image/svg+xml" hidden>
+                  <p class="trace-drop-label">Drop logo, SVG, or paste · Ctrl+V</p>
+                  <p class="trace-drop-hint">PNG · JPG · SVG · team logos → Multi-colour trace</p>
+                </div>
+                <p class="art-import-meta hidden" id="art-import-meta"></p>
 
-              <label class="field field-color" id="field-text-color">
-
-                <span class="field-label">Text colour</span>
-
-                <div id="text-color-picker"></div>
-
-              </label>
-
-              <div class="field" id="field-text-align">
-
-                <span class="field-label">Align</span>
-
-                <div class="align-grid" role="group" aria-label="Text alignment">
-
-                  <button type="button" class="align-btn active" data-text-align="left">Left</button>
-
-                  <button type="button" class="align-btn" data-text-align="center">Centre</button>
-
-                  <button type="button" class="align-btn" data-text-align="right">Right</button>
-
+                <div class="art-sample-row">
+                  <button type="button" id="btn-load-badge-sample" class="btn btn-secondary btn-compact">Mechanic badge sample</button>
                 </div>
 
-              </div>
-
-              <div class="field" id="field-text-layout">
-
-                <span class="field-label">Text path</span>
-
-                <div class="align-grid" role="group" aria-label="Text path">
-
-                  <button type="button" class="layout-btn active" data-text-layout="flat">Flat</button>
-
-                  <button type="button" class="layout-btn" data-text-layout="arc">Arc</button>
-
+                <div class="trace-options-grid" id="field-trace-options">
+                  <label class="field">
+                    <span class="field-label">Trace mode</span>
+                    <select id="trace-mode">
+                      <option value="auto">Auto — logo / mascot</option>
+                      <option value="multi-colour">Multi-colour — team logo (AMS)</option>
+                      <option value="silhouette">Silhouette — solid logo</option>
+                      <option value="outline">Outline — line art</option>
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span class="field-label">Threshold</span>
+                    <input type="range" id="trace-threshold" min="20" max="254" step="1" value="128" tabindex="-1">
+                    <button type="button" class="value-edit" id="out-trace-threshold" data-slider="trace-threshold" data-key="traceThreshold" data-parse="int">128</button>
+                  </label>
                 </div>
 
-              </div>
+                <label class="field field-toggle">
+                  <span class="field-label">Invert (light logo on dark)</span>
+                  <input type="checkbox" id="trace-invert">
+                </label>
 
-              <div class="field hidden" id="field-arc-style">
-
-                <span class="field-label">Curve style</span>
-
-                <p class="field-hint">Like Word — pick a shape, then drag <strong>Curve amount</strong>.</p>
-
-                <div class="align-grid" role="group" aria-label="Curve style">
-
-                  <button type="button" class="align-btn arc-preset-btn active" data-arc-preset="arch-up">Arch up</button>
-
-                  <button type="button" class="align-btn arc-preset-btn" data-arc-preset="arch-down">Arch down</button>
-
-                  <button type="button" class="align-btn arc-preset-btn" data-arc-preset="banner">Wide</button>
-
+                <div class="trace-preview-wrap hidden" id="trace-preview-wrap">
+                  <canvas id="trace-preview" class="trace-preview trace-preview--compact" width="320" height="160"></canvas>
+                  <p class="trace-meta" id="trace-meta"></p>
                 </div>
 
-              </div>
-
-              <label class="field hidden" id="field-arc-curve">
-
-                <span class="field-label">Curve amount</span>
-
-                <input type="range" id="emboss-arc-curve" min="0" max="100" step="1" value="60" tabindex="-1">
-
-                <button type="button" class="value-edit" id="out-emboss-arc-curve" data-slider="emboss-arc-curve" data-key="embossArcCurve" data-parse="int">60</button>
-
-              </label>
-
-              <div class="art-actions-bar hidden" id="field-arc-advanced-toggle">
-
-                <button type="button" id="btn-arc-advanced" class="btn btn-secondary">Fine tune arc…</button>
-
-              </div>
-
-              <div id="field-arc-advanced" class="hidden">
-
-              <label class="field hidden" id="field-arc-radius">
-
-                <span class="field-label">Arc radius <span class="unit unit-len">mm</span> <span class="field-hint-inline">0 = auto</span></span>
-
-                <input type="range" id="emboss-arc-radius" min="0" max="150" step="0.5" value="0" tabindex="-1">
-
-                <button type="button" class="value-edit" id="out-emboss-arc-radius" data-slider="emboss-arc-radius" data-key="embossArcRadius" data-parse="float">Auto</button>
-
-              </label>
-
-              <label class="field hidden" id="field-arc-sweep">
-
-                <span class="field-label">Arc span <span class="unit">°</span></span>
-
-                <input type="range" id="emboss-arc-sweep" min="40" max="360" step="5" value="220" tabindex="-1">
-
-                <button type="button" class="value-edit" id="out-emboss-arc-sweep" data-slider="emboss-arc-sweep" data-key="embossArcSweep" data-parse="float">220</button>
-
-              </label>
-
-              <label class="field hidden" id="field-arc-start">
-
-                <span class="field-label">Arc start <span class="unit">°</span> <span class="field-hint-inline">−90 = top</span></span>
-
-                <input type="range" id="emboss-arc-start" min="-180" max="180" step="5" value="-90" tabindex="-1">
-
-                <button type="button" class="value-edit" id="out-emboss-arc-start" data-slider="emboss-arc-start" data-key="embossArcStartDeg" data-parse="float">-90</button>
-
-              </label>
-
-              <label class="field hidden" id="field-arc-tilt">
-
-                <span class="field-label">Arc tilt <span class="unit">°</span></span>
-
-                <input type="range" id="emboss-arc-tilt" min="-180" max="180" step="0.5" value="0" tabindex="-1">
-
-                <button type="button" class="value-edit" id="out-emboss-arc-tilt" data-slider="emboss-arc-tilt" data-key="embossArcTilt" data-parse="float">0</button>
-
-              </label>
-
-              <label class="field hidden" id="field-arc-spacing">
-
-                <span class="field-label">Letter spacing</span>
-
-                <input type="range" id="emboss-arc-spacing" min="0.7" max="1.8" step="0.05" value="1" tabindex="-1">
-
-                <button type="button" class="value-edit" id="out-emboss-arc-spacing" data-slider="emboss-arc-spacing" data-key="embossArcSpacing" data-parse="float">1</button>
-
-              </label>
-
-              </div>
-
-              <div class="art-divider hidden" id="field-text-transform-div" aria-hidden="true"><span>move text</span></div>
-
-              <label class="field hidden" id="field-text-offset-x">
-
-                <span class="field-label">Text left / right <span class="unit unit-len">mm</span></span>
-
-                <input type="range" id="text-offset-x" min="-80" max="80" step="0.5" value="0" tabindex="-1">
-
-                <button type="button" class="value-edit" id="out-text-offset-x" data-slider="text-offset-x" data-key="textOffsetX" data-parse="float">0</button>
-
-              </label>
-
-              <label class="field hidden" id="field-text-offset-y">
-
-                <span class="field-label">Text up / down <span class="unit unit-len">mm</span></span>
-
-                <input type="range" id="text-offset-y" min="-80" max="80" step="0.5" value="0" tabindex="-1">
-
-                <button type="button" class="value-edit" id="out-text-offset-y" data-slider="text-offset-y" data-key="textOffsetY" data-parse="float">0</button>
-
-              </label>
-
-              <label class="field hidden" id="field-text-rotation">
-
-                <span class="field-label">Text rotation <span class="unit">°</span></span>
-
-                <input type="range" id="text-rotation" min="-180" max="180" step="0.5" value="0" tabindex="-1">
-
-                <button type="button" class="value-edit" id="out-text-rotation" data-slider="text-rotation" data-key="textRotation" data-parse="float">0</button>
-
-              </label>
-
-              <div class="art-divider" aria-hidden="true"><span>transform</span></div>
-
-              <label class="field" id="field-emboss-face">
-
-                <span class="field-label">Face</span>
-
-                <select id="emboss-face">
-
-                  <option value="wrap" id="emboss-face-wrap">Wrap (around wall)</option>
-
-                  <option value="front">Front</option>
-
-                  <option value="back">Back</option>
-
-                  <option value="left">Left side</option>
-
-                  <option value="right">Right side</option>
-
-                  <option value="top">Top (box body — not the lid)</option>
-
-                  <option value="lid">Lid top</option>
-
-                </select>
-
-                <p class="field-hint hidden" id="emboss-face-hint"></p>
-
-              </label>
-
-              <label class="field" id="field-emboss-font">
-
-                <span class="field-label">Font</span>
-
-                <select id="emboss-font"></select>
-
-              </label>
-
-              <label class="field" id="field-emboss-height">
-
-                <span class="field-label">Size <span class="unit unit-len">mm</span></span>
-
-                <input type="range" id="emboss-height" min="3" max="48" step="0.5" value="7" tabindex="-1">
-
-                <button type="button" class="value-edit" id="out-emboss-height" data-slider="emboss-height" data-key="embossHeight" data-parse="float">7</button>
-
-              </label>
-
-              <label class="field hidden" id="field-art-rotation">
-
-                <span class="field-label">Graphic rotation <span class="unit">°</span></span>
-
-                <input type="range" id="art-rotation" min="-180" max="180" step="0.5" value="0" tabindex="-1">
-
-                <button type="button" class="value-edit" id="out-art-rotation" data-slider="art-rotation" data-key="decorRotation" data-parse="float">0</button>
-
-              </label>
-
-              <label class="field hidden" id="field-art-offset-x">
-
-                <span class="field-label">Graphic left / right <span class="unit unit-len">mm</span></span>
-
-                <input type="range" id="art-offset-x" min="-80" max="80" step="0.5" value="0" tabindex="-1">
-
-                <button type="button" class="value-edit" id="out-art-offset-x" data-slider="art-offset-x" data-key="decorOffsetX" data-parse="float">0</button>
-
-              </label>
-
-              <label class="field hidden" id="field-art-offset-y">
-
-                <span class="field-label">Graphic up / down <span class="unit unit-len">mm</span></span>
-
-                <input type="range" id="art-offset-y" min="-80" max="80" step="0.5" value="0" tabindex="-1">
-
-                <button type="button" class="value-edit" id="out-art-offset-y" data-slider="art-offset-y" data-key="decorOffsetY" data-parse="float">0</button>
-
-              </label>
-
-              <label class="field" id="field-trace-size">
-
-                <span class="field-label">Image size <span class="unit unit-len">mm</span></span>
-
-                <input type="range" id="trace-size" min="6" max="56" step="0.5" value="16" tabindex="-1">
-
-                <button type="button" class="value-edit" id="out-trace-size" data-slider="trace-size" data-key="embossTraceSize" data-parse="float">16</button>
-
-              </label>
-
-              <div class="art-divider" aria-hidden="true"><span>emboss</span></div>
-
-              <label class="field" id="field-emboss-depth">
-
-                <span class="field-label">Emboss depth</span>
-
-                <input type="range" id="emboss-depth" min="0.3" max="2" step="0.1" value="0.7" tabindex="-1">
-
-                <button type="button" class="value-edit" id="out-emboss-depth" data-slider="emboss-depth" data-key="embossDepth" data-parse="float">0.7</button>
-
-              </label>
-
-              <label class="field field-toggle" id="field-emboss-deboss">
-
-                <span class="field-label">Deboss (cut inward)</span>
-
-                <input type="checkbox" id="emboss-deboss">
-
-              </label>
-
-              <p class="field-hint hidden" id="emboss-deboss-hint">Body prints clean. Use <em>Download deboss cutter</em>, then in your slicer set it as a <strong>negative part / modifier</strong> to subtract.</p>
-
-              <div class="art-actions-bar">
-
-                <p class="field-hint">Text and SVG can combine — use Size, Move, and Rotation. Arc curves one line around the centre.</p>
-
-                <button type="button" id="btn-art-clear" class="btn btn-secondary">Remove art</button>
-
-              </div>
-
-              <label class="field field-color hidden" id="field-art-color">
-
-                <span class="field-label">Art colour</span>
-
-                <p class="field-hint">SVG or traced art — pick a contrast colour (e.g. brown on white).</p>
-
-                <div id="art-color-picker"></div>
-
-              </label>
-
-              <label class="field hidden" id="field-svg-file">
-
-                <span class="field-label">SVG import</span>
-
-                <div class="trace-drop trace-drop--svg" id="svg-drop" role="button" tabindex="0" aria-label="Drop SVG file or click to browse">
-
-                  <input type="file" id="svg-file" accept=".svg,image/svg+xml" hidden>
-
-                  <p class="trace-drop-label">Drop SVG here or click to browse</p>
-
-                  <p class="trace-drop-hint">.svg · filled vector or auto-trace</p>
-
+                <div class="trace-actions">
+                  <button type="button" id="btn-trace" class="btn btn-secondary" disabled>Trace</button>
+                  <button type="button" id="btn-trace-apply" class="btn btn-secondary" disabled>Apply</button>
+                  <button type="button" id="btn-trace-clear" class="btn btn-secondary" disabled>Clear</button>
+                  <button type="button" id="btn-trace-svg" class="btn btn-secondary hidden" disabled>SVG</button>
                 </div>
 
-                <p class="trace-meta hidden" id="svg-import-meta"></p>
+                <label class="field field-color hidden" id="field-art-color">
+                  <span class="field-label">Art colour</span>
+                  <p class="field-hint" id="art-color-hint">Single-colour art — pick a contrast filament.</p>
+                  <div id="art-color-picker"></div>
+                </label>
 
-              </label>
+                <label class="field hidden" id="field-trace-size">
+                  <span class="field-label">Graphic size <span class="unit unit-len">mm</span></span>
+                  <input type="range" id="trace-size" min="6" max="56" step="0.5" value="16" tabindex="-1">
+                  <button type="button" class="value-edit" id="out-trace-size" data-slider="trace-size" data-key="embossTraceSize" data-parse="float">16</button>
+                </label>
 
-              <label class="field field-toggle" id="field-emboss-svg">
+                <label class="field hidden" id="field-art-rotation">
+                  <span class="field-label">Graphic rotation <span class="unit">°</span></span>
+                  <input type="range" id="art-rotation" min="-180" max="180" step="0.5" value="0" tabindex="-1">
+                  <button type="button" class="value-edit" id="out-art-rotation" data-slider="art-rotation" data-key="decorRotation" data-parse="float">0</button>
+                </label>
 
-                <span class="field-label">Add SVG graphic</span>
+                <label class="field hidden" id="field-art-offset-x">
+                  <span class="field-label">Graphic left / right <span class="unit unit-len">mm</span></span>
+                  <input type="range" id="art-offset-x" min="-80" max="80" step="0.5" value="0" tabindex="-1">
+                  <button type="button" class="value-edit" id="out-art-offset-x" data-slider="art-offset-x" data-key="decorOffsetX" data-parse="float">0</button>
+                </label>
 
-                <input type="checkbox" id="emboss-svg-enabled">
-
-              </label>
-
-              <div class="art-actions-bar hidden" id="field-svg-samples">
-
-                <button type="button" id="btn-load-badge-sample" class="btn btn-secondary">Mechanic badge sample</button>
-
-                <p class="field-hint">Line-art or filled SVG — imports as vector when possible, otherwise auto-traces. Set Face to <strong>Wrap</strong> on jars or <strong>Lid top</strong> for lid art.</p>
-
-              </div>
-
-              <div class="art-divider" aria-hidden="true"><span>or image</span></div>
-
-              <div class="trace-drop" id="trace-drop">
-
-                <input type="file" id="trace-file" accept="image/png,image/jpeg,image/webp,image/gif,.svg,image/svg+xml" hidden>
-
-                <p class="trace-drop-label">Drop image or SVG here, click to browse, or paste</p>
-
-                <p class="trace-drop-hint">PNG · JPG · WEBP · SVG · Ctrl+V</p>
-
-              </div>
-
-              <label class="field">
-
-                <span class="field-label">Trace mode</span>
-
-                <select id="trace-mode">
-
-                  <option value="auto">Auto — logo / mascot</option>
-
-                  <option value="multi-colour">Multi-colour — team logo (AMS)</option>
-
-                  <option value="silhouette">Silhouette — solid logo</option>
-
-                  <option value="outline">Outline — line art</option>
-
-                </select>
-
-              </label>
-
-              <label class="field">
-
-                <span class="field-label">Threshold</span>
-
-                <input type="range" id="trace-threshold" min="20" max="254" step="1" value="128" tabindex="-1">
-
-                <button type="button" class="value-edit" id="out-trace-threshold" data-slider="trace-threshold" data-key="traceThreshold" data-parse="int">128</button>
-
-              </label>
-
-              <label class="field field-toggle">
-
-                <span class="field-label">Invert (light logo on dark)</span>
-
-                <input type="checkbox" id="trace-invert">
-
-              </label>
-
-              <div class="trace-preview-wrap hidden" id="trace-preview-wrap">
-
-                <span class="field-label">Trace preview</span>
-
-                <canvas id="trace-preview" class="trace-preview" width="320" height="200"></canvas>
-
-                <p class="trace-meta" id="trace-meta"></p>
+                <label class="field hidden" id="field-art-offset-y">
+                  <span class="field-label">Graphic up / down <span class="unit unit-len">mm</span></span>
+                  <input type="range" id="art-offset-y" min="-80" max="80" step="0.5" value="0" tabindex="-1">
+                  <button type="button" class="value-edit" id="out-art-offset-y" data-slider="art-offset-y" data-key="decorOffsetY" data-parse="float">0</button>
+                </label>
 
               </div>
 
-              <div class="trace-actions">
+              <div class="art-pane hidden" id="art-pane-text" role="tabpanel" hidden>
 
-                <button type="button" id="btn-trace" class="btn btn-secondary" disabled>Trace</button>
+                <p class="field-hint">Flat or <strong>Arc</strong> around a centre graphic — e.g. COFFEE around beans.</p>
 
-                <button type="button" id="btn-trace-apply" class="btn btn-secondary" disabled>Use in editor</button>
+                <label class="field field-textarea" id="field-emboss-text">
+                  <span class="field-label">Text</span>
+                  <textarea id="emboss-text" rows="2" maxlength="80" placeholder="GOODS&#10;IN&#10;HERE"></textarea>
+                </label>
 
-                <button type="button" id="btn-trace-clear" class="btn btn-secondary" disabled>Clear</button>
+                <div class="trace-options-grid">
+                  <label class="field field-color" id="field-text-color">
+                    <span class="field-label">Text colour</span>
+                    <div id="text-color-picker"></div>
+                  </label>
+                  <label class="field" id="field-emboss-font">
+                    <span class="field-label">Font</span>
+                    <select id="emboss-font"></select>
+                  </label>
+                </div>
 
-                <button type="button" id="btn-trace-svg" class="btn btn-secondary hidden" disabled>Download SVG</button>
+                <label class="field" id="field-emboss-height">
+                  <span class="field-label">Text size <span class="unit unit-len">mm</span></span>
+                  <input type="range" id="emboss-height" min="3" max="48" step="0.5" value="7" tabindex="-1">
+                  <button type="button" class="value-edit" id="out-emboss-height" data-slider="emboss-height" data-key="embossHeight" data-parse="float">7</button>
+                </label>
+
+                <div class="field" id="field-text-align">
+                  <span class="field-label">Align</span>
+                  <div class="align-grid" role="group" aria-label="Text alignment">
+                    <button type="button" class="align-btn active" data-text-align="left">Left</button>
+                    <button type="button" class="align-btn" data-text-align="center">Centre</button>
+                    <button type="button" class="align-btn" data-text-align="right">Right</button>
+                  </div>
+                </div>
+
+                <div class="field" id="field-text-layout">
+                  <span class="field-label">Text path</span>
+                  <div class="align-grid" role="group" aria-label="Text path">
+                    <button type="button" class="layout-btn active" data-text-layout="flat">Flat</button>
+                    <button type="button" class="layout-btn" data-text-layout="arc">Arc</button>
+                  </div>
+                </div>
+
+                <div class="field hidden" id="field-arc-style">
+                  <span class="field-label">Curve style</span>
+                  <div class="align-grid" role="group" aria-label="Curve style">
+                    <button type="button" class="align-btn arc-preset-btn active" data-arc-preset="arch-up">Arch up</button>
+                    <button type="button" class="align-btn arc-preset-btn" data-arc-preset="arch-down">Arch down</button>
+                    <button type="button" class="align-btn arc-preset-btn" data-arc-preset="banner">Wide</button>
+                  </div>
+                </div>
+
+                <label class="field hidden" id="field-arc-curve">
+                  <span class="field-label">Curve amount</span>
+                  <input type="range" id="emboss-arc-curve" min="0" max="100" step="1" value="60" tabindex="-1">
+                  <button type="button" class="value-edit" id="out-emboss-arc-curve" data-slider="emboss-arc-curve" data-key="embossArcCurve" data-parse="int">60</button>
+                </label>
+
+                <div class="art-actions-bar hidden" id="field-arc-advanced-toggle">
+                  <button type="button" id="btn-arc-advanced" class="btn btn-secondary btn-compact">Fine tune arc…</button>
+                </div>
+
+                <div id="field-arc-advanced" class="hidden">
+                  <label class="field hidden" id="field-arc-radius">
+                    <span class="field-label">Arc radius <span class="unit unit-len">mm</span> <span class="field-hint-inline">0 = auto</span></span>
+                    <input type="range" id="emboss-arc-radius" min="0" max="150" step="0.5" value="0" tabindex="-1">
+                    <button type="button" class="value-edit" id="out-emboss-arc-radius" data-slider="emboss-arc-radius" data-key="embossArcRadius" data-parse="float">Auto</button>
+                  </label>
+                  <label class="field hidden" id="field-arc-sweep">
+                    <span class="field-label">Arc span <span class="unit">°</span></span>
+                    <input type="range" id="emboss-arc-sweep" min="40" max="360" step="5" value="220" tabindex="-1">
+                    <button type="button" class="value-edit" id="out-emboss-arc-sweep" data-slider="emboss-arc-sweep" data-key="embossArcSweep" data-parse="float">220</button>
+                  </label>
+                  <label class="field hidden" id="field-arc-start">
+                    <span class="field-label">Arc start <span class="unit">°</span> <span class="field-hint-inline">−90 = top</span></span>
+                    <input type="range" id="emboss-arc-start" min="-180" max="180" step="5" value="-90" tabindex="-1">
+                    <button type="button" class="value-edit" id="out-emboss-arc-start" data-slider="emboss-arc-start" data-key="embossArcStartDeg" data-parse="float">-90</button>
+                  </label>
+                  <label class="field hidden" id="field-arc-tilt">
+                    <span class="field-label">Arc tilt <span class="unit">°</span></span>
+                    <input type="range" id="emboss-arc-tilt" min="-180" max="180" step="0.5" value="0" tabindex="-1">
+                    <button type="button" class="value-edit" id="out-emboss-arc-tilt" data-slider="emboss-arc-tilt" data-key="embossArcTilt" data-parse="float">0</button>
+                  </label>
+                  <label class="field hidden" id="field-arc-spacing">
+                    <span class="field-label">Letter spacing</span>
+                    <input type="range" id="emboss-arc-spacing" min="0.7" max="1.8" step="0.05" value="1" tabindex="-1">
+                    <button type="button" class="value-edit" id="out-emboss-arc-spacing" data-slider="emboss-arc-spacing" data-key="embossArcSpacing" data-parse="float">1</button>
+                  </label>
+                </div>
+
+                <div class="art-divider hidden" id="field-text-transform-div" aria-hidden="true"><span>move text</span></div>
+
+                <label class="field hidden" id="field-text-offset-x">
+                  <span class="field-label">Text left / right <span class="unit unit-len">mm</span></span>
+                  <input type="range" id="text-offset-x" min="-80" max="80" step="0.5" value="0" tabindex="-1">
+                  <button type="button" class="value-edit" id="out-text-offset-x" data-slider="text-offset-x" data-key="textOffsetX" data-parse="float">0</button>
+                </label>
+
+                <label class="field hidden" id="field-text-offset-y">
+                  <span class="field-label">Text up / down <span class="unit unit-len">mm</span></span>
+                  <input type="range" id="text-offset-y" min="-80" max="80" step="0.5" value="0" tabindex="-1">
+                  <button type="button" class="value-edit" id="out-text-offset-y" data-slider="text-offset-y" data-key="textOffsetY" data-parse="float">0</button>
+                </label>
+
+                <label class="field hidden" id="field-text-rotation">
+                  <span class="field-label">Text rotation <span class="unit">°</span></span>
+                  <input type="range" id="text-rotation" min="-180" max="180" step="0.5" value="0" tabindex="-1">
+                  <button type="button" class="value-edit" id="out-text-rotation" data-slider="text-rotation" data-key="textRotation" data-parse="float">0</button>
+                </label>
 
               </div>
 
@@ -1448,7 +1278,7 @@
     </form>
   </dialog>
 
-  <script type="module" src="js/app.js?v=304"></script>
+  <script type="module" src="js/app.js?v=305"></script>
 
 </body>
 
