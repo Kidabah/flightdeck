@@ -1775,7 +1775,7 @@ function computeTextArtLayout(meta, params) {
   const limits = textEmbossSizeLimits(meta, frame.face, params);
   const labelH = clamp(params.embossHeight ?? 7, limits.min, limits.max);
   const arcMode = (params.embossTextLayout || "flat") === "arc";
-  const fontId = params.embossFont || "inter";
+  const fontId = params.embossFont || "bebas";
   const fontSizePx = isLabelExport(params) ? 1280 : 640;
 
   let raster;
