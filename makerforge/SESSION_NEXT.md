@@ -4,16 +4,16 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b292** — dense wrap logos united to single solid contour (no row-slab fallback)
-- Cache-bust: `app.js?v=292`, `features.js?v=292` — header **b292**
+- Current: **b293** — dense wrap: closed mask + row shells, inward pocket (not earcut/add)
+- Cache-bust: `app.js?v=293` — header **b293**
 
-### 2026-07-12 — b292: Wests Tigers wrap — union to single solid contour
+### 2026-07-12 — b293: Dense wrap — pocket embed not outward earcut solid
 
-**Symptom:** b291 still shredded; coffee bag wrap still perfect.
+**Symptom:** b292 united contour made Wests worse (horizontal slices). Coffee bag wrap still perfect. B&W made no difference.
 
-**Cause:** Multi-island contour hit `buildWrapArtSlabMesh` row fallback; dense logos also fell back to 1px rows when union failed.
+**Cause:** earcut caps on curved wrap for large united solids = slice artifacts. Outward standoff add z-fights on dense fill.
 
-**Fix:** Close mask → union all islands → `extrudeGroupOnFace` per group directly (no art-slab rows). Dense wrap never falls back to fine pixel rows.
+**Fix:** Dense wrap → close mask → same row shells as coffee bag, but **inward pocket** (d0=-depth, d1=0 flush on wall) instead of outward add. No earcut on wrap.
 
 ### 2026-07-12 — b289: Circle cooler wrap — seam unwrap + contour silhouettes
 
