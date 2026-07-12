@@ -2599,6 +2599,7 @@ function buildMultiColourContourEmboss(meta, params, traceData, layer) {
   const { d0, d1 } = labelOffsets(params);
   const faceGroups = remappedBitmapFaceGroups(bitmap, frame, params, bitmap.shapeGroups, maskW, maskH, artH);
   if (!faceGroups?.length) return null;
+
   const positions = [];
   const indices = [];
   for (const group of faceGroups) {
@@ -4016,7 +4017,8 @@ function exportEmbossDepth(params) {
 function embossExportCaps(params, d0) {
   if (params?.__labelExportStandoff) {
     const depth = exportEmbossDepth(params);
-    // Flush on body — bottom mates the wall; top cap + sides only.
+    // Separate AMS colour solids need closed shells — top-only caps leave open edges (slicer static).
+    if (params.__multiColourAmsExport) return "both";
     if (params.__labelExportEmbedded && depth <= 0.48) return "top";
     return "both";
   }

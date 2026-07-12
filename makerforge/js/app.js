@@ -24,7 +24,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b312";
+const MAKERDECK_BUILD = "b314";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -968,6 +968,7 @@ function collectColoredExportParts(exportCache, stamp = null) {
     const exportParams = {
       ...params,
       __labelExportStandoff: true,
+      __multiColourAmsExport: true,
       // Flush on the outer skin — no 0.2 mm air gap (reads as white seam in slicer).
       __labelExportEmbedded: true,
     };
@@ -989,7 +990,7 @@ function collectColoredExportParts(exportCache, stamp = null) {
       if (traceData?.multiColour && traceData.colorLayers?.length) {
         const colourParts = buildMultiColourGraphicEmboss(exportCache.meta, exportParams, traceData);
         for (const cp of colourParts || []) {
-          const artClean = cp.mesh ? sanitizeMeshForStl(cp.mesh, { strict: false }) : null;
+          const artClean = cp.mesh ? prepareMeshFor3mf(cp.mesh) : null;
           if (artClean?.indices?.length) {
             parts.push({
               name: cp.name,

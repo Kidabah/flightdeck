@@ -29,7 +29,7 @@ export { unionDenseEmbossShapeGroups } from "./contour.js?v=241";
 
 const MAX_TRACE_PX = 2400;
 /** Multi-colour logos need extra mask resolution — row shells show pixel stairs otherwise. */
-const MULTI_COLOUR_MIN_MAX_PX = 2000;
+const MULTI_COLOUR_MIN_MAX_PX = 1400;
 const SVG_RASTER_PX = 4096;
 const MAX_COLOR_LAYERS = 10;
 /** Practical AMS slot limit — heraldic PNGs otherwise split into 10+ anti-alias buckets. */

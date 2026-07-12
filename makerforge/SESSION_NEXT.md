@@ -4,8 +4,21 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b312** — Multi-colour export: contour quality, moderate size
-- Cache-bust: `app.js?v=312` — header **b312**
+- Current: **b314** — Multi-colour trace resolution + closed contour export
+- Cache-bust: `app.js?v=314` — header **b314**
+
+### 2026-07-12 — b314: Multi-colour resolution + closed contour export
+
+**Problem:** Horizontal shredded lines on logos (Tigers silver border) — partly trace upscale to 2000px (too many mask pixels → dense/stair-step contours); export open-bottom caps caused inside anomalies + slicer static. Slab export (b313 draft) also caused 0.2 mm horizontal banding — not suitable for logos.
+
+**Fix:**
+- Trace upscale cap **2000 → 1400 px** — enough for team logos, fewer pixel stairs
+- Export: **closed vector contours** (both caps) for AMS parts — not row shells, not 0.2 mm slabs
+- `prepareMeshFor3mf` on art parts (light weld)
+
+**Files:** `trace.js`, `features.js`, `app.js`, `index.html`
+
+**Test:** Re-trace Tigers/Dragons → smoother preview; export → solid slicer fills, no inside red dots. Hard refresh `app.js?v=314`.
 
 ### 2026-07-12 — b312: Multi-colour export contour quality (revert row shells)
 
