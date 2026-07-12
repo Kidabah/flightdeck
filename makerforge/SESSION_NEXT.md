@@ -4,8 +4,16 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b299** — fix wrap solid slab blob (bad outline flood fill on megapixel art)
-- Cache-bust: `app.js?v=299`, `trace.js?v=299`, `features.js?v=299` — header **b299**
+- Current: **b300** — export uses same wrap trace mesh as preview (fixes slicer striations)
+- Cache-bust: `app.js?v=300`, `features.js?v=300` — header **b300**
+
+### 2026-07-12 — b300: Slicer export matches preview for wrap trace art
+
+**Symptom:** Wests Tigers (etc.) perfect in MakerDeck preview; 3MF Art part horizontal bands / garbage in Bambu slicer.
+
+**Cause:** Separate-colour export used `collectBitmapGraphicShapeGroups` + earcut/coarse `buildFaceDecalSlabMesh` instead of preview's `buildEmbossBitmap` row shells. Export also stepped wrap rows at `DECAL_LAYER_MM` (~87px) → visible striations.
+
+**Fix:** `buildGraphicLabelExportMesh` routes trace through `buildEmbossBitmap`. Skip layer-height row coarsening when `fineRows` (wrap golden path).
 
 ### 2026-07-12 — b299: Stop wrap emboss solid black slab (outline flood fill)
 

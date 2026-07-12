@@ -485,7 +485,8 @@ function buildWrapTraceSlabMesh(frame, bitmap, params, shapeGroups, d0, d1, opts
   const preview = svgIsPreview(params);
   const maxRows = preview ? WRAP_TRACE_PREVIEW_MAX_ROWS : 2048;
   let stepPx = 1;
-  if (params?.__labelExportStandoff) {
+  // Layer-height stepping is for flat face decals — on wrap trace it causes visible horizontal bands in slicers.
+  if (params?.__labelExportStandoff && !opts.fineRows) {
     stepPx = Math.max(1, Math.round(DECAL_LAYER_MM / scale));
   }
   stepPx = wrapSlabRowStepPx(maskH, stepPx, {
@@ -2534,6 +2535,20 @@ export function buildTextLabelExportMesh(meta, params) {
 /** Closed graphic solids for separate-colour export (trace/SVG — not thin stroke quads). */
 export function buildGraphicLabelExportMesh(meta, params, svgText = "") {
   const p = { ...params, __labelExportKind: "art" };
+  const traceData = p.embossTraceRects;
+  const hasTrace =
+    p.embossTraceEnabled &&
+    (traceData?.shapeGroups?.length ||
+      traceData?.strokePaths?.length ||
+      traceData?.mask?.length ||
+      traceData?.rects?.length ||
+      traceData?.silhouetteMask?.length);
+  // Trace export must match preview — ink-mask row shells, not shapeGroup earcut / coarse decals.
+  if (hasTrace) {
+    const mesh = buildEmbossBitmap(meta, p, traceData);
+    if (mesh?.indices?.length) return mesh;
+  }
+
   const collected = collectGraphicEmbossShapeGroups(meta, p, svgText);
   if (!collected?.shapeGroups?.length) return null;
 
