@@ -4,8 +4,23 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b318** — Flat→arc keeps wrap text position
-- Cache-bust: `app.js?v=318` — header **b318**
+- Current: **b319** — Wrap text uses row shells (same as graphics)
+- Cache-bust: `app.js?v=319` — header **b319**
+
+### 2026-07-12 — b319: Wrap arc text row shells (fix 90° side placement)
+
+**Problem:** Arc MUSTANG still landed on the side of the cylinder (~90° rotated) while flat text and traced graphics sat correctly on the front.
+
+**Cause:** Wrap **graphics** use ink-mask **row shells** with seam unwrap at the logo centre; wrap **text** used vector extrude + `normalizeWrapShapeGroups`, which folded arc letters to the wrong side of the wrap.
+
+**Fix:**
+- All wrap text (flat + arc) now uses **row shells** from `computeTextArtLayout` placement — same golden path as traced art
+- Explicit `anchorX` from layout centre for seam unwrap
+- Arc preset buttons no longer wipe move sliders
+
+**Files:** `features.js`, `app.js`, `index.html`
+
+**Test:** Flat MUSTANG above car → Arc/Wide → stays on front, arched above graphic. Hard refresh `app.js?v=319`.
 
 ### 2026-07-12 — b318: Flat→arc inherits move sliders on wrap
 

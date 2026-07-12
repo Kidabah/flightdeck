@@ -497,7 +497,7 @@ function buildWrapTraceSlabMesh(frame, bitmap, params, shapeGroups, d0, d1, opts
   const positions = [];
   const indices = [];
   const wrapSeam = frame.face === "wrap" && frame.faceW > 0;
-  const anchorX = xOff + artW / 2;
+  const anchorX = place.anchorX ?? xOff + artW / 2;
   const mapRunX = (px) => (wrapSeam ? unwrapWrapX(px, anchorX, frame.faceW) : px);
   const runOpts = {
     solid: true,
@@ -1796,30 +1796,31 @@ function computeFlatTextBand(meta, params, frame, labelH, fontId, fontSizePx) {
 }
 
 /** Wrap arc placement — inherit flat move sliders; stack on logo when offsets are zero. */
-function anchorWrapArcForWrap(bounds, flatBand, anchor, params, labelH) {
+function anchorWrapArcForWrap(bounds, flatBand, anchor, params, labelH, frame) {
   const glyphCx = (bounds.left + bounds.right) / 2;
   const glyphCy = (bounds.bottom + bounds.top) / 2;
   const ox = params.textOffsetX ?? 0;
   const oy = params.textOffsetY ?? 0;
   const moved = Math.abs(ox) > 0.05 || Math.abs(oy) > 0.05;
+  const targetCx = flatBand?.cx ?? anchor?.cx ?? frame.faceW / 2 + ox;
 
   if (flatBand && moved) {
-    const dx = flatBand.cx - glyphCx;
+    const dx = targetCx - glyphCx;
     const dz = flatBand.cy - glyphCy;
     const shifted = shiftArcGlyphBounds(bounds, dx, dz);
-    return { ...shifted, cx: flatBand.cx, cy: flatBand.cy };
+    return { ...shifted, cx: targetCx, cy: flatBand.cy };
   }
   if (anchor) {
-    return anchorWrapArcToGraphic(bounds, anchor, params, labelH);
+    return anchorWrapArcToGraphic(bounds, { ...anchor, cx: targetCx }, params, labelH);
   }
   if (flatBand) {
-    const dx = flatBand.cx - glyphCx;
+    const dx = targetCx - glyphCx;
     const dz = flatBand.cy - glyphCy;
     const shifted = shiftArcGlyphBounds(bounds, dx, dz);
-    return { ...shifted, cx: flatBand.cx, cy: flatBand.cy };
+    return { ...shifted, cx: targetCx, cy: flatBand.cy };
   }
-  const shifted = shiftArcGlyphBounds(bounds, 0, 0);
-  return { ...shifted, cx: glyphCx, cy: glyphCy };
+  const shifted = shiftArcGlyphBounds(bounds, frame.faceW / 2 + ox - glyphCx, 0);
+  return { ...shifted, cx: frame.faceW / 2 + ox, cy: glyphCy };
 }
 
 /** @deprecated bounds helper — prefer rasterTextMask dimensions. */
@@ -1934,7 +1935,7 @@ function computeTextArtLayout(meta, params) {
     if (frame.face === "wrap") {
       const flatBand = computeFlatTextBand(meta, params, frame, labelH, fontId, fontSizePx);
       const anchor = graphicArtAnchor(frame, meta, params);
-      const anchored = anchorWrapArcForWrap(bounds, flatBand, anchor, params, labelH);
+      const anchored = anchorWrapArcForWrap(bounds, flatBand, anchor, params, labelH, frame);
       bounds = anchored;
       cx = anchored.cx;
       cy = anchored.cy;
@@ -2160,8 +2161,28 @@ function prepareTextExportMask(mask, maskW, maskH, params) {
   return dilateMask(out, maskW, maskH, 4);
 }
 
-function collectTextEmbossShapeGroups(meta, params) {
-  const layout = computeTextArtLayout(meta, params);
+/** Wrap arc/flat text via row shells — same seam anchor as traced graphics. */
+function buildWrapTextSlabFromLayout(layout, params, d0, d1) {
+  const { frame, raster, xOff, zOff, maskW, maskH, scale, left, right, top, bottom, cx } = layout;
+  const textMask = prepareTextExportMask(raster.mask, maskW, maskH, params);
+  const artW = Math.max(0.4, right - left);
+  const artHeight = Math.max(0.4, top - bottom);
+  return buildWrapTraceSlabMesh(
+    frame,
+    { mask: textMask, width: maskW, height: maskH },
+    params,
+    [],
+    d0,
+    d1,
+    {
+      fineRows: true,
+      placement: { maskW, maskH, scale, artW, artHeight, xOff, zOff, anchorX: cx },
+    },
+  );
+}
+
+function collectTextEmbossShapeGroups(meta, params, layoutIn = null) {
+  const layout = layoutIn ?? computeTextArtLayout(meta, params);
   if (!layout) return null;
 
   const { frame, raster, scale, xOff, zOff, maskW, maskH, cx, cy, rotation } = layout;
@@ -2194,7 +2215,8 @@ function collectTextEmbossShapeGroups(meta, params) {
 
   let shaped = remapped.map((g) => rotateShapeGroup(g, cx, cy, rotation));
   if (frame.face === "wrap") {
-    shaped = normalizeWrapShapeGroups(shaped, frame.faceW, cx);
+    const wrapAnchor = cx ?? frame.faceW / 2;
+    shaped = normalizeWrapShapeGroups(shaped, frame.faceW, wrapAnchor);
   }
   shaped = finishExportShapeGroups(shaped, params);
 
@@ -2645,17 +2667,26 @@ function buildWatertightTextEmbossExport(shellMesh, meta, params) {
 /** Closed letter solids for separate-colour export (no wall interaction). */
 export function buildTextLabelExportMesh(meta, params) {
   const p = { ...params, __labelExportKind: "text" };
-  const collected = collectTextEmbossShapeGroups(meta, p);
+  const layout = computeTextArtLayout(meta, p);
+  if (!layout) return null;
+
+  const { d0, d1 } = labelOffsets(p);
+
+  if (layout.frame.face === "wrap") {
+    const slab = buildWrapTextSlabFromLayout(layout, p, d0, d1);
+    if (slab?.indices?.length) return slab;
+    return null;
+  }
+
+  const collected = collectTextEmbossShapeGroups(meta, p, layout);
   if (!collected?.shapeGroups?.length) return null;
 
   if (isLabelExport(p)) {
-    const { d0, d1 } = labelOffsets(p);
     const slab = buildFaceDecalSlabMesh(collected.frame, collected.shapeGroups, { d0, d1 });
     if (slab?.indices?.length) return slab;
   }
 
   const { frame, shapeGroups } = collected;
-  const { d0, d1 } = labelOffsets(p);
   const positions = [];
   const indices = [];
   extrudeGroupsOnFace(positions, indices, frame, shapeGroups, d0, d1, p);
@@ -2985,10 +3016,21 @@ export function buildWatermarkPreviewMesh(meta, stamp) {
 
 /** Embossed label text — smooth stencil silhouettes (one solid per letter). */
 export function buildEmbossText(meta, params) {
-  const collected = collectTextEmbossShapeGroups(meta, params);
-  if (!collected) return null;
+  const layout = computeTextArtLayout(meta, params);
+  if (!layout) return null;
 
   const { d0, d1 } = labelOffsets(params);
+
+  // Wrap — row shells (same golden path as traced graphics). Vector extrude folds arc text to the wrong side.
+  if (layout.frame.face === "wrap") {
+    const slab = buildWrapTextSlabFromLayout(layout, params, d0, d1);
+    if (slab?.indices?.length) return slab;
+    return null;
+  }
+
+  const collected = collectTextEmbossShapeGroups(meta, params, layout);
+  if (!collected) return null;
+
   const positions = [];
   const indices = [];
   const flatCoord = (w) => flatCoordForFrame(collected.frame, w);
