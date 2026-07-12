@@ -2743,34 +2743,57 @@ export function buildEmbossText(meta, params) {
 
 /** Solid silhouette / traced bitmap emboss on chosen face. */
 /** Solid emboss mask — prefer pixel mask; rebuild from rects if session omitted large mask blob. */
+function copyEmbossMaskBytes(src) {
+  if (!src?.length) return null;
+  return src instanceof Uint8Array ? src.slice() : Uint8Array.from(src);
+}
+
+function maskFromEmbossRects(rects, maskW, maskH) {
+  if (!rects?.length || !maskW || !maskH) return null;
+  const mask = new Uint8Array(maskW * maskH);
+  for (const r of rects) {
+    const x0 = clamp(Math.floor(r.x), 0, maskW);
+    const x1 = clamp(Math.ceil(r.x + r.w), 0, maskW);
+    const y0 = clamp(Math.floor(r.y), 0, maskH);
+    const y1 = clamp(Math.ceil(r.y + r.h), 0, maskH);
+    for (let py = y0; py < y1; py++) {
+      for (let px = x0; px < x1; px++) mask[py * maskW + px] = 1;
+    }
+  }
+  return mask;
+}
+
 function ensureEmbossBitmapMask(bitmap) {
   const maskW = Math.round(bitmap?.width || 0);
   const maskH = Math.round(bitmap?.height || 0);
   if (!maskW || !maskH || !bitmap) return bitmap;
   const expected = maskW * maskH;
-  if (bitmap.mask?.length === expected) return bitmap;
-  if (bitmap.silhouetteMask?.length === expected) {
-    const m = bitmap.silhouetteMask;
-    return { ...bitmap, mask: m instanceof Uint8Array ? Array.from(m) : [...m] };
-  }
+  const existing = copyEmbossMaskBytes(bitmap.mask);
+  if (existing?.length === expected) return { ...bitmap, mask: existing };
+  const sil = copyEmbossMaskBytes(bitmap.silhouetteMask);
+  if (sil?.length === expected) return { ...bitmap, mask: sil };
+  const fromRects = maskFromEmbossRects(bitmap.rects, maskW, maskH);
+  if (fromRects?.length === expected) return { ...bitmap, mask: fromRects };
   if (bitmap.shapeGroups?.length) {
     const mask = rasterizeShapeGroupsToMask(bitmap.shapeGroups, maskW, maskH);
-    if (mask?.length === expected) return { ...bitmap, mask: Array.from(mask) };
-  }
-  if (bitmap.rects?.length) {
-    const mask = new Uint8Array(expected);
-    for (const r of bitmap.rects) {
-      const x0 = clamp(Math.floor(r.x), 0, maskW);
-      const x1 = clamp(Math.ceil(r.x + r.w), 0, maskW);
-      const y0 = clamp(Math.floor(r.y), 0, maskH);
-      const y1 = clamp(Math.ceil(r.y + r.h), 0, maskH);
-      for (let py = y0; py < y1; py++) {
-        for (let px = x0; px < x1; px++) mask[py * maskW + px] = 1;
-      }
-    }
-    return { ...bitmap, mask: Array.from(mask) };
+    if (mask?.length === expected) return { ...bitmap, mask: mask instanceof Uint8Array ? mask : Uint8Array.from(mask) };
   }
   return bitmap;
+}
+
+const WRAP_EMBOSS_MASK_MAX_CELLS = 1_200_000;
+
+function downsampleEmbossMaskToFit(mask, maskW, maskH, maxCells = WRAP_EMBOSS_MASK_MAX_CELLS) {
+  let m = mask instanceof Uint8Array ? mask : Uint8Array.from(mask);
+  let w = maskW;
+  let h = maskH;
+  while (w * h > maxCells && Math.max(w, h) > 96) {
+    const ds = downsampleBitmapMask(m, w, h, 2);
+    m = ds.mask;
+    w = ds.maskW;
+    h = ds.maskH;
+  }
+  return { mask: m, maskW: w, maskH: h };
 }
 
 /** Cooler wrap golden path — any trace with an ink mask uses row shells (not earcut silhouettes). */
@@ -2779,10 +2802,19 @@ function buildWrapGoldenSlabEmboss(frame, bitmap, params, maskW, maskH, d0, d1) 
   const b = ensureEmbossBitmapMask(bitmap);
   const expected = maskW * maskH;
   if (b?.mask?.length !== expected) return null;
-  let slabBitmap = b;
+  let slabW = maskW;
+  let slabH = maskH;
+  let slabMask = b.mask instanceof Uint8Array ? b.mask : Uint8Array.from(b.mask);
+  if (expected > WRAP_EMBOSS_MASK_MAX_CELLS) {
+    const ds = downsampleEmbossMaskToFit(slabMask, slabW, slabH);
+    slabMask = ds.mask;
+    slabW = ds.maskW;
+    slabH = ds.maskH;
+  }
+  let slabBitmap = { ...b, mask: slabMask, width: slabW, height: slabH };
   const fill = b.maskFillPct ?? 0;
   const needsClose = !b.outlineRaster || b.colorLogo || fill >= 18 || wrapLineArtNeedsSolidEmboss(b);
-  if (needsClose) slabBitmap = preprocessWrapDenseLineArtMask(b, maskW, maskH);
+  if (needsClose) slabBitmap = preprocessWrapDenseLineArtMask(slabBitmap, slabW, slabH);
   return buildWrapTraceSlabMesh(frame, slabBitmap, params, [], d0, d1, { fineRows: true });
 }
 
@@ -2811,10 +2843,11 @@ export function buildEmbossBitmap(meta, params, bitmap) {
   const isOutline = bitmap.mode === "outline";
   const denseTrace = (bitmap.shapeGroups?.length ?? 0) > 8;
 
-  // Wrap — always ink-mask row shells (coffee-bag path) for every trace type.
+  // Wrap — always ink-mask row shells (coffee-bag path); never earcut united silhouettes.
   if (frame.face === "wrap") {
     const wrapSlab = buildWrapGoldenSlabEmboss(frame, bitmap, params, maskW, maskH, d0, d1);
     if (wrapSlab?.indices?.length) return wrapSlab;
+    return null;
   }
 
   // Line-art raster on flat faces — row shells.

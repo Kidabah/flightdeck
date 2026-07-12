@@ -4,8 +4,16 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b296** — wrap uses ink-mask rows for ALL trace types (colour logo fix)
-- Cache-bust: `app.js?v=296`, `trace.js?v=296` — header **b296**
+- Current: **b297** — Warriors fix: wrap rects-before-polygons + block earcut fallback + wrap auto line-art
+- Cache-bust: `app.js?v=297`, `trace.js?v=297`, `features.js?v=297` — header **b297**
+
+### 2026-07-12 — b297: Warriors solid-logo wrap — rects mask + no earcut fallback
+
+**Symptom:** b296 still broken on Warriors — meta `solid logo` (not colour logo). Preview OK, 3D jagged/missing detail on wrap.
+
+**Cause:** (1) Megapixel traces stored without mask after session; `ensureEmbossBitmapMask` rebuilt from simplified united `shapeGroups` instead of `rects`. (2) Golden wrap path failure fell through to `extrudeGroupsOnFace` earcut. (3) Auto on wrap picked solid silhouette over `outlineRaster` (thin-edge fill below line-art threshold).
+
+**Fix:** Rebuild mask rects → silhouetteMask → shapeGroups. Block earcut on wrap entirely. Downsample megapixel masks for wrap emboss. On wrap auto, prefer `outlineRaster` when ink runs exist.
 
 ### 2026-07-12 — b296: Wrap golden path for colour logo / silhouette traces
 

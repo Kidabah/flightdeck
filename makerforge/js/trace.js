@@ -1295,6 +1295,23 @@ function traceLooksLikeLineArt(result) {
 }
 
 function chooseAutoTraceResult(outlineResult, silhouetteResult, colorLogoResult = null, options = {}) {
+  if (
+    options.preferWrapLineArt
+    && outlineResult?.outlineRaster
+    && !outlineResult?.tooComplex
+    && (outlineResult.rectCount ?? 0) > 30
+  ) {
+    return {
+      ...outlineResult,
+      autoTrace: true,
+      autoPickedMode: "outline",
+      autoScores: {
+        outline: Math.round(traceAutoScore(outlineResult)),
+        silhouette: Math.round(traceAutoScore(silhouetteResult)),
+        colorLogo: colorLogoResult ? Math.round(traceAutoScore(colorLogoResult)) : -1e9,
+      },
+    };
+  }
   if (options.preferWrapLineArt && traceLooksLikeLineArt(outlineResult)) {
     return {
       ...outlineResult,

@@ -1,8 +1,8 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=254";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette } from "./features.js?v=296";
-import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=296";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette } from "./features.js?v=297";
+import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=297";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=201";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=210";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
@@ -24,7 +24,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b296";
+const MAKERDECK_BUILD = "b297";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -2648,9 +2648,16 @@ function clearEmbossTrace() {
 
 function cloneEmbossTraceRects(rects) {
   if (!rects) return null;
+  const maskCopy = rects.mask?.length
+    ? (rects.mask instanceof Uint8Array ? rects.mask.slice() : Uint8Array.from(rects.mask))
+    : [];
+  const silCopy = rects.silhouetteMask?.length
+    ? (rects.silhouetteMask instanceof Uint8Array ? rects.silhouetteMask.slice() : Uint8Array.from(rects.silhouetteMask))
+    : maskCopy;
   return {
     rects: rects.rects?.map((r) => ({ ...r })) || [],
-    mask: rects.mask ? [...rects.mask] : [],
+    mask: maskCopy,
+    silhouetteMask: silCopy,
     polygons: rects.polygons?.map((poly) => poly.map(([x, y]) => [x, y])) || [],
     shapeGroups: rects.shapeGroups?.map((g) => ({
       outer: g.outer.map(([x, y]) => [x, y]),
@@ -2663,9 +2670,11 @@ function cloneEmbossTraceRects(rects) {
     autoPickedMode: rects.autoPickedMode,
     colorLogo: !!rects.colorLogo,
     outlineRaster: !!rects.outlineRaster,
+    outlineFallback: !!rects.outlineFallback,
     shapeGroupsUnited: !!rects.shapeGroupsUnited,
     rasterSimplified: !!rects.rasterSimplified,
     maskFillPct: rects.maskFillPct,
+    rectCount: rects.rectCount,
     previewShapeGroups: null,
     width: rects.width,
     height: rects.height,
@@ -3234,11 +3243,14 @@ async function handleTraceFile(file) {
 
 function traceResultToEmbossRects(result) {
   const silMask = result.silhouetteMask?.length
-    ? Array.from(result.silhouetteMask)
-    : (result.mask?.length ? Array.from(result.mask) : []);
+    ? (result.silhouetteMask instanceof Uint8Array ? result.silhouetteMask.slice() : Uint8Array.from(result.silhouetteMask))
+    : (result.mask?.length
+      ? (result.mask instanceof Uint8Array ? result.mask.slice() : Uint8Array.from(result.mask))
+      : null);
   return {
     rects: result.rects?.map((r) => ({ x: r.x, y: r.y, w: r.w, h: r.h })) || [],
-    mask: silMask,
+    mask: silMask || [],
+    silhouetteMask: silMask || [],
     polygons: result.polygons?.map((poly) => poly.map(([x, y]) => [x, y])) || [],
     shapeGroups: result.shapeGroups?.map((g) => ({
       outer: g.outer.map(([x, y]) => [x, y]),
@@ -3254,6 +3266,7 @@ function traceResultToEmbossRects(result) {
     outlineFallback: !!result.outlineFallback,
     rasterSimplified: !!result.rasterSimplified,
     maskFillPct: result.maskFillPct,
+    rectCount: result.rectCount,
     shapeGroupsUnited: !!result.shapeGroupsUnited,
     previewShapeGroups: result.previewShapeGroups?.map((g) => ({
       outer: g.outer.map(([x, y]) => [x, y]),
