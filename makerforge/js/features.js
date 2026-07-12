@@ -1792,35 +1792,59 @@ function computeFlatTextBand(meta, params, frame, labelH, fontId, fontSizePx) {
     cy: zOff + artH / 2,
     top: zOff + artH,
     bottom: zOff,
+    artW,
+    artH,
   };
 }
 
-/** Wrap arc placement — inherit flat move sliders; stack on logo when offsets are zero. */
-function anchorWrapArcForWrap(bounds, flatBand, anchor, params, labelH, frame) {
-  const glyphCx = (bounds.left + bounds.right) / 2;
-  const glyphCy = (bounds.bottom + bounds.top) / 2;
+/** Where wrap text should sit — move sliders, or stacked above/below the traced graphic. */
+function resolveWrapTextBand(params, flatBand, anchor, labelH) {
+  if (!flatBand) return null;
   const ox = params.textOffsetX ?? 0;
   const oy = params.textOffsetY ?? 0;
-  const moved = Math.abs(ox) > 0.05 || Math.abs(oy) > 0.05;
-  const targetCx = flatBand?.cx ?? anchor?.cx ?? frame.faceW / 2 + ox;
+  if (Math.abs(ox) > 0.05 || Math.abs(oy) > 0.05) return flatBand;
+  if (!anchor) return flatBand;
+  const arcMode = (params.embossTextLayout || "flat") === "arc";
+  const side = arcMode && params.embossArcSide === "down" ? "down" : "up";
+  const gap = Math.max(1.2, labelH * 0.1);
+  const bottom = side === "down"
+    ? anchor.bottom - gap - flatBand.artH
+    : anchor.top + gap;
+  const top = bottom + flatBand.artH;
+  return {
+    cx: flatBand.cx,
+    cy: (top + bottom) / 2,
+    top,
+    bottom,
+    artW: flatBand.artW,
+    artH: flatBand.artH,
+  };
+}
 
-  if (flatBand && moved) {
-    const dx = targetCx - glyphCx;
-    const dz = flatBand.cy - glyphCy;
-    const shifted = shiftArcGlyphBounds(bounds, dx, dz);
-    return { ...shifted, cx: targetCx, cy: flatBand.cy };
-  }
-  if (anchor) {
-    return anchorWrapArcToGraphic(bounds, { ...anchor, cx: targetCx }, params, labelH);
-  }
-  if (flatBand) {
-    const dx = targetCx - glyphCx;
-    const dz = flatBand.cy - glyphCy;
-    const shifted = shiftArcGlyphBounds(bounds, dx, dz);
-    return { ...shifted, cx: targetCx, cy: flatBand.cy };
-  }
-  const shifted = shiftArcGlyphBounds(bounds, frame.faceW / 2 + ox - glyphCx, 0);
-  return { ...shifted, cx: frame.faceW / 2 + ox, cy: glyphCy };
+function alignBoundsToWrapBand(bounds, band) {
+  const glyphCx = (bounds.left + bounds.right) / 2;
+  const glyphCy = (bounds.bottom + bounds.top) / 2;
+  const dx = band.cx - glyphCx;
+  const dy = band.cy - glyphCy;
+  const shifted = shiftArcGlyphBounds(bounds, dx, dy);
+  return { ...shifted, cx: band.cx, cy: band.cy };
+}
+
+function applyWrapTextBandToFaceRect(band, glyph, scale, maskH, artW, artH) {
+  const left = band.cx - artW / 2;
+  const right = band.cx + artW / 2;
+  const bottom = band.bottom;
+  const top = band.top;
+  return {
+    left,
+    right,
+    bottom,
+    top,
+    cx: band.cx,
+    cy: band.cy,
+    canvasXOff: left - glyph.left * scale,
+    canvasZOff: bottom - (maskH - glyph.bottom - 1) * scale,
+  };
 }
 
 /** @deprecated bounds helper — prefer rasterTextMask dimensions. */
@@ -1935,10 +1959,19 @@ function computeTextArtLayout(meta, params) {
     if (frame.face === "wrap") {
       const flatBand = computeFlatTextBand(meta, params, frame, labelH, fontId, fontSizePx);
       const anchor = graphicArtAnchor(frame, meta, params);
-      const anchored = anchorWrapArcForWrap(bounds, flatBand, anchor, params, labelH, frame);
-      bounds = anchored;
-      cx = anchored.cx;
-      cy = anchored.cy;
+      const band = resolveWrapTextBand(params, flatBand, anchor, labelH);
+      if (band) {
+        const aligned = alignBoundsToWrapBand(bounds, band);
+        bounds = aligned;
+        cx = aligned.cx;
+        cy = aligned.cy;
+        left = aligned.left;
+        right = aligned.right;
+        bottom = aligned.bottom;
+        top = aligned.top;
+        canvasXOff = aligned.canvasXOff;
+        canvasZOff = aligned.canvasZOff;
+      }
     } else {
       const targetCx = params.textOffsetX ?? 0;
       const targetCy = faceCy + (params.textOffsetY ?? 0);
@@ -1972,6 +2005,23 @@ function computeTextArtLayout(meta, params) {
     rotation = params.textRotation ?? 0;
   }
 
+  if (frame.face === "wrap" && !arcMode) {
+    const flatBand = computeFlatTextBand(meta, params, frame, labelH, fontId, fontSizePx);
+    const anchor = graphicArtAnchor(frame, meta, params);
+    const band = resolveWrapTextBand(params, flatBand, anchor, labelH);
+    if (band) {
+      const face = applyWrapTextBandToFaceRect(band, glyph, scale, maskH, artW, artH);
+      left = face.left;
+      right = face.right;
+      bottom = face.bottom;
+      top = face.top;
+      cx = face.cx;
+      cy = face.cy;
+      canvasXOff = face.canvasXOff;
+      canvasZOff = face.canvasZOff;
+    }
+  }
+
   return {
     frame,
     raster,
@@ -1991,6 +2041,8 @@ function computeTextArtLayout(meta, params) {
     rotation,
     glyphHeightMm: artH,
     arcMode,
+    glyphLeft: glyph.left,
+    glyphBottom: glyph.bottom,
   };
 }
 
@@ -2161,23 +2213,62 @@ function prepareTextExportMask(mask, maskW, maskH, params) {
   return dilateMask(out, maskW, maskH, 4);
 }
 
+/** Wrap text row shells — face-space origin (left/bottom) so move sliders actually shift the mesh. */
+function buildWrapTextMaskSlabMesh(frame, mask, maskW, maskH, scale, faceLeft, faceBottom, glyphLeft, glyphBottom, anchorX, artW, d0, d1, opts = {}) {
+  const maxRows = opts.fineRows ? maskH : 2048;
+  let stepPx = 1;
+  stepPx = wrapSlabRowStepPx(maskH, stepPx, { maxRows, maxPreviewIndices: 0 });
+  const positions = [];
+  const indices = [];
+  const wrapSeam = frame.face === "wrap" && frame.faceW > 0;
+  const mapX = (col) => {
+    const px = faceLeft + (col - glyphLeft) * scale;
+    return wrapSeam ? unwrapWrapX(px, anchorX, frame.faceW) : px;
+  };
+  const mapZ = (py) => faceBottom + (glyphBottom - py) * scale;
+  const runOpts = {
+    solid: true,
+    maxRunMm: wrapSeam ? clamp(artW * 0.12, 3.5, 8) : 0,
+  };
+  for (let row = 0; row < maskH; row += stepPx) {
+    const py0 = row;
+    const py1 = Math.min(maskH, row + stepPx);
+    const my0 = mapZ(py1);
+    const my1 = mapZ(py0);
+    let col = 0;
+    while (col < maskW) {
+      while (col < maskW && !bandMaskFilled(mask, maskW, py0, py1, col)) col++;
+      const start = col;
+      while (col < maskW && bandMaskFilled(mask, maskW, py0, py1, col)) col++;
+      if (col <= start) continue;
+      pushWrapRunShellSpan(positions, indices, frame, mapX(start), mapX(col), my0, my1, d0, d1, runOpts);
+    }
+  }
+  return indices.length ? { positions, indices } : null;
+}
+
 /** Wrap arc/flat text via row shells — same seam anchor as traced graphics. */
 function buildWrapTextSlabFromLayout(layout, params, d0, d1) {
-  const { frame, raster, xOff, zOff, maskW, maskH, scale, left, right, top, bottom, cx } = layout;
+  const {
+    frame, raster, scale, left, bottom, cx, maskW, maskH, glyphLeft, glyphBottom,
+  } = layout;
   const textMask = prepareTextExportMask(raster.mask, maskW, maskH, params);
-  const artW = Math.max(0.4, right - left);
-  const artHeight = Math.max(0.4, top - bottom);
-  return buildWrapTraceSlabMesh(
+  const artW = Math.max(0.4, layout.right - layout.left);
+  return buildWrapTextMaskSlabMesh(
     frame,
-    { mask: textMask, width: maskW, height: maskH },
-    params,
-    [],
+    textMask,
+    maskW,
+    maskH,
+    scale,
+    left,
+    bottom,
+    glyphLeft ?? 0,
+    glyphBottom ?? maskH - 1,
+    cx,
+    artW,
     d0,
     d1,
-    {
-      fineRows: true,
-      placement: { maskW, maskH, scale, artW, artHeight, xOff, zOff, anchorX: cx },
-    },
+    { fineRows: true },
   );
 }
 

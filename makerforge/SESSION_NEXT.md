@@ -4,10 +4,25 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b319** — Wrap text uses row shells (same as graphics)
-- Cache-bust: `app.js?v=319` — header **b319**
+- Current: **b320** — Wrap text move sliders + face-space row shells
+- Cache-bust: `app.js?v=320` — header **b320**
 
-### 2026-07-12 — b319: Wrap arc text row shells (fix 90° side placement)
+### 2026-07-12 — b320: Wrap text move sliders work (flat + arc)
+
+**Problem:** Text up/down and left/right did nothing on wrap (flat or arc). Arc still landed on the side of the cylinder.
+
+**Cause:** Row shells mapped mask pixels via canvas offsets that didn't track the face bbox; arc placement ignored move sliders unless &gt; 0.05 mm.
+
+**Fix:**
+- Wrap text row shells use **face left/bottom + glyph origin** (same convention as graphic art)
+- **resolveWrapTextBand** — move sliders always apply; with zero offsets text stacks above/below traced graphic
+- Flat and arc share one placement path on wrap
+
+**Files:** `features.js`, `app.js`, `index.html`
+
+**Test:** MUSTANG on wrap — up/down moves text; Arc stays on front above car. Hard refresh `app.js?v=320`.
+
+### 2026-07-12 — b319: Wrap text row shells (same as graphics)
 
 **Problem:** Arc MUSTANG still landed on the side of the cylinder (~90° rotated) while flat text and traced graphics sat correctly on the front.
 
