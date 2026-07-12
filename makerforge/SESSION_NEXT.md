@@ -4,8 +4,16 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b297** — Warriors fix: wrap rects-before-polygons + block earcut fallback + wrap auto line-art
-- Cache-bust: `app.js?v=297`, `trace.js?v=297`, `features.js?v=297` — header **b297**
+- Current: **b298** — wrap solid logo: skip morphological close (thin text erode fix)
+- Cache-bust: `app.js?v=298`, `trace.js?v=298`, `features.js?v=298` — header **b298**
+
+### 2026-07-12 — b298: Broncos/Warriors — stop mask close eroding thin logo text
+
+**Symptom:** Trace preview full (BRISBANE + shield) but 3D wrap only shows thick shield — thin text gone. Meta still `solid logo`.
+
+**Cause:** `preprocessWrapDenseLineArtMask` ran for all non-line-art fills ≥18% — dilate+erode ate 1–2px text strokes while thick shield survived.
+
+**Fix:** Only close mask for dense **line-art** (`outlineRaster` + high run count / colour logo). Wrap auto always prefers `outlineRaster` when available. Re-trace on face change to wrap.
 
 ### 2026-07-12 — b297: Warriors solid-logo wrap — rects mask + no earcut fallback
 

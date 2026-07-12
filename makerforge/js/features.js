@@ -2813,7 +2813,13 @@ function buildWrapGoldenSlabEmboss(frame, bitmap, params, maskW, maskH, d0, d1) 
   }
   let slabBitmap = { ...b, mask: slabMask, width: slabW, height: slabH };
   const fill = b.maskFillPct ?? 0;
-  const needsClose = !b.outlineRaster || b.colorLogo || fill >= 18 || wrapLineArtNeedsSolidEmboss(b);
+  const runCount = b.rectCount ?? b.rects?.length ?? 0;
+  // Only close gaps for dense line-art masks — morphological close erodes thin logo text on solid silhouettes.
+  const needsClose = !!b.outlineRaster && (
+    b.colorLogo
+    || wrapLineArtNeedsSolidEmboss(b)
+    || (runCount >= 5000 && fill >= 18)
+  );
   if (needsClose) slabBitmap = preprocessWrapDenseLineArtMask(slabBitmap, slabW, slabH);
   return buildWrapTraceSlabMesh(frame, slabBitmap, params, [], d0, d1, { fineRows: true });
 }

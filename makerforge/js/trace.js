@@ -1295,12 +1295,7 @@ function traceLooksLikeLineArt(result) {
 }
 
 function chooseAutoTraceResult(outlineResult, silhouetteResult, colorLogoResult = null, options = {}) {
-  if (
-    options.preferWrapLineArt
-    && outlineResult?.outlineRaster
-    && !outlineResult?.tooComplex
-    && (outlineResult.rectCount ?? 0) > 30
-  ) {
+  if (options.preferWrapLineArt && outlineResult?.outlineRaster && !outlineResult?.tooComplex) {
     return {
       ...outlineResult,
       autoTrace: true,
