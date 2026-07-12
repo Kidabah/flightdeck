@@ -4,8 +4,23 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b308** — Text tab font/colour/size always visible
-- Cache-bust: `app.js?v=308` — header **b308**
+- Current: **b309** — Multi-colour palette merge (max 6 AMS layers, no overlap)
+- Cache-bust: `app.js?v=309` — header **b309**
+
+### 2026-07-12 — b309: Multi-colour palette merge (St George fix)
+
+**Problem:** Complex heraldic PNGs (St George Dragons) detected 10+ anti-alias colour buckets → overlapping contour meshes, jagged noisy 3D preview.
+
+**Fix:**
+- Coarser ink quantize for multi-colour only (`step 48` vs 28)
+- Cap practical AMS layers to **6** (`MULTI_COLOUR_MAX_LAYERS`)
+- **Nearest-neighbour palette assignment** — each pixel belongs to exactly one dominant colour (mutually exclusive masks)
+- Higher min pixel threshold drops anti-alias fringe
+- Trace meta shows `merged from N inks (AMS max 6)` when colours were consolidated
+
+**Files:** `trace.js`, `app.js`, `index.html`
+
+**Test:** Re-trace St George PNG → expect ≤6 clean colour layers, no overlapping mesh garbage. Wests Tigers / coffee bag Auto path unchanged.
 
 ### 2026-07-12 — b308: Font always visible on Text tab
 

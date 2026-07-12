@@ -24,7 +24,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b308";
+const MAKERDECK_BUILD = "b309";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -3173,6 +3173,9 @@ function updateTraceUi() {
     : isOutline
       ? `${count} path${count === 1 ? "" : "s"} · line art`
       : `${count} island${count === 1 ? "" : "s"} · single colour`;
+  if (traceLastResult.multiColour && traceLastResult.colourPaletteMerged && traceLastResult.rawColourBucketCount) {
+    msg += ` · merged from ${traceLastResult.rawColourBucketCount} inks (AMS max 6)`;
+  }
   if (traceLastResult.multiColour && traceLastResult.colorLayers?.length) {
     msg += ` · ${traceLastResult.colorLayers.map((l) => l.label).join(", ")}`;
   }
@@ -3392,6 +3395,8 @@ function traceResultToEmbossRects(result) {
       multiColour: true,
       colorLayers: cloneColourLayers(result.colorLayers),
       colorLayerCount: result.colorLayerCount ?? result.colorLayers.length,
+      rawColourBucketCount: result.rawColourBucketCount,
+      colourPaletteMerged: !!result.colourPaletteMerged,
       autoTrace: false,
       width: result.width,
       height: result.height,

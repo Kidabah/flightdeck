@@ -32,6 +32,9 @@ const MAX_TRACE_PX = 2400;
 const MULTI_COLOUR_MIN_MAX_PX = 2000;
 const SVG_RASTER_PX = 4096;
 const MAX_COLOR_LAYERS = 10;
+/** Practical AMS slot limit — heraldic PNGs otherwise split into 10+ anti-alias buckets. */
+const MULTI_COLOUR_MAX_LAYERS = 6;
+const MULTI_COLOUR_QUANT_STEP = 48;
 const BLUR_SKIP_PIXELS = 1_800_000;
 /** Above this pixel count, skip skeleton / full-res polygonise (freezes the tab). */
 const TRACE_FAST_PIXELS = 900_000;
@@ -556,6 +559,84 @@ function colorLogoMask(data, width, height, threshold, invert) {
 function quantizeInkColor(r, g, b) {
   const step = 28;
   return `${Math.round(r / step) * step},${Math.round(g / step) * step},${Math.round(b / step) * step}`;
+}
+
+function quantizeInkColorMulti(r, g, b) {
+  const step = MULTI_COLOUR_QUANT_STEP;
+  return [
+    Math.round(r / step) * step,
+    Math.round(g / step) * step,
+    Math.round(b / step) * step,
+  ];
+}
+
+function rgbKey(rgb) {
+  return rgb.join(",");
+}
+
+function countMultiColourInkBuckets(data, width, height, fgMask) {
+  const buckets = new Map();
+  const minPixels = Math.max(80, Math.round((width * height) / 14000));
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const idx = y * width + x;
+      if (!fgMask[idx]) continue;
+      const i = idx * 4;
+      const key = rgbKey(quantizeInkColorMulti(data[i], data[i + 1], data[i + 2]));
+      buckets.set(key, (buckets.get(key) || 0) + 1);
+    }
+  }
+  return [...buckets.entries()].filter(([, n]) => n >= minPixels).length;
+}
+
+/** Dominant print colours — cap at MULTI_COLOUR_MAX_LAYERS for clean AMS meshes. */
+function collectMultiColourPalette(data, width, height, fgMask, maxLayers = MULTI_COLOUR_MAX_LAYERS) {
+  const buckets = new Map();
+  const minPixels = Math.max(150, Math.round((width * height) / 9000));
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const idx = y * width + x;
+      if (!fgMask[idx]) continue;
+      const i = idx * 4;
+      const key = rgbKey(quantizeInkColorMulti(data[i], data[i + 1], data[i + 2]));
+      buckets.set(key, (buckets.get(key) || 0) + 1);
+    }
+  }
+  const ranked = [...buckets.entries()]
+    .filter(([, n]) => n >= minPixels)
+    .sort((a, b) => b[1] - a[1]);
+  if (ranked.length < 2) return null;
+  return ranked.slice(0, maxLayers).map(([key]) => key.split(",").map(Number));
+}
+
+/** One mask per palette entry — each ink pixel assigned to nearest AMS colour (no overlap). */
+function buildExclusiveMultiColourLayerMasks(data, width, height, fgMask, palette) {
+  const masks = palette.map(() => new Uint8Array(width * height));
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const idx = y * width + x;
+      if (!fgMask[idx]) continue;
+      const i = idx * 4;
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      let best = 0;
+      let bestD = Infinity;
+      for (let p = 0; p < palette.length; p++) {
+        const [pr, pg, pb] = palette[p];
+        const d = (r - pr) ** 2 + (g - pg) ** 2 + (b - pb) ** 2;
+        if (d < bestD) {
+          bestD = d;
+          best = p;
+        }
+      }
+      masks[best][idx] = 1;
+    }
+  }
+  return masks.map((mask, p) => ({
+    rgb: palette[p],
+    mask: closeMaskHorizontal(mask, width, height, 1),
+  }));
 }
 
 function collectInkColorLayers(data, width, height, threshold, invert, blur) {
@@ -1297,11 +1378,15 @@ export async function traceMultiColourCanvasAsync(canvas, options = {}) {
   const { data } = ctx.getImageData(0, 0, width, height);
   const blur = blurAlphaMask(data, width, height);
   const fgMask = colorLogoMask(data, width, height, threshold, invert);
-  let colorKeys = collectForegroundColorLayers(data, width, height, threshold, invert, blur);
-  if (!colorKeys) {
-    colorKeys = collectInkColorLayers(data, width, height, threshold, invert, blur);
+  const rawBucketCount = countMultiColourInkBuckets(data, width, height, fgMask);
+  let palette = collectMultiColourPalette(data, width, height, fgMask, MULTI_COLOUR_MAX_LAYERS);
+  if (!palette) {
+    const colorKeys = collectInkColorLayers(data, width, height, threshold, invert, blur);
+    if (colorKeys?.length >= 2) {
+      palette = colorKeys.slice(0, MULTI_COLOUR_MAX_LAYERS).map((key) => key.split(",").map(Number));
+    }
   }
-  if (!colorKeys || colorKeys.length < 2) {
+  if (!palette || palette.length < 2) {
     return {
       rects: [],
       width: 0,
@@ -1318,13 +1403,9 @@ export async function traceMultiColourCanvasAsync(canvas, options = {}) {
   }
 
   const combined = fgMask.slice();
-  const layerMasks = [];
-  for (const key of colorKeys.slice(0, MAX_COLOR_LAYERS)) {
-    await traceYield();
-    let layerMask = maskForColourKeyInForeground(data, width, height, key, fgMask, threshold, invert, blur);
-    if (options.strengthen) layerMask = closeMask(layerMask, width, height);
-    for (let i = 0; i < combined.length; i++) if (layerMask[i]) combined[i] = 1;
-    layerMasks.push({ key, mask: layerMask });
+  const layerMasks = buildExclusiveMultiColourLayerMasks(data, width, height, fgMask, palette);
+  for (const { mask } of layerMasks) {
+    for (let i = 0; i < combined.length; i++) if (mask[i]) combined[i] = 1;
   }
 
   const cropped = cropMask(combined, width, height);
@@ -1347,11 +1428,12 @@ export async function traceMultiColourCanvasAsync(canvas, options = {}) {
   const { width: tw, height: th, ox, oy } = cropped;
   const colorLayers = [];
   const usedLabels = new Map();
-  for (const { key, mask } of layerMasks) {
+  for (const { rgb, mask } of layerMasks) {
+    await traceYield();
     const cropMaskLayer = extractAlignedCropMask(mask, width, height, tw, th, ox, oy);
     const fill = maskFillRatio(cropMaskLayer, tw, th);
-    if (fill < 0.002) continue;
-    const [r, g, b] = key.split(",").map(Number);
+    if (fill < 0.004) continue;
+    const [r, g, b] = rgb;
     let label = colourLayerLabel(r, g, b);
     const n = (usedLabels.get(label) || 0) + 1;
     usedLabels.set(label, n);
@@ -1401,11 +1483,13 @@ export async function traceMultiColourCanvasAsync(canvas, options = {}) {
     islandCount: colorLayers.length,
     simplified: false,
     simplifyFactor: 1,
-    tooComplex: colorLayers.length > MAX_COLOR_LAYERS,
+    tooComplex: colorLayers.length > MULTI_COLOUR_MAX_LAYERS,
     mode: "multi-colour",
     multiColour: true,
     colorLayers,
     colorLayerCount: colorLayers.length,
+    rawColourBucketCount: rawBucketCount,
+    colourPaletteMerged: rawBucketCount > colorLayers.length,
     tracePx: `${width}×${height}`,
   };
 }
