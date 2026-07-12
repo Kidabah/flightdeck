@@ -4,16 +4,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b303** — multi-colour sharper mask edges (upscale + quantize match)
-- Cache-bust: `app.js?v=303`, `trace.js?v=303`, `features.js?v=303`, `geometry.js?v=303` — header **b303**
+- Current: **b304** — multi-colour vector contour emboss (smooth slicer edges)
+- Cache-bust: `app.js?v=304`, `trace.js?v=304`, `features.js?v=304`, `geometry.js?v=304` — header **b304**
 
-### 2026-07-12 — b303: Sharper multi-colour logo edges
+### 2026-07-12 — b304: Multi-colour vector contours (sharp slicer edges)
 
-**Symptom:** b302 Tigers preview/export showed stair-stepped white border and pixel noise between colour layers.
+**Symptom:** b303 multi-colour export worked in AMS but slicer showed pixel stair-steps on curves and fragmented thin outlines (Warriors/Tigers).
 
-**Fix:** Upscale source to ≥1600px longest side before colour split. Match layers via `quantizeInkColor` (not ±42 RGB tolerance). Horizontal close only on layer masks — skip open/close that erodes thin crest edges.
+**Cause:** Per-layer emboss used wrap **row shells** from pixel masks — same as line-art path, wrong for solid colour fills.
 
-**Re-test:** Hard refresh, re-trace Wests Tigers in **Multi-colour** mode, export 3MF.
+**Fix:** Each colour layer → `maskToPolygons` → smooth shapeGroups → `extrudeShapeGroupBetween` on wrap (vector walls, not horizontal run slabs). Trace stores shapeGroups per layer at 2000px upscale. Coffee-bag Auto/Outline row-shell path unchanged.
+
+**Re-test:** Hard refresh, re-trace, export 3MF, check slicer toolpaths on curved crest edges before PETG print.
 
 ### 2026-07-12 — b302: Multi-colour logo trace (team logos → AMS slots)
 

@@ -29,7 +29,7 @@ export { unionDenseEmbossShapeGroups } from "./contour.js?v=241";
 
 const MAX_TRACE_PX = 2400;
 /** Multi-colour logos need extra mask resolution — row shells show pixel stairs otherwise. */
-const MULTI_COLOUR_MIN_MAX_PX = 1600;
+const MULTI_COLOUR_MIN_MAX_PX = 2000;
 const SVG_RASTER_PX = 4096;
 const MAX_COLOR_LAYERS = 10;
 const BLUR_SKIP_PIXELS = 1_800_000;
@@ -1356,6 +1356,8 @@ export async function traceMultiColourCanvasAsync(canvas, options = {}) {
     const n = (usedLabels.get(label) || 0) + 1;
     usedLabels.set(label, n);
     if (n > 1) label = `${label} ${n}`;
+    const simplifyTol = Math.max(0.035, tw / 5200);
+    const shapeGroups = silhouetteGroupsFromMask(cropMaskLayer, tw, th, simplifyTol, 4);
     colorLayers.push({
       rgb: [r, g, b],
       hex: rgbToHex(r, g, b),
@@ -1363,6 +1365,7 @@ export async function traceMultiColourCanvasAsync(canvas, options = {}) {
       mask: cropMaskLayer,
       rects: maskToRuns(cropMaskLayer, tw, th),
       maskFillPct: Math.round(fill * 100),
+      shapeGroups,
     });
   }
 
