@@ -2749,6 +2749,10 @@ function ensureEmbossBitmapMask(bitmap) {
   if (!maskW || !maskH || !bitmap) return bitmap;
   const expected = maskW * maskH;
   if (bitmap.mask?.length === expected) return bitmap;
+  if (bitmap.silhouetteMask?.length === expected) {
+    const m = bitmap.silhouetteMask;
+    return { ...bitmap, mask: m instanceof Uint8Array ? Array.from(m) : [...m] };
+  }
   if (bitmap.shapeGroups?.length) {
     const mask = rasterizeShapeGroupsToMask(bitmap.shapeGroups, maskW, maskH);
     if (mask?.length === expected) return { ...bitmap, mask: Array.from(mask) };
@@ -2767,6 +2771,19 @@ function ensureEmbossBitmapMask(bitmap) {
     return { ...bitmap, mask: Array.from(mask) };
   }
   return bitmap;
+}
+
+/** Cooler wrap golden path — any trace with an ink mask uses row shells (not earcut silhouettes). */
+function buildWrapGoldenSlabEmboss(frame, bitmap, params, maskW, maskH, d0, d1) {
+  if (frame.face !== "wrap") return null;
+  const b = ensureEmbossBitmapMask(bitmap);
+  const expected = maskW * maskH;
+  if (b?.mask?.length !== expected) return null;
+  let slabBitmap = b;
+  const fill = b.maskFillPct ?? 0;
+  const needsClose = !b.outlineRaster || b.colorLogo || fill >= 18 || wrapLineArtNeedsSolidEmboss(b);
+  if (needsClose) slabBitmap = preprocessWrapDenseLineArtMask(b, maskW, maskH);
+  return buildWrapTraceSlabMesh(frame, slabBitmap, params, [], d0, d1, { fineRows: true });
 }
 
 export function buildEmbossBitmap(meta, params, bitmap) {
@@ -2794,14 +2811,15 @@ export function buildEmbossBitmap(meta, params, bitmap) {
   const isOutline = bitmap.mode === "outline";
   const denseTrace = (bitmap.shapeGroups?.length ?? 0) > 8;
 
-  // Line-art raster — coffee-bag row shells on wrap; dense logos get light mask close + wide-run split.
+  // Wrap — always ink-mask row shells (coffee-bag path) for every trace type.
+  if (frame.face === "wrap") {
+    const wrapSlab = buildWrapGoldenSlabEmboss(frame, bitmap, params, maskW, maskH, d0, d1);
+    if (wrapSlab?.indices?.length) return wrapSlab;
+  }
+
+  // Line-art raster on flat faces — row shells.
   if (bitmap.outlineRaster && bitmap.mask?.length === maskW * maskH) {
-    let slabBitmap = bitmap;
-    if (frame.face === "wrap" && wrapLineArtNeedsSolidEmboss(bitmap)) {
-      slabBitmap = preprocessWrapDenseLineArtMask(bitmap, maskW, maskH);
-    }
-    const slabOpts = frame.face === "wrap" ? { fineRows: true } : {};
-    const slab = buildWrapTraceSlabMesh(frame, slabBitmap, params, [], d0, d1, slabOpts);
+    const slab = buildWrapTraceSlabMesh(frame, bitmap, params, [], d0, d1, {});
     if (slab?.indices?.length) return slab;
   }
 

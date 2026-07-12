@@ -4,14 +4,16 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b295** — dense wrap back to coffee-bag row shells + wide-run split
-- Cache-bust: `app.js?v=295` — header **b295**
+- Current: **b296** — wrap uses ink-mask rows for ALL trace types (colour logo fix)
+- Cache-bust: `app.js?v=296`, `trace.js?v=296` — header **b296**
 
-### 2026-07-12 — b295: Dense wrap — coffee-bag path + split wide text runs
+### 2026-07-12 — b296: Wrap golden path for colour logo / silhouette traces
 
-**Symptom:** b292–b294 experiments (earcut, pocket, art slabs) all worse. Coffee bag wrap still perfect.
+**Symptom:** Coffee bag / Wests / knight perfect (`line art mask · double-edge`). Warriors etc. fail — meta says `colour logo` or `silhouette`, 3D broken on wrap. PNG vs JPG irrelevant.
 
-**Fix:** Revert dense logos to **same row shells as coffee bag**. Dense only adds light mask close + **split wide horizontal runs** (~8mm max) so full-width text rows hug the cylinder.
+**Cause:** Only `outlineRaster` used coffee-bag row shells on wrap. Colour logo / silhouette used earcut contour on curve.
+
+**Fix:** `buildWrapGoldenSlabEmboss` — any trace with mask/silhouetteMask → row shells on wrap. Auto on wrap prefers line art when viable.
 
 ### 2026-07-12 — b289: Circle cooler wrap — seam unwrap + contour silhouettes
 

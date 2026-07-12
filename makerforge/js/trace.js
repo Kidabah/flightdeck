@@ -1294,7 +1294,19 @@ function traceLooksLikeLineArt(result) {
   return false;
 }
 
-function chooseAutoTraceResult(outlineResult, silhouetteResult, colorLogoResult = null) {
+function chooseAutoTraceResult(outlineResult, silhouetteResult, colorLogoResult = null, options = {}) {
+  if (options.preferWrapLineArt && traceLooksLikeLineArt(outlineResult)) {
+    return {
+      ...outlineResult,
+      autoTrace: true,
+      autoPickedMode: "outline",
+      autoScores: {
+        outline: Math.round(traceAutoScore(outlineResult)),
+        silhouette: Math.round(traceAutoScore(silhouetteResult)),
+        colorLogo: colorLogoResult ? Math.round(traceAutoScore(colorLogoResult)) : -1e9,
+      },
+    };
+  }
   if (traceLooksLikeLineArt(outlineResult)) {
     return {
       ...outlineResult,
@@ -1322,10 +1334,16 @@ function chooseAutoTraceResult(outlineResult, silhouetteResult, colorLogoResult 
     const moreDetail = colorIslands > silIslands
       || colorFill > silFill * 1.12
       || (colorIslands >= 2 && silIslands <= 1);
+    const wrapBlocksColourLogo = options.preferWrapLineArt
+      && outlineResult?.outlineRaster
+      && (outlineResult.rectCount ?? 0) > 20;
     if (
-      colorLogoScore >= bestScore
-      || (meaningfulFill && competitive && moreDetail)
-      || (colorFill >= 0.1 && competitive)
+      !wrapBlocksColourLogo
+      && (
+        colorLogoScore >= bestScore
+        || (meaningfulFill && competitive && moreDetail)
+        || (colorFill >= 0.1 && competitive)
+      )
     ) {
       picked = colorLogoResult;
     }
@@ -1775,7 +1793,9 @@ export async function traceCanvasAsync(canvas, options = {}) {
       mode: "silhouette",
       strengthen: true,
     });
-    return chooseAutoTraceResult(outlineResult, silhouetteResult, colorLogoResult);
+    return chooseAutoTraceResult(outlineResult, silhouetteResult, colorLogoResult, {
+      preferWrapLineArt: !!options.preferWrapLineArt,
+    });
   }
 
   const mode = options.mode === "outline" ? "outline" : "silhouette";
