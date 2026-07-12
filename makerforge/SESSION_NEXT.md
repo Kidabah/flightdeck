@@ -4,8 +4,21 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b311** — Smaller multi-colour 3MF export
-- Cache-bust: `app.js?v=311` — header **b311**
+- Current: **b312** — Multi-colour export: contour quality, moderate size
+- Cache-bust: `app.js?v=312` — header **b312**
+
+### 2026-07-12 — b312: Multi-colour export contour quality (revert row shells)
+
+**Problem:** b311 row shells shredded in Bambu slicer (horizontal band islands). Too-coarse export simplify also caused giant wrap facets on flat shield fills.
+
+**Fix:**
+- Export back to **vector contour extrusion** (same clean path as preview/slicer-tested Tigers)
+- Moderate export downsample (~1M px/layer — one halving from trace, not full 4M)
+- Finer export simplify (`max(0.22, w/680)`) — smaller 3MF than full-res but no huge triangles
+
+**Files:** `features.js`, `app.js`, `index.html`
+
+**Test:** Export St George → solid colour fills in slicer, file smaller than pre-b311 full-res. Hard refresh `app.js?v=312`.
 
 ### 2026-07-12 — b311: Smaller multi-colour 3MF export
 

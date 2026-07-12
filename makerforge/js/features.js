@@ -2573,10 +2573,10 @@ function multiColourLayerShapeGroups(mask, maskW, maskH, params) {
   if (!mask?.length || maskW <= 0 || maskH <= 0) return [];
   const isExport = isLabelExport(params);
   const simplifyTol = isExport
-    ? Math.max(0.4, maskW / 320)
+    ? Math.max(0.22, maskW / 680)
     : Math.max(0.14, maskW / 1100);
-  const smoothPasses = isExport ? 3 : 5;
-  const maxDim = isExport ? 480 : 896;
+  const smoothPasses = isExport ? 4 : 5;
+  const maxDim = isExport ? 640 : 896;
   const raw = groupPolygonsWithHoles(maskToPolygons(mask, maskW, maskH));
   if (!raw.length) return [];
   const seed = raw.map(({ outer, holes }) => ({ outer, holes: holes || [] }));
@@ -2592,33 +2592,11 @@ function multiColourLayerShapeGroups(mask, maskW, maskH, params) {
 /** Vector contour extrusion for one multi-colour layer — smooth wrap curves (not pixel row shells). */
 function buildMultiColourContourEmboss(meta, params, traceData, layer) {
   const { mask, maskW, maskH } = fitMultiColourLayerMask(layer, traceData.width, traceData.height, params);
-  const frame = getEmbossFaceFrame(meta, params.embossFace || "front", params);
-  const { d0, d1 } = labelOffsets(params);
-  const isExport = isLabelExport(params);
-
-  // Export wrap — compact row shells (~0.2 mm stepping), not full-res contour caps × 6 colours.
-  if (isExport && frame.face === "wrap") {
-    const rowMesh = buildWrapTraceSlabMesh(
-      frame,
-      { mask, width: maskW, height: maskH, mode: "silhouette", outlineRaster: false },
-      params,
-      [],
-      d0,
-      d1,
-      {},
-    );
-    if (rowMesh?.indices?.length) return rowMesh;
-  }
-
   const bitmap = layerToEmbossBitmap({ width: maskW, height: maskH }, { ...layer, mask }, params);
-  if (!bitmap.shapeGroups?.length) {
-    if (isExport) {
-      const fallback = buildEmbossBitmap(meta, params, { ...bitmap, mask, shapeGroups: [] });
-      if (fallback?.indices?.length) return fallback;
-    }
-    return null;
-  }
+  if (!bitmap.shapeGroups?.length) return null;
+  const frame = getEmbossFaceFrame(meta, params.embossFace || "front", params);
   const artH = params.embossTraceSize ?? 16;
+  const { d0, d1 } = labelOffsets(params);
   const faceGroups = remappedBitmapFaceGroups(bitmap, frame, params, bitmap.shapeGroups, maskW, maskH, artH);
   if (!faceGroups?.length) return null;
   const positions = [];
@@ -2922,8 +2900,8 @@ const WRAP_EMBOSS_MASK_MAX_CELLS = 1_200_000;
 const WRAP_EMBOSS_MASK_MAX_CELLS_EXPORT = 4_000_000;
 /** Multi-colour contour preview — full-res trace masks are megapixel; downscale before polygonise. */
 const MULTI_COLOUR_PREVIEW_MAX_CELLS = 900_000;
-/** Multi-colour 3MF export — row shells on a smaller mask keep AMS registration without huge XML. */
-const MULTI_COLOUR_EXPORT_MAX_CELLS = 320_000;
+/** Multi-colour 3MF export — one downsample pass keeps contours printable without megapixel XML. */
+const MULTI_COLOUR_EXPORT_MAX_CELLS = 1_050_000;
 
 function downsampleEmbossMaskToFit(mask, maskW, maskH, maxCells = WRAP_EMBOSS_MASK_MAX_CELLS) {
   let m = mask instanceof Uint8Array ? mask : Uint8Array.from(mask);
