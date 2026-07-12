@@ -19303,19 +19303,30 @@ async function _openSlotEditor(printerId, slotIndex, slotLabel) {
     });
 
     const applySlotPickerFilters = () => {
-      const q = body.querySelector('#slot-spool-filter')?.value.trim().toLowerCase() || '';
+      const raw = body.querySelector('#slot-spool-filter')?.value.trim() || '';
+      const parsed = _parseSpoolSearchQuery(raw);
       const activeFilter = body.querySelector('.slot-filter-chip.active')?.dataset.slotFilter || 'all';
-      const terms = q.split(/\s+/).filter(Boolean);
       body.querySelectorAll('[data-slot-spool-id]').forEach(row => {
-        const search = row.dataset.search || '';
-        if (!search) return;
-        const matchesSearch = !terms.length || terms.every(term => search.includes(term));
+        const spoolId = row.dataset.slotSpoolId;
+        const spool = candidates.find(c => String(c.id) === String(spoolId));
+        if (!spool) return;
+        const matchesSearch = _spoolMatchesSearch(spool, parsed, raw);
         const matchesFilter =
           activeFilter === 'all'
           || (activeFilter === 'match' && Number(row.dataset.score || 9999) < 320)
           || ((activeFilter.startsWith('loc:') || activeFilter.startsWith('empty:')) && String(row.dataset.locationId || '') === activeFilter);
         row.hidden = !(matchesSearch && matchesFilter);
       });
+      if (parsed.minRemainingG != null && !parsed.spoolNumberOnly) {
+        const list = body.querySelector('.slot-spool-picker');
+        if (list) {
+          [...list.querySelectorAll('[data-slot-spool-id]:not([hidden])')].sort((a, b) => {
+            const sa = candidates.find(c => String(c.id) === a.dataset.slotSpoolId);
+            const sb = candidates.find(c => String(c.id) === b.dataset.slotSpoolId);
+            return Number(sa?.remaining_g || 0) - Number(sb?.remaining_g || 0);
+          }).forEach(el => list.appendChild(el));
+        }
+      }
     };
 
     body.querySelector('#slot-spool-filter')?.addEventListener('input', applySlotPickerFilters);
@@ -20184,9 +20195,72 @@ function _spoolRackHtml(spools) {
   </div>`;
 }
 
+/** Parse spool search — e.g. "146 black" → ≥136g remaining + colour tokens; "#146" → spool number. */
+function _parseSpoolSearchQuery(raw) {
+  const trimmed = String(raw || '').trim();
+  if (!trimmed) return { minRemainingG: null, textTokens: [], toleranceG: 10, spoolNumberOnly: false };
+  if (/^#\d+$/.test(trimmed)) {
+    return { minRemainingG: null, textTokens: [], toleranceG: 10, spoolNumberOnly: true };
+  }
+  const tokens = trimmed.split(/\s+/).filter(Boolean);
+  let minRemainingG = null;
+  const textTokens = [];
+  let loneGramToken = null;
+  for (const t of tokens) {
+    const gt = t.match(/^>(\d+(?:\.\d+)?)\s*g?$/i);
+    const gPlus = t.match(/^(\d+(?:\.\d+)?)\s*g?\+$/i);
+    const plainG = t.match(/^(\d+(?:\.\d+)?)\s*g?$/i);
+    if (gt) minRemainingG = Number(gt[1]);
+    else if (gPlus) minRemainingG = Number(gPlus[1]);
+    else if (plainG && tokens.length > 1) minRemainingG = Number(plainG[1]);
+    else if (plainG && tokens.length === 1) loneGramToken = Number(plainG[1]);
+    else textTokens.push(t.toLowerCase());
+  }
+  const spoolNumberOnly = tokens.length === 1 && /^\d+$/.test(tokens[0]) && minRemainingG == null && loneGramToken == null;
+  if (spoolNumberOnly) minRemainingG = null;
+  else if (minRemainingG == null && loneGramToken != null) minRemainingG = loneGramToken;
+  return { minRemainingG, textTokens, toleranceG: 10, spoolNumberOnly };
+}
+
+function _spoolTextHaystack(s) {
+  return [
+    _spoolDisplayLabel(s),
+    String(_spoolDisplayId(s) || ''),
+    `db:${s.id}`,
+    String(s.id || ''),
+    s.material,
+    s.brand,
+    s.subtype,
+    s.color_name,
+    s.color_hex,
+    s.notes,
+    s.storage_location_name,
+    s.location_printer_id,
+    String(Math.round(s.remaining_g || 0)),
+  ].filter(Boolean).join(' ').toLowerCase();
+}
+
+function _spoolMatchesSearch(s, parsed, rawQ) {
+  if (!rawQ) return true;
+  if (parsed.spoolNumberOnly) {
+    return _spoolTextHaystack(s).includes(rawQ.toLowerCase());
+  }
+  if (parsed.minRemainingG != null) {
+    const floor = parsed.minRemainingG - (parsed.toleranceG ?? 10);
+    if (Number(s.remaining_g || 0) < floor) return false;
+  }
+  if (!parsed.textTokens.length) {
+    if (parsed.minRemainingG != null) return true;
+    return _spoolTextHaystack(s).includes(String(rawQ).toLowerCase());
+  }
+  const hay = _spoolTextHaystack(s);
+  return parsed.textTokens.every(tok => hay.includes(tok));
+}
+
 function _applySpoolFilters(spools) {
   const f = _spoolsFilter;
   const thresh = _latestLowStockPct;
+  const parsedSearch = f.search ? _parseSpoolSearchQuery(f.search) : null;
   const filtered = spools.filter(s => {
     if (f.status === 'active'   && s.archived_at)  return false;
     if (f.status === 'archived' && !s.archived_at) return false;
@@ -20201,22 +20275,7 @@ function _applySpoolFilters(spools) {
     if (f.material && s.material !== f.material) return false;
     if (f.brand    && s.brand    !== f.brand)    return false;
     if (f.search) {
-      const q = f.search.toLowerCase();
-      const haystack = [
-        _spoolDisplayLabel(s),
-        String(_spoolDisplayId(s) || ''),
-        `db:${s.id}`,
-        String(s.id || ''),
-        s.material,
-        s.brand,
-        s.subtype,
-        s.color_name,
-        s.color_hex,
-        s.notes,
-        s.storage_location_name,
-        s.location_printer_id,
-      ].filter(Boolean).join(' ').toLowerCase();
-      if (!haystack.includes(q)) return false;
+      if (!_spoolMatchesSearch(s, parsedSearch, f.search)) return false;
     }
     return true;
   });
@@ -20224,7 +20283,13 @@ function _applySpoolFilters(spools) {
   const multiples = groupCounts
     ? filtered.filter(s => (groupCounts.get(_spoolGroupKey(s)) || 0) > 1)
     : filtered;
+  const weightSort = parsedSearch?.minRemainingG != null && !parsedSearch.spoolNumberOnly;
   return multiples.sort((a, b) => {
+    if (weightSort) {
+      const ra = Number(a.remaining_g || 0);
+      const rb = Number(b.remaining_g || 0);
+      if (ra !== rb) return ra - rb;
+    }
     const va = _spoolsSortKey === 'id' ? _spoolDisplayId(a) : a[_spoolsSortKey];
     const vb = _spoolsSortKey === 'id' ? _spoolDisplayId(b) : b[_spoolsSortKey];
     if (typeof va === 'string') return _spoolsSortDir * (va || '').localeCompare(vb || '');
@@ -20812,7 +20877,7 @@ function _spoolsCategoryHtml(spools, summary, costs, intelligence = {}) {
     <div class="spool-page-header">
       <div class="settings-section-title">Spool Inventory</div>
       <div class="spool-header-actions">
-        <input class="spool-search" type="search" placeholder="Search spools…" value="${_spoolsFilter.search}">
+        <input class="spool-search" type="search" placeholder="Search spools… e.g. 146 black" value="${_spoolsFilter.search}">
         <button class="spool-add-btn">+ Add Spool</button>
       </div>
     </div>
