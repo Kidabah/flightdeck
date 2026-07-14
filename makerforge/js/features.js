@@ -2912,6 +2912,20 @@ function buildMultiColourContourEmboss(meta, params, traceData, layer) {
     return null;
   }
 
+  // Preview — row shells per AMS layer (flat faces). Vector polygonise ×6 freezes the tab on resize.
+  if (!isLabelExport(params)) {
+    const previewBitmap = ensureEmbossBitmapMask({
+      mask,
+      width: maskW,
+      height: maskH,
+      mode: "silhouette",
+      outlineRaster: true,
+    });
+    const slab = buildWrapTraceSlabMesh(frame, previewBitmap, params, [], d0, d1, {});
+    if (slab?.indices?.length) return slab;
+    return null;
+  }
+
   const bitmap = layerToEmbossBitmap({ width: maskW, height: maskH }, { ...layer, mask }, params);
   if (!bitmap.shapeGroups?.length) return null;
   const artH = params.embossTraceSize ?? 16;
@@ -3229,7 +3243,7 @@ function ensureEmbossBitmapMask(bitmap) {
 const WRAP_EMBOSS_MASK_MAX_CELLS = 1_200_000;
 const WRAP_EMBOSS_MASK_MAX_CELLS_EXPORT = 4_000_000;
 /** Multi-colour contour preview — full-res trace masks are megapixel; downscale before polygonise. */
-const MULTI_COLOUR_PREVIEW_MAX_CELLS = 900_000;
+const MULTI_COLOUR_PREVIEW_MAX_CELLS = 450_000;
 /** Multi-colour 3MF export — one downsample pass keeps wrap row shells printable without megapixel XML. */
 const MULTI_COLOUR_EXPORT_MAX_CELLS = 520_000;
 

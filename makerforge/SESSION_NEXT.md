@@ -4,8 +4,23 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b324** — Coffee bag trace preview back to golden cyan
-- Cache-bust: `app.js?v=324` — header **b324**
+- Current: **b325** — Multi-colour front-face preview perf
+- Cache-bust: `app.js?v=325` — header **b325**
+
+### 2026-07-14 — b325: Multi-colour graphic resize no longer freezes preview
+
+**Symptom:** Dragging graphic size / art sliders with 6-colour coffee bag + COFFEE text hung the tab ("Page Unresponsive"); resize eventually applied but unusably slow.
+
+**Cause:** Flat/front multi-colour preview ran full vector polygon union ×6 layers on every art rebuild (~900k px/layer). Wrap had row shells; front face did not.
+
+**Fix:**
+- Front/wrap **preview** → row shells per AMS layer (export still vector contours)
+- Preview mask budget 900k → **450k** cells
+- Art slider debounce **320ms** when multi-colour trace active
+
+**Files:** `features.js`, `app.js`, `index.html`
+
+**Test:** Coffee bag + text, drag Graphic size — preview keeps up. Export unchanged. Hard refresh `app.js?v=325`.
 
 ### 2026-07-14 — b324: Restore golden cyan trace preview for multi-colour logos
 
