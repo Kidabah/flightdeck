@@ -4,8 +4,16 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b328** — Square set preset (250g C · S · M)
-- Cache-bust: `app.js?v=328`, `geometry.js?v=308` — header **b328**
+- Current: **b329** — Square stack set (nest-stack 250g C · S · M)
+- Cache-bust: `app.js?v=329`, `geometry.js?v=309` — header **b329**
+
+### 2026-07-14 — b329: Square stack set — nest-stack tower lids
+
+**What:** **Square stack set** now uses nest-stack lids (same as round Stack set) — raised rim + seating groove so jars tower on the bench. 250g locked, front-face COFFEE/SUGAR/MILO, gasket groove + TPU ring.
+
+**Files:** `js/geometry.js`, `js/app.js`, `index.html`
+
+**Test:** Square stack set → preview lid rim groove; stack two in hand mentally. Hard refresh `app.js?v=329`.
 
 ### 2026-07-14 — b328: Square set — 250g Coffee · Sugar · Milo trio
 

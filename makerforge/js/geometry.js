@@ -2239,11 +2239,23 @@ export const CANISTER_SQUARE_PRESET = {
   canisterSize: "md",
 };
 
-/** 250 g square kitchen trio — Coffee · Sugar · Milo (same cavity as square canister). */
+/** 250 g square kitchen trio — Coffee · Sugar · Milo, nest-stack lids. */
 export const CANISTER_SQUARE_SET_PRESET = {
   ...CANISTER_SQUARE_PRESET,
+  lidThickness: 2.8,
+  lidLipDepth: 0,
+  stackableEnabled: true,
+  stackStyle: "nest",
+  stackNestRimWidth: 5,
+  stackNestRimHeight: 2.8,
+  stackNestDepth: 4,
+  stackClearance: 0.35,
   canisterContent: "coffee",
   canisterSize: "md",
+  boxColor: "#6d7f64",
+  lidColor: "#c4a574",
+  embossTextColor: "#f8fafc",
+  embossArtColor: "#4a3728",
 };
 
 export const CANISTER_JAR_PRESET = {

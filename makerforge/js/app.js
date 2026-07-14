@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=308";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=309";
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette } from "./features.js?v=326";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=305";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=201";
@@ -24,7 +24,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b328";
+const MAKERDECK_BUILD = "b329";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -2625,7 +2625,7 @@ function updateLabels() {
     star: "Star size",
     heart: "Heart size",
     canisterSquare: "Canister size",
-    canisterSquareSet: "Square set size",
+    canisterSquareSet: "Square stack size",
     canisterJar: "Jar size",
     canisterStack: "Stack jar size",
   };
@@ -2698,7 +2698,7 @@ function updateLidUi() {
   );
   document.getElementById("lid-nest-hint")?.classList.toggle(
     "hidden",
-    !(on && isFlat && state.stackableEnabled && isStackSetShape()),
+    !(on && isFlat && state.stackableEnabled && isKitchenTrioShape() && (state.stackStyle || "hex") === "nest"),
   );
   syncEmbossFaceUi();
   syncExportFormatOptions();
