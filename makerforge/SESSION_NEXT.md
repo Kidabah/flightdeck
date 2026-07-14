@@ -4,8 +4,23 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b323** — Wrap preview row-shell perf (multi-colour + text)
-- Cache-bust: `app.js?v=323` — header **b323**
+- Current: **b324** — Coffee bag trace preview back to golden cyan
+- Cache-bust: `app.js?v=324` — header **b324**
+
+### 2026-07-14 — b324: Restore golden cyan trace preview for multi-colour logos
+
+**Symptom:** Coffee bag trace preview showed dark red/navy AMS swatches (tiny/wrong) instead of full cyan ink overlay + big black bag silhouette.
+
+**Cause:** Multi-colour preview drew each layer in sampled hex (burgundy bg leaked in when invert off). Dark-background logos need light-on-dark invert.
+
+**Fix:**
+- Multi-colour `drawTracePreview` → unified **cyan ink mask** (golden b284 path)
+- Auto-detect dark logo background → effective invert for multi-colour trace
+- Canister coffee presets default `traceInvert: true`
+
+**Files:** `trace.js`, `geometry.js`, `app.js`, `index.html`
+
+**Test:** Re-import coffee bag → cyan overlay, full bag shape. Toggle invert still works. Hard refresh `app.js?v=324`.
 
 ### 2026-07-14 — b323: Fix wrap preview freeze with multi-colour graphic + text
 

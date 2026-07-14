@@ -2234,6 +2234,7 @@ export const CANISTER_SQUARE_PRESET = {
   embossText: "COFFEE",
   embossHeight: 12,
   embossTextAlign: "center",
+  traceInvert: true,
   canisterContent: "coffee",
   canisterSize: "md",
 };
@@ -2263,6 +2264,7 @@ export const CANISTER_JAR_PRESET = {
   embossText: "COFFEE",
   embossHeight: 10,
   embossTextAlign: "center",
+  traceInvert: true,
   canisterContent: "coffee",
   canisterSize: "md",
 };
@@ -2297,6 +2299,7 @@ export const CANISTER_STACK_PRESET = {
   embossText: "C",
   embossHeight: 22,
   embossTextAlign: "center",
+  traceInvert: true,
   canisterContent: "coffee",
   canisterSize: "md",
   boxColor: "#6d7f64",

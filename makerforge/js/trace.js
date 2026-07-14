@@ -1377,11 +1377,14 @@ export async function traceMultiColourCanvasAsync(canvas, options = {}) {
   const { width, height } = canvas;
   const { data } = ctx.getImageData(0, 0, width, height);
   const blur = blurAlphaMask(data, width, height);
-  const fgMask = colorLogoMask(data, width, height, threshold, invert);
+  const bg = sampleLogoBackground(data, width, height);
+  const bgIsDark = bg && bg.lum < 85 && bg.chroma < 42;
+  const effectiveInvert = invert || bgIsDark;
+  const fgMask = colorLogoMask(data, width, height, threshold, effectiveInvert);
   const rawBucketCount = countMultiColourInkBuckets(data, width, height, fgMask);
   let palette = collectMultiColourPalette(data, width, height, fgMask, MULTI_COLOUR_MAX_LAYERS);
   if (!palette) {
-    const colorKeys = collectInkColorLayers(data, width, height, threshold, invert, blur);
+    const colorKeys = collectInkColorLayers(data, width, height, threshold, effectiveInvert, blur);
     if (colorKeys?.length >= 2) {
       palette = colorKeys.slice(0, MULTI_COLOUR_MAX_LAYERS).map((key) => key.split(",").map(Number));
     }
@@ -2375,10 +2378,13 @@ export function drawTracePreview(previewCanvas, sourceCanvas, traceResult) {
   const th = traceResult.height || 1;
 
   if (traceResult.multiColour && traceResult.colorLayers?.length) {
+    const combined = new Uint8Array(tw * th);
     for (const layer of traceResult.colorLayers) {
       if (!layer.mask?.length) continue;
-      drawTraceInkMaskOverlay(ctx, pad, ox, oy, layer.mask, tw, th, factor, hexToRgba(layer.hex, 200));
+      for (let i = 0; i < combined.length; i++) if (layer.mask[i]) combined[i] = 1;
     }
+    ctx.fillStyle = "rgba(56, 189, 248, 0.55)";
+    drawTraceInkMaskOverlay(ctx, pad, ox, oy, combined, tw, th, factor);
     return;
   }
 
