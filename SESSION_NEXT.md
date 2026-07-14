@@ -5,6 +5,18 @@ Latest GitHub/Pi state:
 - Latest commit: see entries below (Flightdeck core)
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
 
+### 2026-07-14 fix (Settings Print enabled checkbox lied)
+
+**Symptom:** Settings → Printers showed **Print enabled** ticked while Live/Fleet still showed **On hold** (e.g. Big Girl/o1c2 stuck with note "Broken Nozzle Selector").
+
+**Cause:** Settings loaded `/api/config/printers` only — no `print_enabled` field — so checkbox defaulted to checked (`?? true`).
+
+**Fix:** Merge `print_enabled` + `print_enabled_note` from `/api/printers` when rendering Settings → Printers.
+
+**Files:** `app/static/app.js`, `app/static/index.html` (`app.js?v=631`)
+
+**Test:** Disable a printer → Settings shows unchecked + note; re-enable → Live drops "On hold". Hard refresh after deploy.
+
 ### 2026-07-08 feature (native recorder survives restart)
 
 **Mid-print Flightdeck restart no longer wipes timelapse segments** (`app/native_recorder.py`, `app/main.py`)

@@ -22837,8 +22837,23 @@ async function _renderSettingsContent(category) {
     el.innerHTML = `<div class="detail-placeholder" style="min-height:10rem">Loading…</div>`;
     let printers = [];
     try {
-      const r = await fetch('/api/config/printers');
-      if (r.ok) printers = await r.json();
+      const [configRes, liveRes] = await Promise.all([
+        fetch('/api/config/printers'),
+        fetch('/api/printers'),
+      ]);
+      if (configRes.ok) printers = await configRes.json();
+      if (liveRes.ok) {
+        const liveById = Object.fromEntries((await liveRes.json()).map(p => [p.id, p]));
+        printers = printers.map(p => {
+          const live = liveById[p.id];
+          if (!live) return p;
+          return {
+            ...p,
+            print_enabled: live.print_enabled,
+            print_enabled_note: live.print_enabled_note,
+          };
+        });
+      }
     } catch {}
     _settingsPrinterEntries = printers;
     el.innerHTML = _printersCategoryHtml(printers);
