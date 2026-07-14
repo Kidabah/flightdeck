@@ -10,6 +10,8 @@ import {
   buildAccentMesh,
   buildDividerInsert,
   mergeMeshes,
+  rectFeatureBounds,
+  shapeSupportsLiner,
   appendStackableLidPockets,
   appendNestStackLidRim,
   appendFlatLidGasketGroove,
@@ -22,7 +24,7 @@ import {
   shapeSupportsProfileTexture,
   shapeSupportsProfileArt,
   shapeSupportsArt,
-} from "./features.js?v=307";
+} from "./features.js?v=330";
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=161";
 import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=161";
@@ -1897,6 +1899,58 @@ function buildAccentBandMeshes(params, meta, outerProfile, isVase) {
   return meshes;
 }
 
+/** Space below cavity mouth reserved for flat-lid lip (or nest-cap clearance). */
+function linerLidTopReserve(params) {
+  const lidOn = !!params?.lidEnabled;
+  const lidType = normalizeLidType(params?.lidType, params?.shape);
+  if (!lidOn || lidType !== "flat") {
+    return clamp(params?.linerTopClearance ?? 1.2, 0.5, 8);
+  }
+  const lipDepth = clamp(params?.lidLipDepth ?? 0, 0, 12);
+  const lipClear = clamp(params?.linerLipClearance ?? 0.45, 0.2, 1.5);
+  if (lipDepth > 0.4) return lipDepth + lipClear;
+  return clamp(params?.linerTopClearance ?? 1.2, 0.5, 8);
+}
+
+/**
+ * Food-safe cavity liner — thin cup with top flange that registers on the inner wall.
+ * Top sits below the lid lip zone so flat / nest-stack lids seat on the outer shell.
+ */
+export function buildCavityLiner(resolved, params) {
+  const innerProfile = resolved?.inner;
+  if (!innerProfile?.length || innerProfile.length < 3) return null;
+
+  const b = rectFeatureBounds(resolved.meta);
+  const wallTh = clamp(params.linerWall ?? 0.9, 0.6, 1.8);
+  const gap = clamp(params.linerClearance ?? 0.35, 0.15, 0.8);
+  const flangeTh = clamp(params.linerFlangeTh ?? 0.9, 0.5, 2);
+  const zFloor = b.floor + clamp(params.linerFloorGap ?? 0.15, 0, 0.6);
+  const zCavityTop = b.floor + b.cavityH;
+  const topReserve = linerLidTopReserve(params);
+  const zFlangeTop = zCavityTop - topReserve;
+  const zFlangeBottom = zFlangeTop - flangeTh;
+  const zWallTop = zFlangeBottom;
+  if (zWallTop - zFloor < 10) return null;
+
+  const cupOuter = offsetProfileInward(innerProfile, gap);
+  const cupInner = offsetProfileInward(cupOuter, wallTh);
+  const flangeOuter = offsetProfileInward(innerProfile, Math.max(0.1, gap * 0.25));
+  if (cupOuter.length < 3 || cupInner.length < 3 || flangeOuter.length < 3) return null;
+
+  const positions = [];
+  const indices = [];
+
+  capProfileSolid(positions, indices, cupInner, zFloor, false);
+  extrudeProfileSides(positions, indices, cupOuter, zFloor, zWallTop, true);
+  extrudeProfileSides(positions, indices, cupInner, zFloor, zWallTop, false);
+  capProfileAnnulus(positions, indices, flangeOuter, cupOuter, zFlangeBottom, false);
+  extrudeProfileSides(positions, indices, flangeOuter, zFlangeBottom, zFlangeTop, true);
+  extrudeProfileSides(positions, indices, cupOuter, zFlangeBottom, zFlangeTop, false);
+  capProfileAnnulus(positions, indices, flangeOuter, cupOuter, zFlangeTop, true);
+
+  return positions.length ? { positions, indices } : null;
+}
+
 export function buildContainer(params) {
   if (params.shape === "vase") {
     const vaseMesh = buildVase(params);
@@ -2015,6 +2069,12 @@ export function buildContainer(params) {
     accentMeshes = buildAccentBandMeshes(params, resolved.meta, resolved.outer, false);
   }
 
+  let linerMesh = null;
+  if (params.linerEnabled && shapeSupportsLiner(params.shape)) {
+    linerMesh = buildCavityLiner(resolved, params);
+    if (linerMesh) centerPositions(linerMesh.positions, 0, 0);
+  }
+
   let insertMesh = null;
   let labelMesh = null;
   let graphicMesh = null;
@@ -2070,6 +2130,7 @@ export function buildContainer(params) {
       totalH: resolved.totalH,
       accentMeshes,
       insertMesh,
+      linerMesh,
       labelMesh,
       graphicMesh,
       graphicColourParts,
@@ -2084,7 +2145,7 @@ export function buildContainer(params) {
     joinerScale: useJoiner ? resolveJoinerDims(params, resolved.meta.outer.w, resolved.meta.outer.d).scale : undefined,
     holderMode: holderParts?.mode,
   };
-  return { ...mesh, shellMesh: mesh, boxShell: mesh, meta, totalH: resolved.totalH, accentMeshes, insertMesh: null, labelMesh: null, holderParts };
+  return { ...mesh, shellMesh: mesh, boxShell: mesh, meta, totalH: resolved.totalH, accentMeshes, insertMesh: null, linerMesh, labelMesh: null, holderParts };
 }
 
 export function buildLid(params) {
@@ -2252,6 +2313,7 @@ export const CANISTER_SQUARE_SET_PRESET = {
   stackClearance: 0.35,
   canisterContent: "coffee",
   canisterSize: "md",
+  linerEnabled: true,
   boxColor: "#6d7f64",
   lidColor: "#c4a574",
   embossTextColor: "#f8fafc",
@@ -2491,6 +2553,14 @@ export const DEFAULTS = {
   insertSlotDepth: 2,
   insertSlotRamp: 8,
   insertBodyGap: 0.12,
+  linerEnabled: false,
+  linerWall: 0.9,
+  linerClearance: 0.35,
+  linerFlangeTh: 0.9,
+  linerFloorGap: 0.15,
+  linerLipClearance: 0.45,
+  linerTopClearance: 1.2,
+  linerColor: "#f5f5f4",
   canisterContent: "custom",
   canisterSize: "md",
 };

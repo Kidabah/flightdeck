@@ -225,7 +225,13 @@
                 </div>
 
                 <p class="hint canister-food-hint">Coffee/sugar/milo use standard tin footprints; biscuits default to the wide <strong>1.5kg</strong> tin. Use food-contact filament. Flat lids include an optional gasket groove — print the <strong>Gasket</strong> part in TPU (or use 2&nbsp;mm cord).</p>
-                <p class="hint hidden" id="canister-square-set-hint">Uniform <strong>250g</strong> square canisters — nest-stack lids tower on the bench. Front-face labels (<strong>COFFEE · SUGAR · MILO</strong>). Export body + lid 3MF for each — decorative PLA bodies, wood-tone PLA lids, <strong>Gasket</strong> in TPU.</p>
+                <p class="hint hidden" id="canister-square-set-hint">Uniform <strong>250g</strong> square canisters — nest-stack lids tower on the bench. Front-face labels (<strong>COFFEE · SUGAR · MILO</strong>). Enable <strong>Food-safe liner</strong> for a thin PLA Pure insert; export body + liner + lid 3MF — decorative PLA shell, wood-tone lids, TPU gasket.</p>
+
+                <label class="field field-toggle hidden" id="field-liner-enabled">
+                  <span class="field-label">Food-safe liner</span>
+                  <input type="checkbox" id="liner-enabled">
+                </label>
+                <p class="hint hidden" id="liner-hint">Thin PLA Pure cup with a top flange — sits below the lid lip so the lid still seats on the outer shell. Exported as a separate <strong>Liner</strong> part.</p>
                 <p class="hint hidden" id="canister-stack-hint">Uniform <strong>250g</strong> round jars — nest-stack lids and gasket groove. Export body + lid 3MF for each letter (<strong>C · S · M</strong>) — print lids in wood-tone PLA, <strong>Gasket</strong> in TPU.</p>
               </section>
 
@@ -1279,7 +1285,7 @@
     </form>
   </dialog>
 
-  <script type="module" src="js/app.js?v=329"></script>
+  <script type="module" src="js/app.js?v=330"></script>
 
 </body>
 

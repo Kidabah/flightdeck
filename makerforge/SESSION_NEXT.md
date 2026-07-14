@@ -4,8 +4,16 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b329** — Square stack set (nest-stack 250g C · S · M)
-- Cache-bust: `app.js?v=329`, `geometry.js?v=309` — header **b329**
+- Current: **b330** — Food-safe cavity liner with lid-aware top flange
+- Cache-bust: `app.js?v=330`, `geometry.js?v=310`, `features.js?v=330` — header **b330**
+
+### 2026-07-14 — b330: Food-safe liner — top flange clears lid lip
+
+**What:** **Food-safe liner** toggle on canisters — thin PLA Pure cup (0.9 mm wall) with top registration flange. Top auto-reserves space for flat-lid lip or nest-stack cap so the lid still seats on the outer shell. Separate **Liner** 3MF part. On by default for **Square stack set**.
+
+**Files:** `js/geometry.js`, `js/features.js`, `js/app.js`, `index.html`
+
+**Test:** Square stack set → liner visible inside cavity; toggle off/on; export 3MF includes Liner slot. Hard refresh `app.js?v=330`.
 
 ### 2026-07-14 — b329: Square stack set — nest-stack tower lids
 

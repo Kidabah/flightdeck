@@ -1140,6 +1140,12 @@ export function shapeSupportsInsert(shape) {
   return shape === "rect" || shape === "rounded" || shape === "pencilBox" || shape === "canisterSquare" || shape === "canisterSquareSet";
 }
 
+/** Thin food-contact cup — separate print, slips inside decorative outer shell. */
+export function shapeSupportsLiner(shape) {
+  return shape === "canisterSquare" || shape === "canisterSquareSet"
+    || shape === "canisterJar" || shape === "canisterStack";
+}
+
 const INSERT_TOP_CLEAR_BUFFER = 0.5;
 
 function insertLidType(lidType) {

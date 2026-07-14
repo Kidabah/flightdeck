@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=309";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette } from "./features.js?v=326";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=310";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner } from "./features.js?v=330";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=305";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=201";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=210";
@@ -24,7 +24,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b329";
+const MAKERDECK_BUILD = "b330";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -238,6 +238,7 @@ let meshCache = null;
 let lidCache = null;
 let accentPreviewParts = [];
 let insertCache = null;
+let linerCache = null;
 let debossCutterCache = null;
 let traceSourceCanvas = null;
 let traceLastResult = null;
@@ -374,6 +375,8 @@ let lidGuideLoops = [];
 let lidAnim = null;
 let insertMesh = null;
 let insertEdgeLines = null;
+let linerMesh = null;
+let linerEdgeLines = null;
 let labelMesh = null;
 let labelEdgeLines = null;
 let artMesh = null;
@@ -417,6 +420,18 @@ const insertMaterial = new THREE.MeshStandardMaterial({
   polygonOffset: true,
   polygonOffsetFactor: -2,
   polygonOffsetUnits: -2,
+});
+
+const linerMaterial = new THREE.MeshStandardMaterial({
+  color: 0xf5f5f4,
+  metalness: FILAMENT_PREVIEW.metalness,
+  roughness: FILAMENT_PREVIEW.roughness,
+  side: THREE.DoubleSide,
+  transparent: true,
+  opacity: 0.92,
+  polygonOffset: true,
+  polygonOffsetFactor: -3,
+  polygonOffsetUnits: -3,
 });
 
 const labelMaterial = new THREE.MeshStandardMaterial({
@@ -549,6 +564,13 @@ function buildParams() {
     insertMount: state.insertMount || "snap",
     insertSlotDepth: state.insertSlotDepth,
     insertSlotRamp: state.insertSlotRamp,
+    linerEnabled: state.linerEnabled,
+    linerWall: state.linerWall,
+    linerClearance: state.linerClearance,
+    linerFlangeTh: state.linerFlangeTh,
+    linerFloorGap: state.linerFloorGap,
+    linerLipClearance: state.linerLipClearance,
+    linerTopClearance: state.linerTopClearance,
     insertBodyGap: 0.12,
     fuseInsertToBody: state.insertMount === "fixed" && !!state.insertEnabled,
     bookcaseOpenFront: !!state.bookcaseOpenFront,
@@ -1078,6 +1100,18 @@ function collectColoredExportParts(exportCache, stamp = null) {
     }
   }
 
+  if (state.linerEnabled && exportCache.linerMesh) {
+    const linerClean = sanitizeMeshForStl(exportCache.linerMesh, { strict: false });
+    if (linerClean?.indices?.length) {
+      parts.push({
+        name: "Liner",
+        mesh: linerClean,
+        color: state.linerColor || "#f5f5f4",
+        extruder: extruder++,
+      });
+    }
+  }
+
   return parts;
 }
 
@@ -1211,6 +1245,20 @@ function disposeInsertPreview() {
     insertEdgeLines = null;
   }
   insertCache = null;
+}
+
+function disposeLinerPreview() {
+  if (linerMesh) {
+    previewRoot.remove(linerMesh);
+    linerMesh.geometry.dispose();
+    linerMesh = null;
+  }
+  if (linerEdgeLines) {
+    previewRoot.remove(linerEdgeLines);
+    linerEdgeLines.geometry.dispose();
+    linerEdgeLines = null;
+  }
+  linerCache = null;
 }
 
 function disposeLidGuides() {
@@ -1351,6 +1399,11 @@ function setLidPreviewY(y) {
 function applyInsertPreviewColor() {
   insertMaterial.color.set(state.boxColor || "#38bdf8");
   applyFilamentMaterial(insertMaterial);
+}
+
+function applyLinerPreviewColor() {
+  linerMaterial.color.set(state.linerColor || "#f5f5f4");
+  applyFilamentMaterial(linerMaterial);
 }
 
 function applyBoxPreviewColor() {
@@ -2169,6 +2222,7 @@ function rebuildMesh() {
   }
   disposeAccentPreview();
   disposeInsertPreview();
+  disposeLinerPreview();
   disposeLabelPreview();
   disposeArtPreview();
   disposeLidPreview();
@@ -2227,6 +2281,17 @@ function rebuildMesh() {
     insertMesh.receiveShadow = false;
     insertMesh.renderOrder = 5;
     previewRoot.add(insertMesh);
+  }
+
+  if (meshCache.linerMesh) {
+    linerCache = meshCache.linerMesh;
+    applyLinerPreviewColor();
+    const linerGeom = toBufferGeometry(THREE, linerCache);
+    linerMesh = new THREE.Mesh(linerGeom, linerMaterial);
+    linerMesh.castShadow = false;
+    linerMesh.receiveShadow = false;
+    linerMesh.renderOrder = 4;
+    previewRoot.add(linerMesh);
   }
 
   if (nextLidMesh) {
@@ -2406,6 +2471,11 @@ function syncCanisterControlsFromState() {
   document.querySelector(".canister-food-hint")?.classList.toggle("hidden", kitchenTrio);
   document.getElementById("canister-stack-hint")?.classList.toggle("hidden", !isStackSetShape());
   document.getElementById("canister-square-set-hint")?.classList.toggle("hidden", !isSquareSetShape());
+  const linerOk = shapeSupportsLiner(state.shape);
+  document.getElementById("field-liner-enabled")?.classList.toggle("hidden", !linerOk);
+  document.getElementById("liner-hint")?.classList.toggle("hidden", !linerOk || !state.linerEnabled);
+  const linerToggle = document.getElementById("liner-enabled");
+  if (linerToggle) linerToggle.checked = !!state.linerEnabled;
   if (!on) return;
   const sel = document.getElementById("canister-content");
   if (sel) sel.value = state.canisterContent || "custom";
@@ -3743,6 +3813,7 @@ function describeBodyExportParts() {
     parts.push(bandCount > 1 ? `Accent ×${bandCount}` : "Accent");
   }
   if (state.insertEnabled && !mergeInsertIntoBodyExport()) parts.push("Insert");
+  if (state.linerEnabled && shapeSupportsLiner(state.shape)) parts.push("Liner");
   return parts;
 }
 
@@ -5152,6 +5223,12 @@ document.getElementById("btn-accent-add-band")?.addEventListener("click", () => 
 
 document.getElementById("insert-enabled").addEventListener("change", (e) => {
   state.insertEnabled = e.target.checked;
+  rebuild();
+});
+
+document.getElementById("liner-enabled")?.addEventListener("change", (e) => {
+  state.linerEnabled = e.target.checked;
+  syncCanisterControlsFromState();
   rebuild();
 });
 
