@@ -354,13 +354,20 @@ function appendModelSettingsPlate(lines, plateId, plateName, assemblyId, identif
  * a single model — parts mid-air (accent bands, floating text) are supported
  * by the body instead of erroring with "empty first layer".
  */
-function buildBambuModelSettingsXml(assemblyId, name, parts, { singlePart = false } = {}) {
+function buildBambuModelSettingsXml(assemblyId, name, parts, { singlePart = false, worldTransform = null } = {}) {
   const lines = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     "<config>",
   ];
   appendModelSettingsObject(lines, assemblyId, name, parts, singlePart);
   appendModelSettingsPlate(lines, 1, "", assemblyId, 0);
+  if (worldTransform) {
+    lines.push("  <assemble>");
+    lines.push(
+      `   <assemble_item object_id="${assemblyId}" instance_id="0" transform="${worldTransform}" offset="0 0 0" />`,
+    );
+    lines.push("  </assemble>");
+  }
   lines.push("</config>");
   return lines.join("\n");
 }
@@ -551,9 +558,10 @@ function packColoredProject3mf({
 
   const projectSettings = JSON.stringify({
     from: "MakerDeck",
-    name: projectName,
+    // Bambu uses this as the embedded process profile id — must NOT be the model filename.
+    name: "project_settings",
     version: "2.2.0",
-    printer_model: "Bambu Lab H2D 0.4 nozzle",
+    printer_model: "Bambu Lab H2D",
     printable_area: ["0x0", `${BAMBU_BED_WIDTH_MM}x0`, `${BAMBU_BED_WIDTH_MM}x${BAMBU_BED_DEPTH_MM}`, `0x${BAMBU_BED_DEPTH_MM}`],
     printable_height: "325",
     filament_type: filament.filamentType,
@@ -700,21 +708,55 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck") {
   const built = buildAssemblyFromParts(usable, projectName, 1, { plainSingle });
   if (!built) throw new Error("No valid mesh parts to export");
 
+  const centerOffset = plainSingle ? null : centeringOffsetOnBed(built.localBBox);
+  const worldTransform = centerOffset
+    ? formatTransform3x4(centerOffset.x, centerOffset.y, centerOffset.z ?? 0)
+    : null;
+  const plateBBox = centerOffset
+    ? translateAxisAlignedBBox(
+      built.localBBox || { minX: 0, minY: 0, maxX: 1, maxY: 1 },
+      centerOffset.x,
+      centerOffset.y,
+    )
+    : null;
+
   const modelSettings = buildBambuModelSettingsXml(
     built.buildObjectId,
     built.singlePart ? built.modelParts[0].name : projectName,
     built.modelParts,
-    { singlePart: built.singlePart },
+    { singlePart: built.singlePart, worldTransform },
   );
+
+  const extraZipFiles = [];
+  if (!plainSingle && plateBBox) {
+    extraZipFiles.push(
+      {
+        name: "Metadata/plate_1.json",
+        data: encodeText(buildBambuPlateJson({
+          identifyId: built.buildObjectId,
+          name: projectName,
+          bbox: plateBBox,
+        })),
+      },
+      { name: "Metadata/plate_1.png", data: MINIMAL_PLATE_PNG },
+      { name: "Metadata/plate_no_light_1.png", data: MINIMAL_PLATE_PNG },
+      { name: "Metadata/top_1.png", data: MINIMAL_PLATE_PNG },
+      { name: "Metadata/pick_1.png", data: MINIMAL_PLATE_PNG },
+    );
+  }
 
   return packColoredProject3mf({
     projectName,
     objectXml: built.objectXml,
-    buildEntries: [built.buildObjectId],
+    buildEntries: worldTransform
+      ? [{ objectId: built.buildObjectId, transform: worldTransform }]
+      : [built.buildObjectId],
     triangleCount: built.triangleCount,
     filament,
     modelSettings,
     plainSingle,
+    extraZipFiles,
+    multiPlate: !!worldTransform,
   });
 }
 

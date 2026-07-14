@@ -4,8 +4,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b330** — Food-safe cavity liner with lid-aware top flange
-- Cache-bust: `app.js?v=330`, `geometry.js?v=310`, `features.js?v=330` — header **b330**
+- Current: **b331** — Fix Bambu 3MF profile hijack (name + plate metadata)
+- Cache-bust: `app.js?v=331`, `3mf.js?v=211` — header **b331**
+
+### 2026-07-14 — b331: Bambu 3MF loads H2D + colours (not box filename)
+
+**Symptom:** Bambu showed `(box-94x94x127mm-container…)` as printer/process and filament labels; no plate bed; line widths 0 mm if that corrupt profile was saved.
+
+**Cause:** `project_settings.config` used model filename as `"name"` (Bambu treats it as embedded process profile). Single-plate export omitted `plate_1.json` + bed-centring `<assemble>`.
+
+**Fix:** `name: "project_settings"`, `printer_model: "Bambu Lab H2D"`, plate JSON/PNGs + assemble transform on all multi-part exports. Re-click **Square stack set** to reset corner radius if presets were tweaked.
+
+**Test:** Re-export container 3MF → Bambu: H2D printer, colour swatches, plate bed visible. Hard refresh `app.js?v=331`. Reset Bambu process if old 0 mm profile persists.
 
 ### 2026-07-14 — b330: Food-safe liner — top flange clears lid lip
 
