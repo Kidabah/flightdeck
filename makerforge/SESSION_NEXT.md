@@ -4,8 +4,20 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b322** — Fix stale build tag (header showed b315 while on b321 code)
-- Cache-bust: `app.js?v=322` — header **b322**
+- Current: **b323** — Wrap preview row-shell perf (multi-colour + text)
+- Cache-bust: `app.js?v=323` — header **b323**
+
+### 2026-07-14 — b323: Fix wrap preview freeze with multi-colour graphic + text
+
+**Symptom:** Canister/cooler with multi-colour trace + wrap text (e.g. coffee bag + COFFEE) hung the tab ("Page Unresponsive").
+
+**Cause:** Wrap text row shells (b319+) and multi-colour wrap graphics (b315) both forced `fineRows: true` in **preview**, scanning every mask row × 6 colour layers — no `WRAP_TRACE_PREVIEW_MAX_ROWS` cap.
+
+**Fix:** `fineRows` only on export (`__labelExportStandoff`). Preview uses capped row step like coffee-bag golden path. Wrap text band layout reuses computed flat band (no extra text raster pass).
+
+**Files:** `features.js`, `app.js`, `index.html`
+
+**Test:** Coffee bag multi-colour + COFFEE on wrap/canister — preview responsive; export still full-res. Hard refresh `app.js?v=323`.
 
 ### 2026-07-12 — b322: Fix stale build tag (MAKERDECK_BUILD stuck on b315)
 

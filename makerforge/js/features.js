@@ -2045,7 +2045,14 @@ function computeTextArtLayout(meta, params) {
   }
 
   if (frame.face === "wrap") {
-    const flatBand = computeFlatTextBand(meta, params, frame, labelH, fontId, fontSizePx);
+    const flatBand = {
+      cx,
+      cy,
+      top,
+      bottom,
+      artW,
+      artH,
+    };
     const anchor = graphicArtAnchor(frame, meta, params);
     const band = resolveWrapTextBand(params, flatBand, anchor, labelH, artH);
     if (band) {
@@ -2211,6 +2218,11 @@ function isLabelExport(params) {
   return !!params?.__labelExportStandoff;
 }
 
+/** Full-resolution wrap row shells — export/AMS only; preview uses WRAP_TRACE_PREVIEW_MAX_ROWS. */
+function wrapSlabUseFineRows(params) {
+  return isLabelExport(params);
+}
+
 function labelMaskSimplifyTol(maskW, params) {
   if (isLabelExport(params)) return Math.max(0.02, maskW / 8000);
   return Math.max(0.1, maskW / 1400);
@@ -2307,7 +2319,7 @@ function buildWrapTextSlabFromLayout(layout, params, d0, d1) {
     artW,
     d0,
     d1,
-    { fineRows: true },
+    { fineRows: wrapSlabUseFineRows(params) },
   );
 }
 
@@ -3261,7 +3273,9 @@ function buildWrapGoldenSlabEmboss(frame, bitmap, params, maskW, maskH, d0, d1) 
   // Only close for heavy block fills — dense heraldic line art (Tigers ~7k runs) erodes into horizontal strips.
   const needsClose = !!b.outlineRaster && (b.colorLogo || wrapLineArtNeedsSolidEmboss(b));
   if (needsClose) slabBitmap = preprocessWrapDenseLineArtMask(slabBitmap, slabW, slabH);
-  return buildWrapTraceSlabMesh(frame, slabBitmap, params, [], d0, d1, { fineRows: true });
+  return buildWrapTraceSlabMesh(frame, slabBitmap, params, [], d0, d1, {
+    fineRows: wrapSlabUseFineRows(params),
+  });
 }
 
 export function buildEmbossBitmap(meta, params, bitmap) {
