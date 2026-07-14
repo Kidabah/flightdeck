@@ -1932,20 +1932,25 @@ export function buildCavityLiner(resolved, params) {
   const zWallTop = zFlangeBottom;
   if (zWallTop - zFloor < 10) return null;
 
-  const cupOuter = offsetProfileInward(innerProfile, gap);
-  const cupInner = offsetProfileInward(cupOuter, wallTh);
-  const flangeOuter = offsetProfileInward(innerProfile, Math.max(0.1, gap * 0.25));
+  let cupOuter = offsetProfileInward(innerProfile, gap);
+  let cupInner = offsetProfileInward(cupOuter, wallTh);
+  let flangeOuter = offsetProfileInward(innerProfile, Math.max(0.1, gap * 0.25));
   if (cupOuter.length < 3 || cupInner.length < 3 || flangeOuter.length < 3) return null;
+
+  const targetN = Math.max(cupOuter.length, cupInner.length, flangeOuter.length, 64);
+  cupOuter = resampleProfileClosed(cupOuter, targetN);
+  cupInner = resampleProfileClosed(cupInner, targetN);
+  flangeOuter = resampleProfileClosed(flangeOuter, targetN);
 
   const positions = [];
   const indices = [];
 
+  // Watertight cup + flange — one cupOuter wall (no overlapping caps at zFlangeBottom).
   capProfileSolid(positions, indices, cupInner, zFloor, false);
-  extrudeProfileSides(positions, indices, cupOuter, zFloor, zWallTop, true);
-  extrudeProfileSides(positions, indices, cupInner, zFloor, zWallTop, false);
+  extrudeProfileSides(positions, indices, cupOuter, zFloor, zFlangeTop, true);
+  extrudeProfileSides(positions, indices, cupInner, zFloor, zFlangeBottom, false);
   capProfileAnnulus(positions, indices, flangeOuter, cupOuter, zFlangeBottom, false);
   extrudeProfileSides(positions, indices, flangeOuter, zFlangeBottom, zFlangeTop, true);
-  extrudeProfileSides(positions, indices, cupOuter, zFlangeBottom, zFlangeTop, false);
   capProfileAnnulus(positions, indices, flangeOuter, cupOuter, zFlangeTop, true);
 
   return positions.length ? { positions, indices } : null;

@@ -360,7 +360,7 @@ function buildBambuModelSettingsXml(assemblyId, name, parts, { singlePart = fals
     "<config>",
   ];
   appendModelSettingsObject(lines, assemblyId, name, parts, singlePart);
-  appendModelSettingsPlate(lines, 1, "", assemblyId, 0);
+  appendModelSettingsPlate(lines, 1, "", assemblyId, assemblyId);
   if (worldTransform) {
     lines.push("  <assemble>");
     lines.push(

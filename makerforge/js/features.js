@@ -4396,7 +4396,7 @@ function labelOffsets(params) {
     }
   } else if (params.__multiColourAmsExport) {
     // Hair-thin proud offset — breaks coplanar Body/Text/Art contact (Bambu non-manifold spam).
-    standoff = ACCENT_SKIN_MM * 0.5;
+    standoff = Math.max(0.1, ACCENT_SKIN_MM * 0.85);
   }
   // Preview floor — very shallow emboss z-fights the wall and reads as white seams.
   const useDepth = params.__labelExportStandoff ? depth : Math.max(depth, 0.35);

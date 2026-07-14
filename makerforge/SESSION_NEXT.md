@@ -4,8 +4,20 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b332** — Fix stale multi-colour trace masks (graphic lost overlay)
-- Cache-bust: `app.js?v=332`, `3mf.js?v=211` — header **b332**
+- Current: **b333** — Liner manifold fix + 3MF plate identify_id alignment
+- Cache-bust: `app.js?v=333`, `geometry.js?v=311`, `features.js?v=331`, `3mf.js?v=212` — header **b333**
+
+### 2026-07-14 — b333: Liner non-manifold + Bambu plate split fix
+
+**Symptom:** Bambu put **Liner** on a separate “Bambu Cool Plate” tab; 392 non-manifold edges on Liner; Art/Text warning icons.
+
+**Cause:** `buildCavityLiner()` stacked overlapping `cupOuter` wall extrusions + annulus caps at the flange junction (T-junctions). `model_settings.config` used `identify_id=0` while `plate_1.json` used assembly object id — Bambu plate registration mismatch.
+
+**Fix:** Refactored liner to one continuous `cupOuter` wall + flange annulus (no duplicate extrusion). Aligned `identify_id` to assembly id. AMS art/text standoff 0.06→0.10 mm. Export status reports liner open edges.
+
+**Files:** `js/geometry.js`, `js/3mf.js`, `js/features.js`, `js/app.js`, `index.html`
+
+**Test:** Re-export square stack set ZIP → open **only** `*-container.3mf` → all parts on Plate 01, Liner in same assembly tree, no Repair needed. Hard refresh `app.js?v=333`.
 
 ### 2026-07-14 — b332: Multi-colour trace auto-repair (graphic lost overlay)
 
