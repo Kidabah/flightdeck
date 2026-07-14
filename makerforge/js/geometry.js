@@ -1176,7 +1176,7 @@ function buildRectShellWithJoiner(outerW, outerD, innerW, innerD, floor, totalH,
 }
 
 export function shapeSupportsJoiner(shape) {
-  return shape === "rect" || shape === "rounded" || shape === "pencil" || shape === "pencilBox" || shape === "canisterSquare";
+  return shape === "rect" || shape === "rounded" || shape === "pencil" || shape === "pencilBox" || shape === "canisterSquare" || shape === "canisterSquareSet";
 }
 
 /**
@@ -1663,8 +1663,8 @@ function resolveContainer(params) {
     };
   }
 
-  if (shape === "pencilBox" || shape === "canisterSquare") {
-    const isCanister = shape === "canisterSquare";
+  if (shape === "pencilBox" || shape === "canisterSquare" || shape === "canisterSquareSet") {
+    const isCanister = shape === "canisterSquare" || shape === "canisterSquareSet";
     const innerL = clamp(params.innerWidth, isCanister ? 70 : 120, isCanister ? 160 : 300);
     const innerW = clamp(params.innerDepth, isCanister ? 70 : 40, isCanister ? 160 : 100);
     const innerH = clamp(params.innerHeight, isCanister ? 80 : 15, isCanister ? 250 : 60);
@@ -2235,6 +2235,13 @@ export const CANISTER_SQUARE_PRESET = {
   embossHeight: 12,
   embossTextAlign: "center",
   traceInvert: true,
+  canisterContent: "coffee",
+  canisterSize: "md",
+};
+
+/** 250 g square kitchen trio — Coffee · Sugar · Milo (same cavity as square canister). */
+export const CANISTER_SQUARE_SET_PRESET = {
+  ...CANISTER_SQUARE_PRESET,
   canisterContent: "coffee",
   canisterSize: "md",
 };

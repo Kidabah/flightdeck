@@ -1137,7 +1137,7 @@ export function appendStackableLidPockets(outPos, outIdx, meta, params, lidThick
 }
 
 export function shapeSupportsInsert(shape) {
-  return shape === "rect" || shape === "rounded" || shape === "pencilBox" || shape === "canisterSquare";
+  return shape === "rect" || shape === "rounded" || shape === "pencilBox" || shape === "canisterSquare" || shape === "canisterSquareSet";
 }
 
 const INSERT_TOP_CLEAR_BUFFER = 0.5;
@@ -4065,7 +4065,7 @@ function round1(n) {
 }
 
 export function shapeSupportsDecor(shape) {
-  return shape === "rect" || shape === "rounded" || shape === "pencil" || shape === "pencilBox" || shape === "canisterSquare";
+  return shape === "rect" || shape === "rounded" || shape === "pencil" || shape === "pencilBox" || shape === "canisterSquare" || shape === "canisterSquareSet";
 }
 
 /** Parametric wall relief on curved profile containers (pots, tubes). */
@@ -4081,6 +4081,7 @@ export function shapeSupportsProfileTexture(shape) {
     || shape === "pencil"
     || shape === "pencilBox"
     || shape === "canisterSquare"
+    || shape === "canisterSquareSet"
     || shape === "canisterJar"
     || shape === "canisterStack"
   );
@@ -4112,6 +4113,7 @@ export function shapeSupportsAccent(shape) {
     || shape === "pencil"
     || shape === "pencilBox"
     || shape === "canisterSquare"
+    || shape === "canisterSquareSet"
     || shape === "canisterJar"
     || shape === "circle"
     || shape === "oval"
@@ -4125,7 +4127,7 @@ export function shapeSupportsAccent(shape) {
 
 /** Front-panel-only accent band — flat box faces only. */
 export function shapeSupportsAccentFrontFace(shape) {
-  return shape === "rect" || shape === "rounded" || shape === "pencil" || shape === "pencilBox" || shape === "canisterSquare";
+  return shape === "rect" || shape === "rounded" || shape === "pencil" || shape === "pencilBox" || shape === "canisterSquare" || shape === "canisterSquareSet";
 }
 
 /** Face frame for placing emboss on any of the four side walls.

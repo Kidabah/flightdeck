@@ -4,8 +4,16 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b327** — Kitchen trio C · S · M (coffee, sugar, milo)
-- Cache-bust: `app.js?v=327` — header **b327**
+- Current: **b328** — Square set preset (250g C · S · M)
+- Cache-bust: `app.js?v=328`, `geometry.js?v=308` — header **b328**
+
+### 2026-07-14 — b328: Square set — 250g Coffee · Sugar · Milo trio
+
+**What:** New **Square set** kitchen preset (separate from round Stack set). Locked **250g** square canisters, front-face **COFFEE / SUGAR / MILO** labels, trio chips swap body colours. Same cavity as square canister (94×94×127 mm).
+
+**Files:** `js/geometry.js`, `js/app.js`, `js/features.js`, `index.html`
+
+**Test:** Kitchen → **Square set** → C/S/M chips. Export body+lid 3MF ×3. Hard refresh `app.js?v=328`.
 
 ### 2026-07-14 — b327: Kitchen stack trio — Coffee · Sugar · Milo (no tea)
 
