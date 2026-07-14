@@ -4,8 +4,20 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b325** — Multi-colour front-face preview perf
-- Cache-bust: `app.js?v=325` — header **b325**
+- Current: **b326** — 3MF text export vector solids + AMS coplanar fix
+- Cache-bust: `app.js?v=326`, `features.js?v=326` — header **b326**
+
+### 2026-07-14 — b326: 3MF text export — solid letters, fewer Bambu mesh errors
+
+**Symptom:** Bambu Studio on coffee box 3MF: ~14k non-manifold edges; COFFEE text looked horizontal stripey in slicer.
+
+**Cause:** Separate-colour text export used preview row shells (`buildFaceDecalSlabMesh`) instead of vector letter extrusion. Flush Body/Text/Art parts also shared coplanar faces.
+
+**Fix:** Flat-face text export → `extrudeGroupsOnFace` (closed solids). Multi-colour AMS parts get 0.06 mm proud skin offset. Art layers sanitized with `sanitizeMeshForStl`.
+
+**Files:** `js/features.js`, `js/app.js`, `index.html`
+
+**Test:** Re-export coffee box 3MF → Bambu: solid COFFEE letters, mesh warnings gone or minimal. Hard refresh `app.js?v=326`.
 
 ### 2026-07-14 — b325: Multi-colour graphic resize no longer freezes preview
 

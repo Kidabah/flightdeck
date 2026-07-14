@@ -2823,14 +2823,10 @@ export function buildTextLabelExportMesh(meta, params) {
   const collected = collectTextEmbossShapeGroups(meta, p, layout);
   if (!collected?.shapeGroups?.length) return null;
 
-  if (isLabelExport(p)) {
-    const slab = buildFaceDecalSlabMesh(collected.frame, collected.shapeGroups, { d0, d1 });
-    if (slab?.indices?.length) return slab;
-  }
-
   const { frame, shapeGroups } = collected;
   const positions = [];
   const indices = [];
+  // Flat faces: vector letter solids (row shells are preview-only — they stripe in slicers).
   extrudeGroupsOnFace(positions, indices, frame, shapeGroups, d0, d1, p);
   return positions.length ? { positions, indices } : null;
 }
@@ -4390,6 +4386,9 @@ function labelOffsets(params) {
       const texDepth = clamp(params.vaseTextureDepth ?? 1.2, 0.2, 3);
       standoff = Math.max(standoff, 0.35 + texDepth * 0.15);
     }
+  } else if (params.__multiColourAmsExport) {
+    // Hair-thin proud offset — breaks coplanar Body/Text/Art contact (Bambu non-manifold spam).
+    standoff = ACCENT_SKIN_MM * 0.5;
   }
   // Preview floor — very shallow emboss z-fights the wall and reads as white seams.
   const useDepth = params.__labelExportStandoff ? depth : Math.max(depth, 0.35);
