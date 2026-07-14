@@ -24,7 +24,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b331";
+const MAKERDECK_BUILD = "b332";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -859,17 +859,61 @@ function syncColorPickersFromState() {
   setColorPickerValue(document.getElementById("art-color-picker"), state.embossArtColor || "#4a3728");
 }
 
+function embossTraceMaskHasInk(mask) {
+  if (!mask?.length) return false;
+  const step = Math.max(1, Math.floor(mask.length / 4096));
+  for (let i = 0; i < mask.length; i += step) {
+    if (mask[i]) return true;
+  }
+  return false;
+}
+
+function embossTraceMasksValid(rects) {
+  if (!rects) return false;
+  if (rects.multiColour && rects.colorLayers?.length) {
+    const expected = (rects.width || 0) * (rects.height || 0);
+    return rects.colorLayers.some((layer) => {
+      if (layer.shapeGroups?.length) return true;
+      if (!layer.mask?.length) return false;
+      if (expected > 0 && layer.mask.length !== expected) return false;
+      return embossTraceMaskHasInk(layer.mask);
+    });
+  }
+  if (rects.shapeGroups?.length || rects.strokePaths?.length || rects.rects?.length) return true;
+  const expected = (rects.width || 0) * (rects.height || 0);
+  if (rects.mask?.length) {
+    if (expected > 0 && rects.mask.length !== expected) return false;
+    return embossTraceMaskHasInk(rects.mask);
+  }
+  if (rects.silhouetteMask?.length) {
+    if (expected > 0 && rects.silhouetteMask.length !== expected) return false;
+    return embossTraceMaskHasInk(rects.silhouetteMask);
+  }
+  return false;
+}
+
+function traceDataHasValidInk(traceData, traceEnabled) {
+  return !!(traceEnabled && embossTraceMasksValid(traceData));
+}
+
+function repairEmbossTraceIfNeeded() {
+  if (!state.embossTraceEnabled) return false;
+  if (embossTraceMasksValid(state.embossTraceRects)) return false;
+  if (traceLastResult && hasTraceGeometry(traceLastResult) && !traceLastResult.tooComplex) {
+    return storeTraceOnBox(traceLastResult);
+  }
+  return false;
+}
+
+function traceApplyNeedsRefresh() {
+  if (!state.embossTraceEnabled) return false;
+  if (!state.embossTraceRects || state.embossTraceRects.maskStale) return !!traceSourceCanvas;
+  return !embossTraceMasksValid(state.embossTraceRects) && !!traceSourceCanvas;
+}
+
 function hasGraphicArt(params = buildParams()) {
   const hasSvg = params.embossSvgEnabled && !!params.embossSvgText?.trim();
-  const traceData = params.embossTraceRects;
-  const hasTrace =
-    params.embossTraceEnabled &&
-    ((traceData?.multiColour && traceData.colorLayers?.length)
-      || traceData?.shapeGroups?.length
-      || traceData?.strokePaths?.length
-      || traceData?.mask?.length
-      || traceData?.rects?.length
-      || traceData?.silhouetteMask?.length);
+  const hasTrace = traceDataHasValidInk(params.embossTraceRects, params.embossTraceEnabled);
   return !!(hasSvg || hasTrace);
 }
 
@@ -1622,10 +1666,22 @@ function rebuild() {
   rebuildBusy = true;
   try {
     try {
+      repairEmbossTraceIfNeeded();
       rebuildMesh();
       scheduleSaveSession();
     } catch (err) {
       console.error("MakerDeck rebuild failed:", err);
+      const repaired = repairEmbossTraceIfNeeded();
+      if (repaired) {
+        try {
+          rebuildMesh();
+          scheduleSaveSession();
+          updateTraceUi();
+          return;
+        } catch (repairErr) {
+          console.error("MakerDeck rebuild after trace repair failed:", repairErr);
+        }
+      }
       if (state.embossTraceEnabled) {
         clearEmbossTrace();
         updateTraceUi();
@@ -1737,13 +1793,16 @@ function serializeEmbossTraceRects(rects) {
   const h = out.height || 0;
   const expected = w * h;
   if (out.multiColour && out.colorLayers?.length && expected > 0) {
+    let savedAnyMask = false;
     for (const layer of out.colorLayers) {
       if (layer.mask?.length === expected && expected <= 1_500_000) {
         const bytes = layer.mask instanceof Uint8Array ? layer.mask : new Uint8Array(layer.mask);
         layer.maskB64 = uint8ToB64(bytes);
+        savedAnyMask = true;
       }
       delete layer.mask;
     }
+    if (expected > 1_500_000 || !savedAnyMask) out.maskStale = true;
     delete out.mask;
     delete out.silhouetteMask;
   } else if (out.mask?.length) {
@@ -1850,6 +1909,9 @@ async function applySessionPayload(payload) {
   if (state.insertMount === "fixed") state.joinerEnabled = false;
   if (payload.state.embossTraceRects) {
     state.embossTraceRects = deserializeEmbossTraceRects(payload.state.embossTraceRects);
+    if (state.embossTraceEnabled && !embossTraceMasksValid(state.embossTraceRects)) {
+      state.embossTraceRects.maskStale = true;
+    }
   }
   state.lidType = normalizeLidType(state.lidType, state.shape);
   ensureStateAccentBands(state);
@@ -2917,7 +2979,16 @@ async function restoreAppHistory(index) {
   }
   if (s.shape) state.shape = s.shape;
   if (s.embossTraceRects?.traceGeometryRef) {
-    if (!s.embossTraceEnabled) state.embossTraceRects = null;
+    if (!s.embossTraceEnabled) {
+      state.embossTraceRects = null;
+    } else if (!embossTraceMasksValid(state.embossTraceRects)) {
+      state.embossTraceRects = {
+        ...s.embossTraceRects,
+        multiColour: !!state.embossTraceRects?.multiColour,
+        colorLayers: state.embossTraceRects?.colorLayers || [],
+        maskStale: true,
+      };
+    }
   } else if (s.embossTraceRects) {
     state.embossTraceRects = deserializeEmbossTraceRects(s.embossTraceRects);
   } else if (!s.embossTraceEnabled) {
@@ -2942,11 +3013,13 @@ async function restoreAppHistory(index) {
     traceLastSvg = "";
   }
 
+  repairEmbossTraceIfNeeded();
   appHistoryIndex = index;
   appHistoryLock = false;
   syncUiFromState();
   updateHistoryUi();
   rebuild();
+  if (traceApplyNeedsRefresh()) scheduleDeferredRestoreTrace();
 }
 
 function undoApp() {
@@ -3316,6 +3389,11 @@ function updateTraceUi() {
     const face = state.embossFace;
     const faceLabel = EMBOSS_FACE_LABELS[face] || "front";
     msg += ` · ${faceLabel} face`;
+  }
+  if (state.embossTraceEnabled && traceLastResult && !traceLastResult.tooComplex && !embossTraceMasksValid(state.embossTraceRects)) {
+    msg += " · graphic lost — click Trace";
+    const btnApply = document.getElementById("btn-trace-apply");
+    if (btnApply) btnApply.disabled = false;
   }
   if (traceLastResult.maskFillPct != null) {
     msg += ` · mask ${traceLastResult.maskFillPct}% fill`;
@@ -5804,10 +5882,15 @@ for (const font of EMBOSS_FONTS) {
 }
 
 function scheduleDeferredRestoreTrace() {
-  if (!traceSourceCanvas || traceLastResult || !state.embossTraceEnabled) return;
+  if (!traceApplyNeedsRefresh()) return;
   const run = () => {
-    if (!traceSourceCanvas || traceLastResult || !state.embossTraceEnabled || lidAnim) return;
-    runTraceAsync();
+    if (!traceApplyNeedsRefresh() || lidAnim) return;
+    if (traceLastResult && hasTraceGeometry(traceLastResult) && storeTraceOnBox(traceLastResult)) {
+      rebuild();
+      updateTraceUi();
+      return;
+    }
+    if (traceSourceCanvas) runTraceAsync();
   };
   if (typeof requestIdleCallback === "function") {
     requestIdleCallback(run, { timeout: 8000 });

@@ -4,8 +4,20 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b331** — Fix Bambu 3MF profile hijack (name + plate metadata)
-- Cache-bust: `app.js?v=331`, `3mf.js?v=211` — header **b331**
+- Current: **b332** — Fix stale multi-colour trace masks (graphic lost overlay)
+- Cache-bust: `app.js?v=332`, `3mf.js?v=211` — header **b332**
+
+### 2026-07-14 — b332: Multi-colour trace auto-repair (graphic lost overlay)
+
+**Symptom:** Trace panel still shows “6 colours · multi-colour logo” but 3D preview only has thin light-blue COFFEE text edges — coffee bag graphic missing.
+
+**Cause:** Large trace masks (e.g. 2003×2400 px) exceed localStorage/session save limit — colour layer metadata survives but ink masks are stripped. Undo/history snapshots also omit mask blobs. Preview still thinks art exists; mesh build skips empty layers.
+
+**Fix:** Detect invalid/stale masks; auto re-apply from `traceLastResult` or deferred re-trace from saved image; warn “graphic lost — click Trace”; don’t wipe trace on first rebuild failure.
+
+**Files:** `js/app.js`, `index.html`
+
+**Test:** Hard refresh `app.js?v=332` → open wife’s coffee canister → graphic should auto-restore within ~2s OR trace meta says “graphic lost — click Trace”. Click **Trace** once if needed. Emboss depth ~0.5–0.7 mm, graphic size ~16–20 mm.
 
 ### 2026-07-14 — b331: Bambu 3MF loads H2D + colours (not box filename)
 
