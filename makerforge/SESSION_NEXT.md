@@ -4,8 +4,16 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b326** — 3MF text export vector solids + AMS coplanar fix
-- Cache-bust: `app.js?v=326`, `features.js?v=326` — header **b326**
+- Current: **b327** — Kitchen trio C · S · M (coffee, sugar, milo)
+- Cache-bust: `app.js?v=327` — header **b327**
+
+### 2026-07-14 — b327: Kitchen stack trio — Coffee · Sugar · Milo (no tea)
+
+**What:** Stack set + contents preset for Chris's 250g wife set — **C · S · M** instead of T · C · S. Added **Milo** content (chocolate body, green art default, letter M on wrap).
+
+**Files:** `js/app.js`, `index.html`, `js/geometry.js`
+
+**Test:** Stack set → C/S/M chips swap colours + letter. Square/jar Contents dropdown includes Milo. Hard refresh `app.js?v=327`.
 
 ### 2026-07-14 — b326: 3MF text export — solid letters, fewer Bambu mesh errors
 

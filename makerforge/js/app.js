@@ -24,7 +24,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b326";
+const MAKERDECK_BUILD = "b327";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -126,6 +126,7 @@ const CANISTER_CONTENT_LABELS = {
   coffee: "COFFEE",
   tea: "TEA",
   sugar: "SUGAR",
+  milo: "MILO",
   biscuits: "BISCUITS",
   custom: "",
 };
@@ -135,6 +136,7 @@ const CANISTER_CONTENT_META = {
   coffee: { label: "COFFEE", letter: "C", color: "#6d7f64", lidColor: "#c4a574", textColor: "#f8fafc", artColor: "#4a3728" },
   tea: { label: "TEA", letter: "T", color: "#e8e6df", lidColor: "#c4a574", textColor: "#3d4a3a" },
   sugar: { label: "SUGAR", letter: "S", color: "#6d8498", lidColor: "#c4a574", textColor: "#f8fafc" },
+  milo: { label: "MILO", letter: "M", color: "#6b4a38", lidColor: "#c4a574", textColor: "#f8fafc", artColor: "#3d5c2e" },
   biscuits: { label: "BISCUITS", letter: "B", color: "#c4a882", lidColor: "#c4a574", textColor: "#3d3428" },
 };
 

@@ -2269,7 +2269,7 @@ export const CANISTER_JAR_PRESET = {
   canisterSize: "md",
 };
 
-/** Uniform 250 g round jars — nest-stack lids, single-letter labels (T/C/S). */
+/** Uniform 250 g round jars — nest-stack lids, single-letter labels (C/S/M). */
 export const CANISTER_STACK_PRESET = {
   innerWidth: 94,
   innerDepth: 94,
