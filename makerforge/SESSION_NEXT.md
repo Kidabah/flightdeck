@@ -4,8 +4,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b334** — Liner slice fix + flat lid print orient + breakaway supports
-- Cache-bust: `app.js?v=334`, `geometry.js?v=312`, `features.js?v=332` — header **b334**
+- Current: **b335** — Nest lid rim welded solid (groove depth clamp)
+- Cache-bust: `app.js?v=335`, `geometry.js?v=313`, `features.js?v=333` — header **b335**
+
+### 2026-07-15 — b335: Nest lid rim solid (no floating band)
+
+**Symptom:** Lid top insert looked like thin floating band with air gap in Bambu layer view.
+
+**Cause:** Nest groove depth (4 mm) exceeded lid thickness (2.8 mm) → groove cut below plate. Full top cap overlapped nest rim; rimInner used scaled profile with mismatched cap vertices.
+
+**Fix:** Clamp groove to plate thickness; nest shell = bottom + outer wall + centre disk (no full top cap); rim annulus + lip welded at zTop; radial-matched cap rings.
+
+**Test:** Re-export lid 3MF on b335 — outer nest lip should be solid ~5 mm × 2.8 mm band, no black gap.
 
 ### 2026-07-15 — b334: Liner slice fix + flat lid print orientation
 

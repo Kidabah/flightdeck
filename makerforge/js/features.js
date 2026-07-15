@@ -932,16 +932,62 @@ function extrudeWallsAlongZ(outPos, outIdx, pts, z0, z1, edgeFilter = null) {
 }
 
 function capRingXZ(outPos, outIdx, outer, inner, z, normalUp) {
+  const innerRing = radialMatchInner(outer, inner);
   const n = outer.length;
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
     const o0 = vec3(outer[i][0], outer[i][1], z);
     const o1 = vec3(outer[j][0], outer[j][1], z);
-    const i0 = vec3(inner[i][0], inner[i][1], z);
-    const i1 = vec3(inner[j][0], inner[j][1], z);
+    const i0 = vec3(innerRing[i][0], innerRing[i][1], z);
+    const i1 = vec3(innerRing[j][0], innerRing[j][1], z);
     if (normalUp) pushQuad(outPos, outIdx, o0, o1, i1, i0);
     else pushQuad(outPos, outIdx, o0, i0, i1, o1);
   }
+}
+
+function profileCentroid(points) {
+  let cx = 0;
+  let cy = 0;
+  for (const [x, y] of points) {
+    cx += x;
+    cy += y;
+  }
+  const n = points.length || 1;
+  return [cx / n, cy / n];
+}
+
+function rayProfileHit(points, cx, cy, dx, dy) {
+  let bestT = Infinity;
+  let best = null;
+  const n = points.length;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const x1 = points[i][0];
+    const y1 = points[i][1];
+    const x2 = points[j][0];
+    const y2 = points[j][1];
+    const sx = x2 - x1;
+    const sy = y2 - y1;
+    const denom = dx * sy - dy * sx;
+    if (Math.abs(denom) < 1e-12) continue;
+    const t = ((x1 - cx) * sy - (y1 - cy) * sx) / denom;
+    const s = ((x1 - cx) * dy - (y1 - cy) * dx) / denom;
+    if (t > 1e-9 && s >= -1e-9 && s <= 1 + 1e-9 && t < bestT) {
+      bestT = t;
+      best = [cx + dx * t, cy + dy * t];
+    }
+  }
+  return best;
+}
+
+function radialMatchInner(outer, inner) {
+  const [cx, cy] = profileCentroid(outer);
+  return outer.map(([ox, oy]) => {
+    const ang = Math.atan2(oy - cy, ox - cx);
+    const dx = Math.cos(ang);
+    const dy = Math.sin(ang);
+    return rayProfileHit(inner, cx, cy, dx, dy) ?? [ox, oy];
+  });
 }
 
 function forEachHexGrid(w, h, cellR, fn) {
@@ -1091,19 +1137,22 @@ export function appendNestStackLidRim(outPos, outIdx, boxOuter, params, lidThick
 
   const rimWidth = clamp(params.stackNestRimWidth ?? 5, 3, 12);
   const rimHeight = clamp(params.stackNestRimHeight ?? 2.8, 1.5, 6);
-  const nestDepth = clamp(params.stackNestDepth ?? 4, 2, 10);
-  const rimInnerScale = Math.max((outerR - rimWidth) / outerR, 0.55);
-  const rimInner = scaleProfileXY(boxOuter, rimInnerScale);
+  const nestDepthReq = clamp(params.stackNestDepth ?? 4, 2, 10);
+  const nestDepth = Math.min(nestDepthReq, Math.max(lidThickness - 0.4, 0.8));
+  const rimInner = offsetProfileInward(boxOuter, rimWidth);
+  if (!profileIsValid(rimInner)) return;
 
   const zTop = lidThickness;
   const zGroove = zTop - nestDepth;
   const zLip = zTop + rimHeight;
 
+  // Outer annulus top (centre disk capped by buildFlatNestLidShell).
   capRingXZ(outPos, outIdx, boxOuter, rimInner, zTop, true);
   extrudeWallsAlongZ(outPos, outIdx, boxOuter, zGroove, zTop);
   extrudeWallsAlongZ(outPos, outIdx, rimInner, zGroove, zTop);
   capRingXZ(outPos, outIdx, boxOuter, rimInner, zGroove, false);
 
+  // Raised nest lip — solid band welded to plate at zTop.
   capRingXZ(outPos, outIdx, boxOuter, rimInner, zLip, true);
   extrudeWallsAlongZ(outPos, outIdx, boxOuter, zTop, zLip);
   extrudeWallsAlongZ(outPos, outIdx, rimInner, zTop, zLip);
