@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=352";
+import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=353";
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=336";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=349";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=201";
-import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=212";
+import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=353";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
 import {
@@ -26,7 +26,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b352";
+const MAKERDECK_BUILD = "b353";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -1045,7 +1045,7 @@ function resolveBodyExportMesh(exportCache, params, separateText, stamp = null) 
   return finalizeBodyExportMesh(mesh, exportCache.meta, params, stamp);
 }
 
-function collectColoredExportParts(exportCache, stamp = null) {
+function collectColoredExportParts(exportCache, stamp = null, { includeLiner = true } = {}) {
   if (!exportCache) return [];
   const params = buildParams();
   const parts = [];
@@ -1156,7 +1156,7 @@ function collectColoredExportParts(exportCache, stamp = null) {
     }
   }
 
-  if (state.linerEnabled && exportCache.linerMesh) {
+  if (includeLiner && state.linerEnabled && exportCache.linerMesh) {
     const linerClean = prepareMeshFor3mf(exportCache.linerMesh);
     if (linerClean?.indices?.length) {
       parts.push({
@@ -1171,26 +1171,48 @@ function collectColoredExportParts(exportCache, stamp = null) {
   return parts;
 }
 
+function exportIncludesSeparateLinerFile() {
+  return !!state.linerEnabled && shapeSupportsLiner(state.shape);
+}
+
+function exportUsesMultiFileZip() {
+  return exportIncludesLidPlate() || exportIncludesSeparateLinerFile();
+}
+
+function collectColoredLinerExportParts(exportCache) {
+  if (!exportCache?.linerMesh) return [];
+  const linerClean = prepareMeshFor3mf(orientLinerForPrint(exportCache.linerMesh));
+  if (!linerClean?.indices?.length) return [];
+  return [{
+    name: "Liner",
+    mesh: linerClean,
+    color: state.linerColor || "#f5f5f4",
+    extruder: 1,
+  }];
+}
+
 function exportIncludesLidPlate() {
   return !!state.lidEnabled && !!lidCache && shapeSupportsLid(state.shape);
 }
 
-const CONTAINER_LID_README = [
-  "MakerDeck container + lid export",
+const CONTAINER_EXPORT_README = [
+  "MakerDeck container export",
   "",
-  "1. Import *-container.3mf only for the jar body (Body + Art + Text + Accent + Liner).",
-  "2. Import *-lid.3mf separately — already oriented flat-side down; do NOT flip in Bambu.",
-  "3. Liner prints open-top — no peel step. If Bambu shows it floating, use Print by Object or re-import container 3MF.",
-  "4. Optional: enable Lid breakaway supports in Design if nest-groove bridging fails.",
+  "1. *-container.3mf — body + art + text (+ accent). No liner (see *-liner.3mf).",
+  "2. *-lid.3mf — lid on the build plate; do NOT flip in Bambu.",
+  "3. *-liner.3mf — food-safe cup on the build plate; print on a second printer in PLA Pure.",
+  "4. Optional: Lid breakaway supports in Design if nest-groove bridging fails.",
   "5. Avoid Bambu Repair on multi-colour AMS files — it remeshes parts.",
 ].join("\n");
 
 async function buildBody3mfExport(exportCache, parts) {
   const projectName = baseModelName(exportCache.meta);
+  const separateLiner = exportIncludesSeparateLinerFile() && !!exportCache?.linerMesh;
   const lidOn = exportIncludesLidPlate();
+  const multiFile = exportUsesMultiFileZip();
 
-  if (!lidOn) {
-    return { blob: buildColoredProject3mf(parts, projectName), zipExport: false, lidPartCount: 0 };
+  if (!multiFile) {
+    return { blob: buildColoredProject3mf(parts, projectName), zipExport: false, lidPartCount: 0, linerPartCount: 0 };
   }
 
   const containerBlob = buildColoredProject3mf(parts, projectName);
@@ -1202,25 +1224,42 @@ async function buildBody3mfExport(exportCache, parts) {
 
   let lidPartCount = 0;
   let lidFile = null;
+  let linerPartCount = 0;
+  let linerFile = null;
 
-  const lidParts = collectColoredLidExportParts();
-  lidPartCount = lidParts.length;
-  if (lidParts.length) {
-    const lidBlob = buildColoredProject3mf(lidParts, `${projectName} lid`);
-    lidFile = filename3mfFor(exportCache.meta, "lid");
-    const lidData = await lidBlob.arrayBuffer().then((buf) => new Uint8Array(buf));
-    zipEntries.push({ name: lidFile, data: lidData });
+  if (lidOn) {
+    const lidParts = collectColoredLidExportParts();
+    lidPartCount = lidParts.length;
+    if (lidParts.length) {
+      const lidBlob = buildColoredProject3mf(lidParts, `${projectName} lid`);
+      lidFile = filename3mfFor(exportCache.meta, "lid");
+      const lidData = await lidBlob.arrayBuffer().then((buf) => new Uint8Array(buf));
+      zipEntries.push({ name: lidFile, data: lidData });
+    }
   }
 
-  zipEntries.push({ name: "README.txt", data: CONTAINER_LID_README });
+  if (separateLiner) {
+    const linerParts = collectColoredLinerExportParts(exportCache);
+    linerPartCount = linerParts.length;
+    if (linerParts.length) {
+      const linerBlob = buildColoredProject3mf(linerParts, `${projectName} liner`);
+      linerFile = filename3mfFor(exportCache.meta, "liner");
+      const linerData = await linerBlob.arrayBuffer().then((buf) => new Uint8Array(buf));
+      zipEntries.push({ name: linerFile, data: linerData });
+    }
+  }
+
+  zipEntries.push({ name: "README.txt", data: CONTAINER_EXPORT_README });
   const zipBlob = createZipArchiveBlob(zipEntries);
   return {
     blob: zipBlob,
     zipExport: true,
     lidPartCount,
+    linerPartCount,
     containerBlob,
     containerFile,
     lidFile,
+    linerFile,
   };
 }
 
@@ -4248,24 +4287,33 @@ function describeBodyExportParts() {
     parts.push(bandCount > 1 ? `Accent ×${bandCount}` : "Accent");
   }
   if (state.insertEnabled && !mergeInsertIntoBodyExport()) parts.push("Insert");
-  if (state.linerEnabled && shapeSupportsLiner(state.shape)) parts.push("Liner");
+  if (state.linerEnabled && shapeSupportsLiner(state.shape) && !exportIncludesSeparateLinerFile()) {
+    parts.push("Liner");
+  }
   return parts;
+}
+
+function describeMultiFileZipLabel() {
+  const bits = ["container"];
+  if (exportIncludesLidPlate()) bits.push("lid");
+  if (exportIncludesSeparateLinerFile()) bits.push("liner");
+  return `ZIP · ${bits.join(" + ")}`;
 }
 
 function describeExportPlan(format = "3mf") {
   if (format === "3mf") {
     const bodyParts = describeBodyExportParts();
-    const zipExport = exportIncludesLidPlate();
-    const lidParts = zipExport ? describeExportPlan("lid-3mf").bodyParts : [];
+    const zipExport = exportUsesMultiFileZip();
+    const lidParts = exportIncludesLidPlate() ? describeExportPlan("lid-3mf").bodyParts : [];
+    const linerParts = exportIncludesSeparateLinerFile() ? ["Liner"] : [];
     return {
       format,
       bodyParts,
       zipExport,
       plate1Label: bodyParts.join(" + "),
       plate2Label: lidParts.length ? lidParts.join(" + ") : "Lid",
-      summary: zipExport
-        ? "ZIP · container + lid"
-        : bodyParts.join(" + "),
+      plate3Label: linerParts.length ? "Liner" : "",
+      summary: zipExport ? describeMultiFileZipLabel() : bodyParts.join(" + "),
     };
   }
   if (format === "lid-3mf" || format === "lid-stl") {
@@ -4299,7 +4347,7 @@ function syncExportPlanUi() {
   const info = describeExportPlan(format);
   const opt3mf = sel.querySelector('option[value="3mf"]');
   if (opt3mf) {
-    opt3mf.textContent = exportIncludesLidPlate() ? "3MF · ZIP (container + lid)" : "3MF project";
+    opt3mf.textContent = exportUsesMultiFileZip() ? describeMultiFileZipLabel() : "3MF project";
   }
   if (format !== "3mf" && format !== "lid-3mf") {
     plan.hidden = true;
@@ -4308,7 +4356,7 @@ function syncExportPlanUi() {
   }
   plan.hidden = false;
   if (info.zipExport) {
-    plan.innerHTML = `<span class="export-plan-parts">ZIP · container + lid</span>`;
+    plan.innerHTML = `<span class="export-plan-parts">${info.summary}</span>`;
   } else {
     plan.innerHTML = `<span class="export-plan-parts">${info.summary}</span>`;
   }
@@ -4541,7 +4589,8 @@ function runExport(format, options = {}) {
             const stamp = params.watermarkEnabled !== false ? acquireWatermarkStamp() : null;
             if (status) status.textContent = "Building export meshes…";
             await new Promise((resolve) => setTimeout(resolve, 0));
-            const parts = collectColoredExportParts(exportCache, stamp);
+            const separateLiner = exportIncludesSeparateLinerFile();
+            const parts = collectColoredExportParts(exportCache, stamp, { includeLiner: !separateLiner });
             const triCount = parts.reduce((sum, part) => sum + Math.floor((part.mesh?.indices?.length || 0) / 3), 0);
             const expectDivider = state.insertEnabled && state.insertMount === "fixed";
             const shellTris = exportShellTriCount(exportCache);
@@ -4562,9 +4611,15 @@ function runExport(format, options = {}) {
             const fname = pickExportFilename(format, options);
             downloadBlob(blob, fname);
             const partNames = packed.zipExport
-              ? `${parts.map((p) => p.name).join(" + ")} + Lid`
+              ? [
+                parts.map((p) => p.name).join(" + "),
+                packed.lidFile ? "Lid" : "",
+                packed.linerFile ? "Liner" : "",
+              ].filter(Boolean).join(" + ")
               : parts.map((p) => p.name).join(" + ");
-            const zipNote = packed.zipExport ? ` · ${packed.containerFile} + ${packed.lidFile}` : "";
+            const zipNote = packed.zipExport
+              ? ` · ${[packed.containerFile, packed.lidFile, packed.linerFile].filter(Boolean).join(" + ")}`
+              : "";
             const wmNote = stamp ? ` · watermark #${String(stamp.serial).padStart(4, "0")}` : "";
             const bodyPart = parts.find((p) => p.name === "Body");
             const paints = bodyPart?.triangleExtruders;
@@ -4594,7 +4649,7 @@ function runExport(format, options = {}) {
               openNote += " — avoid Bambu Repair (remeshes parts); re-export after update";
             }
             const exportHeadline = packed.zipExport
-              ? "ZIP downloaded — open container.3mf and lid.3mf in Bambu"
+              ? "ZIP downloaded — open each .3mf in Bambu (container, lid, liner as needed)"
               : `${parts.length > 1 ? `${parts.length}-part` : "Plain"} 3MF exported — ${partNames}`;
             const exportDetail = `${triCount} triangles${zipNote}${openNote}${wmNote}`;
             setExportStatus(exportHeadline, { detail: exportDetail });

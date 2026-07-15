@@ -2253,6 +2253,18 @@ export function buildLid(params) {
   };
 }
 
+/** Drop liner onto build plate (z=0) for standalone *-liner.3mf export. */
+export function orientLinerForPrint(mesh) {
+  const positions = mesh.positions.slice();
+  const indices = mesh.indices.slice();
+  let minZ = Infinity;
+  for (let i = 2; i < positions.length; i += 3) minZ = Math.min(minZ, positions[i]);
+  if (Number.isFinite(minZ) && minZ !== 0) {
+    for (let i = 2; i < positions.length; i += 3) positions[i] -= minZ;
+  }
+  return { positions, indices };
+}
+
 /** Flip lid for print bed. Flat caps are already plate-down — only translate to z=0. */
 export function orientLidForPrint(lid) {
   const positions = lid.positions.slice();

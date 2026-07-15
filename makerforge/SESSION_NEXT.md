@@ -4,8 +4,16 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b352** — Simple open liner cup + gentle 3MF export
-- Cache-bust: `app.js?v=352`, `geometry.js?v=352` — header **b352**
+- Current: **b353** — Separate *-liner.3mf in export ZIP
+- Cache-bust: `app.js?v=353`, `geometry.js?v=353`, `3mf.js?v=353` — header **b353**
+
+### 2026-07-15 — b353: Separate liner 3MF for second printer
+
+**What:** Export ZIP includes `*-liner.3mf` (on build plate) alongside container + lid. Liner removed from container 3MF.
+
+**Files:** `js/app.js`, `js/geometry.js`, `js/3mf.js`, `index.html`
+
+**Test:** Square stack canister → Download 3MF ZIP → container, lid, liner files. Print liner + lid on second printer.
 
 ### 2026-07-15 — b352: Simple open liner (no flange shelf)
 

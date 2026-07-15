@@ -763,6 +763,7 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck") {
 export function filename3mfFor(meta, part = "body") {
   const base = `${baseModelName(meta)}.3mf`;
   if (part === "lid") return base.replace(/\.3mf$/, "-lid.3mf");
+  if (part === "liner") return base.replace(/\.3mf$/, "-liner.3mf");
   if (part === "container") return base.replace(/\.3mf$/, "-container.3mf");
   if (part === "base") return base.replace(/\.3mf$/, "-base.3mf");
   if (part === "stack") return base.replace(/\.3mf$/, "-stack.3mf");
