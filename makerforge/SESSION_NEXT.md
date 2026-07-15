@@ -4,8 +4,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b346** — Combined-mask wedge clip for multi-colour trace
-- Cache-bust: `app.js?v=346`, `trace.js?v=346` — header **b346**
+- Current: **b347** — Fix trace const assignment crash
+- Cache-bust: `app.js?v=347`, `trace.js?v=347` — header **b347**
+
+### 2026-07-15 — b347: Fix trace crash (const assignment)
+
+**Symptom:** Trace failed with "Assignment to constant variable" — nothing applied.
+
+**Fix:** b346 accidentally reassigned `const colorLayers`; use `trimmedLayers` instead.
+
+**Files:** `js/trace.js`, `js/app.js`, `index.html`
+
+**Test:** Trace Milo graphic → no error → Apply. Hard refresh b347.
 
 ### 2026-07-15 — b346: Clip wedge from combined multi-colour mask
 

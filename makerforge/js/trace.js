@@ -1599,8 +1599,8 @@ export async function traceMultiColourCanvasAsync(canvas, options = {}) {
   }
 
   clipMultiColourLayersToCombinedMask(colorLayers, tw, th);
-  colorLayers = colorLayers.filter((layer) => maskFillRatio(layer.mask, tw, th) >= 0.004);
-  if (colorLayers.length < 2) {
+  const trimmedLayers = colorLayers.filter((layer) => maskFillRatio(layer.mask, tw, th) >= 0.004);
+  if (trimmedLayers.length < 2) {
     return {
       rects: [],
       width: tw,
@@ -1628,17 +1628,17 @@ export async function traceMultiColourCanvasAsync(canvas, options = {}) {
     cropOy: oy,
     svg: "",
     rectCount: 0,
-    polygonCount: colorLayers.length,
-    islandCount: colorLayers.length,
+    polygonCount: trimmedLayers.length,
+    islandCount: trimmedLayers.length,
     simplified: false,
     simplifyFactor: 1,
-    tooComplex: colorLayers.length > MULTI_COLOUR_MAX_LAYERS,
+    tooComplex: trimmedLayers.length > MULTI_COLOUR_MAX_LAYERS,
     mode: "multi-colour",
     multiColour: true,
-    colorLayers,
-    colorLayerCount: colorLayers.length,
+    colorLayers: trimmedLayers,
+    colorLayerCount: trimmedLayers.length,
     rawColourBucketCount: rawBucketCount,
-    colourPaletteMerged: rawBucketCount > colorLayers.length,
+    colourPaletteMerged: rawBucketCount > trimmedLayers.length,
     tracePx: `${width}×${height}`,
   };
 }
