@@ -362,6 +362,26 @@ function capRing(outPos, outIdx, outer, inner, z, normalUp) {
   }
 }
 
+/** Vertical walls of a profile annulus (outer ring minus inner hole). */
+function extrudeProfileAnnulusSides(outPos, outIdx, outer, inner, z0, z1) {
+  const innerRing = radialMatchInner(outer, inner);
+  const n = outer.length;
+  if (n < 3) return;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const oo0 = vec3(outer[i][0], outer[i][1], z0);
+    const oo1 = vec3(outer[j][0], outer[j][1], z0);
+    const oo2 = vec3(outer[j][0], outer[j][1], z1);
+    const oo3 = vec3(outer[i][0], outer[i][1], z1);
+    pushQuad(outPos, outIdx, oo0, oo1, oo2, oo3);
+    const io0 = vec3(innerRing[i][0], innerRing[i][1], z0);
+    const io1 = vec3(innerRing[j][0], innerRing[j][1], z0);
+    const io2 = vec3(innerRing[j][0], innerRing[j][1], z1);
+    const io3 = vec3(innerRing[i][0], innerRing[i][1], z1);
+    pushQuad(outPos, outIdx, io0, io3, io2, io1);
+  }
+}
+
 /** True when a profile edge lies on the front face (y ≈ min) — skip for open-front bookcases. */
 function isFrontProfileEdge(p0, p1, frontY) {
   const tol = 0.85;
@@ -1936,8 +1956,8 @@ export function buildCavityLiner(resolved, params) {
   const topReserve = linerLidTopReserve(params);
   const zFlangeTop = zCavityTop - topReserve;
   const zFlangeBottom = zFlangeTop - flangeTh;
-  const zWallTop = zFlangeBottom;
-  if (zWallTop - zFloor < 10) return null;
+  const zCupTop = zFlangeTop;
+  if (zCupTop - zFloor < 10) return null;
 
   let cupOuter = offsetProfileInward(innerProfile, gap);
   let cupInner = offsetProfileInward(cupOuter, wallTh);
@@ -1952,15 +1972,14 @@ export function buildCavityLiner(resolved, params) {
   const positions = [];
   const indices = [];
 
-  // Open-top cup + registration flange. Exterior floor normal down (slicer bottom layers);
-  // inner disk normal up (food contact). No top membrane — Bambu was capping the cup.
+  // Open-top cup — inner + outer walls must share the same height or slicers fill the cavity solid.
   capProfileSolid(positions, indices, cupInner, zFloor, true);
   capProfileAnnulus(positions, indices, cupOuter, cupInner, zFloor, false);
-  extrudeProfileSides(positions, indices, cupOuter, zFloor, zFlangeTop, true);
-  extrudeProfileSides(positions, indices, cupInner, zFloor, zFlangeBottom, false);
+  extrudeProfileSides(positions, indices, cupOuter, zFloor, zCupTop, true);
+  extrudeProfileSides(positions, indices, cupInner, zFloor, zCupTop, false);
+  // Registration flange — external ring only; never cap the cup opening.
   capProfileAnnulus(positions, indices, flangeOuter, cupOuter, zFlangeBottom, false);
-  extrudeProfileSides(positions, indices, flangeOuter, zFlangeBottom, zFlangeTop, true);
-  capProfileAnnulus(positions, indices, flangeOuter, cupOuter, zFlangeTop, true);
+  extrudeProfileAnnulusSides(positions, indices, flangeOuter, cupOuter, zFlangeBottom, zFlangeTop);
 
   return positions.length ? { positions, indices } : null;
 }

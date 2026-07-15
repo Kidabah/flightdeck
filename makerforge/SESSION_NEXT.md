@@ -4,8 +4,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b350** — Liner open-top + slicer bottom fix
-- Cache-bust: `app.js?v=350`, `geometry.js?v=350` — header **b350**
+- Current: **b351** — Liner truly open-top (inner wall full height)
+- Cache-bust: `app.js?v=351`, `geometry.js?v=351` — header **b351**
+
+### 2026-07-15 — b351: Liner open top — inner wall full height
+
+**Symptom:** b350 liner still looked solid capped in Bambu (flat closed top).
+
+**Cause:** Inner wall stopped at flange bottom while outer wall continued — single-sided shell above that line; slicer filled cavity solid. Full flangeOuter extrude + top annulus cap made it worse.
+
+**Fix:** Inner + outer cup walls same height (open top). Flange = external annulus ring only — no top cap, no full-profile flange tube.
+
+**Test:** Hard refresh b351 → re-export container 3MF → Liner hollow open-top in Bambu slice.
 
 ### 2026-07-15 — b350: Liner slicer bottom + open top
 
