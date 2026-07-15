@@ -1109,6 +1109,42 @@ export function appendNestStackLidRim(outPos, outIdx, boxOuter, params, lidThick
   extrudeWallsAlongZ(outPos, outIdx, rimInner, zTop, zLip);
 }
 
+/** Breakaway pins inside the nest groove — snap out after print if bridging fails. */
+export function appendNestLidPrintSupports(outPos, outIdx, boxOuter, params, lidThickness) {
+  const nestDepth = clamp(params.stackNestDepth ?? 4, 2, 10);
+  const rimWidth = clamp(params.stackNestRimWidth ?? 5, 3, 12);
+  const z0 = lidThickness - nestDepth + 0.1;
+  const z1 = lidThickness - 0.12;
+  if (z1 - z0 < 0.35) return;
+
+  const outerR = profileMaxRadius(boxOuter);
+  const midR = Math.max(outerR - rimWidth * 0.5, outerR * 0.55);
+  const pinR = 0.42;
+  let cx = 0;
+  let cy = 0;
+  for (const [x, y] of boxOuter) {
+    cx += x;
+    cy += y;
+  }
+  cx /= boxOuter.length || 1;
+  cy /= boxOuter.length || 1;
+
+  for (let q = 0; q < 4; q++) {
+    const ang = (Math.PI / 2) * q + Math.PI / 4;
+    const px = cx + midR * Math.cos(ang);
+    const py = cy + midR * Math.sin(ang);
+    const pin = [];
+    for (let i = 0; i < 8; i++) {
+      const a = (Math.PI * 2 * i) / 8;
+      pin.push([px + pinR * Math.cos(a), py + pinR * Math.sin(a)]);
+    }
+    const hole = pin.map(([x, y]) => [px + (x - px) * 0.04, py + (y - py) * 0.04]);
+    capRingXZ(outPos, outIdx, pin, hole, z0, false);
+    extrudeWallsAlongZ(outPos, outIdx, pin, z0, z1);
+    capRingXZ(outPos, outIdx, pin, hole, z1, true);
+  }
+}
+
 /** Recessed hex pockets on the top face of a flat lid — mates with stackable feet on another box. */
 export function appendStackableLidPockets(outPos, outIdx, meta, params, lidThickness) {
   const b = rectFeatureBounds(meta);

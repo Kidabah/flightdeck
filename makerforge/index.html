@@ -44,7 +44,7 @@
 
         <div class="topbar-brand">
 
-          <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b333</span></div>
+          <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b334</span></div>
 
           <h1>Container Generator</h1>
 
@@ -231,7 +231,7 @@
                   <span class="field-label">Food-safe liner</span>
                   <input type="checkbox" id="liner-enabled">
                 </label>
-                <p class="hint hidden" id="liner-hint">Thin PLA Pure cup with a top flange — sits below the lid lip so the lid still seats on the outer shell. Exported as a separate <strong>Liner</strong> part.</p>
+                <p class="hint hidden" id="liner-hint">Thin PLA Pure cup with a top flange — sits below the lid lip so the lid still seats on the outer shell. Exported as a separate <strong>Liner</strong> part with a peel-off top membrane (~0.18&nbsp;mm) — remove after print.</p>
                 <p class="hint hidden" id="canister-stack-hint">Uniform <strong>250g</strong> round jars — nest-stack lids and gasket groove. Export body + lid 3MF for each letter (<strong>C · S · M</strong>) — print lids in wood-tone PLA, <strong>Gasket</strong> in TPU.</p>
               </section>
 
@@ -700,7 +700,13 @@
               <p class="field-hint" id="lid-type-hint">Exports plate-down on the bed. Skirt sits outside the box walls.</p>
 
               <p class="field-hint hidden" id="lid-tray-hint">Storage trays: <strong>Flat cap</strong> with optional retention lip — dust cover and stacking. Enable <strong>Stack</strong> tab hex feet for nestable trays.</p>
-              <p class="field-hint hidden" id="lid-nest-hint">Nest-stack lid: raised outer rim + seating groove. The next canister drops into the lid below — stack a tower on the bench.</p>
+              <p class="field-hint hidden" id="lid-nest-hint">Nest-stack lid: raised outer rim + seating groove. The next canister drops into the lid below — stack a tower on the bench. Export is pre-oriented flat-side down — don’t flip in Bambu.</p>
+
+              <label class="field field-toggle hidden" id="field-lid-print-supports">
+                <span class="field-label">Lid breakaway supports</span>
+                <input type="checkbox" id="lid-print-supports">
+              </label>
+              <p class="field-hint hidden" id="lid-print-supports-hint">Optional snap-out pins inside the nest groove if bridging fails. Off by default.</p>
 
               <div class="trace-actions" id="lid-actions">
                 <button type="button" id="btn-lid-preview-fit" class="btn btn-secondary hidden">Preview fit</button>
@@ -1285,7 +1291,7 @@
     </form>
   </dialog>
 
-  <script type="module" src="js/app.js?v=333"></script>
+  <script type="module" src="js/app.js?v=334"></script>
 
 </body>
 

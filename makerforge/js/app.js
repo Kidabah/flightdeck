@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=311";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner } from "./features.js?v=331";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=312";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner } from "./features.js?v=332";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=305";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=201";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=212";
@@ -24,7 +24,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b333";
+const MAKERDECK_BUILD = "b334";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -571,6 +571,8 @@ function buildParams() {
     linerFloorGap: state.linerFloorGap,
     linerLipClearance: state.linerLipClearance,
     linerTopClearance: state.linerTopClearance,
+    linerBreakawayMembrane: state.linerBreakawayMembrane !== false,
+    lidPrintSupports: !!state.lidPrintSupports,
     insertBodyGap: 0.12,
     fuseInsertToBody: state.insertMount === "fixed" && !!state.insertEnabled,
     bookcaseOpenFront: !!state.bookcaseOpenFront,
@@ -1163,7 +1165,15 @@ function exportIncludesLidPlate() {
   return !!state.lidEnabled && !!lidCache && shapeSupportsLid(state.shape);
 }
 
-const CONTAINER_LID_README = "Import both files in Bambu Studio. Slice container first, then lid.";
+const CONTAINER_LID_README = [
+  "MakerDeck container + lid export",
+  "",
+  "1. Import *-container.3mf only for the jar body (Body + Art + Text + Accent + Liner).",
+  "2. Import *-lid.3mf separately — already oriented flat-side down; do NOT flip in Bambu.",
+  "3. Liner: peel the 0.18 mm breakaway membrane off the top after print.",
+  "4. Optional: enable Lid breakaway supports in Design if nest-groove bridging fails.",
+  "5. Avoid Bambu Repair on multi-colour AMS files — it remeshes parts.",
+].join("\n");
 
 async function buildBody3mfExport(exportCache, parts) {
   const projectName = baseModelName(exportCache.meta);
@@ -1213,7 +1223,10 @@ function collectColoredLidExportParts() {
   const separateArt = hasSeparateArtExport(params) && params.embossFace === "lid";
   const shell = lidCache.shellLid || lidCache;
   const lidBody = separateArt || separateText ? shell : lidCache;
-  const lidClean = sanitizeMeshForStl(orientLidForPrint(lidBody));
+  const lidClean = sanitizeMeshForStl(orientLidForPrint({
+    ...lidBody,
+    lidType: normalizeLidType(params.lidType, params.shape),
+  }));
   if (lidClean) {
     parts.push({
       name: "Lid",
@@ -1225,7 +1238,11 @@ function collectColoredLidExportParts() {
   if (separateArt) {
     const artMesh = buildLabelGraphicEmboss(lidCache.meta, params, params.embossSvgText || "", "emboss");
     if (artMesh) {
-      const artClean = sanitizeMeshForStl(orientLidForPrint({ ...artMesh, lidHeight: lidCache.lidHeight }));
+      const artClean = sanitizeMeshForStl(orientLidForPrint({
+        ...artMesh,
+        lidHeight: lidCache.lidHeight,
+        lidType: normalizeLidType(params.lidType, params.shape),
+      }));
       if (artClean) {
         parts.push({
           name: "Lid art",
@@ -1239,7 +1256,11 @@ function collectColoredLidExportParts() {
   if (separateText && lidCache.labelMesh) {
     const textMesh = buildTextLabelExportMesh(lidCache.meta, params);
     if (textMesh) {
-      const textClean = sanitizeMeshForStl(orientLidForPrint({ ...textMesh, lidHeight: lidCache.lidHeight }));
+      const textClean = sanitizeMeshForStl(orientLidForPrint({
+        ...textMesh,
+        lidHeight: lidCache.lidHeight,
+        lidType: normalizeLidType(params.lidType, params.shape),
+      }));
       if (textClean) {
         parts.push({
           name: "Lid text",
@@ -1251,7 +1272,10 @@ function collectColoredLidExportParts() {
     }
   }
   if (params.lidGasketEnabled && params.lidGasketExportRing !== false && lidCache.gasketRingMesh?.indices?.length) {
-    const gasketClean = sanitizeMeshForStl(orientLidForPrint(lidCache.gasketRingMesh));
+    const gasketClean = sanitizeMeshForStl(orientLidForPrint({
+      ...lidCache.gasketRingMesh,
+      lidType: normalizeLidType(params.lidType, params.shape),
+    }));
     if (gasketClean?.indices?.length) {
       parts.push({
         name: "Gasket",
@@ -2835,6 +2859,13 @@ function updateLidUi() {
     "hidden",
     !(on && isFlat && state.stackableEnabled && isKitchenTrioShape() && (state.stackStyle || "hex") === "nest"),
   );
+  const lidSupportsField = document.getElementById("field-lid-print-supports");
+  const showLidSupports = on && isFlat && state.stackableEnabled
+    && isKitchenTrioShape() && (state.stackStyle || "hex") === "nest";
+  lidSupportsField?.classList.toggle("hidden", !showLidSupports);
+  document.getElementById("lid-print-supports-hint")?.classList.toggle("hidden", !showLidSupports);
+  const lidSupportsToggle = document.getElementById("lid-print-supports");
+  if (lidSupportsToggle) lidSupportsToggle.checked = !!state.lidPrintSupports;
   syncEmbossFaceUi();
   syncExportFormatOptions();
   syncInsertTopClearanceUi();
@@ -5311,6 +5342,11 @@ document.getElementById("insert-enabled").addEventListener("change", (e) => {
 document.getElementById("liner-enabled")?.addEventListener("change", (e) => {
   state.linerEnabled = e.target.checked;
   syncCanisterControlsFromState();
+  rebuild();
+});
+
+document.getElementById("lid-print-supports")?.addEventListener("change", (e) => {
+  state.lidPrintSupports = e.target.checked;
   rebuild();
 });
 

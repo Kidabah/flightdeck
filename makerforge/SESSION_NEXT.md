@@ -4,8 +4,20 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b333** — Liner manifold fix + 3MF plate identify_id alignment
-- Cache-bust: `app.js?v=333`, `geometry.js?v=311`, `features.js?v=331`, `3mf.js?v=212` — header **b333**
+- Current: **b334** — Liner slice fix + flat lid print orient + breakaway supports
+- Cache-bust: `app.js?v=334`, `geometry.js?v=312`, `features.js?v=332` — header **b334**
+
+### 2026-07-15 — b334: Liner slice fix + flat lid print orientation
+
+**Symptom:** Slicer capped liner top / ate liner bottom; lid had floating regions even when flipped.
+
+**Cause:** Liner floor cap had inverted normals. `orientLidForPrint` 180°-flipped flat nest lids — nest rim on bed, geometry floating.
+
+**Fix:** Floor normal up; peel-off 0.18 mm liner membrane; flat lids export plate-down (no flip). Optional **Lid breakaway supports** toggle. ZIP README updated.
+
+**Files:** `js/geometry.js`, `js/features.js`, `js/app.js`, `index.html`
+
+**Test:** Hard refresh `app.js?v=334` → re-export ZIP → peel liner membrane; lid flat on bed, don’t flip in Bambu.
 
 ### 2026-07-14 — b333: Liner non-manifold + Bambu plate split fix
 

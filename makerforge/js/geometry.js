@@ -14,6 +14,7 @@ import {
   shapeSupportsLiner,
   appendStackableLidPockets,
   appendNestStackLidRim,
+  appendNestLidPrintSupports,
   appendFlatLidGasketGroove,
   buildFlatLidGasketRing,
   resolveJoinerDims,
@@ -24,7 +25,7 @@ import {
   shapeSupportsProfileTexture,
   shapeSupportsProfileArt,
   shapeSupportsArt,
-} from "./features.js?v=330";
+} from "./features.js?v=332";
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=161";
 import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=161";
@@ -1479,14 +1480,22 @@ function buildFlatLidMesh(boxOuter, boxInner, meta, params, options) {
   if (params?.stackableEnabled && meta) {
     if ((params.stackStyle || "hex") === "nest") {
       appendNestStackLidRim(positions, indices, boxOuter, params, lidThickness);
+      if (params.lidPrintSupports) {
+        appendNestLidPrintSupports(positions, indices, boxOuter, params, lidThickness);
+      }
     } else {
       appendStackableLidPockets(positions, indices, meta, params, lidThickness);
     }
   }
+  let lidHeight = lidThickness + lipDepth;
+  if (params?.stackableEnabled && (params.stackStyle || "hex") === "nest") {
+    const rimHeight = clamp(params.stackNestRimHeight ?? 2.8, 1.5, 6);
+    lidHeight = lidThickness + rimHeight;
+  }
   return {
     positions,
     indices,
-    lidHeight: lidThickness + lipDepth,
+    lidHeight,
   };
 }
 
@@ -1945,10 +1954,17 @@ export function buildCavityLiner(resolved, params) {
   const positions = [];
   const indices = [];
 
-  // Watertight cup + flange — one cupOuter wall (no overlapping caps at zFlangeBottom).
-  capProfileSolid(positions, indices, cupInner, zFloor, false);
+  // Watertight cup + flange — floor normal up into cavity; inner wall full height; optional peel membrane.
+  capProfileSolid(positions, indices, cupInner, zFloor, true);
   extrudeProfileSides(positions, indices, cupOuter, zFloor, zFlangeTop, true);
-  extrudeProfileSides(positions, indices, cupInner, zFloor, zFlangeBottom, false);
+  const memTh = 0.18;
+  const peelTop = params.linerBreakawayMembrane !== false;
+  const zInnerTop = peelTop ? zFlangeTop - memTh : zFlangeTop;
+  extrudeProfileSides(positions, indices, cupInner, zFloor, zInnerTop, false);
+  if (peelTop && zInnerTop > zFloor + 1) {
+    extrudeProfileSides(positions, indices, cupInner, zInnerTop, zFlangeTop, false);
+    capProfileSolid(positions, indices, cupInner, zFlangeTop, true);
+  }
   capProfileAnnulus(positions, indices, flangeOuter, cupOuter, zFlangeBottom, false);
   extrudeProfileSides(positions, indices, flangeOuter, zFlangeBottom, zFlangeTop, true);
   capProfileAnnulus(positions, indices, flangeOuter, cupOuter, zFlangeTop, true);
@@ -2233,26 +2249,38 @@ export function buildLid(params) {
   };
 }
 
-/** Flip lid so the solid plate sits on the print bed (skirt points up). Preview keeps natural on-box orientation. */
+/** Flip lid for print bed. Flat caps are already plate-down — only translate to z=0. */
 export function orientLidForPrint(lid) {
-  let h = lid.lidHeight;
-  if (!Number.isFinite(h) || h <= 0) {
-    h = 0;
-    for (let i = 2; i < lid.positions.length; i += 3) {
-      h = Math.max(h, lid.positions[i]);
-    }
-  }
-  if (!Number.isFinite(h) || h <= 0) {
-    return { positions: lid.positions.slice(), indices: lid.indices.slice() };
-  }
   const positions = lid.positions.slice();
-  for (let i = 2; i < positions.length; i += 3) positions[i] = h - positions[i];
+  const indices = lid.indices.slice();
+  const lidType = lid.lidType || lid.meta?.lidType;
+
   let minZ = Infinity;
+  let maxZ = -Infinity;
+  for (let i = 2; i < positions.length; i += 3) {
+    minZ = Math.min(minZ, positions[i]);
+    maxZ = Math.max(maxZ, positions[i]);
+  }
+
+  if (lidType === "flat") {
+    if (Number.isFinite(minZ) && minZ !== 0) {
+      for (let i = 2; i < positions.length; i += 3) positions[i] -= minZ;
+    }
+    return { positions, indices };
+  }
+
+  let h = lid.lidHeight;
+  if (!Number.isFinite(h) || h <= 0) h = maxZ;
+  if (!Number.isFinite(h) || h <= 0) {
+    return { positions, indices };
+  }
+  for (let i = 2; i < positions.length; i += 3) positions[i] = h - positions[i];
+  minZ = Infinity;
   for (let i = 2; i < positions.length; i += 3) minZ = Math.min(minZ, positions[i]);
   if (Number.isFinite(minZ) && minZ !== 0) {
     for (let i = 2; i < positions.length; i += 3) positions[i] -= minZ;
   }
-  return { positions, indices: lid.indices.slice() };
+  return { positions, indices };
 }
 
 /** Map CAD Z-up (print/STL) coords to Three.js Y-up for preview. */
@@ -2566,6 +2594,8 @@ export const DEFAULTS = {
   linerLipClearance: 0.45,
   linerTopClearance: 1.2,
   linerColor: "#f5f5f4",
+  linerBreakawayMembrane: true,
+  lidPrintSupports: false,
   canisterContent: "custom",
   canisterSize: "md",
 };
