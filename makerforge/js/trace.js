@@ -639,108 +639,19 @@ function buildExclusiveMultiColourLayerMasks(data, width, height, fgMask, palett
   }));
 }
 
-/** Drop speckle and thin necks between logo parts (bag + spoon) on one AMS layer. */
-function upsampleMaskNearest(mask, sw, sh, dw, dh) {
-  const out = new Uint8Array(dw * dh);
-  for (let y = 0; y < dh; y++) {
-    for (let x = 0; x < dw; x++) {
-      const sx = Math.min(sw - 1, (x * sw / dw) | 0);
-      const sy = Math.min(sh - 1, (y * sh / dh) | 0);
-      if (mask[sy * sw + sx]) out[y * dw + x] = 1;
-    }
-  }
-  return out;
-}
-
-function keepLargeMaskComponents(mask, w, h, comps, labels, minArea) {
-  const out = new Uint8Array(w * h);
-  for (const comp of comps) {
-    if (comp.area < minArea) continue;
-    for (let i = 0; i < labels.length; i++) {
-      if (labels[i] === comp.label) out[i] = 1;
-    }
-  }
-  return out.some((v) => v) ? out : mask;
-}
-
-function removeLogoNeckPixels(layerMask, tw, th) {
-  const MAX_WORK_PX = 720000;
-  let m = layerMask;
-  let w = tw;
-  let h = th;
-  const origW = tw;
-  const origH = th;
-  while (w * h > MAX_WORK_PX) {
-    const ds = downsampleMask(m, w, h);
-    m = ds.mask;
-    w = ds.width;
-    h = ds.height;
-  }
-  let { labels, comps } = findMaskComponents(m, w, h);
-  const origWork = m;
-  if (comps.length <= 1) {
-    let eroded = m;
-    let erodePasses = 0;
-    for (let pass = 1; pass <= 6; pass++) {
-      eroded = m;
-      for (let i = 0; i < pass; i++) eroded = erodeMask(eroded, w, h);
-      const split = findMaskComponents(eroded, w, h);
-      if (split.comps.length >= 2) {
-        labels = split.labels;
-        comps = split.comps;
-        erodePasses = pass;
-        break;
-      }
-    }
-    if (comps.length >= 2 && erodePasses > 0) {
-      comps.sort((a, b) => b.area - a.area);
-      const minArea = Math.max(12, comps[0].area * 0.008);
-      m = keepLargeMaskComponents(eroded, w, h, comps, labels, minArea);
-      for (let i = 0; i < erodePasses; i++) m = dilateMask(m, w, h);
-      const clipped = new Uint8Array(w * h);
-      for (let i = 0; i < w * h; i++) clipped[i] = origWork[i] && m[i] ? 1 : 0;
-      if (clipped.some((v) => v)) m = clipped;
-    }
-  }
-  m = pruneSilhouetteMask(m, w, h, {
+/** Drop tiny disconnected specks only — never erode thin parts like spoon handles. */
+function pruneLogoSpecks(mask, tw, th) {
+  const span = Math.max(tw, th);
+  return pruneSilhouetteMask(mask, tw, th, {
     skipOpen: true,
     keepLogoSatellites: true,
-    minIslandRatio: 0.008,
-    maxIslandDist: Math.max(w, h) * 0.55,
+    minIslandRatio: 0.002,
+    maxIslandDist: span * 0.62,
   });
-  if (w !== origW || h !== origH) {
-    m = upsampleMaskNearest(m, w, h, origW, origH);
-  }
-  return m;
 }
 
-/** Drop thin wedges between major logo parts on the union of all AMS layers. */
-function cleanCombinedLogoMask(combined, tw, th) {
-  const baseFill = maskFillRatio(combined, tw, th);
-  let best = combined;
-  let bestScore = -1;
-  for (let pass = 1; pass <= 6; pass++) {
-    let eroded = combined;
-    for (let i = 0; i < pass; i++) eroded = erodeMask(eroded, tw, th);
-    const split = findMaskComponents(eroded, tw, th);
-    if (split.comps.length < 2) continue;
-    split.comps.sort((a, b) => b.area - a.area);
-    const minArea = Math.max(24, split.comps[0].area * 0.025);
-    let kept = keepLargeMaskComponents(eroded, tw, th, split.comps, split.labels, minArea);
-    let restored = kept;
-    for (let i = 0; i < pass; i++) restored = dilateMask(restored, tw, th);
-    const clipped = new Uint8Array(tw * th);
-    for (let i = 0; i < clipped.length; i++) clipped[i] = combined[i] && restored[i] ? 1 : 0;
-    const fill = maskFillRatio(clipped, tw, th);
-    if (fill < baseFill * 0.72) continue;
-    const keptCount = split.comps.filter((c) => c.area >= minArea).length;
-    const score = keptCount * 1000 + fill;
-    if (score > bestScore) {
-      best = clipped;
-      bestScore = score;
-    }
-  }
-  return best;
+function cleanMultiColourLayerMask(layerMask, tw, th) {
+  return pruneLogoSpecks(layerMask, tw, th);
 }
 
 function clipMultiColourLayersToCombinedMask(colorLayers, tw, th) {
@@ -750,7 +661,7 @@ function clipMultiColourLayersToCombinedMask(colorLayers, tw, th) {
     if (!layer.mask?.length) continue;
     for (let i = 0; i < combined.length; i++) if (layer.mask[i]) combined[i] = 1;
   }
-  const cleaned = cleanCombinedLogoMask(combined, tw, th);
+  const cleaned = pruneLogoSpecks(combined, tw, th);
   for (const layer of colorLayers) {
     if (!layer.mask?.length) continue;
     for (let i = 0; i < layer.mask.length; i++) {
@@ -759,10 +670,6 @@ function clipMultiColourLayersToCombinedMask(colorLayers, tw, th) {
     layer.rects = maskToRuns(layer.mask, tw, th);
     layer.maskFillPct = Math.round(maskFillRatio(layer.mask, tw, th) * 100);
   }
-}
-
-function cleanMultiColourLayerMask(layerMask, tw, th) {
-  return removeLogoNeckPixels(layerMask, tw, th);
 }
 
 function collectInkColorLayers(data, width, height, threshold, invert, blur) {
