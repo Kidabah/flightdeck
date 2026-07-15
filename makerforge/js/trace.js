@@ -617,6 +617,30 @@ function collectMultiColourPalette(data, width, height, fgMask, maxLayers = MULT
   return ranked.slice(0, maxLayers).map(([key]) => key.split(",").map(Number));
 }
 
+function paletteIsGreyscaleOnly(palette) {
+  return palette?.length > 0 && palette.every(([r, g, b]) => Math.max(r, g, b) - Math.min(r, g, b) < 50);
+}
+
+/** Collapse anti-alias greys into exactly two AMS layers — black ink + white ink. */
+function buildBinaryBlackWhiteLayerMasks(data, width, height, fgMask, threshold = 128) {
+  const dark = new Uint8Array(width * height);
+  const light = new Uint8Array(width * height);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const idx = y * width + x;
+      if (!fgMask[idx]) continue;
+      const i = idx * 4;
+      const lum = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+      if (lum < threshold) dark[idx] = 1;
+      else light[idx] = 1;
+    }
+  }
+  return [
+    { rgb: [0, 0, 0], mask: dark },
+    { rgb: [255, 255, 255], mask: light },
+  ];
+}
+
 /** One mask per palette entry — each ink pixel assigned to nearest AMS colour (no overlap). */
 function buildExclusiveMultiColourLayerMasks(data, width, height, fgMask, palette) {
   const masks = palette.map(() => new Uint8Array(width * height));
@@ -1442,6 +1466,7 @@ export async function traceMultiColourCanvasAsync(canvas, options = {}) {
   const bgIsDark = bg && bg.lum < 85 && bg.chroma < 42;
   const effectiveInvert = invert || bgIsDark;
   const fgMask = colorLogoMask(data, width, height, threshold, effectiveInvert, { light: true });
+  const forceBinary = options.mode === "black-white";
   const rawBucketCount = countMultiColourInkBuckets(data, width, height, fgMask);
   let palette = collectMultiColourPalette(data, width, height, fgMask, MULTI_COLOUR_MAX_LAYERS);
   if (!palette) {
@@ -1450,7 +1475,7 @@ export async function traceMultiColourCanvasAsync(canvas, options = {}) {
       palette = colorKeys.slice(0, MULTI_COLOUR_MAX_LAYERS).map((key) => key.split(",").map(Number));
     }
   }
-  if (!palette || palette.length < 2) {
+  if (!forceBinary && (!palette || palette.length < 2)) {
     return {
       rects: [],
       width: 0,
@@ -1467,7 +1492,10 @@ export async function traceMultiColourCanvasAsync(canvas, options = {}) {
   }
 
   const combined = fgMask.slice();
-  const layerMasks = buildExclusiveMultiColourLayerMasks(data, width, height, fgMask, palette);
+  const useBinary = forceBinary || (paletteIsGreyscaleOnly(palette) && palette.length > 2);
+  const layerMasks = useBinary
+    ? buildBinaryBlackWhiteLayerMasks(data, width, height, fgMask, threshold)
+    : buildExclusiveMultiColourLayerMasks(data, width, height, fgMask, palette);
   for (const { mask } of layerMasks) {
     for (let i = 0; i < combined.length; i++) if (mask[i]) combined[i] = 1;
   }
@@ -1498,10 +1526,10 @@ export async function traceMultiColourCanvasAsync(canvas, options = {}) {
     const fill = maskFillRatio(cropMaskLayer, tw, th);
     if (fill < 0.004) continue;
     const [r, g, b] = rgb;
-    let label = colourLayerLabel(r, g, b);
+    let label = useBinary ? (r + g + b < threshold * 2 ? "Black" : "White") : colourLayerLabel(r, g, b);
     const n = (usedLabels.get(label) || 0) + 1;
     usedLabels.set(label, n);
-    if (n > 1) label = `${label} ${n}`;
+    if (!useBinary && n > 1) label = `${label} ${n}`;
     colorLayers.push({
       rgb: [r, g, b],
       hex: rgbToHex(r, g, b),
@@ -1566,12 +1594,13 @@ export async function traceMultiColourCanvasAsync(canvas, options = {}) {
     simplified: false,
     simplifyFactor: 1,
     tooComplex: normalized.layers.length > MULTI_COLOUR_MAX_LAYERS,
-    mode: "multi-colour",
+    mode: forceBinary ? "black-white" : "multi-colour",
     multiColour: true,
     colorLayers: normalized.layers,
     colorLayerCount: normalized.layers.length,
     rawColourBucketCount: rawBucketCount,
-    colourPaletteMerged: rawBucketCount > trimmedLayers.length,
+    colourPaletteMerged: useBinary || rawBucketCount > trimmedLayers.length,
+    binaryBlackWhite: useBinary,
     tracePx: `${sourceW}×${sourceH}`,
     traceWorkPx: `${width}×${height}`,
   };
@@ -2216,6 +2245,10 @@ export async function traceCanvasAsync(canvas, options = {}) {
     return chooseAutoTraceResult(outlineResult, silhouetteResult, colorLogoResult, {
       preferWrapLineArt: !!options.preferWrapLineArt,
     });
+  }
+
+  if (options.mode === "black-white") {
+    return traceMultiColourCanvasAsync(canvas, { ...options, mode: "black-white" });
   }
 
   if (options.mode === "multi-colour" && !options._multiColourFallback) {

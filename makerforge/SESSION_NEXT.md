@@ -4,8 +4,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b353** — Separate *-liner.3mf in export ZIP
-- Cache-bust: `app.js?v=353`, `geometry.js?v=353`, `3mf.js?v=353` — header **b353**
+- Current: **b354** — Black + white trace (2 AMS colours for coffee bag)
+- Cache-bust: `app.js?v=354`, `trace.js?v=354`, `geometry.js?v=354` — header **b354**
+
+### 2026-07-15 — b354: Black + white trace (2 AMS slots, not 6 greys)
+
+**Symptom:** Coffee bag exported Art White + Black + Dark grey + Grey + Dark grey 2 + Grey 2 — 9 filament slots, Bambu couldn't map AMS colours.
+
+**Cause:** Multi-colour trace quantised anti-alias pixels into many grey buckets. Coffee bag is really B&W line art.
+
+**Fix:** New trace mode **Black + white (2 AMS)**. Auto-merge greyscale multi-colour palettes to 2 layers. Kitchen square preset defaults to black-white.
+
+**Test:** Hard refresh b354 → re-trace coffee bag → trace meta "2 colours · black + white" → export shows Body + Art Black + Art White + Text only.
 
 ### 2026-07-15 — b353: Separate liner 3MF for second printer
 
