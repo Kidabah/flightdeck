@@ -4,8 +4,16 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b363** — ZIP root folder (7-Zip extract-to-folder)
-- Cache-bust: `app.js?v=363`, `3mf.js?v=363` — header **b363**
+- Current: **b364** — Revert merged AMS; accent-style art slabs (b201 path)
+- Cache-bust: `app.js?v=364`, `features.js?v=364` — header **b364**
+
+### 2026-07-15 — b364: Revert merged AMS; accent-style art export slabs
+
+**Symptom:** b362 merged painted mesh was worst yet — Bambu history: one grey body, no filament colours.
+
+**Fix:** Back to **separate Body + Art Black + Art White + Text** parts. Flat multi-colour art export uses **buildFaceDecalSlabMesh** (same horizontal wall slabs as orange accent rim — b201 golden path). Wrap unchanged (buildEmbossBitmap). ZIP root folder kept (b363).
+
+**Test:** Hard refresh b364 → re-export → object list shows separate art parts; slice should match accent-band quality.
 
 ### 2026-07-15 — b363: ZIP root folder for clean extract
 

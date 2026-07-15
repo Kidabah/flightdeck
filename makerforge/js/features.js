@@ -3,7 +3,6 @@
  */
 
 import { dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, filterDegenerateShapeGroups, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareSvgShapeGroups, prepareStrokePaths, previewMergeTraceShapeGroups, rasterizeShapeGroupsToMask, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap, unionDenseEmbossShapeGroups, unionShapeGroupsToPrepared } from "./contour.js?v=241";
-import { prepareMeshFor3mf } from "./stl.js?v=201";
 import { decorPlacementOffsets, decorArtRect, rotateFacePoint, rotateShapeGroup } from "./decor.js";
 import {
   profileOutlineNormals,
@@ -2970,7 +2969,7 @@ function buildMultiColourLayerEmboss(meta, params, traceData, layer) {
     return buildEmbossBitmap(meta, params, ensureEmbossBitmapMask(bitmapOpts));
   }
 
-  // Flat AMS export — united vector (row shells = sub-nozzle horizontal slivers on line art).
+  // Flat AMS export — accent-style wall slabs (b201 golden path; slices like rim bands).
   if (isLabelExport(params)) {
     const artH = params.embossTraceSize ?? 16;
     const exportMask = multiColourExportDilatedMask(mask, maskW, maskH, frame, artH);
@@ -2979,11 +2978,11 @@ function buildMultiColourLayerEmboss(meta, params, traceData, layer) {
     const bitmap = { width: maskW, height: maskH };
     const faceGroups = remappedBitmapFaceGroups(bitmap, frame, params, shapeGroups, maskW, maskH, artH);
     if (!faceGroups?.length) return null;
-    const { d0, d1 } = labelOffsets(params);
-    const positions = [];
-    const indices = [];
-    extrudeGroupsOnFace(positions, indices, frame, faceGroups, d0, d1, params);
-    return positions.length ? { positions, indices } : null;
+    return buildFaceDecalSlabMesh(frame, faceGroups, {
+      d0: ACCENT_SKIN_MM,
+      d1: ACCENT_SKIN_MM + ACCENT_BAND_THICKNESS_MM,
+      dilatePasses: 2,
+    });
   }
 
   return buildEmbossBitmap(meta, params, ensureEmbossBitmapMask(bitmapOpts));
@@ -3058,80 +3057,27 @@ function appendColoredMeshPart(positions, indices, triangleExtruders, mesh, extr
   }
 }
 
-/** One AMS object — body + art + text painted per triangle (no floating separate parts). */
-export function buildMergedAmsExportMesh(shellMesh, meta, params, svgText = "", options = {}) {
+/** One AMS object — body wall intact, art/text painted per triangle (legacy; prefer separate parts). */
+export function buildMergedAmsExportMesh(shellMesh, meta, params, svgText = "", { includeArt = true, includeText = true } = {}) {
   if (!shellMesh?.indices?.length) return null;
-  const {
-    includeArt = true,
-    includeText = true,
-    traceData = null,
-    bodyColor = "#38bdf8",
-    textColor = "#f8fafc",
-    artColor = "#4a3728",
-  } = options;
-  const exportParams = {
-    ...params,
-    __labelExportStandoff: true,
-    __multiColourAmsExport: true,
-    __labelExportEmbedded: true,
-    __labelExportMerged: true,
-  };
+  const exportParams = { ...params, __labelExportMerged: true };
   const positions = [];
   const indices = [];
   const triangleExtruders = [];
-  const extruderColors = {};
-  let extruder = 1;
 
-  const bodyClean = prepareMeshFor3mf({
-    positions: shellMesh.positions.slice(),
-    indices: shellMesh.indices.slice(),
-  });
-  if (!bodyClean?.indices?.length) return null;
-  extruderColors[extruder] = bodyColor;
-  appendColoredMeshPart(positions, indices, triangleExtruders, bodyClean, extruder++);
-
-  const td = traceData || params.embossTraceRects;
+  appendColoredMeshPart(positions, indices, triangleExtruders, shellMesh, 1);
+  let extruder = 2;
   if (includeArt) {
-    const artParams = { ...exportParams, __labelExportKind: "art" };
-    if (td?.multiColour && td.colorLayers?.length) {
-      const colourParts = buildMultiColourGraphicEmboss(meta, artParams, td);
-      for (const cp of colourParts || []) {
-        const artClean = cp.mesh ? prepareMeshFor3mf(cp.mesh) : null;
-        if (artClean?.indices?.length) {
-          extruderColors[extruder] = cp.color;
-          appendColoredMeshPart(positions, indices, triangleExtruders, artClean, extruder++);
-        }
-      }
-    } else {
-      const artMesh = buildLabelGraphicEmboss(meta, artParams, svgText, "emboss");
-      const artClean = artMesh ? prepareMeshFor3mf(artMesh) : null;
-      if (artClean?.indices?.length) {
-        extruderColors[extruder] = artColor;
-        appendColoredMeshPart(positions, indices, triangleExtruders, artClean, extruder++);
-      }
-    }
+    const artMesh = buildLabelGraphicEmboss(meta, exportParams, svgText, "emboss");
+    appendColoredMeshPart(positions, indices, triangleExtruders, artMesh, extruder);
+    extruder += 1;
   }
-
   if (includeText) {
-    const textParams = { ...exportParams, __labelExportKind: "text" };
-    const textMesh = buildTextLabelExportMesh(meta, textParams);
-    const textClean = textMesh ? prepareMeshFor3mf(textMesh) : null;
-    if (textClean?.indices?.length) {
-      extruderColors[extruder] = textColor;
-      appendColoredMeshPart(positions, indices, triangleExtruders, textClean, extruder++);
-    }
+    const textMesh = buildTextLabelExportMesh(meta, exportParams);
+    appendColoredMeshPart(positions, indices, triangleExtruders, textMesh, extruder);
   }
 
-  if (!indices.length) return null;
-  return {
-    name: "Body",
-    mesh: { positions, indices, triangleExtruders },
-    triangleExtruders,
-    extruder: 1,
-    extruderColors,
-    color: bodyColor,
-    maxExtruder: extruder - 1,
-  };
+  return indices.length ? { positions, indices, triangleExtruders } : null;
 }
 
 export function buildWatertightExportMesh(bodyMesh, meta, params) {
@@ -4459,12 +4405,6 @@ function extrudeGroupOnFace(outPos, outIdx, frame, group, d0, d1, params = null)
 function exportEmbossDepth(params) {
   let depth = clamp(params.embossDepth ?? 0.7, 0.3, 2);
   if (!params?.__labelExportStandoff) return depth;
-  if (params.__multiColourAmsExport) {
-    const maxMm = params.__labelExportKind === "text" ? 0.48 : 0.8;
-    const minMm = params.__labelExportKind === "text" ? 0.4 : 0.6;
-    depth = Math.min(depth, maxMm);
-    return Math.max(minMm, Math.round(depth / 0.2) * 0.2);
-  }
   // Shallow sticker-like skin — fewer seam loops than thick plaques (esp. arc text).
   const maxMm = params.__labelExportKind === "text" ? 0.36 : 0.48;
   depth = Math.min(depth, maxMm);
