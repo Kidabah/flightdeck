@@ -4,8 +4,20 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b349** — Restore cyan trace overlay + fast trace fallback
-- Cache-bust: `app.js?v=349`, `trace.js?v=349` — header **b349**
+- Current: **b350** — Liner open-top + slicer bottom fix
+- Cache-bust: `app.js?v=350`, `geometry.js?v=350` — header **b350**
+
+### 2026-07-15 — b350: Liner slicer bottom + open top
+
+**Symptom:** Bambu capped liner top and skipped bottom layers (looked like insert with no floor).
+
+**Cause:** Peel membrane solid cap at flange top; floor only had inner disk normals up — no exterior down-facing bed cap.
+
+**Fix:** Exterior floor annulus (normal down), open cup under flange, removed peel membrane.
+
+**Files:** `js/geometry.js`, `js/app.js`, `index.html`
+
+**Test:** Hard refresh b350 → re-export Kitchen container 3MF → Liner: solid bottom in slice, open top, no cap.
 
 ### 2026-07-15 — b349: Restore cyan overlay + fast trace
 

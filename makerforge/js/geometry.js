@@ -1952,17 +1952,12 @@ export function buildCavityLiner(resolved, params) {
   const positions = [];
   const indices = [];
 
-  // Watertight cup + flange — floor normal up into cavity; inner wall full height; optional peel membrane.
+  // Open-top cup + registration flange. Exterior floor normal down (slicer bottom layers);
+  // inner disk normal up (food contact). No top membrane — Bambu was capping the cup.
   capProfileSolid(positions, indices, cupInner, zFloor, true);
+  capProfileAnnulus(positions, indices, cupOuter, cupInner, zFloor, false);
   extrudeProfileSides(positions, indices, cupOuter, zFloor, zFlangeTop, true);
-  const memTh = 0.18;
-  const peelTop = params.linerBreakawayMembrane !== false;
-  const zInnerTop = peelTop ? zFlangeTop - memTh : zFlangeTop;
-  extrudeProfileSides(positions, indices, cupInner, zFloor, zInnerTop, false);
-  if (peelTop && zInnerTop > zFloor + 1) {
-    extrudeProfileSides(positions, indices, cupInner, zInnerTop, zFlangeTop, false);
-    capProfileSolid(positions, indices, cupInner, zFlangeTop, true);
-  }
+  extrudeProfileSides(positions, indices, cupInner, zFloor, zFlangeBottom, false);
   capProfileAnnulus(positions, indices, flangeOuter, cupOuter, zFlangeBottom, false);
   extrudeProfileSides(positions, indices, flangeOuter, zFlangeBottom, zFlangeTop, true);
   capProfileAnnulus(positions, indices, flangeOuter, cupOuter, zFlangeTop, true);
