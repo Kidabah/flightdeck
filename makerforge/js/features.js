@@ -1127,6 +1127,9 @@ export function buildFlatLidGasketRing(boxOuter, params) {
   return { positions, indices, ringHeight };
 }
 
+/** Fixed stack positioning lip — 1 mm fence at lid outer edge (anti-slide only). */
+export const STACK_LIP_MM = 1;
+
 /**
  * Stack flat lid — solid top + thin positioning lip at the outer edge.
  * Stops the next canister sliding sideways; no groove or nest pocket.
@@ -1135,8 +1138,8 @@ export function appendNestStackLidRim(outPos, outIdx, boxOuter, params, lidThick
   const outerR = profileMaxRadius(boxOuter);
   if (outerR < 8) return;
 
-  const rimWidth = clamp(params.stackNestRimWidth ?? 1, 0.8, 3);
-  const rimHeight = clamp(params.stackNestRimHeight ?? 1, 0.8, 2.5);
+  const rimWidth = STACK_LIP_MM;
+  const rimHeight = STACK_LIP_MM;
   const rimInner = offsetProfileInward(boxOuter, rimWidth);
   if (!profileIsValid(rimInner)) return;
 

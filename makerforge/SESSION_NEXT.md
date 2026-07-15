@@ -4,8 +4,14 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b337** — Flat stack lid + 1 mm positioning lip only
-- Cache-bust: `app.js?v=337`, `geometry.js?v=315`, `features.js?v=335` — header **b337**
+- Current: **b338** — Hardcoded 1 mm stack lip (ignores stale session)
+- Cache-bust: `app.js?v=338`, `geometry.js?v=316`, `features.js?v=336` — header **b338**
+
+### 2026-07-15 — b338: Hardcode 1 mm stack lip
+
+**Symptom:** b337 looked unchanged — saved session still had 5 mm / 2.8 mm nest rim.
+
+**Fix:** `STACK_LIP_MM = 1` constant in geometry; ignores old session values; `normalizeStackLipParams()` on rebuild + session restore.
 
 ### 2026-07-15 — b337: 1 mm stack lip (no nest groove)
 

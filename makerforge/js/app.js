@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=315";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner } from "./features.js?v=335";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=336";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=305";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=201";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=212";
@@ -24,7 +24,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b337";
+const MAKERDECK_BUILD = "b338";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -471,7 +471,15 @@ function saneNum(value, fallback) {
   return Number.isFinite(n) ? n : fallback;
 }
 
+function normalizeStackLipParams() {
+  if (!state.stackableEnabled || (state.stackStyle || "hex") !== "nest") return;
+  state.stackNestRimWidth = STACK_LIP_MM;
+  state.stackNestRimHeight = STACK_LIP_MM;
+  state.stackNestDepth = 0;
+}
+
 function buildParams() {
+  normalizeStackLipParams();
   const d = DEFAULTS;
   return {
     shape: state.shape === "rounded" ? "rect" : state.shape,
@@ -1939,6 +1947,7 @@ async function applySessionPayload(payload) {
   }
   state.lidType = normalizeLidType(state.lidType, state.shape);
   ensureStateAccentBands(state);
+  normalizeStackLipParams();
 
   if (payload.traceImage) {
     const loaded = await loadImageFromDataUrl(payload.traceImage);
@@ -2585,6 +2594,7 @@ function applyPreset(shape) {
   if (previewXRayOn) setPreviewXRayMode(false);
   state.shape = shape;
   Object.assign(state, cfg.preset);
+  normalizeStackLipParams();
   applySliderProfile(cfg.profile);
   if (shape === "pencilBox" || shape === "canisterSquare" || shape === "canisterSquareSet") {
     const cornerDefault = shape === "pencilBox" ? 4 : 10;
