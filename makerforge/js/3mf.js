@@ -460,6 +460,7 @@ function buildFilamentSlots(usable) {
     slotColors,
     filamentType: slotColors.map(() => "PLA"),
     filamentIds: slotColors.map(() => "GFL99"),
+    filamentSettingsId: slotColors.map(() => "Generic PLA @BBL H2D"),
     filamentVendor: slotColors.map(() => "Generic"),
     filamentDiameter: slotColors.map(() => "1.75"),
     filamentDensity: slotColors.map(() => "1.24"),
@@ -530,20 +531,7 @@ function packColoredProject3mf({
     if (typeof entry === "number") return buildItemXml(entry, null, { multiPlate });
     return buildItemXml(entry.objectId, entry.transform ?? null, { multiPlate });
   }).join("\n    ");
-  const modelXml = plainSingle
-    ? `<?xml version="1.0" encoding="UTF-8"?>
-<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">
-  <metadata name="Application">MakerDeck</metadata>
-  <metadata name="Title">${escapeXml(projectName)}</metadata>
-  <metadata name="MakerDeck-Triangles">${triangleCount}</metadata>
-  <resources>
-    ${objectXml.join("\n    ")}
-  </resources>
-  <build>
-    ${buildItems}
-  </build>
-</model>`
-    : `<?xml version="1.0" encoding="UTF-8"?>
+  const modelXml = `<?xml version="1.0" encoding="UTF-8"?>
 <model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06">
   <metadata name="Application">MakerDeck</metadata>
   <metadata name="Title">${escapeXml(projectName)}</metadata>
@@ -562,23 +550,20 @@ function packColoredProject3mf({
     name: "project_settings",
     version: "2.2.0",
     printer_model: "Bambu Lab H2D",
+    printer_settings_id: "Bambu Lab H2D 0.4 nozzle",
+    print_settings_id: "0.20mm Standard @BBL H2D",
     printable_area: ["0x0", `${BAMBU_BED_WIDTH_MM}x0`, `${BAMBU_BED_WIDTH_MM}x${BAMBU_BED_DEPTH_MM}`, `0x${BAMBU_BED_DEPTH_MM}`],
     printable_height: "325",
     filament_type: filament.filamentType,
     filament_colour: filament.slotColors,
     filament_ids: filament.filamentIds,
+    filament_settings_id: filament.filamentSettingsId,
     filament_vendor: filament.filamentVendor,
     filament_diameter: filament.filamentDiameter,
     filament_density: filament.filamentDensity,
   });
 
-  const contentTypes = plainSingle
-    ? `<?xml version="1.0" encoding="UTF-8"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
-  <Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/>
-</Types>`
-    : `<?xml version="1.0" encoding="UTF-8"?>
+  const contentTypes = `<?xml version="1.0" encoding="UTF-8"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
   <Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/>
@@ -596,12 +581,10 @@ function packColoredProject3mf({
     { name: "_rels/.rels", data: encodeText(rels) },
     { name: "3D/3dmodel.model", data: encodeText(modelXml) },
   ];
-  if (!plainSingle) {
-    zipFiles.push(
-      { name: "Metadata/project_settings.config", data: encodeText(projectSettings) },
-      { name: "Metadata/model_settings.config", data: encodeText(modelSettings) },
-    );
-  }
+  zipFiles.push(
+    { name: "Metadata/project_settings.config", data: encodeText(projectSettings) },
+    { name: "Metadata/model_settings.config", data: encodeText(modelSettings) },
+  );
   if (extraZipFiles.length) zipFiles.push(...extraZipFiles);
 
   const zipped = createZipStore(zipFiles);
@@ -701,24 +684,17 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck") {
   if (!usable.length) throw new Error("No geometry to export");
 
   const filament = buildFilamentSlots(usable);
-  const plainSingle = usable.length === 1
-    && filament.maxExtruder === 1
-    && !usable[0].triangleExtruders?.length;
-
-  const built = buildAssemblyFromParts(usable, projectName, 1, { plainSingle });
+  // Always embed Bambu Metadata — plainSingle skipped project_settings and Bambu used the filename as profile.
+  const built = buildAssemblyFromParts(usable, projectName, 1, { plainSingle: false });
   if (!built) throw new Error("No valid mesh parts to export");
 
-  const centerOffset = plainSingle ? null : centeringOffsetOnBed(built.localBBox);
-  const worldTransform = centerOffset
-    ? formatTransform3x4(centerOffset.x, centerOffset.y, centerOffset.z ?? 0)
-    : null;
-  const plateBBox = centerOffset
-    ? translateAxisAlignedBBox(
-      built.localBBox || { minX: 0, minY: 0, maxX: 1, maxY: 1 },
-      centerOffset.x,
-      centerOffset.y,
-    )
-    : null;
+  const centerOffset = centeringOffsetOnBed(built.localBBox);
+  const worldTransform = formatTransform3x4(centerOffset.x, centerOffset.y, centerOffset.z ?? 0);
+  const plateBBox = translateAxisAlignedBBox(
+    built.localBBox || { minX: 0, minY: 0, maxX: 1, maxY: 1 },
+    centerOffset.x,
+    centerOffset.y,
+  );
 
   const modelSettings = buildBambuModelSettingsXml(
     built.buildObjectId,
@@ -727,36 +703,31 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck") {
     { singlePart: built.singlePart, worldTransform },
   );
 
-  const extraZipFiles = [];
-  if (!plainSingle && plateBBox) {
-    extraZipFiles.push(
-      {
-        name: "Metadata/plate_1.json",
-        data: encodeText(buildBambuPlateJson({
-          identifyId: built.buildObjectId,
-          name: projectName,
-          bbox: plateBBox,
-        })),
-      },
-      { name: "Metadata/plate_1.png", data: MINIMAL_PLATE_PNG },
-      { name: "Metadata/plate_no_light_1.png", data: MINIMAL_PLATE_PNG },
-      { name: "Metadata/top_1.png", data: MINIMAL_PLATE_PNG },
-      { name: "Metadata/pick_1.png", data: MINIMAL_PLATE_PNG },
-    );
-  }
+  const extraZipFiles = [
+    {
+      name: "Metadata/plate_1.json",
+      data: encodeText(buildBambuPlateJson({
+        identifyId: built.buildObjectId,
+        name: projectName,
+        bbox: plateBBox,
+      })),
+    },
+    { name: "Metadata/plate_1.png", data: MINIMAL_PLATE_PNG },
+    { name: "Metadata/plate_no_light_1.png", data: MINIMAL_PLATE_PNG },
+    { name: "Metadata/top_1.png", data: MINIMAL_PLATE_PNG },
+    { name: "Metadata/pick_1.png", data: MINIMAL_PLATE_PNG },
+  ];
 
   return packColoredProject3mf({
     projectName,
     objectXml: built.objectXml,
-    buildEntries: worldTransform
-      ? [{ objectId: built.buildObjectId, transform: worldTransform }]
-      : [built.buildObjectId],
+    buildEntries: [{ objectId: built.buildObjectId, transform: worldTransform }],
     triangleCount: built.triangleCount,
     filament,
     modelSettings,
-    plainSingle,
+    plainSingle: false,
     extraZipFiles,
-    multiPlate: !!worldTransform,
+    multiPlate: true,
   });
 }
 

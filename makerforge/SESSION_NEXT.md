@@ -4,8 +4,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b355** — Liner solid floor + export-time B&W colour merge
-- Cache-bust: `app.js?v=355`, `trace.js?v=355`, `geometry.js?v=355` — header **b355**
+- Current: **b356** — Bambu H2D metadata on all 3MFs + liner solid floor slab
+- Cache-bust: `app.js?v=356`, `3mf.js?v=356`, `geometry.js?v=356` — header **b356**
+
+### 2026-07-15 — b356: Bambu metadata always + liner floor slab
+
+**Symptom:** Filament slots showed `(box-94x94x127mm-container…)` not H2D/AMS colours. Liner still hollow (walls only) in Bambu slice.
+
+**Cause:** Single-part exports (liner/lid) used `plainSingle` — skipped `project_settings.config` + `model_settings.config`. Bambu fell back to filename as process profile. Liner earcut floor cap not sliced.
+
+**Fix:** Always embed Bambu Metadata (`printer_settings_id`, `filament_settings_id`, plate JSON). Liner = solid `appendSolidBox` floor + annulus walls.
+
+**Test:** Hard refresh b356 → re-export → open *-liner.3mf alone → solid first layer + H2D printer + Generic PLA slots.
 
 ### 2026-07-15 — b355: Liner solid floor + export greyscale merge
 
