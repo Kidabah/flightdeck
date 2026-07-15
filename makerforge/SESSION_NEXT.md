@@ -4,8 +4,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b364** — Revert merged AMS; accent-style art slabs (b201 path)
-- Cache-bust: `app.js?v=364`, `features.js?v=364` — header **b364**
+- Current: **b365** — H2D left-nozzle filament map + revert merged AMS (b364)
+- Cache-bust: `app.js?v=365`, `3mf.js?v=365`, `features.js?v=364` — header **b365**
+
+### 2026-07-15 — b365: H2D left-nozzle filament map (fix printable range error)
+
+**Symptom:** Red error — Filament 1 on right nozzle exceeds printable range; moiré/shredded slice; floating regions.
+
+**Cause:** Bambu Auto For Flush put body (F1) on right nozzle; 94 mm canister wider than right-only zone. b362 merged AMS also broke colours (reverted b364).
+
+**Fix:** `filament_map` + `filament_maps` all logical **1** (left hotend / regular AMS). Separate Body + Art + Text parts; flat art = accent-style slabs (b364).
+
+**Test:** Hard refresh b365 → re-export → Filament grouping: all left nozzle; no right-nozzle range error.
 
 ### 2026-07-15 — b364: Revert merged AMS; accent-style art export slabs
 

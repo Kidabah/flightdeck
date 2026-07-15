@@ -329,12 +329,17 @@ function appendModelSettingsObject(lines, assemblyId, name, modelParts, singlePa
   lines.push("  </object>");
 }
 
-function appendModelSettingsPlate(lines, plateId, plateName, assemblyId, identifyId = 0) {
+function appendModelSettingsPlate(lines, plateId, plateName, assemblyId, identifyId = 0, { filamentSlotCount = 1 } = {}) {
   lines.push("  <plate>");
   lines.push(`    <metadata key="plater_id" value="${plateId}"/>`);
   lines.push(`    <metadata key="plater_name" value="${escapeXml(plateName || "")}"/>`);
   lines.push('    <metadata key="locked" value="false"/>');
-  lines.push('    <metadata key="filament_map_mode" value="Auto For Flush"/>');
+  if (filamentSlotCount > 1) {
+    lines.push('    <metadata key="filament_map_mode" value="Manual"/>');
+    lines.push(`    <metadata key="filament_maps" value="${buildH2DFilamentMapsMeta(filamentSlotCount)}"/>`);
+  } else {
+    lines.push('    <metadata key="filament_map_mode" value="Auto For Flush"/>');
+  }
   lines.push(`    <metadata key="thumbnail_file" value="Metadata/plate_${plateId}.png"/>`);
   lines.push(`    <metadata key="thumbnail_no_light_file" value="Metadata/plate_no_light_${plateId}.png"/>`);
   lines.push(`    <metadata key="top_file" value="Metadata/top_${plateId}.png"/>`);
@@ -354,13 +359,13 @@ function appendModelSettingsPlate(lines, plateId, plateName, assemblyId, identif
  * a single model — parts mid-air (accent bands, floating text) are supported
  * by the body instead of erroring with "empty first layer".
  */
-function buildBambuModelSettingsXml(assemblyId, name, parts, { singlePart = false, worldTransform = null } = {}) {
+function buildBambuModelSettingsXml(assemblyId, name, parts, { singlePart = false, worldTransform = null, filamentSlotCount = 1 } = {}) {
   const lines = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     "<config>",
   ];
   appendModelSettingsObject(lines, assemblyId, name, parts, singlePart);
-  appendModelSettingsPlate(lines, 1, "", assemblyId, assemblyId);
+  appendModelSettingsPlate(lines, 1, "", assemblyId, assemblyId, { filamentSlotCount });
   if (worldTransform) {
     lines.push("  <assemble>");
     lines.push(
@@ -381,7 +386,9 @@ function buildBambuMultiPlateModelSettingsXml(assemblies) {
     appendModelSettingsObject(lines, asm.assemblyId, asm.name, asm.modelParts, asm.singlePart);
   }
   for (const asm of assemblies) {
-    appendModelSettingsPlate(lines, asm.plateId, asm.plateName, asm.assemblyId, asm.identifyId ?? 0);
+    appendModelSettingsPlate(lines, asm.plateId, asm.plateName, asm.assemblyId, asm.identifyId ?? 0, {
+      filamentSlotCount: asm.filamentSlotCount ?? 1,
+    });
   }
   lines.push("  <assemble>");
   for (const asm of assemblies) {
@@ -465,6 +472,15 @@ function buildFilamentSlots(usable) {
     filamentDiameter: slotColors.map(() => "1.75"),
     filamentDensity: slotColors.map(() => "1.24"),
   };
+}
+
+/** H2D logical extruder 1 = left hotend (regular AMS). All slots on left avoids right-nozzle range errors on wide bodies. */
+function buildH2DFilamentMap(slotCount) {
+  return Array.from({ length: Math.max(1, slotCount) }, () => "1");
+}
+
+function buildH2DFilamentMapsMeta(slotCount) {
+  return buildH2DFilamentMap(slotCount).join(" ");
 }
 
 function buildAssemblyFromParts(usable, projectName, startObjectId, { plainSingle = false } = {}) {
@@ -561,6 +577,11 @@ function packColoredProject3mf({
     filament_vendor: filament.filamentVendor,
     filament_diameter: filament.filamentDiameter,
     filament_density: filament.filamentDensity,
+    ...(filament.maxExtruder > 1 ? {
+      filament_map: buildH2DFilamentMap(filament.maxExtruder),
+      filament_map_mode: "Manual",
+      physical_extruder_map: ["1", "0"],
+    } : {}),
   });
 
   const contentTypes = `<?xml version="1.0" encoding="UTF-8"?>
@@ -643,6 +664,7 @@ export function buildMultiPlateColoredProject3mf(plates, projectName = "makerdec
       plateBBox,
       centerOffset,
       worldTransform,
+      filamentSlotCount: filament.maxExtruder,
     });
     extraZipFiles.push(
       {
@@ -700,7 +722,7 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck") {
     built.buildObjectId,
     built.singlePart ? built.modelParts[0].name : projectName,
     built.modelParts,
-    { singlePart: built.singlePart, worldTransform },
+    { singlePart: built.singlePart, worldTransform, filamentSlotCount: filament.maxExtruder },
   );
 
   const extraZipFiles = [
