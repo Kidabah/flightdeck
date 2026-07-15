@@ -4,8 +4,16 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b351** — Liner truly open-top (inner wall full height)
-- Cache-bust: `app.js?v=351`, `geometry.js?v=351` — header **b351**
+- Current: **b352** — Simple open liner cup + gentle 3MF export
+- Cache-bust: `app.js?v=352`, `geometry.js?v=352` — header **b352**
+
+### 2026-07-15 — b352: Simple open liner (no flange shelf)
+
+**Symptom:** Container still showed grey flat cap inside top in Bambu after b351.
+
+**Fix:** Liner = plain open cup (no flange shelf). Export liner/insert via prepareMeshFor3mf (not STL repair that confuses open tops).
+
+**Test:** Hard refresh b352 → re-export container 3MF → look down into top: hollow cavity, no grey lid.
 
 ### 2026-07-15 — b351: Liner open top — inner wall full height
 

@@ -1950,36 +1950,28 @@ export function buildCavityLiner(resolved, params) {
   const b = rectFeatureBounds(resolved.meta);
   const wallTh = clamp(params.linerWall ?? 0.9, 0.6, 1.8);
   const gap = clamp(params.linerClearance ?? 0.35, 0.15, 0.8);
-  const flangeTh = clamp(params.linerFlangeTh ?? 0.9, 0.5, 2);
   const zFloor = b.floor + clamp(params.linerFloorGap ?? 0.15, 0, 0.6);
   const zCavityTop = b.floor + b.cavityH;
   const topReserve = linerLidTopReserve(params);
-  const zFlangeTop = zCavityTop - topReserve;
-  const zFlangeBottom = zFlangeTop - flangeTh;
-  const zCupTop = zFlangeTop;
+  const zCupTop = zCavityTop - topReserve;
   if (zCupTop - zFloor < 10) return null;
 
   let cupOuter = offsetProfileInward(innerProfile, gap);
   let cupInner = offsetProfileInward(cupOuter, wallTh);
-  let flangeOuter = offsetProfileInward(innerProfile, Math.max(0.1, gap * 0.25));
-  if (cupOuter.length < 3 || cupInner.length < 3 || flangeOuter.length < 3) return null;
+  if (cupOuter.length < 3 || cupInner.length < 3) return null;
 
-  const targetN = Math.max(cupOuter.length, cupInner.length, flangeOuter.length, 64);
+  const targetN = Math.max(cupOuter.length, cupInner.length, 64);
   cupOuter = resampleProfileClosed(cupOuter, targetN);
   cupInner = resampleProfileClosed(cupInner, targetN);
-  flangeOuter = resampleProfileClosed(flangeOuter, targetN);
 
   const positions = [];
   const indices = [];
 
-  // Open-top cup — inner + outer walls must share the same height or slicers fill the cavity solid.
+  // Simple open-top cup — no flange shelf (Bambu read it as a solid lid on the liner).
   capProfileSolid(positions, indices, cupInner, zFloor, true);
   capProfileAnnulus(positions, indices, cupOuter, cupInner, zFloor, false);
   extrudeProfileSides(positions, indices, cupOuter, zFloor, zCupTop, true);
   extrudeProfileSides(positions, indices, cupInner, zFloor, zCupTop, false);
-  // Registration flange — external ring only; never cap the cup opening.
-  capProfileAnnulus(positions, indices, flangeOuter, cupOuter, zFlangeBottom, false);
-  extrudeProfileAnnulusSides(positions, indices, flangeOuter, cupOuter, zFlangeBottom, zFlangeTop);
 
   return positions.length ? { positions, indices } : null;
 }
