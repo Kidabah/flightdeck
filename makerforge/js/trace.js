@@ -639,25 +639,77 @@ function buildExclusiveMultiColourLayerMasks(data, width, height, fgMask, palett
   }));
 }
 
-/** Drop speckle and horizontal gap-bridges on one AMS colour layer (bag + spoon stay separate). */
-function cleanMultiColourLayerMask(layerMask, tw, th) {
+/** Drop speckle and thin necks between logo parts (bag + spoon) on one AMS layer. */
+function upsampleMaskNearest(mask, sw, sh, dw, dh) {
+  const out = new Uint8Array(dw * dh);
+  for (let y = 0; y < dh; y++) {
+    for (let x = 0; x < dw; x++) {
+      const sx = Math.min(sw - 1, (x * sw / dw) | 0);
+      const sy = Math.min(sh - 1, (y * sh / dh) | 0);
+      if (mask[sy * sw + sx]) out[y * dw + x] = 1;
+    }
+  }
+  return out;
+}
+
+function keepLargeMaskComponents(mask, w, h, comps, labels, minArea) {
+  const out = new Uint8Array(w * h);
+  for (const comp of comps) {
+    if (comp.area < minArea) continue;
+    for (let i = 0; i < labels.length; i++) {
+      if (labels[i] === comp.label) out[i] = 1;
+    }
+  }
+  return out.some((v) => v) ? out : mask;
+}
+
+function removeLogoNeckPixels(layerMask, tw, th) {
+  const MAX_WORK_PX = 720000;
   let m = layerMask;
-  const span = Math.max(tw, th);
-  const beforeFill = maskFillRatio(m, tw, th);
-  m = pruneSilhouetteMask(m, tw, th, {
+  let w = tw;
+  let h = th;
+  const origW = tw;
+  const origH = th;
+  while (w * h > MAX_WORK_PX) {
+    const ds = downsampleMask(m, w, h);
+    m = ds.mask;
+    w = ds.width;
+    h = ds.height;
+  }
+  let { labels, comps } = findMaskComponents(m, w, h);
+  if (comps.length <= 1) {
+    let eroded = m;
+    for (let pass = 0; pass < 2; pass++) {
+      const trial = erodeMask(eroded, w, h);
+      const split = findMaskComponents(trial, w, h);
+      if (split.comps.length >= 2) {
+        eroded = trial;
+        labels = split.labels;
+        comps = split.comps;
+        break;
+      }
+    }
+    if (comps.length >= 2) {
+      comps.sort((a, b) => b.area - a.area);
+      const minArea = Math.max(12, comps[0].area * 0.01);
+      m = keepLargeMaskComponents(eroded, w, h, comps, labels, minArea);
+      m = dilateMask(m, w, h);
+    }
+  }
+  m = pruneSilhouetteMask(m, w, h, {
     skipOpen: true,
     keepLogoSatellites: true,
-    minIslandRatio: 0.005,
-    maxIslandDist: span * 0.55,
+    minIslandRatio: 0.008,
+    maxIslandDist: Math.max(w, h) * 0.55,
   });
-  const opened = openMask(m, tw, th);
-  if (maskFillRatio(opened) >= beforeFill * 0.9) m = opened;
-  return pruneSilhouetteMask(m, tw, th, {
-    skipOpen: true,
-    keepLogoSatellites: true,
-    minIslandRatio: 0.005,
-    maxIslandDist: span * 0.55,
-  });
+  if (w !== origW || h !== origH) {
+    m = upsampleMaskNearest(m, w, h, origW, origH);
+  }
+  return m;
+}
+
+function cleanMultiColourLayerMask(layerMask, tw, th) {
+  return removeLogoNeckPixels(layerMask, tw, th);
 }
 
 function collectInkColorLayers(data, width, height, threshold, invert, blur) {
@@ -2329,14 +2381,34 @@ function resolveTracePreviewMask(traceResult) {
 }
 
 function drawTraceInkMaskOverlay(ctx, pad, ox, oy, mask, tw, th, factor, rgba = [56, 189, 248, 140]) {
+  const MAX_PREVIEW_PX = 512 * 512;
+  let drawMask = mask;
+  let drawW = tw;
+  let drawH = th;
+  let drawFactor = factor;
+  if (tw * th > MAX_PREVIEW_PX) {
+    let m = mask;
+    let w = tw;
+    let h = th;
+    while (w * h > MAX_PREVIEW_PX) {
+      const ds = downsampleMask(m, w, h);
+      m = ds.mask;
+      w = ds.width;
+      h = ds.height;
+    }
+    drawMask = m;
+    drawW = w;
+    drawH = h;
+    drawFactor = factor * (tw / drawW);
+  }
   const preview = document.createElement("canvas");
-  preview.width = tw;
-  preview.height = th;
+  preview.width = drawW;
+  preview.height = drawH;
   const pctx = preview.getContext("2d");
   if (!pctx) return false;
-  const img = pctx.createImageData(tw, th);
-  for (let i = 0; i < tw * th; i++) {
-    const on = mask[i];
+  const img = pctx.createImageData(drawW, drawH);
+  for (let i = 0; i < drawW * drawH; i++) {
+    const on = drawMask[i];
     const j = i * 4;
     img.data[j] = rgba[0];
     img.data[j + 1] = rgba[1];
@@ -2344,7 +2416,7 @@ function drawTraceInkMaskOverlay(ctx, pad, ox, oy, mask, tw, th, factor, rgba = 
     img.data[j + 3] = on ? rgba[3] : 0;
   }
   pctx.putImageData(img, 0, 0);
-  ctx.drawImage(preview, pad + ox, pad + oy, tw * factor, th * factor);
+  ctx.drawImage(preview, pad + ox, pad + oy, drawW * drawFactor, drawH * drawFactor);
   return true;
 }
 

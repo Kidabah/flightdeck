@@ -4,8 +4,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b344** — Multi-colour trace: drop bag/spoon bridge wedge
-- Cache-bust: `app.js?v=344`, `trace.js?v=344` — header **b344**
+- Current: **b345** — Faster trace preview; neck removal; Apply for 3D
+- Cache-bust: `app.js?v=345`, `trace.js?v=345` — header **b345**
+
+### 2026-07-15 — b345: Trace speed + bag/spoon neck fix
+
+**Symptom:** b344 laggy trace/preview; wedge between bag and spoon still visible.
+
+**Fix:** Trace updates 2D preview only (click **Apply** for 3D). Neck removal erodes thin bridges between logo parts at working resolution. Preview overlay downsampled for speed.
+
+**Files:** `js/trace.js`, `js/app.js`
+
+**Test:** Trace Milo graphic → preview should be quick. Wedge gone → **Apply**. Hard refresh b345.
 
 ### 2026-07-15 — b344: Multi-colour trace wedge cleanup
 

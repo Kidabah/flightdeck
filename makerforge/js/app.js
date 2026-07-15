@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=316";
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=336";
-import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=344";
+import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=345";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=201";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=212";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
@@ -26,7 +26,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b344";
+const MAKERDECK_BUILD = "b345";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -3722,6 +3722,8 @@ function updateTraceUi() {
   if (traceLastResult.tooComplex) {
     msg = `Too detailed — raise threshold or use Silhouette (max ${MAX_TRACE_POLYGONS} islands)`;
     document.getElementById("btn-trace-apply").disabled = true;
+  } else if (hasTrace) {
+    msg += " · click Apply for 3D preview";
   }
   if (state.embossTraceEnabled && !traceLastResult.tooComplex) {
     const face = state.embossFace;
@@ -3792,17 +3794,7 @@ async function runTraceAsync() {
     const preview = document.getElementById("trace-preview");
     drawTracePreview(preview, traceSourceCanvas, traceLastResult);
     updateTraceUi();
-    if (
-      traceLastResult &&
-      !traceLastResult.tooComplex &&
-      state.embossTraceEnabled &&
-      shapeSupportsArt(artUiShape() || state.shape) &&
-      storeTraceOnBox(traceLastResult)
-    ) {
-      await rebuildDeferred();
-      updateDecorUi();
-      syncArtEditorUi();
-    }
+    // 2D preview only — click Apply to push onto the 3D box (large multi-colour traces stay responsive).
     scheduleSaveSession();
   } catch (err) {
     if (job !== traceJob) return;
@@ -4149,11 +4141,15 @@ function applyTraceToBox() {
     return;
   }
   if (!storeTraceOnBox(traceLastResult)) return;
-  rebuild();
-  pushAppHistory();
-  updateDecorUi();
-  syncArtEditorUi();
-  updateTraceUi();
+  void (async () => {
+    const status = document.getElementById("trace-meta");
+    if (status) status.textContent = "Applying to box…";
+    await rebuildDeferred();
+    pushAppHistory();
+    updateDecorUi();
+    syncArtEditorUi();
+    updateTraceUi();
+  })();
 }
 
 function syncInsertCountHint() {
