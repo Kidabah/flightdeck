@@ -4,8 +4,16 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b356** — Bambu H2D metadata on all 3MFs + liner solid floor slab
-- Cache-bust: `app.js?v=356`, `3mf.js?v=356`, `geometry.js?v=356` — header **b356**
+- Current: **b357** — Liner rounded profile floor (no sharp AABB corners)
+- Cache-bust: `app.js?v=357`, `geometry.js?v=357` — header **b357**
+
+### 2026-07-15 — b357: Liner floor matches rounded profile
+
+**Symptom:** White sharp corners poking through rounded container bottom in preview/slice — liner floor was AABB box, not profile shape.
+
+**Fix:** Liner floor uses `capProfileSolid` + annulus extrusion on `cupOuter`/`cupInner` (same rounded profile as cavity). Hide liner in preview when exported as separate *-liner.3mf.
+
+**Test:** Hard refresh b357 → preview shows clean rounded bottom; *-liner.3mf floor matches canister inner curve.
 
 ### 2026-07-15 — b356: Bambu metadata always + liner floor slab
 

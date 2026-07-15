@@ -1939,21 +1939,6 @@ function linerLidTopReserve(params) {
   return clamp(params?.linerTopClearance ?? 1.2, 0.5, 8);
 }
 
-/** Axis-aligned bounds of a closed 2D profile (mm). */
-function profileAabb(points) {
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-  for (const [x, y] of points) {
-    minX = Math.min(minX, x);
-    minY = Math.min(minY, y);
-    maxX = Math.max(maxX, x);
-    maxY = Math.max(maxY, y);
-  }
-  return { minX, minY, maxX, maxY };
-}
-
 /**
  * Food-safe cavity liner — thin cup with top flange that registers on the inner wall.
  * Top sits below the lid lip zone so flat / nest-stack lids seat on the outer shell.
@@ -1982,14 +1967,14 @@ export function buildCavityLiner(resolved, params) {
   const positions = [];
   const indices = [];
 
-  // Build on bed (z=0): solid floor slab + annulus walls. Profile earcut cap alone sliced hollow in Bambu.
+  // Profile-accurate open-top cup on z=0 (rounded corners match container inner wall).
   const z0 = 0;
   const zTop = zCupTop - zFloor;
   const floorTh = wallTh;
-  const bb = profileAabb(cupOuter);
-  appendSolidBox(positions, indices, bb.minX, bb.minY, z0, bb.maxX, bb.maxY, z0 + floorTh);
+  capProfileSolid(positions, indices, cupOuter, z0, false);
+  extrudeProfileAnnulusSides(positions, indices, cupOuter, cupInner, z0, z0 + floorTh);
+  capProfileSolid(positions, indices, cupInner, z0 + floorTh, true);
   extrudeProfileAnnulusSides(positions, indices, cupOuter, cupInner, z0 + floorTh, zTop);
-  capProfileAnnulus(positions, indices, cupOuter, cupInner, z0 + floorTh, true);
 
   return positions.length ? { positions, indices } : null;
 }
