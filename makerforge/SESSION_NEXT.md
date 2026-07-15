@@ -4,8 +4,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b360** — Multi-colour via buildEmbossBitmap (dragons cooler path)
-- Cache-bust: `app.js?v=360`, `features.js?v=360` — header **b360**
+- Current: **b361** — Flat export: dilated vector + 0.6 mm art depth
+- Cache-bust: `app.js?v=361`, `features.js?v=361` — header **b361**
+
+### 2026-07-15 — b361: Printable flat-face multi-colour export
+
+**Symptom:** b360 still shredded in slice; filaments 2–4 ~0.04–0.10 m (line art sub-nozzle width).
+
+**Cause:** Row shells on flat face = ~0.01 mm wide runs; slicer drops below 0.4 mm nozzle. Dragons cooler worked on **wrap** with **solid fills**, not 1 px line art on flat.
+
+**Fix:** Flat AMS export → dilated united vector solids (~0.52 mm min stroke) + 0.6 mm art depth / 0.4 mm text. Wrap still buildEmbossBitmap. Text via prepareMeshFor3mf.
+
+**Test:** Hard refresh b361 → re-export → slice: solid fills, filaments 2–4 should show metres not centimetres.
 
 ### 2026-07-15 — b360: Multi-colour export = buildEmbossBitmap per layer (dragons cooler path)
 

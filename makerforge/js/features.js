@@ -2939,19 +2939,53 @@ function multiColourLayerShapeGroups(mask, maskW, maskH, params) {
   return finishExportShapeGroups(groups, params);
 }
 
-/** Per AMS colour layer — golden buildEmbossBitmap (dragons cooler / coffee-bag path). */
+function multiColourExportDilatedMask(mask, maskW, maskH, frame, artH) {
+  let out = mask instanceof Uint8Array ? mask.slice() : Uint8Array.from(mask || []);
+  const maxW = Math.min(frame.faceW * 0.62, 56);
+  const scale = Math.min(artH / maskH, maxW / maskW);
+  // Line-art ink is ~1 px wide — below 0.4 mm nozzle unless widened for export.
+  const minStrokePx = Math.max(2, Math.ceil(0.52 / Math.max(scale, 0.008)));
+  if (minStrokePx > 1) out = dilateMask(out, maskW, maskH, minStrokePx);
+  return closeBitmapMask(out, maskW, maskH, 1);
+}
+
+/** Per AMS colour layer — wrap: buildEmbossBitmap; flat export: printable vector solids. */
 function buildMultiColourLayerEmboss(meta, params, traceData, layer) {
   const { mask, maskW, maskH } = fitMultiColourLayerMask(layer, traceData.width, traceData.height, params);
-  const bitmap = ensureEmbossBitmapMask({
+  const frame = getEmbossFaceFrame(meta, params.embossFace || "front", params);
+  const outlineRaster = !!(traceData.outlineRaster || layer.outlineRaster);
+  const bitmapOpts = {
     mask,
     width: maskW,
     height: maskH,
     mode: traceData.mode || layer.mode || "silhouette",
-    outlineRaster: !!(traceData.outlineRaster || layer.outlineRaster),
+    outlineRaster,
     colorLogo: !!(traceData.colorLogo || layer.colorLogo),
     maskFillPct: layer.maskFillPct ?? traceData.maskFillPct,
-  });
-  return buildEmbossBitmap(meta, params, bitmap);
+  };
+
+  // Dragons cooler — ink-mask row shells on wrap.
+  if (frame.face === "wrap") {
+    return buildEmbossBitmap(meta, params, ensureEmbossBitmapMask(bitmapOpts));
+  }
+
+  // Flat AMS export — united vector (row shells = sub-nozzle horizontal slivers on line art).
+  if (isLabelExport(params)) {
+    const artH = params.embossTraceSize ?? 16;
+    const exportMask = multiColourExportDilatedMask(mask, maskW, maskH, frame, artH);
+    const shapeGroups = multiColourLayerShapeGroups(exportMask, maskW, maskH, params);
+    if (!shapeGroups.length) return null;
+    const bitmap = { width: maskW, height: maskH };
+    const faceGroups = remappedBitmapFaceGroups(bitmap, frame, params, shapeGroups, maskW, maskH, artH);
+    if (!faceGroups?.length) return null;
+    const { d0, d1 } = labelOffsets(params);
+    const positions = [];
+    const indices = [];
+    extrudeGroupsOnFace(positions, indices, frame, faceGroups, d0, d1, params);
+    return positions.length ? { positions, indices } : null;
+  }
+
+  return buildEmbossBitmap(meta, params, ensureEmbossBitmapMask(bitmapOpts));
 }
 
 /** Per-colour wrap/front emboss meshes for multi-colour logo traces. */
@@ -4371,6 +4405,12 @@ function extrudeGroupOnFace(outPos, outIdx, frame, group, d0, d1, params = null)
 function exportEmbossDepth(params) {
   let depth = clamp(params.embossDepth ?? 0.7, 0.3, 2);
   if (!params?.__labelExportStandoff) return depth;
+  if (params.__multiColourAmsExport) {
+    const maxMm = params.__labelExportKind === "text" ? 0.48 : 0.8;
+    const minMm = params.__labelExportKind === "text" ? 0.4 : 0.6;
+    depth = Math.min(depth, maxMm);
+    return Math.max(minMm, Math.round(depth / 0.2) * 0.2);
+  }
   // Shallow sticker-like skin — fewer seam loops than thick plaques (esp. arc text).
   const maxMm = params.__labelExportKind === "text" ? 0.36 : 0.48;
   depth = Math.min(depth, maxMm);
