@@ -4,8 +4,16 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b365** — H2D left-nozzle filament map + revert merged AMS (b364)
-- Cache-bust: `app.js?v=365`, `3mf.js?v=365`, `features.js?v=364` — header **b365**
+- Current: **b366** — export folder to Downloads (no ZIP unzip step)
+- Cache-bust: `app.js?v=366`, `export-folder.js?v=366`, `3mf.js?v=365`, `features.js?v=364` — header **b366**
+
+### 2026-07-15 — b366: Export folder straight to Downloads (not ZIP)
+
+**Request:** Chris wanted multi-file export as a ready-to-use folder in Downloads — not a ZIP to extract.
+
+**Fix:** `export-folder.js` uses File System Access API — writes `{Downloads}/{projectName}/` with container, lid, liner 3MFs + README. First export prompts to pick Downloads once (remembered). ZIP fallback only if API unavailable or write fails.
+
+**Test:** Hard refresh b366 → export with lid on → pick Downloads once → folder appears in Downloads with all 3MFs inside.
 
 ### 2026-07-15 — b365: H2D left-nozzle filament map (fix printable range error)
 

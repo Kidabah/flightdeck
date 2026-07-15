@@ -5,6 +5,7 @@ import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLim
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=355";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=201";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=365";
+import { folderExportSupported, saveFilesToExportFolder, sanitizeExportFolderName, isFolderExportCancelled } from "./export-folder.js?v=366";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
 import {
@@ -1204,13 +1205,12 @@ function exportIncludesLidPlate() {
 const CONTAINER_EXPORT_README = [
   "MakerDeck container export",
   "",
-  "1. Extract the ZIP — files unpack into a folder matching the zip name (7-Zip / Explorer).",
-  "2. Open *-container.3mf — Body + Art Black + Art White + Text (+ Accent if enabled).",
-  "3. *-lid.3mf — lid on the build plate; do NOT flip in Bambu.",
-  "4. *-liner.3mf — food-safe cup; open on its own (not inside container).",
-  "5. H2D: all filaments grouped to left nozzle (wide body won't fit right-only zone).",
-  "6. Optional: Lid breakaway supports in Design if nest-groove bridging fails.",
-  "7. Avoid Bambu Repair on multi-colour AMS files — it remeshes parts.",
+  "1. Open *-container.3mf — Body + Art Black + Art White + Text (+ Accent if enabled).",
+  "2. *-lid.3mf — lid on the build plate; do NOT flip in Bambu.",
+  "3. *-liner.3mf — food-safe cup; open on its own (not inside container).",
+  "4. H2D: all filaments grouped to left nozzle (wide body won't fit right-only zone).",
+  "5. Optional: Lid breakaway supports in Design if nest-groove bridging fails.",
+  "6. Avoid Bambu Repair on multi-colour AMS files — it remeshes parts.",
 ].join("\n");
 
 async function buildBody3mfExport(exportCache, parts) {
@@ -1262,6 +1262,8 @@ async function buildBody3mfExport(exportCache, parts) {
   return {
     blob: zipBlob,
     zipExport: true,
+    folderName: projectName,
+    folderEntries: zipEntries,
     lidPartCount,
     linerPartCount,
     containerBlob,
@@ -4319,7 +4321,7 @@ function describeMultiFileZipLabel() {
   const bits = ["container"];
   if (exportIncludesLidPlate()) bits.push("lid");
   if (exportIncludesSeparateLinerFile()) bits.push("liner");
-  return `ZIP · ${bits.join(" + ")}`;
+  return folderExportSupported() ? `Folder · ${bits.join(" + ")}` : `ZIP · ${bits.join(" + ")}`;
 }
 
 function describeExportPlan(format = "3mf") {
@@ -4417,13 +4419,15 @@ function meshBounds(mesh) {
 }
 
 function exportFormatExt(format) {
-  if (format === "3mf" && exportUsesMultiFileZip()) return ".zip";
+  if (format === "3mf" && exportUsesMultiFileZip() && !folderExportSupported()) return ".zip";
   return format === "3mf" || format === "lid-3mf" ? ".3mf" : ".stl";
 }
 
 function exportFormatLabel(format) {
   const labels = {
-    "3mf": exportIncludesLidPlate() ? "3MF · ZIP (container + lid)" : "3MF project — body",
+    "3mf": exportUsesMultiFileZip()
+      ? (folderExportSupported() ? "3MF · folder (container + lid + liner)" : "3MF · ZIP (container + lid)")
+      : "3MF project — body",
     stl: "STL — body",
     "lid-3mf": "3MF — lid",
     "lid-stl": "STL — lid",
@@ -4443,9 +4447,11 @@ function suggestExportFilename(format) {
   if (!meshCache) rebuild();
   switch (format) {
     case "3mf":
-      return exportUsesMultiFileZip()
+      return exportUsesMultiFileZip() && !folderExportSupported()
         ? `${baseModelName(meshCache.meta)}.zip`
-        : filename3mfFor(meshCache.meta, "body");
+        : exportUsesMultiFileZip()
+          ? baseModelName(meshCache.meta)
+          : filename3mfFor(meshCache.meta, "body");
     case "stl":
       return filenameFor(meshCache.meta, "body");
     case "lid-3mf":
@@ -4513,10 +4519,16 @@ function openExportDialog(format) {
   if (plates) {
     if (plan.zipExport) {
       plates.hidden = false;
-      plates.innerHTML = [
+      const chips = [
         `<span class="export-plate-chip"><strong>container.3mf</strong> ${plan.plate1Label}</span>`,
-        `<span class="export-plate-chip"><strong>lid.3mf</strong> ${plan.plate2Label}</span>`,
-      ].join("");
+      ];
+      if (exportIncludesLidPlate()) {
+        chips.push(`<span class="export-plate-chip"><strong>lid.3mf</strong> ${plan.plate2Label}</span>`);
+      }
+      if (exportIncludesSeparateLinerFile()) {
+        chips.push(`<span class="export-plate-chip"><strong>liner.3mf</strong> ${plan.plate3Label || "Liner"}</span>`);
+      }
+      plates.innerHTML = chips.join("");
     } else if (format === "3mf" || format === "lid-3mf") {
       plates.hidden = false;
       plates.innerHTML = `<span class="export-plate-chip"><strong>Plate 1</strong> ${plan.plate1Label}</span>`;
@@ -4543,7 +4555,9 @@ function openExportDialog(format) {
   }
   if (hint) {
     if (canSave && plan.zipExport) {
-      hint.textContent = "ZIP contains container.3mf and lid.3mf — open both in Bambu Studio. Library saves the container 3MF and your sliders.";
+      hint.textContent = folderExportSupported()
+        ? "Creates a folder in Downloads with container, lid, and liner 3MFs. First export: pick Downloads once. Library saves the container 3MF and your sliders."
+        : "ZIP contains container.3mf and lid.3mf — open both in Bambu Studio. Library saves the container 3MF and your sliders.";
     } else if (canSave) {
       hint.textContent = "Library saves your sliders and art so you can reload this design later. Or use Save to library on the Design tab without exporting.";
     } else {
@@ -4576,7 +4590,10 @@ function initExportDialog() {
     const libCheck = document.getElementById("export-dialog-library");
     const libFolder = document.getElementById("export-dialog-folder");
     const ext = exportFormatExt(exportDialogFormat);
-    const filename = sanitizeExportFilename(input?.value, ext);
+    const multiFolder = exportDialogFormat === "3mf" && exportUsesMultiFileZip() && folderExportSupported();
+    const filename = multiFolder
+      ? sanitizeExportFolderName(input?.value)
+      : sanitizeExportFilename(input?.value, ext);
     const saveToLibrary = !!libCheck?.checked && bodyFormatSupportsLibrary(exportDialogFormat);
     const folder = saveToLibrary ? readLibraryFolderInput("export-dialog-folder") : "";
     if (folder) rememberLibraryFolder(folder);
@@ -4631,7 +4648,25 @@ function runExport(format, options = {}) {
             const packed = await buildBody3mfExport(exportCache, parts);
             const blob = packed.blob;
             const fname = pickExportFilename(format, options);
-            downloadBlob(blob, fname);
+            let usedFolderExport = false;
+            if (packed.zipExport && folderExportSupported()) {
+              try {
+                const folderLabel = sanitizeExportFolderName(options.filename || packed.folderName);
+                await saveFilesToExportFolder(folderLabel, packed.folderEntries);
+                usedFolderExport = true;
+              } catch (err) {
+                if (isFolderExportCancelled(err)) {
+                  if (status) setExportStatus("Export cancelled");
+                  return;
+                }
+                console.warn("MakerDeck folder export failed, falling back to ZIP:", err);
+                downloadBlob(blob, fname.endsWith(".zip") ? fname : `${fname}.zip`);
+              }
+            } else if (packed.zipExport) {
+              downloadBlob(blob, fname);
+            } else {
+              downloadBlob(blob, fname);
+            }
             const partNames = packed.zipExport
               ? [
                 parts.map((p) => p.name).join(" + "),
@@ -4670,9 +4705,11 @@ function runExport(format, options = {}) {
             if (hasOpenEdges) {
               openNote += " — avoid Bambu Repair (remeshes parts); re-export after update";
             }
-            const exportHeadline = packed.zipExport
-              ? "ZIP downloaded — open each .3mf in Bambu (container, lid, liner as needed)"
-              : `${parts.length > 1 ? `${parts.length}-part` : "Plain"} 3MF exported — ${partNames}`;
+            const exportHeadline = usedFolderExport
+              ? `Saved to Downloads/${sanitizeExportFolderName(options.filename || packed.folderName)}/ — open each .3mf in Bambu`
+              : packed.zipExport
+                ? "ZIP downloaded — open each .3mf in Bambu (container, lid, liner as needed)"
+                : `${parts.length > 1 ? `${parts.length}-part` : "Plain"} 3MF exported — ${partNames}`;
             const exportDetail = `${triCount} triangles${zipNote}${openNote}${wmNote}`;
             setExportStatus(exportHeadline, { detail: exportDetail });
             void archiveBodyExport(
