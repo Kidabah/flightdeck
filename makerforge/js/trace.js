@@ -635,8 +635,29 @@ function buildExclusiveMultiColourLayerMasks(data, width, height, fgMask, palett
   }
   return masks.map((mask, p) => ({
     rgb: palette[p],
-    mask: closeMaskHorizontal(mask, width, height, 1),
+    mask,
   }));
+}
+
+/** Drop speckle and horizontal gap-bridges on one AMS colour layer (bag + spoon stay separate). */
+function cleanMultiColourLayerMask(layerMask, tw, th) {
+  let m = layerMask;
+  const span = Math.max(tw, th);
+  const beforeFill = maskFillRatio(m, tw, th);
+  m = pruneSilhouetteMask(m, tw, th, {
+    skipOpen: true,
+    keepLogoSatellites: true,
+    minIslandRatio: 0.005,
+    maxIslandDist: span * 0.55,
+  });
+  const opened = openMask(m, tw, th);
+  if (maskFillRatio(opened) >= beforeFill * 0.9) m = opened;
+  return pruneSilhouetteMask(m, tw, th, {
+    skipOpen: true,
+    keepLogoSatellites: true,
+    minIslandRatio: 0.005,
+    maxIslandDist: span * 0.55,
+  });
 }
 
 function collectInkColorLayers(data, width, height, threshold, invert, blur) {
@@ -1433,7 +1454,11 @@ export async function traceMultiColourCanvasAsync(canvas, options = {}) {
   const usedLabels = new Map();
   for (const { rgb, mask } of layerMasks) {
     await traceYield();
-    const cropMaskLayer = extractAlignedCropMask(mask, width, height, tw, th, ox, oy);
+    const cropMaskLayer = cleanMultiColourLayerMask(
+      extractAlignedCropMask(mask, width, height, tw, th, ox, oy),
+      tw,
+      th,
+    );
     const fill = maskFillRatio(cropMaskLayer, tw, th);
     if (fill < 0.004) continue;
     const [r, g, b] = rgb;

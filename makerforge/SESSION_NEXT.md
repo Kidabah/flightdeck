@@ -4,8 +4,20 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b343** — Fix duplicate Kitchen folder chips
-- Cache-bust: `app.js?v=343` — header **b343**
+- Current: **b344** — Multi-colour trace: drop bag/spoon bridge wedge
+- Cache-bust: `app.js?v=344`, `trace.js?v=344` — header **b344**
+
+### 2026-07-15 — b344: Multi-colour trace wedge cleanup
+
+**Symptom:** Milo (and similar logos) picked up a small filled wedge between bag body and spoon handle.
+
+**Cause:** Per-colour layer masks ran horizontal morphological close, bridging narrow gaps between separate logo parts on the same scanline.
+
+**Fix:** Skip horizontal close on multi-colour layers; prune tiny islands + light open per layer (keeps bag + spoon satellites).
+
+**Files:** `js/trace.js`
+
+**Test:** Milo stack member → Art → Trace again. Wedge between bag and spoon should be gone. Hard refresh b344.
 
 ### 2026-07-15 — b343: Fix duplicate folder chips
 
