@@ -8,11 +8,12 @@ import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./
 import {
   folderExportSupported,
   folderExportBlockedReason,
+  exportFolderPickerHint,
   prepareExportFolderAccess,
   saveFilesToExportFolder,
   sanitizeExportFolderName,
   isFolderExportCancelled,
-} from "./export-folder.js?v=367";
+} from "./export-folder.js?v=368";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
 import {
@@ -4522,6 +4523,15 @@ function openExportDialog(format) {
   exportDialogFormat = format;
   const plan = describeExportPlan(format);
   input.value = suggestExportFilename(format);
+  if (hint && format === "3mf" && plan.zipExport && folderExportSupported()) {
+    const syncHint = () => {
+      hint.textContent = exportFolderPickerHint(sanitizeExportFolderName(input.value));
+    };
+    syncHint();
+    input.oninput = syncHint;
+  } else {
+    input.oninput = null;
+  }
   if (kind) kind.textContent = exportFormatLabel(format);
   if (plates) {
     if (plan.zipExport) {
@@ -4563,8 +4573,7 @@ function openExportDialog(format) {
   if (hint) {
     if (plan.zipExport) {
       if (folderExportSupported()) {
-        hint.textContent = "Chrome/Edge will ask for Downloads once — MakerDeck creates a subfolder with all 3MFs inside."
-          + (canSave ? " Library saves the container 3MF and your sliders." : "");
+        hint.textContent = exportFolderPickerHint(sanitizeExportFolderName(input?.value || suggestExportFilename(format)));
       } else {
         hint.textContent = (folderExportBlockedReason() || "ZIP contains container, lid, and liner 3MFs.")
           + (canSave ? " Library saves the container 3MF and your sliders." : "");
@@ -4613,12 +4622,12 @@ function initExportDialog() {
     let exportRootHandle = null;
     if (multiFolder) {
       try {
-        exportRootHandle = await prepareExportFolderAccess();
+        exportRootHandle = await prepareExportFolderAccess(filename);
       } catch (err) {
         if (isFolderExportCancelled(err)) {
           const hintEl = document.getElementById("export-dialog-hint");
           if (hintEl) {
-            hintEl.textContent = "Pick your Downloads folder to create the export folder there.";
+            hintEl.textContent = exportFolderPickerHint(filename);
           }
           return;
         }
@@ -4737,7 +4746,7 @@ function runExport(format, options = {}) {
               openNote += " — avoid Bambu Repair (remeshes parts); re-export after update";
             }
             const exportHeadline = usedFolderExport
-              ? `Saved to ${folderSaveResult?.rootLabel || "Downloads"}/${folderSaveResult?.folderName || sanitizeExportFolderName(options.filename || packed.folderName)}/ — open each .3mf in Bambu`
+              ? `Saved to ${folderSaveResult?.pathLabel || folderSaveResult?.folderName || sanitizeExportFolderName(options.filename || packed.folderName)}/ — open each .3mf in Bambu`
               : packed.zipExport
                 ? "ZIP downloaded — open each .3mf in Bambu (container, lid, liner as needed)"
                 : `${parts.length > 1 ? `${parts.length}-part` : "Plain"} 3MF exported — ${partNames}`;

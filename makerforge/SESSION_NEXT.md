@@ -4,8 +4,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b367** — export folder fix (picker on Export click, not after build)
-- Cache-bust: `app.js?v=367`, `export-folder.js?v=367` — header **b367**
+- Current: **b368** — export folder picker instructions (don't type name in Windows box)
+- Cache-bust: `app.js?v=368`, `export-folder.js?v=368` — header **b368**
+
+### 2026-07-15 — b368: Export folder picker UX (don't type name in Windows box)
+
+**Symptom:** Windows folder picker error "Path does not exist" when user typed export name in bottom Folder field.
+
+**Cause:** User must select **Downloads** (or New folder), not type the export name — MakerDeck creates the subfolder via API.
+
+**Fix:** First-time confirm with step-by-step instructions. Dynamic hint in export dialog. Cached Downloads handle → later exports skip picker and auto-create `{name}/` in Downloads.
+
+**Test:** Hard refresh b368 → Export → confirm → click Downloads → Select Folder (leave bottom box empty) → folder appears.
 
 ### 2026-07-15 — b367: Fix folder export (picker timing + README bytes)
 
