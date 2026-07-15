@@ -4,9 +4,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: **394037b** — b358 multi-colour export row shells
-- Current: **b358** — Multi-colour export row shells (fix 149k non-manifold)
-- Cache-bust: `app.js?v=358`, `features.js?v=358` — header **b358**
+- Current: **b359** — Flat-face multi-colour vector export (fix slice stripes)
+- Cache-bust: `app.js?v=359`, `features.js?v=359` — header **b359**
+
+### 2026-07-15 — b359: Flat-face multi-colour vector export (fix slice stripes)
+
+**Symptom:** Prepare view perfect; slice shows horizontal fragments, 189 filament changes, tiny colour usage.
+
+**Cause:** b358 used pixel row shells on flat faces — each mask row is a separate thin slab with no caps between rows; slicer sees horizontal gaps.
+
+**Fix:** Flat AMS export uses united vector solids per colour (`extrudeGroupsOnFace`), same as text export. Wrap still uses row shells.
+
+**Test:** Hard refresh b359 → re-export → slice: solid Art Black/White fills, not horizontal slivers.
 
 ### 2026-07-15 — b358: Multi-colour art export row shells (fix mesh mess)
 
