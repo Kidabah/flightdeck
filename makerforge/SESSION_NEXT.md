@@ -4,7 +4,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b359** — Flat-face multi-colour vector export (fix slice stripes)
+- Latest commit: **6e0b71b** — b359 flat-face vector export
 - Cache-bust: `app.js?v=359`, `features.js?v=359` — header **b359**
 
 ### 2026-07-15 — b359: Flat-face multi-colour vector export (fix slice stripes)
