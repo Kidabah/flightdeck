@@ -4,8 +4,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b357** — Liner rounded profile floor (no sharp AABB corners)
-- Cache-bust: `app.js?v=357`, `geometry.js?v=357` — header **b357**
+- Current: **b358** — Multi-colour export row shells (fix 149k non-manifold)
+- Cache-bust: `app.js?v=358`, `features.js?v=358` — header **b358**
+
+### 2026-07-15 — b358: Multi-colour art export row shells (fix mesh mess)
+
+**Symptom:** Container 3MF — 149k triangles, 149k+ non-manifold edges, Art Black split into hundreds of fragments in Bambu.
+
+**Cause:** Flat-face AMS export used vector contour extrusion per ink island — coffee bag line art = thousands of open meshes.
+
+**Fix:** Multi-colour layers use closed row shells (same path as single-colour trace export). Art parts via `prepareMeshFor3mf` not STL repair.
+
+**Test:** Hard refresh b358 → re-export container → Bambu: Body + Art Black + Art White + Text, no non-manifold spam.
 
 ### 2026-07-15 — b357: Liner floor matches rounded profile
 
