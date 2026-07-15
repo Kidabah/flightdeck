@@ -34,7 +34,15 @@ async function storeRootHandle(handle) {
 }
 
 export function folderExportSupported() {
-  return typeof window.showDirectoryPicker === "function";
+  return !!window.isSecureContext && typeof window.showDirectoryPicker === "function";
+}
+
+export function folderExportBlockedReason() {
+  if (folderExportSupported()) return "";
+  if (!window.isSecureContext) {
+    return "Folder export needs a secure connection (https://). A ZIP will download instead.";
+  }
+  return "This browser can't save folders directly. A ZIP will download instead.";
 }
 
 async function ensureWritePermission(handle) {
@@ -55,11 +63,12 @@ async function pickDownloadsRoot() {
   return handle;
 }
 
-async function getDownloadsRoot({ promptIfNeeded = true } = {}) {
+/** Call from Export dialog submit (user click) before any async mesh work. */
+export async function prepareExportFolderAccess() {
   let handle = await loadRootHandle();
   if (handle && await ensureWritePermission(handle)) return handle;
-  if (!promptIfNeeded) return null;
-  return pickDownloadsRoot();
+  handle = await pickDownloadsRoot();
+  return handle;
 }
 
 function normalizeFolderName(raw) {
@@ -69,10 +78,17 @@ function normalizeFolderName(raw) {
   return name || "makerdeck-export";
 }
 
+function toBytes(data) {
+  if (data instanceof Uint8Array) return data;
+  if (data instanceof ArrayBuffer) return new Uint8Array(data);
+  if (typeof data === "string") return new TextEncoder().encode(data);
+  return new Uint8Array(data);
+}
+
 function normalizeFolderFiles(files) {
   return files.map((file) => ({
     name: String(file.name).replace(/^[/\\]+/, ""),
-    data: file.data instanceof Uint8Array ? file.data : new Uint8Array(file.data),
+    data: toBytes(file.data),
   }));
 }
 
@@ -80,11 +96,11 @@ export function sanitizeExportFolderName(raw) {
   return normalizeFolderName(raw);
 }
 
-/** Write files into `{downloadsRoot}/{folderName}/`. Prompts once to pick Downloads. */
-export async function saveFilesToExportFolder(folderName, files) {
-  const root = await getDownloadsRoot();
+/** Write files into `{downloadsRoot}/{folderName}/`. Requires handle from prepareExportFolderAccess(). */
+export async function saveFilesToExportFolder(folderName, files, rootHandle) {
+  if (!rootHandle) throw new Error("No export folder access");
   const safeName = normalizeFolderName(folderName);
-  const dir = await root.getDirectoryHandle(safeName, { create: true });
+  const dir = await rootHandle.getDirectoryHandle(safeName, { create: true });
   const entries = normalizeFolderFiles(files);
   for (const file of entries) {
     const fh = await dir.getFileHandle(file.name, { create: true });
@@ -92,7 +108,13 @@ export async function saveFilesToExportFolder(folderName, files) {
     await writable.write(file.data);
     await writable.close();
   }
-  return { folderName: safeName, fileCount: entries.length, fileNames: entries.map((f) => f.name) };
+  const rootLabel = rootHandle.name || "Downloads";
+  return {
+    folderName: safeName,
+    rootLabel,
+    fileCount: entries.length,
+    fileNames: entries.map((f) => f.name),
+  };
 }
 
 export function isFolderExportCancelled(err) {

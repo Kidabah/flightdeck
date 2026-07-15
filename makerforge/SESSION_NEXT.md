@@ -4,8 +4,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b366** — export folder to Downloads (no ZIP unzip step)
-- Cache-bust: `app.js?v=366`, `export-folder.js?v=366`, `3mf.js?v=365`, `features.js?v=364` — header **b366**
+- Current: **b367** — export folder fix (picker on Export click, not after build)
+- Cache-bust: `app.js?v=367`, `export-folder.js?v=367` — header **b367**
+
+### 2026-07-15 — b367: Fix folder export (picker timing + README bytes)
+
+**Symptom:** b366 folder never appeared in Downloads.
+
+**Cause:** Directory picker ran after async mesh build — outside user click, browser blocked it (NotAllowedError → export cancelled silently). README.txt was a raw string (bad bytes on write).
+
+**Fix:** Pick Downloads on Export dialog submit (while click is active), pass handle through to write after build. TextEncoder for README. Secure-context check with ZIP fallback message on http://.
+
+**Test:** Hard refresh b367 → Export → pick Downloads when prompted → folder with 3MFs appears during/after build.
 
 ### 2026-07-15 — b366: Export folder straight to Downloads (not ZIP)
 

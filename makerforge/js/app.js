@@ -5,7 +5,14 @@ import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLim
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=355";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=201";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=365";
-import { folderExportSupported, saveFilesToExportFolder, sanitizeExportFolderName, isFolderExportCancelled } from "./export-folder.js?v=366";
+import {
+  folderExportSupported,
+  folderExportBlockedReason,
+  prepareExportFolderAccess,
+  saveFilesToExportFolder,
+  sanitizeExportFolderName,
+  isFolderExportCancelled,
+} from "./export-folder.js?v=367";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
 import {
@@ -4554,10 +4561,14 @@ function openExportDialog(format) {
     void populateLibraryFolderOptions("export-folder-options");
   }
   if (hint) {
-    if (canSave && plan.zipExport) {
-      hint.textContent = folderExportSupported()
-        ? "Creates a folder in Downloads with container, lid, and liner 3MFs. First export: pick Downloads once. Library saves the container 3MF and your sliders."
-        : "ZIP contains container.3mf and lid.3mf — open both in Bambu Studio. Library saves the container 3MF and your sliders.";
+    if (plan.zipExport) {
+      if (folderExportSupported()) {
+        hint.textContent = "Chrome/Edge will ask for Downloads once — MakerDeck creates a subfolder with all 3MFs inside."
+          + (canSave ? " Library saves the container 3MF and your sliders." : "");
+      } else {
+        hint.textContent = (folderExportBlockedReason() || "ZIP contains container, lid, and liner 3MFs.")
+          + (canSave ? " Library saves the container 3MF and your sliders." : "");
+      }
     } else if (canSave) {
       hint.textContent = "Library saves your sliders and art so you can reload this design later. Or use Save to library on the Design tab without exporting.";
     } else {
@@ -4584,7 +4595,7 @@ function initExportDialog() {
     e.preventDefault();
     closeExportDialog(null);
   });
-  form.addEventListener("submit", (e) => {
+  form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const input = document.getElementById("export-dialog-filename");
     const libCheck = document.getElementById("export-dialog-library");
@@ -4598,7 +4609,24 @@ function initExportDialog() {
     const folder = saveToLibrary ? readLibraryFolderInput("export-dialog-folder") : "";
     if (folder) rememberLibraryFolder(folder);
     localStorage.setItem("makerdeck-export-save-library", saveToLibrary ? "1" : "0");
-    closeExportDialog({ filename, saveToLibrary, folder });
+
+    let exportRootHandle = null;
+    if (multiFolder) {
+      try {
+        exportRootHandle = await prepareExportFolderAccess();
+      } catch (err) {
+        if (isFolderExportCancelled(err)) {
+          const hintEl = document.getElementById("export-dialog-hint");
+          if (hintEl) {
+            hintEl.textContent = "Pick your Downloads folder to create the export folder there.";
+          }
+          return;
+        }
+        console.warn("MakerDeck export folder access failed:", err);
+      }
+    }
+
+    closeExportDialog({ filename, saveToLibrary, folder, exportRootHandle });
   });
 }
 
@@ -4649,19 +4677,22 @@ function runExport(format, options = {}) {
             const blob = packed.blob;
             const fname = pickExportFilename(format, options);
             let usedFolderExport = false;
-            if (packed.zipExport && folderExportSupported()) {
+            let folderSaveResult = null;
+            if (packed.zipExport && folderExportSupported() && options.exportRootHandle) {
               try {
                 const folderLabel = sanitizeExportFolderName(options.filename || packed.folderName);
-                await saveFilesToExportFolder(folderLabel, packed.folderEntries);
+                folderSaveResult = await saveFilesToExportFolder(
+                  folderLabel,
+                  packed.folderEntries,
+                  options.exportRootHandle,
+                );
                 usedFolderExport = true;
               } catch (err) {
-                if (isFolderExportCancelled(err)) {
-                  if (status) setExportStatus("Export cancelled");
-                  return;
-                }
                 console.warn("MakerDeck folder export failed, falling back to ZIP:", err);
                 downloadBlob(blob, fname.endsWith(".zip") ? fname : `${fname}.zip`);
               }
+            } else if (packed.zipExport && folderExportSupported() && !options.exportRootHandle) {
+              downloadBlob(blob, fname.endsWith(".zip") ? fname : `${fname}.zip`);
             } else if (packed.zipExport) {
               downloadBlob(blob, fname);
             } else {
@@ -4706,7 +4737,7 @@ function runExport(format, options = {}) {
               openNote += " — avoid Bambu Repair (remeshes parts); re-export after update";
             }
             const exportHeadline = usedFolderExport
-              ? `Saved to Downloads/${sanitizeExportFolderName(options.filename || packed.folderName)}/ — open each .3mf in Bambu`
+              ? `Saved to ${folderSaveResult?.rootLabel || "Downloads"}/${folderSaveResult?.folderName || sanitizeExportFolderName(options.filename || packed.folderName)}/ — open each .3mf in Bambu`
               : packed.zipExport
                 ? "ZIP downloaded — open each .3mf in Bambu (container, lid, liner as needed)"
                 : `${parts.length > 1 ? `${parts.length}-part` : "Plain"} 3MF exported — ${partNames}`;
