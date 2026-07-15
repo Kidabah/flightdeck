@@ -26,7 +26,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b339";
+const MAKERDECK_BUILD = "b341";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -2173,6 +2173,25 @@ function initLibrarySave() {
   });
   folderInput?.addEventListener("focus", () => void populateLibraryFolderOptions());
   void populateLibraryFolderOptions();
+}
+
+function initCategoryCollapse() {
+  const storageKey = "makerdeck-collapse-open";
+  let saved = {};
+  try {
+    saved = JSON.parse(localStorage.getItem(storageKey) || "{}");
+  } catch {
+    saved = {};
+  }
+  document.querySelectorAll("details.section-collapse[data-collapse]").forEach((details) => {
+    const id = details.dataset.collapse;
+    if (!id) return;
+    if (saved[id]) details.open = true;
+    details.addEventListener("toggle", () => {
+      saved[id] = details.open;
+      localStorage.setItem(storageKey, JSON.stringify(saved));
+    });
+  });
 }
 
 async function refreshLibraryFolderNav() {
@@ -6018,6 +6037,7 @@ document.getElementById("btn-export-go")?.addEventListener("click", async () => 
 
 initExportDialog();
 initLibrarySave();
+initCategoryCollapse();
 
 function resize() {
   const w = viewport.clientWidth;

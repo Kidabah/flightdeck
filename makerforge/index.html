@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Oswald:wght@700&family=Roboto+Mono:wght@700&family=Roboto:wght@700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=31">
+  <link rel="stylesheet" href="css/style.css?v=33">
 
   <script type="importmap">
 
@@ -44,7 +44,7 @@
 
         <div class="topbar-brand">
 
-          <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b339</span></div>
+          <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b341</span></div>
 
           <h1>Container Generator</h1>
 
@@ -147,6 +147,32 @@
 
           <div class="tab-panel active" id="tab-design" role="tabpanel">
 
+            <section class="section section-library-save" id="section-library-save">
+
+              <div class="library-save-header">
+                <h2>Library</h2>
+                <button type="button" class="btn btn-primary btn-sm" id="btn-save-to-library">Save to library</button>
+              </div>
+
+              <div class="library-save-row">
+                <label class="field">
+                  <span class="field-label">Name</span>
+                  <input type="text" id="library-save-name" class="text-input" placeholder="Coffee canister 250g" autocomplete="off" spellcheck="false">
+                </label>
+
+                <label class="field">
+                  <span class="field-label">Folder</span>
+                  <input type="text" id="library-save-folder" class="text-input" list="library-folder-options" placeholder="Kitchen (optional)" autocomplete="off" spellcheck="false">
+                  <datalist id="library-folder-options"></datalist>
+                </label>
+              </div>
+
+              <p id="library-save-status" class="field-hint library-save-status"></p>
+
+            </section>
+
+
+
             <section class="section">
 
               <h2>Shape</h2>
@@ -239,9 +265,11 @@
 
 
 
-            <section class="section" id="section-edges">
+            <details class="section section-collapse" id="section-edges" data-collapse="edges">
 
-              <h2>Edges <span class="unit unit-len">mm</span></h2>
+              <summary class="collapse-summary">Edges <span class="unit unit-len">mm</span></summary>
+
+              <div class="collapse-body">
 
               <label class="field" id="field-sides">
 
@@ -273,13 +301,17 @@
 
               </label>
 
-            </section>
+              </div>
+
+            </details>
 
 
 
-            <section class="section hidden" id="section-vase">
+            <details class="section section-collapse hidden" id="section-vase" data-collapse="vase">
 
-              <h2>Vase style</h2>
+              <summary class="collapse-summary">Vase style</summary>
+
+              <div class="collapse-body">
 
               <p class="field-hint">Print in <strong>Vase mode</strong> (spiral outer wall) for the smoothest finish. Walls thinner than 1.6 mm need the printer's vase / spiralize option.</p>
 
@@ -442,13 +474,17 @@
 
               </label>
 
-            </section>
+              </div>
+
+            </details>
 
 
 
-            <section class="section" id="section-classic-size">
+            <details class="section section-collapse" id="section-classic-size" data-collapse="size">
 
-              <h2 id="label-inner-size">Inner size <span class="unit unit-len">mm</span></h2>
+              <summary class="collapse-summary"><span id="label-inner-size">Inner size <span class="unit unit-len">mm</span></span></summary>
+
+              <div class="collapse-body">
 
               <label class="field">
 
@@ -480,13 +516,17 @@
 
               </label>
 
-            </section>
+              </div>
+
+            </details>
 
 
 
-            <section class="section" id="section-walls">
+            <details class="section section-collapse" id="section-walls" data-collapse="walls">
 
-              <h2>Walls <span class="unit unit-len">mm</span></h2>
+              <summary class="collapse-summary">Walls <span class="unit unit-len">mm</span></summary>
+
+              <div class="collapse-body">
 
               <label class="field">
 
@@ -537,7 +577,9 @@
                 </label>
               </div>
 
-            </section>
+              </div>
+
+            </details>
 
 
 
@@ -554,31 +596,6 @@
               </div>
 
               <p class="field-hint">Body only — set lid colour on the <strong>Lid</strong> tab.</p>
-
-            </section>
-
-
-
-            <section class="section" id="section-library-save">
-
-              <h2>Library</h2>
-
-              <p class="field-hint">Save this design without exporting — reload sliders and art anytime.</p>
-
-              <label class="field">
-                <span class="field-label">Name</span>
-                <input type="text" id="library-save-name" class="text-input" placeholder="Coffee canister 250g" autocomplete="off" spellcheck="false">
-              </label>
-
-              <label class="field">
-                <span class="field-label">Folder</span>
-                <input type="text" id="library-save-folder" class="text-input" list="library-folder-options" placeholder="Kitchen (optional)" autocomplete="off" spellcheck="false">
-                <datalist id="library-folder-options"></datalist>
-              </label>
-
-              <button type="button" class="btn btn-primary" id="btn-save-to-library">Save to library</button>
-
-              <p id="library-save-status" class="field-hint library-save-status"></p>
 
             </section>
 
@@ -1325,7 +1342,7 @@
     </form>
   </dialog>
 
-  <script type="module" src="js/app.js?v=339"></script>
+  <script type="module" src="js/app.js?v=341"></script>
 
 </body>
 

@@ -4,8 +4,24 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b339** — Design tab Save to library + folders
-- Cache-bust: `app.js?v=339`, `library.js?v=339`, `style.css?v=31` — header **b339**
+- Current: **b341** — Per-category collapsible sliders on Design tab
+- Cache-bust: `app.js?v=341`, `style.css?v=33` — header **b341**
+
+### 2026-07-15 — b341: Collapse sliders by category
+
+**What:** Edges, Inner size, Walls, and Vase each get their own collapsible panel (default closed). Library save stays at top of Design tab. Open/closed state remembered per category.
+
+**Files:** `index.html`, `css/style.css`, `js/app.js`
+
+**Test:** Design tab → expand only the section you need. Hard refresh for b341.
+
+### 2026-07-15 — b340: Library at top + collapsible Fine tune
+
+**What:** Save to library moved to top of Design tab (compact name/folder row). Edges, inner size, walls, and vase sliders tucked under collapsed **Fine tune** details (remembers open/closed).
+
+**Files:** `index.html`, `css/style.css`, `js/app.js`
+
+**Test:** Design tab → library bar at top. Fine tune collapsed by default; expand for sliders. Hard refresh for b340.
 
 ### 2026-07-15 — b339: Save to library from Design tab + folders
 
