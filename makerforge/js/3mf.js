@@ -742,8 +742,16 @@ export function filename3mfFor(meta, part = "body") {
 }
 
 /** Pack arbitrary files into a minimal store-only ZIP (browser-safe, no CDN). */
-export function createZipArchiveBlob(files, { mimeType = "application/zip" } = {}) {
-  const zipped = createZipStore(files);
+export function createZipArchiveBlob(files, { mimeType = "application/zip", rootFolder = "" } = {}) {
+  const folder = String(rootFolder || "").replace(/^[/\\]+|[/\\]+$/g, "");
+  const prefix = folder ? `${folder}/` : "";
+  const entries = prefix
+    ? files.map((file) => ({
+      ...file,
+      name: file.name.startsWith(prefix) ? file.name : `${prefix}${file.name.replace(/^[/\\]+/, "")}`,
+    }))
+    : files;
+  const zipped = createZipStore(entries);
   return new Blob([zipped], { type: mimeType });
 }
 

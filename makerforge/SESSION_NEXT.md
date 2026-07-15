@@ -4,8 +4,16 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b362** — Single AMS-painted mesh (fix floating regions)
-- Cache-bust: `app.js?v=362`, `features.js?v=362` — header **b362**
+- Current: **b363** — ZIP root folder (7-Zip extract-to-folder)
+- Cache-bust: `app.js?v=363`, `3mf.js?v=363` — header **b363**
+
+### 2026-07-15 — b363: ZIP root folder for clean extract
+
+**Request:** Multi-file export ZIP should unpack into a folder named like the zip (7-Zip / Explorer ready for slicer).
+
+**Fix:** `createZipArchiveBlob({ rootFolder })` — entries live under `box-94x94x127mm/` matching zip basename. Liner-only exports also use `.zip` when applicable.
+
+**Test:** Export ZIP → extract → one folder with container/lid/liner 3MFs + README.
 
 ### 2026-07-15 — b362: Single AMS-painted body (fix floating regions)
 

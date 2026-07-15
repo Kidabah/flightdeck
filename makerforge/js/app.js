@@ -4,7 +4,7 @@ import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBuf
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, buildMergedAmsExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=362";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=355";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=201";
-import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=356";
+import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=363";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
 import {
@@ -26,7 +26,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b362";
+const MAKERDECK_BUILD = "b363";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -1165,12 +1165,13 @@ function exportIncludesLidPlate() {
 const CONTAINER_EXPORT_README = [
   "MakerDeck container export",
   "",
-  "1. *-container.3mf — one AMS-painted body (filament per triangle) + accent if enabled.",
-  "2. *-lid.3mf — lid on the build plate; do NOT flip in Bambu.",
-  "3. *-liner.3mf — food-safe cup on the build plate; open this file on its own (not inside container).",
-  "4. Bambu should show H2D + Generic PLA @BBL H2D filament slots — not the box filename.",
-  "4. Optional: Lid breakaway supports in Design if nest-groove bridging fails.",
-  "5. Avoid Bambu Repair on multi-colour AMS files — it remeshes parts.",
+  "1. Extract the ZIP — files unpack into a folder matching the zip name (7-Zip / Explorer).",
+  "2. Open *-container.3mf from that folder in Bambu (one AMS-painted Body + accent if enabled).",
+  "3. *-lid.3mf — lid on the build plate; do NOT flip in Bambu.",
+  "4. *-liner.3mf — food-safe cup; open on its own (not inside container).",
+  "5. Bambu should show H2D + Generic PLA @BBL H2D filament slots — not the box filename.",
+  "6. Optional: Lid breakaway supports in Design if nest-groove bridging fails.",
+  "7. Avoid Bambu Repair on multi-colour AMS files — it remeshes parts.",
 ].join("\n");
 
 async function buildBody3mfExport(exportCache, parts) {
@@ -1218,7 +1219,7 @@ async function buildBody3mfExport(exportCache, parts) {
   }
 
   zipEntries.push({ name: "README.txt", data: CONTAINER_EXPORT_README });
-  const zipBlob = createZipArchiveBlob(zipEntries);
+  const zipBlob = createZipArchiveBlob(zipEntries, { rootFolder: projectName });
   return {
     blob: zipBlob,
     zipExport: true,
@@ -4377,7 +4378,7 @@ function meshBounds(mesh) {
 }
 
 function exportFormatExt(format) {
-  if (format === "3mf" && exportIncludesLidPlate()) return ".zip";
+  if (format === "3mf" && exportUsesMultiFileZip()) return ".zip";
   return format === "3mf" || format === "lid-3mf" ? ".3mf" : ".stl";
 }
 
@@ -4403,7 +4404,7 @@ function suggestExportFilename(format) {
   if (!meshCache) rebuild();
   switch (format) {
     case "3mf":
-      return exportIncludesLidPlate()
+      return exportUsesMultiFileZip()
         ? `${baseModelName(meshCache.meta)}.zip`
         : filename3mfFor(meshCache.meta, "body");
     case "stl":
