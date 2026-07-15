@@ -4,8 +4,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b347** — Fix trace const assignment crash
-- Cache-bust: `app.js?v=347`, `trace.js?v=347` — header **b347**
+- Current: **b348** — Restore spoon handle (gentle trace speck prune)
+- Cache-bust: `app.js?v=348`, `trace.js?v=348` — header **b348**
+
+### 2026-07-15 — b348: Stop cutting spoon handles on trace
+
+**Symptom:** b346 aggressive erode/split clipped thin spoon handle while trying to remove bag/spoon wedge.
+
+**Fix:** Reverted morphological neck removal. Multi-colour trace only drops tiny disconnected specks — keeps thin parts like spoon handles.
+
+**Files:** `js/trace.js`, `js/app.js`, `index.html`
+
+**Test:** Trace Milo graphic → full spoon handle → Apply. Wedge may remain; try threshold ~140–170. Hard refresh b348.
 
 ### 2026-07-15 — b347: Fix trace crash (const assignment)
 
