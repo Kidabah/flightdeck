@@ -4,8 +4,16 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Latest commit: **6e0b71b** — b359 flat-face vector export
-- Cache-bust: `app.js?v=359`, `features.js?v=359` — header **b359**
+- Current: **b360** — Multi-colour via buildEmbossBitmap (dragons cooler path)
+- Cache-bust: `app.js?v=360`, `features.js?v=360` — header **b360**
+
+### 2026-07-15 — b360: Multi-colour export = buildEmbossBitmap per layer (dragons cooler path)
+
+**Symptom:** b358/b359 still wrong in slicer — Prepare OK, slice garbage.
+
+**Fix:** Each AMS colour layer routes through golden `buildEmbossBitmap` — same path as dragons beer cooler (b302) and single-colour coffee bag. Wrap → `buildWrapGoldenSlabEmboss`; flat line-art → layer-height row shells (not fineRows, not vector islands).
+
+**Test:** Hard refresh b360 → re-export → slice should match cooler-quality fills.
 
 ### 2026-07-15 — b359: Flat-face multi-colour vector export (fix slice stripes)
 

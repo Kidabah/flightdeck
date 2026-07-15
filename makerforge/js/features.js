@@ -2939,64 +2939,19 @@ function multiColourLayerShapeGroups(mask, maskW, maskH, params) {
   return finishExportShapeGroups(groups, params);
 }
 
-/** One AMS colour layer → closed row-shell solid (flat + wrap). Avoids vector contour island spam. */
-function buildMultiColourLayerRowShellEmboss(frame, mask, maskW, maskH, params, d0, d1) {
-  let slabW = maskW;
-  let slabH = maskH;
-  let slabMask = mask instanceof Uint8Array ? mask : Uint8Array.from(mask || []);
-  const maxCells = params?.__multiColourAmsExport
-    ? MULTI_COLOUR_EXPORT_MAX_CELLS
-    : MULTI_COLOUR_PREVIEW_MAX_CELLS;
-  if (slabW * slabH > maxCells) {
-    const ds = downsampleEmbossMaskToFit(slabMask, slabW, slabH, maxCells);
-    slabMask = ds.mask;
-    slabW = ds.maskW;
-    slabH = ds.maskH;
-  }
-  const slabBitmap = ensureEmbossBitmapMask({
-    mask: slabMask,
-    width: slabW,
-    height: slabH,
-    mode: "silhouette",
-    outlineRaster: true,
-  });
-  return buildWrapTraceSlabMesh(frame, slabBitmap, params, [], d0, d1, {
-    fineRows: wrapSlabUseFineRows(params),
-  });
-}
-
-/** Vector contour extrusion for one multi-colour layer — smooth wrap curves (not pixel row shells). */
-function buildMultiColourContourEmboss(meta, params, traceData, layer) {
+/** Per AMS colour layer — golden buildEmbossBitmap (dragons cooler / coffee-bag path). */
+function buildMultiColourLayerEmboss(meta, params, traceData, layer) {
   const { mask, maskW, maskH } = fitMultiColourLayerMask(layer, traceData.width, traceData.height, params);
-  const frame = getEmbossFaceFrame(meta, params.embossFace || "front", params);
-  const { d0, d1 } = labelOffsets(params);
-
-  // Wrap — ink-mask row shells (coffee-bag golden path).
-  if (frame.face === "wrap") {
-    const slab = buildMultiColourLayerRowShellEmboss(frame, mask, maskW, maskH, params, d0, d1);
-    if (slab?.indices?.length) return slab;
-    return null;
-  }
-
-  // Flat preview — row shells (fast).
-  if (!isLabelExport(params)) {
-    const slab = buildMultiColourLayerRowShellEmboss(frame, mask, maskW, maskH, params, d0, d1);
-    if (slab?.indices?.length) return slab;
-    return null;
-  }
-
-  // Flat AMS export — united vector solids (row shells stripe in slicers; same rule as text export).
-  const shapeGroups = multiColourLayerShapeGroups(mask, maskW, maskH, params);
-  if (!shapeGroups.length) return null;
-  const bitmap = { width: maskW, height: maskH };
-  const artH = params.embossTraceSize ?? 16;
-  const faceGroups = remappedBitmapFaceGroups(bitmap, frame, params, shapeGroups, maskW, maskH, artH);
-  if (!faceGroups?.length) return null;
-
-  const positions = [];
-  const indices = [];
-  extrudeGroupsOnFace(positions, indices, frame, faceGroups, d0, d1, params);
-  return positions.length ? { positions, indices } : null;
+  const bitmap = ensureEmbossBitmapMask({
+    mask,
+    width: maskW,
+    height: maskH,
+    mode: traceData.mode || layer.mode || "silhouette",
+    outlineRaster: !!(traceData.outlineRaster || layer.outlineRaster),
+    colorLogo: !!(traceData.colorLogo || layer.colorLogo),
+    maskFillPct: layer.maskFillPct ?? traceData.maskFillPct,
+  });
+  return buildEmbossBitmap(meta, params, bitmap);
 }
 
 /** Per-colour wrap/front emboss meshes for multi-colour logo traces. */
@@ -3005,7 +2960,7 @@ export function buildMultiColourGraphicEmboss(meta, params, traceData) {
   const parts = [];
   for (const layer of traceData.colorLayers) {
     if (!layer.mask?.length && !layer.shapeGroups?.length) continue;
-    const mesh = buildMultiColourContourEmboss(meta, params, traceData, layer);
+    const mesh = buildMultiColourLayerEmboss(meta, params, traceData, layer);
     if (mesh?.indices?.length) {
       parts.push({
         mesh,
