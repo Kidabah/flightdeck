@@ -4,8 +4,16 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b354** — Black + white trace (2 AMS colours for coffee bag)
-- Cache-bust: `app.js?v=354`, `trace.js?v=354`, `geometry.js?v=354` — header **b354**
+- Current: **b355** — Liner solid floor + export-time B&W colour merge
+- Cache-bust: `app.js?v=355`, `trace.js?v=355`, `geometry.js?v=355` — header **b355**
+
+### 2026-07-15 — b355: Liner solid floor + export greyscale merge
+
+**Symptom:** *-liner.3mf sliced as hollow walls only (no base). Container still exported 6 grey AMS art layers from old trace.
+
+**Fix:** Liner bottom = solid `cupOuter` cap (plate-down) + annulus walls. Export/load merges greyscale colour layers to Black + White even without re-trace.
+
+**Test:** Re-export ZIP → liner has solid first layer; container shows Body + Art Black + Art White + Text.
 
 ### 2026-07-15 — b354: Black + white trace (2 AMS slots, not 6 greys)
 

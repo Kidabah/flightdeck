@@ -1,8 +1,8 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=354";
+import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=355";
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=336";
-import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=354";
+import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=355";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=201";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=353";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
@@ -26,7 +26,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b354";
+const MAKERDECK_BUILD = "b355";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -1045,6 +1045,14 @@ function resolveBodyExportMesh(exportCache, params, separateText, stamp = null) 
   return finalizeBodyExportMesh(mesh, exportCache.meta, params, stamp);
 }
 
+function traceRectsForExport(rects) {
+  if (!rects?.multiColour || !rects.colorLayers?.length) return rects;
+  return normalizeMultiColourTraceData(rects, {
+    threshold: state.traceThreshold ?? 128,
+    traceMode: state.traceMode,
+  });
+}
+
 function collectColoredExportParts(exportCache, stamp = null, { includeLiner = true } = {}) {
   if (!exportCache) return [];
   const params = buildParams();
@@ -1080,7 +1088,7 @@ function collectColoredExportParts(exportCache, stamp = null, { includeLiner = t
       });
     }
     if (separateArt) {
-      const traceData = params.embossTraceRects;
+      const traceData = traceRectsForExport(params.embossTraceRects);
       if (traceData?.multiColour && traceData.colorLayers?.length) {
         const colourParts = buildMultiColourGraphicEmboss(exportCache.meta, exportParams, traceData);
         for (const cp of colourParts || []) {
@@ -1915,6 +1923,11 @@ function deserializeEmbossTraceRects(stored) {
     delete out.mask;
     out.maskStale = true;
   }
+  const normalized = normalizeMultiColourTraceData(out, {
+    threshold: state.traceThreshold ?? 128,
+    traceMode: state.traceMode,
+  });
+  if (normalized !== out) return cloneEmbossTraceRects(normalized);
   return cloneEmbossTraceRects(out);
 }
 
@@ -3955,25 +3968,30 @@ async function handleTraceFile(file) {
 
 function traceResultToEmbossRects(result) {
   if (result.multiColour && result.colorLayers?.length) {
-    return {
+    const base = {
       rects: [],
       mask: [],
       silhouetteMask: [],
       polygons: [],
       shapeGroups: [],
       strokePaths: [],
-      mode: "multi-colour",
+      mode: result.mode || state.traceMode || "multi-colour",
       multiColour: true,
       colorLayers: cloneColourLayers(result.colorLayers),
       colorLayerCount: result.colorLayerCount ?? result.colorLayers.length,
       rawColourBucketCount: result.rawColourBucketCount,
       colourPaletteMerged: !!result.colourPaletteMerged,
+      binaryBlackWhite: !!result.binaryBlackWhite,
       autoTrace: false,
       width: result.width,
       height: result.height,
       cropOx: result.cropOx,
       cropOy: result.cropOy,
     };
+    return normalizeMultiColourTraceData(base, {
+      threshold: state.traceThreshold ?? 128,
+      traceMode: state.traceMode,
+    });
   }
   const silMask = result.silhouetteMask?.length
     ? (result.silhouetteMask instanceof Uint8Array ? result.silhouetteMask.slice() : Uint8Array.from(result.silhouetteMask))

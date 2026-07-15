@@ -1967,11 +1967,9 @@ export function buildCavityLiner(resolved, params) {
   const positions = [];
   const indices = [];
 
-  // Simple open-top cup — no flange shelf (Bambu read it as a solid lid on the liner).
-  capProfileSolid(positions, indices, cupInner, zFloor, true);
-  capProfileAnnulus(positions, indices, cupOuter, cupInner, zFloor, false);
-  extrudeProfileSides(positions, indices, cupOuter, zFloor, zCupTop, true);
-  extrudeProfileSides(positions, indices, cupInner, zFloor, zCupTop, false);
+  // Solid bottom plate + annulus walls (inner cap + downward annulus was skipped by Bambu slice).
+  capProfileSolid(positions, indices, cupOuter, zFloor, false);
+  extrudeProfileAnnulusSides(positions, indices, cupOuter, cupInner, zFloor, zCupTop);
 
   return positions.length ? { positions, indices } : null;
 }

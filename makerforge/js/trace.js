@@ -641,6 +641,80 @@ function buildBinaryBlackWhiteLayerMasks(data, width, height, fgMask, threshold 
   ];
 }
 
+function layerRgb(layer) {
+  if (layer.rgb?.length === 3) return layer.rgb;
+  const hex = String(layer.hex || "").replace("#", "");
+  if (hex.length < 6) return [128, 128, 128];
+  return [parseInt(hex.slice(0, 2), 16), parseInt(hex.slice(2, 4), 16), parseInt(hex.slice(4, 6), 16)];
+}
+
+function layerIsGreyscale(layer) {
+  const [r, g, b] = layerRgb(layer);
+  return Math.max(r, g, b) - Math.min(r, g, b) < 50;
+}
+
+/** Merge stored greyscale AMS layers down to Black + White (export / library / old traces). */
+export function collapseGreyscaleColorLayers(layers, width, height, { threshold = 128, force = false } = {}) {
+  if (!layers?.length || layers.length <= 2) return layers;
+  const expected = width * height;
+  if (expected <= 0) return layers;
+  const greyscaleOnly = force || layers.every(layerIsGreyscale);
+  if (!greyscaleOnly) return layers;
+
+  const dark = new Uint8Array(expected);
+  const light = new Uint8Array(expected);
+  for (const layer of layers) {
+    if (!layer.mask?.length) continue;
+    const m = layer.mask instanceof Uint8Array ? layer.mask : Uint8Array.from(layer.mask);
+    const [r, g, b] = layerRgb(layer);
+    const lum = r * 0.299 + g * 0.587 + b * 0.114;
+    const target = lum < threshold ? dark : light;
+    for (let i = 0; i < Math.min(m.length, expected); i++) {
+      if (m[i]) target[i] = 1;
+    }
+  }
+
+  const out = [];
+  for (const [rgb, mask, label] of [[[0, 0, 0], dark, "Black"], [[255, 255, 255], light, "White"]]) {
+    const fill = maskFillRatio(mask, width, height);
+    if (fill < 0.004) continue;
+    out.push({
+      rgb,
+      hex: rgbToHex(...rgb),
+      label,
+      mask,
+      rects: maskToRuns(mask, width, height),
+      maskFillPct: Math.round(fill * 100),
+      shapeGroups: [],
+    });
+  }
+  return out.length >= 2 ? out : layers;
+}
+
+/** Normalise multi-colour trace data before preview/export — fixes old 6-grey coffee-bag traces. */
+export function normalizeMultiColourTraceData(traceData, { threshold = 128, traceMode } = {}) {
+  if (!traceData?.multiColour || !traceData.colorLayers?.length) return traceData;
+  const force = traceMode === "black-white";
+  const shouldCollapse = force
+    || (traceData.colorLayers.length > 2 && traceData.colorLayers.every(layerIsGreyscale));
+  if (!shouldCollapse) return traceData;
+  const collapsed = collapseGreyscaleColorLayers(
+    traceData.colorLayers,
+    traceData.width,
+    traceData.height,
+    { threshold, force },
+  );
+  if (collapsed === traceData.colorLayers) return traceData;
+  return {
+    ...traceData,
+    colorLayers: collapsed,
+    colorLayerCount: collapsed.length,
+    binaryBlackWhite: true,
+    colourPaletteMerged: true,
+    rawColourBucketCount: traceData.rawColourBucketCount ?? traceData.colorLayers.length,
+  };
+}
+
 /** One mask per palette entry — each ink pixel assigned to nearest AMS colour (no overlap). */
 function buildExclusiveMultiColourLayerMasks(data, width, height, fgMask, palette) {
   const masks = palette.map(() => new Uint8Array(width * height));
