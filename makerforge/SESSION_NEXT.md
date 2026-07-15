@@ -4,8 +4,16 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b336** — Solid nest lid top (no groove air gap)
-- Cache-bust: `app.js?v=336`, `geometry.js?v=314`, `features.js?v=334` — header **b336**
+- Current: **b337** — Flat stack lid + 1 mm positioning lip only
+- Cache-bust: `app.js?v=337`, `geometry.js?v=315`, `features.js?v=335` — header **b337**
+
+### 2026-07-15 — b337: 1 mm stack lip (no nest groove)
+
+**What:** Dropped nest groove/seating pocket entirely. Stack lids = flat top + **1 mm** outer positioning lip (anti-slide only). Presets updated for square stack set + round stack set.
+
+**Files:** `js/features.js`, `js/geometry.js`, `js/app.js`, `index.html`
+
+**Test:** Square stack set → lid preview is flat with thin outer fence; re-export lid 3MF on b337.
 
 ### 2026-07-15 — b336: Solid nest lid top (removed groove trench)
 

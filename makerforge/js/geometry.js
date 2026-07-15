@@ -25,7 +25,7 @@ import {
   shapeSupportsProfileTexture,
   shapeSupportsProfileArt,
   shapeSupportsArt,
-} from "./features.js?v=334";
+} from "./features.js?v=335";
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=161";
 import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=161";
@@ -1487,7 +1487,7 @@ function buildFlatLidMesh(boxOuter, boxInner, meta, params, options) {
   }
   let lidHeight = lidThickness + lipDepth;
   if (params?.stackableEnabled && (params.stackStyle || "hex") === "nest") {
-    const rimHeight = clamp(params.stackNestRimHeight ?? 2.8, 1.5, 6);
+    const rimHeight = clamp(params.stackNestRimHeight ?? 1, 0.8, 2.5);
     lidHeight = lidThickness + rimHeight;
   }
   return {
@@ -2331,16 +2331,16 @@ export const CANISTER_SQUARE_PRESET = {
   canisterSize: "md",
 };
 
-/** 250 g square kitchen trio — Coffee · Sugar · Milo, nest-stack lids. */
+/** 250 g square kitchen trio — Coffee · Sugar · Milo, stack lids with 1 mm positioning lip. */
 export const CANISTER_SQUARE_SET_PRESET = {
   ...CANISTER_SQUARE_PRESET,
   lidThickness: 2.8,
   lidLipDepth: 0,
   stackableEnabled: true,
   stackStyle: "nest",
-  stackNestRimWidth: 5,
-  stackNestRimHeight: 2.8,
-  stackNestDepth: 4,
+  stackNestRimWidth: 1,
+  stackNestRimHeight: 1,
+  stackNestDepth: 0,
   stackClearance: 0.35,
   canisterContent: "coffee",
   canisterSize: "md",
@@ -2381,7 +2381,7 @@ export const CANISTER_JAR_PRESET = {
   canisterSize: "md",
 };
 
-/** Uniform 250 g round jars — nest-stack lids, single-letter labels (C/S/M). */
+/** Uniform 250 g round jars — stack lids, single-letter labels (C/S/M). */
 export const CANISTER_STACK_PRESET = {
   innerWidth: 94,
   innerDepth: 94,
@@ -2400,9 +2400,9 @@ export const CANISTER_STACK_PRESET = {
   lidGasketExportRing: true,
   stackableEnabled: true,
   stackStyle: "nest",
-  stackNestRimWidth: 5,
-  stackNestRimHeight: 2.8,
-  stackNestDepth: 4,
+  stackNestRimWidth: 1,
+  stackNestRimHeight: 1,
+  stackNestDepth: 0,
   stackClearance: 0.35,
   insertEnabled: false,
   joinerEnabled: false,
@@ -2569,9 +2569,9 @@ export const DEFAULTS = {
   stackHexSize: 2.8,
   stackFootHeight: 1.4,
   stackClearance: 0.35,
-  stackNestRimWidth: 5,
-  stackNestRimHeight: 2.8,
-  stackNestDepth: 4,
+  stackNestRimWidth: 1,
+  stackNestRimHeight: 1,
+  stackNestDepth: 0,
   lidColor: "",
   insertEnabled: false,
   insertAxis: "length",

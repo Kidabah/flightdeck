@@ -1128,15 +1128,15 @@ export function buildFlatLidGasketRing(boxOuter, params) {
 }
 
 /**
- * Nest-stack flat lid — solid top plate + raised outer lip (kitchen tower jars).
- * The next jar registers inside the lip; no top groove trench (that read as an air gap in slicers).
+ * Stack flat lid — solid top + thin positioning lip at the outer edge.
+ * Stops the next canister sliding sideways; no groove or nest pocket.
  */
 export function appendNestStackLidRim(outPos, outIdx, boxOuter, params, lidThickness) {
   const outerR = profileMaxRadius(boxOuter);
   if (outerR < 8) return;
 
-  const rimWidth = clamp(params.stackNestRimWidth ?? 5, 3, 12);
-  const rimHeight = clamp(params.stackNestRimHeight ?? 2.8, 1.5, 6);
+  const rimWidth = clamp(params.stackNestRimWidth ?? 1, 0.8, 3);
+  const rimHeight = clamp(params.stackNestRimHeight ?? 1, 0.8, 2.5);
   const rimInner = offsetProfileInward(boxOuter, rimWidth);
   if (!profileIsValid(rimInner)) return;
 
