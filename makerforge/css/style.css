@@ -641,6 +641,38 @@ input[type="range"] {
   margin-top: 4px;
 }
 
+.library-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.library-folders {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.library-folder-btn {
+  border: 1px solid var(--border);
+  background: rgba(15, 23, 42, 0.45);
+  color: var(--text, #e2e8f0);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.library-folder-btn.active {
+  border-color: #0ea5e9;
+  background: rgba(14, 165, 233, 0.18);
+}
+
+.library-main {
+  min-width: 0;
+}
+
 .library-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
@@ -703,6 +735,10 @@ input[type="range"] {
 
 .library-status {
   margin-top: 10px;
+}
+
+.library-save-status {
+  margin-top: 8px;
 }
 
 .field-toggle {

@@ -5134,10 +5134,49 @@ async def makerdeck_save_export(request: Request):
         raise HTTPException(status_code=exc.status, detail=str(exc))
 
 
+@app.post("/api/makerdeck/designs", status_code=201)
+async def makerdeck_save_design(request: Request):
+    try:
+        form = await request.form()
+    except Exception as exc:
+        raise HTTPException(status_code=413, detail=str(exc)) from exc
+
+    thumb_field = form.get("thumbnail")
+    thumb_data = b""
+    if thumb_field is not None and hasattr(thumb_field, "read"):
+        thumb_data = await thumb_field.read()
+
+    trace_field = form.get("trace_image")
+    trace_data = b""
+    if trace_field is not None and hasattr(trace_field, "read"):
+        trace_data = await trace_field.read()
+
+    meta_field = form.get("meta")
+    meta = meta_field if isinstance(meta_field, str) else ""
+
+    try:
+        return makerdeck_library.save_design(
+            library_root=_print_library_path().resolve(),
+            data_dir=DATA_DIR,
+            meta_json=meta,
+            safe_join_under=_safe_join_under,
+            thumbnail_bytes=thumb_data or None,
+            trace_image_bytes=trace_data or None,
+        )
+    except makerdeck_library.MakerDeckLibraryError as exc:
+        raise HTTPException(status_code=exc.status, detail=str(exc))
+
+
 @app.get("/api/makerdeck/designs")
-async def makerdeck_list_designs(limit: int = 50):
+async def makerdeck_list_designs(limit: int = 50, folder: str | None = None):
     makerdeck_library.ensure_compact_manifest(DATA_DIR, _print_library_path().resolve(), _safe_join_under)
-    return {"designs": makerdeck_library.recent_designs(DATA_DIR, limit)}
+    return {"designs": makerdeck_library.recent_designs(DATA_DIR, limit, folder)}
+
+
+@app.get("/api/makerdeck/folders")
+async def makerdeck_list_folders():
+    makerdeck_library.ensure_compact_manifest(DATA_DIR, _print_library_path().resolve(), _safe_join_under)
+    return {"folders": makerdeck_library.list_folders(DATA_DIR)}
 
 
 @app.get("/api/makerdeck/designs/{design_id}/thumbnail")

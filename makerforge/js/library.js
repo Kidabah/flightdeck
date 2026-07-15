@@ -1,4 +1,4 @@
-/** MakerDeck design library — auto-save exports for reloading prior designs. */
+/** MakerDeck design library — save designs and exports for reloading prior work. */
 
 export function libraryApiAvailable() {
   return window.location.protocol !== "file:" && window.location.origin.length > 0;
@@ -41,7 +41,45 @@ export function leanStateForLibrary(state) {
   return out;
 }
 
-export async function saveExportToLibrary({ blob, filename, format, part, state, stamp, thumbnail, traceImage }) {
+function normalizeLibraryFolder(raw) {
+  return String(raw || "").trim().replace(/\\/g, "/").split("/")[0].trim();
+}
+
+export async function saveDesignToLibrary({ name, folder, state, stamp, thumbnail, traceImage }) {
+  if (!libraryApiAvailable()) throw new Error("Design library needs MakerDeck inside Flightdeck.");
+  const form = new FormData();
+  form.append(
+    "meta",
+    JSON.stringify({
+      name: String(name || "Untitled design").trim() || "Untitled design",
+      folder: normalizeLibraryFolder(folder),
+      format: "design",
+      part: "body",
+      exported_at: new Date().toISOString(),
+      watermark_serial: stamp?.serial ?? null,
+      state: leanStateForLibrary(state || {}),
+    }),
+  );
+  const thumbBlob = dataUrlToBlob(thumbnail);
+  if (thumbBlob) form.append("thumbnail", thumbBlob, "thumb.jpg");
+  const traceBlob = dataUrlToBlob(traceImage);
+  if (traceBlob) form.append("trace_image", traceBlob, "trace.jpg");
+
+  const res = await fetch("/api/makerdeck/designs", { method: "POST", body: form });
+  if (!res.ok) {
+    let detail = await res.text();
+    try {
+      const parsed = JSON.parse(detail);
+      if (parsed?.detail) detail = String(parsed.detail);
+    } catch {
+      /* plain text */
+    }
+    throw new Error(detail || `Design library save failed (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function saveExportToLibrary({ blob, filename, format, part, state, stamp, thumbnail, traceImage, folder }) {
   if (!libraryApiAvailable() || !blob) return null;
   const form = new FormData();
   form.append("file", blob, filename);
@@ -49,6 +87,7 @@ export async function saveExportToLibrary({ blob, filename, format, part, state,
     "meta",
     JSON.stringify({
       name: filename.replace(/\.[^.]+$/, ""),
+      folder: normalizeLibraryFolder(folder),
       format,
       part,
       exported_at: new Date().toISOString(),
@@ -75,12 +114,22 @@ export async function saveExportToLibrary({ blob, filename, format, part, state,
   return res.json();
 }
 
-export async function listLibraryDesigns(limit = 50) {
+export async function listLibraryDesigns(limit = 50, folder = undefined) {
   if (!libraryApiAvailable()) return [];
-  const res = await fetch(`/api/makerdeck/designs?limit=${limit}`);
+  let url = `/api/makerdeck/designs?limit=${limit}`;
+  if (folder !== undefined) url += `&folder=${encodeURIComponent(folder)}`;
+  const res = await fetch(url);
   if (!res.ok) throw new Error(`Could not load design library (${res.status})`);
   const payload = await res.json();
   return Array.isArray(payload?.designs) ? payload.designs : [];
+}
+
+export async function listLibraryFolders() {
+  if (!libraryApiAvailable()) return [];
+  const res = await fetch("/api/makerdeck/folders");
+  if (!res.ok) throw new Error(`Could not load library folders (${res.status})`);
+  const payload = await res.json();
+  return Array.isArray(payload?.folders) ? payload.folders : [];
 }
 
 export async function fetchDesignParams(designId) {

@@ -17,6 +17,7 @@ IMPORTS_FILENAME = "makerdeck_designs.json"
 IMPORT_SUBDIR = "MakerDeck"
 SIDECAR_SUFFIX = ".makerdeck.json"
 _MAX_DESIGNS = 100
+_FOLDER_RE = re.compile(r"[^\w\s\-]+", re.UNICODE)
 
 
 class MakerDeckLibraryError(Exception):
@@ -67,7 +68,31 @@ def _public_record(row: dict[str, Any]) -> dict[str, Any]:
         "thumbnail_path": thumb_path,
         "has_thumbnail": has_thumb,
         "size": row.get("size"),
+        "folder": row.get("folder") or "",
     }
+
+
+def _normalize_folder(raw: str | None) -> str:
+    s = str(raw or "").strip().replace("\\", "/")
+    if not s:
+        return ""
+    s = s.split("/")[0].strip()
+    s = _FOLDER_RE.sub("", s).strip()
+    return s[:48]
+
+
+def _stem_from_name(name: str) -> str:
+    stem = re.sub(r"[^\w\-]+", "-", name.strip().lower()).strip("-")
+    return stem[:48] or "design"
+
+
+def _unique_sidecar_stem(folder: Path, stem: str, safe_join_under: Callable[..., Path]) -> str:
+    candidate = stem
+    sidecar = safe_join_under(folder, f"{candidate}{SIDECAR_SUFFIX}", missing_ok=True)
+    if sidecar.exists():
+        stamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        candidate = f"{stem}_{stamp}"
+    return candidate
 
 
 def _write_thumbnail_bytes(
@@ -128,8 +153,12 @@ def _parse_meta(raw: str) -> dict[str, Any]:
 def _vault_folder(
     library_root: Path,
     safe_join_under: Callable[..., Path],
+    subfolder: str = "",
 ) -> Path:
     folder = safe_join_under(library_root.resolve(), IMPORT_SUBDIR, missing_ok=True)
+    subfolder = _normalize_folder(subfolder)
+    if subfolder:
+        folder = safe_join_under(folder, subfolder, missing_ok=True)
     folder.mkdir(parents=True, exist_ok=True)
     return folder
 
@@ -151,7 +180,8 @@ def save_export(
 
     meta = _parse_meta(meta_json)
     safe_name = safe_basename(filename, "makerdeck-export")
-    folder = _vault_folder(library_root, safe_join_under)
+    folder_name = _normalize_folder(meta.get("folder"))
+    folder = _vault_folder(library_root, safe_join_under, folder_name)
     dest = safe_join_under(folder, safe_name, missing_ok=True)
     if dest.exists():
         stem = dest.stem
@@ -189,6 +219,7 @@ def save_export(
         "name": name,
         "format": fmt,
         "part": part,
+        "folder": folder_name,
         "exported_at": exported_at,
         "watermark_serial": meta.get("watermark_serial"),
         "vault_path": vault_rel,
@@ -211,6 +242,83 @@ def save_export(
         "thumbnail_path": thumbnail_path,
         "has_thumbnail": bool(thumbnail_path),
         "size": len(file_bytes),
+        "folder": folder_name,
+    }
+
+    rows = load_designs(data_dir)
+    rows = [row for row in rows if row.get("id") != design_id]
+    rows.insert(0, record)
+    save_designs(data_dir, rows)
+
+    return {
+        "ok": True,
+        "design": _public_record(record),
+    }
+
+
+def save_design(
+    *,
+    library_root: Path,
+    data_dir: Path,
+    meta_json: str,
+    safe_join_under: Callable[..., Path],
+    thumbnail_bytes: bytes | None = None,
+    trace_image_bytes: bytes | None = None,
+) -> dict[str, Any]:
+    meta = _parse_meta(meta_json)
+    name = str(meta.get("name") or "Untitled design").strip() or "Untitled design"
+    folder_name = _normalize_folder(meta.get("folder"))
+    folder = _vault_folder(library_root, safe_join_under, folder_name)
+
+    design_id = str(meta.get("id") or uuid.uuid4().hex[:12])
+    exported_at = str(meta.get("exported_at") or _utc_now())
+    thumbnail = str(meta.get("thumbnail") or "")
+    state = meta.get("state") if isinstance(meta.get("state"), dict) else {}
+    trace_image = meta.get("traceImage") if isinstance(meta.get("traceImage"), str) else ""
+
+    stem = _unique_sidecar_stem(folder, _stem_from_name(name), safe_join_under)
+    if thumbnail_bytes:
+        thumbnail_path = _write_thumbnail_bytes(folder, stem, thumbnail_bytes, library_root, safe_join_under)
+    else:
+        thumbnail_path = _write_thumbnail_file(folder, stem, thumbnail, library_root, safe_join_under)
+
+    trace_image_path = None
+    if trace_image_bytes:
+        trace_file = safe_join_under(folder, f"{stem}.trace.jpg", missing_ok=True)
+        trace_file.write_bytes(trace_image_bytes)
+        trace_image_path = trace_file.relative_to(library_root.resolve()).as_posix()
+        trace_image = ""
+
+    sidecar = safe_join_under(folder, f"{stem}{SIDECAR_SUFFIX}", missing_ok=True)
+    sidecar_payload = {
+        "id": design_id,
+        "name": name,
+        "format": "design",
+        "part": "body",
+        "folder": folder_name,
+        "exported_at": exported_at,
+        "watermark_serial": meta.get("watermark_serial"),
+        "vault_path": "",
+        "state": state,
+        "traceImage": trace_image,
+        "trace_image_path": trace_image_path,
+    }
+    sidecar.write_text(json.dumps(sidecar_payload, indent=2), encoding="utf-8")
+    sidecar_rel = sidecar.relative_to(library_root.resolve()).as_posix()
+
+    record = {
+        "id": design_id,
+        "name": name,
+        "format": "design",
+        "part": "body",
+        "exported_at": exported_at,
+        "watermark_serial": meta.get("watermark_serial"),
+        "vault_path": "",
+        "sidecar_path": sidecar_rel,
+        "thumbnail_path": thumbnail_path,
+        "has_thumbnail": bool(thumbnail_path),
+        "size": 0,
+        "folder": folder_name,
     }
 
     rows = load_designs(data_dir)
@@ -257,10 +365,29 @@ def ensure_compact_manifest(
         save_designs(data_dir, rows)
 
 
-def recent_designs(data_dir: Path, limit: int = 50) -> list[dict[str, Any]]:
+def recent_designs(
+    data_dir: Path,
+    limit: int = 50,
+    folder: str | None = None,
+) -> list[dict[str, Any]]:
     rows = load_designs(data_dir)
+    if folder is not None:
+        if folder == "":
+            rows = [row for row in rows if not _normalize_folder(row.get("folder"))]
+        else:
+            norm = _normalize_folder(folder)
+            rows = [row for row in rows if _normalize_folder(row.get("folder")) == norm]
     cap = max(1, min(limit, _MAX_DESIGNS))
     return [_public_record(row) for row in rows[:cap]]
+
+
+def list_folders(data_dir: Path) -> list[str]:
+    names: set[str] = set()
+    for row in load_designs(data_dir):
+        folder = _normalize_folder(row.get("folder"))
+        if folder:
+            names.add(folder)
+    return sorted(names, key=str.lower)
 
 
 def _find_design(data_dir: Path, design_id: str) -> dict[str, Any] | None:

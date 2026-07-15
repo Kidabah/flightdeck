@@ -4,8 +4,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b338** — Hardcoded 1 mm stack lip (ignores stale session)
-- Cache-bust: `app.js?v=338`, `geometry.js?v=316`, `features.js?v=336` — header **b338**
+- Current: **b339** — Design tab Save to library + folders
+- Cache-bust: `app.js?v=339`, `library.js?v=339`, `style.css?v=31` — header **b339**
+
+### 2026-07-15 — b339: Save to library from Design tab + folders
+
+**What:** Save designs directly from the Design tab (params + thumbnail + trace, no export required). Optional folder name on save; Library tab filters by folder (All / Unfiled / named folders). Export dialog also accepts a library folder.
+
+**Files:** `app/makerdeck_library.py`, `app/main.py`, `js/library.js`, `js/app.js`, `index.html`, `css/style.css`
+
+**Backend restart required** on Pi (new `/api/makerdeck/designs` POST + `/api/makerdeck/folders` GET).
+
+**Test:** Design tab → name + folder “Kitchen” → Save to library. Library tab → Kitchen filter shows it. Load restores sliders/art.
 
 ### 2026-07-15 — b338: Hardcode 1 mm stack lip
 

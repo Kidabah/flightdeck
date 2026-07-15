@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=315";
+import { buildContainer, buildLid, orientLidForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=316";
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=336";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=305";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=201";
@@ -17,14 +17,16 @@ import {
   libraryApiAvailable,
   capturePreviewThumbnail,
   saveExportToLibrary,
+  saveDesignToLibrary,
   listLibraryDesigns,
+  listLibraryFolders,
   fetchDesignParams,
   deleteLibraryDesign,
-} from "./library.js?v=201";
+} from "./library.js?v=339";
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b338";
+const MAKERDECK_BUILD = "b339";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -2027,7 +2029,7 @@ async function compressDataUrl(dataUrl, maxDim = 480, quality = 0.72) {
   });
 }
 
-async function archiveBodyExport(blob, filename, { format, stamp, saveToLibrary = false }) {
+async function archiveBodyExport(blob, filename, { format, stamp, saveToLibrary = false, folder = "" }) {
   if (!saveToLibrary || !libraryApiAvailable()) return null;
   try {
     renderer.render(scene, camera);
@@ -2040,6 +2042,7 @@ async function archiveBodyExport(blob, filename, { format, stamp, saveToLibrary 
       format,
       part: "body",
       stamp,
+      folder,
       thumbnail,
       traceImage,
       state: stateForSession(),
@@ -2064,8 +2067,137 @@ function notifyLibrarySaved(design) {
   if (currentTabId === "library") void refreshLibraryUi();
   if (!design) return;
   const status = document.getElementById("library-status");
-  if (status && currentTabId === "library") {
-    status.textContent = `Saved “${design.name || "design"}”.`;
+  const saveStatus = document.getElementById("library-save-status");
+  const label = design.name || "design";
+  if (status && currentTabId === "library") status.textContent = `Saved “${label}”.`;
+  if (saveStatus && currentTabId === "design") saveStatus.textContent = `Saved “${label}” to library.`;
+}
+
+function formatLibraryFormat(format) {
+  const f = String(format || "").toLowerCase();
+  if (f === "design") return "Design";
+  return f.toUpperCase() || "?";
+}
+
+function suggestLibrarySaveName() {
+  if (!meshCache) rebuild();
+  return suggestExportFilename("stl").replace(/\.[^.]+$/, "");
+}
+
+function readLibraryFolderInput(id = "library-save-folder") {
+  return String(document.getElementById(id)?.value || "").trim();
+}
+
+function rememberLibraryFolder(folder) {
+  const value = String(folder || "").trim();
+  if (value) localStorage.setItem("makerdeck-library-folder", value);
+}
+
+async function populateLibraryFolderOptions(datalistId = "library-folder-options") {
+  const datalist = document.getElementById(datalistId);
+  if (!datalist || !libraryApiAvailable()) return;
+  try {
+    const folders = await listLibraryFolders();
+    datalist.innerHTML = "";
+    for (const folder of folders) {
+      const opt = document.createElement("option");
+      opt.value = folder;
+      datalist.appendChild(opt);
+    }
+  } catch {
+    /* optional */
+  }
+}
+
+async function saveCurrentDesignToLibrary() {
+  const nameInput = document.getElementById("library-save-name");
+  const folderInput = document.getElementById("library-save-folder");
+  const status = document.getElementById("library-save-status");
+  const btn = document.getElementById("btn-save-to-library");
+  if (!libraryApiAvailable()) {
+    if (status) status.textContent = "Design library needs MakerDeck inside Flightdeck.";
+    return;
+  }
+  const name = String(nameInput?.value || suggestLibrarySaveName()).trim() || suggestLibrarySaveName();
+  const folder = readLibraryFolderInput();
+  rememberLibraryFolder(folder);
+  if (btn) btn.disabled = true;
+  if (status) status.textContent = "Saving…";
+  try {
+    renderer.render(scene, camera);
+    const thumbnail = await compressDataUrl(capturePreviewThumbnail(renderer), 480, 0.72);
+    const traceRaw = traceSourceCanvas ? traceSourceCanvas.toDataURL("image/jpeg", 0.82) : null;
+    const traceImage = traceRaw ? await compressDataUrl(traceRaw, 640, 0.7) : null;
+    const params = buildParams();
+    const stamp = params.watermarkEnabled !== false ? acquireWatermarkStamp() : null;
+    const payload = {
+      name,
+      folder,
+      stamp,
+      thumbnail,
+      traceImage,
+      state: stateForSession(),
+    };
+    let result;
+    try {
+      result = await saveDesignToLibrary(payload);
+    } catch (err) {
+      if (traceImage) {
+        result = await saveDesignToLibrary({ ...payload, traceImage: null });
+      } else {
+        throw err;
+      }
+    }
+    const design = result?.design || null;
+    if (nameInput && !nameInput.value.trim()) nameInput.value = design?.name || name;
+    notifyLibrarySaved(design);
+    void populateLibraryFolderOptions();
+  } catch (err) {
+    if (status) status.textContent = formatLibraryError(err);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+let libraryFolderFilter = undefined;
+
+function initLibrarySave() {
+  const btn = document.getElementById("btn-save-to-library");
+  const nameInput = document.getElementById("library-save-name");
+  const folderInput = document.getElementById("library-save-folder");
+  const savedFolder = localStorage.getItem("makerdeck-library-folder") || "";
+  if (folderInput && savedFolder) folderInput.value = savedFolder;
+  btn?.addEventListener("click", () => void saveCurrentDesignToLibrary());
+  nameInput?.addEventListener("focus", () => {
+    if (!nameInput.value.trim()) nameInput.value = suggestLibrarySaveName();
+  });
+  folderInput?.addEventListener("focus", () => void populateLibraryFolderOptions());
+  void populateLibraryFolderOptions();
+}
+
+async function refreshLibraryFolderNav() {
+  const nav = document.getElementById("library-folders");
+  if (!nav) return;
+  nav.innerHTML = "";
+  const mkBtn = (label, value, active) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = `library-folder-btn${active ? " active" : ""}`;
+    btn.textContent = label;
+    btn.addEventListener("click", () => {
+      libraryFolderFilter = value;
+      void refreshLibraryUi();
+    });
+    nav.appendChild(btn);
+  };
+  mkBtn("All", undefined, libraryFolderFilter === undefined);
+  mkBtn("Unfiled", "", libraryFolderFilter === "");
+  if (!libraryApiAvailable()) return;
+  try {
+    const folders = await listLibraryFolders();
+    for (const folder of folders) mkBtn(folder, folder, libraryFolderFilter === folder);
+  } catch {
+    /* nav still shows All / Unfiled */
   }
 }
 
@@ -2082,6 +2214,7 @@ async function refreshLibraryUi() {
   const grid = document.getElementById("library-grid");
   const status = document.getElementById("library-status");
   if (!grid) return;
+  await refreshLibraryFolderNav();
   if (!libraryApiAvailable()) {
     grid.innerHTML = "";
     if (status) status.textContent = "Design library needs MakerDeck inside Flightdeck (not a local file).";
@@ -2089,10 +2222,15 @@ async function refreshLibraryUi() {
   }
   if (status) status.textContent = "Loading…";
   try {
-    const designs = await listLibraryDesigns(48);
+    const designs = await listLibraryDesigns(48, libraryFolderFilter);
     grid.innerHTML = "";
     if (!designs.length) {
-      if (status) status.textContent = "No saved designs yet — download a body STL or 3MF to add one.";
+      const folderHint = libraryFolderFilter === undefined
+        ? "Save from the Design tab or tick “Save to library” when exporting."
+        : libraryFolderFilter === ""
+          ? "No unfiled designs."
+          : `No designs in “${libraryFolderFilter}”.`;
+      if (status) status.textContent = folderHint;
       return;
     }
     for (const design of designs) {
@@ -2113,7 +2251,7 @@ async function refreshLibraryUi() {
         img.alt = "";
         thumb.appendChild(img);
       } else {
-        thumb.textContent = (design.format || "?").toUpperCase();
+        thumb.textContent = formatLibraryFormat(design.format);
       }
       const body = document.createElement("div");
       body.className = "library-card-body";
@@ -2123,7 +2261,8 @@ async function refreshLibraryUi() {
       const meta = document.createElement("p");
       meta.className = "library-card-meta";
       const serial = design.watermark_serial ? ` · #${String(design.watermark_serial).padStart(4, "0")}` : "";
-      meta.textContent = `${(design.format || "").toUpperCase()}${serial} · ${formatLibraryWhen(design.exported_at)}`;
+      const folderLabel = design.folder ? `${design.folder} · ` : "";
+      meta.textContent = `${folderLabel}${formatLibraryFormat(design.format)}${serial} · ${formatLibraryWhen(design.exported_at)}`;
       const actions = document.createElement("div");
       actions.className = "library-card-actions";
       const loadBtn = document.createElement("button");
@@ -2926,6 +3065,7 @@ function setTab(tabId) {
   scheduleSaveSession();
   syncArtEditorUi();
   if (tabId === "library") void refreshLibraryUi();
+  if (tabId === "design") void populateLibraryFolderOptions();
 }
 
 function clearEmbossTrace() {
@@ -4114,6 +4254,8 @@ function openExportDialog(format) {
   const partsLine = document.getElementById("export-dialog-parts");
   const libWrap = document.getElementById("export-dialog-library-wrap");
   const libCheck = document.getElementById("export-dialog-library");
+  const libFolderWrap = document.getElementById("export-dialog-folder-wrap");
+  const libFolder = document.getElementById("export-dialog-folder");
   const hint = document.getElementById("export-dialog-hint");
   if (!dialog || !input) return Promise.resolve(null);
 
@@ -4144,14 +4286,19 @@ function openExportDialog(format) {
 
   const canSave = bodyFormatSupportsLibrary(format) && libraryApiAvailable();
   if (libWrap) libWrap.hidden = !canSave;
+  if (libFolderWrap) libFolderWrap.hidden = !canSave;
   if (libCheck && canSave) {
     libCheck.checked = localStorage.getItem("makerdeck-export-save-library") !== "0";
+  }
+  if (libFolder && canSave) {
+    libFolder.value = localStorage.getItem("makerdeck-library-folder") || "";
+    void populateLibraryFolderOptions("export-folder-options");
   }
   if (hint) {
     if (canSave && plan.zipExport) {
       hint.textContent = "ZIP contains container.3mf and lid.3mf — open both in Bambu Studio. Library saves the container 3MF and your sliders.";
     } else if (canSave) {
-      hint.textContent = "Library saves your sliders and art so you can reload this design later.";
+      hint.textContent = "Library saves your sliders and art so you can reload this design later. Or use Save to library on the Design tab without exporting.";
     } else {
       hint.textContent = "Only body STL and 3MF can be saved to the design library.";
     }
@@ -4180,11 +4327,14 @@ function initExportDialog() {
     e.preventDefault();
     const input = document.getElementById("export-dialog-filename");
     const libCheck = document.getElementById("export-dialog-library");
+    const libFolder = document.getElementById("export-dialog-folder");
     const ext = exportFormatExt(exportDialogFormat);
     const filename = sanitizeExportFilename(input?.value, ext);
     const saveToLibrary = !!libCheck?.checked && bodyFormatSupportsLibrary(exportDialogFormat);
+    const folder = saveToLibrary ? readLibraryFolderInput("export-dialog-folder") : "";
+    if (folder) rememberLibraryFolder(folder);
     localStorage.setItem("makerdeck-export-save-library", saveToLibrary ? "1" : "0");
-    closeExportDialog({ filename, saveToLibrary });
+    closeExportDialog({ filename, saveToLibrary, folder });
   });
 }
 
@@ -4274,7 +4424,7 @@ function runExport(format, options = {}) {
             void archiveBodyExport(
               packed.zipExport ? packed.containerBlob : blob,
               packed.zipExport ? packed.containerFile : fname,
-              { format: "3mf", stamp, saveToLibrary: options.saveToLibrary },
+              { format: "3mf", stamp, saveToLibrary: options.saveToLibrary, folder: options.folder || "" },
             ).then((result) => {
               let headline = exportHeadline;
               let detail = exportDetail;
@@ -4318,7 +4468,7 @@ function runExport(format, options = {}) {
         const stlName = pickExportFilename(format, options);
         downloadBlob(stlBlob, stlName);
         const status = document.getElementById("export-status");
-        void archiveBodyExport(stlBlob, stlName, { format: "stl", stamp, saveToLibrary: options.saveToLibrary }).then((result) => {
+        void archiveBodyExport(stlBlob, stlName, { format: "stl", stamp, saveToLibrary: options.saveToLibrary, folder: options.folder || "" }).then((result) => {
           if (result?.error) {
             if (status) {
               status.textContent = `STL downloaded${stamp ? ` · watermark #${String(stamp.serial).padStart(4, "0")}` : ""} · library failed: ${result.error}`;
@@ -5867,6 +6017,7 @@ document.getElementById("btn-export-go")?.addEventListener("click", async () => 
 });
 
 initExportDialog();
+initLibrarySave();
 
 function resize() {
   const w = viewport.clientWidth;
