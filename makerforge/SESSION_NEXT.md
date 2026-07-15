@@ -4,8 +4,20 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b342** — In-app delete confirm, fix library save size limit, folder UX
-- Cache-bust: `app.js?v=342`, `style.css?v=34` — header **b342**
+- Current: **b343** — Fix duplicate Kitchen folder chips
+- Cache-bust: `app.js?v=343` — header **b343**
+
+### 2026-07-15 — b343: Fix duplicate folder chips
+
+**Symptom:** Library tab showed four identical **Kitchen** folder buttons.
+
+**Cause:** Parallel library refreshes each appended folder chips after fetch (race). Backend now case-folds folder names for dedupe.
+
+**Fix:** Stale-refresh guard on folder nav + UI refresh; unique folder list on frontend.
+
+**Files:** `app/makerdeck_library.py`, `js/app.js`
+
+**Test:** Library tab → one **Kitchen** chip only. Hard refresh b343.
 
 ### 2026-07-15 — b342: Library delete dialog + save size fix + folder UX
 

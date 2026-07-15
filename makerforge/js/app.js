@@ -26,7 +26,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b342";
+const MAKERDECK_BUILD = "b343";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -2196,7 +2196,7 @@ async function populateLibraryFolderOptions(datalistId = "library-folder-options
   const datalist = document.getElementById(datalistId);
   if (!datalist || !libraryApiAvailable()) return;
   try {
-    const folders = await listLibraryFolders();
+    const folders = uniqueLibraryFolders(await listLibraryFolders());
     datalist.innerHTML = "";
     for (const folder of folders) {
       const opt = document.createElement("option");
@@ -2267,6 +2267,52 @@ async function saveCurrentDesignToLibrary() {
 }
 
 let libraryFolderFilter = undefined;
+let libraryFolderNavGen = 0;
+let libraryUiRefreshGen = 0;
+
+function uniqueLibraryFolders(folders) {
+  const seen = new Map();
+  for (const raw of folders || []) {
+    const folder = String(raw || "").trim();
+    if (!folder) continue;
+    const key = folder.toLowerCase();
+    if (!seen.has(key)) seen.set(key, folder);
+  }
+  return [...seen.values()].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+}
+
+async function refreshLibraryFolderNav(refreshGen = libraryUiRefreshGen) {
+  const nav = document.getElementById("library-folders");
+  if (!nav) return;
+  const navGen = ++libraryFolderNavGen;
+  nav.innerHTML = "";
+  const mkBtn = (label, value, active) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = `library-folder-btn${active ? " active" : ""}`;
+    btn.textContent = label;
+    btn.addEventListener("click", () => {
+      libraryFolderFilter = value;
+      void refreshLibraryUi();
+    });
+    nav.appendChild(btn);
+  };
+  mkBtn("All", undefined, libraryFolderFilter === undefined);
+  mkBtn("Unfiled", "", libraryFolderFilter === "");
+  if (!libraryApiAvailable()) return;
+  try {
+    const folders = uniqueLibraryFolders(await listLibraryFolders());
+    if (navGen !== libraryFolderNavGen || refreshGen !== libraryUiRefreshGen) return;
+    for (const folder of folders) {
+      const active = typeof libraryFolderFilter === "string"
+        && libraryFolderFilter !== ""
+        && folder.toLowerCase() === libraryFolderFilter.toLowerCase();
+      mkBtn(folder, folder, active);
+    }
+  } catch {
+    /* nav still shows All / Unfiled */
+  }
+}
 
 function initLibrarySave() {
   const btn = document.getElementById("btn-save-to-library");
@@ -2304,32 +2350,6 @@ function initCategoryCollapse() {
   });
 }
 
-async function refreshLibraryFolderNav() {
-  const nav = document.getElementById("library-folders");
-  if (!nav) return;
-  nav.innerHTML = "";
-  const mkBtn = (label, value, active) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = `library-folder-btn${active ? " active" : ""}`;
-    btn.textContent = label;
-    btn.addEventListener("click", () => {
-      libraryFolderFilter = value;
-      void refreshLibraryUi();
-    });
-    nav.appendChild(btn);
-  };
-  mkBtn("All", undefined, libraryFolderFilter === undefined);
-  mkBtn("Unfiled", "", libraryFolderFilter === "");
-  if (!libraryApiAvailable()) return;
-  try {
-    const folders = await listLibraryFolders();
-    for (const folder of folders) mkBtn(folder, folder, libraryFolderFilter === folder);
-  } catch {
-    /* nav still shows All / Unfiled */
-  }
-}
-
 function formatLibraryWhen(iso) {
   if (!iso) return "";
   try {
@@ -2343,7 +2363,9 @@ async function refreshLibraryUi() {
   const grid = document.getElementById("library-grid");
   const status = document.getElementById("library-status");
   if (!grid) return;
-  await refreshLibraryFolderNav();
+  const refreshGen = ++libraryUiRefreshGen;
+  await refreshLibraryFolderNav(refreshGen);
+  if (refreshGen !== libraryUiRefreshGen) return;
   if (!libraryApiAvailable()) {
     grid.innerHTML = "";
     if (status) status.textContent = "Design library needs MakerDeck inside Flightdeck (not a local file).";
@@ -2352,6 +2374,7 @@ async function refreshLibraryUi() {
   if (status) status.textContent = "Loading…";
   try {
     const designs = await listLibraryDesigns(48, libraryFolderFilter);
+    if (refreshGen !== libraryUiRefreshGen) return;
     grid.innerHTML = "";
     if (!designs.length) {
       const folderHint = libraryFolderFilter === undefined

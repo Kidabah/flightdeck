@@ -376,18 +376,25 @@ def recent_designs(
             rows = [row for row in rows if not _normalize_folder(row.get("folder"))]
         else:
             norm = _normalize_folder(folder)
-            rows = [row for row in rows if _normalize_folder(row.get("folder")) == norm]
+            norm_key = norm.casefold()
+            rows = [
+                row for row in rows
+                if _normalize_folder(row.get("folder")).casefold() == norm_key
+            ]
     cap = max(1, min(limit, _MAX_DESIGNS))
     return [_public_record(row) for row in rows[:cap]]
 
 
 def list_folders(data_dir: Path) -> list[str]:
-    names: set[str] = set()
+    seen: dict[str, str] = {}
     for row in load_designs(data_dir):
         folder = _normalize_folder(row.get("folder"))
-        if folder:
-            names.add(folder)
-    return sorted(names, key=str.lower)
+        if not folder:
+            continue
+        key = folder.casefold()
+        if key not in seen:
+            seen[key] = folder
+    return sorted(seen.values(), key=str.lower)
 
 
 def _find_design(data_dir: Path, design_id: str) -> dict[str, Any] | None:
