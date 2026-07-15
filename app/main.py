@@ -76,6 +76,7 @@ _scale = Scale()
 _label_printer = LabelPrinter()
 _MAX_PRINT_FILE_BYTES = int(os.getenv("FLIGHTDECK_MAX_PRINT_FILE_MB", "2048")) * 1024 * 1024
 _MAX_PROFILE_UPLOAD_BYTES = int(os.getenv("FLIGHTDECK_MAX_PROFILE_UPLOAD_MB", "64")) * 1024 * 1024
+_MAX_MAKERDECK_DESIGN_PART_BYTES = int(os.getenv("FLIGHTDECK_MAKERDECK_DESIGN_PART_MB", "8")) * 1024 * 1024
 _MAX_FLIGHT_RECORDER_BYTES = int(os.getenv("FLIGHTDECK_MAX_FLIGHT_RECORDER_MB", "2048")) * 1024 * 1024
 _QUEUE_ACTIVE_STALE_GRACE_SECONDS = int(os.getenv("FLIGHTDECK_QUEUE_ACTIVE_STALE_GRACE_SECONDS", "480"))
 _UPLOAD_READ_CHUNK_BYTES = 1024 * 1024
@@ -5137,7 +5138,7 @@ async def makerdeck_save_export(request: Request):
 @app.post("/api/makerdeck/designs", status_code=201)
 async def makerdeck_save_design(request: Request):
     try:
-        form = await request.form()
+        form = await request.form(max_part_size=_MAX_MAKERDECK_DESIGN_PART_BYTES)
     except Exception as exc:
         raise HTTPException(status_code=413, detail=str(exc)) from exc
 

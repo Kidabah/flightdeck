@@ -4,8 +4,20 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b341** — Per-category collapsible sliders on Design tab
-- Cache-bust: `app.js?v=341`, `style.css?v=33` — header **b341**
+- Current: **b342** — In-app delete confirm, fix library save size limit, folder UX
+- Cache-bust: `app.js?v=342`, `style.css?v=34` — header **b342**
+
+### 2026-07-15 — b342: Library delete dialog + save size fix + folder UX
+
+**Symptom:** Save failed with `400: Part exceeded maximum size of 1024KB`; browser `confirm()` on delete; folder not obvious after save.
+
+**Fix:** Design save endpoint allows 8 MB parts (was Starlette 1 MB default). Trace/thumbnail compress before upload. In-app confirm dialog for delete. Library tab shows **Folder** chips; save success links to Library tab + folder filter.
+
+**Files:** `app/main.py`, `index.html`, `css/style.css`, `js/app.js`
+
+**Backend restart required** on Pi.
+
+**Test:** Save “250g Sugar” to Kitchen folder → View in Library → Kitchen chip shows design. Delete uses in-app dialog, not browser popup.
 
 ### 2026-07-15 — b341: Collapse sliders by category
 

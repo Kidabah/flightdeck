@@ -26,7 +26,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b341";
+const MAKERDECK_BUILD = "b342";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -1988,13 +1988,54 @@ async function restoreSession() {
 
 function formatLibraryError(err) {
   const raw = err?.message || err?.error || String(err || "");
+  let detail = raw;
   try {
     const parsed = JSON.parse(raw);
-    if (parsed?.detail) return String(parsed.detail);
+    if (parsed?.detail) detail = String(parsed.detail);
   } catch {
     /* plain text */
   }
-  return raw;
+  detail = detail.replace(/^\d{3}:\s*/, "").trim();
+  if (/exceeded maximum size/i.test(detail)) {
+    return "Upload too large — try again (trace image will compress automatically).";
+  }
+  return detail || "Library save failed.";
+}
+
+function dataUrlByteLength(dataUrl) {
+  const blob = dataUrlToBlob(dataUrl);
+  return blob?.size || 0;
+}
+
+function dataUrlToBlob(dataUrl) {
+  if (!dataUrl?.startsWith("data:")) return null;
+  const comma = dataUrl.indexOf(",");
+  if (comma < 0) return null;
+  const header = dataUrl.slice(0, comma);
+  const b64 = dataUrl.slice(comma + 1);
+  const mime = header.match(/data:([^;]+)/i)?.[1] || "application/octet-stream";
+  try {
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new Blob([bytes], { type: mime });
+  } catch {
+    return null;
+  }
+}
+
+async function compressForLibraryUpload(dataUrl, { maxDim = 512, quality = 0.62, maxBytes = 900 * 1024 } = {}) {
+  if (!dataUrl?.startsWith("data:")) return "";
+  let dim = maxDim;
+  let q = quality;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const out = await compressDataUrl(dataUrl, dim, q);
+    if (!out) return "";
+    if (dataUrlByteLength(out) <= maxBytes) return out;
+    dim = Math.max(160, Math.round(dim * 0.72));
+    q = Math.max(0.42, q - 0.08);
+  }
+  return "";
 }
 
 async function compressDataUrl(dataUrl, maxDim = 480, quality = 0.72) {
@@ -2033,9 +2074,9 @@ async function archiveBodyExport(blob, filename, { format, stamp, saveToLibrary 
   if (!saveToLibrary || !libraryApiAvailable()) return null;
   try {
     renderer.render(scene, camera);
-    const thumbnail = await compressDataUrl(capturePreviewThumbnail(renderer), 480, 0.72);
+    const thumbnail = await compressForLibraryUpload(capturePreviewThumbnail(renderer), { maxDim: 480, quality: 0.72, maxBytes: 512 * 1024 });
     const traceRaw = traceSourceCanvas ? traceSourceCanvas.toDataURL("image/jpeg", 0.82) : null;
-    const traceImage = traceRaw ? await compressDataUrl(traceRaw, 640, 0.7) : null;
+    const traceImage = traceRaw ? await compressForLibraryUpload(traceRaw, { maxDim: 512, quality: 0.62, maxBytes: 900 * 1024 }) : null;
     const payload = {
       blob,
       filename,
@@ -2063,14 +2104,72 @@ async function archiveBodyExport(blob, filename, { format, stamp, saveToLibrary 
   }
 }
 
-function notifyLibrarySaved(design) {
+function notifyLibrarySaved(design, { folder = "" } = {}) {
   if (currentTabId === "library") void refreshLibraryUi();
   if (!design) return;
   const status = document.getElementById("library-status");
   const saveStatus = document.getElementById("library-save-status");
+  const viewBtn = document.getElementById("btn-view-library-save");
   const label = design.name || "design";
-  if (status && currentTabId === "library") status.textContent = `Saved “${label}”.`;
-  if (saveStatus && currentTabId === "design") saveStatus.textContent = `Saved “${label}” to library.`;
+  const folderLabel = folder || design.folder || "";
+  const folderNote = folderLabel ? ` in folder “${folderLabel}”` : "";
+  if (status && currentTabId === "library") status.textContent = `Saved “${label}”${folderNote}.`;
+  if (saveStatus && currentTabId === "design") {
+    saveStatus.textContent = `Saved “${label}”${folderNote}. Open the Library tab${folderLabel ? ` → ${folderLabel} folder` : ""}.`;
+    saveStatus.classList.remove("is-error");
+    saveStatus.classList.add("is-ok");
+  }
+  if (viewBtn) {
+    viewBtn.classList.remove("hidden");
+    viewBtn.onclick = () => viewLibraryFolder(folderLabel);
+  }
+}
+
+function viewLibraryFolder(folder = "") {
+  libraryFolderFilter = folder ? folder : undefined;
+  setTab("library");
+  void refreshLibraryUi();
+}
+
+let libraryConfirmResolve = null;
+
+function closeLibraryConfirm(result) {
+  const dialog = document.getElementById("library-confirm-dialog");
+  if (dialog?.open) dialog.close();
+  const resolve = libraryConfirmResolve;
+  libraryConfirmResolve = null;
+  resolve?.(result);
+}
+
+function confirmLibraryAction({ title, message, confirmLabel = "OK", danger = false }) {
+  const dialog = document.getElementById("library-confirm-dialog");
+  const titleEl = document.getElementById("library-confirm-title");
+  const messageEl = document.getElementById("library-confirm-message");
+  const okBtn = document.getElementById("library-confirm-ok");
+  const cancelBtn = document.getElementById("library-confirm-cancel");
+  if (!dialog || !titleEl || !messageEl || !okBtn) return Promise.resolve(false);
+  titleEl.textContent = title || "Confirm";
+  messageEl.textContent = message || "";
+  okBtn.textContent = confirmLabel;
+  okBtn.classList.toggle("btn-danger", danger);
+  return new Promise((resolve) => {
+    libraryConfirmResolve = resolve;
+    dialog.showModal();
+    cancelBtn?.focus();
+  });
+}
+
+function initLibraryConfirmDialog() {
+  const dialog = document.getElementById("library-confirm-dialog");
+  const okBtn = document.getElementById("library-confirm-ok");
+  const cancelBtn = document.getElementById("library-confirm-cancel");
+  if (!dialog || !okBtn) return;
+  okBtn.addEventListener("click", () => closeLibraryConfirm(true));
+  cancelBtn?.addEventListener("click", () => closeLibraryConfirm(false));
+  dialog.addEventListener("cancel", (e) => {
+    e.preventDefault();
+    closeLibraryConfirm(false);
+  });
 }
 
 function formatLibraryFormat(format) {
@@ -2122,12 +2221,16 @@ async function saveCurrentDesignToLibrary() {
   const folder = readLibraryFolderInput();
   rememberLibraryFolder(folder);
   if (btn) btn.disabled = true;
-  if (status) status.textContent = "Saving…";
+  if (status) {
+    status.textContent = "Saving…";
+    status.classList.remove("is-error", "is-ok");
+  }
+  document.getElementById("btn-view-library-save")?.classList.add("hidden");
   try {
     renderer.render(scene, camera);
-    const thumbnail = await compressDataUrl(capturePreviewThumbnail(renderer), 480, 0.72);
+    const thumbnail = await compressForLibraryUpload(capturePreviewThumbnail(renderer), { maxDim: 480, quality: 0.72, maxBytes: 512 * 1024 });
     const traceRaw = traceSourceCanvas ? traceSourceCanvas.toDataURL("image/jpeg", 0.82) : null;
-    const traceImage = traceRaw ? await compressDataUrl(traceRaw, 640, 0.7) : null;
+    const traceImage = traceRaw ? await compressForLibraryUpload(traceRaw, { maxDim: 512, quality: 0.62, maxBytes: 900 * 1024 }) : null;
     const params = buildParams();
     const stamp = params.watermarkEnabled !== false ? acquireWatermarkStamp() : null;
     const payload = {
@@ -2150,10 +2253,14 @@ async function saveCurrentDesignToLibrary() {
     }
     const design = result?.design || null;
     if (nameInput && !nameInput.value.trim()) nameInput.value = design?.name || name;
-    notifyLibrarySaved(design);
+    notifyLibrarySaved(design, { folder });
     void populateLibraryFolderOptions();
   } catch (err) {
-    if (status) status.textContent = formatLibraryError(err);
+    if (status) {
+      status.textContent = formatLibraryError(err);
+      status.classList.add("is-error");
+      status.classList.remove("is-ok");
+    }
   } finally {
     if (btn) btn.disabled = false;
   }
@@ -2172,6 +2279,9 @@ function initLibrarySave() {
     if (!nameInput.value.trim()) nameInput.value = suggestLibrarySaveName();
   });
   folderInput?.addEventListener("focus", () => void populateLibraryFolderOptions());
+  document.getElementById("btn-view-library-save")?.addEventListener("click", () => {
+    viewLibraryFolder(readLibraryFolderInput());
+  });
   void populateLibraryFolderOptions();
 }
 
@@ -2293,13 +2403,13 @@ async function refreshLibraryUi() {
       delBtn.type = "button";
       delBtn.className = "btn btn-secondary btn-sm";
       delBtn.textContent = "Delete";
-      delBtn.addEventListener("click", () => void removeLibraryDesign(design.id));
+      delBtn.addEventListener("click", () => void removeLibraryDesign(design.id, design.name, design.folder));
       actions.append(loadBtn, delBtn);
       body.append(title, meta, actions);
       card.append(thumb, body);
       grid.appendChild(card);
     }
-    if (status) status.textContent = `${designs.length} saved design${designs.length === 1 ? "" : "s"}`;
+    if (status) status.textContent = `${designs.length} saved design${designs.length === 1 ? "" : "s"}${libraryFolderFilter ? ` in “${libraryFolderFilter}”` : ""}`;
   } catch (err) {
     if (status) status.textContent = err?.message || "Could not load design library.";
     grid.innerHTML = "";
@@ -2333,8 +2443,17 @@ async function loadLibraryDesign(designId) {
   }
 }
 
-async function removeLibraryDesign(designId) {
-  if (!confirm("Delete this design from the library?")) return;
+async function removeLibraryDesign(designId, designName = "", designFolder = "") {
+  const folderNote = designFolder ? ` from folder “${designFolder}”` : "";
+  const ok = await confirmLibraryAction({
+    title: "Delete design?",
+    message: designName
+      ? `Remove “${designName}”${folderNote} from the library?`
+      : "Remove this design from the library?",
+    confirmLabel: "Delete",
+    danger: true,
+  });
+  if (!ok) return;
   try {
     await deleteLibraryDesign(designId);
     await refreshLibraryUi();
@@ -6037,6 +6156,7 @@ document.getElementById("btn-export-go")?.addEventListener("click", async () => 
 
 initExportDialog();
 initLibrarySave();
+initLibraryConfirmDialog();
 initCategoryCollapse();
 
 function resize() {

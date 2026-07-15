@@ -715,6 +715,21 @@ input[type="range"] {
   margin-top: 12px;
 }
 
+.library-folder-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.library-folder-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted, #94a3b8);
+}
+
 .library-layout {
   display: flex;
   flex-direction: column;
@@ -738,9 +753,22 @@ input[type="range"] {
   cursor: pointer;
 }
 
+.library-save-status.is-error {
+  color: #fca5a5;
+}
+
+.library-save-status.is-ok {
+  color: #7dd3fc;
+}
+
+#btn-view-library-save {
+  margin-top: 6px;
+}
+
 .library-folder-btn.active {
   border-color: #0ea5e9;
   background: rgba(14, 165, 233, 0.18);
+  color: #e0f2fe;
 }
 
 .library-main {
@@ -805,6 +833,16 @@ input[type="range"] {
 .btn-sm {
   padding: 4px 8px;
   font-size: 0.72rem;
+}
+
+.btn-danger {
+  background: #b91c1c;
+  border-color: #991b1b;
+  color: #fff;
+}
+
+.btn-danger:hover {
+  background: #dc2626;
 }
 
 .library-status {

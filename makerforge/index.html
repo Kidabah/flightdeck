@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Oswald:wght@700&family=Roboto+Mono:wght@700&family=Roboto:wght@700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=33">
+  <link rel="stylesheet" href="css/style.css?v=34">
 
   <script type="importmap">
 
@@ -44,7 +44,7 @@
 
         <div class="topbar-brand">
 
-          <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b341</span></div>
+          <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b342</span></div>
 
           <h1>Container Generator</h1>
 
@@ -168,6 +168,8 @@
               </div>
 
               <p id="library-save-status" class="field-hint library-save-status"></p>
+
+              <button type="button" class="btn btn-secondary btn-sm hidden" id="btn-view-library-save">View in Library</button>
 
             </section>
 
@@ -1276,8 +1278,12 @@
 
               <p class="field-hint">Save from the Design tab, or tick “Save to library” when exporting STL/3MF. Load a design to restore all sliders and art.</p>
 
-              <div class="library-layout">
+              <div class="library-folder-bar">
+                <span class="library-folder-label">Folder</span>
                 <nav class="library-folders" id="library-folders" aria-label="Folders"></nav>
+              </div>
+
+              <div class="library-layout">
                 <div class="library-main">
                   <div id="library-grid" class="library-grid" aria-live="polite"></div>
                   <p id="library-status" class="field-hint library-status"></p>
@@ -1342,7 +1348,18 @@
     </form>
   </dialog>
 
-  <script type="module" src="js/app.js?v=341"></script>
+  <dialog id="library-confirm-dialog" class="export-dialog" aria-labelledby="library-confirm-title">
+    <div class="export-dialog-panel">
+      <h2 id="library-confirm-title">Confirm</h2>
+      <p id="library-confirm-message" class="field-hint"></p>
+      <div class="export-dialog-actions">
+        <button type="button" class="btn btn-secondary" id="library-confirm-cancel">Cancel</button>
+        <button type="button" class="btn btn-primary" id="library-confirm-ok">OK</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script type="module" src="js/app.js?v=342"></script>
 
 </body>
 
