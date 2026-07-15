@@ -4,6 +4,7 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
+- Latest commit: **394037b** — b358 multi-colour export row shells
 - Current: **b358** — Multi-colour export row shells (fix 149k non-manifold)
 - Cache-bust: `app.js?v=358`, `features.js?v=358` — header **b358**
 
