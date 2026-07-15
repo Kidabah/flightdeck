@@ -4,8 +4,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b345** — Faster trace preview; neck removal; Apply for 3D
-- Cache-bust: `app.js?v=345`, `trace.js?v=345` — header **b345**
+- Current: **b346** — Combined-mask wedge clip for multi-colour trace
+- Cache-bust: `app.js?v=346`, `trace.js?v=346` — header **b346**
+
+### 2026-07-15 — b346: Clip wedge from combined multi-colour mask
+
+**Symptom:** Bag/spoon wedge still visible after b345 per-layer neck removal.
+
+**Fix:** Union all AMS layers, erode/split/dilate to drop thin bridges, clip every colour layer to cleaned combined mask (up to 6 erode passes).
+
+**Files:** `js/trace.js`, `js/app.js`
+
+**Test:** Trace Milo graphic → wedge gone in 2D preview → Apply. Hard refresh b346.
 
 ### 2026-07-15 — b345: Trace speed + bag/spoon neck fix
 

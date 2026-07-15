@@ -677,23 +677,29 @@ function removeLogoNeckPixels(layerMask, tw, th) {
     h = ds.height;
   }
   let { labels, comps } = findMaskComponents(m, w, h);
+  const origWork = m;
   if (comps.length <= 1) {
     let eroded = m;
-    for (let pass = 0; pass < 2; pass++) {
-      const trial = erodeMask(eroded, w, h);
-      const split = findMaskComponents(trial, w, h);
+    let erodePasses = 0;
+    for (let pass = 1; pass <= 6; pass++) {
+      eroded = m;
+      for (let i = 0; i < pass; i++) eroded = erodeMask(eroded, w, h);
+      const split = findMaskComponents(eroded, w, h);
       if (split.comps.length >= 2) {
-        eroded = trial;
         labels = split.labels;
         comps = split.comps;
+        erodePasses = pass;
         break;
       }
     }
-    if (comps.length >= 2) {
+    if (comps.length >= 2 && erodePasses > 0) {
       comps.sort((a, b) => b.area - a.area);
-      const minArea = Math.max(12, comps[0].area * 0.01);
+      const minArea = Math.max(12, comps[0].area * 0.008);
       m = keepLargeMaskComponents(eroded, w, h, comps, labels, minArea);
-      m = dilateMask(m, w, h);
+      for (let i = 0; i < erodePasses; i++) m = dilateMask(m, w, h);
+      const clipped = new Uint8Array(w * h);
+      for (let i = 0; i < w * h; i++) clipped[i] = origWork[i] && m[i] ? 1 : 0;
+      if (clipped.some((v) => v)) m = clipped;
     }
   }
   m = pruneSilhouetteMask(m, w, h, {
@@ -706,6 +712,53 @@ function removeLogoNeckPixels(layerMask, tw, th) {
     m = upsampleMaskNearest(m, w, h, origW, origH);
   }
   return m;
+}
+
+/** Drop thin wedges between major logo parts on the union of all AMS layers. */
+function cleanCombinedLogoMask(combined, tw, th) {
+  const baseFill = maskFillRatio(combined, tw, th);
+  let best = combined;
+  let bestScore = -1;
+  for (let pass = 1; pass <= 6; pass++) {
+    let eroded = combined;
+    for (let i = 0; i < pass; i++) eroded = erodeMask(eroded, tw, th);
+    const split = findMaskComponents(eroded, tw, th);
+    if (split.comps.length < 2) continue;
+    split.comps.sort((a, b) => b.area - a.area);
+    const minArea = Math.max(24, split.comps[0].area * 0.025);
+    let kept = keepLargeMaskComponents(eroded, tw, th, split.comps, split.labels, minArea);
+    let restored = kept;
+    for (let i = 0; i < pass; i++) restored = dilateMask(restored, tw, th);
+    const clipped = new Uint8Array(tw * th);
+    for (let i = 0; i < clipped.length; i++) clipped[i] = combined[i] && restored[i] ? 1 : 0;
+    const fill = maskFillRatio(clipped, tw, th);
+    if (fill < baseFill * 0.72) continue;
+    const keptCount = split.comps.filter((c) => c.area >= minArea).length;
+    const score = keptCount * 1000 + fill;
+    if (score > bestScore) {
+      best = clipped;
+      bestScore = score;
+    }
+  }
+  return best;
+}
+
+function clipMultiColourLayersToCombinedMask(colorLayers, tw, th) {
+  if (!colorLayers?.length) return;
+  const combined = new Uint8Array(tw * th);
+  for (const layer of colorLayers) {
+    if (!layer.mask?.length) continue;
+    for (let i = 0; i < combined.length; i++) if (layer.mask[i]) combined[i] = 1;
+  }
+  const cleaned = cleanCombinedLogoMask(combined, tw, th);
+  for (const layer of colorLayers) {
+    if (!layer.mask?.length) continue;
+    for (let i = 0; i < layer.mask.length; i++) {
+      if (layer.mask[i] && !cleaned[i]) layer.mask[i] = 0;
+    }
+    layer.rects = maskToRuns(layer.mask, tw, th);
+    layer.maskFillPct = Math.round(maskFillRatio(layer.mask, tw, th) * 100);
+  }
 }
 
 function cleanMultiColourLayerMask(layerMask, tw, th) {
@@ -1529,6 +1582,24 @@ export async function traceMultiColourCanvasAsync(canvas, options = {}) {
     });
   }
 
+  if (colorLayers.length < 2) {
+    return {
+      rects: [],
+      width: tw,
+      height: th,
+      svg: "",
+      rectCount: 0,
+      simplified: false,
+      simplifyFactor: 1,
+      tooComplex: false,
+      mode: "multi-colour",
+      multiColour: true,
+      colorLayers: [],
+    };
+  }
+
+  clipMultiColourLayersToCombinedMask(colorLayers, tw, th);
+  colorLayers = colorLayers.filter((layer) => maskFillRatio(layer.mask, tw, th) >= 0.004);
   if (colorLayers.length < 2) {
     return {
       rects: [],
