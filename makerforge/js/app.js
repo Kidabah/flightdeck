@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=357";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=361";
+import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=362";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, buildMergedAmsExportMesh, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=362";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=355";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=201";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=356";
@@ -26,7 +26,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b361";
+const MAKERDECK_BUILD = "b362";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -1065,67 +1065,26 @@ function collectColoredExportParts(exportCache, stamp = null, { includeLiner = t
   const bodyMesh = resolveBodyExportMesh(exportCache, params, separateText, stamp);
 
   if (separateColor && (params.embossFace || "front") !== "lid") {
-    // Separate Body / Art / Text — each part gets its own filament slot.
-    // Do NOT punch wall holes: removed tris open through-holes and slicers fill the cavity solid.
-    const exportParams = {
-      ...params,
-      __labelExportStandoff: true,
-      __multiColourAmsExport: true,
-      // Flush on the outer skin — no 0.2 mm air gap (reads as white seam in slicer).
-      __labelExportEmbedded: true,
-    };
+    // One watertight mesh — body + art + text painted per triangle (floating separate parts shred in Bambu).
+    const traceData = traceRectsForExport(params.embossTraceRects);
     const boxShell = exportCache.boxShell || exportCache.shellMesh || exportCache;
-    const bodyClean = prepareMeshFor3mf({
-      positions: boxShell.positions.slice(),
-      indices: boxShell.indices.slice(),
-    });
-    if (bodyClean?.indices?.length) {
-      parts.push({
-        name: "Body",
-        mesh: bodyClean,
-        color: state.boxColor || "#38bdf8",
-        extruder: extruder++,
-      });
-    }
-    if (separateArt) {
-      const traceData = traceRectsForExport(params.embossTraceRects);
-      if (traceData?.multiColour && traceData.colorLayers?.length) {
-        const colourParts = buildMultiColourGraphicEmboss(exportCache.meta, exportParams, traceData);
-        for (const cp of colourParts || []) {
-          const artClean = cp.mesh ? prepareMeshFor3mf(cp.mesh) : null;
-          if (artClean?.indices?.length) {
-            parts.push({
-              name: cp.name,
-              mesh: artClean,
-              color: cp.color,
-              extruder: extruder++,
-            });
-          }
-        }
-      } else {
-        const artMesh = buildLabelGraphicEmboss(exportCache.meta, exportParams, params.embossSvgText || "", "emboss");
-        const artClean = artMesh ? sanitizeMeshForStl(artMesh, { strict: false }) : null;
-        if (artClean?.indices?.length) {
-          parts.push({
-            name: "Art",
-            mesh: artClean,
-            color: state.embossArtColor || "#4a3728",
-            extruder: extruder++,
-          });
-        }
-      }
-    }
-    if (separateText) {
-      const textMesh = buildTextLabelExportMesh(exportCache.meta, exportParams);
-      const textClean = textMesh ? prepareMeshFor3mf(textMesh) : null;
-      if (textClean?.indices?.length) {
-        parts.push({
-          name: "Text",
-          mesh: textClean,
-          color: state.embossTextColor || "#f8fafc",
-          extruder: extruder++,
-        });
-      }
+    const merged = buildMergedAmsExportMesh(
+      boxShell,
+      exportCache.meta,
+      { ...params, embossTraceRects: traceData },
+      params.embossSvgText || "",
+      {
+        includeArt: separateArt,
+        includeText: separateText,
+        traceData,
+        bodyColor: state.boxColor || "#38bdf8",
+        textColor: state.embossTextColor || "#f8fafc",
+        artColor: state.embossArtColor || "#4a3728",
+      },
+    );
+    if (merged?.mesh?.indices?.length) {
+      parts.push(merged);
+      extruder = (merged.maxExtruder || 1) + 1;
     }
   } else if (bodyMesh?.indices?.length) {
     const bodyClean = sanitizeMeshForStl(bodyMesh);
@@ -1206,7 +1165,7 @@ function exportIncludesLidPlate() {
 const CONTAINER_EXPORT_README = [
   "MakerDeck container export",
   "",
-  "1. *-container.3mf — body + art + text (+ accent). No liner (see *-liner.3mf).",
+  "1. *-container.3mf — one AMS-painted body (filament per triangle) + accent if enabled.",
   "2. *-lid.3mf — lid on the build plate; do NOT flip in Bambu.",
   "3. *-liner.3mf — food-safe cup on the build plate; open this file on its own (not inside container).",
   "4. Bambu should show H2D + Generic PLA @BBL H2D filament slots — not the box filename.",
@@ -4649,11 +4608,12 @@ function runExport(format, options = {}) {
             let openNote = "";
             let hasOpenEdges = false;
             if (paints?.length) {
-              const artTris = paints.filter((e) => e === 2).length;
-              const textTris = paints.filter((e) => e === 3).length;
+              const triByExtruder = {};
+              for (const e of paints) triByExtruder[e] = (triByExtruder[e] || 0) + 1;
               const bodyOpen = partOpenEdgeCount(bodyPart);
               hasOpenEdges = bodyOpen > 0;
-              openNote = ` · art ${artTris} tris, text ${textTris} tris, open ${bodyOpen}`;
+              const slots = Object.entries(triByExtruder).map(([e, n]) => `T${e}:${n}`).join(", ");
+              openNote = ` · AMS painted (${slots})${bodyOpen ? `, open ${bodyOpen}` : ""}`;
             } else {
               const bodyOpen = partOpenEdgeCount(parts.find((p) => p.name === "Body"));
               const artOpen = partOpenEdgeCount(parts.find((p) => p.name === "Art"));
@@ -4673,7 +4633,9 @@ function runExport(format, options = {}) {
             }
             const exportHeadline = packed.zipExport
               ? "ZIP downloaded — open each .3mf in Bambu (container, lid, liner as needed)"
-              : `${parts.length > 1 ? `${parts.length}-part` : "Plain"} 3MF exported — ${partNames}`;
+              : paints?.length
+                ? `AMS painted 3MF exported — ${partNames}`
+                : `${parts.length > 1 ? `${parts.length}-part` : "Plain"} 3MF exported — ${partNames}`;
             const exportDetail = `${triCount} triangles${zipNote}${openNote}${wmNote}`;
             setExportStatus(exportHeadline, { detail: exportDetail });
             void archiveBodyExport(

@@ -3,6 +3,7 @@
  */
 
 import { dilateMask, extrudeShapeGroup, extrudeShapeGroupBetween, filterDegenerateShapeGroups, groupPolygonsWithHoles, maskToPolygons, prepareShapeGroups, prepareSvgShapeGroups, prepareStrokePaths, previewMergeTraceShapeGroups, rasterizeShapeGroupsToMask, rasterizeStrokePathsToMask, simplifyPolygon, triangulateMappedCap, unionDenseEmbossShapeGroups, unionShapeGroupsToPrepared } from "./contour.js?v=241";
+import { prepareMeshFor3mf } from "./stl.js?v=201";
 import { decorPlacementOffsets, decorArtRect, rotateFacePoint, rotateShapeGroup } from "./decor.js";
 import {
   profileOutlineNormals,
@@ -3057,27 +3058,80 @@ function appendColoredMeshPart(positions, indices, triangleExtruders, mesh, extr
   }
 }
 
-/** One AMS object — body wall intact, art/text painted per triangle (no Bambu face cull). */
-export function buildMergedAmsExportMesh(shellMesh, meta, params, svgText = "", { includeArt = true, includeText = true } = {}) {
+/** One AMS object — body + art + text painted per triangle (no floating separate parts). */
+export function buildMergedAmsExportMesh(shellMesh, meta, params, svgText = "", options = {}) {
   if (!shellMesh?.indices?.length) return null;
-  const exportParams = { ...params, __labelExportMerged: true };
+  const {
+    includeArt = true,
+    includeText = true,
+    traceData = null,
+    bodyColor = "#38bdf8",
+    textColor = "#f8fafc",
+    artColor = "#4a3728",
+  } = options;
+  const exportParams = {
+    ...params,
+    __labelExportStandoff: true,
+    __multiColourAmsExport: true,
+    __labelExportEmbedded: true,
+    __labelExportMerged: true,
+  };
   const positions = [];
   const indices = [];
   const triangleExtruders = [];
+  const extruderColors = {};
+  let extruder = 1;
 
-  appendColoredMeshPart(positions, indices, triangleExtruders, shellMesh, 1);
-  let extruder = 2;
+  const bodyClean = prepareMeshFor3mf({
+    positions: shellMesh.positions.slice(),
+    indices: shellMesh.indices.slice(),
+  });
+  if (!bodyClean?.indices?.length) return null;
+  extruderColors[extruder] = bodyColor;
+  appendColoredMeshPart(positions, indices, triangleExtruders, bodyClean, extruder++);
+
+  const td = traceData || params.embossTraceRects;
   if (includeArt) {
-    const artMesh = buildLabelGraphicEmboss(meta, exportParams, svgText, "emboss");
-    appendColoredMeshPart(positions, indices, triangleExtruders, artMesh, extruder);
-    extruder += 1;
-  }
-  if (includeText) {
-    const textMesh = buildTextLabelExportMesh(meta, exportParams);
-    appendColoredMeshPart(positions, indices, triangleExtruders, textMesh, extruder);
+    const artParams = { ...exportParams, __labelExportKind: "art" };
+    if (td?.multiColour && td.colorLayers?.length) {
+      const colourParts = buildMultiColourGraphicEmboss(meta, artParams, td);
+      for (const cp of colourParts || []) {
+        const artClean = cp.mesh ? prepareMeshFor3mf(cp.mesh) : null;
+        if (artClean?.indices?.length) {
+          extruderColors[extruder] = cp.color;
+          appendColoredMeshPart(positions, indices, triangleExtruders, artClean, extruder++);
+        }
+      }
+    } else {
+      const artMesh = buildLabelGraphicEmboss(meta, artParams, svgText, "emboss");
+      const artClean = artMesh ? prepareMeshFor3mf(artMesh) : null;
+      if (artClean?.indices?.length) {
+        extruderColors[extruder] = artColor;
+        appendColoredMeshPart(positions, indices, triangleExtruders, artClean, extruder++);
+      }
+    }
   }
 
-  return indices.length ? { positions, indices, triangleExtruders } : null;
+  if (includeText) {
+    const textParams = { ...exportParams, __labelExportKind: "text" };
+    const textMesh = buildTextLabelExportMesh(meta, textParams);
+    const textClean = textMesh ? prepareMeshFor3mf(textMesh) : null;
+    if (textClean?.indices?.length) {
+      extruderColors[extruder] = textColor;
+      appendColoredMeshPart(positions, indices, triangleExtruders, textClean, extruder++);
+    }
+  }
+
+  if (!indices.length) return null;
+  return {
+    name: "Body",
+    mesh: { positions, indices, triangleExtruders },
+    triangleExtruders,
+    extruder: 1,
+    extruderColors,
+    color: bodyColor,
+    maxExtruder: extruder - 1,
+  };
 }
 
 export function buildWatertightExportMesh(bodyMesh, meta, params) {

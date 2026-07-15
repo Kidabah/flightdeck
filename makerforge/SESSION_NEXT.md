@@ -4,8 +4,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b361** — Flat export: dilated vector + 0.6 mm art depth
-- Cache-bust: `app.js?v=361`, `features.js?v=361` — header **b361**
+- Current: **b362** — Single AMS-painted mesh (fix floating regions)
+- Cache-bust: `app.js?v=362`, `features.js?v=362` — header **b362**
+
+### 2026-07-15 — b362: Single AMS-painted body (fix floating regions)
+
+**Symptom:** Bambu warns "floating regions"; filaments 2–4 ~0.04 m; 385 tool changes; slice still shredded.
+
+**Cause:** Separate Body + Art Black + Art White + Text components in 3MF assembly — Bambu treats art as disconnected floating meshes.
+
+**Fix:** `buildMergedAmsExportMesh` — one Body object, `paint_color` per triangle for each AMS slot. Multi-colour layers + text appended with extruder tags. Accents stay separate parts.
+
+**Test:** Hard refresh b362 → re-export → Bambu: one Body object, no floating warning, filaments 2–4 show real usage.
 
 ### 2026-07-15 — b361: Printable flat-face multi-colour export
 
