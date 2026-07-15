@@ -1128,8 +1128,8 @@ export function buildFlatLidGasketRing(boxOuter, params) {
 }
 
 /**
- * Nest-stack flat lid — outer seating groove + raised lip (kitchen tower jars).
- * The next jar's bottom wall registers in the outer band; centre stays flat.
+ * Nest-stack flat lid — solid top plate + raised outer lip (kitchen tower jars).
+ * The next jar registers inside the lip; no top groove trench (that read as an air gap in slicers).
  */
 export function appendNestStackLidRim(outPos, outIdx, boxOuter, params, lidThickness) {
   const outerR = profileMaxRadius(boxOuter);
@@ -1137,62 +1137,19 @@ export function appendNestStackLidRim(outPos, outIdx, boxOuter, params, lidThick
 
   const rimWidth = clamp(params.stackNestRimWidth ?? 5, 3, 12);
   const rimHeight = clamp(params.stackNestRimHeight ?? 2.8, 1.5, 6);
-  const nestDepthReq = clamp(params.stackNestDepth ?? 4, 2, 10);
-  const nestDepth = Math.min(nestDepthReq, Math.max(lidThickness - 0.4, 0.8));
   const rimInner = offsetProfileInward(boxOuter, rimWidth);
   if (!profileIsValid(rimInner)) return;
 
   const zTop = lidThickness;
-  const zGroove = zTop - nestDepth;
   const zLip = zTop + rimHeight;
 
-  // Outer annulus top (centre disk capped by buildFlatNestLidShell).
-  capRingXZ(outPos, outIdx, boxOuter, rimInner, zTop, true);
-  extrudeWallsAlongZ(outPos, outIdx, boxOuter, zGroove, zTop);
-  extrudeWallsAlongZ(outPos, outIdx, rimInner, zGroove, zTop);
-  capRingXZ(outPos, outIdx, boxOuter, rimInner, zGroove, false);
-
-  // Raised nest lip — solid band welded to plate at zTop.
   capRingXZ(outPos, outIdx, boxOuter, rimInner, zLip, true);
   extrudeWallsAlongZ(outPos, outIdx, boxOuter, zTop, zLip);
   extrudeWallsAlongZ(outPos, outIdx, rimInner, zTop, zLip);
 }
 
-/** Breakaway pins inside the nest groove — snap out after print if bridging fails. */
-export function appendNestLidPrintSupports(outPos, outIdx, boxOuter, params, lidThickness) {
-  const nestDepth = clamp(params.stackNestDepth ?? 4, 2, 10);
-  const rimWidth = clamp(params.stackNestRimWidth ?? 5, 3, 12);
-  const z0 = lidThickness - nestDepth + 0.1;
-  const z1 = lidThickness - 0.12;
-  if (z1 - z0 < 0.35) return;
-
-  const outerR = profileMaxRadius(boxOuter);
-  const midR = Math.max(outerR - rimWidth * 0.5, outerR * 0.55);
-  const pinR = 0.42;
-  let cx = 0;
-  let cy = 0;
-  for (const [x, y] of boxOuter) {
-    cx += x;
-    cy += y;
-  }
-  cx /= boxOuter.length || 1;
-  cy /= boxOuter.length || 1;
-
-  for (let q = 0; q < 4; q++) {
-    const ang = (Math.PI / 2) * q + Math.PI / 4;
-    const px = cx + midR * Math.cos(ang);
-    const py = cy + midR * Math.sin(ang);
-    const pin = [];
-    for (let i = 0; i < 8; i++) {
-      const a = (Math.PI * 2 * i) / 8;
-      pin.push([px + pinR * Math.cos(a), py + pinR * Math.sin(a)]);
-    }
-    const hole = pin.map(([x, y]) => [px + (x - px) * 0.04, py + (y - py) * 0.04]);
-    capRingXZ(outPos, outIdx, pin, hole, z0, false);
-    extrudeWallsAlongZ(outPos, outIdx, pin, z0, z1);
-    capRingXZ(outPos, outIdx, pin, hole, z1, true);
-  }
-}
+/** @deprecated Groove removed — solid lip only. Kept for API compat; no-op. */
+export function appendNestLidPrintSupports() {}
 
 /** Recessed hex pockets on the top face of a flat lid — mates with stackable feet on another box. */
 export function appendStackableLidPockets(outPos, outIdx, meta, params, lidThickness) {

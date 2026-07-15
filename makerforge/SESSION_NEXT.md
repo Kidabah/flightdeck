@@ -4,10 +4,20 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b335** — Nest lid rim welded solid (groove depth clamp)
-- Cache-bust: `app.js?v=335`, `geometry.js?v=313`, `features.js?v=333` — header **b335**
+- Current: **b336** — Solid nest lid top (no groove air gap)
+- Cache-bust: `app.js?v=336`, `geometry.js?v=314`, `features.js?v=334` — header **b336**
 
-### 2026-07-15 — b335: Nest lid rim solid (no floating band)
+### 2026-07-15 — b336: Solid nest lid top (removed groove trench)
+
+**Symptom:** Lid top still showed black air gap between centre plate and outer rim in Bambu.
+
+**Cause:** Nest seating groove was an open annular trench on the top face — correct for stacking but reads as floating/disconnected geometry in slicer preview.
+
+**Fix:** Full solid top plate + raised outer lip only; next jar registers inside the lip. No top groove trench.
+
+**Test:** Re-export lid on b336 — top should be continuous solid tan, lip ring welded at outer edge.
+
+### 2026-07-15 — b335: Nest lid rim welded solid (groove depth clamp)
 
 **Symptom:** Lid top insert looked like thin floating band with air gap in Bambu layer view.
 

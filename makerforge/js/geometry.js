@@ -25,7 +25,7 @@ import {
   shapeSupportsProfileTexture,
   shapeSupportsProfileArt,
   shapeSupportsArt,
-} from "./features.js?v=333";
+} from "./features.js?v=334";
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=161";
 import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=161";
@@ -1467,18 +1467,6 @@ function buildScrewLidMesh(bodyOuterR, options, params) {
   };
 }
 
-function buildFlatNestLidShell(outPos, outIdx, boxOuter, lidThickness, params) {
-  const rimWidth = clamp(params?.stackNestRimWidth ?? 5, 3, 12);
-  const rimInner = offsetProfileInward(boxOuter, rimWidth);
-  if (!rimInner?.length || rimInner.length < 3) {
-    buildFlatLidShell(outPos, outIdx, boxOuter, null, lidThickness, 0, 0.35);
-    return;
-  }
-  capProfileSolid(outPos, outIdx, boxOuter, 0, false);
-  extrudeProfileSides(outPos, outIdx, boxOuter, 0, lidThickness, true);
-  capProfileSolid(outPos, outIdx, rimInner, lidThickness, true);
-}
-
 function buildFlatLidMesh(boxOuter, boxInner, meta, params, options) {
   const lidThickness = clamp(options.lidThickness ?? 2.4, 1.2, 8);
   const lipDepth = clamp(options.lipDepth ?? 0, 0, 12);
@@ -1486,20 +1474,13 @@ function buildFlatLidMesh(boxOuter, boxInner, meta, params, options) {
   const positions = [];
   const indices = [];
   const isNest = params?.stackableEnabled && meta && (params.stackStyle || "hex") === "nest";
-  if (isNest && lipDepth < 0.4) {
-    buildFlatNestLidShell(positions, indices, boxOuter, lidThickness, params);
-  } else {
-    buildFlatLidShell(positions, indices, boxOuter, boxInner, lidThickness, lipDepth, clearance);
-  }
+  buildFlatLidShell(positions, indices, boxOuter, boxInner, lidThickness, lipDepth, clearance);
   if (params?.lidGasketEnabled) {
     appendFlatLidGasketGroove(positions, indices, boxOuter, params);
   }
   if (params?.stackableEnabled && meta) {
     if (isNest) {
       appendNestStackLidRim(positions, indices, boxOuter, params, lidThickness);
-      if (params.lidPrintSupports) {
-        appendNestLidPrintSupports(positions, indices, boxOuter, params, lidThickness);
-      }
     } else {
       appendStackableLidPockets(positions, indices, meta, params, lidThickness);
     }
