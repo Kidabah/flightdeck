@@ -30,6 +30,8 @@ export { unionDenseEmbossShapeGroups } from "./contour.js?v=241";
 const MAX_TRACE_PX = 2400;
 /** Multi-colour logos need extra mask resolution — row shells show pixel stairs otherwise. */
 const MULTI_COLOUR_MIN_MAX_PX = 1400;
+/** Cap multi-colour mask work — full 2400px + morph ops freezes the tab. */
+const MULTI_COLOUR_WORK_MAX_PX = 1600;
 const SVG_RASTER_PX = 4096;
 const MAX_COLOR_LAYERS = 10;
 /** Practical AMS slot limit — heraldic PNGs otherwise split into 10+ anti-alias buckets. */
@@ -502,7 +504,7 @@ function floodImageBackgroundExterior(data, width, height, bgTolSq) {
   return exterior;
 }
 
-function colorLogoMask(data, width, height, threshold, invert) {
+function colorLogoMaskSeed(data, width, height, threshold, invert) {
   const bg = sampleLogoBackground(data, width, height);
   const bgIsDark = bg && bg.lum < 85 && bg.chroma < 42;
   const bgTol = bgIsDark
@@ -510,7 +512,6 @@ function colorLogoMask(data, width, height, threshold, invert) {
     : clamp(16 + Math.max(0, 210 - threshold) * 0.06, 14, 38);
   const bgTolSq = bgTol * bgTol;
   const exterior = floodImageBackgroundExterior(data, width, height, bgTolSq);
-  const span = Math.min(width, height);
   const darkLum = clamp(212 - threshold * 0.18, 168, 210);
   const minChroma = clamp(14 + (128 - threshold) * 0.03, 12, 20);
 
@@ -534,7 +535,14 @@ function colorLogoMask(data, width, height, threshold, invert) {
       seed[idx] = on ? 1 : 0;
     }
   }
+  return seed;
+}
 
+function colorLogoMask(data, width, height, threshold, invert, options = {}) {
+  const seed = colorLogoMaskSeed(data, width, height, threshold, invert);
+  if (options.light) return closeMask(seed, width, height, 1);
+
+  const span = Math.min(width, height);
   // Solidify mascot interior: white horse stripes / shield fill inside closed outline.
   let m = seed;
   const mergePasses = clamp(Math.round(span / 180), 2, 6);
@@ -637,39 +645,6 @@ function buildExclusiveMultiColourLayerMasks(data, width, height, fgMask, palett
     rgb: palette[p],
     mask,
   }));
-}
-
-/** Drop tiny disconnected specks only — never erode thin parts like spoon handles. */
-function pruneLogoSpecks(mask, tw, th) {
-  const span = Math.max(tw, th);
-  return pruneSilhouetteMask(mask, tw, th, {
-    skipOpen: true,
-    keepLogoSatellites: true,
-    minIslandRatio: 0.002,
-    maxIslandDist: span * 0.62,
-  });
-}
-
-function cleanMultiColourLayerMask(layerMask, tw, th) {
-  return pruneLogoSpecks(layerMask, tw, th);
-}
-
-function clipMultiColourLayersToCombinedMask(colorLayers, tw, th) {
-  if (!colorLayers?.length) return;
-  const combined = new Uint8Array(tw * th);
-  for (const layer of colorLayers) {
-    if (!layer.mask?.length) continue;
-    for (let i = 0; i < combined.length; i++) if (layer.mask[i]) combined[i] = 1;
-  }
-  const cleaned = pruneLogoSpecks(combined, tw, th);
-  for (const layer of colorLayers) {
-    if (!layer.mask?.length) continue;
-    for (let i = 0; i < layer.mask.length; i++) {
-      if (layer.mask[i] && !cleaned[i]) layer.mask[i] = 0;
-    }
-    layer.rects = maskToRuns(layer.mask, tw, th);
-    layer.maskFillPct = Math.round(maskFillRatio(layer.mask, tw, th) * 100);
-  }
 }
 
 function collectInkColorLayers(data, width, height, threshold, invert, blur) {
@@ -1400,10 +1375,63 @@ function extractAlignedCropMask(fullMask, fullW, fullH, tw, th, ox, oy) {
   return out;
 }
 
+function resizeMaskNearest(mask, w, h, outW, outH) {
+  if (w === outW && h === outH) return mask;
+  const out = new Uint8Array(outW * outH);
+  for (let y = 0; y < outH; y++) {
+    for (let x = 0; x < outW; x++) {
+      const sx = Math.min(w - 1, (x * w / outW) | 0);
+      const sy = Math.min(h - 1, (y * h / outH) | 0);
+      if (mask[sy * w + sx]) out[y * outW + x] = 1;
+    }
+  }
+  return out;
+}
+
+function normalizeMultiColourToSource(layers, previewMask, tw, th, ox, oy, traceScale) {
+  if (Math.abs(traceScale - 1) < 0.01) {
+    return { layers, mask: previewMask, width: tw, height: th, cropOx: ox, cropOy: oy };
+  }
+  const outW = Math.max(1, Math.round(tw / traceScale));
+  const outH = Math.max(1, Math.round(th / traceScale));
+  const outOx = Math.round(ox / traceScale);
+  const outOy = Math.round(oy / traceScale);
+  const scaledMask = resizeMaskNearest(previewMask, tw, th, outW, outH);
+  const scaledLayers = layers.map((layer) => {
+    const mask = resizeMaskNearest(layer.mask, tw, th, outW, outH);
+    return {
+      ...layer,
+      mask,
+      rects: maskToRuns(mask, outW, outH),
+      maskFillPct: Math.round(maskFillRatio(mask, outW, outH) * 100),
+    };
+  });
+  return { layers: scaledLayers, mask: scaledMask, width: outW, height: outH, cropOx: outOx, cropOy: outOy };
+}
+
+function capCanvasMaxPx(source, maxPx) {
+  const longest = Math.max(source.width, source.height);
+  if (longest <= maxPx) return source;
+  return scaleCanvasToMaxPx(source, maxPx);
+}
+
+function multiColourPreviewMask(colorLayers, tw, th) {
+  const combined = new Uint8Array(tw * th);
+  for (const layer of colorLayers) {
+    if (!layer.mask?.length) continue;
+    for (let i = 0; i < combined.length; i++) if (layer.mask[i]) combined[i] = 1;
+  }
+  return combined.some((v) => v) ? combined : null;
+}
+
 /** Multi-colour logo trace — one ink mask per detected filament colour. */
 export async function traceMultiColourCanvasAsync(canvas, options = {}) {
   await traceYield();
+  const sourceW = canvas.width;
+  const sourceH = canvas.height;
+  canvas = capCanvasMaxPx(canvas, MULTI_COLOUR_WORK_MAX_PX);
   canvas = upscaleCanvasMinMaxPx(canvas, MULTI_COLOUR_MIN_MAX_PX);
+  const traceScale = canvas.width / sourceW;
   const threshold = clamp(options.threshold ?? 128, 1, 254);
   const invert = !!options.invert;
   const ctx = canvas.getContext("2d");
@@ -1413,7 +1441,7 @@ export async function traceMultiColourCanvasAsync(canvas, options = {}) {
   const bg = sampleLogoBackground(data, width, height);
   const bgIsDark = bg && bg.lum < 85 && bg.chroma < 42;
   const effectiveInvert = invert || bgIsDark;
-  const fgMask = colorLogoMask(data, width, height, threshold, effectiveInvert);
+  const fgMask = colorLogoMask(data, width, height, threshold, effectiveInvert, { light: true });
   const rawBucketCount = countMultiColourInkBuckets(data, width, height, fgMask);
   let palette = collectMultiColourPalette(data, width, height, fgMask, MULTI_COLOUR_MAX_LAYERS);
   if (!palette) {
@@ -1466,11 +1494,7 @@ export async function traceMultiColourCanvasAsync(canvas, options = {}) {
   const usedLabels = new Map();
   for (const { rgb, mask } of layerMasks) {
     await traceYield();
-    const cropMaskLayer = cleanMultiColourLayerMask(
-      extractAlignedCropMask(mask, width, height, tw, th, ox, oy),
-      tw,
-      th,
-    );
+    const cropMaskLayer = extractAlignedCropMask(mask, width, height, tw, th, ox, oy);
     const fill = maskFillRatio(cropMaskLayer, tw, th);
     if (fill < 0.004) continue;
     const [r, g, b] = rgb;
@@ -1489,29 +1513,26 @@ export async function traceMultiColourCanvasAsync(canvas, options = {}) {
     });
   }
 
-  if (colorLayers.length < 2) {
-    return {
-      rects: [],
-      width: tw,
-      height: th,
-      svg: "",
-      rectCount: 0,
-      simplified: false,
-      simplifyFactor: 1,
-      tooComplex: false,
-      mode: "multi-colour",
-      multiColour: true,
-      colorLayers: [],
-    };
-  }
-
-  clipMultiColourLayersToCombinedMask(colorLayers, tw, th);
   const trimmedLayers = colorLayers.filter((layer) => maskFillRatio(layer.mask, tw, th) >= 0.004);
-  if (trimmedLayers.length < 2) {
+  const previewMask = multiColourPreviewMask(trimmedLayers, tw, th)
+    || extractAlignedCropMask(combined, width, height, tw, th, ox, oy);
+  const normalized = normalizeMultiColourToSource(
+    trimmedLayers,
+    previewMask,
+    tw,
+    th,
+    ox,
+    oy,
+    traceScale,
+  );
+
+  if (normalized.layers.length < 2) {
     return {
       rects: [],
-      width: tw,
-      height: th,
+      width: normalized.width,
+      height: normalized.height,
+      cropOx: normalized.cropOx,
+      cropOy: normalized.cropOy,
       svg: "",
       rectCount: 0,
       simplified: false,
@@ -1520,33 +1541,39 @@ export async function traceMultiColourCanvasAsync(canvas, options = {}) {
       mode: "multi-colour",
       multiColour: true,
       colorLayers: [],
+      needsFallback: true,
+      silhouetteMask: normalized.mask,
+      mask: normalized.mask,
+      tracePx: `${sourceW}×${sourceH}`,
     };
   }
 
   return {
     rects: [],
-    mask: [],
+    mask: normalized.mask,
+    silhouetteMask: normalized.mask,
     polygons: [],
     shapeGroups: [],
     strokePaths: [],
-    width: tw,
-    height: th,
-    cropOx: ox,
-    cropOy: oy,
+    width: normalized.width,
+    height: normalized.height,
+    cropOx: normalized.cropOx,
+    cropOy: normalized.cropOy,
     svg: "",
     rectCount: 0,
-    polygonCount: trimmedLayers.length,
-    islandCount: trimmedLayers.length,
+    polygonCount: normalized.layers.length,
+    islandCount: normalized.layers.length,
     simplified: false,
     simplifyFactor: 1,
-    tooComplex: trimmedLayers.length > MULTI_COLOUR_MAX_LAYERS,
+    tooComplex: normalized.layers.length > MULTI_COLOUR_MAX_LAYERS,
     mode: "multi-colour",
     multiColour: true,
-    colorLayers: trimmedLayers,
-    colorLayerCount: trimmedLayers.length,
+    colorLayers: normalized.layers,
+    colorLayerCount: normalized.layers.length,
     rawColourBucketCount: rawBucketCount,
     colourPaletteMerged: rawBucketCount > trimmedLayers.length,
-    tracePx: `${width}×${height}`,
+    tracePx: `${sourceW}×${sourceH}`,
+    traceWorkPx: `${width}×${height}`,
   };
 }
 
@@ -2191,8 +2218,32 @@ export async function traceCanvasAsync(canvas, options = {}) {
     });
   }
 
-  if (options.mode === "multi-colour") {
-    return traceMultiColourCanvasAsync(canvas, options);
+  if (options.mode === "multi-colour" && !options._multiColourFallback) {
+    const mc = await traceMultiColourCanvasAsync(canvas, options);
+    if (mc.colorLayers?.length >= 2 && !mc.tooComplex && !mc.needsFallback) return mc;
+    await traceYield();
+    const fallback = await traceCanvasAsync(canvas, {
+      ...options,
+      mode: "silhouette",
+      strengthen: true,
+      _multiColourFallback: true,
+    });
+    if (fallback?.silhouetteMask?.length || fallback?.mask?.length) return fallback;
+    if (mc.silhouetteMask?.length) {
+      return {
+        ...fallback,
+        width: mc.width || fallback.width,
+        height: mc.height || fallback.height,
+        cropOx: mc.cropOx ?? fallback.cropOx,
+        cropOy: mc.cropOy ?? fallback.cropOy,
+        silhouetteMask: mc.silhouetteMask,
+        mask: mc.mask || mc.silhouetteMask,
+        mode: "silhouette",
+        multiColour: false,
+        multiColourFallback: true,
+      };
+    }
+    return fallback;
   }
 
   const mode = options.mode === "outline" ? "outline" : "silhouette";
@@ -2453,14 +2504,12 @@ export function drawTracePreview(previewCanvas, sourceCanvas, traceResult) {
   const th = traceResult.height || 1;
 
   if (traceResult.multiColour && traceResult.colorLayers?.length) {
-    const combined = new Uint8Array(tw * th);
-    for (const layer of traceResult.colorLayers) {
-      if (!layer.mask?.length) continue;
-      for (let i = 0; i < combined.length; i++) if (layer.mask[i]) combined[i] = 1;
+    const combined = multiColourPreviewMask(traceResult.colorLayers, tw, th);
+    if (combined) {
+      ctx.fillStyle = "rgba(56, 189, 248, 0.55)";
+      drawTraceInkMaskOverlay(ctx, pad, ox, oy, combined, tw, th, factor);
+      return;
     }
-    ctx.fillStyle = "rgba(56, 189, 248, 0.55)";
-    drawTraceInkMaskOverlay(ctx, pad, ox, oy, combined, tw, th, factor);
-    return;
   }
 
   // Raster ink mask — line art (outlineRaster) + silhouettes: full cyan fill on every ink pixel.

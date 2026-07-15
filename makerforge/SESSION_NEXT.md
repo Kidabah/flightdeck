@@ -4,8 +4,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b348** — Restore spoon handle (gentle trace speck prune)
-- Cache-bust: `app.js?v=348`, `trace.js?v=348` — header **b348**
+- Current: **b349** — Restore cyan trace overlay + fast trace fallback
+- Cache-bust: `app.js?v=349`, `trace.js?v=349` — header **b349**
+
+### 2026-07-15 — b349: Restore cyan overlay + fast trace
+
+**Symptom:** Trace hung on "Tracing…", no cyan overlay, 3D not updating. Multi-colour on single-colour line art returned empty layers; heavy mask ops froze tab.
+
+**Fix:** Fast light multi-colour mask (cap 1600px work). Fallback to silhouette when <2 AMS colours. Always attach preview mask for cyan overlay. Auto-apply trace to box again.
+
+**Files:** `js/trace.js`, `js/app.js`, `index.html`
+
+**Test:** Hard refresh b349 → load Milo graphic → Trace → cyan overlay + graphic on box within a few seconds.
 
 ### 2026-07-15 — b348: Stop cutting spoon handles on trace
 
