@@ -4,8 +4,22 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b369** — restore coffee-bag flat AMS export (no accent slabs)
-- Cache-bust: `app.js?v=369`, `features.js?v=369` — header **b369**
+- Current: **b370** — coffee bag back to Auto line-art trace (not black+white chunks)
+- Cache-bust: `app.js?v=370`, `features.js?v=370`, `trace.js?v=370`, `geometry.js?v=370` — header **b370**
+
+### 2026-07-16 — b370: Restore coffee bag Auto line-art (stop B&W posterise)
+
+**Symptom:** Coffee bag still looked terrible after b369 — chunky jagged black blobs, not clean line-art sack.
+
+**Cause:** Kitchen presets / DEFAULTS forced **Black + white (2 AMS)** multi-colour. That posterises greyscale coffee-bag art into solid chunks. Golden path (b284) is **Auto → outlineRaster ink mask**. Auto-merge of greyscale multi-colour → B&W made it worse on export.
+
+**Fix:**
+- Default + kitchen canister `traceMode: "auto"`
+- Only collapse greys when Black+white is explicitly selected
+- Flat AMS emboss uses golden `buildEmbossBitmap` (same as preview/wrap)
+- Trace mode dropdown: Auto first
+
+**Test:** Hard refresh **b370** → Trace mode **Auto** → Invert on → Trace coffee bag → cyan line-art overlay → re-export. Must re-trace (old B&W session data stays chunky until Trace).
 
 ### 2026-07-16 — b369: Restore coffee bag emboss (stop accent-slab shred)
 

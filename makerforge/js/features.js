@@ -2949,10 +2949,9 @@ function multiColourExportDilatedMask(mask, maskW, maskH, frame, artH) {
   return closeBitmapMask(out, maskW, maskH, 1);
 }
 
-/** Per AMS colour layer — wrap: buildEmbossBitmap; flat export: printable vector solids. */
+/** Per AMS colour layer — golden ink-mask emboss (buildEmbossBitmap) on wrap and flat. */
 function buildMultiColourLayerEmboss(meta, params, traceData, layer) {
   const { mask, maskW, maskH } = fitMultiColourLayerMask(layer, traceData.width, traceData.height, params);
-  const frame = getEmbossFaceFrame(meta, params.embossFace || "front", params);
   const outlineRaster = !!(traceData.outlineRaster || layer.outlineRaster);
   const bitmapOpts = {
     mask,
@@ -2964,27 +2963,7 @@ function buildMultiColourLayerEmboss(meta, params, traceData, layer) {
     maskFillPct: layer.maskFillPct ?? traceData.maskFillPct,
   };
 
-  // Dragons cooler — ink-mask row shells on wrap.
-  if (frame.face === "wrap") {
-    return buildEmbossBitmap(meta, params, ensureEmbossBitmapMask(bitmapOpts));
-  }
-
-  // Flat AMS export — dilated united vector solids (b361). Accent-style row slabs shred coffee-bag line art.
-  if (isLabelExport(params)) {
-    const artH = params.embossTraceSize ?? 16;
-    const exportMask = multiColourExportDilatedMask(mask, maskW, maskH, frame, artH);
-    const shapeGroups = multiColourLayerShapeGroups(exportMask, maskW, maskH, params);
-    if (!shapeGroups.length) return null;
-    const bitmap = { width: maskW, height: maskH };
-    const faceGroups = remappedBitmapFaceGroups(bitmap, frame, params, shapeGroups, maskW, maskH, artH);
-    if (!faceGroups?.length) return null;
-    const { d0, d1 } = labelOffsets(params);
-    const positions = [];
-    const indices = [];
-    extrudeGroupsOnFace(positions, indices, frame, faceGroups, d0, d1, params);
-    return positions.length ? { positions, indices } : null;
-  }
-
+  // Same path as coffee-bag / dragons preview — dilated vectors & accent slabs shredded line art.
   return buildEmbossBitmap(meta, params, ensureEmbossBitmapMask(bitmapOpts));
 }
 

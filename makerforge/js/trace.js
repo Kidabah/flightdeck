@@ -691,13 +691,12 @@ export function collapseGreyscaleColorLayers(layers, width, height, { threshold 
   return out.length >= 2 ? out : layers;
 }
 
-/** Normalise multi-colour trace data before preview/export — fixes old 6-grey coffee-bag traces. */
+/** Normalise multi-colour trace data — only collapse greys when Black+white mode is explicit. */
 export function normalizeMultiColourTraceData(traceData, { threshold = 128, traceMode } = {}) {
   if (!traceData?.multiColour || !traceData.colorLayers?.length) return traceData;
+  // Do NOT auto-merge greyscale multi-colour → B&W (that posterised coffee-bag line art).
   const force = traceMode === "black-white";
-  const shouldCollapse = force
-    || (traceData.colorLayers.length > 2 && traceData.colorLayers.every(layerIsGreyscale));
-  if (!shouldCollapse) return traceData;
+  if (!force) return traceData;
   const collapsed = collapseGreyscaleColorLayers(
     traceData.colorLayers,
     traceData.width,

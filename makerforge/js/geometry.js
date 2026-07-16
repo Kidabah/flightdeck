@@ -2348,6 +2348,7 @@ export const CANISTER_SQUARE_PRESET = {
   embossHeight: 12,
   embossTextAlign: "center",
   traceInvert: true,
+  traceMode: "auto",
   canisterContent: "coffee",
   canisterSize: "md",
 };
@@ -2365,7 +2366,8 @@ export const CANISTER_SQUARE_SET_PRESET = {
   stackClearance: 0.35,
   canisterContent: "coffee",
   canisterSize: "md",
-  traceMode: "black-white",
+  // Coffee bag = Auto line-art (golden b284). Black+white posterises the sack into chunks.
+  traceMode: "auto",
   linerEnabled: true,
   boxColor: "#6d7f64",
   lidColor: "#c4a574",
@@ -2581,7 +2583,7 @@ export const DEFAULTS = {
   decorRotation: 0,
   traceThreshold: 128,
   traceInvert: false,
-  traceMode: "black-white",
+  traceMode: "auto",
   honeycombEnabled: false,
   honeycombFace: "back",
   honeycombSize: 2.5,
