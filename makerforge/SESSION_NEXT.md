@@ -4,8 +4,22 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b372** — ALL flat-face art paths watertight (multi-colour AMS layers + text weld fix)
-- Cache-bust: `app.js?v=372`, `features.js?v=372`, `stl.js?v=372` — header **b372**
+- Current: **b373** — flat voxel hook matches ANY mask (b372 gate missed mode \"multi-colour\"/\"black-white\")
+- Cache-bust: `app.js?v=373`, `features.js?v=373` — header **b373**
+
+### 2026-07-16 — b373: Flat voxel hook — match any mask mode (b372 gate was too narrow)
+
+**Symptom:** b372 re-export still ~88.5k non-manifold edges; art still shredded on slice (Text was fixed — count dropped 90,352 → 88,542, tris +1.9k from the kept slivers).
+
+**Cause:** `buildMultiColourLayerEmboss` builds its bitmap with `mode: traceData.mode` — multi-colour traces are `"multi-colour"` / `"black-white"`, NOT `"silhouette"`, and it never passes `multiColourContour`. The b372 gate (`outlineRaster || multiColourContour || mode === "silhouette"`) evaluated false → AMS layers regressed to the vector earcut route again.
+
+**Fix:** Flat-face gate is now `mask present && mode !== "outline"`. Outline stroke mode keeps its extrusion branch; everything else with an ink mask gets the watertight voxel solid.
+
+**Verified:** harness rerun with `mode: "black-white"` (exact session data shape) — Art Black + Art White 0 open / 0 non-manifold, all prior regressions pass.
+
+**Files:** `js/features.js`, `js/app.js`, `js/geometry.js`, `index.html` (`app.js?v=373`, `features.js?v=373`, header **b373**)
+
+**Test:** Hard refresh **b373** (check header!) → re-export → Bambu: no non-manifold error at all; slice art solid.
 
 ### 2026-07-16 — b372: Multi-colour AMS art + Text watertight (b371 fixed the wrong branch for B&W sessions)
 

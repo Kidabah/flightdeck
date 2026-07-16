@@ -3530,8 +3530,9 @@ export function buildEmbossBitmap(meta, params, bitmap) {
   // Flat faces: any ink/silhouette mask (line art, solid trace, multi-colour AMS layer)
   // → closed voxel-surface solid. The vector earcut route silently drops caps on big
   // pixel contours (Art Black/White exported thousands of open edges — b358/b371 history).
-  const flatMaskSolid = bitmap.mask?.length === maskW * maskH
-    && (bitmap.outlineRaster || bitmap.multiColourContour || bitmap.mode === "silhouette");
+  // Multi-colour traces carry mode "multi-colour"/"black-white" (not "silhouette") — match
+  // ANY mask except explicit outline-stroke mode, or B&W AMS layers regress to earcut (b372 bug).
+  const flatMaskSolid = bitmap.mask?.length === maskW * maskH && bitmap.mode !== "outline";
   if (flatMaskSolid) {
     const slab = buildWrapTraceSlabMesh(frame, bitmap, params, [], d0, d1, {});
     if (slab?.indices?.length) return slab;
