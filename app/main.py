@@ -9047,6 +9047,14 @@ def _norm_material(value: Optional[str]) -> str:
     return re.sub(r"[^a-z0-9]+", "", (value or "").lower())
 
 
+def _canon_profile(value: Optional[str]) -> str:
+    """Normalise a profile string for brand-agnostic comparison. Bambu's own profile
+    names say 'Bambu' (e.g. 'Bambu PLA Pure') while Flightdeck stores the brand as
+    'Bambu Lab' — collapse 'bambu lab' -> 'bambu' so they compare equal."""
+    text = re.sub(r"\bbambu\s+lab\b", "bambu", (value or "").lower())
+    return re.sub(r"[^a-z0-9]+", "", text)
+
+
 def _spool_matches_material(spool: dict, material: str) -> bool:
     wanted = _norm_material(material)
     if not wanted:
@@ -9514,8 +9522,8 @@ def _reported_slot_mismatch(spool: Optional[dict], slot: Optional[dict]) -> str:
     spool_brand = _norm_material(spool.get("brand") or "")
     if reported_brand and spool_brand and not _reported_brand_matches_spool(str(slot.get("brand") or ""), spool):
         return f"Brand mismatch: printer {slot.get('brand')}, Flightdeck {spool.get('brand')}"
-    reported_profile = _norm_material(slot.get("profile_name") or "")
-    spool_profile = _norm_material(" ".join([
+    reported_profile = _canon_profile(slot.get("profile_name") or "")
+    spool_profile = _canon_profile(" ".join([
         str(spool.get("brand") or ""),
         str(spool.get("material") or ""),
         str(spool.get("subtype") or ""),

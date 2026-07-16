@@ -18469,6 +18469,12 @@ function _normMat(value) {
     .replace(/[^A-Z0-9+]/g, '');
 }
 
+// Bambu's own profile names say "Bambu" (e.g. "Bambu PLA Pure") while Flightdeck stores
+// brand "Bambu Lab" — collapse so profile comparison isn't tripped by the stray "Lab".
+function _canonProfile(value) {
+  return _normMat(String(value || '').replace(/\bbambu\s+lab\b/ig, 'bambu'));
+}
+
 function _normHex(value) {
   const h = String(value || '').trim().replace(/^#/, '');
   return /^[0-9A-Fa-f]{6}$/.test(h) ? `#${h.toUpperCase()}` : '';
@@ -18559,8 +18565,8 @@ function _slotMismatch(spool, report) {
   if (reportedBrand && spoolBrand && !_reportedBrandMatchesSpool(report.brand || '', spool)) {
     return `Brand mismatch: printer ${report.brand}, Flightdeck ${spool.brand}`;
   }
-  const reportedProfile = _normMat(report.profile_name || '');
-  const spoolProfile = _normMat([spool.brand, spool.material, spool.subtype].filter(Boolean).join(' '));
+  const reportedProfile = _canonProfile(report.profile_name || '');
+  const spoolProfile = _canonProfile([spool.brand, spool.material, spool.subtype].filter(Boolean).join(' '));
   if (_looksLikeBambuProfileCode(report.profile_name)) {
     return '';
   }

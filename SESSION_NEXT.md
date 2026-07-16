@@ -5,6 +5,14 @@ Latest GitHub/Pi state:
 - Latest commit: see entries below (Flightdeck core)
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
 
+### 2026-07-16 fix (AMS profile doctor: Bambu vs Bambu Lab false mismatch)
+
+**Symptom:** After the PLA Pure AMS fix the HT tray correctly reports "Bambu PLA Pure", but the passport showed **"Profile mismatch: printer Bambu PLA Pure, Flightdeck Bambu Lab PLA Pure"**.
+
+**Cause:** Bambu profile names use "Bambu"; Flightdeck builds the expected string from brand "Bambu Lab". `_norm_material` containment failed on the stray "lab".
+
+**Fix:** `_canon_profile()` / `_canonProfile()` collapse "bambu lab" -> "bambu" before the profile comparison in `app/main.py` and `app/static/app.js` (`app.js?v=632`). Backend restart + hard refresh.
+
 ### 2026-07-14 fix (Settings Print enabled checkbox lied)
 
 **Symptom:** Settings → Printers showed **Print enabled** ticked while Live/Fleet still showed **On hold** (e.g. Big Girl/o1c2 stuck with note "Broken Nozzle Selector").
