@@ -630,6 +630,46 @@ function buildFlatTraceSolidMesh(frame, mask, maskW, maskH, place, params, d0, d
   return indices.length ? { positions, indices } : null;
 }
 
+/** Flat-face solid from vector shape groups (face-mm coords) — rasterize + voxel surface.
+ * Earcut letter/graphic solids leak open edges (glyph rings collapse under the 3MF weld,
+ * earcut drops caps on awkward contours — Text shipped 3,264 non-manifold edges on b373).
+ * 0.05 mm cells are invisible at a 0.42 mm nozzle; rows band-merge like the art layers. */
+export function buildFlatShapeGroupsSolidMesh(frame, shapeGroups, d0, d1, params) {
+  const bounds = shapeGroupsBounds2d(shapeGroups);
+  if (!bounds || !frame?.mapPoint || frame.face === "wrap") return null;
+  const spanX = Math.max(bounds.maxX - bounds.minX, 0.2);
+  const spanY = Math.max(bounds.maxY - bounds.minY, 0.2);
+  let stepMm = 0.05;
+  const maxDim = 1600;
+  if (spanX / stepMm > maxDim || spanY / stepMm > maxDim) {
+    stepMm = Math.max(spanX, spanY) / maxDim;
+  }
+  const pad = stepMm * 2;
+  const minX = bounds.minX - pad;
+  const minY = bounds.minY - pad;
+  const maskW = Math.max(4, Math.ceil((spanX + pad * 2) / stepMm));
+  const maskH = Math.max(4, Math.ceil((spanY + pad * 2) / stepMm));
+  const local = scaleShapeGroupsToLocal(shapeGroups, minX, minY, stepMm);
+  const raster = rasterizeShapeGroupsToMask(local, maskW, maskH);
+  if (!raster?.length) return null;
+  // Builder draws row 0 at the TOP (face-y = zOff + maskH*scale) — flip rows so text isn't mirrored.
+  const mask = new Uint8Array(maskW * maskH);
+  for (let y = 0; y < maskH; y++) {
+    mask.set(raster.subarray((maskH - 1 - y) * maskW, (maskH - y) * maskW), y * maskW);
+  }
+  const place = {
+    scale: stepMm,
+    xOff: minX,
+    zOff: minY,
+    artW: maskW * stepMm,
+    artHeight: maskH * stepMm,
+  };
+  // Band rows to layer height on export (same as art); rotation already baked into the groups.
+  const stepPx = params?.__labelExportStandoff ? Math.max(1, Math.round(DECAL_LAYER_MM / stepMm)) : 1;
+  const solidParams = params?.decorRotation ? { ...params, decorRotation: 0 } : params;
+  return buildFlatTraceSolidMesh(frame, mask, maskW, maskH, place, solidParams, d0, d1, stepPx);
+}
+
 /** Wrap trace from pixel mask — radial shells (no earcut slashes, no row-cap z-fight). */
 function buildWrapTraceSlabMesh(frame, bitmap, params, shapeGroups, d0, d1, opts = {}) {
   const place = bitmapWrapPlacement(frame, params, bitmap);
@@ -3051,9 +3091,14 @@ export function buildTextLabelExportMesh(meta, params) {
   if (!collected?.shapeGroups?.length) return null;
 
   const { frame, shapeGroups } = collected;
+  // Export: watertight voxel letters — earcut vector solids ship open edges (b373 Text bug).
+  if (isLabelExport(p)) {
+    const solid = buildFlatShapeGroupsSolidMesh(frame, shapeGroups, d0, d1, p);
+    if (solid?.indices?.length) return solid;
+  }
   const positions = [];
   const indices = [];
-  // Flat faces: vector letter solids (row shells are preview-only — they stripe in slicers).
+  // Flat faces: vector letter solids (preview only — export uses the voxel solid above).
   extrudeGroupsOnFace(positions, indices, frame, shapeGroups, d0, d1, p);
   return positions.length ? { positions, indices } : null;
 }

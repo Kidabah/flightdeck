@@ -4,8 +4,22 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b373** — flat voxel hook matches ANY mask (b372 gate missed mode \"multi-colour\"/\"black-white\")
-- Cache-bust: `app.js?v=373`, `features.js?v=373` — header **b373**
+- Current: **b374** — Text export voxelized; every container part now watertight
+- Cache-bust: `app.js?v=374`, `features.js?v=374` — header **b374**
+
+### 2026-07-16 — b374: Voxelize Text export (last non-manifold part)
+
+**Symptom:** b373 container — Body / Art Black / Art White / Accent all clean; **Text: 3,264 non-manifold edges** (3,244 tris), only remaining error.
+
+**Cause:** Flat text export still used earcut vector letter solids (`extrudeGroupsOnFace`). Glyph contours are dense; the 0.04 mm 3MF weld collapses points and earcut cap/wall pairing breaks — fragile by nature.
+
+**Fix:** New `buildFlatShapeGroupsSolidMesh` — rasterizes the letter shape groups at 0.05 mm cells (canvas raster) and runs the same watertight voxel-surface builder as the art layers, with layer-height row banding. `buildTextLabelExportMesh` uses it for flat-face **export**; preview keeps smooth vector letters. 0.05 mm stair-steps are invisible at a 0.42 mm nozzle.
+
+**Verified:** harness — letter "O" with 2,500-pt rings (0.01 mm spacing, worse than any glyph) + asymmetric "L": 0 open / 0 non-manifold raw AND after prepareMeshFor3mf; orientation check confirms no vertical mirroring. Art layer + line-art regressions all pass.
+
+**Files:** `js/features.js`, `js/app.js`, `js/geometry.js`, `index.html` (`app.js?v=374`, `features.js?v=374`, header **b374**)
+
+**Test:** Hard refresh **b374** → re-export → Bambu: zero non-manifold on ALL parts incl. Text → slice.
 
 ### 2026-07-16 — b373: Flat voxel hook — match any mask mode (b372 gate was too narrow)
 
