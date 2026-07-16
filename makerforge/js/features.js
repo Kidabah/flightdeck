@@ -1318,10 +1318,13 @@ export function appendFlatLidGasketGroove(outPos, outIdx, boxOuter, params) {
   const { outerGroove, innerGroove, gasketDepth } = groove;
   const z0 = 0;
   const z1 = gasketDepth;
-  capRingXZ(outPos, outIdx, outerGroove, innerGroove, z0, false);
+  // Radial-match ONCE and reuse: capRingXZ resamples the inner ring internally, so raw
+  // innerGroove wall verts never welded against the cap verts (2×112 open edges on lids).
+  const innerRing = radialMatchInner(outerGroove, innerGroove);
+  capRingXZ(outPos, outIdx, outerGroove, innerRing, z0, false);
   extrudeWallsAlongZ(outPos, outIdx, outerGroove, z0, z1);
-  extrudeWallsAlongZ(outPos, outIdx, innerGroove, z0, z1);
-  capRingXZ(outPos, outIdx, outerGroove, innerGroove, z1, true);
+  extrudeWallsAlongZ(outPos, outIdx, innerRing, z0, z1);
+  capRingXZ(outPos, outIdx, outerGroove, innerRing, z1, true);
 }
 
 /** Printable TPU washer — mates with {@link appendFlatLidGasketGroove}. */

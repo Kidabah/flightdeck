@@ -4,8 +4,18 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b375** — liner watertight (open top preserved), art embedded into wall, light-layer gap fill
-- Cache-bust: `app.js?v=375`, `features.js?v=375`, `geometry.js?v=375` — header **b375**
+- Current: **b376** — lid gasket groove watertight + Library batch export (folder → Downloads)
+- Cache-bust: `app.js?v=376`, `features.js?v=376`, `geometry.js?v=376` — header **b376**
+
+### 2026-07-16 — b376: Lid gasket groove watertight + Library folder batch export
+
+**Lid fix:** Flat lids with gasket enabled reported "448 open edges" in Bambu. `appendFlatLidGasketGroove` capped the groove with `capRingXZ` (which resamples the inner ring via `radialMatchInner`) but extruded walls with the RAW `innerGroove` points — cap and wall verts never welded (2×112 open edges at z=0 and z=gasketDepth). Now radial-matches once and reuses the ring for caps AND walls. trimesh: lid watertight ✓.
+
+**Feature — Export library folder to Downloads:** Library tab, select a folder chip (e.g. Kitchen) → new **“Export ‹folder› to Downloads”** button. For every design in the folder: loads its saved state (same path as Load, awaits trace restore), builds the standard container/lid/liner 3MFs through the b375 golden export path, renames per design (`250-coffee-container.3mf`, `250-coffee-lid.3mf`, `250-coffee-liner.3mf`, …) and writes everything to `Downloads/…/{folder}/` via the cached folder handle (one picker prompt max, during the click). Inserts ship inside the container 3MF as before. Restores your live session afterwards. Failures are listed per design without aborting the batch.
+
+**Files:** `js/features.js`, `js/app.js`, `js/geometry.js`, `index.html` (`app.js?v=376`, `features.js?v=376`, `geometry.js?v=376`, header **b376**)
+
+**Test:** Hard refresh **b376** → Library → Kitchen → Export “Kitchen” to Downloads → pick Downloads/Makerdeck once → `Makerdeck/Kitchen/` fills with 9 files (3 designs × container/lid/liner) + README. Lid 3MF: no open-edges info line.
 
 ### 2026-07-16 — b375: Liner watertight + sack prints solid (embed + gap fill)
 

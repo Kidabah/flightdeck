@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=375";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=375";
+import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=376";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=376";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=370";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=372";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=365";
@@ -35,7 +35,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b375";
+const MAKERDECK_BUILD = "b376";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -2361,6 +2361,12 @@ async function refreshLibraryFolderNav(refreshGen = libraryUiRefreshGen) {
   };
   mkBtn("All", undefined, libraryFolderFilter === undefined);
   mkBtn("Unfiled", "", libraryFolderFilter === "");
+  const exportBtn = document.getElementById("btn-library-export-folder");
+  if (exportBtn) {
+    const named = typeof libraryFolderFilter === "string" && libraryFolderFilter !== "";
+    exportBtn.classList.toggle("hidden", !named || !folderExportSupported());
+    if (named) exportBtn.textContent = `Export “${libraryFolderFilter}” to Downloads`;
+  }
   if (!libraryApiAvailable()) return;
   try {
     const folders = uniqueLibraryFolders(await listLibraryFolders());
@@ -2374,6 +2380,149 @@ async function refreshLibraryFolderNav(refreshGen = libraryUiRefreshGen) {
   } catch {
     /* nav still shows All / Unfiled */
   }
+}
+
+function libraryDesignFileBase(name, taken) {
+  let base = String(name || "design").trim().toLowerCase()
+    .replace(/[/\\?%*:|"<>]/g, "-").replace(/\s+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "") || "design";
+  let candidate = base;
+  let n = 2;
+  while (taken.has(candidate)) candidate = `${base}-${n++}`;
+  taken.add(candidate);
+  return candidate;
+}
+
+/** Build renamed 3MF entries (container / lid / liner) for the CURRENT state. */
+async function buildLibraryDesignExportEntries(fileBase) {
+  const exportCache = buildFreshExportCache();
+  rebuild();
+  const params = buildParams();
+  const stamp = params.watermarkEnabled !== false ? acquireWatermarkStamp() : null;
+  const separateLiner = exportIncludesSeparateLinerFile();
+  const parts = collectColoredExportParts(exportCache, stamp, { includeLiner: !separateLiner });
+  if (!parts.length) throw new Error("no export parts");
+  const packed = await buildBody3mfExport(exportCache, parts);
+  if (!packed.zipExport) {
+    const data = new Uint8Array(await packed.blob.arrayBuffer());
+    return [{ name: `${fileBase}-container.3mf`, data }];
+  }
+  const out = [];
+  for (const entry of packed.folderEntries || []) {
+    if (!/\.3mf$/i.test(entry.name)) continue; // per-design README skipped; one batch README added later
+    const part = /-lid\.3mf$/i.test(entry.name) ? "lid"
+      : /-liner\.3mf$/i.test(entry.name) ? "liner"
+        : "container";
+    out.push({ name: `${fileBase}-${part}.3mf`, data: entry.data });
+  }
+  return out;
+}
+
+let libraryBatchExportBusy = false;
+
+/** Export every design in the active library folder to Downloads/{folder}/ with per-design names. */
+async function exportLibraryFolderToDownloads() {
+  const status = document.getElementById("library-status");
+  const folderName = typeof libraryFolderFilter === "string" && libraryFolderFilter !== "" ? libraryFolderFilter : "";
+  if (!folderName) {
+    if (status) status.textContent = "Pick a folder chip first (not All / Unfiled).";
+    return;
+  }
+  if (libraryBatchExportBusy) return;
+  if (!folderExportSupported()) {
+    if (status) status.textContent = folderExportBlockedReason();
+    return;
+  }
+  // Folder access while the click gesture is still alive (browser requirement).
+  let rootHandle = null;
+  try {
+    rootHandle = await prepareExportFolderAccess(folderName);
+  } catch (err) {
+    if (isFolderExportCancelled(err)) {
+      if (status) status.textContent = exportFolderPickerHint(folderName);
+      return;
+    }
+    if (status) status.textContent = err?.message || "Folder access failed.";
+    return;
+  }
+
+  libraryBatchExportBusy = true;
+  const exportBtn = document.getElementById("btn-library-export-folder");
+  if (exportBtn) exportBtn.disabled = true;
+  // Snapshot the live session — batch loads each design into the app state.
+  const snapshot = {
+    state: stateForSession(),
+    traceImage: traceSourceCanvas ? traceSourceCanvas.toDataURL("image/jpeg", 0.82) : null,
+  };
+  const failures = [];
+  const entries = [];
+  try {
+    const designs = await listLibraryDesigns(96, folderName);
+    if (!designs.length) {
+      if (status) status.textContent = `No designs in “${folderName}”.`;
+      return;
+    }
+    const taken = new Set();
+    for (const [i, design] of designs.entries()) {
+      if (status) status.textContent = `Exporting ${i + 1}/${designs.length}: ${design.name}…`;
+      try {
+        const payload = await fetchDesignParams(design.id);
+        sessionBooting = true;
+        await applySessionPayload({ state: payload.state, traceImage: payload.traceImage || null });
+        sessionBooting = false;
+        syncUiFromState();
+        updateDecorUi();
+        syncArtEditorUi();
+        updateTraceUi();
+        rebuild();
+        // Trace geometry must be ready BEFORE export (deferred idle restore is too late).
+        if (traceApplyNeedsRefresh()) {
+          if (traceLastResult && hasTraceGeometry(traceLastResult) && storeTraceOnBox(traceLastResult)) {
+            rebuild();
+          } else if (traceSourceCanvas) {
+            await runTraceAsync();
+            rebuild();
+          }
+        }
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        const fileBase = libraryDesignFileBase(design.name, taken);
+        entries.push(...await buildLibraryDesignExportEntries(fileBase));
+      } catch (err) {
+        console.warn(`MakerDeck batch export failed for ${design.name}:`, err);
+        failures.push(design.name);
+      }
+    }
+    if (entries.length) {
+      entries.push({ name: "README.txt", data: new TextEncoder().encode(CONTAINER_EXPORT_README) });
+      const res = await saveFilesToExportFolder(folderName, entries, rootHandle);
+      const failNote = failures.length ? ` · failed: ${failures.join(", ")}` : "";
+      if (status) status.textContent = `Saved ${res.fileCount} files to ${res.pathLabel}/${failNote}`;
+    } else if (status) {
+      status.textContent = `Nothing exported${failures.length ? ` — failed: ${failures.join(", ")}` : ""}.`;
+    }
+  } catch (err) {
+    if (status) status.textContent = err?.message || "Folder export failed.";
+  } finally {
+    // Restore the session that was live before the batch.
+    try {
+      sessionBooting = true;
+      await applySessionPayload(snapshot);
+    } finally {
+      sessionBooting = false;
+    }
+    syncUiFromState();
+    updateDecorUi();
+    syncArtEditorUi();
+    updateTraceUi();
+    rebuild();
+    scheduleDeferredRestoreTrace();
+    if (exportBtn) exportBtn.disabled = false;
+    libraryBatchExportBusy = false;
+  }
+}
+
+function initLibraryFolderExport() {
+  const btn = document.getElementById("btn-library-export-folder");
+  if (btn) btn.addEventListener("click", () => void exportLibraryFolderToDownloads());
 }
 
 function initLibrarySave() {
@@ -6349,6 +6498,7 @@ document.getElementById("btn-export-go")?.addEventListener("click", async () => 
 
 initExportDialog();
 initLibrarySave();
+initLibraryFolderExport();
 initLibraryConfirmDialog();
 initCategoryCollapse();
 
