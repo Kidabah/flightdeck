@@ -10244,8 +10244,36 @@ async def _wait_for_bambu_physical_start(p: BambuPrinter, job_id: int, filename:
         # "idle" can be a transient state during the first ~30 seconds while the
         # printer transitions from idle → PREPARE (AMS prep).  Only give up on
         # sustained idle (no sign of life after 45 seconds).
-        if last_state == "idle" and time.monotonic() - started_at > 45.0:
+        if last_state in {"idle", "finished", "ready", "standby"} and time.monotonic() - started_at > 45.0:
             break
+    try:
+        hms = await asyncio.to_thread(p.hms_summary)
+    except Exception:
+        hms = None
+
+    # Printer refused / ignored start — fail the queue row with HMS when present
+    # instead of leaving "Printing…" until the stale-idle sweeper fires.
+    if hms:
+        detail = f"Start failed — {hms}"
+        db.queue_update_status(job_id, "failed", detail)
+        db.log_decision(
+            p.id,
+            "queue_bambu_start_hms",
+            f"Job #{job_id} {filename}: {detail} (last_state={last_state})",
+        )
+        return False
+    if last_state in {"idle", "finished", "ready", "standby", "error", "estop"}:
+        detail = (
+            f"Printer stayed {last_state} after start command — "
+            "check the printer screen for HMS / finish overlays"
+        )
+        db.queue_update_status(job_id, "failed", detail)
+        db.log_decision(
+            p.id,
+            "queue_bambu_start_unconfirmed",
+            f"Job #{job_id} {filename}: {detail}",
+        )
+        return False
     msg = "Start confirmation was inconclusive; leaving the accepted queue job active for printer-state monitoring"
     db.log_decision(p.id, "queue_bambu_start_unconfirmed", f"Job #{job_id} {filename}: {msg} (last_state={last_state})")
     return False

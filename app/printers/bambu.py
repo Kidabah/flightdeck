@@ -1334,6 +1334,13 @@ class BambuPrinter:
             regular_ams_slots=regular_ams_slots,
         )
 
+    def hms_summary(self) -> Optional[str]:
+        """Latest HMS warning/error text from MQTT, if any."""
+        try:
+            return bambu_hms_summary(self._printer.mqtt_dump())
+        except Exception:
+            return None
+
 
 def _read_dual_nozzle_temps(mqtt_dump: dict, model_name: str) -> dict[str, "TempReading"]:
     """Return {hotend_l, hotend_r} TempReadings for H-series dual-nozzle printers.
@@ -1868,6 +1875,15 @@ _BAMBU_ALARM_MESSAGES = {
     "117473298": 'Failed to get AMS mapping table; please select "Resume" to retry.',
 }
 
+# Common HMS codes (attr/code → XXXX-XXXX-XXXX-XXXX) with wiki-style text.
+_BAMBU_HMS_MESSAGES = {
+    "0500-0300-0002-000E": (
+        "Module/firmware mismatch (HMS 0500-0300-0002-000E) — printer may ignore new jobs. "
+        "If no firmware update is offered: power off, disconnect AMS (and reseat hotends), "
+        "power on and check Firmware again; then reconnect AMS and retry."
+    ),
+}
+
 
 def _normalise_bambu_alarm_code(value) -> str:
     text = str(value or "").strip()
@@ -1905,6 +1921,59 @@ def _bambu_alarm_message(print_data: dict) -> Optional[str]:
     for code in candidates:
         return f"Bambu alarm {_format_bambu_display_code(code)}"
     return None
+
+
+def _format_bambu_hms_code(attr, code) -> str:
+    """Decode Bambu HMS attr/code ints into XXXX-XXXX-XXXX-XXXX."""
+    try:
+        a = int(attr)
+        c = int(code)
+    except (TypeError, ValueError):
+        return ""
+    if a == 0 and c == 0:
+        return ""
+    return (
+        f"{(a >> 16) & 0xFFFF:04X}-{(a & 0xFFFF):04X}-"
+        f"{(c >> 16) & 0xFFFF:04X}-{(c & 0xFFFF):04X}"
+    )
+
+
+def _bambu_hms_entries(mqtt_dump: Optional[dict]) -> list[dict]:
+    print_data = (mqtt_dump or {}).get("print") if isinstance(mqtt_dump, dict) else None
+    raw = (print_data or {}).get("hms") if isinstance(print_data, dict) else None
+    if not isinstance(raw, list):
+        return []
+    out: list[dict] = []
+    seen: set[str] = set()
+    for row in raw:
+        if not isinstance(row, dict):
+            continue
+        code = _format_bambu_hms_code(row.get("attr"), row.get("code"))
+        if not code or code in seen:
+            continue
+        seen.add(code)
+        text = _BAMBU_HMS_MESSAGES.get(code) or f"Printer HMS {code}"
+        out.append({"code": code, "message": text})
+    return out
+
+
+def bambu_hms_summary(mqtt_dump: Optional[dict]) -> Optional[str]:
+    """Short user-facing HMS summary for queue/Live errors."""
+    entries = _bambu_hms_entries(mqtt_dump)
+    if not entries:
+        return None
+    parts = []
+    for entry in entries[:3]:
+        code = entry["code"]
+        msg = entry["message"]
+        if msg.startswith("Printer HMS "):
+            parts.append(msg)
+        else:
+            parts.append(f"{msg} [{code}]")
+    extra = len(entries) - len(parts)
+    if extra > 0:
+        parts.append(f"+{extra} more")
+    return "; ".join(parts)
 
 
 def _bambu_failed_is_operator_cancel(err_code, alarm_message: Optional[str]) -> bool:

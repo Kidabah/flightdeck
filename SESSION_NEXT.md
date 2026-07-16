@@ -5,6 +5,18 @@ Latest GitHub/Pi state:
 - Latest commit: see entries below (Flightdeck core)
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
 
+### 2026-07-16 fix (queue start shows HMS instead of stale Printing…)
+
+**Symptom:** Big Girl queue showed IDLE + “Printing…” then cancelled as stale after ~8 min. Retry of coffee container did the same. Hold was not involved.
+
+**Cause:** MQTT `project_file` start never confirmed; printer stayed idle/FINISH with HMS `0500-0300-0002-000E` (module/firmware incompatible). Watchdog only logged `queue_bambu_start_unconfirmed` and left the row active until the stale sweeper. Often no OTA is offered — module (AMS/hotend) out of sync after nozzle work.
+
+**Fix:** Decode Bambu HMS from MQTT. If start stays idle/finished (or errors) without physical proof, fail the queue job immediately with the HMS text (or a clear “stayed idle — check printer screen” message) instead of waiting for stale clear.
+
+**Files:** `app/printers/bambu.py`, `app/main.py`, `SESSION_NEXT.md`
+
+**Test:** Queue a job to a printer that refuses start with HMS → within ~45–60s job status **Failed** with HMS message (not stuck Printing…). Backend restart required. No frontend cache bump.
+
 ### 2026-07-16 fix (AMS profile doctor: Bambu vs Bambu Lab false mismatch)
 
 **Symptom:** After the PLA Pure AMS fix the HT tray correctly reports "Bambu PLA Pure", but the passport showed **"Profile mismatch: printer Bambu PLA Pure, Flightdeck Bambu Lab PLA Pure"**.
