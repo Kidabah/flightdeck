@@ -4,8 +4,25 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b376** — lid gasket groove watertight + Library batch export (folder → Downloads)
-- Cache-bust: `app.js?v=376`, `features.js?v=376`, `geometry.js?v=376` — header **b376**
+- Current: **b377** — liner 3MF declares Bambu PLA Pure (GFA19) so Bambu auto-maps the AMS HT
+- Cache-bust: `app.js?v=377`, `geometry.js?v=377`, `3mf.js?v=377` — header **b377**
+
+### 2026-07-16 — b377: Liner filament preset — PLA Pure maps to AMS HT
+
+**Symptom:** *-liner.3mf opened in Bambu with slot 1 = Generic PLA → grouped to AMS 1, not the AMS HT holding PLA Pure. Manual re-slotting every time.
+
+**Cause:** `buildFilamentSlots` hardcoded every slot to `Generic PLA @BBL H2D` / `GFL99` / vendor Generic.
+
+**Fix:**
+- Parts can carry `filamentPreset`; Liner sets it from new `state.linerFilamentPreset` (default **"Bambu PLA Pure @BBL H2D"** — editable field on the Design tab under Food-safe liner, with datalist suggestions).
+- `buildFilamentSlots` writes per-slot `filament_settings_id`, `filament_ids`, `filament_vendor` from the preset. IDs verified against BambuStudio system profiles: **PLA Pure = GFA19**, PLA Basic = GFA00, PLA Matte = GFA01 (`Bambu PLA Pure @base.json`, `…@BBL H2D.json`).
+- Applies to the standalone liner 3MF AND the Liner part inside container exports (incl. Library batch export).
+
+**Verified:** Node harness builds liner-test.3mf → project_settings.config: `filament_settings_id ["Bambu PLA Pure @BBL H2D"]`, `filament_ids ["GFA19"]`, `filament_vendor ["Bambu Lab"]`.
+
+**Files:** `js/geometry.js`, `js/app.js`, `js/3mf.js`, `index.html` (`app.js?v=377`, `geometry.js?v=377`, `3mf.js?v=377`, header **b377**)
+
+**Test:** Hard refresh **b377** → re-export liner → open in Bambu → slot shows Bambu PLA Pure and grouping picks the AMS HT tray (GFA19 RFID match).
 
 ### 2026-07-16 — b376: Lid gasket groove watertight + Library folder batch export
 

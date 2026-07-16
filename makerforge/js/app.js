@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=376";
+import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=377";
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=376";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=370";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=372";
-import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=365";
+import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=377";
 import {
   folderExportSupported,
   folderExportBlockedReason,
@@ -35,7 +35,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b376";
+const MAKERDECK_BUILD = "b377";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -1179,6 +1179,7 @@ function collectColoredExportParts(exportCache, stamp = null, { includeLiner = t
         mesh: linerClean,
         color: state.linerColor || "#f5f5f4",
         extruder: extruder++,
+        filamentPreset: state.linerFilamentPreset || "",
       });
     }
   }
@@ -1203,6 +1204,7 @@ function collectColoredLinerExportParts(exportCache) {
     mesh: linerClean,
     color: state.linerColor || "#f5f5f4",
     extruder: 1,
+    filamentPreset: state.linerFilamentPreset || "",
   }];
 }
 
@@ -3080,6 +3082,11 @@ function syncCanisterControlsFromState() {
   const linerOk = shapeSupportsLiner(state.shape);
   document.getElementById("field-liner-enabled")?.classList.toggle("hidden", !linerOk);
   document.getElementById("liner-hint")?.classList.toggle("hidden", !linerOk || !state.linerEnabled);
+  document.getElementById("field-liner-filament")?.classList.toggle("hidden", !linerOk || !state.linerEnabled);
+  const linerPresetInput = document.getElementById("liner-filament-preset");
+  if (linerPresetInput && document.activeElement !== linerPresetInput) {
+    linerPresetInput.value = state.linerFilamentPreset ?? "";
+  }
   const linerToggle = document.getElementById("liner-enabled");
   if (linerToggle) linerToggle.checked = !!state.linerEnabled;
   if (!on) return;
@@ -5979,6 +5986,11 @@ document.getElementById("liner-enabled")?.addEventListener("change", (e) => {
   state.linerEnabled = e.target.checked;
   syncCanisterControlsFromState();
   rebuild();
+});
+
+document.getElementById("liner-filament-preset")?.addEventListener("change", (e) => {
+  state.linerFilamentPreset = String(e.target.value || "").trim();
+  scheduleSaveSession();
 });
 
 document.getElementById("lid-print-supports")?.addEventListener("change", (e) => {

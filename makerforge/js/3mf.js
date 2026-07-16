@@ -462,13 +462,29 @@ function buildFilamentSlots(usable) {
     }
     return "#FFFFFF";
   });
+  // Per-slot Bambu preset (e.g. liner = "Bambu PLA Pure @BBL H2D") so Bambu Studio maps
+  // the right AMS unit automatically (PLA Pure lives in the AMS HT, not AMS 1).
+  const slotPreset = (slot) => {
+    for (const part of usable) {
+      if ((part.extruder || 1) === slot && part.filamentPreset) return String(part.filamentPreset).trim();
+    }
+    return "Generic PLA @BBL H2D";
+  };
+  // filament_id from BambuStudio system profiles: PLA Pure=GFA19, PLA Basic=GFA00, PLA Matte=GFA01.
+  const presetFilamentId = (preset) => {
+    if (/pla pure/i.test(preset)) return "GFA19";
+    if (/pla basic/i.test(preset)) return "GFA00";
+    if (/pla matte/i.test(preset)) return "GFA01";
+    return "GFL99";
+  };
+  const presets = slotColors.map((_, i) => slotPreset(i + 1));
   return {
     maxExtruder,
     slotColors,
     filamentType: slotColors.map(() => "PLA"),
-    filamentIds: slotColors.map(() => "GFL99"),
-    filamentSettingsId: slotColors.map(() => "Generic PLA @BBL H2D"),
-    filamentVendor: slotColors.map(() => "Generic"),
+    filamentIds: presets.map(presetFilamentId),
+    filamentSettingsId: presets,
+    filamentVendor: presets.map((preset) => (/^bambu/i.test(preset) ? "Bambu Lab" : "Generic")),
     filamentDiameter: slotColors.map(() => "1.75"),
     filamentDensity: slotColors.map(() => "1.24"),
   };

@@ -259,7 +259,16 @@
                   <span class="field-label">Food-safe liner</span>
                   <input type="checkbox" id="liner-enabled">
                 </label>
-                <p class="hint hidden" id="liner-hint">Thin PLA Pure cup with a top flange — sits below the lid lip so the lid still seats on the outer shell. Exported as a separate <strong>Liner</strong> part with a peel-off top membrane (~0.18&nbsp;mm) — remove after print.</p>
+                <label class="field hidden" id="field-liner-filament">
+                  <span class="field-label">Liner filament preset</span>
+                  <input type="text" id="liner-filament-preset" list="liner-filament-presets" placeholder="Bambu PLA Pure @BBL H2D" spellcheck="false">
+                  <datalist id="liner-filament-presets">
+                    <option value="Bambu PLA Pure @BBL H2D"></option>
+                    <option value="Bambu PLA Basic @BBL H2D"></option>
+                    <option value="Generic PLA @BBL H2D"></option>
+                  </datalist>
+                </label>
+                <p class="hint hidden" id="liner-hint">Written into the liner 3MF so Bambu maps the AMS slot automatically (PLA Pure lives in the AMS HT). Thin PLA Pure cup with a top flange — sits below the lid lip so the lid still seats on the outer shell. Exported as a separate <strong>Liner</strong> part with a peel-off top membrane (~0.18&nbsp;mm) — remove after print.</p>
                 <p class="hint hidden" id="canister-stack-hint">Uniform <strong>250g</strong> round jars — flat lids with a <strong>1&nbsp;mm</strong> stack lip. Export body + lid 3MF per letter (<strong>C · S · M</strong>).</p>
               </section>
 
@@ -1361,7 +1370,7 @@
     </div>
   </dialog>
 
-  <script type="module" src="js/app.js?v=376"></script>
+  <script type="module" src="js/app.js?v=377"></script>
 
 </body>
 
