@@ -4,8 +4,26 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b371** — flat-face trace export is watertight (voxel-surface solid, no more non-manifold spam)
-- Cache-bust: `app.js?v=371`, `features.js?v=371` — header **b371**
+- Current: **b372** — ALL flat-face art paths watertight (multi-colour AMS layers + text weld fix)
+- Cache-bust: `app.js?v=372`, `features.js?v=372`, `stl.js?v=372` — header **b372**
+
+### 2026-07-16 — b372: Multi-colour AMS art + Text watertight (b371 fixed the wrong branch for B&W sessions)
+
+**Symptom:** Container re-exported on b371 still showed **90,352 non-manifold edges**. Parsed the actual 3MF: Body/Accent clean, but **Art Black 2,704 + Art White 4,130 + Text 340 open edges**.
+
+**Cause (two separate leaks):**
+1. B&W (2 AMS) trace sessions export via `buildMultiColourGraphicEmboss` → `layerToEmbossBitmap` sets `multiColourContour` but **not** `outlineRaster` — so the b371 voxel hook was bypassed and layers went down the **vector earcut** route, which silently drops caps on big pixel contours (b358 disease).
+2. `prepareMeshFor3mf` welds at 0.04 mm, merging dense glyph contour points into degenerate tris, then `removeDegenerateTriangles` culled positive-area slivers — deleting a sliver from a closed mesh tears an open edge. That's Text's 340.
+
+**Fix:**
+- `buildEmbossBitmap`: flat-face voxel-solid hook now fires for **any** ink/silhouette mask — `outlineRaster || multiColourContour || mode === "silhouette"` (outline stroke mode keeps its vector branch).
+- `stl.js`: `prepareMeshFor3mf` uses new `removeCollapsedTriangles` — drops only repeated-index / invalid / non-finite tris, **keeps slivers** (topology-safe). STL path (`sanitizeMeshForStl`) unchanged.
+
+**Verified in Node harness:** simulated B&W two-layer coffee bag → Art Black + Art White both **0 open / 0 non-manifold**, raw and after prepareMeshFor3mf. Dense-glyph torture (3,000-pt ring, 0.017 mm spacing — worse than any font) survives the 0.04 weld closed. All b371 regressions (faces, rotation, checkerboard, preview perf) still pass.
+
+**Files:** `js/features.js`, `js/stl.js`, `js/app.js`, `js/geometry.js`, `js/3mf.js`, `index.html` (`app.js?v=372`, `features.js?v=372`, `stl.js?v=372`, header **b372**)
+
+**Test:** Hard refresh **b372** → re-export (no re-trace needed, B&W session data fine) → Bambu object info: no non-manifold error on container. Slice: solid bag art, no shred.
 
 ### 2026-07-16 — b371: Watertight flat-face trace export (fix 90k non-manifold edges)
 

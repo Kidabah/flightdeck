@@ -3527,8 +3527,12 @@ export function buildEmbossBitmap(meta, params, bitmap) {
     return null;
   }
 
-  // Line-art raster on flat faces — row shells.
-  if (bitmap.outlineRaster && bitmap.mask?.length === maskW * maskH) {
+  // Flat faces: any ink/silhouette mask (line art, solid trace, multi-colour AMS layer)
+  // → closed voxel-surface solid. The vector earcut route silently drops caps on big
+  // pixel contours (Art Black/White exported thousands of open edges — b358/b371 history).
+  const flatMaskSolid = bitmap.mask?.length === maskW * maskH
+    && (bitmap.outlineRaster || bitmap.multiColourContour || bitmap.mode === "silhouette");
+  if (flatMaskSolid) {
     const slab = buildWrapTraceSlabMesh(frame, bitmap, params, [], d0, d1, {});
     if (slab?.indices?.length) return slab;
   }

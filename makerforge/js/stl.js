@@ -93,13 +93,32 @@ export function prepareMeshFor3mf(mesh) {
 
   const welded = weldMeshVertices(positions, indices, 0.04);
   let idx = removeDuplicateTriangles(welded.indices);
-  idx = removeDegenerateTriangles(welded.positions, idx);
+  // Topology-safe only: drop collapsed/invalid tris, KEEP thin slivers — deleting a
+  // positive-area sliver from a closed mesh tears an open edge (Text lost 340 edges
+  // this way: 0.04 weld merged dense glyph points, then area cull removed the tris).
+  idx = removeCollapsedTriangles(welded.positions, idx);
   if (!idx.length) return null;
 
   const open = countOpenEdges(welded.positions, idx);
   const out = { positions: welded.positions, indices: idx, openEdgeCount: open };
   if (mesh.triangleExtruders?.length === idx.length / 3) {
     out.triangleExtruders = mesh.triangleExtruders;
+  }
+  return out;
+}
+
+function removeCollapsedTriangles(positions, indices) {
+  const out = [];
+  const vertCount = positions.length / 3;
+  for (let t = 0; t < indices.length; t += 3) {
+    const ia = indices[t];
+    const ib = indices[t + 1];
+    const ic = indices[t + 2];
+    if (ia < 0 || ib < 0 || ic < 0 || ia >= vertCount || ib >= vertCount || ic >= vertCount) continue;
+    if (ia === ib || ib === ic || ia === ic) continue;
+    const coords = [ia, ib, ic].flatMap((v) => [positions[v * 3], positions[v * 3 + 1], positions[v * 3 + 2]]);
+    if (!coords.every(Number.isFinite)) continue;
+    out.push(ia, ib, ic);
   }
   return out;
 }
