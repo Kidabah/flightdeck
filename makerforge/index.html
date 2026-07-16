@@ -255,6 +255,11 @@
                 <p class="hint canister-food-hint">Coffee/sugar/milo use standard tin footprints; biscuits default to the wide <strong>1.5kg</strong> tin. Use food-contact filament. Flat lids include an optional gasket groove — print the <strong>Gasket</strong> part in TPU (or use 2&nbsp;mm cord).</p>
                 <p class="hint hidden" id="canister-square-set-hint">Uniform <strong>250g</strong> square canisters — flat lids with a <strong>1&nbsp;mm</strong> stack lip so jars tower without sliding off. Front-face labels (<strong>COFFEE · SUGAR · MILO</strong>). Enable <strong>Food-safe liner</strong> for a thin PLA Pure insert.</p>
 
+                <label class="field hidden" id="field-canister-filament">
+                  <span class="field-label">Canister filament preset</span>
+                  <input type="text" id="canister-filament-preset" list="liner-filament-presets" placeholder="Generic PLA @BBL H2D" spellcheck="false">
+                </label>
+                <p class="hint hidden" id="canister-filament-hint">Written into the container + lid + accent 3MF slots so Bambu maps the AMS automatically. Leave blank for Generic PLA.</p>
                 <label class="field field-toggle hidden" id="field-liner-enabled">
                   <span class="field-label">Food-safe liner</span>
                   <input type="checkbox" id="liner-enabled">
@@ -1370,7 +1375,7 @@
     </div>
   </dialog>
 
-  <script type="module" src="js/app.js?v=379"></script>
+  <script type="module" src="js/app.js?v=380"></script>
 
 </body>
 

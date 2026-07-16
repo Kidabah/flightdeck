@@ -2618,6 +2618,7 @@ export const DEFAULTS = {
   insertBodyGap: 0.12,
   linerEnabled: false,
   linerFilamentPreset: "Bambu PLA Pure @BBL H2D",
+  canisterFilamentPreset: "",
   linerWall: 0.9,
   linerClearance: 0.35,
   linerFlangeTh: 0.9,

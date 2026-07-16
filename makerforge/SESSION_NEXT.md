@@ -4,7 +4,8 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b379** — manifold export gate blocks non-manifold 3MFs
+- Current: **b380** — batch manifold summary + canister filament preset
+- (was b379) — manifold export gate blocks non-manifold 3MFs
 - (was b378) — single-filament 3MFs (liner) also pin to left nozzle so AMS HT is offered
 - Cache-bust: `app.js?v=378`, `3mf.js?v=378` — header **b378**
 
@@ -19,6 +20,14 @@ Latest GitHub/Pi state:
 **Verified:** unit test — spool {Bambu Lab, PLA, Pure} -> tray_info_idx GFA19, setting_id GFSA19, name "Bambu PLA Pure", 190-240C. Non-Bambu PLA still GFL99.
 
 **Deploy:** Pi backend restart required. After restart, re-push AMS HT slot (Trust Flightdeck / re-assign #100) so the tray re-registers as PLA Pure.
+
+### 2026-07-16 — b380: Batch manifold summary + canister filament preset
+
+**Batch export summary:** Library folder export now tallies open edges per design and writes a "Manifold check" section into the batch README, plus a status line ("all watertight" or "N design(s) NON-MANIFOLD — see README"). Reuses `tallyExportOpenEdges`.
+
+**Canister filament preset:** New "Canister filament preset" field (Design tab, by the liner preset) writes the chosen Bambu preset into the container Body + Lid + Accent 3MF slots — same mechanism as the liner's PLA Pure. Blank = Generic PLA (no change). `state.canisterFilamentPreset`; verified a Body slot picks up "Bambu PLA Basic" -> GFA00.
+
+**Files:** js/app.js, js/geometry.js, index.html (app.js?v=380, geometry.js?v=380, header b380).
 
 ### 2026-07-16 — test harness + two stack-lip bugs found
 

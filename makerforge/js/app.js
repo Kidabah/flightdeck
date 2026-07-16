@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=377";
+import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=380";
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=376";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=370";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=372";
@@ -35,7 +35,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b379";
+const MAKERDECK_BUILD = "b380";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -1112,6 +1112,7 @@ function collectColoredExportParts(exportCache, stamp = null, { includeLiner = t
         mesh: bodyClean,
         color: state.boxColor || "#38bdf8",
         extruder: extruder++,
+        filamentPreset: state.canisterFilamentPreset || "",
       });
     }
     if (separateArt) {
@@ -1162,6 +1163,7 @@ function collectColoredExportParts(exportCache, stamp = null, { includeLiner = t
         mesh: bodyClean,
         color: state.boxColor || "#38bdf8",
         extruder: extruder++,
+        filamentPreset: state.canisterFilamentPreset || "",
       });
     }
   }
@@ -1175,6 +1177,7 @@ function collectColoredExportParts(exportCache, stamp = null, { includeLiner = t
         mesh: accentClean,
         color: part.color || state.accentBands[i]?.color || "#f97316",
         extruder: extruder++,
+        filamentPreset: state.canisterFilamentPreset || "",
       });
     });
   }
@@ -1322,6 +1325,7 @@ function collectColoredLidExportParts() {
       mesh: lidClean,
       color: state.lidColor || state.boxColor || "#38bdf8",
       extruder: extruder++,
+      filamentPreset: state.canisterFilamentPreset || "",
     });
   }
   if (separateArt) {
@@ -2423,20 +2427,21 @@ async function buildLibraryDesignExportEntries(fileBase) {
   const separateLiner = exportIncludesSeparateLinerFile();
   const parts = collectColoredExportParts(exportCache, stamp, { includeLiner: !separateLiner });
   if (!parts.length) throw new Error("no export parts");
+  const manifold = tallyExportOpenEdges(exportCache, parts);
   const packed = await buildBody3mfExport(exportCache, parts);
   if (!packed.zipExport) {
     const data = new Uint8Array(await packed.blob.arrayBuffer());
-    return [{ name: `${fileBase}-container.3mf`, data }];
+    return { files: [{ name: `${fileBase}-container.3mf`, data }], manifold };
   }
-  const out = [];
+  const files = [];
   for (const entry of packed.folderEntries || []) {
     if (!/\.3mf$/i.test(entry.name)) continue; // per-design README skipped; one batch README added later
     const part = /-lid\.3mf$/i.test(entry.name) ? "lid"
       : /-liner\.3mf$/i.test(entry.name) ? "liner"
         : "container";
-    out.push({ name: `${fileBase}-${part}.3mf`, data: entry.data });
+    files.push({ name: `${fileBase}-${part}.3mf`, data: entry.data });
   }
-  return out;
+  return { files, manifold };
 }
 
 let libraryBatchExportBusy = false;
@@ -2477,6 +2482,8 @@ async function exportLibraryFolderToDownloads() {
   };
   const failures = [];
   const entries = [];
+  const manifoldSummary = [];
+  let manifoldWarnings = 0;
   try {
     const designs = await listLibraryDesigns(96, folderName);
     if (!designs.length) {
@@ -2507,17 +2514,29 @@ async function exportLibraryFolderToDownloads() {
         }
         await new Promise((resolve) => setTimeout(resolve, 0));
         const fileBase = libraryDesignFileBase(design.name, taken);
-        entries.push(...await buildLibraryDesignExportEntries(fileBase));
+        const built = await buildLibraryDesignExportEntries(fileBase);
+        entries.push(...built.files);
+        manifoldSummary.push(built.manifold.total > 0
+          ? `${design.name}: ${built.manifold.total} OPEN EDGES (${built.manifold.rows.join(", ")})`
+          : `${design.name}: watertight`);
+        if (built.manifold.total > 0) manifoldWarnings++;
       } catch (err) {
         console.warn(`MakerDeck batch export failed for ${design.name}:`, err);
         failures.push(design.name);
       }
     }
     if (entries.length) {
-      entries.push({ name: "README.txt", data: new TextEncoder().encode(CONTAINER_EXPORT_README) });
+      const readmeText = CONTAINER_EXPORT_README
+        + "\n\nManifold check (this batch):\n"
+        + manifoldSummary.map((line) => `  - ${line}`).join("\n")
+        + (manifoldWarnings ? "\n\nWARNING: parts with open edges may not slice cleanly — do NOT let Bambu 'Repair' them." : "\n\nAll parts watertight.");
+      entries.push({ name: "README.txt", data: new TextEncoder().encode(readmeText) });
       const res = await saveFilesToExportFolder(folderName, entries, rootHandle);
       const failNote = failures.length ? ` · failed: ${failures.join(", ")}` : "";
-      if (status) status.textContent = `Saved ${res.fileCount} files to ${res.pathLabel}/${failNote}`;
+      const manifoldNote = manifoldWarnings
+        ? ` · ${manifoldWarnings} design(s) NON-MANIFOLD — see README`
+        : " · all watertight";
+      if (status) status.textContent = `Saved ${res.fileCount} files to ${res.pathLabel}/${manifoldNote}${failNote}`;
     } else if (status) {
       status.textContent = `Nothing exported${failures.length ? ` — failed: ${failures.join(", ")}` : ""}.`;
     }
@@ -3106,6 +3125,12 @@ function syncCanisterControlsFromState() {
   const linerPresetInput = document.getElementById("liner-filament-preset");
   if (linerPresetInput && document.activeElement !== linerPresetInput) {
     linerPresetInput.value = state.linerFilamentPreset ?? "";
+  }
+  document.getElementById("field-canister-filament")?.classList.toggle("hidden", !linerOk);
+  document.getElementById("canister-filament-hint")?.classList.toggle("hidden", !linerOk);
+  const canPresetInput = document.getElementById("canister-filament-preset");
+  if (canPresetInput && document.activeElement !== canPresetInput) {
+    canPresetInput.value = state.canisterFilamentPreset ?? "";
   }
   const linerToggle = document.getElementById("liner-enabled");
   if (linerToggle) linerToggle.checked = !!state.linerEnabled;
@@ -6021,6 +6046,11 @@ document.getElementById("liner-enabled")?.addEventListener("change", (e) => {
 
 document.getElementById("liner-filament-preset")?.addEventListener("change", (e) => {
   state.linerFilamentPreset = String(e.target.value || "").trim();
+  scheduleSaveSession();
+});
+
+document.getElementById("canister-filament-preset")?.addEventListener("change", (e) => {
+  state.canisterFilamentPreset = String(e.target.value || "").trim();
   scheduleSaveSession();
 });
 
