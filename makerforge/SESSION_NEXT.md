@@ -20,6 +20,16 @@ Latest GitHub/Pi state:
 
 **Deploy:** Pi backend restart required. After restart, re-push AMS HT slot (Trust Flightdeck / re-assign #100) so the tray re-registers as PLA Pure.
 
+### 2026-07-16 — test harness + two stack-lip bugs found
+
+New `makerforge/test/` (run `./run.sh`) — headless geometry regression guard for the b371-b378 non-manifold work. Stages `../js`, checks every exported part is watertight after `prepareMeshFor3mf`. Core cases (flat trace, AMS B&W layers, text, non-stacking body, liner, gasket lid) all PASS.
+
+**Found by the harness (advisory, not yet fixed):**
+- **Nest stack lid rim** (`appendNestStackLidRim`): ~168 open edges. AFFECTS the 250g SET (nest style). Body is fine (0). Only the raised lip rim is open at its base (bottom ring not capped; coincides with lid top disk).
+- **Hex stack** (`buildStackableHex` feet + `appendStackableLidPockets`): ~3076 body / 16 lid open.
+
+Both are the same unwelded-cap-ring family as the liner/gasket fixes. Fix next session WITH print-fit validation (changing lip geometry affects how jars nest). Non-stacking canisters unaffected.
+
 ### 2026-07-16 — b379: Manifold export gate
 
 Export now tallies open edges across every shipping part (container Body/Art/Text/Accent + Lid + Liner) BEFORE packing. If any part is non-manifold it shows a blocking confirm ("N open edges … Export anyway?") and a red status line, so broken files can't slip to Bambu unnoticed (which was the whole b371–b378 saga). `tallyExportOpenEdges()` in app.js; uses existing `partOpenEdgeCount`/`countOpenEdges`. Files: js/app.js, index.html (app.js?v=379, header b379).
