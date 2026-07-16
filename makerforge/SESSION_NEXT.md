@@ -4,8 +4,20 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b368** — export folder picker instructions (don't type name in Windows box)
-- Cache-bust: `app.js?v=368`, `export-folder.js?v=368` — header **b368**
+- Current: **b369** — restore coffee-bag flat AMS export (no accent slabs)
+- Cache-bust: `app.js?v=369`, `features.js?v=369` — header **b369**
+
+### 2026-07-16 — b369: Restore coffee bag emboss (stop accent-slab shred)
+
+**Symptom:** Coffee bag in Bambu Prepare looked chewed up — horizontal blue-grey gaps through the black bag silhouette (COFFEE text OK).
+
+**Cause:** b364 flat multi-colour export used `buildFaceDecalSlabMesh` (0.2 mm accent-style horizontal wall slabs). Fine line art re-rasterised onto that grid shreds into jagged stripes.
+
+**Fix:** Flat AMS export back to dilated united vector solids + `extrudeGroupsOnFace` (b361 path). Wrap still uses `buildEmbossBitmap` row shells.
+
+**Files:** `js/features.js`, `js/app.js`, `index.html`
+
+**Test:** Hard refresh **b369** → re-export coffee canister → bag silhouette solid (no horizontal chew). Backend restart not required.
 
 ### 2026-07-15 — b368: Export folder picker UX (don't type name in Windows box)
 

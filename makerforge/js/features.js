@@ -2969,7 +2969,7 @@ function buildMultiColourLayerEmboss(meta, params, traceData, layer) {
     return buildEmbossBitmap(meta, params, ensureEmbossBitmapMask(bitmapOpts));
   }
 
-  // Flat AMS export — accent-style wall slabs (b201 golden path; slices like rim bands).
+  // Flat AMS export — dilated united vector solids (b361). Accent-style row slabs shred coffee-bag line art.
   if (isLabelExport(params)) {
     const artH = params.embossTraceSize ?? 16;
     const exportMask = multiColourExportDilatedMask(mask, maskW, maskH, frame, artH);
@@ -2978,11 +2978,11 @@ function buildMultiColourLayerEmboss(meta, params, traceData, layer) {
     const bitmap = { width: maskW, height: maskH };
     const faceGroups = remappedBitmapFaceGroups(bitmap, frame, params, shapeGroups, maskW, maskH, artH);
     if (!faceGroups?.length) return null;
-    return buildFaceDecalSlabMesh(frame, faceGroups, {
-      d0: ACCENT_SKIN_MM,
-      d1: ACCENT_SKIN_MM + ACCENT_BAND_THICKNESS_MM,
-      dilatePasses: 2,
-    });
+    const { d0, d1 } = labelOffsets(params);
+    const positions = [];
+    const indices = [];
+    extrudeGroupsOnFace(positions, indices, frame, faceGroups, d0, d1, params);
+    return positions.length ? { positions, indices } : null;
   }
 
   return buildEmbossBitmap(meta, params, ensureEmbossBitmapMask(bitmapOpts));
