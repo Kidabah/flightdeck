@@ -20249,7 +20249,10 @@ function _spoolTextHaystack(s) {
 function _spoolMatchesSearch(s, parsed, rawQ) {
   if (!rawQ) return true;
   if (parsed.spoolNumberOnly) {
-    return _spoolTextHaystack(s).includes(rawQ.toLowerCase());
+    // Exact spool number (display #, DB id) — not a loose substring that also hits
+    // remaining_g "1000" or a location like "Rack Row 1-100".
+    const n = String(rawQ).replace(/^#/, '').trim();
+    return String(_spoolDisplayId(s) || '') === n || String(s.id || '') === n;
   }
   if (parsed.minRemainingG != null) {
     const floor = parsed.minRemainingG - (parsed.toleranceG ?? 10);
