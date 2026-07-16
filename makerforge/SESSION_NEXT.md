@@ -4,8 +4,25 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b374** — Text export voxelized; every container part now watertight
-- Cache-bust: `app.js?v=374`, `features.js?v=374` — header **b374**
+- Current: **b375** — liner watertight (open top preserved), art embedded into wall, light-layer gap fill
+- Cache-bust: `app.js?v=375`, `features.js?v=375`, `geometry.js?v=375` — header **b375**
+
+### 2026-07-16 — b375: Liner watertight + sack prints solid (embed + gap fill)
+
+**Symptoms (b374):** container fully manifold ✓ but (1) **Liner: 256 non-manifold edges** — Bambu repair caps the opening with an unwanted top; (2) sack art has horizontal body-colour streaks in the slice.
+
+**Causes:**
+1. `buildCavityLiner` never closed the **top rim ring** (2×128 open edges); also extruded an inner-wall stub inside the solid floor (dangling ring at z=0) and capped the inner floor with raw `cupInner` points that don't weld against the `radialMatchInner()` wall verts.
+2. Art parts floated **0.1 mm proud** of the wall ("floating regions" warning; bridged first layer drops thin details), and anti-aliased trace pixels claimed by neither colour left sub-nozzle body-colour cracks between black strokes.
+
+**Fixes:**
+- Liner: `capRing` at zTop (rim only — top stays open), floor slab extrudes outer wall only, inner floor cap uses the radially-matched ring. trimesh: watertight ✓ winding ✓; top face area = rim ring only (326 mm², a lid would be ~8,000).
+- `labelOffsets`: multi-colour AMS parts embed **-0.06 mm into the wall** (safe now all parts are watertight — no coplanar z-fight, kills floating warning).
+- `fillLightLayerGapsForExport`: 2-layer exports close the light layer (morph close ×2) then subtract dark ink — hairline cracks print as white instead of body colour.
+
+**Files:** `js/geometry.js`, `js/features.js`, `js/app.js`, `index.html` (`app.js?v=375`, `features.js?v=375`, `geometry.js?v=375`, header **b375**)
+
+**Test:** Hard refresh **b375** → re-export → liner 3MF: no error, top open. Container: all parts clean, no floating-regions warning, sack solid in slice.
 
 ### 2026-07-16 — b374: Voxelize Text export (last non-manifold part)
 

@@ -26,7 +26,7 @@ import {
   shapeSupportsProfileArt,
   shapeSupportsArt,
   STACK_LIP_MM,
-} from "./features.js?v=374";
+} from "./features.js?v=375";
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=161";
 import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=161";
@@ -1972,9 +1972,17 @@ export function buildCavityLiner(resolved, params) {
   const zTop = zCupTop - zFloor;
   const floorTh = wallTh;
   capProfileSolid(positions, indices, cupOuter, z0, false);
-  extrudeProfileAnnulusSides(positions, indices, cupOuter, cupInner, z0, z0 + floorTh);
-  capProfileSolid(positions, indices, cupInner, z0 + floorTh, true);
+  // Floor slab is SOLID — outer wall only. Extruding the annulus here left an inner-wall
+  // stub inside the floor with a dangling open ring at z=0 (128 open edges).
+  extrudeProfileSides(positions, indices, cupOuter, z0, z0 + floorTh, true);
+  // Cap with the SAME radially-matched ring the annulus walls use — raw cupInner points
+  // don't weld against radialMatchInner() wall verts (128 open edges at floor height).
+  capProfileSolid(positions, indices, radialMatchInner(cupOuter, cupInner), z0 + floorTh, true);
   extrudeProfileAnnulusSides(positions, indices, cupOuter, cupInner, z0 + floorTh, zTop);
+  // Rim ring — closes the wall thickness at the top (NOT a lid). Without it both wall
+  // tops are open circles (2×targetN = 256 open edges) and Bambu "repair" caps the
+  // whole opening with an unwanted top.
+  capRing(positions, indices, cupOuter, cupInner, zTop, true);
 
   return positions.length ? { positions, indices } : null;
 }

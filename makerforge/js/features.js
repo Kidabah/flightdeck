@@ -3188,9 +3188,38 @@ function buildMultiColourLayerEmboss(meta, params, traceData, layer) {
   return buildEmbossBitmap(meta, params, ensureEmbossBitmapMask(bitmapOpts));
 }
 
+function hexLuma(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || "");
+  if (!m) return 128;
+  const v = parseInt(m[1], 16);
+  return 0.299 * ((v >> 16) & 255) + 0.587 * ((v >> 8) & 255) + 0.114 * (v & 255);
+}
+
+/** 2-layer export: close hairline cracks in the LIGHT layer (anti-alias pixels claimed by
+ * neither colour leave sub-nozzle body-colour slivers between dark strokes — the stripy
+ * coffee sack). Light mask gets morphological close, then dark ink is subtracted back. */
+function fillLightLayerGapsForExport(traceData, params) {
+  if (!isLabelExport(params)) return traceData;
+  const layers = traceData.colorLayers;
+  if (layers?.length !== 2) return traceData;
+  const w = traceData.width;
+  const h = traceData.height;
+  if (!(layers[0].mask?.length === w * h && layers[1].mask?.length === w * h)) return traceData;
+  const darkFirst = hexLuma(layers[0].hex) <= hexLuma(layers[1].hex);
+  const dark = layers[darkFirst ? 0 : 1];
+  const light = layers[darkFirst ? 1 : 0];
+  const darkMask = dark.mask instanceof Uint8Array ? dark.mask : Uint8Array.from(dark.mask);
+  let lightMask = light.mask instanceof Uint8Array ? light.mask.slice() : Uint8Array.from(light.mask);
+  lightMask = closeBitmapMask(lightMask, w, h, 2);
+  for (let i = 0; i < lightMask.length; i++) if (darkMask[i]) lightMask[i] = 0;
+  const patched = { ...light, mask: lightMask };
+  return { ...traceData, colorLayers: darkFirst ? [dark, patched] : [patched, dark] };
+}
+
 /** Per-colour wrap/front emboss meshes for multi-colour logo traces. */
 export function buildMultiColourGraphicEmboss(meta, params, traceData) {
   if (!traceData?.multiColour || !traceData.colorLayers?.length) return null;
+  traceData = fillLightLayerGapsForExport(traceData, params);
   const parts = [];
   for (const layer of traceData.colorLayers) {
     if (!layer.mask?.length && !layer.shapeGroups?.length) continue;
@@ -4646,8 +4675,10 @@ function labelOffsets(params) {
       standoff = Math.max(standoff, 0.35 + texDepth * 0.15);
     }
   } else if (params.__multiColourAmsExport) {
-    // Hair-thin proud offset — breaks coplanar Body/Text/Art contact (Bambu non-manifold spam).
-    standoff = Math.max(0.1, ACCENT_SKIN_MM * 0.85);
+    // Slight embed INTO the wall — the parts are watertight since b374, so intersecting
+    // the body is safe (no coplanar z-fight) and it kills Bambu's "floating regions"
+    // warning + first-layer adhesion gaps that shredded thin art. (Was +0.1 proud.)
+    standoff = -0.06;
   }
   // Preview floor — very shallow emboss z-fights the wall and reads as white seams.
   const useDepth = params.__labelExportStandoff ? depth : Math.max(depth, 0.35);
