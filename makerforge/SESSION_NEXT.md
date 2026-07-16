@@ -4,7 +4,8 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b378** — single-filament 3MFs (liner) also pin to left nozzle so AMS HT is offered
+- Current: **b379** — manifold export gate blocks non-manifold 3MFs
+- (was b378) — single-filament 3MFs (liner) also pin to left nozzle so AMS HT is offered
 - Cache-bust: `app.js?v=378`, `3mf.js?v=378` — header **b378**
 
 ### 2026-07-16 — bambu.py: AMS push registers named Bambu PLA variants (PLA Pure -> GFA19)
@@ -18,6 +19,10 @@ Latest GitHub/Pi state:
 **Verified:** unit test — spool {Bambu Lab, PLA, Pure} -> tray_info_idx GFA19, setting_id GFSA19, name "Bambu PLA Pure", 190-240C. Non-Bambu PLA still GFL99.
 
 **Deploy:** Pi backend restart required. After restart, re-push AMS HT slot (Trust Flightdeck / re-assign #100) so the tray re-registers as PLA Pure.
+
+### 2026-07-16 — b379: Manifold export gate
+
+Export now tallies open edges across every shipping part (container Body/Art/Text/Accent + Lid + Liner) BEFORE packing. If any part is non-manifold it shows a blocking confirm ("N open edges … Export anyway?") and a red status line, so broken files can't slip to Bambu unnoticed (which was the whole b371–b378 saga). `tallyExportOpenEdges()` in app.js; uses existing `partOpenEdgeCount`/`countOpenEdges`. Files: js/app.js, index.html (app.js?v=379, header b379).
 
 ### 2026-07-16 — b378: Pin single-filament exports to left nozzle (liner ignored AMS HT)
 

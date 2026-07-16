@@ -35,7 +35,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b378";
+const MAKERDECK_BUILD = "b379";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -981,6 +981,26 @@ function syncExportStateFromUi() {
   if (insertAxis) state.insertAxis = insertAxis.value || state.insertAxis || "length";
   if (joinerOn) state.joinerEnabled = joinerOn.checked;
 }
+
+/** Tally open edges across every part that will ship (container + lid + liner). */
+function tallyExportOpenEdges(exportCache, containerParts) {
+  const rows = [];
+  let total = 0;
+  const add = (name, part) => {
+    const open = partOpenEdgeCount(part);
+    if (open > 0) { rows.push(`${name} ${open}`); total += open; }
+  };
+  for (const part of containerParts || []) add(part.name, part);
+  if (exportIncludesLidPlate()) {
+    for (const lp of collectColoredLidExportParts() || []) add(`Lid·${lp.name}`, lp);
+  }
+  if (exportIncludesSeparateLinerFile()) {
+    for (const lp of collectColoredLinerExportParts(exportCache) || []) add(lp.name, lp);
+  }
+  return { total, rows };
+}
+
+let _exportManifoldOverride = false;
 
 /** Build export geometry from current UI state — never reuse a stale preview cache. */
 function buildFreshExportCache() {
@@ -4835,6 +4855,17 @@ function runExport(format, options = {}) {
               }
               alert(`Export blocked: only ${triCount} triangles.\n\nExpected ${expectHint} for this box.\n\nCheck:\n• Insert → Mount = Fixed (welded)\n• Link tab → Joiner OFF\n• Divider axis = Width or Depth\n\nDiagnostic: ${diag}`);
               return;
+            }
+            const manifold = tallyExportOpenEdges(exportCache, parts);
+            if (manifold.total > 0 && !_exportManifoldOverride) {
+              const msg = `Manifold check: ${manifold.total} open edge${manifold.total === 1 ? "" : "s"} (${manifold.rows.join(", ")}).\n\n`
+                + "This file may not slice cleanly and Bambu will offer to 'Repair' it — which remeshes and shreds the art.\n\n"
+                + "Export anyway?";
+              if (status) setExportStatus(`Manifold check failed — ${manifold.total} open edges (${manifold.rows.join(", ")})`, { detail: "Fix in MakerDeck or export anyway from the prompt." });
+              if (!confirm(msg)) {
+                if (status) setExportStatus("Export cancelled — non-manifold geometry.", { detail: `${manifold.rows.join(", ")}` });
+                return;
+              }
             }
             if (status) setExportStatus("Packing 3MF…");
             await new Promise((resolve) => setTimeout(resolve, 0));
