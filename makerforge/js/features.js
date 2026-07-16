@@ -464,6 +464,172 @@ function pushWrapRunShellSpan(outPos, outIdx, frame, px0, px1, my0, my1, d0, d1,
   }
 }
 
+/** Fill one cell of every 2×2 checkerboard so mask contours never pinch at a shared corner
+ * (a pinch vertex extrudes into an edge shared by 4 walls — non-manifold in slicers). */
+function resolveMaskDiagonalPinches(mask, width, height) {
+  let out = mask;
+  for (let pass = 0; pass < 4; pass++) {
+    let fixed = 0;
+    for (let y = 0; y < height - 1; y++) {
+      for (let x = 0; x < width - 1; x++) {
+        const a = out[y * width + x];
+        const b = out[y * width + x + 1];
+        const c = out[(y + 1) * width + x];
+        const d = out[(y + 1) * width + x + 1];
+        if ((a && d && !b && !c) || (b && c && !a && !d)) {
+          if (out === mask) out = mask.slice();
+          out[y * width + x] = 1;
+          out[y * width + x + 1] = 1;
+          fixed++;
+        }
+      }
+    }
+    if (!fixed) break;
+  }
+  return out;
+}
+
+/** Flat-face trace solid — voxel-lattice surface extraction, manifold by construction.
+ * Replaces per-row run shells on flat faces: those tubes have no top/bottom caps, so a
+ * line-art trace exports tens of thousands of open edges (Bambu "non-manifold edges" spam,
+ * e.g. 90k on the coffee canister). Earcut on giant pixel-exact multi-hole contours is not
+ * reliable either (b358-b362 shred history) — so no triangulation library at all:
+ * caps are emitted per run, subdivided at the neighbouring rows' run breakpoints (kills
+ * T-junctions), walls only where a filled cell borders an empty one, and every vertex is
+ * shared through one lattice cache. Same voxel silhouette as the row shells, zero open edges. */
+function buildFlatTraceSolidMesh(frame, mask, maskW, maskH, place, params, d0, d1, stepPx = 1) {
+  const { scale, artW, artHeight, xOff, zOff } = place;
+  // Row-band merge (same as the old run shells' stepPx) — keeps preview light and 3MF small.
+  let bandBounds = null;
+  let bandH = maskH;
+  let m = mask;
+  if (stepPx > 1) {
+    bandH = Math.ceil(maskH / stepPx);
+    bandBounds = new Array(bandH + 1);
+    const merged = new Uint8Array(bandH * maskW);
+    for (let b = 0; b < bandH; b++) {
+      const y0 = b * stepPx;
+      const y1 = Math.min(maskH, y0 + stepPx);
+      bandBounds[b] = y0;
+      for (let y = y0; y < y1; y++) {
+        for (let x = 0; x < maskW; x++) {
+          if (mask[y * maskW + x]) merged[b * maskW + x] = 1;
+        }
+      }
+    }
+    bandBounds[bandH] = maskH;
+    m = merged;
+  }
+  m = resolveMaskDiagonalPinches(m, maskW, bandH);
+  const rotation = params?.decorRotation ?? 0;
+  const rotCx = xOff + artW / 2;
+  const rotCy = zOff + artHeight / 2;
+  const fx = (px) => xOff + px * scale;
+  const fy = (p) => zOff + (maskH - (bandBounds ? bandBounds[p] : p)) * scale;
+
+  const positions = [];
+  const indices = [];
+  const vcache = new Map();
+  const vert = (x, p, z) => {
+    const key = `${x}|${p}|${z}`;
+    let idx = vcache.get(key);
+    if (idx === undefined) {
+      let ax = fx(x);
+      let ay = fy(p);
+      if (rotation) {
+        const r = rotateFacePoint(rotCx, rotCy, ax, ay, rotation);
+        ax = r[0];
+        ay = r[1];
+      }
+      const w = frame.mapPoint(ax, ay, z);
+      idx = positions.length / 3;
+      positions.push(w[0], w[1], w[2]);
+      vcache.set(key, idx);
+    }
+    return idx;
+  };
+  const tri = (a, b, c) => indices.push(a, b, c);
+  const quad = (a, b, c, d) => { tri(a, b, c); tri(a, c, d); };
+
+  // Runs per row + breakpoint (run endpoint) sets per row.
+  const rows = [];
+  const breaks = [];
+  for (let y = 0; y < bandH; y++) {
+    const runs = [];
+    const bset = new Set();
+    let x = 0;
+    while (x < maskW) {
+      while (x < maskW && !m[y * maskW + x]) x++;
+      const s = x;
+      while (x < maskW && m[y * maskW + x]) x++;
+      if (x > s) {
+        runs.push([s, x]);
+        bset.add(s);
+        bset.add(x);
+      }
+    }
+    rows.push(runs);
+    breaks.push(bset);
+  }
+  const chainXs = (x0, x1, nbrBreaks) => {
+    const xs = [x0];
+    if (nbrBreaks) {
+      for (const b of nbrBreaks) if (b > x0 && b < x1) xs.push(b);
+    }
+    xs.push(x1);
+    return xs.sort((a, b) => a - b);
+  };
+  // Merge-triangulate a cap between its north chain (boundary p) and south chain (boundary p+1).
+  // ccw=true → counter-clockwise in (x, face-y) for the outward (d1) cap.
+  const cap = (northXs, southXs, y, z, ccw) => {
+    const N = northXs.map((x) => vert(x, y, z));
+    const S = southXs.map((x) => vert(x, y + 1, z));
+    let i = 0;
+    let j = 0;
+    while (i + 1 < N.length || j + 1 < S.length) {
+      const nextN = i + 1 < N.length ? northXs[i + 1] : Infinity;
+      const nextS = j + 1 < S.length ? southXs[j + 1] : Infinity;
+      if (nextN <= nextS) {
+        if (ccw) tri(S[j], N[i + 1], N[i]);
+        else tri(S[j], N[i], N[i + 1]);
+        i++;
+      } else {
+        if (ccw) tri(S[j + 1], N[i], S[j]);
+        else tri(S[j + 1], S[j], N[i]);
+        j++;
+      }
+    }
+  };
+
+  for (let y = 0; y < bandH; y++) {
+    for (const [x0, x1] of rows[y]) {
+      const northXs = chainXs(x0, x1, y > 0 ? breaks[y - 1] : null);
+      const southXs = chainXs(x0, x1, y + 1 < bandH ? breaks[y + 1] : null);
+      cap(northXs, southXs, y, d1, true);   // outer skin
+      cap(northXs, southXs, y, d0, false);  // inner skin
+      // Vertical end walls (left/right of run).
+      quad(vert(x0, y + 1, d0), vert(x0, y + 1, d1), vert(x0, y, d1), vert(x0, y, d0));
+      quad(vert(x1, y, d0), vert(x1, y, d1), vert(x1, y + 1, d1), vert(x1, y + 1, d0));
+      // Horizontal boundary walls — only where the neighbouring row cell is empty.
+      const wallRow = (p, nbrY, northSide) => {
+        let a = x0;
+        while (a < x1) {
+          const nbrFilled = (x) => nbrY >= 0 && nbrY < bandH && m[nbrY * maskW + x] === 1;
+          while (a < x1 && nbrFilled(a)) a++;
+          const s = a;
+          while (a < x1 && !nbrFilled(a)) a++;
+          if (a <= s) continue;
+          if (northSide) quad(vert(s, p, d0), vert(s, p, d1), vert(a, p, d1), vert(a, p, d0));
+          else quad(vert(a, p, d0), vert(a, p, d1), vert(s, p, d1), vert(s, p, d0));
+        }
+      };
+      wallRow(y, y - 1, true);
+      wallRow(y + 1, y + 1, false);
+    }
+  }
+  return indices.length ? { positions, indices } : null;
+}
+
 /** Wrap trace from pixel mask — radial shells (no earcut slashes, no row-cap z-fight). */
 function buildWrapTraceSlabMesh(frame, bitmap, params, shapeGroups, d0, d1, opts = {}) {
   const place = bitmapWrapPlacement(frame, params, bitmap);
@@ -493,6 +659,16 @@ function buildWrapTraceSlabMesh(frame, bitmap, params, shapeGroups, d0, d1, opts
     maxRows: opts.fineRows ? maskH : maxRows,
     maxPreviewIndices: opts.fineRows ? 0 : (preview ? WRAP_SVG_PREVIEW_MAX_INDICES : 0),
   });
+
+  // Flat faces: closed voxel-surface solid — row shells are wrap-only. Their tubes have no
+  // top/bottom caps, so flat line-art traces exported tens of thousands of open edges
+  // (Bambu "non-manifold edges" spam — 90k on the coffee canister).
+  if (frame.face !== "wrap") {
+    // Rasterized groups were already rotated in px space — don't rotate twice.
+    const solidParams = !hasMask && rotation ? { ...params, decorRotation: 0 } : params;
+    const solid = buildFlatTraceSolidMesh(frame, mask, maskW, maskH, place, solidParams, d0, d1, stepPx);
+    if (solid) return solid;
+  }
 
   const positions = [];
   const indices = [];

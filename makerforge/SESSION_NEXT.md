@@ -4,8 +4,27 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b370** — coffee bag back to Auto line-art trace (not black+white chunks)
-- Cache-bust: `app.js?v=370`, `features.js?v=370`, `trace.js?v=370`, `geometry.js?v=370` — header **b370**
+- Current: **b371** — flat-face trace export is watertight (voxel-surface solid, no more non-manifold spam)
+- Cache-bust: `app.js?v=371`, `features.js?v=371` — header **b371**
+
+### 2026-07-16 — b371: Watertight flat-face trace export (fix 90k non-manifold edges)
+
+**Symptom:** box-94x94x127mm-container in Bambu: **Error: 90350 non-manifold edges**, "Use Fix Model to repair" — coffee bag art chewed after auto-repair, paint/colour regions unreliable.
+
+**Cause:** Flat-face trace export used per-row **run shells** (`pushWrapRunShell`) — each mask row run is an open tube (outer + inner skin + end walls, deliberately **no top/bottom caps** to avoid z-fight). Every run leaks 2 open edges per boundary → line art = tens of thousands of open edges. Earcut vector solids (b358–b362) are no fix either: earcut silently drops caps on giant pixel-exact multi-hole contours (verified: 41k open edges at tol=0).
+
+**Fix:** New `buildFlatTraceSolidMesh` in `features.js` — voxel-lattice surface extraction, manifold **by construction**, no triangulation library:
+- caps per run, subdivided at neighbouring rows' run breakpoints (kills T-junctions), merge-triangulated between chains (no zero-area tris)
+- walls only where a filled cell borders an empty one; all verts shared via one lattice cache
+- 2×2 checkerboard pinches pre-filled (`resolveMaskDiagonalPinches`) — diagonal ink touches would give 4-wall edges
+- honours the existing `stepPx` row-band merge (preview stays light, 3MF stays small) and `decorRotation` (rigid rotation post-lattice, still manifold)
+- hooks into `buildWrapTraceSlabMesh` for `frame.face !== "wrap"` only — **wrap golden path (b284/b302) untouched**
+
+**Verified in Node harness (real module code):** synthetic coffee-bag line art 420×520 — before: 11,628 open edges; after: **0 open / 0 non-manifold** at exact, 1e-4 and 0.04 weld. trimesh: watertight ✓ winding-consistent ✓ volume = ink×depth ✓ on front/back/left/right/top, rotation, checkerboard, dot/row/block masks. Preview 900×1100 dense mask: 111k tris in 77 ms.
+
+**Files:** `js/features.js`, `js/app.js`, `js/geometry.js`, `index.html` (`app.js?v=371`, `features.js?v=371`, header **b371**)
+
+**Test:** Hard refresh **b371** → re-export coffee canister → open container 3MF in Bambu → object info shows **no non-manifold error**, no Repair prompt. Slice: bag silhouette solid, per-letter/art colours intact. Wrap models (dragons cooler) unchanged.
 
 ### 2026-07-16 — b370: Restore coffee bag Auto line-art (stop B&W posterise)
 
