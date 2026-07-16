@@ -593,11 +593,12 @@ function packColoredProject3mf({
     filament_vendor: filament.filamentVendor,
     filament_diameter: filament.filamentDiameter,
     filament_density: filament.filamentDensity,
-    ...(filament.maxExtruder > 1 ? {
-      filament_map: buildH2DFilamentMap(filament.maxExtruder),
-      filament_map_mode: "Manual",
-      physical_extruder_map: ["1", "0"],
-    } : {}),
+    // Always pin filaments to the left nozzle — single-filament files (liner) previously
+    // omitted the map, Bambu grouped them to the right nozzle, and AMS auto-mapping
+    // couldn't offer trays that feed the left side (AMS HT PLA Pure ignored → AMS 1).
+    filament_map: buildH2DFilamentMap(filament.maxExtruder),
+    filament_map_mode: "Manual",
+    physical_extruder_map: ["1", "0"],
   });
 
   const contentTypes = `<?xml version="1.0" encoding="UTF-8"?>

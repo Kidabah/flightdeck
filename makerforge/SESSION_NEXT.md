@@ -4,8 +4,22 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b377** — liner 3MF declares Bambu PLA Pure (GFA19) so Bambu auto-maps the AMS HT
-- Cache-bust: `app.js?v=377`, `geometry.js?v=377`, `3mf.js?v=377` — header **b377**
+- Current: **b378** — single-filament 3MFs (liner) also pin to left nozzle so AMS HT is offered
+- Cache-bust: `app.js?v=378`, `3mf.js?v=378` — header **b378**
+
+### 2026-07-16 — b378: Pin single-filament exports to left nozzle (liner ignored AMS HT)
+
+**Symptom:** b377 liner 3MF verified correct (PLA Pure / GFA19 in project_settings) but Bambu still grouped it to AMS 1.
+
+**Cause:** `filament_map` / `physical_extruder_map` were only written when `maxExtruder > 1`. Single-filament liner files let Bambu choose the nozzle — it grouped to the RIGHT nozzle, and AMS auto-mapping won't offer trays feeding the left side (AMS HT), so it fell back to AMS 1.
+
+**Fix:** Always write `filament_map` (all logical 1 / left) + `filament_map_mode Manual` + `physical_extruder_map` — consistent with the b365 container behaviour.
+
+**Note for operator:** when opening an exported 3MF, let Bambu load the FILE's filament presets (don't "keep current") — otherwise slot 1 stays whatever the live session had.
+
+**Files:** `js/3mf.js`, `js/app.js`, `index.html` (`app.js?v=378`, `3mf.js?v=378`, header **b378**)
+
+**Test:** Hard refresh **b378** → re-export liner → open fresh in Bambu → Project Filaments shows PLA Pure, grouping = left nozzle, AMS mapping offers the HT tray.
 
 ### 2026-07-16 — b377: Liner filament preset — PLA Pure maps to AMS HT
 
