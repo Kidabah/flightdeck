@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET } from "./geometry.js?v=380";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=376";
+import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, ANIMAL_PRESET } from "./geometry.js?v=381";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=381";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=370";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=372";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=378";
@@ -35,7 +35,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b380";
+const MAKERDECK_BUILD = "b381";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -131,7 +131,7 @@ function applyLengthSliderRange(slider, mmMin, mmMax, mmValue) {
   return display;
 }
 
-const PRESET_SHAPES = new Set(["pencil", "pencilBox", "teardrop", "star", "heart", "canisterSquare", "canisterSquareSet", "canisterJar", "canisterStack"]);
+const PRESET_SHAPES = new Set(["pencil", "pencilBox", "teardrop", "star", "heart", "canisterSquare", "canisterSquareSet", "canisterJar", "canisterStack", "animal"]);
 
 const CANISTER_CONTENT_LABELS = {
   coffee: "COFFEE",
@@ -242,6 +242,7 @@ const PRESET_CONFIG = {
   canisterSquareSet: { preset: CANISTER_SQUARE_SET_PRESET, profile: "canister" },
   canisterJar: { preset: CANISTER_JAR_PRESET, profile: "canister" },
   canisterStack: { preset: CANISTER_STACK_PRESET, profile: "canister" },
+  animal: { preset: ANIMAL_PRESET, profile: "default" },
 };
 
 const state = { ...DEFAULTS, shape: "rect", displayUnit: "mm" };
@@ -2742,6 +2743,12 @@ function syncUiFromState() {
   document.querySelectorAll(".shape-btn").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.shape === state.shape);
   });
+
+  const isAnimal = state.shape === "animal";
+  document.getElementById("field-animal-name")?.classList.toggle("hidden", !isAnimal);
+  document.getElementById("animal-hint")?.classList.toggle("hidden", !isAnimal);
+  const animalSel = document.getElementById("animal-name");
+  if (animalSel && isAnimal) animalSel.value = state.animalName || "bear";
 
   const profileKey = PRESET_CONFIG[state.shape]?.profile || "default";
   applySliderProfile(profileKey);
@@ -6046,6 +6053,12 @@ document.getElementById("liner-enabled")?.addEventListener("change", (e) => {
 
 document.getElementById("liner-filament-preset")?.addEventListener("change", (e) => {
   state.linerFilamentPreset = String(e.target.value || "").trim();
+  scheduleSaveSession();
+});
+
+document.getElementById("animal-name")?.addEventListener("change", (e) => {
+  state.animalName = e.target.value || "bear";
+  rebuild();
   scheduleSaveSession();
 });
 

@@ -21,6 +21,7 @@ import {
   getEmbossFaceFrame,
 } from "./_staged/features.js";
 import { prepareMeshFor3mf, countOpenEdges } from "./_staged/stl.js";
+import { ANIMAL_NAMES } from "./_staged/animal-profiles.js";
 
 let failures = 0;
 const results = [];
@@ -140,6 +141,17 @@ const meta = { shape: "box", inner: { w: 90, d: 90, h: 123 }, outer: { w: 94, d:
     const sl = buildLid(sp);
     if (sl) check(`[stack ${style}] lid`, sl, { advisory: true });
   }
+}
+
+// Silhouette animal shapes (b381) — bodies + lids must be watertight.
+for (const name of ANIMAL_NAMES) {
+  const p = { ...DEFAULTS, shape: "animal", animalName: name, innerWidth: 120, innerDepth: 120,
+    innerHeight: 100, wall: 2.6, floor: 3, lidType: "slip", lidEnabled: true,
+    linerEnabled: false, stackableEnabled: false, accentEnabled: false, embossTraceEnabled: false };
+  const b = buildContainer(p);
+  check(`animal ${name} body (b381)`, b.shellMesh || b);
+  const lid = buildLid(p);
+  if (lid) check(`animal ${name} lid (b381)`, lid);
 }
 
 console.log(results.join("\n"));

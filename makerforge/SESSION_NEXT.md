@@ -4,7 +4,8 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b380** — batch manifold summary + canister filament preset
+- Current: **b381** — silhouette animal shape canisters (bear/cat/bunny/dog)
+- (was b380) — batch manifold summary + canister filament preset
 - (was b379) — manifold export gate blocks non-manifold 3MFs
 - (was b378) — single-filament 3MFs (liner) also pin to left nozzle so AMS HT is offered
 - Cache-bust: `app.js?v=378`, `3mf.js?v=378` — header **b378**
@@ -20,6 +21,20 @@ Latest GitHub/Pi state:
 **Verified:** unit test — spool {Bambu Lab, PLA, Pure} -> tray_info_idx GFA19, setting_id GFSA19, name "Bambu PLA Pure", 190-240C. Non-Bambu PLA still GFL99.
 
 **Deploy:** Pi backend restart required. After restart, re-push AMS HT slot (Trust Flightdeck / re-assign #100) so the tray re-registers as PLA Pure.
+
+### 2026-07-16 — b381: Silhouette animal shape canisters
+
+New **Animal** shape (Design tab -> Novelty) with a name dropdown: **bear / cat / bunny / dog**. Chunky front-facing silhouette canisters that reuse the whole pipeline — flat-face emboss/art, lid, accent. Liner not offered (non-canister).
+
+- `js/animal-profiles.js` (NEW): each animal = union of primitive blobs rasterised to a mask, boundary extracted via the existing `maskToPolygons` -> one clean simple closed polygon, scaled to mm. Deliberately chunky so `offsetProfileInward(outer, wall)` never self-intersects on ears/legs.
+- `resolveContainer` gains a guarded `shape === "animal"` branch (zero effect on existing shapes): outer = silhouette profile, inner = inward offset, same floor/lid/meta as star/heart.
+- Wired into `shapeSupportsDecor` / `shapeSupportsAccent` / front-face; `ANIMAL_PRESET`, PRESET_CONFIG, PRESET_SHAPES, shape button + `#animal-name` dropdown + `state.animalName`.
+
+**Verified (harness + trimesh):** all 4 animals — body AND lid — 0 open edges / 0 non-manifold; cat container watertight + winding-consistent in trimesh; front-face name emboss on a bear watertight. Committed test `animal * body/lid` cases all PASS.
+
+**Files:** js/animal-profiles.js (new), js/geometry.js, js/features.js, js/app.js, index.html, test/manifold.mjs (app.js?v=381, geometry.js?v=381, features.js?v=381, animal-profiles.js?v=381, header b381).
+
+**Next (UX polish, needs your eyes):** more/finer animal silhouettes, a preview thumbnail per animal, filename `animal-<name>-…` instead of `box-…`, and optionally profile-wrap art around the silhouette edge.
 
 ### 2026-07-16 — b380: Batch manifold summary + canister filament preset
 

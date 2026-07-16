@@ -4354,7 +4354,7 @@ function round1(n) {
 }
 
 export function shapeSupportsDecor(shape) {
-  return shape === "rect" || shape === "rounded" || shape === "pencil" || shape === "pencilBox" || shape === "canisterSquare" || shape === "canisterSquareSet";
+  return shape === "rect" || shape === "rounded" || shape === "pencil" || shape === "pencilBox" || shape === "canisterSquare" || shape === "canisterSquareSet" || shape === "animal";
 }
 
 /** Parametric wall relief on curved profile containers (pots, tubes). */
@@ -4416,7 +4416,7 @@ export function shapeSupportsAccent(shape) {
 
 /** Front-panel-only accent band — flat box faces only. */
 export function shapeSupportsAccentFrontFace(shape) {
-  return shape === "rect" || shape === "rounded" || shape === "pencil" || shape === "pencilBox" || shape === "canisterSquare" || shape === "canisterSquareSet";
+  return shape === "rect" || shape === "rounded" || shape === "pencil" || shape === "pencilBox" || shape === "canisterSquare" || shape === "canisterSquareSet" || shape === "animal";
 }
 
 /** Face frame for placing emboss on any of the four side walls.

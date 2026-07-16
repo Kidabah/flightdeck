@@ -26,10 +26,11 @@ import {
   shapeSupportsProfileArt,
   shapeSupportsArt,
   STACK_LIP_MM,
-} from "./features.js?v=376";
+} from "./features.js?v=381";
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=161";
 import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=161";
+import { animalProfile, ANIMAL_NAMES } from "./animal-profiles.js?v=381";
 import {
   resolveVaseTexture,
   densifyClosedProfile,
@@ -1606,6 +1607,27 @@ function resolveContainer(params) {
   const wall = clamp(params.wall, 1.2, 10);
   const floor = clamp(params.floor, 1.2, 10);
 
+  if (shape === "animal") {
+    const innerW = clamp(params.innerWidth, 40, 260);
+    const innerD = clamp(params.innerDepth ?? innerW, 40, 260);
+    const innerH = clamp(params.innerHeight, 15, 260);
+    const outer = animalProfile(params.animalName || "bear", innerW + wall * 2, innerD + wall * 2);
+    if (outer && outer.length >= 3) {
+      const inner = offsetProfileInward(outer, wall);
+      if (inner && inner.length >= 3) {
+        return {
+          outer,
+          inner,
+          floor,
+          totalH: innerH + floor,
+          cavityH: innerH,
+          meta: computeMeta({ innerW, innerD, innerH, wall, floor, shape: "animal" }),
+        };
+      }
+    }
+    // fall through to rect fallback if the silhouette failed
+  }
+
   if (shape === "circle" || shape === "canisterJar" || shape === "canisterStack" || shape === "stubbyHolder") {
     const diameter = clamp(params.innerWidth, 10, 500);
     const innerH = clamp(params.innerHeight, 5, 400);
@@ -2329,6 +2351,22 @@ export function toBufferGeometry(THREE, mesh) {
   return geom;
 }
 
+export const ANIMAL_PRESET = {
+  innerWidth: 120,
+  innerDepth: 120,
+  innerHeight: 110,
+  wall: 2.6,
+  floor: 3.0,
+  animalName: "bear",
+  lidEnabled: true,
+  lidType: "slip",
+  lidSkirt: 8,
+  lidThickness: 2.4,
+  lidClearance: 0.35,
+  linerEnabled: false,
+  stackableEnabled: false,
+};
+
 export const CANISTER_SQUARE_PRESET = {
   innerWidth: 94,
   innerDepth: 94,
@@ -2619,6 +2657,7 @@ export const DEFAULTS = {
   linerEnabled: false,
   linerFilamentPreset: "Bambu PLA Pure @BBL H2D",
   canisterFilamentPreset: "",
+  animalName: "bear",
   linerWall: 0.9,
   linerClearance: 0.35,
   linerFlangeTh: 0.9,
