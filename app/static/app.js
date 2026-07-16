@@ -4310,7 +4310,7 @@ function buildTabs(printers) {
     section('system', 'System', [
       `<a class="tab" href="#/walkthrough">Walkthrough Mode</a>`,
       `<a class="tab" href="#/makerworld">MakerWorld</a>`,
-      `<a class="tab" href="#/makerdeck">MakerDeck</a>`,
+      `<a class="tab tab-makerdeck" href="#/makerdeck">MakerDeck</a>`,
       `<a class="tab" href="#/manual">Flight Manual</a>`,
       `<a class="tab" href="#/about">About</a>`,
       `<div class="tab-flyout">

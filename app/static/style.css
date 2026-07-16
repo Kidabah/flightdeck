@@ -23201,3 +23201,10 @@ select optgroup {
   .stock-edit-form { grid-template-columns: 1fr; }
   .stock-edit-actions { justify-content: flex-start; }
 }
+
+/* MakerDeck sidebar tab — red so it stands out */
+.tab.tab-makerdeck { color: #f87171; font-weight: 600; }
+.tab.tab-makerdeck::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #ef4444; margin-right: 8px; vertical-align: middle; }
+.tab.tab-makerdeck:hover { color: #fca5a5; }
+.tab.tab-makerdeck.active { color: #fff; background: #dc2626; }
+.tab.tab-makerdeck.active::before { background: #fff; }
