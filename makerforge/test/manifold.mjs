@@ -22,6 +22,7 @@ import {
 } from "./_staged/features.js";
 import { prepareMeshFor3mf, countOpenEdges } from "./_staged/stl.js";
 import { ANIMAL_NAMES } from "./_staged/animal-profiles.js";
+import { ANIMAL_PRESET } from "./_staged/geometry.js";
 
 let failures = 0;
 const results = [];
@@ -145,9 +146,7 @@ const meta = { shape: "box", inner: { w: 90, d: 90, h: 123 }, outer: { w: 94, d:
 
 // Silhouette animal shapes (b381) — bodies + lids must be watertight.
 for (const name of ANIMAL_NAMES) {
-  const p = { ...DEFAULTS, shape: "animal", animalName: name, innerWidth: 120, innerDepth: 120,
-    innerHeight: 100, wall: 2.6, floor: 3, lidType: "slip", lidEnabled: true,
-    linerEnabled: false, stackableEnabled: false, accentEnabled: false, embossTraceEnabled: false };
+  const p = { ...DEFAULTS, ...ANIMAL_PRESET, shape: "animal", animalName: name };
   const b = buildContainer(p);
   check(`animal ${name} body (b381)`, b.shellMesh || b);
   const lid = buildLid(p);

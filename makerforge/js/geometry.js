@@ -30,7 +30,7 @@ import {
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=161";
 import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=161";
-import { animalProfile, ANIMAL_NAMES } from "./animal-profiles.js?v=381";
+import { animalProfile, animalProfilePair, ANIMAL_NAMES } from "./animal-profiles.js?v=382";
 import {
   resolveVaseTexture,
   densifyClosedProfile,
@@ -1611,9 +1611,10 @@ function resolveContainer(params) {
     const innerW = clamp(params.innerWidth, 40, 260);
     const innerD = clamp(params.innerDepth ?? innerW, 40, 260);
     const innerH = clamp(params.innerHeight, 15, 260);
-    const outer = animalProfile(params.animalName || "bear", innerW + wall * 2, innerD + wall * 2);
-    if (outer && outer.length >= 3) {
-      const inner = offsetProfileInward(outer, wall);
+    const pair = animalProfilePair(params.animalName || "cat", innerW + wall * 2, innerD + wall * 2, wall);
+    if (pair && pair.outer.length >= 3) {
+      const outer = pair.outer;
+      const inner = pair.inner;
       if (inner && inner.length >= 3) {
         return {
           outer,
@@ -2357,9 +2358,11 @@ export const ANIMAL_PRESET = {
   innerHeight: 110,
   wall: 2.6,
   floor: 3.0,
-  animalName: "bear",
+  animalName: "cat",
   lidEnabled: true,
-  lidType: "slip",
+  lidType: "flat",
+  lidLipDepth: 0,
+  lidGasketEnabled: false,
   lidSkirt: 8,
   lidThickness: 2.4,
   lidClearance: 0.35,

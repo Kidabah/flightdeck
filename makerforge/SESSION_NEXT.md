@@ -4,7 +4,8 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b381** — silhouette animal shape canisters (bear/cat/bunny/dog)
+- Current: **b382** — animal shapes: switching fixed + recognizable silhouettes + watertight
+- (was b381) — silhouette animal shape canisters (bear/cat/bunny/dog)
 - (was b380) — batch manifold summary + canister filament preset
 - (was b379) — manifold export gate blocks non-manifold 3MFs
 - (was b378) — single-filament 3MFs (liner) also pin to left nozzle so AMS HT is offered
@@ -21,6 +22,17 @@ Latest GitHub/Pi state:
 **Verified:** unit test — spool {Bambu Lab, PLA, Pure} -> tray_info_idx GFA19, setting_id GFSA19, name "Bambu PLA Pure", 190-240C. Non-Bambu PLA still GFL99.
 
 **Deploy:** Pi backend restart required. After restart, re-push AMS HT slot (Trust Flightdeck / re-assign #100) so the tray re-registers as PLA Pure.
+
+### 2026-07-16 — b382: Animal shapes — switching fix + real silhouettes + watertight
+
+Fixes to the b381 animal shapes after review ("not changing" + "don't look like animals"):
+- **Switching bug:** `buildParams()` never passed `animalName`, so every animal rebuilt as the default. Added `animalName: state.animalName` — the dropdown now actually changes the shape.
+- **Recognisable silhouettes:** rebuilt `animal-profiles.js` recipes with distinctive front-facing heads — cat (pointed triangle ears), bear (round ears), bunny (long ears), dog (floppy ears + muzzle). Fixed a vertical flip (ears were pointing down). Rendered each to PNG and eyeballed before shipping.
+- **Watertight on sharp features:** sharp ear valleys made `offsetProfileInward` self-intersect (cat/bunny had open edges). New `animalProfilePair()` derives the inner wall by ERODING the silhouette mask (can't self-intersect). Animal preset uses a flat, lip-less lid (the lid lip's inward offset also choked on ears). All 4 animals — body AND lid — now 0 open edges; cat + bunny confirmed watertight + winding-consistent in trimesh.
+
+**Known:** dog is the weakest silhouette (acceptable); these are footprint-extruded (animal visible from above / in orbit, not a flat face-on plaque) — a front-elevation style is a possible future variant.
+
+**Files:** js/animal-profiles.js, js/geometry.js, js/app.js, index.html, test/manifold.mjs (app.js?v=382, geometry.js?v=382, animal-profiles.js?v=382, header b382).
 
 ### 2026-07-16 — b381: Silhouette animal shape canisters
 
