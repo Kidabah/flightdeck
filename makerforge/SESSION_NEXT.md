@@ -7,6 +7,18 @@ Latest GitHub/Pi state:
 - Current: **b378** — single-filament 3MFs (liner) also pin to left nozzle so AMS HT is offered
 - Cache-bust: `app.js?v=378`, `3mf.js?v=378` — header **b378**
 
+### 2026-07-16 — bambu.py: AMS push registers named Bambu PLA variants (PLA Pure -> GFA19)
+
+**Symptom:** Liner 3MF correctly asks for Bambu PLA Pure (GFA19), but the AMS HT tray holding spool #100 "White · PLA Pure" reported to the printer (and Bambu Studio) as **"Generic PLA · Generic · GFL99"**. Exact filament match failed -> Bambu colour-matched -> grouped to AMS 1.
+
+**Cause:** `_filament_for_spool` collapses ALL PLA subtypes to `bl.Filament("PLA")` -> GFL99. So `set_ams_slot_filament` / Trust Flightdeck wrote Generic PLA to the tray regardless of the spool being PLA Pure.
+
+**Fix (`app/printers/bambu.py`):** New `_bambu_pla_profile_key(spool)` — Bambu-brand PLA whose subtype/name contains pure/matte/basic maps to GFA19 / GFA01 / GFA00. Wired into `_custom_filament_for_spool` and `_profile_alias_for_spool`, so both the tray push and the profile-doctor override now send the real `tray_info_idx` + `setting_id` (GFSA19) + correct temps. Added GFA19/GFA01 aliases.
+
+**Verified:** unit test — spool {Bambu Lab, PLA, Pure} -> tray_info_idx GFA19, setting_id GFSA19, name "Bambu PLA Pure", 190-240C. Non-Bambu PLA still GFL99.
+
+**Deploy:** Pi backend restart required. After restart, re-push AMS HT slot (Trust Flightdeck / re-assign #100) so the tray re-registers as PLA Pure.
+
 ### 2026-07-16 — b378: Pin single-filament exports to left nozzle (liner ignored AMS HT)
 
 **Symptom:** b377 liner 3MF verified correct (PLA Pure / GFA19 in project_settings) but Bambu still grouped it to AMS 1.

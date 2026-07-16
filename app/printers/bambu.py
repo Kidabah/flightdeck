@@ -109,6 +109,24 @@ _BAMBU_PROFILE_ALIASES = {
         "nozzle_temp_min": 190,
         "nozzle_temp_max": 250,
     },
+    "GFA01": {
+        "brand": "Bambu Lab",
+        "profile": "Bambu PLA Matte",
+        "material": "PLA",
+        "tray_info_idx": "GFA01",
+        "tray_type": "PLA",
+        "nozzle_temp_min": 190,
+        "nozzle_temp_max": 250,
+    },
+    "GFA19": {
+        "brand": "Bambu Lab",
+        "profile": "Bambu PLA Pure",
+        "material": "PLA",
+        "tray_info_idx": "GFA19",
+        "tray_type": "PLA",
+        "nozzle_temp_min": 190,
+        "nozzle_temp_max": 240,
+    },
     "GFG99": {
         "brand": "Generic",
         "profile": "Generic PETG",
@@ -1969,11 +1987,37 @@ def _bambu_profile_for_idx(idx: Optional[str]) -> dict:
     return _BAMBU_PROFILE_ALIASES.get(str(idx or "").strip(), {})
 
 
+def _bambu_pla_profile_key(spool: dict) -> Optional[str]:
+    """Named Bambu PLA variants → tray_info_idx. Generic PLA (GFL99) collapses these,
+    so the AMS tray reports 'Generic PLA' and Bambu Studio can't match a PLA Pure job."""
+    material = str(spool.get("material") or "").strip().upper()
+    brand = str(spool.get("brand") or "").strip().lower()
+    if material != "PLA" or "bambu" not in brand:
+        return None
+    label = " ".join(str(spool.get(k) or "") for k in ("subtype", "profile", "name")).lower()
+    if "pure" in label:
+        return "GFA19"
+    if "matte" in label:
+        return "GFA01"
+    if "basic" in label:
+        return "GFA00"
+    return None
+
+
 def _custom_filament_for_spool(spool: dict) -> Optional[AMSFilamentSettings]:
     material = str(spool.get("material") or "").strip().upper()
     brand = str(spool.get("brand") or "").strip().lower()
     if material == "ASA" and "siddament" in brand:
         profile = _BAMBU_PROFILE_ALIASES["P461bccf"]
+        return AMSFilamentSettings(
+            profile["tray_info_idx"],
+            profile["nozzle_temp_min"],
+            profile["nozzle_temp_max"],
+            profile["tray_type"],
+        )
+    pla_key = _bambu_pla_profile_key(spool)
+    if pla_key:
+        profile = _BAMBU_PROFILE_ALIASES[pla_key]
         return AMSFilamentSettings(
             profile["tray_info_idx"],
             profile["nozzle_temp_min"],
@@ -1988,6 +2032,9 @@ def _profile_alias_for_spool(spool: dict) -> dict:
     brand = str(spool.get("brand") or "").strip().lower()
     if material == "ASA" and "siddament" in brand:
         return _BAMBU_PROFILE_ALIASES["P461bccf"]
+    pla_key = _bambu_pla_profile_key(spool)
+    if pla_key:
+        return _BAMBU_PROFILE_ALIASES[pla_key]
     filament = _filament_for_spool(spool)
     if isinstance(filament, AMSFilamentSettings):
         for alias in _BAMBU_PROFILE_ALIASES.values():
