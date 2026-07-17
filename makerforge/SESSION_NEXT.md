@@ -1,3 +1,7 @@
+### 2026-07-17 — b400: Vertical text — uniform letter size across a canister set
+
+Vertical text scaled the whole STACK to the size slider, so a matched set got mismatched letters (COFFEE letters 2.37mm, SUGAR 2.87, MILO 3.59). New toggle **"Same letter size across cans"** (vertical only): the size becomes the per-LETTER height, so every letter is identical and shorter words just take less vertical space (capped to the face so the longest word can't overflow). Verified: COFFEE/SUGAR/MILO all 14.1mm per letter with it on. `state.textUniformSize` + checkbox under Text path. Files: js/features.js, js/geometry.js, js/app.js, index.html (app.js?v=400, features.js?v=400, geometry.js?v=400, header b400).
+
 ### 2026-07-17 — b399: Accent band — make the paint-into-wall optional (keep it identifiable)
 
 Painting the accent into the body (b398) made it fast to print but merged it into the Body object, so it couldn't be selected separately in the slicer. Now it's a toggle: **default OFF** = the accent stays a separate part (flush welded ring, identifiable, own filament slot); **ON** = "Weld band into wall (faster print)" paints it through the wall for far fewer colour changes. New `state.accentFastBand` + checkbox under Accent bands. Files: js/app.js, js/geometry.js, index.html (app.js?v=399, geometry.js?v=399, header b399).

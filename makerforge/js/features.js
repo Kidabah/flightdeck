@@ -2413,7 +2413,18 @@ function computeTextArtLayout(meta, params) {
   const glyph = glyphBoundsFromMask(mask, maskW, maskH);
   if (!glyph) return null;
 
-  const scale = Math.min(labelH / glyph.height, limits.maxWidthMm / glyph.width);
+  let scale;
+  if (layout === "vertical" && params.textUniformSize) {
+    // Per-LETTER sizing: every letter is the same height regardless of word length, so a
+    // matched set (COFFEE / SUGAR / MILO) has identical text — shorter words just take less
+    // vertical space. `labelH` is the per-letter height; total stack = labelH x letters,
+    // capped to the face so the longest word can't overflow.
+    const lineCount = Math.max(1, text.split(/\r?\n/).filter((l) => l.trim()).length);
+    const targetH = Math.min(labelH * lineCount, frame.faceH * 0.96);
+    scale = Math.min(targetH / glyph.height, limits.maxWidthMm / glyph.width);
+  } else {
+    scale = Math.min(labelH / glyph.height, limits.maxWidthMm / glyph.width);
+  }
   if (!Number.isFinite(scale) || scale <= 0) return null;
 
   const artW = glyph.width * scale;
