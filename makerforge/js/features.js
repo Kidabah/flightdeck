@@ -1814,12 +1814,34 @@ function appendBox(outPos, outIdx, x0, y0, z0, x1, y1, z1) {
   for (const f of faces) pushQuad(outPos, outIdx, pts[f[0]], pts[f[1]], pts[f[2]], pts[f[3]]);
 }
 
+/** Max lines for flat/vertical emboss — was 4 and clipped stacked "COFFEE". */
+const MAX_EMBOSS_TEXT_LINES = 16;
+
+/** Stack one character per line for vertical text path. */
+function verticalStackText(text) {
+  const raw = String(text || "");
+  const lines = raw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  // Already stacked (mostly single glyphs) — keep as entered.
+  if (lines.length >= 2 && lines.every((l) => [...l].length <= 2)) {
+    return lines.slice(0, MAX_EMBOSS_TEXT_LINES).join("\n");
+  }
+  const chars = [...raw.replace(/\s+/g, "")].filter(Boolean);
+  if (!chars.length) return "";
+  return chars.slice(0, MAX_EMBOSS_TEXT_LINES).join("\n");
+}
+
+/** Normalise emboss text for the active layout (vertical stacks letters). */
+function embossTextForLayout(text, layout) {
+  if ((layout || "flat") === "vertical") return verticalStackText(text);
+  return String(text || "");
+}
+
 /** Rasterise label text to a high-res alpha mask (stencil contours, not pixel blocks). */
 function rasterTextMask(text, fontId, fontSizePx = 640, align = "left") {
   if (typeof document === "undefined") return null;
   const lines = String(text || "")
     .split(/\r?\n/)
-    .slice(0, 4)
+    .slice(0, MAX_EMBOSS_TEXT_LINES)
     .map((l) => l.trimEnd());
   if (!lines.some((l) => l.trim())) return null;
 
@@ -2212,10 +2234,14 @@ function glyphBoundsFromMask(mask, maskW, maskH) {
 /** Size limits for embossed text on a face (mm). */
 export function textEmbossSizeLimits(meta, face, params = null) {
   const frame = getEmbossFaceFrame(meta, face || "front", params);
+  const vertical = (params?.embossTextLayout || "flat") === "vertical";
+  // Vertical stacks need the full block height; flat/arc keep the shorter cap.
+  const frac = vertical ? 0.9 : 0.48;
+  const hardCap = vertical ? 120 : 48;
   return {
     min: 3,
-    max: Math.min(48, Math.max(20, Math.round(frame.faceH * 0.48 * 2) / 2)),
-    maxWidthMm: Math.max(20, frame.faceW * 0.88),
+    max: Math.min(hardCap, Math.max(20, Math.round(frame.faceH * frac * 2) / 2)),
+    maxWidthMm: Math.max(20, frame.faceW * (vertical ? 0.55 : 0.88)),
   };
 }
 
@@ -2228,15 +2254,19 @@ function textHasInk(text) {
 
 /** Shared text layout — keeps 3D mesh and selection handles aligned. */
 function computeTextArtLayout(meta, params) {
-  const text = String(params.embossText || "");
+  const layout = params.embossTextLayout || "flat";
+  const text = embossTextForLayout(params.embossText || "", layout);
   if (!textHasInk(text)) return null;
   const frame = getEmbossFaceFrame(meta, params.embossFace || "front", params);
   const limits = textEmbossSizeLimits(meta, frame.face, params);
   const labelH = clamp(params.embossHeight ?? 7, limits.min, limits.max);
-  const arcMode = (params.embossTextLayout || "flat") === "arc";
+  const arcMode = layout === "arc";
   const fontId = params.embossFont || "bebas";
   const fontSizePx = isLabelExport(params) ? 1280 : 640;
   const wrapArc = arcMode && frame.face === "wrap";
+  const align = layout === "vertical"
+    ? "center"
+    : (params.embossTextAlign || "left");
 
   let raster;
   if (wrapArc) {
@@ -2264,7 +2294,7 @@ function computeTextArtLayout(meta, params) {
     }
     raster = rasterArcTextMask(text, fontId, fontSizePx, opts);
   } else {
-    raster = rasterTextMask(text, fontId, fontSizePx, params.embossTextAlign || "left");
+    raster = rasterTextMask(text, fontId, fontSizePx, align);
   }
   if (!raster?.mask?.length) return null;
 

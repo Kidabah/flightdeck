@@ -4,7 +4,8 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b389** — garden stake mount (ground spikes)
+- Current: **b390** — vertical text path (stacked letters) + fix 4-line clip
+- (was b389) — garden stake mount (ground spikes)
 - (was b388) — 8 sign plate shapes (rect/rounded/pill/oval/hex/arch/shield/banner)
 - (was b387) — sign arc text fixed (own circular bend, closed + centred)
 - (was b386) — sign Flat/Arch buttons auto-centre the text
@@ -16,7 +17,21 @@ Latest GitHub/Pi state:
 - (was b380) — batch manifold summary + canister filament preset
 - (was b379) — manifold export gate blocks non-manifold 3MFs
 - (was b378) — single-filament 3MFs (liner) also pin to left nozzle so AMS HT is offered
-- Cache-bust: `app.js?v=378`, `3mf.js?v=378` — header **b378**
+- Cache-bust: `app.js?v=390`, `features.js?v=390` — header **b390**
+
+### 2026-07-17 — b390: Vertical text path (COFFEE no longer clipped)
+
+**Symptom:** Stacked `C/O/F/F/E/E` (newlines) only showed **COFF** — EE cut off at the bottom of the face.
+
+**Cause:** `rasterTextMask` hard-capped at **4 lines** (`.slice(0, 4)`). Size slider also capped flat text to ~half face height, awkward for tall stacks.
+
+**Fix:**
+- Raise emboss text line limit to 16
+- New **Text path → Vertical** — stacks letters automatically from `COFFEE` (no manual newlines needed), centres align, allows taller block (~90% face height)
+
+**Files:** `js/features.js`, `js/app.js`, `index.html`
+
+**Test:** Hard refresh **b390** → Art → Text → path **Vertical** → type COFFEE → all 6 letters visible; nudge size/up-down as needed.
 
 ### 2026-07-16 — bambu.py: AMS push registers named Bambu PLA variants (PLA Pure -> GFA19)
 
