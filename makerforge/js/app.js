@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, ANIMAL_PRESET, SIGN_PRESET } from "./geometry.js?v=392";
+import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, ANIMAL_PRESET, SIGN_PRESET } from "./geometry.js?v=398";
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=397";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=370";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=372";
@@ -35,7 +35,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b397";
+const MAKERDECK_BUILD = "b398";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -1106,6 +1106,43 @@ function traceRectsForExport(rects) {
   });
 }
 
+/** Full-perimeter (rim/floor) accent bands as z-ranges + colour — for painting into the body
+ * so the whole wall at that height slices as one colour (2 filament changes, not one per layer). */
+function accentPaintBands(exportCache) {
+  if (!state.accentEnabled || !Array.isArray(state.accentBands)) return [];
+  const totalH = exportCache?.meta?.outer?.h;
+  if (!totalH) return [];
+  const out = [];
+  for (const band of state.accentBands) {
+    const face = band.face || "rim";
+    if (face !== "rim" && face !== "floor") continue; // partial (front) bands stay separate
+    const bandH = Math.min(Math.max(band.height ?? 4, 2), totalH);
+    const pos = face === "floor" ? 0 : (band.pos != null ? Math.min(Math.max(band.pos, 0), 100) / 100 : 1);
+    const z0 = (totalH - bandH) * pos;
+    out.push({ z0, z1: z0 + bandH, color: band.color || "#f97316" });
+  }
+  return out;
+}
+
+/** Paint body triangles whose height sits inside a rim/floor accent band. Returns the extruder
+ * colour map used and mutates the mesh with triangleExtruders. Body base slot = 1. */
+function paintAccentBandsIntoBody(bodyClean, bands, slotStart) {
+  if (!bands.length || !bodyClean?.indices?.length) return { colors: {}, slots: 0 };
+  const bandSlot = bands.map((_, i) => slotStart + i);
+  const P = bodyClean.positions, I = bodyClean.indices;
+  const tri = new Array(I.length / 3).fill(1);
+  for (let t = 0; t < I.length; t += 3) {
+    const z = (P[I[t] * 3 + 2] + P[I[t + 1] * 3 + 2] + P[I[t + 2] * 3 + 2]) / 3;
+    for (let b = 0; b < bands.length; b++) {
+      if (z >= bands[b].z0 && z <= bands[b].z1) { tri[t / 3] = bandSlot[b]; break; }
+    }
+  }
+  bodyClean.triangleExtruders = tri;
+  const colors = { 1: state.boxColor || "#38bdf8" };
+  bands.forEach((band, i) => { colors[bandSlot[i]] = band.color; });
+  return { colors, slots: bands.length };
+}
+
 function collectColoredExportParts(exportCache, stamp = null, { includeLiner = true } = {}) {
   if (!exportCache) return [];
   const params = buildParams();
@@ -1152,14 +1189,24 @@ function collectColoredExportParts(exportCache, stamp = null, { includeLiner = t
       positions: boxShell.positions.slice(),
       indices: boxShell.indices.slice(),
     });
+    let paintedBands = [];
     if (bodyClean?.indices?.length) {
-      parts.push({
+      const bands = accentPaintBands(exportCache);
+      const bodyPart = {
         name: "Body",
         mesh: bodyClean,
         color: state.boxColor || "#38bdf8",
         extruder: extruder++,
         filamentPreset: state.canisterFilamentPreset || "",
-      });
+      };
+      if (bands.length) {
+        const bandSlotStart = extruder;        // reserve sequential slots after the body
+        const { colors } = paintAccentBandsIntoBody(bodyClean, bands, bandSlotStart);
+        bodyPart.extruderColors = colors;
+        extruder += bands.length;              // art/text continue after the band slots
+        paintedBands = bands;
+      }
+      parts.push(bodyPart);
     }
     if (separateArt) {
       const traceData = traceRectsForExport(params.embossTraceRects);
@@ -1214,7 +1261,8 @@ function collectColoredExportParts(exportCache, stamp = null, { includeLiner = t
     }
   }
 
-  if (state.accentEnabled && exportCache.accentMeshes?.length) {
+  const _paintedRimFloor = accentPaintBands(exportCache).length > 0 && (separateText || hasSeparateArtExport(params)) && (params.embossFace || "front") !== "lid";
+  if (state.accentEnabled && exportCache.accentMeshes?.length && !_paintedRimFloor) {
     exportCache.accentMeshes.forEach((part, i) => {
       const accentClean = sanitizeMeshForStl(part.solidMesh || part.mesh);
       if (!accentClean?.indices?.length) return;

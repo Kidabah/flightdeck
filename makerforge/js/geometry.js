@@ -1954,15 +1954,23 @@ function buildAccentBandMeshes(params, meta, outerProfile, isVase) {
 
 /** Space below cavity mouth reserved for flat-lid lip (or nest-cap clearance). */
 function linerLidTopReserve(params) {
+  const base = clamp(params?.linerTopClearance ?? 1.2, 0.5, 8);
+  const lipClear = clamp(params?.linerLipClearance ?? 0.45, 0.2, 1.5);
   const lidOn = !!params?.lidEnabled;
   const lidType = normalizeLidType(params?.lidType, params?.shape);
-  if (!lidOn || lidType !== "flat") {
-    return clamp(params?.linerTopClearance ?? 1.2, 0.5, 8);
-  }
-  const lipDepth = clamp(params?.lidLipDepth ?? 0, 0, 12);
-  const lipClear = clamp(params?.linerLipClearance ?? 0.45, 0.2, 1.5);
-  if (lipDepth > 0.4) return lipDepth + lipClear;
-  return clamp(params?.linerTopClearance ?? 1.2, 0.5, 8);
+  // Whatever intrudes into the cavity from the top is deducted from the liner so it seats below:
+  // flat-cap lip, plug-lid skirt, and any insert top clearance. Take the deepest.
+  let lidIntrusion = 0;
+  if (lidOn && lidType === "flat") lidIntrusion = clamp(params?.lidLipDepth ?? 0, 0, 12);
+  else if (lidOn && lidType === "plug") lidIntrusion = clamp(params?.lidSkirt ?? 10, 4, 30);
+  else if (lidOn && lidType === "screw") lidIntrusion = clamp(params?.lidSkirt ?? 10, 6, 30);
+  const insertReserve = params?.insertEnabled ? clamp(params?.insertTopClearance ?? 0.6, 0, 40) : 0;
+  const reserve = Math.max(
+    base,
+    lidIntrusion > 0.4 ? lidIntrusion + lipClear : 0,
+    insertReserve,
+  );
+  return clamp(reserve, 0.5, 40);
 }
 
 /**

@@ -1,3 +1,10 @@
+### 2026-07-17 — b398: Full-thickness accent band (print-time) + liner deducts lid/insert
+
+- **Accent band painted into the body** (rim/floor bands): instead of exporting a thin proud sleeve that forces a colour change on every layer of the band, the body triangles in the band height range are painted with the accent colour (per-triangle paint_color). Those layers slice as ONE colour = ~2 filament changes for the band instead of ~40. Sequential slots (no slot explosion); verified 2 slots + correct paint codes on nest + non-stack. Inside goes accent-coloured at the band (hidden by the liner). Partial front-face bands still export separate.
+- **Liner top reserve** now deducts whatever intrudes into the cavity: flat-cap lip, plug/screw skirt, AND insert top clearance (deepest wins). Verified liner top drops with lip 0/2.5/6, plug skirt, and insert clearance.
+
+Files: js/app.js, js/geometry.js, index.html (app.js?v=398, geometry.js?v=398, header b398).
+
 ### 2026-07-17 — b397: +33 Windows/Office emboss fonts
 
 Added 33 local Windows/Office fonts to EMBOSS_FONTS (Comic Sans, Ink Free, Ebrima, Leelawadee, Rockwell, Bodoni MT, Bell MT, Perpetua, Baskerville, Goudy, Copperplate, Elephant, Bernard MT Condensed, Cooper Black, Britannic Bold, Berlin Sans FB, Agency FB, Bauhaus 93, Broadway, Stencil, Showcard Gothic, Harrington, Old English Text MT, Magneto, Papyrus, Brush Script, Lucida Handwriting, Monotype Corsiva, Vivaldi, Cascadia Mono, +more). All LOCAL (no `google` field) so they render synchronously — no web-font load race, which also sidesteps the partial-load size-mix on those fonts. Files: js/features.js, js/app.js, js/geometry.js, index.html (app.js?v=397, features.js?v=397, header b397).
