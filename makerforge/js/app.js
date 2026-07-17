@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, ANIMAL_PRESET, SIGN_PRESET } from "./geometry.js?v=398";
+import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, ANIMAL_PRESET, SIGN_PRESET } from "./geometry.js?v=399";
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=397";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=370";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=372";
@@ -35,7 +35,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b398";
+const MAKERDECK_BUILD = "b399";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -1199,7 +1199,7 @@ function collectColoredExportParts(exportCache, stamp = null, { includeLiner = t
         extruder: extruder++,
         filamentPreset: state.canisterFilamentPreset || "",
       };
-      if (bands.length) {
+      if (bands.length && state.accentFastBand) {
         const bandSlotStart = extruder;        // reserve sequential slots after the body
         const { colors } = paintAccentBandsIntoBody(bodyClean, bands, bandSlotStart);
         bodyPart.extruderColors = colors;
@@ -1261,7 +1261,7 @@ function collectColoredExportParts(exportCache, stamp = null, { includeLiner = t
     }
   }
 
-  const _paintedRimFloor = accentPaintBands(exportCache).length > 0 && (separateText || hasSeparateArtExport(params)) && (params.embossFace || "front") !== "lid";
+  const _paintedRimFloor = state.accentFastBand && accentPaintBands(exportCache).length > 0 && (separateText || hasSeparateArtExport(params)) && (params.embossFace || "front") !== "lid";
   if (state.accentEnabled && exportCache.accentMeshes?.length && !_paintedRimFloor) {
     exportCache.accentMeshes.forEach((part, i) => {
       const accentClean = sanitizeMeshForStl(part.solidMesh || part.mesh);
@@ -5388,6 +5388,10 @@ function renderAccentBandsUi(force = false) {
   const addBtn = document.getElementById("btn-accent-add-band");
   const accentOn = state.accentEnabled && accentSupportedForShape();
   wrap?.classList.toggle("hidden", !accentOn);
+  document.getElementById("field-accent-fast")?.classList.toggle("hidden", !accentOn);
+  document.getElementById("accent-fast-hint")?.classList.toggle("hidden", !accentOn);
+  const fastCb = document.getElementById("accent-fast-band");
+  if (fastCb) fastCb.checked = !!state.accentFastBand;
   if (!accentOn || !container) return;
 
   ensureStateAccentBands(state);
@@ -6157,6 +6161,11 @@ document.getElementById("liner-enabled")?.addEventListener("change", (e) => {
   state.linerEnabled = e.target.checked;
   syncCanisterControlsFromState();
   rebuild();
+});
+
+document.getElementById("accent-fast-band")?.addEventListener("change", (e) => {
+  state.accentFastBand = e.target.checked;
+  scheduleSaveSession();
 });
 
 document.getElementById("liner-filament-preset")?.addEventListener("change", (e) => {

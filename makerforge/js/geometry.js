@@ -2520,6 +2520,7 @@ export const SIGN_PRESET = {
   linerEnabled: false,
   stackableEnabled: false,
   accentEnabled: false,
+  accentFastBand: false,
 };
 
 export const ANIMAL_PRESET = {

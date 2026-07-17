@@ -1,3 +1,7 @@
+### 2026-07-17 — b399: Accent band — make the paint-into-wall optional (keep it identifiable)
+
+Painting the accent into the body (b398) made it fast to print but merged it into the Body object, so it couldn't be selected separately in the slicer. Now it's a toggle: **default OFF** = the accent stays a separate part (flush welded ring, identifiable, own filament slot); **ON** = "Weld band into wall (faster print)" paints it through the wall for far fewer colour changes. New `state.accentFastBand` + checkbox under Accent bands. Files: js/app.js, js/geometry.js, index.html (app.js?v=399, geometry.js?v=399, header b399).
+
 ### 2026-07-17 — b398: Full-thickness accent band (print-time) + liner deducts lid/insert
 
 - **Accent band painted into the body** (rim/floor bands): instead of exporting a thin proud sleeve that forces a colour change on every layer of the band, the body triangles in the band height range are painted with the accent colour (per-triangle paint_color). Those layers slice as ONE colour = ~2 filament changes for the band instead of ~40. Sequential slots (no slot explosion); verified 2 slots + correct paint codes on nest + non-stack. Inside goes accent-coloured at the band (hidden by the liner). Partial front-face bands still export separate.
