@@ -1,3 +1,10 @@
+### 2026-07-17 — b393: Font-mixing fix (deeper) + nest stack lid watertight
+
+- **Emboss font mixing** (CO in one font, FFEE in another): `embossFontStackForCanvas` fell back to a multi-font stack when the selected face wasn't confirmed loaded (e.g. at the shrunk vertical raster size), and Chrome then pulled different fonts per glyph. Now it always uses the primary Google face + ONE generic fallback, so every glyph is consistent (loaded → the face; not yet → one browser default). Fixes flat + vertical + arc text.
+- **Nest stack lid rim** (the 250g set's lid): was ~168 open edges (open bottom rim coincident with the lid top). Rebuilt as a closed annular ring, radial-matched once, inset 0.1mm + embedded 0.5mm into the lid → clean union. trimesh watertight; committed test now PASSES (was WARN).
+
+Files: js/features.js, js/app.js, js/geometry.js, index.html (app.js?v=393, features.js?v=393, header b393).
+
 ## MakerDeck session handoff
 
 > **GOLDEN BASELINE: b284** — see `makerforge/GOLDEN_BASELINE.md`. Coffee bag trace + jar emboss confirmed good. Do not change `drawTracePreview` ink-mask order or revert b278 emboss without reading that file.

@@ -72,12 +72,14 @@ function embossPrimaryFontFace(id, fontSizePx) {
  */
 function embossFontStackForCanvas(id, fontSizePx) {
   const f = embossFontSpec(id);
-  if (
-    f.google
-    && typeof document !== "undefined"
-    && document.fonts?.check?.(embossPrimaryFontFace(id, fontSizePx))
-  ) {
-    return embossPrimaryFontFace(id, fontSizePx);
+  if (f.google) {
+    // Primary Google face + a SINGLE generic fallback only. The multi-font fallback stack
+    // makes Chrome mix named fonts per glyph when the primary is partially available
+    // (the "CO in one font, FFEE in another" bug). One generic keeps every glyph consistent:
+    // face loaded -> all glyphs use it; not yet loaded -> all use one browser default.
+    const generic = (/serif/i.test(f.family) && !/sans[-\s]?serif/i.test(f.family)) ? "serif"
+      : (/mono/i.test(f.family) ? "monospace" : "sans-serif");
+    return `${f.weight} ${fontSizePx}px "${f.google}", ${generic}`;
   }
   return embossFontStack(id, fontSizePx);
 }
@@ -1405,15 +1407,20 @@ export function appendNestStackLidRim(outPos, outIdx, boxOuter, params, lidThick
 
   const rimWidth = STACK_LIP_MM;
   const rimHeight = STACK_LIP_MM;
-  const rimInner = offsetProfileInward(boxOuter, rimWidth);
+  // Closed annular ring, radial-matched once (caps + walls share the same inner ring so they
+  // weld), inset 0.1mm and embedded 0.5mm into the lid so it unions with the lid top with no
+  // coincident faces (the old open rim leaked ~168 edges and Bambu "repaired" it).
+  const rimOuter = offsetProfileInward(boxOuter, 0.1);
+  const rimInner = radialMatchInner(rimOuter, offsetProfileInward(boxOuter, rimWidth));
   if (!profileIsValid(rimInner)) return;
 
-  const zTop = lidThickness;
-  const zLip = zTop + rimHeight;
+  const zBot = lidThickness - 0.5;
+  const zLip = lidThickness + rimHeight;
 
-  capRingXZ(outPos, outIdx, boxOuter, rimInner, zLip, true);
-  extrudeWallsAlongZ(outPos, outIdx, boxOuter, zTop, zLip);
-  extrudeWallsAlongZ(outPos, outIdx, rimInner, zTop, zLip);
+  capRingXZ(outPos, outIdx, rimOuter, rimInner, zBot, false);
+  capRingXZ(outPos, outIdx, rimOuter, rimInner, zLip, true);
+  extrudeWallsAlongZ(outPos, outIdx, rimOuter, zBot, zLip);
+  extrudeWallsAlongZ(outPos, outIdx, rimInner, zBot, zLip);
 }
 
 /** @deprecated Groove removed — solid lip only. Kept for API compat; no-op. */
