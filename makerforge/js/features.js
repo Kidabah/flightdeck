@@ -1078,9 +1078,13 @@ function buildProfileAccentSleeve(outerProfile, z0, z1, onTop = false) {
   const profile = ensureProfileCCW(outerProfile);
   const positions = [];
   const indices = [];
-  const offset = ACCENT_SKIN_MM + ACCENT_BAND_THICKNESS_MM + (onTop ? ACCENT_LAYER_BUMP_MM : 0);
-  const inner = profile.map((p) => [p[0], p[1]]);
-  const outer = offsetProfileEdgeJoin(profile, offset);
+  // Welded flush band: the ring is EMBEDDED into the wall (inner offset inward by the band
+  // thickness, overlapping the solid body) and protrudes only ACCENT_SKIN_MM (~0.12mm), which
+  // is within slip-lid clearance — so it fuses to the container and the lid still fits. (Was a
+  // proud sleeve standing 0.57mm off the wall, which blocked the lid.)
+  const proud = ACCENT_SKIN_MM + (onTop ? ACCENT_LAYER_BUMP_MM : 0);
+  const inner = offsetProfileEdgeJoin(profile, -ACCENT_BAND_THICKNESS_MM);
+  const outer = offsetProfileEdgeJoin(profile, proud);
   const weights = profileAccentPinchWeights(profile, outer);
   pinchProfileAccentOuter(profile, outer, weights);
   extrudeProfileAnnulusWalls(positions, indices, profile, inner, outer, weights, z0, z1);

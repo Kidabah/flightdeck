@@ -1,3 +1,7 @@
+### 2026-07-17 — b394: Accent band welded flush into the wall (slip lid now fits)
+
+Profile accent bands (rounded canisters, e.g. the coffee tin) were a proud sleeve standing ~0.57mm off the wall — a slip-over lid sized for the body couldn't clear it, and it read as a separate "slide-on" ring. `buildProfileAccentSleeve` now EMBEDS the ring into the wall (inner offset inward by the band thickness, overlapping the solid body = fused/welded) and protrudes only ACCENT_SKIN (~0.12mm), within slip-lid clearance. Verified: accent max radius 64.83 vs wall 64.71 (was ~65.3); band is a closed watertight solid (0 open edges, was an open sleeve). Sharp-corner box accents already sat ~0.12mm proud (unchanged). Files: js/features.js, js/app.js, js/geometry.js, index.html (app.js?v=394, features.js?v=394, header b394).
+
 ### 2026-07-17 — b393: Font-mixing fix (deeper) + nest stack lid watertight
 
 - **Emboss font mixing** (CO in one font, FFEE in another): `embossFontStackForCanvas` fell back to a multi-font stack when the selected face wasn't confirmed loaded (e.g. at the shrunk vertical raster size), and Chrome then pulled different fonts per glyph. Now it always uses the primary Google face + ONE generic fallback, so every glyph is consistent (loaded → the face; not yet → one browser default). Fixes flat + vertical + arc text.
