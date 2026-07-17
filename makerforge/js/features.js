@@ -70,18 +70,26 @@ function embossPrimaryFontFace(id, fontSizePx) {
  * Canvas stack: prefer the loaded Google face alone so Chrome doesn't mix
  * Oswald on some glyphs and Arial Narrow/Impact on others mid-string.
  */
-function embossFontStackForCanvas(id, fontSizePx) {
+function embossGenericFallback(f) {
+  return (/serif/i.test(f.family) && !/sans[-\s]?serif/i.test(f.family)) ? "serif"
+    : (/mono/i.test(f.family) ? "monospace" : "sans-serif");
+}
+
+function embossFontStackForCanvas(id, fontSizePx, text = "") {
   const f = embossFontSpec(id);
-  if (f.google) {
-    // Primary Google face + a SINGLE generic fallback only. The multi-font fallback stack
-    // makes Chrome mix named fonts per glyph when the primary is partially available
-    // (the "CO in one font, FFEE in another" bug). One generic keeps every glyph consistent:
-    // face loaded -> all glyphs use it; not yet loaded -> all use one browser default.
-    const generic = (/serif/i.test(f.family) && !/sans[-\s]?serif/i.test(f.family)) ? "serif"
-      : (/mono/i.test(f.family) ? "monospace" : "sans-serif");
-    return `${f.weight} ${fontSizePx}px "${f.google}", ${generic}`;
+  if (!f.google) return embossFontStack(id, fontSizePx);
+  const generic = embossGenericFallback(f);
+  // Only use the Google face if EVERY glyph in the label is loaded. document.fonts.check(font,
+  // text) reports false while the face is only partially available — otherwise the browser
+  // renders loaded glyphs (e.g. C, O) in the real font and missing ones (F, E) in a fallback at
+  // a DIFFERENT size (the "CO bigger than FFEE" bug). If not fully ready, render every glyph in
+  // one generic font so they're all consistent; the rebuild after load swaps in the real face.
+  const primary = `${f.weight} ${fontSizePx}px "${f.google}"`;
+  const sample = String(text || "").replace(/\s+/g, "") || "AaGg";
+  if (typeof document !== "undefined" && document.fonts?.check?.(primary, sample)) {
+    return `${primary}, ${generic}`;
   }
-  return embossFontStack(id, fontSizePx);
+  return `${f.weight} ${fontSizePx}px ${generic}`;
 }
 
 export function embossFontReady(id, fontSizePx = 640) {
@@ -1913,7 +1921,7 @@ function rasterTextMask(text, fontId, fontSizePx = 640, align = "left") {
   if (estHeight > 4096) {
     sizePx = Math.max(160, Math.floor(sizePx * (4096 / estHeight)));
   }
-  const font = embossFontStackForCanvas(fontId, sizePx);
+  const font = embossFontStackForCanvas(fontId, sizePx, lines.join(""));
   ctx.font = font;
   const pad = Math.ceil(sizePx * padFactor);
   let maxLineW = 0;
@@ -1959,7 +1967,7 @@ function rasterArcTextMask(text, fontId, fontSizePx = 640, options = {}) {
   const chars = [...line];
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
-  const font = embossFontStackForCanvas(fontId, fontSizePx);
+  const font = embossFontStackForCanvas(fontId, fontSizePx, line);
   ctx.font = font;
 
   const letterSpacing = clamp(options.spacing ?? 1.1, 0.55, 2.2);
@@ -2032,7 +2040,7 @@ function rasterWrapBannerTextMask(text, fontId, fontSizePx = 640, options = {}) 
   const chars = [...line];
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
-  const font = embossFontStackForCanvas(fontId, fontSizePx);
+  const font = embossFontStackForCanvas(fontId, fontSizePx, line);
   ctx.font = font;
 
   const letterSpacing = clamp(options.spacing ?? 1, 0.7, 1.8);
