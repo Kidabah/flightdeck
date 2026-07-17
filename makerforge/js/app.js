@@ -35,7 +35,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b385";
+const MAKERDECK_BUILD = "b386";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -760,6 +760,18 @@ function syncTextAlignUi() {
   document.querySelectorAll(".align-btn").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.textAlign === align);
   });
+}
+
+/** Snap sign text to a centred position when Flat/Arch is chosen (no manual nudging). */
+function centerSignText(preset) {
+  state.textOffsetX = 0;
+  // Plate "top" face centre is 0; arch-up bulges upward so drop it a touch, arch-down lift a touch.
+  const h = state.embossHeight ?? 7;
+  state.textOffsetY = preset === "arch-up" ? -h * 0.15 : preset === "arch-down" ? h * 0.15 : 0;
+  state.textRotation = 0;
+  state.embossArcTilt = 0;
+  setArtSlider("text-offset-x", 0, "float");
+  setArtSlider("text-offset-y", Math.round((state.textOffsetY ?? 0) * 10) / 10, "float");
 }
 
 function syncArcPresetUi() {
@@ -6200,6 +6212,9 @@ document.querySelectorAll(".layout-btn").forEach((btn) => {
         preserveOffsets: true,
       });
       state.textRotation = 0;
+      if (state.shape === "sign") centerSignText(state.embossArcPreset || "arch-up");
+    } else if (state.shape === "sign") {
+      centerSignText("flat");
     }
     syncTextLayoutUi();
     updateDecorUi();
@@ -6217,6 +6232,8 @@ document.querySelectorAll(".arc-preset-btn").forEach((btn) => {
     if (wrapGraphic) {
       setArtSlider("text-offset-x", state.textOffsetX ?? 0, "float");
       setArtSlider("text-offset-y", state.textOffsetY ?? 0, "float");
+    } else if (state.shape === "sign") {
+      centerSignText(id);
     }
     syncTextLayoutUi();
     scheduleArtRebuild();

@@ -4,7 +4,8 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b385** — sign arc text = gentle arch; mounts moved to corners
+- Current: **b386** — sign Flat/Arch buttons auto-centre the text
+- (was b385) — sign arc text = gentle arch; mounts moved to corners
 - (was b384) — Novelty (animal) section removed from UI
 - (was b383) — NEW Signs section (door/name plaque, plate engine)
 - (was b382) — animal shapes: switching fixed + recognizable silhouettes + watertight
@@ -25,6 +26,10 @@ Latest GitHub/Pi state:
 **Verified:** unit test — spool {Bambu Lab, PLA, Pure} -> tray_info_idx GFA19, setting_id GFSA19, name "Bambu PLA Pure", 190-240C. Non-Bambu PLA still GFL99.
 
 **Deploy:** Pi backend restart required. After restart, re-push AMS HT slot (Trust Flightdeck / re-assign #100) so the tray re-registers as PLA Pure.
+
+### 2026-07-16 — b386: Sign text auto-centres on Flat / Arch up / Arch down
+
+For signs, the Flat / Arch up / Arch down buttons preserved existing offsets, so switching styles left the text off-position and the user had to hand-nudge Move up/down every time. New `centerSignText(preset)` resets textOffsetX=0 and a small preset-aware textOffsetY (arch-up drops slightly, arch-down lifts slightly), and syncs the sliders. Wired into the layout-btn and arc-preset-btn handlers for `shape === "sign"` only (canister/wrap behaviour unchanged). One click now snaps the text to a centred flat or arch. Files: js/app.js, index.html (app.js?v=386, header b386).
 
 ### 2026-07-16 — b385: Sign arc text (arch not curl) + mounts to corners
 
