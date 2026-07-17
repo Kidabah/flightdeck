@@ -1,3 +1,7 @@
+### 2026-07-17 — b397: +33 Windows/Office emboss fonts
+
+Added 33 local Windows/Office fonts to EMBOSS_FONTS (Comic Sans, Ink Free, Ebrima, Leelawadee, Rockwell, Bodoni MT, Bell MT, Perpetua, Baskerville, Goudy, Copperplate, Elephant, Bernard MT Condensed, Cooper Black, Britannic Bold, Berlin Sans FB, Agency FB, Bauhaus 93, Broadway, Stencil, Showcard Gothic, Harrington, Old English Text MT, Magneto, Papyrus, Brush Script, Lucida Handwriting, Monotype Corsiva, Vivaldi, Cascadia Mono, +more). All LOCAL (no `google` field) so they render synchronously — no web-font load race, which also sidesteps the partial-load size-mix on those fonts. Files: js/features.js, js/app.js, js/geometry.js, index.html (app.js?v=397, features.js?v=397, header b397).
+
 ### 2026-07-17 — b395: Vertical/emboss text — fix partial-font "CO bigger than FFEE"
 
 The real cause of the inconsistent letters wasn't font FAMILY mixing but PARTIAL glyph loading: the browser had some glyphs (C, O) in the selected face and rendered the rest (F, E) in a fallback at a different SIZE. `embossFontStackForCanvas` now takes the label text and uses `document.fonts.check(face, text)` — it only uses the real face when EVERY glyph is loaded; otherwise it renders the whole label in one generic font (consistent size), and the post-load rebuild swaps in the real face. Applied to flat/vertical (rasterTextMask) + arc/banner. Files: js/features.js, js/app.js, js/geometry.js, index.html (app.js?v=395, features.js?v=395, header b395).
