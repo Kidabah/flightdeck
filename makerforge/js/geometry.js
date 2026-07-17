@@ -7,6 +7,8 @@ import {
   applyBodyDecorations,
   buildLabelEmboss,
   buildLabelEmbossParts,
+  buildTextLabelExportMesh,
+  buildGraphicLabelExportMesh,
   buildAccentMesh,
   buildDividerInsert,
   mergeMeshes,
@@ -2043,15 +2045,88 @@ export function buildSign(params) {
   };
 
   const boxShell = { positions: mesh.positions.slice(), indices: mesh.indices.slice() };
-  const labelParams = { ...params, embossFace: "top" };
+  // Build text/art on a VIRTUAL vertical front face (where the arc engine works correctly),
+  // then lay it flat onto the plate top and auto-centre. This avoids the rotated/off-centre
+  // arch the horizontal "top" face produced.
+  const faceMeta = { shape: "sign", outer: { w: W, d: th, h: H }, inner: { w: W, d: th, h: 0 },
+    wall: th, floor: th, embossFace: "front", embossDeboss: !!params.embossDeboss };
+  const signArc = (params.embossTextLayout || "flat") === "arc" && !params.embossDeboss;
+  const labelParams = { ...params, embossFace: "front", embossTextLayout: "flat", textOffsetX: 0, textOffsetY: 0 };
   let labelMesh = null, graphicMesh = null, graphicColourParts = null, debossCutterMesh = null;
   if (!params._artPreviewDraft) {
+    const exFlags = { __labelExportStandoff: true, __multiColourAmsExport: true, __labelExportEmbedded: true };
+    const exParams = { ...labelParams, ...exFlags };
     if (params.embossDeboss) {
-      labelMesh = buildLabelEmboss(meta, labelParams, params.embossSvgText || "", "emboss");
-      debossCutterMesh = buildLabelEmboss(meta, labelParams, params.embossSvgText || "", "deboss-cutter");
+      labelMesh = buildLabelEmboss(faceMeta, labelParams, params.embossSvgText || "", "emboss");
+      debossCutterMesh = buildLabelEmboss(faceMeta, labelParams, params.embossSvgText || "", "deboss-cutter");
     } else {
-      const parts = buildLabelEmbossParts(meta, labelParams, params.embossSvgText || "", "emboss");
-      labelMesh = parts.text; graphicMesh = parts.graphic; graphicColourParts = parts.graphicColourParts || null;
+      // Closed voxel text/graphic (b374 path) so the parts are watertight for preview AND export.
+      labelMesh = buildTextLabelExportMesh(faceMeta, exParams);
+      graphicMesh = buildGraphicLabelExportMesh(faceMeta, exParams, params.embossSvgText || "");
+    }
+    // Remap front-face (x, y, z) -> plate top: x stays, vertical z -> plate depth y, face depth y -> height z.
+    const remap = (m) => {
+      if (!m?.positions) return;
+      const P = m.positions;
+      for (let i = 0; i < P.length; i += 3) {
+        const x = P[i], y = P[i + 1], z = P[i + 2];
+        P[i] = x; P[i + 1] = z - H / 2; P[i + 2] = th / 2 - y;
+      }
+    };
+    const allLabels = [labelMesh, graphicMesh, debossCutterMesh, ...(graphicColourParts || []).map((c) => c.mesh)].filter(Boolean);
+    for (const m of allLabels) remap(m);
+    // Auto-centre the combined label footprint on the plate, then apply user nudge.
+    if (allLabels.length) {
+      let minx = 1e9, maxx = -1e9, miny = 1e9, maxy = -1e9;
+      for (const m of allLabels) for (let i = 0; i < m.positions.length; i += 3) {
+        const x = m.positions[i], y = m.positions[i + 1];
+        if (x < minx) minx = x; if (x > maxx) maxx = x; if (y < miny) miny = y; if (y > maxy) maxy = y;
+      }
+      const dx = -(minx + maxx) / 2;
+      const dy = -(miny + maxy) / 2;
+      for (const m of allLabels) for (let i = 0; i < m.positions.length; i += 3) {
+        m.positions[i] += dx; m.positions[i + 1] += dy;
+      }
+      // Own circular bend (arc engine mis-maps on flat faces): map horizontal position to an
+      // angle on a circle so the word forms a clean, symmetric arch. Curve amount sets the span.
+      if (signArc) {
+        let tminx = 1e9, tmaxx = -1e9;
+        for (const m of allLabels) for (let i = 0; i < m.positions.length; i += 3) {
+          const x = m.positions[i]; if (x < tminx) tminx = x; if (x > tmaxx) tmaxx = x;
+        }
+        const textW = Math.max(1, tmaxx - tminx);
+        const curve = clamp(params.embossArcCurve ?? 60, 0, 100);
+        const spanDeg = clamp(10 + curve * 0.7, 10, 100);          // arch span across the word
+        const spanRad = (spanDeg * Math.PI) / 180;
+        const R = textW / spanRad;                                  // radius from span
+        const down = params.embossArcSide === "down";
+        const sign = down ? -1 : 1;
+        for (const m of allLabels) {
+          const P = m.positions;
+          for (let i = 0; i < P.length; i += 3) {
+            const x = P[i], y = P[i + 1];
+            const theta = x / R;
+            const radial = R + sign * y;
+            P[i] = radial * Math.sin(theta);
+            P[i + 1] = sign * (radial * Math.cos(theta) - R);
+          }
+        }
+        // Re-centre the bent word + apply the user nudge.
+        let bx0 = 1e9, bx1 = -1e9, by0 = 1e9, by1 = -1e9;
+        for (const m of allLabels) for (let i = 0; i < m.positions.length; i += 3) {
+          const x = m.positions[i], y = m.positions[i + 1];
+          if (x < bx0) bx0 = x; if (x > bx1) bx1 = x; if (y < by0) by0 = y; if (y > by1) by1 = y;
+        }
+        const bdx = -(bx0 + bx1) / 2 + (params.textOffsetX || 0);
+        const bdy = -(by0 + by1) / 2 + (params.textOffsetY || 0);
+        for (const m of allLabels) for (let i = 0; i < m.positions.length; i += 3) {
+          m.positions[i] += bdx; m.positions[i + 1] += bdy;
+        }
+      } else {
+        for (const m of allLabels) for (let i = 0; i < m.positions.length; i += 3) {
+          m.positions[i] += (params.textOffsetX || 0); m.positions[i + 1] += (params.textOffsetY || 0);
+        }
+      }
     }
   }
   return {

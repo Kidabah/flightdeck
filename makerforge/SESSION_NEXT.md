@@ -4,7 +4,8 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b386** — sign Flat/Arch buttons auto-centre the text
+- Current: **b387** — sign arc text fixed (own circular bend, closed + centred)
+- (was b386) — sign Flat/Arch buttons auto-centre the text
 - (was b385) — sign arc text = gentle arch; mounts moved to corners
 - (was b384) — Novelty (animal) section removed from UI
 - (was b383) — NEW Signs section (door/name plaque, plate engine)
@@ -26,6 +27,18 @@ Latest GitHub/Pi state:
 **Verified:** unit test — spool {Bambu Lab, PLA, Pure} -> tray_info_idx GFA19, setting_id GFSA19, name "Bambu PLA Pure", 190-240C. Non-Bambu PLA still GFL99.
 
 **Deploy:** Pi backend restart required. After restart, re-push AMS HT slot (Trust Flightdeck / re-assign #100) so the tray re-registers as PLA Pure.
+
+### 2026-07-16 — b387: Sign arc text — correct symmetric arch (own bend), closed + centred
+
+The arc engine assumes a vertical face; on the sign's flat top it produced a rotated, off-centre curl regardless of start angle. Rebuilt sign text handling:
+- Text/art built on a virtual vertical FACE with the **closed voxel builders** (buildTextLabelExportMesh / buildGraphicLabelExportMesh — watertight, b374 path), remapped flat onto the plate top.
+- Arc replaced with our **own circular bend**: flat text warped along a circle whose span = Curve amount → clean symmetric ∩ (arch-up) / ∪ (arch-down), auto-centred, then user nudge applied.
+- Export uses these exact bent meshes (new sign branch in collectColoredExportParts: Plate + Art + Text), so 3MF == preview. All parts watertight (plate + text 0 open edges, verified with a headless canvas render).
+- Flat/Arch buttons just zero the offsets now (buildSign centres the arch itself).
+
+Verified by rendering the real text geometry headless (node-canvas): flat centred, arch-up ∩, arch-down ∪ — all level and centred.
+
+**Files:** js/geometry.js, js/app.js, index.html (app.js?v=387, geometry.js?v=387, header b387).
 
 ### 2026-07-16 — b386: Sign text auto-centres on Flat / Arch up / Arch down
 

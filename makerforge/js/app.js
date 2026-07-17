@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, ANIMAL_PRESET, SIGN_PRESET } from "./geometry.js?v=383";
+import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, ANIMAL_PRESET, SIGN_PRESET } from "./geometry.js?v=387";
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=385";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=370";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=372";
@@ -35,7 +35,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b386";
+const MAKERDECK_BUILD = "b387";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -763,15 +763,13 @@ function syncTextAlignUi() {
 }
 
 /** Snap sign text to a centred position when Flat/Arch is chosen (no manual nudging). */
-function centerSignText(preset) {
+function centerSignText() {
   state.textOffsetX = 0;
-  // Plate "top" face centre is 0; arch-up bulges upward so drop it a touch, arch-down lift a touch.
-  const h = state.embossHeight ?? 7;
-  state.textOffsetY = preset === "arch-up" ? -h * 0.15 : preset === "arch-down" ? h * 0.15 : 0;
+  state.textOffsetY = 0;
   state.textRotation = 0;
   state.embossArcTilt = 0;
   setArtSlider("text-offset-x", 0, "float");
-  setArtSlider("text-offset-y", Math.round((state.textOffsetY ?? 0) * 10) / 10, "float");
+  setArtSlider("text-offset-y", 0, "float");
 }
 
 function syncArcPresetUi() {
@@ -1111,6 +1109,28 @@ function collectColoredExportParts(exportCache, stamp = null, { includeLiner = t
   const params = buildParams();
   const parts = [];
   let extruder = 1;
+  // Signs build their own (bent, closed) label meshes in buildSign — use them directly so the
+  // export matches the preview exactly (Plate + Text + Art), not a rebuilt top-face version.
+  if (params.shape === "sign") {
+    const plate = prepareMeshFor3mf(exportCache.boxShell || exportCache.shellMesh || exportCache);
+    if (plate?.indices?.length) {
+      parts.push({ name: "Body", mesh: plate, color: state.boxColor || "#cbd5e1",
+        extruder: extruder++, filamentPreset: state.canisterFilamentPreset || "" });
+    }
+    const artMesh = exportCache.graphicMesh ? prepareMeshFor3mf(exportCache.graphicMesh) : null;
+    if (artMesh?.indices?.length) {
+      parts.push({ name: "Art", mesh: artMesh, color: state.embossArtColor || "#111827", extruder: extruder++ });
+    }
+    for (const cp of exportCache.graphicColourParts || []) {
+      const cm = cp.mesh ? prepareMeshFor3mf(cp.mesh) : null;
+      if (cm?.indices?.length) parts.push({ name: cp.name || "Art", mesh: cm, color: cp.color, extruder: extruder++ });
+    }
+    const textMesh = exportCache.labelMesh ? prepareMeshFor3mf(exportCache.labelMesh) : null;
+    if (textMesh?.indices?.length) {
+      parts.push({ name: "Text", mesh: textMesh, color: state.embossTextColor || "#f8fafc", extruder: extruder++ });
+    }
+    return parts;
+  }
   const separateText = hasSeparateTextExport(params) && params.embossFace !== "lid";
   const separateArt = hasSeparateArtExport(params) && params.embossFace !== "lid";
   const separateColor = separateText || separateArt;
@@ -6212,9 +6232,9 @@ document.querySelectorAll(".layout-btn").forEach((btn) => {
         preserveOffsets: true,
       });
       state.textRotation = 0;
-      if (state.shape === "sign") centerSignText(state.embossArcPreset || "arch-up");
+      if (state.shape === "sign") centerSignText();
     } else if (state.shape === "sign") {
-      centerSignText("flat");
+      centerSignText();
     }
     syncTextLayoutUi();
     updateDecorUi();
@@ -6233,7 +6253,7 @@ document.querySelectorAll(".arc-preset-btn").forEach((btn) => {
       setArtSlider("text-offset-x", state.textOffsetX ?? 0, "float");
       setArtSlider("text-offset-y", state.textOffsetY ?? 0, "float");
     } else if (state.shape === "sign") {
-      centerSignText(id);
+      centerSignText();
     }
     syncTextLayoutUi();
     scheduleArtRebuild();
