@@ -2246,15 +2246,23 @@ function computeTextArtLayout(meta, params) {
       spacing: params.embossArcSpacing ?? 1,
     });
   } else if (arcMode) {
-    const radiusMm = resolveArcRadiusMm(frame, meta, params, labelH);
-    const radiusPx = (radiusMm / labelH) * fontSizePx;
-    raster = rasterArcTextMask(text, fontId, fontSizePx, {
-      sweepDeg: params.embossArcSweep ?? 220,
-      radiusPx,
+    // Flat/plate faces want a shallow ARCH, not the 220° cylinder wrap (that curls the
+    // whole word into a circle). Drive the sweep from Curve amount; let the radius follow
+    // the sweep so the arch spans a predictable, gentle angle regardless of word width.
+    const curve = clamp(params.embossArcCurve ?? 60, 0, 100);
+    const flatSweep = clamp(12 + curve * 0.9, 12, 120);
+    const userSweep = params.embossArcSweep;
+    const opts = {
+      sweepDeg: (userSweep && userSweep < 200) ? userSweep : flatSweep,
       startDeg: params.embossArcStartDeg ?? -90,
       spacing: params.embossArcSpacing ?? 1,
       side: params.embossArcSide === "down" ? "down" : "up",
-    });
+    };
+    if (params.embossArcRadius > 0) {
+      const radiusMm = resolveArcRadiusMm(frame, meta, params, labelH);
+      opts.radiusPx = (radiusMm / labelH) * fontSizePx;
+    }
+    raster = rasterArcTextMask(text, fontId, fontSizePx, opts);
   } else {
     raster = rasterTextMask(text, fontId, fontSizePx, params.embossTextAlign || "left");
   }

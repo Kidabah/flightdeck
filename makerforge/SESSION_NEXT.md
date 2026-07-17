@@ -4,7 +4,8 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b384** — Novelty (animal) section removed from UI
+- Current: **b385** — sign arc text = gentle arch; mounts moved to corners
+- (was b384) — Novelty (animal) section removed from UI
 - (was b383) — NEW Signs section (door/name plaque, plate engine)
 - (was b382) — animal shapes: switching fixed + recognizable silhouettes + watertight
 - (was b381) — silhouette animal shape canisters (bear/cat/bunny/dog)
@@ -24,6 +25,13 @@ Latest GitHub/Pi state:
 **Verified:** unit test — spool {Bambu Lab, PLA, Pure} -> tray_info_idx GFA19, setting_id GFSA19, name "Bambu PLA Pure", 190-240C. Non-Bambu PLA still GFL99.
 
 **Deploy:** Pi backend restart required. After restart, re-push AMS HT slot (Trust Flightdeck / re-assign #100) so the tray re-registers as PLA Pure.
+
+### 2026-07-16 — b385: Sign arc text (arch not curl) + mounts to corners
+
+- **Arc text on flat/plate faces** used the 220° cylinder-wrap sweep, curling whole words into a circle. Non-wrap arc now uses a shallow **Curve-amount-driven sweep** (12–120°, curve 60 ≈ 66°) and lets the radius follow the sweep, so it's a predictable gentle arch. Wrap (canister) arc unchanged. An explicit fine-tuned sweep < 200° is still honoured. (features.js `computeTextArtLayout`.)
+- **Mount cutouts** (keyhole + hanging) moved from ~0.22–0.28·W (too central, collided with a centred title) to the **top corners** (±(W/2−margin)), matching the screw holes. Central area now clear for text. All mount×border combos still watertight.
+
+**Files:** js/features.js, js/signs.js, js/app.js, js/geometry.js, index.html (app.js?v=385, features.js?v=385, signs.js?v=385, header b385).
 
 ### 2026-07-16 — b384: Remove Novelty (animal) section from UI
 

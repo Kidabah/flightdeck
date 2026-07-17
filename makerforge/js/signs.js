@@ -59,19 +59,17 @@ function ensureCCW(ring) {
 function mountHoles(type, W, H, opts = {}) {
   const holes = [];
   const margin = Math.min(W, H) * 0.12 + 4;
+  const x = W / 2 - margin, y = H / 2 - margin;
   if (type === "keyhole") {
     const headR = opts.headR ?? 4.2;
-    const y = H / 2 - margin;
-    holes.push(keyholeHole(-W * 0.22, y - 3, headR, headR * 0.62, 7));
-    holes.push(keyholeHole(W * 0.22, y - 3, headR, headR * 0.62, 7));
+    holes.push(keyholeHole(-x, y - 3, headR, headR * 0.62, 7));
+    holes.push(keyholeHole(x, y - 3, headR, headR * 0.62, 7));
   } else if (type === "screw") {
     const r = opts.screwR ?? 2.2;
-    const x = W / 2 - margin, y = H / 2 - margin;
     holes.push(circle(-x, y, r), circle(x, y, r), circle(-x, -y, r), circle(x, -y, r));
   } else if (type === "hanging") {
     const r = opts.hangR ?? 3.0;
-    const y = H / 2 - margin;
-    holes.push(circle(-W * 0.28, y, r), circle(W * 0.28, y, r));
+    holes.push(circle(-x, y, r), circle(x, y, r));
   }
   return holes.map(ensureCCW);
 }

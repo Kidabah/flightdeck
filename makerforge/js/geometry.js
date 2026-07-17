@@ -26,12 +26,12 @@ import {
   shapeSupportsProfileArt,
   shapeSupportsArt,
   STACK_LIP_MM,
-} from "./features.js?v=383";
+} from "./features.js?v=385";
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=161";
 import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=161";
 import { animalProfile, animalProfilePair, ANIMAL_NAMES } from "./animal-profiles.js?v=382";
-import { buildSignPlate, buildSignBorder, mountHoles } from "./signs.js?v=383";
+import { buildSignPlate, buildSignBorder, mountHoles } from "./signs.js?v=385";
 import {
   resolveVaseTexture,
   densifyClosedProfile,
