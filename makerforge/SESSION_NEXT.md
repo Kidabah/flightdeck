@@ -4,7 +4,8 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b383** — NEW Signs section (door/name plaque, plate engine)
+- Current: **b384** — Novelty (animal) section removed from UI
+- (was b383) — NEW Signs section (door/name plaque, plate engine)
 - (was b382) — animal shapes: switching fixed + recognizable silhouettes + watertight
 - (was b381) — silhouette animal shape canisters (bear/cat/bunny/dog)
 - (was b380) — batch manifold summary + canister filament preset
@@ -23,6 +24,10 @@ Latest GitHub/Pi state:
 **Verified:** unit test — spool {Bambu Lab, PLA, Pure} -> tray_info_idx GFA19, setting_id GFSA19, name "Bambu PLA Pure", 190-240C. Non-Bambu PLA still GFL99.
 
 **Deploy:** Pi backend restart required. After restart, re-push AMS HT slot (Trust Flightdeck / re-assign #100) so the tray re-registers as PLA Pure.
+
+### 2026-07-16 — b384: Remove Novelty (animal) section from UI
+
+Removed the **Novelty** heading, Animal shape button, and animal-name dropdown from index.html per request. Animal geometry code (animal-profiles.js, buildSign/resolveContainer animal branch, listeners) left dormant — shape "animal" is simply no longer selectable; listeners use optional chaining so the absent elements don't error. Bump app.js?v=384, header b384.
 
 ### 2026-07-16 — b383: Signs section — plate engine + door/name plaque (1 of 4)
 
