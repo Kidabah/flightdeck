@@ -4,7 +4,8 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b390** — vertical text path (stacked letters) + fix 4-line clip
+- Current: **b391** — bigger emboss text size slider range
+- (was b390) — vertical text path (stacked letters) + fix 4-line clip
 - (was b389) — garden stake mount (ground spikes)
 - (was b388) — 8 sign plate shapes (rect/rounded/pill/oval/hex/arch/shield/banner)
 - (was b387) — sign arc text fixed (own circular bend, closed + centred)
@@ -17,7 +18,15 @@ Latest GitHub/Pi state:
 - (was b380) — batch manifold summary + canister filament preset
 - (was b379) — manifold export gate blocks non-manifold 3MFs
 - (was b378) — single-filament 3MFs (liner) also pin to left nozzle so AMS HT is offered
-- Cache-bust: `app.js?v=390`, `features.js?v=390` — header **b390**
+- Cache-bust: `app.js?v=391`, `features.js?v=391` — header **b391**
+
+### 2026-07-17 — b391: Bigger text size slider
+
+**Request:** Text size slider range too small for vertical COFFEE.
+
+**Fix:** Vertical max ≈ 98% of face height (cap 220 mm); flat/arc max ≈ 72% face (cap 100 mm). HTML/slider defaults raised to 220.
+
+**Test:** Hard refresh **b391** → Vertical → size slider goes well past the old 4.8 cm stop.
 
 ### 2026-07-17 — b390: Vertical text path (COFFEE no longer clipped)
 

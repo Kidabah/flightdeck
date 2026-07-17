@@ -2235,13 +2235,13 @@ function glyphBoundsFromMask(mask, maskW, maskH) {
 export function textEmbossSizeLimits(meta, face, params = null) {
   const frame = getEmbossFaceFrame(meta, face || "front", params);
   const vertical = (params?.embossTextLayout || "flat") === "vertical";
-  // Vertical stacks need the full block height; flat/arc keep the shorter cap.
-  const frac = vertical ? 0.9 : 0.48;
-  const hardCap = vertical ? 120 : 48;
+  // Vertical stacks can fill almost the whole face; flat/arc get a generous mid-face cap.
+  const frac = vertical ? 0.98 : 0.72;
+  const hardCap = vertical ? 220 : 100;
   return {
     min: 3,
-    max: Math.min(hardCap, Math.max(20, Math.round(frame.faceH * frac * 2) / 2)),
-    maxWidthMm: Math.max(20, frame.faceW * (vertical ? 0.55 : 0.88)),
+    max: Math.min(hardCap, Math.max(24, Math.round(frame.faceH * frac * 2) / 2)),
+    maxWidthMm: Math.max(20, frame.faceW * (vertical ? 0.7 : 0.92)),
   };
 }
 
