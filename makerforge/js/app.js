@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, ANIMAL_PRESET, SIGN_PRESET } from "./geometry.js?v=387";
+import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, ANIMAL_PRESET, SIGN_PRESET } from "./geometry.js?v=388";
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=385";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=370";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=372";
@@ -35,7 +35,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b387";
+const MAKERDECK_BUILD = "b388";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -554,6 +554,7 @@ function buildParams() {
     embossHeight: state.embossHeight,
     embossFace: state.shape === "sign" ? "top" : state.embossFace,
     signType: state.signType,
+    signShape: state.signShape,
     signWidth: state.signWidth,
     signHeight: state.signHeight,
     signThickness: state.signThickness,
@@ -2798,6 +2799,7 @@ function syncUiFromState() {
   if (isSign) {
     const setV = (id, v) => { const el = document.getElementById(id); if (el && document.activeElement !== el) el.value = v; };
     const setOut = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+    setV("sign-shape", state.signShape || "rounded");
     setV("sign-type", state.signType || "plaque");
     setV("sign-width", state.signWidth); setOut("sign-width-out", state.signWidth + " mm");
     setV("sign-height", state.signHeight); setOut("sign-height-out", state.signHeight + " mm");
@@ -6141,6 +6143,10 @@ for (const [id, key, num] of [["sign-width","signWidth",1],["sign-height","signH
 }
 document.getElementById("sign-mount")?.addEventListener("change", (e) => {
   state.signMount = e.target.value || "keyhole"; rebuild(); scheduleSaveSession();
+});
+
+document.getElementById("sign-shape")?.addEventListener("change", (e) => {
+  state.signShape = e.target.value || "rounded"; rebuild(); scheduleSaveSession();
 });
 document.getElementById("sign-border")?.addEventListener("change", (e) => {
   state.signBorder = e.target.checked; rebuild(); scheduleSaveSession();

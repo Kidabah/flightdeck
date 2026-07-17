@@ -33,7 +33,7 @@ import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=161";
 import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=161";
 import { animalProfile, animalProfilePair, ANIMAL_NAMES } from "./animal-profiles.js?v=382";
-import { buildSignPlate, buildSignBorder, mountHoles } from "./signs.js?v=385";
+import { buildSignPlate, buildSignBorder, mountHoles, shapeOutline } from "./signs.js?v=388";
 import {
   resolveVaseTexture,
   densifyClosedProfile,
@@ -2020,15 +2020,17 @@ export function buildSign(params) {
   const th = clamp(params.signThickness ?? 4, 2, 10);
   const corner = clamp(params.signCorner ?? 8, 0, Math.min(W, H) / 2 - 1);
   const mount = params.signMount || "keyhole";
+  const signShape = params.signShape || "rounded";
   const borderOn = params.signBorder !== false;
   const borderW = clamp(params.signBorderWidth ?? 4, 2, 12);
   const borderH = clamp(params.signBorderHeight ?? 1.4, 0.6, 4);
 
-  const holes = mountHoles(mount, W, H);
-  const plate = buildSignPlate(W, H, th, corner, holes);
+  const outline = shapeOutline(signShape, W / 2, H / 2, corner);
+  const holes = mountHoles(mount, W, H, { outline });
+  const plate = buildSignPlate(W, H, th, corner, holes, signShape);
   let mesh = { positions: plate.positions.slice(), indices: plate.indices.slice() };
   if (borderOn) {
-    const border = buildSignBorder(W, H, th, corner, borderW, borderH);
+    const border = buildSignBorder(W, H, th, corner, borderW, borderH, signShape);
     const base = mesh.positions.length / 3;
     for (const v of border.positions) mesh.positions.push(v);
     for (const i of border.indices) mesh.indices.push(i + base);
@@ -2489,6 +2491,7 @@ export function toBufferGeometry(THREE, mesh) {
 
 export const SIGN_PRESET = {
   signType: "plaque",
+  signShape: "rounded",
   signWidth: 140,
   signHeight: 70,
   signThickness: 4,
@@ -2815,6 +2818,7 @@ export const DEFAULTS = {
   canisterFilamentPreset: "",
   animalName: "bear",
   signType: "plaque",
+  signShape: "rounded",
   signWidth: 140,
   signHeight: 70,
   signThickness: 4,

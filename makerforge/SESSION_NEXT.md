@@ -4,7 +4,8 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b387** — sign arc text fixed (own circular bend, closed + centred)
+- Current: **b388** — 8 sign plate shapes (rect/rounded/pill/oval/hex/arch/shield/banner)
+- (was b387) — sign arc text fixed (own circular bend, closed + centred)
 - (was b386) — sign Flat/Arch buttons auto-centre the text
 - (was b385) — sign arc text = gentle arch; mounts moved to corners
 - (was b384) — Novelty (animal) section removed from UI
@@ -27,6 +28,14 @@ Latest GitHub/Pi state:
 **Verified:** unit test — spool {Bambu Lab, PLA, Pure} -> tray_info_idx GFA19, setting_id GFSA19, name "Bambu PLA Pure", 190-240C. Non-Bambu PLA still GFL99.
 
 **Deploy:** Pi backend restart required. After restart, re-push AMS HT slot (Trust Flightdeck / re-assign #100) so the tray re-registers as PLA Pure.
+
+### 2026-07-16 — b388: Sign plate shapes
+
+New **Shape** selector on signs: rectangle, rounded, pill/stadium, oval, hexagon, arch-top, shield, banner/ribbon. `shapeOutline()` in signs.js generates each outline; plate, raised border, and mount cutouts all follow the chosen shape. `cleanRing()` dedupes near-coincident points (the cause of non-manifold on curved outlines) and mount holes auto-clamp inside the shape (`clampInside` + point-in-poly) so screws/keyholes never fall in the cut-away of oval/shield/etc. Arch = straight sides + elliptical top that always fits the box.
+
+Verified (harness): all 8 shapes × border + screw mounts = 0 open / 0 non-manifold. Committed test cases added.
+
+Files: js/signs.js, js/geometry.js, js/app.js, index.html, test/manifold.mjs (app.js?v=388, geometry.js?v=388, signs.js?v=388, header b388).
 
 ### 2026-07-16 — b387: Sign arc text — correct symmetric arch (own bend), closed + centred
 

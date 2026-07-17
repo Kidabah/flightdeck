@@ -161,6 +161,12 @@ for (const mount of ["keyhole", "screw", "hanging", "none"]) {
     check(`sign ${mount} border=${border} (b383)`, b.shellMesh);
   }
 }
+// Sign shapes (b388) — every plate shape watertight with border + mounts.
+for (const shape of ["rectangle", "rounded", "pill", "oval", "hexagon", "arch", "shield", "banner"]) {
+  const b = buildContainer({ shape: "sign", signShape: shape, signWidth: 140, signHeight: 70, signThickness: 4,
+    signCorner: 10, signMount: "screw", signBorder: true, embossText: "", embossDeboss: false, _artPreviewDraft: false });
+  check(`sign shape ${shape} (b388)`, b.shellMesh);
+}
 
 console.log(results.join("\n"));
 console.log(failures === 0 ? "\nALL PASS" : `\n${failures} FAILURE(S)`);
