@@ -153,6 +153,15 @@ for (const name of ANIMAL_NAMES) {
   if (lid) check(`animal ${name} lid (b381)`, lid);
 }
 
+// Sign plates (b383) — every mount/border combo must be watertight.
+for (const mount of ["keyhole", "screw", "hanging", "none"]) {
+  for (const border of [true, false]) {
+    const b = buildContainer({ shape: "sign", signWidth: 140, signHeight: 70, signThickness: 4,
+      signCorner: 8, signMount: mount, signBorder: border, embossText: "", embossDeboss: false, _artPreviewDraft: false });
+    check(`sign ${mount} border=${border} (b383)`, b.shellMesh);
+  }
+}
+
 console.log(results.join("\n"));
 console.log(failures === 0 ? "\nALL PASS" : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);

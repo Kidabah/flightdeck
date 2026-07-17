@@ -26,11 +26,12 @@ import {
   shapeSupportsProfileArt,
   shapeSupportsArt,
   STACK_LIP_MM,
-} from "./features.js?v=381";
+} from "./features.js?v=383";
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=161";
 import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=161";
 import { animalProfile, animalProfilePair, ANIMAL_NAMES } from "./animal-profiles.js?v=382";
+import { buildSignPlate, buildSignBorder, mountHoles } from "./signs.js?v=383";
 import {
   resolveVaseTexture,
   densifyClosedProfile,
@@ -2010,7 +2011,66 @@ export function buildCavityLiner(resolved, params) {
   return positions.length ? { positions, indices } : null;
 }
 
+/** Flat sign plate: solid plate + optional raised border + mount cutouts, text on top face. */
+export function buildSign(params) {
+  const W = clamp(params.signWidth ?? 140, 40, 300);
+  const H = clamp(params.signHeight ?? 70, 25, 300);
+  const th = clamp(params.signThickness ?? 4, 2, 10);
+  const corner = clamp(params.signCorner ?? 8, 0, Math.min(W, H) / 2 - 1);
+  const mount = params.signMount || "keyhole";
+  const borderOn = params.signBorder !== false;
+  const borderW = clamp(params.signBorderWidth ?? 4, 2, 12);
+  const borderH = clamp(params.signBorderHeight ?? 1.4, 0.6, 4);
+
+  const holes = mountHoles(mount, W, H);
+  const plate = buildSignPlate(W, H, th, corner, holes);
+  let mesh = { positions: plate.positions.slice(), indices: plate.indices.slice() };
+  if (borderOn) {
+    const border = buildSignBorder(W, H, th, corner, borderW, borderH);
+    const base = mesh.positions.length / 3;
+    for (const v of border.positions) mesh.positions.push(v);
+    for (const i of border.indices) mesh.indices.push(i + base);
+  }
+  const topZ = th + (borderOn ? 0 : 0); // text sits on the plate face (inside any border)
+  const meta = {
+    shape: "sign",
+    outer: { w: W, d: H, h: topZ },
+    inner: { w: W, d: H, h: 0 },
+    wall: th, floor: th,
+    outerMl: 0, cavityMl: 0,
+    embossFace: "top",
+    embossDeboss: !!params.embossDeboss,
+  };
+
+  const boxShell = { positions: mesh.positions.slice(), indices: mesh.indices.slice() };
+  const labelParams = { ...params, embossFace: "top" };
+  let labelMesh = null, graphicMesh = null, graphicColourParts = null, debossCutterMesh = null;
+  if (!params._artPreviewDraft) {
+    if (params.embossDeboss) {
+      labelMesh = buildLabelEmboss(meta, labelParams, params.embossSvgText || "", "emboss");
+      debossCutterMesh = buildLabelEmboss(meta, labelParams, params.embossSvgText || "", "deboss-cutter");
+    } else {
+      const parts = buildLabelEmbossParts(meta, labelParams, params.embossSvgText || "", "emboss");
+      labelMesh = parts.text; graphicMesh = parts.graphic; graphicColourParts = parts.graphicColourParts || null;
+    }
+  }
+  return {
+    positions: mesh.positions,
+    indices: mesh.indices,
+    shellMesh: mesh,
+    boxShell,
+    meta,
+    totalH: topZ,
+    accentMeshes: [],
+    insertMesh: null,
+    linerMesh: null,
+    labelMesh, graphicMesh, graphicColourParts, debossCutterMesh,
+    holderParts: null,
+  };
+}
+
 export function buildContainer(params) {
+  if (params.shape === "sign") return buildSign(params);
   if (params.shape === "vase") {
     const vaseMesh = buildVase(params);
     centerPositions(vaseMesh.positions, 0, 0);
@@ -2352,6 +2412,24 @@ export function toBufferGeometry(THREE, mesh) {
   return geom;
 }
 
+export const SIGN_PRESET = {
+  signType: "plaque",
+  signWidth: 140,
+  signHeight: 70,
+  signThickness: 4,
+  signCorner: 8,
+  signMount: "keyhole",
+  signBorder: true,
+  signBorderWidth: 4,
+  signBorderHeight: 1.4,
+  embossText: "WELCOME",
+  embossFace: "top",
+  lidEnabled: false,
+  linerEnabled: false,
+  stackableEnabled: false,
+  accentEnabled: false,
+};
+
 export const ANIMAL_PRESET = {
   innerWidth: 120,
   innerDepth: 120,
@@ -2661,6 +2739,15 @@ export const DEFAULTS = {
   linerFilamentPreset: "Bambu PLA Pure @BBL H2D",
   canisterFilamentPreset: "",
   animalName: "bear",
+  signType: "plaque",
+  signWidth: 140,
+  signHeight: 70,
+  signThickness: 4,
+  signCorner: 8,
+  signMount: "keyhole",
+  signBorder: true,
+  signBorderWidth: 4,
+  signBorderHeight: 1.4,
   linerWall: 0.9,
   linerClearance: 0.35,
   linerFlangeTh: 0.9,

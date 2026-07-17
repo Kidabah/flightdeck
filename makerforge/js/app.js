@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, ANIMAL_PRESET } from "./geometry.js?v=382";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=381";
+import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, ANIMAL_PRESET, SIGN_PRESET } from "./geometry.js?v=383";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=383";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=370";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=372";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=378";
@@ -35,7 +35,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b382";
+const MAKERDECK_BUILD = "b383";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -131,7 +131,7 @@ function applyLengthSliderRange(slider, mmMin, mmMax, mmValue) {
   return display;
 }
 
-const PRESET_SHAPES = new Set(["pencil", "pencilBox", "teardrop", "star", "heart", "canisterSquare", "canisterSquareSet", "canisterJar", "canisterStack", "animal"]);
+const PRESET_SHAPES = new Set(["pencil", "pencilBox", "teardrop", "star", "heart", "canisterSquare", "canisterSquareSet", "canisterJar", "canisterStack", "animal", "sign"]);
 
 const CANISTER_CONTENT_LABELS = {
   coffee: "COFFEE",
@@ -243,6 +243,7 @@ const PRESET_CONFIG = {
   canisterJar: { preset: CANISTER_JAR_PRESET, profile: "canister" },
   canisterStack: { preset: CANISTER_STACK_PRESET, profile: "canister" },
   animal: { preset: ANIMAL_PRESET, profile: "default" },
+  sign: { preset: SIGN_PRESET, profile: "default" },
 };
 
 const state = { ...DEFAULTS, shape: "rect", displayUnit: "mm" };
@@ -551,7 +552,16 @@ function buildParams() {
     embossFont: state.embossFont,
     embossDepth: state.embossDepth,
     embossHeight: state.embossHeight,
-    embossFace: state.embossFace,
+    embossFace: state.shape === "sign" ? "top" : state.embossFace,
+    signType: state.signType,
+    signWidth: state.signWidth,
+    signHeight: state.signHeight,
+    signThickness: state.signThickness,
+    signCorner: state.signCorner,
+    signMount: state.signMount,
+    signBorder: state.signBorder,
+    signBorderWidth: state.signBorderWidth,
+    signBorderHeight: state.signBorderHeight,
     embossDeboss: state.embossDeboss,
     watermarkEnabled: state.watermarkEnabled !== false,
     embossSvgEnabled: state.embossSvgEnabled,
@@ -2750,6 +2760,20 @@ function syncUiFromState() {
   document.getElementById("animal-hint")?.classList.toggle("hidden", !isAnimal);
   const animalSel = document.getElementById("animal-name");
   if (animalSel && isAnimal) animalSel.value = state.animalName || "bear";
+
+  const isSign = state.shape === "sign";
+  document.getElementById("section-sign")?.classList.toggle("hidden", !isSign);
+  if (isSign) {
+    const setV = (id, v) => { const el = document.getElementById(id); if (el && document.activeElement !== el) el.value = v; };
+    const setOut = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+    setV("sign-type", state.signType || "plaque");
+    setV("sign-width", state.signWidth); setOut("sign-width-out", state.signWidth + " mm");
+    setV("sign-height", state.signHeight); setOut("sign-height-out", state.signHeight + " mm");
+    setV("sign-thickness", state.signThickness); setOut("sign-thickness-out", state.signThickness + " mm");
+    setV("sign-corner", state.signCorner); setOut("sign-corner-out", state.signCorner + " mm");
+    setV("sign-mount", state.signMount || "keyhole");
+    const bc = document.getElementById("sign-border"); if (bc) bc.checked = state.signBorder !== false;
+  }
 
   const profileKey = PRESET_CONFIG[state.shape]?.profile || "default";
   applySliderProfile(profileKey);
@@ -6061,6 +6085,33 @@ document.getElementById("animal-name")?.addEventListener("change", (e) => {
   state.animalName = e.target.value || "bear";
   rebuild();
   scheduleSaveSession();
+});
+
+function _signSizeDefaults(type) {
+  if (type === "desk") return { signWidth: 180, signHeight: 60, signMount: "none", signBorder: true };
+  if (type === "number") return { signWidth: 90, signHeight: 120, signMount: "screw", signBorder: true };
+  if (type === "hanging") return { signWidth: 150, signHeight: 75, signMount: "hanging", signBorder: true };
+  return { signWidth: 140, signHeight: 70, signMount: "keyhole", signBorder: true }; // plaque
+}
+document.getElementById("sign-type")?.addEventListener("change", (e) => {
+  state.signType = e.target.value || "plaque";
+  Object.assign(state, _signSizeDefaults(state.signType));
+  syncUiFromState();
+  rebuild();
+  scheduleSaveSession();
+});
+for (const [id, key, num] of [["sign-width","signWidth",1],["sign-height","signHeight",1],["sign-thickness","signThickness",1],["sign-corner","signCorner",1]]) {
+  document.getElementById(id)?.addEventListener("input", (e) => {
+    state[key] = parseFloat(e.target.value) || state[key];
+    const out = document.getElementById(id + "-out"); if (out) out.value = state[key] + " mm";
+    rebuild(); scheduleSaveSession();
+  });
+}
+document.getElementById("sign-mount")?.addEventListener("change", (e) => {
+  state.signMount = e.target.value || "keyhole"; rebuild(); scheduleSaveSession();
+});
+document.getElementById("sign-border")?.addEventListener("change", (e) => {
+  state.signBorder = e.target.checked; rebuild(); scheduleSaveSession();
 });
 
 document.getElementById("canister-filament-preset")?.addEventListener("change", (e) => {

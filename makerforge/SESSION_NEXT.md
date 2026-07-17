@@ -4,7 +4,8 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b382** — animal shapes: switching fixed + recognizable silhouettes + watertight
+- Current: **b383** — NEW Signs section (door/name plaque, plate engine)
+- (was b382) — animal shapes: switching fixed + recognizable silhouettes + watertight
 - (was b381) — silhouette animal shape canisters (bear/cat/bunny/dog)
 - (was b380) — batch manifold summary + canister filament preset
 - (was b379) — manifold export gate blocks non-manifold 3MFs
@@ -22,6 +23,19 @@ Latest GitHub/Pi state:
 **Verified:** unit test — spool {Bambu Lab, PLA, Pure} -> tray_info_idx GFA19, setting_id GFSA19, name "Bambu PLA Pure", 190-240C. Non-Bambu PLA still GFL99.
 
 **Deploy:** Pi backend restart required. After restart, re-push AMS HT slot (Trust Flightdeck / re-assign #100) so the tray re-registers as PLA Pure.
+
+### 2026-07-16 — b383: Signs section — plate engine + door/name plaque (1 of 4)
+
+New **Signs** section (Design tab) and a `sign` shape. First type: **door / name plaque**.
+- `js/signs.js` (NEW): watertight flat plate via one `extrudeShapeGroupBetween` (outer ring + hole rings — no CSG). Mount cutouts: keyhole slots, 4 screw holes, 2 hanging holes, or none. Optional raised border (inset + embedded into the plate so it unions cleanly — no coincident faces).
+- `buildSign()` in geometry.js: plate + border + mounts, meta with the plate face as "top"; text/art reuse the emboss engine (buildParams forces embossFace "top" for signs). Two-tone by giving the text its own colour (separate-parts export).
+- Wired: SIGN_PRESET, PRESET_CONFIG, PRESET_SHAPES, shapeSupportsDecor/Art/AccentFrontFace, Signs UI (type / W / H / thickness / corner / mount / border), listeners, sign-type size defaults.
+
+**Verified (harness + trimesh):** all mount×border combos 0 open / 0 non-manifold; bordered keyhole sign watertight + winding-consistent, 140×70×5.4 mm; 3D render confirms plate + raised frame + keyholes. Committed sign test cases PASS.
+
+**Caveat:** geometry/export verified headless; the Signs UI itself wasn't click-tested. Types 2–4 (desk stand, house number, hanging) are next — the plate engine already supports their mounts/sizes; they mainly add the desk stand + size/text presets.
+
+**Files:** js/signs.js (new), js/geometry.js, js/features.js, js/app.js, index.html, test/manifold.mjs (app.js?v=383, geometry.js?v=383, features.js?v=383, signs.js?v=383, header b383).
 
 ### 2026-07-16 — b382: Animal shapes — switching fix + real silhouettes + watertight
 
