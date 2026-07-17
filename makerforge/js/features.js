@@ -59,12 +59,58 @@ export function embossFontStack(id, fontSizePx) {
   return `${f.weight} ${fontSizePx}px ${f.family}`;
 }
 
-export async function ensureEmbossFontLoaded(id) {
+/** Primary face only (no fallback stack) — used for Font Loading API checks/loads. */
+function embossPrimaryFontFace(id, fontSizePx) {
+  const f = embossFontSpec(id);
+  if (!f.google) return embossFontStack(id, fontSizePx);
+  return `${f.weight} ${fontSizePx}px "${f.google}"`;
+}
+
+/**
+ * Canvas stack: prefer the loaded Google face alone so Chrome doesn't mix
+ * Oswald on some glyphs and Arial Narrow/Impact on others mid-string.
+ */
+function embossFontStackForCanvas(id, fontSizePx) {
+  const f = embossFontSpec(id);
+  if (
+    f.google
+    && typeof document !== "undefined"
+    && document.fonts?.check?.(embossPrimaryFontFace(id, fontSizePx))
+  ) {
+    return embossPrimaryFontFace(id, fontSizePx);
+  }
+  return embossFontStack(id, fontSizePx);
+}
+
+export function embossFontReady(id, fontSizePx = 640) {
+  const f = embossFontSpec(id);
+  if (!f.google) return true;
+  if (typeof document === "undefined" || !document.fonts?.check) return true;
+  return document.fonts.check(embossPrimaryFontFace(id, fontSizePx));
+}
+
+const EMBOSS_FONT_LOAD_SIZES = [96, 640, 1280];
+
+/**
+ * Load Google emboss faces at the sizes we actually raster at.
+ * Pass sampleText so every glyph in the label is downloaded before preview rebuild.
+ * Important: load `"Oswald"` alone — loading the fallback stack can resolve early
+ * on Arial Narrow while Oswald is still missing (mixed CO vs FFEE).
+ */
+export async function ensureEmbossFontLoaded(id, sampleText = "") {
   if (typeof document === "undefined" || !document.fonts) return;
   const f = embossFontSpec(id);
   if (!f.google) return;
+  const sample = String(sampleText || "")
+    .replace(/\s+/g, "")
+    || "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
   try {
-    await document.fonts.load(embossFontStack(id, 96));
+    await Promise.all(
+      EMBOSS_FONT_LOAD_SIZES.map((size) =>
+        document.fonts.load(embossPrimaryFontFace(id, size), sample)
+      ),
+    );
+    if (document.fonts.ready) await document.fonts.ready;
   } catch {
     /* fall back to system fonts */
   }
@@ -1847,16 +1893,25 @@ function rasterTextMask(text, fontId, fontSizePx = 640, align = "left") {
 
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
-  const font = embossFontStack(fontId, fontSizePx);
+  // Tall vertical stacks can exceed browser canvas limits (~4096) at 640px/line —
+  // shrink the raster size so every line stays on-canvas with the same face.
+  let sizePx = fontSizePx;
+  const lineHeightFactor = 1.12;
+  const padFactor = 0.22;
+  const estHeight = (padFactor * 2 + (lines.length - 1) * lineHeightFactor + 1) * sizePx;
+  if (estHeight > 4096) {
+    sizePx = Math.max(160, Math.floor(sizePx * (4096 / estHeight)));
+  }
+  const font = embossFontStackForCanvas(fontId, sizePx);
   ctx.font = font;
-  const pad = Math.ceil(fontSizePx * 0.22);
+  const pad = Math.ceil(sizePx * padFactor);
   let maxLineW = 0;
   for (const line of lines) {
     maxLineW = Math.max(maxLineW, ctx.measureText(line).width);
   }
-  const lineHeight = fontSizePx * 1.12;
+  const lineHeight = sizePx * lineHeightFactor;
   const width = Math.ceil(maxLineW + pad * 2);
-  const height = Math.ceil(pad * 2 + (lines.length - 1) * lineHeight + fontSizePx);
+  const height = Math.ceil(pad * 2 + (lines.length - 1) * lineHeight + sizePx);
   canvas.width = width;
   canvas.height = height;
   ctx.font = font;
@@ -1865,10 +1920,12 @@ function rasterTextMask(text, fontId, fontSizePx = 640, align = "left") {
   const textAlign = align === "center" ? "center" : align === "right" ? "right" : "left";
   ctx.textAlign = textAlign;
   for (let i = 0; i < lines.length; i++) {
-    const y = pad + fontSizePx * 0.85 + i * lineHeight;
+    const y = pad + sizePx * 0.85 + i * lineHeight;
     let x = pad;
     if (textAlign === "center") x = width / 2;
     else if (textAlign === "right") x = width - pad;
+    // Re-assert face each line — avoids mid-stack fallback if the face finishes loading.
+    ctx.font = font;
     ctx.fillText(lines[i], x, y);
   }
   const data = ctx.getImageData(0, 0, width, height).data;
@@ -1891,7 +1948,7 @@ function rasterArcTextMask(text, fontId, fontSizePx = 640, options = {}) {
   const chars = [...line];
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
-  const font = embossFontStack(fontId, fontSizePx);
+  const font = embossFontStackForCanvas(fontId, fontSizePx);
   ctx.font = font;
 
   const letterSpacing = clamp(options.spacing ?? 1.1, 0.55, 2.2);
@@ -1964,7 +2021,7 @@ function rasterWrapBannerTextMask(text, fontId, fontSizePx = 640, options = {}) 
   const chars = [...line];
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
-  const font = embossFontStack(fontId, fontSizePx);
+  const font = embossFontStackForCanvas(fontId, fontSizePx);
   ctx.font = font;
 
   const letterSpacing = clamp(options.spacing ?? 1, 0.7, 1.8);

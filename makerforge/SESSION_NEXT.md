@@ -4,7 +4,8 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b391** — bigger emboss text size slider range
+- Current: **b392** — emboss font change applies to full vertical stack
+- (was b391) — bigger emboss text size slider range
 - (was b390) — vertical text path (stacked letters) + fix 4-line clip
 - (was b389) — garden stake mount (ground spikes)
 - (was b388) — 8 sign plate shapes (rect/rounded/pill/oval/hex/arch/shield/banner)
@@ -18,7 +19,24 @@ Latest GitHub/Pi state:
 - (was b380) — batch manifold summary + canister filament preset
 - (was b379) — manifold export gate blocks non-manifold 3MFs
 - (was b378) — single-filament 3MFs (liner) also pin to left nozzle so AMS HT is offered
-- Cache-bust: `app.js?v=391`, `features.js?v=391` — header **b391**
+- Cache-bust: `app.js?v=392`, `features.js?v=392`, `geometry.js?v=392` — header **b392**
+
+### 2026-07-17 — b392: Font change was only updating CO
+
+**Symptom:** Vertical COFFEE — switching to Oswald (etc.) only restyled **C/O**; **F/F/E/E** stayed in the previous/fallback face.
+
+**Cause:** `ensureEmbossFontLoaded` loaded `700 96px Oswald, "Arial Narrow", …`. The Font Loading API can resolve on the fallback before Oswald is ready, and Chrome then mixes faces mid-string. Rebuild also fired before glyphs at raster size (640/1280) were loaded. Deboss preview also hid the label mesh, so font checks were easy to miss.
+
+**Fix:**
+- Load Google faces as `"Oswald"` alone at 96/640/1280 with the label’s sample glyphs; await `fonts.ready`
+- Canvas raster uses the primary face when `document.fonts.check` passes (no mixed stack)
+- Font dropdown awaits load, then immediate rebuild; boot/text input re-prefetch
+- Cap tall vertical raster height under browser canvas limits
+- Show label mesh in Deboss preview (cutter silhouette) so font updates are visible
+
+**Files:** `js/features.js`, `js/app.js`, `js/geometry.js`, `index.html`
+
+**Test:** Hard refresh **b392** → Vertical → COFFEE → switch Oswald/Bebas/Anton — all six letters match.
 
 ### 2026-07-17 — b391: Bigger text size slider
 

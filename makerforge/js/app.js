@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, ANIMAL_PRESET, SIGN_PRESET } from "./geometry.js?v=389";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=391";
+import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, ANIMAL_PRESET, SIGN_PRESET } from "./geometry.js?v=392";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=392";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=370";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=372";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=378";
@@ -35,7 +35,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b391";
+const MAKERDECK_BUILD = "b392";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -743,7 +743,8 @@ function mountDebossPreviewIfNeeded() {
 }
 
 function mountEmbossLabelPreviewIfNeeded() {
-  if (state.embossDeboss) return;
+  // Deboss still builds labelMesh as the cutter silhouette — show it so font/size
+  // changes are visible (body isn't boolean-subtracted in preview).
   const params = buildParams();
   labelMaterial.color.set(state.embossTextColor || "#f8fafc");
   applyFilamentMaterial(labelMaterial);
@@ -6214,6 +6215,11 @@ document.getElementById("emboss-text").addEventListener("input", (e) => {
   }
   updateDecorUi();
   syncArtEditorUi();
+  // Prefetch glyphs for Google faces so a later font switch / rebuild doesn't
+  // paint half the stack in a fallback face.
+  if (!embossFontReady(state.embossFont, 640)) {
+    ensureEmbossFontLoaded(state.embossFont, state.embossText).then(() => scheduleArtRebuild(true));
+  }
   scheduleArtRebuild();
   scheduleSaveSession();
 });
@@ -6281,9 +6287,12 @@ document.getElementById("btn-arc-advanced")?.addEventListener("click", () => {
 
 document.getElementById("emboss-font").addEventListener("change", async (e) => {
   state.embossFont = e.target.value;
-  await ensureEmbossFontLoaded(e.target.value);
   updateEmbossTextPreviewStyle();
-  scheduleArtRebuild();
+  // Wait for every glyph in the current label at raster sizes before rebuilding —
+  // otherwise vertical stacks can paint the first letters in Oswald and the rest
+  // in Arial Narrow / the previous face.
+  await ensureEmbossFontLoaded(e.target.value, state.embossText);
+  scheduleArtRebuild(true);
   pushAppHistory();
 });
 
@@ -6792,7 +6801,7 @@ async function bootMakerDeck() {
   pushAppHistory();
   updateTraceUi();
 
-  await ensureEmbossFontLoaded(state.embossFont);
+  await ensureEmbossFontLoaded(state.embossFont, state.embossText);
   refreshDisplayUnitUi();
   const buildTag = document.getElementById("makerdeck-build");
   if (buildTag) buildTag.textContent = MAKERDECK_BUILD;
@@ -6800,6 +6809,12 @@ async function bootMakerDeck() {
   try {
     rebuild();
     if (meshCache) fitCamera(meshCache.meta);
+    // If the face finished loading after the first paint, rebuild once more.
+    if (!embossFontReady(state.embossFont, 640)) {
+      ensureEmbossFontLoaded(state.embossFont, state.embossText).then(() => {
+        if (!sessionBooting) scheduleArtRebuild(true);
+      });
+    }
   } catch (err) {
     console.error("MakerDeck boot rebuild failed:", err);
     resetToDefaultBox();
