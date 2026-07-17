@@ -6721,7 +6721,7 @@ syncSliderUi("joiner-protrusion", "joinerProtrusion", { min: 2, max: 10, value: 
 syncSliderUi("insert-thickness", "insertThickness", { min: 1.2, max: 4, value: state.insertThickness, parseKind: "float" });
 syncSliderUi("insert-clearance", "insertClearance", { min: 0.15, max: 1, value: state.insertClearance, parseKind: "float" });
 syncSliderUi("emboss-depth", "embossDepth", { min: 0.3, max: 2, value: state.embossDepth, parseKind: "float" });
-syncSliderUi("emboss-height", "embossHeight", { min: 3, max: 48, value: state.embossHeight, parseKind: "float" });
+syncSliderUi("emboss-height", "embossHeight", { min: 3, max: 220, value: state.embossHeight, parseKind: "float" });
 syncSliderUi("emboss-arc-radius", "embossArcRadius", { min: 0, max: 200, value: state.embossArcRadius ?? 0, parseKind: "float" });
 syncSliderUi("emboss-arc-curve", "embossArcCurve", { min: 0, max: 100, value: state.embossArcCurve ?? 60, parseKind: "int" });
 syncSliderUi("emboss-arc-sweep", "embossArcSweep", { min: 40, max: 360, value: state.embossArcSweep ?? 220, parseKind: "float" });
