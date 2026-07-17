@@ -84,10 +84,12 @@ function embossFontStackForCanvas(id, fontSizePx, text = "") {
   // renders loaded glyphs (e.g. C, O) in the real font and missing ones (F, E) in a fallback at
   // a DIFFERENT size (the "CO bigger than FFEE" bug). If not fully ready, render every glyph in
   // one generic font so they're all consistent; the rebuild after load swaps in the real face.
-  const primary = `${f.weight} ${fontSizePx}px "${f.google}"`;
+  // Check FAMILY availability (no weight) — many Google faces don't ship the exact requested
+  // weight, so a weight-specific check falsely fails and we'd lose the selected font entirely.
+  const familyProbe = `${fontSizePx}px "${f.google}"`;
   const sample = String(text || "").replace(/\s+/g, "") || "AaGg";
-  if (typeof document !== "undefined" && document.fonts?.check?.(primary, sample)) {
-    return `${primary}, ${generic}`;
+  if (typeof document !== "undefined" && document.fonts?.check?.(familyProbe, sample)) {
+    return `${f.weight} ${fontSizePx}px "${f.google}", ${generic}`;
   }
   return `${f.weight} ${fontSizePx}px ${generic}`;
 }
