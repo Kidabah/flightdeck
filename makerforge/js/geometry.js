@@ -33,7 +33,7 @@ import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=161";
 import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=161";
 import { animalProfile, animalProfilePair, ANIMAL_NAMES } from "./animal-profiles.js?v=382";
-import { buildSignPlate, buildSignBorder, mountHoles, shapeOutline } from "./signs.js?v=388";
+import { buildSignPlate, buildSignBorder, mountHoles, shapeOutline, buildGardenStakes } from "./signs.js?v=389";
 import {
   resolveVaseTexture,
   densifyClosedProfile,
@@ -2026,7 +2026,7 @@ export function buildSign(params) {
   const borderH = clamp(params.signBorderHeight ?? 1.4, 0.6, 4);
 
   const outline = shapeOutline(signShape, W / 2, H / 2, corner);
-  const holes = mountHoles(mount, W, H, { outline });
+  const holes = mount === "stake" ? [] : mountHoles(mount, W, H, { outline });
   const plate = buildSignPlate(W, H, th, corner, holes, signShape);
   let mesh = { positions: plate.positions.slice(), indices: plate.indices.slice() };
   if (borderOn) {
@@ -2034,6 +2034,12 @@ export function buildSign(params) {
     const base = mesh.positions.length / 3;
     for (const v of border.positions) mesh.positions.push(v);
     for (const i of border.indices) mesh.indices.push(i + base);
+  }
+  if (mount === "stake") {
+    const stakes = buildGardenStakes(W, H, th);
+    const sbase = mesh.positions.length / 3;
+    for (const v of stakes.positions) mesh.positions.push(v);
+    for (const i of stakes.indices) mesh.indices.push(i + sbase);
   }
   const topZ = th + (borderOn ? 0 : 0); // text sits on the plate face (inside any border)
   const meta = {

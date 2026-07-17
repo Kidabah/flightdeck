@@ -167,6 +167,12 @@ for (const shape of ["rectangle", "rounded", "pill", "oval", "hexagon", "arch", 
     signCorner: 10, signMount: "screw", signBorder: true, embossText: "", embossDeboss: false, _artPreviewDraft: false });
   check(`sign shape ${shape} (b388)`, b.shellMesh);
 }
+// Garden stakes (b389)
+for (const shape of ["arch", "rounded", "rectangle"]) {
+  const b = buildContainer({ shape: "sign", signShape: shape, signWidth: 180, signHeight: 90, signThickness: 4,
+    signCorner: 10, signMount: "stake", signBorder: true, embossText: "", embossDeboss: false, _artPreviewDraft: false });
+  check(`sign ${shape} garden-stakes (b389)`, b.shellMesh);
+}
 
 console.log(results.join("\n"));
 console.log(failures === 0 ? "\nALL PASS" : `\n${failures} FAILURE(S)`);

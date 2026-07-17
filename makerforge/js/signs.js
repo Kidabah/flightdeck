@@ -175,4 +175,28 @@ export function buildSignBorder(W, H, th, corner, borderW, bh, shape = "rounded"
   return { positions, indices };
 }
 
+/** Two tapered ground spikes hanging from the plate bottom (garden stake sign). One extrusion
+ * each, embedded a few mm into the plate so it unions cleanly. Returns merged { positions, indices }. */
+export function buildGardenStakes(W, H, th, opts = {}) {
+  const length = opts.length ?? 70;
+  const topW = opts.topW ?? 9;
+  const embed = 6;
+  const topY = -H / 2 + embed;
+  const positions = [];
+  const indices = [];
+  const flat = (w) => [w[0], w[1]];
+  const mapTop = (px, py) => [px, py, th];
+  const mapBot = (px, py) => [px, py, 0];
+  for (const cx of [-W * 0.26, W * 0.26]) {
+    const hw = topW / 2;
+    const shoulderY = topY - length * 0.55;
+    const pointY = topY - length;
+    const outline = ensureCCW([
+      [cx - hw, topY], [cx + hw, topY], [cx + hw, shoulderY], [cx, pointY], [cx - hw, shoulderY],
+    ]);
+    extrudeShapeGroupBetween(positions, indices, { outer: outline, holes: [] }, mapTop, mapBot, flat, "both", null);
+  }
+  return { positions, indices };
+}
+
 export { mountHoles, roundedRect, keyholeHole, shapeOutline };

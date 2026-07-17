@@ -4,7 +4,8 @@
 
 Latest GitHub/Pi state:
 - Branch: `main`
-- Current: **b388** — 8 sign plate shapes (rect/rounded/pill/oval/hex/arch/shield/banner)
+- Current: **b389** — garden stake mount (ground spikes)
+- (was b388) — 8 sign plate shapes (rect/rounded/pill/oval/hex/arch/shield/banner)
 - (was b387) — sign arc text fixed (own circular bend, closed + centred)
 - (was b386) — sign Flat/Arch buttons auto-centre the text
 - (was b385) — sign arc text = gentle arch; mounts moved to corners
@@ -28,6 +29,10 @@ Latest GitHub/Pi state:
 **Verified:** unit test — spool {Bambu Lab, PLA, Pure} -> tray_info_idx GFA19, setting_id GFSA19, name "Bambu PLA Pure", 190-240C. Non-Bambu PLA still GFL99.
 
 **Deploy:** Pi backend restart required. After restart, re-push AMS HT slot (Trust Flightdeck / re-assign #100) so the tray re-registers as PLA Pure.
+
+### 2026-07-16 — b389: Garden stake mount
+
+New sign mount **Garden stakes** — two tapered ground spikes hanging from the plate bottom (garden/yard sign form, like the Mimi's Garden reference). `buildGardenStakes()` in signs.js builds each spike as its own watertight extrusion embedded ~6 mm into the plate (clean union). Wired into buildSign (mount "stake" → no holes, append stakes) and the Wall-mount dropdown. Verified watertight on arch/rounded/rectangle. Files: js/signs.js, js/geometry.js, js/app.js, index.html, test (app.js?v=389, geometry.js?v=389, signs.js?v=389, header b389).
 
 ### 2026-07-16 — b388: Sign plate shapes
 
