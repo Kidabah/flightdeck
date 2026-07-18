@@ -23338,36 +23338,17 @@ select optgroup {
   opacity: 0.6;
   margin-left: 0.25rem;
 }
-.cm-rotate-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  align-items: center;
-}
-.cm-rotate-row label {
-  font-size: 0.8rem;
-  opacity: 0.8;
-}
-.cm-rotate-row input[type="range"] {
-  flex: 1 1 12rem;
-  min-width: 10rem;
-  accent-color: #7dd3fc;
-}
-.cm-rotate-row #cm-rotate-label {
-  min-width: 2.6rem;
-  font-variant-numeric: tabular-nums;
-  font-size: 0.85rem;
-  opacity: 0.85;
-}
 .cm-drop-stage canvas {
   max-width: 100%;
   height: auto;
   border-radius: 0.5rem;
-  cursor: crosshair;
+  cursor: grab;
   display: block;
   touch-action: none;
   background: #0f1419;
 }
+.cm-drop-stage canvas.is-pick { cursor: crosshair; }
+.cm-drop-stage canvas.is-move { cursor: grab; }
 .cm-drop-stage canvas.is-panning { cursor: grabbing; }
 .cm-target {
   display: inline-flex;

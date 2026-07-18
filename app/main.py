@@ -6,6 +6,7 @@ import ipaddress
 import io
 import json
 import logging
+import math
 import os
 import re
 import shutil
@@ -7520,6 +7521,8 @@ async def search_filament_catalog(q: str = "", brand: str = "", material: str = 
 
 
 _HEX_MAX_DIST = (3 * 255 * 255) ** 0.5  # ~441.67
+# LAB + chroma/hue score ceiling used only by Colour Match % display.
+_COLOUR_MATCH_MAX_DIST = 80.0
 
 
 def _catalogue_traits(raw: object) -> dict:
@@ -7535,9 +7538,98 @@ def _catalogue_traits(raw: object) -> dict:
 
 
 def _match_pct(delta: float) -> int:
-    if _HEX_MAX_DIST <= 0:
+    """Map Colour Match distance → 0–100% (LAB/chroma score, not raw RGB)."""
+    if _COLOUR_MATCH_MAX_DIST <= 0:
         return 0
-    return max(0, min(100, int(round(100.0 * (1.0 - float(delta) / _HEX_MAX_DIST)))))
+    return max(0, min(100, int(round(100.0 * (1.0 - float(delta) / _COLOUR_MATCH_MAX_DIST)))))
+
+
+def _srgb_to_linear(c: float) -> float:
+    c = float(c) / 255.0
+    return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+
+def _hex_to_lab(hex_value: str) -> Optional[tuple[float, float, float]]:
+    hx = _norm_hex(hex_value)
+    if not hx:
+        return None
+    r, g, b = (int(hx[i:i + 2], 16) for i in (1, 3, 5))
+    rl, gl, bl = _srgb_to_linear(r), _srgb_to_linear(g), _srgb_to_linear(b)
+    x = rl * 0.4124564 + gl * 0.3575761 + bl * 0.1804375
+    y = rl * 0.2126729 + gl * 0.7151522 + bl * 0.0721750
+    z = rl * 0.0193339 + gl * 0.1191920 + bl * 0.9503041
+    xr, yr, zr = x / 0.95047, y / 1.00000, z / 1.08883
+
+    def _f(t: float) -> float:
+        return t ** (1 / 3) if t > 0.008856 else (7.787 * t) + (16 / 116)
+
+    fx, fy, fz = _f(xr), _f(yr), _f(zr)
+    return ((116 * fy) - 16, 500 * (fx - fy), 200 * (fy - fz))
+
+
+def _colour_match_dist(target_hex: str, candidate_hex: str) -> float:
+    """Perceptual distance for filament matching.
+
+    RGB Euclidean distance collapses dark reds toward black. Use CIE Lab ΔE
+    plus chroma/hue penalties so blood-red stays red, not Hatchbox Black.
+    Lower is better.
+    """
+    tlab = _hex_to_lab(target_hex)
+    clab = _hex_to_lab(candidate_hex)
+    if not tlab or not clab:
+        return 999.0
+    de = (
+        (tlab[0] - clab[0]) ** 2
+        + (tlab[1] - clab[1]) ** 2
+        + (tlab[2] - clab[2]) ** 2
+    ) ** 0.5
+    tc = (tlab[1] ** 2 + tlab[2] ** 2) ** 0.5
+    cc = (clab[1] ** 2 + clab[2] ** 2) ** 0.5
+    if tc >= 8:
+        chroma_pen = max(0.0, (tc - cc) * 1.35)
+        if cc < 6:
+            chroma_pen += 18.0
+        th = (math.degrees(math.atan2(tlab[2], tlab[1])) + 360.0) % 360.0
+        ch = (math.degrees(math.atan2(clab[2], clab[1])) + 360.0) % 360.0
+        dh = abs(th - ch)
+        dh = min(dh, 360.0 - dh)
+        hue_w = min(1.0, cc / max(tc, 1e-6))
+        hue_pen = (dh / 180.0) * 28.0 * max(0.25, hue_w) if cc >= 4 else 12.0
+    else:
+        chroma_pen = abs(tc - cc) * 0.35
+        hue_pen = 0.0
+    return de + chroma_pen + hue_pen
+
+
+def _colour_match_label(color: Optional[str]) -> str:
+    """Human label that keeps dark chromatic colours (e.g. blood red) off 'Black'."""
+    lab = _hex_to_lab(color or "")
+    if not lab:
+        return "Unknown colour"
+    L, a, b = lab
+    chroma = (a * a + b * b) ** 0.5
+    hue = (math.degrees(math.atan2(b, a)) + 360.0) % 360.0
+    if chroma < 8:
+        if L <= 20:
+            return "Black"
+        if L >= 85:
+            return "White"
+        return "Grey"
+    if L <= 35 and chroma >= 12:
+        if 15 <= hue <= 70:
+            return "Blood red" if a >= 12 else "Dark brown"
+        if hue >= 330 or hue <= 15:
+            return "Blood red"
+    # Fall back to nearest named swatch in Lab space.
+    best_name, best_d = "Colour", 1e9
+    for name, ref in _COLOUR_NAMES:
+        rlab = _hex_to_lab(ref)
+        if not rlab:
+            continue
+        d = ((L - rlab[0]) ** 2 + (a - rlab[1]) ** 2 + (b - rlab[2]) ** 2) ** 0.5
+        if d < best_d:
+            best_name, best_d = name, d
+    return best_name if best_d <= 45 else (_norm_hex(color) or "Colour")
 
 
 # Colour Match never mixes low-temp with high-temp (PLA/PETG vs ABS/ASA).
@@ -7577,7 +7669,7 @@ def _colour_match_catalog_rows(target: str, catalog_rows: list, top_n: int) -> l
         candidate = _norm_hex(row.get("color_hex"))
         if not candidate:
             continue
-        delta = _hex_dist(target, candidate)
+        delta = _colour_match_dist(target, candidate)
         traits = _catalogue_traits(row.get("traits"))
         price = traits.get("price_aud")
         try:
@@ -7624,7 +7716,7 @@ def _colour_match_inventory_rows(
         candidate = _norm_hex(spool.get("color_hex"))
         if not candidate:
             continue
-        delta = _hex_dist(target, candidate)
+        delta = _colour_match_dist(target, candidate)
         matches.append({
             "id": spool.get("id"),
             "display_id": spool.get("display_id"),
@@ -7766,7 +7858,7 @@ def _colour_match_payload(
             "id": item["id"],
             "hex": item["hex"],
             "label": item["label"],
-            "colour_label": _colour_label(item["hex"]),
+            "colour_label": _colour_match_label(item["hex"]),
             "recommendation": rec,
             "inventory_best": inv_rows[0] if inv_rows else None,
             "catalog_best": cat_rows[0] if cat_rows else None,
@@ -7789,7 +7881,7 @@ def _colour_match_payload(
         "material_label": mat_label,
         "materials": mat_list,
         "brand": br or None,
-        "label": _colour_label(primary),
+        "label": _colour_match_label(primary),
         "catalog_matches": catalog_matches,
         "inventory_matches": inventory_matches,
         "recommendation": recommendation,

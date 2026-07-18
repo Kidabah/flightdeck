@@ -18338,6 +18338,7 @@ let _colourMatchState = {
   dropDragging: false,
   dropDragMoved: false,
   dropDragLast: null,
+  dropMode: 'move', // 'move' = drag to pan, 'pick' = click to eyedrop
   preferInventoryPct: 2,
 };
 
@@ -18613,26 +18614,21 @@ function _colourMatchHtml() {
       <div class="cm-drop-zone" id="cm-drop">
         <div class="cm-drop-help">
           <strong>Eyedrop from screenshot</strong>
-          <span>Drop an Orca/Bambu preview image, or choose a file, then zoom / rotate and click a pixel.</span>
+          <span>Drop an Orca/Bambu preview image, then drag to move around, zoom in, and pick pixels.</span>
           <label class="cm-btn cm-file-btn" for="cm-file">Choose image</label>
           <input id="cm-file" type="file" accept="image/*" hidden>
         </div>
         <div class="cm-drop-stage hidden" id="cm-stage">
           <div class="cm-view-toolbar">
+            <button type="button" class="cm-btn${(_colourMatchState.dropMode || 'move') === 'move' ? ' cm-btn-primary' : ''}" id="cm-mode-move" title="Drag to move around">Move</button>
+            <button type="button" class="cm-btn${(_colourMatchState.dropMode || 'move') === 'pick' ? ' cm-btn-primary' : ''}" id="cm-mode-pick" title="Click a pixel to eyedrop">Pick</button>
             <button type="button" class="cm-btn" id="cm-zoom-out" title="Zoom out">−</button>
             <span id="cm-zoom-label">100%</span>
             <button type="button" class="cm-btn" id="cm-zoom-in" title="Zoom in">+</button>
-            <button type="button" class="cm-btn" id="cm-rot-ccw" title="Rotate −15°">↶</button>
-            <button type="button" class="cm-btn" id="cm-rot-cw" title="Rotate +15°">↷</button>
+            <button type="button" class="cm-btn" id="cm-rot-ccw" title="Rotate left 90°">↶ 90°</button>
+            <button type="button" class="cm-btn" id="cm-rot-cw" title="Rotate right 90°">↷ 90°</button>
             <button type="button" class="cm-btn" id="cm-view-reset" title="Reset view">Reset</button>
-            <span class="cm-view-hint">Scroll zoom · Shift+scroll rotate · drag pan · click pick</span>
-          </div>
-          <div class="cm-rotate-row">
-            <label for="cm-rotate">Rotate</label>
-            <input id="cm-rotate" type="range" min="0" max="360" step="1" value="0">
-            <span id="cm-rotate-label">0°</span>
-            <button type="button" class="cm-btn" id="cm-rot-nudge-ccw" title="−1°">−1°</button>
-            <button type="button" class="cm-btn" id="cm-rot-nudge-cw" title="+1°">+1°</button>
+            <span class="cm-view-hint" id="cm-view-hint">Drag to move around · scroll to zoom</span>
           </div>
           <canvas id="cm-canvas"></canvas>
         </div>
@@ -18809,26 +18805,28 @@ function _cmBindResultActions(root) {
 function _cmNormRotate(deg) {
   const n = Number(deg);
   if (!Number.isFinite(n)) return 0;
-  return ((n % 360) + 360) % 360;
+  // Snap to 0/90/180/270 for upright screenshot navigation.
+  const wrapped = ((n % 360) + 360) % 360;
+  return Math.round(wrapped / 90) * 90 % 360;
 }
 
 function _cmUpdateViewLabels(root) {
   const zoom = root?.querySelector('#cm-zoom-label');
   if (zoom) zoom.textContent = `${Math.round((_colourMatchState.dropZoom || 1) * 100)}%`;
-  const rot = _cmNormRotate(_colourMatchState.dropRotate);
-  const rotLabel = root?.querySelector('#cm-rotate-label');
-  if (rotLabel) rotLabel.textContent = `${Math.round(rot)}°`;
-  const slider = root?.querySelector('#cm-rotate');
-  if (slider && document.activeElement !== slider) slider.value = String(Math.round(rot));
-}
-
-function _cmSetDropRotate(root, deg, { resetPan = false } = {}) {
-  _colourMatchState.dropRotate = _cmNormRotate(deg);
-  if (resetPan) {
-    _colourMatchState.dropPanX = 0;
-    _colourMatchState.dropPanY = 0;
+  const mode = _colourMatchState.dropMode || 'move';
+  root?.querySelector('#cm-mode-move')?.classList.toggle('cm-btn-primary', mode === 'move');
+  root?.querySelector('#cm-mode-pick')?.classList.toggle('cm-btn-primary', mode === 'pick');
+  const hint = root?.querySelector('#cm-view-hint');
+  if (hint) {
+    hint.textContent = mode === 'pick'
+      ? 'Click a pixel to pick · switch to Move to drag around'
+      : 'Drag to move around · scroll to zoom · switch to Pick for eyedrop';
   }
-  _cmRedrawDropCanvas(root);
+  const canvas = root?.querySelector('#cm-canvas');
+  if (canvas) {
+    canvas.classList.toggle('is-move', mode === 'move');
+    canvas.classList.toggle('is-pick', mode === 'pick');
+  }
 }
 
 function _cmRedrawDropCanvas(root) {
@@ -18840,15 +18838,12 @@ function _cmRedrawDropCanvas(root) {
   const maxW = Math.min(720, stage.clientWidth || 720);
   const maxH = 520;
   const rot = _cmNormRotate(st.dropRotate);
-  const rad = (rot * Math.PI) / 180;
-  const cos = Math.abs(Math.cos(rad));
-  const sin = Math.abs(Math.sin(rad));
-  // Bounding box for free 0–360° rotation (not just 90° snaps).
-  const srcW = img.width * cos + img.height * sin;
-  const srcH = img.width * sin + img.height * cos;
+  const swapped = rot % 180 !== 0;
+  const srcW = swapped ? img.height : img.width;
+  const srcH = swapped ? img.width : img.height;
   const fit = Math.min(1, maxW / Math.max(1, srcW), maxH / Math.max(1, srcH));
-  const viewW = Math.max(1, Math.round(srcW * fit));
-  const viewH = Math.max(1, Math.round(srcH * fit));
+  const viewW = Math.max(1, Math.round(Math.min(maxW, srcW * fit)));
+  const viewH = Math.max(1, Math.round(Math.min(maxH, srcH * fit)));
   canvas.width = viewW;
   canvas.height = viewH;
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -18856,7 +18851,7 @@ function _cmRedrawDropCanvas(root) {
   ctx.fillRect(0, 0, viewW, viewH);
   ctx.save();
   ctx.translate(viewW / 2 + (st.dropPanX || 0), viewH / 2 + (st.dropPanY || 0));
-  ctx.rotate(rad);
+  ctx.rotate((rot * Math.PI) / 180);
   const scale = fit * (st.dropZoom || 1);
   ctx.scale(scale, scale);
   ctx.drawImage(img, -img.width / 2, -img.height / 2);
@@ -18873,6 +18868,7 @@ function _cmResetDropView(root, { keepImage = true } = {}) {
   st.dropDragging = false;
   st.dropDragMoved = false;
   st.dropDragLast = null;
+  st.dropMode = st.dropMode || 'move';
   if (!keepImage) st.dropImage = null;
   if (keepImage && st.dropImage) _cmRedrawDropCanvas(root);
   else _cmUpdateViewLabels(root);
@@ -18897,6 +18893,7 @@ function _cmLoadImageFile(root, file) {
 
 function _cmPickFromCanvas(root, evt) {
   if (_colourMatchState.dropDragMoved) return;
+  if ((_colourMatchState.dropMode || 'move') !== 'pick') return;
   const canvas = root.querySelector('#cm-canvas');
   if (!canvas) return;
   const rect = canvas.getBoundingClientRect();
@@ -18921,6 +18918,15 @@ function _cmBindDropViewControls(root) {
   const canvas = root.querySelector('#cm-canvas');
   if (!canvas || canvas.dataset.cmViewBound === '1') return;
   canvas.dataset.cmViewBound = '1';
+  _colourMatchState.dropMode = _colourMatchState.dropMode || 'move';
+  _cmUpdateViewLabels(root);
+
+  const setMode = (mode) => {
+    _colourMatchState.dropMode = mode;
+    _cmUpdateViewLabels(root);
+  };
+  root.querySelector('#cm-mode-move')?.addEventListener('click', () => setMode('move'));
+  root.querySelector('#cm-mode-pick')?.addEventListener('click', () => setMode('pick'));
 
   root.querySelector('#cm-zoom-in')?.addEventListener('click', () => {
     _colourMatchState.dropZoom = _cmClamp((_colourMatchState.dropZoom || 1) * 1.25, 0.5, 8);
@@ -18928,21 +18934,15 @@ function _cmBindDropViewControls(root) {
   });
   root.querySelector('#cm-zoom-out')?.addEventListener('click', () => {
     _colourMatchState.dropZoom = _cmClamp((_colourMatchState.dropZoom || 1) / 1.25, 0.5, 8);
-    if (_colourMatchState.dropZoom <= 1.01) {
-      _colourMatchState.dropPanX = 0;
-      _colourMatchState.dropPanY = 0;
-    }
     _cmRedrawDropCanvas(root);
   });
-  const applyRotateDelta = (delta) => {
-    _cmSetDropRotate(root, (_colourMatchState.dropRotate || 0) + delta);
-  };
-  root.querySelector('#cm-rot-cw')?.addEventListener('click', () => applyRotateDelta(15));
-  root.querySelector('#cm-rot-ccw')?.addEventListener('click', () => applyRotateDelta(-15));
-  root.querySelector('#cm-rot-nudge-cw')?.addEventListener('click', () => applyRotateDelta(1));
-  root.querySelector('#cm-rot-nudge-ccw')?.addEventListener('click', () => applyRotateDelta(-1));
-  root.querySelector('#cm-rotate')?.addEventListener('input', e => {
-    _cmSetDropRotate(root, Number(e.target.value) || 0);
+  root.querySelector('#cm-rot-cw')?.addEventListener('click', () => {
+    _colourMatchState.dropRotate = _cmNormRotate((_colourMatchState.dropRotate || 0) + 90);
+    _cmRedrawDropCanvas(root);
+  });
+  root.querySelector('#cm-rot-ccw')?.addEventListener('click', () => {
+    _colourMatchState.dropRotate = _cmNormRotate((_colourMatchState.dropRotate || 0) - 90);
+    _cmRedrawDropCanvas(root);
   });
   root.querySelector('#cm-view-reset')?.addEventListener('click', () => {
     _cmResetDropView(root, { keepImage: true });
@@ -18951,39 +18951,31 @@ function _cmBindDropViewControls(root) {
   canvas.addEventListener('wheel', e => {
     if (!_colourMatchState.dropImage) return;
     e.preventDefault();
-    if (e.shiftKey) {
-      // Free 360° rotate in either direction.
-      applyRotateDelta(e.deltaY < 0 ? -3 : 3);
-      return;
-    }
     const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
     _colourMatchState.dropZoom = _cmClamp((_colourMatchState.dropZoom || 1) * factor, 0.5, 8);
-    if (_colourMatchState.dropZoom <= 1.01) {
-      _colourMatchState.dropPanX = 0;
-      _colourMatchState.dropPanY = 0;
-    }
     _cmRedrawDropCanvas(root);
   }, { passive: false });
 
   canvas.addEventListener('pointerdown', e => {
     if (!_colourMatchState.dropImage || e.button !== 0) return;
-    _colourMatchState.dropDragging = true;
+    const pan = (_colourMatchState.dropMode || 'move') === 'move';
+    _colourMatchState.dropDragging = pan;
     _colourMatchState.dropDragMoved = false;
     _colourMatchState.dropDragLast = { x: e.clientX, y: e.clientY };
-    canvas.setPointerCapture?.(e.pointerId);
-    canvas.classList.add('is-panning');
+    if (pan) {
+      canvas.setPointerCapture?.(e.pointerId);
+      canvas.classList.add('is-panning');
+    }
   });
   canvas.addEventListener('pointermove', e => {
     if (!_colourMatchState.dropDragging || !_colourMatchState.dropDragLast) return;
     const dx = e.clientX - _colourMatchState.dropDragLast.x;
     const dy = e.clientY - _colourMatchState.dropDragLast.y;
-    if (Math.abs(dx) + Math.abs(dy) > 3) _colourMatchState.dropDragMoved = true;
-    if (_colourMatchState.dropZoom > 1.01 || _colourMatchState.dropDragMoved) {
-      _colourMatchState.dropPanX += dx;
-      _colourMatchState.dropPanY += dy;
-      _colourMatchState.dropDragLast = { x: e.clientX, y: e.clientY };
-      _cmRedrawDropCanvas(root);
-    }
+    if (Math.abs(dx) + Math.abs(dy) > 2) _colourMatchState.dropDragMoved = true;
+    _colourMatchState.dropPanX += dx;
+    _colourMatchState.dropPanY += dy;
+    _colourMatchState.dropDragLast = { x: e.clientX, y: e.clientY };
+    _cmRedrawDropCanvas(root);
   });
   const endDrag = () => {
     _colourMatchState.dropDragging = false;
