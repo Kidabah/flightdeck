@@ -11,8 +11,8 @@ Latest GitHub/Pi state:
 
 **What shipped:**
 - Material chips **Low temp** / **High temp** only (no All). API expands low→PLA/PLA+/PETG, high→ABS/ASA
-- Eyedrop stage: zoom +/−, rotate ↶/↷, reset, scroll-wheel zoom, drag to pan, click to pick
-- Cache-bust `app.js?v=638`, `style.css?v=491`
+- Eyedrop stage: zoom +/−, free 0–360° rotate slider (+15°/±1° nudges, Shift+scroll), reset, scroll zoom, drag pan, click pick
+- Cache-bust `app.js?v=639`, `style.css?v=492`
 
 **Deploy:** Backend restart + hard refresh.
 

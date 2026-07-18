@@ -18622,10 +18622,17 @@ function _colourMatchHtml() {
             <button type="button" class="cm-btn" id="cm-zoom-out" title="Zoom out">−</button>
             <span id="cm-zoom-label">100%</span>
             <button type="button" class="cm-btn" id="cm-zoom-in" title="Zoom in">+</button>
-            <button type="button" class="cm-btn" id="cm-rot-ccw" title="Rotate left">↶</button>
-            <button type="button" class="cm-btn" id="cm-rot-cw" title="Rotate right">↷</button>
+            <button type="button" class="cm-btn" id="cm-rot-ccw" title="Rotate −15°">↶</button>
+            <button type="button" class="cm-btn" id="cm-rot-cw" title="Rotate +15°">↷</button>
             <button type="button" class="cm-btn" id="cm-view-reset" title="Reset view">Reset</button>
-            <span class="cm-view-hint">Scroll to zoom · drag to pan · click to pick</span>
+            <span class="cm-view-hint">Scroll zoom · Shift+scroll rotate · drag pan · click pick</span>
+          </div>
+          <div class="cm-rotate-row">
+            <label for="cm-rotate">Rotate</label>
+            <input id="cm-rotate" type="range" min="0" max="360" step="1" value="0">
+            <span id="cm-rotate-label">0°</span>
+            <button type="button" class="cm-btn" id="cm-rot-nudge-ccw" title="−1°">−1°</button>
+            <button type="button" class="cm-btn" id="cm-rot-nudge-cw" title="+1°">+1°</button>
           </div>
           <canvas id="cm-canvas"></canvas>
         </div>
@@ -18799,9 +18806,29 @@ function _cmBindResultActions(root) {
   });
 }
 
-function _cmUpdateZoomLabel(root) {
-  const label = root?.querySelector('#cm-zoom-label');
-  if (label) label.textContent = `${Math.round((_colourMatchState.dropZoom || 1) * 100)}%`;
+function _cmNormRotate(deg) {
+  const n = Number(deg);
+  if (!Number.isFinite(n)) return 0;
+  return ((n % 360) + 360) % 360;
+}
+
+function _cmUpdateViewLabels(root) {
+  const zoom = root?.querySelector('#cm-zoom-label');
+  if (zoom) zoom.textContent = `${Math.round((_colourMatchState.dropZoom || 1) * 100)}%`;
+  const rot = _cmNormRotate(_colourMatchState.dropRotate);
+  const rotLabel = root?.querySelector('#cm-rotate-label');
+  if (rotLabel) rotLabel.textContent = `${Math.round(rot)}°`;
+  const slider = root?.querySelector('#cm-rotate');
+  if (slider && document.activeElement !== slider) slider.value = String(Math.round(rot));
+}
+
+function _cmSetDropRotate(root, deg, { resetPan = false } = {}) {
+  _colourMatchState.dropRotate = _cmNormRotate(deg);
+  if (resetPan) {
+    _colourMatchState.dropPanX = 0;
+    _colourMatchState.dropPanY = 0;
+  }
+  _cmRedrawDropCanvas(root);
 }
 
 function _cmRedrawDropCanvas(root) {
@@ -18812,10 +18839,13 @@ function _cmRedrawDropCanvas(root) {
   if (!img || !stage || !canvas) return;
   const maxW = Math.min(720, stage.clientWidth || 720);
   const maxH = 520;
-  const rot = ((st.dropRotate % 360) + 360) % 360;
-  const swapped = rot % 180 !== 0;
-  const srcW = swapped ? img.height : img.width;
-  const srcH = swapped ? img.width : img.height;
+  const rot = _cmNormRotate(st.dropRotate);
+  const rad = (rot * Math.PI) / 180;
+  const cos = Math.abs(Math.cos(rad));
+  const sin = Math.abs(Math.sin(rad));
+  // Bounding box for free 0–360° rotation (not just 90° snaps).
+  const srcW = img.width * cos + img.height * sin;
+  const srcH = img.width * sin + img.height * cos;
   const fit = Math.min(1, maxW / Math.max(1, srcW), maxH / Math.max(1, srcH));
   const viewW = Math.max(1, Math.round(srcW * fit));
   const viewH = Math.max(1, Math.round(srcH * fit));
@@ -18826,12 +18856,12 @@ function _cmRedrawDropCanvas(root) {
   ctx.fillRect(0, 0, viewW, viewH);
   ctx.save();
   ctx.translate(viewW / 2 + (st.dropPanX || 0), viewH / 2 + (st.dropPanY || 0));
-  ctx.rotate((rot * Math.PI) / 180);
+  ctx.rotate(rad);
   const scale = fit * (st.dropZoom || 1);
   ctx.scale(scale, scale);
   ctx.drawImage(img, -img.width / 2, -img.height / 2);
   ctx.restore();
-  _cmUpdateZoomLabel(root);
+  _cmUpdateViewLabels(root);
 }
 
 function _cmResetDropView(root, { keepImage = true } = {}) {
@@ -18845,6 +18875,7 @@ function _cmResetDropView(root, { keepImage = true } = {}) {
   st.dropDragLast = null;
   if (!keepImage) st.dropImage = null;
   if (keepImage && st.dropImage) _cmRedrawDropCanvas(root);
+  else _cmUpdateViewLabels(root);
 }
 
 function _cmLoadImageFile(root, file) {
@@ -18903,17 +18934,15 @@ function _cmBindDropViewControls(root) {
     }
     _cmRedrawDropCanvas(root);
   });
-  root.querySelector('#cm-rot-cw')?.addEventListener('click', () => {
-    _colourMatchState.dropRotate = (((_colourMatchState.dropRotate || 0) + 90) % 360);
-    _colourMatchState.dropPanX = 0;
-    _colourMatchState.dropPanY = 0;
-    _cmRedrawDropCanvas(root);
-  });
-  root.querySelector('#cm-rot-ccw')?.addEventListener('click', () => {
-    _colourMatchState.dropRotate = (((_colourMatchState.dropRotate || 0) - 90 + 360) % 360);
-    _colourMatchState.dropPanX = 0;
-    _colourMatchState.dropPanY = 0;
-    _cmRedrawDropCanvas(root);
+  const applyRotateDelta = (delta) => {
+    _cmSetDropRotate(root, (_colourMatchState.dropRotate || 0) + delta);
+  };
+  root.querySelector('#cm-rot-cw')?.addEventListener('click', () => applyRotateDelta(15));
+  root.querySelector('#cm-rot-ccw')?.addEventListener('click', () => applyRotateDelta(-15));
+  root.querySelector('#cm-rot-nudge-cw')?.addEventListener('click', () => applyRotateDelta(1));
+  root.querySelector('#cm-rot-nudge-ccw')?.addEventListener('click', () => applyRotateDelta(-1));
+  root.querySelector('#cm-rotate')?.addEventListener('input', e => {
+    _cmSetDropRotate(root, Number(e.target.value) || 0);
   });
   root.querySelector('#cm-view-reset')?.addEventListener('click', () => {
     _cmResetDropView(root, { keepImage: true });
@@ -18922,6 +18951,11 @@ function _cmBindDropViewControls(root) {
   canvas.addEventListener('wheel', e => {
     if (!_colourMatchState.dropImage) return;
     e.preventDefault();
+    if (e.shiftKey) {
+      // Free 360° rotate in either direction.
+      applyRotateDelta(e.deltaY < 0 ? -3 : 3);
+      return;
+    }
     const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
     _colourMatchState.dropZoom = _cmClamp((_colourMatchState.dropZoom || 1) * factor, 0.5, 8);
     if (_colourMatchState.dropZoom <= 1.01) {
