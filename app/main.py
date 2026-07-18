@@ -7124,12 +7124,20 @@ class CostUpdate(BaseModel):
     empty_spool_weight_g: Optional[float] = None
 
 
-class ColourMatchRequest(BaseModel):
+class ColourMatchTarget(BaseModel):
+    id: Optional[str] = None
     hex: str
+    label: Optional[str] = None
+
+
+class ColourMatchRequest(BaseModel):
+    hex: Optional[str] = None
+    targets: Optional[list[ColourMatchTarget]] = None
     material: Optional[str] = "PLA"
     brand: Optional[str] = None
     limit: int = 12
     include_inventory: bool = True
+    prefer_inventory_pct: float = 2.0
 
 
 class EmptySpoolProfileUpdate(BaseModel):
@@ -7532,26 +7540,8 @@ def _match_pct(delta: float) -> int:
     return max(0, min(100, int(round(100.0 * (1.0 - float(delta) / _HEX_MAX_DIST)))))
 
 
-def _colour_match_payload(
-    hex_value: str,
-    material: Optional[str] = None,
-    brand: Optional[str] = None,
-    limit: int = 12,
-    include_inventory: bool = True,
-) -> dict:
-    target = _norm_hex(hex_value)
-    if not target:
-        raise HTTPException(status_code=422, detail="Invalid hex colour (expected #RRGGBB)")
-    mat = (material or "").strip()
-    if mat.lower() in {"", "all", "*"}:
-        mat = ""
-    br = (brand or "").strip()
-    if br.lower() in {"", "all", "*"}:
-        br = ""
-    top_n = max(1, min(int(limit or 12), 40))
-
-    catalog_rows = db.list_filament_catalog_for_colour_match(brand=br, material=mat, limit=8000)
-    catalog_matches: list[dict] = []
+def _colour_match_catalog_rows(target: str, catalog_rows: list, top_n: int) -> list[dict]:
+    matches: list[dict] = []
     for row in catalog_rows:
         candidate = _norm_hex(row.get("color_hex"))
         if not candidate:
@@ -7563,7 +7553,7 @@ def _colour_match_payload(
             price_aud = float(price) if price not in (None, "") else None
         except (TypeError, ValueError):
             price_aud = None
-        catalog_matches.append({
+        matches.append({
             "brand": row.get("brand") or "",
             "material": row.get("material") or "",
             "product": row.get("product"),
@@ -7579,39 +7569,175 @@ def _colour_match_payload(
             "sku": traits.get("sku") or None,
             "source": row.get("source") or "",
         })
-    catalog_matches.sort(key=lambda item: (item["delta"], item.get("brand") or "", item.get("color_name") or ""))
-    catalog_matches = catalog_matches[:top_n]
+    matches.sort(key=lambda item: (item["delta"], item.get("brand") or "", item.get("color_name") or ""))
+    return matches[:top_n]
 
-    inventory_matches: list[dict] = []
-    if include_inventory:
-        mat_ok = {mat.upper(), "PLA+"} if mat.upper() == "PLA" else ({mat.upper()} if mat else None)
-        for spool in db.get_spools(include_archived=False):
-            spool_mat = str(spool.get("material") or "").upper()
-            if mat_ok is not None and spool_mat not in mat_ok:
-                continue
-            if br and br.lower() not in str(spool.get("brand") or "").lower():
-                continue
-            candidate = _norm_hex(spool.get("color_hex"))
-            if not candidate:
-                continue
-            delta = _hex_dist(target, candidate)
-            inventory_matches.append({
-                "id": spool.get("id"),
-                "display_id": spool.get("display_id"),
-                "brand": spool.get("brand") or "",
-                "material": spool.get("material") or "",
-                "subtype": spool.get("subtype"),
-                "color_name": spool.get("color_name") or "",
-                "color_hex": candidate,
-                "remaining_g": spool.get("remaining_g"),
-                "location_printer_id": spool.get("location_printer_id"),
-                "location_slot": spool.get("location_slot"),
-                "storage_location_name": spool.get("storage_location_name"),
-                "delta": round(float(delta), 2),
-                "match_pct": _match_pct(delta),
-            })
-        inventory_matches.sort(key=lambda item: (item["delta"], -(item.get("remaining_g") or 0)))
-        inventory_matches = inventory_matches[:top_n]
+
+def _colour_match_inventory_rows(
+    target: str,
+    spools: list,
+    material: str,
+    brand: str,
+    top_n: int,
+) -> list[dict]:
+    mat_ok = {material.upper(), "PLA+"} if material.upper() == "PLA" else ({material.upper()} if material else None)
+    matches: list[dict] = []
+    for spool in spools:
+        spool_mat = str(spool.get("material") or "").upper()
+        if mat_ok is not None and spool_mat not in mat_ok:
+            continue
+        if brand and brand.lower() not in str(spool.get("brand") or "").lower():
+            continue
+        candidate = _norm_hex(spool.get("color_hex"))
+        if not candidate:
+            continue
+        delta = _hex_dist(target, candidate)
+        matches.append({
+            "id": spool.get("id"),
+            "display_id": spool.get("display_id"),
+            "brand": spool.get("brand") or "",
+            "material": spool.get("material") or "",
+            "subtype": spool.get("subtype"),
+            "color_name": spool.get("color_name") or "",
+            "color_hex": candidate,
+            "remaining_g": spool.get("remaining_g"),
+            "location_printer_id": spool.get("location_printer_id"),
+            "location_slot": spool.get("location_slot"),
+            "storage_location_name": spool.get("storage_location_name"),
+            "delta": round(float(delta), 2),
+            "match_pct": _match_pct(delta),
+        })
+    matches.sort(key=lambda item: (item["delta"], -(item.get("remaining_g") or 0)))
+    return matches[:top_n]
+
+
+def _colour_match_recommendation(
+    inventory_matches: list[dict],
+    catalog_matches: list[dict],
+    prefer_inventory_pct: float = 2.0,
+) -> dict:
+    """Prefer truest colour; use shelf when within prefer_inventory_pct of best buy."""
+    inv = inventory_matches[0] if inventory_matches else None
+    cat = catalog_matches[0] if catalog_matches else None
+    prefer = max(0.0, float(prefer_inventory_pct or 0))
+    if inv and cat:
+        gap = float(cat.get("match_pct") or 0) - float(inv.get("match_pct") or 0)
+        if gap <= prefer:
+            return {
+                "action": "use_inventory",
+                "reason": (
+                    f"Shelf is only {gap:.0f}% under the closest buy — use what you have"
+                    if gap > 0
+                    else "Shelf match is as close or closer than the best buy"
+                ),
+                "gap_pct": round(gap, 1),
+                "prefer_inventory_pct": prefer,
+                "inventory": inv,
+                "catalog": cat,
+            }
+        return {
+            "action": "order",
+            "reason": f"Best buy is {gap:.0f}% closer than shelf — order for a truer colour",
+            "gap_pct": round(gap, 1),
+            "prefer_inventory_pct": prefer,
+            "inventory": inv,
+            "catalog": cat,
+        }
+    if inv:
+        return {
+            "action": "use_inventory",
+            "reason": "Closest match is already on the shelf",
+            "gap_pct": 0.0,
+            "prefer_inventory_pct": prefer,
+            "inventory": inv,
+            "catalog": None,
+        }
+    if cat:
+        return {
+            "action": "order",
+            "reason": "No inventory match — order the closest catalogue colour",
+            "gap_pct": None,
+            "prefer_inventory_pct": prefer,
+            "inventory": None,
+            "catalog": cat,
+        }
+    return {
+        "action": "none",
+        "reason": "No inventory or catalogue matches",
+        "gap_pct": None,
+        "prefer_inventory_pct": prefer,
+        "inventory": None,
+        "catalog": None,
+    }
+
+
+def _colour_match_payload(
+    hex_value: Optional[str] = None,
+    material: Optional[str] = None,
+    brand: Optional[str] = None,
+    limit: int = 12,
+    include_inventory: bool = True,
+    targets: Optional[list] = None,
+    prefer_inventory_pct: float = 2.0,
+) -> dict:
+    target_items: list[dict] = []
+    for raw in targets or []:
+        if isinstance(raw, dict):
+            hx = raw.get("hex")
+            tid = raw.get("id")
+            label = raw.get("label")
+        else:
+            hx = getattr(raw, "hex", None)
+            tid = getattr(raw, "id", None)
+            label = getattr(raw, "label", None)
+        norm = _norm_hex(hx)
+        if not norm:
+            continue
+        target_items.append({
+            "id": tid or f"t-{len(target_items) + 1}",
+            "hex": norm,
+            "label": (label or "").strip() or f"Pick {len(target_items) + 1}",
+        })
+
+    primary = _norm_hex(hex_value) or (target_items[0]["hex"] if target_items else "")
+    if not primary:
+        raise HTTPException(status_code=422, detail="Invalid hex colour (expected #RRGGBB)")
+
+    mat = (material or "").strip()
+    if mat.lower() in {"", "all", "*"}:
+        mat = ""
+    br = (brand or "").strip()
+    if br.lower() in {"", "all", "*"}:
+        br = ""
+    top_n = max(1, min(int(limit or 12), 40))
+    prefer = max(0.0, min(float(prefer_inventory_pct or 0), 20.0))
+
+    catalog_rows = db.list_filament_catalog_for_colour_match(brand=br, material=mat, limit=8000)
+    spools = db.get_spools(include_archived=False) if include_inventory else []
+
+    catalog_matches = _colour_match_catalog_rows(primary, catalog_rows, top_n)
+    inventory_matches = (
+        _colour_match_inventory_rows(primary, spools, mat, br, top_n) if include_inventory else []
+    )
+    recommendation = _colour_match_recommendation(inventory_matches, catalog_matches, prefer)
+
+    palette: list[dict] = []
+    for item in target_items:
+        inv_rows = _colour_match_inventory_rows(item["hex"], spools, mat, br, top_n) if include_inventory else []
+        cat_rows = _colour_match_catalog_rows(item["hex"], catalog_rows, top_n)
+        rec = _colour_match_recommendation(inv_rows, cat_rows, prefer)
+        palette.append({
+            "id": item["id"],
+            "hex": item["hex"],
+            "label": item["label"],
+            "colour_label": _colour_label(item["hex"]),
+            "recommendation": rec,
+            "inventory_best": inv_rows[0] if inv_rows else None,
+            "catalog_best": cat_rows[0] if cat_rows else None,
+        })
+
+    use_count = sum(1 for p in palette if p["recommendation"]["action"] == "use_inventory")
+    order_count = sum(1 for p in palette if p["recommendation"]["action"] == "order")
 
     status = {
         "sources": [
@@ -7622,12 +7748,21 @@ def _colour_match_payload(
     catalog_count = sum(int(s.get("count") or 0) for s in status["sources"])
     return {
         "ok": True,
-        "hex": target,
+        "hex": primary,
         "material": mat or None,
         "brand": br or None,
-        "label": _colour_label(target),
+        "label": _colour_label(primary),
         "catalog_matches": catalog_matches,
         "inventory_matches": inventory_matches,
+        "recommendation": recommendation,
+        "prefer_inventory_pct": prefer,
+        "palette": palette,
+        "palette_summary": {
+            "total": len(palette),
+            "use_inventory": use_count,
+            "order": order_count,
+            "none": len(palette) - use_count - order_count,
+        },
         "catalog_count": catalog_count,
         "catalog_status": status,
     }
@@ -7640,6 +7775,7 @@ async def get_filament_colour_match(
     brand: str = "",
     limit: int = 12,
     include_inventory: bool = True,
+    prefer_inventory_pct: float = 2.0,
 ):
     return _colour_match_payload(
         hex_value=hex,
@@ -7647,6 +7783,7 @@ async def get_filament_colour_match(
         brand=brand,
         limit=limit,
         include_inventory=include_inventory,
+        prefer_inventory_pct=prefer_inventory_pct,
     )
 
 
@@ -7658,6 +7795,8 @@ async def post_filament_colour_match(body: ColourMatchRequest):
         brand=body.brand,
         limit=body.limit,
         include_inventory=body.include_inventory,
+        targets=body.targets,
+        prefer_inventory_pct=body.prefer_inventory_pct,
     )
 
 

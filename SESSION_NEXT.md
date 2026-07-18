@@ -2,8 +2,23 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: colour-match (see below)
+- Latest commit: colour-match palette (see below)
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
+
+### 2026-07-18 feature (Colour Match palette plan)
+
+**Need:** After reducing a multi-colour print to the strongest N colours (e.g. dog 15→5), get one plan: use shelf vs order, preferring true colour but using inventory when ≤~2% under the best buy so jobs aren’t held up waiting on stock.
+
+**What shipped:**
+- Colour-match API returns `recommendation` + `palette` / `palette_summary` with `prefer_inventory_pct` (default 2)
+- UI **Palette plan** above detail results: Use shelf / Order per pick, Copy plan / Copy order list, click row to focus that pick
+- Cache-bust: `app.js?v=636`, `style.css?v=489`
+
+**Files:** `app/main.py`, `app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `app/static/demo-runtime.js`, `SESSION_NEXT.md`
+
+**Deploy:** Backend restart required. Hard refresh after pull.
+
+**Test:** Spools → Colour match → eyedrop 5 colours from screenshot → confirm Palette plan shows shelf vs order with ≤2% rule; Copy order list; click a row to drill into inventory/buy detail.
 
 ### 2026-07-18 fix (Colour Match blank screen)
 

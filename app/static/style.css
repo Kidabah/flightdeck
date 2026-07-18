@@ -23362,12 +23362,65 @@ select optgroup {
 }
 .cm-link { color: #7dd3fc; text-decoration: none; font-size: 0.78rem; }
 .cm-link:hover { text-decoration: underline; }
+.cm-rec {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.65rem;
+  align-items: start;
+  padding: 0.7rem 0.8rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.03);
+}
+.cm-rec-use { border-color: rgba(74, 222, 128, 0.35); background: rgba(74, 222, 128, 0.08); }
+.cm-rec-order { border-color: rgba(251, 191, 36, 0.35); background: rgba(251, 191, 36, 0.08); }
+.cm-rec-none { opacity: 0.8; }
+.cm-rec-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  padding: 0.25rem 0.45rem;
+  border-radius: 6px;
+  background: rgba(0,0,0,0.25);
+  white-space: nowrap;
+}
+.cm-rec-main { display: grid; gap: 0.15rem; min-width: 0; }
+.cm-rec-main small { opacity: 0.8; font-size: 0.78rem; }
+.cm-rec-rule { opacity: 0.6 !important; }
+.cm-palette-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.85rem;
+  align-items: center;
+  margin-bottom: 0.35rem;
+}
+.cm-palette-head h3 { margin: 0; }
+.cm-palette-head > span { opacity: 0.75; font-size: 0.82rem; }
+.cm-palette-actions { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-left: auto; }
+.cm-palette-row {
+  display: grid;
+  grid-template-columns: 1.6rem minmax(0, 1fr) auto;
+  gap: 0.55rem;
+  align-items: center;
+  padding: 0.55rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.02);
+  cursor: pointer;
+  margin-bottom: 0.35rem;
+}
+.cm-palette-row.is-use { border-left: 3px solid rgba(74, 222, 128, 0.75); }
+.cm-palette-row.is-order { border-left: 3px solid rgba(251, 191, 36, 0.75); }
+.cm-palette-row:hover { background: rgba(255,255,255,0.04); }
 #cm-status { font-size: 0.78rem; opacity: 0.72; }
 
 @media (max-width: 900px) {
   .cm-hero,
   .cm-target-panel { grid-template-columns: 1fr; }
   .cm-swatch-xl { width: 100%; height: 7rem; }
-  .cm-row { grid-template-columns: 2rem minmax(0, 1fr) auto; }
+  .cm-row,
+  .cm-palette-row { grid-template-columns: 2rem minmax(0, 1fr) auto; }
   .cm-row-actions { grid-column: 2 / -1; }
+  .cm-palette-actions { margin-left: 0; }
 }

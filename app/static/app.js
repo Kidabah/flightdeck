@@ -18330,6 +18330,7 @@ let _colourMatchState = {
   lastResult: null,
   matchTimer: null,
   dropObjectUrl: null,
+  preferInventoryPct: 2,
 };
 
 function _cmClamp(n, lo, hi) {
@@ -18456,7 +18457,7 @@ function _cmMatchRowsHtml(rows, kind) {
 
 function _cmTargetsHtml() {
   const targets = _colourMatchState.targets || [];
-  if (!targets.length) return '<div class="cm-empty">Eyedrop colours from a screenshot to build a list.</div>';
+  if (!targets.length) return '<div class="cm-empty">Eyedrop colours from a screenshot to build a palette (e.g. your strongest 5).</div>';
   return targets.map(t => `
     <button type="button" class="cm-target${_colourMatchState.activeTargetId === t.id ? ' active' : ''}" data-cm-target="${t.id}">
       <span class="cm-swatch" style="background:${esc(t.hex)}"></span>
@@ -18464,6 +18465,97 @@ function _cmTargetsHtml() {
       <span class="cm-target-x" data-cm-remove-target="${t.id}" title="Remove">✕</span>
     </button>
   `).join('');
+}
+
+function _cmRecTitle(item) {
+  if (!item) return '—';
+  return item.color_name || item.product || item.color_hex || 'Colour';
+}
+
+function _cmRecMeta(item) {
+  if (!item) return '';
+  return [item.brand, item.material, item.subtype].filter(Boolean).join(' · ');
+}
+
+function _cmRecommendationHtml(rec, preferPct) {
+  if (!rec || rec.action === 'none') {
+    return `<div class="cm-rec cm-rec-none"><strong>No match yet</strong><span>Sync the catalogue or widen filters.</span></div>`;
+  }
+  const useShelf = rec.action === 'use_inventory';
+  const chosen = useShelf ? rec.inventory : rec.catalog;
+  const alt = useShelf ? rec.catalog : rec.inventory;
+  const badge = useShelf ? 'Use shelf' : 'Order';
+  const altLine = alt
+    ? (useShelf
+      ? `Closest buy: ${_cmRecTitle(alt)} (${alt.match_pct ?? 0}%)`
+      : `Closest shelf: ${_cmRecTitle(alt)} (${alt.match_pct ?? 0}%)`)
+    : '';
+  return `<div class="cm-rec ${useShelf ? 'cm-rec-use' : 'cm-rec-order'}">
+    <div class="cm-rec-badge">${badge}</div>
+    <div class="cm-rec-main">
+      <strong>${esc(_cmRecTitle(chosen))} · ${esc(String(chosen?.match_pct ?? 0))}%</strong>
+      <small>${esc(_cmRecMeta(chosen))}${chosen?.color_hex ? ` · ${esc(chosen.color_hex)}` : ''}</small>
+      <small>${esc(rec.reason || '')}${altLine ? ` · ${esc(altLine)}` : ''}</small>
+      <small class="cm-rec-rule">Rule: prefer shelf when ≤${esc(String(preferPct ?? 2))}% under best buy</small>
+    </div>
+  </div>`;
+}
+
+function _cmPaletteHtml(data) {
+  const palette = data?.palette || [];
+  if (!palette.length) return '';
+  const summary = data.palette_summary || {};
+  const prefer = data.prefer_inventory_pct ?? _colourMatchState.preferInventoryPct ?? 2;
+  const rows = palette.map((p, idx) => {
+    const rec = p.recommendation || {};
+    const useShelf = rec.action === 'use_inventory';
+    const chosen = useShelf ? (rec.inventory || p.inventory_best) : (rec.catalog || p.catalog_best);
+    const actions = useShelf
+      ? (chosen?.id != null
+        ? `<a class="cm-link" href="#/spool/${chosen.id}">Open spool #${esc(String(chosen.display_id ?? chosen.id))}</a>
+           <button type="button" class="cm-btn" data-cm-copy="${esc(_cmRecTitle(chosen))} ${esc(chosen.color_hex || '')}">Copy</button>`
+        : '')
+      : `${chosen?.product_url ? `<a class="cm-link" href="${esc(chosen.product_url)}" target="_blank" rel="noopener">Order</a>` : ''}
+         <button type="button" class="cm-btn" data-cm-copy="${esc(_cmRecTitle(chosen))} · ${esc(chosen?.brand || '')} · ${esc(chosen?.color_hex || '')}">Copy</button>
+         <button type="button" class="cm-btn cm-btn-primary" data-cm-palette-add="${idx}">Add spool</button>`;
+    return `<div class="cm-palette-row ${useShelf ? 'is-use' : 'is-order'}" data-cm-palette-target="${esc(p.id)}">
+      <span class="cm-swatch" style="background:${esc(p.hex)}"></span>
+      <div class="cm-row-main">
+        <strong>${esc(p.label || p.hex)} <small>${esc(p.hex)}</small></strong>
+        <small>${useShelf ? 'Use shelf' : 'Order'}: ${esc(_cmRecTitle(chosen))} · ${esc(String(chosen?.match_pct ?? 0))}%</small>
+        <small>${esc(rec.reason || '')}</small>
+      </div>
+      <div class="cm-row-actions">${actions}</div>
+    </div>`;
+  }).join('');
+  return `<section class="cm-section cm-palette">
+    <div class="cm-palette-head">
+      <h3>Palette plan</h3>
+      <span>Use ${esc(String(summary.use_inventory || 0))} from shelf · Order ${esc(String(summary.order || 0))} · ≤${esc(String(prefer))}% shelf rule</span>
+      <div class="cm-palette-actions">
+        <button type="button" class="cm-btn" id="cm-copy-palette">Copy plan</button>
+        <button type="button" class="cm-btn" id="cm-copy-orders">Copy order list</button>
+      </div>
+    </div>
+    ${rows}
+  </section>`;
+}
+
+function _cmResultsHtml(data) {
+  const prefer = data?.prefer_inventory_pct ?? _colourMatchState.preferInventoryPct ?? 2;
+  return `${_cmPaletteHtml(data)}
+    <section class="cm-section">
+      <h3>Recommendation</h3>
+      ${_cmRecommendationHtml(data?.recommendation, prefer)}
+    </section>
+    <section class="cm-section">
+      <h3>In your inventory</h3>
+      ${_cmMatchRowsHtml(data?.inventory_matches, 'inventory')}
+    </section>
+    <section class="cm-section">
+      <h3>Buy / catalogue</h3>
+      ${_cmMatchRowsHtml(data?.catalog_matches, 'catalogue')}
+    </section>`;
 }
 
 function _colourMatchHtml() {
@@ -18521,16 +18613,7 @@ function _colourMatchHtml() {
         </div>
       </div>
       <div class="cm-targets" id="cm-targets">${_cmTargetsHtml()}</div>
-      <div class="cm-results" id="cm-results">
-        <section class="cm-section">
-          <h3>In your inventory</h3>
-          ${_cmMatchRowsHtml(result?.inventory_matches, 'inventory')}
-        </section>
-        <section class="cm-section">
-          <h3>Buy / catalogue</h3>
-          ${_cmMatchRowsHtml(result?.catalog_matches, 'catalogue')}
-        </section>
-      </div>
+      <div class="cm-results" id="cm-results">${_cmResultsHtml(result)}</div>
     </div>`;
 }
 
@@ -18551,6 +18634,26 @@ function _cmPaintControls(root) {
   if (label && !_colourMatchState.lastResult) label.textContent = 'Target colour';
 }
 
+function _cmPalettePlainText(data, { ordersOnly = false } = {}) {
+  const palette = data?.palette || [];
+  const lines = [];
+  for (const p of palette) {
+    const rec = p.recommendation || {};
+    if (ordersOnly && rec.action !== 'order') continue;
+    const useShelf = rec.action === 'use_inventory';
+    const chosen = useShelf ? (rec.inventory || p.inventory_best) : (rec.catalog || p.catalog_best);
+    const verb = useShelf ? 'USE' : (rec.action === 'order' ? 'ORDER' : '—');
+    lines.push([
+      `${p.label || 'Pick'} ${p.hex}`,
+      `${verb} ${_cmRecTitle(chosen)} (${chosen?.match_pct ?? 0}% · ${chosen?.color_hex || ''})`,
+      _cmRecMeta(chosen),
+      chosen?.product_url || '',
+      rec.reason || '',
+    ].filter(Boolean).join(' — '));
+  }
+  return lines.join('\n');
+}
+
 async function _cmRunMatch(root) {
   const st = _colourMatchState;
   const status = root?.querySelector('#cm-status');
@@ -18563,6 +18666,8 @@ async function _cmRunMatch(root) {
       brand: st.brand || '',
       limit: 12,
       include_inventory: true,
+      prefer_inventory_pct: st.preferInventoryPct ?? 2,
+      targets: (st.targets || []).map(t => ({ id: t.id, hex: t.hex, label: t.label })),
     };
     const r = await fetch('/api/filament/colour-match', {
       method: 'POST',
@@ -18572,19 +18677,17 @@ async function _cmRunMatch(root) {
     const data = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(data.detail || 'Colour match failed');
     st.lastResult = data;
-    if (status) status.textContent = `Catalogue: ${data.catalog_count ?? 0} colours · ${data.catalog_matches?.length || 0} buy matches`;
+    const pal = data.palette_summary || {};
+    const palBit = pal.total
+      ? ` · palette ${pal.use_inventory || 0} shelf / ${pal.order || 0} order`
+      : '';
+    if (status) {
+      status.textContent = `Catalogue: ${data.catalog_count ?? 0} colours · ${data.catalog_matches?.length || 0} buy matches${palBit}`;
+    }
     const label = root?.querySelector('#cm-label');
     if (label) label.textContent = data.label || 'Target colour';
     if (results) {
-      results.innerHTML = `
-        <section class="cm-section">
-          <h3>In your inventory</h3>
-          ${_cmMatchRowsHtml(data.inventory_matches, 'inventory')}
-        </section>
-        <section class="cm-section">
-          <h3>Buy / catalogue</h3>
-          ${_cmMatchRowsHtml(data.catalog_matches, 'catalogue')}
-        </section>`;
+      results.innerHTML = _cmResultsHtml(data);
       _cmBindResultActions(root);
     }
   } catch (err) {
@@ -18596,6 +18699,22 @@ async function _cmRunMatch(root) {
 function _cmScheduleMatch(root) {
   clearTimeout(_colourMatchState.matchTimer);
   _colourMatchState.matchTimer = setTimeout(() => _cmRunMatch(root), 220);
+}
+
+async function _cmOpenAddSpool(item) {
+  if (!item) return;
+  const costs = await fetch('/api/filament/costs').then(r => r.json()).catch(() => []);
+  _openSpoolModal(costs, _refreshSpoolsSurface, {
+    id: null,
+    material: item.material,
+    brand: item.brand,
+    subtype: item.subtype || item.product || '',
+    color_hex: item.color_hex,
+    color_name: item.color_name,
+    label_weight_g: item.filament_weight_g || _serverSettings.default_label_weight_g || 1000,
+    remaining_g: item.filament_weight_g || _serverSettings.default_label_weight_g || 1000,
+    empty_spool_weight_g: item.empty_spool_weight_g,
+  });
 }
 
 function _cmBindResultActions(root) {
@@ -18612,21 +18731,53 @@ function _cmBindResultActions(root) {
   root.querySelectorAll('[data-cm-add]').forEach(btn => {
     btn.addEventListener('click', async () => {
       const idx = Number(btn.dataset.cmAdd);
-      const item = _colourMatchState.lastResult?.catalog_matches?.[idx];
-      if (!item) return;
-      const costs = await fetch('/api/filament/costs').then(r => r.json()).catch(() => []);
-      _openSpoolModal(costs, _refreshSpoolsSurface, {
-        id: null,
-        material: item.material,
-        brand: item.brand,
-        subtype: item.subtype || item.product || '',
-        color_hex: item.color_hex,
-        color_name: item.color_name,
-        label_weight_g: item.filament_weight_g || _serverSettings.default_label_weight_g || 1000,
-        remaining_g: item.filament_weight_g || _serverSettings.default_label_weight_g || 1000,
-        empty_spool_weight_g: item.empty_spool_weight_g,
-      });
+      await _cmOpenAddSpool(_colourMatchState.lastResult?.catalog_matches?.[idx]);
     });
+  });
+  root.querySelectorAll('[data-cm-palette-add]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const idx = Number(btn.dataset.cmPaletteAdd);
+      const row = _colourMatchState.lastResult?.palette?.[idx];
+      const item = row?.recommendation?.catalog || row?.catalog_best;
+      await _cmOpenAddSpool(item);
+    });
+  });
+  root.querySelectorAll('[data-cm-palette-target]').forEach(row => {
+    row.addEventListener('click', e => {
+      if (e.target.closest('a, button')) return;
+      const id = row.dataset.cmPaletteTarget;
+      const t = _colourMatchState.targets.find(x => x.id === id);
+      if (!t) return;
+      _colourMatchState.activeTargetId = t.id;
+      _cmSetHex(t.hex);
+      _cmPaintControls(root);
+      const targets = root.querySelector('#cm-targets');
+      if (targets) targets.innerHTML = _cmTargetsHtml();
+      _cmScheduleMatch(root);
+    });
+  });
+  root.querySelector('#cm-copy-palette')?.addEventListener('click', async () => {
+    const text = _cmPalettePlainText(_colourMatchState.lastResult);
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast('Copied palette plan', '', 'success');
+    } catch {
+      showToast('Copy failed', '', 'error');
+    }
+  });
+  root.querySelector('#cm-copy-orders')?.addEventListener('click', async () => {
+    const text = _cmPalettePlainText(_colourMatchState.lastResult, { ordersOnly: true });
+    if (!text) {
+      showToast('Nothing to order', 'Every pick can use shelf stock', 'success');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast('Copied order list', '', 'success');
+    } catch {
+      showToast('Copy failed', '', 'error');
+    }
   });
 }
 
@@ -18754,8 +18905,14 @@ function _attachColourMatchEvents(root) {
     if (remove) {
       const id = remove.dataset.cmRemoveTarget;
       _colourMatchState.targets = _colourMatchState.targets.filter(t => t.id !== id);
-      if (_colourMatchState.activeTargetId === id) _colourMatchState.activeTargetId = null;
+      if (_colourMatchState.activeTargetId === id) {
+        const next = _colourMatchState.targets[0];
+        _colourMatchState.activeTargetId = next?.id || null;
+        if (next) _cmSetHex(next.hex);
+      }
       root.querySelector('#cm-targets').innerHTML = _cmTargetsHtml();
+      _cmPaintControls(root);
+      _cmScheduleMatch(root);
       return;
     }
     const btn = e.target.closest('[data-cm-target]');
