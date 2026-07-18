@@ -7133,7 +7133,7 @@ class ColourMatchTarget(BaseModel):
 class ColourMatchRequest(BaseModel):
     hex: Optional[str] = None
     targets: Optional[list[ColourMatchTarget]] = None
-    material: Optional[str] = "PLA"
+    material: Optional[str] = "low"
     brand: Optional[str] = None
     limit: int = 12
     include_inventory: bool = True
@@ -7540,6 +7540,37 @@ def _match_pct(delta: float) -> int:
     return max(0, min(100, int(round(100.0 * (1.0 - float(delta) / _HEX_MAX_DIST)))))
 
 
+# Colour Match never mixes low-temp with high-temp (PLA/PETG vs ABS/ASA).
+_COLOUR_MATCH_LOW_TEMP = frozenset({"PLA", "PLA+", "PETG"})
+_COLOUR_MATCH_HIGH_TEMP = frozenset({"ABS", "ASA"})
+
+
+def _colour_match_material_filter(material: Optional[str]) -> tuple[str, list[str], str]:
+    """Resolve UI material → (key, allowed materials, human label).
+
+    Low-temp (PLA / PLA+ / PETG) may share a print. High-temp (ABS / ASA) stay together.
+    Cross-family mixes are blocked. Bare "all" falls back to low-temp.
+    """
+    raw = (material or "").strip()
+    key = raw.lower().replace("_", " ").replace("-", " ")
+    if key in {"", "all", "*", "low", "low temp", "lowtemp"}:
+        mats = sorted(_COLOUR_MATCH_LOW_TEMP)
+        return "low", mats, "Low temp (PLA / PETG)"
+    if key in {"high", "high temp", "hightemp"}:
+        mats = sorted(_COLOUR_MATCH_HIGH_TEMP)
+        return "high", mats, "High temp (ABS / ASA)"
+    mat = raw.upper()
+    if mat in _COLOUR_MATCH_LOW_TEMP or mat == "PLA+":
+        # PLA / PETG selections search the whole low-temp family so substitutes
+        # stay printable together — never pull in ABS/ASA.
+        mats = sorted(_COLOUR_MATCH_LOW_TEMP)
+        return "low", mats, "Low temp (PLA / PETG)"
+    if mat in _COLOUR_MATCH_HIGH_TEMP:
+        mats = sorted(_COLOUR_MATCH_HIGH_TEMP)
+        return "high", mats, "High temp (ABS / ASA)"
+    return mat.lower(), [mat], mat
+
+
 def _colour_match_catalog_rows(target: str, catalog_rows: list, top_n: int) -> list[dict]:
     matches: list[dict] = []
     for row in catalog_rows:
@@ -7576,11 +7607,13 @@ def _colour_match_catalog_rows(target: str, catalog_rows: list, top_n: int) -> l
 def _colour_match_inventory_rows(
     target: str,
     spools: list,
-    material: str,
+    materials: Optional[list],
     brand: str,
     top_n: int,
 ) -> list[dict]:
-    mat_ok = {material.upper(), "PLA+"} if material.upper() == "PLA" else ({material.upper()} if material else None)
+    mat_ok = {str(m).strip().upper() for m in (materials or []) if str(m).strip()} or None
+    if mat_ok and "PLA" in mat_ok:
+        mat_ok.add("PLA+")
     matches: list[dict] = []
     for spool in spools:
         spool_mat = str(spool.get("material") or "").upper()
@@ -7703,27 +7736,30 @@ def _colour_match_payload(
     if not primary:
         raise HTTPException(status_code=422, detail="Invalid hex colour (expected #RRGGBB)")
 
-    mat = (material or "").strip()
-    if mat.lower() in {"", "all", "*"}:
-        mat = ""
+    mat_key, mat_list, mat_label = _colour_match_material_filter(material)
     br = (brand or "").strip()
     if br.lower() in {"", "all", "*"}:
         br = ""
     top_n = max(1, min(int(limit or 12), 40))
     prefer = max(0.0, min(float(prefer_inventory_pct or 0), 20.0))
 
-    catalog_rows = db.list_filament_catalog_for_colour_match(brand=br, material=mat, limit=8000)
+    catalog_rows = db.list_filament_catalog_for_colour_match(
+        brand=br, materials=mat_list, limit=8000
+    )
     spools = db.get_spools(include_archived=False) if include_inventory else []
 
     catalog_matches = _colour_match_catalog_rows(primary, catalog_rows, top_n)
     inventory_matches = (
-        _colour_match_inventory_rows(primary, spools, mat, br, top_n) if include_inventory else []
+        _colour_match_inventory_rows(primary, spools, mat_list, br, top_n) if include_inventory else []
     )
     recommendation = _colour_match_recommendation(inventory_matches, catalog_matches, prefer)
 
     palette: list[dict] = []
     for item in target_items:
-        inv_rows = _colour_match_inventory_rows(item["hex"], spools, mat, br, top_n) if include_inventory else []
+        inv_rows = (
+            _colour_match_inventory_rows(item["hex"], spools, mat_list, br, top_n)
+            if include_inventory else []
+        )
         cat_rows = _colour_match_catalog_rows(item["hex"], catalog_rows, top_n)
         rec = _colour_match_recommendation(inv_rows, cat_rows, prefer)
         palette.append({
@@ -7749,7 +7785,9 @@ def _colour_match_payload(
     return {
         "ok": True,
         "hex": primary,
-        "material": mat or None,
+        "material": mat_key,
+        "material_label": mat_label,
+        "materials": mat_list,
         "brand": br or None,
         "label": _colour_label(primary),
         "catalog_matches": catalog_matches,
@@ -7771,7 +7809,7 @@ def _colour_match_payload(
 @app.get("/api/filament/colour-match")
 async def get_filament_colour_match(
     hex: str = "",
-    material: str = "PLA",
+    material: str = "low",
     brand: str = "",
     limit: int = 12,
     include_inventory: bool = True,

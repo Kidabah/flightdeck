@@ -18323,13 +18323,21 @@ let _colourMatchState = {
   h: 34,
   s: 42,
   v: 77,
-  material: 'PLA',
+  material: 'low',
   brand: '',
   targets: [],
   activeTargetId: null,
   lastResult: null,
   matchTimer: null,
   dropObjectUrl: null,
+  dropImage: null,
+  dropZoom: 1,
+  dropRotate: 0,
+  dropPanX: 0,
+  dropPanY: 0,
+  dropDragging: false,
+  dropDragMoved: false,
+  dropDragLast: null,
   preferInventoryPct: 2,
 };
 
@@ -18585,10 +18593,11 @@ function _colourMatchHtml() {
         </div>
         <div class="cm-filters">
           <div class="cm-chip-row" id="cm-mat-chips">
-            ${['PLA', 'PETG', 'ASA', 'ABS', 'All'].map(m =>
-              `<button type="button" class="cm-chip${(st.material || 'All') === m ? ' active' : ''}" data-cm-mat="${m}">${m}</button>`
+            ${[['low','Low temp'],['high','High temp']].map(([v, label]) =>
+              `<button type="button" class="cm-chip${(st.material || 'low') === v ? ' active' : ''}" data-cm-mat="${v}">${label}</button>`
             ).join('')}
           </div>
+          <div class="cm-mat-hint" id="cm-mat-hint">Low temp = PLA / PETG (can mix). High temp = ABS / ASA. Never mix high with low.</div>
           <div class="cm-chip-row" id="cm-brand-chips">
             ${[['','All brands'],['Siddament','Siddament'],['Bambu','Bambu Lab']].map(([v, label]) =>
               `<button type="button" class="cm-chip${(st.brand || '') === v ? ' active' : ''}" data-cm-brand="${esc(v)}">${label}</button>`
@@ -18604,11 +18613,20 @@ function _colourMatchHtml() {
       <div class="cm-drop-zone" id="cm-drop">
         <div class="cm-drop-help">
           <strong>Eyedrop from screenshot</strong>
-          <span>Drop an Orca/Bambu preview image, or choose a file, then click a pixel.</span>
+          <span>Drop an Orca/Bambu preview image, or choose a file, then zoom / rotate and click a pixel.</span>
           <label class="cm-btn cm-file-btn" for="cm-file">Choose image</label>
           <input id="cm-file" type="file" accept="image/*" hidden>
         </div>
         <div class="cm-drop-stage hidden" id="cm-stage">
+          <div class="cm-view-toolbar">
+            <button type="button" class="cm-btn" id="cm-zoom-out" title="Zoom out">−</button>
+            <span id="cm-zoom-label">100%</span>
+            <button type="button" class="cm-btn" id="cm-zoom-in" title="Zoom in">+</button>
+            <button type="button" class="cm-btn" id="cm-rot-ccw" title="Rotate left">↶</button>
+            <button type="button" class="cm-btn" id="cm-rot-cw" title="Rotate right">↷</button>
+            <button type="button" class="cm-btn" id="cm-view-reset" title="Reset view">Reset</button>
+            <span class="cm-view-hint">Scroll to zoom · drag to pan · click to pick</span>
+          </div>
           <canvas id="cm-canvas"></canvas>
         </div>
       </div>
@@ -18662,7 +18680,7 @@ async function _cmRunMatch(root) {
   try {
     const body = {
       hex: st.hex,
-      material: st.material === 'All' ? '' : (st.material || 'PLA'),
+      material: st.material || 'low',
       brand: st.brand || '',
       limit: 12,
       include_inventory: true,
@@ -18781,6 +18799,54 @@ function _cmBindResultActions(root) {
   });
 }
 
+function _cmUpdateZoomLabel(root) {
+  const label = root?.querySelector('#cm-zoom-label');
+  if (label) label.textContent = `${Math.round((_colourMatchState.dropZoom || 1) * 100)}%`;
+}
+
+function _cmRedrawDropCanvas(root) {
+  const st = _colourMatchState;
+  const img = st.dropImage;
+  const stage = root?.querySelector('#cm-stage');
+  const canvas = root?.querySelector('#cm-canvas');
+  if (!img || !stage || !canvas) return;
+  const maxW = Math.min(720, stage.clientWidth || 720);
+  const maxH = 520;
+  const rot = ((st.dropRotate % 360) + 360) % 360;
+  const swapped = rot % 180 !== 0;
+  const srcW = swapped ? img.height : img.width;
+  const srcH = swapped ? img.width : img.height;
+  const fit = Math.min(1, maxW / Math.max(1, srcW), maxH / Math.max(1, srcH));
+  const viewW = Math.max(1, Math.round(srcW * fit));
+  const viewH = Math.max(1, Math.round(srcH * fit));
+  canvas.width = viewW;
+  canvas.height = viewH;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.fillStyle = '#0f1419';
+  ctx.fillRect(0, 0, viewW, viewH);
+  ctx.save();
+  ctx.translate(viewW / 2 + (st.dropPanX || 0), viewH / 2 + (st.dropPanY || 0));
+  ctx.rotate((rot * Math.PI) / 180);
+  const scale = fit * (st.dropZoom || 1);
+  ctx.scale(scale, scale);
+  ctx.drawImage(img, -img.width / 2, -img.height / 2);
+  ctx.restore();
+  _cmUpdateZoomLabel(root);
+}
+
+function _cmResetDropView(root, { keepImage = true } = {}) {
+  const st = _colourMatchState;
+  st.dropZoom = 1;
+  st.dropRotate = 0;
+  st.dropPanX = 0;
+  st.dropPanY = 0;
+  st.dropDragging = false;
+  st.dropDragMoved = false;
+  st.dropDragLast = null;
+  if (!keepImage) st.dropImage = null;
+  if (keepImage && st.dropImage) _cmRedrawDropCanvas(root);
+}
+
 function _cmLoadImageFile(root, file) {
   if (!file || !String(file.type || '').startsWith('image/')) return;
   if (_colourMatchState.dropObjectUrl) URL.revokeObjectURL(_colourMatchState.dropObjectUrl);
@@ -18788,29 +18854,26 @@ function _cmLoadImageFile(root, file) {
   _colourMatchState.dropObjectUrl = url;
   const img = new Image();
   img.onload = () => {
+    _colourMatchState.dropImage = img;
+    _cmResetDropView(root, { keepImage: true });
     const stage = root.querySelector('#cm-stage');
-    const canvas = root.querySelector('#cm-canvas');
-    if (!stage || !canvas) return;
-    const maxW = Math.min(720, stage.clientWidth || 720);
-    const scale = Math.min(1, maxW / img.width);
-    canvas.width = Math.max(1, Math.round(img.width * scale));
-    canvas.height = Math.max(1, Math.round(img.height * scale));
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    stage.classList.remove('hidden');
+    stage?.classList.remove('hidden');
     root.querySelector('.cm-drop-help')?.classList.add('hidden');
+    _cmRedrawDropCanvas(root);
   };
   img.src = url;
 }
 
 function _cmPickFromCanvas(root, evt) {
+  if (_colourMatchState.dropDragMoved) return;
   const canvas = root.querySelector('#cm-canvas');
   if (!canvas) return;
   const rect = canvas.getBoundingClientRect();
   const x = _cmClamp(Math.floor((evt.clientX - rect.left) * (canvas.width / rect.width)), 0, canvas.width - 1);
   const y = _cmClamp(Math.floor((evt.clientY - rect.top) * (canvas.height / rect.height)), 0, canvas.height - 1);
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  const [r, g, b] = ctx.getImageData(x, y, 1, 1).data;
+  const [r, g, b, a] = ctx.getImageData(x, y, 1, 1).data;
+  if (a < 8) return;
   const hex = _cmRgbToHex(r, g, b);
   _cmSetHex(hex);
   _cmPaintControls(root);
@@ -18821,6 +18884,81 @@ function _cmPickFromCanvas(root, evt) {
   const targets = root.querySelector('#cm-targets');
   if (targets) targets.innerHTML = _cmTargetsHtml();
   _cmScheduleMatch(root);
+}
+
+function _cmBindDropViewControls(root) {
+  const canvas = root.querySelector('#cm-canvas');
+  if (!canvas || canvas.dataset.cmViewBound === '1') return;
+  canvas.dataset.cmViewBound = '1';
+
+  root.querySelector('#cm-zoom-in')?.addEventListener('click', () => {
+    _colourMatchState.dropZoom = _cmClamp((_colourMatchState.dropZoom || 1) * 1.25, 0.5, 8);
+    _cmRedrawDropCanvas(root);
+  });
+  root.querySelector('#cm-zoom-out')?.addEventListener('click', () => {
+    _colourMatchState.dropZoom = _cmClamp((_colourMatchState.dropZoom || 1) / 1.25, 0.5, 8);
+    if (_colourMatchState.dropZoom <= 1.01) {
+      _colourMatchState.dropPanX = 0;
+      _colourMatchState.dropPanY = 0;
+    }
+    _cmRedrawDropCanvas(root);
+  });
+  root.querySelector('#cm-rot-cw')?.addEventListener('click', () => {
+    _colourMatchState.dropRotate = (((_colourMatchState.dropRotate || 0) + 90) % 360);
+    _colourMatchState.dropPanX = 0;
+    _colourMatchState.dropPanY = 0;
+    _cmRedrawDropCanvas(root);
+  });
+  root.querySelector('#cm-rot-ccw')?.addEventListener('click', () => {
+    _colourMatchState.dropRotate = (((_colourMatchState.dropRotate || 0) - 90 + 360) % 360);
+    _colourMatchState.dropPanX = 0;
+    _colourMatchState.dropPanY = 0;
+    _cmRedrawDropCanvas(root);
+  });
+  root.querySelector('#cm-view-reset')?.addEventListener('click', () => {
+    _cmResetDropView(root, { keepImage: true });
+  });
+
+  canvas.addEventListener('wheel', e => {
+    if (!_colourMatchState.dropImage) return;
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+    _colourMatchState.dropZoom = _cmClamp((_colourMatchState.dropZoom || 1) * factor, 0.5, 8);
+    if (_colourMatchState.dropZoom <= 1.01) {
+      _colourMatchState.dropPanX = 0;
+      _colourMatchState.dropPanY = 0;
+    }
+    _cmRedrawDropCanvas(root);
+  }, { passive: false });
+
+  canvas.addEventListener('pointerdown', e => {
+    if (!_colourMatchState.dropImage || e.button !== 0) return;
+    _colourMatchState.dropDragging = true;
+    _colourMatchState.dropDragMoved = false;
+    _colourMatchState.dropDragLast = { x: e.clientX, y: e.clientY };
+    canvas.setPointerCapture?.(e.pointerId);
+    canvas.classList.add('is-panning');
+  });
+  canvas.addEventListener('pointermove', e => {
+    if (!_colourMatchState.dropDragging || !_colourMatchState.dropDragLast) return;
+    const dx = e.clientX - _colourMatchState.dropDragLast.x;
+    const dy = e.clientY - _colourMatchState.dropDragLast.y;
+    if (Math.abs(dx) + Math.abs(dy) > 3) _colourMatchState.dropDragMoved = true;
+    if (_colourMatchState.dropZoom > 1.01 || _colourMatchState.dropDragMoved) {
+      _colourMatchState.dropPanX += dx;
+      _colourMatchState.dropPanY += dy;
+      _colourMatchState.dropDragLast = { x: e.clientX, y: e.clientY };
+      _cmRedrawDropCanvas(root);
+    }
+  });
+  const endDrag = () => {
+    _colourMatchState.dropDragging = false;
+    _colourMatchState.dropDragLast = null;
+    canvas.classList.remove('is-panning');
+  };
+  canvas.addEventListener('pointerup', endDrag);
+  canvas.addEventListener('pointercancel', endDrag);
+  canvas.addEventListener('click', e => _cmPickFromCanvas(root, e));
 }
 
 function _attachColourMatchEvents(root) {
@@ -18859,8 +18997,14 @@ function _attachColourMatchEvents(root) {
   });
   root.querySelectorAll('[data-cm-mat]').forEach(btn => {
     btn.addEventListener('click', () => {
-      _colourMatchState.material = btn.dataset.cmMat || 'PLA';
+      _colourMatchState.material = btn.dataset.cmMat || 'low';
       root.querySelectorAll('[data-cm-mat]').forEach(b => b.classList.toggle('active', b === btn));
+      const hint = root.querySelector('#cm-mat-hint');
+      if (hint) {
+        hint.textContent = _colourMatchState.material === 'high'
+          ? 'High temp = ABS / ASA only. Not mixed with PLA or PETG.'
+          : 'Low temp = PLA / PETG (can mix). High temp filaments stay out.';
+      }
       _cmScheduleMatch(root);
     });
   });
@@ -18899,7 +19043,7 @@ function _attachColourMatchEvents(root) {
     const file = e.target.files?.[0];
     if (file) _cmLoadImageFile(root, file);
   });
-  root.querySelector('#cm-canvas')?.addEventListener('click', e => _cmPickFromCanvas(root, e));
+  _cmBindDropViewControls(root);
   root.querySelector('#cm-targets')?.addEventListener('click', e => {
     const remove = e.target.closest('[data-cm-remove-target]');
     if (remove) {

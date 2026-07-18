@@ -23319,14 +23319,35 @@ select optgroup {
   opacity: 0.9;
 }
 .cm-drop-help span { opacity: 0.75; font-size: 0.88rem; }
-.cm-drop-stage { margin-top: 0.75rem; }
+.cm-drop-stage { margin-top: 0.75rem; display: grid; gap: 0.5rem; }
+.cm-view-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+.cm-view-toolbar #cm-zoom-label {
+  min-width: 3.2rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
+.cm-view-hint {
+  font-size: 0.75rem;
+  opacity: 0.6;
+  margin-left: 0.25rem;
+}
 .cm-drop-stage canvas {
   max-width: 100%;
   height: auto;
   border-radius: 0.5rem;
   cursor: crosshair;
   display: block;
+  touch-action: none;
+  background: #0f1419;
 }
+.cm-drop-stage canvas.is-panning { cursor: grabbing; }
 .cm-target {
   display: inline-flex;
   gap: 0.45rem;
@@ -23413,6 +23434,11 @@ select optgroup {
 .cm-palette-row.is-use { border-left: 3px solid rgba(74, 222, 128, 0.75); }
 .cm-palette-row.is-order { border-left: 3px solid rgba(251, 191, 36, 0.75); }
 .cm-palette-row:hover { background: rgba(255,255,255,0.04); }
+.cm-mat-hint {
+  font-size: 0.78rem;
+  opacity: 0.7;
+  line-height: 1.35;
+}
 #cm-status { font-size: 0.78rem; opacity: 0.72; }
 
 @media (max-width: 900px) {

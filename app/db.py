@@ -2623,6 +2623,7 @@ def search_filament_catalog(q: str = "", brand: str = "", material: str = "", li
 def list_filament_catalog_for_colour_match(
     brand: str = "",
     material: str = "",
+    materials: Optional[list] = None,
     limit: int = 8000,
 ) -> list:
     """Return catalogue rows with usable hex for nearest-colour ranking."""
@@ -2636,13 +2637,21 @@ def list_filament_catalog_for_colour_match(
     if brand:
         clauses.append("brand LIKE ?")
         params.append(f"%{brand}%")
-    if material:
+    mat_list = [str(m).strip().upper() for m in (materials or []) if str(m).strip()]
+    if not mat_list and material:
         mat = material.strip().upper()
-        if mat == "PLA":
-            clauses.append("UPPER(material) IN ('PLA', 'PLA+')")
-        else:
-            clauses.append("UPPER(material) = ?")
-            params.append(mat)
+        mat_list = ["PLA", "PLA+"] if mat == "PLA" else [mat]
+    if mat_list:
+        # Expand PLA → PLA+ for catalogue search convenience.
+        expanded: list[str] = []
+        for mat in mat_list:
+            if mat not in expanded:
+                expanded.append(mat)
+            if mat == "PLA" and "PLA+" not in expanded:
+                expanded.append("PLA+")
+        placeholders = ", ".join("?" for _ in expanded)
+        clauses.append(f"UPPER(material) IN ({placeholders})")
+        params.extend(expanded)
     with _conn() as conn:
         rows = conn.execute(
             f"""SELECT brand, material, product, subtype, color_name, color_hex,

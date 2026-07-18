@@ -2,8 +2,19 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: colour-match palette (see below)
+- Latest commit: colour-match temp families + eyedrop zoom (see below)
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
+
+### 2026-07-18 fix (Colour Match temp families + eyedrop view)
+
+**Need:** Palette must not mix low-temp (PLA/PETG) with high-temp (ABS/ASA). Eyedropper needs zoom/rotate for precise picks.
+
+**What shipped:**
+- Material chips **Low temp** / **High temp** only (no All). API expands low→PLA/PLA+/PETG, high→ABS/ASA
+- Eyedrop stage: zoom +/−, rotate ↶/↷, reset, scroll-wheel zoom, drag to pan, click to pick
+- Cache-bust `app.js?v=638`, `style.css?v=491`
+
+**Deploy:** Backend restart + hard refresh.
 
 ### 2026-07-18 feature (Colour Match palette plan)
 
@@ -12,9 +23,9 @@ Latest GitHub/Pi state:
 **What shipped:**
 - Colour-match API returns `recommendation` + `palette` / `palette_summary` with `prefer_inventory_pct` (default 2)
 - UI **Palette plan** above detail results: Use shelf / Order per pick, Copy plan / Copy order list, click row to focus that pick
-- Cache-bust: `app.js?v=636`, `style.css?v=489`
+- Cache-bust: `app.js?v=637`, `style.css?v=490`
 
-**Files:** `app/main.py`, `app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `app/static/demo-runtime.js`, `SESSION_NEXT.md`
+**Files:** `app/main.py`, `app/db.py`, `app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `app/static/demo-runtime.js`, `SESSION_NEXT.md`
 
 **Deploy:** Backend restart required. Hard refresh after pull.
 
