@@ -2620,6 +2620,41 @@ def search_filament_catalog(q: str = "", brand: str = "", material: str = "", li
     return [dict(r) for r in rows]
 
 
+def list_filament_catalog_for_colour_match(
+    brand: str = "",
+    material: str = "",
+    limit: int = 8000,
+) -> list:
+    """Return catalogue rows with usable hex for nearest-colour ranking."""
+    clauses = [
+        "discontinued = 0",
+        "color_hex IS NOT NULL",
+        "TRIM(color_hex) != ''",
+        "LENGTH(REPLACE(REPLACE(UPPER(color_hex), '#', ''), ' ', '')) >= 6",
+    ]
+    params: list = []
+    if brand:
+        clauses.append("brand LIKE ?")
+        params.append(f"%{brand}%")
+    if material:
+        mat = material.strip().upper()
+        if mat == "PLA":
+            clauses.append("UPPER(material) IN ('PLA', 'PLA+')")
+        else:
+            clauses.append("UPPER(material) = ?")
+            params.append(mat)
+    with _conn() as conn:
+        rows = conn.execute(
+            f"""SELECT brand, material, product, subtype, color_name, color_hex,
+                       filament_weight_g, empty_spool_weight_g, diameter, traits, source
+                FROM filament_catalog
+                WHERE {' AND '.join(clauses)}
+                LIMIT ?""",
+            params + [max(1, min(int(limit or 8000), 20000))],
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
 def set_material_cost(
     material: str,
     brand: str,

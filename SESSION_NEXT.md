@@ -2,8 +2,24 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: see entries below (Flightdeck core)
+- Latest commit: colour-match (see below)
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
+
+### 2026-07-18 feature (Filament Colour Match)
+
+**Need:** Mix or eyedrop a target colour (e.g. multi-colour dog print) and find nearest filaments across the catalogue + on-shelf spools, with brand / name / order link / price.
+
+**What shipped:**
+- `GET/POST /api/filament/colour-match` — ranks `filament_catalog` + active `spools` by RGB distance; returns match %, Siddament `product_url` / `price_aud` from traits
+- Spools view **Colour match** (`#/spools?view=colour`) — HSV mixer, hex paste, material/brand chips, image eyedropper with multi-target list, inventory + buy results, Add spool / Order / Copy hex
+- Command palette: “Colour match”
+- Cache-bust: `app.js?v=634`, `style.css?v=487`
+
+**Files:** `app/main.py`, `app/db.py`, `app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `app/static/demo-runtime.js`, `SESSION_NEXT.md`
+
+**Deploy:** Backend restart required. Hard refresh after pull.
+
+**Test:** Spools → Colour match → paste a hex or drop an Orca screenshot → click pixel → confirm inventory + Siddament/OFDB matches; Sync catalogue if empty.
 
 ### 2026-07-16 fix (queue start shows HMS instead of stale Printing…)
 

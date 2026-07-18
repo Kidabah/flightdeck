@@ -7124,6 +7124,14 @@ class CostUpdate(BaseModel):
     empty_spool_weight_g: Optional[float] = None
 
 
+class ColourMatchRequest(BaseModel):
+    hex: str
+    material: Optional[str] = "PLA"
+    brand: Optional[str] = None
+    limit: int = 12
+    include_inventory: bool = True
+
+
 class EmptySpoolProfileUpdate(BaseModel):
     brand: str = ""
     material: Optional[str] = None
@@ -7501,6 +7509,156 @@ async def sync_filament_catalog(source: str = "all"):
 @app.get("/api/filament/catalog/search")
 async def search_filament_catalog(q: str = "", brand: str = "", material: str = "", limit: int = 25):
     return db.search_filament_catalog(q=q, brand=brand, material=material, limit=limit)
+
+
+_HEX_MAX_DIST = (3 * 255 * 255) ** 0.5  # ~441.67
+
+
+def _catalogue_traits(raw: object) -> dict:
+    if isinstance(raw, dict):
+        return raw
+    if not raw:
+        return {}
+    try:
+        parsed = json.loads(str(raw))
+        return parsed if isinstance(parsed, dict) else {}
+    except Exception:
+        return {}
+
+
+def _match_pct(delta: float) -> int:
+    if _HEX_MAX_DIST <= 0:
+        return 0
+    return max(0, min(100, int(round(100.0 * (1.0 - float(delta) / _HEX_MAX_DIST)))))
+
+
+def _colour_match_payload(
+    hex_value: str,
+    material: Optional[str] = None,
+    brand: Optional[str] = None,
+    limit: int = 12,
+    include_inventory: bool = True,
+) -> dict:
+    target = _norm_hex(hex_value)
+    if not target:
+        raise HTTPException(status_code=422, detail="Invalid hex colour (expected #RRGGBB)")
+    mat = (material or "").strip()
+    if mat.lower() in {"", "all", "*"}:
+        mat = ""
+    br = (brand or "").strip()
+    if br.lower() in {"", "all", "*"}:
+        br = ""
+    top_n = max(1, min(int(limit or 12), 40))
+
+    catalog_rows = db.list_filament_catalog_for_colour_match(brand=br, material=mat, limit=8000)
+    catalog_matches: list[dict] = []
+    for row in catalog_rows:
+        candidate = _norm_hex(row.get("color_hex"))
+        if not candidate:
+            continue
+        delta = _hex_dist(target, candidate)
+        traits = _catalogue_traits(row.get("traits"))
+        price = traits.get("price_aud")
+        try:
+            price_aud = float(price) if price not in (None, "") else None
+        except (TypeError, ValueError):
+            price_aud = None
+        catalog_matches.append({
+            "brand": row.get("brand") or "",
+            "material": row.get("material") or "",
+            "product": row.get("product"),
+            "subtype": row.get("subtype"),
+            "color_name": row.get("color_name") or "",
+            "color_hex": candidate,
+            "filament_weight_g": row.get("filament_weight_g"),
+            "empty_spool_weight_g": row.get("empty_spool_weight_g"),
+            "delta": round(float(delta), 2),
+            "match_pct": _match_pct(delta),
+            "product_url": traits.get("product_url") or None,
+            "price_aud": price_aud,
+            "sku": traits.get("sku") or None,
+            "source": row.get("source") or "",
+        })
+    catalog_matches.sort(key=lambda item: (item["delta"], item.get("brand") or "", item.get("color_name") or ""))
+    catalog_matches = catalog_matches[:top_n]
+
+    inventory_matches: list[dict] = []
+    if include_inventory:
+        mat_ok = {mat.upper(), "PLA+"} if mat.upper() == "PLA" else ({mat.upper()} if mat else None)
+        for spool in db.get_spools(include_archived=False):
+            spool_mat = str(spool.get("material") or "").upper()
+            if mat_ok is not None and spool_mat not in mat_ok:
+                continue
+            if br and br.lower() not in str(spool.get("brand") or "").lower():
+                continue
+            candidate = _norm_hex(spool.get("color_hex"))
+            if not candidate:
+                continue
+            delta = _hex_dist(target, candidate)
+            inventory_matches.append({
+                "id": spool.get("id"),
+                "display_id": spool.get("display_id"),
+                "brand": spool.get("brand") or "",
+                "material": spool.get("material") or "",
+                "subtype": spool.get("subtype"),
+                "color_name": spool.get("color_name") or "",
+                "color_hex": candidate,
+                "remaining_g": spool.get("remaining_g"),
+                "location_printer_id": spool.get("location_printer_id"),
+                "location_slot": spool.get("location_slot"),
+                "storage_location_name": spool.get("storage_location_name"),
+                "delta": round(float(delta), 2),
+                "match_pct": _match_pct(delta),
+            })
+        inventory_matches.sort(key=lambda item: (item["delta"], -(item.get("remaining_g") or 0)))
+        inventory_matches = inventory_matches[:top_n]
+
+    status = {
+        "sources": [
+            db.get_filament_catalog_status("open_filament_database"),
+            db.get_filament_catalog_status("siddament"),
+        ]
+    }
+    catalog_count = sum(int(s.get("count") or 0) for s in status["sources"])
+    return {
+        "ok": True,
+        "hex": target,
+        "material": mat or None,
+        "brand": br or None,
+        "label": _colour_label(target),
+        "catalog_matches": catalog_matches,
+        "inventory_matches": inventory_matches,
+        "catalog_count": catalog_count,
+        "catalog_status": status,
+    }
+
+
+@app.get("/api/filament/colour-match")
+async def get_filament_colour_match(
+    hex: str = "",
+    material: str = "PLA",
+    brand: str = "",
+    limit: int = 12,
+    include_inventory: bool = True,
+):
+    return _colour_match_payload(
+        hex_value=hex,
+        material=material,
+        brand=brand,
+        limit=limit,
+        include_inventory=include_inventory,
+    )
+
+
+@app.post("/api/filament/colour-match")
+async def post_filament_colour_match(body: ColourMatchRequest):
+    return _colour_match_payload(
+        hex_value=body.hex,
+        material=body.material,
+        brand=body.brand,
+        limit=body.limit,
+        include_inventory=body.include_inventory,
+    )
 
 
 @app.put("/api/filament/costs/{material}/{brand}")

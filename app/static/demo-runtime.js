@@ -449,6 +449,24 @@
     });
     if (path === '/api/filament/catalog/search') return jsonResponse({ items: [] });
     if (path === '/api/filament/catalog/sync') return jsonResponse({ ok: true, demo: true, imported: 12, results: [{ source: 'siddament', imported: 12 }], errors: [] });
+    if (path === '/api/filament/colour-match') {
+      return jsonResponse({
+        ok: true,
+        hex: '#C4A574',
+        material: 'PLA',
+        brand: null,
+        label: 'Brown',
+        catalog_count: 12,
+        catalog_status: { sources: [{ source: 'siddament', count: 12 }] },
+        inventory_matches: [
+          { id: 1, display_id: 42, brand: 'Siddament', material: 'PLA', color_name: 'Beige', color_hex: '#D8C6A5', remaining_g: 640, delta: 28.4, match_pct: 94 },
+        ],
+        catalog_matches: [
+          { brand: 'Siddament', material: 'PLA', color_name: 'Beige', color_hex: '#D8C6A5', delta: 28.4, match_pct: 94, price_aud: 34.95, product_url: 'https://siddament.com.au/', source: 'siddament' },
+          { brand: 'Bambu Lab', material: 'PLA', color_name: 'Desert Tan', color_hex: '#C9A66B', delta: 18.2, match_pct: 96, price_aud: null, product_url: null, source: 'open_filament_database' },
+        ],
+      });
+    }
     if (path === '/api/files') return jsonResponse(filesDemo());
     if (path === '/api/files/reprints') return jsonResponse([]);
     if (path === '/api/files/queue' || path === '/api/files/library/copy') return jsonResponse({ ok: true, demo: true });
