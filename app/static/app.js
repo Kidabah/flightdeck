@@ -18339,6 +18339,7 @@ let _colourMatchState = {
   dropDragMoved: false,
   dropDragLast: null,
   dropMode: 'move', // 'move' = drag to pan, 'pick' = click to eyedrop
+  livePicking: false,
   preferInventoryPct: 2,
 };
 
@@ -18613,15 +18614,20 @@ function _colourMatchHtml() {
       </div>
       <div class="cm-drop-zone" id="cm-drop">
         <div class="cm-drop-help">
-          <strong>Eyedrop from screenshot</strong>
-          <span>Drop an Orca/Bambu preview image, then drag to move around, zoom in, and pick pixels.</span>
-          <label class="cm-btn cm-file-btn" for="cm-file">Choose image</label>
-          <input id="cm-file" type="file" accept="image/*" hidden>
+          <strong>Eyedrop colours</strong>
+          <span>Best: <b>Live screen</b> picks from Bambu/Orca on your desktop (rotate the dog there). Or drop a screenshot.</span>
+          <div class="cm-drop-actions">
+            <button type="button" class="cm-btn cm-btn-primary" id="cm-live-screen" title="Pick colours from anywhere on your desktop">Live screen</button>
+            <label class="cm-btn cm-file-btn" for="cm-file">Choose image</label>
+            <input id="cm-file" type="file" accept="image/*" hidden>
+          </div>
+          <span class="cm-live-hint" id="cm-live-hint">Chrome/Edge: click Live screen, then click the dog in the slicer. Esc to stop.</span>
         </div>
         <div class="cm-drop-stage hidden" id="cm-stage">
           <div class="cm-view-toolbar">
+            <button type="button" class="cm-btn cm-btn-primary" id="cm-live-screen-2" title="Pick from live desktop / slicer">Live screen</button>
             <button type="button" class="cm-btn${(_colourMatchState.dropMode || 'move') === 'move' ? ' cm-btn-primary' : ''}" id="cm-mode-move" title="Drag to move around">Move</button>
-            <button type="button" class="cm-btn${(_colourMatchState.dropMode || 'move') === 'pick' ? ' cm-btn-primary' : ''}" id="cm-mode-pick" title="Click a pixel to eyedrop">Pick</button>
+            <button type="button" class="cm-btn${(_colourMatchState.dropMode || 'move') === 'pick' ? ' cm-btn-primary' : ''}" id="cm-mode-pick" title="Click a pixel on the screenshot">Pick image</button>
             <button type="button" class="cm-btn" id="cm-zoom-out" title="Zoom out">−</button>
             <span id="cm-zoom-label">100%</span>
             <button type="button" class="cm-btn" id="cm-zoom-in" title="Zoom in">+</button>
@@ -18891,6 +18897,21 @@ function _cmLoadImageFile(root, file) {
   img.src = url;
 }
 
+function _cmAddTargetHex(root, hex, { labelPrefix = 'Pick' } = {}) {
+  const norm = _cmNormHex(hex);
+  if (!norm) return null;
+  _cmSetHex(norm);
+  _cmPaintControls(root);
+  const id = `t-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const label = `${labelPrefix} ${_colourMatchState.targets.length + 1}`;
+  _colourMatchState.targets.push({ id, hex: norm, label });
+  _colourMatchState.activeTargetId = id;
+  const targets = root.querySelector('#cm-targets');
+  if (targets) targets.innerHTML = _cmTargetsHtml();
+  _cmScheduleMatch(root);
+  return norm;
+}
+
 function _cmPickFromCanvas(root, evt) {
   if (_colourMatchState.dropDragMoved) return;
   if ((_colourMatchState.dropMode || 'move') !== 'pick') return;
@@ -18902,16 +18923,45 @@ function _cmPickFromCanvas(root, evt) {
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
   const [r, g, b, a] = ctx.getImageData(x, y, 1, 1).data;
   if (a < 8) return;
-  const hex = _cmRgbToHex(r, g, b);
-  _cmSetHex(hex);
-  _cmPaintControls(root);
-  const id = `t-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-  const label = `Pick ${_colourMatchState.targets.length + 1}`;
-  _colourMatchState.targets.push({ id, hex, label });
-  _colourMatchState.activeTargetId = id;
-  const targets = root.querySelector('#cm-targets');
-  if (targets) targets.innerHTML = _cmTargetsHtml();
-  _cmScheduleMatch(root);
+  _cmAddTargetHex(root, _cmRgbToHex(r, g, b));
+}
+
+async function _cmLiveScreenPick(root) {
+  const hint = root?.querySelector('#cm-live-hint');
+  if (!window.isSecureContext) {
+    const msg = 'Live screen needs HTTPS (or localhost). Screenshot drop still works.';
+    if (hint) hint.textContent = msg;
+    showToast('Live screen unavailable', msg, 'error');
+    return;
+  }
+  if (typeof window.EyeDropper !== 'function') {
+    const msg = 'Live screen needs Chrome or Edge on desktop.';
+    if (hint) hint.textContent = msg;
+    showToast('Live screen unavailable', msg, 'error');
+    return;
+  }
+  if (_colourMatchState.livePicking) return;
+  _colourMatchState.livePicking = true;
+  if (hint) hint.textContent = 'Click anywhere on screen (slicer, desktop…). Esc cancels.';
+  showToast('Live screen', 'Click colours on the dog in Bambu/Orca. Esc when done.', 'success');
+  try {
+    // Keep reopening so you can rotate the model and grab the next pick.
+    while (_colourMatchState.livePicking) {
+      try {
+        const result = await new window.EyeDropper().open();
+        const hex = _cmAddTargetHex(root, result?.sRGBHex, { labelPrefix: 'Live' });
+        if (hex && hint) hint.textContent = `Picked ${hex} — click again for another, Esc to stop.`;
+      } catch (err) {
+        // AbortError = user pressed Esc / cancelled.
+        break;
+      }
+    }
+  } finally {
+    _colourMatchState.livePicking = false;
+    if (hint) {
+      hint.textContent = 'Chrome/Edge: click Live screen, then click the dog in the slicer. Esc to stop.';
+    }
+  }
 }
 
 function _cmBindDropViewControls(root) {
@@ -19069,6 +19119,9 @@ function _attachColourMatchEvents(root) {
     const file = e.target.files?.[0];
     if (file) _cmLoadImageFile(root, file);
   });
+  const startLive = () => _cmLiveScreenPick(root);
+  root.querySelector('#cm-live-screen')?.addEventListener('click', startLive);
+  root.querySelector('#cm-live-screen-2')?.addEventListener('click', startLive);
   _cmBindDropViewControls(root);
   root.querySelector('#cm-targets')?.addEventListener('click', e => {
     const remove = e.target.closest('[data-cm-remove-target]');

@@ -23302,6 +23302,20 @@ select optgroup {
   border-color: rgba(56, 189, 248, 0.55);
 }
 .cm-file-btn { display: inline-flex; align-items: center; }
+.cm-drop-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  margin-top: 0.35rem;
+}
+.cm-live-hint {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+  opacity: 0.7;
+  line-height: 1.35;
+}
 .cm-drop-zone {
   border: 1px dashed rgba(255, 255, 255, 0.2);
   border-radius: 0.75rem;

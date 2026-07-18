@@ -5,6 +5,16 @@ Latest GitHub/Pi state:
 - Latest commit: colour-match LAB + Move/Pick eyedrop (see below)
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
 
+### 2026-07-18 feature (Colour Match Live screen eyedrop)
+
+**Need:** Pick colours from the live slicer window (rotate the dog in Bambu/Orca) instead of a still screenshot.
+
+**What shipped:** **Live screen** button uses Chromium `EyeDropper` API — pick any desktop pixel; loop until Esc. Cache-bust `app.js?v=641`, `style.css?v=494`.
+
+**Note:** Needs Chrome/Edge + secure context (HTTPS or localhost). Plain `http://pi-ip` may block it.
+
+**Deploy:** Hard refresh (restart optional).
+
 ### 2026-07-18 fix (Colour Match LAB match + eyedrop Move/Pick)
 
 **Need:** Dark blood-red was ranking as Black (RGB collapse). Eyedrop “rotate” UX was a tilt slider — user wants click-drag to move around.
@@ -12,7 +22,7 @@ Latest GitHub/Pi state:
 **What shipped:**
 - Colour Match uses Lab + chroma/hue distance (blood red → Nightfire/Rosewood, not Hatchbox Black)
 - Eyedrop: **Move** (drag around) / **Pick** (click pixel), zoom, optional 90° rotate only — no tilt slider
-- Cache-bust `app.js?v=640`, `style.css?v=493`
+- Cache-bust `app.js?v=641`, `style.css?v=494`
 
 **Deploy:** Backend restart + hard refresh.
 
