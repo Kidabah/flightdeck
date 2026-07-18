@@ -5,6 +5,16 @@ Latest GitHub/Pi state:
 - Latest commit: colour-match (see below)
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
 
+### 2026-07-18 fix (Colour Match blank screen)
+
+**Symptom:** Flightdeck blank after Colour Match deploy.
+
+**Cause:** `app.js` had two full Colour Match implementations (merge duplicate). The later one overwrote helpers and referenced an unbound `costs` variable.
+
+**Fix:** Keep the `_cm*` implementation only; align CSS to `.cm-*` classes; cache-bust `app.js?v=635`, `style.css?v=488`.
+
+**Deploy:** `git pull` + hard refresh (restart optional for static-only).
+
 ### 2026-07-18 feature (Filament Colour Match)
 
 **Need:** Mix or eyedrop a target colour (e.g. multi-colour dog print) and find nearest filaments across the catalogue + on-shelf spools, with brand / name / order link / price.
@@ -13,7 +23,7 @@ Latest GitHub/Pi state:
 - `GET/POST /api/filament/colour-match` — ranks `filament_catalog` + active `spools` by RGB distance; returns match %, Siddament `product_url` / `price_aud` from traits
 - Spools view **Colour match** (`#/spools?view=colour`) — HSV mixer, hex paste, material/brand chips, image eyedropper with multi-target list, inventory + buy results, Add spool / Order / Copy hex
 - Command palette: “Colour match”
-- Cache-bust: `app.js?v=634`, `style.css?v=487`
+- Cache-bust: `app.js?v=635`, `style.css?v=488`
 
 **Files:** `app/main.py`, `app/db.py`, `app/static/app.js`, `app/static/style.css`, `app/static/index.html`, `app/static/demo-runtime.js`, `SESSION_NEXT.md`
 
