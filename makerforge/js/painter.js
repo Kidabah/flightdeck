@@ -1,5 +1,5 @@
 /**
- * MakerDeck STL Painter Engine — b401
+ * MakerDeck STL Painter Engine — b406
  * Pure computation module: STL parsing, feature detection, 3MF export.
  */
 
@@ -65,6 +65,83 @@ export function deduplicateVertices(vertices, nTri) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Face adjacency + morphological cleanup                            */
+/* ------------------------------------------------------------------ */
+
+function edgeKey(a, b) { return a < b ? `${a}-${b}` : `${b}-${a}`; }
+
+export function buildFaceAdj(faces, nTri) {
+  const edgeToFace = new Map();
+  const faceAdj = new Array(nTri);
+  for (let i = 0; i < nTri; i++) faceAdj[i] = [];
+
+  for (let i = 0; i < nTri; i++) {
+    const a = faces[i * 3], b = faces[i * 3 + 1], c = faces[i * 3 + 2];
+    const edges = [edgeKey(a, b), edgeKey(b, c), edgeKey(a, c)];
+    for (const ek of edges) {
+      const prev = edgeToFace.get(ek);
+      if (prev !== undefined) {
+        faceAdj[prev].push(i);
+        faceAdj[i].push(prev);
+      }
+      edgeToFace.set(ek, i);
+    }
+  }
+  return faceAdj;
+}
+
+function morphDilate(mask, faceAdj, nTri, steps) {
+  if (steps <= 0) return;
+  let cur = mask.slice();
+  for (let s = 0; s < steps; s++) {
+    const next = cur.slice();
+    for (let i = 0; i < nTri; i++) {
+      if (cur[i]) continue;
+      for (const nb of faceAdj[i]) {
+        if (cur[nb]) { next[i] = 1; break; }
+      }
+    }
+    cur = next;
+  }
+  mask.set(cur);
+}
+
+function morphErode(mask, faceAdj, nTri, steps) {
+  if (steps <= 0) return;
+  let cur = mask.slice();
+  for (let s = 0; s < steps; s++) {
+    const next = cur.slice();
+    for (let i = 0; i < nTri; i++) {
+      if (!cur[i]) continue;
+      for (const nb of faceAdj[i]) {
+        if (!cur[nb]) { next[i] = 0; break; }
+      }
+    }
+    cur = next;
+  }
+  mask.set(cur);
+}
+
+/** Dilate then erode — bridge pinholes in thin ridges. */
+export function morphClose(mask, faceAdj, nTri, steps) {
+  morphDilate(mask, faceAdj, nTri, steps);
+  morphErode(mask, faceAdj, nTri, steps);
+}
+
+/** Erode then dilate — strip speckles. */
+export function morphOpen(mask, faceAdj, nTri, steps) {
+  morphErode(mask, faceAdj, nTri, steps);
+  morphDilate(mask, faceAdj, nTri, steps);
+}
+
+function percentileCut(sortedAsc, keepTopFraction) {
+  if (!sortedAsc.length) return Infinity;
+  const keep = Math.min(0.95, Math.max(0.05, keepTopFraction));
+  const idx = Math.floor((1 - keep) * (sortedAsc.length - 1));
+  return sortedAsc[idx];
+}
+
+/* ------------------------------------------------------------------ */
 /*  Feature Detection — Laplacian Smoothing Method                    */
 /* ------------------------------------------------------------------ */
 
@@ -73,7 +150,12 @@ export function detectFeatures(verts, faces, nVerts, nTri, opts = {}) {
     iterations = 60,
     weight = 0.5,
     threshold = 0.35,
-    mode = 'both' // 'emboss', 'deboss', 'both'
+    mode = 'both', // 'emboss', 'deboss', 'both'
+    adaptive = true,
+    absFloor = 0.05,
+    ridgeTop = true,
+    morphCloseSteps = 0,
+    morphOpenSteps = 0,
   } = opts;
 
   // 1. Build adjacency
@@ -152,62 +234,135 @@ export function detectFeatures(verts, faces, nVerts, nTri, opts = {}) {
     [smooth, tmp] = [tmp, smooth];
   }
 
-  // 4. Signed displacement per vertex
+  // 4. Signed displacement per vertex + raw offset vectors
   const displacement = new Float32Array(nVerts);
+  const offsetX = new Float32Array(nVerts);
+  const offsetY = new Float32Array(nVerts);
+  const offsetZ = new Float32Array(nVerts);
   for (let i = 0; i < nVerts; i++) {
     const dx = verts[i * 3]     - smooth[i * 3];
     const dy = verts[i * 3 + 1] - smooth[i * 3 + 1];
     const dz = verts[i * 3 + 2] - smooth[i * 3 + 2];
+    offsetX[i] = dx; offsetY[i] = dy; offsetZ[i] = dz;
     displacement[i] = dx * vertNormals[i * 3] + dy * vertNormals[i * 3 + 1] + dz * vertNormals[i * 3 + 2];
   }
 
-  // 5. Classify faces
+  // 5. Per-face scores (displacement × ridge-top alignment)
+  const embossScores = new Float32Array(nTri);
+  const debossScores = new Float32Array(nTri);
+  const wantEmboss = mode === 'emboss' || mode === 'both';
+  const wantDeboss = mode === 'deboss' || mode === 'both';
+
+  for (let i = 0; i < nTri; i++) {
+    const a = faces[i * 3], b = faces[i * 3 + 1], c = faces[i * 3 + 2];
+    const ax = verts[a * 3], ay = verts[a * 3 + 1], az = verts[a * 3 + 2];
+    const bx = verts[b * 3], by = verts[b * 3 + 1], bz = verts[b * 3 + 2];
+    const cx = verts[c * 3], cy = verts[c * 3 + 1], cz = verts[c * 3 + 2];
+    const e1x = bx - ax, e1y = by - ay, e1z = bz - az;
+    const e2x = cx - ax, e2y = cy - ay, e2z = cz - az;
+    let fnx = e1y * e2z - e1z * e2y;
+    let fny = e1z * e2x - e1x * e2z;
+    let fnz = e1x * e2y - e1y * e2x;
+    const flen = Math.sqrt(fnx * fnx + fny * fny + fnz * fnz);
+    if (flen > 1e-12) { fnx /= flen; fny /= flen; fnz /= flen; }
+
+    const avg = (displacement[a] + displacement[b] + displacement[c]) / 3;
+    let align = 1;
+    if (ridgeTop) {
+      let ox = (offsetX[a] + offsetX[b] + offsetX[c]) / 3;
+      let oy = (offsetY[a] + offsetY[b] + offsetY[c]) / 3;
+      let oz = (offsetZ[a] + offsetZ[b] + offsetZ[c]) / 3;
+      const olen = Math.sqrt(ox * ox + oy * oy + oz * oz);
+      if (olen > 1e-10) {
+        ox /= olen; oy /= olen; oz /= olen;
+        const dot = fnx * ox + fny * oy + fnz * oz;
+        // Prefer faces whose normal aligns with the displacement (ridge caps).
+        align = 0.2 + 0.8 * Math.max(0, Math.abs(dot));
+      } else {
+        align = 0.2;
+      }
+    }
+    embossScores[i] = avg > 0 ? avg * align : avg;
+    debossScores[i] = avg < 0 ? avg * align : avg;
+  }
+
+  // 6. Resolve thresholds (adaptive percentile or absolute mm)
+  let embossThr = threshold;
+  let debossThr = threshold;
+  if (adaptive) {
+    const keepTop = Math.min(0.95, Math.max(0.05, threshold > 1 ? 0.95 : threshold));
+    if (wantEmboss) {
+      const pos = [];
+      for (let i = 0; i < nTri; i++) {
+        if (embossScores[i] > absFloor) pos.push(embossScores[i]);
+      }
+      pos.sort((x, y) => x - y);
+      embossThr = Math.max(absFloor, percentileCut(pos, keepTop));
+    }
+    if (wantDeboss) {
+      const neg = [];
+      for (let i = 0; i < nTri; i++) {
+        if (debossScores[i] < -absFloor) neg.push(-debossScores[i]);
+      }
+      neg.sort((x, y) => x - y);
+      debossThr = Math.max(absFloor, percentileCut(neg, keepTop));
+    }
+  } else {
+    embossThr = Math.max(absFloor, threshold);
+    debossThr = Math.max(absFloor, threshold);
+  }
+
+  // 7. Classify faces
   const embossMask = new Uint8Array(nTri);
   const debossMask = new Uint8Array(nTri);
   let embossCount = 0, debossCount = 0;
 
   for (let i = 0; i < nTri; i++) {
-    const a = faces[i * 3], b = faces[i * 3 + 1], c = faces[i * 3 + 2];
-    const avg = (displacement[a] + displacement[b] + displacement[c]) / 3;
-    if ((mode === 'emboss' || mode === 'both') && avg > threshold) {
+    if (wantEmboss && embossScores[i] >= embossThr) {
       embossMask[i] = 1;
       embossCount++;
     }
-    if ((mode === 'deboss' || mode === 'both') && avg < -threshold) {
+    if (wantDeboss && debossScores[i] <= -debossThr) {
       debossMask[i] = 1;
       debossCount++;
     }
   }
 
-  return { embossMask, debossMask, embossCount, debossCount };
+  // 8. Morphological cleanup (close pinholes, optional open for noise)
+  if (morphCloseSteps > 0 || morphOpenSteps > 0) {
+    const faceAdj = buildFaceAdj(faces, nTri);
+    if (wantEmboss && embossCount > 0) {
+      morphClose(embossMask, faceAdj, nTri, morphCloseSteps);
+      morphOpen(embossMask, faceAdj, nTri, morphOpenSteps);
+    }
+    if (wantDeboss && debossCount > 0) {
+      morphClose(debossMask, faceAdj, nTri, morphCloseSteps);
+      morphOpen(debossMask, faceAdj, nTri, morphOpenSteps);
+    }
+    embossCount = 0; debossCount = 0;
+    for (let i = 0; i < nTri; i++) {
+      if (embossMask[i]) embossCount++;
+      if (debossMask[i]) debossCount++;
+    }
+  }
+
+  return {
+    embossMask,
+    debossMask,
+    embossCount,
+    debossCount,
+    embossThr,
+    debossThr,
+  };
 }
 
 /* ------------------------------------------------------------------ */
 /*  Cluster Cleaning — BFS Connected Components                       */
 /* ------------------------------------------------------------------ */
 
-export function cleanClusters(mask, faces, nTri, verts, minArea) {
-  // Build face adjacency (shared edge)
-  const edgeToFace = new Map();
-  function edgeKey(a, b) { return a < b ? `${a}-${b}` : `${b}-${a}`; }
+export function cleanClusters(mask, faces, nTri, verts, minArea, faceAdjIn) {
+  const faceAdj = faceAdjIn || buildFaceAdj(faces, nTri);
 
-  const faceAdj = new Array(nTri);
-  for (let i = 0; i < nTri; i++) faceAdj[i] = [];
-
-  for (let i = 0; i < nTri; i++) {
-    const a = faces[i * 3], b = faces[i * 3 + 1], c = faces[i * 3 + 2];
-    const edges = [edgeKey(a, b), edgeKey(b, c), edgeKey(a, c)];
-    for (const ek of edges) {
-      const prev = edgeToFace.get(ek);
-      if (prev !== undefined) {
-        faceAdj[prev].push(i);
-        faceAdj[i].push(prev);
-      }
-      edgeToFace.set(ek, i);
-    }
-  }
-
-  // Triangle area helper
   function triArea(fi) {
     const a = faces[fi * 3], b = faces[fi * 3 + 1], c = faces[fi * 3 + 2];
     const ax = verts[a * 3], ay = verts[a * 3 + 1], az = verts[a * 3 + 2];
@@ -221,7 +376,6 @@ export function cleanClusters(mask, faces, nTri, verts, minArea) {
     return 0.5 * Math.sqrt(crx * crx + cry * cry + crz * crz);
   }
 
-  // BFS connected components
   const visited = new Uint8Array(nTri);
   let removed = 0;
 

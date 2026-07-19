@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STL Painter — MakerDeck b405</title>
+<title>STL Painter — MakerDeck b406</title>
 <script type="importmap">
 { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/" } }
 </script>
@@ -129,6 +129,15 @@
     cursor: pointer; transition: all 0.15s;
   }
   .preset-swatch:hover { border-color: var(--text); transform: scale(1.15); }
+  .detect-preset-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  .detect-preset-btn {
+    flex: 1; min-width: 72px; padding: 6px 8px; font-size: 11px; font-weight: 600;
+    border-radius: 6px; border: 1px solid var(--border); background: var(--panel-2);
+    color: var(--muted); cursor: pointer; transition: border-color 0.12s, color 0.12s, background 0.12s;
+  }
+  .detect-preset-btn:hover { border-color: var(--accent); color: var(--text); }
+  .detect-preset-btn.active { border-color: var(--accent); color: var(--text); background: rgba(56,189,248,0.12); }
+  .detect-hint { color: var(--muted); font-size: 11px; line-height: 1.35; margin-top: 8px; }
 
   /* Stats */
   .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -216,7 +225,7 @@
 <header class="header">
   <div class="header-left">
     <div class="header-brand">
-      <span class="header-eyebrow">MakerDeck b405</span>
+      <span class="header-eyebrow">MakerDeck b406</span>
       <span class="header-title">STL Painter</span>
       <span class="header-subtitle">Detect, area-paint, and export multi-color 3MFs</span>
     </div>
@@ -245,27 +254,50 @@
     <!-- Detection Settings -->
     <div class="panel">
       <div class="panel-title">Detection Settings</div>
+      <div class="form-label"><span>Preset</span></div>
+      <div class="detect-preset-row" id="detectPresetRow">
+        <button type="button" class="detect-preset-btn active" data-preset="fine" title="Webbing, logos, fine ridges">Fine detail</button>
+        <button type="button" class="detect-preset-btn" data-preset="bold" title="Chunky text / bold emboss">Text / bold</button>
+        <button type="button" class="detect-preset-btn" data-preset="custom" title="Use current sliders">Custom</button>
+      </div>
       <div class="form-group">
         <div class="form-label"><span>Mode</span></div>
         <select id="detectMode">
           <option value="both">Emboss + Deboss</option>
-          <option value="emboss">Emboss Only</option>
+          <option value="emboss" selected>Emboss Only</option>
           <option value="deboss">Deboss Only</option>
         </select>
       </div>
       <div class="form-group">
-        <div class="form-label"><span>Sensitivity</span><span class="value" id="sensitivityVal">0.35</span></div>
-        <input type="range" id="sensitivity" min="0.05" max="1.5" step="0.05" value="0.35">
+        <div class="form-label"><span id="sensitivityLabel">Sensitivity (keep top %)</span><span class="value" id="sensitivityVal">0.30</span></div>
+        <input type="range" id="sensitivity" min="0.05" max="1.5" step="0.05" value="0.30">
       </div>
       <div class="form-group">
-        <div class="form-label"><span>Smoothing Iterations</span><span class="value" id="smoothIterVal">60</span></div>
-        <input type="range" id="smoothIter" min="5" max="200" step="5" value="60">
+        <div class="form-label"><span>Smoothing Iterations</span><span class="value" id="smoothIterVal">100</span></div>
+        <input type="range" id="smoothIter" min="5" max="200" step="5" value="100">
       </div>
       <div class="form-group">
-        <div class="form-label"><span>Min Cluster Area (mm&sup2;)</span><span class="value" id="minClusterVal">2.0</span></div>
-        <input type="range" id="minCluster" min="0" max="20" step="0.5" value="2">
+        <div class="form-label"><span>Min Cluster Area (mm&sup2;)</span><span class="value" id="minClusterVal">1.0</span></div>
+        <input type="range" id="minCluster" min="0" max="20" step="0.5" value="1">
+      </div>
+      <label class="form-label" style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-weight:500;margin-bottom:8px">
+        <input type="checkbox" id="adaptiveThr" checked style="margin-top:2px;accent-color:var(--accent)">
+        <span style="color:var(--muted);font-size:12px;line-height:1.35">Adaptive threshold (percentile of raised/sunken faces)</span>
+      </label>
+      <label class="form-label" style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-weight:500;margin-bottom:8px">
+        <input type="checkbox" id="ridgeTop" checked style="margin-top:2px;accent-color:var(--accent)">
+        <span style="color:var(--muted);font-size:12px;line-height:1.35">Prefer ridge tops (less side-wall paint)</span>
+      </label>
+      <div class="form-group">
+        <div class="form-label"><span>Morph close (fill holes)</span><span class="value" id="morphCloseVal">2</span></div>
+        <input type="range" id="morphClose" min="0" max="4" step="1" value="2">
+      </div>
+      <div class="form-group">
+        <div class="form-label"><span>Morph open (strip noise)</span><span class="value" id="morphOpenVal">0</span></div>
+        <input type="range" id="morphOpen" min="0" max="3" step="1" value="0">
       </div>
       <button class="btn btn-primary btn-full" id="detectBtn" disabled>Detect Features</button>
+      <div class="detect-hint" id="detectHint">Fine webbing: use <b style="color:var(--text)">Fine detail</b> then Detect. If you see holes in lines, raise Morph close or Sensitivity.</div>
       <label class="form-label" style="margin-top:10px;display:flex;align-items:flex-start;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-weight:500">
         <input type="checkbox" id="constrainBox" checked style="margin-top:2px;accent-color:var(--accent)">
         <span style="color:var(--muted);font-size:12px;line-height:1.35">Box paint Emboss/Deboss only colours <b style="color:var(--text)">detected</b> features inside the box (not the whole rectangle)</span>
@@ -382,7 +414,7 @@
     <span class="status-dot idle" id="statusDot"></span>
     <span id="statusText">Ready — load an STL to begin</span>
   </div>
-  <span>MakerDeck b405 — STL Painter</span>
+  <span>MakerDeck b406 — STL Painter</span>
 </footer>
 
 <!-- Main Script -->
@@ -395,7 +427,7 @@ import {
   detectFeatures,
   cleanClusters,
   export3MF
-} from './js/painter.js';
+} from './js/painter.js?v=406';
 
 /* ------------------------------------------------------------------ */
 /*  State                                                             */
@@ -507,11 +539,107 @@ const viewportHint = document.getElementById('viewportHint');
 
 const sensitivitySlider = document.getElementById('sensitivity');
 const sensitivityVal = document.getElementById('sensitivityVal');
+const sensitivityLabel = document.getElementById('sensitivityLabel');
 const smoothIterSlider = document.getElementById('smoothIter');
 const smoothIterVal = document.getElementById('smoothIterVal');
 const minClusterSlider = document.getElementById('minCluster');
 const minClusterVal = document.getElementById('minClusterVal');
 const detectModeSelect = document.getElementById('detectMode');
+const adaptiveThrCheck = document.getElementById('adaptiveThr');
+const ridgeTopCheck = document.getElementById('ridgeTop');
+const morphCloseSlider = document.getElementById('morphClose');
+const morphCloseVal = document.getElementById('morphCloseVal');
+const morphOpenSlider = document.getElementById('morphOpen');
+const morphOpenVal = document.getElementById('morphOpenVal');
+const detectHint = document.getElementById('detectHint');
+
+const DETECT_PRESETS = {
+  fine: {
+    mode: 'emboss',
+    sensitivity: 0.30,
+    smoothIter: 100,
+    minCluster: 1.0,
+    adaptive: true,
+    ridgeTop: true,
+    morphClose: 2,
+    morphOpen: 0,
+  },
+  bold: {
+    mode: 'both',
+    sensitivity: 0.40,
+    smoothIter: 40,
+    minCluster: 3.0,
+    adaptive: true,
+    ridgeTop: false,
+    morphClose: 1,
+    morphOpen: 1,
+  },
+};
+
+let activeDetectPreset = 'fine';
+
+function updateSensitivityLabel() {
+  if (sensitivityLabel) {
+    sensitivityLabel.textContent = adaptiveThrCheck.checked
+      ? 'Sensitivity (keep top %)'
+      : 'Sensitivity (mm)';
+  }
+}
+
+function getDetectOpts() {
+  return {
+    threshold: parseFloat(sensitivitySlider.value),
+    iterations: parseInt(smoothIterSlider.value, 10),
+    weight: 0.5,
+    mode: detectModeSelect.value,
+    adaptive: adaptiveThrCheck.checked,
+    absFloor: 0.05,
+    ridgeTop: ridgeTopCheck.checked,
+    morphCloseSteps: parseInt(morphCloseSlider.value, 10),
+    morphOpenSteps: parseInt(morphOpenSlider.value, 10),
+  };
+}
+
+function invalidateFeatureMasks() {
+  state.featureEmboss = null;
+  state.featureDeboss = null;
+}
+
+function setDetectPresetActive(name) {
+  activeDetectPreset = name;
+  document.querySelectorAll('.detect-preset-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.preset === name);
+  });
+}
+
+function applyDetectPreset(name) {
+  const p = DETECT_PRESETS[name];
+  if (!p) {
+    setDetectPresetActive('custom');
+    return;
+  }
+  detectModeSelect.value = p.mode;
+  sensitivitySlider.value = String(p.sensitivity);
+  sensitivityVal.textContent = p.sensitivity.toFixed(2);
+  smoothIterSlider.value = String(p.smoothIter);
+  smoothIterVal.textContent = String(p.smoothIter);
+  minClusterSlider.value = String(p.minCluster);
+  minClusterVal.textContent = p.minCluster.toFixed(1);
+  adaptiveThrCheck.checked = p.adaptive;
+  ridgeTopCheck.checked = p.ridgeTop;
+  morphCloseSlider.value = String(p.morphClose);
+  morphCloseVal.textContent = String(p.morphClose);
+  morphOpenSlider.value = String(p.morphOpen);
+  morphOpenVal.textContent = String(p.morphOpen);
+  updateSensitivityLabel();
+  setDetectPresetActive(name);
+  invalidateFeatureMasks();
+}
+
+function markDetectCustom() {
+  invalidateFeatureMasks();
+  if (activeDetectPreset !== 'custom') setDetectPresetActive('custom');
+}
 const filamentProfileSelect = document.getElementById('filamentProfile');
 
 const colorBody = document.getElementById('colorBody');
@@ -541,9 +669,41 @@ function updateStats() {
 /*  Slider Bindings                                                   */
 /* ------------------------------------------------------------------ */
 
-sensitivitySlider.addEventListener('input', () => { sensitivityVal.textContent = parseFloat(sensitivitySlider.value).toFixed(2); });
-smoothIterSlider.addEventListener('input', () => { smoothIterVal.textContent = smoothIterSlider.value; });
-minClusterSlider.addEventListener('input', () => { minClusterVal.textContent = parseFloat(minClusterSlider.value).toFixed(1); });
+sensitivitySlider.addEventListener('input', () => {
+  sensitivityVal.textContent = parseFloat(sensitivitySlider.value).toFixed(2);
+  markDetectCustom();
+});
+smoothIterSlider.addEventListener('input', () => {
+  smoothIterVal.textContent = smoothIterSlider.value;
+  markDetectCustom();
+});
+minClusterSlider.addEventListener('input', () => {
+  minClusterVal.textContent = parseFloat(minClusterSlider.value).toFixed(1);
+  markDetectCustom();
+});
+morphCloseSlider.addEventListener('input', () => {
+  morphCloseVal.textContent = morphCloseSlider.value;
+  markDetectCustom();
+});
+morphOpenSlider.addEventListener('input', () => {
+  morphOpenVal.textContent = morphOpenSlider.value;
+  markDetectCustom();
+});
+adaptiveThrCheck.addEventListener('change', () => {
+  updateSensitivityLabel();
+  markDetectCustom();
+});
+ridgeTopCheck.addEventListener('change', () => markDetectCustom());
+detectModeSelect.addEventListener('change', () => markDetectCustom());
+
+document.querySelectorAll('.detect-preset-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const name = btn.dataset.preset;
+    if (name === 'custom') setDetectPresetActive('custom');
+    else applyDetectPreset(name);
+  });
+});
+updateSensitivityLabel();
 
 /* ------------------------------------------------------------------ */
 /*  Color Pickers                                                     */
@@ -785,12 +945,7 @@ function pushUndo() {
 function ensureFeatureMasks() {
   if (state.featureEmboss && state.featureDeboss) return true;
   if (!state.verts) return false;
-  const opts = {
-    threshold: parseFloat(sensitivitySlider.value),
-    iterations: parseInt(smoothIterSlider.value),
-    weight: 0.5,
-    mode: detectModeSelect.value
-  };
+  const opts = getDetectOpts();
   const result = detectFeatures(state.verts, state.faces, state.nVerts, state.nTri, opts);
   const minArea = parseFloat(minClusterSlider.value);
   if (minArea > 0) {
@@ -1044,12 +1199,7 @@ detectBtn.addEventListener('click', () => {
 
   // Use setTimeout to let UI update
   setTimeout(() => {
-    const opts = {
-      threshold: parseFloat(sensitivitySlider.value),
-      iterations: parseInt(smoothIterSlider.value),
-      weight: 0.5,
-      mode: detectModeSelect.value
-    };
+    const opts = getDetectOpts();
 
     pushUndo();
     const result = detectFeatures(state.verts, state.faces, state.nVerts, state.nTri, opts);
@@ -1068,10 +1218,22 @@ detectBtn.addEventListener('click', () => {
     updateMeshColors();
     recountPaint();
     exportBtn.disabled = false;
+    const thrNote = opts.adaptive
+      ? ` · thr≈${result.embossThr?.toFixed?.(3) ?? '?'} / ${result.debossThr?.toFixed?.(3) ?? '?'}`
+      : '';
     setStatus(
-      `Detection complete — ${state.embossCount.toLocaleString()} emboss, ${state.debossCount.toLocaleString()} deboss faces`,
+      `Detection complete — ${state.embossCount.toLocaleString()} emboss, ${state.debossCount.toLocaleString()} deboss faces${thrNote}`,
       'idle'
     );
+    if (detectHint) {
+      if (state.embossCount === 0 && opts.mode !== 'deboss') {
+        detectHint.innerHTML = 'No emboss faces found — lower Sensitivity, raise Smoothing, or try <b style="color:var(--text)">Text / bold</b>.';
+      } else if (activeDetectPreset === 'fine') {
+        detectHint.innerHTML = 'Fine detail applied. Holes in webbing? Raise <b style="color:var(--text)">Morph close</b>. Too much body paint? Lower Sensitivity or enable ridge tops.';
+      } else {
+        detectHint.innerHTML = 'Tip: <b style="color:var(--text)">Fine detail</b> for webbing/logos · <b style="color:var(--text)">Text / bold</b> for chunky emboss.';
+      }
+    }
   }, 30);
 });
 
@@ -1141,12 +1303,7 @@ batchBtn.addEventListener('click', async () => {
   batchBtn.disabled = true;
   setStatus('Batch processing...', 'working');
 
-  const opts = {
-    threshold: parseFloat(sensitivitySlider.value),
-    iterations: parseInt(smoothIterSlider.value),
-    weight: 0.5,
-    mode: detectModeSelect.value
-  };
+  const opts = getDetectOpts();
   const minArea = parseFloat(minClusterSlider.value);
   const profile = filamentProfileSelect.value;
   const filType = profile.includes('PETG') ? 'PETG' : profile.includes('ABS') ? 'ABS' :

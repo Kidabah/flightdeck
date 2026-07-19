@@ -1,3 +1,14 @@
+### 2026-07-19 — b406: STL Painter — better emboss detection
+
+Detection upgrade for fine webbing / logos:
+- **Adaptive threshold** (default): Sensitivity = keep top % of raised/sunken face scores (absolute mm toggle still available)
+- **Ridge-top preference**: score = displacement × face/offset alignment (less side-wall paint)
+- **Morph close / open**: dilate/erode face adjacency to fill pinholes and strip speckles
+- Presets: **Fine detail** / **Text / bold** / Custom
+- Cache-bust: `painter.js?v=406`. Hard refresh Painter; no backend restart.
+
+Files: `painter.html`, `js/painter.js`, `SESSION_NEXT.md`.
+
 ### 2026-07-19 — b405: STL Painter — box paint respects detected emboss/deboss
 
 Box paint with Emboss/Deboss no longer flood-fills the whole rectangle. With **constrain** on (default), it only paints faces inside the box that Detect classified as that feature. Body still fills the whole box (eraser). Feature maps kept separate from paint maps.

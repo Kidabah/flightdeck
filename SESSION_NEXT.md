@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: colour-match LAB + Move/Pick eyedrop (see below)
+- Latest commit: MakerDeck b406 STL Painter emboss detection (see makerforge/SESSION_NEXT.md)
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
+
+### 2026-07-19 feature (MakerDeck b406 — better emboss detect)
+
+**Need:** Fine webbing (Spidey) detects cleaner — fewer holes, less body/side-wall paint.
+
+**What shipped:** Adaptive percentile threshold, ridge-top scoring, morph close/open, Fine detail / Text bold presets. Cache-bust `painter.js?v=406`.
+
+**Deploy:** Hard refresh Painter page (no backend restart).
 
 ### 2026-07-18 feature (Colour Match Live screen eyedrop)
 
