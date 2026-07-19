@@ -12,7 +12,7 @@
 </script>
 <style>
 /* ================================================================== */
-/*  b500 — MakerDeck STL Painter  (tabbed layout)                     */
+/*  b501 — MakerDeck STL Painter  (tabbed layout)                     */
 /* ================================================================== */
 
 /* -- Reset & Vars -------------------------------------------------- */
@@ -266,7 +266,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   <header class="header">
     <button class="toggle-sidebar" id="toggleSidebar" title="Toggle sidebar">☰</button>
     <div class="logo">Maker<span>Deck</span> · STL Painter</div>
-    <div class="build">b500</div>
+    <div class="build">b501</div>
   </header>
 
   <!-- Left Sidebar (tabbed) -->
@@ -283,8 +283,8 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <div class="tab-page active" id="tabModel">
         <div class="section-label">Load STL</div>
         <div class="drop-zone" id="dropZone">
-          Drop STL here<br><span style="font-size:11px;color:var(--muted)">or click to browse</span>
-          <input type="file" id="fileInput" accept=".stl">
+          Drop STL or 3MF here<br><span style="font-size:11px;color:var(--muted)">or click to browse</span>
+          <input type="file" id="fileInput" accept=".stl,.3mf">
         </div>
 
         <div class="section-label">Paint Resolution</div>
@@ -292,6 +292,12 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
         <div class="btn-row">
           <button class="btn" id="resFineBtn" disabled>Fine ×4</button>
           <button class="btn" id="resUltraBtn" disabled>Ultra ×16</button>
+        </div>
+
+        <div class="section-label">Clear</div>
+        <div class="btn-row">
+          <button class="btn" id="clearPaintBtn" disabled>Clear Paint</button>
+          <button class="btn" id="clearModelBtn" disabled style="color:var(--red)">Clear Model</button>
         </div>
 
         <div class="section-label" style="margin-top:16px">Stats</div>
@@ -518,7 +524,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
         <div class="section-label" style="margin-top:20px">Batch Process</div>
         <div class="batch-zone" id="batchZone">
           Drop a folder of STLs
-          <input type="file" id="batchInput" accept=".stl" multiple webkitdirectory>
+          <input type="file" id="batchInput" accept=".stl,.3mf" multiple webkitdirectory>
         </div>
         <div class="batch-list" id="batchList"></div>
         <button class="btn" id="batchBtn" disabled style="margin-top:6px;width:100%">Process All</button>
@@ -574,7 +580,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b500</span>
+    <span>MakerDeck · STL Painter b501</span>
   </footer>
 </div>
 
@@ -586,8 +592,9 @@ import {
   parseSTLBinary, deduplicateVertices, detectFeatures, cleanClusters,
   buildFaceAdj, findPaintBoundary, brushDabFaces, smartFillFaces,
   paintClassOf, upgradePaintResolution, export3MF,
-  findMeshIslands, buildIslandMap, floodFillSameClass, selectIsland
-} from './js/painter.js?v=500';
+  findMeshIslands, buildIslandMap, floodFillSameClass, selectIsland,
+  import3MF
+} from './js/painter.js?v=501';
 
 /* ================================================================== */
 /*  STATE                                                             */
@@ -1486,6 +1493,7 @@ async function loadSTL(file) {
   detectBtn.disabled = false; exportBtn.disabled = false;
   $('resFineBtn').disabled = false; $('resUltraBtn').disabled = false;
   $('detectIslandsBtn').disabled = false;
+  $('clearPaintBtn').disabled = false; $('clearModelBtn').disabled = false;
   $('islandInfo').textContent = 'Click "Find Islands" to detect mesh components.';
   viewportHint.style.display = 'block';
   setStatus(`Loaded ${file.name} — ${nTri.toLocaleString()} faces`, 'idle');
@@ -1493,6 +1501,123 @@ async function loadSTL(file) {
 
 /* ================================================================== */
 /*  TAB NAVIGATION                                                    */
+
+/* ================================================================== */
+/*  LOAD FILE (dispatcher)                                            */
+/* ================================================================== */
+
+function loadFile(file) {
+  const name = file.name.toLowerCase();
+  if (name.endsWith('.3mf')) load3MF(file);
+  else loadSTL(file);
+}
+
+/* ================================================================== */
+/*  LOAD 3MF                                                          */
+/* ================================================================== */
+
+async function load3MF(file) {
+  setStatus(`Loading 3MF: ${file.name}…`, 'working');
+  S.fileName = file.name.replace(/\.3mf$/i, '');
+
+  try {
+    const buf = await file.arrayBuffer();
+    const result = await import3MF(buf);
+
+    seatVertsOnBed(result.verts, result.nVerts);
+    Object.assign(S, {
+      verts: result.verts, faces: result.faces, nVerts: result.nVerts, nTri: result.nTri,
+      embossMask: result.embossMask, debossMask: result.debossMask, trimMask: result.trimMask,
+      rawVertices: null, rawNormals: null,
+      featureEmboss: null, featureDeboss: null,
+      edgeHighlight: null, smartPreview: null, smartPreviewFaces: null,
+      faceAdj: null, undoStack: [], resLevel: 0,
+      islands: null, islandMap: null, clickSelection: null, clickSelectionFaces: null,
+      hiddenSlots: { body: false, emboss: false, deboss: false, trim: false },
+      soloActive: false, selectedIsland: -1,
+    });
+    S.hiddenIslands.clear();
+
+    // Apply imported colours if present
+    if (result.colors && result.colors.length >= 4) {
+      const slots = ['body', 'emboss', 'deboss', 'trim'];
+      for (let i = 0; i < 4; i++) {
+        const c = result.colors[i];
+        if (c && colorInputs[slots[i]]) {
+          // Normalize colour format (#RRGGBB or #RRGGBBFF)
+          const hex = c.length > 7 ? c.slice(0, 7) : c;
+          colorInputs[slots[i]].value = hex;
+          colorHexEls[slots[i]].textContent = hex.toUpperCase();
+        }
+      }
+      syncPaintSwatches();
+    }
+
+    $('soloActive').checked = false;
+    $('undoBtn').disabled = true;
+    buildMesh({ frame: true });
+    recountPaint(); updateStats(); syncHideUI(); updateResMeta();
+    detectBtn.disabled = false; exportBtn.disabled = false;
+    $('resFineBtn').disabled = false; $('resUltraBtn').disabled = false;
+    $('detectIslandsBtn').disabled = false;
+    $('clearPaintBtn').disabled = false; $('clearModelBtn').disabled = false;
+    $('islandInfo').textContent = 'Click "Find Islands" to detect components.';
+    viewportHint.style.display = 'block';
+    setStatus(`Loaded 3MF: ${file.name} — ${result.nTri.toLocaleString()} faces, paint restored`, 'idle');
+  } catch (err) {
+    setStatus(`3MF import failed: ${err.message}`, 'error');
+    console.error('3MF import error:', err);
+  }
+}
+
+/* ================================================================== */
+/*  CLEAR PAINT / CLEAR MODEL                                         */
+/* ================================================================== */
+
+function clearPaint() {
+  if (!S.embossMask) return;
+  pushUndo();
+  S.embossMask.fill(0);
+  S.debossMask.fill(0);
+  S.trimMask.fill(0);
+  S.edgeHighlight = null;
+  S.smartPreview = null; S.smartPreviewFaces = null;
+  clearClickSelection();
+  updateMeshColors(); recountPaint();
+  setStatus('All paint cleared — model is body colour only', 'idle');
+}
+
+function clearModel() {
+  if (S.mesh) { scene.remove(S.mesh); S.mesh.geometry.dispose(); S.mesh.material?.dispose?.(); }
+  Object.assign(S, {
+    rawVertices: null, rawNormals: null, nTri: 0,
+    verts: null, faces: null, nVerts: 0, mesh: null,
+    embossMask: null, debossMask: null, trimMask: null,
+    featureEmboss: null, featureDeboss: null,
+    embossCount: 0, debossCount: 0, trimCount: 0,
+    edgeHighlight: null, smartPreview: null, smartPreviewFaces: null,
+    faceAdj: null, undoStack: [], resLevel: 0,
+    islands: null, islandMap: null, clickSelection: null, clickSelectionFaces: null,
+    hiddenSlots: { body: false, emboss: false, deboss: false, trim: false },
+    soloActive: false, selectedIsland: -1, fileName: 'model',
+  });
+  S.hiddenIslands.clear();
+  $('soloActive').checked = false;
+  $('undoBtn').disabled = true;
+  detectBtn.disabled = true; exportBtn.disabled = true;
+  $('resFineBtn').disabled = true; $('resUltraBtn').disabled = true;
+  $('detectIslandsBtn').disabled = true;
+  $('clearPaintBtn').disabled = true; $('clearModelBtn').disabled = true;
+  $('toggleBottomBtn').disabled = true;
+  $('app').classList.remove('bottom-open');
+  $('islandList').innerHTML = '';
+  updateStats(); updateResMeta();
+  viewportHint.textContent = 'Load a model · pick a colour · paint';
+  viewportHint.style.display = 'block'; viewportHint.style.opacity = '1';
+  setStatus('Model cleared — drop an STL or 3MF to start', 'idle');
+  setTimeout(resizeRenderer, 100);
+}
+
 /* ================================================================== */
 
 function switchTab(name) {
@@ -1527,8 +1652,8 @@ $('closeBottomBtn')?.addEventListener('click', () => {
 dropZone.addEventListener('click', () => fileInput.click());
 dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
 dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); if (e.dataTransfer.files[0]) loadSTL(e.dataTransfer.files[0]); });
-fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadSTL(fileInput.files[0]); });
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); });
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); });
 
 // Color pickers
 for (const [key, input] of Object.entries(colorInputs)) {
@@ -1661,10 +1786,14 @@ $('undoBtn').addEventListener('click', () => {
 });
 $('resetViewBtn').addEventListener('click', () => {
   if (orbitLockCheck) orbitLockCheck.checked = false;
-  showAllColours(); resetInteraction('Reset — all colours on');
+  showAllColours(); clearPaint(); resetInteraction('Reset — paint cleared, all colours on');
 });
 orbitLockCheck?.addEventListener('change', () => { resetInteraction(orbitLockCheck.checked ? 'Left-drag locked' : 'Unlocked'); });
 
+
+// Clear buttons
+$('clearPaintBtn')?.addEventListener('click', clearPaint);
+$('clearModelBtn')?.addEventListener('click', clearModel);
 // Resolution
 $('resFineBtn')?.addEventListener('click', () => runResolutionUpgrade(1));
 $('resUltraBtn')?.addEventListener('click', () => runResolutionUpgrade(2));
