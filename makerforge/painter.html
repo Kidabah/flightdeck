@@ -9,6 +9,8 @@
     "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
     "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"
 } }
+
+
 </script>
 <style>
 /* ================================================================== */
@@ -559,7 +561,9 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <button class="tool-btn" id="zoomInBtn" title="Zoom in">+</button>
       <button class="tool-btn" id="frameBtn" title="Frame model">Frame</button>
       <button class="tool-btn" id="wireframeBtn" title="Toggle wireframe overlay">Wire</button>
-      <button class="tool-btn" id="undoBtn" title="Undo" disabled>Undo</button>
+      <button class="tool-btn" id="undoBtn" title="Undo (Z)" disabled>Undo</button>
+      <button class="tool-btn" id="redoBtn" title="Redo (Y)" disabled>Redo</button>
+      <button class="tool-btn" id="turntableBtn" title="Turntable (T)">Spin</button>
       <button class="tool-btn" id="resetViewBtn" title="Reset all">Reset</button>
     </div>
     <div class="select-rect" id="selectRect"></div>
@@ -618,7 +622,7 @@ const S = {
   brushStroke: 'free',
   paintTarget: 'body',
   detectMode: 'emboss',
-  undoStack: [],
+  undoStack: [], redoStack: [],
   edgeHighlight: null,
   smartPreview: null, smartPreviewFaces: null,
   faceAdj: null,
@@ -642,6 +646,7 @@ const S = {
   symmetryMap: null,
   symmetryCenterX: 0,
   symmetryOn: false,
+  turntable: false,
 };
 
 /* ================================================================== */
@@ -688,7 +693,7 @@ function resizeRenderer() {
 }
 window.addEventListener('resize', resizeRenderer);
 resizeRenderer();
-(function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); })();
+(function animate() { requestAnimationFrame(animate); if (S.turntable && S.mesh) { const a = 0.003; controls.target.copy(S.mesh.position); const d = camera.position.clone().sub(controls.target); const cos = Math.cos(a), sin = Math.sin(a); const nx = d.x*cos - d.z*sin, nz = d.x*sin + d.z*cos; camera.position.set(controls.target.x+nx, camera.position.y, controls.target.z+nz); } controls.update(); renderer.render(scene, camera); })();
 
 /* ================================================================== */
 /*  DOM REFS                                                          */
@@ -933,7 +938,9 @@ function pushUndo() {
   if (!S.embossMask || !S.debossMask || !S.trimMask) return;
   S.undoStack.push({ emboss: S.embossMask.slice(), deboss: S.debossMask.slice(), trim: S.trimMask.slice() });
   if (S.undoStack.length > 30) S.undoStack.shift();
+  S.redoStack.length = 0; // new paint action clears redo
   $('undoBtn').disabled = false;
+  $('redoBtn').disabled = true;
 }
 
 function paintFacesFree(faceIndices, target, { undo = true } = {}) {
@@ -1658,11 +1665,11 @@ function clearModel() {
     featureEmboss: null, featureDeboss: null,
     embossCount: 0, debossCount: 0, trimCount: 0,
     edgeHighlight: null, smartPreview: null, smartPreviewFaces: null,
-    faceAdj: null, undoStack: [], resLevel: 0,
+    faceAdj: null, undoStack: [], redoStack: [], resLevel: 0,
     islands: null, islandMap: null, clickSelection: null, clickSelectionFaces: null,
     hiddenSlots: { body: false, emboss: false, deboss: false, trim: false },
     soloActive: false, selectedIsland: -1, fileName: 'model',
-    wireframe: null, wireframeOn: false,
+    wireframe: null, wireframeOn: false, turntable: false,
     symmetryMap: null, symmetryCenterX: 0, symmetryOn: false,
   });
   S.hiddenIslands.clear();
@@ -1674,6 +1681,8 @@ function clearModel() {
   $('clearPaintBtn').disabled = true; $('clearModelBtn').disabled = true;
   $('toggleBottomBtn').disabled = true;
   $('wireframeBtn').classList.remove('active-tool');
+  $('turntableBtn').classList.remove('active-tool');
+  $('redoBtn').disabled = true;
   $('symmetryToggle').checked = false;
   $('app').classList.remove('bottom-open');
   $('islandList').innerHTML = '';
@@ -1843,15 +1852,41 @@ $('targetTrim')?.addEventListener('click', () => setPaintTarget('trim'));
 $('zoomInBtn').addEventListener('click', () => zoomBy(0.72));
 $('zoomOutBtn').addEventListener('click', () => zoomBy(1.38));
 $('frameBtn').addEventListener('click', () => { resetInteraction(); frameModel(); });
-$('undoBtn').addEventListener('click', () => {
+$('undoBtn').addEventListener('click', doUndo);
+$('redoBtn').addEventListener('click', doRedo);
+$('turntableBtn').addEventListener('click', toggleTurntable);
+
+function doUndo() {
   const snap = S.undoStack.pop(); if (!snap) return;
+  // Save current state for redo
+  if (S.embossMask) S.redoStack.push({ emboss: S.embossMask.slice(), deboss: S.debossMask.slice(), trim: S.trimMask.slice() });
+  if (S.redoStack.length > 30) S.redoStack.shift();
   S.embossMask = snap.emboss; S.debossMask = snap.deboss; S.trimMask = snap.trim;
   S.edgeHighlight = null; S.smartPreview = null; S.smartPreviewFaces = null;
   clearClickSelection();
   updateMeshColors(); recountPaint();
   $('undoBtn').disabled = S.undoStack.length === 0;
+  $('redoBtn').disabled = S.redoStack.length === 0;
   setStatus('Undo', 'idle');
-});
+}
+
+function doRedo() {
+  const snap = S.redoStack.pop(); if (!snap) return;
+  S.undoStack.push({ emboss: S.embossMask.slice(), deboss: S.debossMask.slice(), trim: S.trimMask.slice() });
+  S.embossMask = snap.emboss; S.debossMask = snap.deboss; S.trimMask = snap.trim;
+  S.edgeHighlight = null; S.smartPreview = null; S.smartPreviewFaces = null;
+  clearClickSelection();
+  updateMeshColors(); recountPaint();
+  $('undoBtn').disabled = S.undoStack.length === 0;
+  $('redoBtn').disabled = S.redoStack.length === 0;
+  setStatus('Redo', 'idle');
+}
+
+function toggleTurntable() {
+  S.turntable = !S.turntable;
+  $('turntableBtn').classList.toggle('active-tool', S.turntable);
+  setStatus(S.turntable ? 'Turntable on' : 'Turntable off', 'idle');
+}
 $('resetViewBtn').addEventListener('click', () => {
   if (orbitLockCheck) orbitLockCheck.checked = false;
   showAllColours(); clearPaint(); resetInteraction('Reset — paint cleared, all colours on');
@@ -2032,9 +2067,9 @@ window.addEventListener('pointerup', (e) => {
 });
 window.addEventListener('blur', () => { endBrushStroke(false); S._smartClick = null; if(boxDrag)endBoxDrag(); syncOrbitLock(); });
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') { resetInteraction('Controls reset'); clearClickSelection(); return; }
-  if (e.code === 'Space' && !e.repeat && !e.target.closest?.('input,textarea,select')) { e.preventDefault(); S.orbitOverride = true; syncOrbitLock(); }
-  if (e.key === 'Alt') { S.orbitOverride = true; syncOrbitLock(); }
+  if (e.key === 'Escape') { resetInteraction('Controls reset'); clearClickSelection(); setTool('orbit'); return; }
+  if (e.code === 'Space' && !e.repeat && !e.target.closest?.('input,textarea,select')) { e.preventDefault(); S.orbitOverride = true; syncOrbitLock(); return; }
+  if (e.key === 'Alt') { S.orbitOverride = true; syncOrbitLock(); return; }
 });
 document.addEventListener('keyup', (e) => {
   if (e.code === 'Space' || e.key === 'Alt') { S.orbitOverride = false; syncOrbitLock(); }
@@ -2168,6 +2203,41 @@ batchBtn.addEventListener('click', async () => {
 syncOrbitLock();
 setBrushStroke('free');
 setTool('brush');
+
+
+/* ================================================================== */
+/*  KEYBOARD SHORTCUTS                                                */
+/* ================================================================== */
+
+window.addEventListener('keydown', (e) => {
+  // Skip if typing in an input/textarea
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+  switch (e.key.toLowerCase()) {
+    // Slots
+    case '1': setPaintTarget('body'); e.preventDefault(); break;
+    case '2': setPaintTarget('emboss'); e.preventDefault(); break;
+    case '3': setPaintTarget('deboss'); e.preventDefault(); break;
+    case '4': setPaintTarget('trim'); e.preventDefault(); break;
+    // Tools
+    case 'b': setTool('brush'); e.preventDefault(); break;
+    case 's': setTool('spray'); e.preventDefault(); break;
+    case 'e': setTool('eyedrop'); e.preventDefault(); break;
+    case 'c': setTool('clickSelect'); e.preventDefault(); break;
+    case 'm': setTool('smart'); e.preventDefault(); break;
+    case 'x': setTool('box'); e.preventDefault(); break;
+    case 'g': setTool('edge'); e.preventDefault(); break;
+    case 'd': setTool('detect'); e.preventDefault(); break;
+    // Actions
+    case 'z': doUndo(); e.preventDefault(); break;
+    case 'y': doRedo(); e.preventDefault(); break;
+    case 'f': if (S.mesh) { resetInteraction(); frameModel(); } e.preventDefault(); break;
+    case 'w': toggleWireframe(); e.preventDefault(); break;
+    case 't': toggleTurntable(); e.preventDefault(); break;
+    case 'r': if (S.mesh) screenPickColour(); e.preventDefault(); break;
+  }
+});
 </script>
 </body>
 </html>
