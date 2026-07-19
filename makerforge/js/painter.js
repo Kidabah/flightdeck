@@ -1,5 +1,5 @@
 /**
- * MakerDeck STL Painter Engine — b500
+ * MakerDeck STL Painter Engine — b501
  * Pure computation module: STL parsing, feature detection, 3MF export.
  */
 
@@ -869,6 +869,146 @@ function createZip(files) {
 
 /** Bambu/Orca paint codes — same table as makerforge/js/3mf.js (slot 1–4). */
 const PAINT_CODES = { emboss: '8', deboss: '0C', trim: '1C' };
+
+
+/* ------------------------------------------------------------------ */
+/*  ZIP Reader (for 3MF import)                                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Parse ZIP central directory and extract entries.
+ * Handles both stored (method 0) and deflated (method 8) via DecompressionStream.
+ */
+async function unzipEntries(buffer) {
+  const u8 = new Uint8Array(buffer);
+  const dv = new DataView(buffer);
+
+  // Find End-of-Central-Directory (scan backwards)
+  let eocdOff = -1;
+  for (let i = u8.length - 22; i >= 0; i--) {
+    if (dv.getUint32(i, true) === 0x06054b50) { eocdOff = i; break; }
+  }
+  if (eocdOff < 0) throw new Error('Not a valid ZIP file');
+
+  const cdCount = dv.getUint16(eocdOff + 10, true);
+  let cdOff = dv.getUint32(eocdOff + 16, true);
+
+  const entries = [];
+  for (let i = 0; i < cdCount; i++) {
+    if (dv.getUint32(cdOff, true) !== 0x02014b50) break;
+    const method = dv.getUint16(cdOff + 10, true);
+    const compSize = dv.getUint32(cdOff + 20, true);
+    const uncompSize = dv.getUint32(cdOff + 24, true);
+    const nameLen = dv.getUint16(cdOff + 28, true);
+    const extraLen = dv.getUint16(cdOff + 30, true);
+    const commentLen = dv.getUint16(cdOff + 32, true);
+    const localOff = dv.getUint32(cdOff + 42, true);
+    const name = new TextDecoder().decode(u8.slice(cdOff + 46, cdOff + 46 + nameLen));
+
+    // Local header → skip to data
+    const lnameLen = dv.getUint16(localOff + 26, true);
+    const lextraLen = dv.getUint16(localOff + 28, true);
+    const dataOff = localOff + 30 + lnameLen + lextraLen;
+    const raw = u8.slice(dataOff, dataOff + compSize);
+
+    let data;
+    if (method === 0) {
+      data = raw;
+    } else if (method === 8) {
+      // Deflate → use browser DecompressionStream
+      const ds = new DecompressionStream('deflate-raw');
+      const writer = ds.writable.getWriter();
+      const reader = ds.readable.getReader();
+      writer.write(raw); writer.close();
+      const chunks = [];
+      while (true) { const { done, value } = await reader.read(); if (done) break; chunks.push(value); }
+      const total = chunks.reduce((s, c) => s + c.length, 0);
+      data = new Uint8Array(total);
+      let p = 0; for (const c of chunks) { data.set(c, p); p += c.length; }
+    } else {
+      data = raw; // Unsupported method — try raw
+    }
+
+    entries.push({ name, data });
+    cdOff += 46 + nameLen + extraLen + commentLen;
+  }
+  return entries;
+}
+
+/* ------------------------------------------------------------------ */
+/*  3MF Import                                                        */
+/* ------------------------------------------------------------------ */
+
+/** Bambu/Orca paint_color → slot mapping (reverse of PAINT_CODES). */
+const PAINT_IMPORT = { '8': 'emboss', '0C': 'deboss', '0c': 'deboss', '1C': 'trim', '1c': 'trim' };
+
+/**
+ * Parse a 3MF file (ZIP) and extract geometry + paint state.
+ * @returns {{ verts, faces, nVerts, nTri, embossMask, debossMask, trimMask, colors }}
+ */
+export async function import3MF(buffer) {
+  const entries = await unzipEntries(buffer);
+
+  // Find the object model XML
+  const modelEntry = entries.find(e =>
+    e.name.endsWith('.model') && (e.name.includes('Objects/') || e.name.includes('objects/'))
+  );
+  if (!modelEntry) throw new Error('No object model found in 3MF');
+
+  const xml = new TextDecoder().decode(modelEntry.data);
+  const doc = new DOMParser().parseFromString(xml, 'text/xml');
+
+  // Namespace-aware queries (3MF uses a default namespace)
+  const ns = 'http://schemas.microsoft.com/3dmanufacturing/core/2015/02';
+  const vertexEls = doc.getElementsByTagNameNS(ns, 'vertex');
+  // Fallback: try without namespace
+  const vertEls = vertexEls.length ? vertexEls : doc.querySelectorAll('vertex');
+  const nVerts = vertEls.length;
+  const verts = new Float32Array(nVerts * 3);
+  for (let i = 0; i < nVerts; i++) {
+    const v = vertEls[i];
+    verts[i * 3]     = parseFloat(v.getAttribute('x'));
+    verts[i * 3 + 1] = parseFloat(v.getAttribute('y'));
+    verts[i * 3 + 2] = parseFloat(v.getAttribute('z'));
+  }
+
+  const triEls = doc.getElementsByTagNameNS(ns, 'triangle');
+  const tEls = triEls.length ? triEls : doc.querySelectorAll('triangle');
+  const nTri = tEls.length;
+  const faces = new Uint32Array(nTri * 3);
+  const embossMask = new Uint8Array(nTri);
+  const debossMask = new Uint8Array(nTri);
+  const trimMask = new Uint8Array(nTri);
+
+  for (let i = 0; i < nTri; i++) {
+    const t = tEls[i];
+    faces[i * 3]     = parseInt(t.getAttribute('v1'));
+    faces[i * 3 + 1] = parseInt(t.getAttribute('v2'));
+    faces[i * 3 + 2] = parseInt(t.getAttribute('v3'));
+
+    const pc = t.getAttribute('paint_color');
+    if (pc) {
+      const slot = PAINT_IMPORT[pc];
+      if (slot === 'emboss') embossMask[i] = 1;
+      else if (slot === 'deboss') debossMask[i] = 1;
+      else if (slot === 'trim') trimMask[i] = 1;
+    }
+  }
+
+  // Try to read filament colours from project_settings.config
+  let colors = null;
+  const settingsEntry = entries.find(e => e.name.includes('project_settings'));
+  if (settingsEntry) {
+    try {
+      const json = JSON.parse(new TextDecoder().decode(settingsEntry.data));
+      if (json.filament_colour && json.filament_colour.length >= 4) {
+        colors = json.filament_colour.slice(0, 4);
+      }
+    } catch { /* not JSON or missing */ }
+  }
+
+  return { verts, faces, nVerts, nTri, embossMask, debossMask, trimMask, colors };
+}
 
 export function export3MF(verts, faces, nVerts, nTri, embossMask, debossMask, options = {}) {
   const {
