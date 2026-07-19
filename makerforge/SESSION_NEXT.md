@@ -1,3 +1,7 @@
+### 2026-07-19 — b405: STL Painter — box paint respects detected emboss/deboss
+
+Box paint with Emboss/Deboss no longer flood-fills the whole rectangle. With **constrain** on (default), it only paints faces inside the box that Detect classified as that feature. Body still fills the whole box (eraser). Feature maps kept separate from paint maps.
+
 ### 2026-07-19 — b404: STL Painter — return to Orbit after box paint
 
 Box paint left OrbitControls disabled and toolbar clicks could start a paint drag. After a box paint finishes it auto-switches back to **Orbit**; right-drag orbits anytime in Box mode; toolbar clicks no longer start selections.

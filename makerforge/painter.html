@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STL Painter — MakerDeck b404</title>
+<title>STL Painter — MakerDeck b405</title>
 <script type="importmap">
 { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/" } }
 </script>
@@ -216,7 +216,7 @@
 <header class="header">
   <div class="header-left">
     <div class="header-brand">
-      <span class="header-eyebrow">MakerDeck b404</span>
+      <span class="header-eyebrow">MakerDeck b405</span>
       <span class="header-title">STL Painter</span>
       <span class="header-subtitle">Detect, area-paint, and export multi-color 3MFs</span>
     </div>
@@ -266,6 +266,10 @@
         <input type="range" id="minCluster" min="0" max="20" step="0.5" value="2">
       </div>
       <button class="btn btn-primary btn-full" id="detectBtn" disabled>Detect Features</button>
+      <label class="form-label" style="margin-top:10px;display:flex;align-items:flex-start;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-weight:500">
+        <input type="checkbox" id="constrainBox" checked style="margin-top:2px;accent-color:var(--accent)">
+        <span style="color:var(--muted);font-size:12px;line-height:1.35">Box paint Emboss/Deboss only colours <b style="color:var(--text)">detected</b> features inside the box (not the whole rectangle)</span>
+      </label>
     </div>
 
     <!-- Filament Colors -->
@@ -378,7 +382,7 @@
     <span class="status-dot idle" id="statusDot"></span>
     <span id="statusText">Ready — load an STL to begin</span>
   </div>
-  <span>MakerDeck b404 — STL Painter</span>
+  <span>MakerDeck b405 — STL Painter</span>
 </footer>
 
 <!-- Main Script -->
@@ -404,8 +408,10 @@ const state = {
   verts: null,
   faces: null,
   nVerts: 0,
-  embossMask: null,
+  embossMask: null,       // paint map (export)
   debossMask: null,
+  featureEmboss: null,    // geometry detect map (box-paint filter)
+  featureDeboss: null,
   embossCount: 0,
   debossCount: 0,
   mesh: null,
@@ -632,6 +638,8 @@ async function loadSTL(file) {
 
   state.embossMask = new Uint8Array(nTri);
   state.debossMask = new Uint8Array(nTri);
+  state.featureEmboss = null;
+  state.featureDeboss = null;
   state.embossCount = 0;
   state.debossCount = 0;
   state.undoStack = [];
@@ -774,10 +782,49 @@ function pushUndo() {
   document.getElementById('undoBtn').disabled = false;
 }
 
+function ensureFeatureMasks() {
+  if (state.featureEmboss && state.featureDeboss) return true;
+  if (!state.verts) return false;
+  const opts = {
+    threshold: parseFloat(sensitivitySlider.value),
+    iterations: parseInt(smoothIterSlider.value),
+    weight: 0.5,
+    mode: detectModeSelect.value
+  };
+  const result = detectFeatures(state.verts, state.faces, state.nVerts, state.nTri, opts);
+  const minArea = parseFloat(minClusterSlider.value);
+  if (minArea > 0) {
+    cleanClusters(result.embossMask, state.faces, state.nTri, state.verts, minArea);
+    cleanClusters(result.debossMask, state.faces, state.nTri, state.verts, minArea);
+  }
+  state.featureEmboss = result.embossMask;
+  state.featureDeboss = result.debossMask;
+  return true;
+}
+
+function filterFacesForPaint(faceIndices, target) {
+  const constrain = document.getElementById('constrainBox')?.checked !== false;
+  if (!constrain || target === 'body') return faceIndices;
+  if (!ensureFeatureMasks()) return faceIndices;
+  const feat = target === 'emboss' ? state.featureEmboss : state.featureDeboss;
+  if (!feat) return faceIndices;
+  return faceIndices.filter(i => feat[i]);
+}
+
 function paintFaces(faceIndices, target) {
-  if (!faceIndices.length || !state.embossMask || !state.debossMask) return;
+  if (!state.embossMask || !state.debossMask) return;
+  const faces = filterFacesForPaint(faceIndices, target);
+  if (!faces.length) {
+    setStatus(
+      target === 'body'
+        ? 'No faces in that box'
+        : `No detected ${target} faces in that box — run Detect Features or widen Sensitivity`,
+      'idle'
+    );
+    return;
+  }
   pushUndo();
-  for (const i of faceIndices) {
+  for (const i of faces) {
     if (target === 'emboss') {
       state.embossMask[i] = 1;
       state.debossMask[i] = 0;
@@ -792,7 +839,13 @@ function paintFaces(faceIndices, target) {
   updateMeshColors();
   recountPaint();
   exportBtn.disabled = false;
-  setStatus(`Painted ${faceIndices.length.toLocaleString()} faces → ${target}`, 'idle');
+  const skipped = faceIndices.length - faces.length;
+  setStatus(
+    skipped > 0
+      ? `Painted ${faces.length.toLocaleString()} ${target} faces (${skipped.toLocaleString()} skipped — not detected ${target})`
+      : `Painted ${faces.length.toLocaleString()} faces → ${target}`,
+    'idle'
+  );
 }
 
 function frameModel() {
@@ -861,7 +914,7 @@ function setTool(tool) {
   controls.enablePan = tool === 'orbit';
   viewport.classList.toggle('select-mode', tool === 'box');
   viewportHint.textContent = tool === 'box'
-    ? 'Box paint: drag to paint · finishes back in Orbit · right-drag to orbit anytime'
+    ? 'Box paint: Emboss/Deboss only hits detected features in the box · Body fills all · right-drag orbits'
     : 'Orbit: drag rotate · scroll zoom · Shift+pan · double-click zoom to point';
 }
 
@@ -1000,15 +1053,17 @@ detectBtn.addEventListener('click', () => {
 
     pushUndo();
     const result = detectFeatures(state.verts, state.faces, state.nVerts, state.nTri, opts);
-    state.embossMask = result.embossMask;
-    state.debossMask = result.debossMask;
 
-    // Clean clusters
+    // Clean clusters on feature maps, then copy into paint maps.
     const minArea = parseFloat(minClusterSlider.value);
     if (minArea > 0) {
-      cleanClusters(state.embossMask, state.faces, state.nTri, state.verts, minArea);
-      cleanClusters(state.debossMask, state.faces, state.nTri, state.verts, minArea);
+      cleanClusters(result.embossMask, state.faces, state.nTri, state.verts, minArea);
+      cleanClusters(result.debossMask, state.faces, state.nTri, state.verts, minArea);
     }
+    state.featureEmboss = result.embossMask;
+    state.featureDeboss = result.debossMask;
+    state.embossMask = result.embossMask.slice();
+    state.debossMask = result.debossMask.slice();
 
     updateMeshColors();
     recountPaint();
