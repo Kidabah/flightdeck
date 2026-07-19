@@ -2,16 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b418 resolution + hide
+- Latest commit: MakerDeck b419 shared build tag
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
 
-### 2026-07-19 polish (MakerDeck b418 — easy paint v1)
+### 2026-07-19 polish (MakerDeck b419 — one build tag)
 
-**Need:** Resolution upgrade + hide sections for dummy-proof painting.
+**Need:** Container and Painter showed different b-numbers.
 
-**What shipped:** Fine/Ultra paint detail; hide/solo colours; More tools collapsed. Cache-bust `painter.js?v=418`.
+**What shipped:** Both show **b419**; Container fallback fixed. Cache-bust `app.js?v=419`, `painter.js?v=419`.
 
-**Deploy:** Hard refresh Painter page (no backend restart).
+**Deploy:** Hard refresh Container + Painter (no backend restart).
 
 ### 2026-07-18 feature (Colour Match Live screen eyedrop)
 

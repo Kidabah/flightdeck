@@ -1,3 +1,12 @@
+### 2026-07-19 — b419: MakerDeck — shared build tag
+
+Aligned Container Generator + STL Painter to one build number:
+- Container header / `MAKERDECK_BUILD` / `app.js?v=419` → **b419**
+- Painter header / `painter.js?v=419` → **b419**
+- Fixed stale Container fallback `b368` in `index.html`
+
+Files: `index.html`, `js/app.js`, `painter.html`, `js/painter.js`, `SESSION_NEXT.md`.
+
 ### 2026-07-19 — b418: STL Painter — resolution + hide sections (v1 easy)
 
 Dummy-proof paint helpers:
