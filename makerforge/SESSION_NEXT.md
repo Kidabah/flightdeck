@@ -1,3 +1,18 @@
+### 2026-07-19 — b401: STL Painter — detect emboss/deboss and export painted 3MFs
+
+New **STL Painter** page (`painter.html`) with full emboss/deboss detection pipeline:
+- Drop an STL, detect raised (emboss) and sunken (deboss) regions via Laplacian smoothing
+- Adjustable sensitivity, smoothing iterations, and minimum cluster area
+- Three.js 3D preview with per-face colouring (body/emboss/deboss)
+- Colour picker with preset swatches for quick filament assignment
+- Export OrcaSlicer-compatible painted 3MFs (`paint_color="8"` on emboss triangles, proper BambuStudio namespace, model_settings, project_settings as JSON)
+- Batch mode: load a folder of STLs, paint them all with the same settings
+- Filament profile presets for BBL H2D, X1C, P1S, A1, generic PLA/PETG/ABS
+- Engine extracted to `js/painter.js` ES module for reuse
+
+Linked from Container Generator header toolbar. Files: `painter.html`, `js/painter.js`, `index.html` (painter link).
+
+
 ### 2026-07-17 — b400: Vertical text — uniform letter size across a canister set
 
 Vertical text scaled the whole STACK to the size slider, so a matched set got mismatched letters (COFFEE letters 2.37mm, SUGAR 2.87, MILO 3.59). New toggle **"Same letter size across cans"** (vertical only): the size becomes the per-LETTER height, so every letter is identical and shorter words just take less vertical space (capped to the face so the longest word can't overflow). Verified: COFFEE/SUGAR/MILO all 14.1mm per letter with it on. `state.textUniformSize` + checkbox under Text path. Files: js/features.js, js/geometry.js, js/app.js, index.html (app.js?v=400, features.js?v=400, geometry.js?v=400, header b400).
