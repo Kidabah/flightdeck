@@ -1,5 +1,5 @@
 /**
- * MakerDeck STL Painter Engine — b423
+ * MakerDeck STL Painter Engine — b500
  * Pure computation module: STL parsing, feature detection, 3MF export.
  */
 
@@ -1002,4 +1002,103 @@ ${objTriangles}        </triangles>
   }));
 
   return createZip(prepared);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Mesh Islands (connected components)                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Find disconnected mesh islands via DFS on face adjacency.
+ * @returns {Array<{id:number, faces:Uint32Array, faceCount:number, bbox:{min:[x,y,z], max:[x,y,z], size:[x,y,z]}}>}
+ */
+export function findMeshIslands(faces, nTri, faceAdj, verts) {
+  const visited = new Uint8Array(nTri);
+  const islands = [];
+
+  for (let seed = 0; seed < nTri; seed++) {
+    if (visited[seed]) continue;
+    const stack = [seed];
+    const bucket = [];
+    visited[seed] = 1;
+
+    while (stack.length) {
+      const f = stack.pop();
+      bucket.push(f);
+      const nb = faceAdj[f];
+      if (nb) for (const n of nb) {
+        if (!visited[n]) { visited[n] = 1; stack.push(n); }
+      }
+    }
+
+    // Bounding box of this island
+    let mnX = Infinity, mnY = Infinity, mnZ = Infinity;
+    let mxX = -Infinity, mxY = -Infinity, mxZ = -Infinity;
+    for (const fi of bucket) {
+      for (let k = 0; k < 3; k++) {
+        const vi = faces[fi * 3 + k];
+        const x = verts[vi * 3], y = verts[vi * 3 + 1], z = verts[vi * 3 + 2];
+        if (x < mnX) mnX = x; if (x > mxX) mxX = x;
+        if (y < mnY) mnY = y; if (y > mxY) mxY = y;
+        if (z < mnZ) mnZ = z; if (z > mxZ) mxZ = z;
+      }
+    }
+
+    islands.push({
+      id: islands.length,
+      faces: new Uint32Array(bucket),
+      faceCount: bucket.length,
+      bbox: {
+        min: [mnX, mnY, mnZ],
+        max: [mxX, mxY, mxZ],
+        size: [mxX - mnX, mxY - mnY, mxZ - mnZ],
+      },
+    });
+  }
+
+  islands.sort((a, b) => b.faceCount - a.faceCount);
+  islands.forEach((isl, i) => isl.id = i);
+  return islands;
+}
+
+/**
+ * Build per-face → island-id lookup.  arr[faceIdx] = islandId.
+ */
+export function buildIslandMap(islands, nTri) {
+  const map = new Uint32Array(nTri);
+  for (const isl of islands) for (const f of isl.faces) map[f] = isl.id;
+  return map;
+}
+
+/**
+ * Flood fill from seed to all connected faces sharing the same paint class.
+ */
+export function floodFillSameClass(seed, embossMask, debossMask, trimMask, nTri, faceAdj) {
+  const cls = paintClassOf(seed, embossMask, debossMask, trimMask);
+  const visited = new Uint8Array(nTri);
+  const result = [];
+  const stack = [seed];
+  visited[seed] = 1;
+
+  while (stack.length) {
+    const f = stack.pop();
+    result.push(f);
+    const nb = faceAdj[f];
+    if (nb) for (const n of nb) {
+      if (!visited[n] && paintClassOf(n, embossMask, debossMask, trimMask) === cls) {
+        visited[n] = 1;
+        stack.push(n);
+      }
+    }
+  }
+  return result;
+}
+
+/**
+ * Select all faces belonging to the same island as the seed face.
+ */
+export function selectIsland(seedFace, islandMap, islands) {
+  const islandId = islandMap[seedFace];
+  const island = islands.find(isl => isl.id === islandId);
+  return island ? Array.from(island.faces) : [seedFace];
 }
