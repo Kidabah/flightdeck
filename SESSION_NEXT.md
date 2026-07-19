@@ -2,14 +2,14 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b417 brush spray eyedrop
+- Latest commit: MakerDeck b418 resolution + hide
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
 
-### 2026-07-19 polish (MakerDeck b417 — Brush tools)
+### 2026-07-19 polish (MakerDeck b418 — easy paint v1)
 
-**Need:** Paint-app brush flow under Paint menu.
+**Need:** Resolution upgrade + hide sections for dummy-proof painting.
 
-**What shipped:** Colour → Brush/Spray/Eyedrop; Size + H/V stroke; nozzle/density; secondary Smart/Box/Edge/Detect. Cache-bust `painter.js?v=417`.
+**What shipped:** Fine/Ultra paint detail; hide/solo colours; More tools collapsed. Cache-bust `painter.js?v=418`.
 
 **Deploy:** Hard refresh Painter page (no backend restart).
 

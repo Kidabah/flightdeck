@@ -1,5 +1,5 @@
 /**
- * MakerDeck STL Painter Engine — b417
+ * MakerDeck STL Painter Engine — b418
  * Pure computation module: STL parsing, feature detection, 3MF export.
  */
 
@@ -62,6 +62,79 @@ export function deduplicateVertices(vertices, nTri) {
 
   const verts = new Float32Array(tempVerts);
   return { verts, faces, nVerts };
+}
+
+/**
+ * One mid-point subdivision pass (each triangle → 4). Paint masks remap
+ * so each child keeps its parent's colour. Soft-caps huge meshes.
+ * @returns {{ verts, faces, nVerts, nTri, embossMask, debossMask, trimMask }}
+ */
+export function upgradePaintResolution(verts, faces, nVerts, nTri, masks = {}, opts = {}) {
+  const maxFaces = opts.maxFaces ?? 1_500_000;
+  if (nTri * 4 > maxFaces) {
+    throw new Error(`Resolution upgrade would exceed ${maxFaces.toLocaleString()} faces (now ${nTri.toLocaleString()})`);
+  }
+
+  const embossMask = masks.embossMask || new Uint8Array(nTri);
+  const debossMask = masks.debossMask || new Uint8Array(nTri);
+  const trimMask = masks.trimMask || new Uint8Array(nTri);
+
+  const vertList = new Array(nVerts * 3);
+  for (let i = 0; i < nVerts * 3; i++) vertList[i] = verts[i];
+  let nextVi = nVerts;
+  const midMap = new Map();
+
+  function midpoint(a, b) {
+    const key = a < b ? a + ':' + b : b + ':' + a;
+    let m = midMap.get(key);
+    if (m !== undefined) return m;
+    m = nextVi++;
+    midMap.set(key, m);
+    vertList.push(
+      (vertList[a * 3] + vertList[b * 3]) * 0.5,
+      (vertList[a * 3 + 1] + vertList[b * 3 + 1]) * 0.5,
+      (vertList[a * 3 + 2] + vertList[b * 3 + 2]) * 0.5
+    );
+    return m;
+  }
+
+  const newFaces = new Uint32Array(nTri * 4 * 3);
+  const newEmboss = new Uint8Array(nTri * 4);
+  const newDeboss = new Uint8Array(nTri * 4);
+  const newTrim = new Uint8Array(nTri * 4);
+  let fi = 0;
+
+  for (let i = 0; i < nTri; i++) {
+    const a = faces[i * 3], b = faces[i * 3 + 1], c = faces[i * 3 + 2];
+    const ab = midpoint(a, b);
+    const bc = midpoint(b, c);
+    const ca = midpoint(c, a);
+    const children = [
+      [a, ab, ca],
+      [ab, b, bc],
+      [ca, bc, c],
+      [ab, bc, ca],
+    ];
+    for (const tri of children) {
+      newFaces[fi * 3] = tri[0];
+      newFaces[fi * 3 + 1] = tri[1];
+      newFaces[fi * 3 + 2] = tri[2];
+      newEmboss[fi] = embossMask[i];
+      newDeboss[fi] = debossMask[i];
+      newTrim[fi] = trimMask[i];
+      fi++;
+    }
+  }
+
+  return {
+    verts: new Float32Array(vertList),
+    faces: newFaces,
+    nVerts: nextVi,
+    nTri: fi,
+    embossMask: newEmboss,
+    debossMask: newDeboss,
+    trimMask: newTrim,
+  };
 }
 
 /* ------------------------------------------------------------------ */

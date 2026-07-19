@@ -1,3 +1,14 @@
+### 2026-07-19 — b418: STL Painter — resolution + hide sections (v1 easy)
+
+Dummy-proof paint helpers:
+- **Paint detail** Fine ×4 / Ultra ×16 (triangle subdivide, paint preserved)
+- **Hide colour** eye on chips + **Solo active colour**
+- Advanced tools tucked under “More tools”
+- Easy-path tip under Paint
+- Cache-bust `painter.js?v=418`
+
+Files: `painter.html`, `js/painter.js`, `SESSION_NEXT.md`.
+
 ### 2026-07-19 — b417: STL Painter — Brush / Spray / Eyedropper
 
 Paint menu rebuilt colour-first:

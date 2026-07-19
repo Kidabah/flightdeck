@@ -141,6 +141,7 @@
     display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px;
   }
   .paint-colour-chip {
+    position: relative;
     display: flex; flex-direction: column; align-items: center; gap: 4px;
     padding: 8px 4px 6px; border-radius: 10px;
     border: 1px solid var(--border); background: var(--panel-2);
@@ -152,6 +153,7 @@
     border-color: var(--accent); color: var(--text);
     box-shadow: 0 0 0 1px var(--accent); background: var(--accent-dim);
   }
+  .paint-colour-chip.dimmed { opacity: 0.38; }
   .paint-colour-chip .chip-swatch {
     width: 22px; height: 22px; border-radius: 6px;
     border: 1px solid rgba(255,255,255,0.22);
@@ -159,6 +161,38 @@
   .paint-colour-chip .chip-label {
     font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
   }
+  .paint-colour-chip .chip-eye {
+    position: absolute; top: 3px; right: 3px;
+    width: 16px; height: 16px; border-radius: 4px;
+    border: 1px solid transparent; background: transparent;
+    color: var(--muted); font-size: 10px; line-height: 1;
+    cursor: pointer; padding: 0; font-family: inherit;
+  }
+  .paint-colour-chip .chip-eye:hover { color: var(--text); border-color: var(--border); }
+  .paint-colour-chip .chip-eye.off { color: var(--red); }
+  .easy-tip {
+    margin: 0 0 10px; padding: 8px 10px; border-radius: 8px;
+    background: rgba(62, 207, 255, 0.08); border: 1px solid rgba(62, 207, 255, 0.18);
+    font-size: 11px; color: var(--muted); line-height: 1.4;
+  }
+  .easy-tip strong { color: var(--accent); font-weight: 600; }
+  .collapse-toggle {
+    width: 100%; margin-top: 10px; padding: 8px 10px;
+    border-radius: 8px; border: 1px dashed var(--border);
+    background: transparent; color: var(--muted); font-size: 11px; font-weight: 600;
+    cursor: pointer; font-family: inherit; text-align: left;
+  }
+  .collapse-toggle:hover { color: var(--text); border-color: #3a4f6a; }
+  .collapse-body { display: none; margin-top: 10px; }
+  .collapse-body.open { display: block; }
+  .res-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+  .res-meta { font-size: 11px; color: var(--muted); margin-top: 6px; line-height: 1.35; }
+  .solo-row {
+    display: flex; align-items: center; gap: 8px; margin: 8px 0 0;
+    font-size: 11px; color: var(--muted); cursor: pointer; user-select: none;
+  }
+  .solo-row input { accent-color: var(--accent); }
+  .solo-row.active { color: var(--accent); }
   .section-label {
     font-size: 10px; font-weight: 700; color: var(--muted);
     text-transform: uppercase; letter-spacing: 0.08em;
@@ -280,6 +314,7 @@
   .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
   .status-dot.idle { background: var(--muted); }
   .status-dot.working { background: var(--orange); animation: pulse 1s ease-in-out infinite; }
+  .status-dot.error { background: var(--red); }
   @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
   .viewport-toolbar {
@@ -340,7 +375,7 @@
 
 <header class="header">
   <div class="header-brand">
-    <span class="header-eyebrow">MakerDeck b415</span>
+    <span class="header-eyebrow">MakerDeck b418</span>
     <span class="header-title">STL Painter</span>
     <span class="header-subtitle">Paint multi-colour STLs · export AMS-ready 3MFs</span>
   </div>
@@ -360,6 +395,13 @@
         <div class="drop-zone-text"><strong>Drop an STL</strong><br>or click to browse</div>
         <input type="file" id="fileInput" accept=".stl">
       </div>
+      <div class="section-label" style="margin-top:12px">Paint detail</div>
+      <p class="flow-desc" style="margin-bottom:6px">Finer triangles = easier detail painting (like slicer resolution).</p>
+      <div class="res-row">
+        <button type="button" class="btn" id="resFineBtn" disabled title="Split each face into 4">Fine ×4</button>
+        <button type="button" class="btn" id="resUltraBtn" disabled title="Split twice (×16 faces)">Ultra ×16</button>
+      </div>
+      <div class="res-meta" id="resMeta">Load a model to upgrade paint resolution.</div>
     </section>
 
     <!-- 2 Colours -->
@@ -406,44 +448,56 @@
     <!-- 3 Paint tools -->
     <section class="flow-panel">
       <div class="flow-step"><span class="flow-num">03</span><span class="flow-title">Paint</span></div>
-      <p class="flow-desc">Colour first, then pick a brush type.</p>
+      <p class="easy-tip" id="easyTip"><strong>Easy path:</strong> pick a colour → Brush → drag to paint. Hide other colours if they get in the way.</p>
 
       <div class="section-label">Colour</div>
       <div class="paint-colour-row" id="paintColourRow">
         <button type="button" class="paint-colour-chip active" data-target="body" title="Slot 1 — Base">
+          <span class="chip-eye" data-hide="body" title="Hide / show this colour">●</span>
           <span class="chip-swatch" id="chipSwatchBody" style="background:#c20820"></span>
           <span class="chip-label">1</span>
         </button>
         <button type="button" class="paint-colour-chip" data-target="emboss" title="Slot 2 — Accent">
+          <span class="chip-eye" data-hide="emboss" title="Hide / show this colour">●</span>
           <span class="chip-swatch" id="chipSwatchEmboss" style="background:#131211"></span>
           <span class="chip-label">2</span>
         </button>
         <button type="button" class="paint-colour-chip" data-target="deboss" title="Slot 3 — Detail">
+          <span class="chip-eye" data-hide="deboss" title="Hide / show this colour">●</span>
           <span class="chip-swatch" id="chipSwatchDeboss" style="background:#f5f5f5"></span>
           <span class="chip-label">3</span>
         </button>
         <button type="button" class="paint-colour-chip" data-target="trim" title="Slot 4 — Trim">
+          <span class="chip-eye" data-hide="trim" title="Hide / show this colour">●</span>
           <span class="chip-swatch" id="chipSwatchTrim" style="background:#1e40af"></span>
           <span class="chip-label">4</span>
         </button>
       </div>
+      <label class="solo-row" id="soloRow">
+        <input type="checkbox" id="soloActive">
+        Solo active colour (hide the rest)
+      </label>
 
-      <div class="section-label">Brush type</div>
+      <div class="section-label" style="margin-top:12px">Brush type</div>
       <div class="tool-grid brush-types">
         <button type="button" class="tool-toggle active" id="toolBrush" title="Paint with a brush — drag to stroke">Brush</button>
         <button type="button" class="tool-toggle" id="toolSpray" title="Spray paint with nozzle falloff">Spray</button>
         <button type="button" class="tool-toggle" id="toolEyedrop" title="Pick a colour from the model">Eyedrop</button>
       </div>
-      <div class="tool-grid secondary">
-        <button type="button" class="tool-toggle" id="toolSmart" title="Angle-aware fill">Smart</button>
-        <button type="button" class="tool-toggle" id="toolBox" title="Paint faces inside a box">Box</button>
-        <button type="button" class="tool-toggle" id="toolEdge" title="Select rough colour boundaries">Edge</button>
-        <button type="button" class="tool-toggle" id="toolDetect" title="Auto-find raised / sunken detail">Detect</button>
-      </div>
       <label class="lock-row" id="orbitLockLabel">
         <input type="checkbox" id="orbitLock">
         Lock view for precise painting
       </label>
+
+      <button type="button" class="collapse-toggle" id="moreToolsToggle">More tools — Smart · Box · Edge · Detect ▸</button>
+      <div class="collapse-body" id="moreToolsBody">
+        <div class="tool-grid secondary">
+          <button type="button" class="tool-toggle" id="toolSmart" title="Angle-aware fill">Smart</button>
+          <button type="button" class="tool-toggle" id="toolBox" title="Paint faces inside a box">Box</button>
+          <button type="button" class="tool-toggle" id="toolEdge" title="Select rough colour boundaries">Edge</button>
+          <button type="button" class="tool-toggle" id="toolDetect" title="Auto-find raised / sunken detail">Detect</button>
+        </div>
+      </div>
 
       <!-- Brush options -->
       <div class="opts-panel visible" id="brushOpts">
@@ -659,8 +713,9 @@ import {
   brushDabFaces,
   smartFillFaces,
   paintClassOf,
+  upgradePaintResolution,
   export3MF
-} from './js/painter.js?v=417';
+} from './js/painter.js?v=418';
 
 /* ------------------------------------------------------------------ */
 /*  State                                                             */
@@ -693,6 +748,9 @@ const state = {
   smartPreviewFaces: null,// number[] last preview
   faceAdj: null,          // cached face adjacency
   brushStrokeActive: null,
+  hiddenSlots: { body: false, emboss: false, deboss: false, trim: false },
+  soloActive: false,
+  resLevel: 0,            // 0 = original, each upgrade +1
 };
 
 /* ------------------------------------------------------------------ */
@@ -707,7 +765,7 @@ const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 5000);
 camera.position.set(80, 60, 80);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -732,7 +790,7 @@ scene.add(ambientLight);
 const dirLight1 = new THREE.DirectionalLight(0xffffff, 1.0);
 dirLight1.position.set(50, 80, 50);
 dirLight1.castShadow = true;
-dirLight1.shadow.mapSize.set(1024, 1024);
+dirLight1.shadow.mapSize.set(2048, 2048);
 scene.add(dirLight1);
 
 const dirLight2 = new THREE.DirectionalLight(0x8ea4c1, 0.5);
@@ -1090,14 +1148,23 @@ async function loadSTL(file) {
   state.smartPreviewFaces = null;
   state.faceAdj = null;
   state.undoStack = [];
+  state.resLevel = 0;
+  state.hiddenSlots = { body: false, emboss: false, deboss: false, trim: false };
+  state.soloActive = false;
+  const soloCheck = document.getElementById('soloActive');
+  if (soloCheck) soloCheck.checked = false;
   document.getElementById('undoBtn').disabled = true;
 
-  buildMesh();
+  buildMesh({ frame: true });
   updateStats();
+  syncHideUI();
+  updateResMeta();
   detectBtn.disabled = false;
   exportBtn.disabled = false; // body-only export / manual paint OK
+  document.getElementById('resFineBtn').disabled = false;
+  document.getElementById('resUltraBtn').disabled = false;
   viewportHint.style.display = 'block';
-  setStatus(`Loaded ${file.name} — ${nTri.toLocaleString()} faces, ${nVerts.toLocaleString()} unique vertices`, 'idle');
+  setStatus(`Loaded ${file.name} — ${nTri.toLocaleString()} faces · upgrade Paint detail if you need finer strokes`, 'idle');
 }
 
 /* ------------------------------------------------------------------ */
@@ -1126,7 +1193,93 @@ function seatVertsOnBed(verts, nVerts) {
 /*  Build Three.js Mesh                                               */
 /* ------------------------------------------------------------------ */
 
-function buildMesh() {
+function facePaintClass(i) {
+  return paintClassOf(i, state.embossMask, state.debossMask, state.trimMask);
+}
+
+function isFaceHidden(i) {
+  const cls = facePaintClass(i);
+  if (state.soloActive) return cls !== state.paintTarget;
+  return !!state.hiddenSlots[cls];
+}
+
+function syncHideUI() {
+  document.querySelectorAll('.paint-colour-chip').forEach(chip => {
+    const t = chip.dataset.target;
+    const hidden = state.soloActive ? t !== state.paintTarget : !!state.hiddenSlots[t];
+    chip.classList.toggle('dimmed', hidden);
+    const eye = chip.querySelector('.chip-eye');
+    if (eye) {
+      eye.textContent = hidden ? '○' : '●';
+      eye.classList.toggle('off', hidden);
+    }
+  });
+  document.getElementById('soloRow')?.classList.toggle('active', state.soloActive);
+}
+
+function updateResMeta() {
+  const el = document.getElementById('resMeta');
+  if (!el) return;
+  if (!state.nTri) {
+    el.textContent = 'Load a model to upgrade paint resolution.';
+    return;
+  }
+  const tag = state.resLevel === 0 ? 'Original' : state.resLevel === 1 ? 'Fine' : `Ultra (×${Math.pow(4, state.resLevel)})`;
+  el.textContent = `${state.nTri.toLocaleString()} faces · ${tag}. Finer = easier tiny details.`;
+}
+
+function runResolutionUpgrade(levels) {
+  if (!state.verts || !state.nTri) return;
+  setStatus(`Upgrading paint detail (×${Math.pow(4, levels)})…`, 'working');
+  setTimeout(() => {
+    try {
+      let result = {
+        verts: state.verts,
+        faces: state.faces,
+        nVerts: state.nVerts,
+        nTri: state.nTri,
+        embossMask: state.embossMask,
+        debossMask: state.debossMask,
+        trimMask: state.trimMask,
+      };
+      for (let i = 0; i < levels; i++) {
+        result = upgradePaintResolution(
+          result.verts, result.faces, result.nVerts, result.nTri,
+          {
+            embossMask: result.embossMask,
+            debossMask: result.debossMask,
+            trimMask: result.trimMask,
+          }
+        );
+      }
+      state.verts = result.verts;
+      state.faces = result.faces;
+      state.nVerts = result.nVerts;
+      state.nTri = result.nTri;
+      state.embossMask = result.embossMask;
+      state.debossMask = result.debossMask;
+      state.trimMask = result.trimMask;
+      state.featureEmboss = null;
+      state.featureDeboss = null;
+      state.faceAdj = null;
+      state.edgeHighlight = null;
+      state.smartPreview = null;
+      state.smartPreviewFaces = null;
+      state.undoStack = [];
+      state.resLevel += levels;
+      document.getElementById('undoBtn').disabled = true;
+      buildMesh({ frame: false });
+      updateMeshColors();
+      recountPaint();
+      updateResMeta();
+      setStatus(`Paint detail upgraded — ${state.nTri.toLocaleString()} faces. Brush tiny areas now.`, 'idle');
+    } catch (err) {
+      setStatus(err.message || 'Resolution upgrade failed', 'error');
+    }
+  }, 30);
+}
+
+function buildMesh({ frame = true } = {}) {
   if (state.mesh) {
     scene.remove(state.mesh);
     state.mesh.geometry.dispose();
@@ -1175,18 +1328,20 @@ function buildMesh() {
   state.mesh.rotation.x = -Math.PI / 2;
   scene.add(state.mesh);
 
-  state.mesh.updateMatrixWorld(true);
-  const worldBox = new THREE.Box3().setFromObject(state.mesh);
-  const size = new THREE.Vector3();
-  const center = new THREE.Vector3();
-  worldBox.getSize(size);
-  worldBox.getCenter(center);
+  if (frame) {
+    state.mesh.updateMatrixWorld(true);
+    const worldBox = new THREE.Box3().setFromObject(state.mesh);
+    const size = new THREE.Vector3();
+    const center = new THREE.Vector3();
+    worldBox.getSize(size);
+    worldBox.getCenter(center);
 
-  const maxDim = Math.max(size.x, size.y, size.z, 1);
-  const dist = maxDim * 1.8;
-  camera.position.set(center.x + dist * 0.7, center.y + dist * 0.35, center.z + dist * 0.7);
-  controls.target.copy(center);
-  controls.update();
+    const maxDim = Math.max(size.x, size.y, size.z, 1);
+    const dist = maxDim * 1.8;
+    camera.position.set(center.x + dist * 0.7, center.y + dist * 0.35, center.z + dist * 0.7);
+    controls.target.copy(center);
+    controls.update();
+  }
 }
 
 function updateMeshColors() {
@@ -1196,6 +1351,7 @@ function updateMeshColors() {
   const embossCol = new THREE.Color(colorEmboss.value);
   const debossCol = new THREE.Color(colorDeboss.value);
   const trimCol = new THREE.Color(colorTrim.value);
+  const ghostCol = new THREE.Color(0x0a121c);
   // Lime = edge band; amber = smart-fill hover preview
   const edgeCol = new THREE.Color('#7dffb3');
   const smartCol = new THREE.Color('#f5c542');
@@ -1207,6 +1363,9 @@ function updateMeshColors() {
     else if (state.embossMask && state.embossMask[i]) col = embossCol;
     else if (state.debossMask && state.debossMask[i]) col = debossCol;
     else if (state.trimMask && state.trimMask[i]) col = trimCol;
+    if (isFaceHidden(i) && !(state.edgeHighlight && state.edgeHighlight[i]) && !(state.smartPreview && state.smartPreview[i])) {
+      col = ghostCol;
+    }
     for (let v = 0; v < 3; v++) {
       colors.setXYZ(i * 3 + v, col.r, col.g, col.b);
     }
@@ -1283,6 +1442,7 @@ function facesInScreenBox(x0, y0, x1, y1) {
   camera.getWorldDirection(camDir);
   const hit = [];
   for (let i = 0; i < state.nTri; i++) {
+    if (isFaceHidden(i)) continue;
     let cx = 0, cy = 0, cz = 0;
     let anyIn = false;
     const world = [];
@@ -1450,8 +1610,10 @@ function fillEdgeHighlight(target = state.paintTarget) {
 
 function paintFacesFree(faceIndices, target, { undo = true } = {}) {
   if (!state.embossMask || !state.debossMask || !state.trimMask || !faceIndices.length) return;
+  const faces = faceIndices.filter(i => !isFaceHidden(i));
+  if (!faces.length) return;
   if (undo) pushUndo();
-  for (const i of faceIndices) {
+  for (const i of faces) {
     state.embossMask[i] = target === 'emboss' ? 1 : 0;
     state.debossMask[i] = target === 'deboss' ? 1 : 0;
     state.trimMask[i] = target === 'trim' ? 1 : 0;
@@ -1513,12 +1675,15 @@ function pickHitAtClient(clientX, clientY) {
   pointerNdc.y = -((clientY - rect.top) / rect.height) * 2 + 1;
   raycaster.setFromCamera(pointerNdc, camera);
   const hits = raycaster.intersectObject(state.mesh, false);
-  if (!hits.length) return null;
-  const faceIndex = hits[0].faceIndex;
-  if (faceIndex == null) return null;
-  // Hit point in mesh local space (smart fill uses model mm coords)
-  const local = state.mesh.worldToLocal(hits[0].point.clone());
-  return { faceIndex, point: local, worldPoint: hits[0].point };
+  for (const hit of hits) {
+    const faceIndex = hit.faceIndex;
+    if (faceIndex == null) continue;
+    if (isFaceHidden(faceIndex)) continue;
+    // Hit point in mesh local space (smart fill uses model mm coords)
+    const local = state.mesh.worldToLocal(hit.point.clone());
+    return { faceIndex, point: local, worldPoint: hit.point };
+  }
+  return null;
 }
 
 function clearSmartPreview() {
@@ -1632,12 +1797,16 @@ function setTool(tool) {
   } else if (tool === 'eyedrop') {
     viewportHint.textContent = 'Eyedropper — click a face to select that AMS colour slot';
   } else if (tool === 'edge') {
+    openMoreTools();
     viewportHint.textContent = 'Edge — Lock view, drag over a rough boundary, then Fill with the active slot';
   } else if (tool === 'smart') {
+    openMoreTools();
     viewportHint.textContent = 'Smart fill — hover for amber preview · tweak Size / Angle · click to paint';
   } else if (tool === 'box') {
+    openMoreTools();
     viewportHint.textContent = 'Box — Lock view, then drag to paint the active slot';
   } else if (tool === 'detect') {
+    openMoreTools();
     viewportHint.textContent = 'Detect — optional raised/sunken finder · then paint with Brush or Smart';
   } else {
     viewportHint.textContent = 'Drag to orbit · scroll to zoom · pick a colour and a brush';
@@ -1654,6 +1823,15 @@ function setPaintTarget(target) {
   document.getElementById('targetDeboss').classList.toggle('active', target === 'deboss');
   document.getElementById('targetTrim')?.classList.toggle('active', target === 'trim');
   syncSlotCards();
+  syncHideUI();
+  if (state.soloActive) updateMeshColors();
+}
+
+function openMoreTools() {
+  const body = document.getElementById('moreToolsBody');
+  const toggle = document.getElementById('moreToolsToggle');
+  body?.classList.add('open');
+  if (toggle) toggle.textContent = 'More tools — Smart · Box · Edge · Detect ▾';
 }
 
 const toolDetect = document.getElementById('toolDetect');
@@ -1688,8 +1866,55 @@ sprayDensitySlider?.addEventListener('input', () => {
   sprayDensityVal.textContent = sprayDensitySlider.value + '%';
 });
 document.querySelectorAll('.paint-colour-chip').forEach(chip => {
-  chip.addEventListener('click', () => setPaintTarget(chip.dataset.target));
+  chip.addEventListener('click', (e) => {
+    if (e.target?.closest?.('.chip-eye')) return;
+    setPaintTarget(chip.dataset.target);
+  });
 });
+document.querySelectorAll('.chip-eye').forEach(eye => {
+  eye.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const t = eye.dataset.hide;
+    if (!t) return;
+    // Turning visibility on while Solo is active exits Solo
+    if (state.soloActive) {
+      state.soloActive = false;
+      const soloCheck = document.getElementById('soloActive');
+      if (soloCheck) soloCheck.checked = false;
+      state.hiddenSlots = { body: true, emboss: true, deboss: true, trim: true };
+      state.hiddenSlots[t] = false;
+      state.hiddenSlots[state.paintTarget] = false;
+    } else {
+      state.hiddenSlots[t] = !state.hiddenSlots[t];
+    }
+    syncHideUI();
+    updateMeshColors();
+    setStatus(state.hiddenSlots[t] ? `Hidden ${t}` : `Showing ${t}`, 'idle');
+  });
+});
+document.getElementById('soloActive')?.addEventListener('change', (e) => {
+  state.soloActive = !!e.target.checked;
+  if (state.soloActive) {
+    state.hiddenSlots = { body: false, emboss: false, deboss: false, trim: false };
+  }
+  syncHideUI();
+  updateMeshColors();
+  setStatus(state.soloActive ? 'Solo mode — only active colour visible' : 'Solo off — all colours visible', 'idle');
+});
+document.getElementById('moreToolsToggle')?.addEventListener('click', () => {
+  const body = document.getElementById('moreToolsBody');
+  const open = !body?.classList.contains('open');
+  body?.classList.toggle('open', open);
+  const toggle = document.getElementById('moreToolsToggle');
+  if (toggle) {
+    toggle.textContent = open
+      ? 'More tools — Smart · Box · Edge · Detect ▾'
+      : 'More tools — Smart · Box · Edge · Detect ▸';
+  }
+});
+document.getElementById('resFineBtn')?.addEventListener('click', () => runResolutionUpgrade(1));
+document.getElementById('resUltraBtn')?.addEventListener('click', () => runResolutionUpgrade(2));
 
 orbitLockCheck?.addEventListener('change', () => {
   syncOrbitLock();
