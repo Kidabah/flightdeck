@@ -2,14 +2,14 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b409 Edge finder Fill Body + magenta
+- Latest commit: MakerDeck b410 cyan/magenta edge modes
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
 
-### 2026-07-19 feature (MakerDeck b409 — Edge Fill Body + magenta)
+### 2026-07-19 fix (MakerDeck b410 — cyan Emboss / magenta Body)
 
-**Need:** Shave black spill back to red (eyes); magenta band so selection doesn’t blend with red/black.
+**Need:** Cyan for Fill Emboss, magenta for Fill Body (not one colour for both).
 
-**What shipped:** Magenta edge highlight, Fill Emboss + Fill Body, width grows both ways. Cache-bust `painter.js?v=409`.
+**What shipped:** Mode toggles — cyan→Emboss (grow into red), magenta→Body (grow into black), then Fill. Cache-bust `painter.js?v=410`.
 
 **Deploy:** Hard refresh Painter page (no backend restart).
 

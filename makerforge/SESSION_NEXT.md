@@ -1,3 +1,9 @@
+### 2026-07-19 — b410: STL Painter — cyan Emboss / magenta Body edge modes
+
+Edge finder preview splits by intent: **cyan → Emboss** (grow into red, thicken black), **magenta → Body** (grow into black, shave spill). Pick mode, tweak Width, **Fill**. Cache-bust `painter.js?v=410`.
+
+Files: `painter.html`, `js/painter.js`, `SESSION_NEXT.md`.
+
 ### 2026-07-19 — b409: STL Painter — Edge finder Fill Body + magenta
 
 Edge band highlight is **magenta** (splits from red/black). **Fill Emboss** thickens black; **Fill Body** shaves black spill back to red. Width grows both ways so either fill works. Cache-bust `painter.js?v=409`.
