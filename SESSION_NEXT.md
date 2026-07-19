@@ -2,14 +2,14 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b420 paint vs orbit fix
+- Latest commit: MakerDeck b421 freehand brush
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
 
-### 2026-07-19 fix (MakerDeck b420 — paint control)
+### 2026-07-19 polish (MakerDeck b421 — Freehand)
 
-**Need:** Mouse move spun the model; side options hard to use while Brush was active.
+**Need:** Brush felt worse than before; need free paint not H/V lock.
 
-**What shipped:** Left-drag paints, right-drag orbits; stuck-capture safety; sidebar stacking. Cache-bust `painter.js?v=420`.
+**What shipped:** Freehand default; paint-on-model / orbit-on-empty; smoother strokes. Cache-bust `painter.js?v=421`.
 
 **Deploy:** Hard refresh Painter (no backend restart).
 

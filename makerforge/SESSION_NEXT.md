@@ -1,3 +1,13 @@
+### 2026-07-19 — b421: STL Painter — Freehand brush restored
+
+- **Freehand** is the default stroke (H/V optional only)
+- Drag on model paints; empty space / right-drag orbits again
+- Smoother free strokes (gap fill + wider angle on curves)
+- Brush options sit under Brush type so Freehand is obvious
+- Cache-bust `painter.js?v=421`
+
+Files: `painter.html`, `js/painter.js`, `index.html`, `js/app.js`, `SESSION_NEXT.md`.
+
 ### 2026-07-19 — b420: STL Painter — left-drag paints, not orbits
 
 Fix: Brush left-drag was also rotating the model (OrbitControls stole the button), which made side panels feel “stuck”.

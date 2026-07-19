@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STL Painter — MakerDeck b420</title>
+<title>STL Painter — MakerDeck b421</title>
 <script type="importmap">
 { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/" } }
 </script>
@@ -380,7 +380,7 @@
 
 <header class="header">
   <div class="header-brand">
-    <span class="header-eyebrow">MakerDeck <span id="makerdeck-build">b420</span></span>
+    <span class="header-eyebrow">MakerDeck <span id="makerdeck-build">b421</span></span>
     <span class="header-title">STL Painter</span>
     <span class="header-subtitle">Paint multi-colour STLs · export AMS-ready 3MFs</span>
   </div>
@@ -453,7 +453,7 @@
     <!-- 3 Paint tools -->
     <section class="flow-panel">
       <div class="flow-step"><span class="flow-num">03</span><span class="flow-title">Paint</span></div>
-      <p class="easy-tip" id="easyTip"><strong>Easy path:</strong> pick a colour → Brush → <b>left-drag</b> paints · <b>right-drag</b> orbits. Hide other colours if they get in the way.</p>
+      <p class="easy-tip" id="easyTip"><strong>Easy path:</strong> pick a colour → Brush (Freehand) → drag on the model to paint. Empty space / right-drag orbits.</p>
 
       <div class="section-label">Colour</div>
       <div class="paint-colour-row" id="paintColourRow">
@@ -485,10 +485,46 @@
 
       <div class="section-label" style="margin-top:12px">Brush type</div>
       <div class="tool-grid brush-types">
-        <button type="button" class="tool-toggle active" id="toolBrush" title="Paint with a brush — drag to stroke">Brush</button>
+        <button type="button" class="tool-toggle active" id="toolBrush" title="Freehand paint — drag on the model">Brush</button>
         <button type="button" class="tool-toggle" id="toolSpray" title="Spray paint with nozzle falloff">Spray</button>
         <button type="button" class="tool-toggle" id="toolEyedrop" title="Pick a colour from the model">Eyedrop</button>
       </div>
+
+      <!-- Brush options — right under Brush type so Freehand is obvious -->
+      <div class="opts-panel visible" id="brushOpts">
+        <div class="form-group">
+          <div class="form-label"><span>Size (mm)</span><span class="value" id="brushSizeVal">2.5</span></div>
+          <input type="range" id="brushSize" min="0.5" max="20" step="0.5" value="2.5">
+        </div>
+        <div class="form-group">
+          <div class="form-label"><span>Stroke</span><span class="value" id="strokeModeVal">Freehand</span></div>
+          <div class="stroke-row">
+            <button type="button" class="stroke-btn active" data-stroke="free" id="strokeFree" title="Paint freely in any direction">Freehand</button>
+            <button type="button" class="stroke-btn" data-stroke="horizontal" id="strokeH" title="Lock stroke to horizontal">Horiz</button>
+            <button type="button" class="stroke-btn" data-stroke="vertical" id="strokeV" title="Lock stroke to vertical">Vert</button>
+          </div>
+        </div>
+        <p class="flow-desc" style="margin:0">Default is Freehand. Drag on the model to paint · drag empty space (or right-drag) to orbit.</p>
+      </div>
+
+      <!-- Spray options -->
+      <div class="opts-panel" id="sprayOpts">
+        <div class="form-group">
+          <div class="form-label"><span>Nozzle size (mm)</span><span class="value" id="sprayNozzleVal">6</span></div>
+          <input type="range" id="sprayNozzle" min="1" max="30" step="0.5" value="6">
+        </div>
+        <div class="form-group">
+          <div class="form-label"><span>Density</span><span class="value" id="sprayDensityVal">45%</span></div>
+          <input type="range" id="sprayDensity" min="10" max="90" step="5" value="45">
+        </div>
+        <p class="flow-desc" style="margin:0">Free spray — drag on the model. Right-drag or empty space to orbit.</p>
+      </div>
+
+      <!-- Eyedropper options -->
+      <div class="opts-panel" id="eyedropOpts">
+        <p class="flow-desc" style="margin-top:0">Click the model to pick that AMS slot — like a desktop eyedropper.</p>
+      </div>
+
       <label class="lock-row" id="orbitLockLabel">
         <input type="checkbox" id="orbitLock">
         Lock view for precise painting
@@ -502,39 +538,6 @@
           <button type="button" class="tool-toggle" id="toolEdge" title="Select rough colour boundaries">Edge</button>
           <button type="button" class="tool-toggle" id="toolDetect" title="Auto-find raised / sunken detail">Detect</button>
         </div>
-      </div>
-
-      <!-- Brush options -->
-      <div class="opts-panel visible" id="brushOpts">
-        <div class="form-group">
-          <div class="form-label"><span>Size (mm)</span><span class="value" id="brushSizeVal">2.5</span></div>
-          <input type="range" id="brushSize" min="0.5" max="20" step="0.5" value="2.5">
-        </div>
-        <div class="form-group">
-          <div class="form-label"><span>Stroke</span></div>
-          <div class="stroke-row">
-            <button type="button" class="stroke-btn active" data-stroke="free" id="strokeFree">Free</button>
-            <button type="button" class="stroke-btn" data-stroke="horizontal" id="strokeH">Horizontal</button>
-            <button type="button" class="stroke-btn" data-stroke="vertical" id="strokeV">Vertical</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Spray options -->
-      <div class="opts-panel" id="sprayOpts">
-        <div class="form-group">
-          <div class="form-label"><span>Nozzle size (mm)</span><span class="value" id="sprayNozzleVal">6</span></div>
-          <input type="range" id="sprayNozzle" min="1" max="30" step="0.5" value="6">
-        </div>
-        <div class="form-group">
-          <div class="form-label"><span>Density</span><span class="value" id="sprayDensityVal">45%</span></div>
-          <input type="range" id="sprayDensity" min="10" max="90" step="5" value="45">
-        </div>
-      </div>
-
-      <!-- Eyedropper options -->
-      <div class="opts-panel" id="eyedropOpts">
-        <p class="flow-desc" style="margin-top:0">Click the model to pick that AMS slot — like a desktop eyedropper.</p>
       </div>
 
       <!-- Smart options -->
@@ -720,7 +723,7 @@ import {
   paintClassOf,
   upgradePaintResolution,
   export3MF
-} from './js/painter.js?v=420';
+} from './js/painter.js?v=421';
 
 /* ------------------------------------------------------------------ */
 /*  State                                                             */
@@ -1522,14 +1525,17 @@ function clearEdgeHighlight() {
 
 function syncOrbitLock() {
   const locked = !!orbitLockCheck?.checked;
-  // Paint / select tools own the left button — never let Orbit steal it.
-  const leftIsPaint =
-    isBrushTool() ||
+  // Only block left-orbit while actively painting/selecting.
+  // Brush idle: left-drag on empty space still orbits (natural feel).
+  const leftBlocked =
+    !!state.brushStrokeActive ||
+    !!state._smartClick ||
+    !!boxDrag ||
     state.tool === 'eyedrop' ||
     state.tool === 'smart' ||
     ((state.tool === 'box' || state.tool === 'edge') && locked);
 
-  controls.mouseButtons.LEFT = leftIsPaint ? -1 : THREE.MOUSE.ROTATE;
+  controls.mouseButtons.LEFT = leftBlocked ? -1 : THREE.MOUSE.ROTATE;
   controls.mouseButtons.MIDDLE = THREE.MOUSE.DOLLY;
   controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
 
@@ -1567,10 +1573,13 @@ function isBrushTool(tool = state.tool) {
 }
 
 function setBrushStroke(mode) {
-  state.brushStroke = mode;
+  state.brushStroke = mode || 'free';
   document.querySelectorAll('.stroke-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.stroke === mode);
+    btn.classList.toggle('active', btn.dataset.stroke === state.brushStroke);
   });
+  const labels = { free: 'Freehand', horizontal: 'Horizontal', vertical: 'Vertical' };
+  const el = document.getElementById('strokeModeVal');
+  if (el) el.textContent = labels[state.brushStroke] || 'Freehand';
 }
 
 /** Mask used by Edge finder for the active slot (or any painted face when on Base). */
@@ -1657,6 +1666,10 @@ function applyBrushDab(hit, { undo = false } = {}) {
   const density = state.tool === 'spray'
     ? (parseFloat(document.getElementById('sprayDensity')?.value) || 45) / 100
     : 1;
+  // Freehand: wide angle so paint follows curves; H/V can stay a bit tighter
+  const maxAngleDeg = state.tool === 'spray'
+    ? 100
+    : (state.brushStroke === 'free' ? 110 : 80);
   const faces = brushDabFaces(
     hit.faceIndex,
     hit.point,
@@ -1664,7 +1677,7 @@ function applyBrushDab(hit, { undo = false } = {}) {
     state.faces,
     state.nTri,
     state.faceAdj,
-    { radius, density, maxAngleDeg: state.tool === 'spray' ? 90 : 75 }
+    { radius, density, maxAngleDeg }
   );
   if (!faces.length) return 0;
   paintFacesFree(faces, state.paintTarget, { undo });
@@ -1672,10 +1685,40 @@ function applyBrushDab(hit, { undo = false } = {}) {
 }
 
 function constrainBrushClient(clientX, clientY, origin) {
+  // Freehand = no axis lock (full free paint)
   if (!origin || state.brushStroke === 'free') return { x: clientX, y: clientY };
   if (state.brushStroke === 'horizontal') return { x: clientX, y: origin.y };
   if (state.brushStroke === 'vertical') return { x: origin.x, y: clientY };
   return { x: clientX, y: clientY };
+}
+
+/** Fill gaps when the mouse moves fast so Freehand strokes stay continuous. */
+function strokeBrushTo(clientX, clientY, { undo = false } = {}) {
+  const stroke = state.brushStrokeActive;
+  if (!stroke) return 0;
+  const pt = constrainBrushClient(clientX, clientY, stroke.origin);
+  const prev = stroke.lastClient || pt;
+  const dist = Math.hypot(pt.x - prev.x, pt.y - prev.y);
+  const step = Math.max(4, brushRadiusMm() * 2.2);
+  const samples = dist < 1 ? 1 : Math.min(24, Math.ceil(dist / step));
+  let painted = 0;
+  let didUndo = false;
+  for (let s = 1; s <= samples; s++) {
+    const t = s / samples;
+    const x = prev.x + (pt.x - prev.x) * t;
+    const y = prev.y + (pt.y - prev.y) * t;
+    const hit = pickHitAtClient(x, y);
+    if (!hit) continue;
+    updateSmartCursor(x, y, hit.worldPoint);
+    const n = applyBrushDab(hit, { undo: undo && !didUndo && !stroke.undid });
+    if (n) {
+      painted += n;
+      didUndo = true;
+      stroke.undid = true;
+    }
+  }
+  stroke.lastClient = pt;
+  return painted;
 }
 
 function sampleEyedrop(clientX, clientY) {
@@ -1813,9 +1856,9 @@ function setTool(tool) {
   viewport.classList.toggle('brush-mode', isBrushTool(tool));
   viewport.classList.toggle('eyedrop-mode', tool === 'eyedrop');
   if (tool === 'brush') {
-    viewportHint.textContent = 'Brush — left-drag paints · right-drag orbits · Size & Stroke in the left panel';
+    viewportHint.textContent = 'Brush Freehand — drag on the model to paint · empty space or right-drag to orbit';
   } else if (tool === 'spray') {
-    viewportHint.textContent = 'Spray — left-drag mists paint · right-drag orbits · Nozzle in the left panel';
+    viewportHint.textContent = 'Spray — drag on the model to mist · empty space or right-drag to orbit';
   } else if (tool === 'eyedrop') {
     viewportHint.textContent = 'Eyedropper — click a face to select that AMS colour slot · right-drag orbits';
   } else if (tool === 'edge') {
@@ -2046,20 +2089,26 @@ viewport.addEventListener('pointerdown', (e) => {
     return;
   }
   if (isBrushTool()) {
+    const origin = { x: e.clientX, y: e.clientY };
+    const pt = constrainBrushClient(e.clientX, e.clientY, origin);
+    const hit = pickHitAtClient(pt.x, pt.y);
+    // Missed the model → let OrbitControls handle left-drag (feels like before)
+    if (!hit) return;
     e.preventDefault();
     e.stopPropagation();
     controls.enableRotate = false;
     controls.enablePan = false;
-    const origin = { x: e.clientX, y: e.clientY };
-    const pt = constrainBrushClient(e.clientX, e.clientY, origin);
-    const hit = pickHitAtClient(pt.x, pt.y);
-    state.brushStrokeActive = { origin, pointerId: e.pointerId, painted: 0, undid: false };
-    if (hit) {
-      updateSmartCursor(pt.x, pt.y, hit.worldPoint);
-      const n = applyBrushDab(hit, { undo: true });
-      state.brushStrokeActive.painted += n;
-      if (n) state.brushStrokeActive.undid = true;
-    }
+    state.brushStrokeActive = {
+      origin,
+      pointerId: e.pointerId,
+      painted: 0,
+      undid: false,
+      lastClient: pt,
+    };
+    updateSmartCursor(pt.x, pt.y, hit.worldPoint);
+    const n = applyBrushDab(hit, { undo: true });
+    state.brushStrokeActive.painted += n;
+    if (n) state.brushStrokeActive.undid = true;
     try { viewport.setPointerCapture?.(e.pointerId); } catch { /* ok */ }
     return;
   }
@@ -2093,14 +2142,7 @@ viewport.addEventListener('pointerdown', (e) => {
 }, true);
 viewport.addEventListener('pointermove', (e) => {
   if (state.brushStrokeActive) {
-    const pt = constrainBrushClient(e.clientX, e.clientY, state.brushStrokeActive.origin);
-    const hit = pickHitAtClient(pt.x, pt.y);
-    if (hit) {
-      updateSmartCursor(pt.x, pt.y, hit.worldPoint);
-      const n = applyBrushDab(hit, { undo: !state.brushStrokeActive.undid });
-      state.brushStrokeActive.painted += n;
-      if (n) state.brushStrokeActive.undid = true;
-    }
+    state.brushStrokeActive.painted += strokeBrushTo(e.clientX, e.clientY, { undo: false });
     return;
   }
   if (isBrushTool() && !boxDrag && !state._smartClick) {
