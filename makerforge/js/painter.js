@@ -1253,62 +1253,111 @@ export function selectIsland(seedFace, islandMap, islands) {
  * reflected centroid. Returns Int32Array where map[i] = mirror face index
  * or -1 if no suitable mirror found within tolerance.
  */
-export function buildSymmetryMap(verts, faces, nTri, { tolerance = 0.5 } = {}) {
-  // Compute centroids
+export function buildSymmetryMap(verts, faces, nTri) {
+  // Compute centroids and face normals
   const cx = new Float32Array(nTri);
   const cy = new Float32Array(nTri);
   const cz = new Float32Array(nTri);
+  const nx = new Float32Array(nTri);
+  const ny = new Float32Array(nTri);
+  const nz = new Float32Array(nTri);
   let minX = Infinity, maxX = -Infinity;
+  let minY = Infinity, maxY = -Infinity;
+  let minZ = Infinity, maxZ = -Infinity;
+
   for (let i = 0; i < nTri; i++) {
     let sx = 0, sy = 0, sz = 0;
-    for (let v = 0; v < 3; v++) {
-      const vi = faces[i * 3 + v];
-      sx += verts[vi * 3]; sy += verts[vi * 3 + 1]; sz += verts[vi * 3 + 2];
-    }
-    cx[i] = sx / 3; cy[i] = sy / 3; cz[i] = sz / 3;
-    if (cx[i] < minX) minX = cx[i];
-    if (cx[i] > maxX) maxX = cx[i];
+    const v0 = faces[i*3], v1 = faces[i*3+1], v2 = faces[i*3+2];
+    const ax = verts[v0*3], ay = verts[v0*3+1], az = verts[v0*3+2];
+    const bx = verts[v1*3], by = verts[v1*3+1], bz = verts[v1*3+2];
+    const dx = verts[v2*3], dy = verts[v2*3+1], dz = verts[v2*3+2];
+    cx[i] = (ax+bx+dx)/3; cy[i] = (ay+by+dy)/3; cz[i] = (az+bz+dz)/3;
+    // Cross product for normal
+    const e1x=bx-ax, e1y=by-ay, e1z=bz-az;
+    const e2x=dx-ax, e2y=dy-ay, e2z=dz-az;
+    nx[i] = e1y*e2z - e1z*e2y;
+    ny[i] = e1z*e2x - e1x*e2z;
+    nz[i] = e1x*e2y - e1y*e2x;
+    const len = Math.sqrt(nx[i]**2 + ny[i]**2 + nz[i]**2) || 1;
+    nx[i] /= len; ny[i] /= len; nz[i] /= len;
+    if (cx[i] < minX) minX = cx[i]; if (cx[i] > maxX) maxX = cx[i];
+    if (cy[i] < minY) minY = cy[i]; if (cy[i] > maxY) maxY = cy[i];
+    if (cz[i] < minZ) minZ = cz[i]; if (cz[i] > maxZ) maxZ = cz[i];
   }
-  const centerX = (minX + maxX) / 2;
+
+  // Auto-detect best symmetry axis: try X, Y, Z — pick axis with most reciprocal matches
+  const extents = [maxX-minX, maxY-minY, maxZ-minZ];
+  const diag = Math.sqrt(extents[0]**2 + extents[1]**2 + extents[2]**2);
+  const tolerance = diag * 0.005; // 0.5% of bounding diagonal
   const tolSq = tolerance * tolerance;
+  const normalThresh = 0.85; // cos(~30 deg)
 
-  // Spatial grid for fast lookup
-  const cellSize = tolerance * 2;
-  const grid = new Map();
-  function key(x, y, z) {
-    return `${Math.floor(x / cellSize)},${Math.floor(y / cellSize)},${Math.floor(z / cellSize)}`;
-  }
-  for (let i = 0; i < nTri; i++) {
-    const k = key(cx[i], cy[i], cz[i]);
-    if (!grid.has(k)) grid.set(k, []);
-    grid.get(k).push(i);
-  }
+  function tryAxis(axis) {
+    const ca = axis===0 ? cx : axis===1 ? cy : cz;
+    const na = axis===0 ? nx : axis===1 ? ny : nz;
+    const minA = axis===0 ? minX : axis===1 ? minY : minZ;
+    const maxA = axis===0 ? maxX : axis===1 ? maxY : maxZ;
+    const center = (minA + maxA) / 2;
+    const cellSize = tolerance * 2;
 
-  const map = new Int32Array(nTri).fill(-1);
-  for (let i = 0; i < nTri; i++) {
-    const mx = 2 * centerX - cx[i]; // mirrored X
-    const my = cy[i];
-    const mz = cz[i];
+    const grid = new Map();
+    function key(a, b, c) {
+      return `${Math.floor(a/cellSize)},${Math.floor(b/cellSize)},${Math.floor(c/cellSize)}`;
+    }
+    for (let i = 0; i < nTri; i++) {
+      const k = key(cx[i], cy[i], cz[i]);
+      if (!grid.has(k)) grid.set(k, []);
+      grid.get(k).push(i);
+    }
 
-    let bestDist = tolSq;
-    let bestJ = -1;
+    const map = new Int32Array(nTri).fill(-1);
+    let matches = 0;
+    for (let i = 0; i < nTri; i++) {
+      // Mirror centroid across the axis
+      const mcx = axis===0 ? 2*center-cx[i] : cx[i];
+      const mcy = axis===1 ? 2*center-cy[i] : cy[i];
+      const mcz = axis===2 ? 2*center-cz[i] : cz[i];
+      // Mirrored normal: flip the axis component
+      const mnx = axis===0 ? -nx[i] : nx[i];
+      const mny = axis===1 ? -ny[i] : ny[i];
+      const mnz = axis===2 ? -nz[i] : nz[i];
 
-    // Search neighbouring cells
-    const gx = Math.floor(mx / cellSize), gy = Math.floor(my / cellSize), gz = Math.floor(mz / cellSize);
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dy = -1; dy <= 1; dy++) {
-        for (let dz = -1; dz <= 1; dz++) {
-          const k = `${gx+dx},${gy+dy},${gz+dz}`;
-          const bucket = grid.get(k);
-          if (!bucket) continue;
-          for (const j of bucket) {
-            const d = (cx[j]-mx)**2 + (cy[j]-my)**2 + (cz[j]-mz)**2;
-            if (d < bestDist) { bestDist = d; bestJ = j; }
+      let bestDist = tolSq;
+      let bestJ = -1;
+      const gx = Math.floor(mcx/cellSize), gy = Math.floor(mcy/cellSize), gz = Math.floor(mcz/cellSize);
+      for (let ddx = -1; ddx <= 1; ddx++) {
+        for (let ddy = -1; ddy <= 1; ddy++) {
+          for (let ddz = -1; ddz <= 1; ddz++) {
+            const k = `${gx+ddx},${gy+ddy},${gz+ddz}`;
+            const bucket = grid.get(k);
+            if (!bucket) continue;
+            for (const j of bucket) {
+              // Check normal similarity (mirrored)
+              const dot = nx[j]*mnx + ny[j]*mny + nz[j]*mnz;
+              if (dot < normalThresh) continue;
+              const d = (cx[j]-mcx)**2 + (cy[j]-mcy)**2 + (cz[j]-mcz)**2;
+              if (d < bestDist) { bestDist = d; bestJ = j; }
+            }
           }
         }
       }
+      if (bestJ >= 0) { map[i] = bestJ; matches++; }
     }
-    map[i] = bestJ;
+    return { map, center, matches };
   }
-  return { map, centerX };
+
+  // Try all 3 axes, pick the one with most matches
+  const results = [tryAxis(0), tryAxis(1), tryAxis(2)];
+  let bestAxis = 0;
+  if (results[1].matches > results[bestAxis].matches) bestAxis = 1;
+  if (results[2].matches > results[bestAxis].matches) bestAxis = 2;
+
+  const axisNames = ['X', 'Y', 'Z'];
+  return {
+    map: results[bestAxis].map,
+    centerX: results[bestAxis].center,
+    axis: axisNames[bestAxis],
+    matched: results[bestAxis].matches,
+    total: nTri
+  };
 }
