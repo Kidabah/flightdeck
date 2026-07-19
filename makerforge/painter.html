@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STL Painter — MakerDeck b412</title>
+<title>STL Painter — MakerDeck b413</title>
 <script type="importmap">
 { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/" } }
 </script>
@@ -222,11 +222,18 @@
   .edge-controls .tool-btn.edge-body.active {
     border-color: #ff2bd6; color: #ff2bd6; box-shadow: 0 0 0 1px rgba(255,43,214,0.35);
   }
-  .flood-controls {
+  .smart-controls {
     display: none; align-items: center; gap: 8px; padding: 0 4px;
     color: var(--muted); font-size: 11px; font-weight: 600;
   }
-  .flood-controls.visible { display: inline-flex; }
+  .smart-controls.visible { display: inline-flex; }
+  .smart-controls input[type="range"] { width: 72px; accent-color: var(--accent); }
+  .smart-controls .smart-val { min-width: 28px; color: var(--text); font-variant-numeric: tabular-nums; }
+  .smart-cursor {
+    position: absolute; border: 1.5px solid #f5c542; border-radius: 50%;
+    pointer-events: none; z-index: 5; display: none;
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.35);
+  }
   .select-rect {
     position: absolute; border: 1.5px solid var(--accent);
     background: rgba(56, 189, 248, 0.14); pointer-events: none; z-index: 4; display: none;
@@ -249,7 +256,7 @@
 <header class="header">
   <div class="header-left">
     <div class="header-brand">
-      <span class="header-eyebrow">MakerDeck b412</span>
+      <span class="header-eyebrow">MakerDeck b413</span>
       <span class="header-title">STL Painter</span>
       <span class="header-subtitle">Detect, area-paint, and export multi-color 3MFs</span>
     </div>
@@ -358,7 +365,7 @@
       <button type="button" class="tool-btn active" id="toolOrbit" title="Orbit / pan / zoom">Orbit</button>
       <button type="button" class="tool-btn" id="toolBox" title="Drag a box to paint faces">Box paint</button>
       <button type="button" class="tool-btn" id="toolEdge" title="Edge finder — select rough emboss/body boundary">Edge finder</button>
-      <button type="button" class="tool-btn" id="toolFlood" title="Flood fill — click a pocket, or box a region then flood only Body (etc.) inside it">Flood</button>
+      <button type="button" class="tool-btn" id="toolSmart" title="Smart fill — Orca-style: size + sensitivity, hover preview, click to paint">Smart fill</button>
       <span class="edge-controls" id="edgeControls">
         <span title="How far to grow the highlight into the body">Width</span>
         <input type="range" id="edgeWidth" min="0" max="8" step="1" value="2">
@@ -368,15 +375,16 @@
         <button type="button" class="tool-btn" id="edgeFillBtn" title="Fill the highlighted band with the active colour">Fill</button>
         <button type="button" class="tool-btn" id="edgeClearBtn" title="Clear edge highlight">Clear</button>
       </span>
-      <span class="flood-controls" id="floodControls">
-        <span title="Only these faces inside the yellow region get replaced">Replace</span>
-        <select id="floodSource" title="Paint class to replace inside the region" style="background:var(--panel-2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:4px 6px;font-size:11px;font-weight:600">
-          <option value="body" selected>Body</option>
-          <option value="emboss">Emboss</option>
-          <option value="deboss">Deboss</option>
-        </select>
-        <button type="button" class="tool-btn" id="floodRegionBtn" title="Replace only that class inside the yellow region (keeps black emboss rim)">Flood in region</button>
-        <button type="button" class="tool-btn" id="floodClearBtn" title="Clear region limit">Clear region</button>
+      <span class="smart-controls" id="smartControls">
+        <span title="Fill radius from click (mm)">Size</span>
+        <input type="range" id="smartSize" min="1" max="40" step="0.5" value="10">
+        <span class="smart-val" id="smartSizeVal">10</span>
+        <span title="Higher = include more angled faces (like Orca smart fill angle)">Angle</span>
+        <input type="range" id="smartAngle" min="5" max="90" step="1" value="35">
+        <span class="smart-val" id="smartAngleVal">35°</span>
+        <label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-weight:600;color:var(--muted)" title="Stop at emboss/deboss boundaries">
+          <input type="checkbox" id="smartSameColour" checked style="accent-color:var(--accent)"> Same colour
+        </label>
       </span>
       <div class="tool-sep"></div>
       <span class="paint-target-row" title="Paint colour (AMS slot)">
@@ -397,6 +405,7 @@
       <button type="button" class="tool-btn" id="undoBtn" title="Undo last paint" disabled>Undo</button>
     </div>
     <div class="select-rect" id="selectRect"></div>
+    <div class="smart-cursor" id="smartCursor"></div>
     <div class="viewport-hint" id="viewportHint">Orbit: drag rotate · scroll zoom · Shift+pan · double-click zoom to point</div>
   </div>
 
@@ -465,7 +474,7 @@
     <span class="status-dot idle" id="statusDot"></span>
     <span id="statusText">Ready — load an STL to begin</span>
   </div>
-  <span>MakerDeck b412 — STL Painter</span>
+  <span>MakerDeck b413 — STL Painter</span>
 </footer>
 
 <!-- Main Script -->
@@ -479,10 +488,9 @@ import {
   cleanClusters,
   buildFaceAdj,
   findPaintBoundary,
-  floodFillFaces,
-  paintClassOf,
+  smartFillFaces,
   export3MF
-} from './js/painter.js?v=412';
+} from './js/painter.js?v=413';
 
 /* ------------------------------------------------------------------ */
 /*  State                                                             */
@@ -503,12 +511,13 @@ const state = {
   debossCount: 0,
   mesh: null,
   fileName: 'model',
-  tool: 'orbit',          // 'orbit' | 'box' | 'edge' | 'flood'
+  tool: 'orbit',          // 'orbit' | 'box' | 'edge' | 'smart'
   paintTarget: 'body',    // 'body' | 'emboss' | 'deboss'
   undoStack: [],
   edgeHighlight: null,    // Uint8Array | null
   edgeFillMode: 'emboss', // 'emboss' (cyan) | 'body' (magenta)
-  floodRegion: null,      // Uint8Array | null — yellow box limit for flood
+  smartPreview: null,     // Uint8Array | null — amber smart-fill preview
+  smartPreviewFaces: null,// number[] last preview
   faceAdj: null,          // cached face adjacency
 };
 
@@ -887,7 +896,8 @@ async function loadSTL(file) {
   state.embossCount = 0;
   state.debossCount = 0;
   state.edgeHighlight = null;
-  state.floodRegion = null;
+  state.smartPreview = null;
+  state.smartPreviewFaces = null;
   state.faceAdj = null;
   state.undoStack = [];
   document.getElementById('undoBtn').disabled = true;
@@ -994,14 +1004,14 @@ function updateMeshColors() {
   const bodyCol = new THREE.Color(colorBody.value);
   const embossCol = new THREE.Color(colorEmboss.value);
   const debossCol = new THREE.Color(colorDeboss.value);
-  // Cyan = about to Fill Emboss; magenta = about to Fill Body; amber = flood region limit
+  // Cyan/magenta = edge finder; amber = smart-fill hover preview
   const edgeCol = new THREE.Color(state.edgeFillMode === 'body' ? '#ff2bd6' : '#00e5ff');
-  const floodCol = new THREE.Color('#f5c542');
+  const smartCol = new THREE.Color('#f5c542');
 
   for (let i = 0; i < state.nTri; i++) {
     let col = bodyCol;
     if (state.edgeHighlight && state.edgeHighlight[i]) col = edgeCol;
-    else if (state.floodRegion && state.floodRegion[i]) col = floodCol;
+    else if (state.smartPreview && state.smartPreview[i]) col = smartCol;
     else if (state.embossMask && state.embossMask[i]) col = embossCol;
     else if (state.debossMask && state.debossMask[i]) col = debossCol;
     for (let v = 0; v < 3; v++) {
@@ -1182,17 +1192,21 @@ function facesInScreenBox(x0, y0, x1, y1) {
 const toolOrbit = document.getElementById('toolOrbit');
 const toolBox = document.getElementById('toolBox');
 const toolEdge = document.getElementById('toolEdge');
-const toolFlood = document.getElementById('toolFlood');
+const toolSmart = document.getElementById('toolSmart');
 const edgeControls = document.getElementById('edgeControls');
-const floodControls = document.getElementById('floodControls');
+const smartControls = document.getElementById('smartControls');
 const edgeWidthSlider = document.getElementById('edgeWidth');
 const edgeWidthVal = document.getElementById('edgeWidthVal');
 const edgeModeEmbossBtn = document.getElementById('edgeModeEmbossBtn');
 const edgeModeBodyBtn = document.getElementById('edgeModeBodyBtn');
 const edgeFillBtn = document.getElementById('edgeFillBtn');
 const edgeClearBtn = document.getElementById('edgeClearBtn');
-const floodRegionBtn = document.getElementById('floodRegionBtn');
-const floodClearBtn = document.getElementById('floodClearBtn');
+const smartSizeSlider = document.getElementById('smartSize');
+const smartSizeVal = document.getElementById('smartSizeVal');
+const smartAngleSlider = document.getElementById('smartAngle');
+const smartAngleVal = document.getElementById('smartAngleVal');
+const smartSameColour = document.getElementById('smartSameColour');
+const smartCursor = document.getElementById('smartCursor');
 const selectRect = document.getElementById('selectRect');
 const raycaster = new THREE.Raycaster();
 const pointerNdc = new THREE.Vector2();
@@ -1306,106 +1320,95 @@ function paintFacesFree(faceIndices, target) {
   exportBtn.disabled = false;
 }
 
-function pickFaceAtClient(clientX, clientY) {
-  if (!state.mesh) return -1;
+function pickHitAtClient(clientX, clientY) {
+  if (!state.mesh) return null;
   const rect = viewport.getBoundingClientRect();
   pointerNdc.x = ((clientX - rect.left) / rect.width) * 2 - 1;
   pointerNdc.y = -((clientY - rect.top) / rect.height) * 2 + 1;
   raycaster.setFromCamera(pointerNdc, camera);
   const hits = raycaster.intersectObject(state.mesh, false);
-  if (!hits.length) return -1;
+  if (!hits.length) return null;
   const faceIndex = hits[0].faceIndex;
-  return faceIndex == null ? -1 : faceIndex;
+  if (faceIndex == null) return null;
+  // Hit point in mesh local space (smart fill uses model mm coords)
+  const local = state.mesh.worldToLocal(hits[0].point.clone());
+  return { faceIndex, point: local, worldPoint: hits[0].point };
 }
 
-function runFloodFromSeed(seed) {
-  if (seed < 0 || !state.embossMask) return 0;
+function clearSmartPreview() {
+  state.smartPreview = null;
+  state.smartPreviewFaces = null;
+  if (smartCursor) smartCursor.style.display = 'none';
+  updateMeshColors();
+}
+
+function updateSmartCursor(clientX, clientY, worldPoint) {
+  if (!smartCursor || !state.mesh) return;
+  const radius = parseFloat(smartSizeSlider.value) || 10;
+  // Approximate screen radius from world size at hit depth
+  const rect = viewport.getBoundingClientRect();
+  const cam = camera;
+  const dist = cam.position.distanceTo(worldPoint);
+  const vFov = (cam.fov * Math.PI) / 180;
+  const worldH = 2 * Math.tan(vFov / 2) * dist;
+  const pxPerMm = rect.height / worldH;
+  const d = Math.max(8, radius * pxPerMm * 2);
+  smartCursor.style.display = 'block';
+  smartCursor.style.width = d + 'px';
+  smartCursor.style.height = d + 'px';
+  smartCursor.style.left = (clientX - rect.left - d / 2) + 'px';
+  smartCursor.style.top = (clientY - rect.top - d / 2) + 'px';
+}
+
+function computeSmartFill(hit) {
+  if (!hit || !state.embossMask) return [];
   ensureFaceAdj();
-  const faces = floodFillFaces(
-    seed,
+  return smartFillFaces(
+    hit.faceIndex,
+    hit.point,
+    state.verts,
+    state.faces,
+    state.nTri,
     state.embossMask,
     state.debossMask,
-    state.nTri,
     state.faceAdj,
-    { region: state.floodRegion }
+    {
+      radius: parseFloat(smartSizeSlider.value) || 10,
+      maxAngleDeg: parseFloat(smartAngleSlider.value) || 35,
+      samePaintOnly: smartSameColour?.checked !== false,
+    }
   );
-  if (!faces.length) {
-    setStatus(
-      state.floodRegion
-        ? 'Flood found nothing — click a face inside the yellow region'
-        : 'Flood found nothing',
-      'idle'
-    );
-    return 0;
-  }
-  // Guard: unconstrained flood that eats most of the model (eye→whole mask)
-  const maxFrac = 0.08;
-  if (!state.floodRegion && faces.length > state.nTri * maxFrac) {
-    setStatus(
-      `Flood would paint ${faces.length.toLocaleString()} faces (too big) — drag a yellow region around the eye, then click inside`,
-      'idle'
-    );
-    return 0;
-  }
-  const target = state.paintTarget;
-  paintFacesFree(faces, target);
-  const limited = state.floodRegion ? ' (limited to region)' : '';
-  setStatus(`Flood filled ${faces.length.toLocaleString()} faces → ${target}${limited}`, 'idle');
-  return faces.length;
 }
 
-function floodReplaceInRegion() {
-  if (!state.floodRegion) {
-    setStatus('No region — drag a box around the eye first', 'idle');
-    return 0;
-  }
-  const source = document.getElementById('floodSource')?.value || 'body';
-  const target = state.paintTarget;
-  if (source === target) {
-    setStatus(`Replace is already ${source} — pick a different paint target (e.g. Deboss white)`, 'idle');
-    return 0;
-  }
-  const faces = [];
-  for (let i = 0; i < state.nTri; i++) {
-    if (!state.floodRegion[i]) continue;
-    if (paintClassOf(i, state.embossMask, state.debossMask) === source) faces.push(i);
-  }
-  if (!faces.length) {
-    setStatus(`No ${source} faces in the yellow region`, 'idle');
-    return 0;
-  }
-  paintFacesFree(faces, target);
-  setStatus(
-    `Flood in region: ${faces.length.toLocaleString()} ${source} → ${target} (other classes left alone)`,
-    'idle'
-  );
-  return faces.length;
-}
-
-function setFloodRegionFromFaces(faceList) {
-  if (!faceList.length) {
-    setStatus('No faces in that box', 'idle');
+function previewSmartFill(clientX, clientY) {
+  if (state.tool !== 'smart' || !state.mesh) return;
+  const hit = pickHitAtClient(clientX, clientY);
+  if (!hit) {
+    clearSmartPreview();
     return;
   }
-  const region = new Uint8Array(state.nTri);
-  for (const i of faceList) region[i] = 1;
-  state.floodRegion = region;
-  state.edgeHighlight = null; // don't stack overlays
+  updateSmartCursor(clientX, clientY, hit.worldPoint);
+  const faces = computeSmartFill(hit);
+  const mask = new Uint8Array(state.nTri);
+  for (const i of faces) mask[i] = 1;
+  state.smartPreview = mask;
+  state.smartPreviewFaces = faces;
+  state.edgeHighlight = null;
   updateMeshColors();
-  const source = document.getElementById('floodSource')?.value || 'body';
-  let replaceable = 0;
-  for (const i of faceList) {
-    if (paintClassOf(i, state.embossMask, state.debossMask) === source) replaceable++;
-  }
-  setStatus(
-    `Region: ${faceList.length.toLocaleString()} faces (yellow) · ${replaceable.toLocaleString()} ${source} to replace — click pocket or Flood in region`,
-    'idle'
-  );
 }
 
-function clearFloodRegion() {
-  state.floodRegion = null;
+function commitSmartFill() {
+  const faces = state.smartPreviewFaces;
+  if (!faces || !faces.length) {
+    setStatus('Nothing to fill — hover the eye lens, tweak Size/Angle until the amber patch looks right, then click', 'idle');
+    return;
+  }
+  const target = state.paintTarget;
+  paintFacesFree(faces, target);
+  state.smartPreview = null;
+  state.smartPreviewFaces = null;
   updateMeshColors();
+  setStatus(`Smart fill: ${faces.length.toLocaleString()} faces → ${target}`, 'idle');
 }
 
 function setTool(tool) {
@@ -1413,19 +1416,20 @@ function setTool(tool) {
   toolOrbit.classList.toggle('active', tool === 'orbit');
   toolBox.classList.toggle('active', tool === 'box');
   toolEdge.classList.toggle('active', tool === 'edge');
-  toolFlood.classList.toggle('active', tool === 'flood');
+  toolSmart.classList.toggle('active', tool === 'smart');
   edgeControls.classList.toggle('visible', tool === 'edge');
-  floodControls.classList.toggle('visible', tool === 'flood');
+  smartControls.classList.toggle('visible', tool === 'smart');
+  if (tool !== 'smart') clearSmartPreview();
   // Orbit controls stay on for scroll-zoom; left-drag rotate gated for select tools.
   controls.enabled = true;
   controls.enableRotate = tool === 'orbit';
   controls.enablePan = tool === 'orbit';
-  viewport.classList.toggle('select-mode', tool === 'box' || tool === 'edge' || tool === 'flood');
+  viewport.classList.toggle('select-mode', tool === 'box' || tool === 'edge' || tool === 'smart');
   if (tool === 'edge') {
     syncEdgeModeButtons();
     viewportHint.textContent = 'Edge finder: cyan → Fill Emboss (thicken black) · magenta → Fill Body (shave to red) · Width · Fill · right-drag orbits';
-  } else if (tool === 'flood') {
-    viewportHint.textContent = 'Flood: for eyes — Deboss white · Replace Body · drag yellow around eye · Flood in region (keeps black rim) · or click pocket inside region · right-drag orbits';
+  } else if (tool === 'smart') {
+    viewportHint.textContent = 'Smart fill: hover = amber preview · Size (mm) + Angle (°) like Orca · Same colour keeps black rim · click to paint · right-drag orbits';
   } else if (tool === 'box') {
     viewportHint.textContent = 'Box paint: Body = red/base (whole box) · Emboss/Deboss lock to Detect when possible · free-paint if none · right-drag orbits';
   } else {
@@ -1443,11 +1447,12 @@ function setPaintTarget(target) {
 toolOrbit.addEventListener('click', () => setTool('orbit'));
 toolBox.addEventListener('click', () => setTool('box'));
 toolEdge.addEventListener('click', () => setTool('edge'));
-toolFlood.addEventListener('click', () => setTool('flood'));
-floodRegionBtn.addEventListener('click', () => floodReplaceInRegion());
-floodClearBtn.addEventListener('click', () => {
-  clearFloodRegion();
-  setStatus('Flood region cleared', 'idle');
+toolSmart.addEventListener('click', () => setTool('smart'));
+smartSizeSlider.addEventListener('input', () => {
+  smartSizeVal.textContent = parseFloat(smartSizeSlider.value).toFixed(smartSizeSlider.value % 1 ? 1 : 0);
+});
+smartAngleSlider.addEventListener('input', () => {
+  smartAngleVal.textContent = smartAngleSlider.value + '°';
 });
 edgeWidthSlider.addEventListener('input', () => {
   edgeWidthVal.textContent = edgeWidthSlider.value;
@@ -1478,7 +1483,8 @@ document.getElementById('undoBtn').addEventListener('click', () => {
   state.embossMask = snap.emboss;
   state.debossMask = snap.deboss;
   state.edgeHighlight = null;
-  // keep floodRegion — it's a selection limit, not paint
+  state.smartPreview = null;
+  state.smartPreviewFaces = null;
   updateMeshColors();
   recountPaint();
   document.getElementById('undoBtn').disabled = state.undoStack.length === 0;
@@ -1497,16 +1503,24 @@ function endBoxDrag(e) {
 }
 
 function isSelectTool() {
-  return state.tool === 'box' || state.tool === 'edge' || state.tool === 'flood';
+  return state.tool === 'box' || state.tool === 'edge';
 }
 
 viewport.addEventListener('pointerdown', (e) => {
   // Toolbar clicks must not start a paint box (Orbit button lives inside viewport).
   if (e.target.closest?.('.viewport-toolbar')) return;
-  // Right / middle mouse = orbit even while Box/Edge is selected.
+  // Right / middle mouse = orbit even while Box/Edge/Smart is selected.
   if (e.button === 2 || e.button === 1) {
     controls.enableRotate = true;
     controls.enablePan = true;
+    return;
+  }
+  if (state.tool === 'smart' && state.mesh && e.button === 0) {
+    e.preventDefault();
+    // Refresh preview at click point, then commit on pointerup if it was a click
+    state._smartClick = { x: e.clientX, y: e.clientY, pointerId: e.pointerId };
+    previewSmartFill(e.clientX, e.clientY);
+    viewport.setPointerCapture?.(e.pointerId);
     return;
   }
   if (!isSelectTool() || !state.mesh || e.button !== 0) return;
@@ -1521,6 +1535,20 @@ viewport.addEventListener('pointerdown', (e) => {
   viewport.setPointerCapture?.(e.pointerId);
 });
 viewport.addEventListener('pointermove', (e) => {
+  if (state.tool === 'smart' && !state._smartClick && !boxDrag) {
+    previewSmartFill(e.clientX, e.clientY);
+    return;
+  }
+  if (state._smartClick) {
+    // Drag while smart-clicking = orbit cancel fill; treat as move preview
+    const dx = e.clientX - state._smartClick.x;
+    const dy = e.clientY - state._smartClick.y;
+    if (Math.hypot(dx, dy) > 6) {
+      state._smartClick.moved = true;
+      previewSmartFill(e.clientX, e.clientY);
+    }
+    return;
+  }
   if (!boxDrag) return;
   const rect = viewport.getBoundingClientRect();
   const x1 = e.clientX - rect.left, y1 = e.clientY - rect.top;
@@ -1533,9 +1561,19 @@ viewport.addEventListener('pointermove', (e) => {
 viewport.addEventListener('pointerup', (e) => {
   if (e.button === 2 || e.button === 1) {
     // Restore select-mode orbit lock after a temporary right-drag orbit.
-    if (isSelectTool()) {
+    if (isSelectTool() || state.tool === 'smart') {
       controls.enableRotate = false;
       controls.enablePan = false;
+    }
+    return;
+  }
+  if (state._smartClick) {
+    const clicked = state._smartClick;
+    state._smartClick = null;
+    try { viewport.releasePointerCapture?.(e.pointerId); } catch { /* ok */ }
+    if (!clicked.moved) {
+      previewSmartFill(e.clientX, e.clientY);
+      commitSmartFill();
     }
     return;
   }
@@ -1545,30 +1583,8 @@ viewport.addEventListener('pointerup', (e) => {
   const start = endBoxDrag(e);
   if (!start) return;
   const tool = state.tool;
-  const dragW = Math.abs(x1 - start.x0);
-  const dragH = Math.abs(y1 - start.y0);
-  const isClick = dragW < 5 && dragH < 5;
 
-  if (tool === 'flood' && isClick) {
-    setStatus('Flood filling…', 'working');
-    requestAnimationFrame(() => {
-      // Use pointer-up position for the seed hit
-      const seed = pickFaceAtClient(e.clientX, e.clientY);
-      if (seed < 0) {
-        setStatus('Missed the mesh — click a face to flood', 'idle');
-        return;
-      }
-      runFloodFromSeed(seed);
-    });
-    return;
-  }
-
-  setStatus(
-    tool === 'edge' ? 'Finding emboss edge…'
-      : tool === 'flood' ? 'Setting flood region…'
-      : 'Selecting faces…',
-    'working'
-  );
+  setStatus(tool === 'edge' ? 'Finding emboss edge…' : 'Selecting faces…', 'working');
   requestAnimationFrame(() => {
     const faces = facesInScreenBox(start.x0, start.y0, x1, y1);
     if (tool === 'edge') {
@@ -1586,31 +1602,30 @@ viewport.addEventListener('pointerup', (e) => {
           : 'No emboss/body edge in that box — drag over where black meets red',
         'idle'
       );
-      // Stay in Edge tool so you can adjust width / fill
-    } else if (tool === 'flood') {
-      setFloodRegionFromFaces(faces);
-      // Stay in Flood tool for click-flood inside the region
     } else {
       paintFaces(faces, state.paintTarget);
-      // Return to Orbit so you can spin the model immediately after painting.
       setTool('orbit');
     }
   });
 });
 viewport.addEventListener('pointercancel', (e) => {
+  state._smartClick = null;
   endBoxDrag(e);
-  if (isSelectTool()) {
+  if (isSelectTool() || state.tool === 'smart') {
     controls.enableRotate = false;
     controls.enablePan = false;
   }
 });
 viewport.addEventListener('contextmenu', (e) => {
-  if (isSelectTool()) e.preventDefault();
+  if (isSelectTool() || state.tool === 'smart') e.preventDefault();
+});
+viewport.addEventListener('pointerleave', () => {
+  if (state.tool === 'smart' && !state._smartClick) clearSmartPreview();
 });
 
 // Double-click: zoom toward the hit face (detail work).
 viewport.addEventListener('dblclick', (e) => {
-  if (!state.mesh || isSelectTool()) return;
+  if (!state.mesh || isSelectTool() || state.tool === 'smart') return;
   const rect = viewport.getBoundingClientRect();
   pointerNdc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
   pointerNdc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;

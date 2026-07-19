@@ -2,16 +2,14 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b412 safe Flood in region
+- Latest commit: MakerDeck b413 Orca-style Smart fill
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
 
-### 2026-07-19 fix (MakerDeck b412 — Flood didn’t go to plan)
+### 2026-07-19 feature (MakerDeck b413 — Smart fill)
 
-**Need:** Eye flood painted a white rectangle over web + eye.
+**Need:** Orca-like select area with size + sensitivity, click to fill (not rectangular box flood).
 
-**Cause:** Flood region painted every face in the box.
-
-**What shipped:** Flood in region only replaces Body (selectable); keeps emboss rim; big unconstrained floods blocked. Cache-bust `painter.js?v=412`.
+**What shipped:** Smart fill — Size mm, Angle°, amber preview, Same colour, click to paint. Cache-bust `painter.js?v=413`.
 
 **Deploy:** Hard refresh Painter page (no backend restart).
 

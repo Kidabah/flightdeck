@@ -1,3 +1,9 @@
+### 2026-07-19 — b413: STL Painter — Orca-style Smart fill
+
+Replaces box-flood for eyes: **Smart fill** tool with **Size (mm)** + **Angle (°)** (sensitivity), amber hover preview + circle cursor, click to paint. **Same colour** stops at emboss rim. Cache-bust `painter.js?v=413`.
+
+Files: `painter.html`, `js/painter.js`, `SESSION_NEXT.md`.
+
 ### 2026-07-19 — b412: STL Painter — Flood region only replaces Body (etc.)
 
 **Flood in region** was painting every face in the yellow box (white rectangle over Spidey eye + web). Now it only replaces the chosen class (**Replace Body** default) inside the region — black emboss rim stays. Unconstrained click-flood that would exceed 8% of the mesh is blocked (forces a yellow region). Cache-bust `painter.js?v=412`.

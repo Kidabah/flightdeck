@@ -1,5 +1,5 @@
 /**
- * MakerDeck STL Painter Engine — b412
+ * MakerDeck STL Painter Engine — b413
  * Pure computation module: STL parsing, feature detection, 3MF export.
  */
 
@@ -163,6 +163,70 @@ export function floodFillFaces(seed, embossMask, debossMask, nTri, faceAdj, opts
       if (region && !region[nb]) continue;
       if (paintClassOf(nb, embossMask, debossMask) !== matchClass) continue;
       visited[nb] = 1;
+      queue.push(nb);
+    }
+  }
+  return out;
+}
+
+function faceNormalCentroid(verts, faces, fi) {
+  const a = faces[fi * 3], b = faces[fi * 3 + 1], c = faces[fi * 3 + 2];
+  const ax = verts[a * 3], ay = verts[a * 3 + 1], az = verts[a * 3 + 2];
+  const bx = verts[b * 3], by = verts[b * 3 + 1], bz = verts[b * 3 + 2];
+  const cx = verts[c * 3], cy = verts[c * 3 + 1], cz = verts[c * 3 + 2];
+  const e1x = bx - ax, e1y = by - ay, e1z = bz - az;
+  const e2x = cx - ax, e2y = cy - ay, e2z = cz - az;
+  let nx = e1y * e2z - e1z * e2y;
+  let ny = e1z * e2x - e1x * e2z;
+  let nz = e1x * e2y - e1y * e2x;
+  const len = Math.sqrt(nx * nx + ny * ny + nz * nz);
+  if (len > 1e-12) { nx /= len; ny /= len; nz /= len; }
+  return {
+    nx, ny, nz,
+    cx: (ax + bx + cx) / 3,
+    cy: (ay + by + cy) / 3,
+    cz: (az + bz + cz) / 3,
+  };
+}
+
+/**
+ * Orca-style smart fill: grow from seed through faces within `radius` mm of
+ * the hit point whose normals are within `maxAngleDeg` of the seed normal.
+ * `samePaintOnly` (default true) stops at emboss/deboss boundaries.
+ * @returns {number[]} face indices
+ */
+export function smartFillFaces(seed, hitPoint, verts, faces, nTri, embossMask, debossMask, faceAdj, opts = {}) {
+  const radius = Math.max(0.1, opts.radius ?? 8);
+  const maxAngleDeg = Math.max(1, Math.min(120, opts.maxAngleDeg ?? 40));
+  const samePaintOnly = opts.samePaintOnly !== false;
+  if (seed < 0 || seed >= nTri) return [];
+
+  const cosThr = Math.cos((maxAngleDeg * Math.PI) / 180);
+  const seedGeo = faceNormalCentroid(verts, faces, seed);
+  const matchClass = paintClassOf(seed, embossMask, debossMask);
+  const hx = hitPoint.x ?? hitPoint[0];
+  const hy = hitPoint.y ?? hitPoint[1];
+  const hz = hitPoint.z ?? hitPoint[2];
+  const r2 = radius * radius;
+
+  const out = [];
+  const queued = new Uint8Array(nTri);
+  const queue = [seed];
+  queued[seed] = 1;
+
+  while (queue.length) {
+    const fi = queue.pop();
+    const g = faceNormalCentroid(verts, faces, fi);
+    const dx = g.cx - hx, dy = g.cy - hy, dz = g.cz - hz;
+    if (dx * dx + dy * dy + dz * dz > r2) continue;
+    const dot = g.nx * seedGeo.nx + g.ny * seedGeo.ny + g.nz * seedGeo.nz;
+    if (dot < cosThr) continue;
+    if (samePaintOnly && paintClassOf(fi, embossMask, debossMask) !== matchClass) continue;
+
+    out.push(fi);
+    for (const nb of faceAdj[fi]) {
+      if (queued[nb]) continue;
+      queued[nb] = 1;
       queue.push(nb);
     }
   }
