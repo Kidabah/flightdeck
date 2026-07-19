@@ -431,8 +431,10 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
           <p class="flow-desc">Click to select a connected region. Then paint it with the active slot.</p>
           <div class="btn-row" style="margin-top:6px">
             <button class="btn btn-primary" id="selPaintBtn" disabled>Paint Selection</button>
+            <button class="btn" id="selHideBtn" disabled>Hide Selection</button>
             <button class="btn" id="selClearBtn" disabled>Clear</button>
           </div>
+          <button class="btn" id="showHiddenBtn" style="margin-top:6px;width:100%">Show Hidden</button>
         </div>
 
         <label class="check-row" style="margin-top:8px">
@@ -564,6 +566,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <button class="tool-btn" id="undoBtn" title="Undo (Z)" disabled>Undo</button>
       <button class="tool-btn" id="redoBtn" title="Redo (Y)" disabled>Redo</button>
       <button class="tool-btn" id="turntableBtn" title="Turntable (T)">Spin</button>
+      <button class="tool-btn" id="showHiddenToolBtn" title="Show hidden faces (H)">Show</button>
       <button class="tool-btn" id="resetViewBtn" title="Reset all">Reset</button>
     </div>
     <div class="select-rect" id="selectRect"></div>
@@ -638,6 +641,7 @@ const S = {
   selectedIsland: -1,
   clickSelectMode: 'island', // 'island' | 'color'
   clickSelection: null,      // Uint8Array highlight mask
+  hiddenManual: null,         // Uint8Array manual hide mask
   clickSelectionFaces: null,  // number[]
   // Wireframe overlay
   wireframe: null,
@@ -825,7 +829,7 @@ function seatVertsOnBed(verts, nVerts) {
 function facePaintClass(i) { return paintClassOf(i, S.embossMask, S.debossMask, S.trimMask); }
 
 function isFaceHidden(i) {
-  // Island-level hiding
+  if (S.hiddenManual && S.hiddenManual[i]) return true;
   if (S.islandMap && S.hiddenIslands.has(S.islandMap[i])) return true;
   const cls = facePaintClass(i);
   if (S.soloActive) return cls !== S.paintTarget;
@@ -1188,7 +1192,7 @@ function performClickSelect(clientX, clientY) {
   S.clickSelection = mask;
   S.clickSelectionFaces = faces;
   updateMeshColors();
-  $('selPaintBtn').disabled = false;
+  $('selPaintBtn').disabled = false; $('selHideBtn').disabled = false;
   $('selClearBtn').disabled = false;
   const modeLabel = S.clickSelectMode === 'island' ? 'island' : 'color region';
   setStatus(`Selected ${faces.length.toLocaleString()} faces (${modeLabel}) — Paint Selection to apply`, 'idle');
@@ -1196,7 +1200,7 @@ function performClickSelect(clientX, clientY) {
 
 function clearClickSelection() {
   S.clickSelection = null; S.clickSelectionFaces = null; S.selectedIsland = -1;
-  $('selPaintBtn').disabled = true; $('selClearBtn').disabled = true;
+  $('selPaintBtn').disabled = true; $('selHideBtn').disabled = true; $('selClearBtn').disabled = true;
   syncIslandCards();
   updateMeshColors();
 }
@@ -1260,7 +1264,7 @@ function selectIslandById(id) {
   const faces = Array.from(isl.faces);
   for (const f of faces) mask[f] = 1;
   S.clickSelection = mask; S.clickSelectionFaces = faces; S.selectedIsland = id;
-  $('selPaintBtn').disabled = false; $('selClearBtn').disabled = false;
+  $('selPaintBtn').disabled = false; $('selHideBtn').disabled = false; $('selClearBtn').disabled = false;
   syncIslandCards();
   updateMeshColors();
   setStatus(`Selected island ${id + 1} (${isl.faceCount.toLocaleString()} faces)`, 'idle');
@@ -1641,6 +1645,23 @@ async function screenPickColour() {
   }
 }
 
+function hideSelection() {
+  if (!S.clickSelectionFaces || !S.clickSelectionFaces.length) return;
+  if (!S.hiddenManual) S.hiddenManual = new Uint8Array(S.nTri);
+  for (const i of S.clickSelectionFaces) S.hiddenManual[i] = 1;
+  const count = S.clickSelectionFaces.length;
+  clearClickSelection();
+  updateMeshColors();
+  setStatus(`Hidden ${count} faces — click Show to reveal`, 'idle');
+}
+
+function showHidden() {
+  if (!S.hiddenManual) return;
+  S.hiddenManual.fill(0);
+  updateMeshColors();
+  setStatus('All hidden faces revealed', 'idle');
+}
+
 function clearPaint() {
   if (!S.embossMask) return;
   pushUndo();
@@ -1811,6 +1832,9 @@ $('selModeColor')?.addEventListener('click', () => {
 });
 $('selPaintBtn')?.addEventListener('click', paintClickSelection);
 $('selClearBtn')?.addEventListener('click', clearClickSelection);
+$('selHideBtn')?.addEventListener('click', hideSelection);
+$('showHiddenBtn')?.addEventListener('click', showHidden);
+$('showHiddenToolBtn')?.addEventListener('click', showHidden);
 
 // Sliders
 $('brushSize')?.addEventListener('input', () => { $('brushSizeVal').textContent = parseFloat($('brushSize').value).toFixed(1); });
@@ -2229,6 +2253,7 @@ window.addEventListener('keydown', (e) => {
     case 'm': setTool('smart'); e.preventDefault(); break;
     case 'x': setTool('box'); e.preventDefault(); break;
     case 'g': setTool('edge'); e.preventDefault(); break;
+    case 'h': showHidden(); e.preventDefault(); break;
     case 'd': setTool('detect'); e.preventDefault(); break;
     // Actions
     case 'z': doUndo(); e.preventDefault(); break;
