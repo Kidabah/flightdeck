@@ -2,14 +2,14 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b408 STL Painter Edge finder
+- Latest commit: MakerDeck b409 Edge finder Fill Body + magenta
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
 
-### 2026-07-19 feature (MakerDeck b408 — Edge finder)
+### 2026-07-19 feature (MakerDeck b409 — Edge Fill Body + magenta)
 
-**Need:** Zoomed-in cleanup of rough black emboss edges on Spidey — select the jagged fringe and fill black.
+**Need:** Shave black spill back to red (eyes); magenta band so selection doesn’t blend with red/black.
 
-**What shipped:** Edge finder tool — box over rough edge → cyan band + Width grow into body → Fill Emboss. Cache-bust `painter.js?v=408`.
+**What shipped:** Magenta edge highlight, Fill Emboss + Fill Body, width grows both ways. Cache-bust `painter.js?v=409`.
 
 **Deploy:** Hard refresh Painter page (no backend restart).
 

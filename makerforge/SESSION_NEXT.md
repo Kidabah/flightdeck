@@ -1,3 +1,9 @@
+### 2026-07-19 — b409: STL Painter — Edge finder Fill Body + magenta
+
+Edge band highlight is **magenta** (splits from red/black). **Fill Emboss** thickens black; **Fill Body** shaves black spill back to red. Width grows both ways so either fill works. Cache-bust `painter.js?v=409`.
+
+Files: `painter.html`, `js/painter.js`, `SESSION_NEXT.md`.
+
 ### 2026-07-19 — b408: STL Painter — Edge finder (rough emboss cleanup)
 
 New **Edge finder** tool for jagged black/red boundaries:

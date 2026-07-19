@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STL Painter — MakerDeck b408</title>
+<title>STL Painter — MakerDeck b409</title>
 <script type="importmap">
 { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/" } }
 </script>
@@ -238,7 +238,7 @@
 <header class="header">
   <div class="header-left">
     <div class="header-brand">
-      <span class="header-eyebrow">MakerDeck b408</span>
+      <span class="header-eyebrow">MakerDeck b409</span>
       <span class="header-title">STL Painter</span>
       <span class="header-subtitle">Detect, area-paint, and export multi-color 3MFs</span>
     </div>
@@ -351,7 +351,8 @@
         <span title="How far to grow the highlight into the body">Width</span>
         <input type="range" id="edgeWidth" min="0" max="8" step="1" value="2">
         <span class="edge-val" id="edgeWidthVal">2</span>
-        <button type="button" class="tool-btn" id="edgeFillBtn" title="Fill highlighted edge with Emboss (black)">Fill Emboss</button>
+        <button type="button" class="tool-btn" id="edgeFillEmbossBtn" title="Fill magenta band with Emboss (black) — thicken web">Fill Emboss</button>
+        <button type="button" class="tool-btn" id="edgeFillBodyBtn" title="Fill magenta band with Body (red) — shave black spill">Fill Body</button>
         <button type="button" class="tool-btn" id="edgeClearBtn" title="Clear edge highlight">Clear</button>
       </span>
       <div class="tool-sep"></div>
@@ -441,7 +442,7 @@
     <span class="status-dot idle" id="statusDot"></span>
     <span id="statusText">Ready — load an STL to begin</span>
   </div>
-  <span>MakerDeck b408 — STL Painter</span>
+  <span>MakerDeck b409 — STL Painter</span>
 </footer>
 
 <!-- Main Script -->
@@ -456,7 +457,7 @@ import {
   buildFaceAdj,
   findPaintBoundary,
   export3MF
-} from './js/painter.js?v=408';
+} from './js/painter.js?v=409';
 
 /* ------------------------------------------------------------------ */
 /*  State                                                             */
@@ -965,7 +966,7 @@ function updateMeshColors() {
   const bodyCol = new THREE.Color(colorBody.value);
   const embossCol = new THREE.Color(colorEmboss.value);
   const debossCol = new THREE.Color(colorDeboss.value);
-  const edgeCol = new THREE.Color('#00e5ff');
+  const edgeCol = new THREE.Color('#ff2bd6'); // magenta — splits from red body / black emboss
 
   for (let i = 0; i < state.nTri; i++) {
     let col = bodyCol;
@@ -1153,7 +1154,8 @@ const toolEdge = document.getElementById('toolEdge');
 const edgeControls = document.getElementById('edgeControls');
 const edgeWidthSlider = document.getElementById('edgeWidth');
 const edgeWidthVal = document.getElementById('edgeWidthVal');
-const edgeFillBtn = document.getElementById('edgeFillBtn');
+const edgeFillEmbossBtn = document.getElementById('edgeFillEmbossBtn');
+const edgeFillBodyBtn = document.getElementById('edgeFillBodyBtn');
 const edgeClearBtn = document.getElementById('edgeClearBtn');
 const selectRect = document.getElementById('selectRect');
 const raycaster = new THREE.Raycaster();
@@ -1181,9 +1183,10 @@ function runEdgeFinder(seedFaceList) {
     region = new Uint8Array(state.nTri);
     for (const i of seedFaceList) region[i] = 1;
   }
+  // Grow both ways so Fill Emboss (thicken) and Fill Body (shave spill) share the same band.
   const band = findPaintBoundary(state.embossMask, state.faces, state.nTri, {
     width,
-    growInto: 'body',
+    growInto: 'both',
     region,
     faceAdj: state.faceAdj,
   });
@@ -1240,7 +1243,7 @@ function setTool(tool) {
   controls.enablePan = tool === 'orbit';
   viewport.classList.toggle('select-mode', tool === 'box' || tool === 'edge');
   if (tool === 'edge') {
-    viewportHint.textContent = 'Edge finder: drag a box over the rough black edge · cyan = selection · Width grows into red · Fill Emboss · right-drag orbits';
+    viewportHint.textContent = 'Edge finder: drag over rough edge · magenta = band · Width grows both ways · Fill Emboss (black) or Fill Body (red) · right-drag orbits';
   } else if (tool === 'box') {
     viewportHint.textContent = 'Box paint: Body = red/base (whole box) · Emboss/Deboss lock to Detect when possible · free-paint if none · right-drag orbits';
   } else {
@@ -1263,10 +1266,11 @@ edgeWidthSlider.addEventListener('input', () => {
   // Re-run last region if we still have a highlight from a boxed region — store last seed
   if (state._edgeLastSeeds) {
     const n = runEdgeFinder(state._edgeLastSeeds);
-    setStatus(`Edge band: ${n.toLocaleString()} faces (width ${edgeWidthSlider.value}) — Fill Emboss to commit`, 'idle');
+    setStatus(`Edge band: ${n.toLocaleString()} faces (width ${edgeWidthSlider.value}) — Fill Emboss or Fill Body`, 'idle');
   }
 });
-edgeFillBtn.addEventListener('click', () => fillEdgeHighlight('emboss'));
+edgeFillEmbossBtn.addEventListener('click', () => fillEdgeHighlight('emboss'));
+edgeFillBodyBtn.addEventListener('click', () => fillEdgeHighlight('body'));
 edgeClearBtn.addEventListener('click', () => {
   state._edgeLastSeeds = null;
   clearEdgeHighlight();
@@ -1362,7 +1366,7 @@ viewport.addEventListener('pointerup', (e) => {
       const n = runEdgeFinder(faces);
       setStatus(
         n
-          ? `Edge band: ${n.toLocaleString()} faces (cyan) — tweak Width, then Fill Emboss`
+          ? `Edge band: ${n.toLocaleString()} faces (magenta) — Fill Emboss (thicken) or Fill Body (shave black)`
           : 'No emboss/body edge in that box — drag over where black meets red',
         'idle'
       );
