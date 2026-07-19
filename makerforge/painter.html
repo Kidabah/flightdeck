@@ -137,25 +137,67 @@
   }
   .preset-swatch:hover { border-color: var(--text); transform: scale(1.12); }
 
+  .paint-colour-row {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px;
+  }
+  .paint-colour-chip {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    padding: 8px 4px 6px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--panel-2);
+    cursor: pointer; font-family: inherit; color: var(--muted);
+    transition: 0.15s;
+  }
+  .paint-colour-chip:hover { border-color: #3a4f6a; color: var(--text); }
+  .paint-colour-chip.active {
+    border-color: var(--accent); color: var(--text);
+    box-shadow: 0 0 0 1px var(--accent); background: var(--accent-dim);
+  }
+  .paint-colour-chip .chip-swatch {
+    width: 22px; height: 22px; border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.22);
+  }
+  .paint-colour-chip .chip-label {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
+  }
+  .section-label {
+    font-size: 10px; font-weight: 700; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.08em;
+    margin: 0 0 8px;
+  }
   .tool-grid {
     display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
   }
+  .tool-grid.brush-types { grid-template-columns: 1fr 1fr 1fr; margin-bottom: 8px; }
+  .tool-grid.secondary { grid-template-columns: 1fr 1fr 1fr 1fr; margin-top: 6px; }
   .tool-toggle {
     border: 1px solid var(--border); background: var(--panel-2); color: var(--muted);
     border-radius: 10px; padding: 10px 8px; font-size: 12px; font-weight: 600;
     cursor: pointer; transition: 0.15s; font-family: inherit; text-align: center;
   }
+  .tool-grid.secondary .tool-toggle { padding: 7px 4px; font-size: 10px; }
   .tool-toggle:hover { color: var(--text); border-color: #3a4f6a; }
   .tool-toggle.active {
     color: var(--accent); border-color: var(--accent); background: var(--accent-dim);
   }
   .tool-toggle.wide { grid-column: 1 / -1; }
+  .stroke-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+  .stroke-btn {
+    border: 1px solid var(--border); background: var(--panel-2); color: var(--muted);
+    border-radius: 8px; padding: 7px 4px; font-size: 11px; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+  }
+  .stroke-btn:hover { color: var(--text); }
+  .stroke-btn.active {
+    color: var(--accent); border-color: var(--accent); background: var(--accent-dim);
+  }
   .lock-row {
     margin-top: 10px; display: flex; align-items: center; gap: 8px;
     font-size: 12px; color: var(--muted); cursor: pointer; user-select: none;
   }
   .lock-row input { accent-color: var(--accent); }
   .lock-row.active { color: var(--accent); }
+  .viewport.brush-mode { cursor: none; }
+  .viewport.eyedrop-mode { cursor: crosshair; }
 
   .opts-panel { display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
   .opts-panel.visible { display: block; }
@@ -364,9 +406,36 @@
     <!-- 3 Paint tools -->
     <section class="flow-panel">
       <div class="flow-step"><span class="flow-num">03</span><span class="flow-title">Paint</span></div>
-      <p class="flow-desc">Toggle a tool. Options appear below.</p>
-      <div class="tool-grid">
-        <button type="button" class="tool-toggle active" id="toolSmart" title="Angle-aware fill (Orca-style smart fill)">Smart fill</button>
+      <p class="flow-desc">Colour first, then pick a brush type.</p>
+
+      <div class="section-label">Colour</div>
+      <div class="paint-colour-row" id="paintColourRow">
+        <button type="button" class="paint-colour-chip active" data-target="body" title="Slot 1 — Base">
+          <span class="chip-swatch" id="chipSwatchBody" style="background:#c20820"></span>
+          <span class="chip-label">1</span>
+        </button>
+        <button type="button" class="paint-colour-chip" data-target="emboss" title="Slot 2 — Accent">
+          <span class="chip-swatch" id="chipSwatchEmboss" style="background:#131211"></span>
+          <span class="chip-label">2</span>
+        </button>
+        <button type="button" class="paint-colour-chip" data-target="deboss" title="Slot 3 — Detail">
+          <span class="chip-swatch" id="chipSwatchDeboss" style="background:#f5f5f5"></span>
+          <span class="chip-label">3</span>
+        </button>
+        <button type="button" class="paint-colour-chip" data-target="trim" title="Slot 4 — Trim">
+          <span class="chip-swatch" id="chipSwatchTrim" style="background:#1e40af"></span>
+          <span class="chip-label">4</span>
+        </button>
+      </div>
+
+      <div class="section-label">Brush type</div>
+      <div class="tool-grid brush-types">
+        <button type="button" class="tool-toggle active" id="toolBrush" title="Paint with a brush — drag to stroke">Brush</button>
+        <button type="button" class="tool-toggle" id="toolSpray" title="Spray paint with nozzle falloff">Spray</button>
+        <button type="button" class="tool-toggle" id="toolEyedrop" title="Pick a colour from the model">Eyedrop</button>
+      </div>
+      <div class="tool-grid secondary">
+        <button type="button" class="tool-toggle" id="toolSmart" title="Angle-aware fill">Smart</button>
         <button type="button" class="tool-toggle" id="toolBox" title="Paint faces inside a box">Box</button>
         <button type="button" class="tool-toggle" id="toolEdge" title="Select rough colour boundaries">Edge</button>
         <button type="button" class="tool-toggle" id="toolDetect" title="Auto-find raised / sunken detail">Detect</button>
@@ -376,8 +445,41 @@
         Lock view for precise painting
       </label>
 
+      <!-- Brush options -->
+      <div class="opts-panel visible" id="brushOpts">
+        <div class="form-group">
+          <div class="form-label"><span>Size (mm)</span><span class="value" id="brushSizeVal">2.5</span></div>
+          <input type="range" id="brushSize" min="0.5" max="20" step="0.5" value="2.5">
+        </div>
+        <div class="form-group">
+          <div class="form-label"><span>Stroke</span></div>
+          <div class="stroke-row">
+            <button type="button" class="stroke-btn active" data-stroke="free" id="strokeFree">Free</button>
+            <button type="button" class="stroke-btn" data-stroke="horizontal" id="strokeH">Horizontal</button>
+            <button type="button" class="stroke-btn" data-stroke="vertical" id="strokeV">Vertical</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Spray options -->
+      <div class="opts-panel" id="sprayOpts">
+        <div class="form-group">
+          <div class="form-label"><span>Nozzle size (mm)</span><span class="value" id="sprayNozzleVal">6</span></div>
+          <input type="range" id="sprayNozzle" min="1" max="30" step="0.5" value="6">
+        </div>
+        <div class="form-group">
+          <div class="form-label"><span>Density</span><span class="value" id="sprayDensityVal">45%</span></div>
+          <input type="range" id="sprayDensity" min="10" max="90" step="5" value="45">
+        </div>
+      </div>
+
+      <!-- Eyedropper options -->
+      <div class="opts-panel" id="eyedropOpts">
+        <p class="flow-desc" style="margin-top:0">Click the model to pick that AMS slot — like a desktop eyedropper.</p>
+      </div>
+
       <!-- Smart options -->
-      <div class="opts-panel visible" id="smartOpts">
+      <div class="opts-panel" id="smartOpts">
         <div class="form-group">
           <div class="form-label"><span>Size (mm)</span><span class="value" id="smartSizeVal">10</span></div>
           <input type="range" id="smartSize" min="1" max="40" step="0.5" value="10">
@@ -406,7 +508,7 @@
 
       <!-- Detect options (MakerDeck special) -->
       <div class="opts-panel" id="detectOpts">
-        <p class="flow-desc" style="margin-top:0">Find raised / sunken geometry, then paint it with Smart fill or Edge.</p>
+        <p class="flow-desc" style="margin-top:0">Find raised / sunken geometry, then paint with Brush or Smart.</p>
         <div class="detect-preset-row" id="detectPresetRow">
           <button type="button" class="detect-preset-btn active" data-preset="fine">Fine</button>
           <button type="button" class="detect-preset-btn" data-preset="bold">Bold</button>
@@ -494,7 +596,7 @@
     </div>
     <div class="select-rect" id="selectRect"></div>
     <div class="smart-cursor" id="smartCursor"></div>
-    <div class="viewport-hint" id="viewportHint">Load a model · pick a colour · Smart fill to paint</div>
+    <div class="viewport-hint" id="viewportHint">Load a model · pick a colour · Brush to paint</div>
   </div>
 
   <aside class="sidebar-right">
@@ -554,9 +656,11 @@ import {
   cleanClusters,
   buildFaceAdj,
   findPaintBoundary,
+  brushDabFaces,
   smartFillFaces,
+  paintClassOf,
   export3MF
-} from './js/painter.js?v=416';
+} from './js/painter.js?v=417';
 
 /* ------------------------------------------------------------------ */
 /*  State                                                             */
@@ -579,7 +683,8 @@ const state = {
   trimCount: 0,
   mesh: null,
   fileName: 'model',
-  tool: 'orbit',          // 'orbit' | 'box' | 'edge' | 'smart' | 'detect'
+  tool: 'orbit',          // orbit | brush | spray | eyedrop | box | edge | smart | detect
+  brushStroke: 'free',    // free | horizontal | vertical
   paintTarget: 'body',    // 'body' | 'emboss' | 'deboss' | 'trim' — AMS slots 1–4
   detectMode: 'emboss',   // from detect presets
   undoStack: [],
@@ -587,6 +692,7 @@ const state = {
   smartPreview: null,     // Uint8Array | null — amber smart-fill preview
   smartPreviewFaces: null,// number[] last preview
   faceAdj: null,          // cached face adjacency
+  brushStrokeActive: null,
 };
 
 /* ------------------------------------------------------------------ */
@@ -867,14 +973,18 @@ updateSensitivityLabel();
 /* ------------------------------------------------------------------ */
 
 function syncPaintSwatches() {
-  const sb = document.getElementById('swatchBody');
-  const se = document.getElementById('swatchEmboss');
-  const sd = document.getElementById('swatchDeboss');
-  const st = document.getElementById('swatchTrim');
-  if (sb) sb.style.background = colorBody.value;
-  if (se) se.style.background = colorEmboss.value;
-  if (sd) sd.style.background = colorDeboss.value;
-  if (st) st.style.background = colorTrim.value;
+  const map = {
+    Body: colorBody.value,
+    Emboss: colorEmboss.value,
+    Deboss: colorDeboss.value,
+    Trim: colorTrim.value,
+  };
+  for (const [key, val] of Object.entries(map)) {
+    const sw = document.getElementById('swatch' + key);
+    const chip = document.getElementById('chipSwatch' + key);
+    if (sw) sw.style.background = val;
+    if (chip) chip.style.background = val;
+  }
 }
 
 colorBody.addEventListener('input', () => {
@@ -1256,12 +1366,29 @@ function syncSlotCards() {
   document.querySelectorAll('.slot-card').forEach(card => {
     card.classList.toggle('active', card.dataset.target === state.paintTarget);
   });
+  document.querySelectorAll('.paint-colour-chip').forEach(chip => {
+    chip.classList.toggle('active', chip.dataset.target === state.paintTarget);
+  });
 }
 
 function showToolOpts(tool) {
+  document.getElementById('brushOpts')?.classList.toggle('visible', tool === 'brush');
+  document.getElementById('sprayOpts')?.classList.toggle('visible', tool === 'spray');
+  document.getElementById('eyedropOpts')?.classList.toggle('visible', tool === 'eyedrop');
   document.getElementById('smartOpts')?.classList.toggle('visible', tool === 'smart');
   document.getElementById('edgeOpts')?.classList.toggle('visible', tool === 'edge');
   document.getElementById('detectOpts')?.classList.toggle('visible', tool === 'detect');
+}
+
+function isBrushTool(tool = state.tool) {
+  return tool === 'brush' || tool === 'spray';
+}
+
+function setBrushStroke(mode) {
+  state.brushStroke = mode;
+  document.querySelectorAll('.stroke-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.stroke === mode);
+  });
 }
 
 /** Mask used by Edge finder for the active slot (or any painted face when on Base). */
@@ -1321,9 +1448,9 @@ function fillEdgeHighlight(target = state.paintTarget) {
   setStatus(`Filled ${faces.length.toLocaleString()} edge faces → ${target}`, 'idle');
 }
 
-function paintFacesFree(faceIndices, target) {
+function paintFacesFree(faceIndices, target, { undo = true } = {}) {
   if (!state.embossMask || !state.debossMask || !state.trimMask || !faceIndices.length) return;
-  pushUndo();
+  if (undo) pushUndo();
   for (const i of faceIndices) {
     state.embossMask[i] = target === 'emboss' ? 1 : 0;
     state.debossMask[i] = target === 'deboss' ? 1 : 0;
@@ -1332,6 +1459,51 @@ function paintFacesFree(faceIndices, target) {
   updateMeshColors();
   recountPaint();
   exportBtn.disabled = false;
+}
+
+function brushRadiusMm() {
+  if (state.tool === 'spray') return parseFloat(document.getElementById('sprayNozzle')?.value) || 6;
+  return parseFloat(document.getElementById('brushSize')?.value) || 2.5;
+}
+
+function applyBrushDab(hit, { undo = false } = {}) {
+  if (!hit || !state.mesh) return 0;
+  ensureFaceAdj();
+  const radius = brushRadiusMm();
+  const density = state.tool === 'spray'
+    ? (parseFloat(document.getElementById('sprayDensity')?.value) || 45) / 100
+    : 1;
+  const faces = brushDabFaces(
+    hit.faceIndex,
+    hit.point,
+    state.verts,
+    state.faces,
+    state.nTri,
+    state.faceAdj,
+    { radius, density, maxAngleDeg: state.tool === 'spray' ? 90 : 75 }
+  );
+  if (!faces.length) return 0;
+  paintFacesFree(faces, state.paintTarget, { undo });
+  return faces.length;
+}
+
+function constrainBrushClient(clientX, clientY, origin) {
+  if (!origin || state.brushStroke === 'free') return { x: clientX, y: clientY };
+  if (state.brushStroke === 'horizontal') return { x: clientX, y: origin.y };
+  if (state.brushStroke === 'vertical') return { x: origin.x, y: clientY };
+  return { x: clientX, y: clientY };
+}
+
+function sampleEyedrop(clientX, clientY) {
+  const hit = pickHitAtClient(clientX, clientY);
+  if (!hit) {
+    setStatus('Eyedropper — click on the model', 'idle');
+    return;
+  }
+  const cls = paintClassOf(hit.faceIndex, state.embossMask, state.debossMask, state.trimMask);
+  setPaintTarget(cls);
+  const labels = { body: 'Slot 1 Base', emboss: 'Slot 2 Accent', deboss: 'Slot 3 Detail', trim: 'Slot 4 Trim' };
+  setStatus(`Eyedropper → ${labels[cls] || cls}`, 'idle');
 }
 
 function pickHitAtClient(clientX, clientY) {
@@ -1358,7 +1530,9 @@ function clearSmartPreview() {
 
 function updateSmartCursor(clientX, clientY, worldPoint) {
   if (!smartCursor || !state.mesh) return;
-  const radius = parseFloat(smartSizeSlider.value) || 10;
+  const radius = isBrushTool()
+    ? brushRadiusMm()
+    : (parseFloat(smartSizeSlider.value) || 10);
   // Approximate screen radius from world size at hit depth
   const rect = viewport.getBoundingClientRect();
   const cam = camera;
@@ -1372,6 +1546,8 @@ function updateSmartCursor(clientX, clientY, worldPoint) {
   smartCursor.style.height = d + 'px';
   smartCursor.style.left = (clientX - rect.left - d / 2) + 'px';
   smartCursor.style.top = (clientY - rect.top - d / 2) + 'px';
+  smartCursor.style.borderColor = state.tool === 'spray' ? 'rgba(251, 191, 36, 0.55)' : '';
+  smartCursor.style.background = state.tool === 'spray' ? 'rgba(251, 191, 36, 0.08)' : '';
 }
 
 function computeSmartFill(hit) {
@@ -1430,26 +1606,41 @@ function setTool(tool) {
   // Clicking the active tool again drops back to navigate-only.
   if (tool === state.tool && tool !== 'orbit') tool = 'orbit';
   state.tool = tool;
+  state.brushStrokeActive = null;
   toolBox.classList.toggle('active', tool === 'box');
   toolEdge.classList.toggle('active', tool === 'edge');
   toolSmart.classList.toggle('active', tool === 'smart');
+  document.getElementById('toolBrush')?.classList.toggle('active', tool === 'brush');
+  document.getElementById('toolSpray')?.classList.toggle('active', tool === 'spray');
+  document.getElementById('toolEyedrop')?.classList.toggle('active', tool === 'eyedrop');
   document.getElementById('toolDetect')?.classList.toggle('active', tool === 'detect');
   showToolOpts(tool);
   if (tool !== 'smart') clearSmartPreview();
+  if (!isBrushTool(tool)) {
+    smartCursor.style.display = 'none';
+  }
   controls.enabled = true;
   syncOrbitLock();
   const needsLockDrag = tool === 'box' || tool === 'edge';
-  viewport.classList.toggle('select-mode', tool === 'box' || tool === 'edge' || tool === 'smart');
-  if (tool === 'edge') {
+  viewport.classList.toggle('select-mode', tool === 'box' || tool === 'edge' || tool === 'smart' || isBrushTool(tool));
+  viewport.classList.toggle('brush-mode', isBrushTool(tool));
+  viewport.classList.toggle('eyedrop-mode', tool === 'eyedrop');
+  if (tool === 'brush') {
+    viewportHint.textContent = 'Brush — drag to paint · set Size & Stroke (Free / H / V)';
+  } else if (tool === 'spray') {
+    viewportHint.textContent = 'Spray — drag to mist paint · tweak Nozzle & Density';
+  } else if (tool === 'eyedrop') {
+    viewportHint.textContent = 'Eyedropper — click a face to select that AMS colour slot';
+  } else if (tool === 'edge') {
     viewportHint.textContent = 'Edge — Lock view, drag over a rough boundary, then Fill with the active slot';
   } else if (tool === 'smart') {
     viewportHint.textContent = 'Smart fill — hover for amber preview · tweak Size / Angle · click to paint';
   } else if (tool === 'box') {
     viewportHint.textContent = 'Box — Lock view, then drag to paint the active slot';
   } else if (tool === 'detect') {
-    viewportHint.textContent = 'Detect — optional raised/sunken finder · Run detect, then paint with Smart fill';
+    viewportHint.textContent = 'Detect — optional raised/sunken finder · then paint with Brush or Smart';
   } else {
-    viewportHint.textContent = 'Drag to orbit · scroll to zoom · pick a colour and a paint tool';
+    viewportHint.textContent = 'Drag to orbit · scroll to zoom · pick a colour and a brush';
   }
   if (needsLockDrag && !orbitLockCheck?.checked) {
     setStatus('Tip: turn on Lock view to drag-select without rotating', 'idle');
@@ -1466,10 +1657,40 @@ function setPaintTarget(target) {
 }
 
 const toolDetect = document.getElementById('toolDetect');
+const toolBrush = document.getElementById('toolBrush');
+const toolSpray = document.getElementById('toolSpray');
+const toolEyedrop = document.getElementById('toolEyedrop');
+const brushSizeSlider = document.getElementById('brushSize');
+const brushSizeVal = document.getElementById('brushSizeVal');
+const sprayNozzleSlider = document.getElementById('sprayNozzle');
+const sprayNozzleVal = document.getElementById('sprayNozzleVal');
+const sprayDensitySlider = document.getElementById('sprayDensity');
+const sprayDensityVal = document.getElementById('sprayDensityVal');
+
+toolBrush?.addEventListener('click', () => setTool('brush'));
+toolSpray?.addEventListener('click', () => setTool('spray'));
+toolEyedrop?.addEventListener('click', () => setTool('eyedrop'));
 toolBox.addEventListener('click', () => setTool('box'));
 toolEdge.addEventListener('click', () => setTool('edge'));
 toolSmart.addEventListener('click', () => setTool('smart'));
 toolDetect?.addEventListener('click', () => setTool('detect'));
+
+document.querySelectorAll('.stroke-btn').forEach(btn => {
+  btn.addEventListener('click', () => setBrushStroke(btn.dataset.stroke));
+});
+brushSizeSlider?.addEventListener('input', () => {
+  brushSizeVal.textContent = parseFloat(brushSizeSlider.value).toFixed(1);
+});
+sprayNozzleSlider?.addEventListener('input', () => {
+  sprayNozzleVal.textContent = parseFloat(sprayNozzleSlider.value).toFixed(1);
+});
+sprayDensitySlider?.addEventListener('input', () => {
+  sprayDensityVal.textContent = sprayDensitySlider.value + '%';
+});
+document.querySelectorAll('.paint-colour-chip').forEach(chip => {
+  chip.addEventListener('click', () => setPaintTarget(chip.dataset.target));
+});
+
 orbitLockCheck?.addEventListener('change', () => {
   syncOrbitLock();
   setStatus(orbitLockCheck.checked ? 'View locked' : 'View unlocked — drag to orbit', 'idle');
@@ -1548,6 +1769,28 @@ viewport.addEventListener('pointerdown', (e) => {
     controls.enablePan = true;
     return;
   }
+  if (state.tool === 'eyedrop' && state.mesh && e.button === 0) {
+    e.preventDefault();
+    sampleEyedrop(e.clientX, e.clientY);
+    return;
+  }
+  if (isBrushTool() && state.mesh && e.button === 0) {
+    e.preventDefault();
+    controls.enableRotate = false;
+    controls.enablePan = false;
+    const origin = { x: e.clientX, y: e.clientY };
+    const pt = constrainBrushClient(e.clientX, e.clientY, origin);
+    const hit = pickHitAtClient(pt.x, pt.y);
+    state.brushStrokeActive = { origin, pointerId: e.pointerId, painted: 0, undid: false };
+    if (hit) {
+      updateSmartCursor(pt.x, pt.y, hit.worldPoint);
+      const n = applyBrushDab(hit, { undo: true });
+      state.brushStrokeActive.painted += n;
+      if (n) state.brushStrokeActive.undid = true;
+    }
+    viewport.setPointerCapture?.(e.pointerId);
+    return;
+  }
   if (state.tool === 'smart' && state.mesh && e.button === 0) {
     const locked = !!orbitLockCheck?.checked;
     if (locked) e.preventDefault();
@@ -1572,6 +1815,23 @@ viewport.addEventListener('pointerdown', (e) => {
   viewport.setPointerCapture?.(e.pointerId);
 });
 viewport.addEventListener('pointermove', (e) => {
+  if (state.brushStrokeActive) {
+    const pt = constrainBrushClient(e.clientX, e.clientY, state.brushStrokeActive.origin);
+    const hit = pickHitAtClient(pt.x, pt.y);
+    if (hit) {
+      updateSmartCursor(pt.x, pt.y, hit.worldPoint);
+      const n = applyBrushDab(hit, { undo: !state.brushStrokeActive.undid });
+      state.brushStrokeActive.painted += n;
+      if (n) state.brushStrokeActive.undid = true;
+    }
+    return;
+  }
+  if (isBrushTool() && !boxDrag && !state._smartClick) {
+    const hit = pickHitAtClient(e.clientX, e.clientY);
+    if (hit) updateSmartCursor(e.clientX, e.clientY, hit.worldPoint);
+    else smartCursor.style.display = 'none';
+    return;
+  }
   if (state.tool === 'smart' && !state._smartClick && !boxDrag) {
     previewSmartFill(e.clientX, e.clientY);
     return;
@@ -1597,6 +1857,20 @@ viewport.addEventListener('pointermove', (e) => {
 viewport.addEventListener('pointerup', (e) => {
   if (e.button === 2 || e.button === 1) {
     syncOrbitLock();
+    return;
+  }
+  if (state.brushStrokeActive) {
+    const stroke = state.brushStrokeActive;
+    state.brushStrokeActive = null;
+    try { viewport.releasePointerCapture?.(e.pointerId); } catch { /* ok */ }
+    syncOrbitLock();
+    const kind = state.tool === 'spray' ? 'Spray' : 'Brush';
+    setStatus(
+      stroke.undid
+        ? `${kind} stroke → ${state.paintTarget}`
+        : `${kind} — no faces hit`,
+      'idle'
+    );
     return;
   }
   if (state._smartClick) {
@@ -1639,19 +1913,21 @@ viewport.addEventListener('pointerup', (e) => {
 });
 viewport.addEventListener('pointercancel', (e) => {
   state._smartClick = null;
+  state.brushStrokeActive = null;
   endBoxDrag(e);
   syncOrbitLock();
 });
 viewport.addEventListener('contextmenu', (e) => {
-  if (isSelectTool() || state.tool === 'smart') e.preventDefault();
+  if (isSelectTool() || state.tool === 'smart' || isBrushTool() || state.tool === 'eyedrop') e.preventDefault();
 });
 viewport.addEventListener('pointerleave', () => {
   if (state.tool === 'smart' && !state._smartClick) clearSmartPreview();
+  if (isBrushTool() && !state.brushStrokeActive) smartCursor.style.display = 'none';
 });
 
 // Double-click: zoom toward the hit face (detail work).
 viewport.addEventListener('dblclick', (e) => {
-  if (!state.mesh || isSelectTool() || state.tool === 'smart') return;
+  if (!state.mesh || isSelectTool() || state.tool === 'smart' || isBrushTool() || state.tool === 'eyedrop') return;
   const rect = viewport.getBoundingClientRect();
   pointerNdc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
   pointerNdc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
@@ -1858,7 +2134,8 @@ controls.addEventListener('start', () => {
 });
 
 syncOrbitLock();
-setTool('smart');
+setBrushStroke('free');
+setTool('brush');
 </script>
 </body>
 </html>

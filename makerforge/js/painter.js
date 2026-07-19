@@ -1,5 +1,5 @@
 /**
- * MakerDeck STL Painter Engine — b416
+ * MakerDeck STL Painter Engine — b417
  * Pure computation module: STL parsing, feature detection, 3MF export.
  */
 
@@ -190,6 +190,55 @@ function faceNormalCentroid(verts, faces, fi) {
     cy: (ay + by + cy) / 3,
     cz: (az + bz + cz) / 3,
   };
+}
+
+/**
+ * Brush / spray dab: faces near hit within `radius` mm, front-facing vs seed.
+ * `density` < 1 scatters like spray (distance-weighted random keep).
+ * @returns {number[]} face indices
+ */
+export function brushDabFaces(seed, hitPoint, verts, faces, nTri, faceAdj, opts = {}) {
+  const radius = Math.max(0.1, opts.radius ?? 2.5);
+  const maxAngleDeg = Math.max(5, Math.min(120, opts.maxAngleDeg ?? 80));
+  const density = Math.max(0.05, Math.min(1, opts.density ?? 1));
+  const rng = typeof opts.rng === 'function' ? opts.rng : Math.random;
+  if (seed < 0 || seed >= nTri) return [];
+
+  const cosThr = Math.cos((maxAngleDeg * Math.PI) / 180);
+  const seedGeo = faceNormalCentroid(verts, faces, seed);
+  const hx = hitPoint.x ?? hitPoint[0];
+  const hy = hitPoint.y ?? hitPoint[1];
+  const hz = hitPoint.z ?? hitPoint[2];
+  const r2 = radius * radius;
+
+  const out = [];
+  const queued = new Uint8Array(nTri);
+  const queue = [seed];
+  queued[seed] = 1;
+
+  while (queue.length) {
+    const fi = queue.pop();
+    const g = faceNormalCentroid(verts, faces, fi);
+    const dx = g.cx - hx, dy = g.cy - hy, dz = g.cz - hz;
+    const d2 = dx * dx + dy * dy + dz * dz;
+    if (d2 > r2) continue;
+    const dot = g.nx * seedGeo.nx + g.ny * seedGeo.ny + g.nz * seedGeo.nz;
+    if (dot < cosThr) continue;
+
+    let keep = true;
+    if (density < 1 && fi !== seed) {
+      const t = Math.sqrt(d2) / radius;
+      keep = rng() < density * (1 - t * 0.85);
+    }
+    if (keep) out.push(fi);
+
+    for (const nb of faceAdj[fi]) {
+      if (queued[nb]) continue;
+      queued[nb] = 1;
+      queue.push(nb);
+    }
+  }
+  return out;
 }
 
 /**

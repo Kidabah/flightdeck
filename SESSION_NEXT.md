@@ -2,14 +2,14 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b416 four AMS slots
+- Latest commit: MakerDeck b417 brush spray eyedrop
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
 
-### 2026-07-19 polish (MakerDeck b416 — 4 AMS slots)
+### 2026-07-19 polish (MakerDeck b417 — Brush tools)
 
-**Need:** Match real AMS — four colour slots in Painter.
+**Need:** Paint-app brush flow under Paint menu.
 
-**What shipped:** Slot 4 Trim through paint/export; slot 3 paint code fixed to `0C`. Cache-bust `painter.js?v=416`.
+**What shipped:** Colour → Brush/Spray/Eyedrop; Size + H/V stroke; nozzle/density; secondary Smart/Box/Edge/Detect. Cache-bust `painter.js?v=417`.
 
 **Deploy:** Hard refresh Painter page (no backend restart).
 

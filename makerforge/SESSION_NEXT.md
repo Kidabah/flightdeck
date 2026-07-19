@@ -1,3 +1,15 @@
+### 2026-07-19 — b417: STL Painter — Brush / Spray / Eyedropper
+
+Paint menu rebuilt colour-first:
+- Colour chips → Brush type (Brush · Spray · Eyedrop)
+- Brush: Size + Stroke Free / Horizontal / Vertical
+- Spray: Nozzle size + Density
+- Eyedropper: click face → active AMS slot
+- Smart / Box / Edge / Detect kept as secondary tools
+- Cache-bust `painter.js?v=417`
+
+Files: `painter.html`, `js/painter.js`, `SESSION_NEXT.md`.
+
 ### 2026-07-19 — b416: STL Painter — 4 AMS colour slots
 
 - Slots 1–4: Base / Accent / Detail / Trim (full AMS)
