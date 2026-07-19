@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STL Painter — MakerDeck b407</title>
+<title>STL Painter — MakerDeck b408</title>
 <script type="importmap">
 { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/" } }
 </script>
@@ -209,6 +209,13 @@
     flex-shrink: 0;
   }
   .paint-target.active { border-color: #fff; box-shadow: 0 0 0 2px var(--accent); color: var(--text); }
+  .edge-controls {
+    display: none; align-items: center; gap: 8px; padding: 0 4px;
+    color: var(--muted); font-size: 11px; font-weight: 600;
+  }
+  .edge-controls.visible { display: inline-flex; }
+  .edge-controls input[type="range"] { width: 72px; accent-color: var(--accent); }
+  .edge-controls .edge-val { min-width: 14px; color: var(--text); font-variant-numeric: tabular-nums; }
   .select-rect {
     position: absolute; border: 1.5px solid var(--accent);
     background: rgba(56, 189, 248, 0.14); pointer-events: none; z-index: 4; display: none;
@@ -231,7 +238,7 @@
 <header class="header">
   <div class="header-left">
     <div class="header-brand">
-      <span class="header-eyebrow">MakerDeck b407</span>
+      <span class="header-eyebrow">MakerDeck b408</span>
       <span class="header-title">STL Painter</span>
       <span class="header-subtitle">Detect, area-paint, and export multi-color 3MFs</span>
     </div>
@@ -339,6 +346,14 @@
     <div class="viewport-toolbar" id="viewportToolbar">
       <button type="button" class="tool-btn active" id="toolOrbit" title="Orbit / pan / zoom">Orbit</button>
       <button type="button" class="tool-btn" id="toolBox" title="Drag a box to paint faces">Box paint</button>
+      <button type="button" class="tool-btn" id="toolEdge" title="Edge finder — select rough emboss/body boundary">Edge finder</button>
+      <span class="edge-controls" id="edgeControls">
+        <span title="How far to grow the highlight into the body">Width</span>
+        <input type="range" id="edgeWidth" min="0" max="8" step="1" value="2">
+        <span class="edge-val" id="edgeWidthVal">2</span>
+        <button type="button" class="tool-btn" id="edgeFillBtn" title="Fill highlighted edge with Emboss (black)">Fill Emboss</button>
+        <button type="button" class="tool-btn" id="edgeClearBtn" title="Clear edge highlight">Clear</button>
+      </span>
       <div class="tool-sep"></div>
       <span class="paint-target-row" title="Paint colour (AMS slot)">
         <button type="button" class="paint-target active" id="targetBody" title="Body — paints whole box (eraser for emboss)">
@@ -426,7 +441,7 @@
     <span class="status-dot idle" id="statusDot"></span>
     <span id="statusText">Ready — load an STL to begin</span>
   </div>
-  <span>MakerDeck b407 — STL Painter</span>
+  <span>MakerDeck b408 — STL Painter</span>
 </footer>
 
 <!-- Main Script -->
@@ -438,8 +453,10 @@ import {
   deduplicateVertices,
   detectFeatures,
   cleanClusters,
+  buildFaceAdj,
+  findPaintBoundary,
   export3MF
-} from './js/painter.js?v=407';
+} from './js/painter.js?v=408';
 
 /* ------------------------------------------------------------------ */
 /*  State                                                             */
@@ -460,9 +477,11 @@ const state = {
   debossCount: 0,
   mesh: null,
   fileName: 'model',
-  tool: 'orbit',          // 'orbit' | 'box'
+  tool: 'orbit',          // 'orbit' | 'box' | 'edge'
   paintTarget: 'body',    // 'body' | 'emboss' | 'deboss'
   undoStack: [],
+  edgeHighlight: null,    // Uint8Array | null
+  faceAdj: null,          // cached face adjacency
 };
 
 /* ------------------------------------------------------------------ */
@@ -839,6 +858,8 @@ async function loadSTL(file) {
   state.featureDeboss = null;
   state.embossCount = 0;
   state.debossCount = 0;
+  state.edgeHighlight = null;
+  state.faceAdj = null;
   state.undoStack = [];
   document.getElementById('undoBtn').disabled = true;
 
@@ -944,10 +965,12 @@ function updateMeshColors() {
   const bodyCol = new THREE.Color(colorBody.value);
   const embossCol = new THREE.Color(colorEmboss.value);
   const debossCol = new THREE.Color(colorDeboss.value);
+  const edgeCol = new THREE.Color('#00e5ff');
 
   for (let i = 0; i < state.nTri; i++) {
     let col = bodyCol;
-    if (state.embossMask && state.embossMask[i]) col = embossCol;
+    if (state.edgeHighlight && state.edgeHighlight[i]) col = edgeCol;
+    else if (state.embossMask && state.embossMask[i]) col = embossCol;
     else if (state.debossMask && state.debossMask[i]) col = debossCol;
     for (let v = 0; v < 3; v++) {
       colors.setXYZ(i * 3 + v, col.r, col.g, col.b);
@@ -1126,22 +1149,103 @@ function facesInScreenBox(x0, y0, x1, y1) {
 
 const toolOrbit = document.getElementById('toolOrbit');
 const toolBox = document.getElementById('toolBox');
+const toolEdge = document.getElementById('toolEdge');
+const edgeControls = document.getElementById('edgeControls');
+const edgeWidthSlider = document.getElementById('edgeWidth');
+const edgeWidthVal = document.getElementById('edgeWidthVal');
+const edgeFillBtn = document.getElementById('edgeFillBtn');
+const edgeClearBtn = document.getElementById('edgeClearBtn');
 const selectRect = document.getElementById('selectRect');
 const raycaster = new THREE.Raycaster();
 const pointerNdc = new THREE.Vector2();
+
+function ensureFaceAdj() {
+  if (!state.faceAdj && state.faces && state.nTri) {
+    setStatus('Building edge map…', 'working');
+    state.faceAdj = buildFaceAdj(state.faces, state.nTri);
+  }
+  return state.faceAdj;
+}
+
+function clearEdgeHighlight() {
+  state.edgeHighlight = null;
+  updateMeshColors();
+}
+
+function runEdgeFinder(seedFaceList) {
+  if (!state.embossMask || !state.mesh) return 0;
+  ensureFaceAdj();
+  const width = parseInt(edgeWidthSlider.value, 10) || 0;
+  let region = null;
+  if (seedFaceList && seedFaceList.length) {
+    region = new Uint8Array(state.nTri);
+    for (const i of seedFaceList) region[i] = 1;
+  }
+  const band = findPaintBoundary(state.embossMask, state.faces, state.nTri, {
+    width,
+    growInto: 'body',
+    region,
+    faceAdj: state.faceAdj,
+  });
+  state.edgeHighlight = band;
+  let count = 0;
+  for (let i = 0; i < state.nTri; i++) if (band[i]) count++;
+  updateMeshColors();
+  return count;
+}
+
+function fillEdgeHighlight(target = 'emboss') {
+  if (!state.edgeHighlight || !state.embossMask) {
+    setStatus('No edge highlight — use Edge finder and drag a box over the rough edge', 'idle');
+    return;
+  }
+  const faces = [];
+  for (let i = 0; i < state.nTri; i++) {
+    if (state.edgeHighlight[i]) faces.push(i);
+  }
+  if (!faces.length) {
+    setStatus('Edge highlight is empty — raise Width or drag over the emboss edge', 'idle');
+    return;
+  }
+  // Free-paint the highlight (ignore Detect constrain)
+  pushUndo();
+  for (const i of faces) {
+    if (target === 'emboss') {
+      state.embossMask[i] = 1;
+      state.debossMask[i] = 0;
+    } else if (target === 'deboss') {
+      state.debossMask[i] = 1;
+      state.embossMask[i] = 0;
+    } else {
+      state.embossMask[i] = 0;
+      state.debossMask[i] = 0;
+    }
+  }
+  state.edgeHighlight = null;
+  updateMeshColors();
+  recountPaint();
+  exportBtn.disabled = false;
+  setStatus(`Filled ${faces.length.toLocaleString()} edge faces → ${target}`, 'idle');
+}
 
 function setTool(tool) {
   state.tool = tool;
   toolOrbit.classList.toggle('active', tool === 'orbit');
   toolBox.classList.toggle('active', tool === 'box');
-  // Orbit controls stay on for scroll-zoom; only left-drag rotate is gated in box mode.
+  toolEdge.classList.toggle('active', tool === 'edge');
+  edgeControls.classList.toggle('visible', tool === 'edge');
+  // Orbit controls stay on for scroll-zoom; only left-drag rotate is gated in box/edge mode.
   controls.enabled = true;
   controls.enableRotate = tool === 'orbit';
   controls.enablePan = tool === 'orbit';
-  viewport.classList.toggle('select-mode', tool === 'box');
-  viewportHint.textContent = tool === 'box'
-    ? 'Box paint: Body = red/base (whole box) · Emboss/Deboss lock to Detect when possible · free-paint if none · right-drag orbits'
-    : 'Orbit: drag rotate · scroll zoom · Shift+pan · double-click zoom to point';
+  viewport.classList.toggle('select-mode', tool === 'box' || tool === 'edge');
+  if (tool === 'edge') {
+    viewportHint.textContent = 'Edge finder: drag a box over the rough black edge · cyan = selection · Width grows into red · Fill Emboss · right-drag orbits';
+  } else if (tool === 'box') {
+    viewportHint.textContent = 'Box paint: Body = red/base (whole box) · Emboss/Deboss lock to Detect when possible · free-paint if none · right-drag orbits';
+  } else {
+    viewportHint.textContent = 'Orbit: drag rotate · scroll zoom · Shift+pan · double-click zoom to point';
+  }
 }
 
 function setPaintTarget(target) {
@@ -1153,6 +1257,21 @@ function setPaintTarget(target) {
 
 toolOrbit.addEventListener('click', () => setTool('orbit'));
 toolBox.addEventListener('click', () => setTool('box'));
+toolEdge.addEventListener('click', () => setTool('edge'));
+edgeWidthSlider.addEventListener('input', () => {
+  edgeWidthVal.textContent = edgeWidthSlider.value;
+  // Re-run last region if we still have a highlight from a boxed region — store last seed
+  if (state._edgeLastSeeds) {
+    const n = runEdgeFinder(state._edgeLastSeeds);
+    setStatus(`Edge band: ${n.toLocaleString()} faces (width ${edgeWidthSlider.value}) — Fill Emboss to commit`, 'idle');
+  }
+});
+edgeFillBtn.addEventListener('click', () => fillEdgeHighlight('emboss'));
+edgeClearBtn.addEventListener('click', () => {
+  state._edgeLastSeeds = null;
+  clearEdgeHighlight();
+  setStatus('Edge highlight cleared', 'idle');
+});
 document.getElementById('targetBody').addEventListener('click', () => setPaintTarget('body'));
 document.getElementById('targetEmboss').addEventListener('click', () => setPaintTarget('emboss'));
 document.getElementById('targetDeboss').addEventListener('click', () => setPaintTarget('deboss'));
@@ -1164,6 +1283,7 @@ document.getElementById('undoBtn').addEventListener('click', () => {
   if (!snap) return;
   state.embossMask = snap.emboss;
   state.debossMask = snap.deboss;
+  state.edgeHighlight = null;
   updateMeshColors();
   recountPaint();
   document.getElementById('undoBtn').disabled = state.undoStack.length === 0;
@@ -1181,16 +1301,20 @@ function endBoxDrag(e) {
   return start;
 }
 
+function isSelectTool() {
+  return state.tool === 'box' || state.tool === 'edge';
+}
+
 viewport.addEventListener('pointerdown', (e) => {
   // Toolbar clicks must not start a paint box (Orbit button lives inside viewport).
   if (e.target.closest?.('.viewport-toolbar')) return;
-  // Right / middle mouse = orbit even while Box paint is selected.
+  // Right / middle mouse = orbit even while Box/Edge is selected.
   if (e.button === 2 || e.button === 1) {
     controls.enableRotate = true;
     controls.enablePan = true;
     return;
   }
-  if (state.tool !== 'box' || !state.mesh || e.button !== 0) return;
+  if (!isSelectTool() || !state.mesh || e.button !== 0) return;
   e.preventDefault();
   const rect = viewport.getBoundingClientRect();
   boxDrag = { x0: e.clientX - rect.left, y0: e.clientY - rect.top, pointerId: e.pointerId };
@@ -1213,8 +1337,8 @@ viewport.addEventListener('pointermove', (e) => {
 });
 viewport.addEventListener('pointerup', (e) => {
   if (e.button === 2 || e.button === 1) {
-    // Restore box-mode orbit lock after a temporary right-drag orbit.
-    if (state.tool === 'box') {
+    // Restore select-mode orbit lock after a temporary right-drag orbit.
+    if (isSelectTool()) {
       controls.enableRotate = false;
       controls.enablePan = false;
     }
@@ -1225,28 +1349,45 @@ viewport.addEventListener('pointerup', (e) => {
   const x1 = e.clientX - rect.left, y1 = e.clientY - rect.top;
   const start = endBoxDrag(e);
   if (!start) return;
-  setStatus('Selecting faces…', 'working');
+  const tool = state.tool;
+  setStatus(tool === 'edge' ? 'Finding emboss edge…' : 'Selecting faces…', 'working');
   requestAnimationFrame(() => {
     const faces = facesInScreenBox(start.x0, start.y0, x1, y1);
-    paintFaces(faces, state.paintTarget);
-    // Return to Orbit so you can spin the model immediately after painting.
-    setTool('orbit');
+    if (tool === 'edge') {
+      if (!faces.length) {
+        setStatus('No faces in that box — zoom in closer to the rough edge', 'idle');
+        return;
+      }
+      state._edgeLastSeeds = faces;
+      const n = runEdgeFinder(faces);
+      setStatus(
+        n
+          ? `Edge band: ${n.toLocaleString()} faces (cyan) — tweak Width, then Fill Emboss`
+          : 'No emboss/body edge in that box — drag over where black meets red',
+        'idle'
+      );
+      // Stay in Edge tool so you can adjust width / fill
+    } else {
+      paintFaces(faces, state.paintTarget);
+      // Return to Orbit so you can spin the model immediately after painting.
+      setTool('orbit');
+    }
   });
 });
 viewport.addEventListener('pointercancel', (e) => {
   endBoxDrag(e);
-  if (state.tool === 'box') {
+  if (isSelectTool()) {
     controls.enableRotate = false;
     controls.enablePan = false;
   }
 });
 viewport.addEventListener('contextmenu', (e) => {
-  if (state.tool === 'box') e.preventDefault();
+  if (isSelectTool()) e.preventDefault();
 });
 
 // Double-click: zoom toward the hit face (detail work).
 viewport.addEventListener('dblclick', (e) => {
-  if (!state.mesh || state.tool === 'box') return;
+  if (!state.mesh || isSelectTool()) return;
   const rect = viewport.getBoundingClientRect();
   pointerNdc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
   pointerNdc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;

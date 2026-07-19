@@ -1,3 +1,14 @@
+### 2026-07-19 — b408: STL Painter — Edge finder (rough emboss cleanup)
+
+New **Edge finder** tool for jagged black/red boundaries:
+- Drag a box over the rough emboss edge → cyan highlight of the emboss/body band
+- **Width** slider grows the band into the body (red fringe)
+- **Fill Emboss** commits the highlight to black; Clear drops it
+- Stays in Edge tool after select so you can tweak Width then fill
+- Cache-bust: `painter.js?v=408`. Hard refresh.
+
+Files: `painter.html`, `js/painter.js`, `SESSION_NEXT.md`.
+
 ### 2026-07-19 — b407: STL Painter — red paint + smoother emboss
 
 Fixes Chris couldn’t paint Spidey red + rough emboss edges:

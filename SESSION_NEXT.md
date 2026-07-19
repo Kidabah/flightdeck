@@ -2,14 +2,14 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b407 STL Painter red paint + smoother emboss
+- Latest commit: MakerDeck b408 STL Painter Edge finder
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
 
-### 2026-07-19 fix (MakerDeck b407 — Spidey red + smoother emboss)
+### 2026-07-19 feature (MakerDeck b408 — Edge finder)
 
-**Need:** Couldn’t paint red on Spidey; emboss still rough.
+**Need:** Zoomed-in cleanup of rough black emboss edges on Spidey — select the jagged fringe and fill black.
 
-**What shipped:** Spidey colour defaults/preset, labeled Body paint for red, free-paint fallback when Detect has nothing in the box, smoother emboss (score smooth + hysteresis + majority). Cache-bust `painter.js?v=407`.
+**What shipped:** Edge finder tool — box over rough edge → cyan band + Width grow into body → Fill Emboss. Cache-bust `painter.js?v=408`.
 
 **Deploy:** Hard refresh Painter page (no backend restart).
 

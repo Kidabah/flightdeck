@@ -1,5 +1,5 @@
 /**
- * MakerDeck STL Painter Engine — b407
+ * MakerDeck STL Painter Engine — b408
  * Pure computation module: STL parsing, feature detection, 3MF export.
  */
 
@@ -132,6 +132,58 @@ export function morphClose(mask, faceAdj, nTri, steps) {
 export function morphOpen(mask, faceAdj, nTri, steps) {
   morphErode(mask, faceAdj, nTri, steps);
   morphDilate(mask, faceAdj, nTri, steps);
+}
+
+/**
+ * Find the rough paint edge band between emboss (paintMask) and body.
+ * Seeds = faces that touch the opposite colour; then grow `width` rings
+ * into body (default) so you can fill the jagged red fringe with black.
+ *
+ * @param {Uint8Array} paintMask  emboss (or deboss) paint map
+ * @param {Uint32Array} faces
+ * @param {number} nTri
+ * @param {{ width?: number, growInto?: 'body'|'paint'|'both', region?: Uint8Array|null, faceAdj?: any[] }} opts
+ * @returns {Uint8Array} highlight mask (1 = selected edge band)
+ */
+export function findPaintBoundary(paintMask, faces, nTri, opts = {}) {
+  const {
+    width = 2,
+    growInto = 'body',
+    region = null,
+    faceAdj: faceAdjIn = null,
+  } = opts;
+  const faceAdj = faceAdjIn || buildFaceAdj(faces, nTri);
+  const inRegion = (i) => !region || region[i];
+
+  const band = new Uint8Array(nTri);
+  for (let i = 0; i < nTri; i++) {
+    if (!inRegion(i)) continue;
+    const painted = paintMask[i] ? 1 : 0;
+    for (const nb of faceAdj[i]) {
+      if ((paintMask[nb] ? 1 : 0) !== painted) {
+        band[i] = 1;
+        break;
+      }
+    }
+  }
+
+  // Grow outward; default grows into body so Fill Emboss thickens the web edge.
+  let cur = band;
+  const steps = Math.max(0, width | 0);
+  for (let s = 0; s < steps; s++) {
+    const next = cur.slice();
+    for (let i = 0; i < nTri; i++) {
+      if (cur[i]) continue;
+      if (region && !region[i]) continue;
+      if (growInto === 'body' && paintMask[i]) continue;
+      if (growInto === 'paint' && !paintMask[i]) continue;
+      for (const nb of faceAdj[i]) {
+        if (cur[nb]) { next[i] = 1; break; }
+      }
+    }
+    cur = next;
+  }
+  return cur;
 }
 
 /** Neighbour majority vote — cleans stair-step / speckled boundaries. */
