@@ -2,14 +2,14 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b421 freehand brush
+- Latest commit: MakerDeck b422 hide vs solo clarity
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
 
-### 2026-07-19 polish (MakerDeck b421 — Freehand)
+### 2026-07-19 fix (MakerDeck b422 — Hide vs Solo)
 
-**Need:** Brush felt worse than before; need free paint not H/V lock.
+**Need:** User thought Hide black hid everything — Solo was on (shows only black).
 
-**What shipped:** Freehand default; paint-on-model / orbit-on-empty; smoother strokes. Cache-bust `painter.js?v=421`.
+**What shipped:** Clear Hide/Show per slot; Solo wording fixed; tip text. Cache-bust `painter.js?v=422`.
 
 **Deploy:** Hard refresh Painter (no backend restart).
 

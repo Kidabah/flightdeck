@@ -1,3 +1,13 @@
+### 2026-07-19 — b422: STL Painter — clearer Hide vs Solo
+
+Solo was confusing (“select black hides everything”). Now:
+- Each colour chip has a clear **Hide / Show** button (hides that slot only)
+- Solo renamed: “Show only active colour (opposite of Hide)”
+- Tip text explains: Solo off → Hide on slot 2 to hide black web
+- Cache-bust `painter.js?v=422`
+
+Files: `painter.html`, `js/painter.js`, `index.html`, `js/app.js`, `SESSION_NEXT.md`.
+
 ### 2026-07-19 — b421: STL Painter — Freehand brush restored
 
 - **Freehand** is the default stroke (H/V optional only)
