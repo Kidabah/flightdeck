@@ -1,5 +1,5 @@
 /**
- * MakerDeck STL Painter Engine — b501
+ * MakerDeck STL Painter Engine — b502
  * Pure computation module: STL parsing, feature detection, 3MF export.
  */
 
@@ -1241,4 +1241,74 @@ export function selectIsland(seedFace, islandMap, islands) {
   const islandId = islandMap[seedFace];
   const island = islands.find(isl => isl.id === islandId);
   return island ? Array.from(island.faces) : [seedFace];
+}
+
+/* ================================================================== */
+/*  SYMMETRY MAP                                                      */
+/* ================================================================== */
+
+/**
+ * Build a mirror map across the X axis (X=centerX).
+ * For each face, find the face whose centroid is closest to the
+ * reflected centroid. Returns Int32Array where map[i] = mirror face index
+ * or -1 if no suitable mirror found within tolerance.
+ */
+export function buildSymmetryMap(verts, faces, nTri, { tolerance = 0.5 } = {}) {
+  // Compute centroids
+  const cx = new Float32Array(nTri);
+  const cy = new Float32Array(nTri);
+  const cz = new Float32Array(nTri);
+  let minX = Infinity, maxX = -Infinity;
+  for (let i = 0; i < nTri; i++) {
+    let sx = 0, sy = 0, sz = 0;
+    for (let v = 0; v < 3; v++) {
+      const vi = faces[i * 3 + v];
+      sx += verts[vi * 3]; sy += verts[vi * 3 + 1]; sz += verts[vi * 3 + 2];
+    }
+    cx[i] = sx / 3; cy[i] = sy / 3; cz[i] = sz / 3;
+    if (cx[i] < minX) minX = cx[i];
+    if (cx[i] > maxX) maxX = cx[i];
+  }
+  const centerX = (minX + maxX) / 2;
+  const tolSq = tolerance * tolerance;
+
+  // Spatial grid for fast lookup
+  const cellSize = tolerance * 2;
+  const grid = new Map();
+  function key(x, y, z) {
+    return `${Math.floor(x / cellSize)},${Math.floor(y / cellSize)},${Math.floor(z / cellSize)}`;
+  }
+  for (let i = 0; i < nTri; i++) {
+    const k = key(cx[i], cy[i], cz[i]);
+    if (!grid.has(k)) grid.set(k, []);
+    grid.get(k).push(i);
+  }
+
+  const map = new Int32Array(nTri).fill(-1);
+  for (let i = 0; i < nTri; i++) {
+    const mx = 2 * centerX - cx[i]; // mirrored X
+    const my = cy[i];
+    const mz = cz[i];
+
+    let bestDist = tolSq;
+    let bestJ = -1;
+
+    // Search neighbouring cells
+    const gx = Math.floor(mx / cellSize), gy = Math.floor(my / cellSize), gz = Math.floor(mz / cellSize);
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dz = -1; dz <= 1; dz++) {
+          const k = `${gx+dx},${gy+dy},${gz+dz}`;
+          const bucket = grid.get(k);
+          if (!bucket) continue;
+          for (const j of bucket) {
+            const d = (cx[j]-mx)**2 + (cy[j]-my)**2 + (cz[j]-mz)**2;
+            if (d < bestDist) { bestDist = d; bestJ = j; }
+          }
+        }
+      }
+    }
+    map[i] = bestJ;
+  }
+  return { map, centerX };
 }
