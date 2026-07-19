@@ -1,3 +1,36 @@
+---
+
+## b501 — 3MF Import + Clear/Reset Fix
+**Date:** 2026-07-19
+
+### New Features
+
+**3MF Import**
+- Load previously painted 3MF files back into the painter for continued editing
+- File input now accepts `.stl,.3mf` — drag-and-drop or file picker
+- Parses ZIP central directory, handles stored and deflated entries via `DecompressionStream('deflate-raw')`
+- Reads object model XML with namespace-aware queries for vertices, faces, and `paint_color` attributes
+- Maps OrcaSlicer paint codes back to AMS slots: `8`→emboss(slot2), `0C`→deboss(slot3), `1C`→trim(slot4)
+- Restores filament colours from `project_settings.config` JSON
+- New functions: `unzipEntries()`, `import3MF()` in `js/painter.js`
+- New dispatcher: `loadFile()` routes `.3mf` vs `.stl` automatically
+
+**Clear / Reset Overhaul**
+- Split into two distinct actions with dedicated buttons in Model tab:
+  - **Clear Paint** — removes all paint from the mesh, keeps the model loaded
+  - **Clear Model** — removes the mesh entirely, resets all state to initial
+- Reset View button now also clears paint (was previously non-functional for paint)
+- Clear Paint pushes undo state before clearing
+
+### File Changes
+- `painter.html`: 1963→2092 lines (+129) — new clear section UI, loadFile dispatcher, clearPaint/clearModel functions, updated file handlers
+- `js/painter.js`: 1104→1244 lines (+140) — ZIP reader, 3MF import parser with paint restoration
+
+### Technical Notes
+- ZIP parsing reads central directory for reliable entry offsets (doesn't rely on local headers alone)
+- 3MF XML uses BambuStudio namespace: `http://schemas.bambulab.com/package/2021/model`
+- Paint code mapping handles the hex encoding OrcaSlicer uses in `paint_color` triangle attributes
+- `clearModel()` fully tears down: removes mesh from scene, nulls geometry references, resets masks/islands/undo
 ### 2026-07-19 — b500: STL Painter overhaul — tabbed layout, click-to-select, mesh islands
 
 Major restructure of the STL Painter. From 2580-line monolith to cleaner modular code.
