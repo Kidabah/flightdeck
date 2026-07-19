@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STL Painter — MakerDeck b411</title>
+<title>STL Painter — MakerDeck b412</title>
 <script type="importmap">
 { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/" } }
 </script>
@@ -249,7 +249,7 @@
 <header class="header">
   <div class="header-left">
     <div class="header-brand">
-      <span class="header-eyebrow">MakerDeck b411</span>
+      <span class="header-eyebrow">MakerDeck b412</span>
       <span class="header-title">STL Painter</span>
       <span class="header-subtitle">Detect, area-paint, and export multi-color 3MFs</span>
     </div>
@@ -358,7 +358,7 @@
       <button type="button" class="tool-btn active" id="toolOrbit" title="Orbit / pan / zoom">Orbit</button>
       <button type="button" class="tool-btn" id="toolBox" title="Drag a box to paint faces">Box paint</button>
       <button type="button" class="tool-btn" id="toolEdge" title="Edge finder — select rough emboss/body boundary">Edge finder</button>
-      <button type="button" class="tool-btn" id="toolFlood" title="Flood fill — click a face, or box a region then click / Flood region">Flood</button>
+      <button type="button" class="tool-btn" id="toolFlood" title="Flood fill — click a pocket, or box a region then flood only Body (etc.) inside it">Flood</button>
       <span class="edge-controls" id="edgeControls">
         <span title="How far to grow the highlight into the body">Width</span>
         <input type="range" id="edgeWidth" min="0" max="8" step="1" value="2">
@@ -369,7 +369,13 @@
         <button type="button" class="tool-btn" id="edgeClearBtn" title="Clear edge highlight">Clear</button>
       </span>
       <span class="flood-controls" id="floodControls">
-        <button type="button" class="tool-btn" id="floodRegionBtn" title="Paint every face in the yellow region with the active colour">Flood region</button>
+        <span title="Only these faces inside the yellow region get replaced">Replace</span>
+        <select id="floodSource" title="Paint class to replace inside the region" style="background:var(--panel-2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:4px 6px;font-size:11px;font-weight:600">
+          <option value="body" selected>Body</option>
+          <option value="emboss">Emboss</option>
+          <option value="deboss">Deboss</option>
+        </select>
+        <button type="button" class="tool-btn" id="floodRegionBtn" title="Replace only that class inside the yellow region (keeps black emboss rim)">Flood in region</button>
         <button type="button" class="tool-btn" id="floodClearBtn" title="Clear region limit">Clear region</button>
       </span>
       <div class="tool-sep"></div>
@@ -459,7 +465,7 @@
     <span class="status-dot idle" id="statusDot"></span>
     <span id="statusText">Ready — load an STL to begin</span>
   </div>
-  <span>MakerDeck b411 — STL Painter</span>
+  <span>MakerDeck b412 — STL Painter</span>
 </footer>
 
 <!-- Main Script -->
@@ -474,8 +480,9 @@ import {
   buildFaceAdj,
   findPaintBoundary,
   floodFillFaces,
+  paintClassOf,
   export3MF
-} from './js/painter.js?v=411';
+} from './js/painter.js?v=412';
 
 /* ------------------------------------------------------------------ */
 /*  State                                                             */
@@ -1331,10 +1338,47 @@ function runFloodFromSeed(seed) {
     );
     return 0;
   }
+  // Guard: unconstrained flood that eats most of the model (eye→whole mask)
+  const maxFrac = 0.08;
+  if (!state.floodRegion && faces.length > state.nTri * maxFrac) {
+    setStatus(
+      `Flood would paint ${faces.length.toLocaleString()} faces (too big) — drag a yellow region around the eye, then click inside`,
+      'idle'
+    );
+    return 0;
+  }
   const target = state.paintTarget;
   paintFacesFree(faces, target);
   const limited = state.floodRegion ? ' (limited to region)' : '';
   setStatus(`Flood filled ${faces.length.toLocaleString()} faces → ${target}${limited}`, 'idle');
+  return faces.length;
+}
+
+function floodReplaceInRegion() {
+  if (!state.floodRegion) {
+    setStatus('No region — drag a box around the eye first', 'idle');
+    return 0;
+  }
+  const source = document.getElementById('floodSource')?.value || 'body';
+  const target = state.paintTarget;
+  if (source === target) {
+    setStatus(`Replace is already ${source} — pick a different paint target (e.g. Deboss white)`, 'idle');
+    return 0;
+  }
+  const faces = [];
+  for (let i = 0; i < state.nTri; i++) {
+    if (!state.floodRegion[i]) continue;
+    if (paintClassOf(i, state.embossMask, state.debossMask) === source) faces.push(i);
+  }
+  if (!faces.length) {
+    setStatus(`No ${source} faces in the yellow region`, 'idle');
+    return 0;
+  }
+  paintFacesFree(faces, target);
+  setStatus(
+    `Flood in region: ${faces.length.toLocaleString()} ${source} → ${target} (other classes left alone)`,
+    'idle'
+  );
   return faces.length;
 }
 
@@ -1348,8 +1392,13 @@ function setFloodRegionFromFaces(faceList) {
   state.floodRegion = region;
   state.edgeHighlight = null; // don't stack overlays
   updateMeshColors();
+  const source = document.getElementById('floodSource')?.value || 'body';
+  let replaceable = 0;
+  for (const i of faceList) {
+    if (paintClassOf(i, state.embossMask, state.debossMask) === source) replaceable++;
+  }
   setStatus(
-    `Region set: ${faceList.length.toLocaleString()} faces (yellow) — click to flood inside, or Flood region`,
+    `Region: ${faceList.length.toLocaleString()} faces (yellow) · ${replaceable.toLocaleString()} ${source} to replace — click pocket or Flood in region`,
     'idle'
   );
 }
@@ -1376,7 +1425,7 @@ function setTool(tool) {
     syncEdgeModeButtons();
     viewportHint.textContent = 'Edge finder: cyan → Fill Emboss (thicken black) · magenta → Fill Body (shave to red) · Width · Fill · right-drag orbits';
   } else if (tool === 'flood') {
-    viewportHint.textContent = 'Flood: click a face to fill connected colour · or drag a yellow region, then click / Flood region · pick Body/Emboss/Deboss first · right-drag orbits';
+    viewportHint.textContent = 'Flood: for eyes — Deboss white · Replace Body · drag yellow around eye · Flood in region (keeps black rim) · or click pocket inside region · right-drag orbits';
   } else if (tool === 'box') {
     viewportHint.textContent = 'Box paint: Body = red/base (whole box) · Emboss/Deboss lock to Detect when possible · free-paint if none · right-drag orbits';
   } else {
@@ -1395,16 +1444,7 @@ toolOrbit.addEventListener('click', () => setTool('orbit'));
 toolBox.addEventListener('click', () => setTool('box'));
 toolEdge.addEventListener('click', () => setTool('edge'));
 toolFlood.addEventListener('click', () => setTool('flood'));
-floodRegionBtn.addEventListener('click', () => {
-  if (!state.floodRegion) {
-    setStatus('No region — drag a box first, then Flood region', 'idle');
-    return;
-  }
-  const faces = [];
-  for (let i = 0; i < state.nTri; i++) if (state.floodRegion[i]) faces.push(i);
-  paintFacesFree(faces, state.paintTarget);
-  setStatus(`Flood region: painted ${faces.length.toLocaleString()} faces → ${state.paintTarget}`, 'idle');
-});
+floodRegionBtn.addEventListener('click', () => floodReplaceInRegion());
 floodClearBtn.addEventListener('click', () => {
   clearFloodRegion();
   setStatus('Flood region cleared', 'idle');

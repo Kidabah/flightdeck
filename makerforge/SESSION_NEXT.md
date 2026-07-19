@@ -1,3 +1,9 @@
+### 2026-07-19 — b412: STL Painter — Flood region only replaces Body (etc.)
+
+**Flood in region** was painting every face in the yellow box (white rectangle over Spidey eye + web). Now it only replaces the chosen class (**Replace Body** default) inside the region — black emboss rim stays. Unconstrained click-flood that would exceed 8% of the mesh is blocked (forces a yellow region). Cache-bust `painter.js?v=412`.
+
+Files: `painter.html`, `js/painter.js`, `SESSION_NEXT.md`.
+
 ### 2026-07-19 — b411: STL Painter — Flood fill + region limit
 
 Paint-phase **Flood** tool:

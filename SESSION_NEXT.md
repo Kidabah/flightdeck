@@ -2,14 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b411 Flood fill + region
+- Latest commit: MakerDeck b412 safe Flood in region
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
 
-### 2026-07-19 feature (MakerDeck b411 — Flood fill)
+### 2026-07-19 fix (MakerDeck b412 — Flood didn’t go to plan)
 
-**Need:** Paint white eyes / pockets — flood fill + select region then flood.
+**Need:** Eye flood painted a white rectangle over web + eye.
 
-**What shipped:** Flood tool — click connected fill; box = yellow region limit; Flood region paints whole selection. Cache-bust `painter.js?v=411`.
+**Cause:** Flood region painted every face in the box.
+
+**What shipped:** Flood in region only replaces Body (selectable); keeps emboss rim; big unconstrained floods blocked. Cache-bust `painter.js?v=412`.
 
 **Deploy:** Hard refresh Painter page (no backend restart).
 
