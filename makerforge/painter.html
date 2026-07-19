@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STL Painter — MakerDeck b403</title>
+<title>STL Painter — MakerDeck b404</title>
 <script type="importmap">
 { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/" } }
 </script>
@@ -216,7 +216,7 @@
 <header class="header">
   <div class="header-left">
     <div class="header-brand">
-      <span class="header-eyebrow">MakerDeck b403</span>
+      <span class="header-eyebrow">MakerDeck b404</span>
       <span class="header-title">STL Painter</span>
       <span class="header-subtitle">Detect, area-paint, and export multi-color 3MFs</span>
     </div>
@@ -378,7 +378,7 @@
     <span class="status-dot idle" id="statusDot"></span>
     <span id="statusText">Ready — load an STL to begin</span>
   </div>
-  <span>MakerDeck b403 — STL Painter</span>
+  <span>MakerDeck b404 — STL Painter</span>
 </footer>
 
 <!-- Main Script -->
@@ -855,10 +855,13 @@ function setTool(tool) {
   state.tool = tool;
   toolOrbit.classList.toggle('active', tool === 'orbit');
   toolBox.classList.toggle('active', tool === 'box');
-  controls.enabled = tool === 'orbit';
+  // Orbit controls stay on for scroll-zoom; only left-drag rotate is gated in box mode.
+  controls.enabled = true;
+  controls.enableRotate = tool === 'orbit';
+  controls.enablePan = tool === 'orbit';
   viewport.classList.toggle('select-mode', tool === 'box');
   viewportHint.textContent = tool === 'box'
-    ? 'Box paint: drag to select faces · pick Body / Emboss / Deboss colour first'
+    ? 'Box paint: drag to paint · finishes back in Orbit · right-drag to orbit anytime'
     : 'Orbit: drag rotate · scroll zoom · Shift+pan · double-click zoom to point';
 }
 
@@ -889,10 +892,29 @@ document.getElementById('undoBtn').addEventListener('click', () => {
 });
 
 let boxDrag = null;
+function endBoxDrag(e) {
+  if (e?.pointerId != null) {
+    try { viewport.releasePointerCapture?.(e.pointerId); } catch { /* already released */ }
+  }
+  selectRect.style.display = 'none';
+  const start = boxDrag;
+  boxDrag = null;
+  return start;
+}
+
 viewport.addEventListener('pointerdown', (e) => {
+  // Toolbar clicks must not start a paint box (Orbit button lives inside viewport).
+  if (e.target.closest?.('.viewport-toolbar')) return;
+  // Right / middle mouse = orbit even while Box paint is selected.
+  if (e.button === 2 || e.button === 1) {
+    controls.enableRotate = true;
+    controls.enablePan = true;
+    return;
+  }
   if (state.tool !== 'box' || !state.mesh || e.button !== 0) return;
+  e.preventDefault();
   const rect = viewport.getBoundingClientRect();
-  boxDrag = { x0: e.clientX - rect.left, y0: e.clientY - rect.top };
+  boxDrag = { x0: e.clientX - rect.left, y0: e.clientY - rect.top, pointerId: e.pointerId };
   selectRect.style.display = 'block';
   selectRect.style.left = boxDrag.x0 + 'px';
   selectRect.style.top = boxDrag.y0 + 'px';
@@ -911,21 +933,36 @@ viewport.addEventListener('pointermove', (e) => {
   selectRect.style.height = Math.abs(y1 - boxDrag.y0) + 'px';
 });
 viewport.addEventListener('pointerup', (e) => {
+  if (e.button === 2 || e.button === 1) {
+    // Restore box-mode orbit lock after a temporary right-drag orbit.
+    if (state.tool === 'box') {
+      controls.enableRotate = false;
+      controls.enablePan = false;
+    }
+    return;
+  }
   if (!boxDrag || !state.mesh) return;
   const rect = viewport.getBoundingClientRect();
   const x1 = e.clientX - rect.left, y1 = e.clientY - rect.top;
-  selectRect.style.display = 'none';
-  const start = boxDrag;
-  boxDrag = null;
+  const start = endBoxDrag(e);
+  if (!start) return;
   setStatus('Selecting faces…', 'working');
   requestAnimationFrame(() => {
     const faces = facesInScreenBox(start.x0, start.y0, x1, y1);
     paintFaces(faces, state.paintTarget);
+    // Return to Orbit so you can spin the model immediately after painting.
+    setTool('orbit');
   });
 });
-viewport.addEventListener('pointercancel', () => {
-  boxDrag = null;
-  selectRect.style.display = 'none';
+viewport.addEventListener('pointercancel', (e) => {
+  endBoxDrag(e);
+  if (state.tool === 'box') {
+    controls.enableRotate = false;
+    controls.enablePan = false;
+  }
+});
+viewport.addEventListener('contextmenu', (e) => {
+  if (state.tool === 'box') e.preventDefault();
 });
 
 // Double-click: zoom toward the hit face (detail work).

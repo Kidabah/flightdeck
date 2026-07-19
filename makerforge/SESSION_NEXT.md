@@ -1,3 +1,7 @@
+### 2026-07-19 — b404: STL Painter — return to Orbit after box paint
+
+Box paint left OrbitControls disabled and toolbar clicks could start a paint drag. After a box paint finishes it auto-switches back to **Orbit**; right-drag orbits anytime in Box mode; toolbar clicks no longer start selections.
+
 ### 2026-07-19 — b403: STL Painter — area select + deep zoom
 
 Phase 1 paint studio tools:
