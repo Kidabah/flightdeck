@@ -1,3 +1,13 @@
+### 2026-07-19 — b411: STL Painter — Flood fill + region limit
+
+Paint-phase **Flood** tool:
+- Click a face → flood connected same paint class with active Body/Emboss/Deboss
+- Drag a box → yellow **region** limit; click floods only inside it; **Flood region** paints the whole yellow area
+- Eyes workflow: Deboss (white) → box the eye → click the pocket (or Flood region)
+- Cache-bust: `painter.js?v=411`. Hard refresh.
+
+Files: `painter.html`, `js/painter.js`, `SESSION_NEXT.md`.
+
 ### 2026-07-19 — b410: STL Painter — cyan Emboss / magenta Body edge modes
 
 Edge finder preview splits by intent: **cyan → Emboss** (grow into red, thicken black), **magenta → Body** (grow into black, shave spill). Pick mode, tweak Width, **Fill**. Cache-bust `painter.js?v=410`.

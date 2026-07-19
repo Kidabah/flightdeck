@@ -1,5 +1,5 @@
 /**
- * MakerDeck STL Painter Engine — b410
+ * MakerDeck STL Painter Engine — b411
  * Pure computation module: STL parsing, feature detection, 3MF export.
  */
 
@@ -132,6 +132,41 @@ export function morphClose(mask, faceAdj, nTri, steps) {
 export function morphOpen(mask, faceAdj, nTri, steps) {
   morphErode(mask, faceAdj, nTri, steps);
   morphDilate(mask, faceAdj, nTri, steps);
+}
+
+/** Current paint class of a face: 'body' | 'emboss' | 'deboss'. */
+export function paintClassOf(i, embossMask, debossMask) {
+  if (embossMask && embossMask[i]) return 'emboss';
+  if (debossMask && debossMask[i]) return 'deboss';
+  return 'body';
+}
+
+/**
+ * Flood-fill connected faces that share the seed's paint class.
+ * Optional `region` mask limits the fill (box-select then flood).
+ * @returns {number[]} face indices
+ */
+export function floodFillFaces(seed, embossMask, debossMask, nTri, faceAdj, opts = {}) {
+  const region = opts.region || null;
+  if (seed < 0 || seed >= nTri) return [];
+  if (region && !region[seed]) return [];
+  const matchClass = paintClassOf(seed, embossMask, debossMask);
+  const out = [];
+  const visited = new Uint8Array(nTri);
+  const queue = [seed];
+  visited[seed] = 1;
+  while (queue.length) {
+    const fi = queue.pop();
+    out.push(fi);
+    for (const nb of faceAdj[fi]) {
+      if (visited[nb]) continue;
+      if (region && !region[nb]) continue;
+      if (paintClassOf(nb, embossMask, debossMask) !== matchClass) continue;
+      visited[nb] = 1;
+      queue.push(nb);
+    }
+  }
+  return out;
 }
 
 /**

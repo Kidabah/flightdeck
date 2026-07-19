@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STL Painter — MakerDeck b410</title>
+<title>STL Painter — MakerDeck b411</title>
 <script type="importmap">
 { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/" } }
 </script>
@@ -222,6 +222,11 @@
   .edge-controls .tool-btn.edge-body.active {
     border-color: #ff2bd6; color: #ff2bd6; box-shadow: 0 0 0 1px rgba(255,43,214,0.35);
   }
+  .flood-controls {
+    display: none; align-items: center; gap: 8px; padding: 0 4px;
+    color: var(--muted); font-size: 11px; font-weight: 600;
+  }
+  .flood-controls.visible { display: inline-flex; }
   .select-rect {
     position: absolute; border: 1.5px solid var(--accent);
     background: rgba(56, 189, 248, 0.14); pointer-events: none; z-index: 4; display: none;
@@ -244,7 +249,7 @@
 <header class="header">
   <div class="header-left">
     <div class="header-brand">
-      <span class="header-eyebrow">MakerDeck b410</span>
+      <span class="header-eyebrow">MakerDeck b411</span>
       <span class="header-title">STL Painter</span>
       <span class="header-subtitle">Detect, area-paint, and export multi-color 3MFs</span>
     </div>
@@ -353,6 +358,7 @@
       <button type="button" class="tool-btn active" id="toolOrbit" title="Orbit / pan / zoom">Orbit</button>
       <button type="button" class="tool-btn" id="toolBox" title="Drag a box to paint faces">Box paint</button>
       <button type="button" class="tool-btn" id="toolEdge" title="Edge finder — select rough emboss/body boundary">Edge finder</button>
+      <button type="button" class="tool-btn" id="toolFlood" title="Flood fill — click a face, or box a region then click / Flood region">Flood</button>
       <span class="edge-controls" id="edgeControls">
         <span title="How far to grow the highlight into the body">Width</span>
         <input type="range" id="edgeWidth" min="0" max="8" step="1" value="2">
@@ -361,6 +367,10 @@
         <button type="button" class="tool-btn edge-body" id="edgeModeBodyBtn" title="Magenta band — grow into black, then Fill → red">Magenta → Body</button>
         <button type="button" class="tool-btn" id="edgeFillBtn" title="Fill the highlighted band with the active colour">Fill</button>
         <button type="button" class="tool-btn" id="edgeClearBtn" title="Clear edge highlight">Clear</button>
+      </span>
+      <span class="flood-controls" id="floodControls">
+        <button type="button" class="tool-btn" id="floodRegionBtn" title="Paint every face in the yellow region with the active colour">Flood region</button>
+        <button type="button" class="tool-btn" id="floodClearBtn" title="Clear region limit">Clear region</button>
       </span>
       <div class="tool-sep"></div>
       <span class="paint-target-row" title="Paint colour (AMS slot)">
@@ -449,7 +459,7 @@
     <span class="status-dot idle" id="statusDot"></span>
     <span id="statusText">Ready — load an STL to begin</span>
   </div>
-  <span>MakerDeck b410 — STL Painter</span>
+  <span>MakerDeck b411 — STL Painter</span>
 </footer>
 
 <!-- Main Script -->
@@ -463,8 +473,9 @@ import {
   cleanClusters,
   buildFaceAdj,
   findPaintBoundary,
+  floodFillFaces,
   export3MF
-} from './js/painter.js?v=410';
+} from './js/painter.js?v=411';
 
 /* ------------------------------------------------------------------ */
 /*  State                                                             */
@@ -485,11 +496,12 @@ const state = {
   debossCount: 0,
   mesh: null,
   fileName: 'model',
-  tool: 'orbit',          // 'orbit' | 'box' | 'edge'
+  tool: 'orbit',          // 'orbit' | 'box' | 'edge' | 'flood'
   paintTarget: 'body',    // 'body' | 'emboss' | 'deboss'
   undoStack: [],
   edgeHighlight: null,    // Uint8Array | null
   edgeFillMode: 'emboss', // 'emboss' (cyan) | 'body' (magenta)
+  floodRegion: null,      // Uint8Array | null — yellow box limit for flood
   faceAdj: null,          // cached face adjacency
 };
 
@@ -868,6 +880,7 @@ async function loadSTL(file) {
   state.embossCount = 0;
   state.debossCount = 0;
   state.edgeHighlight = null;
+  state.floodRegion = null;
   state.faceAdj = null;
   state.undoStack = [];
   document.getElementById('undoBtn').disabled = true;
@@ -974,12 +987,14 @@ function updateMeshColors() {
   const bodyCol = new THREE.Color(colorBody.value);
   const embossCol = new THREE.Color(colorEmboss.value);
   const debossCol = new THREE.Color(colorDeboss.value);
-  // Cyan = about to Fill Emboss; magenta = about to Fill Body
+  // Cyan = about to Fill Emboss; magenta = about to Fill Body; amber = flood region limit
   const edgeCol = new THREE.Color(state.edgeFillMode === 'body' ? '#ff2bd6' : '#00e5ff');
+  const floodCol = new THREE.Color('#f5c542');
 
   for (let i = 0; i < state.nTri; i++) {
     let col = bodyCol;
     if (state.edgeHighlight && state.edgeHighlight[i]) col = edgeCol;
+    else if (state.floodRegion && state.floodRegion[i]) col = floodCol;
     else if (state.embossMask && state.embossMask[i]) col = embossCol;
     else if (state.debossMask && state.debossMask[i]) col = debossCol;
     for (let v = 0; v < 3; v++) {
@@ -1160,13 +1175,17 @@ function facesInScreenBox(x0, y0, x1, y1) {
 const toolOrbit = document.getElementById('toolOrbit');
 const toolBox = document.getElementById('toolBox');
 const toolEdge = document.getElementById('toolEdge');
+const toolFlood = document.getElementById('toolFlood');
 const edgeControls = document.getElementById('edgeControls');
+const floodControls = document.getElementById('floodControls');
 const edgeWidthSlider = document.getElementById('edgeWidth');
 const edgeWidthVal = document.getElementById('edgeWidthVal');
 const edgeModeEmbossBtn = document.getElementById('edgeModeEmbossBtn');
 const edgeModeBodyBtn = document.getElementById('edgeModeBodyBtn');
 const edgeFillBtn = document.getElementById('edgeFillBtn');
 const edgeClearBtn = document.getElementById('edgeClearBtn');
+const floodRegionBtn = document.getElementById('floodRegionBtn');
+const floodClearBtn = document.getElementById('floodClearBtn');
 const selectRect = document.getElementById('selectRect');
 const raycaster = new THREE.Raycaster();
 const pointerNdc = new THREE.Vector2();
@@ -1260,20 +1279,104 @@ function fillEdgeHighlight(target = state.edgeFillMode) {
   setStatus(`Filled ${faces.length.toLocaleString()} edge faces → ${target}`, 'idle');
 }
 
+function paintFacesFree(faceIndices, target) {
+  if (!state.embossMask || !state.debossMask || !faceIndices.length) return;
+  pushUndo();
+  for (const i of faceIndices) {
+    if (target === 'emboss') {
+      state.embossMask[i] = 1;
+      state.debossMask[i] = 0;
+    } else if (target === 'deboss') {
+      state.debossMask[i] = 1;
+      state.embossMask[i] = 0;
+    } else {
+      state.embossMask[i] = 0;
+      state.debossMask[i] = 0;
+    }
+  }
+  updateMeshColors();
+  recountPaint();
+  exportBtn.disabled = false;
+}
+
+function pickFaceAtClient(clientX, clientY) {
+  if (!state.mesh) return -1;
+  const rect = viewport.getBoundingClientRect();
+  pointerNdc.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+  pointerNdc.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(pointerNdc, camera);
+  const hits = raycaster.intersectObject(state.mesh, false);
+  if (!hits.length) return -1;
+  const faceIndex = hits[0].faceIndex;
+  return faceIndex == null ? -1 : faceIndex;
+}
+
+function runFloodFromSeed(seed) {
+  if (seed < 0 || !state.embossMask) return 0;
+  ensureFaceAdj();
+  const faces = floodFillFaces(
+    seed,
+    state.embossMask,
+    state.debossMask,
+    state.nTri,
+    state.faceAdj,
+    { region: state.floodRegion }
+  );
+  if (!faces.length) {
+    setStatus(
+      state.floodRegion
+        ? 'Flood found nothing — click a face inside the yellow region'
+        : 'Flood found nothing',
+      'idle'
+    );
+    return 0;
+  }
+  const target = state.paintTarget;
+  paintFacesFree(faces, target);
+  const limited = state.floodRegion ? ' (limited to region)' : '';
+  setStatus(`Flood filled ${faces.length.toLocaleString()} faces → ${target}${limited}`, 'idle');
+  return faces.length;
+}
+
+function setFloodRegionFromFaces(faceList) {
+  if (!faceList.length) {
+    setStatus('No faces in that box', 'idle');
+    return;
+  }
+  const region = new Uint8Array(state.nTri);
+  for (const i of faceList) region[i] = 1;
+  state.floodRegion = region;
+  state.edgeHighlight = null; // don't stack overlays
+  updateMeshColors();
+  setStatus(
+    `Region set: ${faceList.length.toLocaleString()} faces (yellow) — click to flood inside, or Flood region`,
+    'idle'
+  );
+}
+
+function clearFloodRegion() {
+  state.floodRegion = null;
+  updateMeshColors();
+}
+
 function setTool(tool) {
   state.tool = tool;
   toolOrbit.classList.toggle('active', tool === 'orbit');
   toolBox.classList.toggle('active', tool === 'box');
   toolEdge.classList.toggle('active', tool === 'edge');
+  toolFlood.classList.toggle('active', tool === 'flood');
   edgeControls.classList.toggle('visible', tool === 'edge');
-  // Orbit controls stay on for scroll-zoom; only left-drag rotate is gated in box/edge mode.
+  floodControls.classList.toggle('visible', tool === 'flood');
+  // Orbit controls stay on for scroll-zoom; left-drag rotate gated for select tools.
   controls.enabled = true;
   controls.enableRotate = tool === 'orbit';
   controls.enablePan = tool === 'orbit';
-  viewport.classList.toggle('select-mode', tool === 'box' || tool === 'edge');
+  viewport.classList.toggle('select-mode', tool === 'box' || tool === 'edge' || tool === 'flood');
   if (tool === 'edge') {
     syncEdgeModeButtons();
     viewportHint.textContent = 'Edge finder: cyan → Fill Emboss (thicken black) · magenta → Fill Body (shave to red) · Width · Fill · right-drag orbits';
+  } else if (tool === 'flood') {
+    viewportHint.textContent = 'Flood: click a face to fill connected colour · or drag a yellow region, then click / Flood region · pick Body/Emboss/Deboss first · right-drag orbits';
   } else if (tool === 'box') {
     viewportHint.textContent = 'Box paint: Body = red/base (whole box) · Emboss/Deboss lock to Detect when possible · free-paint if none · right-drag orbits';
   } else {
@@ -1291,6 +1394,21 @@ function setPaintTarget(target) {
 toolOrbit.addEventListener('click', () => setTool('orbit'));
 toolBox.addEventListener('click', () => setTool('box'));
 toolEdge.addEventListener('click', () => setTool('edge'));
+toolFlood.addEventListener('click', () => setTool('flood'));
+floodRegionBtn.addEventListener('click', () => {
+  if (!state.floodRegion) {
+    setStatus('No region — drag a box first, then Flood region', 'idle');
+    return;
+  }
+  const faces = [];
+  for (let i = 0; i < state.nTri; i++) if (state.floodRegion[i]) faces.push(i);
+  paintFacesFree(faces, state.paintTarget);
+  setStatus(`Flood region: painted ${faces.length.toLocaleString()} faces → ${state.paintTarget}`, 'idle');
+});
+floodClearBtn.addEventListener('click', () => {
+  clearFloodRegion();
+  setStatus('Flood region cleared', 'idle');
+});
 edgeWidthSlider.addEventListener('input', () => {
   edgeWidthVal.textContent = edgeWidthSlider.value;
   // Re-run last region if we still have a highlight from a boxed region — store last seed
@@ -1320,6 +1438,7 @@ document.getElementById('undoBtn').addEventListener('click', () => {
   state.embossMask = snap.emboss;
   state.debossMask = snap.deboss;
   state.edgeHighlight = null;
+  // keep floodRegion — it's a selection limit, not paint
   updateMeshColors();
   recountPaint();
   document.getElementById('undoBtn').disabled = state.undoStack.length === 0;
@@ -1338,7 +1457,7 @@ function endBoxDrag(e) {
 }
 
 function isSelectTool() {
-  return state.tool === 'box' || state.tool === 'edge';
+  return state.tool === 'box' || state.tool === 'edge' || state.tool === 'flood';
 }
 
 viewport.addEventListener('pointerdown', (e) => {
@@ -1386,7 +1505,30 @@ viewport.addEventListener('pointerup', (e) => {
   const start = endBoxDrag(e);
   if (!start) return;
   const tool = state.tool;
-  setStatus(tool === 'edge' ? 'Finding emboss edge…' : 'Selecting faces…', 'working');
+  const dragW = Math.abs(x1 - start.x0);
+  const dragH = Math.abs(y1 - start.y0);
+  const isClick = dragW < 5 && dragH < 5;
+
+  if (tool === 'flood' && isClick) {
+    setStatus('Flood filling…', 'working');
+    requestAnimationFrame(() => {
+      // Use pointer-up position for the seed hit
+      const seed = pickFaceAtClient(e.clientX, e.clientY);
+      if (seed < 0) {
+        setStatus('Missed the mesh — click a face to flood', 'idle');
+        return;
+      }
+      runFloodFromSeed(seed);
+    });
+    return;
+  }
+
+  setStatus(
+    tool === 'edge' ? 'Finding emboss edge…'
+      : tool === 'flood' ? 'Setting flood region…'
+      : 'Selecting faces…',
+    'working'
+  );
   requestAnimationFrame(() => {
     const faces = facesInScreenBox(start.x0, start.y0, x1, y1);
     if (tool === 'edge') {
@@ -1405,6 +1547,9 @@ viewport.addEventListener('pointerup', (e) => {
         'idle'
       );
       // Stay in Edge tool so you can adjust width / fill
+    } else if (tool === 'flood') {
+      setFloodRegionFromFaces(faces);
+      // Stay in Flood tool for click-flood inside the region
     } else {
       paintFaces(faces, state.paintTarget);
       // Return to Orbit so you can spin the model immediately after painting.
