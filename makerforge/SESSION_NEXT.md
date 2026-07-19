@@ -1,3 +1,14 @@
+### 2026-07-19 — b403: STL Painter — area select + deep zoom
+
+Phase 1 paint studio tools:
+- **Orbit** vs **Box paint** tools in the viewport toolbar
+- Paint target chips: Body / Emboss / Deboss (active AMS colour)
+- Box-drag selects faces by screen projection and paints them
+- Zoom-to-cursor scroll, +/−, Frame, double-click zoom-to-point, Undo
+- Export enabled after load (manual paint without Detect is fine)
+
+Next: hide / isolate. Files: `painter.html`, `SESSION_NEXT.md`.
+
 ### 2026-07-19 — b402: STL Painter — sit models on z=0 bed
 
 Preview was centering the mesh in Y, so half the model sank through the grid. Now:

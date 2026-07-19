@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STL Painter — MakerDeck b402</title>
+<title>STL Painter — MakerDeck b403</title>
 <script type="importmap">
 { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/" } }
 </script>
@@ -170,8 +170,35 @@
     position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
     background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
     padding: 8px 16px; font-size: 11px; color: var(--muted);
-    pointer-events: none; opacity: 0.8; white-space: nowrap;
+    pointer-events: none; opacity: 0.8; white-space: nowrap; z-index: 2;
   }
+  .viewport-toolbar {
+    position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+    display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: center;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 8px 10px; z-index: 3; box-shadow: var(--shadow); max-width: calc(100% - 24px);
+  }
+  .viewport-toolbar .tool-btn {
+    border: 1px solid var(--border); background: var(--panel-2); color: var(--text);
+    border-radius: 7px; padding: 6px 10px; font-size: 11px; font-weight: 600;
+    cursor: pointer; transition: all 0.15s; white-space: nowrap;
+  }
+  .viewport-toolbar .tool-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .viewport-toolbar .tool-btn.active {
+    background: rgba(56, 189, 248, 0.16); border-color: var(--accent); color: var(--accent);
+  }
+  .viewport-toolbar .tool-sep { width: 1px; height: 22px; background: var(--border); margin: 0 2px; }
+  .paint-target-row { display: flex; gap: 4px; align-items: center; }
+  .paint-target {
+    width: 22px; height: 22px; border-radius: 6px; border: 2px solid transparent;
+    cursor: pointer; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.15);
+  }
+  .paint-target.active { border-color: #fff; box-shadow: 0 0 0 2px var(--accent); }
+  .select-rect {
+    position: absolute; border: 1.5px solid var(--accent);
+    background: rgba(56, 189, 248, 0.14); pointer-events: none; z-index: 4; display: none;
+  }
+  .viewport.select-mode canvas { cursor: crosshair; }
 
   /* Scrollbar */
   ::-webkit-scrollbar { width: 6px; }
@@ -189,9 +216,9 @@
 <header class="header">
   <div class="header-left">
     <div class="header-brand">
-      <span class="header-eyebrow">MakerDeck b402</span>
+      <span class="header-eyebrow">MakerDeck b403</span>
       <span class="header-title">STL Painter</span>
-      <span class="header-subtitle">Automatic emboss / deboss detection and multi-color 3MF export</span>
+      <span class="header-subtitle">Detect, area-paint, and export multi-color 3MFs</span>
     </div>
   </div>
   <nav class="header-nav">
@@ -267,7 +294,23 @@
 
   <!-- 3D Viewport -->
   <div class="viewport" id="viewport">
-    <div class="viewport-hint" id="viewportHint">Drag to rotate &middot; Scroll to zoom &middot; Shift+drag to pan</div>
+    <div class="viewport-toolbar" id="viewportToolbar">
+      <button type="button" class="tool-btn active" id="toolOrbit" title="Orbit / pan / zoom">Orbit</button>
+      <button type="button" class="tool-btn" id="toolBox" title="Drag a box to paint faces">Box paint</button>
+      <div class="tool-sep"></div>
+      <span class="paint-target-row" title="Paint colour (AMS slot)">
+        <button type="button" class="paint-target active" id="targetBody" title="Body" style="background:#c20820"></button>
+        <button type="button" class="paint-target" id="targetEmboss" title="Emboss" style="background:#131111"></button>
+        <button type="button" class="paint-target" id="targetDeboss" title="Deboss" style="background:#C8DBFA"></button>
+      </span>
+      <div class="tool-sep"></div>
+      <button type="button" class="tool-btn" id="zoomOutBtn" title="Zoom out">−</button>
+      <button type="button" class="tool-btn" id="zoomInBtn" title="Zoom in">+</button>
+      <button type="button" class="tool-btn" id="frameBtn" title="Frame model">Frame</button>
+      <button type="button" class="tool-btn" id="undoBtn" title="Undo last paint" disabled>Undo</button>
+    </div>
+    <div class="select-rect" id="selectRect"></div>
+    <div class="viewport-hint" id="viewportHint">Orbit: drag rotate · scroll zoom · Shift+pan · double-click zoom to point</div>
   </div>
 
   <!-- Right Sidebar -->
@@ -335,7 +378,7 @@
     <span class="status-dot idle" id="statusDot"></span>
     <span id="statusText">Ready — load an STL to begin</span>
   </div>
-  <span>MakerDeck b402 — STL Painter</span>
+  <span>MakerDeck b403 — STL Painter</span>
 </footer>
 
 <!-- Main Script -->
@@ -366,7 +409,10 @@ const state = {
   embossCount: 0,
   debossCount: 0,
   mesh: null,
-  fileName: 'model'
+  fileName: 'model',
+  tool: 'orbit',          // 'orbit' | 'box'
+  paintTarget: 'body',    // 'body' | 'emboss' | 'deboss'
+  undoStack: [],
 };
 
 /* ------------------------------------------------------------------ */
@@ -394,6 +440,10 @@ controls.dampingFactor = 0.08;
 controls.panSpeed = 0.8;
 controls.rotateSpeed = 0.6;
 controls.screenSpacePanning = true;
+controls.zoomToCursor = true;
+controls.minDistance = 0.5;
+controls.maxDistance = 8000;
+controls.zoomSpeed = 1.15;
 
 // Lighting
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
@@ -493,9 +543,24 @@ minClusterSlider.addEventListener('input', () => { minClusterVal.textContent = p
 /*  Color Pickers                                                     */
 /* ------------------------------------------------------------------ */
 
-colorBody.addEventListener('input', () => { colorBodyHex.textContent = colorBody.value.toUpperCase(); updateMeshColors(); });
-colorEmboss.addEventListener('input', () => { colorEmbossHex.textContent = colorEmboss.value.toUpperCase(); updateMeshColors(); });
-colorDeboss.addEventListener('input', () => { colorDebossHex.textContent = colorDeboss.value.toUpperCase(); updateMeshColors(); });
+colorBody.addEventListener('input', () => {
+  colorBodyHex.textContent = colorBody.value.toUpperCase();
+  document.getElementById('targetBody').style.background = colorBody.value;
+  updateMeshColors();
+});
+colorEmboss.addEventListener('input', () => {
+  colorEmbossHex.textContent = colorEmboss.value.toUpperCase();
+  document.getElementById('targetEmboss').style.background = colorEmboss.value;
+  updateMeshColors();
+});
+colorDeboss.addEventListener('input', () => {
+  colorDebossHex.textContent = colorDeboss.value.toUpperCase();
+  document.getElementById('targetDeboss').style.background = colorDeboss.value;
+  updateMeshColors();
+});
+document.getElementById('targetBody').style.background = colorBody.value;
+document.getElementById('targetEmboss').style.background = colorEmboss.value;
+document.getElementById('targetDeboss').style.background = colorDeboss.value;
 
 // Preset colors
 const presets = [
@@ -519,6 +584,9 @@ for (const p of presets) {
     colorBody.value = p.body; colorBodyHex.textContent = p.body;
     colorEmboss.value = p.emboss; colorEmbossHex.textContent = p.emboss;
     colorDeboss.value = p.deboss; colorDebossHex.textContent = p.deboss;
+    document.getElementById('targetBody').style.background = p.body;
+    document.getElementById('targetEmboss').style.background = p.emboss;
+    document.getElementById('targetDeboss').style.background = p.deboss;
     updateMeshColors();
   });
   presetRow.appendChild(sw);
@@ -562,15 +630,17 @@ async function loadSTL(file) {
   state.faces = faces;
   state.nVerts = nVerts;
 
-  state.embossMask = null;
-  state.debossMask = null;
+  state.embossMask = new Uint8Array(nTri);
+  state.debossMask = new Uint8Array(nTri);
   state.embossCount = 0;
   state.debossCount = 0;
+  state.undoStack = [];
+  document.getElementById('undoBtn').disabled = true;
 
   buildMesh();
   updateStats();
   detectBtn.disabled = false;
-  exportBtn.disabled = true;
+  exportBtn.disabled = false; // body-only export / manual paint OK
   viewportHint.style.display = 'block';
   setStatus(`Loaded ${file.name} — ${nTri.toLocaleString()} faces, ${nVerts.toLocaleString()} unique vertices`, 'idle');
 }
@@ -681,6 +751,199 @@ function updateMeshColors() {
   colors.needsUpdate = true;
 }
 
+function recountPaint() {
+  let ec = 0, dc = 0;
+  if (state.embossMask && state.debossMask) {
+    for (let i = 0; i < state.nTri; i++) {
+      if (state.embossMask[i]) ec++;
+      if (state.debossMask[i]) dc++;
+    }
+  }
+  state.embossCount = ec;
+  state.debossCount = dc;
+  updateStats();
+}
+
+function pushUndo() {
+  if (!state.embossMask || !state.debossMask) return;
+  state.undoStack.push({
+    emboss: state.embossMask.slice(),
+    deboss: state.debossMask.slice(),
+  });
+  if (state.undoStack.length > 30) state.undoStack.shift();
+  document.getElementById('undoBtn').disabled = false;
+}
+
+function paintFaces(faceIndices, target) {
+  if (!faceIndices.length || !state.embossMask || !state.debossMask) return;
+  pushUndo();
+  for (const i of faceIndices) {
+    if (target === 'emboss') {
+      state.embossMask[i] = 1;
+      state.debossMask[i] = 0;
+    } else if (target === 'deboss') {
+      state.debossMask[i] = 1;
+      state.embossMask[i] = 0;
+    } else {
+      state.embossMask[i] = 0;
+      state.debossMask[i] = 0;
+    }
+  }
+  updateMeshColors();
+  recountPaint();
+  exportBtn.disabled = false;
+  setStatus(`Painted ${faceIndices.length.toLocaleString()} faces → ${target}`, 'idle');
+}
+
+function frameModel() {
+  if (!state.mesh) return;
+  state.mesh.updateMatrixWorld(true);
+  const worldBox = new THREE.Box3().setFromObject(state.mesh);
+  const size = new THREE.Vector3();
+  const center = new THREE.Vector3();
+  worldBox.getSize(size);
+  worldBox.getCenter(center);
+  const maxDim = Math.max(size.x, size.y, size.z, 1);
+  const dist = maxDim * 1.8;
+  camera.position.set(center.x + dist * 0.7, center.y + dist * 0.35, center.z + dist * 0.7);
+  controls.target.copy(center);
+  controls.update();
+}
+
+function zoomBy(factor) {
+  const dir = new THREE.Vector3().subVectors(camera.position, controls.target);
+  camera.position.copy(controls.target).addScaledVector(dir, factor);
+  controls.update();
+}
+
+function facesInScreenBox(x0, y0, x1, y1) {
+  const left = Math.min(x0, x1), right = Math.max(x0, x1);
+  const top = Math.min(y0, y1), bottom = Math.max(y0, y1);
+  if (right - left < 3 || bottom - top < 3) return [];
+  const w = viewport.clientWidth, h = viewport.clientHeight;
+  state.mesh.updateMatrixWorld(true);
+  const mat = state.mesh.matrixWorld;
+  const v = new THREE.Vector3();
+  const hit = [];
+  for (let i = 0; i < state.nTri; i++) {
+    let cx = 0, cy = 0, cz = 0;
+    for (let k = 0; k < 3; k++) {
+      const vi = state.faces[i * 3 + k];
+      v.set(state.verts[vi * 3], state.verts[vi * 3 + 1], state.verts[vi * 3 + 2]).applyMatrix4(mat);
+      cx += v.x; cy += v.y; cz += v.z;
+    }
+    v.set(cx / 3, cy / 3, cz / 3).project(camera);
+    if (v.z < -1 || v.z > 1) continue;
+    const sx = (v.x * 0.5 + 0.5) * w;
+    const sy = (-v.y * 0.5 + 0.5) * h;
+    if (sx >= left && sx <= right && sy >= top && sy <= bottom) hit.push(i);
+  }
+  return hit;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Tools: Orbit / Box paint / Zoom                                   */
+/* ------------------------------------------------------------------ */
+
+const toolOrbit = document.getElementById('toolOrbit');
+const toolBox = document.getElementById('toolBox');
+const selectRect = document.getElementById('selectRect');
+const raycaster = new THREE.Raycaster();
+const pointerNdc = new THREE.Vector2();
+
+function setTool(tool) {
+  state.tool = tool;
+  toolOrbit.classList.toggle('active', tool === 'orbit');
+  toolBox.classList.toggle('active', tool === 'box');
+  controls.enabled = tool === 'orbit';
+  viewport.classList.toggle('select-mode', tool === 'box');
+  viewportHint.textContent = tool === 'box'
+    ? 'Box paint: drag to select faces · pick Body / Emboss / Deboss colour first'
+    : 'Orbit: drag rotate · scroll zoom · Shift+pan · double-click zoom to point';
+}
+
+function setPaintTarget(target) {
+  state.paintTarget = target;
+  document.getElementById('targetBody').classList.toggle('active', target === 'body');
+  document.getElementById('targetEmboss').classList.toggle('active', target === 'emboss');
+  document.getElementById('targetDeboss').classList.toggle('active', target === 'deboss');
+}
+
+toolOrbit.addEventListener('click', () => setTool('orbit'));
+toolBox.addEventListener('click', () => setTool('box'));
+document.getElementById('targetBody').addEventListener('click', () => setPaintTarget('body'));
+document.getElementById('targetEmboss').addEventListener('click', () => setPaintTarget('emboss'));
+document.getElementById('targetDeboss').addEventListener('click', () => setPaintTarget('deboss'));
+document.getElementById('zoomInBtn').addEventListener('click', () => zoomBy(0.72));
+document.getElementById('zoomOutBtn').addEventListener('click', () => zoomBy(1.38));
+document.getElementById('frameBtn').addEventListener('click', frameModel);
+document.getElementById('undoBtn').addEventListener('click', () => {
+  const snap = state.undoStack.pop();
+  if (!snap) return;
+  state.embossMask = snap.emboss;
+  state.debossMask = snap.deboss;
+  updateMeshColors();
+  recountPaint();
+  document.getElementById('undoBtn').disabled = state.undoStack.length === 0;
+  setStatus('Undo', 'idle');
+});
+
+let boxDrag = null;
+viewport.addEventListener('pointerdown', (e) => {
+  if (state.tool !== 'box' || !state.mesh || e.button !== 0) return;
+  const rect = viewport.getBoundingClientRect();
+  boxDrag = { x0: e.clientX - rect.left, y0: e.clientY - rect.top };
+  selectRect.style.display = 'block';
+  selectRect.style.left = boxDrag.x0 + 'px';
+  selectRect.style.top = boxDrag.y0 + 'px';
+  selectRect.style.width = '0px';
+  selectRect.style.height = '0px';
+  viewport.setPointerCapture?.(e.pointerId);
+});
+viewport.addEventListener('pointermove', (e) => {
+  if (!boxDrag) return;
+  const rect = viewport.getBoundingClientRect();
+  const x1 = e.clientX - rect.left, y1 = e.clientY - rect.top;
+  const left = Math.min(boxDrag.x0, x1), top = Math.min(boxDrag.y0, y1);
+  selectRect.style.left = left + 'px';
+  selectRect.style.top = top + 'px';
+  selectRect.style.width = Math.abs(x1 - boxDrag.x0) + 'px';
+  selectRect.style.height = Math.abs(y1 - boxDrag.y0) + 'px';
+});
+viewport.addEventListener('pointerup', (e) => {
+  if (!boxDrag || !state.mesh) return;
+  const rect = viewport.getBoundingClientRect();
+  const x1 = e.clientX - rect.left, y1 = e.clientY - rect.top;
+  selectRect.style.display = 'none';
+  const start = boxDrag;
+  boxDrag = null;
+  setStatus('Selecting faces…', 'working');
+  requestAnimationFrame(() => {
+    const faces = facesInScreenBox(start.x0, start.y0, x1, y1);
+    paintFaces(faces, state.paintTarget);
+  });
+});
+viewport.addEventListener('pointercancel', () => {
+  boxDrag = null;
+  selectRect.style.display = 'none';
+});
+
+// Double-click: zoom toward the hit face (detail work).
+viewport.addEventListener('dblclick', (e) => {
+  if (!state.mesh || state.tool === 'box') return;
+  const rect = viewport.getBoundingClientRect();
+  pointerNdc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  pointerNdc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(pointerNdc, camera);
+  const hits = raycaster.intersectObject(state.mesh, false);
+  if (!hits.length) return;
+  const p = hits[0].point;
+  const dir = new THREE.Vector3().subVectors(camera.position, controls.target);
+  controls.target.copy(p);
+  camera.position.copy(p).addScaledVector(dir.normalize(), Math.max(dir.length() * 0.35, controls.minDistance * 4));
+  controls.update();
+});
+
 /* ------------------------------------------------------------------ */
 /*  Detect Features                                                   */
 /* ------------------------------------------------------------------ */
@@ -698,6 +961,7 @@ detectBtn.addEventListener('click', () => {
       mode: detectModeSelect.value
     };
 
+    pushUndo();
     const result = detectFeatures(state.verts, state.faces, state.nVerts, state.nTri, opts);
     state.embossMask = result.embossMask;
     state.debossMask = result.debossMask;
@@ -709,19 +973,13 @@ detectBtn.addEventListener('click', () => {
       cleanClusters(state.debossMask, state.faces, state.nTri, state.verts, minArea);
     }
 
-    // Recount after cleaning
-    let ec = 0, dc = 0;
-    for (let i = 0; i < state.nTri; i++) {
-      if (state.embossMask[i]) ec++;
-      if (state.debossMask[i]) dc++;
-    }
-    state.embossCount = ec;
-    state.debossCount = dc;
-
     updateMeshColors();
-    updateStats();
+    recountPaint();
     exportBtn.disabled = false;
-    setStatus(`Detection complete — ${ec.toLocaleString()} emboss, ${dc.toLocaleString()} deboss faces`, 'idle');
+    setStatus(
+      `Detection complete — ${state.embossCount.toLocaleString()} emboss, ${state.debossCount.toLocaleString()} deboss faces`,
+      'idle'
+    );
   }, 30);
 });
 
@@ -730,7 +988,7 @@ detectBtn.addEventListener('click', () => {
 /* ------------------------------------------------------------------ */
 
 exportBtn.addEventListener('click', () => {
-  if (!state.verts || (!state.embossMask && !state.debossMask)) return;
+  if (!state.verts) return;
   setStatus('Exporting 3MF...', 'working');
 
   setTimeout(() => {
