@@ -1,5 +1,41 @@
 ---
 
+## b502 — Wireframe Overlay + Symmetry Painting + Clear Model Fix
+**Date:** 2026-07-19
+
+### New Features
+
+**Wireframe Overlay**
+- Toggle button "Wire" in viewport toolbar shows/hides mesh wireframe
+- Semi-transparent cyan lines over the solid mesh for edge visibility
+- Built from `THREE.WireframeGeometry` — auto-rebuilds when mesh changes
+- Helps identify individual faces and geometry structure while painting
+
+**Symmetry Painting (Mirror X)**
+- Checkbox "Symmetry paint (mirror X)" in Paint tab
+- All brush, spray, smart fill, box select, and click-select painting is mirrored across the model's X center axis
+- Symmetry map built on first toggle using spatial grid for O(n) lookup
+- Tolerance-based face matching via centroid reflection
+- New exported function: `buildSymmetryMap()` in `js/painter.js`
+
+**Clear Model Fix**
+- "Clear Model" button now fully resets the app for loading a new file
+- Resets file input so the same file can be re-loaded
+- Cleans up wireframe overlay and symmetry map
+- Resets wireframe toggle and symmetry checkbox state
+- All buttons properly disabled, viewport hint restored
+
+### File Changes
+- `painter.html`: 2092→2152 lines (+60) — wireframe UI/logic, symmetry toggle, clearModel improvements
+- `js/painter.js`: 1244→1314 lines (+70) — `buildSymmetryMap()` with spatial grid acceleration
+
+### Technical Notes
+- Symmetry map uses spatial hashing (cell size = 2×tolerance) with 27-neighbour search for O(n) build time
+- Mirror axis is computed as midpoint of model's X extent — works for any model position
+- Wireframe uses `opacity: 0.18` for subtle overlay that doesn't obscure paint colours
+- `paintFacesFree()` now appends mirrored face indices when symmetry is active
+---
+
 ## b501 — 3MF Import + Clear/Reset Fix
 **Date:** 2026-07-19
 
