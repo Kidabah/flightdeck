@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STL Painter — MakerDeck b401</title>
+<title>STL Painter — MakerDeck b402</title>
 <script type="importmap">
 { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/" } }
 </script>
@@ -189,7 +189,7 @@
 <header class="header">
   <div class="header-left">
     <div class="header-brand">
-      <span class="header-eyebrow">MakerDeck b401</span>
+      <span class="header-eyebrow">MakerDeck b402</span>
       <span class="header-title">STL Painter</span>
       <span class="header-subtitle">Automatic emboss / deboss detection and multi-color 3MF export</span>
     </div>
@@ -335,7 +335,7 @@
     <span class="status-dot idle" id="statusDot"></span>
     <span id="statusText">Ready — load an STL to begin</span>
   </div>
-  <span>MakerDeck b401 — STL Painter</span>
+  <span>MakerDeck b402 — STL Painter</span>
 </footer>
 
 <!-- Main Script -->
@@ -556,6 +556,8 @@ async function loadSTL(file) {
   state.nTri = nTri;
 
   const { verts, faces, nVerts } = deduplicateVertices(vertices, nTri);
+  // Print space: centre XY, sit on z=0 so export + preview share the bed plane.
+  seatVertsOnBed(verts, nVerts);
   state.verts = verts;
   state.faces = faces;
   state.nVerts = nVerts;
@@ -574,11 +576,37 @@ async function loadSTL(file) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Bed seating (print z=0)                                           */
+/* ------------------------------------------------------------------ */
+
+function seatVertsOnBed(verts, nVerts) {
+  let minX = Infinity, minY = Infinity, minZ = Infinity;
+  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+  for (let i = 0; i < nVerts; i++) {
+    const x = verts[i * 3], y = verts[i * 3 + 1], z = verts[i * 3 + 2];
+    if (x < minX) minX = x; if (x > maxX) maxX = x;
+    if (y < minY) minY = y; if (y > maxY) maxY = y;
+    if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
+  }
+  const cx = (minX + maxX) * 0.5;
+  const cy = (minY + maxY) * 0.5;
+  for (let i = 0; i < nVerts; i++) {
+    verts[i * 3] -= cx;
+    verts[i * 3 + 1] -= cy;
+    verts[i * 3 + 2] -= minZ; // build plate at z = 0
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /*  Build Three.js Mesh                                               */
 /* ------------------------------------------------------------------ */
 
 function buildMesh() {
-  if (state.mesh) { scene.remove(state.mesh); state.mesh.geometry.dispose(); }
+  if (state.mesh) {
+    scene.remove(state.mesh);
+    state.mesh.geometry.dispose();
+    state.mesh.material?.dispose?.();
+  }
 
   const geom = new THREE.BufferGeometry();
   const positions = new Float32Array(state.nTri * 9);
@@ -617,21 +645,21 @@ function buildMesh() {
   state.mesh = new THREE.Mesh(geom, mat);
   state.mesh.castShadow = true;
   state.mesh.receiveShadow = true;
+  // Print space is Z-up; Three.js grid is Y-up — map bed (z=0) onto the grid.
+  state.mesh.rotation.x = -Math.PI / 2;
   scene.add(state.mesh);
 
-  // Center and frame
-  geom.computeBoundingBox();
-  const box = geom.boundingBox;
-  const center = new THREE.Vector3();
-  box.getCenter(center);
-  state.mesh.position.sub(center);
-
+  state.mesh.updateMatrixWorld(true);
+  const worldBox = new THREE.Box3().setFromObject(state.mesh);
   const size = new THREE.Vector3();
-  box.getSize(size);
-  const maxDim = Math.max(size.x, size.y, size.z);
+  const center = new THREE.Vector3();
+  worldBox.getSize(size);
+  worldBox.getCenter(center);
+
+  const maxDim = Math.max(size.x, size.y, size.z, 1);
   const dist = maxDim * 1.8;
-  camera.position.set(dist * 0.7, dist * 0.5, dist * 0.7);
-  controls.target.set(0, 0, 0);
+  camera.position.set(center.x + dist * 0.7, center.y + dist * 0.35, center.z + dist * 0.7);
+  controls.target.copy(center);
   controls.update();
 }
 
@@ -785,6 +813,7 @@ batchBtn.addEventListener('click', async () => {
       const buffer = await file.arrayBuffer();
       const parsed = parseSTLBinary(buffer);
       const deduped = deduplicateVertices(parsed.vertices, parsed.nTri);
+      seatVertsOnBed(deduped.verts, deduped.nVerts);
       const result = detectFeatures(deduped.verts, deduped.faces, deduped.nVerts, parsed.nTri, opts);
 
       if (minArea > 0) {

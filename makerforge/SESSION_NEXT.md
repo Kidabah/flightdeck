@@ -1,3 +1,12 @@
+### 2026-07-19 — b402: STL Painter — sit models on z=0 bed
+
+Preview was centering the mesh in Y, so half the model sank through the grid. Now:
+- Bake print-space seating on load/batch: centre XY, **min Z = 0**
+- Viewer maps Z-up → Three.js Y-up (`rotation.x = -90°`) so the grid is the build plate
+- Camera frames the seated model
+
+Phase 1 next: area select + deep zoom, then hide/isolate. Files: `painter.html`, `index.html` (STL Painter link), `js/painter.js`.
+
 ### 2026-07-19 — b401: STL Painter — detect emboss/deboss and export painted 3MFs
 
 New **STL Painter** page (`painter.html`) with full emboss/deboss detection pipeline:
