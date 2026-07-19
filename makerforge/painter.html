@@ -12,7 +12,7 @@
 </script>
 <style>
 /* ================================================================== */
-/*  b501 — MakerDeck STL Painter  (tabbed layout)                     */
+/*  b502 — MakerDeck STL Painter  (tabbed layout)                     */
 /* ================================================================== */
 
 /* -- Reset & Vars -------------------------------------------------- */
@@ -133,6 +133,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   background:var(--panel-2);border:1px solid var(--border);transition:all .15s}
 .tool-toggle:hover{border-color:var(--accent)}
 .tool-toggle.active{background:var(--accent-dim);border-color:var(--accent);color:var(--accent)}
+.tool-btn.active-tool{background:var(--accent-dim);color:var(--accent)}
 
 .stroke-row{display:flex;gap:4px}
 .stroke-btn{padding:3px 8px;border-radius:3px;font-size:11px;
@@ -266,7 +267,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   <header class="header">
     <button class="toggle-sidebar" id="toggleSidebar" title="Toggle sidebar">☰</button>
     <div class="logo">Maker<span>Deck</span> · STL Painter</div>
-    <div class="build">b501</div>
+    <div class="build">b502</div>
   </header>
 
   <!-- Left Sidebar (tabbed) -->
@@ -435,6 +436,10 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
           <input type="checkbox" id="orbitLock">
           <span>Lock left-drag (right-drag orbits)</span>
         </label>
+        <label class="cb-label">
+          <input type="checkbox" id="symmetryToggle">
+          <span>Symmetry paint (mirror X)</span>
+        </label>
 
         <div class="section-label" style="margin-top:12px">Advanced Tools</div>
         <div class="tool-grid">
@@ -552,6 +557,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <button class="tool-btn" id="zoomOutBtn" title="Zoom out">−</button>
       <button class="tool-btn" id="zoomInBtn" title="Zoom in">+</button>
       <button class="tool-btn" id="frameBtn" title="Frame model">Frame</button>
+      <button class="tool-btn" id="wireframeBtn" title="Toggle wireframe overlay">Wire</button>
       <button class="tool-btn" id="undoBtn" title="Undo" disabled>Undo</button>
       <button class="tool-btn" id="resetViewBtn" title="Reset all">Reset</button>
     </div>
@@ -580,7 +586,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b501</span>
+    <span>MakerDeck · STL Painter b502</span>
   </footer>
 </div>
 
@@ -593,8 +599,8 @@ import {
   buildFaceAdj, findPaintBoundary, brushDabFaces, smartFillFaces,
   paintClassOf, upgradePaintResolution, export3MF,
   findMeshIslands, buildIslandMap, floodFillSameClass, selectIsland,
-  import3MF
-} from './js/painter.js?v=501';
+  import3MF, buildSymmetryMap
+} from './js/painter.js?v=502';
 
 /* ================================================================== */
 /*  STATE                                                             */
@@ -628,6 +634,13 @@ const S = {
   clickSelectMode: 'island', // 'island' | 'color'
   clickSelection: null,      // Uint8Array highlight mask
   clickSelectionFaces: null,  // number[]
+  // Wireframe overlay
+  wireframe: null,
+  wireframeOn: false,
+  // Symmetry painting
+  symmetryMap: null,
+  symmetryCenterX: 0,
+  symmetryOn: false,
 };
 
 /* ================================================================== */
@@ -844,6 +857,24 @@ function buildMesh({ frame = true } = {}) {
 
   if (frame) frameModel();
   updateMeshColors();
+  rebuildWireframe();
+}
+
+function rebuildWireframe() {
+  if (S.wireframe) { scene.remove(S.wireframe); S.wireframe.geometry?.dispose(); S.wireframe.material?.dispose(); S.wireframe = null; }
+  if (!S.mesh) return;
+  const wg = new THREE.WireframeGeometry(S.mesh.geometry);
+  S.wireframe = new THREE.LineSegments(wg, new THREE.LineBasicMaterial({ color: 0x3ecfff, opacity: 0.18, transparent: true, depthTest: true }));
+  S.wireframe.rotation.copy(S.mesh.rotation);
+  S.wireframe.visible = S.wireframeOn;
+  scene.add(S.wireframe);
+}
+
+function toggleWireframe() {
+  S.wireframeOn = !S.wireframeOn;
+  if (S.wireframe) S.wireframe.visible = S.wireframeOn;
+  $('wireframeBtn').classList.toggle('active-tool', S.wireframeOn);
+  setStatus(S.wireframeOn ? 'Wireframe on' : 'Wireframe off', 'idle');
 }
 
 function updateMeshColors() {
@@ -906,8 +937,17 @@ function pushUndo() {
 
 function paintFacesFree(faceIndices, target, { undo = true } = {}) {
   if (!S.embossMask || !faceIndices.length) return;
-  const faces = faceIndices.filter(i => !isFaceHidden(i));
+  let faces = faceIndices.filter(i => !isFaceHidden(i));
   if (!faces.length) return;
+  // Mirror faces for symmetry painting
+  if (S.symmetryOn && S.symmetryMap) {
+    const extra = [];
+    for (const i of faces) {
+      const m = S.symmetryMap[i];
+      if (m >= 0 && m !== i && !isFaceHidden(m)) extra.push(m);
+    }
+    if (extra.length) faces = faces.concat(extra);
+  }
   if (undo) pushUndo();
   for (const i of faces) {
     S.embossMask[i] = target === 'emboss' ? 1 : 0;
@@ -1589,6 +1629,8 @@ function clearPaint() {
 
 function clearModel() {
   if (S.mesh) { scene.remove(S.mesh); S.mesh.geometry.dispose(); S.mesh.material?.dispose?.(); }
+  // Remove wireframe
+  if (S.wireframe) { scene.remove(S.wireframe); S.wireframe.geometry?.dispose(); S.wireframe.material?.dispose(); }
   Object.assign(S, {
     rawVertices: null, rawNormals: null, nTri: 0,
     verts: null, faces: null, nVerts: 0, mesh: null,
@@ -1600,6 +1642,8 @@ function clearModel() {
     islands: null, islandMap: null, clickSelection: null, clickSelectionFaces: null,
     hiddenSlots: { body: false, emboss: false, deboss: false, trim: false },
     soloActive: false, selectedIsland: -1, fileName: 'model',
+    wireframe: null, wireframeOn: false,
+    symmetryMap: null, symmetryCenterX: 0, symmetryOn: false,
   });
   S.hiddenIslands.clear();
   $('soloActive').checked = false;
@@ -1609,8 +1653,12 @@ function clearModel() {
   $('detectIslandsBtn').disabled = true;
   $('clearPaintBtn').disabled = true; $('clearModelBtn').disabled = true;
   $('toggleBottomBtn').disabled = true;
+  $('wireframeBtn').classList.remove('active-tool');
+  $('symmetryToggle').checked = false;
   $('app').classList.remove('bottom-open');
   $('islandList').innerHTML = '';
+  // Reset file input so the same file can be re-loaded
+  fileInput.value = '';
   updateStats(); updateResMeta();
   viewportHint.textContent = 'Load a model · pick a colour · paint';
   viewportHint.style.display = 'block'; viewportHint.style.opacity = '1';
@@ -1794,6 +1842,18 @@ orbitLockCheck?.addEventListener('change', () => { resetInteraction(orbitLockChe
 // Clear buttons
 $('clearPaintBtn')?.addEventListener('click', clearPaint);
 $('clearModelBtn')?.addEventListener('click', clearModel);
+$('wireframeBtn')?.addEventListener('click', toggleWireframe);
+$('symmetryToggle')?.addEventListener('change', (e) => {
+  S.symmetryOn = e.target.checked;
+  if (S.symmetryOn && !S.symmetryMap && S.verts && S.faces) {
+    setStatus('Building symmetry map…', 'working');
+    const { map, centerX } = buildSymmetryMap(S.verts, S.faces, S.nTri);
+    S.symmetryMap = map; S.symmetryCenterX = centerX;
+    setStatus('Symmetry on — painting mirrors across X', 'idle');
+  } else {
+    setStatus(S.symmetryOn ? 'Symmetry on' : 'Symmetry off', 'idle');
+  }
+});
 // Resolution
 $('resFineBtn')?.addEventListener('click', () => runResolutionUpgrade(1));
 $('resUltraBtn')?.addEventListener('click', () => runResolutionUpgrade(2));
