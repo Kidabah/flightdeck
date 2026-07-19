@@ -1,5 +1,5 @@
 /**
- * MakerDeck STL Painter Engine — b415
+ * MakerDeck STL Painter Engine — b416
  * Pure computation module: STL parsing, feature detection, 3MF export.
  */
 
@@ -134,23 +134,26 @@ export function morphOpen(mask, faceAdj, nTri, steps) {
   morphDilate(mask, faceAdj, nTri, steps);
 }
 
-/** Current paint class of a face: 'body' | 'emboss' | 'deboss'. */
-export function paintClassOf(i, embossMask, debossMask) {
+/** Current paint class of a face: 'body' | 'emboss' | 'deboss' | 'trim'. */
+export function paintClassOf(i, embossMask, debossMask, trimMask) {
   if (embossMask && embossMask[i]) return 'emboss';
   if (debossMask && debossMask[i]) return 'deboss';
+  if (trimMask && trimMask[i]) return 'trim';
   return 'body';
 }
 
 /**
  * Flood-fill connected faces that share the seed's paint class.
  * Optional `region` mask limits the fill (box-select then flood).
+ * Pass `trimMask` in opts for AMS slot 4.
  * @returns {number[]} face indices
  */
 export function floodFillFaces(seed, embossMask, debossMask, nTri, faceAdj, opts = {}) {
   const region = opts.region || null;
+  const trimMask = opts.trimMask || null;
   if (seed < 0 || seed >= nTri) return [];
   if (region && !region[seed]) return [];
-  const matchClass = paintClassOf(seed, embossMask, debossMask);
+  const matchClass = paintClassOf(seed, embossMask, debossMask, trimMask);
   const out = [];
   const visited = new Uint8Array(nTri);
   const queue = [seed];
@@ -161,7 +164,7 @@ export function floodFillFaces(seed, embossMask, debossMask, nTri, faceAdj, opts
     for (const nb of faceAdj[fi]) {
       if (visited[nb]) continue;
       if (region && !region[nb]) continue;
-      if (paintClassOf(nb, embossMask, debossMask) !== matchClass) continue;
+      if (paintClassOf(nb, embossMask, debossMask, trimMask) !== matchClass) continue;
       visited[nb] = 1;
       queue.push(nb);
     }
@@ -199,11 +202,12 @@ export function smartFillFaces(seed, hitPoint, verts, faces, nTri, embossMask, d
   const radius = Math.max(0.1, opts.radius ?? 8);
   const maxAngleDeg = Math.max(1, Math.min(120, opts.maxAngleDeg ?? 40));
   const samePaintOnly = opts.samePaintOnly !== false;
+  const trimMask = opts.trimMask || null;
   if (seed < 0 || seed >= nTri) return [];
 
   const cosThr = Math.cos((maxAngleDeg * Math.PI) / 180);
   const seedGeo = faceNormalCentroid(verts, faces, seed);
-  const matchClass = paintClassOf(seed, embossMask, debossMask);
+  const matchClass = paintClassOf(seed, embossMask, debossMask, trimMask);
   const hx = hitPoint.x ?? hitPoint[0];
   const hy = hitPoint.y ?? hitPoint[1];
   const hz = hitPoint.z ?? hitPoint[2];
@@ -221,7 +225,7 @@ export function smartFillFaces(seed, hitPoint, verts, faces, nTri, embossMask, d
     if (dx * dx + dy * dy + dz * dz > r2) continue;
     const dot = g.nx * seedGeo.nx + g.ny * seedGeo.ny + g.nz * seedGeo.nz;
     if (dot < cosThr) continue;
-    if (samePaintOnly && paintClassOf(fi, embossMask, debossMask) !== matchClass) continue;
+    if (samePaintOnly && paintClassOf(fi, embossMask, debossMask, trimMask) !== matchClass) continue;
 
     out.push(fi);
     for (const nb of faceAdj[fi]) {
@@ -741,13 +745,18 @@ function createZip(files) {
 /*  3MF Export (OrcaSlicer / BambuStudio Compatible)                  */
 /* ------------------------------------------------------------------ */
 
+/** Bambu/Orca paint codes — same table as makerforge/js/3mf.js (slot 1–4). */
+const PAINT_CODES = { emboss: '8', deboss: '0C', trim: '1C' };
+
 export function export3MF(verts, faces, nVerts, nTri, embossMask, debossMask, options = {}) {
   const {
     bodyColor = '#BBBBBB',
     embossColor = '#FF6600',
     debossColor = '#0066FF',
-    filamentType = ['PLA', 'PLA', 'PLA'],
-    filamentSettingsId = ['Generic PLA', 'Generic PLA', 'Generic PLA'],
+    trimColor = '#1E40AF',
+    trimMask = null,
+    filamentType = ['PLA', 'PLA', 'PLA', 'PLA'],
+    filamentSettingsId = ['Generic PLA', 'Generic PLA', 'Generic PLA', 'Generic PLA'],
     filamentProfile = 'Generic PLA'
   } = options;
 
@@ -761,10 +770,13 @@ export function export3MF(verts, faces, nVerts, nTri, embossMask, debossMask, op
   for (let i = 0; i < nTri; i++) {
     const v1 = faces[i * 3], v2 = faces[i * 3 + 1], v3 = faces[i * 3 + 2];
     let attrs = '';
+    // Slot 1 (body) = default extruder — no paint_color. Slots 2–4 use Bambu codes.
     if (embossMask[i]) {
-      attrs = ' paint_color="8"';
+      attrs = ` paint_color="${PAINT_CODES.emboss}"`;
     } else if (debossMask[i]) {
-      attrs = ' paint_color="4"';
+      attrs = ` paint_color="${PAINT_CODES.deboss}"`;
+    } else if (trimMask && trimMask[i]) {
+      attrs = ` paint_color="${PAINT_CODES.trim}"`;
     }
     objTriangles += `        <triangle v1="${v1}" v2="${v2}" v3="${v3}"${attrs} />\n`;
   }
@@ -833,11 +845,22 @@ ${objTriangles}        </triangles>
   </object>
 </config>`;
 
-  const colorsArr = [bodyColor.toUpperCase(), embossColor.toUpperCase(), debossColor.toUpperCase()];
+  const colorsArr = [
+    bodyColor.toUpperCase(),
+    embossColor.toUpperCase(),
+    debossColor.toUpperCase(),
+    trimColor.toUpperCase(),
+  ];
+  const filTypes = filamentType.length >= 4
+    ? filamentType
+    : [...filamentType, ...Array(4 - filamentType.length).fill(filamentType[0] || 'PLA')];
+  const filSettings = filamentSettingsId.length >= 4
+    ? filamentSettingsId
+    : [...filamentSettingsId, ...Array(4 - filamentSettingsId.length).fill(filamentSettingsId[0] || filamentProfile)];
   const projectSettings = JSON.stringify({
     filament_colour: colorsArr,
-    filament_settings_id: filamentSettingsId,
-    filament_type: filamentType
+    filament_settings_id: filSettings,
+    filament_type: filTypes
   }, null, 2);
 
   const zipFiles = [

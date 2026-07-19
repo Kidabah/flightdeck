@@ -2,14 +2,14 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b415 paint-first layout
+- Latest commit: MakerDeck b416 four AMS slots
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
 
-### 2026-07-19 redesign (MakerDeck b415 — Painter layout)
+### 2026-07-19 polish (MakerDeck b416 — 4 AMS slots)
 
-**Need:** Clear flow; Detect optional; Orca-inspired tools with MakerDeck personality.
+**Need:** Match real AMS — four colour slots in Painter.
 
-**What shipped:** 01→04 sidebar flow, Slot colours, tool toggles + contextual options, slim viewport. Cache-bust `painter.js?v=415`.
+**What shipped:** Slot 4 Trim through paint/export; slot 3 paint code fixed to `0C`. Cache-bust `painter.js?v=416`.
 
 **Deploy:** Hard refresh Painter page (no backend restart).
 

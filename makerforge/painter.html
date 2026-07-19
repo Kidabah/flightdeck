@@ -25,6 +25,7 @@
     --slot-a: #c20820;
     --slot-b: #131211;
     --slot-c: #f5f5f5;
+    --slot-d: #1e40af;
     --shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
     --radius: 12px;
   }
@@ -215,6 +216,7 @@
   .stat-label { font-size: 10px; color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.06em; }
   .stat-value.emboss { color: var(--orange); }
   .stat-value.deboss { color: var(--accent); }
+  .stat-value.trim { color: #60a5fa; }
 
   .batch-zone {
     border: 1px dashed var(--border); border-radius: 8px; padding: 12px;
@@ -321,7 +323,7 @@
     <!-- 2 Colours -->
     <section class="flow-panel">
       <div class="flow-step"><span class="flow-num">02</span><span class="flow-title">Colours</span></div>
-      <p class="flow-desc">Three AMS slots. Click a slot to paint with it.</p>
+      <p class="flow-desc">Four AMS slots. Click a slot to paint with it.</p>
       <div class="slot-list">
         <label class="slot-card active" id="slotCardBody" data-target="body">
           <input type="color" class="color-swatch-input" id="colorBody" value="#c20820">
@@ -346,6 +348,14 @@
             <span class="slot-role">Detail</span>
           </span>
           <span class="slot-hex" id="colorDebossHex">#F5F5F5</span>
+        </label>
+        <label class="slot-card" id="slotCardTrim" data-target="trim">
+          <input type="color" class="color-swatch-input" id="colorTrim" value="#1e40af">
+          <span class="slot-meta">
+            <span class="slot-name">Slot 4</span>
+            <span class="slot-role">Trim</span>
+          </span>
+          <span class="slot-hex" id="colorTrimHex">#1E40AF</span>
         </label>
       </div>
       <div class="preset-row" id="presetRow"></div>
@@ -472,6 +482,9 @@
         <button type="button" class="paint-target" id="targetDeboss" title="Slot 3 — Detail">
           <span class="swatch" id="swatchDeboss" style="background:#f5f5f5"></span>3
         </button>
+        <button type="button" class="paint-target" id="targetTrim" title="Slot 4 — Trim">
+          <span class="swatch" id="swatchTrim" style="background:#1e40af"></span>4
+        </button>
       </span>
       <div class="tool-sep"></div>
       <button type="button" class="tool-btn" id="zoomOutBtn" title="Zoom out">−</button>
@@ -503,6 +516,10 @@
         <div class="stat-item">
           <div class="stat-value deboss" id="statDeboss">--</div>
           <div class="stat-label">Slot 3</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value trim" id="statTrim">--</div>
+          <div class="stat-label">Slot 4</div>
         </div>
       </div>
     </section>
@@ -539,7 +556,7 @@ import {
   findPaintBoundary,
   smartFillFaces,
   export3MF
-} from './js/painter.js?v=415';
+} from './js/painter.js?v=416';
 
 /* ------------------------------------------------------------------ */
 /*  State                                                             */
@@ -552,16 +569,18 @@ const state = {
   verts: null,
   faces: null,
   nVerts: 0,
-  embossMask: null,       // paint map (export)
-  debossMask: null,
+  embossMask: null,       // paint map slot 2 (export)
+  debossMask: null,       // paint map slot 3
+  trimMask: null,         // paint map slot 4
   featureEmboss: null,    // geometry detect map (box-paint filter)
   featureDeboss: null,
   embossCount: 0,
   debossCount: 0,
+  trimCount: 0,
   mesh: null,
   fileName: 'model',
   tool: 'orbit',          // 'orbit' | 'box' | 'edge' | 'smart' | 'detect'
-  paintTarget: 'body',    // 'body' | 'emboss' | 'deboss' — AMS slots 1/2/3
+  paintTarget: 'body',    // 'body' | 'emboss' | 'deboss' | 'trim' — AMS slots 1–4
   detectMode: 'emboss',   // from detect presets
   undoStack: [],
   edgeHighlight: null,    // Uint8Array | null
@@ -781,9 +800,11 @@ const filamentProfileSelect = document.getElementById('filamentProfile');
 const colorBody = document.getElementById('colorBody');
 const colorEmboss = document.getElementById('colorEmboss');
 const colorDeboss = document.getElementById('colorDeboss');
+const colorTrim = document.getElementById('colorTrim');
 const colorBodyHex = document.getElementById('colorBodyHex');
 const colorEmbossHex = document.getElementById('colorEmbossHex');
 const colorDebossHex = document.getElementById('colorDebossHex');
+const colorTrimHex = document.getElementById('colorTrimHex');
 
 /* ------------------------------------------------------------------ */
 /*  Status Helpers                                                    */
@@ -799,6 +820,7 @@ function updateStats() {
   document.getElementById('statFaces').textContent = state.nTri > 0 ? state.nTri.toLocaleString() : '--';
   document.getElementById('statEmboss').textContent = state.embossCount > 0 ? state.embossCount.toLocaleString() : '--';
   document.getElementById('statDeboss').textContent = state.debossCount > 0 ? state.debossCount.toLocaleString() : '--';
+  document.getElementById('statTrim').textContent = state.trimCount > 0 ? state.trimCount.toLocaleString() : '--';
 }
 
 /* ------------------------------------------------------------------ */
@@ -848,9 +870,11 @@ function syncPaintSwatches() {
   const sb = document.getElementById('swatchBody');
   const se = document.getElementById('swatchEmboss');
   const sd = document.getElementById('swatchDeboss');
+  const st = document.getElementById('swatchTrim');
   if (sb) sb.style.background = colorBody.value;
   if (se) se.style.background = colorEmboss.value;
   if (sd) sd.style.background = colorDeboss.value;
+  if (st) st.style.background = colorTrim.value;
 }
 
 colorBody.addEventListener('input', () => {
@@ -868,19 +892,24 @@ colorDeboss.addEventListener('input', () => {
   syncPaintSwatches();
   updateMeshColors();
 });
+colorTrim.addEventListener('input', () => {
+  colorTrimHex.textContent = colorTrim.value.toUpperCase();
+  syncPaintSwatches();
+  updateMeshColors();
+});
 syncPaintSwatches();
 
-// Preset colors
+// Preset colors (4 AMS slots)
 const presets = [
-  { name: 'Spidey',  body: '#C20820', emboss: '#131211', deboss: '#F5F5F5' },
-  { name: 'White',   body: '#FFFFFF', emboss: '#FF0000', deboss: '#0000FF' },
-  { name: 'Black',   body: '#222222', emboss: '#FFD700', deboss: '#00CED1' },
-  { name: 'Silver',  body: '#BBBBBB', emboss: '#FF6600', deboss: '#0066FF' },
-  { name: 'Wood',    body: '#C8A26E', emboss: '#5C3A1E', deboss: '#2E5E3E' },
-  { name: 'Ocean',   body: '#1A5276', emboss: '#F39C12', deboss: '#2ECC71' },
-  { name: 'Neon',    body: '#1A1A2E', emboss: '#E94560', deboss: '#0F3460' },
-  { name: 'Pastel',  body: '#FAD6A5', emboss: '#FF6F91', deboss: '#845EC2' },
-  { name: 'Bambu',   body: '#E8E8E8', emboss: '#00AE42', deboss: '#333333' },
+  { name: 'Spidey',  body: '#C20820', emboss: '#131211', deboss: '#F5F5F5', trim: '#1E40AF' },
+  { name: 'White',   body: '#FFFFFF', emboss: '#FF0000', deboss: '#0000FF', trim: '#FFD700' },
+  { name: 'Black',   body: '#222222', emboss: '#FFD700', deboss: '#00CED1', trim: '#E94560' },
+  { name: 'Silver',  body: '#BBBBBB', emboss: '#FF6600', deboss: '#0066FF', trim: '#00AE42' },
+  { name: 'Wood',    body: '#C8A26E', emboss: '#5C3A1E', deboss: '#2E5E3E', trim: '#8B4513' },
+  { name: 'Ocean',   body: '#1A5276', emboss: '#F39C12', deboss: '#2ECC71', trim: '#E8F6FF' },
+  { name: 'Neon',    body: '#1A1A2E', emboss: '#E94560', deboss: '#0F3460', trim: '#39FF14' },
+  { name: 'Pastel',  body: '#FAD6A5', emboss: '#FF6F91', deboss: '#845EC2', trim: '#4FFBDF' },
+  { name: 'Bambu',   body: '#E8E8E8', emboss: '#00AE42', deboss: '#333333', trim: '#FF6A00' },
 ];
 
 const presetRow = document.getElementById('presetRow');
@@ -893,6 +922,7 @@ for (const p of presets) {
     colorBody.value = p.body; colorBodyHex.textContent = p.body.toUpperCase();
     colorEmboss.value = p.emboss; colorEmbossHex.textContent = p.emboss.toUpperCase();
     colorDeboss.value = p.deboss; colorDebossHex.textContent = p.deboss.toUpperCase();
+    colorTrim.value = p.trim; colorTrimHex.textContent = p.trim.toUpperCase();
     syncPaintSwatches();
     updateMeshColors();
   });
@@ -939,10 +969,12 @@ async function loadSTL(file) {
 
   state.embossMask = new Uint8Array(nTri);
   state.debossMask = new Uint8Array(nTri);
+  state.trimMask = new Uint8Array(nTri);
   state.featureEmboss = null;
   state.featureDeboss = null;
   state.embossCount = 0;
   state.debossCount = 0;
+  state.trimCount = 0;
   state.edgeHighlight = null;
   state.smartPreview = null;
   state.smartPreviewFaces = null;
@@ -1007,6 +1039,7 @@ function buildMesh() {
       let col = bodyCol;
       if (state.embossMask && state.embossMask[i]) col = new THREE.Color(colorEmboss.value);
       else if (state.debossMask && state.debossMask[i]) col = new THREE.Color(colorDeboss.value);
+      else if (state.trimMask && state.trimMask[i]) col = new THREE.Color(colorTrim.value);
 
       colors[i * 9 + v * 3]     = col.r;
       colors[i * 9 + v * 3 + 1] = col.g;
@@ -1052,6 +1085,7 @@ function updateMeshColors() {
   const bodyCol = new THREE.Color(colorBody.value);
   const embossCol = new THREE.Color(colorEmboss.value);
   const debossCol = new THREE.Color(colorDeboss.value);
+  const trimCol = new THREE.Color(colorTrim.value);
   // Lime = edge band; amber = smart-fill hover preview
   const edgeCol = new THREE.Color('#7dffb3');
   const smartCol = new THREE.Color('#f5c542');
@@ -1062,6 +1096,7 @@ function updateMeshColors() {
     else if (state.smartPreview && state.smartPreview[i]) col = smartCol;
     else if (state.embossMask && state.embossMask[i]) col = embossCol;
     else if (state.debossMask && state.debossMask[i]) col = debossCol;
+    else if (state.trimMask && state.trimMask[i]) col = trimCol;
     for (let v = 0; v < 3; v++) {
       colors.setXYZ(i * 3 + v, col.r, col.g, col.b);
     }
@@ -1070,30 +1105,33 @@ function updateMeshColors() {
 }
 
 function recountPaint() {
-  let ec = 0, dc = 0;
-  if (state.embossMask && state.debossMask) {
+  let ec = 0, dc = 0, tc = 0;
+  if (state.embossMask && state.debossMask && state.trimMask) {
     for (let i = 0; i < state.nTri; i++) {
       if (state.embossMask[i]) ec++;
       if (state.debossMask[i]) dc++;
+      if (state.trimMask[i]) tc++;
     }
   }
   state.embossCount = ec;
   state.debossCount = dc;
+  state.trimCount = tc;
   updateStats();
 }
 
 function pushUndo() {
-  if (!state.embossMask || !state.debossMask) return;
+  if (!state.embossMask || !state.debossMask || !state.trimMask) return;
   state.undoStack.push({
     emboss: state.embossMask.slice(),
     deboss: state.debossMask.slice(),
+    trim: state.trimMask.slice(),
   });
   if (state.undoStack.length > 30) state.undoStack.shift();
   document.getElementById('undoBtn').disabled = false;
 }
 
 function paintFaces(faceIndices, target) {
-  if (!state.embossMask || !state.debossMask) return;
+  if (!state.embossMask || !state.debossMask || !state.trimMask) return;
   if (!faceIndices.length) {
     setStatus('No faces in that box — zoom in or drag a larger area', 'idle');
     return;
@@ -1226,8 +1264,22 @@ function showToolOpts(tool) {
   document.getElementById('detectOpts')?.classList.toggle('visible', tool === 'detect');
 }
 
+/** Mask used by Edge finder for the active slot (or any painted face when on Base). */
+function edgePaintMask() {
+  const t = state.paintTarget;
+  if (t === 'emboss') return state.embossMask;
+  if (t === 'deboss') return state.debossMask;
+  if (t === 'trim') return state.trimMask;
+  // Base: boundary of anything painted vs body
+  const m = new Uint8Array(state.nTri);
+  for (let i = 0; i < state.nTri; i++) {
+    if (state.embossMask[i] || state.debossMask[i] || state.trimMask[i]) m[i] = 1;
+  }
+  return m;
+}
+
 function runEdgeFinder(seedFaceList) {
-  if (!state.embossMask || !state.mesh) return 0;
+  if (!state.embossMask || !state.trimMask || !state.mesh) return 0;
   ensureFaceAdj();
   const width = parseInt(edgeWidthSlider.value, 10) || 0;
   let region = null;
@@ -1235,9 +1287,9 @@ function runEdgeFinder(seedFaceList) {
     region = new Uint8Array(state.nTri);
     for (const i of seedFaceList) region[i] = 1;
   }
-  // Grow toward body when painting emboss/deboss; grow into paint when filling Body (shave).
+  // Grow toward body when painting a colour slot; grow into paint when filling Base (shave).
   const growInto = state.paintTarget === 'body' ? 'paint' : 'body';
-  const band = findPaintBoundary(state.embossMask, state.faces, state.nTri, {
+  const band = findPaintBoundary(edgePaintMask(), state.faces, state.nTri, {
     width,
     growInto,
     region,
@@ -1270,19 +1322,12 @@ function fillEdgeHighlight(target = state.paintTarget) {
 }
 
 function paintFacesFree(faceIndices, target) {
-  if (!state.embossMask || !state.debossMask || !faceIndices.length) return;
+  if (!state.embossMask || !state.debossMask || !state.trimMask || !faceIndices.length) return;
   pushUndo();
   for (const i of faceIndices) {
-    if (target === 'emboss') {
-      state.embossMask[i] = 1;
-      state.debossMask[i] = 0;
-    } else if (target === 'deboss') {
-      state.debossMask[i] = 1;
-      state.embossMask[i] = 0;
-    } else {
-      state.embossMask[i] = 0;
-      state.debossMask[i] = 0;
-    }
+    state.embossMask[i] = target === 'emboss' ? 1 : 0;
+    state.debossMask[i] = target === 'deboss' ? 1 : 0;
+    state.trimMask[i] = target === 'trim' ? 1 : 0;
   }
   updateMeshColors();
   recountPaint();
@@ -1345,6 +1390,7 @@ function computeSmartFill(hit) {
       radius: parseFloat(smartSizeSlider.value) || 10,
       maxAngleDeg: parseFloat(smartAngleSlider.value) || 35,
       samePaintOnly: smartSameColour?.checked !== false,
+      trimMask: state.trimMask,
     }
   );
 }
@@ -1415,6 +1461,7 @@ function setPaintTarget(target) {
   document.getElementById('targetBody').classList.toggle('active', target === 'body');
   document.getElementById('targetEmboss').classList.toggle('active', target === 'emboss');
   document.getElementById('targetDeboss').classList.toggle('active', target === 'deboss');
+  document.getElementById('targetTrim')?.classList.toggle('active', target === 'trim');
   syncSlotCards();
 }
 
@@ -1449,6 +1496,7 @@ edgeClearBtn.addEventListener('click', () => {
 document.getElementById('targetBody').addEventListener('click', () => setPaintTarget('body'));
 document.getElementById('targetEmboss').addEventListener('click', () => setPaintTarget('emboss'));
 document.getElementById('targetDeboss').addEventListener('click', () => setPaintTarget('deboss'));
+document.getElementById('targetTrim')?.addEventListener('click', () => setPaintTarget('trim'));
 document.querySelectorAll('.slot-card').forEach(card => {
   card.addEventListener('click', (e) => {
     // Colour input handles its own clicks; card selects the paint slot
@@ -1467,6 +1515,7 @@ document.getElementById('undoBtn').addEventListener('click', () => {
   if (!snap) return;
   state.embossMask = snap.emboss;
   state.debossMask = snap.deboss;
+  state.trimMask = snap.trim || new Uint8Array(state.nTri);
   state.edgeHighlight = null;
   state.smartPreview = null;
   state.smartPreviewFaces = null;
@@ -1641,6 +1690,8 @@ detectBtn.addEventListener('click', () => {
     state.featureDeboss = result.debossMask;
     state.embossMask = result.embossMask.slice();
     state.debossMask = result.debossMask.slice();
+    // Detect fills slots 2–3; clear slot 4 so faces stay single-colour
+    state.trimMask = new Uint8Array(state.nTri);
 
     updateMeshColors();
     recountPaint();
@@ -1649,7 +1700,7 @@ detectBtn.addEventListener('click', () => {
       ? ` · thr≈${result.embossThr?.toFixed?.(3) ?? '?'} / ${result.debossThr?.toFixed?.(3) ?? '?'}`
       : '';
     setStatus(
-      `Detection complete — ${state.embossCount.toLocaleString()} emboss, ${state.debossCount.toLocaleString()} deboss faces${thrNote}`,
+      `Detection complete — ${state.embossCount.toLocaleString()} accent, ${state.debossCount.toLocaleString()} detail faces${thrNote}`,
       'idle'
     );
     if (detectHint) {
@@ -1684,8 +1735,10 @@ exportBtn.addEventListener('click', () => {
         bodyColor: colorBody.value,
         embossColor: colorEmboss.value,
         debossColor: colorDeboss.value,
-        filamentType: [filType, filType, filType],
-        filamentSettingsId: [profile, profile, profile],
+        trimColor: colorTrim.value,
+        trimMask: state.trimMask || new Uint8Array(state.nTri),
+        filamentType: [filType, filType, filType, filType],
+        filamentSettingsId: [profile, profile, profile, profile],
         filamentProfile: profile
       }
     );
@@ -1759,8 +1812,10 @@ batchBtn.addEventListener('click', async () => {
         result.embossMask, result.debossMask,
         {
           bodyColor: colorBody.value, embossColor: colorEmboss.value, debossColor: colorDeboss.value,
-          filamentType: [filType, filType, filType],
-          filamentSettingsId: [profile, profile, profile],
+          trimColor: colorTrim.value,
+          trimMask: new Uint8Array(parsed.nTri),
+          filamentType: [filType, filType, filType, filType],
+          filamentSettingsId: [profile, profile, profile, profile],
           filamentProfile: profile
         }
       );

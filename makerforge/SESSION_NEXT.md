@@ -1,3 +1,12 @@
+### 2026-07-19 — b416: STL Painter — 4 AMS colour slots
+
+- Slots 1–4: Base / Accent / Detail / Trim (full AMS)
+- Slot 4 paint + undo + smart fill + edge + 3MF (`paint_color="1C"`)
+- Aligned slot 3 export code to MakerDeck table (`0C`, was incorrectly `4`)
+- Cache-bust `painter.js?v=416`
+
+Files: `painter.html`, `js/painter.js`, `SESSION_NEXT.md`.
+
 ### 2026-07-19 — b415: STL Painter — paint-first layout rebuild
 
 Full UI reflow with MakerDeck personality (not Orca clone):
