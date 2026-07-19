@@ -2,14 +2,14 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b413 Orca-style Smart fill
+- Latest commit: MakerDeck b414 free orbit + tidy toolbar
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
 
-### 2026-07-19 feature (MakerDeck b413 — Smart fill)
+### 2026-07-19 polish (MakerDeck b414 — orbit Lock + tidy)
 
-**Need:** Orca-like select area with size + sensitivity, click to fill (not rectangular box flood).
+**Need:** Free orbit (optional Lock); drop Emboss/Deboss mode UI; tidy controls.
 
-**What shipped:** Smart fill — Size mm, Angle°, amber preview, Same colour, click to paint. Cache-bust `painter.js?v=413`.
+**What shipped:** Lock toggle; removed Detect Mode + Edge emboss/body modes; cleaner toolbar. Cache-bust `painter.js?v=414`.
 
 **Deploy:** Hard refresh Painter page (no backend restart).
 

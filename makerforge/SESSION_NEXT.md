@@ -1,3 +1,12 @@
+### 2026-07-19 — b414: STL Painter — free orbit + Lock, tidy toolbar
+
+- Orbit free by default; **Lock** for precise paint (Box/Edge need Lock to drag)
+- Removed Detect Mode dropdown + Edge Cyan/Magenta modes — Fill uses active colour
+- Toolbar: Smart fill · Edge · Box · Lock · colours · zoom
+- Cache-bust `painter.js?v=414`
+
+Files: `painter.html`, `js/painter.js`, `SESSION_NEXT.md`.
+
 ### 2026-07-19 — b413: STL Painter — Orca-style Smart fill
 
 Replaces box-flood for eyes: **Smart fill** tool with **Size (mm)** + **Angle (°)** (sensitivity), amber hover preview + circle cursor, click to paint. **Same colour** stops at emboss rim. Cache-bust `painter.js?v=413`.
