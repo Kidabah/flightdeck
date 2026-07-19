@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b423 unstick + show all
+- Latest commit: MakerDeck b503 box select → selection
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
+
+### 2026-07-19 feature (MakerDeck b503 — box select for Hide Selection)
+
+**Need:** Box-drag a region (e.g. beard) into selection so Hide Selection can clear it while painting behind; Show restores for 3MF.
+
+**What shipped:** Box tool feeds selection (not auto-paint). Cache-bust `painter.js?v=503`, MakerDeck build **b503**.
+
+**Deploy:** Hard refresh Painter (no backend restart).
 
 ### 2026-07-19 fix (MakerDeck b423 — frozen view)
 

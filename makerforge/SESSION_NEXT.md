@@ -1,5 +1,20 @@
 ---
 
+## b503 — Box Select → Selection (Hide / Paint behind)
+**Date:** 2026-07-19
+
+### What changed
+- **Box tool** no longer auto-paints the drag region
+- Box drag feeds the shared **selection** system (same as Click-Select)
+- Workflow: Box → Lock on → drag over beard → **Hide Selection** → paint chin/neck → **Show Hidden** → export
+- Hidden faces stay out of the way while painting; Show restores them for 3MF export
+
+### File Changes
+- `painter.html` — `setFaceSelection()`, box pointerup → selection; cache-bust `painter.js?v=503`
+- `index.html` / `js/app.js` — MakerDeck build synced to **b503**
+
+---
+
 ## b502 — Wireframe Overlay + Symmetry Painting + Clear Model Fix
 **Date:** 2026-07-19
 

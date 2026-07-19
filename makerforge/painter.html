@@ -14,7 +14,7 @@
 </script>
 <style>
 /* ================================================================== */
-/*  b502 — MakerDeck STL Painter  (tabbed layout)                     */
+/*  b503 — MakerDeck STL Painter  (tabbed layout)                     */
 /* ================================================================== */
 
 /* -- Reset & Vars -------------------------------------------------- */
@@ -269,7 +269,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   <header class="header">
     <button class="toggle-sidebar" id="toggleSidebar" title="Toggle sidebar">☰</button>
     <div class="logo">Maker<span>Deck</span> · STL Painter</div>
-    <div class="build">b502</div>
+    <div class="build">b503</div>
   </header>
 
   <!-- Left Sidebar (tabbed) -->
@@ -594,7 +594,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b502</span>
+    <span>MakerDeck · STL Painter b503</span>
   </footer>
 </div>
 
@@ -608,7 +608,7 @@ import {
   paintClassOf, upgradePaintResolution, export3MF,
   findMeshIslands, buildIslandMap, floodFillSameClass, selectIsland,
   import3MF, buildSymmetryMap
-} from './js/painter.js?v=502';
+} from './js/painter.js?v=503';
 
 /* ================================================================== */
 /*  STATE                                                             */
@@ -1205,6 +1205,29 @@ function clearClickSelection() {
   updateMeshColors();
 }
 
+/** Put faces into the shared selection (Paint / Hide Selection), not auto-paint. */
+function setFaceSelection(faces, label = 'selection') {
+  if (!faces?.length) {
+    clearClickSelection();
+    setStatus('No faces in selection', 'idle');
+    return;
+  }
+  const mask = new Uint8Array(S.nTri);
+  for (const f of faces) mask[f] = 1;
+  S.clickSelection = mask;
+  S.clickSelectionFaces = faces;
+  S.selectedIsland = -1;
+  $('selPaintBtn').disabled = false;
+  $('selHideBtn').disabled = false;
+  $('selClearBtn').disabled = false;
+  syncIslandCards();
+  updateMeshColors();
+  setStatus(
+    `Selected ${faces.length.toLocaleString()} faces (${label}) — Hide Selection to paint behind, or Paint Selection`,
+    'idle'
+  );
+}
+
 function paintClickSelection() {
   if (!S.clickSelectionFaces?.length) return;
   paintFacesFree(S.clickSelectionFaces, S.paintTarget);
@@ -1388,7 +1411,7 @@ function setTool(tool) {
     clickSelect: 'Click to select a connected region · then Paint Selection',
     edge: 'Edge — Lock view, drag over boundary, then Fill',
     smart: 'Smart fill — hover for preview · click to paint',
-    box: 'Box — Lock view, drag to paint active slot',
+    box: 'Box — Lock on, drag to select · Hide Selection to paint behind · Show Hidden to restore',
     detect: 'Detect — find raised/sunken detail',
   };
   viewportHint.textContent = hints[tool] || 'Left-drag orbits · scroll zooms · pick a tool';
@@ -2053,9 +2076,8 @@ viewport.addEventListener('pointerup', (e) => {
       const n = runEdgeFinder(faces);
       setStatus(n ? `Edge band: ${n} faces — Fill → ${S.paintTarget}` : 'No edge found', 'idle');
     } else {
-      if (!faces.length) { setStatus('No faces in box', 'idle'); return; }
-      paintFacesFree(faces, S.paintTarget);
-      setStatus(`Painted ${faces.length.toLocaleString()} faces → ${S.paintTarget}`, 'idle');
+      // Box select → shared selection (Hide Selection / Paint Selection), not auto-paint
+      setFaceSelection(faces, 'box');
     }
   });
 });
