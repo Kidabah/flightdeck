@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>STL Painter — MakerDeck b401</title>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/" } }
+</script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+  :root {
+    --bg: #070b12; --panel: rgba(13, 22, 36, 0.92); --panel-2: #101c2d;
+    --border: #263852; --text: #f8fafc; --muted: #8ea4c1;
+    --blue: #60a5fa; --green: #22c55e; --accent: #38bdf8;
+    --shadow: 0 20px 50px rgba(0, 0, 0, 0.28);
+    --red: #ef4444; --orange: #f59e0b; --purple: #a78bfa;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg); color: var(--text);
+    display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Header */
+  .header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 24px; border-bottom: 1px solid var(--border);
+    background: var(--panel); flex-shrink: 0;
+  }
+  .header-left { display: flex; align-items: center; gap: 16px; }
+  .header-brand { display: flex; flex-direction: column; gap: 2px; }
+  .header-eyebrow { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; color: var(--accent); }
+  .header-title { font-size: 20px; font-weight: 700; color: var(--text); }
+  .header-subtitle { font-size: 12px; color: var(--muted); margin-top: 1px; }
+  .header-nav { display: flex; gap: 12px; align-items: center; }
+  .header-nav a {
+    font-size: 12px; color: var(--muted); text-decoration: none;
+    padding: 6px 12px; border-radius: 6px; transition: all 0.15s;
+  }
+  .header-nav a:hover { color: var(--text); background: var(--panel-2); }
+  .header-nav a .arrow { margin-right: 4px; }
+
+  /* Layout */
+  .main { display: flex; flex: 1; overflow: hidden; }
+  .sidebar { width: 280px; flex-shrink: 0; border-right: 1px solid var(--border); background: var(--panel); overflow-y: auto; display: flex; flex-direction: column; }
+  .sidebar-right { width: 260px; flex-shrink: 0; border-left: 1px solid var(--border); background: var(--panel); overflow-y: auto; display: flex; flex-direction: column; }
+  .viewport { flex: 1; position: relative; background: var(--bg); }
+  .viewport canvas { display: block; width: 100%; height: 100%; }
+
+  /* Panels */
+  .panel {
+    border: 1px solid var(--border); border-radius: 12px;
+    background: var(--panel); box-shadow: var(--shadow);
+    margin: 12px; padding: 16px;
+  }
+  .panel-title {
+    font-size: 11px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 1.2px; color: var(--muted); margin-bottom: 12px;
+  }
+
+  /* Drop zone */
+  .drop-zone {
+    border: 2px dashed var(--border); border-radius: 10px;
+    padding: 28px 16px; text-align: center; cursor: pointer;
+    transition: all 0.2s; background: transparent;
+  }
+  .drop-zone:hover, .drop-zone.dragover {
+    border-color: var(--accent); background: rgba(56, 189, 248, 0.05);
+  }
+  .drop-zone-icon { font-size: 28px; margin-bottom: 8px; display: block; color: var(--muted); }
+  .drop-zone-text { font-size: 12px; color: var(--muted); }
+  .drop-zone-text strong { color: var(--text); }
+  .drop-zone input[type="file"] { display: none; }
+
+  /* Buttons */
+  .btn {
+    border-radius: 8px; border: 1px solid var(--border);
+    background: var(--panel-2); color: var(--text); font-size: 13px;
+    padding: 8px 16px; cursor: pointer; transition: all 0.15s;
+    font-family: inherit; font-weight: 500; display: inline-flex;
+    align-items: center; justify-content: center; gap: 6px;
+  }
+  .btn:hover { background: var(--border); }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .btn-primary:hover { background: #4d94f7; }
+  .btn-success { background: var(--green); border-color: var(--green); color: #fff; }
+  .btn-success:hover { background: #1aad50; }
+  .btn-full { width: 100%; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Form controls */
+  .form-group { margin-bottom: 12px; }
+  .form-label { font-size: 11px; font-weight: 500; color: var(--muted); margin-bottom: 5px; display: flex; justify-content: space-between; }
+  .form-label .value { color: var(--accent); font-variant-numeric: tabular-nums; }
+  select, input[type="number"] {
+    width: 100%; padding: 7px 10px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--panel-2);
+    color: var(--text); font-size: 12px; font-family: inherit;
+    outline: none; transition: border-color 0.15s;
+  }
+  select:focus, input[type="number"]:focus { border-color: var(--accent); }
+  input[type="range"] {
+    width: 100%; height: 4px; appearance: none; background: var(--border);
+    border-radius: 2px; outline: none; margin-top: 4px;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    appearance: none; width: 14px; height: 14px; border-radius: 50%;
+    background: var(--accent); cursor: pointer; border: 2px solid var(--bg);
+  }
+
+  /* Color pickers */
+  .color-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .color-swatch-input {
+    width: 32px; height: 32px; border: 2px solid var(--border);
+    border-radius: 8px; padding: 0; cursor: pointer; background: none;
+    appearance: none; -webkit-appearance: none;
+  }
+  .color-swatch-input::-webkit-color-swatch-wrapper { padding: 0; }
+  .color-swatch-input::-webkit-color-swatch { border: none; border-radius: 6px; }
+  .color-label { font-size: 12px; color: var(--muted); flex: 1; }
+  .color-hex { font-size: 11px; color: var(--accent); font-family: 'SF Mono', 'Fira Code', monospace; }
+  .preset-row { display: flex; gap: 5px; margin-top: 6px; flex-wrap: wrap; }
+  .preset-swatch {
+    width: 22px; height: 22px; border-radius: 6px; border: 2px solid transparent;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .preset-swatch:hover { border-color: var(--text); transform: scale(1.15); }
+
+  /* Stats */
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .stat-item { background: var(--panel-2); border-radius: 8px; padding: 10px 12px; }
+  .stat-value { font-size: 16px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+  .stat-label { font-size: 10px; color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .stat-value.emboss { color: var(--orange); }
+  .stat-value.deboss { color: var(--purple); }
+
+  /* Batch */
+  .batch-zone {
+    border: 1px dashed var(--border); border-radius: 8px; padding: 12px;
+    text-align: center; cursor: pointer; transition: all 0.15s;
+  }
+  .batch-zone:hover { border-color: var(--accent); }
+  .batch-zone input { display: none; }
+  .batch-zone-text { font-size: 11px; color: var(--muted); }
+  .batch-list { margin-top: 8px; max-height: 120px; overflow-y: auto; }
+  .batch-item { font-size: 11px; color: var(--muted); padding: 3px 0; display: flex; justify-content: space-between; }
+  .batch-item .status { font-size: 10px; }
+  .batch-item .status.done { color: var(--green); }
+  .batch-item .status.pending { color: var(--muted); }
+
+  /* Footer */
+  .footer {
+    padding: 8px 24px; border-top: 1px solid var(--border);
+    background: var(--panel); font-size: 11px; color: var(--muted);
+    display: flex; align-items: center; justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .footer-status { display: flex; align-items: center; gap: 8px; }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+  .status-dot.idle { background: var(--muted); }
+  .status-dot.working { background: var(--orange); animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  /* Viewport overlay */
+  .viewport-hint {
+    position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 16px; font-size: 11px; color: var(--muted);
+    pointer-events: none; opacity: 0.8; white-space: nowrap;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+  /* Section separator */
+  .section-sep { border: none; border-top: 1px solid var(--border); margin: 8px 0 12px; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+  <div class="header-left">
+    <div class="header-brand">
+      <span class="header-eyebrow">MakerDeck b401</span>
+      <span class="header-title">STL Painter</span>
+      <span class="header-subtitle">Automatic emboss / deboss detection and multi-color 3MF export</span>
+    </div>
+  </div>
+  <nav class="header-nav">
+    <a href="index.html"><span class="arrow">&larr;</span> Back to Container Generator</a>
+    <a href="index.html"><span class="arrow">&larr;</span> MakerDeck Home</a>
+  </nav>
+</header>
+
+<!-- Main Layout -->
+<div class="main">
+
+  <!-- Left Sidebar -->
+  <aside class="sidebar">
+    <!-- Drop Zone -->
+    <div class="panel">
+      <div class="panel-title">Load Model</div>
+      <div class="drop-zone" id="dropZone">
+        <span class="drop-zone-icon">&#x1F4E5;</span>
+        <div class="drop-zone-text"><strong>Drop STL here</strong><br>or click to browse</div>
+        <input type="file" id="fileInput" accept=".stl">
+      </div>
+    </div>
+
+    <!-- Detection Settings -->
+    <div class="panel">
+      <div class="panel-title">Detection Settings</div>
+      <div class="form-group">
+        <div class="form-label"><span>Mode</span></div>
+        <select id="detectMode">
+          <option value="both">Emboss + Deboss</option>
+          <option value="emboss">Emboss Only</option>
+          <option value="deboss">Deboss Only</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <div class="form-label"><span>Sensitivity</span><span class="value" id="sensitivityVal">0.35</span></div>
+        <input type="range" id="sensitivity" min="0.05" max="1.5" step="0.05" value="0.35">
+      </div>
+      <div class="form-group">
+        <div class="form-label"><span>Smoothing Iterations</span><span class="value" id="smoothIterVal">60</span></div>
+        <input type="range" id="smoothIter" min="5" max="200" step="5" value="60">
+      </div>
+      <div class="form-group">
+        <div class="form-label"><span>Min Cluster Area (mm&sup2;)</span><span class="value" id="minClusterVal">2.0</span></div>
+        <input type="range" id="minCluster" min="0" max="20" step="0.5" value="2">
+      </div>
+      <button class="btn btn-primary btn-full" id="detectBtn" disabled>Detect Features</button>
+    </div>
+
+    <!-- Filament Colors -->
+    <div class="panel">
+      <div class="panel-title">Filament Colors</div>
+      <div class="color-row">
+        <input type="color" class="color-swatch-input" id="colorBody" value="#bbbbbb">
+        <span class="color-label">Body</span>
+        <span class="color-hex" id="colorBodyHex">#BBBBBB</span>
+      </div>
+      <div class="color-row">
+        <input type="color" class="color-swatch-input" id="colorEmboss" value="#ff6600">
+        <span class="color-label">Emboss</span>
+        <span class="color-hex" id="colorEmbossHex">#FF6600</span>
+      </div>
+      <div class="color-row">
+        <input type="color" class="color-swatch-input" id="colorDeboss" value="#0066ff">
+        <span class="color-label">Deboss</span>
+        <span class="color-hex" id="colorDebossHex">#0066FF</span>
+      </div>
+      <hr class="section-sep">
+      <div class="form-label"><span>Presets</span></div>
+      <div class="preset-row" id="presetRow"></div>
+    </div>
+  </aside>
+
+  <!-- 3D Viewport -->
+  <div class="viewport" id="viewport">
+    <div class="viewport-hint" id="viewportHint">Drag to rotate &middot; Scroll to zoom &middot; Shift+drag to pan</div>
+  </div>
+
+  <!-- Right Sidebar -->
+  <aside class="sidebar-right">
+    <!-- Model Stats -->
+    <div class="panel">
+      <div class="panel-title">Model Stats</div>
+      <div class="stat-grid">
+        <div class="stat-item">
+          <div class="stat-value" id="statVerts">--</div>
+          <div class="stat-label">Vertices</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="statFaces">--</div>
+          <div class="stat-label">Faces</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value emboss" id="statEmboss">--</div>
+          <div class="stat-label">Emboss</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value deboss" id="statDeboss">--</div>
+          <div class="stat-label">Deboss</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Batch Mode -->
+    <div class="panel">
+      <div class="panel-title">Batch Mode</div>
+      <div class="batch-zone" id="batchZone">
+        <div class="batch-zone-text">Drop folder of STLs or click to select</div>
+        <input type="file" id="batchInput" accept=".stl" multiple webkitdirectory>
+      </div>
+      <div class="batch-list" id="batchList"></div>
+      <button class="btn btn-full" id="batchBtn" disabled style="margin-top:8px;">Process All</button>
+    </div>
+
+    <!-- Export -->
+    <div class="panel">
+      <div class="panel-title">Export Settings</div>
+      <div class="form-group">
+        <div class="form-label"><span>Filament Profile</span></div>
+        <select id="filamentProfile">
+          <option value="Generic PLA">Generic PLA</option>
+          <option value="Generic PETG">Generic PETG</option>
+          <option value="Generic ABS">Generic ABS</option>
+          <option value="Generic TPU">Generic TPU</option>
+          <option value="Generic ASA">Generic ASA</option>
+          <option value="PolyTerra PLA">PolyTerra PLA</option>
+          <option value="eSUN PLA+">eSUN PLA+</option>
+          <option value="Bambu PLA Basic">Bambu PLA Basic</option>
+          <option value="Bambu PLA Matte">Bambu PLA Matte</option>
+        </select>
+      </div>
+      <button class="btn btn-success btn-full" id="exportBtn" disabled>Export 3MF</button>
+    </div>
+  </aside>
+
+</div>
+
+<!-- Footer -->
+<footer class="footer">
+  <div class="footer-status">
+    <span class="status-dot idle" id="statusDot"></span>
+    <span id="statusText">Ready — load an STL to begin</span>
+  </div>
+  <span>MakerDeck b401 — STL Painter</span>
+</footer>
+
+<!-- Main Script -->
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import {
+  parseSTLBinary,
+  deduplicateVertices,
+  detectFeatures,
+  cleanClusters,
+  export3MF
+} from './js/painter.js';
+
+/* ------------------------------------------------------------------ */
+/*  State                                                             */
+/* ------------------------------------------------------------------ */
+
+const state = {
+  rawVertices: null,
+  rawNormals: null,
+  nTri: 0,
+  verts: null,
+  faces: null,
+  nVerts: 0,
+  embossMask: null,
+  debossMask: null,
+  embossCount: 0,
+  debossCount: 0,
+  mesh: null,
+  fileName: 'model'
+};
+
+/* ------------------------------------------------------------------ */
+/*  Three.js Setup                                                    */
+/* ------------------------------------------------------------------ */
+
+const viewport = document.getElementById('viewport');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x070b12);
+
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 5000);
+camera.position.set(80, 60, 80);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+viewport.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.panSpeed = 0.8;
+controls.rotateSpeed = 0.6;
+controls.screenSpacePanning = true;
+
+// Lighting
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+scene.add(ambientLight);
+
+const dirLight1 = new THREE.DirectionalLight(0xffffff, 1.0);
+dirLight1.position.set(50, 80, 50);
+dirLight1.castShadow = true;
+dirLight1.shadow.mapSize.set(1024, 1024);
+scene.add(dirLight1);
+
+const dirLight2 = new THREE.DirectionalLight(0x8ea4c1, 0.5);
+dirLight2.position.set(-40, 40, -30);
+scene.add(dirLight2);
+
+const hemiLight = new THREE.HemisphereLight(0x38bdf8, 0x070b12, 0.3);
+scene.add(hemiLight);
+
+// Grid
+const gridHelper = new THREE.GridHelper(200, 40, 0x263852, 0x151e2d);
+scene.add(gridHelper);
+
+function resizeRenderer() {
+  const w = viewport.clientWidth, h = viewport.clientHeight;
+  if (w === 0 || h === 0) return;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+}
+window.addEventListener('resize', resizeRenderer);
+resizeRenderer();
+
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+/* ------------------------------------------------------------------ */
+/*  UI Elements                                                       */
+/* ------------------------------------------------------------------ */
+
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const detectBtn = document.getElementById('detectBtn');
+const exportBtn = document.getElementById('exportBtn');
+const batchBtn = document.getElementById('batchBtn');
+const batchZone = document.getElementById('batchZone');
+const batchInput = document.getElementById('batchInput');
+const batchListEl = document.getElementById('batchList');
+const statusDot = document.getElementById('statusDot');
+const statusText = document.getElementById('statusText');
+const viewportHint = document.getElementById('viewportHint');
+
+const sensitivitySlider = document.getElementById('sensitivity');
+const sensitivityVal = document.getElementById('sensitivityVal');
+const smoothIterSlider = document.getElementById('smoothIter');
+const smoothIterVal = document.getElementById('smoothIterVal');
+const minClusterSlider = document.getElementById('minCluster');
+const minClusterVal = document.getElementById('minClusterVal');
+const detectModeSelect = document.getElementById('detectMode');
+const filamentProfileSelect = document.getElementById('filamentProfile');
+
+const colorBody = document.getElementById('colorBody');
+const colorEmboss = document.getElementById('colorEmboss');
+const colorDeboss = document.getElementById('colorDeboss');
+const colorBodyHex = document.getElementById('colorBodyHex');
+const colorEmbossHex = document.getElementById('colorEmbossHex');
+const colorDebossHex = document.getElementById('colorDebossHex');
+
+/* ------------------------------------------------------------------ */
+/*  Status Helpers                                                    */
+/* ------------------------------------------------------------------ */
+
+function setStatus(text, mode = 'idle') {
+  statusText.textContent = text;
+  statusDot.className = 'status-dot ' + mode;
+}
+
+function updateStats() {
+  document.getElementById('statVerts').textContent = state.nVerts > 0 ? state.nVerts.toLocaleString() : '--';
+  document.getElementById('statFaces').textContent = state.nTri > 0 ? state.nTri.toLocaleString() : '--';
+  document.getElementById('statEmboss').textContent = state.embossCount > 0 ? state.embossCount.toLocaleString() : '--';
+  document.getElementById('statDeboss').textContent = state.debossCount > 0 ? state.debossCount.toLocaleString() : '--';
+}
+
+/* ------------------------------------------------------------------ */
+/*  Slider Bindings                                                   */
+/* ------------------------------------------------------------------ */
+
+sensitivitySlider.addEventListener('input', () => { sensitivityVal.textContent = parseFloat(sensitivitySlider.value).toFixed(2); });
+smoothIterSlider.addEventListener('input', () => { smoothIterVal.textContent = smoothIterSlider.value; });
+minClusterSlider.addEventListener('input', () => { minClusterVal.textContent = parseFloat(minClusterSlider.value).toFixed(1); });
+
+/* ------------------------------------------------------------------ */
+/*  Color Pickers                                                     */
+/* ------------------------------------------------------------------ */
+
+colorBody.addEventListener('input', () => { colorBodyHex.textContent = colorBody.value.toUpperCase(); updateMeshColors(); });
+colorEmboss.addEventListener('input', () => { colorEmbossHex.textContent = colorEmboss.value.toUpperCase(); updateMeshColors(); });
+colorDeboss.addEventListener('input', () => { colorDebossHex.textContent = colorDeboss.value.toUpperCase(); updateMeshColors(); });
+
+// Preset colors
+const presets = [
+  { name: 'White',   body: '#FFFFFF', emboss: '#FF0000', deboss: '#0000FF' },
+  { name: 'Black',   body: '#222222', emboss: '#FFD700', deboss: '#00CED1' },
+  { name: 'Silver',  body: '#BBBBBB', emboss: '#FF6600', deboss: '#0066FF' },
+  { name: 'Wood',    body: '#C8A26E', emboss: '#5C3A1E', deboss: '#2E5E3E' },
+  { name: 'Ocean',   body: '#1A5276', emboss: '#F39C12', deboss: '#2ECC71' },
+  { name: 'Neon',    body: '#1A1A2E', emboss: '#E94560', deboss: '#0F3460' },
+  { name: 'Pastel',  body: '#FAD6A5', emboss: '#FF6F91', deboss: '#845EC2' },
+  { name: 'Bambu',   body: '#E8E8E8', emboss: '#00AE42', deboss: '#333333' },
+];
+
+const presetRow = document.getElementById('presetRow');
+for (const p of presets) {
+  const sw = document.createElement('div');
+  sw.className = 'preset-swatch';
+  sw.style.background = p.body;
+  sw.title = p.name;
+  sw.addEventListener('click', () => {
+    colorBody.value = p.body; colorBodyHex.textContent = p.body;
+    colorEmboss.value = p.emboss; colorEmbossHex.textContent = p.emboss;
+    colorDeboss.value = p.deboss; colorDebossHex.textContent = p.deboss;
+    updateMeshColors();
+  });
+  presetRow.appendChild(sw);
+}
+
+/* ------------------------------------------------------------------ */
+/*  File Drop / Select                                                */
+/* ------------------------------------------------------------------ */
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) loadSTL(file);
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) loadSTL(fileInput.files[0]);
+});
+
+/* ------------------------------------------------------------------ */
+/*  Load STL                                                          */
+/* ------------------------------------------------------------------ */
+
+async function loadSTL(file) {
+  setStatus(`Loading ${file.name}...`, 'working');
+  state.fileName = file.name.replace(/\.stl$/i, '');
+
+  const buffer = await file.arrayBuffer();
+  const { vertices, normals, nTri } = parseSTLBinary(buffer);
+  state.rawVertices = vertices;
+  state.rawNormals = normals;
+  state.nTri = nTri;
+
+  const { verts, faces, nVerts } = deduplicateVertices(vertices, nTri);
+  state.verts = verts;
+  state.faces = faces;
+  state.nVerts = nVerts;
+
+  state.embossMask = null;
+  state.debossMask = null;
+  state.embossCount = 0;
+  state.debossCount = 0;
+
+  buildMesh();
+  updateStats();
+  detectBtn.disabled = false;
+  exportBtn.disabled = true;
+  viewportHint.style.display = 'block';
+  setStatus(`Loaded ${file.name} — ${nTri.toLocaleString()} faces, ${nVerts.toLocaleString()} unique vertices`, 'idle');
+}
+
+/* ------------------------------------------------------------------ */
+/*  Build Three.js Mesh                                               */
+/* ------------------------------------------------------------------ */
+
+function buildMesh() {
+  if (state.mesh) { scene.remove(state.mesh); state.mesh.geometry.dispose(); }
+
+  const geom = new THREE.BufferGeometry();
+  const positions = new Float32Array(state.nTri * 9);
+  const colors = new Float32Array(state.nTri * 9);
+
+  const bodyCol = new THREE.Color(colorBody.value);
+
+  for (let i = 0; i < state.nTri; i++) {
+    for (let v = 0; v < 3; v++) {
+      const vi = state.faces[i * 3 + v];
+      positions[i * 9 + v * 3]     = state.verts[vi * 3];
+      positions[i * 9 + v * 3 + 1] = state.verts[vi * 3 + 1];
+      positions[i * 9 + v * 3 + 2] = state.verts[vi * 3 + 2];
+
+      let col = bodyCol;
+      if (state.embossMask && state.embossMask[i]) col = new THREE.Color(colorEmboss.value);
+      else if (state.debossMask && state.debossMask[i]) col = new THREE.Color(colorDeboss.value);
+
+      colors[i * 9 + v * 3]     = col.r;
+      colors[i * 9 + v * 3 + 1] = col.g;
+      colors[i * 9 + v * 3 + 2] = col.b;
+    }
+  }
+
+  geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geom.computeVertexNormals();
+
+  const mat = new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    roughness: 0.55,
+    metalness: 0.05,
+    flatShading: false
+  });
+
+  state.mesh = new THREE.Mesh(geom, mat);
+  state.mesh.castShadow = true;
+  state.mesh.receiveShadow = true;
+  scene.add(state.mesh);
+
+  // Center and frame
+  geom.computeBoundingBox();
+  const box = geom.boundingBox;
+  const center = new THREE.Vector3();
+  box.getCenter(center);
+  state.mesh.position.sub(center);
+
+  const size = new THREE.Vector3();
+  box.getSize(size);
+  const maxDim = Math.max(size.x, size.y, size.z);
+  const dist = maxDim * 1.8;
+  camera.position.set(dist * 0.7, dist * 0.5, dist * 0.7);
+  controls.target.set(0, 0, 0);
+  controls.update();
+}
+
+function updateMeshColors() {
+  if (!state.mesh) return;
+  const colors = state.mesh.geometry.attributes.color;
+  const bodyCol = new THREE.Color(colorBody.value);
+  const embossCol = new THREE.Color(colorEmboss.value);
+  const debossCol = new THREE.Color(colorDeboss.value);
+
+  for (let i = 0; i < state.nTri; i++) {
+    let col = bodyCol;
+    if (state.embossMask && state.embossMask[i]) col = embossCol;
+    else if (state.debossMask && state.debossMask[i]) col = debossCol;
+    for (let v = 0; v < 3; v++) {
+      colors.setXYZ(i * 3 + v, col.r, col.g, col.b);
+    }
+  }
+  colors.needsUpdate = true;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Detect Features                                                   */
+/* ------------------------------------------------------------------ */
+
+detectBtn.addEventListener('click', () => {
+  if (!state.verts) return;
+  setStatus('Detecting features...', 'working');
+
+  // Use setTimeout to let UI update
+  setTimeout(() => {
+    const opts = {
+      threshold: parseFloat(sensitivitySlider.value),
+      iterations: parseInt(smoothIterSlider.value),
+      weight: 0.5,
+      mode: detectModeSelect.value
+    };
+
+    const result = detectFeatures(state.verts, state.faces, state.nVerts, state.nTri, opts);
+    state.embossMask = result.embossMask;
+    state.debossMask = result.debossMask;
+
+    // Clean clusters
+    const minArea = parseFloat(minClusterSlider.value);
+    if (minArea > 0) {
+      cleanClusters(state.embossMask, state.faces, state.nTri, state.verts, minArea);
+      cleanClusters(state.debossMask, state.faces, state.nTri, state.verts, minArea);
+    }
+
+    // Recount after cleaning
+    let ec = 0, dc = 0;
+    for (let i = 0; i < state.nTri; i++) {
+      if (state.embossMask[i]) ec++;
+      if (state.debossMask[i]) dc++;
+    }
+    state.embossCount = ec;
+    state.debossCount = dc;
+
+    updateMeshColors();
+    updateStats();
+    exportBtn.disabled = false;
+    setStatus(`Detection complete — ${ec.toLocaleString()} emboss, ${dc.toLocaleString()} deboss faces`, 'idle');
+  }, 30);
+});
+
+/* ------------------------------------------------------------------ */
+/*  Export 3MF                                                        */
+/* ------------------------------------------------------------------ */
+
+exportBtn.addEventListener('click', () => {
+  if (!state.verts || (!state.embossMask && !state.debossMask)) return;
+  setStatus('Exporting 3MF...', 'working');
+
+  setTimeout(() => {
+    const profile = filamentProfileSelect.value;
+    const filType = profile.includes('PETG') ? 'PETG' : profile.includes('ABS') ? 'ABS' :
+                    profile.includes('TPU') ? 'TPU' : profile.includes('ASA') ? 'ASA' : 'PLA';
+
+    const zipBytes = export3MF(state.verts, state.faces, state.nVerts, state.nTri,
+      state.embossMask || new Uint8Array(state.nTri),
+      state.debossMask || new Uint8Array(state.nTri),
+      {
+        bodyColor: colorBody.value,
+        embossColor: colorEmboss.value,
+        debossColor: colorDeboss.value,
+        filamentType: [filType, filType, filType],
+        filamentSettingsId: [profile, profile, profile],
+        filamentProfile: profile
+      }
+    );
+
+    const blob = new Blob([zipBytes], { type: 'application/vnd.ms-package.3dmanufacturing-3dmodel+xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${state.fileName}_painted.3mf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    setStatus(`Exported ${state.fileName}_painted.3mf`, 'idle');
+  }, 30);
+});
+
+/* ------------------------------------------------------------------ */
+/*  Batch Mode                                                        */
+/* ------------------------------------------------------------------ */
+
+let batchFiles = [];
+
+batchZone.addEventListener('click', () => batchInput.click());
+batchInput.addEventListener('change', () => {
+  batchFiles = Array.from(batchInput.files).filter(f => f.name.toLowerCase().endsWith('.stl'));
+  batchListEl.innerHTML = '';
+  for (const f of batchFiles) {
+    const div = document.createElement('div');
+    div.className = 'batch-item';
+    div.innerHTML = `<span>${f.name}</span><span class="status pending">pending</span>`;
+    div.id = 'batch-' + f.name.replace(/[^a-zA-Z0-9]/g, '_');
+    batchListEl.appendChild(div);
+  }
+  batchBtn.disabled = batchFiles.length === 0;
+  setStatus(`${batchFiles.length} files queued for batch processing`, 'idle');
+});
+
+batchBtn.addEventListener('click', async () => {
+  if (batchFiles.length === 0) return;
+  batchBtn.disabled = true;
+  setStatus('Batch processing...', 'working');
+
+  const opts = {
+    threshold: parseFloat(sensitivitySlider.value),
+    iterations: parseInt(smoothIterSlider.value),
+    weight: 0.5,
+    mode: detectModeSelect.value
+  };
+  const minArea = parseFloat(minClusterSlider.value);
+  const profile = filamentProfileSelect.value;
+  const filType = profile.includes('PETG') ? 'PETG' : profile.includes('ABS') ? 'ABS' :
+                  profile.includes('TPU') ? 'TPU' : profile.includes('ASA') ? 'ASA' : 'PLA';
+
+  for (let fi = 0; fi < batchFiles.length; fi++) {
+    const file = batchFiles[fi];
+    const elId = 'batch-' + file.name.replace(/[^a-zA-Z0-9]/g, '_');
+    setStatus(`Processing ${fi + 1}/${batchFiles.length}: ${file.name}`, 'working');
+
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    try {
+      const buffer = await file.arrayBuffer();
+      const parsed = parseSTLBinary(buffer);
+      const deduped = deduplicateVertices(parsed.vertices, parsed.nTri);
+      const result = detectFeatures(deduped.verts, deduped.faces, deduped.nVerts, parsed.nTri, opts);
+
+      if (minArea > 0) {
+        cleanClusters(result.embossMask, deduped.faces, parsed.nTri, deduped.verts, minArea);
+        cleanClusters(result.debossMask, deduped.faces, parsed.nTri, deduped.verts, minArea);
+      }
+
+      const zipBytes = export3MF(deduped.verts, deduped.faces, deduped.nVerts, parsed.nTri,
+        result.embossMask, result.debossMask,
+        {
+          bodyColor: colorBody.value, embossColor: colorEmboss.value, debossColor: colorDeboss.value,
+          filamentType: [filType, filType, filType],
+          filamentSettingsId: [profile, profile, profile],
+          filamentProfile: profile
+        }
+      );
+
+      const blob = new Blob([zipBytes], { type: 'application/vnd.ms-package.3dmanufacturing-3dmodel+xml' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = file.name.replace(/\.stl$/i, '_painted.3mf');
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      const el = document.getElementById(elId);
+      if (el) el.querySelector('.status').className = 'status done';
+      if (el) el.querySelector('.status').textContent = 'done';
+    } catch (err) {
+      const el = document.getElementById(elId);
+      if (el) el.querySelector('.status').style.color = 'var(--red)';
+      if (el) el.querySelector('.status').textContent = 'error';
+      console.error(`Batch error on ${file.name}:`, err);
+    }
+  }
+
+  batchBtn.disabled = false;
+  setStatus(`Batch complete — ${batchFiles.length} files processed`, 'idle');
+});
+
+/* ------------------------------------------------------------------ */
+/*  Keyboard shortcut: hide hint after first interaction              */
+/* ------------------------------------------------------------------ */
+
+controls.addEventListener('start', () => {
+  if (viewportHint.style.display !== 'none') {
+    viewportHint.style.opacity = '0';
+    viewportHint.style.transition = 'opacity 0.5s';
+    setTimeout(() => { viewportHint.style.display = 'none'; }, 500);
+  }
+});
+</script>
+</body>
+</html>
