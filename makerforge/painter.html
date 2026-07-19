@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STL Painter — MakerDeck b422</title>
+<title>STL Painter — MakerDeck b423</title>
 <script type="importmap">
 { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/" } }
 </script>
@@ -393,7 +393,7 @@
 
 <header class="header">
   <div class="header-brand">
-    <span class="header-eyebrow">MakerDeck <span id="makerdeck-build">b422</span></span>
+    <span class="header-eyebrow">MakerDeck <span id="makerdeck-build">b423</span></span>
     <span class="header-title">STL Painter</span>
     <span class="header-subtitle">Paint multi-colour STLs · export AMS-ready 3MFs</span>
   </div>
@@ -499,10 +499,13 @@
           <button type="button" class="chip-hide" data-hide="trim" title="Hide this colour only">Hide</button>
         </div>
       </div>
-      <p class="colour-help" id="colourHelp">To hide black web: turn Solo <b>off</b>, then press <b>Hide</b> on slot 2.</p>
+      <p class="colour-help" id="colourHelp">Hide black web: press <b>Hide</b> on slot 2 (keep Solo off). Stuck? hit <b>Show all</b>.</p>
+      <div class="btn-row" style="margin-top:8px">
+        <button type="button" class="btn" id="showAllColoursBtn" title="Show every colour again">Show all colours</button>
+      </div>
       <label class="solo-row" id="soloRow">
         <input type="checkbox" id="soloActive">
-        Show only active colour (opposite of Hide)
+        Isolate active colour (shows only that paint — can look like “everything vanished”)
       </label>
 
       <div class="section-label" style="margin-top:12px">Brush type</div>
@@ -549,7 +552,7 @@
 
       <label class="lock-row" id="orbitLockLabel">
         <input type="checkbox" id="orbitLock">
-        Lock view for precise painting
+        Lock left-drag (right-drag still orbits)
       </label>
 
       <button type="button" class="collapse-toggle" id="moreToolsToggle">More tools — Smart · Box · Edge · Detect ▸</button>
@@ -677,6 +680,7 @@
       <button type="button" class="tool-btn" id="zoomInBtn" title="Zoom in">+</button>
       <button type="button" class="tool-btn" id="frameBtn" title="Frame model">Frame</button>
       <button type="button" class="tool-btn" id="undoBtn" title="Undo" disabled>Undo</button>
+      <button type="button" class="tool-btn" id="resetViewBtn" title="Unstick controls — restore orbit + show all colours">Unstick</button>
     </div>
     <div class="select-rect" id="selectRect"></div>
     <div class="smart-cursor" id="smartCursor"></div>
@@ -745,7 +749,7 @@ import {
   paintClassOf,
   upgradePaintResolution,
   export3MF
-} from './js/painter.js?v=422';
+} from './js/painter.js?v=423';
 
 /* ------------------------------------------------------------------ */
 /*  State                                                             */
@@ -780,6 +784,7 @@ const state = {
   brushStrokeActive: null,
   hiddenSlots: { body: false, emboss: false, deboss: false, trim: false },
   soloActive: false,
+  orbitOverride: false,   // Alt/Space held — force orbit instead of paint
   resLevel: 0,            // 0 = original, each upgrade +1
 };
 
@@ -1256,11 +1261,11 @@ function syncHideUI() {
   const help = document.getElementById('colourHelp');
   if (help) {
     if (state.soloActive) {
-      help.innerHTML = `<b>Solo on:</b> only ${SLOT_LABELS[state.paintTarget] || 'active'} is visible — turn Solo off to use Hide.`;
+      help.innerHTML = `<b>Isolate on:</b> only ${SLOT_LABELS[state.paintTarget] || 'active'} shows (tiny patch is normal). Press <b>Show all colours</b> to get the full model back.`;
     } else if (state.hiddenSlots.emboss) {
-      help.innerHTML = 'Slot 2 hidden — red base stays so you can paint eyes / detail.';
+      help.innerHTML = 'Slot 2 hidden — red stays. Press <b>Show</b> on slot 2 or <b>Show all colours</b> anytime.';
     } else {
-      help.innerHTML = 'To hide black web: turn Solo <b>off</b>, then press <b>Hide</b> on slot 2.';
+      help.innerHTML = 'Hide black web: <b>Hide</b> on slot 2. Stuck / can’t orbit? toolbar <b>Unstick</b> or <b>Show all colours</b>.';
     }
   }
 }
@@ -1566,29 +1571,56 @@ function clearEdgeHighlight() {
 
 function syncOrbitLock() {
   const locked = !!orbitLockCheck?.checked;
-  // Only block left-orbit while actively painting/selecting.
-  // Brush idle: left-drag on empty space still orbits (natural feel).
-  const leftBlocked =
-    !!state.brushStrokeActive ||
-    !!state._smartClick ||
-    !!boxDrag ||
-    state.tool === 'eyedrop' ||
-    state.tool === 'smart' ||
-    ((state.tool === 'box' || state.tool === 'edge') && locked);
+  const painting = !!state.brushStrokeActive || !!state._smartClick || !!boxDrag;
+  // Alt/Space = force left-orbit. Right-drag always orbits (enableRotate stays true).
+  const leftBlocked = state.orbitOverride
+    ? false
+    : (
+      painting ||
+      state.tool === 'eyedrop' ||
+      state.tool === 'smart' ||
+      ((state.tool === 'box' || state.tool === 'edge') && locked) ||
+      (isBrushTool() && locked)
+    );
 
+  controls.enabled = true;
+  controls.enableRotate = true;
+  controls.enablePan = true;
   controls.mouseButtons.LEFT = leftBlocked ? -1 : THREE.MOUSE.ROTATE;
   controls.mouseButtons.MIDDLE = THREE.MOUSE.DOLLY;
   controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
-
-  if (state.brushStrokeActive || state._smartClick || boxDrag) {
-    controls.enableRotate = false;
-    controls.enablePan = false;
-  } else {
-    // Lock freezes free orbit; right/middle still temporarily re-enabled in pointerdown
-    controls.enableRotate = !locked;
-    controls.enablePan = !locked;
-  }
   document.getElementById('orbitLockLabel')?.classList.toggle('active', locked);
+}
+
+/** Clear stuck paint/orbit capture so the model can move again. */
+function resetInteraction(msg) {
+  const pids = [
+    state.brushStrokeActive?.pointerId,
+    state._smartClick?.pointerId,
+    boxDrag?.pointerId,
+  ].filter((v) => v != null);
+  state.brushStrokeActive = null;
+  state._smartClick = null;
+  state.orbitOverride = false;
+  if (boxDrag) endBoxDrag();
+  for (const id of pids) releaseViewportPointer(id);
+  selectRect.style.display = 'none';
+  if (smartCursor) smartCursor.style.display = 'none';
+  controls.enabled = true;
+  controls.enableRotate = true;
+  controls.enablePan = true;
+  syncOrbitLock();
+  if (msg) setStatus(msg, 'idle');
+}
+
+function showAllColours() {
+  state.soloActive = false;
+  state.hiddenSlots = { body: false, emboss: false, deboss: false, trim: false };
+  const soloCheck = document.getElementById('soloActive');
+  if (soloCheck) soloCheck.checked = false;
+  syncHideUI();
+  updateMeshColors();
+  resetInteraction('All colours visible — right-drag orbits · Brush paints on the model');
 }
 
 function syncSlotCards() {
@@ -1877,7 +1909,7 @@ function setTool(tool) {
   // Clicking the active tool again drops back to navigate-only.
   if (tool === state.tool && tool !== 'orbit') tool = 'orbit';
   state.tool = tool;
-  state.brushStrokeActive = null;
+  resetInteraction();
   toolBox.classList.toggle('active', tool === 'box');
   toolEdge.classList.toggle('active', tool === 'edge');
   toolSmart.classList.toggle('active', tool === 'smart');
@@ -1887,21 +1919,16 @@ function setTool(tool) {
   document.getElementById('toolDetect')?.classList.toggle('active', tool === 'detect');
   showToolOpts(tool);
   if (tool !== 'smart') clearSmartPreview();
-  if (!isBrushTool(tool)) {
-    smartCursor.style.display = 'none';
-  }
-  controls.enabled = true;
-  syncOrbitLock();
   const needsLockDrag = tool === 'box' || tool === 'edge';
   viewport.classList.toggle('select-mode', tool === 'box' || tool === 'edge' || tool === 'smart' || isBrushTool(tool));
   viewport.classList.toggle('brush-mode', isBrushTool(tool));
   viewport.classList.toggle('eyedrop-mode', tool === 'eyedrop');
   if (tool === 'brush') {
-    viewportHint.textContent = 'Brush Freehand — drag on the model to paint · empty space or right-drag to orbit';
+    viewportHint.textContent = 'Brush — paint on model · right-drag or Alt/Space+drag to orbit · Show all if stuck';
   } else if (tool === 'spray') {
-    viewportHint.textContent = 'Spray — drag on the model to mist · empty space or right-drag to orbit';
+    viewportHint.textContent = 'Spray — mist on model · right-drag or Alt/Space+drag to orbit';
   } else if (tool === 'eyedrop') {
-    viewportHint.textContent = 'Eyedropper — click a face to select that AMS colour slot · right-drag orbits';
+    viewportHint.textContent = 'Eyedropper — click a face · right-drag orbits';
   } else if (tool === 'edge') {
     openMoreTools();
     viewportHint.textContent = 'Edge — Lock view, drag over a rough boundary, then Fill with the active slot';
@@ -2028,8 +2055,17 @@ document.getElementById('resFineBtn')?.addEventListener('click', () => runResolu
 document.getElementById('resUltraBtn')?.addEventListener('click', () => runResolutionUpgrade(2));
 
 orbitLockCheck?.addEventListener('change', () => {
-  syncOrbitLock();
-  setStatus(orbitLockCheck.checked ? 'View locked' : 'View unlocked — drag to orbit', 'idle');
+  resetInteraction(
+    orbitLockCheck.checked
+      ? 'Left-drag locked — right-drag still orbits'
+      : 'Unlocked — drag empty space or right-drag to orbit · Alt+drag also orbits'
+  );
+});
+document.getElementById('showAllColoursBtn')?.addEventListener('click', () => showAllColours());
+document.getElementById('resetViewBtn')?.addEventListener('click', () => {
+  if (orbitLockCheck) orbitLockCheck.checked = false;
+  showAllColours();
+  resetInteraction('Unstuck — all colours on · right-drag or Alt+drag to orbit · Brush to paint');
 });
 smartSizeSlider.addEventListener('input', () => {
   smartSizeVal.textContent = parseFloat(smartSizeSlider.value).toFixed(smartSizeSlider.value % 1 ? 1 : 0);
@@ -2066,7 +2102,10 @@ document.querySelectorAll('.slot-card').forEach(card => {
 });
 document.getElementById('zoomInBtn').addEventListener('click', () => zoomBy(0.72));
 document.getElementById('zoomOutBtn').addEventListener('click', () => zoomBy(1.38));
-document.getElementById('frameBtn').addEventListener('click', frameModel);
+document.getElementById('frameBtn').addEventListener('click', () => {
+  resetInteraction();
+  frameModel();
+});
 document.getElementById('undoBtn').addEventListener('click', () => {
   const snap = state.undoStack.pop();
   if (!snap) return;
@@ -2122,6 +2161,8 @@ function endBrushStroke(status = true) {
 viewport.addEventListener('pointerdown', (e) => {
   if (e.target.closest?.('.viewport-toolbar')) return;
   if (e.button === 2 || e.button === 1) {
+    // Right / middle always orbit — clear any stuck paint capture first
+    if (state.brushStrokeActive) endBrushStroke(false);
     controls.enableRotate = true;
     controls.enablePan = true;
     return;
@@ -2135,15 +2176,15 @@ viewport.addEventListener('pointerdown', (e) => {
     return;
   }
   if (isBrushTool()) {
+    // Alt or Space = orbit instead of paint (hold to turn the model)
+    if (e.altKey || state.orbitOverride) return;
     const origin = { x: e.clientX, y: e.clientY };
     const pt = constrainBrushClient(e.clientX, e.clientY, origin);
     const hit = pickHitAtClient(pt.x, pt.y);
-    // Missed the model → let OrbitControls handle left-drag (feels like before)
+    // Missed the model → let OrbitControls handle left-drag
     if (!hit) return;
     e.preventDefault();
     e.stopPropagation();
-    controls.enableRotate = false;
-    controls.enablePan = false;
     state.brushStrokeActive = {
       origin,
       pointerId: e.pointerId,
@@ -2151,6 +2192,7 @@ viewport.addEventListener('pointerdown', (e) => {
       undid: false,
       lastClient: pt,
     };
+    syncOrbitLock();
     updateSmartCursor(pt.x, pt.y, hit.worldPoint);
     const n = applyBrushDab(hit, { undo: true });
     state.brushStrokeActive.painted += n;
@@ -2159,11 +2201,11 @@ viewport.addEventListener('pointerdown', (e) => {
     return;
   }
   if (state.tool === 'smart') {
+    if (e.altKey || state.orbitOverride) return;
     e.preventDefault();
     e.stopPropagation();
-    controls.enableRotate = false;
-    controls.enablePan = false;
     state._smartClick = { x: e.clientX, y: e.clientY, pointerId: e.pointerId, moved: false };
+    syncOrbitLock();
     previewSmartFill(e.clientX, e.clientY);
     try { viewport.setPointerCapture?.(e.pointerId); } catch { /* ok */ }
     return;
@@ -2295,9 +2337,22 @@ window.addEventListener('blur', () => {
 });
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
-    endBrushStroke(false);
-    state._smartClick = null;
-    if (boxDrag) endBoxDrag();
+    resetInteraction('Controls reset — right-drag orbits · Show all if colours are missing');
+    return;
+  }
+  if (e.code === 'Space' && !e.repeat && !e.target.closest?.('input, textarea, select')) {
+    e.preventDefault();
+    state.orbitOverride = true;
+    syncOrbitLock();
+  }
+  if (e.key === 'Alt') {
+    state.orbitOverride = true;
+    syncOrbitLock();
+  }
+});
+document.addEventListener('keyup', (e) => {
+  if (e.code === 'Space' || e.key === 'Alt') {
+    state.orbitOverride = false;
     syncOrbitLock();
   }
 });

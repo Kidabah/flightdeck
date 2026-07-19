@@ -1,3 +1,14 @@
+### 2026-07-19 — b423: STL Painter — unstick orbit + Show all
+
+Controls could freeze after Isolate/Lock (tiny black patch + can’t turn/paint).
+- **Unstick** toolbar btn + **Show all colours**
+- Right-drag always orbits (Lock no longer freezes the view)
+- Alt / Space + drag = orbit while Brush is active
+- Esc resets stuck pointer capture
+- Cache-bust `painter.js?v=423`
+
+Files: `painter.html`, `js/painter.js`, `index.html`, `js/app.js`, `SESSION_NEXT.md`.
+
 ### 2026-07-19 — b422: STL Painter — clearer Hide vs Solo
 
 Solo was confusing (“select black hides everything”). Now:

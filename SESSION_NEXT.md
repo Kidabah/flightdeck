@@ -2,14 +2,14 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b422 hide vs solo clarity
+- Latest commit: MakerDeck b423 unstick + show all
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
 
-### 2026-07-19 fix (MakerDeck b422 — Hide vs Solo)
+### 2026-07-19 fix (MakerDeck b423 — frozen view)
 
-**Need:** User thought Hide black hid everything — Solo was on (shows only black).
+**Need:** After Isolate, only a tiny black patch showed; unlock wouldn’t orbit; painting stuck.
 
-**What shipped:** Clear Hide/Show per slot; Solo wording fixed; tip text. Cache-bust `painter.js?v=422`.
+**What shipped:** Unstick / Show all; right-drag always orbits; Alt/Space orbit. Cache-bust `painter.js?v=423`.
 
 **Deploy:** Hard refresh Painter (no backend restart).
 
