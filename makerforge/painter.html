@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STL Painter — MakerDeck b406</title>
+<title>STL Painter — MakerDeck b407</title>
 <script type="importmap">
 { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/" } }
 </script>
@@ -197,12 +197,18 @@
     background: rgba(56, 189, 248, 0.16); border-color: var(--accent); color: var(--accent);
   }
   .viewport-toolbar .tool-sep { width: 1px; height: 22px; background: var(--border); margin: 0 2px; }
-  .paint-target-row { display: flex; gap: 4px; align-items: center; }
+  .paint-target-row { display: flex; gap: 6px; align-items: center; }
   .paint-target {
-    width: 22px; height: 22px; border-radius: 6px; border: 2px solid transparent;
-    cursor: pointer; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.15);
+    display: inline-flex; align-items: center; gap: 5px;
+    height: 26px; padding: 0 8px 0 4px; border-radius: 6px;
+    border: 2px solid transparent; cursor: pointer;
+    background: var(--panel-2); color: var(--muted); font-size: 11px; font-weight: 600;
   }
-  .paint-target.active { border-color: #fff; box-shadow: 0 0 0 2px var(--accent); }
+  .paint-target .swatch {
+    width: 16px; height: 16px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.25);
+    flex-shrink: 0;
+  }
+  .paint-target.active { border-color: #fff; box-shadow: 0 0 0 2px var(--accent); color: var(--text); }
   .select-rect {
     position: absolute; border: 1.5px solid var(--accent);
     background: rgba(56, 189, 248, 0.14); pointer-events: none; z-index: 4; display: none;
@@ -225,7 +231,7 @@
 <header class="header">
   <div class="header-left">
     <div class="header-brand">
-      <span class="header-eyebrow">MakerDeck b406</span>
+      <span class="header-eyebrow">MakerDeck b407</span>
       <span class="header-title">STL Painter</span>
       <span class="header-subtitle">Detect, area-paint, and export multi-color 3MFs</span>
     </div>
@@ -269,16 +275,16 @@
         </select>
       </div>
       <div class="form-group">
-        <div class="form-label"><span id="sensitivityLabel">Sensitivity (keep top %)</span><span class="value" id="sensitivityVal">0.30</span></div>
-        <input type="range" id="sensitivity" min="0.05" max="1.5" step="0.05" value="0.30">
+        <div class="form-label"><span id="sensitivityLabel">Sensitivity (keep top %)</span><span class="value" id="sensitivityVal">0.22</span></div>
+        <input type="range" id="sensitivity" min="0.05" max="1.5" step="0.05" value="0.22">
       </div>
       <div class="form-group">
-        <div class="form-label"><span>Smoothing Iterations</span><span class="value" id="smoothIterVal">100</span></div>
-        <input type="range" id="smoothIter" min="5" max="200" step="5" value="100">
+        <div class="form-label"><span>Smoothing Iterations</span><span class="value" id="smoothIterVal">120</span></div>
+        <input type="range" id="smoothIter" min="5" max="200" step="5" value="120">
       </div>
       <div class="form-group">
-        <div class="form-label"><span>Min Cluster Area (mm&sup2;)</span><span class="value" id="minClusterVal">1.0</span></div>
-        <input type="range" id="minCluster" min="0" max="20" step="0.5" value="1">
+        <div class="form-label"><span>Min Cluster Area (mm&sup2;)</span><span class="value" id="minClusterVal">0.5</span></div>
+        <input type="range" id="minCluster" min="0" max="20" step="0.5" value="0.5">
       </div>
       <label class="form-label" style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-weight:500;margin-bottom:8px">
         <input type="checkbox" id="adaptiveThr" checked style="margin-top:2px;accent-color:var(--accent)">
@@ -289,18 +295,18 @@
         <span style="color:var(--muted);font-size:12px;line-height:1.35">Prefer ridge tops (less side-wall paint)</span>
       </label>
       <div class="form-group">
-        <div class="form-label"><span>Morph close (fill holes)</span><span class="value" id="morphCloseVal">2</span></div>
-        <input type="range" id="morphClose" min="0" max="4" step="1" value="2">
+        <div class="form-label"><span>Morph close (fill holes)</span><span class="value" id="morphCloseVal">1</span></div>
+        <input type="range" id="morphClose" min="0" max="4" step="1" value="1">
       </div>
       <div class="form-group">
-        <div class="form-label"><span>Morph open (strip noise)</span><span class="value" id="morphOpenVal">0</span></div>
-        <input type="range" id="morphOpen" min="0" max="3" step="1" value="0">
+        <div class="form-label"><span>Morph open (strip noise)</span><span class="value" id="morphOpenVal">1</span></div>
+        <input type="range" id="morphOpen" min="0" max="3" step="1" value="1">
       </div>
       <button class="btn btn-primary btn-full" id="detectBtn" disabled>Detect Features</button>
-      <div class="detect-hint" id="detectHint">Fine webbing: use <b style="color:var(--text)">Fine detail</b> then Detect. If you see holes in lines, raise Morph close or Sensitivity.</div>
+      <div class="detect-hint" id="detectHint">Spidey: set colours (Spidey preset) → Fine detail → Detect → paint <b style="color:var(--text)">Body</b> for red, <b style="color:var(--text)">Emboss</b> for black web. Deboss free-paints eyes/accents.</div>
       <label class="form-label" style="margin-top:10px;display:flex;align-items:flex-start;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-weight:500">
         <input type="checkbox" id="constrainBox" checked style="margin-top:2px;accent-color:var(--accent)">
-        <span style="color:var(--muted);font-size:12px;line-height:1.35">Box paint Emboss/Deboss only colours <b style="color:var(--text)">detected</b> features inside the box (not the whole rectangle)</span>
+        <span style="color:var(--muted);font-size:12px;line-height:1.35">Lock Emboss/Deboss box paint to Detect when features exist (falls back to free paint if none in the box)</span>
       </label>
     </div>
 
@@ -308,19 +314,19 @@
     <div class="panel">
       <div class="panel-title">Filament Colors</div>
       <div class="color-row">
-        <input type="color" class="color-swatch-input" id="colorBody" value="#bbbbbb">
+        <input type="color" class="color-swatch-input" id="colorBody" value="#c20820">
         <span class="color-label">Body</span>
-        <span class="color-hex" id="colorBodyHex">#BBBBBB</span>
+        <span class="color-hex" id="colorBodyHex">#C20820</span>
       </div>
       <div class="color-row">
-        <input type="color" class="color-swatch-input" id="colorEmboss" value="#ff6600">
+        <input type="color" class="color-swatch-input" id="colorEmboss" value="#131211">
         <span class="color-label">Emboss</span>
-        <span class="color-hex" id="colorEmbossHex">#FF6600</span>
+        <span class="color-hex" id="colorEmbossHex">#131211</span>
       </div>
       <div class="color-row">
-        <input type="color" class="color-swatch-input" id="colorDeboss" value="#0066ff">
+        <input type="color" class="color-swatch-input" id="colorDeboss" value="#f5f5f5">
         <span class="color-label">Deboss</span>
-        <span class="color-hex" id="colorDebossHex">#0066FF</span>
+        <span class="color-hex" id="colorDebossHex">#F5F5F5</span>
       </div>
       <hr class="section-sep">
       <div class="form-label"><span>Presets</span></div>
@@ -335,9 +341,15 @@
       <button type="button" class="tool-btn" id="toolBox" title="Drag a box to paint faces">Box paint</button>
       <div class="tool-sep"></div>
       <span class="paint-target-row" title="Paint colour (AMS slot)">
-        <button type="button" class="paint-target active" id="targetBody" title="Body" style="background:#c20820"></button>
-        <button type="button" class="paint-target" id="targetEmboss" title="Emboss" style="background:#131111"></button>
-        <button type="button" class="paint-target" id="targetDeboss" title="Deboss" style="background:#C8DBFA"></button>
+        <button type="button" class="paint-target active" id="targetBody" title="Body — paints whole box (eraser for emboss)">
+          <span class="swatch" id="swatchBody" style="background:#c20820"></span>Body
+        </button>
+        <button type="button" class="paint-target" id="targetEmboss" title="Emboss — constrained to Detect when lock is on">
+          <span class="swatch" id="swatchEmboss" style="background:#131211"></span>Emboss
+        </button>
+        <button type="button" class="paint-target" id="targetDeboss" title="Deboss / 3rd colour — free-paints if nothing detected">
+          <span class="swatch" id="swatchDeboss" style="background:#f5f5f5"></span>Deboss
+        </button>
       </span>
       <div class="tool-sep"></div>
       <button type="button" class="tool-btn" id="zoomOutBtn" title="Zoom out">−</button>
@@ -414,7 +426,7 @@
     <span class="status-dot idle" id="statusDot"></span>
     <span id="statusText">Ready — load an STL to begin</span>
   </div>
-  <span>MakerDeck b406 — STL Painter</span>
+  <span>MakerDeck b407 — STL Painter</span>
 </footer>
 
 <!-- Main Script -->
@@ -427,7 +439,7 @@ import {
   detectFeatures,
   cleanClusters,
   export3MF
-} from './js/painter.js?v=406';
+} from './js/painter.js?v=407';
 
 /* ------------------------------------------------------------------ */
 /*  State                                                             */
@@ -556,13 +568,16 @@ const detectHint = document.getElementById('detectHint');
 const DETECT_PRESETS = {
   fine: {
     mode: 'emboss',
-    sensitivity: 0.30,
-    smoothIter: 100,
-    minCluster: 1.0,
+    sensitivity: 0.22,
+    smoothIter: 120,
+    minCluster: 0.5,
     adaptive: true,
     ridgeTop: true,
-    morphClose: 2,
-    morphOpen: 0,
+    morphClose: 1,
+    morphOpen: 1,
+    scoreSmooth: 2,
+    hysteresis: 0.55,
+    majority: 2,
   },
   bold: {
     mode: 'both',
@@ -573,10 +588,18 @@ const DETECT_PRESETS = {
     ridgeTop: false,
     morphClose: 1,
     morphOpen: 1,
+    scoreSmooth: 1,
+    hysteresis: 0.65,
+    majority: 1,
   },
 };
 
 let activeDetectPreset = 'fine';
+let detectRefine = {
+  scoreSmooth: DETECT_PRESETS.fine.scoreSmooth,
+  hysteresis: DETECT_PRESETS.fine.hysteresis,
+  majority: DETECT_PRESETS.fine.majority,
+};
 
 function updateSensitivityLabel() {
   if (sensitivityLabel) {
@@ -597,6 +620,9 @@ function getDetectOpts() {
     ridgeTop: ridgeTopCheck.checked,
     morphCloseSteps: parseInt(morphCloseSlider.value, 10),
     morphOpenSteps: parseInt(morphOpenSlider.value, 10),
+    scoreSmoothPasses: detectRefine.scoreSmooth,
+    hysteresis: detectRefine.hysteresis,
+    majorityPasses: detectRefine.majority,
   };
 }
 
@@ -631,6 +657,11 @@ function applyDetectPreset(name) {
   morphCloseVal.textContent = String(p.morphClose);
   morphOpenSlider.value = String(p.morphOpen);
   morphOpenVal.textContent = String(p.morphOpen);
+  detectRefine = {
+    scoreSmooth: p.scoreSmooth ?? 2,
+    hysteresis: p.hysteresis ?? 0.55,
+    majority: p.majority ?? 1,
+  };
   updateSensitivityLabel();
   setDetectPresetActive(name);
   invalidateFeatureMasks();
@@ -709,27 +740,35 @@ updateSensitivityLabel();
 /*  Color Pickers                                                     */
 /* ------------------------------------------------------------------ */
 
+function syncPaintSwatches() {
+  const sb = document.getElementById('swatchBody');
+  const se = document.getElementById('swatchEmboss');
+  const sd = document.getElementById('swatchDeboss');
+  if (sb) sb.style.background = colorBody.value;
+  if (se) se.style.background = colorEmboss.value;
+  if (sd) sd.style.background = colorDeboss.value;
+}
+
 colorBody.addEventListener('input', () => {
   colorBodyHex.textContent = colorBody.value.toUpperCase();
-  document.getElementById('targetBody').style.background = colorBody.value;
+  syncPaintSwatches();
   updateMeshColors();
 });
 colorEmboss.addEventListener('input', () => {
   colorEmbossHex.textContent = colorEmboss.value.toUpperCase();
-  document.getElementById('targetEmboss').style.background = colorEmboss.value;
+  syncPaintSwatches();
   updateMeshColors();
 });
 colorDeboss.addEventListener('input', () => {
   colorDebossHex.textContent = colorDeboss.value.toUpperCase();
-  document.getElementById('targetDeboss').style.background = colorDeboss.value;
+  syncPaintSwatches();
   updateMeshColors();
 });
-document.getElementById('targetBody').style.background = colorBody.value;
-document.getElementById('targetEmboss').style.background = colorEmboss.value;
-document.getElementById('targetDeboss').style.background = colorDeboss.value;
+syncPaintSwatches();
 
 // Preset colors
 const presets = [
+  { name: 'Spidey',  body: '#C20820', emboss: '#131211', deboss: '#F5F5F5' },
   { name: 'White',   body: '#FFFFFF', emboss: '#FF0000', deboss: '#0000FF' },
   { name: 'Black',   body: '#222222', emboss: '#FFD700', deboss: '#00CED1' },
   { name: 'Silver',  body: '#BBBBBB', emboss: '#FF6600', deboss: '#0066FF' },
@@ -747,12 +786,10 @@ for (const p of presets) {
   sw.style.background = p.body;
   sw.title = p.name;
   sw.addEventListener('click', () => {
-    colorBody.value = p.body; colorBodyHex.textContent = p.body;
-    colorEmboss.value = p.emboss; colorEmbossHex.textContent = p.emboss;
-    colorDeboss.value = p.deboss; colorDebossHex.textContent = p.deboss;
-    document.getElementById('targetBody').style.background = p.body;
-    document.getElementById('targetEmboss').style.background = p.emboss;
-    document.getElementById('targetDeboss').style.background = p.deboss;
+    colorBody.value = p.body; colorBodyHex.textContent = p.body.toUpperCase();
+    colorEmboss.value = p.emboss; colorEmbossHex.textContent = p.emboss.toUpperCase();
+    colorDeboss.value = p.deboss; colorDebossHex.textContent = p.deboss.toUpperCase();
+    syncPaintSwatches();
     updateMeshColors();
   });
   presetRow.appendChild(sw);
@@ -959,23 +996,27 @@ function ensureFeatureMasks() {
 
 function filterFacesForPaint(faceIndices, target) {
   const constrain = document.getElementById('constrainBox')?.checked !== false;
-  if (!constrain || target === 'body') return faceIndices;
-  if (!ensureFeatureMasks()) return faceIndices;
+  if (!constrain || target === 'body') {
+    return { faces: faceIndices, freeFallback: false };
+  }
+  if (!ensureFeatureMasks()) {
+    return { faces: faceIndices, freeFallback: true };
+  }
   const feat = target === 'emboss' ? state.featureEmboss : state.featureDeboss;
-  if (!feat) return faceIndices;
-  return faceIndices.filter(i => feat[i]);
+  if (!feat) return { faces: faceIndices, freeFallback: true };
+  const filtered = faceIndices.filter(i => feat[i]);
+  // No detected features in the box → free-paint that AMS colour (fixes Deboss/red eyes etc.)
+  if (!filtered.length) {
+    return { faces: faceIndices, freeFallback: true };
+  }
+  return { faces: filtered, freeFallback: false };
 }
 
 function paintFaces(faceIndices, target) {
   if (!state.embossMask || !state.debossMask) return;
-  const faces = filterFacesForPaint(faceIndices, target);
+  const { faces, freeFallback } = filterFacesForPaint(faceIndices, target);
   if (!faces.length) {
-    setStatus(
-      target === 'body'
-        ? 'No faces in that box'
-        : `No detected ${target} faces in that box — run Detect Features or widen Sensitivity`,
-      'idle'
-    );
+    setStatus('No faces in that box — zoom in or drag a larger area', 'idle');
     return;
   }
   pushUndo();
@@ -995,12 +1036,19 @@ function paintFaces(faceIndices, target) {
   recountPaint();
   exportBtn.disabled = false;
   const skipped = faceIndices.length - faces.length;
-  setStatus(
-    skipped > 0
-      ? `Painted ${faces.length.toLocaleString()} ${target} faces (${skipped.toLocaleString()} skipped — not detected ${target})`
-      : `Painted ${faces.length.toLocaleString()} faces → ${target}`,
-    'idle'
-  );
+  if (freeFallback && target !== 'body') {
+    setStatus(
+      `Painted ${faces.length.toLocaleString()} faces → ${target} (free paint — no detected ${target} in box)`,
+      'idle'
+    );
+  } else if (skipped > 0) {
+    setStatus(
+      `Painted ${faces.length.toLocaleString()} ${target} faces (${skipped.toLocaleString()} skipped — not detected ${target})`,
+      'idle'
+    );
+  } else {
+    setStatus(`Painted ${faces.length.toLocaleString()} faces → ${target}`, 'idle');
+  }
 }
 
 function frameModel() {
@@ -1032,19 +1080,42 @@ function facesInScreenBox(x0, y0, x1, y1) {
   state.mesh.updateMatrixWorld(true);
   const mat = state.mesh.matrixWorld;
   const v = new THREE.Vector3();
+  const camDir = new THREE.Vector3();
+  camera.getWorldDirection(camDir);
   const hit = [];
   for (let i = 0; i < state.nTri; i++) {
     let cx = 0, cy = 0, cz = 0;
+    let anyIn = false;
+    const world = [];
     for (let k = 0; k < 3; k++) {
       const vi = state.faces[i * 3 + k];
       v.set(state.verts[vi * 3], state.verts[vi * 3 + 1], state.verts[vi * 3 + 2]).applyMatrix4(mat);
+      world.push(v.x, v.y, v.z);
       cx += v.x; cy += v.y; cz += v.z;
+      v.project(camera);
+      if (v.z >= -1 && v.z <= 1) {
+        const sx = (v.x * 0.5 + 0.5) * w;
+        const sy = (-v.y * 0.5 + 0.5) * h;
+        if (sx >= left && sx <= right && sy >= top && sy <= bottom) anyIn = true;
+      }
     }
-    v.set(cx / 3, cy / 3, cz / 3).project(camera);
-    if (v.z < -1 || v.z > 1) continue;
-    const sx = (v.x * 0.5 + 0.5) * w;
-    const sy = (-v.y * 0.5 + 0.5) * h;
-    if (sx >= left && sx <= right && sy >= top && sy <= bottom) hit.push(i);
+    cx /= 3; cy /= 3; cz /= 3;
+    // Prefer front-facing triangles (skip backfaces that make paint look "wrong")
+    const e1x = world[3] - world[0], e1y = world[4] - world[1], e1z = world[5] - world[2];
+    const e2x = world[6] - world[0], e2y = world[7] - world[1], e2z = world[8] - world[2];
+    const nx = e1y * e2z - e1z * e2y;
+    const ny = e1z * e2x - e1x * e2z;
+    const nz = e1x * e2y - e1y * e2x;
+    if (nx * camDir.x + ny * camDir.y + nz * camDir.z > 0) continue; // facing away
+
+    if (!anyIn) {
+      v.set(cx, cy, cz).project(camera);
+      if (v.z < -1 || v.z > 1) continue;
+      const sx = (v.x * 0.5 + 0.5) * w;
+      const sy = (-v.y * 0.5 + 0.5) * h;
+      if (sx < left || sx > right || sy < top || sy > bottom) continue;
+    }
+    hit.push(i);
   }
   return hit;
 }
@@ -1069,7 +1140,7 @@ function setTool(tool) {
   controls.enablePan = tool === 'orbit';
   viewport.classList.toggle('select-mode', tool === 'box');
   viewportHint.textContent = tool === 'box'
-    ? 'Box paint: Emboss/Deboss only hits detected features in the box · Body fills all · right-drag orbits'
+    ? 'Box paint: Body = red/base (whole box) · Emboss/Deboss lock to Detect when possible · free-paint if none · right-drag orbits'
     : 'Orbit: drag rotate · scroll zoom · Shift+pan · double-click zoom to point';
 }
 

@@ -2,14 +2,14 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b406 STL Painter emboss detection (see makerforge/SESSION_NEXT.md)
+- Latest commit: MakerDeck b407 STL Painter red paint + smoother emboss
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
 
-### 2026-07-19 feature (MakerDeck b406 — better emboss detect)
+### 2026-07-19 fix (MakerDeck b407 — Spidey red + smoother emboss)
 
-**Need:** Fine webbing (Spidey) detects cleaner — fewer holes, less body/side-wall paint.
+**Need:** Couldn’t paint red on Spidey; emboss still rough.
 
-**What shipped:** Adaptive percentile threshold, ridge-top scoring, morph close/open, Fine detail / Text bold presets. Cache-bust `painter.js?v=406`.
+**What shipped:** Spidey colour defaults/preset, labeled Body paint for red, free-paint fallback when Detect has nothing in the box, smoother emboss (score smooth + hysteresis + majority). Cache-bust `painter.js?v=407`.
 
 **Deploy:** Hard refresh Painter page (no backend restart).
 

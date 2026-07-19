@@ -1,5 +1,5 @@
 /**
- * MakerDeck STL Painter Engine — b406
+ * MakerDeck STL Painter Engine — b407
  * Pure computation module: STL parsing, feature detection, 3MF export.
  */
 
@@ -134,6 +134,67 @@ export function morphOpen(mask, faceAdj, nTri, steps) {
   morphDilate(mask, faceAdj, nTri, steps);
 }
 
+/** Neighbour majority vote — cleans stair-step / speckled boundaries. */
+export function majorityFilter(mask, faceAdj, nTri, passes = 1) {
+  if (passes <= 0) return;
+  for (let p = 0; p < passes; p++) {
+    const next = mask.slice();
+    for (let i = 0; i < nTri; i++) {
+      let on = mask[i] ? 1 : 0;
+      let total = 1;
+      for (const nb of faceAdj[i]) {
+        total++;
+        if (mask[nb]) on++;
+      }
+      next[i] = on * 2 >= total ? 1 : 0;
+    }
+    mask.set(next);
+  }
+}
+
+function smoothFaceScores(scores, faceAdj, nTri, passes) {
+  if (passes <= 0) return scores;
+  let cur = scores;
+  for (let p = 0; p < passes; p++) {
+    const next = new Float32Array(nTri);
+    for (let i = 0; i < nTri; i++) {
+      let s = cur[i];
+      let n = 1;
+      for (const nb of faceAdj[i]) {
+        s += cur[nb];
+        n++;
+      }
+      next[i] = s / n;
+    }
+    cur = next;
+  }
+  return cur;
+}
+
+function growByHysteresis(scores, nTri, faceAdj, highThr, lowThr, positive) {
+  const mask = new Uint8Array(nTri);
+  const queue = [];
+  for (let i = 0; i < nTri; i++) {
+    const ok = positive ? scores[i] >= highThr : scores[i] <= -highThr;
+    if (ok) {
+      mask[i] = 1;
+      queue.push(i);
+    }
+  }
+  while (queue.length) {
+    const fi = queue.pop();
+    for (const nb of faceAdj[fi]) {
+      if (mask[nb]) continue;
+      const ok = positive ? scores[nb] >= lowThr : scores[nb] <= -lowThr;
+      if (ok) {
+        mask[nb] = 1;
+        queue.push(nb);
+      }
+    }
+  }
+  return mask;
+}
+
 function percentileCut(sortedAsc, keepTopFraction) {
   if (!sortedAsc.length) return Infinity;
   const keep = Math.min(0.95, Math.max(0.05, keepTopFraction));
@@ -156,6 +217,9 @@ export function detectFeatures(verts, faces, nVerts, nTri, opts = {}) {
     ridgeTop = true,
     morphCloseSteps = 0,
     morphOpenSteps = 0,
+    scoreSmoothPasses = 2,
+    hysteresis = 0.55, // lowThr = highThr * hysteresis; 1 = off
+    majorityPasses = 1,
   } = opts;
 
   // 1. Build adjacency
@@ -275,15 +339,27 @@ export function detectFeatures(verts, faces, nVerts, nTri, opts = {}) {
       const olen = Math.sqrt(ox * ox + oy * oy + oz * oz);
       if (olen > 1e-10) {
         ox /= olen; oy /= olen; oz /= olen;
+        // Signed alignment: ridge caps face along the offset; side walls do not.
         const dot = fnx * ox + fny * oy + fnz * oz;
-        // Prefer faces whose normal aligns with the displacement (ridge caps).
-        align = 0.2 + 0.8 * Math.max(0, Math.abs(dot));
+        align = 0.12 + 0.88 * Math.max(0, dot);
       } else {
-        align = 0.2;
+        align = 0.12;
       }
     }
     embossScores[i] = avg > 0 ? avg * align : avg;
     debossScores[i] = avg < 0 ? avg * align : avg;
+  }
+
+  // Need face adjacency for score smooth / hysteresis / morph / majority
+  const needAdj = scoreSmoothPasses > 0 || hysteresis < 0.999
+    || morphCloseSteps > 0 || morphOpenSteps > 0 || majorityPasses > 0;
+  const faceAdj = needAdj ? buildFaceAdj(faces, nTri) : null;
+
+  let embossScoresUse = embossScores;
+  let debossScoresUse = debossScores;
+  if (faceAdj && scoreSmoothPasses > 0) {
+    if (wantEmboss) embossScoresUse = smoothFaceScores(embossScores, faceAdj, nTri, scoreSmoothPasses);
+    if (wantDeboss) debossScoresUse = smoothFaceScores(debossScores, faceAdj, nTri, scoreSmoothPasses);
   }
 
   // 6. Resolve thresholds (adaptive percentile or absolute mm)
@@ -294,7 +370,7 @@ export function detectFeatures(verts, faces, nVerts, nTri, opts = {}) {
     if (wantEmboss) {
       const pos = [];
       for (let i = 0; i < nTri; i++) {
-        if (embossScores[i] > absFloor) pos.push(embossScores[i]);
+        if (embossScoresUse[i] > absFloor) pos.push(embossScoresUse[i]);
       }
       pos.sort((x, y) => x - y);
       embossThr = Math.max(absFloor, percentileCut(pos, keepTop));
@@ -302,7 +378,7 @@ export function detectFeatures(verts, faces, nVerts, nTri, opts = {}) {
     if (wantDeboss) {
       const neg = [];
       for (let i = 0; i < nTri; i++) {
-        if (debossScores[i] < -absFloor) neg.push(-debossScores[i]);
+        if (debossScoresUse[i] < -absFloor) neg.push(-debossScoresUse[i]);
       }
       neg.sort((x, y) => x - y);
       debossThr = Math.max(absFloor, percentileCut(neg, keepTop));
@@ -312,38 +388,50 @@ export function detectFeatures(verts, faces, nVerts, nTri, opts = {}) {
     debossThr = Math.max(absFloor, threshold);
   }
 
-  // 7. Classify faces
-  const embossMask = new Uint8Array(nTri);
-  const debossMask = new Uint8Array(nTri);
-  let embossCount = 0, debossCount = 0;
+  // 7. Classify (hysteresis grow when enabled — smoother region edges)
+  let embossMask = new Uint8Array(nTri);
+  let debossMask = new Uint8Array(nTri);
+  const useHyst = faceAdj && hysteresis > 0 && hysteresis < 0.999;
 
-  for (let i = 0; i < nTri; i++) {
-    if (wantEmboss && embossScores[i] >= embossThr) {
-      embossMask[i] = 1;
-      embossCount++;
+  if (wantEmboss) {
+    if (useHyst) {
+      const low = embossThr * hysteresis;
+      embossMask = growByHysteresis(embossScoresUse, nTri, faceAdj, embossThr, low, true);
+    } else {
+      for (let i = 0; i < nTri; i++) {
+        if (embossScoresUse[i] >= embossThr) embossMask[i] = 1;
+      }
     }
-    if (wantDeboss && debossScores[i] <= -debossThr) {
-      debossMask[i] = 1;
-      debossCount++;
+  }
+  if (wantDeboss) {
+    if (useHyst) {
+      const low = debossThr * hysteresis;
+      debossMask = growByHysteresis(debossScoresUse, nTri, faceAdj, debossThr, low, false);
+    } else {
+      for (let i = 0; i < nTri; i++) {
+        if (debossScoresUse[i] <= -debossThr) debossMask[i] = 1;
+      }
     }
   }
 
-  // 8. Morphological cleanup (close pinholes, optional open for noise)
-  if (morphCloseSteps > 0 || morphOpenSteps > 0) {
-    const faceAdj = buildFaceAdj(faces, nTri);
-    if (wantEmboss && embossCount > 0) {
+  // 8. Morph + majority cleanup
+  if (faceAdj) {
+    if (wantEmboss) {
       morphClose(embossMask, faceAdj, nTri, morphCloseSteps);
       morphOpen(embossMask, faceAdj, nTri, morphOpenSteps);
+      majorityFilter(embossMask, faceAdj, nTri, majorityPasses);
     }
-    if (wantDeboss && debossCount > 0) {
+    if (wantDeboss) {
       morphClose(debossMask, faceAdj, nTri, morphCloseSteps);
       morphOpen(debossMask, faceAdj, nTri, morphOpenSteps);
+      majorityFilter(debossMask, faceAdj, nTri, majorityPasses);
     }
-    embossCount = 0; debossCount = 0;
-    for (let i = 0; i < nTri; i++) {
-      if (embossMask[i]) embossCount++;
-      if (debossMask[i]) debossCount++;
-    }
+  }
+
+  let embossCount = 0, debossCount = 0;
+  for (let i = 0; i < nTri; i++) {
+    if (embossMask[i]) embossCount++;
+    if (debossMask[i]) debossCount++;
   }
 
   return {

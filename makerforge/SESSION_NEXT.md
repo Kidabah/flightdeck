@@ -1,3 +1,15 @@
+### 2026-07-19 — b407: STL Painter — red paint + smoother emboss
+
+Fixes Chris couldn’t paint Spidey red + rough emboss edges:
+- Default **Spidey** colours (red body / black emboss / white deboss) + Spidey colour preset
+- Labeled Body/Emboss/Deboss paint chips — Body paints whole box (red)
+- Constrain falls back to **free paint** when no detected features in the box (Deboss eyes/accents work)
+- Box select: front-faces + any vertex in rect (not just centroid)
+- Cleaner detect: score neighbour smooth, hysteresis grow, majority filter, stricter ridge tops; Fine detail morph less aggressive
+- Cache-bust: `painter.js?v=407`. Hard refresh.
+
+Files: `painter.html`, `js/painter.js`, `SESSION_NEXT.md`.
+
 ### 2026-07-19 — b406: STL Painter — better emboss detection
 
 Detection upgrade for fine webbing / logos:
