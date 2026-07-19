@@ -3,646 +3,505 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STL Painter — MakerDeck b423</title>
+<title>STL Painter · MakerDeck</title>
 <script type="importmap">
-{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/" } }
+{ "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"
+} }
 </script>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@500&display=swap');
-  :root {
-    --bg: #060a10;
-    --bg-glow: #0c1828;
-    --panel: #0d1520;
-    --panel-2: #121c2a;
-    --border: #243246;
-    --text: #f1f5f9;
-    --muted: #8b9cb3;
-    --accent: #3ecfff;
-    --accent-dim: rgba(62, 207, 255, 0.14);
-    --green: #34d399;
-    --orange: #fbbf24;
-    --red: #f87171;
-    --slot-a: #c20820;
-    --slot-b: #131211;
-    --slot-c: #f5f5f5;
-    --slot-d: #1e40af;
-    --shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
-    --radius: 12px;
-  }
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: 'DM Sans', system-ui, sans-serif;
-    background:
-      radial-gradient(900px 480px at 18% -10%, rgba(62, 207, 255, 0.08), transparent 55%),
-      radial-gradient(700px 420px at 90% 0%, rgba(52, 211, 153, 0.05), transparent 50%),
-      var(--bg);
-    color: var(--text);
-    display: flex; flex-direction: column; height: 100vh; overflow: hidden;
-    -webkit-font-smoothing: antialiased;
-  }
+/* ================================================================== */
+/*  b500 — MakerDeck STL Painter  (tabbed layout)                     */
+/* ================================================================== */
 
-  .header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 14px 22px; border-bottom: 1px solid var(--border);
-    background: rgba(13, 21, 32, 0.92); backdrop-filter: blur(10px); flex-shrink: 0;
-  }
-  .header-brand { display: flex; flex-direction: column; gap: 2px; }
-  .header-eyebrow {
-    font-size: 10px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;
-    color: var(--accent);
-  }
-  .header-title { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
-  .header-subtitle { font-size: 12px; color: var(--muted); }
-  .header-nav { display: flex; gap: 8px; }
-  .header-nav a {
-    font-size: 12px; color: var(--muted); text-decoration: none;
-    padding: 7px 12px; border-radius: 8px; border: 1px solid transparent; transition: 0.15s;
-  }
-  .header-nav a:hover { color: var(--text); border-color: var(--border); background: var(--panel-2); }
+/* -- Reset & Vars -------------------------------------------------- */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#060a10; --panel:#0d1520; --panel-2:#121c2a;
+  --border:#243246; --text:#f1f5f9; --muted:#8b9cb3;
+  --accent:#3ecfff; --accent-dim:rgba(62,207,255,.12);
+  --green:#34d399; --red:#f87171; --amber:#fbbf24;
+  --radius:8px; --radius-sm:5px;
+  --sidebar-w:264px; --header-h:42px; --footer-h:32px; --tab-h:38px;
+  --bottom-h:0px; /* grows when components panel opens */
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
+  font:13px/1.45 'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif}
+code,pre,.mono{font-family:'JetBrains Mono',monospace;font-size:12px}
+button{cursor:pointer;border:none;background:none;color:inherit;font:inherit}
+input[type=range]{width:100%;accent-color:var(--accent)}
+select{background:var(--panel-2);color:var(--text);border:1px solid var(--border);
+  border-radius:var(--radius-sm);padding:4px 8px;font:inherit;width:100%}
+::selection{background:var(--accent);color:var(--bg)}
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
 
-  .main { display: flex; flex: 1; overflow: hidden; min-height: 0; }
-  .sidebar {
-    width: 300px; min-width: 280px; flex-shrink: 0; border-right: 1px solid var(--border);
-    background: rgba(13, 21, 32, 0.88); overflow-y: auto;
-    display: flex; flex-direction: column; gap: 0;
-    position: relative; z-index: 6; pointer-events: auto;
-  }
-  .sidebar-right {
-    width: 240px; min-width: 200px; flex-shrink: 0; border-left: 1px solid var(--border);
-    background: rgba(13, 21, 32, 0.88); overflow-y: auto;
-    position: relative; z-index: 6; pointer-events: auto;
-  }
-  .viewport {
-    flex: 1; position: relative; z-index: 1; min-width: 0;
-    background:
-      radial-gradient(ellipse 70% 55% at 50% 40%, var(--bg-glow), transparent 70%),
-      var(--bg);
-  }
-  .viewport canvas {
-    display: block; width: 100%; height: 100%;
-    position: relative; z-index: 0;
-  }
+/* -- Layout -------------------------------------------------------- */
+.app{display:grid;height:100vh;
+  grid-template-rows:var(--header-h) 1fr var(--bottom-h) var(--footer-h);
+  grid-template-columns:var(--sidebar-w) 1fr;
+  grid-template-areas:
+    "header  header"
+    "sidebar viewport"
+    "bottom  bottom"
+    "footer  footer";
+}
+.app.bottom-open{--bottom-h:164px}
+.app.sidebar-collapsed{--sidebar-w:0px}
 
-  .flow-panel {
-    padding: 16px 16px 14px;
-    border-bottom: 1px solid var(--border);
-  }
-  .flow-step {
-    display: flex; align-items: baseline; gap: 8px; margin-bottom: 12px;
-  }
-  .flow-num {
-    font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
-    color: var(--accent); font-family: 'JetBrains Mono', monospace;
-  }
-  .flow-title {
-    font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
-    color: var(--text);
-  }
-  .flow-desc { font-size: 11px; color: var(--muted); margin: -6px 0 12px; line-height: 1.35; }
+/* -- Header -------------------------------------------------------- */
+.header{grid-area:header;display:flex;align-items:center;gap:10px;
+  padding:0 14px;background:var(--panel);border-bottom:1px solid var(--border);z-index:20}
+.header .logo{font-weight:700;font-size:14px;letter-spacing:.3px;white-space:nowrap}
+.header .logo span{color:var(--accent)}
+.header .build{color:var(--muted);font-size:11px;margin-left:auto}
+.header .toggle-sidebar{width:28px;height:28px;display:flex;align-items:center;justify-content:center;
+  border-radius:var(--radius-sm);color:var(--muted);transition:background .15s}
+.header .toggle-sidebar:hover{background:var(--accent-dim);color:var(--text)}
 
-  .drop-zone {
-    border: 1.5px dashed var(--border); border-radius: var(--radius);
-    padding: 22px 14px; text-align: center; cursor: pointer; transition: 0.2s;
-  }
-  .drop-zone:hover, .drop-zone.dragover {
-    border-color: var(--accent); background: var(--accent-dim);
-  }
-  .drop-zone-icon { font-size: 22px; color: var(--muted); display: block; margin-bottom: 6px; }
-  .drop-zone-text { font-size: 12px; color: var(--muted); line-height: 1.4; }
-  .drop-zone-text strong { color: var(--text); }
-  .drop-zone input[type="file"] { display: none; }
+/* -- Sidebar ------------------------------------------------------- */
+.sidebar{grid-area:sidebar;display:flex;flex-direction:column;
+  background:var(--panel);border-right:1px solid var(--border);overflow:hidden;
+  transition:width .2s;min-width:0}
+.sidebar-collapsed .sidebar{width:0;border-right:none}
 
-  .slot-list { display: flex; flex-direction: column; gap: 8px; }
-  .slot-card {
-    display: grid; grid-template-columns: 36px 1fr auto; gap: 10px; align-items: center;
-    padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border);
-    background: var(--panel-2); cursor: pointer; transition: 0.15s;
-  }
-  .slot-card:hover { border-color: #3a4f6a; }
-  .slot-card.active {
-    border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent);
-    background: var(--accent-dim);
-  }
-  .slot-card .color-swatch-input {
-    width: 32px; height: 32px; border: none; border-radius: 8px; padding: 0;
-    cursor: pointer; background: none; appearance: none; -webkit-appearance: none;
-  }
-  .slot-card .color-swatch-input::-webkit-color-swatch-wrapper { padding: 0; }
-  .slot-card .color-swatch-input::-webkit-color-swatch { border: none; border-radius: 8px; }
-  .slot-meta { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-  .slot-name { font-size: 13px; font-weight: 600; color: var(--text); }
-  .slot-role { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
-  .slot-hex {
-    font-size: 11px; color: var(--accent); font-family: 'JetBrains Mono', monospace;
-  }
-  .preset-row { display: flex; gap: 5px; margin-top: 10px; flex-wrap: wrap; }
-  .preset-swatch {
-    width: 20px; height: 20px; border-radius: 5px; border: 2px solid transparent;
-    cursor: pointer; transition: 0.15s;
-  }
-  .preset-swatch:hover { border-color: var(--text); transform: scale(1.12); }
+.tab-bar{display:flex;height:var(--tab-h);border-bottom:1px solid var(--border);flex-shrink:0}
+.tab-btn{flex:1;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;
+  color:var(--muted);border-bottom:2px solid transparent;transition:color .15s,border-color .15s}
+.tab-btn:hover{color:var(--text)}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
 
-  .paint-colour-row {
-    display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px;
-  }
-  .paint-colour-chip {
-    position: relative;
-    display: flex; flex-direction: column; align-items: stretch; gap: 4px;
-    padding: 8px 4px 6px; border-radius: 10px;
-    border: 1px solid var(--border); background: var(--panel-2);
-    font-family: inherit; color: var(--muted);
-    transition: 0.15s;
-  }
-  .paint-colour-chip:hover { border-color: #3a4f6a; color: var(--text); }
-  .paint-colour-chip.active {
-    border-color: var(--accent); color: var(--text);
-    box-shadow: 0 0 0 1px var(--accent); background: var(--accent-dim);
-  }
-  .paint-colour-chip .chip-swatch-hit {
-    display: flex; flex-direction: column; align-items: center; gap: 4px;
-    border: none; background: transparent; padding: 0; cursor: pointer;
-    color: inherit; font-family: inherit;
-  }
-  .paint-colour-chip.dimmed { opacity: 0.55; }
-  .paint-colour-chip.dimmed .chip-swatch { outline: 1px dashed var(--red); }
-  .paint-colour-chip .chip-swatch {
-    width: 22px; height: 22px; border-radius: 6px;
-    border: 1px solid rgba(255,255,255,0.22);
-  }
-  .paint-colour-chip .chip-label {
-    font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
-  }
-  .paint-colour-chip .chip-hide {
-    margin-top: 2px; width: 100%;
-    border: 1px solid var(--border); border-radius: 5px;
-    background: var(--panel); color: var(--muted);
-    font-size: 9px; font-weight: 700; letter-spacing: 0.04em;
-    padding: 3px 0; cursor: pointer; font-family: inherit;
-    text-transform: uppercase;
-  }
-  .paint-colour-chip .chip-hide:hover { color: var(--text); border-color: #3a4f6a; }
-  .paint-colour-chip .chip-hide.off {
-    color: var(--red); border-color: rgba(248, 113, 113, 0.45);
-    background: rgba(248, 113, 113, 0.1);
-  }
-  .colour-help {
-    margin: 6px 0 0; font-size: 10px; color: var(--muted); line-height: 1.35;
-  }
-  .easy-tip {
-    margin: 0 0 10px; padding: 8px 10px; border-radius: 8px;
-    background: rgba(62, 207, 255, 0.08); border: 1px solid rgba(62, 207, 255, 0.18);
-    font-size: 11px; color: var(--muted); line-height: 1.4;
-  }
-  .easy-tip strong { color: var(--accent); font-weight: 600; }
-  .collapse-toggle {
-    width: 100%; margin-top: 10px; padding: 8px 10px;
-    border-radius: 8px; border: 1px dashed var(--border);
-    background: transparent; color: var(--muted); font-size: 11px; font-weight: 600;
-    cursor: pointer; font-family: inherit; text-align: left;
-  }
-  .collapse-toggle:hover { color: var(--text); border-color: #3a4f6a; }
-  .collapse-body { display: none; margin-top: 10px; }
-  .collapse-body.open { display: block; }
-  .res-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
-  .res-meta { font-size: 11px; color: var(--muted); margin-top: 6px; line-height: 1.35; }
-  .solo-row {
-    display: flex; align-items: center; gap: 8px; margin: 8px 0 0;
-    font-size: 11px; color: var(--muted); cursor: pointer; user-select: none;
-  }
-  .solo-row input { accent-color: var(--accent); }
-  .solo-row.active { color: var(--accent); }
-  .section-label {
-    font-size: 10px; font-weight: 700; color: var(--muted);
-    text-transform: uppercase; letter-spacing: 0.08em;
-    margin: 0 0 8px;
-  }
-  .tool-grid {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
-  }
-  .tool-grid.brush-types { grid-template-columns: 1fr 1fr 1fr; margin-bottom: 8px; }
-  .tool-grid.secondary { grid-template-columns: 1fr 1fr 1fr 1fr; margin-top: 6px; }
-  .tool-toggle {
-    border: 1px solid var(--border); background: var(--panel-2); color: var(--muted);
-    border-radius: 10px; padding: 10px 8px; font-size: 12px; font-weight: 600;
-    cursor: pointer; transition: 0.15s; font-family: inherit; text-align: center;
-  }
-  .tool-grid.secondary .tool-toggle { padding: 7px 4px; font-size: 10px; }
-  .tool-toggle:hover { color: var(--text); border-color: #3a4f6a; }
-  .tool-toggle.active {
-    color: var(--accent); border-color: var(--accent); background: var(--accent-dim);
-  }
-  .tool-toggle.wide { grid-column: 1 / -1; }
-  .stroke-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
-  .stroke-btn {
-    border: 1px solid var(--border); background: var(--panel-2); color: var(--muted);
-    border-radius: 8px; padding: 7px 4px; font-size: 11px; font-weight: 600;
-    cursor: pointer; font-family: inherit;
-  }
-  .stroke-btn:hover { color: var(--text); }
-  .stroke-btn.active {
-    color: var(--accent); border-color: var(--accent); background: var(--accent-dim);
-  }
-  .lock-row {
-    margin-top: 10px; display: flex; align-items: center; gap: 8px;
-    font-size: 12px; color: var(--muted); cursor: pointer; user-select: none;
-  }
-  .lock-row input { accent-color: var(--accent); }
-  .lock-row.active { color: var(--accent); }
-  .viewport.brush-mode { cursor: none; }
-  .viewport.eyedrop-mode { cursor: crosshair; }
+.tab-body{flex:1;overflow-y:auto;overflow-x:hidden;padding:10px 12px 16px}
+.tab-page{display:none}
+.tab-page.active{display:block}
 
-  .opts-panel { display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
-  .opts-panel.visible { display: block; }
-  .opts-panel .form-group { margin-bottom: 10px; }
-  .form-label {
-    font-size: 11px; font-weight: 500; color: var(--muted); margin-bottom: 5px;
-    display: flex; justify-content: space-between;
-  }
-  .form-label .value { color: var(--accent); font-variant-numeric: tabular-nums; font-family: 'JetBrains Mono', monospace; font-size: 10px; }
-  select, input[type="number"] {
-    width: 100%; padding: 8px 10px; border-radius: 8px;
-    border: 1px solid var(--border); background: var(--panel-2);
-    color: var(--text); font-size: 12px; font-family: inherit; outline: none;
-  }
-  select:focus { border-color: var(--accent); }
-  input[type="range"] {
-    width: 100%; height: 4px; appearance: none; background: var(--border);
-    border-radius: 2px; outline: none; margin-top: 4px;
-  }
-  input[type="range"]::-webkit-slider-thumb {
-    appearance: none; width: 14px; height: 14px; border-radius: 50%;
-    background: var(--accent); cursor: pointer; border: 2px solid var(--bg);
-  }
-  .check-row {
-    display: flex; align-items: flex-start; gap: 8px; cursor: pointer;
-    font-size: 11px; color: var(--muted); line-height: 1.35; margin-bottom: 8px;
-  }
-  .check-row input { margin-top: 2px; accent-color: var(--accent); }
+.section-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;
+  color:var(--muted);margin:14px 0 6px;display:flex;align-items:center;gap:6px}
+.section-label:first-child{margin-top:2px}
 
-  .detect-preset-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
-  .detect-preset-btn {
-    flex: 1; min-width: 64px; padding: 6px 8px; font-size: 11px; font-weight: 600;
-    border-radius: 8px; border: 1px solid var(--border); background: var(--panel-2);
-    color: var(--muted); cursor: pointer; font-family: inherit;
-  }
-  .detect-preset-btn:hover { color: var(--text); }
-  .detect-preset-btn.active { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
-  .detect-hint { color: var(--muted); font-size: 11px; line-height: 1.35; margin-top: 8px; }
+/* -- Drop Zone ----------------------------------------------------- */
+.drop-zone{border:2px dashed var(--border);border-radius:var(--radius);padding:18px 12px;
+  text-align:center;cursor:pointer;transition:border-color .2s,background .2s;
+  color:var(--muted);font-size:12px;line-height:1.4}
+.drop-zone:hover,.drop-zone.dragover{border-color:var(--accent);background:var(--accent-dim)}
+.drop-zone input{display:none}
 
-  .btn {
-    border-radius: 9px; border: 1px solid var(--border);
-    background: var(--panel-2); color: var(--text); font-size: 13px;
-    padding: 9px 14px; cursor: pointer; transition: 0.15s;
-    font-family: inherit; font-weight: 600; display: inline-flex;
-    align-items: center; justify-content: center; gap: 6px; width: 100%;
-  }
-  .btn:hover { border-color: #3a4f6a; }
-  .btn-primary { background: var(--accent); border-color: var(--accent); color: #041018; }
-  .btn-primary:hover { filter: brightness(1.05); }
-  .btn-success { background: var(--green); border-color: var(--green); color: #042016; }
-  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-  .btn-row { display: flex; gap: 8px; }
-  .btn-row .btn { flex: 1; }
+/* -- Slot Cards ---------------------------------------------------- */
+.slot-list{display:flex;flex-direction:column;gap:6px}
+.slot-card{display:flex;align-items:center;gap:8px;padding:6px 8px;
+  border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;
+  transition:border-color .15s,background .15s}
+.slot-card:hover{background:var(--panel-2)}
+.slot-card.active{border-color:var(--accent);background:var(--accent-dim)}
+.slot-card .swatch-wrap{position:relative;width:28px;height:28px;flex-shrink:0}
+.slot-card .swatch-wrap input[type=color]{
+  width:28px;height:28px;border:none;padding:0;cursor:pointer;
+  border-radius:var(--radius-sm);background:transparent}
+.slot-card .swatch-wrap input[type=color]::-webkit-color-swatch-wrapper{padding:0}
+.slot-card .swatch-wrap input[type=color]::-webkit-color-swatch{border:1px solid rgba(255,255,255,.15);border-radius:var(--radius-sm)}
+.slot-card .slot-info{flex:1;min-width:0}
+.slot-card .slot-name{font-size:12px;font-weight:600}
+.slot-card .slot-hex{font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace}
+.slot-card .slot-actions{display:flex;gap:4px}
+.slot-card .slot-btn{font-size:10px;padding:2px 6px;border-radius:3px;
+  color:var(--muted);border:1px solid var(--border);transition:all .15s}
+.slot-card .slot-btn:hover{color:var(--text);border-color:var(--accent)}
+.slot-card .slot-btn.off{color:var(--red);border-color:var(--red)}
 
-  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .stat-item { background: var(--panel-2); border-radius: 8px; padding: 10px; border: 1px solid var(--border); }
-  .stat-value { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
-  .stat-label { font-size: 10px; color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.06em; }
-  .stat-value.emboss { color: var(--orange); }
-  .stat-value.deboss { color: var(--accent); }
-  .stat-value.trim { color: #60a5fa; }
+/* -- Preset Swatches ----------------------------------------------- */
+.preset-row{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
+.preset-swatch{width:20px;height:20px;border-radius:4px;cursor:pointer;
+  border:2px solid transparent;transition:border-color .15s,transform .1s}
+.preset-swatch:hover{border-color:var(--text);transform:scale(1.15)}
 
-  .batch-zone {
-    border: 1px dashed var(--border); border-radius: 8px; padding: 12px;
-    text-align: center; cursor: pointer;
-  }
-  .batch-zone:hover { border-color: var(--accent); }
-  .batch-zone input { display: none; }
-  .batch-zone-text { font-size: 11px; color: var(--muted); }
-  .batch-list { margin-top: 8px; max-height: 120px; overflow-y: auto; }
-  .batch-item { font-size: 11px; color: var(--muted); padding: 3px 0; display: flex; justify-content: space-between; }
-  .batch-item .status.done { color: var(--green); }
+/* -- Buttons & Controls -------------------------------------------- */
+.btn{padding:5px 12px;border-radius:var(--radius-sm);font-size:12px;font-weight:600;
+  background:var(--panel-2);border:1px solid var(--border);color:var(--text);
+  transition:background .15s,border-color .15s}
+.btn:hover{background:var(--accent-dim);border-color:var(--accent)}
+.btn:disabled{opacity:.4;pointer-events:none}
+.btn-primary{background:rgba(62,207,255,.12);border-color:var(--accent);color:var(--accent)}
+.btn-primary:hover{background:rgba(62,207,255,.22)}
+.btn-success{background:rgba(52,211,153,.1);border-color:var(--green);color:var(--green)}
+.btn-success:hover{background:rgba(52,211,153,.2)}
+.btn-row{display:flex;gap:6px;margin-top:6px}
 
-  .footer {
-    padding: 8px 22px; border-top: 1px solid var(--border);
-    background: rgba(13, 21, 32, 0.92); font-size: 11px; color: var(--muted);
-    display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
-  }
-  .footer-status { display: flex; align-items: center; gap: 8px; }
-  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
-  .status-dot.idle { background: var(--muted); }
-  .status-dot.working { background: var(--orange); animation: pulse 1s ease-in-out infinite; }
-  .status-dot.error { background: var(--red); }
-  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+.tool-grid{display:flex;gap:4px;flex-wrap:wrap}
+.tool-toggle{padding:5px 10px;border-radius:var(--radius-sm);font-size:12px;font-weight:600;
+  background:var(--panel-2);border:1px solid var(--border);transition:all .15s}
+.tool-toggle:hover{border-color:var(--accent)}
+.tool-toggle.active{background:var(--accent-dim);border-color:var(--accent);color:var(--accent)}
 
-  .viewport-toolbar {
-    position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
-    display: flex; gap: 6px; align-items: center;
-    background: rgba(13, 21, 32, 0.92); border: 1px solid var(--border);
-    border-radius: 12px; padding: 8px 10px; z-index: 3; box-shadow: var(--shadow);
-    backdrop-filter: blur(8px);
-  }
-  .viewport-toolbar .tool-btn {
-    border: 1px solid var(--border); background: var(--panel-2); color: var(--text);
-    border-radius: 8px; padding: 6px 10px; font-size: 11px; font-weight: 600;
-    cursor: pointer; font-family: inherit;
-  }
-  .viewport-toolbar .tool-btn:hover { border-color: var(--accent); color: var(--accent); }
-  .viewport-toolbar .tool-btn.active {
-    background: var(--accent-dim); border-color: var(--accent); color: var(--accent);
-  }
-  .viewport-toolbar .tool-sep { width: 1px; height: 22px; background: var(--border); margin: 0 2px; }
-  .paint-target-row { display: flex; gap: 6px; align-items: center; }
-  .paint-target {
-    display: inline-flex; align-items: center; gap: 5px;
-    height: 28px; padding: 0 9px 0 5px; border-radius: 8px;
-    border: 1px solid var(--border); cursor: pointer;
-    background: var(--panel-2); color: var(--muted); font-size: 11px; font-weight: 600;
-  }
-  .paint-target .swatch {
-    width: 16px; height: 16px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.2);
-  }
-  .paint-target.active { border-color: var(--accent); color: var(--text); box-shadow: 0 0 0 1px var(--accent); }
+.stroke-row{display:flex;gap:4px}
+.stroke-btn{padding:3px 8px;border-radius:3px;font-size:11px;
+  background:var(--panel-2);border:1px solid var(--border);transition:all .15s}
+.stroke-btn:hover{border-color:var(--accent)}
+.stroke-btn.active{border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
 
-  /* Keep IDs for JS — options live in sidebar */
-  .smart-controls, .edge-controls { display: none !important; }
+.form-group{margin:8px 0}
+.form-label{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:3px}
+.form-label .value{color:var(--accent);font-family:'JetBrains Mono',monospace}
 
-  .smart-cursor {
-    position: absolute; border: 1.5px solid #f5c542; border-radius: 50%;
-    pointer-events: none; z-index: 5; display: none;
-    box-shadow: 0 0 0 1px rgba(0,0,0,0.35);
-  }
-  .select-rect {
-    position: absolute; border: 1.5px solid var(--accent);
-    background: rgba(62, 207, 255, 0.12); pointer-events: none; z-index: 4; display: none;
-  }
-  .viewport.select-mode canvas { cursor: crosshair; }
-  .viewport-hint {
-    position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
-    background: rgba(13, 21, 32, 0.92); border: 1px solid var(--border); border-radius: 10px;
-    padding: 8px 14px; font-size: 11px; color: var(--muted);
-    pointer-events: none; z-index: 2; max-width: min(720px, calc(100% - 24px));
-    text-align: center; line-height: 1.35;
-  }
+.check-row{display:flex;align-items:center;gap:6px;font-size:12px;margin:6px 0;cursor:pointer}
+.check-row input{accent-color:var(--accent)}
 
-  ::-webkit-scrollbar { width: 6px; }
-  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+.solo-row{display:flex;align-items:center;gap:6px;font-size:11px;margin:6px 0;
+  cursor:pointer;color:var(--muted);padding:4px 6px;border-radius:var(--radius-sm);
+  border:1px solid transparent;transition:all .15s}
+.solo-row.active{border-color:var(--amber);color:var(--amber);background:rgba(251,191,36,.06)}
+
+.flow-desc{font-size:11px;color:var(--muted);line-height:1.4}
+
+.opts-panel{display:none;margin-top:8px;padding:8px 10px;
+  background:var(--panel-2);border-radius:var(--radius);border:1px solid var(--border)}
+.opts-panel.visible{display:block}
+
+.collapse-toggle{font-size:11px;color:var(--muted);padding:6px 0;width:100%;text-align:left;
+  transition:color .15s}
+.collapse-toggle:hover{color:var(--text)}
+.collapse-body{display:none;margin-top:4px}
+.collapse-body.open{display:block}
+
+.detect-preset-row{display:flex;gap:4px;margin-bottom:8px}
+.detect-preset-btn{padding:3px 10px;border-radius:3px;font-size:11px;font-weight:600;
+  background:var(--panel);border:1px solid var(--border);transition:all .15s}
+.detect-preset-btn:hover{border-color:var(--accent)}
+.detect-preset-btn.active{border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
+
+/* -- Viewport ------------------------------------------------------ */
+.viewport{grid-area:viewport;position:relative;overflow:hidden;background:var(--bg)}
+.viewport canvas{display:block;width:100%!important;height:100%!important}
+
+.viewport-toolbar{position:absolute;top:8px;left:50%;transform:translateX(-50%);
+  display:flex;align-items:center;gap:3px;padding:4px 6px;
+  background:rgba(13,21,32,.88);backdrop-filter:blur(8px);
+  border:1px solid var(--border);border-radius:var(--radius);z-index:10;white-space:nowrap}
+
+.paint-target{display:inline-flex;align-items:center;gap:3px;padding:3px 7px;
+  border-radius:var(--radius-sm);font-size:11px;font-weight:700;
+  border:1px solid transparent;transition:all .15s;color:var(--muted)}
+.paint-target:hover{color:var(--text)}
+.paint-target.active{border-color:var(--accent);color:var(--text);background:var(--accent-dim)}
+.paint-target .swatch{width:12px;height:12px;border-radius:3px;border:1px solid rgba(255,255,255,.2);display:inline-block}
+
+.tool-sep{width:1px;height:20px;background:var(--border);margin:0 3px}
+.tool-btn{padding:3px 8px;border-radius:var(--radius-sm);font-size:11px;font-weight:600;
+  color:var(--muted);transition:all .15s}
+.tool-btn:hover{color:var(--text);background:var(--accent-dim)}
+.tool-btn:disabled{opacity:.35;pointer-events:none}
+
+.select-rect{position:absolute;border:1.5px dashed var(--accent);background:rgba(62,207,255,.06);
+  pointer-events:none;display:none;z-index:5}
+.smart-cursor{position:absolute;border:2px solid var(--accent);border-radius:50%;
+  pointer-events:none;display:none;z-index:5;transition:width .08s,height .08s}
+.viewport-hint{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);
+  font-size:11px;color:var(--muted);pointer-events:none;text-align:center;
+  background:rgba(6,10,16,.7);padding:4px 12px;border-radius:var(--radius-sm)}
+
+.viewport.select-mode{cursor:crosshair}
+.viewport.brush-mode{cursor:none}
+.viewport.eyedrop-mode{cursor:copy}
+.viewport.click-select-mode{cursor:pointer}
+
+/* -- Bottom Panel (Components) ------------------------------------- */
+.bottom-panel{grid-area:bottom;display:none;background:var(--panel);
+  border-top:1px solid var(--border);overflow:hidden;flex-direction:column}
+.app.bottom-open .bottom-panel{display:flex}
+
+.bottom-header{display:flex;align-items:center;gap:8px;padding:6px 14px;flex-shrink:0;
+  border-bottom:1px solid var(--border)}
+.bottom-header .title{font-size:11px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.5px;color:var(--muted)}
+.bottom-header .count{font-size:11px;color:var(--accent);font-family:'JetBrains Mono',monospace}
+.bottom-header .spacer{flex:1}
+
+.island-list{flex:1;overflow-y:auto;overflow-x:auto;display:flex;gap:6px;padding:8px 14px;
+  align-items:flex-start}
+.island-card{flex-shrink:0;padding:8px 12px;border:1px solid var(--border);
+  border-radius:var(--radius);background:var(--panel-2);min-width:120px;cursor:pointer;
+  transition:border-color .15s,background .15s}
+.island-card:hover{border-color:var(--accent);background:rgba(62,207,255,.04)}
+.island-card.selected{border-color:var(--accent);background:var(--accent-dim)}
+.island-card.hidden{opacity:.4}
+.island-card .isl-name{font-size:12px;font-weight:600;margin-bottom:2px}
+.island-card .isl-meta{font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace}
+.island-card .isl-actions{display:flex;gap:4px;margin-top:4px}
+.island-card .isl-btn{font-size:10px;padding:2px 6px;border-radius:3px;
+  color:var(--muted);border:1px solid var(--border);transition:all .15s}
+.island-card .isl-btn:hover{color:var(--text);border-color:var(--accent)}
+
+/* -- Footer -------------------------------------------------------- */
+.footer{grid-area:footer;display:flex;align-items:center;justify-content:space-between;
+  padding:0 14px;background:var(--panel);border-top:1px solid var(--border);z-index:20}
+.footer-status{display:flex;align-items:center;gap:6px;font-size:11px}
+.status-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.status-dot.idle{background:var(--green)}
+.status-dot.working{background:var(--amber);animation:pulse 1s ease infinite}
+.status-dot.error{background:var(--red)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.footer span:last-child{font-size:10px;color:var(--muted)}
+
+/* -- Stats (inline in footer or sidebar) --------------------------- */
+.stat-row{display:flex;gap:10px;font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace}
+.stat-row .sv{color:var(--text)}
+
+/* -- Batch --------------------------------------------------------- */
+.batch-zone{border:2px dashed var(--border);border-radius:var(--radius);padding:12px;
+  text-align:center;cursor:pointer;font-size:11px;color:var(--muted);transition:border-color .2s}
+.batch-zone:hover{border-color:var(--accent)}
+.batch-zone input{display:none}
+.batch-list{max-height:100px;overflow-y:auto;font-size:11px;margin-top:4px}
+.batch-item{display:flex;justify-content:space-between;padding:2px 0}
+.batch-item .status{font-weight:600}
+.batch-item .status.pending{color:var(--muted)}
+.batch-item .status.done{color:var(--green)}
 </style>
 </head>
 <body>
 
-<header class="header">
-  <div class="header-brand">
-    <span class="header-eyebrow">MakerDeck <span id="makerdeck-build">b423</span></span>
-    <span class="header-title">STL Painter</span>
-    <span class="header-subtitle">Paint multi-colour STLs · export AMS-ready 3MFs</span>
-  </div>
-  <nav class="header-nav">
-    <a href="index.html">← Container Generator</a>
-  </nav>
-</header>
+<div class="app" id="app">
+  <!-- Header -->
+  <header class="header">
+    <button class="toggle-sidebar" id="toggleSidebar" title="Toggle sidebar">☰</button>
+    <div class="logo">Maker<span>Deck</span> · STL Painter</div>
+    <div class="build">b500</div>
+  </header>
 
-<div class="main">
+  <!-- Left Sidebar (tabbed) -->
+  <aside class="sidebar" id="sidebar">
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="model">Model</button>
+      <button class="tab-btn" data-tab="colours">Color</button>
+      <button class="tab-btn" data-tab="paint">Paint</button>
+      <button class="tab-btn" data-tab="export">Export</button>
+    </div>
+    <div class="tab-body">
 
-  <aside class="sidebar">
-    <!-- 1 Model -->
-    <section class="flow-panel">
-      <div class="flow-step"><span class="flow-num">01</span><span class="flow-title">Model</span></div>
-      <div class="drop-zone" id="dropZone">
-        <span class="drop-zone-icon">↓</span>
-        <div class="drop-zone-text"><strong>Drop an STL</strong><br>or click to browse</div>
-        <input type="file" id="fileInput" accept=".stl">
-      </div>
-      <div class="section-label" style="margin-top:12px">Paint detail</div>
-      <p class="flow-desc" style="margin-bottom:6px">Finer triangles = easier detail painting (like slicer resolution).</p>
-      <div class="res-row">
-        <button type="button" class="btn" id="resFineBtn" disabled title="Split each face into 4">Fine ×4</button>
-        <button type="button" class="btn" id="resUltraBtn" disabled title="Split twice (×16 faces)">Ultra ×16</button>
-      </div>
-      <div class="res-meta" id="resMeta">Load a model to upgrade paint resolution.</div>
-    </section>
-
-    <!-- 2 Colours -->
-    <section class="flow-panel">
-      <div class="flow-step"><span class="flow-num">02</span><span class="flow-title">Colours</span></div>
-      <p class="flow-desc">Four AMS slots. Click a slot to paint with it.</p>
-      <div class="slot-list">
-        <label class="slot-card active" id="slotCardBody" data-target="body">
-          <input type="color" class="color-swatch-input" id="colorBody" value="#c20820">
-          <span class="slot-meta">
-            <span class="slot-name">Slot 1</span>
-            <span class="slot-role">Base</span>
-          </span>
-          <span class="slot-hex" id="colorBodyHex">#C20820</span>
-        </label>
-        <label class="slot-card" id="slotCardEmboss" data-target="emboss">
-          <input type="color" class="color-swatch-input" id="colorEmboss" value="#131211">
-          <span class="slot-meta">
-            <span class="slot-name">Slot 2</span>
-            <span class="slot-role">Accent</span>
-          </span>
-          <span class="slot-hex" id="colorEmbossHex">#131211</span>
-        </label>
-        <label class="slot-card" id="slotCardDeboss" data-target="deboss">
-          <input type="color" class="color-swatch-input" id="colorDeboss" value="#f5f5f5">
-          <span class="slot-meta">
-            <span class="slot-name">Slot 3</span>
-            <span class="slot-role">Detail</span>
-          </span>
-          <span class="slot-hex" id="colorDebossHex">#F5F5F5</span>
-        </label>
-        <label class="slot-card" id="slotCardTrim" data-target="trim">
-          <input type="color" class="color-swatch-input" id="colorTrim" value="#1e40af">
-          <span class="slot-meta">
-            <span class="slot-name">Slot 4</span>
-            <span class="slot-role">Trim</span>
-          </span>
-          <span class="slot-hex" id="colorTrimHex">#1E40AF</span>
-        </label>
-      </div>
-      <div class="preset-row" id="presetRow"></div>
-    </section>
-
-    <!-- 3 Paint tools -->
-    <section class="flow-panel">
-      <div class="flow-step"><span class="flow-num">03</span><span class="flow-title">Paint</span></div>
-      <p class="easy-tip" id="easyTip"><strong>Easy path:</strong> pick a colour → Brush (Freehand) → drag on the model to paint. Empty space / right-drag orbits.</p>
-
-      <div class="section-label">Colour</div>
-      <div class="paint-colour-row" id="paintColourRow">
-        <div class="paint-colour-chip active" data-target="body" title="Slot 1 — Base">
-          <button type="button" class="chip-swatch-hit" data-target="body" aria-label="Select slot 1">
-            <span class="chip-swatch" id="chipSwatchBody" style="background:#c20820"></span>
-            <span class="chip-label">1</span>
-          </button>
-          <button type="button" class="chip-hide" data-hide="body" title="Hide this colour only">Hide</button>
+      <!-- TAB: Model -->
+      <div class="tab-page active" id="tabModel">
+        <div class="section-label">Load STL</div>
+        <div class="drop-zone" id="dropZone">
+          Drop STL here<br><span style="font-size:11px;color:var(--muted)">or click to browse</span>
+          <input type="file" id="fileInput" accept=".stl">
         </div>
-        <div class="paint-colour-chip" data-target="emboss" title="Slot 2 — Accent">
-          <button type="button" class="chip-swatch-hit" data-target="emboss" aria-label="Select slot 2">
-            <span class="chip-swatch" id="chipSwatchEmboss" style="background:#131211"></span>
-            <span class="chip-label">2</span>
-          </button>
-          <button type="button" class="chip-hide" data-hide="emboss" title="Hide this colour only">Hide</button>
+
+        <div class="section-label">Paint Resolution</div>
+        <p class="flow-desc" id="resMeta">Load a model to upgrade paint resolution.</p>
+        <div class="btn-row">
+          <button class="btn" id="resFineBtn" disabled>Fine ×4</button>
+          <button class="btn" id="resUltraBtn" disabled>Ultra ×16</button>
         </div>
-        <div class="paint-colour-chip" data-target="deboss" title="Slot 3 — Detail">
-          <button type="button" class="chip-swatch-hit" data-target="deboss" aria-label="Select slot 3">
-            <span class="chip-swatch" id="chipSwatchDeboss" style="background:#f5f5f5"></span>
-            <span class="chip-label">3</span>
-          </button>
-          <button type="button" class="chip-hide" data-hide="deboss" title="Hide this colour only">Hide</button>
+
+        <div class="section-label" style="margin-top:16px">Stats</div>
+        <div class="stat-row" id="statsRow">
+          <span>V <span class="sv" id="statVerts">--</span></span>
+          <span>F <span class="sv" id="statFaces">--</span></span>
+          <span>S2 <span class="sv" id="statEmboss">--</span></span>
+          <span>S3 <span class="sv" id="statDeboss">--</span></span>
+          <span>S4 <span class="sv" id="statTrim">--</span></span>
         </div>
-        <div class="paint-colour-chip" data-target="trim" title="Slot 4 — Trim">
-          <button type="button" class="chip-swatch-hit" data-target="trim" aria-label="Select slot 4">
-            <span class="chip-swatch" id="chipSwatchTrim" style="background:#1e40af"></span>
-            <span class="chip-label">4</span>
-          </button>
-          <button type="button" class="chip-hide" data-hide="trim" title="Hide this colour only">Hide</button>
+
+        <div class="section-label" style="margin-top:16px">Components</div>
+        <p class="flow-desc" id="islandInfo">Load a model to detect mesh islands.</p>
+        <div class="btn-row">
+          <button class="btn" id="detectIslandsBtn" disabled>Find Islands</button>
+          <button class="btn" id="toggleBottomBtn" disabled>Show Panel</button>
         </div>
       </div>
-      <p class="colour-help" id="colourHelp">Hide black web: press <b>Hide</b> on slot 2 (keep Solo off). Stuck? hit <b>Show all</b>.</p>
-      <div class="btn-row" style="margin-top:8px">
-        <button type="button" class="btn" id="showAllColoursBtn" title="Show every colour again">Show all colours</button>
-      </div>
-      <label class="solo-row" id="soloRow">
-        <input type="checkbox" id="soloActive">
-        Isolate active colour (shows only that paint — can look like “everything vanished”)
-      </label>
 
-      <div class="section-label" style="margin-top:12px">Brush type</div>
-      <div class="tool-grid brush-types">
-        <button type="button" class="tool-toggle active" id="toolBrush" title="Freehand paint — drag on the model">Brush</button>
-        <button type="button" class="tool-toggle" id="toolSpray" title="Spray paint with nozzle falloff">Spray</button>
-        <button type="button" class="tool-toggle" id="toolEyedrop" title="Pick a colour from the model">Eyedrop</button>
-      </div>
-
-      <!-- Brush options — right under Brush type so Freehand is obvious -->
-      <div class="opts-panel visible" id="brushOpts">
-        <div class="form-group">
-          <div class="form-label"><span>Size (mm)</span><span class="value" id="brushSizeVal">2.5</span></div>
-          <input type="range" id="brushSize" min="0.5" max="20" step="0.5" value="2.5">
-        </div>
-        <div class="form-group">
-          <div class="form-label"><span>Stroke</span><span class="value" id="strokeModeVal">Freehand</span></div>
-          <div class="stroke-row">
-            <button type="button" class="stroke-btn active" data-stroke="free" id="strokeFree" title="Paint freely in any direction">Freehand</button>
-            <button type="button" class="stroke-btn" data-stroke="horizontal" id="strokeH" title="Lock stroke to horizontal">Horiz</button>
-            <button type="button" class="stroke-btn" data-stroke="vertical" id="strokeV" title="Lock stroke to vertical">Vert</button>
+      <!-- TAB: Colours -->
+      <div class="tab-page" id="tabColours">
+        <div class="section-label">AMS Filament Slots</div>
+        <div class="slot-list" id="slotList">
+          <div class="slot-card active" data-target="body">
+            <div class="swatch-wrap"><input type="color" id="colorBody" value="#C20820"></div>
+            <div class="slot-info">
+              <div class="slot-name">Slot 1 · Base</div>
+              <div class="slot-hex" id="colorBodyHex">#C20820</div>
+            </div>
+            <div class="slot-actions">
+              <button class="slot-btn" data-hide="body">Hide</button>
+            </div>
+          </div>
+          <div class="slot-card" data-target="emboss">
+            <div class="swatch-wrap"><input type="color" id="colorEmboss" value="#131211"></div>
+            <div class="slot-info">
+              <div class="slot-name">Slot 2 · Accent</div>
+              <div class="slot-hex" id="colorEmbossHex">#131211</div>
+            </div>
+            <div class="slot-actions">
+              <button class="slot-btn" data-hide="emboss">Hide</button>
+            </div>
+          </div>
+          <div class="slot-card" data-target="deboss">
+            <div class="swatch-wrap"><input type="color" id="colorDeboss" value="#F5F5F5"></div>
+            <div class="slot-info">
+              <div class="slot-name">Slot 3 · Detail</div>
+              <div class="slot-hex" id="colorDebossHex">#F5F5F5</div>
+            </div>
+            <div class="slot-actions">
+              <button class="slot-btn" data-hide="deboss">Hide</button>
+            </div>
+          </div>
+          <div class="slot-card" data-target="trim">
+            <div class="swatch-wrap"><input type="color" id="colorTrim" value="#1E40AF"></div>
+            <div class="slot-info">
+              <div class="slot-name">Slot 4 · Trim</div>
+              <div class="slot-hex" id="colorTrimHex">#1E40AF</div>
+            </div>
+            <div class="slot-actions">
+              <button class="slot-btn" data-hide="trim">Hide</button>
+            </div>
           </div>
         </div>
-        <p class="flow-desc" style="margin:0">Default is Freehand. Drag on the model to paint · drag empty space (or right-drag) to orbit.</p>
-      </div>
 
-      <!-- Spray options -->
-      <div class="opts-panel" id="sprayOpts">
-        <div class="form-group">
-          <div class="form-label"><span>Nozzle size (mm)</span><span class="value" id="sprayNozzleVal">6</span></div>
-          <input type="range" id="sprayNozzle" min="1" max="30" step="0.5" value="6">
-        </div>
-        <div class="form-group">
-          <div class="form-label"><span>Density</span><span class="value" id="sprayDensityVal">45%</span></div>
-          <input type="range" id="sprayDensity" min="10" max="90" step="5" value="45">
-        </div>
-        <p class="flow-desc" style="margin:0">Free spray — drag on the model. Right-drag or empty space to orbit.</p>
-      </div>
+        <div class="section-label">Presets</div>
+        <div class="preset-row" id="presetRow"></div>
 
-      <!-- Eyedropper options -->
-      <div class="opts-panel" id="eyedropOpts">
-        <p class="flow-desc" style="margin-top:0">Click the model to pick that AMS slot — like a desktop eyedropper.</p>
-      </div>
-
-      <label class="lock-row" id="orbitLockLabel">
-        <input type="checkbox" id="orbitLock">
-        Lock left-drag (right-drag still orbits)
-      </label>
-
-      <button type="button" class="collapse-toggle" id="moreToolsToggle">More tools — Smart · Box · Edge · Detect ▸</button>
-      <div class="collapse-body" id="moreToolsBody">
-        <div class="tool-grid secondary">
-          <button type="button" class="tool-toggle" id="toolSmart" title="Angle-aware fill">Smart</button>
-          <button type="button" class="tool-toggle" id="toolBox" title="Paint faces inside a box">Box</button>
-          <button type="button" class="tool-toggle" id="toolEdge" title="Select rough colour boundaries">Edge</button>
-          <button type="button" class="tool-toggle" id="toolDetect" title="Auto-find raised / sunken detail">Detect</button>
+        <div class="btn-row" style="margin-top:10px">
+          <button class="btn" id="showAllColoursBtn">Show All</button>
         </div>
-      </div>
-
-      <!-- Smart options -->
-      <div class="opts-panel" id="smartOpts">
-        <div class="form-group">
-          <div class="form-label"><span>Size (mm)</span><span class="value" id="smartSizeVal">10</span></div>
-          <input type="range" id="smartSize" min="1" max="40" step="0.5" value="10">
-        </div>
-        <div class="form-group">
-          <div class="form-label"><span>Angle</span><span class="value" id="smartAngleVal">35°</span></div>
-          <input type="range" id="smartAngle" min="5" max="90" step="1" value="35">
-        </div>
-        <label class="check-row">
-          <input type="checkbox" id="smartSameColour" checked>
-          <span>Stay on same colour (don’t jump slots)</span>
+        <label class="solo-row" id="soloRow">
+          <input type="checkbox" id="soloActive">
+          Isolate active colour only
         </label>
       </div>
 
-      <!-- Edge options -->
-      <div class="opts-panel" id="edgeOpts">
-        <div class="form-group">
-          <div class="form-label"><span>Width</span><span class="value" id="edgeWidthVal">2</span></div>
-          <input type="range" id="edgeWidth" min="0" max="8" step="1" value="2">
+      <!-- TAB: Paint -->
+      <div class="tab-page" id="tabPaint">
+        <div class="section-label">Brush Type</div>
+        <div class="tool-grid">
+          <button class="tool-toggle active" id="toolBrush">Brush</button>
+          <button class="tool-toggle" id="toolSpray">Spray</button>
+          <button class="tool-toggle" id="toolEyedrop">Eyedrop</button>
+          <button class="tool-toggle" id="toolClickSelect">Select</button>
         </div>
-        <div class="btn-row">
-          <button type="button" class="btn" id="edgeFillBtn">Fill</button>
-          <button type="button" class="btn" id="edgeClearBtn">Clear</button>
+
+        <!-- Brush opts -->
+        <div class="opts-panel visible" id="brushOpts">
+          <div class="form-group">
+            <div class="form-label"><span>Size (mm)</span><span class="value" id="brushSizeVal">2.5</span></div>
+            <input type="range" id="brushSize" min="0.5" max="20" step="0.5" value="2.5">
+          </div>
+          <div class="form-group">
+            <div class="form-label"><span>Stroke</span><span class="value" id="strokeModeVal">Freehand</span></div>
+            <div class="stroke-row">
+              <button class="stroke-btn active" data-stroke="free" id="strokeFree">Freehand</button>
+              <button class="stroke-btn" data-stroke="horizontal" id="strokeH">Horiz</button>
+              <button class="stroke-btn" data-stroke="vertical" id="strokeV">Vert</button>
+            </div>
+          </div>
+        </div>
+        <!-- Spray opts -->
+        <div class="opts-panel" id="sprayOpts">
+          <div class="form-group">
+            <div class="form-label"><span>Nozzle (mm)</span><span class="value" id="sprayNozzleVal">6</span></div>
+            <input type="range" id="sprayNozzle" min="1" max="30" step="0.5" value="6">
+          </div>
+          <div class="form-group">
+            <div class="form-label"><span>Density</span><span class="value" id="sprayDensityVal">45%</span></div>
+            <input type="range" id="sprayDensity" min="10" max="90" step="5" value="45">
+          </div>
+        </div>
+        <!-- Eyedrop opts -->
+        <div class="opts-panel" id="eyedropOpts">
+          <p class="flow-desc">Click the model to pick that AMS slot.</p>
+        </div>
+        <!-- Click-Select opts -->
+        <div class="opts-panel" id="clickSelectOpts">
+          <div class="form-group">
+            <div class="form-label"><span>Mode</span></div>
+            <div class="tool-grid">
+              <button class="stroke-btn active" id="selModeIsland" data-selmode="island">Island</button>
+              <button class="stroke-btn" id="selModeColor" data-selmode="color">Same Color</button>
+            </div>
+          </div>
+          <p class="flow-desc">Click to select a connected region. Then paint it with the active slot.</p>
+          <div class="btn-row" style="margin-top:6px">
+            <button class="btn btn-primary" id="selPaintBtn" disabled>Paint Selection</button>
+            <button class="btn" id="selClearBtn" disabled>Clear</button>
+          </div>
+        </div>
+
+        <label class="check-row" style="margin-top:8px">
+          <input type="checkbox" id="orbitLock">
+          <span>Lock left-drag (right-drag orbits)</span>
+        </label>
+
+        <div class="section-label" style="margin-top:12px">Advanced Tools</div>
+        <div class="tool-grid">
+          <button class="tool-toggle" id="toolSmart">Smart</button>
+          <button class="tool-toggle" id="toolBox">Box</button>
+          <button class="tool-toggle" id="toolEdge">Edge</button>
+          <button class="tool-toggle" id="toolDetect">Detect</button>
+        </div>
+
+        <!-- Smart opts -->
+        <div class="opts-panel" id="smartOpts">
+          <div class="form-group">
+            <div class="form-label"><span>Size (mm)</span><span class="value" id="smartSizeVal">10</span></div>
+            <input type="range" id="smartSize" min="1" max="40" step="0.5" value="10">
+          </div>
+          <div class="form-group">
+            <div class="form-label"><span>Angle</span><span class="value" id="smartAngleVal">35°</span></div>
+            <input type="range" id="smartAngle" min="5" max="90" step="1" value="35">
+          </div>
+          <label class="check-row">
+            <input type="checkbox" id="smartSameColour" checked>
+            <span>Stay on same colour</span>
+          </label>
+        </div>
+        <!-- Edge opts -->
+        <div class="opts-panel" id="edgeOpts">
+          <div class="form-group">
+            <div class="form-label"><span>Width</span><span class="value" id="edgeWidthVal">2</span></div>
+            <input type="range" id="edgeWidth" min="0" max="8" step="1" value="2">
+          </div>
+          <div class="btn-row">
+            <button class="btn" id="edgeFillBtn">Fill</button>
+            <button class="btn" id="edgeClearBtn">Clear</button>
+          </div>
+        </div>
+        <!-- Detect opts -->
+        <div class="opts-panel" id="detectOpts">
+          <p class="flow-desc">Find raised / sunken geometry, then paint with Brush or Smart.</p>
+          <div class="detect-preset-row" id="detectPresetRow">
+            <button class="detect-preset-btn active" data-preset="fine">Fine</button>
+            <button class="detect-preset-btn" data-preset="bold">Bold</button>
+            <button class="detect-preset-btn" data-preset="custom">Custom</button>
+          </div>
+          <div class="form-group">
+            <div class="form-label"><span id="sensitivityLabel">Sensitivity</span><span class="value" id="sensitivityVal">0.22</span></div>
+            <input type="range" id="sensitivity" min="0.05" max="1.5" step="0.05" value="0.22">
+          </div>
+          <div class="form-group">
+            <div class="form-label"><span>Smoothing</span><span class="value" id="smoothIterVal">120</span></div>
+            <input type="range" id="smoothIter" min="5" max="200" step="5" value="120">
+          </div>
+          <div class="form-group">
+            <div class="form-label"><span>Min area (mm²)</span><span class="value" id="minClusterVal">0.5</span></div>
+            <input type="range" id="minCluster" min="0" max="20" step="0.5" value="0.5">
+          </div>
+          <label class="check-row"><input type="checkbox" id="adaptiveThr" checked><span>Adaptive threshold</span></label>
+          <label class="check-row"><input type="checkbox" id="ridgeTop" checked><span>Prefer ridge tops</span></label>
+          <div class="form-group">
+            <div class="form-label"><span>Morph close</span><span class="value" id="morphCloseVal">1</span></div>
+            <input type="range" id="morphClose" min="0" max="4" step="1" value="1">
+          </div>
+          <div class="form-group">
+            <div class="form-label"><span>Morph open</span><span class="value" id="morphOpenVal">1</span></div>
+            <input type="range" id="morphOpen" min="0" max="3" step="1" value="1">
+          </div>
+          <button class="btn btn-primary" id="detectBtn" disabled>Run Detect</button>
+          <p class="flow-desc" id="detectHint" style="margin-top:4px">Optional — unique to MakerDeck.</p>
         </div>
       </div>
 
-      <!-- Detect options (MakerDeck special) -->
-      <div class="opts-panel" id="detectOpts">
-        <p class="flow-desc" style="margin-top:0">Find raised / sunken geometry, then paint with Brush or Smart.</p>
-        <div class="detect-preset-row" id="detectPresetRow">
-          <button type="button" class="detect-preset-btn active" data-preset="fine">Fine</button>
-          <button type="button" class="detect-preset-btn" data-preset="bold">Bold</button>
-          <button type="button" class="detect-preset-btn" data-preset="custom">Custom</button>
-        </div>
-        <div class="form-group">
-          <div class="form-label"><span id="sensitivityLabel">Sensitivity</span><span class="value" id="sensitivityVal">0.22</span></div>
-          <input type="range" id="sensitivity" min="0.05" max="1.5" step="0.05" value="0.22">
-        </div>
-        <div class="form-group">
-          <div class="form-label"><span>Smoothing</span><span class="value" id="smoothIterVal">120</span></div>
-          <input type="range" id="smoothIter" min="5" max="200" step="5" value="120">
-        </div>
-        <div class="form-group">
-          <div class="form-label"><span>Min area (mm²)</span><span class="value" id="minClusterVal">0.5</span></div>
-          <input type="range" id="minCluster" min="0" max="20" step="0.5" value="0.5">
-        </div>
-        <label class="check-row">
-          <input type="checkbox" id="adaptiveThr" checked>
-          <span>Adaptive threshold</span>
-        </label>
-        <label class="check-row">
-          <input type="checkbox" id="ridgeTop" checked>
-          <span>Prefer ridge tops</span>
-        </label>
-        <div class="form-group">
-          <div class="form-label"><span>Morph close</span><span class="value" id="morphCloseVal">1</span></div>
-          <input type="range" id="morphClose" min="0" max="4" step="1" value="1">
-        </div>
-        <div class="form-group">
-          <div class="form-label"><span>Morph open</span><span class="value" id="morphOpenVal">1</span></div>
-          <input type="range" id="morphOpen" min="0" max="3" step="1" value="1">
-        </div>
-        <button class="btn btn-primary" id="detectBtn" disabled>Run detect</button>
-        <div class="detect-hint" id="detectHint">Optional — unique to MakerDeck. Not required for manual paint.</div>
-      </div>
-
-      <!-- Hidden stubs so old viewport control IDs still exist for JS -->
-      <div id="smartControls" class="smart-controls" aria-hidden="true"></div>
-      <div id="edgeControls" class="edge-controls" aria-hidden="true"></div>
-    </section>
-
-    <!-- 4 Export -->
-    <section class="flow-panel" style="border-bottom:none; margin-top:auto">
-      <div class="flow-step"><span class="flow-num">04</span><span class="flow-title">Export</span></div>
-      <div class="form-group">
-        <div class="form-label"><span>Filament profile</span></div>
+      <!-- TAB: Export -->
+      <div class="tab-page" id="tabExport">
+        <div class="section-label">Filament Profile</div>
         <select id="filamentProfile">
           <option value="Generic PLA">Generic PLA</option>
           <option value="Generic PETG">Generic PETG</option>
@@ -654,143 +513,119 @@
           <option value="Bambu PLA Basic">Bambu PLA Basic</option>
           <option value="Bambu PLA Matte">Bambu PLA Matte</option>
         </select>
+        <button class="btn btn-success" id="exportBtn" disabled style="margin-top:10px;width:100%">Export 3MF</button>
+
+        <div class="section-label" style="margin-top:20px">Batch Process</div>
+        <div class="batch-zone" id="batchZone">
+          Drop a folder of STLs
+          <input type="file" id="batchInput" accept=".stl" multiple webkitdirectory>
+        </div>
+        <div class="batch-list" id="batchList"></div>
+        <button class="btn" id="batchBtn" disabled style="margin-top:6px;width:100%">Process All</button>
       </div>
-      <button class="btn btn-success" id="exportBtn" disabled>Export 3MF</button>
-    </section>
+
+    </div>
   </aside>
 
+  <!-- Viewport -->
   <div class="viewport" id="viewport">
     <div class="viewport-toolbar" id="viewportToolbar">
-      <span class="paint-target-row" title="Active AMS slot">
-        <button type="button" class="paint-target active" id="targetBody" title="Slot 1 — Base">
-          <span class="swatch" id="swatchBody" style="background:#c20820"></span>1
-        </button>
-        <button type="button" class="paint-target" id="targetEmboss" title="Slot 2 — Accent">
-          <span class="swatch" id="swatchEmboss" style="background:#131211"></span>2
-        </button>
-        <button type="button" class="paint-target" id="targetDeboss" title="Slot 3 — Detail">
-          <span class="swatch" id="swatchDeboss" style="background:#f5f5f5"></span>3
-        </button>
-        <button type="button" class="paint-target" id="targetTrim" title="Slot 4 — Trim">
-          <span class="swatch" id="swatchTrim" style="background:#1e40af"></span>4
-        </button>
-      </span>
+      <button class="paint-target active" id="targetBody" title="Slot 1 — Base">
+        <span class="swatch" id="swatchBody" style="background:#C20820"></span>1
+      </button>
+      <button class="paint-target" id="targetEmboss" title="Slot 2 — Accent">
+        <span class="swatch" id="swatchEmboss" style="background:#131211"></span>2
+      </button>
+      <button class="paint-target" id="targetDeboss" title="Slot 3 — Detail">
+        <span class="swatch" id="swatchDeboss" style="background:#F5F5F5"></span>3
+      </button>
+      <button class="paint-target" id="targetTrim" title="Slot 4 — Trim">
+        <span class="swatch" id="swatchTrim" style="background:#1E40AF"></span>4
+      </button>
       <div class="tool-sep"></div>
-      <button type="button" class="tool-btn" id="zoomOutBtn" title="Zoom out">−</button>
-      <button type="button" class="tool-btn" id="zoomInBtn" title="Zoom in">+</button>
-      <button type="button" class="tool-btn" id="frameBtn" title="Frame model">Frame</button>
-      <button type="button" class="tool-btn" id="undoBtn" title="Undo" disabled>Undo</button>
-      <button type="button" class="tool-btn" id="resetViewBtn" title="Unstick controls — restore orbit + show all colours">Unstick</button>
+      <button class="tool-btn" id="zoomOutBtn" title="Zoom out">−</button>
+      <button class="tool-btn" id="zoomInBtn" title="Zoom in">+</button>
+      <button class="tool-btn" id="frameBtn" title="Frame model">Frame</button>
+      <button class="tool-btn" id="undoBtn" title="Undo" disabled>Undo</button>
+      <button class="tool-btn" id="resetViewBtn" title="Reset all">Reset</button>
     </div>
     <div class="select-rect" id="selectRect"></div>
     <div class="smart-cursor" id="smartCursor"></div>
-    <div class="viewport-hint" id="viewportHint">Load a model · pick a colour · Brush to paint</div>
+    <div class="viewport-hint" id="viewportHint">Load a model · pick a colour · paint</div>
   </div>
 
-  <aside class="sidebar-right">
-    <section class="flow-panel">
-      <div class="flow-step"><span class="flow-num">··</span><span class="flow-title">Stats</span></div>
-      <div class="stat-grid">
-        <div class="stat-item">
-          <div class="stat-value" id="statVerts">--</div>
-          <div class="stat-label">Vertices</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-value" id="statFaces">--</div>
-          <div class="stat-label">Faces</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-value emboss" id="statEmboss">--</div>
-          <div class="stat-label">Slot 2</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-value deboss" id="statDeboss">--</div>
-          <div class="stat-label">Slot 3</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-value trim" id="statTrim">--</div>
-          <div class="stat-label">Slot 4</div>
-        </div>
-      </div>
-    </section>
-    <section class="flow-panel" style="border-bottom:none">
-      <div class="flow-step"><span class="flow-num">··</span><span class="flow-title">Batch</span></div>
-      <div class="batch-zone" id="batchZone">
-        <div class="batch-zone-text">Drop a folder of STLs</div>
-        <input type="file" id="batchInput" accept=".stl" multiple webkitdirectory>
-      </div>
-      <div class="batch-list" id="batchList"></div>
-      <button class="btn" id="batchBtn" disabled style="margin-top:8px">Process all</button>
-    </section>
-  </aside>
+  <!-- Bottom Panel (Components / Islands) -->
+  <div class="bottom-panel" id="bottomPanel">
+    <div class="bottom-header">
+      <span class="title">Components</span>
+      <span class="count" id="islandCount">0 islands</span>
+      <span class="spacer"></span>
+      <button class="btn" id="paintIslandBtn" disabled style="font-size:10px;padding:2px 8px">Paint Selected</button>
+      <button class="btn" id="hideIslandBtn" disabled style="font-size:10px;padding:2px 8px">Hide</button>
+      <button class="btn" id="showAllIslandsBtn" style="font-size:10px;padding:2px 8px">Show All</button>
+      <button class="toggle-sidebar" id="closeBottomBtn" title="Close panel" style="font-size:14px">✕</button>
+    </div>
+    <div class="island-list" id="islandList"></div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-status">
+      <span class="status-dot idle" id="statusDot"></span>
+      <span id="statusText">Ready — load an STL to begin</span>
+    </div>
+    <span>MakerDeck · STL Painter b500</span>
+  </footer>
 </div>
-
-<footer class="footer">
-  <div class="footer-status">
-    <span class="status-dot idle" id="statusDot"></span>
-    <span id="statusText">Ready — load an STL to begin</span>
-  </div>
-  <span>MakerDeck · STL Painter</span>
-</footer>
 
 <!-- Main Script -->
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import {
-  parseSTLBinary,
-  deduplicateVertices,
-  detectFeatures,
-  cleanClusters,
-  buildFaceAdj,
-  findPaintBoundary,
-  brushDabFaces,
-  smartFillFaces,
-  paintClassOf,
-  upgradePaintResolution,
-  export3MF
-} from './js/painter.js?v=423';
+  parseSTLBinary, deduplicateVertices, detectFeatures, cleanClusters,
+  buildFaceAdj, findPaintBoundary, brushDabFaces, smartFillFaces,
+  paintClassOf, upgradePaintResolution, export3MF,
+  findMeshIslands, buildIslandMap, floodFillSameClass, selectIsland
+} from './js/painter.js?v=500';
 
-/* ------------------------------------------------------------------ */
-/*  State                                                             */
-/* ------------------------------------------------------------------ */
+/* ================================================================== */
+/*  STATE                                                             */
+/* ================================================================== */
 
-const state = {
-  rawVertices: null,
-  rawNormals: null,
-  nTri: 0,
-  verts: null,
-  faces: null,
-  nVerts: 0,
-  embossMask: null,       // paint map slot 2 (export)
-  debossMask: null,       // paint map slot 3
-  trimMask: null,         // paint map slot 4
-  featureEmboss: null,    // geometry detect map (box-paint filter)
-  featureDeboss: null,
-  embossCount: 0,
-  debossCount: 0,
-  trimCount: 0,
-  mesh: null,
-  fileName: 'model',
-  tool: 'orbit',          // orbit | brush | spray | eyedrop | box | edge | smart | detect
-  brushStroke: 'free',    // free | horizontal | vertical
-  paintTarget: 'body',    // 'body' | 'emboss' | 'deboss' | 'trim' — AMS slots 1–4
-  detectMode: 'emboss',   // from detect presets
+const S = {
+  rawVertices: null, rawNormals: null, nTri: 0,
+  verts: null, faces: null, nVerts: 0,
+  embossMask: null, debossMask: null, trimMask: null,
+  featureEmboss: null, featureDeboss: null,
+  embossCount: 0, debossCount: 0, trimCount: 0,
+  mesh: null, fileName: 'model',
+  tool: 'orbit',
+  brushStroke: 'free',
+  paintTarget: 'body',
+  detectMode: 'emboss',
   undoStack: [],
-  edgeHighlight: null,    // Uint8Array | null
-  smartPreview: null,     // Uint8Array | null — amber smart-fill preview
-  smartPreviewFaces: null,// number[] last preview
-  faceAdj: null,          // cached face adjacency
+  edgeHighlight: null,
+  smartPreview: null, smartPreviewFaces: null,
+  faceAdj: null,
   brushStrokeActive: null,
   hiddenSlots: { body: false, emboss: false, deboss: false, trim: false },
   soloActive: false,
-  orbitOverride: false,   // Alt/Space held — force orbit instead of paint
-  resLevel: 0,            // 0 = original, each upgrade +1
+  orbitOverride: false,
+  resLevel: 0,
+  // Islands / click-select
+  islands: null,
+  islandMap: null,
+  hiddenIslands: new Set(),
+  selectedIsland: -1,
+  clickSelectMode: 'island', // 'island' | 'color'
+  clickSelection: null,      // Uint8Array highlight mask
+  clickSelectionFaces: null,  // number[]
 };
 
-/* ------------------------------------------------------------------ */
-/*  Three.js Setup                                                    */
-/* ------------------------------------------------------------------ */
+/* ================================================================== */
+/*  THREE.JS SCENE                                                    */
+/* ================================================================== */
 
 const viewport = document.getElementById('viewport');
 const scene = new THREE.Scene();
@@ -800,7 +635,7 @@ const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 5000);
 camera.position.set(80, 60, 80);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -808,206 +643,54 @@ renderer.toneMappingExposure = 1.2;
 viewport.appendChild(renderer.domElement);
 
 const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
-controls.dampingFactor = 0.08;
-controls.panSpeed = 0.8;
-controls.rotateSpeed = 0.6;
-controls.screenSpacePanning = true;
-controls.zoomToCursor = true;
-controls.minDistance = 0.5;
-controls.maxDistance = 8000;
-controls.zoomSpeed = 1.15;
+Object.assign(controls, {
+  enableDamping: true, dampingFactor: 0.08, panSpeed: 0.8, rotateSpeed: 0.6,
+  screenSpacePanning: true, zoomToCursor: true, minDistance: 0.5, maxDistance: 8000, zoomSpeed: 1.15,
+});
 
-// Lighting
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
-scene.add(ambientLight);
-
-const dirLight1 = new THREE.DirectionalLight(0xffffff, 1.0);
-dirLight1.position.set(50, 80, 50);
-dirLight1.castShadow = true;
-dirLight1.shadow.mapSize.set(2048, 2048);
-scene.add(dirLight1);
-
-const dirLight2 = new THREE.DirectionalLight(0x8ea4c1, 0.5);
-dirLight2.position.set(-40, 40, -30);
-scene.add(dirLight2);
-
-const hemiLight = new THREE.HemisphereLight(0x3ecfff, 0x060a10, 0.28);
-scene.add(hemiLight);
-
-// Grid
-const gridHelper = new THREE.GridHelper(200, 40, 0x263852, 0x151e2d);
-scene.add(gridHelper);
+scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+const dir1 = new THREE.DirectionalLight(0xffffff, 1.0);
+dir1.position.set(50, 80, 50); dir1.castShadow = true; dir1.shadow.mapSize.set(2048, 2048);
+scene.add(dir1);
+const dir2 = new THREE.DirectionalLight(0x8ea4c1, 0.5);
+dir2.position.set(-40, 40, -30);
+scene.add(dir2);
+scene.add(new THREE.HemisphereLight(0x3ecfff, 0x060a10, 0.28));
+scene.add(new THREE.GridHelper(200, 40, 0x263852, 0x151e2d));
 
 function resizeRenderer() {
   const w = viewport.clientWidth, h = viewport.clientHeight;
-  if (w === 0 || h === 0) return;
+  if (!w || !h) return;
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
   renderer.setSize(w, h);
 }
 window.addEventListener('resize', resizeRenderer);
 resizeRenderer();
+(function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); })();
 
-function animate() {
-  requestAnimationFrame(animate);
-  controls.update();
-  renderer.render(scene, camera);
-}
-animate();
+/* ================================================================== */
+/*  DOM REFS                                                          */
+/* ================================================================== */
 
-/* ------------------------------------------------------------------ */
-/*  UI Elements                                                       */
-/* ------------------------------------------------------------------ */
+const $ = id => document.getElementById(id);
+const dropZone = $('dropZone'), fileInput = $('fileInput');
+const detectBtn = $('detectBtn'), exportBtn = $('exportBtn');
+const batchBtn = $('batchBtn'), batchZone = $('batchZone');
+const batchInput = $('batchInput'), batchListEl = $('batchList');
+const statusDot = $('statusDot'), statusText = $('statusText');
+const viewportHint = $('viewportHint');
+const orbitLockCheck = $('orbitLock');
+const selectRect = $('selectRect'), smartCursor = $('smartCursor');
+const raycaster = new THREE.Raycaster();
+const pointerNdc = new THREE.Vector2();
 
-const dropZone = document.getElementById('dropZone');
-const fileInput = document.getElementById('fileInput');
-const detectBtn = document.getElementById('detectBtn');
-const exportBtn = document.getElementById('exportBtn');
-const batchBtn = document.getElementById('batchBtn');
-const batchZone = document.getElementById('batchZone');
-const batchInput = document.getElementById('batchInput');
-const batchListEl = document.getElementById('batchList');
-const statusDot = document.getElementById('statusDot');
-const statusText = document.getElementById('statusText');
-const viewportHint = document.getElementById('viewportHint');
+const colorInputs = { body: $('colorBody'), emboss: $('colorEmboss'), deboss: $('colorDeboss'), trim: $('colorTrim') };
+const colorHexEls = { body: $('colorBodyHex'), emboss: $('colorEmbossHex'), deboss: $('colorDebossHex'), trim: $('colorTrimHex') };
 
-const sensitivitySlider = document.getElementById('sensitivity');
-const sensitivityVal = document.getElementById('sensitivityVal');
-const sensitivityLabel = document.getElementById('sensitivityLabel');
-const smoothIterSlider = document.getElementById('smoothIter');
-const smoothIterVal = document.getElementById('smoothIterVal');
-const minClusterSlider = document.getElementById('minCluster');
-const minClusterVal = document.getElementById('minClusterVal');
-const adaptiveThrCheck = document.getElementById('adaptiveThr');
-const ridgeTopCheck = document.getElementById('ridgeTop');
-const morphCloseSlider = document.getElementById('morphClose');
-const morphCloseVal = document.getElementById('morphCloseVal');
-const morphOpenSlider = document.getElementById('morphOpen');
-const morphOpenVal = document.getElementById('morphOpenVal');
-const detectHint = document.getElementById('detectHint');
-const orbitLockCheck = document.getElementById('orbitLock');
-
-const DETECT_PRESETS = {
-  fine: {
-    mode: 'emboss',
-    sensitivity: 0.22,
-    smoothIter: 120,
-    minCluster: 0.5,
-    adaptive: true,
-    ridgeTop: true,
-    morphClose: 1,
-    morphOpen: 1,
-    scoreSmooth: 2,
-    hysteresis: 0.55,
-    majority: 2,
-  },
-  bold: {
-    mode: 'both',
-    sensitivity: 0.40,
-    smoothIter: 40,
-    minCluster: 3.0,
-    adaptive: true,
-    ridgeTop: false,
-    morphClose: 1,
-    morphOpen: 1,
-    scoreSmooth: 1,
-    hysteresis: 0.65,
-    majority: 1,
-  },
-};
-
-let activeDetectPreset = 'fine';
-let detectRefine = {
-  scoreSmooth: DETECT_PRESETS.fine.scoreSmooth,
-  hysteresis: DETECT_PRESETS.fine.hysteresis,
-  majority: DETECT_PRESETS.fine.majority,
-};
-
-function updateSensitivityLabel() {
-  if (sensitivityLabel) {
-    sensitivityLabel.textContent = adaptiveThrCheck.checked
-      ? 'Sensitivity (keep top %)'
-      : 'Sensitivity (mm)';
-  }
-}
-
-function getDetectOpts() {
-  return {
-    threshold: parseFloat(sensitivitySlider.value),
-    iterations: parseInt(smoothIterSlider.value, 10),
-    weight: 0.5,
-    mode: state.detectMode || 'emboss',
-    adaptive: adaptiveThrCheck.checked,
-    absFloor: 0.05,
-    ridgeTop: ridgeTopCheck.checked,
-    morphCloseSteps: parseInt(morphCloseSlider.value, 10),
-    morphOpenSteps: parseInt(morphOpenSlider.value, 10),
-    scoreSmoothPasses: detectRefine.scoreSmooth,
-    hysteresis: detectRefine.hysteresis,
-    majorityPasses: detectRefine.majority,
-  };
-}
-
-function invalidateFeatureMasks() {
-  state.featureEmboss = null;
-  state.featureDeboss = null;
-}
-
-function setDetectPresetActive(name) {
-  activeDetectPreset = name;
-  document.querySelectorAll('.detect-preset-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.preset === name);
-  });
-}
-
-function applyDetectPreset(name) {
-  const p = DETECT_PRESETS[name];
-  if (!p) {
-    setDetectPresetActive('custom');
-    return;
-  }
-  state.detectMode = p.mode;
-  sensitivitySlider.value = String(p.sensitivity);
-  sensitivityVal.textContent = p.sensitivity.toFixed(2);
-  smoothIterSlider.value = String(p.smoothIter);
-  smoothIterVal.textContent = String(p.smoothIter);
-  minClusterSlider.value = String(p.minCluster);
-  minClusterVal.textContent = p.minCluster.toFixed(1);
-  adaptiveThrCheck.checked = p.adaptive;
-  ridgeTopCheck.checked = p.ridgeTop;
-  morphCloseSlider.value = String(p.morphClose);
-  morphCloseVal.textContent = String(p.morphClose);
-  morphOpenSlider.value = String(p.morphOpen);
-  morphOpenVal.textContent = String(p.morphOpen);
-  detectRefine = {
-    scoreSmooth: p.scoreSmooth ?? 2,
-    hysteresis: p.hysteresis ?? 0.55,
-    majority: p.majority ?? 1,
-  };
-  updateSensitivityLabel();
-  setDetectPresetActive(name);
-  invalidateFeatureMasks();
-}
-
-function markDetectCustom() {
-  invalidateFeatureMasks();
-  if (activeDetectPreset !== 'custom') setDetectPresetActive('custom');
-}
-const filamentProfileSelect = document.getElementById('filamentProfile');
-
-const colorBody = document.getElementById('colorBody');
-const colorEmboss = document.getElementById('colorEmboss');
-const colorDeboss = document.getElementById('colorDeboss');
-const colorTrim = document.getElementById('colorTrim');
-const colorBodyHex = document.getElementById('colorBodyHex');
-const colorEmbossHex = document.getElementById('colorEmbossHex');
-const colorDebossHex = document.getElementById('colorDebossHex');
-const colorTrimHex = document.getElementById('colorTrimHex');
-
-/* ------------------------------------------------------------------ */
-/*  Status Helpers                                                    */
-/* ------------------------------------------------------------------ */
+/* ================================================================== */
+/*  STATUS & STATS                                                    */
+/* ================================================================== */
 
 function setStatus(text, mode = 'idle') {
   statusText.textContent = text;
@@ -1015,465 +698,184 @@ function setStatus(text, mode = 'idle') {
 }
 
 function updateStats() {
-  document.getElementById('statVerts').textContent = state.nVerts > 0 ? state.nVerts.toLocaleString() : '--';
-  document.getElementById('statFaces').textContent = state.nTri > 0 ? state.nTri.toLocaleString() : '--';
-  document.getElementById('statEmboss').textContent = state.embossCount > 0 ? state.embossCount.toLocaleString() : '--';
-  document.getElementById('statDeboss').textContent = state.debossCount > 0 ? state.debossCount.toLocaleString() : '--';
-  document.getElementById('statTrim').textContent = state.trimCount > 0 ? state.trimCount.toLocaleString() : '--';
-}
-
-/* ------------------------------------------------------------------ */
-/*  Slider Bindings                                                   */
-/* ------------------------------------------------------------------ */
-
-sensitivitySlider.addEventListener('input', () => {
-  sensitivityVal.textContent = parseFloat(sensitivitySlider.value).toFixed(2);
-  markDetectCustom();
-});
-smoothIterSlider.addEventListener('input', () => {
-  smoothIterVal.textContent = smoothIterSlider.value;
-  markDetectCustom();
-});
-minClusterSlider.addEventListener('input', () => {
-  minClusterVal.textContent = parseFloat(minClusterSlider.value).toFixed(1);
-  markDetectCustom();
-});
-morphCloseSlider.addEventListener('input', () => {
-  morphCloseVal.textContent = morphCloseSlider.value;
-  markDetectCustom();
-});
-morphOpenSlider.addEventListener('input', () => {
-  morphOpenVal.textContent = morphOpenSlider.value;
-  markDetectCustom();
-});
-adaptiveThrCheck.addEventListener('change', () => {
-  updateSensitivityLabel();
-  markDetectCustom();
-});
-ridgeTopCheck.addEventListener('change', () => markDetectCustom());
-
-document.querySelectorAll('.detect-preset-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const name = btn.dataset.preset;
-    if (name === 'custom') setDetectPresetActive('custom');
-    else applyDetectPreset(name);
-  });
-});
-updateSensitivityLabel();
-
-/* ------------------------------------------------------------------ */
-/*  Color Pickers                                                     */
-/* ------------------------------------------------------------------ */
-
-function syncPaintSwatches() {
-  const map = {
-    Body: colorBody.value,
-    Emboss: colorEmboss.value,
-    Deboss: colorDeboss.value,
-    Trim: colorTrim.value,
-  };
-  for (const [key, val] of Object.entries(map)) {
-    const sw = document.getElementById('swatch' + key);
-    const chip = document.getElementById('chipSwatch' + key);
-    if (sw) sw.style.background = val;
-    if (chip) chip.style.background = val;
-  }
-}
-
-colorBody.addEventListener('input', () => {
-  colorBodyHex.textContent = colorBody.value.toUpperCase();
-  syncPaintSwatches();
-  updateMeshColors();
-});
-colorEmboss.addEventListener('input', () => {
-  colorEmbossHex.textContent = colorEmboss.value.toUpperCase();
-  syncPaintSwatches();
-  updateMeshColors();
-});
-colorDeboss.addEventListener('input', () => {
-  colorDebossHex.textContent = colorDeboss.value.toUpperCase();
-  syncPaintSwatches();
-  updateMeshColors();
-});
-colorTrim.addEventListener('input', () => {
-  colorTrimHex.textContent = colorTrim.value.toUpperCase();
-  syncPaintSwatches();
-  updateMeshColors();
-});
-syncPaintSwatches();
-
-// Preset colors (4 AMS slots)
-const presets = [
-  { name: 'Spidey',  body: '#C20820', emboss: '#131211', deboss: '#F5F5F5', trim: '#1E40AF' },
-  { name: 'White',   body: '#FFFFFF', emboss: '#FF0000', deboss: '#0000FF', trim: '#FFD700' },
-  { name: 'Black',   body: '#222222', emboss: '#FFD700', deboss: '#00CED1', trim: '#E94560' },
-  { name: 'Silver',  body: '#BBBBBB', emboss: '#FF6600', deboss: '#0066FF', trim: '#00AE42' },
-  { name: 'Wood',    body: '#C8A26E', emboss: '#5C3A1E', deboss: '#2E5E3E', trim: '#8B4513' },
-  { name: 'Ocean',   body: '#1A5276', emboss: '#F39C12', deboss: '#2ECC71', trim: '#E8F6FF' },
-  { name: 'Neon',    body: '#1A1A2E', emboss: '#E94560', deboss: '#0F3460', trim: '#39FF14' },
-  { name: 'Pastel',  body: '#FAD6A5', emboss: '#FF6F91', deboss: '#845EC2', trim: '#4FFBDF' },
-  { name: 'Bambu',   body: '#E8E8E8', emboss: '#00AE42', deboss: '#333333', trim: '#FF6A00' },
-];
-
-const presetRow = document.getElementById('presetRow');
-for (const p of presets) {
-  const sw = document.createElement('div');
-  sw.className = 'preset-swatch';
-  sw.style.background = p.body;
-  sw.title = p.name;
-  sw.addEventListener('click', () => {
-    colorBody.value = p.body; colorBodyHex.textContent = p.body.toUpperCase();
-    colorEmboss.value = p.emboss; colorEmbossHex.textContent = p.emboss.toUpperCase();
-    colorDeboss.value = p.deboss; colorDebossHex.textContent = p.deboss.toUpperCase();
-    colorTrim.value = p.trim; colorTrimHex.textContent = p.trim.toUpperCase();
-    syncPaintSwatches();
-    updateMeshColors();
-  });
-  presetRow.appendChild(sw);
-}
-
-/* ------------------------------------------------------------------ */
-/*  File Drop / Select                                                */
-/* ------------------------------------------------------------------ */
-
-dropZone.addEventListener('click', () => fileInput.click());
-dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-dropZone.addEventListener('drop', (e) => {
-  e.preventDefault();
-  dropZone.classList.remove('dragover');
-  const file = e.dataTransfer.files[0];
-  if (file) loadSTL(file);
-});
-fileInput.addEventListener('change', () => {
-  if (fileInput.files[0]) loadSTL(fileInput.files[0]);
-});
-
-/* ------------------------------------------------------------------ */
-/*  Load STL                                                          */
-/* ------------------------------------------------------------------ */
-
-async function loadSTL(file) {
-  setStatus(`Loading ${file.name}...`, 'working');
-  state.fileName = file.name.replace(/\.stl$/i, '');
-
-  const buffer = await file.arrayBuffer();
-  const { vertices, normals, nTri } = parseSTLBinary(buffer);
-  state.rawVertices = vertices;
-  state.rawNormals = normals;
-  state.nTri = nTri;
-
-  const { verts, faces, nVerts } = deduplicateVertices(vertices, nTri);
-  // Print space: centre XY, sit on z=0 so export + preview share the bed plane.
-  seatVertsOnBed(verts, nVerts);
-  state.verts = verts;
-  state.faces = faces;
-  state.nVerts = nVerts;
-
-  state.embossMask = new Uint8Array(nTri);
-  state.debossMask = new Uint8Array(nTri);
-  state.trimMask = new Uint8Array(nTri);
-  state.featureEmboss = null;
-  state.featureDeboss = null;
-  state.embossCount = 0;
-  state.debossCount = 0;
-  state.trimCount = 0;
-  state.edgeHighlight = null;
-  state.smartPreview = null;
-  state.smartPreviewFaces = null;
-  state.faceAdj = null;
-  state.undoStack = [];
-  state.resLevel = 0;
-  state.hiddenSlots = { body: false, emboss: false, deboss: false, trim: false };
-  state.soloActive = false;
-  const soloCheck = document.getElementById('soloActive');
-  if (soloCheck) soloCheck.checked = false;
-  document.getElementById('undoBtn').disabled = true;
-
-  buildMesh({ frame: true });
-  updateStats();
-  syncHideUI();
-  updateResMeta();
-  detectBtn.disabled = false;
-  exportBtn.disabled = false; // body-only export / manual paint OK
-  document.getElementById('resFineBtn').disabled = false;
-  document.getElementById('resUltraBtn').disabled = false;
-  viewportHint.style.display = 'block';
-  setStatus(`Loaded ${file.name} — ${nTri.toLocaleString()} faces · upgrade Paint detail if you need finer strokes`, 'idle');
-}
-
-/* ------------------------------------------------------------------ */
-/*  Bed seating (print z=0)                                           */
-/* ------------------------------------------------------------------ */
-
-function seatVertsOnBed(verts, nVerts) {
-  let minX = Infinity, minY = Infinity, minZ = Infinity;
-  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
-  for (let i = 0; i < nVerts; i++) {
-    const x = verts[i * 3], y = verts[i * 3 + 1], z = verts[i * 3 + 2];
-    if (x < minX) minX = x; if (x > maxX) maxX = x;
-    if (y < minY) minY = y; if (y > maxY) maxY = y;
-    if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
-  }
-  const cx = (minX + maxX) * 0.5;
-  const cy = (minY + maxY) * 0.5;
-  for (let i = 0; i < nVerts; i++) {
-    verts[i * 3] -= cx;
-    verts[i * 3 + 1] -= cy;
-    verts[i * 3 + 2] -= minZ; // build plate at z = 0
-  }
-}
-
-/* ------------------------------------------------------------------ */
-/*  Build Three.js Mesh                                               */
-/* ------------------------------------------------------------------ */
-
-function facePaintClass(i) {
-  return paintClassOf(i, state.embossMask, state.debossMask, state.trimMask);
-}
-
-function isFaceHidden(i) {
-  const cls = facePaintClass(i);
-  if (state.soloActive) return cls !== state.paintTarget;
-  return !!state.hiddenSlots[cls];
-}
-
-const SLOT_LABELS = {
-  body: 'Slot 1 (base)',
-  emboss: 'Slot 2 (black/accent)',
-  deboss: 'Slot 3 (detail)',
-  trim: 'Slot 4 (trim)',
-};
-
-function syncHideUI() {
-  document.querySelectorAll('.paint-colour-chip').forEach(chip => {
-    const t = chip.dataset.target;
-    const hidden = state.soloActive ? t !== state.paintTarget : !!state.hiddenSlots[t];
-    chip.classList.toggle('dimmed', hidden);
-    const btn = chip.querySelector('.chip-hide');
-    if (btn) {
-      btn.textContent = hidden ? 'Show' : 'Hide';
-      btn.classList.toggle('off', hidden);
-      btn.title = hidden ? 'Show this colour again' : 'Hide this colour only';
-    }
-  });
-  document.getElementById('soloRow')?.classList.toggle('active', state.soloActive);
-  const help = document.getElementById('colourHelp');
-  if (help) {
-    if (state.soloActive) {
-      help.innerHTML = `<b>Isolate on:</b> only ${SLOT_LABELS[state.paintTarget] || 'active'} shows (tiny patch is normal). Press <b>Show all colours</b> to get the full model back.`;
-    } else if (state.hiddenSlots.emboss) {
-      help.innerHTML = 'Slot 2 hidden — red stays. Press <b>Show</b> on slot 2 or <b>Show all colours</b> anytime.';
-    } else {
-      help.innerHTML = 'Hide black web: <b>Hide</b> on slot 2. Stuck / can’t orbit? toolbar <b>Unstick</b> or <b>Show all colours</b>.';
-    }
-  }
-}
-
-function updateResMeta() {
-  const el = document.getElementById('resMeta');
-  if (!el) return;
-  if (!state.nTri) {
-    el.textContent = 'Load a model to upgrade paint resolution.';
-    return;
-  }
-  const tag = state.resLevel === 0 ? 'Original' : state.resLevel === 1 ? 'Fine' : `Ultra (×${Math.pow(4, state.resLevel)})`;
-  el.textContent = `${state.nTri.toLocaleString()} faces · ${tag}. Finer = easier tiny details.`;
-}
-
-function runResolutionUpgrade(levels) {
-  if (!state.verts || !state.nTri) return;
-  setStatus(`Upgrading paint detail (×${Math.pow(4, levels)})…`, 'working');
-  setTimeout(() => {
-    try {
-      let result = {
-        verts: state.verts,
-        faces: state.faces,
-        nVerts: state.nVerts,
-        nTri: state.nTri,
-        embossMask: state.embossMask,
-        debossMask: state.debossMask,
-        trimMask: state.trimMask,
-      };
-      for (let i = 0; i < levels; i++) {
-        result = upgradePaintResolution(
-          result.verts, result.faces, result.nVerts, result.nTri,
-          {
-            embossMask: result.embossMask,
-            debossMask: result.debossMask,
-            trimMask: result.trimMask,
-          }
-        );
-      }
-      state.verts = result.verts;
-      state.faces = result.faces;
-      state.nVerts = result.nVerts;
-      state.nTri = result.nTri;
-      state.embossMask = result.embossMask;
-      state.debossMask = result.debossMask;
-      state.trimMask = result.trimMask;
-      state.featureEmboss = null;
-      state.featureDeboss = null;
-      state.faceAdj = null;
-      state.edgeHighlight = null;
-      state.smartPreview = null;
-      state.smartPreviewFaces = null;
-      state.undoStack = [];
-      state.resLevel += levels;
-      document.getElementById('undoBtn').disabled = true;
-      buildMesh({ frame: false });
-      updateMeshColors();
-      recountPaint();
-      updateResMeta();
-      setStatus(`Paint detail upgraded — ${state.nTri.toLocaleString()} faces. Brush tiny areas now.`, 'idle');
-    } catch (err) {
-      setStatus(err.message || 'Resolution upgrade failed', 'error');
-    }
-  }, 30);
-}
-
-function buildMesh({ frame = true } = {}) {
-  if (state.mesh) {
-    scene.remove(state.mesh);
-    state.mesh.geometry.dispose();
-    state.mesh.material?.dispose?.();
-  }
-
-  const geom = new THREE.BufferGeometry();
-  const positions = new Float32Array(state.nTri * 9);
-  const colors = new Float32Array(state.nTri * 9);
-
-  const bodyCol = new THREE.Color(colorBody.value);
-
-  for (let i = 0; i < state.nTri; i++) {
-    for (let v = 0; v < 3; v++) {
-      const vi = state.faces[i * 3 + v];
-      positions[i * 9 + v * 3]     = state.verts[vi * 3];
-      positions[i * 9 + v * 3 + 1] = state.verts[vi * 3 + 1];
-      positions[i * 9 + v * 3 + 2] = state.verts[vi * 3 + 2];
-
-      let col = bodyCol;
-      if (state.embossMask && state.embossMask[i]) col = new THREE.Color(colorEmboss.value);
-      else if (state.debossMask && state.debossMask[i]) col = new THREE.Color(colorDeboss.value);
-      else if (state.trimMask && state.trimMask[i]) col = new THREE.Color(colorTrim.value);
-
-      colors[i * 9 + v * 3]     = col.r;
-      colors[i * 9 + v * 3 + 1] = col.g;
-      colors[i * 9 + v * 3 + 2] = col.b;
-    }
-  }
-
-  geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  geom.computeVertexNormals();
-
-  const mat = new THREE.MeshStandardMaterial({
-    vertexColors: true,
-    roughness: 0.55,
-    metalness: 0.05,
-    flatShading: false
-  });
-
-  state.mesh = new THREE.Mesh(geom, mat);
-  state.mesh.castShadow = true;
-  state.mesh.receiveShadow = true;
-  // Print space is Z-up; Three.js grid is Y-up — map bed (z=0) onto the grid.
-  state.mesh.rotation.x = -Math.PI / 2;
-  scene.add(state.mesh);
-
-  if (frame) {
-    state.mesh.updateMatrixWorld(true);
-    const worldBox = new THREE.Box3().setFromObject(state.mesh);
-    const size = new THREE.Vector3();
-    const center = new THREE.Vector3();
-    worldBox.getSize(size);
-    worldBox.getCenter(center);
-
-    const maxDim = Math.max(size.x, size.y, size.z, 1);
-    const dist = maxDim * 1.8;
-    camera.position.set(center.x + dist * 0.7, center.y + dist * 0.35, center.z + dist * 0.7);
-    controls.target.copy(center);
-    controls.update();
-  }
-}
-
-function updateMeshColors() {
-  if (!state.mesh) return;
-  const colors = state.mesh.geometry.attributes.color;
-  const bodyCol = new THREE.Color(colorBody.value);
-  const embossCol = new THREE.Color(colorEmboss.value);
-  const debossCol = new THREE.Color(colorDeboss.value);
-  const trimCol = new THREE.Color(colorTrim.value);
-  // Hidden faces: cool ghost grey (not black — black paint must stay distinct)
-  const ghostCol = new THREE.Color(0x2a3548);
-  // Lime = edge band; amber = smart-fill hover preview
-  const edgeCol = new THREE.Color('#7dffb3');
-  const smartCol = new THREE.Color('#f5c542');
-
-  for (let i = 0; i < state.nTri; i++) {
-    let col = bodyCol;
-    if (state.edgeHighlight && state.edgeHighlight[i]) col = edgeCol;
-    else if (state.smartPreview && state.smartPreview[i]) col = smartCol;
-    else if (state.embossMask && state.embossMask[i]) col = embossCol;
-    else if (state.debossMask && state.debossMask[i]) col = debossCol;
-    else if (state.trimMask && state.trimMask[i]) col = trimCol;
-    if (isFaceHidden(i) && !(state.edgeHighlight && state.edgeHighlight[i]) && !(state.smartPreview && state.smartPreview[i])) {
-      col = ghostCol;
-    }
-    for (let v = 0; v < 3; v++) {
-      colors.setXYZ(i * 3 + v, col.r, col.g, col.b);
-    }
-  }
-  colors.needsUpdate = true;
+  $('statVerts').textContent = S.nVerts > 0 ? S.nVerts.toLocaleString() : '--';
+  $('statFaces').textContent = S.nTri > 0 ? S.nTri.toLocaleString() : '--';
+  $('statEmboss').textContent = S.embossCount > 0 ? S.embossCount.toLocaleString() : '--';
+  $('statDeboss').textContent = S.debossCount > 0 ? S.debossCount.toLocaleString() : '--';
+  $('statTrim').textContent = S.trimCount > 0 ? S.trimCount.toLocaleString() : '--';
 }
 
 function recountPaint() {
   let ec = 0, dc = 0, tc = 0;
-  if (state.embossMask && state.debossMask && state.trimMask) {
-    for (let i = 0; i < state.nTri; i++) {
-      if (state.embossMask[i]) ec++;
-      if (state.debossMask[i]) dc++;
-      if (state.trimMask[i]) tc++;
+  if (S.embossMask && S.debossMask && S.trimMask) {
+    for (let i = 0; i < S.nTri; i++) {
+      if (S.embossMask[i]) ec++;
+      if (S.debossMask[i]) dc++;
+      if (S.trimMask[i]) tc++;
     }
   }
-  state.embossCount = ec;
-  state.debossCount = dc;
-  state.trimCount = tc;
+  S.embossCount = ec; S.debossCount = dc; S.trimCount = tc;
   updateStats();
 }
 
-function pushUndo() {
-  if (!state.embossMask || !state.debossMask || !state.trimMask) return;
-  state.undoStack.push({
-    emboss: state.embossMask.slice(),
-    deboss: state.debossMask.slice(),
-    trim: state.trimMask.slice(),
-  });
-  if (state.undoStack.length > 30) state.undoStack.shift();
-  document.getElementById('undoBtn').disabled = false;
+/* ================================================================== */
+/*  DETECT PRESETS                                                    */
+/* ================================================================== */
+
+const DETECT_PRESETS = {
+  fine: { mode:'emboss', sensitivity:0.22, smoothIter:120, minCluster:0.5,
+    adaptive:true, ridgeTop:true, morphClose:1, morphOpen:1, scoreSmooth:2, hysteresis:0.55, majority:2 },
+  bold: { mode:'both', sensitivity:0.40, smoothIter:40, minCluster:3.0,
+    adaptive:true, ridgeTop:false, morphClose:1, morphOpen:1, scoreSmooth:1, hysteresis:0.65, majority:1 },
+};
+let activeDetectPreset = 'fine';
+let detectRefine = { scoreSmooth: 2, hysteresis: 0.55, majority: 2 };
+
+function updateSensitivityLabel() {
+  const el = $('sensitivityLabel');
+  if (el) el.textContent = $('adaptiveThr').checked ? 'Sensitivity (keep top %)' : 'Sensitivity (mm)';
 }
 
-function paintFaces(faceIndices, target) {
-  if (!state.embossMask || !state.debossMask || !state.trimMask) return;
-  if (!faceIndices.length) {
-    setStatus('No faces in that box — zoom in or drag a larger area', 'idle');
-    return;
+function getDetectOpts() {
+  return {
+    threshold: parseFloat($('sensitivity').value),
+    iterations: parseInt($('smoothIter').value, 10),
+    weight: 0.5,
+    mode: S.detectMode || 'emboss',
+    adaptive: $('adaptiveThr').checked,
+    absFloor: 0.05,
+    ridgeTop: $('ridgeTop').checked,
+    morphCloseSteps: parseInt($('morphClose').value, 10),
+    morphOpenSteps: parseInt($('morphOpen').value, 10),
+    scoreSmoothPasses: detectRefine.scoreSmooth,
+    hysteresis: detectRefine.hysteresis,
+    majorityPasses: detectRefine.majority,
+  };
+}
+
+function setDetectPresetActive(name) {
+  activeDetectPreset = name;
+  document.querySelectorAll('.detect-preset-btn').forEach(b => b.classList.toggle('active', b.dataset.preset === name));
+}
+
+function applyDetectPreset(name) {
+  const p = DETECT_PRESETS[name];
+  if (!p) { setDetectPresetActive('custom'); return; }
+  S.detectMode = p.mode;
+  const sliders = { sensitivity: p.sensitivity, smoothIter: p.smoothIter, minCluster: p.minCluster,
+    morphClose: p.morphClose, morphOpen: p.morphOpen };
+  for (const [k, v] of Object.entries(sliders)) {
+    const el = $(k); if (el) el.value = String(v);
   }
-  paintFacesFree(faceIndices, target);
-  setStatus(`Painted ${faceIndices.length.toLocaleString()} faces → ${target}`, 'idle');
+  $('sensitivityVal').textContent = p.sensitivity.toFixed(2);
+  $('smoothIterVal').textContent = String(p.smoothIter);
+  $('minClusterVal').textContent = p.minCluster.toFixed(1);
+  $('morphCloseVal').textContent = String(p.morphClose);
+  $('morphOpenVal').textContent = String(p.morphOpen);
+  $('adaptiveThr').checked = p.adaptive;
+  $('ridgeTop').checked = p.ridgeTop;
+  detectRefine = { scoreSmooth: p.scoreSmooth ?? 2, hysteresis: p.hysteresis ?? 0.55, majority: p.majority ?? 1 };
+  updateSensitivityLabel();
+  setDetectPresetActive(name);
+  S.featureEmboss = null; S.featureDeboss = null;
+}
+
+/* ================================================================== */
+/*  MESH BUILD & COLORS                                               */
+/* ================================================================== */
+
+function seatVertsOnBed(verts, nVerts) {
+  let mnX=Infinity, mnY=Infinity, mnZ=Infinity, mxX=-Infinity, mxY=-Infinity;
+  for (let i = 0; i < nVerts; i++) {
+    const x=verts[i*3], y=verts[i*3+1], z=verts[i*3+2];
+    if(x<mnX)mnX=x; if(x>mxX)mxX=x;
+    if(y<mnY)mnY=y; if(y>mxY)mxY=y;
+    if(z<mnZ)mnZ=z;
+  }
+  const cx=(mnX+mxX)*0.5, cy=(mnY+mxY)*0.5;
+  for(let i=0;i<nVerts;i++){verts[i*3]-=cx;verts[i*3+1]-=cy;verts[i*3+2]-=mnZ;}
+}
+
+function facePaintClass(i) { return paintClassOf(i, S.embossMask, S.debossMask, S.trimMask); }
+
+function isFaceHidden(i) {
+  // Island-level hiding
+  if (S.islandMap && S.hiddenIslands.has(S.islandMap[i])) return true;
+  const cls = facePaintClass(i);
+  if (S.soloActive) return cls !== S.paintTarget;
+  return !!S.hiddenSlots[cls];
+}
+
+function buildMesh({ frame = true } = {}) {
+  if (S.mesh) { scene.remove(S.mesh); S.mesh.geometry.dispose(); S.mesh.material?.dispose?.(); }
+
+  const geom = new THREE.BufferGeometry();
+  const pos = new Float32Array(S.nTri * 9);
+  const cols = new Float32Array(S.nTri * 9);
+  const bodyCol = new THREE.Color(colorInputs.body.value);
+
+  for (let i = 0; i < S.nTri; i++) {
+    for (let v = 0; v < 3; v++) {
+      const vi = S.faces[i * 3 + v];
+      pos[i*9+v*3]   = S.verts[vi*3];
+      pos[i*9+v*3+1] = S.verts[vi*3+1];
+      pos[i*9+v*3+2] = S.verts[vi*3+2];
+      for (let c = 0; c < 3; c++) cols[i*9+v*3+c] = bodyCol.toArray()[c];
+    }
+  }
+
+  geom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geom.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+  geom.computeVertexNormals();
+
+  S.mesh = new THREE.Mesh(geom, new THREE.MeshStandardMaterial({
+    vertexColors: true, roughness: 0.55, metalness: 0.05, flatShading: false
+  }));
+  S.mesh.castShadow = true; S.mesh.receiveShadow = true;
+  S.mesh.rotation.x = -Math.PI / 2;
+  scene.add(S.mesh);
+
+  if (frame) frameModel();
+  updateMeshColors();
+}
+
+function updateMeshColors() {
+  if (!S.mesh) return;
+  const colors = S.mesh.geometry.attributes.color;
+  const bodyCol = new THREE.Color(colorInputs.body.value);
+  const embossCol = new THREE.Color(colorInputs.emboss.value);
+  const debossCol = new THREE.Color(colorInputs.deboss.value);
+  const trimCol = new THREE.Color(colorInputs.trim.value);
+  const ghostCol = new THREE.Color(0x2a3548);
+  const edgeCol = new THREE.Color('#7dffb3');
+  const smartCol = new THREE.Color('#f5c542');
+  const selectCol = new THREE.Color('#ff6bff'); // magenta for click-selection
+
+  for (let i = 0; i < S.nTri; i++) {
+    let col = bodyCol;
+    if (S.clickSelection && S.clickSelection[i]) col = selectCol;
+    else if (S.edgeHighlight && S.edgeHighlight[i]) col = edgeCol;
+    else if (S.smartPreview && S.smartPreview[i]) col = smartCol;
+    else if (S.embossMask?.[i]) col = embossCol;
+    else if (S.debossMask?.[i]) col = debossCol;
+    else if (S.trimMask?.[i]) col = trimCol;
+
+    const isHighlighted = (S.clickSelection?.[i]) || (S.edgeHighlight?.[i]) || (S.smartPreview?.[i]);
+    if (isFaceHidden(i) && !isHighlighted) col = ghostCol;
+
+    for (let v = 0; v < 3; v++) colors.setXYZ(i * 3 + v, col.r, col.g, col.b);
+  }
+  colors.needsUpdate = true;
 }
 
 function frameModel() {
-  if (!state.mesh) return;
-  state.mesh.updateMatrixWorld(true);
-  const worldBox = new THREE.Box3().setFromObject(state.mesh);
-  const size = new THREE.Vector3();
-  const center = new THREE.Vector3();
-  worldBox.getSize(size);
-  worldBox.getCenter(center);
-  const maxDim = Math.max(size.x, size.y, size.z, 1);
-  const dist = maxDim * 1.8;
-  camera.position.set(center.x + dist * 0.7, center.y + dist * 0.35, center.z + dist * 0.7);
+  if (!S.mesh) return;
+  S.mesh.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(S.mesh);
+  const size = new THREE.Vector3(), center = new THREE.Vector3();
+  box.getSize(size); box.getCenter(center);
+  const d = Math.max(size.x, size.y, size.z, 1) * 1.8;
+  camera.position.set(center.x + d * 0.7, center.y + d * 0.35, center.z + d * 0.7);
   controls.target.copy(center);
   controls.update();
 }
@@ -1484,290 +886,128 @@ function zoomBy(factor) {
   controls.update();
 }
 
-function facesInScreenBox(x0, y0, x1, y1) {
-  const left = Math.min(x0, x1), right = Math.max(x0, x1);
-  const top = Math.min(y0, y1), bottom = Math.max(y0, y1);
-  if (right - left < 3 || bottom - top < 3) return [];
-  const w = viewport.clientWidth, h = viewport.clientHeight;
-  state.mesh.updateMatrixWorld(true);
-  const mat = state.mesh.matrixWorld;
-  const v = new THREE.Vector3();
-  const camDir = new THREE.Vector3();
-  camera.getWorldDirection(camDir);
-  const hit = [];
-  for (let i = 0; i < state.nTri; i++) {
-    if (isFaceHidden(i)) continue;
-    let cx = 0, cy = 0, cz = 0;
-    let anyIn = false;
-    const world = [];
-    for (let k = 0; k < 3; k++) {
-      const vi = state.faces[i * 3 + k];
-      v.set(state.verts[vi * 3], state.verts[vi * 3 + 1], state.verts[vi * 3 + 2]).applyMatrix4(mat);
-      world.push(v.x, v.y, v.z);
-      cx += v.x; cy += v.y; cz += v.z;
-      v.project(camera);
-      if (v.z >= -1 && v.z <= 1) {
-        const sx = (v.x * 0.5 + 0.5) * w;
-        const sy = (-v.y * 0.5 + 0.5) * h;
-        if (sx >= left && sx <= right && sy >= top && sy <= bottom) anyIn = true;
-      }
-    }
-    cx /= 3; cy /= 3; cz /= 3;
-    // Prefer front-facing triangles (skip backfaces that make paint look "wrong")
-    const e1x = world[3] - world[0], e1y = world[4] - world[1], e1z = world[5] - world[2];
-    const e2x = world[6] - world[0], e2y = world[7] - world[1], e2z = world[8] - world[2];
-    const nx = e1y * e2z - e1z * e2y;
-    const ny = e1z * e2x - e1x * e2z;
-    const nz = e1x * e2y - e1y * e2x;
-    if (nx * camDir.x + ny * camDir.y + nz * camDir.z > 0) continue; // facing away
+/* ================================================================== */
+/*  PAINT SYSTEM                                                      */
+/* ================================================================== */
 
-    if (!anyIn) {
-      v.set(cx, cy, cz).project(camera);
-      if (v.z < -1 || v.z > 1) continue;
-      const sx = (v.x * 0.5 + 0.5) * w;
-      const sy = (-v.y * 0.5 + 0.5) * h;
-      if (sx < left || sx > right || sy < top || sy > bottom) continue;
-    }
-    hit.push(i);
-  }
-  return hit;
-}
-
-/* ------------------------------------------------------------------ */
-/*  Tools: Orbit / Box paint / Zoom                                   */
-/* ------------------------------------------------------------------ */
-
-const toolBox = document.getElementById('toolBox');
-const toolEdge = document.getElementById('toolEdge');
-const toolSmart = document.getElementById('toolSmart');
-const edgeControls = document.getElementById('edgeControls');
-const smartControls = document.getElementById('smartControls');
-const edgeWidthSlider = document.getElementById('edgeWidth');
-const edgeWidthVal = document.getElementById('edgeWidthVal');
-const edgeFillBtn = document.getElementById('edgeFillBtn');
-const edgeClearBtn = document.getElementById('edgeClearBtn');
-const smartSizeSlider = document.getElementById('smartSize');
-const smartSizeVal = document.getElementById('smartSizeVal');
-const smartAngleSlider = document.getElementById('smartAngle');
-const smartAngleVal = document.getElementById('smartAngleVal');
-const smartSameColour = document.getElementById('smartSameColour');
-const smartCursor = document.getElementById('smartCursor');
-const selectRect = document.getElementById('selectRect');
-const raycaster = new THREE.Raycaster();
-const pointerNdc = new THREE.Vector2();
-
-function ensureFaceAdj() {
-  if (!state.faceAdj && state.faces && state.nTri) {
-    setStatus('Building edge map…', 'working');
-    state.faceAdj = buildFaceAdj(state.faces, state.nTri);
-  }
-  return state.faceAdj;
-}
-
-function clearEdgeHighlight() {
-  state.edgeHighlight = null;
-  updateMeshColors();
-}
-
-function syncOrbitLock() {
-  const locked = !!orbitLockCheck?.checked;
-  const painting = !!state.brushStrokeActive || !!state._smartClick || !!boxDrag;
-  // Alt/Space = force left-orbit. Right-drag always orbits (enableRotate stays true).
-  const leftBlocked = state.orbitOverride
-    ? false
-    : (
-      painting ||
-      state.tool === 'eyedrop' ||
-      state.tool === 'smart' ||
-      ((state.tool === 'box' || state.tool === 'edge') && locked) ||
-      (isBrushTool() && locked)
-    );
-
-  controls.enabled = true;
-  controls.enableRotate = true;
-  controls.enablePan = true;
-  controls.mouseButtons.LEFT = leftBlocked ? -1 : THREE.MOUSE.ROTATE;
-  controls.mouseButtons.MIDDLE = THREE.MOUSE.DOLLY;
-  controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
-  document.getElementById('orbitLockLabel')?.classList.toggle('active', locked);
-}
-
-/** Clear stuck paint/orbit capture so the model can move again. */
-function resetInteraction(msg) {
-  const pids = [
-    state.brushStrokeActive?.pointerId,
-    state._smartClick?.pointerId,
-    boxDrag?.pointerId,
-  ].filter((v) => v != null);
-  state.brushStrokeActive = null;
-  state._smartClick = null;
-  state.orbitOverride = false;
-  if (boxDrag) endBoxDrag();
-  for (const id of pids) releaseViewportPointer(id);
-  selectRect.style.display = 'none';
-  if (smartCursor) smartCursor.style.display = 'none';
-  controls.enabled = true;
-  controls.enableRotate = true;
-  controls.enablePan = true;
-  syncOrbitLock();
-  if (msg) setStatus(msg, 'idle');
-}
-
-function showAllColours() {
-  state.soloActive = false;
-  state.hiddenSlots = { body: false, emboss: false, deboss: false, trim: false };
-  const soloCheck = document.getElementById('soloActive');
-  if (soloCheck) soloCheck.checked = false;
-  syncHideUI();
-  updateMeshColors();
-  resetInteraction('All colours visible — right-drag orbits · Brush paints on the model');
-}
-
-function syncSlotCards() {
-  document.querySelectorAll('.slot-card').forEach(card => {
-    card.classList.toggle('active', card.dataset.target === state.paintTarget);
-  });
-  document.querySelectorAll('.paint-colour-chip').forEach(chip => {
-    chip.classList.toggle('active', chip.dataset.target === state.paintTarget);
-  });
-}
-
-function showToolOpts(tool) {
-  document.getElementById('brushOpts')?.classList.toggle('visible', tool === 'brush');
-  document.getElementById('sprayOpts')?.classList.toggle('visible', tool === 'spray');
-  document.getElementById('eyedropOpts')?.classList.toggle('visible', tool === 'eyedrop');
-  document.getElementById('smartOpts')?.classList.toggle('visible', tool === 'smart');
-  document.getElementById('edgeOpts')?.classList.toggle('visible', tool === 'edge');
-  document.getElementById('detectOpts')?.classList.toggle('visible', tool === 'detect');
-}
-
-function isBrushTool(tool = state.tool) {
-  return tool === 'brush' || tool === 'spray';
-}
-
-function setBrushStroke(mode) {
-  state.brushStroke = mode || 'free';
-  document.querySelectorAll('.stroke-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.stroke === state.brushStroke);
-  });
-  const labels = { free: 'Freehand', horizontal: 'Horizontal', vertical: 'Vertical' };
-  const el = document.getElementById('strokeModeVal');
-  if (el) el.textContent = labels[state.brushStroke] || 'Freehand';
-}
-
-/** Mask used by Edge finder for the active slot (or any painted face when on Base). */
-function edgePaintMask() {
-  const t = state.paintTarget;
-  if (t === 'emboss') return state.embossMask;
-  if (t === 'deboss') return state.debossMask;
-  if (t === 'trim') return state.trimMask;
-  // Base: boundary of anything painted vs body
-  const m = new Uint8Array(state.nTri);
-  for (let i = 0; i < state.nTri; i++) {
-    if (state.embossMask[i] || state.debossMask[i] || state.trimMask[i]) m[i] = 1;
-  }
-  return m;
-}
-
-function runEdgeFinder(seedFaceList) {
-  if (!state.embossMask || !state.trimMask || !state.mesh) return 0;
-  ensureFaceAdj();
-  const width = parseInt(edgeWidthSlider.value, 10) || 0;
-  let region = null;
-  if (seedFaceList && seedFaceList.length) {
-    region = new Uint8Array(state.nTri);
-    for (const i of seedFaceList) region[i] = 1;
-  }
-  // Grow toward body when painting a colour slot; grow into paint when filling Base (shave).
-  const growInto = state.paintTarget === 'body' ? 'paint' : 'body';
-  const band = findPaintBoundary(edgePaintMask(), state.faces, state.nTri, {
-    width,
-    growInto,
-    region,
-    faceAdj: state.faceAdj,
-  });
-  state.edgeHighlight = band;
-  let count = 0;
-  for (let i = 0; i < state.nTri; i++) if (band[i]) count++;
-  updateMeshColors();
-  return count;
-}
-
-function fillEdgeHighlight(target = state.paintTarget) {
-  if (!state.edgeHighlight || !state.embossMask) {
-    setStatus('No edge highlight — drag a box over the rough edge, then Fill', 'idle');
-    return;
-  }
-  const faces = [];
-  for (let i = 0; i < state.nTri; i++) {
-    if (state.edgeHighlight[i]) faces.push(i);
-  }
-  if (!faces.length) {
-    setStatus('Edge highlight is empty — raise Width or drag over the edge', 'idle');
-    return;
-  }
-  paintFacesFree(faces, target);
-  state.edgeHighlight = null;
-  updateMeshColors();
-  setStatus(`Filled ${faces.length.toLocaleString()} edge faces → ${target}`, 'idle');
+function pushUndo() {
+  if (!S.embossMask || !S.debossMask || !S.trimMask) return;
+  S.undoStack.push({ emboss: S.embossMask.slice(), deboss: S.debossMask.slice(), trim: S.trimMask.slice() });
+  if (S.undoStack.length > 30) S.undoStack.shift();
+  $('undoBtn').disabled = false;
 }
 
 function paintFacesFree(faceIndices, target, { undo = true } = {}) {
-  if (!state.embossMask || !state.debossMask || !state.trimMask || !faceIndices.length) return;
+  if (!S.embossMask || !faceIndices.length) return;
   const faces = faceIndices.filter(i => !isFaceHidden(i));
   if (!faces.length) return;
   if (undo) pushUndo();
   for (const i of faces) {
-    state.embossMask[i] = target === 'emboss' ? 1 : 0;
-    state.debossMask[i] = target === 'deboss' ? 1 : 0;
-    state.trimMask[i] = target === 'trim' ? 1 : 0;
+    S.embossMask[i] = target === 'emboss' ? 1 : 0;
+    S.debossMask[i] = target === 'deboss' ? 1 : 0;
+    S.trimMask[i]   = target === 'trim'   ? 1 : 0;
   }
   updateMeshColors();
   recountPaint();
   exportBtn.disabled = false;
 }
 
+function ensureFaceAdj() {
+  if (!S.faceAdj && S.faces && S.nTri) {
+    setStatus('Building edge map…', 'working');
+    S.faceAdj = buildFaceAdj(S.faces, S.nTri);
+  }
+  return S.faceAdj;
+}
+
+/* ================================================================== */
+/*  RAYCASTING                                                        */
+/* ================================================================== */
+
+function pickHitAtClient(clientX, clientY) {
+  if (!S.mesh) return null;
+  const rect = viewport.getBoundingClientRect();
+  pointerNdc.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+  pointerNdc.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(pointerNdc, camera);
+  for (const hit of raycaster.intersectObject(S.mesh, false)) {
+    if (hit.faceIndex == null || isFaceHidden(hit.faceIndex)) continue;
+    return { faceIndex: hit.faceIndex, point: S.mesh.worldToLocal(hit.point.clone()), worldPoint: hit.point };
+  }
+  return null;
+}
+
+function facesInScreenBox(x0, y0, x1, y1) {
+  const left = Math.min(x0,x1), right = Math.max(x0,x1);
+  const top = Math.min(y0,y1), bottom = Math.max(y0,y1);
+  if (right-left < 3 || bottom-top < 3) return [];
+  const w = viewport.clientWidth, h = viewport.clientHeight;
+  S.mesh.updateMatrixWorld(true);
+  const mat = S.mesh.matrixWorld;
+  const v = new THREE.Vector3(), camDir = new THREE.Vector3();
+  camera.getWorldDirection(camDir);
+  const hit = [];
+  for (let i = 0; i < S.nTri; i++) {
+    if (isFaceHidden(i)) continue;
+    let anyIn = false;
+    const world = [];
+    for (let k = 0; k < 3; k++) {
+      const vi = S.faces[i * 3 + k];
+      v.set(S.verts[vi*3], S.verts[vi*3+1], S.verts[vi*3+2]).applyMatrix4(mat);
+      world.push(v.x, v.y, v.z);
+      v.project(camera);
+      if (v.z >= -1 && v.z <= 1) {
+        const sx = (v.x*.5+.5)*w, sy = (-v.y*.5+.5)*h;
+        if (sx >= left && sx <= right && sy >= top && sy <= bottom) anyIn = true;
+      }
+    }
+    if (!anyIn) {
+      let cx=(world[0]+world[3]+world[6])/3, cy=(world[1]+world[4]+world[7])/3, cz=(world[2]+world[5]+world[8])/3;
+      v.set(cx,cy,cz).project(camera);
+      if (v.z<-1||v.z>1) continue;
+      const sx=(v.x*.5+.5)*w, sy=(-v.y*.5+.5)*h;
+      if (sx<left||sx>right||sy<top||sy>bottom) continue;
+    }
+    // Backface cull
+    const e1x=world[3]-world[0],e1y=world[4]-world[1],e1z=world[5]-world[2];
+    const e2x=world[6]-world[0],e2y=world[7]-world[1],e2z=world[8]-world[2];
+    const nx=e1y*e2z-e1z*e2y, ny=e1z*e2x-e1x*e2z, nz=e1x*e2y-e1y*e2x;
+    if (nx*camDir.x+ny*camDir.y+nz*camDir.z > 0) continue;
+    hit.push(i);
+  }
+  return hit;
+}
+
+/* ================================================================== */
+/*  BRUSH / SPRAY                                                     */
+/* ================================================================== */
+
 function brushRadiusMm() {
-  if (state.tool === 'spray') return parseFloat(document.getElementById('sprayNozzle')?.value) || 6;
-  return parseFloat(document.getElementById('brushSize')?.value) || 2.5;
+  if (S.tool === 'spray') return parseFloat($('sprayNozzle')?.value) || 6;
+  return parseFloat($('brushSize')?.value) || 2.5;
 }
 
 function applyBrushDab(hit, { undo = false } = {}) {
-  if (!hit || !state.mesh) return 0;
+  if (!hit || !S.mesh) return 0;
   ensureFaceAdj();
   const radius = brushRadiusMm();
-  const density = state.tool === 'spray'
-    ? (parseFloat(document.getElementById('sprayDensity')?.value) || 45) / 100
-    : 1;
-  // Freehand: wide angle so paint follows curves; H/V can stay a bit tighter
-  const maxAngleDeg = state.tool === 'spray'
-    ? 100
-    : (state.brushStroke === 'free' ? 110 : 80);
-  const faces = brushDabFaces(
-    hit.faceIndex,
-    hit.point,
-    state.verts,
-    state.faces,
-    state.nTri,
-    state.faceAdj,
-    { radius, density, maxAngleDeg }
-  );
+  const density = S.tool === 'spray' ? (parseFloat($('sprayDensity')?.value) || 45) / 100 : 1;
+  const maxAngleDeg = S.tool === 'spray' ? 100 : (S.brushStroke === 'free' ? 110 : 80);
+  const faces = brushDabFaces(hit.faceIndex, hit.point, S.verts, S.faces, S.nTri, S.faceAdj, { radius, density, maxAngleDeg });
   if (!faces.length) return 0;
-  paintFacesFree(faces, state.paintTarget, { undo });
+  paintFacesFree(faces, S.paintTarget, { undo });
   return faces.length;
 }
 
-function constrainBrushClient(clientX, clientY, origin) {
-  // Freehand = no axis lock (full free paint)
-  if (!origin || state.brushStroke === 'free') return { x: clientX, y: clientY };
-  if (state.brushStroke === 'horizontal') return { x: clientX, y: origin.y };
-  if (state.brushStroke === 'vertical') return { x: origin.x, y: clientY };
-  return { x: clientX, y: clientY };
+function constrainBrushClient(x, y, origin) {
+  if (!origin || S.brushStroke === 'free') return { x, y };
+  if (S.brushStroke === 'horizontal') return { x, y: origin.y };
+  if (S.brushStroke === 'vertical') return { x: origin.x, y };
+  return { x, y };
 }
 
-/** Fill gaps when the mouse moves fast so Freehand strokes stay continuous. */
-function strokeBrushTo(clientX, clientY, { undo = false } = {}) {
-  const stroke = state.brushStrokeActive;
+function strokeBrushTo(clientX, clientY) {
+  const stroke = S.brushStrokeActive;
   if (!stroke) return 0;
   const pt = constrainBrushClient(clientX, clientY, stroke.origin);
   const prev = stroke.lastClient || pt;
@@ -1775,479 +1015,737 @@ function strokeBrushTo(clientX, clientY, { undo = false } = {}) {
   const step = Math.max(4, brushRadiusMm() * 2.2);
   const samples = dist < 1 ? 1 : Math.min(24, Math.ceil(dist / step));
   let painted = 0;
-  let didUndo = false;
   for (let s = 1; s <= samples; s++) {
     const t = s / samples;
-    const x = prev.x + (pt.x - prev.x) * t;
-    const y = prev.y + (pt.y - prev.y) * t;
+    const x = prev.x + (pt.x - prev.x) * t, y = prev.y + (pt.y - prev.y) * t;
     const hit = pickHitAtClient(x, y);
     if (!hit) continue;
     updateSmartCursor(x, y, hit.worldPoint);
-    const n = applyBrushDab(hit, { undo: undo && !didUndo && !stroke.undid });
-    if (n) {
-      painted += n;
-      didUndo = true;
-      stroke.undid = true;
-    }
+    const n = applyBrushDab(hit, { undo: !stroke.undid });
+    if (n) { painted += n; stroke.undid = true; }
   }
   stroke.lastClient = pt;
   return painted;
 }
 
-function sampleEyedrop(clientX, clientY) {
-  const hit = pickHitAtClient(clientX, clientY);
-  if (!hit) {
-    setStatus('Eyedropper — click on the model', 'idle');
-    return;
-  }
-  const cls = paintClassOf(hit.faceIndex, state.embossMask, state.debossMask, state.trimMask);
-  setPaintTarget(cls);
-  const labels = { body: 'Slot 1 Base', emboss: 'Slot 2 Accent', deboss: 'Slot 3 Detail', trim: 'Slot 4 Trim' };
-  setStatus(`Eyedropper → ${labels[cls] || cls}`, 'idle');
-}
-
-function pickHitAtClient(clientX, clientY) {
-  if (!state.mesh) return null;
-  const rect = viewport.getBoundingClientRect();
-  pointerNdc.x = ((clientX - rect.left) / rect.width) * 2 - 1;
-  pointerNdc.y = -((clientY - rect.top) / rect.height) * 2 + 1;
-  raycaster.setFromCamera(pointerNdc, camera);
-  const hits = raycaster.intersectObject(state.mesh, false);
-  for (const hit of hits) {
-    const faceIndex = hit.faceIndex;
-    if (faceIndex == null) continue;
-    if (isFaceHidden(faceIndex)) continue;
-    // Hit point in mesh local space (smart fill uses model mm coords)
-    const local = state.mesh.worldToLocal(hit.point.clone());
-    return { faceIndex, point: local, worldPoint: hit.point };
-  }
-  return null;
-}
-
-function clearSmartPreview() {
-  state.smartPreview = null;
-  state.smartPreviewFaces = null;
-  if (smartCursor) smartCursor.style.display = 'none';
-  updateMeshColors();
-}
-
-function updateSmartCursor(clientX, clientY, worldPoint) {
-  if (!smartCursor || !state.mesh) return;
-  const radius = isBrushTool()
-    ? brushRadiusMm()
-    : (parseFloat(smartSizeSlider.value) || 10);
-  // Approximate screen radius from world size at hit depth
-  const rect = viewport.getBoundingClientRect();
-  const cam = camera;
-  const dist = cam.position.distanceTo(worldPoint);
-  const vFov = (cam.fov * Math.PI) / 180;
-  const worldH = 2 * Math.tan(vFov / 2) * dist;
-  const pxPerMm = rect.height / worldH;
-  const d = Math.max(8, radius * pxPerMm * 2);
-  smartCursor.style.display = 'block';
-  smartCursor.style.width = d + 'px';
-  smartCursor.style.height = d + 'px';
-  smartCursor.style.left = (clientX - rect.left - d / 2) + 'px';
-  smartCursor.style.top = (clientY - rect.top - d / 2) + 'px';
-  smartCursor.style.borderColor = state.tool === 'spray' ? 'rgba(251, 191, 36, 0.55)' : '';
-  smartCursor.style.background = state.tool === 'spray' ? 'rgba(251, 191, 36, 0.08)' : '';
-}
+/* ================================================================== */
+/*  SMART FILL                                                        */
+/* ================================================================== */
 
 function computeSmartFill(hit) {
-  if (!hit || !state.embossMask) return [];
+  if (!hit || !S.embossMask) return [];
   ensureFaceAdj();
-  return smartFillFaces(
-    hit.faceIndex,
-    hit.point,
-    state.verts,
-    state.faces,
-    state.nTri,
-    state.embossMask,
-    state.debossMask,
-    state.faceAdj,
-    {
-      radius: parseFloat(smartSizeSlider.value) || 10,
-      maxAngleDeg: parseFloat(smartAngleSlider.value) || 35,
-      samePaintOnly: smartSameColour?.checked !== false,
-      trimMask: state.trimMask,
-    }
-  );
+  return smartFillFaces(hit.faceIndex, hit.point, S.verts, S.faces, S.nTri,
+    S.embossMask, S.debossMask, S.faceAdj, {
+      radius: parseFloat($('smartSize').value) || 10,
+      maxAngleDeg: parseFloat($('smartAngle').value) || 35,
+      samePaintOnly: $('smartSameColour')?.checked !== false,
+      trimMask: S.trimMask,
+    });
 }
 
 function previewSmartFill(clientX, clientY) {
-  if (state.tool !== 'smart' || !state.mesh) return;
+  if (S.tool !== 'smart' || !S.mesh) return;
   const hit = pickHitAtClient(clientX, clientY);
-  if (!hit) {
-    clearSmartPreview();
-    return;
-  }
+  if (!hit) { clearSmartPreview(); return; }
   updateSmartCursor(clientX, clientY, hit.worldPoint);
   const faces = computeSmartFill(hit);
-  const mask = new Uint8Array(state.nTri);
+  const mask = new Uint8Array(S.nTri);
   for (const i of faces) mask[i] = 1;
-  state.smartPreview = mask;
-  state.smartPreviewFaces = faces;
-  state.edgeHighlight = null;
+  S.smartPreview = mask; S.smartPreviewFaces = faces;
+  S.edgeHighlight = null;
   updateMeshColors();
 }
 
 function commitSmartFill() {
-  const faces = state.smartPreviewFaces;
-  if (!faces || !faces.length) {
-    setStatus('Nothing to fill — hover the eye lens, tweak Size/Angle until the amber patch looks right, then click', 'idle');
-    return;
-  }
-  const target = state.paintTarget;
-  paintFacesFree(faces, target);
-  state.smartPreview = null;
-  state.smartPreviewFaces = null;
+  const faces = S.smartPreviewFaces;
+  if (!faces?.length) { setStatus('Nothing to fill — hover, tweak Size/Angle, then click', 'idle'); return; }
+  paintFacesFree(faces, S.paintTarget);
+  S.smartPreview = null; S.smartPreviewFaces = null;
   updateMeshColors();
-  setStatus(`Smart fill: ${faces.length.toLocaleString()} faces → ${target}`, 'idle');
+  setStatus(`Smart fill: ${faces.length.toLocaleString()} faces → ${S.paintTarget}`, 'idle');
+}
+
+function clearSmartPreview() {
+  S.smartPreview = null; S.smartPreviewFaces = null;
+  if (smartCursor) smartCursor.style.display = 'none';
+  updateMeshColors();
+}
+
+/* ================================================================== */
+/*  EDGE TOOL                                                         */
+/* ================================================================== */
+
+function edgePaintMask() {
+  const t = S.paintTarget;
+  if (t === 'emboss') return S.embossMask;
+  if (t === 'deboss') return S.debossMask;
+  if (t === 'trim')   return S.trimMask;
+  const m = new Uint8Array(S.nTri);
+  for (let i = 0; i < S.nTri; i++) if (S.embossMask[i] || S.debossMask[i] || S.trimMask[i]) m[i] = 1;
+  return m;
+}
+
+function runEdgeFinder(seedFaceList) {
+  if (!S.embossMask || !S.mesh) return 0;
+  ensureFaceAdj();
+  const width = parseInt($('edgeWidth').value, 10) || 0;
+  let region = null;
+  if (seedFaceList?.length) { region = new Uint8Array(S.nTri); for (const i of seedFaceList) region[i] = 1; }
+  const growInto = S.paintTarget === 'body' ? 'paint' : 'body';
+  S.edgeHighlight = findPaintBoundary(edgePaintMask(), S.faces, S.nTri, { width, growInto, region, faceAdj: S.faceAdj });
+  let count = 0; for (let i = 0; i < S.nTri; i++) if (S.edgeHighlight[i]) count++;
+  updateMeshColors();
+  return count;
+}
+
+function fillEdgeHighlight() {
+  if (!S.edgeHighlight) { setStatus('No edge highlight — drag a box first', 'idle'); return; }
+  const faces = []; for (let i = 0; i < S.nTri; i++) if (S.edgeHighlight[i]) faces.push(i);
+  if (!faces.length) { setStatus('Edge highlight empty', 'idle'); return; }
+  paintFacesFree(faces, S.paintTarget);
+  S.edgeHighlight = null; updateMeshColors();
+  setStatus(`Filled ${faces.length.toLocaleString()} edge faces → ${S.paintTarget}`, 'idle');
+}
+
+/* ================================================================== */
+/*  CLICK-TO-SELECT                                                   */
+/* ================================================================== */
+
+function performClickSelect(clientX, clientY) {
+  const hit = pickHitAtClient(clientX, clientY);
+  if (!hit) { clearClickSelection(); setStatus('Click on the model to select a region', 'idle'); return; }
+  ensureFaceAdj();
+
+  let faces;
+  if (S.clickSelectMode === 'island') {
+    if (!S.islands || !S.islandMap) computeIslands();
+    faces = selectIsland(hit.faceIndex, S.islandMap, S.islands);
+    S.selectedIsland = S.islandMap[hit.faceIndex];
+    syncIslandCards();
+  } else {
+    faces = floodFillSameClass(hit.faceIndex, S.embossMask, S.debossMask, S.trimMask, S.nTri, S.faceAdj);
+    S.selectedIsland = -1;
+  }
+
+  const mask = new Uint8Array(S.nTri);
+  for (const f of faces) mask[f] = 1;
+  S.clickSelection = mask;
+  S.clickSelectionFaces = faces;
+  updateMeshColors();
+  $('selPaintBtn').disabled = false;
+  $('selClearBtn').disabled = false;
+  const modeLabel = S.clickSelectMode === 'island' ? 'island' : 'color region';
+  setStatus(`Selected ${faces.length.toLocaleString()} faces (${modeLabel}) — Paint Selection to apply`, 'idle');
+}
+
+function clearClickSelection() {
+  S.clickSelection = null; S.clickSelectionFaces = null; S.selectedIsland = -1;
+  $('selPaintBtn').disabled = true; $('selClearBtn').disabled = true;
+  syncIslandCards();
+  updateMeshColors();
+}
+
+function paintClickSelection() {
+  if (!S.clickSelectionFaces?.length) return;
+  paintFacesFree(S.clickSelectionFaces, S.paintTarget);
+  const n = S.clickSelectionFaces.length;
+  clearClickSelection();
+  setStatus(`Painted ${n.toLocaleString()} selected faces → ${S.paintTarget}`, 'idle');
+}
+
+/* ================================================================== */
+/*  MESH ISLANDS                                                      */
+/* ================================================================== */
+
+function computeIslands() {
+  if (!S.faces || !S.nTri) return;
+  ensureFaceAdj();
+  setStatus('Finding mesh islands…', 'working');
+  S.islands = findMeshIslands(S.faces, S.nTri, S.faceAdj, S.verts);
+  S.islandMap = buildIslandMap(S.islands, S.nTri);
+  S.hiddenIslands.clear();
+  $('islandInfo').textContent = `${S.islands.length} island${S.islands.length !== 1 ? 's' : ''} found`;
+  $('islandCount').textContent = `${S.islands.length} islands`;
+  $('toggleBottomBtn').disabled = false;
+  buildIslandCards();
+  setStatus(`Found ${S.islands.length} mesh island${S.islands.length !== 1 ? 's' : ''}`, 'idle');
+}
+
+function buildIslandCards() {
+  const list = $('islandList');
+  list.innerHTML = '';
+  if (!S.islands) return;
+  for (const isl of S.islands) {
+    const card = document.createElement('div');
+    card.className = 'island-card';
+    card.dataset.id = isl.id;
+    const sz = isl.bbox.size.map(v => v.toFixed(1));
+    card.innerHTML = `
+      <div class="isl-name">Island ${isl.id + 1}</div>
+      <div class="isl-meta">${isl.faceCount.toLocaleString()} faces</div>
+      <div class="isl-meta">${sz[0]}×${sz[1]}×${sz[2]} mm</div>
+      <div class="isl-actions">
+        <button class="isl-btn isl-select">Select</button>
+        <button class="isl-btn isl-hide">Hide</button>
+        <button class="isl-btn isl-paint">Paint</button>
+      </div>`;
+    card.querySelector('.isl-select').addEventListener('click', e => { e.stopPropagation(); selectIslandById(isl.id); });
+    card.querySelector('.isl-hide').addEventListener('click', e => { e.stopPropagation(); toggleIslandHide(isl.id); });
+    card.querySelector('.isl-paint').addEventListener('click', e => { e.stopPropagation(); paintIslandById(isl.id); });
+    card.addEventListener('click', () => selectIslandById(isl.id));
+    list.appendChild(card);
+  }
+}
+
+function selectIslandById(id) {
+  const isl = S.islands?.find(i => i.id === id);
+  if (!isl) return;
+  const mask = new Uint8Array(S.nTri);
+  const faces = Array.from(isl.faces);
+  for (const f of faces) mask[f] = 1;
+  S.clickSelection = mask; S.clickSelectionFaces = faces; S.selectedIsland = id;
+  $('selPaintBtn').disabled = false; $('selClearBtn').disabled = false;
+  syncIslandCards();
+  updateMeshColors();
+  setStatus(`Selected island ${id + 1} (${isl.faceCount.toLocaleString()} faces)`, 'idle');
+}
+
+function toggleIslandHide(id) {
+  if (S.hiddenIslands.has(id)) S.hiddenIslands.delete(id);
+  else S.hiddenIslands.add(id);
+  syncIslandCards();
+  updateMeshColors();
+}
+
+function paintIslandById(id) {
+  const isl = S.islands?.find(i => i.id === id);
+  if (!isl) return;
+  paintFacesFree(Array.from(isl.faces), S.paintTarget);
+  setStatus(`Painted island ${id + 1} → ${S.paintTarget}`, 'idle');
+}
+
+function syncIslandCards() {
+  document.querySelectorAll('.island-card').forEach(card => {
+    const id = parseInt(card.dataset.id);
+    card.classList.toggle('selected', id === S.selectedIsland);
+    card.classList.toggle('hidden', S.hiddenIslands.has(id));
+    const hideBtn = card.querySelector('.isl-hide');
+    if (hideBtn) hideBtn.textContent = S.hiddenIslands.has(id) ? 'Show' : 'Hide';
+  });
+  $('paintIslandBtn').disabled = S.selectedIsland < 0;
+  $('hideIslandBtn').disabled = S.selectedIsland < 0;
+}
+
+/* ================================================================== */
+/*  CURSOR & UI HELPERS                                               */
+/* ================================================================== */
+
+function updateSmartCursor(clientX, clientY, worldPoint) {
+  if (!smartCursor || !S.mesh) return;
+  const radius = isBrushTool() ? brushRadiusMm() : (parseFloat($('smartSize')?.value) || 10);
+  const rect = viewport.getBoundingClientRect();
+  const dist = camera.position.distanceTo(worldPoint);
+  const vFov = (camera.fov * Math.PI) / 180;
+  const worldH = 2 * Math.tan(vFov / 2) * dist;
+  const pxPerMm = rect.height / worldH;
+  const d = Math.max(8, radius * pxPerMm * 2);
+  Object.assign(smartCursor.style, {
+    display: 'block', width: d+'px', height: d+'px',
+    left: (clientX - rect.left - d/2)+'px', top: (clientY - rect.top - d/2)+'px',
+    borderColor: S.tool === 'spray' ? 'rgba(251,191,36,.55)' : '',
+    background: S.tool === 'spray' ? 'rgba(251,191,36,.08)' : '',
+  });
+}
+
+function isBrushTool(t = S.tool) { return t === 'brush' || t === 'spray'; }
+
+const SLOT_LABELS = { body:'Slot 1 (base)', emboss:'Slot 2 (accent)', deboss:'Slot 3 (detail)', trim:'Slot 4 (trim)' };
+
+function syncHideUI() {
+  document.querySelectorAll('.slot-card .slot-btn[data-hide]').forEach(btn => {
+    const t = btn.dataset.hide;
+    const hidden = S.soloActive ? t !== S.paintTarget : !!S.hiddenSlots[t];
+    btn.textContent = hidden ? 'Show' : 'Hide';
+    btn.classList.toggle('off', hidden);
+    btn.closest('.slot-card')?.classList.toggle('hidden', hidden);
+  });
+  $('soloRow')?.classList.toggle('active', S.soloActive);
+}
+
+function syncPaintSwatches() {
+  for (const [key, input] of Object.entries(colorInputs)) {
+    const capitalKey = key.charAt(0).toUpperCase() + key.slice(1);
+    const sw = $('swatch' + capitalKey);
+    if (sw) sw.style.background = input.value;
+  }
+}
+
+function syncSlotCards() {
+  document.querySelectorAll('.slot-card').forEach(c => c.classList.toggle('active', c.dataset.target === S.paintTarget));
+}
+
+function updateResMeta() {
+  const el = $('resMeta');
+  if (!el || !S.nTri) { if(el) el.textContent = 'Load a model to upgrade.'; return; }
+  const tag = S.resLevel === 0 ? 'Original' : S.resLevel === 1 ? 'Fine' : `Ultra (×${Math.pow(4, S.resLevel)})`;
+  el.textContent = `${S.nTri.toLocaleString()} faces · ${tag}`;
+}
+
+/* ================================================================== */
+/*  TOOL SWITCHING                                                    */
+/* ================================================================== */
+
+function showToolOpts(tool) {
+  for (const [id, t] of [['brushOpts','brush'],['sprayOpts','spray'],['eyedropOpts','eyedrop'],
+    ['clickSelectOpts','clickSelect'],['smartOpts','smart'],['edgeOpts','edge'],['detectOpts','detect']]) {
+    $(id)?.classList.toggle('visible', tool === t);
+  }
 }
 
 function setTool(tool) {
-  // Clicking the active tool again drops back to navigate-only.
-  if (tool === state.tool && tool !== 'orbit') tool = 'orbit';
-  state.tool = tool;
+  if (tool === S.tool && tool !== 'orbit') tool = 'orbit';
+  S.tool = tool;
   resetInteraction();
-  toolBox.classList.toggle('active', tool === 'box');
-  toolEdge.classList.toggle('active', tool === 'edge');
-  toolSmart.classList.toggle('active', tool === 'smart');
-  document.getElementById('toolBrush')?.classList.toggle('active', tool === 'brush');
-  document.getElementById('toolSpray')?.classList.toggle('active', tool === 'spray');
-  document.getElementById('toolEyedrop')?.classList.toggle('active', tool === 'eyedrop');
-  document.getElementById('toolDetect')?.classList.toggle('active', tool === 'detect');
+
+  for (const [id, t] of [['toolBrush','brush'],['toolSpray','spray'],['toolEyedrop','eyedrop'],
+    ['toolClickSelect','clickSelect'],['toolSmart','smart'],['toolBox','box'],['toolEdge','edge'],['toolDetect','detect']]) {
+    $(id)?.classList.toggle('active', tool === t);
+  }
   showToolOpts(tool);
   if (tool !== 'smart') clearSmartPreview();
-  const needsLockDrag = tool === 'box' || tool === 'edge';
-  viewport.classList.toggle('select-mode', tool === 'box' || tool === 'edge' || tool === 'smart' || isBrushTool(tool));
-  viewport.classList.toggle('brush-mode', isBrushTool(tool));
-  viewport.classList.toggle('eyedrop-mode', tool === 'eyedrop');
-  if (tool === 'brush') {
-    viewportHint.textContent = 'Brush — paint on model · right-drag or Alt/Space+drag to orbit · Show all if stuck';
-  } else if (tool === 'spray') {
-    viewportHint.textContent = 'Spray — mist on model · right-drag or Alt/Space+drag to orbit';
-  } else if (tool === 'eyedrop') {
-    viewportHint.textContent = 'Eyedropper — click a face · right-drag orbits';
-  } else if (tool === 'edge') {
-    openMoreTools();
-    viewportHint.textContent = 'Edge — Lock view, drag over a rough boundary, then Fill with the active slot';
-  } else if (tool === 'smart') {
-    openMoreTools();
-    viewportHint.textContent = 'Smart fill — hover for amber preview · tweak Size / Angle · click to paint';
-  } else if (tool === 'box') {
-    openMoreTools();
-    viewportHint.textContent = 'Box — Lock view, then drag to paint the active slot';
-  } else if (tool === 'detect') {
-    openMoreTools();
-    viewportHint.textContent = 'Detect — optional raised/sunken finder · then paint with Brush or Smart';
-  } else {
-    viewportHint.textContent = 'Left-drag orbits · scroll zooms · pick a colour and Brush to paint';
-  }
-  if (needsLockDrag && !orbitLockCheck?.checked) {
-    setStatus('Tip: turn on Lock view to drag-select without rotating', 'idle');
+  if (tool !== 'clickSelect') clearClickSelection();
+
+  viewport.className = 'viewport';
+  if (tool === 'box' || tool === 'edge' || tool === 'smart' || isBrushTool(tool)) viewport.classList.add('select-mode');
+  if (isBrushTool(tool)) viewport.classList.add('brush-mode');
+  if (tool === 'eyedrop') viewport.classList.add('eyedrop-mode');
+  if (tool === 'clickSelect') viewport.classList.add('click-select-mode');
+
+  const hints = {
+    brush: 'Brush — paint on model · right-drag or Alt+drag to orbit',
+    spray: 'Spray — mist on model · right-drag to orbit',
+    eyedrop: 'Eyedropper — click a face to pick its slot',
+    clickSelect: 'Click to select a connected region · then Paint Selection',
+    edge: 'Edge — Lock view, drag over boundary, then Fill',
+    smart: 'Smart fill — hover for preview · click to paint',
+    box: 'Box — Lock view, drag to paint active slot',
+    detect: 'Detect — find raised/sunken detail',
+  };
+  viewportHint.textContent = hints[tool] || 'Left-drag orbits · scroll zooms · pick a tool';
+
+  // Auto-switch to Paint tab when selecting a tool
+  if (['brush','spray','eyedrop','clickSelect','smart','box','edge','detect'].includes(tool)) {
+    switchTab('paint');
   }
 }
 
 function setPaintTarget(target) {
-  state.paintTarget = target;
-  document.getElementById('targetBody').classList.toggle('active', target === 'body');
-  document.getElementById('targetEmboss').classList.toggle('active', target === 'emboss');
-  document.getElementById('targetDeboss').classList.toggle('active', target === 'deboss');
-  document.getElementById('targetTrim')?.classList.toggle('active', target === 'trim');
-  syncSlotCards();
-  syncHideUI();
-  if (state.soloActive) updateMeshColors();
+  S.paintTarget = target;
+  for (const id of ['targetBody','targetEmboss','targetDeboss','targetTrim']) {
+    $(id)?.classList.toggle('active', id === 'target' + target.charAt(0).toUpperCase() + target.slice(1));
+  }
+  syncSlotCards(); syncHideUI();
+  if (S.soloActive) updateMeshColors();
 }
 
-function openMoreTools() {
-  const body = document.getElementById('moreToolsBody');
-  const toggle = document.getElementById('moreToolsToggle');
-  body?.classList.add('open');
-  if (toggle) toggle.textContent = 'More tools — Smart · Box · Edge · Detect ▾';
+function setBrushStroke(mode) {
+  S.brushStroke = mode || 'free';
+  document.querySelectorAll('.stroke-btn[data-stroke]').forEach(b => b.classList.toggle('active', b.dataset.stroke === S.brushStroke));
+  const el = $('strokeModeVal');
+  if (el) el.textContent = { free:'Freehand', horizontal:'Horizontal', vertical:'Vertical' }[S.brushStroke] || 'Freehand';
 }
 
-const toolDetect = document.getElementById('toolDetect');
-const toolBrush = document.getElementById('toolBrush');
-const toolSpray = document.getElementById('toolSpray');
-const toolEyedrop = document.getElementById('toolEyedrop');
-const brushSizeSlider = document.getElementById('brushSize');
-const brushSizeVal = document.getElementById('brushSizeVal');
-const sprayNozzleSlider = document.getElementById('sprayNozzle');
-const sprayNozzleVal = document.getElementById('sprayNozzleVal');
-const sprayDensitySlider = document.getElementById('sprayDensity');
-const sprayDensityVal = document.getElementById('sprayDensityVal');
+/* ================================================================== */
+/*  INTERACTION STATE                                                 */
+/* ================================================================== */
 
-toolBrush?.addEventListener('click', () => setTool('brush'));
-toolSpray?.addEventListener('click', () => setTool('spray'));
-toolEyedrop?.addEventListener('click', () => setTool('eyedrop'));
-toolBox.addEventListener('click', () => setTool('box'));
-toolEdge.addEventListener('click', () => setTool('edge'));
-toolSmart.addEventListener('click', () => setTool('smart'));
-toolDetect?.addEventListener('click', () => setTool('detect'));
+function syncOrbitLock() {
+  const locked = !!orbitLockCheck?.checked;
+  const painting = !!S.brushStrokeActive || !!S._smartClick || !!boxDrag;
+  const leftBlocked = S.orbitOverride ? false :
+    (painting || S.tool === 'eyedrop' || S.tool === 'smart' || S.tool === 'clickSelect' ||
+     ((S.tool === 'box' || S.tool === 'edge') && locked) || (isBrushTool() && locked));
+  controls.enabled = true; controls.enableRotate = true; controls.enablePan = true;
+  controls.mouseButtons.LEFT = leftBlocked ? -1 : THREE.MOUSE.ROTATE;
+  controls.mouseButtons.MIDDLE = THREE.MOUSE.DOLLY;
+  controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
+}
 
-document.querySelectorAll('.stroke-btn').forEach(btn => {
-  btn.addEventListener('click', () => setBrushStroke(btn.dataset.stroke));
-});
-brushSizeSlider?.addEventListener('input', () => {
-  brushSizeVal.textContent = parseFloat(brushSizeSlider.value).toFixed(1);
-});
-sprayNozzleSlider?.addEventListener('input', () => {
-  sprayNozzleVal.textContent = parseFloat(sprayNozzleSlider.value).toFixed(1);
-});
-sprayDensitySlider?.addEventListener('input', () => {
-  sprayDensityVal.textContent = sprayDensitySlider.value + '%';
-});
-document.querySelectorAll('.chip-swatch-hit').forEach(btn => {
-  btn.addEventListener('click', () => setPaintTarget(btn.dataset.target));
-});
-document.querySelectorAll('.chip-hide').forEach(btn => {
-  btn.addEventListener('click', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const t = btn.dataset.hide;
-    if (!t) return;
-    // Hide = hide THIS colour only. Exit Solo first so it can't invert the meaning.
-    if (state.soloActive) {
-      state.soloActive = false;
-      const soloCheck = document.getElementById('soloActive');
-      if (soloCheck) soloCheck.checked = false;
-      state.hiddenSlots = { body: false, emboss: false, deboss: false, trim: false };
-    }
-    state.hiddenSlots[t] = !state.hiddenSlots[t];
-    syncHideUI();
-    updateMeshColors();
-    const name = SLOT_LABELS[t] || t;
-    setStatus(
-      state.hiddenSlots[t]
-        ? `Hidden ${name} — other colours stay visible`
-        : `Showing ${name} again`,
-      'idle'
-    );
-  });
-});
-document.getElementById('soloActive')?.addEventListener('change', (e) => {
-  state.soloActive = !!e.target.checked;
-  if (state.soloActive) {
-    state.hiddenSlots = { body: false, emboss: false, deboss: false, trim: false };
-  }
-  syncHideUI();
-  updateMeshColors();
-  setStatus(
-    state.soloActive
-      ? `Solo — only ${SLOT_LABELS[state.paintTarget] || 'active colour'} visible (hides the rest)`
-      : 'Solo off — use Hide on a slot to hide just that colour',
-    'idle'
-  );
-});
-document.getElementById('moreToolsToggle')?.addEventListener('click', () => {
-  const body = document.getElementById('moreToolsBody');
-  const open = !body?.classList.contains('open');
-  body?.classList.toggle('open', open);
-  const toggle = document.getElementById('moreToolsToggle');
-  if (toggle) {
-    toggle.textContent = open
-      ? 'More tools — Smart · Box · Edge · Detect ▾'
-      : 'More tools — Smart · Box · Edge · Detect ▸';
-  }
-});
-document.getElementById('resFineBtn')?.addEventListener('click', () => runResolutionUpgrade(1));
-document.getElementById('resUltraBtn')?.addEventListener('click', () => runResolutionUpgrade(2));
+function releaseViewportPointer(id) {
+  if (id == null) return;
+  try { viewport.releasePointerCapture?.(id); } catch {}
+}
 
-orbitLockCheck?.addEventListener('change', () => {
-  resetInteraction(
-    orbitLockCheck.checked
-      ? 'Left-drag locked — right-drag still orbits'
-      : 'Unlocked — drag empty space or right-drag to orbit · Alt+drag also orbits'
-  );
-});
-document.getElementById('showAllColoursBtn')?.addEventListener('click', () => showAllColours());
-document.getElementById('resetViewBtn')?.addEventListener('click', () => {
-  if (orbitLockCheck) orbitLockCheck.checked = false;
-  showAllColours();
-  resetInteraction('Unstuck — all colours on · right-drag or Alt+drag to orbit · Brush to paint');
-});
-smartSizeSlider.addEventListener('input', () => {
-  smartSizeVal.textContent = parseFloat(smartSizeSlider.value).toFixed(smartSizeSlider.value % 1 ? 1 : 0);
-});
-smartAngleSlider.addEventListener('input', () => {
-  smartAngleVal.textContent = smartAngleSlider.value + '°';
-});
-edgeWidthSlider.addEventListener('input', () => {
-  edgeWidthVal.textContent = edgeWidthSlider.value;
-  if (state._edgeLastSeeds) {
-    const n = runEdgeFinder(state._edgeLastSeeds);
-    setStatus(`Edge band: ${n.toLocaleString()} faces — Fill → slot ${state.paintTarget}`, 'idle');
-  }
-});
-edgeFillBtn.addEventListener('click', () => fillEdgeHighlight(state.paintTarget));
-edgeClearBtn.addEventListener('click', () => {
-  state._edgeLastSeeds = null;
-  clearEdgeHighlight();
-  setStatus('Edge highlight cleared', 'idle');
-});
-document.getElementById('targetBody').addEventListener('click', () => setPaintTarget('body'));
-document.getElementById('targetEmboss').addEventListener('click', () => setPaintTarget('emboss'));
-document.getElementById('targetDeboss').addEventListener('click', () => setPaintTarget('deboss'));
-document.getElementById('targetTrim')?.addEventListener('click', () => setPaintTarget('trim'));
-document.querySelectorAll('.slot-card').forEach(card => {
-  card.addEventListener('click', (e) => {
-    // Colour input handles its own clicks; card selects the paint slot
-    if (e.target?.type === 'color') return;
-    setPaintTarget(card.dataset.target);
-  });
-  card.querySelector('input[type="color"]')?.addEventListener('focus', () => {
-    setPaintTarget(card.dataset.target);
-  });
-});
-document.getElementById('zoomInBtn').addEventListener('click', () => zoomBy(0.72));
-document.getElementById('zoomOutBtn').addEventListener('click', () => zoomBy(1.38));
-document.getElementById('frameBtn').addEventListener('click', () => {
-  resetInteraction();
-  frameModel();
-});
-document.getElementById('undoBtn').addEventListener('click', () => {
-  const snap = state.undoStack.pop();
-  if (!snap) return;
-  state.embossMask = snap.emboss;
-  state.debossMask = snap.deboss;
-  state.trimMask = snap.trim || new Uint8Array(state.nTri);
-  state.edgeHighlight = null;
-  state.smartPreview = null;
-  state.smartPreviewFaces = null;
-  updateMeshColors();
-  recountPaint();
-  document.getElementById('undoBtn').disabled = state.undoStack.length === 0;
-  setStatus('Undo', 'idle');
-});
-
-let boxDrag = null;
-function endBoxDrag(e) {
-  if (e?.pointerId != null) {
-    try { viewport.releasePointerCapture?.(e.pointerId); } catch { /* already released */ }
-  }
+function resetInteraction(msg) {
+  const pids = [S.brushStrokeActive?.pointerId, S._smartClick?.pointerId, boxDrag?.pointerId].filter(v => v != null);
+  S.brushStrokeActive = null; S._smartClick = null; S.orbitOverride = false;
+  if (boxDrag) endBoxDrag();
+  for (const id of pids) releaseViewportPointer(id);
   selectRect.style.display = 'none';
-  const start = boxDrag;
-  boxDrag = null;
-  return start;
+  if (smartCursor) smartCursor.style.display = 'none';
+  controls.enabled = true; controls.enableRotate = true; controls.enablePan = true;
+  syncOrbitLock();
+  if (msg) setStatus(msg, 'idle');
 }
 
-function isSelectTool() {
-  return state.tool === 'box' || state.tool === 'edge';
+function showAllColours() {
+  S.soloActive = false;
+  S.hiddenSlots = { body:false, emboss:false, deboss:false, trim:false };
+  S.hiddenIslands.clear();
+  $('soloActive').checked = false;
+  syncHideUI(); syncIslandCards(); updateMeshColors();
+  resetInteraction('All colours visible');
 }
 
-function releaseViewportPointer(pointerId) {
-  if (pointerId == null) return;
-  try { viewport.releasePointerCapture?.(pointerId); } catch { /* already released */ }
+function sampleEyedrop(clientX, clientY) {
+  const hit = pickHitAtClient(clientX, clientY);
+  if (!hit) { setStatus('Eyedropper — click on the model', 'idle'); return; }
+  const cls = paintClassOf(hit.faceIndex, S.embossMask, S.debossMask, S.trimMask);
+  setPaintTarget(cls);
+  setStatus(`Eyedropper → ${SLOT_LABELS[cls] || cls}`, 'idle');
 }
 
 function endBrushStroke(status = true) {
-  const stroke = state.brushStrokeActive;
+  const stroke = S.brushStrokeActive;
   if (!stroke) return;
-  state.brushStrokeActive = null;
+  S.brushStrokeActive = null;
   releaseViewportPointer(stroke.pointerId);
   syncOrbitLock();
-  if (!status) return;
-  const kind = state.tool === 'spray' ? 'Spray' : 'Brush';
-  setStatus(
-    stroke.undid
-      ? `${kind} stroke → ${state.paintTarget}`
-      : `${kind} — no faces hit`,
-    'idle'
-  );
+  if (status) setStatus(stroke.undid ? `${S.tool === 'spray' ? 'Spray' : 'Brush'} stroke → ${S.paintTarget}` : 'No faces hit', 'idle');
 }
 
-// Capture phase: claim left-click before OrbitControls on the canvas can start an orbit.
+let boxDrag = null;
+function endBoxDrag(e) {
+  if (e?.pointerId != null) releaseViewportPointer(e.pointerId);
+  selectRect.style.display = 'none';
+  const start = boxDrag; boxDrag = null; return start;
+}
+
+function isSelectTool() { return S.tool === 'box' || S.tool === 'edge'; }
+
+/* ================================================================== */
+/*  RESOLUTION UPGRADE                                                */
+/* ================================================================== */
+
+function runResolutionUpgrade(levels) {
+  if (!S.verts || !S.nTri) return;
+  setStatus(`Upgrading paint detail (×${Math.pow(4, levels)})…`, 'working');
+  setTimeout(() => {
+    try {
+      let r = { verts:S.verts, faces:S.faces, nVerts:S.nVerts, nTri:S.nTri,
+        embossMask:S.embossMask, debossMask:S.debossMask, trimMask:S.trimMask };
+      for (let i = 0; i < levels; i++) {
+        r = upgradePaintResolution(r.verts, r.faces, r.nVerts, r.nTri,
+          { embossMask:r.embossMask, debossMask:r.debossMask, trimMask:r.trimMask });
+      }
+      Object.assign(S, { verts:r.verts, faces:r.faces, nVerts:r.nVerts, nTri:r.nTri,
+        embossMask:r.embossMask, debossMask:r.debossMask, trimMask:r.trimMask,
+        featureEmboss:null, featureDeboss:null, faceAdj:null,
+        edgeHighlight:null, smartPreview:null, smartPreviewFaces:null,
+        islands:null, islandMap:null, undoStack:[] });
+      S.hiddenIslands.clear();
+      S.resLevel += levels;
+      $('undoBtn').disabled = true;
+      buildMesh({ frame: false });
+      recountPaint();
+      updateResMeta();
+      $('islandInfo').textContent = 'Mesh changed — re-detect islands.';
+      setStatus(`Paint detail upgraded — ${S.nTri.toLocaleString()} faces`, 'idle');
+    } catch (err) { setStatus(err.message || 'Upgrade failed', 'error'); }
+  }, 30);
+}
+
+/* ================================================================== */
+/*  LOAD STL                                                          */
+/* ================================================================== */
+
+async function loadSTL(file) {
+  setStatus(`Loading ${file.name}…`, 'working');
+  S.fileName = file.name.replace(/\.stl$/i, '');
+
+  const buf = await file.arrayBuffer();
+  const { vertices, normals, nTri } = parseSTLBinary(buf);
+  S.rawVertices = vertices; S.rawNormals = normals; S.nTri = nTri;
+
+  const { verts, faces, nVerts } = deduplicateVertices(vertices, nTri);
+  seatVertsOnBed(verts, nVerts);
+  Object.assign(S, { verts, faces, nVerts,
+    embossMask: new Uint8Array(nTri), debossMask: new Uint8Array(nTri), trimMask: new Uint8Array(nTri),
+    featureEmboss:null, featureDeboss:null, embossCount:0, debossCount:0, trimCount:0,
+    edgeHighlight:null, smartPreview:null, smartPreviewFaces:null, faceAdj:null,
+    undoStack:[], resLevel:0, islands:null, islandMap:null, clickSelection:null, clickSelectionFaces:null,
+    hiddenSlots:{ body:false, emboss:false, deboss:false, trim:false }, soloActive:false, selectedIsland:-1,
+  });
+  S.hiddenIslands.clear();
+  $('soloActive').checked = false;
+  $('undoBtn').disabled = true;
+
+  buildMesh({ frame: true });
+  updateStats(); syncHideUI(); updateResMeta();
+  detectBtn.disabled = false; exportBtn.disabled = false;
+  $('resFineBtn').disabled = false; $('resUltraBtn').disabled = false;
+  $('detectIslandsBtn').disabled = false;
+  $('islandInfo').textContent = 'Click "Find Islands" to detect mesh components.';
+  viewportHint.style.display = 'block';
+  setStatus(`Loaded ${file.name} — ${nTri.toLocaleString()} faces`, 'idle');
+}
+
+/* ================================================================== */
+/*  TAB NAVIGATION                                                    */
+/* ================================================================== */
+
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  document.querySelectorAll('.tab-page').forEach(p => p.classList.toggle('active', p.id === 'tab' + name.charAt(0).toUpperCase() + name.slice(1)));
+}
+
+/* ================================================================== */
+/*  EVENT BINDINGS                                                    */
+/* ================================================================== */
+
+// Tabs
+document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+
+// Sidebar toggle
+$('toggleSidebar').addEventListener('click', () => {
+  $('app').classList.toggle('sidebar-collapsed');
+  setTimeout(resizeRenderer, 250);
+});
+
+// Bottom panel
+$('toggleBottomBtn')?.addEventListener('click', () => {
+  $('app').classList.toggle('bottom-open');
+  setTimeout(resizeRenderer, 250);
+});
+$('closeBottomBtn')?.addEventListener('click', () => {
+  $('app').classList.remove('bottom-open');
+  setTimeout(resizeRenderer, 250);
+});
+
+// File loading
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); if (e.dataTransfer.files[0]) loadSTL(e.dataTransfer.files[0]); });
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadSTL(fileInput.files[0]); });
+
+// Color pickers
+for (const [key, input] of Object.entries(colorInputs)) {
+  input.addEventListener('input', () => {
+    colorHexEls[key].textContent = input.value.toUpperCase();
+    syncPaintSwatches(); updateMeshColors();
+  });
+}
+syncPaintSwatches();
+
+// Presets
+const presets = [
+  { name:'Spidey', body:'#C20820', emboss:'#131211', deboss:'#F5F5F5', trim:'#1E40AF' },
+  { name:'White', body:'#FFFFFF', emboss:'#FF0000', deboss:'#0000FF', trim:'#FFD700' },
+  { name:'Black', body:'#222222', emboss:'#FFD700', deboss:'#00CED1', trim:'#E94560' },
+  { name:'Silver', body:'#BBBBBB', emboss:'#FF6600', deboss:'#0066FF', trim:'#00AE42' },
+  { name:'Wood', body:'#C8A26E', emboss:'#5C3A1E', deboss:'#2E5E3E', trim:'#8B4513' },
+  { name:'Ocean', body:'#1A5276', emboss:'#F39C12', deboss:'#2ECC71', trim:'#E8F6FF' },
+  { name:'Neon', body:'#1A1A2E', emboss:'#E94560', deboss:'#0F3460', trim:'#39FF14' },
+  { name:'Pastel', body:'#FAD6A5', emboss:'#FF6F91', deboss:'#845EC2', trim:'#4FFBDF' },
+  { name:'Bambu', body:'#E8E8E8', emboss:'#00AE42', deboss:'#333333', trim:'#FF6A00' },
+];
+const presetRow = $('presetRow');
+for (const p of presets) {
+  const sw = document.createElement('div');
+  sw.className = 'preset-swatch'; sw.style.background = p.body; sw.title = p.name;
+  sw.addEventListener('click', () => {
+    for (const k of ['body','emboss','deboss','trim']) {
+      colorInputs[k].value = p[k]; colorHexEls[k].textContent = p[k].toUpperCase();
+    }
+    syncPaintSwatches(); updateMeshColors();
+  });
+  presetRow.appendChild(sw);
+}
+
+// Slot cards
+document.querySelectorAll('.slot-card').forEach(card => {
+  card.addEventListener('click', e => { if (e.target?.type === 'color') return; setPaintTarget(card.dataset.target); });
+});
+document.querySelectorAll('.slot-btn[data-hide]').forEach(btn => {
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    const t = btn.dataset.hide;
+    if (S.soloActive) { S.soloActive = false; $('soloActive').checked = false; S.hiddenSlots = {body:false,emboss:false,deboss:false,trim:false}; }
+    S.hiddenSlots[t] = !S.hiddenSlots[t];
+    syncHideUI(); updateMeshColors();
+    setStatus(S.hiddenSlots[t] ? `Hidden ${SLOT_LABELS[t]}` : `Showing ${SLOT_LABELS[t]}`, 'idle');
+  });
+});
+$('soloActive')?.addEventListener('change', e => {
+  S.soloActive = !!e.target.checked;
+  if (S.soloActive) S.hiddenSlots = {body:false,emboss:false,deboss:false,trim:false};
+  syncHideUI(); updateMeshColors();
+});
+$('showAllColoursBtn')?.addEventListener('click', showAllColours);
+
+// Paint tools
+$('toolBrush')?.addEventListener('click', () => setTool('brush'));
+$('toolSpray')?.addEventListener('click', () => setTool('spray'));
+$('toolEyedrop')?.addEventListener('click', () => setTool('eyedrop'));
+$('toolClickSelect')?.addEventListener('click', () => setTool('clickSelect'));
+$('toolSmart')?.addEventListener('click', () => setTool('smart'));
+$('toolBox')?.addEventListener('click', () => setTool('box'));
+$('toolEdge')?.addEventListener('click', () => setTool('edge'));
+$('toolDetect')?.addEventListener('click', () => setTool('detect'));
+
+// Stroke mode
+document.querySelectorAll('.stroke-btn[data-stroke]').forEach(b => b.addEventListener('click', () => setBrushStroke(b.dataset.stroke)));
+
+// Click-select mode
+$('selModeIsland')?.addEventListener('click', () => {
+  S.clickSelectMode = 'island';
+  $('selModeIsland').classList.add('active'); $('selModeColor').classList.remove('active');
+});
+$('selModeColor')?.addEventListener('click', () => {
+  S.clickSelectMode = 'color';
+  $('selModeColor').classList.add('active'); $('selModeIsland').classList.remove('active');
+});
+$('selPaintBtn')?.addEventListener('click', paintClickSelection);
+$('selClearBtn')?.addEventListener('click', clearClickSelection);
+
+// Sliders
+$('brushSize')?.addEventListener('input', () => { $('brushSizeVal').textContent = parseFloat($('brushSize').value).toFixed(1); });
+$('sprayNozzle')?.addEventListener('input', () => { $('sprayNozzleVal').textContent = parseFloat($('sprayNozzle').value).toFixed(1); });
+$('sprayDensity')?.addEventListener('input', () => { $('sprayDensityVal').textContent = $('sprayDensity').value + '%'; });
+$('smartSize')?.addEventListener('input', () => { $('smartSizeVal').textContent = parseFloat($('smartSize').value).toFixed(0); });
+$('smartAngle')?.addEventListener('input', () => { $('smartAngleVal').textContent = $('smartAngle').value + '°'; });
+
+// Edge tool
+$('edgeWidth')?.addEventListener('input', () => {
+  $('edgeWidthVal').textContent = $('edgeWidth').value;
+  if (S._edgeLastSeeds) { const n = runEdgeFinder(S._edgeLastSeeds); setStatus(`Edge band: ${n} faces`, 'idle'); }
+});
+$('edgeFillBtn')?.addEventListener('click', () => fillEdgeHighlight());
+$('edgeClearBtn')?.addEventListener('click', () => { S._edgeLastSeeds = null; S.edgeHighlight = null; updateMeshColors(); });
+
+// Detect sliders
+for (const id of ['sensitivity','smoothIter','minCluster','morphClose','morphOpen']) {
+  $(id)?.addEventListener('input', () => {
+    const val = parseFloat($(id).value);
+    const fmt = id === 'sensitivity' ? val.toFixed(2) : id === 'minCluster' ? val.toFixed(1) : String(Math.round(val));
+    $(id + 'Val').textContent = fmt;
+    if (activeDetectPreset !== 'custom') setDetectPresetActive('custom');
+    S.featureEmboss = null; S.featureDeboss = null;
+  });
+}
+$('adaptiveThr')?.addEventListener('change', () => { updateSensitivityLabel(); if(activeDetectPreset!=='custom') setDetectPresetActive('custom'); });
+$('ridgeTop')?.addEventListener('change', () => { if(activeDetectPreset!=='custom') setDetectPresetActive('custom'); });
+document.querySelectorAll('.detect-preset-btn').forEach(b => {
+  b.addEventListener('click', () => { if (b.dataset.preset === 'custom') setDetectPresetActive('custom'); else applyDetectPreset(b.dataset.preset); });
+});
+updateSensitivityLabel();
+
+// Viewport toolbar
+$('targetBody').addEventListener('click', () => setPaintTarget('body'));
+$('targetEmboss').addEventListener('click', () => setPaintTarget('emboss'));
+$('targetDeboss').addEventListener('click', () => setPaintTarget('deboss'));
+$('targetTrim')?.addEventListener('click', () => setPaintTarget('trim'));
+$('zoomInBtn').addEventListener('click', () => zoomBy(0.72));
+$('zoomOutBtn').addEventListener('click', () => zoomBy(1.38));
+$('frameBtn').addEventListener('click', () => { resetInteraction(); frameModel(); });
+$('undoBtn').addEventListener('click', () => {
+  const snap = S.undoStack.pop(); if (!snap) return;
+  S.embossMask = snap.emboss; S.debossMask = snap.deboss; S.trimMask = snap.trim;
+  S.edgeHighlight = null; S.smartPreview = null; S.smartPreviewFaces = null;
+  clearClickSelection();
+  updateMeshColors(); recountPaint();
+  $('undoBtn').disabled = S.undoStack.length === 0;
+  setStatus('Undo', 'idle');
+});
+$('resetViewBtn').addEventListener('click', () => {
+  if (orbitLockCheck) orbitLockCheck.checked = false;
+  showAllColours(); resetInteraction('Reset — all colours on');
+});
+orbitLockCheck?.addEventListener('change', () => { resetInteraction(orbitLockCheck.checked ? 'Left-drag locked' : 'Unlocked'); });
+
+// Resolution
+$('resFineBtn')?.addEventListener('click', () => runResolutionUpgrade(1));
+$('resUltraBtn')?.addEventListener('click', () => runResolutionUpgrade(2));
+
+// Islands
+$('detectIslandsBtn')?.addEventListener('click', () => { computeIslands(); $('app').classList.add('bottom-open'); setTimeout(resizeRenderer, 250); });
+$('paintIslandBtn')?.addEventListener('click', () => { if(S.selectedIsland>=0) paintIslandById(S.selectedIsland); });
+$('hideIslandBtn')?.addEventListener('click', () => { if(S.selectedIsland>=0) toggleIslandHide(S.selectedIsland); });
+$('showAllIslandsBtn')?.addEventListener('click', () => { S.hiddenIslands.clear(); syncIslandCards(); updateMeshColors(); });
+
+/* ================================================================== */
+/*  VIEWPORT POINTER EVENTS                                           */
+/* ================================================================== */
+
 viewport.addEventListener('pointerdown', (e) => {
   if (e.target.closest?.('.viewport-toolbar')) return;
   if (e.button === 2 || e.button === 1) {
-    // Right / middle always orbit — clear any stuck paint capture first
-    if (state.brushStrokeActive) endBrushStroke(false);
-    controls.enableRotate = true;
-    controls.enablePan = true;
-    return;
+    if (S.brushStrokeActive) endBrushStroke(false);
+    controls.enableRotate = true; controls.enablePan = true; return;
   }
-  if (e.button !== 0 || !state.mesh) return;
+  if (e.button !== 0 || !S.mesh) return;
 
-  if (state.tool === 'eyedrop') {
-    e.preventDefault();
-    e.stopPropagation();
-    sampleEyedrop(e.clientX, e.clientY);
+  if (S.tool === 'eyedrop') { e.preventDefault(); e.stopPropagation(); sampleEyedrop(e.clientX, e.clientY); return; }
+
+  if (S.tool === 'clickSelect') {
+    if (e.altKey || S.orbitOverride) return;
+    e.preventDefault(); e.stopPropagation();
+    performClickSelect(e.clientX, e.clientY);
     return;
   }
+
   if (isBrushTool()) {
-    // Alt or Space = orbit instead of paint (hold to turn the model)
-    if (e.altKey || state.orbitOverride) return;
+    if (e.altKey || S.orbitOverride) return;
     const origin = { x: e.clientX, y: e.clientY };
     const pt = constrainBrushClient(e.clientX, e.clientY, origin);
     const hit = pickHitAtClient(pt.x, pt.y);
-    // Missed the model → let OrbitControls handle left-drag
     if (!hit) return;
-    e.preventDefault();
-    e.stopPropagation();
-    state.brushStrokeActive = {
-      origin,
-      pointerId: e.pointerId,
-      painted: 0,
-      undid: false,
-      lastClient: pt,
-    };
+    e.preventDefault(); e.stopPropagation();
+    S.brushStrokeActive = { origin, pointerId: e.pointerId, painted: 0, undid: false, lastClient: pt };
     syncOrbitLock();
     updateSmartCursor(pt.x, pt.y, hit.worldPoint);
     const n = applyBrushDab(hit, { undo: true });
-    state.brushStrokeActive.painted += n;
-    if (n) state.brushStrokeActive.undid = true;
-    try { viewport.setPointerCapture?.(e.pointerId); } catch { /* ok */ }
+    S.brushStrokeActive.painted += n;
+    if (n) S.brushStrokeActive.undid = true;
+    try { viewport.setPointerCapture?.(e.pointerId); } catch {}
     return;
   }
-  if (state.tool === 'smart') {
-    if (e.altKey || state.orbitOverride) return;
-    e.preventDefault();
-    e.stopPropagation();
-    state._smartClick = { x: e.clientX, y: e.clientY, pointerId: e.pointerId, moved: false };
+
+  if (S.tool === 'smart') {
+    if (e.altKey || S.orbitOverride) return;
+    e.preventDefault(); e.stopPropagation();
+    S._smartClick = { x: e.clientX, y: e.clientY, pointerId: e.pointerId, moved: false };
     syncOrbitLock();
     previewSmartFill(e.clientX, e.clientY);
-    try { viewport.setPointerCapture?.(e.pointerId); } catch { /* ok */ }
+    try { viewport.setPointerCapture?.(e.pointerId); } catch {}
     return;
   }
+
   if (!isSelectTool()) return;
-  if (!orbitLockCheck?.checked) {
-    setStatus('Turn Lock on to drag-select without rotating', 'idle');
-    return;
-  }
-  e.preventDefault();
-  e.stopPropagation();
-  controls.enableRotate = false;
-  controls.enablePan = false;
+  if (!orbitLockCheck?.checked) { setStatus('Turn Lock on to drag-select', 'idle'); return; }
+  e.preventDefault(); e.stopPropagation();
+  controls.enableRotate = false; controls.enablePan = false;
   const rect = viewport.getBoundingClientRect();
   boxDrag = { x0: e.clientX - rect.left, y0: e.clientY - rect.top, pointerId: e.pointerId };
   selectRect.style.display = 'block';
-  selectRect.style.left = boxDrag.x0 + 'px';
-  selectRect.style.top = boxDrag.y0 + 'px';
-  selectRect.style.width = '0px';
-  selectRect.style.height = '0px';
-  try { viewport.setPointerCapture?.(e.pointerId); } catch { /* ok */ }
+  selectRect.style.left = boxDrag.x0 + 'px'; selectRect.style.top = boxDrag.y0 + 'px';
+  selectRect.style.width = '0px'; selectRect.style.height = '0px';
+  try { viewport.setPointerCapture?.(e.pointerId); } catch {}
 }, true);
+
 viewport.addEventListener('pointermove', (e) => {
-  if (state.brushStrokeActive) {
-    state.brushStrokeActive.painted += strokeBrushTo(e.clientX, e.clientY, { undo: false });
-    return;
-  }
-  if (isBrushTool() && !boxDrag && !state._smartClick) {
+  if (S.brushStrokeActive) { S.brushStrokeActive.painted += strokeBrushTo(e.clientX, e.clientY); return; }
+  if (isBrushTool() && !boxDrag && !S._smartClick) {
     const hit = pickHitAtClient(e.clientX, e.clientY);
-    if (hit) updateSmartCursor(e.clientX, e.clientY, hit.worldPoint);
-    else smartCursor.style.display = 'none';
+    if (hit) updateSmartCursor(e.clientX, e.clientY, hit.worldPoint); else smartCursor.style.display = 'none';
     return;
   }
-  if (state.tool === 'smart' && !state._smartClick && !boxDrag) {
-    previewSmartFill(e.clientX, e.clientY);
-    return;
-  }
-  if (state._smartClick) {
-    const dx = e.clientX - state._smartClick.x;
-    const dy = e.clientY - state._smartClick.y;
-    if (Math.hypot(dx, dy) > 6) {
-      state._smartClick.moved = true;
+  if (S.tool === 'smart' && !S._smartClick && !boxDrag) { previewSmartFill(e.clientX, e.clientY); return; }
+  if (S._smartClick) {
+    if (Math.hypot(e.clientX - S._smartClick.x, e.clientY - S._smartClick.y) > 6) {
+      S._smartClick.moved = true;
       if (orbitLockCheck?.checked) previewSmartFill(e.clientX, e.clientY);
     }
     return;
@@ -2256,122 +1754,58 @@ viewport.addEventListener('pointermove', (e) => {
   const rect = viewport.getBoundingClientRect();
   const x1 = e.clientX - rect.left, y1 = e.clientY - rect.top;
   const left = Math.min(boxDrag.x0, x1), top = Math.min(boxDrag.y0, y1);
-  selectRect.style.left = left + 'px';
-  selectRect.style.top = top + 'px';
+  selectRect.style.left = left + 'px'; selectRect.style.top = top + 'px';
   selectRect.style.width = Math.abs(x1 - boxDrag.x0) + 'px';
   selectRect.style.height = Math.abs(y1 - boxDrag.y0) + 'px';
 });
+
 viewport.addEventListener('pointerup', (e) => {
-  if (e.button === 2 || e.button === 1) {
-    syncOrbitLock();
+  if (e.button === 2 || e.button === 1) { syncOrbitLock(); return; }
+  if (S.brushStrokeActive) { endBrushStroke(true); return; }
+  if (S._smartClick) {
+    const clicked = S._smartClick; S._smartClick = null;
+    releaseViewportPointer(e.pointerId); syncOrbitLock();
+    if (!clicked.moved) { previewSmartFill(e.clientX, e.clientY); commitSmartFill(); }
     return;
   }
-  if (state.brushStrokeActive) {
-    endBrushStroke(true);
-    return;
-  }
-  if (state._smartClick) {
-    const clicked = state._smartClick;
-    state._smartClick = null;
-    releaseViewportPointer(e.pointerId);
-    syncOrbitLock();
-    if (!clicked.moved) {
-      previewSmartFill(e.clientX, e.clientY);
-      commitSmartFill();
-    }
-    return;
-  }
-  if (!boxDrag || !state.mesh) return;
+  if (!boxDrag || !S.mesh) return;
   const rect = viewport.getBoundingClientRect();
   const x1 = e.clientX - rect.left, y1 = e.clientY - rect.top;
   const start = endBoxDrag(e);
   if (!start) return;
-  const tool = state.tool;
-
-  setStatus(tool === 'edge' ? 'Finding edge…' : 'Selecting faces…', 'working');
+  const tool = S.tool;
+  setStatus(tool === 'edge' ? 'Finding edge…' : 'Selecting…', 'working');
   requestAnimationFrame(() => {
     const faces = facesInScreenBox(start.x0, start.y0, x1, y1);
     if (tool === 'edge') {
-      if (!faces.length) {
-        setStatus('No faces in that box — zoom in closer to the rough edge', 'idle');
-        return;
-      }
-      state._edgeLastSeeds = faces;
+      if (!faces.length) { setStatus('No faces in box', 'idle'); return; }
+      S._edgeLastSeeds = faces;
       const n = runEdgeFinder(faces);
-      setStatus(
-        n
-          ? `Edge band: ${n.toLocaleString()} faces — Fill → ${state.paintTarget}`
-          : 'No paint edge in that box — drag over where colours meet',
-        'idle'
-      );
+      setStatus(n ? `Edge band: ${n} faces — Fill → ${S.paintTarget}` : 'No edge found', 'idle');
     } else {
-      paintFaces(faces, state.paintTarget);
+      if (!faces.length) { setStatus('No faces in box', 'idle'); return; }
+      paintFacesFree(faces, S.paintTarget);
+      setStatus(`Painted ${faces.length.toLocaleString()} faces → ${S.paintTarget}`, 'idle');
     }
   });
 });
-viewport.addEventListener('pointercancel', (e) => {
-  state._smartClick = null;
-  endBrushStroke(false);
-  endBoxDrag(e);
-  syncOrbitLock();
-});
 
-// Safety: if the mouse is released outside the canvas (or capture glitches), free the UI.
-window.addEventListener('pointerup', (e) => {
-  if (e.button === 2 || e.button === 1) {
-    syncOrbitLock();
-    return;
-  }
-  if (state.brushStrokeActive) endBrushStroke(true);
-  if (state._smartClick) {
-    state._smartClick = null;
-    releaseViewportPointer(e.pointerId);
-    syncOrbitLock();
-  }
-});
-window.addEventListener('blur', () => {
-  endBrushStroke(false);
-  state._smartClick = null;
-  if (boxDrag) endBoxDrag();
-  syncOrbitLock();
-});
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') {
-    resetInteraction('Controls reset — right-drag orbits · Show all if colours are missing');
-    return;
-  }
-  if (e.code === 'Space' && !e.repeat && !e.target.closest?.('input, textarea, select')) {
-    e.preventDefault();
-    state.orbitOverride = true;
-    syncOrbitLock();
-  }
-  if (e.key === 'Alt') {
-    state.orbitOverride = true;
-    syncOrbitLock();
-  }
-});
-document.addEventListener('keyup', (e) => {
-  if (e.code === 'Space' || e.key === 'Alt') {
-    state.orbitOverride = false;
-    syncOrbitLock();
-  }
-});
-viewport.addEventListener('contextmenu', (e) => {
-  if (isSelectTool() || state.tool === 'smart' || isBrushTool() || state.tool === 'eyedrop') e.preventDefault();
-});
+viewport.addEventListener('pointercancel', (e) => { S._smartClick = null; endBrushStroke(false); endBoxDrag(e); syncOrbitLock(); });
+viewport.addEventListener('contextmenu', (e) => { if (S.tool !== 'orbit') e.preventDefault(); });
 viewport.addEventListener('pointerleave', () => {
-  if (state.tool === 'smart' && !state._smartClick) clearSmartPreview();
-  if (isBrushTool() && !state.brushStrokeActive) smartCursor.style.display = 'none';
+  if (S.tool === 'smart' && !S._smartClick) clearSmartPreview();
+  if (isBrushTool() && !S.brushStrokeActive) smartCursor.style.display = 'none';
 });
 
-// Double-click: zoom toward the hit face (detail work).
+// Double-click: zoom to face
 viewport.addEventListener('dblclick', (e) => {
-  if (!state.mesh || isSelectTool() || state.tool === 'smart' || isBrushTool() || state.tool === 'eyedrop') return;
+  if (S.tool !== 'orbit') return;
+  if (!S.mesh) return;
   const rect = viewport.getBoundingClientRect();
   pointerNdc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
   pointerNdc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
   raycaster.setFromCamera(pointerNdc, camera);
-  const hits = raycaster.intersectObject(state.mesh, false);
+  const hits = raycaster.intersectObject(S.mesh, false);
   if (!hits.length) return;
   const p = hits[0].point;
   const dir = new THREE.Vector3().subVectors(camera.position, controls.target);
@@ -2380,197 +1814,146 @@ viewport.addEventListener('dblclick', (e) => {
   controls.update();
 });
 
-/* ------------------------------------------------------------------ */
-/*  Detect Features                                                   */
-/* ------------------------------------------------------------------ */
+// Global safety
+window.addEventListener('pointerup', (e) => {
+  if (e.button === 2 || e.button === 1) { syncOrbitLock(); return; }
+  if (S.brushStrokeActive) endBrushStroke(true);
+  if (S._smartClick) { S._smartClick = null; releaseViewportPointer(e.pointerId); syncOrbitLock(); }
+});
+window.addEventListener('blur', () => { endBrushStroke(false); S._smartClick = null; if(boxDrag)endBoxDrag(); syncOrbitLock(); });
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { resetInteraction('Controls reset'); clearClickSelection(); return; }
+  if (e.code === 'Space' && !e.repeat && !e.target.closest?.('input,textarea,select')) { e.preventDefault(); S.orbitOverride = true; syncOrbitLock(); }
+  if (e.key === 'Alt') { S.orbitOverride = true; syncOrbitLock(); }
+});
+document.addEventListener('keyup', (e) => {
+  if (e.code === 'Space' || e.key === 'Alt') { S.orbitOverride = false; syncOrbitLock(); }
+});
+controls.addEventListener('start', () => {
+  if (viewportHint.style.display !== 'none') {
+    viewportHint.style.opacity = '0'; viewportHint.style.transition = 'opacity .5s';
+    setTimeout(() => viewportHint.style.display = 'none', 500);
+  }
+});
+
+/* ================================================================== */
+/*  DETECT FEATURES                                                   */
+/* ================================================================== */
 
 detectBtn.addEventListener('click', () => {
-  if (!state.verts) return;
-  setStatus('Detecting features...', 'working');
-
-  // Use setTimeout to let UI update
+  if (!S.verts) return;
+  setStatus('Detecting features…', 'working');
   setTimeout(() => {
     const opts = getDetectOpts();
-
     pushUndo();
-    const result = detectFeatures(state.verts, state.faces, state.nVerts, state.nTri, opts);
-
-    // Clean clusters on feature maps, then copy into paint maps.
-    const minArea = parseFloat(minClusterSlider.value);
+    const result = detectFeatures(S.verts, S.faces, S.nVerts, S.nTri, opts);
+    const minArea = parseFloat($('minCluster').value);
     if (minArea > 0) {
-      cleanClusters(result.embossMask, state.faces, state.nTri, state.verts, minArea);
-      cleanClusters(result.debossMask, state.faces, state.nTri, state.verts, minArea);
+      cleanClusters(result.embossMask, S.faces, S.nTri, S.verts, minArea);
+      cleanClusters(result.debossMask, S.faces, S.nTri, S.verts, minArea);
     }
-    state.featureEmboss = result.embossMask;
-    state.featureDeboss = result.debossMask;
-    state.embossMask = result.embossMask.slice();
-    state.debossMask = result.debossMask.slice();
-    // Detect fills slots 2–3; clear slot 4 so faces stay single-colour
-    state.trimMask = new Uint8Array(state.nTri);
-
-    updateMeshColors();
-    recountPaint();
-    exportBtn.disabled = false;
-    const thrNote = opts.adaptive
-      ? ` · thr≈${result.embossThr?.toFixed?.(3) ?? '?'} / ${result.debossThr?.toFixed?.(3) ?? '?'}`
-      : '';
-    setStatus(
-      `Detection complete — ${state.embossCount.toLocaleString()} accent, ${state.debossCount.toLocaleString()} detail faces${thrNote}`,
-      'idle'
-    );
-    if (detectHint) {
-      if (state.embossCount === 0 && opts.mode !== 'deboss') {
-        detectHint.innerHTML = 'No emboss faces found — lower Sensitivity, raise Smoothing, or try <b style="color:var(--text)">Text / bold</b>.';
-      } else if (activeDetectPreset === 'fine') {
-        detectHint.innerHTML = 'Fine detail applied. Holes in webbing? Raise <b style="color:var(--text)">Morph close</b>. Too much body paint? Lower Sensitivity or enable ridge tops.';
-      } else {
-        detectHint.innerHTML = 'Tip: <b style="color:var(--text)">Fine detail</b> for webbing/logos · <b style="color:var(--text)">Text / bold</b> for chunky emboss.';
-      }
-    }
+    S.featureEmboss = result.embossMask; S.featureDeboss = result.debossMask;
+    S.embossMask = result.embossMask.slice(); S.debossMask = result.debossMask.slice();
+    S.trimMask = new Uint8Array(S.nTri);
+    updateMeshColors(); recountPaint(); exportBtn.disabled = false;
+    setStatus(`Detected — ${S.embossCount.toLocaleString()} accent, ${S.debossCount.toLocaleString()} detail faces`, 'idle');
   }, 30);
 });
 
-/* ------------------------------------------------------------------ */
-/*  Export 3MF                                                        */
-/* ------------------------------------------------------------------ */
+/* ================================================================== */
+/*  EXPORT 3MF                                                        */
+/* ================================================================== */
 
 exportBtn.addEventListener('click', () => {
-  if (!state.verts) return;
-  setStatus('Exporting 3MF...', 'working');
-
+  if (!S.verts) return;
+  setStatus('Exporting 3MF…', 'working');
   setTimeout(() => {
-    const profile = filamentProfileSelect.value;
-    const filType = profile.includes('PETG') ? 'PETG' : profile.includes('ABS') ? 'ABS' :
-                    profile.includes('TPU') ? 'TPU' : profile.includes('ASA') ? 'ASA' : 'PLA';
-
-    const zipBytes = export3MF(state.verts, state.faces, state.nVerts, state.nTri,
-      state.embossMask || new Uint8Array(state.nTri),
-      state.debossMask || new Uint8Array(state.nTri),
-      {
-        bodyColor: colorBody.value,
-        embossColor: colorEmboss.value,
-        debossColor: colorDeboss.value,
-        trimColor: colorTrim.value,
-        trimMask: state.trimMask || new Uint8Array(state.nTri),
-        filamentType: [filType, filType, filType, filType],
-        filamentSettingsId: [profile, profile, profile, profile],
-        filamentProfile: profile
-      }
-    );
-
-    const blob = new Blob([zipBytes], { type: 'application/vnd.ms-package.3dmanufacturing-3dmodel+xml' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${state.fileName}_painted.3mf`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    setStatus(`Exported ${state.fileName}_painted.3mf`, 'idle');
+    const profile = $('filamentProfile').value;
+    const filType = profile.includes('PETG')?'PETG':profile.includes('ABS')?'ABS':
+      profile.includes('TPU')?'TPU':profile.includes('ASA')?'ASA':'PLA';
+    const zip = export3MF(S.verts, S.faces, S.nVerts, S.nTri,
+      S.embossMask || new Uint8Array(S.nTri), S.debossMask || new Uint8Array(S.nTri), {
+        bodyColor: colorInputs.body.value, embossColor: colorInputs.emboss.value,
+        debossColor: colorInputs.deboss.value, trimColor: colorInputs.trim.value,
+        trimMask: S.trimMask || new Uint8Array(S.nTri),
+        filamentType: [filType,filType,filType,filType],
+        filamentSettingsId: [profile,profile,profile,profile], filamentProfile: profile,
+      });
+    const blob = new Blob([zip], { type: 'application/vnd.ms-package.3dmanufacturing-3dmodel+xml' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `${S.fileName}_painted.3mf`; document.body.appendChild(a); a.click();
+    document.body.removeChild(a); URL.revokeObjectURL(a.href);
+    setStatus(`Exported ${S.fileName}_painted.3mf`, 'idle');
   }, 30);
 });
 
-/* ------------------------------------------------------------------ */
-/*  Batch Mode                                                        */
-/* ------------------------------------------------------------------ */
+/* ================================================================== */
+/*  BATCH MODE                                                        */
+/* ================================================================== */
 
 let batchFiles = [];
-
 batchZone.addEventListener('click', () => batchInput.click());
 batchInput.addEventListener('change', () => {
   batchFiles = Array.from(batchInput.files).filter(f => f.name.toLowerCase().endsWith('.stl'));
   batchListEl.innerHTML = '';
   for (const f of batchFiles) {
-    const div = document.createElement('div');
-    div.className = 'batch-item';
+    const div = document.createElement('div'); div.className = 'batch-item';
     div.innerHTML = `<span>${f.name}</span><span class="status pending">pending</span>`;
     div.id = 'batch-' + f.name.replace(/[^a-zA-Z0-9]/g, '_');
     batchListEl.appendChild(div);
   }
   batchBtn.disabled = batchFiles.length === 0;
-  setStatus(`${batchFiles.length} files queued for batch processing`, 'idle');
 });
 
 batchBtn.addEventListener('click', async () => {
-  if (batchFiles.length === 0) return;
+  if (!batchFiles.length) return;
   batchBtn.disabled = true;
-  setStatus('Batch processing...', 'working');
-
+  setStatus('Batch processing…', 'working');
   const opts = getDetectOpts();
-  const minArea = parseFloat(minClusterSlider.value);
-  const profile = filamentProfileSelect.value;
-  const filType = profile.includes('PETG') ? 'PETG' : profile.includes('ABS') ? 'ABS' :
-                  profile.includes('TPU') ? 'TPU' : profile.includes('ASA') ? 'ASA' : 'PLA';
+  const minArea = parseFloat($('minCluster').value);
+  const profile = $('filamentProfile').value;
+  const filType = profile.includes('PETG')?'PETG':profile.includes('ABS')?'ABS':
+    profile.includes('TPU')?'TPU':profile.includes('ASA')?'ASA':'PLA';
 
   for (let fi = 0; fi < batchFiles.length; fi++) {
     const file = batchFiles[fi];
     const elId = 'batch-' + file.name.replace(/[^a-zA-Z0-9]/g, '_');
-    setStatus(`Processing ${fi + 1}/${batchFiles.length}: ${file.name}`, 'working');
-
-    await new Promise(resolve => setTimeout(resolve, 10));
-
+    setStatus(`Processing ${fi+1}/${batchFiles.length}: ${file.name}`, 'working');
+    await new Promise(r => setTimeout(r, 10));
     try {
       const buffer = await file.arrayBuffer();
       const parsed = parseSTLBinary(buffer);
       const deduped = deduplicateVertices(parsed.vertices, parsed.nTri);
       seatVertsOnBed(deduped.verts, deduped.nVerts);
       const result = detectFeatures(deduped.verts, deduped.faces, deduped.nVerts, parsed.nTri, opts);
-
-      if (minArea > 0) {
-        cleanClusters(result.embossMask, deduped.faces, parsed.nTri, deduped.verts, minArea);
-        cleanClusters(result.debossMask, deduped.faces, parsed.nTri, deduped.verts, minArea);
-      }
-
-      const zipBytes = export3MF(deduped.verts, deduped.faces, deduped.nVerts, parsed.nTri,
-        result.embossMask, result.debossMask,
-        {
-          bodyColor: colorBody.value, embossColor: colorEmboss.value, debossColor: colorDeboss.value,
-          trimColor: colorTrim.value,
+      if (minArea > 0) { cleanClusters(result.embossMask, deduped.faces, parsed.nTri, deduped.verts, minArea); cleanClusters(result.debossMask, deduped.faces, parsed.nTri, deduped.verts, minArea); }
+      const zip = export3MF(deduped.verts, deduped.faces, deduped.nVerts, parsed.nTri,
+        result.embossMask, result.debossMask, {
+          bodyColor: colorInputs.body.value, embossColor: colorInputs.emboss.value,
+          debossColor: colorInputs.deboss.value, trimColor: colorInputs.trim.value,
           trimMask: new Uint8Array(parsed.nTri),
-          filamentType: [filType, filType, filType, filType],
-          filamentSettingsId: [profile, profile, profile, profile],
-          filamentProfile: profile
-        }
-      );
-
-      const blob = new Blob([zipBytes], { type: 'application/vnd.ms-package.3dmanufacturing-3dmodel+xml' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = file.name.replace(/\.stl$/i, '_painted.3mf');
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
+          filamentType:[filType,filType,filType,filType],
+          filamentSettingsId:[profile,profile,profile,profile], filamentProfile: profile,
+        });
+      const blob = new Blob([zip],{type:'application/vnd.ms-package.3dmanufacturing-3dmodel+xml'});
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+      a.download = file.name.replace(/\.stl$/i, '_painted.3mf'); document.body.appendChild(a); a.click();
+      document.body.removeChild(a); URL.revokeObjectURL(a.href);
       const el = document.getElementById(elId);
-      if (el) el.querySelector('.status').className = 'status done';
-      if (el) el.querySelector('.status').textContent = 'done';
+      if (el) { el.querySelector('.status').className = 'status done'; el.querySelector('.status').textContent = 'done'; }
     } catch (err) {
       const el = document.getElementById(elId);
-      if (el) el.querySelector('.status').style.color = 'var(--red)';
-      if (el) el.querySelector('.status').textContent = 'error';
+      if (el) { el.querySelector('.status').style.color = 'var(--red)'; el.querySelector('.status').textContent = 'error'; }
       console.error(`Batch error on ${file.name}:`, err);
     }
   }
-
   batchBtn.disabled = false;
-  setStatus(`Batch complete — ${batchFiles.length} files processed`, 'idle');
+  setStatus(`Batch complete — ${batchFiles.length} files`, 'idle');
 });
 
-/* ------------------------------------------------------------------ */
-/*  Keyboard shortcut: hide hint after first interaction              */
-/* ------------------------------------------------------------------ */
-
-controls.addEventListener('start', () => {
-  if (viewportHint.style.display !== 'none') {
-    viewportHint.style.opacity = '0';
-    viewportHint.style.transition = 'opacity 0.5s';
-    setTimeout(() => { viewportHint.style.display = 'none'; }, 500);
-  }
-});
+/* ================================================================== */
+/*  INIT                                                              */
+/* ================================================================== */
 
 syncOrbitLock();
 setBrushStroke('free');
