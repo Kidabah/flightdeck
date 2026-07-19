@@ -1,3 +1,13 @@
+### 2026-07-19 — b420: STL Painter — left-drag paints, not orbits
+
+Fix: Brush left-drag was also rotating the model (OrbitControls stole the button), which made side panels feel “stuck”.
+- Left = paint / select; right-drag = orbit
+- Capture-phase pointer claim + window pointerup safety (no stuck capture)
+- Sidebars z-index above viewport
+- Cache-bust `painter.js?v=420` · shared build **b420**
+
+Files: `painter.html`, `js/painter.js`, `index.html`, `js/app.js`, `SESSION_NEXT.md`.
+
 ### 2026-07-19 — b419: MakerDeck — shared build tag
 
 Aligned Container Generator + STL Painter to one build number:

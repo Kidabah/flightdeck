@@ -2,16 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b419 shared build tag
+- Latest commit: MakerDeck b420 paint vs orbit fix
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
 
-### 2026-07-19 polish (MakerDeck b419 — one build tag)
+### 2026-07-19 fix (MakerDeck b420 — paint control)
 
-**Need:** Container and Painter showed different b-numbers.
+**Need:** Mouse move spun the model; side options hard to use while Brush was active.
 
-**What shipped:** Both show **b419**; Container fallback fixed. Cache-bust `app.js?v=419`, `painter.js?v=419`.
+**What shipped:** Left-drag paints, right-drag orbits; stuck-capture safety; sidebar stacking. Cache-bust `painter.js?v=420`.
 
-**Deploy:** Hard refresh Container + Painter (no backend restart).
+**Deploy:** Hard refresh Painter (no backend restart).
 
 ### 2026-07-18 feature (Colour Match Live screen eyedrop)
 

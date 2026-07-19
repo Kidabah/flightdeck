@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STL Painter — MakerDeck b419</title>
+<title>STL Painter — MakerDeck b420</title>
 <script type="importmap">
 { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/" } }
 </script>
@@ -62,21 +62,26 @@
 
   .main { display: flex; flex: 1; overflow: hidden; min-height: 0; }
   .sidebar {
-    width: 300px; flex-shrink: 0; border-right: 1px solid var(--border);
+    width: 300px; min-width: 280px; flex-shrink: 0; border-right: 1px solid var(--border);
     background: rgba(13, 21, 32, 0.88); overflow-y: auto;
     display: flex; flex-direction: column; gap: 0;
+    position: relative; z-index: 6; pointer-events: auto;
   }
   .sidebar-right {
-    width: 240px; flex-shrink: 0; border-left: 1px solid var(--border);
+    width: 240px; min-width: 200px; flex-shrink: 0; border-left: 1px solid var(--border);
     background: rgba(13, 21, 32, 0.88); overflow-y: auto;
+    position: relative; z-index: 6; pointer-events: auto;
   }
   .viewport {
-    flex: 1; position: relative; min-width: 0;
+    flex: 1; position: relative; z-index: 1; min-width: 0;
     background:
       radial-gradient(ellipse 70% 55% at 50% 40%, var(--bg-glow), transparent 70%),
       var(--bg);
   }
-  .viewport canvas { display: block; width: 100%; height: 100%; }
+  .viewport canvas {
+    display: block; width: 100%; height: 100%;
+    position: relative; z-index: 0;
+  }
 
   .flow-panel {
     padding: 16px 16px 14px;
@@ -375,7 +380,7 @@
 
 <header class="header">
   <div class="header-brand">
-    <span class="header-eyebrow">MakerDeck <span id="makerdeck-build">b419</span></span>
+    <span class="header-eyebrow">MakerDeck <span id="makerdeck-build">b420</span></span>
     <span class="header-title">STL Painter</span>
     <span class="header-subtitle">Paint multi-colour STLs · export AMS-ready 3MFs</span>
   </div>
@@ -448,7 +453,7 @@
     <!-- 3 Paint tools -->
     <section class="flow-panel">
       <div class="flow-step"><span class="flow-num">03</span><span class="flow-title">Paint</span></div>
-      <p class="easy-tip" id="easyTip"><strong>Easy path:</strong> pick a colour → Brush → drag to paint. Hide other colours if they get in the way.</p>
+      <p class="easy-tip" id="easyTip"><strong>Easy path:</strong> pick a colour → Brush → <b>left-drag</b> paints · <b>right-drag</b> orbits. Hide other colours if they get in the way.</p>
 
       <div class="section-label">Colour</div>
       <div class="paint-colour-row" id="paintColourRow">
@@ -715,7 +720,7 @@ import {
   paintClassOf,
   upgradePaintResolution,
   export3MF
-} from './js/painter.js?v=419';
+} from './js/painter.js?v=420';
 
 /* ------------------------------------------------------------------ */
 /*  State                                                             */
@@ -1517,8 +1522,25 @@ function clearEdgeHighlight() {
 
 function syncOrbitLock() {
   const locked = !!orbitLockCheck?.checked;
-  controls.enableRotate = !locked;
-  controls.enablePan = !locked;
+  // Paint / select tools own the left button — never let Orbit steal it.
+  const leftIsPaint =
+    isBrushTool() ||
+    state.tool === 'eyedrop' ||
+    state.tool === 'smart' ||
+    ((state.tool === 'box' || state.tool === 'edge') && locked);
+
+  controls.mouseButtons.LEFT = leftIsPaint ? -1 : THREE.MOUSE.ROTATE;
+  controls.mouseButtons.MIDDLE = THREE.MOUSE.DOLLY;
+  controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
+
+  if (state.brushStrokeActive || state._smartClick || boxDrag) {
+    controls.enableRotate = false;
+    controls.enablePan = false;
+  } else {
+    // Lock freezes free orbit; right/middle still temporarily re-enabled in pointerdown
+    controls.enableRotate = !locked;
+    controls.enablePan = !locked;
+  }
   document.getElementById('orbitLockLabel')?.classList.toggle('active', locked);
 }
 
@@ -1791,11 +1813,11 @@ function setTool(tool) {
   viewport.classList.toggle('brush-mode', isBrushTool(tool));
   viewport.classList.toggle('eyedrop-mode', tool === 'eyedrop');
   if (tool === 'brush') {
-    viewportHint.textContent = 'Brush — drag to paint · set Size & Stroke (Free / H / V)';
+    viewportHint.textContent = 'Brush — left-drag paints · right-drag orbits · Size & Stroke in the left panel';
   } else if (tool === 'spray') {
-    viewportHint.textContent = 'Spray — drag to mist paint · tweak Nozzle & Density';
+    viewportHint.textContent = 'Spray — left-drag mists paint · right-drag orbits · Nozzle in the left panel';
   } else if (tool === 'eyedrop') {
-    viewportHint.textContent = 'Eyedropper — click a face to select that AMS colour slot';
+    viewportHint.textContent = 'Eyedropper — click a face to select that AMS colour slot · right-drag orbits';
   } else if (tool === 'edge') {
     openMoreTools();
     viewportHint.textContent = 'Edge — Lock view, drag over a rough boundary, then Fill with the active slot';
@@ -1809,7 +1831,7 @@ function setTool(tool) {
     openMoreTools();
     viewportHint.textContent = 'Detect — optional raised/sunken finder · then paint with Brush or Smart';
   } else {
-    viewportHint.textContent = 'Drag to orbit · scroll to zoom · pick a colour and a brush';
+    viewportHint.textContent = 'Left-drag orbits · scroll zooms · pick a colour and Brush to paint';
   }
   if (needsLockDrag && !orbitLockCheck?.checked) {
     setStatus('Tip: turn on Lock view to drag-select without rotating', 'idle');
@@ -1986,21 +2008,46 @@ function isSelectTool() {
   return state.tool === 'box' || state.tool === 'edge';
 }
 
+function releaseViewportPointer(pointerId) {
+  if (pointerId == null) return;
+  try { viewport.releasePointerCapture?.(pointerId); } catch { /* already released */ }
+}
+
+function endBrushStroke(status = true) {
+  const stroke = state.brushStrokeActive;
+  if (!stroke) return;
+  state.brushStrokeActive = null;
+  releaseViewportPointer(stroke.pointerId);
+  syncOrbitLock();
+  if (!status) return;
+  const kind = state.tool === 'spray' ? 'Spray' : 'Brush';
+  setStatus(
+    stroke.undid
+      ? `${kind} stroke → ${state.paintTarget}`
+      : `${kind} — no faces hit`,
+    'idle'
+  );
+}
+
+// Capture phase: claim left-click before OrbitControls on the canvas can start an orbit.
 viewport.addEventListener('pointerdown', (e) => {
   if (e.target.closest?.('.viewport-toolbar')) return;
-  // Right / middle = temporary orbit even when Lock is on
   if (e.button === 2 || e.button === 1) {
     controls.enableRotate = true;
     controls.enablePan = true;
     return;
   }
-  if (state.tool === 'eyedrop' && state.mesh && e.button === 0) {
+  if (e.button !== 0 || !state.mesh) return;
+
+  if (state.tool === 'eyedrop') {
     e.preventDefault();
+    e.stopPropagation();
     sampleEyedrop(e.clientX, e.clientY);
     return;
   }
-  if (isBrushTool() && state.mesh && e.button === 0) {
+  if (isBrushTool()) {
     e.preventDefault();
+    e.stopPropagation();
     controls.enableRotate = false;
     controls.enablePan = false;
     const origin = { x: e.clientX, y: e.clientY };
@@ -2013,23 +2060,28 @@ viewport.addEventListener('pointerdown', (e) => {
       state.brushStrokeActive.painted += n;
       if (n) state.brushStrokeActive.undid = true;
     }
-    viewport.setPointerCapture?.(e.pointerId);
+    try { viewport.setPointerCapture?.(e.pointerId); } catch { /* ok */ }
     return;
   }
-  if (state.tool === 'smart' && state.mesh && e.button === 0) {
-    const locked = !!orbitLockCheck?.checked;
-    if (locked) e.preventDefault();
+  if (state.tool === 'smart') {
+    e.preventDefault();
+    e.stopPropagation();
+    controls.enableRotate = false;
+    controls.enablePan = false;
     state._smartClick = { x: e.clientX, y: e.clientY, pointerId: e.pointerId, moved: false };
     previewSmartFill(e.clientX, e.clientY);
-    if (locked) viewport.setPointerCapture?.(e.pointerId);
+    try { viewport.setPointerCapture?.(e.pointerId); } catch { /* ok */ }
     return;
   }
-  if (!isSelectTool() || !state.mesh || e.button !== 0) return;
+  if (!isSelectTool()) return;
   if (!orbitLockCheck?.checked) {
     setStatus('Turn Lock on to drag-select without rotating', 'idle');
     return;
   }
   e.preventDefault();
+  e.stopPropagation();
+  controls.enableRotate = false;
+  controls.enablePan = false;
   const rect = viewport.getBoundingClientRect();
   boxDrag = { x0: e.clientX - rect.left, y0: e.clientY - rect.top, pointerId: e.pointerId };
   selectRect.style.display = 'block';
@@ -2037,8 +2089,8 @@ viewport.addEventListener('pointerdown', (e) => {
   selectRect.style.top = boxDrag.y0 + 'px';
   selectRect.style.width = '0px';
   selectRect.style.height = '0px';
-  viewport.setPointerCapture?.(e.pointerId);
-});
+  try { viewport.setPointerCapture?.(e.pointerId); } catch { /* ok */ }
+}, true);
 viewport.addEventListener('pointermove', (e) => {
   if (state.brushStrokeActive) {
     const pt = constrainBrushClient(e.clientX, e.clientY, state.brushStrokeActive.origin);
@@ -2085,23 +2137,14 @@ viewport.addEventListener('pointerup', (e) => {
     return;
   }
   if (state.brushStrokeActive) {
-    const stroke = state.brushStrokeActive;
-    state.brushStrokeActive = null;
-    try { viewport.releasePointerCapture?.(e.pointerId); } catch { /* ok */ }
-    syncOrbitLock();
-    const kind = state.tool === 'spray' ? 'Spray' : 'Brush';
-    setStatus(
-      stroke.undid
-        ? `${kind} stroke → ${state.paintTarget}`
-        : `${kind} — no faces hit`,
-      'idle'
-    );
+    endBrushStroke(true);
     return;
   }
   if (state._smartClick) {
     const clicked = state._smartClick;
     state._smartClick = null;
-    try { viewport.releasePointerCapture?.(e.pointerId); } catch { /* ok */ }
+    releaseViewportPointer(e.pointerId);
+    syncOrbitLock();
     if (!clicked.moved) {
       previewSmartFill(e.clientX, e.clientY);
       commitSmartFill();
@@ -2138,9 +2181,37 @@ viewport.addEventListener('pointerup', (e) => {
 });
 viewport.addEventListener('pointercancel', (e) => {
   state._smartClick = null;
-  state.brushStrokeActive = null;
+  endBrushStroke(false);
   endBoxDrag(e);
   syncOrbitLock();
+});
+
+// Safety: if the mouse is released outside the canvas (or capture glitches), free the UI.
+window.addEventListener('pointerup', (e) => {
+  if (e.button === 2 || e.button === 1) {
+    syncOrbitLock();
+    return;
+  }
+  if (state.brushStrokeActive) endBrushStroke(true);
+  if (state._smartClick) {
+    state._smartClick = null;
+    releaseViewportPointer(e.pointerId);
+    syncOrbitLock();
+  }
+});
+window.addEventListener('blur', () => {
+  endBrushStroke(false);
+  state._smartClick = null;
+  if (boxDrag) endBoxDrag();
+  syncOrbitLock();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    endBrushStroke(false);
+    state._smartClick = null;
+    if (boxDrag) endBoxDrag();
+    syncOrbitLock();
+  }
 });
 viewport.addEventListener('contextmenu', (e) => {
   if (isSelectTool() || state.tool === 'smart' || isBrushTool() || state.tool === 'eyedrop') e.preventDefault();
