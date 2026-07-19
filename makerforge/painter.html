@@ -369,6 +369,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
 
         <div class="btn-row" style="margin-top:10px">
           <button class="btn" id="showAllColoursBtn">Show All</button>
+          <button class="btn" id="screenPickBtn">Screen Pick</button>
         </div>
         <label class="solo-row" id="soloRow">
           <input type="checkbox" id="soloActive">
@@ -414,7 +415,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
         </div>
         <!-- Eyedrop opts -->
         <div class="opts-panel" id="eyedropOpts">
-          <p class="flow-desc">Click the model to pick that AMS slot.</p>
+          <p class="flow-desc">Click the model to pick that AMS slot, or use Screen Pick in the Colours tab to grab any colour from your desktop.</p>
         </div>
         <!-- Click-Select opts -->
         <div class="opts-panel" id="clickSelectOpts">
@@ -1614,6 +1615,25 @@ async function load3MF(file) {
 /*  CLEAR PAINT / CLEAR MODEL                                         */
 /* ================================================================== */
 
+async function screenPickColour() {
+  if (!window.EyeDropper) { setStatus('EyeDropper API not supported in this browser', 'idle'); return; }
+  try {
+    const picker = new EyeDropper();
+    const result = await picker.open();
+    const hex = result.sRGBHex;
+    // Apply to active paint target's colour input
+    const inputMap = { body: 'colorBody', emboss: 'colorEmboss', deboss: 'colorDeboss', trim: 'colorTrim' };
+    const inputId = inputMap[S.paintTarget];
+    if (!inputId) return;
+    const input = $(inputId);
+    input.value = hex;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    setStatus(`Screen pick → ${S.paintTarget} set to ${hex}`, 'idle');
+  } catch (e) {
+    if (e.name !== 'AbortError') setStatus('Screen pick cancelled', 'idle');
+  }
+}
+
 function clearPaint() {
   if (!S.embossMask) return;
   pushUndo();
@@ -1843,6 +1863,7 @@ orbitLockCheck?.addEventListener('change', () => { resetInteraction(orbitLockChe
 $('clearPaintBtn')?.addEventListener('click', clearPaint);
 $('clearModelBtn')?.addEventListener('click', clearModel);
 $('wireframeBtn')?.addEventListener('click', toggleWireframe);
+$('screenPickBtn')?.addEventListener('click', screenPickColour);
 $('symmetryToggle')?.addEventListener('change', (e) => {
   S.symmetryOn = e.target.checked;
   if (S.symmetryOn && !S.symmetryMap && S.verts && S.faces) {
