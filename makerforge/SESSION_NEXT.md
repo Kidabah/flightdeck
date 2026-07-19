@@ -1,3 +1,30 @@
+### 2026-07-19 — b500: STL Painter overhaul — tabbed layout, click-to-select, mesh islands
+
+Major restructure of the STL Painter. From 2580-line monolith to cleaner modular code.
+
+**Layout:**
+- Tabbed left panel (Model / Color / Paint / Export) — no more endless scrolling
+- Collapsible sidebar toggle for full viewport mode
+- Bottom components panel for mesh island management
+- Compact stats in Model tab
+
+**New features:**
+- **Click-to-select** tool — click a face to select its connected island or same-color region
+- **Mesh islands** — Find Islands detects disconnected components with face counts and bounding box sizes
+- **Island management** — select, hide, show, paint entire islands from the bottom panel
+- **Break-apart** — per-island operations (hide/paint/select individual mesh components)
+- **Flood fill by color** — select all connected faces sharing the same paint slot
+
+**Engine (js/painter.js):**
+- `findMeshIslands()` — DFS connected-component detection with bounding boxes
+- `buildIslandMap()` — per-face island ID lookup
+- `floodFillSameClass()` — flood fill by paint slot
+- `selectIsland()` — select all faces in an island
+
+**Preserved:** all existing paint tools (brush, spray, eyedrop, smart, box, edge, detect), 4 AMS slots, resolution upgrade, batch processing, 3MF export, colour presets.
+
+Files: `painter.html`, `js/painter.js`, `SESSION_NEXT.md`.
+
 ### 2026-07-19 — b423: STL Painter — unstick orbit + Show all
 
 Controls could freeze after Isolate/Lock (tiny black patch + can’t turn/paint).
