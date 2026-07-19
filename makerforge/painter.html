@@ -3,106 +3,173 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STL Painter — MakerDeck b414</title>
+<title>STL Painter — MakerDeck b415</title>
 <script type="importmap">
 { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/" } }
 </script>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@500&display=swap');
   :root {
-    --bg: #070b12; --panel: rgba(13, 22, 36, 0.92); --panel-2: #101c2d;
-    --border: #263852; --text: #f8fafc; --muted: #8ea4c1;
-    --blue: #60a5fa; --green: #22c55e; --accent: #38bdf8;
-    --shadow: 0 20px 50px rgba(0, 0, 0, 0.28);
-    --red: #ef4444; --orange: #f59e0b; --purple: #a78bfa;
+    --bg: #060a10;
+    --bg-glow: #0c1828;
+    --panel: #0d1520;
+    --panel-2: #121c2a;
+    --border: #243246;
+    --text: #f1f5f9;
+    --muted: #8b9cb3;
+    --accent: #3ecfff;
+    --accent-dim: rgba(62, 207, 255, 0.14);
+    --green: #34d399;
+    --orange: #fbbf24;
+    --red: #f87171;
+    --slot-a: #c20820;
+    --slot-b: #131211;
+    --slot-c: #f5f5f5;
+    --shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+    --radius: 12px;
   }
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    background: var(--bg); color: var(--text);
+    font-family: 'DM Sans', system-ui, sans-serif;
+    background:
+      radial-gradient(900px 480px at 18% -10%, rgba(62, 207, 255, 0.08), transparent 55%),
+      radial-gradient(700px 420px at 90% 0%, rgba(52, 211, 153, 0.05), transparent 50%),
+      var(--bg);
+    color: var(--text);
     display: flex; flex-direction: column; height: 100vh; overflow: hidden;
     -webkit-font-smoothing: antialiased;
   }
 
-  /* Header */
   .header {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 12px 24px; border-bottom: 1px solid var(--border);
-    background: var(--panel); flex-shrink: 0;
+    padding: 14px 22px; border-bottom: 1px solid var(--border);
+    background: rgba(13, 21, 32, 0.92); backdrop-filter: blur(10px); flex-shrink: 0;
   }
-  .header-left { display: flex; align-items: center; gap: 16px; }
   .header-brand { display: flex; flex-direction: column; gap: 2px; }
-  .header-eyebrow { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; color: var(--accent); }
-  .header-title { font-size: 20px; font-weight: 700; color: var(--text); }
-  .header-subtitle { font-size: 12px; color: var(--muted); margin-top: 1px; }
-  .header-nav { display: flex; gap: 12px; align-items: center; }
+  .header-eyebrow {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--accent);
+  }
+  .header-title { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+  .header-subtitle { font-size: 12px; color: var(--muted); }
+  .header-nav { display: flex; gap: 8px; }
   .header-nav a {
     font-size: 12px; color: var(--muted); text-decoration: none;
-    padding: 6px 12px; border-radius: 6px; transition: all 0.15s;
+    padding: 7px 12px; border-radius: 8px; border: 1px solid transparent; transition: 0.15s;
   }
-  .header-nav a:hover { color: var(--text); background: var(--panel-2); }
-  .header-nav a .arrow { margin-right: 4px; }
+  .header-nav a:hover { color: var(--text); border-color: var(--border); background: var(--panel-2); }
 
-  /* Layout */
-  .main { display: flex; flex: 1; overflow: hidden; }
-  .sidebar { width: 280px; flex-shrink: 0; border-right: 1px solid var(--border); background: var(--panel); overflow-y: auto; display: flex; flex-direction: column; }
-  .sidebar-right { width: 260px; flex-shrink: 0; border-left: 1px solid var(--border); background: var(--panel); overflow-y: auto; display: flex; flex-direction: column; }
-  .viewport { flex: 1; position: relative; background: var(--bg); }
+  .main { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+  .sidebar {
+    width: 300px; flex-shrink: 0; border-right: 1px solid var(--border);
+    background: rgba(13, 21, 32, 0.88); overflow-y: auto;
+    display: flex; flex-direction: column; gap: 0;
+  }
+  .sidebar-right {
+    width: 240px; flex-shrink: 0; border-left: 1px solid var(--border);
+    background: rgba(13, 21, 32, 0.88); overflow-y: auto;
+  }
+  .viewport {
+    flex: 1; position: relative; min-width: 0;
+    background:
+      radial-gradient(ellipse 70% 55% at 50% 40%, var(--bg-glow), transparent 70%),
+      var(--bg);
+  }
   .viewport canvas { display: block; width: 100%; height: 100%; }
 
-  /* Panels */
-  .panel {
-    border: 1px solid var(--border); border-radius: 12px;
-    background: var(--panel); box-shadow: var(--shadow);
-    margin: 12px; padding: 16px;
+  .flow-panel {
+    padding: 16px 16px 14px;
+    border-bottom: 1px solid var(--border);
   }
-  .panel-title {
-    font-size: 11px; font-weight: 600; text-transform: uppercase;
-    letter-spacing: 1.2px; color: var(--muted); margin-bottom: 12px;
+  .flow-step {
+    display: flex; align-items: baseline; gap: 8px; margin-bottom: 12px;
   }
+  .flow-num {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+    color: var(--accent); font-family: 'JetBrains Mono', monospace;
+  }
+  .flow-title {
+    font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--text);
+  }
+  .flow-desc { font-size: 11px; color: var(--muted); margin: -6px 0 12px; line-height: 1.35; }
 
-  /* Drop zone */
   .drop-zone {
-    border: 2px dashed var(--border); border-radius: 10px;
-    padding: 28px 16px; text-align: center; cursor: pointer;
-    transition: all 0.2s; background: transparent;
+    border: 1.5px dashed var(--border); border-radius: var(--radius);
+    padding: 22px 14px; text-align: center; cursor: pointer; transition: 0.2s;
   }
   .drop-zone:hover, .drop-zone.dragover {
-    border-color: var(--accent); background: rgba(56, 189, 248, 0.05);
+    border-color: var(--accent); background: var(--accent-dim);
   }
-  .drop-zone-icon { font-size: 28px; margin-bottom: 8px; display: block; color: var(--muted); }
-  .drop-zone-text { font-size: 12px; color: var(--muted); }
+  .drop-zone-icon { font-size: 22px; color: var(--muted); display: block; margin-bottom: 6px; }
+  .drop-zone-text { font-size: 12px; color: var(--muted); line-height: 1.4; }
   .drop-zone-text strong { color: var(--text); }
   .drop-zone input[type="file"] { display: none; }
 
-  /* Buttons */
-  .btn {
-    border-radius: 8px; border: 1px solid var(--border);
-    background: var(--panel-2); color: var(--text); font-size: 13px;
-    padding: 8px 16px; cursor: pointer; transition: all 0.15s;
-    font-family: inherit; font-weight: 500; display: inline-flex;
-    align-items: center; justify-content: center; gap: 6px;
+  .slot-list { display: flex; flex-direction: column; gap: 8px; }
+  .slot-card {
+    display: grid; grid-template-columns: 36px 1fr auto; gap: 10px; align-items: center;
+    padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--panel-2); cursor: pointer; transition: 0.15s;
   }
-  .btn:hover { background: var(--border); }
-  .btn:active { transform: scale(0.97); }
-  .btn-primary { background: var(--blue); border-color: var(--blue); color: #fff; }
-  .btn-primary:hover { background: #4d94f7; }
-  .btn-success { background: var(--green); border-color: var(--green); color: #fff; }
-  .btn-success:hover { background: #1aad50; }
-  .btn-full { width: 100%; }
-  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .slot-card:hover { border-color: #3a4f6a; }
+  .slot-card.active {
+    border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent);
+    background: var(--accent-dim);
+  }
+  .slot-card .color-swatch-input {
+    width: 32px; height: 32px; border: none; border-radius: 8px; padding: 0;
+    cursor: pointer; background: none; appearance: none; -webkit-appearance: none;
+  }
+  .slot-card .color-swatch-input::-webkit-color-swatch-wrapper { padding: 0; }
+  .slot-card .color-swatch-input::-webkit-color-swatch { border: none; border-radius: 8px; }
+  .slot-meta { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .slot-name { font-size: 13px; font-weight: 600; color: var(--text); }
+  .slot-role { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+  .slot-hex {
+    font-size: 11px; color: var(--accent); font-family: 'JetBrains Mono', monospace;
+  }
+  .preset-row { display: flex; gap: 5px; margin-top: 10px; flex-wrap: wrap; }
+  .preset-swatch {
+    width: 20px; height: 20px; border-radius: 5px; border: 2px solid transparent;
+    cursor: pointer; transition: 0.15s;
+  }
+  .preset-swatch:hover { border-color: var(--text); transform: scale(1.12); }
 
-  /* Form controls */
-  .form-group { margin-bottom: 12px; }
-  .form-label { font-size: 11px; font-weight: 500; color: var(--muted); margin-bottom: 5px; display: flex; justify-content: space-between; }
-  .form-label .value { color: var(--accent); font-variant-numeric: tabular-nums; }
-  select, input[type="number"] {
-    width: 100%; padding: 7px 10px; border-radius: 8px;
-    border: 1px solid var(--border); background: var(--panel-2);
-    color: var(--text); font-size: 12px; font-family: inherit;
-    outline: none; transition: border-color 0.15s;
+  .tool-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
   }
-  select:focus, input[type="number"]:focus { border-color: var(--accent); }
+  .tool-toggle {
+    border: 1px solid var(--border); background: var(--panel-2); color: var(--muted);
+    border-radius: 10px; padding: 10px 8px; font-size: 12px; font-weight: 600;
+    cursor: pointer; transition: 0.15s; font-family: inherit; text-align: center;
+  }
+  .tool-toggle:hover { color: var(--text); border-color: #3a4f6a; }
+  .tool-toggle.active {
+    color: var(--accent); border-color: var(--accent); background: var(--accent-dim);
+  }
+  .tool-toggle.wide { grid-column: 1 / -1; }
+  .lock-row {
+    margin-top: 10px; display: flex; align-items: center; gap: 8px;
+    font-size: 12px; color: var(--muted); cursor: pointer; user-select: none;
+  }
+  .lock-row input { accent-color: var(--accent); }
+  .lock-row.active { color: var(--accent); }
+
+  .opts-panel { display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+  .opts-panel.visible { display: block; }
+  .opts-panel .form-group { margin-bottom: 10px; }
+  .form-label {
+    font-size: 11px; font-weight: 500; color: var(--muted); margin-bottom: 5px;
+    display: flex; justify-content: space-between;
+  }
+  .form-label .value { color: var(--accent); font-variant-numeric: tabular-nums; font-family: 'JetBrains Mono', monospace; font-size: 10px; }
+  select, input[type="number"] {
+    width: 100%; padding: 8px 10px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--panel-2);
+    color: var(--text); font-size: 12px; font-family: inherit; outline: none;
+  }
+  select:focus { border-color: var(--accent); }
   input[type="range"] {
     width: 100%; height: 4px; appearance: none; background: var(--border);
     border-radius: 2px; outline: none; margin-top: 4px;
@@ -111,118 +178,98 @@
     appearance: none; width: 14px; height: 14px; border-radius: 50%;
     background: var(--accent); cursor: pointer; border: 2px solid var(--bg);
   }
+  .check-row {
+    display: flex; align-items: flex-start; gap: 8px; cursor: pointer;
+    font-size: 11px; color: var(--muted); line-height: 1.35; margin-bottom: 8px;
+  }
+  .check-row input { margin-top: 2px; accent-color: var(--accent); }
 
-  /* Color pickers */
-  .color-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-  .color-swatch-input {
-    width: 32px; height: 32px; border: 2px solid var(--border);
-    border-radius: 8px; padding: 0; cursor: pointer; background: none;
-    appearance: none; -webkit-appearance: none;
-  }
-  .color-swatch-input::-webkit-color-swatch-wrapper { padding: 0; }
-  .color-swatch-input::-webkit-color-swatch { border: none; border-radius: 6px; }
-  .color-label { font-size: 12px; color: var(--muted); flex: 1; }
-  .color-hex { font-size: 11px; color: var(--accent); font-family: 'SF Mono', 'Fira Code', monospace; }
-  .preset-row { display: flex; gap: 5px; margin-top: 6px; flex-wrap: wrap; }
-  .preset-swatch {
-    width: 22px; height: 22px; border-radius: 6px; border: 2px solid transparent;
-    cursor: pointer; transition: all 0.15s;
-  }
-  .preset-swatch:hover { border-color: var(--text); transform: scale(1.15); }
   .detect-preset-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
   .detect-preset-btn {
-    flex: 1; min-width: 72px; padding: 6px 8px; font-size: 11px; font-weight: 600;
-    border-radius: 6px; border: 1px solid var(--border); background: var(--panel-2);
-    color: var(--muted); cursor: pointer; transition: border-color 0.12s, color 0.12s, background 0.12s;
+    flex: 1; min-width: 64px; padding: 6px 8px; font-size: 11px; font-weight: 600;
+    border-radius: 8px; border: 1px solid var(--border); background: var(--panel-2);
+    color: var(--muted); cursor: pointer; font-family: inherit;
   }
-  .detect-preset-btn:hover { border-color: var(--accent); color: var(--text); }
-  .detect-preset-btn.active { border-color: var(--accent); color: var(--text); background: rgba(56,189,248,0.12); }
+  .detect-preset-btn:hover { color: var(--text); }
+  .detect-preset-btn.active { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
   .detect-hint { color: var(--muted); font-size: 11px; line-height: 1.35; margin-top: 8px; }
 
-  /* Stats */
-  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .stat-item { background: var(--panel-2); border-radius: 8px; padding: 10px 12px; }
-  .stat-value { font-size: 16px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
-  .stat-label { font-size: 10px; color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
-  .stat-value.emboss { color: var(--orange); }
-  .stat-value.deboss { color: var(--purple); }
+  .btn {
+    border-radius: 9px; border: 1px solid var(--border);
+    background: var(--panel-2); color: var(--text); font-size: 13px;
+    padding: 9px 14px; cursor: pointer; transition: 0.15s;
+    font-family: inherit; font-weight: 600; display: inline-flex;
+    align-items: center; justify-content: center; gap: 6px; width: 100%;
+  }
+  .btn:hover { border-color: #3a4f6a; }
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: #041018; }
+  .btn-primary:hover { filter: brightness(1.05); }
+  .btn-success { background: var(--green); border-color: var(--green); color: #042016; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-row { display: flex; gap: 8px; }
+  .btn-row .btn { flex: 1; }
 
-  /* Batch */
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .stat-item { background: var(--panel-2); border-radius: 8px; padding: 10px; border: 1px solid var(--border); }
+  .stat-value { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .stat-label { font-size: 10px; color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .stat-value.emboss { color: var(--orange); }
+  .stat-value.deboss { color: var(--accent); }
+
   .batch-zone {
     border: 1px dashed var(--border); border-radius: 8px; padding: 12px;
-    text-align: center; cursor: pointer; transition: all 0.15s;
+    text-align: center; cursor: pointer;
   }
   .batch-zone:hover { border-color: var(--accent); }
   .batch-zone input { display: none; }
   .batch-zone-text { font-size: 11px; color: var(--muted); }
   .batch-list { margin-top: 8px; max-height: 120px; overflow-y: auto; }
   .batch-item { font-size: 11px; color: var(--muted); padding: 3px 0; display: flex; justify-content: space-between; }
-  .batch-item .status { font-size: 10px; }
   .batch-item .status.done { color: var(--green); }
-  .batch-item .status.pending { color: var(--muted); }
 
-  /* Footer */
   .footer {
-    padding: 8px 24px; border-top: 1px solid var(--border);
-    background: var(--panel); font-size: 11px; color: var(--muted);
-    display: flex; align-items: center; justify-content: space-between;
-    flex-shrink: 0;
+    padding: 8px 22px; border-top: 1px solid var(--border);
+    background: rgba(13, 21, 32, 0.92); font-size: 11px; color: var(--muted);
+    display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
   }
   .footer-status { display: flex; align-items: center; gap: 8px; }
-  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
   .status-dot.idle { background: var(--muted); }
   .status-dot.working { background: var(--orange); animation: pulse 1s ease-in-out infinite; }
   @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
-  /* Viewport overlay */
-  .viewport-hint {
-    position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
-    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
-    padding: 8px 16px; font-size: 11px; color: var(--muted);
-    pointer-events: none; opacity: 0.8; white-space: nowrap; z-index: 2;
-  }
   .viewport-toolbar {
-    position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
-    display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: center;
-    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
-    padding: 8px 10px; z-index: 3; box-shadow: var(--shadow); max-width: calc(100% - 24px);
+    position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 6px; align-items: center;
+    background: rgba(13, 21, 32, 0.92); border: 1px solid var(--border);
+    border-radius: 12px; padding: 8px 10px; z-index: 3; box-shadow: var(--shadow);
+    backdrop-filter: blur(8px);
   }
   .viewport-toolbar .tool-btn {
     border: 1px solid var(--border); background: var(--panel-2); color: var(--text);
-    border-radius: 7px; padding: 6px 10px; font-size: 11px; font-weight: 600;
-    cursor: pointer; transition: all 0.15s; white-space: nowrap;
+    border-radius: 8px; padding: 6px 10px; font-size: 11px; font-weight: 600;
+    cursor: pointer; font-family: inherit;
   }
   .viewport-toolbar .tool-btn:hover { border-color: var(--accent); color: var(--accent); }
   .viewport-toolbar .tool-btn.active {
-    background: rgba(56, 189, 248, 0.16); border-color: var(--accent); color: var(--accent);
+    background: var(--accent-dim); border-color: var(--accent); color: var(--accent);
   }
   .viewport-toolbar .tool-sep { width: 1px; height: 22px; background: var(--border); margin: 0 2px; }
   .paint-target-row { display: flex; gap: 6px; align-items: center; }
   .paint-target {
     display: inline-flex; align-items: center; gap: 5px;
-    height: 26px; padding: 0 8px 0 4px; border-radius: 6px;
-    border: 2px solid transparent; cursor: pointer;
+    height: 28px; padding: 0 9px 0 5px; border-radius: 8px;
+    border: 1px solid var(--border); cursor: pointer;
     background: var(--panel-2); color: var(--muted); font-size: 11px; font-weight: 600;
   }
   .paint-target .swatch {
-    width: 16px; height: 16px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.25);
-    flex-shrink: 0;
+    width: 16px; height: 16px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.2);
   }
-  .paint-target.active { border-color: #fff; box-shadow: 0 0 0 2px var(--accent); color: var(--text); }
-  .edge-controls {
-    display: none; align-items: center; gap: 8px; padding: 0 4px;
-    color: var(--muted); font-size: 11px; font-weight: 600;
-  }
-  .edge-controls.visible { display: inline-flex; }
-  .edge-controls input[type="range"] { width: 72px; accent-color: var(--accent); }
-  .edge-controls .edge-val { min-width: 14px; color: var(--text); font-variant-numeric: tabular-nums; }
-  .smart-controls {
-    display: none; align-items: center; gap: 8px; padding: 0 4px;
-    color: var(--muted); font-size: 11px; font-weight: 600;
-  }
-  .smart-controls.visible { display: inline-flex; }
-  .smart-controls input[type="range"] { width: 72px; accent-color: var(--accent); }
-  .smart-controls .smart-val { min-width: 28px; color: var(--text); font-variant-numeric: tabular-nums; }
+  .paint-target.active { border-color: var(--accent); color: var(--text); box-shadow: 0 0 0 1px var(--accent); }
+
+  /* Keep IDs for JS — options live in sidebar */
+  .smart-controls, .edge-controls { display: none !important; }
+
   .smart-cursor {
     position: absolute; border: 1.5px solid #f5c542; border-radius: 50%;
     pointer-events: none; z-index: 5; display: none;
@@ -230,210 +277,173 @@
   }
   .select-rect {
     position: absolute; border: 1.5px solid var(--accent);
-    background: rgba(56, 189, 248, 0.14); pointer-events: none; z-index: 4; display: none;
+    background: rgba(62, 207, 255, 0.12); pointer-events: none; z-index: 4; display: none;
   }
   .viewport.select-mode canvas { cursor: crosshair; }
+  .viewport-hint {
+    position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+    background: rgba(13, 21, 32, 0.92); border: 1px solid var(--border); border-radius: 10px;
+    padding: 8px 14px; font-size: 11px; color: var(--muted);
+    pointer-events: none; z-index: 2; max-width: min(720px, calc(100% - 24px));
+    text-align: center; line-height: 1.35;
+  }
 
-  /* Scrollbar */
   ::-webkit-scrollbar { width: 6px; }
-  ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
-
-  /* Section separator */
-  .section-sep { border: none; border-top: 1px solid var(--border); margin: 8px 0 12px; }
 </style>
 </head>
 <body>
 
-<!-- Header -->
 <header class="header">
-  <div class="header-left">
-    <div class="header-brand">
-      <span class="header-eyebrow">MakerDeck b414</span>
-      <span class="header-title">STL Painter</span>
-      <span class="header-subtitle">Detect, area-paint, and export multi-color 3MFs</span>
-    </div>
+  <div class="header-brand">
+    <span class="header-eyebrow">MakerDeck b415</span>
+    <span class="header-title">STL Painter</span>
+    <span class="header-subtitle">Paint multi-colour STLs · export AMS-ready 3MFs</span>
   </div>
   <nav class="header-nav">
-    <a href="index.html"><span class="arrow">&larr;</span> Back to Container Generator</a>
-    <a href="index.html"><span class="arrow">&larr;</span> MakerDeck Home</a>
+    <a href="index.html">← Container Generator</a>
   </nav>
 </header>
 
-<!-- Main Layout -->
 <div class="main">
 
-  <!-- Left Sidebar -->
   <aside class="sidebar">
-    <!-- Drop Zone -->
-    <div class="panel">
-      <div class="panel-title">Load Model</div>
+    <!-- 1 Model -->
+    <section class="flow-panel">
+      <div class="flow-step"><span class="flow-num">01</span><span class="flow-title">Model</span></div>
       <div class="drop-zone" id="dropZone">
-        <span class="drop-zone-icon">&#x1F4E5;</span>
-        <div class="drop-zone-text"><strong>Drop STL here</strong><br>or click to browse</div>
+        <span class="drop-zone-icon">↓</span>
+        <div class="drop-zone-text"><strong>Drop an STL</strong><br>or click to browse</div>
         <input type="file" id="fileInput" accept=".stl">
       </div>
-    </div>
+    </section>
 
-    <!-- Detection Settings -->
-    <div class="panel">
-      <div class="panel-title">Detection Settings</div>
-      <div class="form-label"><span>Preset</span></div>
-      <div class="detect-preset-row" id="detectPresetRow">
-        <button type="button" class="detect-preset-btn active" data-preset="fine" title="Webbing, logos, fine ridges">Fine detail</button>
-        <button type="button" class="detect-preset-btn" data-preset="bold" title="Chunky text / bold emboss">Text / bold</button>
-        <button type="button" class="detect-preset-btn" data-preset="custom" title="Use current sliders">Custom</button>
-      </div>
-      <div class="form-group">
-        <div class="form-label"><span id="sensitivityLabel">Sensitivity (keep top %)</span><span class="value" id="sensitivityVal">0.22</span></div>
-        <input type="range" id="sensitivity" min="0.05" max="1.5" step="0.05" value="0.22">
-      </div>
-      <div class="form-group">
-        <div class="form-label"><span>Smoothing Iterations</span><span class="value" id="smoothIterVal">120</span></div>
-        <input type="range" id="smoothIter" min="5" max="200" step="5" value="120">
-      </div>
-      <div class="form-group">
-        <div class="form-label"><span>Min Cluster Area (mm&sup2;)</span><span class="value" id="minClusterVal">0.5</span></div>
-        <input type="range" id="minCluster" min="0" max="20" step="0.5" value="0.5">
-      </div>
-      <label class="form-label" style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-weight:500;margin-bottom:8px">
-        <input type="checkbox" id="adaptiveThr" checked style="margin-top:2px;accent-color:var(--accent)">
-        <span style="color:var(--muted);font-size:12px;line-height:1.35">Adaptive threshold (percentile of raised/sunken faces)</span>
-      </label>
-      <label class="form-label" style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-weight:500;margin-bottom:8px">
-        <input type="checkbox" id="ridgeTop" checked style="margin-top:2px;accent-color:var(--accent)">
-        <span style="color:var(--muted);font-size:12px;line-height:1.35">Prefer ridge tops (less side-wall paint)</span>
-      </label>
-      <div class="form-group">
-        <div class="form-label"><span>Morph close (fill holes)</span><span class="value" id="morphCloseVal">1</span></div>
-        <input type="range" id="morphClose" min="0" max="4" step="1" value="1">
-      </div>
-      <div class="form-group">
-        <div class="form-label"><span>Morph open (strip noise)</span><span class="value" id="morphOpenVal">1</span></div>
-        <input type="range" id="morphOpen" min="0" max="3" step="1" value="1">
-      </div>
-      <button class="btn btn-primary btn-full" id="detectBtn" disabled>Detect Features</button>
-      <div class="detect-hint" id="detectHint">Detect raised features → Smart fill to paint colours (pick Body / Emboss / Deboss first).</div>
-    </div>
-
-    <!-- Filament Colors -->
-    <div class="panel">
-      <div class="panel-title">Filament Colors</div>
-      <div class="color-row">
-        <input type="color" class="color-swatch-input" id="colorBody" value="#c20820">
-        <span class="color-label">Body</span>
-        <span class="color-hex" id="colorBodyHex">#C20820</span>
-      </div>
-      <div class="color-row">
-        <input type="color" class="color-swatch-input" id="colorEmboss" value="#131211">
-        <span class="color-label">Emboss</span>
-        <span class="color-hex" id="colorEmbossHex">#131211</span>
-      </div>
-      <div class="color-row">
-        <input type="color" class="color-swatch-input" id="colorDeboss" value="#f5f5f5">
-        <span class="color-label">Deboss</span>
-        <span class="color-hex" id="colorDebossHex">#F5F5F5</span>
-      </div>
-      <hr class="section-sep">
-      <div class="form-label"><span>Presets</span></div>
-      <div class="preset-row" id="presetRow"></div>
-    </div>
-  </aside>
-
-  <!-- 3D Viewport -->
-  <div class="viewport" id="viewport">
-    <div class="viewport-toolbar" id="viewportToolbar">
-      <button type="button" class="tool-btn active" id="toolSmart" title="Smart fill — size + angle, hover preview, click to paint">Smart fill</button>
-      <button type="button" class="tool-btn" id="toolEdge" title="Edge finder — rough boundary cleanup">Edge</button>
-      <button type="button" class="tool-btn" id="toolBox" title="Drag a box to paint faces (lock orbit first)">Box</button>
-      <span class="smart-controls" id="smartControls">
-        <span title="Fill radius (mm)">Size</span>
-        <input type="range" id="smartSize" min="1" max="40" step="0.5" value="10">
-        <span class="smart-val" id="smartSizeVal">10</span>
-        <span title="Higher = more angled faces">Angle</span>
-        <input type="range" id="smartAngle" min="5" max="90" step="1" value="35">
-        <span class="smart-val" id="smartAngleVal">35°</span>
-        <label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-weight:600;color:var(--muted)" title="Stop at different paint colours">
-          <input type="checkbox" id="smartSameColour" checked style="accent-color:var(--accent)"> Same colour
+    <!-- 2 Colours -->
+    <section class="flow-panel">
+      <div class="flow-step"><span class="flow-num">02</span><span class="flow-title">Colours</span></div>
+      <p class="flow-desc">Three AMS slots. Click a slot to paint with it.</p>
+      <div class="slot-list">
+        <label class="slot-card active" id="slotCardBody" data-target="body">
+          <input type="color" class="color-swatch-input" id="colorBody" value="#c20820">
+          <span class="slot-meta">
+            <span class="slot-name">Slot 1</span>
+            <span class="slot-role">Base</span>
+          </span>
+          <span class="slot-hex" id="colorBodyHex">#C20820</span>
         </label>
-      </span>
-      <span class="edge-controls" id="edgeControls">
-        <span title="Grow band width">Width</span>
-        <input type="range" id="edgeWidth" min="0" max="8" step="1" value="2">
-        <span class="edge-val" id="edgeWidthVal">2</span>
-        <button type="button" class="tool-btn" id="edgeFillBtn" title="Fill band with the active colour">Fill</button>
-        <button type="button" class="tool-btn" id="edgeClearBtn" title="Clear edge highlight">Clear</button>
-      </span>
-      <div class="tool-sep"></div>
-      <label class="tool-btn" id="orbitLockLabel" title="Lock view for precise painting" style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;user-select:none">
-        <input type="checkbox" id="orbitLock" style="accent-color:var(--accent);margin:0">
-        Lock
+        <label class="slot-card" id="slotCardEmboss" data-target="emboss">
+          <input type="color" class="color-swatch-input" id="colorEmboss" value="#131211">
+          <span class="slot-meta">
+            <span class="slot-name">Slot 2</span>
+            <span class="slot-role">Accent</span>
+          </span>
+          <span class="slot-hex" id="colorEmbossHex">#131211</span>
+        </label>
+        <label class="slot-card" id="slotCardDeboss" data-target="deboss">
+          <input type="color" class="color-swatch-input" id="colorDeboss" value="#f5f5f5">
+          <span class="slot-meta">
+            <span class="slot-name">Slot 3</span>
+            <span class="slot-role">Detail</span>
+          </span>
+          <span class="slot-hex" id="colorDebossHex">#F5F5F5</span>
+        </label>
+      </div>
+      <div class="preset-row" id="presetRow"></div>
+    </section>
+
+    <!-- 3 Paint tools -->
+    <section class="flow-panel">
+      <div class="flow-step"><span class="flow-num">03</span><span class="flow-title">Paint</span></div>
+      <p class="flow-desc">Toggle a tool. Options appear below.</p>
+      <div class="tool-grid">
+        <button type="button" class="tool-toggle active" id="toolSmart" title="Angle-aware fill (Orca-style smart fill)">Smart fill</button>
+        <button type="button" class="tool-toggle" id="toolBox" title="Paint faces inside a box">Box</button>
+        <button type="button" class="tool-toggle" id="toolEdge" title="Select rough colour boundaries">Edge</button>
+        <button type="button" class="tool-toggle" id="toolDetect" title="Auto-find raised / sunken detail">Detect</button>
+      </div>
+      <label class="lock-row" id="orbitLockLabel">
+        <input type="checkbox" id="orbitLock">
+        Lock view for precise painting
       </label>
-      <div class="tool-sep"></div>
-      <span class="paint-target-row" title="Active paint colour (AMS)">
-        <button type="button" class="paint-target active" id="targetBody" title="Body">
-          <span class="swatch" id="swatchBody" style="background:#c20820"></span>Body
-        </button>
-        <button type="button" class="paint-target" id="targetEmboss" title="Emboss">
-          <span class="swatch" id="swatchEmboss" style="background:#131211"></span>Emboss
-        </button>
-        <button type="button" class="paint-target" id="targetDeboss" title="Deboss">
-          <span class="swatch" id="swatchDeboss" style="background:#f5f5f5"></span>Deboss
-        </button>
-      </span>
-      <div class="tool-sep"></div>
-      <button type="button" class="tool-btn" id="zoomOutBtn" title="Zoom out">−</button>
-      <button type="button" class="tool-btn" id="zoomInBtn" title="Zoom in">+</button>
-      <button type="button" class="tool-btn" id="frameBtn" title="Frame model">Frame</button>
-      <button type="button" class="tool-btn" id="undoBtn" title="Undo last paint" disabled>Undo</button>
-    </div>
-    <div class="select-rect" id="selectRect"></div>
-    <div class="smart-cursor" id="smartCursor"></div>
-    <div class="viewport-hint" id="viewportHint">Orbit: drag rotate · scroll zoom · Shift+pan · double-click zoom to point</div>
-  </div>
 
-  <!-- Right Sidebar -->
-  <aside class="sidebar-right">
-    <!-- Model Stats -->
-    <div class="panel">
-      <div class="panel-title">Model Stats</div>
-      <div class="stat-grid">
-        <div class="stat-item">
-          <div class="stat-value" id="statVerts">--</div>
-          <div class="stat-label">Vertices</div>
+      <!-- Smart options -->
+      <div class="opts-panel visible" id="smartOpts">
+        <div class="form-group">
+          <div class="form-label"><span>Size (mm)</span><span class="value" id="smartSizeVal">10</span></div>
+          <input type="range" id="smartSize" min="1" max="40" step="0.5" value="10">
         </div>
-        <div class="stat-item">
-          <div class="stat-value" id="statFaces">--</div>
-          <div class="stat-label">Faces</div>
+        <div class="form-group">
+          <div class="form-label"><span>Angle</span><span class="value" id="smartAngleVal">35°</span></div>
+          <input type="range" id="smartAngle" min="5" max="90" step="1" value="35">
         </div>
-        <div class="stat-item">
-          <div class="stat-value emboss" id="statEmboss">--</div>
-          <div class="stat-label">Emboss</div>
+        <label class="check-row">
+          <input type="checkbox" id="smartSameColour" checked>
+          <span>Stay on same colour (don’t jump slots)</span>
+        </label>
+      </div>
+
+      <!-- Edge options -->
+      <div class="opts-panel" id="edgeOpts">
+        <div class="form-group">
+          <div class="form-label"><span>Width</span><span class="value" id="edgeWidthVal">2</span></div>
+          <input type="range" id="edgeWidth" min="0" max="8" step="1" value="2">
         </div>
-        <div class="stat-item">
-          <div class="stat-value deboss" id="statDeboss">--</div>
-          <div class="stat-label">Deboss</div>
+        <div class="btn-row">
+          <button type="button" class="btn" id="edgeFillBtn">Fill</button>
+          <button type="button" class="btn" id="edgeClearBtn">Clear</button>
         </div>
       </div>
-    </div>
 
-    <!-- Batch Mode -->
-    <div class="panel">
-      <div class="panel-title">Batch Mode</div>
-      <div class="batch-zone" id="batchZone">
-        <div class="batch-zone-text">Drop folder of STLs or click to select</div>
-        <input type="file" id="batchInput" accept=".stl" multiple webkitdirectory>
+      <!-- Detect options (MakerDeck special) -->
+      <div class="opts-panel" id="detectOpts">
+        <p class="flow-desc" style="margin-top:0">Find raised / sunken geometry, then paint it with Smart fill or Edge.</p>
+        <div class="detect-preset-row" id="detectPresetRow">
+          <button type="button" class="detect-preset-btn active" data-preset="fine">Fine</button>
+          <button type="button" class="detect-preset-btn" data-preset="bold">Bold</button>
+          <button type="button" class="detect-preset-btn" data-preset="custom">Custom</button>
+        </div>
+        <div class="form-group">
+          <div class="form-label"><span id="sensitivityLabel">Sensitivity</span><span class="value" id="sensitivityVal">0.22</span></div>
+          <input type="range" id="sensitivity" min="0.05" max="1.5" step="0.05" value="0.22">
+        </div>
+        <div class="form-group">
+          <div class="form-label"><span>Smoothing</span><span class="value" id="smoothIterVal">120</span></div>
+          <input type="range" id="smoothIter" min="5" max="200" step="5" value="120">
+        </div>
+        <div class="form-group">
+          <div class="form-label"><span>Min area (mm²)</span><span class="value" id="minClusterVal">0.5</span></div>
+          <input type="range" id="minCluster" min="0" max="20" step="0.5" value="0.5">
+        </div>
+        <label class="check-row">
+          <input type="checkbox" id="adaptiveThr" checked>
+          <span>Adaptive threshold</span>
+        </label>
+        <label class="check-row">
+          <input type="checkbox" id="ridgeTop" checked>
+          <span>Prefer ridge tops</span>
+        </label>
+        <div class="form-group">
+          <div class="form-label"><span>Morph close</span><span class="value" id="morphCloseVal">1</span></div>
+          <input type="range" id="morphClose" min="0" max="4" step="1" value="1">
+        </div>
+        <div class="form-group">
+          <div class="form-label"><span>Morph open</span><span class="value" id="morphOpenVal">1</span></div>
+          <input type="range" id="morphOpen" min="0" max="3" step="1" value="1">
+        </div>
+        <button class="btn btn-primary" id="detectBtn" disabled>Run detect</button>
+        <div class="detect-hint" id="detectHint">Optional — unique to MakerDeck. Not required for manual paint.</div>
       </div>
-      <div class="batch-list" id="batchList"></div>
-      <button class="btn btn-full" id="batchBtn" disabled style="margin-top:8px;">Process All</button>
-    </div>
 
-    <!-- Export -->
-    <div class="panel">
-      <div class="panel-title">Export Settings</div>
+      <!-- Hidden stubs so old viewport control IDs still exist for JS -->
+      <div id="smartControls" class="smart-controls" aria-hidden="true"></div>
+      <div id="edgeControls" class="edge-controls" aria-hidden="true"></div>
+    </section>
+
+    <!-- 4 Export -->
+    <section class="flow-panel" style="border-bottom:none; margin-top:auto">
+      <div class="flow-step"><span class="flow-num">04</span><span class="flow-title">Export</span></div>
       <div class="form-group">
-        <div class="form-label"><span>Filament Profile</span></div>
+        <div class="form-label"><span>Filament profile</span></div>
         <select id="filamentProfile">
           <option value="Generic PLA">Generic PLA</option>
           <option value="Generic PETG">Generic PETG</option>
@@ -446,19 +456,74 @@
           <option value="Bambu PLA Matte">Bambu PLA Matte</option>
         </select>
       </div>
-      <button class="btn btn-success btn-full" id="exportBtn" disabled>Export 3MF</button>
-    </div>
+      <button class="btn btn-success" id="exportBtn" disabled>Export 3MF</button>
+    </section>
   </aside>
 
+  <div class="viewport" id="viewport">
+    <div class="viewport-toolbar" id="viewportToolbar">
+      <span class="paint-target-row" title="Active AMS slot">
+        <button type="button" class="paint-target active" id="targetBody" title="Slot 1 — Base">
+          <span class="swatch" id="swatchBody" style="background:#c20820"></span>1
+        </button>
+        <button type="button" class="paint-target" id="targetEmboss" title="Slot 2 — Accent">
+          <span class="swatch" id="swatchEmboss" style="background:#131211"></span>2
+        </button>
+        <button type="button" class="paint-target" id="targetDeboss" title="Slot 3 — Detail">
+          <span class="swatch" id="swatchDeboss" style="background:#f5f5f5"></span>3
+        </button>
+      </span>
+      <div class="tool-sep"></div>
+      <button type="button" class="tool-btn" id="zoomOutBtn" title="Zoom out">−</button>
+      <button type="button" class="tool-btn" id="zoomInBtn" title="Zoom in">+</button>
+      <button type="button" class="tool-btn" id="frameBtn" title="Frame model">Frame</button>
+      <button type="button" class="tool-btn" id="undoBtn" title="Undo" disabled>Undo</button>
+    </div>
+    <div class="select-rect" id="selectRect"></div>
+    <div class="smart-cursor" id="smartCursor"></div>
+    <div class="viewport-hint" id="viewportHint">Load a model · pick a colour · Smart fill to paint</div>
+  </div>
+
+  <aside class="sidebar-right">
+    <section class="flow-panel">
+      <div class="flow-step"><span class="flow-num">··</span><span class="flow-title">Stats</span></div>
+      <div class="stat-grid">
+        <div class="stat-item">
+          <div class="stat-value" id="statVerts">--</div>
+          <div class="stat-label">Vertices</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="statFaces">--</div>
+          <div class="stat-label">Faces</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value emboss" id="statEmboss">--</div>
+          <div class="stat-label">Slot 2</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value deboss" id="statDeboss">--</div>
+          <div class="stat-label">Slot 3</div>
+        </div>
+      </div>
+    </section>
+    <section class="flow-panel" style="border-bottom:none">
+      <div class="flow-step"><span class="flow-num">··</span><span class="flow-title">Batch</span></div>
+      <div class="batch-zone" id="batchZone">
+        <div class="batch-zone-text">Drop a folder of STLs</div>
+        <input type="file" id="batchInput" accept=".stl" multiple webkitdirectory>
+      </div>
+      <div class="batch-list" id="batchList"></div>
+      <button class="btn" id="batchBtn" disabled style="margin-top:8px">Process all</button>
+    </section>
+  </aside>
 </div>
 
-<!-- Footer -->
 <footer class="footer">
   <div class="footer-status">
     <span class="status-dot idle" id="statusDot"></span>
     <span id="statusText">Ready — load an STL to begin</span>
   </div>
-  <span>MakerDeck b414 — STL Painter</span>
+  <span>MakerDeck · STL Painter</span>
 </footer>
 
 <!-- Main Script -->
@@ -474,7 +539,7 @@ import {
   findPaintBoundary,
   smartFillFaces,
   export3MF
-} from './js/painter.js?v=414';
+} from './js/painter.js?v=415';
 
 /* ------------------------------------------------------------------ */
 /*  State                                                             */
@@ -495,9 +560,9 @@ const state = {
   debossCount: 0,
   mesh: null,
   fileName: 'model',
-  tool: 'orbit',          // 'orbit' | 'box' | 'edge' | 'smart'
-  paintTarget: 'body',    // 'body' | 'emboss' | 'deboss' — AMS slots
-  detectMode: 'emboss',   // from preset (no Mode dropdown)
+  tool: 'orbit',          // 'orbit' | 'box' | 'edge' | 'smart' | 'detect'
+  paintTarget: 'body',    // 'body' | 'emboss' | 'deboss' — AMS slots 1/2/3
+  detectMode: 'emboss',   // from detect presets
   undoStack: [],
   edgeHighlight: null,    // Uint8Array | null
   smartPreview: null,     // Uint8Array | null — amber smart-fill preview
@@ -511,7 +576,7 @@ const state = {
 
 const viewport = document.getElementById('viewport');
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x070b12);
+scene.background = new THREE.Color(0x060a10);
 
 const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 5000);
 camera.position.set(80, 60, 80);
@@ -549,7 +614,7 @@ const dirLight2 = new THREE.DirectionalLight(0x8ea4c1, 0.5);
 dirLight2.position.set(-40, 40, -30);
 scene.add(dirLight2);
 
-const hemiLight = new THREE.HemisphereLight(0x38bdf8, 0x070b12, 0.3);
+const hemiLight = new THREE.HemisphereLight(0x3ecfff, 0x060a10, 0.28);
 scene.add(hemiLight);
 
 // Grid
@@ -1149,6 +1214,18 @@ function syncOrbitLock() {
   document.getElementById('orbitLockLabel')?.classList.toggle('active', locked);
 }
 
+function syncSlotCards() {
+  document.querySelectorAll('.slot-card').forEach(card => {
+    card.classList.toggle('active', card.dataset.target === state.paintTarget);
+  });
+}
+
+function showToolOpts(tool) {
+  document.getElementById('smartOpts')?.classList.toggle('visible', tool === 'smart');
+  document.getElementById('edgeOpts')?.classList.toggle('visible', tool === 'edge');
+  document.getElementById('detectOpts')?.classList.toggle('visible', tool === 'detect');
+}
+
 function runEdgeFinder(seedFaceList) {
   if (!state.embossMask || !state.mesh) return 0;
   ensureFaceAdj();
@@ -1304,30 +1381,32 @@ function commitSmartFill() {
 }
 
 function setTool(tool) {
-  // Clicking the active paint tool again drops back to navigate-only.
+  // Clicking the active tool again drops back to navigate-only.
   if (tool === state.tool && tool !== 'orbit') tool = 'orbit';
   state.tool = tool;
   toolBox.classList.toggle('active', tool === 'box');
   toolEdge.classList.toggle('active', tool === 'edge');
   toolSmart.classList.toggle('active', tool === 'smart');
-  edgeControls.classList.toggle('visible', tool === 'edge');
-  smartControls.classList.toggle('visible', tool === 'smart');
+  document.getElementById('toolDetect')?.classList.toggle('active', tool === 'detect');
+  showToolOpts(tool);
   if (tool !== 'smart') clearSmartPreview();
   controls.enabled = true;
   syncOrbitLock();
   const needsLockDrag = tool === 'box' || tool === 'edge';
   viewport.classList.toggle('select-mode', tool === 'box' || tool === 'edge' || tool === 'smart');
   if (tool === 'edge') {
-    viewportHint.textContent = 'Edge: drag box over rough boundary (Lock on) · Width · Fill with active colour · orbit free when unlocked';
+    viewportHint.textContent = 'Edge — Lock view, drag over a rough boundary, then Fill with the active slot';
   } else if (tool === 'smart') {
-    viewportHint.textContent = 'Smart fill: orbit freely · hover amber preview · Size/Angle · click to paint · Lock if the view drifts';
+    viewportHint.textContent = 'Smart fill — hover for amber preview · tweak Size / Angle · click to paint';
   } else if (tool === 'box') {
-    viewportHint.textContent = 'Box: turn Lock on, then drag to paint with the active colour';
+    viewportHint.textContent = 'Box — Lock view, then drag to paint the active slot';
+  } else if (tool === 'detect') {
+    viewportHint.textContent = 'Detect — optional raised/sunken finder · Run detect, then paint with Smart fill';
   } else {
-    viewportHint.textContent = 'Drag to orbit · scroll zoom · Shift+pan · pick a paint tool when ready';
+    viewportHint.textContent = 'Drag to orbit · scroll to zoom · pick a colour and a paint tool';
   }
   if (needsLockDrag && !orbitLockCheck?.checked) {
-    setStatus('Tip: turn Lock on to drag-select without rotating the view', 'idle');
+    setStatus('Tip: turn on Lock view to drag-select without rotating', 'idle');
   }
 }
 
@@ -1336,14 +1415,17 @@ function setPaintTarget(target) {
   document.getElementById('targetBody').classList.toggle('active', target === 'body');
   document.getElementById('targetEmboss').classList.toggle('active', target === 'emboss');
   document.getElementById('targetDeboss').classList.toggle('active', target === 'deboss');
+  syncSlotCards();
 }
 
+const toolDetect = document.getElementById('toolDetect');
 toolBox.addEventListener('click', () => setTool('box'));
 toolEdge.addEventListener('click', () => setTool('edge'));
 toolSmart.addEventListener('click', () => setTool('smart'));
+toolDetect?.addEventListener('click', () => setTool('detect'));
 orbitLockCheck?.addEventListener('change', () => {
   syncOrbitLock();
-  setStatus(orbitLockCheck.checked ? 'Orbit locked — paint without spinning' : 'Orbit unlocked — drag to rotate', 'idle');
+  setStatus(orbitLockCheck.checked ? 'View locked' : 'View unlocked — drag to orbit', 'idle');
 });
 smartSizeSlider.addEventListener('input', () => {
   smartSizeVal.textContent = parseFloat(smartSizeSlider.value).toFixed(smartSizeSlider.value % 1 ? 1 : 0);
@@ -1355,7 +1437,7 @@ edgeWidthSlider.addEventListener('input', () => {
   edgeWidthVal.textContent = edgeWidthSlider.value;
   if (state._edgeLastSeeds) {
     const n = runEdgeFinder(state._edgeLastSeeds);
-    setStatus(`Edge band: ${n.toLocaleString()} faces (width ${edgeWidthSlider.value}) — Fill → ${state.paintTarget}`, 'idle');
+    setStatus(`Edge band: ${n.toLocaleString()} faces — Fill → slot ${state.paintTarget}`, 'idle');
   }
 });
 edgeFillBtn.addEventListener('click', () => fillEdgeHighlight(state.paintTarget));
@@ -1367,6 +1449,16 @@ edgeClearBtn.addEventListener('click', () => {
 document.getElementById('targetBody').addEventListener('click', () => setPaintTarget('body'));
 document.getElementById('targetEmboss').addEventListener('click', () => setPaintTarget('emboss'));
 document.getElementById('targetDeboss').addEventListener('click', () => setPaintTarget('deboss'));
+document.querySelectorAll('.slot-card').forEach(card => {
+  card.addEventListener('click', (e) => {
+    // Colour input handles its own clicks; card selects the paint slot
+    if (e.target?.type === 'color') return;
+    setPaintTarget(card.dataset.target);
+  });
+  card.querySelector('input[type="color"]')?.addEventListener('focus', () => {
+    setPaintTarget(card.dataset.target);
+  });
+});
 document.getElementById('zoomInBtn').addEventListener('click', () => zoomBy(0.72));
 document.getElementById('zoomOutBtn').addEventListener('click', () => zoomBy(1.38));
 document.getElementById('frameBtn').addEventListener('click', frameModel);

@@ -1,3 +1,15 @@
+### 2026-07-19 — b415: STL Painter — paint-first layout rebuild
+
+Full UI reflow with MakerDeck personality (not Orca clone):
+- Flow: **01 Model → 02 Colours → 03 Paint → 04 Export**
+- Colours as AMS Slot 1/2/3 (Base / Accent / Detail) — emboss/deboss are export roles, not the app spine
+- Tool toggles: Smart fill · Box · Edge · Detect (optional) + Lock view
+- Contextual options under the active tool only
+- Viewport chrome slim: slot chips + zoom/undo
+- Cache-bust `painter.js?v=415`
+
+Files: `painter.html`, `js/painter.js`, `SESSION_NEXT.md`.
+
 ### 2026-07-19 — b414: STL Painter — free orbit + Lock, tidy toolbar
 
 - Orbit free by default; **Lock** for precise paint (Box/Edge need Lock to drag)

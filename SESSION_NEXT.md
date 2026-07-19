@@ -2,14 +2,14 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b414 free orbit + tidy toolbar
+- Latest commit: MakerDeck b415 paint-first layout
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
 
-### 2026-07-19 polish (MakerDeck b414 — orbit Lock + tidy)
+### 2026-07-19 redesign (MakerDeck b415 — Painter layout)
 
-**Need:** Free orbit (optional Lock); drop Emboss/Deboss mode UI; tidy controls.
+**Need:** Clear flow; Detect optional; Orca-inspired tools with MakerDeck personality.
 
-**What shipped:** Lock toggle; removed Detect Mode + Edge emboss/body modes; cleaner toolbar. Cache-bust `painter.js?v=414`.
+**What shipped:** 01→04 sidebar flow, Slot colours, tool toggles + contextual options, slim viewport. Cache-bust `painter.js?v=415`.
 
 **Deploy:** Hard refresh Painter page (no backend restart).
 
