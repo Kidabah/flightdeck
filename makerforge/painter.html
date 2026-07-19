@@ -1903,9 +1903,10 @@ $('symmetryToggle')?.addEventListener('change', (e) => {
   S.symmetryOn = e.target.checked;
   if (S.symmetryOn && !S.symmetryMap && S.verts && S.faces) {
     setStatus('Building symmetry map…', 'working');
-    const { map, centerX } = buildSymmetryMap(S.verts, S.faces, S.nTri);
-    S.symmetryMap = map; S.symmetryCenterX = centerX;
-    setStatus('Symmetry on — painting mirrors across X', 'idle');
+    const result = buildSymmetryMap(S.verts, S.faces, S.nTri);
+    S.symmetryMap = result.map; S.symmetryCenterX = result.centerX;
+    const pct = Math.round(100 * result.matched / result.total);
+    setStatus(`Symmetry on — ${result.axis} axis, ${pct}% faces matched`, 'idle');
   } else {
     setStatus(S.symmetryOn ? 'Symmetry on' : 'Symmetry off', 'idle');
   }
