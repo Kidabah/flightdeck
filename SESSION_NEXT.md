@@ -2,8 +2,14 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b522 — bog fix (accent-bands double + UI sync)
+- Latest commit: MakerDeck b523 — clearer two-band accent UX
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
+
+### 2026-07-20 polish (MakerDeck b523 — accent: 1 standard + add 2nd)
+
+**Need:** Clear 2-band accent model (one standard, optional second).
+
+**What shipped:** Band 1 labelled standard; **+ Add second band** stays visible (disables at max instead of hiding). Hard refresh **b523**.
 
 ### 2026-07-20 fix (MakerDeck b522 — still boggy)
 

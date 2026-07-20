@@ -1,5 +1,16 @@
 ---
 
+## b523 — Accent: one standard + add second
+**Date:** 2026-07-20
+
+### What changed
+- Band 1 labelled “standard”; Add button always visible as “+ Add second band” (disabled at 2)
+
+### Deploy
+- Hard refresh **b523** → Accent → enable → Add second band
+
+---
+
 ## b522 — Bog fix: accent-bands double + UI sync thrash
 **Date:** 2026-07-20
 

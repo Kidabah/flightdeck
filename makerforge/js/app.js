@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, ANIMAL_PRESET, SIGN_PRESET, TEMORA_VET_SIGN_PRESET, TEMORA_VET_CELTIC_SVG_URL } from "./geometry.js?v=522";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, resolveEmbossFontWeight, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=522";
+import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, ANIMAL_PRESET, SIGN_PRESET, TEMORA_VET_SIGN_PRESET, TEMORA_VET_CELTIC_SVG_URL } from "./geometry.js?v=523";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, resolveEmbossFontWeight, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=523";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=370";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=372";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=378";
@@ -35,7 +35,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b522";
+const MAKERDECK_BUILD = "b523";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -5639,10 +5639,7 @@ function renderAccentBandsUi(force = false) {
   const sig = accentBandsUiSignature();
   if (!force && container.dataset.sig === sig) {
     syncAccentBandControlsFromState();
-    if (addBtn) {
-      addBtn.disabled = state.accentBands.length >= MAX_ACCENT_BANDS;
-      addBtn.classList.toggle("hidden", state.accentBands.length >= MAX_ACCENT_BANDS);
-    }
+    syncAccentAddBandButton(addBtn);
     return;
   }
   container.dataset.sig = sig;
@@ -5661,7 +5658,7 @@ function renderAccentBandsUi(force = false) {
     header.className = "accent-band-card-header";
     const title = document.createElement("h3");
     title.className = "accent-band-card-title";
-    title.textContent = `Band ${i + 1}`;
+    title.textContent = i === 0 ? "Band 1 — standard" : `Band ${i + 1}`;
     header.appendChild(title);
     if (state.accentBands.length > 1) {
       const removeBtn = document.createElement("button");
@@ -5878,10 +5875,20 @@ function renderAccentBandsUi(force = false) {
     container.appendChild(card);
   });
 
-  if (addBtn) {
-    addBtn.disabled = state.accentBands.length >= MAX_ACCENT_BANDS;
-    addBtn.classList.toggle("hidden", state.accentBands.length >= MAX_ACCENT_BANDS);
-  }
+  syncAccentAddBandButton(addBtn);
+}
+
+/** Keep "+ Add second band" visible — disable at max (don't hide; people miss it). */
+function syncAccentAddBandButton(addBtn = document.getElementById("btn-accent-add-band")) {
+  if (!addBtn) return;
+  const atMax = state.accentBands.length >= MAX_ACCENT_BANDS;
+  addBtn.hidden = false;
+  addBtn.classList.remove("hidden");
+  addBtn.disabled = atMax;
+  addBtn.textContent = atMax ? "2 bands max" : "+ Add second band";
+  addBtn.title = atMax
+    ? "Remove a band to add a different one"
+    : "Add a second accent colour (separate 3MF filament slot)";
 }
 
 function updateDecorUi() {
@@ -6394,6 +6401,11 @@ document.getElementById("joiner-autoscale").addEventListener("change", (e) => {
 document.getElementById("accent-enabled").addEventListener("change", (e) => {
   state.accentEnabled = e.target.checked;
   ensureStateAccentBands(state);
+  // Always start with exactly one standard band when turning accent on.
+  if (state.accentEnabled && (!state.accentBands.length)) {
+    state.accentBands = [newAccentBand()];
+    syncFlatAccentFromBands(state);
+  }
   renderAccentBandsUi(true);
   updateDecorUi();
   rebuild();
