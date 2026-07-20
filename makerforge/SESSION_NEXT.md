@@ -1,5 +1,21 @@
 ---
 
+## b512 — Filament settings id must include @BBL printer
+**Date:** 2026-07-20
+
+### What changed
+- Bare `filament_settings_id: "Generic PLA"` made Bambu Studio ignore `filament_colour` and show wrong swatches
+- Export always writes `Generic PLA @BBL H2C` (or H2D/X1C)
+- Patched Chris bust files on disk → `Chris_Friend_Bust_COLOURS_FIXED.3mf`
+
+### File Changes
+- `painter.js` — force printer-scoped filament_settings_id; `painter.js?v=512`
+
+### Deploy
+- Hard refresh Painter. Open **COLOURS_FIXED** in Studio as a new project (close old tab first).
+
+---
+
 ## b511 — Recover large 3MF paint on reload
 **Date:** 2026-07-20
 

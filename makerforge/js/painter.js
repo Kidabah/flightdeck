@@ -1,5 +1,5 @@
 /**
- * MakerDeck STL Painter Engine — b511
+ * MakerDeck STL Painter Engine — b512
  * Pure computation module: STL parsing, feature detection, 3MF export.
  */
 
@@ -1181,11 +1181,14 @@ export function export3MF(verts, faces, nVerts, nTri, embossMask, debossMask, op
     : /H2D/i.test(printerModel) ? 'BBL H2D'
     : /X1/i.test(printerModel) ? 'BBL X1C'
     : 'BBL X1C';
-  const defaultSettingsId = filamentProfile.includes('@')
-    ? filamentProfile
-    : `${filamentProfile} @${printerTag}`;
-  const filSettings = Array.from({ length: nSlots }, (_, i) =>
-    (filamentSettingsId && filamentSettingsId[i]) || defaultSettingsId);
+  // Bare "Generic PLA" (no @BBL …) makes Bambu Studio discard filament_colour
+  // and substitute its own swatches — always pin a printer-scoped settings id.
+  const baseProfile = String(filamentProfile || 'Generic PLA').replace(/\s*@.*$/, '').trim() || 'Generic PLA';
+  const defaultSettingsId = `${baseProfile} @${printerTag}`;
+  const filSettings = Array.from({ length: nSlots }, (_, i) => {
+    const raw = (filamentSettingsId && filamentSettingsId[i]) || defaultSettingsId;
+    return String(raw).includes('@') ? String(raw) : `${String(raw).trim()} @${printerTag}`;
+  });
   const filVendors = Array.from({ length: nSlots }, () =>
     /^bambu/i.test(filamentProfile) ? 'Bambu Lab' : 'Generic');
   const filIds = Array.from({ length: nSlots }, () => 'GFL99');

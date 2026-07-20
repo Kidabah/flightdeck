@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b511 recover large 3MF paint on reload
+- Latest commit: MakerDeck b512 filament settings id @BBL for Studio colours
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
+
+### 2026-07-20 fix (MakerDeck b512 — Studio still wrong colours)
+
+**Need:** Bust paint regions OK but Studio swatches wrong (orange/brown defaults).
+
+**Cause:** Export had bare `Generic PLA` settings ids — Studio discards filament_colour.
+
+**What shipped:** Always embed `Generic PLA @BBL H2C`. Patched `Chris_Friend_Bust_COLOURS_FIXED.3mf`. Cache-bust `painter.js?v=512`.
 
 ### 2026-07-20 fix (MakerDeck b511 — paint lost on Painter reload)
 
