@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 240" fill="#000" fill-rule="evenodd">
+  <title>Temora Vet  Celtic frame (hollow centre)</title>
+  <desc>Rectangular Celtic-style knot border for MakerDeck sign emboss. Centre is open for text. Paths use M/L/Z only.</desc>
+
+  <!-- Outer plate frame with hollow text window (evenodd) -->
+  <path d="
+    M 8 28
+    L 28 8 L 332 8 L 352 28 L 352 212 L 332 232 L 28 232 L 8 212 Z
+    M 48 52
+    L 312 52 L 312 188 L 48 188 Z
+  "/>
+
+  <!-- Top braid strand -->
+  <path d="
+    M 40 20 L 70 20 L 82 32 L 110 20 L 140 20 L 152 32 L 180 20
+    L 208 20 L 220 32 L 248 20 L 278 20 L 290 32 L 320 20 L 320 36
+    L 292 48 L 278 36 L 250 48 L 220 36 L 208 48 L 180 36
+    L 152 48 L 140 36 L 112 48 L 82 36 L 70 48 L 40 36 Z
+  "/>
+
+  <!-- Bottom braid strand -->
+  <path d="
+    M 40 220 L 70 220 L 82 208 L 110 220 L 140 220 L 152 208 L 180 220
+    L 208 220 L 220 208 L 248 220 L 278 220 L 290 208 L 320 220 L 320 204
+    L 292 192 L 278 204 L 250 192 L 220 204 L 208 192 L 180 204
+    L 152 192 L 140 204 L 112 192 L 82 204 L 70 192 L 40 204 Z
+  "/>
+
+  <!-- Left braid strand -->
+  <path d="
+    M 20 40 L 20 70 L 32 82 L 20 110 L 20 140 L 32 152 L 20 180 L 20 200
+    L 36 200 L 48 172 L 36 152 L 48 140 L 36 110 L 48 82 L 36 70 L 48 40 Z
+  "/>
+
+  <!-- Right braid strand -->
+  <path d="
+    M 340 40 L 340 70 L 328 82 L 340 110 L 340 140 L 328 152 L 340 180 L 340 200
+    L 324 200 L 312 172 L 324 152 L 312 140 L 324 110 L 312 82 L 324 70 L 312 40 Z
+  "/>
+
+  <!-- Corner knots (interlace diamonds) -->
+  <path d="M 24 24 L 44 24 L 56 36 L 44 48 L 24 48 L 12 36 Z M 30 30 L 38 30 L 44 36 L 38 42 L 30 42 L 24 36 Z"/>
+  <path d="M 316 24 L 336 24 L 348 36 L 336 48 L 316 48 L 304 36 Z M 322 30 L 330 30 L 336 36 L 330 42 L 322 42 L 316 36 Z"/>
+  <path d="M 24 192 L 44 192 L 56 204 L 44 216 L 24 216 L 12 204 Z M 30 198 L 38 198 L 44 204 L 38 210 L 30 210 L 24 204 Z"/>
+  <path d="M 316 192 L 336 192 L 348 204 L 336 216 L 316 216 L 304 204 Z M 322 198 L 330 198 L 336 204 L 330 210 L 322 210 L 316 204 Z"/>
+
+  <!-- Mid-side bosses -->
+  <path d="M 168 14 L 192 14 L 200 22 L 192 30 L 168 30 L 160 22 Z"/>
+  <path d="M 168 210 L 192 210 L 200 218 L 192 226 L 168 226 L 160 218 Z"/>
+  <path d="M 14 108 L 30 108 L 38 120 L 30 132 L 14 132 L 6 120 Z"/>
+  <path d="M 330 108 L 346 108 L 354 120 L 346 132 L 330 132 L 322 120 Z"/>
+</svg>

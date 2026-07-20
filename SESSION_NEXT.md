@@ -2,8 +2,14 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b514 revert Studio-full settings (Orca safe again)
+- Latest commit: MakerDeck b515 Temora Vet plaque Signs + Celtic SVG
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
+
+### 2026-07-20 feature (MakerDeck b515 — Temora Vet plaque)
+
+**Need:** Printable vet plaque with exact names (AI text fails) + Celtic knot via SVG.
+
+**What shipped:** Temora Vet plaque preset, Celtic frame SVG emboss, longer emboss textarea. Hard refresh b515.
 
 ### 2026-07-20 fix (MakerDeck b514 — Orca broken by Studio settings dump)
 

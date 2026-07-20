@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, ANIMAL_PRESET, SIGN_PRESET } from "./geometry.js?v=509";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=509";
+import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, ANIMAL_PRESET, SIGN_PRESET, TEMORA_VET_SIGN_PRESET, TEMORA_VET_CELTIC_SVG_URL } from "./geometry.js?v=515";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=515";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=370";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=372";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=378";
@@ -35,7 +35,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b509";
+const MAKERDECK_BUILD = "b515";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -2838,10 +2838,21 @@ async function removeLibraryDesign(designId, designName = "", designFolder = "")
   }
 }
 
-function syncUiFromState() {
+function syncShapeButtonActive() {
   document.querySelectorAll(".shape-btn").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.shape === state.shape);
+    if (btn.dataset.sample) {
+      btn.classList.toggle("active", state.shape === "sign" && state.signSample === btn.dataset.sample);
+    } else {
+      btn.classList.toggle(
+        "active",
+        btn.dataset.shape === state.shape && !(state.shape === "sign" && state.signSample),
+      );
+    }
   });
+}
+
+function syncUiFromState() {
+  syncShapeButtonActive();
 
   const isAnimal = state.shape === "animal";
   document.getElementById("field-animal-name")?.classList.toggle("hidden", !isAnimal);
@@ -3358,9 +3369,7 @@ function applyVaseShape() {
 }
 
 function syncShapeControlsFromState() {
-  document.querySelectorAll(".shape-btn").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.shape === state.shape);
-  });
+  syncShapeButtonActive();
   const profileKey = PRESET_CONFIG[state.shape]?.profile || "default";
   applySliderProfile(profileKey);
   syncSliderUi("wall", "wall", { min: 1.2, max: 6, value: state.wall, parseKind: "float" });
@@ -3377,6 +3386,61 @@ function syncShapeControlsFromState() {
   updateLabels();
 }
 
+/** Load Temora Vet Clinic plaque: 180×120 sign, exact text, Celtic frame SVG. */
+async function loadTemoraVetPlaque() {
+  const status = document.getElementById("status") || document.getElementById("export-status");
+  try {
+    cancelPendingArtRebuild();
+    stopLidAnimation(true);
+    if (previewXRayOn) setPreviewXRayMode(false);
+
+    state.shape = "sign";
+    Object.assign(state, TEMORA_VET_SIGN_PRESET);
+    state.signSample = "temora-vet";
+    normalizeStackLipParams();
+    applySliderProfile("default");
+
+    document.getElementById("lid-enabled").checked = false;
+    document.getElementById("insert-enabled").checked = false;
+
+    syncLidTypeSelect();
+    syncShapeControlsFromState();
+    syncUiFromState();
+    updateVaseUiVisibility();
+    updateLidUi();
+    updateDecorUi();
+    updateJoinerUi();
+
+    await ensureEmbossFontLoaded(state.embossFont || "bebas");
+
+    let svgText = "";
+    try {
+      const res = await fetch(TEMORA_VET_CELTIC_SVG_URL, { cache: "no-store" });
+      if (!res.ok) throw new Error(`SVG HTTP ${res.status}`);
+      svgText = await res.text();
+    } catch (err) {
+      console.warn("Temora Celtic SVG fetch failed:", err);
+      if (status) status.textContent = "Temora plaque loaded (text only — Celtic SVG missing).";
+    }
+
+    if (svgText?.trim()) {
+      await importSvgDirectEmboss(svgText, { fileName: "temora-vet-celtic-frame.svg", importMode: "vector" });
+    } else {
+      rebuild();
+      pushAppHistory();
+    }
+
+    if (meshCache) fitCamera(meshCache.meta);
+    syncShapeButtonActive();
+    if (status && svgText?.trim()) {
+      status.textContent = "Temora Vet plaque ready — Export 3MF (silver plate, black text + knot).";
+    }
+  } catch (err) {
+    console.error(err);
+    if (status) status.textContent = err?.message || "Temora plaque load failed.";
+  }
+}
+
 function selectShape(next) {
   cancelPendingArtRebuild();
   stopLidAnimation(true);
@@ -3389,6 +3453,7 @@ function selectShape(next) {
     applyVaseShape();
   } else if (PRESET_CONFIG[next]) {
     state.shape = next;
+    if (next === "sign") state.signSample = "";
     applyPreset(next);
   } else if (leavingPreset) {
     resetFromPresetToBasic(next);
@@ -6573,6 +6638,10 @@ document.querySelectorAll("#field-joiner-hand .chip").forEach((chip) => {
 
 document.querySelectorAll(".shape-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
+    if (btn.dataset.sample === "temora-vet") {
+      loadTemoraVetPlaque();
+      return;
+    }
     selectShape(btn.dataset.shape);
   });
 });

@@ -1,5 +1,22 @@
 ---
 
+## b515 — Temora Vet Clinic plaque (Signs + Celtic SVG)
+**Date:** 2026-07-20
+
+### What changed
+- Design → Signs → **Temora Vet plaque** preset: 180×120, keyholes, border, exact multi-line text
+- Sample Celtic frame SVG emboss (`samples/temora-vet-celtic-frame.svg`)
+- Emboss textarea maxlength raised to 240 / 6 rows for plaque copy
+
+### File Changes
+- `js/geometry.js` — `TEMORA_VET_SIGN_PRESET`; `js/app.js` — `loadTemoraVetPlaque`; `index.html` b515
+- `samples/temora-vet-celtic-frame.svg`, `samples/temora-vet-plaque.md`
+
+### Deploy
+- Hard refresh MakerDeck **b515** → Temora Vet plaque → Export 3MF → open in Orca
+
+---
+
 ## b514 — Revert Studio-full settings (broke Orca)
 **Date:** 2026-07-20
 
