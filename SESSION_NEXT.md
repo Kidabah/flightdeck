@@ -2,8 +2,14 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b524 — thin text emboss (stop Light→blob)
+- Latest commit: MakerDeck b525 — sharper text emboss + Back to lines
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
+
+### 2026-07-20 polish (MakerDeck b525 — text res + plain/lines toggle)
+
+**Need:** Cleaner print lettering; plain-text edit trapped you with no way back to by-line.
+
+**What shipped:** Higher text raster/voxel/union res; mode toggle stays visible (**Back to lines**). Hard refresh **b525**.
 
 ### 2026-07-20 fix (MakerDeck b524 — Light font still blobbed)
 

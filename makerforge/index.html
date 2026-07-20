@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Oswald:wght@700&family=Roboto+Mono:wght@700&family=Roboto:wght@700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=35">
+  <link rel="stylesheet" href="css/style.css?v=36">
 
   <script type="importmap">
 
@@ -44,7 +44,7 @@
 
         <div class="topbar-brand">
 
-          <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b524</span></div>
+          <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b525</span></div>
 
           <h1>Container Generator</h1>
 
@@ -1185,10 +1185,6 @@
                 <div class="field" id="field-emboss-lines">
                   <span class="field-label">Lines</span>
                   <div id="emboss-text-lines" class="emboss-lines-list" role="list"></div>
-                  <div class="art-actions-bar emboss-lines-actions">
-                    <button type="button" id="btn-add-text-line" class="btn btn-secondary btn-compact">+ Add line</button>
-                    <button type="button" id="btn-plain-text-edit" class="btn btn-ghost btn-compact">Edit as plain text</button>
-                  </div>
                 </div>
 
                 <label class="field field-textarea hidden" id="field-emboss-text">
@@ -1196,6 +1192,11 @@
                   <textarea id="emboss-text" rows="6" maxlength="240" placeholder="TEMORA&#10;VET CLINIC&#10;ABBIE, SIOBHAN…"></textarea>
                   <p class="field-hint">One line per row. Sizes for existing rows are kept when the line count matches.</p>
                 </label>
+
+                <div class="art-actions-bar emboss-lines-actions" id="emboss-text-mode-actions">
+                  <button type="button" id="btn-add-text-line" class="btn btn-secondary btn-compact">+ Add line</button>
+                  <button type="button" id="btn-plain-text-edit" class="btn btn-ghost btn-compact">Edit as plain text</button>
+                </div>
 
                 <label class="field field-color" id="field-text-color">
                   <span class="field-label">Text colour</span>
@@ -1475,7 +1476,7 @@
     </div>
   </dialog>
 
-  <script type="module" src="js/app.js?v=524"></script>
+  <script type="module" src="js/app.js?v=525"></script>
 
 </body>
 

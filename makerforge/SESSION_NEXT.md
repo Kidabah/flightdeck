@@ -1,5 +1,21 @@
 ---
 
+## b525 — Sharper text + Back to lines
+**Date:** 2026-07-20
+
+### What changed
+- Higher label text raster (1792px), finer voxel solid (0.035 mm / 2800), union maxDim 2560, tighter simplify
+- Plain-text mode hid the whole Lines panel (including the toggle) — mode actions stay visible; **Back to lines** works
+
+### Deploy
+- Hard refresh MakerDeck **b525** (Ctrl+Shift+R) → re-export for cleaner letters
+- UI-only; restart optional
+
+### Files
+- `makerforge/js/features.js`, `app.js`, `geometry.js`, `insert-slots.js`, `index.html`, `css/style.css`
+
+---
+
 ## b524 — Text emboss no longer blobbed (Light works)
 **Date:** 2026-07-20
 

@@ -147,7 +147,14 @@ export function embossFontReady(id, fontSizePx = 640) {
   return document.fonts.check(embossPrimaryFontFace(id, fontSizePx));
 }
 
-const EMBOSS_FONT_LOAD_SIZES = [96, 640, 1280];
+const EMBOSS_FONT_LOAD_SIZES = [96, 640, 1280, 1792];
+/** Label/sign text raster — higher = cleaner letter edges in the slicer (canvas-capped below). */
+const LABEL_TEXT_FONT_PX = 1792;
+const PREVIEW_TEXT_FONT_PX = 720;
+/** Cap raster so long plaque lines stay under browser canvas limits. */
+const TEXT_RASTER_MAX_EDGE = 6144;
+/** Union re-raster ceiling for text (default contour maxDim 1024 was chewing letter curves). */
+const TEXT_UNION_MAX_DIM = 2560;
 
 /**
  * Load Google emboss faces at the sizes we actually raster at.
@@ -743,8 +750,9 @@ export function buildFlatShapeGroupsSolidMesh(frame, shapeGroups, d0, d1, params
   if (!bounds || !frame?.mapPoint || frame.face === "wrap") return null;
   const spanX = Math.max(bounds.maxX - bounds.minX, 0.2);
   const spanY = Math.max(bounds.maxY - bounds.minY, 0.2);
-  let stepMm = 0.05;
-  const maxDim = 1600;
+  // Label/sign solids: finer voxels so light letter stems stay crisp at 0.4 mm nozzles.
+  let stepMm = params?.__labelExportStandoff ? 0.035 : 0.05;
+  const maxDim = params?.__labelExportStandoff ? 2800 : 1600;
   if (spanX / stepMm > maxDim || spanY / stepMm > maxDim) {
     stepMm = Math.max(spanX, spanY) / maxDim;
   }
@@ -2035,16 +2043,26 @@ function rasterTextMask(text, fontId, fontSizePx = 640, align = "left", lineHeig
     sizePxList = lines.map(() => fontSizePx);
   }
 
-  // Tall vertical stacks can exceed browser canvas limits (~4096) —
-  // shrink the raster size so every line stays on-canvas with the same face.
+  // Tall / wide plaques can exceed browser canvas limits — shrink uniformly so
+  // every line stays on-canvas with the same face proportions.
   let estHeight = 0;
   for (let i = 0; i < lines.length; i++) {
     const sz = sizePxList[i];
     estHeight += i === 0 ? sz : sz * lineHeightFactor;
   }
   estHeight += padFactor * 2 * Math.max(...sizePxList);
-  if (estHeight > 4096) {
-    const shrink = 4096 / estHeight;
+  let maxLineWProbe = 0;
+  for (let i = 0; i < lines.length; i++) {
+    ctx.font = embossFontStackForCanvas(fontId, sizePxList[i], lines[i] || "Hg", fontWeight);
+    maxLineWProbe = Math.max(maxLineWProbe, measureSpacedLineWidth(ctx, lines[i], letterSpacing));
+  }
+  const estWidth = maxLineWProbe + padFactor * 2 * Math.max(...sizePxList);
+  const shrink = Math.min(
+    1,
+    TEXT_RASTER_MAX_EDGE / Math.max(estHeight, 1),
+    TEXT_RASTER_MAX_EDGE / Math.max(estWidth, 1),
+  );
+  if (shrink < 1) {
     sizePxList = sizePxList.map((sz) => Math.max(40, Math.floor(sz * shrink)));
   }
 
@@ -2470,7 +2488,7 @@ function computeTextArtLayout(meta, params) {
   const labelH = clamp(params.embossHeight ?? 7, limits.min, limits.max);
   const arcMode = layout === "arc";
   const fontId = params.embossFont || "bebas";
-  const fontSizePx = isLabelExport(params) ? 1280 : 640;
+  const fontSizePx = isLabelExport(params) ? LABEL_TEXT_FONT_PX : PREVIEW_TEXT_FONT_PX;
   const wrapArc = arcMode && frame.face === "wrap";
   const align = layout === "vertical"
     ? "center"
@@ -2776,7 +2794,7 @@ function wrapSlabUseFineRows(params) {
 }
 
 function labelMaskSimplifyTol(maskW, params) {
-  if (isLabelExport(params)) return Math.max(0.02, maskW / 8000);
+  if (isLabelExport(params)) return Math.max(0.015, maskW / 12000);
   return Math.max(0.1, maskW / 1400);
 }
 
@@ -2905,7 +2923,10 @@ function collectTextEmbossShapeGroups(meta, params, layoutIn = null) {
       shapeGroups = prepareShapeGroups(rawGroups, simplifyTol, 0);
     } else {
       // dilatePasses must stay 0 — even 2–4 merges neighbouring letters and fills counters.
-      const united = unionShapeGroupsToPrepared(rawGroups, maskW, maskH, simplifyTol, 0, 0);
+      // Raise maxDim so letter curves aren't crushed through a 1024 re-raster.
+      const united = unionShapeGroupsToPrepared(
+        rawGroups, maskW, maskH, simplifyTol, 0, 0, TEXT_UNION_MAX_DIM,
+      );
       shapeGroups = united.length ? united : prepareShapeGroups(rawGroups, simplifyTol, 0);
     }
   } else {
