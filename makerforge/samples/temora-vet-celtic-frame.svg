@@ -1,31 +1,26 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 240" fill="none" stroke="#000" stroke-width="10" stroke-linejoin="round" stroke-linecap="round">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 240" fill="#000">
   <title>Temora Vet — Celtic frame (hollow centre)</title>
-  <desc>Stroke-based Celtic-style border for MakerDeck sign emboss (M/L only). Centre stays open for text.</desc>
+  <desc>Filled-path Celtic-style border for MakerDeck sign emboss. Centre open for text.</desc>
 
-  <!-- Outer frame -->
-  <path d="M 20 36 L 36 20 L 324 20 L 340 36 L 340 204 L 324 220 L 36 220 L 20 204 Z" />
-  <!-- Inner frame (text window edge) -->
-  <path d="M 52 56 L 308 56 L 308 184 L 52 184 Z" />
+  <!-- Frame bands (separate fills = hollow centre) -->
+  <path d="M 12 12 L 348 12 L 348 36 L 12 36 Z"/>
+  <path d="M 12 204 L 348 204 L 348 228 L 12 228 Z"/>
+  <path d="M 12 36 L 36 36 L 36 204 L 12 204 Z"/>
+  <path d="M 324 36 L 348 36 L 348 204 L 324 204 Z"/>
 
-  <!-- Top braid zig-zag -->
-  <path d="M 48 28 L 72 40 L 96 28 L 120 40 L 144 28 L 168 40 L 192 28 L 216 40 L 240 28 L 264 40 L 288 28 L 312 40" />
-  <!-- Bottom braid -->
-  <path d="M 48 212 L 72 200 L 96 212 L 120 200 L 144 212 L 168 200 L 192 212 L 216 200 L 240 212 L 264 200 L 288 212 L 312 200" />
-  <!-- Left braid -->
-  <path d="M 28 52 L 40 76 L 28 100 L 40 124 L 28 148 L 40 172 L 28 196" />
-  <!-- Right braid -->
-  <path d="M 332 52 L 320 76 L 332 100 L 320 124 L 332 148 L 320 172 L 332 196" />
+  <!-- Top knot teeth -->
+  <path d="M 40 36 L 56 52 L 72 36 L 88 52 L 104 36 L 120 52 L 136 36 L 152 52 L 168 36 L 184 52 L 200 36 L 216 52 L 232 36 L 248 52 L 264 36 L 280 52 L 296 36 L 312 52 L 320 36 L 320 12 L 40 12 Z"/>
+  <!-- Bottom knot teeth -->
+  <path d="M 40 204 L 56 188 L 72 204 L 88 188 L 104 204 L 120 188 L 136 204 L 152 188 L 168 204 L 184 188 L 200 204 L 216 188 L 232 204 L 248 188 L 264 204 L 280 188 L 296 204 L 312 188 L 320 204 L 320 228 L 40 228 Z"/>
 
-  <!-- Corner knot diamonds -->
-  <path d="M 28 28 L 48 28 L 56 36 L 48 44 L 28 44 L 20 36 Z" />
-  <path d="M 312 28 L 332 28 L 340 36 L 332 44 L 312 44 L 304 36 Z" />
-  <path d="M 28 196 L 48 196 L 56 204 L 48 212 L 28 212 L 20 204 Z" />
-  <path d="M 312 196 L 332 196 L 340 204 L 332 212 L 312 212 L 304 204 Z" />
+  <!-- Corner bosses -->
+  <path d="M 18 18 L 54 18 L 62 30 L 54 42 L 18 42 L 10 30 Z"/>
+  <path d="M 306 18 L 342 18 L 350 30 L 342 42 L 306 42 L 298 30 Z"/>
+  <path d="M 18 198 L 54 198 L 62 210 L 54 222 L 18 222 L 10 210 Z"/>
+  <path d="M 306 198 L 342 198 L 350 210 L 342 222 L 306 222 L 298 210 Z"/>
 
-  <!-- Mid bosses -->
-  <path d="M 170 22 L 190 22 L 198 30 L 190 38 L 170 38 L 162 30 Z" />
-  <path d="M 170 202 L 190 202 L 198 210 L 190 218 L 170 218 L 162 210 Z" />
-  <path d="M 22 110 L 38 110 L 46 120 L 38 130 L 22 130 L 14 120 Z" />
-  <path d="M 322 110 L 338 110 L 346 120 L 338 130 L 322 130 L 314 120 Z" />
+  <!-- Side bosses -->
+  <path d="M 18 100 L 42 100 L 50 120 L 42 140 L 18 140 L 10 120 Z"/>
+  <path d="M 318 100 L 342 100 L 350 120 L 342 140 L 318 140 L 310 120 Z"/>
 </svg>
