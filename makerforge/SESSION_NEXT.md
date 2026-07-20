@@ -1,5 +1,21 @@
 ---
 
+## b507 — AMS slots up to 16 (HT / multi-AMS)
+**Date:** 2026-07-20
+
+### What changed
+- Removed the artificial 4-colour cap — **+/− now goes 1–16** for AMS HT / multi-AMS
+- Paint stored as `facePaint` (slot index per face); 3MF export uses full Bambu `paint_color` table
+- Import reads all 16 paint codes + filament colours from project settings
+- Slot UI rebuilds dynamically (Base / Accent / Detail / Trim / HT 5…)
+
+### File Changes
+- `js/painter.js` — `PAINT_COLOR_CODES`, `facePaint` import/export, `floodFillSameSlot`
+- `painter.html` — dynamic AMS UI; cache-bust `painter.js?v=507`
+- `index.html` / `js/app.js` — MakerDeck build **b507**
+
+---
+
 ## b506 — AMS slot +/− (1–4 colours)
 **Date:** 2026-07-20
 

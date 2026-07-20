@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b506 AMS slot +/-
+- Latest commit: MakerDeck b507 AMS up to 16 for HT
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
+
+### 2026-07-20 feature (MakerDeck b507 — AMS HT / 16 colours)
+
+**Need:** Include HT / multi-AMS colours beyond 4 slots.
+
+**What shipped:** +/− up to 16 filaments; full paint_color export. Cache-bust `painter.js?v=507`.
+
+**Deploy:** Hard refresh Painter (no backend restart).
 
 ### 2026-07-20 feature (MakerDeck b506 — AMS slot +/-)
 
