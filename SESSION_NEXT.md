@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b519 — per-line emboss text + size
+- Latest commit: MakerDeck b520 — fix doubled features.js (insert-slots bare import)
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
+
+### 2026-07-20 fix (MakerDeck b520 — boggy = doubled features.js)
+
+**Need:** MakerDeck laggy after per-line text (Chris: usually means doubled JS).
+
+**Cause:** `insert-slots.js` imported bare `./features.js` while app/geometry used `features.js?v=519` → two module copies.
+
+**What shipped:** Align import to `features.js?v=520`; stop calling `updateDecorUi` on every text keystroke. Hard refresh **b520**.
 
 ### 2026-07-20 feature (MakerDeck b519 — per-line emboss text)
 

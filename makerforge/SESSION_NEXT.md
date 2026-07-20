@@ -1,5 +1,17 @@
 ---
 
+## b520 — Fix doubled features.js (boggy MakerDeck)
+**Date:** 2026-07-20
+
+### What changed
+- `insert-slots.js` imported bare `features.js` → second copy beside `features.js?v=519`
+- Pointed at `features.js?v=520`; lightened text line input (no full `updateDecorUi` per key)
+
+### Deploy
+- Hard refresh MakerDeck **b520**
+
+---
+
 ## b519 — Per-line emboss text + size
 **Date:** 2026-07-20
 

@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, ANIMAL_PRESET, SIGN_PRESET, TEMORA_VET_SIGN_PRESET, TEMORA_VET_CELTIC_SVG_URL } from "./geometry.js?v=519";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=519";
+import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, ANIMAL_PRESET, SIGN_PRESET, TEMORA_VET_SIGN_PRESET, TEMORA_VET_CELTIC_SVG_URL } from "./geometry.js?v=520";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=520";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=370";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=372";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=378";
@@ -35,7 +35,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b519";
+const MAKERDECK_BUILD = "b520";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -6493,7 +6493,6 @@ document.getElementById("emboss-text").addEventListener("input", (e) => {
     applyArcPreset("banner", { nudgeGraphic: false, preserveOffsets: true });
     syncTextLayoutUi();
   }
-  updateDecorUi();
   // Prefetch glyphs for Google faces so a later font switch / rebuild doesn't
   // paint half the stack in a fallback face.
   if (!embossFontReady(state.embossFont, 640)) {
@@ -6507,7 +6506,6 @@ document.getElementById("emboss-text-lines")?.addEventListener("input", (e) => {
   const t = e.target;
   if (!t?.classList?.contains("emboss-line-text") && !t?.classList?.contains("emboss-line-size")) return;
   commitEmbossTextLinesFromUi();
-  updateDecorUi();
   if (!embossFontReady(state.embossFont, 640)) {
     ensureEmbossFontLoaded(state.embossFont, state.embossText).then(() => scheduleArtRebuild(true));
   }
