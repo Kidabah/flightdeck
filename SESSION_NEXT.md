@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b509 click colour to fill selection
+- Latest commit: MakerDeck b510 3MF colours stick in Bambu Studio
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
+
+### 2026-07-20 fix (MakerDeck b510 — slicer colours scrambled)
+
+**Need:** Painted bust looked right in Painter; H2C Studio showed wrong filament colours (no AMS loaded).
+
+**What shipped:** Richer 3MF `project_settings` + correct `.config` MIME; Export printer = H2C. Cache-bust `painter.js?v=510`.
+
+**Deploy:** Hard refresh Painter → re-export → reopen in Studio.
 
 ### 2026-07-20 fix (MakerDeck b509 — magenta selection ≠ paint)
 

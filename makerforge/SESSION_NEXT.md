@@ -1,5 +1,22 @@
 ---
 
+## b510 — 3MF colours stick in Bambu Studio (H2C)
+**Date:** 2026-07-20
+
+### What changed
+- Painter export wrote sparse `project_settings` + wrong `.config` MIME → Studio ignored slot colours and showed defaults (even with no AMS loaded)
+- Richer `project_settings` (filament colours, map Manual, printer model) + `application/octet-stream` for `.config`
+- Export tab **Printer** select (default H2C)
+
+### File Changes
+- `painter.js` — `export3MF` project_settings + MIME; `painter.js?v=510`
+- `painter.html` — printer select; cache-bust b510
+
+### Deploy
+- Hard refresh Painter. Re-export the bust and reopen in Studio — expect all slots + matching swatches. No filament loaded on H2C required.
+
+---
+
 ## b509 — Selection fill: click colour to paint
 **Date:** 2026-07-20
 

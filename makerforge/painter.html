@@ -14,7 +14,7 @@
 </script>
 <style>
 /* ================================================================== */
-/*  b509 — MakerDeck STL Painter  (tabbed layout)                     */
+/*  b510 — MakerDeck STL Painter  (tabbed layout)                     */
 /* ================================================================== */
 
 /* -- Reset & Vars -------------------------------------------------- */
@@ -306,7 +306,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   <header class="header">
     <button class="toggle-sidebar" id="toggleSidebar" title="Toggle sidebar">☰</button>
     <div class="logo">Maker<span>Deck</span> · STL Painter</div>
-    <div class="build">b509</div>
+    <div class="build">b510</div>
   </header>
 
   <!-- Left Sidebar (tabbed) -->
@@ -529,6 +529,15 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
 
       <!-- TAB: Export -->
       <div class="tab-page" id="tabExport">
+        <div class="section-label">Printer</div>
+        <select id="printerModel">
+          <option value="Bambu Lab H2C" selected>Bambu Lab H2C</option>
+          <option value="Bambu Lab H2D">Bambu Lab H2D</option>
+          <option value="Bambu Lab X1 Carbon">Bambu Lab X1 Carbon</option>
+          <option value="Bambu Lab P1S">Bambu Lab P1S</option>
+          <option value="Bambu Lab A1">Bambu Lab A1</option>
+        </select>
+        <p class="flow-desc">Sets the project profile so your AMS slot colours stick in the slicer (no trays needed).</p>
         <div class="section-label">Filament Profile</div>
         <select id="filamentProfile">
           <option value="Generic PLA">Generic PLA</option>
@@ -598,7 +607,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b509</span>
+    <span>MakerDeck · STL Painter b510</span>
   </footer>
 </div>
 
@@ -624,7 +633,7 @@ import {
   paintClassOf, upgradePaintResolution, export3MF,
   findMeshIslands, buildIslandMap, floodFillSameClass, floodFillSameSlot, selectIsland,
   import3MF, buildSymmetryMap, masksToFacePaint, facePaintToMasks, MAX_PAINT_SLOTS
-} from './js/painter.js?v=509';
+} from './js/painter.js?v=510';
 
 /* ================================================================== */
 /*  STATE                                                             */
@@ -2639,6 +2648,7 @@ async function resolveExportDestination(suggestedName) {
 
 function buildPainted3mfBlob() {
   const profile = $('filamentProfile').value;
+  const printerModel = $('printerModel')?.value || 'Bambu Lab H2C';
   const filType = profile.includes('PETG') ? 'PETG' : profile.includes('ABS') ? 'ABS' :
     profile.includes('TPU') ? 'TPU' : profile.includes('ASA') ? 'ASA' : 'PLA';
   const colors = slotColorsArray(S.slotCount);
@@ -2651,8 +2661,9 @@ function buildPainted3mfBlob() {
       debossColor: colors[2] || colors[0], trimColor: colors[3] || colors[0],
       trimMask: S.trimMask || new Uint8Array(S.nTri),
       filamentType: Array(S.slotCount).fill(filType),
-      filamentSettingsId: Array(S.slotCount).fill(profile),
       filamentProfile: profile,
+      printerModel,
+      projectName: S.fileName || 'painted_object',
     });
   return new Blob([zip], { type: 'application/vnd.ms-package.3dmanufacturing-3dmodel+xml' });
 }
@@ -2731,8 +2742,9 @@ batchBtn.addEventListener('click', async () => {
           debossColor: colors[2] || colors[0], trimColor: colors[3] || colors[0],
           trimMask: new Uint8Array(parsed.nTri),
           filamentType: Array(colors.length).fill(filType),
-          filamentSettingsId: Array(colors.length).fill(profile),
           filamentProfile: profile,
+          printerModel: $('printerModel')?.value || 'Bambu Lab H2C',
+          projectName: file.name.replace(/\.stl$/i, ''),
         });
       const blob = new Blob([zip],{type:'application/vnd.ms-package.3dmanufacturing-3dmodel+xml'});
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob);

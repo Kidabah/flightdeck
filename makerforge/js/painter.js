@@ -1,5 +1,5 @@
 /**
- * MakerDeck STL Painter Engine — b509
+ * MakerDeck STL Painter Engine — b510
  * Pure computation module: STL parsing, feature detection, 3MF export.
  */
 
@@ -1096,6 +1096,23 @@ export async function import3MF(buffer) {
   return { verts, faces, nVerts, nTri, embossMask, debossMask, trimMask, facePaint, colors };
 }
 
+function normalizeFilamentHex(c) {
+  let h = String(c || '#888888').trim().toUpperCase();
+  if (!h.startsWith('#')) h = `#${h}`;
+  if (h.length === 9) return h.slice(0, 7); // drop alpha — Bambu project files use #RRGGBB
+  if (h.length === 4) {
+    // #RGB → #RRGGBB
+    h = `#${h[1]}${h[1]}${h[2]}${h[2]}${h[3]}${h[3]}`;
+  }
+  if (!/^#[0-9A-F]{6}$/.test(h)) return '#888888';
+  return h;
+}
+
+/**
+ * Export painted mesh as Bambu/Orca 3MF.
+ * Includes full-enough project_settings so filament_colour survives H2C/H2D import
+ * (sparse settings caused the slicer to keep paint regions but scramble swatches).
+ */
 export function export3MF(verts, faces, nVerts, nTri, embossMask, debossMask, options = {}) {
   const {
     bodyColor = '#BBBBBB',
@@ -1108,20 +1125,39 @@ export function export3MF(verts, faces, nVerts, nTri, embossMask, debossMask, op
     slotCount = 4,
     filamentType = null,
     filamentSettingsId = null,
-    filamentProfile = 'Generic PLA'
+    filamentProfile = 'Generic PLA',
+    printerModel = 'Bambu Lab H2C',
+    projectName = 'painted_object',
   } = options;
 
   const nSlots = Math.max(1, Math.min(MAX_PAINT_SLOTS, slotCount | 0));
   const paint = facePaint || masksToFacePaint(embossMask, debossMask, trimMask, nTri);
-  const colorsArr = slotColors && slotColors.length
-    ? slotColors.slice(0, nSlots).map(c => String(c).toUpperCase())
-    : [bodyColor, embossColor, debossColor, trimColor].slice(0, nSlots).map(c => String(c).toUpperCase());
+  const colorsArr = (slotColors && slotColors.length
+    ? slotColors.slice(0, nSlots)
+    : [bodyColor, embossColor, debossColor, trimColor].slice(0, nSlots)
+  ).map(normalizeFilamentHex);
   while (colorsArr.length < nSlots) colorsArr.push('#888888');
 
   const filTypes = Array.from({ length: nSlots }, (_, i) =>
     (filamentType && filamentType[i]) || filamentType?.[0] || 'PLA');
+  // Prefer printer-scoped Generic PLA ids so Bambu doesn't drop the colour list on open
+  const printerTag = /H2C/i.test(printerModel) ? 'BBL H2C'
+    : /H2D/i.test(printerModel) ? 'BBL H2D'
+    : /X1/i.test(printerModel) ? 'BBL X1C'
+    : 'BBL X1C';
+  const defaultSettingsId = filamentProfile.includes('@')
+    ? filamentProfile
+    : `${filamentProfile} @${printerTag}`;
   const filSettings = Array.from({ length: nSlots }, (_, i) =>
-    (filamentSettingsId && filamentSettingsId[i]) || filamentSettingsId?.[0] || filamentProfile);
+    (filamentSettingsId && filamentSettingsId[i]) || defaultSettingsId);
+  const filVendors = Array.from({ length: nSlots }, () =>
+    /^bambu/i.test(filamentProfile) ? 'Bambu Lab' : 'Generic');
+  const filIds = Array.from({ length: nSlots }, () => 'GFL99');
+  const filDiameter = Array.from({ length: nSlots }, () => '1.75');
+  const filDensity = Array.from({ length: nSlots }, () => '1.24');
+  // Pin every project filament to left nozzle so AMS mapping stays stable without trays loaded
+  const filamentMap = Array.from({ length: nSlots }, () => '1');
+  const colourTypes = Array.from({ length: nSlots }, () => '2');
 
   // Build object_1.model (with painted faces)
   let objVertices = '';
@@ -1140,6 +1176,8 @@ export function export3MF(verts, faces, nVerts, nTri, embossMask, debossMask, op
     }
     objTriangles += `        <triangle v1="${v1}" v2="${v2}" v3="${v3}"${attrs} />\n`;
   }
+
+  const safeName = String(projectName || 'painted_object').replace(/[<>&"']/g, '');
 
   const objectModel = `<?xml version="1.0" encoding="UTF-8"?>
 <model unit="millimeter" xml:lang="en-US"
@@ -1165,6 +1203,8 @@ ${objTriangles}        </triangles>
 <model unit="millimeter" xml:lang="en-US"
   xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02"
   xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06">
+  <metadata name="Application">MakerDeck STL Painter</metadata>
+  <metadata name="Title">${safeName}</metadata>
   <resources>
     <object id="1" type="model" p:path="/3D/Objects/object_1.model">
       <components>
@@ -1177,11 +1217,12 @@ ${objTriangles}        </triangles>
   </build>
 </model>`;
 
+  // octet-stream for .config — printticket MIME caused Bambu to ignore filament_colour
   const contentTypes = `<?xml version="1.0" encoding="UTF-8"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml" />
-  <Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml" />
-  <Default Extension="config" ContentType="application/vnd.ms-printing.printticket+xml" />
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/>
+  <Default Extension="config" ContentType="application/octet-stream"/>
 </Types>`;
 
   const rels = `<?xml version="1.0" encoding="UTF-8"?>
@@ -1197,18 +1238,41 @@ ${objTriangles}        </triangles>
   const modelSettings = `<?xml version="1.0" encoding="UTF-8"?>
 <config>
   <object id="1">
-    <metadata key="name" value="painted_object" />
+    <metadata key="name" value="${safeName}" />
     <part id="1" subtype="normal_part">
-      <metadata key="name" value="part_1" />
+      <metadata key="name" value="${safeName}" />
       <metadata key="extruder" value="1" />
     </part>
   </object>
 </config>`;
 
+  const processId = /H2C/i.test(printerModel) ? '0.20mm Standard @BBL H2C'
+    : /H2D/i.test(printerModel) ? '0.20mm Standard @BBL H2D'
+    : '0.20mm Standard @BBL X1C';
+  const nozzleId = /H2C/i.test(printerModel) ? 'Bambu Lab H2C 0.4 nozzle'
+    : /H2D/i.test(printerModel) ? 'Bambu Lab H2D 0.4 nozzle'
+    : 'Bambu Lab X1 Carbon 0.4 nozzle';
+
   const projectSettings = JSON.stringify({
+    from: 'MakerDeck',
+    name: 'project_settings',
+    version: '2.2.0',
+    printer_model: printerModel,
+    printer_settings_id: nozzleId,
+    print_settings_id: processId,
+    filament_type: filTypes,
     filament_colour: colorsArr,
+    filament_colour_type: colourTypes,
+    filament_ids: filIds,
     filament_settings_id: filSettings,
-    filament_type: filTypes
+    filament_vendor: filVendors,
+    filament_diameter: filDiameter,
+    filament_density: filDensity,
+    default_filament_colour: colorsArr,
+    // Keep project colours even with no AMS trays synced
+    filament_map: filamentMap,
+    filament_map_mode: 'Manual',
+    physical_extruder_map: ['1', '0'],
   }, null, 2);
 
   const zipFiles = [
