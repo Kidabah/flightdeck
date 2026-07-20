@@ -1,5 +1,22 @@
 ---
 
+## b511 — Recover large 3MF paint on reload
+**Date:** 2026-07-20
+
+### What changed
+- Reloading ~65MB painted busts via DOMParser could drop paint; import now regex-parses the Objects mesh
+- Status line shows painted face count + colour count after load
+- Chris bust recovery: full paint still in `Documents/Chri_Painted_painted.3mf` (Studio’s `Chris_Painted.3mf` had stripped slots 5–7)
+
+### File Changes
+- `painter.js` — streaming `import3MF`; `painter.js?v=511`
+- `painter.html` — load status; cache-bust b511
+
+### Deploy
+- Hard refresh Painter **b511**. Load the RECOVERED full-paint file (not the Studio-saved 4-colour one).
+
+---
+
 ## b510 — 3MF colours stick in Bambu Studio (H2C)
 **Date:** 2026-07-20
 

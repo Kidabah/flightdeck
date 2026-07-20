@@ -1,5 +1,5 @@
 /**
- * MakerDeck STL Painter Engine — b510
+ * MakerDeck STL Painter Engine — b511
  * Pure computation module: STL parsing, feature detection, 3MF export.
  */
 
@@ -1024,61 +1024,97 @@ async function unzipEntries(buffer) {
 /*  3MF Import                                                        */
 /* ------------------------------------------------------------------ */
 
+/** Map a paint_color attribute value to 0-based AMS slot (0 = base / unpainted). */
+function paintColorToSlot(pc) {
+  if (!pc) return 0;
+  let slot = PAINT_CODE_TO_SLOT[pc];
+  if (slot != null) return slot;
+  // Long subdivision strings: highest recognisable code wins
+  for (let s = PAINT_COLOR_CODES.length - 1; s >= 1; s--) {
+    if (pc.includes(PAINT_COLOR_CODES[s])) return s;
+  }
+  return 0;
+}
+
+/**
+ * Parse object mesh XML without DOMParser — 50–90MB Painter exports OOM/crash
+ * DOMParser in Chromium and silently drop paint.
+ */
+function parseObjectModelXml(xml) {
+  // Count vertices first for typed arrays
+  const vertRe = /<vertex\b[^>]*\bx="([^"]+)"[^>]*\by="([^"]+)"[^>]*\bz="([^"]+)"/g;
+  const vertMatches = [];
+  let vm;
+  while ((vm = vertRe.exec(xml))) vertMatches.push(vm);
+  // Alternate attribute order (y/x/z etc.) — rare, fall back via loose scan
+  if (!vertMatches.length) {
+    const loose = /<vertex\b([^>]*)\/?>/g;
+    let lm;
+    while ((lm = loose.exec(xml))) {
+      const a = lm[1];
+      const x = a.match(/\bx="([^"]+)"/);
+      const y = a.match(/\by="([^"]+)"/);
+      const z = a.match(/\bz="([^"]+)"/);
+      if (x && y && z) vertMatches.push([null, x[1], y[1], z[1]]);
+    }
+  }
+  const nVerts = vertMatches.length;
+  const verts = new Float32Array(nVerts * 3);
+  for (let i = 0; i < nVerts; i++) {
+    verts[i * 3] = parseFloat(vertMatches[i][1]);
+    verts[i * 3 + 1] = parseFloat(vertMatches[i][2]);
+    verts[i * 3 + 2] = parseFloat(vertMatches[i][3]);
+  }
+
+  const triRe = /<triangle\b([^>]*)\/?>/g;
+  const triAttrs = [];
+  let tm;
+  while ((tm = triRe.exec(xml))) triAttrs.push(tm[1]);
+  const nTri = triAttrs.length;
+  const faces = new Uint32Array(nTri * 3);
+  const facePaint = new Uint8Array(nTri);
+  let painted = 0;
+  for (let i = 0; i < nTri; i++) {
+    const a = triAttrs[i];
+    const v1 = a.match(/\bv1="(\d+)"/);
+    const v2 = a.match(/\bv2="(\d+)"/);
+    const v3 = a.match(/\bv3="(\d+)"/);
+    faces[i * 3] = v1 ? parseInt(v1[1], 10) : 0;
+    faces[i * 3 + 1] = v2 ? parseInt(v2[1], 10) : 0;
+    faces[i * 3 + 2] = v3 ? parseInt(v3[1], 10) : 0;
+    const pcm = a.match(/\bpaint_color="([^"]+)"/);
+    const slot = paintColorToSlot(pcm ? pcm[1] : null);
+    if (slot > 0) {
+      facePaint[i] = slot;
+      painted++;
+    }
+  }
+  return { verts, faces, nVerts, nTri, facePaint, painted };
+}
+
 /**
  * Parse a 3MF file (ZIP) and extract geometry + paint state.
- * @returns {{ verts, faces, nVerts, nTri, embossMask, debossMask, trimMask, facePaint, colors }}
+ * @returns {{ verts, faces, nVerts, nTri, embossMask, debossMask, trimMask, facePaint, colors, painted }}
  */
 export async function import3MF(buffer) {
   const entries = await unzipEntries(buffer);
 
-  // Find the object model XML
-  const modelEntry = entries.find(e =>
-    e.name.endsWith('.model') && (e.name.includes('Objects/') || e.name.includes('objects/'))
-  );
+  // Prefer Objects/* mesh (where Painter/Bambu store paint). Fall back to any .model with triangles.
+  const modelCandidates = entries.filter(e => e.name.endsWith('.model'));
+  let modelEntry = modelCandidates.find(e =>
+    e.name.includes('Objects/') || e.name.includes('objects/'));
+  if (!modelEntry) {
+    modelEntry = modelCandidates
+      .map(e => ({ e, score: (e.data.length || 0) }))
+      .sort((a, b) => b.score - a.score)[0]?.e;
+  }
   if (!modelEntry) throw new Error('No object model found in 3MF');
 
   const xml = new TextDecoder().decode(modelEntry.data);
-  const doc = new DOMParser().parseFromString(xml, 'text/xml');
+  const parsed = parseObjectModelXml(xml);
+  if (!parsed.nTri) throw new Error('3MF model has no triangles');
 
-  // Namespace-aware queries (3MF uses a default namespace)
-  const ns = 'http://schemas.microsoft.com/3dmanufacturing/core/2015/02';
-  const vertexEls = doc.getElementsByTagNameNS(ns, 'vertex');
-  // Fallback: try without namespace
-  const vertEls = vertexEls.length ? vertexEls : doc.querySelectorAll('vertex');
-  const nVerts = vertEls.length;
-  const verts = new Float32Array(nVerts * 3);
-  for (let i = 0; i < nVerts; i++) {
-    const v = vertEls[i];
-    verts[i * 3]     = parseFloat(v.getAttribute('x'));
-    verts[i * 3 + 1] = parseFloat(v.getAttribute('y'));
-    verts[i * 3 + 2] = parseFloat(v.getAttribute('z'));
-  }
-
-  const triEls = doc.getElementsByTagNameNS(ns, 'triangle');
-  const tEls = triEls.length ? triEls : doc.querySelectorAll('triangle');
-  const nTri = tEls.length;
-  const faces = new Uint32Array(nTri * 3);
-  const facePaint = new Uint8Array(nTri);
-
-  for (let i = 0; i < nTri; i++) {
-    const t = tEls[i];
-    faces[i * 3]     = parseInt(t.getAttribute('v1'));
-    faces[i * 3 + 1] = parseInt(t.getAttribute('v2'));
-    faces[i * 3 + 2] = parseInt(t.getAttribute('v3'));
-
-    const pc = t.getAttribute('paint_color');
-    if (pc) {
-      // Long subdivision strings: take the first recognisable code (highest slot first)
-      let slot = PAINT_CODE_TO_SLOT[pc];
-      if (slot == null) {
-        for (let s = PAINT_COLOR_CODES.length - 1; s >= 1; s--) {
-          if (pc.includes(PAINT_COLOR_CODES[s])) { slot = s; break; }
-        }
-      }
-      if (slot != null && slot > 0) facePaint[i] = slot;
-    }
-  }
-
+  const { verts, faces, nVerts, nTri, facePaint, painted } = parsed;
   const { embossMask, debossMask, trimMask } = facePaintToMasks(facePaint, nTri);
 
   // Try to read filament colours from project_settings.config
@@ -1088,12 +1124,12 @@ export async function import3MF(buffer) {
     try {
       const json = JSON.parse(new TextDecoder().decode(settingsEntry.data));
       if (json.filament_colour?.length) {
-        colors = json.filament_colour.slice(0, MAX_PAINT_SLOTS);
+        colors = json.filament_colour.slice(0, MAX_PAINT_SLOTS).map(normalizeFilamentHex);
       }
     } catch { /* not JSON or missing */ }
   }
 
-  return { verts, faces, nVerts, nTri, embossMask, debossMask, trimMask, facePaint, colors };
+  return { verts, faces, nVerts, nTri, embossMask, debossMask, trimMask, facePaint, colors, painted };
 }
 
 function normalizeFilamentHex(c) {

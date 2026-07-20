@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b510 3MF colours stick in Bambu Studio
+- Latest commit: MakerDeck b511 recover large 3MF paint on reload
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
+
+### 2026-07-20 fix (MakerDeck b511 — paint lost on Painter reload)
+
+**Need:** Bust paint vanished when reloading 3MF into Painter; Studio save had also stripped plaid slots.
+
+**What shipped:** Regex 3MF import (no DOMParser OOM); status shows painted count. Cache-bust `painter.js?v=511`.
+
+**Recover:** Load `Desktop/3MF/RECOVERED/Chris_Friend_Bust_FULL_PAINT_b510.3mf` (not Downloads `Chris_Painted.3mf`).
 
 ### 2026-07-20 fix (MakerDeck b510 — slicer colours scrambled)
 
