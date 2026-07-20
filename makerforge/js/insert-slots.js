@@ -3,7 +3,7 @@
  * Small body gap keeps Bambu from reporting Insert ↔ Body gcode conflicts.
  */
 
-import { rectFeatureBounds, effectiveInsertTopClearance } from "./features.js?v=526";
+import { rectFeatureBounds, effectiveInsertTopClearance } from "./features.js?v=527";
 
 export const INSERT_BODY_GAP = 0.12;
 

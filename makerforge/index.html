@@ -44,7 +44,7 @@
 
         <div class="topbar-brand">
 
-          <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b526</span></div>
+          <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b527</span></div>
 
           <h1>Container Generator</h1>
 
@@ -246,8 +246,10 @@
                 <label class="field field-slider"><span class="field-label">Height</span><input type="range" id="sign-height" min="25" max="300" step="1"><output id="sign-height-out"></output></label>
                 <label class="field field-slider"><span class="field-label">Thickness</span><input type="range" id="sign-thickness" min="2" max="10" step="0.2"><output id="sign-thickness-out"></output></label>
                 <label class="field field-slider"><span class="field-label">Corner radius</span><input type="range" id="sign-corner" min="0" max="30" step="1"><output id="sign-corner-out"></output></label>
-                <label class="field field-slider hidden" id="field-sign-shelf-depth"><span class="field-label">Shelf depth</span><input type="range" id="sign-shelf-depth" min="20" max="80" step="1"><output id="sign-shelf-depth-out"></output></label>
+                <label class="field field-slider hidden" id="field-sign-shelf-width"><span class="field-label">Shelf width</span><input type="range" id="sign-shelf-width" min="40" max="300" step="1"><output id="sign-shelf-width-out"></output></label>
+                <label class="field field-slider hidden" id="field-sign-shelf-length"><span class="field-label">Shelf length</span><input type="range" id="sign-shelf-length" min="20" max="120" step="1"><output id="sign-shelf-length-out"></output></label>
                 <label class="field field-slider hidden" id="field-sign-shelf-thickness"><span class="field-label">Shelf thickness</span><input type="range" id="sign-shelf-thickness" min="2" max="8" step="0.2"><output id="sign-shelf-thickness-out"></output></label>
+                <label class="field field-slider hidden" id="field-sign-shelf-corner"><span class="field-label">Shelf corner</span><input type="range" id="sign-shelf-corner" min="0" max="40" step="1"><output id="sign-shelf-corner-out"></output></label>
                 <label class="field field-select" id="field-sign-mount">
                   <span class="field-label">Wall mount</span>
                   <select id="sign-mount">
@@ -260,7 +262,7 @@
                 </label>
                 <label class="field field-toggle"><span class="field-label">Raised border</span><input type="checkbox" id="sign-border"></label>
                 <p class="hint" id="sign-hint-plaque">Flat plate, prints face-up with no supports. Type your text on the <strong>Art</strong> tab — it sits on the top face. Print two-tone by giving the text its own colour.</p>
-                <p class="hint hidden" id="sign-hint-shelf">Back + front shelf with a <strong>dovetail</strong> join — export as two parts, print both flat, then slide together. Text on the back; place figures on the shelf in the slicer.</p>
+                <p class="hint hidden" id="sign-hint-shelf">Back + shelf export as <strong>two separate parts</strong> with a dovetail — print both flat, then slide together. Add your own text on Art; place figures on the shelf in the slicer.</p>
               </section>
 
               <h2 class="section-sub">Kitchen canisters</h2>
@@ -1480,7 +1482,7 @@
     </div>
   </dialog>
 
-  <script type="module" src="js/app.js?v=526"></script>
+  <script type="module" src="js/app.js?v=527"></script>
 
 </body>
 

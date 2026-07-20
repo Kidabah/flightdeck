@@ -2,8 +2,14 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b526 — shelf display signs with dovetail split
+- Latest commit: MakerDeck b527 + queue Allow short filament override
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
+
+### 2026-07-20 (b527 — shelf size sliders + separate parts + short filament override)
+
+**Need:** No preset text; round shelf corners; width/length sliders; parts print separate; start print despite short filament.
+
+**What shipped:** Temora blank text; shelf width/length/thickness/corner; print-layout preview + Body/Shelf export; queue **Allow short** toggle. Hard refresh **b527**; backend restart.
 
 ### 2026-07-20 feature (MakerDeck b526 — shelf display + dovetail)
 

@@ -11892,6 +11892,12 @@ function _queueJobCard(job, isFirst, isLast, printerKind = '') {
         <span>Cal first</span>
       </label>`
     : '';
+  const shortFilamentToggle = isPending
+    ? `<label class="queue-calibrate-toggle" title="Allow start even if loaded filament is short — you can swap rolls mid-print">
+        <input type="checkbox" data-action="allow-short" data-id="${job.id}" ${job.allow_short_filament ? 'checked' : ''}>
+        <span>Allow short</span>
+      </label>`
+    : '';
 
   return `<div class="queue-job ${isActive ? 'queue-job-active' : ''} queue-job-${readiness.cls}" data-job-id="${job.id}">
     <div class="queue-job-thumb">
@@ -11908,7 +11914,7 @@ function _queueJobCard(job, isFirst, isLast, printerKind = '') {
         ${job.error_msg ? `<span class="queue-job-error" title="${job.error_msg}">⚠ ${job.error_msg}</span>` : ''}
       </div>
       ${_queuePreflightIssues(preflight)}
-      ${calibrateToggle}
+      <div class="queue-job-toggles">${calibrateToggle}${shortFilamentToggle}</div>
     </div>
     <div class="queue-job-actions">
     ${isPending ? `
@@ -12038,6 +12044,28 @@ async function renderQueueView() {
         } catch (err) {
           inp.checked = !enabled;
           showToast('Could not update calibration setting', err.message || '', 'error');
+        }
+      });
+    });
+    el.querySelectorAll('[data-action="allow-short"]').forEach(inp => {
+      inp.addEventListener('change', async () => {
+        const jobId = inp.dataset.id;
+        const enabled = inp.checked;
+        try {
+          await _queueFetchJson(`/api/queue/${jobId}/allow-short-filament`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ allow_short_filament: enabled }),
+          });
+          showToast(
+            enabled ? 'Short filament override on — you can start and swap rolls' : 'Short filament override off',
+            '',
+            'success',
+          );
+          await renderQueueView();
+        } catch (err) {
+          inp.checked = !enabled;
+          showToast('Could not update filament override', err.message || '', 'error');
         }
       });
     });

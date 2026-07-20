@@ -20563,15 +20563,21 @@ select optgroup {
   font-size: 0.72rem;
   color: var(--muted);
   cursor: pointer;
-}
-
-.queue-calibrate-toggle input {
-  accent-color: #22c55e;
-}
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 220px;
+}
+
+.queue-job-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  margin-top: 0.2rem;
+}
+
+.queue-calibrate-toggle input {
+  accent-color: #22c55e;
 }
 
 /* Status badges */

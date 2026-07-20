@@ -328,6 +328,7 @@ def init() -> None:
             "ALTER TABLE incoming_stock_rolls ADD COLUMN cancel_reason TEXT",
             "ALTER TABLE print_queue ADD COLUMN filament_colors TEXT",
             "ALTER TABLE print_queue ADD COLUMN calibrate_before_start INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE print_queue ADD COLUMN allow_short_filament INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE filament_catalog ADD COLUMN updated_at TEXT NOT NULL DEFAULT (datetime('now'))",
             "ALTER TABLE empty_spool_profiles ADD COLUMN source TEXT NOT NULL DEFAULT 'manual'",
             "ALTER TABLE empty_spool_profiles ADD COLUMN notes TEXT",
@@ -4746,7 +4747,7 @@ def queue_list(printer_id: Optional[str] = None) -> list[dict]:
             rows = conn.execute(
                 f"""SELECT id, printer_id, position, filename, file_path, file_size, status,
                            estimated_seconds, filament_weight_g, filament_type, filament_colors,
-                           calibrate_before_start,
+                           calibrate_before_start, allow_short_filament,
                            created_at, started_at, finished_at, error_msg,
                            (preview_png IS NOT NULL) AS has_preview
                     FROM print_queue WHERE printer_id = ?
@@ -4757,7 +4758,7 @@ def queue_list(printer_id: Optional[str] = None) -> list[dict]:
             rows = conn.execute(
                 f"""SELECT id, printer_id, position, filename, file_path, file_size, status,
                            estimated_seconds, filament_weight_g, filament_type, filament_colors,
-                           calibrate_before_start,
+                           calibrate_before_start, allow_short_filament,
                            created_at, started_at, finished_at, error_msg,
                            (preview_png IS NOT NULL) AS has_preview
                     FROM print_queue
@@ -4779,7 +4780,7 @@ def queue_get(job_id: int) -> Optional[dict]:
         row = conn.execute(
             """SELECT id, printer_id, position, filename, file_path, file_size,
                       status, estimated_seconds, filament_weight_g, filament_type, filament_colors,
-                      calibrate_before_start,
+                      calibrate_before_start, allow_short_filament,
                       created_at, started_at, finished_at, error_msg
                FROM print_queue WHERE id = ?""",
             (job_id,),
@@ -4842,6 +4843,17 @@ def queue_set_calibrate_before(job_id: int, enabled: bool) -> bool:
         n = conn.execute(
             """UPDATE print_queue
                SET calibrate_before_start = ?
+               WHERE id = ? AND status = 'pending'""",
+            (1 if enabled else 0, job_id),
+        ).rowcount
+    return n > 0
+
+
+def queue_set_allow_short_filament(job_id: int, enabled: bool) -> bool:
+    with _conn() as conn:
+        n = conn.execute(
+            """UPDATE print_queue
+               SET allow_short_filament = ?
                WHERE id = ? AND status = 'pending'""",
             (1 if enabled else 0, job_id),
         ).rowcount

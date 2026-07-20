@@ -3483,6 +3483,10 @@ class QueueCalibrateRequest(BaseModel):
     calibrate_before_start: bool
 
 
+class QueueAllowShortFilamentRequest(BaseModel):
+    allow_short_filament: bool
+
+
 class SetTempRequest(BaseModel):
     heater: str
     target: int
@@ -10178,6 +10182,19 @@ def _queue_preflight(job: dict, printer_status: Optional[dict]) -> dict:
     else:
         issues.append({"level": "warn", "message": "No filament weight metadata; stock check skipped"})
 
+    # Optional override: allow start when stock is short (operator will swap rolls mid-print).
+    if job.get("allow_short_filament"):
+        stock_short_re = re.compile(
+            r"filament short|colour coverage short|nozzle-path stock short|No inventory spool available",
+            re.I,
+        )
+        for issue in issues:
+            if issue.get("level") == "block" and stock_short_re.search(str(issue.get("message") or "")):
+                issue["level"] = "warn"
+                msg = str(issue.get("message") or "")
+                if not msg.lower().startswith("override:"):
+                    issue["message"] = f"Override: {msg}"
+
     has_block = any(i["level"] == "block" for i in issues)
     has_wait = any(i["level"] == "wait" for i in issues)
     has_warn = any(i["level"] == "warn" for i in issues)
@@ -10526,6 +10543,18 @@ async def set_queue_calibrate_before(job_id: int, body: QueueCalibrateRequest):
     if not db.queue_set_calibrate_before(job_id, body.calibrate_before_start):
         raise HTTPException(status_code=409, detail="Could not update queue job")
     return {"ok": True, "calibrate_before_start": body.calibrate_before_start}
+
+
+@app.post("/api/queue/{job_id}/allow-short-filament")
+async def set_queue_allow_short_filament(job_id: int, body: QueueAllowShortFilamentRequest):
+    job = db.queue_get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job["status"] != "pending":
+        raise HTTPException(status_code=409, detail="Only pending jobs can change filament override")
+    if not db.queue_set_allow_short_filament(job_id, body.allow_short_filament):
+        raise HTTPException(status_code=409, detail="Could not update queue job")
+    return {"ok": True, "allow_short_filament": body.allow_short_filament}
 
 
 @app.post("/api/queue/{job_id}/reorder")

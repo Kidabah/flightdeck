@@ -28,7 +28,7 @@ import {
   shapeSupportsProfileArt,
   shapeSupportsArt,
   STACK_LIP_MM,
-} from "./features.js?v=526";
+} from "./features.js?v=527";
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=161";
 import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=163";
@@ -44,7 +44,7 @@ import {
   buildSignShelfFemaleReceiver,
   buildSignShelfWithMale,
   signShelfDovetailDims,
-} from "./signs.js?v=526";
+} from "./signs.js?v=527";
 import {
   resolveVaseTexture,
   densifyClosedProfile,
@@ -56,7 +56,7 @@ import {
   profileOutlinePerimeter,
 } from "./vase-textures.js";
 
-import { appendInsertShelfSlotsToBody } from "./insert-slots.js?v=526";
+import { appendInsertShelfSlotsToBody } from "./insert-slots.js?v=527";
 
 export { shapeSupportsDecor, shapeSupportsInsert, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, VASE_STYLES };
 
@@ -2167,8 +2167,10 @@ export function buildSign(params) {
   const signShape = params.signShape || "rounded";
   const signType = params.signType || "plaque";
   const isShelf = signType === "shelf";
-  const shelfDepth = clamp(params.signShelfDepth ?? 40, 20, 80);
+  const shelfLen = clamp(params.signShelfLength ?? params.signShelfDepth ?? 40, 20, 120);
+  const shelfW = clamp(params.signShelfWidth ?? W, 40, 300);
   const shelfTh = clamp(params.signShelfThickness ?? 4, 2, 8);
+  const shelfCorner = clamp(params.signShelfCorner ?? 8, 0, 40);
   const borderOn = params.signBorder !== false;
   const borderW = clamp(params.signBorderWidth ?? 4, 2, 12);
   const borderH = clamp(params.signBorderHeight ?? 1.4, 0.6, 4);
@@ -2188,16 +2190,16 @@ export function buildSign(params) {
   let shelfMesh = null;
   if (isShelf) {
     uprightFlatSignMesh(backMesh, H, th);
-    appendMesh(backMesh, buildSignShelfFemaleReceiver(W, H, th, shelfTh, dove));
-    shelfMesh = buildSignShelfWithMale(W, shelfDepth, shelfTh, th, dove);
+    appendMesh(backMesh, buildSignShelfFemaleReceiver(W, shelfW, th, shelfTh, dove));
+    shelfMesh = buildSignShelfWithMale(shelfW, shelfLen, shelfTh, th, shelfCorner, dove);
   }
 
-  const totalDepth = isShelf ? th + shelfDepth : H;
+  const totalDepth = isShelf ? th + shelfLen : H;
   const totalH = isShelf ? H : th;
   const meta = {
     shape: "sign",
     outer: isShelf
-      ? { w: W, d: totalDepth, h: H }
+      ? { w: Math.max(W, shelfW), d: totalDepth, h: H }
       : { w: W, d: H, h: th },
     inner: isShelf
       ? { w: W, d: th, h: 0 }
@@ -2209,9 +2211,29 @@ export function buildSign(params) {
     signShelf: isShelf,
   };
 
-  // Preview = assembled L; export Body = print-flat back; Shelf = deck (already on z=0).
-  const previewMesh = { positions: backMesh.positions.slice(), indices: backMesh.indices.slice() };
-  if (shelfMesh) appendMesh(previewMesh, shelfMesh);
+  // Shelf type: preview = print layout (two separate flat parts), not a fused L.
+  let previewMesh;
+  let boxShell;
+  if (isShelf) {
+    boxShell = { positions: backMesh.positions.slice(), indices: backMesh.indices.slice() };
+    flattenUprightSignMesh(boxShell, H, th);
+    previewMesh = { positions: boxShell.positions.slice(), indices: boxShell.indices.slice() };
+    if (shelfMesh) {
+      const gap = 12;
+      const shelfPreview = {
+        positions: shelfMesh.positions.slice(),
+        indices: shelfMesh.indices.slice(),
+      };
+      const shiftX = W / 2 + shelfW / 2 + gap;
+      for (let i = 0; i < shelfPreview.positions.length; i += 3) {
+        shelfPreview.positions[i] += shiftX;
+      }
+      appendMesh(previewMesh, shelfPreview);
+    }
+  } else {
+    previewMesh = { positions: backMesh.positions.slice(), indices: backMesh.indices.slice() };
+    boxShell = { positions: backMesh.positions.slice(), indices: backMesh.indices.slice() };
+  }
 
   const faceMeta = {
     shape: "sign",
@@ -2237,14 +2259,17 @@ export function buildSign(params) {
     const allLabels = [labelMesh, graphicMesh, debossCutterMesh, ...(graphicColourParts || []).map((c) => c.mesh)].filter(Boolean);
     if (isShelf) {
       finishShelfSignLabels(allLabels, params, signArc, H);
+      // Preview/export use print-flat back — flatten labels onto the plate top.
+      for (const m of allLabels) flattenUprightSignMesh(m, H, th);
     } else {
       finishFlatPlaqueLabels(allLabels, params, H, th, signArc);
     }
   }
 
-  // Export Body = print-flat back (face-up). Preview labels stay upright on assembled L.
-  let boxShell = { positions: backMesh.positions.slice(), indices: backMesh.indices.slice() };
-  if (isShelf) flattenUprightSignMesh(boxShell, H, th);
+  // boxShell already set for shelf (print-flat back); plaque uses upright/flat plate as-is.
+  if (!isShelf) {
+    boxShell = { positions: backMesh.positions.slice(), indices: backMesh.indices.slice() };
+  }
 
   return {
     positions: previewMesh.positions,
@@ -2253,7 +2278,7 @@ export function buildSign(params) {
     boxShell,
     shelfMesh: shelfMesh || null,
     meta,
-    totalH,
+    totalH: isShelf ? th : totalH,
     signBackH: isShelf ? H : null,
     signBackTh: isShelf ? th : null,
     accentMeshes: [],
@@ -2641,21 +2666,17 @@ export const TEMORA_VET_SIGN_PRESET = {
   signHeight: 120,
   signThickness: 4,
   signCorner: 10,
+  signShelfWidth: 180,
+  signShelfLength: 45,
   signShelfDepth: 45,
   signShelfThickness: 4,
+  signShelfCorner: 10,
   signMount: "none",
   signBorder: true,
   signBorderWidth: 3.5,
   signBorderHeight: 1.4,
-  embossText: "TEMORA\nVET CLINIC\n\"WE LOVE YOUR PETS\nAS MUCH AS YOU\"\nABBIE, SIOBHAN, SHARLET,\nKAYT, STEPH, LUCY",
-  embossTextLines: [
-    { text: "TEMORA", heightMm: 16 },
-    { text: "VET CLINIC", heightMm: 14 },
-    { text: "\"WE LOVE YOUR PETS", heightMm: 9 },
-    { text: "AS MUCH AS YOU\"", heightMm: 9 },
-    { text: "ABBIE, SIOBHAN, SHARLET,", heightMm: 7 },
-    { text: "KAYT, STEPH, LUCY", heightMm: 7 },
-  ],
+  embossText: "",
+  embossTextLines: [],
   embossTextAlign: "center",
   embossTextLayout: "flat",
   embossLetterSpacing: 1.12,
@@ -3010,7 +3031,10 @@ export const DEFAULTS = {
   signThickness: 4,
   signCorner: 10,
   signShelfDepth: 40,
+  signShelfLength: 40,
+  signShelfWidth: 180,
   signShelfThickness: 4,
+  signShelfCorner: 8,
   signMount: "keyhole",
   signBorder: true,
   signBorderWidth: 3.5,

@@ -1,5 +1,27 @@
 ---
 
+## b527 — Shelf sizing + separate parts + short-filament override
+**Date:** 2026-07-20
+
+### What changed (MakerDeck)
+- Temora preset: **no text** (you type it); Celtic SVG still loads
+- Shelf sliders: **width**, **length**, **thickness**, **corner**
+- Preview/export show **two separate** print-flat parts (Body + Shelf), not a fused L
+
+### What changed (Flightdeck queue)
+- Per-job **Allow short** toggle — start even when filament is short (swap rolls mid-print)
+- Stock-short blocks become warnings when override is on
+
+### Deploy
+- Hard refresh MakerDeck **b527** + Flightdeck (app.js v643 / style v496)
+- Backend restart required for queue API/DB column
+
+### Files
+- makerforge: signs/geometry/app/index/SESSION
+- app: main.py, db.py, static app.js/style.css/index.html
+
+---
+
 ## b526 — Shelf display signs + dovetail split
 **Date:** 2026-07-20
 

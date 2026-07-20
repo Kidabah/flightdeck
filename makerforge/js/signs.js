@@ -202,11 +202,12 @@ function extrudeYzAlongX(profileYz, x0, x1, holesYz = []) {
  * Female dovetail receiver on the front-bottom of an upright back.
  * Tunnel along X — shelf male slides in from the side.
  */
-export function buildSignShelfFemaleReceiver(W, H, backTh, shelfTh, dims = null) {
+export function buildSignShelfFemaleReceiver(backW, shelfW, backTh, shelfTh, dims = null) {
   const d = dims || signShelfDovetailDims(backTh, shelfTh);
+  const tunnelW = Math.min(backW, shelfW);
   const yF = -backTh / 2;
   const yDeep = yF + d.depth;
-  const yOut = yF - 1.2; // slight forward lip
+  const yOut = yF - 1.2;
   const z0 = 0;
   const z1 = Math.max(shelfTh + 1.2, d.baseW + 1.6);
   const zMid = shelfTh * 0.5;
@@ -217,47 +218,81 @@ export function buildSignShelfFemaleReceiver(W, H, backTh, shelfTh, dims = null)
   const outer = [
     [yOut, z0], [yDeep + 1.0, z0], [yDeep + 1.0, z1], [yOut, z1],
   ];
-  // Hole: narrow at front opening, wider inside (classic dovetail socket).
   const hole = [
     [yF, n0], [yDeep, b0], [yDeep, b1], [yF, n1],
   ];
-  const x0 = -W / 2 + 1.5;
-  const x1 = W / 2 - 1.5; // small end walls; slide in from either open face of the tunnel
+  const x0 = -tunnelW / 2 + 1.5;
+  const x1 = tunnelW / 2 - 1.5;
   return extrudeYzAlongX(outer, x0, x1, [hole]);
 }
 
+/** Shelf deck outline in XY — rounded front corners, square rear for dovetail. */
+function shelfDeckOutlineXy(halfW, yFront, yRear, cornerR) {
+  const maxR = Math.max(0, Math.min(halfW - 0.4, (yRear - yFront) * 0.45 - 0.2));
+  const r = Math.min(Math.max(0, cornerR), maxR);
+  if (r < 0.08) {
+    return ensureCCW([[-halfW, yFront], [halfW, yFront], [halfW, yRear], [-halfW, yRear]]);
+  }
+  const pts = [];
+  const seg = 10;
+  // Front-left arc (looking down +Z)
+  for (let i = 0; i <= seg; i++) {
+    const a = Math.PI + (Math.PI / 2) * (i / seg);
+    pts.push([-halfW + r + r * Math.cos(a), yFront + r + r * Math.sin(a)]);
+  }
+  // Front-right arc
+  for (let i = 0; i <= seg; i++) {
+    const a = -Math.PI / 2 + (Math.PI / 2) * (i / seg);
+    pts.push([halfW - r + r * Math.cos(a), yFront + r + r * Math.sin(a)]);
+  }
+  pts.push([halfW, yRear], [-halfW, yRear]);
+  return ensureCCW(cleanRing(pts));
+}
+
 /**
- * Shelf deck + male dovetail (assembled pose: shelf on z=0, rear against back front).
+ * Shelf deck + male dovetail (print pose: deck on z=0).
+ * shelfW = width along back, shelfLen = front-to-back length, cornerR = front corner radius.
  */
-export function buildSignShelfWithMale(W, shelfDepth, shelfTh, backTh, dims = null) {
+export function buildSignShelfWithMale(shelfW, shelfLen, shelfTh, backTh, cornerR = 0, dims = null) {
   const d = dims || signShelfDovetailDims(backTh, shelfTh);
   const clr = d.clearance;
   const yF = -backTh / 2;
-  const yFront = yF - Math.max(12, shelfDepth);
+  const len = Math.max(12, shelfLen);
+  const yFront = yF - len;
+  const halfW = Math.max(10, shelfW) / 2;
+  const thS = Math.max(1.5, shelfTh);
+  const outer = shelfDeckOutlineXy(halfW, yFront, yF, cornerR);
+  const positions = [];
+  const indices = [];
+  const mapTop = (px, py) => [px, py, thS];
+  const mapBot = (px, py) => [px, py, 0];
+  extrudeShapeGroupBetween(
+    positions, indices, { outer, holes: [] },
+    mapTop, mapBot, (w) => [w[0], w[1]], "both", null,
+  );
+  // Male rail — slightly inset from shelf ends
   const yTip = yF + d.depth - clr * 0.35;
-  const z0 = 0;
-  const z1 = shelfTh;
-  const zMid = shelfTh * 0.5;
+  const zMid = thS * 0.5;
   const neck = Math.max(1.2, d.neckW - clr);
   const base = Math.max(neck + 0.4, d.baseW - clr);
   const n0 = zMid - neck / 2;
   const n1 = zMid + neck / 2;
   const b0 = zMid - base / 2;
   const b1 = zMid + base / 2;
-  // Deck + male: narrow at opening (shelf rear), wide at tip — fits female flare when sliding on X.
-  const profile = [
-    [yFront, z0],
-    [yF, z0],
-    [yF, n0],
-    [yTip, b0],
-    [yTip, b1],
-    [yF, n1],
-    [yF, z1],
-    [yFront, z1],
-  ];
-  const x0 = -W / 2 + 2.2;
-  const x1 = W / 2 - 2.2;
-  return extrudeYzAlongX(profile, x0, x1);
+  const male = extrudeYzAlongX(
+    [
+      [yF, n0],
+      [yTip, b0],
+      [yTip, b1],
+      [yF, n1],
+    ],
+    -halfW + 2.2,
+    halfW - 2.2,
+  );
+  const baseVtx = positions.length / 3;
+  for (const v of male.positions) positions.push(v);
+  for (const i of male.indices) indices.push(i + baseVtx);
+  return { positions, indices };
 }
 
 /** Rotate a flat plate (XY face, +Z thickness) into print-upright back: height → Z, thickness → Y. */
