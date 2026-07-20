@@ -1,5 +1,21 @@
 ---
 
+## b513 — Studio-full project_settings (Orca was fine, Studio wasn’t)
+**Date:** 2026-07-20
+
+### What changed
+- Orca kept Painter colours; Bambu Studio swapped them — Studio needs nozzle-scoped ids (`Generic PLA @BBL H2C 0.4 nozzle`) + a full project_settings seed
+- H2C export expands `studio-h2c-project-template.js` (from a real Studio project)
+- Bust file on disk: `Chris_Friend_Bust_STUDIO_COLOURS.3mf`
+
+### File Changes
+- `painter.js` / `studio-h2c-project-template.js` — `painter.js?v=513`
+
+### Deploy
+- Hard refresh Painter. In Studio open **STUDIO_COLOURS** as a new project (not an old recent tab).
+
+---
+
 ## b512 — Filament settings id must include @BBL printer
 **Date:** 2026-07-20
 

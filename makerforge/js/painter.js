@@ -1,7 +1,9 @@
 /**
- * MakerDeck STL Painter Engine — b512
+ * MakerDeck STL Painter Engine — b513
  * Pure computation module: STL parsing, feature detection, 3MF export.
  */
+
+import studioH2cProjectTemplate from './studio-h2c-project-template.js';
 
 /* ------------------------------------------------------------------ */
 /*  STL Parsing                                                       */
@@ -1144,6 +1146,56 @@ function normalizeFilamentHex(c) {
   return h;
 }
 
+/** Expand a 1-filament Studio project_settings seed to nSlots with Painter colours. */
+function expandStudioProjectTemplate(template, nSlots, opts) {
+  const {
+    colorsArr, filTypes, filSettings, filVendors, filIds, filDiameter, filDensity,
+    colourTypes, filamentMap, printerModel, nozzleId, processId,
+  } = opts;
+  const out = JSON.parse(JSON.stringify(template));
+  for (const [k, v] of Object.entries(out)) {
+    if (!Array.isArray(v) || v.length !== 1) continue;
+    out[k] = Array.from({ length: nSlots }, (_, i) => {
+      switch (k) {
+        case 'filament_colour':
+        case 'default_filament_colour':
+          return colorsArr[i];
+        case 'filament_settings_id':
+          return filSettings[i];
+        case 'filament_type':
+          return filTypes[i];
+        case 'filament_vendor':
+          return filVendors[i];
+        case 'filament_ids':
+          return filIds[i];
+        case 'filament_diameter':
+          return filDiameter[i];
+        case 'filament_density':
+          return filDensity[i];
+        case 'filament_colour_type':
+          return colourTypes[i];
+        case 'filament_map':
+          return filamentMap[i];
+        default:
+          return v[0];
+      }
+    });
+  }
+  out.from = 'project';
+  out.name = 'project_settings';
+  out.printer_model = printerModel;
+  out.printer_settings_id = nozzleId;
+  out.print_settings_id = processId;
+  out.filament_colour = colorsArr.slice();
+  out.default_filament_colour = colorsArr.slice();
+  out.filament_settings_id = filSettings.slice();
+  out.filament_type = filTypes.slice();
+  out.filament_map = filamentMap.slice();
+  out.filament_map_mode = 'Auto For Flush';
+  out.physical_extruder_map = ['1', '0'];
+  return out;
+}
+
 /**
  * Export painted mesh as Bambu/Orca 3MF.
  * Includes full-enough project_settings so filament_colour survives H2C/H2D import
@@ -1176,18 +1228,19 @@ export function export3MF(verts, faces, nVerts, nTri, embossMask, debossMask, op
 
   const filTypes = Array.from({ length: nSlots }, (_, i) =>
     (filamentType && filamentType[i]) || filamentType?.[0] || 'PLA');
-  // Prefer printer-scoped Generic PLA ids so Bambu doesn't drop the colour list on open
+  // Orca accepts "Generic PLA @BBL H2C"; Bambu Studio expects the nozzle-scoped
+  // profile id that ships in its filament library (… 0.4 nozzle).
   const printerTag = /H2C/i.test(printerModel) ? 'BBL H2C'
     : /H2D/i.test(printerModel) ? 'BBL H2D'
     : /X1/i.test(printerModel) ? 'BBL X1C'
     : 'BBL X1C';
-  // Bare "Generic PLA" (no @BBL …) makes Bambu Studio discard filament_colour
-  // and substitute its own swatches — always pin a printer-scoped settings id.
   const baseProfile = String(filamentProfile || 'Generic PLA').replace(/\s*@.*$/, '').trim() || 'Generic PLA';
-  const defaultSettingsId = `${baseProfile} @${printerTag}`;
+  const defaultSettingsId = `${baseProfile} @${printerTag} 0.4 nozzle`;
   const filSettings = Array.from({ length: nSlots }, (_, i) => {
-    const raw = (filamentSettingsId && filamentSettingsId[i]) || defaultSettingsId;
-    return String(raw).includes('@') ? String(raw) : `${String(raw).trim()} @${printerTag}`;
+    let raw = String((filamentSettingsId && filamentSettingsId[i]) || defaultSettingsId).trim();
+    if (!raw.includes('@')) raw = `${raw} @${printerTag} 0.4 nozzle`;
+    else if (!/0\.\d+\s*nozzle/i.test(raw)) raw = `${raw.replace(/\s*0\.\d+\s*nozzle/i, '')} 0.4 nozzle`;
+    return raw;
   });
   const filVendors = Array.from({ length: nSlots }, () =>
     /^bambu/i.test(filamentProfile) ? 'Bambu Lab' : 'Generic');
@@ -1292,27 +1345,37 @@ ${objTriangles}        </triangles>
     : /H2D/i.test(printerModel) ? 'Bambu Lab H2D 0.4 nozzle'
     : 'Bambu Lab X1 Carbon 0.4 nozzle';
 
-  const projectSettings = JSON.stringify({
-    from: 'MakerDeck',
-    name: 'project_settings',
-    version: '2.2.0',
-    printer_model: printerModel,
-    printer_settings_id: nozzleId,
-    print_settings_id: processId,
-    filament_type: filTypes,
-    filament_colour: colorsArr,
-    filament_colour_type: colourTypes,
-    filament_ids: filIds,
-    filament_settings_id: filSettings,
-    filament_vendor: filVendors,
-    filament_diameter: filDiameter,
-    filament_density: filDensity,
-    default_filament_colour: colorsArr,
-    // Keep project colours even with no AMS trays synced
-    filament_map: filamentMap,
-    filament_map_mode: 'Manual',
-    physical_extruder_map: ['1', '0'],
-  }, null, 2);
+  // H2C: expand a real Studio project_settings seed so Studio keeps colours
+  // (slim JSON is enough for Orca, but Studio hydrates defaults over it).
+  let projectObj;
+  if (/H2C/i.test(printerModel) && studioH2cProjectTemplate) {
+    projectObj = expandStudioProjectTemplate(studioH2cProjectTemplate, nSlots, {
+      colorsArr, filTypes, filSettings, filVendors, filIds, filDiameter, filDensity,
+      colourTypes, filamentMap, printerModel, nozzleId, processId,
+    });
+  } else {
+    projectObj = {
+      from: 'project',
+      name: 'project_settings',
+      version: '2.2.0',
+      printer_model: printerModel,
+      printer_settings_id: nozzleId,
+      print_settings_id: processId,
+      filament_type: filTypes,
+      filament_colour: colorsArr,
+      filament_colour_type: colourTypes,
+      filament_ids: filIds,
+      filament_settings_id: filSettings,
+      filament_vendor: filVendors,
+      filament_diameter: filDiameter,
+      filament_density: filDensity,
+      default_filament_colour: colorsArr,
+      filament_map: filamentMap,
+      filament_map_mode: 'Auto For Flush',
+      physical_extruder_map: ['1', '0'],
+    };
+  }
+  const projectSettings = JSON.stringify(projectObj, null, '\t');
 
   const zipFiles = [
     { name: '[Content_Types].xml', data: contentTypes },

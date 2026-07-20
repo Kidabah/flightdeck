@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b512 filament settings id @BBL for Studio colours
+- Latest commit: MakerDeck b513 Studio-full project_settings for H2C colours
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
+
+### 2026-07-20 fix (MakerDeck b513 — Orca OK / Studio wrong colours)
+
+**Need:** Same painted 3MF — colours correct in Orca, wrong in Bambu Studio.
+
+**Cause:** Studio wants `Generic PLA @BBL H2C 0.4 nozzle` + full project_settings; slim JSON is enough for Orca only.
+
+**What shipped:** H2C Studio template expand on export; `Chris_Friend_Bust_STUDIO_COLOURS.3mf`. Cache-bust `painter.js?v=513`.
 
 ### 2026-07-20 fix (MakerDeck b512 — Studio still wrong colours)
 
