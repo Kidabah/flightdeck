@@ -1,5 +1,22 @@
 ---
 
+## b526 — Shelf display signs + dovetail split
+**Date:** 2026-07-20
+
+### What changed
+- Sign type **Shelf display**: upright back + front shelf, preview assembled as an L
+- **Dovetail** join — export **Body** (back, print flat) + **Shelf** (deck); slide together after print
+- Shelf depth / thickness sliders; Temora preset uses shelf + mount none
+
+### Deploy
+- Hard refresh MakerDeck **b526** → Temora Vet shelf (or Sign type → Shelf display) → export 3MF → print both flat → slide dovetail
+- UI-only; restart optional
+
+### Files
+- `makerforge/js/signs.js`, `geometry.js`, `app.js`, `insert-slots.js`, `index.html`
+
+---
+
 ## b525 — Sharper text + Back to lines
 **Date:** 2026-07-20
 

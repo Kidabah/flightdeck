@@ -2,8 +2,14 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b525 — sharper text emboss + Back to lines
+- Latest commit: MakerDeck b526 — shelf display signs with dovetail split
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
+
+### 2026-07-20 feature (MakerDeck b526 — shelf display + dovetail)
+
+**Need:** Temora-style shelf so animals sit naturally; print as two parts that slide together.
+
+**What shipped:** Sign type Shelf display (back + shelf, dovetail); export Body + Shelf; Temora preset. Hard refresh **b526**.
 
 ### 2026-07-20 polish (MakerDeck b525 — text res + plain/lines toggle)
 

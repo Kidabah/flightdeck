@@ -175,6 +175,121 @@ export function buildSignBorder(W, H, th, corner, borderW, bh, shape = "rounded"
   return { positions, indices };
 }
 
+/** Dovetail sizes for shelf ↔ back slide joint (mm). */
+export function signShelfDovetailDims(backTh, shelfTh) {
+  const depth = Math.min(Math.max(2.4, Math.min(backTh, shelfTh) * 0.62), 4.2);
+  const neckW = Math.min(Math.max(2.0, shelfTh * 0.42), 3.2);
+  const baseW = Math.min(neckW + depth * 0.85, shelfTh * 0.92);
+  return { depth, neckW, baseW, clearance: 0.28 };
+}
+
+/** Extrude a YZ profile (and optional holes) along X. */
+function extrudeYzAlongX(profileYz, x0, x1, holesYz = []) {
+  const positions = [];
+  const indices = [];
+  const outer = ensureCCW(profileYz.map(([y, z]) => [y, z]));
+  const holes = holesYz.map((h) => ensureCCW(h.map(([y, z]) => [y, z])).slice().reverse());
+  const map0 = (y, z) => [x0, y, z];
+  const map1 = (y, z) => [x1, y, z];
+  extrudeShapeGroupBetween(
+    positions, indices, { outer, holes },
+    map1, map0, (w) => [w[1], w[2]], "both", null,
+  );
+  return { positions, indices };
+}
+
+/**
+ * Female dovetail receiver on the front-bottom of an upright back.
+ * Tunnel along X — shelf male slides in from the side.
+ */
+export function buildSignShelfFemaleReceiver(W, H, backTh, shelfTh, dims = null) {
+  const d = dims || signShelfDovetailDims(backTh, shelfTh);
+  const yF = -backTh / 2;
+  const yDeep = yF + d.depth;
+  const yOut = yF - 1.2; // slight forward lip
+  const z0 = 0;
+  const z1 = Math.max(shelfTh + 1.2, d.baseW + 1.6);
+  const zMid = shelfTh * 0.5;
+  const n0 = zMid - d.neckW / 2;
+  const n1 = zMid + d.neckW / 2;
+  const b0 = zMid - d.baseW / 2;
+  const b1 = zMid + d.baseW / 2;
+  const outer = [
+    [yOut, z0], [yDeep + 1.0, z0], [yDeep + 1.0, z1], [yOut, z1],
+  ];
+  // Hole: narrow at front opening, wider inside (classic dovetail socket).
+  const hole = [
+    [yF, n0], [yDeep, b0], [yDeep, b1], [yF, n1],
+  ];
+  const x0 = -W / 2 + 1.5;
+  const x1 = W / 2 - 1.5; // small end walls; slide in from either open face of the tunnel
+  return extrudeYzAlongX(outer, x0, x1, [hole]);
+}
+
+/**
+ * Shelf deck + male dovetail (assembled pose: shelf on z=0, rear against back front).
+ */
+export function buildSignShelfWithMale(W, shelfDepth, shelfTh, backTh, dims = null) {
+  const d = dims || signShelfDovetailDims(backTh, shelfTh);
+  const clr = d.clearance;
+  const yF = -backTh / 2;
+  const yFront = yF - Math.max(12, shelfDepth);
+  const yTip = yF + d.depth - clr * 0.35;
+  const z0 = 0;
+  const z1 = shelfTh;
+  const zMid = shelfTh * 0.5;
+  const neck = Math.max(1.2, d.neckW - clr);
+  const base = Math.max(neck + 0.4, d.baseW - clr);
+  const n0 = zMid - neck / 2;
+  const n1 = zMid + neck / 2;
+  const b0 = zMid - base / 2;
+  const b1 = zMid + base / 2;
+  // Deck + male: narrow at opening (shelf rear), wide at tip — fits female flare when sliding on X.
+  const profile = [
+    [yFront, z0],
+    [yF, z0],
+    [yF, n0],
+    [yTip, b0],
+    [yTip, b1],
+    [yF, n1],
+    [yF, z1],
+    [yFront, z1],
+  ];
+  const x0 = -W / 2 + 2.2;
+  const x1 = W / 2 - 2.2;
+  return extrudeYzAlongX(profile, x0, x1);
+}
+
+/** Rotate a flat plate (XY face, +Z thickness) into print-upright back: height → Z, thickness → Y. */
+export function uprightFlatSignMesh(mesh, H, th) {
+  if (!mesh?.positions) return mesh;
+  const P = mesh.positions;
+  for (let i = 0; i < P.length; i += 3) {
+    const x = P[i];
+    const y = P[i + 1];
+    const z = P[i + 2];
+    P[i] = x;
+    P[i + 1] = th / 2 - z;
+    P[i + 2] = y + H / 2;
+  }
+  return mesh;
+}
+
+/** Inverse of uprightFlatSignMesh — lay upright back flat for face-up printing. */
+export function flattenUprightSignMesh(mesh, H, th) {
+  if (!mesh?.positions) return mesh;
+  const P = mesh.positions;
+  for (let i = 0; i < P.length; i += 3) {
+    const x = P[i];
+    const y = P[i + 1];
+    const z = P[i + 2];
+    P[i] = x;
+    P[i + 1] = z - H / 2;
+    P[i + 2] = th / 2 - y;
+  }
+  return mesh;
+}
+
 /** Two tapered ground spikes hanging from the plate bottom (garden stake sign). One extrusion
  * each, embedded a few mm into the plate so it unions cleanly. Returns merged { positions, indices }. */
 export function buildGardenStakes(W, H, th, opts = {}) {

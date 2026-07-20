@@ -44,7 +44,7 @@
 
         <div class="topbar-brand">
 
-          <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b525</span></div>
+          <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b526</span></div>
 
           <h1>Container Generator</h1>
 
@@ -215,7 +215,7 @@
 
               <div class="preset-grid">
                 <button type="button" class="shape-btn shape-btn--preset" data-shape="sign">Sign / plaque</button>
-                <button type="button" class="shape-btn shape-btn--preset" id="btn-temora-vet-plaque" data-shape="sign" data-sample="temora-vet">Temora Vet plaque</button>
+                <button type="button" class="shape-btn shape-btn--preset" id="btn-temora-vet-plaque" data-shape="sign" data-sample="temora-vet">Temora Vet shelf</button>
               </div>
 
               <section class="section section-sign hidden" id="section-sign">
@@ -237,6 +237,7 @@
                   <select id="sign-type">
                     <option value="plaque">Door / name plaque</option>
                     <option value="desk">Desk name plate</option>
+                    <option value="shelf">Shelf display</option>
                     <option value="number">House number</option>
                     <option value="hanging">Hanging sign</option>
                   </select>
@@ -245,6 +246,8 @@
                 <label class="field field-slider"><span class="field-label">Height</span><input type="range" id="sign-height" min="25" max="300" step="1"><output id="sign-height-out"></output></label>
                 <label class="field field-slider"><span class="field-label">Thickness</span><input type="range" id="sign-thickness" min="2" max="10" step="0.2"><output id="sign-thickness-out"></output></label>
                 <label class="field field-slider"><span class="field-label">Corner radius</span><input type="range" id="sign-corner" min="0" max="30" step="1"><output id="sign-corner-out"></output></label>
+                <label class="field field-slider hidden" id="field-sign-shelf-depth"><span class="field-label">Shelf depth</span><input type="range" id="sign-shelf-depth" min="20" max="80" step="1"><output id="sign-shelf-depth-out"></output></label>
+                <label class="field field-slider hidden" id="field-sign-shelf-thickness"><span class="field-label">Shelf thickness</span><input type="range" id="sign-shelf-thickness" min="2" max="8" step="0.2"><output id="sign-shelf-thickness-out"></output></label>
                 <label class="field field-select" id="field-sign-mount">
                   <span class="field-label">Wall mount</span>
                   <select id="sign-mount">
@@ -256,7 +259,8 @@
                   </select>
                 </label>
                 <label class="field field-toggle"><span class="field-label">Raised border</span><input type="checkbox" id="sign-border"></label>
-                <p class="hint">Flat plate, prints face-up with no supports. Type your text on the <strong>Art</strong> tab — it sits on the top face. Print two-tone by giving the text its own colour.</p>
+                <p class="hint" id="sign-hint-plaque">Flat plate, prints face-up with no supports. Type your text on the <strong>Art</strong> tab — it sits on the top face. Print two-tone by giving the text its own colour.</p>
+                <p class="hint hidden" id="sign-hint-shelf">Back + front shelf with a <strong>dovetail</strong> join — export as two parts, print both flat, then slide together. Text on the back; place figures on the shelf in the slicer.</p>
               </section>
 
               <h2 class="section-sub">Kitchen canisters</h2>
@@ -1476,7 +1480,7 @@
     </div>
   </dialog>
 
-  <script type="module" src="js/app.js?v=525"></script>
+  <script type="module" src="js/app.js?v=526"></script>
 
 </body>
 

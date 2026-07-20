@@ -28,12 +28,23 @@ import {
   shapeSupportsProfileArt,
   shapeSupportsArt,
   STACK_LIP_MM,
-} from "./features.js?v=525";
+} from "./features.js?v=526";
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=161";
 import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=163";
 import { animalProfile, animalProfilePair, ANIMAL_NAMES } from "./animal-profiles.js?v=382";
-import { buildSignPlate, buildSignBorder, mountHoles, shapeOutline, buildGardenStakes } from "./signs.js?v=389";
+import {
+  buildSignPlate,
+  buildSignBorder,
+  mountHoles,
+  shapeOutline,
+  buildGardenStakes,
+  uprightFlatSignMesh,
+  flattenUprightSignMesh,
+  buildSignShelfFemaleReceiver,
+  buildSignShelfWithMale,
+  signShelfDovetailDims,
+} from "./signs.js?v=526";
 import {
   resolveVaseTexture,
   densifyClosedProfile,
@@ -45,7 +56,7 @@ import {
   profileOutlinePerimeter,
 } from "./vase-textures.js";
 
-import { appendInsertShelfSlotsToBody } from "./insert-slots.js?v=525";
+import { appendInsertShelfSlotsToBody } from "./insert-slots.js?v=526";
 
 export { shapeSupportsDecor, shapeSupportsInsert, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, VASE_STYLES };
 
@@ -2021,7 +2032,132 @@ export function buildCavityLiner(resolved, params) {
   return positions.length ? { positions, indices } : null;
 }
 
-/** Flat sign plate: solid plate + optional raised border + mount cutouts, text on top face. */
+function appendMesh(target, src) {
+  if (!src?.positions?.length) return;
+  const base = target.positions.length / 3;
+  for (const v of src.positions) target.positions.push(v);
+  for (const i of src.indices || []) target.indices.push(i + base);
+}
+
+/** Lay front-face emboss onto a flat plaque top (XY), then optional arch bend in-plane. */
+function finishFlatPlaqueLabels(allLabels, params, H, th, signArc) {
+  const remap = (m) => {
+    if (!m?.positions) return;
+    const P = m.positions;
+    for (let i = 0; i < P.length; i += 3) {
+      const x = P[i], y = P[i + 1], z = P[i + 2];
+      P[i] = x; P[i + 1] = z - H / 2; P[i + 2] = th / 2 - y;
+    }
+  };
+  for (const m of allLabels) remap(m);
+  if (!allLabels.length) return;
+  let minx = 1e9, maxx = -1e9, miny = 1e9, maxy = -1e9;
+  for (const m of allLabels) for (let i = 0; i < m.positions.length; i += 3) {
+    const x = m.positions[i], y = m.positions[i + 1];
+    if (x < minx) minx = x; if (x > maxx) maxx = x; if (y < miny) miny = y; if (y > maxy) maxy = y;
+  }
+  const dx = -(minx + maxx) / 2;
+  const dy = -(miny + maxy) / 2;
+  for (const m of allLabels) for (let i = 0; i < m.positions.length; i += 3) {
+    m.positions[i] += dx; m.positions[i + 1] += dy;
+  }
+  if (signArc) {
+    let tminx = 1e9, tmaxx = -1e9;
+    for (const m of allLabels) for (let i = 0; i < m.positions.length; i += 3) {
+      const x = m.positions[i]; if (x < tminx) tminx = x; if (x > tmaxx) tmaxx = x;
+    }
+    const textW = Math.max(1, tmaxx - tminx);
+    const curve = clamp(params.embossArcCurve ?? 60, 0, 100);
+    const spanDeg = clamp(10 + curve * 0.7, 10, 100);
+    const spanRad = (spanDeg * Math.PI) / 180;
+    const R = textW / spanRad;
+    const down = params.embossArcSide === "down";
+    const sign = down ? -1 : 1;
+    for (const m of allLabels) {
+      const P = m.positions;
+      for (let i = 0; i < P.length; i += 3) {
+        const x = P[i], y = P[i + 1];
+        const theta = x / R;
+        const radial = R + sign * y;
+        P[i] = radial * Math.sin(theta);
+        P[i + 1] = sign * (radial * Math.cos(theta) - R);
+      }
+    }
+    let bx0 = 1e9, bx1 = -1e9, by0 = 1e9, by1 = -1e9;
+    for (const m of allLabels) for (let i = 0; i < m.positions.length; i += 3) {
+      const x = m.positions[i], y = m.positions[i + 1];
+      if (x < bx0) bx0 = x; if (x > bx1) bx1 = x; if (y < by0) by0 = y; if (y > by1) by1 = y;
+    }
+    const bdx = -(bx0 + bx1) / 2 + (params.textOffsetX || 0);
+    const bdy = -(by0 + by1) / 2 + (params.textOffsetY || 0);
+    for (const m of allLabels) for (let i = 0; i < m.positions.length; i += 3) {
+      m.positions[i] += bdx; m.positions[i + 1] += bdy;
+    }
+  } else {
+    for (const m of allLabels) for (let i = 0; i < m.positions.length; i += 3) {
+      m.positions[i] += (params.textOffsetX || 0); m.positions[i + 1] += (params.textOffsetY || 0);
+    }
+  }
+}
+
+/** Centre upright-back emboss on the back face (X=0, Z=H/2); optional arch in the face plane. */
+function finishShelfSignLabels(allLabels, params, signArc, H) {
+  if (!allLabels.length) return;
+  let minx = 1e9, maxx = -1e9, minz = 1e9, maxz = -1e9;
+  for (const m of allLabels) for (let i = 0; i < m.positions.length; i += 3) {
+    const x = m.positions[i], z = m.positions[i + 2];
+    if (x < minx) minx = x; if (x > maxx) maxx = x; if (z < minz) minz = z; if (z > maxz) maxz = z;
+  }
+  const dx = -(minx + maxx) / 2;
+  const dz = H / 2 - (minz + maxz) / 2;
+  for (const m of allLabels) for (let i = 0; i < m.positions.length; i += 3) {
+    m.positions[i] += dx; m.positions[i + 2] += dz;
+  }
+  if (signArc) {
+    // Bend in face plane relative to mid-height.
+    for (const m of allLabels) for (let i = 0; i < m.positions.length; i += 3) {
+      m.positions[i + 2] -= H / 2;
+    }
+    let tminx = 1e9, tmaxx = -1e9;
+    for (const m of allLabels) for (let i = 0; i < m.positions.length; i += 3) {
+      const x = m.positions[i]; if (x < tminx) tminx = x; if (x > tmaxx) tmaxx = x;
+    }
+    const textW = Math.max(1, tmaxx - tminx);
+    const curve = clamp(params.embossArcCurve ?? 60, 0, 100);
+    const spanDeg = clamp(10 + curve * 0.7, 10, 100);
+    const spanRad = (spanDeg * Math.PI) / 180;
+    const R = textW / spanRad;
+    const down = params.embossArcSide === "down";
+    const sign = down ? -1 : 1;
+    for (const m of allLabels) {
+      const P = m.positions;
+      for (let i = 0; i < P.length; i += 3) {
+        const x = P[i], faceY = P[i + 2];
+        const theta = x / R;
+        const radial = R + sign * faceY;
+        P[i] = radial * Math.sin(theta);
+        P[i + 2] = sign * (radial * Math.cos(theta) - R);
+      }
+    }
+    let bx0 = 1e9, bx1 = -1e9, bz0 = 1e9, bz1 = -1e9;
+    for (const m of allLabels) for (let i = 0; i < m.positions.length; i += 3) {
+      const x = m.positions[i], z = m.positions[i + 2];
+      if (x < bx0) bx0 = x; if (x > bx1) bx1 = x; if (z < bz0) bz0 = z; if (z > bz1) bz1 = z;
+    }
+    const bdx = -(bx0 + bx1) / 2 + (params.textOffsetX || 0);
+    const bdz = H / 2 - (bz0 + bz1) / 2 + (params.textOffsetY || 0);
+    for (const m of allLabels) for (let i = 0; i < m.positions.length; i += 3) {
+      m.positions[i] += bdx; m.positions[i + 2] += bdz;
+    }
+  } else {
+    for (const m of allLabels) for (let i = 0; i < m.positions.length; i += 3) {
+      m.positions[i] += (params.textOffsetX || 0);
+      m.positions[i + 2] += (params.textOffsetY || 0);
+    }
+  }
+}
+
+/** Flat plaque or shelf-display (back + dovetail shelf): text/art emboss. */
 export function buildSign(params) {
   const W = clamp(params.signWidth ?? 140, 40, 300);
   const H = clamp(params.signHeight ?? 70, 25, 300);
@@ -2029,43 +2165,62 @@ export function buildSign(params) {
   const corner = clamp(params.signCorner ?? 8, 0, Math.min(W, H) / 2 - 1);
   const mount = params.signMount || "keyhole";
   const signShape = params.signShape || "rounded";
+  const signType = params.signType || "plaque";
+  const isShelf = signType === "shelf";
+  const shelfDepth = clamp(params.signShelfDepth ?? 40, 20, 80);
+  const shelfTh = clamp(params.signShelfThickness ?? 4, 2, 8);
   const borderOn = params.signBorder !== false;
   const borderW = clamp(params.signBorderWidth ?? 4, 2, 12);
   const borderH = clamp(params.signBorderHeight ?? 1.4, 0.6, 4);
+  const dove = isShelf ? signShelfDovetailDims(th, shelfTh) : null;
 
   const outline = shapeOutline(signShape, W / 2, H / 2, corner);
-  const holes = mount === "stake" ? [] : mountHoles(mount, W, H, { outline });
+  const holes = (mount === "stake" || mount === "none") ? [] : mountHoles(mount, W, H, { outline });
   const plate = buildSignPlate(W, H, th, corner, holes, signShape);
-  let mesh = { positions: plate.positions.slice(), indices: plate.indices.slice() };
+  let backMesh = { positions: plate.positions.slice(), indices: plate.indices.slice() };
   if (borderOn) {
-    const border = buildSignBorder(W, H, th, corner, borderW, borderH, signShape);
-    const base = mesh.positions.length / 3;
-    for (const v of border.positions) mesh.positions.push(v);
-    for (const i of border.indices) mesh.indices.push(i + base);
+    appendMesh(backMesh, buildSignBorder(W, H, th, corner, borderW, borderH, signShape));
   }
-  if (mount === "stake") {
-    const stakes = buildGardenStakes(W, H, th);
-    const sbase = mesh.positions.length / 3;
-    for (const v of stakes.positions) mesh.positions.push(v);
-    for (const i of stakes.indices) mesh.indices.push(i + sbase);
+  if (mount === "stake" && !isShelf) {
+    appendMesh(backMesh, buildGardenStakes(W, H, th));
   }
-  const topZ = th + (borderOn ? 0 : 0); // text sits on the plate face (inside any border)
+
+  let shelfMesh = null;
+  if (isShelf) {
+    uprightFlatSignMesh(backMesh, H, th);
+    appendMesh(backMesh, buildSignShelfFemaleReceiver(W, H, th, shelfTh, dove));
+    shelfMesh = buildSignShelfWithMale(W, shelfDepth, shelfTh, th, dove);
+  }
+
+  const totalDepth = isShelf ? th + shelfDepth : H;
+  const totalH = isShelf ? H : th;
   const meta = {
     shape: "sign",
-    outer: { w: W, d: H, h: topZ },
-    inner: { w: W, d: H, h: 0 },
-    wall: th, floor: th,
+    outer: isShelf
+      ? { w: W, d: totalDepth, h: H }
+      : { w: W, d: H, h: th },
+    inner: isShelf
+      ? { w: W, d: th, h: 0 }
+      : { w: W, d: H, h: 0 },
+    wall: th, floor: isShelf ? shelfTh : th,
     outerMl: 0, cavityMl: 0,
-    embossFace: "top",
+    embossFace: isShelf ? "front" : "top",
     embossDeboss: !!params.embossDeboss,
+    signShelf: isShelf,
   };
 
-  const boxShell = { positions: mesh.positions.slice(), indices: mesh.indices.slice() };
-  // Build text/art on a VIRTUAL vertical front face (where the arc engine works correctly),
-  // then lay it flat onto the plate top and auto-centre. This avoids the rotated/off-centre
-  // arch the horizontal "top" face produced.
-  const faceMeta = { shape: "sign", outer: { w: W, d: th, h: H }, inner: { w: W, d: th, h: 0 },
-    wall: th, floor: th, embossFace: "front", embossDeboss: !!params.embossDeboss };
+  // Preview = assembled L; export Body = print-flat back; Shelf = deck (already on z=0).
+  const previewMesh = { positions: backMesh.positions.slice(), indices: backMesh.indices.slice() };
+  if (shelfMesh) appendMesh(previewMesh, shelfMesh);
+
+  const faceMeta = {
+    shape: "sign",
+    outer: { w: W, d: th, h: H },
+    inner: { w: W, d: th, h: 0 },
+    wall: th, floor: th,
+    embossFace: "front",
+    embossDeboss: !!params.embossDeboss,
+  };
   const signArc = (params.embossTextLayout || "flat") === "arc" && !params.embossDeboss;
   const labelParams = { ...params, embossFace: "front", embossTextLayout: "flat", textOffsetX: 0, textOffsetY: 0 };
   let labelMesh = null, graphicMesh = null, graphicColourParts = null, debossCutterMesh = null;
@@ -2076,86 +2231,38 @@ export function buildSign(params) {
       labelMesh = buildLabelEmboss(faceMeta, labelParams, params.embossSvgText || "", "emboss");
       debossCutterMesh = buildLabelEmboss(faceMeta, labelParams, params.embossSvgText || "", "deboss-cutter");
     } else {
-      // Closed voxel text/graphic (b374 path) so the parts are watertight for preview AND export.
       labelMesh = buildTextLabelExportMesh(faceMeta, exParams);
       graphicMesh = buildGraphicLabelExportMesh(faceMeta, exParams, params.embossSvgText || "");
     }
-    // Remap front-face (x, y, z) -> plate top: x stays, vertical z -> plate depth y, face depth y -> height z.
-    const remap = (m) => {
-      if (!m?.positions) return;
-      const P = m.positions;
-      for (let i = 0; i < P.length; i += 3) {
-        const x = P[i], y = P[i + 1], z = P[i + 2];
-        P[i] = x; P[i + 1] = z - H / 2; P[i + 2] = th / 2 - y;
-      }
-    };
     const allLabels = [labelMesh, graphicMesh, debossCutterMesh, ...(graphicColourParts || []).map((c) => c.mesh)].filter(Boolean);
-    for (const m of allLabels) remap(m);
-    // Auto-centre the combined label footprint on the plate, then apply user nudge.
-    if (allLabels.length) {
-      let minx = 1e9, maxx = -1e9, miny = 1e9, maxy = -1e9;
-      for (const m of allLabels) for (let i = 0; i < m.positions.length; i += 3) {
-        const x = m.positions[i], y = m.positions[i + 1];
-        if (x < minx) minx = x; if (x > maxx) maxx = x; if (y < miny) miny = y; if (y > maxy) maxy = y;
-      }
-      const dx = -(minx + maxx) / 2;
-      const dy = -(miny + maxy) / 2;
-      for (const m of allLabels) for (let i = 0; i < m.positions.length; i += 3) {
-        m.positions[i] += dx; m.positions[i + 1] += dy;
-      }
-      // Own circular bend (arc engine mis-maps on flat faces): map horizontal position to an
-      // angle on a circle so the word forms a clean, symmetric arch. Curve amount sets the span.
-      if (signArc) {
-        let tminx = 1e9, tmaxx = -1e9;
-        for (const m of allLabels) for (let i = 0; i < m.positions.length; i += 3) {
-          const x = m.positions[i]; if (x < tminx) tminx = x; if (x > tmaxx) tmaxx = x;
-        }
-        const textW = Math.max(1, tmaxx - tminx);
-        const curve = clamp(params.embossArcCurve ?? 60, 0, 100);
-        const spanDeg = clamp(10 + curve * 0.7, 10, 100);          // arch span across the word
-        const spanRad = (spanDeg * Math.PI) / 180;
-        const R = textW / spanRad;                                  // radius from span
-        const down = params.embossArcSide === "down";
-        const sign = down ? -1 : 1;
-        for (const m of allLabels) {
-          const P = m.positions;
-          for (let i = 0; i < P.length; i += 3) {
-            const x = P[i], y = P[i + 1];
-            const theta = x / R;
-            const radial = R + sign * y;
-            P[i] = radial * Math.sin(theta);
-            P[i + 1] = sign * (radial * Math.cos(theta) - R);
-          }
-        }
-        // Re-centre the bent word + apply the user nudge.
-        let bx0 = 1e9, bx1 = -1e9, by0 = 1e9, by1 = -1e9;
-        for (const m of allLabels) for (let i = 0; i < m.positions.length; i += 3) {
-          const x = m.positions[i], y = m.positions[i + 1];
-          if (x < bx0) bx0 = x; if (x > bx1) bx1 = x; if (y < by0) by0 = y; if (y > by1) by1 = y;
-        }
-        const bdx = -(bx0 + bx1) / 2 + (params.textOffsetX || 0);
-        const bdy = -(by0 + by1) / 2 + (params.textOffsetY || 0);
-        for (const m of allLabels) for (let i = 0; i < m.positions.length; i += 3) {
-          m.positions[i] += bdx; m.positions[i + 1] += bdy;
-        }
-      } else {
-        for (const m of allLabels) for (let i = 0; i < m.positions.length; i += 3) {
-          m.positions[i] += (params.textOffsetX || 0); m.positions[i + 1] += (params.textOffsetY || 0);
-        }
-      }
+    if (isShelf) {
+      finishShelfSignLabels(allLabels, params, signArc, H);
+    } else {
+      finishFlatPlaqueLabels(allLabels, params, H, th, signArc);
     }
   }
+
+  // Export Body = print-flat back (face-up). Preview labels stay upright on assembled L.
+  let boxShell = { positions: backMesh.positions.slice(), indices: backMesh.indices.slice() };
+  if (isShelf) flattenUprightSignMesh(boxShell, H, th);
+
   return {
-    positions: mesh.positions,
-    indices: mesh.indices,
-    shellMesh: mesh,
+    positions: previewMesh.positions,
+    indices: previewMesh.indices,
+    shellMesh: previewMesh,
     boxShell,
+    shelfMesh: shelfMesh || null,
     meta,
-    totalH: topZ,
+    totalH,
+    signBackH: isShelf ? H : null,
+    signBackTh: isShelf ? th : null,
     accentMeshes: [],
     insertMesh: null,
     linerMesh: null,
-    labelMesh, graphicMesh, graphicColourParts, debossCutterMesh,
+    labelMesh,
+    graphicMesh,
+    graphicColourParts,
+    debossCutterMesh,
     holderParts: null,
   };
 }
@@ -2528,13 +2635,15 @@ export const SIGN_PRESET = {
 export const TEMORA_VET_SIGN_PRESET = {
   ...SIGN_PRESET,
   signSample: "temora-vet",
-  signType: "plaque",
+  signType: "shelf",
   signShape: "rounded",
   signWidth: 180,
   signHeight: 120,
   signThickness: 4,
   signCorner: 10,
-  signMount: "keyhole",
+  signShelfDepth: 45,
+  signShelfThickness: 4,
+  signMount: "none",
   signBorder: true,
   signBorderWidth: 3.5,
   signBorderHeight: 1.4,
@@ -2900,6 +3009,8 @@ export const DEFAULTS = {
   signHeight: 120,
   signThickness: 4,
   signCorner: 10,
+  signShelfDepth: 40,
+  signShelfThickness: 4,
   signMount: "keyhole",
   signBorder: true,
   signBorderWidth: 3.5,

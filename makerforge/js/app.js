@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, ANIMAL_PRESET, SIGN_PRESET, TEMORA_VET_SIGN_PRESET, TEMORA_VET_CELTIC_SVG_URL } from "./geometry.js?v=525";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, resolveEmbossFontWeight, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=525";
+import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, ANIMAL_PRESET, SIGN_PRESET, TEMORA_VET_SIGN_PRESET, TEMORA_VET_CELTIC_SVG_URL } from "./geometry.js?v=526";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, resolveEmbossFontWeight, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=526";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=370";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=372";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=378";
@@ -35,7 +35,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b525";
+const MAKERDECK_BUILD = "b526";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -683,6 +683,8 @@ function buildParams() {
     signHeight: state.signHeight,
     signThickness: state.signThickness,
     signCorner: state.signCorner,
+    signShelfDepth: state.signShelfDepth ?? 40,
+    signShelfThickness: state.signShelfThickness ?? 4,
     signMount: state.signMount,
     signBorder: state.signBorder,
     signBorderWidth: state.signBorderWidth,
@@ -1292,20 +1294,48 @@ function collectColoredExportParts(exportCache, stamp = null, { includeLiner = t
   // Signs build their own (bent, closed) label meshes in buildSign — use them directly so the
   // export matches the preview exactly (Plate + Text + Art), not a rebuilt top-face version.
   if (params.shape === "sign") {
+    const isShelf = params.signType === "shelf";
     const plate = prepareMeshFor3mf(exportCache.boxShell || exportCache.shellMesh || exportCache);
     if (plate?.indices?.length) {
       parts.push({ name: "Body", mesh: plate, color: state.boxColor || "#cbd5e1",
         extruder: extruder++, filamentPreset: state.canisterFilamentPreset || "" });
     }
-    const artMesh = exportCache.graphicMesh ? prepareMeshFor3mf(exportCache.graphicMesh) : null;
+    // Shelf display: separate dovetail deck (prints flat on bed; slides into Body).
+    if (isShelf && exportCache.shelfMesh) {
+      const shelf = prepareMeshFor3mf(exportCache.shelfMesh);
+      if (shelf?.indices?.length) {
+        parts.push({ name: "Shelf", mesh: shelf, color: state.boxColor || "#cbd5e1",
+          extruder: extruder++, filamentPreset: state.canisterFilamentPreset || "" });
+      }
+    }
+    const flattenForShelfExport = (mesh) => {
+      if (!mesh?.positions || !isShelf) return mesh;
+      const H = exportCache.signBackH ?? params.signHeight ?? 120;
+      const th = exportCache.signBackTh ?? params.signThickness ?? 4;
+      const c = { positions: mesh.positions.slice(), indices: mesh.indices ? mesh.indices.slice() : [] };
+      // Inline flatten (same as signs.flattenUprightSignMesh) — keep export self-contained.
+      const P = c.positions;
+      for (let i = 0; i < P.length; i += 3) {
+        const y = P[i + 1];
+        const z = P[i + 2];
+        P[i + 1] = z - H / 2;
+        P[i + 2] = th / 2 - y;
+      }
+      return c;
+    };
+    const artMesh = exportCache.graphicMesh
+      ? prepareMeshFor3mf(flattenForShelfExport(exportCache.graphicMesh))
+      : null;
     if (artMesh?.indices?.length) {
       parts.push({ name: "Art", mesh: artMesh, color: state.embossArtColor || "#111827", extruder: extruder++ });
     }
     for (const cp of exportCache.graphicColourParts || []) {
-      const cm = cp.mesh ? prepareMeshFor3mf(cp.mesh) : null;
+      const cm = cp.mesh ? prepareMeshFor3mf(flattenForShelfExport(cp.mesh)) : null;
       if (cm?.indices?.length) parts.push({ name: cp.name || "Art", mesh: cm, color: cp.color, extruder: extruder++ });
     }
-    const textMesh = exportCache.labelMesh ? prepareMeshFor3mf(exportCache.labelMesh) : null;
+    const textMesh = exportCache.labelMesh
+      ? prepareMeshFor3mf(flattenForShelfExport(exportCache.labelMesh))
+      : null;
     if (textMesh?.indices?.length) {
       parts.push({ name: "Text", mesh: textMesh, color: state.embossTextColor || "#f8fafc", extruder: extruder++ });
     }
@@ -3003,14 +3033,21 @@ function syncUiFromState() {
   if (isSign) {
     const setV = (id, v) => { const el = document.getElementById(id); if (el && document.activeElement !== el) el.value = v; };
     const setOut = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+    const isShelf = (state.signType || "plaque") === "shelf";
     setV("sign-shape", state.signShape || "rounded");
     setV("sign-type", state.signType || "plaque");
     setV("sign-width", state.signWidth); setOut("sign-width-out", state.signWidth + " mm");
     setV("sign-height", state.signHeight); setOut("sign-height-out", state.signHeight + " mm");
     setV("sign-thickness", state.signThickness); setOut("sign-thickness-out", state.signThickness + " mm");
     setV("sign-corner", state.signCorner); setOut("sign-corner-out", state.signCorner + " mm");
-    setV("sign-mount", state.signMount || "keyhole");
+    setV("sign-shelf-depth", state.signShelfDepth ?? 40); setOut("sign-shelf-depth-out", (state.signShelfDepth ?? 40) + " mm");
+    setV("sign-shelf-thickness", state.signShelfThickness ?? 4); setOut("sign-shelf-thickness-out", (state.signShelfThickness ?? 4) + " mm");
+    setV("sign-mount", state.signMount || (isShelf ? "none" : "keyhole"));
     const bc = document.getElementById("sign-border"); if (bc) bc.checked = state.signBorder !== false;
+    document.getElementById("field-sign-shelf-depth")?.classList.toggle("hidden", !isShelf);
+    document.getElementById("field-sign-shelf-thickness")?.classList.toggle("hidden", !isShelf);
+    document.getElementById("sign-hint-plaque")?.classList.toggle("hidden", isShelf);
+    document.getElementById("sign-hint-shelf")?.classList.toggle("hidden", !isShelf);
   }
 
   const profileKey = PRESET_CONFIG[state.shape]?.profile || "default";
@@ -6449,6 +6486,12 @@ document.getElementById("animal-name")?.addEventListener("change", (e) => {
 
 function _signSizeDefaults(type) {
   if (type === "desk") return { signWidth: 180, signHeight: 60, signMount: "none", signBorder: true };
+  if (type === "shelf") {
+    return {
+      signWidth: 180, signHeight: 120, signMount: "none", signBorder: true,
+      signShelfDepth: 40, signShelfThickness: 4, signThickness: 4,
+    };
+  }
   if (type === "number") return { signWidth: 90, signHeight: 120, signMount: "screw", signBorder: true };
   if (type === "hanging") return { signWidth: 150, signHeight: 75, signMount: "hanging", signBorder: true };
   return { signWidth: 140, signHeight: 70, signMount: "keyhole", signBorder: true }; // plaque
@@ -6460,7 +6503,14 @@ document.getElementById("sign-type")?.addEventListener("change", (e) => {
   rebuild();
   scheduleSaveSession();
 });
-for (const [id, key, num] of [["sign-width","signWidth",1],["sign-height","signHeight",1],["sign-thickness","signThickness",1],["sign-corner","signCorner",1]]) {
+for (const [id, key] of [
+  ["sign-width", "signWidth"],
+  ["sign-height", "signHeight"],
+  ["sign-thickness", "signThickness"],
+  ["sign-corner", "signCorner"],
+  ["sign-shelf-depth", "signShelfDepth"],
+  ["sign-shelf-thickness", "signShelfThickness"],
+]) {
   document.getElementById(id)?.addEventListener("input", (e) => {
     state[key] = parseFloat(e.target.value) || state[key];
     const out = document.getElementById(id + "-out"); if (out) out.value = state[key] + " mm";
