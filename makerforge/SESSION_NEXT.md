@@ -1,5 +1,22 @@
 ---
 
+## b517 — STL Painter moved to Flightdeck sidebar
+**Date:** 2026-07-20
+
+### What changed
+- Flightdeck System nav: amber **STL Painter** → `#/painter` (own iframe, not inside MakerDeck)
+- Removed MakerDeck topbar “STL Painter” button
+- Painter header/footer branding standalone
+
+### File Changes
+- `app/static/app.js` / `index.html` / `style.css` — route + tab + embed
+- `makerforge/index.html`, `makerforge/painter.html`
+
+### Deploy
+- Hard refresh Flightdeck (`app.js?v=642`) → System → **STL Painter**
+
+---
+
 ## b516 — Temora plaque SVG load via importSvgFile
 **Date:** 2026-07-20
 

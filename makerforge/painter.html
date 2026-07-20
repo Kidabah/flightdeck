@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STL Painter · MakerDeck</title>
+<title>STL Painter · Flightdeck</title>
 <script type="importmap">
 { "imports": {
     "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
@@ -14,7 +14,7 @@
 </script>
 <style>
 /* ================================================================== */
-/*  b514 — MakerDeck STL Painter  (tabbed layout)                     */
+/*  b517 — STL Painter  (tabbed layout; Flightdeck sidebar entry)     */
 /* ================================================================== */
 
 /* -- Reset & Vars -------------------------------------------------- */
@@ -305,8 +305,8 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   <!-- Header -->
   <header class="header">
     <button class="toggle-sidebar" id="toggleSidebar" title="Toggle sidebar">☰</button>
-    <div class="logo">Maker<span>Deck</span> · STL Painter</div>
-    <div class="build">b514</div>
+    <div class="logo">STL <span>Painter</span></div>
+    <div class="build">b517</div>
   </header>
 
   <!-- Left Sidebar (tabbed) -->
@@ -523,7 +523,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
             <input type="range" id="morphOpen" min="0" max="3" step="1" value="1">
           </div>
           <button class="btn btn-primary" id="detectBtn" disabled>Run Detect</button>
-          <p class="flow-desc" id="detectHint" style="margin-top:4px">Optional — unique to MakerDeck.</p>
+          <p class="flow-desc" id="detectHint" style="margin-top:4px">Optional — detects emboss / deboss / trim layers.</p>
         </div>
       </div>
 
@@ -607,7 +607,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b514</span>
+    <span>STL Painter b517</span>
   </footer>
 </div>
 

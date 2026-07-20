@@ -2,8 +2,14 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b516 Temora plaque SVG fill-path emboss
+- Latest commit: STL Painter own sidebar tab (#/painter) · app.js?v=642 · style.css?v=495
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
+
+### 2026-07-20 feature (STL Painter — own sidebar menu)
+
+**Need:** Painter out of MakerDeck toolbar; first-class Flightdeck nav.
+
+**What shipped:** `#/painter` view + amber **STL Painter** sidebar tab; removed MakerDeck topbar link; Painter branding standalone (b517). Hard refresh Flightdeck (`app.js?v=642`, `style.css?v=495`). Backend restart not required (static only; pull still needed).
 
 ### 2026-07-20 feature (MakerDeck b516 / b515 — Temora Vet plaque)
 

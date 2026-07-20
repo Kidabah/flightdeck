@@ -135,17 +135,20 @@ body.sidebar-resizing {
   overflow: auto;
 }
 
-#view-makerdeck {
+#view-makerdeck,
+#view-painter {
   overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 
-#view-makerdeck[hidden] {
+#view-makerdeck[hidden],
+#view-painter[hidden] {
   display: none !important;
 }
 
-.makerdeck-page {
+.makerdeck-page,
+.painter-page {
   flex: 1;
   min-height: 0;
   display: flex;
@@ -153,7 +156,8 @@ body.sidebar-resizing {
   background: #070b12;
 }
 
-#makerdeck-frame {
+#makerdeck-frame,
+#painter-frame {
   flex: 1;
   width: 100%;
   min-height: 0;
@@ -23208,6 +23212,13 @@ select optgroup {
 .tab.tab-makerdeck:hover { color: #fca5a5; }
 .tab.tab-makerdeck.active { color: #fff; background: #dc2626; }
 .tab.tab-makerdeck.active::before { background: #fff; }
+
+/* STL Painter sidebar tab — amber so it stands apart from MakerDeck */
+.tab.tab-painter { color: #fbbf24; font-weight: 600; }
+.tab.tab-painter::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #f59e0b; margin-right: 8px; vertical-align: middle; }
+.tab.tab-painter:hover { color: #fcd34d; }
+.tab.tab-painter.active { color: #111827; background: #f59e0b; }
+.tab.tab-painter.active::before { background: #111827; }
 
 /* ── Colour Match (Spools) ─────────────────────────────────────────────── */
 .spool-page-colour-mode .spool-intel-panel,
