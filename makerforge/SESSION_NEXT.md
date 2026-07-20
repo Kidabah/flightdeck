@@ -1,5 +1,22 @@
 ---
 
+## b528 — Shelf edit mode + dovetail z-fight fix
+**Date:** 2026-07-20
+
+### What changed
+- Female dovetail sits fully in front of the back plate (0.4 mm gap) — no coplanar faces / centre flicker line
+- **Edit back** / **Edit shelf** chips — preview + sliders for one part at a time; export still Body + Shelf
+- Text/art overlay only on back edit
+
+### Deploy
+- Hard refresh MakerDeck **b528** (Ctrl+Shift+R)
+- UI-only; restart optional
+
+### Files
+- `makerforge/js/signs.js`, `geometry.js`, `app.js`, `insert-slots.js`, `index.html`
+
+---
+
 ## b527 — Shelf sizing + separate parts + short-filament override
 **Date:** 2026-07-20
 

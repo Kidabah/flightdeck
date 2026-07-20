@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, ANIMAL_PRESET, SIGN_PRESET, TEMORA_VET_SIGN_PRESET, TEMORA_VET_CELTIC_SVG_URL } from "./geometry.js?v=527";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, resolveEmbossFontWeight, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=527";
+import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, ANIMAL_PRESET, SIGN_PRESET, TEMORA_VET_SIGN_PRESET, TEMORA_VET_CELTIC_SVG_URL } from "./geometry.js?v=528";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, resolveEmbossFontWeight, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=528";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=370";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=372";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=378";
@@ -35,7 +35,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b527";
+const MAKERDECK_BUILD = "b528";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -688,6 +688,7 @@ function buildParams() {
     signShelfWidth: state.signShelfWidth ?? state.signWidth ?? 180,
     signShelfThickness: state.signShelfThickness ?? 4,
     signShelfCorner: state.signShelfCorner ?? 8,
+    signShelfEditPart: state.signShelfEditPart === "shelf" ? "shelf" : "back",
     signMount: state.signMount,
     signBorder: state.signBorder,
     signBorderWidth: state.signBorderWidth,
@@ -796,6 +797,10 @@ function disposeArtPreview() {
 
 function mountArtPreviewIfNeeded() {
   if (state.embossDeboss) return;
+  if (state.shape === "sign" && state.signType === "shelf" && state.signShelfEditPart === "shelf") {
+    disposeArtPreview();
+    return;
+  }
   const params = buildParams();
   const cache = state.embossFace === "lid" ? lidCache : meshCache;
   disposeArtPreview();
@@ -874,6 +879,10 @@ function mountDebossPreviewIfNeeded() {
 function mountEmbossLabelPreviewIfNeeded() {
   // Deboss still builds labelMesh as the cutter silhouette — show it so font/size
   // changes are visible (body isn't boolean-subtracted in preview).
+  if (state.shape === "sign" && state.signType === "shelf" && state.signShelfEditPart === "shelf") {
+    disposeLabelPreview();
+    return; // editing shelf alone — text lives on the back
+  }
   const params = buildParams();
   labelMaterial.color.set(state.embossTextColor || "#f8fafc");
   applyFilamentMaterial(labelMaterial);
@@ -3019,6 +3028,7 @@ function syncUiFromState() {
     const setV = (id, v) => { const el = document.getElementById(id); if (el && document.activeElement !== el) el.value = v; };
     const setOut = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
     const isShelf = (state.signType || "plaque") === "shelf";
+    const editShelf = isShelf && state.signShelfEditPart === "shelf";
     setV("sign-shape", state.signShape || "rounded");
     setV("sign-type", state.signType || "plaque");
     setV("sign-width", state.signWidth); setOut("sign-width-out", state.signWidth + " mm");
@@ -3035,10 +3045,23 @@ function syncUiFromState() {
     setV("sign-shelf-corner", shelfCorner); setOut("sign-shelf-corner-out", shelfCorner + " mm");
     setV("sign-mount", state.signMount || (isShelf ? "none" : "keyhole"));
     const bc = document.getElementById("sign-border"); if (bc) bc.checked = state.signBorder !== false;
-    document.getElementById("field-sign-shelf-width")?.classList.toggle("hidden", !isShelf);
-    document.getElementById("field-sign-shelf-length")?.classList.toggle("hidden", !isShelf);
-    document.getElementById("field-sign-shelf-thickness")?.classList.toggle("hidden", !isShelf);
-    document.getElementById("field-sign-shelf-corner")?.classList.toggle("hidden", !isShelf);
+    document.getElementById("sign-shelf-edit-row")?.classList.toggle("hidden", !isShelf);
+    document.querySelectorAll("[data-sign-edit]").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.signEdit === (editShelf ? "shelf" : "back"));
+    });
+    // Back-only controls
+    document.getElementById("sign-width")?.closest("label")?.classList.toggle("hidden", editShelf);
+    document.getElementById("sign-height")?.closest("label")?.classList.toggle("hidden", editShelf);
+    document.getElementById("sign-thickness")?.closest("label")?.classList.toggle("hidden", editShelf);
+    document.getElementById("sign-corner")?.closest("label")?.classList.toggle("hidden", editShelf);
+    document.getElementById("field-sign-mount")?.classList.toggle("hidden", editShelf);
+    document.getElementById("sign-border")?.closest("label")?.classList.toggle("hidden", editShelf);
+    document.getElementById("sign-shape")?.closest("label")?.classList.toggle("hidden", editShelf);
+    // Shelf-only controls
+    document.getElementById("field-sign-shelf-width")?.classList.toggle("hidden", !editShelf);
+    document.getElementById("field-sign-shelf-length")?.classList.toggle("hidden", !editShelf);
+    document.getElementById("field-sign-shelf-thickness")?.classList.toggle("hidden", !editShelf);
+    document.getElementById("field-sign-shelf-corner")?.classList.toggle("hidden", !editShelf);
     document.getElementById("sign-hint-plaque")?.classList.toggle("hidden", isShelf);
     document.getElementById("sign-hint-shelf")?.classList.toggle("hidden", !isShelf);
   }
@@ -6491,9 +6514,18 @@ function _signSizeDefaults(type) {
 document.getElementById("sign-type")?.addEventListener("change", (e) => {
   state.signType = e.target.value || "plaque";
   Object.assign(state, _signSizeDefaults(state.signType));
+  if (state.signType !== "shelf") state.signShelfEditPart = "back";
   syncUiFromState();
   rebuild();
   scheduleSaveSession();
+});
+document.querySelectorAll("[data-sign-edit]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    state.signShelfEditPart = btn.dataset.signEdit === "shelf" ? "shelf" : "back";
+    syncUiFromState();
+    rebuild();
+    scheduleSaveSession();
+  });
 });
 for (const [id, key] of [
   ["sign-width", "signWidth"],

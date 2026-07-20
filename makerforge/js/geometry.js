@@ -28,7 +28,7 @@ import {
   shapeSupportsProfileArt,
   shapeSupportsArt,
   STACK_LIP_MM,
-} from "./features.js?v=527";
+} from "./features.js?v=528";
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=161";
 import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=163";
@@ -44,7 +44,7 @@ import {
   buildSignShelfFemaleReceiver,
   buildSignShelfWithMale,
   signShelfDovetailDims,
-} from "./signs.js?v=527";
+} from "./signs.js?v=528";
 import {
   resolveVaseTexture,
   densifyClosedProfile,
@@ -56,7 +56,7 @@ import {
   profileOutlinePerimeter,
 } from "./vase-textures.js";
 
-import { appendInsertShelfSlotsToBody } from "./insert-slots.js?v=527";
+import { appendInsertShelfSlotsToBody } from "./insert-slots.js?v=528";
 
 export { shapeSupportsDecor, shapeSupportsInsert, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, VASE_STYLES };
 
@@ -2211,24 +2211,17 @@ export function buildSign(params) {
     signShelf: isShelf,
   };
 
-  // Shelf type: preview = print layout (two separate flat parts), not a fused L.
+  // Preview: edit one part at a time (Back or Shelf). Export always both.
+  const editShelf = isShelf && (params.signShelfEditPart || "back") === "shelf";
   let previewMesh;
   let boxShell;
   if (isShelf) {
     boxShell = { positions: backMesh.positions.slice(), indices: backMesh.indices.slice() };
     flattenUprightSignMesh(boxShell, H, th);
-    previewMesh = { positions: boxShell.positions.slice(), indices: boxShell.indices.slice() };
-    if (shelfMesh) {
-      const gap = 12;
-      const shelfPreview = {
-        positions: shelfMesh.positions.slice(),
-        indices: shelfMesh.indices.slice(),
-      };
-      const shiftX = W / 2 + shelfW / 2 + gap;
-      for (let i = 0; i < shelfPreview.positions.length; i += 3) {
-        shelfPreview.positions[i] += shiftX;
-      }
-      appendMesh(previewMesh, shelfPreview);
+    if (editShelf && shelfMesh) {
+      previewMesh = { positions: shelfMesh.positions.slice(), indices: shelfMesh.indices.slice() };
+    } else {
+      previewMesh = { positions: boxShell.positions.slice(), indices: boxShell.indices.slice() };
     }
   } else {
     previewMesh = { positions: backMesh.positions.slice(), indices: backMesh.indices.slice() };
@@ -2259,14 +2252,13 @@ export function buildSign(params) {
     const allLabels = [labelMesh, graphicMesh, debossCutterMesh, ...(graphicColourParts || []).map((c) => c.mesh)].filter(Boolean);
     if (isShelf) {
       finishShelfSignLabels(allLabels, params, signArc, H);
-      // Preview/export use print-flat back — flatten labels onto the plate top.
       for (const m of allLabels) flattenUprightSignMesh(m, H, th);
     } else {
       finishFlatPlaqueLabels(allLabels, params, H, th, signArc);
     }
   }
 
-  // boxShell already set for shelf (print-flat back); plaque uses upright/flat plate as-is.
+  // boxShell already set for shelf (print-flat back); plaque uses plate as-is.
   if (!isShelf) {
     boxShell = { positions: backMesh.positions.slice(), indices: backMesh.indices.slice() };
   }
@@ -3035,6 +3027,7 @@ export const DEFAULTS = {
   signShelfWidth: 180,
   signShelfThickness: 4,
   signShelfCorner: 8,
+  signShelfEditPart: "back",
   signMount: "keyhole",
   signBorder: true,
   signBorderWidth: 3.5,

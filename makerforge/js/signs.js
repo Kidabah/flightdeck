@@ -198,16 +198,20 @@ function extrudeYzAlongX(profileYz, x0, x1, holesYz = []) {
   return { positions, indices };
 }
 
+/** Air gap between back face and female bracket — avoids coplanar z-fighting in preview. */
+const SHELF_DOVETAIL_FACE_GAP = 0.4;
+
 /**
- * Female dovetail receiver on the front-bottom of an upright back.
+ * Female dovetail bracket entirely in FRONT of the back plate (no shared faces).
  * Tunnel along X — shelf male slides in from the side.
  */
 export function buildSignShelfFemaleReceiver(backW, shelfW, backTh, shelfTh, dims = null) {
   const d = dims || signShelfDovetailDims(backTh, shelfTh);
   const tunnelW = Math.min(backW, shelfW);
-  const yF = -backTh / 2;
-  const yDeep = yF + d.depth;
-  const yOut = yF - 1.2;
+  const yPlate = -backTh / 2;
+  const yDeep = yPlate - SHELF_DOVETAIL_FACE_GAP;
+  const yOpen = yDeep - d.depth;
+  const yOut = yOpen - 0.6;
   const z0 = 0;
   const z1 = Math.max(shelfTh + 1.2, d.baseW + 1.6);
   const zMid = shelfTh * 0.5;
@@ -215,11 +219,13 @@ export function buildSignShelfFemaleReceiver(backW, shelfW, backTh, shelfTh, dim
   const n1 = zMid + d.neckW / 2;
   const b0 = zMid - d.baseW / 2;
   const b1 = zMid + d.baseW / 2;
+  // Bracket body sits fully in front of the plate (all y < yPlate).
   const outer = [
-    [yOut, z0], [yDeep + 1.0, z0], [yDeep + 1.0, z1], [yOut, z1],
+    [yOut, z0], [yDeep, z0], [yDeep, z1], [yOut, z1],
   ];
+  // Narrow at opening (toward shelf), wider toward the plate.
   const hole = [
-    [yF, n0], [yDeep, b0], [yDeep, b1], [yF, n1],
+    [yOpen, n0], [yDeep, b0], [yDeep, b1], [yOpen, n1],
   ];
   const x0 = -tunnelW / 2 + 1.5;
   const x1 = tunnelW / 2 - 1.5;
@@ -235,12 +241,10 @@ function shelfDeckOutlineXy(halfW, yFront, yRear, cornerR) {
   }
   const pts = [];
   const seg = 10;
-  // Front-left arc (looking down +Z)
   for (let i = 0; i <= seg; i++) {
     const a = Math.PI + (Math.PI / 2) * (i / seg);
     pts.push([-halfW + r + r * Math.cos(a), yFront + r + r * Math.sin(a)]);
   }
-  // Front-right arc
   for (let i = 0; i <= seg; i++) {
     const a = -Math.PI / 2 + (Math.PI / 2) * (i / seg);
     pts.push([halfW - r + r * Math.cos(a), yFront + r + r * Math.sin(a)]);
@@ -251,17 +255,19 @@ function shelfDeckOutlineXy(halfW, yFront, yRear, cornerR) {
 
 /**
  * Shelf deck + male dovetail (print pose: deck on z=0).
- * shelfW = width along back, shelfLen = front-to-back length, cornerR = front corner radius.
+ * Male points into the forward female bracket (in front of the back face).
  */
 export function buildSignShelfWithMale(shelfW, shelfLen, shelfTh, backTh, cornerR = 0, dims = null) {
   const d = dims || signShelfDovetailDims(backTh, shelfTh);
   const clr = d.clearance;
-  const yF = -backTh / 2;
+  const yPlate = -backTh / 2;
+  const yDeep = yPlate - SHELF_DOVETAIL_FACE_GAP;
+  const yOpen = yDeep - d.depth;
   const len = Math.max(12, shelfLen);
-  const yFront = yF - len;
+  const yFront = yOpen - len;
   const halfW = Math.max(10, shelfW) / 2;
   const thS = Math.max(1.5, shelfTh);
-  const outer = shelfDeckOutlineXy(halfW, yFront, yF, cornerR);
+  const outer = shelfDeckOutlineXy(halfW, yFront, yOpen, cornerR);
   const positions = [];
   const indices = [];
   const mapTop = (px, py) => [px, py, thS];
@@ -270,8 +276,7 @@ export function buildSignShelfWithMale(shelfW, shelfLen, shelfTh, backTh, corner
     positions, indices, { outer, holes: [] },
     mapTop, mapBot, (w) => [w[0], w[1]], "both", null,
   );
-  // Male rail — slightly inset from shelf ends
-  const yTip = yF + d.depth - clr * 0.35;
+  const yTip = yDeep - clr * 0.35;
   const zMid = thS * 0.5;
   const neck = Math.max(1.2, d.neckW - clr);
   const base = Math.max(neck + 0.4, d.baseW - clr);
@@ -279,12 +284,13 @@ export function buildSignShelfWithMale(shelfW, shelfLen, shelfTh, backTh, corner
   const n1 = zMid + neck / 2;
   const b0 = zMid - base / 2;
   const b1 = zMid + base / 2;
+  // Narrow at opening, wide at tip — matches female flare.
   const male = extrudeYzAlongX(
     [
-      [yF, n0],
+      [yOpen, n0],
       [yTip, b0],
       [yTip, b1],
-      [yF, n1],
+      [yOpen, n1],
     ],
     -halfW + 2.2,
     halfW - 2.2,

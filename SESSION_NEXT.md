@@ -2,8 +2,14 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b527 + queue Allow short filament override
+- Latest commit: MakerDeck b528 — shelf edit mode + dovetail z-fight fix
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
+
+### 2026-07-20 (b528 — Edit back / Edit shelf + z-fight fix)
+
+**Need:** Centre flicker line on shelf preview; edit shelf separately from back.
+
+**What shipped:** Female dovetail fully in front of plate (no coplanar faces); Edit back / Edit shelf chips with part-only preview + sliders. Hard refresh **b528**.
 
 ### 2026-07-20 (b527 — shelf size sliders + separate parts + short filament override)
 
