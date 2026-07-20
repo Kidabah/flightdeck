@@ -1,5 +1,18 @@
 ---
 
+## b522 — Bog fix: accent-bands double + UI sync thrash
+**Date:** 2026-07-20
+
+### What changed
+- geometry `accent-bands.js?v=161` → `?v=163` (matched app; stopped second copy)
+- Stopped double `syncArtEditorUi` after `updateDecorUi`
+- Cheaper art checks; line-list DOM only when content changes; slower SVG rebuild debounce
+
+### Deploy
+- Hard refresh MakerDeck **b522** (Ctrl+Shift+R)
+
+---
+
 ## b521 — Letter/line spacing + font weight
 **Date:** 2026-07-20
 

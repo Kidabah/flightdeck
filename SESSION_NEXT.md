@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b521 — letter/line spacing + font weight
+- Latest commit: MakerDeck b522 — bog fix (accent-bands double + UI sync)
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
+
+### 2026-07-20 fix (MakerDeck b522 — still boggy)
+
+**Need:** MakerDeck still laggy after b520.
+
+**Cause:** `accent-bands.js?v=161` (geometry) vs `?v=163` (app) = second module copy; `updateDecorUi` → `syncArtEditorUi` often called twice; heavy `buildParams` art checks + line-list re-render every sync.
+
+**What shipped:** Align accent-bands to v163; drop duplicate sync; cheap art-state check; skip line UI rebuild when unchanged; longer SVG rebuild debounce. Hard refresh **b522**.
 
 ### 2026-07-20 feature (MakerDeck b521 — text spacing + weight)
 

@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, ANIMAL_PRESET, SIGN_PRESET, TEMORA_VET_SIGN_PRESET, TEMORA_VET_CELTIC_SVG_URL } from "./geometry.js?v=521";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, resolveEmbossFontWeight, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=521";
+import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, ANIMAL_PRESET, SIGN_PRESET, TEMORA_VET_SIGN_PRESET, TEMORA_VET_CELTIC_SVG_URL } from "./geometry.js?v=522";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, resolveEmbossFontWeight, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=522";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=370";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=372";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=378";
@@ -35,7 +35,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b521";
+const MAKERDECK_BUILD = "b522";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -294,6 +294,7 @@ function renderEmbossTextLinesUi() {
   const rows = lines.length
     ? lines
     : [{ text: "", heightMm: clampEmbossLineHeightMm(state.embossHeight, 7) }];
+  _embossLinesUiSig = embossLinesUiSignature();
 
   host.innerHTML = rows.map((row, i) => `
     <div class="emboss-line-row" role="listitem" data-line-index="${i}">
@@ -1081,7 +1082,15 @@ function traceApplyNeedsRefresh() {
   return !embossTraceMasksValid(state.embossTraceRects) && !!traceSourceCanvas;
 }
 
-function hasGraphicArt(params = buildParams()) {
+/** Cheap art check from live state — avoids buildParams() on every UI sync. */
+function hasGraphicArtState() {
+  const hasSvg = state.embossSvgEnabled && !!state.embossSvgText?.trim();
+  const hasTrace = traceDataHasValidInk(state.embossTraceRects, state.embossTraceEnabled);
+  return !!(hasSvg || hasTrace);
+}
+
+function hasGraphicArt(params = null) {
+  if (!params) return hasGraphicArtState();
   const hasSvg = params.embossSvgEnabled && !!params.embossSvgText?.trim();
   const hasTrace = traceDataHasValidInk(params.embossTraceRects, params.embossTraceEnabled);
   return !!(hasSvg || hasTrace);
@@ -2725,7 +2734,6 @@ async function exportLibraryFolderToDownloads() {
         sessionBooting = false;
         syncUiFromState();
         updateDecorUi();
-        syncArtEditorUi();
         updateTraceUi();
         rebuild();
         // Trace geometry must be ready BEFORE export (deferred idle restore is too late).
@@ -2777,7 +2785,6 @@ async function exportLibraryFolderToDownloads() {
     }
     syncUiFromState();
     updateDecorUi();
-    syncArtEditorUi();
     updateTraceUi();
     rebuild();
     scheduleDeferredRestoreTrace();
@@ -2929,7 +2936,6 @@ async function loadLibraryDesign(designId) {
     sessionBooting = false;
     syncUiFromState();
     updateDecorUi();
-    syncArtEditorUi();
     updateTraceUi();
     rebuild();
     if (meshCache) fitCamera(meshCache.meta);
@@ -4006,7 +4012,6 @@ function clearDecorFromBox() {
   document.getElementById("emboss-svg-enabled").checked = false;
   pushAppHistory();
   updateDecorUi();
-  syncArtEditorUi();
   updateTraceUi();
   updateHistoryUi();
   rebuild();
@@ -4049,9 +4054,10 @@ let rebuildAgain = false;
 
 function artRebuildDelayMs() {
   const layerCount = state.embossTraceRects?.colorLayers?.length || 0;
-  if (state.embossTraceRects?.multiColour && layerCount > 1) return 320;
-  if (state.embossTraceEnabled && state.embossTraceRects) return 200;
-  return 120;
+  if (state.embossTraceRects?.multiColour && layerCount > 1) return 360;
+  if (state.embossSvgEnabled && state.embossSvgText?.trim()) return 280;
+  if (state.embossTraceEnabled && state.embossTraceRects) return 220;
+  return 140;
 }
 
 function scheduleArtRebuild(immediate = false) {
@@ -4163,11 +4169,18 @@ function syncSvgImportUi() {
   }
 }
 
+function embossLinesUiSignature() {
+  const lines = Array.isArray(state.embossTextLines) ? state.embossTextLines : [];
+  return `${plainTextEditOpen ? 1 : 0}|${lines.map((l) => `${l.text}\t${l.heightMm}`).join("\n")}`;
+}
+
+let _embossLinesUiSig = "";
+
 function syncArtEditorUi() {
   const textOn = textHasInk(state.embossText);
   const traceOn = !!state.embossTraceEnabled;
   const svgOn = state.embossSvgEnabled && !!state.embossSvgText?.trim();
-  const artOn = hasGraphicArt(buildParams());
+  const artOn = hasGraphicArtState();
   const hasContent = appliedHasArt(state) || textOn;
 
   if (Array.isArray(state.embossTextLines) && state.embossTextLines.length) {
@@ -4177,11 +4190,16 @@ function syncArtEditorUi() {
   } else {
     syncEmbossTextState();
   }
-  document.getElementById("emboss-text").value = state.embossText || "";
+  const ta = document.getElementById("emboss-text");
+  if (ta && document.activeElement !== ta) ta.value = state.embossText || "";
   const active = document.activeElement;
   const editingLine = active?.classList?.contains("emboss-line-text")
     || active?.classList?.contains("emboss-line-size");
-  if (!editingLine) renderEmbossTextLinesUi();
+  const linesSig = embossLinesUiSignature();
+  if (!editingLine && linesSig !== _embossLinesUiSig) {
+    _embossLinesUiSig = linesSig;
+    renderEmbossTextLinesUi();
+  }
   document.getElementById("emboss-face").value = state.embossFace || "front";
   document.getElementById("emboss-font").value = state.embossFont || "bebas";
   const weightSel = document.getElementById("emboss-font-weight");
@@ -4417,7 +4435,6 @@ async function runTraceAsync() {
     ) {
       rebuildDeferred().then(() => {
         updateDecorUi();
-        syncArtEditorUi();
       });
     }
     scheduleSaveSession();
@@ -4467,7 +4484,6 @@ function clearTraceImageAndEmboss() {
   document.getElementById("trace-preview-wrap")?.classList.add("hidden");
   updateTraceUi();
   updateDecorUi();
-  syncArtEditorUi();
   updateHistoryUi();
   if (hadTrace) {
     rebuild();
@@ -4509,7 +4525,6 @@ async function handleTraceFile(file) {
       requestAnimationFrame(() => {
         rebuild();
         updateDecorUi();
-        syncArtEditorUi();
       });
     }
   } catch (err) {
@@ -4651,7 +4666,6 @@ async function applySvgTraceResult(svgText, traceResult, { fileName = "" } = {})
   state.embossTraceEnabled = true;
   document.getElementById("emboss-svg-enabled").checked = true;
   updateDecorUi();
-  syncArtEditorUi();
   syncSvgImportUi();
   updateTraceUi();
   await rebuildDeferred();
@@ -4782,7 +4796,6 @@ function applyTraceToBox() {
     await rebuildDeferred();
     pushAppHistory();
     updateDecorUi();
-    syncArtEditorUi();
     updateTraceUi();
   })();
 }
@@ -5916,7 +5929,7 @@ function updateDecorUi() {
 
   const svgLoaded = state.embossSvgEnabled && supported;
   const traceOnBox = !!state.embossTraceEnabled;
-  const artOn = hasGraphicArt(buildParams());
+  const artOn = hasGraphicArtState();
   const textOn = textHasInk(state.embossText);
   const svgCb = document.getElementById("emboss-svg-enabled");
   if (svgCb) svgCb.checked = svgLoaded;
@@ -6683,7 +6696,6 @@ document.getElementById("emboss-svg-enabled")?.addEventListener("change", (e) =>
     if (svgFile) svgFile.value = "";
   }
   updateDecorUi();
-  syncArtEditorUi();
   scheduleArtRebuild(true);
   pushAppHistory();
 });
@@ -7044,7 +7056,6 @@ function refreshDisplayUnitUi() {
   updateLidUi();
   updateJoinerUi();
   updateDecorUi();
-  syncArtEditorUi();
   syncInsertTopClearanceUi();
   syncAccentBandControlsFromState();
   if (meshCache?.meta) updateStats(meshCache.meta);

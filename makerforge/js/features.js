@@ -1975,9 +1975,11 @@ function resolveLineHeightsMm(text, params, fallbackMm) {
 
 /** Width of a line with letter-spacing multiplier (1 = natural). */
 function measureSpacedLineWidth(ctx, line, letterSpacing) {
-  const chars = [...String(line || "")];
-  if (!chars.length) return 0;
+  const s = String(line || "");
+  if (!s) return 0;
   const spacing = clamp(letterSpacing ?? 1, 0.7, 1.8);
+  if (Math.abs(spacing - 1) < 0.01) return ctx.measureText(s).width;
+  const chars = [...s];
   let w = 0;
   for (let i = 0; i < chars.length; i++) {
     const cw = ctx.measureText(chars[i]).width;
@@ -1988,9 +1990,15 @@ function measureSpacedLineWidth(ctx, line, letterSpacing) {
 
 /** Draw a line left-to-right with letter spacing; `x` is the left edge. */
 function fillSpacedLine(ctx, line, x, y, letterSpacing) {
-  const chars = [...String(line || "")];
+  const s = String(line || "");
+  if (!s) return;
   const spacing = clamp(letterSpacing ?? 1, 0.7, 1.8);
   ctx.textAlign = "left";
+  if (Math.abs(spacing - 1) < 0.01) {
+    ctx.fillText(s, x, y);
+    return;
+  }
+  const chars = [...s];
   let cx = x;
   for (let i = 0; i < chars.length; i++) {
     ctx.fillText(chars[i], cx, y);
