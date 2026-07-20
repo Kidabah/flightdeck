@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b505 lasso area fill
+- Latest commit: MakerDeck b506 AMS slot +/-
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
+
+### 2026-07-20 feature (MakerDeck b506 — AMS slot +/-)
+
+**Need:** Add/remove AMS colours from the slot list.
+
+**What shipped:** +/− for slots 1–4; remove remaps paint to Base. Cache-bust `painter.js?v=506`.
+
+**Deploy:** Hard refresh Painter (no backend restart).
 
 ### 2026-07-20 feature (MakerDeck b505 — lasso area fill)
 

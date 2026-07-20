@@ -14,7 +14,7 @@
 </script>
 <style>
 /* ================================================================== */
-/*  b505 — MakerDeck STL Painter  (tabbed layout)                     */
+/*  b506 — MakerDeck STL Painter  (tabbed layout)                     */
 /* ================================================================== */
 
 /* -- Reset & Vars -------------------------------------------------- */
@@ -111,6 +111,18 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   color:var(--muted);border:1px solid var(--border);transition:all .15s}
 .slot-card .slot-btn:hover{color:var(--text);border-color:var(--accent)}
 .slot-card .slot-btn.off{color:var(--red);border-color:var(--red)}
+.slot-card.slot-off{display:none}
+.section-label-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
+.section-label-row .section-label{margin:0}
+.slot-count-ctrl{display:inline-flex;align-items:center;gap:4px}
+.slot-count-ctrl button{width:26px;height:26px;padding:0;border-radius:var(--radius-sm);
+  border:1px solid var(--border);background:var(--panel-2);color:var(--text);
+  font-size:16px;font-weight:700;line-height:1;cursor:pointer;transition:all .15s}
+.slot-count-ctrl button:hover{border-color:var(--accent);background:var(--accent-dim)}
+.slot-count-ctrl button:disabled{opacity:.35;pointer-events:none;cursor:default}
+.slot-count-ctrl .slot-count-val{min-width:1.2em;text-align:center;font-size:12px;font-weight:700;
+  font-variant-numeric:tabular-nums;color:var(--muted)}
+.paint-target.slot-off{display:none}
 
 /* -- Preset Swatches ----------------------------------------------- */
 .preset-row{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
@@ -273,7 +285,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   <header class="header">
     <button class="toggle-sidebar" id="toggleSidebar" title="Toggle sidebar">☰</button>
     <div class="logo">Maker<span>Deck</span> · STL Painter</div>
-    <div class="build">b505</div>
+    <div class="build">b506</div>
   </header>
 
   <!-- Left Sidebar (tabbed) -->
@@ -326,9 +338,17 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
 
       <!-- TAB: Colours -->
       <div class="tab-page" id="tabColours">
-        <div class="section-label">AMS Filament Slots</div>
+        <div class="section-label-row">
+          <div class="section-label">AMS Filament Slots</div>
+          <div class="slot-count-ctrl" title="Bambu paint supports up to 4 AMS colours">
+            <button type="button" id="slotMinusBtn" title="Remove last slot">−</button>
+            <span class="slot-count-val" id="slotCountLabel">4</span>
+            <button type="button" id="slotPlusBtn" title="Add slot">+</button>
+          </div>
+        </div>
+        <p class="flow-desc" style="margin-top:0">+/− changes how many slots you use (1–4). Removing a slot puts its paint back on Base.</p>
         <div class="slot-list" id="slotList">
-          <div class="slot-card active" data-target="body">
+          <div class="slot-card active" data-target="body" data-slot="1">
             <div class="swatch-wrap"><input type="color" id="colorBody" value="#B0B0B0"></div>
             <div class="slot-info">
               <div class="slot-name">Slot 1 · Base</div>
@@ -338,7 +358,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
               <button class="slot-btn" data-hide="body">Hide</button>
             </div>
           </div>
-          <div class="slot-card" data-target="emboss">
+          <div class="slot-card" data-target="emboss" data-slot="2">
             <div class="swatch-wrap"><input type="color" id="colorEmboss" value="#131211"></div>
             <div class="slot-info">
               <div class="slot-name">Slot 2 · Accent</div>
@@ -348,7 +368,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
               <button class="slot-btn" data-hide="emboss">Hide</button>
             </div>
           </div>
-          <div class="slot-card" data-target="deboss">
+          <div class="slot-card" data-target="deboss" data-slot="3">
             <div class="swatch-wrap"><input type="color" id="colorDeboss" value="#F5F5F5"></div>
             <div class="slot-info">
               <div class="slot-name">Slot 3 · Detail</div>
@@ -358,7 +378,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
               <button class="slot-btn" data-hide="deboss">Hide</button>
             </div>
           </div>
-          <div class="slot-card" data-target="trim">
+          <div class="slot-card" data-target="trim" data-slot="4">
             <div class="swatch-wrap"><input type="color" id="colorTrim" value="#1E40AF"></div>
             <div class="slot-info">
               <div class="slot-name">Slot 4 · Trim</div>
@@ -609,7 +629,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b505</span>
+    <span>MakerDeck · STL Painter b506</span>
   </footer>
 </div>
 
@@ -623,7 +643,7 @@ import {
   paintClassOf, upgradePaintResolution, export3MF,
   findMeshIslands, buildIslandMap, floodFillSameClass, selectIsland,
   import3MF, buildSymmetryMap
-} from './js/painter.js?v=505';
+} from './js/painter.js?v=506';
 
 /* ================================================================== */
 /*  STATE                                                             */
@@ -639,6 +659,7 @@ const S = {
   tool: 'orbit',
   brushStroke: 'free',
   paintTarget: 'body',
+  slotCount: 4, // visible AMS slots (1–4); Bambu paint_color max
   detectMode: 'emboss',
   undoStack: [], redoStack: [],
   edgeHighlight: null,
@@ -1415,7 +1436,79 @@ function updateSmartCursor(clientX, clientY, worldPoint) {
 
 function isBrushTool(t = S.tool) { return t === 'brush' || t === 'spray'; }
 
+const SLOT_ORDER = ['body', 'emboss', 'deboss', 'trim'];
 const SLOT_LABELS = { body:'Slot 1 (base)', emboss:'Slot 2 (accent)', deboss:'Slot 3 (detail)', trim:'Slot 4 (trim)' };
+const SLOT_TOOLBAR = { body:'targetBody', emboss:'targetEmboss', deboss:'targetDeboss', trim:'targetTrim' };
+const MAX_AMS_SLOTS = 4;
+
+function slotKeyAt(index1based) { return SLOT_ORDER[index1based - 1] || null; }
+function isSlotActive(key) {
+  const idx = SLOT_ORDER.indexOf(key);
+  return idx >= 0 && idx < S.slotCount;
+}
+
+/** Remap painted faces on a slot back to Base (body). Returns face count. */
+function clearSlotPaintToBody(slotKey) {
+  if (!S.embossMask || !S.nTri || slotKey === 'body') return 0;
+  const faces = [];
+  for (let i = 0; i < S.nTri; i++) {
+    if (slotKey === 'emboss' && S.embossMask[i]) faces.push(i);
+    else if (slotKey === 'deboss' && S.debossMask[i]) faces.push(i);
+    else if (slotKey === 'trim' && S.trimMask?.[i]) faces.push(i);
+  }
+  if (faces.length) paintFacesFree(faces, 'body');
+  return faces.length;
+}
+
+function syncSlotCountUI() {
+  const n = Math.max(1, Math.min(MAX_AMS_SLOTS, S.slotCount | 0));
+  S.slotCount = n;
+  document.querySelectorAll('.slot-card[data-slot]').forEach(card => {
+    const slotN = parseInt(card.dataset.slot, 10);
+    card.classList.toggle('slot-off', slotN > n);
+  });
+  for (let i = 0; i < SLOT_ORDER.length; i++) {
+    const key = SLOT_ORDER[i];
+    const btn = $(SLOT_TOOLBAR[key]);
+    btn?.classList.toggle('slot-off', i >= n);
+  }
+  const label = $('slotCountLabel');
+  if (label) label.textContent = String(n);
+  $('slotMinusBtn') && ($('slotMinusBtn').disabled = n <= 1);
+  $('slotPlusBtn') && ($('slotPlusBtn').disabled = n >= MAX_AMS_SLOTS);
+  if (!isSlotActive(S.paintTarget)) setPaintTarget('body');
+  else syncSlotCards();
+}
+
+function addAmsSlot() {
+  if (S.slotCount >= MAX_AMS_SLOTS) {
+    setStatus('AMS paint max is 4 slots (Bambu/Orca)', 'idle');
+    return;
+  }
+  S.slotCount += 1;
+  syncSlotCountUI();
+  const key = slotKeyAt(S.slotCount);
+  setPaintTarget(key);
+  setStatus(`Added ${SLOT_LABELS[key]} — ${S.slotCount} of ${MAX_AMS_SLOTS}`, 'idle');
+}
+
+function removeAmsSlot() {
+  if (S.slotCount <= 1) {
+    setStatus('Need at least Slot 1 (Base)', 'idle');
+    return;
+  }
+  const key = slotKeyAt(S.slotCount);
+  const cleared = clearSlotPaintToBody(key);
+  S.hiddenSlots[key] = false;
+  S.slotCount -= 1;
+  syncSlotCountUI();
+  setStatus(
+    cleared
+      ? `Removed ${SLOT_LABELS[key]} — ${cleared.toLocaleString()} faces → Base`
+      : `Removed ${SLOT_LABELS[key]} — ${S.slotCount} of ${MAX_AMS_SLOTS}`,
+    'idle'
+  );
+}
 
 function syncHideUI() {
   document.querySelectorAll('.slot-card .slot-btn[data-hide]').forEach(btn => {
@@ -1504,9 +1597,13 @@ function setTool(tool) {
 }
 
 function setPaintTarget(target) {
+  if (!isSlotActive(target)) {
+    setStatus(`${SLOT_LABELS[target] || target} is off — use + to add a slot`, 'idle');
+    return;
+  }
   S.paintTarget = target;
-  for (const id of ['targetBody','targetEmboss','targetDeboss','targetTrim']) {
-    $(id)?.classList.toggle('active', id === 'target' + target.charAt(0).toUpperCase() + target.slice(1));
+  for (const key of SLOT_ORDER) {
+    $(SLOT_TOOLBAR[key])?.classList.toggle('active', key === target);
   }
   syncSlotCards(); syncHideUI();
   if (S.soloActive) updateMeshColors();
@@ -1565,10 +1662,20 @@ function showAllColours() {
   resetInteraction('All colours visible');
 }
 
+function ensureSlotFor(key) {
+  const idx = SLOT_ORDER.indexOf(key);
+  if (idx < 0) return;
+  if (S.slotCount < idx + 1) {
+    S.slotCount = idx + 1;
+    syncSlotCountUI();
+  }
+}
+
 function sampleEyedrop(clientX, clientY) {
   const hit = pickHitAtClient(clientX, clientY);
   if (!hit) { setStatus('Eyedropper — click on the model', 'idle'); return; }
   const cls = paintClassOf(hit.faceIndex, S.embossMask, S.debossMask, S.trimMask);
+  ensureSlotFor(cls);
   setPaintTarget(cls);
   setStatus(`Eyedropper → ${SLOT_LABELS[cls] || cls}`, 'idle');
 }
@@ -1720,19 +1827,28 @@ async function load3MF(file) {
     S.hiddenIslands.clear();
 
     // Apply imported colours if present
-    if (result.colors && result.colors.length >= 4) {
-      const slots = ['body', 'emboss', 'deboss', 'trim'];
-      for (let i = 0; i < 4; i++) {
+    if (result.colors?.length) {
+      for (let i = 0; i < Math.min(4, result.colors.length); i++) {
         const c = result.colors[i];
-        if (c && colorInputs[slots[i]]) {
-          // Normalize colour format (#RRGGBB or #RRGGBBFF)
+        if (c && colorInputs[SLOT_ORDER[i]]) {
           const hex = c.length > 7 ? c.slice(0, 7) : c;
-          colorInputs[slots[i]].value = hex;
-          colorHexEls[slots[i]].textContent = hex.toUpperCase();
+          colorInputs[SLOT_ORDER[i]].value = hex;
+          colorHexEls[SLOT_ORDER[i]].textContent = hex.toUpperCase();
         }
       }
       syncPaintSwatches();
     }
+    // Expand slot count to cover imported paint / colours
+    let used = 1;
+    for (let i = 0; i < result.nTri; i++) {
+      if (result.embossMask?.[i]) used = Math.max(used, 2);
+      if (result.debossMask?.[i]) used = Math.max(used, 3);
+      if (result.trimMask?.[i]) used = Math.max(used, 4);
+      if (used === 4) break;
+    }
+    if (result.colors?.length) used = Math.max(used, Math.min(4, result.colors.length));
+    S.slotCount = used;
+    syncSlotCountUI();
 
     $('soloActive').checked = false;
     $('undoBtn').disabled = true;
@@ -1997,6 +2113,10 @@ document.querySelectorAll('.detect-preset-btn').forEach(b => {
   b.addEventListener('click', () => { if (b.dataset.preset === 'custom') setDetectPresetActive('custom'); else applyDetectPreset(b.dataset.preset); });
 });
 updateSensitivityLabel();
+
+// AMS slot count (+/−)
+$('slotPlusBtn')?.addEventListener('click', addAmsSlot);
+$('slotMinusBtn')?.addEventListener('click', removeAmsSlot);
 
 // Viewport toolbar
 $('targetBody').addEventListener('click', () => setPaintTarget('body'));
@@ -2410,6 +2530,7 @@ batchBtn.addEventListener('click', async () => {
 /* ================================================================== */
 
 syncOrbitLock();
+syncSlotCountUI();
 setBrushStroke('free');
 setTool('brush');
 
@@ -2426,9 +2547,11 @@ window.addEventListener('keydown', (e) => {
   switch (e.key.toLowerCase()) {
     // Slots
     case '1': setPaintTarget('body'); e.preventDefault(); break;
-    case '2': setPaintTarget('emboss'); e.preventDefault(); break;
-    case '3': setPaintTarget('deboss'); e.preventDefault(); break;
-    case '4': setPaintTarget('trim'); e.preventDefault(); break;
+    case '2': if (isSlotActive('emboss')) setPaintTarget('emboss'); e.preventDefault(); break;
+    case '3': if (isSlotActive('deboss')) setPaintTarget('deboss'); e.preventDefault(); break;
+    case '4': if (isSlotActive('trim')) setPaintTarget('trim'); e.preventDefault(); break;
+    case '+': case '=': addAmsSlot(); e.preventDefault(); break;
+    case '-': case '_': removeAmsSlot(); e.preventDefault(); break;
     // Tools
     case 'b': setTool('brush'); e.preventDefault(); break;
     case 's': setTool('spray'); e.preventDefault(); break;

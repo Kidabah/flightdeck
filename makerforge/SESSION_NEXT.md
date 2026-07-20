@@ -1,5 +1,20 @@
 ---
 
+## b506 — AMS slot +/− (1–4 colours)
+**Date:** 2026-07-20
+
+### What changed
+- Colour tab: **− / +** next to AMS Filament Slots
+- Start with fewer colours or strip unused slots; max **4** (Bambu paint_color limit)
+- Removing a slot remaps its painted faces back to Base
+- Toolbar slot buttons hide/show with the count; shortcuts `+` / `-` too
+
+### File Changes
+- `painter.html` — `addAmsSlot` / `removeAmsSlot` / `syncSlotCountUI`; `painter.js?v=506`
+- `index.html` / `js/app.js` — MakerDeck build **b506**
+
+---
+
 ## b505 — Lasso Area Fill (draw → pick colour → fill)
 **Date:** 2026-07-20
 
