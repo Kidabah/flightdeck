@@ -1,5 +1,18 @@
 ---
 
+## b519 — Per-line emboss text + size
+**Date:** 2026-07-20
+
+### What changed
+- Art → Text: line list (text + size mm), Add line, Edit as plain text
+- `embossTextLines` synced with `embossText`; flat emboss rasters varied line heights
+- Temora preset: title 16/14, quote 9, names 7
+
+### Deploy
+- Hard refresh MakerDeck **b519** → Art → Text → Lines
+
+---
+
 ## b518 — Stop auto-arc on signs (Flat stays Flat)
 **Date:** 2026-07-20
 

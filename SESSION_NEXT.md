@@ -2,8 +2,14 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b518 — stop auto-arc forcing Flat text on signs
+- Latest commit: MakerDeck b519 — per-line emboss text + size
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
+
+### 2026-07-20 feature (MakerDeck b519 — per-line emboss text)
+
+**Need:** Separate font size per line + clearer line editing for plaques.
+
+**What shipped:** Art → Text **Lines** editor (`text` + `heightMm` each); `embossTextLines` in state/session; flat raster uses per-line sizes when they differ; Temora title/quote/names sized. Hard refresh MakerDeck **b519**.
 
 ### 2026-07-20 fix (MakerDeck b518 — Flat text kept snapping to Arc)
 

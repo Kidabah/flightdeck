@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Oswald:wght@700&family=Roboto+Mono:wght@700&family=Roboto:wght@700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=34">
+  <link rel="stylesheet" href="css/style.css?v=35">
 
   <script type="importmap">
 
@@ -44,7 +44,7 @@
 
         <div class="topbar-brand">
 
-          <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b518</span></div>
+          <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b519</span></div>
 
           <h1>Container Generator</h1>
 
@@ -1180,11 +1180,21 @@
 
               <div class="art-pane hidden" id="art-pane-text" role="tabpanel" hidden>
 
-                <p class="field-hint">Flat or <strong>Arc</strong> around a centre graphic — e.g. COFFEE around beans.</p>
+                <p class="field-hint">Each line has its own size. Flat stacks lines; <strong>Arc</strong> uses the first line only (e.g. COFFEE around beans).</p>
 
-                <label class="field field-textarea" id="field-emboss-text">
-                  <span class="field-label">Text</span>
+                <div class="field" id="field-emboss-lines">
+                  <span class="field-label">Lines</span>
+                  <div id="emboss-text-lines" class="emboss-lines-list" role="list"></div>
+                  <div class="art-actions-bar emboss-lines-actions">
+                    <button type="button" id="btn-add-text-line" class="btn btn-secondary btn-compact">+ Add line</button>
+                    <button type="button" id="btn-plain-text-edit" class="btn btn-ghost btn-compact">Edit as plain text</button>
+                  </div>
+                </div>
+
+                <label class="field field-textarea hidden" id="field-emboss-text">
+                  <span class="field-label">Plain text</span>
                   <textarea id="emboss-text" rows="6" maxlength="240" placeholder="TEMORA&#10;VET CLINIC&#10;ABBIE, SIOBHAN…"></textarea>
+                  <p class="field-hint">One line per row. Sizes for existing rows are kept when the line count matches.</p>
                 </label>
 
                 <label class="field field-color" id="field-text-color">
@@ -1198,10 +1208,11 @@
                 </label>
 
                 <label class="field" id="field-emboss-height">
-                  <span class="field-label">Text size <span class="unit unit-len">mm</span></span>
+                  <span class="field-label">Default size <span class="unit unit-len">mm</span></span>
                   <input type="range" id="emboss-height" min="3" max="220" step="0.5" value="7" tabindex="-1">
                   <button type="button" class="value-edit" id="out-emboss-height" data-slider="emboss-height" data-key="embossHeight" data-parse="float">7</button>
                 </label>
+                <p class="field-hint" id="default-size-hint">Used for new lines and when every line shares one size (whole block).</p>
 
                 <div class="field" id="field-text-align">
                   <span class="field-label">Align</span>
@@ -1436,7 +1447,7 @@
     </div>
   </dialog>
 
-  <script type="module" src="js/app.js?v=518"></script>
+  <script type="module" src="js/app.js?v=519"></script>
 
 </body>
 

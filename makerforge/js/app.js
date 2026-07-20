@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, ANIMAL_PRESET, SIGN_PRESET, TEMORA_VET_SIGN_PRESET, TEMORA_VET_CELTIC_SVG_URL } from "./geometry.js?v=516";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=516";
+import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, ANIMAL_PRESET, SIGN_PRESET, TEMORA_VET_SIGN_PRESET, TEMORA_VET_CELTIC_SVG_URL } from "./geometry.js?v=519";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=519";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=370";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=372";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=378";
@@ -35,7 +35,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b518";
+const MAKERDECK_BUILD = "b519";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -230,6 +230,115 @@ function textHasInk(text) {
   return String(text || "")
     .split(/\r?\n/)
     .some((l) => l.trim());
+}
+
+const MAX_EMBOSS_UI_LINES = 16;
+
+function clampEmbossLineHeightMm(value, fallback = 7) {
+  const n = Number(value);
+  const fb = Number(fallback);
+  const base = Number.isFinite(n) && n > 0 ? n : (Number.isFinite(fb) && fb > 0 ? fb : 7);
+  return Math.round(Math.min(220, Math.max(3, base)) * 10) / 10;
+}
+
+function normalizeEmbossTextLines(lines, defaultMm = 7) {
+  const def = clampEmbossLineHeightMm(defaultMm, 7);
+  if (!Array.isArray(lines)) return [];
+  return lines.slice(0, MAX_EMBOSS_UI_LINES).map((row) => ({
+    text: String(row?.text ?? ""),
+    heightMm: clampEmbossLineHeightMm(row?.heightMm, def),
+  }));
+}
+
+function linesFromEmbossText(text, defaultMm = 7, prevLines = null) {
+  const def = clampEmbossLineHeightMm(defaultMm, 7);
+  const rawLines = String(text ?? "").split(/\r?\n/).slice(0, MAX_EMBOSS_UI_LINES);
+  if (!rawLines.length || (rawLines.length === 1 && !rawLines[0])) {
+    return textHasInk(text) ? [{ text: String(text || ""), heightMm: def }] : [];
+  }
+  const prev = Array.isArray(prevLines) ? prevLines : [];
+  return rawLines.map((line, i) => ({
+    text: String(line),
+    heightMm: clampEmbossLineHeightMm(prev[i]?.heightMm, def),
+  }));
+}
+
+function embossTextFromLines(lines) {
+  if (!Array.isArray(lines) || !lines.length) return "";
+  return lines.map((row) => String(row?.text ?? "")).join("\n");
+}
+
+/** Keep embossText and embossTextLines in sync. */
+function syncEmbossTextState({ fromText = false } = {}) {
+  const def = clampEmbossLineHeightMm(state.embossHeight, 7);
+  if (fromText) {
+    state.embossTextLines = linesFromEmbossText(state.embossText, def, state.embossTextLines);
+  } else if (Array.isArray(state.embossTextLines) && state.embossTextLines.length) {
+    state.embossTextLines = normalizeEmbossTextLines(state.embossTextLines, def);
+    state.embossText = embossTextFromLines(state.embossTextLines);
+  } else if (textHasInk(state.embossText)) {
+    state.embossTextLines = linesFromEmbossText(state.embossText, def, null);
+  } else {
+    state.embossTextLines = [];
+    state.embossText = "";
+  }
+}
+
+let plainTextEditOpen = false;
+
+function renderEmbossTextLinesUi() {
+  const host = document.getElementById("emboss-text-lines");
+  if (!host) return;
+  syncEmbossTextState();
+  const lines = Array.isArray(state.embossTextLines) ? state.embossTextLines : [];
+  const rows = lines.length
+    ? lines
+    : [{ text: "", heightMm: clampEmbossLineHeightMm(state.embossHeight, 7) }];
+
+  host.innerHTML = rows.map((row, i) => `
+    <div class="emboss-line-row" role="listitem" data-line-index="${i}">
+      <input type="text" class="emboss-line-text" data-line-index="${i}" value="${escAttr(row.text)}" maxlength="80" placeholder="Line ${i + 1}" aria-label="Line ${i + 1} text">
+      <input type="number" class="emboss-line-size" data-line-index="${i}" value="${row.heightMm}" min="3" max="220" step="0.5" title="Size mm" aria-label="Line ${i + 1} size mm">
+      <button type="button" class="emboss-line-remove" data-line-index="${i}" title="Remove line" aria-label="Remove line ${i + 1}">×</button>
+    </div>
+  `).join("");
+
+  const plainField = document.getElementById("field-emboss-text");
+  const linesField = document.getElementById("field-emboss-lines");
+  if (plainField) plainField.classList.toggle("hidden", !plainTextEditOpen);
+  if (linesField) linesField.classList.toggle("hidden", !!plainTextEditOpen);
+  const plainBtn = document.getElementById("btn-plain-text-edit");
+  if (plainBtn) plainBtn.textContent = plainTextEditOpen ? "Back to lines" : "Edit as plain text";
+}
+
+function escAttr(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function commitEmbossTextLinesFromUi() {
+  const host = document.getElementById("emboss-text-lines");
+  if (!host) return;
+  const def = clampEmbossLineHeightMm(state.embossHeight, 7);
+  const rows = [...host.querySelectorAll(".emboss-line-row")];
+  const next = rows.map((row) => {
+    const textEl = row.querySelector(".emboss-line-text");
+    const sizeEl = row.querySelector(".emboss-line-size");
+    return {
+      text: String(textEl?.value ?? ""),
+      heightMm: clampEmbossLineHeightMm(sizeEl?.value, def),
+    };
+  });
+  state.embossTextLines = normalizeEmbossTextLines(next, def);
+  if (!state.embossTextLines.length) {
+    state.embossTextLines = [{ text: "", heightMm: def }];
+  }
+  state.embossText = embossTextFromLines(state.embossTextLines);
+  const ta = document.getElementById("emboss-text");
+  if (ta) ta.value = state.embossText;
 }
 
 const PRESET_CONFIG = {
@@ -536,6 +645,9 @@ function buildParams() {
     accentWaveCount: state.accentWaveCount,
     accentInset: state.accentInset,
     embossText: state.embossText,
+    embossTextLines: Array.isArray(state.embossTextLines)
+      ? normalizeEmbossTextLines(state.embossTextLines, state.embossHeight)
+      : [],
     embossTextAlign: state.embossTextAlign || "left",
     embossTextLayout: state.embossTextLayout || "flat",
     textUniformSize: !!state.textUniformSize,
@@ -1931,6 +2043,7 @@ function resetToDefaults() {
 
   Object.assign(state, { ...DEFAULTS, shape: "rect" });
   state.embossText = "";
+  state.embossTextLines = [];
   state.embossSvgEnabled = false;
   state.embossSvgText = "";
   state.embossSvgFileName = "";
@@ -2138,6 +2251,11 @@ async function applySessionPayload(payload) {
   state.lidType = normalizeLidType(state.lidType, state.shape);
   ensureStateAccentBands(state);
   normalizeStackLipParams();
+  if (Array.isArray(state.embossTextLines) && state.embossTextLines.length) {
+    syncEmbossTextState();
+  } else {
+    syncEmbossTextState({ fromText: true });
+  }
 
   if (payload.traceImage) {
     const loaded = await loadImageFromDataUrl(payload.traceImage);
@@ -3195,6 +3313,7 @@ function applyCanisterContent(content, { rebuildNow = true } = {}) {
   state.canisterContent = key;
   if (key !== "custom") {
     state.embossText = canisterEmbossText(key);
+    syncEmbossTextState({ fromText: true });
     const meta = CANISTER_CONTENT_META[key];
     if ((isStackSetShape() || isSquareSetShape()) && meta) {
       state.boxColor = meta.color;
@@ -3399,6 +3518,11 @@ async function loadTemoraVetPlaque() {
     state.signSample = "temora-vet";
     state.embossTextLayout = "flat";
     state.embossArcPreset = "arch-up";
+    state.embossTextLines = normalizeEmbossTextLines(
+      TEMORA_VET_SIGN_PRESET.embossTextLines,
+      TEMORA_VET_SIGN_PRESET.embossHeight,
+    );
+    state.embossText = embossTextFromLines(state.embossTextLines);
     normalizeStackLipParams();
     applySliderProfile("default");
 
@@ -3852,6 +3976,7 @@ function clearDecorFromBox() {
   traceJob++;
   clearEmbossTrace();
   state.embossText = "";
+  state.embossTextLines = [];
   state.embossSvgEnabled = false;
   state.embossSvgText = "";
   state.embossSvgFileName = "";
@@ -4036,7 +4161,18 @@ function syncArtEditorUi() {
   const artOn = hasGraphicArt(buildParams());
   const hasContent = appliedHasArt(state) || textOn;
 
+  if (Array.isArray(state.embossTextLines) && state.embossTextLines.length) {
+    syncEmbossTextState();
+  } else if (textHasInk(state.embossText)) {
+    syncEmbossTextState({ fromText: true });
+  } else {
+    syncEmbossTextState();
+  }
   document.getElementById("emboss-text").value = state.embossText || "";
+  const active = document.activeElement;
+  const editingLine = active?.classList?.contains("emboss-line-text")
+    || active?.classList?.contains("emboss-line-size");
+  if (!editingLine) renderEmbossTextLinesUi();
   document.getElementById("emboss-face").value = state.embossFace || "front";
   document.getElementById("emboss-font").value = state.embossFont || "bebas";
   document.getElementById("emboss-deboss").checked = !!state.embossDeboss;
@@ -4455,6 +4591,7 @@ function storeTraceOnBox(result, { clearLabel = false, clearSvg = false } = {}) 
   state.embossTraceRects = traceResultToEmbossRects(result);
   if (clearLabel) {
     state.embossText = "";
+    state.embossTextLines = [];
     document.getElementById("emboss-text").value = "";
   }
   if (clearSvg) {
@@ -6342,6 +6479,7 @@ document.getElementById("stackable-enabled").addEventListener("change", (e) => {
 
 document.getElementById("emboss-text").addEventListener("input", (e) => {
   state.embossText = e.target.value;
+  syncEmbossTextState({ fromText: true });
   // Only auto-arc for wrap-around canister labels (text around a centre graphic).
   // Never force Arc on signs/plaques — that kept Temora (and Flat) snapping back to a curve.
   const wrapAround =
@@ -6356,13 +6494,76 @@ document.getElementById("emboss-text").addEventListener("input", (e) => {
     syncTextLayoutUi();
   }
   updateDecorUi();
-  syncArtEditorUi();
   // Prefetch glyphs for Google faces so a later font switch / rebuild doesn't
   // paint half the stack in a fallback face.
   if (!embossFontReady(state.embossFont, 640)) {
     ensureEmbossFontLoaded(state.embossFont, state.embossText).then(() => scheduleArtRebuild(true));
   }
   scheduleArtRebuild();
+  scheduleSaveSession();
+});
+
+document.getElementById("emboss-text-lines")?.addEventListener("input", (e) => {
+  const t = e.target;
+  if (!t?.classList?.contains("emboss-line-text") && !t?.classList?.contains("emboss-line-size")) return;
+  commitEmbossTextLinesFromUi();
+  updateDecorUi();
+  if (!embossFontReady(state.embossFont, 640)) {
+    ensureEmbossFontLoaded(state.embossFont, state.embossText).then(() => scheduleArtRebuild(true));
+  }
+  scheduleArtRebuild();
+  scheduleSaveSession();
+});
+
+document.getElementById("emboss-text-lines")?.addEventListener("click", (e) => {
+  const btn = e.target.closest?.(".emboss-line-remove");
+  if (!btn) return;
+  const idx = Number(btn.dataset.lineIndex);
+  commitEmbossTextLinesFromUi();
+  const def = clampEmbossLineHeightMm(state.embossHeight, 7);
+  if (!Array.isArray(state.embossTextLines)) state.embossTextLines = [];
+  if (state.embossTextLines.length <= 1) {
+    state.embossTextLines = [{ text: "", heightMm: def }];
+  } else if (Number.isFinite(idx)) {
+    state.embossTextLines.splice(idx, 1);
+  }
+  state.embossText = embossTextFromLines(state.embossTextLines);
+  renderEmbossTextLinesUi();
+  updateDecorUi();
+  scheduleArtRebuild();
+  scheduleSaveSession();
+  pushAppHistory();
+});
+
+document.getElementById("btn-add-text-line")?.addEventListener("click", () => {
+  commitEmbossTextLinesFromUi();
+  const def = clampEmbossLineHeightMm(state.embossHeight, 7);
+  if (!Array.isArray(state.embossTextLines)) state.embossTextLines = [];
+  if (state.embossTextLines.length >= MAX_EMBOSS_UI_LINES) return;
+  if (!state.embossTextLines.length) state.embossTextLines.push({ text: "", heightMm: def });
+  state.embossTextLines.push({ text: "", heightMm: def });
+  state.embossText = embossTextFromLines(state.embossTextLines);
+  renderEmbossTextLinesUi();
+  const host = document.getElementById("emboss-text-lines");
+  const last = host?.querySelector(".emboss-line-row:last-child .emboss-line-text");
+  last?.focus();
+  scheduleArtRebuild();
+  scheduleSaveSession();
+  pushAppHistory();
+});
+
+document.getElementById("btn-plain-text-edit")?.addEventListener("click", () => {
+  if (plainTextEditOpen) {
+    state.embossText = document.getElementById("emboss-text")?.value ?? state.embossText;
+    syncEmbossTextState({ fromText: true });
+    plainTextEditOpen = false;
+  } else {
+    commitEmbossTextLinesFromUi();
+    plainTextEditOpen = true;
+    const ta = document.getElementById("emboss-text");
+    if (ta) ta.value = state.embossText || "";
+  }
+  renderEmbossTextLinesUi();
   scheduleSaveSession();
 });
 

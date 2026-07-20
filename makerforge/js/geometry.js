@@ -28,7 +28,7 @@ import {
   shapeSupportsProfileArt,
   shapeSupportsArt,
   STACK_LIP_MM,
-} from "./features.js?v=400";
+} from "./features.js?v=519";
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=161";
 import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=161";
@@ -2539,12 +2539,20 @@ export const TEMORA_VET_SIGN_PRESET = {
   signBorderWidth: 3.5,
   signBorderHeight: 1.4,
   embossText: "TEMORA\nVET CLINIC\n\"WE LOVE YOUR PETS\nAS MUCH AS YOU\"\nABBIE, SIOBHAN, SHARLET,\nKAYT, STEPH, LUCY",
+  embossTextLines: [
+    { text: "TEMORA", heightMm: 16 },
+    { text: "VET CLINIC", heightMm: 14 },
+    { text: "\"WE LOVE YOUR PETS", heightMm: 9 },
+    { text: "AS MUCH AS YOU\"", heightMm: 9 },
+    { text: "ABBIE, SIOBHAN, SHARLET,", heightMm: 7 },
+    { text: "KAYT, STEPH, LUCY", heightMm: 7 },
+  ],
   embossTextAlign: "center",
   embossTextLayout: "flat",
   embossFont: "bebas",
   embossFace: "top",
   embossDepth: 0.85,
-  embossHeight: 58,
+  embossHeight: 12,
   embossTraceSize: 102,
   embossDeboss: false,
   embossSvgEnabled: true,
@@ -2832,6 +2840,7 @@ export const DEFAULTS = {
   textOffsetY: 0,
   textRotation: 0,
   embossText: "",
+  embossTextLines: [],
   embossFont: "bebas",
   embossDepth: 0.7,
   embossHeight: 7,

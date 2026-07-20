@@ -1936,8 +1936,32 @@ function embossTextForLayout(text, layout) {
   return String(text || "");
 }
 
+/**
+ * Resolve per-line height (mm) list for flat emboss, or null when uniform sizing applies.
+ * Arc/vertical callers should pass null.
+ */
+function resolveLineHeightsMm(text, params, fallbackMm) {
+  const lines = String(text || "")
+    .split(/\r?\n/)
+    .slice(0, MAX_EMBOSS_TEXT_LINES);
+  if (!lines.length) return null;
+  const raw = Array.isArray(params?.embossTextLines) ? params.embossTextLines : null;
+  if (!raw?.length) return null;
+  const fb = Number(fallbackMm);
+  const def = Number.isFinite(fb) && fb > 0 ? fb : 7;
+  const heights = lines.map((_, i) => {
+    const h = Number(raw[i]?.heightMm);
+    return Number.isFinite(h) && h > 0 ? h : def;
+  });
+  const minH = Math.min(...heights);
+  const maxH = Math.max(...heights);
+  // Uniform sizes → keep legacy “whole block = embossHeight” scaling.
+  if (maxH - minH < 0.05) return null;
+  return heights;
+}
+
 /** Rasterise label text to a high-res alpha mask (stencil contours, not pixel blocks). */
-function rasterTextMask(text, fontId, fontSizePx = 640, align = "left") {
+function rasterTextMask(text, fontId, fontSizePx = 640, align = "left", lineHeightsMm = null) {
   if (typeof document === "undefined") return null;
   const lines = String(text || "")
     .split(/\r?\n/)
@@ -1947,40 +1971,66 @@ function rasterTextMask(text, fontId, fontSizePx = 640, align = "left") {
 
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
-  // Tall vertical stacks can exceed browser canvas limits (~4096) at 640px/line —
-  // shrink the raster size so every line stays on-canvas with the same face.
-  let sizePx = fontSizePx;
   const lineHeightFactor = 1.12;
   const padFactor = 0.22;
-  const estHeight = (padFactor * 2 + (lines.length - 1) * lineHeightFactor + 1) * sizePx;
+
+  const usePerLine = Array.isArray(lineHeightsMm) && lineHeightsMm.length >= lines.length;
+  let sizePxList;
+  if (usePerLine) {
+    const heights = lines.map((_, i) => {
+      const h = Number(lineHeightsMm[i]);
+      return Number.isFinite(h) && h > 0 ? h : 7;
+    });
+    const refMm = Math.max(...heights, 1e-6);
+    sizePxList = heights.map((h) => Math.max(24, fontSizePx * (h / refMm)));
+  } else {
+    sizePxList = lines.map(() => fontSizePx);
+  }
+
+  // Tall vertical stacks can exceed browser canvas limits (~4096) —
+  // shrink the raster size so every line stays on-canvas with the same face.
+  let estHeight = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const sz = sizePxList[i];
+    estHeight += i === 0 ? sz : sz * lineHeightFactor;
+  }
+  estHeight += padFactor * 2 * Math.max(...sizePxList);
   if (estHeight > 4096) {
-    sizePx = Math.max(160, Math.floor(sizePx * (4096 / estHeight)));
+    const shrink = 4096 / estHeight;
+    sizePxList = sizePxList.map((sz) => Math.max(40, Math.floor(sz * shrink)));
   }
-  const font = embossFontStackForCanvas(fontId, sizePx, lines.join(""));
-  ctx.font = font;
-  const pad = Math.ceil(sizePx * padFactor);
+
+  const maxSizePx = Math.max(...sizePxList);
+  const pad = Math.ceil(maxSizePx * padFactor);
   let maxLineW = 0;
-  for (const line of lines) {
-    maxLineW = Math.max(maxLineW, ctx.measureText(line).width);
+  const fonts = sizePxList.map((sz, i) => embossFontStackForCanvas(fontId, sz, lines[i] || "Hg"));
+  for (let i = 0; i < lines.length; i++) {
+    ctx.font = fonts[i];
+    maxLineW = Math.max(maxLineW, ctx.measureText(lines[i]).width);
   }
-  const lineHeight = sizePx * lineHeightFactor;
+
+  const baselines = [];
+  let yCursor = pad;
+  for (let i = 0; i < lines.length; i++) {
+    const sz = sizePxList[i];
+    baselines.push(yCursor + sz * 0.85);
+    yCursor += i === 0 ? sz : sz * lineHeightFactor;
+  }
   const width = Math.ceil(maxLineW + pad * 2);
-  const height = Math.ceil(pad * 2 + (lines.length - 1) * lineHeight + sizePx);
+  const height = Math.ceil(yCursor + pad);
   canvas.width = width;
   canvas.height = height;
-  ctx.font = font;
   ctx.fillStyle = "#000";
   ctx.textBaseline = "alphabetic";
   const textAlign = align === "center" ? "center" : align === "right" ? "right" : "left";
   ctx.textAlign = textAlign;
   for (let i = 0; i < lines.length; i++) {
-    const y = pad + sizePx * 0.85 + i * lineHeight;
     let x = pad;
     if (textAlign === "center") x = width / 2;
     else if (textAlign === "right") x = width - pad;
     // Re-assert face each line — avoids mid-stack fallback if the face finishes loading.
-    ctx.font = font;
-    ctx.fillText(lines[i], x, y);
+    ctx.font = fonts[i];
+    ctx.fillText(lines[i], x, baselines[i]);
   }
   const data = ctx.getImageData(0, 0, width, height).data;
   const mask = new Uint8Array(width * height);
@@ -2405,7 +2455,9 @@ function computeTextArtLayout(meta, params) {
     }
     raster = rasterArcTextMask(text, fontId, fontSizePx, opts);
   } else {
-    raster = rasterTextMask(text, fontId, fontSizePx, align);
+    const lineHeightsMm = layout === "flat" ? resolveLineHeightsMm(text, params, labelH) : null;
+    raster = rasterTextMask(text, fontId, fontSizePx, align, lineHeightsMm);
+    if (lineHeightsMm) raster._lineHeightsMm = lineHeightsMm;
   }
   if (!raster?.mask?.length) return null;
 
@@ -2421,6 +2473,18 @@ function computeTextArtLayout(meta, params) {
     // capped to the face so the longest word can't overflow.
     const lineCount = Math.max(1, text.split(/\r?\n/).filter((l) => l.trim()).length);
     const targetH = Math.min(labelH * lineCount, frame.faceH * 0.96);
+    scale = Math.min(targetH / glyph.height, limits.maxWidthMm / glyph.width);
+  } else if (layout === "flat" && Array.isArray(raster._lineHeightsMm) && raster._lineHeightsMm.length) {
+    // Per-line mm sizes: block height ≈ sum of line heights (with leading).
+    const heights = raster._lineHeightsMm;
+    const splitLines = String(text || "").split(/\r?\n/).slice(0, MAX_EMBOSS_TEXT_LINES);
+    let targetH = 0;
+    for (let i = 0; i < splitLines.length; i++) {
+      const h = clamp(Number(heights[i]) || labelH, limits.min, limits.max);
+      targetH += i === 0 ? h : h * 1.12;
+    }
+    if (targetH <= 0) targetH = labelH;
+    targetH = Math.min(targetH, frame.faceH * 0.96);
     scale = Math.min(targetH / glyph.height, limits.maxWidthMm / glyph.width);
   } else {
     scale = Math.min(labelH / glyph.height, limits.maxWidthMm / glyph.width);
