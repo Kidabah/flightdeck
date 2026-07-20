@@ -14,7 +14,7 @@
 </script>
 <style>
 /* ================================================================== */
-/*  b508 — MakerDeck STL Painter  (tabbed layout)                     */
+/*  b509 — MakerDeck STL Painter  (tabbed layout)                     */
 /* ================================================================== */
 
 /* -- Reset & Vars -------------------------------------------------- */
@@ -231,6 +231,15 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
 .export-modal .btn-row{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;margin-top:4px}
 .export-modal .btn-row .btn{min-width:88px}
 
+#selPaintBtn.has-selection:not(:disabled){
+  animation: fillPulse 1.2s ease-in-out infinite;
+  box-shadow:0 0 0 1px var(--accent);
+}
+@keyframes fillPulse{
+  0%,100%{filter:brightness(1)}
+  50%{filter:brightness(1.25)}
+}
+
 .viewport.select-mode{cursor:crosshair}
 .viewport.brush-mode{cursor:none}
 .viewport.eyedrop-mode{cursor:copy}
@@ -297,7 +306,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   <header class="header">
     <button class="toggle-sidebar" id="toggleSidebar" title="Toggle sidebar">☰</button>
     <div class="logo">Maker<span>Deck</span> · STL Painter</div>
-    <div class="build">b508</div>
+    <div class="build">b509</div>
   </header>
 
   <!-- Left Sidebar (tabbed) -->
@@ -432,7 +441,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
           <button class="tool-toggle" id="toolBox" title="Drag a rectangle">Box</button>
         </div>
         <div class="opts-panel" id="areaOpts">
-          <p class="flow-desc">Pick a slot colour → Lock on → draw around the area → <b>Fill Selection</b>.</p>
+          <p class="flow-desc">Lasso/Box the area (magenta = selected, not painted yet). Then click a colour slot or <b>Fill Selection</b>.</p>
         </div>
         <div class="btn-row" style="margin-top:6px">
           <button class="btn btn-primary" id="selPaintBtn" disabled>Fill Selection</button>
@@ -589,7 +598,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b508</span>
+    <span>MakerDeck · STL Painter b509</span>
   </footer>
 </div>
 
@@ -615,7 +624,7 @@ import {
   paintClassOf, upgradePaintResolution, export3MF,
   findMeshIslands, buildIslandMap, floodFillSameClass, floodFillSameSlot, selectIsland,
   import3MF, buildSymmetryMap, masksToFacePaint, facePaintToMasks, MAX_PAINT_SLOTS
-} from './js/painter.js?v=508';
+} from './js/painter.js?v=509';
 
 /* ================================================================== */
 /*  STATE                                                             */
@@ -1317,16 +1326,25 @@ function performClickSelect(clientX, clientY) {
   for (const f of faces) mask[f] = 1;
   S.clickSelection = mask;
   S.clickSelectionFaces = faces;
+  syncFillSelectionBtn();
   updateMeshColors();
-  $('selPaintBtn').disabled = false; $('selHideBtn').disabled = false;
-  $('selClearBtn').disabled = false;
   const modeLabel = S.clickSelectMode === 'island' ? 'island' : 'color region';
-  setStatus(`Selected ${faces.length.toLocaleString()} faces (${modeLabel}) — pick a slot, then Fill Selection`, 'idle');
+  setStatus(`Selected ${faces.length.toLocaleString()} faces (${modeLabel}) — click a colour slot or Fill Selection`, 'idle');
+}
+
+function syncFillSelectionBtn() {
+  const btn = $('selPaintBtn');
+  if (!btn) return;
+  const has = !!(S.clickSelectionFaces?.length);
+  btn.disabled = !has;
+  btn.classList.toggle('has-selection', has);
+  $('selHideBtn') && ($('selHideBtn').disabled = !has);
+  $('selClearBtn') && ($('selClearBtn').disabled = !has);
 }
 
 function clearClickSelection() {
   S.clickSelection = null; S.clickSelectionFaces = null; S.selectedIsland = -1;
-  $('selPaintBtn').disabled = true; $('selHideBtn').disabled = true; $('selClearBtn').disabled = true;
+  syncFillSelectionBtn();
   syncIslandCards();
   updateMeshColors();
 }
@@ -1343,23 +1361,26 @@ function setFaceSelection(faces, label = 'selection') {
   S.clickSelection = mask;
   S.clickSelectionFaces = faces;
   S.selectedIsland = -1;
-  $('selPaintBtn').disabled = false;
-  $('selHideBtn').disabled = false;
-  $('selClearBtn').disabled = false;
+  syncFillSelectionBtn();
   syncIslandCards();
   updateMeshColors();
+  const slot = slotIndex(S.paintTarget);
   setStatus(
-    `Selected ${faces.length.toLocaleString()} faces (${label}) — pick a slot, then Fill Selection`,
+    `Selected ${faces.length.toLocaleString()} faces (${label}) — magenta = selected. Click slot ${slot + 1} or Fill Selection`,
     'idle'
   );
 }
 
 function paintClickSelection() {
-  if (!S.clickSelectionFaces?.length) return;
-  paintFacesFree(S.clickSelectionFaces, S.paintTarget);
+  if (!S.clickSelectionFaces?.length) {
+    setStatus('Nothing selected — Lasso/Box an area first', 'idle');
+    return;
+  }
+  const slot = slotIndex(S.paintTarget);
   const n = S.clickSelectionFaces.length;
+  paintFacesFree(S.clickSelectionFaces, slot);
   clearClickSelection();
-  setStatus(`Filled ${n.toLocaleString()} faces → ${slotLabel(slotIndex(S.paintTarget))}`, 'idle');
+  setStatus(`Filled ${n.toLocaleString()} faces → ${slotLabel(slot)}`, 'idle');
 }
 
 /* ================================================================== */
@@ -1413,10 +1434,10 @@ function selectIslandById(id) {
   const faces = Array.from(isl.faces);
   for (const f of faces) mask[f] = 1;
   S.clickSelection = mask; S.clickSelectionFaces = faces; S.selectedIsland = id;
-  $('selPaintBtn').disabled = false; $('selHideBtn').disabled = false; $('selClearBtn').disabled = false;
+  syncFillSelectionBtn();
   syncIslandCards();
   updateMeshColors();
-  setStatus(`Selected island ${id + 1} (${isl.faceCount.toLocaleString()} faces)`, 'idle');
+  setStatus(`Selected island ${id + 1} (${isl.faceCount.toLocaleString()} faces) — click a colour or Fill Selection`, 'idle');
 }
 
 function toggleIslandHide(id) {
@@ -1520,7 +1541,7 @@ function rebuildSlotUI() {
     input.addEventListener('click', e => e.stopPropagation());
     card.addEventListener('click', e => {
       if (e.target?.type === 'color' || e.target?.closest?.('[data-hide-slot]')) return;
-      setPaintTarget(i);
+      setPaintTarget(i, { fillIfSelected: true });
     });
     card.querySelector('[data-hide-slot]')?.addEventListener('click', e => {
       e.stopPropagation();
@@ -1535,7 +1556,7 @@ function rebuildSlotUI() {
     btn.title = slotLabel(i);
     btn.dataset.slot = String(i);
     btn.innerHTML = `<span class="swatch" style="background:${hex}"></span>${i + 1}`;
-    btn.addEventListener('click', () => setPaintTarget(i));
+    btn.addEventListener('click', () => setPaintTarget(i, { fillIfSelected: true }));
     bar.appendChild(btn);
   }
   const label = $('slotCountLabel');
@@ -1670,7 +1691,7 @@ function setTool(tool) {
   }
 }
 
-function setPaintTarget(target) {
+function setPaintTarget(target, { fillIfSelected = false } = {}) {
   const slot = slotIndex(target);
   if (!isSlotActive(slot)) {
     setStatus(`${slotLabel(slot)} is off — use + to add a slot`, 'idle');
@@ -1679,6 +1700,10 @@ function setPaintTarget(target) {
   S.paintTarget = slot;
   syncSlotCards(); syncHideUI();
   if (S.soloActive) updateMeshColors();
+  // Natural flow: lasso shirt → click red → fills (magenta was only the selection)
+  if (fillIfSelected && S.clickSelectionFaces?.length) {
+    paintClickSelection();
+  }
 }
 
 function setBrushStroke(mode) {
@@ -2749,10 +2774,10 @@ window.addEventListener('keydown', (e) => {
     case '1': case '2': case '3': case '4': case '5':
     case '6': case '7': case '8': case '9': {
       const slot = parseInt(e.key, 10) - 1;
-      if (isSlotActive(slot)) setPaintTarget(slot);
+      if (isSlotActive(slot)) setPaintTarget(slot, { fillIfSelected: true });
       e.preventDefault(); break;
     }
-    case '0': if (isSlotActive(9)) setPaintTarget(9); e.preventDefault(); break; // slot 10
+    case '0': if (isSlotActive(9)) setPaintTarget(9, { fillIfSelected: true }); e.preventDefault(); break;
     case '+': case '=': addAmsSlot(); e.preventDefault(); break;
     case '-': case '_': removeAmsSlot(); e.preventDefault(); break;
     // Tools

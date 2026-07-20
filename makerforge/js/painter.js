@@ -1,5 +1,5 @@
 /**
- * MakerDeck STL Painter Engine — b508
+ * MakerDeck STL Painter Engine — b509
  * Pure computation module: STL parsing, feature detection, 3MF export.
  */
 

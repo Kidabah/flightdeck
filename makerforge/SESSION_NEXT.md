@@ -1,5 +1,18 @@
 ---
 
+## b509 — Selection fill: click colour to paint
+**Date:** 2026-07-20
+
+### What changed
+- Magenta highlight = **selected**, not painted yet
+- With a selection active, clicking a colour slot (or pressing 1–9) **fills** it
+- Fill Selection button pulses when a selection is ready
+
+### File Changes
+- `painter.html` — `fillIfSelected` on slot click; `painter.js?v=509`
+
+---
+
 ## b508 — Export: Replace or Save as
 **Date:** 2026-07-20
 

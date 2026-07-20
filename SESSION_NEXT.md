@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b508 export replace or save as
+- Latest commit: MakerDeck b509 click colour to fill selection
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
+
+### 2026-07-20 fix (MakerDeck b509 — magenta selection ≠ paint)
+
+**Need:** Shirt looked “painted” magenta; clicking red didn’t apply colour.
+
+**What shipped:** Magenta = selection only; click colour slot or Fill Selection to paint. Cache-bust `painter.js?v=509`.
+
+**Deploy:** Hard refresh Painter.
 
 ### 2026-07-20 feature (MakerDeck b508 — export Replace / Save as)
 
