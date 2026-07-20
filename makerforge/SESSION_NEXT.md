@@ -1,5 +1,17 @@
 ---
 
+## b516 — Temora plaque SVG load via importSvgFile
+**Date:** 2026-07-20
+
+### What changed
+- Temora Celtic frame uses filled-path SVG + `importSvgFile` (b515 stroke path had no mesh)
+- Cache-bust **b516**
+
+### Deploy
+- Hard refresh **b516** → Temora Vet plaque → Export 3MF (Body + Art + Text)
+
+---
+
 ## b515 — Temora Vet Clinic plaque (Signs + Celtic SVG)
 **Date:** 2026-07-20
 

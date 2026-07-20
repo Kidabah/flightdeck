@@ -2,8 +2,14 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b515 Temora Vet plaque Signs + Celtic SVG
+- Latest commit: MakerDeck b516 Temora plaque SVG fill-path emboss
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
+
+### 2026-07-20 feature (MakerDeck b516 / b515 — Temora Vet plaque)
+
+**Need:** Printable vet plaque with exact names + Celtic SVG (not AI text).
+
+**What shipped:** Temora Vet plaque preset; Celtic frame SVG; emboss textarea 240 chars; verified export Body+Art+Text. Hard refresh **b516**.
 
 ### 2026-07-20 feature (MakerDeck b515 — Temora Vet plaque)
 
