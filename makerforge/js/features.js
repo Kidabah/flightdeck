@@ -21,8 +21,8 @@ export const EMBOSS_FONTS = [
   { id: "cambria", label: "Cambria — Office serif", family: "Cambria, Georgia, serif", weight: 700 },
   { id: "arial", label: "Arial — Windows sans", family: "Arial, Helvetica, sans-serif", weight: 700 },
   { id: "arial-black", label: "Arial Black — heavy", family: '"Arial Black", Arial, sans-serif', weight: 900 },
-  { id: "tahoma", label: "Tahoma — Windows UI", family: 'Tahoma, "Segoe UI", sans-serif', weight: 700 },
-  { id: "trebuchet", label: "Trebuchet MS — friendly", family: '"Trebuchet MS", Tahoma, sans-serif', weight: 700 },
+  { id: "tahoma", label: "Tahoma — Windows UI", family: 'Tahoma, "Segoe UI", sans-serif', weight: 400 },
+  { id: "trebuchet", label: "Trebuchet MS — friendly", family: '"Trebuchet MS", Tahoma, sans-serif', weight: 400 },
   { id: "verdana", label: "Verdana — readable", family: "Verdana, Geneva, sans-serif", weight: 700 },
   { id: "segoe-print", label: "Segoe Print — casual", family: '"Segoe Print", "Segoe UI", cursive', weight: 400 },
   { id: "segoe-script", label: "Segoe Script — script", family: '"Segoe Script", "Segoe UI", cursive', weight: 400 },
@@ -2809,11 +2809,24 @@ function shapeGroupsFromStrokePathsForExport(paths, maskW, maskH, strokePx, artH
   );
 }
 
+/** How much to morph text masks for label/sign export.
+ * Old path dilated ×4 (then union dilated ×2–4 again) — Light looked like Black blobs. */
+function textExportMorphPasses(params) {
+  const weight = resolveEmbossFontWeight(params?.embossFont || "bebas", params?.embossFontWeight);
+  // close = dilate+erode (seal AA pinholes, keep stroke width). Never heavy-dilate letters.
+  if (weight <= 350) return { close: 1, dilate: 0, erode: 1 };
+  if (weight <= 700) return { close: 1, dilate: 0, erode: 0 };
+  return { close: 1, dilate: 1, erode: 0 };
+}
+
 function prepareTextExportMask(mask, maskW, maskH, params) {
   if (!isLabelExport(params)) return mask;
-  const out = mask instanceof Uint8Array ? mask.slice() : new Uint8Array(mask);
-  // Close anti-alias pinholes that read as horizontal layer gaps in the slicer.
-  return dilateMask(out, maskW, maskH, 4);
+  let out = mask instanceof Uint8Array ? mask.slice() : new Uint8Array(mask);
+  const morph = textExportMorphPasses(params);
+  if (morph.close > 0) out = closeBitmapMask(out, maskW, maskH, morph.close);
+  if (morph.dilate > 0) out = dilateMask(out, maskW, maskH, morph.dilate);
+  for (let i = 0; i < morph.erode; i++) out = erodeBitmapMask(out, maskW, maskH);
+  return out;
 }
 
 /** Wrap text row shells — face-space origin (left/bottom) so move sliders actually shift the mesh. */
@@ -2891,7 +2904,8 @@ function collectTextEmbossShapeGroups(meta, params, layoutIn = null) {
     if (layout.arcMode) {
       shapeGroups = prepareShapeGroups(rawGroups, simplifyTol, 0);
     } else {
-      const united = unionShapeGroupsToPrepared(rawGroups, maskW, maskH, simplifyTol, 0, rawGroups.length > 12 ? 4 : 2);
+      // dilatePasses must stay 0 — even 2–4 merges neighbouring letters and fills counters.
+      const united = unionShapeGroupsToPrepared(rawGroups, maskW, maskH, simplifyTol, 0, 0);
       shapeGroups = united.length ? united : prepareShapeGroups(rawGroups, simplifyTol, 0);
     }
   } else {

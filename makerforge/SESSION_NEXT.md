@@ -1,5 +1,22 @@
 ---
 
+## b524 — Text emboss no longer blobbed (Light works)
+**Date:** 2026-07-20
+
+### What changed
+- Sign/label text was dilated ×4 then union-dilated ×2–4 → Light looked like Black; letters fused, counters filled
+- Text export now closes AA pinholes only; Light gets a light erode; union dilate = 0
+- Tahoma/Trebuchet auto weight 400 (was 700); Temora preset Light + Tahoma
+
+### Deploy
+- Hard refresh MakerDeck **b524** (Ctrl+Shift+R) → re-export plaque → Orca
+- UI-only static; restart optional
+
+### Files
+- `makerforge/js/features.js`, `geometry.js`, `app.js`, `insert-slots.js`, `index.html`
+
+---
+
 ## b523 — Accent: one standard + add second
 **Date:** 2026-07-20
 

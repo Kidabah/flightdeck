@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b523 — clearer two-band accent UX
+- Latest commit: MakerDeck b524 — thin text emboss (stop Light→blob)
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
+
+### 2026-07-20 fix (MakerDeck b524 — Light font still blobbed)
+
+**Need:** Font weight Light still sliced as thick fused letters — nothing like the original sign.
+
+**Cause:** Label/sign text path dilated the mask ×4, then union dilated ×2–4 again (counters filled, letters merged). Weight slider never had a chance.
+
+**What shipped:** Close AA pinholes only; Light gets slight erode; union dilate 0; Tahoma auto=400; Temora defaults Light. Hard refresh **b524**, re-export.
 
 ### 2026-07-20 polish (MakerDeck b523 — accent: 1 standard + add 2nd)
 
