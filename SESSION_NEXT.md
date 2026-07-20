@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: STL Painter own sidebar tab (#/painter) · app.js?v=642 · style.css?v=495
+- Latest commit: MakerDeck b518 — stop auto-arc forcing Flat text on signs
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
+
+### 2026-07-20 fix (MakerDeck b518 — Flat text kept snapping to Arc)
+
+**Need:** Plaque text arched even when user wanted Flat; “Wide” looked like flat centre.
+
+**Cause:** Text input auto-switched Flat→Arc whenever graphic art was loaded (canister “text around logo” helper). Signs + Celtic SVG kept re-arching.
+
+**What shipped:** Auto-arc only for wrap-face canisters; Temora forces Flat; rename Wide→Banner arc. Hard refresh MakerDeck **b518**.
 
 ### 2026-07-20 feature (STL Painter — own sidebar menu)
 

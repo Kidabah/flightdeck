@@ -35,7 +35,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b516";
+const MAKERDECK_BUILD = "b518";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -3397,6 +3397,8 @@ async function loadTemoraVetPlaque() {
     state.shape = "sign";
     Object.assign(state, TEMORA_VET_SIGN_PRESET);
     state.signSample = "temora-vet";
+    state.embossTextLayout = "flat";
+    state.embossArcPreset = "arch-up";
     normalizeStackLipParams();
     applySliderProfile("default");
 
@@ -3429,6 +3431,11 @@ async function loadTemoraVetPlaque() {
       rebuild();
       pushAppHistory();
     }
+
+    // Celtic SVG must not leave text on Arc (old auto-arc-on-graphic habit).
+    state.embossTextLayout = "flat";
+    syncTextLayoutUi();
+    updateDecorUi();
 
     if (meshCache) fitCamera(meshCache.meta);
     syncShapeButtonActive();
@@ -6335,10 +6342,17 @@ document.getElementById("stackable-enabled").addEventListener("change", (e) => {
 
 document.getElementById("emboss-text").addEventListener("input", (e) => {
   state.embossText = e.target.value;
-  if (textHasInk(state.embossText) && hasGraphicArt(buildParams()) && (state.embossTextLayout || "flat") === "flat") {
+  // Only auto-arc for wrap-around canister labels (text around a centre graphic).
+  // Never force Arc on signs/plaques — that kept Temora (and Flat) snapping back to a curve.
+  const wrapAround =
+    state.embossFace === "wrap" &&
+    state.shape !== "sign" &&
+    textHasInk(state.embossText) &&
+    hasGraphicArt(buildParams()) &&
+    (state.embossTextLayout || "flat") === "flat";
+  if (wrapAround) {
     state.embossTextLayout = "arc";
-    const wrapArc = state.embossFace === "wrap";
-    applyArcPreset(wrapArc ? "banner" : "arch-up", { nudgeGraphic: false, preserveOffsets: true });
+    applyArcPreset("banner", { nudgeGraphic: false, preserveOffsets: true });
     syncTextLayoutUi();
   }
   updateDecorUi();

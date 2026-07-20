@@ -1,5 +1,18 @@
 ---
 
+## b518 — Stop auto-arc on signs (Flat stays Flat)
+**Date:** 2026-07-20
+
+### What changed
+- Text typing no longer forces Arc when SVG/art is present — except wrap-around canister labels
+- Temora plaque re-asserts `embossTextLayout: flat` after SVG load
+- Curve preset label: Wide → **Banner arc**
+
+### Deploy
+- Hard refresh MakerDeck **b518** → Flat under Text path
+
+---
+
 ## b517 — STL Painter moved to Flightdeck sidebar
 **Date:** 2026-07-20
 
