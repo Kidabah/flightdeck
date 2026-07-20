@@ -2,8 +2,14 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b513 Studio-full project_settings for H2C colours
+- Latest commit: MakerDeck b514 revert Studio-full settings (Orca safe again)
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
+
+### 2026-07-20 fix (MakerDeck b514 — Orca broken by Studio settings dump)
+
+**Need:** b513 full Studio project_settings broke Orca; Studio still showed AMS black/yellow.
+
+**What shipped:** Slim Orca-safe export again; `Chris_Friend_Bust_ORCA_COLOURS.3mf`. Cache-bust `painter.js?v=514`.
 
 ### 2026-07-20 fix (MakerDeck b513 — Orca OK / Studio wrong colours)
 

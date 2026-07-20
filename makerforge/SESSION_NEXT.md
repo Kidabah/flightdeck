@@ -1,5 +1,23 @@
 ---
 
+## b514 — Revert Studio-full settings (broke Orca)
+**Date:** 2026-07-20
+
+### What changed
+- b513 embedded a full Bambu Studio `project_settings` dump → Orca rejected unknown keys / empty plate
+- Reverted to slim Orca-safe settings (Spidey-proven). Removed `studio-h2c-project-template.js`
+- Bust file: `Chris_Friend_Bust_ORCA_COLOURS.3mf`
+- Studio tip: black/yellow PLA Basic = AMS Sync overwriting project colours — don’t Sync; use project filaments / open in Orca for true Painter colours
+
+### File Changes
+- `painter.js` — slim export again; `painter.js?v=514`
+- deleted `studio-h2c-project-template.js`
+
+### Deploy
+- Hard refresh Painter. Open **ORCA_COLOURS** in Orca (dismiss old error dialogs / reopen file).
+
+---
+
 ## b513 — Studio-full project_settings (Orca was fine, Studio wasn’t)
 **Date:** 2026-07-20
 
