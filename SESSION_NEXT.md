@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b503 box select → selection
+- Latest commit: MakerDeck b504 brush requires button down
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
+
+### 2026-07-20 fix (MakerDeck b504 — hover no longer paints)
+
+**Need:** Moving the cursor painted with the active slot without holding the mouse button (stuck brush stroke).
+
+**What shipped:** Paint only while primary button down; clear stuck strokes on lost capture / button-up. Cache-bust `painter.js?v=504`.
+
+**Deploy:** Hard refresh Painter (no backend restart).
 
 ### 2026-07-19 feature (MakerDeck b503 — box select for Hide Selection)
 

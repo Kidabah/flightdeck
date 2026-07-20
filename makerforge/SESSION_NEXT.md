@@ -1,5 +1,20 @@
 ---
 
+## b504 — Brush only paints while mouse button held
+**Date:** 2026-07-20
+
+### What changed
+- Moving the cursor no longer paints after a stuck stroke (lost pointerup)
+- Brush/spray paint **only** while primary button is down (`e.buttons & 1`)
+- Left-drag always reserved for brush/spray; orbit with right-drag / Alt / Space
+- `lostpointercapture` + window move safety net clear stuck strokes
+
+### File Changes
+- `painter.html` — pointer guards; cache-bust `painter.js?v=504`
+- `index.html` / `js/app.js` — MakerDeck build **b504**
+
+---
+
 ## b503 — Box Select → Selection (Hide / Paint behind)
 **Date:** 2026-07-19
 

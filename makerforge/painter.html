@@ -14,7 +14,7 @@
 </script>
 <style>
 /* ================================================================== */
-/*  b503 — MakerDeck STL Painter  (tabbed layout)                     */
+/*  b504 — MakerDeck STL Painter  (tabbed layout)                     */
 /* ================================================================== */
 
 /* -- Reset & Vars -------------------------------------------------- */
@@ -269,7 +269,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   <header class="header">
     <button class="toggle-sidebar" id="toggleSidebar" title="Toggle sidebar">☰</button>
     <div class="logo">Maker<span>Deck</span> · STL Painter</div>
-    <div class="build">b503</div>
+    <div class="build">b504</div>
   </header>
 
   <!-- Left Sidebar (tabbed) -->
@@ -594,7 +594,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b503</span>
+    <span>MakerDeck · STL Painter b504</span>
   </footer>
 </div>
 
@@ -608,7 +608,7 @@ import {
   paintClassOf, upgradePaintResolution, export3MF,
   findMeshIslands, buildIslandMap, floodFillSameClass, selectIsland,
   import3MF, buildSymmetryMap
-} from './js/painter.js?v=503';
+} from './js/painter.js?v=504';
 
 /* ================================================================== */
 /*  STATE                                                             */
@@ -1445,9 +1445,11 @@ function setBrushStroke(mode) {
 function syncOrbitLock() {
   const locked = !!orbitLockCheck?.checked;
   const painting = !!S.brushStrokeActive || !!S._smartClick || !!boxDrag;
+  // Brush/spray always own left-drag (paint). Orbit with right-drag / Alt / Space.
+  // Box/Edge still need the Lock checkbox.
   const leftBlocked = S.orbitOverride ? false :
     (painting || S.tool === 'eyedrop' || S.tool === 'smart' || S.tool === 'clickSelect' ||
-     ((S.tool === 'box' || S.tool === 'edge') && locked) || (isBrushTool() && locked));
+     isBrushTool() || ((S.tool === 'box' || S.tool === 'edge') && locked));
   controls.enabled = true; controls.enableRotate = true; controls.enablePan = true;
   controls.mouseButtons.LEFT = leftBlocked ? -1 : THREE.MOUSE.ROTATE;
   controls.mouseButtons.MIDDLE = THREE.MOUSE.DOLLY;
@@ -1991,6 +1993,8 @@ viewport.addEventListener('pointerdown', (e) => {
 
   if (isBrushTool()) {
     if (e.altKey || S.orbitOverride) return;
+    // Never start a stroke unless primary is actually down (blocks ghost hover paint)
+    if (!(e.buttons & 1)) return;
     const origin = { x: e.clientX, y: e.clientY };
     const pt = constrainBrushClient(e.clientX, e.clientY, origin);
     const hit = pickHitAtClient(pt.x, pt.y);
@@ -2029,7 +2033,13 @@ viewport.addEventListener('pointerdown', (e) => {
 }, true);
 
 viewport.addEventListener('pointermove', (e) => {
-  if (S.brushStrokeActive) { S.brushStrokeActive.painted += strokeBrushTo(e.clientX, e.clientY); return; }
+  if (S.brushStrokeActive) {
+    // Paint ONLY while primary button stays down — clears stuck strokes on hover
+    if (!(e.buttons & 1)) { endBrushStroke(true); return; }
+    if (S.brushStrokeActive.pointerId != null && e.pointerId !== S.brushStrokeActive.pointerId) return;
+    S.brushStrokeActive.painted += strokeBrushTo(e.clientX, e.clientY);
+    return;
+  }
   if (isBrushTool() && !boxDrag && !S._smartClick) {
     const hit = pickHitAtClient(e.clientX, e.clientY);
     if (hit) updateSmartCursor(e.clientX, e.clientY, hit.worldPoint); else smartCursor.style.display = 'none';
@@ -2053,8 +2063,11 @@ viewport.addEventListener('pointermove', (e) => {
 });
 
 viewport.addEventListener('pointerup', (e) => {
+  if (S.brushStrokeActive && (e.button === 0 || e.pointerId === S.brushStrokeActive.pointerId)) {
+    endBrushStroke(true);
+    return;
+  }
   if (e.button === 2 || e.button === 1) { syncOrbitLock(); return; }
-  if (S.brushStrokeActive) { endBrushStroke(true); return; }
   if (S._smartClick) {
     const clicked = S._smartClick; S._smartClick = null;
     releaseViewportPointer(e.pointerId); syncOrbitLock();
@@ -2083,6 +2096,10 @@ viewport.addEventListener('pointerup', (e) => {
 });
 
 viewport.addEventListener('pointercancel', (e) => { S._smartClick = null; endBrushStroke(false); endBoxDrag(e); syncOrbitLock(); });
+viewport.addEventListener('lostpointercapture', (e) => {
+  if (S.brushStrokeActive && e.pointerId === S.brushStrokeActive.pointerId) endBrushStroke(true);
+  if (S._smartClick && e.pointerId === S._smartClick.pointerId) { S._smartClick = null; syncOrbitLock(); }
+});
 viewport.addEventListener('contextmenu', (e) => { if (S.tool !== 'orbit') e.preventDefault(); });
 viewport.addEventListener('pointerleave', () => {
   if (S.tool === 'smart' && !S._smartClick) clearSmartPreview();
@@ -2106,13 +2123,19 @@ viewport.addEventListener('dblclick', (e) => {
   controls.update();
 });
 
-// Global safety
+// Global safety — end paint even if pointerup lands outside the viewport
 window.addEventListener('pointerup', (e) => {
+  if (S.brushStrokeActive && (e.button === 0 || e.pointerId === S.brushStrokeActive.pointerId)) {
+    endBrushStroke(true);
+  }
   if (e.button === 2 || e.button === 1) { syncOrbitLock(); return; }
-  if (S.brushStrokeActive) endBrushStroke(true);
   if (S._smartClick) { S._smartClick = null; releaseViewportPointer(e.pointerId); syncOrbitLock(); }
 });
 window.addEventListener('blur', () => { endBrushStroke(false); S._smartClick = null; if(boxDrag)endBoxDrag(); syncOrbitLock(); });
+window.addEventListener('pointermove', (e) => {
+  // Safety net: if a stroke is somehow still active with no button down, kill it
+  if (S.brushStrokeActive && !(e.buttons & 1)) endBrushStroke(true);
+});
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') { resetInteraction('Controls reset'); clearClickSelection(); setTool('orbit'); return; }
   if (e.code === 'Space' && !e.repeat && !e.target.closest?.('input,textarea,select')) { e.preventDefault(); S.orbitOverride = true; syncOrbitLock(); return; }
