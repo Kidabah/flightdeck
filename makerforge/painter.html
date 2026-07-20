@@ -14,7 +14,7 @@
 </script>
 <style>
 /* ================================================================== */
-/*  b504 — MakerDeck STL Painter  (tabbed layout)                     */
+/*  b505 — MakerDeck STL Painter  (tabbed layout)                     */
 /* ================================================================== */
 
 /* -- Reset & Vars -------------------------------------------------- */
@@ -197,6 +197,10 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
 
 .select-rect{position:absolute;border:1.5px dashed var(--accent);background:rgba(62,207,255,.06);
   pointer-events:none;display:none;z-index:5}
+.lasso-svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;display:none;z-index:5;
+  overflow:visible}
+.lasso-svg polyline{fill:rgba(62,207,255,.10);stroke:var(--accent);stroke-width:1.5;
+  stroke-dasharray:5 3;stroke-linejoin:round;stroke-linecap:round}
 .smart-cursor{position:absolute;border:2px solid var(--accent);border-radius:50%;
   pointer-events:none;display:none;z-index:5;transition:width .08s,height .08s}
 .viewport-hint{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);
@@ -269,7 +273,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   <header class="header">
     <button class="toggle-sidebar" id="toggleSidebar" title="Toggle sidebar">☰</button>
     <div class="logo">Maker<span>Deck</span> · STL Painter</div>
-    <div class="build">b504</div>
+    <div class="build">b505</div>
   </header>
 
   <!-- Left Sidebar (tabbed) -->
@@ -428,14 +432,23 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
               <button class="stroke-btn" id="selModeColor" data-selmode="color">Same Color</button>
             </div>
           </div>
-          <p class="flow-desc">Click to select a connected region. Then paint it with the active slot.</p>
-          <div class="btn-row" style="margin-top:6px">
-            <button class="btn btn-primary" id="selPaintBtn" disabled>Paint Selection</button>
-            <button class="btn" id="selHideBtn" disabled>Hide Selection</button>
-            <button class="btn" id="selClearBtn" disabled>Clear</button>
-          </div>
-          <button class="btn" id="showHiddenBtn" style="margin-top:6px;width:100%">Show Hidden</button>
+          <p class="flow-desc">Click a connected region (good for whole patches).</p>
         </div>
+
+        <div class="section-label" style="margin-top:12px">Area Fill</div>
+        <div class="tool-grid">
+          <button class="tool-toggle" id="toolLasso" title="Draw around an area (eyebrows, badges…)">Lasso</button>
+          <button class="tool-toggle" id="toolBox" title="Drag a rectangle">Box</button>
+        </div>
+        <div class="opts-panel" id="areaOpts">
+          <p class="flow-desc">Pick a slot colour → Lock on → draw around the area → <b>Fill Selection</b>.</p>
+        </div>
+        <div class="btn-row" style="margin-top:6px">
+          <button class="btn btn-primary" id="selPaintBtn" disabled>Fill Selection</button>
+          <button class="btn" id="selHideBtn" disabled>Hide</button>
+          <button class="btn" id="selClearBtn" disabled>Clear</button>
+        </div>
+        <button class="btn" id="showHiddenBtn" style="margin-top:6px;width:100%">Show Hidden</button>
 
         <label class="check-row" style="margin-top:8px">
           <input type="checkbox" id="orbitLock">
@@ -449,7 +462,6 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
         <div class="section-label" style="margin-top:12px">Advanced Tools</div>
         <div class="tool-grid">
           <button class="tool-toggle" id="toolSmart">Smart</button>
-          <button class="tool-toggle" id="toolBox">Box</button>
           <button class="tool-toggle" id="toolEdge">Edge</button>
           <button class="tool-toggle" id="toolDetect">Detect</button>
         </div>
@@ -570,6 +582,9 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <button class="tool-btn" id="resetViewBtn" title="Reset all">Reset</button>
     </div>
     <div class="select-rect" id="selectRect"></div>
+    <svg class="lasso-svg" id="lassoSvg" aria-hidden="true">
+      <polyline id="lassoPoly" points=""></polyline>
+    </svg>
     <div class="smart-cursor" id="smartCursor"></div>
     <div class="viewport-hint" id="viewportHint">Load a model · pick a colour · paint</div>
   </div>
@@ -594,7 +609,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b504</span>
+    <span>MakerDeck · STL Painter b505</span>
   </footer>
 </div>
 
@@ -608,7 +623,7 @@ import {
   paintClassOf, upgradePaintResolution, export3MF,
   findMeshIslands, buildIslandMap, floodFillSameClass, selectIsland,
   import3MF, buildSymmetryMap
-} from './js/painter.js?v=504';
+} from './js/painter.js?v=505';
 
 /* ================================================================== */
 /*  STATE                                                             */
@@ -712,6 +727,7 @@ const statusDot = $('statusDot'), statusText = $('statusText');
 const viewportHint = $('viewportHint');
 const orbitLockCheck = $('orbitLock');
 const selectRect = $('selectRect'), smartCursor = $('smartCursor');
+const lassoSvg = $('lassoSvg'), lassoPoly = $('lassoPoly');
 const raycaster = new THREE.Raycaster();
 const pointerNdc = new THREE.Vector2();
 
@@ -1037,6 +1053,63 @@ function facesInScreenBox(x0, y0, x1, y1) {
   return hit;
 }
 
+function pointInPolygon(x, y, pts) {
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const xi = pts[i].x, yi = pts[i].y, xj = pts[j].x, yj = pts[j].y;
+    if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / ((yj - yi) || 1e-12) + xi)) inside = !inside;
+  }
+  return inside;
+}
+
+/** Faces whose screen centroid (or any vertex) sits inside a freehand lasso. */
+function facesInScreenLasso(pts) {
+  if (!pts || pts.length < 3 || !S.mesh) return [];
+  let left = Infinity, right = -Infinity, top = Infinity, bottom = -Infinity;
+  for (const p of pts) {
+    if (p.x < left) left = p.x; if (p.x > right) right = p.x;
+    if (p.y < top) top = p.y; if (p.y > bottom) bottom = p.y;
+  }
+  if (right - left < 4 || bottom - top < 4) return [];
+  const w = viewport.clientWidth, h = viewport.clientHeight;
+  S.mesh.updateMatrixWorld(true);
+  const mat = S.mesh.matrixWorld;
+  const v = new THREE.Vector3(), camDir = new THREE.Vector3();
+  camera.getWorldDirection(camDir);
+  const hit = [];
+  for (let i = 0; i < S.nTri; i++) {
+    if (isFaceHidden(i)) continue;
+    let anyIn = false;
+    const world = [];
+    for (let k = 0; k < 3; k++) {
+      const vi = S.faces[i * 3 + k];
+      v.set(S.verts[vi * 3], S.verts[vi * 3 + 1], S.verts[vi * 3 + 2]).applyMatrix4(mat);
+      world.push(v.x, v.y, v.z);
+      v.project(camera);
+      if (v.z >= -1 && v.z <= 1) {
+        const sx = (v.x * .5 + .5) * w, sy = (-v.y * .5 + .5) * h;
+        if (sx >= left && sx <= right && sy >= top && sy <= bottom && pointInPolygon(sx, sy, pts)) anyIn = true;
+      }
+    }
+    if (!anyIn) {
+      const cx = (world[0] + world[3] + world[6]) / 3;
+      const cy = (world[1] + world[4] + world[7]) / 3;
+      const cz = (world[2] + world[5] + world[8]) / 3;
+      v.set(cx, cy, cz).project(camera);
+      if (v.z < -1 || v.z > 1) continue;
+      const sx = (v.x * .5 + .5) * w, sy = (-v.y * .5 + .5) * h;
+      if (sx < left || sx > right || sy < top || sy > bottom) continue;
+      if (!pointInPolygon(sx, sy, pts)) continue;
+    }
+    const e1x = world[3] - world[0], e1y = world[4] - world[1], e1z = world[5] - world[2];
+    const e2x = world[6] - world[0], e2y = world[7] - world[1], e2z = world[8] - world[2];
+    const nx = e1y * e2z - e1z * e2y, ny = e1z * e2x - e1x * e2z, nz = e1x * e2y - e1y * e2x;
+    if (nx * camDir.x + ny * camDir.y + nz * camDir.z > 0) continue;
+    hit.push(i);
+  }
+  return hit;
+}
+
 /* ================================================================== */
 /*  BRUSH / SPRAY                                                     */
 /* ================================================================== */
@@ -1195,7 +1268,7 @@ function performClickSelect(clientX, clientY) {
   $('selPaintBtn').disabled = false; $('selHideBtn').disabled = false;
   $('selClearBtn').disabled = false;
   const modeLabel = S.clickSelectMode === 'island' ? 'island' : 'color region';
-  setStatus(`Selected ${faces.length.toLocaleString()} faces (${modeLabel}) — Paint Selection to apply`, 'idle');
+  setStatus(`Selected ${faces.length.toLocaleString()} faces (${modeLabel}) — pick a slot, then Fill Selection`, 'idle');
 }
 
 function clearClickSelection() {
@@ -1223,7 +1296,7 @@ function setFaceSelection(faces, label = 'selection') {
   syncIslandCards();
   updateMeshColors();
   setStatus(
-    `Selected ${faces.length.toLocaleString()} faces (${label}) — Hide Selection to paint behind, or Paint Selection`,
+    `Selected ${faces.length.toLocaleString()} faces (${label}) — pick a slot, then Fill Selection`,
     'idle'
   );
 }
@@ -1233,7 +1306,7 @@ function paintClickSelection() {
   paintFacesFree(S.clickSelectionFaces, S.paintTarget);
   const n = S.clickSelectionFaces.length;
   clearClickSelection();
-  setStatus(`Painted ${n.toLocaleString()} selected faces → ${S.paintTarget}`, 'idle');
+  setStatus(`Filled ${n.toLocaleString()} faces → ${SLOT_LABELS[S.paintTarget] || S.paintTarget}`, 'idle');
 }
 
 /* ================================================================== */
@@ -1383,6 +1456,7 @@ function showToolOpts(tool) {
     ['clickSelectOpts','clickSelect'],['smartOpts','smart'],['edgeOpts','edge'],['detectOpts','detect']]) {
     $(id)?.classList.toggle('visible', tool === t);
   }
+  $('areaOpts')?.classList.toggle('visible', tool === 'lasso' || tool === 'box');
 }
 
 function setTool(tool) {
@@ -1391,15 +1465,21 @@ function setTool(tool) {
   resetInteraction();
 
   for (const [id, t] of [['toolBrush','brush'],['toolSpray','spray'],['toolEyedrop','eyedrop'],
-    ['toolClickSelect','clickSelect'],['toolSmart','smart'],['toolBox','box'],['toolEdge','edge'],['toolDetect','detect']]) {
+    ['toolClickSelect','clickSelect'],['toolLasso','lasso'],['toolSmart','smart'],
+    ['toolBox','box'],['toolEdge','edge'],['toolDetect','detect']]) {
     $(id)?.classList.toggle('active', tool === t);
   }
   showToolOpts(tool);
   if (tool !== 'smart') clearSmartPreview();
-  if (tool !== 'clickSelect') clearClickSelection();
+  // Keep face selection across tool switches so you can Lasso → pick slot → Fill
+
+  // Area tools need Lock so left-drag draws instead of orbiting
+  if ((tool === 'lasso' || tool === 'box' || tool === 'edge') && orbitLockCheck && !orbitLockCheck.checked) {
+    orbitLockCheck.checked = true;
+  }
 
   viewport.className = 'viewport';
-  if (tool === 'box' || tool === 'edge' || tool === 'smart' || isBrushTool(tool)) viewport.classList.add('select-mode');
+  if (tool === 'box' || tool === 'lasso' || tool === 'edge' || tool === 'smart' || isBrushTool(tool)) viewport.classList.add('select-mode');
   if (isBrushTool(tool)) viewport.classList.add('brush-mode');
   if (tool === 'eyedrop') viewport.classList.add('eyedrop-mode');
   if (tool === 'clickSelect') viewport.classList.add('click-select-mode');
@@ -1408,10 +1488,11 @@ function setTool(tool) {
     brush: 'Brush — paint on model · right-drag or Alt+drag to orbit',
     spray: 'Spray — mist on model · right-drag to orbit',
     eyedrop: 'Eyedropper — click a face to pick its slot',
-    clickSelect: 'Click to select a connected region · then Paint Selection',
+    clickSelect: 'Click to select a connected region · then Fill Selection',
     edge: 'Edge — Lock view, drag over boundary, then Fill',
     smart: 'Smart fill — hover for preview · click to paint',
-    box: 'Box — Lock on, drag to select · Hide Selection to paint behind · Show Hidden to restore',
+    lasso: 'Lasso — Lock on, draw around an area (eyebrow…) · pick slot · Fill Selection',
+    box: 'Box — Lock on, drag a rectangle · pick slot · Fill Selection',
     detect: 'Detect — find raised/sunken detail',
   };
   viewportHint.textContent = hints[tool] || 'Left-drag orbits · scroll zooms · pick a tool';
@@ -1444,12 +1525,12 @@ function setBrushStroke(mode) {
 
 function syncOrbitLock() {
   const locked = !!orbitLockCheck?.checked;
-  const painting = !!S.brushStrokeActive || !!S._smartClick || !!boxDrag;
+  const painting = !!S.brushStrokeActive || !!S._smartClick || !!boxDrag || !!lassoDrag;
   // Brush/spray always own left-drag (paint). Orbit with right-drag / Alt / Space.
-  // Box/Edge still need the Lock checkbox.
+  // Box/Lasso/Edge need the Lock checkbox.
   const leftBlocked = S.orbitOverride ? false :
     (painting || S.tool === 'eyedrop' || S.tool === 'smart' || S.tool === 'clickSelect' ||
-     isBrushTool() || ((S.tool === 'box' || S.tool === 'edge') && locked));
+     isBrushTool() || ((S.tool === 'box' || S.tool === 'lasso' || S.tool === 'edge') && locked));
   controls.enabled = true; controls.enableRotate = true; controls.enablePan = true;
   controls.mouseButtons.LEFT = leftBlocked ? -1 : THREE.MOUSE.ROTATE;
   controls.mouseButtons.MIDDLE = THREE.MOUSE.DOLLY;
@@ -1462,11 +1543,13 @@ function releaseViewportPointer(id) {
 }
 
 function resetInteraction(msg) {
-  const pids = [S.brushStrokeActive?.pointerId, S._smartClick?.pointerId, boxDrag?.pointerId].filter(v => v != null);
+  const pids = [S.brushStrokeActive?.pointerId, S._smartClick?.pointerId, boxDrag?.pointerId, lassoDrag?.pointerId].filter(v => v != null);
   S.brushStrokeActive = null; S._smartClick = null; S.orbitOverride = false;
   if (boxDrag) endBoxDrag();
+  if (lassoDrag) endLassoDrag();
   for (const id of pids) releaseViewportPointer(id);
   selectRect.style.display = 'none';
+  hideLassoSvg();
   if (smartCursor) smartCursor.style.display = 'none';
   controls.enabled = true; controls.enableRotate = true; controls.enablePan = true;
   syncOrbitLock();
@@ -1506,7 +1589,28 @@ function endBoxDrag(e) {
   const start = boxDrag; boxDrag = null; return start;
 }
 
-function isSelectTool() { return S.tool === 'box' || S.tool === 'edge'; }
+let lassoDrag = null;
+function hideLassoSvg() {
+  if (lassoSvg) lassoSvg.style.display = 'none';
+  if (lassoPoly) lassoPoly.setAttribute('points', '');
+}
+function updateLassoSvg(pts) {
+  if (!lassoSvg || !lassoPoly || !pts?.length) return;
+  lassoSvg.style.display = 'block';
+  const closed = pts.map(p => `${p.x},${p.y}`).join(' ');
+  // Close the visual loop back to start while drawing
+  const first = pts[0];
+  lassoPoly.setAttribute('points', pts.length > 2 ? `${closed} ${first.x},${first.y}` : closed);
+}
+function endLassoDrag(e) {
+  if (e?.pointerId != null) releaseViewportPointer(e.pointerId);
+  const start = lassoDrag; lassoDrag = null;
+  hideLassoSvg();
+  return start;
+}
+
+function isSelectTool() { return S.tool === 'box' || S.tool === 'lasso' || S.tool === 'edge'; }
+function isAreaTool(t = S.tool) { return t === 'box' || t === 'lasso'; }
 
 /* ================================================================== */
 /*  RESOLUTION UPGRADE                                                */
@@ -1838,6 +1942,7 @@ $('toolBrush')?.addEventListener('click', () => setTool('brush'));
 $('toolSpray')?.addEventListener('click', () => setTool('spray'));
 $('toolEyedrop')?.addEventListener('click', () => setTool('eyedrop'));
 $('toolClickSelect')?.addEventListener('click', () => setTool('clickSelect'));
+$('toolLasso')?.addEventListener('click', () => setTool('lasso'));
 $('toolSmart')?.addEventListener('click', () => setTool('smart'));
 $('toolBox')?.addEventListener('click', () => setTool('box'));
 $('toolEdge')?.addEventListener('click', () => setTool('edge'));
@@ -2025,6 +2130,13 @@ viewport.addEventListener('pointerdown', (e) => {
   e.preventDefault(); e.stopPropagation();
   controls.enableRotate = false; controls.enablePan = false;
   const rect = viewport.getBoundingClientRect();
+  if (S.tool === 'lasso') {
+    const p = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    lassoDrag = { points: [p], pointerId: e.pointerId };
+    updateLassoSvg(lassoDrag.points);
+    try { viewport.setPointerCapture?.(e.pointerId); } catch {}
+    return;
+  }
   boxDrag = { x0: e.clientX - rect.left, y0: e.clientY - rect.top, pointerId: e.pointerId };
   selectRect.style.display = 'block';
   selectRect.style.left = boxDrag.x0 + 'px'; selectRect.style.top = boxDrag.y0 + 'px';
@@ -2038,6 +2150,16 @@ viewport.addEventListener('pointermove', (e) => {
     if (!(e.buttons & 1)) { endBrushStroke(true); return; }
     if (S.brushStrokeActive.pointerId != null && e.pointerId !== S.brushStrokeActive.pointerId) return;
     S.brushStrokeActive.painted += strokeBrushTo(e.clientX, e.clientY);
+    return;
+  }
+  if (lassoDrag) {
+    const rect = viewport.getBoundingClientRect();
+    const p = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    const last = lassoDrag.points[lassoDrag.points.length - 1];
+    if (Math.hypot(p.x - last.x, p.y - last.y) >= 2.5) {
+      lassoDrag.points.push(p);
+      updateLassoSvg(lassoDrag.points);
+    }
     return;
   }
   if (isBrushTool() && !boxDrag && !S._smartClick) {
@@ -2074,6 +2196,18 @@ viewport.addEventListener('pointerup', (e) => {
     if (!clicked.moved) { previewSmartFill(e.clientX, e.clientY); commitSmartFill(); }
     return;
   }
+  if (lassoDrag) {
+    const pts = lassoDrag.points.slice();
+    endLassoDrag(e);
+    syncOrbitLock();
+    if (!S.mesh || pts.length < 8) {
+      setStatus('Draw a larger loop around the area, then Fill Selection', 'idle');
+      return;
+    }
+    setStatus('Selecting…', 'working');
+    requestAnimationFrame(() => setFaceSelection(facesInScreenLasso(pts), 'lasso'));
+    return;
+  }
   if (!boxDrag || !S.mesh) return;
   const rect = viewport.getBoundingClientRect();
   const x1 = e.clientX - rect.left, y1 = e.clientY - rect.top;
@@ -2089,13 +2223,14 @@ viewport.addEventListener('pointerup', (e) => {
       const n = runEdgeFinder(faces);
       setStatus(n ? `Edge band: ${n} faces — Fill → ${S.paintTarget}` : 'No edge found', 'idle');
     } else {
-      // Box select → shared selection (Hide Selection / Paint Selection), not auto-paint
       setFaceSelection(faces, 'box');
     }
   });
 });
 
-viewport.addEventListener('pointercancel', (e) => { S._smartClick = null; endBrushStroke(false); endBoxDrag(e); syncOrbitLock(); });
+viewport.addEventListener('pointercancel', (e) => {
+  S._smartClick = null; endBrushStroke(false); endBoxDrag(e); endLassoDrag(e); syncOrbitLock();
+});
 viewport.addEventListener('lostpointercapture', (e) => {
   if (S.brushStrokeActive && e.pointerId === S.brushStrokeActive.pointerId) endBrushStroke(true);
   if (S._smartClick && e.pointerId === S._smartClick.pointerId) { S._smartClick = null; syncOrbitLock(); }
@@ -2131,7 +2266,11 @@ window.addEventListener('pointerup', (e) => {
   if (e.button === 2 || e.button === 1) { syncOrbitLock(); return; }
   if (S._smartClick) { S._smartClick = null; releaseViewportPointer(e.pointerId); syncOrbitLock(); }
 });
-window.addEventListener('blur', () => { endBrushStroke(false); S._smartClick = null; if(boxDrag)endBoxDrag(); syncOrbitLock(); });
+window.addEventListener('blur', () => {
+  endBrushStroke(false); S._smartClick = null;
+  if (boxDrag) endBoxDrag(); if (lassoDrag) endLassoDrag();
+  syncOrbitLock();
+});
 window.addEventListener('pointermove', (e) => {
   // Safety net: if a stroke is somehow still active with no button down, kill it
   if (S.brushStrokeActive && !(e.buttons & 1)) endBrushStroke(true);
@@ -2295,6 +2434,7 @@ window.addEventListener('keydown', (e) => {
     case 's': setTool('spray'); e.preventDefault(); break;
     case 'e': setTool('eyedrop'); e.preventDefault(); break;
     case 'c': setTool('clickSelect'); e.preventDefault(); break;
+    case 'l': setTool('lasso'); e.preventDefault(); break;
     case 'm': setTool('smart'); e.preventDefault(); break;
     case 'x': setTool('box'); e.preventDefault(); break;
     case 'g': setTool('edge'); e.preventDefault(); break;
@@ -2303,6 +2443,7 @@ window.addEventListener('keydown', (e) => {
     // Actions
     case 'z': doUndo(); e.preventDefault(); break;
     case 'y': doRedo(); e.preventDefault(); break;
+    case 'enter': if (S.clickSelectionFaces?.length) { paintClickSelection(); e.preventDefault(); } break;
     case 'f': if (S.mesh) { resetInteraction(); frameModel(); } e.preventDefault(); break;
     case 'w': toggleWireframe(); e.preventDefault(); break;
     case 't': toggleTurntable(); e.preventDefault(); break;

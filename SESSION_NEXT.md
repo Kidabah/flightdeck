@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b504 brush requires button down
+- Latest commit: MakerDeck b505 lasso area fill
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
+
+### 2026-07-20 feature (MakerDeck b505 — lasso area fill)
+
+**Need:** Draw around an area (e.g. eyebrows) and fill with a chosen AMS slot.
+
+**What shipped:** Lasso tool + always-visible Fill Selection. Cache-bust `painter.js?v=505`.
+
+**Deploy:** Hard refresh Painter (no backend restart).
 
 ### 2026-07-20 fix (MakerDeck b504 — hover no longer paints)
 

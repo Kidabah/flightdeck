@@ -1,5 +1,21 @@
 ---
 
+## b505 — Lasso Area Fill (draw → pick colour → fill)
+**Date:** 2026-07-20
+
+### What changed
+- New **Lasso** tool under Area Fill — freehand draw around eyebrows / badges / patches
+- **Fill Selection** always visible (was buried under Select opts, so Box felt broken)
+- Flow: pick AMS slot → Lasso (Lock auto-on) → draw loop → **Fill Selection**
+- Box works the same way for rectangular areas
+- Selection survives tool switches until Fill / Clear
+
+### File Changes
+- `painter.html` — lasso path + `facesInScreenLasso()`; cache-bust `painter.js?v=505`
+- `index.html` / `js/app.js` — MakerDeck build **b505**
+
+---
+
 ## b504 — Brush only paints while mouse button held
 **Date:** 2026-07-20
 
