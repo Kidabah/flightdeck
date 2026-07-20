@@ -14,7 +14,7 @@
 </script>
 <style>
 /* ================================================================== */
-/*  b507 — MakerDeck STL Painter  (tabbed layout)                     */
+/*  b508 — MakerDeck STL Painter  (tabbed layout)                     */
 /* ================================================================== */
 
 /* -- Reset & Vars -------------------------------------------------- */
@@ -219,6 +219,18 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   font-size:11px;color:var(--muted);pointer-events:none;text-align:center;
   background:rgba(6,10,16,.7);padding:4px 12px;border-radius:var(--radius-sm)}
 
+.export-modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1000;
+  display:none;align-items:center;justify-content:center;padding:20px}
+.export-modal-backdrop.open{display:flex}
+.export-modal{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+  padding:18px 20px;max-width:380px;width:100%;box-shadow:0 16px 48px rgba(0,0,0,.45)}
+.export-modal h3{font-size:14px;font-weight:700;margin:0 0 8px}
+.export-modal p{font-size:12px;color:var(--muted);margin:0 0 14px;line-height:1.45}
+.export-modal .file-name{color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px;
+  word-break:break-all}
+.export-modal .btn-row{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;margin-top:4px}
+.export-modal .btn-row .btn{min-width:88px}
+
 .viewport.select-mode{cursor:crosshair}
 .viewport.brush-mode{cursor:none}
 .viewport.eyedrop-mode{cursor:copy}
@@ -285,7 +297,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   <header class="header">
     <button class="toggle-sidebar" id="toggleSidebar" title="Toggle sidebar">☰</button>
     <div class="logo">Maker<span>Deck</span> · STL Painter</div>
-    <div class="build">b507</div>
+    <div class="build">b508</div>
   </header>
 
   <!-- Left Sidebar (tabbed) -->
@@ -577,8 +589,20 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b507</span>
+    <span>MakerDeck · STL Painter b508</span>
   </footer>
+</div>
+
+<div class="export-modal-backdrop" id="exportModal" role="dialog" aria-modal="true" aria-labelledby="exportModalTitle">
+  <div class="export-modal">
+    <h3 id="exportModalTitle">File already exported</h3>
+    <p>Replace <span class="file-name" id="exportModalFile"></span>, or save as a new file?</p>
+    <div class="btn-row">
+      <button type="button" class="btn" id="exportModalCancel">Cancel</button>
+      <button type="button" class="btn" id="exportModalSaveAs">Save as…</button>
+      <button type="button" class="btn btn-primary" id="exportModalReplace">Replace</button>
+    </div>
+  </div>
 </div>
 
 <!-- Main Script -->
@@ -591,7 +615,7 @@ import {
   paintClassOf, upgradePaintResolution, export3MF,
   findMeshIslands, buildIslandMap, floodFillSameClass, floodFillSameSlot, selectIsland,
   import3MF, buildSymmetryMap, masksToFacePaint, facePaintToMasks, MAX_PAINT_SLOTS
-} from './js/painter.js?v=507';
+} from './js/painter.js?v=508';
 
 /* ================================================================== */
 /*  STATE                                                             */
@@ -609,6 +633,8 @@ const S = {
   brushStroke: 'free',
   paintTarget: 0, // 0-based slot index
   slotCount: 4, // visible AMS slots (1–16 for HT / multi-AMS)
+  exportHandle: null, // FileSystemFileHandle from last export (Chrome/Edge)
+  exportFileName: null,
   detectMode: 'emboss',
   undoStack: [], redoStack: [],
   edgeHighlight: null,
@@ -1820,6 +1846,7 @@ async function loadSTL(file) {
     hiddenSlots: Array(16).fill(false), soloActive:false, selectedIsland:-1,
   });
   S.hiddenIslands.clear();
+  clearExportDestination();
   $('soloActive').checked = false;
   $('undoBtn').disabled = true;
 
@@ -1874,6 +1901,7 @@ async function load3MF(file) {
       soloActive: false, selectedIsland: -1,
     });
     S.hiddenIslands.clear();
+    clearExportDestination();
 
     // Expand slot count to cover imported paint / colours
     let used = 1;
@@ -1984,6 +2012,7 @@ function clearModel() {
     symmetryMap: null, symmetryCenterX: 0, symmetryOn: false,
   });
   S.hiddenIslands.clear();
+  clearExportDestination();
   $('soloActive').checked = false;
   $('undoBtn').disabled = true;
   detectBtn.disabled = true; exportBtn.disabled = true;
@@ -2478,32 +2507,153 @@ detectBtn.addEventListener('click', () => {
 /*  EXPORT 3MF                                                        */
 /* ================================================================== */
 
-exportBtn.addEventListener('click', () => {
-  if (!S.verts) return;
-  setStatus('Exporting 3MF…', 'working');
-  setTimeout(() => {
-    const profile = $('filamentProfile').value;
-    const filType = profile.includes('PETG')?'PETG':profile.includes('ABS')?'ABS':
-      profile.includes('TPU')?'TPU':profile.includes('ASA')?'ASA':'PLA';
-    const colors = slotColorsArray(S.slotCount);
-    const zip = export3MF(S.verts, S.faces, S.nVerts, S.nTri,
-      S.embossMask || new Uint8Array(S.nTri), S.debossMask || new Uint8Array(S.nTri), {
-        facePaint: ensureFacePaint(),
-        slotColors: colors,
-        slotCount: S.slotCount,
-        bodyColor: colors[0], embossColor: colors[1] || colors[0],
-        debossColor: colors[2] || colors[0], trimColor: colors[3] || colors[0],
-        trimMask: S.trimMask || new Uint8Array(S.nTri),
-        filamentType: Array(S.slotCount).fill(filType),
-        filamentSettingsId: Array(S.slotCount).fill(profile),
-        filamentProfile: profile,
+function clearExportDestination() {
+  S.exportHandle = null;
+  S.exportFileName = null;
+}
+
+function showExportChoiceModal(fileName) {
+  return new Promise(resolve => {
+    const modal = $('exportModal');
+    const fileEl = $('exportModalFile');
+    if (!modal) { resolve('saveas'); return; }
+    if (fileEl) fileEl.textContent = fileName || 'painted.3mf';
+    modal.classList.add('open');
+    const finish = (choice) => {
+      modal.classList.remove('open');
+      $('exportModalReplace')?.removeEventListener('click', onReplace);
+      $('exportModalSaveAs')?.removeEventListener('click', onSaveAs);
+      $('exportModalCancel')?.removeEventListener('click', onCancel);
+      modal.removeEventListener('click', onBackdrop);
+      resolve(choice);
+    };
+    const onReplace = () => finish('replace');
+    const onSaveAs = () => finish('saveas');
+    const onCancel = () => finish('cancel');
+    const onBackdrop = (e) => { if (e.target === modal) finish('cancel'); };
+    $('exportModalReplace')?.addEventListener('click', onReplace);
+    $('exportModalSaveAs')?.addEventListener('click', onSaveAs);
+    $('exportModalCancel')?.addEventListener('click', onCancel);
+    modal.addEventListener('click', onBackdrop);
+  });
+}
+
+async function writeBlobToHandle(handle, blob) {
+  const writable = await handle.createWritable();
+  await writable.write(blob);
+  await writable.close();
+}
+
+function downloadBlobAs(blob, fileName) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+}
+
+/** Pick Replace / Save as. Must run in a user-gesture tick for the save picker. */
+async function resolveExportDestination(suggestedName) {
+  const canPicker = typeof window.showSaveFilePicker === 'function';
+
+  // Already exported this session — ask Replace vs Save as
+  if (S.exportHandle || S.exportFileName) {
+    const choice = await showExportChoiceModal(S.exportFileName || suggestedName);
+    if (choice === 'cancel') return null;
+    if (choice === 'replace' && S.exportHandle) {
+      return {
+        name: S.exportFileName || suggestedName,
+        write: (blob) => writeBlobToHandle(S.exportHandle, blob),
+      };
+    }
+    if (choice === 'replace' && !canPicker) {
+      const name = S.exportFileName || suggestedName;
+      return { name, write: async (blob) => downloadBlobAs(blob, name) };
+    }
+    // save as — fall through (picker or rename prompt)
+    if (choice === 'saveas') S.exportHandle = null;
+  }
+
+  if (canPicker) {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName,
+        types: [{
+          description: '3MF model',
+          accept: {
+            'model/3mf': ['.3mf'],
+            'application/vnd.ms-package.3dmanufacturing-3dmodel+xml': ['.3mf'],
+          },
+        }],
       });
-    const blob = new Blob([zip], { type: 'application/vnd.ms-package.3dmanufacturing-3dmodel+xml' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = `${S.fileName}_painted.3mf`; document.body.appendChild(a); a.click();
-    document.body.removeChild(a); URL.revokeObjectURL(a.href);
-    setStatus(`Exported ${S.fileName}_painted.3mf (${S.slotCount} colours)`, 'idle');
-  }, 30);
+      S.exportHandle = handle;
+      S.exportFileName = handle.name || suggestedName;
+      return {
+        name: S.exportFileName,
+        write: (blob) => writeBlobToHandle(handle, blob),
+      };
+    } catch (err) {
+      if (err?.name === 'AbortError') return null;
+      // Fall through to download if picker fails
+    }
+  }
+
+  let name = suggestedName;
+  if (S.exportFileName && !S.exportHandle) {
+    // Fallback browsers: prompt for a new name on Save as
+    const typed = window.prompt('Save as filename:', suggestedName);
+    if (typed == null) return null;
+    name = typed.trim() || suggestedName;
+    if (!/\.3mf$/i.test(name)) name += '.3mf';
+  }
+  S.exportFileName = name;
+  return { name, write: async (blob) => downloadBlobAs(blob, name) };
+}
+
+function buildPainted3mfBlob() {
+  const profile = $('filamentProfile').value;
+  const filType = profile.includes('PETG') ? 'PETG' : profile.includes('ABS') ? 'ABS' :
+    profile.includes('TPU') ? 'TPU' : profile.includes('ASA') ? 'ASA' : 'PLA';
+  const colors = slotColorsArray(S.slotCount);
+  const zip = export3MF(S.verts, S.faces, S.nVerts, S.nTri,
+    S.embossMask || new Uint8Array(S.nTri), S.debossMask || new Uint8Array(S.nTri), {
+      facePaint: ensureFacePaint(),
+      slotColors: colors,
+      slotCount: S.slotCount,
+      bodyColor: colors[0], embossColor: colors[1] || colors[0],
+      debossColor: colors[2] || colors[0], trimColor: colors[3] || colors[0],
+      trimMask: S.trimMask || new Uint8Array(S.nTri),
+      filamentType: Array(S.slotCount).fill(filType),
+      filamentSettingsId: Array(S.slotCount).fill(profile),
+      filamentProfile: profile,
+    });
+  return new Blob([zip], { type: 'application/vnd.ms-package.3dmanufacturing-3dmodel+xml' });
+}
+
+exportBtn.addEventListener('click', async () => {
+  if (!S.verts) return;
+  const suggested = `${S.fileName || 'model'}_painted.3mf`;
+  let dest;
+  try {
+    dest = await resolveExportDestination(suggested);
+  } catch (err) {
+    setStatus(err?.message || 'Export cancelled', 'idle');
+    return;
+  }
+  if (!dest) { setStatus('Export cancelled', 'idle'); return; }
+
+  setStatus('Exporting 3MF…', 'working');
+  try {
+    await new Promise(r => setTimeout(r, 10)); // let status paint
+    const blob = buildPainted3mfBlob();
+    await dest.write(blob);
+    setStatus(`Exported ${dest.name} (${S.slotCount} colours)`, 'idle');
+  } catch (err) {
+    console.error(err);
+    setStatus(err?.message || 'Export failed', 'error');
+  }
 });
 
 /* ================================================================== */

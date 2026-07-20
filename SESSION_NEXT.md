@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b507 AMS up to 16 for HT
+- Latest commit: MakerDeck b508 export replace or save as
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
+
+### 2026-07-20 feature (MakerDeck b508 — export Replace / Save as)
+
+**Need:** Don’t silently pile up `*_painted.3mf` downloads — ask Replace or Save as.
+
+**What shipped:** Save picker + session Replace/Save as dialog. Cache-bust `painter.js?v=508`.
+
+**Deploy:** Hard refresh Painter (no backend restart).
 
 ### 2026-07-20 feature (MakerDeck b507 — AMS HT / 16 colours)
 

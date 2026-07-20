@@ -1,5 +1,18 @@
 ---
 
+## b508 — Export: Replace or Save as
+**Date:** 2026-07-20
+
+### What changed
+- Export uses Chrome/Edge **Save** picker (OS asks before overwrite)
+- Second export in the same session: dialog — **Replace** previous file or **Save as…**
+- Replace writes over the last chosen file (true overwrite via File System Access API)
+
+### File Changes
+- `painter.html` — export modal + `showSaveFilePicker`; `painter.js?v=508`
+
+---
+
 ## b507 — AMS slots up to 16 (HT / multi-AMS)
 **Date:** 2026-07-20
 
