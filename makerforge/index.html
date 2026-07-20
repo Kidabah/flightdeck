@@ -44,7 +44,7 @@
 
         <div class="topbar-brand">
 
-          <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b520</span></div>
+          <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b521</span></div>
 
           <h1>Container Generator</h1>
 
@@ -1207,6 +1207,21 @@
                   <select id="emboss-font"></select>
                 </label>
 
+                <label class="field" id="field-emboss-weight">
+                  <span class="field-label">Font weight</span>
+                  <select id="emboss-font-weight">
+                    <option value="auto" selected>Auto (font default)</option>
+                    <option value="300">Light</option>
+                    <option value="400">Regular</option>
+                    <option value="500">Medium</option>
+                    <option value="600">Semi-bold</option>
+                    <option value="700">Bold</option>
+                    <option value="800">Extra-bold</option>
+                    <option value="900">Black</option>
+                  </select>
+                </label>
+                <p class="field-hint" id="font-weight-hint">Lighter weight often reads cleaner on plaques. Not every font has every weight.</p>
+
                 <label class="field" id="field-emboss-height">
                   <span class="field-label">Default size <span class="unit unit-len">mm</span></span>
                   <input type="range" id="emboss-height" min="3" max="220" step="0.5" value="7" tabindex="-1">
@@ -1222,6 +1237,19 @@
                     <button type="button" class="align-btn" data-text-align="right">Right</button>
                   </div>
                 </div>
+
+                <label class="field" id="field-letter-spacing">
+                  <span class="field-label">Letter spacing</span>
+                  <input type="range" id="emboss-letter-spacing" min="0.7" max="1.8" step="0.05" value="1" tabindex="-1">
+                  <button type="button" class="value-edit" id="out-emboss-letter-spacing" data-slider="emboss-letter-spacing" data-key="embossLetterSpacing" data-parse="float">1</button>
+                </label>
+                <p class="field-hint" id="letter-spacing-hint">1 = natural. Bump up if heavy fonts run together.</p>
+
+                <label class="field" id="field-line-spacing">
+                  <span class="field-label">Line spacing</span>
+                  <input type="range" id="emboss-line-spacing" min="0.9" max="2" step="0.05" value="1.12" tabindex="-1">
+                  <button type="button" class="value-edit" id="out-emboss-line-spacing" data-slider="emboss-line-spacing" data-key="embossLineSpacing" data-parse="float">1.12</button>
+                </label>
 
                 <div class="field" id="field-text-layout">
                   <span class="field-label">Text path</span>
@@ -1447,7 +1475,7 @@
     </div>
   </dialog>
 
-  <script type="module" src="js/app.js?v=520"></script>
+  <script type="module" src="js/app.js?v=521"></script>
 
 </body>
 

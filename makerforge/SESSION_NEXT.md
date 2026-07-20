@@ -1,5 +1,17 @@
 ---
 
+## b521 — Letter/line spacing + font weight
+**Date:** 2026-07-20
+
+### What changed
+- Art → Text: Letter spacing, Line spacing (Flat/Vertical), Font weight select
+- Temora preset opens letters (1.28) + lines (1.4) + semi-bold (600)
+
+### Deploy
+- Hard refresh MakerDeck **b521** → bump Letter spacing if words still fuse
+
+---
+
 ## b520 — Fix doubled features.js (boggy MakerDeck)
 **Date:** 2026-07-20
 

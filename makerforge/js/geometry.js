@@ -28,7 +28,7 @@ import {
   shapeSupportsProfileArt,
   shapeSupportsArt,
   STACK_LIP_MM,
-} from "./features.js?v=520";
+} from "./features.js?v=521";
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=161";
 import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=161";
@@ -45,7 +45,7 @@ import {
   profileOutlinePerimeter,
 } from "./vase-textures.js";
 
-import { appendInsertShelfSlotsToBody } from "./insert-slots.js?v=520";
+import { appendInsertShelfSlotsToBody } from "./insert-slots.js?v=521";
 
 export { shapeSupportsDecor, shapeSupportsInsert, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, VASE_STYLES };
 
@@ -2549,6 +2549,9 @@ export const TEMORA_VET_SIGN_PRESET = {
   ],
   embossTextAlign: "center",
   embossTextLayout: "flat",
+  embossLetterSpacing: 1.28,
+  embossLineSpacing: 1.4,
+  embossFontWeight: 600,
   embossFont: "bebas",
   embossFace: "top",
   embossDepth: 0.85,
@@ -2836,6 +2839,9 @@ export const DEFAULTS = {
   embossArcPreset: "arch-up",
   embossArcSide: "up",
   embossArcAdvanced: false,
+  embossLetterSpacing: 1,
+  embossLineSpacing: 1.12,
+  embossFontWeight: "auto",
   textOffsetX: 0,
   textOffsetY: 0,
   textRotation: 0,

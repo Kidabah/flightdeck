@@ -87,16 +87,28 @@ export function embossFontSpec(id) {
   return EMBOSS_FONTS.find((f) => f.id === id) || EMBOSS_FONTS[0];
 }
 
-export function embossFontStack(id, fontSizePx) {
+/** Resolve CSS font-weight: "auto"/null → font default, else 100–900. */
+export function resolveEmbossFontWeight(fontId, weightOverride) {
+  const f = embossFontSpec(fontId);
+  if (weightOverride == null || weightOverride === "" || weightOverride === "auto") {
+    return f.weight || 700;
+  }
+  const n = Number(weightOverride);
+  return Number.isFinite(n) ? clamp(Math.round(n), 100, 900) : (f.weight || 700);
+}
+
+export function embossFontStack(id, fontSizePx, weightOverride) {
   const f = embossFontSpec(id);
-  return `${f.weight} ${fontSizePx}px ${f.family}`;
+  const weight = resolveEmbossFontWeight(id, weightOverride);
+  return `${weight} ${fontSizePx}px ${f.family}`;
 }
 
 /** Primary face only (no fallback stack) — used for Font Loading API checks/loads. */
-function embossPrimaryFontFace(id, fontSizePx) {
+function embossPrimaryFontFace(id, fontSizePx, weightOverride) {
   const f = embossFontSpec(id);
-  if (!f.google) return embossFontStack(id, fontSizePx);
-  return `${f.weight} ${fontSizePx}px "${f.google}"`;
+  if (!f.google) return embossFontStack(id, fontSizePx, weightOverride);
+  const weight = resolveEmbossFontWeight(id, weightOverride);
+  return `${weight} ${fontSizePx}px "${f.google}"`;
 }
 
 /**
@@ -108,9 +120,10 @@ function embossGenericFallback(f) {
     : (/mono/i.test(f.family) ? "monospace" : "sans-serif");
 }
 
-function embossFontStackForCanvas(id, fontSizePx, text = "") {
+function embossFontStackForCanvas(id, fontSizePx, text = "", weightOverride) {
   const f = embossFontSpec(id);
-  if (!f.google) return embossFontStack(id, fontSizePx);
+  const weight = resolveEmbossFontWeight(id, weightOverride);
+  if (!f.google) return embossFontStack(id, fontSizePx, weightOverride);
   const generic = embossGenericFallback(f);
   // Only use the Google face if EVERY glyph in the label is loaded. document.fonts.check(font,
   // text) reports false while the face is only partially available — otherwise the browser
@@ -122,9 +135,9 @@ function embossFontStackForCanvas(id, fontSizePx, text = "") {
   const familyProbe = `${fontSizePx}px "${f.google}"`;
   const sample = String(text || "").replace(/\s+/g, "") || "AaGg";
   if (typeof document !== "undefined" && document.fonts?.check?.(familyProbe, sample)) {
-    return `${f.weight} ${fontSizePx}px "${f.google}", ${generic}`;
+    return `${weight} ${fontSizePx}px "${f.google}", ${generic}`;
   }
-  return `${f.weight} ${fontSizePx}px ${generic}`;
+  return `${weight} ${fontSizePx}px ${generic}`;
 }
 
 export function embossFontReady(id, fontSizePx = 640) {
@@ -1960,8 +1973,33 @@ function resolveLineHeightsMm(text, params, fallbackMm) {
   return heights;
 }
 
+/** Width of a line with letter-spacing multiplier (1 = natural). */
+function measureSpacedLineWidth(ctx, line, letterSpacing) {
+  const chars = [...String(line || "")];
+  if (!chars.length) return 0;
+  const spacing = clamp(letterSpacing ?? 1, 0.7, 1.8);
+  let w = 0;
+  for (let i = 0; i < chars.length; i++) {
+    const cw = ctx.measureText(chars[i]).width;
+    w += i < chars.length - 1 ? cw * spacing : cw;
+  }
+  return w;
+}
+
+/** Draw a line left-to-right with letter spacing; `x` is the left edge. */
+function fillSpacedLine(ctx, line, x, y, letterSpacing) {
+  const chars = [...String(line || "")];
+  const spacing = clamp(letterSpacing ?? 1, 0.7, 1.8);
+  ctx.textAlign = "left";
+  let cx = x;
+  for (let i = 0; i < chars.length; i++) {
+    ctx.fillText(chars[i], cx, y);
+    cx += ctx.measureText(chars[i]).width * spacing;
+  }
+}
+
 /** Rasterise label text to a high-res alpha mask (stencil contours, not pixel blocks). */
-function rasterTextMask(text, fontId, fontSizePx = 640, align = "left", lineHeightsMm = null) {
+function rasterTextMask(text, fontId, fontSizePx = 640, align = "left", lineHeightsMm = null, options = {}) {
   if (typeof document === "undefined") return null;
   const lines = String(text || "")
     .split(/\r?\n/)
@@ -1971,7 +2009,9 @@ function rasterTextMask(text, fontId, fontSizePx = 640, align = "left", lineHeig
 
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
-  const lineHeightFactor = 1.12;
+  const letterSpacing = clamp(options.letterSpacing ?? 1, 0.7, 1.8);
+  const lineHeightFactor = clamp(options.lineSpacing ?? 1.12, 0.8, 2.2);
+  const fontWeight = options.fontWeight;
   const padFactor = 0.22;
 
   const usePerLine = Array.isArray(lineHeightsMm) && lineHeightsMm.length >= lines.length;
@@ -2003,10 +2043,10 @@ function rasterTextMask(text, fontId, fontSizePx = 640, align = "left", lineHeig
   const maxSizePx = Math.max(...sizePxList);
   const pad = Math.ceil(maxSizePx * padFactor);
   let maxLineW = 0;
-  const fonts = sizePxList.map((sz, i) => embossFontStackForCanvas(fontId, sz, lines[i] || "Hg"));
+  const fonts = sizePxList.map((sz, i) => embossFontStackForCanvas(fontId, sz, lines[i] || "Hg", fontWeight));
   for (let i = 0; i < lines.length; i++) {
     ctx.font = fonts[i];
-    maxLineW = Math.max(maxLineW, ctx.measureText(lines[i]).width);
+    maxLineW = Math.max(maxLineW, measureSpacedLineWidth(ctx, lines[i], letterSpacing));
   }
 
   const baselines = [];
@@ -2023,21 +2063,20 @@ function rasterTextMask(text, fontId, fontSizePx = 640, align = "left", lineHeig
   ctx.fillStyle = "#000";
   ctx.textBaseline = "alphabetic";
   const textAlign = align === "center" ? "center" : align === "right" ? "right" : "left";
-  ctx.textAlign = textAlign;
   for (let i = 0; i < lines.length; i++) {
-    let x = pad;
-    if (textAlign === "center") x = width / 2;
-    else if (textAlign === "right") x = width - pad;
-    // Re-assert face each line — avoids mid-stack fallback if the face finishes loading.
     ctx.font = fonts[i];
-    ctx.fillText(lines[i], x, baselines[i]);
+    const lineW = measureSpacedLineWidth(ctx, lines[i], letterSpacing);
+    let x = pad;
+    if (textAlign === "center") x = (width - lineW) / 2;
+    else if (textAlign === "right") x = width - pad - lineW;
+    fillSpacedLine(ctx, lines[i], x, baselines[i], letterSpacing);
   }
   const data = ctx.getImageData(0, 0, width, height).data;
   const mask = new Uint8Array(width * height);
   for (let i = 0; i < width * height; i++) {
     if (data[i * 4 + 3] > 64) mask[i] = 1;
   }
-  return { mask, width, height };
+  return { mask, width, height, lineSpacing: lineHeightFactor };
 }
 
 /** Rasterise one line of text along a circular arc (for logo plaques). */
@@ -2052,7 +2091,7 @@ function rasterArcTextMask(text, fontId, fontSizePx = 640, options = {}) {
   const chars = [...line];
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
-  const font = embossFontStackForCanvas(fontId, fontSizePx, line);
+  const font = embossFontStackForCanvas(fontId, fontSizePx, line, options.fontWeight);
   ctx.font = font;
 
   const letterSpacing = clamp(options.spacing ?? 1.1, 0.55, 2.2);
@@ -2125,7 +2164,7 @@ function rasterWrapBannerTextMask(text, fontId, fontSizePx = 640, options = {}) 
   const chars = [...line];
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
-  const font = embossFontStackForCanvas(fontId, fontSizePx, line);
+  const font = embossFontStackForCanvas(fontId, fontSizePx, line, options.fontWeight);
   ctx.font = font;
 
   const letterSpacing = clamp(options.spacing ?? 1, 0.7, 1.8);
@@ -2430,11 +2469,13 @@ function computeTextArtLayout(meta, params) {
     : (params.embossTextAlign || "left");
 
   let raster;
+  const fontWeight = params.embossFontWeight ?? "auto";
   if (wrapArc) {
     raster = rasterWrapBannerTextMask(text, fontId, fontSizePx, {
       side: params.embossArcSide === "down" ? "down" : "up",
       curveAmount: params.embossArcCurve ?? 60,
       spacing: params.embossArcSpacing ?? 1,
+      fontWeight,
     });
   } else if (arcMode) {
     // Flat/plate faces want a shallow ARCH, not the 220° cylinder wrap (that curls the
@@ -2448,6 +2489,7 @@ function computeTextArtLayout(meta, params) {
       startDeg: params.embossArcStartDeg ?? -90,
       spacing: params.embossArcSpacing ?? 1,
       side: params.embossArcSide === "down" ? "down" : "up",
+      fontWeight,
     };
     if (params.embossArcRadius > 0) {
       const radiusMm = resolveArcRadiusMm(frame, meta, params, labelH);
@@ -2456,8 +2498,15 @@ function computeTextArtLayout(meta, params) {
     raster = rasterArcTextMask(text, fontId, fontSizePx, opts);
   } else {
     const lineHeightsMm = layout === "flat" ? resolveLineHeightsMm(text, params, labelH) : null;
-    raster = rasterTextMask(text, fontId, fontSizePx, align, lineHeightsMm);
+    const lineSpacing = clamp(params.embossLineSpacing ?? 1.12, 0.85, 2.2);
+    const letterSpacing = clamp(params.embossLetterSpacing ?? 1, 0.7, 2.2);
+    raster = rasterTextMask(text, fontId, fontSizePx, align, lineHeightsMm, {
+      lineSpacing,
+      letterSpacing,
+      fontWeight,
+    });
     if (lineHeightsMm) raster._lineHeightsMm = lineHeightsMm;
+    raster._lineSpacing = lineSpacing;
   }
   if (!raster?.mask?.length) return null;
 
@@ -2478,10 +2527,11 @@ function computeTextArtLayout(meta, params) {
     // Per-line mm sizes: block height ≈ sum of line heights (with leading).
     const heights = raster._lineHeightsMm;
     const splitLines = String(text || "").split(/\r?\n/).slice(0, MAX_EMBOSS_TEXT_LINES);
+    const lh = clamp(raster._lineSpacing ?? params.embossLineSpacing ?? 1.12, 0.85, 2.2);
     let targetH = 0;
     for (let i = 0; i < splitLines.length; i++) {
       const h = clamp(Number(heights[i]) || labelH, limits.min, limits.max);
-      targetH += i === 0 ? h : h * 1.12;
+      targetH += i === 0 ? h : h * lh;
     }
     if (targetH <= 0) targetH = labelH;
     targetH = Math.min(targetH, frame.faceH * 0.96);

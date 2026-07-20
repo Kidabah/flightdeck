@@ -2,8 +2,14 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b520 — fix doubled features.js (insert-slots bare import)
+- Latest commit: MakerDeck b521 — letter/line spacing + font weight
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
+
+### 2026-07-20 feature (MakerDeck b521 — text spacing + weight)
+
+**Need:** Words running together on plaques; want letter spacing, line spacing, font weight.
+
+**What shipped:** Flat **Letter spacing** + **Line spacing** sliders; **Font weight** select (auto/light…black). Temora defaults: spacing 1.28 / 1.4, weight 600. Hard refresh **b521**.
 
 ### 2026-07-20 fix (MakerDeck b520 — boggy = doubled features.js)
 
