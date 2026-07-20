@@ -3415,7 +3415,7 @@ async function loadTemoraVetPlaque() {
 
     let svgText = "";
     try {
-      const res = await fetch(TEMORA_VET_CELTIC_SVG_URL, { cache: "no-store" });
+      const res = await fetch(`${TEMORA_VET_CELTIC_SVG_URL}?v=${MAKERDECK_BUILD}`, { cache: "no-store" });
       if (!res.ok) throw new Error(`SVG HTTP ${res.status}`);
       svgText = await res.text();
     } catch (err) {
@@ -3424,7 +3424,7 @@ async function loadTemoraVetPlaque() {
     }
 
     if (svgText?.trim()) {
-      await importSvgDirectEmboss(svgText, { fileName: "temora-vet-celtic-frame.svg", importMode: "vector" });
+      await importSvgFile(svgText, { fileName: "temora-vet-celtic-frame.svg" });
     } else {
       rebuild();
       pushAppHistory();
