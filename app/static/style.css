@@ -1684,13 +1684,25 @@ header {
     min-width: max-content;
   }
   .tab-section { display: none; }
-  /* Flatten collapsible sidebar sections into one scroll strip. */
-  #tab-strip .tab-section-group,
-  #tab-strip .tab-section-body {
-    display: contents;
+  /* Sidebar section <details> ignore display:contents in Chromium — keep them
+     as compact horizontal clusters instead of tall stacked columns. */
+  #tab-strip .tab-section-group {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.35rem;
+    margin: 0;
+    padding: 0;
+    border: none;
   }
   #tab-strip .tab-section-group > summary.tab-section {
     display: none !important;
+  }
+  #tab-strip .tab-section-body {
+    display: flex !important;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.35rem;
   }
   .tab-printer { min-width: 7rem; padding: 0.35rem 0.65rem; }
   .app-views { overflow: visible; }

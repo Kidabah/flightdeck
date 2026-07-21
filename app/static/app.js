@@ -4342,8 +4342,18 @@ function buildTabs(printers) {
   ].join('');
   _tabsBuilt = true;
   _bindSidebarSections();
+  _syncMobileNavSections();
   router();
 }
+
+/** On phone widths, keep sidebar <details> open so the horizontal strip can show tabs. */
+function _syncMobileNavSections() {
+  const mobile = window.matchMedia('(max-width: 760px)').matches;
+  document.querySelectorAll('#tab-strip .tab-section-group').forEach((el) => {
+    if (mobile) el.open = true;
+  });
+}
+window.matchMedia('(max-width: 760px)').addEventListener('change', _syncMobileNavSections);
 
 // ── Printer detail helpers ─────────────────────────────────────────────────
 
