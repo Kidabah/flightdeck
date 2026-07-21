@@ -1459,40 +1459,8 @@ header {
   color: #EF4444;
 }
 
-@media (max-width: 720px) {
-  header {
-    align-items: flex-start;
-    flex-wrap: wrap;
-    justify-content: center;
-    min-height: 7.2rem;
-    padding: 4.2rem 1rem 0.95rem;
-  }
-  .wordmark {
-    top: 0.95rem;
-    transform: translateX(-50%);
-  }
-  .header-status {
-    justify-content: center;
-    flex-wrap: wrap;
-    min-width: 0;
-    width: 100%;
-  }
-  .header-right {
-    position: absolute;
-    right: 1rem;
-    top: 1.25rem;
-    gap: 0.5rem;
-    min-width: 0;
-  }
-  .command-header-btn kbd {
-    display: none;
-  }
-  .notif-panel {
-    left: auto;
-    right: 1rem;
-    transform: none;
-  }
-}
+/* Phone header stack lives in the ≤760px shell block further below.
+   Keep this slot free so the absolute-wordmark ≤720px rules don't fight it. */
 
 #tab-strip {
   display: flex;
@@ -1728,19 +1696,9 @@ header {
   .dashboard-briefing { grid-template-columns: 1fr; }
   .briefing-head { flex-direction: row; align-items: flex-end; padding: 0.1rem; }
   .briefing-list { grid-template-columns: 1fr; }
-  .briefing-row { grid-template-columns: 4.2rem minmax(0, 1fr); }
   #printer-grid { padding: 0; }
   .dashboard-top { padding: 1rem 1rem 0; }
   .dashboard-cards { padding: 1rem; grid-template-columns: 1fr; }
-  .dashboard-hero {
-    grid-template-columns: 1fr;
-    align-items: start;
-  }
-  .dashboard-hero-metrics { justify-content: flex-start; }
-  .dashboard-hero-links {
-    flex-direction: row;
-    flex-wrap: wrap;
-  }
   .briefing-clear-hero {
     flex-direction: column;
     align-items: flex-start;
@@ -1749,6 +1707,8 @@ header {
     margin-left: 0;
   }
   #dash-footer { padding: 1rem; flex-direction: column; gap: 0.35rem; }
+  /* Hero/stack polish is reasserted at end of file — base hero rules
+     below used to override this early block and crush the copy column to 0px. */
 }
 
 #refresh-time {
@@ -23482,4 +23442,130 @@ select optgroup {
   .cm-palette-row { grid-template-columns: 2rem minmax(0, 1fr) auto; }
   .cm-row-actions { grid-column: 2 / -1; }
   .cm-palette-actions { margin-left: 0; }
+}
+
+/* ── Mobile polish (must stay LAST) ─────────────────────────────────────
+   Base hero/card rules are defined after the early ≤760px shell block, so
+   without this late pass phones keep the desktop 3-column heroes and the
+   copy column collapses to 0px (Dashboard title overlapping metrics). */
+@media (max-width: 760px) {
+  .header-status,
+  .header-right {
+    min-width: 0;
+  }
+
+  .dashboard-hero,
+  .telemetry-hero,
+  .queue-hero,
+  .memory-hero,
+  .makerworld-hero,
+  .fleet-filament-hero,
+  .mission-hero,
+  .fleet-wall-hero {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .dashboard-hero-copy,
+  .telemetry-hero-copy,
+  .queue-hero-copy,
+  .memory-hero-copy,
+  .makerworld-hero-copy {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .dashboard-hero-status,
+  .queue-hero-status,
+  .telemetry-hero-status {
+    max-width: none;
+  }
+
+  .dashboard-hero-metrics,
+  .telemetry-hero-metrics,
+  .queue-hero-metrics,
+  .memory-hero-metrics,
+  .makerworld-hero-metrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    justify-content: stretch;
+    width: 100%;
+  }
+
+  .dash-hero-metric,
+  .telemetry-hero-metric,
+  .queue-hero-metric,
+  .memory-hero-metric,
+  .makerworld-hero-metric {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .dashboard-hero-links,
+  .telemetry-hero-links,
+  .queue-hero-links,
+  .memory-hero-links,
+  .makerworld-hero-links {
+    justify-content: flex-start;
+    flex-direction: row;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .briefing-row {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
+
+  .briefing-head {
+    align-items: flex-start;
+    gap: 0.35rem;
+  }
+
+  #tab-strip {
+    align-items: stretch;
+    padding-bottom: 0.15rem;
+  }
+
+  #tab-strip .tab {
+    align-items: center;
+    justify-content: center;
+    min-height: 2.15rem;
+    padding: 0.4rem 0.75rem;
+  }
+
+  #tab-strip .tab.active {
+    box-shadow: inset 0 -3px 0 var(--tab-accent, var(--accent));
+  }
+
+  #tab-strip .tab-printer {
+    min-width: 6.5rem;
+  }
+
+  .queue-printer-header {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 0.45rem;
+  }
+
+  .queue-header-right {
+    margin-left: 0;
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .queue-job {
+    align-items: flex-start;
+  }
+
+  .queue-job-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .card {
+    padding: 1rem;
+  }
 }
