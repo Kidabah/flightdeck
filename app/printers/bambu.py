@@ -395,10 +395,10 @@ class BambuPrinter:
             if (state == "printing"
                     and self._current_print_id is not None
                     and self._ams_slot_snapshot_print_id != self._current_print_id):
-                # Proactively fetch preview so filament_weight_g is available at
-                # print-end even if nobody visits the detail page during the print.
-                # get_preview() caches on subtask_name so this is a one-shot FTP call.
-                self._hydrate_print_preview_metadata(self._current_print_id)
+                # Never FTP on the status poll path — a hung FTPS session wedged the
+                # whole Flightdeck API (queue/printers). Prefer queue metadata; hydrate
+                # via FTP only from explicit preview endpoints / print-end.
+                self._hydrate_print_preview_metadata(self._current_print_id, allow_ftp=False)
                 raw_snap = _snapshot_ams_slots(print_data)
                 self._ams_slot_snapshot = raw_snap
                 self._ams_slot_snapshot_print_id = self._current_print_id
@@ -435,7 +435,7 @@ class BambuPrinter:
                     and self._current_print_id is not None
                     and self._ams_slot_snapshot_print_id == self._current_print_id
                     and job and job.progress is not None):
-                pv = self._hydrate_print_preview_metadata(self._current_print_id)
+                pv = self._hydrate_print_preview_metadata(self._current_print_id, allow_ftp=False)
                 if pv and pv.filament_weight_g:
                     try:
                         db.deduct_spool_usage_progress(
@@ -735,7 +735,8 @@ class BambuPrinter:
                                    f"New print started key={self._current_job_key}",
                                    print_id=print_id)
                 if print_id:
-                    self._hydrate_print_preview_metadata(print_id)
+                    # Queue metadata only — FTP from status() stalls the whole API.
+                    self._hydrate_print_preview_metadata(print_id, allow_ftp=False)
             if self._current_print_id and job is not None:
                 live_layer = job.layer_current
                 if live_layer is None and job.layer_total and job.progress is not None:
@@ -1153,12 +1154,12 @@ class BambuPrinter:
             self._preview_cache = (cache_key, _BAMBU_PREVIEW_FAILED)
             return None
 
-    def _hydrate_print_preview_metadata(self, print_id: Optional[int]):
+    def _hydrate_print_preview_metadata(self, print_id: Optional[int], *, allow_ftp: bool = True):
         """Attach 3MF preview metadata when a print started outside Flightdeck."""
         if not print_id:
             return None
         pv = _preview_metadata(self._preview_cache[1]) if self._preview_cache else None
-        if pv is None:
+        if pv is None and allow_ftp:
             pv = _preview_metadata(self.get_preview())
         if pv is None:
             pv = _queue_preview_metadata(self.id)

@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b528 — shelf edit mode + dovetail z-fight fix
+- Latest commit: Fix Flightdeck API stall (queue/printers hang on slow Bambu status)
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
+
+### 2026-07-21 fix (API stall — queue won't load)
+
+**Need:** Flightdeck super slow; queue never loads.
+
+**Cause:** Printer poll/`status()` could block for tens of seconds (Bambu FTPS hydrate on the hot path). `/api/queue` waited on that gather, then the whole API looked dead.
+
+**What shipped:** 4s per-printer status timeout; no FTP on poll path; queue/printers serve stale snapshot instead of waiting; broadcast gather 8s cap. Backend restart required.
 
 ### 2026-07-20 (b528 — Edit back / Edit shelf + z-fight fix)
 

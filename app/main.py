@@ -155,7 +155,32 @@ async def _gather_all_locked() -> list[dict]:
         return d
 
     async def _fetch_bambu(p):
-        status = await asyncio.to_thread(p.status)
+        try:
+            status = await asyncio.wait_for(asyncio.to_thread(p.status), timeout=4.0)
+        except asyncio.TimeoutError:
+            log.warning("bambu status timed out for %s", p.id)
+            d = {
+                "id": p.id,
+                "model_name": p.model_name,
+                "custom_name": p.custom_name,
+                "icon": p.icon,
+                "kind": "bambu",
+                "state": "offline",
+                "error": "Status timed out",
+                "temps": {},
+                "job": None,
+                "ams": [],
+                "toolheads": [],
+                "last_seen": getattr(p, "_last_seen", None),
+                "updated_at": datetime.utcnow(),
+            }
+            d["temperature_presets"] = _presets.get(p.id, {})
+            d["health"] = db.get_printer_health(p.id)
+            d["_error_print_id"] = p._error_print_id
+            d["_current_print_id"] = p._current_print_id
+            d["_last_finished_print_id"] = p._last_finished_print_id
+            d["_last_timelapse_path"] = p._last_timelapse_path
+            return d
         status.temperature_presets = _presets.get(p.id, {})
         _update_last_seen(status)
         d = asdict(status)
@@ -218,6 +243,13 @@ def _cached_printers(max_age_seconds: float = 8.0) -> Optional[list[dict]]:
         return None
     age = (datetime.utcnow() - _latest_printers_at).total_seconds()
     if age > max_age_seconds:
+        return None
+    return list(_latest_printers.values())
+
+
+def _stale_printers() -> Optional[list[dict]]:
+    """Any in-memory snapshot, even if older than the fresh-cache window."""
+    if not _latest_printers:
         return None
     return list(_latest_printers.values())
 
@@ -1183,7 +1215,13 @@ async def _broadcast_loop():
     while True:
         await asyncio.sleep(5)
         try:
-            data = await _gather_all()
+            try:
+                data = await asyncio.wait_for(_gather_all(), timeout=8.0)
+            except asyncio.TimeoutError:
+                log.warning("broadcast gather timed out; serving stale printer snapshot")
+                data = _stale_printers() or []
+            if not data:
+                continue
             _check_transitions(data)
             _check_calibration_sessions(data)
             poll_counter += 1
@@ -3286,10 +3324,20 @@ async def clear_bambu_sd_print_files(printer_id: str, body: BambuSdClearRequest)
 
 @app.get("/api/printers")
 async def get_printers():
-    cached = _cached_printers()
+    cached = _cached_printers(max_age_seconds=12.0)
     if cached is not None:
         return cached
-    return await _gather_all()
+    stale = _stale_printers()
+    if stale is not None:
+        # Refresh in background; don't stall the UI behind a hung printer.
+        if _gather_lock is None or not _gather_lock.locked():
+            asyncio.create_task(_gather_all())
+        return stale
+    try:
+        return await asyncio.wait_for(_gather_all(), timeout=5.0)
+    except asyncio.TimeoutError:
+        log.warning("get_printers: gather timed out")
+        return _stale_printers() or []
 
 
 @app.get("/api/printers/{printer_id}")
@@ -9469,8 +9517,13 @@ def _is_queue_source_model(filename: str) -> bool:
 
 
 async def _printer_status_map() -> dict[str, dict]:
-    if not _latest_printers:
-        await _gather_all()
+    # Never block the queue UI on a slow printer poll — serve last snapshot.
+    if _latest_printers:
+        return dict(_latest_printers)
+    try:
+        await asyncio.wait_for(_gather_all(), timeout=5.0)
+    except asyncio.TimeoutError:
+        log.warning("printer status map: cold gather timed out")
     return dict(_latest_printers)
 
 

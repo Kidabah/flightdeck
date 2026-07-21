@@ -443,7 +443,8 @@ def init() -> None:
 
 @contextmanager
 def _conn():
-    conn = sqlite3.connect(DB_PATH)
+    # timeout avoids indefinite event-loop stalls when a worker thread holds the DB.
+    conn = sqlite3.connect(DB_PATH, timeout=10)
     conn.row_factory = sqlite3.Row
     try:
         yield conn
