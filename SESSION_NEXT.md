@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: Mobile layout polish — hero cascade + nav strip (style.css v498)
+- Latest commit: Mobile layout polish — hero cascade + nav strip (style.css v499)
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
 
 ### 2026-07-21 polish (Mobile layout — heroes crushed / misaligned)
@@ -11,7 +11,7 @@ Latest GitHub/Pi state:
 
 **Cause:** Early ≤760px hero rules lost to later desktop `.dashboard-hero` (and similar) definitions — copy column collapsed to 0px, metrics/links piled beside an invisible title.
 
-**What shipped:** Late mobile polish block (heroes → 1 col, metrics 2×2, tab underline, queue actions wrap); drop conflicting header duplicate. Hard refresh `style.css?v=497`.
+**What shipped:** Late mobile polish block (heroes → 1 col, metrics 2×2, tab underline, queue actions wrap); hide Settings flyout in horizontal strip (was stretching tabs ~240px tall); drop conflicting header duplicate. Hard refresh `style.css?v=498`.
 
 ### 2026-07-21 fix (API stall — queue won't load)
 
