@@ -1,5 +1,26 @@
 ---
 
+## b504 — MakerDeck Cleanup + Voronoi v2
+**Date:** 2026-07-22
+
+### MakerDeck Cleanup
+- **Shared design system**: Extracted `css/makerdeck.css` — unified tokens, reset, common components (buttons, forms, dropzones, toolbars, status bars, footers)
+- **Shared navigation**: Created `js/nav.js` — auto-injecting nav bar with MakerDeck branding + tool links (Container, STL Painter, Voronoi), active state detection
+- **Consistent nav bar** across all 3 tools — no more ad-hoc header links bolted on
+- **Removed duplicate CSS** from voronoi.html (was copy-pasted from painter.html)
+- **Removed ad-hoc links** from index.html topbar and painter.html header
+- **Unified grid layout**: All tools use `nav` grid area from shared nav component
+
+### Voronoi Generator v2 (algorithm rewrite)
+- **Distance-to-boundary** computation instead of face-adjacency boundary detection — produces smooth, circular holes like the reference bear model
+- **Bisector plane** method: for each face, finds the two closest seeds, computes distance to the perpendicular bisector plane between them
+- **Double-walled shell**: outer surface + inward-offset inner surface (using vertex normals for offset direction)
+- **Rim faces**: quad strips connecting outer to inner surface at every hole edge — makes the mesh printable
+- **Better seed spacing**: dart-throwing with rejection sampling for more uniform cell distribution
+- Stats panel shows wall faces, rim faces breakdown
+
+---
+
 ## b503 — Voronoi Generator + Box Select → Selection System
 **Date:** 2026-07-21
 
