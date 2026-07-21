@@ -1,5 +1,23 @@
 ---
 
+## b532 — Fix smashed shelf female on Back
+**Date:** 2026-07-21
+
+### What changed
+- Female dovetail was embedded into the plate + welded → intersecting faces (looked like a broken boolean; socket unusable)
+- Bracket now sits fully in front of the plate (0.25 mm gap), clearer U-socket, male aligned to match
+- Join: slide shelf male in from the **side** along the bottom socket
+- Still 0 open edges on Back + Shelf
+
+### Deploy
+- Hard refresh MakerDeck **b532**
+- Re-export **Edit back** (`*-back.3mf`) — old back files stay wrong
+
+### Files
+- `makerforge/js/signs.js`, `geometry.js`, `app.js`, `index.html`
+
+---
+
 ## b531 — Shelf 3MF exports only the edited part
 **Date:** 2026-07-21
 

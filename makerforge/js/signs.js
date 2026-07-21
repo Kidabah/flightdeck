@@ -198,8 +198,14 @@ function extrudeYzAlongX(profileYz, x0, x1, holesYz = []) {
   return { positions, indices };
 }
 
-/** Embed dovetail into the mating solid so append+weld fuses cleanly (like garden stakes). */
-const SHELF_DOVETAIL_EMBED = 0.55;
+/**
+ * Female sits fully in FRONT of the plate (tiny air gap).
+ * Do NOT embed into the plate — that left intersecting faces that looked like a
+ * smashed boolean and blocked the dovetail socket.
+ */
+const SHELF_DOVETAIL_FACE_GAP = 0.25;
+/** Male root nests this far into the shelf deck for a clean weld. */
+const SHELF_MALE_DECK_EMBED = 0.45;
 
 /** Weld near-coincident verts after appending dovetail parts (keeps export manifold). */
 export function weldShelfMesh(mesh, eps = 0.04) {
@@ -231,27 +237,27 @@ export function weldShelfMesh(mesh, eps = 0.04) {
 }
 
 /**
- * Female dovetail bracket fused into the front face of the back plate.
- * Built as a closed U-channel (no boundary-hole) so the solid is manifold;
- * shelf male slides in from the side along X.
+ * Female dovetail bracket on the front of the back plate.
+ * Closed U-channel (manifold) open toward the shelf; male slides in from the side (along X).
+ * Narrow at the opening, wider toward the plate — matches the male flare.
  */
 export function buildSignShelfFemaleReceiver(backW, shelfW, backTh, shelfTh, dims = null) {
   const d = dims || signShelfDovetailDims(backTh, shelfTh);
   const tunnelW = Math.min(backW, shelfW);
   const yPlate = -backTh / 2;
-  // Embed into the plate (+Y from the front face) so append+weld fuses.
-  const yDeep = yPlate + SHELF_DOVETAIL_EMBED;
-  const yOpen = yPlate - d.depth;
-  const yOut = yOpen - 0.6;
-  const z0 = 0;
-  const z1 = Math.max(shelfTh + 1.2, d.baseW + 1.6);
+  // Entire bracket in front of the plate (no intersecting plate faces).
+  const yDeep = yPlate - SHELF_DOVETAIL_FACE_GAP;
+  const yOpen = yDeep - d.depth;
+  const wall = Math.max(1.4, d.neckW * 0.55); // meat around the socket so it reads as a bracket
+  const yOut = yOpen - wall;
   const zMid = shelfTh * 0.5;
   const n0 = zMid - d.neckW / 2;
   const n1 = zMid + d.neckW / 2;
   const b0 = zMid - d.baseW / 2;
   const b1 = zMid + d.baseW / 2;
-  // Single outer ring = closed U / C channel (opening toward the shelf).
-  // A separate "hole" that touches the outer boundary left 8 open edges.
+  const z0 = Math.min(0, b0) - wall;
+  const z1 = Math.max(shelfTh, b1) + wall;
+  // U outer = solid bracket; notch is the dovetail cavity (open at yOpen).
   const outer = [
     [yOut, z0],
     [yDeep, z0],
@@ -290,13 +296,14 @@ function shelfDeckOutlineXy(halfW, yFront, yRear, cornerR) {
 
 /**
  * Shelf deck + male dovetail (print pose: deck on z=0).
- * Male points into the forward female bracket (in front of the back face).
+ * Male points into the forward female bracket; slide in from the side along X.
  */
 export function buildSignShelfWithMale(shelfW, shelfLen, shelfTh, backTh, cornerR = 0, dims = null) {
   const d = dims || signShelfDovetailDims(backTh, shelfTh);
   const clr = d.clearance;
   const yPlate = -backTh / 2;
-  const yOpen = yPlate - d.depth;
+  const yDeep = yPlate - SHELF_DOVETAIL_FACE_GAP;
+  const yOpen = yDeep - d.depth;
   const len = Math.max(12, shelfLen);
   const yFront = yOpen - len;
   const halfW = Math.max(10, shelfW) / 2;
@@ -310,9 +317,9 @@ export function buildSignShelfWithMale(shelfW, shelfLen, shelfTh, backTh, corner
     positions, indices, { outer, holes: [] },
     mapTop, mapBot, (w) => [w[0], w[1]], "both", null,
   );
-  // Tip nests in the female; start slightly inside the deck so append+weld fuses.
-  const yJoin = yOpen + SHELF_DOVETAIL_EMBED;
-  const yTip = yPlate - clr * 0.35;
+  // Tip toward the plate (wide); root at the deck opening (narrow) — matches female.
+  const yJoin = yOpen + SHELF_MALE_DECK_EMBED;
+  const yTip = yDeep - clr * 0.35;
   const zMid = thS * 0.5;
   const neck = Math.max(1.2, d.neckW - clr);
   const base = Math.max(neck + 0.4, d.baseW - clr);
@@ -320,7 +327,6 @@ export function buildSignShelfWithMale(shelfW, shelfLen, shelfTh, backTh, corner
   const n1 = zMid + neck / 2;
   const b0 = zMid - base / 2;
   const b1 = zMid + base / 2;
-  // Narrow at deck join, wide at tip — matches female flare.
   const male = extrudeYzAlongX(
     [
       [yJoin, n0],

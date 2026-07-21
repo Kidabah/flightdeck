@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b531 — shelf 3MF exports only Edit back / Edit shelf part
+- Latest commit: MakerDeck b532 — fix smashed shelf female socket on Back
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
+
+### 2026-07-21 fix (MakerDeck b532 — back dovetail unusable)
+
+**Need:** Shelf male looked fine; back socket looked smashed / couldn’t see how they join.
+
+**Cause:** Female was embedded into the plate and welded → intersecting faces blocked the cavity.
+
+**What shipped:** Clean U-bracket fully in front of the plate; slide male in from the side. Hard refresh **b532**, re-export back.
 
 ### 2026-07-21 fix (MakerDeck b531 — shelf 3MF “the lot”)
 

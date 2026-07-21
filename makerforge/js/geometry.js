@@ -44,8 +44,7 @@ import {
   buildSignShelfFemaleReceiver,
   buildSignShelfWithMale,
   signShelfDovetailDims,
-  weldShelfMesh,
-} from "./signs.js?v=530";
+} from "./signs.js?v=532";
 import {
   resolveVaseTexture,
   densifyClosedProfile,
@@ -2191,12 +2190,8 @@ export function buildSign(params) {
   let shelfMesh = null;
   if (isShelf) {
     uprightFlatSignMesh(backMesh, H, th);
+    // Append only — do not weld into the plate (intersecting faces smashed the socket).
     appendMesh(backMesh, buildSignShelfFemaleReceiver(W, shelfW, th, shelfTh, dove));
-    const weldedBack = weldShelfMesh(backMesh, 0.04);
-    if (weldedBack?.positions?.length) {
-      backMesh.positions = weldedBack.positions;
-      backMesh.indices = weldedBack.indices;
-    }
     shelfMesh = buildSignShelfWithMale(shelfW, shelfLen, shelfTh, th, shelfCorner, dove);
   }
 
