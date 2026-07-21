@@ -60,7 +60,12 @@ class _ImplicitFTP_TLS(ftplib.FTP_TLS):
         return conn, size
 
 
-def _parse_3mf(buf: io.BytesIO, plate_number: Optional[int] = None) -> BambuPreview:
+def _parse_3mf(
+    buf: io.BytesIO,
+    plate_number: Optional[int] = None,
+    *,
+    include_object_geometry: bool = True,
+) -> BambuPreview:
     """Extract thumbnail and metadata from an in-memory .gcode.3mf zip."""
     with zipfile.ZipFile(buf) as z:
         plate_number = _resolve_print_plate_number(z.namelist(), plate_number)
@@ -131,9 +136,15 @@ def _parse_3mf(buf: io.BytesIO, plate_number: Optional[int] = None) -> BambuPrev
             k: [_flip_bbox_y(v, plate_bounds) for v in vals]
             for k, vals in object_boxes_by_name.items()
         }
-    gcode_object_boxes, gcode_object_shapes, bed_bounds = _extract_gcode_object_geometry(plate_gcode)
-    if gcode_object_boxes:
-        plate_bounds = plate_bounds or _bounds_for_boxes(gcode_object_boxes.values())
+    # Object footprint extraction walks every G1 in the plate gcode — fine for
+    # one-shot previews, disastrous on the queue hot path (multi‑MB files).
+    gcode_object_boxes: dict = {}
+    gcode_object_shapes: dict = {}
+    bed_bounds: Optional[dict] = None
+    if include_object_geometry:
+        gcode_object_boxes, gcode_object_shapes, bed_bounds = _extract_gcode_object_geometry(plate_gcode)
+        if gcode_object_boxes:
+            plate_bounds = plate_bounds or _bounds_for_boxes(gcode_object_boxes.values())
     if plate is not None:
         filament_nozzles = _parse_filament_nozzle_map(project_settings, plate)
         name_counts: dict[str, int] = {}

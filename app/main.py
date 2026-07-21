@@ -1771,7 +1771,9 @@ def _queue_file_metadata(filename: str, data: bytes) -> dict:
     if _queue_file_extension(filename) == ".3mf":
         try:
             from .printers.bambu_ftp import _parse_3mf
-            p = _parse_3mf(io.BytesIO(data))
+            # Queue only needs slice_info filament/nozzle metadata + thumbnail —
+            # never walk plate gcode for object shapes (that pegs the API).
+            p = _parse_3mf(io.BytesIO(data), include_object_geometry=False)
             preview_png = p.image_png
             estimated_seconds = p.estimated_total_seconds
             filament_weight_g = p.filament_weight_g
@@ -2104,7 +2106,7 @@ async def preview_file_desk_source(source_id: str, path: str, view: Optional[str
         raise HTTPException(status_code=404, detail="No preview available")
     try:
         from .printers.bambu_ftp import _parse_3mf
-        preview = _parse_3mf(io.BytesIO(data))
+        preview = _parse_3mf(io.BytesIO(data), include_object_geometry=False)
     except Exception as exc:
         raise HTTPException(status_code=404, detail="No preview available") from exc
     prefer_top = (view or "").strip().lower() == "top"
@@ -9628,9 +9630,18 @@ def _queue_filament_colors(job: dict) -> list[dict]:
 
 
 def _queue_filament_colors_for_preflight(job: dict, printer_status: Optional[dict]) -> list[dict]:
-    """Re-read H2D 3MF nozzle metadata so queue checks use current parser rules."""
+    """Prefer stored filament/nozzle metadata; only re-parse when nozzles are missing.
+
+    Historically this re-read the full 3MF (including gcode object geometry) on
+    every H2D queue preflight — a 16MB job froze the whole API at ~80% CPU.
+    """
     colors = _queue_filament_colors(job)
     if not _is_h2d_printer_status(printer_status):
+        return colors
+    if colors and all(
+        isinstance(c, dict) and c.get("nozzle") is not None
+        for c in colors
+    ):
         return colors
     filename = str(job.get("filename") or "")
     if _queue_file_extension(filename) != ".3mf":

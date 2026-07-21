@@ -9,9 +9,9 @@ Latest GitHub/Pi state:
 
 **Need:** Flightdeck super slow; queue never loads.
 
-**Cause:** Printer poll/`status()` could block for tens of seconds (Bambu FTPS hydrate on the hot path). `/api/queue` waited on that gather, then the whole API looked dead.
+**Cause:** H2D queue preflight re-parsed the full `.gcode.3mf` (incl. walking every G1 for object geometry) on the event loop — Tired Eyes ~16MB pinned uvicorn ~80% CPU and starved every other request. Secondary: printer status/FTP could also stall polls.
 
-**What shipped:** 4s per-printer status timeout; no FTP on poll path; queue/printers serve stale snapshot instead of waiting; broadcast gather 8s cap. Backend restart required.
+**What shipped:** Skip gcode geometry on queue/metadata parses; don't re-read 3MF when nozzle fields already stored; status timeouts + no FTP on poll path; stale printer snapshot for queue/UI. Backend restart required.
 
 ### 2026-07-20 (b528 — Edit back / Edit shelf + z-fight fix)
 
