@@ -198,19 +198,50 @@ function extrudeYzAlongX(profileYz, x0, x1, holesYz = []) {
   return { positions, indices };
 }
 
-/** Air gap between back face and female bracket — avoids coplanar z-fighting in preview. */
-const SHELF_DOVETAIL_FACE_GAP = 0.4;
+/** Embed dovetail into the mating solid so append+weld fuses cleanly (like garden stakes). */
+const SHELF_DOVETAIL_EMBED = 0.55;
+
+/** Weld near-coincident verts after appending dovetail parts (keeps export manifold). */
+export function weldShelfMesh(mesh, eps = 0.04) {
+  if (!mesh?.positions?.length || !mesh?.indices?.length) return mesh;
+  const table = new Map();
+  const outPos = [];
+  const indexOf = (x, y, z) => {
+    const k = `${Math.round(x / eps)}|${Math.round(y / eps)}|${Math.round(z / eps)}`;
+    let idx = table.get(k);
+    if (idx === undefined) {
+      idx = outPos.length / 3;
+      outPos.push(x, y, z);
+      table.set(k, idx);
+    }
+    return idx;
+  };
+  const outIdx = [];
+  const P = mesh.positions;
+  const I = mesh.indices;
+  for (let t = 0; t < I.length; t += 3) {
+    const a = I[t], b = I[t + 1], c = I[t + 2];
+    const ia = indexOf(P[a * 3], P[a * 3 + 1], P[a * 3 + 2]);
+    const ib = indexOf(P[b * 3], P[b * 3 + 1], P[b * 3 + 2]);
+    const ic = indexOf(P[c * 3], P[c * 3 + 1], P[c * 3 + 2]);
+    if (ia === ib || ib === ic || ia === ic) continue;
+    outIdx.push(ia, ib, ic);
+  }
+  return { positions: outPos, indices: outIdx };
+}
 
 /**
- * Female dovetail bracket entirely in FRONT of the back plate (no shared faces).
- * Tunnel along X — shelf male slides in from the side.
+ * Female dovetail bracket fused into the front face of the back plate.
+ * Built as a closed U-channel (no boundary-hole) so the solid is manifold;
+ * shelf male slides in from the side along X.
  */
 export function buildSignShelfFemaleReceiver(backW, shelfW, backTh, shelfTh, dims = null) {
   const d = dims || signShelfDovetailDims(backTh, shelfTh);
   const tunnelW = Math.min(backW, shelfW);
   const yPlate = -backTh / 2;
-  const yDeep = yPlate - SHELF_DOVETAIL_FACE_GAP;
-  const yOpen = yDeep - d.depth;
+  // Embed into the plate (+Y from the front face) so append+weld fuses.
+  const yDeep = yPlate + SHELF_DOVETAIL_EMBED;
+  const yOpen = yPlate - d.depth;
   const yOut = yOpen - 0.6;
   const z0 = 0;
   const z1 = Math.max(shelfTh + 1.2, d.baseW + 1.6);
@@ -219,17 +250,21 @@ export function buildSignShelfFemaleReceiver(backW, shelfW, backTh, shelfTh, dim
   const n1 = zMid + d.neckW / 2;
   const b0 = zMid - d.baseW / 2;
   const b1 = zMid + d.baseW / 2;
-  // Bracket body sits fully in front of the plate (all y < yPlate).
+  // Single outer ring = closed U / C channel (opening toward the shelf).
+  // A separate "hole" that touches the outer boundary left 8 open edges.
   const outer = [
-    [yOut, z0], [yDeep, z0], [yDeep, z1], [yOut, z1],
-  ];
-  // Narrow at opening (toward shelf), wider toward the plate.
-  const hole = [
-    [yOpen, n0], [yDeep, b0], [yDeep, b1], [yOpen, n1],
+    [yOut, z0],
+    [yDeep, z0],
+    [yDeep, b0],
+    [yOpen, n0],
+    [yOpen, n1],
+    [yDeep, b1],
+    [yDeep, z1],
+    [yOut, z1],
   ];
   const x0 = -tunnelW / 2 + 1.5;
   const x1 = tunnelW / 2 - 1.5;
-  return extrudeYzAlongX(outer, x0, x1, [hole]);
+  return extrudeYzAlongX(outer, x0, x1, []);
 }
 
 /** Shelf deck outline in XY — rounded front corners, square rear for dovetail. */
@@ -261,8 +296,7 @@ export function buildSignShelfWithMale(shelfW, shelfLen, shelfTh, backTh, corner
   const d = dims || signShelfDovetailDims(backTh, shelfTh);
   const clr = d.clearance;
   const yPlate = -backTh / 2;
-  const yDeep = yPlate - SHELF_DOVETAIL_FACE_GAP;
-  const yOpen = yDeep - d.depth;
+  const yOpen = yPlate - d.depth;
   const len = Math.max(12, shelfLen);
   const yFront = yOpen - len;
   const halfW = Math.max(10, shelfW) / 2;
@@ -276,7 +310,9 @@ export function buildSignShelfWithMale(shelfW, shelfLen, shelfTh, backTh, corner
     positions, indices, { outer, holes: [] },
     mapTop, mapBot, (w) => [w[0], w[1]], "both", null,
   );
-  const yTip = yDeep - clr * 0.35;
+  // Tip nests in the female; start slightly inside the deck so append+weld fuses.
+  const yJoin = yOpen + SHELF_DOVETAIL_EMBED;
+  const yTip = yPlate - clr * 0.35;
   const zMid = thS * 0.5;
   const neck = Math.max(1.2, d.neckW - clr);
   const base = Math.max(neck + 0.4, d.baseW - clr);
@@ -284,13 +320,13 @@ export function buildSignShelfWithMale(shelfW, shelfLen, shelfTh, backTh, corner
   const n1 = zMid + neck / 2;
   const b0 = zMid - base / 2;
   const b1 = zMid + base / 2;
-  // Narrow at opening, wide at tip — matches female flare.
+  // Narrow at deck join, wide at tip — matches female flare.
   const male = extrudeYzAlongX(
     [
-      [yOpen, n0],
+      [yJoin, n0],
       [yTip, b0],
       [yTip, b1],
-      [yOpen, n1],
+      [yJoin, n1],
     ],
     -halfW + 2.2,
     halfW - 2.2,
@@ -298,7 +334,7 @@ export function buildSignShelfWithMale(shelfW, shelfLen, shelfTh, backTh, corner
   const baseVtx = positions.length / 3;
   for (const v of male.positions) positions.push(v);
   for (const i of male.indices) indices.push(i + baseVtx);
-  return { positions, indices };
+  return weldShelfMesh({ positions, indices }, 0.04);
 }
 
 /** Rotate a flat plate (XY face, +Z thickness) into print-upright back: height → Z, thickness → Y. */

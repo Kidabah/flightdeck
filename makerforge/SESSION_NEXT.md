@@ -1,5 +1,24 @@
 ---
 
+## b530 — Shelf dovetail manifold (0 open edges)
+**Date:** 2026-07-21
+
+### What changed
+- Female dovetail on the Back was an outer+boundary-hole extrusion → **8 open edges** (export warn “Back 8”)
+- Rebuilt as a closed **U-channel** solid, embedded ~0.55 mm into the plate and welded (same idea as garden stakes)
+- Male dovetail on the Shelf embeds into the deck + weld
+- Verified: Back 0 / Shelf 0 / Female alone 0 open edges after `prepareMeshFor3mf`
+
+### Deploy
+- Hard refresh MakerDeck **b530** (Ctrl+Shift+R)
+- UI-only; restart optional
+
+### Files
+- `makerforge/js/signs.js`, `geometry.js`, `app.js`, `index.html`
+- `makerforge/test/shelf-manifold.mjs`
+
+---
+
 ## b529 — Shelf STL/3MF part mix-up
 **Date:** 2026-07-21
 

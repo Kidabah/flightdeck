@@ -44,7 +44,8 @@ import {
   buildSignShelfFemaleReceiver,
   buildSignShelfWithMale,
   signShelfDovetailDims,
-} from "./signs.js?v=529";
+  weldShelfMesh,
+} from "./signs.js?v=530";
 import {
   resolveVaseTexture,
   densifyClosedProfile,
@@ -2191,6 +2192,11 @@ export function buildSign(params) {
   if (isShelf) {
     uprightFlatSignMesh(backMesh, H, th);
     appendMesh(backMesh, buildSignShelfFemaleReceiver(W, shelfW, th, shelfTh, dove));
+    const weldedBack = weldShelfMesh(backMesh, 0.04);
+    if (weldedBack?.positions?.length) {
+      backMesh.positions = weldedBack.positions;
+      backMesh.indices = weldedBack.indices;
+    }
     shelfMesh = buildSignShelfWithMale(shelfW, shelfLen, shelfTh, th, shelfCorner, dove);
   }
 

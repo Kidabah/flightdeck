@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b529 — shelf download was exporting the back plate
+- Latest commit: MakerDeck b530 — shelf Back dovetail manifold (0 open edges)
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
+
+### 2026-07-21 fix (MakerDeck b530 — shelf manifold)
+
+**Need:** Shelf download warned “Manifold check: 8 open edges (Back 8)”.
+
+**Cause:** Female dovetail used a hole that sat on the outer boundary → open slot edges.
+
+**What shipped:** Closed U-channel female fused into the plate; male embeds into the deck. Hard refresh **b530**.
 
 ### 2026-07-21 fix (MakerDeck b529 — shelf download = sign)
 
