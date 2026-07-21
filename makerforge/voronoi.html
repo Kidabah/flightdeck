@@ -10,110 +10,23 @@
     "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"
 } }
 </script>
+<link rel="stylesheet" href="css/makerdeck.css">
 <style>
-/* ================================================================== */
-/*  b503 — MakerDeck Voronoi Generator                                */
-/* ================================================================== */
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --bg:#060a10; --panel:#0d1520; --panel-2:#121c2a;
-  --border:#243246; --text:#f1f5f9; --muted:#8b9cb3;
-  --accent:#3ecfff; --accent-dim:rgba(62,207,255,.12);
-  --green:#34d399; --red:#f87171; --amber:#fbbf24;
-  --radius:8px; --radius-sm:5px;
-  --sidebar-w:280px; --header-h:42px; --footer-h:32px;
-}
-html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
-  font:13px/1.45 'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif}
-button{cursor:pointer;border:none;background:none;color:inherit;font:inherit}
-input[type=range]{width:100%;accent-color:var(--accent)}
-select{background:var(--panel-2);color:var(--text);border:1px solid var(--border);
-  border-radius:var(--radius-sm);padding:4px 8px;font:inherit;width:100%}
-::selection{background:var(--accent);color:var(--bg)}
-::-webkit-scrollbar{width:5px}
-::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
-
+/* -- Voronoi-specific layout --------------------------------------- */
+:root{ --sidebar-w:280px; --footer-h:32px; }
 .app{display:grid;height:100vh;
-  grid-template-rows:var(--header-h) 1fr var(--footer-h);
+  grid-template-rows:var(--nav-h) 1fr var(--footer-h);
   grid-template-columns:var(--sidebar-w) 1fr;
   grid-template-areas:
-    "header  header"
-    "sidebar viewport"
-    "footer  footer";
+    "nav      nav"
+    "sidebar  viewport"
+    "footer   footer";
 }
-
-/* Header */
-.header{grid-area:header;display:flex;align-items:center;gap:12px;
-  padding:0 16px;background:var(--panel);border-bottom:1px solid var(--border);z-index:50}
-.header-title{font-weight:700;font-size:14px;color:var(--accent)}
-.header-sub{color:var(--muted);font-size:12px}
-.header-right{margin-left:auto;display:flex;gap:8px;align-items:center}
-
-/* Sidebar */
 .sidebar{grid-area:sidebar;background:var(--panel);border-right:1px solid var(--border);
   overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:12px}
-.section-label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;
-  color:var(--muted);margin-bottom:4px;font-weight:600}
-.form-group{display:flex;flex-direction:column;gap:4px}
-.form-label{display:flex;justify-content:space-between;align-items:center;
-  font-size:12px;color:var(--muted)}
-.form-label .val{color:var(--accent);font-weight:600;font-family:'JetBrains Mono',monospace}
-
-.btn{padding:6px 14px;border-radius:var(--radius-sm);font-size:12px;font-weight:600;
-  border:1px solid var(--border);transition:all .15s}
-.btn:hover{background:var(--accent-dim);border-color:var(--accent)}
-.btn:disabled{opacity:.35;pointer-events:none}
-.btn-primary{background:var(--accent);color:var(--bg);border-color:var(--accent)}
-.btn-primary:hover{filter:brightness(1.15)}
-.btn-danger{border-color:var(--red);color:var(--red)}
-.btn-danger:hover{background:rgba(248,113,113,.12)}
-
-.btn-row{display:flex;gap:6px;flex-wrap:wrap}
-
-.cb-label{display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;
-  color:var(--muted)}
-.cb-label input{accent-color:var(--accent)}
-
-.drop-zone{border:2px dashed var(--border);border-radius:var(--radius);
-  padding:24px 16px;text-align:center;cursor:pointer;transition:all .2s;
-  color:var(--muted);font-size:12px}
-.drop-zone:hover,.drop-zone.dragover{border-color:var(--accent);color:var(--accent);
-  background:var(--accent-dim)}
-.drop-zone .icon{font-size:28px;margin-bottom:6px}
-
-.progress-bar{height:4px;border-radius:2px;background:var(--panel-2);overflow:hidden}
-.progress-bar .fill{height:100%;background:var(--accent);transition:width .2s;width:0%}
-
-/* Viewport */
 .viewport{grid-area:viewport;position:relative;background:var(--bg);overflow:hidden}
 .viewport canvas{display:block;width:100%!important;height:100%!important}
-
-/* Toolbar */
-.viewport-toolbar{position:absolute;top:8px;left:50%;transform:translateX(-50%);
-  display:flex;gap:4px;background:rgba(13,21,32,.85);border:1px solid var(--border);
-  border-radius:var(--radius);padding:3px 6px;z-index:20;backdrop-filter:blur(6px)}
-.viewport-toolbar button{padding:3px 10px;border-radius:var(--radius-sm);font-size:12px;
-  color:var(--muted);font-weight:500;transition:all .15s}
-.viewport-toolbar button:hover{color:var(--text);background:var(--accent-dim)}
-.viewport-toolbar button.active{color:var(--accent)}
-
-/* Status bar */
-.statusbar{position:absolute;bottom:0;left:0;right:0;height:24px;
-  display:flex;align-items:center;padding:0 10px;font-size:11px;
-  background:rgba(13,21,32,.9);color:var(--muted);z-index:20;gap:12px}
-
-/* Footer */
-.footer{grid-area:footer;display:flex;align-items:center;justify-content:space-between;
-  padding:0 16px;background:var(--panel);border-top:1px solid var(--border);
-  font-size:11px;color:var(--muted)}
-.footer a{color:var(--accent);text-decoration:none}
-
-/* Stats */
-.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 8px;font-size:12px}
-.stat-grid .label{color:var(--muted)}.stat-grid .val{color:var(--text);text-align:right}
-
-/* Mode buttons */
+.drop-zone .icon{font-size:28px;margin-bottom:6px}
 .mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px}
 .mode-btn{padding:8px;border-radius:var(--radius-sm);border:1px solid var(--border);
   text-align:center;font-size:12px;font-weight:600;transition:all .15s}
@@ -124,15 +37,8 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
 <body>
 <div class="app">
 
-  <!-- Header -->
-  <div class="header">
-    <span class="header-title">Voronoi Generator</span>
-    <span class="header-sub" id="fileName">No model loaded</span>
-    <div class="header-right">
-      <a href="painter.html" class="btn" style="text-decoration:none">STL Painter</a>
-      <a href="index.html" class="btn" style="text-decoration:none">MakerDeck</a>
-    </div>
-  </div>
+  <!-- Nav (injected by js/nav.js) -->
+  <nav class="md-nav"></nav>
 
   <!-- Sidebar -->
   <div class="sidebar">
@@ -205,6 +111,8 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
         <span class="label">Result faces</span><span class="val" id="statResultFaces">—</span>
         <span class="label">Cells</span><span class="val" id="statCells">—</span>
         <span class="label">Removed</span><span class="val" id="statRemoved">—</span>
+        <span class="label">Wall faces</span><span class="val" id="statWalls">—</span>
+        <span class="label">Rim faces</span><span class="val" id="statRims">—</span>
       </div>
     </div>
 
@@ -231,9 +139,9 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   </div>
 
   <!-- Footer -->
-  <div class="footer">
-    <span>MakerDeck · Voronoi Generator b503</span>
-    <a href="index.html">Back to MakerDeck</a>
+  <div class="md-footer">
+    <span id="fileName">No model loaded</span>
+    <span>Voronoi Generator</span>
   </div>
 
 </div>
@@ -241,6 +149,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import './nav.js';
 
 /* ================================================================== */
 /*  Helpers                                                           */
@@ -339,237 +248,301 @@ function parseSTL(buffer) {
 }
 
 /* ================================================================== */
-/*  Voronoi Core                                                      */
+/*  Voronoi Core v2 — distance-to-boundary + shell generation         */
 /* ================================================================== */
 
 /** Poisson-disc-ish sampling on mesh surface */
 function sampleSeedPoints(positions, nTri, count, randomness) {
-  // Compute face areas and total area for weighted sampling
   const areas = new Float32Array(nTri);
   let totalArea = 0;
   for (let i = 0; i < nTri; i++) {
     const o = i * 9;
-    const ax = positions[o], ay = positions[o+1], az = positions[o+2];
-    const bx = positions[o+3], by = positions[o+4], bz = positions[o+5];
-    const cx = positions[o+6], cy = positions[o+7], cz = positions[o+8];
-    const ex = bx-ax, ey = by-ay, ez = bz-az;
-    const fx = cx-ax, fy = cy-ay, fz = cz-az;
-    const crossX = ey*fz - ez*fy, crossY = ez*fx - ex*fz, crossZ = ex*fy - ey*fx;
-    areas[i] = 0.5 * Math.sqrt(crossX*crossX + crossY*crossY + crossZ*crossZ);
+    const ex = positions[o+3]-positions[o], ey = positions[o+4]-positions[o+1], ez = positions[o+5]-positions[o+2];
+    const fx = positions[o+6]-positions[o], fy = positions[o+7]-positions[o+1], fz = positions[o+8]-positions[o+2];
+    const cx = ey*fz-ez*fy, cy = ez*fx-ex*fz, cz = ex*fy-ey*fx;
+    areas[i] = 0.5 * Math.sqrt(cx*cx+cy*cy+cz*cz);
     totalArea += areas[i];
   }
-
-  // Build CDF for weighted random sampling
   const cdf = new Float64Array(nTri);
   cdf[0] = areas[0] / totalArea;
   for (let i = 1; i < nTri; i++) cdf[i] = cdf[i-1] + areas[i] / totalArea;
 
+  // Use dart-throwing with rejection for better spacing
   const seeds = [];
   const jitter = randomness / 100;
+  const minDist = Math.sqrt(totalArea / count) * 0.4 * (1 - jitter * 0.8);
 
   for (let s = 0; s < count; s++) {
-    const r = Math.random();
-    // Binary search in CDF
-    let lo = 0, hi = nTri - 1;
-    while (lo < hi) { const mid = (lo + hi) >> 1; if (cdf[mid] < r) lo = mid + 1; else hi = mid; }
-    const fi = lo;
-    const o = fi * 9;
-    const ax = positions[o], ay = positions[o+1], az = positions[o+2];
-    const bx = positions[o+3], by = positions[o+4], bz = positions[o+5];
-    const cx = positions[o+6], cy = positions[o+7], cz = positions[o+8];
-
-    // Random point on triangle with jitter control
-    let u = Math.random(), v = Math.random();
-    if (u + v > 1) { u = 1 - u; v = 1 - v; }
-    // Blend toward centroid based on inverse randomness
-    const centFactor = 1 - jitter;
-    const cu = 1/3, cv = 1/3;
-    u = cu + (u - cu) * (jitter > 0.01 ? 1 : centFactor);
-    v = cv + (v - cv) * (jitter > 0.01 ? 1 : centFactor);
-    if (u + v > 1) { u = 1 - u; v = 1 - v; }
-
-    seeds.push(
-      ax + u * (bx - ax) + v * (cx - ax),
-      ay + u * (by - ay) + v * (cy - ay),
-      az + u * (bz - az) + v * (cz - az)
-    );
+    let bestPt = null, bestMinD = -1;
+    const attempts = s < 20 ? 1 : 15; // More attempts = better spacing
+    for (let a = 0; a < attempts; a++) {
+      const r = Math.random();
+      let lo = 0, hi = nTri - 1;
+      while (lo < hi) { const mid = (lo+hi)>>1; if (cdf[mid] < r) lo = mid+1; else hi = mid; }
+      const o = lo * 9;
+      let u = Math.random(), v = Math.random();
+      if (u+v > 1) { u = 1-u; v = 1-v; }
+      const px = positions[o]+u*(positions[o+3]-positions[o])+v*(positions[o+6]-positions[o]);
+      const py = positions[o+1]+u*(positions[o+4]-positions[o+1])+v*(positions[o+7]-positions[o+1]);
+      const pz = positions[o+2]+u*(positions[o+5]-positions[o+2])+v*(positions[o+8]-positions[o+2]);
+      // Check min distance to existing seeds
+      let md = Infinity;
+      for (let j = 0; j < seeds.length; j += 3) {
+        const dx = px-seeds[j], dy = py-seeds[j+1], dz = pz-seeds[j+2];
+        md = Math.min(md, dx*dx+dy*dy+dz*dz);
+      }
+      if (md > bestMinD) { bestMinD = md; bestPt = [px, py, pz]; }
+    }
+    if (bestPt) seeds.push(...bestPt);
   }
   return new Float32Array(seeds);
 }
 
-/** Assign each face to its nearest seed → Voronoi cell ID */
-function assignCells(positions, nTri, seeds, nSeeds) {
+/** For each face, find closest + second-closest seed, compute boundary distance */
+function computeBoundaryDistance(positions, nTri, seeds, nSeeds) {
+  const dist = new Float32Array(nTri);     // distance to nearest Voronoi boundary
   const cellOf = new Uint16Array(nTri);
+
   for (let i = 0; i < nTri; i++) {
     const o = i * 9;
-    // Use face centroid
-    const cx = (positions[o] + positions[o+3] + positions[o+6]) / 3;
-    const cy = (positions[o+1] + positions[o+4] + positions[o+7]) / 3;
-    const cz = (positions[o+2] + positions[o+5] + positions[o+8]) / 3;
+    const cx = (positions[o]+positions[o+3]+positions[o+6]) / 3;
+    const cy = (positions[o+1]+positions[o+4]+positions[o+7]) / 3;
+    const cz = (positions[o+2]+positions[o+5]+positions[o+8]) / 3;
 
-    let bestDist = Infinity, bestCell = 0;
+    // Find two closest seeds
+    let d1 = Infinity, d2 = Infinity, s1 = 0, s2 = 0;
     for (let s = 0; s < nSeeds; s++) {
-      const dx = cx - seeds[s*3], dy = cy - seeds[s*3+1], dz = cz - seeds[s*3+2];
-      const d2 = dx*dx + dy*dy + dz*dz;
-      if (d2 < bestDist) { bestDist = d2; bestCell = s; }
+      const dx = cx-seeds[s*3], dy = cy-seeds[s*3+1], dz = cz-seeds[s*3+2];
+      const dd = dx*dx+dy*dy+dz*dz;
+      if (dd < d1) { d2 = d1; s2 = s1; d1 = dd; s1 = s; }
+      else if (dd < d2) { d2 = dd; s2 = s; }
     }
-    cellOf[i] = bestCell;
+    cellOf[i] = s1;
+
+    // Distance to the bisector plane between s1 and s2
+    // Plane normal = s2 - s1, plane passes through midpoint
+    const mx = (seeds[s1*3]+seeds[s2*3])/2;
+    const my = (seeds[s1*3+1]+seeds[s2*3+1])/2;
+    const mz = (seeds[s1*3+2]+seeds[s2*3+2])/2;
+    const nx = seeds[s2*3]-seeds[s1*3], ny = seeds[s2*3+1]-seeds[s1*3+1], nz = seeds[s2*3+2]-seeds[s1*3+2];
+    const nLen = Math.sqrt(nx*nx+ny*ny+nz*nz);
+    if (nLen > 1e-10) {
+      dist[i] = Math.abs((cx-mx)*(nx/nLen)+(cy-my)*(ny/nLen)+(cz-mz)*(nz/nLen));
+    }
   }
-  return cellOf;
+  return { dist, cellOf };
 }
 
-/** Build face adjacency (shared edge = 2 common verts) */
-function buildAdj(positions, nTri) {
+/** Compute per-vertex normals from face soup positions */
+function computeVertexNormals(positions, nTri) {
   const EPS = 1e-5;
-  const key = (x,y,z) => `${(Math.round(x/EPS)*EPS).toFixed(4)},${(Math.round(y/EPS)*EPS).toFixed(4)},${(Math.round(z/EPS)*EPS).toFixed(4)}`;
+  const vKey = (x,y,z) => `${(Math.round(x/EPS)*EPS).toFixed(4)},${(Math.round(y/EPS)*EPS).toFixed(4)},${(Math.round(z/EPS)*EPS).toFixed(4)}`;
+  const normalAccum = new Map(); // key → [nx, ny, nz]
 
-  // Build edge → face map
-  const edgeMap = new Map();
-  const vertIds = new Uint32Array(nTri * 3);
-  const vMap = new Map();
-  let vCount = 0;
   for (let i = 0; i < nTri; i++) {
+    const o = i * 9;
+    const ex = positions[o+3]-positions[o], ey = positions[o+4]-positions[o+1], ez = positions[o+5]-positions[o+2];
+    const fx = positions[o+6]-positions[o], fy = positions[o+7]-positions[o+1], fz = positions[o+8]-positions[o+2];
+    let nx = ey*fz-ez*fy, ny = ez*fx-ex*fz, nz = ex*fy-ey*fx;
+    const len = Math.sqrt(nx*nx+ny*ny+nz*nz);
+    if (len > 1e-10) { nx /= len; ny /= len; nz /= len; }
+
     for (let v = 0; v < 3; v++) {
-      const o = i*9 + v*3;
-      const k = key(positions[o], positions[o+1], positions[o+2]);
-      let id = vMap.get(k);
-      if (id === undefined) { id = vCount++; vMap.set(k, id); }
-      vertIds[i*3+v] = id;
+      const vi = o + v*3;
+      const k = vKey(positions[vi], positions[vi+1], positions[vi+2]);
+      let acc = normalAccum.get(k);
+      if (!acc) { acc = [0,0,0]; normalAccum.set(k, acc); }
+      acc[0] += nx; acc[1] += ny; acc[2] += nz;
     }
   }
+  // Normalize accumulated normals
+  for (const n of normalAccum.values()) {
+    const len = Math.sqrt(n[0]*n[0]+n[1]*n[1]+n[2]*n[2]);
+    if (len > 1e-10) { n[0] /= len; n[1] /= len; n[2] /= len; }
+  }
+  return { normalAccum, vKey };
+}
 
-  const adj = new Array(nTri);
-  for (let i = 0; i < nTri; i++) adj[i] = [];
+/** Build double-walled shell mesh from kept faces */
+function buildShellMesh(positions, normals, nTri, keepMask, shellThick) {
+  // 1. Compute vertex normals for offset direction
+  const { normalAccum, vKey } = computeVertexNormals(positions, nTri);
 
+  // 2. Count kept faces
+  let nKept = 0;
+  for (let i = 0; i < nTri; i++) if (keepMask[i]) nKept++;
+
+  // 3. Find boundary edges (between kept and removed faces)
+  const EPS = 1e-5;
+  const edgeKey = (x0,y0,z0,x1,y1,z1) => {
+    const k0 = vKey(x0,y0,z0), k1 = vKey(x1,y1,z1);
+    return k0 < k1 ? k0+'|'+k1 : k1+'|'+k0;
+  };
+
+  // Map edge → [faceIdx, kept?]
+  const edgeFaces = new Map();
   for (let i = 0; i < nTri; i++) {
-    const a = vertIds[i*3], b = vertIds[i*3+1], c = vertIds[i*3+2];
-    const edges = [[a,b],[b,c],[a,c]];
-    for (const [v0,v1] of edges) {
-      const ek = v0 < v1 ? `${v0}_${v1}` : `${v1}_${v0}`;
-      if (!edgeMap.has(ek)) edgeMap.set(ek, []);
-      edgeMap.get(ek).push(i);
+    const o = i * 9;
+    const verts = [[o,o+3],[o+3,o+6],[o,o+6]];
+    for (const [a,b] of verts) {
+      const ek = edgeKey(positions[a],positions[a+1],positions[a+2],
+                         positions[b],positions[b+1],positions[b+2]);
+      if (!edgeFaces.has(ek)) edgeFaces.set(ek, []);
+      edgeFaces.get(ek).push({ face: i, kept: !!keepMask[i] });
     }
   }
-  for (const faces of edgeMap.values()) {
-    for (let i = 0; i < faces.length; i++) {
-      for (let j = i + 1; j < faces.length; j++) {
-        adj[faces[i]].push(faces[j]);
-        adj[faces[j]].push(faces[i]);
-      }
-    }
-  }
-  return adj;
-}
 
-/** Determine which faces are on Voronoi cell boundaries */
-function findBoundaryFaces(cellOf, adj, nTri) {
-  const isBoundary = new Uint8Array(nTri);
+  // Boundary edges: one kept face, one removed face (or only one face = mesh boundary)
+  const boundaryEdges = [];
+  for (const [ek, faces] of edgeFaces) {
+    const hasKept = faces.some(f => f.kept);
+    const hasRemoved = faces.some(f => !f.kept);
+    if (hasKept && (hasRemoved || faces.length === 1)) {
+      // Parse the edge key back to coordinates
+      const parts = ek.split('|');
+      const [x0,y0,z0] = parts[0].split(',').map(Number);
+      const [x1,y1,z1] = parts[1].split(',').map(Number);
+      boundaryEdges.push({ x0,y0,z0, x1,y1,z1 });
+    }
+  }
+
+  // 4. Allocate output: outer faces + inner faces + rim quads (2 tris each)
+  const nRim = boundaryEdges.length;
+  const totalTri = nKept * 2 + nRim * 2;
+  const outPos = new Float32Array(totalTri * 9);
+  const outNorm = new Float32Array(totalTri * 9);
+  let idx = 0;
+
+  // Helper: get vertex normal for offset
+  function getVN(x, y, z) {
+    const k = vKey(x, y, z);
+    return normalAccum.get(k) || [0, 0, 1];
+  }
+
+  // 5a. Outer surface (original kept faces)
   for (let i = 0; i < nTri; i++) {
-    const cell = cellOf[i];
-    for (const n of adj[i]) {
-      if (cellOf[n] !== cell) { isBoundary[i] = 1; break; }
+    if (!keepMask[i]) continue;
+    const o = i * 9, no = i * 3;
+    for (let v = 0; v < 9; v++) outPos[idx*9+v] = positions[o+v];
+    // Face normal for all 3 vertices
+    const fn = [normals[no], normals[no+1], normals[no+2]];
+    for (let v = 0; v < 3; v++) {
+      outNorm[idx*9+v*3] = fn[0]; outNorm[idx*9+v*3+1] = fn[1]; outNorm[idx*9+v*3+2] = fn[2];
     }
+    idx++;
   }
-  return isBoundary;
+
+  // 5b. Inner surface (offset inward, reversed winding)
+  for (let i = 0; i < nTri; i++) {
+    if (!keepMask[i]) continue;
+    const o = i * 9, no = i * 3;
+    // Reversed winding: swap v1 and v2
+    for (let v = 0; v < 3; v++) {
+      const sv = v === 0 ? 0 : v === 1 ? 2 : 1; // 0,2,1 for reversed winding
+      const si = o + sv * 3;
+      const vn = getVN(positions[si], positions[si+1], positions[si+2]);
+      outPos[idx*9+v*3]   = positions[si]   - vn[0] * shellThick;
+      outPos[idx*9+v*3+1] = positions[si+1] - vn[1] * shellThick;
+      outPos[idx*9+v*3+2] = positions[si+2] - vn[2] * shellThick;
+      // Flipped normal
+      outNorm[idx*9+v*3] = -normals[no]; outNorm[idx*9+v*3+1] = -normals[no+1]; outNorm[idx*9+v*3+2] = -normals[no+2];
+    }
+    idx++;
+  }
+
+  // 5c. Rim faces — connect outer to inner at each boundary edge
+  for (const e of boundaryEdges) {
+    const vn0 = getVN(e.x0, e.y0, e.z0);
+    const vn1 = getVN(e.x1, e.y1, e.z1);
+
+    // Outer edge points
+    const ox0 = e.x0, oy0 = e.y0, oz0 = e.z0;
+    const ox1 = e.x1, oy1 = e.y1, oz1 = e.z1;
+    // Inner edge points (offset inward)
+    const ix0 = e.x0 - vn0[0]*shellThick, iy0 = e.y0 - vn0[1]*shellThick, iz0 = e.z0 - vn0[2]*shellThick;
+    const ix1 = e.x1 - vn1[0]*shellThick, iy1 = e.y1 - vn1[1]*shellThick, iz1 = e.z1 - vn1[2]*shellThick;
+
+    // Compute rim face normal (cross product of edge direction and shell direction)
+    const edx = ox1-ox0, edy = oy1-oy0, edz = oz1-oz0;
+    const sdx = ix0-ox0, sdy = iy0-oy0, sdz = iz0-oz0;
+    let rnx = edy*sdz-edz*sdy, rny = edz*sdx-edx*sdz, rnz = edx*sdy-edy*sdx;
+    const rLen = Math.sqrt(rnx*rnx+rny*rny+rnz*rnz);
+    if (rLen > 1e-10) { rnx /= rLen; rny /= rLen; rnz /= rLen; }
+
+    // Triangle 1: ox0, ox1, ix1
+    outPos[idx*9]   = ox0; outPos[idx*9+1] = oy0; outPos[idx*9+2] = oz0;
+    outPos[idx*9+3] = ox1; outPos[idx*9+4] = oy1; outPos[idx*9+5] = oz1;
+    outPos[idx*9+6] = ix1; outPos[idx*9+7] = iy1; outPos[idx*9+8] = iz1;
+    for (let v = 0; v < 3; v++) { outNorm[idx*9+v*3] = rnx; outNorm[idx*9+v*3+1] = rny; outNorm[idx*9+v*3+2] = rnz; }
+    idx++;
+
+    // Triangle 2: ox0, ix1, ix0
+    outPos[idx*9]   = ox0; outPos[idx*9+1] = oy0; outPos[idx*9+2] = oz0;
+    outPos[idx*9+3] = ix1; outPos[idx*9+4] = iy1; outPos[idx*9+5] = iz1;
+    outPos[idx*9+6] = ix0; outPos[idx*9+7] = iy0; outPos[idx*9+8] = iz0;
+    for (let v = 0; v < 3; v++) { outNorm[idx*9+v*3] = rnx; outNorm[idx*9+v*3+1] = rny; outNorm[idx*9+v*3+2] = rnz; }
+    idx++;
+  }
+
+  return { positions: outPos, normals: outNorm, nTri: totalTri };
 }
 
-/** Expand boundary by N layers of adjacency (controls wall thickness) */
-function expandBoundary(isBoundary, adj, nTri, layers) {
-  let current = new Uint8Array(isBoundary);
-  for (let L = 0; L < layers; L++) {
-    const next = new Uint8Array(current);
-    for (let i = 0; i < nTri; i++) {
-      if (current[i]) {
-        for (const n of adj[i]) next[n] = 1;
-      }
-    }
-    current = next;
-  }
-  return current;
-}
-
-/** Build output STL geometry from face mask */
+/** Build single-surface mesh from kept faces (no shell) */
 function buildFilteredMesh(positions, normals, nTri, keepMask) {
   let count = 0;
   for (let i = 0; i < nTri; i++) if (keepMask[i]) count++;
-
   const outPos = new Float32Array(count * 9);
   const outNorm = new Float32Array(count * 9);
   let idx = 0;
   for (let i = 0; i < nTri; i++) {
     if (!keepMask[i]) continue;
     const po = i * 9, no = i * 3;
-    for (let v = 0; v < 9; v++) outPos[idx * 9 + v] = positions[po + v];
-    // Expand face normal to per-vertex normals
-    outNorm[idx*9]   = outNorm[idx*9+3] = outNorm[idx*9+6] = normals[no];
-    outNorm[idx*9+1] = outNorm[idx*9+4] = outNorm[idx*9+7] = normals[no+1];
-    outNorm[idx*9+2] = outNorm[idx*9+5] = outNorm[idx*9+8] = normals[no+2];
+    for (let v = 0; v < 9; v++) outPos[idx*9+v] = positions[po+v];
+    for (let v = 0; v < 3; v++) {
+      outNorm[idx*9+v*3] = normals[no]; outNorm[idx*9+v*3+1] = normals[no+1]; outNorm[idx*9+v*3+2] = normals[no+2];
+    }
     idx++;
   }
   return { positions: outPos, normals: outNorm, nTri: count };
 }
 
-/** Full Voronoi generation pipeline */
+/** Full Voronoi generation pipeline v2 */
 function generateVoronoi(positions, normals, nTri, opts) {
   const { cellCount, wallThick, shellThick, randomness, mode, smooth } = opts;
 
   setStatus('Sampling seed points…'); showProgress(5);
-
   const seeds = sampleSeedPoints(positions, nTri, cellCount, randomness);
   showProgress(15);
 
-  setStatus('Assigning Voronoi cells…');
-  const cellOf = assignCells(positions, nTri, seeds, cellCount);
-  showProgress(35);
+  setStatus('Computing Voronoi boundaries…'); showProgress(20);
+  const { dist, cellOf } = computeBoundaryDistance(positions, nTri, seeds, cellCount);
+  showProgress(50);
 
-  setStatus('Building face adjacency…');
-  const adj = buildAdj(positions, nTri);
-  showProgress(55);
-
-  setStatus('Finding cell boundaries…');
-  const isBoundary = findBoundaryFaces(cellOf, adj, nTri);
-  showProgress(65);
-
-  // Compute average edge length for thickness scaling
-  let totalEdge = 0, edgeCount = 0;
-  for (let i = 0; i < Math.min(nTri, 2000); i++) {
-    const o = i * 9;
-    const dx = positions[o+3]-positions[o], dy = positions[o+4]-positions[o+1], dz = positions[o+5]-positions[o+2];
-    totalEdge += Math.sqrt(dx*dx+dy*dy+dz*dz);
-    edgeCount++;
-  }
-  const avgEdge = totalEdge / edgeCount;
-
-  // Wall layers based on thickness relative to mesh scale
-  const wallLayers = Math.max(0, Math.round(wallThick / avgEdge));
-
-  setStatus(`Expanding walls (${wallLayers} layers)…`);
-  const expandedBoundary = wallLayers > 0 ? expandBoundary(isBoundary, adj, nTri, wallLayers) : isBoundary;
-  showProgress(80);
-
-  // Build keep mask based on mode
+  // Build keep mask: faces close to boundary = wall, faces far from boundary = hole
+  setStatus('Classifying faces…');
   const keepMask = new Uint8Array(nTri);
+  const halfWall = wallThick / 2;
 
   if (mode === 'lattice') {
-    // Lattice: keep boundary faces (the walls between cells)
-    for (let i = 0; i < nTri; i++) keepMask[i] = expandedBoundary[i];
+    // Lattice: keep only faces near boundary (the wall network)
+    for (let i = 0; i < nTri; i++) keepMask[i] = dist[i] <= halfWall ? 1 : 0;
   } else {
-    // Holes: keep interior faces (remove boundaries = punch holes)
-    // But we actually want to keep the walls and remove cell interiors
-    // So "holes" = remove cell interiors, keep cell walls
-    // Wait — the user expects "holes" to punch through the surface
-    // Standard voronoi effect: keep walls, remove cell interiors
-    for (let i = 0; i < nTri; i++) keepMask[i] = expandedBoundary[i] ? 1 : 0;
+    // Holes: keep faces near boundary (walls), remove cell interiors (holes)
+    for (let i = 0; i < nTri; i++) keepMask[i] = dist[i] <= halfWall ? 1 : 0;
   }
+  showProgress(60);
 
-  setStatus('Building result mesh…');
-  const result = buildFilteredMesh(positions, normals, nTri, keepMask);
+  // Build result mesh with shell
+  setStatus('Building shell mesh…');
+  const nKept = keepMask.reduce((a,b) => a+b, 0);
+  const result = buildShellMesh(positions, normals, nTri, keepMask, shellThick);
+  showProgress(95);
+
+  const removed = nTri - nKept;
+  setStatus(`Done — ${result.nTri.toLocaleString()} faces (${nKept.toLocaleString()} kept × 2 walls + rims), removed ${removed.toLocaleString()} cell interiors`);
   showProgress(100);
 
-  const removed = nTri - result.nTri;
-  setStatus(`Done — ${result.nTri.toLocaleString()} faces, removed ${removed.toLocaleString()}`);
-
-  return { result, cellCount, removed, keepMask };
+  return { result, cellCount, removed, keepMask, nKept };
 }
 
 /* ================================================================== */
@@ -580,7 +553,7 @@ function exportSTLBinary(positions, normals, nTri) {
   const buf = new ArrayBuffer(bufSize);
   const dv = new DataView(buf);
   // Header
-  const header = 'MakerDeck Voronoi Generator b503';
+  const header = 'MakerDeck Voronoi Generator b504';
   for (let i = 0; i < 80; i++) dv.setUint8(i, i < header.length ? header.charCodeAt(i) : 0);
   dv.setUint32(80, nTri, true);
   let off = 84;
@@ -726,7 +699,7 @@ $('generateBtn').addEventListener('click', () => {
         smooth: $('smoothEdges').checked
       };
 
-      const { result, cellCount, removed } = generateVoronoi(
+      const { result, cellCount, removed, nKept } = generateVoronoi(
         S.positions, S.normals, S.nTri, opts
       );
 
@@ -741,6 +714,8 @@ $('generateBtn').addEventListener('click', () => {
       $('statResultFaces').textContent = result.nTri.toLocaleString();
       $('statCells').textContent = cellCount;
       $('statRemoved').textContent = removed.toLocaleString() + ` (${Math.round(removed/S.nTri*100)}%)`;
+      $('statWalls').textContent = nKept.toLocaleString() + ' × 2';
+      $('statRims').textContent = (result.nTri - nKept * 2).toLocaleString();
 
       $('exportSTLBtn').disabled = false;
       hideProgress();
