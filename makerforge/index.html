@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Oswald:wght@700&family=Roboto+Mono:wght@700&family=Roboto:wght@700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=36">
+  <link rel="stylesheet" href="css/style.css?v=34">
 
   <script type="importmap">
 
@@ -44,7 +44,7 @@
 
         <div class="topbar-brand">
 
-          <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b532</span></div>
+          <div class="eyebrow">MakerDeck <span id="makerdeck-build" class="build-tag">b503</span></div>
 
           <h1>Container Generator</h1>
 
@@ -68,6 +68,8 @@
             <option value="in">in</option>
           </select>
 
+          <a href="painter.html" class="btn btn-secondary" style="text-decoration:none;display:inline-flex;align-items:center;gap:4px" title="Open STL Painter">STL Painter</a>
+          <a href="voronoi.html" class="btn btn-secondary" style="text-decoration:none;display:inline-flex;align-items:center;gap:4px" title="Open Voronoi Generator">Voronoi</a>
           <button type="button" id="btn-reset-defaults" class="btn btn-reset-defaults" title="Reset all settings to defaults">Reset defaults</button>
 
         </div>
@@ -215,7 +217,6 @@
 
               <div class="preset-grid">
                 <button type="button" class="shape-btn shape-btn--preset" data-shape="sign">Sign / plaque</button>
-                <button type="button" class="shape-btn shape-btn--preset" id="btn-temora-vet-plaque" data-shape="sign" data-sample="temora-vet">Temora Vet shelf</button>
               </div>
 
               <section class="section section-sign hidden" id="section-sign">
@@ -237,23 +238,14 @@
                   <select id="sign-type">
                     <option value="plaque">Door / name plaque</option>
                     <option value="desk">Desk name plate</option>
-                    <option value="shelf">Shelf display</option>
                     <option value="number">House number</option>
                     <option value="hanging">Hanging sign</option>
                   </select>
                 </label>
-                <div class="chip-row hidden" id="sign-shelf-edit-row" role="group" aria-label="Edit shelf part">
-                  <button type="button" class="chip-btn active" data-sign-edit="back">Edit back</button>
-                  <button type="button" class="chip-btn" data-sign-edit="shelf">Edit shelf</button>
-                </div>
                 <label class="field field-slider"><span class="field-label">Width</span><input type="range" id="sign-width" min="40" max="300" step="1"><output id="sign-width-out"></output></label>
                 <label class="field field-slider"><span class="field-label">Height</span><input type="range" id="sign-height" min="25" max="300" step="1"><output id="sign-height-out"></output></label>
                 <label class="field field-slider"><span class="field-label">Thickness</span><input type="range" id="sign-thickness" min="2" max="10" step="0.2"><output id="sign-thickness-out"></output></label>
                 <label class="field field-slider"><span class="field-label">Corner radius</span><input type="range" id="sign-corner" min="0" max="30" step="1"><output id="sign-corner-out"></output></label>
-                <label class="field field-slider hidden" id="field-sign-shelf-width"><span class="field-label">Shelf width</span><input type="range" id="sign-shelf-width" min="40" max="300" step="1"><output id="sign-shelf-width-out"></output></label>
-                <label class="field field-slider hidden" id="field-sign-shelf-length"><span class="field-label">Shelf length</span><input type="range" id="sign-shelf-length" min="20" max="120" step="1"><output id="sign-shelf-length-out"></output></label>
-                <label class="field field-slider hidden" id="field-sign-shelf-thickness"><span class="field-label">Shelf thickness</span><input type="range" id="sign-shelf-thickness" min="2" max="8" step="0.2"><output id="sign-shelf-thickness-out"></output></label>
-                <label class="field field-slider hidden" id="field-sign-shelf-corner"><span class="field-label">Shelf corner</span><input type="range" id="sign-shelf-corner" min="0" max="40" step="1"><output id="sign-shelf-corner-out"></output></label>
                 <label class="field field-select" id="field-sign-mount">
                   <span class="field-label">Wall mount</span>
                   <select id="sign-mount">
@@ -265,8 +257,7 @@
                   </select>
                 </label>
                 <label class="field field-toggle"><span class="field-label">Raised border</span><input type="checkbox" id="sign-border"></label>
-                <p class="hint" id="sign-hint-plaque">Flat plate, prints face-up with no supports. Type your text on the <strong>Art</strong> tab — it sits on the top face. Print two-tone by giving the text its own colour.</p>
-    <p class="hint hidden" id="sign-hint-shelf">Use <strong>Edit back</strong> / <strong>Edit shelf</strong> to size each part on its own. <strong>Download</strong> exports only the part you’re editing (<code>-back</code> / <code>-shelf</code>). Print both flat — the back has a dovetail <em>socket</em> along the bottom edge; slide the shelf’s male tab in from the <strong>side</strong>, then hang.</p>
+                <p class="hint">Flat plate, prints face-up with no supports. Type your text on the <strong>Art</strong> tab — it sits on the top face. Print two-tone by giving the text its own colour.</p>
               </section>
 
               <h2 class="section-sub">Kitchen canisters</h2>
@@ -930,9 +921,9 @@
 
                 <div id="accent-bands"></div>
 
-                <button type="button" class="btn btn-secondary btn-sm" id="btn-accent-add-band">+ Add second band</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-accent-add-band">+ Add band</button>
 
-                <p class="field-hint" id="accent-band-limit-hint">One standard band is always there. Add a second for another filament colour in the 3MF (max 2).</p>
+                <p class="field-hint" id="accent-band-limit-hint">Up to 2 accent colours — each is a separate filament slot in the 3MF.</p>
 
               </div>
 
@@ -1190,23 +1181,12 @@
 
               <div class="art-pane hidden" id="art-pane-text" role="tabpanel" hidden>
 
-                <p class="field-hint">Each line has its own size. Flat stacks lines; <strong>Arc</strong> uses the first line only (e.g. COFFEE around beans).</p>
+                <p class="field-hint">Flat or <strong>Arc</strong> around a centre graphic — e.g. COFFEE around beans.</p>
 
-                <div class="field" id="field-emboss-lines">
-                  <span class="field-label">Lines</span>
-                  <div id="emboss-text-lines" class="emboss-lines-list" role="list"></div>
-                </div>
-
-                <label class="field field-textarea hidden" id="field-emboss-text">
-                  <span class="field-label">Plain text</span>
-                  <textarea id="emboss-text" rows="6" maxlength="240" placeholder="TEMORA&#10;VET CLINIC&#10;ABBIE, SIOBHAN…"></textarea>
-                  <p class="field-hint">One line per row. Sizes for existing rows are kept when the line count matches.</p>
+                <label class="field field-textarea" id="field-emboss-text">
+                  <span class="field-label">Text</span>
+                  <textarea id="emboss-text" rows="2" maxlength="80" placeholder="GOODS&#10;IN&#10;HERE"></textarea>
                 </label>
-
-                <div class="art-actions-bar emboss-lines-actions" id="emboss-text-mode-actions">
-                  <button type="button" id="btn-add-text-line" class="btn btn-secondary btn-compact">+ Add line</button>
-                  <button type="button" id="btn-plain-text-edit" class="btn btn-ghost btn-compact">Edit as plain text</button>
-                </div>
 
                 <label class="field field-color" id="field-text-color">
                   <span class="field-label">Text colour</span>
@@ -1218,27 +1198,11 @@
                   <select id="emboss-font"></select>
                 </label>
 
-                <label class="field" id="field-emboss-weight">
-                  <span class="field-label">Font weight</span>
-                  <select id="emboss-font-weight">
-                    <option value="auto" selected>Auto (font default)</option>
-                    <option value="300">Light</option>
-                    <option value="400">Regular</option>
-                    <option value="500">Medium</option>
-                    <option value="600">Semi-bold</option>
-                    <option value="700">Bold</option>
-                    <option value="800">Extra-bold</option>
-                    <option value="900">Black</option>
-                  </select>
-                </label>
-                <p class="field-hint" id="font-weight-hint">Lighter weight often reads cleaner on plaques. Not every font has every weight.</p>
-
                 <label class="field" id="field-emboss-height">
-                  <span class="field-label">Default size <span class="unit unit-len">mm</span></span>
+                  <span class="field-label">Text size <span class="unit unit-len">mm</span></span>
                   <input type="range" id="emboss-height" min="3" max="220" step="0.5" value="7" tabindex="-1">
                   <button type="button" class="value-edit" id="out-emboss-height" data-slider="emboss-height" data-key="embossHeight" data-parse="float">7</button>
                 </label>
-                <p class="field-hint" id="default-size-hint">Used for new lines and when every line shares one size (whole block).</p>
 
                 <div class="field" id="field-text-align">
                   <span class="field-label">Align</span>
@@ -1248,19 +1212,6 @@
                     <button type="button" class="align-btn" data-text-align="right">Right</button>
                   </div>
                 </div>
-
-                <label class="field" id="field-letter-spacing">
-                  <span class="field-label">Letter spacing</span>
-                  <input type="range" id="emboss-letter-spacing" min="0.7" max="1.8" step="0.05" value="1" tabindex="-1">
-                  <button type="button" class="value-edit" id="out-emboss-letter-spacing" data-slider="emboss-letter-spacing" data-key="embossLetterSpacing" data-parse="float">1</button>
-                </label>
-                <p class="field-hint" id="letter-spacing-hint">1 = natural. Bump up if heavy fonts run together.</p>
-
-                <label class="field" id="field-line-spacing">
-                  <span class="field-label">Line spacing</span>
-                  <input type="range" id="emboss-line-spacing" min="0.9" max="2" step="0.05" value="1.12" tabindex="-1">
-                  <button type="button" class="value-edit" id="out-emboss-line-spacing" data-slider="emboss-line-spacing" data-key="embossLineSpacing" data-parse="float">1.12</button>
-                </label>
 
                 <div class="field" id="field-text-layout">
                   <span class="field-label">Text path</span>
@@ -1282,7 +1233,7 @@
                   <div class="align-grid" role="group" aria-label="Curve style">
                     <button type="button" class="align-btn arc-preset-btn active" data-arc-preset="arch-up">Arch up</button>
                     <button type="button" class="align-btn arc-preset-btn" data-arc-preset="arch-down">Arch down</button>
-                    <button type="button" class="align-btn arc-preset-btn" data-arc-preset="banner">Banner arc</button>
+                    <button type="button" class="align-btn arc-preset-btn" data-arc-preset="banner">Wide</button>
                   </div>
                 </div>
 
@@ -1486,7 +1437,7 @@
     </div>
   </dialog>
 
-  <script type="module" src="js/app.js?v=532"></script>
+  <script type="module" src="js/app.js?v=423"></script>
 
 </body>
 
