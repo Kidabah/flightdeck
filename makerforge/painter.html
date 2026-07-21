@@ -12,9 +12,10 @@
 
 
 </script>
+<link rel="stylesheet" href="css/makerdeck.css">
 <style>
 /* ================================================================== */
-/*  b503 — MakerDeck STL Painter  (tabbed layout)                     */
+/*  b504 — MakerDeck STL Painter  (tabbed layout)                     */
 /* ================================================================== */
 
 /* -- Reset & Vars -------------------------------------------------- */
@@ -42,10 +43,10 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
 
 /* -- Layout -------------------------------------------------------- */
 .app{display:grid;height:100vh;
-  grid-template-rows:var(--header-h) 1fr var(--bottom-h) var(--footer-h);
+  grid-template-rows:var(--nav-h) 1fr var(--bottom-h) var(--footer-h);
   grid-template-columns:var(--sidebar-w) 1fr;
   grid-template-areas:
-    "header  header"
+    "nav     nav"
     "sidebar viewport"
     "bottom  bottom"
     "footer  footer";
@@ -265,15 +266,8 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
 <body>
 
 <div class="app" id="app">
-  <!-- Header -->
-  <header class="header">
-    <button class="toggle-sidebar" id="toggleSidebar" title="Toggle sidebar">☰</button>
-    <div class="logo">Maker<span>Deck</span> · STL Painter</div>
-    <div class="build" style="margin-left:auto;display:flex;align-items:center;gap:8px">
-      <a href="voronoi.html" style="color:var(--muted);text-decoration:none;font-size:11px" title="Open Voronoi Generator">Voronoi</a>
-      b503
-    </div>
-  </header>
+  <!-- Nav (injected by js/nav.js) -->
+  <nav class="md-nav"></nav>
 
   <!-- Left Sidebar (tabbed) -->
   <aside class="sidebar" id="sidebar">
@@ -597,7 +591,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b503</span>
+    <span>STL Painter</span>
   </footer>
 </div>
 
@@ -611,7 +605,8 @@ import {
   paintClassOf, upgradePaintResolution, export3MF,
   findMeshIslands, buildIslandMap, floodFillSameClass, selectIsland,
   import3MF, buildSymmetryMap
-} from './js/painter.js?v=503';
+} from './js/painter.js?v=504';
+import './js/nav.js';
 
 /* ================================================================== */
 /*  STATE                                                             */
