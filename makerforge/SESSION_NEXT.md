@@ -1,5 +1,22 @@
 ---
 
+## b531 — Shelf 3MF exports only the edited part
+**Date:** 2026-07-21
+
+### What changed
+- 3MF for shelf signs was always packing **Back + Shelf + Text/Art** (“importing the lot” in Bambu)
+- Download now follows **Edit back** / **Edit shelf** (same as STL): shelf-only or back+labels
+- Filename tagged `-back` / `-shelf`; hint updated
+
+### Deploy
+- Hard refresh MakerDeck **b531** (Ctrl+Shift+R)
+- UI-only; restart optional
+
+### Files
+- `makerforge/js/app.js`, `index.html`
+
+---
+
 ## b530 — Shelf dovetail manifold (0 open edges)
 **Date:** 2026-07-21
 

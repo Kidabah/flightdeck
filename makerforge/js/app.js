@@ -35,7 +35,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b530";
+const MAKERDECK_BUILD = "b531";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -1307,41 +1307,49 @@ function collectColoredExportParts(exportCache, stamp = null, { includeLiner = t
   // export matches the preview exactly (Plate + Text + Art), not a rebuilt top-face version.
   if (params.shape === "sign") {
     const isShelf = params.signType === "shelf";
+    const editShelf = isShelf && params.signShelfEditPart === "shelf";
+    // Shelf signs: Download follows Edit back / Edit shelf (same as STL).
+    // Edit shelf → Shelf only. Edit back → Back + Text/Art (no Shelf).
+    const wantBack = !isShelf || !editShelf;
+    const wantShelf = isShelf && editShelf;
     // Never fall back to shellMesh for the back — when Edit shelf is active,
     // shellMesh is the shelf preview and would ship the wrong solid as "Body".
-    const plateSrc = isShelf
-      ? (exportCache.boxShell || null)
-      : (exportCache.boxShell || exportCache.shellMesh || exportCache);
-    const plate = plateSrc ? prepareMeshFor3mf(plateSrc) : null;
-    if (plate?.indices?.length) {
-      parts.push({
-        name: isShelf ? "Back" : "Body",
-        mesh: plate,
-        color: state.boxColor || "#cbd5e1",
-        extruder: extruder++,
-        filamentPreset: state.canisterFilamentPreset || "",
-      });
+    if (wantBack) {
+      const plateSrc = isShelf
+        ? (exportCache.boxShell || null)
+        : (exportCache.boxShell || exportCache.shellMesh || exportCache);
+      const plate = plateSrc ? prepareMeshFor3mf(plateSrc) : null;
+      if (plate?.indices?.length) {
+        parts.push({
+          name: isShelf ? "Back" : "Body",
+          mesh: plate,
+          color: state.boxColor || "#cbd5e1",
+          extruder: extruder++,
+          filamentPreset: state.canisterFilamentPreset || "",
+        });
+      }
     }
-    // Shelf display: separate dovetail deck (prints flat on bed; slides into Back).
-    if (isShelf && exportCache.shelfMesh) {
+    if (wantShelf && exportCache.shelfMesh) {
       const shelf = prepareMeshFor3mf(exportCache.shelfMesh);
       if (shelf?.indices?.length) {
         parts.push({ name: "Shelf", mesh: shelf, color: state.boxColor || "#cbd5e1",
           extruder: extruder++, filamentPreset: state.canisterFilamentPreset || "" });
       }
     }
-    // Labels already print-flat for shelf signs in buildSign.
-    const artMesh = exportCache.graphicMesh ? prepareMeshFor3mf(exportCache.graphicMesh) : null;
-    if (artMesh?.indices?.length) {
-      parts.push({ name: "Art", mesh: artMesh, color: state.embossArtColor || "#111827", extruder: extruder++ });
-    }
-    for (const cp of exportCache.graphicColourParts || []) {
-      const cm = cp.mesh ? prepareMeshFor3mf(cp.mesh) : null;
-      if (cm?.indices?.length) parts.push({ name: cp.name || "Art", mesh: cm, color: cp.color, extruder: extruder++ });
-    }
-    const textMesh = exportCache.labelMesh ? prepareMeshFor3mf(exportCache.labelMesh) : null;
-    if (textMesh?.indices?.length) {
-      parts.push({ name: "Text", mesh: textMesh, color: state.embossTextColor || "#f8fafc", extruder: extruder++ });
+    // Labels live on the back only — skip when exporting the shelf alone.
+    if (wantBack) {
+      const artMesh = exportCache.graphicMesh ? prepareMeshFor3mf(exportCache.graphicMesh) : null;
+      if (artMesh?.indices?.length) {
+        parts.push({ name: "Art", mesh: artMesh, color: state.embossArtColor || "#111827", extruder: extruder++ });
+      }
+      for (const cp of exportCache.graphicColourParts || []) {
+        const cm = cp.mesh ? prepareMeshFor3mf(cp.mesh) : null;
+        if (cm?.indices?.length) parts.push({ name: cp.name || "Art", mesh: cm, color: cp.color, extruder: extruder++ });
+      }
+      const textMesh = exportCache.labelMesh ? prepareMeshFor3mf(exportCache.labelMesh) : null;
+      if (textMesh?.indices?.length) {
+        parts.push({ name: "Text", mesh: textMesh, color: state.embossTextColor || "#f8fafc", extruder: extruder++ });
+      }
     }
     return parts;
   }
@@ -5320,7 +5328,15 @@ function runExport(format, options = {}) {
             await new Promise((resolve) => setTimeout(resolve, 0));
             const packed = await buildBody3mfExport(exportCache, parts);
             const blob = packed.blob;
-            const fname = pickExportFilename(format, options);
+            let fname = pickExportFilename(format, options);
+            const isShelfSign = params.shape === "sign" && params.signType === "shelf";
+            if (isShelfSign && !packed.zipExport) {
+              const tag = params.signShelfEditPart === "shelf" ? "shelf" : "back";
+              fname = fname.replace(/\.(3mf|zip)$/i, `-${tag}.$1`);
+              if (!/-(back|shelf)\.(3mf|zip)$/i.test(fname)) {
+                fname = `${fname.replace(/\.(3mf|zip)$/i, "")}-${tag}.3mf`;
+              }
+            }
             let usedFolderExport = false;
             let folderSaveResult = null;
             if (packed.zipExport && folderExportSupported() && options.exportRootHandle) {

@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: MakerDeck b530 — shelf Back dovetail manifold (0 open edges)
+- Latest commit: MakerDeck b531 — shelf 3MF exports only Edit back / Edit shelf part
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
+
+### 2026-07-21 fix (MakerDeck b531 — shelf 3MF “the lot”)
+
+**Need:** Download still imported Back + Shelf + text into Bambu together.
+
+**Cause:** 3MF always packed every shelf part; only STL followed Edit mode.
+
+**What shipped:** 3MF follows Edit back / Edit shelf (`-back`/`-shelf` filename). Hard refresh **b531**.
 
 ### 2026-07-21 fix (MakerDeck b530 — shelf manifold)
 
