@@ -2,7 +2,7 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: Mobile layout polish — hero cascade fix (style.css v497)
+- Latest commit: Mobile layout polish — hero cascade + nav strip (style.css v498)
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
 
 ### 2026-07-21 polish (Mobile layout — heroes crushed / misaligned)
