@@ -1,5 +1,21 @@
 ---
 
+## b529 — Shelf STL/3MF part mix-up
+**Date:** 2026-07-21
+
+### What changed
+- STL export for shelf signs now downloads the part you’re editing (`-shelf` / `-back` in the filename)
+- 3MF names the plate **Back** + **Shelf** (never falls back to the edit-mode preview mesh as Body)
+
+### Deploy
+- Hard refresh MakerDeck **b529**
+- UI-only; restart optional
+
+### Files
+- `makerforge/js/app.js`, `geometry.js`, `insert-slots.js`, `index.html`
+
+---
+
 ## b528 — Shelf edit mode + dovetail z-fight fix
 **Date:** 2026-07-20
 

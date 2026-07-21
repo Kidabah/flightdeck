@@ -2,8 +2,16 @@
 
 Latest GitHub/Pi state:
 - Branch: main
-- Latest commit: Mobile layout polish — hero cascade + nav strip (style v500 / app v644)
+- Latest commit: MakerDeck b529 — shelf download was exporting the back plate
 - **MakerDeck** session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md) (not here)
+
+### 2026-07-21 fix (MakerDeck b529 — shelf download = sign)
+
+**Need:** Downloading the shelf part gave the sign/back instead.
+
+**Cause:** STL “body” export always used the back plate; 3MF could also fall back to the Edit-shelf preview mesh as Body.
+
+**What shipped:** STL follows Edit back/Edit shelf (`-back`/`-shelf` filename); 3MF parts named Back + Shelf. Hard refresh **b529**.
 
 ### 2026-07-21 polish (Mobile layout — heroes crushed / misaligned)
 
@@ -11,7 +19,7 @@ Latest GitHub/Pi state:
 
 **Cause:** Early ≤760px hero rules lost to later desktop `.dashboard-hero` (and similar) definitions — copy column collapsed to 0px, metrics/links piled beside an invisible title.
 
-**What shipped:** Late mobile polish block (heroes → 1 col, metrics 2×2, tab underline, queue actions wrap); flatten sidebar section groups + hide Settings flyout in horizontal strip (was stretching nav ~240px tall); drop conflicting header duplicate. Hard refresh `style.css?v=499`.
+**What shipped:** Late mobile polish block (heroes → 1 col, metrics 2×2, tab underline, queue actions wrap); force-open sidebar sections on phone + row clusters so nav strip stays ~one row; hide Settings flyout in strip; drop conflicting header duplicate. Hard refresh `style.css?v=500` + `app.js?v=644`.
 
 ### 2026-07-21 fix (API stall — queue won't load)
 

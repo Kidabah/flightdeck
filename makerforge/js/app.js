@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, ANIMAL_PRESET, SIGN_PRESET, TEMORA_VET_SIGN_PRESET, TEMORA_VET_CELTIC_SVG_URL } from "./geometry.js?v=528";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, resolveEmbossFontWeight, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=528";
+import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, ANIMAL_PRESET, SIGN_PRESET, TEMORA_VET_SIGN_PRESET, TEMORA_VET_CELTIC_SVG_URL } from "./geometry.js?v=529";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, resolveEmbossFontWeight, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=529";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=370";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=372";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=378";
@@ -35,7 +35,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b528";
+const MAKERDECK_BUILD = "b529";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -1307,12 +1307,22 @@ function collectColoredExportParts(exportCache, stamp = null, { includeLiner = t
   // export matches the preview exactly (Plate + Text + Art), not a rebuilt top-face version.
   if (params.shape === "sign") {
     const isShelf = params.signType === "shelf";
-    const plate = prepareMeshFor3mf(exportCache.boxShell || exportCache.shellMesh || exportCache);
+    // Never fall back to shellMesh for the back — when Edit shelf is active,
+    // shellMesh is the shelf preview and would ship the wrong solid as "Body".
+    const plateSrc = isShelf
+      ? (exportCache.boxShell || null)
+      : (exportCache.boxShell || exportCache.shellMesh || exportCache);
+    const plate = plateSrc ? prepareMeshFor3mf(plateSrc) : null;
     if (plate?.indices?.length) {
-      parts.push({ name: "Body", mesh: plate, color: state.boxColor || "#cbd5e1",
-        extruder: extruder++, filamentPreset: state.canisterFilamentPreset || "" });
+      parts.push({
+        name: isShelf ? "Back" : "Body",
+        mesh: plate,
+        color: state.boxColor || "#cbd5e1",
+        extruder: extruder++,
+        filamentPreset: state.canisterFilamentPreset || "",
+      });
     }
-    // Shelf display: separate dovetail deck (prints flat on bed; slides into Body).
+    // Shelf display: separate dovetail deck (prints flat on bed; slides into Back).
     if (isShelf && exportCache.shelfMesh) {
       const shelf = prepareMeshFor3mf(exportCache.shelfMesh);
       if (shelf?.indices?.length) {
@@ -5344,7 +5354,7 @@ function runExport(format, options = {}) {
               ? ` · ${[packed.containerFile, packed.lidFile, packed.linerFile].filter(Boolean).join(" + ")}`
               : "";
             const wmNote = stamp ? ` · watermark #${String(stamp.serial).padStart(4, "0")}` : "";
-            const bodyPart = parts.find((p) => p.name === "Body");
+            const bodyPart = parts.find((p) => p.name === "Body" || p.name === "Back");
             const paints = bodyPart?.triangleExtruders;
             let openNote = "";
             let hasOpenEdges = false;
@@ -5355,17 +5365,18 @@ function runExport(format, options = {}) {
               hasOpenEdges = bodyOpen > 0;
               openNote = ` · art ${artTris} tris, text ${textTris} tris, open ${bodyOpen}`;
             } else {
-              const bodyOpen = partOpenEdgeCount(parts.find((p) => p.name === "Body"));
+              const bodyOpen = partOpenEdgeCount(parts.find((p) => p.name === "Body" || p.name === "Back"));
+              const shelfOpen = partOpenEdgeCount(parts.find((p) => p.name === "Shelf"));
               const artOpen = partOpenEdgeCount(parts.find((p) => p.name === "Art"));
               const textOpen = partOpenEdgeCount(parts.find((p) => p.name === "Text"));
               const accentOpen = parts
                 .filter((p) => p.name === "Accent" || /^Accent \d+$/.test(p.name))
                 .reduce((sum, p) => sum + partOpenEdgeCount(p), 0);
               const linerOpen = partOpenEdgeCount(parts.find((p) => p.name === "Liner"));
-              const totalOpen = bodyOpen + artOpen + textOpen + accentOpen + linerOpen;
+              const totalOpen = bodyOpen + shelfOpen + artOpen + textOpen + accentOpen + linerOpen;
               hasOpenEdges = totalOpen > 0;
               if (totalOpen > 0) {
-                openNote = ` · open edges: body ${bodyOpen}, art ${artOpen}, text ${textOpen}, accent ${accentOpen}, liner ${linerOpen}`;
+                openNote = ` · open edges: body ${bodyOpen}, shelf ${shelfOpen}, art ${artOpen}, text ${textOpen}, accent ${accentOpen}, liner ${linerOpen}`;
               }
             }
             if (hasOpenEdges) {
@@ -5408,32 +5419,55 @@ function runExport(format, options = {}) {
         rebuild();
         const params = buildParams();
         const stamp = params.watermarkEnabled !== false ? acquireWatermarkStamp() : null;
-        const separateText = hasSeparateTextExport(params);
-        const separateColor = separateText || hasSeparateArtExport(params);
-        let exportMesh = separateColor
-          ? resolveBodyExportMesh(exportCache, params, separateText, stamp)
-          : finalizeBodyExportMesh(
-            buildWatertightExportMesh(exportCache, exportCache.meta, params),
-            exportCache.meta,
-            params,
-            stamp,
-          );
-        if (state.insertEnabled && state.insertMount === "fixed") {
-          exportMesh = buildWatertightFixedDividerExport(exportCache, exportCache.meta, { ...params, fuseInsertToBody: true }) || exportMesh;
+        const isShelfSign = params.shape === "sign" && params.signType === "shelf";
+        const editShelf = isShelfSign && params.signShelfEditPart === "shelf";
+        let exportMesh = null;
+        let stlPartTag = "body";
+        if (isShelfSign) {
+          // STL is single-mesh — honour Edit back / Edit shelf so download matches the preview.
+          const src = editShelf
+            ? (exportCache.shelfMesh || null)
+            : (exportCache.boxShell || null);
+          exportMesh = src ? prepareMeshFor3mf(src) : null;
+          stlPartTag = editShelf ? "shelf" : "back";
+          if (!exportMesh?.indices?.length) {
+            setExportStatus(editShelf
+              ? "Shelf mesh missing — try Edit shelf, then export again."
+              : "Back mesh missing — try Edit back, then export again.");
+            break;
+          }
+        } else {
+          const separateText = hasSeparateTextExport(params);
+          const separateColor = separateText || hasSeparateArtExport(params);
+          exportMesh = separateColor
+            ? resolveBodyExportMesh(exportCache, params, separateText, stamp)
+            : finalizeBodyExportMesh(
+              buildWatertightExportMesh(exportCache, exportCache.meta, params),
+              exportCache.meta,
+              params,
+              stamp,
+            );
+          if (state.insertEnabled && state.insertMount === "fixed") {
+            exportMesh = buildWatertightFixedDividerExport(exportCache, exportCache.meta, { ...params, fuseInsertToBody: true }) || exportMesh;
+          }
         }
         const stlBlob = meshToStl(exportMesh, "makerdeck");
-        const stlName = pickExportFilename(format, options);
+        let stlName = pickExportFilename(format, options);
+        if (isShelfSign && stlName.toLowerCase().endsWith(".stl")) {
+          stlName = stlName.replace(/\.stl$/i, `-${stlPartTag}.stl`);
+        }
         downloadBlob(stlBlob, stlName);
         const status = document.getElementById("export-status");
+        const partNote = isShelfSign ? ` (${stlPartTag})` : "";
         void archiveBodyExport(stlBlob, stlName, { format: "stl", stamp, saveToLibrary: options.saveToLibrary, folder: options.folder || "" }).then((result) => {
           if (result?.error) {
             if (status) {
-              status.textContent = `STL downloaded${stamp ? ` · watermark #${String(stamp.serial).padStart(4, "0")}` : ""} · library failed: ${result.error}`;
+              status.textContent = `STL downloaded${partNote}${stamp ? ` · watermark #${String(stamp.serial).padStart(4, "0")}` : ""} · library failed: ${result.error}`;
             }
           } else if (status && result?.id) {
-            status.textContent = `STL downloaded · saved to design library${stamp ? ` · watermark #${String(stamp.serial).padStart(4, "0")}` : ""}`;
+            status.textContent = `STL downloaded${partNote} · saved to design library${stamp ? ` · watermark #${String(stamp.serial).padStart(4, "0")}` : ""}`;
           } else if (status) {
-            status.textContent = `STL downloaded${stamp ? ` · watermark #${String(stamp.serial).padStart(4, "0")}` : ""}`;
+            status.textContent = `STL downloaded${partNote}${stamp ? ` · watermark #${String(stamp.serial).padStart(4, "0")}` : ""}`;
           }
           notifyLibrarySaved(result?.id ? result : null);
         });
