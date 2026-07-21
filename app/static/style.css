@@ -23523,19 +23523,31 @@ select optgroup {
   }
 
   #tab-strip {
-    align-items: stretch;
+    align-items: center;
     padding-bottom: 0.15rem;
   }
 
   #tab-strip .tab {
     align-items: center;
+    align-self: center;
     justify-content: center;
     min-height: 2.15rem;
+    max-height: 2.4rem;
+    height: auto;
     padding: 0.4rem 0.75rem;
   }
 
   #tab-strip .tab.active {
     box-shadow: inset 0 -3px 0 var(--tab-accent, var(--accent));
+  }
+
+  /* Nested Settings flyout must not expand the horizontal strip height. */
+  #tab-strip .tab-flyout-menu {
+    display: none !important;
+  }
+
+  #tab-strip .tab-settings-root::after {
+    content: none;
   }
 
   #tab-strip .tab-printer {
