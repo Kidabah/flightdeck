@@ -34,6 +34,7 @@ export function injectNav(targetSelector = '.md-nav') {
   const active = detectActiveTool();
 
   nav.innerHTML = `
+    <a class="md-nav-home" href="index.html" title="Back to MakerDeck">&#x2302;</a>
     <a class="md-nav-brand" href="index.html">Maker<span>Deck</span></a>
     <div class="md-nav-links">
       ${TOOLS.map(t => `<a class="md-nav-link${t.id === active ? ' active' : ''}" href="${t.href}">${t.label}</a>`).join('')}
