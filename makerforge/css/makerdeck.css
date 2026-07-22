@@ -33,6 +33,12 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   padding:0 12px;z-index:100;font-size:12px;
   grid-area:nav;
 }
+.md-nav-home{
+  font-size:18px;color:var(--muted);text-decoration:none;
+  padding:4px 8px;border-radius:var(--radius-sm);transition:all .15s;
+  margin-right:4px;line-height:1;
+}
+.md-nav-home:hover{color:var(--accent);background:var(--accent-dim)}
 .md-nav-brand{
   font-weight:800;font-size:14px;letter-spacing:.3px;
   color:var(--text);text-decoration:none;white-space:nowrap;
