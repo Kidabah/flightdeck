@@ -77,11 +77,6 @@
       </div>
 
       <div class="form-group">
-        <div class="form-label"><span>Shell Thickness</span><span class="val" id="shellThickVal">1.2mm</span></div>
-        <input type="range" id="shellThick" min="0.4" max="5.0" value="1.2" step="0.1">
-      </div>
-
-      <div class="form-group">
         <div class="form-label"><span>Randomness</span><span class="val" id="randomVal">50%</span></div>
         <input type="range" id="randomness" min="0" max="100" value="50" step="5">
       </div>
@@ -111,8 +106,8 @@
         <span class="label">Result faces</span><span class="val" id="statResultFaces">—</span>
         <span class="label">Cells</span><span class="val" id="statCells">—</span>
         <span class="label">Removed</span><span class="val" id="statRemoved">—</span>
-        <span class="label">Wall faces</span><span class="val" id="statWalls">—</span>
-        <span class="label">Rim faces</span><span class="val" id="statRims">—</span>
+        <span class="label">Source faces cut</span><span class="val" id="statWalls">—</span>
+        <span class="label">Output triangles</span><span class="val" id="statRims">—</span>
       </div>
     </div>
 
@@ -248,7 +243,7 @@ function parseSTL(buffer) {
 }
 
 /* ================================================================== */
-/*  Voronoi Core v2 — distance-to-boundary + shell generation         */
+/*  Voronoi Core v3 — nearest-seed field + surface clipping           */
 /* ================================================================== */
 
 /** Poisson-disc-ish sampling on mesh surface */
@@ -298,251 +293,113 @@ function sampleSeedPoints(positions, nTri, count, randomness) {
   return new Float32Array(seeds);
 }
 
-/** For each face, find closest + second-closest seed, compute boundary distance */
-function computeBoundaryDistance(positions, nTri, seeds, nSeeds) {
-  const dist = new Float32Array(nTri);     // distance to nearest Voronoi boundary
-  const cellOf = new Uint16Array(nTri);
-
-  for (let i = 0; i < nTri; i++) {
-    const o = i * 9;
-    const cx = (positions[o]+positions[o+3]+positions[o+6]) / 3;
-    const cy = (positions[o+1]+positions[o+4]+positions[o+7]) / 3;
-    const cz = (positions[o+2]+positions[o+5]+positions[o+8]) / 3;
-
-    // Find two closest seeds
-    let d1 = Infinity, d2 = Infinity, s1 = 0, s2 = 0;
-    for (let s = 0; s < nSeeds; s++) {
-      const dx = cx-seeds[s*3], dy = cy-seeds[s*3+1], dz = cz-seeds[s*3+2];
-      const dd = dx*dx+dy*dy+dz*dz;
-      if (dd < d1) { d2 = d1; s2 = s1; d1 = dd; s1 = s; }
-      else if (dd < d2) { d2 = dd; s2 = s; }
-    }
-    cellOf[i] = s1;
-
-    // Distance to the bisector plane between s1 and s2
-    // Plane normal = s2 - s1, plane passes through midpoint
-    const mx = (seeds[s1*3]+seeds[s2*3])/2;
-    const my = (seeds[s1*3+1]+seeds[s2*3+1])/2;
-    const mz = (seeds[s1*3+2]+seeds[s2*3+2])/2;
-    const nx = seeds[s2*3]-seeds[s1*3], ny = seeds[s2*3+1]-seeds[s1*3+1], nz = seeds[s2*3+2]-seeds[s1*3+2];
-    const nLen = Math.sqrt(nx*nx+ny*ny+nz*nz);
-    if (nLen > 1e-10) {
-      dist[i] = Math.abs((cx-mx)*(nx/nLen)+(cy-my)*(ny/nLen)+(cz-mz)*(nz/nLen));
-    }
+/** Distance to the nearest Voronoi boundary at a point. */
+function boundaryDistanceAt(x, y, z, seeds, nSeeds) {
+  let d1 = Infinity, d2 = Infinity, s1 = 0, s2 = 0;
+  for (let s = 0; s < nSeeds; s++) {
+    const dx = x - seeds[s*3], dy = y - seeds[s*3+1], dz = z - seeds[s*3+2];
+    const dd = dx*dx + dy*dy + dz*dz;
+    if (dd < d1) { d2 = d1; s2 = s1; d1 = dd; s1 = s; }
+    else if (dd < d2) { d2 = dd; s2 = s; }
   }
-  return { dist, cellOf };
+  const nx = seeds[s2*3] - seeds[s1*3];
+  const ny = seeds[s2*3+1] - seeds[s1*3+1];
+  const nz = seeds[s2*3+2] - seeds[s1*3+2];
+  const nLen = Math.sqrt(nx*nx + ny*ny + nz*nz);
+  if (nLen <= 1e-10) return Infinity;
+  const mx = (seeds[s1*3] + seeds[s2*3]) / 2;
+  const my = (seeds[s1*3+1] + seeds[s2*3+1]) / 2;
+  const mz = (seeds[s1*3+2] + seeds[s2*3+2]) / 2;
+  return Math.abs((x - mx) * nx + (y - my) * ny + (z - mz) * nz) / nLen;
 }
 
-/** Compute per-vertex normals from face soup positions */
-function computeVertexNormals(positions, nTri) {
-  const EPS = 1e-5;
-  const vKey = (x,y,z) => `${(Math.round(x/EPS)*EPS).toFixed(4)},${(Math.round(y/EPS)*EPS).toFixed(4)},${(Math.round(z/EPS)*EPS).toFixed(4)}`;
-  const normalAccum = new Map(); // key → [nx, ny, nz]
-
-  for (let i = 0; i < nTri; i++) {
-    const o = i * 9;
-    const ex = positions[o+3]-positions[o], ey = positions[o+4]-positions[o+1], ez = positions[o+5]-positions[o+2];
-    const fx = positions[o+6]-positions[o], fy = positions[o+7]-positions[o+1], fz = positions[o+8]-positions[o+2];
-    let nx = ey*fz-ez*fy, ny = ez*fx-ex*fz, nz = ex*fy-ey*fx;
-    const len = Math.sqrt(nx*nx+ny*ny+nz*nz);
-    if (len > 1e-10) { nx /= len; ny /= len; nz /= len; }
-
-    for (let v = 0; v < 3; v++) {
-      const vi = o + v*3;
-      const k = vKey(positions[vi], positions[vi+1], positions[vi+2]);
-      let acc = normalAccum.get(k);
-      if (!acc) { acc = [0,0,0]; normalAccum.set(k, acc); }
-      acc[0] += nx; acc[1] += ny; acc[2] += nz;
-    }
-  }
-  // Normalize accumulated normals
-  for (const n of normalAccum.values()) {
-    const len = Math.sqrt(n[0]*n[0]+n[1]*n[1]+n[2]*n[2]);
-    if (len > 1e-10) { n[0] /= len; n[1] /= len; n[2] /= len; }
-  }
-  return { normalAccum, vKey };
-}
-
-/** Build double-walled shell mesh from kept faces */
-function buildShellMesh(positions, normals, nTri, keepMask, shellThick) {
-  // 1. Compute vertex normals for offset direction
-  const { normalAccum, vKey } = computeVertexNormals(positions, nTri);
-
-  // 2. Count kept faces
-  let nKept = 0;
-  for (let i = 0; i < nTri; i++) if (keepMask[i]) nKept++;
-
-  // 3. Find boundary edges (between kept and removed faces)
-  const EPS = 1e-5;
-  const edgeKey = (x0,y0,z0,x1,y1,z1) => {
-    const k0 = vKey(x0,y0,z0), k1 = vKey(x1,y1,z1);
-    return k0 < k1 ? k0+'|'+k1 : k1+'|'+k0;
+function interpPoint(a, b, t) {
+  return {
+    x: a.x + (b.x - a.x) * t,
+    y: a.y + (b.y - a.y) * t,
+    z: a.z + (b.z - a.z) * t,
+    d: a.d + (b.d - a.d) * t
   };
+}
 
-  // Map edge → [faceIdx, kept?]
-  const edgeFaces = new Map();
+function clipPolygonToWallBand(poly, halfWall) {
+  const out = [];
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i];
+    const b = poly[(i + 1) % poly.length];
+    const aIn = a.d <= halfWall;
+    const bIn = b.d <= halfWall;
+    if (aIn && bIn) {
+      out.push(b);
+    } else if (aIn !== bIn) {
+      const denom = b.d - a.d;
+      const t = Math.abs(denom) > 1e-10 ? (halfWall - a.d) / denom : 0;
+      const p = interpPoint(a, b, Math.max(0, Math.min(1, t)));
+      out.push(p);
+      if (bIn) out.push(b);
+    }
+  }
+  return out;
+}
+
+function pushTri(outPos, outNorm, a, b, c) {
+  const ux = b.x - a.x, uy = b.y - a.y, uz = b.z - a.z;
+  const vx = c.x - a.x, vy = c.y - a.y, vz = c.z - a.z;
+  let nx = uy*vz - uz*vy, ny = uz*vx - ux*vz, nz = ux*vy - uy*vx;
+  const len = Math.sqrt(nx*nx + ny*ny + nz*nz);
+  if (len <= 1e-10) return false;
+  nx /= len; ny /= len; nz /= len;
+  outPos.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
+  outNorm.push(nx, ny, nz, nx, ny, nz, nx, ny, nz);
+  return true;
+}
+
+/** Clip original STL triangles against the Voronoi wall band. */
+function buildClippedVoronoiSurface(positions, nTri, seeds, nSeeds, halfWall) {
+  const outPos = [];
+  const outNorm = [];
+  let touched = 0;
   for (let i = 0; i < nTri; i++) {
     const o = i * 9;
-    const verts = [[o,o+3],[o+3,o+6],[o,o+6]];
-    for (const [a,b] of verts) {
-      const ek = edgeKey(positions[a],positions[a+1],positions[a+2],
-                         positions[b],positions[b+1],positions[b+2]);
-      if (!edgeFaces.has(ek)) edgeFaces.set(ek, []);
-      edgeFaces.get(ek).push({ face: i, kept: !!keepMask[i] });
+    const poly = [
+      { x: positions[o],   y: positions[o+1], z: positions[o+2] },
+      { x: positions[o+3], y: positions[o+4], z: positions[o+5] },
+      { x: positions[o+6], y: positions[o+7], z: positions[o+8] }
+    ];
+    for (const p of poly) p.d = boundaryDistanceAt(p.x, p.y, p.z, seeds, nSeeds);
+    const clipped = clipPolygonToWallBand(poly, halfWall);
+    if (clipped.length < 3) continue;
+    touched++;
+    for (let v = 1; v < clipped.length - 1; v++) {
+      pushTri(outPos, outNorm, clipped[0], clipped[v], clipped[v+1]);
     }
   }
-
-  // Boundary edges: one kept face, one removed face (or only one face = mesh boundary)
-  const boundaryEdges = [];
-  for (const [ek, faces] of edgeFaces) {
-    const hasKept = faces.some(f => f.kept);
-    const hasRemoved = faces.some(f => !f.kept);
-    if (hasKept && (hasRemoved || faces.length === 1)) {
-      // Parse the edge key back to coordinates
-      const parts = ek.split('|');
-      const [x0,y0,z0] = parts[0].split(',').map(Number);
-      const [x1,y1,z1] = parts[1].split(',').map(Number);
-      boundaryEdges.push({ x0,y0,z0, x1,y1,z1 });
-    }
-  }
-
-  // 4. Allocate output: outer faces + inner faces + rim quads (2 tris each)
-  const nRim = boundaryEdges.length;
-  const totalTri = nKept * 2 + nRim * 2;
-  const outPos = new Float32Array(totalTri * 9);
-  const outNorm = new Float32Array(totalTri * 9);
-  let idx = 0;
-
-  // Helper: get vertex normal for offset
-  function getVN(x, y, z) {
-    const k = vKey(x, y, z);
-    return normalAccum.get(k) || [0, 0, 1];
-  }
-
-  // 5a. Outer surface (original kept faces)
-  for (let i = 0; i < nTri; i++) {
-    if (!keepMask[i]) continue;
-    const o = i * 9, no = i * 3;
-    for (let v = 0; v < 9; v++) outPos[idx*9+v] = positions[o+v];
-    // Face normal for all 3 vertices
-    const fn = [normals[no], normals[no+1], normals[no+2]];
-    for (let v = 0; v < 3; v++) {
-      outNorm[idx*9+v*3] = fn[0]; outNorm[idx*9+v*3+1] = fn[1]; outNorm[idx*9+v*3+2] = fn[2];
-    }
-    idx++;
-  }
-
-  // 5b. Inner surface (offset inward, reversed winding)
-  for (let i = 0; i < nTri; i++) {
-    if (!keepMask[i]) continue;
-    const o = i * 9, no = i * 3;
-    // Reversed winding: swap v1 and v2
-    for (let v = 0; v < 3; v++) {
-      const sv = v === 0 ? 0 : v === 1 ? 2 : 1; // 0,2,1 for reversed winding
-      const si = o + sv * 3;
-      const vn = getVN(positions[si], positions[si+1], positions[si+2]);
-      outPos[idx*9+v*3]   = positions[si]   - vn[0] * shellThick;
-      outPos[idx*9+v*3+1] = positions[si+1] - vn[1] * shellThick;
-      outPos[idx*9+v*3+2] = positions[si+2] - vn[2] * shellThick;
-      // Flipped normal
-      outNorm[idx*9+v*3] = -normals[no]; outNorm[idx*9+v*3+1] = -normals[no+1]; outNorm[idx*9+v*3+2] = -normals[no+2];
-    }
-    idx++;
-  }
-
-  // 5c. Rim faces — connect outer to inner at each boundary edge
-  for (const e of boundaryEdges) {
-    const vn0 = getVN(e.x0, e.y0, e.z0);
-    const vn1 = getVN(e.x1, e.y1, e.z1);
-
-    // Outer edge points
-    const ox0 = e.x0, oy0 = e.y0, oz0 = e.z0;
-    const ox1 = e.x1, oy1 = e.y1, oz1 = e.z1;
-    // Inner edge points (offset inward)
-    const ix0 = e.x0 - vn0[0]*shellThick, iy0 = e.y0 - vn0[1]*shellThick, iz0 = e.z0 - vn0[2]*shellThick;
-    const ix1 = e.x1 - vn1[0]*shellThick, iy1 = e.y1 - vn1[1]*shellThick, iz1 = e.z1 - vn1[2]*shellThick;
-
-    // Compute rim face normal (cross product of edge direction and shell direction)
-    const edx = ox1-ox0, edy = oy1-oy0, edz = oz1-oz0;
-    const sdx = ix0-ox0, sdy = iy0-oy0, sdz = iz0-oz0;
-    let rnx = edy*sdz-edz*sdy, rny = edz*sdx-edx*sdz, rnz = edx*sdy-edy*sdx;
-    const rLen = Math.sqrt(rnx*rnx+rny*rny+rnz*rnz);
-    if (rLen > 1e-10) { rnx /= rLen; rny /= rLen; rnz /= rLen; }
-
-    // Triangle 1: ox0, ox1, ix1
-    outPos[idx*9]   = ox0; outPos[idx*9+1] = oy0; outPos[idx*9+2] = oz0;
-    outPos[idx*9+3] = ox1; outPos[idx*9+4] = oy1; outPos[idx*9+5] = oz1;
-    outPos[idx*9+6] = ix1; outPos[idx*9+7] = iy1; outPos[idx*9+8] = iz1;
-    for (let v = 0; v < 3; v++) { outNorm[idx*9+v*3] = rnx; outNorm[idx*9+v*3+1] = rny; outNorm[idx*9+v*3+2] = rnz; }
-    idx++;
-
-    // Triangle 2: ox0, ix1, ix0
-    outPos[idx*9]   = ox0; outPos[idx*9+1] = oy0; outPos[idx*9+2] = oz0;
-    outPos[idx*9+3] = ix1; outPos[idx*9+4] = iy1; outPos[idx*9+5] = iz1;
-    outPos[idx*9+6] = ix0; outPos[idx*9+7] = iy0; outPos[idx*9+8] = iz0;
-    for (let v = 0; v < 3; v++) { outNorm[idx*9+v*3] = rnx; outNorm[idx*9+v*3+1] = rny; outNorm[idx*9+v*3+2] = rnz; }
-    idx++;
-  }
-
-  return { positions: outPos, normals: outNorm, nTri: totalTri };
+  return {
+    positions: new Float32Array(outPos),
+    normals: new Float32Array(outNorm),
+    nTri: outPos.length / 9,
+    nKept: touched
+  };
 }
 
-/** Build single-surface mesh from kept faces (no shell) */
-function buildFilteredMesh(positions, normals, nTri, keepMask) {
-  let count = 0;
-  for (let i = 0; i < nTri; i++) if (keepMask[i]) count++;
-  const outPos = new Float32Array(count * 9);
-  const outNorm = new Float32Array(count * 9);
-  let idx = 0;
-  for (let i = 0; i < nTri; i++) {
-    if (!keepMask[i]) continue;
-    const po = i * 9, no = i * 3;
-    for (let v = 0; v < 9; v++) outPos[idx*9+v] = positions[po+v];
-    for (let v = 0; v < 3; v++) {
-      outNorm[idx*9+v*3] = normals[no]; outNorm[idx*9+v*3+1] = normals[no+1]; outNorm[idx*9+v*3+2] = normals[no+2];
-    }
-    idx++;
-  }
-  return { positions: outPos, normals: outNorm, nTri: count };
-}
-
-/** Full Voronoi generation pipeline v2 */
+/** Full Voronoi generation pipeline v3 */
 function generateVoronoi(positions, normals, nTri, opts) {
-  const { cellCount, wallThick, shellThick, randomness, mode, smooth } = opts;
+  const { cellCount, wallThick, randomness } = opts;
 
   setStatus('Sampling seed points…'); showProgress(5);
   const seeds = sampleSeedPoints(positions, nTri, cellCount, randomness);
   showProgress(15);
 
-  setStatus('Computing Voronoi boundaries…'); showProgress(20);
-  const { dist, cellOf } = computeBoundaryDistance(positions, nTri, seeds, cellCount);
-  showProgress(50);
-
-  // Build keep mask: faces close to boundary = wall, faces far from boundary = hole
-  setStatus('Classifying faces…');
-  const keepMask = new Uint8Array(nTri);
-  const halfWall = wallThick / 2;
-
-  if (mode === 'lattice') {
-    // Lattice: keep only faces near boundary (the wall network)
-    for (let i = 0; i < nTri; i++) keepMask[i] = dist[i] <= halfWall ? 1 : 0;
-  } else {
-    // Holes: keep faces near boundary (walls), remove cell interiors (holes)
-    for (let i = 0; i < nTri; i++) keepMask[i] = dist[i] <= halfWall ? 1 : 0;
-  }
-  showProgress(60);
-
-  // Build result mesh with shell
-  setStatus('Building shell mesh…');
-  const nKept = keepMask.reduce((a,b) => a+b, 0);
-  const result = buildShellMesh(positions, normals, nTri, keepMask, shellThick);
+  setStatus('Clipping surface to Voronoi walls…'); showProgress(35);
+  const halfWall = Math.max(0.01, wallThick / 2);
+  const result = buildClippedVoronoiSurface(positions, nTri, seeds, cellCount, halfWall);
   showProgress(95);
 
-  const removed = nTri - nKept;
-  setStatus(`Done — ${result.nTri.toLocaleString()} faces (${nKept.toLocaleString()} kept × 2 walls + rims), removed ${removed.toLocaleString()} cell interiors`);
+  const removed = nTri - result.nKept;
+  setStatus(`Done — ${result.nTri.toLocaleString()} clipped faces on the original surface, removed ${removed.toLocaleString()} cell-interior faces`);
   showProgress(100);
 
-  return { result, cellCount, removed, keepMask, nKept };
+  return { result, cellCount, removed, nKept: result.nKept };
 }
 
 /* ================================================================== */
@@ -553,7 +410,7 @@ function exportSTLBinary(positions, normals, nTri) {
   const buf = new ArrayBuffer(bufSize);
   const dv = new DataView(buf);
   // Header
-  const header = 'MakerDeck Voronoi Generator b504';
+  const header = 'MakerDeck Voronoi Generator b505';
   for (let i = 0; i < 80; i++) dv.setUint8(i, i < header.length ? header.charCodeAt(i) : 0);
   dv.setUint32(80, nTri, true);
   let off = 84;
@@ -679,7 +536,6 @@ function updateModeUI() {
 // Sliders
 $('cellCount').addEventListener('input', e => { $('cellCountVal').textContent = e.target.value; });
 $('wallThick').addEventListener('input', e => { $('wallThickVal').textContent = e.target.value + 'mm'; });
-$('shellThick').addEventListener('input', e => { $('shellThickVal').textContent = e.target.value + 'mm'; });
 $('randomness').addEventListener('input', e => { $('randomVal').textContent = e.target.value + '%'; });
 
 // Generate
@@ -693,7 +549,6 @@ $('generateBtn').addEventListener('click', () => {
       const opts = {
         cellCount: parseInt($('cellCount').value),
         wallThick: parseFloat($('wallThick').value),
-        shellThick: parseFloat($('shellThick').value),
         randomness: parseInt($('randomness').value),
         mode: S.mode,
         smooth: $('smoothEdges').checked
@@ -714,8 +569,8 @@ $('generateBtn').addEventListener('click', () => {
       $('statResultFaces').textContent = result.nTri.toLocaleString();
       $('statCells').textContent = cellCount;
       $('statRemoved').textContent = removed.toLocaleString() + ` (${Math.round(removed/S.nTri*100)}%)`;
-      $('statWalls').textContent = nKept.toLocaleString() + ' × 2';
-      $('statRims').textContent = (result.nTri - nKept * 2).toLocaleString();
+      $('statWalls').textContent = nKept.toLocaleString();
+      $('statRims').textContent = result.nTri.toLocaleString();
 
       $('exportSTLBtn').disabled = false;
       hideProgress();

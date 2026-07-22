@@ -1,5 +1,17 @@
 ---
 
+## b505 — Voronoi surface clipping fix
+**Date:** 2026-07-22
+
+### Voronoi Generator
+- Fixed the generator turning organic STLs into a rounded blob after Generate.
+- Replaced centroid-only face classification + inward shell rebuild with continuous nearest-seed boundary evaluation at triangle vertices.
+- Triangles are now clipped to the Voronoi wall band on the original STL surface, so the source model silhouette/detail is preserved instead of being re-shelled.
+- Removed the dead Shell Thickness control from Voronoi because the fixed path no longer offsets an inner shell.
+- STL export header updated to **b505**.
+
+---
+
 ## b504 — MakerDeck Cleanup + Voronoi v2
 **Date:** 2026-07-22
 
