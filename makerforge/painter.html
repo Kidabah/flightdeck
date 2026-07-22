@@ -12,10 +12,9 @@
 
 
 </script>
-<link rel="stylesheet" href="css/makerdeck.css">
 <style>
 /* ================================================================== */
-/*  b545 — MakerDeck STL Painter  (tabbed layout)                     */
+/*  b546 — MakerDeck STL Painter  (tabbed layout)                     */
 /* ================================================================== */
 
 /* -- Reset & Vars -------------------------------------------------- */
@@ -43,10 +42,10 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
 
 /* -- Layout -------------------------------------------------------- */
 .app{display:grid;height:100vh;
-  grid-template-rows:var(--nav-h) 1fr var(--bottom-h) var(--footer-h);
+  grid-template-rows:var(--header-h) 1fr var(--bottom-h) var(--footer-h);
   grid-template-columns:var(--sidebar-w) 1fr;
   grid-template-areas:
-    "nav     nav"
+    "header  header"
     "sidebar viewport"
     "bottom  bottom"
     "footer  footer";
@@ -112,6 +111,18 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   color:var(--muted);border:1px solid var(--border);transition:all .15s}
 .slot-card .slot-btn:hover{color:var(--text);border-color:var(--accent)}
 .slot-card .slot-btn.off{color:var(--red);border-color:var(--red)}
+.slot-card.slot-off{display:none}
+.section-label-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
+.section-label-row .section-label{margin:0}
+.slot-count-ctrl{display:inline-flex;align-items:center;gap:4px}
+.slot-count-ctrl button{width:26px;height:26px;padding:0;border-radius:var(--radius-sm);
+  border:1px solid var(--border);background:var(--panel-2);color:var(--text);
+  font-size:16px;font-weight:700;line-height:1;cursor:pointer;transition:all .15s}
+.slot-count-ctrl button:hover{border-color:var(--accent);background:var(--accent-dim)}
+.slot-count-ctrl button:disabled{opacity:.35;pointer-events:none;cursor:default}
+.slot-count-ctrl .slot-count-val{min-width:1.2em;text-align:center;font-size:12px;font-weight:700;
+  font-variant-numeric:tabular-nums;color:var(--muted)}
+.paint-target.slot-off{display:none}
 
 /* -- Preset Swatches ----------------------------------------------- */
 .preset-row{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
@@ -198,11 +209,36 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
 
 .select-rect{position:absolute;border:1.5px dashed var(--accent);background:rgba(62,207,255,.06);
   pointer-events:none;display:none;z-index:5}
+.lasso-svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;display:none;z-index:5;
+  overflow:visible}
+.lasso-svg polyline{fill:rgba(62,207,255,.10);stroke:var(--accent);stroke-width:1.5;
+  stroke-dasharray:5 3;stroke-linejoin:round;stroke-linecap:round}
 .smart-cursor{position:absolute;border:2px solid var(--accent);border-radius:50%;
   pointer-events:none;display:none;z-index:5;transition:width .08s,height .08s}
 .viewport-hint{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);
   font-size:11px;color:var(--muted);pointer-events:none;text-align:center;
   background:rgba(6,10,16,.7);padding:4px 12px;border-radius:var(--radius-sm)}
+
+.export-modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1000;
+  display:none;align-items:center;justify-content:center;padding:20px}
+.export-modal-backdrop.open{display:flex}
+.export-modal{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+  padding:18px 20px;max-width:380px;width:100%;box-shadow:0 16px 48px rgba(0,0,0,.45)}
+.export-modal h3{font-size:14px;font-weight:700;margin:0 0 8px}
+.export-modal p{font-size:12px;color:var(--muted);margin:0 0 14px;line-height:1.45}
+.export-modal .file-name{color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px;
+  word-break:break-all}
+.export-modal .btn-row{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;margin-top:4px}
+.export-modal .btn-row .btn{min-width:88px}
+
+#selPaintBtn.has-selection:not(:disabled){
+  animation: fillPulse 1.2s ease-in-out infinite;
+  box-shadow:0 0 0 1px var(--accent);
+}
+@keyframes fillPulse{
+  0%,100%{filter:brightness(1)}
+  50%{filter:brightness(1.25)}
+}
 
 .viewport.select-mode{cursor:crosshair}
 .viewport.brush-mode{cursor:none}
@@ -266,8 +302,12 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
 <body>
 
 <div class="app" id="app">
-  <!-- Nav (injected by js/nav.js) -->
-  <nav class="md-nav"></nav>
+  <!-- Header -->
+  <header class="header">
+    <button class="toggle-sidebar" id="toggleSidebar" title="Toggle sidebar">☰</button>
+    <div class="logo">Maker<span>Deck</span> · STL Painter</div>
+    <div class="build">b546</div>
+  </header>
 
   <!-- Left Sidebar (tabbed) -->
   <aside class="sidebar" id="sidebar">
@@ -319,49 +359,16 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
 
       <!-- TAB: Colours -->
       <div class="tab-page" id="tabColours">
-        <div class="section-label">AMS Filament Slots</div>
-        <div class="slot-list" id="slotList">
-          <div class="slot-card active" data-target="body">
-            <div class="swatch-wrap"><input type="color" id="colorBody" value="#B0B0B0"></div>
-            <div class="slot-info">
-              <div class="slot-name">Slot 1 · Base</div>
-              <div class="slot-hex" id="colorBodyHex">#B0B0B0</div>
-            </div>
-            <div class="slot-actions">
-              <button class="slot-btn" data-hide="body">Hide</button>
-            </div>
-          </div>
-          <div class="slot-card" data-target="emboss">
-            <div class="swatch-wrap"><input type="color" id="colorEmboss" value="#131211"></div>
-            <div class="slot-info">
-              <div class="slot-name">Slot 2 · Accent</div>
-              <div class="slot-hex" id="colorEmbossHex">#131211</div>
-            </div>
-            <div class="slot-actions">
-              <button class="slot-btn" data-hide="emboss">Hide</button>
-            </div>
-          </div>
-          <div class="slot-card" data-target="deboss">
-            <div class="swatch-wrap"><input type="color" id="colorDeboss" value="#F5F5F5"></div>
-            <div class="slot-info">
-              <div class="slot-name">Slot 3 · Detail</div>
-              <div class="slot-hex" id="colorDebossHex">#F5F5F5</div>
-            </div>
-            <div class="slot-actions">
-              <button class="slot-btn" data-hide="deboss">Hide</button>
-            </div>
-          </div>
-          <div class="slot-card" data-target="trim">
-            <div class="swatch-wrap"><input type="color" id="colorTrim" value="#1E40AF"></div>
-            <div class="slot-info">
-              <div class="slot-name">Slot 4 · Trim</div>
-              <div class="slot-hex" id="colorTrimHex">#1E40AF</div>
-            </div>
-            <div class="slot-actions">
-              <button class="slot-btn" data-hide="trim">Hide</button>
-            </div>
+        <div class="section-label-row">
+          <div class="section-label">AMS Filament Slots</div>
+          <div class="slot-count-ctrl" title="Up to 16 filaments (multi-AMS / AMS HT)">
+            <button type="button" id="slotMinusBtn" title="Remove last slot">−</button>
+            <span class="slot-count-val" id="slotCountLabel">4</span>
+            <button type="button" id="slotPlusBtn" title="Add slot">+</button>
           </div>
         </div>
+        <p class="flow-desc" style="margin-top:0">+/− adds or removes colours (1–16 for HT / multi-AMS). Removing a slot puts its paint back on Base.</p>
+        <div class="slot-list" id="slotList"></div>
 
         <div class="section-label">Presets</div>
         <div class="preset-row" id="presetRow"></div>
@@ -425,14 +432,23 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
               <button class="stroke-btn" id="selModeColor" data-selmode="color">Same Color</button>
             </div>
           </div>
-          <p class="flow-desc">Click to select a connected region. Then paint it with the active slot.</p>
-          <div class="btn-row" style="margin-top:6px">
-            <button class="btn btn-primary" id="selPaintBtn" disabled>Paint Selection</button>
-            <button class="btn" id="selHideBtn" disabled>Hide Selection</button>
-            <button class="btn" id="selClearBtn" disabled>Clear</button>
-          </div>
-          <button class="btn" id="showHiddenBtn" style="margin-top:6px;width:100%">Show Hidden</button>
+          <p class="flow-desc">Click a connected region (good for whole patches).</p>
         </div>
+
+        <div class="section-label" style="margin-top:12px">Area Fill</div>
+        <div class="tool-grid">
+          <button class="tool-toggle" id="toolLasso" title="Draw around an area (eyebrows, badges…)">Lasso</button>
+          <button class="tool-toggle" id="toolBox" title="Drag a rectangle">Box</button>
+        </div>
+        <div class="opts-panel" id="areaOpts">
+          <p class="flow-desc">Lasso/Box the area (magenta = selected, not painted yet). Then click a colour slot or <b>Fill Selection</b>.</p>
+        </div>
+        <div class="btn-row" style="margin-top:6px">
+          <button class="btn btn-primary" id="selPaintBtn" disabled>Fill Selection</button>
+          <button class="btn" id="selHideBtn" disabled>Hide</button>
+          <button class="btn" id="selClearBtn" disabled>Clear</button>
+        </div>
+        <button class="btn" id="showHiddenBtn" style="margin-top:6px;width:100%">Show Hidden</button>
 
         <label class="check-row" style="margin-top:8px">
           <input type="checkbox" id="orbitLock">
@@ -446,7 +462,6 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
         <div class="section-label" style="margin-top:12px">Advanced Tools</div>
         <div class="tool-grid">
           <button class="tool-toggle" id="toolSmart">Smart</button>
-          <button class="tool-toggle" id="toolBox">Box</button>
           <button class="tool-toggle" id="toolEdge">Edge</button>
           <button class="tool-toggle" id="toolDetect">Detect</button>
         </div>
@@ -514,6 +529,15 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
 
       <!-- TAB: Export -->
       <div class="tab-page" id="tabExport">
+        <div class="section-label">Printer</div>
+        <select id="printerModel">
+          <option value="Bambu Lab H2C" selected>Bambu Lab H2C</option>
+          <option value="Bambu Lab H2D">Bambu Lab H2D</option>
+          <option value="Bambu Lab X1 Carbon">Bambu Lab X1 Carbon</option>
+          <option value="Bambu Lab P1S">Bambu Lab P1S</option>
+          <option value="Bambu Lab A1">Bambu Lab A1</option>
+        </select>
+        <p class="flow-desc">Sets the project profile so your AMS slot colours stick in the slicer (no trays needed).</p>
         <div class="section-label">Filament Profile</div>
         <select id="filamentProfile">
           <option value="Generic PLA">Generic PLA</option>
@@ -543,18 +567,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   <!-- Viewport -->
   <div class="viewport" id="viewport">
     <div class="viewport-toolbar" id="viewportToolbar">
-      <button class="paint-target active" id="targetBody" title="Slot 1 — Base">
-        <span class="swatch" id="swatchBody" style="background:#B0B0B0"></span>1
-      </button>
-      <button class="paint-target" id="targetEmboss" title="Slot 2 — Accent">
-        <span class="swatch" id="swatchEmboss" style="background:#131211"></span>2
-      </button>
-      <button class="paint-target" id="targetDeboss" title="Slot 3 — Detail">
-        <span class="swatch" id="swatchDeboss" style="background:#F5F5F5"></span>3
-      </button>
-      <button class="paint-target" id="targetTrim" title="Slot 4 — Trim">
-        <span class="swatch" id="swatchTrim" style="background:#1E40AF"></span>4
-      </button>
+      <span id="slotToolbarTargets" style="display:inline-flex;align-items:center;gap:3px"></span>
       <div class="tool-sep"></div>
       <button class="tool-btn" id="zoomOutBtn" title="Zoom out">−</button>
       <button class="tool-btn" id="zoomInBtn" title="Zoom in">+</button>
@@ -567,6 +580,9 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <button class="tool-btn" id="resetViewBtn" title="Reset all">Reset</button>
     </div>
     <div class="select-rect" id="selectRect"></div>
+    <svg class="lasso-svg" id="lassoSvg" aria-hidden="true">
+      <polyline id="lassoPoly" points=""></polyline>
+    </svg>
     <div class="smart-cursor" id="smartCursor"></div>
     <div class="viewport-hint" id="viewportHint">Load a model · pick a colour · paint</div>
   </div>
@@ -591,8 +607,20 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>STL Painter</span>
+    <span>MakerDeck · STL Painter b546</span>
   </footer>
+</div>
+
+<div class="export-modal-backdrop" id="exportModal" role="dialog" aria-modal="true" aria-labelledby="exportModalTitle">
+  <div class="export-modal">
+    <h3 id="exportModalTitle">File already exported</h3>
+    <p>Replace <span class="file-name" id="exportModalFile"></span>, or save as a new file?</p>
+    <div class="btn-row">
+      <button type="button" class="btn" id="exportModalCancel">Cancel</button>
+      <button type="button" class="btn" id="exportModalSaveAs">Save as…</button>
+      <button type="button" class="btn btn-primary" id="exportModalReplace">Replace</button>
+    </div>
+  </div>
 </div>
 
 <!-- Main Script -->
@@ -603,10 +631,9 @@ import {
   parseSTLBinary, deduplicateVertices, detectFeatures, cleanClusters,
   buildFaceAdj, findPaintBoundary, brushDabFaces, smartFillFaces,
   paintClassOf, upgradePaintResolution, export3MF,
-  findMeshIslands, buildIslandMap, floodFillSameClass, selectIsland,
-  import3MF, buildSymmetryMap
-} from './js/painter.js?v=545';
-import './js/nav.js?v=545';
+  findMeshIslands, buildIslandMap, floodFillSameClass, floodFillSameSlot, selectIsland,
+  import3MF, buildSymmetryMap, masksToFacePaint, facePaintToMasks, MAX_PAINT_SLOTS
+} from './js/painter.js?v=546';
 
 /* ================================================================== */
 /*  STATE                                                             */
@@ -616,19 +643,23 @@ const S = {
   rawVertices: null, rawNormals: null, nTri: 0,
   verts: null, faces: null, nVerts: 0,
   embossMask: null, debossMask: null, trimMask: null,
+  facePaint: null, // Uint8Array 0..15 — source of truth for AMS paint
   featureEmboss: null, featureDeboss: null,
   embossCount: 0, debossCount: 0, trimCount: 0,
   mesh: null, fileName: 'model',
   tool: 'orbit',
   brushStroke: 'free',
-  paintTarget: 'body',
+  paintTarget: 0, // 0-based slot index
+  slotCount: 4, // visible AMS slots (1–16 for HT / multi-AMS)
+  exportHandle: null, // FileSystemFileHandle from last export (Chrome/Edge)
+  exportFileName: null,
   detectMode: 'emboss',
   undoStack: [], redoStack: [],
   edgeHighlight: null,
   smartPreview: null, smartPreviewFaces: null,
   faceAdj: null,
   brushStrokeActive: null,
-  hiddenSlots: { body: false, emboss: false, deboss: false, trim: false },
+  hiddenSlots: Array(16).fill(false),
   soloActive: false,
   orbitOverride: false,
   resLevel: 0,
@@ -710,11 +741,56 @@ const statusDot = $('statusDot'), statusText = $('statusText');
 const viewportHint = $('viewportHint');
 const orbitLockCheck = $('orbitLock');
 const selectRect = $('selectRect'), smartCursor = $('smartCursor');
+const lassoSvg = $('lassoSvg'), lassoPoly = $('lassoPoly');
 const raycaster = new THREE.Raycaster();
 const pointerNdc = new THREE.Vector2();
 
-const colorInputs = { body: $('colorBody'), emboss: $('colorEmboss'), deboss: $('colorDeboss'), trim: $('colorTrim') };
-const colorHexEls = { body: $('colorBodyHex'), emboss: $('colorEmbossHex'), deboss: $('colorDebossHex'), trim: $('colorTrimHex') };
+/** Slot colours — rebuilt when AMS count changes. Indexed 0..15 */
+let colorInputs = {};
+let colorHexEls = {};
+
+const DEFAULT_SLOT_COLORS = [
+  '#B0B0B0', '#131211', '#F5F5F5', '#1E40AF',
+  '#DC2626', '#EA580C', '#CA8A04', '#16A34A',
+  '#0891B2', '#7C3AED', '#DB2777', '#854D0E',
+  '#44403C', '#A1A1AA', '#F97316', '#22D3EE',
+];
+const SLOT_NAME_SHORT = [
+  'Base', 'Accent', 'Detail', 'Trim',
+  'HT 5', 'HT 6', 'HT 7', 'HT 8',
+  'HT 9', 'HT 10', 'HT 11', 'HT 12',
+  'HT 13', 'HT 14', 'HT 15', 'HT 16',
+];
+const LEGACY_SLOT = { body: 0, emboss: 1, deboss: 2, trim: 3 };
+const MAX_AMS_SLOTS = MAX_PAINT_SLOTS; // 16
+
+function slotIndex(target) {
+  if (typeof target === 'number' && Number.isFinite(target)) return Math.max(0, Math.min(15, target | 0));
+  if (LEGACY_SLOT[target] != null) return LEGACY_SLOT[target];
+  const n = parseInt(target, 10);
+  return Number.isFinite(n) ? Math.max(0, Math.min(15, n)) : 0;
+}
+function slotLabel(i) { return `Slot ${i + 1} · ${SLOT_NAME_SHORT[i] || ('Colour ' + (i + 1))}`; }
+function getSlotColor(i) { return colorInputs[i]?.value || DEFAULT_SLOT_COLORS[i] || '#888888'; }
+function slotColorsArray(n = S.slotCount) {
+  return Array.from({ length: n }, (_, i) => getSlotColor(i));
+}
+function ensureFacePaint() {
+  if (!S.nTri) return null;
+  if (!S.facePaint || S.facePaint.length !== S.nTri) {
+    S.facePaint = S.embossMask
+      ? masksToFacePaint(S.embossMask, S.debossMask, S.trimMask, S.nTri)
+      : new Uint8Array(S.nTri);
+  }
+  return S.facePaint;
+}
+function syncLegacyMasks() {
+  if (!S.facePaint || !S.nTri) return;
+  const m = facePaintToMasks(S.facePaint, S.nTri);
+  S.embossMask = m.embossMask;
+  S.debossMask = m.debossMask;
+  S.trimMask = m.trimMask;
+}
 
 /* ================================================================== */
 /*  STATUS & STATS                                                    */
@@ -735,11 +811,13 @@ function updateStats() {
 
 function recountPaint() {
   let ec = 0, dc = 0, tc = 0;
-  if (S.embossMask && S.debossMask && S.trimMask) {
+  const fp = S.facePaint;
+  if (fp) {
     for (let i = 0; i < S.nTri; i++) {
-      if (S.embossMask[i]) ec++;
-      if (S.debossMask[i]) dc++;
-      if (S.trimMask[i]) tc++;
+      const s = fp[i] || 0;
+      if (s === 1) ec++;
+      else if (s === 2) dc++;
+      else if (s === 3) tc++;
     }
   }
   S.embossCount = ec; S.debossCount = dc; S.trimCount = tc;
@@ -824,14 +902,22 @@ function seatVertsOnBed(verts, nVerts) {
   for(let i=0;i<nVerts;i++){verts[i*3]-=cx;verts[i*3+1]-=cy;verts[i*3+2]-=mnZ;}
 }
 
-function facePaintClass(i) { return paintClassOf(i, S.embossMask, S.debossMask, S.trimMask); }
+function facePaintSlot(i) {
+  const fp = S.facePaint;
+  return fp ? (fp[i] || 0) : slotIndex(paintClassOf(i, S.embossMask, S.debossMask, S.trimMask));
+}
+/** @deprecated string class — prefer facePaintSlot */
+function facePaintClass(i) {
+  const s = facePaintSlot(i);
+  return s === 1 ? 'emboss' : s === 2 ? 'deboss' : s === 3 ? 'trim' : 'body';
+}
 
 function isFaceHidden(i) {
   if (S.hiddenManual && S.hiddenManual[i]) return true;
   if (S.islandMap && S.hiddenIslands.has(S.islandMap[i])) return true;
-  const cls = facePaintClass(i);
-  if (S.soloActive) return cls !== S.paintTarget;
-  return !!S.hiddenSlots[cls];
+  const slot = facePaintSlot(i);
+  if (S.soloActive) return slot !== slotIndex(S.paintTarget);
+  return !!S.hiddenSlots[slot];
 }
 
 function buildMesh({ frame = true } = {}) {
@@ -840,7 +926,7 @@ function buildMesh({ frame = true } = {}) {
   const geom = new THREE.BufferGeometry();
   const pos = new Float32Array(S.nTri * 9);
   const cols = new Float32Array(S.nTri * 9);
-  const bodyCol = new THREE.Color(colorInputs.body.value);
+  const bodyCol = new THREE.Color(getSlotColor(0));
 
   for (let i = 0; i < S.nTri; i++) {
     for (let v = 0; v < 3; v++) {
@@ -888,23 +974,22 @@ function toggleWireframe() {
 function updateMeshColors() {
   if (!S.mesh) return;
   const colors = S.mesh.geometry.attributes.color;
-  const bodyCol = new THREE.Color(colorInputs.body.value);
-  const embossCol = new THREE.Color(colorInputs.emboss.value);
-  const debossCol = new THREE.Color(colorInputs.deboss.value);
-  const trimCol = new THREE.Color(colorInputs.trim.value);
+  const slotCols = Array.from({ length: MAX_AMS_SLOTS }, (_, i) => new THREE.Color(getSlotColor(i)));
   const ghostCol = new THREE.Color(0x2a3548);
   const edgeCol = new THREE.Color('#7dffb3');
   const smartCol = new THREE.Color('#f5c542');
   const selectCol = new THREE.Color('#ff6bff'); // magenta for click-selection
+  const fp = ensureFacePaint();
 
   for (let i = 0; i < S.nTri; i++) {
-    let col = bodyCol;
+    let col = slotCols[0];
     if (S.clickSelection && S.clickSelection[i]) col = selectCol;
     else if (S.edgeHighlight && S.edgeHighlight[i]) col = edgeCol;
     else if (S.smartPreview && S.smartPreview[i]) col = smartCol;
-    else if (S.embossMask?.[i]) col = embossCol;
-    else if (S.debossMask?.[i]) col = debossCol;
-    else if (S.trimMask?.[i]) col = trimCol;
+    else {
+      const s = fp ? (fp[i] || 0) : 0;
+      col = slotCols[s] || slotCols[0];
+    }
 
     const isHighlighted = (S.clickSelection?.[i]) || (S.edgeHighlight?.[i]) || (S.smartPreview?.[i]);
     if (isFaceHidden(i) && !isHighlighted) col = ghostCol;
@@ -937,8 +1022,9 @@ function zoomBy(factor) {
 /* ================================================================== */
 
 function pushUndo() {
-  if (!S.embossMask || !S.debossMask || !S.trimMask) return;
-  S.undoStack.push({ emboss: S.embossMask.slice(), deboss: S.debossMask.slice(), trim: S.trimMask.slice() });
+  const fp = ensureFacePaint();
+  if (!fp) return;
+  S.undoStack.push({ paint: fp.slice() });
   if (S.undoStack.length > 30) S.undoStack.shift();
   S.redoStack.length = 0; // new paint action clears redo
   $('undoBtn').disabled = false;
@@ -946,7 +1032,9 @@ function pushUndo() {
 }
 
 function paintFacesFree(faceIndices, target, { undo = true } = {}) {
-  if (!S.embossMask || !faceIndices.length) return;
+  const fp = ensureFacePaint();
+  if (!fp || !faceIndices.length) return;
+  const slot = slotIndex(target != null ? target : S.paintTarget);
   let faces = faceIndices.filter(i => !isFaceHidden(i));
   if (!faces.length) return;
   // Mirror faces for symmetry painting
@@ -959,11 +1047,8 @@ function paintFacesFree(faceIndices, target, { undo = true } = {}) {
     if (extra.length) faces = faces.concat(extra);
   }
   if (undo) pushUndo();
-  for (const i of faces) {
-    S.embossMask[i] = target === 'emboss' ? 1 : 0;
-    S.debossMask[i] = target === 'deboss' ? 1 : 0;
-    S.trimMask[i]   = target === 'trim'   ? 1 : 0;
-  }
+  for (const i of faces) fp[i] = slot;
+  syncLegacyMasks();
   updateMeshColors();
   recountPaint();
   exportBtn.disabled = false;
@@ -1035,6 +1120,63 @@ function facesInScreenBox(x0, y0, x1, y1) {
   return hit;
 }
 
+function pointInPolygon(x, y, pts) {
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const xi = pts[i].x, yi = pts[i].y, xj = pts[j].x, yj = pts[j].y;
+    if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / ((yj - yi) || 1e-12) + xi)) inside = !inside;
+  }
+  return inside;
+}
+
+/** Faces whose screen centroid (or any vertex) sits inside a freehand lasso. */
+function facesInScreenLasso(pts) {
+  if (!pts || pts.length < 3 || !S.mesh) return [];
+  let left = Infinity, right = -Infinity, top = Infinity, bottom = -Infinity;
+  for (const p of pts) {
+    if (p.x < left) left = p.x; if (p.x > right) right = p.x;
+    if (p.y < top) top = p.y; if (p.y > bottom) bottom = p.y;
+  }
+  if (right - left < 4 || bottom - top < 4) return [];
+  const w = viewport.clientWidth, h = viewport.clientHeight;
+  S.mesh.updateMatrixWorld(true);
+  const mat = S.mesh.matrixWorld;
+  const v = new THREE.Vector3(), camDir = new THREE.Vector3();
+  camera.getWorldDirection(camDir);
+  const hit = [];
+  for (let i = 0; i < S.nTri; i++) {
+    if (isFaceHidden(i)) continue;
+    let anyIn = false;
+    const world = [];
+    for (let k = 0; k < 3; k++) {
+      const vi = S.faces[i * 3 + k];
+      v.set(S.verts[vi * 3], S.verts[vi * 3 + 1], S.verts[vi * 3 + 2]).applyMatrix4(mat);
+      world.push(v.x, v.y, v.z);
+      v.project(camera);
+      if (v.z >= -1 && v.z <= 1) {
+        const sx = (v.x * .5 + .5) * w, sy = (-v.y * .5 + .5) * h;
+        if (sx >= left && sx <= right && sy >= top && sy <= bottom && pointInPolygon(sx, sy, pts)) anyIn = true;
+      }
+    }
+    if (!anyIn) {
+      const cx = (world[0] + world[3] + world[6]) / 3;
+      const cy = (world[1] + world[4] + world[7]) / 3;
+      const cz = (world[2] + world[5] + world[8]) / 3;
+      v.set(cx, cy, cz).project(camera);
+      if (v.z < -1 || v.z > 1) continue;
+      const sx = (v.x * .5 + .5) * w, sy = (-v.y * .5 + .5) * h;
+      if (sx < left || sx > right || sy < top || sy > bottom) continue;
+      if (!pointInPolygon(sx, sy, pts)) continue;
+    }
+    const e1x = world[3] - world[0], e1y = world[4] - world[1], e1z = world[5] - world[2];
+    const e2x = world[6] - world[0], e2y = world[7] - world[1], e2z = world[8] - world[2];
+    const nx = e1y * e2z - e1z * e2y, ny = e1z * e2x - e1x * e2z, nz = e1x * e2y - e1y * e2x;
+    if (nx * camDir.x + ny * camDir.y + nz * camDir.z > 0) continue;
+    hit.push(i);
+  }
+  return hit;
+}
+
 /* ================================================================== */
 /*  BRUSH / SPRAY                                                     */
 /* ================================================================== */
@@ -1090,7 +1232,7 @@ function strokeBrushTo(clientX, clientY) {
 /* ================================================================== */
 
 function computeSmartFill(hit) {
-  if (!hit || !S.embossMask) return [];
+  if (!hit || !ensureFacePaint()) return [];
   ensureFaceAdj();
   return smartFillFaces(hit.faceIndex, hit.point, S.verts, S.faces, S.nTri,
     S.embossMask, S.debossMask, S.faceAdj, {
@@ -1098,6 +1240,7 @@ function computeSmartFill(hit) {
       maxAngleDeg: parseFloat($('smartAngle').value) || 35,
       samePaintOnly: $('smartSameColour')?.checked !== false,
       trimMask: S.trimMask,
+      facePaint: S.facePaint,
     });
 }
 
@@ -1134,22 +1277,25 @@ function clearSmartPreview() {
 /* ================================================================== */
 
 function edgePaintMask() {
-  const t = S.paintTarget;
-  if (t === 'emboss') return S.embossMask;
-  if (t === 'deboss') return S.debossMask;
-  if (t === 'trim')   return S.trimMask;
+  const fp = ensureFacePaint();
+  const t = slotIndex(S.paintTarget);
   const m = new Uint8Array(S.nTri);
-  for (let i = 0; i < S.nTri; i++) if (S.embossMask[i] || S.debossMask[i] || S.trimMask[i]) m[i] = 1;
+  if (!fp) return m;
+  if (t === 0) {
+    for (let i = 0; i < S.nTri; i++) if (fp[i]) m[i] = 1;
+  } else {
+    for (let i = 0; i < S.nTri; i++) if (fp[i] === t) m[i] = 1;
+  }
   return m;
 }
 
 function runEdgeFinder(seedFaceList) {
-  if (!S.embossMask || !S.mesh) return 0;
+  if (!ensureFacePaint() || !S.mesh) return 0;
   ensureFaceAdj();
   const width = parseInt($('edgeWidth').value, 10) || 0;
   let region = null;
   if (seedFaceList?.length) { region = new Uint8Array(S.nTri); for (const i of seedFaceList) region[i] = 1; }
-  const growInto = S.paintTarget === 'body' ? 'paint' : 'body';
+  const growInto = slotIndex(S.paintTarget) === 0 ? 'paint' : 'body';
   S.edgeHighlight = findPaintBoundary(edgePaintMask(), S.faces, S.nTri, { width, growInto, region, faceAdj: S.faceAdj });
   let count = 0; for (let i = 0; i < S.nTri; i++) if (S.edgeHighlight[i]) count++;
   updateMeshColors();
@@ -1181,7 +1327,7 @@ function performClickSelect(clientX, clientY) {
     S.selectedIsland = S.islandMap[hit.faceIndex];
     syncIslandCards();
   } else {
-    faces = floodFillSameClass(hit.faceIndex, S.embossMask, S.debossMask, S.trimMask, S.nTri, S.faceAdj);
+    faces = floodFillSameSlot(hit.faceIndex, ensureFacePaint(), S.nTri, S.faceAdj);
     S.selectedIsland = -1;
   }
 
@@ -1189,26 +1335,61 @@ function performClickSelect(clientX, clientY) {
   for (const f of faces) mask[f] = 1;
   S.clickSelection = mask;
   S.clickSelectionFaces = faces;
+  syncFillSelectionBtn();
   updateMeshColors();
-  $('selPaintBtn').disabled = false; $('selHideBtn').disabled = false;
-  $('selClearBtn').disabled = false;
   const modeLabel = S.clickSelectMode === 'island' ? 'island' : 'color region';
-  setStatus(`Selected ${faces.length.toLocaleString()} faces (${modeLabel}) — Paint Selection to apply`, 'idle');
+  setStatus(`Selected ${faces.length.toLocaleString()} faces (${modeLabel}) — click a colour slot or Fill Selection`, 'idle');
+}
+
+function syncFillSelectionBtn() {
+  const btn = $('selPaintBtn');
+  if (!btn) return;
+  const has = !!(S.clickSelectionFaces?.length);
+  btn.disabled = !has;
+  btn.classList.toggle('has-selection', has);
+  $('selHideBtn') && ($('selHideBtn').disabled = !has);
+  $('selClearBtn') && ($('selClearBtn').disabled = !has);
 }
 
 function clearClickSelection() {
   S.clickSelection = null; S.clickSelectionFaces = null; S.selectedIsland = -1;
-  $('selPaintBtn').disabled = true; $('selHideBtn').disabled = true; $('selClearBtn').disabled = true;
+  syncFillSelectionBtn();
   syncIslandCards();
   updateMeshColors();
 }
 
+/** Put faces into the shared selection (Paint / Hide Selection), not auto-paint. */
+function setFaceSelection(faces, label = 'selection') {
+  if (!faces?.length) {
+    clearClickSelection();
+    setStatus('No faces in selection', 'idle');
+    return;
+  }
+  const mask = new Uint8Array(S.nTri);
+  for (const f of faces) mask[f] = 1;
+  S.clickSelection = mask;
+  S.clickSelectionFaces = faces;
+  S.selectedIsland = -1;
+  syncFillSelectionBtn();
+  syncIslandCards();
+  updateMeshColors();
+  const slot = slotIndex(S.paintTarget);
+  setStatus(
+    `Selected ${faces.length.toLocaleString()} faces (${label}) — magenta = selected. Click slot ${slot + 1} or Fill Selection`,
+    'idle'
+  );
+}
+
 function paintClickSelection() {
-  if (!S.clickSelectionFaces?.length) return;
-  paintFacesFree(S.clickSelectionFaces, S.paintTarget);
+  if (!S.clickSelectionFaces?.length) {
+    setStatus('Nothing selected — Lasso/Box an area first', 'idle');
+    return;
+  }
+  const slot = slotIndex(S.paintTarget);
   const n = S.clickSelectionFaces.length;
+  paintFacesFree(S.clickSelectionFaces, slot);
   clearClickSelection();
-  setStatus(`Painted ${n.toLocaleString()} selected faces → ${S.paintTarget}`, 'idle');
+  setStatus(`Filled ${n.toLocaleString()} faces → ${slotLabel(slot)}`, 'idle');
 }
 
 /* ================================================================== */
@@ -1262,10 +1443,10 @@ function selectIslandById(id) {
   const faces = Array.from(isl.faces);
   for (const f of faces) mask[f] = 1;
   S.clickSelection = mask; S.clickSelectionFaces = faces; S.selectedIsland = id;
-  $('selPaintBtn').disabled = false; $('selHideBtn').disabled = false; $('selClearBtn').disabled = false;
+  syncFillSelectionBtn();
   syncIslandCards();
   updateMeshColors();
-  setStatus(`Selected island ${id + 1} (${isl.faceCount.toLocaleString()} faces)`, 'idle');
+  setStatus(`Selected island ${id + 1} (${isl.faceCount.toLocaleString()} faces) — click a colour or Fill Selection`, 'idle');
 }
 
 function toggleIslandHide(id) {
@@ -1317,12 +1498,124 @@ function updateSmartCursor(clientX, clientY, worldPoint) {
 
 function isBrushTool(t = S.tool) { return t === 'brush' || t === 'spray'; }
 
-const SLOT_LABELS = { body:'Slot 1 (base)', emboss:'Slot 2 (accent)', deboss:'Slot 3 (detail)', trim:'Slot 4 (trim)' };
+function isSlotActive(target) {
+  return slotIndex(target) < S.slotCount;
+}
+
+/** Remap painted faces on a slot back to Base. Returns face count. */
+function clearSlotPaintToBody(slot) {
+  const fp = ensureFacePaint();
+  const s = slotIndex(slot);
+  if (!fp || !S.nTri || s === 0) return 0;
+  const faces = [];
+  for (let i = 0; i < S.nTri; i++) if (fp[i] === s) faces.push(i);
+  if (faces.length) paintFacesFree(faces, 0);
+  return faces.length;
+}
+
+function rebuildSlotUI() {
+  const list = $('slotList');
+  const bar = $('slotToolbarTargets');
+  if (!list || !bar) return;
+  const prevColors = slotColorsArray(MAX_AMS_SLOTS);
+  list.innerHTML = '';
+  bar.innerHTML = '';
+  colorInputs = {};
+  colorHexEls = {};
+  const n = Math.max(1, Math.min(MAX_AMS_SLOTS, S.slotCount | 0));
+  S.slotCount = n;
+  for (let i = 0; i < n; i++) {
+    const hex = prevColors[i] || DEFAULT_SLOT_COLORS[i];
+    const card = document.createElement('div');
+    card.className = 'slot-card' + (slotIndex(S.paintTarget) === i ? ' active' : '');
+    card.dataset.slot = String(i);
+    card.innerHTML = `
+      <div class="swatch-wrap"><input type="color" data-slot-color="${i}" value="${hex}"></div>
+      <div class="slot-info">
+        <div class="slot-name">${slotLabel(i)}</div>
+        <div class="slot-hex">${hex.toUpperCase()}</div>
+      </div>
+      <div class="slot-actions">
+        <button type="button" class="slot-btn" data-hide-slot="${i}">Hide</button>
+      </div>`;
+    list.appendChild(card);
+    const input = card.querySelector('input[type=color]');
+    const hexEl = card.querySelector('.slot-hex');
+    colorInputs[i] = input;
+    colorHexEls[i] = hexEl;
+    input.addEventListener('input', () => {
+      hexEl.textContent = input.value.toUpperCase();
+      syncPaintSwatches(); updateMeshColors();
+    });
+    input.addEventListener('click', e => e.stopPropagation());
+    card.addEventListener('click', e => {
+      if (e.target?.type === 'color' || e.target?.closest?.('[data-hide-slot]')) return;
+      setPaintTarget(i, { fillIfSelected: true });
+    });
+    card.querySelector('[data-hide-slot]')?.addEventListener('click', e => {
+      e.stopPropagation();
+      if (S.soloActive) { S.soloActive = false; $('soloActive').checked = false; S.hiddenSlots = Array(16).fill(false); }
+      S.hiddenSlots[i] = !S.hiddenSlots[i];
+      syncHideUI(); updateMeshColors();
+      setStatus(S.hiddenSlots[i] ? `Hidden ${slotLabel(i)}` : `Showing ${slotLabel(i)}`, 'idle');
+    });
+
+    const btn = document.createElement('button');
+    btn.className = 'paint-target' + (slotIndex(S.paintTarget) === i ? ' active' : '');
+    btn.title = slotLabel(i);
+    btn.dataset.slot = String(i);
+    btn.innerHTML = `<span class="swatch" style="background:${hex}"></span>${i + 1}`;
+    btn.addEventListener('click', () => setPaintTarget(i, { fillIfSelected: true }));
+    bar.appendChild(btn);
+  }
+  const label = $('slotCountLabel');
+  if (label) label.textContent = String(n);
+  if ($('slotMinusBtn')) $('slotMinusBtn').disabled = n <= 1;
+  if ($('slotPlusBtn')) $('slotPlusBtn').disabled = n >= MAX_AMS_SLOTS;
+  syncHideUI();
+  syncPaintSwatches();
+}
+
+function syncSlotCountUI() {
+  const n = Math.max(1, Math.min(MAX_AMS_SLOTS, S.slotCount | 0));
+  S.slotCount = n;
+  if (slotIndex(S.paintTarget) >= n) S.paintTarget = 0;
+  rebuildSlotUI();
+}
+
+function addAmsSlot() {
+  if (S.slotCount >= MAX_AMS_SLOTS) {
+    setStatus(`Max ${MAX_AMS_SLOTS} filaments (multi-AMS / HT)`, 'idle');
+    return;
+  }
+  S.slotCount += 1;
+  syncSlotCountUI();
+  setPaintTarget(S.slotCount - 1);
+  setStatus(`Added ${slotLabel(S.slotCount - 1)} — ${S.slotCount} of ${MAX_AMS_SLOTS}`, 'idle');
+}
+
+function removeAmsSlot() {
+  if (S.slotCount <= 1) {
+    setStatus('Need at least Slot 1 (Base)', 'idle');
+    return;
+  }
+  const slot = S.slotCount - 1;
+  const cleared = clearSlotPaintToBody(slot);
+  S.hiddenSlots[slot] = false;
+  S.slotCount -= 1;
+  syncSlotCountUI();
+  setStatus(
+    cleared
+      ? `Removed ${slotLabel(slot)} — ${cleared.toLocaleString()} faces → Base`
+      : `Removed ${slotLabel(slot)} — ${S.slotCount} of ${MAX_AMS_SLOTS}`,
+    'idle'
+  );
+}
 
 function syncHideUI() {
-  document.querySelectorAll('.slot-card .slot-btn[data-hide]').forEach(btn => {
-    const t = btn.dataset.hide;
-    const hidden = S.soloActive ? t !== S.paintTarget : !!S.hiddenSlots[t];
+  document.querySelectorAll('.slot-card .slot-btn[data-hide-slot]').forEach(btn => {
+    const i = parseInt(btn.dataset.hideSlot, 10);
+    const hidden = S.soloActive ? i !== slotIndex(S.paintTarget) : !!S.hiddenSlots[i];
     btn.textContent = hidden ? 'Show' : 'Hide';
     btn.classList.toggle('off', hidden);
     btn.closest('.slot-card')?.classList.toggle('hidden', hidden);
@@ -1331,15 +1624,17 @@ function syncHideUI() {
 }
 
 function syncPaintSwatches() {
-  for (const [key, input] of Object.entries(colorInputs)) {
-    const capitalKey = key.charAt(0).toUpperCase() + key.slice(1);
-    const sw = $('swatch' + capitalKey);
-    if (sw) sw.style.background = input.value;
-  }
+  document.querySelectorAll('#slotToolbarTargets .paint-target').forEach(btn => {
+    const i = parseInt(btn.dataset.slot, 10);
+    const sw = btn.querySelector('.swatch');
+    if (sw) sw.style.background = getSlotColor(i);
+  });
 }
 
 function syncSlotCards() {
-  document.querySelectorAll('.slot-card').forEach(c => c.classList.toggle('active', c.dataset.target === S.paintTarget));
+  const cur = slotIndex(S.paintTarget);
+  document.querySelectorAll('.slot-card').forEach(c => c.classList.toggle('active', parseInt(c.dataset.slot, 10) === cur));
+  document.querySelectorAll('#slotToolbarTargets .paint-target').forEach(b => b.classList.toggle('active', parseInt(b.dataset.slot, 10) === cur));
 }
 
 function updateResMeta() {
@@ -1356,9 +1651,9 @@ function updateResMeta() {
 function showToolOpts(tool) {
   for (const [id, t] of [['brushOpts','brush'],['sprayOpts','spray'],['eyedropOpts','eyedrop'],
     ['clickSelectOpts','clickSelect'],['smartOpts','smart'],['edgeOpts','edge'],['detectOpts','detect']]) {
-    const show = (tool === t) || (id === 'clickSelectOpts' && tool === 'box');
-    $(id)?.classList.toggle('visible', show);
+    $(id)?.classList.toggle('visible', tool === t);
   }
+  $('areaOpts')?.classList.toggle('visible', tool === 'lasso' || tool === 'box');
 }
 
 function setTool(tool) {
@@ -1367,15 +1662,21 @@ function setTool(tool) {
   resetInteraction();
 
   for (const [id, t] of [['toolBrush','brush'],['toolSpray','spray'],['toolEyedrop','eyedrop'],
-    ['toolClickSelect','clickSelect'],['toolSmart','smart'],['toolBox','box'],['toolEdge','edge'],['toolDetect','detect']]) {
+    ['toolClickSelect','clickSelect'],['toolLasso','lasso'],['toolSmart','smart'],
+    ['toolBox','box'],['toolEdge','edge'],['toolDetect','detect']]) {
     $(id)?.classList.toggle('active', tool === t);
   }
   showToolOpts(tool);
   if (tool !== 'smart') clearSmartPreview();
-  if (tool !== 'clickSelect' && tool !== 'box') clearClickSelection();
+  // Keep face selection across tool switches so you can Lasso → pick slot → Fill
+
+  // Area tools need Lock so left-drag draws instead of orbiting
+  if ((tool === 'lasso' || tool === 'box' || tool === 'edge') && orbitLockCheck && !orbitLockCheck.checked) {
+    orbitLockCheck.checked = true;
+  }
 
   viewport.className = 'viewport';
-  if (tool === 'box' || tool === 'edge' || tool === 'smart' || isBrushTool(tool)) viewport.classList.add('select-mode');
+  if (tool === 'box' || tool === 'lasso' || tool === 'edge' || tool === 'smart' || isBrushTool(tool)) viewport.classList.add('select-mode');
   if (isBrushTool(tool)) viewport.classList.add('brush-mode');
   if (tool === 'eyedrop') viewport.classList.add('eyedrop-mode');
   if (tool === 'clickSelect') viewport.classList.add('click-select-mode');
@@ -1384,10 +1685,11 @@ function setTool(tool) {
     brush: 'Brush — paint on model · right-drag or Alt+drag to orbit',
     spray: 'Spray — mist on model · right-drag to orbit',
     eyedrop: 'Eyedropper — click a face to pick its slot',
-    clickSelect: 'Click to select a connected region · then Paint Selection',
+    clickSelect: 'Click to select a connected region · then Fill Selection',
     edge: 'Edge — Lock view, drag over boundary, then Fill',
     smart: 'Smart fill — hover for preview · click to paint',
-    box: 'Box — Lock view, drag to select · then Paint or Hide',
+    lasso: 'Lasso — Lock on, draw around an area (eyebrow…) · pick slot · Fill Selection',
+    box: 'Box — Lock on, drag a rectangle · pick slot · Fill Selection',
     detect: 'Detect — find raised/sunken detail',
   };
   viewportHint.textContent = hints[tool] || 'Left-drag orbits · scroll zooms · pick a tool';
@@ -1398,13 +1700,19 @@ function setTool(tool) {
   }
 }
 
-function setPaintTarget(target) {
-  S.paintTarget = target;
-  for (const id of ['targetBody','targetEmboss','targetDeboss','targetTrim']) {
-    $(id)?.classList.toggle('active', id === 'target' + target.charAt(0).toUpperCase() + target.slice(1));
+function setPaintTarget(target, { fillIfSelected = false } = {}) {
+  const slot = slotIndex(target);
+  if (!isSlotActive(slot)) {
+    setStatus(`${slotLabel(slot)} is off — use + to add a slot`, 'idle');
+    return;
   }
+  S.paintTarget = slot;
   syncSlotCards(); syncHideUI();
   if (S.soloActive) updateMeshColors();
+  // Natural flow: lasso shirt → click red → fills (magenta was only the selection)
+  if (fillIfSelected && S.clickSelectionFaces?.length) {
+    paintClickSelection();
+  }
 }
 
 function setBrushStroke(mode) {
@@ -1420,10 +1728,12 @@ function setBrushStroke(mode) {
 
 function syncOrbitLock() {
   const locked = !!orbitLockCheck?.checked;
-  const painting = !!S.brushStrokeActive || !!S._smartClick || !!boxDrag;
+  const painting = !!S.brushStrokeActive || !!S._smartClick || !!boxDrag || !!lassoDrag;
+  // Brush/spray always own left-drag (paint). Orbit with right-drag / Alt / Space.
+  // Box/Lasso/Edge need the Lock checkbox.
   const leftBlocked = S.orbitOverride ? false :
     (painting || S.tool === 'eyedrop' || S.tool === 'smart' || S.tool === 'clickSelect' ||
-     ((S.tool === 'box' || S.tool === 'edge') && locked) || (isBrushTool() && locked));
+     isBrushTool() || ((S.tool === 'box' || S.tool === 'lasso' || S.tool === 'edge') && locked));
   controls.enabled = true; controls.enableRotate = true; controls.enablePan = true;
   controls.mouseButtons.LEFT = leftBlocked ? -1 : THREE.MOUSE.ROTATE;
   controls.mouseButtons.MIDDLE = THREE.MOUSE.DOLLY;
@@ -1436,11 +1746,13 @@ function releaseViewportPointer(id) {
 }
 
 function resetInteraction(msg) {
-  const pids = [S.brushStrokeActive?.pointerId, S._smartClick?.pointerId, boxDrag?.pointerId].filter(v => v != null);
+  const pids = [S.brushStrokeActive?.pointerId, S._smartClick?.pointerId, boxDrag?.pointerId, lassoDrag?.pointerId].filter(v => v != null);
   S.brushStrokeActive = null; S._smartClick = null; S.orbitOverride = false;
   if (boxDrag) endBoxDrag();
+  if (lassoDrag) endLassoDrag();
   for (const id of pids) releaseViewportPointer(id);
   selectRect.style.display = 'none';
+  hideLassoSvg();
   if (smartCursor) smartCursor.style.display = 'none';
   controls.enabled = true; controls.enableRotate = true; controls.enablePan = true;
   syncOrbitLock();
@@ -1449,19 +1761,28 @@ function resetInteraction(msg) {
 
 function showAllColours() {
   S.soloActive = false;
-  S.hiddenSlots = { body:false, emboss:false, deboss:false, trim:false };
+  S.hiddenSlots = Array(16).fill(false);
   S.hiddenIslands.clear();
   $('soloActive').checked = false;
   syncHideUI(); syncIslandCards(); updateMeshColors();
   resetInteraction('All colours visible');
 }
 
+function ensureSlotFor(target) {
+  const idx = slotIndex(target);
+  if (S.slotCount < idx + 1) {
+    S.slotCount = Math.min(MAX_AMS_SLOTS, idx + 1);
+    syncSlotCountUI();
+  }
+}
+
 function sampleEyedrop(clientX, clientY) {
   const hit = pickHitAtClient(clientX, clientY);
   if (!hit) { setStatus('Eyedropper — click on the model', 'idle'); return; }
-  const cls = paintClassOf(hit.faceIndex, S.embossMask, S.debossMask, S.trimMask);
-  setPaintTarget(cls);
-  setStatus(`Eyedropper → ${SLOT_LABELS[cls] || cls}`, 'idle');
+  const slot = facePaintSlot(hit.faceIndex);
+  ensureSlotFor(slot);
+  setPaintTarget(slot);
+  setStatus(`Eyedropper → ${slotLabel(slot)}`, 'idle');
 }
 
 function endBrushStroke(status = true) {
@@ -1470,7 +1791,7 @@ function endBrushStroke(status = true) {
   S.brushStrokeActive = null;
   releaseViewportPointer(stroke.pointerId);
   syncOrbitLock();
-  if (status) setStatus(stroke.undid ? `${S.tool === 'spray' ? 'Spray' : 'Brush'} stroke → ${S.paintTarget}` : 'No faces hit', 'idle');
+  if (status) setStatus(stroke.undid ? `${S.tool === 'spray' ? 'Spray' : 'Brush'} stroke → ${slotLabel(slotIndex(S.paintTarget))}` : 'No faces hit', 'idle');
 }
 
 let boxDrag = null;
@@ -1480,7 +1801,28 @@ function endBoxDrag(e) {
   const start = boxDrag; boxDrag = null; return start;
 }
 
-function isSelectTool() { return S.tool === 'box' || S.tool === 'edge'; }
+let lassoDrag = null;
+function hideLassoSvg() {
+  if (lassoSvg) lassoSvg.style.display = 'none';
+  if (lassoPoly) lassoPoly.setAttribute('points', '');
+}
+function updateLassoSvg(pts) {
+  if (!lassoSvg || !lassoPoly || !pts?.length) return;
+  lassoSvg.style.display = 'block';
+  const closed = pts.map(p => `${p.x},${p.y}`).join(' ');
+  // Close the visual loop back to start while drawing
+  const first = pts[0];
+  lassoPoly.setAttribute('points', pts.length > 2 ? `${closed} ${first.x},${first.y}` : closed);
+}
+function endLassoDrag(e) {
+  if (e?.pointerId != null) releaseViewportPointer(e.pointerId);
+  const start = lassoDrag; lassoDrag = null;
+  hideLassoSvg();
+  return start;
+}
+
+function isSelectTool() { return S.tool === 'box' || S.tool === 'lasso' || S.tool === 'edge'; }
+function isAreaTool(t = S.tool) { return t === 'box' || t === 'lasso'; }
 
 /* ================================================================== */
 /*  RESOLUTION UPGRADE                                                */
@@ -1491,14 +1833,15 @@ function runResolutionUpgrade(levels) {
   setStatus(`Upgrading paint detail (×${Math.pow(4, levels)})…`, 'working');
   setTimeout(() => {
     try {
+      ensureFacePaint();
       let r = { verts:S.verts, faces:S.faces, nVerts:S.nVerts, nTri:S.nTri,
-        embossMask:S.embossMask, debossMask:S.debossMask, trimMask:S.trimMask };
+        embossMask:S.embossMask, debossMask:S.debossMask, trimMask:S.trimMask, facePaint:S.facePaint };
       for (let i = 0; i < levels; i++) {
         r = upgradePaintResolution(r.verts, r.faces, r.nVerts, r.nTri,
-          { embossMask:r.embossMask, debossMask:r.debossMask, trimMask:r.trimMask });
+          { embossMask:r.embossMask, debossMask:r.debossMask, trimMask:r.trimMask, facePaint:r.facePaint });
       }
       Object.assign(S, { verts:r.verts, faces:r.faces, nVerts:r.nVerts, nTri:r.nTri,
-        embossMask:r.embossMask, debossMask:r.debossMask, trimMask:r.trimMask,
+        embossMask:r.embossMask, debossMask:r.debossMask, trimMask:r.trimMask, facePaint:r.facePaint,
         featureEmboss:null, featureDeboss:null, faceAdj:null,
         edgeHighlight:null, smartPreview:null, smartPreviewFaces:null,
         islands:null, islandMap:null, undoStack:[] });
@@ -1530,12 +1873,14 @@ async function loadSTL(file) {
   seatVertsOnBed(verts, nVerts);
   Object.assign(S, { verts, faces, nVerts,
     embossMask: new Uint8Array(nTri), debossMask: new Uint8Array(nTri), trimMask: new Uint8Array(nTri),
+    facePaint: new Uint8Array(nTri),
     featureEmboss:null, featureDeboss:null, embossCount:0, debossCount:0, trimCount:0,
     edgeHighlight:null, smartPreview:null, smartPreviewFaces:null, faceAdj:null,
     undoStack:[], resLevel:0, islands:null, islandMap:null, clickSelection:null, clickSelectionFaces:null,
-    hiddenSlots:{ body:false, emboss:false, deboss:false, trim:false }, soloActive:false, selectedIsland:-1,
+    hiddenSlots: Array(16).fill(false), soloActive:false, selectedIsland:-1,
   });
   S.hiddenIslands.clear();
+  clearExportDestination();
   $('soloActive').checked = false;
   $('undoBtn').disabled = true;
 
@@ -1576,29 +1921,39 @@ async function load3MF(file) {
     const result = await import3MF(buf);
 
     seatVertsOnBed(result.verts, result.nVerts);
+    const facePaint = result.facePaint || masksToFacePaint(result.embossMask, result.debossMask, result.trimMask, result.nTri);
     Object.assign(S, {
       verts: result.verts, faces: result.faces, nVerts: result.nVerts, nTri: result.nTri,
       embossMask: result.embossMask, debossMask: result.debossMask, trimMask: result.trimMask,
+      facePaint,
       rawVertices: null, rawNormals: null,
       featureEmboss: null, featureDeboss: null,
       edgeHighlight: null, smartPreview: null, smartPreviewFaces: null,
       faceAdj: null, undoStack: [], resLevel: 0,
       islands: null, islandMap: null, clickSelection: null, clickSelectionFaces: null,
-      hiddenSlots: { body: false, emboss: false, deboss: false, trim: false },
+      hiddenSlots: Array(16).fill(false),
       soloActive: false, selectedIsland: -1,
     });
     S.hiddenIslands.clear();
+    clearExportDestination();
 
-    // Apply imported colours if present
-    if (result.colors && result.colors.length >= 4) {
-      const slots = ['body', 'emboss', 'deboss', 'trim'];
-      for (let i = 0; i < 4; i++) {
+    // Expand slot count to cover imported paint / colours
+    let used = 1;
+    for (let i = 0; i < result.nTri; i++) {
+      const s = facePaint[i] || 0;
+      if (s + 1 > used) used = s + 1;
+    }
+    if (result.colors?.length) used = Math.max(used, Math.min(MAX_AMS_SLOTS, result.colors.length));
+    S.slotCount = Math.min(MAX_AMS_SLOTS, Math.max(1, used));
+    syncSlotCountUI();
+    // Apply imported colours after UI rebuild
+    if (result.colors?.length) {
+      for (let i = 0; i < Math.min(S.slotCount, result.colors.length); i++) {
         const c = result.colors[i];
-        if (c && colorInputs[slots[i]]) {
-          // Normalize colour format (#RRGGBB or #RRGGBBFF)
+        if (c && colorInputs[i]) {
           const hex = c.length > 7 ? c.slice(0, 7) : c;
-          colorInputs[slots[i]].value = hex;
-          colorHexEls[slots[i]].textContent = hex.toUpperCase();
+          colorInputs[i].value = hex;
+          if (colorHexEls[i]) colorHexEls[i].textContent = hex.toUpperCase();
         }
       }
       syncPaintSwatches();
@@ -1614,7 +1969,11 @@ async function load3MF(file) {
     $('clearPaintBtn').disabled = false; $('clearModelBtn').disabled = false;
     $('islandInfo').textContent = 'Click "Find Islands" to detect components.';
     viewportHint.style.display = 'block';
-    setStatus(`Loaded 3MF: ${file.name} — ${result.nTri.toLocaleString()} faces, paint restored`, 'idle');
+    const painted = result.painted ?? [...facePaint].filter(s => s > 0).length;
+    setStatus(
+      `Loaded 3MF: ${file.name} — ${result.nTri.toLocaleString()} faces, ${painted.toLocaleString()} painted (${S.slotCount} colours)`,
+      painted ? 'idle' : 'error'
+    );
   } catch (err) {
     setStatus(`3MF import failed: ${err.message}`, 'error');
     console.error('3MF import error:', err);
@@ -1632,13 +1991,11 @@ async function screenPickColour() {
     const result = await picker.open();
     const hex = result.sRGBHex;
     // Apply to active paint target's colour input
-    const inputMap = { body: 'colorBody', emboss: 'colorEmboss', deboss: 'colorDeboss', trim: 'colorTrim' };
-    const inputId = inputMap[S.paintTarget];
-    if (!inputId) return;
-    const input = $(inputId);
+    const input = colorInputs[slotIndex(S.paintTarget)];
+    if (!input) return;
     input.value = hex;
     input.dispatchEvent(new Event('input', { bubbles: true }));
-    setStatus(`Screen pick → ${S.paintTarget} set to ${hex}`, 'idle');
+    setStatus(`Screen pick → ${slotLabel(slotIndex(S.paintTarget))} set to ${hex}`, 'idle');
   } catch (e) {
     if (e.name !== 'AbortError') setStatus('Screen pick cancelled', 'idle');
   }
@@ -1662,16 +2019,16 @@ function showHidden() {
 }
 
 function clearPaint() {
-  if (!S.embossMask) return;
+  const fp = ensureFacePaint();
+  if (!fp) return;
   pushUndo();
-  S.embossMask.fill(0);
-  S.debossMask.fill(0);
-  S.trimMask.fill(0);
+  fp.fill(0);
+  syncLegacyMasks();
   S.edgeHighlight = null;
   S.smartPreview = null; S.smartPreviewFaces = null;
   clearClickSelection();
   updateMeshColors(); recountPaint();
-  setStatus('All paint cleared — model is body colour only', 'idle');
+  setStatus('All paint cleared — model is Base colour only', 'idle');
 }
 
 function clearModel() {
@@ -1681,18 +2038,19 @@ function clearModel() {
   Object.assign(S, {
     rawVertices: null, rawNormals: null, nTri: 0,
     verts: null, faces: null, nVerts: 0, mesh: null,
-    embossMask: null, debossMask: null, trimMask: null,
+    embossMask: null, debossMask: null, trimMask: null, facePaint: null,
     featureEmboss: null, featureDeboss: null,
     embossCount: 0, debossCount: 0, trimCount: 0,
     edgeHighlight: null, smartPreview: null, smartPreviewFaces: null,
     faceAdj: null, undoStack: [], redoStack: [], resLevel: 0,
     islands: null, islandMap: null, clickSelection: null, clickSelectionFaces: null,
-    hiddenSlots: { body: false, emboss: false, deboss: false, trim: false },
+    hiddenSlots: Array(16).fill(false),
     soloActive: false, selectedIsland: -1, fileName: 'model',
     wireframe: null, wireframeOn: false, turntable: false,
     symmetryMap: null, symmetryCenterX: 0, symmetryOn: false,
   });
   S.hiddenIslands.clear();
+  clearExportDestination();
   $('soloActive').checked = false;
   $('undoBtn').disabled = true;
   detectBtn.disabled = true; exportBtn.disabled = true;
@@ -1730,7 +2088,7 @@ function switchTab(name) {
 document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
 
 // Sidebar toggle
-$('toggleSidebar')?.addEventListener('click', () => {
+$('toggleSidebar').addEventListener('click', () => {
   $('app').classList.toggle('sidebar-collapsed');
   setTimeout(resizeRenderer, 250);
 });
@@ -1752,57 +2110,41 @@ dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover
 dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); });
 fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); });
 
-// Color pickers
-for (const [key, input] of Object.entries(colorInputs)) {
-  input.addEventListener('input', () => {
-    colorHexEls[key].textContent = input.value.toUpperCase();
-    syncPaintSwatches(); updateMeshColors();
-  });
-}
-syncPaintSwatches();
-
-// Presets
+// Presets (first 4 slots)
 const presets = [
-  { name:'Spidey', body:'#C20820', emboss:'#131211', deboss:'#F5F5F5', trim:'#1E40AF' },
-  { name:'White', body:'#FFFFFF', emboss:'#FF0000', deboss:'#0000FF', trim:'#FFD700' },
-  { name:'Black', body:'#222222', emboss:'#FFD700', deboss:'#00CED1', trim:'#E94560' },
-  { name:'Silver', body:'#BBBBBB', emboss:'#FF6600', deboss:'#0066FF', trim:'#00AE42' },
-  { name:'Wood', body:'#C8A26E', emboss:'#5C3A1E', deboss:'#2E5E3E', trim:'#8B4513' },
-  { name:'Ocean', body:'#1A5276', emboss:'#F39C12', deboss:'#2ECC71', trim:'#E8F6FF' },
-  { name:'Neon', body:'#1A1A2E', emboss:'#E94560', deboss:'#0F3460', trim:'#39FF14' },
-  { name:'Pastel', body:'#FAD6A5', emboss:'#FF6F91', deboss:'#845EC2', trim:'#4FFBDF' },
-  { name:'Bambu', body:'#E8E8E8', emboss:'#00AE42', deboss:'#333333', trim:'#FF6A00' },
+  { name:'Spidey', colors:['#C20820','#131211','#F5F5F5','#1E40AF'] },
+  { name:'White', colors:['#FFFFFF','#FF0000','#0000FF','#FFD700'] },
+  { name:'Black', colors:['#222222','#FFD700','#00CED1','#E94560'] },
+  { name:'Silver', colors:['#BBBBBB','#FF6600','#0066FF','#00AE42'] },
+  { name:'Wood', colors:['#C8A26E','#5C3A1E','#2E5E3E','#8B4513'] },
+  { name:'Ocean', colors:['#1A5276','#F39C12','#2ECC71','#E8F6FF'] },
+  { name:'Neon', colors:['#1A1A2E','#E94560','#0F3460','#39FF14'] },
+  { name:'Pastel', colors:['#FAD6A5','#FF6F91','#845EC2','#4FFBDF'] },
+  { name:'Bambu', colors:['#E8E8E8','#00AE42','#333333','#FF6A00'] },
 ];
 const presetRow = $('presetRow');
 for (const p of presets) {
   const sw = document.createElement('div');
-  sw.className = 'preset-swatch'; sw.style.background = p.body; sw.title = p.name;
+  sw.className = 'preset-swatch'; sw.style.background = p.colors[0]; sw.title = p.name;
   sw.addEventListener('click', () => {
-    for (const k of ['body','emboss','deboss','trim']) {
-      colorInputs[k].value = p[k]; colorHexEls[k].textContent = p[k].toUpperCase();
+    if (S.slotCount < Math.min(4, p.colors.length)) {
+      S.slotCount = Math.min(4, p.colors.length);
+      syncSlotCountUI();
+    }
+    for (let i = 0; i < p.colors.length && i < S.slotCount; i++) {
+      if (colorInputs[i]) {
+        colorInputs[i].value = p.colors[i];
+        if (colorHexEls[i]) colorHexEls[i].textContent = p.colors[i].toUpperCase();
+      }
     }
     syncPaintSwatches(); updateMeshColors();
   });
   presetRow.appendChild(sw);
 }
 
-// Slot cards
-document.querySelectorAll('.slot-card').forEach(card => {
-  card.addEventListener('click', e => { if (e.target?.type === 'color') return; setPaintTarget(card.dataset.target); });
-});
-document.querySelectorAll('.slot-btn[data-hide]').forEach(btn => {
-  btn.addEventListener('click', e => {
-    e.stopPropagation();
-    const t = btn.dataset.hide;
-    if (S.soloActive) { S.soloActive = false; $('soloActive').checked = false; S.hiddenSlots = {body:false,emboss:false,deboss:false,trim:false}; }
-    S.hiddenSlots[t] = !S.hiddenSlots[t];
-    syncHideUI(); updateMeshColors();
-    setStatus(S.hiddenSlots[t] ? `Hidden ${SLOT_LABELS[t]}` : `Showing ${SLOT_LABELS[t]}`, 'idle');
-  });
-});
 $('soloActive')?.addEventListener('change', e => {
   S.soloActive = !!e.target.checked;
-  if (S.soloActive) S.hiddenSlots = {body:false,emboss:false,deboss:false,trim:false};
+  if (S.soloActive) S.hiddenSlots = Array(16).fill(false);
   syncHideUI(); updateMeshColors();
 });
 $('showAllColoursBtn')?.addEventListener('click', showAllColours);
@@ -1812,6 +2154,7 @@ $('toolBrush')?.addEventListener('click', () => setTool('brush'));
 $('toolSpray')?.addEventListener('click', () => setTool('spray'));
 $('toolEyedrop')?.addEventListener('click', () => setTool('eyedrop'));
 $('toolClickSelect')?.addEventListener('click', () => setTool('clickSelect'));
+$('toolLasso')?.addEventListener('click', () => setTool('lasso'));
 $('toolSmart')?.addEventListener('click', () => setTool('smart'));
 $('toolBox')?.addEventListener('click', () => setTool('box'));
 $('toolEdge')?.addEventListener('click', () => setTool('edge'));
@@ -1867,11 +2210,11 @@ document.querySelectorAll('.detect-preset-btn').forEach(b => {
 });
 updateSensitivityLabel();
 
+// AMS slot count (+/−)
+$('slotPlusBtn')?.addEventListener('click', addAmsSlot);
+$('slotMinusBtn')?.addEventListener('click', removeAmsSlot);
+
 // Viewport toolbar
-$('targetBody').addEventListener('click', () => setPaintTarget('body'));
-$('targetEmboss').addEventListener('click', () => setPaintTarget('emboss'));
-$('targetDeboss').addEventListener('click', () => setPaintTarget('deboss'));
-$('targetTrim')?.addEventListener('click', () => setPaintTarget('trim'));
 $('zoomInBtn').addEventListener('click', () => zoomBy(0.72));
 $('zoomOutBtn').addEventListener('click', () => zoomBy(1.38));
 $('frameBtn').addEventListener('click', () => { resetInteraction(); frameModel(); });
@@ -1881,10 +2224,16 @@ $('turntableBtn').addEventListener('click', toggleTurntable);
 
 function doUndo() {
   const snap = S.undoStack.pop(); if (!snap) return;
-  // Save current state for redo
-  if (S.embossMask) S.redoStack.push({ emboss: S.embossMask.slice(), deboss: S.debossMask.slice(), trim: S.trimMask.slice() });
+  const fp = ensureFacePaint();
+  if (fp) S.redoStack.push({ paint: fp.slice() });
   if (S.redoStack.length > 30) S.redoStack.shift();
-  S.embossMask = snap.emboss; S.debossMask = snap.deboss; S.trimMask = snap.trim;
+  if (snap.paint) {
+    S.facePaint = snap.paint;
+    syncLegacyMasks();
+  } else if (snap.emboss) {
+    S.embossMask = snap.emboss; S.debossMask = snap.deboss; S.trimMask = snap.trim;
+    S.facePaint = masksToFacePaint(S.embossMask, S.debossMask, S.trimMask, S.nTri);
+  }
   S.edgeHighlight = null; S.smartPreview = null; S.smartPreviewFaces = null;
   clearClickSelection();
   updateMeshColors(); recountPaint();
@@ -1895,8 +2244,15 @@ function doUndo() {
 
 function doRedo() {
   const snap = S.redoStack.pop(); if (!snap) return;
-  S.undoStack.push({ emboss: S.embossMask.slice(), deboss: S.debossMask.slice(), trim: S.trimMask.slice() });
-  S.embossMask = snap.emboss; S.debossMask = snap.deboss; S.trimMask = snap.trim;
+  const fp = ensureFacePaint();
+  if (fp) S.undoStack.push({ paint: fp.slice() });
+  if (snap.paint) {
+    S.facePaint = snap.paint;
+    syncLegacyMasks();
+  } else if (snap.emboss) {
+    S.embossMask = snap.emboss; S.debossMask = snap.deboss; S.trimMask = snap.trim;
+    S.facePaint = masksToFacePaint(S.embossMask, S.debossMask, S.trimMask, S.nTri);
+  }
   S.edgeHighlight = null; S.smartPreview = null; S.smartPreviewFaces = null;
   clearClickSelection();
   updateMeshColors(); recountPaint();
@@ -1967,6 +2323,8 @@ viewport.addEventListener('pointerdown', (e) => {
 
   if (isBrushTool()) {
     if (e.altKey || S.orbitOverride) return;
+    // Never start a stroke unless primary is actually down (blocks ghost hover paint)
+    if (!(e.buttons & 1)) return;
     const origin = { x: e.clientX, y: e.clientY };
     const pt = constrainBrushClient(e.clientX, e.clientY, origin);
     const hit = pickHitAtClient(pt.x, pt.y);
@@ -1997,6 +2355,13 @@ viewport.addEventListener('pointerdown', (e) => {
   e.preventDefault(); e.stopPropagation();
   controls.enableRotate = false; controls.enablePan = false;
   const rect = viewport.getBoundingClientRect();
+  if (S.tool === 'lasso') {
+    const p = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    lassoDrag = { points: [p], pointerId: e.pointerId };
+    updateLassoSvg(lassoDrag.points);
+    try { viewport.setPointerCapture?.(e.pointerId); } catch {}
+    return;
+  }
   boxDrag = { x0: e.clientX - rect.left, y0: e.clientY - rect.top, pointerId: e.pointerId };
   selectRect.style.display = 'block';
   selectRect.style.left = boxDrag.x0 + 'px'; selectRect.style.top = boxDrag.y0 + 'px';
@@ -2005,7 +2370,23 @@ viewport.addEventListener('pointerdown', (e) => {
 }, true);
 
 viewport.addEventListener('pointermove', (e) => {
-  if (S.brushStrokeActive) { S.brushStrokeActive.painted += strokeBrushTo(e.clientX, e.clientY); return; }
+  if (S.brushStrokeActive) {
+    // Paint ONLY while primary button stays down — clears stuck strokes on hover
+    if (!(e.buttons & 1)) { endBrushStroke(true); return; }
+    if (S.brushStrokeActive.pointerId != null && e.pointerId !== S.brushStrokeActive.pointerId) return;
+    S.brushStrokeActive.painted += strokeBrushTo(e.clientX, e.clientY);
+    return;
+  }
+  if (lassoDrag) {
+    const rect = viewport.getBoundingClientRect();
+    const p = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    const last = lassoDrag.points[lassoDrag.points.length - 1];
+    if (Math.hypot(p.x - last.x, p.y - last.y) >= 2.5) {
+      lassoDrag.points.push(p);
+      updateLassoSvg(lassoDrag.points);
+    }
+    return;
+  }
   if (isBrushTool() && !boxDrag && !S._smartClick) {
     const hit = pickHitAtClient(e.clientX, e.clientY);
     if (hit) updateSmartCursor(e.clientX, e.clientY, hit.worldPoint); else smartCursor.style.display = 'none';
@@ -2029,12 +2410,27 @@ viewport.addEventListener('pointermove', (e) => {
 });
 
 viewport.addEventListener('pointerup', (e) => {
+  if (S.brushStrokeActive && (e.button === 0 || e.pointerId === S.brushStrokeActive.pointerId)) {
+    endBrushStroke(true);
+    return;
+  }
   if (e.button === 2 || e.button === 1) { syncOrbitLock(); return; }
-  if (S.brushStrokeActive) { endBrushStroke(true); return; }
   if (S._smartClick) {
     const clicked = S._smartClick; S._smartClick = null;
     releaseViewportPointer(e.pointerId); syncOrbitLock();
     if (!clicked.moved) { previewSmartFill(e.clientX, e.clientY); commitSmartFill(); }
+    return;
+  }
+  if (lassoDrag) {
+    const pts = lassoDrag.points.slice();
+    endLassoDrag(e);
+    syncOrbitLock();
+    if (!S.mesh || pts.length < 8) {
+      setStatus('Draw a larger loop around the area, then Fill Selection', 'idle');
+      return;
+    }
+    setStatus('Selecting…', 'working');
+    requestAnimationFrame(() => setFaceSelection(facesInScreenLasso(pts), 'lasso'));
     return;
   }
   if (!boxDrag || !S.mesh) return;
@@ -2052,21 +2448,18 @@ viewport.addEventListener('pointerup', (e) => {
       const n = runEdgeFinder(faces);
       setStatus(n ? `Edge band: ${n} faces — Fill → ${S.paintTarget}` : 'No edge found', 'idle');
     } else {
-      if (!faces.length) { setStatus('No faces in box', 'idle'); return; }
-      /* Feed into click-selection instead of auto-painting */
-      const mask = new Uint8Array(S.nTri);
-      for (const f of faces) mask[f] = 1;
-      S.clickSelection = mask;
-      S.clickSelectionFaces = faces;
-      S.selectedIsland = -1;
-      $('selPaintBtn').disabled = false; $('selHideBtn').disabled = false; $('selClearBtn').disabled = false;
-      updateMeshColors();
-      setStatus(`Selected ${faces.length.toLocaleString()} faces — Paint Selection or Hide Selection`, 'idle');
+      setFaceSelection(faces, 'box');
     }
   });
 });
 
-viewport.addEventListener('pointercancel', (e) => { S._smartClick = null; endBrushStroke(false); endBoxDrag(e); syncOrbitLock(); });
+viewport.addEventListener('pointercancel', (e) => {
+  S._smartClick = null; endBrushStroke(false); endBoxDrag(e); endLassoDrag(e); syncOrbitLock();
+});
+viewport.addEventListener('lostpointercapture', (e) => {
+  if (S.brushStrokeActive && e.pointerId === S.brushStrokeActive.pointerId) endBrushStroke(true);
+  if (S._smartClick && e.pointerId === S._smartClick.pointerId) { S._smartClick = null; syncOrbitLock(); }
+});
 viewport.addEventListener('contextmenu', (e) => { if (S.tool !== 'orbit') e.preventDefault(); });
 viewport.addEventListener('pointerleave', () => {
   if (S.tool === 'smart' && !S._smartClick) clearSmartPreview();
@@ -2090,13 +2483,23 @@ viewport.addEventListener('dblclick', (e) => {
   controls.update();
 });
 
-// Global safety
+// Global safety — end paint even if pointerup lands outside the viewport
 window.addEventListener('pointerup', (e) => {
+  if (S.brushStrokeActive && (e.button === 0 || e.pointerId === S.brushStrokeActive.pointerId)) {
+    endBrushStroke(true);
+  }
   if (e.button === 2 || e.button === 1) { syncOrbitLock(); return; }
-  if (S.brushStrokeActive) endBrushStroke(true);
   if (S._smartClick) { S._smartClick = null; releaseViewportPointer(e.pointerId); syncOrbitLock(); }
 });
-window.addEventListener('blur', () => { endBrushStroke(false); S._smartClick = null; if(boxDrag)endBoxDrag(); syncOrbitLock(); });
+window.addEventListener('blur', () => {
+  endBrushStroke(false); S._smartClick = null;
+  if (boxDrag) endBoxDrag(); if (lassoDrag) endLassoDrag();
+  syncOrbitLock();
+});
+window.addEventListener('pointermove', (e) => {
+  // Safety net: if a stroke is somehow still active with no button down, kill it
+  if (S.brushStrokeActive && !(e.buttons & 1)) endBrushStroke(true);
+});
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') { resetInteraction('Controls reset'); clearClickSelection(); setTool('orbit'); return; }
   if (e.code === 'Space' && !e.repeat && !e.target.closest?.('input,textarea,select')) { e.preventDefault(); S.orbitOverride = true; syncOrbitLock(); return; }
@@ -2131,6 +2534,8 @@ detectBtn.addEventListener('click', () => {
     S.featureEmboss = result.embossMask; S.featureDeboss = result.debossMask;
     S.embossMask = result.embossMask.slice(); S.debossMask = result.debossMask.slice();
     S.trimMask = new Uint8Array(S.nTri);
+    S.facePaint = masksToFacePaint(S.embossMask, S.debossMask, S.trimMask, S.nTri);
+    if (S.slotCount < 3) { S.slotCount = 3; syncSlotCountUI(); }
     updateMeshColors(); recountPaint(); exportBtn.disabled = false;
     setStatus(`Detected — ${S.embossCount.toLocaleString()} accent, ${S.debossCount.toLocaleString()} detail faces`, 'idle');
   }, 30);
@@ -2140,27 +2545,155 @@ detectBtn.addEventListener('click', () => {
 /*  EXPORT 3MF                                                        */
 /* ================================================================== */
 
-exportBtn.addEventListener('click', () => {
-  if (!S.verts) return;
-  setStatus('Exporting 3MF…', 'working');
-  setTimeout(() => {
-    const profile = $('filamentProfile').value;
-    const filType = profile.includes('PETG')?'PETG':profile.includes('ABS')?'ABS':
-      profile.includes('TPU')?'TPU':profile.includes('ASA')?'ASA':'PLA';
-    const zip = export3MF(S.verts, S.faces, S.nVerts, S.nTri,
-      S.embossMask || new Uint8Array(S.nTri), S.debossMask || new Uint8Array(S.nTri), {
-        bodyColor: colorInputs.body.value, embossColor: colorInputs.emboss.value,
-        debossColor: colorInputs.deboss.value, trimColor: colorInputs.trim.value,
-        trimMask: S.trimMask || new Uint8Array(S.nTri),
-        filamentType: [filType,filType,filType,filType],
-        filamentSettingsId: [profile,profile,profile,profile], filamentProfile: profile,
+function clearExportDestination() {
+  S.exportHandle = null;
+  S.exportFileName = null;
+}
+
+function showExportChoiceModal(fileName) {
+  return new Promise(resolve => {
+    const modal = $('exportModal');
+    const fileEl = $('exportModalFile');
+    if (!modal) { resolve('saveas'); return; }
+    if (fileEl) fileEl.textContent = fileName || 'painted.3mf';
+    modal.classList.add('open');
+    const finish = (choice) => {
+      modal.classList.remove('open');
+      $('exportModalReplace')?.removeEventListener('click', onReplace);
+      $('exportModalSaveAs')?.removeEventListener('click', onSaveAs);
+      $('exportModalCancel')?.removeEventListener('click', onCancel);
+      modal.removeEventListener('click', onBackdrop);
+      resolve(choice);
+    };
+    const onReplace = () => finish('replace');
+    const onSaveAs = () => finish('saveas');
+    const onCancel = () => finish('cancel');
+    const onBackdrop = (e) => { if (e.target === modal) finish('cancel'); };
+    $('exportModalReplace')?.addEventListener('click', onReplace);
+    $('exportModalSaveAs')?.addEventListener('click', onSaveAs);
+    $('exportModalCancel')?.addEventListener('click', onCancel);
+    modal.addEventListener('click', onBackdrop);
+  });
+}
+
+async function writeBlobToHandle(handle, blob) {
+  const writable = await handle.createWritable();
+  await writable.write(blob);
+  await writable.close();
+}
+
+function downloadBlobAs(blob, fileName) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+}
+
+/** Pick Replace / Save as. Must run in a user-gesture tick for the save picker. */
+async function resolveExportDestination(suggestedName) {
+  const canPicker = typeof window.showSaveFilePicker === 'function';
+
+  // Already exported this session — ask Replace vs Save as
+  if (S.exportHandle || S.exportFileName) {
+    const choice = await showExportChoiceModal(S.exportFileName || suggestedName);
+    if (choice === 'cancel') return null;
+    if (choice === 'replace' && S.exportHandle) {
+      return {
+        name: S.exportFileName || suggestedName,
+        write: (blob) => writeBlobToHandle(S.exportHandle, blob),
+      };
+    }
+    if (choice === 'replace' && !canPicker) {
+      const name = S.exportFileName || suggestedName;
+      return { name, write: async (blob) => downloadBlobAs(blob, name) };
+    }
+    // save as — fall through (picker or rename prompt)
+    if (choice === 'saveas') S.exportHandle = null;
+  }
+
+  if (canPicker) {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName,
+        types: [{
+          description: '3MF model',
+          accept: {
+            'model/3mf': ['.3mf'],
+            'application/vnd.ms-package.3dmanufacturing-3dmodel+xml': ['.3mf'],
+          },
+        }],
       });
-    const blob = new Blob([zip], { type: 'application/vnd.ms-package.3dmanufacturing-3dmodel+xml' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = `${S.fileName}_painted.3mf`; document.body.appendChild(a); a.click();
-    document.body.removeChild(a); URL.revokeObjectURL(a.href);
-    setStatus(`Exported ${S.fileName}_painted.3mf`, 'idle');
-  }, 30);
+      S.exportHandle = handle;
+      S.exportFileName = handle.name || suggestedName;
+      return {
+        name: S.exportFileName,
+        write: (blob) => writeBlobToHandle(handle, blob),
+      };
+    } catch (err) {
+      if (err?.name === 'AbortError') return null;
+      // Fall through to download if picker fails
+    }
+  }
+
+  let name = suggestedName;
+  if (S.exportFileName && !S.exportHandle) {
+    // Fallback browsers: prompt for a new name on Save as
+    const typed = window.prompt('Save as filename:', suggestedName);
+    if (typed == null) return null;
+    name = typed.trim() || suggestedName;
+    if (!/\.3mf$/i.test(name)) name += '.3mf';
+  }
+  S.exportFileName = name;
+  return { name, write: async (blob) => downloadBlobAs(blob, name) };
+}
+
+function buildPainted3mfBlob() {
+  const profile = $('filamentProfile').value;
+  const printerModel = $('printerModel')?.value || 'Bambu Lab H2C';
+  const filType = profile.includes('PETG') ? 'PETG' : profile.includes('ABS') ? 'ABS' :
+    profile.includes('TPU') ? 'TPU' : profile.includes('ASA') ? 'ASA' : 'PLA';
+  const colors = slotColorsArray(S.slotCount);
+  const zip = export3MF(S.verts, S.faces, S.nVerts, S.nTri,
+    S.embossMask || new Uint8Array(S.nTri), S.debossMask || new Uint8Array(S.nTri), {
+      facePaint: ensureFacePaint(),
+      slotColors: colors,
+      slotCount: S.slotCount,
+      bodyColor: colors[0], embossColor: colors[1] || colors[0],
+      debossColor: colors[2] || colors[0], trimColor: colors[3] || colors[0],
+      trimMask: S.trimMask || new Uint8Array(S.nTri),
+      filamentType: Array(S.slotCount).fill(filType),
+      filamentProfile: profile,
+      printerModel,
+      projectName: S.fileName || 'painted_object',
+    });
+  return new Blob([zip], { type: 'application/vnd.ms-package.3dmanufacturing-3dmodel+xml' });
+}
+
+exportBtn.addEventListener('click', async () => {
+  if (!S.verts) return;
+  const suggested = `${S.fileName || 'model'}_painted.3mf`;
+  let dest;
+  try {
+    dest = await resolveExportDestination(suggested);
+  } catch (err) {
+    setStatus(err?.message || 'Export cancelled', 'idle');
+    return;
+  }
+  if (!dest) { setStatus('Export cancelled', 'idle'); return; }
+
+  setStatus('Exporting 3MF…', 'working');
+  try {
+    await new Promise(r => setTimeout(r, 10)); // let status paint
+    const blob = buildPainted3mfBlob();
+    await dest.write(blob);
+    setStatus(`Exported ${dest.name} (${S.slotCount} colours)`, 'idle');
+  } catch (err) {
+    console.error(err);
+    setStatus(err?.message || 'Export failed', 'error');
+  }
 });
 
 /* ================================================================== */
@@ -2203,13 +2736,19 @@ batchBtn.addEventListener('click', async () => {
       seatVertsOnBed(deduped.verts, deduped.nVerts);
       const result = detectFeatures(deduped.verts, deduped.faces, deduped.nVerts, parsed.nTri, opts);
       if (minArea > 0) { cleanClusters(result.embossMask, deduped.faces, parsed.nTri, deduped.verts, minArea); cleanClusters(result.debossMask, deduped.faces, parsed.nTri, deduped.verts, minArea); }
+      const colors = slotColorsArray(Math.max(S.slotCount, 3));
       const zip = export3MF(deduped.verts, deduped.faces, deduped.nVerts, parsed.nTri,
         result.embossMask, result.debossMask, {
-          bodyColor: colorInputs.body.value, embossColor: colorInputs.emboss.value,
-          debossColor: colorInputs.deboss.value, trimColor: colorInputs.trim.value,
+          facePaint: masksToFacePaint(result.embossMask, result.debossMask, new Uint8Array(parsed.nTri), parsed.nTri),
+          slotColors: colors,
+          slotCount: colors.length,
+          bodyColor: colors[0], embossColor: colors[1] || colors[0],
+          debossColor: colors[2] || colors[0], trimColor: colors[3] || colors[0],
           trimMask: new Uint8Array(parsed.nTri),
-          filamentType:[filType,filType,filType,filType],
-          filamentSettingsId:[profile,profile,profile,profile], filamentProfile: profile,
+          filamentType: Array(colors.length).fill(filType),
+          filamentProfile: profile,
+          printerModel: $('printerModel')?.value || 'Bambu Lab H2C',
+          projectName: file.name.replace(/\.stl$/i, ''),
         });
       const blob = new Blob([zip],{type:'application/vnd.ms-package.3dmanufacturing-3dmodel+xml'});
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
@@ -2232,6 +2771,7 @@ batchBtn.addEventListener('click', async () => {
 /* ================================================================== */
 
 syncOrbitLock();
+syncSlotCountUI();
 setBrushStroke('free');
 setTool('brush');
 
@@ -2247,15 +2787,21 @@ window.addEventListener('keydown', (e) => {
 
   switch (e.key.toLowerCase()) {
     // Slots
-    case '1': setPaintTarget('body'); e.preventDefault(); break;
-    case '2': setPaintTarget('emboss'); e.preventDefault(); break;
-    case '3': setPaintTarget('deboss'); e.preventDefault(); break;
-    case '4': setPaintTarget('trim'); e.preventDefault(); break;
+    case '1': case '2': case '3': case '4': case '5':
+    case '6': case '7': case '8': case '9': {
+      const slot = parseInt(e.key, 10) - 1;
+      if (isSlotActive(slot)) setPaintTarget(slot, { fillIfSelected: true });
+      e.preventDefault(); break;
+    }
+    case '0': if (isSlotActive(9)) setPaintTarget(9, { fillIfSelected: true }); e.preventDefault(); break;
+    case '+': case '=': addAmsSlot(); e.preventDefault(); break;
+    case '-': case '_': removeAmsSlot(); e.preventDefault(); break;
     // Tools
     case 'b': setTool('brush'); e.preventDefault(); break;
     case 's': setTool('spray'); e.preventDefault(); break;
     case 'e': setTool('eyedrop'); e.preventDefault(); break;
     case 'c': setTool('clickSelect'); e.preventDefault(); break;
+    case 'l': setTool('lasso'); e.preventDefault(); break;
     case 'm': setTool('smart'); e.preventDefault(); break;
     case 'x': setTool('box'); e.preventDefault(); break;
     case 'g': setTool('edge'); e.preventDefault(); break;
@@ -2264,6 +2810,7 @@ window.addEventListener('keydown', (e) => {
     // Actions
     case 'z': doUndo(); e.preventDefault(); break;
     case 'y': doRedo(); e.preventDefault(); break;
+    case 'enter': if (S.clickSelectionFaces?.length) { paintClickSelection(); e.preventDefault(); } break;
     case 'f': if (S.mesh) { resetInteraction(); frameModel(); } e.preventDefault(); break;
     case 'w': toggleWireframe(); e.preventDefault(); break;
     case 't': toggleTurntable(); e.preventDefault(); break;

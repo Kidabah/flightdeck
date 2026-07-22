@@ -1,5 +1,16 @@
 ---
 
+## b546 — Restore current STL Painter UI
+**Date:** 2026-07-22
+
+### MakerDeck
+- Restored `painter.html` from the current Painter b514 line after the later b539/b545 path had carried forward stale b504-era UI.
+- Brings back the b506-b508 Painter features: AMS slot +/- controls, up to 16 HT/multi-AMS filaments, and Replace / Save as export flow.
+- Kept current `painter.js` because it already matched the b514 engine.
+- Bumped MakerDeck, Paper3D, Mesh Prep, shared nav, and Painter cache/build labels to **b546**.
+
+---
+
 ## b545 — Fix STL Painter file loading
 **Date:** 2026-07-22
 
