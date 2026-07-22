@@ -1,5 +1,16 @@
 ---
 
+## b508 — Voronoi solid layer strength pass
+**Date:** 2026-07-22
+
+### Voronoi Generator
+- Inspected Voronator: its public page posts processing to the server and exposes **Number of holes** plus **Thickness of new layer**; it also warns that "Plane only" is not manifold/printable.
+- Fixed our result still being weak/stringy by solidifying the clipped Voronoi surface into an inward-offset layer with side faces.
+- Wall Thickness now controls both the retained Voronoi band and a derived layer depth, so high settings create a stronger printable shell instead of flat ribbons.
+- STL export header and shared nav build badge updated to **b508**.
+
+---
+
 ## b507 — Voronoi thicker-wall solid bias
 **Date:** 2026-07-22
 
