@@ -1,5 +1,16 @@
 ---
 
+## b539 — Unify MakerDeck tool build/cache tags
+**Date:** 2026-07-22
+
+### MakerDeck
+- Moved Container Generator, STL Painter, Paper3D, Voronoi redirect page, Mesh Prep, and shared navigation onto one visible/cache build: **b539**.
+- Container now loads `app.js`, `geometry.js`, `features.js`, and `style.css` with the same b539 cache tag so the restored shelf/text UI cannot mix with older cached geometry modules.
+- STL Painter, Paper3D, Mesh Prep, and the old Voronoi URL now import shared nav with a b539 cache tag.
+- Paper3D STL headers now stamp **MakerDeck Paper3D b539**.
+
+---
+
 ## b538 — Restore Container Generator b532 UI
 **Date:** 2026-07-22
 
