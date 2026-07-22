@@ -28,7 +28,7 @@ import {
   shapeSupportsProfileArt,
   shapeSupportsArt,
   STACK_LIP_MM,
-} from "./features.js?v=541";
+} from "./features.js?v=542";
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=161";
 import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=163";
@@ -43,8 +43,8 @@ import {
   flattenUprightSignMesh,
   buildSignShelfFemaleReceiver,
   buildSignShelfWithMale,
-  signShelfDovetailDims,
-} from "./signs.js?v=541";
+  signShelfPressFitDims,
+} from "./signs.js?v=542";
 import {
   resolveVaseTexture,
   densifyClosedProfile,
@@ -56,7 +56,7 @@ import {
   profileOutlinePerimeter,
 } from "./vase-textures.js";
 
-import { appendInsertShelfSlotsToBody } from "./insert-slots.js?v=541";
+import { appendInsertShelfSlotsToBody } from "./insert-slots.js?v=542";
 
 export { shapeSupportsDecor, shapeSupportsInsert, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, VASE_STYLES };
 
@@ -2157,7 +2157,7 @@ function finishShelfSignLabels(allLabels, params, signArc, H) {
   }
 }
 
-/** Flat plaque or shelf-display (back + dovetail shelf): text/art emboss. */
+/** Flat plaque or shelf-display (back + press-fit shelf): text/art emboss. */
 export function buildSign(params) {
   const W = clamp(params.signWidth ?? 140, 40, 300);
   const H = clamp(params.signHeight ?? 70, 25, 300);
@@ -2174,7 +2174,7 @@ export function buildSign(params) {
   const borderOn = params.signBorder !== false;
   const borderW = clamp(params.signBorderWidth ?? 4, 2, 12);
   const borderH = clamp(params.signBorderHeight ?? 1.4, 0.6, 4);
-  const dove = isShelf ? signShelfDovetailDims(th, shelfTh) : null;
+  const shelfJoint = isShelf ? signShelfPressFitDims(th, shelfTh) : null;
 
   const outline = shapeOutline(signShape, W / 2, H / 2, corner);
   const holes = (mount === "stake" || mount === "none") ? [] : mountHoles(mount, W, H, { outline });
@@ -2190,9 +2190,9 @@ export function buildSign(params) {
   let shelfMesh = null;
   if (isShelf) {
     uprightFlatSignMesh(backMesh, H, th);
-    // Append only — do not weld into the plate (intersecting faces smashed the socket).
-    appendMesh(backMesh, buildSignShelfFemaleReceiver(W, shelfW, th, shelfTh, dove));
-    shelfMesh = buildSignShelfWithMale(shelfW, shelfLen, shelfTh, th, shelfCorner, dove);
+    // Append only; the embedded tongue makes the back export as one solid part.
+    appendMesh(backMesh, buildSignShelfFemaleReceiver(W, shelfW, th, shelfTh, shelfJoint));
+    shelfMesh = buildSignShelfWithMale(shelfW, shelfLen, shelfTh, th, shelfCorner, shelfJoint);
   }
 
   const totalDepth = isShelf ? th + shelfLen : H;

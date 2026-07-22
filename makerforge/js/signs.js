@@ -10,18 +10,6 @@ import { extrudeShapeGroupBetween } from "./contour.js?v=241";
 
 const TAU = Math.PI * 2;
 
-function mergeMeshes(...parts) {
-  const positions = [];
-  const indices = [];
-  for (const part of parts) {
-    if (!part?.positions?.length || !part?.indices?.length) continue;
-    const offset = positions.length / 3;
-    for (const v of part.positions) positions.push(v);
-    for (const i of part.indices) indices.push(i + offset);
-  }
-  return { positions, indices };
-}
-
 function roundedRect(halfW, halfH, r, seg = 10) {
   r = Math.max(0, Math.min(r, halfW - 0.01, halfH - 0.01));
   if (r < 0.05) return [[-halfW, -halfH], [halfW, -halfH], [halfW, halfH], [-halfW, halfH]];
@@ -187,12 +175,12 @@ export function buildSignBorder(W, H, th, corner, borderW, bh, shape = "rounded"
   return { positions, indices };
 }
 
-/** Dovetail sizes for shelf ↔ back straight-in joint (mm). */
-export function signShelfDovetailDims(backTh, shelfTh) {
-  const depth = Math.min(Math.max(4.2, Math.min(backTh, shelfTh) * 1.25), 7.5);
-  const neckW = Math.min(Math.max(3.0, shelfTh * 0.78), 5.6);
-  const baseW = Math.min(neckW + depth * 0.7, Math.max(6, shelfTh * 1.65));
-  return { depth, neckW, baseW, clearance: 0.32 };
+/** Straight press-fit slot sizes for shelf ↔ back joint (mm). */
+export function signShelfPressFitDims(backTh, shelfTh) {
+  const slotDepth = Math.max(2.4, backTh + 0.45);
+  const tongueDepth = Math.max(2.0, backTh + 0.1);
+  const tongueHeight = Math.max(2.0, Math.min(shelfTh + 0.8, 6.5));
+  return { edgeInset: 5, slotDepth, tongueDepth, tongueHeight, clearance: 0.28 };
 }
 
 /** Extrude a YZ profile (and optional holes) along X. */
@@ -210,12 +198,10 @@ function extrudeYzAlongX(profileYz, x0, x1, holesYz = []) {
   return { positions, indices };
 }
 
-/** Receiver brackets bite into the sign face so the back part prints as one solid piece. */
-const SHELF_RECEIVER_PLATE_EMBED = 0.55;
-/** Male root nests this far into the shelf deck for a clean weld. */
-const SHELF_MALE_DECK_EMBED = 0.45;
+/** Tongue bites into the sign face so the back part prints as one solid piece. */
+const SHELF_TONGUE_PLATE_EMBED = 0.55;
 
-/** Weld near-coincident verts after appending dovetail parts (keeps export manifold). */
+/** Weld near-coincident verts after appending shelf connector parts (keeps export tidy). */
 export function weldShelfMesh(mesh, eps = 0.04) {
   if (!mesh?.positions?.length || !mesh?.indices?.length) return mesh;
   const table = new Map();
@@ -245,41 +231,28 @@ export function weldShelfMesh(mesh, eps = 0.04) {
 }
 
 /**
- * Female dovetail brackets on the front of the back plate.
- * Two straight-in sockets receive the shelf from the front, so there is no long
- * side-slide rail or exposed end cap sticking out of the shelf edge.
+ * Straight tongue on the lower front of the back plate.
+ * The shelf has a matching through-slot set in from its rear and side edges.
  */
 export function buildSignShelfFemaleReceiver(backW, shelfW, backTh, shelfTh, dims = null) {
-  const d = dims || signShelfDovetailDims(backTh, shelfTh);
-  const usableW = Math.min(backW, shelfW);
+  const d = dims || signShelfPressFitDims(backTh, shelfTh);
+  const usableW = Math.max(10, Math.min(backW, shelfW));
+  const tabW = Math.max(10, usableW - d.edgeInset * 2 - d.clearance);
   const yPlate = -backTh / 2;
-  const yMount = yPlate + SHELF_RECEIVER_PLATE_EMBED;
-  const yFront = yMount - d.depth;
-  const wall = Math.max(1.6, d.neckW * 0.55);
-  const zMid = shelfTh * 0.5;
-  const n0 = zMid - d.neckW / 2;
-  const n1 = zMid + d.neckW / 2;
-  const b0 = zMid - d.baseW / 2;
-  const b1 = zMid + d.baseW / 2;
-  const z0 = Math.min(0, b0) - wall;
-  const z1 = Math.max(shelfTh, b1) + wall;
-  const tabW = Math.min(Math.max(usableW * 0.18, 22), 44);
-  const inset = Math.max(8, Math.min(usableW * 0.2, 30));
-  const centers = usableW < 80 ? [0] : [-(usableW / 2 - inset - tabW / 2), usableW / 2 - inset - tabW / 2];
+  const yMount = yPlate + SHELF_TONGUE_PLATE_EMBED;
+  const yFront = yMount - d.tongueDepth;
+  const z0 = 0;
+  const z1 = d.tongueHeight;
   const outer = [
     [yFront, z0],
     [yMount, z0],
-    [yMount, b0],
-    [yFront, n0],
-    [yFront, n1],
-    [yMount, b1],
     [yMount, z1],
     [yFront, z1],
   ];
-  return mergeMeshes(...centers.map((cx) => extrudeYzAlongX(outer, cx - tabW / 2, cx + tabW / 2, [])));
+  return extrudeYzAlongX(outer, -tabW / 2, tabW / 2, []);
 }
 
-/** Shelf deck outline in XY — rounded front corners, square rear for dovetail. */
+/** Shelf deck outline in XY — rounded front corners, square rear for the press-fit slot. */
 function shelfDeckOutlineXy(halfW, yFront, yRear, cornerR) {
   const maxR = Math.max(0, Math.min(halfW - 0.4, (yRear - yFront) * 0.45 - 0.2));
   const r = Math.min(Math.max(0, cornerR), maxR);
@@ -301,58 +274,36 @@ function shelfDeckOutlineXy(halfW, yFront, yRear, cornerR) {
 }
 
 /**
- * Shelf deck + male dovetail (print pose: deck on z=0).
- * Male lugs point into the forward female brackets and insert straight into the
- * back; they no longer run the full width or stick out of the shelf side.
+ * Shelf deck with a straight through-slot (print pose: deck on z=0).
+ * The slot is 5mm in from each side and 5mm forward from the back edge so the
+ * back sign's lower tongue can press in firmly.
  */
 export function buildSignShelfWithMale(shelfW, shelfLen, shelfTh, backTh, cornerR = 0, dims = null) {
-  const d = dims || signShelfDovetailDims(backTh, shelfTh);
-  const clr = d.clearance;
+  const d = dims || signShelfPressFitDims(backTh, shelfTh);
   const yPlate = -backTh / 2;
-  const yMount = yPlate + SHELF_RECEIVER_PLATE_EMBED;
-  const yFront = yMount - d.depth;
   const len = Math.max(12, shelfLen);
-  const yDeckFront = yFront - len;
+  const yRear = yPlate;
+  const yDeckFront = yRear - len;
   const halfW = Math.max(10, shelfW) / 2;
   const thS = Math.max(1.5, shelfTh);
-  const outer = shelfDeckOutlineXy(halfW, yDeckFront, yFront, cornerR);
+  const outer = shelfDeckOutlineXy(halfW, yDeckFront, yRear, cornerR);
+  const slotHalfW = Math.max(4, halfW - d.edgeInset);
+  const slotRear = yRear - d.edgeInset;
+  const slotFront = Math.max(yDeckFront + 2, slotRear - d.slotDepth);
+  const slot = ensureCCW(cleanRing([
+    [-slotHalfW, slotFront],
+    [slotHalfW, slotFront],
+    [slotHalfW, slotRear],
+    [-slotHalfW, slotRear],
+  ])).reverse();
   const positions = [];
   const indices = [];
   const mapTop = (px, py) => [px, py, thS];
   const mapBot = (px, py) => [px, py, 0];
   extrudeShapeGroupBetween(
-    positions, indices, { outer, holes: [] },
+    positions, indices, { outer, holes: [slot] },
     mapTop, mapBot, (w) => [w[0], w[1]], "both", null,
   );
-  // Tip toward the plate (wide); root at the deck back (narrow) — matches female.
-  const yRoot = yFront - SHELF_MALE_DECK_EMBED;
-  const yTip = yMount - clr * 0.45;
-  const zMid = thS * 0.5;
-  const neck = Math.max(1.2, d.neckW - clr);
-  const base = Math.max(neck + 0.4, d.baseW - clr);
-  const n0 = zMid - neck / 2;
-  const n1 = zMid + neck / 2;
-  const b0 = zMid - base / 2;
-  const b1 = zMid + base / 2;
-  const usableW = Math.max(10, shelfW);
-  const tabW = Math.min(Math.max(usableW * 0.18, 22), 44);
-  const inset = Math.max(8, Math.min(usableW * 0.2, 30));
-  const centers = usableW < 80 ? [0] : [-(usableW / 2 - inset - tabW / 2), usableW / 2 - inset - tabW / 2];
-  for (const cx of centers) {
-    const male = extrudeYzAlongX(
-      [
-        [yRoot, n0],
-        [yTip, b0],
-        [yTip, b1],
-        [yRoot, n1],
-      ],
-      cx - tabW / 2,
-      cx + tabW / 2,
-    );
-    const baseVtx = positions.length / 3;
-    for (const v of male.positions) positions.push(v);
-    for (const i of male.indices) indices.push(i + baseVtx);
-  }
   return weldShelfMesh({ positions, indices }, 0.04);
 }
 

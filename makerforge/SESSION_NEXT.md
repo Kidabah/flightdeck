@@ -1,5 +1,16 @@
 ---
 
+## b542 — Replace shelf sign dovetail with press-fit slot
+**Date:** 2026-07-22
+
+### MakerDeck
+- Replaced the shelf-display sign connector with a simple straight press-fit slot instead of dovetail lugs.
+- The shelf part now has one equal-width through-slot set **5mm** in from the rear edge and **5mm** in from both side edges.
+- The back sign part now gets a matching lower straight tongue so it can push firmly into the shelf slot.
+- Bumped MakerDeck, Paper3D, STL Painter, Mesh Prep, shared nav, and nested Container module imports to **b542**.
+
+---
+
 ## b541 — Embed shelf sign back receivers
 **Date:** 2026-07-22
 
