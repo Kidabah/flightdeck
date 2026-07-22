@@ -175,12 +175,10 @@ export function buildSignBorder(W, H, th, corner, borderW, bh, shape = "rounded"
   return { positions, indices };
 }
 
-/** Straight press-fit notch sizes for shelf ↔ back joint (mm). */
+/** Straight press-fit slot sizes for shelf ↔ back joint (mm). */
 export function signShelfPressFitDims(backTh, shelfTh) {
-  const notchDepth = Math.max(2.4, backTh + 0.45);
-  const tongueDepth = Math.max(2.0, backTh + 0.1);
-  const tongueHeight = Math.max(2.0, Math.min(shelfTh + 0.8, 6.5));
-  return { edgeInset: 5, notchDepth, tongueDepth, tongueHeight, clearance: 0.28 };
+  const slotDepth = Math.max(2.4, backTh + 0.45);
+  return { edgeInset: 5, slotDepth };
 }
 
 /** Extrude a YZ profile (and optional holes) along X. */
@@ -197,9 +195,6 @@ function extrudeYzAlongX(profileYz, x0, x1, holesYz = []) {
   );
   return { positions, indices };
 }
-
-/** Tongue bites into the sign face so the back part prints as one solid piece. */
-const SHELF_TONGUE_PLATE_EMBED = 0.55;
 
 /** Weld near-coincident verts after appending shelf connector parts (keeps export tidy). */
 export function weldShelfMesh(mesh, eps = 0.04) {
@@ -231,44 +226,19 @@ export function weldShelfMesh(mesh, eps = 0.04) {
 }
 
 /**
- * Straight tongue on the lower front of the back plate.
- * The shelf has a matching rear notch set in from its side edges.
+ * No added connector on the back part. The back sign's own lower edge presses
+ * into the shelf slot, which avoids strip artifacts on the sign export.
  */
 export function buildSignShelfFemaleReceiver(backW, shelfW, backTh, shelfTh, dims = null) {
-  const d = dims || signShelfPressFitDims(backTh, shelfTh);
-  const usableW = Math.max(10, Math.min(backW, shelfW));
-  const tabW = Math.max(10, usableW - d.edgeInset * 2 - d.clearance);
-  const yPlate = -backTh / 2;
-  const yMount = yPlate + SHELF_TONGUE_PLATE_EMBED;
-  const yFront = yMount - d.tongueDepth;
-  const z0 = 0;
-  const z1 = d.tongueHeight;
-  const outer = [
-    [yFront, z0],
-    [yMount, z0],
-    [yMount, z1],
-    [yFront, z1],
-  ];
-  return extrudeYzAlongX(outer, -tabW / 2, tabW / 2, []);
+  return { positions: [], indices: [] };
 }
 
-/** Shelf deck outline in XY — rounded front corners, square rear with an optional press-fit notch. */
-function shelfDeckOutlineXy(halfW, yFront, yRear, cornerR, notchHalfW = 0, notchDepth = 0) {
+/** Shelf deck outline in XY — rounded front corners, square rear for the press-fit slot. */
+function shelfDeckOutlineXy(halfW, yFront, yRear, cornerR) {
   const maxR = Math.max(0, Math.min(halfW - 0.4, (yRear - yFront) * 0.45 - 0.2));
   const r = Math.min(Math.max(0, cornerR), maxR);
-  const hasNotch = notchHalfW > 0.5 && notchDepth > 0.5;
-  const rearTail = hasNotch
-    ? [
-        [halfW, yRear],
-        [notchHalfW, yRear],
-        [notchHalfW, yRear - notchDepth],
-        [-notchHalfW, yRear - notchDepth],
-        [-notchHalfW, yRear],
-        [-halfW, yRear],
-      ]
-    : [[halfW, yRear], [-halfW, yRear]];
   if (r < 0.08) {
-    return ensureCCW(cleanRing([[-halfW, yFront], [halfW, yFront], ...rearTail]));
+    return ensureCCW([[-halfW, yFront], [halfW, yFront], [halfW, yRear], [-halfW, yRear]]);
   }
   const pts = [];
   const seg = 10;
@@ -280,14 +250,14 @@ function shelfDeckOutlineXy(halfW, yFront, yRear, cornerR, notchHalfW = 0, notch
     const a = -Math.PI / 2 + (Math.PI / 2) * (i / seg);
     pts.push([halfW - r + r * Math.cos(a), yFront + r + r * Math.sin(a)]);
   }
-  pts.push(...rearTail);
+  pts.push([halfW, yRear], [-halfW, yRear]);
   return ensureCCW(cleanRing(pts));
 }
 
 /**
- * Shelf deck with a straight rear notch (print pose: deck on z=0).
- * The notch is 5mm in from each side and opens from the back edge so the
- * back sign's lower tongue can press in firmly.
+ * Shelf deck with a straight through-slot (print pose: deck on z=0).
+ * The slot is 5mm in from each side and 5mm forward from the back edge so the
+ * back sign's lower edge can press in firmly.
  */
 export function buildSignShelfWithMale(shelfW, shelfLen, shelfTh, backTh, cornerR = 0, dims = null) {
   const d = dims || signShelfPressFitDims(backTh, shelfTh);
@@ -297,15 +267,22 @@ export function buildSignShelfWithMale(shelfW, shelfLen, shelfTh, backTh, corner
   const yDeckFront = yRear - len;
   const halfW = Math.max(10, shelfW) / 2;
   const thS = Math.max(1.5, shelfTh);
-  const notchHalfW = Math.max(4, halfW - d.edgeInset);
-  const notchDepth = Math.min(d.notchDepth, Math.max(1.5, len - 2));
-  const outer = shelfDeckOutlineXy(halfW, yDeckFront, yRear, cornerR, notchHalfW, notchDepth);
+  const outer = shelfDeckOutlineXy(halfW, yDeckFront, yRear, cornerR);
+  const slotHalfW = Math.max(4, halfW - d.edgeInset);
+  const slotRear = yRear - d.edgeInset;
+  const slotFront = Math.max(yDeckFront + 2, slotRear - d.slotDepth);
+  const slot = ensureCCW(cleanRing([
+    [-slotHalfW, slotFront],
+    [slotHalfW, slotFront],
+    [slotHalfW, slotRear],
+    [-slotHalfW, slotRear],
+  ])).reverse();
   const positions = [];
   const indices = [];
   const mapTop = (px, py) => [px, py, thS];
   const mapBot = (px, py) => [px, py, 0];
   extrudeShapeGroupBetween(
-    positions, indices, { outer, holes: [] },
+    positions, indices, { outer, holes: [slot] },
     mapTop, mapBot, (w) => [w[0], w[1]], "both", null,
   );
   return weldShelfMesh({ positions, indices }, 0.04);

@@ -28,7 +28,7 @@ import {
   shapeSupportsProfileArt,
   shapeSupportsArt,
   STACK_LIP_MM,
-} from "./features.js?v=543";
+} from "./features.js?v=544";
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=161";
 import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=163";
@@ -44,7 +44,7 @@ import {
   buildSignShelfFemaleReceiver,
   buildSignShelfWithMale,
   signShelfPressFitDims,
-} from "./signs.js?v=543";
+} from "./signs.js?v=544";
 import {
   resolveVaseTexture,
   densifyClosedProfile,
@@ -56,7 +56,7 @@ import {
   profileOutlinePerimeter,
 } from "./vase-textures.js";
 
-import { appendInsertShelfSlotsToBody } from "./insert-slots.js?v=543";
+import { appendInsertShelfSlotsToBody } from "./insert-slots.js?v=544";
 
 export { shapeSupportsDecor, shapeSupportsInsert, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, VASE_STYLES };
 
@@ -2177,7 +2177,7 @@ export function buildSign(params) {
   const shelfJoint = isShelf ? signShelfPressFitDims(th, shelfTh) : null;
 
   const outline = shapeOutline(signShape, W / 2, H / 2, corner);
-  const holes = (mount === "stake" || mount === "none") ? [] : mountHoles(mount, W, H, { outline });
+  const holes = (isShelf || mount === "stake" || mount === "none") ? [] : mountHoles(mount, W, H, { outline });
   const plate = buildSignPlate(W, H, th, corner, holes, signShape);
   let backMesh = { positions: plate.positions.slice(), indices: plate.indices.slice() };
   if (borderOn) {
@@ -2190,7 +2190,7 @@ export function buildSign(params) {
   let shelfMesh = null;
   if (isShelf) {
     uprightFlatSignMesh(backMesh, H, th);
-    // Append only; the embedded tongue makes the back export as one solid part.
+    // The shelf-display back presses into the shelf slot with its own bottom edge.
     appendMesh(backMesh, buildSignShelfFemaleReceiver(W, shelfW, th, shelfTh, shelfJoint));
     shelfMesh = buildSignShelfWithMale(shelfW, shelfLen, shelfTh, th, shelfCorner, shelfJoint);
   }

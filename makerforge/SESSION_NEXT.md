@@ -1,5 +1,16 @@
 ---
 
+## b544 — Restore shelf slot and clean back sign
+**Date:** 2026-07-22
+
+### MakerDeck
+- Restored the shelf-display shelf part to the b542 straight through-slot design.
+- Removed the added tongue/strip from the back sign part; the back sign now uses its own lower edge to press into the shelf slot.
+- Disabled default mount/keyhole cutouts on shelf-display backs to remove the black dash artifact.
+- Bumped MakerDeck, Paper3D, STL Painter, Mesh Prep, shared nav, and nested Container module imports to **b544**.
+
+---
+
 ## b543 — Open shelf sign slot into rear notch
 **Date:** 2026-07-22
 
