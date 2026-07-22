@@ -1,5 +1,17 @@
 ---
 
+## b537 — Start Mesh Prep lab
+**Date:** 2026-07-22
+
+### MakerDeck
+- Added a separate **Mesh Prep** lab page at `meshprep.html` and linked it in the shared MakerDeck nav.
+- Mesh Prep loads binary STL files, previews them, and reports face count, bounds, average edge length, roughness, open edges, and non-manifold edge estimates.
+- Added a Paper3D fit classifier so models can be labelled as direct Paper3D candidates, use-with-care meshes, or meshes that need a proper remesh first.
+- This is analysis-only for now; no prepared STL export is exposed until the remesh path is good enough.
+- Shared nav build badge updated to **b537**.
+
+---
+
 ## b536 — Roll back Paper3D mesh prep experiment
 **Date:** 2026-07-22
 

@@ -1,21 +1,23 @@
 /**
- * MakerDeck — Shared Navigation Component  b536
+ * MakerDeck — Shared Navigation Component  b537
  * Auto-injects consistent nav bar across all MakerDeck tools.
  * Import this module in any MakerDeck page:
  *   <script type="module" src="js/nav.js"></script>
  */
 
-const BUILD = 'b536';
+const BUILD = 'b537';
 
 const TOOLS = [
   { id: 'container', label: 'Container', href: 'index.html' },
   { id: 'painter',   label: 'STL Painter', href: 'painter.html' },
   { id: 'paper3d',   label: 'Paper3D', href: 'paper3d.html' },
+  { id: 'meshprep',  label: 'Mesh Prep', href: 'meshprep.html' },
 ];
 
 function detectActiveTool() {
   const path = location.pathname.toLowerCase();
   if (path.includes('painter')) return 'painter';
+  if (path.includes('meshprep')) return 'meshprep';
   if (path.includes('paper3d') || path.includes('voronoi')) return 'paper3d';
   return 'container'; // index.html or root
 }

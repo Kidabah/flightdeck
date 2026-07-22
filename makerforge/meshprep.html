@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mesh Prep · MakerDeck</title>
+<script type="importmap">
+{ "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"
+} }
+</script>
+<link rel="stylesheet" href="css/makerdeck.css">
+<style>
+:root{--sidebar-w:300px;--footer-h:32px}
+.app{display:grid;height:100vh;grid-template-rows:var(--nav-h) 1fr var(--footer-h);
+  grid-template-columns:var(--sidebar-w) 1fr;grid-template-areas:"nav nav" "sidebar viewport" "footer footer"}
+.sidebar{grid-area:sidebar;background:var(--panel);border-right:1px solid var(--border);
+  overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:14px}
+.viewport{grid-area:viewport;position:relative;background:var(--bg);overflow:hidden}
+.viewport canvas{display:block;width:100%!important;height:100%!important}
+.drop-zone .icon{font-size:28px;margin-bottom:6px}
+.pill{display:inline-flex;align-items:center;min-height:24px;padding:3px 8px;border-radius:999px;
+  border:1px solid var(--border);background:var(--panel-2);font-size:11px;font-weight:700;color:var(--muted)}
+.pill.good{border-color:var(--green);color:var(--green);background:rgba(52,211,153,.08)}
+.pill.warn{border-color:var(--amber);color:var(--amber);background:rgba(251,191,36,.08)}
+.pill.bad{border-color:var(--red);color:var(--red);background:rgba(248,113,113,.08)}
+.recipe{display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--muted)}
+.recipe b{color:var(--text)}
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="md-nav"></nav>
+
+  <div class="sidebar">
+    <div>
+      <div class="section-label">Load Model</div>
+      <div class="drop-zone" id="dropZone">
+        <div class="icon">&#x1F4E6;</div>
+        Drop STL here or click to browse
+        <input type="file" id="fileInput" accept=".stl" hidden>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Mesh Health</div>
+      <div class="stat-grid">
+        <span class="label">Faces</span><span class="val" id="statFaces">-</span>
+        <span class="label">Size</span><span class="val" id="statSize">-</span>
+        <span class="label">Avg edge</span><span class="val" id="statEdge">-</span>
+        <span class="label">Roughness</span><span class="val" id="statRough">-</span>
+        <span class="label">Open edges</span><span class="val" id="statOpen">-</span>
+        <span class="label">Non-manifold</span><span class="val" id="statBad">-</span>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Paper3D Fit</div>
+      <div id="fitPill" class="pill">No model</div>
+      <div class="recipe" style="margin-top:8px">
+        <div><b>Prep</b> <span id="recipePrep">-</span></div>
+        <div><b>Cells</b> <span id="recipeCells">-</span></div>
+        <div><b>Notes</b> <span id="recipeNotes">-</span></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Next Stage</div>
+      <button class="btn" id="exportBtn" disabled style="width:100%">Prepared STL pending</button>
+    </div>
+  </div>
+
+  <div class="viewport" id="viewport">
+    <div class="viewport-toolbar">
+      <button id="tbFrame">Frame</button>
+      <button id="tbWire">Wire</button>
+    </div>
+    <div class="statusbar"><span id="status">Drop an STL to analyse</span></div>
+  </div>
+
+  <div class="md-footer">
+    <span id="fileName">No model loaded</span>
+    <span>Mesh Prep</span>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import './js/nav.js';
+
+const $ = id => document.getElementById(id);
+const fmt = n => Number.isFinite(n) ? n.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '-';
+const setStatus = msg => { $('status').textContent = msg; };
+
+let mesh = null;
+let wire = null;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x060a10);
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 10000);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+$('viewport').appendChild(renderer.domElement);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+scene.add(new THREE.HemisphereLight(0xffffff, 0x223344, 1.6));
+const key = new THREE.DirectionalLight(0xffffff, 1.8);
+key.position.set(80, 120, 160);
+scene.add(key);
+
+function resize() {
+  const r = $('viewport').getBoundingClientRect();
+  renderer.setSize(r.width, r.height);
+  camera.aspect = r.width / Math.max(1, r.height);
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+resize();
+
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+function parseSTL(buffer) {
+  const dv = new DataView(buffer);
+  const nTri = dv.getUint32(80, true);
+  if (84 + nTri * 50 > buffer.byteLength) throw new Error('Only binary STL is supported in Mesh Prep');
+  const positions = new Float32Array(nTri * 9);
+  let off = 84;
+  for (let i = 0; i < nTri; i++) {
+    off += 12;
+    for (let v = 0; v < 9; v++) {
+      positions[i * 9 + v] = dv.getFloat32(off, true);
+      off += 4;
+    }
+    off += 2;
+  }
+  return { positions, nTri };
+}
+
+function analyseMesh(positions, nTri) {
+  let minX = Infinity, minY = Infinity, minZ = Infinity;
+  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+  let area = 0, edgeSum = 0, edgeCount = 0;
+  const epsScale = [];
+  const normalsByVertex = new Map();
+  const edgeMap = new Map();
+
+  for (let i = 0; i < nTri; i++) {
+    const o = i * 9;
+    const pts = [];
+    for (let v = 0; v < 3; v++) {
+      const p = o + v * 3;
+      const x = positions[p], y = positions[p+1], z = positions[p+2];
+      pts.push({ x, y, z });
+      if (x < minX) minX = x; if (x > maxX) maxX = x;
+      if (y < minY) minY = y; if (y > maxY) maxY = y;
+      if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
+    }
+    const ux = pts[1].x - pts[0].x, uy = pts[1].y - pts[0].y, uz = pts[1].z - pts[0].z;
+    const vx = pts[2].x - pts[0].x, vy = pts[2].y - pts[0].y, vz = pts[2].z - pts[0].z;
+    let nx = uy*vz - uz*vy, ny = uz*vx - ux*vz, nz = ux*vy - uy*vx;
+    const nLen = Math.hypot(nx, ny, nz);
+    if (nLen > 1e-10) { area += nLen * 0.5; nx /= nLen; ny /= nLen; nz /= nLen; }
+    for (let e = 0; e < 3; e++) {
+      const a = pts[e], b = pts[(e + 1) % 3];
+      edgeSum += Math.hypot(a.x-b.x, a.y-b.y, a.z-b.z);
+      edgeCount++;
+    }
+    epsScale.push(...pts);
+    for (const p of pts) {
+      const k = `${Math.round(p.x * 1000)},${Math.round(p.y * 1000)},${Math.round(p.z * 1000)}`;
+      const s = normalsByVertex.get(k) || { x: 0, y: 0, z: 0, n: 0 };
+      s.x += nx; s.y += ny; s.z += nz; s.n++;
+      normalsByVertex.set(k, s);
+    }
+  }
+
+  const maxDim = Math.max(maxX-minX, maxY-minY, maxZ-minZ);
+  const edgeEps = Math.max(maxDim * 1e-5, 1e-5);
+  const keyOf = p => `${Math.round(p.x / edgeEps)},${Math.round(p.y / edgeEps)},${Math.round(p.z / edgeEps)}`;
+  for (let i = 0; i < nTri; i++) {
+    const o = i * 9;
+    const keys = [
+      keyOf({ x: positions[o], y: positions[o+1], z: positions[o+2] }),
+      keyOf({ x: positions[o+3], y: positions[o+4], z: positions[o+5] }),
+      keyOf({ x: positions[o+6], y: positions[o+7], z: positions[o+8] })
+    ];
+    for (let e = 0; e < 3; e++) {
+      const a = keys[e], b = keys[(e + 1) % 3];
+      if (a === b) continue;
+      const k = a < b ? `${a}|${b}` : `${b}|${a}`;
+      edgeMap.set(k, (edgeMap.get(k) || 0) + 1);
+    }
+  }
+
+  let openEdges = 0, nonManifold = 0;
+  for (const c of edgeMap.values()) {
+    if (c === 1) openEdges++;
+    else if (c !== 2) nonManifold++;
+  }
+  let rough = 0, roughN = 0;
+  for (const s of normalsByVertex.values()) {
+    if (s.n < 2) continue;
+    rough += 1 - Math.min(1, Math.hypot(s.x, s.y, s.z) / s.n);
+    roughN++;
+  }
+  rough = roughN ? rough / roughN : 0;
+  return { nTri, maxDim, sizeX:maxX-minX, sizeY:maxY-minY, sizeZ:maxZ-minZ, area,
+    avgEdge: edgeSum / Math.max(1, edgeCount), openEdges, nonManifold, rough };
+}
+
+function classify(a) {
+  const dense = a.nTri > 650000;
+  const veryDense = a.nTri > 1200000;
+  const curly = a.rough > 0.22;
+  const lowPoly = a.nTri < 250000 || (a.avgEdge / Math.max(a.maxDim, 1e-6)) > 0.018;
+  const bad = a.openEdges > 0 || a.nonManifold > 0;
+  if (lowPoly && !curly) return { cls: 'good', fit: 'Paper3D ready', prep: 'Preserve', cells: '350-650', notes: bad ? 'Repair in slicer if needed' : 'Flat facets should cut cleanly' };
+  if (veryDense && curly) return { cls: 'bad', fit: 'Needs remesh first', prep: 'External facet remesh', cells: '450-600 after remesh', notes: 'Curly dense surface will make messy cut walls' };
+  if (dense || curly) return { cls: 'warn', fit: 'Use with care', prep: 'Preserve or remesh copy', cells: '450-700', notes: 'Avoid helper pads/supports; slicer supports only' };
+  return { cls: 'good', fit: 'Paper3D friendly', prep: 'Preserve', cells: '400-700', notes: 'Normal range for direct cutting' };
+}
+
+function showMesh(positions) {
+  if (mesh) scene.remove(mesh);
+  if (wire) scene.remove(wire);
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
+  geom.computeVertexNormals();
+  mesh = new THREE.Mesh(geom, new THREE.MeshStandardMaterial({ color: 0x3ecfff, roughness: 0.55, metalness: 0.1, side: THREE.DoubleSide, flatShading: true }));
+  scene.add(mesh);
+  wire = null;
+  frame(mesh);
+}
+
+function frame(obj) {
+  if (!obj) return;
+  const box = new THREE.Box3().setFromObject(obj);
+  const center = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z);
+  camera.position.set(center.x, center.y, center.z + maxDim * 1.9);
+  controls.target.copy(center);
+  controls.update();
+}
+
+function updateAnalysis(name, parsed) {
+  setStatus('Analysing mesh...');
+  requestAnimationFrame(() => {
+    const a = analyseMesh(parsed.positions, parsed.nTri);
+    const c = classify(a);
+    $('fileName').textContent = `${name} — ${a.nTri.toLocaleString()} faces`;
+    $('statFaces').textContent = a.nTri.toLocaleString();
+    $('statSize').textContent = `${fmt(a.sizeX)} x ${fmt(a.sizeY)} x ${fmt(a.sizeZ)}`;
+    $('statEdge').textContent = fmt(a.avgEdge);
+    $('statRough').textContent = `${Math.round(a.rough * 100)}%`;
+    $('statOpen').textContent = a.openEdges.toLocaleString();
+    $('statBad').textContent = a.nonManifold.toLocaleString();
+    const pill = $('fitPill');
+    pill.className = `pill ${c.cls}`;
+    pill.textContent = c.fit;
+    $('recipePrep').textContent = c.prep;
+    $('recipeCells').textContent = c.cells;
+    $('recipeNotes').textContent = c.notes;
+    showMesh(parsed.positions);
+    setStatus(`Done — ${c.fit}`);
+  });
+}
+
+async function loadFile(file) {
+  try {
+    const parsed = parseSTL(await file.arrayBuffer());
+    updateAnalysis(file.name, parsed);
+  } catch (e) {
+    setStatus('Error: ' + e.message);
+  }
+}
+
+$('dropZone').addEventListener('click', () => $('fileInput').click());
+$('fileInput').addEventListener('change', e => { const f = e.target.files[0]; if (f) loadFile(f); });
+$('dropZone').addEventListener('dragover', e => { e.preventDefault(); $('dropZone').classList.add('dragover'); });
+$('dropZone').addEventListener('dragleave', () => $('dropZone').classList.remove('dragover'));
+$('dropZone').addEventListener('drop', e => {
+  e.preventDefault(); $('dropZone').classList.remove('dragover');
+  const f = e.dataTransfer.files[0]; if (f) loadFile(f);
+});
+$('tbFrame').addEventListener('click', () => frame(mesh));
+$('tbWire').addEventListener('click', () => {
+  if (!mesh) return;
+  if (wire) { scene.remove(wire); wire = null; return; }
+  wire = new THREE.LineSegments(new THREE.WireframeGeometry(mesh.geometry), new THREE.LineBasicMaterial({ color: 0x8be9ff, transparent: true, opacity: 0.28 }));
+  scene.add(wire);
+});
+</script>
+</body>
+</html>
