@@ -1,5 +1,16 @@
 ---
 
+## b543 — Open shelf sign slot into rear notch
+**Date:** 2026-07-22
+
+### MakerDeck
+- Changed the shelf-display shelf connector from a closed through-slot to an open rear-edge notch.
+- This removes the black line artifact across the shelf face and avoids the extra strip/wall artifact along the shelf edge.
+- Kept the simple press-fit design: the shelf notch is still inset **5mm** from both side edges and accepts the back sign's lower tongue.
+- Bumped MakerDeck, Paper3D, STL Painter, Mesh Prep, shared nav, and nested Container module imports to **b543**.
+
+---
+
 ## b542 — Replace shelf sign dovetail with press-fit slot
 **Date:** 2026-07-22
 

@@ -1,11 +1,11 @@
 /**
- * MakerDeck — Shared Navigation Component  b542
+ * MakerDeck — Shared Navigation Component  b543
  * Auto-injects consistent nav bar across all MakerDeck tools.
  * Import this module in any MakerDeck page:
  *   <script type="module" src="js/nav.js"></script>
  */
 
-const BUILD = 'b542';
+const BUILD = 'b543';
 
 const TOOLS = [
   { id: 'container', label: 'Container', href: 'index.html' },
