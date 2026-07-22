@@ -14,7 +14,7 @@
 </script>
 <style>
 /* ================================================================== */
-/*  b546 — MakerDeck STL Painter  (tabbed layout)                     */
+/*  b547 — MakerDeck STL Painter  (tabbed layout)                     */
 /* ================================================================== */
 
 /* -- Reset & Vars -------------------------------------------------- */
@@ -306,7 +306,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   <header class="header">
     <button class="toggle-sidebar" id="toggleSidebar" title="Toggle sidebar">☰</button>
     <div class="logo">Maker<span>Deck</span> · STL Painter</div>
-    <div class="build">b546</div>
+    <div class="build">b547</div>
   </header>
 
   <!-- Left Sidebar (tabbed) -->
@@ -367,7 +367,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
             <button type="button" id="slotPlusBtn" title="Add slot">+</button>
           </div>
         </div>
-        <p class="flow-desc" style="margin-top:0">+/− adds or removes colours (1–16 for HT / multi-AMS). Removing a slot puts its paint back on Base.</p>
+        <p class="flow-desc" style="margin-top:0">+/− adds or removes colours (1–16 for HT / multi-AMS). Removing a slot puts its paint back on Slot 1.</p>
         <div class="slot-list" id="slotList"></div>
 
         <div class="section-label">Presets</div>
@@ -607,7 +607,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b546</span>
+    <span>MakerDeck · STL Painter b547</span>
   </footer>
 </div>
 
@@ -633,7 +633,7 @@ import {
   paintClassOf, upgradePaintResolution, export3MF,
   findMeshIslands, buildIslandMap, floodFillSameClass, floodFillSameSlot, selectIsland,
   import3MF, buildSymmetryMap, masksToFacePaint, facePaintToMasks, MAX_PAINT_SLOTS
-} from './js/painter.js?v=546';
+} from './js/painter.js?v=547';
 
 /* ================================================================== */
 /*  STATE                                                             */
@@ -756,10 +756,10 @@ const DEFAULT_SLOT_COLORS = [
   '#44403C', '#A1A1AA', '#F97316', '#22D3EE',
 ];
 const SLOT_NAME_SHORT = [
-  'Base', 'Accent', 'Detail', 'Trim',
-  'HT 5', 'HT 6', 'HT 7', 'HT 8',
-  'HT 9', 'HT 10', 'HT 11', 'HT 12',
-  'HT 13', 'HT 14', 'HT 15', 'HT 16',
+  'Filament 1', 'Filament 2', 'Filament 3', 'Filament 4',
+  'Filament 5', 'Filament 6', 'Filament 7', 'Filament 8',
+  'Filament 9', 'Filament 10', 'Filament 11', 'Filament 12',
+  'Filament 13', 'Filament 14', 'Filament 15', 'Filament 16',
 ];
 const LEGACY_SLOT = { body: 0, emboss: 1, deboss: 2, trim: 3 };
 const MAX_AMS_SLOTS = MAX_PAINT_SLOTS; // 16
@@ -1502,7 +1502,7 @@ function isSlotActive(target) {
   return slotIndex(target) < S.slotCount;
 }
 
-/** Remap painted faces on a slot back to Base. Returns face count. */
+/** Remap painted faces on a removed slot back to Slot 1. Returns face count. */
 function clearSlotPaintToBody(slot) {
   const fp = ensureFacePaint();
   const s = slotIndex(slot);
@@ -1596,7 +1596,7 @@ function addAmsSlot() {
 
 function removeAmsSlot() {
   if (S.slotCount <= 1) {
-    setStatus('Need at least Slot 1 (Base)', 'idle');
+    setStatus('Need at least Slot 1', 'idle');
     return;
   }
   const slot = S.slotCount - 1;
@@ -1606,7 +1606,7 @@ function removeAmsSlot() {
   syncSlotCountUI();
   setStatus(
     cleared
-      ? `Removed ${slotLabel(slot)} — ${cleared.toLocaleString()} faces → Base`
+      ? `Removed ${slotLabel(slot)} — ${cleared.toLocaleString()} faces → Slot 1`
       : `Removed ${slotLabel(slot)} — ${S.slotCount} of ${MAX_AMS_SLOTS}`,
     'idle'
   );
@@ -2028,7 +2028,7 @@ function clearPaint() {
   S.smartPreview = null; S.smartPreviewFaces = null;
   clearClickSelection();
   updateMeshColors(); recountPaint();
-  setStatus('All paint cleared — model is Base colour only', 'idle');
+  setStatus('All paint cleared — model is Slot 1 colour only', 'idle');
 }
 
 function clearModel() {

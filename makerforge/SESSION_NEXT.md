@@ -1,5 +1,15 @@
 ---
 
+## b547 — Use neutral STL Painter slot labels
+**Date:** 2026-07-22
+
+### MakerDeck
+- Changed STL Painter's visible AMS names from box-oriented **Base / Accent / Detail / Trim** to neutral **Filament 1 / Filament 2 / ...** labels.
+- Updated Painter status/help text so removed paint returns to **Slot 1**, not "Base".
+- Bumped MakerDeck, Paper3D, Mesh Prep, shared nav, and Painter cache/build labels to **b547**.
+
+---
+
 ## b546 — Restore current STL Painter UI
 **Date:** 2026-07-22
 
