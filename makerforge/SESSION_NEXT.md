@@ -1,5 +1,16 @@
 ---
 
+## b531 — Reduce Paper3D boundary fins
+**Date:** 2026-07-22
+
+### Paper3D
+- Boundary side-wall matching now uses scale-aware edge precision instead of a fixed 0.001-unit key.
+- Adjacent clipped triangles on dense organic meshes should share edges more reliably, reducing the furry fin artifacts around tails and fur.
+- Kept the puppy-friendly default cell count at **500**, while preserving the higher **1200** ceiling for manual testing.
+- Shared nav build badge and STL export header updated to **b531**.
+
+---
+
 ## b530 — Repair Paper3D outward flakes and seam cracks
 **Date:** 2026-07-22
 

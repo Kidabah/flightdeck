@@ -508,18 +508,23 @@ function vertexKey(p) {
   return `${q(p.x)},${q(p.y)},${q(p.z)}`;
 }
 
+function edgeVertexKey(p, precision) {
+  const q = n => Math.round(n / precision);
+  return `${q(p.x)},${q(p.y)},${q(p.z)}`;
+}
+
 function vertexKeyXYZ(x, y, z) {
   const q = n => Math.round(n * 1000);
   return `${q(x)},${q(y)},${q(z)}`;
 }
 
-function edgeKey(a, b) {
-  const ka = vertexKey(a), kb = vertexKey(b);
+function edgeKey(a, b, precision) {
+  const ka = edgeVertexKey(a, precision), kb = edgeVertexKey(b, precision);
   return ka < kb ? ka + '|' + kb : kb + '|' + ka;
 }
 
-function addBoundaryEdge(edgeMap, a, b, ia, ib) {
-  const key = edgeKey(a, b);
+function addBoundaryEdge(edgeMap, a, b, ia, ib, precision) {
+  const key = edgeKey(a, b, precision);
   const existing = edgeMap.get(key);
   if (existing) {
     existing.count++;
@@ -590,7 +595,7 @@ function inwardPoint(p, depth, center) {
   return { x: p.x - nx * depth, y: p.y - ny * depth, z: p.z - nz * depth, d: p.d };
 }
 
-function addSolidPolygon(outPos, outNorm, edgeMap, poly, shellDepth, center) {
+function addSolidPolygon(outPos, outNorm, edgeMap, poly, shellDepth, center, edgePrecision) {
   normalizePolyNormals(poly);
   const inner = poly.map(p => inwardPoint(p, shellDepth, center));
   let tris = 0;
@@ -600,7 +605,7 @@ function addSolidPolygon(outPos, outNorm, edgeMap, poly, shellDepth, center) {
   }
   for (let i = 0; i < poly.length; i++) {
     const j = (i + 1) % poly.length;
-    addBoundaryEdge(edgeMap, poly[i], poly[j], inner[i], inner[j]);
+    addBoundaryEdge(edgeMap, poly[i], poly[j], inner[i], inner[j], edgePrecision);
   }
   return tris;
 }
@@ -905,7 +910,7 @@ function addSelfSupports(result, bodyThick, modelDim) {
 }
 
 /** Clip original STL triangles against the Paper3D band and give the result body. */
-function buildClippedPaper3DShell(positions, nTri, seeds, nSeeds, halfWall, shellDepth, normalMap, center) {
+function buildClippedPaper3DShell(positions, nTri, seeds, nSeeds, halfWall, shellDepth, normalMap, center, edgePrecision) {
   const outPos = [];
   const outNorm = [];
   const edgeMap = new Map();
@@ -924,7 +929,7 @@ function buildClippedPaper3DShell(positions, nTri, seeds, nSeeds, halfWall, shel
     const clipped = clipPolygonToWallBand(poly, halfWall);
     if (clipped.length < 3) continue;
     touched++;
-    addSolidPolygon(outPos, outNorm, edgeMap, clipped, shellDepth, center);
+    addSolidPolygon(outPos, outNorm, edgeMap, clipped, shellDepth, center, edgePrecision);
   }
   for (const edge of edgeMap.values()) {
     if (edge.count !== 1) continue;
@@ -986,13 +991,14 @@ function generatePaper3D(positions, normals, nTri, opts) {
   const halfWall = adaptiveWallThreshold(positions, nTri, seeds, nSeeds, requestedBand, cellCount, effectiveWallThick, mode);
 
   const shellDepth = effectiveBodyThick;
+  const edgePrecision = Math.max(0.002, Math.min(0.04, modelDim * 0.00018));
 
   setStatus('Building Paper3D shell body…'); showProgress(40);
-  let result = buildClippedPaper3DShell(positions, nTri, seeds, nSeeds, halfWall, shellDepth, normalMap, center);
+  let result = buildClippedPaper3DShell(positions, nTri, seeds, nSeeds, halfWall, shellDepth, normalMap, center, edgePrecision);
   showProgress(85);
 
   setStatus('Repairing shell seams…');
-  const repairPrecision = Math.max(0.0001, Math.min(0.01, modelDim * 0.00002));
+  const repairPrecision = Math.max(0.0001, Math.min(0.01, edgePrecision * 0.25));
   result = repairTriangleSoup(result, repairPrecision);
 
   setStatus('Cleaning tiny loose islands…');
@@ -1028,7 +1034,7 @@ function exportSTLBinary(positions, normals, nTri) {
   const buf = new ArrayBuffer(bufSize);
   const dv = new DataView(buf);
   // Header
-  const header = 'MakerDeck Paper3D b530';
+  const header = 'MakerDeck Paper3D b531';
   for (let i = 0; i < 80; i++) dv.setUint8(i, i < header.length ? header.charCodeAt(i) : 0);
   dv.setUint32(80, nTri, true);
   let off = 84;
