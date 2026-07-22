@@ -382,7 +382,7 @@ function buildClippedVoronoiSurface(positions, nTri, seeds, nSeeds, halfWall) {
   };
 }
 
-function adaptiveWallThreshold(positions, nTri, seeds, nSeeds, requestedHalfWall, cellCount, wallThick) {
+function adaptiveWallThreshold(positions, nTri, seeds, nSeeds, requestedBand, cellCount, wallThick, mode) {
   const maxSamples = 60000;
   const stride = Math.max(1, Math.floor(nTri / maxSamples));
   const distances = [];
@@ -398,14 +398,15 @@ function adaptiveWallThreshold(positions, nTri, seeds, nSeeds, requestedHalfWall
   distances.sort((a, b) => a - b);
   const wallT = Math.max(0, Math.min(1, (wallThick - 0.2) / 2.8));
   const cellT = Math.max(0, Math.min(1, (cellCount - 10) / 490));
-  const targetKeep = Math.max(0.28, Math.min(0.82, 0.28 + wallT * 0.54 - cellT * 0.08));
+  const modeBias = mode === 'holes' ? 0.08 : 0;
+  const targetKeep = Math.max(0.48, Math.min(0.84, 0.58 + modeBias + wallT * 0.24 - cellT * 0.05));
   const idx = Math.max(0, Math.min(distances.length - 1, Math.floor(distances.length * targetKeep)));
-  return Math.max(0.005, Math.min(requestedHalfWall, distances[idx]));
+  return Math.max(0.02, Math.min(requestedBand, distances[idx]));
 }
 
 /** Full Voronoi generation pipeline v3 */
 function generateVoronoi(positions, normals, nTri, opts) {
-  const { cellCount, wallThick, randomness } = opts;
+  const { cellCount, wallThick, randomness, mode } = opts;
 
   setStatus('Sampling seed points…'); showProgress(5);
   const seeds = sampleSeedPoints(positions, nTri, cellCount, randomness);
@@ -413,8 +414,8 @@ function generateVoronoi(positions, normals, nTri, opts) {
   showProgress(15);
 
   setStatus('Sizing Voronoi wall band…'); showProgress(25);
-  const requestedHalfWall = Math.max(0.01, wallThick / 2);
-  const halfWall = adaptiveWallThreshold(positions, nTri, seeds, nSeeds, requestedHalfWall, cellCount, wallThick);
+  const requestedBand = Math.max(0.08, wallThick * 1.65);
+  const halfWall = adaptiveWallThreshold(positions, nTri, seeds, nSeeds, requestedBand, cellCount, wallThick, mode);
 
   setStatus('Clipping surface to Voronoi walls…'); showProgress(40);
   const result = buildClippedVoronoiSurface(positions, nTri, seeds, nSeeds, halfWall);
@@ -435,7 +436,7 @@ function exportSTLBinary(positions, normals, nTri) {
   const buf = new ArrayBuffer(bufSize);
   const dv = new DataView(buf);
   // Header
-  const header = 'MakerDeck Voronoi Generator b509';
+  const header = 'MakerDeck Voronoi Generator b510';
   for (let i = 0; i < 80; i++) dv.setUint8(i, i < header.length ? header.charCodeAt(i) : 0);
   dv.setUint32(80, nTri, true);
   let off = 84;
@@ -516,7 +517,7 @@ function showResultMesh(positions, normals, nTri) {
   geom.computeVertexNormals();
   const mat = new THREE.MeshStandardMaterial({
     color: 0x3ecfff, metalness: 0.15, roughness: 0.5,
-    side: THREE.DoubleSide, flatShading: true
+    side: THREE.DoubleSide, flatShading: false
   });
   meshResult = new THREE.Mesh(geom, mat);
 

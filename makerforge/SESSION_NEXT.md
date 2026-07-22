@@ -1,5 +1,17 @@
 ---
 
+## b510 — Chunkier Voronoi wall sizing
+**Date:** 2026-07-22
+
+### Voronoi Generator
+- Retuned the adaptive wall band after comparing our cow output to Voronator: the previous b509 path removed too much material and left thin wire-like strands.
+- Wall Thickness now maps to a wider printable-looking Voronoi band, with the adaptive sampler targeting a stronger retained-material ratio on organic meshes.
+- Holes mode gets an extra retained-material bias so the result trends toward a perforated shell instead of a sparse lattice.
+- Result preview now uses smooth shading again so clipped bands read as rounded material rather than faceted string.
+- STL export header and shared nav build badge updated to **b510**.
+
+---
+
 ## b509 — Back out unsafe Voronoi solidify
 **Date:** 2026-07-22
 
