@@ -32,9 +32,6 @@
   text-align:center;font-size:12px;font-weight:600;transition:all .15s}
 .mode-btn:hover{border-color:var(--accent);color:var(--accent)}
 .mode-btn.active{border-color:var(--accent);background:var(--accent-dim);color:var(--accent)}
-select{background:var(--panel-2);border:1px solid var(--border);border-radius:var(--radius-sm);
-  color:var(--text);font-size:12px;padding:7px 8px;outline:none}
-select:focus{border-color:var(--accent)}
 </style>
 </head>
 <body>
@@ -104,18 +101,10 @@ select:focus{border-color:var(--accent)}
         <span>Add self-support stilts</span>
       </label>
 
-      <div class="form-group">
-        <div class="form-label"><span>Prepare Mesh</span><span class="val" id="prepareModeVal">Preserve</span></div>
-        <select id="prepareMode" style="width:100%">
-          <option value="preserve" selected>Preserve detail</option>
-          <option value="facet">Facet dense STL</option>
-        </select>
-      </div>
-
-      <div class="form-group" id="prepDetailGroup" style="display:none">
-        <div class="form-label"><span>Prep Detail</span><span class="val" id="prepDetailVal">70%</span></div>
-        <input type="range" id="prepDetail" min="35" max="100" value="70" step="5">
-      </div>
+      <label class="cb-label">
+        <input type="checkbox" id="fastLowPoly">
+        <span>Fast low-poly dense STL</span>
+      </label>
     </div>
 
     <!-- Actions -->
@@ -354,10 +343,9 @@ function lowPolyPass(positions, nTri, cell, origin) {
   return { positions: new Float32Array(outPos), nTri: outPos.length / 9 };
 }
 
-function autoLowPolyMesh(positions, normals, nTri, allowLowPoly, detail = 70) {
+function autoLowPolyMesh(positions, normals, nTri, allowLowPoly) {
   const threshold = 650000;
-  const detailT = Math.max(0, Math.min(1, (detail - 35) / 65));
-  const target = Math.round(260000 + detailT * 640000);
+  const target = 320000;
   if (!allowLowPoly) return { positions, normals, nTri, sourceTri: nTri, lowPoly: false };
   if (nTri <= threshold) return { positions, normals, nTri, sourceTri: nTri, lowPoly: false };
 
@@ -393,7 +381,7 @@ function autoLowPolyMesh(positions, normals, nTri, allowLowPoly, detail = 70) {
     nTri: best.nTri,
     sourceTri: nTri,
     lowPoly: true,
-    lowPolyMethod: `facet ${detail}%`
+    lowPolyMethod: 'clustered'
   };
 }
 
@@ -987,7 +975,7 @@ function exportSTLBinary(positions, normals, nTri) {
   const buf = new ArrayBuffer(bufSize);
   const dv = new DataView(buf);
   // Header
-  const header = 'MakerDeck Paper3D b535';
+  const header = 'MakerDeck Paper3D b536';
   for (let i = 0; i < 80; i++) dv.setUint8(i, i < header.length ? header.charCodeAt(i) : 0);
   dv.setUint32(80, nTri, true);
   let off = 84;
@@ -1012,7 +1000,6 @@ function exportSTLBinary(positions, normals, nTri) {
 /* ================================================================== */
 let S = {
   loaded: false,
-  sourcePositions: null, sourceNormals: null, originalTri: 0,
   positions: null, normals: null, nTri: 0, sourceTri: 0, lowPoly: false, lowPolyMethod: '',
   result: null,
   mode: 'holes',
@@ -1022,28 +1009,23 @@ let S = {
 /* ================================================================== */
 /*  File Loading                                                      */
 /* ================================================================== */
-function applyPreparedMesh() {
-  const prepareMode = $('prepareMode').value;
-  const prepDetail = parseInt($('prepDetail').value);
-  const prepared = autoLowPolyMesh(
-    S.sourcePositions,
-    S.sourceNormals,
-    S.originalTri,
-    prepareMode === 'facet',
-    prepDetail
-  );
+function loadSTL(buffer, name) {
+  const parsed = parseSTL(buffer);
+  const prepared = autoLowPolyMesh(parsed.positions, parsed.normals, parsed.nTri, $('fastLowPoly').checked);
   S.positions = prepared.positions;
   S.normals = prepared.normals;
   S.nTri = prepared.nTri;
   S.sourceTri = prepared.sourceTri;
   S.lowPoly = prepared.lowPoly;
   S.lowPolyMethod = prepared.lowPolyMethod || '';
+  S.loaded = true;
   S.result = null;
+  S.fileName = name;
   showingOriginal = false;
 
   const faceText = S.lowPoly
-    ? `${S.fileName} — ${S.sourceTri.toLocaleString()} faces, prepared ${S.lowPolyMethod} source ${S.nTri.toLocaleString()}`
-    : `${S.fileName} — ${S.nTri.toLocaleString()} faces`;
+    ? `${name} — ${S.sourceTri.toLocaleString()} faces, low-poly ${S.lowPolyMethod} source ${S.nTri.toLocaleString()}`
+    : `${name} — ${S.nTri.toLocaleString()} faces`;
   $('fileName').textContent = faceText;
   $('generateBtn').disabled = false;
   $('resetBtn').disabled = false;
@@ -1054,25 +1036,15 @@ function applyPreparedMesh() {
   // Show in viewport
   if (meshResult) { scene.remove(meshResult); meshResult = null; }
   if (wireHelper) { scene.remove(wireHelper); wireHelper = null; }
-  showOriginalMesh(S.sourcePositions, S.originalTri);
+  showOriginalMesh(parsed.positions, parsed.nTri);
   frameModel(meshOriginal);
   if (S.lowPoly) {
-    setStatus(`Prepared ${S.fileName} — ${S.lowPolyMethod} ${S.sourceTri.toLocaleString()} → ${S.nTri.toLocaleString()} faces`);
+    setStatus(`Loaded ${name} — fast low-poly ${S.lowPolyMethod} ${S.sourceTri.toLocaleString()} → ${S.nTri.toLocaleString()} faces`);
   } else if (S.nTri > 650000) {
-    setStatus(`Loaded ${S.fileName} — preserve detail ${S.nTri.toLocaleString()} faces; generation may take longer`);
+    setStatus(`Loaded ${name} — full detail ${S.nTri.toLocaleString()} faces; generation may take longer`);
   } else {
-    setStatus(`Loaded ${S.fileName} — ${S.nTri.toLocaleString()} faces`);
+    setStatus(`Loaded ${name} — ${S.nTri.toLocaleString()} faces`);
   }
-}
-
-function loadSTL(buffer, name) {
-  const parsed = parseSTL(buffer);
-  S.sourcePositions = parsed.positions;
-  S.sourceNormals = parsed.normals;
-  S.originalTri = parsed.nTri;
-  S.loaded = true;
-  S.fileName = name;
-  applyPreparedMesh();
 }
 
 function showOriginalMesh(positions, nTri) {
@@ -1144,33 +1116,6 @@ $('cellCount').addEventListener('input', e => { $('cellCountVal').textContent = 
 $('wallThick').addEventListener('input', e => { $('wallThickVal').textContent = e.target.value + 'mm'; });
 $('bodyThick').addEventListener('input', e => { $('bodyThickVal').textContent = e.target.value + 'mm'; });
 $('randomness').addEventListener('input', e => { $('randomVal').textContent = e.target.value + '%'; });
-$('prepDetail').addEventListener('input', e => { $('prepDetailVal').textContent = e.target.value + '%'; });
-
-function updatePrepareControls() {
-  const mode = $('prepareMode').value;
-  $('prepareModeVal').textContent = mode === 'facet' ? 'Facet' : 'Preserve';
-  $('prepDetailGroup').style.display = mode === 'facet' ? '' : 'none';
-}
-
-function reapplyPreparation() {
-  updatePrepareControls();
-  if (!S.loaded) return;
-  $('generateBtn').disabled = true;
-  $('exportSTLBtn').disabled = true;
-  setStatus('Preparing mesh…');
-  requestAnimationFrame(() => {
-    try {
-      applyPreparedMesh();
-    } catch (e) {
-      setStatus('Error: ' + e.message);
-    }
-    $('generateBtn').disabled = false;
-  });
-}
-
-$('prepareMode').addEventListener('change', reapplyPreparation);
-$('prepDetail').addEventListener('change', reapplyPreparation);
-updatePrepareControls();
 
 // Generate
 $('generateBtn').addEventListener('click', () => {

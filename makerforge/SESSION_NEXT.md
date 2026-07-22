@@ -1,5 +1,16 @@
 ---
 
+## b536 — Roll back Paper3D mesh prep experiment
+**Date:** 2026-07-22
+
+### Paper3D
+- Reverted the b535 **Prepare Mesh / Facet dense STL** workflow after it produced spike/glitter artifacts on the puppy.
+- Restored the last stable Paper3D behavior from **b534**: helpers off by default, optional helper size guards, and the previous dense/full-detail generation path.
+- Noted outcome: mesh prep needs a real remesh/decimation pipeline rather than the browser clustering shortcut.
+- Shared nav build badge and STL export header updated to **b536**.
+
+---
+
 ## b535 — Add Paper3D Prepare Mesh workflow
 **Date:** 2026-07-22
 
