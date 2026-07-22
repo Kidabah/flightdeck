@@ -1,5 +1,17 @@
 ---
 
+## b538 — Restore Container Generator b532 UI
+**Date:** 2026-07-22
+
+### MakerDeck
+- Restored the Container Generator HTML from the known-good **b532** shelf/text build after a later `index.html` cleanup left the page showing stale **b504** markup.
+- Brought back the **Shelf display** controls: Edit back / Edit shelf plus shelf width, length, thickness, and corner sliders.
+- Brought back the richer text controls: per-line editor, Add line / plain-text mode, font weight, letter spacing, line spacing, and the b532 sign hints.
+- Reapplied the current toolbar links to **STL Painter** and **Paper3D**.
+- Bumped the Container Generator HTML/app cache tags and runtime build badge to **b538**.
+
+---
+
 ## b537 — Start Mesh Prep lab
 **Date:** 2026-07-22
 
