@@ -159,6 +159,7 @@
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { SimplifyModifier } from 'three/addons/modifiers/SimplifyModifier.js';
 import './js/nav.js';
 
 /* ================================================================== */
@@ -315,6 +316,34 @@ function lowPolyPass(positions, nTri, cell, origin) {
   return { positions: new Float32Array(outPos), nTri: outPos.length / 9 };
 }
 
+function edgeCollapseLowPolyPass(positions, nTri) {
+  const startTri = nTri;
+  if (startTri < 120000) return null;
+
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geom.computeVertexNormals();
+
+  const modifier = new SimplifyModifier();
+  const removeVertices = Math.max(1, Math.floor(geom.attributes.position.count * 0.28));
+  const simplified = modifier.modify(geom, removeVertices);
+  const flat = simplified.index ? simplified.toNonIndexed() : simplified;
+  flat.computeVertexNormals();
+
+  const pos = flat.getAttribute('position');
+  if (!pos || pos.count < 3000) return null;
+
+  const outPos = new Float32Array(pos.array);
+  const outTri = outPos.length / 9;
+  if (outTri < 80000 || outTri > startTri * 1.05) return null;
+
+  return {
+    positions: outPos,
+    normals: new Float32Array(outTri * 3),
+    nTri: outTri
+  };
+}
+
 function autoLowPolyMesh(positions, normals, nTri) {
   const threshold = 650000;
   const target = 320000;
@@ -345,6 +374,18 @@ function autoLowPolyMesh(positions, normals, nTri) {
   }
   if (!best || best.nTri < minKeep || best.nTri >= nTri * 0.95) {
     return { positions, normals, nTri, sourceTri: nTri, lowPoly: false };
+  }
+  setStatus(`Dense STL detected — edge-collapse refining ${best.nTri.toLocaleString()} faces…`);
+  const collapsed = edgeCollapseLowPolyPass(best.positions, best.nTri);
+  if (collapsed) {
+    return {
+      positions: collapsed.positions,
+      normals: collapsed.normals,
+      nTri: collapsed.nTri,
+      sourceTri: nTri,
+      lowPoly: true,
+      lowPolyMethod: 'edge-collapse'
+    };
   }
   return {
     positions: best.positions,
@@ -929,7 +970,7 @@ function exportSTLBinary(positions, normals, nTri) {
   const buf = new ArrayBuffer(bufSize);
   const dv = new DataView(buf);
   // Header
-  const header = 'MakerDeck Paper3D b524';
+  const header = 'MakerDeck Paper3D b525';
   for (let i = 0; i < 80; i++) dv.setUint8(i, i < header.length ? header.charCodeAt(i) : 0);
   dv.setUint32(80, nTri, true);
   let off = 84;

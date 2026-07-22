@@ -1,5 +1,16 @@
 ---
 
+## b525 — Edge-collapse dense Paper3D low-poly
+**Date:** 2026-07-22
+
+### Paper3D
+- Integrated Three.js `SimplifyModifier` as an edge-collapse refinement step for dense STL inputs.
+- Dense models are still first reduced with vertex clustering for browser performance, then refined with topology-aware edge collapse instead of triangle sampling.
+- Low-poly status now reports **edge-collapse** when that path succeeds.
+- Shared nav build badge and STL export header updated to **b525**.
+
+---
+
 ## b524 — Remove sampled low-poly fallback
 **Date:** 2026-07-22
 
