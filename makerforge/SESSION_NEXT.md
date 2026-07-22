@@ -1,5 +1,16 @@
 ---
 
+## b509 — Back out unsafe Voronoi solidify
+**Date:** 2026-07-22
+
+### Voronoi Generator
+- Reverted the b508 inward solid layer after it turned dense organic STLs into long bristle artifacts.
+- Restored the safer clipped-surface output so the model keeps the Voronoi hole pattern without exploding normals.
+- Current output is a surface/plane-style Voronoi result; real printable strength needs a proper volumetric/remeshing pass rather than per-triangle offsets.
+- STL export header and shared nav build badge updated to **b509**.
+
+---
+
 ## b508 — Voronoi solid layer strength pass
 **Date:** 2026-07-22
 

@@ -354,64 +354,10 @@ function pushTri(outPos, outNorm, a, b, c) {
   return true;
 }
 
-function pushTriWithNormal(outPos, outNorm, a, b, c, nx, ny, nz) {
-  outPos.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
-  outNorm.push(nx, ny, nz, nx, ny, nz, nx, ny, nz);
-}
-
-function offsetPoint(p, nx, ny, nz, depth) {
-  return { x: p.x - nx * depth, y: p.y - ny * depth, z: p.z - nz * depth, d: p.d };
-}
-
-function faceNormal(a, b, c) {
-  const ux = b.x - a.x, uy = b.y - a.y, uz = b.z - a.z;
-  const vx = c.x - a.x, vy = c.y - a.y, vz = c.z - a.z;
-  let nx = uy*vz - uz*vy, ny = uz*vx - ux*vz, nz = ux*vy - uy*vx;
-  const len = Math.sqrt(nx*nx + ny*ny + nz*nz);
-  return len > 1e-10 ? [nx / len, ny / len, nz / len] : [0, 0, 1];
-}
-
-function vertexKey(p) {
-  const q = n => Math.round(n * 10000);
-  return `${q(p.x)},${q(p.y)},${q(p.z)}`;
-}
-
-function edgeKey(a, b) {
-  const ka = vertexKey(a), kb = vertexKey(b);
-  return ka < kb ? ka + '|' + kb : kb + '|' + ka;
-}
-
-function addBoundaryEdge(edgeMap, a, b, ia, ib) {
-  const key = edgeKey(a, b);
-  const e = edgeMap.get(key);
-  if (e) {
-    e.count++;
-  } else {
-    edgeMap.set(key, { count: 1, a, b, ia, ib });
-  }
-}
-
-function addSolidifiedPolygon(outPos, outNorm, edgeMap, poly, depth) {
-  const [nx, ny, nz] = faceNormal(poly[0], poly[1], poly[2]);
-  const inner = poly.map(p => offsetPoint(p, nx, ny, nz, depth));
-  let tris = 0;
-  for (let v = 1; v < poly.length - 1; v++) {
-    pushTriWithNormal(outPos, outNorm, poly[0], poly[v], poly[v+1], nx, ny, nz);
-    pushTriWithNormal(outPos, outNorm, inner[0], inner[v+1], inner[v], -nx, -ny, -nz);
-    tris += 2;
-  }
-  for (let i = 0; i < poly.length; i++) {
-    const j = (i + 1) % poly.length;
-    addBoundaryEdge(edgeMap, poly[i], poly[j], inner[i], inner[j]);
-  }
-  return tris;
-}
-
-/** Clip original STL triangles and solidify the Voronoi wall band. */
-function buildClippedVoronoiSurface(positions, nTri, seeds, nSeeds, halfWall, layerDepth) {
+/** Clip original STL triangles against the Voronoi wall band. */
+function buildClippedVoronoiSurface(positions, nTri, seeds, nSeeds, halfWall) {
   const outPos = [];
   const outNorm = [];
-  const edgeMap = new Map();
   let touched = 0;
   for (let i = 0; i < nTri; i++) {
     const o = i * 9;
@@ -424,12 +370,9 @@ function buildClippedVoronoiSurface(positions, nTri, seeds, nSeeds, halfWall, la
     const clipped = clipPolygonToWallBand(poly, halfWall);
     if (clipped.length < 3) continue;
     touched++;
-    addSolidifiedPolygon(outPos, outNorm, edgeMap, clipped, layerDepth);
-  }
-  for (const e of edgeMap.values()) {
-    if (e.count !== 1) continue;
-    pushTri(outPos, outNorm, e.a, e.b, e.ib);
-    pushTri(outPos, outNorm, e.a, e.ib, e.ia);
+    for (let v = 1; v < clipped.length - 1; v++) {
+      pushTri(outPos, outNorm, clipped[0], clipped[v], clipped[v+1]);
+    }
   }
   return {
     positions: new Float32Array(outPos),
@@ -472,17 +415,16 @@ function generateVoronoi(positions, normals, nTri, opts) {
   setStatus('Sizing Voronoi wall band…'); showProgress(25);
   const requestedHalfWall = Math.max(0.01, wallThick / 2);
   const halfWall = adaptiveWallThreshold(positions, nTri, seeds, nSeeds, requestedHalfWall, cellCount, wallThick);
-  const layerDepth = Math.max(0.4, Math.min(2.2, wallThick * 0.55));
 
-  setStatus('Building solid Voronoi layer…'); showProgress(40);
-  const result = buildClippedVoronoiSurface(positions, nTri, seeds, nSeeds, halfWall, layerDepth);
+  setStatus('Clipping surface to Voronoi walls…'); showProgress(40);
+  const result = buildClippedVoronoiSurface(positions, nTri, seeds, nSeeds, halfWall);
   showProgress(95);
 
   const removed = nTri - result.nKept;
-  setStatus(`Done — ${result.nTri.toLocaleString()} solid faces, removed ${removed.toLocaleString()} interiors, band ${halfWall.toFixed(3)}mm, layer ${layerDepth.toFixed(2)}mm`);
+  setStatus(`Done — ${result.nTri.toLocaleString()} surface faces, removed ${removed.toLocaleString()} interiors, band ${halfWall.toFixed(3)}mm`);
   showProgress(100);
 
-  return { result, cellCount, removed, nKept: result.nKept, halfWall, layerDepth };
+  return { result, cellCount, removed, nKept: result.nKept, halfWall };
 }
 
 /* ================================================================== */
@@ -493,7 +435,7 @@ function exportSTLBinary(positions, normals, nTri) {
   const buf = new ArrayBuffer(bufSize);
   const dv = new DataView(buf);
   // Header
-  const header = 'MakerDeck Voronoi Generator b508';
+  const header = 'MakerDeck Voronoi Generator b509';
   for (let i = 0; i < 80; i++) dv.setUint8(i, i < header.length ? header.charCodeAt(i) : 0);
   dv.setUint32(80, nTri, true);
   let off = 84;
