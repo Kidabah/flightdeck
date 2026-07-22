@@ -453,7 +453,7 @@ function addSolidPolygon(outPos, outNorm, edgeMap, poly, shellDepth) {
   return tris;
 }
 
-function filterSmallTriangleIslands(result, minTriangles = 32) {
+function filterSmallTriangleIslands(result, minTriangles = 4) {
   const nTri = result.nTri;
   if (nTri < minTriangles * 2) return { ...result, removedIslands: 0 };
 
@@ -613,7 +613,7 @@ function generateVoronoi(positions, normals, nTri, opts) {
   showProgress(85);
 
   setStatus('Cleaning tiny loose islands…');
-  result = filterSmallTriangleIslands(result, 32);
+  result = filterSmallTriangleIslands(result, 4);
   showProgress(95);
 
   const removed = nTri - result.nKept;
@@ -632,7 +632,7 @@ function exportSTLBinary(positions, normals, nTri) {
   const buf = new ArrayBuffer(bufSize);
   const dv = new DataView(buf);
   // Header
-  const header = 'MakerDeck Voronoi Generator b513';
+  const header = 'MakerDeck Voronoi Generator b514';
   for (let i = 0; i < 80; i++) dv.setUint8(i, i < header.length ? header.charCodeAt(i) : 0);
   dv.setUint32(80, nTri, true);
   let off = 84;

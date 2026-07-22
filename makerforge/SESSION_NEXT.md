@@ -1,5 +1,15 @@
 ---
 
+## b514 — Preserve small Voronoi details
+**Date:** 2026-07-22
+
+### Voronoi Generator
+- Reduced the loose-island cleanup threshold after b513 could remove valid narrow features such as cow horns/ears/tips.
+- Cleanup now only drops tiny dust-sized fragments, preserving small clipped shell components that still belong to the model.
+- STL export header and shared nav build badge updated to **b514**.
+
+---
+
 ## b513 — Smooth Voronoi shell offset
 **Date:** 2026-07-22
 
