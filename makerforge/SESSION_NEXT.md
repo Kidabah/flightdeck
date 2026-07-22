@@ -1,5 +1,16 @@
 ---
 
+## b513 — Smooth Voronoi shell offset
+**Date:** 2026-07-22
+
+### Voronoi Generator
+- Replaced the b511/b512 model-center shell offset with smoothed surface-normal offsets so body thickness follows the source mesh instead of forming slabby inward blocks.
+- Clipped Voronoi intersection points now interpolate those smooth normals before the inner shell is built.
+- Slightly reduced derived shell depth at high Wall Thickness values to keep the new body pass from overbuilding around narrow details.
+- STL export header and shared nav build badge updated to **b513**.
+
+---
+
 ## b512 — Clean loose Voronoi shell islands
 **Date:** 2026-07-22
 
