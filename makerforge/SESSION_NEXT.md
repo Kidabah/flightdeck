@@ -1,5 +1,16 @@
 ---
 
+## b548 — Fix STL Painter clear/reset handling
+**Date:** 2026-07-22
+
+### MakerDeck
+- Fixed STL Painter reset paths so **Clear Paint** clears selection/paint with one repaint pass instead of doing redundant heavy mesh colour updates.
+- Fixed **Clear Model** to dispose the active mesh/wireframe through a shared scene cleanup path before resetting Painter state.
+- Cleans up the previous model before loading a new STL/3MF, which helps very large files avoid stale mesh/wireframe leftovers.
+- Bumped MakerDeck, Paper3D, Mesh Prep, shared nav, and Painter cache/build labels to **b548**.
+
+---
+
 ## b547 — Use neutral STL Painter slot labels
 **Date:** 2026-07-22
 

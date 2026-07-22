@@ -14,7 +14,7 @@
 </script>
 <style>
 /* ================================================================== */
-/*  b547 — MakerDeck STL Painter  (tabbed layout)                     */
+/*  b548 — MakerDeck STL Painter  (tabbed layout)                     */
 /* ================================================================== */
 
 /* -- Reset & Vars -------------------------------------------------- */
@@ -306,7 +306,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   <header class="header">
     <button class="toggle-sidebar" id="toggleSidebar" title="Toggle sidebar">☰</button>
     <div class="logo">Maker<span>Deck</span> · STL Painter</div>
-    <div class="build">b547</div>
+    <div class="build">b548</div>
   </header>
 
   <!-- Left Sidebar (tabbed) -->
@@ -607,7 +607,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b547</span>
+    <span>MakerDeck · STL Painter b548</span>
   </footer>
 </div>
 
@@ -633,7 +633,7 @@ import {
   paintClassOf, upgradePaintResolution, export3MF,
   findMeshIslands, buildIslandMap, floodFillSameClass, floodFillSameSlot, selectIsland,
   import3MF, buildSymmetryMap, masksToFacePaint, facePaintToMasks, MAX_PAINT_SLOTS
-} from './js/painter.js?v=547';
+} from './js/painter.js?v=548';
 
 /* ================================================================== */
 /*  STATE                                                             */
@@ -999,6 +999,21 @@ function updateMeshColors() {
   colors.needsUpdate = true;
 }
 
+function disposeSceneObject(obj) {
+  if (!obj) return;
+  scene.remove(obj);
+  obj.geometry?.dispose?.();
+  if (Array.isArray(obj.material)) obj.material.forEach(m => m?.dispose?.());
+  else obj.material?.dispose?.();
+}
+
+function clearSceneModel() {
+  disposeSceneObject(S.mesh);
+  disposeSceneObject(S.wireframe);
+  S.mesh = null;
+  S.wireframe = null;
+}
+
 function frameModel() {
   if (!S.mesh) return;
   S.mesh.updateMatrixWorld(true);
@@ -1351,11 +1366,11 @@ function syncFillSelectionBtn() {
   $('selClearBtn') && ($('selClearBtn').disabled = !has);
 }
 
-function clearClickSelection() {
+function clearClickSelection({ repaint = true, syncIslands = true } = {}) {
   S.clickSelection = null; S.clickSelectionFaces = null; S.selectedIsland = -1;
   syncFillSelectionBtn();
-  syncIslandCards();
-  updateMeshColors();
+  if (syncIslands) syncIslandCards();
+  if (repaint) updateMeshColors();
 }
 
 /** Put faces into the shared selection (Paint / Hide Selection), not auto-paint. */
@@ -1471,8 +1486,8 @@ function syncIslandCards() {
     const hideBtn = card.querySelector('.isl-hide');
     if (hideBtn) hideBtn.textContent = S.hiddenIslands.has(id) ? 'Show' : 'Hide';
   });
-  $('paintIslandBtn').disabled = S.selectedIsland < 0;
-  $('hideIslandBtn').disabled = S.selectedIsland < 0;
+  if ($('paintIslandBtn')) $('paintIslandBtn').disabled = S.selectedIsland < 0;
+  if ($('hideIslandBtn')) $('hideIslandBtn').disabled = S.selectedIsland < 0;
 }
 
 /* ================================================================== */
@@ -1863,6 +1878,8 @@ function runResolutionUpgrade(levels) {
 
 async function loadSTL(file) {
   setStatus(`Loading ${file.name}…`, 'working');
+  clearSceneModel();
+  resetInteraction();
   S.fileName = file.name.replace(/\.stl$/i, '');
 
   const buf = await file.arrayBuffer();
@@ -1914,6 +1931,8 @@ function loadFile(file) {
 
 async function load3MF(file) {
   setStatus(`Loading 3MF: ${file.name}…`, 'working');
+  clearSceneModel();
+  resetInteraction();
   S.fileName = file.name.replace(/\.3mf$/i, '');
 
   try {
@@ -2026,15 +2045,13 @@ function clearPaint() {
   syncLegacyMasks();
   S.edgeHighlight = null;
   S.smartPreview = null; S.smartPreviewFaces = null;
-  clearClickSelection();
+  clearClickSelection({ repaint: false });
   updateMeshColors(); recountPaint();
   setStatus('All paint cleared — model is Slot 1 colour only', 'idle');
 }
 
 function clearModel() {
-  if (S.mesh) { scene.remove(S.mesh); S.mesh.geometry.dispose(); S.mesh.material?.dispose?.(); }
-  // Remove wireframe
-  if (S.wireframe) { scene.remove(S.wireframe); S.wireframe.geometry?.dispose(); S.wireframe.material?.dispose(); }
+  clearSceneModel();
   Object.assign(S, {
     rawVertices: null, rawNormals: null, nTri: 0,
     verts: null, faces: null, nVerts: 0, mesh: null,
