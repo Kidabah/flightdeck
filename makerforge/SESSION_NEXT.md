@@ -1,5 +1,16 @@
 ---
 
+## b521 — Auto low-poly dense Paper3D inputs
+**Date:** 2026-07-22
+
+### Paper3D
+- Added an automatic low-poly pre-pass for very dense STLs before Paper3D carving runs.
+- Dense inputs above roughly **650k faces** are simplified with vertex clustering and duplicate-triangle removal, targeting about **320k working faces**.
+- The footer/status now reports both the original face count and the low-poly working source count when simplification is applied.
+- Shared nav build badge and STL export header updated to **b521**.
+
+---
+
 ## b520 — Paper3D loads with spin off
 **Date:** 2026-07-22
 
