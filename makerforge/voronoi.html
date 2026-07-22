@@ -77,6 +77,11 @@
       </div>
 
       <div class="form-group">
+        <div class="form-label"><span>Body Thickness</span><span class="val" id="bodyThickVal">1.0mm</span></div>
+        <input type="range" id="bodyThick" min="0.3" max="2.0" value="1.0" step="0.1">
+      </div>
+
+      <div class="form-group">
         <div class="form-label"><span>Randomness</span><span class="val" id="randomVal">50%</span></div>
         <input type="range" id="randomness" min="0" max="100" value="50" step="5">
       </div>
@@ -592,7 +597,7 @@ function adaptiveWallThreshold(positions, nTri, seeds, nSeeds, requestedBand, ce
 
 /** Full Voronoi generation pipeline v3 */
 function generateVoronoi(positions, normals, nTri, opts) {
-  const { cellCount, wallThick, randomness, mode } = opts;
+  const { cellCount, wallThick, bodyThick, randomness, mode } = opts;
 
   setStatus('Sampling seed points…'); showProgress(5);
   const seeds = sampleSeedPoints(positions, nTri, cellCount, randomness);
@@ -606,7 +611,7 @@ function generateVoronoi(positions, normals, nTri, opts) {
   const requestedBand = Math.max(0.08, wallThick * 1.65);
   const halfWall = adaptiveWallThreshold(positions, nTri, seeds, nSeeds, requestedBand, cellCount, wallThick, mode);
 
-  const shellDepth = Math.max(0.12, Math.min(0.65, wallThick * 0.22));
+  const shellDepth = Math.max(0.15, Math.min(2.0, bodyThick));
 
   setStatus('Building Voronoi shell body…'); showProgress(40);
   let result = buildClippedVoronoiShell(positions, nTri, seeds, nSeeds, halfWall, shellDepth, normalMap);
@@ -632,7 +637,7 @@ function exportSTLBinary(positions, normals, nTri) {
   const buf = new ArrayBuffer(bufSize);
   const dv = new DataView(buf);
   // Header
-  const header = 'MakerDeck Voronoi Generator b514';
+  const header = 'MakerDeck Voronoi Generator b515';
   for (let i = 0; i < 80; i++) dv.setUint8(i, i < header.length ? header.charCodeAt(i) : 0);
   dv.setUint32(80, nTri, true);
   let off = 84;
@@ -758,6 +763,7 @@ function updateModeUI() {
 // Sliders
 $('cellCount').addEventListener('input', e => { $('cellCountVal').textContent = e.target.value; });
 $('wallThick').addEventListener('input', e => { $('wallThickVal').textContent = e.target.value + 'mm'; });
+$('bodyThick').addEventListener('input', e => { $('bodyThickVal').textContent = e.target.value + 'mm'; });
 $('randomness').addEventListener('input', e => { $('randomVal').textContent = e.target.value + '%'; });
 
 // Generate
@@ -771,6 +777,7 @@ $('generateBtn').addEventListener('click', () => {
       const opts = {
         cellCount: parseInt($('cellCount').value),
         wallThick: parseFloat($('wallThick').value),
+        bodyThick: parseFloat($('bodyThick').value),
         randomness: parseInt($('randomness').value),
         mode: S.mode,
         smooth: $('smoothEdges').checked

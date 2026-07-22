@@ -1,5 +1,16 @@
 ---
 
+## b515 — Separate printable body thickness
+**Date:** 2026-07-22
+
+### Voronoi Generator
+- Added a **Body Thickness** slider so the preferred carved/faceted Voronoi look can stay while the exported shell gets enough internal meat to print.
+- Wall Thickness still controls the visible Voronoi band/hole pattern; Body Thickness now controls the inward shell depth used for solid STL output.
+- Default body depth is now **1.0mm** and can be pushed up to **2.0mm** for stronger slicer results.
+- STL export header and shared nav build badge updated to **b515**.
+
+---
+
 ## b514 — Preserve small Voronoi details
 **Date:** 2026-07-22
 
