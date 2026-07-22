@@ -1,5 +1,15 @@
 ---
 
+## b518 — Restore Paper3D preferred defaults
+**Date:** 2026-07-22
+
+### Paper3D
+- Fixed the rename feeling different because `paper3d.html` opened with the old generic defaults instead of the carved-shell settings we had been testing.
+- Paper3D now defaults to **500 cells**, **3.0mm Wall Thickness**, **1.2mm Body Thickness**, and **80% Randomness**.
+- Shared nav build badge and STL export header updated to **b518**.
+
+---
+
 ## b517 — Rename Voronoi tool to Paper3D
 **Date:** 2026-07-22
 
