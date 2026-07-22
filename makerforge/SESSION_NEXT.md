@@ -1,5 +1,15 @@
 ---
 
+## b520 — Paper3D loads with spin off
+**Date:** 2026-07-22
+
+### Paper3D
+- Changed the initial viewer state so Spin is off when an STL first loads.
+- The Spin toolbar button still toggles rotation manually.
+- Shared nav build badge and STL export header updated to **b520**.
+
+---
+
 ## b519 — Add Paper3D self-support stilts
 **Date:** 2026-07-22
 

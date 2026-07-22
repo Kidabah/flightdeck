@@ -142,7 +142,7 @@
     <div class="viewport-toolbar">
       <button id="tbFrame">Frame</button>
       <button id="tbWire">Wire</button>
-      <button id="tbSpin" class="active">Spin</button>
+      <button id="tbSpin">Spin</button>
       <button id="tbOriginal">Original</button>
     </div>
     <div class="statusbar"><span id="status">Drop an STL to begin</span></div>
@@ -199,7 +199,7 @@ scene.add(backLight);
 
 let meshOriginal = null, meshResult = null;
 let wireHelper = null;
-let autoRotate = true;
+let autoRotate = false;
 let showingOriginal = false;
 
 function resize() {
@@ -830,7 +830,7 @@ function exportSTLBinary(positions, normals, nTri) {
   const buf = new ArrayBuffer(bufSize);
   const dv = new DataView(buf);
   // Header
-  const header = 'MakerDeck Paper3D b519';
+  const header = 'MakerDeck Paper3D b520';
   for (let i = 0; i < 80; i++) dv.setUint8(i, i < header.length ? header.charCodeAt(i) : 0);
   dv.setUint32(80, nTri, true);
   let off = 84;
