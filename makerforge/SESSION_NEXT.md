@@ -1,5 +1,16 @@
 ---
 
+## b519 — Add Paper3D self-support stilts
+**Date:** 2026-07-22
+
+### Paper3D
+- Added an **Add self-support stilts** option, enabled by default, to reduce the huge slicer support forest under low overhangs.
+- The generator detects downward-facing low shell clusters and adds a limited set of tapered built-in supports as part of the exported STL.
+- Support counts are reported in the status text alongside bed pads and cleanup counts.
+- Shared nav build badge and STL export header updated to **b519**.
+
+---
+
 ## b518 — Restore Paper3D preferred defaults
 **Date:** 2026-07-22
 

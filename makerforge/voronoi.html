@@ -95,6 +95,11 @@
         <input type="checkbox" id="bedPads" checked>
         <span>Add bed contact pads</span>
       </label>
+
+      <label class="cb-label">
+        <input type="checkbox" id="selfSupports" checked>
+        <span>Add self-support stilts</span>
+      </label>
     </div>
 
     <!-- Actions -->
@@ -622,6 +627,100 @@ function addBedContactPads(result, bodyThick) {
   };
 }
 
+function pushTaperedSupport(outPos, outNorm, cx, cy, z0, z1, rBase, rTop) {
+  const steps = 14;
+  const bottom = [];
+  const top = [];
+  for (let i = 0; i < steps; i++) {
+    const a = (i / steps) * Math.PI * 2;
+    const ca = Math.cos(a), sa = Math.sin(a);
+    bottom.push({ x: cx + ca * rBase, y: cy + sa * rBase, z: z0 });
+    top.push({ x: cx + ca * rTop, y: cy + sa * rTop, z: z1 });
+  }
+  const cb = { x: cx, y: cy, z: z0 };
+  const ct = { x: cx, y: cy, z: z1 };
+  for (let i = 0; i < steps; i++) {
+    const j = (i + 1) % steps;
+    pushTri(outPos, outNorm, cb, bottom[j], bottom[i]);
+    pushTri(outPos, outNorm, ct, top[i], top[j]);
+    pushTri(outPos, outNorm, bottom[i], bottom[j], top[j]);
+    pushTri(outPos, outNorm, bottom[i], top[j], top[i]);
+  }
+}
+
+function addSelfSupports(result, bodyThick) {
+  const positions = result.positions;
+  const normals = result.normals;
+  let minZ = Infinity, maxZ = -Infinity;
+  for (let i = 2; i < positions.length; i += 3) {
+    const z = positions[i];
+    if (z < minZ) minZ = z;
+    if (z > maxZ) maxZ = z;
+  }
+  if (!Number.isFinite(minZ) || !Number.isFinite(maxZ)) return { ...result, selfSupports: 0 };
+
+  const height = maxZ - minZ;
+  const lowLimit = minZ + height * 0.62;
+  const floorClearance = Math.max(2.0, bodyThick * 2.0);
+  const candidates = [];
+  for (let tri = 0; tri < result.nTri; tri++) {
+    const o = tri * 9;
+    const cx = (positions[o] + positions[o+3] + positions[o+6]) / 3;
+    const cy = (positions[o+1] + positions[o+4] + positions[o+7]) / 3;
+    const cz = (positions[o+2] + positions[o+5] + positions[o+8]) / 3;
+    if (cz < minZ + floorClearance || cz > lowLimit) continue;
+
+    const nz = (normals[o+2] + normals[o+5] + normals[o+8]) / 3;
+    if (nz < -0.22) candidates.push({ x: cx, y: cy, z: cz, count: 1 });
+  }
+  if (!candidates.length) return { ...result, selfSupports: 0 };
+
+  const clusters = [];
+  const mergeDist = Math.max(6.0, bodyThick * 5.0);
+  for (const p of candidates) {
+    let best = null;
+    let bestD = mergeDist * mergeDist;
+    for (const c of clusters) {
+      const dx = p.x - c.x, dy = p.y - c.y;
+      const d = dx*dx + dy*dy;
+      if (d < bestD) { bestD = d; best = c; }
+    }
+    if (best) {
+      best.x = (best.x * best.count + p.x) / (best.count + 1);
+      best.y = (best.y * best.count + p.y) / (best.count + 1);
+      best.z = Math.min(best.z, p.z);
+      best.count++;
+    } else {
+      clusters.push({ ...p });
+    }
+  }
+
+  const supports = clusters
+    .filter(c => c.count >= 4)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 18);
+  if (!supports.length) return { ...result, selfSupports: 0 };
+
+  const outPos = Array.from(result.positions);
+  const outNorm = Array.from(result.normals);
+  const z0 = minZ - 0.02;
+  const baseR = Math.max(1.2, Math.min(3.2, bodyThick * 1.25));
+  const topR = Math.max(0.7, baseR * 0.55);
+  for (const s of supports) {
+    pushTaperedSupport(outPos, outNorm, s.x, s.y, z0, s.z + Math.max(0.35, bodyThick * 0.25), baseR, topR);
+  }
+
+  return {
+    positions: new Float32Array(outPos),
+    normals: new Float32Array(outNorm),
+    nTri: outPos.length / 9,
+    nKept: result.nKept,
+    removedIslands: result.removedIslands || 0,
+    bedPads: result.bedPads || 0,
+    selfSupports: supports.length
+  };
+}
+
 /** Clip original STL triangles against the Paper3D band and give the result body. */
 function buildClippedPaper3DShell(positions, nTri, seeds, nSeeds, halfWall, shellDepth, normalMap) {
   const outPos = [];
@@ -681,7 +780,7 @@ function adaptiveWallThreshold(positions, nTri, seeds, nSeeds, requestedBand, ce
 
 /** Full Paper3D generation pipeline. */
 function generatePaper3D(positions, normals, nTri, opts) {
-  const { cellCount, wallThick, bodyThick, randomness, mode, bedPads } = opts;
+  const { cellCount, wallThick, bodyThick, randomness, mode, bedPads, selfSupports } = opts;
 
   setStatus('Sampling seed points…'); showProgress(5);
   const seeds = sampleSeedPoints(positions, nTri, cellCount, randomness);
@@ -707,12 +806,17 @@ function generatePaper3D(positions, normals, nTri, opts) {
     setStatus('Adding bed contact pads…');
     result = addBedContactPads(result, bodyThick);
   }
+  if (selfSupports) {
+    setStatus('Adding self-support stilts…');
+    result = addSelfSupports(result, bodyThick);
+  }
   showProgress(95);
 
   const removed = nTri - result.nKept;
   const islandText = result.removedIslands ? `, cleaned ${result.removedIslands.toLocaleString()} loose faces` : '';
   const padText = result.bedPads ? `, ${result.bedPads} bed pads` : '';
-  setStatus(`Done — ${result.nTri.toLocaleString()} shell faces, removed ${removed.toLocaleString()} interiors${islandText}${padText}, band ${halfWall.toFixed(3)}mm, body ${shellDepth.toFixed(2)}mm`);
+  const supportText = result.selfSupports ? `, ${result.selfSupports} supports` : '';
+  setStatus(`Done — ${result.nTri.toLocaleString()} shell faces, removed ${removed.toLocaleString()} interiors${islandText}${padText}${supportText}, band ${halfWall.toFixed(3)}mm, body ${shellDepth.toFixed(2)}mm`);
   showProgress(100);
 
   return { result, cellCount, removed, nKept: result.nKept, halfWall, shellDepth };
@@ -726,7 +830,7 @@ function exportSTLBinary(positions, normals, nTri) {
   const buf = new ArrayBuffer(bufSize);
   const dv = new DataView(buf);
   // Header
-  const header = 'MakerDeck Paper3D b518';
+  const header = 'MakerDeck Paper3D b519';
   for (let i = 0; i < 80; i++) dv.setUint8(i, i < header.length ? header.charCodeAt(i) : 0);
   dv.setUint32(80, nTri, true);
   let off = 84;
@@ -870,7 +974,8 @@ $('generateBtn').addEventListener('click', () => {
         randomness: parseInt($('randomness').value),
         mode: S.mode,
         smooth: $('smoothEdges').checked,
-        bedPads: $('bedPads').checked
+        bedPads: $('bedPads').checked,
+        selfSupports: $('selfSupports').checked
       };
 
       const { result, cellCount, removed, nKept } = generatePaper3D(
