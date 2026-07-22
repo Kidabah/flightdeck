@@ -1,5 +1,16 @@
 ---
 
+## b517 — Rename Voronoi tool to Paper3D
+**Date:** 2026-07-22
+
+### Paper3D
+- Renamed the MakerDeck Voronoi tool to **Paper3D** to match the carved/faceted printable-shell effect we landed on.
+- Main tool route is now `paper3d.html`; the old `voronoi.html` remains as a redirect for stale links/bookmarks.
+- Updated the MakerDeck index link, shared nav label, page title/footer, generate button, STL export filename, and STL header.
+- Shared nav build badge updated to **b517**.
+
+---
+
 ## b516 — Add Voronoi bed contact pads
 **Date:** 2026-07-22
 
