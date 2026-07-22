@@ -1,5 +1,17 @@
 ---
 
+## b511 — Add controlled Voronoi shell body
+**Date:** 2026-07-22
+
+### Voronoi Generator
+- Fixed b510 still looking like cut paper by adding a controlled shell-body pass to the clipped Voronoi bands.
+- The shell uses a stable model-center inward direction instead of noisy per-triangle STL normals, avoiding the b508 bristle/toilet-brush failure mode.
+- Output now includes outer faces, inner faces, and boundary side walls so exported STL has visible body thickness rather than a single surface skin.
+- Fixed the adaptive wall fallback variable name while touching the wall-band path.
+- STL export header and shared nav build badge updated to **b511**.
+
+---
+
 ## b510 — Chunkier Voronoi wall sizing
 **Date:** 2026-07-22
 
