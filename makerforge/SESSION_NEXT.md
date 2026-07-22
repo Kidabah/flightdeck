@@ -1,5 +1,16 @@
 ---
 
+## b522 — Keep dense low-poly detail
+**Date:** 2026-07-22
+
+### Paper3D
+- Fixed the b521 auto low-poly pre-pass over-crushing dense models like the border collie puppy down to potato-level face counts.
+- Simplification now searches for a working mesh near the target range instead of accepting the first overly coarse vertex-cluster result.
+- Result stats now show original-to-working face counts when auto low-poly is applied.
+- Shared nav build badge and STL export header updated to **b522**.
+
+---
+
 ## b521 — Auto low-poly dense Paper3D inputs
 **Date:** 2026-07-22
 

@@ -324,20 +324,32 @@ function autoLowPolyMesh(positions, normals, nTri) {
   showProgress(6);
   const stats = meshStats(positions, nTri);
   const origin = { x: stats.minX, y: stats.minY, z: stats.minZ };
-  let cell = Math.max(0.02, Math.sqrt(Math.max(stats.area, 1) / target) * 0.9);
-  let reduced = null;
-  for (let pass = 0; pass < 5; pass++) {
-    reduced = lowPolyPass(positions, nTri, cell, origin);
-    if (reduced.nTri <= target || reduced.nTri < nTri * 0.35) break;
-    cell *= 1.35;
+  const baseCell = Math.max(0.01, Math.sqrt(Math.max(stats.area, 1) / target) * 0.35);
+  const minKeep = target * 0.55;
+  const maxKeep = target * 1.35;
+  let best = null;
+  let bestScore = Infinity;
+  for (let pass = 0; pass < 9; pass++) {
+    const cell = baseCell * Math.pow(1.28, pass);
+    const reduced = lowPolyPass(positions, nTri, cell, origin);
+    if (reduced.nTri < 1000) continue;
+    const score = Math.abs(reduced.nTri - target);
+    if (score < bestScore) {
+      best = reduced;
+      bestScore = score;
+    }
+    if (reduced.nTri >= minKeep && reduced.nTri <= maxKeep) {
+      best = reduced;
+      break;
+    }
   }
-  if (!reduced || reduced.nTri < 1000 || reduced.nTri >= nTri * 0.9) {
+  if (!best || best.nTri < minKeep || best.nTri >= nTri * 0.9) {
     return { positions, normals, nTri, sourceTri: nTri, lowPoly: false };
   }
   return {
-    positions: reduced.positions,
-    normals: new Float32Array(reduced.nTri * 3),
-    nTri: reduced.nTri,
+    positions: best.positions,
+    normals: new Float32Array(best.nTri * 3),
+    nTri: best.nTri,
     sourceTri: nTri,
     lowPoly: true
   };
@@ -916,7 +928,7 @@ function exportSTLBinary(positions, normals, nTri) {
   const buf = new ArrayBuffer(bufSize);
   const dv = new DataView(buf);
   // Header
-  const header = 'MakerDeck Paper3D b521';
+  const header = 'MakerDeck Paper3D b522';
   for (let i = 0; i < 80; i++) dv.setUint8(i, i < header.length ? header.charCodeAt(i) : 0);
   dv.setUint32(80, nTri, true);
   let off = 84;
@@ -1083,7 +1095,9 @@ $('generateBtn').addEventListener('click', () => {
 
       // Stats
       $('statsPanel').style.display = '';
-      $('statOrigFaces').textContent = S.nTri.toLocaleString();
+      $('statOrigFaces').textContent = S.lowPoly
+        ? `${S.sourceTri.toLocaleString()} → ${S.nTri.toLocaleString()}`
+        : S.nTri.toLocaleString();
       $('statResultFaces').textContent = result.nTri.toLocaleString();
       $('statCells').textContent = cellCount;
       $('statRemoved').textContent = removed.toLocaleString() + ` (${Math.round(removed/S.nTri*100)}%)`;
