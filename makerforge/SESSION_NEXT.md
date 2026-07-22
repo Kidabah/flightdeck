@@ -1,5 +1,16 @@
 ---
 
+## b527 — Make Paper3D dense low-poly opt-in
+**Date:** 2026-07-22
+
+### Paper3D
+- Added an unchecked **Fast low-poly dense STL** option for users who want speed over shape fidelity.
+- Dense STL files now preserve full source detail by default instead of automatically using the clustered low-poly reducer.
+- Load status warns when a dense model is kept at full detail because generation may take longer.
+- Shared nav build badge and STL export header updated to **b527**.
+
+---
+
 ## b526 — Disable blocking Paper3D edge collapse
 **Date:** 2026-07-22
 

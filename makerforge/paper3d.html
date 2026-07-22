@@ -100,6 +100,11 @@
         <input type="checkbox" id="selfSupports" checked>
         <span>Add self-support stilts</span>
       </label>
+
+      <label class="cb-label">
+        <input type="checkbox" id="fastLowPoly">
+        <span>Fast low-poly dense STL</span>
+      </label>
     </div>
 
     <!-- Actions -->
@@ -315,9 +320,10 @@ function lowPolyPass(positions, nTri, cell, origin) {
   return { positions: new Float32Array(outPos), nTri: outPos.length / 9 };
 }
 
-function autoLowPolyMesh(positions, normals, nTri) {
+function autoLowPolyMesh(positions, normals, nTri, allowLowPoly) {
   const threshold = 650000;
   const target = 320000;
+  if (!allowLowPoly) return { positions, normals, nTri, sourceTri: nTri, lowPoly: false };
   if (nTri <= threshold) return { positions, normals, nTri, sourceTri: nTri, lowPoly: false };
 
   setStatus(`Dense STL detected — simplifying ${nTri.toLocaleString()} faces…`);
@@ -929,7 +935,7 @@ function exportSTLBinary(positions, normals, nTri) {
   const buf = new ArrayBuffer(bufSize);
   const dv = new DataView(buf);
   // Header
-  const header = 'MakerDeck Paper3D b526';
+  const header = 'MakerDeck Paper3D b527';
   for (let i = 0; i < 80; i++) dv.setUint8(i, i < header.length ? header.charCodeAt(i) : 0);
   dv.setUint32(80, nTri, true);
   let off = 84;
@@ -965,7 +971,7 @@ let S = {
 /* ================================================================== */
 function loadSTL(buffer, name) {
   const parsed = parseSTL(buffer);
-  const prepared = autoLowPolyMesh(parsed.positions, parsed.normals, parsed.nTri);
+  const prepared = autoLowPolyMesh(parsed.positions, parsed.normals, parsed.nTri, $('fastLowPoly').checked);
   S.positions = prepared.positions;
   S.normals = prepared.normals;
   S.nTri = prepared.nTri;
@@ -992,9 +998,13 @@ function loadSTL(buffer, name) {
   if (wireHelper) { scene.remove(wireHelper); wireHelper = null; }
   showOriginalMesh(parsed.positions, parsed.nTri);
   frameModel(meshOriginal);
-  setStatus(S.lowPoly
-    ? `Loaded ${name} — auto low-poly ${S.lowPolyMethod} ${S.sourceTri.toLocaleString()} → ${S.nTri.toLocaleString()} faces`
-    : `Loaded ${name} — ${S.nTri.toLocaleString()} faces`);
+  if (S.lowPoly) {
+    setStatus(`Loaded ${name} — fast low-poly ${S.lowPolyMethod} ${S.sourceTri.toLocaleString()} → ${S.nTri.toLocaleString()} faces`);
+  } else if (S.nTri > 650000) {
+    setStatus(`Loaded ${name} — full detail ${S.nTri.toLocaleString()} faces; generation may take longer`);
+  } else {
+    setStatus(`Loaded ${name} — ${S.nTri.toLocaleString()} faces`);
+  }
 }
 
 function showOriginalMesh(positions, nTri) {
