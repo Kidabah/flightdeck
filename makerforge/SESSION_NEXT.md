@@ -1,5 +1,15 @@
 ---
 
+## b545 — Fix STL Painter file loading
+**Date:** 2026-07-22
+
+### MakerDeck
+- Fixed STL Painter startup so the file loader can initialize when the legacy sidebar toggle is not present in the shared navigation layout.
+- Guarded the old `toggleSidebar` binding instead of letting it crash the Painter script before STL/3MF upload handlers finish binding.
+- Bumped MakerDeck, Paper3D, STL Painter, Mesh Prep, shared nav, and nested Container module imports to **b545**.
+
+---
+
 ## b544 — Restore shelf slot and clean back sign
 **Date:** 2026-07-22
 

@@ -15,7 +15,7 @@
 <link rel="stylesheet" href="css/makerdeck.css">
 <style>
 /* ================================================================== */
-/*  b544 — MakerDeck STL Painter  (tabbed layout)                     */
+/*  b545 — MakerDeck STL Painter  (tabbed layout)                     */
 /* ================================================================== */
 
 /* -- Reset & Vars -------------------------------------------------- */
@@ -605,8 +605,8 @@ import {
   paintClassOf, upgradePaintResolution, export3MF,
   findMeshIslands, buildIslandMap, floodFillSameClass, selectIsland,
   import3MF, buildSymmetryMap
-} from './js/painter.js?v=544';
-import './js/nav.js?v=544';
+} from './js/painter.js?v=545';
+import './js/nav.js?v=545';
 
 /* ================================================================== */
 /*  STATE                                                             */
@@ -1730,7 +1730,7 @@ function switchTab(name) {
 document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
 
 // Sidebar toggle
-$('toggleSidebar').addEventListener('click', () => {
+$('toggleSidebar')?.addEventListener('click', () => {
   $('app').classList.toggle('sidebar-collapsed');
   setTimeout(resizeRenderer, 250);
 });
