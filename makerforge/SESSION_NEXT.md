@@ -1,5 +1,17 @@
 ---
 
+## b535 — Add Paper3D Prepare Mesh workflow
+**Date:** 2026-07-22
+
+### Paper3D
+- Replaced the vague **Fast low-poly dense STL** checkbox with a **Prepare Mesh** selector.
+- Default **Preserve detail** keeps the uploaded STL unchanged for Paper3D generation.
+- New **Facet dense STL** mode prepares dense organic models with a controllable **Prep Detail** slider before Paper3D cuts are generated.
+- Preparation can be changed after loading an STL without uploading the file again; the original source mesh stays available for preview.
+- Shared nav build badge and STL export header updated to **b535**.
+
+---
+
 ## b534 — Disable unsafe Paper3D auto supports
 **Date:** 2026-07-22
 
