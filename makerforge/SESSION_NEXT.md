@@ -1,5 +1,16 @@
 ---
 
+## b523 — Fallback sampled low-poly path
+**Date:** 2026-07-22
+
+### Paper3D
+- Added a sampled low-poly fallback for dense STLs when vertex clustering either over-crushes or refuses to simplify the model.
+- Dense models should now consistently show an original-to-working face count instead of falling back to the full high-detail mesh.
+- Footer/status text reports whether the low-poly source was **clustered** or **sampled**.
+- Shared nav build badge and STL export header updated to **b523**.
+
+---
+
 ## b522 — Keep dense low-poly detail
 **Date:** 2026-07-22
 
