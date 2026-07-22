@@ -1,5 +1,16 @@
 ---
 
+## b529 — Extend Paper3D fine-cell range
+**Date:** 2026-07-22
+
+### Paper3D
+- Raised the cell-count slider ceiling from **500** to **1200** for dense/detail-heavy models like the puppy.
+- Updated adaptive wall-band scaling so the new higher cell counts keep sensible hole sizing.
+- Dense models now use stricter loose-island cleanup to reduce tiny shard artifacts.
+- Shared nav build badge and STL export header updated to **b529**.
+
+---
+
 ## b528 — Scale-clamp Paper3D thickness for tiny STLs
 **Date:** 2026-07-22
 
