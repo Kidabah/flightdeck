@@ -1,5 +1,15 @@
 ---
 
+## b532 — Cap only true Paper3D cut boundaries
+**Date:** 2026-07-22
+
+### Paper3D
+- Side-wall caps are now generated only for edges whose endpoints lie on the Paper3D cut boundary.
+- Ordinary dense STL triangle seams are no longer capped when they fail to match exactly, reducing hair/fur strips on detailed models.
+- Shared nav build badge and STL export header updated to **b532**.
+
+---
+
 ## b531 — Reduce Paper3D boundary fins
 **Date:** 2026-07-22
 

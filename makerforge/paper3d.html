@@ -595,7 +595,11 @@ function inwardPoint(p, depth, center) {
   return { x: p.x - nx * depth, y: p.y - ny * depth, z: p.z - nz * depth, d: p.d };
 }
 
-function addSolidPolygon(outPos, outNorm, edgeMap, poly, shellDepth, center, edgePrecision) {
+function isCutBoundaryEdge(a, b, halfWall, tolerance) {
+  return Math.abs(a.d - halfWall) <= tolerance && Math.abs(b.d - halfWall) <= tolerance;
+}
+
+function addSolidPolygon(outPos, outNorm, edgeMap, poly, shellDepth, center, edgePrecision, halfWall, bandTolerance) {
   normalizePolyNormals(poly);
   const inner = poly.map(p => inwardPoint(p, shellDepth, center));
   let tris = 0;
@@ -605,7 +609,9 @@ function addSolidPolygon(outPos, outNorm, edgeMap, poly, shellDepth, center, edg
   }
   for (let i = 0; i < poly.length; i++) {
     const j = (i + 1) % poly.length;
-    addBoundaryEdge(edgeMap, poly[i], poly[j], inner[i], inner[j], edgePrecision);
+    if (isCutBoundaryEdge(poly[i], poly[j], halfWall, bandTolerance)) {
+      addBoundaryEdge(edgeMap, poly[i], poly[j], inner[i], inner[j], edgePrecision);
+    }
   }
   return tris;
 }
@@ -914,6 +920,7 @@ function buildClippedPaper3DShell(positions, nTri, seeds, nSeeds, halfWall, shel
   const outPos = [];
   const outNorm = [];
   const edgeMap = new Map();
+  const bandTolerance = Math.max(1e-5, halfWall * 0.015);
   let touched = 0;
   for (let i = 0; i < nTri; i++) {
     const o = i * 9;
@@ -929,7 +936,7 @@ function buildClippedPaper3DShell(positions, nTri, seeds, nSeeds, halfWall, shel
     const clipped = clipPolygonToWallBand(poly, halfWall);
     if (clipped.length < 3) continue;
     touched++;
-    addSolidPolygon(outPos, outNorm, edgeMap, clipped, shellDepth, center, edgePrecision);
+    addSolidPolygon(outPos, outNorm, edgeMap, clipped, shellDepth, center, edgePrecision, halfWall, bandTolerance);
   }
   for (const edge of edgeMap.values()) {
     if (edge.count !== 1) continue;
@@ -1034,7 +1041,7 @@ function exportSTLBinary(positions, normals, nTri) {
   const buf = new ArrayBuffer(bufSize);
   const dv = new DataView(buf);
   // Header
-  const header = 'MakerDeck Paper3D b531';
+  const header = 'MakerDeck Paper3D b532';
   for (let i = 0; i < 80; i++) dv.setUint8(i, i < header.length ? header.charCodeAt(i) : 0);
   dv.setUint32(80, nTri, true);
   let off = 84;
