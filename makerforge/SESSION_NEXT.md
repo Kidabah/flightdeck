@@ -1,5 +1,16 @@
 ---
 
+## b506 — Voronoi adaptive wall threshold
+**Date:** 2026-07-22
+
+### Voronoi Generator
+- Fixed b505 still reporting **0 removed** on very dense organic STLs.
+- Wall Thickness is now treated as a maximum band width; the generator samples boundary distances and clamps to a lower percentile when the requested width would keep the entire model.
+- Dense models like the 1.9M-face dog should now remove visible cell interiors instead of returning the original mesh unchanged.
+- STL export header updated to **b506**.
+
+---
+
 ## b505 — Voronoi surface clipping fix
 **Date:** 2026-07-22
 

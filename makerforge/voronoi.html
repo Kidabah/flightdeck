@@ -382,24 +382,47 @@ function buildClippedVoronoiSurface(positions, nTri, seeds, nSeeds, halfWall) {
   };
 }
 
+function adaptiveWallThreshold(positions, nTri, seeds, nSeeds, requestedHalfWall, cellCount) {
+  const maxSamples = 60000;
+  const stride = Math.max(1, Math.floor(nTri / maxSamples));
+  const distances = [];
+  for (let i = 0; i < nTri; i += stride) {
+    const o = i * 9;
+    const cx = (positions[o] + positions[o+3] + positions[o+6]) / 3;
+    const cy = (positions[o+1] + positions[o+4] + positions[o+7]) / 3;
+    const cz = (positions[o+2] + positions[o+5] + positions[o+8]) / 3;
+    const d = boundaryDistanceAt(cx, cy, cz, seeds, nSeeds);
+    if (Number.isFinite(d)) distances.push(d);
+  }
+  if (!distances.length) return requestedHalfWall;
+  distances.sort((a, b) => a - b);
+  const targetKeep = cellCount >= 300 ? 0.18 : 0.25;
+  const idx = Math.max(0, Math.min(distances.length - 1, Math.floor(distances.length * targetKeep)));
+  return Math.max(0.005, Math.min(requestedHalfWall, distances[idx]));
+}
+
 /** Full Voronoi generation pipeline v3 */
 function generateVoronoi(positions, normals, nTri, opts) {
   const { cellCount, wallThick, randomness } = opts;
 
   setStatus('Sampling seed points…'); showProgress(5);
   const seeds = sampleSeedPoints(positions, nTri, cellCount, randomness);
+  const nSeeds = seeds.length / 3;
   showProgress(15);
 
-  setStatus('Clipping surface to Voronoi walls…'); showProgress(35);
-  const halfWall = Math.max(0.01, wallThick / 2);
-  const result = buildClippedVoronoiSurface(positions, nTri, seeds, cellCount, halfWall);
+  setStatus('Sizing Voronoi wall band…'); showProgress(25);
+  const requestedHalfWall = Math.max(0.01, wallThick / 2);
+  const halfWall = adaptiveWallThreshold(positions, nTri, seeds, nSeeds, requestedHalfWall, cellCount);
+
+  setStatus('Clipping surface to Voronoi walls…'); showProgress(40);
+  const result = buildClippedVoronoiSurface(positions, nTri, seeds, nSeeds, halfWall);
   showProgress(95);
 
   const removed = nTri - result.nKept;
-  setStatus(`Done — ${result.nTri.toLocaleString()} clipped faces on the original surface, removed ${removed.toLocaleString()} cell-interior faces`);
+  setStatus(`Done — ${result.nTri.toLocaleString()} clipped faces, removed ${removed.toLocaleString()} interiors, wall band ${halfWall.toFixed(3)}mm`);
   showProgress(100);
 
-  return { result, cellCount, removed, nKept: result.nKept };
+  return { result, cellCount, removed, nKept: result.nKept, halfWall };
 }
 
 /* ================================================================== */
@@ -410,7 +433,7 @@ function exportSTLBinary(positions, normals, nTri) {
   const buf = new ArrayBuffer(bufSize);
   const dv = new DataView(buf);
   // Header
-  const header = 'MakerDeck Voronoi Generator b505';
+  const header = 'MakerDeck Voronoi Generator b506';
   for (let i = 0; i < 80; i++) dv.setUint8(i, i < header.length ? header.charCodeAt(i) : 0);
   dv.setUint32(80, nTri, true);
   let off = 84;
