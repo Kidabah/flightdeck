@@ -1,5 +1,16 @@
 ---
 
+## b516 — Add Voronoi bed contact pads
+**Date:** 2026-07-22
+
+### Voronoi Generator
+- Added an **Add bed contact pads** option, enabled by default, to address slicer errors where the Voronoi shell has an empty or fragile first layer.
+- The generator now clusters the lowest shell vertices and adds small low-profile circular pads beneath likely foot/contact points.
+- Status text reports how many bed pads were added to the exported shell.
+- STL export header and shared nav build badge updated to **b516**.
+
+---
+
 ## b515 — Separate printable body thickness
 **Date:** 2026-07-22
 

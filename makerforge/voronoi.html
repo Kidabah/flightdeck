@@ -90,6 +90,11 @@
         <input type="checkbox" id="smoothEdges" checked>
         <span>Smooth cell edges</span>
       </label>
+
+      <label class="cb-label">
+        <input type="checkbox" id="bedPads" checked>
+        <span>Add bed contact pads</span>
+      </label>
     </div>
 
     <!-- Actions -->
@@ -538,6 +543,85 @@ function filterSmallTriangleIslands(result, minTriangles = 4) {
   };
 }
 
+function pushCylinderPad(outPos, outNorm, cx, cy, z0, z1, radius) {
+  const steps = 18;
+  const top = [];
+  const bottom = [];
+  for (let i = 0; i < steps; i++) {
+    const a = (i / steps) * Math.PI * 2;
+    const x = cx + Math.cos(a) * radius;
+    const y = cy + Math.sin(a) * radius;
+    bottom.push({ x, y, z: z0 });
+    top.push({ x, y, z: z1 });
+  }
+  const cb = { x: cx, y: cy, z: z0 };
+  const ct = { x: cx, y: cy, z: z1 };
+  for (let i = 0; i < steps; i++) {
+    const j = (i + 1) % steps;
+    pushTri(outPos, outNorm, cb, bottom[j], bottom[i]);
+    pushTri(outPos, outNorm, ct, top[i], top[j]);
+    pushTri(outPos, outNorm, bottom[i], bottom[j], top[j]);
+    pushTri(outPos, outNorm, bottom[i], top[j], top[i]);
+  }
+}
+
+function addBedContactPads(result, bodyThick) {
+  const positions = result.positions;
+  let minZ = Infinity;
+  for (let i = 2; i < positions.length; i += 3) minZ = Math.min(minZ, positions[i]);
+  if (!Number.isFinite(minZ)) return { ...result, bedPads: 0 };
+
+  const candidates = [];
+  const windowZ = Math.max(0.35, bodyThick * 0.45);
+  for (let i = 0; i < positions.length; i += 3) {
+    if (positions[i+2] <= minZ + windowZ) {
+      candidates.push({ x: positions[i], y: positions[i+1] });
+    }
+  }
+  if (!candidates.length) return { ...result, bedPads: 0 };
+
+  const clusters = [];
+  const mergeDist = Math.max(4.0, bodyThick * 4.0);
+  for (const p of candidates) {
+    let best = null;
+    let bestD = mergeDist * mergeDist;
+    for (const c of clusters) {
+      const dx = p.x - c.x, dy = p.y - c.y;
+      const d = dx*dx + dy*dy;
+      if (d < bestD) { bestD = d; best = c; }
+    }
+    if (best) {
+      best.x = (best.x * best.count + p.x) / (best.count + 1);
+      best.y = (best.y * best.count + p.y) / (best.count + 1);
+      best.count++;
+    } else {
+      clusters.push({ x: p.x, y: p.y, count: 1 });
+    }
+  }
+
+  const pads = clusters
+    .filter(c => c.count >= 6)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 8);
+  if (!pads.length) return { ...result, bedPads: 0 };
+
+  const outPos = Array.from(result.positions);
+  const outNorm = Array.from(result.normals);
+  const radius = Math.max(1.8, Math.min(4.5, bodyThick * 2.0));
+  const z0 = minZ - 0.02;
+  const z1 = minZ + Math.max(0.28, Math.min(0.6, bodyThick * 0.35));
+  for (const pad of pads) pushCylinderPad(outPos, outNorm, pad.x, pad.y, z0, z1, radius);
+
+  return {
+    positions: new Float32Array(outPos),
+    normals: new Float32Array(outNorm),
+    nTri: outPos.length / 9,
+    nKept: result.nKept,
+    removedIslands: result.removedIslands || 0,
+    bedPads: pads.length
+  };
+}
+
 /** Clip original STL triangles against the Voronoi band and give the result body. */
 function buildClippedVoronoiShell(positions, nTri, seeds, nSeeds, halfWall, shellDepth, normalMap) {
   const outPos = [];
@@ -597,7 +681,7 @@ function adaptiveWallThreshold(positions, nTri, seeds, nSeeds, requestedBand, ce
 
 /** Full Voronoi generation pipeline v3 */
 function generateVoronoi(positions, normals, nTri, opts) {
-  const { cellCount, wallThick, bodyThick, randomness, mode } = opts;
+  const { cellCount, wallThick, bodyThick, randomness, mode, bedPads } = opts;
 
   setStatus('Sampling seed points…'); showProgress(5);
   const seeds = sampleSeedPoints(positions, nTri, cellCount, randomness);
@@ -619,11 +703,16 @@ function generateVoronoi(positions, normals, nTri, opts) {
 
   setStatus('Cleaning tiny loose islands…');
   result = filterSmallTriangleIslands(result, 4);
+  if (bedPads) {
+    setStatus('Adding bed contact pads…');
+    result = addBedContactPads(result, bodyThick);
+  }
   showProgress(95);
 
   const removed = nTri - result.nKept;
   const islandText = result.removedIslands ? `, cleaned ${result.removedIslands.toLocaleString()} loose faces` : '';
-  setStatus(`Done — ${result.nTri.toLocaleString()} shell faces, removed ${removed.toLocaleString()} interiors${islandText}, band ${halfWall.toFixed(3)}mm, body ${shellDepth.toFixed(2)}mm`);
+  const padText = result.bedPads ? `, ${result.bedPads} bed pads` : '';
+  setStatus(`Done — ${result.nTri.toLocaleString()} shell faces, removed ${removed.toLocaleString()} interiors${islandText}${padText}, band ${halfWall.toFixed(3)}mm, body ${shellDepth.toFixed(2)}mm`);
   showProgress(100);
 
   return { result, cellCount, removed, nKept: result.nKept, halfWall, shellDepth };
@@ -637,7 +726,7 @@ function exportSTLBinary(positions, normals, nTri) {
   const buf = new ArrayBuffer(bufSize);
   const dv = new DataView(buf);
   // Header
-  const header = 'MakerDeck Voronoi Generator b515';
+  const header = 'MakerDeck Voronoi Generator b516';
   for (let i = 0; i < 80; i++) dv.setUint8(i, i < header.length ? header.charCodeAt(i) : 0);
   dv.setUint32(80, nTri, true);
   let off = 84;
@@ -780,7 +869,8 @@ $('generateBtn').addEventListener('click', () => {
         bodyThick: parseFloat($('bodyThick').value),
         randomness: parseInt($('randomness').value),
         mode: S.mode,
-        smooth: $('smoothEdges').checked
+        smooth: $('smoothEdges').checked,
+        bedPads: $('bedPads').checked
       };
 
       const { result, cellCount, removed, nKept } = generateVoronoi(
