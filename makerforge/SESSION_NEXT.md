@@ -1,5 +1,16 @@
 ---
 
+## b541 — Embed shelf sign back receivers
+**Date:** 2026-07-22
+
+### MakerDeck
+- Fixed the shelf-display **back sign** connector so the receiver brackets bite into the sign face instead of floating with a tiny front air gap.
+- This should make the back part show/print as solid receiver sockets that match the shelf lugs, rather than a thin detached-looking fin.
+- Updated the shelf hint text: the shelf lugs press straight into the back receivers, not slide in from the side.
+- Bumped MakerDeck, Paper3D, STL Painter, Mesh Prep, shared nav, and nested Container module imports to **b541**.
+
+---
+
 ## b540 — Rework shelf sign dovetail connectors
 **Date:** 2026-07-22
 

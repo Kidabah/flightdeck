@@ -28,7 +28,7 @@ import {
   shapeSupportsProfileArt,
   shapeSupportsArt,
   STACK_LIP_MM,
-} from "./features.js?v=540";
+} from "./features.js?v=541";
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=161";
 import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=163";
@@ -44,7 +44,7 @@ import {
   buildSignShelfFemaleReceiver,
   buildSignShelfWithMale,
   signShelfDovetailDims,
-} from "./signs.js?v=540";
+} from "./signs.js?v=541";
 import {
   resolveVaseTexture,
   densifyClosedProfile,
@@ -56,7 +56,7 @@ import {
   profileOutlinePerimeter,
 } from "./vase-textures.js";
 
-import { appendInsertShelfSlotsToBody } from "./insert-slots.js?v=540";
+import { appendInsertShelfSlotsToBody } from "./insert-slots.js?v=541";
 
 export { shapeSupportsDecor, shapeSupportsInsert, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, VASE_STYLES };
 

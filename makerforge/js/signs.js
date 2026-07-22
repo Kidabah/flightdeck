@@ -210,12 +210,8 @@ function extrudeYzAlongX(profileYz, x0, x1, holesYz = []) {
   return { positions, indices };
 }
 
-/**
- * Female sits fully in FRONT of the plate (tiny air gap).
- * Do NOT embed into the plate — that left intersecting faces that looked like a
- * smashed boolean and blocked the dovetail socket.
- */
-const SHELF_DOVETAIL_FACE_GAP = 0.25;
+/** Receiver brackets bite into the sign face so the back part prints as one solid piece. */
+const SHELF_RECEIVER_PLATE_EMBED = 0.55;
 /** Male root nests this far into the shelf deck for a clean weld. */
 const SHELF_MALE_DECK_EMBED = 0.45;
 
@@ -257,7 +253,7 @@ export function buildSignShelfFemaleReceiver(backW, shelfW, backTh, shelfTh, dim
   const d = dims || signShelfDovetailDims(backTh, shelfTh);
   const usableW = Math.min(backW, shelfW);
   const yPlate = -backTh / 2;
-  const yMount = yPlate - SHELF_DOVETAIL_FACE_GAP;
+  const yMount = yPlate + SHELF_RECEIVER_PLATE_EMBED;
   const yFront = yMount - d.depth;
   const wall = Math.max(1.6, d.neckW * 0.55);
   const zMid = shelfTh * 0.5;
@@ -313,7 +309,7 @@ export function buildSignShelfWithMale(shelfW, shelfLen, shelfTh, backTh, corner
   const d = dims || signShelfDovetailDims(backTh, shelfTh);
   const clr = d.clearance;
   const yPlate = -backTh / 2;
-  const yMount = yPlate - SHELF_DOVETAIL_FACE_GAP;
+  const yMount = yPlate + SHELF_RECEIVER_PLATE_EMBED;
   const yFront = yMount - d.depth;
   const len = Math.max(12, shelfLen);
   const yDeckFront = yFront - len;
