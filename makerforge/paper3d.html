@@ -283,6 +283,29 @@ function meshStats(positions, nTri) {
   return { area, minX, minY, minZ, maxX, maxY, maxZ };
 }
 
+function meshBounds(positions, nTri) {
+  let minX = Infinity, minY = Infinity, minZ = Infinity;
+  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+  for (let i = 0; i < nTri; i++) {
+    const o = i * 9;
+    for (let v = 0; v < 3; v++) {
+      const p = o + v * 3;
+      const x = positions[p], y = positions[p+1], z = positions[p+2];
+      if (x < minX) minX = x; if (x > maxX) maxX = x;
+      if (y < minY) minY = y; if (y > maxY) maxY = y;
+      if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
+    }
+  }
+  const sizeX = maxX - minX;
+  const sizeY = maxY - minY;
+  const sizeZ = maxZ - minZ;
+  return {
+    minX, minY, minZ, maxX, maxY, maxZ,
+    sizeX, sizeY, sizeZ,
+    maxDim: Math.max(sizeX, sizeY, sizeZ)
+  };
+}
+
 function quantizeVertex(positions, offset, cell, origin) {
   const qx = Math.round((positions[offset] - origin.x) / cell);
   const qy = Math.round((positions[offset+1] - origin.y) / cell);
@@ -675,14 +698,14 @@ function pushCylinderPad(outPos, outNorm, cx, cy, z0, z1, radius) {
   }
 }
 
-function addBedContactPads(result, bodyThick) {
+function addBedContactPads(result, bodyThick, modelDim) {
   const positions = result.positions;
   let minZ = Infinity;
   for (let i = 2; i < positions.length; i += 3) minZ = Math.min(minZ, positions[i]);
   if (!Number.isFinite(minZ)) return { ...result, bedPads: 0 };
 
   const candidates = [];
-  const windowZ = Math.max(0.35, bodyThick * 0.45);
+  const windowZ = Math.max(Math.min(0.35, modelDim * 0.006), bodyThick * 0.45);
   for (let i = 0; i < positions.length; i += 3) {
     if (positions[i+2] <= minZ + windowZ) {
       candidates.push({ x: positions[i], y: positions[i+1] });
@@ -691,7 +714,7 @@ function addBedContactPads(result, bodyThick) {
   if (!candidates.length) return { ...result, bedPads: 0 };
 
   const clusters = [];
-  const mergeDist = Math.max(4.0, bodyThick * 4.0);
+  const mergeDist = Math.max(Math.min(4.0, modelDim * 0.04), bodyThick * 4.0);
   for (const p of candidates) {
     let best = null;
     let bestD = mergeDist * mergeDist;
@@ -717,9 +740,13 @@ function addBedContactPads(result, bodyThick) {
 
   const outPos = Array.from(result.positions);
   const outNorm = Array.from(result.normals);
-  const radius = Math.max(1.8, Math.min(4.5, bodyThick * 2.0));
+  const minRadius = Math.max(0.12, Math.min(1.8, modelDim * 0.012));
+  const maxRadius = Math.max(minRadius, Math.min(4.5, modelDim * 0.035));
+  const radius = Math.max(minRadius, Math.min(maxRadius, bodyThick * 2.0));
   const z0 = minZ - 0.02;
-  const z1 = minZ + Math.max(0.28, Math.min(0.6, bodyThick * 0.35));
+  const minPadHeight = Math.max(0.04, Math.min(0.28, modelDim * 0.004));
+  const maxPadHeight = Math.max(minPadHeight, Math.min(0.6, modelDim * 0.012));
+  const z1 = minZ + Math.max(minPadHeight, Math.min(maxPadHeight, bodyThick * 0.35));
   for (const pad of pads) pushCylinderPad(outPos, outNorm, pad.x, pad.y, z0, z1, radius);
 
   return {
@@ -753,7 +780,7 @@ function pushTaperedSupport(outPos, outNorm, cx, cy, z0, z1, rBase, rTop) {
   }
 }
 
-function addSelfSupports(result, bodyThick) {
+function addSelfSupports(result, bodyThick, modelDim) {
   const positions = result.positions;
   const normals = result.normals;
   let minZ = Infinity, maxZ = -Infinity;
@@ -766,7 +793,7 @@ function addSelfSupports(result, bodyThick) {
 
   const height = maxZ - minZ;
   const lowLimit = minZ + height * 0.62;
-  const floorClearance = Math.max(2.0, bodyThick * 2.0);
+  const floorClearance = Math.max(Math.min(2.0, modelDim * 0.025), bodyThick * 2.0);
   const candidates = [];
   for (let tri = 0; tri < result.nTri; tri++) {
     const o = tri * 9;
@@ -781,7 +808,7 @@ function addSelfSupports(result, bodyThick) {
   if (!candidates.length) return { ...result, selfSupports: 0 };
 
   const clusters = [];
-  const mergeDist = Math.max(6.0, bodyThick * 5.0);
+  const mergeDist = Math.max(Math.min(6.0, modelDim * 0.055), bodyThick * 5.0);
   for (const p of candidates) {
     let best = null;
     let bestD = mergeDist * mergeDist;
@@ -809,7 +836,9 @@ function addSelfSupports(result, bodyThick) {
   const outPos = Array.from(result.positions);
   const outNorm = Array.from(result.normals);
   const z0 = minZ - 0.02;
-  const baseR = Math.max(1.2, Math.min(3.2, bodyThick * 1.25));
+  const minBaseR = Math.max(0.08, Math.min(1.2, modelDim * 0.01));
+  const maxBaseR = Math.max(minBaseR, Math.min(3.2, modelDim * 0.028));
+  const baseR = Math.max(minBaseR, Math.min(maxBaseR, bodyThick * 1.25));
   const topR = Math.max(0.7, baseR * 0.55);
   for (const s of supports) {
     pushTaperedSupport(outPos, outNorm, s.x, s.y, z0, s.z + Math.max(0.35, bodyThick * 0.25), baseR, topR);
@@ -886,6 +915,13 @@ function adaptiveWallThreshold(positions, nTri, seeds, nSeeds, requestedBand, ce
 /** Full Paper3D generation pipeline. */
 function generatePaper3D(positions, normals, nTri, opts) {
   const { cellCount, wallThick, bodyThick, randomness, mode, bedPads, selfSupports } = opts;
+  const bounds = meshBounds(positions, nTri);
+  const modelDim = Math.max(bounds.maxDim, 1e-6);
+  const effectiveWallThick = Math.min(wallThick, Math.max(0.05, modelDim * 0.035));
+  const minBody = Math.max(0.03, Math.min(0.15, modelDim * 0.004));
+  const maxBody = Math.max(minBody, Math.min(2.0, modelDim * 0.018));
+  const effectiveBodyThick = Math.max(minBody, Math.min(bodyThick, maxBody));
+  const wasScaleClamped = effectiveWallThick < wallThick || effectiveBodyThick < bodyThick;
 
   setStatus('Sampling seed points…'); showProgress(5);
   const seeds = sampleSeedPoints(positions, nTri, cellCount, randomness);
@@ -896,10 +932,10 @@ function generatePaper3D(positions, normals, nTri, opts) {
   const normalMap = buildSmoothNormalMap(positions, nTri);
 
   setStatus('Sizing Paper3D wall band…'); showProgress(25);
-  const requestedBand = Math.max(0.08, wallThick * 1.65);
-  const halfWall = adaptiveWallThreshold(positions, nTri, seeds, nSeeds, requestedBand, cellCount, wallThick, mode);
+  const requestedBand = Math.max(Math.min(0.08, modelDim * 0.004), effectiveWallThick * 1.65);
+  const halfWall = adaptiveWallThreshold(positions, nTri, seeds, nSeeds, requestedBand, cellCount, effectiveWallThick, mode);
 
-  const shellDepth = Math.max(0.15, Math.min(2.0, bodyThick));
+  const shellDepth = effectiveBodyThick;
 
   setStatus('Building Paper3D shell body…'); showProgress(40);
   let result = buildClippedPaper3DShell(positions, nTri, seeds, nSeeds, halfWall, shellDepth, normalMap);
@@ -909,11 +945,11 @@ function generatePaper3D(positions, normals, nTri, opts) {
   result = filterSmallTriangleIslands(result, 4);
   if (bedPads) {
     setStatus('Adding bed contact pads…');
-    result = addBedContactPads(result, bodyThick);
+    result = addBedContactPads(result, shellDepth, modelDim);
   }
   if (selfSupports) {
     setStatus('Adding self-support stilts…');
-    result = addSelfSupports(result, bodyThick);
+    result = addSelfSupports(result, shellDepth, modelDim);
   }
   showProgress(95);
 
@@ -921,7 +957,8 @@ function generatePaper3D(positions, normals, nTri, opts) {
   const islandText = result.removedIslands ? `, cleaned ${result.removedIslands.toLocaleString()} loose faces` : '';
   const padText = result.bedPads ? `, ${result.bedPads} bed pads` : '';
   const supportText = result.selfSupports ? `, ${result.selfSupports} supports` : '';
-  setStatus(`Done — ${result.nTri.toLocaleString()} shell faces, removed ${removed.toLocaleString()} interiors${islandText}${padText}${supportText}, band ${halfWall.toFixed(3)}mm, body ${shellDepth.toFixed(2)}mm`);
+  const scaleText = wasScaleClamped ? ', scale-clamped' : '';
+  setStatus(`Done — ${result.nTri.toLocaleString()} shell faces, removed ${removed.toLocaleString()} interiors${islandText}${padText}${supportText}, band ${halfWall.toFixed(3)}mm, body ${shellDepth.toFixed(2)}mm${scaleText}`);
   showProgress(100);
 
   return { result, cellCount, removed, nKept: result.nKept, halfWall, shellDepth };
@@ -935,7 +972,7 @@ function exportSTLBinary(positions, normals, nTri) {
   const buf = new ArrayBuffer(bufSize);
   const dv = new DataView(buf);
   // Header
-  const header = 'MakerDeck Paper3D b527';
+  const header = 'MakerDeck Paper3D b528';
   for (let i = 0; i < 80; i++) dv.setUint8(i, i < header.length ? header.charCodeAt(i) : 0);
   dv.setUint32(80, nTri, true);
   let off = 84;

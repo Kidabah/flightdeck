@@ -1,5 +1,16 @@
 ---
 
+## b528 — Scale-clamp Paper3D thickness for tiny STLs
+**Date:** 2026-07-22
+
+### Paper3D
+- Added model bounds detection so wall thickness, body thickness, bed pads, and self-supports scale down on tiny-unit STL files.
+- Dense organic models no longer get full-size millimetre thicknesses applied when their source dimensions are much smaller than normal printable models.
+- Generation status now appends **scale-clamped** when requested settings were reduced to protect model shape.
+- Shared nav build badge and STL export header updated to **b528**.
+
+---
+
 ## b527 — Make Paper3D dense low-poly opt-in
 **Date:** 2026-07-22
 
