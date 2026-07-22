@@ -1,5 +1,16 @@
 ---
 
+## b549 — Give exported text more printable top layers
+**Date:** 2026-07-22
+
+### MakerDeck
+- Raised the **Emboss depth** control ceiling from **2mm** to **4mm**.
+- Increased slicer-facing AMS/text export thickness so text gets at least **0.8mm** of printable cap instead of the old ~0.36mm thin skin.
+- Quantises exported label/text depth to 0.2mm layer-friendly steps, with text capped at 1.6mm and graphic art capped at 2.0mm for AMS standoff exports.
+- Bumped MakerDeck, Paper3D, Mesh Prep, shared nav, and geometry cache/build labels to **b549**.
+
+---
+
 ## b548 — Fix STL Painter clear/reset handling
 **Date:** 2026-07-22
 

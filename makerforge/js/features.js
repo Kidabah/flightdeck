@@ -2952,7 +2952,7 @@ function collectTextEmbossShapeGroups(meta, params, layoutIn = null) {
   return {
     frame,
     shapeGroups: shaped,
-    depth: clamp(params.embossDepth ?? 0.7, 0.3, 2),
+    depth: clamp(params.embossDepth ?? 0.7, 0.3, 4),
   };
 }
 
@@ -4957,12 +4957,13 @@ function extrudeGroupOnFace(outPos, outIdx, frame, group, d0, d1, params = null)
 }
 
 function exportEmbossDepth(params) {
-  let depth = clamp(params.embossDepth ?? 0.7, 0.3, 2);
+  let depth = clamp(params.embossDepth ?? 0.7, 0.3, 4);
   if (!params?.__labelExportStandoff) return depth;
-  // Shallow sticker-like skin — fewer seam loops than thick plaques (esp. arc text).
-  const maxMm = params.__labelExportKind === "text" ? 0.36 : 0.48;
-  depth = Math.min(depth, maxMm);
-  return Math.max(0.32, Math.round(depth / 0.2) * 0.2);
+  // Slicer-facing AMS label solids need enough real cap height to print cleanly.
+  const minMm = params.__labelExportKind === "text" ? 0.8 : 0.8;
+  const maxMm = params.__labelExportKind === "text" ? 1.6 : 2.0;
+  depth = clamp(depth, minMm, maxMm);
+  return Math.max(minMm, Math.round(depth / 0.2) * 0.2);
 }
 
 function embossExportCaps(params, d0) {
