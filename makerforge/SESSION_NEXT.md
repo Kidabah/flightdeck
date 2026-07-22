@@ -1,5 +1,16 @@
 ---
 
+## b533 — Roll back Paper3D fuzzy repair attempts
+**Date:** 2026-07-22
+
+### Paper3D
+- Reverted the Paper3D geometry core to the last better puppy behavior from **b529**.
+- Removed the b530-b532 inward-offset, seam-repair, and cut-boundary cap changes because they increased furry side-wall artifacts on dense organic models.
+- Kept the expanded **1200** cell-count range and dense loose-island cleanup from b529.
+- Shared nav build badge and STL export header updated to **b533**.
+
+---
+
 ## b532 — Cap only true Paper3D cut boundaries
 **Date:** 2026-07-22
 
