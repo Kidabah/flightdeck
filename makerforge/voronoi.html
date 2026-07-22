@@ -412,6 +412,86 @@ function addSolidPolygon(outPos, outNorm, edgeMap, poly, center, shellDepth) {
   return tris;
 }
 
+function filterSmallTriangleIslands(result, minTriangles = 32) {
+  const nTri = result.nTri;
+  if (nTri < minTriangles * 2) return { ...result, removedIslands: 0 };
+
+  const parent = new Int32Array(nTri);
+  const counts = new Int32Array(nTri);
+  const firstTriByVertex = new Map();
+  for (let i = 0; i < nTri; i++) parent[i] = i;
+
+  const find = i => {
+    let r = i;
+    while (parent[r] !== r) r = parent[r];
+    while (parent[i] !== i) {
+      const p = parent[i];
+      parent[i] = r;
+      i = p;
+    }
+    return r;
+  };
+  const unite = (a, b) => {
+    const ra = find(a), rb = find(b);
+    if (ra !== rb) parent[rb] = ra;
+  };
+  const keyAt = offset => {
+    const q = n => Math.round(n * 1000);
+    return `${q(result.positions[offset])},${q(result.positions[offset+1])},${q(result.positions[offset+2])}`;
+  };
+
+  for (let tri = 0; tri < nTri; tri++) {
+    const o = tri * 9;
+    for (let v = 0; v < 3; v++) {
+      const key = keyAt(o + v * 3);
+      const first = firstTriByVertex.get(key);
+      if (first === undefined) firstTriByVertex.set(key, tri);
+      else unite(tri, first);
+    }
+  }
+
+  for (let tri = 0; tri < nTri; tri++) counts[find(tri)]++;
+
+  const keep = new Uint8Array(nTri);
+  let keepCount = 0;
+  let largestRoot = 0;
+  for (let tri = 0; tri < nTri; tri++) {
+    const root = find(tri);
+    if (counts[root] > counts[largestRoot]) largestRoot = root;
+    if (counts[root] >= minTriangles) {
+      keep[tri] = 1;
+      keepCount++;
+    }
+  }
+  if (keepCount === 0) {
+    for (let tri = 0; tri < nTri; tri++) {
+      if (find(tri) === largestRoot) {
+        keep[tri] = 1;
+        keepCount++;
+      }
+    }
+  }
+  if (keepCount === nTri) return { ...result, removedIslands: 0 };
+
+  const outPos = new Float32Array(keepCount * 9);
+  const outNorm = new Float32Array(keepCount * 9);
+  let w = 0;
+  for (let tri = 0; tri < nTri; tri++) {
+    if (!keep[tri]) continue;
+    const o = tri * 9;
+    outPos.set(result.positions.subarray(o, o + 9), w);
+    outNorm.set(result.normals.subarray(o, o + 9), w);
+    w += 9;
+  }
+  return {
+    positions: outPos,
+    normals: outNorm,
+    nTri: keepCount,
+    nKept: result.nKept,
+    removedIslands: nTri - keepCount
+  };
+}
+
 /** Clip original STL triangles against the Voronoi band and give the result body. */
 function buildClippedVoronoiShell(positions, nTri, seeds, nSeeds, halfWall, shellDepth) {
   const outPos = [];
@@ -483,11 +563,16 @@ function generateVoronoi(positions, normals, nTri, opts) {
   const shellDepth = Math.max(0.12, Math.min(0.85, wallThick * 0.28));
 
   setStatus('Building Voronoi shell body…'); showProgress(40);
-  const result = buildClippedVoronoiShell(positions, nTri, seeds, nSeeds, halfWall, shellDepth);
+  let result = buildClippedVoronoiShell(positions, nTri, seeds, nSeeds, halfWall, shellDepth);
+  showProgress(85);
+
+  setStatus('Cleaning tiny loose islands…');
+  result = filterSmallTriangleIslands(result, 32);
   showProgress(95);
 
   const removed = nTri - result.nKept;
-  setStatus(`Done — ${result.nTri.toLocaleString()} shell faces, removed ${removed.toLocaleString()} interiors, band ${halfWall.toFixed(3)}mm, body ${shellDepth.toFixed(2)}mm`);
+  const islandText = result.removedIslands ? `, cleaned ${result.removedIslands.toLocaleString()} loose faces` : '';
+  setStatus(`Done — ${result.nTri.toLocaleString()} shell faces, removed ${removed.toLocaleString()} interiors${islandText}, band ${halfWall.toFixed(3)}mm, body ${shellDepth.toFixed(2)}mm`);
   showProgress(100);
 
   return { result, cellCount, removed, nKept: result.nKept, halfWall, shellDepth };
@@ -501,7 +586,7 @@ function exportSTLBinary(positions, normals, nTri) {
   const buf = new ArrayBuffer(bufSize);
   const dv = new DataView(buf);
   // Header
-  const header = 'MakerDeck Voronoi Generator b511';
+  const header = 'MakerDeck Voronoi Generator b512';
   for (let i = 0; i < 80; i++) dv.setUint8(i, i < header.length ? header.charCodeAt(i) : 0);
   dv.setUint32(80, nTri, true);
   let off = 84;

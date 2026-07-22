@@ -1,5 +1,16 @@
 ---
 
+## b512 — Clean loose Voronoi shell islands
+**Date:** 2026-07-22
+
+### Voronoi Generator
+- Added a post-generation connected-component cleanup pass after the b511 shell body build.
+- Tiny disconnected triangle islands are removed before preview/export, reducing slicer warnings from loose scraps around feet or narrow details.
+- Status text now reports when loose faces were cleaned from the shell result.
+- STL export header and shared nav build badge updated to **b512**.
+
+---
+
 ## b511 — Add controlled Voronoi shell body
 **Date:** 2026-07-22
 
