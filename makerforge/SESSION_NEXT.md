@@ -1,5 +1,16 @@
 ---
 
+## b530 — Repair Paper3D outward flakes and seam cracks
+**Date:** 2026-07-22
+
+### Paper3D
+- Shell body thickness now offsets inward relative to the model center, reducing peeled/flaked faces around tails, fur, and other noisy normals.
+- Added a seam repair pass that snaps generated vertices, removes degenerate triangles, and drops duplicate triangles before island cleanup.
+- Generation status now reports repaired seam faces when the repair pass removes bad output geometry.
+- Shared nav build badge and STL export header updated to **b530**.
+
+---
+
 ## b529 — Extend Paper3D fine-cell range
 **Date:** 2026-07-22
 
