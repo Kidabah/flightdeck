@@ -315,23 +315,6 @@ function lowPolyPass(positions, nTri, cell, origin) {
   return { positions: new Float32Array(outPos), nTri: outPos.length / 9 };
 }
 
-function strideLowPolyPass(positions, normals, nTri, target) {
-  const stride = Math.max(1, Math.ceil(nTri / target));
-  const outPos = [];
-  const outNorm = [];
-  for (let i = 0; i < nTri; i += stride) {
-    const po = i * 9;
-    for (let v = 0; v < 9; v++) outPos.push(positions[po + v]);
-    const no = i * 3;
-    outNorm.push(normals[no] || 0, normals[no+1] || 0, normals[no+2] || 0);
-  }
-  return {
-    positions: new Float32Array(outPos),
-    normals: new Float32Array(outNorm),
-    nTri: outPos.length / 9
-  };
-}
-
 function autoLowPolyMesh(positions, normals, nTri) {
   const threshold = 650000;
   const target = 320000;
@@ -341,13 +324,13 @@ function autoLowPolyMesh(positions, normals, nTri) {
   showProgress(6);
   const stats = meshStats(positions, nTri);
   const origin = { x: stats.minX, y: stats.minY, z: stats.minZ };
-  const baseCell = Math.max(0.01, Math.sqrt(Math.max(stats.area, 1) / target) * 0.35);
-  const minKeep = target * 0.55;
+  const baseCell = Math.max(0.002, Math.sqrt(Math.max(stats.area, 1) / target) * 0.06);
+  const minKeep = target * 0.35;
   const maxKeep = target * 1.35;
   let best = null;
   let bestScore = Infinity;
-  for (let pass = 0; pass < 9; pass++) {
-    const cell = baseCell * Math.pow(1.28, pass);
+  for (let pass = 0; pass < 18; pass++) {
+    const cell = baseCell * Math.pow(1.25, pass);
     const reduced = lowPolyPass(positions, nTri, cell, origin);
     if (reduced.nTri < 1000) continue;
     const score = Math.abs(reduced.nTri - target);
@@ -360,16 +343,8 @@ function autoLowPolyMesh(positions, normals, nTri) {
       break;
     }
   }
-  if (!best || best.nTri < minKeep || best.nTri >= nTri * 0.9) {
-    const fallback = strideLowPolyPass(positions, normals, nTri, target);
-    return {
-      positions: fallback.positions,
-      normals: fallback.normals,
-      nTri: fallback.nTri,
-      sourceTri: nTri,
-      lowPoly: true,
-      lowPolyMethod: 'sampled'
-    };
+  if (!best || best.nTri < minKeep || best.nTri >= nTri * 0.95) {
+    return { positions, normals, nTri, sourceTri: nTri, lowPoly: false };
   }
   return {
     positions: best.positions,
@@ -954,7 +929,7 @@ function exportSTLBinary(positions, normals, nTri) {
   const buf = new ArrayBuffer(bufSize);
   const dv = new DataView(buf);
   // Header
-  const header = 'MakerDeck Paper3D b523';
+  const header = 'MakerDeck Paper3D b524';
   for (let i = 0; i < 80; i++) dv.setUint8(i, i < header.length ? header.charCodeAt(i) : 0);
   dv.setUint32(80, nTri, true);
   let off = 84;

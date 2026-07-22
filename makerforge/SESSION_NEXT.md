@@ -1,5 +1,15 @@
 ---
 
+## b524 — Remove sampled low-poly fallback
+**Date:** 2026-07-22
+
+### Paper3D
+- Removed the b523 sampled low-poly fallback after it made dense models unravel into disconnected surface strips.
+- Retuned vertex clustering to start with a much finer grid and search more steps, so dense models can land in a useful middle range without losing continuity.
+- Shared nav build badge and STL export header updated to **b524**.
+
+---
+
 ## b523 — Fallback sampled low-poly path
 **Date:** 2026-07-22
 
