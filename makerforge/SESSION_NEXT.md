@@ -1,5 +1,15 @@
 ---
 
+## b526 — Disable blocking Paper3D edge collapse
+**Date:** 2026-07-22
+
+### Paper3D
+- Removed the synchronous Three.js `SimplifyModifier` edge-collapse pass after it froze dense STL processing in the browser.
+- Dense models now use the prior browser-safe clustered low-poly path again while preserving the Paper3D shell/body generation.
+- Shared nav build badge and STL export header updated to **b526**.
+
+---
+
 ## b525 — Edge-collapse dense Paper3D low-poly
 **Date:** 2026-07-22
 
