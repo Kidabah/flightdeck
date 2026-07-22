@@ -92,12 +92,12 @@
       </label>
 
       <label class="cb-label">
-        <input type="checkbox" id="bedPads" checked>
+        <input type="checkbox" id="bedPads">
         <span>Add bed contact pads</span>
       </label>
 
       <label class="cb-label">
-        <input type="checkbox" id="selfSupports" checked>
+        <input type="checkbox" id="selfSupports">
         <span>Add self-support stilts</span>
       </label>
 
@@ -699,6 +699,7 @@ function pushCylinderPad(outPos, outNorm, cx, cy, z0, z1, radius) {
 }
 
 function addBedContactPads(result, bodyThick, modelDim) {
+  if (modelDim < 1 || bodyThick > modelDim * 0.05) return { ...result, bedPads: 0 };
   const positions = result.positions;
   let minZ = Infinity;
   for (let i = 2; i < positions.length; i += 3) minZ = Math.min(minZ, positions[i]);
@@ -781,6 +782,7 @@ function pushTaperedSupport(outPos, outNorm, cx, cy, z0, z1, rBase, rTop) {
 }
 
 function addSelfSupports(result, bodyThick, modelDim) {
+  if (modelDim < 1 || bodyThick > modelDim * 0.05) return { ...result, selfSupports: 0 };
   const positions = result.positions;
   const normals = result.normals;
   let minZ = Infinity, maxZ = -Infinity;
@@ -973,7 +975,7 @@ function exportSTLBinary(positions, normals, nTri) {
   const buf = new ArrayBuffer(bufSize);
   const dv = new DataView(buf);
   // Header
-  const header = 'MakerDeck Paper3D b533';
+  const header = 'MakerDeck Paper3D b534';
   for (let i = 0; i < 80; i++) dv.setUint8(i, i < header.length ? header.charCodeAt(i) : 0);
   dv.setUint32(80, nTri, true);
   let off = 84;

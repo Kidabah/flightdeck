@@ -1,5 +1,15 @@
 ---
 
+## b534 — Disable unsafe Paper3D auto supports
+**Date:** 2026-07-22
+
+### Paper3D
+- Bed contact pads and self-support stilts are now off by default after hard refresh.
+- Added model-size guards so optional pads/supports are skipped when they would be oversized relative to the generated Paper3D shell.
+- Shared nav build badge and STL export header updated to **b534**.
+
+---
+
 ## b533 — Roll back Paper3D fuzzy repair attempts
 **Date:** 2026-07-22
 
