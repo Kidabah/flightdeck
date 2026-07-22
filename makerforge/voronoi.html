@@ -382,7 +382,7 @@ function buildClippedVoronoiSurface(positions, nTri, seeds, nSeeds, halfWall) {
   };
 }
 
-function adaptiveWallThreshold(positions, nTri, seeds, nSeeds, requestedHalfWall, cellCount) {
+function adaptiveWallThreshold(positions, nTri, seeds, nSeeds, requestedHalfWall, cellCount, wallThick) {
   const maxSamples = 60000;
   const stride = Math.max(1, Math.floor(nTri / maxSamples));
   const distances = [];
@@ -396,7 +396,9 @@ function adaptiveWallThreshold(positions, nTri, seeds, nSeeds, requestedHalfWall
   }
   if (!distances.length) return requestedHalfWall;
   distances.sort((a, b) => a - b);
-  const targetKeep = cellCount >= 300 ? 0.18 : 0.25;
+  const wallT = Math.max(0, Math.min(1, (wallThick - 0.2) / 2.8));
+  const cellT = Math.max(0, Math.min(1, (cellCount - 10) / 490));
+  const targetKeep = Math.max(0.28, Math.min(0.82, 0.28 + wallT * 0.54 - cellT * 0.08));
   const idx = Math.max(0, Math.min(distances.length - 1, Math.floor(distances.length * targetKeep)));
   return Math.max(0.005, Math.min(requestedHalfWall, distances[idx]));
 }
@@ -412,7 +414,7 @@ function generateVoronoi(positions, normals, nTri, opts) {
 
   setStatus('Sizing Voronoi wall band…'); showProgress(25);
   const requestedHalfWall = Math.max(0.01, wallThick / 2);
-  const halfWall = adaptiveWallThreshold(positions, nTri, seeds, nSeeds, requestedHalfWall, cellCount);
+  const halfWall = adaptiveWallThreshold(positions, nTri, seeds, nSeeds, requestedHalfWall, cellCount, wallThick);
 
   setStatus('Clipping surface to Voronoi walls…'); showProgress(40);
   const result = buildClippedVoronoiSurface(positions, nTri, seeds, nSeeds, halfWall);
@@ -433,7 +435,7 @@ function exportSTLBinary(positions, normals, nTri) {
   const buf = new ArrayBuffer(bufSize);
   const dv = new DataView(buf);
   // Header
-  const header = 'MakerDeck Voronoi Generator b506';
+  const header = 'MakerDeck Voronoi Generator b507';
   for (let i = 0; i < 80; i++) dv.setUint8(i, i < header.length ? header.charCodeAt(i) : 0);
   dv.setUint32(80, nTri, true);
   let off = 84;

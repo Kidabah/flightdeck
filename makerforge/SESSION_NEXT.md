@@ -1,5 +1,17 @@
 ---
 
+## b507 — Voronoi thicker-wall solid bias
+**Date:** 2026-07-22
+
+### Voronoi Generator
+- Fixed b506 cutting too much away and producing a stringy lattice when Wall Thickness was high.
+- Adaptive wall threshold now scales with the Wall Thickness slider: thin values stay open, while high values keep much more of the original surface for a solid-looking voronoi shell.
+- At thick settings (e.g. 3mm) the generator now targets a mostly retained model with holes instead of removing most of the source faces.
+- Shared nav build badge updated from stale b504 to **b507**.
+- STL export header updated to **b507**.
+
+---
+
 ## b506 — Voronoi adaptive wall threshold
 **Date:** 2026-07-22
 
