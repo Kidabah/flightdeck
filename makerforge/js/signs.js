@@ -10,6 +10,18 @@ import { extrudeShapeGroupBetween } from "./contour.js?v=241";
 
 const TAU = Math.PI * 2;
 
+function mergeMeshes(...parts) {
+  const positions = [];
+  const indices = [];
+  for (const part of parts) {
+    if (!part?.positions?.length || !part?.indices?.length) continue;
+    const offset = positions.length / 3;
+    for (const v of part.positions) positions.push(v);
+    for (const i of part.indices) indices.push(i + offset);
+  }
+  return { positions, indices };
+}
+
 function roundedRect(halfW, halfH, r, seg = 10) {
   r = Math.max(0, Math.min(r, halfW - 0.01, halfH - 0.01));
   if (r < 0.05) return [[-halfW, -halfH], [halfW, -halfH], [halfW, halfH], [-halfW, halfH]];
@@ -175,12 +187,12 @@ export function buildSignBorder(W, H, th, corner, borderW, bh, shape = "rounded"
   return { positions, indices };
 }
 
-/** Dovetail sizes for shelf ↔ back slide joint (mm). */
+/** Dovetail sizes for shelf ↔ back straight-in joint (mm). */
 export function signShelfDovetailDims(backTh, shelfTh) {
-  const depth = Math.min(Math.max(2.4, Math.min(backTh, shelfTh) * 0.62), 4.2);
-  const neckW = Math.min(Math.max(2.0, shelfTh * 0.42), 3.2);
-  const baseW = Math.min(neckW + depth * 0.85, shelfTh * 0.92);
-  return { depth, neckW, baseW, clearance: 0.28 };
+  const depth = Math.min(Math.max(4.2, Math.min(backTh, shelfTh) * 1.25), 7.5);
+  const neckW = Math.min(Math.max(3.0, shelfTh * 0.78), 5.6);
+  const baseW = Math.min(neckW + depth * 0.7, Math.max(6, shelfTh * 1.65));
+  return { depth, neckW, baseW, clearance: 0.32 };
 }
 
 /** Extrude a YZ profile (and optional holes) along X. */
@@ -237,19 +249,17 @@ export function weldShelfMesh(mesh, eps = 0.04) {
 }
 
 /**
- * Female dovetail bracket on the front of the back plate.
- * Closed U-channel (manifold) open toward the shelf; male slides in from the side (along X).
- * Narrow at the opening, wider toward the plate — matches the male flare.
+ * Female dovetail brackets on the front of the back plate.
+ * Two straight-in sockets receive the shelf from the front, so there is no long
+ * side-slide rail or exposed end cap sticking out of the shelf edge.
  */
 export function buildSignShelfFemaleReceiver(backW, shelfW, backTh, shelfTh, dims = null) {
   const d = dims || signShelfDovetailDims(backTh, shelfTh);
-  const tunnelW = Math.min(backW, shelfW);
+  const usableW = Math.min(backW, shelfW);
   const yPlate = -backTh / 2;
-  // Entire bracket in front of the plate (no intersecting plate faces).
-  const yDeep = yPlate - SHELF_DOVETAIL_FACE_GAP;
-  const yOpen = yDeep - d.depth;
-  const wall = Math.max(1.4, d.neckW * 0.55); // meat around the socket so it reads as a bracket
-  const yOut = yOpen - wall;
+  const yMount = yPlate - SHELF_DOVETAIL_FACE_GAP;
+  const yFront = yMount - d.depth;
+  const wall = Math.max(1.6, d.neckW * 0.55);
   const zMid = shelfTh * 0.5;
   const n0 = zMid - d.neckW / 2;
   const n1 = zMid + d.neckW / 2;
@@ -257,20 +267,20 @@ export function buildSignShelfFemaleReceiver(backW, shelfW, backTh, shelfTh, dim
   const b1 = zMid + d.baseW / 2;
   const z0 = Math.min(0, b0) - wall;
   const z1 = Math.max(shelfTh, b1) + wall;
-  // U outer = solid bracket; notch is the dovetail cavity (open at yOpen).
+  const tabW = Math.min(Math.max(usableW * 0.18, 22), 44);
+  const inset = Math.max(8, Math.min(usableW * 0.2, 30));
+  const centers = usableW < 80 ? [0] : [-(usableW / 2 - inset - tabW / 2), usableW / 2 - inset - tabW / 2];
   const outer = [
-    [yOut, z0],
-    [yDeep, z0],
-    [yDeep, b0],
-    [yOpen, n0],
-    [yOpen, n1],
-    [yDeep, b1],
-    [yDeep, z1],
-    [yOut, z1],
+    [yFront, z0],
+    [yMount, z0],
+    [yMount, b0],
+    [yFront, n0],
+    [yFront, n1],
+    [yMount, b1],
+    [yMount, z1],
+    [yFront, z1],
   ];
-  const x0 = -tunnelW / 2 + 1.5;
-  const x1 = tunnelW / 2 - 1.5;
-  return extrudeYzAlongX(outer, x0, x1, []);
+  return mergeMeshes(...centers.map((cx) => extrudeYzAlongX(outer, cx - tabW / 2, cx + tabW / 2, [])));
 }
 
 /** Shelf deck outline in XY — rounded front corners, square rear for dovetail. */
@@ -296,19 +306,20 @@ function shelfDeckOutlineXy(halfW, yFront, yRear, cornerR) {
 
 /**
  * Shelf deck + male dovetail (print pose: deck on z=0).
- * Male points into the forward female bracket; slide in from the side along X.
+ * Male lugs point into the forward female brackets and insert straight into the
+ * back; they no longer run the full width or stick out of the shelf side.
  */
 export function buildSignShelfWithMale(shelfW, shelfLen, shelfTh, backTh, cornerR = 0, dims = null) {
   const d = dims || signShelfDovetailDims(backTh, shelfTh);
   const clr = d.clearance;
   const yPlate = -backTh / 2;
-  const yDeep = yPlate - SHELF_DOVETAIL_FACE_GAP;
-  const yOpen = yDeep - d.depth;
+  const yMount = yPlate - SHELF_DOVETAIL_FACE_GAP;
+  const yFront = yMount - d.depth;
   const len = Math.max(12, shelfLen);
-  const yFront = yOpen - len;
+  const yDeckFront = yFront - len;
   const halfW = Math.max(10, shelfW) / 2;
   const thS = Math.max(1.5, shelfTh);
-  const outer = shelfDeckOutlineXy(halfW, yFront, yOpen, cornerR);
+  const outer = shelfDeckOutlineXy(halfW, yDeckFront, yFront, cornerR);
   const positions = [];
   const indices = [];
   const mapTop = (px, py) => [px, py, thS];
@@ -317,9 +328,9 @@ export function buildSignShelfWithMale(shelfW, shelfLen, shelfTh, backTh, corner
     positions, indices, { outer, holes: [] },
     mapTop, mapBot, (w) => [w[0], w[1]], "both", null,
   );
-  // Tip toward the plate (wide); root at the deck opening (narrow) — matches female.
-  const yJoin = yOpen + SHELF_MALE_DECK_EMBED;
-  const yTip = yDeep - clr * 0.35;
+  // Tip toward the plate (wide); root at the deck back (narrow) — matches female.
+  const yRoot = yFront - SHELF_MALE_DECK_EMBED;
+  const yTip = yMount - clr * 0.45;
   const zMid = thS * 0.5;
   const neck = Math.max(1.2, d.neckW - clr);
   const base = Math.max(neck + 0.4, d.baseW - clr);
@@ -327,19 +338,25 @@ export function buildSignShelfWithMale(shelfW, shelfLen, shelfTh, backTh, corner
   const n1 = zMid + neck / 2;
   const b0 = zMid - base / 2;
   const b1 = zMid + base / 2;
-  const male = extrudeYzAlongX(
-    [
-      [yJoin, n0],
-      [yTip, b0],
-      [yTip, b1],
-      [yJoin, n1],
-    ],
-    -halfW + 2.2,
-    halfW - 2.2,
-  );
-  const baseVtx = positions.length / 3;
-  for (const v of male.positions) positions.push(v);
-  for (const i of male.indices) indices.push(i + baseVtx);
+  const usableW = Math.max(10, shelfW);
+  const tabW = Math.min(Math.max(usableW * 0.18, 22), 44);
+  const inset = Math.max(8, Math.min(usableW * 0.2, 30));
+  const centers = usableW < 80 ? [0] : [-(usableW / 2 - inset - tabW / 2), usableW / 2 - inset - tabW / 2];
+  for (const cx of centers) {
+    const male = extrudeYzAlongX(
+      [
+        [yRoot, n0],
+        [yTip, b0],
+        [yTip, b1],
+        [yRoot, n1],
+      ],
+      cx - tabW / 2,
+      cx + tabW / 2,
+    );
+    const baseVtx = positions.length / 3;
+    for (const v of male.positions) positions.push(v);
+    for (const i of male.indices) indices.push(i + baseVtx);
+  }
   return weldShelfMesh({ positions, indices }, 0.04);
 }
 

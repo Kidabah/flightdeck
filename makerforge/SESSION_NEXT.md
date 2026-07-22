@@ -1,5 +1,16 @@
 ---
 
+## b540 — Rework shelf sign dovetail connectors
+**Date:** 2026-07-22
+
+### MakerDeck
+- Replaced the shelf-display sign's old full-width side-slide dovetail rail with two straight-in front/back dovetail lugs.
+- The shelf piece no longer exposes a long rail end sticking out of the side; the back piece gets matching front receiver brackets.
+- Increased dovetail engagement depth and connector meat so the parts come forward further and should be easier to print/check.
+- Bumped MakerDeck, Paper3D, STL Painter, Mesh Prep, shared nav, and nested Container module imports to **b540** so cached `signs.js` cannot keep serving the old connector.
+
+---
+
 ## b539 — Unify MakerDeck tool build/cache tags
 **Date:** 2026-07-22
 
