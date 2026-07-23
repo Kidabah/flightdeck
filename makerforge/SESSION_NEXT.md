@@ -1,5 +1,16 @@
 ---
 
+## b550 — Tune shelf slot fit for printed sign thickness
+**Date:** 2026-07-23
+
+### MakerDeck
+- Added a separate **Slot fit** control for shelf-display signs so the shelf through-slot can match a measured printed back thickness without changing or reprinting the sign.
+- Set the Temora Vet shelf preset to a **5.70mm** slot fit for the measured **5.54mm** printed sign back, giving a snug press-fit allowance.
+- Kept the sign back export clean: the slot change only affects the shelf part.
+- Bumped MakerDeck, Paper3D, Mesh Prep, shared nav, and geometry cache/build labels to **b550**.
+
+---
+
 ## b549 — Give exported text more printable top layers
 **Date:** 2026-07-22
 

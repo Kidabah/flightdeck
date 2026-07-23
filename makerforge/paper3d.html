@@ -164,7 +164,7 @@
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import './js/nav.js?v=549';
+import './js/nav.js?v=550';
 
 /* ================================================================== */
 /*  Helpers                                                           */
@@ -975,7 +975,7 @@ function exportSTLBinary(positions, normals, nTri) {
   const buf = new ArrayBuffer(bufSize);
   const dv = new DataView(buf);
   // Header
-  const header = 'MakerDeck Paper3D b549';
+  const header = 'MakerDeck Paper3D b550';
   for (let i = 0; i < 80; i++) dv.setUint8(i, i < header.length ? header.charCodeAt(i) : 0);
   dv.setUint32(80, nTri, true);
   let off = 84;

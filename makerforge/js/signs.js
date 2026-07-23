@@ -176,8 +176,11 @@ export function buildSignBorder(W, H, th, corner, borderW, bh, shape = "rounded"
 }
 
 /** Straight press-fit slot sizes for shelf ↔ back joint (mm). */
-export function signShelfPressFitDims(backTh, shelfTh) {
-  const slotDepth = Math.max(2.4, backTh + 0.45);
+export function signShelfPressFitDims(backTh, shelfTh, opts = {}) {
+  const requestedSlot = Number(opts.slotDepth);
+  const slotDepth = Number.isFinite(requestedSlot)
+    ? Math.max(2.4, Math.min(12, requestedSlot))
+    : Math.max(2.4, backTh + 0.45);
   return { edgeInset: 5, slotDepth };
 }
 

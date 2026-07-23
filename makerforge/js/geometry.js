@@ -28,7 +28,7 @@ import {
   shapeSupportsProfileArt,
   shapeSupportsArt,
   STACK_LIP_MM,
-} from "./features.js?v=549";
+} from "./features.js?v=550";
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=161";
 import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=163";
@@ -44,7 +44,7 @@ import {
   buildSignShelfFemaleReceiver,
   buildSignShelfWithMale,
   signShelfPressFitDims,
-} from "./signs.js?v=549";
+} from "./signs.js?v=550";
 import {
   resolveVaseTexture,
   densifyClosedProfile,
@@ -56,7 +56,7 @@ import {
   profileOutlinePerimeter,
 } from "./vase-textures.js";
 
-import { appendInsertShelfSlotsToBody } from "./insert-slots.js?v=549";
+import { appendInsertShelfSlotsToBody } from "./insert-slots.js?v=550";
 
 export { shapeSupportsDecor, shapeSupportsInsert, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, VASE_STYLES };
 
@@ -2174,7 +2174,12 @@ export function buildSign(params) {
   const borderOn = params.signBorder !== false;
   const borderW = clamp(params.signBorderWidth ?? 4, 2, 12);
   const borderH = clamp(params.signBorderHeight ?? 1.4, 0.6, 4);
-  const shelfJoint = isShelf ? signShelfPressFitDims(th, shelfTh) : null;
+  const requestedShelfSlot = Number(params.signShelfSlotDepth);
+  const shelfJoint = isShelf
+    ? signShelfPressFitDims(th, shelfTh, {
+      slotDepth: Number.isFinite(requestedShelfSlot) ? requestedShelfSlot : undefined,
+    })
+    : null;
 
   const outline = shapeOutline(signShape, W / 2, H / 2, corner);
   const holes = (isShelf || mount === "stake" || mount === "none") ? [] : mountHoles(mount, W, H, { outline });
@@ -2664,6 +2669,7 @@ export const TEMORA_VET_SIGN_PRESET = {
   signShelfDepth: 45,
   signShelfThickness: 4,
   signShelfCorner: 10,
+  signShelfSlotDepth: 5.7,
   signMount: "none",
   signBorder: true,
   signBorderWidth: 3.5,
