@@ -1,5 +1,16 @@
 ---
 
+## b553 — Stop Painter exports forcing H2C HT filament presets
+**Date:** 2026-07-24
+
+### MakerDeck
+- Changed STL Painter 3MF exports to write plain filament preset names such as **Generic PLA** instead of **Generic PLA @BBL H2C**.
+- Removed Painter's `physical_extruder_map` override so Bambu Studio can bind colours to the user's loaded AMS / AMS 2 Pro trays instead of defaulting all imported slots to **HT-A**.
+- Kept the H2C printer/process profile on the project, but left filament-source selection to Studio.
+- Bumped STL Painter cache/build labels to **b553**.
+
+---
+
 ## b552 — Let STL Painter use normal AMS tray mapping
 **Date:** 2026-07-24
 

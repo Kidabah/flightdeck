@@ -1177,17 +1177,16 @@ export function export3MF(verts, faces, nVerts, nTri, embossMask, debossMask, op
 
   const filTypes = Array.from({ length: nSlots }, (_, i) =>
     (filamentType && filamentType[i]) || filamentType?.[0] || 'PLA');
-  // Match Spidey/Orca-proven ids: "Generic PLA @BBL H2C" (no Studio-only process keys).
-  const printerTag = /H2C/i.test(printerModel) ? 'BBL H2C'
-    : /H2D/i.test(printerModel) ? 'BBL H2D'
-    : /X1/i.test(printerModel) ? 'BBL X1C'
-    : 'BBL X1C';
   const baseProfile = String(filamentProfile || 'Generic PLA').replace(/\s*@.*$/, '').trim() || 'Generic PLA';
-  const defaultSettingsId = `${baseProfile} @${printerTag}`;
+  const defaultSettingsId = baseProfile;
   const filSettings = Array.from({ length: nSlots }, (_, i) => {
     let raw = String((filamentSettingsId && filamentSettingsId[i]) || defaultSettingsId).trim();
-    if (!raw.includes('@')) raw = `${raw} @${printerTag}`;
-    // Strip nozzle suffix — Orca is happier; Studio still resolves Generic PLA @BBL H2C.
+    // Painter exports should not force a printer-specific filament preset.
+    // On H2C, "Generic PLA @BBL H2C" imports into Studio as HT-A for every
+    // slot; plain "Generic PLA" lets Studio bind to the user's normal AMS /
+    // AMS 2 Pro trays.
+    raw = raw.replace(/\s*@.*$/, '').trim() || baseProfile;
+    // Strip nozzle suffix — Orca is happier and Studio can resolve the generic preset.
     raw = raw.replace(/\s+0\.\d+\s*nozzle\s*$/i, '');
     return raw;
   });
@@ -1326,7 +1325,6 @@ ${objTriangles}        </triangles>
     default_filament_colour: colorsArr,
     filament_map: filamentMap,
     filament_map_mode: 'Auto For Flush',
-    physical_extruder_map: ['1', '0'],
   }, null, 2);
 
   const zipFiles = [
