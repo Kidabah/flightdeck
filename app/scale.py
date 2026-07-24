@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import errno
+import select
 import struct
 import subprocess
 import time
@@ -52,7 +53,7 @@ class Scale:
             return default
 
     def _candidate_paths(self) -> list[str]:
-        paths = [self.device_path] + [f"/dev/hidraw{i}" for i in range(8)]
+        paths = [f"/dev/hidraw{i}" for i in range(8)] + [self.device_path]
         seen: set[str] = set()
         return [p for p in paths if not (p in seen or seen.add(p))]
 
@@ -77,10 +78,12 @@ class Scale:
             fd: Optional[int] = None
             try:
                 fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
-                try:
-                    data = os.read(fd, 16)
-                except BlockingIOError:
+                poller = select.poll()
+                poller.register(fd, select.POLLIN | select.POLLERR | select.POLLHUP)
+                events = poller.poll(1500)
+                if not events:
                     continue
+                data = os.read(fd, 64)
                 reading = self._parse_report(data)
                 if reading and reading.grams > 0:
                     return reading
@@ -196,7 +199,7 @@ class Scale:
             return False
         return any(f"{self.VENDOR}:{product}" in out for product in self.PRODUCTS)
 
-    def read_stable(self, timeout_s: float = 5.0) -> Optional[ScaleReading]:
+    def read_stable(self, timeout_s: float = 8.0) -> Optional[ScaleReading]:
         deadline = time.time() + timeout_s
         seen: list[int] = []
         while time.time() < deadline:
@@ -204,9 +207,9 @@ class Scale:
             if reading and reading.grams > 0:
                 seen.append(reading.grams)
                 seen = seen[-3:]
-                if len(seen) == 3 and len(set(seen)) == 1:
-                    reading.stable = True
-                    return reading
+                if len(seen) == 3 and max(seen) - min(seen) <= 2:
+                    stable_grams = sorted(seen)[1]
+                    return ScaleReading(grams=stable_grams, unit=reading.unit, stable=True)
             time.sleep(0.25)
         self.last_error = self.last_error or "Reading did not stabilise"
         return None
