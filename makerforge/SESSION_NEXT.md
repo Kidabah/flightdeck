@@ -1,5 +1,16 @@
 ---
 
+## b554 — Export STL Painter as neutral AMS project
+**Date:** 2026-07-24
+
+### MakerDeck
+- Changed STL Painter's 3MF project metadata to export as a neutral single-nozzle Bambu AMS profile instead of an H2C/H2D dual-nozzle project.
+- Removed the H2C/H2D Painter export-profile choices so Bambu Studio stops auto-routing painted colour slots to HT-A or right-nozzle lanes.
+- Kept the painted `paint_color` triangle data and filament colours intact; only the slicer import/routing profile changed.
+- Bumped STL Painter cache/build labels to **b554**.
+
+---
+
 ## b553 — Stop Painter exports forcing H2C HT filament presets
 **Date:** 2026-07-24
 

@@ -1163,7 +1163,7 @@ export function export3MF(verts, faces, nVerts, nTri, embossMask, debossMask, op
     filamentType = null,
     filamentSettingsId = null,
     filamentProfile = 'Generic PLA',
-    printerModel = 'Bambu Lab H2C',
+    printerModel = 'Bambu Lab X1 Carbon',
     projectName = 'painted_object',
   } = options;
 
@@ -1299,19 +1299,20 @@ ${objTriangles}        </triangles>
   </object>
 </config>`;
 
-  const processId = /H2C/i.test(printerModel) ? '0.20mm Standard @BBL H2C'
-    : /H2D/i.test(printerModel) ? '0.20mm Standard @BBL H2D'
-    : '0.20mm Standard @BBL X1C';
-  const nozzleId = /H2C/i.test(printerModel) ? 'Bambu Lab H2C 0.4 nozzle'
-    : /H2D/i.test(printerModel) ? 'Bambu Lab H2D 0.4 nozzle'
-    : 'Bambu Lab X1 Carbon 0.4 nozzle';
+  // Painter exports are intentionally single-tool AMS projects. H2C/H2D
+  // printer profiles make Studio auto-route colours onto left/right nozzles
+  // and can default rows to HT-A or right-nozzle ranges. Use a neutral Bambu
+  // AMS profile for the 3MF; the user can switch the printer after import.
+  const exportPrinterModel = 'Bambu Lab X1 Carbon';
+  const processId = '0.20mm Standard @BBL X1C';
+  const nozzleId = 'Bambu Lab X1 Carbon 0.4 nozzle';
 
   // Keep this list small — Studio-only keys (soft_fine_layer_expander, etc.) break Orca.
   const projectSettings = JSON.stringify({
     from: 'MakerDeck',
     name: 'project_settings',
     version: '2.2.0',
-    printer_model: printerModel,
+    printer_model: exportPrinterModel,
     printer_settings_id: nozzleId,
     print_settings_id: processId,
     filament_type: filTypes,
