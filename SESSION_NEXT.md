@@ -1,3 +1,12 @@
+## 2026-07-24 Session update
+
+Latest local/static change:
+- Print History spool usage rows now show **Expected remaining Xg** under the deducted/used grams when `remaining_after_g` is available.
+- This makes low-stock weigh-in hints explain themselves without changing deduction, reconcile, or correction logic.
+- Static cache bumped to `app.js?v=645`; frontend refresh only.
+
+---
+
 ## 2026-06-14 Session handoff
 
 Latest GitHub/Pi state:

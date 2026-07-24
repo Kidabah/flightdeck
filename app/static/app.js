@@ -7353,6 +7353,11 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
 
   const canAssignSpoolUsage = print.id && !print.spool_usage?.length && Number(print.filament_grams || 0) > 0;
   const canRecoverFilamentUsage = print.id && !print.spool_usage?.length && print.filament_grams == null && String(print.final_state || '').toUpperCase() === 'FINISHED';
+  const spoolExpectedRemainingHtml = (u) => {
+    const remaining = Number(u.remaining_after_g);
+    if (!Number.isFinite(remaining)) return '';
+    return `<em>Expected remaining ${remaining.toFixed(1)}g</em>`;
+  };
   const spoolUsageHtml = print.spool_usage?.length
     ? `<div class="print-spool-usage">
         <div class="print-spool-title">Spool usage</div>
@@ -7361,6 +7366,7 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
             <a href="#/spool/${u.spool_id}">Spool #${_spoolDisplayNumberById(u.spool_id)}${u.slot != null ? ` · ${(_latestPrinters.find(x => x.id === printerId) ? _amsSlotLabel(_latestPrinters.find(x => x.id === printerId), u.slot) : `S${u.slot + 1}`)}` : ''}</a>
             <span class="print-spool-grams">
               <strong>${Number(u.actual_grams ?? u.grams ?? 0).toFixed(1)}g</strong>
+              ${spoolExpectedRemainingHtml(u)}
               ${u.cost != null ? `<em class="print-spool-cost">$${Number(u.cost).toFixed(2)} · ${esc(u.cost_source || 'costed')}</em>` : ''}
               ${u.waste_grams ? `<em>${Number(u.grams || 0).toFixed(1)}g model · ${Number(u.waste_grams || 0).toFixed(1)}g purge</em>` : ''}
               ${u.reconcile_suggested ? `<em class="weigh-suggested">Weigh-in suggested · ${(u.reconcile_reasons || []).join(', ')}</em>` : ''}
