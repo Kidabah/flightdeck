@@ -7574,25 +7574,29 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
       e.preventDefault();
       const printId = btn.dataset.printId;
       const spoolId = btn.dataset.spoolId;
-      const value = await _inputModal({
-        title: `Reconcile spool #${spoolId}`,
-        message: 'Actual remaining grams after this print',
-        inputType: 'number',
-        placeholder: 'grams',
-        okLabel: 'Continue',
-      });
-      if (value === null) return;
-      const remaining = parseFloat(value);
-      if (isNaN(remaining) || remaining < 0) {
-        showToast('Invalid gram value', 'Enter a valid remaining gram value.', 'error');
-        return;
+      const useScale = btn.classList.contains('suggested');
+      let remaining = null;
+      if (!useScale) {
+        const value = await _inputModal({
+          title: `Reconcile spool #${spoolId}`,
+          message: 'Actual remaining filament grams after this print',
+          inputType: 'number',
+          placeholder: 'grams',
+          okLabel: 'Continue',
+        });
+        if (value === null) return;
+        remaining = parseFloat(value);
+        if (isNaN(remaining) || remaining < 0) {
+          showToast('Invalid gram value', 'Enter a valid remaining gram value.', 'error');
+          return;
+        }
       }
       const usage = print.spool_usage.find(u => String(u.spool_id) === String(spoolId));
       let startRemaining = null;
       if (usage && usage.remaining_start_g == null) {
         const startValue = await _inputModal({
           title: `Starting weight for spool #${spoolId}`,
-          message: 'Optional. Leave blank to keep the existing model value.',
+          message: 'Optional filament grams before this print. Leave blank to keep the existing model value.',
           value: usage.remaining_before_g ?? '',
           inputType: 'number',
           okLabel: 'Continue',
@@ -7614,7 +7618,8 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
       btn.disabled = true;
       btn.textContent = '...';
       try {
-        const payload = { remaining_g: remaining, exclusive };
+        const payload = { exclusive };
+        if (remaining !== null) payload.remaining_g = remaining;
         if (startRemaining !== null) payload.start_remaining_g = startRemaining;
         const r = await fetch(`/api/prints/${printId}/spool_usage/${spoolId}/reconcile`, {
           method: 'POST',
@@ -7627,6 +7632,8 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
           usage.actual_grams = data.actual_grams;
           usage.waste_grams = data.waste_grams;
           usage.remaining_after_g = data.remaining_g;
+          usage.scale_reading_g = data.scale_reading_g;
+          usage.empty_spool_weight_g = data.empty_spool_weight_g;
           if (startRemaining !== null) usage.remaining_start_g = startRemaining;
         }
         if (exclusive) {
@@ -7635,7 +7642,7 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
         await _refreshSpoolsByPrinter();
         await _refreshPrintDetailFromServer(printerId, dateStr, printId, targetEl);
       } catch (err) {
-        showToast('Reconcile failed', err.message || '', 'error');
+        showToast(useScale ? 'Scale weigh failed' : 'Reconcile failed', _scaleFriendlyMessage(err.message || ''), 'error');
         btn.disabled = false;
         btn.textContent = old;
       }
