@@ -7575,8 +7575,12 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
       const printId = btn.dataset.printId;
       const spoolId = btn.dataset.spoolId;
       const useScale = btn.classList.contains('suggested');
+      const usage = print.spool_usage.find(u => String(u.spool_id) === String(spoolId));
       let remaining = null;
-      if (!useScale) {
+      if (useScale) {
+        const ok = await _confirmModal(`Place spool #${_spoolDisplayNumberById(spoolId)} on the scale. Flightdeck will read the gross weight and subtract that spool's empty-spool weight automatically.`);
+        if (!ok) return;
+      } else {
         const value = await _inputModal({
           title: `Reconcile spool #${spoolId}`,
           message: 'Actual remaining filament grams after this print',
@@ -7591,9 +7595,8 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
           return;
         }
       }
-      const usage = print.spool_usage.find(u => String(u.spool_id) === String(spoolId));
       let startRemaining = null;
-      if (usage && usage.remaining_start_g == null) {
+      if (!useScale && usage && usage.remaining_start_g == null) {
         const startValue = await _inputModal({
           title: `Starting weight for spool #${spoolId}`,
           message: 'Optional filament grams before this print. Leave blank to keep the existing model value.',
