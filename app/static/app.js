@@ -7614,7 +7614,7 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
         }
       }
       let exclusive = false;
-      if (print.spool_usage.length > 1) {
+      if (!useScale && print.spool_usage.length > 1) {
         exclusive = await _confirmModal('Was this the only spool actually used? Confirm will remove other usage rows and restore their deducted grams.');
       }
       const old = btn.textContent;

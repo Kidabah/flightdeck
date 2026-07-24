@@ -1,10 +1,14 @@
 ## 2026-07-24 Session update
 
 Latest local/static change:
+- Print History amber **Weigh** no longer asks "Was this the only spool actually used?" for multi-spool prints; it reconciles only the selected row so the remaining spool rows can still be weighed one by one.
+- Static cache bumped to `app.js?v=650`; frontend refresh required.
+
+Previous local/static change:
 - Dymo scale reads now prefer `/dev/hidraw*`, poll up to 1.5s for the next scale report instead of sampling instantly, and accept a small 2g stability band. Raw report `03 04 02 00 00 01` maps to ~256g, proving the active-report path.
 - Backend restart required after pull.
 
-Previous local/static change:
+Older local/static change:
 - Print History **Weigh** now sends a best-effort `/api/scale/keep-awake` before `/api/scale/read`, and "No non-zero scale reading" now tells the user to put the spool on, wake/tare the scale, and retry.
 - Static cache bumped to `app.js?v=649`; frontend refresh required.
 
