@@ -74,17 +74,25 @@ class Scale:
         for path in self._candidate_paths():
             if not Path(path).exists():
                 continue
+            fd: Optional[int] = None
             try:
-                with open(path, "rb", buffering=0) as f:
-                    data = f.read(16)
+                fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+                try:
+                    data = os.read(fd, 16)
+                except BlockingIOError:
+                    continue
                 reading = self._parse_report(data)
                 if reading and reading.grams > 0:
                     return reading
             except PermissionError:
                 self.last_error = f"Permission denied reading {path}"
                 return None
-            except Exception as exc:
-                self.last_error = str(exc)
+            except OSError as exc:
+                if exc.errno not in (errno.EAGAIN, errno.EWOULDBLOCK):
+                    self.last_error = str(exc)
+            finally:
+                if fd is not None:
+                    os.close(fd)
         self.last_error = self.last_error or "No non-zero scale reading"
         return None
 
