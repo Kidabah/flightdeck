@@ -7097,9 +7097,17 @@ async def keep_scale_awake():
     }
 
 
+async def _read_scale_stable_async(timeout_s: float = 12.0):
+    try:
+        return await asyncio.wait_for(asyncio.to_thread(_scale.read_stable), timeout=timeout_s)
+    except asyncio.TimeoutError:
+        _scale.last_error = f"Scale read timed out after {timeout_s:.0f}s"
+        return None
+
+
 @app.get("/api/scale/read")
 async def read_scale():
-    reading = _scale.read_stable()
+    reading = await _read_scale_stable_async()
     if not reading:
         message = _scale.last_error or "Scale unavailable"
         db.log_decision("system", "scale_unavailable", message)
@@ -8497,7 +8505,7 @@ async def correct_spool_weight(spool_id: int, body: SpoolWeightCorrection):
     elif body.reading_g is not None:
         remaining = float(body.reading_g) - float(empty_g or 0)
     else:
-        reading = _scale.read_stable()
+        reading = await _read_scale_stable_async()
         if not reading:
             message = _scale.last_error or "Scale unavailable"
             db.log_decision("system", "scale_unavailable", message)
@@ -8536,7 +8544,7 @@ async def reconcile_print_spool_usage(print_id: int, spool_id: int, body: SpoolU
     elif body.reading_g is not None:
         remaining = float(body.reading_g) - float(empty_g or 0)
     else:
-        reading = _scale.read_stable()
+        reading = await _read_scale_stable_async()
         if not reading:
             message = _scale.last_error or "Scale unavailable"
             db.log_decision("system", "scale_unavailable", message)

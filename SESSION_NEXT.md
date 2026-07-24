@@ -1,16 +1,20 @@
 ## 2026-07-24 Session update
 
 Latest local/static change:
+- Scale-backed weigh/reconcile reads now run off the async event loop with a 12s timeout, so a stuck scale read can fail the weigh action without freezing all Flightdeck routes.
+- Backend restart required after pull.
+
+Previous local/static change:
 - Print History amber **Weigh** now opens a scale-read confirmation first, skips the manual starting-weight prompt, and then preserves the existing multi-spool "only spool used?" confirm/cancel behavior.
 - Static cache bumped to `app.js?v=647`; frontend refresh only.
 
-Previous local/static change:
+Older local/static change:
 - Print History amber **Weigh** actions now use the scale-backed reconcile path instead of asking for remaining grams manually.
 - Because the backend has the spool id, it uses that spool's `empty_spool_weight_g` or matching material/brand tare fallback, reads the gross scale weight, and stores remaining filament grams after subtracting tare.
 - Plain **Reconcile** still allows manual remaining-filament entry for non-suggested rows or no-scale situations.
 - Static cache bumped to `app.js?v=646`; frontend refresh only.
 
-Previous local/static change:
+Older local/static change:
 - Print History spool usage rows now show **Expected remaining Xg** under the deducted/used grams when `remaining_after_g` is available.
 - This makes low-stock weigh-in hints explain themselves without changing deduction, reconcile, or correction logic.
 - Static cache bumped to `app.js?v=645`; frontend refresh only.
