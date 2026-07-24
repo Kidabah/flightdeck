@@ -1,10 +1,14 @@
 ## 2026-07-24 Session update
 
 Latest local/static change:
+- Print History **Weigh** now sends a best-effort `/api/scale/keep-awake` before `/api/scale/read`, and "No non-zero scale reading" now tells the user to put the spool on, wake/tare the scale, and retry.
+- Static cache bumped to `app.js?v=649`; frontend refresh required.
+
+Previous local/static change:
 - Dymo scale reads now use non-blocking HID reads instead of a blocking `read(16)`, so missing/no-report states can fail quickly instead of hanging until the 12s API timeout.
 - Backend restart required after pull.
 
-Previous local/static change:
+Older local/static change:
 - Print History amber **Weigh** now performs an explicit `/api/scale/read` first, validates the gross grams, then posts that `reading_g` into reconcile. This avoids the Weigh button sitting at `...` while reconcile owns the scale read.
 - Static cache bumped to `app.js?v=648`; frontend refresh required. Backend already supports the passed `reading_g`.
 

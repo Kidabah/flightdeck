@@ -7623,6 +7623,7 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
       try {
         const payload = { exclusive };
         if (useScale) {
+          await fetch('/api/scale/keep-awake', { method: 'POST' }).catch(() => {});
           const sr = await fetch('/api/scale/read');
           const scaleRaw = await sr.text();
           let scaleData = {};
@@ -18260,7 +18261,10 @@ function _hardwareStatusPill(ok, text) {
 
 function _scaleFriendlyMessage(message) {
   const text = message || 'Scale read failed';
-  if (/not detected|not found|unavailable|stabilis/i.test(text)) {
+  if (/no non-zero|zero scale|non-zero scale/i.test(text)) {
+    return `${text}. Put the spool on the scale, wake/tare it, then retry.`;
+  }
+  if (/not detected|not found|unavailable|stabilis|timed out/i.test(text)) {
     return `${text}. Wake the scale and retry.`;
   }
   return text;
