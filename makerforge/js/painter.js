@@ -937,7 +937,7 @@ function createZip(files) {
 /**
  * Bambu/Orca per-triangle paint_color codes (same table as makerforge/js/3mf.js).
  * Index 0 = AMS slot 1 (Base). Export omits attribute for slot 1; others use these codes.
- * Supports up to 16 filaments (multi-AMS / AMS HT).
+ * Supports up to 16 filaments (multi-AMS).
  */
 export const PAINT_COLOR_CODES = [
   '4', '8', '0C', '1C', '2C', '3C', '4C', '5C',
@@ -1196,7 +1196,9 @@ export function export3MF(verts, faces, nVerts, nTri, embossMask, debossMask, op
   const filIds = Array.from({ length: nSlots }, () => 'GFL99');
   const filDiameter = Array.from({ length: nSlots }, () => '1.75');
   const filDensity = Array.from({ length: nSlots }, () => '1.24');
-  // Pin every project filament to left nozzle so AMS mapping stays stable without trays loaded
+  // Keep a simple Bambu-style filament map, but let Studio bind those project
+  // colours to the loaded AMS/AMS2 Pro trays. Manual pinning made H2C imports
+  // show every painted slot as HT-A.
   const filamentMap = Array.from({ length: nSlots }, () => '1');
   const colourTypes = Array.from({ length: nSlots }, () => '2');
 
@@ -1278,6 +1280,17 @@ ${objTriangles}        </triangles>
 
   const modelSettings = `<?xml version="1.0" encoding="UTF-8"?>
 <config>
+  <plate>
+    <metadata key="plater_id" value="1" />
+    <metadata key="plater_name" value="" />
+    <metadata key="locked" value="false" />
+    <metadata key="filament_map_mode" value="Auto For Flush" />
+    <model_instance>
+      <metadata key="object_id" value="1" />
+      <metadata key="instance_id" value="0" />
+      <metadata key="identify_id" value="0" />
+    </model_instance>
+  </plate>
   <object id="1">
     <metadata key="name" value="${safeName}" />
     <part id="1" subtype="normal_part">
@@ -1312,7 +1325,7 @@ ${objTriangles}        </triangles>
     filament_density: filDensity,
     default_filament_colour: colorsArr,
     filament_map: filamentMap,
-    filament_map_mode: 'Manual',
+    filament_map_mode: 'Auto For Flush',
     physical_extruder_map: ['1', '0'],
   }, null, 2);
 

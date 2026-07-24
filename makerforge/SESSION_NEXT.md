@@ -1,5 +1,16 @@
 ---
 
+## b552 — Let STL Painter use normal AMS tray mapping
+**Date:** 2026-07-24
+
+### MakerDeck
+- Fixed STL Painter 3MF exports so painted colour slots use Bambu/Orca **Auto For Flush** mapping instead of hard-pinning every filament to map slot `1`.
+- Added Bambu-style plate metadata to Painter exports so slicers see the project as a normal plate/object rather than only a loose painted model.
+- Removed HT-specific wording from Painter's colour-slot UI; 16 slots still work for multi-AMS, but exports should no longer default every slot to **HT-A** in Studio.
+- Bumped STL Painter cache/build labels to **b552**.
+
+---
+
 ## b551 — Add Paper3D solid base protection
 **Date:** 2026-07-24
 
