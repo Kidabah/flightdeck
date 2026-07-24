@@ -1,5 +1,16 @@
 ---
 
+## b551 — Add Paper3D solid base protection
+**Date:** 2026-07-24
+
+### Paper3D
+- Added a **Solid Base Height** control so the lower part of the source STL stays uncut before Paper3D holes/lattice begin.
+- Preserves original triangles touching the protected base band, giving slicers a complete manifold first layer without needing bed contact pads.
+- Status now reports how many base faces were protected and the effective solid-base height used.
+- Bumped Paper3D, Voronoi redirect header, Mesh Prep shared nav import, and shared navigation cache/build labels to **b551**.
+
+---
+
 ## b550 — Tune shelf slot fit for printed sign thickness
 **Date:** 2026-07-23
 

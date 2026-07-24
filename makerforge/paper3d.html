@@ -82,6 +82,11 @@
       </div>
 
       <div class="form-group">
+        <div class="form-label"><span>Solid Base Height</span><span class="val" id="solidBaseVal">2.0mm</span></div>
+        <input type="range" id="solidBase" min="0" max="8" value="2.0" step="0.2">
+      </div>
+
+      <div class="form-group">
         <div class="form-label"><span>Randomness</span><span class="val" id="randomVal">80%</span></div>
         <input type="range" id="randomness" min="0" max="100" value="80" step="5">
       </div>
@@ -164,7 +169,7 @@
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import './js/nav.js?v=550';
+import './js/nav.js?v=551';
 
 /* ================================================================== */
 /*  Helpers                                                           */
@@ -672,6 +677,7 @@ function filterSmallTriangleIslands(result, minTriangles = 4) {
     normals: outNorm,
     nTri: keepCount,
     nKept: result.nKept,
+    baseProtected: result.baseProtected || 0,
     removedIslands: nTri - keepCount
   };
 }
@@ -756,6 +762,7 @@ function addBedContactPads(result, bodyThick, modelDim) {
     nTri: outPos.length / 9,
     nKept: result.nKept,
     removedIslands: result.removedIslands || 0,
+    baseProtected: result.baseProtected || 0,
     bedPads: pads.length
   };
 }
@@ -852,19 +859,34 @@ function addSelfSupports(result, bodyThick, modelDim) {
     nTri: outPos.length / 9,
     nKept: result.nKept,
     removedIslands: result.removedIslands || 0,
+    baseProtected: result.baseProtected || 0,
     bedPads: result.bedPads || 0,
     selfSupports: supports.length
   };
 }
 
+function pushOriginalTriangle(outPos, outNorm, positions, offset) {
+  const a = { x: positions[offset], y: positions[offset+1], z: positions[offset+2] };
+  const b = { x: positions[offset+3], y: positions[offset+4], z: positions[offset+5] };
+  const c = { x: positions[offset+6], y: positions[offset+7], z: positions[offset+8] };
+  return pushTri(outPos, outNorm, a, b, c);
+}
+
 /** Clip original STL triangles against the Paper3D band and give the result body. */
-function buildClippedPaper3DShell(positions, nTri, seeds, nSeeds, halfWall, shellDepth, normalMap) {
+function buildClippedPaper3DShell(positions, nTri, seeds, nSeeds, halfWall, shellDepth, normalMap, protectedZ = -Infinity) {
   const outPos = [];
   const outNorm = [];
   const edgeMap = new Map();
   let touched = 0;
+  let baseProtected = 0;
   for (let i = 0; i < nTri; i++) {
     const o = i * 9;
+    const zMin = Math.min(positions[o+2], positions[o+5], positions[o+8]);
+    if (zMin <= protectedZ && pushOriginalTriangle(outPos, outNorm, positions, o)) {
+      touched++;
+      baseProtected++;
+      continue;
+    }
     const n0 = smoothNormalAt(normalMap, positions[o], positions[o+1], positions[o+2]);
     const n1 = smoothNormalAt(normalMap, positions[o+3], positions[o+4], positions[o+5]);
     const n2 = smoothNormalAt(normalMap, positions[o+6], positions[o+7], positions[o+8]);
@@ -888,7 +910,8 @@ function buildClippedPaper3DShell(positions, nTri, seeds, nSeeds, halfWall, shel
     positions: new Float32Array(outPos),
     normals: new Float32Array(outNorm),
     nTri: outPos.length / 9,
-    nKept: touched
+    nKept: touched,
+    baseProtected
   };
 }
 
@@ -916,13 +939,15 @@ function adaptiveWallThreshold(positions, nTri, seeds, nSeeds, requestedBand, ce
 
 /** Full Paper3D generation pipeline. */
 function generatePaper3D(positions, normals, nTri, opts) {
-  const { cellCount, wallThick, bodyThick, randomness, mode, bedPads, selfSupports } = opts;
+  const { cellCount, wallThick, bodyThick, solidBase, randomness, mode, bedPads, selfSupports } = opts;
   const bounds = meshBounds(positions, nTri);
   const modelDim = Math.max(bounds.maxDim, 1e-6);
   const effectiveWallThick = Math.min(wallThick, Math.max(0.05, modelDim * 0.035));
   const minBody = Math.max(0.03, Math.min(0.15, modelDim * 0.004));
   const maxBody = Math.max(minBody, Math.min(2.0, modelDim * 0.018));
   const effectiveBodyThick = Math.max(minBody, Math.min(bodyThick, maxBody));
+  const effectiveSolidBase = Math.max(0, Math.min(solidBase || 0, modelDim * 0.18));
+  const protectedZ = effectiveSolidBase > 0 ? bounds.minZ + effectiveSolidBase : -Infinity;
   const wasScaleClamped = effectiveWallThick < wallThick || effectiveBodyThick < bodyThick;
 
   setStatus('Sampling seed points…'); showProgress(5);
@@ -940,7 +965,7 @@ function generatePaper3D(positions, normals, nTri, opts) {
   const shellDepth = effectiveBodyThick;
 
   setStatus('Building Paper3D shell body…'); showProgress(40);
-  let result = buildClippedPaper3DShell(positions, nTri, seeds, nSeeds, halfWall, shellDepth, normalMap);
+  let result = buildClippedPaper3DShell(positions, nTri, seeds, nSeeds, halfWall, shellDepth, normalMap, protectedZ);
   showProgress(85);
 
   setStatus('Cleaning tiny loose islands…');
@@ -960,8 +985,9 @@ function generatePaper3D(positions, normals, nTri, opts) {
   const islandText = result.removedIslands ? `, cleaned ${result.removedIslands.toLocaleString()} loose faces` : '';
   const padText = result.bedPads ? `, ${result.bedPads} bed pads` : '';
   const supportText = result.selfSupports ? `, ${result.selfSupports} supports` : '';
+  const baseText = result.baseProtected ? `, protected ${result.baseProtected.toLocaleString()} base faces` : '';
   const scaleText = wasScaleClamped ? ', scale-clamped' : '';
-  setStatus(`Done — ${result.nTri.toLocaleString()} shell faces, removed ${removed.toLocaleString()} interiors${islandText}${padText}${supportText}, band ${halfWall.toFixed(3)}mm, body ${shellDepth.toFixed(2)}mm${scaleText}`);
+  setStatus(`Done — ${result.nTri.toLocaleString()} shell faces, removed ${removed.toLocaleString()} interiors${islandText}${padText}${supportText}${baseText}, band ${halfWall.toFixed(3)}mm, body ${shellDepth.toFixed(2)}mm, solid base ${effectiveSolidBase.toFixed(1)}mm${scaleText}`);
   showProgress(100);
 
   return { result, cellCount, removed, nKept: result.nKept, halfWall, shellDepth };
@@ -975,7 +1001,7 @@ function exportSTLBinary(positions, normals, nTri) {
   const buf = new ArrayBuffer(bufSize);
   const dv = new DataView(buf);
   // Header
-  const header = 'MakerDeck Paper3D b550';
+  const header = 'MakerDeck Paper3D b551';
   for (let i = 0; i < 80; i++) dv.setUint8(i, i < header.length ? header.charCodeAt(i) : 0);
   dv.setUint32(80, nTri, true);
   let off = 84;
@@ -1115,6 +1141,7 @@ function updateModeUI() {
 $('cellCount').addEventListener('input', e => { $('cellCountVal').textContent = e.target.value; });
 $('wallThick').addEventListener('input', e => { $('wallThickVal').textContent = e.target.value + 'mm'; });
 $('bodyThick').addEventListener('input', e => { $('bodyThickVal').textContent = e.target.value + 'mm'; });
+$('solidBase').addEventListener('input', e => { $('solidBaseVal').textContent = parseFloat(e.target.value).toFixed(1) + 'mm'; });
 $('randomness').addEventListener('input', e => { $('randomVal').textContent = e.target.value + '%'; });
 
 // Generate
@@ -1129,6 +1156,7 @@ $('generateBtn').addEventListener('click', () => {
         cellCount: parseInt($('cellCount').value),
         wallThick: parseFloat($('wallThick').value),
         bodyThick: parseFloat($('bodyThick').value),
+        solidBase: parseFloat($('solidBase').value),
         randomness: parseInt($('randomness').value),
         mode: S.mode,
         smooth: $('smoothEdges').checked,
