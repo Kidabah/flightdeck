@@ -1,10 +1,14 @@
 ## 2026-07-24 Session update
 
 Latest local/static change:
+- Print History amber **Weigh** now performs an explicit `/api/scale/read` first, validates the gross grams, then posts that `reading_g` into reconcile. This avoids the Weigh button sitting at `...` while reconcile owns the scale read.
+- Static cache bumped to `app.js?v=648`; frontend refresh required. Backend already supports the passed `reading_g`.
+
+Previous local/static change:
 - Scale-backed weigh/reconcile reads now run off the async event loop with a 12s timeout, so a stuck scale read can fail the weigh action without freezing all Flightdeck routes.
 - Backend restart required after pull.
 
-Previous local/static change:
+Older local/static change:
 - Print History amber **Weigh** now opens a scale-read confirmation first, skips the manual starting-weight prompt, and then preserves the existing multi-spool "only spool used?" confirm/cancel behavior.
 - Static cache bumped to `app.js?v=647`; frontend refresh only.
 

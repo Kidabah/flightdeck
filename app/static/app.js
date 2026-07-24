@@ -7619,9 +7619,20 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
       }
       const old = btn.textContent;
       btn.disabled = true;
-      btn.textContent = '...';
+      btn.textContent = useScale ? 'Reading...' : '...';
       try {
         const payload = { exclusive };
+        if (useScale) {
+          const sr = await fetch('/api/scale/read');
+          const scaleRaw = await sr.text();
+          let scaleData = {};
+          try { scaleData = scaleRaw ? JSON.parse(scaleRaw) : {}; } catch { scaleData = { detail: scaleRaw }; }
+          if (!sr.ok) throw new Error(scaleData.detail || 'Scale read failed');
+          const gross = parseFloat(scaleData.grams);
+          if (isNaN(gross) || gross < 0) throw new Error('Scale read did not return a valid gram value');
+          payload.reading_g = gross;
+          btn.textContent = '...';
+        }
         if (remaining !== null) payload.remaining_g = remaining;
         if (startRemaining !== null) payload.start_remaining_g = startRemaining;
         const r = await fetch(`/api/prints/${printId}/spool_usage/${spoolId}/reconcile`, {
