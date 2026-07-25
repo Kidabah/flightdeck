@@ -1,5 +1,16 @@
 ---
 
+## b558 — Make STL Painter Edge click-preview usable
+**Date:** 2026-07-25
+
+### MakerDeck
+- Edge now supports a direct click workflow: click beside a painted boundary and it previews the connected run to the next hard edge in the normal magenta selection colour.
+- Edge **Fill** now fills that magenta preview, and **Clear** clears both direct-click previews and the older edge-band preview.
+- Kept the old Lock + drag-box edge-band mode for larger boundary searches.
+- Bumped STL Painter cache/build labels to **b558**.
+
+---
+
 ## b557 — Smarter STL Painter smart fill for posts and awnings
 **Date:** 2026-07-25
 

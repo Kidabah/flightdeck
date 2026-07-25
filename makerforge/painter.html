@@ -14,7 +14,7 @@
 </script>
 <style>
 /* ================================================================== */
-/*  b557 — MakerDeck STL Painter  (tabbed layout)                     */
+/*  b558 — MakerDeck STL Painter  (tabbed layout)                     */
 /* ================================================================== */
 
 /* -- Reset & Vars -------------------------------------------------- */
@@ -306,7 +306,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   <header class="header">
     <button class="toggle-sidebar" id="toggleSidebar" title="Toggle sidebar">☰</button>
     <div class="logo">Maker<span>Deck</span> · STL Painter</div>
-    <div class="build">b557</div>
+    <div class="build">b558</div>
   </header>
 
   <!-- Left Sidebar (tabbed) -->
@@ -607,7 +607,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b557</span>
+    <span>MakerDeck · STL Painter b558</span>
   </footer>
 </div>
 
@@ -633,7 +633,7 @@ import {
   paintClassOf, upgradePaintResolution, export3MF,
   findMeshIslands, buildIslandMap, floodFillSameClass, floodFillSameSlot, selectIsland,
   import3MF, buildSymmetryMap, masksToFacePaint, facePaintToMasks, MAX_PAINT_SLOTS
-} from './js/painter.js?v=557';
+} from './js/painter.js?v=558';
 
 /* ================================================================== */
 /*  STATE                                                             */
@@ -1383,6 +1383,75 @@ function edgePaintMask() {
   return m;
 }
 
+function faceNormal(fi) {
+  const a = S.faces[fi * 3], b = S.faces[fi * 3 + 1], c = S.faces[fi * 3 + 2];
+  const ax = S.verts[a * 3], ay = S.verts[a * 3 + 1], az = S.verts[a * 3 + 2];
+  const bx = S.verts[b * 3], by = S.verts[b * 3 + 1], bz = S.verts[b * 3 + 2];
+  const cx = S.verts[c * 3], cy = S.verts[c * 3 + 1], cz = S.verts[c * 3 + 2];
+  const e1x = bx - ax, e1y = by - ay, e1z = bz - az;
+  const e2x = cx - ax, e2y = cy - ay, e2z = cz - az;
+  let nx = e1y * e2z - e1z * e2y;
+  let ny = e1z * e2x - e1x * e2z;
+  let nz = e1x * e2y - e1y * e2x;
+  const len = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+  return [nx / len, ny / len, nz / len];
+}
+
+function edgeRunFromHit(hit) {
+  const fp = ensureFacePaint();
+  if (!hit || !fp || !S.faceAdj) return [];
+  const target = slotIndex(S.paintTarget);
+  let seed = hit.faceIndex;
+  let seedSlot = fp[seed] || 0;
+
+  if (seedSlot === target) {
+    const next = S.faceAdj[seed].find(nb => !isFaceHidden(nb) && (fp[nb] || 0) !== target);
+    if (next == null) return [];
+    seed = next;
+    seedSlot = fp[seed] || 0;
+  }
+
+  const edgeWidth = parseInt($('edgeWidth')?.value || '2', 10) || 0;
+  const maxAngleDeg = Math.min(125, 45 + edgeWidth * 10);
+  const cosThr = Math.cos(maxAngleDeg * Math.PI / 180);
+  const queued = new Uint8Array(S.nTri);
+  const out = [];
+  const queue = [seed];
+  queued[seed] = 1;
+
+  while (queue.length) {
+    const fi = queue.pop();
+    if (isFaceHidden(fi)) continue;
+    if ((fp[fi] || 0) !== seedSlot) continue;
+    out.push(fi);
+    const n = faceNormal(fi);
+    for (const nb of S.faceAdj[fi]) {
+      if (queued[nb] || isFaceHidden(nb) || (fp[nb] || 0) !== seedSlot) continue;
+      const nn = faceNormal(nb);
+      if (n[0] * nn[0] + n[1] * nn[1] + n[2] * nn[2] < cosThr) continue;
+      queued[nb] = 1;
+      queue.push(nb);
+    }
+  }
+  return out;
+}
+
+function previewEdgeRun(clientX, clientY) {
+  if (!ensureFacePaint() || !S.mesh) return 0;
+  ensureFaceAdj();
+  const hit = pickHitAtClient(clientX, clientY);
+  if (!hit) { setStatus('Edge — click beside the painted colour boundary', 'idle'); return 0; }
+  const faces = edgeRunFromHit(hit);
+  if (!faces.length) {
+    setStatus('Edge found no neighbouring unpainted run — click the grey side of the colour edge', 'idle');
+    return 0;
+  }
+  S._edgeLastSeeds = null;
+  S.edgeHighlight = null;
+  setFaceSelection(faces, 'edge to next hard edge');
+  return faces.length;
+}
+
 function runEdgeFinder(seedFaceList) {
   if (!ensureFacePaint() || !S.mesh) return 0;
   ensureFaceAdj();
@@ -1397,7 +1466,11 @@ function runEdgeFinder(seedFaceList) {
 }
 
 function fillEdgeHighlight() {
-  if (!S.edgeHighlight) { setStatus('No edge highlight — drag a box first', 'idle'); return; }
+  if (S.clickSelectionFaces?.length) {
+    paintClickSelection();
+    return;
+  }
+  if (!S.edgeHighlight) { setStatus('No edge preview — click an edge run or drag a box first', 'idle'); return; }
   const faces = []; for (let i = 0; i < S.nTri; i++) if (S.edgeHighlight[i]) faces.push(i);
   if (!faces.length) { setStatus('Edge highlight empty', 'idle'); return; }
   paintFacesFree(faces, S.paintTarget);
@@ -2289,7 +2362,12 @@ $('edgeWidth')?.addEventListener('input', () => {
   if (S._edgeLastSeeds) { const n = runEdgeFinder(S._edgeLastSeeds); setStatus(`Edge band: ${n} faces`, 'idle'); }
 });
 $('edgeFillBtn')?.addEventListener('click', () => fillEdgeHighlight());
-$('edgeClearBtn')?.addEventListener('click', () => { S._edgeLastSeeds = null; S.edgeHighlight = null; updateMeshColors(); });
+$('edgeClearBtn')?.addEventListener('click', () => {
+  S._edgeLastSeeds = null;
+  S.edgeHighlight = null;
+  clearClickSelection();
+  setStatus('Edge preview cleared', 'idle');
+});
 
 // Detect sliders
 for (const id of ['sensitivity','smoothIter','minCluster','morphClose','morphOpen']) {
@@ -2445,6 +2523,14 @@ viewport.addEventListener('pointerdown', (e) => {
     syncOrbitLock();
     previewSmartFill(e.clientX, e.clientY);
     try { viewport.setPointerCapture?.(e.pointerId); } catch {}
+    return;
+  }
+
+  if (S.tool === 'edge' && !orbitLockCheck?.checked) {
+    if (e.altKey || S.orbitOverride) return;
+    e.preventDefault(); e.stopPropagation();
+    const n = previewEdgeRun(e.clientX, e.clientY);
+    if (n) setStatus(`Edge preview: ${n.toLocaleString()} faces — magenta = selected. Fill → ${slotLabel(slotIndex(S.paintTarget))}`, 'idle');
     return;
   }
 
