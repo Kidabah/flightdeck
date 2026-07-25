@@ -1,9 +1,13 @@
 ## 2026-07-25 Session update
 
 Latest local/static change:
+- MakerDeck **b574** — Brush/nozzle size sliders are logarithmic (fine control at small sizes; no tiny→huge jumps).
+- Hard refresh Painter build **b574**. No backend restart required.
+- MakerDeck session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md)
+
+Previous local/static change:
 - MakerDeck **b573** — Freehand brush stops on mouse-up; much less drag lag (live tint, fewer dabs/move).
 - Hard refresh Painter `painter.js?v=573`. No backend restart required.
-- MakerDeck session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md)
 
 Previous local/static change:
 - MakerDeck **b572** — Fixed Smart fill sprawl: classic facing-patch default (Wrap off, 40°); Wrap uses surface path so pillars don’t get air-jumped.

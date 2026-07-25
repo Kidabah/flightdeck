@@ -1,5 +1,15 @@
 ---
 
+## b574 — Log-scale brush / nozzle size
+**Date:** 2026-07-25
+
+### MakerDeck
+- Brush Size and Spray Nozzle sliders are now **logarithmic** so small nudges stay in the fine range instead of jumping tiny → huge.
+- Brush maps ~0.2–12 mm (default 1.0); nozzle ~0.5–16 mm (default 4.0).
+- Hard refresh Painter build **b574**.
+
+---
+
 ## b573 — Freehand brush stops on mouse-up + less lag
 **Date:** 2026-07-25
 

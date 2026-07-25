@@ -307,7 +307,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   <header class="header">
     <button class="toggle-sidebar" id="toggleSidebar" title="Toggle sidebar">☰</button>
     <div class="logo">Maker<span>Deck</span> · STL Painter</div>
-    <div class="build">b573</div>
+    <div class="build">b574</div>
   </header>
 
   <!-- Left Sidebar (tabbed) -->
@@ -398,7 +398,8 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
         <div class="opts-panel visible" id="brushOpts">
           <div class="form-group">
             <div class="form-label"><span>Size (mm)</span><span class="value" id="brushSizeVal">1.0</span></div>
-            <input type="range" id="brushSize" min="0.1" max="20" step="0.1" value="1.0">
+            <!-- Log-mapped 0–1000 → 0.2–12 mm (fine control at small sizes) -->
+            <input type="range" id="brushSize" min="0" max="1000" step="1" value="393">
           </div>
           <div class="form-group">
             <div class="form-label"><span>Stroke</span><span class="value" id="strokeModeVal">Freehand</span></div>
@@ -412,8 +413,9 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
         <!-- Spray opts -->
         <div class="opts-panel" id="sprayOpts">
           <div class="form-group">
-            <div class="form-label"><span>Nozzle (mm)</span><span class="value" id="sprayNozzleVal">6</span></div>
-            <input type="range" id="sprayNozzle" min="1" max="30" step="0.5" value="6">
+            <div class="form-label"><span>Nozzle (mm)</span><span class="value" id="sprayNozzleVal">4.0</span></div>
+            <!-- Log-mapped 0–1000 → 0.5–16 mm -->
+            <input type="range" id="sprayNozzle" min="0" max="1000" step="1" value="600">
           </div>
           <div class="form-group">
             <div class="form-label"><span>Density</span><span class="value" id="sprayDensityVal">45%</span></div>
@@ -616,7 +618,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b573</span>
+    <span>MakerDeck · STL Painter b574</span>
   </footer>
 </div>
 
@@ -642,7 +644,7 @@ import {
   paintClassOf, upgradePaintResolution, export3MF,
   findMeshIslands, buildIslandMap, floodFillSameClass, floodFillSameSlot, selectIsland,
   import3MF, buildSymmetryMap, masksToFacePaint, facePaintToMasks, MAX_PAINT_SLOTS
-} from './js/painter.js?v=573';
+} from './js/painter.js?v=574';
 
 /* ================================================================== */
 /*  STATE                                                             */
@@ -1335,9 +1337,44 @@ function facesInScreenLasso(pts) {
 /*  BRUSH / SPRAY                                                     */
 /* ================================================================== */
 
+/** Log-map a 0..1 slider position into [minMm, maxMm]. Gives fine control at small sizes. */
+function logMapMm(t, minMm, maxMm) {
+  const u = Math.max(0, Math.min(1, t));
+  return minMm * Math.pow(maxMm / minMm, u);
+}
+
+function sliderT(el) {
+  if (!el) return 0;
+  const min = parseFloat(el.min) || 0;
+  const max = parseFloat(el.max) || 1;
+  const v = parseFloat(el.value);
+  if (!Number.isFinite(v) || max <= min) return 0;
+  return (v - min) / (max - min);
+}
+
+function formatBrushMm(mm) {
+  if (mm < 1) return mm.toFixed(2);
+  if (mm < 10) return mm.toFixed(1);
+  return String(Math.round(mm));
+}
+
 function brushRadiusMm() {
-  if (S.tool === 'spray') return parseFloat($('sprayNozzle')?.value) || 6;
-  return parseFloat($('brushSize')?.value) || 2.5;
+  if (S.tool === 'spray') {
+    // Prefer mapped log value; fall back if an old linear control is cached.
+    const el = $('sprayNozzle');
+    if (el && parseFloat(el.max) >= 100) return logMapMm(sliderT(el), 0.5, 16);
+    return parseFloat(el?.value) || 4;
+  }
+  const el = $('brushSize');
+  if (el && parseFloat(el.max) >= 100) return logMapMm(sliderT(el), 0.2, 12);
+  return parseFloat(el?.value) || 1;
+}
+
+function syncBrushSizeLabels() {
+  const b = $('brushSizeVal');
+  if (b) b.textContent = formatBrushMm(logMapMm(sliderT($('brushSize')), 0.2, 12));
+  const s = $('sprayNozzleVal');
+  if (s) s.textContent = formatBrushMm(logMapMm(sliderT($('sprayNozzle')), 0.5, 16));
 }
 
 function applyBrushDab(hit, { undo = false, live = false } = {}) {
@@ -2679,9 +2716,16 @@ $('showHiddenBtn')?.addEventListener('click', showHidden);
 $('showHiddenToolBtn')?.addEventListener('click', showHidden);
 
 // Sliders
-$('brushSize')?.addEventListener('input', () => { $('brushSizeVal').textContent = parseFloat($('brushSize').value).toFixed(1); });
-$('sprayNozzle')?.addEventListener('input', () => { $('sprayNozzleVal').textContent = parseFloat($('sprayNozzle').value).toFixed(1); });
+$('brushSize')?.addEventListener('input', () => {
+  syncBrushSizeLabels();
+  // Refresh cursor size if hovering the model with brush/spray.
+  if (isBrushTool() && smartCursor?.style.display === 'block') {
+    /* label only — cursor updates on next move */
+  }
+});
+$('sprayNozzle')?.addEventListener('input', syncBrushSizeLabels);
 $('sprayDensity')?.addEventListener('input', () => { $('sprayDensityVal').textContent = $('sprayDensity').value + '%'; });
+syncBrushSizeLabels();
 $('smartSize')?.addEventListener('input', () => { $('smartSizeVal').textContent = parseFloat($('smartSize').value).toFixed(0); });
 $('smartAngle')?.addEventListener('input', () => { $('smartAngleVal').textContent = $('smartAngle').value + '°'; });
 
