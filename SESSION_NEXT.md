@@ -1,9 +1,13 @@
 ## 2026-07-25 Session update
 
 Latest local/static change:
+- MakerDeck **b571** — Rebuilt STL Painter paint core: hide-as-hard-mask, clean hold-to-paint strokes, Smart fill masked, Clean Edge select-then-Fill/Clear.
+- Hard refresh Painter `painter.js?v=571`. No backend restart required.
+- MakerDeck session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md)
+
+Previous local/static change:
 - MakerDeck **b570** — Edit shelf **Slot base** from solid/no-slot down to a **0.2 mm** floor (never a through-hole).
 - Hard refresh MakerDeck `app.js?v=570` / `style.css?v=570`. No backend restart required.
-- MakerDeck session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md)
 
 Previous local/static change:
 - MakerDeck **b569** — Edit shelf **Shelf length** max raised from 120 mm to **200 mm** (slider + geometry clamp).

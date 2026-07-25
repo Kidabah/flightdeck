@@ -307,7 +307,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   <header class="header">
     <button class="toggle-sidebar" id="toggleSidebar" title="Toggle sidebar">☰</button>
     <div class="logo">Maker<span>Deck</span> · STL Painter</div>
-    <div class="build">b568</div>
+    <div class="build">b571</div>
   </header>
 
   <!-- Left Sidebar (tabbed) -->
@@ -437,6 +437,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
         </div>
 
         <div class="section-label" style="margin-top:12px">Visibility</div>
+        <p class="flow-desc" style="margin-top:4px">Hide a colour (hard mask) → paint the edge → <b>Show All Hidden</b>. Hidden faces never take paint.</p>
         <div class="btn-row" style="margin-top:6px">
           <button class="btn" id="hideActiveSlotBtn" disabled>Hide Active Colour</button>
           <button class="btn" id="findPartsPaintBtn" disabled>Find Parts</button>
@@ -497,8 +498,9 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
             <div class="form-label"><span>Width</span><span class="value" id="edgeWidthVal">1</span></div>
             <input type="range" id="edgeWidth" min="1" max="8" step="1" value="1">
           </div>
+          <p class="flow-desc">Click the wrong-colour fringe (magenta = selected). Then <b>Fill</b> with the active colour or <b>Clear</b> back to Slot 1.</p>
           <div class="btn-row">
-            <button class="btn" id="edgeFillBtn">Fill</button>
+            <button class="btn btn-primary" id="edgeFillBtn">Fill</button>
             <button class="btn" id="edgeClearBtn">Clear</button>
           </div>
         </div>
@@ -613,7 +615,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b568</span>
+    <span>MakerDeck · STL Painter b571</span>
   </footer>
 </div>
 
@@ -639,7 +641,7 @@ import {
   paintClassOf, upgradePaintResolution, export3MF,
   findMeshIslands, buildIslandMap, floodFillSameClass, floodFillSameSlot, selectIsland,
   import3MF, buildSymmetryMap, masksToFacePaint, facePaintToMasks, MAX_PAINT_SLOTS
-} from './js/painter.js?v=568';
+} from './js/painter.js?v=571';
 
 /* ================================================================== */
 /*  STATE                                                             */
@@ -1386,6 +1388,7 @@ function computeSmartFill(hit) {
       localNormals: $('smartWrapEdges')?.checked !== false,
       trimMask: S.trimMask,
       facePaint: S.facePaint,
+      canUseFace: i => !isFaceHidden(i),
     });
 }
 
@@ -1661,18 +1664,24 @@ function syncEdgeModeUI() {
 
 function setEdgePreviewMode(mode) {
   S.edgePreviewMode = mode === 'clear' ? 'clear' : 'fill';
-  S._edgeSelectionLocked = false;
-  if (S.clickSelectionFaces?.length) {
-    S._edgeSelectionMode = S.edgePreviewMode;
-    updateMeshColors();
-  }
+  S._edgeSelectionMode = S.edgePreviewMode;
+  if (S.clickSelectionFaces?.length) updateMeshColors();
   syncEdgeModeUI();
-  setStatus(
-    S.edgePreviewMode === 'clear'
-      ? 'Clean Edge clear mode — cyan preview, click to clear to Slot 1'
-      : `Clean Edge fill mode — magenta preview, click to fill ${slotLabel(slotIndex(S.paintTarget))}`,
-    'idle'
-  );
+}
+
+/** Commit Clean Edge selection: Fill = active slot, Clear = Slot 1. */
+function commitEdgeSelection(mode) {
+  setEdgePreviewMode(mode);
+  if (!S.clickSelectionFaces?.length) {
+    setStatus(
+      mode === 'clear'
+        ? 'Clean Edge — click the wrong-colour fringe first, then Clear'
+        : 'Clean Edge — click the wrong-colour fringe first, then Fill',
+      'idle'
+    );
+    return;
+  }
+  applyEdgePreview();
 }
 
 /* ================================================================== */
@@ -2074,8 +2083,8 @@ function setTool(tool) {
     spray: 'Spray — mist on model · right-drag to orbit',
     eyedrop: 'Eyedropper — click a face to pick its slot',
     clickSelect: 'Click to select a connected region · then Fill Selection',
-    edge: 'Clean Edge — choose Fill (magenta) or Clear (cyan), then click the fringe to apply',
-    smart: 'Smart fill — hover for preview · click to paint connected surfaces',
+    edge: 'Clean Edge — click the fringe to select · Fill / Clear to commit',
+    smart: 'Smart fill — hover for preview · click to paint · hidden colours block the fill',
     lasso: 'Lasso — Lock on, draw around an area (eyebrow…) · pick slot · Fill Selection',
     box: 'Box — Lock on, drag a rectangle · pick slot · Fill Selection',
     detect: 'Detect — find raised/sunken detail',
@@ -2117,13 +2126,19 @@ function setBrushStroke(mode) {
 
 function syncOrbitLock() {
   const locked = !!orbitLockCheck?.checked;
-  const painting = !!S.brushStrokeActive || !!S._smartClick || !!boxDrag || !!lassoDrag;
-  // Brush/spray always own left-drag (paint). Orbit with right-drag / Alt / Space.
-  // Box/Lasso/Edge need the Lock checkbox.
+  const stroking = !!S.brushStrokeActive || !!S._smartClick || !!boxDrag || !!lassoDrag;
+  // During an active paint stroke, kill OrbitControls entirely so it cannot steal the pointer.
+  if (stroking && !S.orbitOverride) {
+    controls.enabled = false;
+    return;
+  }
+  controls.enabled = true;
+  controls.enableRotate = true;
+  controls.enablePan = true;
+  // Brush/spray/smart/eyedrop own left-drag. Box/Lasso need Lock. Edge is click-select.
   const leftBlocked = S.orbitOverride ? false :
-    (painting || S.tool === 'eyedrop' || S.tool === 'smart' || S.tool === 'clickSelect' ||
-     isBrushTool() || ((S.tool === 'box' || S.tool === 'lasso' || S.tool === 'edge') && locked));
-  controls.enabled = true; controls.enableRotate = true; controls.enablePan = true;
+    (S.tool === 'eyedrop' || S.tool === 'smart' || S.tool === 'clickSelect' || S.tool === 'edge' ||
+     isBrushTool() || ((S.tool === 'box' || S.tool === 'lasso') && locked));
   controls.mouseButtons.LEFT = leftBlocked ? -1 : THREE.MOUSE.ROTATE;
   controls.mouseButtons.MIDDLE = THREE.MOUSE.DOLLY;
   controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
@@ -2179,11 +2194,49 @@ function endBrushStroke(status = true) {
   if (!stroke) return;
   S.brushStrokeActive = null;
   releaseViewportPointer(stroke.pointerId);
-  syncLegacyMasks();
-  updateMeshColors();
-  recountPaint();
+  if (stroke.undid) {
+    syncLegacyMasks();
+    updateMeshColors();
+    recountPaint();
+  }
   syncOrbitLock();
-  if (status) setStatus(stroke.undid ? `${S.tool === 'spray' ? 'Spray' : 'Brush'} stroke → ${slotLabel(slotIndex(S.paintTarget))}` : 'No faces hit', 'idle');
+  if (status) {
+    const n = stroke.painted || 0;
+    setStatus(
+      n
+        ? `${S.tool === 'spray' ? 'Spray' : 'Brush'} → ${slotLabel(slotIndex(S.paintTarget))} (${n.toLocaleString()} faces)`
+        : 'No faces hit',
+      'idle'
+    );
+  }
+}
+
+/** Start a brush/spray stroke. Returns true if a stroke began. */
+function startBrushStroke(e) {
+  if (!isBrushTool() || !S.mesh || e.altKey || S.orbitOverride) return false;
+  if (!(e.buttons & 1)) return false;
+  const origin = { x: e.clientX, y: e.clientY };
+  const pt = constrainBrushClient(e.clientX, e.clientY, origin);
+  const hit = pickHitAtClient(pt.x, pt.y);
+  if (!hit) return false;
+  S.brushStrokeActive = { origin, pointerId: e.pointerId, painted: 0, undid: false, lastClient: pt };
+  syncOrbitLock();
+  updateSmartCursor(pt.x, pt.y, hit.worldPoint);
+  const n = applyBrushDab(hit, { undo: true });
+  S.brushStrokeActive.painted += n;
+  if (n) S.brushStrokeActive.undid = true;
+  if (n) updateMeshColors();
+  try { viewport.setPointerCapture?.(e.pointerId); } catch {}
+  return true;
+}
+
+/** Continue an active brush/spray stroke. */
+function moveBrushStroke(e) {
+  const stroke = S.brushStrokeActive;
+  if (!stroke) return;
+  if (!(e.buttons & 1)) { endBrushStroke(true); return; }
+  if (stroke.pointerId != null && e.pointerId !== stroke.pointerId) return;
+  stroke.painted += strokeBrushTo(e.clientX, e.clientY);
 }
 
 let boxDrag = null;
@@ -2616,8 +2669,8 @@ $('edgeWidth')?.addEventListener('input', () => {
     setStatus(n ? `Edge preview: ${n.toLocaleString()} faces — magenta = selected` : 'No edge found', 'idle');
   }
 });
-$('edgeFillBtn')?.addEventListener('click', () => setEdgePreviewMode('fill'));
-$('edgeClearBtn')?.addEventListener('click', () => setEdgePreviewMode('clear'));
+$('edgeFillBtn')?.addEventListener('click', () => commitEdgeSelection('fill'));
+$('edgeClearBtn')?.addEventListener('click', () => commitEdgeSelection('clear'));
 syncEdgeModeUI();
 
 // Detect sliders
@@ -2734,18 +2787,30 @@ $('hideIslandBtn')?.addEventListener('click', () => { if(S.selectedIsland>=0) to
 $('showAllIslandsBtn')?.addEventListener('click', () => { S.hiddenIslands.clear(); syncIslandCards(); updateMeshColors(); });
 
 /* ================================================================== */
-/*  VIEWPORT POINTER EVENTS                                           */
+/*  VIEWPORT POINTER EVENTS (b571 stroke controller)                  */
+/*  One start/move/end path. Hidden faces are hard masks.             */
+/*  End only on pointerup / pointercancel / blur / lostcapture.       */
 /* ================================================================== */
+
+function pointerMatchesStroke(e, stroke) {
+  if (!stroke) return false;
+  return stroke.pointerId == null || e.pointerId === stroke.pointerId || e.button === 0;
+}
 
 viewport.addEventListener('pointerdown', (e) => {
   if (e.target.closest?.('.viewport-toolbar')) return;
   if (e.button === 2 || e.button === 1) {
     if (S.brushStrokeActive) endBrushStroke(false);
-    controls.enableRotate = true; controls.enablePan = true; return;
+    syncOrbitLock();
+    return;
   }
   if (e.button !== 0 || !S.mesh) return;
 
-  if (S.tool === 'eyedrop') { e.preventDefault(); e.stopPropagation(); sampleEyedrop(e.clientX, e.clientY); return; }
+  if (S.tool === 'eyedrop') {
+    e.preventDefault(); e.stopPropagation();
+    sampleEyedrop(e.clientX, e.clientY);
+    return;
+  }
 
   if (S.tool === 'clickSelect') {
     if (e.altKey || S.orbitOverride) return;
@@ -2755,22 +2820,9 @@ viewport.addEventListener('pointerdown', (e) => {
   }
 
   if (isBrushTool()) {
-    if (e.altKey || S.orbitOverride) return;
-    // Never start a stroke unless primary is actually down (blocks ghost hover paint)
-    if (!(e.buttons & 1)) return;
-    const origin = { x: e.clientX, y: e.clientY };
-    const pt = constrainBrushClient(e.clientX, e.clientY, origin);
-    const hit = pickHitAtClient(pt.x, pt.y);
-    if (!hit) return;
-    e.preventDefault(); e.stopPropagation();
-    S.brushStrokeActive = { origin, pointerId: e.pointerId, painted: 0, undid: false, lastClient: pt };
-    syncOrbitLock();
-    updateSmartCursor(pt.x, pt.y, hit.worldPoint);
-    const n = applyBrushDab(hit, { undo: true });
-    S.brushStrokeActive.painted += n;
-    if (n) S.brushStrokeActive.undid = true;
-    if (n) updateMeshColors();
-    try { viewport.setPointerCapture?.(e.pointerId); } catch {}
+    if (startBrushStroke(e)) {
+      e.preventDefault(); e.stopPropagation();
+    }
     return;
   }
 
@@ -2784,23 +2836,30 @@ viewport.addEventListener('pointerdown', (e) => {
     return;
   }
 
+  // Clean Edge: click selects fringe only — Fill / Clear buttons commit.
   if (S.tool === 'edge') {
     if (e.altKey || S.orbitOverride) return;
     e.preventDefault(); e.stopPropagation();
     const n = previewEdgeRun(e.clientX, e.clientY, { lock: true });
-    if (n) applyEdgePreview();
+    if (n) {
+      setStatus(
+        `Clean Edge: ${n.toLocaleString()} faces selected — Fill → ${slotLabel(slotIndex(S.paintTarget))} or Clear`,
+        'idle'
+      );
+    }
     return;
   }
 
-  if (!isSelectTool()) return;
+  if (!isAreaTool()) return;
   if (!orbitLockCheck?.checked) { setStatus('Turn Lock on to drag-select', 'idle'); return; }
   e.preventDefault(); e.stopPropagation();
-  controls.enableRotate = false; controls.enablePan = false;
+  syncOrbitLock();
   const rect = viewport.getBoundingClientRect();
   if (S.tool === 'lasso') {
     const p = { x: e.clientX - rect.left, y: e.clientY - rect.top };
     lassoDrag = { points: [p], pointerId: e.pointerId };
     updateLassoSvg(lassoDrag.points);
+    syncOrbitLock();
     try { viewport.setPointerCapture?.(e.pointerId); } catch {}
     return;
   }
@@ -2808,15 +2867,13 @@ viewport.addEventListener('pointerdown', (e) => {
   selectRect.style.display = 'block';
   selectRect.style.left = boxDrag.x0 + 'px'; selectRect.style.top = boxDrag.y0 + 'px';
   selectRect.style.width = '0px'; selectRect.style.height = '0px';
+  syncOrbitLock();
   try { viewport.setPointerCapture?.(e.pointerId); } catch {}
 }, true);
 
 viewport.addEventListener('pointermove', (e) => {
   if (S.brushStrokeActive) {
-    // Paint ONLY while primary button stays down — clears stuck strokes on hover
-    if (!(e.buttons & 1)) { endBrushStroke(true); return; }
-    if (S.brushStrokeActive.pointerId != null && e.pointerId !== S.brushStrokeActive.pointerId) return;
-    S.brushStrokeActive.painted += strokeBrushTo(e.clientX, e.clientY);
+    moveBrushStroke(e);
     return;
   }
   if (lassoDrag) {
@@ -2829,13 +2886,32 @@ viewport.addEventListener('pointermove', (e) => {
     }
     return;
   }
-  if (isBrushTool() && !boxDrag && !S._smartClick) {
-    const hit = pickHitAtClient(e.clientX, e.clientY);
-    if (hit) updateSmartCursor(e.clientX, e.clientY, hit.worldPoint); else smartCursor.style.display = 'none';
+  if (boxDrag) {
+    const rect = viewport.getBoundingClientRect();
+    const x1 = e.clientX - rect.left, y1 = e.clientY - rect.top;
+    const left = Math.min(boxDrag.x0, x1), top = Math.min(boxDrag.y0, y1);
+    selectRect.style.left = left + 'px'; selectRect.style.top = top + 'px';
+    selectRect.style.width = Math.abs(x1 - boxDrag.x0) + 'px';
+    selectRect.style.height = Math.abs(y1 - boxDrag.y0) + 'px';
     return;
   }
-  if (S.tool === 'smart' && !S._smartClick && !boxDrag) { previewSmartFill(e.clientX, e.clientY); return; }
-  if (S.tool === 'edge' && !boxDrag) {
+  if (S._smartClick) {
+    if (Math.hypot(e.clientX - S._smartClick.x, e.clientY - S._smartClick.y) > 6) {
+      S._smartClick.moved = true;
+    }
+    return;
+  }
+  if (isBrushTool()) {
+    const hit = pickHitAtClient(e.clientX, e.clientY);
+    if (hit) updateSmartCursor(e.clientX, e.clientY, hit.worldPoint);
+    else if (smartCursor) smartCursor.style.display = 'none';
+    return;
+  }
+  if (S.tool === 'smart') {
+    previewSmartFill(e.clientX, e.clientY);
+    return;
+  }
+  if (S.tool === 'edge') {
     if (S._edgeSelectionLocked) return;
     const now = performance.now();
     const last = S._edgeHover || {};
@@ -2843,35 +2919,26 @@ viewport.addEventListener('pointermove', (e) => {
       S._edgeHover = { t: now, x: e.clientX, y: e.clientY };
       previewEdgeRun(e.clientX, e.clientY, { quiet: true });
     }
-    return;
   }
-  if (S._smartClick) {
-    if (Math.hypot(e.clientX - S._smartClick.x, e.clientY - S._smartClick.y) > 6) {
-      S._smartClick.moved = true;
-      if (orbitLockCheck?.checked) previewSmartFill(e.clientX, e.clientY);
-    }
-    return;
-  }
-  if (!boxDrag) return;
-  const rect = viewport.getBoundingClientRect();
-  const x1 = e.clientX - rect.left, y1 = e.clientY - rect.top;
-  const left = Math.min(boxDrag.x0, x1), top = Math.min(boxDrag.y0, y1);
-  selectRect.style.left = left + 'px'; selectRect.style.top = top + 'px';
-  selectRect.style.width = Math.abs(x1 - boxDrag.x0) + 'px';
-  selectRect.style.height = Math.abs(y1 - boxDrag.y0) + 'px';
 });
 
-viewport.addEventListener('pointerup', (e) => {
-  if (S.brushStrokeActive && (S.brushStrokeActive.pointerId == null || e.pointerId === S.brushStrokeActive.pointerId || e.button === 0)) {
+function finishPointerUp(e) {
+  if (S.brushStrokeActive && pointerMatchesStroke(e, S.brushStrokeActive)) {
     endBrushStroke(true);
-    return;
+    return true;
   }
-  if (e.button === 2 || e.button === 1) { syncOrbitLock(); return; }
-  if (S._smartClick) {
-    const clicked = S._smartClick; S._smartClick = null;
-    releaseViewportPointer(e.pointerId); syncOrbitLock();
-    if (!clicked.moved) { previewSmartFill(e.clientX, e.clientY); commitSmartFill(); }
-    return;
+  if (S._smartClick && pointerMatchesStroke(e, S._smartClick)) {
+    const clicked = S._smartClick;
+    S._smartClick = null;
+    releaseViewportPointer(e.pointerId);
+    syncOrbitLock();
+    if (!clicked.moved) {
+      previewSmartFill(e.clientX, e.clientY);
+      commitSmartFill();
+    } else {
+      clearSmartPreview();
+    }
+    return true;
   }
   if (lassoDrag) {
     const pts = lassoDrag.points.slice();
@@ -2879,52 +2946,54 @@ viewport.addEventListener('pointerup', (e) => {
     syncOrbitLock();
     if (!S.mesh || pts.length < 8) {
       setStatus('Draw a larger loop around the area, then Fill Selection', 'idle');
-      return;
+      return true;
     }
     setStatus('Selecting…', 'working');
     requestAnimationFrame(() => setFaceSelection(facesInScreenLasso(pts), 'lasso'));
-    return;
+    return true;
   }
-  if (!boxDrag || !S.mesh) return;
-  const rect = viewport.getBoundingClientRect();
-  const x1 = e.clientX - rect.left, y1 = e.clientY - rect.top;
-  const start = endBoxDrag(e);
-  if (!start) return;
-  const tool = S.tool;
-  setStatus(tool === 'edge' ? 'Finding edge…' : 'Selecting…', 'working');
-  requestAnimationFrame(() => {
-    const faces = facesInScreenBox(start.x0, start.y0, x1, y1);
-    if (tool === 'edge') {
-      if (!faces.length) { setStatus('No faces in box', 'idle'); return; }
-      S._edgeLastSeeds = faces;
-      const n = runEdgeFinder(faces);
-      setStatus(n ? `Edge preview: ${n.toLocaleString()} faces — magenta = selected. Fill → ${slotLabel(slotIndex(S.paintTarget))}` : 'No edge found', 'idle');
-    } else {
-      setFaceSelection(faces, 'box');
-    }
-  });
+  if (boxDrag) {
+    const rect = viewport.getBoundingClientRect();
+    const x1 = e.clientX - rect.left, y1 = e.clientY - rect.top;
+    const start = endBoxDrag(e);
+    syncOrbitLock();
+    if (!start || !S.mesh) return true;
+    setStatus('Selecting…', 'working');
+    requestAnimationFrame(() => setFaceSelection(facesInScreenBox(start.x0, start.y0, x1, y1), 'box'));
+    return true;
+  }
+  return false;
+}
+
+viewport.addEventListener('pointerup', (e) => {
+  if (e.button === 2 || e.button === 1) { syncOrbitLock(); return; }
+  finishPointerUp(e);
 });
 
 viewport.addEventListener('pointercancel', (e) => {
-  S._smartClick = null; endBrushStroke(false); endBoxDrag(e); endLassoDrag(e); syncOrbitLock();
+  if (S.brushStrokeActive) endBrushStroke(false);
+  S._smartClick = null;
+  if (boxDrag) endBoxDrag(e);
+  if (lassoDrag) endLassoDrag(e);
+  syncOrbitLock();
 });
-window.addEventListener('pointercancel', (e) => {
-  if (S.brushStrokeActive && (S.brushStrokeActive.pointerId == null || e.pointerId === S.brushStrokeActive.pointerId)) endBrushStroke(false);
-});
+
 viewport.addEventListener('lostpointercapture', (e) => {
   if (S.brushStrokeActive && e.pointerId === S.brushStrokeActive.pointerId) endBrushStroke(true);
-  if (S._smartClick && e.pointerId === S._smartClick.pointerId) { S._smartClick = null; syncOrbitLock(); }
+  if (S._smartClick && e.pointerId === S._smartClick.pointerId) {
+    S._smartClick = null;
+    syncOrbitLock();
+  }
 });
+
 viewport.addEventListener('contextmenu', (e) => { if (S.tool !== 'orbit') e.preventDefault(); });
 viewport.addEventListener('pointerleave', () => {
   if (S.tool === 'smart' && !S._smartClick) clearSmartPreview();
-  if (isBrushTool() && !S.brushStrokeActive) smartCursor.style.display = 'none';
+  if (isBrushTool() && !S.brushStrokeActive && smartCursor) smartCursor.style.display = 'none';
 });
 
-// Double-click: zoom to face
 viewport.addEventListener('dblclick', (e) => {
-  if (S.tool !== 'orbit') return;
-  if (!S.mesh) return;
+  if (S.tool !== 'orbit' || !S.mesh) return;
   const rect = viewport.getBoundingClientRect();
   pointerNdc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
   pointerNdc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
@@ -2938,30 +3007,27 @@ viewport.addEventListener('dblclick', (e) => {
   controls.update();
 });
 
-// Global safety — end paint even if pointerup lands outside the viewport
+// End stroke if pointerup lands outside the viewport (capture may have been lost).
 window.addEventListener('pointerup', (e) => {
-  if (S.brushStrokeActive && (e.button === 0 || e.pointerId === S.brushStrokeActive.pointerId)) {
-    endBrushStroke(true);
-  }
-  if (e.button === 2 || e.button === 1) { syncOrbitLock(); return; }
-  if (S._smartClick) { S._smartClick = null; releaseViewportPointer(e.pointerId); syncOrbitLock(); }
+  if (S.brushStrokeActive && pointerMatchesStroke(e, S.brushStrokeActive)) endBrushStroke(true);
+});
+window.addEventListener('pointercancel', () => {
+  if (S.brushStrokeActive) endBrushStroke(false);
 });
 window.addEventListener('blur', () => {
-  endBrushStroke(false); S._smartClick = null;
-  if (boxDrag) endBoxDrag(); if (lassoDrag) endLassoDrag();
+  endBrushStroke(false);
+  S._smartClick = null;
+  if (boxDrag) endBoxDrag();
+  if (lassoDrag) endLassoDrag();
   syncOrbitLock();
 });
-window.addEventListener('mouseup', () => endBrushStroke(true));
-window.addEventListener('touchend', () => endBrushStroke(true), { passive: true });
-window.addEventListener('touchcancel', () => endBrushStroke(false), { passive: true });
-window.addEventListener('pointermove', (e) => {
-  // Safety net: if a stroke is somehow still active with no button down, kill it
-  if (S.brushStrokeActive && !(e.buttons & 1)) endBrushStroke(true);
-});
+
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') { resetInteraction('Controls reset'); clearClickSelection(); setTool('orbit'); return; }
-  if (e.code === 'Space' && !e.repeat && !e.target.closest?.('input,textarea,select')) { e.preventDefault(); S.orbitOverride = true; syncOrbitLock(); return; }
-  if (e.key === 'Alt') { S.orbitOverride = true; syncOrbitLock(); return; }
+  if (e.code === 'Space' && !e.repeat && !e.target.closest?.('input,textarea,select')) {
+    e.preventDefault(); S.orbitOverride = true; syncOrbitLock(); return;
+  }
+  if (e.key === 'Alt') { S.orbitOverride = true; syncOrbitLock(); }
 });
 document.addEventListener('keyup', (e) => {
   if (e.code === 'Space' || e.key === 'Alt') { S.orbitOverride = false; syncOrbitLock(); }

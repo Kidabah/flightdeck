@@ -1,5 +1,17 @@
 ---
 
+## b571 — Rebuild STL Painter paint core
+**Date:** 2026-07-25
+
+### MakerDeck
+- Rebuilt paint interaction to restore the original workflow: **hide colour (hard mask) → paint → Show All Hidden**.
+- Brush/spray use one start/move/end stroke path; OrbitControls disabled during the stroke; removed fighting mouseup/touchend kill switches.
+- Smart fill now respects hidden faces as hard masks (`canUseFace`) — fill cannot bridge through a hidden colour.
+- Clean Edge: click selects the fringe (magenta); **Fill** / **Clear** buttons commit (no auto-apply on click).
+- Hard refresh Painter `painter.js?v=571` / build **b571**.
+
+---
+
 ## b570 — Shelf slot base (solid → 0.2 mm floor)
 **Date:** 2026-07-25
 

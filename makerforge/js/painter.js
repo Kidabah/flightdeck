@@ -1,5 +1,5 @@
 /**
- * MakerDeck STL Painter Engine — b514
+ * MakerDeck STL Painter Engine — b571
  * Pure computation module: STL parsing, feature detection, 3MF export.
  */
 
@@ -383,6 +383,8 @@ export function brushDabFaces(seed, hitPoint, verts, faces, nTri, faceAdj, opts 
  * Orca-style smart fill: grow from seed through faces within `radius` mm of
  * the hit point whose normals are within `maxAngleDeg` of the seed normal.
  * `samePaintOnly` (default true) stops at emboss/deboss boundaries.
+ * `canUseFace` (optional) acts as a hard mask — hidden faces are skipped and
+ * never used as bridges (same contract as brushDabFaces).
  * @returns {number[]} face indices
  */
 export function smartFillFaces(seed, hitPoint, verts, faces, nTri, embossMask, debossMask, faceAdj, opts = {}) {
@@ -392,7 +394,9 @@ export function smartFillFaces(seed, hitPoint, verts, faces, nTri, embossMask, d
   const localNormals = opts.localNormals === true;
   const trimMask = opts.trimMask || null;
   const facePaint = opts.facePaint || null;
+  const canUseFace = typeof opts.canUseFace === 'function' ? opts.canUseFace : null;
   if (seed < 0 || seed >= nTri) return [];
+  if (canUseFace && !canUseFace(seed)) return [];
 
   const cosThr = Math.cos((maxAngleDeg * Math.PI) / 180);
   const seedGeo = faceNormalCentroid(verts, faces, seed);
@@ -410,6 +414,7 @@ export function smartFillFaces(seed, hitPoint, verts, faces, nTri, embossMask, d
 
   while (queue.length) {
     const fi = queue.pop();
+    if (canUseFace && !canUseFace(fi)) continue;
     const g = faceNormalCentroid(verts, faces, fi);
     const dx = g.cx - hx, dy = g.cy - hy, dz = g.cz - hz;
     if (dx * dx + dy * dy + dz * dz > r2) continue;
@@ -426,6 +431,7 @@ export function smartFillFaces(seed, hitPoint, verts, faces, nTri, embossMask, d
     out.push(fi);
     for (const nb of faceAdj[fi]) {
       if (queued[nb]) continue;
+      if (canUseFace && !canUseFace(nb)) continue;
       if (localNormals) {
         const ng = faceNormalCentroid(verts, faces, nb);
         const ndx = ng.cx - hx, ndy = ng.cy - hy, ndz = ng.cz - hz;
