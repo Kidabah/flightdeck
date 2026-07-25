@@ -1,5 +1,15 @@
 ---
 
+## b570 — Shelf slot base (solid → 0.2 mm floor)
+**Date:** 2026-07-25
+
+### MakerDeck
+- Edit shelf **Slot base** slider: from shelf thickness (**no slot** / solid) down to a **0.2 mm** floor under the press-fit pocket.
+- Slot is never a through-hole — minimum base stays 0.2 mm no matter how thick the shelf is.
+- Hard refresh `app.js?v=570` / `style.css?v=570` / `geometry.js?v=570` / `signs.js?v=570`.
+
+---
+
 ## b569 — Shelf length slider to 200 mm
 **Date:** 2026-07-25
 

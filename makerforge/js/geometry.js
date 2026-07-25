@@ -44,7 +44,7 @@ import {
   buildSignShelfFemaleReceiver,
   buildSignShelfWithMale,
   signShelfPressFitDims,
-} from "./signs.js?v=550";
+} from "./signs.js?v=570";
 import {
   resolveVaseTexture,
   densifyClosedProfile,
@@ -2175,9 +2175,11 @@ export function buildSign(params) {
   const borderW = clamp(params.signBorderWidth ?? 4, 2, 12);
   const borderH = clamp(params.signBorderHeight ?? 1.4, 0.6, 4);
   const requestedShelfSlot = Number(params.signShelfSlotDepth);
+  const requestedShelfSlotBase = Number(params.signShelfSlotBase);
   const shelfJoint = isShelf
     ? signShelfPressFitDims(th, shelfTh, {
       slotDepth: Number.isFinite(requestedShelfSlot) ? requestedShelfSlot : undefined,
+      slotBase: Number.isFinite(requestedShelfSlotBase) ? requestedShelfSlotBase : undefined,
     })
     : null;
 
@@ -2669,6 +2671,7 @@ export const TEMORA_VET_SIGN_PRESET = {
   signShelfDepth: 45,
   signShelfThickness: 4,
   signShelfCorner: 10,
+  signShelfSlotBase: 0.2,
   signShelfSlotDepth: 5.7,
   signMount: "none",
   signBorder: true,
@@ -3034,6 +3037,7 @@ export const DEFAULTS = {
   signShelfWidth: 180,
   signShelfThickness: 4,
   signShelfCorner: 8,
+  signShelfSlotBase: 0.2,
   signShelfEditPart: "back",
   signMount: "keyhole",
   signBorder: true,

@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, ANIMAL_PRESET, SIGN_PRESET, TEMORA_VET_SIGN_PRESET, TEMORA_VET_CELTIC_SVG_URL } from "./geometry.js?v=569";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, resolveEmbossFontWeight, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=569";
+import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, ANIMAL_PRESET, SIGN_PRESET, TEMORA_VET_SIGN_PRESET, TEMORA_VET_CELTIC_SVG_URL } from "./geometry.js?v=570";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, resolveEmbossFontWeight, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=570";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=370";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=372";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=378";
@@ -35,7 +35,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b569";
+const MAKERDECK_BUILD = "b570";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -688,6 +688,7 @@ function buildParams() {
     signShelfWidth: state.signShelfWidth ?? state.signWidth ?? 180,
     signShelfThickness: state.signShelfThickness ?? 4,
     signShelfCorner: state.signShelfCorner ?? 8,
+    signShelfSlotBase: state.signShelfSlotBase ?? 0.2,
     signShelfSlotDepth: state.signShelfSlotDepth,
     signShelfEditPart: state.signShelfEditPart === "shelf" ? "shelf" : "back",
     signMount: state.signMount,
@@ -3059,10 +3060,20 @@ function syncUiFromState() {
     const shelfTh = state.signShelfThickness ?? 4;
     const shelfCorner = state.signShelfCorner ?? 8;
     const shelfSlotDepth = state.signShelfSlotDepth ?? ((state.signThickness ?? 4) + 0.45);
+    const shelfSlotBaseEl = document.getElementById("sign-shelf-slot-base");
+    if (shelfSlotBaseEl) shelfSlotBaseEl.max = String(shelfTh);
+    let shelfSlotBase = state.signShelfSlotBase ?? 0.2;
+    if (!(shelfSlotBase >= 0.2)) shelfSlotBase = 0.2;
+    if (shelfSlotBase > shelfTh) shelfSlotBase = shelfTh;
+    state.signShelfSlotBase = shelfSlotBase;
     setV("sign-shelf-width", shelfW); setOut("sign-shelf-width-out", shelfW + " mm");
     setV("sign-shelf-length", shelfLen); setOut("sign-shelf-length-out", shelfLen + " mm");
     setV("sign-shelf-thickness", shelfTh); setOut("sign-shelf-thickness-out", shelfTh + " mm");
     setV("sign-shelf-corner", shelfCorner); setOut("sign-shelf-corner-out", shelfCorner + " mm");
+    const slotBaseLabel = shelfSlotBase >= shelfTh - 0.01
+      ? "no slot"
+      : shelfSlotBase.toFixed(1) + " mm";
+    setV("sign-shelf-slot-base", shelfSlotBase); setOut("sign-shelf-slot-base-out", slotBaseLabel);
     setV("sign-shelf-slot-depth", shelfSlotDepth); setOut("sign-shelf-slot-depth-out", shelfSlotDepth.toFixed(2) + " mm");
     setV("sign-mount", state.signMount || (isShelf ? "none" : "keyhole"));
     const bc = document.getElementById("sign-border"); if (bc) bc.checked = state.signBorder !== false;
@@ -3083,6 +3094,7 @@ function syncUiFromState() {
     document.getElementById("field-sign-shelf-length")?.classList.toggle("hidden", !editShelf);
     document.getElementById("field-sign-shelf-thickness")?.classList.toggle("hidden", !editShelf);
     document.getElementById("field-sign-shelf-corner")?.classList.toggle("hidden", !editShelf);
+    document.getElementById("field-sign-shelf-slot-base")?.classList.toggle("hidden", !editShelf);
     document.getElementById("field-sign-shelf-slot-depth")?.classList.toggle("hidden", !editShelf);
     document.getElementById("sign-hint-plaque")?.classList.toggle("hidden", isShelf);
     document.getElementById("sign-hint-shelf")?.classList.toggle("hidden", !isShelf);
@@ -6558,7 +6570,7 @@ function _signSizeDefaults(type) {
     return {
       signWidth: 180, signHeight: 120, signMount: "none", signBorder: true,
       signShelfWidth: 180, signShelfLength: 45, signShelfDepth: 45,
-      signShelfThickness: 4, signShelfCorner: 10, signThickness: 4,
+      signShelfThickness: 4, signShelfCorner: 10, signShelfSlotBase: 0.2, signThickness: 4,
     };
   }
   if (type === "number") return { signWidth: 90, signHeight: 120, signMount: "screw", signBorder: true };
@@ -6590,13 +6602,26 @@ for (const [id, key] of [
   ["sign-shelf-length", "signShelfLength"],
   ["sign-shelf-thickness", "signShelfThickness"],
   ["sign-shelf-corner", "signShelfCorner"],
+  ["sign-shelf-slot-base", "signShelfSlotBase"],
   ["sign-shelf-slot-depth", "signShelfSlotDepth"],
 ]) {
   document.getElementById(id)?.addEventListener("input", (e) => {
     state[key] = parseFloat(e.target.value) || state[key];
     if (key === "signShelfLength") state.signShelfDepth = state.signShelfLength;
+    if (key === "signShelfThickness") {
+      const th = state.signShelfThickness;
+      const baseEl = document.getElementById("sign-shelf-slot-base");
+      if (baseEl) baseEl.max = String(th);
+      if ((state.signShelfSlotBase ?? 0.2) > th) state.signShelfSlotBase = th;
+    }
     const out = document.getElementById(id + "-out");
-    if (out) out.value = key === "signShelfSlotDepth" ? state[key].toFixed(2) + " mm" : state[key] + " mm";
+    if (out) {
+      if (key === "signShelfSlotDepth") out.value = state[key].toFixed(2) + " mm";
+      else if (key === "signShelfSlotBase") {
+        const th = state.signShelfThickness ?? 4;
+        out.value = state[key] >= th - 0.01 ? "no slot" : state[key].toFixed(1) + " mm";
+      } else out.value = state[key] + " mm";
+    }
     rebuild(); scheduleSaveSession();
   });
 }

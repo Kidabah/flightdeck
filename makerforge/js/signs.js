@@ -175,13 +175,22 @@ export function buildSignBorder(W, H, th, corner, borderW, bh, shape = "rounded"
   return { positions, indices };
 }
 
+/** Minimum floor left under a shelf press-fit pocket (mm). Never a through-hole. */
+export const SIGN_SHELF_SLOT_BASE_MIN = 0.2;
+
 /** Straight press-fit slot sizes for shelf ↔ back joint (mm). */
 export function signShelfPressFitDims(backTh, shelfTh, opts = {}) {
+  const thS = Math.max(1.5, shelfTh);
   const requestedSlot = Number(opts.slotDepth);
   const slotDepth = Number.isFinite(requestedSlot)
     ? Math.max(2.4, Math.min(12, requestedSlot))
     : Math.max(2.4, backTh + 0.45);
-  return { edgeInset: 5, slotDepth };
+  const requestedBase = Number(opts.slotBase);
+  // Base thickness under the pocket: 0.2 mm … shelf thickness (max = no slot / solid).
+  const slotBase = Number.isFinite(requestedBase)
+    ? Math.max(SIGN_SHELF_SLOT_BASE_MIN, Math.min(thS, requestedBase))
+    : SIGN_SHELF_SLOT_BASE_MIN;
+  return { edgeInset: 5, slotDepth, slotBase };
 }
 
 /** Extrude a YZ profile (and optional holes) along X. */
@@ -258,9 +267,10 @@ function shelfDeckOutlineXy(halfW, yFront, yRear, cornerR) {
 }
 
 /**
- * Shelf deck with a straight through-slot (print pose: deck on z=0).
+ * Shelf deck with a rear press-fit pocket (print pose: deck on z=0).
  * The slot is 5mm in from each side and 5mm forward from the back edge so the
- * back sign's lower edge can press in firmly.
+ * back sign's lower edge can press in. Slot base is always ≥ 0.2 mm (never a
+ * through-hole); base ≥ shelf thickness means solid / no slot.
  */
 export function buildSignShelfWithMale(shelfW, shelfLen, shelfTh, backTh, cornerR = 0, dims = null) {
   const d = dims || signShelfPressFitDims(backTh, shelfTh);
@@ -271,22 +281,46 @@ export function buildSignShelfWithMale(shelfW, shelfLen, shelfTh, backTh, corner
   const halfW = Math.max(10, shelfW) / 2;
   const thS = Math.max(1.5, shelfTh);
   const outer = shelfDeckOutlineXy(halfW, yDeckFront, yRear, cornerR);
+  const slotBase = Math.max(
+    SIGN_SHELF_SLOT_BASE_MIN,
+    Math.min(thS, Number.isFinite(d.slotBase) ? d.slotBase : SIGN_SHELF_SLOT_BASE_MIN),
+  );
+  const noSlot = slotBase >= thS - 0.01;
+  const positions = [];
+  const indices = [];
+  const mapTop = (px, py) => [px, py, thS];
+  const mapBot = (px, py) => [px, py, 0];
+  if (noSlot) {
+    extrudeShapeGroupBetween(
+      positions, indices, { outer, holes: [] },
+      mapTop, mapBot, (w) => [w[0], w[1]], "both", null,
+    );
+    return weldShelfMesh({ positions, indices }, 0.04);
+  }
   const slotHalfW = Math.max(4, halfW - d.edgeInset);
   const slotRear = yRear - d.edgeInset;
   const slotFront = Math.max(yDeckFront + 2, slotRear - d.slotDepth);
-  const slot = ensureCCW(cleanRing([
+  const slotHole = ensureCCW(cleanRing([
     [-slotHalfW, slotFront],
     [slotHalfW, slotFront],
     [slotHalfW, slotRear],
     [-slotHalfW, slotRear],
   ])).reverse();
-  const positions = [];
-  const indices = [];
-  const mapTop = (px, py) => [px, py, thS];
-  const mapBot = (px, py) => [px, py, 0];
+  // Through cut, then plug the bottom so the pocket always keeps a floor.
   extrudeShapeGroupBetween(
-    positions, indices, { outer, holes: [slot] },
+    positions, indices, { outer, holes: [slotHole] },
     mapTop, mapBot, (w) => [w[0], w[1]], "both", null,
+  );
+  const slotFloor = ensureCCW(cleanRing([
+    [-slotHalfW, slotFront],
+    [slotHalfW, slotFront],
+    [slotHalfW, slotRear],
+    [-slotHalfW, slotRear],
+  ]));
+  const mapFloorTop = (px, py) => [px, py, slotBase];
+  extrudeShapeGroupBetween(
+    positions, indices, { outer: slotFloor, holes: [] },
+    mapFloorTop, mapBot, (w) => [w[0], w[1]], "both", null,
   );
   return weldShelfMesh({ positions, indices }, 0.04);
 }
