@@ -14,7 +14,7 @@
 </script>
 <style>
 /* ================================================================== */
-/*  b559 — MakerDeck STL Painter  (tabbed layout)                     */
+/*  b560 — MakerDeck STL Painter  (tabbed layout)                     */
 /* ================================================================== */
 
 /* -- Reset & Vars -------------------------------------------------- */
@@ -306,7 +306,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   <header class="header">
     <button class="toggle-sidebar" id="toggleSidebar" title="Toggle sidebar">☰</button>
     <div class="logo">Maker<span>Deck</span> · STL Painter</div>
-    <div class="build">b559</div>
+    <div class="build">b560</div>
   </header>
 
   <!-- Left Sidebar (tabbed) -->
@@ -396,8 +396,8 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
         <!-- Brush opts -->
         <div class="opts-panel visible" id="brushOpts">
           <div class="form-group">
-            <div class="form-label"><span>Size (mm)</span><span class="value" id="brushSizeVal">2.5</span></div>
-            <input type="range" id="brushSize" min="0.5" max="20" step="0.5" value="2.5">
+            <div class="form-label"><span>Size (mm)</span><span class="value" id="brushSizeVal">1.0</span></div>
+            <input type="range" id="brushSize" min="0.1" max="20" step="0.1" value="1.0">
           </div>
           <div class="form-group">
             <div class="form-label"><span>Stroke</span><span class="value" id="strokeModeVal">Freehand</span></div>
@@ -462,7 +462,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
         <div class="section-label" style="margin-top:12px">Advanced Tools</div>
         <div class="tool-grid">
           <button class="tool-toggle" id="toolSmart">Smart</button>
-          <button class="tool-toggle" id="toolEdge">Edge</button>
+          <button class="tool-toggle" id="toolEdge">Clean Edge</button>
           <button class="tool-toggle" id="toolDetect">Detect</button>
         </div>
 
@@ -488,8 +488,8 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
         <!-- Edge opts -->
         <div class="opts-panel" id="edgeOpts">
           <div class="form-group">
-            <div class="form-label"><span>Width</span><span class="value" id="edgeWidthVal">2</span></div>
-            <input type="range" id="edgeWidth" min="0" max="8" step="1" value="2">
+            <div class="form-label"><span>Width</span><span class="value" id="edgeWidthVal">3</span></div>
+            <input type="range" id="edgeWidth" min="1" max="16" step="1" value="3">
           </div>
           <div class="btn-row">
             <button class="btn" id="edgeFillBtn">Fill</button>
@@ -607,7 +607,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b559</span>
+    <span>MakerDeck · STL Painter b560</span>
   </footer>
 </div>
 
@@ -633,7 +633,7 @@ import {
   paintClassOf, upgradePaintResolution, export3MF,
   findMeshIslands, buildIslandMap, floodFillSameClass, floodFillSameSlot, selectIsland,
   import3MF, buildSymmetryMap, masksToFacePaint, facePaintToMasks, MAX_PAINT_SLOTS
-} from './js/painter.js?v=559';
+} from './js/painter.js?v=560';
 
 /* ================================================================== */
 /*  STATE                                                             */
@@ -1304,8 +1304,8 @@ function strokeBrushTo(clientX, clientY) {
   const pt = constrainBrushClient(clientX, clientY, stroke.origin);
   const prev = stroke.lastClient || pt;
   const dist = Math.hypot(pt.x - prev.x, pt.y - prev.y);
-  const step = Math.max(4, brushRadiusMm() * 2.2);
-  const samples = dist < 1 ? 1 : Math.min(24, Math.ceil(dist / step));
+  const step = Math.max(1.25, Math.min(5, brushRadiusMm() * 0.9));
+  const samples = dist < 0.5 ? 1 : Math.min(96, Math.ceil(dist / step));
   let painted = 0;
   for (let s = 1; s <= samples; s++) {
     const t = s / samples;
@@ -1401,35 +1401,52 @@ function edgeRunFromHit(hit) {
   const fp = ensureFacePaint();
   if (!hit || !fp || !S.faceAdj) return [];
   const target = slotIndex(S.paintTarget);
+  const edgeWidth = parseInt($('edgeWidth')?.value || '2', 10) || 0;
+  const maxAngleDeg = Math.min(125, 45 + edgeWidth * 10);
+  const cosThr = Math.cos(maxAngleDeg * Math.PI / 180);
   let seed = hit.faceIndex;
   let seedSlot = fp[seed] || 0;
 
   if (seedSlot === target) {
-    const next = S.faceAdj[seed].find(nb => !isFaceHidden(nb) && (fp[nb] || 0) !== target);
+    const n = faceNormal(seed);
+    const next = S.faceAdj[seed].find(nb => {
+      if (isFaceHidden(nb) || (fp[nb] || 0) === target) return false;
+      const nn = faceNormal(nb);
+      return n[0] * nn[0] + n[1] * nn[1] + n[2] * nn[2] >= cosThr;
+    });
     if (next == null) return [];
     seed = next;
     seedSlot = fp[seed] || 0;
   }
 
-  const edgeWidth = parseInt($('edgeWidth')?.value || '2', 10) || 0;
-  const maxAngleDeg = Math.min(125, 45 + edgeWidth * 10);
-  const cosThr = Math.cos(maxAngleDeg * Math.PI / 180);
   const queued = new Uint8Array(S.nTri);
+  const dist = new Int16Array(S.nTri);
+  dist.fill(-1);
   const out = [];
   const queue = [seed];
   queued[seed] = 1;
+  dist[seed] = 0;
 
   while (queue.length) {
     const fi = queue.pop();
     if (isFaceHidden(fi)) continue;
     if ((fp[fi] || 0) !== seedSlot) continue;
-    out.push(fi);
     const n = faceNormal(fi);
+    let touchesTarget = false;
+    for (const nb of S.faceAdj[fi]) {
+      if (isFaceHidden(nb)) continue;
+      const nn = faceNormal(nb);
+      if (n[0] * nn[0] + n[1] * nn[1] + n[2] * nn[2] < cosThr) continue;
+      if ((fp[nb] || 0) === target) touchesTarget = true;
+    }
+    if (touchesTarget || dist[fi] > 0) out.push(fi);
+    if (dist[fi] >= edgeWidth) continue;
     for (const nb of S.faceAdj[fi]) {
       if (queued[nb] || isFaceHidden(nb) || (fp[nb] || 0) !== seedSlot) continue;
       const nn = faceNormal(nb);
       if (n[0] * nn[0] + n[1] * nn[1] + n[2] * nn[2] < cosThr) continue;
       queued[nb] = 1;
+      dist[nb] = dist[fi] + 1;
       queue.push(nb);
     }
   }
@@ -1440,15 +1457,15 @@ function previewEdgeRun(clientX, clientY) {
   if (!ensureFacePaint() || !S.mesh) return 0;
   ensureFaceAdj();
   const hit = pickHitAtClient(clientX, clientY);
-  if (!hit) { setStatus('Edge — click beside the painted colour boundary', 'idle'); return 0; }
+  if (!hit) { setStatus('Edge Clean — click the wrong-colour fringe beside the active colour', 'idle'); return 0; }
   const faces = edgeRunFromHit(hit);
   if (!faces.length) {
-    setStatus('Edge found no neighbouring unpainted run — click the grey side of the colour edge', 'idle');
+    setStatus('No edge fringe found — click the wrong-colour side touching the active colour', 'idle');
     return 0;
   }
   S._edgeLastSeeds = null;
   S.edgeHighlight = null;
-  setFaceSelection(faces, 'edge to next hard edge');
+  setFaceSelection(faces, 'edge cleanup band');
   return faces.length;
 }
 
@@ -1854,7 +1871,7 @@ function setTool(tool) {
     spray: 'Spray — mist on model · right-drag to orbit',
     eyedrop: 'Eyedropper — click a face to pick its slot',
     clickSelect: 'Click to select a connected region · then Fill Selection',
-    edge: 'Edge — select around an existing paint boundary, then Fill',
+    edge: 'Clean Edge — click the wrong-colour fringe beside the active colour, then Fill',
     smart: 'Smart fill — hover for preview · click to paint connected surfaces',
     lasso: 'Lasso — Lock on, draw around an area (eyebrow…) · pick slot · Fill Selection',
     box: 'Box — Lock on, drag a rectangle · pick slot · Fill Selection',
@@ -2598,7 +2615,7 @@ viewport.addEventListener('pointermove', (e) => {
 });
 
 viewport.addEventListener('pointerup', (e) => {
-  if (S.brushStrokeActive && (e.button === 0 || e.pointerId === S.brushStrokeActive.pointerId)) {
+  if (S.brushStrokeActive && (S.brushStrokeActive.pointerId == null || e.pointerId === S.brushStrokeActive.pointerId || e.button === 0)) {
     endBrushStroke(true);
     return;
   }
@@ -2643,6 +2660,12 @@ viewport.addEventListener('pointerup', (e) => {
 
 viewport.addEventListener('pointercancel', (e) => {
   S._smartClick = null; endBrushStroke(false); endBoxDrag(e); endLassoDrag(e); syncOrbitLock();
+});
+window.addEventListener('pointerup', (e) => {
+  if (S.brushStrokeActive && (S.brushStrokeActive.pointerId == null || e.pointerId === S.brushStrokeActive.pointerId)) endBrushStroke(true);
+});
+window.addEventListener('pointercancel', (e) => {
+  if (S.brushStrokeActive && (S.brushStrokeActive.pointerId == null || e.pointerId === S.brushStrokeActive.pointerId)) endBrushStroke(false);
 });
 viewport.addEventListener('lostpointercapture', (e) => {
   if (S.brushStrokeActive && e.pointerId === S.brushStrokeActive.pointerId) endBrushStroke(true);

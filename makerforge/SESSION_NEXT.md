@@ -1,5 +1,17 @@
 ---
 
+## b560 — STL Painter fine brush and edge cleanup band
+**Date:** 2026-07-25
+
+### MakerDeck
+- Added finer brush control: default brush is now **1.0mm**, with **0.1mm** minimum and step for close detail work.
+- Smoothed freehand brush sampling so strokes use tighter intermediate points and should no longer jump across gaps.
+- Hardened brush stop handling for touch/pen/mouse release, including window-level pointer-up/cancel fallbacks.
+- Reworked Clean Edge to select a narrow wrong-colour band beside the active colour, matching the old b408-b410 edge-cleanup intent for rough paint boundaries.
+- Bumped STL Painter cache/build labels to **b560**.
+
+---
+
 ## b559 — Unify STL Painter Edge preview as magenta selection
 **Date:** 2026-07-25
 
