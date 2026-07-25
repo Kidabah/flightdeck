@@ -14,7 +14,7 @@
 </script>
 <style>
 /* ================================================================== */
-/*  b560 — MakerDeck STL Painter  (tabbed layout)                     */
+/*  b561 — MakerDeck STL Painter  (tabbed layout)                     */
 /* ================================================================== */
 
 /* -- Reset & Vars -------------------------------------------------- */
@@ -306,7 +306,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   <header class="header">
     <button class="toggle-sidebar" id="toggleSidebar" title="Toggle sidebar">☰</button>
     <div class="logo">Maker<span>Deck</span> · STL Painter</div>
-    <div class="build">b560</div>
+    <div class="build">b561</div>
   </header>
 
   <!-- Left Sidebar (tabbed) -->
@@ -607,7 +607,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b560</span>
+    <span>MakerDeck · STL Painter b561</span>
   </footer>
 </div>
 
@@ -633,7 +633,7 @@ import {
   paintClassOf, upgradePaintResolution, export3MF,
   findMeshIslands, buildIslandMap, floodFillSameClass, floodFillSameSlot, selectIsland,
   import3MF, buildSymmetryMap, masksToFacePaint, facePaintToMasks, MAX_PAINT_SLOTS
-} from './js/painter.js?v=560';
+} from './js/painter.js?v=561';
 
 /* ================================================================== */
 /*  STATE                                                             */
@@ -1855,10 +1855,11 @@ function setTool(tool) {
   if (tool !== 'smart') clearSmartPreview();
   // Keep face selection across tool switches so you can Lasso → pick slot → Fill
 
-  // Area tools need Lock so left-drag draws instead of orbiting
-  if ((tool === 'lasso' || tool === 'box' || tool === 'edge') && orbitLockCheck && !orbitLockCheck.checked) {
+  // Area tools need Lock so left-drag draws instead of orbiting. Clean Edge is click-first.
+  if ((tool === 'lasso' || tool === 'box') && orbitLockCheck && !orbitLockCheck.checked) {
     orbitLockCheck.checked = true;
   }
+  if (tool === 'edge' && orbitLockCheck?.checked) orbitLockCheck.checked = false;
 
   viewport.className = 'viewport';
   if (tool === 'box' || tool === 'lasso' || tool === 'edge' || tool === 'smart' || isBrushTool(tool)) viewport.classList.add('select-mode');
@@ -2547,7 +2548,7 @@ viewport.addEventListener('pointerdown', (e) => {
     return;
   }
 
-  if (S.tool === 'edge' && !orbitLockCheck?.checked) {
+  if (S.tool === 'edge') {
     if (e.altKey || S.orbitOverride) return;
     e.preventDefault(); e.stopPropagation();
     const n = previewEdgeRun(e.clientX, e.clientY);

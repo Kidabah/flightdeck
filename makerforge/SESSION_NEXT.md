@@ -1,5 +1,16 @@
 ---
 
+## b561 — Fix Clean Edge click mode fighting Lock
+**Date:** 2026-07-25
+
+### MakerDeck
+- Clean Edge no longer auto-enables **Lock left-drag** like Lasso/Box.
+- Selecting Clean Edge now clears Lock so a normal click runs the edge-fringe preview instead of falling into area-select behavior.
+- Clean Edge click-preview now runs regardless of prior Lock state, keeping the intended magenta fringe workflow.
+- Bumped STL Painter cache/build labels to **b561**.
+
+---
+
 ## b560 — STL Painter fine brush and edge cleanup band
 **Date:** 2026-07-25
 
