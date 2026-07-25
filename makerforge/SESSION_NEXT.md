@@ -1,5 +1,15 @@
 ---
 
+## b565 — Finer Clean Edge default
+**Date:** 2026-07-25
+
+### MakerDeck
+- Tightened STL Painter **Clean Edge** for detail work: default Width is now **1** instead of 3, with a smaller local search/run so it grabs less of the jagged triangle boundary.
+- Reduced the Clean Edge width range to 1–8 so small edge repairs are easier to control.
+- Bumped STL Painter cache/build labels to **b565**.
+
+---
+
 ## b564 — Clean Edge click modes and smoother brush stop
 **Date:** 2026-07-25
 

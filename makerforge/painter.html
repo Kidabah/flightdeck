@@ -489,8 +489,8 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
         <!-- Edge opts -->
         <div class="opts-panel" id="edgeOpts">
           <div class="form-group">
-            <div class="form-label"><span>Width</span><span class="value" id="edgeWidthVal">3</span></div>
-            <input type="range" id="edgeWidth" min="1" max="16" step="1" value="3">
+            <div class="form-label"><span>Width</span><span class="value" id="edgeWidthVal">1</span></div>
+            <input type="range" id="edgeWidth" min="1" max="8" step="1" value="1">
           </div>
           <div class="btn-row">
             <button class="btn" id="edgeFillBtn">Fill</button>
@@ -608,7 +608,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b564</span>
+    <span>MakerDeck · STL Painter b565</span>
   </footer>
 </div>
 
@@ -634,7 +634,7 @@ import {
   paintClassOf, upgradePaintResolution, export3MF,
   findMeshIslands, buildIslandMap, floodFillSameClass, floodFillSameSlot, selectIsland,
   import3MF, buildSymmetryMap, masksToFacePaint, facePaintToMasks, MAX_PAINT_SLOTS
-} from './js/painter.js?v=564';
+} from './js/painter.js?v=565';
 
 /* ================================================================== */
 /*  STATE                                                             */
@@ -1453,11 +1453,11 @@ function edgeRunFromHit(hit) {
   if (!hit || !fp || !S.faceAdj) return [];
   const target = slotIndex(S.paintTarget);
   const edgeWidth = Math.max(1, parseInt($('edgeWidth')?.value || '2', 10) || 1);
-  const maxAngleDeg = Math.min(125, 45 + edgeWidth * 10);
+  const maxAngleDeg = Math.min(105, 45 + edgeWidth * 6);
   const cosThr = Math.cos(maxAngleDeg * Math.PI / 180);
-  const localRadius = Math.max(1.5, edgeWidth * 1.8);
+  const localRadius = Math.max(0.8, edgeWidth * 0.9);
   const localRadiusSq = localRadius * localRadius;
-  const searchRadius = Math.max(8, edgeWidth * 6);
+  const searchRadius = Math.max(4, edgeWidth * 4);
   const searchRadiusSq = searchRadius * searchRadius;
   let seed = hit.faceIndex;
   let seedSlot = fp[seed] || 0;
