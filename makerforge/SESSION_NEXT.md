@@ -1,5 +1,17 @@
 ---
 
+## b556 — Lay flat models on STL Painter load
+**Date:** 2026-07-25
+
+### MakerDeck
+- Replaced STL Painter's old render-only `-90°` mesh rotation with a vertex-level orientation pass before seating models on the bed.
+- Plate-like models now use their thinnest axis as the bed-normal so shelves/signs land flat when loaded.
+- Other models score possible bed-up directions by bottom contact area, preferring already-upright files before falling back to normal STL Z-up.
+- Load status now notes when a model was **laid flat**, and STL/3MF/batch paths all use the same orientation step.
+- Bumped STL Painter cache/build labels to **b556**.
+
+---
+
 ## b555 — Apply 3MF placement on STL Painter import
 **Date:** 2026-07-25
 

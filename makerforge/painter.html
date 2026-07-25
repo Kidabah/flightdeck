@@ -14,7 +14,7 @@
 </script>
 <style>
 /* ================================================================== */
-/*  b555 — MakerDeck STL Painter  (tabbed layout)                     */
+/*  b556 — MakerDeck STL Painter  (tabbed layout)                     */
 /* ================================================================== */
 
 /* -- Reset & Vars -------------------------------------------------- */
@@ -306,7 +306,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   <header class="header">
     <button class="toggle-sidebar" id="toggleSidebar" title="Toggle sidebar">☰</button>
     <div class="logo">Maker<span>Deck</span> · STL Painter</div>
-    <div class="build">b555</div>
+    <div class="build">b556</div>
   </header>
 
   <!-- Left Sidebar (tabbed) -->
@@ -603,7 +603,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b555</span>
+    <span>MakerDeck · STL Painter b556</span>
   </footer>
 </div>
 
@@ -629,7 +629,7 @@ import {
   paintClassOf, upgradePaintResolution, export3MF,
   findMeshIslands, buildIslandMap, floodFillSameClass, floodFillSameSlot, selectIsland,
   import3MF, buildSymmetryMap, masksToFacePaint, facePaintToMasks, MAX_PAINT_SLOTS
-} from './js/painter.js?v=555';
+} from './js/painter.js?v=556';
 
 /* ================================================================== */
 /*  STATE                                                             */
@@ -886,16 +886,95 @@ function applyDetectPreset(name) {
 /*  MESH BUILD & COLORS                                               */
 /* ================================================================== */
 
-function seatVertsOnBed(verts, nVerts) {
-  let mnX=Infinity, mnY=Infinity, mnZ=Infinity, mxX=-Infinity, mxY=-Infinity;
+function meshBounds(verts, nVerts) {
+  let mnX=Infinity, mnY=Infinity, mnZ=Infinity, mxX=-Infinity, mxY=-Infinity, mxZ=-Infinity;
   for (let i = 0; i < nVerts; i++) {
     const x=verts[i*3], y=verts[i*3+1], z=verts[i*3+2];
     if(x<mnX)mnX=x; if(x>mxX)mxX=x;
     if(y<mnY)mnY=y; if(y>mxY)mxY=y;
-    if(z<mnZ)mnZ=z;
+    if(z<mnZ)mnZ=z; if(z>mxZ)mxZ=z;
   }
-  const cx=(mnX+mxX)*0.5, cy=(mnY+mxY)*0.5;
-  for(let i=0;i<nVerts;i++){verts[i*3]-=cx;verts[i*3+1]-=cy;verts[i*3+2]-=mnZ;}
+  return { min:[mnX,mnY,mnZ], max:[mxX,mxY,mxZ], size:[mxX-mnX,mxY-mnY,mxZ-mnZ] };
+}
+
+function candidatePointInto(out, x, y, z, upAxis, upSign) {
+  if (upAxis === 0) { out[0] = y; out[1] = x * upSign; out[2] = z; return out; }
+  if (upAxis === 1) { out[0] = x; out[1] = y * upSign; out[2] = z; return out; }
+  out[0] = x; out[1] = z * upSign; out[2] = -y; return out;
+}
+
+function chooseBedOrientation(verts, faces, nVerts, nTri) {
+  const b = meshBounds(verts, nVerts);
+  const dims = b.size.map((size, axis) => ({ size: Math.max(0, size), axis }))
+    .sort((a, b) => a.size - b.size);
+  const thin = dims[0].size > 0 && dims[0].size <= dims[1].size * 0.35 && dims[2].size >= dims[0].size * 3;
+  const candidates = [];
+  const axes = thin ? [dims[0].axis] : [1, 2, 0]; // Prefer existing Y-up, then normal STL Z-up, then side-laying rescue.
+
+  for (const upAxis of axes) {
+    for (const upSign of [1, -1]) {
+      let minY = Infinity, maxY = -Infinity, minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+      const p = [0, 0, 0];
+      for (let i = 0; i < nVerts; i++) {
+        candidatePointInto(p, verts[i * 3], verts[i * 3 + 1], verts[i * 3 + 2], upAxis, upSign);
+        if (p[0] < minX) minX = p[0]; if (p[0] > maxX) maxX = p[0];
+        if (p[1] < minY) minY = p[1]; if (p[1] > maxY) maxY = p[1];
+        if (p[2] < minZ) minZ = p[2]; if (p[2] > maxZ) maxZ = p[2];
+      }
+
+      let contactArea = 0;
+      if (faces && nTri) {
+        const span = Math.max(maxX - minX, maxY - minY, maxZ - minZ, 1);
+        const bottomBand = Math.max(0.35, span * 0.006);
+        const stride = Math.max(1, Math.ceil(nTri / 60000));
+        const pa = [0, 0, 0], pb = [0, 0, 0], pc = [0, 0, 0];
+        for (let fi = 0; fi < nTri; fi += stride) {
+          const a = faces[fi * 3], b = faces[fi * 3 + 1], c = faces[fi * 3 + 2];
+          candidatePointInto(pa, verts[a * 3], verts[a * 3 + 1], verts[a * 3 + 2], upAxis, upSign);
+          candidatePointInto(pb, verts[b * 3], verts[b * 3 + 1], verts[b * 3 + 2], upAxis, upSign);
+          candidatePointInto(pc, verts[c * 3], verts[c * 3 + 1], verts[c * 3 + 2], upAxis, upSign);
+          const cy = (pa[1] + pb[1] + pc[1]) / 3;
+          if (cy > minY + bottomBand) continue;
+          const e1x = pb[0] - pa[0], e1y = pb[1] - pa[1], e1z = pb[2] - pa[2];
+          const e2x = pc[0] - pa[0], e2y = pc[1] - pa[1], e2z = pc[2] - pa[2];
+          const nx = e1y * e2z - e1z * e2y;
+          const ny = e1z * e2x - e1x * e2z;
+          const nz = e1x * e2y - e1y * e2x;
+          const area2 = Math.sqrt(nx * nx + ny * ny + nz * nz);
+          if (area2 > 1e-9 && Math.abs(ny) / area2 > 0.55) contactArea += area2 * 0.5 * stride;
+        }
+      }
+
+      const bedArea = Math.max(0, maxX - minX) * Math.max(0, maxZ - minZ);
+      const height = Math.max(0, maxY - minY);
+      const heightPenalty = height / Math.max(Math.sqrt(Math.max(bedArea, 1)), 1);
+      const score = (contactArea || bedArea * 0.0001) - heightPenalty * 0.02 + (upAxis === 1 ? 0.01 : 0) + (upAxis === 2 ? 0.005 : 0);
+      candidates.push({ upAxis, upSign, thin, score });
+    }
+  }
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates[0] || { upAxis: 2, upSign: 1, thin: false };
+}
+
+function orientAndSeatVertsOnBed(verts, nVerts, faces = null, nTri = 0) {
+  const orientation = chooseBedOrientation(verts, faces, nVerts, nTri);
+  const { upAxis, upSign, thin } = orientation;
+  const tmp = [0, 0, 0];
+  let mnX=Infinity, mnY=Infinity, mnZ=Infinity, mxX=-Infinity, mxZ=-Infinity;
+
+  for (let i = 0; i < nVerts; i++) {
+    const off = i * 3;
+    tmp[0] = verts[off]; tmp[1] = verts[off + 1]; tmp[2] = verts[off + 2];
+    candidatePointInto(tmp, tmp[0], tmp[1], tmp[2], upAxis, upSign);
+    const nx = tmp[0], ny = tmp[1], nz = tmp[2];
+    verts[off] = nx; verts[off + 1] = ny; verts[off + 2] = nz;
+    if(nx<mnX)mnX=nx; if(nx>mxX)mxX=nx;
+    if(ny<mnY)mnY=ny;
+    if(nz<mnZ)mnZ=nz; if(nz>mxZ)mxZ=nz;
+  }
+  const cx=(mnX+mxX)*0.5, cz=(mnZ+mxZ)*0.5;
+  for(let i=0;i<nVerts;i++){verts[i*3]-=cx;verts[i*3+1]-=mnY;verts[i*3+2]-=cz;}
+  return { upAxis, upSign, thin, score: orientation.score };
 }
 
 function facePaintSlot(i) {
@@ -942,7 +1021,6 @@ function buildMesh({ frame = true } = {}) {
     vertexColors: true, roughness: 0.55, metalness: 0.05, flatShading: false
   }));
   S.mesh.castShadow = true; S.mesh.receiveShadow = true;
-  S.mesh.rotation.x = -Math.PI / 2;
   scene.add(S.mesh);
 
   if (frame) frameModel();
@@ -1883,7 +1961,7 @@ async function loadSTL(file) {
   S.rawVertices = vertices; S.rawNormals = normals; S.nTri = nTri;
 
   const { verts, faces, nVerts } = deduplicateVertices(vertices, nTri);
-  seatVertsOnBed(verts, nVerts);
+  const orientation = orientAndSeatVertsOnBed(verts, nVerts, faces, nTri);
   Object.assign(S, { verts, faces, nVerts,
     embossMask: new Uint8Array(nTri), debossMask: new Uint8Array(nTri), trimMask: new Uint8Array(nTri),
     facePaint: new Uint8Array(nTri),
@@ -1905,7 +1983,7 @@ async function loadSTL(file) {
   $('clearPaintBtn').disabled = false; $('clearModelBtn').disabled = false;
   $('islandInfo').textContent = 'Click "Find Islands" to detect mesh components.';
   viewportHint.style.display = 'block';
-  setStatus(`Loaded ${file.name} — ${nTri.toLocaleString()} faces`, 'idle');
+  setStatus(`Loaded ${file.name} — ${nTri.toLocaleString()} faces${orientation.thin ? ', laid flat' : ''}`, 'idle');
 }
 
 /* ================================================================== */
@@ -1935,7 +2013,7 @@ async function load3MF(file) {
     const buf = await file.arrayBuffer();
     const result = await import3MF(buf);
 
-    seatVertsOnBed(result.verts, result.nVerts);
+    const orientation = orientAndSeatVertsOnBed(result.verts, result.nVerts, result.faces, result.nTri);
     const facePaint = result.facePaint || masksToFacePaint(result.embossMask, result.debossMask, result.trimMask, result.nTri);
     Object.assign(S, {
       verts: result.verts, faces: result.faces, nVerts: result.nVerts, nTri: result.nTri,
@@ -1986,8 +2064,9 @@ async function load3MF(file) {
     viewportHint.style.display = 'block';
     const painted = result.painted ?? [...facePaint].filter(s => s > 0).length;
     const placed = result.transformsApplied ? ', applied 3MF placement' : '';
+    const laidFlat = orientation.thin ? ', laid flat' : '';
     setStatus(
-      `Loaded 3MF: ${file.name} — ${result.nTri.toLocaleString()} faces, ${painted.toLocaleString()} painted (${S.slotCount} colours${placed})`,
+      `Loaded 3MF: ${file.name} — ${result.nTri.toLocaleString()} faces, ${painted.toLocaleString()} painted (${S.slotCount} colours${placed}${laidFlat})`,
       painted ? 'idle' : 'error'
     );
   } catch (err) {
@@ -2747,7 +2826,7 @@ batchBtn.addEventListener('click', async () => {
       const buffer = await file.arrayBuffer();
       const parsed = parseSTLBinary(buffer);
       const deduped = deduplicateVertices(parsed.vertices, parsed.nTri);
-      seatVertsOnBed(deduped.verts, deduped.nVerts);
+      orientAndSeatVertsOnBed(deduped.verts, deduped.nVerts, deduped.faces, parsed.nTri);
       const result = detectFeatures(deduped.verts, deduped.faces, deduped.nVerts, parsed.nTri, opts);
       if (minArea > 0) { cleanClusters(result.embossMask, deduped.faces, parsed.nTri, deduped.verts, minArea); cleanClusters(result.debossMask, deduped.faces, parsed.nTri, deduped.verts, minArea); }
       const colors = slotColorsArray(Math.max(S.slotCount, 3));
