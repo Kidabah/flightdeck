@@ -1,5 +1,15 @@
 ---
 
+## b563 — Make Clean Edge local again
+**Date:** 2026-07-25
+
+### MakerDeck
+- Tightened STL Painter **Clean Edge** so hover/click picks the nearest local wrong-colour boundary beside the active colour instead of every matching boundary on a connected wall/roof patch.
+- Added a small pointer-local search radius so Clean Edge behaves like a precision repair picker and avoids large crescent selections on angled house surfaces.
+- Bumped STL Painter cache/build labels to **b563**.
+
+---
+
 ## b562 — Restore Clean Edge boundary picker
 **Date:** 2026-07-25
 
