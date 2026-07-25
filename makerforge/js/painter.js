@@ -1,5 +1,5 @@
 /**
- * MakerDeck STL Painter Engine — b571
+ * MakerDeck STL Painter Engine — b572
  * Pure computation module: STL parsing, feature detection, 3MF export.
  */
 
@@ -380,18 +380,24 @@ export function brushDabFaces(seed, hitPoint, verts, faces, nTri, faceAdj, opts 
 }
 
 /**
- * Orca-style smart fill: grow from seed through faces within `radius` mm of
- * the hit point whose normals are within `maxAngleDeg` of the seed normal.
- * `samePaintOnly` (default true) stops at emboss/deboss boundaries.
- * `canUseFace` (optional) acts as a hard mask — hidden faces are skipped and
- * never used as bridges (same contract as brushDabFaces).
+ * Orca-style smart fill.
+ *
+ * Classic (wrap=false): faces within Euclidean `radius` mm of the hit whose
+ * normals stay within `maxAngleDeg` of the *seed* normal — paints the facing
+ * patch, not nearby pillars through open air.
+ *
+ * Wrap (wrap=true): walks face-to-face around posts/awnings using *surface*
+ * path distance + local neighbour normals (never air-jumps across gaps).
+ *
+ * `samePaintOnly` stops at colour boundaries. `canUseFace` is a hard mask
+ * (hidden faces are skipped and never used as bridges).
  * @returns {number[]} face indices
  */
 export function smartFillFaces(seed, hitPoint, verts, faces, nTri, embossMask, debossMask, faceAdj, opts = {}) {
   const radius = Math.max(0.1, opts.radius ?? 8);
   const maxAngleDeg = Math.max(1, Math.min(140, opts.maxAngleDeg ?? 40));
   const samePaintOnly = opts.samePaintOnly !== false;
-  const localNormals = opts.localNormals === true;
+  const wrapEdges = opts.localNormals === true;
   const trimMask = opts.trimMask || null;
   const facePaint = opts.facePaint || null;
   const canUseFace = typeof opts.canUseFace === 'function' ? opts.canUseFace : null;
@@ -407,37 +413,57 @@ export function smartFillFaces(seed, hitPoint, verts, faces, nTri, embossMask, d
   const hz = hitPoint.z ?? hitPoint[2];
   const r2 = radius * radius;
 
+  const matchesPaint = (fi) => {
+    if (samePaintOnly) {
+      if (facePaint) return (facePaint[fi] || 0) === matchSlot;
+      return paintClassOf(fi, embossMask, debossMask, trimMask) === matchClass;
+    }
+    return true;
+  };
+
   const out = [];
   const queued = new Uint8Array(nTri);
   const queue = [seed];
   queued[seed] = 1;
 
+  // Wrap mode: geodesic path length along the mesh (mm). Classic: unused.
+  const pathDist = wrapEdges ? new Float32Array(nTri) : null;
+  if (pathDist) {
+    pathDist.fill(Infinity);
+    pathDist[seed] = 0;
+  }
+
   while (queue.length) {
     const fi = queue.pop();
     if (canUseFace && !canUseFace(fi)) continue;
+    if (!matchesPaint(fi)) continue;
+
     const g = faceNormalCentroid(verts, faces, fi);
-    const dx = g.cx - hx, dy = g.cy - hy, dz = g.cz - hz;
-    if (dx * dx + dy * dy + dz * dz > r2) continue;
-    if (!localNormals) {
+
+    if (wrapEdges) {
+      if (pathDist[fi] > radius) continue;
+    } else {
+      const dx = g.cx - hx, dy = g.cy - hy, dz = g.cz - hz;
+      if (dx * dx + dy * dy + dz * dz > r2) continue;
       const dot = g.nx * seedGeo.nx + g.ny * seedGeo.ny + g.nz * seedGeo.nz;
       if (dot < cosThr) continue;
     }
-    if (samePaintOnly) {
-      if (facePaint) {
-        if ((facePaint[fi] || 0) !== matchSlot) continue;
-      } else if (paintClassOf(fi, embossMask, debossMask, trimMask) !== matchClass) continue;
-    }
 
     out.push(fi);
+
     for (const nb of faceAdj[fi]) {
       if (queued[nb]) continue;
       if (canUseFace && !canUseFace(nb)) continue;
-      if (localNormals) {
+      if (!matchesPaint(nb)) continue;
+
+      if (wrapEdges) {
         const ng = faceNormalCentroid(verts, faces, nb);
-        const ndx = ng.cx - hx, ndy = ng.cy - hy, ndz = ng.cz - hz;
-        if (ndx * ndx + ndy * ndy + ndz * ndz > r2) continue;
         const localDot = ng.nx * g.nx + ng.ny * g.ny + ng.nz * g.nz;
         if (localDot < cosThr) continue;
+        const step = Math.hypot(ng.cx - g.cx, ng.cy - g.cy, ng.cz - g.cz);
+        const nd = pathDist[fi] + step;
+        if (nd > radius) continue;
+        pathDist[nb] = nd;
       }
       queued[nb] = 1;
       queue.push(nb);

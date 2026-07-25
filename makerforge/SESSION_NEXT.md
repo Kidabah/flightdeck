@@ -1,5 +1,16 @@
 ---
 
+## b572 — Fix Smart fill sprawl (classic facing patch)
+**Date:** 2026-07-25
+
+### MakerDeck
+- Smart fill was painting roofs + pillars together: **Wrap** defaulted on and used 3D air-distance, so nearby posts inside the Size ball got flooded.
+- Restored classic Orca-style default: Wrap **off**, Angle **40°**, Size **8mm** — paints the facing patch only.
+- Wrap mode (optional) now walks **surface path** distance + local normals, so it can follow posts without jumping through open air.
+- Hard refresh Painter `painter.js?v=572` / build **b572**.
+
+---
+
 ## b571 — Rebuild STL Painter paint core
 **Date:** 2026-07-25
 

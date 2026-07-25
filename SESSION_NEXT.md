@@ -1,11 +1,15 @@
 ## 2026-07-25 Session update
 
 Latest local/static change:
-- MakerDeck **b571** — Rebuilt STL Painter paint core: hide-as-hard-mask, clean hold-to-paint strokes, Smart fill masked, Clean Edge select-then-Fill/Clear.
-- Hard refresh Painter `painter.js?v=571`. No backend restart required.
+- MakerDeck **b572** — Fixed Smart fill sprawl: classic facing-patch default (Wrap off, 40°); Wrap uses surface path so pillars don’t get air-jumped.
+- Hard refresh Painter `painter.js?v=572`. No backend restart required.
 - MakerDeck session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md)
 
 Previous local/static change:
+- MakerDeck **b571** — Rebuilt STL Painter paint core: hide-as-hard-mask, clean hold-to-paint strokes, Smart fill masked, Clean Edge select-then-Fill/Clear.
+- Hard refresh Painter `painter.js?v=571`. No backend restart required.
+
+Older local/static change:
 - MakerDeck **b570** — Edit shelf **Slot base** from solid/no-slot down to a **0.2 mm** floor (never a through-hole).
 - Hard refresh MakerDeck `app.js?v=570` / `style.css?v=570`. No backend restart required.
 
