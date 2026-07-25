@@ -307,7 +307,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   <header class="header">
     <button class="toggle-sidebar" id="toggleSidebar" title="Toggle sidebar">☰</button>
     <div class="logo">Maker<span>Deck</span> · STL Painter</div>
-    <div class="build">b566</div>
+    <div class="build">b567</div>
   </header>
 
   <!-- Left Sidebar (tabbed) -->
@@ -613,7 +613,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b566</span>
+    <span>MakerDeck · STL Painter b567</span>
   </footer>
 </div>
 
@@ -639,7 +639,7 @@ import {
   paintClassOf, upgradePaintResolution, export3MF,
   findMeshIslands, buildIslandMap, floodFillSameClass, floodFillSameSlot, selectIsland,
   import3MF, buildSymmetryMap, masksToFacePaint, facePaintToMasks, MAX_PAINT_SLOTS
-} from './js/painter.js?v=566';
+} from './js/painter.js?v=567';
 
 /* ================================================================== */
 /*  STATE                                                             */
@@ -1757,18 +1757,38 @@ function paintClickSelection() {
 /*  MESH ISLANDS                                                      */
 /* ================================================================== */
 
-function computeIslands() {
+const ISLAND_SCAN_FACE_LIMIT = 500000;
+
+function computeIslands({ force = false } = {}) {
   if (!S.faces || !S.nTri) return;
+  if (!force && !S.islands && S.nTri > ISLAND_SCAN_FACE_LIMIT) {
+    $('islandInfo').textContent = `Skipped: ${S.nTri.toLocaleString()} faces is too large for live part detection`;
+    $('islandCount').textContent = 'not scanned';
+    $('toggleBottomBtn').disabled = false;
+    $('app').classList.add('bottom-open');
+    setTimeout(resizeRenderer, 250);
+    setStatus(
+      `Find Parts skipped on ${S.nTri.toLocaleString()} faces to avoid freezing. Use Select → Same Color, Hide, or Hide Active Colour.`,
+      'idle'
+    );
+    return;
+  }
   ensureFaceAdj();
   setStatus('Finding mesh islands…', 'working');
-  S.islands = findMeshIslands(S.faces, S.nTri, S.faceAdj, S.verts);
-  S.islandMap = buildIslandMap(S.islands, S.nTri);
-  S.hiddenIslands.clear();
-  $('islandInfo').textContent = `${S.islands.length} island${S.islands.length !== 1 ? 's' : ''} found`;
-  $('islandCount').textContent = `${S.islands.length} islands`;
-  $('toggleBottomBtn').disabled = false;
-  buildIslandCards();
-  setStatus(`Found ${S.islands.length} mesh island${S.islands.length !== 1 ? 's' : ''}`, 'idle');
+  setTimeout(() => {
+    try {
+      S.islands = findMeshIslands(S.faces, S.nTri, S.faceAdj, S.verts);
+      S.islandMap = buildIslandMap(S.islands, S.nTri);
+      S.hiddenIslands.clear();
+      $('islandInfo').textContent = `${S.islands.length} island${S.islands.length !== 1 ? 's' : ''} found`;
+      $('islandCount').textContent = `${S.islands.length} islands`;
+      $('toggleBottomBtn').disabled = false;
+      buildIslandCards();
+      setStatus(`Found ${S.islands.length} mesh island${S.islands.length !== 1 ? 's' : ''}`, 'idle');
+    } catch (err) {
+      setStatus(err.message || 'Find Parts failed', 'error');
+    }
+  }, 30);
 }
 
 function buildIslandCards() {
@@ -2696,7 +2716,12 @@ $('resFineBtn')?.addEventListener('click', () => runResolutionUpgrade(1));
 $('resUltraBtn')?.addEventListener('click', () => runResolutionUpgrade(2));
 
 // Islands
-$('detectIslandsBtn')?.addEventListener('click', () => { computeIslands(); $('app').classList.add('bottom-open'); setTimeout(resizeRenderer, 250); });
+$('detectIslandsBtn')?.addEventListener('click', () => {
+  const force = S.nTri > ISLAND_SCAN_FACE_LIMIT && confirm(`This model has ${S.nTri.toLocaleString()} faces and may freeze while finding parts. Continue anyway?`);
+  computeIslands({ force });
+  $('app').classList.add('bottom-open');
+  setTimeout(resizeRenderer, 250);
+});
 $('findPartsPaintBtn')?.addEventListener('click', () => { computeIslands(); $('app').classList.add('bottom-open'); setTimeout(resizeRenderer, 250); });
 $('paintIslandBtn')?.addEventListener('click', () => { if(S.selectedIsland>=0) paintIslandById(S.selectedIsland); });
 $('hideIslandBtn')?.addEventListener('click', () => { if(S.selectedIsland>=0) toggleIslandHide(S.selectedIsland); });

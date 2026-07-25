@@ -1,5 +1,16 @@
 ---
 
+## b567 — Stop Find Parts freezing huge Painter models
+**Date:** 2026-07-25
+
+### MakerDeck
+- Added a safety guard for STL Painter **Find Parts**: live component scanning is skipped above 500k faces unless explicitly forced from the Model tab.
+- Paint-tab **Find Parts** now avoids freezing on huge welded models and explains to use **Select → Same Color**, **Hide**, or **Hide Active Colour** instead.
+- Model-tab **Find Islands** can still be forced with a warning if a real disconnected-part scan is needed.
+- Bumped STL Painter cache/build labels to **b567**.
+
+---
+
 ## b566 — Restore Painter visibility workflow
 **Date:** 2026-07-25
 
