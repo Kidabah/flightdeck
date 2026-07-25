@@ -307,7 +307,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   <header class="header">
     <button class="toggle-sidebar" id="toggleSidebar" title="Toggle sidebar">☰</button>
     <div class="logo">Maker<span>Deck</span> · STL Painter</div>
-    <div class="build">b561</div>
+    <div class="build">b566</div>
   </header>
 
   <!-- Left Sidebar (tabbed) -->
@@ -436,6 +436,13 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
           <p class="flow-desc">Click a connected region (good for whole patches).</p>
         </div>
 
+        <div class="section-label" style="margin-top:12px">Visibility</div>
+        <div class="btn-row" style="margin-top:6px">
+          <button class="btn" id="hideActiveSlotBtn" disabled>Hide Active Colour</button>
+          <button class="btn" id="findPartsPaintBtn" disabled>Find Parts</button>
+        </div>
+        <button class="btn" id="showHiddenBtn" style="margin-top:6px;width:100%">Show All Hidden</button>
+
         <div class="section-label" style="margin-top:12px">Area Fill</div>
         <div class="tool-grid">
           <button class="tool-toggle" id="toolLasso" title="Draw around an area (eyebrows, badges…)">Lasso</button>
@@ -449,8 +456,6 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
           <button class="btn" id="selHideBtn" disabled>Hide</button>
           <button class="btn" id="selClearBtn" disabled>Clear</button>
         </div>
-        <button class="btn" id="showHiddenBtn" style="margin-top:6px;width:100%">Show Hidden</button>
-
         <label class="check-row" style="margin-top:8px">
           <input type="checkbox" id="orbitLock">
           <span>Lock left-drag (right-drag orbits)</span>
@@ -608,7 +613,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b565</span>
+    <span>MakerDeck · STL Painter b566</span>
   </footer>
 </div>
 
@@ -634,7 +639,7 @@ import {
   paintClassOf, upgradePaintResolution, export3MF,
   findMeshIslands, buildIslandMap, floodFillSameClass, floodFillSameSlot, selectIsland,
   import3MF, buildSymmetryMap, masksToFacePaint, facePaintToMasks, MAX_PAINT_SLOTS
-} from './js/painter.js?v=565';
+} from './js/painter.js?v=566';
 
 /* ================================================================== */
 /*  STATE                                                             */
@@ -1093,6 +1098,10 @@ function clearSceneModel() {
   disposeSceneObject(S.wireframe);
   S.mesh = null;
   S.wireframe = null;
+  S.hiddenManual = null;
+  S.hiddenSlots = Array(16).fill(false);
+  S.soloActive = false;
+  S.hiddenIslands?.clear?.();
 }
 
 function frameModel() {
@@ -2201,7 +2210,7 @@ function runResolutionUpgrade(levels) {
         embossMask:r.embossMask, debossMask:r.debossMask, trimMask:r.trimMask, facePaint:r.facePaint,
         featureEmboss:null, featureDeboss:null, faceAdj:null,
         edgeHighlight:null, smartPreview:null, smartPreviewFaces:null,
-        islands:null, islandMap:null, undoStack:[] });
+        islands:null, islandMap:null, undoStack:[], hiddenManual:null });
       S.hiddenIslands.clear();
       S.resLevel += levels;
       $('undoBtn').disabled = true;
@@ -2236,7 +2245,7 @@ async function loadSTL(file) {
     featureEmboss:null, featureDeboss:null, embossCount:0, debossCount:0, trimCount:0,
     edgeHighlight:null, smartPreview:null, smartPreviewFaces:null, faceAdj:null,
     undoStack:[], resLevel:0, islands:null, islandMap:null, clickSelection:null, clickSelectionFaces:null,
-    hiddenSlots: Array(16).fill(false), soloActive:false, selectedIsland:-1,
+    hiddenSlots: Array(16).fill(false), hiddenManual:null, soloActive:false, selectedIsland:-1,
   });
   S.hiddenIslands.clear();
   clearExportDestination();
@@ -2248,6 +2257,7 @@ async function loadSTL(file) {
   detectBtn.disabled = false; exportBtn.disabled = false;
   $('resFineBtn').disabled = false; $('resUltraBtn').disabled = false;
   $('detectIslandsBtn').disabled = false;
+  $('hideActiveSlotBtn').disabled = false; $('findPartsPaintBtn').disabled = false;
   $('clearPaintBtn').disabled = false; $('clearModelBtn').disabled = false;
   $('islandInfo').textContent = 'Click "Find Islands" to detect mesh components.';
   viewportHint.style.display = 'block';
@@ -2292,7 +2302,7 @@ async function load3MF(file) {
       edgeHighlight: null, smartPreview: null, smartPreviewFaces: null,
       faceAdj: null, undoStack: [], resLevel: 0,
       islands: null, islandMap: null, clickSelection: null, clickSelectionFaces: null,
-      hiddenSlots: Array(16).fill(false),
+      hiddenSlots: Array(16).fill(false), hiddenManual: null,
       soloActive: false, selectedIsland: -1,
     });
     S.hiddenIslands.clear();
@@ -2327,6 +2337,7 @@ async function load3MF(file) {
     detectBtn.disabled = false; exportBtn.disabled = false;
     $('resFineBtn').disabled = false; $('resUltraBtn').disabled = false;
     $('detectIslandsBtn').disabled = false;
+    $('hideActiveSlotBtn').disabled = false; $('findPartsPaintBtn').disabled = false;
     $('clearPaintBtn').disabled = false; $('clearModelBtn').disabled = false;
     $('islandInfo').textContent = 'Click "Find Islands" to detect components.';
     viewportHint.style.display = 'block';
@@ -2374,11 +2385,34 @@ function hideSelection() {
   setStatus(`Hidden ${count} faces — click Show to reveal`, 'idle');
 }
 
-function showHidden() {
-  if (!S.hiddenManual) return;
-  S.hiddenManual.fill(0);
+function hideActiveSlot() {
+  if (!S.mesh) return;
+  const slot = slotIndex(S.paintTarget);
+  if (S.soloActive) {
+    S.soloActive = false;
+    $('soloActive').checked = false;
+  }
+  S.hiddenSlots[slot] = true;
+  clearClickSelection({ repaint: false });
+  syncHideUI();
   updateMeshColors();
-  setStatus('All hidden faces revealed', 'idle');
+  setStatus(`Hidden ${slotLabel(slot)} — paint exposed areas, then Show All Hidden`, 'idle');
+}
+
+function showHidden() {
+  let changed = false;
+  if (S.hiddenManual) { S.hiddenManual.fill(0); changed = true; }
+  if (S.hiddenIslands?.size) { S.hiddenIslands.clear(); changed = true; }
+  if (S.hiddenSlots?.some(Boolean)) { S.hiddenSlots.fill(false); changed = true; }
+  if (S.soloActive) {
+    S.soloActive = false;
+    $('soloActive').checked = false;
+    changed = true;
+  }
+  syncHideUI();
+  syncIslandCards();
+  updateMeshColors();
+  setStatus(changed ? 'All hidden faces, parts, and colours revealed' : 'Nothing hidden', 'idle');
 }
 
 function clearPaint() {
@@ -2405,7 +2439,7 @@ function clearModel() {
     edgeHighlight: null, smartPreview: null, smartPreviewFaces: null,
     faceAdj: null, undoStack: [], redoStack: [], resLevel: 0,
     islands: null, islandMap: null, clickSelection: null, clickSelectionFaces: null,
-    hiddenSlots: Array(16).fill(false),
+    hiddenSlots: Array(16).fill(false), hiddenManual: null,
     soloActive: false, selectedIsland: -1, fileName: 'model',
     wireframe: null, wireframeOn: false, turntable: false,
     symmetryMap: null, symmetryCenterX: 0, symmetryOn: false,
@@ -2417,6 +2451,7 @@ function clearModel() {
   detectBtn.disabled = true; exportBtn.disabled = true;
   $('resFineBtn').disabled = true; $('resUltraBtn').disabled = true;
   $('detectIslandsBtn').disabled = true;
+  $('hideActiveSlotBtn').disabled = true; $('findPartsPaintBtn').disabled = true;
   $('clearPaintBtn').disabled = true; $('clearModelBtn').disabled = true;
   $('toggleBottomBtn').disabled = true;
   $('wireframeBtn').classList.remove('active-tool');
@@ -2536,6 +2571,7 @@ $('selModeColor')?.addEventListener('click', () => {
 $('selPaintBtn')?.addEventListener('click', paintClickSelection);
 $('selClearBtn')?.addEventListener('click', clearClickSelection);
 $('selHideBtn')?.addEventListener('click', hideSelection);
+$('hideActiveSlotBtn')?.addEventListener('click', hideActiveSlot);
 $('showHiddenBtn')?.addEventListener('click', showHidden);
 $('showHiddenToolBtn')?.addEventListener('click', showHidden);
 
@@ -2661,6 +2697,7 @@ $('resUltraBtn')?.addEventListener('click', () => runResolutionUpgrade(2));
 
 // Islands
 $('detectIslandsBtn')?.addEventListener('click', () => { computeIslands(); $('app').classList.add('bottom-open'); setTimeout(resizeRenderer, 250); });
+$('findPartsPaintBtn')?.addEventListener('click', () => { computeIslands(); $('app').classList.add('bottom-open'); setTimeout(resizeRenderer, 250); });
 $('paintIslandBtn')?.addEventListener('click', () => { if(S.selectedIsland>=0) paintIslandById(S.selectedIsland); });
 $('hideIslandBtn')?.addEventListener('click', () => { if(S.selectedIsland>=0) toggleIslandHide(S.selectedIsland); });
 $('showAllIslandsBtn')?.addEventListener('click', () => { S.hiddenIslands.clear(); syncIslandCards(); updateMeshColors(); });

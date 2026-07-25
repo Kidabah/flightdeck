@@ -1,5 +1,16 @@
 ---
 
+## b566 — Restore Painter visibility workflow
+**Date:** 2026-07-25
+
+### MakerDeck
+- Restored practical STL Painter visibility controls directly in the Paint tab: **Hide Active Colour**, **Find Parts**, and **Show All Hidden**.
+- **Show All Hidden** now clears manual face hides, island/part hides, active-colour hides, and isolate mode in one click.
+- Model load, 3MF load, model clear, and paint-resolution upgrades now reset stale hidden-face masks so old hidden state cannot leak into the next job.
+- Bumped STL Painter cache/build labels to **b566**.
+
+---
+
 ## b565 — Finer Clean Edge default
 **Date:** 2026-07-25
 
