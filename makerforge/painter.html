@@ -307,7 +307,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   <header class="header">
     <button class="toggle-sidebar" id="toggleSidebar" title="Toggle sidebar">☰</button>
     <div class="logo">Maker<span>Deck</span> · STL Painter</div>
-    <div class="build">b567</div>
+    <div class="build">b568</div>
   </header>
 
   <!-- Left Sidebar (tabbed) -->
@@ -613,7 +613,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b567</span>
+    <span>MakerDeck · STL Painter b568</span>
   </footer>
 </div>
 
@@ -639,7 +639,7 @@ import {
   paintClassOf, upgradePaintResolution, export3MF,
   findMeshIslands, buildIslandMap, floodFillSameClass, floodFillSameSlot, selectIsland,
   import3MF, buildSymmetryMap, masksToFacePaint, facePaintToMasks, MAX_PAINT_SLOTS
-} from './js/painter.js?v=567';
+} from './js/painter.js?v=568';
 
 /* ================================================================== */
 /*  STATE                                                             */
@@ -1138,10 +1138,10 @@ function pushUndo() {
 
 function paintFacesFree(faceIndices, target, { undo = true, refresh = true } = {}) {
   const fp = ensureFacePaint();
-  if (!fp || !faceIndices.length) return;
+  if (!fp || !faceIndices.length) return 0;
   const slot = slotIndex(target != null ? target : S.paintTarget);
   let faces = faceIndices.filter(i => !isFaceHidden(i));
-  if (!faces.length) return;
+  if (!faces.length) return 0;
   // Mirror faces for symmetry painting
   if (S.symmetryOn && S.symmetryMap) {
     const extra = [];
@@ -1159,13 +1159,14 @@ function paintFacesFree(faceIndices, target, { undo = true, refresh = true } = {
     recountPaint();
   }
   exportBtn.disabled = false;
+  return faces.length;
 }
 
 function clearFacesFree(faceIndices, { undo = true, refresh = true } = {}) {
   const fp = ensureFacePaint();
-  if (!fp || !faceIndices.length) return;
+  if (!fp || !faceIndices.length) return 0;
   let faces = faceIndices.filter(i => !isFaceHidden(i));
-  if (!faces.length) return;
+  if (!faces.length) return 0;
   if (S.symmetryOn && S.symmetryMap) {
     const extra = [];
     for (const i of faces) {
@@ -1182,6 +1183,7 @@ function clearFacesFree(faceIndices, { undo = true, refresh = true } = {}) {
     recountPaint();
   }
   exportBtn.disabled = false;
+  return faces.length;
 }
 
 function ensureFaceAdj() {
@@ -1322,10 +1324,14 @@ function applyBrushDab(hit, { undo = false } = {}) {
   const radius = brushRadiusMm();
   const density = S.tool === 'spray' ? (parseFloat($('sprayDensity')?.value) || 45) / 100 : 1;
   const maxAngleDeg = S.tool === 'spray' ? 100 : (S.brushStroke === 'free' ? 110 : 80);
-  const faces = brushDabFaces(hit.faceIndex, hit.point, S.verts, S.faces, S.nTri, S.faceAdj, { radius, density, maxAngleDeg });
+  const faces = brushDabFaces(hit.faceIndex, hit.point, S.verts, S.faces, S.nTri, S.faceAdj, {
+    radius,
+    density,
+    maxAngleDeg,
+    canUseFace: i => !isFaceHidden(i),
+  });
   if (!faces.length) return 0;
-  paintFacesFree(faces, S.paintTarget, { undo, refresh: !S.brushStrokeActive });
-  return faces.length;
+  return paintFacesFree(faces, S.paintTarget, { undo, refresh: !S.brushStrokeActive });
 }
 
 function constrainBrushClient(x, y, origin) {

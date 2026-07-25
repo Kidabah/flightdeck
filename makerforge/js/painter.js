@@ -336,7 +336,9 @@ export function brushDabFaces(seed, hitPoint, verts, faces, nTri, faceAdj, opts 
   const maxAngleDeg = Math.max(5, Math.min(120, opts.maxAngleDeg ?? 80));
   const density = Math.max(0.05, Math.min(1, opts.density ?? 1));
   const rng = typeof opts.rng === 'function' ? opts.rng : Math.random;
+  const canUseFace = typeof opts.canUseFace === 'function' ? opts.canUseFace : null;
   if (seed < 0 || seed >= nTri) return [];
+  if (canUseFace && !canUseFace(seed)) return [];
 
   const cosThr = Math.cos((maxAngleDeg * Math.PI) / 180);
   const seedGeo = faceNormalCentroid(verts, faces, seed);
@@ -352,6 +354,7 @@ export function brushDabFaces(seed, hitPoint, verts, faces, nTri, faceAdj, opts 
 
   while (queue.length) {
     const fi = queue.pop();
+    if (canUseFace && !canUseFace(fi)) continue;
     const g = faceNormalCentroid(verts, faces, fi);
     const dx = g.cx - hx, dy = g.cy - hy, dz = g.cz - hz;
     const d2 = dx * dx + dy * dy + dz * dz;
@@ -368,6 +371,7 @@ export function brushDabFaces(seed, hitPoint, verts, faces, nTri, faceAdj, opts 
 
     for (const nb of faceAdj[fi]) {
       if (queued[nb]) continue;
+      if (canUseFace && !canUseFace(nb)) continue;
       queued[nb] = 1;
       queue.push(nb);
     }

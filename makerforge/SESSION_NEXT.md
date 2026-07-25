@@ -1,5 +1,16 @@
 ---
 
+## b568 — Hidden colours mask brush strokes
+**Date:** 2026-07-25
+
+### MakerDeck
+- Fixed STL Painter brush/spray dabs so hidden colours act as hard masks while painting.
+- This restores the intended workflow: hide the white colour, switch to brown/orange, paint the visible edge, then show hidden colours to keep the white section clean.
+- Brush stroke status now counts only faces that were actually painted, not hidden faces that were skipped.
+- Bumped STL Painter cache/build labels to **b568**.
+
+---
+
 ## b567 — Stop Find Parts freezing huge Painter models
 **Date:** 2026-07-25
 
