@@ -1,5 +1,15 @@
 ---
 
+## b559 — Unify STL Painter Edge preview as magenta selection
+**Date:** 2026-07-25
+
+### MakerDeck
+- Fixed Edge so both click-preview and Lock + drag-box paths produce the normal magenta selection instead of the old green edge-highlight overlay.
+- Edge **Fill** now only commits the magenta selection; **Clear** only clears that preview and does not change paint.
+- Bumped STL Painter cache/build labels to **b559**.
+
+---
+
 ## b558 — Make STL Painter Edge click-preview usable
 **Date:** 2026-07-25
 
