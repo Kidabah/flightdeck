@@ -1,3 +1,12 @@
+## 2026-07-25 Session update
+
+Latest local/static change:
+- MakerDeck **b569** — Edit shelf **Shelf length** max raised from 120 mm to **200 mm** (slider + geometry clamp).
+- Hard refresh MakerDeck `app.js?v=569` / `style.css?v=569`. No backend restart required.
+- MakerDeck session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md)
+
+---
+
 ## 2026-07-24 Session update
 
 Latest local/static change:

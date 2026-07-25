@@ -1,5 +1,14 @@
 ---
 
+## b569 — Shelf length slider to 200 mm
+**Date:** 2026-07-25
+
+### MakerDeck
+- Raised Edit shelf **Shelf length** max from 120 mm to **200 mm** (slider + geometry clamp).
+- Hard refresh `app.js?v=569` / `style.css?v=569` / `geometry.js?v=569`.
+
+---
+
 ## b568 — Hidden colours mask brush strokes
 **Date:** 2026-07-25
 

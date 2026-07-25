@@ -2167,7 +2167,7 @@ export function buildSign(params) {
   const signShape = params.signShape || "rounded";
   const signType = params.signType || "plaque";
   const isShelf = signType === "shelf";
-  const shelfLen = clamp(params.signShelfLength ?? params.signShelfDepth ?? 40, 20, 120);
+  const shelfLen = clamp(params.signShelfLength ?? params.signShelfDepth ?? 40, 20, 200);
   const shelfW = clamp(params.signShelfWidth ?? W, 40, 300);
   const shelfTh = clamp(params.signShelfThickness ?? 4, 2, 8);
   const shelfCorner = clamp(params.signShelfCorner ?? 8, 0, 40);
