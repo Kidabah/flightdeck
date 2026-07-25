@@ -14,7 +14,7 @@
 </script>
 <style>
 /* ================================================================== */
-/*  b554 — MakerDeck STL Painter  (tabbed layout)                     */
+/*  b555 — MakerDeck STL Painter  (tabbed layout)                     */
 /* ================================================================== */
 
 /* -- Reset & Vars -------------------------------------------------- */
@@ -306,7 +306,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   <header class="header">
     <button class="toggle-sidebar" id="toggleSidebar" title="Toggle sidebar">☰</button>
     <div class="logo">Maker<span>Deck</span> · STL Painter</div>
-    <div class="build">b554</div>
+    <div class="build">b555</div>
   </header>
 
   <!-- Left Sidebar (tabbed) -->
@@ -603,7 +603,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b554</span>
+    <span>MakerDeck · STL Painter b555</span>
   </footer>
 </div>
 
@@ -629,7 +629,7 @@ import {
   paintClassOf, upgradePaintResolution, export3MF,
   findMeshIslands, buildIslandMap, floodFillSameClass, floodFillSameSlot, selectIsland,
   import3MF, buildSymmetryMap, masksToFacePaint, facePaintToMasks, MAX_PAINT_SLOTS
-} from './js/painter.js?v=554';
+} from './js/painter.js?v=555';
 
 /* ================================================================== */
 /*  STATE                                                             */
@@ -1985,8 +1985,9 @@ async function load3MF(file) {
     $('islandInfo').textContent = 'Click "Find Islands" to detect components.';
     viewportHint.style.display = 'block';
     const painted = result.painted ?? [...facePaint].filter(s => s > 0).length;
+    const placed = result.transformsApplied ? ', applied 3MF placement' : '';
     setStatus(
-      `Loaded 3MF: ${file.name} — ${result.nTri.toLocaleString()} faces, ${painted.toLocaleString()} painted (${S.slotCount} colours)`,
+      `Loaded 3MF: ${file.name} — ${result.nTri.toLocaleString()} faces, ${painted.toLocaleString()} painted (${S.slotCount} colours${placed})`,
       painted ? 'idle' : 'error'
     );
   } catch (err) {

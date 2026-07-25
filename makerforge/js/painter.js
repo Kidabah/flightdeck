@@ -1092,6 +1092,83 @@ function parseObjectModelXml(xml) {
   return { verts, faces, nVerts, nTri, facePaint, painted };
 }
 
+function parse3MFTransform(raw) {
+  if (!raw) return null;
+  const n = String(raw).trim().split(/\s+/).map(Number);
+  if (n.length !== 12 || n.some(v => !Number.isFinite(v))) return null;
+  return n;
+}
+
+function getAttrValue(xml, name) {
+  const m = xml.match(new RegExp(`\\b${name}="([^"]+)"`));
+  return m ? m[1] : '';
+}
+
+function norm3mfPath(path) {
+  return `/${String(path || '').replace(/^\/+/, '')}`.toLowerCase();
+}
+
+function find3MFImportTransforms(entries, modelPath) {
+  const main = entries.find(e => /(^|\/)3dmodel\.model$/i.test(e.name) && !/objects?\//i.test(e.name));
+  if (!main) return [];
+  const xml = new TextDecoder().decode(main.data);
+  const wantedPath = norm3mfPath(modelPath);
+  const transforms = [];
+
+  let buildObjectId = null;
+  const objectRe = /<object\b([^>]*)>([\s\S]*?)<\/object>/gi;
+  let om;
+  while ((om = objectRe.exec(xml))) {
+    const objectAttrs = om[1];
+    const objectBody = om[2] || '';
+    const objectId = getAttrValue(objectAttrs, 'id');
+    const objectPath = getAttrValue(objectAttrs, 'p:path') || getAttrValue(objectAttrs, 'path');
+    const objectTransform = parse3MFTransform(getAttrValue(objectAttrs, 'transform') || getAttrValue(objectAttrs, 'p:transform'));
+    if (objectPath && norm3mfPath(objectPath) === wantedPath) {
+      buildObjectId = objectId;
+      if (objectTransform) transforms.push(objectTransform);
+      break;
+    }
+    const compRe = /<component\b([^>]*)\/?>/gi;
+    let cm;
+    while ((cm = compRe.exec(objectBody))) {
+      const compAttrs = cm[1];
+      const compPath = getAttrValue(compAttrs, 'p:path') || getAttrValue(compAttrs, 'path');
+      if (compPath && norm3mfPath(compPath) === wantedPath) {
+        buildObjectId = objectId;
+        const compTransform = parse3MFTransform(getAttrValue(compAttrs, 'transform') || getAttrValue(compAttrs, 'p:transform'));
+        if (compTransform) transforms.push(compTransform);
+        break;
+      }
+    }
+    if (buildObjectId) break;
+  }
+
+  if (buildObjectId) {
+    const itemRe = /<item\b([^>]*)\/?>/gi;
+    let im;
+    while ((im = itemRe.exec(xml))) {
+      const attrs = im[1];
+      if (getAttrValue(attrs, 'objectid') !== buildObjectId) continue;
+      const itemTransform = parse3MFTransform(getAttrValue(attrs, 'transform') || getAttrValue(attrs, 'p:transform'));
+      if (itemTransform) transforms.push(itemTransform);
+      break;
+    }
+  }
+
+  return transforms;
+}
+
+function apply3MFTransformToVerts(verts, nVerts, t) {
+  for (let i = 0; i < nVerts; i++) {
+    const off = i * 3;
+    const x = verts[off], y = verts[off + 1], z = verts[off + 2];
+    verts[off] = x * t[0] + y * t[3] + z * t[6] + t[9];
+    verts[off + 1] = x * t[1] + y * t[4] + z * t[7] + t[10];
+    verts[off + 2] = x * t[2] + y * t[5] + z * t[8] + t[11];
+  }
+}
+
 /**
  * Parse a 3MF file (ZIP) and extract geometry + paint state.
  * @returns {{ verts, faces, nVerts, nTri, embossMask, debossMask, trimMask, facePaint, colors, painted }}
@@ -1115,6 +1192,8 @@ export async function import3MF(buffer) {
   if (!parsed.nTri) throw new Error('3MF model has no triangles');
 
   const { verts, faces, nVerts, nTri, facePaint, painted } = parsed;
+  const transforms = find3MFImportTransforms(entries, modelEntry.name);
+  for (const t of transforms) apply3MFTransformToVerts(verts, nVerts, t);
   const { embossMask, debossMask, trimMask } = facePaintToMasks(facePaint, nTri);
 
   // Try to read filament colours from project_settings.config
@@ -1129,7 +1208,7 @@ export async function import3MF(buffer) {
     } catch { /* not JSON or missing */ }
   }
 
-  return { verts, faces, nVerts, nTri, embossMask, debossMask, trimMask, facePaint, colors, painted };
+  return { verts, faces, nVerts, nTri, embossMask, debossMask, trimMask, facePaint, colors, painted, transformsApplied: transforms.length };
 }
 
 function normalizeFilamentHex(c) {

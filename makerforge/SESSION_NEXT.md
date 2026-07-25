@@ -1,5 +1,16 @@
 ---
 
+## b555 — Apply 3MF placement on STL Painter import
+**Date:** 2026-07-25
+
+### MakerDeck
+- Fixed STL Painter 3MF loading so it applies component/build transforms from `3D/3dmodel.model` before seating the mesh on the bed.
+- This preserves slicer-stored lay-flat orientation instead of loading transformed 3MF parts on their side.
+- Painter now reports when 3MF placement metadata was applied during import.
+- Bumped STL Painter cache/build labels to **b555**.
+
+---
+
 ## b554 — Export STL Painter as neutral AMS project
 **Date:** 2026-07-24
 
