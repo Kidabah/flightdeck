@@ -1,5 +1,16 @@
 ---
 
+## b562 — Restore Clean Edge boundary picker
+**Date:** 2026-07-25
+
+### MakerDeck
+- Reworked STL Painter **Clean Edge** so it previews only the wrong-colour band touching the active colour instead of selecting a circular blob around the pointer.
+- Clean Edge now floods the clicked wrong-colour patch, finds the boundary beside the active slot, and highlights that repair strip in magenta for **Fill Selection**.
+- Added hover preview for Clean Edge while keeping the clicked magenta selection locked long enough to move to Fill/Clear.
+- Bumped STL Painter cache/build labels to **b562**.
+
+---
+
 ## b561 — Fix Clean Edge click mode fighting Lock
 **Date:** 2026-07-25
 

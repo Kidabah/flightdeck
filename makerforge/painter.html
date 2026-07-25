@@ -607,7 +607,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b561</span>
+    <span>MakerDeck · STL Painter b562</span>
   </footer>
 </div>
 
@@ -633,7 +633,7 @@ import {
   paintClassOf, upgradePaintResolution, export3MF,
   findMeshIslands, buildIslandMap, floodFillSameClass, floodFillSameSlot, selectIsland,
   import3MF, buildSymmetryMap, masksToFacePaint, facePaintToMasks, MAX_PAINT_SLOTS
-} from './js/painter.js?v=561';
+} from './js/painter.js?v=562';
 
 /* ================================================================== */
 /*  STATE                                                             */
@@ -1401,7 +1401,7 @@ function edgeRunFromHit(hit) {
   const fp = ensureFacePaint();
   if (!hit || !fp || !S.faceAdj) return [];
   const target = slotIndex(S.paintTarget);
-  const edgeWidth = parseInt($('edgeWidth')?.value || '2', 10) || 0;
+  const edgeWidth = Math.max(1, parseInt($('edgeWidth')?.value || '2', 10) || 1);
   const maxAngleDeg = Math.min(125, 45 + edgeWidth * 10);
   const cosThr = Math.cos(maxAngleDeg * Math.PI / 180);
   let seed = hit.faceIndex;
@@ -1418,54 +1418,91 @@ function edgeRunFromHit(hit) {
     seed = next;
     seedSlot = fp[seed] || 0;
   }
+  if (seedSlot === target) return [];
 
-  const queued = new Uint8Array(S.nTri);
-  const dist = new Int16Array(S.nTri);
-  dist.fill(-1);
-  const out = [];
+  // First find the connected wrong-colour patch under the pointer, then only
+  // select the band of that patch which touches the active paint colour.
+  const inPatch = new Uint8Array(S.nTri);
+  const patch = [];
   const queue = [seed];
-  queued[seed] = 1;
-  dist[seed] = 0;
+  inPatch[seed] = 1;
 
   while (queue.length) {
     const fi = queue.pop();
     if (isFaceHidden(fi)) continue;
     if ((fp[fi] || 0) !== seedSlot) continue;
+    patch.push(fi);
     const n = faceNormal(fi);
-    let touchesTarget = false;
     for (const nb of S.faceAdj[fi]) {
-      if (isFaceHidden(nb)) continue;
+      if (inPatch[nb] || isFaceHidden(nb) || (fp[nb] || 0) !== seedSlot) continue;
       const nn = faceNormal(nb);
       if (n[0] * nn[0] + n[1] * nn[1] + n[2] * nn[2] < cosThr) continue;
-      if ((fp[nb] || 0) === target) touchesTarget = true;
-    }
-    if (touchesTarget || dist[fi] > 0) out.push(fi);
-    if (dist[fi] >= edgeWidth) continue;
-    for (const nb of S.faceAdj[fi]) {
-      if (queued[nb] || isFaceHidden(nb) || (fp[nb] || 0) !== seedSlot) continue;
-      const nn = faceNormal(nb);
-      if (n[0] * nn[0] + n[1] * nn[1] + n[2] * nn[2] < cosThr) continue;
-      queued[nb] = 1;
-      dist[nb] = dist[fi] + 1;
+      inPatch[nb] = 1;
       queue.push(nb);
+    }
+  }
+
+  const boundary = [];
+  for (const fi of patch) {
+    const n = faceNormal(fi);
+    for (const nb of S.faceAdj[fi]) {
+      if (isFaceHidden(nb) || (fp[nb] || 0) !== target) continue;
+      const nn = faceNormal(nb);
+      if (n[0] * nn[0] + n[1] * nn[1] + n[2] * nn[2] < cosThr) continue;
+      boundary.push(fi);
+      break;
+    }
+  }
+  if (!boundary.length) return [];
+
+  const outMask = new Uint8Array(S.nTri);
+  const dist = new Int16Array(S.nTri);
+  dist.fill(-1);
+  const out = [];
+  const grow = boundary.slice();
+  for (const fi of boundary) {
+    outMask[fi] = 1;
+    dist[fi] = 0;
+    out.push(fi);
+  }
+
+  for (let gi = 0; gi < grow.length; gi++) {
+    const fi = grow[gi];
+    if (dist[fi] >= edgeWidth - 1) continue;
+    const n = faceNormal(fi);
+    for (const nb of S.faceAdj[fi]) {
+      if (outMask[nb] || !inPatch[nb] || isFaceHidden(nb) || (fp[nb] || 0) !== seedSlot) continue;
+      const nn = faceNormal(nb);
+      if (n[0] * nn[0] + n[1] * nn[1] + n[2] * nn[2] < cosThr) continue;
+      outMask[nb] = 1;
+      dist[nb] = dist[fi] + 1;
+      out.push(nb);
+      grow.push(nb);
     }
   }
   return out;
 }
 
-function previewEdgeRun(clientX, clientY) {
+function previewEdgeRun(clientX, clientY, { quiet = false } = {}) {
   if (!ensureFacePaint() || !S.mesh) return 0;
   ensureFaceAdj();
   const hit = pickHitAtClient(clientX, clientY);
-  if (!hit) { setStatus('Edge Clean — click the wrong-colour fringe beside the active colour', 'idle'); return 0; }
+  if (!hit) {
+    if (quiet && !S._edgeSelectionLocked) clearClickSelection();
+    if (!quiet) setStatus('Clean Edge — click the wrong-colour fringe beside the active colour', 'idle');
+    return 0;
+  }
   const faces = edgeRunFromHit(hit);
   if (!faces.length) {
-    setStatus('No edge fringe found — click the wrong-colour side touching the active colour', 'idle');
+    if (quiet && !S._edgeSelectionLocked) clearClickSelection();
+    if (!quiet) clearClickSelection();
+    if (!quiet) setStatus('No edge fringe found — click the wrong-colour side touching the active colour', 'idle');
     return 0;
   }
   S._edgeLastSeeds = null;
   S.edgeHighlight = null;
-  setFaceSelection(faces, 'edge cleanup band');
+  if (!quiet) S._edgeSelectionLocked = true;
+  setFaceSelection(faces, 'edge cleanup band', { quiet });
   return faces.length;
 }
 
@@ -1538,16 +1575,17 @@ function syncFillSelectionBtn() {
 
 function clearClickSelection({ repaint = true, syncIslands = true } = {}) {
   S.clickSelection = null; S.clickSelectionFaces = null; S.selectedIsland = -1;
+  S._edgeSelectionLocked = false;
   syncFillSelectionBtn();
   if (syncIslands) syncIslandCards();
   if (repaint) updateMeshColors();
 }
 
 /** Put faces into the shared selection (Paint / Hide Selection), not auto-paint. */
-function setFaceSelection(faces, label = 'selection') {
+function setFaceSelection(faces, label = 'selection', { quiet = false } = {}) {
   if (!faces?.length) {
     clearClickSelection();
-    setStatus('No faces in selection', 'idle');
+    if (!quiet) setStatus('No faces in selection', 'idle');
     return;
   }
   const mask = new Uint8Array(S.nTri);
@@ -1558,6 +1596,7 @@ function setFaceSelection(faces, label = 'selection') {
   syncFillSelectionBtn();
   syncIslandCards();
   updateMeshColors();
+  if (quiet) return;
   const slot = slotIndex(S.paintTarget);
   setStatus(
     `Selected ${faces.length.toLocaleString()} faces (${label}) — magenta = selected. Click slot ${slot + 1} or Fill Selection`,
@@ -2599,6 +2638,16 @@ viewport.addEventListener('pointermove', (e) => {
     return;
   }
   if (S.tool === 'smart' && !S._smartClick && !boxDrag) { previewSmartFill(e.clientX, e.clientY); return; }
+  if (S.tool === 'edge' && !boxDrag) {
+    if (S._edgeSelectionLocked) return;
+    const now = performance.now();
+    const last = S._edgeHover || {};
+    if (!last.t || now - last.t > 120 || Math.hypot(e.clientX - last.x, e.clientY - last.y) > 12) {
+      S._edgeHover = { t: now, x: e.clientX, y: e.clientY };
+      previewEdgeRun(e.clientX, e.clientY, { quiet: true });
+    }
+    return;
+  }
   if (S._smartClick) {
     if (Math.hypot(e.clientX - S._smartClick.x, e.clientY - S._smartClick.y) > 6) {
       S._smartClick.moved = true;
