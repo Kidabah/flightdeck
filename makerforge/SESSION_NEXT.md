@@ -1,5 +1,15 @@
 ---
 
+## b573 — Freehand brush stops on mouse-up + less lag
+**Date:** 2026-07-25
+
+### MakerDeck
+- Freehand brush/spray now ends immediately on mouse/touch release (capture-phase window `pointerup`, abort in-flight samples).
+- Much less lag while dragging: max 8 dabs/move (was 96), live colour tint instead of full mesh recolour, skip already-painted faces, reuse brush visit stamps (no huge alloc per dab).
+- Hard refresh Painter `painter.js?v=573` / build **b573**.
+
+---
+
 ## b572 — Fix Smart fill sprawl (classic facing patch)
 **Date:** 2026-07-25
 

@@ -307,7 +307,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   <header class="header">
     <button class="toggle-sidebar" id="toggleSidebar" title="Toggle sidebar">☰</button>
     <div class="logo">Maker<span>Deck</span> · STL Painter</div>
-    <div class="build">b572</div>
+    <div class="build">b573</div>
   </header>
 
   <!-- Left Sidebar (tabbed) -->
@@ -616,7 +616,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b572</span>
+    <span>MakerDeck · STL Painter b573</span>
   </footer>
 </div>
 
@@ -642,7 +642,7 @@ import {
   paintClassOf, upgradePaintResolution, export3MF,
   findMeshIslands, buildIslandMap, floodFillSameClass, floodFillSameSlot, selectIsland,
   import3MF, buildSymmetryMap, masksToFacePaint, facePaintToMasks, MAX_PAINT_SLOTS
-} from './js/painter.js?v=572';
+} from './js/painter.js?v=573';
 
 /* ================================================================== */
 /*  STATE                                                             */
@@ -1139,24 +1139,43 @@ function pushUndo() {
   $('redoBtn').disabled = true;
 }
 
-function paintFacesFree(faceIndices, target, { undo = true, refresh = true } = {}) {
+/** Paint only the colour buffer for specific faces (fast live brush feedback). */
+function tintFacesLive(faceIndices, slot) {
+  if (!S.mesh || !faceIndices?.length) return;
+  const colors = S.mesh.geometry.attributes.color;
+  if (!colors) return;
+  const col = new THREE.Color(getSlotColor(slot));
+  for (const i of faceIndices) {
+    for (let v = 0; v < 3; v++) colors.setXYZ(i * 3 + v, col.r, col.g, col.b);
+  }
+  colors.needsUpdate = true;
+}
+
+function paintFacesFree(faceIndices, target, { undo = true, refresh = true, live = false } = {}) {
   const fp = ensureFacePaint();
   if (!fp || !faceIndices.length) return 0;
   const slot = slotIndex(target != null ? target : S.paintTarget);
-  let faces = faceIndices.filter(i => !isFaceHidden(i));
+  let faces = [];
+  for (const i of faceIndices) {
+    if (isFaceHidden(i)) continue;
+    if ((fp[i] || 0) === slot) continue; // already painted — skip work
+    faces.push(i);
+  }
   if (!faces.length) return 0;
   // Mirror faces for symmetry painting
   if (S.symmetryOn && S.symmetryMap) {
     const extra = [];
     for (const i of faces) {
       const m = S.symmetryMap[i];
-      if (m >= 0 && m !== i && !isFaceHidden(m)) extra.push(m);
+      if (m >= 0 && m !== i && !isFaceHidden(m) && (fp[m] || 0) !== slot) extra.push(m);
     }
     if (extra.length) faces = faces.concat(extra);
   }
   if (undo) pushUndo();
   for (const i of faces) fp[i] = slot;
-  if (refresh) {
+  if (live) {
+    tintFacesLive(faces, slot);
+  } else if (refresh) {
     syncLegacyMasks();
     updateMeshColors();
     recountPaint();
@@ -1321,8 +1340,8 @@ function brushRadiusMm() {
   return parseFloat($('brushSize')?.value) || 2.5;
 }
 
-function applyBrushDab(hit, { undo = false } = {}) {
-  if (!hit || !S.mesh) return 0;
+function applyBrushDab(hit, { undo = false, live = false } = {}) {
+  if (!hit || !S.mesh || !S.brushStrokeActive) return 0;
   ensureFaceAdj();
   const radius = brushRadiusMm();
   const density = S.tool === 'spray' ? (parseFloat($('sprayDensity')?.value) || 45) / 100 : 1;
@@ -1334,7 +1353,7 @@ function applyBrushDab(hit, { undo = false } = {}) {
     canUseFace: i => !isFaceHidden(i),
   });
   if (!faces.length) return 0;
-  return paintFacesFree(faces, S.paintTarget, { undo, refresh: !S.brushStrokeActive });
+  return paintFacesFree(faces, S.paintTarget, { undo, refresh: false, live });
 }
 
 function constrainBrushClient(x, y, origin) {
@@ -1350,27 +1369,23 @@ function strokeBrushTo(clientX, clientY) {
   const pt = constrainBrushClient(clientX, clientY, stroke.origin);
   const prev = stroke.lastClient || pt;
   const dist = Math.hypot(pt.x - prev.x, pt.y - prev.y);
-  const step = Math.max(1.25, Math.min(5, brushRadiusMm() * 0.9));
-  const samples = dist < 0.5 ? 1 : Math.min(96, Math.ceil(dist / step));
+  // Keep moves cheap so pointerup can fire immediately (was up to 96 dabs/move → laggy "won't stop").
+  const step = Math.max(3, Math.min(10, brushRadiusMm() * 1.6));
+  const samples = dist < 0.75 ? 1 : Math.min(8, Math.ceil(dist / step));
   let painted = 0;
+  let lastHit = null;
   for (let s = 1; s <= samples; s++) {
+    if (!S.brushStrokeActive || S.brushStrokeActive !== stroke) break;
     const t = s / samples;
     const x = prev.x + (pt.x - prev.x) * t, y = prev.y + (pt.y - prev.y) * t;
     const hit = pickHitAtClient(x, y);
     if (!hit) continue;
-    updateSmartCursor(x, y, hit.worldPoint);
-    const n = applyBrushDab(hit, { undo: !stroke.undid });
+    lastHit = hit;
+    const n = applyBrushDab(hit, { undo: !stroke.undid, live: true });
     if (n) { painted += n; stroke.undid = true; }
   }
   stroke.lastClient = pt;
-  if (painted && !stroke.repaintQueued) {
-    stroke.repaintQueued = true;
-    requestAnimationFrame(() => {
-      if (!S.brushStrokeActive) return;
-      stroke.repaintQueued = false;
-      updateMeshColors();
-    });
-  }
+  if (lastHit) updateSmartCursor(pt.x, pt.y, lastHit.worldPoint);
   return painted;
 }
 
@@ -2193,14 +2208,18 @@ function sampleEyedrop(clientX, clientY) {
 function endBrushStroke(status = true) {
   const stroke = S.brushStrokeActive;
   if (!stroke) return;
+  // Clear first so any in-flight move samples abort immediately.
   S.brushStrokeActive = null;
   releaseViewportPointer(stroke.pointerId);
-  if (stroke.undid) {
-    syncLegacyMasks();
-    updateMeshColors();
-    recountPaint();
-  }
   syncOrbitLock();
+  if (stroke.undid) {
+    // Defer heavy bookkeeping so mouse-up feels instant.
+    requestAnimationFrame(() => {
+      syncLegacyMasks();
+      updateMeshColors();
+      recountPaint();
+    });
+  }
   if (status) {
     const n = stroke.painted || 0;
     setStatus(
@@ -2215,18 +2234,21 @@ function endBrushStroke(status = true) {
 /** Start a brush/spray stroke. Returns true if a stroke began. */
 function startBrushStroke(e) {
   if (!isBrushTool() || !S.mesh || e.altKey || S.orbitOverride) return false;
-  if (!(e.buttons & 1)) return false;
+  if (e.button !== 0 && !(e.buttons & 1)) return false;
   const origin = { x: e.clientX, y: e.clientY };
   const pt = constrainBrushClient(e.clientX, e.clientY, origin);
   const hit = pickHitAtClient(pt.x, pt.y);
   if (!hit) return false;
-  S.brushStrokeActive = { origin, pointerId: e.pointerId, painted: 0, undid: false, lastClient: pt };
+  // End any stuck stroke before starting a new one.
+  if (S.brushStrokeActive) endBrushStroke(false);
+  S.brushStrokeActive = {
+    origin, pointerId: e.pointerId, painted: 0, undid: false, lastClient: pt, id: (S._strokeId = (S._strokeId || 0) + 1),
+  };
   syncOrbitLock();
   updateSmartCursor(pt.x, pt.y, hit.worldPoint);
-  const n = applyBrushDab(hit, { undo: true });
+  const n = applyBrushDab(hit, { undo: true, live: true });
   S.brushStrokeActive.painted += n;
   if (n) S.brushStrokeActive.undid = true;
-  if (n) updateMeshColors();
   try { viewport.setPointerCapture?.(e.pointerId); } catch {}
   return true;
 }
@@ -2235,7 +2257,8 @@ function startBrushStroke(e) {
 function moveBrushStroke(e) {
   const stroke = S.brushStrokeActive;
   if (!stroke) return;
-  if (!(e.buttons & 1)) { endBrushStroke(true); return; }
+  // Stop the instant the primary button is up — even if pointerup was delayed.
+  if (e.buttons != null && !(e.buttons & 1)) { endBrushStroke(true); return; }
   if (stroke.pointerId != null && e.pointerId !== stroke.pointerId) return;
   stroke.painted += strokeBrushTo(e.clientX, e.clientY);
 }
@@ -2788,14 +2811,14 @@ $('hideIslandBtn')?.addEventListener('click', () => { if(S.selectedIsland>=0) to
 $('showAllIslandsBtn')?.addEventListener('click', () => { S.hiddenIslands.clear(); syncIslandCards(); updateMeshColors(); });
 
 /* ================================================================== */
-/*  VIEWPORT POINTER EVENTS (b571 stroke controller)                  */
-/*  One start/move/end path. Hidden faces are hard masks.             */
-/*  End only on pointerup / pointercancel / blur / lostcapture.       */
+/*  VIEWPORT POINTER EVENTS (b573 freehand stroke)                    */
+/*  Hold = paint, release = stop immediately. Live tint, cheap moves. */
 /* ================================================================== */
 
 function pointerMatchesStroke(e, stroke) {
   if (!stroke) return false;
-  return stroke.pointerId == null || e.pointerId === stroke.pointerId || e.button === 0;
+  if (stroke.pointerId == null) return e.button === 0 || e.type === 'pointerup' || e.type === 'pointercancel';
+  return e.pointerId === stroke.pointerId || (e.button === 0 && e.type === 'pointerup');
 }
 
 viewport.addEventListener('pointerdown', (e) => {
@@ -3008,13 +3031,13 @@ viewport.addEventListener('dblclick', (e) => {
   controls.update();
 });
 
-// End stroke if pointerup lands outside the viewport (capture may have been lost).
+// Capture-phase window listeners so lift always ends the stroke even outside the viewport.
 window.addEventListener('pointerup', (e) => {
-  if (S.brushStrokeActive && pointerMatchesStroke(e, S.brushStrokeActive)) endBrushStroke(true);
-});
+  if (e.button === 0 && S.brushStrokeActive) endBrushStroke(true);
+}, true);
 window.addEventListener('pointercancel', () => {
   if (S.brushStrokeActive) endBrushStroke(false);
-});
+}, true);
 window.addEventListener('blur', () => {
   endBrushStroke(false);
   S._smartClick = null;

@@ -1,5 +1,5 @@
 /**
- * MakerDeck STL Painter Engine — b572
+ * MakerDeck STL Painter Engine — b573
  * Pure computation module: STL parsing, feature detection, 3MF export.
  */
 
@@ -326,6 +326,10 @@ function faceNormalCentroid(verts, faces, fi) {
   };
 }
 
+/** Stamp buffer so brush dabs don't allocate/clear a full nTri mask every stroke. */
+let _brushSeen = null;
+let _brushStamp = 0;
+
 /**
  * Brush / spray dab: faces near hit within `radius` mm, front-facing vs seed.
  * `density` < 1 scatters like spray (distance-weighted random keep).
@@ -340,6 +344,11 @@ export function brushDabFaces(seed, hitPoint, verts, faces, nTri, faceAdj, opts 
   if (seed < 0 || seed >= nTri) return [];
   if (canUseFace && !canUseFace(seed)) return [];
 
+  if (!_brushSeen || _brushSeen.length < nTri) _brushSeen = new Uint32Array(nTri);
+  _brushStamp = (_brushStamp + 1) >>> 0;
+  if (_brushStamp === 0) { _brushSeen.fill(0); _brushStamp = 1; }
+  const stamp = _brushStamp;
+
   const cosThr = Math.cos((maxAngleDeg * Math.PI) / 180);
   const seedGeo = faceNormalCentroid(verts, faces, seed);
   const hx = hitPoint.x ?? hitPoint[0];
@@ -348,9 +357,8 @@ export function brushDabFaces(seed, hitPoint, verts, faces, nTri, faceAdj, opts 
   const r2 = radius * radius;
 
   const out = [];
-  const queued = new Uint8Array(nTri);
   const queue = [seed];
-  queued[seed] = 1;
+  _brushSeen[seed] = stamp;
 
   while (queue.length) {
     const fi = queue.pop();
@@ -370,9 +378,9 @@ export function brushDabFaces(seed, hitPoint, verts, faces, nTri, faceAdj, opts 
     if (keep) out.push(fi);
 
     for (const nb of faceAdj[fi]) {
-      if (queued[nb]) continue;
+      if (_brushSeen[nb] === stamp) continue;
       if (canUseFace && !canUseFace(nb)) continue;
-      queued[nb] = 1;
+      _brushSeen[nb] = stamp;
       queue.push(nb);
     }
   }

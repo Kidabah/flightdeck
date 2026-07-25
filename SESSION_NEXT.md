@@ -1,9 +1,13 @@
 ## 2026-07-25 Session update
 
 Latest local/static change:
+- MakerDeck **b573** — Freehand brush stops on mouse-up; much less drag lag (live tint, fewer dabs/move).
+- Hard refresh Painter `painter.js?v=573`. No backend restart required.
+- MakerDeck session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md)
+
+Previous local/static change:
 - MakerDeck **b572** — Fixed Smart fill sprawl: classic facing-patch default (Wrap off, 40°); Wrap uses surface path so pillars don’t get air-jumped.
 - Hard refresh Painter `painter.js?v=572`. No backend restart required.
-- MakerDeck session notes → [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md)
 
 Previous local/static change:
 - MakerDeck **b571** — Rebuilt STL Painter paint core: hide-as-hard-mask, clean hold-to-paint strokes, Smart fill masked, Clean Edge select-then-Fill/Clear.
