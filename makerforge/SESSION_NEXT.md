@@ -1,5 +1,17 @@
 ---
 
+## b564 — Clean Edge click modes and smoother brush stop
+**Date:** 2026-07-25
+
+### MakerDeck
+- Restored STL Painter **Clean Edge** mode behaviour: choose **Fill** for magenta preview or **Clear** for cyan preview, then click the fringe to apply immediately.
+- Clean Edge no longer requires highlight-then-Fill for the normal precision workflow.
+- Batched brush/freehand mesh refresh during strokes so large models should feel less laggy.
+- Hardened brush release with touch/mouse/pointer fail-safes and viewport `touch-action:none` so strokes should stop when a finger is lifted.
+- Bumped STL Painter cache/build labels to **b564**.
+
+---
+
 ## b563 — Make Clean Edge local again
 **Date:** 2026-07-25
 

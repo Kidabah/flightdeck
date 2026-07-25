@@ -148,6 +148,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
 .tool-toggle:hover{border-color:var(--accent)}
 .tool-toggle.active{background:var(--accent-dim);border-color:var(--accent);color:var(--accent)}
 .tool-btn.active-tool{background:var(--accent-dim);color:var(--accent)}
+.btn.active-mode{background:var(--accent-dim);border-color:var(--accent);color:var(--accent)}
 
 .stroke-row{display:flex;gap:4px}
 .stroke-btn{padding:3px 8px;border-radius:3px;font-size:11px;
@@ -186,7 +187,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
 .detect-preset-btn.active{border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
 
 /* -- Viewport ------------------------------------------------------ */
-.viewport{grid-area:viewport;position:relative;overflow:hidden;background:var(--bg)}
+.viewport{grid-area:viewport;position:relative;overflow:hidden;background:var(--bg);touch-action:none}
 .viewport canvas{display:block;width:100%!important;height:100%!important}
 
 .viewport-toolbar{position:absolute;top:8px;left:50%;transform:translateX(-50%);
@@ -607,7 +608,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b563</span>
+    <span>MakerDeck · STL Painter b564</span>
   </footer>
 </div>
 
@@ -633,7 +634,7 @@ import {
   paintClassOf, upgradePaintResolution, export3MF,
   findMeshIslands, buildIslandMap, floodFillSameClass, floodFillSameSlot, selectIsland,
   import3MF, buildSymmetryMap, masksToFacePaint, facePaintToMasks, MAX_PAINT_SLOTS
-} from './js/painter.js?v=563';
+} from './js/painter.js?v=564';
 
 /* ================================================================== */
 /*  STATE                                                             */
@@ -656,6 +657,7 @@ const S = {
   detectMode: 'emboss',
   undoStack: [], redoStack: [],
   edgeHighlight: null,
+  edgePreviewMode: 'fill',
   smartPreview: null, smartPreviewFaces: null,
   faceAdj: null,
   brushStrokeActive: null,
@@ -1057,11 +1059,12 @@ function updateMeshColors() {
   const edgeCol = new THREE.Color('#7dffb3');
   const smartCol = new THREE.Color('#f5c542');
   const selectCol = new THREE.Color('#ff6bff'); // magenta for click-selection
+  const clearSelectCol = new THREE.Color('#25d8ff'); // cyan for clear-preview
   const fp = ensureFacePaint();
 
   for (let i = 0; i < S.nTri; i++) {
     let col = slotCols[0];
-    if (S.clickSelection && S.clickSelection[i]) col = selectCol;
+    if (S.clickSelection && S.clickSelection[i]) col = S._edgeSelectionMode === 'clear' ? clearSelectCol : selectCol;
     else if (S.edgeHighlight && S.edgeHighlight[i]) col = edgeCol;
     else if (S.smartPreview && S.smartPreview[i]) col = smartCol;
     else {
@@ -1124,7 +1127,7 @@ function pushUndo() {
   $('redoBtn').disabled = true;
 }
 
-function paintFacesFree(faceIndices, target, { undo = true } = {}) {
+function paintFacesFree(faceIndices, target, { undo = true, refresh = true } = {}) {
   const fp = ensureFacePaint();
   if (!fp || !faceIndices.length) return;
   const slot = slotIndex(target != null ? target : S.paintTarget);
@@ -1141,9 +1144,34 @@ function paintFacesFree(faceIndices, target, { undo = true } = {}) {
   }
   if (undo) pushUndo();
   for (const i of faces) fp[i] = slot;
-  syncLegacyMasks();
-  updateMeshColors();
-  recountPaint();
+  if (refresh) {
+    syncLegacyMasks();
+    updateMeshColors();
+    recountPaint();
+  }
+  exportBtn.disabled = false;
+}
+
+function clearFacesFree(faceIndices, { undo = true, refresh = true } = {}) {
+  const fp = ensureFacePaint();
+  if (!fp || !faceIndices.length) return;
+  let faces = faceIndices.filter(i => !isFaceHidden(i));
+  if (!faces.length) return;
+  if (S.symmetryOn && S.symmetryMap) {
+    const extra = [];
+    for (const i of faces) {
+      const m = S.symmetryMap[i];
+      if (m >= 0 && m !== i && !isFaceHidden(m)) extra.push(m);
+    }
+    if (extra.length) faces = faces.concat(extra);
+  }
+  if (undo) pushUndo();
+  for (const i of faces) fp[i] = 0;
+  if (refresh) {
+    syncLegacyMasks();
+    updateMeshColors();
+    recountPaint();
+  }
   exportBtn.disabled = false;
 }
 
@@ -1287,7 +1315,7 @@ function applyBrushDab(hit, { undo = false } = {}) {
   const maxAngleDeg = S.tool === 'spray' ? 100 : (S.brushStroke === 'free' ? 110 : 80);
   const faces = brushDabFaces(hit.faceIndex, hit.point, S.verts, S.faces, S.nTri, S.faceAdj, { radius, density, maxAngleDeg });
   if (!faces.length) return 0;
-  paintFacesFree(faces, S.paintTarget, { undo });
+  paintFacesFree(faces, S.paintTarget, { undo, refresh: !S.brushStrokeActive });
   return faces.length;
 }
 
@@ -1317,6 +1345,14 @@ function strokeBrushTo(clientX, clientY) {
     if (n) { painted += n; stroke.undid = true; }
   }
   stroke.lastClient = pt;
+  if (painted && !stroke.repaintQueued) {
+    stroke.repaintQueued = true;
+    requestAnimationFrame(() => {
+      if (!S.brushStrokeActive) return;
+      stroke.repaintQueued = false;
+      updateMeshColors();
+    });
+  }
   return painted;
 }
 
@@ -1531,7 +1567,7 @@ function edgeRunFromHit(hit) {
   return out;
 }
 
-function previewEdgeRun(clientX, clientY, { quiet = false } = {}) {
+function previewEdgeRun(clientX, clientY, { quiet = false, lock = false } = {}) {
   if (!ensureFacePaint() || !S.mesh) return 0;
   ensureFaceAdj();
   const hit = pickHitAtClient(clientX, clientY);
@@ -1549,9 +1585,31 @@ function previewEdgeRun(clientX, clientY, { quiet = false } = {}) {
   }
   S._edgeLastSeeds = null;
   S.edgeHighlight = null;
-  if (!quiet) S._edgeSelectionLocked = true;
+  S._edgeSelectionMode = S.edgePreviewMode || 'fill';
+  if (lock) S._edgeSelectionLocked = true;
   setFaceSelection(faces, 'edge cleanup band', { quiet });
   return faces.length;
+}
+
+function applyEdgePreview() {
+  const faces = S.clickSelectionFaces;
+  if (!faces?.length) {
+    setStatus('No Clean Edge preview — hover or click the rough boundary first', 'idle');
+    return 0;
+  }
+  const mode = S._edgeSelectionMode || S.edgePreviewMode || 'fill';
+  const n = faces.length;
+  if (mode === 'clear') {
+    clearFacesFree(faces);
+    clearClickSelection();
+    setStatus(`Clean Edge cleared ${n.toLocaleString()} faces back to Slot 1`, 'idle');
+  } else {
+    const slot = slotIndex(S.paintTarget);
+    paintFacesFree(faces, slot);
+    clearClickSelection();
+    setStatus(`Clean Edge filled ${n.toLocaleString()} faces → ${slotLabel(slot)}`, 'idle');
+  }
+  return n;
 }
 
 function runEdgeFinder(seedFaceList) {
@@ -1575,10 +1633,31 @@ function runEdgeFinder(seedFaceList) {
 
 function fillEdgeHighlight() {
   if (S.clickSelectionFaces?.length) {
-    paintClickSelection();
+    applyEdgePreview();
     return;
   }
   setStatus('No edge preview — click an edge run or drag a box first', 'idle');
+}
+
+function syncEdgeModeUI() {
+  $('edgeFillBtn')?.classList.toggle('active-mode', (S.edgePreviewMode || 'fill') === 'fill');
+  $('edgeClearBtn')?.classList.toggle('active-mode', S.edgePreviewMode === 'clear');
+}
+
+function setEdgePreviewMode(mode) {
+  S.edgePreviewMode = mode === 'clear' ? 'clear' : 'fill';
+  S._edgeSelectionLocked = false;
+  if (S.clickSelectionFaces?.length) {
+    S._edgeSelectionMode = S.edgePreviewMode;
+    updateMeshColors();
+  }
+  syncEdgeModeUI();
+  setStatus(
+    S.edgePreviewMode === 'clear'
+      ? 'Clean Edge clear mode — cyan preview, click to clear to Slot 1'
+      : `Clean Edge fill mode — magenta preview, click to fill ${slotLabel(slotIndex(S.paintTarget))}`,
+    'idle'
+  );
 }
 
 /* ================================================================== */
@@ -1624,6 +1703,7 @@ function syncFillSelectionBtn() {
 function clearClickSelection({ repaint = true, syncIslands = true } = {}) {
   S.clickSelection = null; S.clickSelectionFaces = null; S.selectedIsland = -1;
   S._edgeSelectionLocked = false;
+  S._edgeSelectionMode = null;
   syncFillSelectionBtn();
   if (syncIslands) syncIslandCards();
   if (repaint) updateMeshColors();
@@ -1959,12 +2039,13 @@ function setTool(tool) {
     spray: 'Spray — mist on model · right-drag to orbit',
     eyedrop: 'Eyedropper — click a face to pick its slot',
     clickSelect: 'Click to select a connected region · then Fill Selection',
-    edge: 'Clean Edge — click the wrong-colour fringe beside the active colour, then Fill',
+    edge: 'Clean Edge — choose Fill (magenta) or Clear (cyan), then click the fringe to apply',
     smart: 'Smart fill — hover for preview · click to paint connected surfaces',
     lasso: 'Lasso — Lock on, draw around an area (eyebrow…) · pick slot · Fill Selection',
     box: 'Box — Lock on, drag a rectangle · pick slot · Fill Selection',
     detect: 'Detect — find raised/sunken detail',
   };
+  if (tool === 'edge') syncEdgeModeUI();
   viewportHint.textContent = hints[tool] || 'Left-drag orbits · scroll zooms · pick a tool';
 
   // Auto-switch to Paint tab when selecting a tool
@@ -1983,7 +2064,7 @@ function setPaintTarget(target, { fillIfSelected = false } = {}) {
   syncSlotCards(); syncHideUI();
   if (S.soloActive) updateMeshColors();
   // Natural flow: lasso shirt → click red → fills (magenta was only the selection)
-  if (fillIfSelected && S.clickSelectionFaces?.length) {
+  if (fillIfSelected && S.tool !== 'edge' && S.clickSelectionFaces?.length) {
     paintClickSelection();
   }
 }
@@ -2063,6 +2144,9 @@ function endBrushStroke(status = true) {
   if (!stroke) return;
   S.brushStrokeActive = null;
   releaseViewportPointer(stroke.pointerId);
+  syncLegacyMasks();
+  updateMeshColors();
+  recountPaint();
   syncOrbitLock();
   if (status) setStatus(stroke.undid ? `${S.tool === 'spray' ? 'Spray' : 'Brush'} stroke → ${slotLabel(slotIndex(S.paintTarget))}` : 'No faces hit', 'idle');
 }
@@ -2470,13 +2554,9 @@ $('edgeWidth')?.addEventListener('input', () => {
     setStatus(n ? `Edge preview: ${n.toLocaleString()} faces — magenta = selected` : 'No edge found', 'idle');
   }
 });
-$('edgeFillBtn')?.addEventListener('click', () => fillEdgeHighlight());
-$('edgeClearBtn')?.addEventListener('click', () => {
-  S._edgeLastSeeds = null;
-  S.edgeHighlight = null;
-  clearClickSelection();
-  setStatus('Edge preview cleared', 'idle');
-});
+$('edgeFillBtn')?.addEventListener('click', () => setEdgePreviewMode('fill'));
+$('edgeClearBtn')?.addEventListener('click', () => setEdgePreviewMode('clear'));
+syncEdgeModeUI();
 
 // Detect sliders
 for (const id of ['sensitivity','smoothIter','minCluster','morphClose','morphOpen']) {
@@ -2621,6 +2701,7 @@ viewport.addEventListener('pointerdown', (e) => {
     const n = applyBrushDab(hit, { undo: true });
     S.brushStrokeActive.painted += n;
     if (n) S.brushStrokeActive.undid = true;
+    if (n) updateMeshColors();
     try { viewport.setPointerCapture?.(e.pointerId); } catch {}
     return;
   }
@@ -2638,8 +2719,8 @@ viewport.addEventListener('pointerdown', (e) => {
   if (S.tool === 'edge') {
     if (e.altKey || S.orbitOverride) return;
     e.preventDefault(); e.stopPropagation();
-    const n = previewEdgeRun(e.clientX, e.clientY);
-    if (n) setStatus(`Edge preview: ${n.toLocaleString()} faces — magenta = selected. Fill → ${slotLabel(slotIndex(S.paintTarget))}`, 'idle');
+    const n = previewEdgeRun(e.clientX, e.clientY, { lock: true });
+    if (n) applyEdgePreview();
     return;
   }
 
@@ -2759,9 +2840,6 @@ viewport.addEventListener('pointerup', (e) => {
 viewport.addEventListener('pointercancel', (e) => {
   S._smartClick = null; endBrushStroke(false); endBoxDrag(e); endLassoDrag(e); syncOrbitLock();
 });
-window.addEventListener('pointerup', (e) => {
-  if (S.brushStrokeActive && (S.brushStrokeActive.pointerId == null || e.pointerId === S.brushStrokeActive.pointerId)) endBrushStroke(true);
-});
 window.addEventListener('pointercancel', (e) => {
   if (S.brushStrokeActive && (S.brushStrokeActive.pointerId == null || e.pointerId === S.brushStrokeActive.pointerId)) endBrushStroke(false);
 });
@@ -2805,6 +2883,9 @@ window.addEventListener('blur', () => {
   if (boxDrag) endBoxDrag(); if (lassoDrag) endLassoDrag();
   syncOrbitLock();
 });
+window.addEventListener('mouseup', () => endBrushStroke(true));
+window.addEventListener('touchend', () => endBrushStroke(true), { passive: true });
+window.addEventListener('touchcancel', () => endBrushStroke(false), { passive: true });
 window.addEventListener('pointermove', (e) => {
   // Safety net: if a stroke is somehow still active with no button down, kill it
   if (S.brushStrokeActive && !(e.buttons & 1)) endBrushStroke(true);
