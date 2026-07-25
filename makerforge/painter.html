@@ -14,7 +14,7 @@
 </script>
 <style>
 /* ================================================================== */
-/*  b556 — MakerDeck STL Painter  (tabbed layout)                     */
+/*  b557 — MakerDeck STL Painter  (tabbed layout)                     */
 /* ================================================================== */
 
 /* -- Reset & Vars -------------------------------------------------- */
@@ -306,7 +306,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   <header class="header">
     <button class="toggle-sidebar" id="toggleSidebar" title="Toggle sidebar">☰</button>
     <div class="logo">Maker<span>Deck</span> · STL Painter</div>
-    <div class="build">b556</div>
+    <div class="build">b557</div>
   </header>
 
   <!-- Left Sidebar (tabbed) -->
@@ -473,12 +473,16 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
             <input type="range" id="smartSize" min="1" max="40" step="0.5" value="10">
           </div>
           <div class="form-group">
-            <div class="form-label"><span>Angle</span><span class="value" id="smartAngleVal">35°</span></div>
-            <input type="range" id="smartAngle" min="5" max="90" step="1" value="35">
+            <div class="form-label"><span>Angle</span><span class="value" id="smartAngleVal">70°</span></div>
+            <input type="range" id="smartAngle" min="5" max="140" step="1" value="70">
           </div>
           <label class="check-row">
             <input type="checkbox" id="smartSameColour" checked>
             <span>Stay on same colour</span>
+          </label>
+          <label class="check-row">
+            <input type="checkbox" id="smartWrapEdges" checked>
+            <span>Wrap around connected edges</span>
           </label>
         </div>
         <!-- Edge opts -->
@@ -603,7 +607,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b556</span>
+    <span>MakerDeck · STL Painter b557</span>
   </footer>
 </div>
 
@@ -629,7 +633,7 @@ import {
   paintClassOf, upgradePaintResolution, export3MF,
   findMeshIslands, buildIslandMap, floodFillSameClass, floodFillSameSlot, selectIsland,
   import3MF, buildSymmetryMap, masksToFacePaint, facePaintToMasks, MAX_PAINT_SLOTS
-} from './js/painter.js?v=556';
+} from './js/painter.js?v=557';
 
 /* ================================================================== */
 /*  STATE                                                             */
@@ -1328,6 +1332,7 @@ function computeSmartFill(hit) {
       radius: parseFloat($('smartSize').value) || 10,
       maxAngleDeg: parseFloat($('smartAngle').value) || 35,
       samePaintOnly: $('smartSameColour')?.checked !== false,
+      localNormals: $('smartWrapEdges')?.checked !== false,
       trimMask: S.trimMask,
       facePaint: S.facePaint,
     });
@@ -1775,8 +1780,8 @@ function setTool(tool) {
     spray: 'Spray — mist on model · right-drag to orbit',
     eyedrop: 'Eyedropper — click a face to pick its slot',
     clickSelect: 'Click to select a connected region · then Fill Selection',
-    edge: 'Edge — Lock view, drag over boundary, then Fill',
-    smart: 'Smart fill — hover for preview · click to paint',
+    edge: 'Edge — select around an existing paint boundary, then Fill',
+    smart: 'Smart fill — hover for preview · click to paint connected surfaces',
     lasso: 'Lasso — Lock on, draw around an area (eyebrow…) · pick slot · Fill Selection',
     box: 'Box — Lock on, drag a rectangle · pick slot · Fill Selection',
     detect: 'Detect — find raised/sunken detail',

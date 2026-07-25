@@ -1,5 +1,16 @@
 ---
 
+## b557 — Smarter STL Painter smart fill for posts and awnings
+**Date:** 2026-07-25
+
+### MakerDeck
+- Added Smart Paint **Wrap around connected edges** so fills can walk face-to-face around posts, pipes, awnings, and other curved/segmented parts instead of comparing every face to the first clicked face.
+- Raised Smart Paint's angle range/default to better handle architectural geometry and corrugated surfaces.
+- Clarified the Edge tool hint: Edge is for bands around existing painted boundaries, while Smart is the tool for filling connected object surfaces to their edges.
+- Bumped STL Painter cache/build labels to **b557**.
+
+---
+
 ## b556 — Lay flat models on STL Painter load
 **Date:** 2026-07-25
 

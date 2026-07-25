@@ -383,8 +383,9 @@ export function brushDabFaces(seed, hitPoint, verts, faces, nTri, faceAdj, opts 
  */
 export function smartFillFaces(seed, hitPoint, verts, faces, nTri, embossMask, debossMask, faceAdj, opts = {}) {
   const radius = Math.max(0.1, opts.radius ?? 8);
-  const maxAngleDeg = Math.max(1, Math.min(120, opts.maxAngleDeg ?? 40));
+  const maxAngleDeg = Math.max(1, Math.min(140, opts.maxAngleDeg ?? 40));
   const samePaintOnly = opts.samePaintOnly !== false;
+  const localNormals = opts.localNormals === true;
   const trimMask = opts.trimMask || null;
   const facePaint = opts.facePaint || null;
   if (seed < 0 || seed >= nTri) return [];
@@ -408,8 +409,10 @@ export function smartFillFaces(seed, hitPoint, verts, faces, nTri, embossMask, d
     const g = faceNormalCentroid(verts, faces, fi);
     const dx = g.cx - hx, dy = g.cy - hy, dz = g.cz - hz;
     if (dx * dx + dy * dy + dz * dz > r2) continue;
-    const dot = g.nx * seedGeo.nx + g.ny * seedGeo.ny + g.nz * seedGeo.nz;
-    if (dot < cosThr) continue;
+    if (!localNormals) {
+      const dot = g.nx * seedGeo.nx + g.ny * seedGeo.ny + g.nz * seedGeo.nz;
+      if (dot < cosThr) continue;
+    }
     if (samePaintOnly) {
       if (facePaint) {
         if ((facePaint[fi] || 0) !== matchSlot) continue;
@@ -419,6 +422,13 @@ export function smartFillFaces(seed, hitPoint, verts, faces, nTri, embossMask, d
     out.push(fi);
     for (const nb of faceAdj[fi]) {
       if (queued[nb]) continue;
+      if (localNormals) {
+        const ng = faceNormalCentroid(verts, faces, nb);
+        const ndx = ng.cx - hx, ndy = ng.cy - hy, ndz = ng.cz - hz;
+        if (ndx * ndx + ndy * ndy + ndz * ndz > r2) continue;
+        const localDot = ng.nx * g.nx + ng.ny * g.ny + ng.nz * g.nz;
+        if (localDot < cosThr) continue;
+      }
       queued[nb] = 1;
       queue.push(nb);
     }
