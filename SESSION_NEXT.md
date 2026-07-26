@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-26 Session update
 
-Latest commit: *(pending — PrintShelf solid STL4 + OBJ mesh thumbs)*
+Latest commit: `6552875` — PrintShelf solid STL4 + OBJ mesh thumbs
 
 Latest local/Pi change:
 - Fuzzy dogs were **stride-sampled** multi‑million‑tri scans → holes. **stl4** keeps up to 2.5M faces.
