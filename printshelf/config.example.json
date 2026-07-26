@@ -2,8 +2,15 @@
   "host": "0.0.0.0",
   "port": 8100,
   "data_dir": "data",
-  "watched_folders": [],
-
+  "watched_folders": [
+    {
+      "id": "koko-kidabah",
+      "label": "Koko kidabah",
+      "path": "/mnt/koko-kidabah",
+      "source_kind": "nas",
+      "windows_path": "\\\\Koko\\kidabah"
+    }
+  ],
   "ignore_globs": [
     "**/node_modules/**",
     "**/.git/**",

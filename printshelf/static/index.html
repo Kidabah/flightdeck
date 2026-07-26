@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=1">
+  <link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
   <div class="app">
@@ -73,7 +73,8 @@
           <form id="folderForm" class="folder-form">
             <input name="id" placeholder="id (e.g. nas-models)" required>
             <input name="label" placeholder="Label" required>
-            <input name="path" placeholder="Absolute path" required>
+            <input name="path" placeholder="Pi path (e.g. /mnt/koko-kidabah)" required>
+            <input name="windows_path" placeholder="Windows path (e.g. \\Koko\kidabah or Z:)">
             <select name="source_kind">
               <option value="local">local</option>
               <option value="nas">nas</option>
@@ -85,6 +86,6 @@
       </section>
     </main>
   </div>
-  <script src="app.js?v=1"></script>
+  <script src="app.js?v=2"></script>
 </body>
 </html>

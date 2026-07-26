@@ -178,6 +178,21 @@ h1 {
   border-bottom: 1px solid var(--line);
   font-size: .92rem;
 }
+.detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.detail-actions .secondary {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text);
+}
+.detail-hint {
+  margin: 8px 0 0;
+  font-size: .82rem;
+  color: var(--muted);
+}
 .folder-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

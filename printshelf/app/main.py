@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from . import __version__
 from .config import data_dir, load_config, save_config
 from .db import db_session, init_db, parse_json_field, row_to_dict
+from .paths import to_windows_folder, to_windows_path
 from .scanner import get_scan_state, start_scan_background
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -25,6 +26,7 @@ class FolderIn(BaseModel):
     label: str = ""
     path: str
     source_kind: str = "local"
+    windows_path: str = ""
 
 
 class ConfigIn(BaseModel):
@@ -172,6 +174,10 @@ def get_asset(asset_id: int) -> dict[str, Any]:
     item["bbox"] = parse_json_field(item.pop("bbox_json", None), None)
     item["tags"] = parse_json_field(item.pop("tags_json", "[]"), [])
     item["sidecars"] = sidecars
+    folders = list(cfg.get("watched_folders") or [])
+    abs_path = str(item.get("abs_path") or "")
+    item["windows_path"] = to_windows_path(abs_path, folders)
+    item["windows_folder"] = to_windows_folder(abs_path, folders)
     return item
 
 

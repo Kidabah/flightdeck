@@ -84,15 +84,33 @@ function escapeHtml(s) {
   }[c]));
 }
 
+async function copyText(btn, text, okLabel = "Copied") {
+  if (!text) {
+    btn.textContent = "No path";
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    const prev = btn.dataset.label || btn.textContent;
+    btn.textContent = okLabel;
+    setTimeout(() => { btn.textContent = prev; }, 1600);
+  } catch {
+    btn.textContent = "Copy failed";
+  }
+}
+
 async function selectAsset(id) {
   selectedId = id;
   document.querySelectorAll(".card").forEach((c) => c.classList.remove("active"));
   const item = await api(`/api/assets/${id}`);
   const filaments = item.meta?.filaments || [];
   const sidecars = item.sidecars || [];
+  const winPath = item.windows_path || "";
+  const winFolder = item.windows_folder || "";
   $("detail").innerHTML = `
     <h2>${escapeHtml(item.file_name)}</h2>
     <div class="detail-path">${escapeHtml(item.abs_path)}</div>
+    ${winPath ? `<div class="detail-path" title="Windows path">${escapeHtml(winPath)}</div>` : ""}
     <div class="kv">
       <div><span>Design</span><span>${escapeHtml(item.design_name)}</span></div>
       <div><span>Type</span><span>${escapeHtml(item.kind)}</span></div>
@@ -128,16 +146,18 @@ async function selectAsset(id) {
         ${item.meta?.missing_textures?.length ? `<p class="lede">Missing: ${escapeHtml(item.meta.missing_textures.join(", "))}</p>` : ""}
       </div>` : ""}
     <div class="detail-section">
-      <button class="card-open" type="button" id="copyPathBtn">Copy path</button>
+      <div class="detail-actions">
+        <button class="card-open" type="button" id="copyWinPathBtn" data-label="Copy Windows path" ${winPath ? "" : "disabled"}>Copy Windows path</button>
+        <button class="card-open secondary" type="button" id="copyWinFolderBtn" data-label="Copy Windows folder" ${winFolder ? "" : "disabled"}>Copy Windows folder</button>
+        <button class="card-open secondary" type="button" id="copyPiPathBtn" data-label="Copy Pi path">Copy Pi path</button>
+      </div>
+      <p class="detail-hint">${winPath
+        ? "Paste Windows path into Bambu/Orca, or folder into Explorer (Ctrl+L → Ctrl+V)."
+        : "Set a Windows path on this watched folder in Folders to enable PC copy."}</p>
     </div>`;
-  $("copyPathBtn")?.addEventListener("click", async () => {
-    try {
-      await navigator.clipboard.writeText(item.abs_path);
-      $("copyPathBtn").textContent = "Copied";
-    } catch {
-      $("copyPathBtn").textContent = "Copy failed";
-    }
-  });
+  $("copyWinPathBtn")?.addEventListener("click", () => copyText($("copyWinPathBtn"), winPath));
+  $("copyWinFolderBtn")?.addEventListener("click", () => copyText($("copyWinFolderBtn"), winFolder, "Folder copied"));
+  $("copyPiPathBtn")?.addEventListener("click", () => copyText($("copyPiPathBtn"), item.abs_path));
   await loadLibrary();
 }
 
@@ -156,7 +176,10 @@ function renderFolders() {
   el.innerHTML = folders.map((f, i) => `
     <div class="folder-row">
       <div><strong>${escapeHtml(f.label || f.id)}</strong><br><span class="pill">${escapeHtml(f.source_kind)}</span></div>
-      <div class="detail-path" style="margin:0">${escapeHtml(f.path)}</div>
+      <div class="detail-path" style="margin:0">
+        ${escapeHtml(f.path)}
+        ${f.windows_path ? `<br><span class="pill">win</span> ${escapeHtml(f.windows_path)}` : "<br><span class=\"pill\">no Windows path</span>"}
+      </div>
       <button type="button" data-i="${i}" class="secondary remove-folder">Remove</button>
     </div>`).join("");
   el.querySelectorAll(".remove-folder").forEach((btn) => {
@@ -211,6 +234,7 @@ function bind() {
       id: String(fd.get("id") || "").trim(),
       label: String(fd.get("label") || "").trim(),
       path: String(fd.get("path") || "").trim(),
+      windows_path: String(fd.get("windows_path") || "").trim(),
       source_kind: String(fd.get("source_kind") || "local"),
     });
     e.target.reset();

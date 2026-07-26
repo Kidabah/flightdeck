@@ -8,16 +8,16 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-26 Session update
 
-Latest commit: `76e3e91` — PrintShelf incremental scan commits
+Latest commit: *(pending — PrintShelf Windows path copy)*
 
 Latest local/Pi change:
-- PrintShelf now **commits every 5 files** during scan so the library fills while walking a large NAS share.
-- Koko NAS mounted on Pi: `//192.168.4.34/kidabah` → `/mnt/koko-kidabah` (watched as `nas`).
-- Pi: `printshelf.service` on **8100** — `http://100.106.112.104:8100`
-- Note: CIFS mount is not persistent across reboot until an fstab entry is added.
+- PrintShelf detail pane: **Copy Windows path** / **Copy Windows folder** / Copy Pi path.
+- Watched folders support `windows_path` (e.g. `\\Koko\kidabah`) so NAS files map to a PC-usable path.
+- Hard refresh PrintShelf (`app.js?v=2` / `style.css?v=2`). Restart `printshelf.service`.
+- Koko: `/mnt/koko-kidabah` ↔ `\\Koko\kidabah` (CIFS mount not persistent across reboot yet).
 
 Previous:
-- **PrintShelf** v0.1 scaffold + Pi service. Archives in `docs/archive/`.
+- Incremental scan commits; PrintShelf v0.1 scaffold. Archives in `docs/archive/`.
 
 ---
 
