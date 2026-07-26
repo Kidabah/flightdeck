@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-26 Session update
 
-Latest commit: *(pending — PrintShelf Windows path copy)*
+Latest commit: `22649fa` — PrintShelf Windows path copy
 
 Latest local/Pi change:
 - PrintShelf detail pane: **Copy Windows path** / **Copy Windows folder** / Copy Pi path.
