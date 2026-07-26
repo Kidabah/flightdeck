@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-26 Session update
 
-Latest commit: *(pending — PrintShelf real thumbnails)*
+Latest commit: `fba3d81` — PrintShelf real thumbnails
 
 Latest local/Pi change:
 - PrintShelf thumbs: STL mesh previews, better 3MF `Metadata/thumbnail.png` pickup, OBJ texture preview.
