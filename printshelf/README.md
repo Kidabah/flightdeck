@@ -28,14 +28,19 @@ Open http://127.0.0.1:8100 → **Folders** → add paths → **Rescan**.
 cd /home/flightdeck/flightdeck
 git pull
 .venv/bin/pip install -r printshelf/requirements.txt
-sudo cp printshelf/printshelf.service /etc/systemd/system/printshelf.service
+# first install: unit file + NOPASSWD systemctl rules (docker/root helper)
+sh printshelf/install-pi-unit.sh
+cp -n printshelf/config.example.json printshelf/config.json   # edit watched_folders
 sudo systemctl daemon-reload
 sudo systemctl enable --now printshelf.service
 ```
 
-Browse: `http://<pi-tailscale-ip>:8100`
+Browse: `http://<pi-tailscale-ip>:8100` (e.g. `http://100.106.112.104:8100`)
+
+UI: **Folders** → add local/NAS paths → **Rescan**.
 
 Config: `printshelf/config.json` (not committed). Data/DB/thumbs: `printshelf/data/`.
+Restart: `sudo systemctl restart printshelf.service`
 
 ## Phase 2 (later)
 

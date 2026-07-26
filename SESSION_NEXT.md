@@ -8,12 +8,13 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-26 Session update
 
-Latest commit: `7044681` — PrintShelf v0.1 (private printable inventory)
+Latest commit: *(pending — PrintShelf Pi install helpers)*
 
-Latest local change:
+Latest local/Pi change:
 - **PrintShelf** v0.1 — private printable inventory (separate from Flightdeck). Index-in-place STL / 3MF / OBJ(+textures), folder watch, browse UI.
-- Run on Pi: `printshelf.service` → port **8100**. See [`printshelf/README.md`](printshelf/README.md).
-- UI: add watched folders → **Rescan**. Data under `printshelf/data/` (DB + thumbs). Config: `printshelf/config.json` (gitignored).
+- Pi: `printshelf.service` **active** on port **8100** — open `http://100.106.112.104:8100` (or Tailscale hostname).
+- UI: **Folders** → add paths → **Rescan**. Data: `printshelf/data/`. Config: `printshelf/config.json` (gitignored).
+- First-time unit install helper: `printshelf/install-pi-unit.sh` (extends sudoers NOPASSWD for printshelf systemctl).
 - Archived SESSION_NEXT history older than ~4 weeks into `docs/archive/`.
 
 ---
