@@ -8,15 +8,15 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-26 Session update
 
-Latest commit: `9ee2260` — PrintShelf copy fallback over HTTP
+Latest commit: *(pending — PrintShelf real thumbnails)*
 
 Latest local/Pi change:
-- PrintShelf copy buttons use a **textarea fallback** so Copy works over plain `http://` (clipboard API blocks non-HTTPS).
-- Hard refresh `app.js?v=3`. UI-only; restart optional.
-- Windows path map: `/mnt/koko-kidabah` ↔ `\\Koko\kidabah`.
+- PrintShelf thumbs: STL mesh previews, better 3MF `Metadata/thumbnail.png` pickup, OBJ texture preview.
+- Clear tiny placeholder thumbs + **Rescan** so the library fills with real previews.
+- Restart `printshelf.service` after pull.
 
 Previous:
-- Windows path copy buttons; incremental scan; PrintShelf v0.1. Archives in `docs/archive/`.
+- Copy fallback over HTTP; Windows path copy; PrintShelf v0.1. Archives in `docs/archive/`.
 
 ---
 

@@ -4,12 +4,15 @@ import struct
 from pathlib import Path
 from typing import Any
 
+from ..mesh_thumb import render_triangles_png, sample_stride
+
 
 def parse_stl(path: Path) -> dict[str, Any]:
     data = path.read_bytes()
     n_tri = 0
     bbox = None
     binary = False
+    thumb_bytes = None
     try:
         if len(data) >= 84:
             n = struct.unpack_from("<I", data, 80)[0]
@@ -19,26 +22,33 @@ def parse_stl(path: Path) -> dict[str, Any]:
                 n_tri = n
                 mins = [1e30, 1e30, 1e30]
                 maxs = [-1e30, -1e30, -1e30]
+                stride = sample_stride(n_tri)
+                tris = []
                 off = 84
-                for _ in range(min(n_tri, 2_000_000)):
+                for i in range(n_tri):
                     if off + 50 > len(data):
                         break
-                    # normal + 3 verts
-                    for vi in range(3):
-                        x, y, z = struct.unpack_from("<fff", data, off + 12 + vi * 12)
+                    v0 = struct.unpack_from("<fff", data, off + 12)
+                    v1 = struct.unpack_from("<fff", data, off + 24)
+                    v2 = struct.unpack_from("<fff", data, off + 36)
+                    for x, y, z in (v0, v1, v2):
                         mins[0] = min(mins[0], x); maxs[0] = max(maxs[0], x)
                         mins[1] = min(mins[1], y); maxs[1] = max(maxs[1], y)
                         mins[2] = min(mins[2], z); maxs[2] = max(maxs[2], z)
+                    if i % stride == 0:
+                        tris.append((v0, v1, v2))
                     off += 50
                 if n_tri:
                     bbox = {"min": mins, "max": maxs}
+                if tris:
+                    thumb_bytes = render_triangles_png(tris)
     except Exception:
         binary = False
+        thumb_bytes = None
 
     if not binary:
         text = data.decode("utf-8", "ignore")
         n_tri = text.lower().count("facet normal")
-        # light bbox skip for ascii
 
     return {
         "kind": "stl",
@@ -46,7 +56,7 @@ def parse_stl(path: Path) -> dict[str, Any]:
         "bbox": bbox,
         "meta": {"encoding": "binary" if binary else "ascii"},
         "sidecars": [],
-        "thumb_bytes": None,
+        "thumb_bytes": thumb_bytes,
         "is_sliced": False,
         "has_textures": False,
     }

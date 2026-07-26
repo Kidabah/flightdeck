@@ -100,6 +100,16 @@ def parse_obj(path: Path) -> dict[str, Any]:
         if not (parent / name).exists():
             missing_tex.append(name)
 
+    thumb_bytes = None
+    for s in uniq:
+        if s["role"] != "texture":
+            continue
+        try:
+            thumb_bytes = Path(s["abs_path"]).read_bytes()
+            break
+        except Exception:
+            continue
+
     return {
         "kind": "obj",
         "triangle_count": faces,
@@ -113,7 +123,7 @@ def parse_obj(path: Path) -> dict[str, Any]:
             "texture_pack_complete": not missing_tex and (has_textures or not texture_names),
         },
         "sidecars": uniq,
-        "thumb_bytes": None,
+        "thumb_bytes": thumb_bytes,
         "is_sliced": False,
         "has_textures": has_textures,
     }

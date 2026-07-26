@@ -16,17 +16,24 @@ def thumb_filename(content_hash: str, kind: str) -> str:
 
 
 def save_thumb_bytes(thumbs_dir: Path, content_hash: str, kind: str, data: bytes) -> Optional[str]:
-    if not data or Image is None:
+    if not data:
         return None
     thumbs_dir.mkdir(parents=True, exist_ok=True)
     name = thumb_filename(content_hash, kind)
     out = thumbs_dir / name
+    # Prefer Pillow resize; fall back to writing the raw image bytes.
+    if Image is not None:
+        try:
+            from io import BytesIO
+            im = Image.open(BytesIO(data))
+            im = im.convert("RGBA")
+            im.thumbnail((320, 320))
+            im.save(out, format="PNG")
+            return name
+        except Exception:
+            pass
     try:
-        from io import BytesIO
-        im = Image.open(BytesIO(data))
-        im = im.convert("RGBA")
-        im.thumbnail((320, 320))
-        im.save(out, format="PNG")
+        out.write_bytes(data)
         return name
     except Exception:
         return None

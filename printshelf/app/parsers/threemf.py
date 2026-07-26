@@ -63,22 +63,43 @@ def parse_3mf(path: Path, kind: str = "3mf") -> dict[str, Any]:
     try:
         with zipfile.ZipFile(path, "r") as z:
             names = z.namelist()
-            # Prefer Bambu plate thumbnails
-            for candidate in (
+            name_map = {n.replace("\\", "/"): n for n in names}
+            # Prefer Bambu / 3D Builder / common embedded previews
+            preferred = (
                 "Metadata/plate_1.png",
                 "Metadata/plate_no_light_1.png",
                 "Metadata/top_1.png",
                 "Metadata/pick_1.png",
-            ):
-                if candidate in names:
+                "Metadata/thumbnail.png",
+                "Metadata/Thumbnail.png",
+                "Metadata/thumbnail.jpg",
+                "Thumbnails/thumbnail.png",
+                "Thumbnails/Thumbnail.png",
+            )
+            for candidate in preferred:
+                real = name_map.get(candidate)
+                if real:
                     try:
-                        thumb_bytes = z.read(candidate)
+                        thumb_bytes = z.read(real)
                         break
                     except Exception:
                         pass
             if thumb_bytes is None:
+                # Any image under Metadata/ or Thumbnails/
                 for n in names:
-                    if n.lower().endswith((".png", ".jpg", ".jpeg")) and "thumb" in n.lower():
+                    nl = n.replace("\\", "/").lower()
+                    if not nl.endswith((".png", ".jpg", ".jpeg")):
+                        continue
+                    if nl.startswith("metadata/") or nl.startswith("thumbnails/") or "thumb" in nl:
+                        try:
+                            thumb_bytes = z.read(n)
+                            break
+                        except Exception:
+                            pass
+            if thumb_bytes is None:
+                # Last resort: first raster in the package
+                for n in names:
+                    if n.lower().endswith((".png", ".jpg", ".jpeg")):
                         try:
                             thumb_bytes = z.read(n)
                             break
