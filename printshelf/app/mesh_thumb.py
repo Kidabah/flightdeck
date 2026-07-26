@@ -6,16 +6,19 @@ from io import BytesIO
 from typing import Optional, Sequence
 
 try:
-    from PIL import Image
+    from PIL import Image, ImageDraw, ImageFilter
 except Exception:  # pragma: no cover
     Image = None
+    ImageDraw = None
+    ImageFilter = None
 
 
 Vec3 = tuple[float, float, float]
 Tri = tuple[Vec3, Vec3, Vec3]
 
 
-def sample_stride(n: int, max_tris: int = 140_000) -> int:
+def sample_stride(n: int, max_tris: int = 400_000) -> int:
+    """Keep enough faces that organic scans don't turn into point clouds."""
     if n <= max_tris:
         return 1
     return max(1, (n + max_tris - 1) // max_tris)
@@ -46,10 +49,10 @@ def render_triangles_png(
     triangles: Sequence[Tri],
     *,
     size: int = 320,
-    fill=(214, 163, 92),
-    bg=(20, 28, 40),
+    fill=(232, 188, 120),
+    bg=(18, 24, 34),
 ) -> Optional[bytes]:
-    """Solid shaded orthographic preview with z-buffer + 2x supersampling."""
+    """Solid shaded orthographic preview with z-buffer, multi-light, AA."""
     if Image is None or not triangles:
         return None
 
@@ -67,8 +70,9 @@ def render_triangles_png(
     )
     extent = max(max_v[0] - min_v[0], max_v[1] - min_v[1], max_v[2] - min_v[2], 1e-6)
 
-    yaw = math.radians(40)
-    pitch = math.radians(-30)
+    # Slightly flatter, more "product shot" angle
+    yaw = math.radians(38)
+    pitch = math.radians(-26)
     cy, sy = math.cos(yaw), math.sin(yaw)
     cp, sp = math.cos(pitch), math.sin(pitch)
 
@@ -82,15 +86,22 @@ def render_triangles_png(
         z2 = y * sp + z1 * cp
         return (x1, y2, z2)
 
-    light = _norm((0.55, 0.85, 0.4))
-    ambient = 0.2
-    rs = size * 2
-    scale = rs * 0.82
+    # Key + fill + cool rim — keeps undersides readable
+    key = _norm((0.45, 0.9, 0.35))
+    fill_l = _norm((-0.65, 0.25, 0.55))
+    rim = _norm((-0.2, 0.15, -0.95))
+
+    n_tris = len(triangles)
+    # Heavy meshes: skip 2× to keep scan moving; still dense faces.
+    ss = 2 if n_tris <= 120_000 else 1
+    rs = size * ss
+    scale = rs * 0.90
     zbuf = array("f", [1e30]) * (rs * rs)
     bg_px = bytes((bg[0], bg[1], bg[2]))
     pixels = bytearray(bg_px * (rs * rs))
     ox = rs * 0.5
-    oy = rs * 0.5
+    # Lift model a touch so a soft ground shadow fits underneath
+    oy = rs * 0.52
 
     for a0, b0, c0 in triangles:
         a = transform(a0)
@@ -106,19 +117,26 @@ def render_triangles_png(
         area = (bx - ax) * (cy_s - ay) - (by - ay) * (cx - ax)
         if abs(area) < 1e-6:
             continue
-        # Y-flip can invert winding vs camera normals — fix screen winding only.
         if area < 0:
             bx, by, bz, cx, cy_s, cz = cx, cy_s, cz, bx, by, bz
             area = -area
-        # Light the side facing the camera.
         if n[2] < 0:
             n = (-n[0], -n[1], -n[2])
 
-        lambert = max(0.0, _dot(n, light))
-        shade = ambient + (1.0 - ambient) * (0.22 + 0.78 * lambert)
+        ndl_key = max(0.0, _dot(n, key))
+        ndl_fill = max(0.0, _dot(n, fill_l))
+        ndl_rim = max(0.0, _dot(n, rim)) ** 2
+        # Hemisphere-ish ambient from upward normal
+        hemi = 0.18 + 0.22 * max(0.0, n[1] * 0.5 + 0.5)
+        shade = hemi + 0.62 * ndl_key + 0.28 * ndl_fill + 0.16 * ndl_rim
+        shade = max(0.12, min(1.15, shade))
+        # Gentle Fresnel lift on silhouette
+        fres = (1.0 - max(0.0, n[2])) ** 2
+        shade = min(1.2, shade + 0.08 * fres)
+
         cr = min(255, int(fill[0] * shade))
         cg = min(255, int(fill[1] * shade))
-        cb = min(255, int(fill[2] * shade + 14 * (1.0 - shade)))
+        cb = min(255, int(fill[2] * shade + 18 * (1.0 - min(1.0, shade))))
 
         inv_area = 1.0 / area
         min_x = max(0, int(math.floor(min(ax, bx, cx))))
@@ -148,7 +166,28 @@ def render_triangles_png(
 
     resample = getattr(getattr(Image, "Resampling", Image), "LANCZOS", Image.LANCZOS)
     im = Image.frombytes("RGB", (rs, rs), bytes(pixels))
-    im = im.resize((size, size), resample)
+
+    # Soft ground shadow under the object (composited behind)
+    if ImageDraw is not None:
+        shadow = Image.new("RGBA", (rs, rs), (0, 0, 0, 0))
+        sd = ImageDraw.Draw(shadow)
+        # Ellipse near bottom of content
+        sd.ellipse(
+            (int(rs * 0.22), int(rs * 0.72), int(rs * 0.78), int(rs * 0.88)),
+            fill=(0, 0, 0, 70),
+        )
+        if ImageFilter is not None:
+            shadow = shadow.filter(ImageFilter.GaussianBlur(radius=max(2, rs // 40)))
+        base = Image.new("RGBA", (rs, rs), (*bg, 255))
+        base = Image.alpha_composite(base, shadow)
+        base = Image.alpha_composite(base, im.convert("RGBA"))
+        im = base.convert("RGB")
+
+    if ss > 1:
+        im = im.resize((size, size), resample)
+    elif im.size[0] != size:
+        im = im.resize((size, size), resample)
+
     buf = BytesIO()
     im.save(buf, format="PNG", optimize=True)
     return buf.getvalue()

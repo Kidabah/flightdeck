@@ -8,14 +8,14 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-26 Session update
 
-Latest commit: `2cd7a06` — PrintShelf solid STL thumbs
+Latest commit: *(pending — PrintShelf STL thumbs v3)*
 
 Latest local/Pi change:
-- PrintShelf STL thumbs upgraded: **z-buffer + lighting + 2× supersample** (solid shaded, not sparse wireframe).
-- Delete `*_stl.png` thumbs + Rescan to regenerate. Restart `printshelf.service`.
+- PrintShelf STL thumbs **v3**: denser faces (up to 400k), key/fill/rim lighting, soft ground shadow, `stl3` cache-bust names.
+- Restart `printshelf.service` + Rescan (old sparse thumbs get replaced as files are re-indexed).
 
 Previous:
-- First-pass mesh/3MF/OBJ thumbs; copy fallback; Windows paths. Archives in `docs/archive/`.
+- Solid z-buffer thumbs; 3MF/OBJ previews; Windows path copy. Archives in `docs/archive/`.
 
 ---
 

@@ -188,7 +188,7 @@ def get_thumb(name: str):
     path = data_dir() / "thumbs" / name
     if not path.exists():
         raise HTTPException(404, "Thumb not found")
-    return FileResponse(path)
+    return FileResponse(path, headers={"Cache-Control": "public, max-age=86400"})
 
 
 app.mount("/", StaticFiles(directory=str(STATIC), html=True), name="static")
