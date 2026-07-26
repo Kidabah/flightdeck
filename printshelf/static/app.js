@@ -138,15 +138,24 @@ async function copyText(btn, text, okLabel = "Copied") {
 async function selectAsset(id) {
   selectedId = id;
   document.querySelectorAll(".card").forEach((c) => c.classList.remove("active"));
+  window.PrintShelfViewer?.unmountOrbitViewer?.();
   const item = await api(`/api/assets/${id}`);
   const filaments = item.meta?.filaments || [];
   const sidecars = item.sidecars || [];
   const winPath = item.windows_path || "";
   const winFolder = item.windows_folder || "";
+  const canOrbit = item.can_orbit || item.kind === "stl" || item.kind === "obj";
   $("detail").innerHTML = `
     <h2>${escapeHtml(item.file_name)}</h2>
     <div class="detail-path">${escapeHtml(item.abs_path)}</div>
     ${winPath ? `<div class="detail-path" title="Windows path">${escapeHtml(winPath)}</div>` : ""}
+    <div class="detail-section viewer-section">
+      <h3>3D preview</h3>
+      ${canOrbit
+        ? `<div class="orbit-viewer" id="orbitViewer"></div>
+           <p class="viewer-note" id="orbitNote" hidden></p>`
+        : `<p class="detail-hint">Orbit preview is available for STL and OBJ. 3MF stays thumbnail-only for now.</p>`}
+    </div>
     <div class="kv">
       <div><span>Design</span><span>${escapeHtml(item.design_name)}</span></div>
       <div><span>Type</span><span>${escapeHtml(item.kind)}</span></div>
@@ -194,6 +203,19 @@ async function selectAsset(id) {
   $("copyWinPathBtn")?.addEventListener("click", () => copyText($("copyWinPathBtn"), winPath));
   $("copyWinFolderBtn")?.addEventListener("click", () => copyText($("copyWinFolderBtn"), winFolder, "Folder copied"));
   $("copyPiPathBtn")?.addEventListener("click", () => copyText($("copyPiPathBtn"), item.abs_path));
+  if (canOrbit) {
+    for (let i = 0; i < 40 && !window.PrintShelfViewer?.mountOrbitViewer; i++) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    if (window.PrintShelfViewer?.mountOrbitViewer) {
+      await window.PrintShelfViewer.mountOrbitViewer($("orbitViewer"), {
+        url: `/api/assets/${id}/model`,
+        noteEl: $("orbitNote"),
+      });
+    } else if ($("orbitViewer")) {
+      $("orbitViewer").innerHTML = `<div class="viewer-status error">3D viewer failed to load (check network / CDN).</div>`;
+    }
+  }
   await loadLibrary();
 }
 

@@ -6,6 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-27 Session update
+
+Latest commit: *(pending)* — PrintShelf orbit viewer for STL/OBJ
+
+Latest local/Pi change:
+- Detail pane **3D orbit viewer** (Three.js) for STL/OBJ via `/api/assets/{id}/model` (decimated ~180k tris when huge).
+- 3MF stays thumbnail-only for now.
+- Hard refresh PrintShelf `app.js?v=8` / `style.css?v=8` / `viewer.js?v=8`. Restart `printshelf.service` required.
+
+Previous (2026-07-26):
+- Ignore / purge `*_temp.obj`; mesh-only OBJ thumbs (`obj4`). Archives in `docs/archive/`.
+
+---
+
 ## 2026-07-26 Session update
 
 Latest commit: `9ad2f21` — filter temp OBJ + unique mesh thumbs

@@ -13,6 +13,12 @@ from . import __version__
 from .config import data_dir, load_config, save_config
 from .db import db_session, init_db, parse_json_field, row_to_dict
 from .paths import to_windows_folder, to_windows_path
+from .preview import (
+    MAX_PREVIEW_TRIS,
+    build_preview_stl,
+    get_asset_row,
+    path_is_allowed,
+)
 from .scanner import (
     get_scan_state,
     get_thumb_rebuild_state,
@@ -200,7 +206,42 @@ def get_asset(asset_id: int) -> dict[str, Any]:
     abs_path = str(item.get("abs_path") or "")
     item["windows_path"] = to_windows_path(abs_path, folders)
     item["windows_folder"] = to_windows_folder(abs_path, folders)
+    item["can_orbit"] = item.get("kind") in ("stl", "obj")
     return item
+
+
+@app.get("/api/assets/{asset_id}/model")
+def get_asset_model(
+    asset_id: int,
+    max_tris: int = Query(MAX_PREVIEW_TRIS, ge=20_000, le=500_000),
+):
+    """STL/OBJ mesh for the orbit viewer (may be decimated for huge files)."""
+    asset = get_asset_row(asset_id)
+    if not asset:
+        raise HTTPException(404, "Asset not found")
+    kind = asset.get("kind")
+    if kind not in ("stl", "obj"):
+        raise HTTPException(400, "Orbit preview is only available for STL and OBJ")
+    abs_path = str(asset.get("abs_path") or "")
+    if not path_is_allowed(abs_path):
+        raise HTTPException(403, "File is outside watched folders")
+    try:
+        path, simplified = build_preview_stl(asset, max_tris=max_tris)
+    except Exception as exc:
+        raise HTTPException(500, f"Preview failed: {exc}") from exc
+    if not path.exists():
+        raise HTTPException(404, "Preview file missing")
+    headers = {
+        "Cache-Control": "private, max-age=3600",
+        "X-PrintShelf-Simplified": "1" if simplified else "0",
+        "X-PrintShelf-Kind": kind or "",
+    }
+    return FileResponse(
+        path,
+        media_type="model/stl",
+        filename=f"{Path(asset.get('file_name') or 'model').stem}_preview.stl",
+        headers=headers,
+    )
 
 
 @app.get("/api/thumbs/{name}")
