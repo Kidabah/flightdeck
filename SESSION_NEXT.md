@@ -8,15 +8,14 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-26 Session update
 
-Latest commit: `fba3d81` — PrintShelf real thumbnails
+Latest commit: *(pending — PrintShelf solid STL thumbs)*
 
 Latest local/Pi change:
-- PrintShelf thumbs: STL mesh previews, better 3MF `Metadata/thumbnail.png` pickup, OBJ texture preview.
-- Clear tiny placeholder thumbs + **Rescan** so the library fills with real previews.
-- Restart `printshelf.service` after pull.
+- PrintShelf STL thumbs upgraded: **z-buffer + lighting + 2× supersample** (solid shaded, not sparse wireframe).
+- Delete `*_stl.png` thumbs + Rescan to regenerate. Restart `printshelf.service`.
 
 Previous:
-- Copy fallback over HTTP; Windows path copy; PrintShelf v0.1. Archives in `docs/archive/`.
+- First-pass mesh/3MF/OBJ thumbs; copy fallback; Windows paths. Archives in `docs/archive/`.
 
 ---
 
