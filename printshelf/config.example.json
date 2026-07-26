@@ -1,0 +1,19 @@
+{
+  "host": "0.0.0.0",
+  "port": 8100,
+  "data_dir": "data",
+  "watched_folders": [
+    {
+      "id": "local-prints",
+      "label": "Local prints",
+      "path": "C:/Users/Kidabah/3D Prints",
+      "source_kind": "local"
+    }
+  ],
+  "ignore_globs": [
+    "**/node_modules/**",
+    "**/.git/**",
+    "**/__pycache__/**",
+    "**/*.gcode"
+  ]
+}

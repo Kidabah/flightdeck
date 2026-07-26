@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PrintShelf</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=1">
+</head>
+<body>
+  <div class="app">
+    <aside class="rail">
+      <div class="brand">
+        <div class="brand-mark">PS</div>
+        <div>
+          <div class="brand-name">PrintShelf</div>
+          <div class="brand-sub">Private printable inventory</div>
+        </div>
+      </div>
+      <nav class="nav">
+        <button class="nav-btn active" data-view="library">Library</button>
+        <button class="nav-btn" data-view="settings">Folders</button>
+      </nav>
+      <div class="rail-stats" id="railStats">Loading…</div>
+      <button class="scan-btn" id="scanBtn">Rescan</button>
+      <div class="scan-status" id="scanStatus"></div>
+    </aside>
+
+    <main class="main">
+      <section class="view" id="view-library">
+        <header class="top">
+          <div>
+            <h1>Library</h1>
+            <p class="lede">Files stay where they are. PrintShelf indexes them.</p>
+          </div>
+          <div class="filters">
+            <input type="search" id="search" placeholder="Search name or path…">
+            <select id="filterKind">
+              <option value="">All types</option>
+              <option value="stl">STL</option>
+              <option value="3mf">3MF</option>
+              <option value="gcode.3mf">Gcode 3MF</option>
+              <option value="obj">OBJ</option>
+            </select>
+            <select id="filterSource">
+              <option value="">All sources</option>
+              <option value="local">Local</option>
+              <option value="nas">NAS</option>
+            </select>
+            <label class="check"><input type="checkbox" id="filterTextures"> Has textures</label>
+            <label class="check"><input type="checkbox" id="filterSliced"> Sliced 3MF</label>
+          </div>
+        </header>
+        <div class="workspace">
+          <div class="grid" id="grid"></div>
+          <aside class="detail" id="detail">
+            <div class="detail-empty">Select a file to see print details.</div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="view hidden" id="view-settings">
+        <header class="top">
+          <div>
+            <h1>Watched folders</h1>
+            <p class="lede">Local disks and NAS mounts. Index in place — nothing is uploaded.</p>
+          </div>
+        </header>
+        <div class="settings-card">
+          <div id="folderList"></div>
+          <form id="folderForm" class="folder-form">
+            <input name="id" placeholder="id (e.g. nas-models)" required>
+            <input name="label" placeholder="Label" required>
+            <input name="path" placeholder="Absolute path" required>
+            <select name="source_kind">
+              <option value="local">local</option>
+              <option value="nas">nas</option>
+            </select>
+            <button type="submit">Add folder</button>
+          </form>
+          <button class="secondary" id="saveFoldersBtn">Save folders</button>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="app.js?v=1"></script>
+</body>
+</html>
