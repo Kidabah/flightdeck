@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-26 Session update
 
-Latest commit: *(pending — PrintShelf solid STL thumbs)*
+Latest commit: `2cd7a06` — PrintShelf solid STL thumbs
 
 Latest local/Pi change:
 - PrintShelf STL thumbs upgraded: **z-buffer + lighting + 2× supersample** (solid shaded, not sparse wireframe).
