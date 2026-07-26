@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-26 Session update
 
-Latest commit: *(pending — PrintShelf STL thumbs v3)*
+Latest commit: `989b25f` — PrintShelf STL thumbs v3
 
 Latest local/Pi change:
 - PrintShelf STL thumbs **v3**: denser faces (up to 400k), key/fill/rim lighting, soft ground shadow, `stl3` cache-bust names.
