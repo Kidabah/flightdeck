@@ -82,8 +82,8 @@ def scan_status() -> dict[str, Any]:
 
 @app.post("/api/thumbs/rebuild")
 def trigger_thumb_rebuild() -> dict[str, Any]:
-    """Rebuild stale/old STL thumbs without re-walking the whole NAS."""
-    return start_thumb_rebuild_background(only_stl=True)
+    """Rebuild stale STL/OBJ thumbs without re-walking the whole NAS."""
+    return start_thumb_rebuild_background(kinds=("stl", "obj"))
 
 
 @app.get("/api/thumbs/rebuild")

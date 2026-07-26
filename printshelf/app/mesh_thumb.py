@@ -17,8 +17,8 @@ Vec3 = tuple[float, float, float]
 Tri = tuple[Vec3, Vec3, Vec3]
 
 
-def sample_stride(n: int, max_tris: int = 700_000) -> int:
-    """Keep enough faces that organic scans don't turn into point clouds."""
+def sample_stride(n: int, max_tris: int = 2_500_000) -> int:
+    """Only thin out absurdly huge meshes. Stride on scans = fuzzy holes."""
     if n <= max_tris:
         return 1
     return max(1, (n + max_tris - 1) // max_tris)
@@ -92,8 +92,8 @@ def render_triangles_png(
     rim = _norm((-0.2, 0.15, -0.95))
 
     n_tris = len(triangles)
-    # Heavy meshes: skip 2× to keep scan moving; still dense faces.
-    ss = 2 if n_tris <= 120_000 else 1
+    # Supersample when affordable; huge scans stay 1× but keep every face.
+    ss = 2 if n_tris <= 250_000 else 1
     rs = size * ss
     scale = rs * 0.90
     zbuf = array("f", [1e30]) * (rs * rs)

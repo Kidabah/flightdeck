@@ -12,9 +12,11 @@ except Exception:  # pragma: no cover
 
 
 def thumb_filename(content_hash: str, kind: str) -> str:
-    # Version suffix so regenerated STL previews bust browser/CDN caches.
+    # Version suffixes bust caches when preview quality improves.
     if kind == "stl":
-        kind = "stl3"
+        kind = "stl4"
+    elif kind == "obj":
+        kind = "obj2"
     return f"{content_hash[:16]}_{kind}.png"
 
 

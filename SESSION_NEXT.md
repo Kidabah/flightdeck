@@ -8,14 +8,15 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-26 Session update
 
-Latest commit: `48cff03` — PrintShelf thumb rebuild job
+Latest commit: *(pending — PrintShelf solid STL4 + OBJ mesh thumbs)*
 
 Latest local/Pi change:
-- Fuzzy cards were still on old `_stl.png` previews (~298 left). Added **Rebuild thumbs** (no full NAS walk) + skip `._*` junk files.
-- Hard refresh `app.js?v=4`. Restart `printshelf.service`, then hit **Rebuild thumbs**.
+- Fuzzy dogs were **stride-sampled** multi‑million‑tri scans → holes. **stl4** keeps up to 2.5M faces.
+- **OBJ mesh previews** (`obj2`) instead of coloured squares.
+- Hard refresh `app.js?v=5`, restart, **Rebuild thumbs** (STL+OBJ). Big scans take longer per file.
 
 Previous:
-- STL thumbs v3 lighting/shadow; Windows path copy. Archives in `docs/archive/`.
+- Thumb rebuild job; STL v3; Windows paths. Archives in `docs/archive/`.
 
 ---
 

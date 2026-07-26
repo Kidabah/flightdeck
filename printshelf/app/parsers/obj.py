@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-import re
 from pathlib import Path
 from typing import Any
 
+from ..mesh_thumb import render_triangles_png, sample_stride
+
 TEX_EXTS = {".png", ".jpg", ".jpeg", ".bmp", ".tga", ".tif", ".tiff", ".webp"}
+MAX_PREVIEW_TRIS = 2_500_000
 
 
 def _parse_mtl_textures(mtl_path: Path) -> list[str]:
@@ -21,22 +23,54 @@ def _parse_mtl_textures(mtl_path: Path) -> list[str]:
         if len(parts) >= 2 and parts[0].lower() in {
             "map_kd", "map_ka", "map_ks", "map_bump", "bump", "disp", "map_d", "refl",
         }:
-            # last token is usually the filename
             refs.append(parts[-1].strip().strip('"'))
     return refs
 
 
+def _face_indices(token: str) -> int | None:
+    try:
+        return int(token.split("/", 1)[0])
+    except Exception:
+        return None
+
+
 def parse_obj(path: Path) -> dict[str, Any]:
-    verts = 0
-    faces = 0
+    verts: list[tuple[float, float, float]] = []
+    tris: list = []
+    face_count = 0
     mtllibs: list[str] = []
+
     try:
         with path.open("r", encoding="utf-8", errors="ignore") as f:
             for line in f:
                 if line.startswith("v "):
-                    verts += 1
+                    parts = line.split()
+                    if len(parts) >= 4:
+                        try:
+                            verts.append((float(parts[1]), float(parts[2]), float(parts[3])))
+                        except Exception:
+                            continue
                 elif line.startswith("f "):
-                    faces += 1
+                    face_count += 1
+                    if len(tris) >= MAX_PREVIEW_TRIS:
+                        continue
+                    idxs: list[int] = []
+                    for tok in line.split()[1:]:
+                        vi = _face_indices(tok)
+                        if vi is None:
+                            continue
+                        if vi < 0:
+                            vi = len(verts) + vi
+                        else:
+                            vi -= 1
+                        if 0 <= vi < len(verts):
+                            idxs.append(vi)
+                    if len(idxs) < 3:
+                        continue
+                    for i in range(1, len(idxs) - 1):
+                        if len(tris) >= MAX_PREVIEW_TRIS:
+                            break
+                        tris.append((verts[idxs[0]], verts[idxs[i]], verts[idxs[i + 1]]))
                 elif line.startswith("mtllib "):
                     mtllibs.append(line.split(None, 1)[1].strip())
     except Exception as exc:
@@ -50,6 +84,10 @@ def parse_obj(path: Path) -> dict[str, Any]:
             "is_sliced": False,
             "has_textures": False,
         }
+
+    if len(tris) > MAX_PREVIEW_TRIS:
+        stride = sample_stride(len(tris), MAX_PREVIEW_TRIS)
+        tris = tris[::stride]
 
     sidecars: list[dict[str, Any]] = []
     texture_names: list[str] = []
@@ -74,19 +112,20 @@ def parse_obj(path: Path) -> dict[str, Any]:
                         "size_bytes": tex_path.stat().st_size,
                     })
 
-    # also pick up sibling image files commonly shipped with OBJ packs
     if not texture_names:
-        for p in parent.iterdir():
-            if p.is_file() and p.suffix.lower() in TEX_EXTS:
-                sidecars.append({
-                    "role": "texture",
-                    "abs_path": str(p.resolve()),
-                    "file_name": p.name,
-                    "size_bytes": p.stat().st_size,
-                })
+        try:
+            for p in parent.iterdir():
+                if p.is_file() and p.suffix.lower() in TEX_EXTS:
+                    sidecars.append({
+                        "role": "texture",
+                        "abs_path": str(p.resolve()),
+                        "file_name": p.name,
+                        "size_bytes": p.stat().st_size,
+                    })
+        except Exception:
+            pass
 
-    # dedupe sidecars by path
-    seen = set()
+    seen: set[str] = set()
     uniq = []
     for s in sidecars:
         if s["abs_path"] in seen:
@@ -95,32 +134,31 @@ def parse_obj(path: Path) -> dict[str, Any]:
         uniq.append(s)
 
     has_textures = any(s["role"] == "texture" for s in uniq)
-    missing_tex = []
-    for name in texture_names:
-        if not (parent / name).exists():
-            missing_tex.append(name)
+    missing_tex = [name for name in texture_names if not (parent / name).exists()]
 
-    thumb_bytes = None
-    for s in uniq:
-        if s["role"] != "texture":
-            continue
-        try:
-            thumb_bytes = Path(s["abs_path"]).read_bytes()
-            break
-        except Exception:
-            continue
+    thumb_bytes = render_triangles_png(tris) if tris else None
+    if thumb_bytes is None:
+        for s in uniq:
+            if s["role"] != "texture":
+                continue
+            try:
+                thumb_bytes = Path(s["abs_path"]).read_bytes()
+                break
+            except Exception:
+                continue
 
     return {
         "kind": "obj",
-        "triangle_count": faces,
+        "triangle_count": face_count,
         "bbox": None,
         "meta": {
-            "vertex_count": verts,
-            "face_count": faces,
+            "vertex_count": len(verts),
+            "face_count": face_count,
             "mtllibs": mtllibs,
             "texture_refs": texture_names,
             "missing_textures": missing_tex,
             "texture_pack_complete": not missing_tex and (has_textures or not texture_names),
+            "preview_tris": len(tris),
         },
         "sidecars": uniq,
         "thumb_bytes": thumb_bytes,

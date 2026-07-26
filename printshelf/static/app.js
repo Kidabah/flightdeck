@@ -72,7 +72,7 @@ async function loadLibrary() {
     const card = document.createElement("article");
     card.className = "card" + (item.id === selectedId ? " active" : "");
     card.innerHTML = `
-      <div class="card-thumb">${item.thumb_path ? `<img src="/api/thumbs/${encodeURIComponent(item.thumb_path)}" alt="">` : `<span class="pill">${item.kind}</span>`}</div>
+      <div class="card-thumb">${item.thumb_path ? `<img src="/api/thumbs/${encodeURIComponent(item.thumb_path)}?v=${encodeURIComponent((item.content_hash || item.thumb_path).slice(0, 12))}" alt="" loading="lazy">` : `<span class="pill">${item.kind}</span>`}</div>
       <div class="card-body">
         <h3 class="card-title">${escapeHtml(item.file_name)}</h3>
         <div class="card-meta">

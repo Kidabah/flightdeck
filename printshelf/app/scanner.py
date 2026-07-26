@@ -306,7 +306,17 @@ def start_scan_background() -> dict[str, Any]:
     return get_scan_state()
 
 
-def rebuild_stale_thumbs(only_stl: bool = True) -> dict[str, Any]:
+def _thumb_is_current(kind: str, thumb_path: str) -> bool:
+    if kind == "stl":
+        return thumb_path.endswith("_stl4.png")
+    if kind == "obj":
+        return thumb_path.endswith("_obj2.png")
+    if kind in ("3mf", "gcode.3mf"):
+        return bool(thumb_path)
+    return bool(thumb_path)
+
+
+def rebuild_stale_thumbs(kinds: tuple[str, ...] = ("stl", "obj")) -> dict[str, Any]:
     """Re-render thumbs for assets still on old/missing previews (no full NAS walk)."""
     if not THUMB_LOCK.acquire(blocking=False):
         return get_thumb_rebuild_state()
@@ -324,21 +334,15 @@ def rebuild_stale_thumbs(only_stl: bool = True) -> dict[str, Any]:
         "finished_at": None,
     })
     try:
+        placeholders = ",".join("?" for _ in kinds)
         with db_session(db_file) as conn:
-            if only_stl:
-                rows = conn.execute(
-                    """SELECT id, abs_path, kind, content_hash, thumb_path
-                       FROM assets
-                       WHERE missing = 0 AND kind = 'stl'
-                       ORDER BY id"""
-                ).fetchall()
-            else:
-                rows = conn.execute(
-                    """SELECT id, abs_path, kind, content_hash, thumb_path
-                       FROM assets
-                       WHERE missing = 0
-                       ORDER BY id"""
-                ).fetchall()
+            rows = conn.execute(
+                f"""SELECT id, abs_path, kind, content_hash, thumb_path
+                    FROM assets
+                    WHERE missing = 0 AND kind IN ({placeholders})
+                    ORDER BY id""",
+                kinds,
+            ).fetchall()
 
             for row in rows:
                 THUMB_STATE["checked"] += 1
@@ -347,7 +351,7 @@ def rebuild_stale_thumbs(only_stl: bool = True) -> dict[str, Any]:
                 thumb_file = thumbs / thumb_path if thumb_path else None
                 needs = (
                     not thumb_path
-                    or (kind == "stl" and not thumb_path.endswith("_stl3.png"))
+                    or not _thumb_is_current(kind, thumb_path)
                     or thumb_file is None
                     or not thumb_file.exists()
                     or thumb_file.stat().st_size < 2500
@@ -374,9 +378,6 @@ def rebuild_stale_thumbs(only_stl: bool = True) -> dict[str, Any]:
                         conn.commit()
                 except Exception:
                     continue
-                if THUMB_STATE["checked"] % 10 == 0:
-                    # keep UI progress fresh
-                    pass
 
         THUMB_STATE.update({"running": False, "status": "ok", "finished_at": utcnow()})
     except Exception as exc:
@@ -391,12 +392,12 @@ def rebuild_stale_thumbs(only_stl: bool = True) -> dict[str, Any]:
     return get_thumb_rebuild_state()
 
 
-def start_thumb_rebuild_background(only_stl: bool = True) -> dict[str, Any]:
+def start_thumb_rebuild_background(kinds: tuple[str, ...] = ("stl", "obj")) -> dict[str, Any]:
     if THUMB_STATE.get("running"):
         return get_thumb_rebuild_state()
 
     def _run():
-        rebuild_stale_thumbs(only_stl=only_stl)
+        rebuild_stale_thumbs(kinds=kinds)
 
     t = threading.Thread(target=_run, name="printshelf-thumbs", daemon=True)
     t.start()

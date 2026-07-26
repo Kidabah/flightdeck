@@ -6,6 +6,10 @@ from typing import Any
 
 from ..mesh_thumb import render_triangles_png, sample_stride
 
+# Scanned animal STLs are often 1–2M tris. Stride sampling punches holes → "fuzzy" thumbs.
+# Keep effectively all faces for typical library files.
+MAX_PREVIEW_TRIS = 2_500_000
+
 
 def parse_stl(path: Path) -> dict[str, Any]:
     data = path.read_bytes()
@@ -17,12 +21,13 @@ def parse_stl(path: Path) -> dict[str, Any]:
         if len(data) >= 84:
             n = struct.unpack_from("<I", data, 80)[0]
             expected = 84 + n * 50
-            if expected == len(data) or (n > 0 and expected <= len(data) + 50):
+            # Allow small trailing padding; reject clearly wrong counts
+            if n > 0 and expected <= len(data) + 50 and (expected == len(data) or abs(expected - len(data)) < 512):
                 binary = True
                 n_tri = n
                 mins = [1e30, 1e30, 1e30]
                 maxs = [-1e30, -1e30, -1e30]
-                stride = sample_stride(n_tri)
+                stride = sample_stride(n_tri, MAX_PREVIEW_TRIS)
                 tris = []
                 off = 84
                 for i in range(n_tri):
