@@ -20,6 +20,10 @@ def _default_config() -> dict[str, Any]:
             "**/node_modules/**",
             "**/.git/**",
             "**/__pycache__/**",
+            "**/._*",
+            "**/*_temp.obj",
+            "**/*_temp.OBJ",
+            "**/temp.obj",
         ],
     }
 

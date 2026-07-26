@@ -8,15 +8,14 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-26 Session update
 
-Latest commit: `5a8a9eb` — PrintShelf Z-up thumbs
+Latest commit: *(pending — filter temp OBJ + unique mesh thumbs)*
 
 Latest local/Pi change:
-- Previews were **upside-down** (Z-up meshes). Fixed axis map; **stl5/obj3** cache-bust.
-- Bunny/cone/cube looked identical because old thumbs reused one sibling texture — mesh previews fix that.
-- Hard refresh `app.js?v=6`, restart, **Rebuild thumbs**.
+- Ignore / purge `*_temp.obj` junk from the library.
+- OBJ thumbs are **mesh-only** (no shared folder texture) → `obj4`; hard refresh `app.js?v=7` + Rebuild thumbs.
 
 Previous:
-- STL4 dense faces + OBJ mesh; thumb rebuild. Archives in `docs/archive/`.
+- Z-up orientation; STL5; thumb rebuild. Archives in `docs/archive/`.
 
 ---
 

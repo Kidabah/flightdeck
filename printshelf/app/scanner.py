@@ -222,6 +222,7 @@ def run_scan(progress: Callable[[dict[str, Any]], None] | None = None) -> dict[s
                 (SCAN_STATE["started_at"], "running"),
             )
             run_id = cur.lastrowid
+            purge_junk_assets(conn)
 
             seen_paths: set[str] = set()
             for folder in folders:
@@ -231,8 +232,7 @@ def run_scan(progress: Callable[[dict[str, Any]], None] | None = None) -> dict[s
                 for path in root.rglob("*"):
                     if not path.is_file():
                         continue
-                    # macOS AppleDouble / resource-fork junk on SMB shares
-                    if path.name.startswith("._"):
+                    if _is_junk_printable(path):
                         continue
                     kind = detect_kind(path)
                     if not kind:
@@ -310,10 +310,32 @@ def _thumb_is_current(kind: str, thumb_path: str) -> bool:
     if kind == "stl":
         return thumb_path.endswith("_stl5.png")
     if kind == "obj":
-        return thumb_path.endswith("_obj3.png")
+        return thumb_path.endswith("_obj4.png")
     if kind in ("3mf", "gcode.3mf"):
         return bool(thumb_path)
     return bool(thumb_path)
+
+
+def _is_junk_printable(path: Path) -> bool:
+    name = path.name.lower()
+    if name.startswith("._"):
+        return True
+    if name.endswith("_temp.obj") or name == "temp.obj":
+        return True
+    return False
+
+
+def purge_junk_assets(conn) -> int:
+    """Hide AppleDouble / *_temp.obj noise already indexed."""
+    cur = conn.execute(
+        """UPDATE assets SET missing = 1
+           WHERE missing = 0 AND (
+             file_name LIKE '._%'
+             OR lower(file_name) LIKE '%\\_temp.obj' ESCAPE '\\'
+             OR lower(file_name) = 'temp.obj'
+           )"""
+    )
+    return cur.rowcount or 0
 
 
 def rebuild_stale_thumbs(kinds: tuple[str, ...] = ("stl", "obj")) -> dict[str, Any]:
@@ -336,6 +358,10 @@ def rebuild_stale_thumbs(kinds: tuple[str, ...] = ("stl", "obj")) -> dict[str, A
     try:
         placeholders = ",".join("?" for _ in kinds)
         with db_session(db_file) as conn:
+            purged = purge_junk_assets(conn)
+            conn.commit()
+            if purged:
+                THUMB_STATE["status"] = f"rebuilding (purged {purged} junk)"
             rows = conn.execute(
                 f"""SELECT id, abs_path, kind, content_hash, thumb_path
                     FROM assets
@@ -359,7 +385,7 @@ def rebuild_stale_thumbs(kinds: tuple[str, ...] = ("stl", "obj")) -> dict[str, A
                 if not needs:
                     continue
                 path = Path(row["abs_path"])
-                if not path.is_file() or path.name.startswith("._"):
+                if _is_junk_printable(path) or not path.is_file():
                     continue
                 try:
                     parsed = parse_asset(path, kind)

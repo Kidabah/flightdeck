@@ -112,18 +112,8 @@ def parse_obj(path: Path) -> dict[str, Any]:
                         "size_bytes": tex_path.stat().st_size,
                     })
 
-    if not texture_names:
-        try:
-            for p in parent.iterdir():
-                if p.is_file() and p.suffix.lower() in TEX_EXTS:
-                    sidecars.append({
-                        "role": "texture",
-                        "abs_path": str(p.resolve()),
-                        "file_name": p.name,
-                        "size_bytes": p.stat().st_size,
-                    })
-        except Exception:
-            pass
+    # Note: do NOT scrape random sibling images from the folder for thumbs —
+    # packs share textures and every OBJ ends up with the same preview.
 
     seen: set[str] = set()
     uniq = []
@@ -136,8 +126,10 @@ def parse_obj(path: Path) -> dict[str, Any]:
     has_textures = any(s["role"] == "texture" for s in uniq)
     missing_tex = [name for name in texture_names if not (parent / name).exists()]
 
+    # Mesh-only preview so each OBJ gets its own shape.
     thumb_bytes = render_triangles_png(tris) if tris else None
     if thumb_bytes is None:
+        # Only the MTL-referenced maps for THIS file — never folder leftovers.
         for s in uniq:
             if s["role"] != "texture":
                 continue
