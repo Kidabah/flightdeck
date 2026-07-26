@@ -8,15 +8,15 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-26 Session update
 
-Latest commit: `6552875` — PrintShelf solid STL4 + OBJ mesh thumbs
+Latest commit: *(pending — PrintShelf Z-up thumbs)*
 
 Latest local/Pi change:
-- Fuzzy dogs were **stride-sampled** multi‑million‑tri scans → holes. **stl4** keeps up to 2.5M faces.
-- **OBJ mesh previews** (`obj2`) instead of coloured squares.
-- Hard refresh `app.js?v=5`, restart, **Rebuild thumbs** (STL+OBJ). Big scans take longer per file.
+- Previews were **upside-down** (Z-up meshes). Fixed axis map; **stl5/obj3** cache-bust.
+- Bunny/cone/cube looked identical because old thumbs reused one sibling texture — mesh previews fix that.
+- Hard refresh `app.js?v=6`, restart, **Rebuild thumbs**.
 
 Previous:
-- Thumb rebuild job; STL v3; Windows paths. Archives in `docs/archive/`.
+- STL4 dense faces + OBJ mesh; thumb rebuild. Archives in `docs/archive/`.
 
 ---
 

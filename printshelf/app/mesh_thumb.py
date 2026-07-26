@@ -77,9 +77,12 @@ def render_triangles_png(
     cp, sp = math.cos(pitch), math.sin(pitch)
 
     def transform(p: Vec3) -> Vec3:
+        # Most print/OBJ meshes are Z-up. Map to Y-up view space so models
+        # aren't lying on their side / standing on their heads.
         x = (p[0] - center[0]) / extent
         y = (p[1] - center[1]) / extent
         z = (p[2] - center[2]) / extent
+        x, y, z = x, z, -y
         x1 = x * cy + z * sy
         z1 = -x * sy + z * cy
         y2 = y * cp - z1 * sp

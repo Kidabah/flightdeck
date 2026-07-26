@@ -308,9 +308,9 @@ def start_scan_background() -> dict[str, Any]:
 
 def _thumb_is_current(kind: str, thumb_path: str) -> bool:
     if kind == "stl":
-        return thumb_path.endswith("_stl4.png")
+        return thumb_path.endswith("_stl5.png")
     if kind == "obj":
-        return thumb_path.endswith("_obj2.png")
+        return thumb_path.endswith("_obj3.png")
     if kind in ("3mf", "gcode.3mf"):
         return bool(thumb_path)
     return bool(thumb_path)

@@ -14,9 +14,9 @@ except Exception:  # pragma: no cover
 def thumb_filename(content_hash: str, kind: str) -> str:
     # Version suffixes bust caches when preview quality improves.
     if kind == "stl":
-        kind = "stl4"
+        kind = "stl5"
     elif kind == "obj":
-        kind = "obj2"
+        kind = "obj3"
     return f"{content_hash[:16]}_{kind}.png"
 
 
