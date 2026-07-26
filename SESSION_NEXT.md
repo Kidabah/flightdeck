@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-26 Session update
 
-Latest commit: *(pending — PrintShelf scan commits during NAS walk)*
+Latest commit: `76e3e91` — PrintShelf incremental scan commits
 
 Latest local/Pi change:
 - PrintShelf now **commits every 5 files** during scan so the library fills while walking a large NAS share.
