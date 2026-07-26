@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-26 Session update
 
-Latest commit: *(pending push — PrintShelf v0.1)*
+Latest commit: `7044681` — PrintShelf v0.1 (private printable inventory)
 
 Latest local change:
 - **PrintShelf** v0.1 — private printable inventory (separate from Flightdeck). Index-in-place STL / 3MF / OBJ(+textures), folder watch, browse UI.
