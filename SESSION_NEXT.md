@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: *(pending)* — PrintShelf orbit viewer for STL/OBJ
+Latest commit: `cc8f20b` — PrintShelf orbit viewer for STL/OBJ
 
 Latest local/Pi change:
 - Detail pane **3D orbit viewer** (Three.js) for STL/OBJ via `/api/assets/{id}/model` (decimated ~180k tris when huge).
