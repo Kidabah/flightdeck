@@ -13,7 +13,12 @@ from . import __version__
 from .config import data_dir, load_config, save_config
 from .db import db_session, init_db, parse_json_field, row_to_dict
 from .paths import to_windows_folder, to_windows_path
-from .scanner import get_scan_state, start_scan_background
+from .scanner import (
+    get_scan_state,
+    get_thumb_rebuild_state,
+    start_scan_background,
+    start_thumb_rebuild_background,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "static"
@@ -75,6 +80,17 @@ def scan_status() -> dict[str, Any]:
     return get_scan_state()
 
 
+@app.post("/api/thumbs/rebuild")
+def trigger_thumb_rebuild() -> dict[str, Any]:
+    """Rebuild stale/old STL thumbs without re-walking the whole NAS."""
+    return start_thumb_rebuild_background(only_stl=True)
+
+
+@app.get("/api/thumbs/rebuild")
+def thumb_rebuild_status() -> dict[str, Any]:
+    return get_thumb_rebuild_state()
+
+
 @app.get("/api/stats")
 def stats() -> dict[str, Any]:
     cfg = load_config()
@@ -88,7 +104,13 @@ def stats() -> dict[str, Any]:
                 "SELECT kind, COUNT(*) AS c FROM assets WHERE missing = 0 GROUP BY kind"
             ).fetchall()
         }
-    return {"designs": designs, "assets": assets, "by_kind": by_kind, "scan": get_scan_state()}
+    return {
+        "designs": designs,
+        "assets": assets,
+        "by_kind": by_kind,
+        "scan": get_scan_state(),
+        "thumbs": get_thumb_rebuild_state(),
+    }
 
 
 @app.get("/api/assets")

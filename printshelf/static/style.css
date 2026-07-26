@@ -54,7 +54,7 @@ html, body { margin: 0; height: 100%; background:
   cursor: pointer;
   font: inherit;
 }
-.nav-btn.active, .scan-btn {
+.nav-btn.active, #scanBtn {
   background: var(--accent);
   border-color: transparent;
   color: #fff;
@@ -65,7 +65,8 @@ html, body { margin: 0; height: 100%; background:
   font-size: .82rem;
   line-height: 1.45;
 }
-.scan-btn { margin-top: auto; }
+#scanBtn { margin-top: auto; }
+#rebuildThumbsBtn { margin-top: 8px; }
 
 .main { padding: 28px 28px 40px; min-width: 0; }
 .top { display: flex; justify-content: space-between; gap: 24px; align-items: end; flex-wrap: wrap; margin-bottom: 22px; }

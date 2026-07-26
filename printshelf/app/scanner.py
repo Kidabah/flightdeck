@@ -23,9 +23,24 @@ SCAN_STATE: dict[str, Any] = {
     "finished_at": None,
 }
 
+THUMB_LOCK = threading.Lock()
+THUMB_STATE: dict[str, Any] = {
+    "running": False,
+    "status": "idle",
+    "checked": 0,
+    "updated": 0,
+    "error": None,
+    "started_at": None,
+    "finished_at": None,
+}
+
 
 def get_scan_state() -> dict[str, Any]:
     return dict(SCAN_STATE)
+
+
+def get_thumb_rebuild_state() -> dict[str, Any]:
+    return dict(THUMB_STATE)
 
 
 def _ignored(rel: str, patterns: list[str]) -> bool:
@@ -216,6 +231,9 @@ def run_scan(progress: Callable[[dict[str, Any]], None] | None = None) -> dict[s
                 for path in root.rglob("*"):
                     if not path.is_file():
                         continue
+                    # macOS AppleDouble / resource-fork junk on SMB shares
+                    if path.name.startswith("._"):
+                        continue
                     kind = detect_kind(path)
                     if not kind:
                         continue
@@ -286,3 +304,100 @@ def start_scan_background() -> dict[str, Any]:
     t = threading.Thread(target=_run, name="printshelf-scan", daemon=True)
     t.start()
     return get_scan_state()
+
+
+def rebuild_stale_thumbs(only_stl: bool = True) -> dict[str, Any]:
+    """Re-render thumbs for assets still on old/missing previews (no full NAS walk)."""
+    if not THUMB_LOCK.acquire(blocking=False):
+        return get_thumb_rebuild_state()
+
+    cfg = load_config()
+    db_file = data_dir(cfg) / "printshelf.sqlite3"
+    thumbs = data_dir(cfg) / "thumbs"
+    THUMB_STATE.update({
+        "running": True,
+        "status": "rebuilding",
+        "checked": 0,
+        "updated": 0,
+        "error": None,
+        "started_at": utcnow(),
+        "finished_at": None,
+    })
+    try:
+        with db_session(db_file) as conn:
+            if only_stl:
+                rows = conn.execute(
+                    """SELECT id, abs_path, kind, content_hash, thumb_path
+                       FROM assets
+                       WHERE missing = 0 AND kind = 'stl'
+                       ORDER BY id"""
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """SELECT id, abs_path, kind, content_hash, thumb_path
+                       FROM assets
+                       WHERE missing = 0
+                       ORDER BY id"""
+                ).fetchall()
+
+            for row in rows:
+                THUMB_STATE["checked"] += 1
+                thumb_path = row["thumb_path"] or ""
+                kind = row["kind"]
+                thumb_file = thumbs / thumb_path if thumb_path else None
+                needs = (
+                    not thumb_path
+                    or (kind == "stl" and not thumb_path.endswith("_stl3.png"))
+                    or thumb_file is None
+                    or not thumb_file.exists()
+                    or thumb_file.stat().st_size < 2500
+                )
+                if not needs:
+                    continue
+                path = Path(row["abs_path"])
+                if not path.is_file() or path.name.startswith("._"):
+                    continue
+                try:
+                    parsed = parse_asset(path, kind)
+                    content_hash = row["content_hash"] or file_hash(path)
+                    thumb_name = None
+                    if parsed.get("thumb_bytes"):
+                        thumb_name = save_thumb_bytes(thumbs, content_hash, kind, parsed["thumb_bytes"])
+                    if not thumb_name:
+                        thumb_name = make_placeholder_thumb(thumbs, content_hash, kind, kind)
+                    if thumb_name and thumb_name != thumb_path:
+                        conn.execute(
+                            "UPDATE assets SET thumb_path = ?, triangle_count = COALESCE(?, triangle_count) WHERE id = ?",
+                            (thumb_name, parsed.get("triangle_count"), row["id"]),
+                        )
+                        THUMB_STATE["updated"] += 1
+                        conn.commit()
+                except Exception:
+                    continue
+                if THUMB_STATE["checked"] % 10 == 0:
+                    # keep UI progress fresh
+                    pass
+
+        THUMB_STATE.update({"running": False, "status": "ok", "finished_at": utcnow()})
+    except Exception as exc:
+        THUMB_STATE.update({
+            "running": False,
+            "status": "error",
+            "error": str(exc),
+            "finished_at": utcnow(),
+        })
+    finally:
+        THUMB_LOCK.release()
+    return get_thumb_rebuild_state()
+
+
+def start_thumb_rebuild_background(only_stl: bool = True) -> dict[str, Any]:
+    if THUMB_STATE.get("running"):
+        return get_thumb_rebuild_state()
+
+    def _run():
+        rebuild_stale_thumbs(only_stl=only_stl)
+
+    t = threading.Thread(target=_run, name="printshelf-thumbs", daemon=True)
+    t.start()
+    return get_thumb_rebuild_state()

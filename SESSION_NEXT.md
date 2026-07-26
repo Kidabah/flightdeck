@@ -8,14 +8,14 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-26 Session update
 
-Latest commit: `989b25f` — PrintShelf STL thumbs v3
+Latest commit: *(pending — PrintShelf thumb rebuild job)*
 
 Latest local/Pi change:
-- PrintShelf STL thumbs **v3**: denser faces (up to 400k), key/fill/rim lighting, soft ground shadow, `stl3` cache-bust names.
-- Restart `printshelf.service` + Rescan (old sparse thumbs get replaced as files are re-indexed).
+- Fuzzy cards were still on old `_stl.png` previews (~298 left). Added **Rebuild thumbs** (no full NAS walk) + skip `._*` junk files.
+- Hard refresh `app.js?v=4`. Restart `printshelf.service`, then hit **Rebuild thumbs**.
 
 Previous:
-- Solid z-buffer thumbs; 3MF/OBJ previews; Windows path copy. Archives in `docs/archive/`.
+- STL thumbs v3 lighting/shadow; Windows path copy. Archives in `docs/archive/`.
 
 ---
 

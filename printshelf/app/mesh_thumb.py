@@ -17,7 +17,7 @@ Vec3 = tuple[float, float, float]
 Tri = tuple[Vec3, Vec3, Vec3]
 
 
-def sample_stride(n: int, max_tris: int = 400_000) -> int:
+def sample_stride(n: int, max_tris: int = 700_000) -> int:
     """Keep enough faces that organic scans don't turn into point clouds."""
     if n <= max_tris:
         return 1

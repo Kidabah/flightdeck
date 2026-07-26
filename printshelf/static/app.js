@@ -36,9 +36,18 @@ async function refreshStats() {
   const kinds = Object.entries(s.by_kind || {}).map(([k, v]) => `${k}: ${v}`).join(" · ") || "no files yet";
   $("railStats").innerHTML = `<strong>${s.assets}</strong> assets<br>${kinds}`;
   const scan = s.scan || {};
-  $("scanStatus").textContent = scan.running
-    ? `Scanning… ${scan.files_seen || 0} seen`
-    : (scan.status === "ok" ? `Last scan: ${scan.files_upserted || 0} indexed` : (scan.status || "idle"));
+  const thumbs = s.thumbs || {};
+  if (thumbs.running) {
+    $("scanStatus").textContent = `Rebuilding thumbs… ${thumbs.updated || 0}/${thumbs.checked || 0}`;
+  } else if (scan.running) {
+    $("scanStatus").textContent = `Scanning… ${scan.files_seen || 0} seen`;
+  } else if (thumbs.status === "ok" && thumbs.updated) {
+    $("scanStatus").textContent = `Thumbs rebuilt: ${thumbs.updated}`;
+  } else {
+    $("scanStatus").textContent = scan.status === "ok"
+      ? `Last scan: ${scan.files_upserted || 0} indexed`
+      : (scan.status || "idle");
+  }
 }
 
 async function loadLibrary() {
@@ -252,6 +261,27 @@ function bind() {
     } catch (err) {
       $("scanStatus").textContent = String(err.message || err);
       $("scanBtn").disabled = false;
+    }
+  });
+  $("rebuildThumbsBtn").addEventListener("click", async () => {
+    $("rebuildThumbsBtn").disabled = true;
+    try {
+      await api("/api/thumbs/rebuild", { method: "POST", body: "{}" });
+      const poll = setInterval(async () => {
+        const st = await api("/api/thumbs/rebuild");
+        $("scanStatus").textContent = st.running
+          ? `Rebuilding thumbs… ${st.updated || 0} updated / ${st.checked || 0} checked`
+          : `Thumbs done · ${st.updated || 0} updated`;
+        if (!st.running) {
+          clearInterval(poll);
+          $("rebuildThumbsBtn").disabled = false;
+          await refreshStats();
+          await loadLibrary();
+        }
+      }, 1000);
+    } catch (err) {
+      $("scanStatus").textContent = String(err.message || err);
+      $("rebuildThumbsBtn").disabled = false;
     }
   });
   $("folderForm").addEventListener("submit", (e) => {
