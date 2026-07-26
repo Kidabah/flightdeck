@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-26 Session update
 
-Latest commit: *(pending — PrintShelf Pi install helpers)*
+Latest commit: `114088c` — PrintShelf Pi service live on :8100
 
 Latest local/Pi change:
 - **PrintShelf** v0.1 — private printable inventory (separate from Flightdeck). Index-in-place STL / 3MF / OBJ(+textures), folder watch, browse UI.
