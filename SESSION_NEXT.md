@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-26 Session update
 
-Latest commit: *(pending — filter temp OBJ + unique mesh thumbs)*
+Latest commit: `9ad2f21` — filter temp OBJ + unique mesh thumbs
 
 Latest local/Pi change:
 - Ignore / purge `*_temp.obj` junk from the library.
