@@ -84,19 +84,46 @@ function escapeHtml(s) {
   }[c]));
 }
 
+function fallbackCopy(text) {
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.setAttribute("readonly", "");
+  ta.style.position = "fixed";
+  ta.style.left = "-9999px";
+  ta.style.top = "0";
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  ta.setSelectionRange(0, text.length);
+  let ok = false;
+  try {
+    ok = document.execCommand("copy");
+  } catch {
+    ok = false;
+  }
+  document.body.removeChild(ta);
+  return ok;
+}
+
 async function copyText(btn, text, okLabel = "Copied") {
   if (!text) {
     btn.textContent = "No path";
     return;
   }
-  try {
-    await navigator.clipboard.writeText(text);
-    const prev = btn.dataset.label || btn.textContent;
-    btn.textContent = okLabel;
-    setTimeout(() => { btn.textContent = prev; }, 1600);
-  } catch {
-    btn.textContent = "Copy failed";
+  const prev = btn.dataset.label || btn.textContent;
+  let ok = false;
+  // navigator.clipboard often fails on plain http:// LAN hosts (not a secure context).
+  if (window.isSecureContext && navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      ok = true;
+    } catch {
+      ok = false;
+    }
   }
+  if (!ok) ok = fallbackCopy(text);
+  btn.textContent = ok ? okLabel : "Copy failed";
+  setTimeout(() => { btn.textContent = prev; }, 1600);
 }
 
 async function selectAsset(id) {

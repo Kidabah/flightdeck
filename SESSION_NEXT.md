@@ -8,16 +8,15 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-26 Session update
 
-Latest commit: `22649fa` — PrintShelf Windows path copy
+Latest commit: *(pending — PrintShelf copy fallback)*
 
 Latest local/Pi change:
-- PrintShelf detail pane: **Copy Windows path** / **Copy Windows folder** / Copy Pi path.
-- Watched folders support `windows_path` (e.g. `\\Koko\kidabah`) so NAS files map to a PC-usable path.
-- Hard refresh PrintShelf (`app.js?v=2` / `style.css?v=2`). Restart `printshelf.service`.
-- Koko: `/mnt/koko-kidabah` ↔ `\\Koko\kidabah` (CIFS mount not persistent across reboot yet).
+- PrintShelf copy buttons use a **textarea fallback** so Copy works over plain `http://` (clipboard API blocks non-HTTPS).
+- Hard refresh `app.js?v=3`. UI-only; restart optional.
+- Windows path map: `/mnt/koko-kidabah` ↔ `\\Koko\kidabah`.
 
 Previous:
-- Incremental scan commits; PrintShelf v0.1 scaffold. Archives in `docs/archive/`.
+- Windows path copy buttons; incremental scan; PrintShelf v0.1. Archives in `docs/archive/`.
 
 ---
 
