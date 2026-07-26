@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-26 Session update
 
-Latest commit: *(pending — PrintShelf Z-up thumbs)*
+Latest commit: `5a8a9eb` — PrintShelf Z-up thumbs
 
 Latest local/Pi change:
 - Previews were **upside-down** (Z-up meshes). Fixed axis map; **stl5/obj3** cache-bust.
