@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-26 Session update
 
-Latest commit: *(pending — PrintShelf thumb rebuild job)*
+Latest commit: `48cff03` — PrintShelf thumb rebuild job
 
 Latest local/Pi change:
 - Fuzzy cards were still on old `_stl.png` previews (~298 left). Added **Rebuild thumbs** (no full NAS walk) + skip `._*` junk files.
