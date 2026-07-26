@@ -8,14 +8,16 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-26 Session update
 
-Latest commit: `114088c` — PrintShelf Pi service live on :8100
+Latest commit: *(pending — PrintShelf scan commits during NAS walk)*
 
 Latest local/Pi change:
-- **PrintShelf** v0.1 — private printable inventory (separate from Flightdeck). Index-in-place STL / 3MF / OBJ(+textures), folder watch, browse UI.
-- Pi: `printshelf.service` **active** on port **8100** — open `http://100.106.112.104:8100` (or Tailscale hostname).
-- UI: **Folders** → add paths → **Rescan**. Data: `printshelf/data/`. Config: `printshelf/config.json` (gitignored).
-- First-time unit install helper: `printshelf/install-pi-unit.sh` (extends sudoers NOPASSWD for printshelf systemctl).
-- Archived SESSION_NEXT history older than ~4 weeks into `docs/archive/`.
+- PrintShelf now **commits every 5 files** during scan so the library fills while walking a large NAS share.
+- Koko NAS mounted on Pi: `//192.168.4.34/kidabah` → `/mnt/koko-kidabah` (watched as `nas`).
+- Pi: `printshelf.service` on **8100** — `http://100.106.112.104:8100`
+- Note: CIFS mount is not persistent across reboot until an fstab entry is added.
+
+Previous:
+- **PrintShelf** v0.1 scaffold + Pi service. Archives in `docs/archive/`.
 
 ---
 

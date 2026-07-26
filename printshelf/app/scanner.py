@@ -232,6 +232,9 @@ def run_scan(progress: Callable[[dict[str, Any]], None] | None = None) -> dict[s
                         upsert_asset(conn, folder, path, parsed, digest, thumbs)
                         SCAN_STATE["files_upserted"] += 1
                         seen_paths.add(str(path.resolve()))
+                        # Commit often so the UI fills during long NAS walks.
+                        if SCAN_STATE["files_upserted"] % 5 == 0:
+                            conn.commit()
                     except Exception:
                         continue
                     if progress and SCAN_STATE["files_seen"] % 25 == 0:
