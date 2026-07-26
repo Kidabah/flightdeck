@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-26 Session update
 
-Latest commit: *(pending — PrintShelf copy fallback)*
+Latest commit: `9ee2260` — PrintShelf copy fallback over HTTP
 
 Latest local/Pi change:
 - PrintShelf copy buttons use a **textarea fallback** so Copy works over plain `http://` (clipboard API blocks non-HTTPS).
