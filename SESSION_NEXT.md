@@ -8,6 +8,19 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
+Latest commit: *(pending)* — PrintShelf library type tabs
+
+Latest local/Pi change:
+- Library **type tabs** (All / STL / 3MF / Gcode 3MF / OBJ) with counts; replaced the type dropdown.
+- Hard refresh PrintShelf `app.js?v=10` / `style.css?v=10`. Restart optional (static).
+
+Previous today:
+- PrintShelf **PWA** install (`ac66be8`); Tailscale HTTPS `:8100`. Archives in `docs/archive/`.
+
+---
+
+## 2026-07-27 Session update (PWA)
+
 Latest commit: `ac66be8` — PrintShelf PWA install (same as Flightdeck)
 
 Latest local/Pi change:

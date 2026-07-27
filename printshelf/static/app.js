@@ -2,6 +2,7 @@ const $ = (id) => document.getElementById(id);
 
 let folders = [];
 let selectedId = null;
+let activeKind = "";
 
 async function api(path, opts) {
   const res = await fetch(path, {
@@ -31,10 +32,19 @@ function switchView(name) {
   document.querySelectorAll(".nav-btn").forEach((btn) => btn.classList.toggle("active", btn.dataset.view === name));
 }
 
+function updateTypeTabCounts(byKind, total) {
+  document.querySelectorAll(".type-count").forEach((el) => {
+    const key = el.dataset.countFor || "";
+    el.textContent = String(key ? (byKind[key] || 0) : (total || 0));
+  });
+}
+
 async function refreshStats() {
   const s = await api("/api/stats");
-  const kinds = Object.entries(s.by_kind || {}).map(([k, v]) => `${k}: ${v}`).join(" · ") || "no files yet";
+  const byKind = s.by_kind || {};
+  const kinds = Object.entries(byKind).map(([k, v]) => `${k}: ${v}`).join(" · ") || "no files yet";
   $("railStats").innerHTML = `<strong>${s.assets}</strong> assets<br>${kinds}`;
+  updateTypeTabCounts(byKind, s.assets || 0);
   const scan = s.scan || {};
   const thumbs = s.thumbs || {};
   if (thumbs.running) {
@@ -50,10 +60,19 @@ async function refreshStats() {
   }
 }
 
+function setActiveKind(kind) {
+  activeKind = kind || "";
+  document.querySelectorAll(".type-tab").forEach((btn) => {
+    const on = (btn.dataset.kind || "") === activeKind;
+    btn.classList.toggle("active", on);
+    btn.setAttribute("aria-selected", on ? "true" : "false");
+  });
+}
+
 async function loadLibrary() {
   const params = new URLSearchParams();
   const q = $("search").value.trim();
-  const kind = $("filterKind").value;
+  const kind = activeKind;
   const source = $("filterSource").value;
   if (q) params.set("q", q);
   if (kind) params.set("kind", kind);
@@ -260,9 +279,15 @@ function bind() {
   document.querySelectorAll(".nav-btn").forEach((btn) => {
     btn.addEventListener("click", () => switchView(btn.dataset.view));
   });
-  ["search", "filterKind", "filterSource", "filterTextures", "filterSliced"].forEach((id) => {
+  ["search", "filterSource", "filterTextures", "filterSliced"].forEach((id) => {
     $(id).addEventListener("input", () => loadLibrary().catch(console.error));
     $(id).addEventListener("change", () => loadLibrary().catch(console.error));
+  });
+  $("typeTabs")?.addEventListener("click", (e) => {
+    const btn = e.target.closest(".type-tab");
+    if (!btn) return;
+    setActiveKind(btn.dataset.kind || "");
+    loadLibrary().catch(console.error);
   });
   $("scanBtn").addEventListener("click", async () => {
     $("scanBtn").disabled = true;

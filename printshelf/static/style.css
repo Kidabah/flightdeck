@@ -88,6 +88,44 @@ h1 {
 .filters input[type="search"] { min-width: 220px; }
 .check { display: flex; gap: 6px; align-items: center; color: var(--muted); font-size: .9rem; }
 
+.type-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: -6px 0 18px;
+}
+.type-tab {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 8px 14px;
+  cursor: pointer;
+  font: inherit;
+  font-size: .9rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.type-tab:hover { border-color: var(--accent-2); }
+.type-tab.active {
+  background: var(--accent);
+  border-color: transparent;
+  color: #fff;
+  font-weight: 600;
+}
+.type-count {
+  min-width: 1.4em;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, .22);
+  font-size: .78rem;
+  font-weight: 600;
+  color: inherit;
+  opacity: .9;
+}
+.type-tab.active .type-count { background: rgba(255, 255, 255, .22); }
+
 .workspace {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(280px, .9fr);
