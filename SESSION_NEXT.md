@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: *(pending)* — ZIP orbit + broken thumb fix
+Latest commit: `97fd1e5` — ZIP orbit + broken thumb fix
 
 Latest local/Pi change:
 - **ZIP orbit**: click a printable inside a zip → loads in the detail viewer.
