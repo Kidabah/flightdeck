@@ -37,6 +37,28 @@ sudo systemctl enable --now printshelf.service
 
 Browse: `http://<pi-tailscale-ip>:8100` (e.g. `http://100.106.112.104:8100`)
 
+### Install as an app (PWA, same as Flightdeck)
+
+PrintShelf ships a web app manifest + minimal service worker (no offline cache). Chrome/Edge need **HTTPS** to Install.
+
+On the Pi (once; persists with Tailscale Serve):
+
+```bash
+sudo tailscale serve --bg --https=8100 http://127.0.0.1:8100
+```
+
+Then open:
+
+`https://flightdeck.tail7de73e.ts.net:8100`
+
+→ browser menu → **Install PrintShelf** / **Install this site as an app**.
+
+Optional Windows Desktop shortcut (app-mode window):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File printshelf\scripts\create-desktop-shortcut.ps1
+```
+
 UI: **Folders** → add local/NAS paths → **Rescan**.
 
 Config: `printshelf/config.json` (not committed). Data/DB/thumbs: `printshelf/data/`.

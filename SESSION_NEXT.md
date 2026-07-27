@@ -8,6 +8,21 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
+Latest commit: *(pending)* — PrintShelf PWA install (same as Flightdeck)
+
+Latest local/Pi change:
+- PrintShelf **PWA**: `manifest.json` + minimal `sw.js`, brand icons, Install as app.
+- Tailscale Serve HTTPS on port **8100** → `https://flightdeck.tail7de73e.ts.net:8100`
+- Hard refresh `app.js?v=9` / `style.css?v=9` / `viewer.js?v=9`. Restart `printshelf.service` required.
+- Optional Windows shortcut: `printshelf/scripts/create-desktop-shortcut.ps1`
+
+Previous today:
+- Detail pane **3D orbit viewer** for STL/OBJ (`cc8f20b`). Archives in `docs/archive/`.
+
+---
+
+## 2026-07-27 Session update (orbit viewer)
+
 Latest commit: `cc8f20b` — PrintShelf orbit viewer for STL/OBJ
 
 Latest local/Pi change:

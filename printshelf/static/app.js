@@ -329,6 +329,10 @@ async function boot() {
   await loadLibrary();
 }
 
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/sw.js").catch(() => {});
+}
+
 boot().catch((err) => {
   $("railStats").textContent = String(err.message || err);
 });
