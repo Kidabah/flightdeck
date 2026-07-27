@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `(pending)` — PrintShelf MakerDeck blue + slicer download fix
+Latest commit: `affd549` — PrintShelf MakerDeck blue + slicer download fix
 
 Latest local/Pi change:
 - UI palette switched from orange to **MakerDeck sky blue** (`#38bdf8` / cool navy panels).
