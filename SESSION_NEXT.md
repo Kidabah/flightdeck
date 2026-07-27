@@ -8,14 +8,15 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `49d9fb1` — PrintShelf slicer choice Bambu/Orca
+Latest commit: `(pending)` — PrintShelf manifold check + repair
 
 Latest local/Pi change:
-- **Open in slicer** shows a choice: **Bambu Studio** or **OrcaSlicer** (remembers last pick), then Flightdeck Windows worker handoff.
-- Hard refresh `?v=39`. UI-only (printshelf restart optional).
+- **Open in slicer** runs MakerDeck-style manifold check; if open edges, sanitize (weld + peel) and hand off a temp `_manifold.stl` (NAS untouched).
+- Detail pane shows Manifold OK / N open edges for STL/OBJ. Toast reports repair result.
+- Hard refresh `?v=40`. **Restart printshelf**.
 
 Previous today:
-- Worker handoff (`3c63338`); slicer4 3MF. Archives in `docs/archive/`.
+- Bambu/Orca choice (`49d9fb1`); Windows worker handoff. Archives in `docs/archive/`.
 
 ---
 

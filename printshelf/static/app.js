@@ -150,6 +150,20 @@ function slicerTargetLabel(target) {
   return target === "desktop_orca" ? "OrcaSlicer" : "Bambu Studio";
 }
 
+function manifoldToastDetail(manifold, fallback = "") {
+  if (!manifold || manifold.skipped) return fallback;
+  const before = Number(manifold.before) || 0;
+  const after = Number(manifold.after) || 0;
+  if (before === 0) return fallback ? `${fallback} · Manifold OK` : "Manifold OK";
+  if (manifold.repaired) {
+    const line = after === 0
+      ? `Repaired ${before} → 0 open edges`
+      : `Repaired ${before} → ${after} left`;
+    return fallback ? `${fallback} · ${line}` : line;
+  }
+  return fallback ? `${fallback} · ${before} open edges` : `${before} open edges`;
+}
+
 async function pickSlicerTarget() {
   const last = localStorage.getItem(SLICER_TARGET_KEY) || "bambu_studio";
   const choice = await psChoice({
@@ -815,7 +829,7 @@ async function openInSlicer(item, { zipEntry = "" } = {}) {
   }
 
   const via = data.via === "open-path" ? "NAS path (File → Open style)" : (data.filename || "model");
-  psToast(`Opened in ${label}`, via, "ok", 6000);
+  psToast(`Opened in ${label}`, manifoldToastDetail(data.manifold, via), "ok", 7000);
   return true;
 }
 
@@ -916,6 +930,9 @@ async function selectAsset(id) {
       <div><span>Type</span><span>${escapeHtml(item.kind)}</span></div>
       <div><span>Source</span><span>${escapeHtml(item.source_kind)} · ${escapeHtml(item.root_id)}</span></div>
       <div><span>Size</span><span>${fmtBytes(item.size_bytes)}</span></div>
+      ${(item.kind === "stl" || item.kind === "obj")
+        ? `<div><span>Manifold</span><span id="manifoldStatus">Checking…</span></div>`
+        : ""}
       ${isZip ? `
         <div><span>Files in zip</span><span>${zipMeta.entry_count ?? "—"}</span></div>
         <div><span>Uncompressed</span><span>${fmtBytes(zipMeta.uncompressed_bytes || 0)}</span></div>
@@ -1014,7 +1031,7 @@ async function selectAsset(id) {
       <p class="detail-hint" id="slicerHint">${canSlicer
         ? (isMobileClient()
           ? "Open in slicer needs Bambu/Orca on a PC. On your phone, use Copy Windows path."
-          : "Open in slicer asks Bambu Studio or Orca, then hands off via Flightdeck’s Windows worker (same as File → Open).")
+          : "Open in slicer asks Bambu or Orca, checks manifold (MakerDeck-style sanitize if needed), then hands off via the Windows worker.")
         : "Slicer open is for STL, OBJ, 3MF, and ZIP printables."}</p>
       <p class="detail-hint">${winPath
         ? "Paste Windows path into Bambu/Orca, or folder into Explorer (Ctrl+L → Ctrl+V)."
@@ -1033,6 +1050,24 @@ async function selectAsset(id) {
   $("openSlicerBtn")?.addEventListener("click", () => {
     openInSlicer(item, { zipEntry });
   });
+  if ((item.kind === "stl" || item.kind === "obj") && $("manifoldStatus")) {
+    api(`/api/assets/${item.id}/manifold?repair=false`)
+      .then((m) => {
+        const el = $("manifoldStatus");
+        if (!el) return;
+        if (m.skipped) {
+          el.textContent = "—";
+          return;
+        }
+        const before = Number(m.before) || 0;
+        el.textContent = before === 0 ? "OK" : `${before.toLocaleString()} open edges`;
+        el.style.color = before === 0 ? "var(--ok, #34d399)" : "var(--warn, #fbbf24)";
+      })
+      .catch(() => {
+        const el = $("manifoldStatus");
+        if (el) el.textContent = "—";
+      });
+  }
   $("copyWinPathBtn")?.addEventListener("click", () => copyText($("copyWinPathBtn"), winPath));
   $("copyWinFolderBtn")?.addEventListener("click", () => copyText($("copyWinFolderBtn"), winFolder, "Folder copied"));
   $("copyPiPathBtn")?.addEventListener("click", () => copyText($("copyPiPathBtn"), item.abs_path));

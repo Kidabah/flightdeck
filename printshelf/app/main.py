@@ -36,7 +36,11 @@ from .scanner import (
     start_scan_background,
     start_thumb_rebuild_background,
 )
-from .slicer_handoff import open_asset_in_desktop_slicer, resolve_worker_url
+from .slicer_handoff import (
+    inspect_asset_manifold,
+    open_asset_in_desktop_slicer,
+    resolve_worker_url,
+)
 from .thumbs import ensure_shared_zip_thumb, resolve_thumb_name
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -622,6 +626,7 @@ def open_asset_slicer(
     """
     Open in desktop Bambu Studio / Orca via Flightdeck's Windows worker —
     same path as Flightdeck Slice handoff (exe + file path), not bambustudio:// URL-open.
+    STL/OBJ get MakerDeck-style manifold check + sanitize before handoff.
     """
     try:
         result = open_asset_in_desktop_slicer(asset_id, entry=entry, target=target)
@@ -636,6 +641,25 @@ def open_asset_slicer(
     except Exception as exc:
         raise HTTPException(502, f"Slicer handoff failed: {exc}") from exc
     return {"ok": True, **(result if isinstance(result, dict) else {"result": result})}
+
+
+@app.get("/api/assets/{asset_id}/manifold")
+def asset_manifold(
+    asset_id: int,
+    entry: str | None = Query(None),
+    repair: bool = Query(True),
+) -> dict[str, Any]:
+    """Dry-run manifold check (+ optional sanitize). Does not call the Windows worker."""
+    try:
+        return inspect_asset_manifold(asset_id, entry=entry, repair=repair)
+    except FileNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(403, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(502, f"Manifold check failed: {exc}") from exc
 
 
 @app.get("/api/slicer/status")
