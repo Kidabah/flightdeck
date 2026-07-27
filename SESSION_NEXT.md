@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update (ASCII STL orbit)
 
-Latest commit: `(pending)` — PrintShelf orbit ASCII STL again
+Latest commit: `a278b81` — PrintShelf orbit ASCII STL again
 
 Latest local/Pi change:
 - Fake-STL harden broke **ASCII** meshes (e.g. `Vase_01_SMALL.stl`): binary-only preview + viewer header check.
