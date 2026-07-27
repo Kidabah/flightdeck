@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: *(pending)* — PrintShelf multi-select bulk hide/delete
+Latest commit: `8a46c8f` — PrintShelf multi-select bulk hide/delete
 
 Latest local/Pi change:
 - **Multi-select** cards (checkbox / Ctrl-click) + bulk bar: Select all visible, Hide, Unhide, Delete from disk.
