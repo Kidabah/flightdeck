@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `(pending)` — PrintShelf Bambu-style slicer 3MF
+Latest commit: `6029814` — PrintShelf Bambu-style slicer 3MF
 
 Latest local/Pi change:
 - Open in slicer wraps STL as **Bambu-style** 3MF (Objects/ + model_settings) so Studio’s `load_project` places geometry (bare Core 3MF → empty plate).
