@@ -3,6 +3,8 @@ from __future__ import annotations
 import fnmatch
 import hashlib
 import json
+import logging
+import os
 import threading
 from pathlib import Path
 from typing import Any, Callable
@@ -12,12 +14,17 @@ from .db import db_session, init_db, utcnow
 from .parsers import detect_kind, parse_asset
 from .thumbs import make_placeholder_thumb, save_thumb_bytes
 
+log = logging.getLogger("printshelf.scan")
+
 SCAN_LOCK = threading.Lock()
 SCAN_STATE: dict[str, Any] = {
     "running": False,
     "status": "idle",
     "files_seen": 0,
     "files_upserted": 0,
+    "files_skipped": 0,
+    "files_failed": 0,
+    "current_path": "",
     "error": None,
     "started_at": None,
     "finished_at": None,
@@ -51,19 +58,55 @@ def _ignored(rel: str, patterns: list[str]) -> bool:
     return False
 
 
-def file_hash(path: Path, max_bytes: int = 8_000_000) -> str:
+def file_hash(path: Path, max_bytes: int = 262_144, st: os.stat_result | None = None) -> str:
+    """Inventory fingerprint: size + mtime + a small head read (NAS-friendly)."""
+    st = st or path.stat()
     h = hashlib.sha256()
-    size = path.stat().st_size
-    h.update(str(size).encode("utf-8"))
+    h.update(str(st.st_size).encode("utf-8"))
+    h.update(b"|")
+    h.update(f"{st.st_mtime:.6f}".encode("utf-8"))
+    h.update(b"|")
+    h.update(path.name.encode("utf-8", "surrogateescape"))
     with path.open("rb") as f:
         remaining = max_bytes
         while remaining > 0:
-            chunk = f.read(min(1024 * 1024, remaining))
+            chunk = f.read(min(64 * 1024, remaining))
             if not chunk:
                 break
             h.update(chunk)
             remaining -= len(chunk)
     return h.hexdigest()
+
+
+def _name_may_be_printable(name: str) -> bool:
+    lower = name.lower()
+    return lower.endswith((".stl", ".obj", ".3mf", ".zip"))
+
+
+def mark_orphaned_scans(db_file: Path | None = None) -> int:
+    """Mark scan_runs left as 'running' after a process restart."""
+    cfg = load_config()
+    db_file = db_file or (data_dir(cfg) / "printshelf.sqlite3")
+    init_db(db_file)
+    with db_session(db_file) as conn:
+        cur = conn.execute(
+            """UPDATE scan_runs
+               SET finished_at = ?, status = 'interrupted',
+                   error = COALESCE(NULLIF(error, ''), 'Process restarted before scan finished')
+               WHERE status = 'running'""",
+            (utcnow(),),
+        )
+        return int(cur.rowcount or 0)
+
+
+def _flush_scan_progress(conn, run_id: int | None) -> None:
+    if run_id is None:
+        return
+    conn.execute(
+        "UPDATE scan_runs SET files_seen=?, files_upserted=? WHERE id=?",
+        (SCAN_STATE["files_seen"], SCAN_STATE["files_upserted"], run_id),
+    )
+    conn.commit()
 
 
 def _design_name_for(path: Path, root: Path) -> str:
@@ -198,6 +241,7 @@ def run_scan(progress: Callable[[dict[str, Any]], None] | None = None) -> dict[s
     cfg = load_config()
     db_file = data_dir(cfg) / "printshelf.sqlite3"
     init_db(db_file)
+    mark_orphaned_scans(db_file)
     thumbs = data_dir(cfg) / "thumbs"
     ignore = list(cfg.get("ignore_globs") or [])
     folders = list(cfg.get("watched_folders") or [])
@@ -207,6 +251,9 @@ def run_scan(progress: Callable[[dict[str, Any]], None] | None = None) -> dict[s
         "status": "scanning",
         "files_seen": 0,
         "files_upserted": 0,
+        "files_skipped": 0,
+        "files_failed": 0,
+        "current_path": "",
         "error": None,
         "started_at": utcnow(),
         "finished_at": None,
@@ -228,34 +275,80 @@ def run_scan(progress: Callable[[dict[str, Any]], None] | None = None) -> dict[s
             for folder in folders:
                 root = Path(folder.get("path") or "")
                 if not root.exists() or not root.is_dir():
+                    log.warning("Watched folder missing or not a directory: %s", root)
                     continue
-                for path in root.rglob("*"):
-                    if not path.is_file():
-                        continue
-                    if _is_junk_printable(path):
-                        continue
-                    kind = detect_kind(path)
-                    if not kind:
-                        continue
-                    try:
-                        rel = str(path.resolve().relative_to(root.resolve()))
-                    except Exception:
-                        rel = path.name
-                    if _ignored(rel, ignore):
-                        continue
-                    SCAN_STATE["files_seen"] += 1
-                    try:
-                        digest = file_hash(path)
-                        parsed = parse_asset(path, kind)
-                        upsert_asset(conn, folder, path, parsed, digest, thumbs)
-                        SCAN_STATE["files_upserted"] += 1
-                        seen_paths.add(str(path.resolve()))
-                        # Commit each file so the UI fills during long NAS walks.
-                        conn.commit()
-                    except Exception:
-                        continue
-                    if progress and SCAN_STATE["files_seen"] % 25 == 0:
-                        progress(get_scan_state())
+                try:
+                    root_resolved = root.resolve()
+                except Exception:
+                    root_resolved = root
+                root_s = str(root_resolved)
+
+                for dirpath, dirnames, filenames in os.walk(root_s, followlinks=False):
+                    # Prune ignored directories early (NAS walks are huge).
+                    kept = []
+                    for d in dirnames:
+                        rel_dir = str((Path(dirpath) / d).relative_to(root_resolved)).replace("\\", "/")
+                        if _ignored(rel_dir, ignore) or _ignored(f"{rel_dir}/", ignore):
+                            continue
+                        kept.append(d)
+                    dirnames[:] = kept
+
+                    rel_cwd = str(Path(dirpath).relative_to(root_resolved)).replace("\\", "/") if dirpath != root_s else ""
+                    SCAN_STATE["current_path"] = rel_cwd or "."
+
+                    for name in filenames:
+                        if not _name_may_be_printable(name):
+                            continue
+                        path = Path(dirpath) / name
+                        if _is_junk_printable(path):
+                            continue
+                        kind = detect_kind(path)
+                        if not kind:
+                            continue
+                        try:
+                            rel = str(path.relative_to(root_resolved)).replace("\\", "/")
+                        except Exception:
+                            rel = name
+                        if _ignored(rel, ignore):
+                            continue
+
+                        SCAN_STATE["files_seen"] += 1
+                        try:
+                            st = path.stat()
+                            abs_path = str(path.resolve())
+                            existing = conn.execute(
+                                "SELECT id, size_bytes, mtime FROM assets WHERE abs_path = ?",
+                                (abs_path,),
+                            ).fetchone()
+                            if (
+                                existing
+                                and int(existing["size_bytes"] or 0) == int(st.st_size)
+                                and abs(float(existing["mtime"] or 0) - float(st.st_mtime)) < 0.001
+                            ):
+                                conn.execute(
+                                    "UPDATE assets SET last_seen = ?, missing = 0 WHERE id = ?",
+                                    (utcnow(), existing["id"]),
+                                )
+                                SCAN_STATE["files_skipped"] += 1
+                                seen_paths.add(abs_path)
+                                conn.commit()
+                            else:
+                                digest = file_hash(path, st=st)
+                                parsed = parse_asset(path, kind)
+                                upsert_asset(conn, folder, path, parsed, digest, thumbs)
+                                SCAN_STATE["files_upserted"] += 1
+                                seen_paths.add(abs_path)
+                                conn.commit()
+                        except Exception as exc:
+                            SCAN_STATE["files_failed"] += 1
+                            SCAN_STATE["error"] = f"{name}: {exc}"
+                            log.warning("Scan skip %s: %s", path, exc)
+                            continue
+
+                        if SCAN_STATE["files_seen"] % 25 == 0:
+                            _flush_scan_progress(conn, run_id)
+                            if progress:
+                                progress(get_scan_state())
 
             # mark missing assets under watched roots
             roots = [str(Path(f["path"]).resolve()) for f in folders if f.get("path")]
@@ -275,9 +368,21 @@ def run_scan(progress: Callable[[dict[str, Any]], None] | None = None) -> dict[s
                 (utcnow(), "ok", SCAN_STATE["files_seen"], SCAN_STATE["files_upserted"], run_id),
             )
 
-        SCAN_STATE.update({"running": False, "status": "ok", "finished_at": utcnow()})
+        SCAN_STATE.update({
+            "running": False,
+            "status": "ok",
+            "finished_at": utcnow(),
+            "current_path": "",
+            "error": None if not SCAN_STATE.get("files_failed") else SCAN_STATE.get("error"),
+        })
     except Exception as exc:
-        SCAN_STATE.update({"running": False, "status": "error", "error": str(exc), "finished_at": utcnow()})
+        SCAN_STATE.update({
+            "running": False,
+            "status": "error",
+            "error": str(exc),
+            "finished_at": utcnow(),
+            "current_path": "",
+        })
         if run_id is not None:
             try:
                 with db_session(db_file) as conn:

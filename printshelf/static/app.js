@@ -140,12 +140,14 @@ async function refreshStats() {
   if (thumbs.running) {
     $("scanStatus").textContent = `Rebuilding thumbs… ${thumbs.updated || 0}/${thumbs.checked || 0}`;
   } else if (scan.running) {
-    $("scanStatus").textContent = `Scanning… ${scan.files_seen || 0} seen`;
+    const where = scan.current_path ? ` · ${scan.current_path}` : "";
+    $("scanStatus").textContent =
+      `Scanning… ${scan.files_seen || 0} seen / ${scan.files_upserted || 0} new / ${scan.files_skipped || 0} unchanged${where}`;
   } else if (thumbs.status === "ok" && thumbs.updated) {
     $("scanStatus").textContent = `Thumbs rebuilt: ${thumbs.updated}`;
   } else {
     $("scanStatus").textContent = scan.status === "ok"
-      ? `Last scan: ${scan.files_upserted || 0} indexed`
+      ? `Last scan: ${scan.files_upserted || 0} new · ${scan.files_skipped || 0} unchanged · ${scan.files_seen || 0} total`
       : (scan.status || "idle");
   }
 }
@@ -775,16 +777,18 @@ function bind() {
       await api("/api/scan", { method: "POST", body: "{}" });
       const poll = setInterval(async () => {
         const st = await api("/api/scan");
+        const where = st.current_path ? ` · ${st.current_path}` : "";
         $("scanStatus").textContent = st.running
-          ? `Scanning… ${st.files_seen || 0} seen / ${st.files_upserted || 0} indexed`
-          : `Done · ${st.files_upserted || 0} indexed`;
+          ? `Scanning… ${st.files_seen || 0} seen / ${st.files_upserted || 0} new / ${st.files_skipped || 0} unchanged${where}`
+          : `Done · ${st.files_upserted || 0} new · ${st.files_skipped || 0} unchanged · ${st.files_seen || 0} total`
+            + (st.files_failed ? ` · ${st.files_failed} failed` : "");
         if (!st.running) {
           clearInterval(poll);
           $("scanBtn").disabled = false;
           await refreshStats();
           await loadLibrary();
         }
-      }, 800);
+      }, 1500);
     } catch (err) {
       $("scanStatus").textContent = String(err.message || err);
       $("scanBtn").disabled = false;

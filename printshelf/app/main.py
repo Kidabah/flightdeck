@@ -25,6 +25,7 @@ from .preview import (
 from .scanner import (
     get_scan_state,
     get_thumb_rebuild_state,
+    mark_orphaned_scans,
     start_scan_background,
     start_thumb_rebuild_background,
 )
@@ -56,7 +57,9 @@ class BulkIdsIn(BaseModel):
 @app.on_event("startup")
 def _startup() -> None:
     cfg = load_config()
-    init_db(data_dir(cfg) / "printshelf.sqlite3")
+    db_file = data_dir(cfg) / "printshelf.sqlite3"
+    init_db(db_file)
+    mark_orphaned_scans(db_file)
 
 
 @app.get("/api/health")

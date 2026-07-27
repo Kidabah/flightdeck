@@ -8,14 +8,15 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `06d20da` — PrintShelf Shift-click range select
+Latest commit: `(pending)` — PrintShelf scan resume / NAS zip undercount
 
 Latest local/Pi change:
-- **Shift-click** (card or checkbox): select everything between the last clicked file and this one. Ctrl/Cmd+Shift adds to the current selection. Bulk bar tip: “Shift = range”.
-- Hard refresh `?v=20`. Restart optional (static).
+- ZIP tab showed **47** because scans never finished the 3.5TB NAS (deploy restarts killed them). Disk has thousands (e.g. `3D Models` alone ~3155 zips).
+- Scanner now **skips unchanged** size+mtime, lighter hash, persists progress, marks interrupted runs, shows current folder in status.
+- Hard refresh `?v=21`. **Restart required.** Kick a Scan after deploy and leave it running.
 
 Previous today:
-- Detail multi-delete (`23585fd`); folder browse. Archives in `docs/archive/`.
+- Shift range select (`06d20da`); multi-delete. Archives in `docs/archive/`.
 
 ---
 
