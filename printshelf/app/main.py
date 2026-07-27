@@ -41,7 +41,7 @@ from .slicer_handoff import (
     open_asset_in_desktop_slicer,
     resolve_worker_url,
 )
-from .thumbs import ensure_shared_zip_thumb, resolve_thumb_name
+from .thumbs import SHARED_ZIP_THUMB, ensure_shared_zip_thumb, resolve_thumb_name
 
 ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "static"
@@ -528,7 +528,8 @@ def _delete_asset_disk(asset_id: int, delete_sidecars: bool = True) -> dict[str,
             errors.append(f"{p}: {exc}")
 
     thumb = asset.get("thumb_path")
-    if thumb:
+    # Never delete the shared ZIP icon — every zip card points at the same file.
+    if thumb and str(thumb) != SHARED_ZIP_THUMB and not str(thumb).startswith("_shared_"):
         try:
             (data_dir(cfg) / "thumbs" / str(thumb)).unlink(missing_ok=True)
         except Exception:
@@ -930,7 +931,10 @@ def get_asset_model(
 def get_thumb(name: str):
     if "/" in name or "\\" in name or ".." in name:
         raise HTTPException(400, "Invalid thumb name")
-    path = data_dir() / "thumbs" / name
+    thumbs = data_dir() / "thumbs"
+    path = thumbs / name
+    if not path.exists() and name == SHARED_ZIP_THUMB:
+        ensure_shared_zip_thumb(thumbs)
     if not path.exists():
         raise HTTPException(404, "Thumb not found")
     return FileResponse(path, headers={"Cache-Control": "public, max-age=86400"})

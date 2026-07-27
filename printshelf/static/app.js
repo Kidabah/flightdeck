@@ -580,7 +580,9 @@ function appendAssetCard(grid, item) {
   card.innerHTML = `
     <input type="checkbox" class="card-check" ${checked ? "checked" : ""} aria-label="Select ${escapeHtml(item.file_name)}">
     <div class="card-thumb">${item.thumb_path
-      ? `<img src="/api/thumbs/${encodeURIComponent(item.thumb_path)}?v=${encodeURIComponent((item.content_hash || item.thumb_path).slice(0, 12))}" alt="" loading="lazy">`
+      ? `<img src="/api/thumbs/${encodeURIComponent(item.thumb_path)}?v=${encodeURIComponent(
+          item.kind === "zip" ? "zip2" : ((item.content_hash || item.thumb_path).slice(0, 12))
+        )}" alt="" loading="lazy">`
       : `<span class="pill">${escapeHtml(item.kind)}</span>`}</div>
     <div class="card-body">
       <h3 class="card-title">${escapeHtml(item.file_name)}</h3>

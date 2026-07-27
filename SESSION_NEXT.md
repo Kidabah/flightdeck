@@ -6,6 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-27 Session update (shared ZIP thumb)
+
+Latest commit: `(pending)` — Don't delete shared ZIP thumb on asset delete
+
+Latest local/Pi change:
+- ZIP icons vanished because deleting any ZIP unlinked `_shared_zip2.png` (shared by all cards).
+- Regenerated on Pi; delete skips shared thumbs; thumb GET auto-recreates if missing.
+- Hard refresh `?v=44`. Restart required.
+
+Previous today:
+- ASCII STL orbit (`a278b81`). Archives in `docs/archive/`.
+
+---
+
 ## 2026-07-27 Session update (ASCII STL orbit)
 
 Latest commit: `a278b81` — PrintShelf orbit ASCII STL again
