@@ -716,8 +716,7 @@ function slicerFileUrlForAsset(item, { zipEntry = "" } = {}) {
   return { url: u.toString(), reason: "", via: "download" };
 }
 
-const SLICER_TIP_KEY = "printshelf.slicerProtocolTip.v3";
-const SLICER_LOCAL_TIP_KEY = "printshelf.slicerLocalTip.v1";
+const SLICER_TIP_KEY = "printshelf.slicerProtocolTip.v4";
 
 function launchSlicerProtocol(fileUrl, fileName = "") {
   // Edge/Chrome own this “Open BambuStudio?” prompt — web apps cannot replace it.
@@ -753,71 +752,14 @@ async function openInSlicer(item, { zipEntry = "" } = {}) {
     return false;
   }
 
-  const kind = item.kind || "";
-  const winPath = (!zipEntry && (item.windows_path || "")) || "";
-
-  // STL/OBJ: Studio’s MakerWorld URL-open is project-3MF only and keeps failing for us
-  // (download 100% → empty plate). File → Open on the real STL works — match that path.
-  if ((kind === "stl" || kind === "obj") && !zipEntry) {
-    if (winPath) {
-      if (!localStorage.getItem(SLICER_LOCAL_TIP_KEY)) {
-        const go = await psConfirm({
-          eyebrow: "Open in slicer",
-          title: "Same as File → Open",
-          body:
-            "Bambu’s web link can’t open Luban STLs (it only accepts MakerWorld project 3MFs — "
-            + "that’s the empty plate / unknown format noise).<br><br>"
-            + "PrintShelf will <strong>copy the NAS path</strong>. "
-            + "Switch to Studio, press <strong>Ctrl+O</strong>, paste, Enter — same as Select file.",
-          confirmLabel: "Copy NAS path",
-          cancelLabel: "Cancel",
-          danger: false,
-        });
-        if (!go) return false;
-        localStorage.setItem(SLICER_LOCAL_TIP_KEY, "1");
-      }
-      let copied = false;
-      try {
-        if (window.isSecureContext && navigator.clipboard?.writeText) {
-          await navigator.clipboard.writeText(winPath);
-          copied = true;
-        }
-      } catch {
-        copied = false;
-      }
-      if (!copied) copied = fallbackCopy(winPath);
-      if (copied) {
-        psToast("NAS path copied", "In Studio: Ctrl+O → paste → Enter", "ok", 9000);
-      } else {
-        psToast("Couldn't copy path", winPath, "error", 8000);
-      }
-      // Do NOT fire bambustudio:// here — bare open?file= triggers Studio’s
-      // “Download failed; unknown file format.” dialog.
-      return true;
-    }
-
-    // No Windows path mapped — download the real STL/OBJ for File → Import.
-    const name = item.file_name || `model.${kind}`;
-    triggerBrowserDownload(
-      `/api/assets/${item.id}/file/${encodeURIComponent(name)}`,
-      name,
-    );
-    psToast(
-      "Downloaded for slicer",
-      "In Bambu Studio: File → Import (or drag the file onto the plate).",
-      "ok",
-      7000,
-    );
-    return true;
-  }
-
+  // HTTPS .3mf URL → bambustudio://open (STL/OBJ packaged server-side as a
+  // MakerDeck-style Bambu project so load_project places geometry on the plate).
   const { url, reason } = slicerFileUrlForAsset(item, { zipEntry });
   if (!url) {
     psToast("Can't open in slicer", reason || "Not available for this file.", "error");
     return false;
   }
 
-  // 3MF / ZIP printables: HTTPS project handoff (MakerWorld-style).
   if (!localStorage.getItem(SLICER_TIP_KEY)) {
     const go = await psConfirm({
       eyebrow: "Open in slicer",
@@ -827,7 +769,7 @@ async function openInSlicer(item, { zipEntry = "" } = {}) {
         + "1) Edge <strong>Open BambuStudio?</strong> — tick <strong>Always allow</strong> for this site.<br>"
         + "2) Studio <strong>not from a trusted site</strong> — click <strong>Yes</strong> "
         + "(MakerWorld is the only built-in trusted host; PrintShelf is yours).<br><br>"
-        + "After that, Studio downloads the file over Tailscale.",
+        + "After that, Studio downloads a project 3MF over Tailscale.",
       confirmLabel: "Open Bambu Studio",
       cancelLabel: "Cancel",
       danger: false,

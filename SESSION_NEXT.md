@@ -8,14 +8,15 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `8aceda2` — PrintShelf stop bare bambustudio:// launch
+Latest commit: `(pending)` — PrintShelf real Open-in-slicer for STL
 
 Latest local/Pi change:
-- STL Open in slicer only **copies NAS path** (no `bambustudio://open` — that caused “unknown file format”).
-- Hard refresh `?v=36`. UI-only.
+- STL/OBJ **Open in slicer** restored to `bambustudio://open` (not NAS-path cop-out).
+- Slicer package is now a **MakerDeck-style Bambu project 3MF** (`_slicer4`): bed-centred build transform, single-part `model_settings` (no `<part>`), `project_settings`, `plate_1.json` + thumb stubs. Fixes download-100% → empty plate.
+- Hard refresh `?v=37`. **Restart required** (preview.py).
 
 Previous today:
-- Detail pane `canSlicer` fix (`f0dc750`); ZIP icon + nested peek. Archives in `docs/archive/`.
+- NAS-path workaround (`8aceda2`); orbit/3MF packaging; ZIP peek. Archives in `docs/archive/`.
 
 ---
 
