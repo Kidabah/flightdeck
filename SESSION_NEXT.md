@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `(pending)` — PrintShelf Open in slicer
+Latest commit: `b828fdf` — PrintShelf Open in slicer
 
 Latest local/Pi change:
 - Detail **Open in slicer** launches Bambu Studio / Orca via `bambustudio://` (Mac: `bambustudioopen://`). Prefers local NAS `file://` from Windows path; ZIP members / no-win-path fall back to `GET /api/assets/{id}/file`.
