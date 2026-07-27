@@ -233,6 +233,12 @@ h1 {
   color: var(--muted);
 }
 .viewer-section { margin-top: 10px; }
+.viewer-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 8px;
+}
+.viewer-detail-toggle { font-size: .82rem; }
 .orbit-viewer {
   position: relative;
   width: 100%;

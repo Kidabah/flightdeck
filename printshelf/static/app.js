@@ -171,7 +171,12 @@ async function selectAsset(id) {
     <div class="detail-section viewer-section">
       <h3>3D preview</h3>
       ${canOrbit
-        ? `<div class="orbit-viewer" id="orbitViewer"></div>
+        ? `<div class="viewer-toolbar">
+             <label class="check viewer-detail-toggle">
+               <input type="checkbox" id="orbitHighDetail"> Higher detail
+             </label>
+           </div>
+           <div class="orbit-viewer" id="orbitViewer"></div>
            <p class="viewer-note" id="orbitNote" hidden></p>`
         : `<p class="detail-hint">Orbit preview is available for STL and OBJ. 3MF stays thumbnail-only for now.</p>`}
     </div>
@@ -223,17 +228,26 @@ async function selectAsset(id) {
   $("copyWinFolderBtn")?.addEventListener("click", () => copyText($("copyWinFolderBtn"), winFolder, "Folder copied"));
   $("copyPiPathBtn")?.addEventListener("click", () => copyText($("copyPiPathBtn"), item.abs_path));
   if (canOrbit) {
-    for (let i = 0; i < 40 && !window.PrintShelfViewer?.mountOrbitViewer; i++) {
-      await new Promise((r) => setTimeout(r, 50));
-    }
-    if (window.PrintShelfViewer?.mountOrbitViewer) {
+    const mountOrbit = async (highDetail) => {
+      for (let i = 0; i < 40 && !window.PrintShelfViewer?.mountOrbitViewer; i++) {
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      if (!window.PrintShelfViewer?.mountOrbitViewer) {
+        if ($("orbitViewer")) {
+          $("orbitViewer").innerHTML = `<div class="viewer-status error">3D viewer failed to load (check network / CDN).</div>`;
+        }
+        return;
+      }
+      const detail = highDetail ? "high" : "standard";
       await window.PrintShelfViewer.mountOrbitViewer($("orbitViewer"), {
-        url: `/api/assets/${id}/model`,
+        url: `/api/assets/${id}/model?detail=${detail}`,
         noteEl: $("orbitNote"),
       });
-    } else if ($("orbitViewer")) {
-      $("orbitViewer").innerHTML = `<div class="viewer-status error">3D viewer failed to load (check network / CDN).</div>`;
-    }
+    };
+    $("orbitHighDetail")?.addEventListener("change", (e) => {
+      mountOrbit(Boolean(e.target.checked)).catch(console.error);
+    });
+    await mountOrbit(false);
   }
   await loadLibrary();
 }

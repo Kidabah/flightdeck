@@ -15,6 +15,7 @@ from .db import db_session, init_db, parse_json_field, row_to_dict
 from .paths import to_windows_folder, to_windows_path
 from .preview import (
     MAX_PREVIEW_TRIS,
+    MAX_PREVIEW_TRIS_HIGH,
     build_preview_stl,
     get_asset_row,
     path_is_allowed,
@@ -213,7 +214,8 @@ def get_asset(asset_id: int) -> dict[str, Any]:
 @app.get("/api/assets/{asset_id}/model")
 def get_asset_model(
     asset_id: int,
-    max_tris: int = Query(MAX_PREVIEW_TRIS, ge=20_000, le=500_000),
+    max_tris: int = Query(MAX_PREVIEW_TRIS, ge=20_000, le=MAX_PREVIEW_TRIS_HIGH),
+    detail: str = Query("standard", pattern="^(standard|high)$"),
 ):
     """STL/OBJ mesh for the orbit viewer (may be decimated for huge files)."""
     asset = get_asset_row(asset_id)
@@ -225,6 +227,8 @@ def get_asset_model(
     abs_path = str(asset.get("abs_path") or "")
     if not path_is_allowed(abs_path):
         raise HTTPException(403, "File is outside watched folders")
+    if detail == "high":
+        max_tris = max(max_tris, MAX_PREVIEW_TRIS_HIGH)
     try:
         path, simplified = build_preview_stl(asset, max_tris=max_tris)
     except Exception as exc:
@@ -235,6 +239,8 @@ def get_asset_model(
         "Cache-Control": "private, max-age=3600",
         "X-PrintShelf-Simplified": "1" if simplified else "0",
         "X-PrintShelf-Kind": kind or "",
+        "X-PrintShelf-Detail": detail,
+        "X-PrintShelf-MaxTris": str(max_tris),
     }
     return FileResponse(
         path,

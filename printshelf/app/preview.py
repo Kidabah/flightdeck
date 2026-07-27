@@ -8,8 +8,9 @@ from .config import data_dir, load_config
 from .db import db_session, row_to_dict
 
 
-MAX_DIRECT_BYTES = 12_000_000
-MAX_PREVIEW_TRIS = 180_000
+MAX_DIRECT_BYTES = 24_000_000
+MAX_PREVIEW_TRIS = 400_000
+MAX_PREVIEW_TRIS_HIGH = 750_000
 
 
 def get_asset_row(asset_id: int) -> dict[str, Any] | None:

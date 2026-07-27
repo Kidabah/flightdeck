@@ -128,7 +128,7 @@ export async function mountOrbitViewer(container, { url, noteEl } = {}) {
 
     if (noteEl) {
       noteEl.textContent = simplified
-        ? "Preview is simplified for smoother orbiting (full file unchanged on disk)."
+        ? "Preview is simplified for smoother orbiting (full file unchanged on disk). Turn on Higher detail if it looks sparse."
         : "";
       noteEl.hidden = !simplified;
     }
