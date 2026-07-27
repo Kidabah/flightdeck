@@ -6,6 +6,21 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-27 Session update (Kidabah PC mount)
+
+Latest commit: `f8f18af` — (ops) Mount Kidabah PC Desktop/Downloads/Documents
+
+Latest local/Pi change:
+- Windows share `PrintShelfRoots` → junctions to Desktop/Downloads/Documents.
+- Pi mount `/mnt/kidabah-pc` (CIFS via `printshelf-pi` account); PrintShelf watched folder **Kidabah PC**.
+- Remount `@reboot` via `/home/flightdeck/bin/mount-kidabah-pc.sh`. PC must be on for scan/orbit of those files.
+- Hard refresh Folders; Rescan.
+
+Previous today:
+- Watched-folder path warnings (`a8c235b`). Archives in `docs/archive/`.
+
+---
+
 ## 2026-07-27 Session update (watched folder Pi paths)
 
 Latest commit: `a8c235b` — Warn when watched folder path missing on Pi
