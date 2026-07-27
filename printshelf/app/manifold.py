@@ -223,6 +223,9 @@ def prepare_mesh_for_slicer(tris: list[Tri]) -> dict[str, Any]:
 
     Returns dict with:
       tris, before, after, repaired (bool)
+
+    Keeps the original mesh if sanitize does not reduce open edges
+    (Luban chops often have intentional boundaries; peeling can worsen them).
     """
     if not tris:
         return {"tris": [], "before": 0, "after": 0, "repaired": False}
@@ -232,11 +235,11 @@ def prepare_mesh_for_slicer(tris: list[Tri]) -> dict[str, Any]:
         return {"tris": tris, "before": 0, "after": 0, "repaired": False}
 
     cleaned, _, after = sanitize_tris(tris, repair=True)
-    if not cleaned:
+    if not cleaned or after > before:
         return {"tris": tris, "before": before, "after": before, "repaired": False}
     return {
         "tris": cleaned,
         "before": before,
         "after": after,
-        "repaired": True,
+        "repaired": after < before,
     }

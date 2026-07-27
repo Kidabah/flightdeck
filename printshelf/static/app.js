@@ -161,7 +161,9 @@ function manifoldToastDetail(manifold, fallback = "") {
       : `Repaired ${before} → ${after} left`;
     return fallback ? `${fallback} · ${line}` : line;
   }
-  return fallback ? `${fallback} · ${before} open edges` : `${before} open edges`;
+  // Checked but not improved (e.g. Luban chops with intentional open edges).
+  const line = `${before} open edges (unchanged)`;
+  return fallback ? `${fallback} · ${line}` : line;
 }
 
 async function pickSlicerTarget() {
