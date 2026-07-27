@@ -150,9 +150,9 @@ def cached_preview_path(content_hash: str, kind: str, max_tris: int) -> Path:
 def cached_slicer_3mf_path(content_hash: str, kind: str, entry_key: str = "") -> Path:
     prev = data_dir() / "previews"
     prev.mkdir(parents=True, exist_ok=True)
-    # v2: Bambu-style package (Metadata + Objects/) so load_project places geometry on the plate.
-    key = hashlib.md5(f"{content_hash}|{kind}|{entry_key}|v2".encode("utf-8")).hexdigest()[:20]
-    return prev / f"{key}_slicer2.3mf"
+    # v3: recenter Luban world-coords onto the bed + flat Core mesh.
+    key = hashlib.md5(f"{content_hash}|{kind}|{entry_key}|v3".encode("utf-8")).hexdigest()[:20]
+    return prev / f"{key}_slicer3.3mf"
 
 
 def _parse_binary_stl_tris(data: bytes) -> list[tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]]]:
@@ -191,17 +191,54 @@ def _parse_binary_stl_tris(data: bytes) -> list[tuple[tuple[float, float, float]
     return tris
 
 
+def _recenter_tris_to_bed(
+    tris: list[tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]]],
+) -> list[tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]]]:
+    """
+    Luban / multipart chops often keep original assembly coordinates (far off the
+    origin). Orbit recenters for display; Studio load_project does not — plate looks empty.
+    Shift so the bbox sits on Z=0 and XY is centered on 0.
+    """
+    if not tris:
+        return tris
+    xs: list[float] = []
+    ys: list[float] = []
+    zs: list[float] = []
+    for a, b, c in tris:
+        for v in (a, b, c):
+            xs.append(float(v[0]))
+            ys.append(float(v[1]))
+            zs.append(float(v[2]))
+    min_x, max_x = min(xs), max(xs)
+    min_y, max_y = min(ys), max(ys)
+    min_z = min(zs)
+    dx = -((min_x + max_x) / 2.0)
+    dy = -((min_y + max_y) / 2.0)
+    dz = -min_z
+    if abs(dx) < 1e-6 and abs(dy) < 1e-6 and abs(dz) < 1e-6:
+        return tris
+    out = []
+    for a, b, c in tris:
+        out.append((
+            (a[0] + dx, a[1] + dy, a[2] + dz),
+            (b[0] + dx, b[1] + dy, b[2] + dz),
+            (c[0] + dx, c[1] + dy, c[2] + dz),
+        ))
+    return out
+
+
 def _tris_to_3mf_bytes(
     tris: list[tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]]],
     object_name: str = "model",
 ) -> bytes:
     """
-    Bambu Studio's URL-open calls load_project() on the download.
-    A bare Core 3MF often lands as an empty plate — emit a Bambu-style package
-    (Objects/ + Metadata/model_settings.config) so the mesh is placed.
+    Flat Core 3MF (mesh in root) + Bambu model_settings so URL-open / load_project
+    places geometry on the plate. Mesh is recentered (Luban world-coords fix).
     """
     if not tris:
         raise ValueError("No triangles to pack into 3MF")
+
+    tris = _recenter_tris_to_bed(tris)
 
     def fmt(v: float) -> str:
         try:
@@ -212,50 +249,44 @@ def _tris_to_3mf_bytes(
             return "0"
         return s
 
-    verts_xml: list[str] = []
-    tris_xml: list[str] = []
-    for i, (a, b, c) in enumerate(tris):
-        base = i * 3
-        verts_xml.append(f'<vertex x="{fmt(a[0])}" y="{fmt(a[1])}" z="{fmt(a[2])}" />')
-        verts_xml.append(f'<vertex x="{fmt(b[0])}" y="{fmt(b[1])}" z="{fmt(b[2])}" />')
-        verts_xml.append(f'<vertex x="{fmt(c[0])}" y="{fmt(c[1])}" z="{fmt(c[2])}" />')
-        tris_xml.append(f'<triangle v1="{base}" v2="{base + 1}" v3="{base + 2}" />')
+    # Weld coincident vertices to keep XML smaller for big Luban chops.
+    vert_index: dict[tuple[float, float, float], int] = {}
+    verts: list[tuple[float, float, float]] = []
+    tris_idx: list[tuple[int, int, int]] = []
+
+    def vid(v: tuple[float, float, float]) -> int:
+        key = (round(float(v[0]), 5), round(float(v[1]), 5), round(float(v[2]), 5))
+        i = vert_index.get(key)
+        if i is None:
+            i = len(verts)
+            vert_index[key] = i
+            verts.append((float(v[0]), float(v[1]), float(v[2])))
+        return i
+
+    for a, b, c in tris:
+        ia, ib, ic = vid(a), vid(b), vid(c)
+        if ia != ib and ib != ic and ia != ic:
+            tris_idx.append((ia, ib, ic))
+    if not tris_idx:
+        raise ValueError("No valid triangles after recenter")
 
     safe_name = "".join(ch if ch.isalnum() or ch in "-_." else "_" for ch in (object_name or "model"))[:80] or "model"
-    object_model = (
+    model_xml = (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
-        '<model unit="millimeter" xml:lang="en-US"\n'
-        '  xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02"\n'
-        '  xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06">\n'
-        "  <resources>\n"
-        '    <object id="1" type="model">\n'
-        "      <mesh>\n"
-        "        <vertices>\n"
-        + "".join(f"        {v}\n" for v in verts_xml)
-        + "        </vertices>\n"
-        "        <triangles>\n"
-        + "".join(f"        {t}\n" for t in tris_xml)
-        + "        </triangles>\n"
-        "      </mesh>\n"
-        "    </object>\n"
-        "  </resources>\n"
-        "  <build>\n"
-        '    <item objectid="1" />\n'
-        "  </build>\n"
-        "</model>\n"
-    )
-    root_model = (
-        '<?xml version="1.0" encoding="UTF-8"?>\n'
-        '<model unit="millimeter" xml:lang="en-US"\n'
-        '  xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02"\n'
-        '  xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06">\n'
+        '<model unit="millimeter" xml:lang="en-US" '
+        'xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">\n'
         f'  <metadata name="Application">PrintShelf</metadata>\n'
         f'  <metadata name="Title">{safe_name}</metadata>\n'
         "  <resources>\n"
-        '    <object id="1" type="model" p:path="/3D/Objects/object_1.model">\n'
-        "      <components>\n"
-        '        <component objectid="1" p:path="/3D/Objects/object_1.model" />\n'
-        "      </components>\n"
+        f'    <object id="1" name="{safe_name}" type="model">\n'
+        "      <mesh>\n"
+        "        <vertices>\n"
+        + "".join(f'          <vertex x="{fmt(x)}" y="{fmt(y)}" z="{fmt(z)}" />\n' for x, y, z in verts)
+        + "        </vertices>\n"
+        "        <triangles>\n"
+        + "".join(f'          <triangle v1="{a}" v2="{b}" v3="{c}" />\n' for a, b, c in tris_idx)
+        + "        </triangles>\n"
+        "      </mesh>\n"
         "    </object>\n"
         "  </resources>\n"
         "  <build>\n"
@@ -284,6 +315,10 @@ def _tris_to_3mf_bytes(
         '      <metadata key="extruder" value="1" />\n'
         "    </part>\n"
         "  </object>\n"
+        "  <assemble>\n"
+        '    <assemble_item object_id="1" instance_id="0" '
+        'transform="1 0 0 0 1 0 0 0 1 0 0 0" offset="0 0 0" />\n'
+        "  </assemble>\n"
         "</config>\n"
     )
     content_types = (
@@ -301,20 +336,11 @@ def _tris_to_3mf_bytes(
         'Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel" />\n'
         "</Relationships>\n"
     )
-    model_rels = (
-        '<?xml version="1.0" encoding="UTF-8"?>\n'
-        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
-        '  <Relationship Target="/3D/Objects/object_1.model" Id="rel1" '
-        'Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel" />\n'
-        "</Relationships>\n"
-    )
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("[Content_Types].xml", content_types)
         zf.writestr("_rels/.rels", root_rels)
-        zf.writestr("3D/3dmodel.model", root_model)
-        zf.writestr("3D/_rels/3dmodel.model.rels", model_rels)
-        zf.writestr("3D/Objects/object_1.model", object_model)
+        zf.writestr("3D/3dmodel.model", model_xml)
         zf.writestr("Metadata/model_settings.config", model_settings)
     return buf.getvalue()
 
