@@ -264,46 +264,94 @@ async function deleteIdsFromDisk(ids, { names = [] } = {}) {
   const listBit = sample.length
     ? `<br><br><strong>${sample.map(escapeHtml).join("<br>")}</strong>${more}`
     : `<br><br>${escapeHtml(label)} will be removed from the NAS/disk and the library.`;
+
+  // Check for identical byte-copies elsewhere in the library (common with Thingiverse dumps).
+  let copyExtra = 0;
+  let copyPaths = [];
+  try {
+    const seen = new Set(ids.map(Number));
+    for (const id of ids.slice(0, 20)) {
+      const data = await api(`/api/assets/${id}/copies`);
+      for (const c of data.copies || []) {
+        if (seen.has(Number(c.id))) continue;
+        seen.add(Number(c.id));
+        copyExtra += 1;
+        if (copyPaths.length < 6) copyPaths.push(c.rel_path || c.file_name || String(c.id));
+      }
+    }
+  } catch (err) {
+    console.warn("copies lookup failed", err);
+  }
+
+  const copyBit = copyExtra
+    ? `<br><br><strong>${copyExtra} identical cop${copyExtra === 1 ? "y" : "ies"}</strong> still exist in other folders`
+      + (copyPaths.length ? `:<br>${copyPaths.map(escapeHtml).join("<br>")}` : ".")
+      + `<br>Deleting only the selected file leaves those copies for the next scan.`
+    : "";
+
   const ok = await psConfirm({
     eyebrow: "Destructive action",
     title: `Delete ${label} from disk?`,
-    body: `This permanently removes the file${ids.length === 1 ? "" : "s"} from disk and the library.${listBit}<br><br>This cannot be undone.`,
+    body: `This permanently removes the file${ids.length === 1 ? "" : "s"} from disk and the library.${listBit}${copyBit}<br><br>This cannot be undone.`,
     confirmLabel: "Delete permanently",
     danger: true,
   });
   if (!ok) return false;
-  const ok2 = await psConfirm({
-    eyebrow: "Last check",
-    title: "Delete for real?",
-    body: `Confirm once more: permanently delete <strong>${escapeHtml(label)}</strong> from disk.`,
-    confirmLabel: "Yes, delete",
-    danger: true,
-  });
-  if (!ok2) return false;
 
+  let deleteDuplicates = false;
+  if (copyExtra) {
+    deleteDuplicates = await psConfirm({
+      eyebrow: "Identical copies found",
+      title: `Also delete ${copyExtra} identical cop${copyExtra === 1 ? "y" : "ies"}?`,
+      body: `Same file bytes live in other folders. Choose <strong>Delete all copies</strong> to remove every matching copy from disk, or cancel this step to delete only your selection.`,
+      confirmLabel: "Delete all copies",
+      danger: true,
+    });
+  } else {
+    const ok2 = await psConfirm({
+      eyebrow: "Last check",
+      title: "Delete for real?",
+      body: `Confirm once more: permanently delete <strong>${escapeHtml(label)}</strong> from disk.`,
+      confirmLabel: "Yes, delete",
+      danger: true,
+    });
+    if (!ok2) return false;
+  }
+
+  const q = deleteDuplicates ? "?delete_duplicates=true" : "";
   let deletedCount = 0;
   let failed = [];
+  let leftover = 0;
   if (ids.length === 1) {
-    await api(`/api/assets/${ids[0]}/delete`, { method: "POST", body: "{}" });
-    deletedCount = 1;
+    const res = await api(`/api/assets/${ids[0]}/delete${q}`, { method: "POST", body: "{}" });
+    deletedCount = res.deleted_count || 1;
+    leftover = res.other_copies_count || 0;
   } else {
-    const res = await api("/api/assets/bulk/delete", {
+    const res = await api(`/api/assets/bulk/delete${q}`, {
       method: "POST",
       body: JSON.stringify({ ids }),
     });
     deletedCount = res.deleted_count || 0;
     failed = res.failed || [];
+    leftover = res.other_copies_count || 0;
   }
   clearSelection();
   selectedId = null;
   window.PrintShelfViewer?.unmountOrbitViewer?.();
-  $("detail").innerHTML = `<div class="detail-empty">Deleted ${fileCountLabel(deletedCount)} from disk${failed.length ? ` · ${failed.length} failed` : ""}.</div>`;
+  $("detail").innerHTML = `<div class="detail-empty">Deleted ${fileCountLabel(deletedCount)} from disk${failed.length ? ` · ${failed.length} failed` : ""}${leftover && !deleteDuplicates ? ` · ${leftover} identical copies remain` : ""}.</div>`;
   if (failed.length) {
     psToast(
       `Deleted ${deletedCount}, ${failed.length} failed`,
       failed.slice(0, 8).map((f) => `${f.id}: ${f.error}`).join("\n"),
       "error",
       8000,
+    );
+  } else if (leftover && !deleteDuplicates) {
+    psToast(
+      "Deleted — copies remain",
+      `${leftover} identical file(s) still on disk in other folders. Rescan will keep showing them until those copies are deleted too.`,
+      "error",
+      7000,
     );
   } else {
     psToast("Deleted from disk", fileCountLabel(deletedCount), "ok");

@@ -513,7 +513,30 @@ def _load_asset_or_404(asset_id: int) -> dict[str, Any]:
     return item
 
 
-def _delete_asset_disk(asset_id: int, delete_sidecars: bool = True) -> dict[str, Any]:
+def _asset_copies(conn, asset: dict[str, Any]) -> list[dict[str, Any]]:
+    """Other indexed copies of the same bytes (same content hash), still visible."""
+    content_hash = str(asset.get("content_hash") or "").strip()
+    asset_id = int(asset.get("id") or 0)
+    if not content_hash or not asset_id:
+        return []
+    rows = conn.execute(
+        """SELECT id, file_name, rel_path, abs_path, root_id, size_bytes, kind,
+                  content_hash, thumb_path
+           FROM assets
+           WHERE missing = 0
+             AND content_hash = ?
+             AND id != ?
+           ORDER BY root_id, rel_path""",
+        (content_hash, asset_id),
+    ).fetchall()
+    return [row_to_dict(r) for r in rows if row_to_dict(r)]
+
+
+def _delete_asset_disk(
+    asset_id: int,
+    delete_sidecars: bool = True,
+    delete_duplicates: bool = False,
+) -> dict[str, Any]:
     """Delete one asset from disk + DB. Raises HTTPException on hard failures."""
     asset = _load_asset_or_404(asset_id)
     abs_path = str(asset.get("abs_path") or "")
@@ -522,72 +545,109 @@ def _delete_asset_disk(asset_id: int, delete_sidecars: bool = True) -> dict[str,
 
     cfg = load_config()
     db_file = data_dir(cfg) / "printshelf.sqlite3"
-    deleted_files: list[str] = []
-    errors: list[str] = []
 
     with db_session(db_file) as conn:
-        sidecars = [
-            row_to_dict(s)
-            for s in conn.execute(
-                "SELECT * FROM sidecars WHERE asset_id = ?",
-                (asset_id,),
-            ).fetchall()
-        ]
+        copies = _asset_copies(conn, asset)
 
-    paths_to_delete = [abs_path]
-    if delete_sidecars:
-        for sc in sidecars:
-            p = str((sc or {}).get("abs_path") or "")
-            if p:
-                paths_to_delete.append(p)
+    targets = [asset]
+    if delete_duplicates and copies:
+        targets.extend(copies)
 
-    for p in paths_to_delete:
-        path = Path(p)
-        if not path.exists():
+    deleted_ids: list[int] = []
+    deleted_files: list[str] = []
+    errors: list[str] = []
+    remaining_copies: list[dict[str, Any]] = []
+
+    for target in targets:
+        tid = int(target["id"])
+        t_abs = str(target.get("abs_path") or "")
+        if not t_abs:
+            errors.append(f"id {tid}: missing abs_path")
             continue
-        if not path_under_watched(str(path)):
-            if p != abs_path:
-                errors.append(f"skipped (outside watched folders): {p}")
-                continue
-            raise HTTPException(403, "File is outside watched folders")
-        try:
-            path.unlink()
-            deleted_files.append(p)
-        except Exception as exc:
-            errors.append(f"{p}: {exc}")
+        if not path_under_watched(t_abs):
+            errors.append(f"id {tid}: outside watched folders")
+            continue
 
-    thumb = asset.get("thumb_path")
-    # Never delete the shared ZIP icon — every zip card points at the same file.
-    if thumb and str(thumb) != SHARED_ZIP_THUMB and not str(thumb).startswith("_shared_"):
-        try:
-            (data_dir(cfg) / "thumbs" / str(thumb)).unlink(missing_ok=True)
-        except Exception:
-            pass
-    content_hash = str(asset.get("content_hash") or "")[:20]
-    if content_hash:
-        prev_dir = data_dir(cfg) / "previews"
-        if prev_dir.exists():
-            for f in prev_dir.glob(f"{content_hash}_*.stl"):
-                try:
-                    f.unlink(missing_ok=True)
-                except Exception:
-                    pass
+        with db_session(db_file) as conn:
+            sidecars = [
+                row_to_dict(s)
+                for s in conn.execute(
+                    "SELECT * FROM sidecars WHERE asset_id = ?",
+                    (tid,),
+                ).fetchall()
+            ]
 
-    if Path(abs_path).exists():
+        paths_to_delete = [t_abs]
+        if delete_sidecars:
+            for sc in sidecars:
+                p = str((sc or {}).get("abs_path") or "")
+                if p:
+                    paths_to_delete.append(p)
+
+        for p in paths_to_delete:
+            path = Path(p)
+            try:
+                if not path.exists():
+                    continue
+                if not path_under_watched(str(path.resolve())):
+                    if p != t_abs:
+                        errors.append(f"skipped (outside watched folders): {p}")
+                        continue
+                    raise HTTPException(403, "File is outside watched folders")
+                path.unlink()
+                deleted_files.append(p)
+            except HTTPException:
+                raise
+            except Exception as exc:
+                errors.append(f"{p}: {exc}")
+
+        # Re-check after unlink — CIFS can lie if we don't verify.
+        still = Path(t_abs)
+        if still.exists():
+            errors.append(f"still on disk after unlink: {t_abs}")
+            continue
+
+        thumb = target.get("thumb_path")
+        if thumb and str(thumb) != SHARED_ZIP_THUMB and not str(thumb).startswith("_shared_"):
+            try:
+                (data_dir(cfg) / "thumbs" / str(thumb)).unlink(missing_ok=True)
+            except Exception:
+                pass
+        content_hash = str(target.get("content_hash") or "")[:20]
+        if content_hash:
+            prev_dir = data_dir(cfg) / "previews"
+            if prev_dir.exists():
+                for f in prev_dir.glob(f"{content_hash}_*.stl"):
+                    try:
+                        f.unlink(missing_ok=True)
+                    except Exception:
+                        pass
+
+        with db_session(db_file) as conn:
+            conn.execute("DELETE FROM assets WHERE id = ?", (tid,))
+        deleted_ids.append(tid)
+
+    if asset_id not in deleted_ids:
         raise HTTPException(
             500,
             f"Could not delete file on disk: {'; '.join(errors) or abs_path}",
         )
 
-    with db_session(db_file) as conn:
-        conn.execute("DELETE FROM assets WHERE id = ?", (asset_id,))
+    if not delete_duplicates:
+        # Refresh remaining copies after primary delete.
+        with db_session(db_file) as conn:
+            remaining_copies = _asset_copies(conn, {**asset, "id": asset_id})
 
     return {
         "ok": True,
         "id": asset_id,
+        "deleted": deleted_ids,
+        "deleted_count": len(deleted_ids),
         "deleted_files": deleted_files,
         "errors": errors,
         "file_name": asset.get("file_name"),
+        "other_copies": remaining_copies,
+        "other_copies_count": len(remaining_copies),
     }
 
 
@@ -627,23 +687,55 @@ def bulk_unhide(body: BulkIdsIn) -> dict[str, Any]:
 
 
 @app.post("/api/assets/bulk/delete")
-def bulk_delete(body: BulkIdsIn) -> dict[str, Any]:
+def bulk_delete(
+    body: BulkIdsIn,
+    delete_duplicates: bool = Query(False),
+) -> dict[str, Any]:
     ids = sorted({int(i) for i in body.ids if int(i) > 0})
     deleted: list[int] = []
     failed: list[dict[str, Any]] = []
+    other_copies: list[dict[str, Any]] = []
     for asset_id in ids:
+        if asset_id in deleted:
+            continue
         try:
-            _delete_asset_disk(asset_id, delete_sidecars=True)
-            deleted.append(asset_id)
+            result = _delete_asset_disk(
+                asset_id,
+                delete_sidecars=True,
+                delete_duplicates=delete_duplicates,
+            )
+            deleted.extend(int(x) for x in (result.get("deleted") or [asset_id]))
+            other_copies.extend(result.get("other_copies") or [])
         except HTTPException as exc:
             failed.append({"id": asset_id, "error": str(exc.detail)})
         except Exception as exc:
             failed.append({"id": asset_id, "error": str(exc)})
+    # de-dupe deleted ids
+    deleted = sorted(set(deleted))
     return {
         "ok": not failed,
         "deleted": deleted,
         "deleted_count": len(deleted),
         "failed": failed,
+        "other_copies": other_copies,
+        "other_copies_count": len(other_copies),
+    }
+
+
+@app.get("/api/assets/{asset_id}/copies")
+def get_asset_copies(asset_id: int) -> dict[str, Any]:
+    """List other library rows that share this file's content hash (duplicate copies)."""
+    asset = _load_asset_or_404(asset_id)
+    cfg = load_config()
+    db_file = data_dir(cfg) / "printshelf.sqlite3"
+    with db_session(db_file) as conn:
+        copies = _asset_copies(conn, asset)
+    return {
+        "id": asset_id,
+        "file_name": asset.get("file_name"),
+        "content_hash": asset.get("content_hash"),
+        "copies": copies,
+        "copies_count": len(copies),
     }
 
 
@@ -723,9 +815,14 @@ def unhide_asset(asset_id: int) -> dict[str, Any]:
 def delete_asset(
     asset_id: int,
     delete_sidecars: bool = Query(True),
+    delete_duplicates: bool = Query(False),
 ) -> dict[str, Any]:
     """Permanently delete the file on disk (and indexed sidecars), then drop the DB row."""
-    return _delete_asset_disk(asset_id, delete_sidecars=delete_sidecars)
+    return _delete_asset_disk(
+        asset_id,
+        delete_sidecars=delete_sidecars,
+        delete_duplicates=delete_duplicates,
+    )
 
 
 def _media_type_for_name(name: str) -> str:

@@ -6,6 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-27 Session update (delete copies)
+
+Latest commit: `(pending)` — Warn / delete identical NAS copies
+
+Latest local/Pi change:
+- Delete **does** remove from NAS (verified). Files “coming back” were usually **duplicate copies** in other folders.
+- Delete flow now detects identical content-hash copies and offers **Delete all copies**.
+- Hard refresh `?v=46`. Restart required.
+
+Previous today:
+- Kidabah PC mount. Archives in `docs/archive/`.
+
+---
+
 ## 2026-07-27 Session update (Kidabah PC mount)
 
 Latest commit: `f8f18af` — (ops) Mount Kidabah PC Desktop/Downloads/Documents
