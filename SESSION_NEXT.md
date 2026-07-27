@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: *(pending)* — PrintShelf 3MF orbit + mesh thumbs
+Latest commit: `79e1ae5` — PrintShelf 3MF orbit + mesh thumbs
 
 Latest local/Pi change:
 - **3MF orbit** in the detail viewer (extract mesh → preview STL). Works for model 3MFs; profile-only packs still won’t orbit.
