@@ -8,15 +8,15 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `affd549` — PrintShelf MakerDeck blue + slicer download fix
+Latest commit: `(pending)` — PrintShelf blue thumbs + locked scroll layout
 
 Latest local/Pi change:
-- UI palette switched from orange to **MakerDeck sky blue** (`#38bdf8` / cool navy panels).
-- **Open in slicer** now always uses HTTPS download URLs ending in a real `filename.ext` (`/api/assets/{id}/file/{name}`) — `file://` UNC opened Studio but never loaded the plate.
-- Hard refresh `?v=25`. **Restart required.** Rescan resumes via unchanged skip.
+- Mesh thumbs render in **MakerDeck blue** (`stl6` / `obj5` / `3mf3`). Hit **Rebuild thumbs** after deploy.
+- Library chrome stays put; **only the thumb grid scrolls**. Click a card → detail/orbit stays fixed on the right.
+- Hard refresh `?v=26`. **Restart required** + Rebuild thumbs.
 
 Previous today:
-- Open in slicer (`b828fdf`); live scan banner. Archives in `docs/archive/`.
+- Blue UI + slicer HTTPS (`affd549`). Archives in `docs/archive/`.
 
 ---
 

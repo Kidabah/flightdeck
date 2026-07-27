@@ -49,8 +49,8 @@ def render_triangles_png(
     triangles: Sequence[Tri],
     *,
     size: int = 320,
-    fill=(232, 188, 120),
-    bg=(18, 24, 34),
+    fill=(96, 180, 235),  # MakerDeck sky blue
+    bg=(10, 18, 32),
 ) -> Optional[bytes]:
     """Solid shaded orthographic preview with z-buffer, multi-light, AA."""
     if Image is None or not triangles:

@@ -13,11 +13,11 @@ except Exception:  # pragma: no cover
 
 def thumb_suffix(kind: str) -> str:
     if kind == "stl":
-        return "stl5"
+        return "stl6"  # MakerDeck blue mesh fill
     if kind == "obj":
-        return "obj4"
+        return "obj5"
     if kind in ("3mf", "gcode.3mf"):
-        return "3mf2"
+        return "3mf3"
     return kind or "file"
 
 
@@ -46,10 +46,13 @@ def resolve_thumb_name(
             f"{content_hash[:16]}_{kind}.png",
             f"{content_hash[:16]}_stl.png",
             f"{content_hash[:16]}_stl4.png",
+            f"{content_hash[:16]}_stl5.png",
             f"{content_hash[:16]}_obj.png",
             f"{content_hash[:16]}_obj2.png",
             f"{content_hash[:16]}_obj3.png",
+            f"{content_hash[:16]}_obj4.png",
             f"{content_hash[:16]}_3mf.png",
+            f"{content_hash[:16]}_3mf2.png",
         ]
         seen: set[str] = set()
         for name in candidates:
