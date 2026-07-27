@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `(pending)` — PrintShelf fix grid flash + dual status
+Latest commit: `54ff5db` — PrintShelf fix grid flash + dual status
 
 Latest local/Pi change:
 - Clicking a card no longer reloads/clears the thumb grid (flash-to-black bug).
