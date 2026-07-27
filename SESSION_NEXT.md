@@ -8,16 +8,15 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `b19f44f` — PrintShelf manifold check + repair
+Latest commit: `(pending)` — PrintShelf fill tiny manifold holes
 
 Latest local/Pi change:
-- **Open in slicer** runs MakerDeck-style manifold check; if open edges improve after sanitize (weld + peel), hands off a temp `_manifold.stl` (NAS untouched). If sanitize doesn’t help (common on Luban chops), keeps original and reports open-edge count.
-- Detail pane shows Manifold OK / N open edges for STL/OBJ. Toast reports result.
-- Part_37 test: **98 open edges**, sanitize did not improve → original kept.
-- Hard refresh `?v=40`. **Restart printshelf** (done).
+- Manifold sanitize now **caps small open-edge loops** (Part_37-style pinholes) after weld/peel.
+- Part_37 had 98 opens ≈ 33 tiny triangles — should close.
+- Hard refresh `?v=40`. **Restart printshelf**.
 
 Previous today:
-- Bambu/Orca choice (`49d9fb1`); Windows worker handoff. Archives in `docs/archive/`.
+- Manifold check (`84d3e86`); Bambu/Orca choice. Archives in `docs/archive/`.
 
 ---
 

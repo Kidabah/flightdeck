@@ -123,7 +123,7 @@ def _multipart_upload(
 def _cached_manifold_stl_path(content_hash: str, kind: str, entry_key: str = "") -> Path:
     prev = data_dir() / "previews"
     prev.mkdir(parents=True, exist_ok=True)
-    key = hashlib.md5(f"{content_hash}|{kind}|{entry_key}|manifold1".encode("utf-8")).hexdigest()[:20]
+    key = hashlib.md5(f"{content_hash}|{kind}|{entry_key}|manifold2".encode("utf-8")).hexdigest()[:20]
     return prev / f"{key}_manifold.stl"
 
 

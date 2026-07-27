@@ -186,6 +186,91 @@ def _indexed_to_tris(positions: list[float], indices: list[int]) -> list[Tri]:
     return out
 
 
+def _open_boundary_edges(indices: list[int]) -> list[tuple[int, int]]:
+    """Directed open edges (a→b) as oriented by the single adjacent triangle."""
+    edge_faces: dict[tuple[int, int], list[tuple[int, int]]] = {}
+    for t in range(0, len(indices), 3):
+        tri = (indices[t], indices[t + 1], indices[t + 2])
+        for k in range(3):
+            a, b = tri[k], tri[(k + 1) % 3]
+            key = _edge_key(a, b)
+            edge_faces.setdefault(key, []).append((a, b))
+    opens: list[tuple[int, int]] = []
+    for faces in edge_faces.values():
+        if len(faces) == 1:
+            opens.append(faces[0])
+    return opens
+
+
+def _walk_boundary_loops(opens: list[tuple[int, int]]) -> list[list[int]]:
+    """Follow directed open edges into closed loops (and leftover paths)."""
+    nxt: dict[int, list[int]] = {}
+    for a, b in opens:
+        nxt.setdefault(a, []).append(b)
+
+    used: set[tuple[int, int]] = set()
+    loops: list[list[int]] = []
+
+    for start_a, start_b in opens:
+        if (start_a, start_b) in used:
+            continue
+        loop = [start_a]
+        cur_a, cur_b = start_a, start_b
+        used.add((cur_a, cur_b))
+        while cur_b != start_a:
+            loop.append(cur_b)
+            cands = [x for x in nxt.get(cur_b, []) if (cur_b, x) not in used]
+            if not cands:
+                break
+            nxt_b = cands[0]
+            used.add((cur_b, nxt_b))
+            cur_a, cur_b = cur_b, nxt_b
+        else:
+            loops.append(loop)
+            continue
+        # Incomplete path — still record if it has enough verts to consider later.
+        if len(loop) >= 3:
+            loops.append(loop)
+    return loops
+
+
+def _fill_small_holes(positions: list[float], indices: list[int], max_loop_verts: int = 12) -> list[int]:
+    """
+    Cap small open-edge loops with triangles.
+
+    Part_37-style Luban chops often leave dozens of tiny 3-edge pinholes;
+    filling those closes the mesh without a full remesh.
+    """
+    opens = _open_boundary_edges(indices)
+    if not opens:
+        return indices
+
+    loops = _walk_boundary_loops(opens)
+    out = list(indices)
+    added = 0
+
+    for loop in loops:
+        n = len(loop)
+        if n < 3 or n > max_loop_verts:
+            continue
+        # Fan from first vertex. Loop verts are already in boundary order
+        # matching directed open edges (hole winding). Cap uses same order
+        # so the new faces oppose the hole.
+        for i in range(1, n - 1):
+            ia, ib, ic = loop[0], loop[i], loop[i + 1]
+            if ia == ib or ib == ic or ia == ic:
+                continue
+            if _tri_area(positions, ia, ib, ic) < 1e-10:
+                continue
+            out.extend((ia, ib, ic))
+            added += 1
+
+    if added:
+        # One more peel pass in case caps created overused edges.
+        out = _repair_non_manifold_faces(positions, out, 4)
+    return out
+
+
 def sanitize_tris(
     tris: list[Tri],
     *,
@@ -193,7 +278,7 @@ def sanitize_tris(
     weld_eps: float = 0.05,
 ) -> tuple[list[Tri], int, int]:
     """
-    MakerDeck sanitizeMeshForStl equivalent.
+    MakerDeck sanitizeMeshForStl equivalent + small-hole fill.
 
     Returns (sanitized_tris, open_edges_before, open_edges_after).
     before is counted on lightly welded input; after on fully sanitized mesh.
@@ -210,6 +295,7 @@ def sanitize_tris(
     idx = _remove_duplicate_coplanar_triangles(positions, idx)
     if repair:
         idx = _repair_non_manifold_faces(positions, idx, 12)
+        idx = _fill_small_holes(positions, idx, max_loop_verts=12)
     if not idx:
         return [], before, before
 
@@ -219,13 +305,12 @@ def sanitize_tris(
 
 def prepare_mesh_for_slicer(tris: list[Tri]) -> dict[str, Any]:
     """
-    Check open edges; sanitize only when needed.
+    Check open edges; sanitize + fill small holes when needed.
 
     Returns dict with:
       tris, before, after, repaired (bool)
 
-    Keeps the original mesh if sanitize does not reduce open edges
-    (Luban chops often have intentional boundaries; peeling can worsen them).
+    Keeps the original mesh if sanitize does not reduce open edges.
     """
     if not tris:
         return {"tris": [], "before": 0, "after": 0, "repaired": False}
