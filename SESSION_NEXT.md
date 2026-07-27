@@ -8,14 +8,14 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `23585fd` — PrintShelf detail Hide/Delete use multi-select
+Latest commit: `(pending)` — PrintShelf Shift-click range select
 
 Latest local/Pi change:
-- Detail-pane **Hide / Delete / Unhide** now apply to **all selected files** when a multi-select is active (not just the open card). Confirm shows the count; buttons label e.g. `Delete N from disk…`.
-- Hard refresh `?v=19`. Restart done (static-safe).
+- **Shift-click** (card or checkbox): select everything between the last clicked file and this one. Ctrl/Cmd+Shift adds to the current selection. Bulk bar tip: “Shift = range”.
+- Hard refresh `?v=20`. Restart optional (static).
 
 Previous today:
-- Delete confirm count (`00d0541`); folder browse (`0216556`). Archives in `docs/archive/`.
+- Detail multi-delete (`23585fd`); folder browse. Archives in `docs/archive/`.
 
 ---
 

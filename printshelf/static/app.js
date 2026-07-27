@@ -5,6 +5,8 @@ let selectedId = null;
 let activeKind = "";
 let libraryItems = [];
 let selectedIds = new Set();
+/** Last file selected without Shift — used as the start of a Shift range. */
+let lastSelectAnchorId = null;
 let browseMode = "folders"; // folders | all
 let browseRootId = null;
 let browseFolder = "";
@@ -165,7 +167,23 @@ function updateBulkBar() {
   if ($("bulkCount")) $("bulkCount").textContent = `${n} selected`;
 }
 
-function toggleSelected(id, on) {
+function syncSelectionUi() {
+  document.querySelectorAll(".card:not(.folder-card)").forEach((card) => {
+    const id = Number(card.dataset.id);
+    const on = selectedIds.has(id);
+    card.classList.toggle("selected", on);
+    const cb = card.querySelector(".card-check");
+    if (cb) cb.checked = on;
+  });
+  updateBulkBar();
+}
+
+function libraryIndexOf(id) {
+  const num = Number(id);
+  return libraryItems.findIndex((x) => Number(x.id) === num);
+}
+
+function toggleSelected(id, on, { setAnchor = true } = {}) {
   const num = Number(id);
   if (on) selectedIds.add(num);
   else selectedIds.delete(num);
@@ -175,11 +193,32 @@ function toggleSelected(id, on) {
     const cb = card.querySelector(".card-check");
     if (cb) cb.checked = on;
   }
+  if (setAnchor) lastSelectAnchorId = num;
   updateBulkBar();
+}
+
+/** Select every visible file from anchor → target (inclusive). Shift alone replaces; Ctrl/Cmd+Shift adds. */
+function selectRangeInclusive(fromId, toId, { additive = false } = {}) {
+  const a = libraryIndexOf(fromId);
+  const b = libraryIndexOf(toId);
+  if (a < 0 || b < 0) {
+    toggleSelected(toId, true);
+    return;
+  }
+  const lo = Math.min(a, b);
+  const hi = Math.max(a, b);
+  if (!additive) selectedIds.clear();
+  for (let i = lo; i <= hi; i++) {
+    selectedIds.add(Number(libraryItems[i].id));
+  }
+  // Keep the original anchor so further Shift-clicks extend from the same top/start.
+  if (lastSelectAnchorId == null) lastSelectAnchorId = Number(fromId);
+  syncSelectionUi();
 }
 
 function clearSelection() {
   selectedIds.clear();
+  lastSelectAnchorId = null;
   document.querySelectorAll(".card.selected").forEach((c) => c.classList.remove("selected"));
   document.querySelectorAll(".card-check").forEach((cb) => { cb.checked = false; });
   updateBulkBar();
@@ -259,8 +298,16 @@ function appendAssetCard(grid, item) {
       </div>
     </div>`;
   const check = card.querySelector(".card-check");
-  check.addEventListener("click", (e) => e.stopPropagation());
+  check.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (e.shiftKey) {
+      e.preventDefault();
+      const anchor = lastSelectAnchorId ?? item.id;
+      selectRangeInclusive(anchor, item.id, { additive: e.ctrlKey || e.metaKey });
+    }
+  });
   check.addEventListener("change", (e) => {
+    // Shift range is handled on click (preventDefault skips the toggle/change).
     toggleSelected(item.id, e.target.checked);
   });
   const img = card.querySelector(".card-thumb img");
@@ -271,11 +318,18 @@ function appendAssetCard(grid, item) {
     });
   }
   card.addEventListener("click", (e) => {
-    if (e.ctrlKey || e.metaKey || e.shiftKey) {
+    if (e.shiftKey) {
+      e.preventDefault();
+      const anchor = lastSelectAnchorId ?? item.id;
+      selectRangeInclusive(anchor, item.id, { additive: e.ctrlKey || e.metaKey });
+      return;
+    }
+    if (e.ctrlKey || e.metaKey) {
       e.preventDefault();
       toggleSelected(item.id, !selectedIds.has(item.id));
       return;
     }
+    lastSelectAnchorId = Number(item.id);
     selectAsset(item.id);
   });
   grid.appendChild(card);
@@ -688,12 +742,8 @@ function bind() {
   });
   $("bulkSelectAllBtn")?.addEventListener("click", () => {
     for (const item of libraryItems) selectedIds.add(item.id);
-    document.querySelectorAll(".card:not(.folder-card)").forEach((card) => {
-      card.classList.add("selected");
-      const cb = card.querySelector(".card-check");
-      if (cb) cb.checked = true;
-    });
-    updateBulkBar();
+    lastSelectAnchorId = libraryItems[0] ? Number(libraryItems[0].id) : null;
+    syncSelectionUi();
   });
   $("bulkClearBtn")?.addEventListener("click", () => clearSelection());
   $("bulkHideBtn")?.addEventListener("click", async () => {

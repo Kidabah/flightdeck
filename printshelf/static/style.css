@@ -206,6 +206,11 @@ h1 {
   border-radius: 999px;
   padding: 8px 14px;
 }
+.bulk-hint {
+  color: var(--muted, #9aa3ad);
+  font-size: .82rem;
+  margin-right: 4px;
+}
 
 .workspace {
   display: grid;
