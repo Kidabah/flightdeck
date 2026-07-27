@@ -5,6 +5,9 @@ let selectedId = null;
 let activeKind = "";
 let libraryItems = [];
 let selectedIds = new Set();
+let browseMode = "folders"; // folders | all
+let browseRootId = null;
+let browseFolder = "";
 
 async function api(path, opts) {
   const res = await fetch(path, {
@@ -100,25 +103,171 @@ function clearSelection() {
   updateBulkBar();
 }
 
-async function loadLibrary() {
+function filterParams() {
   const params = new URLSearchParams();
   const q = $("search").value.trim();
-  const kind = activeKind;
-  const source = $("filterSource").value;
   if (q) params.set("q", q);
-  if (kind) params.set("kind", kind);
+  if (activeKind) params.set("kind", activeKind);
+  const source = $("filterSource").value;
   if (source) params.set("source_kind", source);
   if ($("filterTextures").checked) params.set("has_textures", "true");
   if ($("filterSliced").checked) params.set("is_sliced", "true");
   if ($("filterHidden")?.checked) params.set("hidden", "true");
   else params.set("hidden", "false");
+  return params;
+}
+
+function renderCrumbs(crumbs) {
+  const el = $("crumbs");
+  if (!el) return;
+  if (browseMode !== "folders" || !crumbs?.length) {
+    el.hidden = true;
+    el.innerHTML = "";
+    return;
+  }
+  el.hidden = false;
+  el.innerHTML = crumbs.map((c, i) => {
+    const btn = `<button type="button" class="crumb" data-root="${escapeHtml(c.root_id || "")}" data-folder="${escapeHtml(c.folder || "")}">${escapeHtml(c.label)}</button>`;
+    return i ? `<span class="crumb-sep">/</span>${btn}` : btn;
+  }).join("");
+  el.querySelectorAll(".crumb").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const root = btn.dataset.root || "";
+      browseRootId = root || null;
+      browseFolder = btn.dataset.folder || "";
+      clearSelection();
+      loadLibrary().catch(console.error);
+    });
+  });
+}
+
+function appendFolderCard(grid, { title, meta, onOpen }) {
+  const card = document.createElement("article");
+  card.className = "card folder-card";
+  card.innerHTML = `
+    <div class="card-thumb"><span class="folder-mark">▣</span></div>
+    <div class="card-body">
+      <h3 class="card-title">${escapeHtml(title)}</h3>
+      <div class="card-meta">${meta}</div>
+    </div>`;
+  card.addEventListener("click", onOpen);
+  grid.appendChild(card);
+}
+
+function appendAssetCard(grid, item) {
+  const card = document.createElement("article");
+  const checked = selectedIds.has(item.id);
+  card.className = "card"
+    + (item.id === selectedId ? " active" : "")
+    + (checked ? " selected" : "");
+  card.dataset.id = String(item.id);
+  card.innerHTML = `
+    <input type="checkbox" class="card-check" ${checked ? "checked" : ""} aria-label="Select ${escapeHtml(item.file_name)}">
+    <div class="card-thumb">${item.thumb_path
+      ? `<img src="/api/thumbs/${encodeURIComponent(item.thumb_path)}?v=${encodeURIComponent((item.content_hash || item.thumb_path).slice(0, 12))}" alt="" loading="lazy">`
+      : `<span class="pill">${escapeHtml(item.kind)}</span>`}</div>
+    <div class="card-body">
+      <h3 class="card-title">${escapeHtml(item.file_name)}</h3>
+      <div class="card-meta">
+        <span class="pill">${escapeHtml(item.kind)}</span>
+        <span>${escapeHtml(item.source_kind)}</span>
+        ${item.hidden ? "<span class=\"pill warn\">hidden</span>" : ""}
+        ${item.has_textures ? "<span>textures</span>" : ""}
+        ${item.is_sliced ? "<span>sliced</span>" : ""}
+      </div>
+    </div>`;
+  const check = card.querySelector(".card-check");
+  check.addEventListener("click", (e) => e.stopPropagation());
+  check.addEventListener("change", (e) => {
+    toggleSelected(item.id, e.target.checked);
+  });
+  const img = card.querySelector(".card-thumb img");
+  if (img) {
+    img.addEventListener("error", () => {
+      const host = card.querySelector(".card-thumb");
+      if (host) host.innerHTML = `<span class="pill">${escapeHtml(item.kind)}</span>`;
+    });
+  }
+  card.addEventListener("click", (e) => {
+    if (e.ctrlKey || e.metaKey || e.shiftKey) {
+      e.preventDefault();
+      toggleSelected(item.id, !selectedIds.has(item.id));
+      return;
+    }
+    selectAsset(item.id);
+  });
+  grid.appendChild(card);
+}
+
+async function loadLibrary() {
+  const q = $("search").value.trim();
+  // Search forces flat "all files" results
+  const useFolders = browseMode === "folders" && !q;
+  const params = filterParams();
   params.set("limit", "1000");
+  const grid = $("grid");
+  grid.innerHTML = "";
+
+  if (useFolders) {
+    if (browseRootId) params.set("root_id", browseRootId);
+    if (browseFolder) params.set("folder", browseFolder);
+    const data = await api(`/api/browse?${params}`);
+    renderCrumbs(data.crumbs || []);
+    libraryItems = data.items || [];
+    const visible = new Set(libraryItems.map((i) => i.id));
+    selectedIds = new Set([...selectedIds].filter((id) => visible.has(id)));
+
+    if (data.mode === "roots") {
+      if (!(data.roots || []).length) {
+        grid.innerHTML = `<div class="detail-empty">No files yet. Add folders and hit Rescan.</div>`;
+        updateBulkBar();
+        return;
+      }
+      for (const root of data.roots) {
+        appendFolderCard(grid, {
+          title: root.label || root.id,
+          meta: `<span class="pill">${escapeHtml(root.source_kind)}</span><span>${root.asset_count} files</span>`,
+          onOpen: () => {
+            browseRootId = root.id;
+            browseFolder = "";
+            clearSelection();
+            loadLibrary().catch(console.error);
+          },
+        });
+      }
+      updateBulkBar();
+      return;
+    }
+
+    for (const folder of data.folders || []) {
+      appendFolderCard(grid, {
+        title: folder.name,
+        meta: `<span class="pill">folder</span><span>${folder.asset_count} files</span>`,
+        onOpen: () => {
+          browseFolder = folder.folder;
+          clearSelection();
+          loadLibrary().catch(console.error);
+        },
+      });
+    }
+    for (const item of libraryItems) appendAssetCard(grid, item);
+    if (!(data.folders || []).length && !libraryItems.length) {
+      grid.innerHTML = `<div class="detail-empty">Empty folder.</div>`;
+    } else if (data.truncated) {
+      const note = document.createElement("div");
+      note.className = "detail-empty";
+      note.textContent = `Showing first ${libraryItems.length} of ${data.total_files} files in this folder.`;
+      grid.appendChild(note);
+    }
+    updateBulkBar();
+    return;
+  }
+
+  renderCrumbs([]);
   const data = await api(`/api/assets?${params}`);
   libraryItems = data.items || [];
   const visible = new Set(libraryItems.map((i) => i.id));
   selectedIds = new Set([...selectedIds].filter((id) => visible.has(id)));
-  const grid = $("grid");
-  grid.innerHTML = "";
   if (!libraryItems.length) {
     grid.innerHTML = `<div class="detail-empty">${$("filterHidden")?.checked
       ? "No hidden files."
@@ -126,50 +275,7 @@ async function loadLibrary() {
     updateBulkBar();
     return;
   }
-  for (const item of libraryItems) {
-    const card = document.createElement("article");
-    const checked = selectedIds.has(item.id);
-    card.className = "card"
-      + (item.id === selectedId ? " active" : "")
-      + (checked ? " selected" : "");
-    card.dataset.id = String(item.id);
-    card.innerHTML = `
-      <input type="checkbox" class="card-check" ${checked ? "checked" : ""} aria-label="Select ${escapeHtml(item.file_name)}">
-      <div class="card-thumb">${item.thumb_path
-        ? `<img src="/api/thumbs/${encodeURIComponent(item.thumb_path)}?v=${encodeURIComponent((item.content_hash || item.thumb_path).slice(0, 12))}" alt="" loading="lazy">`
-        : `<span class="pill">${escapeHtml(item.kind)}</span>`}</div>
-      <div class="card-body">
-        <h3 class="card-title">${escapeHtml(item.file_name)}</h3>
-        <div class="card-meta">
-          <span class="pill">${escapeHtml(item.kind)}</span>
-          <span>${escapeHtml(item.source_kind)}</span>
-          ${item.hidden ? "<span class=\"pill warn\">hidden</span>" : ""}
-          ${item.has_textures ? "<span>textures</span>" : ""}
-          ${item.is_sliced ? "<span>sliced</span>" : ""}
-        </div>
-      </div>`;
-    const check = card.querySelector(".card-check");
-    check.addEventListener("click", (e) => e.stopPropagation());
-    check.addEventListener("change", (e) => {
-      toggleSelected(item.id, e.target.checked);
-    });
-    const img = card.querySelector(".card-thumb img");
-    if (img) {
-      img.addEventListener("error", () => {
-        const host = card.querySelector(".card-thumb");
-        if (host) host.innerHTML = `<span class="pill">${escapeHtml(item.kind)}</span>`;
-      });
-    }
-    card.addEventListener("click", (e) => {
-      if (e.ctrlKey || e.metaKey || e.shiftKey) {
-        e.preventDefault();
-        toggleSelected(item.id, !selectedIds.has(item.id));
-        return;
-      }
-      selectAsset(item.id);
-    });
-    grid.appendChild(card);
-  }
+  for (const item of libraryItems) appendAssetCard(grid, item);
   updateBulkBar();
 }
 
@@ -497,9 +603,23 @@ function bind() {
     clearSelection();
     loadLibrary().catch(console.error);
   });
+  $("viewModes")?.addEventListener("click", (e) => {
+    const btn = e.target.closest(".view-mode");
+    if (!btn) return;
+    browseMode = btn.dataset.mode || "folders";
+    document.querySelectorAll(".view-mode").forEach((b) => {
+      b.classList.toggle("active", b === btn);
+    });
+    if (browseMode === "folders") {
+      // keep current place; if coming from all-files, start at roots
+      if (!browseRootId) browseFolder = "";
+    }
+    clearSelection();
+    loadLibrary().catch(console.error);
+  });
   $("bulkSelectAllBtn")?.addEventListener("click", () => {
     for (const item of libraryItems) selectedIds.add(item.id);
-    document.querySelectorAll(".card").forEach((card) => {
+    document.querySelectorAll(".card:not(.folder-card)").forEach((card) => {
       card.classList.add("selected");
       const cb = card.querySelector(".card-check");
       if (cb) cb.checked = true;

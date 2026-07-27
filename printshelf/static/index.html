@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=16">
+  <link rel="stylesheet" href="style.css?v=17">
   <script type="importmap">
   {
     "imports": {
@@ -62,6 +62,11 @@
             <label class="check"><input type="checkbox" id="filterHidden"> Show hidden</label>
           </div>
         </header>
+        <div class="view-modes" id="viewModes" role="tablist" aria-label="Browse mode">
+          <button type="button" class="view-mode active" data-mode="folders">Folders</button>
+          <button type="button" class="view-mode" data-mode="all">All files</button>
+        </div>
+        <nav class="crumbs" id="crumbs" aria-label="Folder path" hidden></nav>
         <div class="type-tabs" id="typeTabs" role="tablist" aria-label="File type">
           <button type="button" class="type-tab active" role="tab" data-kind="" aria-selected="true">All <span class="type-count" data-count-for="">0</span></button>
           <button type="button" class="type-tab" role="tab" data-kind="stl" aria-selected="false">STL <span class="type-count" data-count-for="stl">0</span></button>
@@ -111,7 +116,7 @@
       </section>
     </main>
   </div>
-  <script type="module" src="viewer.js?v=16"></script>
-  <script src="app.js?v=16"></script>
+  <script type="module" src="viewer.js?v=17"></script>
+  <script src="app.js?v=17"></script>
 </body>
 </html>

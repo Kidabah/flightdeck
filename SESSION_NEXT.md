@@ -8,6 +8,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
+Latest commit: *(pending)* — PrintShelf folder browse
+
+Latest local/Pi change:
+- Library **Folders** mode (default): watched roots → nested folders → files, with breadcrumbs.
+- **All files** still available for the flat grid. Search forces flat results.
+- Hard refresh `?v=17`. Restart required.
+
+Previous today:
+- ZIP orbit + thumb fix (`97fd1e5`); 3MF orbit; multi-select. Archives in `docs/archive/`.
+
+---
+
+## 2026-07-27 Session update (ZIP orbit)
+
 Latest commit: `97fd1e5` — ZIP orbit + broken thumb fix
 
 Latest local/Pi change:

@@ -88,6 +88,59 @@ h1 {
 .filters input[type="search"] { min-width: 220px; }
 .check { display: flex; gap: 6px; align-items: center; color: var(--muted); font-size: .9rem; }
 
+.view-modes {
+  display: flex;
+  gap: 6px;
+  margin: -4px 0 12px;
+}
+.view-mode {
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 7px 14px;
+  cursor: pointer;
+  font: inherit;
+  font-size: .88rem;
+}
+.view-mode.active {
+  background: var(--panel);
+  color: var(--text);
+  border-color: var(--accent-2);
+  font-weight: 600;
+}
+.crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin: 0 0 14px;
+  font-size: .88rem;
+  color: var(--muted);
+}
+.crumbs[hidden] { display: none !important; }
+.crumb {
+  border: 0;
+  background: transparent;
+  color: var(--accent-2);
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+.crumb:hover { text-decoration: underline; }
+.crumb-sep { opacity: .5; }
+.folder-card .card-thumb {
+  background:
+    linear-gradient(160deg, rgba(232,194,122,.22), transparent 55%),
+    #1a1612;
+}
+.folder-card .folder-mark {
+  font-size: 2.4rem;
+  line-height: 1;
+  color: var(--accent-2);
+}
+.folder-card .card-title { font-family: Fraunces, Georgia, serif; }
+
 .type-tabs {
   display: flex;
   flex-wrap: wrap;
