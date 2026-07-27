@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `(pending)` — PrintShelf recenter Luban coords for slicer
+Latest commit: `41c4371` — PrintShelf recenter Luban coords for slicer
 
 Latest local/Pi change:
 - Open in slicer **recenters** meshes onto the bed. Luban chops keep world coords (e.g. Y=1300) so Studio looked empty while orbit (which centers) looked fine.
