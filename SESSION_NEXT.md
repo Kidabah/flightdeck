@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `(pending)` — PrintShelf real Open-in-slicer for STL
+Latest commit: `69e91e8` — PrintShelf real Open-in-slicer for STL
 
 Latest local/Pi change:
 - STL/OBJ **Open in slicer** restored to `bambustudio://open` (not NAS-path cop-out).
