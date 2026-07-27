@@ -126,6 +126,34 @@ h1 {
 }
 .type-tab.active .type-count { background: rgba(255, 255, 255, .22); }
 
+.bulk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: -4px 0 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  font-size: .9rem;
+}
+.bulk-bar[hidden] { display: none !important; }
+.bulk-bar .danger {
+  border: 1px solid var(--danger);
+  background: transparent;
+  color: #f0b4b4;
+  border-radius: 999px;
+  padding: 8px 14px;
+  cursor: pointer;
+  font: inherit;
+}
+.bulk-bar .danger:hover { background: rgba(196, 92, 92, .18); }
+.bulk-bar .secondary {
+  border-radius: 999px;
+  padding: 8px 14px;
+}
+
 .workspace {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(280px, .9fr);
@@ -146,6 +174,18 @@ h1 {
   transition: border-color .15s, transform .15s;
 }
 .card:hover, .card.active { border-color: var(--accent-2); transform: translateY(-1px); }
+.card.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.card-check {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  width: 20px;
+  height: 20px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.card { position: relative; }
 .card-thumb {
   aspect-ratio: 1;
   background: #0e0c0a;

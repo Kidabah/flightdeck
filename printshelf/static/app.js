@@ -3,6 +3,8 @@ const $ = (id) => document.getElementById(id);
 let folders = [];
 let selectedId = null;
 let activeKind = "";
+let libraryItems = [];
+let selectedIds = new Set();
 
 async function api(path, opts) {
   const res = await fetch(path, {
@@ -70,6 +72,34 @@ function setActiveKind(kind) {
   });
 }
 
+function updateBulkBar() {
+  const bar = $("bulkBar");
+  if (!bar) return;
+  const n = selectedIds.size;
+  bar.hidden = n === 0;
+  if ($("bulkCount")) $("bulkCount").textContent = `${n} selected`;
+}
+
+function toggleSelected(id, on) {
+  const num = Number(id);
+  if (on) selectedIds.add(num);
+  else selectedIds.delete(num);
+  const card = document.querySelector(`.card[data-id="${num}"]`);
+  if (card) {
+    card.classList.toggle("selected", on);
+    const cb = card.querySelector(".card-check");
+    if (cb) cb.checked = on;
+  }
+  updateBulkBar();
+}
+
+function clearSelection() {
+  selectedIds.clear();
+  document.querySelectorAll(".card.selected").forEach((c) => c.classList.remove("selected"));
+  document.querySelectorAll(".card-check").forEach((cb) => { cb.checked = false; });
+  updateBulkBar();
+}
+
 async function loadLibrary() {
   const params = new URLSearchParams();
   const q = $("search").value.trim();
@@ -82,20 +112,29 @@ async function loadLibrary() {
   if ($("filterSliced").checked) params.set("is_sliced", "true");
   if ($("filterHidden")?.checked) params.set("hidden", "true");
   else params.set("hidden", "false");
-  params.set("limit", "300");
+  params.set("limit", "1000");
   const data = await api(`/api/assets?${params}`);
+  libraryItems = data.items || [];
+  const visible = new Set(libraryItems.map((i) => i.id));
+  selectedIds = new Set([...selectedIds].filter((id) => visible.has(id)));
   const grid = $("grid");
   grid.innerHTML = "";
-  if (!data.items.length) {
+  if (!libraryItems.length) {
     grid.innerHTML = `<div class="detail-empty">${$("filterHidden")?.checked
       ? "No hidden files."
       : "No files yet. Add folders and hit Rescan."}</div>`;
+    updateBulkBar();
     return;
   }
-  for (const item of data.items) {
+  for (const item of libraryItems) {
     const card = document.createElement("article");
-    card.className = "card" + (item.id === selectedId ? " active" : "");
+    const checked = selectedIds.has(item.id);
+    card.className = "card"
+      + (item.id === selectedId ? " active" : "")
+      + (checked ? " selected" : "");
+    card.dataset.id = String(item.id);
     card.innerHTML = `
+      <input type="checkbox" class="card-check" ${checked ? "checked" : ""} aria-label="Select ${escapeHtml(item.file_name)}">
       <div class="card-thumb">${item.thumb_path ? `<img src="/api/thumbs/${encodeURIComponent(item.thumb_path)}?v=${encodeURIComponent((item.content_hash || item.thumb_path).slice(0, 12))}" alt="" loading="lazy">` : `<span class="pill">${item.kind}</span>`}</div>
       <div class="card-body">
         <h3 class="card-title">${escapeHtml(item.file_name)}</h3>
@@ -107,9 +146,22 @@ async function loadLibrary() {
           ${item.is_sliced ? "<span>sliced</span>" : ""}
         </div>
       </div>`;
-    card.addEventListener("click", () => selectAsset(item.id));
+    const check = card.querySelector(".card-check");
+    check.addEventListener("click", (e) => e.stopPropagation());
+    check.addEventListener("change", (e) => {
+      toggleSelected(item.id, e.target.checked);
+    });
+    card.addEventListener("click", (e) => {
+      if (e.ctrlKey || e.metaKey || e.shiftKey) {
+        e.preventDefault();
+        toggleSelected(item.id, !selectedIds.has(item.id));
+        return;
+      }
+      selectAsset(item.id);
+    });
     grid.appendChild(card);
   }
+  updateBulkBar();
 }
 
 function escapeHtml(s) {
@@ -397,7 +449,71 @@ function bind() {
     const btn = e.target.closest(".type-tab");
     if (!btn) return;
     setActiveKind(btn.dataset.kind || "");
+    clearSelection();
     loadLibrary().catch(console.error);
+  });
+  $("bulkSelectAllBtn")?.addEventListener("click", () => {
+    for (const item of libraryItems) selectedIds.add(item.id);
+    document.querySelectorAll(".card").forEach((card) => {
+      card.classList.add("selected");
+      const cb = card.querySelector(".card-check");
+      if (cb) cb.checked = true;
+    });
+    updateBulkBar();
+  });
+  $("bulkClearBtn")?.addEventListener("click", () => clearSelection());
+  $("bulkHideBtn")?.addEventListener("click", async () => {
+    const ids = [...selectedIds];
+    if (!ids.length) return;
+    try {
+      await api("/api/assets/bulk/hide", { method: "POST", body: JSON.stringify({ ids }) });
+      clearSelection();
+      selectedId = null;
+      $("detail").innerHTML = `<div class="detail-empty">Hidden ${ids.length} file(s) from library.</div>`;
+      await refreshStats();
+      await loadLibrary();
+    } catch (err) {
+      alert(String(err.message || err));
+    }
+  });
+  $("bulkUnhideBtn")?.addEventListener("click", async () => {
+    const ids = [...selectedIds];
+    if (!ids.length) return;
+    try {
+      await api("/api/assets/bulk/unhide", { method: "POST", body: JSON.stringify({ ids }) });
+      clearSelection();
+      await refreshStats();
+      await loadLibrary();
+    } catch (err) {
+      alert(String(err.message || err));
+    }
+  });
+  $("bulkDeleteBtn")?.addEventListener("click", async () => {
+    const ids = [...selectedIds];
+    if (!ids.length) return;
+    const ok = confirm(
+      `Permanently delete ${ids.length} file(s) from disk?\n\nThis cannot be undone.`,
+    );
+    if (!ok) return;
+    const ok2 = confirm(`Last check — delete ${ids.length} file(s) from disk for real?`);
+    if (!ok2) return;
+    try {
+      const res = await api("/api/assets/bulk/delete", {
+        method: "POST",
+        body: JSON.stringify({ ids }),
+      });
+      clearSelection();
+      selectedId = null;
+      const failed = (res.failed || []).length;
+      $("detail").innerHTML = `<div class="detail-empty">Deleted ${res.deleted_count || 0} from disk${failed ? ` · ${failed} failed` : ""}.</div>`;
+      if (failed) {
+        alert(`Deleted ${res.deleted_count || 0}. Failed: ${failed}\n` + (res.failed || []).slice(0, 8).map((f) => `${f.id}: ${f.error}`).join("\n"));
+      }
+      await refreshStats();
+      await loadLibrary();
+    } catch (err) {
+      alert(String(err.message || err));
+    }
   });
   $("scanBtn").addEventListener("click", async () => {
     $("scanBtn").disabled = true;

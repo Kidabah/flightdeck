@@ -47,6 +47,10 @@ class ConfigIn(BaseModel):
     ignore_globs: list[str] | None = None
 
 
+class BulkIdsIn(BaseModel):
+    ids: list[int] = Field(default_factory=list, max_length=2000)
+
+
 @app.on_event("startup")
 def _startup() -> None:
     cfg = load_config()
@@ -259,12 +263,8 @@ def unhide_asset(asset_id: int) -> dict[str, Any]:
     return {"ok": True, "id": asset_id, "hidden": False, "file_name": asset.get("file_name")}
 
 
-@app.post("/api/assets/{asset_id}/delete")
-def delete_asset(
-    asset_id: int,
-    delete_sidecars: bool = Query(True),
-) -> dict[str, Any]:
-    """Permanently delete the file on disk (and indexed sidecars), then drop the DB row."""
+def _delete_asset_disk(asset_id: int, delete_sidecars: bool = True) -> dict[str, Any]:
+    """Delete one asset from disk + DB. Raises HTTPException on hard failures."""
     asset = _load_asset_or_404(asset_id)
     abs_path = str(asset.get("abs_path") or "")
     if not path_under_watched(abs_path):
@@ -306,7 +306,6 @@ def delete_asset(
         except Exception as exc:
             errors.append(f"{p}: {exc}")
 
-    # Clean thumb + preview caches (best effort)
     thumb = asset.get("thumb_path")
     if thumb:
         try:
@@ -338,6 +337,70 @@ def delete_asset(
         "deleted_files": deleted_files,
         "errors": errors,
         "file_name": asset.get("file_name"),
+    }
+
+
+@app.post("/api/assets/{asset_id}/delete")
+def delete_asset(
+    asset_id: int,
+    delete_sidecars: bool = Query(True),
+) -> dict[str, Any]:
+    """Permanently delete the file on disk (and indexed sidecars), then drop the DB row."""
+    return _delete_asset_disk(asset_id, delete_sidecars=delete_sidecars)
+
+
+@app.post("/api/assets/bulk/hide")
+def bulk_hide(body: BulkIdsIn) -> dict[str, Any]:
+    ids = sorted({int(i) for i in body.ids if int(i) > 0})
+    if not ids:
+        return {"ok": True, "updated": 0, "ids": []}
+    cfg = load_config()
+    db_file = data_dir(cfg) / "printshelf.sqlite3"
+    placeholders = ",".join("?" for _ in ids)
+    with db_session(db_file) as conn:
+        cur = conn.execute(
+            f"UPDATE assets SET hidden = 1 WHERE id IN ({placeholders})",
+            ids,
+        )
+        updated = cur.rowcount or 0
+    return {"ok": True, "updated": updated, "ids": ids}
+
+
+@app.post("/api/assets/bulk/unhide")
+def bulk_unhide(body: BulkIdsIn) -> dict[str, Any]:
+    ids = sorted({int(i) for i in body.ids if int(i) > 0})
+    if not ids:
+        return {"ok": True, "updated": 0, "ids": []}
+    cfg = load_config()
+    db_file = data_dir(cfg) / "printshelf.sqlite3"
+    placeholders = ",".join("?" for _ in ids)
+    with db_session(db_file) as conn:
+        cur = conn.execute(
+            f"UPDATE assets SET hidden = 0 WHERE id IN ({placeholders})",
+            ids,
+        )
+        updated = cur.rowcount or 0
+    return {"ok": True, "updated": updated, "ids": ids}
+
+
+@app.post("/api/assets/bulk/delete")
+def bulk_delete(body: BulkIdsIn) -> dict[str, Any]:
+    ids = sorted({int(i) for i in body.ids if int(i) > 0})
+    deleted: list[int] = []
+    failed: list[dict[str, Any]] = []
+    for asset_id in ids:
+        try:
+            _delete_asset_disk(asset_id, delete_sidecars=True)
+            deleted.append(asset_id)
+        except HTTPException as exc:
+            failed.append({"id": asset_id, "error": str(exc.detail)})
+        except Exception as exc:
+            failed.append({"id": asset_id, "error": str(exc)})
+    return {
+        "ok": not failed,
+        "deleted": deleted,
+        "deleted_count": len(deleted),
+        "failed": failed,
     }
 
 
