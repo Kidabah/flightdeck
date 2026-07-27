@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `(pending)` — PrintShelf orbit fix + STL→3MF for Studio
+Latest commit: `11659cb` — PrintShelf orbit fix + STL→3MF for Studio
 
 Latest local/Pi change:
 - Orbit preview restored (STL/OBJ/3MF were skipped after nested-ZIP branch).
