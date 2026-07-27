@@ -8,12 +8,13 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `522ba7d` — PrintShelf hide + delete from disk
+Latest commit: `b558494` — PrintShelf hide/delete + localhost bind for Tailscale
 
 Latest local/Pi change:
 - **Hide from library** (stays on disk, survives rescan) + **Delete from disk** (confirm ×2; removes file + indexed sidecars).
 - **Show hidden** filter + Unhide. DB column `assets.hidden`.
-- Hard refresh `app.js?v=12`. Restart `printshelf.service` required.
+- Service binds `127.0.0.1:8100` (Tailscale HTTPS owns public `:8100`). Use `https://flightdeck.tail7de73e.ts.net:8100`.
+- Hard refresh `app.js?v=12`. Restart done.
 
 Previous today:
 - Denser orbit previews (`b54b62e`); type tabs; PWA. Archives in `docs/archive/`.
