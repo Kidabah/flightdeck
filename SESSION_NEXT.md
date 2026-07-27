@@ -8,12 +8,12 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `(pending)` — PrintShelf fill tiny manifold holes
+Latest commit: `4703ae6` — PrintShelf fill tiny manifold holes
 
 Latest local/Pi change:
-- Manifold sanitize now **caps small open-edge loops** (Part_37-style pinholes) after weld/peel.
-- Part_37 had 98 opens ≈ 33 tiny triangles — should close.
-- Hard refresh `?v=40`. **Restart printshelf**.
+- Manifold sanitize now **caps small open-edge loops** after weld/peel.
+- Part_37: **98 → 0 open edges** ✓
+- Hard refresh `?v=40`. Restart done.
 
 Previous today:
 - Manifold check (`84d3e86`); Bambu/Orca choice. Archives in `docs/archive/`.
