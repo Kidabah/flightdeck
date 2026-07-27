@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update (fake STL previews)
 
-Latest commit: `(pending)` — Skip Thingiverse PNG-as-STL junk
+Latest commit: `7a2caf4` — Skip Thingiverse PNG-as-STL junk
 
 Latest local/Pi change:
 - Orbit crash `Invalid typed array length` was **PNG card previews** with `.stl` names (e.g. `card_preview_*.stl`).
