@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `(pending)` — PrintShelf slicer tip for Edge protocol prompt
+Latest commit: `b614d42` — PrintShelf slicer tip for Edge protocol prompt
 
 Latest local/Pi change:
 - Can’t suppress Edge’s “Open BambuStudio?” (OS/browser). First open shows a PrintShelf tip: tick Always allow once.
