@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update (G-code indexing)
 
-Latest commit: `(pending)` — PrintShelf index `.gcode` / `.gco`
+Latest commit: `3fbf996` — PrintShelf index `.gcode` / `.gco`
 
 Latest local/Pi change:
 - **Why Baby Doll G-code was missing:** scanner only knew STL/OBJ/3MF/ZIP, and live `ignore_globs` had `**/*.gcode`.
