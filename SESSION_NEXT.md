@@ -8,15 +8,16 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `1491b9e` — PrintShelf blue thumbs + locked scroll layout
+Latest commit: `(pending)` — PrintShelf fix grid flash + dual status
 
 Latest local/Pi change:
-- Mesh thumbs render in **MakerDeck blue** (`stl6` / `obj5` / `3mf3`). Hit **Rebuild thumbs** after deploy.
-- Library chrome stays put; **only the thumb grid scrolls**. Click a card → detail/orbit stays fixed on the right.
-- Hard refresh `?v=26`. **Restart required** + Rebuild thumbs.
+- Clicking a card no longer reloads/clears the thumb grid (flash-to-black bug).
+- Status shows **Scanning…** and **Thumbs…** together.
+- Nested ZIP packs explain why there’s no orbit (zip-in-zip, e.g. `*_STL.zip` inside).
+- Hard refresh `?v=27`. Static pull enough (restart optional).
 
 Previous today:
-- Blue UI + slicer HTTPS (`affd549`). Archives in `docs/archive/`.
+- Blue thumbs + locked scroll (`1491b9e`). Archives in `docs/archive/`.
 
 ---
 

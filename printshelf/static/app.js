@@ -13,6 +13,8 @@ let browseFolder = "";
 let scanWatchTimer = null;
 let scanWatchTicks = 0;
 let lastScanRunning = false;
+let lastThumbsRunning = false;
+let statusPollTimer = null;
 
 async function api(path, opts) {
   const res = await fetch(path, {
@@ -153,17 +155,45 @@ function updateScanBanner(scan, byKind, totalAssets) {
   $("scanBannerKinds").innerHTML = parts.join("");
 }
 
-function ensureScanWatch(running) {
-  if (running && !scanWatchTimer) {
+function formatStatusLine(scan, thumbs) {
+  const bits = [];
+  if (scan?.running) {
+    const where = scan.current_path ? ` · ${scan.current_path}` : "";
+    bits.push(
+      `Scanning… ${scan.files_seen || 0} seen / ${scan.files_upserted || 0} new / ${scan.files_skipped || 0} unchanged${where}`,
+    );
+  }
+  if (thumbs?.running) {
+    bits.push(`Thumbs… ${thumbs.updated || 0}/${thumbs.checked || 0}`);
+  }
+  if (bits.length) return bits.join(" · ");
+  if (thumbs?.status === "ok" && thumbs.updated) {
+    return `Thumbs rebuilt: ${thumbs.updated}`
+      + (scan?.status === "ok"
+        ? ` · Last scan: ${scan.files_upserted || 0} new / ${scan.files_seen || 0} total`
+        : "");
+  }
+  if (scan?.status === "ok") {
+    return `Last scan: ${scan.files_upserted || 0} new · ${scan.files_skipped || 0} unchanged · ${scan.files_seen || 0} total`
+      + (scan.files_failed ? ` · ${scan.files_failed} failed` : "");
+  }
+  return scan?.status || thumbs?.status || "idle";
+}
+
+function ensureStatusWatch(scanRunning, thumbsRunning) {
+  const need = !!(scanRunning || thumbsRunning);
+  if (need && !statusPollTimer) {
     scanWatchTicks = 0;
-    scanWatchTimer = setInterval(() => {
-      watchScanTick().catch(console.error);
+    statusPollTimer = setInterval(() => {
+      watchStatusTick().catch(console.error);
     }, 2000);
   }
-  if (!running && scanWatchTimer) {
-    clearInterval(scanWatchTimer);
-    scanWatchTimer = null;
+  if (!need && statusPollTimer) {
+    clearInterval(statusPollTimer);
+    statusPollTimer = null;
   }
+  // Keep legacy alias in sync for any stray references.
+  scanWatchTimer = statusPollTimer;
 }
 
 async function refreshLibraryView({ reloadGrid = true } = {}) {
@@ -171,37 +201,40 @@ async function refreshLibraryView({ reloadGrid = true } = {}) {
   if (reloadGrid) await loadLibrary();
 }
 
-async function watchScanTick() {
+async function watchStatusTick() {
   const live = $("scanLiveRefresh");
   const s = await api("/api/stats");
   const scan = s.scan || {};
+  const thumbs = s.thumbs || {};
   const byKind = s.by_kind || {};
   const kinds = Object.entries(byKind).map(([k, v]) => `${k}: ${v}`).join(" · ") || "no files yet";
   const hiddenBit = s.hidden ? `<br><span class="pill">hidden ${s.hidden}</span>` : "";
   $("railStats").innerHTML = `<strong>${s.assets}</strong> assets<br>${kinds}${hiddenBit}`;
   updateTypeTabCounts(byKind, s.assets || 0);
   updateScanBanner(scan, byKind, s.assets || 0);
-  if (scan.running) {
-    const where = scan.current_path ? ` · ${scan.current_path}` : "";
-    $("scanStatus").textContent =
-      `Scanning… ${scan.files_seen || 0} seen / ${scan.files_upserted || 0} new / ${scan.files_skipped || 0} unchanged${where}`;
-  }
+  $("scanStatus").textContent = formatStatusLine(scan, thumbs);
+
   scanWatchTicks += 1;
-  // Reload the grid every ~10s while live refresh is on so new files appear.
-  if (live?.checked && scanWatchTicks % 5 === 0) {
-    await loadLibrary();
+  // Reload the grid every ~10s while a scan is live (not during thumbs-only).
+  if (live?.checked && scan.running && scanWatchTicks % 5 === 0) {
+    await loadLibrary({ preserveScroll: true });
   }
-  if (!scan.running) {
-    ensureScanWatch(false);
-    $("scanBtn").disabled = false;
-    if (lastScanRunning) {
-      $("scanStatus").textContent =
-        `Done · ${scan.files_upserted || 0} new · ${scan.files_skipped || 0} unchanged · ${scan.files_seen || 0} total`
-        + (scan.files_failed ? ` · ${scan.files_failed} failed` : "");
-      await loadLibrary();
-    }
-  }
+
+  const scanWas = lastScanRunning;
+  const thumbsWas = lastThumbsRunning;
   lastScanRunning = !!scan.running;
+  lastThumbsRunning = !!thumbs.running;
+
+  if (!scan.running && !thumbs.running) {
+    ensureStatusWatch(false, false);
+    $("scanBtn").disabled = false;
+    $("rebuildThumbsBtn").disabled = false;
+    if (scanWas || thumbsWas) {
+      await loadLibrary({ preserveScroll: true });
+    }
+  } else {
+    ensureStatusWatch(!!scan.running, !!thumbs.running);
+  }
 }
 
 async function refreshStats() {
@@ -214,21 +247,10 @@ async function refreshStats() {
   const scan = s.scan || {};
   const thumbs = s.thumbs || {};
   updateScanBanner(scan, byKind, s.assets || 0);
-  ensureScanWatch(!!scan.running);
+  ensureStatusWatch(!!scan.running, !!thumbs.running);
   lastScanRunning = !!scan.running;
-  if (thumbs.running) {
-    $("scanStatus").textContent = `Rebuilding thumbs… ${thumbs.updated || 0}/${thumbs.checked || 0}`;
-  } else if (scan.running) {
-    const where = scan.current_path ? ` · ${scan.current_path}` : "";
-    $("scanStatus").textContent =
-      `Scanning… ${scan.files_seen || 0} seen / ${scan.files_upserted || 0} new / ${scan.files_skipped || 0} unchanged${where}`;
-  } else if (thumbs.status === "ok" && thumbs.updated) {
-    $("scanStatus").textContent = `Thumbs rebuilt: ${thumbs.updated}`;
-  } else {
-    $("scanStatus").textContent = scan.status === "ok"
-      ? `Last scan: ${scan.files_upserted || 0} new · ${scan.files_skipped || 0} unchanged · ${scan.files_seen || 0} total`
-      : (scan.status || "idle");
-  }
+  lastThumbsRunning = !!thumbs.running;
+  $("scanStatus").textContent = formatStatusLine(scan, thumbs);
 }
 
 function setActiveKind(kind) {
@@ -416,84 +438,103 @@ function appendAssetCard(grid, item) {
   grid.appendChild(card);
 }
 
-async function loadLibrary() {
+async function loadLibrary({ preserveScroll = false } = {}) {
   const q = $("search").value.trim();
   // Search forces flat "all files" results
   const useFolders = browseMode === "folders" && !q;
   const params = filterParams();
   params.set("limit", "1000");
   const grid = $("grid");
-  grid.innerHTML = "";
+  const pane = $("gridPane");
+  const scrollTop = preserveScroll && pane ? pane.scrollTop : 0;
+  // Build off-DOM so the grid doesn't flash empty while the API loads.
+  const next = document.createElement("div");
+  next.className = "grid";
 
-  if (useFolders) {
-    if (browseRootId) params.set("root_id", browseRootId);
-    if (browseFolder) params.set("folder", browseFolder);
-    const data = await api(`/api/browse?${params}`);
-    renderCrumbs(data.crumbs || []);
-    libraryItems = data.items || [];
-    const visible = new Set(libraryItems.map((i) => i.id));
-    selectedIds = new Set([...selectedIds].filter((id) => visible.has(id)));
+  try {
+    if (useFolders) {
+      if (browseRootId) params.set("root_id", browseRootId);
+      if (browseFolder) params.set("folder", browseFolder);
+      const data = await api(`/api/browse?${params}`);
+      renderCrumbs(data.crumbs || []);
+      libraryItems = data.items || [];
+      const visible = new Set(libraryItems.map((i) => i.id));
+      selectedIds = new Set([...selectedIds].filter((id) => visible.has(id)));
 
-    if (data.mode === "roots") {
-      if (!(data.roots || []).length) {
-        grid.innerHTML = `<div class="detail-empty">No files yet. Add folders and hit Rescan.</div>`;
+      if (data.mode === "roots") {
+        if (!(data.roots || []).length) {
+          next.innerHTML = `<div class="detail-empty">No files yet. Add folders and hit Rescan.</div>`;
+        } else {
+          for (const root of data.roots) {
+            appendFolderCard(next, {
+              title: root.label || root.id,
+              meta: `<span class="pill">${escapeHtml(root.source_kind)}</span><span>${root.asset_count} files</span>`,
+              onOpen: () => {
+                browseRootId = root.id;
+                browseFolder = "";
+                clearSelection();
+                loadLibrary().catch(console.error);
+              },
+            });
+          }
+        }
+        grid.replaceWith(next);
+        next.id = "grid";
         updateBulkBar();
+        if (pane && preserveScroll) pane.scrollTop = scrollTop;
         return;
       }
-      for (const root of data.roots) {
-        appendFolderCard(grid, {
-          title: root.label || root.id,
-          meta: `<span class="pill">${escapeHtml(root.source_kind)}</span><span>${root.asset_count} files</span>`,
+
+      for (const folder of data.folders || []) {
+        appendFolderCard(next, {
+          title: folder.name,
+          meta: `<span class="pill">folder</span><span>${folder.asset_count} files</span>`,
           onOpen: () => {
-            browseRootId = root.id;
-            browseFolder = "";
+            browseFolder = folder.folder;
             clearSelection();
             loadLibrary().catch(console.error);
           },
         });
       }
+      for (const item of libraryItems) appendAssetCard(next, item);
+      if (!(data.folders || []).length && !libraryItems.length) {
+        next.innerHTML = `<div class="detail-empty">Empty folder.</div>`;
+      } else if (data.truncated) {
+        const note = document.createElement("div");
+        note.className = "detail-empty";
+        note.textContent = `Showing first ${libraryItems.length} of ${data.total_files} files in this folder.`;
+        next.appendChild(note);
+      }
+      grid.replaceWith(next);
+      next.id = "grid";
       updateBulkBar();
+      if (pane && preserveScroll) pane.scrollTop = scrollTop;
       return;
     }
 
-    for (const folder of data.folders || []) {
-      appendFolderCard(grid, {
-        title: folder.name,
-        meta: `<span class="pill">folder</span><span>${folder.asset_count} files</span>`,
-        onOpen: () => {
-          browseFolder = folder.folder;
-          clearSelection();
-          loadLibrary().catch(console.error);
-        },
-      });
+    renderCrumbs([]);
+    const data = await api(`/api/assets?${params}`);
+    libraryItems = data.items || [];
+    const visible = new Set(libraryItems.map((i) => i.id));
+    selectedIds = new Set([...selectedIds].filter((id) => visible.has(id)));
+    if (!libraryItems.length) {
+      next.innerHTML = `<div class="detail-empty">${$("filterHidden")?.checked
+        ? "No hidden files."
+        : "No files yet. Add folders and hit Rescan."}</div>`;
+    } else {
+      for (const item of libraryItems) appendAssetCard(next, item);
     }
-    for (const item of libraryItems) appendAssetCard(grid, item);
-    if (!(data.folders || []).length && !libraryItems.length) {
-      grid.innerHTML = `<div class="detail-empty">Empty folder.</div>`;
-    } else if (data.truncated) {
-      const note = document.createElement("div");
-      note.className = "detail-empty";
-      note.textContent = `Showing first ${libraryItems.length} of ${data.total_files} files in this folder.`;
-      grid.appendChild(note);
+    grid.replaceWith(next);
+    next.id = "grid";
+    updateBulkBar();
+    if (pane && preserveScroll) pane.scrollTop = scrollTop;
+  } catch (err) {
+    console.error(err);
+    // Leave existing grid intact on failure so the pane doesn't go black.
+    if (!grid.children.length) {
+      grid.innerHTML = `<div class="detail-empty">Couldn't load library: ${escapeHtml(err.message || err)}</div>`;
     }
-    updateBulkBar();
-    return;
   }
-
-  renderCrumbs([]);
-  const data = await api(`/api/assets?${params}`);
-  libraryItems = data.items || [];
-  const visible = new Set(libraryItems.map((i) => i.id));
-  selectedIds = new Set([...selectedIds].filter((id) => visible.has(id)));
-  if (!libraryItems.length) {
-    grid.innerHTML = `<div class="detail-empty">${$("filterHidden")?.checked
-      ? "No hidden files."
-      : "No files yet. Add folders and hit Rescan."}</div>`;
-    updateBulkBar();
-    return;
-  }
-  for (const item of libraryItems) appendAssetCard(grid, item);
-  updateBulkBar();
 }
 
 function escapeHtml(s) {
@@ -610,8 +651,10 @@ function openInSlicer(item, { zipEntry = "" } = {}) {
 }
 
 async function selectAsset(id) {
-  selectedId = id;
-  document.querySelectorAll(".card").forEach((c) => c.classList.remove("active"));
+  selectedId = Number(id);
+  document.querySelectorAll(".card:not(.folder-card)").forEach((c) => {
+    c.classList.toggle("active", Number(c.dataset.id) === selectedId);
+  });
   window.PrintShelfViewer?.unmountOrbitViewer?.();
   const item = await api(`/api/assets/${id}`);
   const filaments = item.meta?.filaments || [];
@@ -623,6 +666,7 @@ async function selectAsset(id) {
   const zipEntries = zipMeta.entries || [];
   const zipPrintables = zipMeta.printables || [];
   const zipKinds = zipMeta.printable_by_kind || {};
+  const nestedZips = zipEntries.filter((e) => /\.zip$/i.test(e.name || ""));
   const canOrbit = item.can_orbit
     || item.kind === "stl"
     || item.kind === "obj"
@@ -656,7 +700,9 @@ async function selectAsset(id) {
            <p class="viewer-note" id="orbitNote" hidden></p>
            ${isZip ? `<p class="detail-hint">Click a printable below to load it in the viewer.</p>` : ""}`
         : isZip
-          ? `<p class="detail-hint">No printable meshes found inside this ZIP.</p>`
+          ? (nestedZips.length
+            ? `<p class="detail-hint">No STL/OBJ/3MF at the top level — this pack is nested ZIPs (${nestedZips.length}). Open a nested archive on disk (e.g. <code>*_STL.zip</code>) for printables. Orbit needs a mesh file, not a zip-in-zip.</p>`
+            : `<p class="detail-hint">No printable meshes (STL/OBJ/3MF) found inside this ZIP.</p>`)
           : `<p class="detail-hint">No 3D orbit for this file type.</p>`}
     </div>
     <div class="kv">
@@ -856,7 +902,7 @@ async function selectAsset(id) {
     if (firstBtn) firstBtn.classList.add("active");
   }
   syncSlicerBtn();
-  await loadLibrary();
+  // Do not reload the library here — that flashed/cleared the thumb grid.
 }
 
 async function loadFolders() {
@@ -974,18 +1020,7 @@ function bind() {
     $("rebuildThumbsBtn").disabled = true;
     try {
       await api("/api/thumbs/rebuild", { method: "POST", body: "{}" });
-      const poll = setInterval(async () => {
-        const st = await api("/api/thumbs/rebuild");
-        $("scanStatus").textContent = st.running
-          ? `Rebuilding thumbs… ${st.updated || 0} updated / ${st.checked || 0} checked`
-          : `Thumbs done · ${st.updated || 0} updated`;
-        if (!st.running) {
-          clearInterval(poll);
-          $("rebuildThumbsBtn").disabled = false;
-          await refreshStats();
-          await loadLibrary();
-        }
-      }, 1000);
+      await refreshStats(); // status line shows Thumbs… and Scan… together
     } catch (err) {
       $("scanStatus").textContent = String(err.message || err);
       $("rebuildThumbsBtn").disabled = false;
