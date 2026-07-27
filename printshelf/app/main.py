@@ -6,8 +6,8 @@ from pathlib import Path
 from typing import Any, Iterator
 from urllib.parse import quote
 
-from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -642,13 +642,11 @@ def delete_asset(
 
 
 def _media_type_for_name(name: str) -> str:
+    # Prefer octet-stream for mesh downloads — Bambu Studio’s HTTP client is
+    # happier with a generic type + real filename.ext than model/stl / model/3mf.
     lower = (name or "").lower()
-    if lower.endswith(".stl"):
-        return "model/stl"
-    if lower.endswith(".obj"):
-        return "text/plain"
-    if lower.endswith(".gcode.3mf") or lower.endswith(".3mf"):
-        return "model/3mf"
+    if lower.endswith((".stl", ".obj", ".3mf", ".gcode.3mf")):
+        return "application/octet-stream"
     if lower.endswith(".zip"):
         return "application/zip"
     guessed, _ = mimetypes.guess_type(name)
@@ -661,7 +659,7 @@ def _content_disposition(filename: str) -> str:
     return f"attachment; filename=\"{safe}\"; filename*=UTF-8''{quote(filename)}"
 
 
-def _serve_asset_file(asset_id: int, entry: str | None = None):
+def _serve_asset_file(asset_id: int, entry: str | None = None, *, method: str = "GET"):
     """Stream the original file (or one printable inside a ZIP / nested ZIP) for slicer download/open."""
     asset = get_asset_row(asset_id)
     if not asset:
@@ -674,6 +672,7 @@ def _serve_asset_file(asset_id: int, entry: str | None = None):
         raise HTTPException(404, "File missing on disk")
 
     kind = asset.get("kind") or ""
+    head = method.upper() == "HEAD"
     if entry:
         if kind != "zip":
             raise HTTPException(400, "entry= is only valid for ZIP assets")
@@ -690,6 +689,15 @@ def _serve_asset_file(asset_id: int, entry: str | None = None):
         except FileNotFoundError as exc:
             raise HTTPException(404, str(exc)) from exc
         media = _media_type_for_name(filename)
+        headers = {
+            "Content-Disposition": _content_disposition(filename).replace("attachment;", "inline;", 1),
+            "Cache-Control": "private, max-age=60",
+            "Content-Length": str(len(raw)),
+            "Accept-Ranges": "bytes",
+            "X-PrintShelf-Zip-Entry": entry_name,
+        }
+        if head:
+            return Response(content=b"", media_type=media, headers=headers)
 
         def _iter_bytes() -> Iterator[bytes]:
             # Already in memory (nested) or small enough; chunk for StreamingResponse.
@@ -701,11 +709,7 @@ def _serve_asset_file(asset_id: int, entry: str | None = None):
         return StreamingResponse(
             _iter_bytes(),
             media_type=media,
-            headers={
-                "Content-Disposition": _content_disposition(filename).replace("attachment;", "inline;", 1),
-                "Cache-Control": "private, max-age=60",
-                "X-PrintShelf-Zip-Entry": entry_name,
-            },
+            headers=headers,
         )
 
     filename = asset.get("file_name") or src.name
@@ -716,6 +720,7 @@ def _serve_asset_file(asset_id: int, entry: str | None = None):
         content_disposition_type="inline",
         headers={
             "Cache-Control": "private, max-age=60",
+            "Accept-Ranges": "bytes",
             "X-PrintShelf-Kind": kind,
         },
     )
@@ -748,23 +753,26 @@ def peek_nested_zip(
         raise HTTPException(500, f"Nested peek failed: {exc}") from exc
 
 
-@app.get("/api/assets/{asset_id}/file")
+@app.api_route("/api/assets/{asset_id}/file", methods=["GET", "HEAD"])
 def get_asset_file(
+    request: Request,
     asset_id: int,
     entry: str | None = Query(None, description="Path inside a ZIP for a printable member"),
 ):
-    return _serve_asset_file(asset_id, entry=entry)
+    # HEAD must work — Studio often probes with HEAD before GET; GET-only → 404 JSON → "unknown file format".
+    return _serve_asset_file(asset_id, entry=entry, method=request.method)
 
 
-@app.get("/api/assets/{asset_id}/file/{filename}")
+@app.api_route("/api/assets/{asset_id}/file/{filename}", methods=["GET", "HEAD"])
 def get_asset_file_named(
+    request: Request,
     asset_id: int,
     filename: str,
     entry: str | None = Query(None, description="Path inside a ZIP for a printable member"),
 ):
     """Same as /file, but path ends with a real name.ext so Bambu/Orca accept the download URL."""
     _ = filename  # cosmetic for slicer URL handlers
-    return _serve_asset_file(asset_id, entry=entry)
+    return _serve_asset_file(asset_id, entry=entry, method=request.method)
 
 
 @app.get("/api/assets/{asset_id}/model")

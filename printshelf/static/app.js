@@ -721,7 +721,7 @@ function slicerFileUrlForAsset(item, { zipEntry = "" } = {}) {
   return { url: u.toString(), reason: "", via: "download" };
 }
 
-const SLICER_TIP_KEY = "printshelf.slicerProtocolTip.v1";
+const SLICER_TIP_KEY = "printshelf.slicerProtocolTip.v2";
 
 function launchSlicerProtocol(fileUrl, fileName = "") {
   // Edge/Chrome own this “Open BambuStudio?” prompt — web apps cannot replace it.
@@ -758,10 +758,11 @@ async function openInSlicer(item, { zipEntry = "" } = {}) {
       eyebrow: "Open in slicer",
       title: "Edge will ask once",
       body:
-        "PrintShelf can’t replace the browser’s <strong>Open BambuStudio?</strong> prompt "
-        + "(that’s Edge protecting custom app links).<br><br>"
-        + "Tick <strong>Always allow flightdeck.tail7de73e.ts.net:8100…</strong>, "
-        + "then <strong>Open BambuStudio</strong>. After that it won’t bother you again.",
+        "Two prompts you may see (neither is a PrintShelf dialog):<br><br>"
+        + "1) Edge <strong>Open BambuStudio?</strong> — tick <strong>Always allow</strong> for this site.<br>"
+        + "2) Studio <strong>not from a trusted site</strong> — click <strong>Yes</strong> "
+        + "(MakerWorld is the only built-in trusted host; PrintShelf is yours).<br><br>"
+        + "After that, Studio downloads the mesh over Tailscale.",
       confirmLabel: "Open Bambu Studio",
       cancelLabel: "Cancel",
       danger: false,

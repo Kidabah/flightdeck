@@ -8,11 +8,12 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `b614d42` — PrintShelf slicer tip for Edge protocol prompt
+Latest commit: `(pending)` — PrintShelf slicer file HEAD fix
 
 Latest local/Pi change:
-- Can’t suppress Edge’s “Open BambuStudio?” (OS/browser). First open shows a PrintShelf tip: tick Always allow once.
-- Hard refresh `?v=31`. UI-only.
+- Fix Open in slicer “Download failed; unknown file format”: file routes now support **HEAD** (Studio probes first) + octet-stream media type.
+- “Not from a trusted site” is normal for non-MakerWorld — click Yes.
+- Hard refresh `?v=32`. **Restart required.**
 
 Previous today:
 - Detail pane `canSlicer` fix (`f0dc750`); ZIP icon + nested peek. Archives in `docs/archive/`.
