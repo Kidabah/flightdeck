@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update (watched folder Pi paths)
 
-Latest commit: `(pending)` — Warn when watched folder path missing on Pi
+Latest commit: `a8c235b` — Warn when watched folder path missing on Pi
 
 Latest local/Pi change:
 - Downloads wasn’t scanning: Pi path was `C:\Users\…` (Windows). PrintShelf only walks Linux mounts.
