@@ -8,11 +8,11 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `41c4371` — PrintShelf recenter Luban coords for slicer
+Latest commit: `(pending)` — PrintShelf STL open via NAS path
 
 Latest local/Pi change:
-- Open in slicer **recenters** meshes onto the bed. Luban chops keep world coords (e.g. Y=1300) so Studio looked empty while orbit (which centers) looked fine.
-- **Restart required.**
+- STL/OBJ **Open in slicer** now matches File → Open: copy NAS path + launch Studio → Ctrl+O paste (Bambu web-open 3MF path keeps failing empty plate).
+- Hard refresh `?v=35`. UI-only.
 
 Previous today:
 - Detail pane `canSlicer` fix (`f0dc750`); ZIP icon + nested peek. Archives in `docs/archive/`.
