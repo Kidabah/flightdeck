@@ -35,7 +35,9 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now printshelf.service
 ```
 
-Browse: `http://<pi-tailscale-ip>:8100` (e.g. `http://100.106.112.104:8100`)
+Browse (HTTPS via Tailscale Serve): `https://flightdeck.tail7de73e.ts.net:8100`
+
+The service listens on `127.0.0.1:8100` only. Tailscale Serve owns public `:8100` and proxies to it (same pattern as Flightdeck on `:443` → `:8000`).
 
 ### Install as an app (PWA, same as Flightdeck)
 
@@ -44,7 +46,7 @@ PrintShelf ships a web app manifest + minimal service worker (no offline cache).
 On the Pi (once; persists with Tailscale Serve):
 
 ```bash
-sudo tailscale serve --bg --https=8100 http://127.0.0.1:8100
+tailscale serve --bg --https=8100 http://127.0.0.1:8100
 ```
 
 Then open:
