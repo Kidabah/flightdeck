@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `(pending)` — PrintShelf live scan refresh banner
+Latest commit: `68d6c4a` — PrintShelf live scan refresh banner
 
 Latest local/Pi change:
 - Library **Refresh** button + orange **scan banner** with live kind counts while scanning (auto-updates; grid refreshes ~every 10s when Live refresh is on).
