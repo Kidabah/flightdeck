@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: *(pending)* — denser PrintShelf orbit previews + Higher detail
+Latest commit: `b54b62e` — denser PrintShelf orbit previews + Higher detail
 
 Latest local/Pi change:
 - Orbit preview default raised to **400k** tris (was 180k); **Higher detail** toggle → **750k**.
