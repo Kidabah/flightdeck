@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `(pending)` — PrintShelf Shift-click range select
+Latest commit: `06d20da` — PrintShelf Shift-click range select
 
 Latest local/Pi change:
 - **Shift-click** (card or checkbox): select everything between the last clicked file and this one. Ctrl/Cmd+Shift adds to the current selection. Bulk bar tip: “Shift = range”.
