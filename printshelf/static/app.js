@@ -664,24 +664,53 @@ async function selectAsset(id) {
   const isZip = item.kind === "zip";
   const zipMeta = item.meta || {};
   const zipEntries = zipMeta.entries || [];
-  const zipPrintables = zipMeta.printables || [];
-  const zipKinds = zipMeta.printable_by_kind || {};
-  const nestedZips = zipEntries.filter((e) => /\.zip$/i.test(e.name || ""));
+  let zipPrintables = [...(zipMeta.printables || [])];
+  let zipKinds = { ...(zipMeta.printable_by_kind || {}) };
+  const nestedZips = (zipMeta.nested_zips && zipMeta.nested_zips.length)
+    ? zipMeta.nested_zips
+    : zipEntries.filter((e) => /\.zip$/i.test(e.name || ""));
+  const hasNested = nestedZips.length > 0;
   const canOrbit = item.can_orbit
     || item.kind === "stl"
     || item.kind === "obj"
     || item.kind === "3mf"
     || item.kind === "gcode.3mf"
-    || (isZip && zipPrintables.length > 0);
+    || (isZip && (zipPrintables.length > 0 || hasNested));
   const slicerKinds = ["stl", "obj", "3mf", "gcode.3mf"];
-  const canSlicer = slicerKinds.includes(item.kind) || (isZip && zipPrintables.length > 0);
   let zipEntry = isZip ? (zipPrintables[0]?.name || "") : "";
   const slicerInfo = () => slicerFileUrlForAsset(item, { zipEntry });
   const slicerDisabledReason = () => {
-    if (!canSlicer) return "Not a slicer file type";
-    if (isMobileClient()) return "Use on PC with Bambu/Orca";
-    const info = slicerInfo();
-    return info.url ? "" : (info.reason || "Unavailable");
+    if (slicerKinds.includes(item.kind)) {
+      if (isMobileClient()) return "Use on PC with Bambu/Orca";
+      return slicerInfo().url ? "" : (slicerInfo().reason || "Unavailable");
+    }
+    if (isZip) {
+      if (!zipEntry) return hasNested ? "Peek a nested ZIP, then pick a printable" : "Pick a printable inside the ZIP first";
+      if (isMobileClient()) return "Use on PC with Bambu/Orca";
+      return slicerInfo().url ? "" : (slicerInfo().reason || "Unavailable");
+    }
+    return "Not a slicer file type";
+  };
+  const renderPrintablesList = (list, count) => {
+    const host = $("zipPrintables");
+    if (!host) return;
+    if (!list.length) {
+      host.innerHTML = `<li class="detail-hint" style="list-style:none">No printables in this archive.</li>`;
+      return;
+    }
+    host.innerHTML = list.map((e, idx) => `
+      <li>
+        <button type="button" class="zip-entry-btn" data-entry="${escapeHtml(e.name)}" data-idx="${idx}">
+          <strong>${escapeHtml(e.kind)}</strong> · ${escapeHtml(e.name)} · ${fmtBytes(e.size_bytes)}
+        </button>
+      </li>`).join("");
+    const note = $("zipPrintablesNote");
+    if (note) {
+      note.textContent = (count || 0) > list.length
+        ? `Showing first ${list.length} of ${count}.`
+        : "";
+      note.hidden = !note.textContent;
+    }
   };
   $("detail").innerHTML = `
     <h2>${escapeHtml(item.file_name)}</h2>
@@ -698,11 +727,11 @@ async function selectAsset(id) {
            </div>
            <div class="orbit-viewer" id="orbitViewer"></div>
            <p class="viewer-note" id="orbitNote" hidden></p>
-           ${isZip ? `<p class="detail-hint">Click a printable below to load it in the viewer.</p>` : ""}`
+           ${isZip ? `<p class="detail-hint" id="orbitHint">${zipPrintables.length
+             ? "Click a printable below to load it in the viewer."
+             : "Peek a nested archive below, then click a printable to orbit."}</p>` : ""}`
         : isZip
-          ? (nestedZips.length
-            ? `<p class="detail-hint">No STL/OBJ/3MF at the top level — this pack is nested ZIPs (${nestedZips.length}). Open a nested archive on disk (e.g. <code>*_STL.zip</code>) for printables. Orbit needs a mesh file, not a zip-in-zip.</p>`
-            : `<p class="detail-hint">No printable meshes (STL/OBJ/3MF) found inside this ZIP.</p>`)
+          ? `<p class="detail-hint">No printable meshes (STL/OBJ/3MF) found inside this ZIP.</p>`
           : `<p class="detail-hint">No 3D orbit for this file type.</p>`}
     </div>
     <div class="kv">
@@ -713,8 +742,9 @@ async function selectAsset(id) {
       ${isZip ? `
         <div><span>Files in zip</span><span>${zipMeta.entry_count ?? "—"}</span></div>
         <div><span>Uncompressed</span><span>${fmtBytes(zipMeta.uncompressed_bytes || 0)}</span></div>
-        <div><span>Printables inside</span><span>${zipMeta.printable_count ?? 0}</span></div>
-        <div><span>Inside types</span><span>${Object.keys(zipKinds).length
+        <div><span>Printables inside</span><span id="zipPrintableCount">${zipMeta.printable_count ?? 0}</span></div>
+        <div><span>Nested zips</span><span>${nestedZips.length}</span></div>
+        <div><span>Inside types</span><span id="zipInsideTypes">${Object.keys(zipKinds).length
           ? Object.entries(zipKinds).map(([k, v]) => `${k}: ${v}`).join(" · ")
           : "—"}</span></div>
       ` : `
@@ -723,21 +753,33 @@ async function selectAsset(id) {
         <div><span>Sliced</span><span>${item.is_sliced ? "yes" : "no"}</span></div>
       `}
     </div>
-    ${isZip && zipPrintables.length ? `
+    ${isZip && hasNested ? `
       <div class="detail-section">
-        <h3>Printables in zip</h3>
+        <h3>Nested archives</h3>
+        <p class="detail-hint">Peek opens one level inside without extracting to the NAS.</p>
+        <ul class="sidecar-list zip-nested" id="zipNested">
+          ${nestedZips.map((e) => `
+            <li>
+              <button type="button" class="zip-nested-btn" data-entry="${escapeHtml(e.name)}">
+                <strong>zip</strong> · ${escapeHtml(e.name)} · ${fmtBytes(e.size_bytes)}
+                <span class="pill">Peek</span>
+              </button>
+            </li>`).join("")}
+        </ul>
+        <p class="detail-hint" id="zipPeekStatus" hidden></p>
+      </div>` : ""}
+    ${isZip ? `
+      <div class="detail-section" id="zipPrintablesSection" ${zipPrintables.length || hasNested ? "" : "hidden"}>
+        <h3 id="zipPrintablesTitle">Printables in zip</h3>
         <ul class="sidecar-list zip-printables" id="zipPrintables">
-          ${zipPrintables.map((e, idx) => `
+          ${zipPrintables.length ? zipPrintables.map((e, idx) => `
             <li>
               <button type="button" class="zip-entry-btn" data-entry="${escapeHtml(e.name)}" data-idx="${idx}">
                 <strong>${escapeHtml(e.kind)}</strong> · ${escapeHtml(e.name)} · ${fmtBytes(e.size_bytes)}
               </button>
-            </li>
-          `).join("")}
+            </li>`).join("") : `<li class="detail-hint" style="list-style:none">Peek a nested archive to list printables.</li>`}
         </ul>
-        ${(zipMeta.printable_count || 0) > zipPrintables.length
-          ? `<p class="detail-hint">Showing first ${zipPrintables.length} of ${zipMeta.printable_count}.</p>`
-          : ""}
+        <p class="detail-hint" id="zipPrintablesNote" hidden></p>
       </div>` : ""}
     ${isZip && zipEntries.length ? `
       <div class="detail-section">
@@ -888,8 +930,12 @@ async function selectAsset(id) {
     if (isZip && zipPrintables.length) {
       const firstBtn = document.querySelector(".zip-entry-btn");
       if (firstBtn) firstBtn.classList.add("active");
+      await mountOrbit(false);
+    } else if ($("orbitViewer")) {
+      $("orbitViewer").innerHTML = `<div class="viewer-status">${hasNested
+        ? "Peek a nested archive below to load printables."
+        : "Pick a printable in the list below."}</div>`;
     }
-    await mountOrbit(false);
   } else if (isZip && zipPrintables.length) {
     $("zipPrintables")?.addEventListener("click", (e) => {
       const btn = e.target.closest(".zip-entry-btn");
@@ -901,6 +947,65 @@ async function selectAsset(id) {
     const firstBtn = document.querySelector(".zip-entry-btn");
     if (firstBtn) firstBtn.classList.add("active");
   }
+
+  $("zipNested")?.addEventListener("click", async (e) => {
+    const btn = e.target.closest(".zip-nested-btn");
+    if (!btn) return;
+    const nestedEntry = btn.dataset.entry || "";
+    const status = $("zipPeekStatus");
+    document.querySelectorAll(".zip-nested-btn").forEach((b) => b.classList.toggle("active", b === btn));
+    if (status) {
+      status.hidden = false;
+      status.textContent = `Peeking ${nestedEntry}…`;
+    }
+    try {
+      const data = await api(`/api/assets/${id}/nested?entry=${encodeURIComponent(nestedEntry)}`);
+      zipPrintables = data.printables || [];
+      zipKinds = data.printable_by_kind || {};
+      zipEntry = zipPrintables[0]?.name || "";
+      const section = $("zipPrintablesSection");
+      if (section) section.hidden = false;
+      if ($("zipPrintablesTitle")) {
+        $("zipPrintablesTitle").textContent = `Printables in ${nestedEntry.split("/").pop()}`;
+      }
+      if ($("zipPrintableCount")) $("zipPrintableCount").textContent = String(data.printable_count ?? zipPrintables.length);
+      if ($("zipInsideTypes")) {
+        $("zipInsideTypes").textContent = Object.keys(zipKinds).length
+          ? Object.entries(zipKinds).map(([k, v]) => `${k}: ${v}`).join(" · ")
+          : "—";
+      }
+      if ($("orbitHint")) {
+        $("orbitHint").textContent = zipPrintables.length
+          ? "Click a printable below to load it in the viewer."
+          : "No printables found in that nested archive.";
+      }
+      renderPrintablesList(zipPrintables, data.printable_count);
+      if (status) {
+        status.textContent = data.error
+          ? `Peek failed: ${data.error}`
+          : `Found ${data.printable_count || 0} printable(s) in ${nestedEntry.split("/").pop()}.`;
+      }
+      syncSlicerBtn();
+      if (zipEntry && $("orbitViewer") && window.PrintShelfViewer?.mountOrbitViewer) {
+        const firstBtn = document.querySelector(".zip-entry-btn");
+        if (firstBtn) firstBtn.classList.add("active");
+        // Re-bind isn't needed — zipPrintables click is on parent.
+        const high = Boolean($("orbitHighDetail")?.checked);
+        const detail = high ? "high" : "standard";
+        let url = `/api/assets/${id}/model?detail=${detail}&entry=${encodeURIComponent(zipEntry)}`;
+        if ($("orbitEntryLabel")) {
+          $("orbitEntryLabel").textContent = zipEntry.split("/").pop() || zipEntry;
+        }
+        await window.PrintShelfViewer.mountOrbitViewer($("orbitViewer"), {
+          url,
+          noteEl: $("orbitNote"),
+        });
+      }
+    } catch (err) {
+      if (status) status.textContent = String(err.message || err);
+    }
+  });
+
   syncSlicerBtn();
   // Do not reload the library here — that flashed/cleared the thumb grid.
 }

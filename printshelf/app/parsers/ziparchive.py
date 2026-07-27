@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import zipfile
 from pathlib import Path
 from typing import Any
@@ -31,10 +32,98 @@ def _kind_inside(name: str) -> str | None:
     return None
 
 
+def _list_printables_from_zipfile(zf: zipfile.ZipFile) -> tuple[list[dict[str, Any]], dict[str, int], int, int]:
+    entries: list[dict[str, Any]] = []
+    printable: list[dict[str, Any]] = []
+    by_kind: dict[str, int] = {}
+    total_files = 0
+    total_uncompressed = 0
+    for info in zf.infolist():
+        name = info.filename.replace("\\", "/")
+        if not name or name.endswith("/"):
+            continue
+        lower = name.lower()
+        if "/__macosx/" in f"/{lower}" or lower.startswith("__macosx/"):
+            continue
+        total_files += 1
+        total_uncompressed += int(info.file_size or 0)
+        row = {
+            "name": name,
+            "size_bytes": int(info.file_size or 0),
+            "compressed_bytes": int(info.compress_size or 0),
+        }
+        if len(entries) < MAX_LISTED:
+            entries.append(row)
+        pk = _kind_inside(name)
+        if pk:
+            by_kind[pk] = by_kind.get(pk, 0) + 1
+            if len(printable) < MAX_LISTED:
+                printable.append({**row, "kind": pk})
+    return printable, by_kind, total_files, total_uncompressed
+
+
+def split_nested_entry(entry: str) -> tuple[str | None, str]:
+    """Split `Nested.zip/path/inside.stl` → (Nested.zip, path/inside.stl). Flat entries → (None, entry)."""
+    e = (entry or "").replace("\\", "/").lstrip("/")
+    if not e or ".." in e.split("/"):
+        raise ValueError("Invalid zip entry path")
+    lower = e.lower()
+    idx = lower.find(".zip/")
+    if idx >= 0:
+        return e[: idx + 4], e[idx + 5 :]
+    return None, e
+
+
+def list_nested_zip(outer_path: Path, nested_entry: str) -> dict[str, Any]:
+    """Open a nested .zip member inside an outer archive (in memory). No extract to disk."""
+    nested_entry = nested_entry.replace("\\", "/").lstrip("/")
+    if not nested_entry.lower().endswith(".zip") or ".." in nested_entry.split("/"):
+        raise ValueError("Nested entry must be a .zip member path")
+
+    with zipfile.ZipFile(outer_path, "r") as outer:
+        names = {n.replace("\\", "/"): n for n in outer.namelist()}
+        real = names.get(nested_entry)
+        if real is None:
+            lower_map = {k.lower(): v for k, v in names.items()}
+            real = lower_map.get(nested_entry.lower())
+        if real is None:
+            raise FileNotFoundError(f"Nested zip not found: {nested_entry}")
+        raw = outer.read(real)
+
+    error = None
+    printable: list[dict[str, Any]] = []
+    by_kind: dict[str, int] = {}
+    total_files = 0
+    total_uncompressed = 0
+    try:
+        with zipfile.ZipFile(io.BytesIO(raw), "r") as inner:
+            printable, by_kind, total_files, total_uncompressed = _list_printables_from_zipfile(inner)
+    except zipfile.BadZipFile as exc:
+        error = f"Bad nested zip: {exc}"
+    except Exception as exc:
+        error = str(exc)
+
+    # Prefix printable names so orbit/file can address Nested.zip/inner.stl
+    prefixed = [
+        {**p, "name": f"{nested_entry}/{p['name']}", "nested_zip": nested_entry, "inner_name": p["name"]}
+        for p in printable
+    ]
+    return {
+        "nested_entry": nested_entry,
+        "entry_count": total_files,
+        "uncompressed_bytes": total_uncompressed,
+        "printable_count": sum(by_kind.values()),
+        "printable_by_kind": by_kind,
+        "printables": prefixed,
+        "error": error,
+    }
+
+
 def parse_zip(path: Path) -> dict[str, Any]:
     """Index a .zip in place — list members, count printables. No extract."""
     entries: list[dict[str, Any]] = []
     printable: list[dict[str, Any]] = []
+    nested_zips: list[dict[str, Any]] = []
     by_kind: dict[str, int] = {}
     total_files = 0
     total_uncompressed = 0
@@ -59,6 +148,10 @@ def parse_zip(path: Path) -> dict[str, Any]:
                 }
                 if len(entries) < MAX_LISTED:
                     entries.append(row)
+                if lower.endswith(".zip"):
+                    if len(nested_zips) < MAX_LISTED:
+                        nested_zips.append(row)
+                    continue
                 pk = _kind_inside(name)
                 if pk:
                     by_kind[pk] = by_kind.get(pk, 0) + 1
@@ -89,6 +182,8 @@ def parse_zip(path: Path) -> dict[str, Any]:
             "printable_by_kind": by_kind,
             "entries": entries,
             "printables": printable,
+            "nested_zips": nested_zips,
+            "nested_zip_count": len(nested_zips),
             "error": error,
         },
     }

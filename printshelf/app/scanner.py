@@ -418,6 +418,8 @@ def _thumb_is_current(kind: str, thumb_path: str) -> bool:
         return thumb_path.endswith("_obj5.png")
     if kind in ("3mf", "gcode.3mf"):
         return thumb_path.endswith("_3mf3.png")
+    if kind == "zip":
+        return thumb_path == "_shared_zip2.png" or thumb_path.endswith("_zip2.png")
     return bool(thumb_path)
 
 
@@ -443,7 +445,7 @@ def purge_junk_assets(conn) -> int:
     return cur.rowcount or 0
 
 
-def rebuild_stale_thumbs(kinds: tuple[str, ...] = ("stl", "obj", "3mf", "gcode.3mf")) -> dict[str, Any]:
+def rebuild_stale_thumbs(kinds: tuple[str, ...] = ("stl", "obj", "3mf", "gcode.3mf", "zip")) -> dict[str, Any]:
     """Re-render thumbs for assets still on old/missing previews (no full NAS walk)."""
     if not THUMB_LOCK.acquire(blocking=False):
         return get_thumb_rebuild_state()
@@ -480,30 +482,38 @@ def rebuild_stale_thumbs(kinds: tuple[str, ...] = ("stl", "obj", "3mf", "gcode.3
                 thumb_path = row["thumb_path"] or ""
                 kind = row["kind"]
                 thumb_file = thumbs / thumb_path if thumb_path else None
+                min_size = 800 if kind == "zip" else 2500
                 needs = (
                     not thumb_path
                     or not _thumb_is_current(kind, thumb_path)
                     or thumb_file is None
                     or not thumb_file.exists()
-                    or thumb_file.stat().st_size < 2500
+                    or thumb_file.stat().st_size < min_size
                 )
                 if not needs:
                     continue
                 path = Path(row["abs_path"])
-                if _is_junk_printable(path) or not path.is_file():
+                if kind != "zip" and (_is_junk_printable(path) or not path.is_file()):
                     continue
                 try:
-                    parsed = parse_asset(path, kind)
-                    content_hash = row["content_hash"] or file_hash(path)
+                    content_hash = row["content_hash"] or (file_hash(path) if path.is_file() else "x")
                     thumb_name = None
-                    if parsed.get("thumb_bytes"):
-                        thumb_name = save_thumb_bytes(thumbs, content_hash, kind, parsed["thumb_bytes"])
-                    if not thumb_name:
+                    triangle_count = None
+                    if kind == "zip":
                         thumb_name = make_placeholder_thumb(thumbs, content_hash, kind, kind)
+                    else:
+                        if not path.is_file():
+                            continue
+                        parsed = parse_asset(path, kind)
+                        triangle_count = parsed.get("triangle_count")
+                        if parsed.get("thumb_bytes"):
+                            thumb_name = save_thumb_bytes(thumbs, content_hash, kind, parsed["thumb_bytes"])
+                        if not thumb_name:
+                            thumb_name = make_placeholder_thumb(thumbs, content_hash, kind, kind)
                     if thumb_name and thumb_name != thumb_path:
                         conn.execute(
                             "UPDATE assets SET thumb_path = ?, triangle_count = COALESCE(?, triangle_count) WHERE id = ?",
-                            (thumb_name, parsed.get("triangle_count"), row["id"]),
+                            (thumb_name, triangle_count, row["id"]),
                         )
                         THUMB_STATE["updated"] += 1
                         conn.commit()
@@ -523,7 +533,7 @@ def rebuild_stale_thumbs(kinds: tuple[str, ...] = ("stl", "obj", "3mf", "gcode.3
     return get_thumb_rebuild_state()
 
 
-def start_thumb_rebuild_background(kinds: tuple[str, ...] = ("stl", "obj", "3mf", "gcode.3mf")) -> dict[str, Any]:
+def start_thumb_rebuild_background(kinds: tuple[str, ...] = ("stl", "obj", "3mf", "gcode.3mf", "zip")) -> dict[str, Any]:
     if THUMB_STATE.get("running"):
         return get_thumb_rebuild_state()
 

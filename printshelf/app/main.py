@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import mimetypes
-import zipfile
 from pathlib import Path
 from typing import Any, Iterator
 from urllib.parse import quote
@@ -16,6 +15,7 @@ from . import __version__
 from .config import data_dir, load_config, save_config
 from .db import db_session, init_db, parse_json_field, row_to_dict
 from .paths import to_windows_folder, to_windows_path
+from .parsers.ziparchive import list_nested_zip, split_nested_entry
 from .preview import (
     MAX_PREVIEW_TRIS,
     MAX_PREVIEW_TRIS_HIGH,
@@ -25,7 +25,7 @@ from .preview import (
     get_asset_row,
     path_is_allowed,
     path_under_watched,
-    resolve_zip_member,
+    read_zip_entry_bytes,
     safe_zip_entry,
 )
 from .scanner import (
@@ -105,8 +105,8 @@ def scan_status() -> dict[str, Any]:
 
 @app.post("/api/thumbs/rebuild")
 def trigger_thumb_rebuild() -> dict[str, Any]:
-    """Rebuild stale STL/OBJ/3MF thumbs without re-walking the whole NAS."""
-    return start_thumb_rebuild_background(kinds=("stl", "obj", "3mf", "gcode.3mf"))
+    """Rebuild stale STL/OBJ/3MF/ZIP thumbs without re-walking the whole NAS."""
+    return start_thumb_rebuild_background(kinds=("stl", "obj", "3mf", "gcode.3mf", "zip"))
 
 
 @app.get("/api/thumbs/rebuild")
@@ -441,9 +441,11 @@ def get_asset(asset_id: int) -> dict[str, Any]:
     item["windows_folder"] = to_windows_folder(abs_path, folders)
     kind = item.get("kind")
     meta = item.get("meta") or {}
+    nested_n = int(meta.get("nested_zip_count") or len(meta.get("nested_zips") or []))
     item["can_orbit"] = kind in ("stl", "obj", "3mf", "gcode.3mf") or (
-        kind == "zip" and int(meta.get("printable_count") or 0) > 0
+        kind == "zip" and (int(meta.get("printable_count") or 0) > 0 or nested_n > 0)
     )
+    item["has_nested_zips"] = nested_n > 0
     item["thumb_path"] = resolve_thumb_name(
         data_dir(cfg) / "thumbs",
         thumb_path=item.get("thumb_path"),
@@ -649,7 +651,7 @@ def _content_disposition(filename: str) -> str:
 
 
 def _serve_asset_file(asset_id: int, entry: str | None = None):
-    """Stream the original file (or one printable inside a ZIP) for slicer download/open."""
+    """Stream the original file (or one printable inside a ZIP / nested ZIP) for slicer download/open."""
     asset = get_asset_row(asset_id)
     if not asset:
         raise HTTPException(404, "Asset not found")
@@ -666,31 +668,29 @@ def _serve_asset_file(asset_id: int, entry: str | None = None):
             raise HTTPException(400, "entry= is only valid for ZIP assets")
         try:
             entry_name = safe_zip_entry(entry)
+            nested, inner = split_nested_entry(entry_name)
+            mesh_name = inner if nested else entry_name
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
-        if not entry_kind(entry_name):
+        if not entry_kind(mesh_name):
             raise HTTPException(400, "Zip entry is not a printable mesh (stl/obj/3mf)")
         try:
-            real = resolve_zip_member(src, entry_name)
+            raw, filename = read_zip_entry_bytes(src, entry_name)
         except FileNotFoundError as exc:
             raise HTTPException(404, str(exc)) from exc
-        filename = Path(entry_name).name
         media = _media_type_for_name(filename)
 
-        def _iter_zip_member() -> Iterator[bytes]:
-            with zipfile.ZipFile(src, "r") as zf:
-                with zf.open(real, "r") as fh:
-                    while True:
-                        chunk = fh.read(1024 * 1024)
-                        if not chunk:
-                            break
-                        yield chunk
+        def _iter_bytes() -> Iterator[bytes]:
+            # Already in memory (nested) or small enough; chunk for StreamingResponse.
+            view = memoryview(raw)
+            step = 1024 * 1024
+            for i in range(0, len(view), step):
+                yield bytes(view[i : i + step])
 
         return StreamingResponse(
-            _iter_zip_member(),
+            _iter_bytes(),
             media_type=media,
             headers={
-                # inline so slicers fetch-to-open rather than save-as
                 "Content-Disposition": _content_disposition(filename).replace("attachment;", "inline;", 1),
                 "Cache-Control": "private, max-age=60",
                 "X-PrintShelf-Zip-Entry": entry_name,
@@ -708,6 +708,33 @@ def _serve_asset_file(asset_id: int, entry: str | None = None):
             "X-PrintShelf-Kind": kind,
         },
     )
+
+
+@app.get("/api/assets/{asset_id}/nested")
+def peek_nested_zip(
+    asset_id: int,
+    entry: str = Query(..., description="Nested .zip member path inside the outer archive"),
+) -> dict[str, Any]:
+    """List printables one level inside a nested ZIP (no extract to NAS)."""
+    asset = get_asset_row(asset_id)
+    if not asset:
+        raise HTTPException(404, "Asset not found")
+    if (asset.get("kind") or "") != "zip":
+        raise HTTPException(400, "Only ZIP assets support nested peek")
+    abs_path = str(asset.get("abs_path") or "")
+    if not path_is_allowed(abs_path):
+        raise HTTPException(403, "File is outside watched folders")
+    src = Path(abs_path)
+    if not src.is_file():
+        raise HTTPException(404, "File missing on disk")
+    try:
+        return {"ok": True, **list_nested_zip(src, entry)}
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(500, f"Nested peek failed: {exc}") from exc
 
 
 @app.get("/api/assets/{asset_id}/file")

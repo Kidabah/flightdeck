@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import struct
 import tempfile
 import zipfile
@@ -236,16 +237,53 @@ def resolve_zip_member(src: Path, entry: str) -> str:
         return real
 
 
+def read_zip_entry_bytes(src: Path, entry: str) -> tuple[bytes, str]:
+    """Read bytes for a flat or nested (`outer.zip/inner.stl`) zip member."""
+    from .parsers.ziparchive import split_nested_entry
+
+    entry = safe_zip_entry(entry)
+    nested, inner = split_nested_entry(entry)
+    with zipfile.ZipFile(src, "r") as zf:
+        names = {n.replace("\\", "/"): n for n in zf.namelist()}
+        if nested:
+            real_nested = names.get(nested)
+            if real_nested is None:
+                lower_map = {k.lower(): v for k, v in names.items()}
+                real_nested = lower_map.get(nested.lower())
+            if real_nested is None:
+                raise FileNotFoundError(f"Nested zip not found: {nested}")
+            raw_nested = zf.read(real_nested)
+            with zipfile.ZipFile(io.BytesIO(raw_nested), "r") as inner_zf:
+                inner_names = {n.replace("\\", "/"): n for n in inner_zf.namelist()}
+                real = inner_names.get(inner)
+                if real is None:
+                    lower_map = {k.lower(): v for k, v in inner_names.items()}
+                    real = lower_map.get(inner.lower())
+                if real is None:
+                    raise FileNotFoundError(f"Entry not found in nested zip: {inner}")
+                return inner_zf.read(real), Path(inner).name
+        real = names.get(entry)
+        if real is None:
+            lower_map = {k.lower(): v for k, v in names.items()}
+            real = lower_map.get(entry.lower())
+        if real is None:
+            raise FileNotFoundError(f"Entry not found in zip: {entry}")
+        return zf.read(real), Path(entry).name
+
+
 def build_zip_entry_preview(
     asset: dict[str, Any],
     entry: str,
     max_tris: int = MAX_PREVIEW_TRIS,
 ) -> tuple[Path, bool]:
-    """Extract one printable from a ZIP and build a preview STL."""
+    """Extract one printable from a ZIP (or one level of nested ZIP) and build a preview STL."""
     if (asset.get("kind") or "") != "zip":
         raise ValueError("Not a zip asset")
     entry = safe_zip_entry(entry)
-    ekind = entry_kind(entry)
+    from .parsers.ziparchive import split_nested_entry
+    nested, inner = split_nested_entry(entry)
+    mesh_name = inner if nested else entry
+    ekind = entry_kind(mesh_name)
     if not ekind:
         raise ValueError("Zip entry is not a printable mesh (stl/obj/3mf)")
 
@@ -256,19 +294,10 @@ def build_zip_entry_preview(
     if cache.exists() and cache.stat().st_mtime >= src.stat().st_mtime:
         return cache, True
 
-    with zipfile.ZipFile(src, "r") as zf:
-        names = {n.replace("\\", "/"): n for n in zf.namelist()}
-        real = names.get(entry)
-        if real is None:
-            # case-insensitive fallback
-            lower_map = {k.lower(): v for k, v in names.items()}
-            real = lower_map.get(entry.lower())
-        if real is None:
-            raise FileNotFoundError(f"Entry not found in zip: {entry}")
-        raw = zf.read(real)
+    raw, file_name = read_zip_entry_bytes(src, entry)
 
-    suffix = Path(entry).suffix.lower() or ".bin"
-    if entry.lower().endswith(".gcode.3mf"):
+    suffix = Path(mesh_name).suffix.lower() or ".bin"
+    if mesh_name.lower().endswith(".gcode.3mf"):
         suffix = ".gcode.3mf"
     with tempfile.TemporaryDirectory(prefix="printshelf-zip-") as tmp:
         tmp_path = Path(tmp) / f"entry{suffix}"
@@ -277,7 +306,7 @@ def build_zip_entry_preview(
             "kind": ekind,
             "abs_path": str(tmp_path),
             "content_hash": f"{content_hash}_{entry_key}",
-            "file_name": Path(entry).name,
+            "file_name": file_name,
         }
         # Build via temp file, then copy into stable cache key
         path, simplified = build_preview_stl(fake, max_tris=max_tris)

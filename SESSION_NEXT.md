@@ -8,16 +8,15 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `54ff5db` — PrintShelf fix grid flash + dual status
+Latest commit: `(pending)` — PrintShelf ZIP icon + nested peek
 
 Latest local/Pi change:
-- Clicking a card no longer reloads/clears the thumb grid (flash-to-black bug).
-- Status shows **Scanning…** and **Thumbs…** together.
-- Nested ZIP packs explain why there’s no orbit (zip-in-zip, e.g. `*_STL.zip` inside).
-- Hard refresh `?v=27`. Static pull enough (restart optional).
+- ZIP cards use a shared **MakerDeck-blue ZIP icon** (`_shared_zip2.png`) instead of random coloured squares.
+- **Nested archives → Peek** lists printables one level down (orbit + Open in slicer via `Nested.zip/path.stl`). No extract to NAS.
+- Hard refresh `?v=28`. **Restart required.** Hit **Rebuild thumbs** (includes zip) after deploy.
 
 Previous today:
-- Blue thumbs + locked scroll (`1491b9e`). Archives in `docs/archive/`.
+- Grid flash fix (`54ff5db`); blue thumbs. Archives in `docs/archive/`.
 
 ---
 

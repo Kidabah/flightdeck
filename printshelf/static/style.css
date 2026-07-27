@@ -534,8 +534,25 @@ h1 {
   padding: 0;
   cursor: pointer;
 }
-.zip-entry-btn:hover { color: var(--accent-2); }
-.zip-printables li:has(.zip-entry-btn.active) {
+.zip-entry-btn:hover,
+.zip-nested-btn:hover { color: var(--accent-2); }
+.zip-nested-btn {
+  display: flex;
+  width: 100%;
+  text-align: left;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+  cursor: pointer;
+}
+.zip-nested-btn .pill { margin-left: auto; }
+.zip-printables li:has(.zip-entry-btn.active),
+.zip-nested li:has(.zip-nested-btn.active) {
   border: 1px solid var(--accent);
   background: var(--accent-dim);
 }
