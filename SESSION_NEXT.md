@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `(pending)` — PrintShelf Open-in-slicer via Flightdeck worker
+Latest commit: `3c63338` — PrintShelf Open-in-slicer via Flightdeck worker
 
 Latest local/Pi change:
 - **Open in slicer** now matches Flightdeck: Pi → Windows worker → `bambu-studio.exe <path>` (NAS UNC via `open-path`, else upload original STL/OBJ/3MF). Dropped `bambustudio://` URL-open (empty plate / MakerWorld-only).
