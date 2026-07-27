@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: *(pending)* — PrintShelf hide + delete from disk
+Latest commit: `522ba7d` — PrintShelf hide + delete from disk
 
 Latest local/Pi change:
 - **Hide from library** (stays on disk, survives rescan) + **Delete from disk** (confirm ×2; removes file + indexed sidecars).
