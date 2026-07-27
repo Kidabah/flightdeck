@@ -10,6 +10,7 @@ from typing import Any
 
 from .config import data_dir, load_config
 from .db import db_session, row_to_dict
+from .mesh_junk import looks_like_image_bytes
 from .parsers.threemf import extract_3mf_triangles
 
 
@@ -79,6 +80,8 @@ def _write_binary_stl(tris: list[tuple[tuple[float, float, float], tuple[float, 
 
 def decimate_binary_stl(path: Path, max_tris: int = MAX_PREVIEW_TRIS) -> bytes | None:
     data = path.read_bytes()
+    if looks_like_image_bytes(data[:16]):
+        return None
     if len(data) < 84:
         return None
     n = struct.unpack_from("<I", data, 80)[0]
@@ -531,18 +534,21 @@ def build_preview_stl(asset: dict[str, Any], max_tris: int = MAX_PREVIEW_TRIS) -
 
     if kind == "stl":
         size = src.stat().st_size
-        # Small enough: serve original
-        if size <= MAX_DIRECT_BYTES:
-            data = src.read_bytes()
-            if len(data) >= 84:
-                n = struct.unpack_from("<I", data, 80)[0]
-                if 0 < n <= max_tris and 84 + n * 50 <= len(data) + 50:
-                    return src, False
+        data = src.read_bytes() if size <= MAX_DIRECT_BYTES else None
+        if data is not None and looks_like_image_bytes(data[:16]):
+            raise FileNotFoundError(
+                "This file is an image renamed as .stl (Thingiverse card preview), not a mesh"
+            )
+        # Small enough: serve original when triangle count matches file size
+        if data is not None and len(data) >= 84:
+            n = struct.unpack_from("<I", data, 80)[0]
+            if 0 < n <= max_tris and 84 + n * 50 <= len(data) + 50:
+                return src, False
         if cache.exists() and cache.stat().st_mtime >= src.stat().st_mtime:
             return cache, True
         blob = decimate_binary_stl(src, max_tris=max_tris)
         if not blob:
-            return src, False
+            raise FileNotFoundError("Not a valid binary STL mesh (or file is corrupt / too large to preview)")
         cache.write_bytes(blob)
         return cache, True
 

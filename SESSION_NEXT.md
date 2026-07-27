@@ -6,6 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-27 Session update (fake STL previews)
+
+Latest commit: `(pending)` — Skip Thingiverse PNG-as-STL junk
+
+Latest local/Pi change:
+- Orbit crash `Invalid typed array length` was **PNG card previews** with `.stl` names (e.g. `card_preview_*.stl`).
+- Scanner skips / purges them; preview API no longer serves raw fakes; viewer guards image magic.
+- Hard refresh `?v=42`. Restart + purge (scan or SQL) required.
+
+Previous today:
+- G-code indexing (`3fbf996`). Archives in `docs/archive/`.
+
+---
+
 ## 2026-07-27 Session update (G-code indexing)
 
 Latest commit: `3fbf996` — PrintShelf index `.gcode` / `.gco`

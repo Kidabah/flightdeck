@@ -4,6 +4,7 @@ import struct
 from pathlib import Path
 from typing import Any
 
+from ..mesh_junk import describe_fake_mesh, looks_like_image_bytes
 from ..mesh_thumb import render_triangles_png, sample_stride
 
 # Scanned animal STLs are often 1–2M tris. Stride sampling punches holes → "fuzzy" thumbs.
@@ -12,7 +13,35 @@ MAX_PREVIEW_TRIS = 2_500_000
 
 
 def parse_stl(path: Path) -> dict[str, Any]:
+    fake = describe_fake_mesh(path)
+    if fake:
+        return {
+            "kind": "stl",
+            "triangle_count": 0,
+            "bbox": None,
+            "meta": {"encoding": "invalid", "error": fake},
+            "sidecars": [],
+            "thumb_bytes": None,
+            "is_sliced": False,
+            "has_textures": False,
+            "error": fake,
+        }
+
     data = path.read_bytes()
+    if looks_like_image_bytes(data[:16]):
+        err = describe_fake_mesh(path) or "Image file with .stl extension"
+        return {
+            "kind": "stl",
+            "triangle_count": 0,
+            "bbox": None,
+            "meta": {"encoding": "invalid", "error": err},
+            "sidecars": [],
+            "thumb_bytes": None,
+            "is_sliced": False,
+            "has_textures": False,
+            "error": err,
+        }
+
     n_tri = 0
     bbox = None
     binary = False

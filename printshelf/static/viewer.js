@@ -96,7 +96,28 @@ export async function mountOrbitViewer(container, { url, noteEl } = {}) {
     }
     const simplified = res.headers.get("X-PrintShelf-Simplified") === "1";
     const blob = await res.blob();
-    const objectUrl = URL.createObjectURL(blob);
+    const buf = await blob.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    // Thingiverse (etc.) often ships PNG card previews with a .stl extension.
+    if (
+      bytes.length >= 8
+      && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47
+    ) {
+      throw new Error("This file is a PNG image named like an STL (Thingiverse card preview), not a mesh");
+    }
+    if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+      throw new Error("This file is a JPEG image named like an STL, not a mesh");
+    }
+    if (bytes.length >= 84) {
+      const view = new DataView(buf);
+      const nTri = view.getUint32(80, true);
+      const expected = 84 + nTri * 50;
+      // Binary STL header lies → Three.js tries to allocate a multi-GB TypedArray.
+      if (nTri > 50_000_000 || (nTri > 0 && expected > bytes.length + 512)) {
+        throw new Error("Not a valid STL mesh (bad triangle count in header)");
+      }
+    }
+    const objectUrl = URL.createObjectURL(new Blob([buf], { type: blob.type || "application/octet-stream" }));
     active.objectUrl = objectUrl;
 
     const loader = new STLLoader();

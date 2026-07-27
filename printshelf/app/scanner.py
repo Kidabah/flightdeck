@@ -11,6 +11,7 @@ from typing import Any, Callable
 
 from .config import data_dir, load_config
 from .db import db_session, init_db, utcnow
+from .mesh_junk import is_fake_mesh_file
 from .parsers import detect_kind, parse_asset
 from .thumbs import make_placeholder_thumb, save_thumb_bytes
 
@@ -303,6 +304,14 @@ def run_scan(progress: Callable[[dict[str, Any]], None] | None = None) -> dict[s
                             continue
                         path = Path(dirpath) / name
                         if _is_junk_printable(path):
+                            try:
+                                abs_junk = str(path.resolve())
+                                conn.execute(
+                                    "UPDATE assets SET missing = 1 WHERE abs_path = ? AND missing = 0",
+                                    (abs_junk,),
+                                )
+                            except Exception:
+                                pass
                             continue
                         kind = detect_kind(path)
                         if not kind:
@@ -426,22 +435,21 @@ def _thumb_is_current(kind: str, thumb_path: str) -> bool:
 
 
 def _is_junk_printable(path: Path) -> bool:
-    name = path.name.lower()
-    if name.startswith("._"):
-        return True
-    if name.endswith("_temp.obj") or name == "temp.obj":
-        return True
-    return False
+    return is_fake_mesh_file(path)
 
 
 def purge_junk_assets(conn) -> int:
-    """Hide AppleDouble / *_temp.obj noise already indexed."""
+    """Hide AppleDouble / temp / Thingiverse image-as-STL noise already indexed."""
     cur = conn.execute(
         """UPDATE assets SET missing = 1
            WHERE missing = 0 AND (
              file_name LIKE '._%'
              OR lower(file_name) LIKE '%\\_temp.obj' ESCAPE '\\'
              OR lower(file_name) = 'temp.obj'
+             OR lower(file_name) LIKE 'card_preview\\_%' ESCAPE '\\'
+             OR lower(file_name) LIKE 'tiny_preview\\_%' ESCAPE '\\'
+             OR lower(file_name) LIKE 'tinycard_preview\\_%' ESCAPE '\\'
+             OR lower(file_name) LIKE 'large_preview\\_%' ESCAPE '\\'
            )"""
     )
     return cur.rowcount or 0
