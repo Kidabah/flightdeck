@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: *(pending)* — PrintShelf PWA install (same as Flightdeck)
+Latest commit: `ac66be8` — PrintShelf PWA install (same as Flightdeck)
 
 Latest local/Pi change:
 - PrintShelf **PWA**: `manifest.json` + minimal `sw.js`, brand icons, Install as app.
