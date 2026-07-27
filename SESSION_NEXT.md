@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update (shared ZIP thumb)
 
-Latest commit: `(pending)` — Don't delete shared ZIP thumb on asset delete
+Latest commit: `66dcd18` — Don't delete shared ZIP thumb on asset delete
 
 Latest local/Pi change:
 - ZIP icons vanished because deleting any ZIP unlinked `_shared_zip2.png` (shared by all cards).
