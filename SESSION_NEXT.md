@@ -13,7 +13,8 @@ Latest commit: `(pending)` — PrintShelf ZIP icon + nested peek
 Latest local/Pi change:
 - ZIP cards use a shared **MakerDeck-blue ZIP icon** (`_shared_zip2.png`) instead of random coloured squares.
 - **Nested archives → Peek** lists printables one level down (orbit + Open in slicer via `Nested.zip/path.stl`). No extract to NAS.
-- Hard refresh `?v=28`. **Restart required.** Hit **Rebuild thumbs** (includes zip) after deploy.
+- Startup ensures shared ZIP thumb; detail derives `nested_zips` from entries until Rescan.
+- Hard refresh `?v=28`. **Restart required.**
 
 Previous today:
 - Grid flash fix (`54ff5db`); blue thumbs. Archives in `docs/archive/`.

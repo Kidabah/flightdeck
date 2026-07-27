@@ -35,7 +35,7 @@ from .scanner import (
     start_scan_background,
     start_thumb_rebuild_background,
 )
-from .thumbs import resolve_thumb_name
+from .thumbs import ensure_shared_zip_thumb, resolve_thumb_name
 
 ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "static"
@@ -66,6 +66,7 @@ def _startup() -> None:
     db_file = data_dir(cfg) / "printshelf.sqlite3"
     init_db(db_file)
     mark_orphaned_scans(db_file)
+    ensure_shared_zip_thumb(data_dir(cfg) / "thumbs")
 
 
 @app.get("/api/health")
@@ -441,7 +442,17 @@ def get_asset(asset_id: int) -> dict[str, Any]:
     item["windows_folder"] = to_windows_folder(abs_path, folders)
     kind = item.get("kind")
     meta = item.get("meta") or {}
-    nested_n = int(meta.get("nested_zip_count") or len(meta.get("nested_zips") or []))
+    nested = list(meta.get("nested_zips") or [])
+    if not nested and kind == "zip":
+        # Pre-rescan indexes only have entries — derive nested zip names live.
+        nested = [
+            e for e in (meta.get("entries") or [])
+            if str((e or {}).get("name") or "").lower().endswith(".zip")
+        ]
+        if nested:
+            meta = {**meta, "nested_zips": nested, "nested_zip_count": len(nested)}
+            item["meta"] = meta
+    nested_n = int(meta.get("nested_zip_count") or len(nested))
     item["can_orbit"] = kind in ("stl", "obj", "3mf", "gcode.3mf") or (
         kind == "zip" and (int(meta.get("printable_count") or 0) > 0 or nested_n > 0)
     )
