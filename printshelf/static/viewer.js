@@ -107,9 +107,9 @@ export async function mountOrbitViewer(container, { url, noteEl } = {}) {
     geometry.rotateX(-Math.PI / 2);
 
     const material = new THREE.MeshStandardMaterial({
-      color: 0xe4bc78,
-      metalness: 0.08,
-      roughness: 0.55,
+      color: 0x60b4eb, // MakerDeck sky blue — match mesh card thumbs
+      metalness: 0.12,
+      roughness: 0.48,
       flatShading: false,
     });
     scene.add(new THREE.Mesh(geometry, material));

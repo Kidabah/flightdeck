@@ -8,12 +8,11 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `11659cb` — PrintShelf orbit fix + STL→3MF for Studio
+Latest commit: `(pending)` — PrintShelf orbit MakerDeck blue
 
 Latest local/Pi change:
-- Orbit preview restored (STL/OBJ/3MF were skipped after nested-ZIP branch).
-- Studio URL-open only accepts **.3mf** — STL/OBJ now packaged as minimal 3MF (`?slicer=1`).
-- Hard refresh `?v=33`. **Restart required.**
+- Orbit mesh colour matches MakerDeck sky-blue thumbs (`#60b4eb`).
+- Hard refresh `?v=34`. UI-only.
 
 Previous today:
 - Detail pane `canSlicer` fix (`f0dc750`); ZIP icon + nested peek. Archives in `docs/archive/`.
