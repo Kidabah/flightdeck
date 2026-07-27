@@ -680,68 +680,6 @@ function isMobileClient() {
   return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
 }
 
-function buildSlicerProtocolUrl(fileUrl) {
-  // Windows: bambustudio://open?file=<urlencoded https url>
-  // macOS: bambustudioopen://<raw https url> (MakerWorld style — do not encode the whole URL)
-  if (isMacOS()) return `bambustudioopen://${fileUrl}`;
-  return `bambustudio://open?file=${encodeURIComponent(fileUrl)}`;
-}
-
-function slicerDownloadName(item, zipEntry = "") {
-  let name = zipEntry
-    ? (String(zipEntry).split(/[/\\]/).pop() || "model.stl")
-    : (item.file_name || "model.stl");
-  name = String(name).replace(/[\\/]/g, "_").trim() || "model.stl";
-  // Bambu Studio's URL-open downloader ONLY accepts .3mf (STL → "unknown file format").
-  const stem = name.replace(/\.(stl|obj|3mf|gcode\.3mf)$/i, "") || "model";
-  return `${stem}.3mf`;
-}
-
-function slicerFileUrlForAsset(item, { zipEntry = "" } = {}) {
-  const kind = item.kind || "";
-  const openable = ["stl", "obj", "3mf", "gcode.3mf"].includes(kind);
-  const isZip = kind === "zip";
-  if (!openable && !isZip) return { url: "", reason: "Not a slicer file type" };
-  if (isZip && !zipEntry) {
-    return { url: "", reason: "Pick a printable inside the ZIP first" };
-  }
-  // HTTPS .3mf URL — Studio wraps/loads this; STL/OBJ are packaged server-side.
-  const name = slicerDownloadName(item, zipEntry);
-  const u = new URL(
-    `/api/assets/${item.id}/file/${encodeURIComponent(name)}`,
-    window.location.origin,
-  );
-  u.searchParams.set("slicer", "1");
-  if (isZip && zipEntry) u.searchParams.set("entry", zipEntry);
-  return { url: u.toString(), reason: "", via: "download" };
-}
-
-const SLICER_TIP_KEY = "printshelf.slicerProtocolTip.v4";
-
-function launchSlicerProtocol(fileUrl, fileName = "") {
-  // Edge/Chrome own this “Open BambuStudio?” prompt — web apps cannot replace it.
-  // Once the user ticks Always allow for this site, it stops appearing.
-  psToast(
-    "Handing off to Bambu Studio",
-    localStorage.getItem(SLICER_TIP_KEY)
-      ? (fileName || "Studio should open the plate…")
-      : "If Edge asks, tick Always allow — then this prompt won’t come back.",
-    "ok",
-    5200,
-  );
-  window.location.href = buildSlicerProtocolUrl(fileUrl);
-}
-
-function triggerBrowserDownload(url, filename) {
-  const a = document.createElement("a");
-  a.href = url;
-  if (filename) a.download = filename;
-  a.rel = "noopener";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-}
-
 async function openInSlicer(item, { zipEntry = "" } = {}) {
   if (isMobileClient()) {
     psToast(
@@ -752,33 +690,41 @@ async function openInSlicer(item, { zipEntry = "" } = {}) {
     return false;
   }
 
-  // HTTPS .3mf URL → bambustudio://open (STL/OBJ packaged server-side as a
-  // MakerDeck-style Bambu project so load_project places geometry on the plate).
-  const { url, reason } = slicerFileUrlForAsset(item, { zipEntry });
-  if (!url) {
-    psToast("Can't open in slicer", reason || "Not available for this file.", "error");
+  const kind = item.kind || "";
+  const openable = ["stl", "obj", "3mf", "gcode.3mf"].includes(kind);
+  const isZip = kind === "zip";
+  if (!openable && !isZip) {
+    psToast("Can't open in slicer", "Not a slicer file type.", "error");
+    return false;
+  }
+  if (isZip && !zipEntry) {
+    psToast("Can't open in slicer", "Pick a printable inside the ZIP first.", "error");
     return false;
   }
 
-  if (!localStorage.getItem(SLICER_TIP_KEY)) {
-    const go = await psConfirm({
-      eyebrow: "Open in slicer",
-      title: "Edge will ask once",
-      body:
-        "Two prompts you may see (neither is a PrintShelf dialog):<br><br>"
-        + "1) Edge <strong>Open BambuStudio?</strong> — tick <strong>Always allow</strong> for this site.<br>"
-        + "2) Studio <strong>not from a trusted site</strong> — click <strong>Yes</strong> "
-        + "(MakerWorld is the only built-in trusted host; PrintShelf is yours).<br><br>"
-        + "After that, Studio downloads a project 3MF over Tailscale.",
-      confirmLabel: "Open Bambu Studio",
-      cancelLabel: "Cancel",
-      danger: false,
-    });
-    if (!go) return false;
-    localStorage.setItem(SLICER_TIP_KEY, "1");
+  // Same handoff as Flightdeck: Pi → Windows worker → bambu-studio.exe <path>.
+  // Not bambustudio://open?file=https://… (that path only works for MakerWorld projects).
+  const u = new URL(`/api/assets/${item.id}/open-slicer`, window.location.origin);
+  u.searchParams.set("target", "bambu_studio");
+  if (isZip && zipEntry) u.searchParams.set("entry", zipEntry);
+
+  psToast("Opening in Bambu Studio", "Flightdeck Windows worker handoff…", "ok", 4000);
+  let data = {};
+  try {
+    const r = await fetch(u.toString(), { method: "POST" });
+    data = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const detail = typeof data.detail === "string" ? data.detail : "Slicer handoff failed";
+      psToast("Couldn't open slicer", detail, "error", 10000);
+      return false;
+    }
+  } catch (err) {
+    psToast("Couldn't open slicer", String(err.message || err), "error", 8000);
+    return false;
   }
 
-  launchSlicerProtocol(url, item.file_name || "");
+  const via = data.via === "open-path" ? "NAS path (File → Open style)" : (data.filename || "model");
+  psToast("Opened in Bambu Studio", via, "ok", 6000);
   return true;
 }
 

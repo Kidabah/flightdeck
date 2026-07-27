@@ -36,6 +36,7 @@ from .scanner import (
     start_scan_background,
     start_thumb_rebuild_background,
 )
+from .slicer_handoff import open_asset_in_desktop_slicer, resolve_worker_url
 from .thumbs import ensure_shared_zip_thumb, resolve_thumb_name
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -610,6 +611,37 @@ def bulk_delete(body: BulkIdsIn) -> dict[str, Any]:
         "deleted_count": len(deleted),
         "failed": failed,
     }
+
+
+@app.post("/api/assets/{asset_id}/open-slicer")
+def open_asset_slicer(
+    asset_id: int,
+    entry: str | None = Query(None),
+    target: str = Query("bambu_studio"),
+) -> dict[str, Any]:
+    """
+    Open in desktop Bambu Studio / Orca via Flightdeck's Windows worker —
+    same path as Flightdeck Slice handoff (exe + file path), not bambustudio:// URL-open.
+    """
+    try:
+        result = open_asset_in_desktop_slicer(asset_id, entry=entry, target=target)
+    except FileNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(403, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(503, str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(502, f"Slicer handoff failed: {exc}") from exc
+    return {"ok": True, **(result if isinstance(result, dict) else {"result": result})}
+
+
+@app.get("/api/slicer/status")
+def slicer_status() -> dict[str, Any]:
+    worker = resolve_worker_url()
+    return {"ok": bool(worker), "worker_url": worker or None}
 
 
 @app.post("/api/assets/{asset_id}/hide")

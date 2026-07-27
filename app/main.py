@@ -1434,6 +1434,12 @@ class SlicerOpenRequest(BaseModel):
     target: str = "desktop_orca"
 
 
+class SlicerOpenPathRequest(BaseModel):
+    """Open an existing local/UNC path on the Windows worker (PrintShelf NAS handoff)."""
+    path: str
+    target: str = "bambu_studio"
+
+
 class SlicerConnectionCheckRequest(BaseModel):
     kind: str
     url: str
@@ -2998,6 +3004,31 @@ async def slicer_worker_open(file: UploadFile = File(...), target: str = Form("d
     if target in {"bambu_studio", "desktop_bambu"}:
         return await asyncio.to_thread(_open_desktop_bambu_studio_model_bytes, source_name, source_data)
     raise HTTPException(status_code=422, detail="target must be desktop_orca, browser_orca, or bambu_studio")
+
+
+@app.post("/api/slicer/worker/open-path")
+async def slicer_worker_open_path(body: SlicerOpenPathRequest):
+    """
+    Launch desktop Orca/Bambu with an already-local Windows/UNC path.
+    Used by PrintShelf so NAS files open like File → Open (no HTTP 3MF dance).
+    """
+    raw = (body.path or "").strip()
+    if not raw:
+        raise HTTPException(status_code=422, detail="path is required")
+    target = (body.target or "bambu_studio").strip().lower()
+    path = Path(raw)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"Path not found on worker: {raw}")
+    if target in {"bambu_studio", "desktop_bambu"}:
+        result = await asyncio.to_thread(_launch_desktop_bambu_studio, path)
+    elif target in {"desktop_orca", "orca", "same"}:
+        result = await asyncio.to_thread(_launch_desktop_orca, path)
+    else:
+        raise HTTPException(status_code=422, detail="target must be desktop_orca or bambu_studio")
+    if isinstance(result, dict):
+        result["mode"] = result.get("mode") or "open-path"
+        result["path"] = str(path)
+    return result
 
 
 @app.post("/api/slicer/open")

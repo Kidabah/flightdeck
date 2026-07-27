@@ -8,15 +8,15 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `69e91e8` — PrintShelf real Open-in-slicer for STL
+Latest commit: `(pending)` — PrintShelf Open-in-slicer via Flightdeck worker
 
 Latest local/Pi change:
-- STL/OBJ **Open in slicer** restored to `bambustudio://open` (not NAS-path cop-out).
-- Slicer package is now a **MakerDeck-style Bambu project 3MF** (`_slicer4`): bed-centred build transform, single-part `model_settings` (no `<part>`), `project_settings`, `plate_1.json` + thumb stubs. Fixes download-100% → empty plate.
-- Hard refresh `?v=37`. **Restart required** (preview.py).
+- **Open in slicer** now matches Flightdeck: Pi → Windows worker → `bambu-studio.exe <path>` (NAS UNC via `open-path`, else upload original STL/OBJ/3MF). Dropped `bambustudio://` URL-open (empty plate / MakerWorld-only).
+- Flightdeck adds `POST /api/slicer/worker/open-path`. PrintShelf `POST /api/assets/{id}/open-slicer`.
+- Hard refresh `?v=38`. **Restart flightdeck + printshelf**. Windows worker must be running (`orcaslicer_worker_url`).
 
 Previous today:
-- NAS-path workaround (`8aceda2`); orbit/3MF packaging; ZIP peek. Archives in `docs/archive/`.
+- MakerDeck-style slicer4 3MF (`69e91e8`); NAS-path workaround. Archives in `docs/archive/`.
 
 ---
 
