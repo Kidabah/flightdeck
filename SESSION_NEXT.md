@@ -8,11 +8,12 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `77ccb27` — PrintShelf orbit MakerDeck blue
+Latest commit: `(pending)` — PrintShelf Bambu-style slicer 3MF
 
 Latest local/Pi change:
-- Orbit mesh colour matches MakerDeck sky-blue thumbs (`#60b4eb`).
-- Hard refresh `?v=34`. UI-only.
+- Open in slicer wraps STL as **Bambu-style** 3MF (Objects/ + model_settings) so Studio’s `load_project` places geometry (bare Core 3MF → empty plate).
+- Luban-split pieces are fine; empty plate was the package format.
+- **Restart required.**
 
 Previous today:
 - Detail pane `canSlicer` fix (`f0dc750`); ZIP icon + nested peek. Archives in `docs/archive/`.

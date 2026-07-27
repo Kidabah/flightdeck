@@ -150,8 +150,9 @@ def cached_preview_path(content_hash: str, kind: str, max_tris: int) -> Path:
 def cached_slicer_3mf_path(content_hash: str, kind: str, entry_key: str = "") -> Path:
     prev = data_dir() / "previews"
     prev.mkdir(parents=True, exist_ok=True)
-    key = hashlib.md5(f"{content_hash}|{kind}|{entry_key}".encode("utf-8")).hexdigest()[:20]
-    return prev / f"{key}_slicer.3mf"
+    # v2: Bambu-style package (Metadata + Objects/) so load_project places geometry on the plate.
+    key = hashlib.md5(f"{content_hash}|{kind}|{entry_key}|v2".encode("utf-8")).hexdigest()[:20]
+    return prev / f"{key}_slicer2.3mf"
 
 
 def _parse_binary_stl_tris(data: bytes) -> list[tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]]]:
@@ -194,63 +195,127 @@ def _tris_to_3mf_bytes(
     tris: list[tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]]],
     object_name: str = "model",
 ) -> bytes:
-    """Minimal Core 3MF so Bambu Studio's URL-open path accepts the download (.3mf only)."""
+    """
+    Bambu Studio's URL-open calls load_project() on the download.
+    A bare Core 3MF often lands as an empty plate — emit a Bambu-style package
+    (Objects/ + Metadata/model_settings.config) so the mesh is placed.
+    """
     if not tris:
         raise ValueError("No triangles to pack into 3MF")
 
     def fmt(v: float) -> str:
-        return f"{v:.6f}".rstrip("0").rstrip(".") if isinstance(v, float) else str(v)
+        try:
+            s = f"{float(v):.6f}".rstrip("0").rstrip(".")
+        except Exception:
+            return "0"
+        if not s or s in ("-", "-0", "+"):
+            return "0"
+        return s
 
     verts_xml: list[str] = []
     tris_xml: list[str] = []
     for i, (a, b, c) in enumerate(tris):
         base = i * 3
-        verts_xml.append(f'<vertex x="{fmt(a[0])}" y="{fmt(a[1])}" z="{fmt(a[2])}"/>')
-        verts_xml.append(f'<vertex x="{fmt(b[0])}" y="{fmt(b[1])}" z="{fmt(b[2])}"/>')
-        verts_xml.append(f'<vertex x="{fmt(c[0])}" y="{fmt(c[1])}" z="{fmt(c[2])}"/>')
-        tris_xml.append(f'<triangle v1="{base}" v2="{base + 1}" v3="{base + 2}"/>')
+        verts_xml.append(f'<vertex x="{fmt(a[0])}" y="{fmt(a[1])}" z="{fmt(a[2])}" />')
+        verts_xml.append(f'<vertex x="{fmt(b[0])}" y="{fmt(b[1])}" z="{fmt(b[2])}" />')
+        verts_xml.append(f'<vertex x="{fmt(c[0])}" y="{fmt(c[1])}" z="{fmt(c[2])}" />')
+        tris_xml.append(f'<triangle v1="{base}" v2="{base + 1}" v3="{base + 2}" />')
 
     safe_name = "".join(ch if ch.isalnum() or ch in "-_." else "_" for ch in (object_name or "model"))[:80] or "model"
-    model_xml = (
+    object_model = (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
-        '<model unit="millimeter" xml:lang="en-US" '
-        'xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">\n'
+        '<model unit="millimeter" xml:lang="en-US"\n'
+        '  xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02"\n'
+        '  xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06">\n'
         "  <resources>\n"
-        f'    <object id="1" name="{safe_name}" type="model">\n'
+        '    <object id="1" type="model">\n'
         "      <mesh>\n"
         "        <vertices>\n"
-        + "".join(f"          {v}\n" for v in verts_xml)
+        + "".join(f"        {v}\n" for v in verts_xml)
         + "        </vertices>\n"
         "        <triangles>\n"
-        + "".join(f"          {t}\n" for t in tris_xml)
+        + "".join(f"        {t}\n" for t in tris_xml)
         + "        </triangles>\n"
         "      </mesh>\n"
         "    </object>\n"
         "  </resources>\n"
         "  <build>\n"
-        '    <item objectid="1"/>\n'
+        '    <item objectid="1" />\n'
         "  </build>\n"
         "</model>\n"
+    )
+    root_model = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<model unit="millimeter" xml:lang="en-US"\n'
+        '  xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02"\n'
+        '  xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06">\n'
+        f'  <metadata name="Application">PrintShelf</metadata>\n'
+        f'  <metadata name="Title">{safe_name}</metadata>\n'
+        "  <resources>\n"
+        '    <object id="1" type="model" p:path="/3D/Objects/object_1.model">\n'
+        "      <components>\n"
+        '        <component objectid="1" p:path="/3D/Objects/object_1.model" />\n'
+        "      </components>\n"
+        "    </object>\n"
+        "  </resources>\n"
+        "  <build>\n"
+        '    <item objectid="1" />\n'
+        "  </build>\n"
+        "</model>\n"
+    )
+    model_settings = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        "<config>\n"
+        "  <plate>\n"
+        '    <metadata key="plater_id" value="1" />\n'
+        '    <metadata key="plater_name" value="" />\n'
+        '    <metadata key="locked" value="false" />\n'
+        '    <metadata key="filament_map_mode" value="Auto For Flush" />\n'
+        "    <model_instance>\n"
+        '      <metadata key="object_id" value="1" />\n'
+        '      <metadata key="instance_id" value="0" />\n'
+        '      <metadata key="identify_id" value="1" />\n'
+        "    </model_instance>\n"
+        "  </plate>\n"
+        '  <object id="1">\n'
+        f'    <metadata key="name" value="{safe_name}" />\n'
+        '    <part id="1" subtype="normal_part">\n'
+        f'      <metadata key="name" value="{safe_name}" />\n'
+        '      <metadata key="extruder" value="1" />\n'
+        "    </part>\n"
+        "  </object>\n"
+        "</config>\n"
     )
     content_types = (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
         '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">\n'
         '  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>\n'
         '  <Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/>\n'
+        '  <Default Extension="config" ContentType="application/octet-stream"/>\n'
         "</Types>\n"
     )
-    rels = (
+    root_rels = (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
         '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
         '  <Relationship Target="/3D/3dmodel.model" Id="rel0" '
-        'Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>\n'
+        'Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel" />\n'
+        "</Relationships>\n"
+    )
+    model_rels = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
+        '  <Relationship Target="/3D/Objects/object_1.model" Id="rel1" '
+        'Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel" />\n'
         "</Relationships>\n"
     )
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("[Content_Types].xml", content_types)
-        zf.writestr("_rels/.rels", rels)
-        zf.writestr("3D/3dmodel.model", model_xml)
+        zf.writestr("_rels/.rels", root_rels)
+        zf.writestr("3D/3dmodel.model", root_model)
+        zf.writestr("3D/_rels/3dmodel.model.rels", model_rels)
+        zf.writestr("3D/Objects/object_1.model", object_model)
+        zf.writestr("Metadata/model_settings.config", model_settings)
     return buf.getvalue()
 
 
