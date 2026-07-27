@@ -466,6 +466,17 @@ h1 {
   border-bottom: 1px solid var(--line);
   font-size: .92rem;
 }
+.folder-row-warn {
+  background: rgba(248, 113, 113, 0.06);
+  margin: 0 -8px;
+  padding-left: 8px;
+  padding-right: 8px;
+  border-radius: 8px;
+}
+.folder-path-warn {
+  color: #fca5a5;
+  font-size: .82rem;
+}
 .detail-actions {
   display: flex;
   flex-wrap: wrap;

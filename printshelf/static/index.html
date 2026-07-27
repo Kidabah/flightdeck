@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=44">
+  <link rel="stylesheet" href="style.css?v=45">
   <script type="importmap">
   {
     "imports": {
@@ -119,15 +119,15 @@
           <form id="folderForm" class="folder-form">
             <input name="id" placeholder="id (e.g. nas-models)" required>
             <input name="label" placeholder="Label" required>
-            <input name="path" placeholder="Pi path (e.g. /mnt/koko-kidabah)" required>
-            <input name="windows_path" placeholder="Windows path (e.g. \\Koko\kidabah or Z:)">
+            <input name="path" placeholder="Pi/Linux path only (e.g. /mnt/koko-kidabah/…)" required>
+            <input name="windows_path" placeholder="Windows path for copy buttons (e.g. \\Koko\kidabah or Z:)">
             <select name="source_kind">
               <option value="local">local</option>
               <option value="nas">nas</option>
             </select>
             <button type="submit">Add folder</button>
           </form>
-          <button class="secondary" id="saveFoldersBtn">Save folders</button>
+          <p class="lede" style="margin-top:10px">Pi path must exist on the Pi. Windows Downloads won’t scan — drop files on the NAS (already watched) or mount that folder under <code>/mnt/…</code>.</p>          <button class="secondary" id="saveFoldersBtn">Save folders</button>
         </div>
       </section>
     </main>
@@ -154,7 +154,7 @@
     </div>
   </div>
 
-  <script type="module" src="viewer.js?v=44"></script>
-  <script src="app.js?v=44"></script>
+  <script type="module" src="viewer.js?v=45"></script>
+  <script src="app.js?v=45"></script>
 </body>
 </html>

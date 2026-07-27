@@ -83,11 +83,34 @@ def health() -> dict[str, Any]:
 @app.get("/api/config")
 def get_config() -> dict[str, Any]:
     cfg = load_config()
+    folders = []
+    for f in cfg.get("watched_folders") or []:
+        item = dict(f)
+        p = Path(str(item.get("path") or ""))
+        item["path_ok"] = bool(p.is_dir())
+        item["path_hint"] = _folder_path_hint(str(item.get("path") or ""), item["path_ok"])
+        folders.append(item)
     return {
-        "watched_folders": cfg.get("watched_folders") or [],
+        "watched_folders": folders,
         "ignore_globs": cfg.get("ignore_globs") or [],
         "port": cfg.get("port") or 8100,
     }
+
+
+def _folder_path_hint(path: str, path_ok: bool) -> str | None:
+    raw = (path or "").strip()
+    if not raw:
+        return "Pi path is empty"
+    looks_windows = bool(
+        raw.startswith("\\\\")
+        or (len(raw) >= 3 and raw[1] == ":" and raw[0].isalpha())
+        or "\\" in raw and not raw.startswith("/")
+    )
+    if looks_windows:
+        return "This looks like a Windows path — PrintShelf runs on the Pi, so use a Linux mount like /mnt/koko-kidabah"
+    if not path_ok:
+        return "Path not found on the Pi (not mounted, typo, or permissions)"
+    return None
 
 
 @app.put("/api/config")
@@ -97,7 +120,13 @@ def put_config(body: ConfigIn) -> dict[str, Any]:
     if body.ignore_globs is not None:
         cfg["ignore_globs"] = body.ignore_globs
     save_config(cfg)
-    return get_config()
+    out = get_config()
+    bad = [f for f in out["watched_folders"] if not f.get("path_ok")]
+    out["warnings"] = [
+        f"{f.get('label') or f.get('id')}: {f.get('path_hint') or 'path missing on Pi'}"
+        for f in bad
+    ]
+    return out
 
 
 @app.post("/api/scan")

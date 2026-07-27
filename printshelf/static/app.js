@@ -1265,15 +1265,23 @@ function renderFolders() {
     el.innerHTML = `<p class="lede">No folders yet.</p>`;
     return;
   }
-  el.innerHTML = folders.map((f, i) => `
-    <div class="folder-row">
-      <div><strong>${escapeHtml(f.label || f.id)}</strong><br><span class="pill">${escapeHtml(f.source_kind)}</span></div>
+  el.innerHTML = folders.map((f, i) => {
+    const hint = f.path_hint || (!f.path_ok ? "Path not found on the Pi" : "");
+    return `
+    <div class="folder-row${f.path_ok === false ? " folder-row-warn" : ""}">
+      <div>
+        <strong>${escapeHtml(f.label || f.id)}</strong><br>
+        <span class="pill">${escapeHtml(f.source_kind)}</span>
+        ${f.path_ok === false ? `<span class="pill warn">missing on Pi</span>` : ""}
+      </div>
       <div class="detail-path" style="margin:0">
         ${escapeHtml(f.path)}
         ${f.windows_path ? `<br><span class="pill">win</span> ${escapeHtml(f.windows_path)}` : "<br><span class=\"pill\">no Windows path</span>"}
+        ${hint ? `<br><span class="folder-path-warn">${escapeHtml(hint)}</span>` : ""}
       </div>
       <button type="button" data-i="${i}" class="secondary remove-folder">Remove</button>
-    </div>`).join("");
+    </div>`;
+  }).join("");
   el.querySelectorAll(".remove-folder").forEach((btn) => {
     btn.addEventListener("click", () => {
       folders.splice(Number(btn.dataset.i), 1);
@@ -1283,11 +1291,18 @@ function renderFolders() {
 }
 
 async function saveFolders() {
-  await api("/api/config", {
+  const out = await api("/api/config", {
     method: "PUT",
     body: JSON.stringify({ watched_folders: folders }),
   });
+  folders = out.watched_folders || folders;
+  renderFolders();
   await refreshStats();
+  if (out.warnings?.length) {
+    psToast("Folders saved — path problem", out.warnings.join(" · "), "error");
+  } else {
+    psToast("Folders saved", "Paths look good on the Pi.", "ok");
+  }
 }
 
 function bind() {
@@ -1391,10 +1406,20 @@ function bind() {
   $("folderForm").addEventListener("submit", (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
+    const path = String(fd.get("path") || "").trim();
+    const looksWindows = /^[a-zA-Z]:[\\/]/.test(path) || path.startsWith("\\\\") || (path.includes("\\") && !path.startsWith("/"));
+    if (looksWindows) {
+      psToast(
+        "Use a Pi path",
+        "PrintShelf scans from the Pi. Put files on the NAS (/mnt/koko-kidabah/…) or mount that folder on the Pi — C:\\… won’t work here.",
+        "error",
+      );
+      return;
+    }
     folders.push({
       id: String(fd.get("id") || "").trim(),
       label: String(fd.get("label") || "").trim(),
-      path: String(fd.get("path") || "").trim(),
+      path,
       windows_path: String(fd.get("windows_path") || "").trim(),
       source_kind: String(fd.get("source_kind") || "local"),
     });

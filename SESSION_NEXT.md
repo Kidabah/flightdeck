@@ -6,6 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-27 Session update (watched folder Pi paths)
+
+Latest commit: `(pending)` — Warn when watched folder path missing on Pi
+
+Latest local/Pi change:
+- Downloads wasn’t scanning: Pi path was `C:\Users\…` (Windows). PrintShelf only walks Linux mounts.
+- Folders UI shows **missing on Pi** + blocks adding Windows paths as Pi paths.
+- Hard refresh `?v=45`. Restart required.
+
+Previous today:
+- Shared ZIP thumb (`66dcd18`). Archives in `docs/archive/`.
+
+---
+
 ## 2026-07-27 Session update (shared ZIP thumb)
 
 Latest commit: `66dcd18` — Don't delete shared ZIP thumb on asset delete
