@@ -66,7 +66,6 @@ CREATE TABLE IF NOT EXISTS scan_runs (
 CREATE INDEX IF NOT EXISTS idx_assets_kind ON assets(kind);
 CREATE INDEX IF NOT EXISTS idx_assets_hash ON assets(content_hash);
 CREATE INDEX IF NOT EXISTS idx_assets_design ON assets(design_id);
-CREATE INDEX IF NOT EXISTS idx_assets_hidden ON assets(hidden);
 CREATE INDEX IF NOT EXISTS idx_designs_hash ON designs(content_hash);
 """
 
