@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `(pending)` — PrintShelf toasts + confirm modal
+Latest commit: `52530e7` — PrintShelf toasts + confirm modal
 
 Latest local/Pi change:
 - Replaced browser `alert`/`confirm` with PrintShelf toasts + branded confirm modal.
