@@ -733,11 +733,6 @@ function launchSlicerProtocol(fileUrl, fileName = "") {
   window.location.href = buildSlicerProtocolUrl(fileUrl);
 }
 
-function launchSlicerApp() {
-  // Bring Studio to the foreground (no file payload — used with NAS path + Ctrl+O).
-  window.location.href = "bambustudio://open";
-}
-
 function triggerBrowserDownload(url, filename) {
   const a = document.createElement("a");
   a.href = url;
@@ -770,11 +765,11 @@ async function openInSlicer(item, { zipEntry = "" } = {}) {
           eyebrow: "Open in slicer",
           title: "Same as File → Open",
           body:
-            "Bambu’s web link is built for MakerWorld <strong>project 3MFs</strong>, not Luban STLs "
-            + "(that’s why you get download 100% and an empty plate).<br><br>"
-            + "PrintShelf will <strong>copy the NAS path</strong> and launch Studio. "
-            + "Then press <strong>Ctrl+O</strong>, paste, Enter — same as Select file.",
-          confirmLabel: "Copy path & open Studio",
+            "Bambu’s web link can’t open Luban STLs (it only accepts MakerWorld project 3MFs — "
+            + "that’s the empty plate / unknown format noise).<br><br>"
+            + "PrintShelf will <strong>copy the NAS path</strong>. "
+            + "Switch to Studio, press <strong>Ctrl+O</strong>, paste, Enter — same as Select file.",
+          confirmLabel: "Copy NAS path",
           cancelLabel: "Cancel",
           danger: false,
         });
@@ -792,11 +787,12 @@ async function openInSlicer(item, { zipEntry = "" } = {}) {
       }
       if (!copied) copied = fallbackCopy(winPath);
       if (copied) {
-        psToast("NAS path copied", "Studio → Ctrl+O → paste → Enter", "ok", 8000);
+        psToast("NAS path copied", "In Studio: Ctrl+O → paste → Enter", "ok", 9000);
       } else {
         psToast("Couldn't copy path", winPath, "error", 8000);
       }
-      launchSlicerApp();
+      // Do NOT fire bambustudio:// here — bare open?file= triggers Studio’s
+      // “Download failed; unknown file format.” dialog.
       return true;
     }
 
@@ -1042,7 +1038,7 @@ async function selectAsset(id) {
           ? "Open in slicer needs Bambu/Orca on a PC. On your phone, use Copy Windows path."
           : (item.kind === "stl" || item.kind === "obj")
             ? (winPath
-              ? "Open in slicer copies the NAS path and launches Studio — then Ctrl+O → paste (same as File → Open). Web-open 3MF handoff is unreliable for Luban STLs."
+              ? "Open in slicer copies the NAS path — then in Studio Ctrl+O → paste (same as File → Open)."
               : "Open in slicer downloads the STL/OBJ for File → Import in Studio.")
             : "Open in slicer hands a 3MF to Bambu Studio / Orca. Edge may ask once — tick Always allow. Big files can take a moment over Tailscale.")
         : "Slicer open is for STL, OBJ, 3MF, and ZIP printables."}</p>

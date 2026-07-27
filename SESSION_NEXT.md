@@ -8,11 +8,11 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `f6919df` — PrintShelf STL open via NAS path
+Latest commit: `(pending)` — PrintShelf stop bare bambustudio:// launch
 
 Latest local/Pi change:
-- STL/OBJ **Open in slicer** now matches File → Open: copy NAS path + launch Studio → Ctrl+O paste (Bambu web-open 3MF path keeps failing empty plate).
-- Hard refresh `?v=35`. UI-only.
+- STL Open in slicer only **copies NAS path** (no `bambustudio://open` — that caused “unknown file format”).
+- Hard refresh `?v=36`. UI-only.
 
 Previous today:
 - Detail pane `canSlicer` fix (`f0dc750`); ZIP icon + nested peek. Archives in `docs/archive/`.
