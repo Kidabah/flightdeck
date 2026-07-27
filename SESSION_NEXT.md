@@ -8,6 +8,19 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
+Latest commit: *(pending)* — PrintShelf ZIP category
+
+Latest local/Pi change:
+- Index **`.zip`** archives (contents list + printable counts inside; no extract).
+- New **ZIP** type tab. Hard refresh `?v=13`. Restart + **Rescan** required for thousands of zips.
+
+Previous today:
+- Hide/delete (`522ba7d` / `b558494`); orbit; type tabs; PWA. Archives in `docs/archive/`.
+
+---
+
+## 2026-07-27 Session update (hide/delete)
+
 Latest commit: `b558494` — PrintShelf hide/delete + localhost bind for Tailscale
 
 Latest local/Pi change:

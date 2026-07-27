@@ -170,6 +170,11 @@ async function selectAsset(id) {
   const winPath = item.windows_path || "";
   const winFolder = item.windows_folder || "";
   const canOrbit = item.can_orbit || item.kind === "stl" || item.kind === "obj";
+  const isZip = item.kind === "zip";
+  const zipMeta = item.meta || {};
+  const zipEntries = zipMeta.entries || [];
+  const zipPrintables = zipMeta.printables || [];
+  const zipKinds = zipMeta.printable_by_kind || {};
   $("detail").innerHTML = `
     <h2>${escapeHtml(item.file_name)}</h2>
     <div class="detail-path">${escapeHtml(item.abs_path)}</div>
@@ -184,17 +189,53 @@ async function selectAsset(id) {
            </div>
            <div class="orbit-viewer" id="orbitViewer"></div>
            <p class="viewer-note" id="orbitNote" hidden></p>`
-        : `<p class="detail-hint">Orbit preview is available for STL and OBJ. 3MF stays thumbnail-only for now.</p>`}
+        : isZip
+          ? `<p class="detail-hint">ZIP archives are listed below — no 3D orbit inside the zip yet.</p>`
+          : `<p class="detail-hint">Orbit preview is available for STL and OBJ. 3MF stays thumbnail-only for now.</p>`}
     </div>
     <div class="kv">
       <div><span>Design</span><span>${escapeHtml(item.design_name)}</span></div>
       <div><span>Type</span><span>${escapeHtml(item.kind)}</span></div>
       <div><span>Source</span><span>${escapeHtml(item.source_kind)} · ${escapeHtml(item.root_id)}</span></div>
       <div><span>Size</span><span>${fmtBytes(item.size_bytes)}</span></div>
-      <div><span>Triangles / faces</span><span>${item.triangle_count ?? "—"}</span></div>
-      <div><span>Textures</span><span>${item.has_textures ? "yes" : "no"}</span></div>
-      <div><span>Sliced</span><span>${item.is_sliced ? "yes" : "no"}</span></div>
+      ${isZip ? `
+        <div><span>Files in zip</span><span>${zipMeta.entry_count ?? "—"}</span></div>
+        <div><span>Uncompressed</span><span>${fmtBytes(zipMeta.uncompressed_bytes || 0)}</span></div>
+        <div><span>Printables inside</span><span>${zipMeta.printable_count ?? 0}</span></div>
+        <div><span>Inside types</span><span>${Object.keys(zipKinds).length
+          ? Object.entries(zipKinds).map(([k, v]) => `${k}: ${v}`).join(" · ")
+          : "—"}</span></div>
+      ` : `
+        <div><span>Triangles / faces</span><span>${item.triangle_count ?? "—"}</span></div>
+        <div><span>Textures</span><span>${item.has_textures ? "yes" : "no"}</span></div>
+        <div><span>Sliced</span><span>${item.is_sliced ? "yes" : "no"}</span></div>
+      `}
     </div>
+    ${isZip && zipPrintables.length ? `
+      <div class="detail-section">
+        <h3>Printables in zip</h3>
+        <ul class="sidecar-list">
+          ${zipPrintables.map((e) => `
+            <li><strong>${escapeHtml(e.kind)}</strong> · ${escapeHtml(e.name)} · ${fmtBytes(e.size_bytes)}</li>
+          `).join("")}
+        </ul>
+        ${(zipMeta.printable_count || 0) > zipPrintables.length
+          ? `<p class="detail-hint">Showing first ${zipPrintables.length} of ${zipMeta.printable_count}.</p>`
+          : ""}
+      </div>` : ""}
+    ${isZip && zipEntries.length ? `
+      <div class="detail-section">
+        <h3>Zip contents</h3>
+        <ul class="sidecar-list zip-entries">
+          ${zipEntries.map((e) => `
+            <li>${escapeHtml(e.name)} · ${fmtBytes(e.size_bytes)}</li>
+          `).join("")}
+        </ul>
+        ${zipMeta.list_truncated
+          ? `<p class="detail-hint">Showing first ${zipEntries.length} of ${zipMeta.entry_count} files.</p>`
+          : ""}
+        ${item.meta?.error ? `<p class="detail-hint" style="color:var(--danger)">${escapeHtml(item.meta.error)}</p>` : ""}
+      </div>` : ""}
     ${filaments.length ? `
       <div class="detail-section">
         <h3>Filaments</h3>

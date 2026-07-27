@@ -6,8 +6,9 @@ from typing import Any
 from .obj import parse_obj
 from .stl import parse_stl
 from .threemf import parse_3mf
+from .ziparchive import parse_zip
 
-PRINTABLE_EXTS = {".stl", ".obj", ".3mf", ".gcode.3mf"}
+PRINTABLE_EXTS = {".stl", ".obj", ".3mf", ".gcode.3mf", ".zip"}
 
 
 def detect_kind(path: Path) -> str | None:
@@ -21,6 +22,8 @@ def detect_kind(path: Path) -> str | None:
         return "obj"
     if suf == ".3mf":
         return "3mf"
+    if suf == ".zip":
+        return "zip"
     return None
 
 
@@ -32,4 +35,6 @@ def parse_asset(path: Path, kind: str | None = None) -> dict[str, Any]:
         return parse_3mf(path, kind=kind)
     if kind == "obj":
         return parse_obj(path)
+    if kind == "zip":
+        return parse_zip(path)
     return {"kind": kind or "unknown", "meta": {}, "sidecars": [], "error": "unsupported"}

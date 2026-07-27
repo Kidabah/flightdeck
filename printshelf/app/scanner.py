@@ -75,7 +75,7 @@ def _design_name_for(path: Path, root: Path) -> str:
     except Exception:
         pass
     name = path.name
-    for suf in (".gcode.3mf", ".3mf", ".stl", ".obj"):
+    for suf in (".gcode.3mf", ".3mf", ".stl", ".obj", ".zip"):
         if name.lower().endswith(suf):
             return name[: -len(suf)]
     return path.stem

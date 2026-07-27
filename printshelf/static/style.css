@@ -195,6 +195,14 @@ h1 {
   font-size: .85rem; padding: 8px 10px;
   background: var(--bg-2); border-radius: 10px; color: var(--muted);
 }
+.zip-entries {
+  max-height: 280px;
+  overflow: auto;
+}
+.zip-entries li {
+  word-break: break-all;
+  font-size: .8rem;
+}
 .filament-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .swatch {
   width: 18px; height: 18px; border-radius: 999px;
