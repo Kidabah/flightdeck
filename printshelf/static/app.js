@@ -554,22 +554,27 @@ function isMobileClient() {
   return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
 }
 
-function windowsPathToFileUrl(winPath) {
-  const p = String(winPath || "").trim().replace(/\//g, "\\");
-  if (!p) return "";
-  if (p.startsWith("\\\\")) {
-    return `file://${p.slice(2).replace(/\\/g, "/")}`;
-  }
-  if (/^[A-Za-z]:/.test(p)) {
-    return `file:///${p.replace(/\\/g, "/")}`;
-  }
-  return `file:///${p.replace(/\\/g, "/")}`;
+function buildSlicerProtocolUrl(fileUrl) {
+  // Windows: bambustudio://open?file=<urlencoded https url>
+  // macOS: bambustudioopen://<raw https url> (MakerWorld style — do not encode the whole URL)
+  if (isMacOS()) return `bambustudioopen://${fileUrl}`;
+  return `bambustudio://open?file=${encodeURIComponent(fileUrl)}`;
 }
 
-function buildSlicerProtocolUrl(fileUrl) {
-  const enc = encodeURIComponent(fileUrl);
-  if (isMacOS()) return `bambustudioopen://${enc}`;
-  return `bambustudio://open?file=${enc}`;
+function slicerDownloadName(item, zipEntry = "") {
+  let name = zipEntry
+    ? (String(zipEntry).split(/[/\\]/).pop() || "model.stl")
+    : (item.file_name || "model.stl");
+  name = String(name).replace(/[\\/]/g, "_").trim() || "model.stl";
+  // Bambu/Orca decide how to import from the URL path extension.
+  if (!/\.(stl|obj|3mf)$/i.test(name)) {
+    const kind = item.kind || "";
+    const ext = kind === "obj" ? ".obj"
+      : kind === "3mf" || kind === "gcode.3mf" ? ".3mf"
+      : ".stl";
+    name += ext;
+  }
+  return name;
 }
 
 function slicerFileUrlForAsset(item, { zipEntry = "" } = {}) {
@@ -580,16 +585,13 @@ function slicerFileUrlForAsset(item, { zipEntry = "" } = {}) {
   if (isZip && !zipEntry) {
     return { url: "", reason: "Pick a printable inside the ZIP first" };
   }
-  // ZIP members always go through PrintShelf (can't point file:// inside an archive).
-  if (isZip) {
-    const u = new URL(`/api/assets/${item.id}/file`, window.location.origin);
-    u.searchParams.set("entry", zipEntry);
-    return { url: u.toString(), reason: "", via: "download" };
-  }
-  if (item.windows_path) {
-    return { url: windowsPathToFileUrl(item.windows_path), reason: "", via: "local" };
-  }
-  const u = new URL(`/api/assets/${item.id}/file`, window.location.origin);
+  // Always HTTPS download with a real filename.ext — file:// UNC does not load onto the plate.
+  const name = slicerDownloadName(item, zipEntry);
+  const u = new URL(
+    `/api/assets/${item.id}/file/${encodeURIComponent(name)}`,
+    window.location.origin,
+  );
+  if (isZip && zipEntry) u.searchParams.set("entry", zipEntry);
   return { url: u.toString(), reason: "", via: "download" };
 }
 
@@ -747,11 +749,7 @@ async function selectAsset(id) {
       <p class="detail-hint" id="slicerHint">${canSlicer
         ? (isMobileClient()
           ? "Open in slicer needs Bambu/Orca on a PC. On your phone, use Copy Windows path."
-          : (winPath && !isZip
-            ? "Open in slicer launches Bambu Studio or Orca with the NAS file (whichever owns the bambustudio link)."
-            : isZip
-              ? "Open in slicer downloads the selected printable from the ZIP into Bambu/Orca."
-              : "Open in slicer downloads via PrintShelf into Bambu/Orca. Set a Windows path on the folder for faster local open."))
+          : "Open in slicer downloads the file into Bambu Studio or Orca (whichever owns the bambustudio link). Big files may take a moment over Tailscale.")
         : "Slicer open is for STL, OBJ, 3MF, and ZIP printables."}</p>
       <p class="detail-hint">${winPath
         ? "Paste Windows path into Bambu/Orca, or folder into Explorer (Ctrl+L → Ctrl+V)."

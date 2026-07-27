@@ -648,11 +648,7 @@ def _content_disposition(filename: str) -> str:
     return f"attachment; filename=\"{safe}\"; filename*=UTF-8''{quote(filename)}"
 
 
-@app.get("/api/assets/{asset_id}/file")
-def get_asset_file(
-    asset_id: int,
-    entry: str | None = Query(None, description="Path inside a ZIP for a printable member"),
-):
+def _serve_asset_file(asset_id: int, entry: str | None = None):
     """Stream the original file (or one printable inside a ZIP) for slicer download/open."""
     asset = get_asset_row(asset_id)
     if not asset:
@@ -694,7 +690,8 @@ def get_asset_file(
             _iter_zip_member(),
             media_type=media,
             headers={
-                "Content-Disposition": _content_disposition(filename),
+                # inline so slicers fetch-to-open rather than save-as
+                "Content-Disposition": _content_disposition(filename).replace("attachment;", "inline;", 1),
                 "Cache-Control": "private, max-age=60",
                 "X-PrintShelf-Zip-Entry": entry_name,
             },
@@ -705,12 +702,31 @@ def get_asset_file(
         src,
         media_type=_media_type_for_name(filename),
         filename=filename,
+        content_disposition_type="inline",
         headers={
-            "Content-Disposition": _content_disposition(filename),
             "Cache-Control": "private, max-age=60",
             "X-PrintShelf-Kind": kind,
         },
     )
+
+
+@app.get("/api/assets/{asset_id}/file")
+def get_asset_file(
+    asset_id: int,
+    entry: str | None = Query(None, description="Path inside a ZIP for a printable member"),
+):
+    return _serve_asset_file(asset_id, entry=entry)
+
+
+@app.get("/api/assets/{asset_id}/file/{filename}")
+def get_asset_file_named(
+    asset_id: int,
+    filename: str,
+    entry: str | None = Query(None, description="Path inside a ZIP for a printable member"),
+):
+    """Same as /file, but path ends with a real name.ext so Bambu/Orca accept the download URL."""
+    _ = filename  # cosmetic for slicer URL handlers
+    return _serve_asset_file(asset_id, entry=entry)
 
 
 @app.get("/api/assets/{asset_id}/model")

@@ -8,14 +8,15 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `b828fdf` — PrintShelf Open in slicer
+Latest commit: `(pending)` — PrintShelf MakerDeck blue + slicer download fix
 
 Latest local/Pi change:
-- Detail **Open in slicer** launches Bambu Studio / Orca via `bambustudio://` (Mac: `bambustudioopen://`). Prefers local NAS `file://` from Windows path; ZIP members / no-win-path fall back to `GET /api/assets/{id}/file`.
-- Hard refresh `?v=23`. **Restart required** (new API). Long scan may interrupt — Rescan resumes via unchanged skip.
+- UI palette switched from orange to **MakerDeck sky blue** (`#38bdf8` / cool navy panels).
+- **Open in slicer** now always uses HTTPS download URLs ending in a real `filename.ext` (`/api/assets/{id}/file/{name}`) — `file://` UNC opened Studio but never loaded the plate.
+- Hard refresh `?v=25`. **Restart required.** Rescan resumes via unchanged skip.
 
 Previous today:
-- Live scan banner (`68d6c4a`); scan resume. Archives in `docs/archive/`.
+- Open in slicer (`b828fdf`); live scan banner. Archives in `docs/archive/`.
 
 ---
 
