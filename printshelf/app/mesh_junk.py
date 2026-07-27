@@ -8,6 +8,8 @@ _PREVIEW_NAME_PREFIXES = (
     "tiny_preview_",
     "tinycard_preview_",
     "large_preview_",
+    "large_display_",
+    "small_display_",
 )
 
 _IMAGE_MAGICS = (

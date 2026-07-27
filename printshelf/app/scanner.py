@@ -450,6 +450,8 @@ def purge_junk_assets(conn) -> int:
              OR lower(file_name) LIKE 'tiny_preview\\_%' ESCAPE '\\'
              OR lower(file_name) LIKE 'tinycard_preview\\_%' ESCAPE '\\'
              OR lower(file_name) LIKE 'large_preview\\_%' ESCAPE '\\'
+             OR lower(file_name) LIKE 'large_display\\_%' ESCAPE '\\'
+             OR lower(file_name) LIKE 'small_display\\_%' ESCAPE '\\'
            )"""
     )
     return cur.rowcount or 0
