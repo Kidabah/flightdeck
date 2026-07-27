@@ -94,8 +94,8 @@ def scan_status() -> dict[str, Any]:
 
 @app.post("/api/thumbs/rebuild")
 def trigger_thumb_rebuild() -> dict[str, Any]:
-    """Rebuild stale STL/OBJ thumbs without re-walking the whole NAS."""
-    return start_thumb_rebuild_background(kinds=("stl", "obj"))
+    """Rebuild stale STL/OBJ/3MF thumbs without re-walking the whole NAS."""
+    return start_thumb_rebuild_background(kinds=("stl", "obj", "3mf", "gcode.3mf"))
 
 
 @app.get("/api/thumbs/rebuild")
@@ -226,7 +226,7 @@ def get_asset(asset_id: int) -> dict[str, Any]:
     abs_path = str(item.get("abs_path") or "")
     item["windows_path"] = to_windows_path(abs_path, folders)
     item["windows_folder"] = to_windows_folder(abs_path, folders)
-    item["can_orbit"] = item.get("kind") in ("stl", "obj")
+    item["can_orbit"] = item.get("kind") in ("stl", "obj", "3mf", "gcode.3mf")
     item["hidden"] = bool(item.get("hidden"))
     return item
 
@@ -416,8 +416,8 @@ def get_asset_model(
     if not asset:
         raise HTTPException(404, "Asset not found")
     kind = asset.get("kind")
-    if kind not in ("stl", "obj"):
-        raise HTTPException(400, "Orbit preview is only available for STL and OBJ")
+    if kind not in ("stl", "obj", "3mf", "gcode.3mf"):
+        raise HTTPException(400, "Orbit preview is only available for STL, OBJ, and 3MF")
     abs_path = str(asset.get("abs_path") or "")
     if not path_is_allowed(abs_path):
         raise HTTPException(403, "File is outside watched folders")

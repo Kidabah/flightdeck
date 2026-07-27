@@ -6,6 +6,7 @@ from typing import Any
 
 from .config import data_dir, load_config
 from .db import db_session, row_to_dict
+from .parsers.threemf import extract_3mf_triangles
 
 
 MAX_DIRECT_BYTES = 24_000_000
@@ -172,6 +173,19 @@ def build_preview_stl(asset: dict[str, Any], max_tris: int = MAX_PREVIEW_TRIS) -
         blob = decimate_obj_to_stl(src, max_tris=max_tris)
         if not blob:
             raise FileNotFoundError("Could not build OBJ preview")
+        cache.write_bytes(blob)
+        return cache, True
+
+    if kind in ("3mf", "gcode.3mf"):
+        if cache.exists() and cache.stat().st_mtime >= src.stat().st_mtime:
+            return cache, True
+        tris = extract_3mf_triangles(src, max_tris=max_tris)
+        if not tris:
+            raise FileNotFoundError("No mesh found inside 3MF (settings/profile only?)")
+        if len(tris) > max_tris:
+            stride = max(1, (len(tris) + max_tris - 1) // max_tris)
+            tris = tris[::stride][:max_tris]
+        blob = _write_binary_stl(tris)
         cache.write_bytes(blob)
         return cache, True
 

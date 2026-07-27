@@ -312,7 +312,7 @@ def _thumb_is_current(kind: str, thumb_path: str) -> bool:
     if kind == "obj":
         return thumb_path.endswith("_obj4.png")
     if kind in ("3mf", "gcode.3mf"):
-        return bool(thumb_path)
+        return thumb_path.endswith("_3mf2.png")
     return bool(thumb_path)
 
 
@@ -338,7 +338,7 @@ def purge_junk_assets(conn) -> int:
     return cur.rowcount or 0
 
 
-def rebuild_stale_thumbs(kinds: tuple[str, ...] = ("stl", "obj")) -> dict[str, Any]:
+def rebuild_stale_thumbs(kinds: tuple[str, ...] = ("stl", "obj", "3mf", "gcode.3mf")) -> dict[str, Any]:
     """Re-render thumbs for assets still on old/missing previews (no full NAS walk)."""
     if not THUMB_LOCK.acquire(blocking=False):
         return get_thumb_rebuild_state()
@@ -418,7 +418,7 @@ def rebuild_stale_thumbs(kinds: tuple[str, ...] = ("stl", "obj")) -> dict[str, A
     return get_thumb_rebuild_state()
 
 
-def start_thumb_rebuild_background(kinds: tuple[str, ...] = ("stl", "obj")) -> dict[str, Any]:
+def start_thumb_rebuild_background(kinds: tuple[str, ...] = ("stl", "obj", "3mf", "gcode.3mf")) -> dict[str, Any]:
     if THUMB_STATE.get("running"):
         return get_thumb_rebuild_state()
 

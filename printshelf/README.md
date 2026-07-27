@@ -6,6 +6,7 @@ Private, self-hosted printable-file inventory. **Index in place** — files stay
 
 - Watch local + NAS folders
 - Index `.stl`, `.3mf`, `.gcode.3mf`, `.obj`, `.zip` (lists contents + printables inside; no extract)
+- Orbit preview for STL / OBJ / 3MF (mesh extracted from 3MF when possible); mesh thumbs for 3MF when bake is missing/dark
 - Extract print details from 3MF (plates, filaments, thumbs)
 - Associate OBJ `.mtl` + texture maps
 - Browse / filter / detail UI

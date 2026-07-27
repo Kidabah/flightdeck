@@ -221,7 +221,11 @@ async function selectAsset(id) {
   const sidecars = item.sidecars || [];
   const winPath = item.windows_path || "";
   const winFolder = item.windows_folder || "";
-  const canOrbit = item.can_orbit || item.kind === "stl" || item.kind === "obj";
+  const canOrbit = item.can_orbit
+    || item.kind === "stl"
+    || item.kind === "obj"
+    || item.kind === "3mf"
+    || item.kind === "gcode.3mf";
   const isZip = item.kind === "zip";
   const zipMeta = item.meta || {};
   const zipEntries = zipMeta.entries || [];
@@ -243,7 +247,7 @@ async function selectAsset(id) {
            <p class="viewer-note" id="orbitNote" hidden></p>`
         : isZip
           ? `<p class="detail-hint">ZIP archives are listed below — no 3D orbit inside the zip yet.</p>`
-          : `<p class="detail-hint">Orbit preview is available for STL and OBJ. 3MF stays thumbnail-only for now.</p>`}
+          : `<p class="detail-hint">No 3D orbit for this file type.</p>`}
     </div>
     <div class="kv">
       <div><span>Design</span><span>${escapeHtml(item.design_name)}</span></div>

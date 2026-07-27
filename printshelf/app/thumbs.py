@@ -17,6 +17,8 @@ def thumb_filename(content_hash: str, kind: str) -> str:
         kind = "stl5"
     elif kind == "obj":
         kind = "obj4"
+    elif kind in ("3mf", "gcode.3mf"):
+        kind = "3mf2"
     return f"{content_hash[:16]}_{kind}.png"
 
 

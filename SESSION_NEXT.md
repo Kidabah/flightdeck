@@ -8,6 +8,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
+Latest commit: *(pending)* — PrintShelf 3MF orbit + mesh thumbs
+
+Latest local/Pi change:
+- **3MF orbit** in the detail viewer (extract mesh → preview STL). Works for model 3MFs; profile-only packs still won’t orbit.
+- Mesh thumbs (`3mf2`) when embedded preview missing/too dark. **Rebuild thumbs** for nicer 3MF cards.
+- Hard refresh `?v=15`. Restart required.
+
+Previous today:
+- Multi-select (`8a46c8f`); ZIP; hide/delete. Archives in `docs/archive/`.
+
+---
+
+## 2026-07-27 Session update (multi-select)
+
 Latest commit: `8a46c8f` — PrintShelf multi-select bulk hide/delete
 
 Latest local/Pi change:
