@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
+import mimetypes
+import zipfile
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
+from urllib.parse import quote
 
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -18,9 +21,12 @@ from .preview import (
     MAX_PREVIEW_TRIS_HIGH,
     build_preview_stl,
     build_zip_entry_preview,
+    entry_kind,
     get_asset_row,
     path_is_allowed,
     path_under_watched,
+    resolve_zip_member,
+    safe_zip_entry,
 )
 from .scanner import (
     get_scan_state,
@@ -620,6 +626,91 @@ def delete_asset(
 ) -> dict[str, Any]:
     """Permanently delete the file on disk (and indexed sidecars), then drop the DB row."""
     return _delete_asset_disk(asset_id, delete_sidecars=delete_sidecars)
+
+
+def _media_type_for_name(name: str) -> str:
+    lower = (name or "").lower()
+    if lower.endswith(".stl"):
+        return "model/stl"
+    if lower.endswith(".obj"):
+        return "text/plain"
+    if lower.endswith(".gcode.3mf") or lower.endswith(".3mf"):
+        return "model/3mf"
+    if lower.endswith(".zip"):
+        return "application/zip"
+    guessed, _ = mimetypes.guess_type(name)
+    return guessed or "application/octet-stream"
+
+
+def _content_disposition(filename: str) -> str:
+    # ASCII fallback + RFC 5987 filename* for Unicode names.
+    safe = "".join(ch if 32 <= ord(ch) < 127 and ch not in '"\\' else "_" for ch in filename) or "download"
+    return f"attachment; filename=\"{safe}\"; filename*=UTF-8''{quote(filename)}"
+
+
+@app.get("/api/assets/{asset_id}/file")
+def get_asset_file(
+    asset_id: int,
+    entry: str | None = Query(None, description="Path inside a ZIP for a printable member"),
+):
+    """Stream the original file (or one printable inside a ZIP) for slicer download/open."""
+    asset = get_asset_row(asset_id)
+    if not asset:
+        raise HTTPException(404, "Asset not found")
+    abs_path = str(asset.get("abs_path") or "")
+    if not path_is_allowed(abs_path):
+        raise HTTPException(403, "File is outside watched folders")
+    src = Path(abs_path)
+    if not src.is_file():
+        raise HTTPException(404, "File missing on disk")
+
+    kind = asset.get("kind") or ""
+    if entry:
+        if kind != "zip":
+            raise HTTPException(400, "entry= is only valid for ZIP assets")
+        try:
+            entry_name = safe_zip_entry(entry)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        if not entry_kind(entry_name):
+            raise HTTPException(400, "Zip entry is not a printable mesh (stl/obj/3mf)")
+        try:
+            real = resolve_zip_member(src, entry_name)
+        except FileNotFoundError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        filename = Path(entry_name).name
+        media = _media_type_for_name(filename)
+
+        def _iter_zip_member() -> Iterator[bytes]:
+            with zipfile.ZipFile(src, "r") as zf:
+                with zf.open(real, "r") as fh:
+                    while True:
+                        chunk = fh.read(1024 * 1024)
+                        if not chunk:
+                            break
+                        yield chunk
+
+        return StreamingResponse(
+            _iter_zip_member(),
+            media_type=media,
+            headers={
+                "Content-Disposition": _content_disposition(filename),
+                "Cache-Control": "private, max-age=60",
+                "X-PrintShelf-Zip-Entry": entry_name,
+            },
+        )
+
+    filename = asset.get("file_name") or src.name
+    return FileResponse(
+        src,
+        media_type=_media_type_for_name(filename),
+        filename=filename,
+        headers={
+            "Content-Disposition": _content_disposition(filename),
+            "Cache-Control": "private, max-age=60",
+            "X-PrintShelf-Kind": kind,
+        },
+    )
 
 
 @app.get("/api/assets/{asset_id}/model")

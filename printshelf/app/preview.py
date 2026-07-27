@@ -195,14 +195,18 @@ def build_preview_stl(asset: dict[str, Any], max_tris: int = MAX_PREVIEW_TRIS) -
     raise ValueError(f"Unsupported kind for 3D preview: {kind}")
 
 
-def _safe_zip_entry(name: str) -> str:
+def safe_zip_entry(name: str) -> str:
     n = (name or "").replace("\\", "/").lstrip("/")
     if not n or n.endswith("/") or ".." in n.split("/"):
         raise ValueError("Invalid zip entry path")
     return n
 
 
-def _entry_kind(name: str) -> str | None:
+# Back-compat alias used by older call sites.
+_safe_zip_entry = safe_zip_entry
+
+
+def entry_kind(name: str) -> str | None:
     lower = name.lower()
     if lower.endswith(".gcode.3mf"):
         return "gcode.3mf"
@@ -215,6 +219,23 @@ def _entry_kind(name: str) -> str | None:
     return None
 
 
+_entry_kind = entry_kind
+
+
+def resolve_zip_member(src: Path, entry: str) -> str:
+    """Return the real ZipInfo filename for a logical entry path."""
+    entry = safe_zip_entry(entry)
+    with zipfile.ZipFile(src, "r") as zf:
+        names = {n.replace("\\", "/"): n for n in zf.namelist()}
+        real = names.get(entry)
+        if real is None:
+            lower_map = {k.lower(): v for k, v in names.items()}
+            real = lower_map.get(entry.lower())
+        if real is None:
+            raise FileNotFoundError(f"Entry not found in zip: {entry}")
+        return real
+
+
 def build_zip_entry_preview(
     asset: dict[str, Any],
     entry: str,
@@ -223,8 +244,8 @@ def build_zip_entry_preview(
     """Extract one printable from a ZIP and build a preview STL."""
     if (asset.get("kind") or "") != "zip":
         raise ValueError("Not a zip asset")
-    entry = _safe_zip_entry(entry)
-    ekind = _entry_kind(entry)
+    entry = safe_zip_entry(entry)
+    ekind = entry_kind(entry)
     if not ekind:
         raise ValueError("Zip entry is not a printable mesh (stl/obj/3mf)")
 

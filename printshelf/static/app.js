@@ -544,6 +544,69 @@ async function copyText(btn, text, okLabel = "Copied") {
   setTimeout(() => { btn.textContent = prev; }, 1600);
 }
 
+function isMacOS() {
+  const ua = navigator.userAgent || "";
+  const plat = navigator.platform || "";
+  return /Mac|iPhone|iPad|iPod/i.test(plat) || /Macintosh|Mac OS X/i.test(ua);
+}
+
+function isMobileClient() {
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
+}
+
+function windowsPathToFileUrl(winPath) {
+  const p = String(winPath || "").trim().replace(/\//g, "\\");
+  if (!p) return "";
+  if (p.startsWith("\\\\")) {
+    return `file://${p.slice(2).replace(/\\/g, "/")}`;
+  }
+  if (/^[A-Za-z]:/.test(p)) {
+    return `file:///${p.replace(/\\/g, "/")}`;
+  }
+  return `file:///${p.replace(/\\/g, "/")}`;
+}
+
+function buildSlicerProtocolUrl(fileUrl) {
+  const enc = encodeURIComponent(fileUrl);
+  if (isMacOS()) return `bambustudioopen://${enc}`;
+  return `bambustudio://open?file=${enc}`;
+}
+
+function slicerFileUrlForAsset(item, { zipEntry = "" } = {}) {
+  const kind = item.kind || "";
+  const openable = ["stl", "obj", "3mf", "gcode.3mf"].includes(kind);
+  const isZip = kind === "zip";
+  if (!openable && !isZip) return { url: "", reason: "Not a slicer file type" };
+  if (isZip && !zipEntry) {
+    return { url: "", reason: "Pick a printable inside the ZIP first" };
+  }
+  // ZIP members always go through PrintShelf (can't point file:// inside an archive).
+  if (isZip) {
+    const u = new URL(`/api/assets/${item.id}/file`, window.location.origin);
+    u.searchParams.set("entry", zipEntry);
+    return { url: u.toString(), reason: "", via: "download" };
+  }
+  if (item.windows_path) {
+    return { url: windowsPathToFileUrl(item.windows_path), reason: "", via: "local" };
+  }
+  const u = new URL(`/api/assets/${item.id}/file`, window.location.origin);
+  return { url: u.toString(), reason: "", via: "download" };
+}
+
+function openInSlicer(item, { zipEntry = "" } = {}) {
+  if (isMobileClient()) {
+    alert("Open in slicer needs Bambu Studio or Orca on a PC. On your phone, use Copy Windows path instead.");
+    return false;
+  }
+  const { url, reason } = slicerFileUrlForAsset(item, { zipEntry });
+  if (!url) {
+    alert(reason || "Can't open this file in a slicer.");
+    return false;
+  }
+  window.location.href = buildSlicerProtocolUrl(url);
+  return true;
+}
+
 async function selectAsset(id) {
   selectedId = id;
   document.querySelectorAll(".card").forEach((c) => c.classList.remove("active"));
@@ -564,6 +627,16 @@ async function selectAsset(id) {
     || item.kind === "3mf"
     || item.kind === "gcode.3mf"
     || (isZip && zipPrintables.length > 0);
+  const slicerKinds = ["stl", "obj", "3mf", "gcode.3mf"];
+  const canSlicer = slicerKinds.includes(item.kind) || (isZip && zipPrintables.length > 0);
+  let zipEntry = isZip ? (zipPrintables[0]?.name || "") : "";
+  const slicerInfo = () => slicerFileUrlForAsset(item, { zipEntry });
+  const slicerDisabledReason = () => {
+    if (!canSlicer) return "Not a slicer file type";
+    if (isMobileClient()) return "Use on PC with Bambu/Orca";
+    const info = slicerInfo();
+    return info.url ? "" : (info.reason || "Unavailable");
+  };
   $("detail").innerHTML = `
     <h2>${escapeHtml(item.file_name)}</h2>
     <div class="detail-path">${escapeHtml(item.abs_path)}</div>
@@ -658,6 +731,9 @@ async function selectAsset(id) {
       </div>` : ""}
     <div class="detail-section">
       <div class="detail-actions">
+        <button class="card-open slicer-btn" type="button" id="openSlicerBtn"
+          ${slicerDisabledReason() ? "disabled" : ""}
+          title="${escapeHtml(slicerDisabledReason() || "Open in Bambu Studio or Orca")}">Open in slicer</button>
         <button class="card-open" type="button" id="copyWinPathBtn" data-label="Copy Windows path" ${winPath ? "" : "disabled"}>Copy Windows path</button>
         <button class="card-open secondary" type="button" id="copyWinFolderBtn" data-label="Copy Windows folder" ${winFolder ? "" : "disabled"}>Copy Windows folder</button>
         <button class="card-open secondary" type="button" id="copyPiPathBtn" data-label="Copy Pi path">Copy Pi path</button>
@@ -668,6 +744,15 @@ async function selectAsset(id) {
           : `<button class="card-open secondary" type="button" id="hideBtn">${selectedIds.size > 1 ? `Hide ${selectedIds.size} from library` : "Hide from library"}</button>`}
         <button class="card-open danger" type="button" id="deleteDiskBtn">${selectedIds.size > 1 ? `Delete ${selectedIds.size} from disk…` : "Delete from disk…"}</button>
       </div>
+      <p class="detail-hint" id="slicerHint">${canSlicer
+        ? (isMobileClient()
+          ? "Open in slicer needs Bambu/Orca on a PC. On your phone, use Copy Windows path."
+          : (winPath && !isZip
+            ? "Open in slicer launches Bambu Studio or Orca with the NAS file (whichever owns the bambustudio link)."
+            : isZip
+              ? "Open in slicer downloads the selected printable from the ZIP into Bambu/Orca."
+              : "Open in slicer downloads via PrintShelf into Bambu/Orca. Set a Windows path on the folder for faster local open."))
+        : "Slicer open is for STL, OBJ, 3MF, and ZIP printables."}</p>
       <p class="detail-hint">${winPath
         ? "Paste Windows path into Bambu/Orca, or folder into Explorer (Ctrl+L → Ctrl+V)."
         : "Set a Windows path on this watched folder in Folders to enable PC copy."}</p>
@@ -675,6 +760,16 @@ async function selectAsset(id) {
         ? `Selection active: Hide/Delete will apply to all ${selectedIds.size} selected files.`
         : `Hide keeps the file on disk. Delete removes the file${sidecars.length ? " and indexed sidecars/textures" : ""} permanently.`}</p>
     </div>`;
+  const syncSlicerBtn = () => {
+    const btn = $("openSlicerBtn");
+    if (!btn) return;
+    const reason = slicerDisabledReason();
+    btn.disabled = Boolean(reason);
+    btn.title = reason || "Open in Bambu Studio or Orca";
+  };
+  $("openSlicerBtn")?.addEventListener("click", () => {
+    openInSlicer(item, { zipEntry });
+  });
   $("copyWinPathBtn")?.addEventListener("click", () => copyText($("copyWinPathBtn"), winPath));
   $("copyWinFolderBtn")?.addEventListener("click", () => copyText($("copyWinFolderBtn"), winFolder, "Folder copied"));
   $("copyPiPathBtn")?.addEventListener("click", () => copyText($("copyPiPathBtn"), item.abs_path));
@@ -706,7 +801,6 @@ async function selectAsset(id) {
     }
   });
   if (canOrbit) {
-    let zipEntry = isZip ? (zipPrintables[0]?.name || "") : "";
     const mountOrbit = async (highDetail) => {
       for (let i = 0; i < 40 && !window.PrintShelfViewer?.mountOrbitViewer; i++) {
         await new Promise((r) => setTimeout(r, 50));
@@ -744,6 +838,7 @@ async function selectAsset(id) {
       if (!btn) return;
       zipEntry = btn.dataset.entry || "";
       document.querySelectorAll(".zip-entry-btn").forEach((b) => b.classList.toggle("active", b === btn));
+      syncSlicerBtn();
       mountOrbit(Boolean($("orbitHighDetail")?.checked)).catch(console.error);
     });
     if (isZip && zipPrintables.length) {
@@ -751,7 +846,18 @@ async function selectAsset(id) {
       if (firstBtn) firstBtn.classList.add("active");
     }
     await mountOrbit(false);
+  } else if (isZip && zipPrintables.length) {
+    $("zipPrintables")?.addEventListener("click", (e) => {
+      const btn = e.target.closest(".zip-entry-btn");
+      if (!btn) return;
+      zipEntry = btn.dataset.entry || "";
+      document.querySelectorAll(".zip-entry-btn").forEach((b) => b.classList.toggle("active", b === btn));
+      syncSlicerBtn();
+    });
+    const firstBtn = document.querySelector(".zip-entry-btn");
+    if (firstBtn) firstBtn.classList.add("active");
   }
+  syncSlicerBtn();
   await loadLibrary();
 }
 

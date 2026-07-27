@@ -45,3 +45,17 @@ def to_windows_folder(abs_path: str, folders: list[dict[str, Any]]) -> str | Non
         return None
     p = PureWindowsPath(win)
     return str(p.parent) if p.parent != p else win
+
+
+def windows_path_to_file_url(win_path: str) -> str | None:
+    """Convert a Windows/UNC path to a file:// URL for slicer protocol handlers."""
+    p = (win_path or "").strip().replace("/", "\\")
+    if not p:
+        return None
+    if p.startswith("\\\\"):
+        # \\server\share\a\b.3mf -> file://server/share/a/b.3mf
+        return "file://" + p[2:].replace("\\", "/")
+    if len(p) >= 2 and p[1] == ":":
+        # Z:\foo\bar.stl -> file:///Z:/foo/bar.stl
+        return "file:///" + p.replace("\\", "/")
+    return "file:///" + p.replace("\\", "/")

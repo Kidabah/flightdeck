@@ -8,15 +8,14 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `68d6c4a` — PrintShelf live scan refresh banner
+Latest commit: `(pending)` — PrintShelf Open in slicer
 
 Latest local/Pi change:
-- Library **Refresh** button + orange **scan banner** with live kind counts while scanning (auto-updates; grid refreshes ~every 10s when Live refresh is on).
-- Mobile layout tightened (rail stacks, single-column workspace). PWA already installable on phone via Tailscale HTTPS.
-- Hard refresh `?v=22`. **Static only — do not restart** while a long NAS scan is running (`git pull` is enough).
+- Detail **Open in slicer** launches Bambu Studio / Orca via `bambustudio://` (Mac: `bambustudioopen://`). Prefers local NAS `file://` from Windows path; ZIP members / no-win-path fall back to `GET /api/assets/{id}/file`.
+- Hard refresh `?v=23`. **Restart required** (new API). Long scan may interrupt — Rescan resumes via unchanged skip.
 
 Previous today:
-- Scan resume (`d520c45`); range select. Archives in `docs/archive/`.
+- Live scan banner (`68d6c4a`); scan resume. Archives in `docs/archive/`.
 
 ---
 

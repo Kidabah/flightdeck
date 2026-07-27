@@ -333,6 +333,17 @@ h1 {
   border: 1px solid var(--line);
   color: var(--text);
 }
+.card-open.slicer-btn {
+  background: linear-gradient(145deg, var(--accent), #a34d22);
+  border-color: transparent;
+  color: #fff;
+  font-weight: 600;
+}
+.card-open.slicer-btn:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+  filter: grayscale(.2);
+}
 .danger-actions { margin-top: 10px; }
 .card-open.danger {
   background: transparent;
