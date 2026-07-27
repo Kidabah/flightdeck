@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `(pending)` — PrintShelf blue thumbs + locked scroll layout
+Latest commit: `1491b9e` — PrintShelf blue thumbs + locked scroll layout
 
 Latest local/Pi change:
 - Mesh thumbs render in **MakerDeck blue** (`stl6` / `obj5` / `3mf3`). Hit **Rebuild thumbs** after deploy.
