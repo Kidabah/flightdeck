@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `(pending)` — PrintShelf ZIP icon + nested peek
+Latest commit: `e9f9bcd` — PrintShelf ZIP icon + nested peek
 
 Latest local/Pi change:
 - ZIP cards use a shared **MakerDeck-blue ZIP icon** (`_shared_zip2.png`) instead of random coloured squares.
