@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `(pending)` — PrintShelf detail pane fix (`canSlicer`)
+Latest commit: `f0dc750` — PrintShelf detail pane fix (`canSlicer`)
 
 Latest local/Pi change:
 - Fixed blank detail pane: `selectAsset` referenced undefined `canSlicer` (broke Peek + all details).
