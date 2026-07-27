@@ -242,27 +242,6 @@ def _load_asset_or_404(asset_id: int) -> dict[str, Any]:
     return item
 
 
-@app.post("/api/assets/{asset_id}/hide")
-def hide_asset(asset_id: int) -> dict[str, Any]:
-    """Hide from library; file stays on disk. Survives rescan."""
-    asset = _load_asset_or_404(asset_id)
-    cfg = load_config()
-    db_file = data_dir(cfg) / "printshelf.sqlite3"
-    with db_session(db_file) as conn:
-        conn.execute("UPDATE assets SET hidden = 1 WHERE id = ?", (asset_id,))
-    return {"ok": True, "id": asset_id, "hidden": True, "file_name": asset.get("file_name")}
-
-
-@app.post("/api/assets/{asset_id}/unhide")
-def unhide_asset(asset_id: int) -> dict[str, Any]:
-    asset = _load_asset_or_404(asset_id)
-    cfg = load_config()
-    db_file = data_dir(cfg) / "printshelf.sqlite3"
-    with db_session(db_file) as conn:
-        conn.execute("UPDATE assets SET hidden = 0 WHERE id = ?", (asset_id,))
-    return {"ok": True, "id": asset_id, "hidden": False, "file_name": asset.get("file_name")}
-
-
 def _delete_asset_disk(asset_id: int, delete_sidecars: bool = True) -> dict[str, Any]:
     """Delete one asset from disk + DB. Raises HTTPException on hard failures."""
     asset = _load_asset_or_404(asset_id)
@@ -340,15 +319,7 @@ def _delete_asset_disk(asset_id: int, delete_sidecars: bool = True) -> dict[str,
     }
 
 
-@app.post("/api/assets/{asset_id}/delete")
-def delete_asset(
-    asset_id: int,
-    delete_sidecars: bool = Query(True),
-) -> dict[str, Any]:
-    """Permanently delete the file on disk (and indexed sidecars), then drop the DB row."""
-    return _delete_asset_disk(asset_id, delete_sidecars=delete_sidecars)
-
-
+# Bulk routes must be registered before /api/assets/{asset_id}/... or "bulk" is parsed as an id.
 @app.post("/api/assets/bulk/hide")
 def bulk_hide(body: BulkIdsIn) -> dict[str, Any]:
     ids = sorted({int(i) for i in body.ids if int(i) > 0})
@@ -402,6 +373,36 @@ def bulk_delete(body: BulkIdsIn) -> dict[str, Any]:
         "deleted_count": len(deleted),
         "failed": failed,
     }
+
+
+@app.post("/api/assets/{asset_id}/hide")
+def hide_asset(asset_id: int) -> dict[str, Any]:
+    """Hide from library; file stays on disk. Survives rescan."""
+    asset = _load_asset_or_404(asset_id)
+    cfg = load_config()
+    db_file = data_dir(cfg) / "printshelf.sqlite3"
+    with db_session(db_file) as conn:
+        conn.execute("UPDATE assets SET hidden = 1 WHERE id = ?", (asset_id,))
+    return {"ok": True, "id": asset_id, "hidden": True, "file_name": asset.get("file_name")}
+
+
+@app.post("/api/assets/{asset_id}/unhide")
+def unhide_asset(asset_id: int) -> dict[str, Any]:
+    asset = _load_asset_or_404(asset_id)
+    cfg = load_config()
+    db_file = data_dir(cfg) / "printshelf.sqlite3"
+    with db_session(db_file) as conn:
+        conn.execute("UPDATE assets SET hidden = 0 WHERE id = ?", (asset_id,))
+    return {"ok": True, "id": asset_id, "hidden": False, "file_name": asset.get("file_name")}
+
+
+@app.post("/api/assets/{asset_id}/delete")
+def delete_asset(
+    asset_id: int,
+    delete_sidecars: bool = Query(True),
+) -> dict[str, Any]:
+    """Permanently delete the file on disk (and indexed sidecars), then drop the DB row."""
+    return _delete_asset_disk(asset_id, delete_sidecars=delete_sidecars)
 
 
 @app.get("/api/assets/{asset_id}/model")
