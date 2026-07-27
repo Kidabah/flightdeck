@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: *(pending)* — PrintShelf ZIP category
+Latest commit: `49db5d7` — PrintShelf ZIP category
 
 Latest local/Pi change:
 - Index **`.zip`** archives (contents list + printable counts inside; no extract).
