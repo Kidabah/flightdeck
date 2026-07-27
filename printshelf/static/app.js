@@ -32,6 +32,11 @@ function fmtBytes(n) {
   return `${v.toFixed(i ? 1 : 0)} ${u[i]}`;
 }
 
+function fileCountLabel(n) {
+  const count = Number(n) || 0;
+  return count === 1 ? "1 file" : `${count} files`;
+}
+
 function switchView(name) {
   document.querySelectorAll(".view").forEach((el) => el.classList.toggle("hidden", el.id !== `view-${name}`));
   document.querySelectorAll(".nav-btn").forEach((btn) => btn.classList.toggle("active", btn.dataset.view === name));
@@ -482,13 +487,13 @@ async function selectAsset(id) {
   });
   $("deleteDiskBtn")?.addEventListener("click", async () => {
     const scNote = sidecars.length
-      ? `\n\nAlso deletes ${sidecars.length} indexed sidecar/texture file(s).`
+      ? `\n\nAlso deletes ${sidecars.length} indexed sidecar/texture file${sidecars.length === 1 ? "" : "s"}.`
       : "";
     const ok = confirm(
-      `Permanently delete this file from disk?\n\n${item.file_name}\n${item.abs_path}${scNote}\n\nThis cannot be undone.`,
+      `PrintShelf — permanently delete ${fileCountLabel(1)} from disk?\n\n${item.file_name}\n${item.abs_path}${scNote}\n\nThis cannot be undone.`,
     );
     if (!ok) return;
-    const ok2 = confirm("Last check — delete from disk for real?");
+    const ok2 = confirm(`PrintShelf — last check: delete ${fileCountLabel(1)} from disk for real?`);
     if (!ok2) return;
     try {
       await api(`/api/assets/${id}/delete`, { method: "POST", body: "{}" });
@@ -656,11 +661,12 @@ function bind() {
   $("bulkDeleteBtn")?.addEventListener("click", async () => {
     const ids = [...selectedIds];
     if (!ids.length) return;
+    const label = fileCountLabel(ids.length);
     const ok = confirm(
-      `Permanently delete ${ids.length} file(s) from disk?\n\nThis cannot be undone.`,
+      `PrintShelf — permanently delete ${label} from disk?\n\n${label} will be removed from the NAS/disk and the library.\n\nThis cannot be undone.`,
     );
     if (!ok) return;
-    const ok2 = confirm(`Last check — delete ${ids.length} file(s) from disk for real?`);
+    const ok2 = confirm(`PrintShelf — last check: delete ${label} from disk for real?`);
     if (!ok2) return;
     try {
       const res = await api("/api/assets/bulk/delete", {

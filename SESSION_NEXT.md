@@ -8,6 +8,19 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
+Latest commit: *(pending)* — PrintShelf delete confirm shows file count
+
+Latest local/Pi change:
+- Delete confirms say **how many files** (`1 file` / `N files`) in PrintShelf style.
+- Hard refresh `?v=18`. Restart optional (static).
+
+Previous today:
+- Folder browse (`0216556`). Archives in `docs/archive/`.
+
+---
+
+## 2026-07-27 Session update (folder browse)
+
 Latest commit: `0216556` — PrintShelf folder browse
 
 Latest local/Pi change:
