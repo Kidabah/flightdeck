@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `(pending)` — PrintShelf stop bare bambustudio:// launch
+Latest commit: `8aceda2` — PrintShelf stop bare bambustudio:// launch
 
 Latest local/Pi change:
 - STL Open in slicer only **copies NAS path** (no `bambustudio://open` — that caused “unknown file format”).
