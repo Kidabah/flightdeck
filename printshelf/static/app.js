@@ -37,6 +37,83 @@ function fileCountLabel(n) {
   return count === 1 ? "1 file" : `${count} files`;
 }
 
+function idsForAction(fallbackId) {
+  /** Prefer multi-select; otherwise the open detail asset. */
+  if (selectedIds.size > 0) return [...selectedIds];
+  if (fallbackId != null) return [Number(fallbackId)];
+  return [];
+}
+
+async function hideIds(ids) {
+  if (!ids.length) return;
+  if (ids.length === 1) {
+    await api(`/api/assets/${ids[0]}/hide`, { method: "POST", body: "{}" });
+  } else {
+    await api("/api/assets/bulk/hide", { method: "POST", body: JSON.stringify({ ids }) });
+  }
+  clearSelection();
+  selectedId = null;
+  window.PrintShelfViewer?.unmountOrbitViewer?.();
+  $("detail").innerHTML = `<div class="detail-empty">Hidden ${fileCountLabel(ids.length)} from library. Use “Show hidden” to find ${ids.length === 1 ? "it" : "them"} again.</div>`;
+  await refreshStats();
+  await loadLibrary();
+}
+
+async function unhideIds(ids) {
+  if (!ids.length) return;
+  if (ids.length === 1) {
+    await api(`/api/assets/${ids[0]}/unhide`, { method: "POST", body: "{}" });
+  } else {
+    await api("/api/assets/bulk/unhide", { method: "POST", body: JSON.stringify({ ids }) });
+  }
+  clearSelection();
+  await refreshStats();
+  await loadLibrary();
+}
+
+async function deleteIdsFromDisk(ids, { names = [] } = {}) {
+  if (!ids.length) return;
+  const label = fileCountLabel(ids.length);
+  const sample = names.filter(Boolean).slice(0, 8);
+  const more = ids.length > sample.length ? `\n…and ${ids.length - sample.length} more` : "";
+  const listBit = sample.length
+    ? `\n\n${sample.join("\n")}${more}`
+    : `\n\n${label} will be removed from the NAS/disk and the library.`;
+  const ok = confirm(
+    `PrintShelf — permanently delete ${label} from disk?${listBit}\n\nThis cannot be undone.`,
+  );
+  if (!ok) return false;
+  const ok2 = confirm(`PrintShelf — last check: delete ${label} from disk for real?`);
+  if (!ok2) return false;
+
+  let deletedCount = 0;
+  let failed = [];
+  if (ids.length === 1) {
+    await api(`/api/assets/${ids[0]}/delete`, { method: "POST", body: "{}" });
+    deletedCount = 1;
+  } else {
+    const res = await api("/api/assets/bulk/delete", {
+      method: "POST",
+      body: JSON.stringify({ ids }),
+    });
+    deletedCount = res.deleted_count || 0;
+    failed = res.failed || [];
+  }
+  clearSelection();
+  selectedId = null;
+  window.PrintShelfViewer?.unmountOrbitViewer?.();
+  $("detail").innerHTML = `<div class="detail-empty">Deleted ${fileCountLabel(deletedCount)} from disk${failed.length ? ` · ${failed.length} failed` : ""}.</div>`;
+  if (failed.length) {
+    alert(
+      `Deleted ${deletedCount}. Failed: ${failed.length}\n`
+      + failed.slice(0, 8).map((f) => `${f.id}: ${f.error}`).join("\n"),
+    );
+  }
+  await refreshStats();
+  await loadLibrary();
+  return true;
+}
+
 function switchView(name) {
   document.querySelectorAll(".view").forEach((el) => el.classList.toggle("hidden", el.id !== `view-${name}`));
   document.querySelectorAll(".nav-btn").forEach((btn) => btn.classList.toggle("active", btn.dataset.view === name));
@@ -452,56 +529,43 @@ async function selectAsset(id) {
       </div>
       <div class="detail-actions danger-actions">
         ${item.hidden
-          ? `<button class="card-open secondary" type="button" id="unhideBtn">Unhide</button>`
-          : `<button class="card-open secondary" type="button" id="hideBtn">Hide from library</button>`}
-        <button class="card-open danger" type="button" id="deleteDiskBtn">Delete from disk…</button>
+          ? `<button class="card-open secondary" type="button" id="unhideBtn">${selectedIds.size > 1 ? `Unhide ${selectedIds.size}` : "Unhide"}</button>`
+          : `<button class="card-open secondary" type="button" id="hideBtn">${selectedIds.size > 1 ? `Hide ${selectedIds.size} from library` : "Hide from library"}</button>`}
+        <button class="card-open danger" type="button" id="deleteDiskBtn">${selectedIds.size > 1 ? `Delete ${selectedIds.size} from disk…` : "Delete from disk…"}</button>
       </div>
       <p class="detail-hint">${winPath
         ? "Paste Windows path into Bambu/Orca, or folder into Explorer (Ctrl+L → Ctrl+V)."
         : "Set a Windows path on this watched folder in Folders to enable PC copy."}</p>
-      <p class="detail-hint">Hide keeps the file on disk. Delete removes the file${sidecars.length ? " and indexed sidecars/textures" : ""} permanently.</p>
+      <p class="detail-hint">${selectedIds.size > 1
+        ? `Selection active: Hide/Delete will apply to all ${selectedIds.size} selected files.`
+        : `Hide keeps the file on disk. Delete removes the file${sidecars.length ? " and indexed sidecars/textures" : ""} permanently.`}</p>
     </div>`;
   $("copyWinPathBtn")?.addEventListener("click", () => copyText($("copyWinPathBtn"), winPath));
   $("copyWinFolderBtn")?.addEventListener("click", () => copyText($("copyWinFolderBtn"), winFolder, "Folder copied"));
   $("copyPiPathBtn")?.addEventListener("click", () => copyText($("copyPiPathBtn"), item.abs_path));
   $("hideBtn")?.addEventListener("click", async () => {
     try {
-      await api(`/api/assets/${id}/hide`, { method: "POST", body: "{}" });
-      selectedId = null;
-      window.PrintShelfViewer?.unmountOrbitViewer?.();
-      $("detail").innerHTML = `<div class="detail-empty">Hidden from library. Use “Show hidden” to find it again.</div>`;
-      await refreshStats();
-      await loadLibrary();
+      await hideIds(idsForAction(id));
     } catch (err) {
       alert(String(err.message || err));
     }
   });
   $("unhideBtn")?.addEventListener("click", async () => {
     try {
-      await api(`/api/assets/${id}/unhide`, { method: "POST", body: "{}" });
-      await refreshStats();
-      await selectAsset(id);
+      const ids = idsForAction(id);
+      await unhideIds(ids);
+      if (ids.length === 1) await selectAsset(ids[0]);
     } catch (err) {
       alert(String(err.message || err));
     }
   });
   $("deleteDiskBtn")?.addEventListener("click", async () => {
-    const scNote = sidecars.length
-      ? `\n\nAlso deletes ${sidecars.length} indexed sidecar/texture file${sidecars.length === 1 ? "" : "s"}.`
-      : "";
-    const ok = confirm(
-      `PrintShelf — permanently delete ${fileCountLabel(1)} from disk?\n\n${item.file_name}\n${item.abs_path}${scNote}\n\nThis cannot be undone.`,
-    );
-    if (!ok) return;
-    const ok2 = confirm(`PrintShelf — last check: delete ${fileCountLabel(1)} from disk for real?`);
-    if (!ok2) return;
     try {
-      await api(`/api/assets/${id}/delete`, { method: "POST", body: "{}" });
-      selectedId = null;
-      window.PrintShelfViewer?.unmountOrbitViewer?.();
-      $("detail").innerHTML = `<div class="detail-empty">Deleted from disk.</div>`;
-      await refreshStats();
-      await loadLibrary();
+      const ids = idsForAction(id);
+      const names = ids.length === 1
+        ? [item.file_name]
+        : libraryItems.filter((x) => ids.includes(x.id)).map((x) => x.file_name);
+      await deleteIdsFromDisk(ids, { names });
     } catch (err) {
       alert(String(err.message || err));
     }
@@ -633,55 +697,24 @@ function bind() {
   });
   $("bulkClearBtn")?.addEventListener("click", () => clearSelection());
   $("bulkHideBtn")?.addEventListener("click", async () => {
-    const ids = [...selectedIds];
-    if (!ids.length) return;
     try {
-      await api("/api/assets/bulk/hide", { method: "POST", body: JSON.stringify({ ids }) });
-      clearSelection();
-      selectedId = null;
-      $("detail").innerHTML = `<div class="detail-empty">Hidden ${ids.length} file(s) from library.</div>`;
-      await refreshStats();
-      await loadLibrary();
+      await hideIds([...selectedIds]);
     } catch (err) {
       alert(String(err.message || err));
     }
   });
   $("bulkUnhideBtn")?.addEventListener("click", async () => {
-    const ids = [...selectedIds];
-    if (!ids.length) return;
     try {
-      await api("/api/assets/bulk/unhide", { method: "POST", body: JSON.stringify({ ids }) });
-      clearSelection();
-      await refreshStats();
-      await loadLibrary();
+      await unhideIds([...selectedIds]);
     } catch (err) {
       alert(String(err.message || err));
     }
   });
   $("bulkDeleteBtn")?.addEventListener("click", async () => {
-    const ids = [...selectedIds];
-    if (!ids.length) return;
-    const label = fileCountLabel(ids.length);
-    const ok = confirm(
-      `PrintShelf — permanently delete ${label} from disk?\n\n${label} will be removed from the NAS/disk and the library.\n\nThis cannot be undone.`,
-    );
-    if (!ok) return;
-    const ok2 = confirm(`PrintShelf — last check: delete ${label} from disk for real?`);
-    if (!ok2) return;
     try {
-      const res = await api("/api/assets/bulk/delete", {
-        method: "POST",
-        body: JSON.stringify({ ids }),
-      });
-      clearSelection();
-      selectedId = null;
-      const failed = (res.failed || []).length;
-      $("detail").innerHTML = `<div class="detail-empty">Deleted ${res.deleted_count || 0} from disk${failed ? ` · ${failed} failed` : ""}.</div>`;
-      if (failed) {
-        alert(`Deleted ${res.deleted_count || 0}. Failed: ${failed}\n` + (res.failed || []).slice(0, 8).map((f) => `${f.id}: ${f.error}`).join("\n"));
-      }
-      await refreshStats();
-      await loadLibrary();
+      const ids = [...selectedIds];
+      const names = libraryItems.filter((x) => ids.includes(x.id)).map((x) => x.file_name);
+      await deleteIdsFromDisk(ids, { names });
     } catch (err) {
       alert(String(err.message || err));
     }
