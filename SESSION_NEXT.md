@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: *(pending)* — PrintShelf folder browse
+Latest commit: `0216556` — PrintShelf folder browse
 
 Latest local/Pi change:
 - Library **Folders** mode (default): watched roots → nested folders → files, with breadcrumbs.
