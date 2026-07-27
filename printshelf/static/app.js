@@ -692,15 +692,9 @@ function slicerDownloadName(item, zipEntry = "") {
     ? (String(zipEntry).split(/[/\\]/).pop() || "model.stl")
     : (item.file_name || "model.stl");
   name = String(name).replace(/[\\/]/g, "_").trim() || "model.stl";
-  // Bambu/Orca decide how to import from the URL path extension.
-  if (!/\.(stl|obj|3mf)$/i.test(name)) {
-    const kind = item.kind || "";
-    const ext = kind === "obj" ? ".obj"
-      : kind === "3mf" || kind === "gcode.3mf" ? ".3mf"
-      : ".stl";
-    name += ext;
-  }
-  return name;
+  // Bambu Studio's URL-open downloader ONLY accepts .3mf (STL → "unknown file format").
+  const stem = name.replace(/\.(stl|obj|3mf|gcode\.3mf)$/i, "") || "model";
+  return `${stem}.3mf`;
 }
 
 function slicerFileUrlForAsset(item, { zipEntry = "" } = {}) {
@@ -711,12 +705,13 @@ function slicerFileUrlForAsset(item, { zipEntry = "" } = {}) {
   if (isZip && !zipEntry) {
     return { url: "", reason: "Pick a printable inside the ZIP first" };
   }
-  // Always HTTPS download with a real filename.ext — file:// UNC does not load onto the plate.
+  // HTTPS .3mf URL — Studio wraps/loads this; STL/OBJ are packaged server-side.
   const name = slicerDownloadName(item, zipEntry);
   const u = new URL(
     `/api/assets/${item.id}/file/${encodeURIComponent(name)}`,
     window.location.origin,
   );
+  u.searchParams.set("slicer", "1");
   if (isZip && zipEntry) u.searchParams.set("entry", zipEntry);
   return { url: u.toString(), reason: "", via: "download" };
 }
@@ -1064,14 +1059,19 @@ async function selectAsset(id) {
       syncSlicerBtn();
       mountOrbit(Boolean($("orbitHighDetail")?.checked)).catch(console.error);
     });
-    if (isZip && zipPrintables.length) {
-      const firstBtn = document.querySelector(".zip-entry-btn");
-      if (firstBtn) firstBtn.classList.add("active");
+    if (isZip) {
+      if (zipPrintables.length) {
+        const firstBtn = document.querySelector(".zip-entry-btn");
+        if (firstBtn) firstBtn.classList.add("active");
+        await mountOrbit(false);
+      } else if ($("orbitViewer")) {
+        $("orbitViewer").innerHTML = `<div class="viewer-status">${hasNested
+          ? "Peek a nested archive below to load printables."
+          : "No printables loaded yet — peek a nested archive or pick one below."}</div>`;
+      }
+    } else {
+      // STL / OBJ / 3MF — mount immediately (zip-only branch used to skip these).
       await mountOrbit(false);
-    } else if ($("orbitViewer")) {
-      $("orbitViewer").innerHTML = `<div class="viewer-status">${hasNested
-        ? "Peek a nested archive below to load printables."
-        : "Pick a printable in the list below."}</div>`;
     }
   } else if (isZip && zipPrintables.length) {
     $("zipPrintables")?.addEventListener("click", (e) => {

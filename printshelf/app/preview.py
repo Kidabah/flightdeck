@@ -147,6 +147,179 @@ def cached_preview_path(content_hash: str, kind: str, max_tris: int) -> Path:
     return prev / f"{(content_hash or 'x')[:20]}_{kind}_{max_tris}.stl"
 
 
+def cached_slicer_3mf_path(content_hash: str, kind: str, entry_key: str = "") -> Path:
+    prev = data_dir() / "previews"
+    prev.mkdir(parents=True, exist_ok=True)
+    key = hashlib.md5(f"{content_hash}|{kind}|{entry_key}".encode("utf-8")).hexdigest()[:20]
+    return prev / f"{key}_slicer.3mf"
+
+
+def _parse_binary_stl_tris(data: bytes) -> list[tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]]]:
+    if len(data) < 84:
+        return []
+    # ASCII STL — fall back via a temp decode path.
+    head = data[:80].lstrip().lower()
+    if head.startswith(b"solid") and b"facet" in data[:4096].lower():
+        text = data.decode("utf-8", errors="ignore")
+        tris = []
+        verts: list[tuple[float, float, float]] = []
+        for line in text.splitlines():
+            parts = line.strip().split()
+            if len(parts) >= 4 and parts[0].lower() == "vertex":
+                try:
+                    verts.append((float(parts[1]), float(parts[2]), float(parts[3])))
+                except Exception:
+                    continue
+                if len(verts) == 3:
+                    tris.append((verts[0], verts[1], verts[2]))
+                    verts = []
+        return tris
+    n = struct.unpack_from("<I", data, 80)[0]
+    if n <= 0 or 84 + n * 50 > len(data) + 50:
+        return []
+    tris = []
+    off = 84
+    for _ in range(n):
+        if off + 50 > len(data):
+            break
+        v0 = struct.unpack_from("<fff", data, off + 12)
+        v1 = struct.unpack_from("<fff", data, off + 24)
+        v2 = struct.unpack_from("<fff", data, off + 36)
+        tris.append((v0, v1, v2))
+        off += 50
+    return tris
+
+
+def _tris_to_3mf_bytes(
+    tris: list[tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]]],
+    object_name: str = "model",
+) -> bytes:
+    """Minimal Core 3MF so Bambu Studio's URL-open path accepts the download (.3mf only)."""
+    if not tris:
+        raise ValueError("No triangles to pack into 3MF")
+
+    def fmt(v: float) -> str:
+        return f"{v:.6f}".rstrip("0").rstrip(".") if isinstance(v, float) else str(v)
+
+    verts_xml: list[str] = []
+    tris_xml: list[str] = []
+    for i, (a, b, c) in enumerate(tris):
+        base = i * 3
+        verts_xml.append(f'<vertex x="{fmt(a[0])}" y="{fmt(a[1])}" z="{fmt(a[2])}"/>')
+        verts_xml.append(f'<vertex x="{fmt(b[0])}" y="{fmt(b[1])}" z="{fmt(b[2])}"/>')
+        verts_xml.append(f'<vertex x="{fmt(c[0])}" y="{fmt(c[1])}" z="{fmt(c[2])}"/>')
+        tris_xml.append(f'<triangle v1="{base}" v2="{base + 1}" v3="{base + 2}"/>')
+
+    safe_name = "".join(ch if ch.isalnum() or ch in "-_." else "_" for ch in (object_name or "model"))[:80] or "model"
+    model_xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<model unit="millimeter" xml:lang="en-US" '
+        'xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">\n'
+        "  <resources>\n"
+        f'    <object id="1" name="{safe_name}" type="model">\n'
+        "      <mesh>\n"
+        "        <vertices>\n"
+        + "".join(f"          {v}\n" for v in verts_xml)
+        + "        </vertices>\n"
+        "        <triangles>\n"
+        + "".join(f"          {t}\n" for t in tris_xml)
+        + "        </triangles>\n"
+        "      </mesh>\n"
+        "    </object>\n"
+        "  </resources>\n"
+        "  <build>\n"
+        '    <item objectid="1"/>\n'
+        "  </build>\n"
+        "</model>\n"
+    )
+    content_types = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">\n'
+        '  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>\n'
+        '  <Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/>\n'
+        "</Types>\n"
+    )
+    rels = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
+        '  <Relationship Target="/3D/3dmodel.model" Id="rel0" '
+        'Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>\n'
+        "</Relationships>\n"
+    )
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("[Content_Types].xml", content_types)
+        zf.writestr("_rels/.rels", rels)
+        zf.writestr("3D/3dmodel.model", model_xml)
+    return buf.getvalue()
+
+
+def build_slicer_3mf(
+    asset: dict[str, Any],
+    entry: str | None = None,
+) -> tuple[bytes, str]:
+    """
+    Bambu Studio's bambustudio://open?file=… downloader only accepts .3mf.
+    Wrap STL/OBJ (and zip printables) into a minimal 3MF; pass through real 3MFs.
+    """
+    kind = asset.get("kind") or ""
+    src = Path(asset["abs_path"])
+    content_hash = asset.get("content_hash") or src.name
+    base_name = Path(asset.get("file_name") or src.name).stem or "model"
+
+    if entry:
+        raw, inner_name = read_zip_entry_bytes(src, entry)
+        ek = entry_kind(inner_name) or ""
+        out_name = f"{Path(inner_name).stem or base_name}.3mf"
+        cache = cached_slicer_3mf_path(content_hash, ek or "zip", entry)
+        if cache.exists() and cache.stat().st_size > 64:
+            return cache.read_bytes(), out_name
+        if ek in ("3mf", "gcode.3mf"):
+            cache.write_bytes(raw)
+            return raw, out_name
+        if ek == "stl":
+            tris = _parse_binary_stl_tris(raw)
+        elif ek == "obj":
+            tmp = data_dir() / "previews" / f"_tmp_{cache.stem}.obj"
+            tmp.write_bytes(raw)
+            try:
+                stl_blob = decimate_obj_to_stl(tmp, max_tris=5_000_000)
+            finally:
+                try:
+                    tmp.unlink()
+                except Exception:
+                    pass
+            if not stl_blob:
+                raise ValueError("Could not read OBJ for slicer 3MF")
+            tris = _parse_binary_stl_tris(stl_blob)
+        else:
+            raise ValueError("Zip entry is not a printable mesh")
+        blob = _tris_to_3mf_bytes(tris, Path(inner_name).stem)
+        cache.write_bytes(blob)
+        return blob, out_name
+
+    out_name = f"{base_name}.3mf"
+    if kind in ("3mf", "gcode.3mf"):
+        return src.read_bytes(), out_name
+
+    cache = cached_slicer_3mf_path(content_hash, kind)
+    if cache.exists() and cache.stat().st_mtime >= src.stat().st_mtime and cache.stat().st_size > 64:
+        return cache.read_bytes(), out_name
+
+    if kind == "stl":
+        tris = _parse_binary_stl_tris(src.read_bytes())
+    elif kind == "obj":
+        stl_blob = decimate_obj_to_stl(src, max_tris=5_000_000)
+        if not stl_blob:
+            raise ValueError("Could not read OBJ for slicer 3MF")
+        tris = _parse_binary_stl_tris(stl_blob)
+    else:
+        raise ValueError(f"Cannot build slicer 3MF for kind={kind}")
+    blob = _tris_to_3mf_bytes(tris, base_name)
+    cache.write_bytes(blob)
+    return blob, out_name
+
+
 def build_preview_stl(asset: dict[str, Any], max_tris: int = MAX_PREVIEW_TRIS) -> tuple[Path, bool]:
     """Return (path_to_stl, is_simplified)."""
     kind = asset.get("kind") or ""

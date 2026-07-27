@@ -8,12 +8,12 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `2d6da08` — PrintShelf slicer file HEAD fix
+Latest commit: `(pending)` — PrintShelf orbit fix + STL→3MF for Studio
 
 Latest local/Pi change:
-- Fix Open in slicer “Download failed; unknown file format”: file routes now support **HEAD** (Studio probes first) + octet-stream media type.
-- “Not from a trusted site” is normal for non-MakerWorld — click Yes.
-- Hard refresh `?v=32`. **Restart required.**
+- Orbit preview restored (STL/OBJ/3MF were skipped after nested-ZIP branch).
+- Studio URL-open only accepts **.3mf** — STL/OBJ now packaged as minimal 3MF (`?slicer=1`).
+- Hard refresh `?v=33`. **Restart required.**
 
 Previous today:
 - Detail pane `canSlicer` fix (`f0dc750`); ZIP icon + nested peek. Archives in `docs/archive/`.

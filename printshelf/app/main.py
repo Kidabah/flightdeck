@@ -20,6 +20,7 @@ from .preview import (
     MAX_PREVIEW_TRIS,
     MAX_PREVIEW_TRIS_HIGH,
     build_preview_stl,
+    build_slicer_3mf,
     build_zip_entry_preview,
     entry_kind,
     get_asset_row,
@@ -659,7 +660,13 @@ def _content_disposition(filename: str) -> str:
     return f"attachment; filename=\"{safe}\"; filename*=UTF-8''{quote(filename)}"
 
 
-def _serve_asset_file(asset_id: int, entry: str | None = None, *, method: str = "GET"):
+def _serve_asset_file(
+    asset_id: int,
+    entry: str | None = None,
+    *,
+    method: str = "GET",
+    for_slicer: bool = False,
+):
     """Stream the original file (or one printable inside a ZIP / nested ZIP) for slicer download/open."""
     asset = get_asset_row(asset_id)
     if not asset:
@@ -673,6 +680,35 @@ def _serve_asset_file(asset_id: int, entry: str | None = None, *, method: str = 
 
     kind = asset.get("kind") or ""
     head = method.upper() == "HEAD"
+
+    # Bambu Studio URL-open only accepts .3mf — wrap STL/OBJ (and zip meshes) when asked.
+    if for_slicer:
+        try:
+            raw, filename = build_slicer_3mf(asset, entry=entry)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        except FileNotFoundError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(500, f"Slicer package failed: {exc}") from exc
+        headers = {
+            "Content-Disposition": _content_disposition(filename).replace("attachment;", "inline;", 1),
+            "Cache-Control": "private, max-age=120",
+            "Content-Length": str(len(raw)),
+            "Accept-Ranges": "bytes",
+            "X-PrintShelf-Slicer": "3mf",
+        }
+        if head:
+            return Response(content=b"", media_type="application/octet-stream", headers=headers)
+
+        def _iter_slicer() -> Iterator[bytes]:
+            view = memoryview(raw)
+            step = 1024 * 1024
+            for i in range(0, len(view), step):
+                yield bytes(view[i : i + step])
+
+        return StreamingResponse(_iter_slicer(), media_type="application/octet-stream", headers=headers)
+
     if entry:
         if kind != "zip":
             raise HTTPException(400, "entry= is only valid for ZIP assets")
@@ -758,9 +794,10 @@ def get_asset_file(
     request: Request,
     asset_id: int,
     entry: str | None = Query(None, description="Path inside a ZIP for a printable member"),
+    slicer: bool = Query(False, description="Package as .3mf for Bambu Studio URL-open"),
 ):
     # HEAD must work — Studio often probes with HEAD before GET; GET-only → 404 JSON → "unknown file format".
-    return _serve_asset_file(asset_id, entry=entry, method=request.method)
+    return _serve_asset_file(asset_id, entry=entry, method=request.method, for_slicer=slicer)
 
 
 @app.api_route("/api/assets/{asset_id}/file/{filename}", methods=["GET", "HEAD"])
@@ -769,10 +806,18 @@ def get_asset_file_named(
     asset_id: int,
     filename: str,
     entry: str | None = Query(None, description="Path inside a ZIP for a printable member"),
+    slicer: bool = Query(False, description="Package as .3mf for Bambu Studio URL-open"),
 ):
     """Same as /file, but path ends with a real name.ext so Bambu/Orca accept the download URL."""
-    _ = filename  # cosmetic for slicer URL handlers
-    return _serve_asset_file(asset_id, entry=entry, method=request.method)
+    kind = (get_asset_row(asset_id) or {}).get("kind") or ""
+    fname = str(filename or "").lower()
+    # Studio URL-open requires .3mf — auto-package STL/OBJ/ZIP meshes when the URL says .3mf.
+    want_slicer = bool(slicer) or (
+        fname.endswith(".3mf") and kind in ("stl", "obj", "zip")
+    )
+    return _serve_asset_file(
+        asset_id, entry=entry, method=request.method, for_slicer=want_slicer,
+    )
 
 
 @app.get("/api/assets/{asset_id}/model")
