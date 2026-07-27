@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update (delete copies)
 
-Latest commit: `(pending)` — Warn / delete identical NAS copies
+Latest commit: `213e056` — Warn / delete identical NAS copies
 
 Latest local/Pi change:
 - Delete **does** remove from NAS (verified). Files “coming back” were usually **duplicate copies** in other folders.
