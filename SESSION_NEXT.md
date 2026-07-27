@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: *(pending)* — PrintShelf library type tabs
+Latest commit: `f1bb170` — PrintShelf library type tabs
 
 Latest local/Pi change:
 - Library **type tabs** (All / STL / 3MF / Gcode 3MF / OBJ) with counts; replaced the type dropdown.
