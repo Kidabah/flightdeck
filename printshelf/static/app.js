@@ -43,7 +43,8 @@ async function refreshStats() {
   const s = await api("/api/stats");
   const byKind = s.by_kind || {};
   const kinds = Object.entries(byKind).map(([k, v]) => `${k}: ${v}`).join(" · ") || "no files yet";
-  $("railStats").innerHTML = `<strong>${s.assets}</strong> assets<br>${kinds}`;
+  const hiddenBit = s.hidden ? `<br><span class="pill">hidden ${s.hidden}</span>` : "";
+  $("railStats").innerHTML = `<strong>${s.assets}</strong> assets<br>${kinds}${hiddenBit}`;
   updateTypeTabCounts(byKind, s.assets || 0);
   const scan = s.scan || {};
   const thumbs = s.thumbs || {};
@@ -79,12 +80,16 @@ async function loadLibrary() {
   if (source) params.set("source_kind", source);
   if ($("filterTextures").checked) params.set("has_textures", "true");
   if ($("filterSliced").checked) params.set("is_sliced", "true");
+  if ($("filterHidden")?.checked) params.set("hidden", "true");
+  else params.set("hidden", "false");
   params.set("limit", "300");
   const data = await api(`/api/assets?${params}`);
   const grid = $("grid");
   grid.innerHTML = "";
   if (!data.items.length) {
-    grid.innerHTML = `<div class="detail-empty">No files yet. Add folders and hit Rescan.</div>`;
+    grid.innerHTML = `<div class="detail-empty">${$("filterHidden")?.checked
+      ? "No hidden files."
+      : "No files yet. Add folders and hit Rescan."}</div>`;
     return;
   }
   for (const item of data.items) {
@@ -97,6 +102,7 @@ async function loadLibrary() {
         <div class="card-meta">
           <span class="pill">${escapeHtml(item.kind)}</span>
           <span>${escapeHtml(item.source_kind)}</span>
+          ${item.hidden ? "<span class=\"pill warn\">hidden</span>" : ""}
           ${item.has_textures ? "<span>textures</span>" : ""}
           ${item.is_sliced ? "<span>sliced</span>" : ""}
         </div>
@@ -220,13 +226,62 @@ async function selectAsset(id) {
         <button class="card-open secondary" type="button" id="copyWinFolderBtn" data-label="Copy Windows folder" ${winFolder ? "" : "disabled"}>Copy Windows folder</button>
         <button class="card-open secondary" type="button" id="copyPiPathBtn" data-label="Copy Pi path">Copy Pi path</button>
       </div>
+      <div class="detail-actions danger-actions">
+        ${item.hidden
+          ? `<button class="card-open secondary" type="button" id="unhideBtn">Unhide</button>`
+          : `<button class="card-open secondary" type="button" id="hideBtn">Hide from library</button>`}
+        <button class="card-open danger" type="button" id="deleteDiskBtn">Delete from disk…</button>
+      </div>
       <p class="detail-hint">${winPath
         ? "Paste Windows path into Bambu/Orca, or folder into Explorer (Ctrl+L → Ctrl+V)."
         : "Set a Windows path on this watched folder in Folders to enable PC copy."}</p>
+      <p class="detail-hint">Hide keeps the file on disk. Delete removes the file${sidecars.length ? " and indexed sidecars/textures" : ""} permanently.</p>
     </div>`;
   $("copyWinPathBtn")?.addEventListener("click", () => copyText($("copyWinPathBtn"), winPath));
   $("copyWinFolderBtn")?.addEventListener("click", () => copyText($("copyWinFolderBtn"), winFolder, "Folder copied"));
   $("copyPiPathBtn")?.addEventListener("click", () => copyText($("copyPiPathBtn"), item.abs_path));
+  $("hideBtn")?.addEventListener("click", async () => {
+    try {
+      await api(`/api/assets/${id}/hide`, { method: "POST", body: "{}" });
+      selectedId = null;
+      window.PrintShelfViewer?.unmountOrbitViewer?.();
+      $("detail").innerHTML = `<div class="detail-empty">Hidden from library. Use “Show hidden” to find it again.</div>`;
+      await refreshStats();
+      await loadLibrary();
+    } catch (err) {
+      alert(String(err.message || err));
+    }
+  });
+  $("unhideBtn")?.addEventListener("click", async () => {
+    try {
+      await api(`/api/assets/${id}/unhide`, { method: "POST", body: "{}" });
+      await refreshStats();
+      await selectAsset(id);
+    } catch (err) {
+      alert(String(err.message || err));
+    }
+  });
+  $("deleteDiskBtn")?.addEventListener("click", async () => {
+    const scNote = sidecars.length
+      ? `\n\nAlso deletes ${sidecars.length} indexed sidecar/texture file(s).`
+      : "";
+    const ok = confirm(
+      `Permanently delete this file from disk?\n\n${item.file_name}\n${item.abs_path}${scNote}\n\nThis cannot be undone.`,
+    );
+    if (!ok) return;
+    const ok2 = confirm("Last check — delete from disk for real?");
+    if (!ok2) return;
+    try {
+      await api(`/api/assets/${id}/delete`, { method: "POST", body: "{}" });
+      selectedId = null;
+      window.PrintShelfViewer?.unmountOrbitViewer?.();
+      $("detail").innerHTML = `<div class="detail-empty">Deleted from disk.</div>`;
+      await refreshStats();
+      await loadLibrary();
+    } catch (err) {
+      alert(String(err.message || err));
+    }
+  });
   if (canOrbit) {
     const mountOrbit = async (highDetail) => {
       for (let i = 0; i < 40 && !window.PrintShelfViewer?.mountOrbitViewer; i++) {
@@ -293,9 +348,9 @@ function bind() {
   document.querySelectorAll(".nav-btn").forEach((btn) => {
     btn.addEventListener("click", () => switchView(btn.dataset.view));
   });
-  ["search", "filterSource", "filterTextures", "filterSliced"].forEach((id) => {
-    $(id).addEventListener("input", () => loadLibrary().catch(console.error));
-    $(id).addEventListener("change", () => loadLibrary().catch(console.error));
+  ["search", "filterSource", "filterTextures", "filterSliced", "filterHidden"].forEach((id) => {
+    $(id)?.addEventListener("input", () => loadLibrary().catch(console.error));
+    $(id)?.addEventListener("change", () => loadLibrary().catch(console.error));
   });
   $("typeTabs")?.addEventListener("click", (e) => {
     const btn = e.target.closest(".type-tab");

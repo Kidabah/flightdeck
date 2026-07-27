@@ -227,6 +227,19 @@ h1 {
   border: 1px solid var(--line);
   color: var(--text);
 }
+.danger-actions { margin-top: 10px; }
+.card-open.danger {
+  background: transparent;
+  border: 1px solid var(--danger);
+  color: #f0b4b4;
+}
+.card-open.danger:hover {
+  background: rgba(196, 92, 92, .18);
+}
+.pill.warn {
+  background: rgba(196, 92, 92, .22);
+  color: #f0b4b4;
+}
 .detail-hint {
   margin: 8px 0 0;
   font-size: .82rem;

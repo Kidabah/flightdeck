@@ -8,6 +8,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
+Latest commit: *(pending)* — PrintShelf hide + delete from disk
+
+Latest local/Pi change:
+- **Hide from library** (stays on disk, survives rescan) + **Delete from disk** (confirm ×2; removes file + indexed sidecars).
+- **Show hidden** filter + Unhide. DB column `assets.hidden`.
+- Hard refresh `app.js?v=12`. Restart `printshelf.service` required.
+
+Previous today:
+- Denser orbit previews (`b54b62e`); type tabs; PWA. Archives in `docs/archive/`.
+
+---
+
+## 2026-07-27 Session update (orbit density)
+
 Latest commit: `b54b62e` — denser PrintShelf orbit previews + Higher detail
 
 Latest local/Pi change:

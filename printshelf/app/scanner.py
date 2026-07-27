@@ -365,7 +365,7 @@ def rebuild_stale_thumbs(kinds: tuple[str, ...] = ("stl", "obj")) -> dict[str, A
             rows = conn.execute(
                 f"""SELECT id, abs_path, kind, content_hash, thumb_path
                     FROM assets
-                    WHERE missing = 0 AND kind IN ({placeholders})
+                    WHERE missing = 0 AND COALESCE(hidden, 0) = 0 AND kind IN ({placeholders})
                     ORDER BY id""",
                 kinds,
             ).fetchall()

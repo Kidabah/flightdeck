@@ -39,7 +39,8 @@ CREATE TABLE IF NOT EXISTS assets (
   has_textures INTEGER NOT NULL DEFAULT 0,
   is_sliced INTEGER NOT NULL DEFAULT 0,
   last_seen TEXT NOT NULL,
-  missing INTEGER NOT NULL DEFAULT 0
+  missing INTEGER NOT NULL DEFAULT 0,
+  hidden INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS sidecars (
@@ -65,6 +66,7 @@ CREATE TABLE IF NOT EXISTS scan_runs (
 CREATE INDEX IF NOT EXISTS idx_assets_kind ON assets(kind);
 CREATE INDEX IF NOT EXISTS idx_assets_hash ON assets(content_hash);
 CREATE INDEX IF NOT EXISTS idx_assets_design ON assets(design_id);
+CREATE INDEX IF NOT EXISTS idx_assets_hidden ON assets(hidden);
 CREATE INDEX IF NOT EXISTS idx_designs_hash ON designs(content_hash);
 """
 
@@ -82,9 +84,17 @@ def connect(db_file: Path) -> sqlite3.Connection:
     return conn
 
 
+def _migrate(conn: sqlite3.Connection) -> None:
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(assets)").fetchall()}
+    if "hidden" not in cols:
+        conn.execute("ALTER TABLE assets ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_assets_hidden ON assets(hidden)")
+
+
 def init_db(db_file: Path) -> None:
     with connect(db_file) as conn:
         conn.executescript(SCHEMA)
+        _migrate(conn)
         conn.commit()
 
 

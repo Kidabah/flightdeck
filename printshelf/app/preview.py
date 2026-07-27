@@ -18,19 +18,18 @@ def get_asset_row(asset_id: int) -> dict[str, Any] | None:
     db_file = data_dir(cfg) / "printshelf.sqlite3"
     with db_session(db_file) as conn:
         row = conn.execute(
-            "SELECT * FROM assets WHERE id = ? AND missing = 0",
+            "SELECT * FROM assets WHERE id = ? AND missing = 0 AND COALESCE(hidden, 0) = 0",
             (asset_id,),
         ).fetchone()
     return row_to_dict(row)
 
 
-def path_is_allowed(abs_path: str, cfg: dict[str, Any] | None = None) -> bool:
+def path_under_watched(abs_path: str, cfg: dict[str, Any] | None = None) -> bool:
+    """True if path resolves under a watched folder root (file need not exist)."""
     cfg = cfg or load_config()
     try:
         target = Path(abs_path).resolve()
     except Exception:
-        return False
-    if not target.is_file():
         return False
     for folder in cfg.get("watched_folders") or []:
         root = Path(folder.get("path") or "")
@@ -42,6 +41,17 @@ def path_is_allowed(abs_path: str, cfg: dict[str, Any] | None = None) -> bool:
         except Exception:
             continue
     return False
+
+
+def path_is_allowed(abs_path: str, cfg: dict[str, Any] | None = None) -> bool:
+    cfg = cfg or load_config()
+    try:
+        target = Path(abs_path).resolve()
+    except Exception:
+        return False
+    if not target.is_file():
+        return False
+    return path_under_watched(str(target), cfg)
 
 
 def _write_binary_stl(tris: list[tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]]]) -> bytes:

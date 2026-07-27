@@ -19,6 +19,7 @@ from .preview import (
     build_preview_stl,
     get_asset_row,
     path_is_allowed,
+    path_under_watched,
 )
 from .scanner import (
     get_scan_state,
@@ -104,16 +105,23 @@ def stats() -> dict[str, Any]:
     db_file = data_dir(cfg) / "printshelf.sqlite3"
     with db_session(db_file) as conn:
         designs = conn.execute("SELECT COUNT(*) AS c FROM designs").fetchone()["c"]
-        assets = conn.execute("SELECT COUNT(*) AS c FROM assets WHERE missing = 0").fetchone()["c"]
+        assets = conn.execute(
+            "SELECT COUNT(*) AS c FROM assets WHERE missing = 0 AND COALESCE(hidden, 0) = 0"
+        ).fetchone()["c"]
+        hidden = conn.execute(
+            "SELECT COUNT(*) AS c FROM assets WHERE missing = 0 AND COALESCE(hidden, 0) = 1"
+        ).fetchone()["c"]
         by_kind = {
             r["kind"]: r["c"]
             for r in conn.execute(
-                "SELECT kind, COUNT(*) AS c FROM assets WHERE missing = 0 GROUP BY kind"
+                "SELECT kind, COUNT(*) AS c FROM assets "
+                "WHERE missing = 0 AND COALESCE(hidden, 0) = 0 GROUP BY kind"
             ).fetchall()
         }
     return {
         "designs": designs,
         "assets": assets,
+        "hidden": hidden,
         "by_kind": by_kind,
         "scan": get_scan_state(),
         "thumbs": get_thumb_rebuild_state(),
@@ -128,6 +136,7 @@ def list_assets(
     has_textures: bool | None = None,
     is_sliced: bool | None = None,
     missing: bool = False,
+    hidden: bool | None = False,
     limit: int = Query(200, ge=1, le=1000),
     offset: int = Query(0, ge=0),
 ) -> dict[str, Any]:
@@ -135,6 +144,12 @@ def list_assets(
     db_file = data_dir(cfg) / "printshelf.sqlite3"
     clauses = ["a.missing = ?" ]
     params: list[Any] = [1 if missing else 0]
+    if hidden is None:
+        pass  # both visible and hidden
+    elif hidden:
+        clauses.append("COALESCE(a.hidden, 0) = 1")
+    else:
+        clauses.append("COALESCE(a.hidden, 0) = 0")
     if kind:
         clauses.append("a.kind = ?")
         params.append(kind)
@@ -208,7 +223,122 @@ def get_asset(asset_id: int) -> dict[str, Any]:
     item["windows_path"] = to_windows_path(abs_path, folders)
     item["windows_folder"] = to_windows_folder(abs_path, folders)
     item["can_orbit"] = item.get("kind") in ("stl", "obj")
+    item["hidden"] = bool(item.get("hidden"))
     return item
+
+
+def _load_asset_or_404(asset_id: int) -> dict[str, Any]:
+    cfg = load_config()
+    db_file = data_dir(cfg) / "printshelf.sqlite3"
+    with db_session(db_file) as conn:
+        row = conn.execute("SELECT * FROM assets WHERE id = ?", (asset_id,)).fetchone()
+    item = row_to_dict(row)
+    if not item:
+        raise HTTPException(404, "Asset not found")
+    return item
+
+
+@app.post("/api/assets/{asset_id}/hide")
+def hide_asset(asset_id: int) -> dict[str, Any]:
+    """Hide from library; file stays on disk. Survives rescan."""
+    asset = _load_asset_or_404(asset_id)
+    cfg = load_config()
+    db_file = data_dir(cfg) / "printshelf.sqlite3"
+    with db_session(db_file) as conn:
+        conn.execute("UPDATE assets SET hidden = 1 WHERE id = ?", (asset_id,))
+    return {"ok": True, "id": asset_id, "hidden": True, "file_name": asset.get("file_name")}
+
+
+@app.post("/api/assets/{asset_id}/unhide")
+def unhide_asset(asset_id: int) -> dict[str, Any]:
+    asset = _load_asset_or_404(asset_id)
+    cfg = load_config()
+    db_file = data_dir(cfg) / "printshelf.sqlite3"
+    with db_session(db_file) as conn:
+        conn.execute("UPDATE assets SET hidden = 0 WHERE id = ?", (asset_id,))
+    return {"ok": True, "id": asset_id, "hidden": False, "file_name": asset.get("file_name")}
+
+
+@app.post("/api/assets/{asset_id}/delete")
+def delete_asset(
+    asset_id: int,
+    delete_sidecars: bool = Query(True),
+) -> dict[str, Any]:
+    """Permanently delete the file on disk (and indexed sidecars), then drop the DB row."""
+    asset = _load_asset_or_404(asset_id)
+    abs_path = str(asset.get("abs_path") or "")
+    if not path_under_watched(abs_path):
+        raise HTTPException(403, "File is outside watched folders")
+
+    cfg = load_config()
+    db_file = data_dir(cfg) / "printshelf.sqlite3"
+    deleted_files: list[str] = []
+    errors: list[str] = []
+
+    with db_session(db_file) as conn:
+        sidecars = [
+            row_to_dict(s)
+            for s in conn.execute(
+                "SELECT * FROM sidecars WHERE asset_id = ?",
+                (asset_id,),
+            ).fetchall()
+        ]
+
+    paths_to_delete = [abs_path]
+    if delete_sidecars:
+        for sc in sidecars:
+            p = str((sc or {}).get("abs_path") or "")
+            if p:
+                paths_to_delete.append(p)
+
+    for p in paths_to_delete:
+        path = Path(p)
+        if not path.exists():
+            continue
+        if not path_under_watched(str(path)):
+            if p != abs_path:
+                errors.append(f"skipped (outside watched folders): {p}")
+                continue
+            raise HTTPException(403, "File is outside watched folders")
+        try:
+            path.unlink()
+            deleted_files.append(p)
+        except Exception as exc:
+            errors.append(f"{p}: {exc}")
+
+    # Clean thumb + preview caches (best effort)
+    thumb = asset.get("thumb_path")
+    if thumb:
+        try:
+            (data_dir(cfg) / "thumbs" / str(thumb)).unlink(missing_ok=True)
+        except Exception:
+            pass
+    content_hash = str(asset.get("content_hash") or "")[:20]
+    if content_hash:
+        prev_dir = data_dir(cfg) / "previews"
+        if prev_dir.exists():
+            for f in prev_dir.glob(f"{content_hash}_*.stl"):
+                try:
+                    f.unlink(missing_ok=True)
+                except Exception:
+                    pass
+
+    if Path(abs_path).exists():
+        raise HTTPException(
+            500,
+            f"Could not delete file on disk: {'; '.join(errors) or abs_path}",
+        )
+
+    with db_session(db_file) as conn:
+        conn.execute("DELETE FROM assets WHERE id = ?", (asset_id,))
+
+    return {
+        "ok": True,
+        "id": asset_id,
+        "deleted_files": deleted_files,
+        "errors": errors,
+        "file_name": asset.get("file_name"),
+    }
 
 
 @app.get("/api/assets/{asset_id}/model")
