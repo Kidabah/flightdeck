@@ -8,11 +8,11 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `52530e7` — PrintShelf toasts + confirm modal
+Latest commit: `(pending)` — PrintShelf slicer tip for Edge protocol prompt
 
 Latest local/Pi change:
-- Replaced browser `alert`/`confirm` with PrintShelf toasts + branded confirm modal.
-- Hard refresh `?v=30`. UI-only; restart optional.
+- Can’t suppress Edge’s “Open BambuStudio?” (OS/browser). First open shows a PrintShelf tip: tick Always allow once.
+- Hard refresh `?v=31`. UI-only.
 
 Previous today:
 - Detail pane `canSlicer` fix (`f0dc750`); ZIP icon + nested peek. Archives in `docs/archive/`.

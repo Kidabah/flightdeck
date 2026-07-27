@@ -721,7 +721,23 @@ function slicerFileUrlForAsset(item, { zipEntry = "" } = {}) {
   return { url: u.toString(), reason: "", via: "download" };
 }
 
-function openInSlicer(item, { zipEntry = "" } = {}) {
+const SLICER_TIP_KEY = "printshelf.slicerProtocolTip.v1";
+
+function launchSlicerProtocol(fileUrl, fileName = "") {
+  // Edge/Chrome own this “Open BambuStudio?” prompt — web apps cannot replace it.
+  // Once the user ticks Always allow for this site, it stops appearing.
+  psToast(
+    "Handing off to Bambu Studio",
+    localStorage.getItem(SLICER_TIP_KEY)
+      ? (fileName || "Studio should open the plate…")
+      : "If Edge asks, tick Always allow — then this prompt won’t come back.",
+    "ok",
+    5200,
+  );
+  window.location.href = buildSlicerProtocolUrl(fileUrl);
+}
+
+async function openInSlicer(item, { zipEntry = "" } = {}) {
   if (isMobileClient()) {
     psToast(
       "Open on a PC",
@@ -735,8 +751,26 @@ function openInSlicer(item, { zipEntry = "" } = {}) {
     psToast("Can't open in slicer", reason || "Not available for this file.", "error");
     return false;
   }
-  psToast("Opening in slicer", item.file_name || "Sending download link…", "ok", 2800);
-  window.location.href = buildSlicerProtocolUrl(url);
+
+  // First time: PrintShelf tip, then launch. Browser protocol gate still follows (OS security).
+  if (!localStorage.getItem(SLICER_TIP_KEY)) {
+    const go = await psConfirm({
+      eyebrow: "Open in slicer",
+      title: "Edge will ask once",
+      body:
+        "PrintShelf can’t replace the browser’s <strong>Open BambuStudio?</strong> prompt "
+        + "(that’s Edge protecting custom app links).<br><br>"
+        + "Tick <strong>Always allow flightdeck.tail7de73e.ts.net:8100…</strong>, "
+        + "then <strong>Open BambuStudio</strong>. After that it won’t bother you again.",
+      confirmLabel: "Open Bambu Studio",
+      cancelLabel: "Cancel",
+      danger: false,
+    });
+    if (!go) return false;
+    localStorage.setItem(SLICER_TIP_KEY, "1");
+  }
+
+  launchSlicerProtocol(url, item.file_name || "");
   return true;
 }
 
@@ -936,7 +970,7 @@ async function selectAsset(id) {
       <p class="detail-hint" id="slicerHint">${canSlicer
         ? (isMobileClient()
           ? "Open in slicer needs Bambu/Orca on a PC. On your phone, use Copy Windows path."
-          : "Open in slicer downloads the file into Bambu Studio or Orca (whichever owns the bambustudio link). Big files may take a moment over Tailscale.")
+          : "Open in slicer hands the file to Bambu Studio / Orca. Edge may ask once — tick Always allow for this site. Big files can take a moment over Tailscale.")
         : "Slicer open is for STL, OBJ, 3MF, and ZIP printables."}</p>
       <p class="detail-hint">${winPath
         ? "Paste Windows path into Bambu/Orca, or folder into Explorer (Ctrl+L → Ctrl+V)."
