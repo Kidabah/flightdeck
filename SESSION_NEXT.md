@@ -8,15 +8,15 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `d520c45` — PrintShelf scan resume / NAS zip undercount
+Latest commit: `(pending)` — PrintShelf live scan refresh banner
 
 Latest local/Pi change:
-- ZIP tab showed **47** because scans never finished the 3.5TB NAS (deploy restarts killed them). Disk has thousands (e.g. `3D Models` alone ~3155 zips).
-- Scanner now **skips unchanged** size+mtime, lighter hash, persists progress, marks interrupted runs, shows current folder in status.
-- Hard refresh `?v=21`. **Restart required.** Kick a Scan after deploy and leave it running.
+- Library **Refresh** button + orange **scan banner** with live kind counts while scanning (auto-updates; grid refreshes ~every 10s when Live refresh is on).
+- Mobile layout tightened (rail stacks, single-column workspace). PWA already installable on phone via Tailscale HTTPS.
+- Hard refresh `?v=22`. **Static only — do not restart** while a long NAS scan is running (`git pull` is enough).
 
 Previous today:
-- Shift range select (`06d20da`); multi-delete. Archives in `docs/archive/`.
+- Scan resume (`d520c45`); range select. Archives in `docs/archive/`.
 
 ---
 

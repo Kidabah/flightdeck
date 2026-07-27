@@ -10,6 +10,9 @@ let lastSelectAnchorId = null;
 let browseMode = "folders"; // folders | all
 let browseRootId = null;
 let browseFolder = "";
+let scanWatchTimer = null;
+let scanWatchTicks = 0;
+let lastScanRunning = false;
 
 async function api(path, opts) {
   const res = await fetch(path, {
@@ -128,6 +131,79 @@ function updateTypeTabCounts(byKind, total) {
   });
 }
 
+function updateScanBanner(scan, byKind, totalAssets) {
+  const banner = $("scanBanner");
+  if (!banner) return;
+  const running = !!(scan && scan.running);
+  banner.hidden = !running;
+  if (!running) return;
+  const where = scan.current_path ? scan.current_path : "walking folders…";
+  $("scanBannerTitle").textContent = "Scanning library…";
+  $("scanBannerDetail").textContent =
+    `${scan.files_seen || 0} seen · ${scan.files_upserted || 0} new · ${scan.files_skipped || 0} unchanged`
+    + (scan.files_failed ? ` · ${scan.files_failed} failed` : "")
+    + ` · ${where}`;
+  const order = ["zip", "stl", "obj", "3mf", "gcode.3mf"];
+  const parts = order
+    .filter((k) => byKind[k] != null)
+    .map((k) => `<span class="pill">${escapeHtml(k)} ${byKind[k]}</span>`);
+  if (totalAssets != null) {
+    parts.unshift(`<span class="pill">all ${totalAssets}</span>`);
+  }
+  $("scanBannerKinds").innerHTML = parts.join("");
+}
+
+function ensureScanWatch(running) {
+  if (running && !scanWatchTimer) {
+    scanWatchTicks = 0;
+    scanWatchTimer = setInterval(() => {
+      watchScanTick().catch(console.error);
+    }, 2000);
+  }
+  if (!running && scanWatchTimer) {
+    clearInterval(scanWatchTimer);
+    scanWatchTimer = null;
+  }
+}
+
+async function refreshLibraryView({ reloadGrid = true } = {}) {
+  await refreshStats();
+  if (reloadGrid) await loadLibrary();
+}
+
+async function watchScanTick() {
+  const live = $("scanLiveRefresh");
+  const s = await api("/api/stats");
+  const scan = s.scan || {};
+  const byKind = s.by_kind || {};
+  const kinds = Object.entries(byKind).map(([k, v]) => `${k}: ${v}`).join(" · ") || "no files yet";
+  const hiddenBit = s.hidden ? `<br><span class="pill">hidden ${s.hidden}</span>` : "";
+  $("railStats").innerHTML = `<strong>${s.assets}</strong> assets<br>${kinds}${hiddenBit}`;
+  updateTypeTabCounts(byKind, s.assets || 0);
+  updateScanBanner(scan, byKind, s.assets || 0);
+  if (scan.running) {
+    const where = scan.current_path ? ` · ${scan.current_path}` : "";
+    $("scanStatus").textContent =
+      `Scanning… ${scan.files_seen || 0} seen / ${scan.files_upserted || 0} new / ${scan.files_skipped || 0} unchanged${where}`;
+  }
+  scanWatchTicks += 1;
+  // Reload the grid every ~10s while live refresh is on so new files appear.
+  if (live?.checked && scanWatchTicks % 5 === 0) {
+    await loadLibrary();
+  }
+  if (!scan.running) {
+    ensureScanWatch(false);
+    $("scanBtn").disabled = false;
+    if (lastScanRunning) {
+      $("scanStatus").textContent =
+        `Done · ${scan.files_upserted || 0} new · ${scan.files_skipped || 0} unchanged · ${scan.files_seen || 0} total`
+        + (scan.files_failed ? ` · ${scan.files_failed} failed` : "");
+      await loadLibrary();
+    }
+  }
+  lastScanRunning = !!scan.running;
+}
+
 async function refreshStats() {
   const s = await api("/api/stats");
   const byKind = s.by_kind || {};
@@ -137,6 +213,9 @@ async function refreshStats() {
   updateTypeTabCounts(byKind, s.assets || 0);
   const scan = s.scan || {};
   const thumbs = s.thumbs || {};
+  updateScanBanner(scan, byKind, s.assets || 0);
+  ensureScanWatch(!!scan.running);
+  lastScanRunning = !!scan.running;
   if (thumbs.running) {
     $("scanStatus").textContent = `Rebuilding thumbs… ${thumbs.updated || 0}/${thumbs.checked || 0}`;
   } else if (scan.running) {
@@ -771,24 +850,17 @@ function bind() {
       alert(String(err.message || err));
     }
   });
+  $("refreshLibraryBtn")?.addEventListener("click", () => {
+    refreshLibraryView().catch(console.error);
+  });
+  $("scanBannerRefreshBtn")?.addEventListener("click", () => {
+    refreshLibraryView().catch(console.error);
+  });
   $("scanBtn").addEventListener("click", async () => {
     $("scanBtn").disabled = true;
     try {
       await api("/api/scan", { method: "POST", body: "{}" });
-      const poll = setInterval(async () => {
-        const st = await api("/api/scan");
-        const where = st.current_path ? ` · ${st.current_path}` : "";
-        $("scanStatus").textContent = st.running
-          ? `Scanning… ${st.files_seen || 0} seen / ${st.files_upserted || 0} new / ${st.files_skipped || 0} unchanged${where}`
-          : `Done · ${st.files_upserted || 0} new · ${st.files_skipped || 0} unchanged · ${st.files_seen || 0} total`
-            + (st.files_failed ? ` · ${st.files_failed} failed` : "");
-        if (!st.running) {
-          clearInterval(poll);
-          $("scanBtn").disabled = false;
-          await refreshStats();
-          await loadLibrary();
-        }
-      }, 1500);
+      await refreshStats(); // starts live scan banner + watch
     } catch (err) {
       $("scanStatus").textContent = String(err.message || err);
       $("scanBtn").disabled = false;

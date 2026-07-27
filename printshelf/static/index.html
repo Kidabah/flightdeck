@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=21">
+  <link rel="stylesheet" href="style.css?v=22">
   <script type="importmap">
   {
     "imports": {
@@ -51,6 +51,7 @@
             <p class="lede">Files stay where they are. PrintShelf indexes them.</p>
           </div>
           <div class="filters">
+            <button type="button" class="secondary" id="refreshLibraryBtn" title="Reload counts and the file grid">Refresh</button>
             <input type="search" id="search" placeholder="Search name or path…">
             <select id="filterSource">
               <option value="">All sources</option>
@@ -62,6 +63,17 @@
             <label class="check"><input type="checkbox" id="filterHidden"> Show hidden</label>
           </div>
         </header>
+        <div class="scan-banner" id="scanBanner" hidden>
+          <div class="scan-banner-copy">
+            <strong id="scanBannerTitle">Scanning…</strong>
+            <span id="scanBannerDetail"></span>
+            <div class="scan-banner-kinds" id="scanBannerKinds"></div>
+          </div>
+          <div class="scan-banner-actions">
+            <label class="check scan-live"><input type="checkbox" id="scanLiveRefresh" checked> Live refresh</label>
+            <button type="button" class="secondary" id="scanBannerRefreshBtn">Refresh now</button>
+          </div>
+        </div>
         <div class="view-modes" id="viewModes" role="tablist" aria-label="Browse mode">
           <button type="button" class="view-mode active" data-mode="folders">Folders</button>
           <button type="button" class="view-mode" data-mode="all">All files</button>
@@ -117,7 +129,7 @@
       </section>
     </main>
   </div>
-  <script type="module" src="viewer.js?v=21"></script>
-  <script src="app.js?v=21"></script>
+  <script type="module" src="viewer.js?v=22"></script>
+  <script src="app.js?v=22"></script>
 </body>
 </html>
