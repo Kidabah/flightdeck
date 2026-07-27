@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `(pending)` — PrintShelf scan resume / NAS zip undercount
+Latest commit: `d520c45` — PrintShelf scan resume / NAS zip undercount
 
 Latest local/Pi change:
 - ZIP tab showed **47** because scans never finished the 3.5TB NAS (deploy restarts killed them). Disk has thousands (e.g. `3D Models` alone ~3155 zips).
