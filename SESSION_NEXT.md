@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `(pending)` — PrintShelf slicer file HEAD fix
+Latest commit: `2d6da08` — PrintShelf slicer file HEAD fix
 
 Latest local/Pi change:
 - Fix Open in slicer “Download failed; unknown file format”: file routes now support **HEAD** (Studio probes first) + octet-stream media type.
