@@ -6,6 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-27 Session update (ASCII STL orbit)
+
+Latest commit: `(pending)` — PrintShelf orbit ASCII STL again
+
+Latest local/Pi change:
+- Fake-STL harden broke **ASCII** meshes (e.g. `Vase_01_SMALL.stl`): binary-only preview + viewer header check.
+- Preview converts/serves ASCII; viewer skips binary count check when file looks like `solid`+`facet`.
+- Hard refresh `?v=43`. Restart required.
+
+Previous today:
+- PNG-as-STL junk (`7a2caf4`); G-code indexing. Archives in `docs/archive/`.
+
+---
+
 ## 2026-07-27 Session update (fake STL previews)
 
 Latest commit: `7a2caf4` — Skip Thingiverse PNG-as-STL junk

@@ -84,10 +84,29 @@ def decimate_binary_stl(path: Path, max_tris: int = MAX_PREVIEW_TRIS) -> bytes |
         return None
     if len(data) < 84:
         return None
+    # ASCII STL (or binary that failed the size check): convert via shared parser.
+    head = data[:80].lstrip().lower()
+    is_ascii = head.startswith(b"solid") and b"facet" in data[:8192].lower()
+    if is_ascii:
+        tris = _parse_binary_stl_tris(data)
+        if not tris:
+            return None
+        if len(tris) > max_tris:
+            stride = max(1, (len(tris) + max_tris - 1) // max_tris)
+            tris = tris[::stride][:max_tris]
+        return _write_binary_stl(tris)
+
     n = struct.unpack_from("<I", data, 80)[0]
     expected = 84 + n * 50
     if n <= 0 or expected > len(data) + 50:
-        return None
+        # Last chance: some exporters write odd padding / ASCII without a clean solid header.
+        tris = _parse_binary_stl_tris(data)
+        if not tris:
+            return None
+        if len(tris) > max_tris:
+            stride = max(1, (len(tris) + max_tris - 1) // max_tris)
+            tris = tris[::stride][:max_tris]
+        return _write_binary_stl(tris)
     if n <= max_tris:
         return data
     stride = max(1, (n + max_tris - 1) // max_tris)
@@ -539,16 +558,22 @@ def build_preview_stl(asset: dict[str, Any], max_tris: int = MAX_PREVIEW_TRIS) -
             raise FileNotFoundError(
                 "This file is an image renamed as .stl (Thingiverse card preview), not a mesh"
             )
-        # Small enough: serve original when triangle count matches file size
+        # Small binary STL: serve original when triangle count matches file size
         if data is not None and len(data) >= 84:
-            n = struct.unpack_from("<I", data, 80)[0]
-            if 0 < n <= max_tris and 84 + n * 50 <= len(data) + 50:
+            head = data[:80].lstrip().lower()
+            is_ascii = head.startswith(b"solid") and b"facet" in data[:8192].lower()
+            if not is_ascii:
+                n = struct.unpack_from("<I", data, 80)[0]
+                if 0 < n <= max_tris and 84 + n * 50 <= len(data) + 50:
+                    return src, False
+            elif size <= MAX_DIRECT_BYTES:
+                # Three.js STLLoader handles ASCII; serve as-is when small enough.
                 return src, False
         if cache.exists() and cache.stat().st_mtime >= src.stat().st_mtime:
             return cache, True
         blob = decimate_binary_stl(src, max_tris=max_tris)
         if not blob:
-            raise FileNotFoundError("Not a valid binary STL mesh (or file is corrupt / too large to preview)")
+            raise FileNotFoundError("Not a valid STL mesh (corrupt, empty, or unsupported)")
         cache.write_bytes(blob)
         return cache, True
 

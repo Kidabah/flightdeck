@@ -108,7 +108,11 @@ export async function mountOrbitViewer(container, { url, noteEl } = {}) {
     if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
       throw new Error("This file is a JPEG image named like an STL, not a mesh");
     }
-    if (bytes.length >= 84) {
+    // ASCII STL starts with "solid" + facet lines — skip binary header sanity check
+    // (bytes 80–84 are text and look like a huge triangle count).
+    const headText = new TextDecoder("latin1").decode(bytes.slice(0, Math.min(bytes.length, 200))).toLowerCase();
+    const looksAscii = headText.trimStart().startsWith("solid") && headText.includes("facet");
+    if (!looksAscii && bytes.length >= 84) {
       const view = new DataView(buf);
       const nTri = view.getUint32(80, true);
       const expected = 84 + nTri * 50;
