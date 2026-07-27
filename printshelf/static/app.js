@@ -656,7 +656,14 @@ async function selectAsset(id) {
     c.classList.toggle("active", Number(c.dataset.id) === selectedId);
   });
   window.PrintShelfViewer?.unmountOrbitViewer?.();
-  const item = await api(`/api/assets/${id}`);
+  let item;
+  try {
+    item = await api(`/api/assets/${id}`);
+  } catch (err) {
+    $("detail").innerHTML = `<p class="detail-hint" style="color:var(--danger)">Failed to load details: ${escapeHtml(String(err.message || err))}</p>`;
+    return;
+  }
+  try {
   const filaments = item.meta?.filaments || [];
   const sidecars = item.sidecars || [];
   const winPath = item.windows_path || "";
@@ -677,6 +684,8 @@ async function selectAsset(id) {
     || item.kind === "gcode.3mf"
     || (isZip && (zipPrintables.length > 0 || hasNested));
   const slicerKinds = ["stl", "obj", "3mf", "gcode.3mf"];
+  const canSlicer = slicerKinds.includes(item.kind)
+    || (isZip && (zipPrintables.length > 0 || hasNested));
   let zipEntry = isZip ? (zipPrintables[0]?.name || "") : "";
   const slicerInfo = () => slicerFileUrlForAsset(item, { zipEntry });
   const slicerDisabledReason = () => {
@@ -1008,6 +1017,9 @@ async function selectAsset(id) {
 
   syncSlicerBtn();
   // Do not reload the library here — that flashed/cleared the thumb grid.
+  } catch (err) {
+    $("detail").innerHTML = `<p class="detail-hint" style="color:var(--danger)">Failed to render details: ${escapeHtml(String(err.message || err))}</p>`;
+  }
 }
 
 async function loadFolders() {

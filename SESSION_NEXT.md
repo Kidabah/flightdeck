@@ -8,16 +8,15 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `e9f9bcd` — PrintShelf ZIP icon + nested peek
+Latest commit: `(pending)` — PrintShelf detail pane fix (`canSlicer`)
 
 Latest local/Pi change:
-- ZIP cards use a shared **MakerDeck-blue ZIP icon** (`_shared_zip2.png`) instead of random coloured squares.
-- **Nested archives → Peek** lists printables one level down (orbit + Open in slicer via `Nested.zip/path.stl`). No extract to NAS.
-- Startup ensures shared ZIP thumb; detail derives `nested_zips` from entries until Rescan.
-- Hard refresh `?v=28`. **Restart required.**
+- Fixed blank detail pane: `selectAsset` referenced undefined `canSlicer` (broke Peek + all details).
+- ZIP icon thumbs + nested Peek remain as before.
+- Hard refresh `?v=29`. UI-only; restart optional.
 
 Previous today:
-- Grid flash fix (`54ff5db`); blue thumbs. Archives in `docs/archive/`.
+- ZIP icon + nested peek (`e9f9bcd` / `19fb730`). Archives in `docs/archive/`.
 
 ---
 
