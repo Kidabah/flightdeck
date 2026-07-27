@@ -8,15 +8,14 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `3c63338` — PrintShelf Open-in-slicer via Flightdeck worker
+Latest commit: `(pending)` — PrintShelf slicer choice Bambu/Orca
 
 Latest local/Pi change:
-- **Open in slicer** now matches Flightdeck: Pi → Windows worker → `bambu-studio.exe <path>` (NAS UNC via `open-path`, else upload original STL/OBJ/3MF). Dropped `bambustudio://` URL-open (empty plate / MakerWorld-only).
-- Flightdeck adds `POST /api/slicer/worker/open-path`. PrintShelf `POST /api/assets/{id}/open-slicer`.
-- Hard refresh `?v=38`. **Restart flightdeck + printshelf**. Windows worker must be running (`orcaslicer_worker_url`).
+- **Open in slicer** shows a choice: **Bambu Studio** or **OrcaSlicer** (remembers last pick), then Flightdeck Windows worker handoff.
+- Hard refresh `?v=39`. UI-only (printshelf restart optional).
 
 Previous today:
-- MakerDeck-style slicer4 3MF (`69e91e8`); NAS-path workaround. Archives in `docs/archive/`.
+- Worker handoff (`3c63338`); slicer4 3MF. Archives in `docs/archive/`.
 
 ---
 

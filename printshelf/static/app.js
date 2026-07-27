@@ -69,10 +69,15 @@ function psConfirm({
   $("psModalBody").innerHTML = body;
   const confirmBtn = $("psModalConfirm");
   const cancelBtn = $("psModalCancel");
+  const altBtn = $("psModalAlt");
+  confirmBtn.hidden = false;
+  if (altBtn) altBtn.hidden = true;
   confirmBtn.textContent = confirmLabel;
   cancelBtn.textContent = cancelLabel;
   confirmBtn.classList.toggle("danger", !!danger);
   confirmBtn.classList.toggle("card-open", true);
+  confirmBtn.onclick = () => closePsModal(true);
+  cancelBtn.onclick = () => closePsModal(false);
   root.hidden = false;
   confirmBtn.focus();
   return new Promise((resolve) => {
@@ -84,8 +89,91 @@ function psConfirm({
   });
 }
 
+/** Choice modal — returns the selected option value, or null if cancelled. */
+function psChoice({
+  title = "Choose",
+  body = "",
+  eyebrow = "Choose",
+  options = [],
+  cancelLabel = "Cancel",
+} = {}) {
+  const root = $("psModalRoot");
+  if (!root || !options.length) return Promise.resolve(null);
+  if (psModalResolver) {
+    psModalResolver(null);
+    psModalResolver = null;
+  }
+  $("psModalEyebrow").textContent = eyebrow;
+  $("psModalTitle").textContent = title;
+  const list = options.map((opt) => {
+    const last = opt.last ? " is-last" : "";
+    return `<li><button type="button" class="ps-choice-opt${last}" data-ps-choice="${escapeHtml(opt.value)}">
+      <strong>${escapeHtml(opt.label)}</strong>
+      ${opt.detail ? `<span>${escapeHtml(opt.detail)}</span>` : ""}
+    </button></li>`;
+  }).join("");
+  $("psModalBody").innerHTML = `${body ? `<p style="margin:0 0 12px">${body}</p>` : ""}
+    <ul class="ps-slicer-choice">${list}</ul>`;
+  const confirmBtn = $("psModalConfirm");
+  const cancelBtn = $("psModalCancel");
+  const altBtn = $("psModalAlt");
+  confirmBtn.hidden = true;
+  if (altBtn) altBtn.hidden = true;
+  cancelBtn.textContent = cancelLabel;
+  cancelBtn.onclick = () => closePsModal(null);
+  root.hidden = false;
+  cancelBtn.focus();
+  const onClick = (ev) => {
+    const btn = ev.target.closest("[data-ps-choice]");
+    if (!btn || !root.contains(btn)) return;
+    closePsModal(btn.getAttribute("data-ps-choice"));
+  };
+  root.addEventListener("click", onClick);
+  return new Promise((resolve) => {
+    psModalResolver = (value) => {
+      root.removeEventListener("click", onClick);
+      root.hidden = true;
+      confirmBtn.hidden = false;
+      psModalResolver = null;
+      resolve(value);
+    };
+  });
+}
+
 function closePsModal(value) {
   if (psModalResolver) psModalResolver(value);
+}
+
+const SLICER_TARGET_KEY = "printshelf.slicerTarget.v1";
+
+function slicerTargetLabel(target) {
+  return target === "desktop_orca" ? "OrcaSlicer" : "Bambu Studio";
+}
+
+async function pickSlicerTarget() {
+  const last = localStorage.getItem(SLICER_TARGET_KEY) || "bambu_studio";
+  const choice = await psChoice({
+    eyebrow: "Open in slicer",
+    title: "Which slicer?",
+    body: "Same handoff as Flightdeck — opens the real file on your Windows PC.",
+    options: [
+      {
+        value: "bambu_studio",
+        label: "Bambu Studio",
+        detail: "Desktop Bambu Studio on your PC",
+        last: last === "bambu_studio",
+      },
+      {
+        value: "desktop_orca",
+        label: "OrcaSlicer",
+        detail: "Desktop Orca on your PC",
+        last: last === "desktop_orca",
+      },
+    ],
+  });
+  if (!choice) return null;
+  localStorage.setItem(SLICER_TARGET_KEY, choice);
+  return choice;
 }
 
 async function api(path, opts) {
@@ -702,13 +790,16 @@ async function openInSlicer(item, { zipEntry = "" } = {}) {
     return false;
   }
 
-  // Same handoff as Flightdeck: Pi → Windows worker → bambu-studio.exe <path>.
-  // Not bambustudio://open?file=https://… (that path only works for MakerWorld projects).
+  const target = await pickSlicerTarget();
+  if (!target) return false;
+  const label = slicerTargetLabel(target);
+
+  // Same handoff as Flightdeck: Pi → Windows worker → slicer.exe <path>.
   const u = new URL(`/api/assets/${item.id}/open-slicer`, window.location.origin);
-  u.searchParams.set("target", "bambu_studio");
+  u.searchParams.set("target", target);
   if (isZip && zipEntry) u.searchParams.set("entry", zipEntry);
 
-  psToast("Opening in Bambu Studio", "Flightdeck Windows worker handoff…", "ok", 4000);
+  psToast(`Opening in ${label}`, "Flightdeck Windows worker handoff…", "ok", 4000);
   let data = {};
   try {
     const r = await fetch(u.toString(), { method: "POST" });
@@ -724,7 +815,7 @@ async function openInSlicer(item, { zipEntry = "" } = {}) {
   }
 
   const via = data.via === "open-path" ? "NAS path (File → Open style)" : (data.filename || "model");
-  psToast("Opened in Bambu Studio", via, "ok", 6000);
+  psToast(`Opened in ${label}`, via, "ok", 6000);
   return true;
 }
 
@@ -765,16 +856,15 @@ async function selectAsset(id) {
   const canSlicer = slicerKinds.includes(item.kind)
     || (isZip && (zipPrintables.length > 0 || hasNested));
   let zipEntry = isZip ? (zipPrintables[0]?.name || "") : "";
-  const slicerInfo = () => slicerFileUrlForAsset(item, { zipEntry });
   const slicerDisabledReason = () => {
     if (slicerKinds.includes(item.kind)) {
       if (isMobileClient()) return "Use on PC with Bambu/Orca";
-      return slicerInfo().url ? "" : (slicerInfo().reason || "Unavailable");
+      return "";
     }
     if (isZip) {
       if (!zipEntry) return hasNested ? "Peek a nested ZIP, then pick a printable" : "Pick a printable inside the ZIP first";
       if (isMobileClient()) return "Use on PC with Bambu/Orca";
-      return slicerInfo().url ? "" : (slicerInfo().reason || "Unavailable");
+      return "";
     }
     return "Not a slicer file type";
   };
@@ -924,11 +1014,7 @@ async function selectAsset(id) {
       <p class="detail-hint" id="slicerHint">${canSlicer
         ? (isMobileClient()
           ? "Open in slicer needs Bambu/Orca on a PC. On your phone, use Copy Windows path."
-          : (item.kind === "stl" || item.kind === "obj")
-            ? (winPath
-              ? "Open in slicer copies the NAS path — then in Studio Ctrl+O → paste (same as File → Open)."
-              : "Open in slicer downloads the STL/OBJ for File → Import in Studio.")
-            : "Open in slicer hands a 3MF to Bambu Studio / Orca. Edge may ask once — tick Always allow. Big files can take a moment over Tailscale.")
+          : "Open in slicer asks Bambu Studio or Orca, then hands off via Flightdeck’s Windows worker (same as File → Open).")
         : "Slicer open is for STL, OBJ, 3MF, and ZIP printables."}</p>
       <p class="detail-hint">${winPath
         ? "Paste Windows path into Bambu/Orca, or folder into Explorer (Ctrl+L → Ctrl+V)."

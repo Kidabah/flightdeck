@@ -810,6 +810,47 @@ h1 {
   color: #fff;
 }
 .ps-modal-actions .danger:hover { filter: brightness(1.06); }
+.ps-modal-actions .ps-choice-primary {
+  min-width: 7.5rem;
+}
+.ps-slicer-choice {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ps-slicer-choice button {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(56, 189, 248, .28);
+  background: rgba(15, 28, 45, .85);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+}
+.ps-slicer-choice button:hover,
+.ps-slicer-choice button:focus-visible {
+  border-color: rgba(96, 180, 235, .7);
+  background: rgba(24, 44, 68, .95);
+  outline: none;
+}
+.ps-slicer-choice button strong {
+  font-size: .95rem;
+}
+.ps-slicer-choice button span {
+  color: var(--muted);
+  font-size: .8rem;
+  line-height: 1.35;
+}
+.ps-slicer-choice button.is-last {
+  border-color: rgba(96, 180, 235, .55);
+  box-shadow: inset 0 0 0 1px rgba(96, 180, 235, .18);
+}
 
 @media (max-width: 980px) {
   .app {
