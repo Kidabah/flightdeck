@@ -337,7 +337,7 @@ function updateScanBanner(scan, byKind, totalAssets) {
     `${scan.files_seen || 0} seen · ${scan.files_upserted || 0} new · ${scan.files_skipped || 0} unchanged`
     + (scan.files_failed ? ` · ${scan.files_failed} failed` : "")
     + ` · ${where}`;
-  const order = ["zip", "stl", "obj", "3mf", "gcode.3mf"];
+  const order = ["zip", "stl", "obj", "3mf", "gcode.3mf", "gcode"];
   const parts = order
     .filter((k) => byKind[k] != null)
     .map((k) => `<span class="pill">${escapeHtml(k)} ${byKind[k]}</span>`);
@@ -925,11 +925,13 @@ async function selectAsset(id) {
              : "Peek a nested archive below, then click a printable to orbit."}</p>` : ""}`
         : isZip
           ? `<p class="detail-hint">No printable meshes (STL/OBJ/3MF) found inside this ZIP.</p>`
-          : `<p class="detail-hint">No 3D orbit for this file type.</p>`}
+          : item.kind === "gcode"
+            ? `<p class="detail-hint">Sliced G-code — no mesh orbit. Thumbnails come from Prusa/Cura embeds when present.</p>`
+            : `<p class="detail-hint">No 3D orbit for this file type.</p>`}
     </div>
     <div class="kv">
       <div><span>Design</span><span>${escapeHtml(item.design_name)}</span></div>
-      <div><span>Type</span><span>${escapeHtml(item.kind)}</span></div>
+      <div><span>Type</span><span>${escapeHtml(item.kind === "gcode" ? (item.meta?.extension === ".gco" ? "gcode (.gco)" : "gcode") : item.kind)}</span></div>
       <div><span>Source</span><span>${escapeHtml(item.source_kind)} · ${escapeHtml(item.root_id)}</span></div>
       <div><span>Size</span><span>${fmtBytes(item.size_bytes)}</span></div>
       ${(item.kind === "stl" || item.kind === "obj")
@@ -943,6 +945,18 @@ async function selectAsset(id) {
         <div><span>Inside types</span><span id="zipInsideTypes">${Object.keys(zipKinds).length
           ? Object.entries(zipKinds).map(([k, v]) => `${k}: ${v}`).join(" · ")
           : "—"}</span></div>
+      ` : item.kind === "gcode" ? `
+        <div><span>Slicer</span><span>${escapeHtml(item.meta?.generator || "—")}</span></div>
+        <div><span>Print time</span><span>${escapeHtml(item.meta?.print_time || "—")}</span></div>
+        <div><span>Filament</span><span>${escapeHtml(
+          item.meta?.filament_used
+            || (item.meta?.filament_used_g ? `${item.meta.filament_used_g} g` : "")
+            || item.meta?.filament_used_mm
+            || "—"
+        )}</span></div>
+        <div><span>Layer height</span><span>${escapeHtml(item.meta?.layer_height || "—")}</span></div>
+        <div><span>Layers</span><span>${item.meta?.layer_count ?? "—"}</span></div>
+        <div><span>Printer</span><span>${escapeHtml(item.meta?.printer_model || item.meta?.flavor || "—")}</span></div>
       ` : `
         <div><span>Triangles / faces</span><span>${item.triangle_count ?? "—"}</span></div>
         <div><span>Textures</span><span>${item.has_textures ? "yes" : "no"}</span></div>
@@ -1034,7 +1048,9 @@ async function selectAsset(id) {
         ? (isMobileClient()
           ? "Open in slicer needs Bambu/Orca on a PC. On your phone, use Copy Windows path."
           : "Open in slicer asks Bambu or Orca, checks manifold (MakerDeck-style sanitize if needed), then hands off via the Windows worker.")
-        : "Slicer open is for STL, OBJ, 3MF, and ZIP printables."}</p>
+        : item.kind === "gcode"
+          ? "Raw G-code is already sliced — open it from the printer or slicer’s G-code preview, or copy the Windows path."
+          : "Slicer open is for STL, OBJ, 3MF, and ZIP printables."}</p>
       <p class="detail-hint">${winPath
         ? "Paste Windows path into Bambu/Orca, or folder into Explorer (Ctrl+L → Ctrl+V)."
         : "Set a Windows path on this watched folder in Folders to enable PC copy."}</p>

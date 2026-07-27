@@ -6,6 +6,21 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-27 Session update (G-code indexing)
+
+Latest commit: `(pending)` — PrintShelf index `.gcode` / `.gco`
+
+Latest local/Pi change:
+- **Why Baby Doll G-code was missing:** scanner only knew STL/OBJ/3MF/ZIP, and live `ignore_globs` had `**/*.gcode`.
+- Now indexes `.gcode` + `.gco` as kind `gcode` (Cura + PrusaSlicer headers, Prusa thumbs).
+- New **G-code** type tab. Hard refresh `?v=41`. Restart + rescan required.
+- Remove `**/*.gcode` from Pi `printshelf/config.json` ignore list on deploy.
+
+Previous today:
+- Manifold hole-fill (`4703ae6`); slicer handoff. Archives in `docs/archive/`.
+
+---
+
 ## 2026-07-27 Session update
 
 Latest commit: `4703ae6` — PrintShelf fill tiny manifold holes

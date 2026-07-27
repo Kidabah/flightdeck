@@ -5,7 +5,7 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
-PRINTABLE_SUFFIXES = (".stl", ".obj", ".3mf", ".gcode.3mf")
+PRINTABLE_SUFFIXES = (".stl", ".obj", ".3mf", ".gcode.3mf", ".gcode", ".gco")
 MAX_LISTED = 120
 
 
@@ -29,6 +29,8 @@ def _kind_inside(name: str) -> str | None:
         return "stl"
     if lower.endswith(".obj"):
         return "obj"
+    if lower.endswith((".gcode", ".gco")):
+        return "gcode"
     return None
 
 

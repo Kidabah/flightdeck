@@ -21,10 +21,11 @@ def thumb_suffix(kind: str) -> str:
         return "obj5"
     if kind in ("3mf", "gcode.3mf"):
         return "3mf3"
+    if kind == "gcode":
+        return "gcode1"
     if kind == "zip":
         return "zip2"
     return kind or "file"
-
 
 def thumb_filename(content_hash: str, kind: str) -> str:
     # Version suffixes bust caches when preview quality improves.

@@ -80,7 +80,9 @@ def file_hash(path: Path, max_bytes: int = 262_144, st: os.stat_result | None = 
 
 def _name_may_be_printable(name: str) -> bool:
     lower = name.lower()
-    return lower.endswith((".stl", ".obj", ".3mf", ".zip"))
+    if lower.endswith(".gcode.3mf"):
+        return True
+    return lower.endswith((".stl", ".obj", ".3mf", ".gcode", ".gco", ".zip"))
 
 
 def mark_orphaned_scans(db_file: Path | None = None) -> int:
@@ -118,7 +120,7 @@ def _design_name_for(path: Path, root: Path) -> str:
     except Exception:
         pass
     name = path.name
-    for suf in (".gcode.3mf", ".3mf", ".stl", ".obj", ".zip"):
+    for suf in (".gcode.3mf", ".3mf", ".stl", ".obj", ".gcode", ".gco", ".zip"):
         if name.lower().endswith(suf):
             return name[: -len(suf)]
     return path.stem
