@@ -296,10 +296,36 @@ h1 {
 .viewer-section { margin-top: 10px; }
 .viewer-toolbar {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
   margin: 0 0 8px;
 }
-.viewer-detail-toggle { font-size: .82rem; }
+.viewer-entry-label {
+  font-size: .78rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.viewer-detail-toggle { font-size: .82rem; flex: 0 0 auto; }
+.zip-entry-btn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+  cursor: pointer;
+}
+.zip-entry-btn:hover { color: var(--accent-2); }
+.zip-printables li:has(.zip-entry-btn.active) {
+  border: 1px solid var(--accent);
+  background: rgba(217, 119, 62, .12);
+}
 .orbit-viewer {
   position: relative;
   width: 100%;

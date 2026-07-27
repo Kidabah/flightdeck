@@ -8,6 +8,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
+Latest commit: *(pending)* — ZIP orbit + broken thumb fix
+
+Latest local/Pi change:
+- **ZIP orbit**: click a printable inside a zip → loads in the detail viewer.
+- Grid no longer shows broken black thumbs (missing files resolved / onerror fallback). Hit **Rebuild thumbs** for Dryad etc.
+- Hard refresh `?v=16`. Restart required.
+
+Previous today:
+- 3MF orbit (`79e1ae5`); multi-select; ZIP index. Archives in `docs/archive/`.
+
+---
+
+## 2026-07-27 Session update (3MF orbit)
+
 Latest commit: `79e1ae5` — PrintShelf 3MF orbit + mesh thumbs
 
 Latest local/Pi change:

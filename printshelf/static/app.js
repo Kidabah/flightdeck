@@ -135,7 +135,9 @@ async function loadLibrary() {
     card.dataset.id = String(item.id);
     card.innerHTML = `
       <input type="checkbox" class="card-check" ${checked ? "checked" : ""} aria-label="Select ${escapeHtml(item.file_name)}">
-      <div class="card-thumb">${item.thumb_path ? `<img src="/api/thumbs/${encodeURIComponent(item.thumb_path)}?v=${encodeURIComponent((item.content_hash || item.thumb_path).slice(0, 12))}" alt="" loading="lazy">` : `<span class="pill">${item.kind}</span>`}</div>
+      <div class="card-thumb">${item.thumb_path
+        ? `<img src="/api/thumbs/${encodeURIComponent(item.thumb_path)}?v=${encodeURIComponent((item.content_hash || item.thumb_path).slice(0, 12))}" alt="" loading="lazy">`
+        : `<span class="pill">${escapeHtml(item.kind)}</span>`}</div>
       <div class="card-body">
         <h3 class="card-title">${escapeHtml(item.file_name)}</h3>
         <div class="card-meta">
@@ -151,6 +153,13 @@ async function loadLibrary() {
     check.addEventListener("change", (e) => {
       toggleSelected(item.id, e.target.checked);
     });
+    const img = card.querySelector(".card-thumb img");
+    if (img) {
+      img.addEventListener("error", () => {
+        const host = card.querySelector(".card-thumb");
+        if (host) host.innerHTML = `<span class="pill">${escapeHtml(item.kind)}</span>`;
+      });
+    }
     card.addEventListener("click", (e) => {
       if (e.ctrlKey || e.metaKey || e.shiftKey) {
         e.preventDefault();
@@ -221,16 +230,17 @@ async function selectAsset(id) {
   const sidecars = item.sidecars || [];
   const winPath = item.windows_path || "";
   const winFolder = item.windows_folder || "";
-  const canOrbit = item.can_orbit
-    || item.kind === "stl"
-    || item.kind === "obj"
-    || item.kind === "3mf"
-    || item.kind === "gcode.3mf";
   const isZip = item.kind === "zip";
   const zipMeta = item.meta || {};
   const zipEntries = zipMeta.entries || [];
   const zipPrintables = zipMeta.printables || [];
   const zipKinds = zipMeta.printable_by_kind || {};
+  const canOrbit = item.can_orbit
+    || item.kind === "stl"
+    || item.kind === "obj"
+    || item.kind === "3mf"
+    || item.kind === "gcode.3mf"
+    || (isZip && zipPrintables.length > 0);
   $("detail").innerHTML = `
     <h2>${escapeHtml(item.file_name)}</h2>
     <div class="detail-path">${escapeHtml(item.abs_path)}</div>
@@ -239,14 +249,16 @@ async function selectAsset(id) {
       <h3>3D preview</h3>
       ${canOrbit
         ? `<div class="viewer-toolbar">
+             ${isZip ? `<span class="viewer-entry-label" id="orbitEntryLabel"></span>` : ""}
              <label class="check viewer-detail-toggle">
                <input type="checkbox" id="orbitHighDetail"> Higher detail
              </label>
            </div>
            <div class="orbit-viewer" id="orbitViewer"></div>
-           <p class="viewer-note" id="orbitNote" hidden></p>`
+           <p class="viewer-note" id="orbitNote" hidden></p>
+           ${isZip ? `<p class="detail-hint">Click a printable below to load it in the viewer.</p>` : ""}`
         : isZip
-          ? `<p class="detail-hint">ZIP archives are listed below — no 3D orbit inside the zip yet.</p>`
+          ? `<p class="detail-hint">No printable meshes found inside this ZIP.</p>`
           : `<p class="detail-hint">No 3D orbit for this file type.</p>`}
     </div>
     <div class="kv">
@@ -270,9 +282,13 @@ async function selectAsset(id) {
     ${isZip && zipPrintables.length ? `
       <div class="detail-section">
         <h3>Printables in zip</h3>
-        <ul class="sidecar-list">
-          ${zipPrintables.map((e) => `
-            <li><strong>${escapeHtml(e.kind)}</strong> · ${escapeHtml(e.name)} · ${fmtBytes(e.size_bytes)}</li>
+        <ul class="sidecar-list zip-printables" id="zipPrintables">
+          ${zipPrintables.map((e, idx) => `
+            <li>
+              <button type="button" class="zip-entry-btn" data-entry="${escapeHtml(e.name)}" data-idx="${idx}">
+                <strong>${escapeHtml(e.kind)}</strong> · ${escapeHtml(e.name)} · ${fmtBytes(e.size_bytes)}
+              </button>
+            </li>
           `).join("")}
         </ul>
         ${(zipMeta.printable_count || 0) > zipPrintables.length
@@ -380,6 +396,7 @@ async function selectAsset(id) {
     }
   });
   if (canOrbit) {
+    let zipEntry = isZip ? (zipPrintables[0]?.name || "") : "";
     const mountOrbit = async (highDetail) => {
       for (let i = 0; i < 40 && !window.PrintShelfViewer?.mountOrbitViewer; i++) {
         await new Promise((r) => setTimeout(r, 50));
@@ -391,14 +408,38 @@ async function selectAsset(id) {
         return;
       }
       const detail = highDetail ? "high" : "standard";
+      let url = `/api/assets/${id}/model?detail=${detail}`;
+      if (isZip) {
+        if (!zipEntry) {
+          if ($("orbitViewer")) {
+            $("orbitViewer").innerHTML = `<div class="viewer-status">Pick a printable in the list below.</div>`;
+          }
+          return;
+        }
+        url += `&entry=${encodeURIComponent(zipEntry)}`;
+        if ($("orbitEntryLabel")) {
+          $("orbitEntryLabel").textContent = zipEntry.split("/").pop() || zipEntry;
+        }
+      }
       await window.PrintShelfViewer.mountOrbitViewer($("orbitViewer"), {
-        url: `/api/assets/${id}/model?detail=${detail}`,
+        url,
         noteEl: $("orbitNote"),
       });
     };
     $("orbitHighDetail")?.addEventListener("change", (e) => {
       mountOrbit(Boolean(e.target.checked)).catch(console.error);
     });
+    $("zipPrintables")?.addEventListener("click", (e) => {
+      const btn = e.target.closest(".zip-entry-btn");
+      if (!btn) return;
+      zipEntry = btn.dataset.entry || "";
+      document.querySelectorAll(".zip-entry-btn").forEach((b) => b.classList.toggle("active", b === btn));
+      mountOrbit(Boolean($("orbitHighDetail")?.checked)).catch(console.error);
+    });
+    if (isZip && zipPrintables.length) {
+      const firstBtn = document.querySelector(".zip-entry-btn");
+      if (firstBtn) firstBtn.classList.add("active");
+    }
     await mountOrbit(false);
   }
   await loadLibrary();

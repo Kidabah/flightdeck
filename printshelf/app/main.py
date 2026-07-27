@@ -17,6 +17,7 @@ from .preview import (
     MAX_PREVIEW_TRIS,
     MAX_PREVIEW_TRIS_HIGH,
     build_preview_stl,
+    build_zip_entry_preview,
     get_asset_row,
     path_is_allowed,
     path_under_watched,
@@ -27,6 +28,7 @@ from .scanner import (
     start_scan_background,
     start_thumb_rebuild_background,
 )
+from .thumbs import resolve_thumb_name
 
 ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "static"
@@ -186,12 +188,20 @@ def list_assets(
             f"SELECT COUNT(*) AS c FROM assets a JOIN designs d ON d.id = a.design_id WHERE {where}",
             params[:-2],
         ).fetchone()["c"]
+    thumbs = data_dir(cfg) / "thumbs"
     items = []
     for r in rows:
         item = row_to_dict(r)
         assert item
         item["meta"] = parse_json_field(item.pop("meta_json", "{}"), {})
         item["bbox"] = parse_json_field(item.pop("bbox_json", None), None)
+        resolved = resolve_thumb_name(
+            thumbs,
+            thumb_path=item.get("thumb_path"),
+            content_hash=item.get("content_hash"),
+            kind=item.get("kind"),
+        )
+        item["thumb_path"] = resolved
         items.append(item)
     return {"total": total, "items": items}
 
@@ -226,7 +236,17 @@ def get_asset(asset_id: int) -> dict[str, Any]:
     abs_path = str(item.get("abs_path") or "")
     item["windows_path"] = to_windows_path(abs_path, folders)
     item["windows_folder"] = to_windows_folder(abs_path, folders)
-    item["can_orbit"] = item.get("kind") in ("stl", "obj", "3mf", "gcode.3mf")
+    kind = item.get("kind")
+    meta = item.get("meta") or {}
+    item["can_orbit"] = kind in ("stl", "obj", "3mf", "gcode.3mf") or (
+        kind == "zip" and int(meta.get("printable_count") or 0) > 0
+    )
+    item["thumb_path"] = resolve_thumb_name(
+        data_dir(cfg) / "thumbs",
+        thumb_path=item.get("thumb_path"),
+        content_hash=item.get("content_hash"),
+        kind=kind,
+    )
     item["hidden"] = bool(item.get("hidden"))
     return item
 
@@ -410,21 +430,29 @@ def get_asset_model(
     asset_id: int,
     max_tris: int = Query(MAX_PREVIEW_TRIS, ge=20_000, le=MAX_PREVIEW_TRIS_HIGH),
     detail: str = Query("standard", pattern="^(standard|high)$"),
+    entry: str | None = Query(None, description="Path inside a ZIP for printable orbit"),
 ):
-    """STL/OBJ mesh for the orbit viewer (may be decimated for huge files)."""
+    """Mesh for the orbit viewer (may be decimated for huge files)."""
     asset = get_asset_row(asset_id)
     if not asset:
         raise HTTPException(404, "Asset not found")
     kind = asset.get("kind")
-    if kind not in ("stl", "obj", "3mf", "gcode.3mf"):
-        raise HTTPException(400, "Orbit preview is only available for STL, OBJ, and 3MF")
     abs_path = str(asset.get("abs_path") or "")
     if not path_is_allowed(abs_path):
         raise HTTPException(403, "File is outside watched folders")
     if detail == "high":
         max_tris = max(max_tris, MAX_PREVIEW_TRIS_HIGH)
     try:
-        path, simplified = build_preview_stl(asset, max_tris=max_tris)
+        if kind == "zip":
+            if not entry:
+                raise HTTPException(400, "Pick a printable inside the ZIP (entry=…)")
+            path, simplified = build_zip_entry_preview(asset, entry, max_tris=max_tris)
+        elif kind in ("stl", "obj", "3mf", "gcode.3mf"):
+            path, simplified = build_preview_stl(asset, max_tris=max_tris)
+        else:
+            raise HTTPException(400, "Orbit preview is only available for STL, OBJ, 3MF, and ZIP printables")
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(500, f"Preview failed: {exc}") from exc
     if not path.exists():
@@ -436,10 +464,13 @@ def get_asset_model(
         "X-PrintShelf-Detail": detail,
         "X-PrintShelf-MaxTris": str(max_tris),
     }
+    if entry:
+        headers["X-PrintShelf-Zip-Entry"] = entry
+    stem = Path(entry or asset.get("file_name") or "model").stem
     return FileResponse(
         path,
         media_type="model/stl",
-        filename=f"{Path(asset.get('file_name') or 'model').stem}_preview.stl",
+        filename=f"{stem}_preview.stl",
         headers=headers,
     )
 

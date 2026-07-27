@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 import struct
+import tempfile
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -190,3 +193,73 @@ def build_preview_stl(asset: dict[str, Any], max_tris: int = MAX_PREVIEW_TRIS) -
         return cache, True
 
     raise ValueError(f"Unsupported kind for 3D preview: {kind}")
+
+
+def _safe_zip_entry(name: str) -> str:
+    n = (name or "").replace("\\", "/").lstrip("/")
+    if not n or n.endswith("/") or ".." in n.split("/"):
+        raise ValueError("Invalid zip entry path")
+    return n
+
+
+def _entry_kind(name: str) -> str | None:
+    lower = name.lower()
+    if lower.endswith(".gcode.3mf"):
+        return "gcode.3mf"
+    if lower.endswith(".3mf"):
+        return "3mf"
+    if lower.endswith(".stl"):
+        return "stl"
+    if lower.endswith(".obj"):
+        return "obj"
+    return None
+
+
+def build_zip_entry_preview(
+    asset: dict[str, Any],
+    entry: str,
+    max_tris: int = MAX_PREVIEW_TRIS,
+) -> tuple[Path, bool]:
+    """Extract one printable from a ZIP and build a preview STL."""
+    if (asset.get("kind") or "") != "zip":
+        raise ValueError("Not a zip asset")
+    entry = _safe_zip_entry(entry)
+    ekind = _entry_kind(entry)
+    if not ekind:
+        raise ValueError("Zip entry is not a printable mesh (stl/obj/3mf)")
+
+    src = Path(asset["abs_path"])
+    content_hash = asset.get("content_hash") or src.name
+    entry_key = hashlib.sha1(entry.encode("utf-8")).hexdigest()[:12]
+    cache = cached_preview_path(str(content_hash), f"zip_{entry_key}_{ekind}", max_tris)
+    if cache.exists() and cache.stat().st_mtime >= src.stat().st_mtime:
+        return cache, True
+
+    with zipfile.ZipFile(src, "r") as zf:
+        names = {n.replace("\\", "/"): n for n in zf.namelist()}
+        real = names.get(entry)
+        if real is None:
+            # case-insensitive fallback
+            lower_map = {k.lower(): v for k, v in names.items()}
+            real = lower_map.get(entry.lower())
+        if real is None:
+            raise FileNotFoundError(f"Entry not found in zip: {entry}")
+        raw = zf.read(real)
+
+    suffix = Path(entry).suffix.lower() or ".bin"
+    if entry.lower().endswith(".gcode.3mf"):
+        suffix = ".gcode.3mf"
+    with tempfile.TemporaryDirectory(prefix="printshelf-zip-") as tmp:
+        tmp_path = Path(tmp) / f"entry{suffix}"
+        tmp_path.write_bytes(raw)
+        fake = {
+            "kind": ekind,
+            "abs_path": str(tmp_path),
+            "content_hash": f"{content_hash}_{entry_key}",
+            "file_name": Path(entry).name,
+        }
+        # Build via temp file, then copy into stable cache key
+        path, simplified = build_preview_stl(fake, max_tris=max_tris)
+        data = path.read_bytes()
+        cache.write_bytes(data)
+        return cache, True
