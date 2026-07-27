@@ -15,6 +15,78 @@ let scanWatchTicks = 0;
 let lastScanRunning = false;
 let lastThumbsRunning = false;
 let statusPollTimer = null;
+let psModalResolver = null;
+
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[c]));
+}
+
+/** PrintShelf toast — replaces browser alert(). */
+function psToast(title, detail = "", kind = "info", ms = 4200) {
+  const host = $("psToasts");
+  if (!host) return;
+  const el = document.createElement("div");
+  el.className = `ps-toast ${kind === "ok" || kind === "error" ? kind : ""}`.trim();
+  el.innerHTML = `
+    <div class="ps-toast-mark">PS</div>
+    <div class="ps-toast-copy">
+      <p class="ps-toast-title">${escapeHtml(title)}</p>
+      ${detail ? `<p class="ps-toast-detail">${escapeHtml(detail)}</p>` : ""}
+    </div>
+    <button type="button" class="ps-toast-close" aria-label="Dismiss">×</button>`;
+  const dismiss = () => {
+    if (el.classList.contains("leaving")) return;
+    el.classList.add("leaving");
+    setTimeout(() => el.remove(), 220);
+  };
+  el.querySelector(".ps-toast-close")?.addEventListener("click", dismiss);
+  host.appendChild(el);
+  if (ms > 0) setTimeout(dismiss, ms);
+}
+
+/** PrintShelf confirm modal — replaces browser confirm(). */
+function psConfirm({
+  title = "Confirm",
+  body = "",
+  eyebrow = "Confirm",
+  confirmLabel = "Confirm",
+  cancelLabel = "Cancel",
+  danger = false,
+} = {}) {
+  const root = $("psModalRoot");
+  if (!root) {
+    const plain = `${title}\n\n${String(body).replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "")}`;
+    return Promise.resolve(window.confirm(plain));
+  }
+  if (psModalResolver) {
+    psModalResolver(false);
+    psModalResolver = null;
+  }
+  $("psModalEyebrow").textContent = eyebrow;
+  $("psModalTitle").textContent = title;
+  $("psModalBody").innerHTML = body;
+  const confirmBtn = $("psModalConfirm");
+  const cancelBtn = $("psModalCancel");
+  confirmBtn.textContent = confirmLabel;
+  cancelBtn.textContent = cancelLabel;
+  confirmBtn.classList.toggle("danger", !!danger);
+  confirmBtn.classList.toggle("card-open", true);
+  root.hidden = false;
+  confirmBtn.focus();
+  return new Promise((resolve) => {
+    psModalResolver = (value) => {
+      root.hidden = true;
+      psModalResolver = null;
+      resolve(value);
+    };
+  });
+}
+
+function closePsModal(value) {
+  if (psModalResolver) psModalResolver(value);
+}
 
 async function api(path, opts) {
   const res = await fetch(path, {
@@ -82,15 +154,27 @@ async function deleteIdsFromDisk(ids, { names = [] } = {}) {
   if (!ids.length) return;
   const label = fileCountLabel(ids.length);
   const sample = names.filter(Boolean).slice(0, 8);
-  const more = ids.length > sample.length ? `\n…and ${ids.length - sample.length} more` : "";
+  const more = ids.length > sample.length
+    ? `<br>…and ${ids.length - sample.length} more`
+    : "";
   const listBit = sample.length
-    ? `\n\n${sample.join("\n")}${more}`
-    : `\n\n${label} will be removed from the NAS/disk and the library.`;
-  const ok = confirm(
-    `PrintShelf — permanently delete ${label} from disk?${listBit}\n\nThis cannot be undone.`,
-  );
+    ? `<br><br><strong>${sample.map(escapeHtml).join("<br>")}</strong>${more}`
+    : `<br><br>${escapeHtml(label)} will be removed from the NAS/disk and the library.`;
+  const ok = await psConfirm({
+    eyebrow: "Destructive action",
+    title: `Delete ${label} from disk?`,
+    body: `This permanently removes the file${ids.length === 1 ? "" : "s"} from disk and the library.${listBit}<br><br>This cannot be undone.`,
+    confirmLabel: "Delete permanently",
+    danger: true,
+  });
   if (!ok) return false;
-  const ok2 = confirm(`PrintShelf — last check: delete ${label} from disk for real?`);
+  const ok2 = await psConfirm({
+    eyebrow: "Last check",
+    title: "Delete for real?",
+    body: `Confirm once more: permanently delete <strong>${escapeHtml(label)}</strong> from disk.`,
+    confirmLabel: "Yes, delete",
+    danger: true,
+  });
   if (!ok2) return false;
 
   let deletedCount = 0;
@@ -111,10 +195,14 @@ async function deleteIdsFromDisk(ids, { names = [] } = {}) {
   window.PrintShelfViewer?.unmountOrbitViewer?.();
   $("detail").innerHTML = `<div class="detail-empty">Deleted ${fileCountLabel(deletedCount)} from disk${failed.length ? ` · ${failed.length} failed` : ""}.</div>`;
   if (failed.length) {
-    alert(
-      `Deleted ${deletedCount}. Failed: ${failed.length}\n`
-      + failed.slice(0, 8).map((f) => `${f.id}: ${f.error}`).join("\n"),
+    psToast(
+      `Deleted ${deletedCount}, ${failed.length} failed`,
+      failed.slice(0, 8).map((f) => `${f.id}: ${f.error}`).join("\n"),
+      "error",
+      8000,
     );
+  } else {
+    psToast("Deleted from disk", fileCountLabel(deletedCount), "ok");
   }
   await refreshStats();
   await loadLibrary();
@@ -537,12 +625,6 @@ async function loadLibrary({ preserveScroll = false } = {}) {
   }
 }
 
-function escapeHtml(s) {
-  return String(s ?? "").replace(/[&<>"']/g, (c) => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-  }[c]));
-}
-
 function fallbackCopy(text) {
   const ta = document.createElement("textarea");
   ta.value = text;
@@ -567,6 +649,7 @@ function fallbackCopy(text) {
 async function copyText(btn, text, okLabel = "Copied") {
   if (!text) {
     btn.textContent = "No path";
+    psToast("Nothing to copy", "No path available for this file.", "error");
     return;
   }
   const prev = btn.dataset.label || btn.textContent;
@@ -582,6 +665,8 @@ async function copyText(btn, text, okLabel = "Copied") {
   }
   if (!ok) ok = fallbackCopy(text);
   btn.textContent = ok ? okLabel : "Copy failed";
+  if (ok) psToast(okLabel, text, "ok", 2600);
+  else psToast("Copy failed", "Could not copy to the clipboard.", "error");
   setTimeout(() => { btn.textContent = prev; }, 1600);
 }
 
@@ -638,14 +723,19 @@ function slicerFileUrlForAsset(item, { zipEntry = "" } = {}) {
 
 function openInSlicer(item, { zipEntry = "" } = {}) {
   if (isMobileClient()) {
-    alert("Open in slicer needs Bambu Studio or Orca on a PC. On your phone, use Copy Windows path instead.");
+    psToast(
+      "Open on a PC",
+      "Bambu Studio / Orca need a desktop. On your phone, use Copy Windows path instead.",
+      "info",
+    );
     return false;
   }
   const { url, reason } = slicerFileUrlForAsset(item, { zipEntry });
   if (!url) {
-    alert(reason || "Can't open this file in a slicer.");
+    psToast("Can't open in slicer", reason || "Not available for this file.", "error");
     return false;
   }
+  psToast("Opening in slicer", item.file_name || "Sending download link…", "ok", 2800);
   window.location.href = buildSlicerProtocolUrl(url);
   return true;
 }
@@ -870,18 +960,21 @@ async function selectAsset(id) {
   $("copyPiPathBtn")?.addEventListener("click", () => copyText($("copyPiPathBtn"), item.abs_path));
   $("hideBtn")?.addEventListener("click", async () => {
     try {
-      await hideIds(idsForAction(id));
+      const ids = idsForAction(id);
+      await hideIds(ids);
+      psToast("Hidden from library", fileCountLabel(ids.length), "ok");
     } catch (err) {
-      alert(String(err.message || err));
+      psToast("Hide failed", String(err.message || err), "error");
     }
   });
   $("unhideBtn")?.addEventListener("click", async () => {
     try {
       const ids = idsForAction(id);
       await unhideIds(ids);
+      psToast("Unhidden", fileCountLabel(ids.length), "ok");
       if (ids.length === 1) await selectAsset(ids[0]);
     } catch (err) {
-      alert(String(err.message || err));
+      psToast("Unhide failed", String(err.message || err), "error");
     }
   });
   $("deleteDiskBtn")?.addEventListener("click", async () => {
@@ -892,7 +985,7 @@ async function selectAsset(id) {
         : libraryItems.filter((x) => ids.includes(x.id)).map((x) => x.file_name);
       await deleteIdsFromDisk(ids, { names });
     } catch (err) {
-      alert(String(err.message || err));
+      psToast("Delete failed", String(err.message || err), "error");
     }
   });
   if (canOrbit) {
@@ -1060,6 +1153,16 @@ async function saveFolders() {
 }
 
 function bind() {
+  $("psModalCancel")?.addEventListener("click", () => closePsModal(false));
+  $("psModalConfirm")?.addEventListener("click", () => closePsModal(true));
+  $("psModalRoot")?.addEventListener("click", (e) => {
+    if (e.target.closest("[data-ps-modal-dismiss]")) closePsModal(false);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && $("psModalRoot") && !$("psModalRoot").hidden) {
+      closePsModal(false);
+    }
+  });
   document.querySelectorAll(".nav-btn").forEach((btn) => {
     btn.addEventListener("click", () => switchView(btn.dataset.view));
   });
@@ -1096,16 +1199,20 @@ function bind() {
   $("bulkClearBtn")?.addEventListener("click", () => clearSelection());
   $("bulkHideBtn")?.addEventListener("click", async () => {
     try {
-      await hideIds([...selectedIds]);
+      const ids = [...selectedIds];
+      await hideIds(ids);
+      psToast("Hidden from library", fileCountLabel(ids.length), "ok");
     } catch (err) {
-      alert(String(err.message || err));
+      psToast("Hide failed", String(err.message || err), "error");
     }
   });
   $("bulkUnhideBtn")?.addEventListener("click", async () => {
     try {
-      await unhideIds([...selectedIds]);
+      const ids = [...selectedIds];
+      await unhideIds(ids);
+      psToast("Unhidden", fileCountLabel(ids.length), "ok");
     } catch (err) {
-      alert(String(err.message || err));
+      psToast("Unhide failed", String(err.message || err), "error");
     }
   });
   $("bulkDeleteBtn")?.addEventListener("click", async () => {
@@ -1114,7 +1221,7 @@ function bind() {
       const names = libraryItems.filter((x) => ids.includes(x.id)).map((x) => x.file_name);
       await deleteIdsFromDisk(ids, { names });
     } catch (err) {
-      alert(String(err.message || err));
+      psToast("Delete failed", String(err.message || err), "error");
     }
   });
   $("refreshLibraryBtn")?.addEventListener("click", () => {

@@ -651,6 +651,166 @@ h1 {
 }
 .scan-live { white-space: nowrap; }
 
+/* PrintShelf toasts + confirm modal (replaces browser alert/confirm) */
+.ps-toasts {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 1200;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 10px;
+  width: min(360px, calc(100vw - 28px));
+  pointer-events: none;
+}
+.ps-toast {
+  pointer-events: auto;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: start;
+  padding: 12px 12px 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(56, 189, 248, .35);
+  background: linear-gradient(165deg, rgba(16, 28, 45, .97), rgba(7, 11, 18, .96));
+  box-shadow: 0 16px 40px rgba(0, 0, 0, .45), 0 0 0 1px rgba(56, 189, 248, .08);
+  transform: translateY(12px);
+  opacity: 0;
+  animation: ps-toast-in .28s ease forwards;
+}
+.ps-toast.leaving {
+  animation: ps-toast-out .22s ease forwards;
+}
+.ps-toast-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  color: var(--ink);
+  background: linear-gradient(145deg, var(--accent), var(--accent-deep));
+  box-shadow: 0 8px 18px rgba(14, 165, 233, .25);
+  flex-shrink: 0;
+}
+.ps-toast-copy { min-width: 0; padding-top: 1px; }
+.ps-toast-title {
+  font-family: Fraunces, Georgia, serif;
+  font-size: .98rem;
+  font-weight: 700;
+  line-height: 1.2;
+  margin: 0 0 3px;
+}
+.ps-toast-detail {
+  margin: 0;
+  color: var(--muted);
+  font-size: .8rem;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.ps-toast-close {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 8px;
+}
+.ps-toast-close:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, .06);
+}
+.ps-toast.ok { border-color: rgba(52, 211, 153, .4); }
+.ps-toast.ok .ps-toast-mark {
+  background: linear-gradient(145deg, #34d399, #059669);
+  box-shadow: 0 8px 18px rgba(16, 185, 129, .22);
+}
+.ps-toast.error { border-color: rgba(248, 113, 113, .45); }
+.ps-toast.error .ps-toast-mark {
+  background: linear-gradient(145deg, #f87171, #dc2626);
+  box-shadow: 0 8px 18px rgba(248, 113, 113, .22);
+  color: #fff;
+}
+@keyframes ps-toast-in {
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes ps-toast-out {
+  to { opacity: 0; transform: translateY(8px); }
+}
+
+.ps-modal-root {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+}
+.ps-modal-root[hidden] { display: none !important; }
+.ps-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(3, 8, 16, .72);
+  backdrop-filter: blur(4px);
+}
+.ps-modal {
+  position: relative;
+  width: min(440px, 100%);
+  padding: 22px 22px 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(56, 189, 248, .35);
+  background: linear-gradient(165deg, #122033, #0a1220 70%);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .55), 0 0 0 1px rgba(56, 189, 248, .08);
+  animation: ps-toast-in .22s ease;
+}
+.ps-modal-brand {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.ps-modal-brand .brand-mark {
+  width: 38px;
+  height: 38px;
+  font-size: .85rem;
+}
+.ps-modal-brand .brand-name { font-size: 1.15rem; }
+.ps-modal h2 {
+  margin: 0 0 8px;
+  font-family: Fraunces, Georgia, serif;
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.ps-modal-body {
+  color: var(--muted);
+  font-size: .9rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: min(40vh, 280px);
+  overflow: auto;
+  margin-bottom: 18px;
+}
+.ps-modal-body strong { color: var(--text); font-weight: 600; }
+.ps-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.ps-modal-actions .danger {
+  background: linear-gradient(145deg, #f87171, #dc2626);
+  border-color: transparent;
+  color: #fff;
+}
+.ps-modal-actions .danger:hover { filter: brightness(1.06); }
+
 @media (max-width: 980px) {
   .app {
     grid-template-columns: 1fr;

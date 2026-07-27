@@ -8,15 +8,14 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `f0dc750` — PrintShelf detail pane fix (`canSlicer`)
+Latest commit: `(pending)` — PrintShelf toasts + confirm modal
 
 Latest local/Pi change:
-- Fixed blank detail pane: `selectAsset` referenced undefined `canSlicer` (broke Peek + all details).
-- ZIP icon thumbs + nested Peek remain as before.
-- Hard refresh `?v=29`. UI-only; restart optional.
+- Replaced browser `alert`/`confirm` with PrintShelf toasts + branded confirm modal.
+- Hard refresh `?v=30`. UI-only; restart optional.
 
 Previous today:
-- ZIP icon + nested peek (`e9f9bcd` / `19fb730`). Archives in `docs/archive/`.
+- Detail pane `canSlicer` fix (`f0dc750`); ZIP icon + nested peek. Archives in `docs/archive/`.
 
 ---
 
