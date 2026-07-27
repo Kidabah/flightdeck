@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `(pending)` — PrintShelf manifold check + repair
+Latest commit: `84d3e86` — PrintShelf manifold check + repair
 
 Latest local/Pi change:
 - **Open in slicer** runs MakerDeck-style manifold check; if open edges, sanitize (weld + peel) and hand off a temp `_manifold.stl` (NAS untouched).
