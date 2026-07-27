@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `(pending)` — PrintShelf STL open via NAS path
+Latest commit: `f6919df` — PrintShelf STL open via NAS path
 
 Latest local/Pi change:
 - STL/OBJ **Open in slicer** now matches File → Open: copy NAS path + launch Studio → Ctrl+O paste (Bambu web-open 3MF path keeps failing empty plate).
