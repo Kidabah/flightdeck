@@ -8,14 +8,14 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: *(pending)* — PrintShelf delete confirm shows file count
+Latest commit: `23585fd` — PrintShelf detail Hide/Delete use multi-select
 
 Latest local/Pi change:
-- Delete confirms say **how many files** (`1 file` / `N files`) in PrintShelf style.
-- Hard refresh `?v=18`. Restart optional (static).
+- Detail-pane **Hide / Delete / Unhide** now apply to **all selected files** when a multi-select is active (not just the open card). Confirm shows the count; buttons label e.g. `Delete N from disk…`.
+- Hard refresh `?v=19`. Restart done (static-safe).
 
 Previous today:
-- Folder browse (`0216556`). Archives in `docs/archive/`.
+- Delete confirm count (`00d0541`); folder browse (`0216556`). Archives in `docs/archive/`.
 
 ---
 
