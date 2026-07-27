@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `(pending)` — PrintShelf orbit MakerDeck blue
+Latest commit: `77ccb27` — PrintShelf orbit MakerDeck blue
 
 Latest local/Pi change:
 - Orbit mesh colour matches MakerDeck sky-blue thumbs (`#60b4eb`).
