@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-27 Session update
 
-Latest commit: `(pending)` — PrintShelf slicer choice Bambu/Orca
+Latest commit: `49d9fb1` — PrintShelf slicer choice Bambu/Orca
 
 Latest local/Pi change:
 - **Open in slicer** shows a choice: **Bambu Studio** or **OrcaSlicer** (remembers last pick), then Flightdeck Windows worker handoff.
