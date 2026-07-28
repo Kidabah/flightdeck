@@ -604,6 +604,22 @@ h1 {
   border: 1px solid var(--accent);
   background: var(--accent-dim);
 }
+.plate-preview {
+  margin-top: 6px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #05080f;
+  border: 1px solid rgba(38, 56, 82, .8);
+  min-height: 220px;
+  display: grid;
+  place-items: center;
+}
+.plate-preview img {
+  display: block;
+  width: 100%;
+  max-height: 360px;
+  object-fit: contain;
+}
 .orbit-viewer {
   position: relative;
   width: 100%;

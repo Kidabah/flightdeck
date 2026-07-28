@@ -6,17 +6,17 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
-## 2026-07-28 Session update (Kidabah PC scan + Print this UX)
+## 2026-07-28 Session update (plate preview + printer suggest)
 
-Latest commit: `2b6d278` — Scan local roots first; Print this opens slicer for STL/OBJ
+Latest commit: `(pending)` — Plate preview when no mesh; suggest printer for Print this
 
 Latest local/Pi change:
-- Kidabah PC was mounted but starved behind NAS scans — local roots scan first; `?root_id=` targeted scan.
-- **Print this**: ready files queue; STL/OBJ prompt → Open in slicer.
-- Hard refresh `?v=52`. Restart + Kidabah PC rescan.
+- Mesh-less `.gcode.3mf` shows **plate preview** image instead of orbit error.
+- Print this **suggests** matching printer from 3MF `printer_model` / folder (H2D etc.) — others still available.
+- Hard refresh `?v=53`. Restart required.
 
 Previous:
-- Print this (`3895703`). Exclude/load more (`9622ec1`).
+- Kidabah PC scan (`2b6d278`). Print this (`3895703`).
 
 ---
 

@@ -196,7 +196,7 @@ function printDisabledReason(item, zipEntry = "") {
   return "Not a printable file";
 }
 
-async function pickPrinter() {
+async function pickPrinter(item = null) {
   let printers = [];
   try {
     const data = await api("/api/printers");
@@ -210,20 +210,57 @@ async function pickPrinter() {
     return null;
   }
   const last = localStorage.getItem(PRINT_PRINTER_KEY) || "";
+  const hint = item?.suggested_printer || null;
+  const scored = scorePrintersForAsset(printers, item);
   const choice = await psChoice({
     eyebrow: "Print this",
     title: "Which printer?",
-    body: "Queues on Flightdeck and auto-sends when that printer is free.",
-    options: printers.map((p) => ({
+    body: hint?.label
+      ? `File looks aimed at <strong>${escapeHtml(hint.label)}</strong> — still your call. Auto-sends when free.`
+      : "Queues on Flightdeck and auto-sends when that printer is free.",
+    options: scored.map((p) => ({
       value: p.id,
       label: p.name,
-      detail: `${p.kind}${p.state ? ` · ${p.state}` : ""}`,
-      last: p.id === last,
+      detail: [
+        p.kind,
+        p.state,
+        p.score > 0 ? "suggested" : "",
+        p.id === last ? "last used" : "",
+      ].filter(Boolean).join(" · "),
+      last: p.score > 0 || p.id === last,
     })),
   });
   if (!choice) return null;
   localStorage.setItem(PRINT_PRINTER_KEY, choice);
   return choice;
+}
+
+function scorePrintersForAsset(printers, item) {
+  const hint = item?.suggested_printer || {};
+  const tokens = [];
+  for (const raw of [hint.printer_model, hint.folder_hint, hint.label]) {
+    const t = String(raw || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+    if (t) tokens.push(t);
+  }
+  const path = String(item?.rel_path || item?.abs_path || "").toLowerCase();
+  for (const part of path.split(/[/\\]/)) {
+    const t = part.replace(/[^a-z0-9]+/g, "");
+    if (/^(h2[cd]|x1[ce]|p1[sp]|a1mini|a1|voron)/.test(t)) tokens.push(t);
+  }
+  const uniq = [...new Set(tokens)];
+  return [...printers]
+    .map((p) => {
+      const blob = `${p.id}${p.name}${p.model}`.toLowerCase().replace(/[^a-z0-9]+/g, "");
+      let score = 0;
+      for (const t of uniq) {
+        if (!t) continue;
+        if (blob.includes(t) || t.includes(String(p.id || "").toLowerCase())) score += 10;
+        if (String(p.model || "").toLowerCase().replace(/[^a-z0-9]+/g, "") === t) score += 20;
+        if (String(p.id || "").toLowerCase() === t) score += 30;
+      }
+      return { ...p, score };
+    })
+    .sort((a, b) => b.score - a.score || String(a.name).localeCompare(String(b.name)));
 }
 
 async function printThis(item, { zipEntry = "" } = {}) {
@@ -247,7 +284,7 @@ async function printThis(item, { zipEntry = "" } = {}) {
     return openInSlicer(item, { zipEntry });
   }
 
-  const printerId = await pickPrinter();
+  const printerId = await pickPrinter(item);
   if (!printerId) return false;
 
   const u = new URL(`/api/assets/${item.id}/print`, window.location.origin);
@@ -1168,12 +1205,18 @@ async function selectAsset(id) {
     ? zipMeta.nested_zips
     : zipEntries.filter((e) => /\.zip$/i.test(e.name || ""));
   const hasNested = nestedZips.length > 0;
-  const canOrbit = item.can_orbit
+  const hasMesh = item.meta?.has_mesh === true
+    || Number(item.triangle_count) > 0
     || item.kind === "stl"
     || item.kind === "obj"
-    || item.kind === "3mf"
-    || item.kind === "gcode.3mf"
     || (isZip && (zipPrintables.length > 0 || hasNested));
+  // Trust API can_orbit when present; don't force orbit for mesh-less gcode.3mf.
+  const canOrbit = item.can_orbit === true
+    || (item.can_orbit == null && hasMesh && ["stl", "obj", "3mf", "gcode.3mf", "zip"].includes(item.kind));
+  const plateThumb = item.thumb_path
+    ? `/api/thumbs/${encodeURIComponent(item.thumb_path)}?v=${encodeURIComponent((item.content_hash || item.thumb_path).slice(0, 12))}`
+    : "";
+  const showPlatePreview = !canOrbit && plateThumb && ["3mf", "gcode.3mf", "gcode"].includes(item.kind);
   const slicerKinds = ["stl", "obj", "3mf", "gcode.3mf"];
   const canSlicer = slicerKinds.includes(item.kind)
     || (isZip && (zipPrintables.length > 0 || hasNested));
@@ -1216,7 +1259,7 @@ async function selectAsset(id) {
     <div class="detail-path">${escapeHtml(item.abs_path)}</div>
     ${winPath ? `<div class="detail-path" title="Windows path">${escapeHtml(winPath)}</div>` : ""}
     <div class="detail-section viewer-section">
-      <h3>3D preview</h3>
+      <h3>${showPlatePreview ? "Plate preview" : "3D preview"}</h3>
       ${canOrbit
         ? `<div class="viewer-toolbar">
              ${isZip ? `<span class="viewer-entry-label" id="orbitEntryLabel"></span>` : ""}
@@ -1229,7 +1272,10 @@ async function selectAsset(id) {
            ${isZip ? `<p class="detail-hint" id="orbitHint">${zipPrintables.length
              ? "Click a printable below to load it in the viewer."
              : "Peek a nested archive below, then click a printable to orbit."}</p>` : ""}`
-        : isZip
+        : showPlatePreview
+          ? `<div class="plate-preview"><img src="${plateThumb}" alt="Plate preview" loading="lazy"></div>
+             <p class="detail-hint">Sliced plate image — this file has no mesh to orbit (normal for many .gcode.3mf).</p>`
+          : isZip
           ? `<p class="detail-hint">No printable meshes (STL/OBJ/3MF) found inside this ZIP.</p>`
           : item.kind === "gcode"
             ? `<p class="detail-hint">Sliced G-code — no mesh orbit. Thumbnails come from Prusa/Cura embeds when present.</p>`
@@ -1245,6 +1291,11 @@ async function selectAsset(id) {
     </div>
     <div class="kv">
       <div><span>Design</span><span>${escapeHtml(item.design_name)}</span></div>
+      ${item.suggested_printer?.label
+        ? `<div><span>Sliced for</span><span>${escapeHtml(item.suggested_printer.label)}${item.meta?.printer_model ? "" : " (folder hint)"}</span></div>`
+        : (item.meta?.printer_model
+          ? `<div><span>Sliced for</span><span>${escapeHtml(item.meta.printer_model)}</span></div>`
+          : "")}
       <div><span>Type</span><span>${escapeHtml(item.kind === "gcode" ? (item.meta?.extension === ".gco" ? "gcode (.gco)" : "gcode") : item.kind)}</span></div>
       <div><span>Source</span><span>${escapeHtml(item.source_kind)} · ${escapeHtml(item.root_id)}</span></div>
       <div><span>Size</span><span>${fmtBytes(item.size_bytes)}</span></div>

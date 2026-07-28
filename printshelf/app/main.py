@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import mimetypes
+import re
 from pathlib import Path
 from typing import Any, Iterator
 from urllib.parse import quote
@@ -547,9 +548,13 @@ def get_asset(asset_id: int) -> dict[str, Any]:
             meta = {**meta, "nested_zips": nested, "nested_zip_count": len(nested)}
             item["meta"] = meta
     nested_n = int(meta.get("nested_zip_count") or len(nested))
-    item["can_orbit"] = kind in ("stl", "obj", "3mf", "gcode.3mf") or (
-        kind == "zip" and (int(meta.get("printable_count") or 0) > 0 or nested_n > 0)
-    )
+    if kind in ("3mf", "gcode.3mf"):
+        # gcode.3mf often has plate thumbs but no mesh — don't claim orbit works.
+        item["can_orbit"] = bool(meta.get("has_mesh")) or bool(item.get("triangle_count"))
+    else:
+        item["can_orbit"] = kind in ("stl", "obj") or (
+            kind == "zip" and (int(meta.get("printable_count") or 0) > 0 or nested_n > 0)
+        )
     item["has_nested_zips"] = nested_n > 0
     item["thumb_path"] = resolve_thumb_name(
         data_dir(cfg) / "thumbs",
@@ -557,8 +562,31 @@ def get_asset(asset_id: int) -> dict[str, Any]:
         content_hash=item.get("content_hash"),
         kind=kind,
     )
+    item["has_plate_preview"] = bool(item.get("thumb_path")) and kind in ("3mf", "gcode.3mf", "gcode")
+    item["suggested_printer"] = _suggest_printer_hint(item)
     item["hidden"] = bool(item.get("hidden"))
     return item
+
+
+def _suggest_printer_hint(item: dict[str, Any]) -> dict[str, Any] | None:
+    """Soft hint for Print this — never a hard lock. From 3MF settings + path folder."""
+    meta = item.get("meta") or {}
+    model = str(meta.get("printer_model") or meta.get("printer_settings_id") or "").strip()
+    path = str(item.get("rel_path") or item.get("abs_path") or "")
+    folders = [p for p in path.replace("\\", "/").split("/") if p]
+    folder_hint = ""
+    for part in reversed(folders[:-1]):
+        low = part.lower()
+        if re.search(r"\b(h2[cd]|x1[ce]|p1[sp]|a1[\s_-]?mini|a1|voron)\b", low):
+            folder_hint = part
+            break
+    if not model and not folder_hint:
+        return None
+    return {
+        "printer_model": model or None,
+        "folder_hint": folder_hint or None,
+        "label": model or folder_hint,
+    }
 
 
 @app.patch("/api/assets/{asset_id}/design")
