@@ -316,12 +316,22 @@ def _unpack_archive_with_7z(archive: Path, out_dir: Path) -> None:
     if not exe:
         raise RuntimeError("7z is not installed on the Pi — cannot unpack .rar")
     out_dir.mkdir(parents=True, exist_ok=True)
-    # e = extract without full paths (flatter); x keeps structure. Prefer x for multi-part kits.
+    # x keeps folder structure for multi-part kits.
     cmd = [exe, "x", "-y", f"-o{out_dir}", str(archive)]
     proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60 * 45)
-    if proc.returncode != 0:
-        err = (proc.stderr or proc.stdout or "").strip()[:500]
-        raise RuntimeError(f"7z unpack failed ({proc.returncode}): {err or 'unknown error'}")
+    # 0 = ok, 1 = warnings (non-fatal). 2+ = fatal — but some RARs still drop usable files.
+    if proc.returncode in (0, 1):
+        return
+    err = (proc.stderr or proc.stdout or "").strip()[:500]
+    if _iter_printables_under(out_dir):
+        log.warning(
+            "7z returned %s but printables were extracted (%s): %s",
+            proc.returncode,
+            out_dir,
+            err or "unknown",
+        )
+        return
+    raise RuntimeError(f"7z unpack failed ({proc.returncode}): {err or 'unknown error'}")
 
 
 def _iter_printables_under(root: Path) -> list[Path]:
