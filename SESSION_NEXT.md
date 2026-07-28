@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-28 Session update (open zip on PC)
 
-Latest commit: `(pending)` — Card ⋮ menu + Open zip on PC / Reveal in Explorer
+Latest commit: `e0f30ea` — Card ⋮ menu + Open zip on PC / Reveal in Explorer
 
 Latest local/Pi change:
 - Design/asset cards: **⋮** menu — Open in PrintShelf, Open zip on PC, Reveal in Explorer.
