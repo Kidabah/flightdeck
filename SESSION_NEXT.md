@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-28 Session update (PrintShelf polish)
 
-Latest commit: `(pending)` — All-files default + tags/notes + sort/folder filter
+Latest commit: `639d476` — All-files default + tags/notes + sort/folder filter
 
 Latest local/Pi change:
 - Library defaults to **All files** (Folders still available).
