@@ -3,6 +3,8 @@
   "port": 8100,
   "data_dir": "data",
   "slicer_worker_url": "http://100.112.171.88:8000",
+  "flightdeck_url": "http://127.0.0.1:8000",
+  "flightdeck_public_url": "https://flightdeck.tail7de73e.ts.net",
   "watched_folders": [
     {
       "id": "koko-kidabah",

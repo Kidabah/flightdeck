@@ -37,6 +37,7 @@ from .scanner import (
     start_scan_background,
     start_thumb_rebuild_background,
 )
+from .print_handoff import list_flightdeck_printers, queue_asset_to_flightdeck
 from .slicer_handoff import (
     inspect_asset_manifold,
     open_asset_in_desktop_slicer,
@@ -905,6 +906,49 @@ def asset_manifold(
 def slicer_status() -> dict[str, Any]:
     worker = resolve_worker_url()
     return {"ok": bool(worker), "worker_url": worker or None}
+
+
+@app.get("/api/printers")
+def list_printers() -> dict[str, Any]:
+    """Proxy Flightdeck printers for Print this picker."""
+    try:
+        printers = list_flightdeck_printers()
+    except RuntimeError as exc:
+        raise HTTPException(503, str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(502, f"Could not reach Flightdeck printers: {exc}") from exc
+    return {"ok": True, "printers": printers}
+
+
+@app.post("/api/assets/{asset_id}/print")
+def print_asset(
+    asset_id: int,
+    printer_id: str = Query(...),
+    entry: str | None = Query(None),
+    calibrate_before_start: bool = Query(False),
+) -> dict[str, Any]:
+    """
+    Queue this file onto Flightdeck's print queue (auto-sends when the printer is free).
+    Ready-to-print only: .3mf / .gcode.3mf (Bambu), .gcode (Voron). STL/OBJ → Open in slicer.
+    """
+    try:
+        result = queue_asset_to_flightdeck(
+            asset_id,
+            printer_id=printer_id,
+            entry=entry,
+            calibrate_before_start=calibrate_before_start,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(403, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(502, str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(502, f"Print handoff failed: {exc}") from exc
+    return result
 
 
 @app.post("/api/assets/{asset_id}/hide")

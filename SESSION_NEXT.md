@@ -6,18 +6,17 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
-## 2026-07-28 Session update (exclude / folder / load more)
+## 2026-07-28 Session update (Print this → Flightdeck)
 
-Latest commit: `9622ec1` — Exclude patterns, Copy folder path primary, load more
+Latest commit: `(pending)` — PrintShelf Print this queues on Flightdeck
 
 Latest local/Pi change:
-- Folders → **Exclude patterns** (globs + hard-skip `__MACOSX` / `node_modules` / …).
-- Detail primary action: **Copy folder path** (Explorer jump).
-- All files: pages of 200 with **Load more**.
-- Hard refresh `?v=50`. Restart required. Rescan to apply excludes.
+- Detail **Print this** → pick printer → `POST /api/queue/upload` on Flightdeck.
+- Ready-to-print only (`.3mf` / `.gcode.3mf` / `.gcode`); STL/OBJ → Open in slicer.
+- Hard refresh `?v=51`. Restart required.
 
 Previous:
-- Tags/notes + All-files default (`639d476`).
+- Exclude / folder / load more (`9622ec1`).
 
 ---
 

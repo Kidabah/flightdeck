@@ -149,9 +149,107 @@ function closePsModal(value) {
 }
 
 const SLICER_TARGET_KEY = "printshelf.slicerTarget.v1";
+const PRINT_PRINTER_KEY = "printshelf.printPrinter.v1";
 
 function slicerTargetLabel(target) {
   return target === "desktop_orca" ? "OrcaSlicer" : "Bambu Studio";
+}
+
+function isPrintableName(name) {
+  const lower = String(name || "").toLowerCase();
+  return (
+    lower.endsWith(".gcode.3mf")
+    || lower.endsWith(".3mf")
+    || lower.endsWith(".gcode")
+    || lower.endsWith(".gco")
+    || lower.endsWith(".gcode.gz")
+    || lower.endsWith(".ufp")
+  );
+}
+
+function printDisabledReason(item, zipEntry = "") {
+  if (isMobileClient()) return "Use on PC / Tailscale desktop";
+  const kind = item?.kind || "";
+  if (kind === "gcode" || kind === "gcode.3mf" || kind === "3mf") return "";
+  if (kind === "zip") {
+    if (!zipEntry) return "Pick a printable inside the ZIP first";
+    if (!isPrintableName(zipEntry)) return "ZIP entry isn’t a ready-to-print file";
+    return "";
+  }
+  if (kind === "stl" || kind === "obj") return "Slice first — use Open in slicer";
+  return "Not a ready-to-print file";
+}
+
+async function pickPrinter() {
+  let printers = [];
+  try {
+    const data = await api("/api/printers");
+    printers = data.printers || [];
+  } catch (err) {
+    psToast("Can't reach Flightdeck", String(err.message || err), "error", 8000);
+    return null;
+  }
+  if (!printers.length) {
+    psToast("No printers", "Flightdeck has no queueable printers right now.", "error");
+    return null;
+  }
+  const last = localStorage.getItem(PRINT_PRINTER_KEY) || "";
+  const choice = await psChoice({
+    eyebrow: "Print this",
+    title: "Which printer?",
+    body: "Queues on Flightdeck and auto-sends when that printer is free.",
+    options: printers.map((p) => ({
+      value: p.id,
+      label: p.name,
+      detail: `${p.kind}${p.state ? ` · ${p.state}` : ""}`,
+      last: p.id === last,
+    })),
+  });
+  if (!choice) return null;
+  localStorage.setItem(PRINT_PRINTER_KEY, choice);
+  return choice;
+}
+
+async function printThis(item, { zipEntry = "" } = {}) {
+  const reason = printDisabledReason(item, zipEntry);
+  if (reason) {
+    psToast("Can't print this", reason, "error");
+    return false;
+  }
+  const printerId = await pickPrinter();
+  if (!printerId) return false;
+
+  const u = new URL(`/api/assets/${item.id}/print`, window.location.origin);
+  u.searchParams.set("printer_id", printerId);
+  if (item.kind === "zip" && zipEntry) u.searchParams.set("entry", zipEntry);
+
+  psToast("Queuing on Flightdeck", "Uploading to the print queue…", "ok", 4000);
+  let data = {};
+  try {
+    const r = await fetch(u.toString(), { method: "POST" });
+    data = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const detail = typeof data.detail === "string" ? data.detail : "Queue upload failed";
+      psToast("Couldn't queue print", detail, "error", 10000);
+      return false;
+    }
+  } catch (err) {
+    psToast("Couldn't queue print", String(err.message || err), "error", 8000);
+    return false;
+  }
+
+  const printer = data.printer_name || printerId;
+  const job = data.job_id != null ? ` · job #${data.job_id}` : "";
+  const warn = data.is_sliced === false
+    ? " · project 3MF — check plates/filament in Flightdeck"
+    : "";
+  psToast(
+    `Queued on ${printer}`,
+    `${data.filename || item.file_name}${job}${warn} · Flightdeck → Queue`,
+    "ok",
+    9000,
+  );
+  return true;
 }
 
 function manifoldToastDetail(manifold, fallback = "") {
@@ -1216,7 +1314,10 @@ async function selectAsset(id) {
       </div>` : ""}
     <div class="detail-section">
       <div class="detail-actions">
-        <button class="card-open" type="button" id="copyWinFolderBtn" data-label="Copy folder path" ${winFolder ? "" : "disabled"}
+        <button class="card-open" type="button" id="printThisBtn"
+          ${printDisabledReason(item, zipEntry) ? "disabled" : ""}
+          title="${escapeHtml(printDisabledReason(item, zipEntry) || "Queue on Flightdeck — auto-sends when free")}">Print this</button>
+        <button class="card-open secondary" type="button" id="copyWinFolderBtn" data-label="Copy folder path" ${winFolder ? "" : "disabled"}
           title="${winFolder ? "Copy folder path — paste into Explorer (Ctrl+L)" : "Set a Windows path on this watched folder in Folders"}">Copy folder path</button>
         <button class="card-open secondary slicer-btn" type="button" id="openSlicerBtn"
           ${slicerDisabledReason() ? "disabled" : ""}
@@ -1230,6 +1331,9 @@ async function selectAsset(id) {
           : `<button class="card-open secondary" type="button" id="hideBtn">${selectedIds.size > 1 ? `Hide ${selectedIds.size} from library` : "Hide from library"}</button>`}
         <button class="card-open danger" type="button" id="deleteDiskBtn">${selectedIds.size > 1 ? `Delete ${selectedIds.size} from disk…` : "Delete from disk…"}</button>
       </div>
+      <p class="detail-hint" id="printHint">${printDisabledReason(item, zipEntry)
+        ? `Print this: ${printDisabledReason(item, zipEntry)}.`
+        : "Print this queues the file on Flightdeck and auto-sends when that printer is free."}</p>
       <p class="detail-hint">${winFolder
         ? "Copy folder path → Explorer address bar (Ctrl+L → Ctrl+V) to jump straight to the file’s folder."
         : "Set a Windows path on this watched folder in Folders to enable folder / file copy."}</p>
@@ -1238,7 +1342,7 @@ async function selectAsset(id) {
           ? "Open in slicer needs Bambu/Orca on a PC. On your phone, use Copy file path."
           : "Open in slicer asks Bambu or Orca, checks manifold (MakerDeck-style sanitize if needed), then hands off via the Windows worker.")
         : item.kind === "gcode"
-          ? "Raw G-code is already sliced — open it from the printer or slicer’s G-code preview, or copy the file path."
+          ? "Raw G-code is already sliced — use Print this to queue it, or copy the file path."
           : "Slicer open is for STL, OBJ, 3MF, and ZIP printables."}</p>
       <p class="detail-hint">${selectedIds.size > 1
         ? `Selection active: Hide/Delete will apply to all ${selectedIds.size} selected files.`
@@ -1251,6 +1355,22 @@ async function selectAsset(id) {
     btn.disabled = Boolean(reason);
     btn.title = reason || "Open in Bambu Studio or Orca";
   };
+  const syncPrintBtn = () => {
+    const btn = $("printThisBtn");
+    if (!btn) return;
+    const reason = printDisabledReason(item, zipEntry);
+    btn.disabled = Boolean(reason);
+    btn.title = reason || "Queue on Flightdeck — auto-sends when free";
+    const hint = $("printHint");
+    if (hint) {
+      hint.textContent = reason
+        ? `Print this: ${reason}.`
+        : "Print this queues the file on Flightdeck and auto-sends when that printer is free.";
+    }
+  };
+  $("printThisBtn")?.addEventListener("click", () => {
+    printThis(item, { zipEntry });
+  });
   $("openSlicerBtn")?.addEventListener("click", () => {
     openInSlicer(item, { zipEntry });
   });
@@ -1363,6 +1483,7 @@ async function selectAsset(id) {
       zipEntry = btn.dataset.entry || "";
       document.querySelectorAll(".zip-entry-btn").forEach((b) => b.classList.toggle("active", b === btn));
       syncSlicerBtn();
+      syncPrintBtn();
       mountOrbit(Boolean($("orbitHighDetail")?.checked)).catch(console.error);
     });
     if (isZip) {
@@ -1386,6 +1507,7 @@ async function selectAsset(id) {
       zipEntry = btn.dataset.entry || "";
       document.querySelectorAll(".zip-entry-btn").forEach((b) => b.classList.toggle("active", b === btn));
       syncSlicerBtn();
+      syncPrintBtn();
     });
     const firstBtn = document.querySelector(".zip-entry-btn");
     if (firstBtn) firstBtn.classList.add("active");
@@ -1429,6 +1551,7 @@ async function selectAsset(id) {
           : `Found ${data.printable_count || 0} printable(s) in ${nestedEntry.split("/").pop()}.`;
       }
       syncSlicerBtn();
+      syncPrintBtn();
       if (zipEntry && $("orbitViewer") && window.PrintShelfViewer?.mountOrbitViewer) {
         const firstBtn = document.querySelector(".zip-entry-btn");
         if (firstBtn) firstBtn.classList.add("active");
@@ -1450,6 +1573,7 @@ async function selectAsset(id) {
   });
 
   syncSlicerBtn();
+  syncPrintBtn();
   // Do not reload the library here — that flashed/cleared the thumb grid.
   } catch (err) {
     $("detail").innerHTML = `<p class="detail-hint" style="color:var(--danger)">Failed to render details: ${escapeHtml(String(err.message || err))}</p>`;

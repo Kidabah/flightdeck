@@ -31,6 +31,8 @@ def _default_config() -> dict[str, Any]:
         "data_dir": "data",
         "watched_folders": [],
         "ignore_globs": list(DEFAULT_IGNORE_GLOBS),
+        "flightdeck_url": "http://127.0.0.1:8000",
+        "flightdeck_public_url": "https://flightdeck.tail7de73e.ts.net",
     }
 
 
