@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-28 Session update (Print this → Flightdeck)
 
-Latest commit: `(pending)` — PrintShelf Print this queues on Flightdeck
+Latest commit: `3895703` — PrintShelf Print this queues on Flightdeck
 
 Latest local/Pi change:
 - Detail **Print this** → pick printer → `POST /api/queue/upload` on Flightdeck.
