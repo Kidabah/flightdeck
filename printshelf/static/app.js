@@ -1110,6 +1110,10 @@ function renderLoadMoreBar(host) {
 
 async function loadLibrary({ preserveScroll = false, append = false } = {}) {
   const q = $("search").value.trim();
+  // Searching while ZIP/STL tab is active hides other kinds — clear type filter on search.
+  if (q && activeKind && activeKind !== "__duplicates__") {
+    setActiveKind("");
+  }
   const dupMode = activeKind === "__duplicates__";
   // Search / Duplicates force flat "all files" results
   const useFolders = browseMode === "folders" && !q && !dupMode;
@@ -1449,6 +1453,7 @@ async function extractToShelf(item, { zipEntry = "" } = {}) {
   // Open the new card first — don't block on a full library reload.
   if (data.design_id) {
     browseMode = "all";
+    setActiveKind("");
     document.querySelectorAll(".view-mode").forEach((b) => {
       b.classList.toggle("active", b.dataset.mode === "all");
     });
@@ -1523,6 +1528,8 @@ async function extractAllToShelf(item) {
     8000,
   );
   browseMode = "all";
+  setActiveKind(""); // leave ZIP tab so new STLs are findable
+  if ($("search")) $("search").value = "";
   document.querySelectorAll(".view-mode").forEach((b) => {
     b.classList.toggle("active", b.dataset.mode === "all");
   });

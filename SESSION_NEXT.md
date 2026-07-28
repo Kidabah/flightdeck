@@ -6,6 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-28 Session update (search clears type filter)
+
+Latest commit: `(pending)` — Clear ZIP/type tab when searching or after extract
+
+Latest local/Pi change:
+- Searching no longer stays stuck on the ZIP tab (which hid rescued STLs).
+- Extract / Extract all clears the type filter so new designs show up.
+- Hard refresh `?v=60`. Try search `Champion` or `Diorama`.
+
+Previous:
+- Extract all / RAR (`fc6fc3e`).
+
+---
+
 ## 2026-07-28 Session update (extract all / RAR)
 
 Latest commit: `fc6fc3e` — Extract all printables (unpack nested RAR via 7z)
