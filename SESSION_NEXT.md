@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-28 Session update (design grouping)
 
-Latest commit: `(pending)` — Design cards use stem names
+Latest commit: `a22b9da` — Design cards use stem names
 
 Latest local/Pi change:
 - Library **Designs** tab groups STL/3MF/gcode siblings (same folder + stem).
