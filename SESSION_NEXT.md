@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-28 Session update (real RAR unpack + kit cards)
 
-Latest commit: `(pending)` — Prefer 7zz for RAR; reject 0-byte stubs; one kit card under PrintShelf Extracted
+Latest commit: `651cef1` — Prefer 7zz for RAR; reject 0-byte stubs; one kit card under PrintShelf Extracted
 
 Latest local/Pi change:
 - Debian `7z` left empty STL shells (“Unsupported Method”). Now prefers `~/bin/7zz` (full RAR codecs).
