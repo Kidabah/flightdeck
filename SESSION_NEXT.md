@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-28 Session update (Ooshies stand v2)
 
-Latest commit: `(pending)` — Retune Ooshies stand to ~218×93×244 + photo look
+Latest commit: `f9fed68` — Retune Ooshies stand to ~218×93×244 + photo look
 
 Latest local/Pi change:
 - MakerDeck **b576**: proportions from peg-scaled reference STL; deep base tongue, side pills, 7 uppers.
