@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-28 Session update (Ooshies stand)
 
-Latest commit: `(pending)` — MakerDeck Ooshies stand (tab-slot kit, 52mm figure clearance)
+Latest commit: `c695f73` — MakerDeck Ooshies stand (tab-slot kit, 52mm figure clearance)
 
 Latest local/Pi change:
 - New MakerDeck preset **Ooshies stand** — pegs 6.5×10, gap for 40–50 mm figures, sides+shelves kit export.
