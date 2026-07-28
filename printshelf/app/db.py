@@ -68,7 +68,6 @@ CREATE INDEX IF NOT EXISTS idx_assets_kind ON assets(kind);
 CREATE INDEX IF NOT EXISTS idx_assets_hash ON assets(content_hash);
 CREATE INDEX IF NOT EXISTS idx_assets_design ON assets(design_id);
 CREATE INDEX IF NOT EXISTS idx_designs_hash ON designs(content_hash);
-CREATE INDEX IF NOT EXISTS idx_designs_group_key ON designs(group_key);
 """
 
 

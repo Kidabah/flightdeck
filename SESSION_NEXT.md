@@ -8,15 +8,16 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-28 Session update (design grouping)
 
-Latest commit: `fec980d` — Design grouping by stem+folder
+Latest commit: `(pending)` — Fix group_key migrate before index
 
 Latest local/Pi change:
-- Library **All files** shows **designs** (STL/3MF/gcode siblings grouped).
+- Library **Designs** tab groups STL/3MF/gcode siblings (same folder + stem).
 - Detail lists files in the design; Print/Slicer still per asset.
+- Fixed init crash: `group_key` index now created after ALTER on existing DBs.
 - Run `regroup-designs.py` after deploy. Hard refresh `?v=54`. Restart required.
 
 Previous:
-- Plate preview / printer suggest (`f9c440a`). Kidabah PC scan (`2b6d278`).
+- Design grouping (`fec980d`). Plate preview (`f9c440a`). Kidabah PC scan (`2b6d278`).
 
 ---
 
