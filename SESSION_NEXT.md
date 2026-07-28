@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-28 Session update (design grouping)
 
-Latest commit: `(pending)` — Design grouping by stem+folder
+Latest commit: `fec980d` — Design grouping by stem+folder
 
 Latest local/Pi change:
 - Library **All files** shows **designs** (STL/3MF/gcode siblings grouped).
