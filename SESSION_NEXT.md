@@ -6,6 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-28 Session update (extract all / RAR)
+
+Latest commit: `(pending)` — Extract all printables (unpack nested RAR via 7z)
+
+Latest local/Pi change:
+- ZIP **Extract all** rescues every printable; if the zip only wraps a `.rar`, streams it out and unpacks with Pi `7z`, then indexes meshes.
+- Test case: `3D Art Guy-…002.zip` → nested Crusader Diorama `.rar`.
+- Hard refresh `?v=59`. Restart required. Big RARs can take minutes.
+
+Previous:
+- Open zip on PC (`e0f30ea`).
+
+---
+
 ## 2026-07-28 Session update (open zip on PC)
 
 Latest commit: `e0f30ea` — Card ⋮ menu + Open zip on PC / Reveal in Explorer

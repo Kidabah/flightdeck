@@ -46,7 +46,7 @@ from .slicer_handoff import (
     resolve_worker_url,
 )
 from .thumbs import SHARED_ZIP_THUMB, ensure_shared_zip_thumb, resolve_thumb_name
-from .zip_extract import extract_zip_printable
+from .zip_extract import extract_all_zip_printables, extract_zip_printable
 
 ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "static"
@@ -1400,6 +1400,23 @@ def extract_asset_printable(
         raise HTTPException(400, str(exc)) from exc
     except Exception as exc:
         raise HTTPException(502, f"Extract failed: {exc}") from exc
+
+
+@app.post("/api/assets/{asset_id}/extract-all")
+def extract_all_asset_printables(asset_id: int) -> dict[str, Any]:
+    """
+    Rescue all printables from a ZIP (and unpack nested .rar via 7z when needed).
+    """
+    try:
+        return extract_all_zip_printables(asset_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(403, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(502, f"Extract all failed: {exc}") from exc
 
 
 @app.post("/api/assets/{asset_id}/open-on-pc")

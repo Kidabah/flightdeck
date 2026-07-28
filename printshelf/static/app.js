@@ -1468,6 +1468,76 @@ async function extractToShelf(item, { zipEntry = "" } = {}) {
   return true;
 }
 
+async function extractAllToShelf(item) {
+  if (!item || item.kind !== "zip") {
+    psToast("Can't extract", "Only ZIP archives can be rescued.", "error");
+    return false;
+  }
+  const hasRar = (item.meta?.entries || []).some((e) => /\.rar$/i.test(e?.name || ""));
+  const printableCount = Number(item.meta?.printable_count || 0);
+  const body = hasRar && printableCount === 0
+    ? `This ZIP wraps a <strong>.rar</strong>. PrintShelf will stream it out, unpack with 7-Zip on the Pi, and index the meshes into <strong>PrintShelf Extracted</strong>. Big archives can take a few minutes.`
+    : `Rescue every STL/OBJ/3MF inside this ZIP into <strong>PrintShelf Extracted</strong> (up to 80). Nested .zip one level deep included; .rar members are unpacked with 7-Zip.`;
+  const ok = await psConfirm({
+    eyebrow: "Extract all",
+    title: "Rescue all printables?",
+    body,
+    confirmLabel: "Extract all",
+    cancelLabel: "Cancel",
+  });
+  if (!ok) return false;
+
+  const btn = $("extractAllShelfBtn");
+  if (btn) btn.disabled = true;
+  const toastHost = $("psToasts");
+  psToast("Extracting all…", hasRar ? "Unpacking RAR on the Pi — hang tight" : "Writing printables to NAS + indexing", "ok", 0);
+  const clearStickyToasts = () => {
+    toastHost?.querySelectorAll(".ps-toast").forEach((el) => el.remove());
+  };
+  let data = {};
+  try {
+    const r = await fetch(`/api/assets/${item.id}/extract-all`, { method: "POST" });
+    data = await r.json().catch(() => ({}));
+    clearStickyToasts();
+    if (!r.ok) {
+      let detail = "Extract all failed";
+      if (typeof data.detail === "string") detail = data.detail;
+      else if (Array.isArray(data.detail)) detail = data.detail.map((d) => d.msg || d).join("; ");
+      psToast("Couldn't extract all", detail, "error", 12000);
+      return false;
+    }
+  } catch (err) {
+    clearStickyToasts();
+    psToast("Couldn't extract all", String(err.message || err), "error", 10000);
+    return false;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+
+  const n = Number(data.extracted) || 0;
+  const via = data.rar_unpacked ? "from nested RAR" : "from ZIP";
+  psToast(
+    n ? `Rescued ${n} file${n === 1 ? "" : "s"}` : "Nothing new",
+    `${via} → PrintShelf Extracted${data.errors?.length ? ` · ${data.errors.length} skipped` : ""}`,
+    "ok",
+    8000,
+  );
+  browseMode = "all";
+  document.querySelectorAll(".view-mode").forEach((b) => {
+    b.classList.toggle("active", b.dataset.mode === "all");
+  });
+  const firstDesign = (data.design_ids || [])[0];
+  if (firstDesign) {
+    try {
+      await selectDesign(firstDesign);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+  loadLibrary().catch(() => {});
+  return true;
+}
+
 async function selectAsset(id, { design = null } = {}) {
   selectedId = Number(id);
   document.querySelectorAll(".card:not(.folder-card):not(.design-card)").forEach((c) => {
@@ -1731,7 +1801,9 @@ async function selectAsset(id, { design = null } = {}) {
         ${isZip ? `<button class="card-open secondary" type="button" id="extractShelfBtn"
           title="${zipEntry
             ? "Copy this printable into PrintShelf Extracted on the NAS"
-            : "Needs an STL/OBJ/3MF selected — this zip may only have photos or a .rar inside"}">Extract to shelf</button>` : ""}
+            : "Needs an STL/OBJ/3MF selected — this zip may only have photos or a .rar inside"}">Extract to shelf</button>
+        <button class="card-open secondary" type="button" id="extractAllShelfBtn"
+          title="Rescue all printables (unpacks nested .rar with 7-Zip on the Pi)">Extract all</button>` : ""}
         <button class="card-open secondary" type="button" id="openOnPcBtn"
           title="Open with the Windows default app (zip → Explorer / 7-Zip)">${isZip ? "Open zip on PC" : "Open on PC"}</button>
         <button class="card-open secondary" type="button" id="copyWinPathBtn" data-label="Copy file path" ${winPath ? "" : "disabled"}>Copy file path</button>
@@ -1824,6 +1896,9 @@ async function selectAsset(id, { design = null } = {}) {
     const active = document.querySelector(".zip-entry-btn.active");
     extractToShelf(item, { zipEntry: active?.dataset?.entry || zipEntry });
   });
+  $("extractAllShelfBtn")?.addEventListener("click", () => {
+    extractAllToShelf(item);
+  });
   $("openOnPcBtn")?.addEventListener("click", () => {
     openOnPc(item.id, "open");
   });
@@ -1836,14 +1911,21 @@ async function selectAsset(id, { design = null } = {}) {
     { id: "reveal", label: "Reveal in Explorer", run: () => openOnPc(item.id, "reveal") },
   ];
   if (isZip) {
-    detailMenuItems.push({
-      id: "extract",
-      label: "Extract to shelf…",
-      run: () => {
-        const active = document.querySelector(".zip-entry-btn.active");
-        extractToShelf(item, { zipEntry: active?.dataset?.entry || zipEntry });
+    detailMenuItems.push(
+      {
+        id: "extract",
+        label: "Extract to shelf…",
+        run: () => {
+          const active = document.querySelector(".zip-entry-btn.active");
+          extractToShelf(item, { zipEntry: active?.dataset?.entry || zipEntry });
+        },
       },
-    });
+      {
+        id: "extractAll",
+        label: "Extract all printables…",
+        run: () => extractAllToShelf(item),
+      },
+    );
   }
   mountActionMenu($("detailMenu"), detailMenuItems);
   if ((item.kind === "stl" || item.kind === "obj") && $("manifoldStatus")) {
