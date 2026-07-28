@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-28 Session update (plate preview + printer suggest)
 
-Latest commit: `(pending)` — Plate preview when no mesh; suggest printer for Print this
+Latest commit: `f9c440a` — Plate preview when no mesh; suggest printer for Print this
 
 Latest local/Pi change:
 - Mesh-less `.gcode.3mf` shows **plate preview** image instead of orbit error.
