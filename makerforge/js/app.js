@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, ANIMAL_PRESET, SIGN_PRESET, TEMORA_VET_SIGN_PRESET, TEMORA_VET_CELTIC_SVG_URL } from "./geometry.js?v=570";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, resolveEmbossFontWeight, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=570";
+import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, ANIMAL_PRESET, SIGN_PRESET, TEMORA_VET_SIGN_PRESET, TEMORA_VET_CELTIC_SVG_URL } from "./geometry.js?v=575";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, resolveEmbossFontWeight, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=575";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=370";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=372";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=378";
@@ -35,7 +35,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b570";
+const MAKERDECK_BUILD = "b575";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -51,6 +51,8 @@ const LENGTH_STATE_KEYS = new Set([
   "insertThickness", "insertClearance", "insertSlotDepth", "insertTopClearance",
   "vaseDiameter", "vaseHeight", "vaseWall", "vaseFloor", "vaseDrainageSize", "vaseFluteDepth",
   "vaseTextureDepth", "vaseTextureScale",
+  "ooshiePegDia", "ooshiePegHeight", "ooshiePitch", "ooshieClearance", "ooshieShelfDepth",
+  "ooshieShelfThick", "ooshieSideThick", "ooshieFitClearance", "ooshieSideMargin",
   "embossDepth", "embossHeight", "embossArcRadius", "embossTraceSize",
   "textOffsetX", "textOffsetY", "decorOffsetX", "decorOffsetY",
 ]);
@@ -758,6 +760,22 @@ function buildParams() {
     vaseTextureScale: state.vaseTextureScale,
     vaseTextureBandLo: state.vaseTextureBandLo,
     vaseTextureBandHi: state.vaseTextureBandHi,
+    ooshiePegDia: state.ooshiePegDia,
+    ooshiePegHeight: state.ooshiePegHeight,
+    ooshiePegsPerShelf: state.ooshiePegsPerShelf,
+    ooshiePitch: state.ooshiePitch,
+    ooshieUpperShelves: state.ooshieUpperShelves,
+    ooshieShelfThick: state.ooshieShelfThick,
+    ooshieSideThick: state.ooshieShelfThick ?? state.ooshieSideThick,
+    ooshieShelfDepth: state.ooshieShelfDepth,
+    ooshieClearance: state.ooshieClearance,
+    ooshieFitClearance: state.ooshieFitClearance,
+    ooshieSideMargin: state.ooshieSideMargin,
+    ooshieBaseExtraDepth: state.ooshieBaseExtraDepth,
+    ooshieBaseFrontPegs: state.ooshieBaseFrontPegs,
+    ooshieCornerR: state.ooshieCornerR,
+    ooshieCutouts: state.ooshieCutouts !== false,
+    ooshieTabInset: state.ooshieTabInset,
   };
 }
 
@@ -1352,6 +1370,33 @@ function collectColoredExportParts(exportCache, stamp = null, { includeLiner = t
       if (textMesh?.indices?.length) {
         parts.push({ name: "Text", mesh: textMesh, color: state.embossTextColor || "#f8fafc", extruder: extruder++ });
       }
+    }
+    return parts;
+  }
+  if (params.shape === "ooshieStand") {
+    const kit = exportCache.ooshieParts || [];
+    if (kit.length) {
+      for (const part of kit) {
+        const mesh = part?.mesh ? prepareMeshFor3mf(part.mesh) : null;
+        if (!mesh?.indices?.length) continue;
+        parts.push({
+          name: part.name || "Part",
+          mesh,
+          color: /side/i.test(part.name || "") ? (state.accentColor || "#1e3a5f") : (state.boxColor || "#38bdf8"),
+          extruder: extruder++,
+          filamentPreset: state.canisterFilamentPreset || "",
+        });
+      }
+      return parts;
+    }
+    const body = prepareMeshFor3mf(exportCache.shellMesh || exportCache);
+    if (body?.indices?.length) {
+      parts.push({
+        name: "Ooshies stand",
+        mesh: body,
+        color: state.boxColor || "#38bdf8",
+        extruder: extruder++,
+      });
     }
     return parts;
   }
@@ -3165,6 +3210,7 @@ function syncUiFromState() {
   if (vaseTextureOn) vaseTextureOn.checked = !!state.vaseTextureEnabled;
   document.getElementById("vase-drainage").checked = !!state.vaseDrainage;
   document.getElementById("vase-saucer").checked = !!state.vaseSaucerEnabled;
+  syncOoshieSliders();
 
   document.getElementById("emboss-text").value = state.embossText || "";
   syncColorPickersFromState();
@@ -3193,6 +3239,9 @@ function rebuildMesh() {
   }
   if (PRESET_SHAPES.has(state.shape)) {
     nextCache.meta.shape = state.shape;
+  }
+  if (state.shape === "ooshieStand" && nextCache.meta) {
+    nextCache.meta.shape = "ooshieStand";
   }
 
   const bodySource = previewBodySource(nextCache);
@@ -3596,6 +3645,49 @@ function applyVaseShape() {
   syncSliderUi("vase-height", "vaseHeight", { min: 20, max: 280, value: state.vaseHeight, parseKind: "float" });
 }
 
+function applyOoshieShape() {
+  state.shape = "ooshieStand";
+  state.lidEnabled = false;
+  state.insertEnabled = false;
+  state.ooshiePegDia = state.ooshiePegDia ?? DEFAULTS.ooshiePegDia;
+  state.ooshiePegHeight = state.ooshiePegHeight ?? DEFAULTS.ooshiePegHeight;
+  state.ooshiePegsPerShelf = state.ooshiePegsPerShelf ?? DEFAULTS.ooshiePegsPerShelf;
+  state.ooshiePitch = state.ooshiePitch ?? DEFAULTS.ooshiePitch;
+  state.ooshieUpperShelves = state.ooshieUpperShelves ?? DEFAULTS.ooshieUpperShelves;
+  state.ooshieClearance = state.ooshieClearance ?? DEFAULTS.ooshieClearance;
+  state.ooshieShelfDepth = state.ooshieShelfDepth ?? DEFAULTS.ooshieShelfDepth;
+  state.ooshieShelfThick = state.ooshieShelfThick ?? DEFAULTS.ooshieShelfThick;
+  state.ooshieFitClearance = state.ooshieFitClearance ?? DEFAULTS.ooshieFitClearance;
+  state.ooshieCutouts = state.ooshieCutouts !== false;
+  syncOoshieSliders();
+}
+
+function syncOoshieSliders() {
+  syncSliderUi("ooshie-peg-dia", "ooshiePegDia", { min: 4, max: 10, value: state.ooshiePegDia ?? 6.5, parseKind: "float" });
+  syncSliderUi("ooshie-peg-height", "ooshiePegHeight", { min: 5, max: 16, value: state.ooshiePegHeight ?? 10, parseKind: "float" });
+  syncSliderUi("ooshie-pegs", "ooshiePegsPerShelf", { min: 2, max: 8, value: state.ooshiePegsPerShelf ?? 5, parseKind: "int" });
+  syncSliderUi("ooshie-pitch", "ooshiePitch", { min: 12, max: 30, value: state.ooshiePitch ?? 19.5, parseKind: "float" });
+  syncSliderUi("ooshie-uppers", "ooshieUpperShelves", { min: 1, max: 8, value: state.ooshieUpperShelves ?? 6, parseKind: "int" });
+  syncSliderUi("ooshie-clearance", "ooshieClearance", { min: 35, max: 70, value: state.ooshieClearance ?? 52, parseKind: "float" });
+  syncSliderUi("ooshie-shelf-depth", "ooshieShelfDepth", { min: 12, max: 28, value: state.ooshieShelfDepth ?? 16, parseKind: "float" });
+  syncSliderUi("ooshie-thick", "ooshieShelfThick", { min: 3, max: 8, value: state.ooshieShelfThick ?? 5, parseKind: "float" });
+  syncSliderUi("ooshie-fit", "ooshieFitClearance", { min: 0.15, max: 0.5, value: state.ooshieFitClearance ?? 0.25, parseKind: "float" });
+  const cut = document.getElementById("ooshie-cutouts");
+  if (cut) cut.checked = state.ooshieCutouts !== false;
+}
+
+function updateOoshieSizeSummary() {
+  const el = document.getElementById("ooshie-size-summary");
+  if (!el) return;
+  const meta = meshCache?.meta;
+  const d = meta?.dims;
+  if (!d || state.shape !== "ooshieStand") {
+    el.textContent = "";
+    return;
+  }
+  el.textContent = `Overall ≈ ${d.overallW.toFixed(0)} × ${d.baseDepth.toFixed(0)} × ${d.totalH.toFixed(0)} mm (W×D×H) · ${d.shelfCount} shelves · ${d.pegs} pegs/shelf`;
+}
+
 function syncShapeControlsFromState() {
   syncShapeButtonActive();
   const profileKey = PRESET_CONFIG[state.shape]?.profile || "default";
@@ -3685,10 +3777,12 @@ function selectShape(next) {
   if (previewXRayOn) setPreviewXRayMode(false);
 
   const prev = state.shape;
-  const leavingPreset = PRESET_SHAPES.has(prev) || prev === "vase";
+  const leavingPreset = PRESET_SHAPES.has(prev) || prev === "vase" || prev === "ooshieStand";
 
   if (next === "vase") {
     applyVaseShape();
+  } else if (next === "ooshieStand") {
+    applyOoshieShape();
   } else if (PRESET_CONFIG[next]) {
     state.shape = next;
     if (next === "sign") state.signSample = "";
@@ -7107,25 +7201,29 @@ function updateProfileTextureUiVisibility() {
 
 function updateVaseUiVisibility() {
   const isVase = state.shape === "vase";
-  if (isVase && state.lidEnabled) {
+  const isOoshie = state.shape === "ooshieStand";
+  const hideClassic = isVase || isOoshie;
+  if ((isVase || isOoshie) && state.lidEnabled) {
     state.lidEnabled = false;
   }
-  document.getElementById("section-vase").classList.toggle("hidden", !isVase);
-  document.getElementById("section-classic-size").classList.toggle("hidden", isVase);
-  document.getElementById("section-walls").classList.toggle("hidden", isVase);
-  document.getElementById("section-edges").classList.toggle("hidden", isVase);
+  document.getElementById("section-vase")?.classList.toggle("hidden", !isVase);
+  document.getElementById("section-ooshie")?.classList.toggle("hidden", !isOoshie);
+  document.getElementById("section-classic-size")?.classList.toggle("hidden", hideClassic);
+  document.getElementById("section-walls")?.classList.toggle("hidden", hideClassic);
+  document.getElementById("section-edges")?.classList.toggle("hidden", hideClassic);
   document.querySelectorAll('.tab[data-tab="art"], .tab[data-tab="stack"], .tab[data-tab="link"], .tab[data-tab="lid"], .tab[data-tab="insert"]').forEach((tab) => {
-    tab.classList.toggle("tab--disabled", isVase);
-    tab.disabled = isVase;
+    tab.classList.toggle("tab--disabled", hideClassic);
+    tab.disabled = hideClassic;
   });
-  document.getElementById("field-vase-drainage-size").classList.toggle("hidden", !state.vaseDrainage);
-  document.getElementById("field-vase-flute-depth").classList.toggle("hidden", !(state.vaseFlutes > 0));
-  document.getElementById("field-vase-twist").classList.toggle("hidden", !(state.vaseFlutes > 0));
+  document.getElementById("field-vase-drainage-size")?.classList.toggle("hidden", !state.vaseDrainage);
+  document.getElementById("field-vase-flute-depth")?.classList.toggle("hidden", !(state.vaseFlutes > 0));
+  document.getElementById("field-vase-twist")?.classList.toggle("hidden", !(state.vaseFlutes > 0));
   const textureOn = !!state.vaseTextureEnabled;
   document.getElementById("field-vase-texture-style")?.classList.toggle("hidden", !textureOn);
   document.getElementById("field-vase-texture-depth")?.classList.toggle("hidden", !textureOn);
   document.getElementById("field-vase-texture-scale")?.classList.toggle("hidden", !textureOn);
   updateProfileTextureUiVisibility();
+  updateOoshieSizeSummary();
   syncExportFormatOptions();
 }
 
@@ -7152,6 +7250,19 @@ vaseStyleSelect.addEventListener("change", (e) => {
 bindRange("vase-diameter", "vaseDiameter", "float");
 bindRange("vase-height", "vaseHeight", "float");
 bindRange("vase-wall", "vaseWall", "float");
+bindRange("ooshie-peg-dia", "ooshiePegDia", "float");
+bindRange("ooshie-peg-height", "ooshiePegHeight", "float");
+bindRange("ooshie-pegs", "ooshiePegsPerShelf", "int");
+bindRange("ooshie-pitch", "ooshiePitch", "float");
+bindRange("ooshie-uppers", "ooshieUpperShelves", "int");
+bindRange("ooshie-clearance", "ooshieClearance", "float");
+bindRange("ooshie-shelf-depth", "ooshieShelfDepth", "float");
+bindRange("ooshie-thick", "ooshieShelfThick", "float");
+bindRange("ooshie-fit", "ooshieFitClearance", "float");
+document.getElementById("ooshie-cutouts")?.addEventListener("change", (e) => {
+  state.ooshieCutouts = !!e.target.checked;
+  rebuild();
+});
 bindRange("vase-floor", "vaseFloor", "float");
 bindRange("vase-drainage-size", "vaseDrainageSize", "float");
 bindRange("vase-flutes", "vaseFlutes");

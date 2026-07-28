@@ -6,6 +6,19 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-28 Session update (Ooshies stand)
+
+Latest commit: `(pending)` — MakerDeck Ooshies stand (tab-slot kit, 52mm figure clearance)
+
+Latest local/Pi change:
+- New MakerDeck preset **Ooshies stand** — pegs 6.5×10, gap for 40–50 mm figures, sides+shelves kit export.
+- Hard refresh MakerDeck `?v=575` / **b575**.
+
+Previous:
+- Real RAR unpack + kit cards (`651cef1`).
+
+---
+
 ## 2026-07-28 Session update (real RAR unpack + kit cards)
 
 Latest commit: `651cef1` — Prefer 7zz for RAR; reject 0-byte stubs; one kit card under PrintShelf Extracted

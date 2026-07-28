@@ -31,6 +31,7 @@ import {
 } from "./features.js?v=550";
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=161";
+import { buildOoshieStand, ooshieMeta, OOSHIE_DEFAULTS } from "./ooshie-stand.js?v=575";
 import { normalizeAccentBands, bandToBuildParams } from "./accent-bands.js?v=163";
 import { animalProfile, animalProfilePair, ANIMAL_NAMES } from "./animal-profiles.js?v=382";
 import {
@@ -58,7 +59,7 @@ import {
 
 import { appendInsertShelfSlotsToBody } from "./insert-slots.js?v=550";
 
-export { shapeSupportsDecor, shapeSupportsInsert, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, VASE_STYLES };
+export { shapeSupportsDecor, shapeSupportsInsert, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, VASE_STYLES, OOSHIE_DEFAULTS };
 
 function clamp(n, min, max) {
   return Math.min(max, Math.max(min, n));
@@ -1613,7 +1614,7 @@ export function normalizeLidType(lidType, shape) {
 }
 
 export function shapeSupportsLid(shape) {
-  return shape !== "vase";
+  return shape !== "vase" && shape !== "ooshieStand";
 }
 
 function resolveContainer(params) {
@@ -2294,6 +2295,21 @@ export function buildSign(params) {
 
 export function buildContainer(params) {
   if (params.shape === "sign") return buildSign(params);
+  if (params.shape === "ooshieStand") {
+    const built = buildOoshieStand(params);
+    return {
+      positions: built.positions,
+      indices: built.indices,
+      shellMesh: built.shellMesh,
+      meta: built.meta,
+      totalH: built.totalH,
+      accentMeshes: [],
+      insertMesh: null,
+      labelMesh: null,
+      debossCutterMesh: null,
+      ooshieParts: built.ooshieParts || [],
+    };
+  }
   if (params.shape === "vase") {
     const vaseMesh = buildVase(params);
     centerPositions(vaseMesh.positions, 0, 0);
@@ -2918,6 +2934,7 @@ export const HEART_PRESET = {
 
 export const DEFAULTS = {
   ...VASE_DEFAULTS,
+  ...OOSHIE_DEFAULTS,
   shape: "rect",
   innerWidth: 80,
   innerDepth: 60,

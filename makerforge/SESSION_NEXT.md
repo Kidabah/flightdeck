@@ -4,6 +4,16 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b575 — Ooshies stand generator
+**Date:** 2026-07-28
+
+### MakerDeck
+- New **Ooshies stand** preset: multi-tier peg rack sized from peg Ø 6.5×10 mm and 40–50 mm figure height (52 mm shelf gap).
+- Kit join: shelf end tabs → side-panel slots (~0.25 mm fit). Export = Side L/R + Base + Shelves.
+- Hard refresh Container Generator `app.js?v=575` / build **b575**.
+
+---
+
 ## b574 — Log-scale brush / nozzle size
 **Date:** 2026-07-25
 
