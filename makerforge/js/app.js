@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, ANIMAL_PRESET, SIGN_PRESET, TEMORA_VET_SIGN_PRESET, TEMORA_VET_CELTIC_SVG_URL } from "./geometry.js?v=575";
+import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, ANIMAL_PRESET, SIGN_PRESET, TEMORA_VET_SIGN_PRESET, TEMORA_VET_CELTIC_SVG_URL } from "./geometry.js?v=576";
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, resolveEmbossFontWeight, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=575";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=370";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=372";
@@ -35,7 +35,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b575";
+const MAKERDECK_BUILD = "b576";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -3649,16 +3649,23 @@ function applyOoshieShape() {
   state.shape = "ooshieStand";
   state.lidEnabled = false;
   state.insertEnabled = false;
-  state.ooshiePegDia = state.ooshiePegDia ?? DEFAULTS.ooshiePegDia;
-  state.ooshiePegHeight = state.ooshiePegHeight ?? DEFAULTS.ooshiePegHeight;
-  state.ooshiePegsPerShelf = state.ooshiePegsPerShelf ?? DEFAULTS.ooshiePegsPerShelf;
-  state.ooshiePitch = state.ooshiePitch ?? DEFAULTS.ooshiePitch;
-  state.ooshieUpperShelves = state.ooshieUpperShelves ?? DEFAULTS.ooshieUpperShelves;
-  state.ooshieClearance = state.ooshieClearance ?? DEFAULTS.ooshieClearance;
-  state.ooshieShelfDepth = state.ooshieShelfDepth ?? DEFAULTS.ooshieShelfDepth;
-  state.ooshieShelfThick = state.ooshieShelfThick ?? DEFAULTS.ooshieShelfThick;
-  state.ooshieFitClearance = state.ooshieFitClearance ?? DEFAULTS.ooshieFitClearance;
-  state.ooshieCutouts = state.ooshieCutouts !== false;
+  // Always land on the photo-matched reference defaults when picking the preset.
+  state.ooshiePegDia = DEFAULTS.ooshiePegDia;
+  state.ooshiePegHeight = DEFAULTS.ooshiePegHeight;
+  state.ooshiePegsPerShelf = DEFAULTS.ooshiePegsPerShelf;
+  state.ooshiePitch = DEFAULTS.ooshiePitch;
+  state.ooshieUpperShelves = DEFAULTS.ooshieUpperShelves;
+  state.ooshieClearance = DEFAULTS.ooshieClearance;
+  state.ooshieShelfDepth = DEFAULTS.ooshieShelfDepth;
+  state.ooshieShelfThick = DEFAULTS.ooshieShelfThick;
+  state.ooshieSideThick = DEFAULTS.ooshieSideThick;
+  state.ooshieFitClearance = DEFAULTS.ooshieFitClearance;
+  state.ooshieSideMargin = DEFAULTS.ooshieSideMargin;
+  state.ooshieBaseExtraDepth = DEFAULTS.ooshieBaseExtraDepth;
+  state.ooshieBaseFrontPegs = DEFAULTS.ooshieBaseFrontPegs;
+  state.ooshieCornerR = DEFAULTS.ooshieCornerR;
+  state.ooshieCutouts = DEFAULTS.ooshieCutouts !== false;
+  state.ooshieTabInset = DEFAULTS.ooshieTabInset;
   syncOoshieSliders();
 }
 
@@ -3666,10 +3673,10 @@ function syncOoshieSliders() {
   syncSliderUi("ooshie-peg-dia", "ooshiePegDia", { min: 4, max: 10, value: state.ooshiePegDia ?? 6.5, parseKind: "float" });
   syncSliderUi("ooshie-peg-height", "ooshiePegHeight", { min: 5, max: 16, value: state.ooshiePegHeight ?? 10, parseKind: "float" });
   syncSliderUi("ooshie-pegs", "ooshiePegsPerShelf", { min: 2, max: 8, value: state.ooshiePegsPerShelf ?? 5, parseKind: "int" });
-  syncSliderUi("ooshie-pitch", "ooshiePitch", { min: 12, max: 30, value: state.ooshiePitch ?? 19.5, parseKind: "float" });
-  syncSliderUi("ooshie-uppers", "ooshieUpperShelves", { min: 1, max: 8, value: state.ooshieUpperShelves ?? 6, parseKind: "int" });
-  syncSliderUi("ooshie-clearance", "ooshieClearance", { min: 35, max: 70, value: state.ooshieClearance ?? 52, parseKind: "float" });
-  syncSliderUi("ooshie-shelf-depth", "ooshieShelfDepth", { min: 12, max: 28, value: state.ooshieShelfDepth ?? 16, parseKind: "float" });
+  syncSliderUi("ooshie-pitch", "ooshiePitch", { min: 20, max: 55, value: state.ooshiePitch ?? 41, parseKind: "float" });
+  syncSliderUi("ooshie-uppers", "ooshieUpperShelves", { min: 1, max: 8, value: state.ooshieUpperShelves ?? 7, parseKind: "int" });
+  syncSliderUi("ooshie-clearance", "ooshieClearance", { min: 22, max: 70, value: state.ooshieClearance ?? 28, parseKind: "float" });
+  syncSliderUi("ooshie-shelf-depth", "ooshieShelfDepth", { min: 16, max: 45, value: state.ooshieShelfDepth ?? 30, parseKind: "float" });
   syncSliderUi("ooshie-thick", "ooshieShelfThick", { min: 3, max: 8, value: state.ooshieShelfThick ?? 5, parseKind: "float" });
   syncSliderUi("ooshie-fit", "ooshieFitClearance", { min: 0.15, max: 0.5, value: state.ooshieFitClearance ?? 0.25, parseKind: "float" });
   const cut = document.getElementById("ooshie-cutouts");

@@ -1,14 +1,14 @@
 /**
  * Ooshies display stand — multi-tier peg rack kit.
  *
- * Join: open-front tab-and-slot.
- *  - Side panels have U-notches (slots) cut from the front edge.
- *  - Each shelf has left/right tabs that slide into those notches.
- *  - Fit clearance (~0.25 mm) on tab vs slot for FDM press/slide fit.
- *  - No glue required; friction holds for light figures.
+ * Sized from a reference STL scaled so pegs = Ø6.5 mm → ~218 × 93 × 244 mm.
+ * Visual target: photo of the blue dual-tone stand (deep base tongue, tall side
+ * pills, stepped top, 5 pegs/shelf).
  *
- * Assembled pose: Z-up, centered on XY. Export returns separate kit parts
- * laid out for printing (sides + shelves flat on bed).
+ * Join: shelf end tabs press into rectangular slots in the side panels
+ * (~0.25 mm fit). Seat shelves in one side, then press the other side on.
+ *
+ * Assembled pose: Z-up, centered on X, rear at +Y. Export = flat kit parts.
  */
 import { extrudeShapeGroupBetween } from "./contour.js?v=241";
 
@@ -75,8 +75,7 @@ function appendSolidBox(outPos, outIdx, x0, y0, z0, x1, y1, z1) {
   pushQuad(outPos, outIdx, c[1], c[2], c[6], c[5]);
 }
 
-/** Solid cylinder along +Z from z0, centered at (cx,cy). */
-function appendPeg(outPos, outIdx, cx, cy, z0, radius, height, seg = 20) {
+function appendPeg(outPos, outIdx, cx, cy, z0, radius, height, seg = 22) {
   const z1 = z0 + height;
   const bot = [];
   const top = [];
@@ -91,7 +90,6 @@ function appendPeg(outPos, outIdx, cx, cy, z0, radius, height, seg = 20) {
     const j = (i + 1) % seg;
     pushQuad(outPos, outIdx, bot[i], bot[j], top[j], top[i]);
   }
-  // caps
   for (let i = 1; i < seg - 1; i++) {
     pushTri(outPos, outIdx, bot[0], bot[i + 1], bot[i]);
     pushTri(outPos, outIdx, top[0], top[i], top[i + 1]);
@@ -115,90 +113,104 @@ function appendMesh(dst, src) {
 }
 
 function cloneMesh(mesh) {
-  return {
-    positions: mesh.positions.slice(),
-    indices: mesh.indices.slice(),
+  return { positions: mesh.positions.slice(), indices: mesh.indices.slice() };
+}
+
+/** Rounded rect in XY, CCW. */
+function roundedRectXy(x0, y0, x1, y1, r, seg = 8) {
+  const xmin = Math.min(x0, x1);
+  const xmax = Math.max(x0, x1);
+  const ymin = Math.min(y0, y1);
+  const ymax = Math.max(y0, y1);
+  const rr = Math.max(0, Math.min(r, (xmax - xmin) * 0.45, (ymax - ymin) * 0.45));
+  if (rr < 0.05) return ensureCCW([[xmin, ymin], [xmax, ymin], [xmax, ymax], [xmin, ymax]]);
+  const pts = [];
+  const corners = [
+    [xmax - rr, ymin + rr, -Math.PI / 2],
+    [xmax - rr, ymax - rr, 0],
+    [xmin + rr, ymax - rr, Math.PI / 2],
+    [xmin + rr, ymin + rr, Math.PI],
+  ];
+  for (const [cx, cy, a0] of corners) {
+    for (let i = 0; i <= seg; i++) {
+      const a = a0 + (Math.PI / 2) * (i / seg);
+      pts.push([cx + rr * Math.cos(a), cy + rr * Math.sin(a)]);
+    }
+  }
+  return ensureCCW(pts);
+}
+
+/** Extrude an XY outline from z0→z1. */
+function extrudeXy(outPos, outIdx, outer, holes, z0, z1) {
+  const group = {
+    outer: ensureCCW(outer),
+    holes: (holes || []).map((h) => ensureCCW(h).slice().reverse()),
   };
+  const mapTop = (x, y) => [x, y, z1];
+  const mapBot = (x, y) => [x, y, z0];
+  extrudeShapeGroupBetween(outPos, outIdx, group, mapTop, mapBot, (w) => [w[0], w[1]], "both", null);
 }
 
-/** Rotate mesh +90° around X so Y-up print flat becomes Z-up standing (or reverse). */
-function rotateX90(mesh) {
-  const P = mesh.positions;
-  for (let i = 0; i < P.length; i += 3) {
-    const y = P[i + 1];
-    const z = P[i + 2];
-    P[i + 1] = -z;
-    P[i + 2] = y;
-  }
-  return mesh;
-}
-
-function rotateY180(mesh) {
-  const P = mesh.positions;
-  for (let i = 0; i < P.length; i += 3) {
-    P[i] = -P[i];
-    P[i + 1] = -P[i + 1];
-  }
-  return mesh;
-}
-
+/**
+ * Reference (peg Ø6.5 mm scale): ~218 W × 93 D × 244 H.
+ * Clearance ~28 mm matches that height with 7 upper shelves; raise for 45–50 mm figures.
+ */
 export const OOSHIE_DEFAULTS = {
   ooshiePegDia: 6.5,
   ooshiePegHeight: 10,
   ooshiePegsPerShelf: 5,
-  ooshiePitch: 19.5,
-  ooshieUpperShelves: 6,
+  ooshiePitch: 41,
+  ooshieUpperShelves: 7,
   ooshieShelfThick: 5,
-  ooshieShelfDepth: 16,
-  ooshieClearance: 52,
-  ooshieSideThick: 5,
+  ooshieShelfDepth: 30,
+  ooshieClearance: 28,
+  ooshieSideThick: 5.5,
   ooshieFitClearance: 0.25,
-  ooshieSideMargin: 8.5,
-  ooshieBaseExtraDepth: 14,
-  ooshieBaseFrontPegs: 2,
-  ooshieCornerR: 3,
+  ooshieSideMargin: 22,
+  ooshieBaseExtraDepth: 63,
+  ooshieBaseFrontPegs: 3,
+  ooshieCornerR: 4,
   ooshieCutouts: true,
-  ooshieTabInset: 1.2,
+  ooshieTabInset: 2,
 };
 
 export function resolveOoshieDims(params = {}) {
   const pegDia = clamp(Number(params.ooshiePegDia) || OOSHIE_DEFAULTS.ooshiePegDia, 3, 12);
   const pegH = clamp(Number(params.ooshiePegHeight) || OOSHIE_DEFAULTS.ooshiePegHeight, 4, 20);
   const pegs = clamp(Math.round(Number(params.ooshiePegsPerShelf) || OOSHIE_DEFAULTS.ooshiePegsPerShelf), 2, 10);
-  const pitch = clamp(Number(params.ooshiePitch) || Math.max(pegDia * 2.8, pegDia + 8), pegDia + 4, 40);
+  const pitch = clamp(Number(params.ooshiePitch) || OOSHIE_DEFAULTS.ooshiePitch, pegDia + 4, 60);
   const upper = clamp(Math.round(Number(params.ooshieUpperShelves) || OOSHIE_DEFAULTS.ooshieUpperShelves), 1, 10);
   const shelfT = clamp(Number(params.ooshieShelfThick) || OOSHIE_DEFAULTS.ooshieShelfThick, 2.4, 10);
-  const shelfD = clamp(Number(params.ooshieShelfDepth) || OOSHIE_DEFAULTS.ooshieShelfDepth, pegDia + 4, 40);
-  const clear = clamp(Number(params.ooshieClearance) || OOSHIE_DEFAULTS.ooshieClearance, 30, 80);
-  const sideT = clamp(Number(params.ooshieSideThick) || OOSHIE_DEFAULTS.ooshieSideThick, 2.4, 10);
+  const shelfD = clamp(Number(params.ooshieShelfDepth) || OOSHIE_DEFAULTS.ooshieShelfDepth, pegDia + 6, 50);
+  const clear = clamp(Number(params.ooshieClearance) || OOSHIE_DEFAULTS.ooshieClearance, 22, 80);
+  const sideT = clamp(Number(params.ooshieSideThick) || OOSHIE_DEFAULTS.ooshieSideThick, 2.4, 12);
   const fit = clamp(Number(params.ooshieFitClearance) || OOSHIE_DEFAULTS.ooshieFitClearance, 0.1, 0.6);
-  const margin = clamp(Number(params.ooshieSideMargin) || Math.max(pegDia * 1.3, 6), pegDia, 25);
-  const baseExtra = clamp(Number(params.ooshieBaseExtraDepth) || OOSHIE_DEFAULTS.ooshieBaseExtraDepth, 6, 40);
-  const baseFrontPegs = clamp(Math.round(Number(params.ooshieBaseFrontPegs) || OOSHIE_DEFAULTS.ooshieBaseFrontPegs), 0, 4);
-  const cornerR = clamp(Number(params.ooshieCornerR) || OOSHIE_DEFAULTS.ooshieCornerR, 0, 12);
+  const margin = clamp(Number(params.ooshieSideMargin) || OOSHIE_DEFAULTS.ooshieSideMargin, pegDia, 40);
+  const baseExtra = clamp(Number(params.ooshieBaseExtraDepth) || OOSHIE_DEFAULTS.ooshieBaseExtraDepth, 10, 90);
+  const baseFrontPegs = clamp(Math.round(Number(params.ooshieBaseFrontPegs) || OOSHIE_DEFAULTS.ooshieBaseFrontPegs), 0, 5);
+  const cornerR = clamp(Number(params.ooshieCornerR) || OOSHIE_DEFAULTS.ooshieCornerR, 0, 14);
   const cutouts = params.ooshieCutouts !== false;
-  const tabInset = clamp(Number(params.ooshieTabInset) || OOSHIE_DEFAULTS.ooshieTabInset, 0.4, 4);
+  const tabInset = clamp(Number(params.ooshieTabInset) || OOSHIE_DEFAULTS.ooshieTabInset, 0.4, 6);
 
   const shelfW = (pegs - 1) * pitch + 2 * margin;
-  const tabLen = Math.max(2.2, sideT - 0.35);
-  const tabDepth = Math.max(pegDia + 2, shelfD - 2 * tabInset);
+  const tabLen = Math.max(2.4, sideT - 0.4);
+  const tabDepth = Math.max(pegDia + 3, shelfD - 2 * tabInset);
   const slotH = shelfT + 2 * fit;
   const slotD = tabDepth + 2 * fit;
-  // Notch depth from front edge into the side panel (Y)
-  const notchDepth = Math.min(shelfD * 0.92, slotD + 1.5);
 
-  // Shelf bottom Z for each level: base=0, then upper shelves
-  const shelfCount = upper + 1; // base + uppers
+  const shelfCount = upper + 1;
   const shelfZs = [];
   let z = 0;
   for (let i = 0; i < shelfCount; i++) {
     shelfZs.push(z);
     z += shelfT + clear;
   }
-  const totalH = shelfZs[shelfZs.length - 1] + shelfT + pegH + 2;
+  const totalH = shelfZs[shelfZs.length - 1] + shelfT + pegH + 3;
   const baseDepth = shelfD + baseExtra;
-  const sideDepth = baseDepth; // sides span full base depth
+  const sideDepth = baseDepth;
   const overallW = shelfW + 2 * sideT;
+  // Rear face of the stand (all shelves align here)
+  const yRear = sideDepth / 2;
 
   return {
     pegDia,
@@ -223,13 +235,13 @@ export function resolveOoshieDims(params = {}) {
     tabDepth,
     slotH,
     slotD,
-    notchDepth,
     shelfCount,
     shelfZs,
     totalH,
     baseDepth,
     sideDepth,
     overallW,
+    yRear,
   };
 }
 
@@ -240,43 +252,81 @@ function pegXs(d) {
   return xs;
 }
 
-/** Build one shelf (or base) in assembled coordinates, centered on X, front toward -Y. */
+/**
+ * Shelf / base. Rear-aligned to yRear so upper shelves sit over the back of the
+ * deep base (photo: shallow shelves, base tongue sticks forward).
+ */
 function buildShelfMesh(d, { z, depth, isBase }) {
   const positions = [];
   const indices = [];
   const halfW = d.shelfW / 2;
-  const yFront = -depth / 2;
-  const yRear = depth / 2;
+  const yRear = d.yRear;
+  const yFront = yRear - depth;
   const z1 = z + d.shelfT;
+  const r = Math.min(d.cornerR, depth * 0.35, halfW * 0.2);
 
-  // Deck
-  appendSolidBox(positions, indices, -halfW, yFront, z, halfW, yRear, z1);
+  if (isBase) {
+    // Main deck + front tongue (rounded) like the photo
+    const tongueW = Math.min(d.shelfW * 0.55, d.pitch * 2.4 + d.pegDia * 2);
+    const tongueHalf = tongueW / 2;
+    const tongueDepth = Math.min(d.baseExtra * 0.72, depth * 0.45);
+    const yTongue = yFront;
+    const yMainFront = yFront + tongueDepth;
 
-  // End tabs (slide into side notches)
+    // Rear main rectangle (full width)
+    extrudeXy(
+      positions,
+      indices,
+      roundedRectXy(-halfW, yMainFront, halfW, yRear, r),
+      [],
+      z,
+      z1,
+    );
+    // Front tongue, centered
+    extrudeXy(
+      positions,
+      indices,
+      roundedRectXy(-tongueHalf, yTongue, tongueHalf, yMainFront + 0.4, Math.min(r + 2, tongueDepth * 0.45)),
+      [],
+      z,
+      z1,
+    );
+  } else {
+    extrudeXy(
+      positions,
+      indices,
+      roundedRectXy(-halfW, yFront, halfW, yRear, r),
+      [],
+      z,
+      z1,
+    );
+  }
+
+  // End tabs — centered on the upper-shelf depth band (same Y for all levels)
+  const tabYMid = yRear - d.shelfD / 2;
   const tabHalfD = d.tabDepth / 2;
-  const tabY0 = -tabHalfD;
-  const tabY1 = tabHalfD;
-  // Slightly thinner than shelf for fit
+  const tabY0 = tabYMid - tabHalfD;
+  const tabY1 = tabYMid + tabHalfD;
   const tabZ0 = z + d.fit;
   const tabZ1 = z1 - d.fit;
   appendSolidBox(positions, indices, -halfW - d.tabLen, tabY0, tabZ0, -halfW, tabY1, tabZ1);
   appendSolidBox(positions, indices, halfW, tabY0, tabZ0, halfW + d.tabLen, tabY1, tabZ1);
 
-  // Pegs on top
+  // Pegs — main row along shelf centreline
   const xs = pegXs(d);
-  const pegY = isBase ? yRear - depth * 0.28 : 0; // main row slightly rearward on base
+  const pegY = tabYMid;
   for (const x of xs) {
-    appendPeg(positions, indices, x, isBase ? pegY : 0, z1, d.pegR * 0.98, d.pegH);
+    appendPeg(positions, indices, x, pegY, z1, d.pegR * 0.98, d.pegH);
   }
   if (isBase && d.baseFrontPegs > 0) {
-    const frontY = yFront + d.pegDia * 0.9;
+    const frontY = yFront + Math.max(d.pegDia * 1.1, d.baseExtra * 0.28);
     if (d.baseFrontPegs === 1) {
       appendPeg(positions, indices, 0, frontY, z1, d.pegR * 0.98, d.pegH);
     } else {
-      const span = Math.min(d.pitch * (d.baseFrontPegs - 1), d.shelfW * 0.45);
+      const span = Math.min(d.pitch * (d.baseFrontPegs - 1), d.shelfW * 0.4);
       const x0 = -span / 2;
       for (let i = 0; i < d.baseFrontPegs; i++) {
-        const x = d.baseFrontPegs === 1 ? 0 : x0 + (span * i) / (d.baseFrontPegs - 1);
+        const x = x0 + (span * i) / Math.max(1, d.baseFrontPegs - 1);
         appendPeg(positions, indices, x, frontY, z1, d.pegR * 0.98, d.pegH);
       }
     }
@@ -285,11 +335,24 @@ function buildShelfMesh(d, { z, depth, isBase }) {
   return { positions, indices };
 }
 
+/** Vertical stadium hole in YZ ([y,z]). */
+function pillHoleYz(cy, cz, ry, rz, seg = 18) {
+  const pts = [];
+  const straight = Math.max(0, rz - ry);
+  for (let i = 0; i <= seg; i++) {
+    const a = -Math.PI / 2 + Math.PI * (i / seg);
+    pts.push([cy + ry * Math.cos(a), cz - straight + ry * Math.sin(a)]);
+  }
+  for (let i = 0; i <= seg; i++) {
+    const a = Math.PI / 2 + Math.PI * (i / seg);
+    pts.push([cy + ry * Math.cos(a), cz + straight + ry * Math.sin(a)]);
+  }
+  return pts;
+}
+
 /**
- * Side panel in local coords: plate in YZ, thickness along +X from 0..sideT.
- * Front = -Y, back = +Y, bottom z=0.
- * Closed rectangular through-slots for shelf tabs (assemble: seat shelves in one
- * side, then press the other side on).
+ * Side panel: thickness along +X, plate in YZ.
+ * Big vertical pill cutouts + stepped top like the photo.
  */
 function buildSidePanelLocal(d) {
   const positions = [];
@@ -297,28 +360,33 @@ function buildSidePanelLocal(d) {
   const yFront = -d.sideDepth / 2;
   const yBack = d.sideDepth / 2;
   const zTop = d.totalH;
-  const step = Math.min(6, d.sideDepth * 0.12);
+  const step = Math.min(10, d.sideDepth * 0.14);
+  const corner = Math.min(6, d.sideDepth * 0.08);
 
-  // Outer outline with a small stepped top (matches the photo vibe)
-  const outer = ensureCCW([
-    [yFront, 0],
-    [yFront, zTop],
-    [yFront + step, zTop],
-    [yFront + step, zTop - step * 0.6],
-    [yBack, zTop - step * 0.6],
-    [yBack, 0],
-  ]);
+  // Outer with rounded bottom corners + stepped top (front lower)
+  const outer = [];
+  // bottom-front → up front → step → back → down → bottom-back → round to front
+  outer.push([yFront + corner, 0]);
+  outer.push([yFront, corner]);
+  outer.push([yFront, zTop - step * 0.15]);
+  outer.push([yFront + step * 0.35, zTop]);
+  outer.push([yFront + step, zTop]);
+  outer.push([yFront + step, zTop - step * 0.55]);
+  outer.push([yBack - corner, zTop - step * 0.55]);
+  outer.push([yBack, zTop - step * 0.55 - corner]);
+  outer.push([yBack, corner]);
+  outer.push([yBack - corner, 0]);
 
   const holes = [];
-  // Slot holes — centered on Y=0 like the shelf tabs; height matches tab + fit
+  // Tab slots — Y centred on upper-shelf band
+  const tabYMid = d.yRear - d.shelfD / 2;
   const slotHalfD = d.slotD / 2;
   for (let i = 0; i < d.shelfCount; i++) {
     const z0 = d.shelfZs[i] + d.fit;
     const z1 = z0 + d.slotH;
-    // Keep slots inside the panel with a little rear/front meat
-    const y0 = Math.max(yFront + 1.2, -slotHalfD);
-    const y1 = Math.min(yBack - 1.2, slotHalfD);
-    if (y1 - y0 < 4 || z1 - z0 < 2) continue;
+    const y0 = tabYMid - slotHalfD;
+    const y1 = tabYMid + slotHalfD;
+    if (y1 <= y0 + 3 || z1 <= z0 + 2) continue;
     holes.push(ensureCCW([
       [y0, z0],
       [y1, z0],
@@ -328,33 +396,26 @@ function buildSidePanelLocal(d) {
   }
 
   if (d.cutouts) {
-    const pillW = Math.min(10, d.sideDepth * 0.28);
-    const pillH = Math.min(28, (zTop - 20) / 4);
-    const cx = yBack - d.sideDepth * 0.28;
+    // 3 tall pills stacked in the front-middle of the side (photo)
+    const pillRy = Math.min(11, d.sideDepth * 0.16);
+    const pillRz = Math.min(36, (zTop - 24) / 3.6);
+    const cy = yFront + d.sideDepth * 0.38;
+    const gap = pillRz * 2 + 8;
+    const z0 = 16 + pillRz;
     for (let k = 0; k < 3; k++) {
-      const cz = 18 + k * (pillH + 10);
-      if (cz + pillH / 2 > zTop - 12) break;
-      // Skip pills that collide with a slot band
-      let hit = false;
-      for (const z of d.shelfZs) {
-        if (Math.abs(cz - (z + d.shelfT / 2)) < pillH / 2 + d.slotH) hit = true;
-      }
-      if (hit) continue;
-      holes.push(ensureCCW(pillHole(cx, cz, pillW / 2, pillH / 2)).slice().reverse());
+      const cz = z0 + k * gap;
+      if (cz + pillRz > zTop - 14) break;
+      holes.push(ensureCCW(pillHoleYz(cy, cz, pillRy, pillRz)).slice().reverse());
     }
   }
 
-  const group = { outer, holes };
-  const x0 = 0;
-  const x1 = d.sideT;
-  const map0 = (y, z) => [x0, y, z];
-  const map1 = (y, z) => [x1, y, z];
+  const group = { outer: ensureCCW(outer), holes };
   extrudeShapeGroupBetween(
     positions,
     indices,
     group,
-    map1,
-    map0,
+    (y, z) => [d.sideT, y, z],
+    (y, z) => [0, y, z],
     (w) => [w[1], w[2]],
     "both",
     null,
@@ -362,47 +423,22 @@ function buildSidePanelLocal(d) {
   return { positions, indices };
 }
 
-function pillHole(cx, cy, rx, ry, seg = 16) {
-  const pts = [];
-  // stadium: two semicircles + straight sides, axis along Z (cy)
-  const straight = Math.max(0, ry - rx);
-  for (let i = 0; i <= seg; i++) {
-    const a = -Math.PI / 2 + Math.PI * (i / seg);
-    pts.push([cx + rx * Math.cos(a), cy - straight + rx * Math.sin(a)]);
-  }
-  for (let i = 0; i <= seg; i++) {
-    const a = Math.PI / 2 + Math.PI * (i / seg);
-    pts.push([cx + rx * Math.cos(a), cy + straight + rx * Math.sin(a)]);
-  }
-  return pts;
-}
-
 function buildAssembled(d) {
   const positions = [];
   const indices = [];
   const halfW = d.shelfW / 2;
 
-  // Shelves
   for (let i = 0; i < d.shelfCount; i++) {
     const isBase = i === 0;
     const depth = isBase ? d.baseDepth : d.shelfD;
-    const shelf = buildShelfMesh(d, { z: d.shelfZs[i], depth, isBase });
-    appendMesh({ positions, indices }, shelf);
+    appendMesh({ positions, indices }, buildShelfMesh(d, { z: d.shelfZs[i], depth, isBase }));
   }
 
-  // Left side (inner face at x = -halfW)
   const left = buildSidePanelLocal(d);
-  // Panel local X=0..sideT; place so inner face (x=sideT) meets shelf end at -halfW
-  // Actually tabs extend to -halfW-tabLen; slot is in the side. Inner face should be at -halfW.
-  // Local: x=0 is outer, x=sideT is inner — OR x=0 inner.
-  // buildSidePanelLocal: x=0..sideT. Put inner at -halfW → translate so x_local=sideT maps to -halfW
-  // => translate X by -halfW - sideT
   translateMesh(left, -halfW - d.sideT, 0, 0);
   appendMesh({ positions, indices }, left);
 
-  // Right side: mirror — build then flip X
   const right = buildSidePanelLocal(d);
-  // Mirror in local X then place inner at +halfW
   const RP = right.positions;
   for (let i = 0; i < RP.length; i += 3) RP[i] = d.sideT - RP[i];
   translateMesh(right, halfW, 0, 0);
@@ -411,13 +447,7 @@ function buildAssembled(d) {
   return { positions, indices };
 }
 
-/** Lay a side panel flat on the bed (thickness up Z). */
-function flattenSideForPrint(sideMesh, d) {
-  // Currently: thickness along X, plate in YZ.
-  // Want: plate in XY, thickness along Z.
-  // Rotate -90° around Y: (x,y,z)->(z,y,-x) then fix…
-  // Simpler: rebuild mapping — rotate +90° around Y: (x,y,z)->(z,y,-x) no
-  // (x,y,z) -> (y, z, x) maps thickness X to Z.
+function flattenSideForPrint(sideMesh) {
   const m = cloneMesh(sideMesh);
   const P = m.positions;
   for (let i = 0; i < P.length; i += 3) {
@@ -428,7 +458,6 @@ function flattenSideForPrint(sideMesh, d) {
     P[i + 1] = z;
     P[i + 2] = x;
   }
-  // shift to z=0 and center XY
   let zmin = Infinity;
   let xmin = Infinity;
   let xmax = -Infinity;
@@ -452,7 +481,6 @@ function flattenSideForPrint(sideMesh, d) {
 }
 
 function flattenShelfForPrint(shelfMesh) {
-  // Already Z-up deck; just drop to z=0 and center
   const m = cloneMesh(shelfMesh);
   const P = m.positions;
   let zmin = Infinity;
@@ -488,28 +516,22 @@ export function ooshieMeta(params) {
   };
 }
 
-/**
- * Build preview (assembled) + printable kit parts.
- * @returns {{ positions, indices, shellMesh, meta, totalH, ooshieParts }}
- */
 export function buildOoshieStand(params = {}) {
   const d = resolveOoshieDims(params);
   const assembled = buildAssembled(d);
 
-  // Kit parts for export (print pose)
   const parts = [];
   const leftLocal = buildSidePanelLocal(d);
-  parts.push({ name: "Side L", mesh: flattenSideForPrint(leftLocal, d), role: "side" });
+  parts.push({ name: "Side L", mesh: flattenSideForPrint(leftLocal), role: "side" });
   const rightLocal = buildSidePanelLocal(d);
-  // Mirror for right before flatten
   const RP = rightLocal.positions;
   for (let i = 0; i < RP.length; i += 3) RP[i] = d.sideT - RP[i];
-  parts.push({ name: "Side R", mesh: flattenSideForPrint(rightLocal, d), role: "side" });
+  parts.push({ name: "Side R", mesh: flattenSideForPrint(rightLocal), role: "side" });
 
   for (let i = 0; i < d.shelfCount; i++) {
     const isBase = i === 0;
     const depth = isBase ? d.baseDepth : d.shelfD;
-    const shelf = buildShelfMesh(d, { z: 0, depth, isBase }); // build at z=0 for print
+    const shelf = buildShelfMesh(d, { z: 0, depth, isBase });
     parts.push({
       name: isBase ? "Base shelf" : `Shelf ${i}`,
       mesh: flattenShelfForPrint(shelf),

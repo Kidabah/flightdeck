@@ -6,6 +6,19 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-28 Session update (Ooshies stand v2)
+
+Latest commit: `(pending)` — Retune Ooshies stand to ~218×93×244 + photo look
+
+Latest local/Pi change:
+- MakerDeck **b576**: proportions from peg-scaled reference STL; deep base tongue, side pills, 7 uppers.
+- Hard refresh MakerDeck `?v=576`.
+
+Previous:
+- Ooshies stand v1 (`c695f73`).
+
+---
+
 ## 2026-07-28 Session update (Ooshies stand)
 
 Latest commit: `c695f73` — MakerDeck Ooshies stand (tab-slot kit, 52mm figure clearance)

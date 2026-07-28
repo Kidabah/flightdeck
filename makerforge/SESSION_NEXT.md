@@ -4,6 +4,16 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b576 — Ooshies stand matches reference scale + photo
+**Date:** 2026-07-28
+
+### MakerDeck
+- Retuned Ooshies stand to ~**218×93×244 mm** (peg Ø6.5 reference) with deep base tongue, rear-aligned shelves, bigger side pills, 7 upper shelves.
+- Default figure gap **28 mm** (matches that height); raise clearance for taller Ooshies.
+- Hard refresh `app.js?v=576` / **b576**.
+
+---
+
 ## b575 — Ooshies stand generator
 **Date:** 2026-07-28
 
