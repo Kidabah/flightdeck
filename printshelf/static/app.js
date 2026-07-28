@@ -366,11 +366,23 @@ function switchView(name) {
   document.querySelectorAll(".nav-btn").forEach((btn) => btn.classList.toggle("active", btn.dataset.view === name));
 }
 
-function updateTypeTabCounts(byKind, total) {
+function updateTypeTabCounts(byKind, total, duplicates = 0) {
   document.querySelectorAll(".type-count").forEach((el) => {
     const key = el.dataset.countFor || "";
+    if (key === "__duplicates__") {
+      el.textContent = String(duplicates || 0);
+      return;
+    }
     el.textContent = String(key ? (byKind[key] || 0) : (total || 0));
   });
+  const dupTab = document.querySelector('.type-tab[data-kind="__duplicates__"]');
+  if (dupTab) {
+    const n = Number(duplicates || 0);
+    dupTab.hidden = n <= 0;
+    if (n <= 0 && activeKind === "__duplicates__") {
+      setActiveKind("");
+    }
+  }
 }
 
 function updateScanBanner(scan, byKind, totalAssets) {
@@ -448,9 +460,10 @@ async function watchStatusTick() {
   const thumbs = s.thumbs || {};
   const byKind = s.by_kind || {};
   const kinds = Object.entries(byKind).map(([k, v]) => `${k}: ${v}`).join(" · ") || "no files yet";
+  const dupBit = s.duplicates ? `<br><span class="pill warn">duplicates ${s.duplicates}</span>` : "";
   const hiddenBit = s.hidden ? `<br><span class="pill">hidden ${s.hidden}</span>` : "";
-  $("railStats").innerHTML = `<strong>${s.assets}</strong> assets<br>${kinds}${hiddenBit}`;
-  updateTypeTabCounts(byKind, s.assets || 0);
+  $("railStats").innerHTML = `<strong>${s.assets}</strong> assets<br>${kinds}${dupBit}${hiddenBit}`;
+  updateTypeTabCounts(byKind, s.assets || 0, s.duplicates || 0);
   updateScanBanner(scan, byKind, s.assets || 0);
   $("scanStatus").textContent = formatStatusLine(scan, thumbs);
 
@@ -481,9 +494,10 @@ async function refreshStats() {
   const s = await api("/api/stats");
   const byKind = s.by_kind || {};
   const kinds = Object.entries(byKind).map(([k, v]) => `${k}: ${v}`).join(" · ") || "no files yet";
+  const dupBit = s.duplicates ? `<br><span class="pill warn">duplicates ${s.duplicates}</span>` : "";
   const hiddenBit = s.hidden ? `<br><span class="pill">hidden ${s.hidden}</span>` : "";
-  $("railStats").innerHTML = `<strong>${s.assets}</strong> assets<br>${kinds}${hiddenBit}`;
-  updateTypeTabCounts(byKind, s.assets || 0);
+  $("railStats").innerHTML = `<strong>${s.assets}</strong> assets<br>${kinds}${dupBit}${hiddenBit}`;
+  updateTypeTabCounts(byKind, s.assets || 0, s.duplicates || 0);
   const scan = s.scan || {};
   const thumbs = s.thumbs || {};
   updateScanBanner(scan, byKind, s.assets || 0);
@@ -491,6 +505,11 @@ async function refreshStats() {
   lastScanRunning = !!scan.running;
   lastThumbsRunning = !!thumbs.running;
   $("scanStatus").textContent = formatStatusLine(scan, thumbs);
+  // If we were on Duplicates and they all cleared, jump back to All and reload.
+  if (activeKind === "__duplicates__" && !(s.duplicates > 0)) {
+    setActiveKind("");
+    await loadLibrary();
+  }
 }
 
 function setActiveKind(kind) {
@@ -571,7 +590,11 @@ function filterParams() {
   const params = new URLSearchParams();
   const q = $("search").value.trim();
   if (q) params.set("q", q);
-  if (activeKind) params.set("kind", activeKind);
+  if (activeKind === "__duplicates__") {
+    params.set("duplicates", "true");
+  } else if (activeKind) {
+    params.set("kind", activeKind);
+  }
   const source = $("filterSource").value;
   if (source) params.set("source_kind", source);
   if ($("filterTextures").checked) params.set("has_textures", "true");
@@ -637,9 +660,13 @@ function appendAssetCard(grid, item) {
       <div class="card-meta">
         <span class="pill">${escapeHtml(item.kind)}</span>
         <span>${escapeHtml(item.source_kind)}</span>
+        ${item.copy_count > 1 ? `<span class="pill warn">${item.copy_count} copies</span>` : ""}
         ${item.hidden ? "<span class=\"pill warn\">hidden</span>" : ""}
         ${item.has_textures ? "<span>textures</span>" : ""}
         ${item.is_sliced ? "<span>sliced</span>" : ""}
+        ${activeKind === "__duplicates__" && item.rel_path
+          ? `<span title="${escapeHtml(item.rel_path)}">${escapeHtml(item.rel_path.length > 48 ? `…${item.rel_path.slice(-46)}` : item.rel_path)}</span>`
+          : ""}
       </div>
     </div>`;
   const check = card.querySelector(".card-check");
@@ -682,8 +709,9 @@ function appendAssetCard(grid, item) {
 
 async function loadLibrary({ preserveScroll = false } = {}) {
   const q = $("search").value.trim();
-  // Search forces flat "all files" results
-  const useFolders = browseMode === "folders" && !q;
+  const dupMode = activeKind === "__duplicates__";
+  // Search / Duplicates force flat "all files" results
+  const useFolders = browseMode === "folders" && !q && !dupMode;
   const params = filterParams();
   params.set("limit", "1000");
   const grid = $("grid");
@@ -760,10 +788,19 @@ async function loadLibrary({ preserveScroll = false } = {}) {
     const visible = new Set(libraryItems.map((i) => i.id));
     selectedIds = new Set([...selectedIds].filter((id) => visible.has(id)));
     if (!libraryItems.length) {
-      next.innerHTML = `<div class="detail-empty">${$("filterHidden")?.checked
-        ? "No hidden files."
-        : "No files yet. Add folders and hit Rescan."}</div>`;
+      next.innerHTML = `<div class="detail-empty">${dupMode
+        ? "No duplicate files — nice. This tab will hide itself."
+        : ($("filterHidden")?.checked
+          ? "No hidden files."
+          : "No files yet. Add folders and hit Rescan.")}</div>`;
     } else {
+      if (dupMode) {
+        const note = document.createElement("div");
+        note.className = "detail-empty";
+        note.style.gridColumn = "1 / -1";
+        note.textContent = `${data.total || libraryItems.length} duplicate files (same bytes in more than one place). Delete extras — keep one. Tab disappears when none are left.`;
+        next.appendChild(note);
+      }
       for (const item of libraryItems) appendAssetCard(next, item);
     }
     grid.replaceWith(next);
@@ -1373,9 +1410,16 @@ function bind() {
   });
   $("typeTabs")?.addEventListener("click", (e) => {
     const btn = e.target.closest(".type-tab");
-    if (!btn) return;
+    if (!btn || btn.hidden) return;
     setActiveKind(btn.dataset.kind || "");
     clearSelection();
+    // Duplicates is a flat sweep across the library.
+    if ((btn.dataset.kind || "") === "__duplicates__") {
+      browseMode = "all";
+      document.querySelectorAll(".view-mode").forEach((b) => {
+        b.classList.toggle("active", b.dataset.mode === "all");
+      });
+    }
     loadLibrary().catch(console.error);
   });
   $("viewModes")?.addEventListener("click", (e) => {

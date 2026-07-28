@@ -257,6 +257,13 @@ h1 {
   opacity: .95;
 }
 .type-tab.active .type-count { background: rgba(255, 255, 255, .22); }
+.type-tab.dup-tab {
+  border-color: rgba(251, 191, 36, 0.45);
+}
+.type-tab.dup-tab.active {
+  background: linear-gradient(180deg, #f59e0b, #d97706);
+  border-color: #b45309;
+}
 
 .bulk-bar {
   display: flex;

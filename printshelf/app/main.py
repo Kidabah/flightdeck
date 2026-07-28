@@ -169,11 +169,23 @@ def stats() -> dict[str, Any]:
                 "WHERE missing = 0 AND COALESCE(hidden, 0) = 0 GROUP BY kind"
             ).fetchall()
         }
+        duplicates = conn.execute(
+            """SELECT COUNT(*) AS c FROM assets a
+               WHERE a.missing = 0 AND COALESCE(a.hidden, 0) = 0
+                 AND a.content_hash IS NOT NULL AND TRIM(a.content_hash) != ''
+                 AND a.content_hash IN (
+                   SELECT content_hash FROM assets
+                   WHERE missing = 0 AND COALESCE(hidden, 0) = 0
+                     AND content_hash IS NOT NULL AND TRIM(content_hash) != ''
+                   GROUP BY content_hash HAVING COUNT(*) > 1
+                 )"""
+        ).fetchone()["c"]
     return {
         "designs": designs,
         "assets": assets,
         "hidden": hidden,
         "by_kind": by_kind,
+        "duplicates": int(duplicates or 0),
         "scan": get_scan_state(),
         "thumbs": get_thumb_rebuild_state(),
     }
@@ -189,6 +201,7 @@ def _asset_visibility_clauses(
     is_sliced: bool | None = None,
     q: str | None = None,
     root_id: str | None = None,
+    duplicates: bool = False,
 ) -> tuple[list[str], list[Any]]:
     clauses = ["a.missing = ?"]
     params: list[Any] = [1 if missing else 0]
@@ -213,6 +226,16 @@ def _asset_visibility_clauses(
     if root_id:
         clauses.append("a.root_id = ?")
         params.append(root_id)
+    if duplicates:
+        clauses.append(
+            """a.content_hash IS NOT NULL AND TRIM(a.content_hash) != ''
+               AND a.content_hash IN (
+                 SELECT content_hash FROM assets
+                 WHERE missing = 0 AND COALESCE(hidden, 0) = 0
+                   AND content_hash IS NOT NULL AND TRIM(content_hash) != ''
+                 GROUP BY content_hash HAVING COUNT(*) > 1
+               )"""
+        )
     if q:
         clauses.append("(a.file_name LIKE ? OR a.rel_path LIKE ? OR d.name LIKE ?)")
         like = f"%{q}%"
@@ -396,6 +419,7 @@ def list_assets(
     missing: bool = False,
     hidden: bool | None = False,
     root_id: str | None = None,
+    duplicates: bool = False,
     limit: int = Query(200, ge=1, le=1000),
     offset: int = Query(0, ge=0),
 ) -> dict[str, Any]:
@@ -410,14 +434,23 @@ def list_assets(
         is_sliced=is_sliced,
         q=q,
         root_id=root_id,
+        duplicates=duplicates,
     )
     where = " AND ".join(clauses)
+    order = (
+        "a.content_hash ASC, a.file_name ASC, a.rel_path ASC"
+        if duplicates
+        else "a.last_seen DESC, a.file_name ASC"
+    )
     sql = f"""
-      SELECT a.*, d.name AS design_name
+      SELECT a.*, d.name AS design_name,
+        (SELECT COUNT(*) FROM assets x
+         WHERE x.content_hash = a.content_hash
+           AND x.missing = 0 AND COALESCE(x.hidden, 0) = 0) AS copy_count
       FROM assets a
       JOIN designs d ON d.id = a.design_id
       WHERE {where}
-      ORDER BY a.last_seen DESC, a.file_name ASC
+      ORDER BY {order}
       LIMIT ? OFFSET ?
     """
     params.extend([limit, offset])
@@ -434,6 +467,7 @@ def list_assets(
         assert item
         item["meta"] = parse_json_field(item.pop("meta_json", "{}"), {})
         item["bbox"] = parse_json_field(item.pop("bbox_json", None), None)
+        item["copy_count"] = int(item.get("copy_count") or 0)
         resolved = resolve_thumb_name(
             thumbs,
             thumb_path=item.get("thumb_path"),
@@ -442,7 +476,7 @@ def list_assets(
         )
         item["thumb_path"] = resolved
         items.append(item)
-    return {"total": total, "items": items}
+    return {"total": total, "items": items, "duplicates": duplicates}
 
 
 @app.get("/api/assets/{asset_id}")
