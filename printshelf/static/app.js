@@ -167,17 +167,33 @@ function isPrintableName(name) {
   );
 }
 
+function isReadyToQueue(item, zipEntry = "") {
+  const kind = item?.kind || "";
+  if (kind === "gcode" || kind === "gcode.3mf" || kind === "3mf") return true;
+  if (kind === "zip" && zipEntry && isPrintableName(zipEntry)) {
+    const lower = String(zipEntry).toLowerCase();
+    // Mesh-only zip entries still need slicing.
+    if (lower.endsWith(".stl") || lower.endsWith(".obj")) return false;
+    return true;
+  }
+  return false;
+}
+
+function needsSlicerFirst(item, zipEntry = "") {
+  const kind = item?.kind || "";
+  if (kind === "stl" || kind === "obj") return true;
+  if (kind === "zip" && zipEntry) {
+    const lower = String(zipEntry).toLowerCase();
+    return lower.endsWith(".stl") || lower.endsWith(".obj");
+  }
+  return false;
+}
+
 function printDisabledReason(item, zipEntry = "") {
   if (isMobileClient()) return "Use on PC / Tailscale desktop";
-  const kind = item?.kind || "";
-  if (kind === "gcode" || kind === "gcode.3mf" || kind === "3mf") return "";
-  if (kind === "zip") {
-    if (!zipEntry) return "Pick a printable inside the ZIP first";
-    if (!isPrintableName(zipEntry)) return "ZIP entry isn’t a ready-to-print file";
-    return "";
-  }
-  if (kind === "stl" || kind === "obj") return "Slice first — use Open in slicer";
-  return "Not a ready-to-print file";
+  if (isReadyToQueue(item, zipEntry) || needsSlicerFirst(item, zipEntry)) return "";
+  if (item?.kind === "zip" && !zipEntry) return "Pick a printable inside the ZIP first";
+  return "Not a printable file";
 }
 
 async function pickPrinter() {
@@ -216,6 +232,21 @@ async function printThis(item, { zipEntry = "" } = {}) {
     psToast("Can't print this", reason, "error");
     return false;
   }
+
+  // Printers can't eat raw STL/OBJ — open slicer, then Print this again on the sliced file.
+  if (needsSlicerFirst(item, zipEntry)) {
+    const go = await psConfirm({
+      eyebrow: "Slice first",
+      title: "This file isn’t sliced yet",
+      body: "Printers need a <strong>.3mf / .gcode.3mf / .gcode</strong>. Open it in Bambu/Orca, slice, save, then hit <strong>Print this</strong> on the sliced file (or the NAS copy).",
+      confirmLabel: "Open in slicer",
+      cancelLabel: "Cancel",
+      danger: false,
+    });
+    if (!go) return false;
+    return openInSlicer(item, { zipEntry });
+  }
+
   const printerId = await pickPrinter();
   if (!printerId) return false;
 
@@ -1333,7 +1364,9 @@ async function selectAsset(id) {
       </div>
       <p class="detail-hint" id="printHint">${printDisabledReason(item, zipEntry)
         ? `Print this: ${printDisabledReason(item, zipEntry)}.`
-        : "Print this queues the file on Flightdeck and auto-sends when that printer is free."}</p>
+        : (needsSlicerFirst(item, zipEntry)
+          ? "Print this: STL/OBJ need slicing first — opens Bambu/Orca, then queue the sliced .3mf/.gcode."
+          : "Print this queues .3mf / .gcode.3mf / .gcode on Flightdeck and auto-sends when free.")}</p>
       <p class="detail-hint">${winFolder
         ? "Copy folder path → Explorer address bar (Ctrl+L → Ctrl+V) to jump straight to the file’s folder."
         : "Set a Windows path on this watched folder in Folders to enable folder / file copy."}</p>
@@ -1363,9 +1396,13 @@ async function selectAsset(id) {
     btn.title = reason || "Queue on Flightdeck — auto-sends when free";
     const hint = $("printHint");
     if (hint) {
-      hint.textContent = reason
-        ? `Print this: ${reason}.`
-        : "Print this queues the file on Flightdeck and auto-sends when that printer is free.";
+      if (reason) {
+        hint.textContent = `Print this: ${reason}.`;
+      } else if (needsSlicerFirst(item, zipEntry)) {
+        hint.textContent = "Print this: STL/OBJ need slicing first — opens Bambu/Orca, then queue the sliced .3mf/.gcode.";
+      } else {
+        hint.textContent = "Print this queues .3mf / .gcode.3mf / .gcode on Flightdeck and auto-sends when free.";
+      }
     }
   };
   $("printThisBtn")?.addEventListener("click", () => {

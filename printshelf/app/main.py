@@ -147,8 +147,10 @@ def put_config(body: ConfigIn) -> dict[str, Any]:
 
 
 @app.post("/api/scan")
-def trigger_scan() -> dict[str, Any]:
-    return start_scan_background()
+def trigger_scan(root_id: str | None = Query(None)) -> dict[str, Any]:
+    """Rescan all watched folders, or one root via ?root_id=kidabah-pc."""
+    roots = [root_id.strip()] if root_id and root_id.strip() else None
+    return start_scan_background(root_ids=roots)
 
 
 @app.get("/api/scan")

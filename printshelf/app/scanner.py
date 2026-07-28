@@ -287,7 +287,11 @@ def upsert_asset(conn, folder: dict[str, Any], path: Path, parsed: dict[str, Any
         )
 
 
-def run_scan(progress: Callable[[dict[str, Any]], None] | None = None) -> dict[str, Any]:
+def run_scan(
+    progress: Callable[[dict[str, Any]], None] | None = None,
+    *,
+    root_ids: list[str] | None = None,
+) -> dict[str, Any]:
     if not SCAN_LOCK.acquire(blocking=False):
         return get_scan_state()
 
@@ -298,6 +302,27 @@ def run_scan(progress: Callable[[dict[str, Any]], None] | None = None) -> dict[s
     thumbs = data_dir(cfg) / "thumbs"
     ignore = effective_ignore_globs(cfg)
     folders = list(cfg.get("watched_folders") or [])
+    if root_ids:
+        want = {str(r).strip() for r in root_ids if str(r).strip()}
+        folders = [f for f in folders if str(f.get("id") or "") in want]
+        if not folders:
+            SCAN_STATE.update({
+                "running": False,
+                "status": "error",
+                "error": f"No watched folders match: {', '.join(sorted(want))}",
+                "finished_at": utcnow(),
+            })
+            SCAN_LOCK.release()
+            return get_scan_state()
+    else:
+        # Local / PC mounts first — huge NAS walks used to starve Kidabah PC.
+        folders = sorted(
+            folders,
+            key=lambda f: (
+                0 if str(f.get("source_kind") or "") == "local" else 1,
+                str(f.get("id") or ""),
+            ),
+        )
 
     SCAN_STATE.update({
         "running": True,
@@ -413,7 +438,8 @@ def run_scan(progress: Callable[[dict[str, Any]], None] | None = None) -> dict[s
                             if progress:
                                 progress(get_scan_state())
 
-            # mark missing assets under watched roots
+            # mark missing assets under scanned roots only (targeted scans must not
+            # mark other watched roots missing).
             roots = [str(Path(f["path"]).resolve()) for f in folders if f.get("path")]
             if roots:
                 rows = conn.execute("SELECT id, abs_path, root_path FROM assets").fetchall()
@@ -462,16 +488,17 @@ def run_scan(progress: Callable[[dict[str, Any]], None] | None = None) -> dict[s
     return get_scan_state()
 
 
-def start_scan_background() -> dict[str, Any]:
+def start_scan_background(root_ids: list[str] | None = None) -> dict[str, Any]:
     if SCAN_STATE.get("running"):
         return get_scan_state()
 
     def _run():
-        run_scan()
+        run_scan(root_ids=root_ids)
 
     t = threading.Thread(target=_run, name="printshelf-scan", daemon=True)
     t.start()
-    return get_scan_state()
+    # Tiny yield so callers see running=true more often.
+    return {"ok": True, **get_scan_state(), "root_ids": list(root_ids or [])}
 
 
 def _thumb_is_current(kind: str, thumb_path: str) -> bool:

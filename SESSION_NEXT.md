@@ -6,17 +6,17 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
-## 2026-07-28 Session update (Print this → Flightdeck)
+## 2026-07-28 Session update (Kidabah PC scan + Print this UX)
 
-Latest commit: `3895703` — PrintShelf Print this queues on Flightdeck
+Latest commit: `(pending)` — Scan local roots first; Print this opens slicer for STL/OBJ
 
 Latest local/Pi change:
-- Detail **Print this** → pick printer → `POST /api/queue/upload` on Flightdeck.
-- Ready-to-print only (`.3mf` / `.gcode.3mf` / `.gcode`); STL/OBJ → Open in slicer.
-- Hard refresh `?v=51`. Restart required.
+- Kidabah PC was mounted but starved behind NAS scans — local roots scan first; `?root_id=` targeted scan.
+- **Print this**: ready files queue; STL/OBJ prompt → Open in slicer.
+- Hard refresh `?v=52`. Restart + Kidabah PC rescan.
 
 Previous:
-- Exclude / folder / load more (`9622ec1`).
+- Print this (`3895703`). Exclude/load more (`9622ec1`).
 
 ---
 
