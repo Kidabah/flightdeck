@@ -53,6 +53,69 @@ function psToast(title, detail = "", kind = "info", ms = 4200) {
   if (ms > 0) setTimeout(dismiss, ms);
 }
 
+function closeCardMenus(except = null) {
+  document.querySelectorAll(".card-menu.open, .detail-menu.open").forEach((el) => {
+    if (except && el === except) return;
+    el.classList.remove("open");
+  });
+}
+
+async function openOnPc(assetId, mode = "open") {
+  if (!assetId) {
+    psToast("Can't open on PC", "No file selected.", "error");
+    return false;
+  }
+  const label = mode === "reveal" ? "Reveal in Explorer" : "Open on PC";
+  psToast(label, "Talking to Windows worker…", "ok", 4000);
+  const u = new URL(`/api/assets/${assetId}/open-on-pc`, window.location.origin);
+  u.searchParams.set("mode", mode === "reveal" ? "reveal" : "open");
+  try {
+    const r = await fetch(u.toString(), { method: "POST" });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const detail = typeof data.detail === "string" ? data.detail : `${label} failed`;
+      psToast(`Couldn't ${mode === "reveal" ? "reveal" : "open"}`, detail, "error", 10000);
+      return false;
+    }
+    psToast(
+      mode === "reveal" ? "Revealed in Explorer" : "Opened on PC",
+      data.windows_path || data.file_name || "Windows default app",
+      "ok",
+      6000,
+    );
+    return true;
+  } catch (err) {
+    psToast(`Couldn't ${mode === "reveal" ? "reveal" : "open"}`, String(err.message || err), "error", 8000);
+    return false;
+  }
+}
+
+function mountActionMenu(host, items) {
+  if (!host) return;
+  const btn = host.querySelector(".card-menu-btn, .detail-menu-btn");
+  const panel = host.querySelector(".card-menu-panel, .detail-menu-panel");
+  if (!btn || !panel) return;
+  panel.innerHTML = items.map((it) => `
+    <button type="button" class="card-menu-item${it.danger ? " danger" : ""}" data-menu-action="${escapeHtml(it.id)}"
+      ${it.disabled ? "disabled" : ""}>${escapeHtml(it.label)}</button>`).join("");
+  btn.onclick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const willOpen = !host.classList.contains("open");
+    closeCardMenus();
+    if (willOpen) host.classList.add("open");
+  };
+  panel.onclick = (e) => {
+    e.stopPropagation();
+    const target = e.target.closest("[data-menu-action]");
+    if (!target || target.disabled) return;
+    const id = target.dataset.menuAction;
+    host.classList.remove("open");
+    const item = items.find((x) => x.id === id);
+    if (item?.run) item.run();
+  };
+}
+
 /** PrintShelf confirm modal — replaces browser confirm(). */
 function psConfirm({
   title = "Confirm",
@@ -853,7 +916,13 @@ function appendDesignCard(grid, item) {
   card.dataset.designId = String(item.id);
   const kinds = (item.kinds || []).slice(0, 4);
   const n = Number(item.asset_count) || 0;
+  const coverId = item.cover_asset_id;
+  const isZipCover = (item.cover_kind || kinds[0] || "") === "zip";
   card.innerHTML = `
+    <div class="card-menu">
+      <button type="button" class="card-menu-btn" aria-label="More actions">⋮</button>
+      <div class="card-menu-panel" role="menu"></div>
+    </div>
     <div class="card-thumb">${item.thumb_path
       ? `<img src="/api/thumbs/${encodeURIComponent(item.thumb_path)}?v=${encodeURIComponent(
           ((item.content_hash || item.thumb_path) + "").slice(0, 12)
@@ -877,9 +946,34 @@ function appendDesignCard(grid, item) {
       if (host) host.innerHTML = `<span class="pill">${escapeHtml(item.cover_kind || "design")}</span>`;
     });
   }
-  card.addEventListener("click", () => {
-    selectDesign(item.id).catch(console.error);
+  const openInShelf = () => selectDesign(item.id).catch(console.error);
+  card.addEventListener("click", (e) => {
+    if (e.target.closest(".card-menu")) return;
+    openInShelf();
   });
+  card.addEventListener("dblclick", (e) => {
+    if (e.target.closest(".card-menu")) return;
+    e.preventDefault();
+    openInShelf();
+  });
+  const menuItems = [
+    { id: "open", label: "Open in PrintShelf", run: openInShelf },
+  ];
+  if (coverId) {
+    menuItems.push(
+      {
+        id: "pc",
+        label: isZipCover ? "Open zip on PC" : "Open on PC",
+        run: () => openOnPc(coverId, "open"),
+      },
+      {
+        id: "reveal",
+        label: "Reveal in Explorer",
+        run: () => openOnPc(coverId, "reveal"),
+      },
+    );
+  }
+  mountActionMenu(card.querySelector(".card-menu"), menuItems);
   grid.appendChild(card);
 }
 
@@ -916,6 +1010,10 @@ function appendAssetCard(grid, item) {
   card.dataset.id = String(item.id);
   card.innerHTML = `
     <input type="checkbox" class="card-check" ${checked ? "checked" : ""} aria-label="Select ${escapeHtml(item.file_name)}">
+    <div class="card-menu">
+      <button type="button" class="card-menu-btn" aria-label="More actions">⋮</button>
+      <div class="card-menu-panel" role="menu"></div>
+    </div>
     <div class="card-thumb">${item.thumb_path
       ? `<img src="/api/thumbs/${encodeURIComponent(item.thumb_path)}?v=${encodeURIComponent(
           item.kind === "zip" ? "zip2" : ((item.content_hash || item.thumb_path).slice(0, 12))
@@ -946,7 +1044,6 @@ function appendAssetCard(grid, item) {
     }
   });
   check.addEventListener("change", (e) => {
-    // Shift range is handled on click (preventDefault skips the toggle/change).
     toggleSelected(item.id, e.target.checked);
   });
   const img = card.querySelector(".card-thumb img");
@@ -956,7 +1053,12 @@ function appendAssetCard(grid, item) {
       if (host) host.innerHTML = `<span class="pill">${escapeHtml(item.kind)}</span>`;
     });
   }
+  const openInShelf = () => {
+    lastSelectAnchorId = Number(item.id);
+    selectAsset(item.id).catch(console.error);
+  };
   card.addEventListener("click", (e) => {
+    if (e.target.closest(".card-menu") || e.target.closest(".card-check")) return;
     if (e.shiftKey) {
       e.preventDefault();
       const anchor = lastSelectAnchorId ?? item.id;
@@ -968,9 +1070,22 @@ function appendAssetCard(grid, item) {
       toggleSelected(item.id, !selectedIds.has(item.id));
       return;
     }
-    lastSelectAnchorId = Number(item.id);
-    selectAsset(item.id);
+    openInShelf();
   });
+  card.addEventListener("dblclick", (e) => {
+    if (e.target.closest(".card-menu") || e.target.closest(".card-check")) return;
+    e.preventDefault();
+    openInShelf();
+  });
+  mountActionMenu(card.querySelector(".card-menu"), [
+    { id: "open", label: "Open in PrintShelf", run: openInShelf },
+    {
+      id: "pc",
+      label: item.kind === "zip" ? "Open zip on PC" : "Open on PC",
+      run: () => openOnPc(item.id, "open"),
+    },
+    { id: "reveal", label: "Reveal in Explorer", run: () => openOnPc(item.id, "reveal") },
+  ]);
   grid.appendChild(card);
 }
 
@@ -1598,6 +1713,12 @@ async function selectAsset(id, { design = null } = {}) {
         ${item.meta?.missing_textures?.length ? `<p class="lede">Missing: ${escapeHtml(item.meta.missing_textures.join(", "))}</p>` : ""}
       </div>` : ""}
     <div class="detail-section">
+      <div class="detail-actions detail-actions-top">
+        <div class="detail-menu" id="detailMenu">
+          <button type="button" class="card-open secondary detail-menu-btn" aria-label="More actions">⋮ More</button>
+          <div class="detail-menu-panel card-menu-panel" role="menu"></div>
+        </div>
+      </div>
       <div class="detail-actions">
         <button class="card-open" type="button" id="printThisBtn"
           ${printDisabledReason(item, zipEntry) ? "disabled" : ""}
@@ -1611,6 +1732,8 @@ async function selectAsset(id, { design = null } = {}) {
           title="${zipEntry
             ? "Copy this printable into PrintShelf Extracted on the NAS"
             : "Needs an STL/OBJ/3MF selected — this zip may only have photos or a .rar inside"}">Extract to shelf</button>` : ""}
+        <button class="card-open secondary" type="button" id="openOnPcBtn"
+          title="Open with the Windows default app (zip → Explorer / 7-Zip)">${isZip ? "Open zip on PC" : "Open on PC"}</button>
         <button class="card-open secondary" type="button" id="copyWinPathBtn" data-label="Copy file path" ${winPath ? "" : "disabled"}>Copy file path</button>
         <button class="card-open secondary" type="button" id="copyPiPathBtn" data-label="Copy Pi path">Copy Pi path</button>
       </div>
@@ -1701,6 +1824,28 @@ async function selectAsset(id, { design = null } = {}) {
     const active = document.querySelector(".zip-entry-btn.active");
     extractToShelf(item, { zipEntry: active?.dataset?.entry || zipEntry });
   });
+  $("openOnPcBtn")?.addEventListener("click", () => {
+    openOnPc(item.id, "open");
+  });
+  const detailMenuItems = [
+    {
+      id: "pc",
+      label: isZip ? "Open zip on PC" : "Open on PC",
+      run: () => openOnPc(item.id, "open"),
+    },
+    { id: "reveal", label: "Reveal in Explorer", run: () => openOnPc(item.id, "reveal") },
+  ];
+  if (isZip) {
+    detailMenuItems.push({
+      id: "extract",
+      label: "Extract to shelf…",
+      run: () => {
+        const active = document.querySelector(".zip-entry-btn.active");
+        extractToShelf(item, { zipEntry: active?.dataset?.entry || zipEntry });
+      },
+    });
+  }
+  mountActionMenu($("detailMenu"), detailMenuItems);
   if ((item.kind === "stl" || item.kind === "obj") && $("manifoldStatus")) {
     api(`/api/assets/${item.id}/manifold?repair=false`)
       .then((m) => {
@@ -2007,9 +2152,13 @@ function bind() {
   $("psModalRoot")?.addEventListener("click", (e) => {
     if (e.target.closest("[data-ps-modal-dismiss]")) closePsModal(false);
   });
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".card-menu, .detail-menu")) closeCardMenus();
+  });
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && $("psModalRoot") && !$("psModalRoot").hidden) {
-      closePsModal(false);
+    if (e.key === "Escape") {
+      closeCardMenus();
+      if ($("psModalRoot") && !$("psModalRoot").hidden) closePsModal(false);
     }
   });
   document.querySelectorAll(".nav-btn").forEach((btn) => {

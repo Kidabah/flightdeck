@@ -1440,6 +1440,12 @@ class SlicerOpenPathRequest(BaseModel):
     target: str = "bambu_studio"
 
 
+class ShellOpenPathRequest(BaseModel):
+    """Open or reveal a local/UNC path on the Windows worker (Explorer / default app)."""
+    path: str
+    mode: str = "open"  # open | reveal
+
+
 class SlicerConnectionCheckRequest(BaseModel):
     kind: str
     url: str
@@ -3029,6 +3035,47 @@ async def slicer_worker_open_path(body: SlicerOpenPathRequest):
         result["mode"] = result.get("mode") or "open-path"
         result["path"] = str(path)
     return result
+
+
+def _shell_open_windows_path(path: Path, mode: str = "open") -> dict:
+    """Open with the default app, or reveal in Explorer (Windows worker only)."""
+    if os.name != "nt":
+        raise HTTPException(status_code=400, detail="Shell open only runs on the Windows worker")
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"Path not found on worker: {path}")
+    resolved = path.resolve() if path.exists() else path
+    action = (mode or "open").strip().lower()
+    if action not in {"open", "reveal"}:
+        raise HTTPException(status_code=422, detail="mode must be open or reveal")
+    try:
+        if action == "reveal":
+            # explorer /select,<path> — select file in its folder
+            subprocess.Popen(
+                ["explorer", f"/select,{resolved}"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL,
+                close_fds=True,
+                creationflags=getattr(subprocess, "DETACHED_PROCESS", 0)
+                | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
+            )
+            return {"ok": True, "path": str(resolved), "mode": "reveal"}
+        os.startfile(str(resolved))  # type: ignore[attr-defined]
+        return {"ok": True, "path": str(resolved), "mode": "open"}
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"Could not open path: {exc}") from exc
+
+
+@app.post("/api/slicer/worker/shell-open")
+async def slicer_worker_shell_open(body: ShellOpenPathRequest):
+    """
+    Open a file with the Windows default app (zip → Explorer/7-Zip) or reveal in Explorer.
+    Used by PrintShelf card ⋮ → Open on PC.
+    """
+    raw = (body.path or "").strip()
+    if not raw:
+        raise HTTPException(status_code=422, detail="path is required")
+    return await asyncio.to_thread(_shell_open_windows_path, Path(raw), body.mode or "open")
 
 
 @app.post("/api/slicer/open")

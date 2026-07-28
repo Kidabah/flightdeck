@@ -39,6 +39,7 @@ from .scanner import (
     start_thumb_rebuild_background,
 )
 from .print_handoff import list_flightdeck_printers, queue_asset_to_flightdeck
+from .desktop_open import open_asset_on_pc
 from .slicer_handoff import (
     inspect_asset_manifold,
     open_asset_in_desktop_slicer,
@@ -1399,6 +1400,26 @@ def extract_asset_printable(
         raise HTTPException(400, str(exc)) from exc
     except Exception as exc:
         raise HTTPException(502, f"Extract failed: {exc}") from exc
+
+
+@app.post("/api/assets/{asset_id}/open-on-pc")
+def open_asset_desktop(
+    asset_id: int,
+    mode: str = Query("open", description="open = default app; reveal = Explorer select"),
+) -> dict[str, Any]:
+    """Open the file on the Windows PC (zip → Explorer/7-Zip) or reveal in Explorer."""
+    try:
+        return open_asset_on_pc(asset_id, mode=mode)
+    except FileNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(403, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(503, str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(502, f"Open on PC failed: {exc}") from exc
 
 
 @app.api_route("/api/assets/{asset_id}/file", methods=["GET", "HEAD"])

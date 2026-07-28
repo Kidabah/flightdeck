@@ -351,6 +351,82 @@ h1 {
   accent-color: var(--accent);
   cursor: pointer;
 }
+.card-menu {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 3;
+}
+.card-menu-btn,
+.detail-menu-btn {
+  width: 32px;
+  height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(7, 11, 18, .82);
+  color: var(--text);
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+.detail-menu-btn {
+  width: auto;
+  padding: 0 10px;
+  height: 34px;
+  font-size: .85rem;
+  background: var(--panel);
+}
+.card-menu-btn:hover,
+.detail-menu-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent-2);
+}
+.card-menu-panel,
+.detail-menu-panel {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 180px;
+  padding: 6px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+}
+.card-menu.open .card-menu-panel,
+.detail-menu.open .detail-menu-panel,
+.detail-menu.open .card-menu-panel {
+  display: grid;
+  gap: 2px;
+}
+.card-menu-item {
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  font: inherit;
+  font-size: .88rem;
+}
+.card-menu-item:hover:not(:disabled) {
+  background: var(--accent-dim);
+}
+.card-menu-item:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+.card-menu-item.danger { color: var(--danger); }
+.detail-menu {
+  position: relative;
+  display: inline-block;
+}
+.detail-actions-top {
+  margin-bottom: 8px;
+}
 .card-thumb {
   aspect-ratio: 1;
   background: #0a1220;

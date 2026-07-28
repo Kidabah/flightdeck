@@ -6,6 +6,21 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-28 Session update (open zip on PC)
+
+Latest commit: `(pending)` — Card ⋮ menu + Open zip on PC / Reveal in Explorer
+
+Latest local/Pi change:
+- Design/asset cards: **⋮** menu — Open in PrintShelf, Open zip on PC, Reveal in Explorer.
+- Detail: **Open zip on PC** + ⋮ More. Double-click still opens in shelf.
+- Needs **Windows Flightdeck worker restarted** (new `/api/slicer/worker/shell-open`).
+- Hard refresh PrintShelf `?v=58`. Restart Pi Flightdeck + PrintShelf.
+
+Previous:
+- RAR extract UX (`27c6b64`).
+
+---
+
 ## 2026-07-28 Session update (extract UX)
 
 Latest commit: `27c6b64` — Explain RAR-only / empty zips on Extract
