@@ -1265,7 +1265,18 @@ async function extractToShelf(item, { zipEntry = "" } = {}) {
   const activeBtn = document.querySelector(".zip-entry-btn.active");
   const entry = (activeBtn?.dataset?.entry || zipEntry || "").trim();
   if (!entry) {
-    psToast("Can't extract", "Pick a printable inside the ZIP first.", "error");
+    const hasRar = (item.meta?.entries || []).some((e) => /\.rar$/i.test(e?.name || ""));
+    const hasNested = (item.meta?.nested_zips || []).length > 0
+      || (item.meta?.entries || []).some((e) => /\.zip$/i.test(e?.name || ""));
+    let detail = "Pick an STL/OBJ/3MF in the printable list first.";
+    if (hasRar) {
+      detail = "This ZIP has a .rar inside, not printables. Open the .rar with 7-Zip on your PC, then drop the meshes into PrintShelf Extracted.";
+    } else if (hasNested) {
+      detail = "Peek a nested ZIP first, then pick a printable.";
+    } else if ((item.meta?.printable_count || 0) === 0) {
+      detail = "No STL/OBJ/3MF inside this archive — nothing to rescue.";
+    }
+    psToast("Can't extract", detail, "error", 10000);
     return false;
   }
   const leaf = String(entry).split("/").pop() || entry;
@@ -1306,10 +1317,10 @@ async function extractToShelf(item, { zipEntry = "" } = {}) {
     return false;
   } finally {
     if (btn) {
-      btn.disabled = !entry;
+      btn.disabled = false;
       btn.title = entry
         ? "Copy this printable into PrintShelf Extracted on the NAS"
-        : "Pick a printable inside the ZIP first";
+        : "Needs an STL/OBJ/3MF selected — this zip may only have photos or a .rar inside";
     }
   }
 
@@ -1597,8 +1608,9 @@ async function selectAsset(id, { design = null } = {}) {
           ${slicerDisabledReason() ? "disabled" : ""}
           title="${escapeHtml(slicerDisabledReason() || "Open in Bambu Studio or Orca")}">Open in slicer</button>
         ${isZip ? `<button class="card-open secondary" type="button" id="extractShelfBtn"
-          ${zipEntry ? "" : "disabled"}
-          title="${zipEntry ? "Copy this printable into PrintShelf Extracted on the NAS" : "Pick a printable inside the ZIP first"}">Extract to shelf</button>` : ""}
+          title="${zipEntry
+            ? "Copy this printable into PrintShelf Extracted on the NAS"
+            : "Needs an STL/OBJ/3MF selected — this zip may only have photos or a .rar inside"}">Extract to shelf</button>` : ""}
         <button class="card-open secondary" type="button" id="copyWinPathBtn" data-label="Copy file path" ${winPath ? "" : "disabled"}>Copy file path</button>
         <button class="card-open secondary" type="button" id="copyPiPathBtn" data-label="Copy Pi path">Copy Pi path</button>
       </div>
@@ -1623,7 +1635,13 @@ async function selectAsset(id, { design = null } = {}) {
         : item.kind === "gcode"
           ? "Raw G-code is already sliced — use Print this to queue it, or copy the file path."
           : "Slicer open is for STL, OBJ, 3MF, and ZIP printables."}</p>
-      ${isZip ? `<p class="detail-hint" id="extractHint">Extract to shelf copies the selected printable into <strong>PrintShelf Extracted</strong> on the NAS and opens it as its own design card. The zip stays put.</p>` : ""}
+      ${isZip ? `<p class="detail-hint" id="extractHint">${zipEntry
+        ? "Extract to shelf copies the selected printable into <strong>PrintShelf Extracted</strong> on the NAS and opens it as its own design card. The zip stays put."
+        : (zipEntries.some((e) => /\.rar$/i.test(e.name || ""))
+          ? "This ZIP only wraps a <strong>.rar</strong> (or photos) — no STL/OBJ/3MF to rescue. Open the .rar on your PC (7-Zip), then put the meshes on the NAS / Extracted folder."
+          : (hasNested
+            ? "Peek a nested ZIP below, then pick an STL/OBJ/3MF before Extract to shelf."
+            : "No printables in this archive — Extract needs an STL, OBJ, or 3MF inside the ZIP."))}</p>` : ""}
       <p class="detail-hint">${selectedIds.size > 1
         ? `Selection active: Hide/Delete will apply to all ${selectedIds.size} selected files.`
         : `Hide keeps the file on disk. Delete removes the file${sidecars.length ? " and indexed sidecars/textures" : ""} permanently.`}</p>
@@ -1655,10 +1673,23 @@ async function selectAsset(id, { design = null } = {}) {
   const syncExtractBtn = () => {
     const btn = $("extractShelfBtn");
     if (!btn) return;
-    btn.disabled = !zipEntry;
+    // Always clickable — toast explains when there's nothing to rescue.
+    btn.disabled = false;
     btn.title = zipEntry
       ? "Copy this printable into PrintShelf Extracted on the NAS"
-      : "Pick a printable inside the ZIP first";
+      : "Needs an STL/OBJ/3MF selected — this zip may only have photos or a .rar inside";
+    const hint = $("extractHint");
+    if (hint) {
+      if (zipEntry) {
+        hint.innerHTML = "Extract to shelf copies the selected printable into <strong>PrintShelf Extracted</strong> on the NAS and opens it as its own design card. The zip stays put.";
+      } else if (zipEntries.some((e) => /\.rar$/i.test(e.name || ""))) {
+        hint.innerHTML = "This ZIP only wraps a <strong>.rar</strong> (or photos) — no STL/OBJ/3MF to rescue. Open the .rar on your PC (7-Zip), then put the meshes on the NAS / Extracted folder.";
+      } else if (hasNested) {
+        hint.textContent = "Peek a nested ZIP below, then pick an STL/OBJ/3MF before Extract to shelf.";
+      } else {
+        hint.textContent = "No printables in this archive — Extract needs an STL, OBJ, or 3MF inside the ZIP.";
+      }
+    }
   };
   $("printThisBtn")?.addEventListener("click", () => {
     printThis(item, { zipEntry });

@@ -8,15 +8,14 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-28 Session update (extract UX)
 
-Latest commit: `41aefb8` — Sticky extract toast + open card before library reload
+Latest commit: `(pending)` — Explain RAR-only / empty zips on Extract
 
 Latest local/Pi change:
-- Extract no longer goes silent on big STLs (sticky “Extracting…” toast).
-- Opens the new design card immediately; library reload is background.
-- Hard refresh `?v=56`.
+- Extract button always clickable; toast explains when zip has only a `.rar` / no printables.
+- Hard refresh `?v=57`.
 
 Previous:
-- Zip extract (`be0001b`).
+- Sticky extract toast (`41aefb8`). Zip extract (`be0001b`).
 
 ---
 
