@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-28 Session update (extract UX)
 
-Latest commit: `(pending)` — Explain RAR-only / empty zips on Extract
+Latest commit: `27c6b64` — Explain RAR-only / empty zips on Extract
 
 Latest local/Pi change:
 - Extract button always clickable; toast explains when zip has only a `.rar` / no printables.
