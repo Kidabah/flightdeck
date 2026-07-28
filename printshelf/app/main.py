@@ -45,6 +45,7 @@ from .slicer_handoff import (
     resolve_worker_url,
 )
 from .thumbs import SHARED_ZIP_THUMB, ensure_shared_zip_thumb, resolve_thumb_name
+from .zip_extract import extract_zip_printable
 
 ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "static"
@@ -1377,6 +1378,27 @@ def peek_nested_zip(
         raise HTTPException(404, str(exc)) from exc
     except Exception as exc:
         raise HTTPException(500, f"Nested peek failed: {exc}") from exc
+
+
+@app.post("/api/assets/{asset_id}/extract")
+def extract_asset_printable(
+    asset_id: int,
+    entry: str = Query(..., description="Path inside the ZIP (or Nested.zip/inner.stl)"),
+) -> dict[str, Any]:
+    """
+    Rescue a printable from a ZIP into PrintShelf Extracted on the NAS,
+    index it, and return the new design/asset ids for the pretty card.
+    """
+    try:
+        return extract_zip_printable(asset_id, entry)
+    except FileNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(403, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(502, f"Extract failed: {exc}") from exc
 
 
 @app.api_route("/api/assets/{asset_id}/file", methods=["GET", "HEAD"])

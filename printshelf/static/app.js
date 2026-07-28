@@ -1256,6 +1256,62 @@ async function openInSlicer(item, { zipEntry = "" } = {}) {
   return true;
 }
 
+async function extractToShelf(item, { zipEntry = "" } = {}) {
+  if (!item || item.kind !== "zip") {
+    psToast("Can't extract", "Only ZIP archives can be rescued.", "error");
+    return false;
+  }
+  if (!zipEntry) {
+    psToast("Can't extract", "Pick a printable inside the ZIP first.", "error");
+    return false;
+  }
+  const leaf = String(zipEntry).split("/").pop() || zipEntry;
+  const ok = await psConfirm({
+    eyebrow: "Extract to shelf",
+    title: "Rescue this printable?",
+    body: `Copy <strong>${escapeHtml(leaf)}</strong> into <strong>PrintShelf Extracted</strong> on the NAS, then open it as its own design card. The zip stays put.`,
+    confirmLabel: "Extract",
+    cancelLabel: "Cancel",
+  });
+  if (!ok) return false;
+
+  psToast("Extracting…", leaf, "ok", 4000);
+  const u = new URL(`/api/assets/${item.id}/extract`, window.location.origin);
+  u.searchParams.set("entry", zipEntry);
+  let data = {};
+  try {
+    const r = await fetch(u.toString(), { method: "POST" });
+    data = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const detail = typeof data.detail === "string" ? data.detail : "Extract failed";
+      psToast("Couldn't extract", detail, "error", 10000);
+      return false;
+    }
+  } catch (err) {
+    psToast("Couldn't extract", String(err.message || err), "error", 8000);
+    return false;
+  }
+
+  const name = data.file_name || leaf;
+  psToast(
+    data.reused ? "Already on the shelf" : "Rescued to shelf",
+    `${name} → PrintShelf Extracted`,
+    "ok",
+    6000,
+  );
+  if (data.design_id) {
+    browseMode = "all";
+    document.querySelectorAll(".view-mode").forEach((b) => {
+      b.classList.toggle("active", b.dataset.mode === "all");
+    });
+    await loadLibrary();
+    await selectDesign(data.design_id);
+  } else if (data.asset_id) {
+    await selectAsset(data.asset_id);
+  }
+  return true;
+}
+
 async function selectAsset(id, { design = null } = {}) {
   selectedId = Number(id);
   document.querySelectorAll(".card:not(.folder-card):not(.design-card)").forEach((c) => {
@@ -1510,6 +1566,9 @@ async function selectAsset(id, { design = null } = {}) {
         <button class="card-open secondary slicer-btn" type="button" id="openSlicerBtn"
           ${slicerDisabledReason() ? "disabled" : ""}
           title="${escapeHtml(slicerDisabledReason() || "Open in Bambu Studio or Orca")}">Open in slicer</button>
+        ${isZip ? `<button class="card-open secondary" type="button" id="extractShelfBtn"
+          ${zipEntry ? "" : "disabled"}
+          title="${zipEntry ? "Copy this printable into PrintShelf Extracted on the NAS" : "Pick a printable inside the ZIP first"}">Extract to shelf</button>` : ""}
         <button class="card-open secondary" type="button" id="copyWinPathBtn" data-label="Copy file path" ${winPath ? "" : "disabled"}>Copy file path</button>
         <button class="card-open secondary" type="button" id="copyPiPathBtn" data-label="Copy Pi path">Copy Pi path</button>
       </div>
@@ -1534,6 +1593,7 @@ async function selectAsset(id, { design = null } = {}) {
         : item.kind === "gcode"
           ? "Raw G-code is already sliced — use Print this to queue it, or copy the file path."
           : "Slicer open is for STL, OBJ, 3MF, and ZIP printables."}</p>
+      ${isZip ? `<p class="detail-hint" id="extractHint">Extract to shelf copies the selected printable into <strong>PrintShelf Extracted</strong> on the NAS and opens it as its own design card. The zip stays put.</p>` : ""}
       <p class="detail-hint">${selectedIds.size > 1
         ? `Selection active: Hide/Delete will apply to all ${selectedIds.size} selected files.`
         : `Hide keeps the file on disk. Delete removes the file${sidecars.length ? " and indexed sidecars/textures" : ""} permanently.`}</p>
@@ -1562,11 +1622,22 @@ async function selectAsset(id, { design = null } = {}) {
       }
     }
   };
+  const syncExtractBtn = () => {
+    const btn = $("extractShelfBtn");
+    if (!btn) return;
+    btn.disabled = !zipEntry;
+    btn.title = zipEntry
+      ? "Copy this printable into PrintShelf Extracted on the NAS"
+      : "Pick a printable inside the ZIP first";
+  };
   $("printThisBtn")?.addEventListener("click", () => {
     printThis(item, { zipEntry });
   });
   $("openSlicerBtn")?.addEventListener("click", () => {
     openInSlicer(item, { zipEntry });
+  });
+  $("extractShelfBtn")?.addEventListener("click", () => {
+    extractToShelf(item, { zipEntry });
   });
   if ((item.kind === "stl" || item.kind === "obj") && $("manifoldStatus")) {
     api(`/api/assets/${item.id}/manifold?repair=false`)
@@ -1692,6 +1763,7 @@ async function selectAsset(id, { design = null } = {}) {
       document.querySelectorAll(".zip-entry-btn").forEach((b) => b.classList.toggle("active", b === btn));
       syncSlicerBtn();
       syncPrintBtn();
+      syncExtractBtn();
       mountOrbit(Boolean($("orbitHighDetail")?.checked)).catch(console.error);
     });
     if (isZip) {
@@ -1716,6 +1788,7 @@ async function selectAsset(id, { design = null } = {}) {
       document.querySelectorAll(".zip-entry-btn").forEach((b) => b.classList.toggle("active", b === btn));
       syncSlicerBtn();
       syncPrintBtn();
+      syncExtractBtn();
     });
     const firstBtn = document.querySelector(".zip-entry-btn");
     if (firstBtn) firstBtn.classList.add("active");
@@ -1760,6 +1833,7 @@ async function selectAsset(id, { design = null } = {}) {
       }
       syncSlicerBtn();
       syncPrintBtn();
+      syncExtractBtn();
       if (zipEntry && $("orbitViewer") && window.PrintShelfViewer?.mountOrbitViewer) {
         const firstBtn = document.querySelector(".zip-entry-btn");
         if (firstBtn) firstBtn.classList.add("active");
@@ -1782,6 +1856,7 @@ async function selectAsset(id, { design = null } = {}) {
 
   syncSlicerBtn();
   syncPrintBtn();
+  syncExtractBtn();
   // Do not reload the library here — that flashed/cleared the thumb grid.
   } catch (err) {
     $("detail").innerHTML = `<p class="detail-hint" style="color:var(--danger)">Failed to render details: ${escapeHtml(String(err.message || err))}</p>`;

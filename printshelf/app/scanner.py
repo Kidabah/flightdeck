@@ -224,7 +224,15 @@ def _resolve_design_id(
     return int(cur.lastrowid)
 
 
-def upsert_asset(conn, folder: dict[str, Any], path: Path, parsed: dict[str, Any], content_hash: str, thumbs: Path) -> None:
+def upsert_asset(
+    conn,
+    folder: dict[str, Any],
+    path: Path,
+    parsed: dict[str, Any],
+    content_hash: str,
+    thumbs: Path,
+) -> tuple[int, int]:
+    """Upsert asset row. Returns (asset_id, design_id)."""
     kind = parsed.get("kind") or detect_kind(path) or "unknown"
     st = path.stat()
     root_path = str(Path(folder["path"]).resolve())
@@ -323,6 +331,7 @@ def upsert_asset(conn, folder: dict[str, Any], path: Path, parsed: dict[str, Any
             "INSERT OR IGNORE INTO sidecars(asset_id, role, abs_path, file_name, size_bytes) VALUES (?,?,?,?,?)",
             (asset_id, sc.get("role") or "sidecar", sc["abs_path"], sc["file_name"], int(sc.get("size_bytes") or 0)),
         )
+    return int(asset_id), int(design_id)
 
 
 def run_scan(

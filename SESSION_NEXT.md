@@ -6,6 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-28 Session update (zip extract)
+
+Latest commit: `(pending)` — Zip extract → PrintShelf Extracted design card
+
+Latest local/Pi change:
+- ZIP detail **Extract to shelf** rescues the selected printable into `/mnt/koko-kidabah/PrintShelf Extracted`, indexes it, opens the new design card.
+- Nested `Outer.zip/inner.stl` supported. Zip stays put.
+- Hard refresh `?v=55`. Restart required.
+
+Previous:
+- Design grouping / stem titles (`77d4216` / `a22b9da`).
+
+---
+
 ## 2026-07-28 Session update (design grouping)
 
 Latest commit: `a22b9da` — Design cards use stem names
