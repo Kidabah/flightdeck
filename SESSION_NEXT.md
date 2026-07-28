@@ -6,6 +6,21 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-28 Session update (real RAR unpack + kit cards)
+
+Latest commit: `(pending)` — Prefer 7zz for RAR; reject 0-byte stubs; one kit card under PrintShelf Extracted
+
+Latest local/Pi change:
+- Debian `7z` left empty STL shells (“Unsupported Method”). Now prefers `~/bin/7zz` (full RAR codecs).
+- Empty stubs are purged / never counted as success; re-extract rewrites them.
+- Multi-file kits under `PrintShelf Extracted/<kit>/…` group into **one** design card.
+- Hard refresh `?v=61`. Restart required. Re-run Extract all on Art Guy zips after deploy.
+
+Previous:
+- Search clears type filter (`d1d4524`).
+
+---
+
 ## 2026-07-28 Session update (search clears type filter)
 
 Latest commit: `d1d4524` — Clear ZIP/type tab when searching or after extract

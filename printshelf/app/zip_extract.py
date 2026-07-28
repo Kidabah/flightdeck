@@ -217,6 +217,7 @@ def extract_zip_printable(asset_id: int, entry: str) -> dict[str, Any]:
 
 
 _MAX_EXTRACT_ALL = 80
+_MIN_PRINTABLE_BYTES = 64  # empty / stub RAR extracts are 0 B — never treat as success
 _ARCHIVE_SUFFIXES = (".rar", ".7z", ".zip")
 
 
@@ -231,6 +232,12 @@ def _index_existing_file(
     kind = detect_kind(path)
     if not kind or kind == "zip":
         raise ValueError(f"Not a printable kind: {path.name}")
+    try:
+        size = path.stat().st_size
+    except OSError as exc:
+        raise ValueError(f"Cannot stat {path.name}: {exc}") from exc
+    if size < _MIN_PRINTABLE_BYTES:
+        raise ValueError(f"Empty/stub extract ({size} B): {path.name}")
     parsed = parse_asset(path, kind=kind)
     content_hash = file_hash(path)
     thumbs = data_dir(cfg) / "thumbs"
@@ -277,10 +284,15 @@ def _stream_zip_member(src: Path, entry: str, dest: Path) -> str:
     return Path(real).name
 
 
-def _find_7z() -> str | None:
+def _find_archive_tool() -> str | None:
+    """Prefer official 7zz (full RAR codecs), then PATH 7zz/unrar/7z."""
+    import os
     import shutil
 
-    for name in ("7z", "7za"):
+    home_bin = Path.home() / "bin" / "7zz"
+    if home_bin.is_file() and os.access(home_bin, os.X_OK):
+        return str(home_bin)
+    for name in ("7zz", "unrar", "7z", "7za"):
         found = shutil.which(name)
         if found:
             return found
@@ -309,41 +321,77 @@ def _list_rar_entries(src: Path, meta: dict[str, Any] | None = None) -> list[str
     return found
 
 
+def _iter_printables_under(root: Path, *, allow_empty: bool = False) -> list[Path]:
+    out: list[Path] = []
+    if not root.is_dir():
+        return out
+    for path in root.rglob("*"):
+        if not path.is_file():
+            continue
+        if not _is_printable_entry(path.name):
+            continue
+        try:
+            size = path.stat().st_size
+        except OSError:
+            continue
+        if not allow_empty and size < _MIN_PRINTABLE_BYTES:
+            continue
+        out.append(path)
+        if len(out) >= _MAX_EXTRACT_ALL:
+            break
+    return out
+
+
+def _purge_empty_printables(root: Path) -> int:
+    """Remove 0-byte / stub printable files left by failed RAR codecs. Returns count removed."""
+    removed = 0
+    if not root.is_dir():
+        return 0
+    for path in list(root.rglob("*")):
+        if not path.is_file() or not _is_printable_entry(path.name):
+            continue
+        try:
+            if path.stat().st_size < _MIN_PRINTABLE_BYTES:
+                path.unlink(missing_ok=True)
+                removed += 1
+        except OSError:
+            pass
+    return removed
+
+
 def _unpack_archive_with_7z(archive: Path, out_dir: Path) -> None:
     import subprocess
 
-    exe = _find_7z()
+    exe = _find_archive_tool()
     if not exe:
-        raise RuntimeError("7z is not installed on the Pi — cannot unpack .rar")
+        raise RuntimeError("No archive tool (7zz/unrar/7z) on the Pi — cannot unpack .rar")
     out_dir.mkdir(parents=True, exist_ok=True)
-    # x keeps folder structure for multi-part kits.
-    cmd = [exe, "x", "-y", f"-o{out_dir}", str(archive)]
+    base = Path(exe).name.lower()
+    if base == "unrar":
+        cmd = [exe, "x", "-o+", "-y", str(archive), str(out_dir) + "/"]
+    else:
+        # x keeps folder structure for multi-part kits.
+        cmd = [exe, "x", "-y", f"-o{out_dir}", str(archive)]
     proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60 * 45)
-    # 0 = ok, 1 = warnings (non-fatal). 2+ = fatal — but some RARs still drop usable files.
-    if proc.returncode in (0, 1):
-        return
     err = (proc.stderr or proc.stdout or "").strip()[:500]
-    if _iter_printables_under(out_dir):
+    usable = _iter_printables_under(out_dir)
+    # 0 = ok, 1 = warnings (non-fatal). Accept only when real (non-empty) meshes exist.
+    if proc.returncode in (0, 1) and usable:
+        return
+    if usable:
         log.warning(
-            "7z returned %s but printables were extracted (%s): %s",
+            "%s returned %s but printables were extracted (%s): %s",
+            base,
             proc.returncode,
             out_dir,
             err or "unknown",
         )
         return
-    raise RuntimeError(f"7z unpack failed ({proc.returncode}): {err or 'unknown error'}")
-
-
-def _iter_printables_under(root: Path) -> list[Path]:
-    out: list[Path] = []
-    for path in root.rglob("*"):
-        if not path.is_file():
-            continue
-        if _is_printable_entry(path.name):
-            out.append(path)
-        if len(out) >= _MAX_EXTRACT_ALL:
-            break
-    return out
+    stubs = _purge_empty_printables(out_dir)
+    raise RuntimeError(
+        f"{base} unpack failed ({proc.returncode})"
+        f"{f'; removed {stubs} empty stubs' if stubs else ''}: {err or 'no usable meshes'}"
+    )
 
 
 def _collect_extract_entries(src: Path, meta: dict[str, Any] | None = None) -> tuple[list[str], list[str]]:
@@ -437,6 +485,10 @@ def _extract_from_nested_rars(
         pack_dir = dest_dir / stem
         rar_path = staging_root / f"{stem}.rar"
         try:
+            # Old bad extracts left 0-byte stubs — purge so we don't "reuse" them.
+            stubs = _purge_empty_printables(pack_dir)
+            if stubs:
+                log.warning("Removed %s empty printable stubs under %s", stubs, pack_dir)
             already = pack_dir.exists() and bool(_iter_printables_under(pack_dir))
             if already:
                 log.info("Reuse unpacked folder %s", pack_dir)

@@ -1481,7 +1481,7 @@ async function extractAllToShelf(item) {
   const hasRar = (item.meta?.entries || []).some((e) => /\.rar$/i.test(e?.name || ""));
   const printableCount = Number(item.meta?.printable_count || 0);
   const body = hasRar && printableCount === 0
-    ? `This ZIP wraps a <strong>.rar</strong>. PrintShelf will stream it out, unpack with 7-Zip on the Pi, and index the meshes into <strong>PrintShelf Extracted</strong>. Big archives can take a few minutes.`
+    ? `This ZIP wraps a <strong>.rar</strong>. PrintShelf will stream it out, unpack with 7-Zip on the Pi (full RAR codecs), and index the meshes into <strong>PrintShelf Extracted</strong> as one kit card. Big archives can take a few minutes.`
     : `Rescue every STL/OBJ/3MF inside this ZIP into <strong>PrintShelf Extracted</strong> (up to 80). Nested .zip one level deep included; .rar members are unpacked with 7-Zip.`;
   const ok = await psConfirm({
     eyebrow: "Extract all",

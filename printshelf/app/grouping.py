@@ -2,6 +2,10 @@
 
 v1 rule: same root_id + same parent folder + same normalized stem.
 Dump folders (Downloads/Desktop/…) still use stem grouping (never whole-folder merge).
+
+PrintShelf Extracted kits: anything under PrintShelf Extracted/<kit>/… shares one
+design card named after the kit folder (multi-part dioramas, Art Guy packs, etc.).
+Flat files directly in PrintShelf Extracted still use stem grouping.
 """
 from __future__ import annotations
 
@@ -39,6 +43,9 @@ DUMP_FOLDER_NAMES = frozenset({
     "temp",
     "tmp",
 })
+
+EXTRACT_DIR_NAME = "PrintShelf Extracted"
+_KIT_STEM = "__kit__"
 
 
 def strip_printable_suffix(filename: str) -> str:
@@ -82,10 +89,29 @@ def is_dump_folder(parent: str) -> bool:
     return base in DUMP_FOLDER_NAMES
 
 
+def extract_kit_folder(rel_path: str) -> str | None:
+    """
+    If path is PrintShelf Extracted/<kit>/…/<file>, return PrintShelf Extracted/<kit>.
+    Flat files in PrintShelf Extracted itself return None (stem grouping).
+    """
+    parts = PurePosixPath((rel_path or "").replace("\\", "/").strip("/")).parts
+    try:
+        i = parts.index(EXTRACT_DIR_NAME)
+    except ValueError:
+        return None
+    # Need kit folder + at least one more path segment (file or subfolder/file).
+    if i + 2 >= len(parts):
+        return None
+    return "/".join(parts[: i + 2])
+
+
 def design_group_key(root_id: str, rel_path: str, file_name: str | None = None) -> str:
-    """Stable key: root|parent|stem."""
+    """Stable key: root|parent|stem, or root|extract-kit|__kit__ for rescued kits."""
     rid = (root_id or "folder").strip() or "folder"
     rel = (rel_path or "").replace("\\", "/").strip("/")
+    kit = extract_kit_folder(rel)
+    if kit:
+        return f"{rid}|{kit}|{_KIT_STEM}"
     name = file_name or (PurePosixPath(rel).name if rel else "")
     parent = parent_dir(rel)
     stem = normalize_stem(name)
@@ -93,7 +119,10 @@ def design_group_key(root_id: str, rel_path: str, file_name: str | None = None) 
 
 
 def design_display_name(rel_path: str, file_name: str | None = None) -> str:
-    """Human label: printable stem (extensions / plate tails stripped)."""
+    """Human label: kit folder for extracts, else printable stem."""
     rel = (rel_path or "").replace("\\", "/").strip("/")
+    kit = extract_kit_folder(rel)
+    if kit:
+        return PurePosixPath(kit).name or "kit"
     name = file_name or (PurePosixPath(rel).name if rel else "design")
     return strip_printable_suffix(name).strip() or Path(name).stem or "design"
