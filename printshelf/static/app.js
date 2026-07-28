@@ -1261,11 +1261,14 @@ async function extractToShelf(item, { zipEntry = "" } = {}) {
     psToast("Can't extract", "Only ZIP archives can be rescued.", "error");
     return false;
   }
-  if (!zipEntry) {
+  // Prefer the highlighted printable — closure zipEntry can lag after nested peek.
+  const activeBtn = document.querySelector(".zip-entry-btn.active");
+  const entry = (activeBtn?.dataset?.entry || zipEntry || "").trim();
+  if (!entry) {
     psToast("Can't extract", "Pick a printable inside the ZIP first.", "error");
     return false;
   }
-  const leaf = String(zipEntry).split("/").pop() || zipEntry;
+  const leaf = String(entry).split("/").pop() || entry;
   const ok = await psConfirm({
     eyebrow: "Extract to shelf",
     title: "Rescue this printable?",
@@ -1275,21 +1278,39 @@ async function extractToShelf(item, { zipEntry = "" } = {}) {
   });
   if (!ok) return false;
 
-  psToast("Extracting…", leaf, "ok", 4000);
+  const btn = $("extractShelfBtn");
+  if (btn) btn.disabled = true;
+  // Sticky until we finish — big STLs can take a while after the old 4s toast vanished.
+  const toastHost = $("psToasts");
+  psToast("Extracting…", `${leaf} · writing to NAS + indexing`, "ok", 0);
   const u = new URL(`/api/assets/${item.id}/extract`, window.location.origin);
-  u.searchParams.set("entry", zipEntry);
+  u.searchParams.set("entry", entry);
   let data = {};
+  const clearStickyToasts = () => {
+    toastHost?.querySelectorAll(".ps-toast").forEach((el) => el.remove());
+  };
   try {
     const r = await fetch(u.toString(), { method: "POST" });
     data = await r.json().catch(() => ({}));
+    clearStickyToasts();
     if (!r.ok) {
-      const detail = typeof data.detail === "string" ? data.detail : "Extract failed";
+      let detail = "Extract failed";
+      if (typeof data.detail === "string") detail = data.detail;
+      else if (Array.isArray(data.detail)) detail = data.detail.map((d) => d.msg || d).join("; ");
       psToast("Couldn't extract", detail, "error", 10000);
       return false;
     }
   } catch (err) {
+    clearStickyToasts();
     psToast("Couldn't extract", String(err.message || err), "error", 8000);
     return false;
+  } finally {
+    if (btn) {
+      btn.disabled = !entry;
+      btn.title = entry
+        ? "Copy this printable into PrintShelf Extracted on the NAS"
+        : "Pick a printable inside the ZIP first";
+    }
   }
 
   const name = data.file_name || leaf;
@@ -1297,17 +1318,26 @@ async function extractToShelf(item, { zipEntry = "" } = {}) {
     data.reused ? "Already on the shelf" : "Rescued to shelf",
     `${name} → PrintShelf Extracted`,
     "ok",
-    6000,
+    7000,
   );
+  // Open the new card first — don't block on a full library reload.
   if (data.design_id) {
     browseMode = "all";
     document.querySelectorAll(".view-mode").forEach((b) => {
       b.classList.toggle("active", b.dataset.mode === "all");
     });
-    await loadLibrary();
-    await selectDesign(data.design_id);
+    try {
+      await selectDesign(data.design_id);
+    } catch (err) {
+      psToast("Extracted, but couldn't open card", String(err.message || err), "error", 8000);
+    }
+    loadLibrary().catch(() => {});
   } else if (data.asset_id) {
-    await selectAsset(data.asset_id);
+    try {
+      await selectAsset(data.asset_id);
+    } catch (err) {
+      psToast("Extracted, but couldn't open file", String(err.message || err), "error", 8000);
+    }
   }
   return true;
 }
@@ -1637,7 +1667,8 @@ async function selectAsset(id, { design = null } = {}) {
     openInSlicer(item, { zipEntry });
   });
   $("extractShelfBtn")?.addEventListener("click", () => {
-    extractToShelf(item, { zipEntry });
+    const active = document.querySelector(".zip-entry-btn.active");
+    extractToShelf(item, { zipEntry: active?.dataset?.entry || zipEntry });
   });
   if ((item.kind === "stl" || item.kind === "obj") && $("manifoldStatus")) {
     api(`/api/assets/${item.id}/manifold?repair=false`)

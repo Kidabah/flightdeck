@@ -6,6 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-28 Session update (extract UX)
+
+Latest commit: `(pending)` — Sticky extract toast + open card before library reload
+
+Latest local/Pi change:
+- Extract no longer goes silent on big STLs (sticky “Extracting…” toast).
+- Opens the new design card immediately; library reload is background.
+- Hard refresh `?v=56`.
+
+Previous:
+- Zip extract (`be0001b`).
+
+---
+
 ## 2026-07-28 Session update (zip extract)
 
 Latest commit: `be0001b` — Zip extract → PrintShelf Extracted design card
