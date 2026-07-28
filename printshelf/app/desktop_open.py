@@ -93,6 +93,11 @@ def open_asset_on_pc(asset_id: int, *, mode: str = "open") -> dict[str, Any]:
 
     if status >= 400:
         detail = payload.get("detail") if isinstance(payload, dict) else payload
+        if status == 404:
+            raise RuntimeError(
+                "Windows Flightdeck is running an older build. "
+                "On your PC: pull latest flightdeck and restart the Windows Flightdeck / slicer worker, then try again."
+            )
         raise RuntimeError(detail or f"Shell open failed ({status})")
 
     result = payload if isinstance(payload, dict) else {"ok": True}
