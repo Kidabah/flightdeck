@@ -279,6 +279,10 @@ h1 {
   flex: 0 0 auto;
 }
 .bulk-bar[hidden] { display: none !important; }
+.bulk-bar--idle {
+  opacity: .92;
+  border-style: dashed;
+}
 .bulk-bar .danger {
   border: 1px solid var(--danger);
   background: transparent;

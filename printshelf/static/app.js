@@ -692,7 +692,24 @@ function ensureStatusWatch(scanRunning, thumbsRunning) {
   scanWatchTimer = statusPollTimer;
 }
 
-async function refreshLibraryView({ reloadGrid = true } = {}) {
+async function refreshLibraryView({ reloadGrid = true, rescan = false } = {}) {
+  if (rescan) {
+    const root = browseMode === "folders" && browseRootId ? browseRootId : "";
+    const q = root ? `?root_id=${encodeURIComponent(root)}` : "";
+    try {
+      await api(`/api/scan${q}`, { method: "POST", body: "{}" });
+      psToast(
+        "Scanning for new files…",
+        root
+          ? `Refreshing ${root === "kidabah-pc" ? "Kidabah PC" : root === "koko-kidabah" ? "NAS" : root} from disk`
+          : "Walking watched folders — new zips show up when this finishes",
+        "ok",
+        6000,
+      );
+    } catch (err) {
+      psToast("Couldn't start scan", String(err.message || err), "error");
+    }
+  }
   await refreshStats();
   if (reloadGrid) await loadLibrary();
 }
@@ -769,8 +786,20 @@ function updateBulkBar() {
   const bar = $("bulkBar");
   if (!bar) return;
   const n = selectedIds.size;
-  bar.hidden = n === 0;
-  if ($("bulkCount")) $("bulkCount").textContent = `${n} selected`;
+  // File cards (Folders / Duplicates) support multi-select — keep the bar visible
+  // so Select all isn't hidden until something is already checked.
+  const selectable = libraryItems.length > 0 && (
+    browseMode === "folders"
+    || activeKind === "__duplicates__"
+    || libraryView === "assets"
+  );
+  bar.hidden = !selectable;
+  if ($("bulkCount")) $("bulkCount").textContent = n ? `${n} selected` : "Select files";
+  bar.classList.toggle("bulk-bar--idle", n === 0);
+  for (const id of ["bulkHideBtn", "bulkUnhideBtn", "bulkDeleteBtn", "bulkClearBtn"]) {
+    const btn = $(id);
+    if (btn) btn.disabled = n === 0;
+  }
 }
 
 function syncSelectionUi() {
@@ -1231,11 +1260,14 @@ async function loadLibrary({ preserveScroll = false, append = false } = {}) {
     const next = document.createElement("div");
     next.className = "grid";
     if (!libraryItems.length) {
-      next.innerHTML = `<div class="detail-empty">${dupMode
-        ? "No duplicate files — nice. This tab will hide itself."
-        : ($("filterHidden")?.checked
-          ? "No hidden files."
-          : "No files yet. Add folders and hit Rescan.")}</div>`;
+      const qText = $("search")?.value?.trim();
+      let emptyMsg = "No files yet. Add folders and hit Rescan.";
+      if (dupMode) emptyMsg = "No duplicate files — nice. This tab will hide itself.";
+      else if ($("filterHidden")?.checked) emptyMsg = "No hidden files.";
+      else if (qText) {
+        emptyMsg = `No matches for “${qText}”. Try Rescan/Refresh if the file is new on disk, or clear the type filter.`;
+      }
+      next.innerHTML = `<div class="detail-empty">${escapeHtml(emptyMsg)}</div>`;
     } else {
       if (dupMode) {
         const note = document.createElement("div");
@@ -2319,10 +2351,11 @@ function bind() {
     }
   });
   $("refreshLibraryBtn")?.addEventListener("click", () => {
-    refreshLibraryView().catch(console.error);
+    // Refresh = look on disk (scoped to current root in Folders), then reload the grid.
+    refreshLibraryView({ rescan: true }).catch(console.error);
   });
   $("scanBannerRefreshBtn")?.addEventListener("click", () => {
-    refreshLibraryView().catch(console.error);
+    refreshLibraryView({ rescan: false }).catch(console.error);
   });
   $("scanBtn").addEventListener("click", async () => {
     $("scanBtn").disabled = true;

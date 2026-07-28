@@ -26,6 +26,12 @@
     "**/Thumbs.db",
     "**/*_temp.obj",
     "**/*_temp.OBJ",
-    "**/temp.obj"
+    "**/temp.obj",
+    "**/American Truck Simulator/**",
+    "**/Euro Truck Simulator*/**",
+    "**/steam_profiles*/**",
+    "**/*.bak/**",
+    "**/AppData/**",
+    "**/.cache/**"
   ]
 }
