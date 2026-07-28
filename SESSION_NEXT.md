@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-28 Session update (Kidabah PC scan + Print this UX)
 
-Latest commit: `(pending)` — Scan local roots first; Print this opens slicer for STL/OBJ
+Latest commit: `2b6d278` — Scan local roots first; Print this opens slicer for STL/OBJ
 
 Latest local/Pi change:
 - Kidabah PC was mounted but starved behind NAS scans — local roots scan first; `?root_id=` targeted scan.
