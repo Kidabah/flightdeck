@@ -437,12 +437,12 @@ def _extract_from_nested_rars(
         pack_dir = dest_dir / stem
         rar_path = staging_root / f"{stem}.rar"
         try:
-            log.info("Streaming rar member %s → %s", rar_entry, rar_path)
-            _stream_zip_member(src, rar_entry, rar_path)
-            if pack_dir.exists() and any(pack_dir.rglob("*")):
-                # Already unpacked once — just re-index printables present.
+            already = pack_dir.exists() and bool(_iter_printables_under(pack_dir))
+            if already:
                 log.info("Reuse unpacked folder %s", pack_dir)
             else:
+                log.info("Streaming rar member %s → %s", rar_entry, rar_path)
+                _stream_zip_member(src, rar_entry, rar_path)
                 pack_dir.mkdir(parents=True, exist_ok=True)
                 _unpack_archive_with_7z(rar_path, pack_dir)
             for mesh in _iter_printables_under(pack_dir):
