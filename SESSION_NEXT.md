@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-28 Session update (PrintShelf Refresh + select bar)
 
-Latest commit: `(pending)` — Refresh rescans disk; select bar always visible in Folders
+Latest commit: `423db5d` — Refresh rescans disk; select bar always visible in Folders
 
 Latest local/Pi change:
 - **Refresh** now starts a disk scan (scoped to the current root in Folders) instead of only reloading the DB.

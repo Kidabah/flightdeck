@@ -32,6 +32,8 @@
     "**/steam_profiles*/**",
     "**/*.bak/**",
     "**/AppData/**",
-    "**/.cache/**"
+    "**/.cache/**",
+    "**/Codex/**",
+    "**/OrcaSlicer/**"
   ]
 }
