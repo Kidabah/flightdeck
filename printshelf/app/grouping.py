@@ -93,11 +93,7 @@ def design_group_key(root_id: str, rel_path: str, file_name: str | None = None) 
 
 
 def design_display_name(rel_path: str, file_name: str | None = None) -> str:
-    """Human label: parent folder when nested (and not a dump), else stem."""
+    """Human label: printable stem (extensions / plate tails stripped)."""
     rel = (rel_path or "").replace("\\", "/").strip("/")
     name = file_name or (PurePosixPath(rel).name if rel else "design")
-    parent = parent_dir(rel)
-    stem_display = strip_printable_suffix(name).strip() or Path(name).stem or "design"
-    if parent and not is_dump_folder(parent):
-        return PurePosixPath(parent).name
-    return stem_display
+    return strip_printable_suffix(name).strip() or Path(name).stem or "design"

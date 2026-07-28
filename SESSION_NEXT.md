@@ -8,16 +8,16 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-28 Session update (design grouping)
 
-Latest commit: `41da9d7` — Fix group_key migrate before index
+Latest commit: `(pending)` — Design cards use stem names
 
 Latest local/Pi change:
 - Library **Designs** tab groups STL/3MF/gcode siblings (same folder + stem).
 - Detail lists files in the design; Print/Slicer still per asset.
-- Fixed init crash: `group_key` index now created after ALTER on existing DBs.
-- Run `regroup-designs.py` after deploy. Hard refresh `?v=54`. Restart required.
+- Card titles use the file stem (not parent folder like `H2D`).
+- Hard refresh `?v=54`. Restart required. Re-run `regroup-designs.py` to refresh names.
 
 Previous:
-- Design grouping (`fec980d`). Plate preview (`f9c440a`). Kidabah PC scan (`2b6d278`).
+- group_key migrate fix (`41da9d7`). Design grouping (`fec980d`).
 
 ---
 
