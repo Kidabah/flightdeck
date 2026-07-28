@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-28 Session update (search clears type filter)
 
-Latest commit: `(pending)` — Clear ZIP/type tab when searching or after extract
+Latest commit: `d1d4524` — Clear ZIP/type tab when searching or after extract
 
 Latest local/Pi change:
 - Searching no longer stays stuck on the ZIP tab (which hid rescued STLs).
