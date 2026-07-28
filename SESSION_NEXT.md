@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-28 Session update (extract UX)
 
-Latest commit: `(pending)` — Sticky extract toast + open card before library reload
+Latest commit: `41aefb8` — Sticky extract toast + open card before library reload
 
 Latest local/Pi change:
 - Extract no longer goes silent on big STLs (sticky “Extracting…” toast).
