@@ -6,17 +6,16 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
-## 2026-07-28 Session update (Duplicates tab)
+## 2026-07-28 Session update (bulk-delete leftover count)
 
-Latest commit: `3221bf9` — PrintShelf Duplicates type tab
+Latest commit: `2852efb` — Fix false leftover-copies count after bulk duplicate delete
 
 Latest local/Pi change:
-- Temp **Duplicates** tab lists files that share the same content hash.
-- Tab auto-hides when count hits 0 (after you delete the extras).
-- Library scan kicked off. Hard refresh `?v=47`. Restart required.
+- Bulk delete no longer reports “N identical copies remain” from mid-batch snapshots.
+- Toast uses post-delete `/api/stats` duplicates count. Hard refresh `?v=48`. Restart done.
 
 Previous:
-- Delete-all-copies (`213e056`). Archives in `docs/archive/`.
+- Duplicates tab (`3221bf9`). Delete-all-copies (`213e056`).
 
 ---
 
