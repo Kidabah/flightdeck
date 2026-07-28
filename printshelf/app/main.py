@@ -728,7 +728,6 @@ def bulk_delete(
     ids = sorted({int(i) for i in body.ids if int(i) > 0})
     deleted: list[int] = []
     failed: list[dict[str, Any]] = []
-    other_copies: list[dict[str, Any]] = []
     for asset_id in ids:
         if asset_id in deleted:
             continue
@@ -739,20 +738,36 @@ def bulk_delete(
                 delete_duplicates=delete_duplicates,
             )
             deleted.extend(int(x) for x in (result.get("deleted") or [asset_id]))
-            other_copies.extend(result.get("other_copies") or [])
         except HTTPException as exc:
             failed.append({"id": asset_id, "error": str(exc.detail)})
         except Exception as exc:
             failed.append({"id": asset_id, "error": str(exc)})
     # de-dupe deleted ids
     deleted = sorted(set(deleted))
+
+    # Fresh leftover count after the whole batch (not mid-loop snapshots).
+    cfg = load_config()
+    db_file = data_dir(cfg) / "printshelf.sqlite3"
+    with db_session(db_file) as conn:
+        leftover = conn.execute(
+            """SELECT COUNT(*) AS c FROM assets a
+               WHERE a.missing = 0 AND COALESCE(a.hidden, 0) = 0
+                 AND a.content_hash IS NOT NULL AND TRIM(a.content_hash) != ''
+                 AND a.content_hash IN (
+                   SELECT content_hash FROM assets
+                   WHERE missing = 0 AND COALESCE(hidden, 0) = 0
+                     AND content_hash IS NOT NULL AND TRIM(content_hash) != ''
+                   GROUP BY content_hash HAVING COUNT(*) > 1
+                 )"""
+        ).fetchone()["c"]
+
     return {
         "ok": not failed,
         "deleted": deleted,
         "deleted_count": len(deleted),
         "failed": failed,
-        "other_copies": other_copies,
-        "other_copies_count": len(other_copies),
+        "other_copies": [],
+        "other_copies_count": int(leftover or 0),
     }
 
 

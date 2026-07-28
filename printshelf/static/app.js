@@ -338,7 +338,16 @@ async function deleteIdsFromDisk(ids, { names = [] } = {}) {
   clearSelection();
   selectedId = null;
   window.PrintShelfViewer?.unmountOrbitViewer?.();
-  $("detail").innerHTML = `<div class="detail-empty">Deleted ${fileCountLabel(deletedCount)} from disk${failed.length ? ` · ${failed.length} failed` : ""}${leftover && !deleteDuplicates ? ` · ${leftover} identical copies remain` : ""}.</div>`;
+  await refreshStats();
+  // Prefer live stats after delete — bulk leftover mid-batch was misleading.
+  let stillDup = 0;
+  try {
+    const s = await api("/api/stats");
+    stillDup = Number(s.duplicates || 0);
+  } catch {
+    stillDup = leftover;
+  }
+  $("detail").innerHTML = `<div class="detail-empty">Deleted ${fileCountLabel(deletedCount)} from disk${failed.length ? ` · ${failed.length} failed` : ""}${stillDup ? ` · ${stillDup} duplicate files still in library` : ""}.</div>`;
   if (failed.length) {
     psToast(
       `Deleted ${deletedCount}, ${failed.length} failed`,
@@ -346,17 +355,16 @@ async function deleteIdsFromDisk(ids, { names = [] } = {}) {
       "error",
       8000,
     );
-  } else if (leftover && !deleteDuplicates) {
+  } else if (stillDup) {
     psToast(
-      "Deleted — copies remain",
-      `${leftover} identical file(s) still on disk in other folders. Rescan will keep showing them until those copies are deleted too.`,
+      "Deleted — some duplicates remain",
+      `${stillDup} duplicate file(s) still in the library. Open the Duplicates tab to finish.`,
       "error",
       7000,
     );
   } else {
-    psToast("Deleted from disk", fileCountLabel(deletedCount), "ok");
+    psToast("Deleted from disk", `${fileCountLabel(deletedCount)} · no duplicates left`, "ok");
   }
-  await refreshStats();
   await loadLibrary();
   return true;
 }
