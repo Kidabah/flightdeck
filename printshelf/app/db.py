@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS designs (
   notes TEXT NOT NULL DEFAULT '',
   tags_json TEXT NOT NULL DEFAULT '[]',
   content_hash TEXT,
+  group_key TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -67,6 +68,7 @@ CREATE INDEX IF NOT EXISTS idx_assets_kind ON assets(kind);
 CREATE INDEX IF NOT EXISTS idx_assets_hash ON assets(content_hash);
 CREATE INDEX IF NOT EXISTS idx_assets_design ON assets(design_id);
 CREATE INDEX IF NOT EXISTS idx_designs_hash ON designs(content_hash);
+CREATE INDEX IF NOT EXISTS idx_designs_group_key ON designs(group_key);
 """
 
 
@@ -84,10 +86,15 @@ def connect(db_file: Path) -> sqlite3.Connection:
 
 
 def _migrate(conn: sqlite3.Connection) -> None:
-    cols = {row[1] for row in conn.execute("PRAGMA table_info(assets)").fetchall()}
-    if "hidden" not in cols:
+    asset_cols = {row[1] for row in conn.execute("PRAGMA table_info(assets)").fetchall()}
+    if "hidden" not in asset_cols:
         conn.execute("ALTER TABLE assets ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_assets_hidden ON assets(hidden)")
+
+    design_cols = {row[1] for row in conn.execute("PRAGMA table_info(designs)").fetchall()}
+    if "group_key" not in design_cols:
+        conn.execute("ALTER TABLE designs ADD COLUMN group_key TEXT")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_designs_group_key ON designs(group_key)")
 
 
 def init_db(db_file: Path) -> None:

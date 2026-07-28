@@ -175,7 +175,11 @@ def stats() -> dict[str, Any]:
     cfg = load_config()
     db_file = data_dir(cfg) / "printshelf.sqlite3"
     with db_session(db_file) as conn:
-        designs = conn.execute("SELECT COUNT(*) AS c FROM designs").fetchone()["c"]
+        designs = conn.execute(
+            """SELECT COUNT(DISTINCT d.id) AS c FROM designs d
+               JOIN assets a ON a.design_id = d.id
+               WHERE a.missing = 0 AND COALESCE(a.hidden, 0) = 0"""
+        ).fetchone()["c"]
         assets = conn.execute(
             "SELECT COUNT(*) AS c FROM assets WHERE missing = 0 AND COALESCE(hidden, 0) = 0"
         ).fetchone()["c"]
@@ -431,6 +435,218 @@ def browse_library(
         "total_files": len(file_rows),
         "truncated": len(file_rows) > limit,
     }
+
+
+_COVER_KIND_RANK = {
+    "3mf": 0,
+    "gcode.3mf": 1,
+    "stl": 2,
+    "obj": 3,
+    "gcode": 4,
+    "zip": 5,
+}
+
+
+def _cover_rank(kind: str | None) -> int:
+    return _COVER_KIND_RANK.get(str(kind or ""), 99)
+
+
+def _serialize_design_row(
+    conn,
+    row,
+    *,
+    thumbs: Path,
+    include_assets: bool = False,
+) -> dict[str, Any]:
+    item = row_to_dict(row)
+    assert item
+    design_id = int(item["id"])
+    item["tags"] = parse_json_field(item.pop("tags_json", "[]"), [])
+    assets = [
+        row_to_dict(a)
+        for a in conn.execute(
+            """SELECT id, kind, file_name, rel_path, abs_path, root_id, source_kind,
+                      size_bytes, content_hash, thumb_path, has_textures, is_sliced,
+                      triangle_count, hidden, last_seen
+               FROM assets
+               WHERE design_id = ? AND missing = 0 AND COALESCE(hidden, 0) = 0
+               ORDER BY kind ASC, file_name ASC""",
+            (design_id,),
+        ).fetchall()
+    ]
+    assets = [a for a in assets if a]
+    for a in assets:
+        a["thumb_path"] = resolve_thumb_name(
+            thumbs,
+            thumb_path=a.get("thumb_path"),
+            content_hash=a.get("content_hash"),
+            kind=a.get("kind"),
+        )
+    cover = None
+    if assets:
+        cover = sorted(assets, key=lambda a: (_cover_rank(a.get("kind")), str(a.get("file_name") or "")))[0]
+    kinds = sorted({str(a.get("kind")) for a in assets if a.get("kind")})
+    item["asset_count"] = len(assets)
+    item["kinds"] = kinds
+    item["has_textures"] = any(bool(a.get("has_textures")) for a in assets)
+    item["is_sliced"] = any(bool(a.get("is_sliced")) for a in assets)
+    item["thumb_path"] = cover.get("thumb_path") if cover else None
+    item["cover_asset_id"] = cover.get("id") if cover else None
+    item["cover_kind"] = cover.get("kind") if cover else None
+    item["root_id"] = cover.get("root_id") if cover else None
+    item["source_kind"] = cover.get("source_kind") if cover else None
+    item["rel_folder"] = str(Path(str(cover.get("rel_path") or "")).parent).replace("\\", "/") if cover else ""
+    if item["rel_folder"] == ".":
+        item["rel_folder"] = ""
+    if include_assets:
+        item["assets"] = assets
+        item["notes"] = item.get("notes") or ""
+    else:
+        item.pop("notes", None)
+    return item
+
+
+@app.get("/api/designs")
+def list_designs(
+    q: str | None = None,
+    kind: str | None = None,
+    source_kind: str | None = None,
+    has_textures: bool | None = None,
+    is_sliced: bool | None = None,
+    hidden: bool | None = False,
+    root_id: str | None = None,
+    sort: str | None = None,
+    limit: int = Query(200, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+) -> dict[str, Any]:
+    """Design-centric catalogue: one card per grouped printable pack."""
+    cfg = load_config()
+    db_file = data_dir(cfg) / "printshelf.sqlite3"
+    # Visible assets drive which designs appear.
+    asset_clauses = ["a.missing = 0"]
+    params: list[Any] = []
+    if hidden is None:
+        pass
+    elif hidden:
+        asset_clauses.append("COALESCE(a.hidden, 0) = 1")
+    else:
+        asset_clauses.append("COALESCE(a.hidden, 0) = 0")
+    if kind:
+        asset_clauses.append("a.kind = ?")
+        params.append(kind)
+    if source_kind:
+        asset_clauses.append("a.source_kind = ?")
+        params.append(source_kind)
+    if root_id:
+        asset_clauses.append("a.root_id = ?")
+        params.append(root_id)
+    if has_textures is not None:
+        asset_clauses.append("a.has_textures = ?")
+        params.append(1 if has_textures else 0)
+    if is_sliced is not None:
+        asset_clauses.append("a.is_sliced = ?")
+        params.append(1 if is_sliced else 0)
+    where_assets = " AND ".join(asset_clauses)
+
+    design_clauses = [f"EXISTS (SELECT 1 FROM assets a WHERE a.design_id = d.id AND {where_assets})"]
+    design_params: list[Any] = list(params)
+    if q:
+        design_clauses.append(
+            """(
+              d.name LIKE ? OR d.notes LIKE ? OR d.tags_json LIKE ?
+              OR EXISTS (
+                SELECT 1 FROM assets a2
+                WHERE a2.design_id = d.id AND a2.missing = 0
+                  AND (a2.file_name LIKE ? OR a2.rel_path LIKE ?)
+              )
+            )"""
+        )
+        like = f"%{q}%"
+        design_params.extend([like, like, like, like, like])
+    where = " AND ".join(design_clauses)
+
+    order = {
+        "name": "d.name ASC, d.id ASC",
+        "name_desc": "d.name DESC, d.id DESC",
+        "seen": "d.updated_at DESC, d.name ASC",
+        "assets": "asset_count DESC, d.name ASC",
+    }.get((sort or "seen").strip().lower(), "d.updated_at DESC, d.name ASC")
+
+    sql = f"""
+      SELECT d.*,
+        (SELECT COUNT(*) FROM assets a
+         WHERE a.design_id = d.id AND {where_assets}) AS asset_count
+      FROM designs d
+      WHERE {where}
+      ORDER BY {order}
+      LIMIT ? OFFSET ?
+    """
+    # Placeholder order: asset_count subquery, then EXISTS (+ optional q), then limit/offset.
+    select_params = list(params) + list(design_params) + [limit, offset]
+
+    with db_session(db_file) as conn:
+        rows = conn.execute(sql, select_params).fetchall()
+        total = conn.execute(
+            f"SELECT COUNT(*) AS c FROM designs d WHERE {where}",
+            design_params,
+        ).fetchone()["c"]
+        thumbs = data_dir(cfg) / "thumbs"
+        items = [_serialize_design_row(conn, r, thumbs=thumbs) for r in rows]
+    return {"total": total, "items": items}
+
+
+@app.get("/api/designs/{design_id}")
+def get_design(design_id: int) -> dict[str, Any]:
+    cfg = load_config()
+    db_file = data_dir(cfg) / "printshelf.sqlite3"
+    with db_session(db_file) as conn:
+        row = conn.execute("SELECT * FROM designs WHERE id = ?", (design_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "Design not found")
+        item = _serialize_design_row(
+            conn, row, thumbs=data_dir(cfg) / "thumbs", include_assets=True
+        )
+    if not item.get("asset_count"):
+        raise HTTPException(404, "Design has no visible assets")
+    return item
+
+
+@app.patch("/api/designs/{design_id}")
+def patch_design(design_id: int, body: DesignMetaIn) -> dict[str, Any]:
+    if body.notes is None and body.tags is None:
+        raise HTTPException(400, "Provide notes and/or tags")
+    cfg = load_config()
+    db_file = data_dir(cfg) / "printshelf.sqlite3"
+    with db_session(db_file) as conn:
+        row = conn.execute("SELECT id FROM designs WHERE id = ?", (design_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "Design not found")
+        fields: list[str] = []
+        params: list[Any] = []
+        if body.notes is not None:
+            fields.append("notes = ?")
+            params.append(str(body.notes)[:8000])
+        if body.tags is not None:
+            cleaned: list[str] = []
+            seen: set[str] = set()
+            for raw in body.tags:
+                tag = " ".join(str(raw or "").strip().split())
+                if not tag:
+                    continue
+                key = tag.lower()
+                if key in seen:
+                    continue
+                seen.add(key)
+                cleaned.append(tag[:64])
+                if len(cleaned) >= 24:
+                    break
+            fields.append("tags_json = ?")
+            params.append(json.dumps(cleaned))
+        fields.append("updated_at = ?")
+        params.append(utcnow())
+        params.append(design_id)
+        conn.execute(f"UPDATE designs SET {', '.join(fields)} WHERE id = ?", params)
+    return get_design(design_id)
 
 
 @app.get("/api/assets")

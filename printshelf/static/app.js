@@ -13,8 +13,11 @@ let browseFolder = "";
 const PAGE_SIZE = 200;
 let libraryTotal = 0;
 let libraryHasMore = false;
+let libraryView = "designs"; // designs | assets (assets used for duplicates / folders)
 let ignoreGlobs = [];
 let scanWatchTimer = null;
+let activeDesignId = null;
+let designAssetsCache = [];
 let scanWatchTicks = 0;
 let lastScanRunning = false;
 let lastThumbsRunning = false;
@@ -640,7 +643,7 @@ async function watchStatusTick() {
   const kinds = Object.entries(byKind).map(([k, v]) => `${k}: ${v}`).join(" · ") || "no files yet";
   const dupBit = s.duplicates ? `<br><span class="pill warn">duplicates ${s.duplicates}</span>` : "";
   const hiddenBit = s.hidden ? `<br><span class="pill">hidden ${s.hidden}</span>` : "";
-  $("railStats").innerHTML = `<strong>${s.assets}</strong> assets<br>${kinds}${dupBit}${hiddenBit}`;
+  $("railStats").innerHTML = `<strong>${s.designs ?? "—"}</strong> designs · <strong>${s.assets}</strong> files<br>${kinds}${dupBit}${hiddenBit}`;
   updateTypeTabCounts(byKind, s.assets || 0, s.duplicates || 0);
   updateScanBanner(scan, byKind, s.assets || 0);
   $("scanStatus").textContent = formatStatusLine(scan, thumbs);
@@ -674,7 +677,7 @@ async function refreshStats() {
   const kinds = Object.entries(byKind).map(([k, v]) => `${k}: ${v}`).join(" · ") || "no files yet";
   const dupBit = s.duplicates ? `<br><span class="pill warn">duplicates ${s.duplicates}</span>` : "";
   const hiddenBit = s.hidden ? `<br><span class="pill">hidden ${s.hidden}</span>` : "";
-  $("railStats").innerHTML = `<strong>${s.assets}</strong> assets<br>${kinds}${dupBit}${hiddenBit}`;
+  $("railStats").innerHTML = `<strong>${s.designs ?? "—"}</strong> designs · <strong>${s.assets}</strong> files<br>${kinds}${dupBit}${hiddenBit}`;
   updateTypeTabCounts(byKind, s.assets || 0, s.duplicates || 0);
   const scan = s.scan || {};
   const thumbs = s.thumbs || {};
@@ -842,6 +845,66 @@ function appendFolderCard(grid, { title, meta, onOpen }) {
     </div>`;
   card.addEventListener("click", onOpen);
   grid.appendChild(card);
+}
+
+function appendDesignCard(grid, item) {
+  const card = document.createElement("article");
+  card.className = "card design-card" + (Number(item.id) === Number(activeDesignId) ? " active" : "");
+  card.dataset.designId = String(item.id);
+  const kinds = (item.kinds || []).slice(0, 4);
+  const n = Number(item.asset_count) || 0;
+  card.innerHTML = `
+    <div class="card-thumb">${item.thumb_path
+      ? `<img src="/api/thumbs/${encodeURIComponent(item.thumb_path)}?v=${encodeURIComponent(
+          ((item.content_hash || item.thumb_path) + "").slice(0, 12)
+        )}" alt="" loading="lazy">`
+      : `<span class="pill">${escapeHtml(item.cover_kind || "design")}</span>`}</div>
+    <div class="card-body">
+      <h3 class="card-title">${escapeHtml(item.name || "Design")}</h3>
+      <div class="card-meta">
+        <span class="pill">${n} file${n === 1 ? "" : "s"}</span>
+        ${kinds.map((k) => `<span class="pill">${escapeHtml(k)}</span>`).join("")}
+        ${item.source_kind ? `<span>${escapeHtml(item.source_kind)}</span>` : ""}
+        ${item.is_sliced ? "<span>sliced</span>" : ""}
+        ${item.has_textures ? "<span>textures</span>" : ""}
+        ${(item.tags || []).slice(0, 2).map((t) => `<span class="pill tag">${escapeHtml(t)}</span>`).join("")}
+      </div>
+    </div>`;
+  const img = card.querySelector(".card-thumb img");
+  if (img) {
+    img.addEventListener("error", () => {
+      const host = card.querySelector(".card-thumb");
+      if (host) host.innerHTML = `<span class="pill">${escapeHtml(item.cover_kind || "design")}</span>`;
+    });
+  }
+  card.addEventListener("click", () => {
+    selectDesign(item.id).catch(console.error);
+  });
+  grid.appendChild(card);
+}
+
+async function selectDesign(id) {
+  activeDesignId = Number(id);
+  document.querySelectorAll(".design-card").forEach((c) => {
+    c.classList.toggle("active", Number(c.dataset.designId) === activeDesignId);
+  });
+  let design;
+  try {
+    design = await api(`/api/designs/${id}`);
+  } catch (err) {
+    $("detail").innerHTML = `<p class="detail-hint" style="color:var(--danger)">Failed to load design: ${escapeHtml(String(err.message || err))}</p>`;
+    return;
+  }
+  designAssetsCache = design.assets || [];
+  const preferred = design.cover_asset_id
+    || designAssetsCache.find((a) => a.kind === "gcode.3mf")?.id
+    || designAssetsCache.find((a) => a.kind === "3mf")?.id
+    || designAssetsCache[0]?.id;
+  if (!preferred) {
+    $("detail").innerHTML = `<div class="detail-empty">This design has no visible files.</div>`;
+    return;
+  }
+  await selectAsset(preferred, { design });
 }
 
 function appendAssetCard(grid, item) {
@@ -1014,7 +1077,9 @@ async function loadLibrary({ preserveScroll = false, append = false } = {}) {
     const offset = append ? libraryItems.length : 0;
     params.set("limit", String(PAGE_SIZE));
     params.set("offset", String(offset));
-    const data = await api(`/api/assets?${params}`);
+    libraryView = dupMode ? "assets" : "designs";
+    const endpoint = dupMode ? "/api/assets" : "/api/designs";
+    const data = await api(`${endpoint}?${params}`);
     const page = data.items || [];
     libraryTotal = Number(data.total || 0) || 0;
     if (append) {
@@ -1032,7 +1097,11 @@ async function loadLibrary({ preserveScroll = false, append = false } = {}) {
     if (append) {
       removeLoadMoreBar();
       for (const item of page) {
-        if (!grid.querySelector(`.card[data-id="${item.id}"]`)) appendAssetCard(grid, item);
+        if (libraryView === "designs") {
+          if (!grid.querySelector(`.design-card[data-design-id="${item.id}"]`)) appendDesignCard(grid, item);
+        } else if (!grid.querySelector(`.card[data-id="${item.id}"]`)) {
+          appendAssetCard(grid, item);
+        }
       }
       renderLoadMoreBar(pane || grid.parentElement);
       updateBulkBar();
@@ -1055,8 +1124,17 @@ async function loadLibrary({ preserveScroll = false, append = false } = {}) {
         note.style.gridColumn = "1 / -1";
         note.textContent = `${libraryTotal || libraryItems.length} duplicate files (same bytes in more than one place). Delete extras — keep one. Tab disappears when none are left.`;
         next.appendChild(note);
+      } else {
+        const note = document.createElement("div");
+        note.className = "detail-empty";
+        note.style.gridColumn = "1 / -1";
+        note.textContent = "Grouped by name in the same folder — open a design to see STL / 3MF / gcode files.";
+        next.appendChild(note);
       }
-      for (const item of libraryItems) appendAssetCard(next, item);
+      for (const item of libraryItems) {
+        if (libraryView === "designs") appendDesignCard(next, item);
+        else appendAssetCard(next, item);
+      }
     }
     grid.replaceWith(next);
     next.id = "grid";
@@ -1178,9 +1256,9 @@ async function openInSlicer(item, { zipEntry = "" } = {}) {
   return true;
 }
 
-async function selectAsset(id) {
+async function selectAsset(id, { design = null } = {}) {
   selectedId = Number(id);
-  document.querySelectorAll(".card:not(.folder-card)").forEach((c) => {
+  document.querySelectorAll(".card:not(.folder-card):not(.design-card)").forEach((c) => {
     c.classList.toggle("active", Number(c.dataset.id) === selectedId);
   });
   window.PrintShelfViewer?.unmountOrbitViewer?.();
@@ -1191,6 +1269,20 @@ async function selectAsset(id) {
     $("detail").innerHTML = `<p class="detail-hint" style="color:var(--danger)">Failed to load details: ${escapeHtml(String(err.message || err))}</p>`;
     return;
   }
+  let designCtx = design;
+  if (!designCtx && item.design_id) {
+    try {
+      designCtx = await api(`/api/designs/${item.design_id}`);
+      activeDesignId = Number(item.design_id);
+      designAssetsCache = designCtx.assets || [];
+    } catch (_) {
+      designCtx = null;
+    }
+  } else if (designCtx) {
+    activeDesignId = Number(designCtx.id);
+    designAssetsCache = designCtx.assets || [];
+  }
+  const siblings = designCtx?.assets || designAssetsCache || [];
   try {
   const filaments = item.meta?.filaments || [];
   const sidecars = item.sidecars || [];
@@ -1254,7 +1346,21 @@ async function selectAsset(id) {
       note.hidden = !note.textContent;
     }
   };
+  const designBar = siblings.length > 1
+    ? `<div class="design-bar">
+         <div class="design-bar-title">${escapeHtml(designCtx?.name || item.design_name || "Design")}
+           <span class="meta-hint">${siblings.length} files in this design</span></div>
+         <div class="design-assets">
+           ${siblings.map((a) => `
+             <button type="button" class="design-asset-btn${Number(a.id) === selectedId ? " active" : ""}" data-asset-id="${a.id}">
+               <span class="pill">${escapeHtml(a.kind)}</span>
+               <span>${escapeHtml(a.file_name)}</span>
+             </button>`).join("")}
+         </div>
+       </div>`
+    : "";
   $("detail").innerHTML = `
+    ${designBar}
     <h2>${escapeHtml(item.file_name)}</h2>
     <div class="detail-path">${escapeHtml(item.abs_path)}</div>
     ${winPath ? `<div class="detail-path" title="Windows path">${escapeHtml(winPath)}</div>` : ""}
@@ -1284,9 +1390,9 @@ async function selectAsset(id) {
     <div class="detail-section">
       <h3>Tags &amp; notes</h3>
       <label class="meta-label">Tags <span class="meta-hint">comma-separated</span></label>
-      <input type="text" id="designTagsInput" class="meta-input" value="${escapeHtml((item.tags || []).join(", "))}" placeholder="to print, gift, junk…">
+      <input type="text" id="designTagsInput" class="meta-input" value="${escapeHtml(((designCtx?.tags != null ? designCtx.tags : item.tags) || []).join(", "))}" placeholder="to print, gift, junk…">
       <label class="meta-label">Notes</label>
-      <textarea id="designNotesInput" class="meta-input meta-notes" rows="3" placeholder="Anything useful about this design…">${escapeHtml(item.design_notes || "")}</textarea>
+      <textarea id="designNotesInput" class="meta-input meta-notes" rows="3" placeholder="Anything useful about this design…">${escapeHtml(designCtx?.notes ?? item.design_notes ?? "")}</textarea>
       <button type="button" class="card-open secondary" id="saveDesignMetaBtn">Save tags &amp; notes</button>
     </div>
     <div class="kv">
@@ -1489,18 +1595,32 @@ async function selectAsset(id) {
     const notes = $("designNotesInput")?.value ?? "";
     if (btn) btn.disabled = true;
     try {
-      await api(`/api/assets/${item.id}/design`, {
-        method: "PATCH",
-        body: JSON.stringify({ tags, notes }),
-      });
-      psToast("Saved", "Tags and notes updated.", "ok");
+      const designId = designCtx?.id || item.design_id;
+      if (designId) {
+        await api(`/api/designs/${designId}`, {
+          method: "PATCH",
+          body: JSON.stringify({ tags, notes }),
+        });
+      } else {
+        await api(`/api/assets/${item.id}/design`, {
+          method: "PATCH",
+          body: JSON.stringify({ tags, notes }),
+        });
+      }
+      psToast("Saved", "Tags and notes updated for this design.", "ok");
       await loadLibrary({ preserveScroll: true });
-      await selectAsset(item.id);
+      await selectAsset(item.id, { design: designId ? await api(`/api/designs/${designId}`) : null });
     } catch (err) {
       psToast("Save failed", String(err.message || err), "error");
     } finally {
       if (btn) btn.disabled = false;
     }
+  });
+  document.querySelectorAll(".design-asset-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const aid = Number(btn.dataset.assetId);
+      if (aid) selectAsset(aid, { design: designCtx }).catch(console.error);
+    });
   });
   $("hideBtn")?.addEventListener("click", async () => {
     try {

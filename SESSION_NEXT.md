@@ -6,17 +6,17 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
-## 2026-07-28 Session update (plate preview + printer suggest)
+## 2026-07-28 Session update (design grouping)
 
-Latest commit: `f9c440a` — Plate preview when no mesh; suggest printer for Print this
+Latest commit: `(pending)` — Design grouping by stem+folder
 
 Latest local/Pi change:
-- Mesh-less `.gcode.3mf` shows **plate preview** image instead of orbit error.
-- Print this **suggests** matching printer from 3MF `printer_model` / folder (H2D etc.) — others still available.
-- Hard refresh `?v=53`. Restart required.
+- Library **All files** shows **designs** (STL/3MF/gcode siblings grouped).
+- Detail lists files in the design; Print/Slicer still per asset.
+- Run `regroup-designs.py` after deploy. Hard refresh `?v=54`. Restart required.
 
 Previous:
-- Kidabah PC scan (`2b6d278`). Print this (`3895703`).
+- Plate preview / printer suggest (`f9c440a`). Kidabah PC scan (`2b6d278`).
 
 ---
 

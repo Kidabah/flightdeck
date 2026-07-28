@@ -604,6 +604,45 @@ h1 {
   border: 1px solid var(--accent);
   background: var(--accent-dim);
 }
+.design-bar {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--bg-2);
+  border: 1px solid rgba(38, 56, 82, .8);
+}
+.design-bar-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.design-assets {
+  display: grid;
+  gap: 6px;
+}
+.design-asset-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  background: rgba(0,0,0,.18);
+  border: 1px solid transparent;
+  color: var(--text);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+.design-asset-btn:hover { border-color: var(--accent); }
+.design-asset-btn.active {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+.design-card .card-title { font-size: 1rem; }
 .plate-preview {
   margin-top: 6px;
   border-radius: 14px;

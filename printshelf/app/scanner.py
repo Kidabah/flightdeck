@@ -12,6 +12,7 @@ from typing import Any, Callable
 
 from .config import DEFAULT_IGNORE_GLOBS, data_dir, load_config
 from .db import db_session, init_db, utcnow
+from .grouping import design_display_name, design_group_key
 from .mesh_junk import is_fake_mesh_file
 from .parsers import detect_kind, parse_asset
 from .thumbs import make_placeholder_thumb, save_thumb_bytes
@@ -163,18 +164,64 @@ def _flush_scan_progress(conn, run_id: int | None) -> None:
 
 
 def _design_name_for(path: Path, root: Path) -> str:
-    # Prefer parent folder name when file is in a model folder; else stem.
     try:
-        rel = path.relative_to(root)
-        if len(rel.parts) >= 2:
-            return rel.parts[-2]
+        rel = str(path.relative_to(root)).replace("\\", "/")
     except Exception:
-        pass
-    name = path.name
-    for suf in (".gcode.3mf", ".3mf", ".stl", ".obj", ".gcode", ".gco", ".zip"):
-        if name.lower().endswith(suf):
-            return name[: -len(suf)]
-    return path.stem
+        rel = path.name
+    return design_display_name(rel, path.name)
+
+
+def _resolve_design_id(
+    conn,
+    *,
+    root_id: str,
+    rel_path: str,
+    file_name: str,
+    content_hash: str,
+    path: Path,
+    root_path: str,
+) -> int:
+    """Attach asset to a design via group_key (stem+folder), falling back to content_hash."""
+    now = utcnow()
+    group_key = design_group_key(root_id, rel_path, file_name)
+    name = _design_name_for(path, Path(root_path))
+
+    row = conn.execute(
+        "SELECT id, name FROM designs WHERE group_key = ? LIMIT 1",
+        (group_key,),
+    ).fetchone()
+    if row:
+        design_id = int(row["id"])
+        # Prefer a nicer name when we learn a pack folder label.
+        if name and name != row["name"] and len(name) >= len(str(row["name"] or "")):
+            conn.execute(
+                "UPDATE designs SET name = ?, updated_at = ? WHERE id = ?",
+                (name, now, design_id),
+            )
+        else:
+            conn.execute("UPDATE designs SET updated_at = ? WHERE id = ?", (now, design_id))
+        return design_id
+
+    # Legacy: same inventory fingerprint already owns a design (duplicate copies).
+    if content_hash:
+        legacy = conn.execute(
+            "SELECT id FROM designs WHERE content_hash = ? LIMIT 1",
+            (content_hash,),
+        ).fetchone()
+        if legacy:
+            design_id = int(legacy["id"])
+            conn.execute(
+                "UPDATE designs SET group_key = COALESCE(group_key, ?), updated_at = ? WHERE id = ?",
+                (group_key, now, design_id),
+            )
+            return design_id
+
+    cur = conn.execute(
+        """INSERT INTO designs(name, notes, tags_json, content_hash, group_key, created_at, updated_at)
+           VALUES (?,?,?,?,?,?,?)""",
+        (name, "", "[]", content_hash, group_key, now, now),
+    )
+    return int(cur.lastrowid)
 
 
 def upsert_asset(conn, folder: dict[str, Any], path: Path, parsed: dict[str, Any], content_hash: str, thumbs: Path) -> None:
@@ -183,7 +230,7 @@ def upsert_asset(conn, folder: dict[str, Any], path: Path, parsed: dict[str, Any
     root_path = str(Path(folder["path"]).resolve())
     abs_path = str(path.resolve())
     try:
-        rel_path = str(path.resolve().relative_to(Path(root_path)))
+        rel_path = str(path.resolve().relative_to(Path(root_path))).replace("\\", "/")
     except Exception:
         rel_path = path.name
 
@@ -193,26 +240,17 @@ def upsert_asset(conn, folder: dict[str, Any], path: Path, parsed: dict[str, Any
     if not thumb_name:
         thumb_name = make_placeholder_thumb(thumbs, content_hash, kind, kind)
 
-    # Find or create design by content hash (dedup) or by folder+name
-    design_id = None
-    row = conn.execute(
-        "SELECT id FROM designs WHERE content_hash = ? LIMIT 1",
-        (content_hash,),
-    ).fetchone()
+    root_id = folder.get("id") or "folder"
+    design_id = _resolve_design_id(
+        conn,
+        root_id=str(root_id),
+        rel_path=rel_path,
+        file_name=path.name,
+        content_hash=content_hash,
+        path=path,
+        root_path=root_path,
+    )
     now = utcnow()
-    if row:
-        design_id = row["id"]
-        conn.execute(
-            "UPDATE designs SET updated_at = ? WHERE id = ?",
-            (now, design_id),
-        )
-    else:
-        name = _design_name_for(path, Path(root_path))
-        cur = conn.execute(
-            "INSERT INTO designs(name, notes, tags_json, content_hash, created_at, updated_at) VALUES (?,?,?,?,?,?)",
-            (name, "", "[]", content_hash, now, now),
-        )
-        design_id = cur.lastrowid
 
     meta_json = json.dumps(parsed.get("meta") or {}, ensure_ascii=False)
     bbox_json = json.dumps(parsed.get("bbox"), ensure_ascii=False) if parsed.get("bbox") else None
@@ -221,7 +259,7 @@ def upsert_asset(conn, folder: dict[str, Any], path: Path, parsed: dict[str, Any
         design_id,
         kind,
         folder.get("source_kind") or "local",
-        folder.get("id") or "folder",
+        root_id,
         root_path,
         rel_path,
         path.name,
@@ -260,7 +298,7 @@ def upsert_asset(conn, folder: dict[str, Any], path: Path, parsed: dict[str, Any
                 design_id,
                 kind,
                 folder.get("source_kind") or "local",
-                folder.get("id") or "folder",
+                root_id,
                 root_path,
                 rel_path,
                 abs_path,
