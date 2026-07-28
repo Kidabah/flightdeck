@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-28 Session update (zip extract)
 
-Latest commit: `(pending)` — Zip extract → PrintShelf Extracted design card
+Latest commit: `be0001b` — Zip extract → PrintShelf Extracted design card
 
 Latest local/Pi change:
 - ZIP detail **Extract to shelf** rescues the selected printable into `/mnt/koko-kidabah/PrintShelf Extracted`, indexes it, opens the new design card.
