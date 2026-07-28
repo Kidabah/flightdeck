@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-28 Session update (exclude / folder / load more)
 
-Latest commit: `(pending)` — Exclude patterns, Copy folder path primary, load more
+Latest commit: `9622ec1` — Exclude patterns, Copy folder path primary, load more
 
 Latest local/Pi change:
 - Folders → **Exclude patterns** (globs + hard-skip `__MACOSX` / `node_modules` / …).
