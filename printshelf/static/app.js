@@ -10,6 +10,10 @@ let lastSelectAnchorId = null;
 let browseMode = "all"; // folders | all
 let browseRootId = null;
 let browseFolder = "";
+const PAGE_SIZE = 200;
+let libraryTotal = 0;
+let libraryHasMore = false;
+let ignoreGlobs = [];
 let scanWatchTimer = null;
 let scanWatchTicks = 0;
 let lastScanRunning = false;
@@ -741,19 +745,39 @@ function appendAssetCard(grid, item) {
   grid.appendChild(card);
 }
 
-async function loadLibrary({ preserveScroll = false } = {}) {
+function removeLoadMoreBar() {
+  $("loadMoreBar")?.remove();
+}
+
+function renderLoadMoreBar(host) {
+  removeLoadMoreBar();
+  if (!libraryHasMore || !host) return;
+  const bar = document.createElement("div");
+  bar.id = "loadMoreBar";
+  bar.className = "load-more-bar";
+  bar.innerHTML = `
+    <span>Showing ${libraryItems.length.toLocaleString()} of ${libraryTotal.toLocaleString()}</span>
+    <button type="button" class="secondary" id="loadMoreBtn">Load more</button>`;
+  host.appendChild(bar);
+  $("loadMoreBtn")?.addEventListener("click", () => {
+    loadLibrary({ preserveScroll: true, append: true }).catch(console.error);
+  });
+}
+
+async function loadLibrary({ preserveScroll = false, append = false } = {}) {
   const q = $("search").value.trim();
   const dupMode = activeKind === "__duplicates__";
   // Search / Duplicates force flat "all files" results
   const useFolders = browseMode === "folders" && !q && !dupMode;
   const params = filterParams();
-  params.set("limit", "1000");
   const grid = $("grid");
   const pane = $("gridPane");
   const scrollTop = preserveScroll && pane ? pane.scrollTop : 0;
-  // Build off-DOM so the grid doesn't flash empty while the API loads.
-  const next = document.createElement("div");
-  next.className = "grid";
+
+  if (useFolders || !append) {
+    libraryHasMore = false;
+    removeLoadMoreBar();
+  }
 
   try {
     if (useFolders) {
@@ -762,8 +786,12 @@ async function loadLibrary({ preserveScroll = false } = {}) {
       const data = await api(`/api/browse?${params}`);
       renderCrumbs(data.crumbs || []);
       libraryItems = data.items || [];
+      libraryTotal = Number(data.total_files || libraryItems.length) || 0;
+      libraryHasMore = false;
       const visible = new Set(libraryItems.map((i) => i.id));
       selectedIds = new Set([...selectedIds].filter((id) => visible.has(id)));
+      const next = document.createElement("div");
+      next.className = "grid";
 
       if (data.mode === "roots") {
         if (!(data.roots || []).length) {
@@ -817,10 +845,37 @@ async function loadLibrary({ preserveScroll = false } = {}) {
     }
 
     renderCrumbs([]);
+    const offset = append ? libraryItems.length : 0;
+    params.set("limit", String(PAGE_SIZE));
+    params.set("offset", String(offset));
     const data = await api(`/api/assets?${params}`);
-    libraryItems = data.items || [];
+    const page = data.items || [];
+    libraryTotal = Number(data.total || 0) || 0;
+    if (append) {
+      const seen = new Set(libraryItems.map((i) => i.id));
+      for (const item of page) {
+        if (!seen.has(item.id)) libraryItems.push(item);
+      }
+    } else {
+      libraryItems = page;
+    }
+    libraryHasMore = libraryItems.length < libraryTotal;
     const visible = new Set(libraryItems.map((i) => i.id));
     selectedIds = new Set([...selectedIds].filter((id) => visible.has(id)));
+
+    if (append) {
+      removeLoadMoreBar();
+      for (const item of page) {
+        if (!grid.querySelector(`.card[data-id="${item.id}"]`)) appendAssetCard(grid, item);
+      }
+      renderLoadMoreBar(pane || grid.parentElement);
+      updateBulkBar();
+      if (pane && preserveScroll) pane.scrollTop = scrollTop;
+      return;
+    }
+
+    const next = document.createElement("div");
+    next.className = "grid";
     if (!libraryItems.length) {
       next.innerHTML = `<div class="detail-empty">${dupMode
         ? "No duplicate files — nice. This tab will hide itself."
@@ -832,13 +887,14 @@ async function loadLibrary({ preserveScroll = false } = {}) {
         const note = document.createElement("div");
         note.className = "detail-empty";
         note.style.gridColumn = "1 / -1";
-        note.textContent = `${data.total || libraryItems.length} duplicate files (same bytes in more than one place). Delete extras — keep one. Tab disappears when none are left.`;
+        note.textContent = `${libraryTotal || libraryItems.length} duplicate files (same bytes in more than one place). Delete extras — keep one. Tab disappears when none are left.`;
         next.appendChild(note);
       }
       for (const item of libraryItems) appendAssetCard(next, item);
     }
     grid.replaceWith(next);
     next.id = "grid";
+    renderLoadMoreBar(pane || next.parentElement);
     updateBulkBar();
     if (pane && preserveScroll) pane.scrollTop = scrollTop;
   } catch (err) {
@@ -1160,11 +1216,12 @@ async function selectAsset(id) {
       </div>` : ""}
     <div class="detail-section">
       <div class="detail-actions">
-        <button class="card-open slicer-btn" type="button" id="openSlicerBtn"
+        <button class="card-open" type="button" id="copyWinFolderBtn" data-label="Copy folder path" ${winFolder ? "" : "disabled"}
+          title="${winFolder ? "Copy folder path — paste into Explorer (Ctrl+L)" : "Set a Windows path on this watched folder in Folders"}">Copy folder path</button>
+        <button class="card-open secondary slicer-btn" type="button" id="openSlicerBtn"
           ${slicerDisabledReason() ? "disabled" : ""}
           title="${escapeHtml(slicerDisabledReason() || "Open in Bambu Studio or Orca")}">Open in slicer</button>
-        <button class="card-open" type="button" id="copyWinPathBtn" data-label="Copy Windows path" ${winPath ? "" : "disabled"}>Copy Windows path</button>
-        <button class="card-open secondary" type="button" id="copyWinFolderBtn" data-label="Copy Windows folder" ${winFolder ? "" : "disabled"}>Copy Windows folder</button>
+        <button class="card-open secondary" type="button" id="copyWinPathBtn" data-label="Copy file path" ${winPath ? "" : "disabled"}>Copy file path</button>
         <button class="card-open secondary" type="button" id="copyPiPathBtn" data-label="Copy Pi path">Copy Pi path</button>
       </div>
       <div class="detail-actions danger-actions">
@@ -1173,16 +1230,16 @@ async function selectAsset(id) {
           : `<button class="card-open secondary" type="button" id="hideBtn">${selectedIds.size > 1 ? `Hide ${selectedIds.size} from library` : "Hide from library"}</button>`}
         <button class="card-open danger" type="button" id="deleteDiskBtn">${selectedIds.size > 1 ? `Delete ${selectedIds.size} from disk…` : "Delete from disk…"}</button>
       </div>
+      <p class="detail-hint">${winFolder
+        ? "Copy folder path → Explorer address bar (Ctrl+L → Ctrl+V) to jump straight to the file’s folder."
+        : "Set a Windows path on this watched folder in Folders to enable folder / file copy."}</p>
       <p class="detail-hint" id="slicerHint">${canSlicer
         ? (isMobileClient()
-          ? "Open in slicer needs Bambu/Orca on a PC. On your phone, use Copy Windows path."
+          ? "Open in slicer needs Bambu/Orca on a PC. On your phone, use Copy file path."
           : "Open in slicer asks Bambu or Orca, checks manifold (MakerDeck-style sanitize if needed), then hands off via the Windows worker.")
         : item.kind === "gcode"
-          ? "Raw G-code is already sliced — open it from the printer or slicer’s G-code preview, or copy the Windows path."
+          ? "Raw G-code is already sliced — open it from the printer or slicer’s G-code preview, or copy the file path."
           : "Slicer open is for STL, OBJ, 3MF, and ZIP printables."}</p>
-      <p class="detail-hint">${winPath
-        ? "Paste Windows path into Bambu/Orca, or folder into Explorer (Ctrl+L → Ctrl+V)."
-        : "Set a Windows path on this watched folder in Folders to enable PC copy."}</p>
       <p class="detail-hint">${selectedIds.size > 1
         ? `Selection active: Hide/Delete will apply to all ${selectedIds.size} selected files.`
         : `Hide keeps the file on disk. Delete removes the file${sidecars.length ? " and indexed sidecars/textures" : ""} permanently.`}</p>
@@ -1216,7 +1273,7 @@ async function selectAsset(id) {
       });
   }
   $("copyWinPathBtn")?.addEventListener("click", () => copyText($("copyWinPathBtn"), winPath));
-  $("copyWinFolderBtn")?.addEventListener("click", () => copyText($("copyWinFolderBtn"), winFolder, "Folder copied"));
+  $("copyWinFolderBtn")?.addEventListener("click", () => copyText($("copyWinFolderBtn"), winFolder, "Folder path copied"));
   $("copyPiPathBtn")?.addEventListener("click", () => copyText($("copyPiPathBtn"), item.abs_path));
   $("saveDesignMetaBtn")?.addEventListener("click", async () => {
     const btn = $("saveDesignMetaBtn");
@@ -1399,11 +1456,33 @@ async function selectAsset(id) {
   }
 }
 
+function renderIgnoreGlobs() {
+  const el = $("ignoreGlobsInput");
+  if (el) el.value = (ignoreGlobs || []).join("\n");
+}
+
 async function loadFolders() {
   const cfg = await api("/api/config");
   folders = cfg.watched_folders || [];
+  ignoreGlobs = cfg.ignore_globs || [];
   fillRootFilter();
   renderFolders();
+  renderIgnoreGlobs();
+}
+
+async function saveIgnoreGlobs() {
+  const raw = $("ignoreGlobsInput")?.value || "";
+  const patterns = raw.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+  const out = await api("/api/config", {
+    method: "PUT",
+    body: JSON.stringify({ watched_folders: folders, ignore_globs: patterns }),
+  });
+  folders = out.watched_folders || folders;
+  ignoreGlobs = out.ignore_globs || patterns;
+  fillRootFilter();
+  renderFolders();
+  renderIgnoreGlobs();
+  psToast("Exclude patterns saved", "Takes effect on the next Rescan.", "ok");
 }
 
 function renderFolders() {
@@ -1582,6 +1661,7 @@ function bind() {
     renderFolders();
   });
   $("saveFoldersBtn").addEventListener("click", () => saveFolders().catch(console.error));
+  $("saveIgnoreBtn")?.addEventListener("click", () => saveIgnoreGlobs().catch(console.error));
 }
 
 async function boot() {

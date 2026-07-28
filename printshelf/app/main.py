@@ -30,6 +30,7 @@ from .preview import (
     safe_zip_entry,
 )
 from .scanner import (
+    effective_ignore_globs,
     get_scan_state,
     get_thumb_rebuild_state,
     mark_orphaned_scans,
@@ -107,7 +108,7 @@ def get_config() -> dict[str, Any]:
         folders.append(item)
     return {
         "watched_folders": folders,
-        "ignore_globs": cfg.get("ignore_globs") or [],
+        "ignore_globs": effective_ignore_globs(cfg),
         "port": cfg.get("port") or 8100,
     }
 
@@ -440,7 +441,7 @@ def list_assets(
     root_id: str | None = None,
     duplicates: bool = False,
     sort: str | None = None,
-    limit: int = Query(200, ge=1, le=1000),
+    limit: int = Query(200, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ) -> dict[str, Any]:
     cfg = load_config()

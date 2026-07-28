@@ -637,6 +637,26 @@ h1 {
   font-size: .78rem;
   color: var(--muted);
 }
+.settings-subhead {
+  margin: 0 0 6px;
+  font-family: Fraunces, Georgia, serif;
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+.load-more-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 12px 4px 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--bg-2);
+  border: 1px solid rgba(38, 56, 82, .7);
+  color: var(--muted);
+  font-size: .9rem;
+}
+.load-more-bar button { flex: 0 0 auto; }
 .folder-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

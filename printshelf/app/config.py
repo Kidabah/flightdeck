@@ -9,6 +9,20 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CONFIG_PATH = ROOT / "config.json"
 EXAMPLE_CONFIG_PATH = ROOT / "config.example.json"
 
+DEFAULT_IGNORE_GLOBS = [
+    "**/node_modules/**",
+    "**/.git/**",
+    "**/__pycache__/**",
+    "**/__MACOSX/**",
+    "**/.Trash/**",
+    "**/._*",
+    "**/.DS_Store",
+    "**/Thumbs.db",
+    "**/*_temp.obj",
+    "**/*_temp.OBJ",
+    "**/temp.obj",
+]
+
 
 def _default_config() -> dict[str, Any]:
     return {
@@ -16,15 +30,7 @@ def _default_config() -> dict[str, Any]:
         "port": 8100,
         "data_dir": "data",
         "watched_folders": [],
-        "ignore_globs": [
-            "**/node_modules/**",
-            "**/.git/**",
-            "**/__pycache__/**",
-            "**/._*",
-            "**/*_temp.obj",
-            "**/*_temp.OBJ",
-            "**/temp.obj",
-        ],
+        "ignore_globs": list(DEFAULT_IGNORE_GLOBS),
     }
 
 

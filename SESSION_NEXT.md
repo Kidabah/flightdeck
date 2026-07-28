@@ -6,18 +6,18 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
-## 2026-07-28 Session update (PrintShelf polish)
+## 2026-07-28 Session update (exclude / folder / load more)
 
-Latest commit: `639d476` — All-files default + tags/notes + sort/folder filter
+Latest commit: `(pending)` — Exclude patterns, Copy folder path primary, load more
 
 Latest local/Pi change:
-- Library defaults to **All files** (Folders still available).
-- Detail pane: editable **tags** + **notes** (searchable).
-- Sort (newest/name/size/type) + filter by watched folder.
-- Hard refresh `?v=49`. Restart required.
+- Folders → **Exclude patterns** (globs + hard-skip `__MACOSX` / `node_modules` / …).
+- Detail primary action: **Copy folder path** (Explorer jump).
+- All files: pages of 200 with **Load more**.
+- Hard refresh `?v=50`. Restart required. Rescan to apply excludes.
 
 Previous:
-- Bulk-delete leftover count (`2852efb`). Duplicates tab (`3221bf9`).
+- Tags/notes + All-files default (`639d476`).
 
 ---
 

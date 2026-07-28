@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=49">
+  <link rel="stylesheet" href="style.css?v=50">
   <script type="importmap">
   {
     "imports": {
@@ -139,7 +139,14 @@
             </select>
             <button type="submit">Add folder</button>
           </form>
-          <p class="lede" style="margin-top:10px">Pi path must exist on the Pi. Windows Downloads won’t scan — drop files on the NAS (already watched) or mount that folder under <code>/mnt/…</code>.</p>          <button class="secondary" id="saveFoldersBtn">Save folders</button>
+          <p class="lede" style="margin-top:10px">Pi path must exist on the Pi. Windows Downloads won’t scan — drop files on the NAS (already watched) or mount that folder under <code>/mnt/…</code>.</p>
+          <button class="secondary" id="saveFoldersBtn">Save folders</button>
+        </div>
+        <div class="settings-card" style="margin-top:16px">
+          <h2 class="settings-subhead">Exclude patterns</h2>
+          <p class="lede">One glob per line. Matching folders are skipped during Rescan (<code>__MACOSX</code>, <code>node_modules</code>, etc. are always pruned).</p>
+          <textarea id="ignoreGlobsInput" class="meta-input meta-notes" rows="8" spellcheck="false" placeholder="**/__MACOSX/**&#10;**/node_modules/**"></textarea>
+          <button class="secondary" id="saveIgnoreBtn" type="button" style="margin-top:10px">Save exclude patterns</button>
         </div>
       </section>
     </main>
@@ -166,7 +173,7 @@
     </div>
   </div>
 
-  <script type="module" src="viewer.js?v=49"></script>
-  <script src="app.js?v=49"></script>
+  <script type="module" src="viewer.js?v=50"></script>
+  <script src="app.js?v=50"></script>
 </body>
 </html>

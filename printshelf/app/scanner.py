@@ -5,17 +5,31 @@ import hashlib
 import json
 import logging
 import os
+import re
 import threading
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Callable
 
-from .config import data_dir, load_config
+from .config import DEFAULT_IGNORE_GLOBS, data_dir, load_config
 from .db import db_session, init_db, utcnow
 from .mesh_junk import is_fake_mesh_file
 from .parsers import detect_kind, parse_asset
 from .thumbs import make_placeholder_thumb, save_thumb_bytes
 
 log = logging.getLogger("printshelf.scan")
+
+# Always prune these directory names (case-insensitive), even if config omits them.
+HARD_SKIP_DIR_NAMES = frozenset({
+    "node_modules",
+    ".git",
+    "__pycache__",
+    "__macosx",
+    ".trash",
+    "$recycle.bin",
+    "system volume information",
+    ".svn",
+    ".hg",
+})
 
 SCAN_LOCK = threading.Lock()
 SCAN_STATE: dict[str, Any] = {
@@ -51,12 +65,48 @@ def get_thumb_rebuild_state() -> dict[str, Any]:
     return dict(THUMB_STATE)
 
 
+def _dir_hard_skipped(name: str) -> bool:
+    n = (name or "").strip().lower()
+    return bool(n) and (n in HARD_SKIP_DIR_NAMES or n.startswith("._"))
+
+
 def _ignored(rel: str, patterns: list[str]) -> bool:
-    rel_posix = rel.replace("\\", "/")
-    for pat in patterns:
-        if fnmatch.fnmatch(rel_posix, pat) or fnmatch.fnmatch(Path(rel_posix).name, pat):
+    """Match ignore globs. Supports **/seg/** style (plain fnmatch does not)."""
+    rel_posix = rel.replace("\\", "/").strip("/")
+    name = PurePosixPath(rel_posix).name if rel_posix else ""
+    parts = [p for p in rel_posix.split("/") if p]
+    for raw in patterns:
+        pat = (raw or "").replace("\\", "/").strip()
+        if not pat:
+            continue
+        if fnmatch.fnmatch(rel_posix, pat) or (name and fnmatch.fnmatch(name, pat)):
             return True
+        try:
+            if rel_posix and PurePosixPath(rel_posix).match(pat):
+                return True
+            stripped = pat.rstrip("/")
+            if stripped and rel_posix and PurePosixPath(rel_posix).match(stripped):
+                return True
+        except Exception:
+            pass
+        m = re.fullmatch(r"\*\*/([^/]+)/\*\*", pat) or re.fullmatch(r"\*\*/([^/]+)/?", pat)
+        if m:
+            seg_pat = m.group(1)
+            if any(fnmatch.fnmatch(p, seg_pat) for p in parts):
+                return True
+            continue
+        if pat.startswith("**/") and "/" not in pat[3:].rstrip("/"):
+            leaf = pat[3:].rstrip("/")
+            if leaf and name and fnmatch.fnmatch(name, leaf):
+                return True
     return False
+
+
+def effective_ignore_globs(cfg: dict[str, Any] | None = None) -> list[str]:
+    """Config ignore list, or built-in defaults when unset/empty."""
+    cfg = cfg or load_config()
+    custom = [str(p).replace("\\", "/").strip() for p in (cfg.get("ignore_globs") or []) if str(p).strip()]
+    return custom or list(DEFAULT_IGNORE_GLOBS)
 
 
 def file_hash(path: Path, max_bytes: int = 262_144, st: os.stat_result | None = None) -> str:
@@ -246,7 +296,7 @@ def run_scan(progress: Callable[[dict[str, Any]], None] | None = None) -> dict[s
     init_db(db_file)
     mark_orphaned_scans(db_file)
     thumbs = data_dir(cfg) / "thumbs"
-    ignore = list(cfg.get("ignore_globs") or [])
+    ignore = effective_ignore_globs(cfg)
     folders = list(cfg.get("watched_folders") or [])
 
     SCAN_STATE.update({
@@ -290,6 +340,8 @@ def run_scan(progress: Callable[[dict[str, Any]], None] | None = None) -> dict[s
                     # Prune ignored directories early (NAS walks are huge).
                     kept = []
                     for d in dirnames:
+                        if _dir_hard_skipped(d):
+                            continue
                         rel_dir = str((Path(dirpath) / d).relative_to(root_resolved)).replace("\\", "/")
                         if _ignored(rel_dir, ignore) or _ignored(f"{rel_dir}/", ignore):
                             continue
