@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-28 Session update (Duplicates tab)
 
-Latest commit: `(pending)` — PrintShelf Duplicates type tab
+Latest commit: `3221bf9` — PrintShelf Duplicates type tab
 
 Latest local/Pi change:
 - Temp **Duplicates** tab lists files that share the same content hash.
