@@ -7,7 +7,7 @@ let libraryItems = [];
 let selectedIds = new Set();
 /** Last file selected without Shift — used as the start of a Shift range. */
 let lastSelectAnchorId = null;
-let browseMode = "folders"; // folders | all
+let browseMode = "all"; // folders | all
 let browseRootId = null;
 let browseFolder = "";
 let scanWatchTimer = null;
@@ -605,11 +605,36 @@ function filterParams() {
   }
   const source = $("filterSource").value;
   if (source) params.set("source_kind", source);
+  const root = $("filterRoot")?.value;
+  if (root) params.set("root_id", root);
+  const sort = $("sortBy")?.value;
+  if (sort && sort !== "seen") params.set("sort", sort);
+  else if (sort) params.set("sort", "seen");
   if ($("filterTextures").checked) params.set("has_textures", "true");
   if ($("filterSliced").checked) params.set("is_sliced", "true");
   if ($("filterHidden")?.checked) params.set("hidden", "true");
   else params.set("hidden", "false");
   return params;
+}
+
+function parseTagsInput(raw) {
+  return String(raw || "")
+    .split(/[,;\n]+/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+}
+
+function fillRootFilter() {
+  const sel = $("filterRoot");
+  if (!sel) return;
+  const prev = sel.value;
+  sel.innerHTML = `<option value="">All folders</option>`
+    + folders.map((f) => {
+      const id = escapeHtml(f.id || "");
+      const label = escapeHtml(f.label || f.id || "folder");
+      return `<option value="${id}">${label}</option>`;
+    }).join("");
+  if (prev && [...sel.options].some((o) => o.value === prev)) sel.value = prev;
 }
 
 function renderCrumbs(crumbs) {
@@ -672,6 +697,7 @@ function appendAssetCard(grid, item) {
         ${item.hidden ? "<span class=\"pill warn\">hidden</span>" : ""}
         ${item.has_textures ? "<span>textures</span>" : ""}
         ${item.is_sliced ? "<span>sliced</span>" : ""}
+        ${(item.tags || []).slice(0, 3).map((t) => `<span class="pill tag">${escapeHtml(t)}</span>`).join("")}
         ${activeKind === "__duplicates__" && item.rel_path
           ? `<span title="${escapeHtml(item.rel_path)}">${escapeHtml(item.rel_path.length > 48 ? `…${item.rel_path.slice(-46)}` : item.rel_path)}</span>`
           : ""}
@@ -1024,6 +1050,14 @@ async function selectAsset(id) {
             ? `<p class="detail-hint">Sliced G-code — no mesh orbit. Thumbnails come from Prusa/Cura embeds when present.</p>`
             : `<p class="detail-hint">No 3D orbit for this file type.</p>`}
     </div>
+    <div class="detail-section">
+      <h3>Tags &amp; notes</h3>
+      <label class="meta-label">Tags <span class="meta-hint">comma-separated</span></label>
+      <input type="text" id="designTagsInput" class="meta-input" value="${escapeHtml((item.tags || []).join(", "))}" placeholder="to print, gift, junk…">
+      <label class="meta-label">Notes</label>
+      <textarea id="designNotesInput" class="meta-input meta-notes" rows="3" placeholder="Anything useful about this design…">${escapeHtml(item.design_notes || "")}</textarea>
+      <button type="button" class="card-open secondary" id="saveDesignMetaBtn">Save tags &amp; notes</button>
+    </div>
     <div class="kv">
       <div><span>Design</span><span>${escapeHtml(item.design_name)}</span></div>
       <div><span>Type</span><span>${escapeHtml(item.kind === "gcode" ? (item.meta?.extension === ".gco" ? "gcode (.gco)" : "gcode") : item.kind)}</span></div>
@@ -1184,6 +1218,25 @@ async function selectAsset(id) {
   $("copyWinPathBtn")?.addEventListener("click", () => copyText($("copyWinPathBtn"), winPath));
   $("copyWinFolderBtn")?.addEventListener("click", () => copyText($("copyWinFolderBtn"), winFolder, "Folder copied"));
   $("copyPiPathBtn")?.addEventListener("click", () => copyText($("copyPiPathBtn"), item.abs_path));
+  $("saveDesignMetaBtn")?.addEventListener("click", async () => {
+    const btn = $("saveDesignMetaBtn");
+    const tags = parseTagsInput($("designTagsInput")?.value);
+    const notes = $("designNotesInput")?.value ?? "";
+    if (btn) btn.disabled = true;
+    try {
+      await api(`/api/assets/${item.id}/design`, {
+        method: "PATCH",
+        body: JSON.stringify({ tags, notes }),
+      });
+      psToast("Saved", "Tags and notes updated.", "ok");
+      await loadLibrary({ preserveScroll: true });
+      await selectAsset(item.id);
+    } catch (err) {
+      psToast("Save failed", String(err.message || err), "error");
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  });
   $("hideBtn")?.addEventListener("click", async () => {
     try {
       const ids = idsForAction(id);
@@ -1349,6 +1402,7 @@ async function selectAsset(id) {
 async function loadFolders() {
   const cfg = await api("/api/config");
   folders = cfg.watched_folders || [];
+  fillRootFilter();
   renderFolders();
 }
 
@@ -1389,6 +1443,7 @@ async function saveFolders() {
     body: JSON.stringify({ watched_folders: folders }),
   });
   folders = out.watched_folders || folders;
+  fillRootFilter();
   renderFolders();
   await refreshStats();
   if (out.warnings?.length) {
@@ -1412,7 +1467,7 @@ function bind() {
   document.querySelectorAll(".nav-btn").forEach((btn) => {
     btn.addEventListener("click", () => switchView(btn.dataset.view));
   });
-  ["search", "filterSource", "filterTextures", "filterSliced", "filterHidden"].forEach((id) => {
+  ["search", "filterSource", "filterRoot", "sortBy", "filterTextures", "filterSliced", "filterHidden"].forEach((id) => {
     $(id)?.addEventListener("input", () => loadLibrary().catch(console.error));
     $(id)?.addEventListener("change", () => loadLibrary().catch(console.error));
   });

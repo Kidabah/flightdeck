@@ -418,6 +418,36 @@ h1 {
   letter-spacing: .08em;
   color: var(--muted);
 }
+.meta-label {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 8px 0 4px;
+  font-size: .82rem;
+  color: var(--text);
+}
+.meta-hint { color: var(--muted); font-size: .75rem; }
+.meta-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--bg-2);
+  border: 1px solid rgba(38, 56, 82, .9);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font: inherit;
+}
+.meta-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.meta-notes { resize: vertical; min-height: 72px; line-height: 1.4; }
+#saveDesignMetaBtn { margin-top: 10px; width: 100%; }
+.pill.tag {
+  background: rgba(94, 184, 255, .14);
+  border-color: rgba(94, 184, 255, .35);
+  color: var(--accent-2);
+}
 .kv { display: grid; gap: 6px; font-size: .9rem; }
 .kv div {
   display: flex;

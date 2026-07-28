@@ -6,16 +6,18 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
-## 2026-07-28 Session update (bulk-delete leftover count)
+## 2026-07-28 Session update (PrintShelf polish)
 
-Latest commit: `2852efb` — Fix false leftover-copies count after bulk duplicate delete
+Latest commit: `(pending)` — All-files default + tags/notes + sort/folder filter
 
 Latest local/Pi change:
-- Bulk delete no longer reports “N identical copies remain” from mid-batch snapshots.
-- Toast uses post-delete `/api/stats` duplicates count. Hard refresh `?v=48`. Restart done.
+- Library defaults to **All files** (Folders still available).
+- Detail pane: editable **tags** + **notes** (searchable).
+- Sort (newest/name/size/type) + filter by watched folder.
+- Hard refresh `?v=49`. Restart required.
 
 Previous:
-- Duplicates tab (`3221bf9`). Delete-all-copies (`213e056`).
+- Bulk-delete leftover count (`2852efb`). Duplicates tab (`3221bf9`).
 
 ---
 

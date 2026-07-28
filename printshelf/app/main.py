@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 
 from . import __version__
 from .config import data_dir, load_config, save_config
-from .db import db_session, init_db, parse_json_field, row_to_dict
+from .db import db_session, init_db, parse_json_field, row_to_dict, utcnow
 from .paths import to_windows_folder, to_windows_path
 from .parsers.ziparchive import list_nested_zip, split_nested_entry
 from .preview import (
@@ -64,6 +64,21 @@ class ConfigIn(BaseModel):
 
 class BulkIdsIn(BaseModel):
     ids: list[int] = Field(default_factory=list, max_length=2000)
+
+
+class DesignMetaIn(BaseModel):
+    notes: str | None = None
+    tags: list[str] | None = None
+
+
+_ASSET_SORT = {
+    "seen": "a.last_seen DESC, a.file_name ASC",
+    "name": "a.file_name ASC, a.rel_path ASC",
+    "name_desc": "a.file_name DESC, a.rel_path DESC",
+    "size": "a.size_bytes DESC, a.file_name ASC",
+    "size_asc": "a.size_bytes ASC, a.file_name ASC",
+    "kind": "a.kind ASC, a.file_name ASC",
+}
 
 
 @app.on_event("startup")
@@ -237,9 +252,12 @@ def _asset_visibility_clauses(
                )"""
         )
     if q:
-        clauses.append("(a.file_name LIKE ? OR a.rel_path LIKE ? OR d.name LIKE ?)")
+        clauses.append(
+            "(a.file_name LIKE ? OR a.rel_path LIKE ? OR d.name LIKE ?"
+            " OR d.notes LIKE ? OR d.tags_json LIKE ?)"
+        )
         like = f"%{q}%"
-        params.extend([like, like, like])
+        params.extend([like, like, like, like, like])
     return clauses, params
 
 
@@ -322,7 +340,7 @@ def browse_library(
             f"""SELECT a.rel_path, a.id, a.file_name, a.kind, a.source_kind, a.root_id,
                        a.root_path, a.abs_path, a.size_bytes, a.content_hash, a.thumb_path,
                        a.triangle_count, a.has_textures, a.is_sliced, a.hidden, a.meta_json,
-                       a.bbox_json, a.last_seen, d.name AS design_name
+                       a.bbox_json, a.last_seen, d.name AS design_name, d.tags_json
                 FROM assets a
                 JOIN designs d ON d.id = a.design_id
                 WHERE {where}
@@ -370,6 +388,7 @@ def browse_library(
         assert item
         item["meta"] = parse_json_field(item.pop("meta_json", "{}"), {})
         item["bbox"] = parse_json_field(item.pop("bbox_json", None), None)
+        item["tags"] = parse_json_field(item.pop("tags_json", "[]"), [])
         item["thumb_path"] = resolve_thumb_name(
             thumbs,
             thumb_path=item.get("thumb_path"),
@@ -420,6 +439,7 @@ def list_assets(
     hidden: bool | None = False,
     root_id: str | None = None,
     duplicates: bool = False,
+    sort: str | None = None,
     limit: int = Query(200, ge=1, le=1000),
     offset: int = Query(0, ge=0),
 ) -> dict[str, Any]:
@@ -440,10 +460,10 @@ def list_assets(
     order = (
         "a.content_hash ASC, a.file_name ASC, a.rel_path ASC"
         if duplicates
-        else "a.last_seen DESC, a.file_name ASC"
+        else _ASSET_SORT.get((sort or "seen").strip().lower(), _ASSET_SORT["seen"])
     )
     sql = f"""
-      SELECT a.*, d.name AS design_name,
+      SELECT a.*, d.name AS design_name, d.tags_json,
         (SELECT COUNT(*) FROM assets x
          WHERE x.content_hash = a.content_hash
            AND x.missing = 0 AND COALESCE(x.hidden, 0) = 0) AS copy_count
@@ -467,6 +487,7 @@ def list_assets(
         assert item
         item["meta"] = parse_json_field(item.pop("meta_json", "{}"), {})
         item["bbox"] = parse_json_field(item.pop("bbox_json", None), None)
+        item["tags"] = parse_json_field(item.pop("tags_json", "[]"), [])
         item["copy_count"] = int(item.get("copy_count") or 0)
         resolved = resolve_thumb_name(
             thumbs,
@@ -534,6 +555,52 @@ def get_asset(asset_id: int) -> dict[str, Any]:
     )
     item["hidden"] = bool(item.get("hidden"))
     return item
+
+
+@app.patch("/api/assets/{asset_id}/design")
+def patch_asset_design(asset_id: int, body: DesignMetaIn) -> dict[str, Any]:
+    """Update notes/tags on the design that owns this asset."""
+    if body.notes is None and body.tags is None:
+        raise HTTPException(400, "Provide notes and/or tags")
+    cfg = load_config()
+    db_file = data_dir(cfg) / "printshelf.sqlite3"
+    with db_session(db_file) as conn:
+        row = conn.execute(
+            "SELECT design_id FROM assets WHERE id = ?",
+            (asset_id,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "Asset not found")
+        design_id = int(row["design_id"])
+        fields: list[str] = []
+        params: list[Any] = []
+        if body.notes is not None:
+            fields.append("notes = ?")
+            params.append(str(body.notes)[:8000])
+        if body.tags is not None:
+            cleaned: list[str] = []
+            seen: set[str] = set()
+            for raw in body.tags:
+                tag = " ".join(str(raw or "").strip().split())
+                if not tag:
+                    continue
+                key = tag.lower()
+                if key in seen:
+                    continue
+                seen.add(key)
+                cleaned.append(tag[:64])
+                if len(cleaned) >= 24:
+                    break
+            fields.append("tags_json = ?")
+            params.append(json.dumps(cleaned))
+        fields.append("updated_at = ?")
+        params.append(utcnow())
+        params.append(design_id)
+        conn.execute(
+            f"UPDATE designs SET {', '.join(fields)} WHERE id = ?",
+            params,
+        )
+    return get_asset(asset_id)
 
 
 def _load_asset_or_404(asset_id: int) -> dict[str, Any]:

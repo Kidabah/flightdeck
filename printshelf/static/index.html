@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=48">
+  <link rel="stylesheet" href="style.css?v=49">
   <script type="importmap">
   {
     "imports": {
@@ -58,6 +58,17 @@
               <option value="local">Local</option>
               <option value="nas">NAS</option>
             </select>
+            <select id="filterRoot" title="Watched folder">
+              <option value="">All folders</option>
+            </select>
+            <select id="sortBy" title="Sort">
+              <option value="seen">Newest seen</option>
+              <option value="name">Name A–Z</option>
+              <option value="name_desc">Name Z–A</option>
+              <option value="size">Largest</option>
+              <option value="size_asc">Smallest</option>
+              <option value="kind">Type</option>
+            </select>
             <label class="check"><input type="checkbox" id="filterTextures"> Has textures</label>
             <label class="check"><input type="checkbox" id="filterSliced"> Sliced 3MF</label>
             <label class="check"><input type="checkbox" id="filterHidden"> Show hidden</label>
@@ -75,8 +86,8 @@
           </div>
         </div>
         <div class="view-modes" id="viewModes" role="tablist" aria-label="Browse mode">
-          <button type="button" class="view-mode active" data-mode="folders">Folders</button>
-          <button type="button" class="view-mode" data-mode="all">All files</button>
+          <button type="button" class="view-mode" data-mode="folders">Folders</button>
+          <button type="button" class="view-mode active" data-mode="all">All files</button>
         </div>
         <nav class="crumbs" id="crumbs" aria-label="Folder path" hidden></nav>
         <div class="type-tabs" id="typeTabs" role="tablist" aria-label="File type">
@@ -155,7 +166,7 @@
     </div>
   </div>
 
-  <script type="module" src="viewer.js?v=48"></script>
-  <script src="app.js?v=48"></script>
+  <script type="module" src="viewer.js?v=49"></script>
+  <script src="app.js?v=49"></script>
 </body>
 </html>
