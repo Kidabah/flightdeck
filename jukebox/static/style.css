@@ -124,12 +124,12 @@ body {
 .platter-live {
   position: absolute;
   left: 41.7%;
-  top: 50.5%;
+  top: 51.3%;
   width: 31.5%;
   aspect-ratio: 1;
   border-radius: 50%;
   /* Match platter foreshortening — not edge-on. rotateZ levels left/right. */
-  transform: translate(-50%, -50%) rotateX(58deg) rotateZ(-7deg);
+  transform: translate(-50%, -50%) rotateX(64deg) rotateZ(-7deg);
   transform-style: preserve-3d;
   background:
     repeating-radial-gradient(circle at center,
@@ -146,8 +146,8 @@ body {
   animation: platter-spin 3.1s linear infinite;
 }
 @keyframes platter-spin {
-  from { transform: translate(-50%, -50%) rotateX(58deg) rotateZ(-7deg); }
-  to { transform: translate(-50%, -50%) rotateX(58deg) rotateZ(353deg); }
+  from { transform: translate(-50%, -50%) rotateX(64deg) rotateZ(-7deg); }
+  to { transform: translate(-50%, -50%) rotateX(64deg) rotateZ(353deg); }
 }
 
 .label {
