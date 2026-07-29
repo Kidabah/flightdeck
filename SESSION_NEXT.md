@@ -6,6 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-29 Session update (Cindy Vinyl — sleeve Edit ⋯ + overlay polish)
+
+Latest commit: *(pending)* — Sleeve edit; tilt/shrink tint; arm corridor; cover label
+
+Latest local/Pi change:
+- Each crate sleeve has ⋯ → Edit names (album/artist) without spinning first.
+- Colour tint: more back-tilt (`rotateX(58deg)`), slightly smaller, bigger centre hole, wider arm cutout so gold sits on top; centre art enlarged to cover baked-in video label.
+- Hard refresh `?v=43`. Rebuild `vinyl`.
+
+Previous:
+- Nudge + arm mask (`b0dcb93`).
+
+---
+
 ## 2026-07-29 Session update (Cindy Vinyl — nudge + arm over tint)
 
 Latest commit: `b0dcb93` — Micro-nudge label; mask colour under tonearm

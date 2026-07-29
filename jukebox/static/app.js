@@ -25,6 +25,8 @@ const state = {
   queue: [],
   index: -1,
   album: null,
+  /** Album currently open in the Properties modal (may differ from now-playing). */
+  editAlbum: null,
   crateType: "newest",
   volumeBeforeMute: 0.85,
   /** @type {'rest'|'cueing-in'|'hold'|'cueing-out'} */
@@ -290,23 +292,45 @@ async function showOnCindy() {
   }
 }
 
-function fillProperties() {
-  const album = state.album || {};
+function fillProperties(album) {
+  const al = album || state.editAlbum || state.album || {};
+  state.editAlbum = al?.id ? al : state.album;
   const song = currentSong() || {};
-  $("propAlbumName").value = album.name || album.title || "";
-  $("propAlbumArtist").value = album.artist || album.displayArtist || "";
+  $("propAlbumName").value = al.name || al.title || "";
+  $("propAlbumArtist").value = al.artist || al.displayArtist || "";
   $("propTrackTitle").value = song.title || "";
   $("propTrackArtist").value = song.artist || "";
-  $("propTrackAlbum").value = song.album || album.name || "";
-  $("propStatus").textContent = song.id
-    ? "Edits apply in Vinyl only (Cindy is read-only)."
-    : "Load a sleeve / track to edit.";
+  $("propTrackAlbum").value = song.album || al.name || "";
+  const canAlbum = Boolean(state.editAlbum?.id);
+  const canTrack = Boolean(song.id);
+  $("propSaveAlbum").disabled = !canAlbum;
+  $("propSaveTrack").disabled = !canTrack;
+  if (canAlbum && canTrack) {
+    $("propStatus").textContent = "Edits apply in Vinyl only (Cindy is read-only).";
+  } else if (canAlbum) {
+    $("propStatus").textContent = "Edit this sleeve’s display name / artist. Track fields need a playing side.";
+  } else if (canTrack) {
+    $("propStatus").textContent = "Track ready — pick a sleeve’s ⋯ to edit album names.";
+  } else {
+    $("propStatus").textContent = "Use ⋯ on a crate sleeve to rename it, or spin one first.";
+  }
+}
+
+function openAlbumEdit(album, e) {
+  e?.preventDefault?.();
+  e?.stopPropagation?.();
+  if (!album?.id) {
+    setStatus("That sleeve has no id to edit.");
+    return;
+  }
+  fillProperties(album);
+  openModal("propsModal");
 }
 
 async function saveAlbumProps() {
-  const album = state.album;
+  const album = state.editAlbum || state.album;
   if (!album?.id) {
-    $("propStatus").textContent = "No album loaded.";
+    $("propStatus").textContent = "No album loaded — use ⋯ on a crate sleeve.";
     return;
   }
   try {
@@ -321,8 +345,15 @@ async function saveAlbumProps() {
     album.name = $("propAlbumName").value.trim() || album.name;
     album.title = album.name;
     album.artist = $("propAlbumArtist").value.trim() || album.artist;
-    $("nowTitle").textContent = album.name || album.title || "Album";
-    $("nowArtist").textContent = album.artist || "";
+    album.displayArtist = album.artist;
+    if (state.album?.id === album.id) {
+      state.album.name = album.name;
+      state.album.title = album.name;
+      state.album.artist = album.artist;
+      state.album.displayArtist = album.artist;
+      $("nowTitle").textContent = album.name || "Album";
+      $("nowArtist").textContent = album.artist || "";
+    }
     $("propStatus").textContent = "Album saved for Vinyl.";
     await loadCrates(state.crateType);
   } catch (err) {
@@ -553,6 +584,9 @@ async function spin() {
 }
 
 function sleeveButton(album) {
+  const wrap = document.createElement("div");
+  wrap.className = "sleeve-wrap";
+
   const btn = document.createElement("button");
   btn.type = "button";
   btn.className = "sleeve";
@@ -565,7 +599,7 @@ function sleeveButton(album) {
   t.textContent = album.name || album.title || "Album";
   const a = document.createElement("div");
   a.className = "a";
-  a.textContent = album.artist || "";
+  a.textContent = album.artist || "[Unknown Artist]";
   btn.append(img, t, a);
   btn.addEventListener("click", async () => {
     setStatus("Sliding the sleeve out…");
@@ -576,7 +610,17 @@ function sleeveButton(album) {
       setStatus(String(err.message || err));
     }
   });
-  return btn;
+
+  const edit = document.createElement("button");
+  edit.type = "button";
+  edit.className = "sleeve-edit";
+  edit.title = "Edit display name / artist";
+  edit.setAttribute("aria-label", `Edit ${album.name || album.title || "album"}`);
+  edit.textContent = "⋯";
+  edit.addEventListener("click", (e) => openAlbumEdit(album, e));
+
+  wrap.append(btn, edit);
+  return wrap;
 }
 
 async function loadCrates(type) {
@@ -704,7 +748,7 @@ function wire() {
     const action = btn.dataset.action;
     if (action === "cindy") showOnCindy();
     else if (action === "props") {
-      fillProperties();
+      fillProperties(state.album);
       openModal("propsModal");
     } else if (action === "refresh") refreshPacks();
   });

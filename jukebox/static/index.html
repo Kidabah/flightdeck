@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=41">
+  <link rel="stylesheet" href="/static/style.css?v=43">
 </head>
 <body>
   <div class="lamp" aria-hidden="true"></div>
@@ -34,7 +34,7 @@
       <button type="button" class="menu-btn" id="menuBtn" aria-label="Menu" aria-haspopup="menu" aria-expanded="false">⋯</button>
       <div class="menu-drop" id="menuDrop" role="menu" hidden>
         <button type="button" role="menuitem" data-action="cindy">Show on Cindy</button>
-        <button type="button" role="menuitem" data-action="props">Properties…</button>
+        <button type="button" role="menuitem" data-action="props">Edit names…</button>
         <button type="button" role="menuitem" data-action="refresh">Refresh packs</button>
       </div>
     </div>
@@ -163,10 +163,10 @@
   <div class="modal" id="propsModal" hidden>
     <div class="modal-card" role="dialog" aria-labelledby="propsModalTitle">
       <header class="modal-head">
-        <h2 id="propsModalTitle">Properties</h2>
+        <h2 id="propsModalTitle">Edit names</h2>
         <button type="button" class="modal-close" data-close="propsModal" aria-label="Close">×</button>
       </header>
-      <p class="modal-note">Vinyl display names only — does not rewrite tags on Cindy.</p>
+      <p class="modal-note">Vinyl display names only — does not rewrite tags on Cindy. Use ⋯ on a crate sleeve to fix Unknown Artist packs.</p>
       <fieldset class="prop-block">
         <legend>Album</legend>
         <label class="field">Name <input id="propAlbumName" type="text"></label>
@@ -184,6 +184,6 @@
     </div>
   </div>
 
-  <script src="/static/app.js?v=38"></script>
+  <script src="/static/app.js?v=43"></script>
 </body>
 </html>
