@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-29 Session update (Cindy Vinyl — stop orbiting centre label)
 
-Latest commit: *(pending)* — Circular label spins in place; tint stays soft
+Latest commit: `cab13bb` — Circular label spins in place; tint stays soft
 
 Latest local/Pi change:
 - Centre art was an ellipse being rotated — that made it orbit inside the record. Now a circle with `rotateX` pose; only the inner wrapper spins.
