@@ -3,20 +3,22 @@ const $ = (id) => document.getElementById(id);
 const VOL_KEY = "cindy-vinyl-volume";
 const CUE_IN = "/static/deck-cue-in.mp4";
 const CUE_OUT = "/static/deck-cue-out.mp4";
-/** After the arm settles, loop one full platter revolution so the label phase matches. */
+/** After the arm settles on the outer grooves, loop a short window so the arm
+ *  stays parked (a full revolution lets it crawl inward, then snap back).
+ *  The spinning CSS label covers any leftover video-label seam. */
 const HOLD_LOOP_START = 3.55;
-const HOLD_LOOP_END = 5.0083;
+const HOLD_LOOP_END = 4.2;
 const VINYL_COLORS = [
-  "#141218",
-  "#2a0e12",
-  "#0e1a2a",
-  "#122414",
-  "#2a1810",
-  "#1c1028",
-  "#0e2422",
-  "#2a1420",
-  "#1a220e",
-  "#241810",
+  "#b91c1c",
+  "#1d4ed8",
+  "#15803d",
+  "#7c3aed",
+  "#c2410c",
+  "#0f766e",
+  "#be185d",
+  "#a16207",
+  "#1e3a5f",
+  "#4c1d95",
 ];
 
 const state = {
@@ -425,6 +427,8 @@ function pickVinylColor() {
   const c = VINYL_COLORS[Math.floor(Math.random() * VINYL_COLORS.length)];
   const stage = $("deckStage");
   if (stage) stage.style.setProperty("--vinyl-color", c);
+  const tint = $("vinylTint");
+  if (tint) tint.style.background = ""; // let CSS radial use the var
   return c;
 }
 

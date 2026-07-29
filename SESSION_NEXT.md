@@ -6,6 +6,21 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-29 Session update (Cindy Vinyl — centre label + arm park + colour)
+
+Latest commit: *(pending)* — Nudge label onto spindle; short hold; visible vinyl tint
+
+Latest local/Pi change:
+- Label was ~5% left of the spindle — moved to 40.2% / 54.8%; spin on inner wrapper so 3D pose doesn’t drift.
+- Hold loop back to 3.55→4.2s so the arm stays on the outer grooves (long loop was crawling then snapping).
+- Vinyl colour is a saturated translucent groove ring (soft-light on black was invisible).
+- Hard refresh `?v=40`. Rebuild `vinyl`.
+
+Previous:
+- Revolution hold + centre art (`a812eaf`).
+
+---
+
 ## 2026-07-29 Session update (Cindy Vinyl — label seam + colour + centre art)
 
 Latest commit: `a812eaf` — Revolution hold loop; spinning centre label; random vinyl colour

@@ -356,37 +356,42 @@ body {
   display: none !important;
 }
 
-/* Random vinyl colour — blend so the video tonearm stays readable */
+/* Random vinyl colour — translucent groove ring (arm tip stays readable) */
 .vinyl-tint {
   position: absolute;
-  left: 34.5%;
-  top: 56.7%;
-  width: 36%;
+  left: 40.2%;
+  top: 54.8%;
+  width: 37%;
   aspect-ratio: 1;
   border-radius: 50%;
-  transform: translate(-50%, -50%) rotateX(50deg) rotateZ(-2deg);
-  background: var(--vinyl-color, #1a1018);
-  mix-blend-mode: soft-light;
+  transform: translate(-50%, -50%) rotateX(48deg) rotateZ(-2deg);
+  background: radial-gradient(
+    circle,
+    transparent 0 26%,
+    var(--vinyl-color, #b91c1c) 28%,
+    var(--vinyl-color, #b91c1c) 90%,
+    transparent 93%
+  );
   opacity: 0;
   z-index: 7;
   pointer-events: none;
-  transition: opacity 0.35s ease;
+  transition: opacity 0.35s ease, background 0.4s ease;
 }
-.deck-stage.has-vinyl .vinyl-tint { opacity: 0.92; }
+.deck-stage.has-vinyl .vinyl-tint { opacity: 0.55; }
 .deck-stage.playing .vinyl-tint,
 .deck-stage.cueing .vinyl-tint {
-  opacity: 1;
+  opacity: 0.7;
 }
 
-/* Spinning centre label (album art) — hides the 1-frame video label jump */
+/* Centre label — positioned on spindle; spin is on the inner wrapper so 3D pose stays put */
 .platter-live {
   position: absolute;
-  left: 34.5%;
-  top: 56.7%;
-  width: 11.5%;
+  left: 40.2%;
+  top: 54.8%;
+  width: 12.2%;
   aspect-ratio: 1;
   border-radius: 50%;
-  transform: translate(-50%, -50%) rotateX(50deg) rotateZ(-2deg);
+  transform: translate(-50%, -50%) rotateX(48deg) rotateZ(-2deg);
   display: grid;
   place-items: center;
   z-index: 8;
@@ -399,17 +404,22 @@ body {
   background: #0c0c0e;
 }
 .deck-stage.has-vinyl .platter-live { opacity: 1; }
-.deck-stage.playing .platter-live,
-.deck-stage.cueing .platter-live {
+.platter-spin {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+}
+.deck-stage.playing .platter-spin,
+.deck-stage.cueing .platter-spin {
   animation: platter-spin 1.4583s linear infinite;
 }
-.deck-stage:not(.playing):not(.cueing) .platter-live {
+.deck-stage:not(.playing):not(.cueing) .platter-spin {
   animation: none;
 }
 
 @keyframes platter-spin {
-  from { transform: translate(-50%, -50%) rotateX(50deg) rotateZ(-2deg); }
-  to { transform: translate(-50%, -50%) rotateX(50deg) rotateZ(358deg); }
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .label {
