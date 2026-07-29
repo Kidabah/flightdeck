@@ -6,6 +6,21 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-29 Session update (Cindy Vinyl — label seam + colour + centre art)
+
+Latest commit: *(pending)* — Revolution hold loop; spinning centre label; random vinyl colour
+
+Latest local/Pi change:
+- Hold loop is one platter revolution (3.55→5.008s) so label phase matches at the seam.
+- Restored spinning album-art label over the platter centre (covers residual video jump).
+- Random vinyl colour tint each track (`mix-blend-mode` so the video tonearm stays visible).
+- Hard refresh `?v=39`. Rebuild `vinyl` (static only; restart optional).
+
+Previous:
+- Tight outer-groove loop (`02b6a6f`).
+
+---
+
 ## 2026-07-29 Session update (Cindy Vinyl — strip hero overlays)
 
 Latest commit: `10448c8` — Remove prism sleeve + platter overlays

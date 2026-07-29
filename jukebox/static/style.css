@@ -356,6 +356,84 @@ body {
   display: none !important;
 }
 
+/* Random vinyl colour — blend so the video tonearm stays readable */
+.vinyl-tint {
+  position: absolute;
+  left: 34.5%;
+  top: 56.7%;
+  width: 36%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  transform: translate(-50%, -50%) rotateX(50deg) rotateZ(-2deg);
+  background: var(--vinyl-color, #1a1018);
+  mix-blend-mode: soft-light;
+  opacity: 0;
+  z-index: 7;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+.deck-stage.has-vinyl .vinyl-tint { opacity: 0.92; }
+.deck-stage.playing .vinyl-tint,
+.deck-stage.cueing .vinyl-tint {
+  opacity: 1;
+}
+
+/* Spinning centre label (album art) — hides the 1-frame video label jump */
+.platter-live {
+  position: absolute;
+  left: 34.5%;
+  top: 56.7%;
+  width: 11.5%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  transform: translate(-50%, -50%) rotateX(50deg) rotateZ(-2deg);
+  display: grid;
+  place-items: center;
+  z-index: 8;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  box-shadow:
+    0 0 0 1px rgba(212, 175, 55, 0.35),
+    inset 0 0 8px rgba(0, 0, 0, 0.55);
+  background: #0c0c0e;
+}
+.deck-stage.has-vinyl .platter-live { opacity: 1; }
+.deck-stage.playing .platter-live,
+.deck-stage.cueing .platter-live {
+  animation: platter-spin 1.4583s linear infinite;
+}
+.deck-stage:not(.playing):not(.cueing) .platter-live {
+  animation: none;
+}
+
+@keyframes platter-spin {
+  from { transform: translate(-50%, -50%) rotateX(50deg) rotateZ(-2deg); }
+  to { transform: translate(-50%, -50%) rotateX(50deg) rotateZ(358deg); }
+}
+
+.label {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: #111;
+}
+.label img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.label span {
+  font-family: var(--font-display);
+  color: var(--gold);
+  font-size: 1.6rem;
+  letter-spacing: 0.04em;
+}
+
 .deck-tag {
   font-family: var(--font-display);
   letter-spacing: 0.14em;

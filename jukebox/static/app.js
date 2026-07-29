@@ -3,10 +3,21 @@ const $ = (id) => document.getElementById(id);
 const VOL_KEY = "cindy-vinyl-volume";
 const CUE_IN = "/static/deck-cue-in.mp4";
 const CUE_OUT = "/static/deck-cue-out.mp4";
-/** After the arm settles on the outer grooves, loop only this short window
- *  (longer windows let the arm crawl inward, then jump back — looks broken). */
+/** After the arm settles, loop one full platter revolution so the label phase matches. */
 const HOLD_LOOP_START = 3.55;
-const HOLD_LOOP_END = 4.2;
+const HOLD_LOOP_END = 5.0083;
+const VINYL_COLORS = [
+  "#141218",
+  "#2a0e12",
+  "#0e1a2a",
+  "#122414",
+  "#2a1810",
+  "#1c1028",
+  "#0e2422",
+  "#2a1420",
+  "#1a220e",
+  "#241810",
+];
 
 const state = {
   queue: [],
@@ -140,7 +151,8 @@ function startPlayLoop() {
     v.ontimeupdate = () => {
       if (token !== state.armToken) return;
       if (state.arm !== "cueing-in" && state.arm !== "hold") return;
-      if (v.currentTime >= HOLD_LOOP_END) {
+      // Seek a hair before the end frame so we never flash a mismatched label phase
+      if (v.currentTime >= HOLD_LOOP_END - 0.02) {
         state.arm = "hold";
         try {
           v.currentTime = HOLD_LOOP_START;
@@ -409,13 +421,33 @@ function togglePlayPause() {
   }
 }
 
+function pickVinylColor() {
+  const c = VINYL_COLORS[Math.floor(Math.random() * VINYL_COLORS.length)];
+  const stage = $("deckStage");
+  if (stage) stage.style.setProperty("--vinyl-color", c);
+  return c;
+}
+
 function setVinylArt(coverId) {
+  const img = $("vinylArt");
+  const fb = $("vinylFallback");
   const art = $("deckArt");
+  const stage = $("deckStage");
   if (!coverId) {
+    if (img) img.hidden = true;
+    if (fb) fb.hidden = false;
     art?.removeAttribute("src");
+    stage?.classList.remove("has-vinyl");
     return;
   }
+  const url = coverUrl(coverId, 600);
+  if (img) {
+    img.src = url;
+    img.hidden = false;
+  }
+  if (fb) fb.hidden = true;
   if (art) art.src = coverUrl(coverId, 120);
+  stage?.classList.add("has-vinyl");
 }
 
 function renderQueue() {
@@ -480,6 +512,7 @@ async function playIndex(i) {
   $("deckTitle").textContent = song.title || "Track";
   $("deckArtist").textContent = song.artist || state.album?.artist || "";
   if (song.coverArt) setVinylArt(song.coverArt);
+  pickVinylColor();
   audio.src = `/api/stream/${encodeURIComponent(song.id)}`;
   try {
     await audio.play();
