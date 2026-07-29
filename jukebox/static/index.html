@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cindy · Vinyl</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css?v=1">
+</head>
+<body>
+  <div class="lamp" aria-hidden="true"></div>
+  <div class="grain" aria-hidden="true"></div>
+
+  <header class="top">
+    <div class="brand">
+      <span class="brand-mark">Cindy</span>
+      <span class="brand-sub">vinyl room</span>
+    </div>
+    <form class="search" id="searchForm" autocomplete="off">
+      <input id="searchInput" type="search" placeholder="Search the crates…" enterkeyhint="search">
+    </form>
+  </header>
+
+  <main class="stage" id="stage">
+    <section class="hero" id="hero">
+      <div class="platter-wrap">
+        <div class="platter" id="platter">
+          <div class="vinyl" id="vinyl">
+            <div class="label" id="vinylLabel">
+              <img id="vinylArt" alt="" hidden>
+              <span id="vinylFallback">C</span>
+            </div>
+          </div>
+          <div class="tonearm" id="tonearm" aria-hidden="true"></div>
+        </div>
+      </div>
+      <div class="hero-copy">
+        <h1 id="nowTitle">Drop the needle</h1>
+        <p id="nowArtist">5.4TB on Cindy — CHECKED · MUSIC · JAMAL</p>
+        <div class="hero-actions">
+          <button type="button" class="spin-btn" id="spinBtn">SPIN</button>
+          <button type="button" class="ghost-btn" id="playPauseBtn" disabled>Play</button>
+        </div>
+        <p class="hint" id="statusLine">Warming up the tubes…</p>
+      </div>
+    </section>
+
+    <section class="crates" id="cratesSection">
+      <div class="crates-head">
+        <h2>Crates</h2>
+        <div class="crate-tabs" role="tablist">
+          <button type="button" class="crate-tab active" data-type="newest">Fresh sleeves</button>
+          <button type="button" class="crate-tab" data-type="random">Shuffle bin</button>
+          <button type="button" class="crate-tab" data-type="frequent">Often spun</button>
+        </div>
+      </div>
+      <div class="crate-rail" id="crateRail" tabindex="0"></div>
+    </section>
+
+    <section class="queue-strip" id="queueStrip" hidden>
+      <h2>On deck</h2>
+      <ol id="queueList"></ol>
+    </section>
+
+    <section class="search-results" id="searchResults" hidden>
+      <h2>Found in the stacks</h2>
+      <div id="searchGrid"></div>
+    </section>
+  </main>
+
+  <footer class="deck">
+    <div class="deck-art"><img id="deckArt" alt=""></div>
+    <div class="deck-meta">
+      <div id="deckTitle">—</div>
+      <div id="deckArtist">—</div>
+      <input type="range" id="seek" min="0" max="1000" value="0" aria-label="Seek">
+    </div>
+    <div class="deck-controls">
+      <button type="button" id="prevBtn" aria-label="Previous">⏮</button>
+      <button type="button" id="deckPlay" aria-label="Play/Pause">▶</button>
+      <button type="button" id="nextBtn" aria-label="Next">⏭</button>
+    </div>
+  </footer>
+
+  <audio id="audio" preload="none"></audio>
+  <script src="/static/app.js?v=1"></script>
+</body>
+</html>

@@ -6,7 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
-## 2026-07-29 Session update (NAS Mora Kidabah home)
+## 2026-07-29 Session update (Cindy Vinyl Jukebox)
+
+Latest commit: *(pending)* — Cindy Vinyl jukebox (Navidrome + hi-fi UI)
+
+Latest local/Pi change:
+- Mount Cindy **MUSIC + CHECKED + JAMAL** → `/mnt/cindy/*` (`mount-cindy.sh`, boot remount).
+- **Navidrome** on `:4533` (indexes ~5.4TB; first scan takes hours).
+- **Cindy Vinyl** UI + API proxy on `:4540` — wood/lamp vinyl room, SPIN, crates.
+- Open: `http://flightdeck.tail7de73e.ts.net:4540` (or Pi Tailscale IP `:4540`).
+- Secrets: `jukebox/.env` on Pi only (`JUKEBOX_USER` / `JUKEBOX_PASSWORD`).
+- Creds: `~/.smbcredentials-cindy`.
+
+Previous:
+- Mora Kidabah home mount (`bc1acbf`).
 
 Latest commit: `bc1acbf` — Mount Mora User Homes/Kidabah for PrintShelf
 
