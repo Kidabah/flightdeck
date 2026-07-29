@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-29 Session update (Cindy Vinyl — pack merge + no-touch Cindy)
 
-Latest commit: *(deploying)* — Folder-pack merge + Cindy symlink view (skip #recycle)
+Latest commit: `19555f3` — Folder-pack merge + Cindy symlink view (skip #recycle)
 
 Latest local/Pi change:
 - **Cindy stays read-only** (PrintShelf-style): no retagging / no writes on the NAS.
