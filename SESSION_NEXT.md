@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-29 Session update (Cindy Vinyl — sleeve Edit ⋯ + overlay polish)
 
-Latest commit: *(pending)* — Sleeve edit; tilt/shrink tint; arm corridor; cover label
+Latest commit: `a0c3caa` — Sleeve edit; tilt/shrink tint; arm corridor; cover label
 
 Latest local/Pi change:
 - Each crate sleeve has ⋯ → Edit names (album/artist) without spinning first.
