@@ -199,5 +199,42 @@ async def index():
     return FileResponse(index_path)
 
 
+def _pwa_file(name: str, media_type: str) -> FileResponse:
+    path = STATIC / name
+    if not path.is_file():
+        raise HTTPException(404, f"{name} missing")
+    return FileResponse(path, media_type=media_type)
+
+
+@app.get("/manifest.json")
+async def manifest():
+    return _pwa_file("manifest.json", "application/manifest+json")
+
+
+@app.get("/sw.js")
+async def service_worker():
+    return _pwa_file("sw.js", "application/javascript; charset=utf-8")
+
+
+@app.get("/icon-192.png")
+async def icon_192():
+    return _pwa_file("icon-192.png", "image/png")
+
+
+@app.get("/icon-512.png")
+async def icon_512():
+    return _pwa_file("icon-512.png", "image/png")
+
+
+@app.get("/apple-touch-icon.png")
+async def apple_touch_icon():
+    return _pwa_file("apple-touch-icon.png", "image/png")
+
+
+@app.get("/cindy-vinyl-icon.svg")
+async def cindy_icon_svg():
+    return _pwa_file("cindy-vinyl-icon.svg", "image/svg+xml")
+
+
 if STATIC.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC)), name="static")

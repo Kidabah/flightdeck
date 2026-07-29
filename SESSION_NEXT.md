@@ -6,6 +6,21 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-29 Session update (Cindy Vinyl — PWA app)
+
+Latest commit: *(pending)* — PWA manifest + icons; Install like PrintShelf
+
+Latest local/Pi change:
+- Cindy Vinyl is installable: `manifest.json`, `sw.js`, icons, root routes.
+- Hard refresh `?v=25`. Rebuild `cindy-vinyl`.
+- For Chrome **Install**: `sudo tailscale serve --bg --https=4540 http://127.0.0.1:4540` then open HTTPS `:4540`.
+- Optional desktop shortcut: `jukebox/scripts/create-desktop-shortcut.ps1`.
+
+Previous:
+- Transport polish (`5a02518`).
+
+---
+
 ## 2026-07-29 Session update (Cindy Vinyl — transport polish)
 
 Latest commit: `5a02518` — Volume, time readout, keyboard shortcuts

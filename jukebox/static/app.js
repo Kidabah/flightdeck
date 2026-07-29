@@ -385,4 +385,8 @@ async function boot() {
   await loadCrates("newest");
 }
 
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/sw.js").catch(() => {});
+}
+
 boot();

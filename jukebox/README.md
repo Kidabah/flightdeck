@@ -24,3 +24,20 @@ docker compose up -d --build
 Open over Tailscale: `http://flightdeck.tail7de73e.ts.net:4540` (or Pi Tailscale IP `:4540`).
 
 First Navidrome scan of ~5.4TB takes hours; the UI fills as albums appear.
+
+## Install as an app (PWA, same as PrintShelf / Flightdeck)
+
+Chrome/Edge need **HTTPS** to Install. On the Pi (once):
+
+```bash
+sudo tailscale serve --bg --https=4540 http://127.0.0.1:4540
+```
+
+Then open `https://flightdeck.tail7de73e.ts.net:4540` → menu → **Install Cindy Vinyl** (or Install app).
+
+Optional Windows desktop shortcut (app window, no browser chrome):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File jukebox\scripts\create-desktop-shortcut.ps1
+```
+
