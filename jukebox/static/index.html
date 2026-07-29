@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=21">
+  <link rel="stylesheet" href="/static/style.css?v=22">
 </head>
 <body>
   <div class="lamp" aria-hidden="true"></div>
@@ -27,13 +27,15 @@
     <section class="hero" id="hero">
       <div class="hero-main">
         <div class="deck-stage" id="deckStage">
-          <img class="deck-photo" src="/static/deck.png" alt="Technics SL-1200 Limited">
-          <div class="platter-live" id="vinyl" aria-hidden="true">
-            <div class="label" id="vinylLabel">
-              <img id="vinylArt" alt="" hidden>
-              <span id="vinylFallback">C</span>
-            </div>
-          </div>
+          <video
+            id="deckArm"
+            class="deck-arm"
+            src="/static/deck-arm.mp4"
+            muted
+            playsinline
+            preload="auto"
+            aria-label="Technics SL-1200 Limited"
+          ></video>
         </div>
         <div class="hero-copy">
           <p class="deck-tag">Technics SL-1200 Limited</p>
@@ -91,6 +93,6 @@
   </footer>
 
   <audio id="audio" preload="none"></audio>
-  <script src="/static/app.js?v=21"></script>
+  <script src="/static/app.js?v=22"></script>
 </body>
 </html>

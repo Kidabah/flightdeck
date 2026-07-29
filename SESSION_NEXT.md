@@ -6,6 +6,21 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-29 Session update (Cindy Vinyl — silent SL1200 tonearm)
+
+Latest commit: *(pending)* — Silent deck-arm.mp4 cue-in/out on play/end
+
+Latest local/Pi change:
+- Your `SL1200.mp4` → `jukebox/static/deck-arm.mp4` (**audio stripped**, ~272KB).
+- Hero deck is a muted `<video>`: cue-in on track start, hold needle-down, cue-out when queue ends.
+- Pause mid-track keeps needle down. Hard refresh Vinyl `?v=22`.
+- Rebuild `cindy-vinyl` on Pi.
+
+Previous:
+- Folder-pack merge + Cindy symlink view (`19555f3` / `303151a`).
+
+---
+
 ## 2026-07-29 Session update (Cindy Vinyl — pack merge + no-touch Cindy)
 
 Latest commit: `19555f3` — Folder-pack merge + Cindy symlink view (skip #recycle)
