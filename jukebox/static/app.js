@@ -98,25 +98,54 @@ function playCueClip(src, { onEnded } = {}) {
   }
   v.hidden = false;
   v.muted = true;
+  v.playsInline = true;
   v.loop = false;
   v.onended = null;
   v.onerror = null;
+
+  const stillCurrent = () => token === state.armToken;
+
   const finish = () => {
-    if (token !== state.armToken) return;
+    if (!stillCurrent()) return;
     onEnded?.();
   };
+
   v.onended = finish;
-  v.onerror = finish;
+
+  const tryPlay = () => {
+    if (!stillCurrent()) return;
+    const p = v.play();
+    if (p && typeof p.then === "function") {
+      p.catch(() => {
+        if (!stillCurrent()) return;
+        // Wait for data, then retry once — don't freeze mid-drop on a transient play() reject.
+        const retry = () => {
+          if (!stillCurrent()) return;
+          v.play().catch(() => {});
+        };
+        v.addEventListener("canplay", retry, { once: true });
+      });
+    }
+  };
+
+  const kickoff = () => {
+    if (!stillCurrent()) return;
+    try {
+      v.currentTime = 0;
+    } catch {
+      /* ignore */
+    }
+    tryPlay();
+  };
+
+  const abs = new URL(src, window.location.href).href;
+  if (v.src === abs && v.readyState >= 2) {
+    kickoff();
+    return;
+  }
+  v.addEventListener("loadeddata", kickoff, { once: true });
   v.src = src;
-  try {
-    v.currentTime = 0;
-  } catch {
-    /* ignore */
-  }
-  const p = v.play();
-  if (p && typeof p.then === "function") {
-    p.catch(() => finish());
-  }
+  v.load();
 }
 
 function freezeNeedleDown() {
@@ -133,14 +162,8 @@ function freezeNeedleDown() {
   v.loop = false;
   v.onended = null;
   v.onerror = null;
+  // Stay on the last decoded frame — do not seek (seek can flash an earlier frame).
   v.pause();
-  try {
-    if (Number.isFinite(v.duration) && v.duration > 0) {
-      v.currentTime = Math.max(0, v.duration - 0.04);
-    }
-  } catch {
-    /* ignore */
-  }
 }
 
 function cueInThenHold() {

@@ -21,6 +21,20 @@ Previous:
 
 ---
 
+## 2026-07-29 Session update (Cindy Vinyl — full drop then freeze)
+
+Latest commit: *(pending)* — Longer cue-in; don’t abort mid-drop
+
+Latest local/Pi change:
+- Cue-in is the full arm-to-record move (~4.5s), then freeze on that frame.
+- Fixed video kickoff so a transient `play()` reject no longer freezes mid-swing.
+- Hard refresh `?v=36`. Rebuild `vinyl`.
+
+Previous:
+- Freeze after short cue-in (`5d9086d`).
+
+---
+
 ## 2026-07-29 Session update (Cindy Vinyl — freeze after cue-in)
 
 Latest commit: `5d9086d` — Arm drops once, then freezes (no hold loop jump)
