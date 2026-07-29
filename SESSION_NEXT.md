@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-29 Session update (Cindy Vinyl — strip hero overlays)
 
-Latest commit: *(pending)* — Remove prism sleeve + platter overlays
+Latest commit: `10448c8` — Remove prism sleeve + platter overlays
 
 Latest local/Pi change:
 - Hero is photo/video only — no floating album sleeve or fake spinning label.
@@ -23,7 +23,7 @@ Previous:
 
 ## 2026-07-29 Session update (Cindy Vinyl — ⋯ menu + properties)
 
-Latest commit: *(pending)* — Top-right menu: Cindy path + rename props
+Latest commit: `10448c8` — Top-right menu: Cindy path + rename props
 
 Latest local/Pi change:
 - Hero overlays stripped (photo/video only).
