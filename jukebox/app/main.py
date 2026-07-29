@@ -100,6 +100,13 @@ async def _nd_get(view: str, extra: dict[str, Any] | None = None) -> dict[str, A
 async def _ensure_alpha_index(force: bool = False) -> list[tuple[str, dict[str, Any]]]:
     """Alphabetical pass without folder-collapse (collapse only the letter slice)."""
     global _alpha_index, _alpha_built
+    now = time.monotonic()
+    if (
+        not force
+        and _alpha_index is not None
+        and now - _alpha_built < _ALPHA_TTL
+    ):
+        return _alpha_index
     async with _alpha_lock:
         now = time.monotonic()
         if (
@@ -397,14 +404,35 @@ async def albums(
         ch = letter.upper()
         index = await _ensure_alpha_index()
         matched = [a for L, a in index if L == ch]
-        # Collapse folder packs only for this letter's slice.
-        collapsed = meta.apply_album_list(collapse_album_list(matched))
+        # Collapse in small batches off the event loop until the rail is full.
+        out: list[dict[str, Any]] = []
+        seen_ids: set[str] = set()
+        i = 0
+        batch_n = max(48, size * 3)
+
+        def _collapse_batch(batch: list[dict[str, Any]]) -> list[dict[str, Any]]:
+            return meta.apply_album_list(collapse_album_list(batch))
+
+        while len(out) < size and i < len(matched):
+            batch = matched[i : i + batch_n]
+            i += batch_n
+            collapsed = await asyncio.to_thread(_collapse_batch, batch)
+            for a in collapsed:
+                if _album_index_letter(a) != ch:
+                    continue
+                aid = str(a.get("id") or "")
+                if not aid or aid in seen_ids:
+                    continue
+                seen_ids.add(aid)
+                out.append(a)
+                if len(out) >= size:
+                    break
         return {
-            "albums": collapsed[:size],
+            "albums": out[:size],
             "type": list_type,
             "letter": letter,
             "genre": genre,
-            "total": len(collapsed),
+            "total": len(matched),
         }
 
     if list_type == "byGenre":
