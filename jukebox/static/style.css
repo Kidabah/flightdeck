@@ -123,9 +123,9 @@ body {
 /* Live spinning disc — centred on the Technics platter, matched to camera angle */
 .platter-live {
   position: absolute;
-  left: 40.8%;
-  top: 50.9%;
-  width: 34%;
+  left: 42.4%;
+  top: 49.4%;
+  width: 30.5%;
   aspect-ratio: 1;
   border-radius: 50%;
   /* Match platter foreshortening — not edge-on. rotateZ levels left/right. */
