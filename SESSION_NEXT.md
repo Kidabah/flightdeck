@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-29 Session update (Cindy Vinyl — forward hold + new deck still)
 
-Latest commit: *(pending)* — Forward-only spin loop + fresher rest still
+Latest commit: `4d0b37c` — Forward-only spin loop + fresher rest still
 
 Latest local/Pi change:
 - Hold loop is **forward-only** (no reverse spin).
