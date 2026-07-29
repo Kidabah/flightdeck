@@ -23,7 +23,7 @@ Previous:
 
 ## 2026-07-29 Session update (Cindy Vinyl — tight outer-groove loop)
 
-Latest commit: *(pending)* — Loop only outer-groove spin (~0.65s)
+Latest commit: `02b6a6f` — Loop only outer-groove spin (~0.65s)
 
 Latest local/Pi change:
 - Hold loop was 2.0→5.15s so the arm crawled to the label then jumped back.
