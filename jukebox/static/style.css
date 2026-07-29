@@ -172,57 +172,6 @@ body {
   color: var(--gold);
 }
 
-/* Covers the photo’s parked arm while the live arm is on the record */
-.arm-park-cover {
-  position: absolute;
-  left: 58%;
-  top: 38%;
-  width: 28%;
-  height: 42%;
-  background:
-    radial-gradient(ellipse 70% 55% at 55% 40%, #121212 0%, #0c0c0c 55%, transparent 75%);
-  opacity: 0;
-  transition: opacity 0.35s ease;
-  pointer-events: none;
-  z-index: 4;
-}
-.deck-stage.playing .arm-park-cover { opacity: 1; }
-
-.tonearm-rig {
-  position: absolute;
-  left: 54%;
-  top: 28%;
-  width: 42%;
-  height: auto;
-  aspect-ratio: 240 / 200;
-  transform-origin: 78% 31%;
-  transform: rotate(14deg) translateY(-2%);
-  transition:
-    transform 0.85s cubic-bezier(0.4, 0.05, 0.2, 1),
-    opacity 0.2s ease;
-  pointer-events: none;
-  z-index: 5;
-  filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.55));
-  opacity: 0;
-}
-.deck-stage.arm-live .tonearm-rig { opacity: 1; }
-.tonearm-svg {
-  display: block;
-  width: 100%;
-  height: auto;
-  overflow: visible;
-}
-/* Swing in over the outer grooves */
-.deck-stage.playing .tonearm-rig {
-  transform: rotate(-26deg) translateY(-1%);
-}
-/* Cue down — needle settles */
-.deck-stage.playing .tonearm-rig.cue-down {
-  transform: rotate(-26deg) translateY(2.5%);
-  transition:
-    transform 0.45s cubic-bezier(0.33, 0.9, 0.35, 1);
-}
-
 .deck-tag {
   font-family: var(--font-display);
   letter-spacing: 0.14em;
