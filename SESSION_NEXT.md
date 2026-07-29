@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-29 Session update (Cindy Vinyl — label seam + colour + centre art)
 
-Latest commit: *(pending)* — Revolution hold loop; spinning centre label; random vinyl colour
+Latest commit: `a812eaf` — Revolution hold loop; spinning centre label; random vinyl colour
 
 Latest local/Pi change:
 - Hold loop is one platter revolution (3.55→5.008s) so label phase matches at the seam.
