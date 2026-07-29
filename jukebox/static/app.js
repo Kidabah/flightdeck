@@ -5,13 +5,7 @@ const state = {
   index: -1,
   album: null,
   crateType: "newest",
-  /** @type {'rest'|'cueing-in'|'hold'|'cueing-out'} */
-  arm: "rest",
-  armToken: 0,
 };
-
-/** Seconds — freeze here while audio plays (needle down). */
-const ARM_HOLD_AT = 2.1;
 
 const audio = $("audio");
 
@@ -33,118 +27,22 @@ function setStatus(msg) {
   $("statusLine").textContent = msg;
 }
 
-function deckArm() {
-  return /** @type {HTMLVideoElement|null} */ ($("deckArm"));
-}
-
-function freezeArm(t) {
-  const v = deckArm();
-  if (!v) return;
-  v.pause();
-  const dur = Number.isFinite(v.duration) && v.duration > 0 ? v.duration : ARM_HOLD_AT;
-  v.currentTime = Math.max(0, Math.min(t, dur - 0.01));
-}
-
-function restFrame() {
-  const v = deckArm();
-  if (!v) return;
-  const dur = Number.isFinite(v.duration) && v.duration > 0 ? v.duration : 5;
-  freezeArm(dur);
-  state.arm = "rest";
-}
-
-/** Cue tonearm onto the record, then hold. */
-async function cueIn() {
-  const v = deckArm();
-  if (!v) return;
-  const token = ++state.armToken;
-
-  // Already needle-down (pause/resume or track skip) — snap to hold.
-  if (state.arm === "hold" || state.arm === "cueing-in") {
-    freezeArm(ARM_HOLD_AT);
-    state.arm = "hold";
-    return;
-  }
-
-  state.arm = "cueing-in";
-  freezeArm(0);
-  try {
-    await v.play();
-  } catch {
-    freezeArm(ARM_HOLD_AT);
-    state.arm = "hold";
-    return;
-  }
-
-  await new Promise((resolve) => {
-    const tick = () => {
-      if (token !== state.armToken) {
-        v.removeEventListener("timeupdate", tick);
-        resolve();
-        return;
-      }
-      if (v.currentTime >= ARM_HOLD_AT) {
-        freezeArm(ARM_HOLD_AT);
-        state.arm = "hold";
-        v.removeEventListener("timeupdate", tick);
-        resolve();
-      }
-    };
-    v.addEventListener("timeupdate", tick);
-  });
-}
-
-/** Lift tonearm off the record back to rest. */
-async function cueOut() {
-  const v = deckArm();
-  if (!v) return;
-  if (state.arm === "rest" || state.arm === "cueing-out") return;
-
-  const token = ++state.armToken;
-  state.arm = "cueing-out";
-  if (v.currentTime < ARM_HOLD_AT - 0.05) freezeArm(ARM_HOLD_AT);
-
-  try {
-    await v.play();
-  } catch {
-    restFrame();
-    return;
-  }
-
-  await new Promise((resolve) => {
-    const finish = () => {
-      if (token !== state.armToken) {
-        cleanup();
-        resolve();
-        return;
-      }
-      restFrame();
-      cleanup();
-      resolve();
-    };
-    const tick = () => {
-      if (token !== state.armToken) {
-        cleanup();
-        resolve();
-        return;
-      }
-      if (v.ended || (v.duration && v.currentTime >= v.duration - 0.08)) finish();
-    };
-    function cleanup() {
-      v.removeEventListener("ended", finish);
-      v.removeEventListener("timeupdate", tick);
-    }
-    v.addEventListener("ended", finish);
-    v.addEventListener("timeupdate", tick);
-  });
-}
-
 function setVinylArt(coverId) {
-  const art = $("deckArt");
+  const img = $("vinylArt");
+  const fb = $("vinylFallback");
   if (!coverId) {
-    art?.removeAttribute("src");
+    if (img) img.hidden = true;
+    if (fb) fb.hidden = false;
+    $("deckArt")?.removeAttribute("src");
     return;
   }
+  const url = coverUrl(coverId, 600);
+  if (img) {
+    img.src = url;
+    img.hidden = false;
+  }
+  if (fb) fb.hidden = true;
+  const art = $("deckArt");
   if (art) art.src = coverUrl(coverId, 120);
 }
 
@@ -213,16 +111,15 @@ async function playIndex(i) {
   try {
     await audio.play();
     setPlaying(true);
-    cueIn();
   } catch (err) {
     setStatus(`Playback blocked: ${err.message || err}`);
     setPlaying(false);
-    cueOut();
   }
   renderQueue();
 }
 
 function setPlaying(on) {
+  $("vinyl")?.classList.toggle("spinning", on);
   $("deckStage")?.classList.toggle("playing", on);
   $("playPauseBtn").textContent = on ? "Pause" : "Play";
   $("deckPlay").textContent = on ? "⏸" : "▶";
@@ -232,6 +129,7 @@ function setPlaying(on) {
 async function spin() {
   $("spinBtn").disabled = true;
   setStatus("Digging through the crates…");
+  $("vinyl")?.classList.remove("spinning");
   try {
     const album = await api("/api/random-album");
     loadAlbumIntoQueue(album, { autoplay: true });
@@ -331,33 +229,18 @@ function wire() {
   $("spinBtn").addEventListener("click", () => spin());
   $("playPauseBtn").addEventListener("click", () => {
     if (!state.queue.length) return;
-    if (audio.paused) {
-      // Resume — keep needle down, don't re-cue.
-      audio
-        .play()
-        .then(() => {
-          setPlaying(true);
-          if (state.arm !== "hold") cueIn();
-          else freezeArm(ARM_HOLD_AT);
-        })
-        .catch(() => {});
-    } else {
+    if (audio.paused) audio.play().then(() => setPlaying(true)).catch(() => {});
+    else {
       audio.pause();
       setPlaying(false);
-      // Pause mid-track: leave needle down (plan).
     }
   });
   $("deckPlay").addEventListener("click", () => $("playPauseBtn").click());
   $("nextBtn").addEventListener("click", () => playIndex(state.index + 1));
   $("prevBtn").addEventListener("click", () => playIndex(state.index - 1));
   audio.addEventListener("ended", () => {
-    if (state.index + 1 < state.queue.length) {
-      playIndex(state.index + 1);
-    } else {
-      setPlaying(false);
-      cueOut();
-      setStatus("Side finished.");
-    }
+    if (state.index + 1 < state.queue.length) playIndex(state.index + 1);
+    else setPlaying(false);
   });
   audio.addEventListener("timeupdate", () => {
     if (!audio.duration) return;
@@ -374,14 +257,6 @@ function wire() {
     e.preventDefault();
     runSearch($("searchInput").value);
   });
-
-  const v = deckArm();
-  if (v) {
-    v.muted = true;
-    const park = () => restFrame();
-    if (v.readyState >= 1) park();
-    else v.addEventListener("loadedmetadata", park, { once: true });
-  }
 }
 
 async function boot() {

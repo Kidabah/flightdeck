@@ -6,6 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-29 Session update (Cindy Vinyl — spinning platter restored)
+
+Latest commit: *(pending)* — Restore spinning label; park tonearm video for split clips
+
+Latest local/Pi change:
+- Back to `deck.png` + spinning platter label (`?v=23`).
+- Tonearm MP4 kept in `jukebox/static/` for later once Chris supplies cue-in / cue-out splits.
+- Rebuild `cindy-vinyl`.
+
+Previous:
+- Silent SL1200 tonearm attempt (`7232c69`).
+
+---
+
 ## 2026-07-29 Session update (Cindy Vinyl — silent SL1200 tonearm)
 
 Latest commit: `7232c69` — Silent deck-arm.mp4 cue-in/out on play/end
