@@ -356,12 +356,12 @@ body {
   display: none !important;
 }
 
-/* Random vinyl colour — translucent groove ring (arm tip stays readable) */
+/* Random vinyl colour — groove ring with tonearm cutout so gold arm sits on top */
 .vinyl-tint {
   position: absolute;
-  left: 40.2%;
-  top: 54.8%;
-  width: 37%;
+  left: 41.5%;
+  top: 56%;
+  width: 36%;
   aspect-ratio: 1;
   border-radius: 50%;
   transform: translate(-50%, -50%) rotateX(48deg) rotateZ(-2deg);
@@ -373,21 +373,28 @@ body {
     transparent 93%
   );
   opacity: 0;
-  z-index: 7;
+  z-index: 6;
   pointer-events: none;
   transition: opacity 0.35s ease, background 0.4s ease;
+  /* white = tint, black = punch out so video tonearm shows through */
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='49' fill='white'/%3E%3Cellipse cx='78' cy='34' rx='22' ry='10' fill='black' transform='rotate(50 78 34)'/%3E%3Cellipse cx='70' cy='50' rx='24' ry='11' fill='black' transform='rotate(24 70 50)'/%3E%3Cellipse cx='60' cy='62' rx='18' ry='9' fill='black' transform='rotate(8 60 62)'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='49' fill='white'/%3E%3Cellipse cx='78' cy='34' rx='22' ry='10' fill='black' transform='rotate(50 78 34)'/%3E%3Cellipse cx='70' cy='50' rx='24' ry='11' fill='black' transform='rotate(24 70 50)'/%3E%3Cellipse cx='60' cy='62' rx='18' ry='9' fill='black' transform='rotate(8 60 62)'/%3E%3C/svg%3E");
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
 }
-.deck-stage.has-vinyl .vinyl-tint { opacity: 0.55; }
+.deck-stage.has-vinyl .vinyl-tint { opacity: 0.42; }
 .deck-stage.playing .vinyl-tint,
 .deck-stage.cueing .vinyl-tint {
-  opacity: 0.7;
+  opacity: 0.55;
 }
 
 /* Centre label — positioned on spindle; spin is on the inner wrapper so 3D pose stays put */
 .platter-live {
   position: absolute;
-  left: 40.2%;
-  top: 54.8%;
+  left: 41.5%;
+  top: 56%;
   width: 12.2%;
   aspect-ratio: 1;
   border-radius: 50%;

@@ -6,6 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-29 Session update (Cindy Vinyl — nudge + arm over tint)
+
+Latest commit: *(pending)* — Micro-nudge label; mask colour under tonearm
+
+Latest local/Pi change:
+- Nudged platter overlay right/down to `41.5% / 56%`.
+- Colour tint punches out the tonearm path so gold arm sits on top; slightly softer opacity.
+- Hard refresh `?v=41`. Rebuild `vinyl`.
+
+Previous:
+- Centre label + arm park (`0e38b7c`).
+
+---
+
 ## 2026-07-29 Session update (Cindy Vinyl — centre label + arm park + colour)
 
 Latest commit: `0e38b7c` — Nudge label onto spindle; short hold; visible vinyl tint
