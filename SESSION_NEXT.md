@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-29 Session update (Cindy Vinyl — warm tint palette polish)
 
-Latest commit: *(pending)* — Warmer vinyl colours; tiny label/tint nudge
+Latest commit: `14e5f71` — Warmer vinyl colours; tiny label/tint nudge
 
 Latest local/Pi change:
 - Chris called `?v=46` the best yet — light polish only: warmer oxblood/plum/amber resin palette (less neon), slightly richer soft-light, micro-nudge label onto spindle.
