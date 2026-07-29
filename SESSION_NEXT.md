@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-30 Session update (Cindy Vinyl — colour per album)
 
-Latest commit: *(pending)* — Random vinyl tint only when the album changes
+Latest commit: `6d333c9` — Random vinyl tint only when the album changes
 
 Latest local/Pi change:
 - Vinyl colour stays put across tracks on the same record; new random tint when a different album lands.
