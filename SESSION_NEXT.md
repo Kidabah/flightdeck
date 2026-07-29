@@ -12,6 +12,7 @@ Latest commit: `c4aa1d5` — A–Z alpha cache; pause stops platter; crate lag t
 
 Latest local/Pi change:
 - A–Z was empty/timing out: early-exit + full library scan. Now caches alphabetical index (warmed on startup), letter chips filter in memory.
+- Index build skips per-album folder collapse (collapse only the letter slice) so first load finishes.
 - Pause removes `.cueing` so platter stops spinning (arm stays down).
 - Shared httpx client, parallel genre tag fetches, smaller lazy crate covers (`?v=54`).
 - Rebuild `vinyl`.

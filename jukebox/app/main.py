@@ -98,7 +98,7 @@ async def _nd_get(view: str, extra: dict[str, Any] | None = None) -> dict[str, A
 
 
 async def _ensure_alpha_index(force: bool = False) -> list[tuple[str, dict[str, Any]]]:
-    """One collapsed alphabetical pass, cached — letter chips filter this in memory."""
+    """Alphabetical pass without folder-collapse (collapse only the letter slice)."""
     global _alpha_index, _alpha_built
     async with _alpha_lock:
         now = time.monotonic()
@@ -123,12 +123,21 @@ async def _ensure_alpha_index(force: bool = False) -> list[tuple[str, dict[str, 
             raw = (sub.get("albumList2") or {}).get("album") or []
             if not raw:
                 break
-            for a in meta.apply_album_list(collapse_album_list(raw)):
+            # Skip collapse here — build_folder_album across the whole library is too slow.
+            for a in meta.apply_album_list(raw if isinstance(raw, list) else [raw]):
                 aid = str(a.get("id") or "")
                 if not aid or aid in seen:
                     continue
                 seen.add(aid)
-                out.append((_album_index_letter(a), a))
+                slim = {
+                    "id": a.get("id"),
+                    "name": a.get("name") or a.get("title"),
+                    "artist": a.get("artist") or a.get("displayArtist"),
+                    "coverArt": a.get("coverArt"),
+                    "songCount": a.get("songCount"),
+                    "year": a.get("year"),
+                }
+                out.append((_album_index_letter(slim), slim))
             if len(raw) < page_size:
                 break
         _alpha_index = out
@@ -388,12 +397,14 @@ async def albums(
         ch = letter.upper()
         index = await _ensure_alpha_index()
         matched = [a for L, a in index if L == ch]
+        # Collapse folder packs only for this letter's slice.
+        collapsed = meta.apply_album_list(collapse_album_list(matched))
         return {
-            "albums": matched[:size],
+            "albums": collapsed[:size],
             "type": list_type,
             "letter": letter,
             "genre": genre,
-            "total": len(matched),
+            "total": len(collapsed),
         }
 
     if list_type == "byGenre":
