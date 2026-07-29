@@ -21,6 +21,19 @@ Previous:
 
 ---
 
+## 2026-07-29 Session update (Cindy Vinyl — freeze after cue-in)
+
+Latest commit: *(pending)* — Arm drops once, then freezes (no hold loop jump)
+
+Latest local/Pi change:
+- After cue-in, freeze on needle-down frame instead of looping a hold clip that jumped the arm back.
+- Hard refresh `?v=35`. Rebuild `vinyl`.
+
+Previous:
+- New arm-lift clip (`a215cd6`).
+
+---
+
 ## 2026-07-29 Session update (Cindy Vinyl — new arm-lift stop clip)
 
 Latest commit: `a215cd6` — Wire Chris’s arm-lift / stop 10s clip

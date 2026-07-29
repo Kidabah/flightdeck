@@ -119,40 +119,34 @@ function playCueClip(src, { onEnded } = {}) {
   }
 }
 
-function startHoldLoop() {
+function freezeNeedleDown() {
+  const v = deckCue();
   const hold = deckCueHold();
-  const cue = deckCue();
   const stage = $("deckStage");
-  if (!hold || !stage) return;
-  ++state.armToken;
+  if (hold) {
+    hold.pause();
+    hold.hidden = true;
+  }
+  if (!v || !stage) return;
   stage.classList.add("cueing");
-  hold.hidden = false;
-  hold.muted = true;
-  hold.loop = true;
+  v.hidden = false;
+  v.loop = false;
+  v.onended = null;
+  v.onerror = null;
+  v.pause();
   try {
-    hold.currentTime = 0;
+    if (Number.isFinite(v.duration) && v.duration > 0) {
+      v.currentTime = Math.max(0, v.duration - 0.04);
+    }
   } catch {
     /* ignore */
   }
-  const p = hold.play();
-  if (p && typeof p.then === "function") {
-    p.catch(() => {});
-  }
-  // Drop intro underneath once hold is showing
-  requestAnimationFrame(() => {
-    if (state.arm !== "hold") return;
-    if (cue) {
-      cue.pause();
-      cue.hidden = true;
-    }
-  });
 }
 
 function cueInThenHold() {
   if (state.arm === "cueing-in") return;
   if (state.arm === "hold") {
-    const h = deckCueHold();
-    if (h && h.paused) h.play().catch(() => {});
+    // Needle already down — keep the frozen frame; don't restart the drop.
     return;
   }
   state.arm = "cueing-in";
@@ -160,7 +154,7 @@ function cueInThenHold() {
     onEnded: () => {
       if (state.arm !== "cueing-in") return;
       state.arm = "hold";
-      startHoldLoop();
+      freezeNeedleDown();
     },
   });
 }
