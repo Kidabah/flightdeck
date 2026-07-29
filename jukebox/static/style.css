@@ -576,6 +576,10 @@ body {
 .crate-filters {
   margin: 0.15rem 0 0.55rem;
 }
+.crate-filters[hidden],
+.crate-chip-row[hidden] {
+  display: none !important;
+}
 .crate-chip-row {
   display: flex;
   flex-wrap: wrap;

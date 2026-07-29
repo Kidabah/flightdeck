@@ -116,6 +116,161 @@ def _album_index_letter(album: dict[str, Any]) -> str:
     return ch if ch.isalpha() else "#"
 
 
+# Broad crate categories — map messy Cindy tags up to these buckets.
+_CANONICAL_GENRES = (
+    "Rock",
+    "Pop",
+    "Country",
+    "Hip-Hop",
+    "R&B",
+    "Soul",
+    "Jazz",
+    "Blues",
+    "Metal",
+    "Punk",
+    "Indie",
+    "Electronic",
+    "Classical",
+    "Folk",
+    "Reggae",
+    "Soundtrack",
+    "Latin",
+    "Gospel",
+    "World",
+)
+
+# First matching rule wins (more specific phrases before short ones like "pop"/"rock").
+_GENRE_RULES: tuple[tuple[str, str], ...] = (
+    ("country", "Country"),
+    ("bluegrass", "Country"),
+    ("americana", "Country"),
+    ("nashville", "Country"),
+    ("hip hop", "Hip-Hop"),
+    ("hip-hop", "Hip-Hop"),
+    ("hiphop", "Hip-Hop"),
+    ("rap", "Hip-Hop"),
+    ("trap", "Hip-Hop"),
+    ("r&b", "R&B"),
+    ("rnb", "R&B"),
+    ("rhythm and blues", "R&B"),
+    ("rhythm & blues", "R&B"),
+    ("motown", "Soul"),
+    ("soul", "Soul"),
+    ("funk", "Soul"),
+    ("disco", "Soul"),
+    ("jazz", "Jazz"),
+    ("blues", "Blues"),
+    ("metal", "Metal"),
+    ("punk", "Punk"),
+    ("indie", "Indie"),
+    ("alternative", "Indie"),
+    ("alt ", "Indie"),
+    ("electronic", "Electronic"),
+    ("electronica", "Electronic"),
+    ("dance", "Electronic"),
+    ("edm", "Electronic"),
+    ("house", "Electronic"),
+    ("techno", "Electronic"),
+    ("trance", "Electronic"),
+    ("classical", "Classical"),
+    ("orchestra", "Classical"),
+    ("opera", "Classical"),
+    ("folk", "Folk"),
+    ("acoustic", "Folk"),
+    ("singer-songwriter", "Folk"),
+    ("reggae", "Reggae"),
+    ("ska", "Reggae"),
+    ("dancehall", "Reggae"),
+    ("soundtrack", "Soundtrack"),
+    ("score", "Soundtrack"),
+    ("musical", "Soundtrack"),
+    ("latin", "Latin"),
+    ("salsa", "Latin"),
+    ("reggaeton", "Latin"),
+    ("gospel", "Gospel"),
+    ("christian", "Gospel"),
+    ("worship", "Gospel"),
+    ("world", "World"),
+    ("afro", "World"),
+    ("celtic", "World"),
+    ("pop", "Pop"),
+    ("rock", "Rock"),
+)
+
+
+def _canonicalize_genre(tag: str) -> str | None:
+    g = " ".join(str(tag or "").lower().replace("_", " ").split())
+    if not g or not any(c.isalpha() for c in g):
+        return None
+    for needle, bucket in _GENRE_RULES:
+        if needle in g:
+            return bucket
+    return None
+
+
+def _parse_genre_rows(sub: dict[str, Any]) -> list[dict[str, Any]]:
+    rows = sub.get("genres", {}).get("genre") or []
+    if isinstance(rows, dict):
+        rows = [rows]
+    out: list[dict[str, Any]] = []
+    for g in rows:
+        if isinstance(g, str):
+            value = g.strip()
+            if value:
+                out.append({"value": value, "albumCount": 0, "songCount": 0})
+            continue
+        value = str(g.get("value") or g.get("name") or "").strip()
+        if not value:
+            continue
+        out.append(
+            {
+                "value": value,
+                "albumCount": int(g.get("albumCount") or 0),
+                "songCount": int(g.get("songCount") or 0),
+            }
+        )
+    return out
+
+
+def _genre_buckets(raw_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    buckets: dict[str, dict[str, Any]] = {
+        name: {"value": name, "albumCount": 0, "songCount": 0, "tags": []}
+        for name in _CANONICAL_GENRES
+    }
+    for row in raw_rows:
+        value = row["value"]
+        canon = _canonicalize_genre(value)
+        if not canon or canon not in buckets:
+            continue
+        b = buckets[canon]
+        if value not in b["tags"]:
+            b["tags"].append(value)
+        b["albumCount"] += int(row.get("albumCount") or 0)
+        b["songCount"] += int(row.get("songCount") or 0)
+    return [buckets[name] for name in _CANONICAL_GENRES if buckets[name]["tags"]]
+
+
+async def _albums_for_genre_tags(tags: list[str], size: int) -> list[dict[str, Any]]:
+    seen: set[str] = set()
+    collected: list[dict[str, Any]] = []
+    per = max(24, min(120, size * 2))
+    for tag in tags:
+        sub = await _nd_get(
+            "getAlbumList2.view",
+            {"type": "byGenre", "genre": tag, "size": str(per), "offset": "0"},
+        )
+        raw = (sub.get("albumList2") or {}).get("album") or []
+        for a in meta.apply_album_list(collapse_album_list(raw)):
+            aid = a.get("id")
+            if not aid or aid in seen:
+                continue
+            seen.add(aid)
+            collected.append(a)
+            if len(collected) >= size:
+                return collected
+    return collected
+
+
 @app.get("/api/albums")
 async def albums(
     list_type: str = Query("newest", alias="type"),
@@ -152,17 +307,23 @@ async def albums(
                 break
         return {"albums": collected[:size], "type": list_type, "letter": letter, "genre": genre}
 
+    if list_type == "byGenre":
+        if not genre:
+            raise HTTPException(400, "genre required for byGenre")
+        # Expand broad buckets (Country, Rock, …) to every matching Cindy tag.
+        genre_sub = await _nd_get("getGenres.view", {})
+        buckets = {b["value"]: b for b in _genre_buckets(_parse_genre_rows(genre_sub))}
+        tags = list((buckets.get(genre) or {}).get("tags") or [])
+        if not tags:
+            tags = [genre]
+        merged = await _albums_for_genre_tags(tags, size)
+        return {"albums": merged[:size], "type": list_type, "letter": letter, "genre": genre}
+
     params: dict[str, str] = {
         "type": list_type,
         "offset": str(offset),
         "size": str(min(500, max(size * 4, size))),
     }
-    if list_type == "byGenre":
-        if not genre:
-            raise HTTPException(400, "genre required for byGenre")
-        params["genre"] = genre
-        params["size"] = str(min(500, max(size * 3, size)))
-
     sub = await _nd_get("getAlbumList2.view", params)
     raw = (sub.get("albumList2") or {}).get("album") or []
     merged = meta.apply_album_list(collapse_album_list(raw))
@@ -172,32 +333,8 @@ async def albums(
 @app.get("/api/genres")
 async def genres():
     sub = await _nd_get("getGenres.view", {})
-    rows = sub.get("genres", {}).get("genre") or []
-    if isinstance(rows, dict):
-        rows = [rows]
-    out = []
-    for g in rows:
-        if isinstance(g, str):
-            value = g.strip()
-            if value:
-                out.append({"value": value, "albumCount": 0, "songCount": 0})
-            continue
-        value = str(g.get("value") or g.get("name") or "").strip()
-        if not value or len(value) < 2:
-            continue
-        if value.startswith(("\b", "& ")) or not any(c.isalpha() for c in value):
-            continue
-        album_count = int(g.get("albumCount") or 0)
-        song_count = int(g.get("songCount") or 0)
-        out.append(
-            {
-                "value": value,
-                "albumCount": album_count,
-                "songCount": song_count,
-            }
-        )
-    out.sort(key=lambda x: (-(x["albumCount"] or x["songCount"] or 0), x["value"].lower()))
-    return {"genres": out[:80]}
+    buckets = _genre_buckets(_parse_genre_rows(sub))
+    return {"genres": buckets, "mode": "canonical"}
 
 
 @app.get("/api/album/{album_id:path}")

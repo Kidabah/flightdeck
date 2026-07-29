@@ -33,6 +33,7 @@ const state = {
   crateLetter: "A",
   crateGenre: "",
   genresCache: null,
+  genreFilterToken: 0,
   volumeBeforeMute: 0.85,
   /** @type {'rest'|'cueing-in'|'hold'|'cueing-out'} */
   arm: "rest",
@@ -871,7 +872,7 @@ async function loadCrates(type) {
 }
 
 async function ensureGenres() {
-  if (state.genresCache) return state.genresCache;
+  // Always refresh so canonical buckets stay current after backend changes.
   try {
     const data = await api("/api/genres");
     state.genresCache = data.genres || [];
@@ -892,6 +893,7 @@ function updateCrateFilters() {
   filters.hidden = !(showLetters || showGenres);
   letters.hidden = !showLetters;
   genres.hidden = !showGenres;
+  if (!showGenres) genres.innerHTML = "";
 
   if (showLetters && !letters.dataset.ready) {
     const chars = [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ", "#"];
@@ -918,7 +920,9 @@ function updateCrateFilters() {
   }
 
   if (showGenres) {
+    const token = ++state.genreFilterToken;
     ensureGenres().then((list) => {
+      if (token !== state.genreFilterToken || state.crateType !== "byGenre") return;
       if (!genres.dataset.bound) {
         genres.addEventListener("click", (e) => {
           const btn = e.target.closest("[data-genre]");
@@ -935,13 +939,13 @@ function updateCrateFilters() {
         genres.innerHTML = `<span class="hint">No genres yet</span>`;
         return;
       }
-      if (!state.crateGenre) state.crateGenre = list[0].value;
+      if (!state.crateGenre || !list.some((g) => g.value === state.crateGenre)) {
+        state.crateGenre = list[0].value;
+      }
       genres.innerHTML = list
-        .slice(0, 40)
         .map((g) => {
           const active = g.value === state.crateGenre ? " active" : "";
-          const count = g.albumCount ? ` · ${g.albumCount}` : "";
-          return `<button type="button" class="crate-chip${active}" data-genre="${escapeHtml(g.value)}" title="${escapeHtml(g.value)}${count}">${escapeHtml(g.value)}</button>`;
+          return `<button type="button" class="crate-chip${active}" data-genre="${escapeHtml(g.value)}">${escapeHtml(g.value)}</button>`;
         })
         .join("");
     });

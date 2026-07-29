@@ -6,18 +6,18 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
-## 2026-07-30 Session update (Cindy Vinyl — A–Z + Categories crates)
+## 2026-07-30 Session update (Cindy Vinyl — broad Categories + hide chips)
 
-Latest commit: `1304bd1` — A–Z/Categories crates; localhost bind for Tailscale
+Latest commit: _(pending)_ — Canonical genre buckets; hide filter chips off Categories/A–Z
 
 Latest local/Pi change:
-- Crates tabs add **A–Z** (letter chips) and **Categories** (genre chips from Navidrome).
-- Backend: `/api/genres`, `/api/albums` letter paging + `byGenre`.
-- Docker publishes `127.0.0.1:4540` only so Tailscale serve can keep proxying `:4540`.
-- Hard refresh `?v=52`. Rebuild `vinyl`.
+- Categories map messy Cindy tags (`00's Dance`, etc.) up to Rock / Pop / Country / Hip-Hop / …
+- Picking a bucket fetches albums across all matching tags.
+- Letter/genre chip rows hide when leaving A–Z or Categories (`[hidden]` CSS fix + async race guard).
+- Hard refresh `?v=53`. Rebuild `vinyl` (backend genres).
 
 Previous:
-- Drag & drop (`a5731ca`).
+- A–Z/Categories crates (`1304bd1` / later genre filter tweaks).
 
 ---
 
