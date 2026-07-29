@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=50">
+  <link rel="stylesheet" href="/static/style.css?v=51">
 </head>
 <body>
   <div class="lamp" aria-hidden="true"></div>
@@ -95,7 +95,13 @@
           <button type="button" class="crate-tab active" data-type="newest">Fresh sleeves</button>
           <button type="button" class="crate-tab" data-type="random">Shuffle bin</button>
           <button type="button" class="crate-tab" data-type="frequent">Often spun</button>
+          <button type="button" class="crate-tab" data-type="alphabeticalByName">A–Z</button>
+          <button type="button" class="crate-tab" data-type="byGenre">Categories</button>
         </div>
+      </div>
+      <div class="crate-filters" id="crateFilters" hidden>
+        <div class="crate-chip-row" id="letterRow" hidden></div>
+        <div class="crate-chip-row" id="genreRow" hidden></div>
       </div>
       <div class="crate-rail" id="crateRail" tabindex="0"></div>
     </section>
@@ -184,6 +190,6 @@
     </div>
   </div>
 
-  <script src="/static/app.js?v=50"></script>
+  <script src="/static/app.js?v=51"></script>
 </body>
 </html>

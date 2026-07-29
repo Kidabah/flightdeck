@@ -6,6 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-30 Session update (Cindy Vinyl — A–Z + Categories crates)
+
+Latest commit: *(pending)* — Alphabet and genre crate browsing
+
+Latest local/Pi change:
+- Crates tabs add **A–Z** (letter chips) and **Categories** (genre chips from Navidrome).
+- Backend: `/api/genres`, `/api/albums` letter paging + `byGenre`.
+- Hard refresh `?v=51`. Rebuild `vinyl`.
+
+Previous:
+- Drag & drop (`a5731ca`).
+
+---
+
 ## 2026-07-30 Session update (Cindy Vinyl — drag & drop onto deck)
 
 Latest commit: `a5731ca` — Drag sleeves/tracks onto the deck to play

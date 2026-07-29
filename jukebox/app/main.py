@@ -113,17 +113,82 @@ async def albums(
     list_type: str = Query("newest", alias="type"),
     size: int = Query(40, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    letter: str | None = Query(None, min_length=1, max_length=1),
+    genre: str | None = Query(None, min_length=1, max_length=80),
 ):
-    # Over-fetch so folder collapse still fills the rail.
-    fetch_size = min(200, max(size * 4, size))
-    sub = await _nd_get(
-        "getAlbumList2.view",
-        {"type": list_type, "size": fetch_size, "offset": offset},
-    )
+    if list_type == "alphabeticalByName" and letter:
+        ch = letter.upper()
+        collected: list[dict[str, Any]] = []
+        page_size = 200
+        past_letter = False
+        for page in range(20):
+            sub = await _nd_get(
+                "getAlbumList2.view",
+                {
+                    "type": "alphabeticalByName",
+                    "size": str(page_size),
+                    "offset": str(page * page_size),
+                },
+            )
+            raw = (sub.get("albumList2") or {}).get("album") or []
+            if not raw:
+                break
+            for a in meta.apply_album_list(collapse_album_list(raw)):
+                name = (a.get("name") or a.get("title") or "").lstrip()
+                first = name[:1].upper() if name else ""
+                if ch == "#":
+                    if first and not first.isalpha():
+                        collected.append(a)
+                elif first == ch:
+                    collected.append(a)
+                elif first.isalpha() and first > ch:
+                    past_letter = True
+                    break
+                if len(collected) >= size:
+                    break
+            if past_letter or len(collected) >= size:
+                break
+        return {"albums": collected[:size], "type": list_type, "letter": letter, "genre": genre}
+
+    params: dict[str, str] = {
+        "type": list_type,
+        "offset": str(offset),
+        "size": str(min(500, max(size * 4, size))),
+    }
+    if list_type == "byGenre":
+        if not genre:
+            raise HTTPException(400, "genre required for byGenre")
+        params["genre"] = genre
+        params["size"] = str(min(500, max(size * 3, size)))
+
+    sub = await _nd_get("getAlbumList2.view", params)
     raw = (sub.get("albumList2") or {}).get("album") or []
     merged = meta.apply_album_list(collapse_album_list(raw))
-    return {"albums": merged[:size]}
+    return {"albums": merged[:size], "type": list_type, "letter": letter, "genre": genre}
 
+@app.get("/api/genres")
+async def genres():
+    sub = await _nd_get("getGenres.view", {})
+    rows = sub.get("genres", {}).get("genre") or []
+    if isinstance(rows, dict):
+        rows = [rows]
+    out = []
+    for g in rows:
+        if isinstance(g, str):
+            out.append({"value": g, "albumCount": 0, "songCount": 0})
+            continue
+        value = g.get("value") or g.get("name") or ""
+        if not value:
+            continue
+        out.append(
+            {
+                "value": value,
+                "albumCount": int(g.get("albumCount") or 0),
+                "songCount": int(g.get("songCount") or 0),
+            }
+        )
+    out.sort(key=lambda x: (-x["albumCount"], x["value"].lower()))
+    return {"genres": out}
 
 @app.get("/api/album/{album_id:path}")
 async def album_detail(album_id: str):

@@ -30,6 +30,9 @@ const state = {
   /** Album key the current vinyl tint belongs to — colour only changes when this changes. */
   vinylColorAlbumKey: null,
   crateType: "newest",
+  crateLetter: "A",
+  crateGenre: "",
+  genresCache: null,
   volumeBeforeMute: 0.85,
   /** @type {'rest'|'cueing-in'|'hold'|'cueing-out'} */
   arm: "rest",
@@ -837,17 +840,111 @@ async function loadCrates(type) {
   document.querySelectorAll(".crate-tab").forEach((b) => {
     b.classList.toggle("active", b.dataset.type === type);
   });
+  updateCrateFilters();
   const rail = $("crateRail");
   rail.innerHTML = "<p class='hint'>Pulling sleeves…</p>";
   try {
-    const data = await api(`/api/albums?type=${encodeURIComponent(type)}&size=48`);
+    const params = new URLSearchParams({ type, size: "48" });
+    if (type === "alphabeticalByName") params.set("letter", state.crateLetter || "A");
+    if (type === "byGenre") {
+      if (!state.crateGenre) {
+        await ensureGenres();
+        const first = (state.genresCache || [])[0];
+        state.crateGenre = first?.value || "";
+        updateCrateFilters();
+      }
+      if (!state.crateGenre) {
+        rail.innerHTML = "<p class='hint'>No genres tagged on Cindy yet.</p>";
+        return;
+      }
+      params.set("genre", state.crateGenre);
+    }
+    const data = await api(`/api/albums?${params}`);
     rail.innerHTML = "";
     (data.albums || []).forEach((al) => rail.appendChild(sleeveButton(al)));
     if (!(data.albums || []).length) {
-      rail.innerHTML = "<p class='hint'>Still scanning Cindy — check back as albums appear.</p>";
+      rail.innerHTML = "<p class='hint'>Nothing in this crate — try another letter or category.</p>";
     }
   } catch (err) {
     rail.innerHTML = `<p class='hint'>${escapeHtml(err.message || err)}</p>`;
+  }
+}
+
+async function ensureGenres() {
+  if (state.genresCache) return state.genresCache;
+  try {
+    const data = await api("/api/genres");
+    state.genresCache = data.genres || [];
+  } catch {
+    state.genresCache = [];
+  }
+  return state.genresCache;
+}
+
+function updateCrateFilters() {
+  const filters = $("crateFilters");
+  const letters = $("letterRow");
+  const genres = $("genreRow");
+  if (!filters || !letters || !genres) return;
+
+  const showLetters = state.crateType === "alphabeticalByName";
+  const showGenres = state.crateType === "byGenre";
+  filters.hidden = !(showLetters || showGenres);
+  letters.hidden = !showLetters;
+  genres.hidden = !showGenres;
+
+  if (showLetters && !letters.dataset.ready) {
+    const chars = [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ", "#"];
+    letters.innerHTML = chars
+      .map(
+        (ch) =>
+          `<button type="button" class="crate-chip${ch === state.crateLetter ? " active" : ""}" data-letter="${ch}">${ch}</button>`,
+      )
+      .join("");
+    letters.dataset.ready = "1";
+    letters.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-letter]");
+      if (!btn) return;
+      state.crateLetter = btn.dataset.letter || "A";
+      letters.querySelectorAll(".crate-chip").forEach((b) => {
+        b.classList.toggle("active", b.dataset.letter === state.crateLetter);
+      });
+      loadCrates("alphabeticalByName");
+    });
+  } else if (showLetters) {
+    letters.querySelectorAll(".crate-chip").forEach((b) => {
+      b.classList.toggle("active", b.dataset.letter === state.crateLetter);
+    });
+  }
+
+  if (showGenres) {
+    ensureGenres().then((list) => {
+      if (!genres.dataset.bound) {
+        genres.addEventListener("click", (e) => {
+          const btn = e.target.closest("[data-genre]");
+          if (!btn) return;
+          state.crateGenre = btn.dataset.genre || "";
+          genres.querySelectorAll(".crate-chip").forEach((b) => {
+            b.classList.toggle("active", b.dataset.genre === state.crateGenre);
+          });
+          loadCrates("byGenre");
+        });
+        genres.dataset.bound = "1";
+      }
+      if (!list.length) {
+        genres.innerHTML = `<span class="hint">No genres yet</span>`;
+        return;
+      }
+      if (!state.crateGenre) state.crateGenre = list[0].value;
+      genres.innerHTML = list
+        .slice(0, 40)
+        .map((g) => {
+          const active = g.value === state.crateGenre ? " active" : "";
+          const count = g.albumCount ? ` · ${g.albumCount}` : "";
+          return `<button type="button" class="crate-chip${active}" data-genre="${escapeHtml(g.value)}" title="${escapeHtml(g.value)}${count}">${escapeHtml(g.value)}</button>`;
+        })
+        .join("");
+    });
   }
 }
 
