@@ -2,6 +2,7 @@ const $ = (id) => document.getElementById(id);
 
 const VOL_KEY = "cindy-vinyl-volume";
 const CUE_IN = "/static/deck-cue-in.mp4";
+const CUE_HOLD = "/static/deck-cue-hold.mp4";
 const CUE_OUT = "/static/deck-cue-out.mp4";
 
 const state = {
@@ -39,18 +40,44 @@ function deckCue() {
   return /** @type {HTMLVideoElement|null} */ ($("deckCue"));
 }
 
+function deckCueHold() {
+  return /** @type {HTMLVideoElement|null} */ ($("deckCueHold"));
+}
+
 function showStaticDeck() {
   $("deckStage")?.classList.remove("cueing");
   const v = deckCue();
-  if (!v) return;
-  v.pause();
-  v.removeAttribute("src");
-  v.load();
-  v.hidden = true;
+  if (v) {
+    v.pause();
+    v.loop = false;
+    v.onended = null;
+    v.onerror = null;
+    v.removeAttribute("src");
+    v.load();
+    v.hidden = true;
+  }
+  const h = deckCueHold();
+  if (h) {
+    h.pause();
+    try {
+      h.currentTime = 0;
+    } catch {
+      /* ignore */
+    }
+    h.hidden = true;
+  }
 }
 
-function playCueClip(src, onEnded) {
+function pauseCueVideo() {
   const v = deckCue();
+  if (v && !v.hidden) v.pause();
+  const h = deckCueHold();
+  if (h && !h.hidden) h.pause();
+}
+
+function playCueClip(src, { onEnded } = {}) {
+  const v = deckCue();
+  const hold = deckCueHold();
   const stage = $("deckStage");
   if (!v || !stage) {
     onEnded?.();
@@ -58,8 +85,13 @@ function playCueClip(src, onEnded) {
   }
   const token = ++state.armToken;
   stage.classList.add("cueing");
+  if (hold) {
+    hold.pause();
+    hold.hidden = true;
+  }
   v.hidden = false;
   v.muted = true;
+  v.loop = false;
   v.onended = null;
   v.onerror = null;
   const finish = () => {
@@ -80,23 +112,61 @@ function playCueClip(src, onEnded) {
   }
 }
 
+function startHoldLoop() {
+  const hold = deckCueHold();
+  const cue = deckCue();
+  const stage = $("deckStage");
+  if (!hold || !stage) return;
+  ++state.armToken;
+  stage.classList.add("cueing");
+  hold.hidden = false;
+  hold.muted = true;
+  hold.loop = true;
+  try {
+    hold.currentTime = 0;
+  } catch {
+    /* ignore */
+  }
+  const p = hold.play();
+  if (p && typeof p.then === "function") {
+    p.catch(() => {});
+  }
+  // Drop intro underneath once hold is showing
+  requestAnimationFrame(() => {
+    if (state.arm !== "hold") return;
+    if (cue) {
+      cue.pause();
+      cue.hidden = true;
+    }
+  });
+}
+
 function cueInThenHold() {
-  if (state.arm === "hold" || state.arm === "cueing-in") return;
+  if (state.arm === "cueing-in") return;
+  if (state.arm === "hold") {
+    const h = deckCueHold();
+    if (h && h.paused) h.play().catch(() => {});
+    return;
+  }
   state.arm = "cueing-in";
-  playCueClip(CUE_IN, () => {
-    if (state.arm !== "cueing-in") return;
-    state.arm = "hold";
-    showStaticDeck();
+  playCueClip(CUE_IN, {
+    onEnded: () => {
+      if (state.arm !== "cueing-in") return;
+      state.arm = "hold";
+      startHoldLoop();
+    },
   });
 }
 
 function cueOutToRest() {
   if (state.arm === "rest" || state.arm === "cueing-out") return;
   state.arm = "cueing-out";
-  playCueClip(CUE_OUT, () => {
-    if (state.arm !== "cueing-out") return;
-    state.arm = "rest";
-    showStaticDeck();
+  playCueClip(CUE_OUT, {
+    onEnded: () => {
+      if (state.arm !== "cueing-out") return;
+      state.arm = "rest";
+      showStaticDeck();
+    },
   });
 }
 
@@ -113,6 +183,7 @@ function preloadCues() {
     v.preload = "auto";
     v.src = src;
   });
+  // hold is already in the DOM with preload=auto
 }
 
 function fmtTime(sec) {
@@ -280,6 +351,7 @@ function setPlaying(on) {
   $("deckPlay").textContent = on ? "⏸" : "▶";
   setStatus(on ? "Needle down." : "Paused.");
   if (on) cueInThenHold();
+  else pauseCueVideo();
 }
 
 async function spin() {

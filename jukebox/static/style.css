@@ -209,6 +209,9 @@ body {
   pointer-events: none;
   background: #0a0a0c;
 }
+.deck-cue-hold {
+  z-index: 6;
+}
 .deck-cue[hidden] {
   display: none !important;
 }
