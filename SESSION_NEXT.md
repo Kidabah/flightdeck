@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-29 Session update (Pi reboot emptied PrintShelf library)
 
-Latest commit: *(pending)* — Guard scan against unmounted /mnt shares
+Latest commit: `c1b4bf2` — Guard scan against unmounted /mnt shares
 
 Latest local/Pi change:
 - Pi reboot dropped CIFS mounts; Refresh scanned empty `/mnt/*` dirs and marked **all** assets `missing=1`.
