@@ -12,6 +12,13 @@ from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
+from .folder_albums import (
+    build_folder_album,
+    collapse_album_list,
+    invalidate_caches,
+    resolve_folder_key,
+)
+
 NAVIDROME = os.environ.get("NAVIDROME_URL", "http://127.0.0.1:4533").rstrip("/")
 USER = os.environ.get("JUKEBOX_USER", "jukebox")
 PASSWORD = os.environ.get("JUKEBOX_PASSWORD", "")
@@ -52,6 +59,16 @@ async def _nd_get(view: str, extra: dict[str, Any] | None = None) -> dict[str, A
     return sub
 
 
+def _expand_album(album: dict[str, Any]) -> dict[str, Any]:
+    """If this ND album is a fragment of a folder pack, return the merged sleeve."""
+    aid = album.get("id") or ""
+    fk = resolve_folder_key(aid)
+    if not fk:
+        return album
+    merged = build_folder_album(fk)
+    return merged or album
+
+
 @app.get("/api/health")
 async def health():
     try:
@@ -63,18 +80,16 @@ async def health():
 
 @app.get("/api/random-album")
 async def random_album():
-    sub = await _nd_get("getAlbumList2.view", {"type": "random", "size": 1})
+    sub = await _nd_get("getAlbumList2.view", {"type": "random", "size": 12})
     albums = (sub.get("albumList2") or {}).get("album") or []
     if not albums:
-        # Fallback: newest
         sub = await _nd_get("getAlbumList2.view", {"type": "newest", "size": 40})
         albums = (sub.get("albumList2") or {}).get("album") or []
         if not albums:
             raise HTTPException(404, "No albums yet — Navidrome may still be scanning")
-        albums = [random.choice(albums)]
-    album = albums[0]
-    detail = await _nd_get("getAlbum.view", {"id": album["id"]})
-    return detail.get("album") or album
+    albums = collapse_album_list(albums)
+    album = random.choice(albums)
+    return await album_detail(album["id"])
 
 
 @app.get("/api/albums")
@@ -83,28 +98,54 @@ async def albums(
     size: int = Query(40, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
+    # Over-fetch so folder collapse still fills the rail.
+    fetch_size = min(200, max(size * 4, size))
     sub = await _nd_get(
         "getAlbumList2.view",
-        {"type": list_type, "size": size, "offset": offset},
+        {"type": list_type, "size": fetch_size, "offset": offset},
     )
-    return {"albums": (sub.get("albumList2") or {}).get("album") or []}
+    raw = (sub.get("albumList2") or {}).get("album") or []
+    merged = collapse_album_list(raw)
+    return {"albums": merged[:size]}
 
 
-@app.get("/api/album/{album_id}")
-async def album(album_id: str):
+@app.get("/api/album/{album_id:path}")
+async def album_detail(album_id: str):
+    if album_id.startswith("folder:"):
+        fk = resolve_folder_key(album_id)
+        if not fk:
+            invalidate_caches()
+            fk = resolve_folder_key(album_id)
+        if not fk:
+            raise HTTPException(404, "Folder pack not found")
+        merged = build_folder_album(fk)
+        if not merged:
+            raise HTTPException(404, "Folder pack empty")
+        return merged
+
     sub = await _nd_get("getAlbum.view", {"id": album_id})
-    return sub.get("album") or {}
+    album = sub.get("album") or {}
+    if not album:
+        raise HTTPException(404, "Album not found")
+    return _expand_album(album)
 
 
 @app.get("/api/search")
 async def search(q: str = Query(..., min_length=1)):
     sub = await _nd_get("search3.view", {"query": q, "artistCount": 10, "albumCount": 24, "songCount": 24})
     result = sub.get("searchResult3") or {}
+    albums = collapse_album_list(result.get("album") or [])
     return {
         "artists": result.get("artist") or [],
-        "albums": result.get("album") or [],
+        "albums": albums,
         "songs": result.get("song") or [],
     }
+
+
+@app.post("/api/refresh-packs")
+async def refresh_packs():
+    invalidate_caches()
+    return {"ok": True}
 
 
 @app.get("/api/cover/{cover_id}")
