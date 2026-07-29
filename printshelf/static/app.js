@@ -669,10 +669,19 @@ function formatStatusLine(scan, thumbs) {
         ? ` · Last scan: ${scan.files_upserted || 0} new / ${scan.files_seen || 0} total`
         : "");
   }
-  if (scan?.status === "ok") {
+  const skipN = Array.isArray(scan?.skipped_roots) ? scan.skipped_roots.length : 0;
+  const skipBit = skipN
+    ? ` · ${skipN} share${skipN === 1 ? "" : "s"} unmounted (library kept)`
+    : "";
+  if (scan?.status === "ok" || (scan?.status === "error" && skipN && !(scan.files_seen > 0))) {
+    if (scan?.status === "error" && skipN && !(scan.files_seen > 0)) {
+      return (scan.error || "Mounts not ready — remount shares, then Rescan") + skipBit;
+    }
     return `Last scan: ${scan.files_upserted || 0} new · ${scan.files_skipped || 0} unchanged · ${scan.files_seen || 0} total`
-      + (scan.files_failed ? ` · ${scan.files_failed} failed` : "");
+      + (scan.files_failed ? ` · ${scan.files_failed} failed` : "")
+      + skipBit;
   }
+  if (scan?.error) return String(scan.error);
   return scan?.status || thumbs?.status || "idle";
 }
 

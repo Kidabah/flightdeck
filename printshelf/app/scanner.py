@@ -42,6 +42,7 @@ SCAN_STATE: dict[str, Any] = {
     "files_failed": 0,
     "current_path": "",
     "error": None,
+    "skipped_roots": [],
     "started_at": None,
     "finished_at": None,
 }
@@ -69,6 +70,30 @@ def get_thumb_rebuild_state() -> dict[str, Any]:
 def _dir_hard_skipped(name: str) -> bool:
     n = (name or "").strip().lower()
     return bool(n) and (n in HARD_SKIP_DIR_NAMES or n.startswith("._"))
+
+
+def _root_ready_to_scan(root: Path) -> tuple[bool, str]:
+    """Skip empty /mnt placeholders when the CIFS/NFS share is not mounted.
+
+    After a Pi reboot, /mnt/koko-kidabah etc. still exist as empty dirs. Walking
+    them and then mark-missing would hide the entire library.
+    """
+    if not root.exists() or not root.is_dir():
+        return False, "missing_or_not_dir"
+    root_s = str(root)
+    try:
+        resolved_s = str(root.resolve())
+    except Exception:
+        resolved_s = root_s
+    under_removable = any(
+        s.startswith(prefix)
+        for s in (root_s, resolved_s)
+        for prefix in ("/mnt/", "/media/")
+    )
+    if under_removable and not (os.path.ismount(root_s) or os.path.ismount(resolved_s)):
+        return False, "not_mounted"
+    return True, "ok"
+
 
 
 def _ignored(rel: str, patterns: list[str]) -> bool:
@@ -380,6 +405,7 @@ def run_scan(
         "files_failed": 0,
         "current_path": "",
         "error": None,
+        "skipped_roots": [],
         "started_at": utcnow(),
         "finished_at": None,
     })
@@ -397,16 +423,29 @@ def run_scan(
             purge_junk_assets(conn)
 
             seen_paths: set[str] = set()
+            scanned_roots: list[str] = []
+            skipped_roots: list[dict[str, str]] = []
+            status = "ok"
+            err = None
             for folder in folders:
                 root = Path(folder.get("path") or "")
-                if not root.exists() or not root.is_dir():
-                    log.warning("Watched folder missing or not a directory: %s", root)
+                ready, reason = _root_ready_to_scan(root)
+                if not ready:
+                    label = str(folder.get("label") or folder.get("id") or root)
+                    log.warning("Skipping watched folder (%s): %s", reason, root)
+                    skipped_roots.append({
+                        "id": str(folder.get("id") or ""),
+                        "path": str(root),
+                        "label": label,
+                        "reason": reason,
+                    })
                     continue
                 try:
                     root_resolved = root.resolve()
                 except Exception:
                     root_resolved = root
                 root_s = str(root_resolved)
+                scanned_roots.append(root_s)
 
                 for dirpath, dirnames, filenames in os.walk(root_s, followlinks=False):
                     # Prune ignored directories early (NAS walks are huge).
@@ -485,13 +524,14 @@ def run_scan(
                             if progress:
                                 progress(get_scan_state())
 
-            # mark missing assets under scanned roots only (targeted scans must not
-            # mark other watched roots missing).
-            roots = [str(Path(f["path"]).resolve()) for f in folders if f.get("path")]
-            if roots:
+            # mark missing assets under roots we actually walked only.
+            # Never include unmounted /mnt placeholders — that wiped the library
+            # after a Pi reboot when Refresh scanned empty mount points.
+            SCAN_STATE["skipped_roots"] = skipped_roots
+            if scanned_roots:
                 rows = conn.execute("SELECT id, abs_path, root_path FROM assets").fetchall()
                 for row in rows:
-                    if row["root_path"] not in roots:
+                    if row["root_path"] not in scanned_roots:
                         continue
                     missing = 0 if row["abs_path"] in seen_paths else (0 if Path(row["abs_path"]).exists() else 1)
                     conn.execute(
@@ -499,17 +539,29 @@ def run_scan(
                         (missing, missing, utcnow(), row["id"]),
                     )
 
+            status = "ok"
+            err = None if not SCAN_STATE.get("files_failed") else SCAN_STATE.get("error")
+            if skipped_roots and not scanned_roots:
+                status = "error"
+                labels = ", ".join(s.get("label") or s.get("path") or "?" for s in skipped_roots)
+                err = f"No mounts ready to scan ({labels}). Remount shares, then Rescan."
+            elif skipped_roots:
+                labels = ", ".join(s.get("label") or s.get("path") or "?" for s in skipped_roots)
+                note = f"Skipped unmounted: {labels}"
+                err = f"{err}; {note}" if err else note
+
             conn.execute(
                 "UPDATE scan_runs SET finished_at=?, status=?, files_seen=?, files_upserted=? WHERE id=?",
-                (utcnow(), "ok", SCAN_STATE["files_seen"], SCAN_STATE["files_upserted"], run_id),
+                (utcnow(), status, SCAN_STATE["files_seen"], SCAN_STATE["files_upserted"], run_id),
             )
 
         SCAN_STATE.update({
             "running": False,
-            "status": "ok",
+            "status": status,
             "finished_at": utcnow(),
             "current_path": "",
-            "error": None if not SCAN_STATE.get("files_failed") else SCAN_STATE.get("error"),
+            "error": err,
+            "skipped_roots": skipped_roots,
         })
     except Exception as exc:
         SCAN_STATE.update({

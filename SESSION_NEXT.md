@@ -6,18 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
-## 2026-07-28 Session update (PrintShelf Refresh + select bar)
+## 2026-07-29 Session update (Pi reboot emptied PrintShelf library)
 
-Latest commit: `423db5d` — Refresh rescans disk; select bar always visible in Folders
+Latest commit: *(pending)* — Guard scan against unmounted /mnt shares
 
 Latest local/Pi change:
-- **Refresh** now starts a disk scan (scoped to the current root in Folders) instead of only reloading the DB.
-- Multi-select bar stays visible in Folders (Select all / Clear / Hide / Delete).
-- Clearer empty search message; ignore ATS/AppData junk on Kidabah PC scans.
-- Hard refresh PrintShelf `?v=62`.
+- Pi reboot dropped CIFS mounts; Refresh scanned empty `/mnt/*` dirs and marked **all** assets `missing=1`.
+- Restored DB (`missing=0` for 4922 assets); remounted Kidabah PC.
+- Scanner now **skips unmounted `/mnt`/`/media` roots** and only mark-missing for roots it actually walked.
+- Mount helper scripts: `mount-koko-kidabah.sh`, `remount-printshelf-shares.sh`.
+- Hard refresh PrintShelf `?v=63`. Backend restart required.
+- **Still need:** Koko NAS credentials file on Pi + remount `/mnt/koko-kidabah` (and boot remount).
 
 Previous:
-- Ooshies stand v2 (`f9fed68`).
+- PrintShelf Refresh + select bar (`423db5d`).
 
 ---
 
