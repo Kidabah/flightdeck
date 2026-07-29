@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-29 Session update (Cindy Vinyl — silent SL1200 tonearm)
 
-Latest commit: *(pending)* — Silent deck-arm.mp4 cue-in/out on play/end
+Latest commit: `7232c69` — Silent deck-arm.mp4 cue-in/out on play/end
 
 Latest local/Pi change:
 - Your `SL1200.mp4` → `jukebox/static/deck-arm.mp4` (**audio stripped**, ~272KB).
