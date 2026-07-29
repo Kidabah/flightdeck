@@ -359,51 +359,51 @@ body {
   display: none !important;
 }
 
-/* Random vinyl colour — smaller tilted groove ring; arm corridor punched out */
+/* Random vinyl colour — elliptical (perspective) in SCREEN space so the arm
+ * cutout stays lined up with the video tonearm. rotateX broke that alignment. */
 .vinyl-tint {
   position: absolute;
-  left: 41.6%;
-  top: 55.5%;
-  width: 32.5%;
-  aspect-ratio: 1;
+  left: 41.5%;
+  top: 54.5%;
+  width: 31%;
+  height: 19%;
   border-radius: 50%;
-  transform: translate(-50%, -50%) rotateX(58deg) rotateZ(-3deg);
-  transform-origin: center center;
-  background: radial-gradient(
-    circle,
-    transparent 0 32%,
-    var(--vinyl-color, #b91c1c) 34%,
-    var(--vinyl-color, #b91c1c) 88%,
-    transparent 92%
-  );
+  transform: translate(-50%, -50%) rotate(-2deg);
+  background: var(--vinyl-color, #1d4ed8);
   opacity: 0;
   z-index: 6;
   pointer-events: none;
   transition: opacity 0.35s ease, background 0.4s ease;
-  /* Disc + wide tonearm corridor (arm often sits mid/inner — cut deep toward centre) */
-  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='49' fill='white'/%3E%3Cpath fill='black' d='M52 6 L100 18 L100 78 L62 88 L46 58 L52 6Z'/%3E%3Cellipse cx='62' cy='48' rx='28' ry='14' fill='black' transform='rotate(28 62 48)'/%3E%3Cellipse cx='58' cy='58' rx='16' ry='12' fill='black'/%3E%3C/svg%3E");
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='49' fill='white'/%3E%3Cpath fill='black' d='M52 6 L100 18 L100 78 L62 88 L46 58 L52 6Z'/%3E%3Cellipse cx='62' cy='48' rx='28' ry='14' fill='black' transform='rotate(28 62 48)'/%3E%3Cellipse cx='58' cy='58' rx='16' ry='12' fill='black'/%3E%3C/svg%3E");
-  -webkit-mask-size: 100% 100%;
-  mask-size: 100% 100%;
+  mix-blend-mode: soft-light;
+  /* Centre hole for label + wipe the whole right side (arm lives there) */
+  -webkit-mask-image:
+    radial-gradient(ellipse at 48% 50%, transparent 0 30%, #000 34%, #000 100%),
+    linear-gradient(100deg, #000 0%, #000 46%, transparent 57%);
+  mask-image:
+    radial-gradient(ellipse at 48% 50%, transparent 0 30%, #000 34%, #000 100%),
+    linear-gradient(100deg, #000 0%, #000 46%, transparent 57%);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+  -webkit-mask-size: 100% 100%, 100% 100%;
+  mask-size: 100% 100%, 100% 100%;
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
 }
-.deck-stage.has-vinyl .vinyl-tint { opacity: 0.4; }
+.deck-stage.has-vinyl .vinyl-tint { opacity: 0.7; }
 .deck-stage.playing .vinyl-tint,
 .deck-stage.cueing .vinyl-tint {
-  opacity: 0.52;
+  opacity: 0.85;
 }
 
-/* Centre label — covers baked-in video label; same pose as tint */
+/* Centre label — larger elliptical disc covers baked-in / Navidrome label */
 .platter-live {
   position: absolute;
-  left: 41.6%;
-  top: 55.5%;
-  width: 14.5%;
-  aspect-ratio: 1;
+  left: 41.5%;
+  top: 54.5%;
+  width: 16.5%;
+  height: 10.2%;
   border-radius: 50%;
-  transform: translate(-50%, -50%) rotateX(58deg) rotateZ(-3deg);
-  transform-origin: center center;
+  transform: translate(-50%, -50%) rotate(-2deg);
   display: grid;
   place-items: center;
   z-index: 8;
@@ -411,9 +411,10 @@ body {
   opacity: 0;
   transition: opacity 0.35s ease;
   box-shadow:
-    0 0 0 1px rgba(212, 175, 55, 0.35),
-    inset 0 0 8px rgba(0, 0, 0, 0.55);
-  background: #0c0c0e;
+    0 0 0 1px rgba(212, 175, 55, 0.4),
+    inset 0 0 10px rgba(0, 0, 0, 0.65);
+  background: #0a0a0c;
+  overflow: hidden;
 }
 .deck-stage.has-vinyl .platter-live { opacity: 1; }
 .platter-spin {

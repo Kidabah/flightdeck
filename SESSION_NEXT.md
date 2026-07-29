@@ -6,6 +6,21 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-29 Session update (Cindy Vinyl — screen-space elliptical tint)
+
+Latest commit: *(pending)* — Elliptical tint (no rotateX); arm-side wipe; bigger label
+
+Latest local/Pi change:
+- Tint is an ellipse in screen space (perspective via width≠height) so the arm cutout lines up with the video — `rotateX` was fighting the mask.
+- Soft-light blend + hard wipe on the right half where the tonearm lives.
+- Larger elliptical centre art covers the Navidrome/baked-in label.
+- Hard refresh `?v=44`. Rebuild `vinyl`.
+
+Previous:
+- Sleeve edit + overlay polish (`a0c3caa`).
+
+---
+
 ## 2026-07-29 Session update (Cindy Vinyl — sleeve Edit ⋯ + overlay polish)
 
 Latest commit: `a0c3caa` — Sleeve edit; tilt/shrink tint; arm corridor; cover label
