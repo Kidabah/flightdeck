@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-29 Session update (Cindy Vinyl — screen-space elliptical tint)
 
-Latest commit: *(pending)* — Elliptical tint (no rotateX); arm-side wipe; bigger label
+Latest commit: `ed3694f` — Elliptical tint (no rotateX); arm-side wipe; bigger label
 
 Latest local/Pi change:
 - Tint is an ellipse in screen space (perspective via width≠height) so the arm cutout lines up with the video — `rotateX` was fighting the mask.
