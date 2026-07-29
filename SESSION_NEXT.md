@@ -6,6 +6,19 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-29 Session update (Cindy Vinyl — wall album art)
+
+Latest commit: *(pending)* — Album cover on framed gold Technics disc
+
+Latest local/Pi change:
+- Now-playing cover sits on the wall gold record behind the deck (circular overlay).
+- Platter label still spins. Hard refresh `?v=26`. Rebuild `cindy-vinyl`.
+
+Previous:
+- PWA packaging (`753d6ba`).
+
+---
+
 ## 2026-07-29 Session update (Cindy Vinyl — PWA app)
 
 Latest commit: `753d6ba` — PWA manifest + icons; Install like PrintShelf

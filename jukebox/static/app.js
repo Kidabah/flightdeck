@@ -86,9 +86,16 @@ function togglePlayPause() {
 function setVinylArt(coverId) {
   const img = $("vinylArt");
   const fb = $("vinylFallback");
+  const wall = $("wallSleeve");
+  const wallImg = $("wallArt");
   if (!coverId) {
     if (img) img.hidden = true;
     if (fb) fb.hidden = false;
+    if (wall) {
+      wall.hidden = true;
+      wall.setAttribute("aria-hidden", "true");
+    }
+    if (wallImg) wallImg.removeAttribute("src");
     $("deckArt")?.removeAttribute("src");
     return;
   }
@@ -98,6 +105,11 @@ function setVinylArt(coverId) {
     img.hidden = false;
   }
   if (fb) fb.hidden = true;
+  if (wallImg) wallImg.src = coverUrl(coverId, 400);
+  if (wall) {
+    wall.hidden = false;
+    wall.setAttribute("aria-hidden", "false");
+  }
   const art = $("deckArt");
   if (art) art.src = coverUrl(coverId, 120);
 }
