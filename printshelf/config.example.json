@@ -13,6 +13,13 @@
       "path": "/mnt/koko-kidabah",
       "source_kind": "nas",
       "windows_path": "\\\\Koko\\kidabah"
+    },
+    {
+      "id": "nas-mora",
+      "label": "Mora Kidabah home",
+      "path": "/mnt/nas-mora",
+      "source_kind": "nas",
+      "windows_path": "\\\\192.168.4.77\\User Homes\\Kidabah"
     }
   ],
   "ignore_globs": [

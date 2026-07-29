@@ -6,6 +6,21 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-29 Session update (NAS Mora Kidabah home)
+
+Latest commit: *(pending)* — Mount Mora User Homes/Kidabah for PrintShelf
+
+Latest local/Pi change:
+- Mount helper `mount-nas-mora.sh` → `/mnt/nas-mora` (`//192.168.4.77/homes` + `prefixpath=Kidabah`).
+- Remount-on-boot includes Mora when `~/.smbcredentials-mora` exists.
+- PrintShelf watched folder id `nas-mora` (windows path `\\192.168.4.77\User Homes\Kidabah`).
+- **You create on Pi:** `~/.smbcredentials-mora` then `bash /home/flightdeck/bin/mount-nas-mora.sh`.
+
+Previous:
+- Pi reboot library wipe guard (`c1b4bf2`).
+
+---
+
 ## 2026-07-29 Session update (Pi reboot emptied PrintShelf library)
 
 Latest commit: `c1b4bf2` — Guard scan against unmounted /mnt shares
@@ -16,7 +31,6 @@ Latest local/Pi change:
 - Scanner now **skips unmounted `/mnt`/`/media` roots** and only mark-missing for roots it actually walked.
 - Mount helper scripts: `mount-koko-kidabah.sh`, `remount-printshelf-shares.sh`.
 - Hard refresh PrintShelf `?v=63`. Backend restart required.
-- **Still need:** Koko NAS credentials file on Pi + remount `/mnt/koko-kidabah` (and boot remount).
 
 Previous:
 - PrintShelf Refresh + select bar (`423db5d`).
