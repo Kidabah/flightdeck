@@ -23,7 +23,7 @@ Previous:
 
 ## 2026-07-29 Session update (Cindy Vinyl — freeze after cue-in)
 
-Latest commit: *(pending)* — Arm drops once, then freezes (no hold loop jump)
+Latest commit: `5d9086d` — Arm drops once, then freezes (no hold loop jump)
 
 Latest local/Pi change:
 - After cue-in, freeze on needle-down frame instead of looping a hold clip that jumped the arm back.
