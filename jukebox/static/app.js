@@ -18,13 +18,20 @@ const state = {
 
 const audio = $("audio");
 
-async function api(path) {
-  const r = await fetch(path);
+async function api(path, opts = {}) {
+  const init = { ...opts };
+  if (init.body && typeof init.body === "object" && !(init.body instanceof FormData)) {
+    init.headers = { "Content-Type": "application/json", ...(init.headers || {}) };
+    init.body = JSON.stringify(init.body);
+  }
+  const r = await fetch(path, init);
   if (!r.ok) {
     const t = await r.text();
     throw new Error(t || r.statusText);
   }
-  return r.json();
+  const ct = r.headers.get("content-type") || "";
+  if (ct.includes("application/json")) return r.json();
+  return r.text();
 }
 
 function coverUrl(id, size = 300) {
@@ -186,6 +193,151 @@ function preloadCues() {
   // hold is already in the DOM with preload=auto
 }
 
+function currentSong() {
+  if (state.index < 0 || state.index >= state.queue.length) return null;
+  return state.queue[state.index];
+}
+
+function closeMenu() {
+  const drop = $("menuDrop");
+  const btn = $("menuBtn");
+  if (drop) drop.hidden = true;
+  if (btn) btn.setAttribute("aria-expanded", "false");
+}
+
+function toggleMenu() {
+  const drop = $("menuDrop");
+  const btn = $("menuBtn");
+  if (!drop || !btn) return;
+  const open = drop.hidden;
+  drop.hidden = !open;
+  btn.setAttribute("aria-expanded", open ? "true" : "false");
+}
+
+function openModal(id) {
+  const el = $(id);
+  if (el) el.hidden = false;
+  closeMenu();
+}
+
+function closeModal(id) {
+  const el = $(id);
+  if (el) el.hidden = true;
+}
+
+async function copyField(inputId) {
+  const input = $(inputId);
+  if (!input || !input.value) return;
+  try {
+    await navigator.clipboard.writeText(input.value);
+    setStatus("Copied Cindy path.");
+  } catch {
+    input.select();
+    document.execCommand("copy");
+    setStatus("Copied Cindy path.");
+  }
+}
+
+async function showOnCindy() {
+  const song = currentSong();
+  if (!song?.id) {
+    setStatus("Spin a track first to locate it on Cindy.");
+    closeMenu();
+    return;
+  }
+  try {
+    const info = await api(`/api/locate/${encodeURIComponent(song.id)}`);
+    $("cindyTrackLabel").textContent = `${info.title || song.title || "Track"} · ${info.artist || song.artist || ""}`;
+    $("cindyRelPath").value = info.path || "";
+    $("cindyUncPath").value = info.unc || "";
+    $("cindyFolderUnc").value = info.folderUnc || "";
+    openModal("cindyModal");
+  } catch (err) {
+    setStatus(String(err.message || err).slice(0, 180));
+    closeMenu();
+  }
+}
+
+function fillProperties() {
+  const album = state.album || {};
+  const song = currentSong() || {};
+  $("propAlbumName").value = album.name || album.title || "";
+  $("propAlbumArtist").value = album.artist || album.displayArtist || "";
+  $("propTrackTitle").value = song.title || "";
+  $("propTrackArtist").value = song.artist || "";
+  $("propTrackAlbum").value = song.album || album.name || "";
+  $("propStatus").textContent = song.id
+    ? "Edits apply in Vinyl only (Cindy is read-only)."
+    : "Load a sleeve / track to edit.";
+}
+
+async function saveAlbumProps() {
+  const album = state.album;
+  if (!album?.id) {
+    $("propStatus").textContent = "No album loaded.";
+    return;
+  }
+  try {
+    await api("/api/meta/album", {
+      method: "POST",
+      body: {
+        id: album.id,
+        name: $("propAlbumName").value,
+        artist: $("propAlbumArtist").value,
+      },
+    });
+    album.name = $("propAlbumName").value.trim() || album.name;
+    album.title = album.name;
+    album.artist = $("propAlbumArtist").value.trim() || album.artist;
+    $("nowTitle").textContent = album.name || album.title || "Album";
+    $("nowArtist").textContent = album.artist || "";
+    $("propStatus").textContent = "Album saved for Vinyl.";
+    await loadCrates(state.crateType);
+  } catch (err) {
+    $("propStatus").textContent = String(err.message || err).slice(0, 160);
+  }
+}
+
+async function saveTrackProps() {
+  const song = currentSong();
+  if (!song?.id) {
+    $("propStatus").textContent = "No track selected.";
+    return;
+  }
+  try {
+    await api("/api/meta/song", {
+      method: "POST",
+      body: {
+        id: song.id,
+        title: $("propTrackTitle").value,
+        artist: $("propTrackArtist").value,
+        album: $("propTrackAlbum").value,
+      },
+    });
+    song.title = $("propTrackTitle").value.trim() || song.title;
+    song.artist = $("propTrackArtist").value.trim() || song.artist;
+    song.album = $("propTrackAlbum").value.trim() || song.album;
+    $("deckTitle").textContent = song.title || "Track";
+    $("deckArtist").textContent = song.artist || state.album?.artist || "";
+    renderQueue();
+    $("propStatus").textContent = "Track saved for Vinyl.";
+  } catch (err) {
+    $("propStatus").textContent = String(err.message || err).slice(0, 160);
+  }
+}
+
+async function refreshPacks() {
+  closeMenu();
+  setStatus("Refreshing folder packs…");
+  try {
+    await api("/api/refresh-packs", { method: "POST" });
+    await loadCrates(state.crateType);
+    setStatus("Packs refreshed.");
+  } catch (err) {
+    setStatus(String(err.message || err).slice(0, 180));
+  }
+}
+
 function fmtTime(sec) {
   if (!Number.isFinite(sec) || sec < 0) return "0:00";
   const s = Math.floor(sec);
@@ -240,33 +392,11 @@ function togglePlayPause() {
 }
 
 function setVinylArt(coverId) {
-  const img = $("vinylArt");
-  const fb = $("vinylFallback");
-  const wall = $("wallSleeve");
-  const wallImg = $("wallArt");
+  const art = $("deckArt");
   if (!coverId) {
-    if (img) img.hidden = true;
-    if (fb) fb.hidden = false;
-    if (wall) {
-      wall.hidden = true;
-      wall.setAttribute("aria-hidden", "true");
-    }
-    if (wallImg) wallImg.removeAttribute("src");
-    $("deckArt")?.removeAttribute("src");
+    art?.removeAttribute("src");
     return;
   }
-  const url = coverUrl(coverId, 600);
-  if (img) {
-    img.src = url;
-    img.hidden = false;
-  }
-  if (fb) fb.hidden = true;
-  if (wallImg) wallImg.src = coverUrl(coverId, 400);
-  if (wall) {
-    wall.hidden = false;
-    wall.setAttribute("aria-hidden", "false");
-  }
-  const art = $("deckArt");
   if (art) art.src = coverUrl(coverId, 120);
 }
 
@@ -345,7 +475,6 @@ async function playIndex(i) {
 }
 
 function setPlaying(on) {
-  $("vinyl")?.classList.toggle("spinning", on);
   $("deckStage")?.classList.toggle("playing", on);
   $("playPauseBtn").textContent = on ? "Pause" : "Play";
   $("deckPlay").textContent = on ? "⏸" : "▶";
@@ -357,7 +486,6 @@ function setPlaying(on) {
 async function spin() {
   $("spinBtn").disabled = true;
   setStatus("Digging through the crates…");
-  $("vinyl")?.classList.remove("spinning");
   try {
     const album = await api("/api/random-album");
     loadAlbumIntoQueue(album, { autoplay: true });
@@ -511,7 +639,44 @@ function wire() {
     runSearch($("searchInput").value);
   });
 
+  $("menuBtn")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggleMenu();
+  });
+  $("menuDrop")?.addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-action]");
+    if (!btn) return;
+    const action = btn.dataset.action;
+    if (action === "cindy") showOnCindy();
+    else if (action === "props") {
+      fillProperties();
+      openModal("propsModal");
+    } else if (action === "refresh") refreshPacks();
+  });
+  document.addEventListener("click", (e) => {
+    if (!$("topMenu")?.contains(e.target)) closeMenu();
+  });
+  document.querySelectorAll("[data-close]").forEach((btn) => {
+    btn.addEventListener("click", () => closeModal(btn.dataset.close));
+  });
+  document.querySelectorAll("[data-copy]").forEach((btn) => {
+    btn.addEventListener("click", () => copyField(btn.dataset.copy));
+  });
+  $("propSaveAlbum")?.addEventListener("click", () => saveAlbumProps());
+  $("propSaveTrack")?.addEventListener("click", () => saveTrackProps());
+  ["cindyModal", "propsModal"].forEach((id) => {
+    $(id)?.addEventListener("click", (e) => {
+      if (e.target === $(id)) closeModal(id);
+    });
+  });
+
   document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      closeMenu();
+      closeModal("cindyModal");
+      closeModal("propsModal");
+      return;
+    }
     if (isTypingTarget(e.target)) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     switch (e.key) {

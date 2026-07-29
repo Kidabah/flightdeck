@@ -11,6 +11,7 @@ import httpx
 from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 
 from .folder_albums import (
     build_folder_album,
@@ -18,6 +19,8 @@ from .folder_albums import (
     invalidate_caches,
     resolve_folder_key,
 )
+from .locate import locate_song
+from . import meta_overrides as meta
 
 NAVIDROME = os.environ.get("NAVIDROME_URL", "http://127.0.0.1:4533").rstrip("/")
 USER = os.environ.get("JUKEBOX_USER", "jukebox")
@@ -25,6 +28,19 @@ PASSWORD = os.environ.get("JUKEBOX_PASSWORD", "")
 STATIC = Path(__file__).resolve().parent.parent / "static"
 
 app = FastAPI(title="Cindy Vinyl", docs_url=None, redoc_url=None)
+
+
+class AlbumMetaPatch(BaseModel):
+    id: str = Field(min_length=1)
+    name: str | None = None
+    artist: str | None = None
+
+
+class SongMetaPatch(BaseModel):
+    id: str = Field(min_length=1)
+    title: str | None = None
+    artist: str | None = None
+    album: str | None = None
 
 
 def _auth_params() -> dict[str, str]:
@@ -64,9 +80,9 @@ def _expand_album(album: dict[str, Any]) -> dict[str, Any]:
     aid = album.get("id") or ""
     fk = resolve_folder_key(aid)
     if not fk:
-        return album
+        return meta.apply_album(album) or album
     merged = build_folder_album(fk)
-    return merged or album
+    return meta.apply_album(merged or album) or album
 
 
 @app.get("/api/health")
@@ -87,7 +103,7 @@ async def random_album():
         albums = (sub.get("albumList2") or {}).get("album") or []
         if not albums:
             raise HTTPException(404, "No albums yet — Navidrome may still be scanning")
-    albums = collapse_album_list(albums)
+    albums = meta.apply_album_list(collapse_album_list(albums))
     album = random.choice(albums)
     return await album_detail(album["id"])
 
@@ -105,7 +121,7 @@ async def albums(
         {"type": list_type, "size": fetch_size, "offset": offset},
     )
     raw = (sub.get("albumList2") or {}).get("album") or []
-    merged = collapse_album_list(raw)
+    merged = meta.apply_album_list(collapse_album_list(raw))
     return {"albums": merged[:size]}
 
 
@@ -121,7 +137,7 @@ async def album_detail(album_id: str):
         merged = build_folder_album(fk)
         if not merged:
             raise HTTPException(404, "Folder pack empty")
-        return merged
+        return meta.apply_album(merged)
 
     sub = await _nd_get("getAlbum.view", {"id": album_id})
     album = sub.get("album") or {}
@@ -134,12 +150,50 @@ async def album_detail(album_id: str):
 async def search(q: str = Query(..., min_length=1)):
     sub = await _nd_get("search3.view", {"query": q, "artistCount": 10, "albumCount": 24, "songCount": 24})
     result = sub.get("searchResult3") or {}
-    albums = collapse_album_list(result.get("album") or [])
+    albums = meta.apply_album_list(collapse_album_list(result.get("album") or []))
     return {
         "artists": result.get("artist") or [],
         "albums": albums,
-        "songs": result.get("song") or [],
+        "songs": meta.apply_song_list(result.get("song") or []),
     }
+
+
+@app.get("/api/locate/{song_id}")
+async def locate(song_id: str):
+    fallback = None
+    song: dict[str, Any] = {}
+    try:
+        sub = await _nd_get("getSong.view", {"id": song_id})
+        song = sub.get("song") or {}
+        fallback = song.get("path")
+    except HTTPException:
+        pass
+    info = locate_song(song_id, fallback_path=fallback)
+    if song:
+        if not info.get("title"):
+            info["title"] = song.get("title")
+        if not info.get("album"):
+            info["album"] = song.get("album")
+        if not info.get("artist"):
+            info["artist"] = song.get("artist")
+    if not info.get("found"):
+        raise HTTPException(404, "Track path not found in Cindy index")
+    return info
+
+
+@app.post("/api/meta/album")
+async def meta_album(body: AlbumMetaPatch):
+    saved = meta.patch_album(body.id, {"name": body.name, "artist": body.artist})
+    return {"ok": True, "id": body.id, "override": saved, "note": "Vinyl display only — Cindy files unchanged"}
+
+
+@app.post("/api/meta/song")
+async def meta_song(body: SongMetaPatch):
+    saved = meta.patch_song(
+        body.id,
+        {"title": body.title, "artist": body.artist, "album": body.album},
+    )
+    return {"ok": True, "id": body.id, "override": saved, "note": "Vinyl display only — Cindy files unchanged"}
 
 
 @app.post("/api/refresh-packs")

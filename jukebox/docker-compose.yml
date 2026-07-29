@@ -43,8 +43,12 @@ services:
       JUKEBOX_PASSWORD: ${JUKEBOX_PASSWORD:?set JUKEBOX_PASSWORD in .env}
       JUKEBOX_HOST: 0.0.0.0
       JUKEBOX_PORT: "4540"
+      VINYL_DATA: /vinyl-data
+      CINDY_SMB_HOST: ${CINDY_SMB_HOST:-192.168.4.53}
     volumes:
       # Read-only index (incl. WAL) for folder-pack merging — Cindy untouched
       - /home/flightdeck/cindy-navidrome/data:/data:ro
+      # Vinyl-only metadata overrides (never writes to Cindy)
+      - /home/flightdeck/cindy-vinyl-data:/vinyl-data
     depends_on:
       - navidrome

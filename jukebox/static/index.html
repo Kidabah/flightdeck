@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=31">
+  <link rel="stylesheet" href="/static/style.css?v=33">
 </head>
 <body>
   <div class="lamp" aria-hidden="true"></div>
@@ -30,6 +30,14 @@
     <form class="search" id="searchForm" autocomplete="off">
       <input id="searchInput" type="search" placeholder="Search the crates…" enterkeyhint="search">
     </form>
+    <div class="top-menu" id="topMenu">
+      <button type="button" class="menu-btn" id="menuBtn" aria-label="Menu" aria-haspopup="menu" aria-expanded="false">⋯</button>
+      <div class="menu-drop" id="menuDrop" role="menu" hidden>
+        <button type="button" role="menuitem" data-action="cindy">Show on Cindy</button>
+        <button type="button" role="menuitem" data-action="props">Properties…</button>
+        <button type="button" role="menuitem" data-action="refresh">Refresh packs</button>
+      </div>
+    </div>
   </header>
 
   <main class="stage" id="stage">
@@ -57,15 +65,6 @@
             aria-hidden="true"
             hidden
           ></video>
-          <div class="wall-sleeve" id="wallSleeve" hidden aria-hidden="true">
-            <img id="wallArt" alt="">
-          </div>
-          <div class="platter-live" id="vinyl" aria-hidden="true">
-            <div class="label" id="vinylLabel">
-              <img id="vinylArt" alt="" hidden>
-              <span id="vinylFallback">C</span>
-            </div>
-          </div>
         </div>
         <div class="hero-copy">
           <p class="deck-tag">Technics SL-1200 Limited</p>
@@ -129,6 +128,63 @@
   </footer>
 
   <audio id="audio" preload="none"></audio>
-  <script src="/static/app.js?v=31"></script>
+
+  <div class="modal" id="cindyModal" hidden>
+    <div class="modal-card" role="dialog" aria-labelledby="cindyModalTitle">
+      <header class="modal-head">
+        <h2 id="cindyModalTitle">On Cindy</h2>
+        <button type="button" class="modal-close" data-close="cindyModal" aria-label="Close">×</button>
+      </header>
+      <p class="modal-note" id="cindyTrackLabel">—</p>
+      <label class="field">
+        <span>Library path</span>
+        <div class="path-row">
+          <input id="cindyRelPath" type="text" readonly>
+          <button type="button" class="ghost-btn tiny" data-copy="cindyRelPath">Copy</button>
+        </div>
+      </label>
+      <label class="field">
+        <span>Windows / Explorer (UNC)</span>
+        <div class="path-row">
+          <input id="cindyUncPath" type="text" readonly>
+          <button type="button" class="ghost-btn tiny" data-copy="cindyUncPath">Copy</button>
+        </div>
+      </label>
+      <label class="field">
+        <span>Album folder</span>
+        <div class="path-row">
+          <input id="cindyFolderUnc" type="text" readonly>
+          <button type="button" class="ghost-btn tiny" data-copy="cindyFolderUnc">Copy</button>
+        </div>
+      </label>
+      <p class="hint">Paste the UNC into Explorer while on the LAN. Cindy stays read-only.</p>
+    </div>
+  </div>
+
+  <div class="modal" id="propsModal" hidden>
+    <div class="modal-card" role="dialog" aria-labelledby="propsModalTitle">
+      <header class="modal-head">
+        <h2 id="propsModalTitle">Properties</h2>
+        <button type="button" class="modal-close" data-close="propsModal" aria-label="Close">×</button>
+      </header>
+      <p class="modal-note">Vinyl display names only — does not rewrite tags on Cindy.</p>
+      <fieldset class="prop-block">
+        <legend>Album</legend>
+        <label class="field">Name <input id="propAlbumName" type="text"></label>
+        <label class="field">Artist <input id="propAlbumArtist" type="text"></label>
+        <button type="button" class="ghost-btn" id="propSaveAlbum">Save album</button>
+      </fieldset>
+      <fieldset class="prop-block">
+        <legend>Current track</legend>
+        <label class="field">Title <input id="propTrackTitle" type="text"></label>
+        <label class="field">Artist <input id="propTrackArtist" type="text"></label>
+        <label class="field">Album tag <input id="propTrackAlbum" type="text"></label>
+        <button type="button" class="ghost-btn" id="propSaveTrack">Save track</button>
+      </fieldset>
+      <p class="hint" id="propStatus"></p>
+    </div>
+  </div>
+
+  <script src="/static/app.js?v=33"></script>
 </body>
 </html>
