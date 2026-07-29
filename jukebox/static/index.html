@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=19">
+  <link rel="stylesheet" href="/static/style.css?v=20">
 </head>
 <body>
   <div class="lamp" aria-hidden="true"></div>
@@ -25,25 +25,37 @@
 
   <main class="stage" id="stage">
     <section class="hero" id="hero">
-      <div class="deck-stage" id="deckStage">
-        <img class="deck-photo" src="/static/deck.png" alt="Technics SL-1200 Limited">
-        <div class="platter-live" id="vinyl" aria-hidden="true">
-          <div class="label" id="vinylLabel">
-            <img id="vinylArt" alt="" hidden>
-            <span id="vinylFallback">C</span>
+      <div class="hero-main">
+        <div class="deck-stage" id="deckStage">
+          <img class="deck-photo" src="/static/deck.png" alt="Technics SL-1200 Limited">
+          <div class="platter-live" id="vinyl" aria-hidden="true">
+            <div class="label" id="vinylLabel">
+              <img id="vinylArt" alt="" hidden>
+              <span id="vinylFallback">C</span>
+            </div>
           </div>
         </div>
-      </div>
-      <div class="hero-copy">
-        <p class="deck-tag">Technics SL-1200 Limited</p>
-        <h1 id="nowTitle">Drop the needle</h1>
-        <p id="nowArtist">5.4TB on Cindy — CHECKED · MUSIC · JAMAL</p>
-        <div class="hero-actions">
-          <button type="button" class="spin-btn" id="spinBtn">SPIN</button>
-          <button type="button" class="ghost-btn" id="playPauseBtn" disabled>Play</button>
+        <div class="hero-copy">
+          <p class="deck-tag">Technics SL-1200 Limited</p>
+          <h1 id="nowTitle">Drop the needle</h1>
+          <p id="nowArtist">5.4TB on Cindy — CHECKED · MUSIC · JAMAL</p>
+          <div class="hero-actions">
+            <button type="button" class="spin-btn" id="spinBtn">SPIN</button>
+            <button type="button" class="ghost-btn" id="playPauseBtn" disabled>Play</button>
+          </div>
+          <p class="hint" id="statusLine">Warming up the tubes…</p>
         </div>
-        <p class="hint" id="statusLine">Warming up the tubes…</p>
       </div>
+
+      <aside class="track-panel" id="queueStrip">
+        <div class="track-panel-head">
+          <h2>Tracks</h2>
+          <span class="track-count" id="trackCount">—</span>
+        </div>
+        <ol id="queueList" class="track-list">
+          <li class="track-empty">Spin a sleeve and the sides show up here.</li>
+        </ol>
+      </aside>
     </section>
 
     <section class="crates" id="cratesSection">
@@ -56,11 +68,6 @@
         </div>
       </div>
       <div class="crate-rail" id="crateRail" tabindex="0"></div>
-    </section>
-
-    <section class="queue-strip" id="queueStrip" hidden>
-      <h2>On deck</h2>
-      <ol id="queueList"></ol>
     </section>
 
     <section class="search-results" id="searchResults" hidden>
@@ -84,6 +91,6 @@
   </footer>
 
   <audio id="audio" preload="none"></audio>
-  <script src="/static/app.js?v=19"></script>
+  <script src="/static/app.js?v=20"></script>
 </body>
 </html>

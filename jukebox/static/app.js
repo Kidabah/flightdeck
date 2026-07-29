@@ -44,26 +44,29 @@ function setVinylArt(coverId) {
 }
 
 function renderQueue() {
-  const strip = $("queueStrip");
   const list = $("queueList");
+  const count = $("trackCount");
+  if (!list) return;
   if (!state.queue.length) {
-    strip.hidden = true;
-    list.innerHTML = "";
+    if (count) count.textContent = "—";
+    list.innerHTML = `<li class="track-empty">Spin a sleeve and the sides show up here.</li>`;
     return;
   }
-  strip.hidden = false;
+  if (count) count.textContent = `${state.queue.length} side${state.queue.length === 1 ? "" : "s"}`;
   list.innerHTML = state.queue
     .map((s, i) => {
       const active = i === state.index ? "active" : "";
       const art = coverUrl(s.coverArt || s.id, 80);
       return `<li class="${active}" data-i="${i}">
         <img src="${art}" alt="">
-        <div><div>${escapeHtml(s.title || "Track")}</div>
-        <div style="opacity:.55;font-size:.8rem">${escapeHtml(s.artist || "")}</div></div>
+        <div>
+          <div class="t">${escapeHtml(s.title || "Track")}</div>
+          <div class="a">${escapeHtml(s.artist || "")}</div>
+        </div>
       </li>`;
     })
     .join("");
-  list.querySelectorAll("li").forEach((li) => {
+  list.querySelectorAll("li[data-i]").forEach((li) => {
     li.addEventListener("click", () => playIndex(Number(li.dataset.i)));
   });
 }
