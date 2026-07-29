@@ -463,26 +463,54 @@ function pickVinylColor() {
   return c;
 }
 
+/** Same size as crate sleeves so a spin reuses the already-cached image. */
+const VINYL_ART_SIZE = 300;
+
 function setVinylArt(coverId) {
   const img = $("vinylArt");
   const fb = $("vinylFallback");
   const art = $("deckArt");
   const stage = $("deckStage");
   if (!coverId) {
-    if (img) img.hidden = true;
+    if (img) {
+      img.hidden = true;
+      delete img.dataset.coverId;
+    }
     if (fb) fb.hidden = false;
     art?.removeAttribute("src");
     stage?.classList.remove("has-vinyl");
     return;
   }
-  const url = coverUrl(coverId, 600);
+  const url = coverUrl(coverId, VINYL_ART_SIZE);
   if (img) {
-    img.src = url;
-    img.hidden = false;
+    if (img.dataset.coverId === String(coverId) && img.src) {
+      img.hidden = false;
+    } else {
+      img.dataset.coverId = String(coverId);
+      img.src = url;
+      img.hidden = false;
+      // Warm decode so the next skip feels instant if the browser still has work
+      if (typeof img.decode === "function") {
+        img.decode().catch(() => {});
+      }
+    }
   }
   if (fb) fb.hidden = true;
   if (art) art.src = coverUrl(coverId, 120);
   stage?.classList.add("has-vinyl");
+}
+
+function prefetchQueueCovers(around = 2) {
+  const start = Math.max(0, state.index - around);
+  const end = Math.min(state.queue.length - 1, state.index + around);
+  for (let i = start; i <= end; i++) {
+    const id = state.queue[i]?.coverArt;
+    if (!id) continue;
+    const url = coverUrl(id, VINYL_ART_SIZE);
+    const warm = new Image();
+    warm.decoding = "async";
+    warm.src = url;
+  }
 }
 
 function renderQueue() {
@@ -535,6 +563,7 @@ function loadAlbumIntoQueue(album, { autoplay = true } = {}) {
   $("nowArtist").textContent = album.artist || album.displayArtist || "";
   setVinylArt(album.coverArt);
   renderQueue();
+  prefetchQueueCovers(3);
   $("playPauseBtn").disabled = false;
   if (autoplay) playIndex(0);
   else setStatus("Ready on the platter.");
@@ -547,7 +576,9 @@ async function playIndex(i) {
   $("deckTitle").textContent = song.title || "Track";
   $("deckArtist").textContent = song.artist || state.album?.artist || "";
   if (song.coverArt) setVinylArt(song.coverArt);
+  else if (state.album?.coverArt) setVinylArt(state.album.coverArt);
   pickVinylColor();
+  prefetchQueueCovers(2);
   audio.src = `/api/stream/${encodeURIComponent(song.id)}`;
   try {
     await audio.play();

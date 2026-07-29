@@ -6,6 +6,19 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-30 Session update (Cindy Vinyl — faster label swaps)
+
+Latest commit: *(pending)* — Reuse sleeve-sized covers; prefetch; cache covers
+
+Latest local/Pi change:
+- Platter label was fetching 600px covers (cache miss vs crate sleeves at 300). Now uses 300px, prefetches nearby queue covers, and `/api/cover` sends `Cache-Control` for a week.
+- Hard refresh `?v=48`. Rebuild `vinyl` (backend cover headers).
+
+Previous:
+- Warm tint polish (`14e5f71`).
+
+---
+
 ## 2026-07-29 Session update (Cindy Vinyl — warm tint palette polish)
 
 Latest commit: `14e5f71` — Warmer vinyl colours; tiny label/tint nudge

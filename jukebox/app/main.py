@@ -211,7 +211,11 @@ async def cover(cover_id: str, size: int = Query(600, ge=40, le=1200)):
         r = await client.get(url)
     if r.status_code >= 400:
         raise HTTPException(r.status_code, "cover missing")
-    return Response(content=r.content, media_type=r.headers.get("content-type", "image/jpeg"))
+    return Response(
+        content=r.content,
+        media_type=r.headers.get("content-type", "image/jpeg"),
+        headers={"Cache-Control": "public, max-age=604800, immutable"},
+    )
 
 
 @app.get("/api/stream/{song_id}")
