@@ -6,6 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-29 Session update (Cindy Vinyl — loop hold after cue-in)
+
+Latest commit: `5267827` — Ping-pong hold loop; no snap back to still
+
+Latest local/Pi change:
+- Cue-in trimmed (~1.35s), then seamless handoff to `deck-cue-hold.mp4` (forward+reverse of post-drop).
+- Stays on video while playing; pause freezes frame; queue end still plays cue-out then static rest.
+- Hard refresh `?v=30`. Rebuild `vinyl`.
+
+Previous:
+- Start/stop cues (`3298d22`).
+
+---
+
 ## 2026-07-29 Session update (Cindy Vinyl — start/stop cue clips)
 
 Latest commit: `3298d22` — Silent spin-up / spin-down deck cues
