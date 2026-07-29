@@ -1,6 +1,8 @@
 const $ = (id) => document.getElementById(id);
 
 const VOL_KEY = "cindy-vinyl-volume";
+const CUE_IN = "/static/deck-cue-in.mp4";
+const CUE_OUT = "/static/deck-cue-out.mp4";
 
 const state = {
   queue: [],
@@ -8,6 +10,9 @@ const state = {
   album: null,
   crateType: "newest",
   volumeBeforeMute: 0.85,
+  /** @type {'rest'|'cueing-in'|'hold'|'cueing-out'} */
+  arm: "rest",
+  armToken: 0,
 };
 
 const audio = $("audio");
@@ -28,6 +33,86 @@ function coverUrl(id, size = 300) {
 
 function setStatus(msg) {
   $("statusLine").textContent = msg;
+}
+
+function deckCue() {
+  return /** @type {HTMLVideoElement|null} */ ($("deckCue"));
+}
+
+function showStaticDeck() {
+  $("deckStage")?.classList.remove("cueing");
+  const v = deckCue();
+  if (!v) return;
+  v.pause();
+  v.removeAttribute("src");
+  v.load();
+  v.hidden = true;
+}
+
+function playCueClip(src, onEnded) {
+  const v = deckCue();
+  const stage = $("deckStage");
+  if (!v || !stage) {
+    onEnded?.();
+    return;
+  }
+  const token = ++state.armToken;
+  stage.classList.add("cueing");
+  v.hidden = false;
+  v.muted = true;
+  v.onended = null;
+  v.onerror = null;
+  const finish = () => {
+    if (token !== state.armToken) return;
+    onEnded?.();
+  };
+  v.onended = finish;
+  v.onerror = finish;
+  v.src = src;
+  try {
+    v.currentTime = 0;
+  } catch {
+    /* ignore */
+  }
+  const p = v.play();
+  if (p && typeof p.then === "function") {
+    p.catch(() => finish());
+  }
+}
+
+function cueInThenHold() {
+  if (state.arm === "hold" || state.arm === "cueing-in") return;
+  state.arm = "cueing-in";
+  playCueClip(CUE_IN, () => {
+    if (state.arm !== "cueing-in") return;
+    state.arm = "hold";
+    showStaticDeck();
+  });
+}
+
+function cueOutToRest() {
+  if (state.arm === "rest" || state.arm === "cueing-out") return;
+  state.arm = "cueing-out";
+  playCueClip(CUE_OUT, () => {
+    if (state.arm !== "cueing-out") return;
+    state.arm = "rest";
+    showStaticDeck();
+  });
+}
+
+function resetArmToRest() {
+  state.armToken += 1;
+  state.arm = "rest";
+  showStaticDeck();
+}
+
+function preloadCues() {
+  [CUE_IN, CUE_OUT].forEach((src) => {
+    const v = document.createElement("video");
+    v.muted = true;
+    v.preload = "auto";
+    v.src = src;
+  });
 }
 
 function fmtTime(sec) {
@@ -159,6 +244,7 @@ function loadAlbumIntoQueue(album, { autoplay = true } = {}) {
   state.album = album;
   state.queue = songs;
   state.index = 0;
+  resetArmToRest();
   $("nowTitle").textContent = album.name || album.title || "Album";
   $("nowArtist").textContent = album.artist || album.displayArtist || "";
   setVinylArt(album.coverArt);
@@ -193,6 +279,7 @@ function setPlaying(on) {
   $("playPauseBtn").textContent = on ? "Pause" : "Play";
   $("deckPlay").textContent = on ? "⏸" : "▶";
   setStatus(on ? "Needle down." : "Paused.");
+  if (on) cueInThenHold();
 }
 
 async function spin() {
@@ -326,7 +413,10 @@ function wire() {
 
   audio.addEventListener("ended", () => {
     if (state.index + 1 < state.queue.length) playIndex(state.index + 1);
-    else setPlaying(false);
+    else {
+      setPlaying(false);
+      cueOutToRest();
+    }
   });
   audio.addEventListener("timeupdate", () => {
     if (audio.duration) {
@@ -387,6 +477,7 @@ function wire() {
 
 async function boot() {
   wire();
+  preloadCues();
   try {
     const h = await api("/api/health");
     if (!h.ok) setStatus(`Navidrome: ${h.error || "not ready"}`);

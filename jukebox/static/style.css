@@ -197,6 +197,27 @@ body {
   vertical-align: middle;
 }
 
+/* Silent cue-in / cue-out — covers photo while camera moves */
+.deck-cue {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  z-index: 5;
+  pointer-events: none;
+  background: #0a0a0c;
+}
+.deck-cue[hidden] {
+  display: none !important;
+}
+.deck-stage.cueing .platter-live,
+.deck-stage.cueing .wall-sleeve {
+  visibility: hidden;
+  opacity: 0;
+}
+
 /* Square album sleeve leaning against the Technics prism (front-right) */
 .wall-sleeve {
   position: absolute;

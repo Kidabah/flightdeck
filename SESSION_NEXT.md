@@ -6,6 +6,21 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-29 Session update (Cindy Vinyl — start/stop cue clips)
+
+Latest commit: *(pending)* — Silent spin-up / spin-down deck cues
+
+Latest local/Pi change:
+- `start.mp4` → `deck-cue-in.mp4`, stop clip → `deck-cue-out.mp4` (audio stripped).
+- Play from rest → cue-in (~3s), then static deck + spinning label + prism sleeve.
+- Queue end → cue-out (~1.8s). Pause / track skip keep hold (no re-cue).
+- Hard refresh `?v=29`. Rebuild `cindy-vinyl` (`vinyl` service).
+
+Previous:
+- Prism sleeve lean (`72fbda1`).
+
+---
+
 ## 2026-07-29 Session update (Cindy Vinyl — sleeve on Technics prism)
 
 Latest commit: `72fbda1` — Album cover leans against Technics prism
