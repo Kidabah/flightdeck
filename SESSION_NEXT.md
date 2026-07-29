@@ -8,13 +8,13 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-29 Session update (NAS Mora Kidabah home)
 
-Latest commit: `41598eb` — Mount Mora User Homes/Kidabah for PrintShelf
+Latest commit: `bc1acbf` — Mount Mora User Homes/Kidabah for PrintShelf
 
 Latest local/Pi change:
-- Mount helper `mount-nas-mora.sh` → `/mnt/nas-mora` (`//192.168.4.77/homes` + `prefixpath=Kidabah`).
+- Mount helper `mount-nas-mora.sh` → `/mnt/nas-mora` (bind of `User Homes/Kidabah`).
 - Remount-on-boot includes Mora when `~/.smbcredentials-mora` exists.
 - PrintShelf watched folder id `nas-mora` (windows path `\\192.168.4.77\User Homes\Kidabah`).
-- **You create on Pi:** `~/.smbcredentials-mora` then `bash /home/flightdeck/bin/mount-nas-mora.sh`.
+- Live on Pi: Mora mounted; Folders shows **Mora Kidabah home**.
 
 Previous:
 - Pi reboot library wipe guard (`c1b4bf2`).
