@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-30 Session update (Cindy Vinyl — A–Z cache, pause spin, lag)
 
-Latest commit: _(pending)_ — A–Z alpha cache; pause stops platter; crate lag tweaks
+Latest commit: `c4aa1d5` — A–Z alpha cache; pause stops platter; crate lag tweaks
 
 Latest local/Pi change:
 - A–Z was empty/timing out: early-exit + full library scan. Now caches alphabetical index (warmed on startup), letter chips filter in memory.
