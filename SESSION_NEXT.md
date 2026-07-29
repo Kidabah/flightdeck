@@ -23,7 +23,7 @@ Previous:
 
 ## 2026-07-29 Session update (Cindy Vinyl — new arm-lift stop clip)
 
-Latest commit: *(pending)* — Wire Chris’s arm-lift / stop 10s clip
+Latest commit: `a215cd6` — Wire Chris’s arm-lift / stop 10s clip
 
 Latest local/Pi change:
 - New video split: short reverse drop-in (~2.2s), forward hold loop (~3.5s), cue-out lift/stop (~4.5s).
