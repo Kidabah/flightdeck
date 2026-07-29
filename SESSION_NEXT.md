@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-29 Session update (Cindy Vinyl — transport polish)
 
-Latest commit: *(pending)* — Volume, time readout, keyboard shortcuts
+Latest commit: `5a02518` — Volume, time readout, keyboard shortcuts
 
 Latest local/Pi change:
 - Transport: `0:00 / 3:55` beside seek; volume slider + mute (persisted).
