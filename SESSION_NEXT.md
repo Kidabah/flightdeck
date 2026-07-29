@@ -23,7 +23,7 @@ Previous:
 
 ## 2026-07-29 Session update (Cindy Vinyl — full drop then freeze)
 
-Latest commit: *(pending)* — Longer cue-in; don’t abort mid-drop
+Latest commit: `5b42922` — Longer cue-in; don’t abort mid-drop
 
 Latest local/Pi change:
 - Cue-in is the full arm-to-record move (~4.5s), then freeze on that frame.
