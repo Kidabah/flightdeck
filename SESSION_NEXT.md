@@ -21,6 +21,19 @@ Previous:
 
 ---
 
+## 2026-07-29 Session update (Cindy Vinyl — tight outer-groove loop)
+
+Latest commit: *(pending)* — Loop only outer-groove spin (~0.65s)
+
+Latest local/Pi change:
+- Hold loop was 2.0→5.15s so the arm crawled to the label then jumped back.
+- Now loops 3.55→4.2s (needle parked on the lead-in). Hard refresh `?v=38`.
+
+Previous:
+- Spin loop after drop (`d27f956`).
+
+---
+
 ## 2026-07-29 Session update (Cindy Vinyl — keep spinning after drop)
 
 Latest commit: `d27f956` — Forward play + spin loop (no freeze)

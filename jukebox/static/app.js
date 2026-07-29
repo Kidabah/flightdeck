@@ -3,9 +3,10 @@ const $ = (id) => document.getElementById(id);
 const VOL_KEY = "cindy-vinyl-volume";
 const CUE_IN = "/static/deck-cue-in.mp4";
 const CUE_OUT = "/static/deck-cue-out.mp4";
-/** After the arm settles, keep spinning this window (forward only). */
-const HOLD_LOOP_START = 2.0;
-const HOLD_LOOP_END = 5.15;
+/** After the arm settles on the outer grooves, loop only this short window
+ *  (longer windows let the arm crawl inward, then jump back — looks broken). */
+const HOLD_LOOP_START = 3.55;
+const HOLD_LOOP_END = 4.2;
 
 const state = {
   queue: [],
