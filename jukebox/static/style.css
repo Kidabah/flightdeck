@@ -224,9 +224,9 @@ body {
 /* Square album sleeve leaning against the Technics prism (front-right) */
 .wall-sleeve {
   position: absolute;
-  left: 83.4%;
-  top: 87.2%;
-  width: 12.2%;
+  left: 83.0%;
+  top: 87.5%;
+  width: 11.8%;
   aspect-ratio: 1;
   transform: translateX(-50%) translateY(-100%) rotate(5deg) perspective(900px) rotateX(11deg);
   transform-origin: 50% 100%;
@@ -251,9 +251,9 @@ body {
 /* Live spinning disc — centred on the Technics platter */
 .platter-live {
   position: absolute;
-  left: 41.7%;
-  top: 52.4%;
-  width: 31.5%;
+  left: 40.0%;
+  top: 55.0%;
+  width: 34.0%;
   aspect-ratio: 1;
   border-radius: 50%;
   transform: translate(-50%, -50%) rotateX(58deg) rotateZ(-7deg);

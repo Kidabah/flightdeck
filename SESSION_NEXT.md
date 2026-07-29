@@ -6,6 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-29 Session update (Cindy Vinyl — forward hold + new deck still)
+
+Latest commit: *(pending)* — Forward-only spin loop + fresher rest still
+
+Latest local/Pi change:
+- Hold loop is **forward-only** (no reverse spin).
+- Rest/startup `deck.png` replaced with Chris’s matched still; prism sleeve + platter retuned for 16:9.
+- Hard refresh `?v=31`. Rebuild `vinyl`.
+
+Previous:
+- Ping-pong hold (`5267827`).
+
+---
+
 ## 2026-07-29 Session update (Cindy Vinyl — loop hold after cue-in)
 
 Latest commit: `5267827` — Ping-pong hold loop; no snap back to still
