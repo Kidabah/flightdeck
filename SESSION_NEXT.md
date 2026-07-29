@@ -21,6 +21,19 @@ Previous:
 
 ---
 
+## 2026-07-29 Session update (Cindy Vinyl — new arm-lift stop clip)
+
+Latest commit: *(pending)* — Wire Chris’s arm-lift / stop 10s clip
+
+Latest local/Pi change:
+- New video split: short reverse drop-in (~2.2s), forward hold loop (~3.5s), cue-out lift/stop (~4.5s).
+- Rest `deck.png` = end still. Hard refresh `?v=34`. Rebuild `vinyl`.
+
+Previous:
+- Overflow menu + properties (`10448c8`).
+
+---
+
 ## 2026-07-29 Session update (Cindy Vinyl — ⋯ menu + properties)
 
 Latest commit: `10448c8` — Top-right menu: Cindy path + rename props
