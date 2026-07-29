@@ -18,14 +18,14 @@ services:
       ND_DEFAULTTHEME: Dark
       ND_ENABLEFAVOURITES: "true"
       ND_ENABLESTARRATING: "true"
-      # Filename junk only — directory excludes live in mounted .ndignore (Cindy is :ro).
       ND_IGNOREFILERULES: "(\\.tmp|\\.part|Thumbs\\.db|desktop\\.ini|\\.DS_Store)"
       # Drop DB rows for ignored/missing recycle junk after full scans.
       ND_SCANNER_PURGEMISSING: "full"
     volumes:
-      - /mnt/cindy:/music:ro
-      # Overlay ignore file — does NOT write to Cindy NAS
-      - /home/flightdeck/cindy-navidrome/ndignore:/music/.ndignore:ro
+      # Real Cindy mount (ro) so absolute symlinks in the library view resolve.
+      - /mnt/cindy:/mnt/cindy:ro
+      # Pi-local symlink view (excludes #recycle). Never writes to Cindy.
+      - /home/flightdeck/cindy-library-view:/music:ro
       - /home/flightdeck/cindy-navidrome/data:/data
 
   vinyl:

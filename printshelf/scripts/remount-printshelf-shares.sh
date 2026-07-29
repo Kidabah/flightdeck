@@ -11,3 +11,7 @@ fi
 if [ -x /home/flightdeck/bin/mount-cindy.sh ]; then
   /home/flightdeck/bin/mount-cindy.sh || true
 fi
+# Refresh Pi-local Cindy view (excludes #recycle) for Navidrome
+if [ -x /home/flightdeck/flightdeck/jukebox/scripts/build-cindy-library-view.sh ]; then
+  /home/flightdeck/flightdeck/jukebox/scripts/build-cindy-library-view.sh || true
+fi

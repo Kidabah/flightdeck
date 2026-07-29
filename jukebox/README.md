@@ -6,7 +6,7 @@ Vinyl hi-fi web player for the Cindy NAS music library (CHECKED + MUSIC + JAMAL)
 - CIFS mounts: `/mnt/cindy/{MUSIC,CHECKED,JAMAL}` via `mount-cindy.sh` (**read-only**)
 - **Navidrome** indexes & streams (`:4533`) — local DB only; never writes tags/files on Cindy
 - **cindy-vinyl** FastAPI UI + Subsonic proxy (`:4540`)
-- Local overlay: `ndignore` → `/music/.ndignore` (skips Synology `#recycle` without touching the NAS)
+- Pi-local symlink view (`cindy-library-view`) skips Synology `#recycle` — Cindy NAS stays untouched
 - Folder-pack merge in the vinyl proxy: VA weekly drops with per-track tags become one sleeve
 
 ## Pi setup
@@ -15,8 +15,7 @@ Vinyl hi-fi web player for the Cindy NAS music library (CHECKED + MUSIC + JAMAL)
 # ~/.smbcredentials-cindy  chmod 600
 
 bash /home/flightdeck/bin/mount-cindy.sh
-mkdir -p /home/flightdeck/cindy-navidrome
-cp ndignore /home/flightdeck/cindy-navidrome/ndignore
+bash /home/flightdeck/flightdeck/jukebox/scripts/build-cindy-library-view.sh
 cd /home/flightdeck/flightdeck/jukebox
 # create .env with JUKEBOX_USER / JUKEBOX_PASSWORD matching a Navidrome user
 docker compose up -d --build

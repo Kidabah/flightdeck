@@ -8,14 +8,14 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-29 Session update (Cindy Vinyl — pack merge + no-touch Cindy)
 
-Latest commit: `66a84f4` — Folder-pack merge; .ndignore overlay skips #recycle
+Latest commit: *(deploying)* — Folder-pack merge + Cindy symlink view (skip #recycle)
 
 Latest local/Pi change:
 - **Cindy stays read-only** (PrintShelf-style): no retagging / no writes on the NAS.
-- Overlay `jukebox/ndignore` → `/music/.ndignore` so Synology `#recycle` is skipped.
+- Pi-local `cindy-library-view` symlinks MUSIC/JAMAL/CHECKED **minus** `#recycle` for Navidrome.
 - `ND_SCANNER_PURGEMISSING=full` clears junk after a full scan.
 - Vinyl proxy merges VA weekly packs (same folder, split tags) into one sleeve + full tracklist.
-- Hard refresh Vinyl `?v=21` / `:4540`. Rebuild `cindy-vinyl` + recreate navidrome volumes mount.
+- Hard refresh Vinyl `?v=21` / `:4540`. Rebuild containers after `build-cindy-library-view.sh`.
 - After deploy: trigger Navidrome **full scan** so MUSIC/JAMAL appear and recycle drops out.
 
 Previous:
