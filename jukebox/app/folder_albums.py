@@ -45,7 +45,11 @@ def folder_album_id(folder_key: str) -> str:
 
 
 def nice_folder_name(folder_key: str) -> str:
-    name = PurePosixPath(folder_key).name
+    p = PurePosixPath(folder_key)
+    name = p.name
+    # Prefer parent when the leaf is just Disc/CD1 (common under VA packs).
+    if re.fullmatch(r"(cd|disc|disk)\s*\d+", name, flags=re.I) and p.parent.name:
+        name = p.parent.name
     name = re.sub(r"^VA\s*-\s*", "", name, flags=re.I)
     name = re.sub(r"\s*Mp3\s*320kbps.*$", "", name, flags=re.I)
     name = re.sub(r"\s*\[PMEDIA\].*$", "", name, flags=re.I)
