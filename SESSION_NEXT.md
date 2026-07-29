@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-29 Session update (Cindy Vinyl — wall album art)
 
-Latest commit: *(pending)* — Album cover on framed gold Technics disc
+Latest commit: `eb86c66` — Album cover on framed gold Technics disc
 
 Latest local/Pi change:
 - Now-playing cover sits on the wall gold record behind the deck (circular overlay).
