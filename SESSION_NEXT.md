@@ -8,14 +8,14 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-30 Session update (Cindy Vinyl — A–Z cache, pause spin, lag)
 
-Latest commit: `c4aa1d5` — A–Z alpha cache; pause stops platter; crate lag tweaks
+Latest commit: `968024c` — A–Z alpha cache; pause stops platter; crate lag tweaks
 
 Latest local/Pi change:
 - A–Z was empty/timing out: early-exit + full library scan. Now caches alphabetical index (warmed on startup), letter chips filter in memory.
-- Index build skips per-album folder collapse (collapse only the letter slice) so first load finishes.
+- Index build skips per-album folder collapse; letter slice collapses in small off-thread batches so the UI stays responsive.
 - Pause removes `.cueing` so platter stops spinning (arm stays down).
 - Shared httpx client, parallel genre tag fetches, smaller lazy crate covers (`?v=54`).
-- Rebuild `vinyl`.
+- Rebuild `vinyl`. Hard refresh for pause/lag UI.
 
 Previous:
 - Broad Categories + hide chips (`c75aa0f`).
