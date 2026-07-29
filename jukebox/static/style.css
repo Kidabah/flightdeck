@@ -414,14 +414,29 @@ body {
   font-size: 0.8rem;
   color: var(--muted);
 }
+.seek-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.55rem;
+  align-items: center;
+  margin-top: 0.35rem;
+}
+.time {
+  font-family: var(--font-ui);
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 2.4rem;
+}
+#timeDur { text-align: right; }
 #seek {
   width: 100%;
-  margin-top: 0.35rem;
   accent-color: var(--gold);
 }
 .deck-controls {
   display: flex;
   gap: 0.35rem;
+  align-items: center;
 }
 .deck-controls button {
   background: transparent;
@@ -431,8 +446,29 @@ body {
   height: 2.4rem;
   cursor: pointer;
   font-size: 0.9rem;
+  flex-shrink: 0;
 }
 .deck-controls button:hover {
   border-color: var(--gold);
   color: var(--gold-hot);
+}
+#volume {
+  width: 5.5rem;
+  accent-color: var(--gold);
+}
+#muteBtn.muted {
+  color: var(--gold);
+  border-color: var(--gold);
+}
+
+@media (max-width: 700px) {
+  .transport {
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto auto;
+  }
+  .deck-controls {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+  }
+  #volume { width: 4.5rem; }
 }

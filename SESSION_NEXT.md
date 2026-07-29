@@ -6,6 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-29 Session update (Cindy Vinyl — transport polish)
+
+Latest commit: *(pending)* — Volume, time readout, keyboard shortcuts
+
+Latest local/Pi change:
+- Transport: `0:00 / 3:55` beside seek; volume slider + mute (persisted).
+- Keys: Space play/pause, ←/→ skip, ↑/↓ volume, M mute (ignored while typing in search).
+- Hard refresh Vinyl `?v=24`. Rebuild `cindy-vinyl`.
+
+Previous:
+- Spinning platter restored (`3915b28`).
+
+---
+
 ## 2026-07-29 Session update (Cindy Vinyl — spinning platter restored)
 
 Latest commit: `3915b28` — Restore spinning label; park tonearm video for split clips

@@ -1,10 +1,13 @@
 const $ = (id) => document.getElementById(id);
 
+const VOL_KEY = "cindy-vinyl-volume";
+
 const state = {
   queue: [],
   index: -1,
   album: null,
   crateType: "newest",
+  volumeBeforeMute: 0.85,
 };
 
 const audio = $("audio");
@@ -25,6 +28,59 @@ function coverUrl(id, size = 300) {
 
 function setStatus(msg) {
   $("statusLine").textContent = msg;
+}
+
+function fmtTime(sec) {
+  if (!Number.isFinite(sec) || sec < 0) return "0:00";
+  const s = Math.floor(sec);
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${m}:${r.toString().padStart(2, "0")}`;
+}
+
+function updateTime() {
+  const now = $("timeNow");
+  const dur = $("timeDur");
+  if (now) now.textContent = fmtTime(audio.currentTime || 0);
+  if (dur) dur.textContent = fmtTime(audio.duration || 0);
+}
+
+function applyVolume(vol, { persist = true } = {}) {
+  const v = Math.max(0, Math.min(1, vol));
+  audio.volume = v;
+  audio.muted = v === 0;
+  const slider = $("volume");
+  if (slider) slider.value = String(Math.round(v * 100));
+  const mute = $("muteBtn");
+  if (mute) {
+    mute.classList.toggle("muted", audio.muted);
+    mute.textContent = audio.muted || v === 0 ? "🔇" : "🔊";
+  }
+  if (persist) {
+    try {
+      localStorage.setItem(VOL_KEY, String(v));
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+function toggleMute() {
+  if (audio.muted || audio.volume === 0) {
+    applyVolume(state.volumeBeforeMute || 0.85);
+  } else {
+    state.volumeBeforeMute = audio.volume || 0.85;
+    applyVolume(0);
+  }
+}
+
+function togglePlayPause() {
+  if (!state.queue.length) return;
+  if (audio.paused) audio.play().then(() => setPlaying(true)).catch(() => {});
+  else {
+    audio.pause();
+    setPlaying(false);
+  }
 }
 
 function setVinylArt(coverId) {
@@ -115,6 +171,7 @@ async function playIndex(i) {
     setStatus(`Playback blocked: ${err.message || err}`);
     setPlaying(false);
   }
+  updateTime();
   renderQueue();
 }
 
@@ -225,30 +282,52 @@ async function runSearch(q) {
   }
 }
 
+function isTypingTarget(el) {
+  if (!el || !(el instanceof Element)) return false;
+  const tag = el.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable;
+}
+
 function wire() {
+  let saved = 0.85;
+  try {
+    const raw = localStorage.getItem(VOL_KEY);
+    if (raw != null) saved = Math.max(0, Math.min(1, Number(raw)));
+  } catch {
+    /* ignore */
+  }
+  if (!Number.isFinite(saved)) saved = 0.85;
+  state.volumeBeforeMute = saved || 0.85;
+  applyVolume(saved, { persist: false });
+
   $("spinBtn").addEventListener("click", () => spin());
-  $("playPauseBtn").addEventListener("click", () => {
-    if (!state.queue.length) return;
-    if (audio.paused) audio.play().then(() => setPlaying(true)).catch(() => {});
-    else {
-      audio.pause();
-      setPlaying(false);
-    }
-  });
-  $("deckPlay").addEventListener("click", () => $("playPauseBtn").click());
+  $("playPauseBtn").addEventListener("click", () => togglePlayPause());
+  $("deckPlay").addEventListener("click", () => togglePlayPause());
   $("nextBtn").addEventListener("click", () => playIndex(state.index + 1));
   $("prevBtn").addEventListener("click", () => playIndex(state.index - 1));
+  $("muteBtn").addEventListener("click", () => toggleMute());
+  $("volume").addEventListener("input", () => {
+    const v = Number($("volume").value) / 100;
+    if (v > 0) state.volumeBeforeMute = v;
+    applyVolume(v);
+  });
+
   audio.addEventListener("ended", () => {
     if (state.index + 1 < state.queue.length) playIndex(state.index + 1);
     else setPlaying(false);
   });
   audio.addEventListener("timeupdate", () => {
-    if (!audio.duration) return;
-    $("seek").value = String(Math.floor((audio.currentTime / audio.duration) * 1000));
+    if (audio.duration) {
+      $("seek").value = String(Math.floor((audio.currentTime / audio.duration) * 1000));
+    }
+    updateTime();
   });
+  audio.addEventListener("loadedmetadata", () => updateTime());
+  audio.addEventListener("durationchange", () => updateTime());
   $("seek").addEventListener("input", () => {
     if (!audio.duration) return;
     audio.currentTime = (Number($("seek").value) / 1000) * audio.duration;
+    updateTime();
   });
   document.querySelectorAll(".crate-tab").forEach((btn) => {
     btn.addEventListener("click", () => loadCrates(btn.dataset.type));
@@ -257,6 +336,41 @@ function wire() {
     e.preventDefault();
     runSearch($("searchInput").value);
   });
+
+  document.addEventListener("keydown", (e) => {
+    if (isTypingTarget(e.target)) return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    switch (e.key) {
+      case " ":
+        e.preventDefault();
+        togglePlayPause();
+        break;
+      case "ArrowLeft":
+        e.preventDefault();
+        playIndex(state.index - 1);
+        break;
+      case "ArrowRight":
+        e.preventDefault();
+        playIndex(state.index + 1);
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        applyVolume(Math.min(1, audio.volume + 0.05));
+        if (audio.volume > 0) state.volumeBeforeMute = audio.volume;
+        break;
+      case "ArrowDown":
+        e.preventDefault();
+        applyVolume(Math.max(0, audio.volume - 0.05));
+        break;
+      case "m":
+      case "M":
+        e.preventDefault();
+        toggleMute();
+        break;
+      default:
+        break;
+    }
+  });
 }
 
 async function boot() {
@@ -264,7 +378,7 @@ async function boot() {
   try {
     const h = await api("/api/health");
     if (!h.ok) setStatus(`Navidrome: ${h.error || "not ready"}`);
-    else setStatus("Tubes warm. Hit SPIN.");
+    else setStatus("Tubes warm. Hit SPIN. · Space play · ←→ skip · ↑↓ vol");
   } catch (err) {
     setStatus("Backend starting — retry in a moment.");
   }
