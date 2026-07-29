@@ -23,7 +23,7 @@ Previous:
 
 ## 2026-07-29 Session update (Cindy Vinyl — keep spinning after drop)
 
-Latest commit: *(pending)* — Forward play + spin loop (no freeze)
+Latest commit: `d27f956` — Forward play + spin loop (no freeze)
 
 Latest local/Pi change:
 - Cue-in is the forward first ~5.4s (spin up / arm over).
