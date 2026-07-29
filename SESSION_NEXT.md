@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-29 Session update (Cindy Vinyl — PWA app)
 
-Latest commit: *(pending)* — PWA manifest + icons; Install like PrintShelf
+Latest commit: `753d6ba` — PWA manifest + icons; Install like PrintShelf
 
 Latest local/Pi change:
 - Cindy Vinyl is installable: `manifest.json`, `sw.js`, icons, root routes.
