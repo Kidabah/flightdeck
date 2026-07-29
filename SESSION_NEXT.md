@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-29 Session update (Cindy Vinyl — start/stop cue clips)
 
-Latest commit: *(pending)* — Silent spin-up / spin-down deck cues
+Latest commit: `3298d22` — Silent spin-up / spin-down deck cues
 
 Latest local/Pi change:
 - `start.mp4` → `deck-cue-in.mp4`, stop clip → `deck-cue-out.mp4` (audio stripped).
