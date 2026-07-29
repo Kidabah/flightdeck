@@ -189,6 +189,8 @@ function startPlayLoop() {
 function cueInThenHold() {
   if (state.arm === "cueing-in") return;
   if (state.arm === "hold") {
+    const stage = $("deckStage");
+    stage?.classList.add("cueing");
     const v = deckCue();
     if (v && v.paused) v.play().catch(() => {});
     return;
@@ -773,12 +775,18 @@ async function playIndex(i) {
 }
 
 function setPlaying(on) {
-  $("deckStage")?.classList.toggle("playing", on);
+  const stage = $("deckStage");
+  stage?.classList.toggle("playing", on);
   $("playPauseBtn").textContent = on ? "Pause" : "Play";
   $("deckPlay").textContent = on ? "⏸" : "▶";
   setStatus(on ? "Needle down." : "Paused.");
-  if (on) cueInThenHold();
-  else pauseCueVideo();
+  if (on) {
+    cueInThenHold();
+  } else {
+    pauseCueVideo();
+    // Keep arm-down video frame, but stop platter spin (`.cueing` also animates).
+    stage?.classList.remove("cueing");
+  }
 }
 
 async function spin() {
@@ -805,7 +813,8 @@ function sleeveButton(album) {
   const img = document.createElement("img");
   img.alt = "";
   img.loading = "lazy";
-  img.src = coverUrl(album.coverArt, 300);
+  img.decoding = "async";
+  img.src = coverUrl(album.coverArt, 180);
   const t = document.createElement("div");
   t.className = "t";
   t.textContent = album.name || album.title || "Album";
@@ -843,7 +852,13 @@ async function loadCrates(type) {
   });
   updateCrateFilters();
   const rail = $("crateRail");
-  rail.innerHTML = "<p class='hint'>Pulling sleeves…</p>";
+  const hint =
+    type === "alphabeticalByName"
+      ? "Flipping to that letter…"
+      : type === "byGenre"
+        ? "Pulling that category…"
+        : "Pulling sleeves…";
+  rail.innerHTML = `<p class='hint'>${hint}</p>`;
   try {
     const params = new URLSearchParams({ type, size: "48" });
     if (type === "alphabeticalByName") params.set("letter", state.crateLetter || "A");
@@ -861,12 +876,14 @@ async function loadCrates(type) {
       params.set("genre", state.crateGenre);
     }
     const data = await api(`/api/albums?${params}`);
+    if (state.crateType !== type) return;
     rail.innerHTML = "";
     (data.albums || []).forEach((al) => rail.appendChild(sleeveButton(al)));
     if (!(data.albums || []).length) {
       rail.innerHTML = "<p class='hint'>Nothing in this crate — try another letter or category.</p>";
     }
   } catch (err) {
+    if (state.crateType !== type) return;
     rail.innerHTML = `<p class='hint'>${escapeHtml(err.message || err)}</p>`;
   }
 }

@@ -6,18 +6,18 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
-## 2026-07-30 Session update (Cindy Vinyl — broad Categories + hide chips)
+## 2026-07-30 Session update (Cindy Vinyl — A–Z cache, pause spin, lag)
 
-Latest commit: `c75aa0f` — Canonical genre buckets; hide filter chips off Categories/A–Z
+Latest commit: _(pending)_ — A–Z alpha cache; pause stops platter; crate lag tweaks
 
 Latest local/Pi change:
-- Categories map messy Cindy tags (`00's Dance`, etc.) up to Rock / Pop / Country / Hip-Hop / …
-- Picking a bucket fetches albums across all matching tags.
-- Letter/genre chip rows hide when leaving A–Z or Categories (`[hidden]` CSS fix + async race guard).
-- Hard refresh `?v=53`. Rebuild `vinyl` (backend genres).
+- A–Z was empty/timing out: early-exit + full library scan. Now caches alphabetical index (warmed on startup), letter chips filter in memory.
+- Pause removes `.cueing` so platter stops spinning (arm stays down).
+- Shared httpx client, parallel genre tag fetches, smaller lazy crate covers (`?v=54`).
+- Rebuild `vinyl`.
 
 Previous:
-- A–Z/Categories crates (`1304bd1` / later genre filter tweaks).
+- Broad Categories + hide chips (`c75aa0f`).
 
 ---
 

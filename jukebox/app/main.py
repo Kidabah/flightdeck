@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import os
 import random
+import time
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
@@ -28,6 +30,16 @@ PASSWORD = os.environ.get("JUKEBOX_PASSWORD", "")
 STATIC = Path(__file__).resolve().parent.parent / "static"
 
 app = FastAPI(title="Cindy Vinyl", docs_url=None, redoc_url=None)
+
+_http: httpx.AsyncClient | None = None
+_alpha_lock = asyncio.Lock()
+_alpha_index: list[tuple[str, dict[str, Any]]] | None = None
+_alpha_built = 0.0
+_ALPHA_TTL = 600.0
+_genres_lock = asyncio.Lock()
+_genres_cache: list[dict[str, Any]] | None = None
+_genres_built = 0.0
+_GENRES_TTL = 600.0
 
 
 class AlbumMetaPatch(BaseModel):
@@ -58,13 +70,23 @@ def _auth_params() -> dict[str, str]:
     }
 
 
+async def _http_client() -> httpx.AsyncClient:
+    global _http
+    if _http is None or _http.is_closed:
+        _http = httpx.AsyncClient(
+            timeout=60.0,
+            limits=httpx.Limits(max_connections=24, max_keepalive_connections=12),
+        )
+    return _http
+
+
 async def _nd_get(view: str, extra: dict[str, Any] | None = None) -> dict[str, Any]:
     params = _auth_params()
     if extra:
         params.update({k: str(v) for k, v in extra.items() if v is not None})
     url = f"{NAVIDROME}/rest/{view}"
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        r = await client.get(url, params=params)
+    client = await _http_client()
+    r = await client.get(url, params=params)
     if r.status_code >= 400:
         raise HTTPException(r.status_code, r.text[:400])
     data = r.json()
@@ -73,6 +95,76 @@ async def _nd_get(view: str, extra: dict[str, Any] | None = None) -> dict[str, A
         err = sub.get("error") or {}
         raise HTTPException(502, err.get("message") or "Navidrome error")
     return sub
+
+
+async def _ensure_alpha_index(force: bool = False) -> list[tuple[str, dict[str, Any]]]:
+    """One collapsed alphabetical pass, cached — letter chips filter this in memory."""
+    global _alpha_index, _alpha_built
+    async with _alpha_lock:
+        now = time.monotonic()
+        if (
+            not force
+            and _alpha_index is not None
+            and now - _alpha_built < _ALPHA_TTL
+        ):
+            return _alpha_index
+        out: list[tuple[str, dict[str, Any]]] = []
+        seen: set[str] = set()
+        page_size = 500
+        for page in range(200):
+            sub = await _nd_get(
+                "getAlbumList2.view",
+                {
+                    "type": "alphabeticalByName",
+                    "size": str(page_size),
+                    "offset": str(page * page_size),
+                },
+            )
+            raw = (sub.get("albumList2") or {}).get("album") or []
+            if not raw:
+                break
+            for a in meta.apply_album_list(collapse_album_list(raw)):
+                aid = str(a.get("id") or "")
+                if not aid or aid in seen:
+                    continue
+                seen.add(aid)
+                out.append((_album_index_letter(a), a))
+            if len(raw) < page_size:
+                break
+        _alpha_index = out
+        _alpha_built = time.monotonic()
+        return out
+
+
+async def _ensure_genre_buckets(force: bool = False) -> list[dict[str, Any]]:
+    global _genres_cache, _genres_built
+    async with _genres_lock:
+        now = time.monotonic()
+        if (
+            not force
+            and _genres_cache is not None
+            and now - _genres_built < _GENRES_TTL
+        ):
+            return _genres_cache
+        sub = await _nd_get("getGenres.view", {})
+        _genres_cache = _genre_buckets(_parse_genre_rows(sub))
+        _genres_built = time.monotonic()
+        return _genres_cache
+
+
+@app.on_event("startup")
+async def _warm_crate_caches() -> None:
+    async def _run() -> None:
+        try:
+            await _ensure_genre_buckets()
+        except Exception:
+            pass
+        try:
+            await _ensure_alpha_index()
+        except Exception:
+            pass
+
+    asyncio.create_task(_run())
 
 
 def _expand_album(album: dict[str, Any]) -> dict[str, Any]:
@@ -253,21 +345,34 @@ def _genre_buckets(raw_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 async def _albums_for_genre_tags(tags: list[str], size: int) -> list[dict[str, Any]]:
     seen: set[str] = set()
     collected: list[dict[str, Any]] = []
-    per = max(24, min(120, size * 2))
-    for tag in tags:
+    # Cap + parallel batches — Cindy tags per bucket can be huge.
+    use_tags = tags[:18]
+    per = max(24, min(80, size * 2))
+
+    async def _one(tag: str) -> list[dict[str, Any]]:
         sub = await _nd_get(
             "getAlbumList2.view",
             {"type": "byGenre", "genre": tag, "size": str(per), "offset": "0"},
         )
         raw = (sub.get("albumList2") or {}).get("album") or []
-        for a in meta.apply_album_list(collapse_album_list(raw)):
-            aid = a.get("id")
-            if not aid or aid in seen:
+        return meta.apply_album_list(collapse_album_list(raw))
+
+    for i in range(0, len(use_tags), 4):
+        if len(collected) >= size:
+            break
+        batch = use_tags[i : i + 4]
+        chunks = await asyncio.gather(*[_one(t) for t in batch], return_exceptions=True)
+        for chunk in chunks:
+            if isinstance(chunk, BaseException):
                 continue
-            seen.add(aid)
-            collected.append(a)
-            if len(collected) >= size:
-                return collected
+            for a in chunk:
+                aid = a.get("id")
+                if not aid or aid in seen:
+                    continue
+                seen.add(aid)
+                collected.append(a)
+                if len(collected) >= size:
+                    return collected
     return collected
 
 
@@ -281,38 +386,20 @@ async def albums(
 ):
     if list_type == "alphabeticalByName" and letter:
         ch = letter.upper()
-        collected: list[dict[str, Any]] = []
-        page_size = 200
-        for page in range(30):
-            sub = await _nd_get(
-                "getAlbumList2.view",
-                {
-                    "type": "alphabeticalByName",
-                    "size": str(page_size),
-                    "offset": str(page * page_size),
-                },
-            )
-            raw = (sub.get("albumList2") or {}).get("album") or []
-            if not raw:
-                break
-            last_raw_letter = _album_index_letter(raw[-1])
-            for a in meta.apply_album_list(collapse_album_list(raw)):
-                if _album_index_letter(a) == ch:
-                    collected.append(a)
-                    if len(collected) >= size:
-                        break
-            if len(collected) >= size:
-                break
-            if ch != "#" and last_raw_letter.isalpha() and last_raw_letter > ch:
-                break
-        return {"albums": collected[:size], "type": list_type, "letter": letter, "genre": genre}
+        index = await _ensure_alpha_index()
+        matched = [a for L, a in index if L == ch]
+        return {
+            "albums": matched[:size],
+            "type": list_type,
+            "letter": letter,
+            "genre": genre,
+            "total": len(matched),
+        }
 
     if list_type == "byGenre":
         if not genre:
             raise HTTPException(400, "genre required for byGenre")
-        # Expand broad buckets (Country, Rock, …) to every matching Cindy tag.
-        genre_sub = await _nd_get("getGenres.view", {})
-        buckets = {b["value"]: b for b in _genre_buckets(_parse_genre_rows(genre_sub))}
+        buckets = {b["value"]: b for b in await _ensure_genre_buckets()}
         tags = list((buckets.get(genre) or {}).get("tags") or [])
         if not tags:
             tags = [genre]
@@ -332,8 +419,7 @@ async def albums(
 
 @app.get("/api/genres")
 async def genres():
-    sub = await _nd_get("getGenres.view", {})
-    buckets = _genre_buckets(_parse_genre_rows(sub))
+    buckets = await _ensure_genre_buckets()
     return {"genres": buckets, "mode": "canonical"}
 
 

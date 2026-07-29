@@ -459,12 +459,18 @@ body {
   height: 100%;
   border-radius: 50%;
 }
-.deck-stage.playing .platter-spin,
-.deck-stage.cueing .platter-spin {
+.deck-stage.playing .platter-spin {
   animation: platter-spin 1.4583s linear infinite;
+  will-change: transform;
+}
+.deck-stage.cueing:not(.playing) .platter-spin {
+  /* Cue-in/out with audio paused (e.g. end-of-queue) still spins briefly */
+  animation: platter-spin 1.4583s linear infinite;
+  will-change: transform;
 }
 .deck-stage:not(.playing):not(.cueing) .platter-spin {
   animation: none;
+  will-change: auto;
 }
 
 @keyframes platter-spin {
@@ -624,6 +630,8 @@ body {
   flex: 0 0 auto;
   width: 148px;
   scroll-snap-align: start;
+  content-visibility: auto;
+  contain-intrinsic-size: 148px 220px;
 }
 .sleeve {
   width: 100%;
