@@ -27,6 +27,8 @@ const state = {
   album: null,
   /** Album currently open in the Properties modal (may differ from now-playing). */
   editAlbum: null,
+  /** Album key the current vinyl tint belongs to — colour only changes when this changes. */
+  vinylColorAlbumKey: null,
   crateType: "newest",
   volumeBeforeMute: 0.85,
   /** @type {'rest'|'cueing-in'|'hold'|'cueing-out'} */
@@ -463,6 +465,23 @@ function pickVinylColor() {
   return c;
 }
 
+function albumColorKey(album, song) {
+  if (album?.id) return `a:${album.id}`;
+  if (song?.albumId) return `a:${song.albumId}`;
+  const name = album?.name || album?.title || song?.album || "";
+  const artist = album?.artist || album?.displayArtist || song?.artist || "";
+  if (name || artist) return `n:${name}|${artist}`;
+  return song?.id ? `s:${song.id}` : "";
+}
+
+/** New random tint only when the record (album) changes — not every track skip. */
+function ensureVinylColorForAlbum(album, song) {
+  const key = albumColorKey(album, song);
+  if (!key || key === state.vinylColorAlbumKey) return;
+  state.vinylColorAlbumKey = key;
+  pickVinylColor();
+}
+
 /** Same size as crate sleeves so a spin reuses the already-cached image. */
 const VINYL_ART_SIZE = 300;
 
@@ -562,6 +581,7 @@ function loadAlbumIntoQueue(album, { autoplay = true } = {}) {
   $("nowTitle").textContent = album.name || album.title || "Album";
   $("nowArtist").textContent = album.artist || album.displayArtist || "";
   setVinylArt(album.coverArt);
+  ensureVinylColorForAlbum(album);
   renderQueue();
   prefetchQueueCovers(3);
   $("playPauseBtn").disabled = false;
@@ -577,7 +597,7 @@ async function playIndex(i) {
   $("deckArtist").textContent = song.artist || state.album?.artist || "";
   if (song.coverArt) setVinylArt(song.coverArt);
   else if (state.album?.coverArt) setVinylArt(state.album.coverArt);
-  pickVinylColor();
+  ensureVinylColorForAlbum(state.album, song);
   prefetchQueueCovers(2);
   audio.src = `/api/stream/${encodeURIComponent(song.id)}`;
   try {
