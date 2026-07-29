@@ -112,13 +112,41 @@ async function playIndex(i) {
   renderQueue();
 }
 
+let armTimer = 0;
+
 function setPlaying(on) {
-  $("vinyl").classList.toggle("spinning", on);
-  $("tonearm")?.classList.toggle("on", on);
-  $("deckStage")?.classList.toggle("playing", on);
+  const stage = $("deckStage");
+  const arm = $("tonearm");
+  const vinyl = $("vinyl");
+  clearTimeout(armTimer);
+
   $("playPauseBtn").textContent = on ? "Pause" : "Play";
   $("deckPlay").textContent = on ? "⏸" : "▶";
-  setStatus(on ? "Needle down." : "Paused.");
+
+  if (on) {
+    arm?.classList.remove("cue-down");
+    stage?.classList.add("arm-live");
+    setStatus("Cueing…");
+    // Let the arm paint at rest, then swing in.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        stage?.classList.add("playing");
+      });
+    });
+    armTimer = setTimeout(() => {
+      arm?.classList.add("cue-down");
+      vinyl?.classList.add("spinning");
+      setStatus("Needle down.");
+    }, 900);
+  } else {
+    vinyl?.classList.remove("spinning");
+    arm?.classList.remove("cue-down");
+    stage?.classList.remove("playing");
+    setStatus("Paused.");
+    armTimer = setTimeout(() => {
+      stage?.classList.remove("arm-live");
+    }, 750);
+  }
 }
 
 async function spin() {
