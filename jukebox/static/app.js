@@ -9,16 +9,16 @@ const CUE_OUT = "/static/deck-cue-out.mp4";
 const HOLD_LOOP_START = 3.55;
 const HOLD_LOOP_END = 4.2;
 const VINYL_COLORS = [
-  "#b91c1c",
-  "#1d4ed8",
-  "#15803d",
-  "#7c3aed",
-  "#c2410c",
-  "#0f766e",
-  "#be185d",
-  "#a16207",
-  "#1e3a5f",
-  "#4c1d95",
+  "#8b1a1a", /* oxblood */
+  "#1a3a6e", /* navy */
+  "#1a4a32", /* forest */
+  "#5b2c8a", /* plum */
+  "#8a3a12", /* amber resin */
+  "#0d5c56", /* teal */
+  "#7a1848", /* wine */
+  "#6b4a12", /* tobacco */
+  "#2a2540", /* midnight */
+  "#4a1a2a", /* rosewood */
 ];
 
 const state = {

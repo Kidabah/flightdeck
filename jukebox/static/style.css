@@ -362,13 +362,13 @@ body {
 /* Random vinyl colour — elliptical in screen space; soft arm-side fade (not a hard half-wipe) */
 .vinyl-tint {
   position: absolute;
-  left: 41.5%;
-  top: 54.8%;
+  left: 41.6%;
+  top: 55%;
   width: 33%;
   height: 20.5%;
   border-radius: 50%;
   transform: translate(-50%, -50%) rotate(-1deg);
-  background: var(--vinyl-color, #1d4ed8);
+  background: var(--vinyl-color, #8b1a1a);
   opacity: 0;
   z-index: 6;
   pointer-events: none;
@@ -376,11 +376,11 @@ body {
   mix-blend-mode: soft-light;
   /* Small centre hole + gentle fade only on the far-right arm corridor */
   -webkit-mask-image:
-    radial-gradient(ellipse at 48% 50%, transparent 0 22%, #000 27%, #000 100%),
-    linear-gradient(105deg, #000 0%, #000 68%, transparent 82%);
+    radial-gradient(ellipse at 48% 50%, transparent 0 24%, #000 29%, #000 100%),
+    linear-gradient(105deg, #000 0%, #000 70%, transparent 84%);
   mask-image:
-    radial-gradient(ellipse at 48% 50%, transparent 0 22%, #000 27%, #000 100%),
-    linear-gradient(105deg, #000 0%, #000 68%, transparent 82%);
+    radial-gradient(ellipse at 48% 50%, transparent 0 24%, #000 29%, #000 100%),
+    linear-gradient(105deg, #000 0%, #000 70%, transparent 84%);
   -webkit-mask-composite: source-in;
   mask-composite: intersect;
   -webkit-mask-size: 100% 100%, 100% 100%;
@@ -388,23 +388,23 @@ body {
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
 }
-.deck-stage.has-vinyl .vinyl-tint { opacity: 0.55; }
+.deck-stage.has-vinyl .vinyl-tint { opacity: 0.58; }
 .deck-stage.playing .vinyl-tint,
 .deck-stage.cueing .vinyl-tint {
-  opacity: 0.68;
+  opacity: 0.74;
 }
 
 /* Centre label — MUST be a circle. Spinning an ellipse made the art orbit
  * inside the platter. 3D pose on the outer wrapper; rotate only the inner. */
 .platter-live {
   position: absolute;
-  left: 41.5%;
-  top: 54.8%;
-  width: 13.5%;
+  left: 41.6%;
+  top: 55%;
+  width: 13.2%;
   aspect-ratio: 1;
   height: auto;
   border-radius: 50%;
-  transform: translate(-50%, -50%) rotateX(52deg) rotateZ(-1deg);
+  transform: translate(-50%, -50%) rotateX(50deg) rotateZ(-1deg);
   transform-origin: center center;
   display: grid;
   place-items: center;
