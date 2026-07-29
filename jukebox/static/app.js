@@ -114,7 +114,8 @@ async function playIndex(i) {
 
 function setPlaying(on) {
   $("vinyl").classList.toggle("spinning", on);
-  $("tonearm").classList.toggle("on", on);
+  $("tonearm")?.classList.toggle("on", on);
+  $("deckStage")?.classList.toggle("playing", on);
   $("playPauseBtn").textContent = on ? "Pause" : "Play";
   $("deckPlay").textContent = on ? "⏸" : "▶";
   setStatus(on ? "Needle down." : "Paused.");

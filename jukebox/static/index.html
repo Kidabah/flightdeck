@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=1">
+  <link rel="stylesheet" href="/static/style.css?v=2">
 </head>
 <body>
   <div class="lamp" aria-hidden="true"></div>
@@ -25,18 +25,18 @@
 
   <main class="stage" id="stage">
     <section class="hero" id="hero">
-      <div class="platter-wrap">
-        <div class="platter" id="platter">
-          <div class="vinyl" id="vinyl">
-            <div class="label" id="vinylLabel">
-              <img id="vinylArt" alt="" hidden>
-              <span id="vinylFallback">C</span>
-            </div>
+      <div class="deck-stage" id="deckStage">
+        <img class="deck-photo" src="/static/deck.png" alt="Technics SL-1200 Limited">
+        <div class="platter-live" id="vinyl" aria-hidden="true">
+          <div class="label" id="vinylLabel">
+            <img id="vinylArt" alt="" hidden>
+            <span id="vinylFallback">C</span>
           </div>
-          <div class="tonearm" id="tonearm" aria-hidden="true"></div>
         </div>
+        <div class="play-glow" id="tonearm" aria-hidden="true"></div>
       </div>
       <div class="hero-copy">
+        <p class="deck-tag">Technics SL-1200 Limited</p>
         <h1 id="nowTitle">Drop the needle</h1>
         <p id="nowArtist">5.4TB on Cindy — CHECKED · MUSIC · JAMAL</p>
         <div class="hero-actions">
@@ -70,7 +70,7 @@
     </section>
   </main>
 
-  <footer class="deck">
+  <footer class="transport">
     <div class="deck-art"><img id="deckArt" alt=""></div>
     <div class="deck-meta">
       <div id="deckTitle">—</div>
@@ -85,6 +85,6 @@
   </footer>
 
   <audio id="audio" preload="none"></audio>
-  <script src="/static/app.js?v=1"></script>
+  <script src="/static/app.js?v=2"></script>
 </body>
 </html>
