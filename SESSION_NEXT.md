@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-29 Session update (Cindy Vinyl — spinning platter restored)
 
-Latest commit: *(pending)* — Restore spinning label; park tonearm video for split clips
+Latest commit: `3915b28` — Restore spinning label; park tonearm video for split clips
 
 Latest local/Pi change:
 - Back to `deck.png` + spinning platter label (`?v=23`).
