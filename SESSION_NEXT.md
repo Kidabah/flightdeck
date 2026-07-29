@@ -21,6 +21,20 @@ Previous:
 
 ---
 
+## 2026-07-29 Session update (Cindy Vinyl — keep spinning after drop)
+
+Latest commit: *(pending)* — Forward play + spin loop (no freeze)
+
+Latest local/Pi change:
+- Cue-in is the forward first ~5.4s (spin up / arm over).
+- Then loops 2.0s→5.15s so the platter keeps spinning with the arm down.
+- Queue end still plays the lift/stop outro. Hard refresh `?v=37`. Rebuild `vinyl`.
+
+Previous:
+- Full drop then freeze (`5b42922`).
+
+---
+
 ## 2026-07-29 Session update (Cindy Vinyl — full drop then freeze)
 
 Latest commit: `5b42922` — Longer cue-in; don’t abort mid-drop

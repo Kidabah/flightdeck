@@ -2,8 +2,10 @@ const $ = (id) => document.getElementById(id);
 
 const VOL_KEY = "cindy-vinyl-volume";
 const CUE_IN = "/static/deck-cue-in.mp4";
-const CUE_HOLD = "/static/deck-cue-hold.mp4";
 const CUE_OUT = "/static/deck-cue-out.mp4";
+/** After the arm settles, keep spinning this window (forward only). */
+const HOLD_LOOP_START = 2.0;
+const HOLD_LOOP_END = 5.15;
 
 const state = {
   queue: [],
@@ -47,87 +49,38 @@ function deckCue() {
   return /** @type {HTMLVideoElement|null} */ ($("deckCue"));
 }
 
-function deckCueHold() {
-  return /** @type {HTMLVideoElement|null} */ ($("deckCueHold"));
+function clearCueHandlers(v) {
+  if (!v) return;
+  v.onended = null;
+  v.onerror = null;
+  v.ontimeupdate = null;
 }
 
 function showStaticDeck() {
   $("deckStage")?.classList.remove("cueing");
   const v = deckCue();
   if (v) {
+    clearCueHandlers(v);
     v.pause();
     v.loop = false;
-    v.onended = null;
-    v.onerror = null;
     v.removeAttribute("src");
     v.load();
     v.hidden = true;
   }
-  const h = deckCueHold();
-  if (h) {
-    h.pause();
-    try {
-      h.currentTime = 0;
-    } catch {
-      /* ignore */
-    }
-    h.hidden = true;
+  const hold = $("deckCueHold");
+  if (hold) {
+    hold.pause();
+    hold.hidden = true;
   }
 }
 
 function pauseCueVideo() {
   const v = deckCue();
   if (v && !v.hidden) v.pause();
-  const h = deckCueHold();
-  if (h && !h.hidden) h.pause();
 }
 
-function playCueClip(src, { onEnded } = {}) {
-  const v = deckCue();
-  const hold = deckCueHold();
-  const stage = $("deckStage");
-  if (!v || !stage) {
-    onEnded?.();
-    return;
-  }
-  const token = ++state.armToken;
-  stage.classList.add("cueing");
-  if (hold) {
-    hold.pause();
-    hold.hidden = true;
-  }
-  v.hidden = false;
-  v.muted = true;
-  v.playsInline = true;
-  v.loop = false;
-  v.onended = null;
-  v.onerror = null;
-
+function playVideoSrc(v, src, token, onReady) {
   const stillCurrent = () => token === state.armToken;
-
-  const finish = () => {
-    if (!stillCurrent()) return;
-    onEnded?.();
-  };
-
-  v.onended = finish;
-
-  const tryPlay = () => {
-    if (!stillCurrent()) return;
-    const p = v.play();
-    if (p && typeof p.then === "function") {
-      p.catch(() => {
-        if (!stillCurrent()) return;
-        // Wait for data, then retry once — don't freeze mid-drop on a transient play() reject.
-        const retry = () => {
-          if (!stillCurrent()) return;
-          v.play().catch(() => {});
-        };
-        v.addEventListener("canplay", retry, { once: true });
-      });
-    }
-  };
-
   const kickoff = () => {
     if (!stillCurrent()) return;
     try {
@@ -135,10 +88,28 @@ function playCueClip(src, { onEnded } = {}) {
     } catch {
       /* ignore */
     }
-    tryPlay();
+    const p = v.play();
+    if (p && typeof p.then === "function") {
+      p.catch(() => {
+        if (!stillCurrent()) return;
+        v.addEventListener(
+          "canplay",
+          () => {
+            if (!stillCurrent()) return;
+            v.play().catch(() => {});
+          },
+          { once: true },
+        );
+      });
+    }
+    onReady?.();
   };
-
   const abs = new URL(src, window.location.href).href;
+  clearCueHandlers(v);
+  v.hidden = false;
+  v.muted = true;
+  v.playsInline = true;
+  v.loop = false;
   if (v.src === abs && v.readyState >= 2) {
     kickoff();
     return;
@@ -148,49 +119,79 @@ function playCueClip(src, { onEnded } = {}) {
   v.load();
 }
 
-function freezeNeedleDown() {
+/** Play cue-in from the start, then keep the platter spinning (arm stays down). */
+function startPlayLoop() {
   const v = deckCue();
-  const hold = deckCueHold();
   const stage = $("deckStage");
-  if (hold) {
-    hold.pause();
-    hold.hidden = true;
-  }
   if (!v || !stage) return;
+  const token = ++state.armToken;
   stage.classList.add("cueing");
-  v.hidden = false;
-  v.loop = false;
-  v.onended = null;
-  v.onerror = null;
-  // Stay on the last decoded frame — do not seek (seek can flash an earlier frame).
-  v.pause();
+  state.arm = "cueing-in";
+
+  const holdEl = $("deckCueHold");
+  if (holdEl) {
+    holdEl.pause();
+    holdEl.hidden = true;
+  }
+
+  playVideoSrc(v, CUE_IN, token, () => {
+    if (token !== state.armToken) return;
+    v.ontimeupdate = () => {
+      if (token !== state.armToken) return;
+      if (state.arm !== "cueing-in" && state.arm !== "hold") return;
+      if (v.currentTime >= HOLD_LOOP_END) {
+        state.arm = "hold";
+        try {
+          v.currentTime = HOLD_LOOP_START;
+        } catch {
+          /* ignore */
+        }
+      } else if (v.currentTime >= HOLD_LOOP_START && state.arm === "cueing-in") {
+        state.arm = "hold";
+      }
+    };
+    v.onended = () => {
+      if (token !== state.armToken) return;
+      state.arm = "hold";
+      try {
+        v.currentTime = HOLD_LOOP_START;
+      } catch {
+        /* ignore */
+      }
+      v.play().catch(() => {});
+    };
+  });
 }
 
 function cueInThenHold() {
   if (state.arm === "cueing-in") return;
   if (state.arm === "hold") {
-    // Needle already down — keep the frozen frame; don't restart the drop.
+    const v = deckCue();
+    if (v && v.paused) v.play().catch(() => {});
     return;
   }
-  state.arm = "cueing-in";
-  playCueClip(CUE_IN, {
-    onEnded: () => {
-      if (state.arm !== "cueing-in") return;
-      state.arm = "hold";
-      freezeNeedleDown();
-    },
-  });
+  startPlayLoop();
 }
 
 function cueOutToRest() {
   if (state.arm === "rest" || state.arm === "cueing-out") return;
+  const v = deckCue();
+  const stage = $("deckStage");
+  if (!v || !stage) {
+    state.arm = "rest";
+    showStaticDeck();
+    return;
+  }
   state.arm = "cueing-out";
-  playCueClip(CUE_OUT, {
-    onEnded: () => {
-      if (state.arm !== "cueing-out") return;
+  const token = ++state.armToken;
+  stage.classList.add("cueing");
+  playVideoSrc(v, CUE_OUT, token, () => {
+    if (token !== state.armToken) return;
+    v.onended = () => {
+      if (token !== state.armToken) return;
       state.arm = "rest";
       showStaticDeck();
-    },
+    };
   });
 }
 
@@ -207,7 +208,6 @@ function preloadCues() {
     v.preload = "auto";
     v.src = src;
   });
-  // hold is already in the DOM with preload=auto
 }
 
 function currentSong() {
