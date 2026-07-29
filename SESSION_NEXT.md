@@ -6,6 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-29 Session update (Cindy Vinyl — stop orbiting centre label)
+
+Latest commit: *(pending)* — Circular label spins in place; tint stays soft
+
+Latest local/Pi change:
+- Centre art was an ellipse being rotated — that made it orbit inside the record. Now a circle with `rotateX` pose; only the inner wrapper spins.
+- Tint stays the softer fuller-disc fade from `?v=45`.
+- Hard refresh `?v=46`. Rebuild `vinyl`.
+
+Previous:
+- Dial back tint wipe (`53616cf`).
+
+---
+
 ## 2026-07-29 Session update (Cindy Vinyl — dial back tint wipe)
 
 Latest commit: `53616cf` — Softer arm fade; fuller colour disc
