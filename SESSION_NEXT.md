@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-29 Session update (Cindy Vinyl — centre label + arm park + colour)
 
-Latest commit: *(pending)* — Nudge label onto spindle; short hold; visible vinyl tint
+Latest commit: `0e38b7c` — Nudge label onto spindle; short hold; visible vinyl tint
 
 Latest local/Pi change:
 - Label was ~5% left of the spindle — moved to 40.2% / 54.8%; spin on inner wrapper so 3D pose doesn’t drift.
