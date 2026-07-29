@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-29 Session update (Cindy Vinyl — dial back tint wipe)
 
-Latest commit: *(pending)* — Softer arm fade; fuller colour disc
+Latest commit: `53616cf` — Softer arm fade; fuller colour disc
 
 Latest local/Pi change:
 - Hard right-half wipe was too aggressive (looked like a left wedge). Now a gentle far-right fade only, slightly softer opacity, smaller centre hole.
