@@ -108,6 +108,14 @@ async def random_album():
     return await album_detail(album["id"])
 
 
+def _album_index_letter(album: dict[str, Any]) -> str:
+    name = (album.get("name") or album.get("title") or "").lstrip(" \t\"'`“”‘’")
+    if not name:
+        return "#"
+    ch = name[0].upper()
+    return ch if ch.isalpha() else "#"
+
+
 @app.get("/api/albums")
 async def albums(
     list_type: str = Query("newest", alias="type"),
@@ -120,8 +128,7 @@ async def albums(
         ch = letter.upper()
         collected: list[dict[str, Any]] = []
         page_size = 200
-        past_letter = False
-        for page in range(20):
+        for page in range(30):
             sub = await _nd_get(
                 "getAlbumList2.view",
                 {
@@ -133,20 +140,15 @@ async def albums(
             raw = (sub.get("albumList2") or {}).get("album") or []
             if not raw:
                 break
+            last_raw_letter = _album_index_letter(raw[-1])
             for a in meta.apply_album_list(collapse_album_list(raw)):
-                name = (a.get("name") or a.get("title") or "").lstrip()
-                first = name[:1].upper() if name else ""
-                if ch == "#":
-                    if first and not first.isalpha():
-                        collected.append(a)
-                elif first == ch:
+                if _album_index_letter(a) == ch:
                     collected.append(a)
-                elif first.isalpha() and first > ch:
-                    past_letter = True
-                    break
-                if len(collected) >= size:
-                    break
-            if past_letter or len(collected) >= size:
+                    if len(collected) >= size:
+                        break
+            if len(collected) >= size:
+                break
+            if ch != "#" and last_raw_letter.isalpha() and last_raw_letter > ch:
                 break
         return {"albums": collected[:size], "type": list_type, "letter": letter, "genre": genre}
 
@@ -166,6 +168,7 @@ async def albums(
     merged = meta.apply_album_list(collapse_album_list(raw))
     return {"albums": merged[:size], "type": list_type, "letter": letter, "genre": genre}
 
+
 @app.get("/api/genres")
 async def genres():
     sub = await _nd_get("getGenres.view", {})
@@ -175,20 +178,29 @@ async def genres():
     out = []
     for g in rows:
         if isinstance(g, str):
-            out.append({"value": g, "albumCount": 0, "songCount": 0})
+            value = g.strip()
+            if value:
+                out.append({"value": value, "albumCount": 0, "songCount": 0})
             continue
-        value = g.get("value") or g.get("name") or ""
-        if not value:
+        value = str(g.get("value") or g.get("name") or "").strip()
+        if not value or len(value) < 2:
+            continue
+        if value.startswith(("\b", "& ")) or value in {"1", "Music"}:
+            continue
+        album_count = int(g.get("albumCount") or 0)
+        song_count = int(g.get("songCount") or 0)
+        if album_count <= 0 and song_count <= 0:
             continue
         out.append(
             {
                 "value": value,
-                "albumCount": int(g.get("albumCount") or 0),
-                "songCount": int(g.get("songCount") or 0),
+                "albumCount": album_count,
+                "songCount": song_count,
             }
         )
-    out.sort(key=lambda x: (-x["albumCount"], x["value"].lower()))
+    out.sort(key=lambda x: (-(x["albumCount"] or x["songCount"]), x["value"].lower()))
     return {"genres": out}
+
 
 @app.get("/api/album/{album_id:path}")
 async def album_detail(album_id: str):
@@ -209,7 +221,6 @@ async def album_detail(album_id: str):
     if not album:
         raise HTTPException(404, "Album not found")
     return _expand_album(album)
-
 
 @app.get("/api/search")
 async def search(q: str = Query(..., min_length=1)):
