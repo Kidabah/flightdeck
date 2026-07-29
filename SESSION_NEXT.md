@@ -6,6 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-30 Session update (Cindy Vinyl — drag & drop onto deck)
+
+Latest commit: *(pending)* — Drag sleeves/tracks onto the deck to play
+
+Latest local/Pi change:
+- Left vinyl colour alone.
+- Drag a crate/search sleeve, a search track, or a Tracks-panel side onto the deck — gold “Drop to play” highlight, then it cues up.
+- Hard refresh `?v=50`. Rebuild `vinyl`.
+
+Previous:
+- Album-gated tint (`6d333c9`).
+
+---
+
 ## 2026-07-30 Session update (Cindy Vinyl — colour per album)
 
 Latest commit: `6d333c9` — Random vinyl tint only when the album changes

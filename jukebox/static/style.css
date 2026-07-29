@@ -333,6 +333,41 @@ body {
   background: #0a0a0c;
   perspective: 1100px;
 }
+.deck-stage.drop-ready {
+  box-shadow:
+    0 0 0 1px rgba(212, 175, 55, 0.45),
+    0 24px 60px rgba(0, 0, 0, 0.55);
+}
+.deck-stage.drag-over {
+  box-shadow:
+    0 0 0 2px var(--gold),
+    0 0 36px rgba(212, 175, 55, 0.35),
+    0 24px 60px rgba(0, 0, 0, 0.55);
+}
+.deck-stage.drag-over::after {
+  content: "Drop to play";
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  letter-spacing: 0.12em;
+  font-size: clamp(1.4rem, 3vw, 2rem);
+  color: var(--gold-hot);
+  background: rgba(8, 7, 9, 0.45);
+  pointer-events: none;
+}
+.draggable {
+  cursor: grab;
+}
+.draggable.dragging {
+  opacity: 0.55;
+  cursor: grabbing;
+}
+.track-list li.draggable {
+  cursor: grab;
+}
 .deck-photo {
   display: block;
   width: 100%;

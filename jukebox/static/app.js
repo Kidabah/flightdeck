@@ -556,7 +556,9 @@ function renderQueue() {
     })
     .join("");
   list.querySelectorAll("li[data-i]").forEach((li) => {
-    li.addEventListener("click", () => playIndex(Number(li.dataset.i)));
+    const i = Number(li.dataset.i);
+    li.addEventListener("click", () => playIndex(i));
+    bindQueueDrag(li, i);
   });
 }
 
@@ -566,6 +568,161 @@ function escapeHtml(s) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+const DND_MIME = "application/x-cindy-vinyl";
+
+function setDragPayload(dt, payload) {
+  const raw = JSON.stringify(payload);
+  try {
+    dt.setData(DND_MIME, raw);
+  } catch {
+    /* some browsers only allow text/* */
+  }
+  dt.setData("text/plain", raw);
+  dt.effectAllowed = "copy";
+}
+
+function readDragPayload(dt) {
+  let raw = "";
+  try {
+    raw = dt.getData(DND_MIME) || "";
+  } catch {
+    /* ignore */
+  }
+  if (!raw) raw = dt.getData("text/plain") || "";
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function bindAlbumDrag(el, album) {
+  if (!el || !album?.id) return;
+  el.draggable = true;
+  el.classList.add("draggable");
+  el.addEventListener("dragstart", (e) => {
+    if (e.target.closest?.(".sleeve-edit")) {
+      e.preventDefault();
+      return;
+    }
+    setDragPayload(e.dataTransfer, { kind: "album", id: album.id });
+    el.classList.add("dragging");
+    $("deckStage")?.classList.add("drop-ready");
+    setStatus("Drop on the deck to play…");
+  });
+  el.addEventListener("dragend", () => {
+    el.classList.remove("dragging");
+    $("deckStage")?.classList.remove("drop-ready", "drag-over");
+  });
+}
+
+function bindSongDrag(el, song) {
+  if (!el || !song?.id) return;
+  el.draggable = true;
+  el.classList.add("draggable");
+  el.addEventListener("dragstart", (e) => {
+    setDragPayload(e.dataTransfer, {
+      kind: "song",
+      song: {
+        id: song.id,
+        title: song.title,
+        artist: song.artist,
+        album: song.album,
+        albumId: song.albumId,
+        coverArt: song.coverArt,
+      },
+    });
+    el.classList.add("dragging");
+    $("deckStage")?.classList.add("drop-ready");
+    setStatus("Drop on the deck to play…");
+  });
+  el.addEventListener("dragend", () => {
+    el.classList.remove("dragging");
+    $("deckStage")?.classList.remove("drop-ready", "drag-over");
+  });
+}
+
+function bindQueueDrag(el, index) {
+  if (!el) return;
+  el.draggable = true;
+  el.classList.add("draggable");
+  el.addEventListener("dragstart", (e) => {
+    setDragPayload(e.dataTransfer, { kind: "queue", index });
+    el.classList.add("dragging");
+    $("deckStage")?.classList.add("drop-ready");
+    setStatus("Drop on the deck to play…");
+  });
+  el.addEventListener("dragend", () => {
+    el.classList.remove("dragging");
+    $("deckStage")?.classList.remove("drop-ready", "drag-over");
+  });
+}
+
+function playSongSolo(song) {
+  state.queue = [song];
+  state.index = 0;
+  state.album = {
+    id: song.albumId || undefined,
+    name: song.album,
+    artist: song.artist,
+    coverArt: song.coverArt,
+  };
+  $("nowTitle").textContent = song.title || "Track";
+  $("nowArtist").textContent = song.artist || "";
+  setVinylArt(song.coverArt);
+  ensureVinylColorForAlbum(state.album, song);
+  $("playPauseBtn").disabled = false;
+  renderQueue();
+  playIndex(0);
+}
+
+async function handleDeckDrop(payload) {
+  if (!payload?.kind) return;
+  if (payload.kind === "album" && payload.id) {
+    setStatus("Dropping the sleeve on the platter…");
+    try {
+      const full = await api(`/api/album/${encodeURIComponent(payload.id)}`);
+      loadAlbumIntoQueue(full, { autoplay: true });
+      setStatus("Needle down.");
+    } catch (err) {
+      setStatus(String(err.message || err).slice(0, 180));
+    }
+    return;
+  }
+  if (payload.kind === "queue" && Number.isFinite(Number(payload.index))) {
+    playIndex(Number(payload.index));
+    return;
+  }
+  if (payload.kind === "song" && payload.song?.id) {
+    playSongSolo(payload.song);
+  }
+}
+
+function wireDeckDrop() {
+  const stage = $("deckStage");
+  if (!stage) return;
+  stage.addEventListener("dragenter", (e) => {
+    e.preventDefault();
+    stage.classList.add("drag-over");
+  });
+  stage.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+    stage.classList.add("drag-over");
+  });
+  stage.addEventListener("dragleave", (e) => {
+    if (e.target === stage || !stage.contains(e.relatedTarget)) {
+      stage.classList.remove("drag-over");
+    }
+  });
+  stage.addEventListener("drop", (e) => {
+    e.preventDefault();
+    stage.classList.remove("drag-over", "drop-ready");
+    handleDeckDrop(readDragPayload(e.dataTransfer));
+  });
 }
 
 function loadAlbumIntoQueue(album, { autoplay = true } = {}) {
@@ -671,6 +828,7 @@ function sleeveButton(album) {
   edit.addEventListener("click", (e) => openAlbumEdit(album, e));
 
   wrap.append(btn, edit);
+  bindAlbumDrag(wrap, album);
   return wrap;
 }
 
@@ -707,23 +865,18 @@ async function runSearch(q) {
     grid.innerHTML = "";
     (data.albums || []).forEach((al) => grid.appendChild(sleeveButton(al)));
     (data.songs || []).slice(0, 12).forEach((song) => {
+      const wrap = document.createElement("div");
+      wrap.className = "sleeve-wrap";
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "sleeve";
       btn.innerHTML = `<img src="${coverUrl(song.coverArt, 200)}" alt="">
         <div class="t">${escapeHtml(song.title)}</div>
         <div class="a">${escapeHtml(song.artist || "")}</div>`;
-      btn.addEventListener("click", () => {
-        state.queue = [song];
-        state.index = 0;
-        state.album = { name: song.album, artist: song.artist, coverArt: song.coverArt };
-        $("nowTitle").textContent = song.title;
-        $("nowArtist").textContent = song.artist || "";
-        setVinylArt(song.coverArt);
-        renderQueue();
-        playIndex(0);
-      });
-      grid.appendChild(btn);
+      btn.addEventListener("click", () => playSongSolo(song));
+      wrap.append(btn);
+      bindSongDrag(wrap, song);
+      grid.appendChild(wrap);
     });
     if (!grid.children.length) grid.innerHTML = "<p class='hint'>Nothing matched.</p>";
   } catch (err) {
@@ -748,6 +901,8 @@ function wire() {
   if (!Number.isFinite(saved)) saved = 0.85;
   state.volumeBeforeMute = saved || 0.85;
   applyVolume(saved, { persist: false });
+
+  wireDeckDrop();
 
   $("spinBtn").addEventListener("click", () => spin());
   $("playPauseBtn").addEventListener("click", () => togglePlayPause());
@@ -868,7 +1023,7 @@ async function boot() {
   try {
     const h = await api("/api/health");
     if (!h.ok) setStatus(`Navidrome: ${h.error || "not ready"}`);
-    else setStatus("Tubes warm. Hit SPIN. · Space play · ←→ skip · ↑↓ vol");
+    else setStatus("Tubes warm. Hit SPIN · drag a sleeve onto the deck · Space play · ←→ skip");
   } catch (err) {
     setStatus("Backend starting — retry in a moment.");
   }
