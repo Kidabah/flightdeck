@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-29 Session update (Cindy Vinyl Jukebox)
 
-Latest commit: *(pending)* — Cindy Vinyl jukebox (Navidrome + hi-fi UI)
+Latest commit: `1f4cb90` — Cindy Vinyl jukebox (Navidrome + hi-fi UI)
 
 Latest local/Pi change:
 - Mount Cindy **MUSIC + CHECKED + JAMAL** → `/mnt/cindy/*` (`mount-cindy.sh`, boot remount).
