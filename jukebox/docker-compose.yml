@@ -19,7 +19,7 @@ services:
       ND_ENABLEFAVOURITES: "true"
       ND_ENABLESTARRATING: "true"
       # Ignore obvious non-audio junk under CHECKED/JAMAL
-      ND_IGNOREFILERULES: "(\\.tmp|\\.part|/\\.|Thumbs\\.db|desktop\\.ini|\\.DS_Store)$"
+      ND_IGNOREFILERULES: "(\\.tmp|\\.part|/\\.|Thumbs\\.db|desktop\\.ini|\\.DS_Store|#recycle|/\\.Trash)"
     volumes:
       - /mnt/cindy:/music:ro
       - /home/flightdeck/cindy-navidrome/data:/data
