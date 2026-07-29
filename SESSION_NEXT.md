@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-30 Session update (Cindy Vinyl — drag & drop onto deck)
 
-Latest commit: *(pending)* — Drag sleeves/tracks onto the deck to play
+Latest commit: `a5731ca` — Drag sleeves/tracks onto the deck to play
 
 Latest local/Pi change:
 - Left vinyl colour alone.
