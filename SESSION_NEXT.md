@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-30 Session update (Cindy Vinyl — A–Z + Categories crates)
 
-Latest commit: *(pending)* — Alphabet and genre crate browsing
+Latest commit: `bd6756d` — Alphabet and genre crate browsing
 
 Latest local/Pi change:
 - Crates tabs add **A–Z** (letter chips) and **Categories** (genre chips from Navidrome).
