@@ -90,8 +90,20 @@ def _root_ready_to_scan(root: Path) -> tuple[bool, str]:
         for s in (root_s, resolved_s)
         for prefix in ("/mnt/", "/media/")
     )
-    if under_removable and not (os.path.ismount(root_s) or os.path.ismount(resolved_s)):
-        return False, "not_mounted"
+    if under_removable:
+        # Accept the root itself or any parent mount (e.g. /mnt/nas-mora/Kidabah
+        # under a bind/CIFS mount at /mnt/nas-mora).
+        cur = root if root.is_dir() else root.parent
+        mounted = False
+        for p in [cur, *cur.parents]:
+            ps = str(p)
+            if os.path.ismount(ps):
+                mounted = True
+                break
+            if ps in ("/", ""):
+                break
+        if not mounted:
+            return False, "not_mounted"
     return True, "ok"
 
 

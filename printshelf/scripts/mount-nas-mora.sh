@@ -4,11 +4,8 @@
 set -e
 CRED=/home/flightdeck/.smbcredentials-mora
 MNT=/mnt/nas-mora
+MNT_HOMES=/mnt/nas-mora-homes
 HOST=192.168.4.77
-# Synology "User Homes" share is usually SMB name "homes"; Windows may show "User Homes".
-SHARE_HOMES=homes
-SHARE_USER_HOMES="User Homes"
-SHARE_HOME=home
 USER_DIR=Kidabah
 
 if [ ! -f "$CRED" ]; then
@@ -24,12 +21,19 @@ fi
 
 docker run --rm --privileged --pid=host --network=host alpine:3.20 \
   nsenter -t 1 -m -u -i -n sh -c "
-    mkdir -p $MNT
-    # Prefer User Homes / Kidabah as the mount root (prefixpath).
-    mount -t cifs //$HOST/$SHARE_HOMES $MNT -o credentials=$CRED,uid=1004,gid=1004,forceuid,forcegid,iocharset=utf8,vers=3.0,sec=ntlmssp,file_mode=0755,dir_mode=0755,nounix,noserverino,prefixpath=$USER_DIR \
-      || mount -t cifs //$HOST/$SHARE_HOMES $MNT -o credentials=$CRED,uid=1004,gid=1004,forceuid,forcegid,iocharset=utf8,vers=2.1,sec=ntlmssp,file_mode=0755,dir_mode=0755,nounix,noserverino,prefixpath=$USER_DIR \
-      || mount -t cifs '//$HOST/$SHARE_USER_HOMES' $MNT -o credentials=$CRED,uid=1004,gid=1004,forceuid,forcegid,iocharset=utf8,vers=3.0,sec=ntlmssp,file_mode=0755,dir_mode=0755,nounix,noserverino,prefixpath=$USER_DIR \
-      || mount -t cifs //$HOST/$SHARE_HOME $MNT -o credentials=$CRED,uid=1004,gid=1004,forceuid,forcegid,iocharset=utf8,vers=3.0,sec=ntlmssp,file_mode=0755,dir_mode=0755,nounix,noserverino
+    set -e
+    mkdir -p $MNT_HOMES $MNT
+    # Mount Synology 'User Homes' share (SMB name may be homes or 'User Homes').
+    if ! grep -q ' ${MNT_HOMES} ' /proc/mounts 2>/dev/null; then
+      mount -t cifs '//$HOST/User Homes' $MNT_HOMES -o credentials=$CRED,uid=1004,gid=1004,forceuid,forcegid,iocharset=utf8,vers=3.0,sec=ntlmssp,file_mode=0755,dir_mode=0755,nounix,noserverino \
+        || mount -t cifs //$HOST/homes $MNT_HOMES -o credentials=$CRED,uid=1004,gid=1004,forceuid,forcegid,iocharset=utf8,vers=3.0,sec=ntlmssp,file_mode=0755,dir_mode=0755,nounix,noserverino
+    fi
+    if [ ! -d $MNT_HOMES/$USER_DIR ]; then
+      echo 'missing user dir: $MNT_HOMES/$USER_DIR' >&2
+      ls $MNT_HOMES >&2 || true
+      exit 1
+    fi
+    mount --bind $MNT_HOMES/$USER_DIR $MNT
     ls $MNT | head -20
   "
 
