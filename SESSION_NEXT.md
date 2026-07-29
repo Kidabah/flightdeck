@@ -6,19 +6,17 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
-## 2026-07-30 Session update (Cindy Vinyl — A–Z cache, pause spin, lag)
+## 2026-07-30 Session update (Cindy Vinyl — fix album drag-drop)
 
-Latest commit: `968024c` — A–Z alpha cache; pause stops platter; crate lag tweaks
+Latest commit: _(pending)_ — Fix deck drop-to-play (DnD + deck photo)
 
 Latest local/Pi change:
-- A–Z was empty/timing out: early-exit + full library scan. Now caches alphabetical index (warmed on startup), letter chips filter in memory.
-- Index build skips per-album folder collapse; letter slice collapses in small off-thread batches so the UI stays responsive.
-- Pause removes `.cueing` so platter stops spinning (arm stays down).
-- Shared httpx client, parallel genre tag fetches, smaller lazy crate covers (`?v=54`).
-- Rebuild `vinyl`. Hard refresh for pause/lag UI.
+- Album drag onto deck was failing: sleeve `<button>`/cover img fought HTML5 DnD; deck photo stole pointer events.
+- Sleeves are role=button divs; pendingDrag fallback; capture-phase drop on `#deckStage`; `pointer-events:none` on deck photo.
+- Hard refresh `?v=55`. Rebuild `vinyl`.
 
 Previous:
-- Broad Categories + hide chips (`c75aa0f`).
+- A–Z cache / pause spin (`968024c`).
 
 ---
 

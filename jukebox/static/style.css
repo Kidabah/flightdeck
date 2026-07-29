@@ -373,6 +373,7 @@ body {
   width: 100%;
   height: auto;
   vertical-align: middle;
+  pointer-events: none;
 }
 
 /* Silent cue-in / cue-out — covers photo while camera moves */

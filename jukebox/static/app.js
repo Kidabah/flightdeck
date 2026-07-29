@@ -577,16 +577,23 @@ function escapeHtml(s) {
 }
 
 const DND_MIME = "application/x-cindy-vinyl";
+/** Fallback when browsers clear dataTransfer mid-drag (common with images/buttons). */
+let pendingDrag = null;
 
 function setDragPayload(dt, payload) {
+  pendingDrag = payload;
   const raw = JSON.stringify(payload);
   try {
     dt.setData(DND_MIME, raw);
   } catch {
     /* some browsers only allow text/* */
   }
-  dt.setData("text/plain", raw);
-  dt.effectAllowed = "copy";
+  try {
+    dt.setData("text/plain", raw);
+  } catch {
+    /* ignore */
+  }
+  dt.effectAllowed = "copyMove";
 }
 
 function readDragPayload(dt) {
@@ -596,19 +603,30 @@ function readDragPayload(dt) {
   } catch {
     /* ignore */
   }
-  if (!raw) raw = dt.getData("text/plain") || "";
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
+  if (!raw) {
+    try {
+      raw = dt.getData("text/plain") || "";
+    } catch {
+      /* ignore */
+    }
   }
+  if (raw) {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      /* fall through */
+    }
+  }
+  return pendingDrag;
 }
 
 function bindAlbumDrag(el, album) {
   if (!el || !album?.id) return;
   el.draggable = true;
   el.classList.add("draggable");
+  el.querySelectorAll("img").forEach((img) => {
+    img.draggable = false;
+  });
   el.addEventListener("dragstart", (e) => {
     if (e.target.closest?.(".sleeve-edit")) {
       e.preventDefault();
@@ -622,6 +640,10 @@ function bindAlbumDrag(el, album) {
   el.addEventListener("dragend", () => {
     el.classList.remove("dragging");
     $("deckStage")?.classList.remove("drop-ready", "drag-over");
+    // Keep pendingDrag until drop handler runs (dragend can fire first).
+    setTimeout(() => {
+      pendingDrag = null;
+    }, 50);
   });
 }
 
@@ -629,6 +651,9 @@ function bindSongDrag(el, song) {
   if (!el || !song?.id) return;
   el.draggable = true;
   el.classList.add("draggable");
+  el.querySelectorAll("img").forEach((img) => {
+    img.draggable = false;
+  });
   el.addEventListener("dragstart", (e) => {
     setDragPayload(e.dataTransfer, {
       kind: "song",
@@ -648,6 +673,9 @@ function bindSongDrag(el, song) {
   el.addEventListener("dragend", () => {
     el.classList.remove("dragging");
     $("deckStage")?.classList.remove("drop-ready", "drag-over");
+    setTimeout(() => {
+      pendingDrag = null;
+    }, 50);
   });
 }
 
@@ -655,6 +683,9 @@ function bindQueueDrag(el, index) {
   if (!el) return;
   el.draggable = true;
   el.classList.add("draggable");
+  el.querySelectorAll("img").forEach((img) => {
+    img.draggable = false;
+  });
   el.addEventListener("dragstart", (e) => {
     setDragPayload(e.dataTransfer, { kind: "queue", index });
     el.classList.add("dragging");
@@ -664,6 +695,9 @@ function bindQueueDrag(el, index) {
   el.addEventListener("dragend", () => {
     el.classList.remove("dragging");
     $("deckStage")?.classList.remove("drop-ready", "drag-over");
+    setTimeout(() => {
+      pendingDrag = null;
+    }, 50);
   });
 }
 
@@ -710,25 +744,38 @@ async function handleDeckDrop(payload) {
 function wireDeckDrop() {
   const stage = $("deckStage");
   if (!stage) return;
-  stage.addEventListener("dragenter", (e) => {
-    e.preventDefault();
-    stage.classList.add("drag-over");
-  });
-  stage.addEventListener("dragover", (e) => {
+
+  const allowDrop = (e) => {
+    if (!pendingDrag && !(e.dataTransfer?.types || []).length) return;
     e.preventDefault();
     if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
     stage.classList.add("drag-over");
-  });
-  stage.addEventListener("dragleave", (e) => {
-    if (e.target === stage || !stage.contains(e.relatedTarget)) {
-      stage.classList.remove("drag-over");
-    }
-  });
-  stage.addEventListener("drop", (e) => {
-    e.preventDefault();
-    stage.classList.remove("drag-over", "drop-ready");
-    handleDeckDrop(readDragPayload(e.dataTransfer));
-  });
+  };
+
+  // Capture so child nodes (photo/video) can't steal the gesture.
+  stage.addEventListener("dragenter", allowDrop, true);
+  stage.addEventListener("dragover", allowDrop, true);
+  stage.addEventListener(
+    "dragleave",
+    (e) => {
+      if (e.target === stage || !stage.contains(e.relatedTarget)) {
+        stage.classList.remove("drag-over");
+      }
+    },
+    true,
+  );
+  stage.addEventListener(
+    "drop",
+    (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      stage.classList.remove("drag-over", "drop-ready");
+      const payload = readDragPayload(e.dataTransfer);
+      pendingDrag = null;
+      handleDeckDrop(payload);
+    },
+    true,
+  );
 }
 
 function loadAlbumIntoQueue(album, { autoplay = true } = {}) {
@@ -807,11 +854,14 @@ function sleeveButton(album) {
   const wrap = document.createElement("div");
   wrap.className = "sleeve-wrap";
 
-  const btn = document.createElement("button");
-  btn.type = "button";
+  // Use a div (not <button>) so HTML5 drag-and-drop can start from the cover.
+  const btn = document.createElement("div");
   btn.className = "sleeve";
+  btn.setAttribute("role", "button");
+  btn.tabIndex = 0;
   const img = document.createElement("img");
   img.alt = "";
+  img.draggable = false;
   img.loading = "lazy";
   img.decoding = "async";
   img.src = coverUrl(album.coverArt, 180);
@@ -822,13 +872,20 @@ function sleeveButton(album) {
   a.className = "a";
   a.textContent = album.artist || "[Unknown Artist]";
   btn.append(img, t, a);
-  btn.addEventListener("click", async () => {
+  const openSleeve = async () => {
     setStatus("Sliding the sleeve out…");
     try {
       const full = await api(`/api/album/${encodeURIComponent(album.id)}`);
       loadAlbumIntoQueue(full, { autoplay: true });
     } catch (err) {
       setStatus(String(err.message || err));
+    }
+  };
+  btn.addEventListener("click", openSleeve);
+  btn.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      openSleeve();
     }
   });
 
@@ -985,13 +1042,21 @@ async function runSearch(q) {
     (data.songs || []).slice(0, 12).forEach((song) => {
       const wrap = document.createElement("div");
       wrap.className = "sleeve-wrap";
-      const btn = document.createElement("button");
-      btn.type = "button";
+      const btn = document.createElement("div");
       btn.className = "sleeve";
-      btn.innerHTML = `<img src="${coverUrl(song.coverArt, 200)}" alt="">
+      btn.setAttribute("role", "button");
+      btn.tabIndex = 0;
+      btn.innerHTML = `<img src="${coverUrl(song.coverArt, 180)}" alt="" draggable="false">
         <div class="t">${escapeHtml(song.title)}</div>
         <div class="a">${escapeHtml(song.artist || "")}</div>`;
-      btn.addEventListener("click", () => playSongSolo(song));
+      const play = () => playSongSolo(song);
+      btn.addEventListener("click", play);
+      btn.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          play();
+        }
+      });
       wrap.append(btn);
       bindSongDrag(wrap, song);
       grid.appendChild(wrap);
