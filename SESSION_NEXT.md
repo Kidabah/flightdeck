@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-30 Session update (Cindy Vinyl — broad Categories + hide chips)
 
-Latest commit: _(pending)_ — Canonical genre buckets; hide filter chips off Categories/A–Z
+Latest commit: `c75aa0f` — Canonical genre buckets; hide filter chips off Categories/A–Z
 
 Latest local/Pi change:
 - Categories map messy Cindy tags (`00's Dance`, etc.) up to Rock / Pop / Country / Hip-Hop / …
