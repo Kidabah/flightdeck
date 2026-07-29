@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-29 Session update (Cindy Vinyl — sleeve on Technics prism)
 
-Latest commit: *(pending)* — Album cover leans against Technics prism
+Latest commit: `72fbda1` — Album cover leans against Technics prism
 
 Latest local/Pi change:
 - Now-playing cover moved off the wall frame; sits in front of the glass Technics prism like a sleeve leaning on the table.
