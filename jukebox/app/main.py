@@ -185,12 +185,10 @@ async def genres():
         value = str(g.get("value") or g.get("name") or "").strip()
         if not value or len(value) < 2:
             continue
-        if value.startswith(("\b", "& ")) or value in {"1", "Music"}:
+        if value.startswith(("\b", "& ")) or not any(c.isalpha() for c in value):
             continue
         album_count = int(g.get("albumCount") or 0)
         song_count = int(g.get("songCount") or 0)
-        if album_count <= 0 and song_count <= 0:
-            continue
         out.append(
             {
                 "value": value,
@@ -198,8 +196,8 @@ async def genres():
                 "songCount": song_count,
             }
         )
-    out.sort(key=lambda x: (-(x["albumCount"] or x["songCount"]), x["value"].lower()))
-    return {"genres": out}
+    out.sort(key=lambda x: (-(x["albumCount"] or x["songCount"] or 0), x["value"].lower()))
+    return {"genres": out[:80]}
 
 
 @app.get("/api/album/{album_id:path}")
