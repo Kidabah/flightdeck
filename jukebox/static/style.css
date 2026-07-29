@@ -359,14 +359,13 @@ body {
   display: none !important;
 }
 
-/* Random vinyl colour — elliptical (perspective) in SCREEN space so the arm
- * cutout stays lined up with the video tonearm. rotateX broke that alignment. */
+/* Random vinyl colour — elliptical in screen space; soft arm-side fade (not a hard half-wipe) */
 .vinyl-tint {
   position: absolute;
   left: 41.5%;
   top: 54.5%;
-  width: 31%;
-  height: 19%;
+  width: 32%;
+  height: 19.5%;
   border-radius: 50%;
   transform: translate(-50%, -50%) rotate(-2deg);
   background: var(--vinyl-color, #1d4ed8);
@@ -375,13 +374,13 @@ body {
   pointer-events: none;
   transition: opacity 0.35s ease, background 0.4s ease;
   mix-blend-mode: soft-light;
-  /* Centre hole for label + wipe the whole right side (arm lives there) */
+  /* Small centre hole + gentle fade only on the far-right arm corridor */
   -webkit-mask-image:
-    radial-gradient(ellipse at 48% 50%, transparent 0 30%, #000 34%, #000 100%),
-    linear-gradient(100deg, #000 0%, #000 46%, transparent 57%);
+    radial-gradient(ellipse at 48% 50%, transparent 0 22%, #000 27%, #000 100%),
+    linear-gradient(105deg, #000 0%, #000 68%, transparent 82%);
   mask-image:
-    radial-gradient(ellipse at 48% 50%, transparent 0 30%, #000 34%, #000 100%),
-    linear-gradient(100deg, #000 0%, #000 46%, transparent 57%);
+    radial-gradient(ellipse at 48% 50%, transparent 0 22%, #000 27%, #000 100%),
+    linear-gradient(105deg, #000 0%, #000 68%, transparent 82%);
   -webkit-mask-composite: source-in;
   mask-composite: intersect;
   -webkit-mask-size: 100% 100%, 100% 100%;
@@ -389,19 +388,19 @@ body {
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
 }
-.deck-stage.has-vinyl .vinyl-tint { opacity: 0.7; }
+.deck-stage.has-vinyl .vinyl-tint { opacity: 0.55; }
 .deck-stage.playing .vinyl-tint,
 .deck-stage.cueing .vinyl-tint {
-  opacity: 0.85;
+  opacity: 0.68;
 }
 
-/* Centre label — larger elliptical disc covers baked-in / Navidrome label */
+/* Centre label — covers baked-in label; sits above tint */
 .platter-live {
   position: absolute;
   left: 41.5%;
   top: 54.5%;
-  width: 16.5%;
-  height: 10.2%;
+  width: 15.5%;
+  height: 9.6%;
   border-radius: 50%;
   transform: translate(-50%, -50%) rotate(-2deg);
   display: grid;

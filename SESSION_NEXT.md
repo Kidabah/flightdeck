@@ -6,6 +6,19 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-29 Session update (Cindy Vinyl — dial back tint wipe)
+
+Latest commit: *(pending)* — Softer arm fade; fuller colour disc
+
+Latest local/Pi change:
+- Hard right-half wipe was too aggressive (looked like a left wedge). Now a gentle far-right fade only, slightly softer opacity, smaller centre hole.
+- Hard refresh `?v=45`. Rebuild `vinyl`.
+
+Previous:
+- Screen-space elliptical tint (`ed3694f`).
+
+---
+
 ## 2026-07-29 Session update (Cindy Vinyl — screen-space elliptical tint)
 
 Latest commit: `ed3694f` — Elliptical tint (no rotateX); arm-side wipe; bigger label
