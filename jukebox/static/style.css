@@ -573,6 +573,40 @@ body {
   color: var(--cream);
   border-color: var(--gold-dim);
 }
+.crate-filters {
+  margin: 0.15rem 0 0.55rem;
+}
+.crate-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  max-height: 5.5rem;
+  overflow-y: auto;
+  padding-bottom: 0.2rem;
+}
+.crate-chip {
+  font: inherit;
+  font-size: 0.78rem;
+  color: var(--muted);
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(212, 175, 55, 0.18);
+  padding: 0.18rem 0.5rem;
+  border-radius: 3px;
+  cursor: pointer;
+  max-width: 11rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.crate-chip:hover {
+  color: var(--cream);
+  border-color: var(--gold-dim);
+}
+.crate-chip.active {
+  color: #120e08;
+  background: linear-gradient(180deg, var(--gold-hot), var(--gold));
+  border-color: transparent;
+}
 
 .crate-rail {
   display: flex;
