@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-30 Session update (Cindy Vinyl — fix album drag-drop)
 
-Latest commit: _(pending)_ — Fix deck drop-to-play (DnD + deck photo)
+Latest commit: `0730357` — Fix deck drop-to-play (DnD + deck photo)
 
 Latest local/Pi change:
 - Album drag onto deck was failing: sleeve `<button>`/cover img fought HTML5 DnD; deck photo stole pointer events.
