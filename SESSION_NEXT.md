@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-29 Session update (NAS Mora Kidabah home)
 
-Latest commit: *(pending)* — Mount Mora User Homes/Kidabah for PrintShelf
+Latest commit: `41598eb` — Mount Mora User Homes/Kidabah for PrintShelf
 
 Latest local/Pi change:
 - Mount helper `mount-nas-mora.sh` → `/mnt/nas-mora` (`//192.168.4.77/homes` + `prefixpath=Kidabah`).
