@@ -967,7 +967,10 @@ async function loadCrates(type) {
         : "Pulling sleeves…";
   rail.innerHTML = `<p class='hint'>${hint}</p>`;
   try {
-    const params = new URLSearchParams({ type, size: "48" });
+    const params = new URLSearchParams({
+      type,
+      size: type === "alphabeticalByName" ? "36" : "48",
+    });
     if (type === "alphabeticalByName") params.set("letter", state.crateLetter || "A");
     if (type === "byGenre") {
       if (!state.crateGenre) {

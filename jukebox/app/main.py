@@ -28,6 +28,8 @@ NAVIDROME = os.environ.get("NAVIDROME_URL", "http://127.0.0.1:4533").rstrip("/")
 USER = os.environ.get("JUKEBOX_USER", "jukebox")
 PASSWORD = os.environ.get("JUKEBOX_PASSWORD", "")
 STATIC = Path(__file__).resolve().parent.parent / "static"
+NAVIDROME_DB = os.environ.get("NAVIDROME_DB", "/data/navidrome.db")
+VINYL_DATA = Path(os.environ.get("VINYL_DATA", "/vinyl-data"))
 
 app = FastAPI(title="Cindy Vinyl", docs_url=None, redoc_url=None)
 
@@ -252,17 +254,74 @@ async def _seek_letter_albums(ch: str) -> list[dict[str, Any]]:
     return found
 
 
+def _albums_by_letter_db(ch: str, size: int) -> tuple[list[dict[str, Any]], int] | None:
+    """Instant letter lookup via Navidrome's read-only SQLite (order_album_name)."""
+    import sqlite3
+
+    if not os.path.isfile(NAVIDROME_DB):
+        return None
+    ch = (ch or "A").upper()
+    try:
+        con = sqlite3.connect(f"file:{NAVIDROME_DB}?mode=ro", uri=True, timeout=5.0)
+        con.row_factory = sqlite3.Row
+    except sqlite3.Error:
+        return None
+
+    ord_expr = "lower(COALESCE(NULLIF(order_album_name,''), NULLIF(sort_album_name,''), name))"
+    try:
+        if ch == "#":
+            where = f"COALESCE(missing, 0) = 0 AND substr({ord_expr}, 1, 1) NOT BETWEEN 'a' AND 'z'"
+            params: tuple[Any, ...] = ()
+        else:
+            where = f"COALESCE(missing, 0) = 0 AND {ord_expr} LIKE ?"
+            params = (f"{ch.lower()}%",)
+
+        total = int(
+            con.execute(f"SELECT COUNT(*) FROM album WHERE {where}", params).fetchone()[0]
+        )
+        rows = con.execute(
+            f"""
+            SELECT id, name, album_artist, song_count, max_year,
+                   order_album_name, sort_album_name
+            FROM album
+            WHERE {where}
+            ORDER BY {ord_expr}
+            LIMIT ?
+            """,
+            (*params, int(size)),
+        ).fetchall()
+    except sqlite3.Error:
+        return None
+    finally:
+        con.close()
+
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        aid = r["id"]
+        out.append(
+            {
+                "id": aid,
+                "name": r["name"],
+                "artist": r["album_artist"] or "Various Artists",
+                "coverArt": aid,
+                "songCount": r["song_count"],
+                "year": r["max_year"] or None,
+                "sortName": r["sort_album_name"] or r["order_album_name"] or "",
+            }
+        )
+    return out, total
+
+
 async def _letter_albums_cached(ch: str) -> list[dict[str, Any]]:
+    """API-scan fallback when the Navidrome DB isn't readable."""
     ch = ch.upper()
     now = time.monotonic()
     cached = _letter_cache.get(ch)
     built = _letter_cache_built.get(ch, 0.0)
-    # Don't stick on a failed/empty seek for long.
     ttl = 45.0 if cached is not None and len(cached) == 0 else _LETTER_TTL
     if cached is not None and now - built < ttl:
         return cached
 
-    # Prefer full index when already warm (no A→K scan on the request path).
     if _alpha_index is not None and now - _alpha_built < _ALPHA_TTL:
         matched = [a for L, a in _alpha_index if L == ch]
         _letter_cache[ch] = matched
@@ -285,6 +344,17 @@ async def _letter_albums_cached(ch: str) -> list[dict[str, Any]]:
         _letter_cache[ch] = matched
         _letter_cache_built[ch] = now
         return matched
+
+
+async def _letter_rail(ch: str, size: int) -> tuple[list[dict[str, Any]], int, str]:
+    """Fast path: SQLite letter query. Fallback: cached/seek API scan."""
+    db = await asyncio.to_thread(_albums_by_letter_db, ch, size)
+    if db is not None:
+        albums, total = db
+        return meta.apply_album_list(albums), total, "db"
+
+    matched = await _letter_albums_cached(ch)
+    return matched[:size], len(matched), "seek" if _alpha_index is None else "index"
 
 
 async def _ensure_alpha_index(force: bool = False) -> list[tuple[str, dict[str, Any]]]:
@@ -372,7 +442,7 @@ async def _warm_crate_caches() -> None:
             await _ensure_genre_buckets()
         except Exception:
             pass
-        _schedule_alpha_warm()
+        # Full A–Z API index is optional now (letter chips hit SQLite).
 
     asyncio.create_task(_run())
 
@@ -588,39 +658,14 @@ async def albums(
 ):
     if list_type == "alphabeticalByName" and letter:
         ch = letter.upper()
-        # Seek/cache this letter — do not block on a full A→Z library walk.
-        _schedule_alpha_warm()
-        matched = await _letter_albums_cached(ch)
-        # Collapse in small batches off the event loop until the rail is full.
-        out: list[dict[str, Any]] = []
-        seen_ids: set[str] = set()
-        i = 0
-        batch_n = max(48, size * 3)
-
-        def _collapse_batch(batch: list[dict[str, Any]]) -> list[dict[str, Any]]:
-            return meta.apply_album_list(collapse_album_list(batch))
-
-        while len(out) < size and i < len(matched):
-            batch = matched[i : i + batch_n]
-            i += batch_n
-            collapsed = await asyncio.to_thread(_collapse_batch, batch)
-            for a in collapsed:
-                if _album_index_letter(a) != ch:
-                    continue
-                aid = str(a.get("id") or "")
-                if not aid or aid in seen_ids:
-                    continue
-                seen_ids.add(aid)
-                out.append(a)
-                if len(out) >= size:
-                    break
+        albums, total, mode = await _letter_rail(ch, size)
         return {
-            "albums": out[:size],
+            "albums": albums,
             "type": list_type,
             "letter": letter,
             "genre": genre,
-            "total": len(matched),
-            "mode": "seek" if _alpha_index is None else "index",
+            "total": total,
+            "mode": mode,
         }
 
     if list_type == "byGenre":

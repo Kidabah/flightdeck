@@ -6,18 +6,17 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
-## 2026-07-30 Session update (Cindy Vinyl — A–Z seek to letter)
+## 2026-07-30 Session update (Cindy Vinyl — instant A–Z via SQLite)
 
-Latest commit: `f4711a4` — Seek to letter K instead of scanning A→K
+Latest commit: _(pending)_ — A–Z letter chips query Navidrome DB directly
 
 Latest local/Pi change:
-- Letter clicks no longer wait on a full A→Z index walk.
-- Binary-seek Navidrome alphabetical offset for that letter (+ short punctuation head scan); per-letter cache; full index still warms in background.
-- Seek uses article-stripped titles (`The…` under the next word) so it matches Navidrome order.
-- Rebuild `vinyl`.
+- Letter crates no longer page/seek the Subsonic API or collapse folder packs on the rail.
+- `order_album_name LIKE 'k%'` against `/data/navidrome.db` — should feel near-instant.
+- Hard refresh `?v=57`. Rebuild `vinyl`.
 
 Previous:
-- 4s audio cue delay (`9a0dea7`).
+- A–Z seek (`f4711a4`).
 
 ---
 
