@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-30 Session update (Cindy Vinyl — Windows folder drop play)
 
-Latest commit: `(pending)` — Play dropped Windows folders locally
+Latest commit: `32a3747` — Play dropped Windows folders locally
 
 Latest local/Pi change:
 - Chris was dropping Explorer folders (status showed the old “can’t drop” line).
