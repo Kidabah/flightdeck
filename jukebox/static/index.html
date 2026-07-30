@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=66">
+  <link rel="stylesheet" href="/static/style.css?v=67">
 </head>
 <body>
   <div class="lamp" aria-hidden="true"></div>
@@ -77,6 +77,8 @@
                 <button type="button" class="ghost-btn" id="playPauseBtn" disabled>Play</button>
               </div>
               <p class="hint" id="statusLine">Warming up the tubes…</p>
+              <p class="now-track">Now playing: <span id="nowTrackTitle">—</span></p>
+              <p class="next-track">Next: <span id="nextTrackTitle">—</span></p>
             </div>
           </div>
         </section>
@@ -85,10 +87,21 @@
           <div class="track-panel-head">
             <h2>Tracks</h2>
             <span class="track-count" id="trackCount">—</span>
+            <button type="button" class="ghost-btn tiny" id="ampToggleBtn">Amp</button>
           </div>
           <ol id="queueList" class="track-list">
             <li class="track-empty">Spin a sleeve and the sides show up here.</li>
           </ol>
+          <div class="amp-panel" id="ampPanel" hidden>
+            <div class="vu-meters">
+              <div class="vu-meter" id="vuMeterL"></div>
+              <div class="vu-meter" id="vuMeterR"></div>
+            </div>
+            <div class="amp-eq" id="ampEq"></div>
+            <div class="amp-fader">
+              <input type="range" id="volume" min="0" max="100" value="85" aria-label="Volume">
+            </div>
+          </div>
         </aside>
       </div>
 
@@ -152,7 +165,6 @@
       <button type="button" id="deckPlay" aria-label="Play/Pause">▶</button>
       <button type="button" id="nextBtn" aria-label="Next">⏭</button>
       <button type="button" id="muteBtn" aria-label="Mute" title="Mute (M)">🔊</button>
-      <input type="range" id="volume" min="0" max="100" value="85" aria-label="Volume">
     </div>
   </footer>
 
@@ -214,6 +226,6 @@
     </div>
   </div>
 
-  <script src="/static/app.js?v=63"></script>
+  <script src="/static/app.js?v=67"></script>
 </body>
 </html>

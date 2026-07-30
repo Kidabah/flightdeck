@@ -272,9 +272,12 @@ body {
 .track-panel-head {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 0.75rem;
   margin-bottom: 0.55rem;
+}
+.track-panel-head .track-count {
+  margin-left: auto;
 }
 .track-panel-head h2 {
   font-family: var(--font-display);
@@ -341,6 +344,85 @@ body {
   padding: 0.65rem 0.25rem;
   border-bottom: 1px solid rgba(212, 175, 55, 0.18);
 }
+
+/* Amp panel: VU meters, mini EQ, volume fader -- shares the tracklist's space. */
+.amp-panel {
+  display: flex;
+  align-items: stretch;
+  gap: 1rem;
+  height: 100%;
+  min-height: 12rem;
+  padding: 0.5rem 0.25rem;
+}
+.amp-panel[hidden] { display: none; }
+.vu-meters {
+  display: flex;
+  gap: 0.5rem;
+}
+.vu-meter {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 2px;
+  width: 1.1rem;
+  padding: 0.35rem 0.3rem;
+  background: linear-gradient(180deg, #1c1710, #0d0a07);
+  border: 1px solid var(--gold-dim);
+  border-radius: 2px;
+}
+.vu-seg {
+  flex: 1;
+  min-height: 4px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.06);
+}
+.vu-seg.lit { background: #6bd66b; }
+.vu-seg:nth-child(n + 9).lit { background: var(--gold); }
+.vu-seg:nth-child(n + 11).lit { background: #e2453c; }
+.amp-eq {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.3rem;
+  padding: 0.5rem 0.5rem 0.35rem;
+  background: linear-gradient(180deg, #1c1710, #0d0a07);
+  border: 1px solid var(--gold-dim);
+  border-radius: 2px;
+  min-width: 0;
+}
+.eq-bar {
+  flex: 1;
+  height: 4%;
+  min-width: 3px;
+  border-radius: 1px;
+  background: linear-gradient(180deg, var(--gold-hot), var(--gold));
+  transition: height 0.08s linear;
+}
+.amp-fader {
+  position: relative;
+  width: 2.4rem;
+  overflow: hidden;
+  background: linear-gradient(180deg, #1c1710, #0d0a07);
+  border: 1px solid var(--gold-dim);
+  border-radius: 2px;
+}
+.amp-fader input[type="range"] {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 120px;
+  transform: translate(-50%, -50%) rotate(-90deg);
+  accent-color: var(--gold);
+}
+
+.now-track, .next-track {
+  margin: 0.15rem 0 0 !important;
+  font-family: var(--font-ui);
+  font-size: 0.85rem !important;
+}
+.now-track span { color: var(--cream); font-weight: 600; }
+.next-track { color: var(--muted) !important; }
+.next-track span { color: var(--muted); }
+
 .hero-main.drop-ready .deck-stage,
 .hero-main.drag-over .deck-stage {
   box-shadow:

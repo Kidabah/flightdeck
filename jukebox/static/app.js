@@ -51,6 +51,115 @@ const state = {
 
 const audio = $("audio");
 
+// --- Amp panel: Web Audio tap for VU meters / mini EQ (visual only, no shaping). ---
+let audioCtx = null;
+let audioAnalyser = null;
+let ampAnimHandle = null;
+
+/** Lazily taps the shared <audio> element. createMediaElementSource can only
+ * be called once ever per element, so this must stay idempotent. */
+function ensureAudioAnalyser() {
+  if (audioAnalyser) {
+    if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
+    return audioAnalyser;
+  }
+  try {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const source = audioCtx.createMediaElementSource(audio);
+    audioAnalyser = audioCtx.createAnalyser();
+    audioAnalyser.fftSize = 256;
+    // Must reconnect to destination or audio goes silent once tapped.
+    source.connect(audioAnalyser);
+    audioAnalyser.connect(audioCtx.destination);
+  } catch {
+    audioAnalyser = null;
+  }
+  return audioAnalyser;
+}
+
+/** Simple RMS level (~0..1) from time-domain data. One shared analyser drives
+ * both VU meters -- not true per-channel stereo, just a visual level. */
+function ampMeterLevel(analyser) {
+  const data = new Uint8Array(analyser.fftSize);
+  analyser.getByteTimeDomainData(data);
+  let sumSquares = 0;
+  for (let i = 0; i < data.length; i++) {
+    const v = (data[i] - 128) / 128;
+    sumSquares += v * v;
+  }
+  return Math.sqrt(sumSquares / data.length);
+}
+
+function setVuMeterLevel(el, level) {
+  if (!el || !el.children.length) return;
+  const segments = el.children.length;
+  const lit = Math.round(Math.min(1, level * 2.2) * segments);
+  Array.from(el.children).forEach((seg, i) => seg.classList.toggle("lit", i < lit));
+}
+
+function updateAmpEqBars(analyser) {
+  const eq = $("ampEq");
+  if (!eq || !eq.children.length) return;
+  const freqData = new Uint8Array(analyser.frequencyBinCount);
+  analyser.getByteFrequencyData(freqData);
+  const bars = eq.children;
+  const bandsPerBar = Math.max(1, Math.floor(freqData.length / bars.length));
+  for (let i = 0; i < bars.length; i++) {
+    let sum = 0;
+    for (let j = 0; j < bandsPerBar; j++) sum += freqData[i * bandsPerBar + j] || 0;
+    const avg = sum / bandsPerBar / 255;
+    bars[i].style.height = `${Math.max(4, avg * 100)}%`;
+  }
+}
+
+function ampAnimFrame() {
+  if (!audioAnalyser) return;
+  const level = ampMeterLevel(audioAnalyser);
+  setVuMeterLevel($("vuMeterL"), level);
+  setVuMeterLevel($("vuMeterR"), level);
+  updateAmpEqBars(audioAnalyser);
+  ampAnimHandle = requestAnimationFrame(ampAnimFrame);
+}
+
+function startAmpAnimation() {
+  if (ampAnimHandle) return;
+  const analyser = ensureAudioAnalyser();
+  if (!analyser) return;
+  ampAnimHandle = requestAnimationFrame(ampAnimFrame);
+}
+
+function stopAmpAnimation() {
+  if (ampAnimHandle) {
+    cancelAnimationFrame(ampAnimHandle);
+    ampAnimHandle = null;
+  }
+  setVuMeterLevel($("vuMeterL"), 0);
+  setVuMeterLevel($("vuMeterR"), 0);
+  const eq = $("ampEq");
+  if (eq) Array.from(eq.children).forEach((bar) => { bar.style.height = "4%"; });
+}
+
+function buildAmpPanelDom() {
+  const segCount = 12;
+  ["vuMeterL", "vuMeterR"].forEach((id) => {
+    const el = $(id);
+    if (!el || el.children.length) return;
+    for (let i = 0; i < segCount; i++) {
+      const seg = document.createElement("span");
+      seg.className = "vu-seg";
+      el.appendChild(seg);
+    }
+  });
+  const eq = $("ampEq");
+  if (eq && !eq.children.length) {
+    for (let i = 0; i < 10; i++) {
+      const bar = document.createElement("span");
+      bar.className = "eq-bar";
+      eq.appendChild(bar);
+    }
+  }
+}
+
 async function api(path, opts = {}) {
   const init = { ...opts };
   if (init.body && typeof init.body === "object" && !(init.body instanceof FormData)) {
@@ -70,6 +179,37 @@ async function api(path, opts = {}) {
 function coverUrl(id, size = 300) {
   if (!id) return "";
   return `/api/cover/${encodeURIComponent(id)}?size=${size}`;
+}
+
+/** Feeds the OS media overlay (title/artist/art + prev/play/pause/next) so it's
+ * not just a bare album-art tile. Guarded: not all browsers support this. */
+function updateMediaSession(song, album) {
+  if (!("mediaSession" in navigator)) return;
+  try {
+    const coverId = song?.coverArt || album?.coverArt;
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: song?.title || "Track",
+      artist: song?.artist || album?.artist || "",
+      album: album?.name || "",
+      artwork: coverId
+        ? [{ src: coverUrl(coverId, 300), sizes: "300x300", type: "image/jpeg" }]
+        : [],
+    });
+  } catch {
+    /* ignore -- cosmetic only */
+  }
+}
+
+function wireMediaSessionActions() {
+  if (!("mediaSession" in navigator)) return;
+  try {
+    navigator.mediaSession.setActionHandler("play", () => togglePlayPause());
+    navigator.mediaSession.setActionHandler("pause", () => togglePlayPause());
+    navigator.mediaSession.setActionHandler("previoustrack", () => playIndex(state.index - 1));
+    navigator.mediaSession.setActionHandler("nexttrack", () => playIndex(state.index + 1));
+  } catch {
+    /* ignore -- cosmetic only */
+  }
 }
 
 function setStatus(msg) {
@@ -1058,10 +1198,13 @@ async function playIndex(i) {
   const song = state.queue[i];
   $("deckTitle").textContent = song.title || "Track";
   $("deckArtist").textContent = song.artist || state.album?.artist || "";
+  $("nowTrackTitle").textContent = song.title || "Track";
+  $("nextTrackTitle").textContent = state.queue[i + 1]?.title || "—";
   if (song.coverArt) setVinylArt(song.coverArt);
   else if (state.album?.coverArt) setVinylArt(state.album.coverArt);
   ensureVinylColorForAlbum(state.album, song);
   prefetchQueueCovers(2);
+  updateMediaSession(song, state.album);
 
   const playGen = ++state.playDelayToken;
   state.awaitingAudio = false;
@@ -1109,10 +1252,12 @@ function setPlaying(on) {
     pauseCueVideo();
     // Keep arm-down video frame, but stop platter spin (`.cueing` also animates).
     stage?.classList.remove("cueing");
+    stopAmpAnimation();
     return;
   }
   setStatus("Needle down.");
   cueInThenHold();
+  startAmpAnimation();
 }
 
 async function spin() {
@@ -1400,6 +1545,15 @@ function wire() {
   applyVolume(saved, { persist: false });
 
   wireDeckDrop();
+  buildAmpPanelDom();
+  wireMediaSessionActions();
+
+  $("ampToggleBtn")?.addEventListener("click", () => {
+    const showingAmp = !$("ampPanel").hidden;
+    $("ampPanel").hidden = showingAmp;
+    $("queueList").hidden = !showingAmp;
+    $("ampToggleBtn").textContent = showingAmp ? "Amp" : "Tracks";
+  });
 
   $("spinBtn").addEventListener("click", () => spin());
   $("playPauseBtn").addEventListener("click", () => togglePlayPause());
