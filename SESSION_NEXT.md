@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-30 Session update (Cindy Vinyl — instant A–Z via SQLite)
 
-Latest commit: _(pending)_ — A–Z letter chips query Navidrome DB directly
+Latest commit: `5d999ae` — A–Z letter chips query Navidrome DB directly
 
 Latest local/Pi change:
 - Letter crates no longer page/seek the Subsonic API or collapse folder packs on the rail.
