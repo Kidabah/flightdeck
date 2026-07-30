@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-30 Session update (Cindy Vinyl — LAN + Windows install)
 
-Latest commit: _(pending)_ — LAN :4541 + Install-CindyVinyl for wife’s PC
+Latest commit: `3081d6f` — LAN :4541 + Install-CindyVinyl for wife’s PC
 
 Latest local/Pi change:
 - Docker also publishes **`:4541`** for home LAN (`http://192.168.4.239:4541`); Tailscale HTTPS `:4540` unchanged.
