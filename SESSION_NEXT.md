@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-30 Session update (Cindy Vinyl — 4s audio cue delay)
 
-Latest commit: _(pending)_ — Delay audio ~4s so tonearm matches needle-down
+Latest commit: `9a0dea7` — Delay audio ~4s so tonearm matches needle-down
 
 Latest local/Pi change:
 - Fresh plays wait `AUDIO_CUE_DELAY_MS` (4000) after cue-in starts before `audio.play()`.
