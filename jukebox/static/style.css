@@ -736,12 +736,19 @@ body.sleeve-dragging .deck-stage.drag-over::after {
 }
 .crate-carousel-letter {
   position: absolute;
-  top: -1.7rem;
-  left: 0;
+  top: 0.6rem;
+  left: 50%;
+  transform: translateX(-50%);
   font-family: var(--font-display);
-  letter-spacing: 0.08em;
-  font-size: 1rem;
-  color: var(--muted);
+  letter-spacing: 0.12em;
+  font-size: 1.6rem;
+  color: var(--gold-hot);
+  background: rgba(10, 9, 11, 0.72);
+  border: 1px solid rgba(212, 175, 55, 0.4);
+  border-radius: 4px;
+  padding: 0.15rem 0.9rem;
+  pointer-events: none;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
 }
 .crate-carousel-rail {
   display: flex;
