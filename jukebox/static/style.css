@@ -624,7 +624,7 @@ body.sleeve-dragging .deck-stage.drag-over::after {
   justify-content: space-between;
   gap: 1rem;
   flex-wrap: wrap;
-  margin: 1rem 0 0.75rem;
+  margin: 0 0 0.5rem;
 }
 .crates-head h2, .search-results h2 {
   font-family: var(--font-display);
@@ -716,19 +716,24 @@ body.sleeve-dragging .deck-stage.drag-over::after {
   position: relative;
   width: 100%;
   max-width: 640px;
-  aspect-ratio: 1026 / 898;
+  /* Cropped ~10% off the top blank/lamp area (was 1026/898) so the crate
+     sits higher in frame, closer to matching the deck photo's top edge. */
+  aspect-ratio: 1026 / 808;
 }
 .crate-carousel-photo {
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
+  object-position: center bottom;
   pointer-events: none;
   user-select: none;
 }
 .crate-carousel-dropzone {
   position: absolute;
-  inset: 20% 16% 49% 17%;
+  /* Recomputed for the 898->808 crop (same crate-interior pixels, now
+     expressed as % of the shorter cropped frame). */
+  inset: 11.1% 16% 54.5% 17%;
   display: flex;
   align-items: flex-end;
   gap: 0.6rem;
@@ -742,7 +747,8 @@ body.sleeve-dragging .deck-stage.drag-over::after {
 }
 .crate-carousel-letter {
   position: absolute;
-  top: 0.6rem;
+  /* On the table below the crate, not up in the blank lamp-lit background. */
+  bottom: 9%;
   left: 50%;
   transform: translateX(-50%);
   font-family: var(--font-display);
