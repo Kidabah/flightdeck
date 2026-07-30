@@ -384,6 +384,7 @@ body {
 }
 .draggable {
   cursor: grab;
+  touch-action: none;
 }
 .draggable.dragging {
   opacity: 0.55;
@@ -391,6 +392,13 @@ body {
 }
 .track-list li.draggable {
   cursor: grab;
+}
+body.sleeve-dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+body.sleeve-dragging .deck-stage.drag-over::after {
+  content: "Drop to play";
 }
 .deck-photo {
   display: block;

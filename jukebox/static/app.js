@@ -630,7 +630,10 @@ function renderQueue() {
   list.innerHTML = parts.join("");
   list.querySelectorAll("li[data-i]").forEach((li) => {
     const i = Number(li.dataset.i);
-    li.addEventListener("click", () => playIndex(i));
+    li.addEventListener("click", () => {
+      if (suppressSleeveClick) return;
+      playIndex(i);
+    });
     bindQueueDrag(li, i);
   });
   list.querySelectorAll("li.track-more").forEach((li) => {
@@ -650,151 +653,75 @@ function escapeHtml(s) {
     .replace(/"/g, "&quot;");
 }
 
-const DND_MIME = "application/x-cindy-vinyl";
-/** Fallback when browsers clear dataTransfer mid-drag (common with images/buttons). */
-let pendingDrag = null;
-let pendingDragClearTimer = 0;
-
-function setDragPayload(dt, payload) {
-  if (pendingDragClearTimer) {
-    clearTimeout(pendingDragClearTimer);
-    pendingDragClearTimer = 0;
-  }
-  pendingDrag = payload;
-  const raw = JSON.stringify(payload);
-  try {
-    dt.setData(DND_MIME, raw);
-  } catch {
-    /* some browsers only allow text/* */
-  }
-  try {
-    dt.setData("text/plain", raw);
-  } catch {
-    /* ignore */
-  }
-  // Some Chromium builds also keep text/uri-list when text/plain is stripped.
-  try {
-    dt.setData("text/uri-list", `cindy-vinyl:${encodeURIComponent(raw)}`);
-  } catch {
-    /* ignore */
-  }
-  dt.effectAllowed = "copyMove";
-}
-
-function clearPendingDragSoon(ms = 400) {
-  if (pendingDragClearTimer) clearTimeout(pendingDragClearTimer);
-  pendingDragClearTimer = setTimeout(() => {
-    pendingDrag = null;
-    pendingDragClearTimer = 0;
-  }, ms);
-}
-
-function readDragPayload(dt) {
-  let raw = "";
-  for (const mime of [DND_MIME, "text/plain", "text/uri-list"]) {
-    try {
-      raw = dt?.getData?.(mime) || "";
-    } catch {
-      raw = "";
-    }
-    if (!raw) continue;
-    if (raw.startsWith("cindy-vinyl:")) {
-      try {
-        raw = decodeURIComponent(raw.slice("cindy-vinyl:".length));
-      } catch {
-        /* keep as-is */
-      }
-    }
-    try {
-      const parsed = JSON.parse(raw);
-      if (parsed?.kind) return parsed;
-    } catch {
-      /* try next mime / pendingDrag */
-    }
-  }
-  return pendingDrag;
-}
+/**
+ * Pointer-based sleeve→deck drag (not HTML5 DnD).
+ * Edge/Chromium app windows often show the ⊘ “can’t drop” cursor for HTML5
+ * drag-and-drop even when we call preventDefault — pointer drag avoids that.
+ */
+let sleeveDrag = null; // { payload, el, x0, y0, started, pointerId }
+let suppressSleeveClick = false;
 
 function markDropTargets(on) {
+  document.body.classList.toggle("sleeve-dragging", on);
   document.querySelectorAll(".deck-stage, .hero-main").forEach((el) => {
     el.classList.toggle("drop-ready", on);
     if (!on) el.classList.remove("drag-over");
   });
 }
 
-function bindAlbumDrag(el, album) {
-  if (!el || !album?.id) return;
-  el.draggable = true;
+function dropZoneUnder(x, y) {
+  const stack = document.elementsFromPoint?.(x, y) || [];
+  for (const node of stack) {
+    if (node?.closest?.("#deckStage, .hero-main")) return true;
+  }
+  const el = document.elementFromPoint(x, y);
+  return !!el?.closest?.("#deckStage, .hero-main");
+}
+
+function bindPointerDrag(el, payload) {
+  if (!el || !payload?.kind) return;
+  el.draggable = false;
   el.classList.add("draggable");
   el.querySelectorAll("img").forEach((img) => {
     img.draggable = false;
   });
-  el.addEventListener("dragstart", (e) => {
-    if (e.target.closest?.(".sleeve-edit")) {
-      e.preventDefault();
-      return;
-    }
-    setDragPayload(e.dataTransfer, { kind: "album", id: String(album.id) });
-    el.classList.add("dragging");
-    markDropTargets(true);
-    setStatus("Drop on the deck to play…");
+  el.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    if (e.target.closest?.(".sleeve-edit")) return;
+    sleeveDrag = {
+      payload,
+      el,
+      x0: e.clientX,
+      y0: e.clientY,
+      started: false,
+      pointerId: e.pointerId,
+    };
   });
-  el.addEventListener("dragend", () => {
-    el.classList.remove("dragging");
-    markDropTargets(false);
-    // dragend can fire before drop — keep payload briefly for the drop handler.
-    clearPendingDragSoon(400);
-  });
+}
+
+function bindAlbumDrag(el, album) {
+  if (!el || !album?.id) return;
+  bindPointerDrag(el, { kind: "album", id: String(album.id) });
 }
 
 function bindSongDrag(el, song) {
   if (!el || !song?.id) return;
-  el.draggable = true;
-  el.classList.add("draggable");
-  el.querySelectorAll("img").forEach((img) => {
-    img.draggable = false;
-  });
-  el.addEventListener("dragstart", (e) => {
-    setDragPayload(e.dataTransfer, {
-      kind: "song",
-      song: {
-        id: song.id,
-        title: song.title,
-        artist: song.artist,
-        album: song.album,
-        albumId: song.albumId,
-        coverArt: song.coverArt,
-      },
-    });
-    el.classList.add("dragging");
-    markDropTargets(true);
-    setStatus("Drop on the deck to play…");
-  });
-  el.addEventListener("dragend", () => {
-    el.classList.remove("dragging");
-    markDropTargets(false);
-    clearPendingDragSoon(400);
+  bindPointerDrag(el, {
+    kind: "song",
+    song: {
+      id: song.id,
+      title: song.title,
+      artist: song.artist,
+      album: song.album,
+      albumId: song.albumId,
+      coverArt: song.coverArt,
+    },
   });
 }
 
 function bindQueueDrag(el, index) {
   if (!el) return;
-  el.draggable = true;
-  el.classList.add("draggable");
-  el.querySelectorAll("img").forEach((img) => {
-    img.draggable = false;
-  });
-  el.addEventListener("dragstart", (e) => {
-    setDragPayload(e.dataTransfer, { kind: "queue", index });
-    el.classList.add("dragging");
-    markDropTargets(true);
-    setStatus("Drop on the deck to play…");
-  });
-  el.addEventListener("dragend", () => {
-    el.classList.remove("dragging");
-    markDropTargets(false);
-    clearPendingDragSoon(400);
-  });
+  bindPointerDrag(el, { kind: "queue", index });
 }
 
 function playSongSolo(song) {
@@ -848,51 +775,76 @@ async function handleDeckDrop(payload) {
 
 function wireDeckDrop() {
   const stage = $("deckStage");
-  const heroMain = document.querySelector(".hero-main");
-  const zones = [stage, heroMain].filter(Boolean);
-  if (!zones.length) return;
 
-  const allowDrop = (e) => {
-    const types = [...(e.dataTransfer?.types || [])];
-    const looksOurs =
-      pendingDrag ||
-      types.includes(DND_MIME) ||
-      types.includes("text/plain") ||
-      types.includes("text/uri-list");
-    if (!looksOurs) return;
-    e.preventDefault();
-    if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
-    stage?.classList.add("drag-over");
-    heroMain?.classList.add("drag-over");
-  };
+  document.addEventListener(
+    "pointermove",
+    (e) => {
+      if (!sleeveDrag || e.pointerId !== sleeveDrag.pointerId) return;
+      const dx = e.clientX - sleeveDrag.x0;
+      const dy = e.clientY - sleeveDrag.y0;
+      if (!sleeveDrag.started) {
+        if (dx * dx + dy * dy < 64) return;
+        sleeveDrag.started = true;
+        sleeveDrag.el.classList.add("dragging");
+        markDropTargets(true);
+        setStatus("Drop on the deck to play…");
+        try {
+          sleeveDrag.el.setPointerCapture(e.pointerId);
+        } catch {
+          /* ignore */
+        }
+      }
+      const onDeck = dropZoneUnder(e.clientX, e.clientY);
+      stage?.classList.toggle("drag-over", onDeck);
+      document.querySelector(".hero-main")?.classList.toggle("drag-over", onDeck);
+    },
+    { passive: true },
+  );
 
-  const onLeave = (zone) => (e) => {
-    if (e.target === zone || !zone.contains(e.relatedTarget)) {
-      zone.classList.remove("drag-over");
-      if (zone !== stage) stage?.classList.remove("drag-over");
-    }
-  };
-
-  const onDrop = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const endPointerDrag = (e) => {
+    if (!sleeveDrag || e.pointerId !== sleeveDrag.pointerId) return;
+    const drag = sleeveDrag;
+    sleeveDrag = null;
+    drag.el.classList.remove("dragging");
     markDropTargets(false);
-    if (pendingDragClearTimer) {
-      clearTimeout(pendingDragClearTimer);
-      pendingDragClearTimer = 0;
+    try {
+      drag.el.releasePointerCapture?.(e.pointerId);
+    } catch {
+      /* ignore */
     }
-    const payload = readDragPayload(e.dataTransfer);
-    pendingDrag = null;
-    handleDeckDrop(payload);
+    if (!drag.started) return;
+    suppressSleeveClick = true;
+    setTimeout(() => {
+      suppressSleeveClick = false;
+    }, 0);
+    if (dropZoneUnder(e.clientX, e.clientY)) {
+      handleDeckDrop(drag.payload);
+    } else {
+      setStatus("Drop on the deck photo to play.");
+    }
   };
 
-  // Capture so child nodes (photo/video/title) can't steal the gesture.
-  for (const zone of zones) {
-    zone.addEventListener("dragenter", allowDrop, true);
-    zone.addEventListener("dragover", allowDrop, true);
-    zone.addEventListener("dragleave", onLeave(zone), true);
-    zone.addEventListener("drop", onDrop, true);
-  }
+  document.addEventListener("pointerup", endPointerDrag, true);
+  document.addEventListener("pointercancel", endPointerDrag, true);
+
+  // If someone drags a Windows folder onto the page, explain (HTML5 Files).
+  const rejectOsFiles = (e) => {
+    const types = e.dataTransfer?.types;
+    let list = [];
+    try {
+      list = types ? Array.from(types) : [];
+    } catch {
+      list = [];
+    }
+    if (!list.includes("Files")) return;
+    e.preventDefault();
+    if (e.type === "drop") {
+      e.stopPropagation();
+      setStatus("Use a sleeve from the crates — Windows folders can’t drop here.");
+    }
+  };
+  document.addEventListener("dragover", rejectOsFiles, true);
+  document.addEventListener("drop", rejectOsFiles, true);
 }
 
 function loadAlbumIntoQueue(album, { autoplay = true } = {}) {
@@ -1024,7 +976,14 @@ function sleeveButton(album) {
       setStatus(String(err.message || err));
     }
   };
-  btn.addEventListener("click", openSleeve);
+  btn.addEventListener("click", (e) => {
+    if (suppressSleeveClick) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    openSleeve();
+  });
   btn.addEventListener("keydown", (e) => {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
@@ -1196,7 +1155,14 @@ async function runSearch(q) {
         <div class="t">${escapeHtml(song.title)}</div>
         <div class="a">${escapeHtml(song.artist || "")}</div>`;
       const play = () => playSongSolo(song);
-      btn.addEventListener("click", play);
+      btn.addEventListener("click", (e) => {
+        if (suppressSleeveClick) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+        play();
+      });
       btn.addEventListener("keydown", (e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
