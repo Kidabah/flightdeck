@@ -46,6 +46,10 @@ _genres_lock = asyncio.Lock()
 _genres_cache: list[dict[str, Any]] | None = None
 _genres_built = 0.0
 _GENRES_TTL = 600.0
+_available_letters_lock = asyncio.Lock()
+_available_letters_cache: list[str] | None = None
+_available_letters_built = 0.0
+_AVAILABLE_LETTERS_TTL = 600.0
 _alpha_warm_task: asyncio.Task | None = None
 
 
@@ -254,6 +258,36 @@ async def _seek_letter_albums(ch: str) -> list[dict[str, Any]]:
     return found
 
 
+_LETTER_ORD_EXPR = "lower(COALESCE(NULLIF(order_album_name,''), NULLIF(sort_album_name,''), name))"
+
+# Canonical bucket order for A–Z chips / carousel paging.
+LETTER_CHARS = [*"ABCDEFGHIJKLMNOPQRSTUVWXYZ", "VA", "#"]
+
+
+def _letter_where(ch: str) -> tuple[str, tuple[Any, ...], str]:
+    """Where-clause + params + order-by for one A–Z/VA/# bucket. Buckets can overlap
+    (a Various Artists album can also match its own name-letter)."""
+    ch = (ch or "A").upper()
+    ord_expr = _LETTER_ORD_EXPR
+    if ch == "VA":
+        where = """
+          COALESCE(missing, 0) = 0 AND (
+            lower(trim(album_artist)) IN (
+              'various artists', 'various artist', 'various',
+              'va', 'v.a.', 'v.a', 'v/a', 'v / a'
+            )
+            OR lower(trim(album_artist)) LIKE 'various artist%'
+            OR compilation = 1
+          )
+        """
+        return where, (), ord_expr
+    if ch == "#":
+        where = f"COALESCE(missing, 0) = 0 AND substr({ord_expr}, 1, 1) NOT BETWEEN 'a' AND 'z'"
+        return where, (), ord_expr
+    where = f"COALESCE(missing, 0) = 0 AND {ord_expr} LIKE ?"
+    return where, (f"{ch.lower()}%",), ord_expr
+
+
 def _albums_by_letter_db(ch: str, size: int) -> tuple[list[dict[str, Any]], int] | None:
     """Instant letter lookup via Navidrome's read-only SQLite (order_album_name)."""
     import sqlite3
@@ -267,30 +301,8 @@ def _albums_by_letter_db(ch: str, size: int) -> tuple[list[dict[str, Any]], int]
     except sqlite3.Error:
         return None
 
-    ord_expr = "lower(COALESCE(NULLIF(order_album_name,''), NULLIF(sort_album_name,''), name))"
     try:
-        if ch == "VA":
-            where = """
-              COALESCE(missing, 0) = 0 AND (
-                lower(trim(album_artist)) IN (
-                  'various artists', 'various artist', 'various',
-                  'va', 'v.a.', 'v.a', 'v/a', 'v / a'
-                )
-                OR lower(trim(album_artist)) LIKE 'various artist%'
-                OR compilation = 1
-              )
-            """
-            params: tuple[Any, ...] = ()
-            order_by = ord_expr
-        elif ch == "#":
-            where = f"COALESCE(missing, 0) = 0 AND substr({ord_expr}, 1, 1) NOT BETWEEN 'a' AND 'z'"
-            params = ()
-            order_by = ord_expr
-        else:
-            where = f"COALESCE(missing, 0) = 0 AND {ord_expr} LIKE ?"
-            params = (f"{ch.lower()}%",)
-            order_by = ord_expr
-
+        where, params, order_by = _letter_where(ch)
         total = int(
             con.execute(f"SELECT COUNT(*) FROM album WHERE {where}", params).fetchone()[0]
         )
@@ -325,6 +337,32 @@ def _albums_by_letter_db(ch: str, size: int) -> tuple[list[dict[str, Any]], int]
             }
         )
     return out, total
+
+
+def _available_letters_db() -> list[str] | None:
+    """Which A–Z/VA/# buckets have at least one album. Buckets can overlap so this
+    is one COUNT(*) per bucket rather than a single GROUP BY."""
+    import sqlite3
+
+    if not os.path.isfile(NAVIDROME_DB):
+        return None
+    try:
+        con = sqlite3.connect(f"file:{NAVIDROME_DB}?mode=ro", uri=True, timeout=5.0)
+    except sqlite3.Error:
+        return None
+    try:
+        out: list[str] = []
+        for ch in LETTER_CHARS:
+            where, params, _ = _letter_where(ch)
+            try:
+                total = int(con.execute(f"SELECT COUNT(*) FROM album WHERE {where}", params).fetchone()[0])
+            except sqlite3.Error:
+                return None
+            if total > 0:
+                out.append(ch)
+        return out
+    finally:
+        con.close()
 
 
 async def _letter_albums_cached(ch: str) -> list[dict[str, Any]]:
@@ -454,11 +492,38 @@ async def _ensure_genre_buckets(force: bool = False) -> list[dict[str, Any]]:
         return _genres_cache
 
 
+async def _ensure_available_letters(force: bool = False) -> list[str]:
+    global _available_letters_cache, _available_letters_built
+    async with _available_letters_lock:
+        now = time.monotonic()
+        if (
+            not force
+            and _available_letters_cache is not None
+            and now - _available_letters_built < _AVAILABLE_LETTERS_TTL
+        ):
+            return _available_letters_cache
+
+        letters = await asyncio.to_thread(_available_letters_db)
+        if letters is None:
+            if _alpha_index is not None:
+                present = {L for L, _ in _alpha_index}
+                letters = [ch for ch in LETTER_CHARS if ch in present]
+            else:
+                letters = list(LETTER_CHARS)
+        _available_letters_cache = letters
+        _available_letters_built = now
+        return letters
+
+
 @app.on_event("startup")
 async def _warm_crate_caches() -> None:
     async def _run() -> None:
         try:
             await _ensure_genre_buckets()
+        except Exception:
+            pass
+        try:
+            await _ensure_available_letters()
         except Exception:
             pass
         # Full A–Z API index is optional now (letter chips hit SQLite).
@@ -712,6 +777,12 @@ async def albums(
 async def genres():
     buckets = await _ensure_genre_buckets()
     return {"genres": buckets, "mode": "canonical"}
+
+
+@app.get("/api/letters")
+async def letters():
+    available = await _ensure_available_letters()
+    return {"letters": available}
 
 
 @app.get("/api/album/{album_id:path}")

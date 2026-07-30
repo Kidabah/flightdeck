@@ -36,6 +36,9 @@ const state = {
   crateGenre: "",
   genresCache: null,
   genreFilterToken: 0,
+  /** Non-empty A–Z/VA/# buckets, fetched once from /api/letters. */
+  crateLettersCache: null,
+  crateLetterIdx: 0,
   volumeBeforeMute: 0.85,
   /** @type {'rest'|'cueing-in'|'hold'|'cueing-out'} */
   arm: "rest",
@@ -1191,7 +1194,7 @@ async function loadCrates(type) {
     b.classList.toggle("active", b.dataset.type === type);
   });
   updateCrateFilters();
-  const rail = $("crateRail");
+  const rail = type === "alphabeticalByName" ? $("crateCarouselRail") : $("crateRail");
   const hint =
     type === "alphabeticalByName"
       ? "Flipping to that letter…"
@@ -1242,40 +1245,58 @@ async function ensureGenres() {
   return state.genresCache;
 }
 
+async function ensureCrateLetters() {
+  if (state.crateLettersCache) return state.crateLettersCache;
+  try {
+    const data = await api("/api/letters");
+    state.crateLettersCache = (data.letters || []).length
+      ? data.letters
+      : [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ", "VA", "#"];
+  } catch {
+    state.crateLettersCache = [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ", "VA", "#"];
+  }
+  return state.crateLettersCache;
+}
+
+function syncCrateCarouselUi() {
+  const list = state.crateLettersCache || [];
+  const idx = list.indexOf(state.crateLetter);
+  state.crateLetterIdx = idx >= 0 ? idx : 0;
+  $("crateCarouselLetter").textContent = state.crateLetter || "";
+  $("crateCarouselPrev").disabled = state.crateLetterIdx <= 0;
+  $("crateCarouselNext").disabled = !list.length || state.crateLetterIdx >= list.length - 1;
+}
+
+function stepCrateLetter(delta) {
+  const list = state.crateLettersCache || [];
+  if (!list.length) return;
+  const next = Math.min(list.length - 1, Math.max(0, state.crateLetterIdx + delta));
+  if (next === state.crateLetterIdx) return;
+  state.crateLetterIdx = next;
+  state.crateLetter = list[next];
+  loadCrates("alphabeticalByName");
+}
+
 function updateCrateFilters() {
   const filters = $("crateFilters");
-  const letters = $("letterRow");
   const genres = $("genreRow");
-  if (!filters || !letters || !genres) return;
+  const carousel = $("crateCarousel");
+  const rail = $("crateRail");
+  if (!filters || !genres || !carousel || !rail) return;
 
   const showLetters = state.crateType === "alphabeticalByName";
   const showGenres = state.crateType === "byGenre";
-  filters.hidden = !(showLetters || showGenres);
-  letters.hidden = !showLetters;
+  filters.hidden = !showGenres;
+  carousel.hidden = !showLetters;
+  rail.hidden = showLetters;
   genres.hidden = !showGenres;
   if (!showGenres) genres.innerHTML = "";
 
-  if (showLetters && !letters.dataset.ready) {
-    const chars = [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ", "VA", "#"];
-    letters.innerHTML = chars
-      .map(
-        (ch) =>
-          `<button type="button" class="crate-chip${ch === state.crateLetter ? " active" : ""}" data-letter="${ch}">${ch}</button>`,
-      )
-      .join("");
-    letters.dataset.ready = "1";
-    letters.addEventListener("click", (e) => {
-      const btn = e.target.closest("[data-letter]");
-      if (!btn) return;
-      state.crateLetter = btn.dataset.letter || "A";
-      letters.querySelectorAll(".crate-chip").forEach((b) => {
-        b.classList.toggle("active", b.dataset.letter === state.crateLetter);
-      });
-      loadCrates("alphabeticalByName");
-    });
-  } else if (showLetters) {
-    letters.querySelectorAll(".crate-chip").forEach((b) => {
-      b.classList.toggle("active", b.dataset.letter === state.crateLetter);
+  if (showLetters) {
+    ensureCrateLetters().then((list) => {
+      if (state.crateType !== "alphabeticalByName") return;
+      if (!list.includes(state.crateLetter)) state.crateLetter = list[0] || "A";
+      syncCrateCarouselUi();
     });
   }
 
@@ -1415,6 +1436,8 @@ function wire() {
   document.querySelectorAll(".crate-tab").forEach((btn) => {
     btn.addEventListener("click", () => loadCrates(btn.dataset.type));
   });
+  $("crateCarouselPrev")?.addEventListener("click", () => stepCrateLetter(-1));
+  $("crateCarouselNext")?.addEventListener("click", () => stepCrateLetter(1));
   $("searchForm").addEventListener("submit", (e) => {
     e.preventDefault();
     runSearch($("searchInput").value);
@@ -1486,6 +1509,25 @@ function wire() {
       case "M":
         e.preventDefault();
         toggleMute();
+        break;
+      case "[":
+        if (state.crateType === "alphabeticalByName") {
+          e.preventDefault();
+          stepCrateLetter(-1);
+        }
+        break;
+      case "]":
+        if (state.crateType === "alphabeticalByName") {
+          e.preventDefault();
+          stepCrateLetter(1);
+        }
+        break;
+      case "d":
+      case "D":
+        if (state.crateType === "alphabeticalByName") {
+          e.preventDefault();
+          $("crateCarouselDropzone")?.classList.toggle("debug-outline");
+        }
         break;
       default:
         break;
