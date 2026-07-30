@@ -102,8 +102,22 @@ async def _nd_get(view: str, extra: dict[str, Any] | None = None) -> dict[str, A
     return sub
 
 
+def _significant_title(album: dict[str, Any]) -> str:
+    """Title key aligned with Navidrome alphabeticalByName (articles ignored)."""
+    name = (
+        album.get("sortName") or album.get("name") or album.get("title") or ""
+    ).strip()
+    name = name.lstrip(" \t\"'`“”‘’.,")
+    upper = name.upper()
+    for prefix in ("THE ", "A ", "AN "):
+        if upper.startswith(prefix):
+            name = name[len(prefix) :].lstrip(" \t\"'`“”‘’.,")
+            break
+    return name
+
+
 def _album_index_letter(album: dict[str, Any]) -> str:
-    name = (album.get("name") or album.get("title") or "").lstrip(" \t\"'`“”‘’")
+    name = _significant_title(album)
     if not name:
         return "#"
     ch = name[0].upper()
@@ -111,8 +125,8 @@ def _album_index_letter(album: dict[str, Any]) -> str:
 
 
 def _raw_sort_rank(album: dict[str, Any]) -> int:
-    """Approximate Navidrome alphabeticalByName order: punctuation/digits before A–Z."""
-    name = album.get("name") or album.get("title") or ""
+    """Rank for seeking in Navidrome alphabeticalByName order."""
+    name = _significant_title(album)
     if not name:
         return 0
     c = name[0].upper()
@@ -129,6 +143,7 @@ def _slim_album(a: dict[str, Any]) -> dict[str, Any]:
         "coverArt": a.get("coverArt"),
         "songCount": a.get("songCount"),
         "year": a.get("year"),
+        "sortName": a.get("sortName"),
     }
 
 
@@ -192,10 +207,10 @@ async def _seek_letter_albums(ch: str) -> list[dict[str, Any]]:
             seen.add(aid)
             found.append(_slim_album(a))
 
-    # Phase 1: punctuation / symbol head — catch "Karaoke…" etc. that sort before A.
+    # Phase 1: punctuation / symbol / digit head.
     offset = 0
-    page_size = 150
-    for _ in range(30):
+    page_size = 200
+    for _ in range(40):
         page = await _fetch_alpha_page(offset, page_size)
         if not page:
             break
@@ -209,19 +224,28 @@ async def _seek_letter_albums(ch: str) -> list[dict[str, Any]]:
     if ch == "#":
         return found
 
-    # Phase 2: binary-seek to the raw letter, then read only that neighbourhood.
+    # Phase 2: binary-seek to the letter using article-stripped rank, then read nearby.
     start = await _bisect_raw_letter(ch)
     offset = start
     target = ord(ch) - ord("A") + 1
-    for _ in range(60):
+    empty_streak = 0
+    for _ in range(80):
         page = await _fetch_alpha_page(offset, page_size)
         if not page:
             break
+        before = len(found)
         consider(page)
+        if len(found) == before:
+            empty_streak += 1
+        else:
+            empty_streak = 0
         last_rank = _raw_sort_rank(page[-1])
         offset += len(page)
         # Past this letter in Navidrome order — stop.
-        if last_rank > target and offset > start + 40:
+        if last_rank > target and offset > start + 100:
+            break
+        # Safety: if ranks went backwards a lot, keep going a bit then stop.
+        if empty_streak >= 8 and last_rank > target:
             break
         if len(page) < page_size:
             break
@@ -232,7 +256,10 @@ async def _letter_albums_cached(ch: str) -> list[dict[str, Any]]:
     ch = ch.upper()
     now = time.monotonic()
     cached = _letter_cache.get(ch)
-    if cached is not None and now - _letter_cache_built.get(ch, 0) < _LETTER_TTL:
+    built = _letter_cache_built.get(ch, 0.0)
+    # Don't stick on a failed/empty seek for long.
+    ttl = 45.0 if cached is not None and len(cached) == 0 else _LETTER_TTL
+    if cached is not None and now - built < ttl:
         return cached
 
     # Prefer full index when already warm (no A→K scan on the request path).
@@ -245,7 +272,9 @@ async def _letter_albums_cached(ch: str) -> list[dict[str, Any]]:
     async with _letter_lock:
         now = time.monotonic()
         cached = _letter_cache.get(ch)
-        if cached is not None and now - _letter_cache_built.get(ch, 0) < _LETTER_TTL:
+        built = _letter_cache_built.get(ch, 0.0)
+        ttl = 45.0 if cached is not None and len(cached) == 0 else _LETTER_TTL
+        if cached is not None and now - built < ttl:
             return cached
         if _alpha_index is not None and now - _alpha_built < _ALPHA_TTL:
             matched = [a for L, a in _alpha_index if L == ch]
