@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=64">
+  <link rel="stylesheet" href="/static/style.css?v=65">
 </head>
 <body>
   <div class="lamp" aria-hidden="true"></div>
@@ -42,84 +42,93 @@
   </header>
 
   <main class="stage" id="stage">
-    <section class="hero" id="hero">
-      <div class="hero-main">
-        <div class="deck-stage" id="deckStage">
-          <img class="deck-photo" src="/static/deck.png" alt="Technics SL-1200 Limited">
-          <video
-            id="deckCue"
-            class="deck-cue"
-            muted
-            playsinline
-            preload="auto"
-            aria-hidden="true"
-            hidden
-          ></video>
-          <!-- Colour wash + spinning album label over the platter (covers video label seam) -->
-          <div class="vinyl-tint" id="vinylTint" aria-hidden="true"></div>
-          <div class="platter-live" id="vinyl" aria-hidden="true">
-            <div class="platter-spin">
-              <div class="label" id="vinylLabel">
-                <img id="vinylArt" alt="" hidden>
-                <span id="vinylFallback">C</span>
+    <div class="rack" id="rack">
+      <div class="rack-col rack-col-deck">
+        <section class="hero" id="hero">
+          <div class="hero-main">
+            <div class="deck-stage" id="deckStage">
+              <img class="deck-photo" src="/static/deck.png" alt="Technics SL-1200 Limited">
+              <video
+                id="deckCue"
+                class="deck-cue"
+                muted
+                playsinline
+                preload="auto"
+                aria-hidden="true"
+                hidden
+              ></video>
+              <!-- Colour wash + spinning album label over the platter (covers video label seam) -->
+              <div class="vinyl-tint" id="vinylTint" aria-hidden="true"></div>
+              <div class="platter-live" id="vinyl" aria-hidden="true">
+                <div class="platter-spin">
+                  <div class="label" id="vinylLabel">
+                    <img id="vinylArt" alt="" hidden>
+                    <span id="vinylFallback">C</span>
+                  </div>
+                </div>
               </div>
             </div>
+            <div class="hero-copy">
+              <p class="deck-tag">Technics SL-1200 Limited</p>
+              <h1 id="nowTitle">Drop the needle</h1>
+              <p id="nowArtist">5.4TB on Cindy — CHECKED · MUSIC · JAMAL</p>
+              <div class="hero-actions">
+                <button type="button" class="spin-btn" id="spinBtn">SPIN</button>
+                <button type="button" class="ghost-btn" id="playPauseBtn" disabled>Play</button>
+              </div>
+              <p class="hint" id="statusLine">Warming up the tubes…</p>
+            </div>
           </div>
-          <!-- Sleeve leaning on the Technics prism (front-right) -->
+        </section>
+
+        <aside class="track-panel" id="queueStrip">
+          <div class="track-panel-head">
+            <h2>Tracks</h2>
+            <span class="track-count" id="trackCount">—</span>
+          </div>
+          <ol id="queueList" class="track-list">
+            <li class="track-empty">Spin a sleeve and the sides show up here.</li>
+          </ol>
+        </aside>
+      </div>
+
+      <div class="rack-col rack-col-crate">
+        <section class="crates" id="cratesSection">
+          <div class="crates-head">
+            <h2>Crates</h2>
+            <div class="crate-tabs" role="tablist">
+              <button type="button" class="crate-tab active" data-type="newest">Fresh sleeves</button>
+              <button type="button" class="crate-tab" data-type="random">Shuffle bin</button>
+              <button type="button" class="crate-tab" data-type="frequent">Often spun</button>
+              <button type="button" class="crate-tab" data-type="alphabeticalByName">A–Z</button>
+              <button type="button" class="crate-tab" data-type="byGenre">Categories</button>
+            </div>
+          </div>
+          <div class="crate-filters" id="crateFilters" hidden>
+            <div class="crate-chip-row" id="genreRow" hidden></div>
+          </div>
+          <div class="crate-carousel" id="crateCarousel" hidden>
+            <button type="button" class="crate-nav prev" id="crateCarouselPrev" aria-label="Previous letter">‹</button>
+            <div class="crate-carousel-frame">
+              <img src="/static/crate-front.png" alt="" class="crate-carousel-photo">
+              <div class="crate-carousel-letter" id="crateCarouselLetter"></div>
+              <div class="crate-carousel-dropzone" id="crateCarouselDropzone">
+                <div class="crate-carousel-rail" id="crateCarouselRail" tabindex="0"></div>
+              </div>
+            </div>
+            <button type="button" class="crate-nav next" id="crateCarouselNext" aria-label="Next letter">›</button>
+          </div>
+          <div class="crate-rail" id="crateRail" tabindex="0"></div>
+        </section>
+
+        <!-- Now-playing cover, sitting under the crate -->
+        <div class="now-cover" id="nowCover">
           <div class="wall-sleeve" id="wallSleeve" hidden aria-hidden="true">
             <img id="wallArt" alt="">
           </div>
         </div>
-        <div class="hero-copy">
-          <p class="deck-tag">Technics SL-1200 Limited</p>
-          <h1 id="nowTitle">Drop the needle</h1>
-          <p id="nowArtist">5.4TB on Cindy — CHECKED · MUSIC · JAMAL</p>
-          <div class="hero-actions">
-            <button type="button" class="spin-btn" id="spinBtn">SPIN</button>
-            <button type="button" class="ghost-btn" id="playPauseBtn" disabled>Play</button>
-          </div>
-          <p class="hint" id="statusLine">Warming up the tubes…</p>
-        </div>
       </div>
-
-      <aside class="track-panel" id="queueStrip">
-        <div class="track-panel-head">
-          <h2>Tracks</h2>
-          <span class="track-count" id="trackCount">—</span>
-        </div>
-        <ol id="queueList" class="track-list">
-          <li class="track-empty">Spin a sleeve and the sides show up here.</li>
-        </ol>
-      </aside>
-    </section>
-
-    <section class="crates" id="cratesSection">
-      <div class="crates-head">
-        <h2>Crates</h2>
-        <div class="crate-tabs" role="tablist">
-          <button type="button" class="crate-tab active" data-type="newest">Fresh sleeves</button>
-          <button type="button" class="crate-tab" data-type="random">Shuffle bin</button>
-          <button type="button" class="crate-tab" data-type="frequent">Often spun</button>
-          <button type="button" class="crate-tab" data-type="alphabeticalByName">A–Z</button>
-          <button type="button" class="crate-tab" data-type="byGenre">Categories</button>
-        </div>
-      </div>
-      <div class="crate-filters" id="crateFilters" hidden>
-        <div class="crate-chip-row" id="genreRow" hidden></div>
-      </div>
-      <div class="crate-carousel" id="crateCarousel" hidden>
-        <button type="button" class="crate-nav prev" id="crateCarouselPrev" aria-label="Previous letter">‹</button>
-        <div class="crate-carousel-frame">
-          <img src="/static/crate-front.png" alt="" class="crate-carousel-photo">
-          <div class="crate-carousel-letter" id="crateCarouselLetter"></div>
-          <div class="crate-carousel-dropzone" id="crateCarouselDropzone">
-            <div class="crate-carousel-rail" id="crateCarouselRail" tabindex="0"></div>
-          </div>
-        </div>
-        <button type="button" class="crate-nav next" id="crateCarouselNext" aria-label="Next letter">›</button>
-      </div>
-      <div class="crate-rail" id="crateRail" tabindex="0"></div>
-    </section>
+    </div>
 
     <section class="search-results" id="searchResults" hidden>
       <h2>Found in the stacks</h2>
