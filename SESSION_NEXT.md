@@ -8,11 +8,12 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-30 Session update (Cindy Vinyl — A–Z seek to letter)
 
-Latest commit: `c05ded0` — Seek to letter K instead of scanning A→K
+Latest commit: `f4711a4` — Seek to letter K instead of scanning A→K
 
 Latest local/Pi change:
 - Letter clicks no longer wait on a full A→Z index walk.
 - Binary-seek Navidrome alphabetical offset for that letter (+ short punctuation head scan); per-letter cache; full index still warms in background.
+- Seek uses article-stripped titles (`The…` under the next word) so it matches Navidrome order.
 - Rebuild `vinyl`.
 
 Previous:
