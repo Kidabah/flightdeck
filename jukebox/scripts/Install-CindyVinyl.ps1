@@ -68,7 +68,7 @@ function New-CindyShortcut {
     if ($Icon -and (Test-Path $Icon)) {
         $sc.IconLocation = $Icon
     }
-    $sc.Description = "Cindy Vinyl — play Cindy's library"
+    $sc.Description = "Cindy Vinyl - play Cindy library"
     $sc.Save()
     Write-Host "Created: $ShortcutPath"
 }
