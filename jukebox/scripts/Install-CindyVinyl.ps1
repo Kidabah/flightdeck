@@ -11,9 +11,24 @@ param(
 $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $StaticDir = Join-Path $ScriptDir "..\static"
-$IconPath = Join-Path $StaticDir "icon-192.png"
+$IconPath = Join-Path $StaticDir "cindy-vinyl.ico"
 if (-not (Test-Path $IconPath)) {
-    $IconPath = Join-Path $StaticDir "cindy-vinyl-icon.svg"
+    $IconPath = Join-Path $StaticDir "icon-192.png"
+}
+if (-not (Test-Path $IconPath)) {
+    # Pull icon from the live Vinyl server when installing from a share.
+    $iconDir = Join-Path $env:LOCALAPPDATA "CindyVinyl"
+    if (-not (Test-Path $iconDir)) {
+        New-Item -ItemType Directory -Path $iconDir -Force | Out-Null
+    }
+    $remoteIco = Join-Path $iconDir "cindy-vinyl.ico"
+    try {
+        $base = ($Url -replace "/$", "")
+        Invoke-WebRequest -Uri "$base/static/cindy-vinyl.ico" -OutFile $remoteIco -UseBasicParsing -TimeoutSec 8
+        $IconPath = $remoteIco
+    } catch {
+        $IconPath = $null
+    }
 }
 
 function Find-BrowserPath {

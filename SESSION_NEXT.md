@@ -6,17 +6,18 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
-## 2026-07-30 Session update (Cindy Vinyl — LAN + Windows install)
+## 2026-07-30 Session update (Cindy Vinyl — icon, VA crate, prism sleeve)
 
-Latest commit: `3081d6f` — LAN :4541 + Install-CindyVinyl for wife’s PC
+Latest commit: _(pending)_ — App icon; VA A–Z chip; prism sleeve cover back (bigger)
 
 Latest local/Pi change:
-- Docker also publishes **`:4541`** for home LAN (`http://192.168.4.239:4541`); Tailscale HTTPS `:4540` unchanged.
-- Windows installer: `jukebox/scripts/Install-CindyVinyl.bat` → Desktop + Start Menu app window.
-- Rebuild `vinyl` (compose ports).
+- `cindy-vinyl.ico` for Windows shortcuts + favicon; installer downloads icon from LAN.
+- A–Z adds **VA** chip (Various Artists / compilation albums via SQLite).
+- Restored leaning prism sleeve cover at ~15.5% width (a bit bigger than before), in front of the glass.
+- Hard refresh `?v=58`. Rebuild `vinyl`. Re-run installer on Maz’s PC for the icon.
 
 Previous:
-- Instant A–Z via SQLite (`5d999ae`).
+- LAN :4541 + Windows install (`e29e1b4` / UNC fix `eecaf3f`).
 
 ---
 

@@ -269,12 +269,27 @@ def _albums_by_letter_db(ch: str, size: int) -> tuple[list[dict[str, Any]], int]
 
     ord_expr = "lower(COALESCE(NULLIF(order_album_name,''), NULLIF(sort_album_name,''), name))"
     try:
-        if ch == "#":
-            where = f"COALESCE(missing, 0) = 0 AND substr({ord_expr}, 1, 1) NOT BETWEEN 'a' AND 'z'"
+        if ch == "VA":
+            where = """
+              COALESCE(missing, 0) = 0 AND (
+                lower(trim(album_artist)) IN (
+                  'various artists', 'various artist', 'various',
+                  'va', 'v.a.', 'v.a', 'v/a', 'v / a'
+                )
+                OR lower(trim(album_artist)) LIKE 'various artist%'
+                OR compilation = 1
+              )
+            """
             params: tuple[Any, ...] = ()
+            order_by = ord_expr
+        elif ch == "#":
+            where = f"COALESCE(missing, 0) = 0 AND substr({ord_expr}, 1, 1) NOT BETWEEN 'a' AND 'z'"
+            params = ()
+            order_by = ord_expr
         else:
             where = f"COALESCE(missing, 0) = 0 AND {ord_expr} LIKE ?"
             params = (f"{ch.lower()}%",)
+            order_by = ord_expr
 
         total = int(
             con.execute(f"SELECT COUNT(*) FROM album WHERE {where}", params).fetchone()[0]
@@ -285,7 +300,7 @@ def _albums_by_letter_db(ch: str, size: int) -> tuple[list[dict[str, Any]], int]
                    order_album_name, sort_album_name
             FROM album
             WHERE {where}
-            ORDER BY {ord_expr}
+            ORDER BY {order_by}
             LIMIT ?
             """,
             (*params, int(size)),
@@ -653,7 +668,7 @@ async def albums(
     list_type: str = Query("newest", alias="type"),
     size: int = Query(40, ge=1, le=200),
     offset: int = Query(0, ge=0),
-    letter: str | None = Query(None, min_length=1, max_length=1),
+    letter: str | None = Query(None, min_length=1, max_length=2),
     genre: str | None = Query(None, min_length=1, max_length=80),
 ):
     if list_type == "alphabeticalByName" and letter:

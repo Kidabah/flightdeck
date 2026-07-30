@@ -520,6 +520,8 @@ function setVinylArt(coverId) {
   const fb = $("vinylFallback");
   const art = $("deckArt");
   const stage = $("deckStage");
+  const wall = $("wallSleeve");
+  const wallImg = $("wallArt");
   if (!coverId) {
     if (img) {
       img.hidden = true;
@@ -527,6 +529,14 @@ function setVinylArt(coverId) {
     }
     if (fb) fb.hidden = false;
     art?.removeAttribute("src");
+    if (wall) {
+      wall.hidden = true;
+      wall.setAttribute("aria-hidden", "true");
+    }
+    if (wallImg) {
+      wallImg.removeAttribute("src");
+      delete wallImg.dataset.coverId;
+    }
     stage?.classList.remove("has-vinyl");
     return;
   }
@@ -538,7 +548,6 @@ function setVinylArt(coverId) {
       img.dataset.coverId = String(coverId);
       img.src = url;
       img.hidden = false;
-      // Warm decode so the next skip feels instant if the browser still has work
       if (typeof img.decode === "function") {
         img.decode().catch(() => {});
       }
@@ -546,6 +555,16 @@ function setVinylArt(coverId) {
   }
   if (fb) fb.hidden = true;
   if (art) art.src = coverUrl(coverId, 120);
+  if (wallImg) {
+    if (wallImg.dataset.coverId !== String(coverId)) {
+      wallImg.dataset.coverId = String(coverId);
+      wallImg.src = coverUrl(coverId, 400);
+    }
+  }
+  if (wall) {
+    wall.hidden = false;
+    wall.setAttribute("aria-hidden", "false");
+  }
   stage?.classList.add("has-vinyl");
 }
 
@@ -1023,7 +1042,7 @@ function updateCrateFilters() {
   if (!showGenres) genres.innerHTML = "";
 
   if (showLetters && !letters.dataset.ready) {
-    const chars = [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ", "#"];
+    const chars = [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ", "VA", "#"];
     letters.innerHTML = chars
       .map(
         (ch) =>
