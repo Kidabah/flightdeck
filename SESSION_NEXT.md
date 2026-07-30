@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-30 Session update (Cindy Vinyl — icon, VA crate, prism sleeve)
 
-Latest commit: _(pending)_ — App icon; VA A–Z chip; prism sleeve cover back (bigger)
+Latest commit: `f499bc5` — App icon; VA A–Z chip; prism sleeve cover back (bigger)
 
 Latest local/Pi change:
 - `cindy-vinyl.ico` for Windows shortcuts + favicon; installer downloads icon from LAN.
