@@ -6339,10 +6339,9 @@ def _git_dirty_entries() -> list[str]:
     raw = _git_text(["status", "--porcelain"], "")
     entries: list[str] = []
     for line in raw.splitlines():
-        line = line.strip()
-        if not line:
+        if not line.strip():
             continue
-        path = line[3:].strip() if len(line) > 3 else line
+        path = line[3:].strip() if len(line) > 3 else line.strip()
         if " -> " in path:
             path = path.split(" -> ", 1)[1].strip()
         entries.append(path.replace("\\", "/"))
