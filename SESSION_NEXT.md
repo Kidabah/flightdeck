@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-30 Session update (Cindy Vinyl — folder-pack drop fix)
 
-Latest commit: `(pending)` — Harden folder-pack drops; collapse A–Z; virtualize track list
+Latest commit: `22e1d8f` — Harden folder-pack drops; collapse A–Z; virtualize track list
 
 Latest local/Pi change:
 - Dropping folder packs was flaky / felt broken: DnD payload race, drop zone only on the photo, and huge packs (100–600 tracks) froze the Tracks panel with cover imgs.
