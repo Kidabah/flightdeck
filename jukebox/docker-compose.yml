@@ -35,8 +35,10 @@ services:
     container_name: cindy-vinyl
     restart: unless-stopped
     ports:
-      # Localhost only — Tailscale serve proxies https://…:4540 → 127.0.0.1:4540
+      # Tailscale serve: https://flightdeck…:4540 → 127.0.0.1:4540
       - "127.0.0.1:4540:4540"
+      # Home LAN (no Tailscale): http://<pi-lan-ip>:4541
+      - "4541:4540"
     environment:
       NAVIDROME_URL: http://navidrome:4533
       NAVIDROME_DB: /data/navidrome.db

@@ -6,17 +6,17 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
-## 2026-07-30 Session update (Cindy Vinyl — instant A–Z via SQLite)
+## 2026-07-30 Session update (Cindy Vinyl — LAN + Windows install)
 
-Latest commit: `5d999ae` — A–Z letter chips query Navidrome DB directly
+Latest commit: _(pending)_ — LAN :4541 + Install-CindyVinyl for wife’s PC
 
 Latest local/Pi change:
-- Letter crates no longer page/seek the Subsonic API or collapse folder packs on the rail.
-- `order_album_name LIKE 'k%'` against `/data/navidrome.db` — should feel near-instant.
-- Hard refresh `?v=57`. Rebuild `vinyl`.
+- Docker also publishes **`:4541`** for home LAN (`http://192.168.4.239:4541`); Tailscale HTTPS `:4540` unchanged.
+- Windows installer: `jukebox/scripts/Install-CindyVinyl.bat` → Desktop + Start Menu app window.
+- Rebuild `vinyl` (compose ports).
 
 Previous:
-- A–Z seek (`f4711a4`).
+- Instant A–Z via SQLite (`5d999ae`).
 
 ---
 

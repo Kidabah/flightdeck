@@ -5,7 +5,7 @@ Vinyl hi-fi web player for the Cindy NAS music library (CHECKED + MUSIC + JAMAL)
 ## Stack
 - CIFS mounts: `/mnt/cindy/{MUSIC,CHECKED,JAMAL}` via `mount-cindy.sh` (**read-only**)
 - **Navidrome** indexes & streams (`:4533`) — local DB only; never writes tags/files on Cindy
-- **cindy-vinyl** FastAPI UI + Subsonic proxy (`:4540`)
+- **cindy-vinyl** FastAPI UI + Subsonic proxy (`:4540` localhost / `:4541` LAN)
 - Pi-local symlink view (`cindy-library-view`) skips Synology `#recycle` — Cindy NAS stays untouched
 - Folder-pack merge in the vinyl proxy: VA weekly drops with per-track tags become one sleeve
 
@@ -21,23 +21,38 @@ cd /home/flightdeck/flightdeck/jukebox
 docker compose up -d --build
 ```
 
-Open over Tailscale: `http://flightdeck.tail7de73e.ts.net:4540` (or Pi Tailscale IP `:4540`).
+### Open the app
+- **Home LAN (no Tailscale):** `http://192.168.4.239:4541`
+- **Tailscale HTTPS:** `https://flightdeck.tail7de73e.ts.net:4540`
 
 First Navidrome scan of ~5.4TB takes hours; the UI fills as albums appear.
 
-## Install as an app (PWA, same as PrintShelf / Flightdeck)
+## Windows install (wife / home PCs)
 
-Chrome/Edge need **HTTPS** to Install. On the Pi (once):
+On the PC (same Wi‑Fi/LAN as the Pi), double‑click:
+
+`jukebox/scripts/Install-CindyVinyl.bat`
+
+That puts **Cindy Vinyl** on the Desktop and Start Menu (Edge/Chrome app window → LAN URL).
+
+Or from PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File jukebox\scripts\Install-CindyVinyl.ps1
+```
+
+Away from home (Tailscale on that PC):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File jukebox\scripts\Install-CindyVinyl.ps1 -Url "https://flightdeck.tail7de73e.ts.net:4540"
+```
+
+## Install as a PWA (Tailscale HTTPS only)
+
+Chrome/Edge need **HTTPS** to use Install app. On the Pi (once):
 
 ```bash
 sudo tailscale serve --bg --https=4540 http://127.0.0.1:4540
 ```
 
-Then open `https://flightdeck.tail7de73e.ts.net:4540` → menu → **Install Cindy Vinyl** (or Install app).
-
-Optional Windows desktop shortcut (app window, no browser chrome):
-
-```powershell
-powershell -ExecutionPolicy Bypass -File jukebox\scripts\create-desktop-shortcut.ps1
-```
-
+Then open `https://flightdeck.tail7de73e.ts.net:4540` → menu → **Install Cindy Vinyl**.
