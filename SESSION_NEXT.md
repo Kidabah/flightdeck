@@ -6,6 +6,21 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-30 Session update (Cindy Vinyl — crate-carousel A–Z browse)
+
+Latest commit: `3f8ec8f` — Cindy Vinyl: crate-carousel A-Z browse
+
+Latest local/Pi change:
+- A–Z letter-chip rail replaced with a themed crate carousel: the real "Cindy · Vinyl" crate photo as the frame, sleeves paged per non-empty letter inside its interior opening.
+- `[` / `]` page between letters (not ←/→ — already bound to track skip). New `GET /api/letters` (cached) supplies the non-empty-letter list once, so empty letters are skipped entirely.
+- Sleeve click-to-play and drag-to-deck unchanged (reuses `sleeveButton()`). CSS perspective/tilt on the sleeves is deferred to a follow-up pass.
+- Hard refresh `?v=63`. Rebuild `vinyl` (backend + static change).
+
+Previous:
+- Windows folder drop play (`32a3747`).
+
+---
+
 ## 2026-07-30 Session update (Cindy Vinyl — Windows folder drop play)
 
 Latest commit: `32a3747` — Play dropped Windows folders locally
