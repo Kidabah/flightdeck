@@ -8,6 +8,8 @@ const CUE_OUT = "/static/deck-cue-out.mp4";
  *  The spinning CSS label covers any leftover video-label seam. */
 const HOLD_LOOP_START = 3.55;
 const HOLD_LOOP_END = 4.2;
+/** Wait for the tonearm cue-in before audio so needle-down matches the sound. */
+const AUDIO_CUE_DELAY_MS = 4000;
 const VINYL_COLORS = [
   "#8b1a1a", /* oxblood */
   "#1a3a6e", /* navy */
@@ -38,6 +40,10 @@ const state = {
   /** @type {'rest'|'cueing-in'|'hold'|'cueing-out'} */
   arm: "rest",
   armToken: 0,
+  /** Bumped to cancel a pending delayed audio start. */
+  playDelayToken: 0,
+  /** True while waiting for the arm before audio.play(). */
+  awaitingAudio: false,
 };
 
 const audio = $("audio");
@@ -453,8 +459,26 @@ function toggleMute() {
   }
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function cancelPendingAudio() {
+  state.playDelayToken += 1;
+  state.awaitingAudio = false;
+}
+
 function togglePlayPause() {
   if (!state.queue.length) return;
+  // Abort a cue-in that hasn't started audio yet.
+  if (state.awaitingAudio) {
+    cancelPendingAudio();
+    audio.pause();
+    setPlaying(false);
+    cueOutToRest();
+    setStatus("Paused.");
+    return;
+  }
   if (audio.paused) audio.play().then(() => setPlaying(true)).catch(() => {});
   else {
     audio.pause();
@@ -809,11 +833,35 @@ async function playIndex(i) {
   else if (state.album?.coverArt) setVinylArt(state.album.coverArt);
   ensureVinylColorForAlbum(state.album, song);
   prefetchQueueCovers(2);
+
+  const playGen = ++state.playDelayToken;
+  state.awaitingAudio = false;
   audio.src = `/api/stream/${encodeURIComponent(song.id)}`;
+
+  // Arm already on the record (skip / resume) — start sound immediately.
+  const armReady = state.arm === "hold" || state.arm === "cueing-in";
+  if (!armReady) {
+    state.awaitingAudio = true;
+    cueInThenHold();
+    $("playPauseBtn").disabled = false;
+    $("playPauseBtn").textContent = "Pause";
+    $("deckPlay").textContent = "⏸";
+    setStatus("Needle dropping…");
+    await sleep(AUDIO_CUE_DELAY_MS);
+    if (playGen !== state.playDelayToken) return;
+    state.awaitingAudio = false;
+  }
+
   try {
     await audio.play();
+    if (playGen !== state.playDelayToken) {
+      audio.pause();
+      return;
+    }
     setPlaying(true);
   } catch (err) {
+    if (playGen !== state.playDelayToken) return;
+    state.awaitingAudio = false;
     setStatus(`Playback blocked: ${err.message || err}`);
     setPlaying(false);
   }
@@ -826,14 +874,16 @@ function setPlaying(on) {
   stage?.classList.toggle("playing", on);
   $("playPauseBtn").textContent = on ? "Pause" : "Play";
   $("deckPlay").textContent = on ? "⏸" : "▶";
-  setStatus(on ? "Needle down." : "Paused.");
-  if (on) {
-    cueInThenHold();
-  } else {
+  if (!on) {
+    cancelPendingAudio();
+    setStatus("Paused.");
     pauseCueVideo();
     // Keep arm-down video frame, but stop platter spin (`.cueing` also animates).
     stage?.classList.remove("cueing");
+    return;
   }
+  setStatus("Needle down.");
+  cueInThenHold();
 }
 
 async function spin() {

@@ -6,17 +6,17 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
-## 2026-07-30 Session update (Cindy Vinyl — fix album drag-drop)
+## 2026-07-30 Session update (Cindy Vinyl — 4s audio cue delay)
 
-Latest commit: `0730357` — Fix deck drop-to-play (DnD + deck photo)
+Latest commit: _(pending)_ — Delay audio ~4s so tonearm matches needle-down
 
 Latest local/Pi change:
-- Album drag onto deck was failing: sleeve `<button>`/cover img fought HTML5 DnD; deck photo stole pointer events.
-- Sleeves are role=button divs; pendingDrag fallback; capture-phase drop on `#deckStage`; `pointer-events:none` on deck photo.
-- Hard refresh `?v=55`. Rebuild `vinyl`.
+- Fresh plays wait `AUDIO_CUE_DELAY_MS` (4000) after cue-in starts before `audio.play()`.
+- Skip/resume with arm already down starts immediately. Pause during drop cancels the pending start.
+- Hard refresh `?v=56`. Rebuild `vinyl`.
 
 Previous:
-- A–Z cache / pause spin (`968024c`).
+- Drag-drop fix (`0730357` / `2655e73`).
 
 ---
 
