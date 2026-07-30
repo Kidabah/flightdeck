@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-30 Session update (Cindy Vinyl — pointer drag, no ⊘ cursor)
 
-Latest commit: `(pending)` — Pointer-drag sleeves onto deck (skip HTML5 ⊘)
+Latest commit: `5b33b14` — Pointer-drag sleeves onto deck (skip HTML5 ⊘)
 
 Latest local/Pi change:
 - HTML5 drag showed the Windows ⊘ “can’t drop” cursor in Edge app windows even over the deck.
