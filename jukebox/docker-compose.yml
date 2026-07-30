@@ -8,6 +8,11 @@ services:
       - "4533:4533"
     environment:
       ND_SCANSCHEDULE: "1h"
+      # Reboots race the CIFS mount + library-view rebuild (remount-printshelf-shares.sh)
+      # against this container's own restart: unless-stopped. Scanning immediately on
+      # start can hit dangling symlinks and mark real albums missing (happened 2026-07-30).
+      # The hourly schedule still covers it once the mount/view are actually ready.
+      ND_SCANONSTARTUP: "false"
       ND_LOGLEVEL: info
       ND_SESSIONTIMEOUT: "24h"
       ND_BASEURL: ""
