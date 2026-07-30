@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=67">
+  <link rel="stylesheet" href="/static/style.css?v=68">
 </head>
 <body>
   <div class="lamp" aria-hidden="true"></div>
@@ -92,12 +92,23 @@
           <ol id="queueList" class="track-list">
             <li class="track-empty">Spin a sleeve and the sides show up here.</li>
           </ol>
-          <div class="amp-panel" id="ampPanel" hidden>
-            <div class="vu-meters">
-              <div class="vu-meter" id="vuMeterL"></div>
-              <div class="vu-meter" id="vuMeterR"></div>
+          <div class="eq-rack" id="ampPanel" hidden>
+            <div class="eq-header">
+              <span class="eq-title">Amp</span>
             </div>
-            <div class="amp-eq" id="ampEq"></div>
+            <div class="vu-container">
+              <div class="vu-meter" id="vuMeterL">
+                <div class="vu-scale"></div>
+                <div class="needle" id="vuNeedleL"></div>
+                <span class="vu-label">L</span>
+              </div>
+              <div class="vu-meter" id="vuMeterR">
+                <div class="vu-scale"></div>
+                <div class="needle" id="vuNeedleR"></div>
+                <span class="vu-label">R</span>
+              </div>
+            </div>
+            <div class="eq-sliders" id="ampEq"></div>
             <div class="amp-fader">
               <input type="range" id="volume" min="0" max="100" value="85" aria-label="Volume">
             </div>
@@ -226,6 +237,6 @@
     </div>
   </div>
 
-  <script src="/static/app.js?v=67"></script>
+  <script src="/static/app.js?v=68"></script>
 </body>
 </html>

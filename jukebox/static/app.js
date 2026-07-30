@@ -90,11 +90,15 @@ function ampMeterLevel(analyser) {
   return Math.sqrt(sumSquares / data.length);
 }
 
-function setVuMeterLevel(el, level) {
-  if (!el || !el.children.length) return;
-  const segments = el.children.length;
-  const lit = Math.round(Math.min(1, level * 2.2) * segments);
-  Array.from(el.children).forEach((seg, i) => seg.classList.toggle("lit", i < lit));
+// Needle sweeps -35deg (rest) to +35deg (full signal), matching the CSS rest pose.
+const VU_NEEDLE_REST_DEG = -35;
+const VU_NEEDLE_MAX_DEG = 35;
+
+function setVuNeedleLevel(needleEl, level) {
+  if (!needleEl) return;
+  const clamped = Math.min(1, Math.max(0, level * 2.2));
+  const deg = VU_NEEDLE_REST_DEG + clamped * (VU_NEEDLE_MAX_DEG - VU_NEEDLE_REST_DEG);
+  needleEl.style.transform = `rotate(${deg.toFixed(1)}deg)`;
 }
 
 function updateAmpEqBars(analyser) {
@@ -102,21 +106,21 @@ function updateAmpEqBars(analyser) {
   if (!eq || !eq.children.length) return;
   const freqData = new Uint8Array(analyser.frequencyBinCount);
   analyser.getByteFrequencyData(freqData);
-  const bars = eq.children;
-  const bandsPerBar = Math.max(1, Math.floor(freqData.length / bars.length));
-  for (let i = 0; i < bars.length; i++) {
+  const sliders = eq.querySelectorAll("input[type=range]");
+  const bandsPerSlider = Math.max(1, Math.floor(freqData.length / sliders.length));
+  sliders.forEach((slider, i) => {
     let sum = 0;
-    for (let j = 0; j < bandsPerBar; j++) sum += freqData[i * bandsPerBar + j] || 0;
-    const avg = sum / bandsPerBar / 255;
-    bars[i].style.height = `${Math.max(4, avg * 100)}%`;
-  }
+    for (let j = 0; j < bandsPerSlider; j++) sum += freqData[i * bandsPerSlider + j] || 0;
+    const avg = sum / bandsPerSlider / 255;
+    slider.value = String(Math.round(avg * 100));
+  });
 }
 
 function ampAnimFrame() {
   if (!audioAnalyser) return;
   const level = ampMeterLevel(audioAnalyser);
-  setVuMeterLevel($("vuMeterL"), level);
-  setVuMeterLevel($("vuMeterR"), level);
+  setVuNeedleLevel($("vuNeedleL"), level);
+  setVuNeedleLevel($("vuNeedleR"), level);
   updateAmpEqBars(audioAnalyser);
   ampAnimHandle = requestAnimationFrame(ampAnimFrame);
 }
@@ -133,29 +137,31 @@ function stopAmpAnimation() {
     cancelAnimationFrame(ampAnimHandle);
     ampAnimHandle = null;
   }
-  setVuMeterLevel($("vuMeterL"), 0);
-  setVuMeterLevel($("vuMeterR"), 0);
+  setVuNeedleLevel($("vuNeedleL"), 0);
+  setVuNeedleLevel($("vuNeedleR"), 0);
   const eq = $("ampEq");
-  if (eq) Array.from(eq.children).forEach((bar) => { bar.style.height = "4%"; });
+  if (eq) eq.querySelectorAll("input[type=range]").forEach((s) => { s.value = "0"; });
 }
 
 function buildAmpPanelDom() {
-  const segCount = 12;
-  ["vuMeterL", "vuMeterR"].forEach((id) => {
-    const el = $(id);
-    if (!el || el.children.length) return;
-    for (let i = 0; i < segCount; i++) {
-      const seg = document.createElement("span");
-      seg.className = "vu-seg";
-      el.appendChild(seg);
-    }
-  });
   const eq = $("ampEq");
   if (eq && !eq.children.length) {
-    for (let i = 0; i < 10; i++) {
-      const bar = document.createElement("span");
-      bar.className = "eq-bar";
-      eq.appendChild(bar);
+    const bandHz = ["60", "150", "400", "1k", "2.4k", "6k", "12k"];
+    for (let i = 0; i < bandHz.length; i++) {
+      const band = document.createElement("div");
+      band.className = "band";
+      const input = document.createElement("input");
+      input.type = "range";
+      input.min = "0";
+      input.max = "100";
+      input.value = "0";
+      input.disabled = true;
+      input.setAttribute("aria-hidden", "true");
+      input.tabIndex = -1;
+      const label = document.createElement("span");
+      label.textContent = bandHz[i];
+      band.append(input, label);
+      eq.appendChild(band);
     }
   }
 }
