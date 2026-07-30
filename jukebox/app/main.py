@@ -363,13 +363,17 @@ async def _letter_albums_cached(ch: str) -> list[dict[str, Any]]:
 
 async def _letter_rail(ch: str, size: int) -> tuple[list[dict[str, Any]], int, str]:
     """Fast path: SQLite letter query. Fallback: cached/seek API scan."""
-    db = await asyncio.to_thread(_albums_by_letter_db, ch, size)
+    # Over-fetch before folder-collapse — packs turn many ND albums into one sleeve.
+    fetch_n = min(500, max(size * 10, size))
+    db = await asyncio.to_thread(_albums_by_letter_db, ch, fetch_n)
     if db is not None:
         albums, total = db
-        return meta.apply_album_list(albums), total, "db"
+        collapsed = meta.apply_album_list(collapse_album_list(albums))
+        return collapsed[:size], total, "db"
 
     matched = await _letter_albums_cached(ch)
-    return matched[:size], len(matched), "seek" if _alpha_index is None else "index"
+    collapsed = meta.apply_album_list(collapse_album_list(matched))
+    return collapsed[:size], len(collapsed), "seek" if _alpha_index is None else "index"
 
 
 async def _ensure_alpha_index(force: bool = False) -> list[tuple[str, dict[str, Any]]]:

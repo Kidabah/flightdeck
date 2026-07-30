@@ -315,6 +315,30 @@ body {
   padding: 1rem 0.25rem !important;
 }
 .track-empty:hover { background: transparent !important; }
+.track-art-ph {
+  width: 40px;
+  height: 40px;
+  display: block;
+  background: rgba(212, 175, 55, 0.08);
+  outline: 1px solid var(--gold-dim);
+}
+.track-list li.track-more {
+  display: block;
+  grid-template-columns: none;
+  color: var(--gold);
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  text-align: center;
+  padding: 0.65rem 0.25rem;
+  border-bottom: 1px solid rgba(212, 175, 55, 0.18);
+}
+.hero-main.drop-ready .deck-stage,
+.hero-main.drag-over .deck-stage {
+  box-shadow:
+    0 0 0 2px var(--gold),
+    0 0 36px rgba(212, 175, 55, 0.35),
+    0 24px 60px rgba(0, 0, 0, 0.55);
+}
 
 @media (max-width: 900px) {
   .hero { grid-template-columns: 1fr; }

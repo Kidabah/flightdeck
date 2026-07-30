@@ -590,24 +590,55 @@ function renderQueue() {
     list.innerHTML = `<li class="track-empty">Spin a sleeve and the sides show up here.</li>`;
     return;
   }
-  if (count) count.textContent = `${state.queue.length} side${state.queue.length === 1 ? "" : "s"}`;
-  list.innerHTML = state.queue
-    .map((s, i) => {
-      const active = i === state.index ? "active" : "";
-      const art = coverUrl(s.coverArt || s.id, 80);
-      return `<li class="${active}" data-i="${i}">
-        <img src="${art}" alt="">
+  const n = state.queue.length;
+  if (count) count.textContent = `${n} side${n === 1 ? "" : "s"}`;
+
+  // Folder packs can be 100–600 tracks — don't mount every cover at once.
+  const MAX_DOM = 80;
+  let start = 0;
+  let end = n;
+  if (n > MAX_DOM) {
+    start = Math.max(0, state.index - 24);
+    end = Math.min(n, start + MAX_DOM);
+    start = Math.max(0, end - MAX_DOM);
+  }
+
+  const parts = [];
+  if (start > 0) {
+    parts.push(
+      `<li class="track-more" data-jump="${Math.max(0, start - MAX_DOM)}">↑ ${start} earlier sides…</li>`,
+    );
+  }
+  for (let i = start; i < end; i++) {
+    const s = state.queue[i];
+    const active = i === state.index ? "active" : "";
+    const near = Math.abs(i - state.index) <= 6;
+    const art = near ? coverUrl(s.coverArt || s.id, 80) : "";
+    parts.push(`<li class="${active}" data-i="${i}">
+        ${near ? `<img src="${art}" alt="" loading="lazy">` : `<span class="track-art-ph" aria-hidden="true"></span>`}
         <div>
           <div class="t">${escapeHtml(s.title || "Track")}</div>
           <div class="a">${escapeHtml(s.artist || "")}</div>
         </div>
-      </li>`;
-    })
-    .join("");
+      </li>`);
+  }
+  if (end < n) {
+    parts.push(
+      `<li class="track-more" data-jump="${end}">↓ ${n - end} more sides…</li>`,
+    );
+  }
+  list.innerHTML = parts.join("");
   list.querySelectorAll("li[data-i]").forEach((li) => {
     const i = Number(li.dataset.i);
     li.addEventListener("click", () => playIndex(i));
     bindQueueDrag(li, i);
+  });
+  list.querySelectorAll("li.track-more").forEach((li) => {
+    li.addEventListener("click", () => {
+      state.index = Number(li.dataset.jump) || 0;
+      renderQueue();
+      list.querySelector(`li[data-i="${state.index}"]`)?.scrollIntoView({ block: "nearest" });
+    });
   });
 }
 
@@ -622,8 +653,13 @@ function escapeHtml(s) {
 const DND_MIME = "application/x-cindy-vinyl";
 /** Fallback when browsers clear dataTransfer mid-drag (common with images/buttons). */
 let pendingDrag = null;
+let pendingDragClearTimer = 0;
 
 function setDragPayload(dt, payload) {
+  if (pendingDragClearTimer) {
+    clearTimeout(pendingDragClearTimer);
+    pendingDragClearTimer = 0;
+  }
   pendingDrag = payload;
   const raw = JSON.stringify(payload);
   try {
@@ -636,31 +672,54 @@ function setDragPayload(dt, payload) {
   } catch {
     /* ignore */
   }
+  // Some Chromium builds also keep text/uri-list when text/plain is stripped.
+  try {
+    dt.setData("text/uri-list", `cindy-vinyl:${encodeURIComponent(raw)}`);
+  } catch {
+    /* ignore */
+  }
   dt.effectAllowed = "copyMove";
+}
+
+function clearPendingDragSoon(ms = 400) {
+  if (pendingDragClearTimer) clearTimeout(pendingDragClearTimer);
+  pendingDragClearTimer = setTimeout(() => {
+    pendingDrag = null;
+    pendingDragClearTimer = 0;
+  }, ms);
 }
 
 function readDragPayload(dt) {
   let raw = "";
-  try {
-    raw = dt.getData(DND_MIME) || "";
-  } catch {
-    /* ignore */
-  }
-  if (!raw) {
+  for (const mime of [DND_MIME, "text/plain", "text/uri-list"]) {
     try {
-      raw = dt.getData("text/plain") || "";
+      raw = dt?.getData?.(mime) || "";
     } catch {
-      /* ignore */
+      raw = "";
     }
-  }
-  if (raw) {
+    if (!raw) continue;
+    if (raw.startsWith("cindy-vinyl:")) {
+      try {
+        raw = decodeURIComponent(raw.slice("cindy-vinyl:".length));
+      } catch {
+        /* keep as-is */
+      }
+    }
     try {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      if (parsed?.kind) return parsed;
     } catch {
-      /* fall through */
+      /* try next mime / pendingDrag */
     }
   }
   return pendingDrag;
+}
+
+function markDropTargets(on) {
+  document.querySelectorAll(".deck-stage, .hero-main").forEach((el) => {
+    el.classList.toggle("drop-ready", on);
+    if (!on) el.classList.remove("drag-over");
+  });
 }
 
 function bindAlbumDrag(el, album) {
@@ -675,18 +734,16 @@ function bindAlbumDrag(el, album) {
       e.preventDefault();
       return;
     }
-    setDragPayload(e.dataTransfer, { kind: "album", id: album.id });
+    setDragPayload(e.dataTransfer, { kind: "album", id: String(album.id) });
     el.classList.add("dragging");
-    $("deckStage")?.classList.add("drop-ready");
+    markDropTargets(true);
     setStatus("Drop on the deck to play…");
   });
   el.addEventListener("dragend", () => {
     el.classList.remove("dragging");
-    $("deckStage")?.classList.remove("drop-ready", "drag-over");
-    // Keep pendingDrag until drop handler runs (dragend can fire first).
-    setTimeout(() => {
-      pendingDrag = null;
-    }, 50);
+    markDropTargets(false);
+    // dragend can fire before drop — keep payload briefly for the drop handler.
+    clearPendingDragSoon(400);
   });
 }
 
@@ -710,15 +767,13 @@ function bindSongDrag(el, song) {
       },
     });
     el.classList.add("dragging");
-    $("deckStage")?.classList.add("drop-ready");
+    markDropTargets(true);
     setStatus("Drop on the deck to play…");
   });
   el.addEventListener("dragend", () => {
     el.classList.remove("dragging");
-    $("deckStage")?.classList.remove("drop-ready", "drag-over");
-    setTimeout(() => {
-      pendingDrag = null;
-    }, 50);
+    markDropTargets(false);
+    clearPendingDragSoon(400);
   });
 }
 
@@ -732,15 +787,13 @@ function bindQueueDrag(el, index) {
   el.addEventListener("dragstart", (e) => {
     setDragPayload(e.dataTransfer, { kind: "queue", index });
     el.classList.add("dragging");
-    $("deckStage")?.classList.add("drop-ready");
+    markDropTargets(true);
     setStatus("Drop on the deck to play…");
   });
   el.addEventListener("dragend", () => {
     el.classList.remove("dragging");
-    $("deckStage")?.classList.remove("drop-ready", "drag-over");
-    setTimeout(() => {
-      pendingDrag = null;
-    }, 50);
+    markDropTargets(false);
+    clearPendingDragSoon(400);
   });
 }
 
@@ -763,13 +816,22 @@ function playSongSolo(song) {
 }
 
 async function handleDeckDrop(payload) {
-  if (!payload?.kind) return;
+  if (!payload?.kind) {
+    setStatus("That drop didn’t stick — grab the sleeve again.");
+    return;
+  }
   if (payload.kind === "album" && payload.id) {
-    setStatus("Dropping the sleeve on the platter…");
+    const id = String(payload.id);
+    setStatus(
+      id.startsWith("folder:")
+        ? "Loading the whole folder pack…"
+        : "Dropping the sleeve on the platter…",
+    );
     try {
-      const full = await api(`/api/album/${encodeURIComponent(payload.id)}`);
+      const full = await api(`/api/album/${encodeURIComponent(id)}`);
+      const n = (full.song || []).length;
       loadAlbumIntoQueue(full, { autoplay: true });
-      setStatus("Needle down.");
+      setStatus(n > 40 ? `Packed ${n} sides — needle down.` : "Needle down.");
     } catch (err) {
       setStatus(String(err.message || err).slice(0, 180));
     }
@@ -786,39 +848,51 @@ async function handleDeckDrop(payload) {
 
 function wireDeckDrop() {
   const stage = $("deckStage");
-  if (!stage) return;
+  const heroMain = document.querySelector(".hero-main");
+  const zones = [stage, heroMain].filter(Boolean);
+  if (!zones.length) return;
 
   const allowDrop = (e) => {
-    if (!pendingDrag && !(e.dataTransfer?.types || []).length) return;
+    const types = [...(e.dataTransfer?.types || [])];
+    const looksOurs =
+      pendingDrag ||
+      types.includes(DND_MIME) ||
+      types.includes("text/plain") ||
+      types.includes("text/uri-list");
+    if (!looksOurs) return;
     e.preventDefault();
     if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
-    stage.classList.add("drag-over");
+    stage?.classList.add("drag-over");
+    heroMain?.classList.add("drag-over");
   };
 
-  // Capture so child nodes (photo/video) can't steal the gesture.
-  stage.addEventListener("dragenter", allowDrop, true);
-  stage.addEventListener("dragover", allowDrop, true);
-  stage.addEventListener(
-    "dragleave",
-    (e) => {
-      if (e.target === stage || !stage.contains(e.relatedTarget)) {
-        stage.classList.remove("drag-over");
-      }
-    },
-    true,
-  );
-  stage.addEventListener(
-    "drop",
-    (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      stage.classList.remove("drag-over", "drop-ready");
-      const payload = readDragPayload(e.dataTransfer);
-      pendingDrag = null;
-      handleDeckDrop(payload);
-    },
-    true,
-  );
+  const onLeave = (zone) => (e) => {
+    if (e.target === zone || !zone.contains(e.relatedTarget)) {
+      zone.classList.remove("drag-over");
+      if (zone !== stage) stage?.classList.remove("drag-over");
+    }
+  };
+
+  const onDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    markDropTargets(false);
+    if (pendingDragClearTimer) {
+      clearTimeout(pendingDragClearTimer);
+      pendingDragClearTimer = 0;
+    }
+    const payload = readDragPayload(e.dataTransfer);
+    pendingDrag = null;
+    handleDeckDrop(payload);
+  };
+
+  // Capture so child nodes (photo/video/title) can't steal the gesture.
+  for (const zone of zones) {
+    zone.addEventListener("dragenter", allowDrop, true);
+    zone.addEventListener("dragover", allowDrop, true);
+    zone.addEventListener("dragleave", onLeave(zone), true);
+    zone.addEventListener("drop", onDrop, true);
+  }
 }
 
 function loadAlbumIntoQueue(album, { autoplay = true } = {}) {

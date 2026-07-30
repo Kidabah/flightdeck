@@ -6,6 +6,22 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-30 Session update (Cindy Vinyl — folder-pack drop fix)
+
+Latest commit: `(pending)` — Harden folder-pack drops; collapse A–Z; virtualize track list
+
+Latest local/Pi change:
+- Dropping folder packs was flaky / felt broken: DnD payload race, drop zone only on the photo, and huge packs (100–600 tracks) froze the Tracks panel with cover imgs.
+- Keep drag payload longer; accept drop on whole `.hero-main`; status when drop misses.
+- A–Z / VA letter rail now folder-collapses (over-fetch then merge).
+- Tracks list virtualizes (~80 rows, covers near the needle only).
+- Hard refresh `?v=60`. Rebuild `vinyl` (backend letter collapse).
+
+Previous:
+- Prism sleeve on cupboard (`6685cb5`).
+
+---
+
 ## 2026-07-30 Session update (Cindy Vinyl — icon, VA crate, prism sleeve)
 
 Latest commit: `f499bc5` — App icon; VA A–Z chip; prism sleeve cover back (bigger)
