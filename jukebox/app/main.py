@@ -36,10 +36,15 @@ _alpha_lock = asyncio.Lock()
 _alpha_index: list[tuple[str, dict[str, Any]]] | None = None
 _alpha_built = 0.0
 _ALPHA_TTL = 600.0
+_letter_lock = asyncio.Lock()
+_letter_cache: dict[str, list[dict[str, Any]]] = {}
+_letter_cache_built: dict[str, float] = {}
+_LETTER_TTL = 600.0
 _genres_lock = asyncio.Lock()
 _genres_cache: list[dict[str, Any]] | None = None
 _genres_built = 0.0
 _GENRES_TTL = 600.0
+_alpha_warm_task: asyncio.Task | None = None
 
 
 class AlbumMetaPatch(BaseModel):
@@ -97,9 +102,165 @@ async def _nd_get(view: str, extra: dict[str, Any] | None = None) -> dict[str, A
     return sub
 
 
+def _album_index_letter(album: dict[str, Any]) -> str:
+    name = (album.get("name") or album.get("title") or "").lstrip(" \t\"'`“”‘’")
+    if not name:
+        return "#"
+    ch = name[0].upper()
+    return ch if ch.isalpha() else "#"
+
+
+def _raw_sort_rank(album: dict[str, Any]) -> int:
+    """Approximate Navidrome alphabeticalByName order: punctuation/digits before A–Z."""
+    name = album.get("name") or album.get("title") or ""
+    if not name:
+        return 0
+    c = name[0].upper()
+    if c.isalpha():
+        return ord(c) - ord("A") + 1
+    return 0
+
+
+def _slim_album(a: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": a.get("id"),
+        "name": a.get("name") or a.get("title"),
+        "artist": a.get("artist") or a.get("displayArtist"),
+        "coverArt": a.get("coverArt"),
+        "songCount": a.get("songCount"),
+        "year": a.get("year"),
+    }
+
+
+async def _fetch_alpha_page(offset: int, size: int) -> list[dict[str, Any]]:
+    sub = await _nd_get(
+        "getAlbumList2.view",
+        {
+            "type": "alphabeticalByName",
+            "size": str(size),
+            "offset": str(max(0, offset)),
+        },
+    )
+    raw = (sub.get("albumList2") or {}).get("album") or []
+    if isinstance(raw, dict):
+        raw = [raw]
+    return meta.apply_album_list(raw)
+
+
+async def _bisect_raw_letter(ch: str) -> int:
+    """Lowest offset whose raw sort rank is >= letter (A–Z)."""
+    target = ord(ch.upper()) - ord("A") + 1
+    lo = 0
+    hi = 4096
+    # Grow until we're past the end or past the letter.
+    for _ in range(18):
+        page = await _fetch_alpha_page(hi, 1)
+        if not page:
+            break
+        if _raw_sort_rank(page[0]) >= target:
+            break
+        hi = min(hi * 2, 250_000)
+    while lo < hi:
+        mid = (lo + hi) // 2
+        page = await _fetch_alpha_page(mid, 1)
+        if not page:
+            hi = mid
+            continue
+        if _raw_sort_rank(page[0]) < target:
+            lo = mid + 1
+        else:
+            hi = mid
+    return max(0, lo - 80)
+
+
+async def _seek_letter_albums(ch: str) -> list[dict[str, Any]]:
+    """
+    Jump near the letter in Navidrome's alphabetical stream instead of
+    scanning A → … → K on every click.
+    """
+    ch = ch.upper()
+    found: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    def consider(page: list[dict[str, Any]]) -> None:
+        for a in page:
+            if _album_index_letter(a) != ch:
+                continue
+            aid = str(a.get("id") or "")
+            if not aid or aid in seen:
+                continue
+            seen.add(aid)
+            found.append(_slim_album(a))
+
+    # Phase 1: punctuation / symbol head — catch "Karaoke…" etc. that sort before A.
+    offset = 0
+    page_size = 150
+    for _ in range(30):
+        page = await _fetch_alpha_page(offset, page_size)
+        if not page:
+            break
+        consider(page)
+        offset += len(page)
+        if _raw_sort_rank(page[-1]) >= 1:  # entered A–Z region
+            break
+        if len(page) < page_size:
+            break
+
+    if ch == "#":
+        return found
+
+    # Phase 2: binary-seek to the raw letter, then read only that neighbourhood.
+    start = await _bisect_raw_letter(ch)
+    offset = start
+    target = ord(ch) - ord("A") + 1
+    for _ in range(60):
+        page = await _fetch_alpha_page(offset, page_size)
+        if not page:
+            break
+        consider(page)
+        last_rank = _raw_sort_rank(page[-1])
+        offset += len(page)
+        # Past this letter in Navidrome order — stop.
+        if last_rank > target and offset > start + 40:
+            break
+        if len(page) < page_size:
+            break
+    return found
+
+
+async def _letter_albums_cached(ch: str) -> list[dict[str, Any]]:
+    ch = ch.upper()
+    now = time.monotonic()
+    cached = _letter_cache.get(ch)
+    if cached is not None and now - _letter_cache_built.get(ch, 0) < _LETTER_TTL:
+        return cached
+
+    # Prefer full index when already warm (no A→K scan on the request path).
+    if _alpha_index is not None and now - _alpha_built < _ALPHA_TTL:
+        matched = [a for L, a in _alpha_index if L == ch]
+        _letter_cache[ch] = matched
+        _letter_cache_built[ch] = now
+        return matched
+
+    async with _letter_lock:
+        now = time.monotonic()
+        cached = _letter_cache.get(ch)
+        if cached is not None and now - _letter_cache_built.get(ch, 0) < _LETTER_TTL:
+            return cached
+        if _alpha_index is not None and now - _alpha_built < _ALPHA_TTL:
+            matched = [a for L, a in _alpha_index if L == ch]
+            _letter_cache[ch] = matched
+            _letter_cache_built[ch] = now
+            return matched
+        matched = await _seek_letter_albums(ch)
+        _letter_cache[ch] = matched
+        _letter_cache_built[ch] = now
+        return matched
+
+
 async def _ensure_alpha_index(force: bool = False) -> list[tuple[str, dict[str, Any]]]:
-    """Alphabetical pass without folder-collapse (collapse only the letter slice)."""
-    global _alpha_index, _alpha_built
+    """Background full index — never block letter clicks on this."""
+    global _alpha_index, _alpha_built, _letter_cache, _letter_cache_built
     now = time.monotonic()
     if (
         not force
@@ -119,37 +280,44 @@ async def _ensure_alpha_index(force: bool = False) -> list[tuple[str, dict[str, 
         seen: set[str] = set()
         page_size = 500
         for page in range(200):
-            sub = await _nd_get(
-                "getAlbumList2.view",
-                {
-                    "type": "alphabeticalByName",
-                    "size": str(page_size),
-                    "offset": str(page * page_size),
-                },
-            )
-            raw = (sub.get("albumList2") or {}).get("album") or []
-            if not raw:
+            raw_page = await _fetch_alpha_page(page * page_size, page_size)
+            if not raw_page:
                 break
-            # Skip collapse here — build_folder_album across the whole library is too slow.
-            for a in meta.apply_album_list(raw if isinstance(raw, list) else [raw]):
+            for a in raw_page:
                 aid = str(a.get("id") or "")
                 if not aid or aid in seen:
                     continue
                 seen.add(aid)
-                slim = {
-                    "id": a.get("id"),
-                    "name": a.get("name") or a.get("title"),
-                    "artist": a.get("artist") or a.get("displayArtist"),
-                    "coverArt": a.get("coverArt"),
-                    "songCount": a.get("songCount"),
-                    "year": a.get("year"),
-                }
+                slim = _slim_album(a)
                 out.append((_album_index_letter(slim), slim))
-            if len(raw) < page_size:
+            if len(raw_page) < page_size:
                 break
         _alpha_index = out
         _alpha_built = time.monotonic()
+        # Refresh per-letter caches from the complete index.
+        by_letter: dict[str, list[dict[str, Any]]] = {}
+        for L, a in out:
+            by_letter.setdefault(L, []).append(a)
+        _letter_cache = by_letter
+        ts = _alpha_built
+        _letter_cache_built = {k: ts for k in by_letter}
         return out
+
+
+def _schedule_alpha_warm() -> None:
+    global _alpha_warm_task
+    if _alpha_index is not None and time.monotonic() - _alpha_built < _ALPHA_TTL:
+        return
+    if _alpha_warm_task and not _alpha_warm_task.done():
+        return
+
+    async def _run() -> None:
+        try:
+            await _ensure_alpha_index()
+        except Exception:
+            pass
+
+    _alpha_warm_task = asyncio.create_task(_run())
 
 
 async def _ensure_genre_buckets(force: bool = False) -> list[dict[str, Any]]:
@@ -175,10 +343,7 @@ async def _warm_crate_caches() -> None:
             await _ensure_genre_buckets()
         except Exception:
             pass
-        try:
-            await _ensure_alpha_index()
-        except Exception:
-            pass
+        _schedule_alpha_warm()
 
     asyncio.create_task(_run())
 
@@ -214,14 +379,6 @@ async def random_album():
     albums = meta.apply_album_list(collapse_album_list(albums))
     album = random.choice(albums)
     return await album_detail(album["id"])
-
-
-def _album_index_letter(album: dict[str, Any]) -> str:
-    name = (album.get("name") or album.get("title") or "").lstrip(" \t\"'`“”‘’")
-    if not name:
-        return "#"
-    ch = name[0].upper()
-    return ch if ch.isalpha() else "#"
 
 
 # Broad crate categories — map messy Cindy tags up to these buckets.
@@ -402,8 +559,9 @@ async def albums(
 ):
     if list_type == "alphabeticalByName" and letter:
         ch = letter.upper()
-        index = await _ensure_alpha_index()
-        matched = [a for L, a in index if L == ch]
+        # Seek/cache this letter — do not block on a full A→Z library walk.
+        _schedule_alpha_warm()
+        matched = await _letter_albums_cached(ch)
         # Collapse in small batches off the event loop until the rail is full.
         out: list[dict[str, Any]] = []
         seen_ids: set[str] = set()
@@ -433,6 +591,7 @@ async def albums(
             "letter": letter,
             "genre": genre,
             "total": len(matched),
+            "mode": "seek" if _alpha_index is None else "index",
         }
 
     if list_type == "byGenre":

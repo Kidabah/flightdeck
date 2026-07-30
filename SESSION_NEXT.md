@@ -6,17 +6,17 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
-## 2026-07-30 Session update (Cindy Vinyl — 4s audio cue delay)
+## 2026-07-30 Session update (Cindy Vinyl — A–Z seek to letter)
 
-Latest commit: `9a0dea7` — Delay audio ~4s so tonearm matches needle-down
+Latest commit: _(pending)_ — Seek to letter K instead of scanning A→K
 
 Latest local/Pi change:
-- Fresh plays wait `AUDIO_CUE_DELAY_MS` (4000) after cue-in starts before `audio.play()`.
-- Skip/resume with arm already down starts immediately. Pause during drop cancels the pending start.
-- Hard refresh `?v=56`. Rebuild `vinyl`.
+- Letter clicks no longer wait on a full A→Z index walk.
+- Binary-seek Navidrome alphabetical offset for that letter (+ short punctuation head scan); per-letter cache; full index still warms in background.
+- Rebuild `vinyl`.
 
 Previous:
-- Drag-drop fix (`0730357` / `2655e73`).
+- 4s audio cue delay (`9a0dea7`).
 
 ---
 
