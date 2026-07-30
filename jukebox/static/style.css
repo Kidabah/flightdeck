@@ -276,8 +276,15 @@ body {
 }
 
 .hero-copy {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
   text-align: left;
   padding: 0 0.15rem;
+}
+.hero-copy-text {
+  flex: 1;
+  min-width: 0;
 }
 
 .track-panel {
@@ -674,13 +681,13 @@ body.sleeve-dragging .deck-stage.drag-over::after {
 }
 .deck-stage.has-vinyl .platter-live { opacity: 1; }
 
-/* Now-playing cover, sitting under the crate column */
+/* Now-playing cover, beside the album details in the hero */
 .now-cover {
   display: flex;
-  min-height: 2rem;
+  flex: 0 0 auto;
 }
 .wall-sleeve {
-  width: 180px;
+  width: 96px;
   aspect-ratio: 1;
   border-radius: 2px;
   overflow: hidden;
