@@ -613,9 +613,10 @@ function renderQueue() {
     const s = state.queue[i];
     const active = i === state.index ? "active" : "";
     const near = Math.abs(i - state.index) <= 6;
-    const art = near ? coverUrl(s.coverArt || s.id, 80) : "";
+    const remoteArt = s.coverArt && !String(s.id || "").startsWith("local:");
+    const art = near && remoteArt ? coverUrl(s.coverArt, 80) : "";
     parts.push(`<li class="${active}" data-i="${i}">
-        ${near ? `<img src="${art}" alt="" loading="lazy">` : `<span class="track-art-ph" aria-hidden="true"></span>`}
+        ${art ? `<img src="${art}" alt="" loading="lazy">` : `<span class="track-art-ph" aria-hidden="true"></span>`}
         <div>
           <div class="t">${escapeHtml(s.title || "Track")}</div>
           <div class="a">${escapeHtml(s.artist || "")}</div>
@@ -773,8 +774,160 @@ async function handleDeckDrop(payload) {
   }
 }
 
+const LOCAL_AUDIO_RE = /\.(mp3|flac|m4a|aac|ogg|opus|wav|wma|aiff|aif)$/i;
+
+function transferHasFiles(dt) {
+  try {
+    return Array.from(dt?.types || []).includes("Files");
+  } catch {
+    return false;
+  }
+}
+
+function revokeLocalQueueUrls(songs) {
+  for (const s of songs || []) {
+    if (!s?.localUrl) continue;
+    try {
+      URL.revokeObjectURL(s.localUrl);
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+function readAllDirectoryEntries(dirEntry) {
+  const reader = dirEntry.createReader();
+  return new Promise((resolve, reject) => {
+    const all = [];
+    const pump = () => {
+      reader.readEntries((batch) => {
+        if (!batch.length) {
+          resolve(all);
+          return;
+        }
+        all.push(...batch);
+        pump();
+      }, reject);
+    };
+    pump();
+  });
+}
+
+async function walkFsEntry(entry, pathPrefix = "") {
+  const out = [];
+  if (!entry) return out;
+  if (entry.isFile) {
+    const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
+    if (LOCAL_AUDIO_RE.test(file.name)) {
+      out.push({ file, name: file.name, relativePath: `${pathPrefix}${file.name}` });
+    }
+    return out;
+  }
+  if (entry.isDirectory) {
+    const kids = await readAllDirectoryEntries(entry);
+    const base = `${pathPrefix}${entry.name}/`;
+    for (const kid of kids) {
+      out.push(...(await walkFsEntry(kid, base)));
+    }
+  }
+  return out;
+}
+
+async function collectAudioFromDataTransfer(dt) {
+  const items = [...(dt.items || [])];
+  const found = [];
+  let folderName = "Dropped folder";
+
+  for (const item of items) {
+    if (item.kind !== "file") continue;
+    const entry = item.webkitGetAsEntry?.() || item.getAsEntry?.();
+    if (entry) {
+      if (entry.isDirectory && entry.name) folderName = entry.name;
+      found.push(...(await walkFsEntry(entry, "")));
+      continue;
+    }
+    const file = item.getAsFile?.();
+    if (file && LOCAL_AUDIO_RE.test(file.name)) {
+      found.push({
+        file,
+        name: file.name,
+        relativePath: file.webkitRelativePath || file.name,
+      });
+    }
+  }
+
+  if (!found.length) {
+    for (const file of dt.files || []) {
+      if (!LOCAL_AUDIO_RE.test(file.name)) continue;
+      found.push({
+        file,
+        name: file.name,
+        relativePath: file.webkitRelativePath || file.name,
+      });
+    }
+  }
+
+  found.sort((a, b) =>
+    a.relativePath.localeCompare(b.relativePath, undefined, {
+      numeric: true,
+      sensitivity: "base",
+    }),
+  );
+  return { files: found, folderName };
+}
+
+async function loadLocalFolderDrop(dt) {
+  setStatus("Reading that folder…");
+  try {
+    const { files, folderName } = await collectAudioFromDataTransfer(dt);
+    if (!files.length) {
+      setStatus("No playable audio in that folder (mp3, flac, m4a…).");
+      return;
+    }
+    revokeLocalQueueUrls(state.queue);
+    const songs = files.map((f, i) => {
+      const stem = f.name.replace(/\.[^.]+$/, "");
+      const parts = f.relativePath.replace(/\\/g, "/").split("/").filter(Boolean);
+      const artistGuess = parts.length >= 3 ? parts[parts.length - 3] : "Local folder";
+      return {
+        id: `local:${i}:${f.name}`,
+        title: stem,
+        artist: artistGuess,
+        album: folderName,
+        albumId: `local-folder:${folderName}`,
+        coverArt: null,
+        localUrl: URL.createObjectURL(f.file),
+      };
+    });
+    loadAlbumIntoQueue(
+      {
+        id: `local-folder:${folderName}`,
+        name: folderName,
+        artist: "Local folder",
+        displayArtist: "Local folder",
+        coverArt: null,
+        song: songs,
+        local: true,
+      },
+      { autoplay: true },
+    );
+    const fb = $("vinylFallback");
+    if (fb) {
+      fb.hidden = false;
+      fb.textContent = (folderName || "L").charAt(0).toUpperCase();
+    }
+    $("deckStage")?.classList.add("has-vinyl");
+    setStatus(
+      `${songs.length} local side${songs.length === 1 ? "" : "s"} from “${folderName}”.`,
+    );
+  } catch (err) {
+    setStatus(`Couldn’t read that folder: ${String(err.message || err).slice(0, 140)}`);
+  }
+}
+
 function wireDeckDrop() {
   const stage = $("deckStage");
+  const heroMain = document.querySelector(".hero-main");
 
   document.addEventListener(
     "pointermove",
@@ -796,7 +949,7 @@ function wireDeckDrop() {
       }
       const onDeck = dropZoneUnder(e.clientX, e.clientY);
       stage?.classList.toggle("drag-over", onDeck);
-      document.querySelector(".hero-main")?.classList.toggle("drag-over", onDeck);
+      heroMain?.classList.toggle("drag-over", onDeck);
     },
     { passive: true },
   );
@@ -827,24 +980,43 @@ function wireDeckDrop() {
   document.addEventListener("pointerup", endPointerDrag, true);
   document.addEventListener("pointercancel", endPointerDrag, true);
 
-  // If someone drags a Windows folder onto the page, explain (HTML5 Files).
-  const rejectOsFiles = (e) => {
-    const types = e.dataTransfer?.types;
-    let list = [];
-    try {
-      list = types ? Array.from(types) : [];
-    } catch {
-      list = [];
-    }
-    if (!list.includes("Files")) return;
+  // Windows Explorer folder / file drops → play locally in the browser.
+  const overPlaySurface = (e) =>
+    dropZoneUnder(e.clientX, e.clientY) ||
+    !!e.target?.closest?.("#deckStage, .hero-main, #hero, #stage");
+
+  const allowOsFiles = (e) => {
+    if (!transferHasFiles(e.dataTransfer)) return;
     e.preventDefault();
-    if (e.type === "drop") {
-      e.stopPropagation();
-      setStatus("Use a sleeve from the crates — Windows folders can’t drop here.");
-    }
+    if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+    const onDeck = overPlaySurface(e);
+    stage?.classList.toggle("drag-over", onDeck);
+    heroMain?.classList.toggle("drag-over", onDeck);
+    if (onDeck) markDropTargets(true);
   };
-  document.addEventListener("dragover", rejectOsFiles, true);
-  document.addEventListener("drop", rejectOsFiles, true);
+  const onOsDrop = (e) => {
+    if (!transferHasFiles(e.dataTransfer)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    markDropTargets(false);
+    if (!overPlaySurface(e)) {
+      setStatus("Drop the folder on the deck to play it.");
+      return;
+    }
+    loadLocalFolderDrop(e.dataTransfer);
+  };
+  document.addEventListener("dragenter", allowOsFiles, true);
+  document.addEventListener("dragover", allowOsFiles, true);
+  document.addEventListener("drop", onOsDrop, true);
+  document.addEventListener(
+    "dragleave",
+    (e) => {
+      if (!transferHasFiles(e.dataTransfer)) return;
+      if (e.relatedTarget && document.body.contains(e.relatedTarget)) return;
+      markDropTargets(false);
+    },
+    true,
+  );
 }
 
 function loadAlbumIntoQueue(album, { autoplay = true } = {}) {
@@ -853,6 +1025,7 @@ function loadAlbumIntoQueue(album, { autoplay = true } = {}) {
     setStatus("That sleeve is empty.");
     return;
   }
+  if (!album.local) revokeLocalQueueUrls(state.queue);
   state.album = album;
   state.queue = songs;
   state.index = 0;
@@ -860,6 +1033,14 @@ function loadAlbumIntoQueue(album, { autoplay = true } = {}) {
   $("nowTitle").textContent = album.name || album.title || "Album";
   $("nowArtist").textContent = album.artist || album.displayArtist || "";
   setVinylArt(album.coverArt);
+  if (album.local) {
+    const fb = $("vinylFallback");
+    if (fb) {
+      fb.hidden = false;
+      fb.textContent = (album.name || "L").charAt(0).toUpperCase();
+    }
+    $("deckStage")?.classList.add("has-vinyl");
+  }
   ensureVinylColorForAlbum(album);
   renderQueue();
   prefetchQueueCovers(3);
@@ -881,7 +1062,7 @@ async function playIndex(i) {
 
   const playGen = ++state.playDelayToken;
   state.awaitingAudio = false;
-  audio.src = `/api/stream/${encodeURIComponent(song.id)}`;
+  audio.src = song.localUrl || `/api/stream/${encodeURIComponent(song.id)}`;
 
   // Arm already on the record (skip / resume) — start sound immediately.
   const armReady = state.arm === "hold" || state.arm === "cueing-in";

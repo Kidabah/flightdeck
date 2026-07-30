@@ -6,6 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-30 Session update (Cindy Vinyl — Windows folder drop play)
+
+Latest commit: `(pending)` — Play dropped Windows folders locally
+
+Latest local/Pi change:
+- Chris was dropping Explorer folders (status showed the old “can’t drop” line).
+- Deck now accepts OS folder/file drops: walks mp3/flac/m4a/… and plays via blob URLs.
+- Hard refresh `?v=62`. Rebuild `vinyl`.
+
+Previous:
+- Pointer-drag sleeves (`5b33b14`).
+
+---
+
 ## 2026-07-30 Session update (Cindy Vinyl — pointer drag, no ⊘ cursor)
 
 Latest commit: `5b33b14` — Pointer-drag sleeves onto deck (skip HTML5 ⊘)
@@ -13,7 +27,6 @@ Latest commit: `5b33b14` — Pointer-drag sleeves onto deck (skip HTML5 ⊘)
 Latest local/Pi change:
 - HTML5 drag showed the Windows ⊘ “can’t drop” cursor in Edge app windows even over the deck.
 - Sleeve / track / queue → deck now uses pointer capture drag (no HTML5 DnD).
-- OS folder drops get a clear status: use a crate sleeve.
 - Hard refresh `?v=61`. Rebuild `vinyl`.
 
 Previous:
