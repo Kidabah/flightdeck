@@ -1,15 +1,40 @@
 const $ = (id) => document.getElementById(id);
 
 const VOL_KEY = "cindy-vinyl-volume";
-const CUE_IN = "/static/deck-cue-in.mp4";
-const CUE_OUT = "/static/deck-cue-out.mp4";
-/** After the arm settles on the outer grooves, loop a short window so the arm
- *  stays parked (a full revolution lets it crawl inward, then snap back).
- *  The spinning CSS label covers any leftover video-label seam. */
-const HOLD_LOOP_START = 3.55;
-const HOLD_LOOP_END = 4.2;
-/** Wait for the tonearm cue-in before audio so needle-down matches the sound. */
-const AUDIO_CUE_DELAY_MS = 4000;
+const THEME_KEY = "cindy-vinyl-theme";
+
+/** Deck scene themes. Each clip has its own pacing, so hold-loop window and
+ * audio-cue delay are per-theme, not shared constants. `cueOut: null` means
+ * no lift-off clip exists yet -- cueOutToRest() falls back to a fade. */
+const DECK_THEMES = [
+  {
+    id: "technics-lounge",
+    name: "Technics SL-1200 Limited",
+    restImage: "/static/deck.png",
+    cueIn: "/static/deck-cue-in.mp4",
+    cueOut: "/static/deck-cue-out.mp4",
+    // After the arm settles on the outer grooves, loop a short window so it
+    // stays parked (a full revolution lets it crawl inward, then snap back).
+    holdLoopStart: 3.55,
+    holdLoopEnd: 4.2,
+    // Wait for the tonearm cue-in before audio so needle-down matches the sound.
+    audioCueDelayMs: 4000,
+  },
+  {
+    id: "technics-amp-rack",
+    name: "Technics on the Amp Rack",
+    restImage: "/static/deck-theme2-rest.jpg",
+    cueIn: "/static/deck-theme2-cue-in.mp4",
+    cueOut: null,
+    // This clip settles much faster than the lounge theme's -- estimated from
+    // eyeballing extracted frames, expect a nudge once seen/heard live.
+    holdLoopStart: 8.0,
+    holdLoopEnd: 9.0,
+    audioCueDelayMs: 1800,
+  },
+];
+let currentTheme = DECK_THEMES[0];
+
 const VINYL_COLORS = [
   "#8b1a1a", /* oxblood */
   "#1a3a6e", /* navy */
@@ -311,20 +336,21 @@ function startPlayLoop() {
     holdEl.hidden = true;
   }
 
-  playVideoSrc(v, CUE_IN, token, () => {
+  const theme = currentTheme;
+  playVideoSrc(v, theme.cueIn, token, () => {
     if (token !== state.armToken) return;
     v.ontimeupdate = () => {
       if (token !== state.armToken) return;
       if (state.arm !== "cueing-in" && state.arm !== "hold") return;
       // Seek a hair before the end frame so we never flash a mismatched label phase
-      if (v.currentTime >= HOLD_LOOP_END - 0.02) {
+      if (v.currentTime >= theme.holdLoopEnd - 0.02) {
         state.arm = "hold";
         try {
-          v.currentTime = HOLD_LOOP_START;
+          v.currentTime = theme.holdLoopStart;
         } catch {
           /* ignore */
         }
-      } else if (v.currentTime >= HOLD_LOOP_START && state.arm === "cueing-in") {
+      } else if (v.currentTime >= theme.holdLoopStart && state.arm === "cueing-in") {
         state.arm = "hold";
       }
     };
@@ -332,7 +358,7 @@ function startPlayLoop() {
       if (token !== state.armToken) return;
       state.arm = "hold";
       try {
-        v.currentTime = HOLD_LOOP_START;
+        v.currentTime = theme.holdLoopStart;
       } catch {
         /* ignore */
       }
@@ -365,7 +391,21 @@ function cueOutToRest() {
   state.arm = "cueing-out";
   const token = ++state.armToken;
   stage.classList.add("cueing");
-  playVideoSrc(v, CUE_OUT, token, () => {
+
+  if (!currentTheme.cueOut) {
+    // No lift-off clip for this theme yet -- fade the frozen frame out instead
+    // of trying to play footage that doesn't exist.
+    v.classList.add("fade-out");
+    setTimeout(() => {
+      if (token !== state.armToken) return;
+      state.arm = "rest";
+      v.classList.remove("fade-out");
+      showStaticDeck();
+    }, 400);
+    return;
+  }
+
+  playVideoSrc(v, currentTheme.cueOut, token, () => {
     if (token !== state.armToken) return;
     v.onended = () => {
       if (token !== state.armToken) return;
@@ -382,12 +422,52 @@ function resetArmToRest() {
 }
 
 function preloadCues() {
-  [CUE_IN, CUE_OUT].forEach((src) => {
+  [currentTheme.cueIn, currentTheme.cueOut].filter(Boolean).forEach((src) => {
     const v = document.createElement("video");
     v.muted = true;
     v.preload = "auto";
     v.src = src;
   });
+}
+
+function buildThemeMenuDom() {
+  const section = $("themeMenuSection");
+  if (!section || section.children.length) return;
+  DECK_THEMES.forEach((theme) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.setAttribute("role", "menuitem");
+    btn.dataset.action = "theme";
+    btn.dataset.themeId = theme.id;
+    btn.textContent = theme.name;
+    section.appendChild(btn);
+  });
+  updateThemeMenuHighlight();
+}
+
+function updateThemeMenuHighlight() {
+  document.querySelectorAll("[data-theme-id]").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.themeId === currentTheme.id);
+  });
+}
+
+function applyDeckTheme(themeId, { persist = true } = {}) {
+  const theme = DECK_THEMES.find((t) => t.id === themeId);
+  if (!theme || theme.id === currentTheme.id) return;
+  // Never mix footage from two themes -- always return to a clean rest state first.
+  resetArmToRest();
+  currentTheme = theme;
+  const photo = document.querySelector(".deck-photo");
+  if (photo) photo.src = theme.restImage;
+  preloadCues();
+  updateThemeMenuHighlight();
+  if (persist) {
+    try {
+      localStorage.setItem(THEME_KEY, theme.id);
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 function currentSong() {
@@ -1225,7 +1305,7 @@ async function playIndex(i) {
     $("playPauseBtn").textContent = "Pause";
     $("deckPlay").textContent = "⏸";
     setStatus("Needle dropping…");
-    await sleep(AUDIO_CUE_DELAY_MS);
+    await sleep(currentTheme.audioCueDelayMs);
     if (playGen !== state.playDelayToken) return;
     state.awaitingAudio = false;
   }
@@ -1550,8 +1630,19 @@ function wire() {
   state.volumeBeforeMute = saved || 0.85;
   applyVolume(saved, { persist: false });
 
+  try {
+    const savedTheme = localStorage.getItem(THEME_KEY);
+    if (savedTheme && savedTheme !== currentTheme.id) {
+      applyDeckTheme(savedTheme, { persist: false });
+    }
+  } catch {
+    /* ignore */
+  }
+  updateThemeMenuHighlight();
+
   wireDeckDrop();
   buildAmpPanelDom();
+  buildThemeMenuDom();
   wireMediaSessionActions();
 
   $("ampToggleBtn")?.addEventListener("click", () => {
@@ -1616,6 +1707,7 @@ function wire() {
       fillProperties(state.album);
       openModal("propsModal");
     } else if (action === "refresh") refreshPacks();
+    else if (action === "theme") applyDeckTheme(btn.dataset.themeId);
   });
   document.addEventListener("click", (e) => {
     if (!$("topMenu")?.contains(e.target)) closeMenu();

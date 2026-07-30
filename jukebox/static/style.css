@@ -109,6 +109,21 @@ body {
   background: rgba(212, 175, 55, 0.12);
   color: var(--gold-hot);
 }
+.menu-sep {
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 0.5rem 0.7rem 0.2rem;
+  border-top: 1px solid rgba(212, 175, 55, 0.15);
+  margin-top: 0.2rem;
+}
+.menu-drop button[data-theme-id].active {
+  color: var(--gold-hot);
+}
+.menu-drop button[data-theme-id].active::before {
+  content: "✓ ";
+}
 
 .modal {
   position: fixed;
@@ -587,6 +602,10 @@ body.sleeve-dragging .deck-stage.drag-over::after {
 }
 .deck-cue[hidden] {
   display: none !important;
+}
+.deck-cue.fade-out {
+  opacity: 0;
+  transition: opacity 0.4s ease;
 }
 
 /* Random vinyl colour — elliptical in screen space; soft arm-side fade (not a hard half-wipe) */
