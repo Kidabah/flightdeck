@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-30 Session update (Cindy Vinyl — A–Z seek to letter)
 
-Latest commit: _(pending)_ — Seek to letter K instead of scanning A→K
+Latest commit: `c05ded0` — Seek to letter K instead of scanning A→K
 
 Latest local/Pi change:
 - Letter clicks no longer wait on a full A→Z index walk.
