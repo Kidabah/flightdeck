@@ -375,7 +375,7 @@ function syncThemeChrome() {
   const tag = $("deckTag");
   if (tag) tag.textContent = currentTheme.name;
   const meta = $("themeColorMeta");
-  if (meta) meta.content = room === "light" ? "#e7e0d4" : "#0a090b";
+  if (meta) meta.content = room === "light" ? "#e2e2e6" : "#0a090b";
   updateThemeMenuHighlight();
 }
 
