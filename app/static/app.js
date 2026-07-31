@@ -19777,6 +19777,11 @@ async function _openSlotQuickAssign(printerId, slotIndex, slotLabel, anchorEl = 
   const input = overlay.querySelector('#slot-quick-number');
   const preview = overlay.querySelector('[data-slot-quick-preview]');
   const memoryEl = overlay.querySelector('[data-slot-quick-memory]');
+  // Popover is interactive (autofocus) before the awaits below resolve -- if the
+  // user types a new spool number while those are in flight, don't let the
+  // current-spool prefill further down stomp their typed value back to the old one.
+  let userEdited = false;
+  input.addEventListener('input', () => { userEdited = true; });
   let spools = _allSpools;
   if (!spools?.length) {
     spools = await fetch('/api/spools').then(r => r.json()).catch(() => []);
@@ -19814,7 +19819,7 @@ async function _openSlotQuickAssign(printerId, slotIndex, slotLabel, anchorEl = 
     });
   }
 
-  if (current) input.value = String(_spoolDisplayId(current));
+  if (current && !userEdited) input.value = String(_spoolDisplayId(current));
   renderPreview();
   input.addEventListener('input', renderPreview);
   input.addEventListener('keydown', e => {
