@@ -50,14 +50,12 @@ const DECK_THEMES = [
     labelSize: "19.0%",
     // Final, confirmed live with the nudge tool.
     labelTilt: "73deg",
-    // Colour-tint overlay -- now independent of the label (was previously
-    // derived from it: same position, size = label * 2.5, same tilt).
-    // Starting values kept equal to what was already showing so this
-    // change doesn't itself cause a visual jump; nudge from here with O.
-    tintLeft: "45.0%",
+    // Colour-tint overlay -- independent of the label. Final, confirmed
+    // live with the nudge tool (O).
+    tintLeft: "47.5%",
     tintTop: "19.5%",
     tintSize: "47.5%",
-    tintTilt: "85deg",
+    tintTilt: "63deg",
   },
 ];
 let currentTheme = DECK_THEMES[0];
