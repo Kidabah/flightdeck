@@ -1946,14 +1946,16 @@ function wire() {
 async function boot() {
   wire();
   preloadCues();
-  try {
-    const h = await api("/api/health");
-    if (!h.ok) setStatus(`Navidrome: ${h.error || "not ready"}`);
-    else setStatus("Tubes warm. Hit SPIN · drag a sleeve onto the deck · Space play · ←→ skip");
-  } catch (err) {
-    setStatus("Backend starting — retry in a moment.");
-  }
-  await loadCrates("alphabeticalByName");
+  // Health check and the initial crate load don't depend on each other --
+  // run them in parallel instead of back-to-back so startup isn't paying
+  // for both round trips in sequence.
+  const health = api("/api/health")
+    .then((h) => {
+      if (!h.ok) setStatus(`Navidrome: ${h.error || "not ready"}`);
+      else setStatus("Tubes warm. Hit SPIN · drag a sleeve onto the deck · Space play · ←→ skip");
+    })
+    .catch(() => setStatus("Backend starting — retry in a moment."));
+  await Promise.all([health, loadCrates("alphabeticalByName")]);
 }
 
 if ("serviceWorker" in navigator) {

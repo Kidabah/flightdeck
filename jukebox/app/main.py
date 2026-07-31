@@ -42,6 +42,13 @@ _letter_lock = asyncio.Lock()
 _letter_cache: dict[str, list[dict[str, Any]]] = {}
 _letter_cache_built: dict[str, float] = {}
 _LETTER_TTL = 600.0
+# Fast-path (_letter_rail) result cache -- the DB query itself is quick, but
+# over-fetching ~10x then running collapse_album_list()/apply_album_list()
+# on every single letter switch was the actual slow part. Short TTL since
+# it's just smoothing out repeat/rapid paging, not a source of truth.
+_letter_rail_cache: dict[tuple[str, int], tuple[list[dict[str, Any]], int, str]] = {}
+_letter_rail_cache_built: dict[tuple[str, int], float] = {}
+_LETTER_RAIL_TTL = 120.0
 _genres_lock = asyncio.Lock()
 _genres_cache: list[dict[str, Any]] | None = None
 _genres_built = 0.0
@@ -401,17 +408,30 @@ async def _letter_albums_cached(ch: str) -> list[dict[str, Any]]:
 
 async def _letter_rail(ch: str, size: int) -> tuple[list[dict[str, Any]], int, str]:
     """Fast path: SQLite letter query. Fallback: cached/seek API scan."""
+    cache_key = (ch, size)
+    now = time.monotonic()
+    cached = _letter_rail_cache.get(cache_key)
+    built = _letter_rail_cache_built.get(cache_key, 0.0)
+    if cached is not None and now - built < _LETTER_RAIL_TTL:
+        return cached
+
     # Over-fetch before folder-collapse — packs turn many ND albums into one sleeve.
     fetch_n = min(500, max(size * 10, size))
     db = await asyncio.to_thread(_albums_by_letter_db, ch, fetch_n)
     if db is not None:
         albums, total = db
         collapsed = meta.apply_album_list(collapse_album_list(albums))
-        return collapsed[:size], total, "db"
+        result = (collapsed[:size], total, "db")
+        _letter_rail_cache[cache_key] = result
+        _letter_rail_cache_built[cache_key] = now
+        return result
 
     matched = await _letter_albums_cached(ch)
     collapsed = meta.apply_album_list(collapse_album_list(matched))
-    return collapsed[:size], len(collapsed), "seek" if _alpha_index is None else "index"
+    result = (collapsed[:size], len(collapsed), "seek" if _alpha_index is None else "index")
+    _letter_rail_cache[cache_key] = result
+    _letter_rail_cache_built[cache_key] = now
+    return result
 
 
 async def _ensure_alpha_index(force: bool = False) -> list[tuple[str, dict[str, Any]]]:
