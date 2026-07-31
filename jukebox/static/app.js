@@ -38,10 +38,10 @@ const DECK_THEMES = [
     holdLoopEnd: 9.0,
     audioCueDelayMs: 1800,
     // Position dialed in live with the nudge tool (L + arrows).
-    labelLeft: "45.5%",
-    labelTop: "22.0%",
-    labelSize: "21.0%",
-    labelTilt: "58deg",
+    labelLeft: "45.0%",
+    labelTop: "19.5%",
+    labelSize: "19.0%",
+    labelTilt: "90deg",
   },
 ];
 let currentTheme = DECK_THEMES[0];

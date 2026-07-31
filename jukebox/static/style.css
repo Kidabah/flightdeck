@@ -625,8 +625,15 @@ body.sleeve-dragging .deck-stage.drag-over::after {
   position: absolute;
   left: var(--label-left, 41.6%);
   top: var(--label-top, 55%);
-  width: 33%;
-  height: 20.5%;
+  /* Scaled off the label's own size (width ratio matches theme 1's original
+     33% vs. its 13.2% label) so the tint always tracks the label instead of
+     needing its own separate per-theme tuning. Height via aspect-ratio, not
+     a second calc'd %, since deck-stage isn't square -- a height% derived
+     the same way as the width% would resolve against a shorter dimension
+     and squash the ellipse. */
+  width: calc(var(--label-size, 13.2%) * 2.5);
+  aspect-ratio: 33 / 20.5;
+  height: auto;
   border-radius: 50%;
   transform: translate(-50%, -50%) rotate(-1deg);
   background: var(--vinyl-color, #8b1a1a);
@@ -634,7 +641,10 @@ body.sleeve-dragging .deck-stage.drag-over::after {
   z-index: 6;
   pointer-events: none;
   transition: opacity 0.35s ease, background 0.4s ease;
-  mix-blend-mode: soft-light;
+  /* `color` keeps the record's own light/dark groove detail (luminosity)
+     but replaces its hue/saturation with the tint -- reads as an actual
+     coloured/translucent record instead of a subtle sheen (soft-light). */
+  mix-blend-mode: color;
   /* Small centre hole + gentle fade only on the far-right arm corridor */
   -webkit-mask-image:
     radial-gradient(ellipse at 48% 50%, transparent 0 24%, #000 29%, #000 100%),
