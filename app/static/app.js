@@ -19909,7 +19909,13 @@ function _positionSlotQuickPopover(popover, anchorEl) {
 function _findSpoolByEnteredNumberSync(raw, spools = _allSpools || []) {
   const n = parseInt(String(raw || '').replace(/^#/, '').trim(), 10);
   if (!Number.isFinite(n) || n <= 0) return null;
-  return spools.find(s => !s.archived_at && (Number(s.display_id) === n || Number(s.id) === n)) || null;
+  // display_id is what the user actually types/sees ("spool #103") and is always
+  // populated (backfilled from id for legacy rows, assigned fresh for new ones).
+  // Matching raw internal `id` too was a bug: if some other spool's *internal* id
+  // happens to equal the number typed, it wins over the real display-number match
+  // whenever it sorts earlier in the list -- e.g. typing 103 could resolve to
+  // spool #102 if #102's own row id happens to be 103.
+  return spools.find(s => !s.archived_at && Number(s.display_id) === n) || null;
 }
 
 async function _openSlotEditor(printerId, slotIndex, slotLabel) {
