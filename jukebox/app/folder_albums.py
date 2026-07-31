@@ -124,6 +124,16 @@ def _merge_maps() -> tuple[dict[str, str], dict[str, str]]:
 
 def invalidate_caches() -> None:
     _merge_maps.cache_clear()
+    build_folder_sleeve.cache_clear()
+
+
+def warm_folder_caches() -> dict[str, int]:
+    """Prime merge maps so the first crate dig isn't a full-library scan."""
+    album_to_folder, folder_ids = _merge_maps()
+    return {
+        "mergeable_albums": len(album_to_folder),
+        "folder_packs": len(folder_ids),
+    }
 
 
 def folder_for_album_id(album_id: str) -> str | None:
@@ -136,6 +146,78 @@ def resolve_folder_key(album_id: str) -> str | None:
     if album_id.startswith("folder:"):
         return _merge_maps()[1].get(album_id)
     return folder_for_album_id(album_id)
+
+
+@lru_cache(maxsize=4096)
+def build_folder_sleeve(folder_key: str) -> dict[str, Any] | None:
+    """Slim crate-rail sleeve — aggregates only, no full track list."""
+    con = _connect()
+    if not con:
+        return None
+    try:
+        stats = con.execute(
+            """
+            SELECT COUNT(*) AS n,
+                   COUNT(DISTINCT album_id) AS albums,
+                   COALESCE(SUM(duration), 0) AS dur,
+                   MIN(CASE WHEN year IS NOT NULL AND year > 0 THEN year END) AS year
+            FROM media_file
+            WHERE missing = 0
+              AND path LIKE ? || '/%'
+              AND instr(substr(path, length(?) + 2), '/') = 0
+            """,
+            (folder_key, folder_key),
+        ).fetchone()
+        if not stats or not stats["n"]:
+            return None
+        n = int(stats["n"])
+        albums = int(stats["albums"] or 0)
+        if not should_merge_folder(folder_key, n, albums):
+            return None
+        cover_row = con.execute(
+            """
+            SELECT id FROM media_file
+            WHERE missing = 0
+              AND has_cover_art = 1
+              AND path LIKE ? || '/%'
+              AND instr(substr(path, length(?) + 2), '/') = 0
+            ORDER BY disc_number, track_number, path
+            LIMIT 1
+            """,
+            (folder_key, folder_key),
+        ).fetchone()
+        if cover_row is None:
+            cover_row = con.execute(
+                """
+                SELECT id FROM media_file
+                WHERE missing = 0
+                  AND path LIKE ? || '/%'
+                  AND instr(substr(path, length(?) + 2), '/') = 0
+                ORDER BY disc_number, track_number, path
+                LIMIT 1
+                """,
+                (folder_key, folder_key),
+            ).fetchone()
+        name = nice_folder_name(folder_key)
+        cover = cover_row["id"] if cover_row else None
+        return {
+            "id": folder_album_id(folder_key),
+            "name": name,
+            "title": name,
+            "artist": "Various Artists",
+            "displayArtist": "Various Artists",
+            "albumArtist": "Various Artists",
+            "songCount": n,
+            "duration": float(stats["dur"] or 0),
+            "year": stats["year"],
+            "coverArt": cover,
+            "folderKey": folder_key,
+            "merged": True,
+        }
+    except sqlite3.Error:
+        return None
+    finally:
+        con.close()
 
 
 def build_folder_album(folder_key: str) -> dict[str, Any] | None:
@@ -233,7 +315,8 @@ def collapse_album_list(albums: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if fk in seen_folders:
             continue
         seen_folders.add(fk)
-        merged = build_folder_album(fk)
+        # Crate rails only need a stub — full tracklists belong on album open.
+        merged = build_folder_sleeve(fk)
         if not merged:
             out.append(al)
             continue

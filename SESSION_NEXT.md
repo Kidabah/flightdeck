@@ -6,6 +6,21 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-31 Session update (Cindy Vinyl — fast crates / startup)
+
+Latest commit: `(pending)` — Slim folder stubs + warm A–Z on boot
+
+Latest local/Pi change:
+- Cold A–Z was ~24s: crate collapse was building full tracklists per folder pack on the event loop.
+- Crate rails now use aggregate folder stubs; merge maps + letter A warmed before the app is ready.
+- Letters endpoint uses one GROUP BY; covers reuse the shared httpx client; cue videos preload after first crate paint.
+- Hard refresh `?v=83`. Rebuild `vinyl`.
+
+Previous:
+- Amp-rack theme / crate carousel polish (Claude touch-up series).
+
+---
+
 ## 2026-07-30 Session update (Cindy Vinyl — crate-carousel A–Z browse)
 
 Latest commit: `3f8ec8f` — Cindy Vinyl: crate-carousel A-Z browse

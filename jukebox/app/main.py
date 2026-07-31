@@ -20,6 +20,7 @@ from .folder_albums import (
     collapse_album_list,
     invalidate_caches,
     resolve_folder_key,
+    warm_folder_caches,
 )
 from .locate import locate_song
 from . import meta_overrides as meta
@@ -347,8 +348,7 @@ def _albums_by_letter_db(ch: str, size: int) -> tuple[list[dict[str, Any]], int]
 
 
 def _available_letters_db() -> list[str] | None:
-    """Which A–Z/VA/# buckets have at least one album. Buckets can overlap so this
-    is one COUNT(*) per bucket rather than a single GROUP BY."""
+    """Which A–Z/VA/# buckets have at least one album."""
     import sqlite3
 
     if not os.path.isfile(NAVIDROME_DB):
@@ -358,16 +358,35 @@ def _available_letters_db() -> list[str] | None:
     except sqlite3.Error:
         return None
     try:
-        out: list[str] = []
-        for ch in LETTER_CHARS:
-            where, params, _ = _letter_where(ch)
-            try:
-                total = int(con.execute(f"SELECT COUNT(*) FROM album WHERE {where}", params).fetchone()[0])
-            except sqlite3.Error:
-                return None
-            if total > 0:
-                out.append(ch)
-        return out
+        ord_expr = "lower(COALESCE(NULLIF(order_album_name,''), NULLIF(sort_album_name,''), name))"
+        # One pass for A–Z / # — much cheaper than 26× COUNT(*).
+        rows = con.execute(
+            f"""
+            SELECT CASE
+                     WHEN substr({ord_expr}, 1, 1) BETWEEN 'a' AND 'z'
+                       THEN upper(substr({ord_expr}, 1, 1))
+                     ELSE '#'
+                   END AS ch,
+                   COUNT(*) AS n
+            FROM album
+            WHERE COALESCE(missing, 0) = 0
+            GROUP BY 1
+            """
+        ).fetchall()
+        present = {str(r[0]) for r in rows if int(r[1] or 0) > 0}
+        # VA overlaps letters — keep a single existence check.
+        va_where, va_params, _ = _letter_where("VA")
+        va_n = int(
+            con.execute(
+                f"SELECT EXISTS(SELECT 1 FROM album WHERE {va_where})",
+                va_params,
+            ).fetchone()[0]
+        )
+        if va_n > 0:
+            present.add("VA")
+        return [ch for ch in LETTER_CHARS if ch in present]
+    except sqlite3.Error:
+        return None
     finally:
         con.close()
 
@@ -406,9 +425,13 @@ async def _letter_albums_cached(ch: str) -> list[dict[str, Any]]:
         return matched
 
 
+def _collapse_apply(albums: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return meta.apply_album_list(collapse_album_list(albums))
+
+
 async def _letter_rail(ch: str, size: int) -> tuple[list[dict[str, Any]], int, str]:
     """Fast path: SQLite letter query. Fallback: cached/seek API scan."""
-    cache_key = (ch, size)
+    cache_key = (ch.upper(), size)
     now = time.monotonic()
     cached = _letter_rail_cache.get(cache_key)
     built = _letter_rail_cache_built.get(cache_key, 0.0)
@@ -420,17 +443,17 @@ async def _letter_rail(ch: str, size: int) -> tuple[list[dict[str, Any]], int, s
     db = await asyncio.to_thread(_albums_by_letter_db, ch, fetch_n)
     if db is not None:
         albums, total = db
-        collapsed = meta.apply_album_list(collapse_album_list(albums))
+        collapsed = await asyncio.to_thread(_collapse_apply, albums)
         result = (collapsed[:size], total, "db")
         _letter_rail_cache[cache_key] = result
-        _letter_rail_cache_built[cache_key] = now
+        _letter_rail_cache_built[cache_key] = time.monotonic()
         return result
 
     matched = await _letter_albums_cached(ch)
-    collapsed = meta.apply_album_list(collapse_album_list(matched))
+    collapsed = await asyncio.to_thread(_collapse_apply, matched)
     result = (collapsed[:size], len(collapsed), "seek" if _alpha_index is None else "index")
     _letter_rail_cache[cache_key] = result
-    _letter_rail_cache_built[cache_key] = now
+    _letter_rail_cache_built[cache_key] = time.monotonic()
     return result
 
 
@@ -537,18 +560,28 @@ async def _ensure_available_letters(force: bool = False) -> list[str]:
 
 @app.on_event("startup")
 async def _warm_crate_caches() -> None:
-    async def _run() -> None:
-        try:
-            await _ensure_genre_buckets()
-        except Exception:
-            pass
+    # Block ready until the default crate path is hot — otherwise the browser
+    # races the warm task and still pays the cold merge-map dig.
+    try:
+        await asyncio.to_thread(warm_folder_caches)
+    except Exception:
+        pass
+    try:
+        await _letter_rail("A", 36)
+    except Exception:
+        pass
+
+    async def _rest() -> None:
         try:
             await _ensure_available_letters()
         except Exception:
             pass
-        # Full A–Z API index is optional now (letter chips hit SQLite).
+        try:
+            await _ensure_genre_buckets()
+        except Exception:
+            pass
 
-    asyncio.create_task(_run())
+    asyncio.create_task(_rest())
 
 
 def _expand_album(album: dict[str, Any]) -> dict[str, Any]:
@@ -579,7 +612,7 @@ async def random_album():
         albums = (sub.get("albumList2") or {}).get("album") or []
         if not albums:
             raise HTTPException(404, "No albums yet — Navidrome may still be scanning")
-    albums = meta.apply_album_list(collapse_album_list(albums))
+    albums = await asyncio.to_thread(_collapse_apply, albums)
     album = random.choice(albums)
     return await album_detail(album["id"])
 
@@ -731,7 +764,7 @@ async def _albums_for_genre_tags(tags: list[str], size: int) -> list[dict[str, A
             {"type": "byGenre", "genre": tag, "size": str(per), "offset": "0"},
         )
         raw = (sub.get("albumList2") or {}).get("album") or []
-        return meta.apply_album_list(collapse_album_list(raw))
+        return await asyncio.to_thread(_collapse_apply, raw)
 
     for i in range(0, len(use_tags), 4):
         if len(collected) >= size:
@@ -789,7 +822,7 @@ async def albums(
     }
     sub = await _nd_get("getAlbumList2.view", params)
     raw = (sub.get("albumList2") or {}).get("album") or []
-    merged = meta.apply_album_list(collapse_album_list(raw))
+    merged = await asyncio.to_thread(_collapse_apply, raw)
     return {"albums": merged[:size], "type": list_type, "letter": letter, "genre": genre}
 
 
@@ -829,7 +862,9 @@ async def album_detail(album_id: str):
 async def search(q: str = Query(..., min_length=1)):
     sub = await _nd_get("search3.view", {"query": q, "artistCount": 10, "albumCount": 24, "songCount": 24})
     result = sub.get("searchResult3") or {}
-    albums = meta.apply_album_list(collapse_album_list(result.get("album") or []))
+    albums = await asyncio.to_thread(
+        _collapse_apply, result.get("album") or []
+    )
     return {
         "artists": result.get("artist") or [],
         "albums": albums,
@@ -878,6 +913,8 @@ async def meta_song(body: SongMetaPatch):
 @app.post("/api/refresh-packs")
 async def refresh_packs():
     invalidate_caches()
+    _letter_rail_cache.clear()
+    _letter_rail_cache_built.clear()
     return {"ok": True}
 
 
@@ -886,8 +923,8 @@ async def cover(cover_id: str, size: int = Query(600, ge=40, le=1200)):
     params = _auth_params()
     params.update({"id": cover_id, "size": str(size)})
     url = f"{NAVIDROME}/rest/getCoverArt.view?{urlencode(params)}"
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        r = await client.get(url)
+    client = await _http_client()
+    r = await client.get(url)
     if r.status_code >= 400:
         raise HTTPException(r.status_code, "cover missing")
     return Response(

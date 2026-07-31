@@ -1945,10 +1945,10 @@ function wire() {
 
 async function boot() {
   wire();
-  preloadCues();
   // Health check and the initial crate load don't depend on each other --
   // run them in parallel instead of back-to-back so startup isn't paying
-  // for both round trips in sequence.
+  // for both round trips in sequence. Cue videos wait until crates paint
+  // so first dig isn't fighting megabytes of MP4 preload.
   const health = api("/api/health")
     .then((h) => {
       if (!h.ok) setStatus(`Navidrome: ${h.error || "not ready"}`);
@@ -1956,6 +1956,7 @@ async function boot() {
     })
     .catch(() => setStatus("Backend starting — retry in a moment."));
   await Promise.all([health, loadCrates("alphabeticalByName")]);
+  preloadCues();
 }
 
 if ("serviceWorker" in navigator) {
