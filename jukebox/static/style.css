@@ -325,14 +325,15 @@ body.theme-light .crate-carousel-letter {
 
 .hero-copy {
   display: flex;
-  align-items: flex-start;
-  gap: 1rem;
+  align-items: center;
+  gap: 1.25rem;
   text-align: left;
   padding: 0 0.15rem;
 }
 .hero-copy-text {
-  flex: 1;
-  min-width: 0;
+  flex: 0 1 38%;
+  min-width: min(15rem, 100%);
+  max-width: 26rem;
 }
 
 .track-panel {
@@ -441,6 +442,17 @@ body.theme-light .crate-carousel-letter {
   .rack { grid-template-columns: 1fr; }
   .hero-actions { justify-content: flex-start; }
   .track-panel { max-height: 18rem; }
+  .hero-copy {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .hero-copy-text {
+    flex: 1 1 auto;
+    max-width: none;
+    min-width: 0;
+  }
+  .now-cover { justify-content: center; }
+  .wall-sleeve { width: min(200px, 55vw); }
 }
 
 .deck-stage {
@@ -600,13 +612,16 @@ body.sleeve-dragging .deck-stage.drag-over::after {
 }
 .deck-stage.has-vinyl .platter-live { opacity: 1; }
 
-/* Now-playing cover, beside the album details in the hero */
+/* Now-playing cover — centered in the space beside the copy */
 .now-cover {
+  flex: 1 1 auto;
   display: flex;
-  flex: 0 0 auto;
+  justify-content: center;
+  align-items: center;
+  min-width: 0;
 }
 .wall-sleeve {
-  width: 148px;
+  width: min(220px, 32vw);
   aspect-ratio: 1;
   border-radius: 2px;
   overflow: hidden;

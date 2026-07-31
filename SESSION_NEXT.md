@@ -6,12 +6,26 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
-## 2026-07-31 Session update (Cindy Vinyl — A–Z more sleeves)
+## 2026-07-31 Session update (Cindy Vinyl — centered sleeve + A–Z by artist)
 
-Latest commit: `(pending)` — Page through all sleeves in a letter
+Latest commit: `(pending)` — Center cover; file A–Z by artist
 
 Latest local/Pi change:
-- A–Z was capped at 36 sleeves; now shows “N of total” and a **More sleeves** button to append the next page.
+- Now-playing cover sits centered in the hero gap (not stuck on the far right); a bit larger.
+- A–Z crate files by **album artist** (record-store style): Deep Purple → D, comps on **VA**.
+- Hard refresh `?v=90`. Rebuild `vinyl`.
+
+Previous:
+- A–Z more sleeves paging (`12b2b8d`).
+
+---
+
+## 2026-07-31 Session update (Cindy Vinyl — A–Z more sleeves)
+
+Latest commit: `12b2b8d` — Page through all sleeves in a letter
+
+Latest local/Pi change:
+- A–Z was capped at 36 sleeves; now shows “N of total” and a **More sleeves** button to append the next page (PageDown also loads more).
 - Backend caches the full collapsed letter list and serves `offset`/`hasMore`.
 - Hard refresh `?v=89`. Rebuild `vinyl`.
 

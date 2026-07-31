@@ -114,22 +114,48 @@ async def _nd_get(view: str, extra: dict[str, Any] | None = None) -> dict[str, A
     return sub
 
 
-def _significant_title(album: dict[str, Any]) -> str:
-    """Title key aligned with Navidrome alphabeticalByName (articles ignored)."""
-    name = (
-        album.get("sortName") or album.get("name") or album.get("title") or ""
-    ).strip()
-    name = name.lstrip(" \t\"'`“”‘’.,")
+_VA_ARTISTS = frozenset(
+    {
+        "various artists",
+        "various artist",
+        "various",
+        "va",
+        "v.a.",
+        "v.a",
+        "v/a",
+        "v / a",
+    }
+)
+
+
+def _strip_leading_article(name: str) -> str:
+    name = (name or "").strip().lstrip(" \t\"'`“”‘’.,")
     upper = name.upper()
     for prefix in ("THE ", "A ", "AN "):
         if upper.startswith(prefix):
-            name = name[len(prefix) :].lstrip(" \t\"'`“”‘’.,")
-            break
+            return name[len(prefix) :].lstrip(" \t\"'`“”‘’.,")
     return name
 
 
+def _significant_artist(album: dict[str, Any]) -> str:
+    """Artist key aligned with Navidrome order_album_artist_name (articles ignored)."""
+    return _strip_leading_article(
+        album.get("artist") or album.get("displayArtist") or ""
+    )
+
+
+def _is_va_album(album: dict[str, Any]) -> bool:
+    artist = (album.get("artist") or album.get("displayArtist") or "").strip().lower()
+    if artist in _VA_ARTISTS or artist.startswith("various artist"):
+        return True
+    return bool(album.get("compilation"))
+
+
 def _album_index_letter(album: dict[str, Any]) -> str:
-    name = _significant_title(album)
+    """Record-store filing: artist letter, with VA compilations on their own chip."""
+    if _is_va_album(album):
+        return "VA"
+    name = _significant_artist(album)
     if not name:
         return "#"
     ch = name[0].upper()
@@ -137,8 +163,10 @@ def _album_index_letter(album: dict[str, Any]) -> str:
 
 
 def _raw_sort_rank(album: dict[str, Any]) -> int:
-    """Rank for seeking in Navidrome alphabeticalByName order."""
-    name = _significant_title(album)
+    """Rank for seeking in Navidrome alphabeticalByArtist order."""
+    if _is_va_album(album):
+        return 27  # after Z
+    name = _significant_artist(album)
     if not name:
         return 0
     c = name[0].upper()
@@ -156,6 +184,7 @@ def _slim_album(a: dict[str, Any]) -> dict[str, Any]:
         "songCount": a.get("songCount"),
         "year": a.get("year"),
         "sortName": a.get("sortName"),
+        "compilation": a.get("compilation"),
     }
 
 
@@ -163,7 +192,7 @@ async def _fetch_alpha_page(offset: int, size: int) -> list[dict[str, Any]]:
     sub = await _nd_get(
         "getAlbumList2.view",
         {
-            "type": "alphabeticalByName",
+            "type": "alphabeticalByArtist",
             "size": str(size),
             "offset": str(max(0, offset)),
         },
@@ -202,8 +231,8 @@ async def _bisect_raw_letter(ch: str) -> int:
 
 async def _seek_letter_albums(ch: str) -> list[dict[str, Any]]:
     """
-    Jump near the letter in Navidrome's alphabetical stream instead of
-    scanning A → … → K on every click.
+    Jump near the letter in Navidrome's alphabeticalByArtist stream instead of
+    scanning A → … → K on every click. (DB path is preferred; this is fallback.)
     """
     ch = ch.upper()
     found: list[dict[str, Any]] = []
@@ -219,9 +248,23 @@ async def _seek_letter_albums(ch: str) -> list[dict[str, Any]]:
             seen.add(aid)
             found.append(_slim_album(a))
 
+    page_size = 200
+
+    # VA has no single letter rank in the artist stream — scan once.
+    if ch == "VA":
+        offset = 0
+        for _ in range(250):
+            page = await _fetch_alpha_page(offset, page_size)
+            if not page:
+                break
+            consider(page)
+            offset += len(page)
+            if len(page) < page_size:
+                break
+        return found
+
     # Phase 1: punctuation / symbol / digit head.
     offset = 0
-    page_size = 200
     for _ in range(40):
         page = await _fetch_alpha_page(offset, page_size)
         if not page:
@@ -264,40 +307,53 @@ async def _seek_letter_albums(ch: str) -> list[dict[str, Any]]:
     return found
 
 
-_LETTER_ORD_EXPR = "lower(COALESCE(NULLIF(order_album_name,''), NULLIF(sort_album_name,''), name))"
+# Artist filing (record-store style). Navidrome stores article-stripped artist keys
+# in order_album_artist_name — so "The Beatles" → "beatles" → letter B.
+_LETTER_ARTIST_ORD = (
+    "lower(COALESCE(NULLIF(order_album_artist_name,''), "
+    "NULLIF(sort_album_artist_name,''), album_artist))"
+)
+_LETTER_TITLE_ORD = (
+    "lower(COALESCE(NULLIF(order_album_name,''), NULLIF(sort_album_name,''), name))"
+)
+_VA_WHERE_SQL = """(
+  lower(trim(album_artist)) IN (
+    'various artists', 'various artist', 'various',
+    'va', 'v.a.', 'v.a', 'v/a', 'v / a'
+  )
+  OR lower(trim(album_artist)) LIKE 'various artist%'
+  OR compilation = 1
+)"""
 
 # Canonical bucket order for A–Z chips / carousel paging.
 LETTER_CHARS = [*"ABCDEFGHIJKLMNOPQRSTUVWXYZ", "VA", "#"]
 
 
 def _letter_where(ch: str) -> tuple[str, tuple[Any, ...], str]:
-    """Where-clause + params + order-by for one A–Z/VA/# bucket. Buckets can overlap
-    (a Various Artists album can also match its own name-letter)."""
+    """Where-clause + params + order-by for one A–Z/VA/# bucket (by artist)."""
     ch = (ch or "A").upper()
-    ord_expr = _LETTER_ORD_EXPR
+    artist_ord = _LETTER_ARTIST_ORD
+    order_by = f"{artist_ord}, {_LETTER_TITLE_ORD}"
     if ch == "VA":
-        where = """
-          COALESCE(missing, 0) = 0 AND (
-            lower(trim(album_artist)) IN (
-              'various artists', 'various artist', 'various',
-              'va', 'v.a.', 'v.a', 'v/a', 'v / a'
-            )
-            OR lower(trim(album_artist)) LIKE 'various artist%'
-            OR compilation = 1
-          )
-        """
-        return where, (), ord_expr
+        where = f"COALESCE(missing, 0) = 0 AND {_VA_WHERE_SQL}"
+        return where, (), order_by
     if ch == "#":
-        where = f"COALESCE(missing, 0) = 0 AND substr({ord_expr}, 1, 1) NOT BETWEEN 'a' AND 'z'"
-        return where, (), ord_expr
-    where = f"COALESCE(missing, 0) = 0 AND {ord_expr} LIKE ?"
-    return where, (f"{ch.lower()}%",), ord_expr
+        where = (
+            f"COALESCE(missing, 0) = 0 AND NOT {_VA_WHERE_SQL} "
+            f"AND substr({artist_ord}, 1, 1) NOT BETWEEN 'a' AND 'z'"
+        )
+        return where, (), order_by
+    where = (
+        f"COALESCE(missing, 0) = 0 AND NOT {_VA_WHERE_SQL} "
+        f"AND {artist_ord} LIKE ?"
+    )
+    return where, (f"{ch.lower()}%",), order_by
 
 
 def _albums_by_letter_db(
     ch: str, size: int, offset: int = 0
 ) -> tuple[list[dict[str, Any]], int] | None:
-    """Instant letter lookup via Navidrome's read-only SQLite (order_album_name)."""
+    """Instant letter lookup via Navidrome's read-only SQLite (by album artist)."""
     import sqlite3
 
     if not os.path.isfile(NAVIDROME_DB):
@@ -316,8 +372,9 @@ def _albums_by_letter_db(
         )
         rows = con.execute(
             f"""
-            SELECT id, name, album_artist, song_count, max_year,
-                   order_album_name, sort_album_name
+            SELECT id, name, album_artist, song_count, max_year, compilation,
+                   order_album_name, sort_album_name,
+                   order_album_artist_name, sort_album_artist_name
             FROM album
             WHERE {where}
             ORDER BY {order_by}
@@ -342,13 +399,14 @@ def _albums_by_letter_db(
                 "songCount": r["song_count"],
                 "year": r["max_year"] or None,
                 "sortName": r["sort_album_name"] or r["order_album_name"] or "",
+                "compilation": bool(r["compilation"]),
             }
         )
     return out, total
 
 
 def _available_letters_db() -> list[str] | None:
-    """Which A–Z/VA/# buckets have at least one album."""
+    """Which A–Z/VA/# buckets have at least one album (artist filing)."""
     import sqlite3
 
     if not os.path.isfile(NAVIDROME_DB):
@@ -358,23 +416,23 @@ def _available_letters_db() -> list[str] | None:
     except sqlite3.Error:
         return None
     try:
-        ord_expr = "lower(COALESCE(NULLIF(order_album_name,''), NULLIF(sort_album_name,''), name))"
-        # One pass for A–Z / # — much cheaper than 26× COUNT(*).
+        artist_ord = _LETTER_ARTIST_ORD
+        # One pass for A–Z / # — VA kept on its own chip.
         rows = con.execute(
             f"""
             SELECT CASE
-                     WHEN substr({ord_expr}, 1, 1) BETWEEN 'a' AND 'z'
-                       THEN upper(substr({ord_expr}, 1, 1))
+                     WHEN substr({artist_ord}, 1, 1) BETWEEN 'a' AND 'z'
+                       THEN upper(substr({artist_ord}, 1, 1))
                      ELSE '#'
                    END AS ch,
                    COUNT(*) AS n
             FROM album
             WHERE COALESCE(missing, 0) = 0
+              AND NOT {_VA_WHERE_SQL}
             GROUP BY 1
             """
         ).fetchall()
         present = {str(r[0]) for r in rows if int(r[1] or 0) > 0}
-        # VA overlaps letters — keep a single existence check.
         va_where, va_params, _ = _letter_where("VA")
         va_n = int(
             con.execute(
