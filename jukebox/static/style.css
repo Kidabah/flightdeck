@@ -896,6 +896,25 @@ body.theme-light .crate-carousel-frame {
   height: 96px;
 }
 
+.crate-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.85rem;
+  margin: -0.35rem 0 1rem;
+  min-height: 2rem;
+}
+.crate-page[hidden] { display: none !important; }
+.crate-page-hint {
+  font-size: 0.82rem;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+.crate-page .ghost-btn.tiny:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
 .crate-rail {
   display: flex;
   gap: 1rem;

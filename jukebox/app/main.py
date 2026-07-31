@@ -43,13 +43,11 @@ _letter_lock = asyncio.Lock()
 _letter_cache: dict[str, list[dict[str, Any]]] = {}
 _letter_cache_built: dict[str, float] = {}
 _LETTER_TTL = 600.0
-# Fast-path (_letter_rail) result cache -- the DB query itself is quick, but
-# over-fetching ~10x then running collapse_album_list()/apply_album_list()
-# on every single letter switch was the actual slow part. Short TTL since
-# it's just smoothing out repeat/rapid paging, not a source of truth.
-_letter_rail_cache: dict[tuple[str, int], tuple[list[dict[str, Any]], int, str]] = {}
-_letter_rail_cache_built: dict[tuple[str, int], float] = {}
-_LETTER_RAIL_TTL = 120.0
+# Full collapsed letter lists (for A–Z paging). Built once per letter, then
+# sliced by offset/size. Short TTL — not a source of truth.
+_letter_full_cache: dict[str, tuple[list[dict[str, Any]], str, float]] = {}
+_LETTER_FULL_TTL = 300.0
+_LETTER_FETCH_CAP = 10000
 _genres_lock = asyncio.Lock()
 _genres_cache: list[dict[str, Any]] | None = None
 _genres_built = 0.0
@@ -296,7 +294,9 @@ def _letter_where(ch: str) -> tuple[str, tuple[Any, ...], str]:
     return where, (f"{ch.lower()}%",), ord_expr
 
 
-def _albums_by_letter_db(ch: str, size: int) -> tuple[list[dict[str, Any]], int] | None:
+def _albums_by_letter_db(
+    ch: str, size: int, offset: int = 0
+) -> tuple[list[dict[str, Any]], int] | None:
     """Instant letter lookup via Navidrome's read-only SQLite (order_album_name)."""
     import sqlite3
 
@@ -321,9 +321,9 @@ def _albums_by_letter_db(ch: str, size: int) -> tuple[list[dict[str, Any]], int]
             FROM album
             WHERE {where}
             ORDER BY {order_by}
-            LIMIT ?
+            LIMIT ? OFFSET ?
             """,
-            (*params, int(size)),
+            (*params, int(size), int(offset)),
         ).fetchall()
     except sqlite3.Error:
         return None
@@ -429,32 +429,43 @@ def _collapse_apply(albums: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return meta.apply_album_list(collapse_album_list(albums))
 
 
-async def _letter_rail(ch: str, size: int) -> tuple[list[dict[str, Any]], int, str]:
-    """Fast path: SQLite letter query. Fallback: cached/seek API scan."""
-    cache_key = (ch.upper(), size)
+async def _letter_collapsed_full(ch: str) -> tuple[list[dict[str, Any]], str]:
+    """Full collapsed sleeve list for a letter (cached)."""
+    key = (ch or "A").upper()
     now = time.monotonic()
-    cached = _letter_rail_cache.get(cache_key)
-    built = _letter_rail_cache_built.get(cache_key, 0.0)
-    if cached is not None and now - built < _LETTER_RAIL_TTL:
-        return cached
+    cached = _letter_full_cache.get(key)
+    if cached is not None and now - cached[2] < _LETTER_FULL_TTL:
+        return cached[0], cached[1]
 
-    # Over-fetch before folder-collapse — packs turn many ND albums into one sleeve.
-    fetch_n = min(500, max(size * 10, size))
-    db = await asyncio.to_thread(_albums_by_letter_db, ch, fetch_n)
+    db = await asyncio.to_thread(_albums_by_letter_db, key, _LETTER_FETCH_CAP, 0)
     if db is not None:
         albums, total = db
+        # Rare: letter larger than the cap — pull the rest in one more page.
+        if total > len(albums):
+            extra = await asyncio.to_thread(
+                _albums_by_letter_db, key, total - len(albums), len(albums)
+            )
+            if extra and extra[0]:
+                albums = albums + extra[0]
         collapsed = await asyncio.to_thread(_collapse_apply, albums)
-        result = (collapsed[:size], total, "db")
-        _letter_rail_cache[cache_key] = result
-        _letter_rail_cache_built[cache_key] = time.monotonic()
-        return result
+        _letter_full_cache[key] = (collapsed, "db", time.monotonic())
+        return collapsed, "db"
 
-    matched = await _letter_albums_cached(ch)
+    matched = await _letter_albums_cached(key)
     collapsed = await asyncio.to_thread(_collapse_apply, matched)
-    result = (collapsed[:size], len(collapsed), "seek" if _alpha_index is None else "index")
-    _letter_rail_cache[cache_key] = result
-    _letter_rail_cache_built[cache_key] = time.monotonic()
-    return result
+    mode = "seek" if _alpha_index is None else "index"
+    _letter_full_cache[key] = (collapsed, mode, time.monotonic())
+    return collapsed, mode
+
+
+async def _letter_rail(
+    ch: str, size: int, offset: int = 0
+) -> tuple[list[dict[str, Any]], int, str]:
+    """Page of collapsed sleeves for a letter + total collapsed count."""
+    full, mode = await _letter_collapsed_full(ch)
+    offset = max(0, int(offset))
+    size = max(1, int(size))
+    return full[offset : offset + size], len(full), mode
 
 
 async def _ensure_alpha_index(force: bool = False) -> list[tuple[str, dict[str, Any]]]:
@@ -795,13 +806,16 @@ async def albums(
 ):
     if list_type == "alphabeticalByName" and letter:
         ch = letter.upper()
-        albums, total, mode = await _letter_rail(ch, size)
+        albums, total, mode = await _letter_rail(ch, size, offset)
         return {
             "albums": albums,
             "type": list_type,
             "letter": letter,
             "genre": genre,
             "total": total,
+            "offset": offset,
+            "size": size,
+            "hasMore": offset + len(albums) < total,
             "mode": mode,
         }
 
@@ -913,8 +927,7 @@ async def meta_song(body: SongMetaPatch):
 @app.post("/api/refresh-packs")
 async def refresh_packs():
     invalidate_caches()
-    _letter_rail_cache.clear()
-    _letter_rail_cache_built.clear()
+    _letter_full_cache.clear()
     return {"ok": True}
 
 

@@ -89,6 +89,11 @@ const state = {
   /** Non-empty A–Z/VA/# buckets, fetched once from /api/letters. */
   crateLettersCache: null,
   crateLetterIdx: 0,
+  /** A–Z paging: how many sleeves already in the crate for this letter. */
+  crateLetterLoaded: 0,
+  crateLetterTotal: 0,
+  crateLetterHasMore: false,
+  crateLetterLoadingMore: false,
   volumeBeforeMute: 0.85,
   /** @type {'rest'|'cueing-in'|'hold'|'cueing-out'} */
   arm: "rest",
@@ -1445,26 +1450,66 @@ function sleeveButton(album) {
   return wrap;
 }
 
-async function loadCrates(type) {
+const CRATE_LETTER_PAGE = 36;
+
+function updateCratePageUi() {
+  const bar = $("cratePageBar");
+  const hint = $("cratePageHint");
+  const btn = $("crateMoreBtn");
+  if (!bar || !hint || !btn) return;
+  const show = state.crateType === "alphabeticalByName";
+  bar.hidden = !show;
+  if (!show) {
+    btn.hidden = true;
+    return;
+  }
+  const loaded = state.crateLetterLoaded;
+  const total = state.crateLetterTotal;
+  if (!total && !loaded) {
+    hint.textContent = "";
+    btn.hidden = true;
+    return;
+  }
+  hint.textContent = total
+    ? `${loaded} of ${total} sleeve${total === 1 ? "" : "s"}`
+    : `${loaded} sleeve${loaded === 1 ? "" : "s"}`;
+  btn.hidden = !state.crateLetterHasMore;
+  btn.disabled = !!state.crateLetterLoadingMore;
+  btn.textContent = state.crateLetterLoadingMore ? "Digging…" : "More sleeves";
+}
+
+async function loadCrates(type, { append = false } = {}) {
   state.crateType = type;
   document.querySelectorAll(".crate-tab").forEach((b) => {
     b.classList.toggle("active", b.dataset.type === type);
   });
   updateCrateFilters();
-  const rail = type === "alphabeticalByName" ? $("crateCarouselRail") : $("crateRail");
-  const hint =
-    type === "alphabeticalByName"
-      ? "Flipping to that letter…"
-      : type === "byGenre"
-        ? "Pulling that category…"
-        : "Pulling sleeves…";
-  rail.innerHTML = `<p class='hint'>${hint}</p>`;
+  const isLetter = type === "alphabeticalByName";
+  const rail = isLetter ? $("crateCarouselRail") : $("crateRail");
+  if (!append) {
+    if (isLetter) {
+      state.crateLetterLoaded = 0;
+      state.crateLetterTotal = 0;
+      state.crateLetterHasMore = false;
+    }
+    const hint =
+      isLetter
+        ? "Flipping to that letter…"
+        : type === "byGenre"
+          ? "Pulling that category…"
+          : "Pulling sleeves…";
+    rail.innerHTML = `<p class='hint'>${hint}</p>`;
+    updateCratePageUi();
+  }
   try {
+    const pageSize = isLetter ? CRATE_LETTER_PAGE : 48;
+    const offset = isLetter && append ? state.crateLetterLoaded : 0;
     const params = new URLSearchParams({
       type,
-      size: type === "alphabeticalByName" ? "36" : "48",
+      size: String(pageSize),
+      offset: String(offset),
     });
-    if (type === "alphabeticalByName") params.set("letter", state.crateLetter || "A");
+    if (isLetter) params.set("letter", state.crateLetter || "A");
     if (type === "byGenre") {
       if (!state.crateGenre) {
         await ensureGenres();
@@ -1480,19 +1525,61 @@ async function loadCrates(type) {
     }
     const data = await api(`/api/albums?${params}`);
     if (state.crateType !== type) return;
-    // Build off-DOM first -- appending 40+ sleeves one at a time straight into
-    // the live rail forces a reflow per node, which is what was laggy.
+    const albums = data.albums || [];
+    // Build off-DOM first -- appending sleeves one at a time into the live
+    // rail forces a reflow per node.
     const frag = document.createDocumentFragment();
-    (data.albums || []).forEach((al) => frag.appendChild(sleeveButton(al)));
-    rail.innerHTML = "";
-    rail.appendChild(frag);
-    if (!(data.albums || []).length) {
-      rail.innerHTML = "<p class='hint'>Nothing in this crate — try another letter or category.</p>";
+    albums.forEach((al) => frag.appendChild(sleeveButton(al)));
+    if (append) {
+      rail.querySelector(".hint")?.remove();
+      rail.appendChild(frag);
+    } else {
+      rail.innerHTML = "";
+      rail.appendChild(frag);
+      if (!albums.length) {
+        rail.innerHTML = "<p class='hint'>Nothing in this crate — try another letter or category.</p>";
+      }
+    }
+    if (isLetter) {
+      state.crateLetterLoaded = append
+        ? state.crateLetterLoaded + albums.length
+        : albums.length;
+      state.crateLetterTotal = Number(data.total) || state.crateLetterLoaded;
+      state.crateLetterHasMore = !!data.hasMore;
+      updateCratePageUi();
+      if (append && albums.length) {
+        rail.querySelector(".sleeve-wrap:last-child")?.scrollIntoView({
+          behavior: "smooth",
+          inline: "end",
+          block: "nearest",
+        });
+      }
+    } else {
+      updateCratePageUi();
     }
   } catch (err) {
     if (state.crateType !== type) return;
-    rail.innerHTML = `<p class='hint'>${escapeHtml(err.message || err)}</p>`;
+    if (!append) {
+      rail.innerHTML = `<p class='hint'>${escapeHtml(err.message || err)}</p>`;
+    }
+    setStatus(String(err.message || err).slice(0, 160));
+  } finally {
+    state.crateLetterLoadingMore = false;
+    updateCratePageUi();
   }
+}
+
+async function loadMoreLetterSleeves() {
+  if (
+    state.crateType !== "alphabeticalByName" ||
+    !state.crateLetterHasMore ||
+    state.crateLetterLoadingMore
+  ) {
+    return;
+  }
+  state.crateLetterLoadingMore = true;
+  updateCratePageUi();
+  await loadCrates("alphabeticalByName", { append: true });
 }
 
 async function ensureGenres() {
@@ -1535,6 +1622,8 @@ function stepCrateLetter(delta) {
   if (next === state.crateLetterIdx) return;
   state.crateLetterIdx = next;
   state.crateLetter = list[next];
+  state.crateLetterLoaded = 0;
+  state.crateLetterHasMore = false;
   loadCrates("alphabeticalByName");
 }
 
@@ -1711,6 +1800,7 @@ function wire() {
   });
   $("crateCarouselPrev")?.addEventListener("click", () => stepCrateLetter(-1));
   $("crateCarouselNext")?.addEventListener("click", () => stepCrateLetter(1));
+  $("crateMoreBtn")?.addEventListener("click", () => loadMoreLetterSleeves());
   $("searchForm").addEventListener("submit", (e) => {
     e.preventDefault();
     runSearch($("searchInput").value);
@@ -1813,6 +1903,12 @@ function wire() {
         if (state.crateType === "alphabeticalByName") {
           e.preventDefault();
           stepCrateLetter(1);
+        }
+        break;
+      case "PageDown":
+        if (state.crateType === "alphabeticalByName" && state.crateLetterHasMore) {
+          e.preventDefault();
+          loadMoreLetterSleeves();
         }
         break;
       case "d":

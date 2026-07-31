@@ -6,6 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-31 Session update (Cindy Vinyl — A–Z more sleeves)
+
+Latest commit: `(pending)` — Page through all sleeves in a letter
+
+Latest local/Pi change:
+- A–Z was capped at 36 sleeves; now shows “N of total” and a **More sleeves** button to append the next page.
+- Backend caches the full collapsed letter list and serves `offset`/`hasMore`.
+- Hard refresh `?v=89`. Rebuild `vinyl`.
+
+Previous:
+- Light theme `#71788A` bg (`3c80eee`).
+
+---
+
 ## 2026-07-31 Session update (Cindy Vinyl — light/dark amp-rack themes)
 
 Latest commit: `812cc1e` — Light white-crate theme; remove Tracks Amp panel
