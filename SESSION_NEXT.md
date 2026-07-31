@@ -6,6 +6,21 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-31 Session update (queue: finished prints not marked CANCELLED)
+
+Latest commit: `(pending)` — Mark stuck queue jobs DONE after real finish
+
+Latest local/Pi change:
+- Pyramid job showed CANCELLED + “Cleared stale queue state after printer returned to idle” even though the print had finished and the printer was idle.
+- Cause: queue row stayed `printing` after a missed finish transition; reconciler treated idle/finished as stale cancel.
+- Now: `finished` / recent finish / last print FINISHED matching the queue filename → mark DONE; only true orphans get the soft cancel.
+- Backend restart required.
+
+Previous:
+- Vinyl crate speed (`8051c77`).
+
+---
+
 ## 2026-07-31 Session update (Cindy Vinyl — fast crates / startup)
 
 Latest commit: `8051c77` — Precompute folder stubs; warm A–Z (~0.1s digs)

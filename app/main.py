@@ -1126,8 +1126,15 @@ def _check_transitions(data: list[dict]) -> None:
         has_error_print = p.get("_error_print_id") is not None
         title_prefix = "SIM " if is_simulated else ""
 
-        if prev == "printing" and curr in {"finished", "ready", "standby", "complete"}:
-            if curr == "finished" or _recently_finished(pid):
+        if prev == "printing" and curr in {"finished", "ready", "standby", "complete", "idle"}:
+            last = None if is_simulated else db.get_last_print(pid)
+            last_finished = str((last or {}).get("final_state") or "").upper() == "FINISHED"
+            completed = (
+                curr == "finished"
+                or _recently_finished(pid)
+                or (curr == "idle" and last_finished)
+            )
+            if completed:
                 msg = f"{name}" + (f" · {label}" if label else "")
                 _notify("success", f"{title_prefix}Print complete", msg, printer_id=pid, link=f"#/printer/{pid}/history")
                 if not is_simulated:
@@ -1139,6 +1146,10 @@ def _check_transitions(data: list[dict]) -> None:
                         asyncio.create_task(_handle_print_recorder_finish(
                             pid, finished_print_id, p.get("_last_timelapse_path"),
                         ))
+            elif curr == "idle":
+                # Idle without a finish window — leave queue row for reconciler
+                # (stale cancel / filename match) instead of assuming user cancel.
+                pass
             else:
                 msg = f"{name}" + (f" · {label}" if label else "")
                 _notify("warn", f"{title_prefix}Print cancelled", msg, printer_id=pid, link=f"#/printer/{pid}/history")
@@ -10392,6 +10403,28 @@ def _queue_active_age_seconds(job: dict) -> Optional[float]:
     return max(0.0, (datetime.utcnow() - dt).total_seconds())
 
 
+def _queue_name_matches_print(job: dict, print_row: Optional[dict]) -> bool:
+    """True when an active queue row looks like the printer's last finished print."""
+    if not print_row:
+        return False
+    job_name = str(job.get("filename") or "").strip().lower()
+    if not job_name:
+        return False
+    candidates = {
+        str(print_row.get("filename") or "").strip().lower(),
+        str(print_row.get("subtask_name") or "").strip().lower(),
+    }
+    candidates = {c for c in candidates if c}
+    if job_name in candidates:
+        return True
+    job_base = job_name.rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
+    for c in candidates:
+        c_base = c.rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
+        if job_base == c_base or job_base in c_base or c_base in job_base:
+            return True
+    return False
+
+
 def _reconcile_queue_active_state(jobs: list[dict], statuses: dict[str, dict]) -> tuple[bool, list[str]]:
     changed = False
     cleared_printers: list[str] = []
@@ -10413,6 +10446,26 @@ def _reconcile_queue_active_state(jobs: list[dict], statuses: dict[str, dict]) -
             ]
             if ages and min(ages) < _QUEUE_ACTIVE_STALE_GRACE_SECONDS:
                 continue
+
+            # Successful finish often lands here if we missed printing→finished.
+            # Prefer DONE over a scary CANCELLED when history says the print completed.
+            last = db.get_last_print(printer_id)
+            last_finished = str((last or {}).get("final_state") or "").upper() == "FINISHED"
+            matched_finish = last_finished and any(
+                _queue_name_matches_print(row, last) for row in active
+            )
+            if state == "finished" or _recently_finished(printer_id) or matched_finish:
+                finished = db.queue_finish_active(printer_id)
+                changed = finished > 0 or changed
+                if finished:
+                    db.log_decision(
+                        printer_id,
+                        "queue_active_finished",
+                        f"Printer is {state or 'idle'}; completed active queue job after successful print",
+                    )
+                    cleared_printers.append(printer_id)
+                continue
+
             detail = f"Printer is {state or 'not printing'}; stale active queue job cleared"
             cleared = db.queue_cancel_active(
                 printer_id,
