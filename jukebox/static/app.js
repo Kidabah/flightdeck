@@ -363,8 +363,11 @@ function updateThemeMenuHighlight() {
 
 function syncThemeChrome() {
   const room = currentTheme.room || "dark";
+  const isLight = room === "light";
+  document.documentElement.dataset.room = room;
   document.body.dataset.room = room;
-  document.body.classList.toggle("theme-light", room === "light");
+  document.documentElement.classList.toggle("theme-light", isLight);
+  document.body.classList.toggle("theme-light", isLight);
   const photo = document.querySelector(".deck-photo");
   if (photo) {
     photo.src = currentTheme.restImage;
@@ -375,7 +378,7 @@ function syncThemeChrome() {
   const tag = $("deckTag");
   if (tag) tag.textContent = currentTheme.name;
   const meta = $("themeColorMeta");
-  if (meta) meta.content = room === "light" ? "#e2e2e6" : "#0a090b";
+  if (meta) meta.content = isLight ? "#d8d8dc" : "#0a090b";
   updateThemeMenuHighlight();
 }
 

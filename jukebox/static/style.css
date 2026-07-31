@@ -31,54 +31,6 @@ body {
   padding-bottom: 5.5rem;
 }
 
-/* Light room — white Cindy crate on a quiet grey (not warm cream) */
-body.theme-light {
-  --ink: #d8d8dc;
-  --panel: #f0f0f2;
-  --wood: #e4e4e8;
-  --cream: #2a2a2e;
-  --muted: rgba(42, 42, 46, 0.58);
-  --gold: #9a7424;
-  --gold-hot: #7a5a18;
-  --gold-dim: rgba(154, 116, 36, 0.32);
-  --chrome: #6a6a70;
-  color: var(--cream);
-  background:
-    radial-gradient(ellipse 60% 40% at 20% 10%, rgba(180, 180, 190, 0.22), transparent 50%),
-    linear-gradient(165deg, #ececee 0%, #e2e2e6 50%, #ebebef 100%);
-}
-body.theme-light .lamp {
-  background: radial-gradient(circle at 22% 18%, rgba(200, 200, 210, 0.2), transparent 36%);
-}
-body.theme-light .grain { opacity: 0.03; }
-body.theme-light .transport {
-  background: rgba(240, 240, 242, 0.94);
-}
-body.theme-light .search input,
-body.theme-light .menu-btn,
-body.theme-light .menu-drop,
-body.theme-light .track-panel,
-body.theme-light .crates,
-body.theme-light .modal-card {
-  background: rgba(250, 250, 252, 0.92);
-  color: var(--cream);
-  border-color: var(--gold-dim);
-}
-body.theme-light .menu-drop button { color: var(--cream); }
-body.theme-light .crate-nav {
-  background: rgba(250, 250, 252, 0.9);
-  color: var(--cream);
-}
-body.theme-light .deck-controls button {
-  color: var(--cream);
-}
-body.theme-light .crate-carousel-letter {
-  color: var(--gold-hot);
-  background: rgba(250, 250, 252, 0.9);
-  border-color: var(--gold-dim);
-  text-shadow: none;
-}
-
 .lamp {
   pointer-events: none;
   position: fixed;
@@ -93,6 +45,54 @@ body.theme-light .crate-carousel-letter {
   opacity: 0.06;
   z-index: 1;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Light room — must come AFTER base body/lamp so it wins the cascade.
+   Flat cool grey, no warm cream wash. */
+html.theme-light,
+body.theme-light {
+  --ink: #d0d0d4;
+  --panel: #ececef;
+  --wood: #e2e2e6;
+  --cream: #2a2a2e;
+  --muted: rgba(42, 42, 46, 0.58);
+  --gold: #9a7424;
+  --gold-hot: #7a5a18;
+  --gold-dim: rgba(154, 116, 36, 0.32);
+  --chrome: #6a6a70;
+  color: var(--cream);
+  background: #d8d8dc !important;
+}
+body.theme-light .lamp {
+  background: none !important;
+}
+body.theme-light .grain { opacity: 0.025; }
+body.theme-light .transport {
+  background: rgba(236, 236, 239, 0.96);
+}
+body.theme-light .search input,
+body.theme-light .menu-btn,
+body.theme-light .menu-drop,
+body.theme-light .track-panel,
+body.theme-light .crates,
+body.theme-light .modal-card {
+  background: rgba(244, 244, 246, 0.96);
+  color: var(--cream);
+  border-color: var(--gold-dim);
+}
+body.theme-light .menu-drop button { color: var(--cream); }
+body.theme-light .crate-nav {
+  background: rgba(244, 244, 246, 0.95);
+  color: var(--cream);
+}
+body.theme-light .deck-controls button {
+  color: var(--cream);
+}
+body.theme-light .crate-carousel-letter {
+  color: var(--gold-hot);
+  background: rgba(244, 244, 246, 0.95);
+  border-color: var(--gold-dim);
+  text-shadow: none;
 }
 
 .stage, .transport { position: relative; z-index: 2; }
