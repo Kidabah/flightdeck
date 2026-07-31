@@ -47,28 +47,28 @@ body {
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
-/* Light room — must come AFTER base body/lamp so it wins the cascade.
-   Flat cool grey, no warm cream wash. */
+/* Light room — page grey matched to the wall behind crate-front-light.png
+   (sampled ~rgb(150,147,146)). Must come AFTER base body/lamp. */
 html.theme-light,
 body.theme-light {
-  --ink: #d0d0d4;
-  --panel: #ececef;
-  --wood: #e2e2e6;
-  --cream: #2a2a2e;
-  --muted: rgba(42, 42, 46, 0.58);
-  --gold: #9a7424;
-  --gold-hot: #7a5a18;
-  --gold-dim: rgba(154, 116, 36, 0.32);
-  --chrome: #6a6a70;
+  --ink: #969290;
+  --panel: #a8a4a0;
+  --wood: #9e9a96;
+  --cream: #1e1c1a;
+  --muted: rgba(30, 28, 26, 0.62);
+  --gold: #8a6820;
+  --gold-hot: #6e5218;
+  --gold-dim: rgba(138, 104, 32, 0.4);
+  --chrome: #5a5652;
   color: var(--cream);
-  background: #d8d8dc !important;
+  background: #969290 !important;
 }
 body.theme-light .lamp {
   background: none !important;
 }
-body.theme-light .grain { opacity: 0.025; }
+body.theme-light .grain { opacity: 0.04; }
 body.theme-light .transport {
-  background: rgba(236, 236, 239, 0.96);
+  background: rgba(168, 164, 160, 0.96);
 }
 body.theme-light .search input,
 body.theme-light .menu-btn,
@@ -76,13 +76,13 @@ body.theme-light .menu-drop,
 body.theme-light .track-panel,
 body.theme-light .crates,
 body.theme-light .modal-card {
-  background: rgba(244, 244, 246, 0.96);
+  background: rgba(180, 176, 172, 0.92);
   color: var(--cream);
   border-color: var(--gold-dim);
 }
 body.theme-light .menu-drop button { color: var(--cream); }
 body.theme-light .crate-nav {
-  background: rgba(244, 244, 246, 0.95);
+  background: rgba(180, 176, 172, 0.92);
   color: var(--cream);
 }
 body.theme-light .deck-controls button {
@@ -90,7 +90,7 @@ body.theme-light .deck-controls button {
 }
 body.theme-light .crate-carousel-letter {
   color: var(--gold-hot);
-  background: rgba(244, 244, 246, 0.95);
+  background: rgba(180, 176, 172, 0.95);
   border-color: var(--gold-dim);
   text-shadow: none;
 }
