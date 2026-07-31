@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-31 Session update (queue: finished prints not marked CANCELLED)
 
-Latest commit: `(pending)` — Mark stuck queue jobs DONE after real finish
+Latest commit: `04f9e2f` — Mark stuck queue jobs DONE after real finish
 
 Latest local/Pi change:
 - Pyramid job showed CANCELLED + “Cleared stale queue state after printer returned to idle” even though the print had finished and the printer was idle.
