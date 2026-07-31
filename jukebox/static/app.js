@@ -19,6 +19,10 @@ const DECK_THEMES = [
     holdLoopEnd: 4.2,
     // Wait for the tonearm cue-in before audio so needle-down matches the sound.
     audioCueDelayMs: 4000,
+    // Spindle centre, as % of the deck-stage box -- where the spinning label
+    // and colour-tint overlay anchor. Tuned to this theme's specific footage.
+    labelLeft: "41.6%",
+    labelTop: "55%",
   },
   {
     id: "technics-amp-rack",
@@ -31,6 +35,11 @@ const DECK_THEMES = [
     holdLoopStart: 8.0,
     holdLoopEnd: 9.0,
     audioCueDelayMs: 1800,
+    // Turntable sits in the top ~40% of this frame (amp rack below it), so the
+    // spindle is much higher up than theme 1's close-up framing -- also just
+    // an eyeballed estimate, expect a nudge once seen live.
+    labelLeft: "45%",
+    labelTop: "18.5%",
   },
 ];
 let currentTheme = DECK_THEMES[0];
@@ -459,6 +468,11 @@ function applyDeckTheme(themeId, { persist = true } = {}) {
   currentTheme = theme;
   const photo = document.querySelector(".deck-photo");
   if (photo) photo.src = theme.restImage;
+  const stage = $("deckStage");
+  if (stage) {
+    stage.style.setProperty("--label-left", theme.labelLeft);
+    stage.style.setProperty("--label-top", theme.labelTop);
+  }
   preloadCues();
   updateThemeMenuHighlight();
   if (persist) {
