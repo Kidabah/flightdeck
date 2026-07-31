@@ -51,24 +51,24 @@ body {
    (sampled ~rgb(150,147,146)). Must come AFTER base body/lamp. */
 html.theme-light,
 body.theme-light {
-  --ink: #969290;
-  --panel: #a8a4a0;
-  --wood: #9e9a96;
-  --cream: #1e1c1a;
-  --muted: rgba(30, 28, 26, 0.62);
-  --gold: #8a6820;
-  --gold-hot: #6e5218;
-  --gold-dim: rgba(138, 104, 32, 0.4);
-  --chrome: #5a5652;
+  --ink: #71788A;
+  --panel: #7e8596;
+  --wood: #787f90;
+  --cream: #1a1c22;
+  --muted: rgba(26, 28, 34, 0.62);
+  --gold: #c4a24a;
+  --gold-hot: #e0c06a;
+  --gold-dim: rgba(196, 162, 74, 0.4);
+  --chrome: #4a5060;
   color: var(--cream);
-  background: #969290 !important;
+  background: #71788A !important;
 }
 body.theme-light .lamp {
   background: none !important;
 }
 body.theme-light .grain { opacity: 0.04; }
 body.theme-light .transport {
-  background: rgba(168, 164, 160, 0.96);
+  background: rgba(126, 133, 150, 0.96);
 }
 body.theme-light .search input,
 body.theme-light .menu-btn,
@@ -76,13 +76,13 @@ body.theme-light .menu-drop,
 body.theme-light .track-panel,
 body.theme-light .crates,
 body.theme-light .modal-card {
-  background: rgba(180, 176, 172, 0.92);
+  background: rgba(136, 143, 160, 0.92);
   color: var(--cream);
   border-color: var(--gold-dim);
 }
 body.theme-light .menu-drop button { color: var(--cream); }
 body.theme-light .crate-nav {
-  background: rgba(180, 176, 172, 0.92);
+  background: rgba(136, 143, 160, 0.92);
   color: var(--cream);
 }
 body.theme-light .deck-controls button {
@@ -90,7 +90,7 @@ body.theme-light .deck-controls button {
 }
 body.theme-light .crate-carousel-letter {
   color: var(--gold-hot);
-  background: rgba(180, 176, 172, 0.95);
+  background: rgba(136, 143, 160, 0.95);
   border-color: var(--gold-dim);
   text-shadow: none;
 }
