@@ -66,7 +66,7 @@ body.theme-light .modal-card {
 }
 body.theme-light .menu-drop button { color: var(--cream); }
 body.theme-light .crate-nav {
-  background: rgba(255, 252, 246, 0.85);
+  background: rgba(250, 250, 252, 0.9);
   color: var(--cream);
 }
 body.theme-light .deck-controls button {
@@ -77,9 +77,6 @@ body.theme-light .crate-carousel-letter {
   background: rgba(250, 250, 252, 0.9);
   border-color: var(--gold-dim);
   text-shadow: none;
-}
-body.theme-light .crate-nav {
-  background: rgba(250, 250, 252, 0.9);
 }
 
 .lamp {
