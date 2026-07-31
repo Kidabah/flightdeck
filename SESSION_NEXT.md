@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-31 Session update (Cindy Vinyl — light/dark amp-rack themes)
 
-Latest commit: `(pending)` — Light white-crate theme; remove Tracks Amp panel
+Latest commit: `812cc1e` — Light white-crate theme; remove Tracks Amp panel
 
 Latest local/Pi change:
 - Removed the Tracks Amp VU/EQ panel; volume lives in the transport bar again.
