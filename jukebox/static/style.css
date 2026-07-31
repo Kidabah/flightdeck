@@ -545,6 +545,11 @@ body {
     0 24px 60px rgba(0, 0, 0, 0.55);
   background: #0a0a0c;
   perspective: 1100px;
+  /* .vinyl-tint's mix-blend-mode needs its own stacking context or it can
+     blend against page content outside this box (position:relative alone
+     doesn't create one without an explicit z-index) -- without this, the
+     tint reads as covering the whole page, not just the record. */
+  isolation: isolate;
 }
 .deck-stage.drop-ready {
   box-shadow:
@@ -635,7 +640,11 @@ body.sleeve-dragging .deck-stage.drag-over::after {
   aspect-ratio: 33 / 20.5;
   height: auto;
   border-radius: 50%;
-  transform: translate(-50%, -50%) rotate(-1deg);
+  /* Same 3D pose as the label (.platter-live) -- was previously just a flat
+     2D rotate, so it never matched the record's actual tilted perspective;
+     barely noticeable at the old small/subtle size, obvious at a bigger,
+     more saturated one. */
+  transform: translate(-50%, -50%) rotateX(var(--label-tilt, 50deg)) rotateZ(-1deg);
   background: var(--vinyl-color, #8b1a1a);
   opacity: 0;
   z-index: 6;

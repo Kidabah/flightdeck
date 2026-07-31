@@ -41,7 +41,12 @@ const DECK_THEMES = [
     labelLeft: "45.0%",
     labelTop: "19.5%",
     labelSize: "19.0%",
-    labelTilt: "90deg",
+    // Pulled back from the 90deg you'd dialed in -- that's a near-singularity
+    // for CSS 3D perspective (see nudgeLabelTilt) and is almost certainly why
+    // the tint exploded into a huge distorted blob the moment it started
+    // sharing this value. 85 is the practical ceiling now; re-nudge with ,/.
+    // if it still doesn't look tilted enough at that cap.
+    labelTilt: "85deg",
   },
 ];
 let currentTheme = DECK_THEMES[0];
@@ -538,7 +543,10 @@ function nudgeLabelSize(delta) {
 }
 
 function nudgeLabelTilt(delta) {
-  const tilt = Math.max(0, Math.min(90, (parseFloat(currentTheme.labelTilt) || 0) + delta));
+  // Capped short of 90deg -- CSS 3D perspective transforms have a near-
+  // singularity right at the exact boundary (the projection math blows up),
+  // which reads as a huge distorted blob, not a clean edge-on tilt.
+  const tilt = Math.max(0, Math.min(85, (parseFloat(currentTheme.labelTilt) || 0) + delta));
   currentTheme.labelTilt = `${tilt.toFixed(0)}deg`;
   _applyLabelVars();
   setStatus(`Label: ${labelNudgeReadout()}`);
