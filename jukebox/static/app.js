@@ -48,12 +48,8 @@ const DECK_THEMES = [
     labelLeft: "45.0%",
     labelTop: "19.5%",
     labelSize: "19.0%",
-    // Pulled back from the 90deg you'd dialed in -- that's a near-singularity
-    // for CSS 3D perspective (see nudgeLabelTilt) and is almost certainly why
-    // the tint exploded into a huge distorted blob the moment it started
-    // sharing this value. 85 is the practical ceiling now; re-nudge with ,/.
-    // if it still doesn't look tilted enough at that cap.
-    labelTilt: "85deg",
+    // Final, confirmed live with the nudge tool.
+    labelTilt: "73deg",
     // Colour-tint overlay -- now independent of the label (was previously
     // derived from it: same position, size = label * 2.5, same tilt).
     // Starting values kept equal to what was already showing so this
