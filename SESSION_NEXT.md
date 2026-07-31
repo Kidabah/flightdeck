@@ -8,12 +8,13 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-31 Session update (Cindy Vinyl — fast crates / startup)
 
-Latest commit: `9376a2a` — Slim folder stubs + warm A–Z on boot
+Latest commit: `8051c77` — Precompute folder stubs; warm A–Z (~0.1s digs)
 
 Latest local/Pi change:
-- Cold A–Z was ~24s: crate collapse was building full tracklists per folder pack on the event loop.
-- Crate rails now use aggregate folder stubs; merge maps + letter A warmed before the app is ready.
-- Letters endpoint uses one GROUP BY; covers reuse the shared httpx client; cue videos preload after first crate paint.
+- Cold A–Z was ~24–31s: crate collapse built full tracklists / re-scanned `media_file` per pack.
+- One library pass now primes merge maps + slim folder sleeves; letter A warmed before ready.
+- Pi bench after deploy: A/K/R/newest/letters all ~0.1–0.15s (was 24s+ cold).
+- Letters GROUP BY; shared cover httpx client; cue videos after first crate paint.
 - Hard refresh `?v=83`. Rebuild `vinyl`.
 
 Previous:
