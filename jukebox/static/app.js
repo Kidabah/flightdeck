@@ -39,9 +39,8 @@ const DECK_THEMES = [
     audioCueDelayMs: 1800,
     // Position dialed in live with the nudge tool (L + arrows).
     labelLeft: "45.5%",
-    labelTop: "16.0%",
-    // Size/tilt not yet dialed in -- starting guesses, nudge live with +/- and ,/.
-    labelSize: "15%",
+    labelTop: "22.0%",
+    labelSize: "21.0%",
     labelTilt: "58deg",
   },
 ];
