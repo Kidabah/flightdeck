@@ -698,7 +698,7 @@ body.sleeve-dragging .deck-stage.drag-over::after {
   flex: 0 0 auto;
 }
 .wall-sleeve {
-  width: 96px;
+  width: 148px;
   aspect-ratio: 1;
   border-radius: 2px;
   overflow: hidden;

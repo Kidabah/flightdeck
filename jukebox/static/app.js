@@ -81,7 +81,7 @@ const state = {
   editAlbum: null,
   /** Album key the current vinyl tint belongs to — colour only changes when this changes. */
   vinylColorAlbumKey: null,
-  crateType: "newest",
+  crateType: "alphabeticalByName",
   crateLetter: "A",
   crateGenre: "",
   genresCache: null,
@@ -1575,8 +1575,12 @@ async function loadCrates(type) {
     }
     const data = await api(`/api/albums?${params}`);
     if (state.crateType !== type) return;
+    // Build off-DOM first -- appending 40+ sleeves one at a time straight into
+    // the live rail forces a reflow per node, which is what was laggy.
+    const frag = document.createDocumentFragment();
+    (data.albums || []).forEach((al) => frag.appendChild(sleeveButton(al)));
     rail.innerHTML = "";
-    (data.albums || []).forEach((al) => rail.appendChild(sleeveButton(al)));
+    rail.appendChild(frag);
     if (!(data.albums || []).length) {
       rail.innerHTML = "<p class='hint'>Nothing in this crate — try another letter or category.</p>";
     }
@@ -1696,8 +1700,8 @@ async function runSearch(q) {
   grid.innerHTML = "<p class='hint'>Searching…</p>";
   try {
     const data = await api(`/api/search?q=${encodeURIComponent(q)}`);
-    grid.innerHTML = "";
-    (data.albums || []).forEach((al) => grid.appendChild(sleeveButton(al)));
+    const frag = document.createDocumentFragment();
+    (data.albums || []).forEach((al) => frag.appendChild(sleeveButton(al)));
     (data.songs || []).slice(0, 12).forEach((song) => {
       const wrap = document.createElement("div");
       wrap.className = "sleeve-wrap";
@@ -1725,8 +1729,10 @@ async function runSearch(q) {
       });
       wrap.append(btn);
       bindSongDrag(wrap, song);
-      grid.appendChild(wrap);
+      frag.appendChild(wrap);
     });
+    grid.innerHTML = "";
+    grid.appendChild(frag);
     if (!grid.children.length) grid.innerHTML = "<p class='hint'>Nothing matched.</p>";
   } catch (err) {
     grid.innerHTML = `<p class='hint'>${escapeHtml(err.message || err)}</p>`;
@@ -1947,7 +1953,7 @@ async function boot() {
   } catch (err) {
     setStatus("Backend starting — retry in a moment.");
   }
-  await loadCrates("newest");
+  await loadCrates("alphabeticalByName");
 }
 
 if ("serviceWorker" in navigator) {

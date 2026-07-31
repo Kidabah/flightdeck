@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=80">
+  <link rel="stylesheet" href="/static/style.css?v=81">
 </head>
 <body>
   <div class="lamp" aria-hidden="true"></div>
@@ -71,11 +71,6 @@
               </div>
             </div>
             <div class="hero-copy">
-              <div class="now-cover" id="nowCover">
-                <div class="wall-sleeve" id="wallSleeve" hidden aria-hidden="true">
-                  <img id="wallArt" alt="">
-                </div>
-              </div>
               <div class="hero-copy-text">
                 <p class="deck-tag">Technics SL-1200 Limited</p>
                 <h1 id="nowTitle">Drop the needle</h1>
@@ -87,6 +82,11 @@
                 <p class="hint" id="statusLine">Warming up the tubes…</p>
                 <p class="now-track">Now playing: <span id="nowTrackTitle">—</span></p>
                 <p class="next-track">Next: <span id="nextTrackTitle">—</span></p>
+              </div>
+              <div class="now-cover" id="nowCover">
+                <div class="wall-sleeve" id="wallSleeve" hidden aria-hidden="true">
+                  <img id="wallArt" alt="">
+                </div>
               </div>
             </div>
           </div>
@@ -130,10 +130,10 @@
           <div class="crates-head">
             <h2>Crates</h2>
             <div class="crate-tabs" role="tablist">
-              <button type="button" class="crate-tab active" data-type="newest">Fresh sleeves</button>
+              <button type="button" class="crate-tab" data-type="newest">Fresh sleeves</button>
               <button type="button" class="crate-tab" data-type="random">Shuffle bin</button>
               <button type="button" class="crate-tab" data-type="frequent">Often spun</button>
-              <button type="button" class="crate-tab" data-type="alphabeticalByName">A–Z</button>
+              <button type="button" class="crate-tab active" data-type="alphabeticalByName">A–Z</button>
               <button type="button" class="crate-tab" data-type="byGenre">Categories</button>
             </div>
           </div>
@@ -239,6 +239,6 @@
     </div>
   </div>
 
-  <script src="/static/app.js?v=80"></script>
+  <script src="/static/app.js?v=81"></script>
 </body>
 </html>
