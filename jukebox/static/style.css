@@ -31,6 +31,55 @@ body {
   padding-bottom: 5.5rem;
 }
 
+/* Light room — white Cindy crate + soft daylight chrome */
+body.theme-light {
+  --ink: #e8e2d6;
+  --panel: #f7f2e8;
+  --wood: #efe6d6;
+  --cream: #2c241c;
+  --muted: rgba(44, 36, 28, 0.62);
+  --gold: #9a7424;
+  --gold-hot: #7a5a18;
+  --gold-dim: rgba(154, 116, 36, 0.38);
+  --chrome: #6a635a;
+  color: var(--cream);
+  background:
+    radial-gradient(ellipse 70% 45% at 18% 12%, rgba(212, 175, 55, 0.18), transparent 52%),
+    radial-gradient(ellipse 55% 40% at 88% 8%, rgba(255, 255, 255, 0.55), transparent 48%),
+    linear-gradient(165deg, #f6f1e7 0%, #ebe3d4 48%, #f3ece1 100%);
+}
+body.theme-light .lamp {
+  background: radial-gradient(circle at 22% 18%, rgba(255, 230, 180, 0.35), transparent 36%);
+}
+body.theme-light .grain { opacity: 0.035; }
+body.theme-light .transport {
+  background: rgba(247, 242, 232, 0.94);
+}
+body.theme-light .search input,
+body.theme-light .menu-btn,
+body.theme-light .menu-drop,
+body.theme-light .track-panel,
+body.theme-light .crates,
+body.theme-light .modal-card {
+  background: rgba(255, 252, 246, 0.88);
+  color: var(--cream);
+  border-color: var(--gold-dim);
+}
+body.theme-light .menu-drop button { color: var(--cream); }
+body.theme-light .crate-nav {
+  background: rgba(255, 252, 246, 0.85);
+  color: var(--cream);
+}
+body.theme-light .deck-controls button {
+  color: var(--cream);
+}
+body.theme-light .crate-carousel-letter {
+  color: var(--gold-hot);
+  background: rgba(255, 252, 246, 0.88);
+  border-color: var(--gold-dim);
+  text-shadow: none;
+}
+
 .lamp {
   pointer-events: none;
   position: fixed;
@@ -370,146 +419,6 @@ body {
   text-align: center;
   padding: 0.65rem 0.25rem;
   border-bottom: 1px solid rgba(212, 175, 55, 0.18);
-}
-
-/* Amp panel: VU meters, mini EQ, volume fader -- shares the tracklist's space. */
-.eq-rack {
-  background: linear-gradient(180deg, #18181a 0%, #0d0d0e 100%);
-  border: 1px solid #2a2a2d;
-  border-radius: 6px;
-  padding: 16px;
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05), 0 8px 20px rgba(0, 0, 0, 0.6);
-  font-family: monospace;
-  color: #a0a0a0;
-  width: 100%;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
-  height: 100%;
-  min-height: 12rem;
-}
-.eq-rack[hidden] { display: none; }
-
-.eq-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid #222;
-  padding-bottom: 8px;
-}
-
-.eq-title {
-  font-size: 0.75rem;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  color: #d4af37; /* Technics gold accent */
-}
-
-/* VU Meters */
-.vu-container {
-  display: flex;
-  gap: 12px;
-}
-
-.vu-meter {
-  flex: 1;
-  height: 50px;
-  background: #080808;
-  border: 1px solid #333;
-  border-radius: 4px;
-  position: relative;
-  overflow: hidden;
-  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.8);
-}
-
-.vu-meter::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at 50% 120%, rgba(255, 180, 60, 0.25) 0%, transparent 70%);
-  pointer-events: none;
-}
-
-.vu-scale {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  background-image: radial-gradient(circle, #444 1px, transparent 1px);
-  background-size: 8px 8px;
-  opacity: 0.3;
-}
-
-.vu-label {
-  position: absolute;
-  bottom: 2px;
-  right: 6px;
-  font-size: 0.6rem;
-  color: #ffb43c;
-  opacity: 0.7;
-}
-
-.needle {
-  position: absolute;
-  bottom: -10px;
-  left: 50%;
-  width: 2px;
-  height: 48px;
-  background: #d93838;
-  transform-origin: bottom center;
-  transform: rotate(-35deg);
-  transition: transform 0.1s ease-out;
-  box-shadow: 0 0 4px rgba(217, 56, 56, 0.6);
-}
-
-/* Sliders */
-.eq-sliders {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-}
-
-.band {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  flex: 1;
-}
-
-.band input[type="range"] {
-  -webkit-appearance: slider-vertical;
-  appearance: slider-vertical;
-  width: 8px;
-  height: 80px;
-  background: #111;
-  border-radius: 4px;
-  border: 1px solid #282828;
-  outline: none;
-}
-
-.band span {
-  font-size: 0.55rem;
-  color: #666;
-}
-
-.amp-fader {
-  position: relative;
-  width: 2.4rem;
-  overflow: hidden;
-  background: linear-gradient(180deg, #1c1710, #0d0a07);
-  border: 1px solid var(--gold-dim);
-  border-radius: 2px;
-}
-.amp-fader input[type="range"] {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 120px;
-  transform: translate(-50%, -50%) rotate(-90deg);
-  accent-color: var(--gold);
 }
 
 .now-track, .next-track {
@@ -914,21 +823,35 @@ body.sleeve-dragging .deck-stage.drag-over::after {
   /* Cropped ~10% off the top blank/lamp area (was 1026/898) so the crate
      sits higher in frame, closer to matching the deck photo's top edge. */
   aspect-ratio: 1026 / 808;
+  --crate-drop-top: 11.1%;
+  --crate-drop-right: 16%;
+  --crate-drop-bottom: 54.5%;
+  --crate-drop-left: 17%;
+  --crate-letter-bottom: 9%;
+  --crate-photo-position: center bottom;
+}
+body.theme-light .crate-carousel-frame {
+  /* White crate fills more of the frame; opening sits above the crossbar. */
+  aspect-ratio: 5 / 4;
+  --crate-drop-top: 18%;
+  --crate-drop-right: 18%;
+  --crate-drop-bottom: 42%;
+  --crate-drop-left: 18%;
+  --crate-letter-bottom: 12%;
+  --crate-photo-position: center center;
 }
 .crate-carousel-photo {
   display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: center bottom;
+  object-position: var(--crate-photo-position);
   pointer-events: none;
   user-select: none;
 }
 .crate-carousel-dropzone {
   position: absolute;
-  /* Recomputed for the 898->808 crop (same crate-interior pixels, now
-     expressed as % of the shorter cropped frame). */
-  inset: 11.1% 16% 54.5% 17%;
+  inset: var(--crate-drop-top) var(--crate-drop-right) var(--crate-drop-bottom) var(--crate-drop-left);
   display: flex;
   align-items: flex-end;
   gap: 0.6rem;
@@ -942,8 +865,8 @@ body.sleeve-dragging .deck-stage.drag-over::after {
 }
 .crate-carousel-letter {
   position: absolute;
-  /* On the table below the crate, not up in the blank lamp-lit background. */
-  bottom: 9%;
+  /* On the table / front panel below the crate opening. */
+  bottom: var(--crate-letter-bottom);
   left: 50%;
   transform: translateX(-50%);
   font-family: var(--font-display);

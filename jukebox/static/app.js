@@ -3,59 +3,59 @@ const $ = (id) => document.getElementById(id);
 const VOL_KEY = "cindy-vinyl-volume";
 const THEME_KEY = "cindy-vinyl-theme";
 
-/** Deck scene themes. Each clip has its own pacing, so hold-loop window and
- * audio-cue delay are per-theme, not shared constants. `cueOut: null` means
- * no lift-off clip exists yet -- cueOutToRest() falls back to a fade. */
+/** Room / deck themes. Amp-rack footage is shared by dark + light; crate photo
+ * and page chrome (`room`) differ. `cueOut: null` → fade instead of lift clip. */
+const AMP_RACK_OVERLAY = {
+  restImage: "/static/deck-theme2-rest.jpg",
+  cueIn: "/static/deck-theme2-cue-in.mp4",
+  cueOut: null,
+  holdLoopStart: 8.0,
+  holdLoopEnd: 9.0,
+  audioCueDelayMs: 1800,
+  labelLeft: "45.0%",
+  labelTop: "19.5%",
+  labelSize: "19.0%",
+  labelTilt: "73deg",
+  tintLeft: "47.5%",
+  tintTop: "19.5%",
+  tintSize: "47.5%",
+  tintTilt: "63deg",
+};
+
 const DECK_THEMES = [
   {
+    id: "technics-amp-rack",
+    name: "Dark · Amp rack",
+    room: "dark",
+    crateImage: "/static/crate-front.png",
+    ...AMP_RACK_OVERLAY,
+  },
+  {
+    id: "technics-amp-rack-light",
+    name: "Light · Amp rack",
+    room: "light",
+    crateImage: "/static/crate-front-light.png",
+    ...AMP_RACK_OVERLAY,
+  },
+  {
     id: "technics-lounge",
-    name: "Technics SL-1200 Limited",
+    name: "Dark · Lounge",
+    room: "dark",
+    crateImage: "/static/crate-front.png",
     restImage: "/static/deck.png",
     cueIn: "/static/deck-cue-in.mp4",
     cueOut: "/static/deck-cue-out.mp4",
-    // After the arm settles on the outer grooves, loop a short window so it
-    // stays parked (a full revolution lets it crawl inward, then snap back).
     holdLoopStart: 3.55,
     holdLoopEnd: 4.2,
-    // Wait for the tonearm cue-in before audio so needle-down matches the sound.
     audioCueDelayMs: 4000,
-    // Spindle centre, as % of the deck-stage box -- where the spinning label
-    // anchors. Tuned to this theme's specific footage.
     labelLeft: "41.6%",
     labelTop: "55%",
     labelSize: "13.2%",
     labelTilt: "50deg",
-    // Colour-tint overlay -- independent from the label (nudging one must
-    // not move the other). Original values happened to match the label's
-    // exactly for this theme, but that's coincidence, not a shared field.
     tintLeft: "41.6%",
     tintTop: "55%",
     tintSize: "33%",
     tintTilt: "50deg",
-  },
-  {
-    id: "technics-amp-rack",
-    name: "Technics on the Amp Rack",
-    restImage: "/static/deck-theme2-rest.jpg",
-    cueIn: "/static/deck-theme2-cue-in.mp4",
-    cueOut: null,
-    // This clip settles much faster than the lounge theme's -- estimated from
-    // eyeballing extracted frames, expect a nudge once seen/heard live.
-    holdLoopStart: 8.0,
-    holdLoopEnd: 9.0,
-    audioCueDelayMs: 1800,
-    // Position dialed in live with the nudge tool (L + arrows).
-    labelLeft: "45.0%",
-    labelTop: "19.5%",
-    labelSize: "19.0%",
-    // Final, confirmed live with the nudge tool.
-    labelTilt: "73deg",
-    // Colour-tint overlay -- independent of the label. Final, confirmed
-    // live with the nudge tool (O).
-    tintLeft: "47.5%",
-    tintTop: "19.5%",
-    tintSize: "47.5%",
-    tintTilt: "63deg",
   },
 ];
 let currentTheme = DECK_THEMES[0];
@@ -100,121 +100,6 @@ const state = {
 };
 
 const audio = $("audio");
-
-// --- Amp panel: Web Audio tap for VU meters / mini EQ (visual only, no shaping). ---
-let audioCtx = null;
-let audioAnalyser = null;
-let ampAnimHandle = null;
-
-/** Lazily taps the shared <audio> element. createMediaElementSource can only
- * be called once ever per element, so this must stay idempotent. */
-function ensureAudioAnalyser() {
-  if (audioAnalyser) {
-    if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
-    return audioAnalyser;
-  }
-  try {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const source = audioCtx.createMediaElementSource(audio);
-    audioAnalyser = audioCtx.createAnalyser();
-    audioAnalyser.fftSize = 256;
-    // Must reconnect to destination or audio goes silent once tapped.
-    source.connect(audioAnalyser);
-    audioAnalyser.connect(audioCtx.destination);
-  } catch {
-    audioAnalyser = null;
-  }
-  return audioAnalyser;
-}
-
-/** Simple RMS level (~0..1) from time-domain data. One shared analyser drives
- * both VU meters -- not true per-channel stereo, just a visual level. */
-function ampMeterLevel(analyser) {
-  const data = new Uint8Array(analyser.fftSize);
-  analyser.getByteTimeDomainData(data);
-  let sumSquares = 0;
-  for (let i = 0; i < data.length; i++) {
-    const v = (data[i] - 128) / 128;
-    sumSquares += v * v;
-  }
-  return Math.sqrt(sumSquares / data.length);
-}
-
-// Needle sweeps -35deg (rest) to +35deg (full signal), matching the CSS rest pose.
-const VU_NEEDLE_REST_DEG = -35;
-const VU_NEEDLE_MAX_DEG = 35;
-
-function setVuNeedleLevel(needleEl, level) {
-  if (!needleEl) return;
-  const clamped = Math.min(1, Math.max(0, level * 2.2));
-  const deg = VU_NEEDLE_REST_DEG + clamped * (VU_NEEDLE_MAX_DEG - VU_NEEDLE_REST_DEG);
-  needleEl.style.transform = `rotate(${deg.toFixed(1)}deg)`;
-}
-
-function updateAmpEqBars(analyser) {
-  const eq = $("ampEq");
-  if (!eq || !eq.children.length) return;
-  const freqData = new Uint8Array(analyser.frequencyBinCount);
-  analyser.getByteFrequencyData(freqData);
-  const sliders = eq.querySelectorAll("input[type=range]");
-  const bandsPerSlider = Math.max(1, Math.floor(freqData.length / sliders.length));
-  sliders.forEach((slider, i) => {
-    let sum = 0;
-    for (let j = 0; j < bandsPerSlider; j++) sum += freqData[i * bandsPerSlider + j] || 0;
-    const avg = sum / bandsPerSlider / 255;
-    slider.value = String(Math.round(avg * 100));
-  });
-}
-
-function ampAnimFrame() {
-  if (!audioAnalyser) return;
-  const level = ampMeterLevel(audioAnalyser);
-  setVuNeedleLevel($("vuNeedleL"), level);
-  setVuNeedleLevel($("vuNeedleR"), level);
-  updateAmpEqBars(audioAnalyser);
-  ampAnimHandle = requestAnimationFrame(ampAnimFrame);
-}
-
-function startAmpAnimation() {
-  if (ampAnimHandle) return;
-  const analyser = ensureAudioAnalyser();
-  if (!analyser) return;
-  ampAnimHandle = requestAnimationFrame(ampAnimFrame);
-}
-
-function stopAmpAnimation() {
-  if (ampAnimHandle) {
-    cancelAnimationFrame(ampAnimHandle);
-    ampAnimHandle = null;
-  }
-  setVuNeedleLevel($("vuNeedleL"), 0);
-  setVuNeedleLevel($("vuNeedleR"), 0);
-  const eq = $("ampEq");
-  if (eq) eq.querySelectorAll("input[type=range]").forEach((s) => { s.value = "0"; });
-}
-
-function buildAmpPanelDom() {
-  const eq = $("ampEq");
-  if (eq && !eq.children.length) {
-    const bandHz = ["60", "150", "400", "1k", "2.4k", "6k", "12k"];
-    for (let i = 0; i < bandHz.length; i++) {
-      const band = document.createElement("div");
-      band.className = "band";
-      const input = document.createElement("input");
-      input.type = "range";
-      input.min = "0";
-      input.max = "100";
-      input.value = "0";
-      input.disabled = true;
-      input.setAttribute("aria-hidden", "true");
-      input.tabIndex = -1;
-      const label = document.createElement("span");
-      label.textContent = bandHz[i];
-      band.append(input, label);
-      eq.appendChild(band);
-    }
-  }
-}
 
 async function api(path, opts = {}) {
   const init = { ...opts };
@@ -476,17 +361,36 @@ function updateThemeMenuHighlight() {
   });
 }
 
+function syncThemeChrome() {
+  const room = currentTheme.room || "dark";
+  document.body.dataset.room = room;
+  document.body.classList.toggle("theme-light", room === "light");
+  const photo = document.querySelector(".deck-photo");
+  if (photo) {
+    photo.src = currentTheme.restImage;
+    photo.alt = currentTheme.name;
+  }
+  const crate = $("crateCarouselPhoto") || document.querySelector(".crate-carousel-photo");
+  if (crate && currentTheme.crateImage) crate.src = currentTheme.crateImage;
+  const tag = $("deckTag");
+  if (tag) tag.textContent = currentTheme.name;
+  const meta = $("themeColorMeta");
+  if (meta) meta.content = room === "light" ? "#e7e0d4" : "#0a090b";
+  updateThemeMenuHighlight();
+}
+
 function applyDeckTheme(themeId, { persist = true } = {}) {
   const theme = DECK_THEMES.find((t) => t.id === themeId);
-  if (!theme || theme.id === currentTheme.id) return;
-  // Never mix footage from two themes -- always return to a clean rest state first.
-  resetArmToRest();
-  currentTheme = theme;
-  const photo = document.querySelector(".deck-photo");
-  if (photo) photo.src = theme.restImage;
-  _applyOverlayVars();
-  preloadCues();
-  updateThemeMenuHighlight();
+  if (!theme) return;
+  const same = theme.id === currentTheme.id;
+  if (!same) {
+    // Never mix footage from two themes -- always return to a clean rest state first.
+    resetArmToRest();
+    currentTheme = theme;
+    _applyOverlayVars();
+    preloadCues();
+  }
+  syncThemeChrome();
   if (persist) {
     try {
       localStorage.setItem(THEME_KEY, theme.id);
@@ -1459,12 +1363,10 @@ function setPlaying(on) {
     pauseCueVideo();
     // Keep arm-down video frame, but stop platter spin (`.cueing` also animates).
     stage?.classList.remove("cueing");
-    stopAmpAnimation();
     return;
   }
   setStatus("Needle down.");
   cueInThenHold();
-  startAmpAnimation();
 }
 
 async function spin() {
@@ -1759,25 +1661,15 @@ function wire() {
 
   try {
     const savedTheme = localStorage.getItem(THEME_KEY);
-    if (savedTheme && savedTheme !== currentTheme.id) {
-      applyDeckTheme(savedTheme, { persist: false });
-    }
+    if (savedTheme) applyDeckTheme(savedTheme, { persist: false });
+    else syncThemeChrome();
   } catch {
-    /* ignore */
+    syncThemeChrome();
   }
-  updateThemeMenuHighlight();
 
   wireDeckDrop();
-  buildAmpPanelDom();
   buildThemeMenuDom();
   wireMediaSessionActions();
-
-  $("ampToggleBtn")?.addEventListener("click", () => {
-    const showingAmp = !$("ampPanel").hidden;
-    $("ampPanel").hidden = showingAmp;
-    $("queueList").hidden = !showingAmp;
-    $("ampToggleBtn").textContent = showingAmp ? "Amp" : "Tracks";
-  });
 
   $("spinBtn").addEventListener("click", () => spin());
   $("playPauseBtn").addEventListener("click", () => togglePlayPause());
@@ -1785,7 +1677,7 @@ function wire() {
   $("nextBtn").addEventListener("click", () => playIndex(state.index + 1));
   $("prevBtn").addEventListener("click", () => playIndex(state.index - 1));
   $("muteBtn").addEventListener("click", () => toggleMute());
-  $("volume").addEventListener("input", () => {
+  $("volume")?.addEventListener("input", () => {
     const v = Number($("volume").value) / 100;
     if (v > 0) state.volumeBeforeMute = v;
     applyVolume(v);

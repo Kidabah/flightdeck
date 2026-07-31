@@ -10,16 +10,16 @@
   <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#0a090b">
+  <meta name="theme-color" content="#0a090b" id="themeColorMeta">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Cindy">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=83">
+  <link rel="stylesheet" href="/static/style.css?v=84">
 </head>
-<body>
+<body data-room="dark">
   <div class="lamp" aria-hidden="true"></div>
   <div class="grain" aria-hidden="true"></div>
 
@@ -37,7 +37,7 @@
         <button type="button" role="menuitem" data-action="cindy">Show on Cindy</button>
         <button type="button" role="menuitem" data-action="props">Edit names…</button>
         <button type="button" role="menuitem" data-action="refresh">Refresh packs</button>
-        <div class="menu-sep" role="separator">Deck theme</div>
+        <div class="menu-sep" role="separator">Theme</div>
         <div id="themeMenuSection"></div>
       </div>
     </div>
@@ -49,7 +49,7 @@
         <section class="hero" id="hero">
           <div class="hero-main">
             <div class="deck-stage" id="deckStage">
-              <img class="deck-photo" src="/static/deck.png" alt="Technics SL-1200 Limited">
+              <img class="deck-photo" src="/static/deck-theme2-rest.jpg" alt="Technics on the Amp Rack">
               <video
                 id="deckCue"
                 class="deck-cue"
@@ -72,7 +72,7 @@
             </div>
             <div class="hero-copy">
               <div class="hero-copy-text">
-                <p class="deck-tag">Technics SL-1200 Limited</p>
+                <p class="deck-tag" id="deckTag">Dark · Amp rack</p>
                 <h1 id="nowTitle">Drop the needle</h1>
                 <p id="nowArtist">5.4TB on Cindy — CHECKED · MUSIC · JAMAL</p>
                 <div class="hero-actions">
@@ -96,32 +96,10 @@
           <div class="track-panel-head">
             <h2>Tracks</h2>
             <span class="track-count" id="trackCount">—</span>
-            <button type="button" class="ghost-btn tiny" id="ampToggleBtn">Amp</button>
           </div>
           <ol id="queueList" class="track-list">
             <li class="track-empty">Spin a sleeve and the sides show up here.</li>
           </ol>
-          <div class="eq-rack" id="ampPanel" hidden>
-            <div class="eq-header">
-              <span class="eq-title">Amp</span>
-            </div>
-            <div class="vu-container">
-              <div class="vu-meter" id="vuMeterL">
-                <div class="vu-scale"></div>
-                <div class="needle" id="vuNeedleL"></div>
-                <span class="vu-label">L</span>
-              </div>
-              <div class="vu-meter" id="vuMeterR">
-                <div class="vu-scale"></div>
-                <div class="needle" id="vuNeedleR"></div>
-                <span class="vu-label">R</span>
-              </div>
-            </div>
-            <div class="eq-sliders" id="ampEq"></div>
-            <div class="amp-fader">
-              <input type="range" id="volume" min="0" max="100" value="85" aria-label="Volume">
-            </div>
-          </div>
         </aside>
       </div>
 
@@ -143,7 +121,7 @@
           <div class="crate-carousel" id="crateCarousel" hidden>
             <button type="button" class="crate-nav prev" id="crateCarouselPrev" aria-label="Previous letter">‹</button>
             <div class="crate-carousel-frame">
-              <img src="/static/crate-front.png" alt="" class="crate-carousel-photo">
+              <img src="/static/crate-front.png" alt="" class="crate-carousel-photo" id="crateCarouselPhoto">
               <div class="crate-carousel-letter" id="crateCarouselLetter"></div>
               <div class="crate-carousel-dropzone" id="crateCarouselDropzone">
                 <div class="crate-carousel-rail" id="crateCarouselRail" tabindex="0"></div>
@@ -178,6 +156,7 @@
       <button type="button" id="deckPlay" aria-label="Play/Pause">▶</button>
       <button type="button" id="nextBtn" aria-label="Next">⏭</button>
       <button type="button" id="muteBtn" aria-label="Mute" title="Mute (M)">🔊</button>
+      <input type="range" id="volume" min="0" max="100" value="85" aria-label="Volume">
     </div>
   </footer>
 
@@ -239,6 +218,6 @@
     </div>
   </div>
 
-  <script src="/static/app.js?v=83"></script>
+  <script src="/static/app.js?v=84"></script>
 </body>
 </html>

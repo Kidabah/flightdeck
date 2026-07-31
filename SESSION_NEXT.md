@@ -6,6 +6,21 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-07-31 Session update (Cindy Vinyl — light/dark amp-rack themes)
+
+Latest commit: `(pending)` — Light white-crate theme; remove Tracks Amp panel
+
+Latest local/Pi change:
+- Removed the Tracks Amp VU/EQ panel; volume lives in the transport bar again.
+- Themes: **Dark · Amp rack** (default, dark crate), **Light · Amp rack** (white Cindy crate + light room chrome), **Dark · Lounge**.
+- Both amp-rack themes share the deck-on-amp footage; crate + page chrome switch with the room.
+- Hard refresh `?v=84`. Rebuild `vinyl`.
+
+Previous:
+- Queue finish reconcile (`04f9e2f`).
+
+---
+
 ## 2026-07-31 Session update (queue: finished prints not marked CANCELLED)
 
 Latest commit: `04f9e2f` — Mark stuck queue jobs DONE after real finish
