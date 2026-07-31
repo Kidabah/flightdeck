@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-31 Session update (Cindy Vinyl — centered sleeve + A–Z by artist)
 
-Latest commit: `(pending)` — Center cover; file A–Z by artist
+Latest commit: `87f30e1` — Center cover; file A–Z by artist
 
 Latest local/Pi change:
 - Now-playing cover sits centered in the hero gap (not stuck on the far right); a bit larger.
