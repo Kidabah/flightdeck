@@ -661,11 +661,11 @@ body.sleeve-dragging .deck-stage.drag-over::after {
   position: absolute;
   left: var(--label-left, 41.6%);
   top: var(--label-top, 55%);
-  width: 13.2%;
+  width: var(--label-size, 13.2%);
   aspect-ratio: 1;
   height: auto;
   border-radius: 50%;
-  transform: translate(-50%, -50%) rotateX(50deg) rotateZ(-1deg);
+  transform: translate(-50%, -50%) rotateX(var(--label-tilt, 50deg)) rotateZ(-1deg);
   transform-origin: center center;
   display: grid;
   place-items: center;

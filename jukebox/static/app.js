@@ -23,6 +23,8 @@ const DECK_THEMES = [
     // and colour-tint overlay anchor. Tuned to this theme's specific footage.
     labelLeft: "41.6%",
     labelTop: "55%",
+    labelSize: "13.2%",
+    labelTilt: "50deg",
   },
   {
     id: "technics-amp-rack",
@@ -35,11 +37,12 @@ const DECK_THEMES = [
     holdLoopStart: 8.0,
     holdLoopEnd: 9.0,
     audioCueDelayMs: 1800,
-    // Turntable sits in the top ~40% of this frame (amp rack below it), so the
-    // spindle is much higher up than theme 1's close-up framing -- also just
-    // an eyeballed estimate, expect a nudge once seen live.
-    labelLeft: "45%",
-    labelTop: "18.5%",
+    // Position dialed in live with the nudge tool (L + arrows).
+    labelLeft: "45.5%",
+    labelTop: "16.0%",
+    // Size/tilt not yet dialed in -- starting guesses, nudge live with +/- and ,/.
+    labelSize: "15%",
+    labelTilt: "58deg",
   },
 ];
 let currentTheme = DECK_THEMES[0];
@@ -472,6 +475,8 @@ function applyDeckTheme(themeId, { persist = true } = {}) {
   if (stage) {
     stage.style.setProperty("--label-left", theme.labelLeft);
     stage.style.setProperty("--label-top", theme.labelTop);
+    stage.style.setProperty("--label-size", theme.labelSize);
+    stage.style.setProperty("--label-tilt", theme.labelTilt);
   }
   preloadCues();
   updateThemeMenuHighlight();
@@ -485,21 +490,36 @@ function applyDeckTheme(themeId, { persist = true } = {}) {
 }
 
 /** Live calibration tool for the per-theme spinning-label position (see
- * DECK_THEMES.labelLeft/labelTop). Press L to toggle, arrows to nudge (Shift
- * for bigger steps) -- reads the live % back in the status line so it can be
+ * DECK_THEMES.labelLeft/labelTop/labelSize/labelTilt). Press L to toggle:
+ * arrows move it (Shift+arrow for bigger steps), +/- resize it, ,/. tilt it
+ * (rotateX) -- reads the live values back in the status line so it can be
  * dialed in by eye instead of guessed from screenshots. Not persisted; once
  * it looks right, copy the numbers into DECK_THEMES by hand. */
 let labelNudgeMode = false;
+
+function labelNudgeReadout() {
+  const t = currentTheme;
+  return `${t.labelLeft}, ${t.labelTop}, size ${t.labelSize}, tilt ${t.labelTilt}`;
+}
 
 function toggleLabelNudge() {
   labelNudgeMode = !labelNudgeMode;
   if (labelNudgeMode) {
     setStatus(
-      `Label nudge ON (${currentTheme.labelLeft}, ${currentTheme.labelTop}) — arrows to move, Shift+arrow for bigger steps, L to exit.`,
+      `Label nudge ON (${labelNudgeReadout()}) — arrows move, Shift+arrow = bigger step, +/- resize, ,/. tilt, L to exit.`,
     );
   } else {
-    setStatus(`Label nudge off. Final: ${currentTheme.labelLeft}, ${currentTheme.labelTop}`);
+    setStatus(`Label nudge off. Final: ${labelNudgeReadout()}`);
   }
+}
+
+function _applyLabelVars() {
+  const stage = $("deckStage");
+  if (!stage) return;
+  stage.style.setProperty("--label-left", currentTheme.labelLeft);
+  stage.style.setProperty("--label-top", currentTheme.labelTop);
+  stage.style.setProperty("--label-size", currentTheme.labelSize);
+  stage.style.setProperty("--label-tilt", currentTheme.labelTilt);
 }
 
 function nudgeLabel(dx, dy) {
@@ -507,12 +527,22 @@ function nudgeLabel(dx, dy) {
   const top = Math.max(0, Math.min(100, (parseFloat(currentTheme.labelTop) || 0) + dy));
   currentTheme.labelLeft = `${left.toFixed(1)}%`;
   currentTheme.labelTop = `${top.toFixed(1)}%`;
-  const stage = $("deckStage");
-  if (stage) {
-    stage.style.setProperty("--label-left", currentTheme.labelLeft);
-    stage.style.setProperty("--label-top", currentTheme.labelTop);
-  }
-  setStatus(`Label: ${currentTheme.labelLeft}, ${currentTheme.labelTop}`);
+  _applyLabelVars();
+  setStatus(`Label: ${labelNudgeReadout()}`);
+}
+
+function nudgeLabelSize(delta) {
+  const size = Math.max(1, Math.min(100, (parseFloat(currentTheme.labelSize) || 0) + delta));
+  currentTheme.labelSize = `${size.toFixed(1)}%`;
+  _applyLabelVars();
+  setStatus(`Label: ${labelNudgeReadout()}`);
+}
+
+function nudgeLabelTilt(delta) {
+  const tilt = Math.max(0, Math.min(90, (parseFloat(currentTheme.labelTilt) || 0) + delta));
+  currentTheme.labelTilt = `${tilt.toFixed(0)}deg`;
+  _applyLabelVars();
+  setStatus(`Label: ${labelNudgeReadout()}`);
 }
 
 function currentSong() {
@@ -1789,6 +1819,14 @@ function wire() {
       const dx = e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0;
       const dy = e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0;
       nudgeLabel(dx, dy);
+      return;
+    }
+    if (labelNudgeMode && ["+", "=", "-", "_", ",", "."].includes(e.key)) {
+      e.preventDefault();
+      if (e.key === "+" || e.key === "=") nudgeLabelSize(0.5);
+      else if (e.key === "-" || e.key === "_") nudgeLabelSize(-0.5);
+      else if (e.key === ",") nudgeLabelTilt(-2);
+      else if (e.key === ".") nudgeLabelTilt(2);
       return;
     }
     switch (e.key) {
