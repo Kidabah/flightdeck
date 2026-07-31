@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-31 Session update (Cindy Vinyl — fast crates / startup)
 
-Latest commit: `(pending)` — Slim folder stubs + warm A–Z on boot
+Latest commit: `9376a2a` — Slim folder stubs + warm A–Z on boot
 
 Latest local/Pi change:
 - Cold A–Z was ~24s: crate collapse was building full tracklists per folder pack on the event loop.
