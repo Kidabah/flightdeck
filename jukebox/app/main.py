@@ -487,6 +487,29 @@ def _collapse_apply(albums: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return meta.apply_album_list(collapse_album_list(albums))
 
 
+def _filter_letter_sleeves(
+    albums: list[dict[str, Any]], ch: str
+) -> list[dict[str, Any]]:
+    """Keep sleeves that still file under this letter after folder collapse.
+
+    Pack fragments are often tagged with a single-track artist (e.g. A-Ha inside
+    a VA chart dump). Collapse turns those into a Various Artists folder sleeve —
+    drop them from A–Z so they only show on the VA chip.
+    """
+    key = (ch or "A").upper()
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for a in albums:
+        if _album_index_letter(a) != key:
+            continue
+        aid = str(a.get("id") or "")
+        if not aid or aid in seen:
+            continue
+        seen.add(aid)
+        out.append(a)
+    return out
+
+
 async def _letter_collapsed_full(ch: str) -> tuple[list[dict[str, Any]], str]:
     """Full collapsed sleeve list for a letter (cached)."""
     key = (ch or "A").upper()
@@ -505,12 +528,16 @@ async def _letter_collapsed_full(ch: str) -> tuple[list[dict[str, Any]], str]:
             )
             if extra and extra[0]:
                 albums = albums + extra[0]
-        collapsed = await asyncio.to_thread(_collapse_apply, albums)
+        collapsed = _filter_letter_sleeves(
+            await asyncio.to_thread(_collapse_apply, albums), key
+        )
         _letter_full_cache[key] = (collapsed, "db", time.monotonic())
         return collapsed, "db"
 
     matched = await _letter_albums_cached(key)
-    collapsed = await asyncio.to_thread(_collapse_apply, matched)
+    collapsed = _filter_letter_sleeves(
+        await asyncio.to_thread(_collapse_apply, matched), key
+    )
     mode = "seek" if _alpha_index is None else "index"
     _letter_full_cache[key] = (collapsed, mode, time.monotonic())
     return collapsed, mode

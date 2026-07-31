@@ -8,11 +8,12 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-07-31 Session update (Cindy Vinyl — centered sleeve + A–Z by artist)
 
-Latest commit: `87f30e1` — Center cover; file A–Z by artist
+Latest commit: `(pending)` — Center cover; A–Z by artist (filter pack collapse)
 
 Latest local/Pi change:
 - Now-playing cover sits centered in the hero gap (not stuck on the far right); a bit larger.
 - A–Z crate files by **album artist** (record-store style): Deep Purple → D, comps on **VA**.
+- After folder-collapse, drop sleeves that no longer match the letter (VA chart packs leaking into A).
 - Hard refresh `?v=90`. Rebuild `vinyl`.
 
 Previous:
