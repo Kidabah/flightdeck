@@ -484,6 +484,37 @@ function applyDeckTheme(themeId, { persist = true } = {}) {
   }
 }
 
+/** Live calibration tool for the per-theme spinning-label position (see
+ * DECK_THEMES.labelLeft/labelTop). Press L to toggle, arrows to nudge (Shift
+ * for bigger steps) -- reads the live % back in the status line so it can be
+ * dialed in by eye instead of guessed from screenshots. Not persisted; once
+ * it looks right, copy the numbers into DECK_THEMES by hand. */
+let labelNudgeMode = false;
+
+function toggleLabelNudge() {
+  labelNudgeMode = !labelNudgeMode;
+  if (labelNudgeMode) {
+    setStatus(
+      `Label nudge ON (${currentTheme.labelLeft}, ${currentTheme.labelTop}) — arrows to move, Shift+arrow for bigger steps, L to exit.`,
+    );
+  } else {
+    setStatus(`Label nudge off. Final: ${currentTheme.labelLeft}, ${currentTheme.labelTop}`);
+  }
+}
+
+function nudgeLabel(dx, dy) {
+  const left = Math.max(0, Math.min(100, (parseFloat(currentTheme.labelLeft) || 0) + dx));
+  const top = Math.max(0, Math.min(100, (parseFloat(currentTheme.labelTop) || 0) + dy));
+  currentTheme.labelLeft = `${left.toFixed(1)}%`;
+  currentTheme.labelTop = `${top.toFixed(1)}%`;
+  const stage = $("deckStage");
+  if (stage) {
+    stage.style.setProperty("--label-left", currentTheme.labelLeft);
+    stage.style.setProperty("--label-top", currentTheme.labelTop);
+  }
+  setStatus(`Label: ${currentTheme.labelLeft}, ${currentTheme.labelTop}`);
+}
+
 function currentSong() {
   if (state.index < 0 || state.index >= state.queue.length) return null;
   return state.queue[state.index];
@@ -1749,6 +1780,17 @@ function wire() {
     }
     if (isTypingTarget(e.target)) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (
+      labelNudgeMode &&
+      ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)
+    ) {
+      e.preventDefault();
+      const step = e.shiftKey ? 2 : 0.5;
+      const dx = e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0;
+      const dy = e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0;
+      nudgeLabel(dx, dy);
+      return;
+    }
     switch (e.key) {
       case " ":
         e.preventDefault();
@@ -1794,6 +1836,11 @@ function wire() {
           e.preventDefault();
           $("crateCarouselDropzone")?.classList.toggle("debug-outline");
         }
+        break;
+      case "l":
+      case "L":
+        e.preventDefault();
+        toggleLabelNudge();
         break;
       default:
         break;
