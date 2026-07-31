@@ -20,11 +20,18 @@ const DECK_THEMES = [
     // Wait for the tonearm cue-in before audio so needle-down matches the sound.
     audioCueDelayMs: 4000,
     // Spindle centre, as % of the deck-stage box -- where the spinning label
-    // and colour-tint overlay anchor. Tuned to this theme's specific footage.
+    // anchors. Tuned to this theme's specific footage.
     labelLeft: "41.6%",
     labelTop: "55%",
     labelSize: "13.2%",
     labelTilt: "50deg",
+    // Colour-tint overlay -- independent from the label (nudging one must
+    // not move the other). Original values happened to match the label's
+    // exactly for this theme, but that's coincidence, not a shared field.
+    tintLeft: "41.6%",
+    tintTop: "55%",
+    tintSize: "33%",
+    tintTilt: "50deg",
   },
   {
     id: "technics-amp-rack",
@@ -47,6 +54,14 @@ const DECK_THEMES = [
     // sharing this value. 85 is the practical ceiling now; re-nudge with ,/.
     // if it still doesn't look tilted enough at that cap.
     labelTilt: "85deg",
+    // Colour-tint overlay -- now independent of the label (was previously
+    // derived from it: same position, size = label * 2.5, same tilt).
+    // Starting values kept equal to what was already showing so this
+    // change doesn't itself cause a visual jump; nudge from here with O.
+    tintLeft: "45.0%",
+    tintTop: "19.5%",
+    tintSize: "47.5%",
+    tintTilt: "85deg",
   },
 ];
 let currentTheme = DECK_THEMES[0];
@@ -475,13 +490,7 @@ function applyDeckTheme(themeId, { persist = true } = {}) {
   currentTheme = theme;
   const photo = document.querySelector(".deck-photo");
   if (photo) photo.src = theme.restImage;
-  const stage = $("deckStage");
-  if (stage) {
-    stage.style.setProperty("--label-left", theme.labelLeft);
-    stage.style.setProperty("--label-top", theme.labelTop);
-    stage.style.setProperty("--label-size", theme.labelSize);
-    stage.style.setProperty("--label-tilt", theme.labelTilt);
-  }
+  _applyOverlayVars();
   preloadCues();
   updateThemeMenuHighlight();
   if (persist) {
@@ -498,58 +507,94 @@ function applyDeckTheme(themeId, { persist = true } = {}) {
  * arrows move it (Shift+arrow for bigger steps), +/- resize it, ,/. tilt it
  * (rotateX) -- reads the live values back in the status line so it can be
  * dialed in by eye instead of guessed from screenshots. Not persisted; once
- * it looks right, copy the numbers into DECK_THEMES by hand. */
+ * it looks right, copy the numbers into DECK_THEMES by hand.
+ *
+ * L nudges the label, O nudges the colour-tint overlay -- separately, since
+ * they're independent fields (labelLeft/labelTop/labelSize/labelTilt vs.
+ * tintLeft/tintTop/tintSize/tintTilt). Only one target nudges at a time. */
 let labelNudgeMode = false;
+let tintNudgeMode = false;
 
-function labelNudgeReadout() {
+function _nudgeTarget() {
+  return labelNudgeMode ? "label" : tintNudgeMode ? "tint" : null;
+}
+
+function _readout(prefix) {
   const t = currentTheme;
-  return `${t.labelLeft}, ${t.labelTop}, size ${t.labelSize}, tilt ${t.labelTilt}`;
+  return `${t[`${prefix}Left`]}, ${t[`${prefix}Top`]}, size ${t[`${prefix}Size`]}, tilt ${t[`${prefix}Tilt`]}`;
 }
 
 function toggleLabelNudge() {
+  tintNudgeMode = false;
   labelNudgeMode = !labelNudgeMode;
   if (labelNudgeMode) {
     setStatus(
-      `Label nudge ON (${labelNudgeReadout()}) — arrows move, Shift+arrow = bigger step, +/- resize, ,/. tilt, L to exit.`,
+      `Label nudge ON (${_readout("label")}) — arrows move, Shift+arrow = bigger step, +/- resize, ,/. tilt, L to exit.`,
     );
   } else {
-    setStatus(`Label nudge off. Final: ${labelNudgeReadout()}`);
+    setStatus(`Label nudge off. Final: ${_readout("label")}`);
   }
 }
 
-function _applyLabelVars() {
+function toggleTintNudge() {
+  labelNudgeMode = false;
+  tintNudgeMode = !tintNudgeMode;
+  if (tintNudgeMode) {
+    setStatus(
+      `Tint nudge ON (${_readout("tint")}) — arrows move, Shift+arrow = bigger step, +/- resize, ,/. tilt, O to exit.`,
+    );
+  } else {
+    setStatus(`Tint nudge off. Final: ${_readout("tint")}`);
+  }
+}
+
+function _applyOverlayVars() {
   const stage = $("deckStage");
   if (!stage) return;
-  stage.style.setProperty("--label-left", currentTheme.labelLeft);
-  stage.style.setProperty("--label-top", currentTheme.labelTop);
-  stage.style.setProperty("--label-size", currentTheme.labelSize);
-  stage.style.setProperty("--label-tilt", currentTheme.labelTilt);
+  const t = currentTheme;
+  stage.style.setProperty("--label-left", t.labelLeft);
+  stage.style.setProperty("--label-top", t.labelTop);
+  stage.style.setProperty("--label-size", t.labelSize);
+  stage.style.setProperty("--label-tilt", t.labelTilt);
+  stage.style.setProperty("--tint-left", t.tintLeft);
+  stage.style.setProperty("--tint-top", t.tintTop);
+  stage.style.setProperty("--tint-size", t.tintSize);
+  stage.style.setProperty("--tint-tilt", t.tintTilt);
 }
 
-function nudgeLabel(dx, dy) {
-  const left = Math.max(0, Math.min(100, (parseFloat(currentTheme.labelLeft) || 0) + dx));
-  const top = Math.max(0, Math.min(100, (parseFloat(currentTheme.labelTop) || 0) + dy));
-  currentTheme.labelLeft = `${left.toFixed(1)}%`;
-  currentTheme.labelTop = `${top.toFixed(1)}%`;
-  _applyLabelVars();
-  setStatus(`Label: ${labelNudgeReadout()}`);
+function nudgePosition(dx, dy) {
+  const prefix = _nudgeTarget();
+  if (!prefix) return;
+  const leftKey = `${prefix}Left`;
+  const topKey = `${prefix}Top`;
+  const left = Math.max(0, Math.min(100, (parseFloat(currentTheme[leftKey]) || 0) + dx));
+  const top = Math.max(0, Math.min(100, (parseFloat(currentTheme[topKey]) || 0) + dy));
+  currentTheme[leftKey] = `${left.toFixed(1)}%`;
+  currentTheme[topKey] = `${top.toFixed(1)}%`;
+  _applyOverlayVars();
+  setStatus(`${prefix === "label" ? "Label" : "Tint"}: ${_readout(prefix)}`);
 }
 
-function nudgeLabelSize(delta) {
-  const size = Math.max(1, Math.min(100, (parseFloat(currentTheme.labelSize) || 0) + delta));
-  currentTheme.labelSize = `${size.toFixed(1)}%`;
-  _applyLabelVars();
-  setStatus(`Label: ${labelNudgeReadout()}`);
+function nudgeSize(delta) {
+  const prefix = _nudgeTarget();
+  if (!prefix) return;
+  const sizeKey = `${prefix}Size`;
+  const size = Math.max(1, Math.min(100, (parseFloat(currentTheme[sizeKey]) || 0) + delta));
+  currentTheme[sizeKey] = `${size.toFixed(1)}%`;
+  _applyOverlayVars();
+  setStatus(`${prefix === "label" ? "Label" : "Tint"}: ${_readout(prefix)}`);
 }
 
-function nudgeLabelTilt(delta) {
+function nudgeTilt(delta) {
+  const prefix = _nudgeTarget();
+  if (!prefix) return;
+  const tiltKey = `${prefix}Tilt`;
   // Capped short of 90deg -- CSS 3D perspective transforms have a near-
-  // singularity right at the exact boundary (the projection math blows up),
-  // which reads as a huge distorted blob, not a clean edge-on tilt.
-  const tilt = Math.max(0, Math.min(85, (parseFloat(currentTheme.labelTilt) || 0) + delta));
-  currentTheme.labelTilt = `${tilt.toFixed(0)}deg`;
-  _applyLabelVars();
-  setStatus(`Label: ${labelNudgeReadout()}`);
+  // singularity right at the exact boundary (the projection math blows up).
+  const tilt = Math.max(0, Math.min(85, (parseFloat(currentTheme[tiltKey]) || 0) + delta));
+  currentTheme[tiltKey] = `${tilt.toFixed(0)}deg`;
+  _applyOverlayVars();
+  setStatus(`${prefix === "label" ? "Label" : "Tint"}: ${_readout(prefix)}`);
 }
 
 function currentSong() {
@@ -1818,22 +1863,22 @@ function wire() {
     if (isTypingTarget(e.target)) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (
-      labelNudgeMode &&
+      (labelNudgeMode || tintNudgeMode) &&
       ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)
     ) {
       e.preventDefault();
       const step = e.shiftKey ? 2 : 0.5;
       const dx = e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0;
       const dy = e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0;
-      nudgeLabel(dx, dy);
+      nudgePosition(dx, dy);
       return;
     }
-    if (labelNudgeMode && ["+", "=", "-", "_", ",", "."].includes(e.key)) {
+    if ((labelNudgeMode || tintNudgeMode) && ["+", "=", "-", "_", ",", "."].includes(e.key)) {
       e.preventDefault();
-      if (e.key === "+" || e.key === "=") nudgeLabelSize(0.5);
-      else if (e.key === "-" || e.key === "_") nudgeLabelSize(-0.5);
-      else if (e.key === ",") nudgeLabelTilt(-2);
-      else if (e.key === ".") nudgeLabelTilt(2);
+      if (e.key === "+" || e.key === "=") nudgeSize(0.5);
+      else if (e.key === "-" || e.key === "_") nudgeSize(-0.5);
+      else if (e.key === ",") nudgeTilt(-2);
+      else if (e.key === ".") nudgeTilt(2);
       return;
     }
     switch (e.key) {
@@ -1886,6 +1931,11 @@ function wire() {
       case "L":
         e.preventDefault();
         toggleLabelNudge();
+        break;
+      case "o":
+      case "O":
+        e.preventDefault();
+        toggleTintNudge();
         break;
       default:
         break;

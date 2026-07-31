@@ -628,23 +628,15 @@ body.sleeve-dragging .deck-stage.drag-over::after {
 /* Random vinyl colour — elliptical in screen space; soft arm-side fade (not a hard half-wipe) */
 .vinyl-tint {
   position: absolute;
-  left: var(--label-left, 41.6%);
-  top: var(--label-top, 55%);
-  /* Scaled off the label's own size (width ratio matches theme 1's original
-     33% vs. its 13.2% label) so the tint always tracks the label instead of
-     needing its own separate per-theme tuning. Height via aspect-ratio, not
-     a second calc'd %, since deck-stage isn't square -- a height% derived
-     the same way as the width% would resolve against a shorter dimension
-     and squash the ellipse. */
-  width: calc(var(--label-size, 13.2%) * 2.5);
+  /* Independent from the label -- own position/size/tilt vars, own nudge
+     key (O vs L), so adjusting one never drags the other along. */
+  left: var(--tint-left, 41.6%);
+  top: var(--tint-top, 55%);
+  width: var(--tint-size, 33%);
   aspect-ratio: 33 / 20.5;
   height: auto;
   border-radius: 50%;
-  /* Same 3D pose as the label (.platter-live) -- was previously just a flat
-     2D rotate, so it never matched the record's actual tilted perspective;
-     barely noticeable at the old small/subtle size, obvious at a bigger,
-     more saturated one. */
-  transform: translate(-50%, -50%) rotateX(var(--label-tilt, 50deg)) rotateZ(-1deg);
+  transform: translate(-50%, -50%) rotateX(var(--tint-tilt, 50deg)) rotateZ(-1deg);
   background: var(--vinyl-color, #8b1a1a);
   opacity: 0;
   z-index: 6;
