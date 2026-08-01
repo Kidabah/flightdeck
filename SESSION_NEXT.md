@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-01 Session update (Cindy Vinyl — On Cindy live data)
 
-Latest commit: `(pending)` — Sleeve ⋯ On Cindy live album/track paths
+Latest commit: `9de7fc4` — Sleeve ⋯ On Cindy live album/track paths
 
 Latest local/Pi change:
 - Sleeve **⋯** is a menu: **Edit names…** / **On Cindy…**.
