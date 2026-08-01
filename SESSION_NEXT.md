@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-01 Session update (Cindy Vinyl — smooth platter loop)
 
-Latest commit: `(pending)` — Fix record spin jump at hold seam
+Latest commit: `74b7dd5` — Fix record spin jump at hold seam
 
 Latest local/Pi change:
 - Amp-rack hold loop was 8→9s (wrong period); now one real revolution (31 frames @ 24fps ≈ 1.29s) with frame-accurate seek.
