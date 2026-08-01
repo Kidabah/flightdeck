@@ -599,19 +599,16 @@ async function copyField(inputId) {
   }
 }
 
-/** Turn \\host\share\path into cindyvinyl://open/host/share/path (custom protocol). */
+/** Turn \\host\share\path into cindyvinyl://open/<base64url> (custom protocol). */
 function uncToCindyProtocol(unc, { select = false } = {}) {
-  const cleaned = String(unc || "")
-    .trim()
-    .replace(/^\\\\/, "")
-    .replace(/\\/g, "/")
-    .replace(/^\/+/, "");
+  const cleaned = String(unc || "").trim();
   if (!cleaned) return "";
-  const encoded = cleaned
-    .split("/")
-    .map((p) => encodeURIComponent(p))
-    .join("/");
-  return select ? `cindyvinyl://select/${encoded}` : `cindyvinyl://open/${encoded}`;
+  // Base64 avoids PowerShell/cmd choking on spaces, quotes, (), & in paths.
+  const bytes = new TextEncoder().encode(cleaned);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  const b64 = btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  return select ? `cindyvinyl://select/${b64}` : `cindyvinyl://open/${b64}`;
 }
 
 function looksLikeFileUnc(unc) {

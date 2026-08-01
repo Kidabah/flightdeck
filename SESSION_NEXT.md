@@ -6,6 +6,19 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-01 Session update (Cindy Vinyl — Open helper fix)
+
+Latest commit: `(pending)` — Fix cindyvinyl:// Explorer open (path mangling)
+
+Latest local/Pi change:
+- Open helper was killing paths with PowerShell `-replace '/' '\'`; now uses base64 UNC + `.Replace` + error popup/log.
+- Re-run `install-cindy-open.ps1` once (Run with PowerShell), hard refresh `?v=94`.
+
+Previous:
+- Open in Explorer (`e97d155`).
+
+---
+
 ## 2026-08-01 Session update (Cindy Vinyl — Open in Explorer)
 
 Latest commit: `e97d155` — On Cindy opens Explorer (not just copy)
