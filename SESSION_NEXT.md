@@ -6,6 +6,21 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-01 Session update (Cindy Vinyl — smooth platter loop)
+
+Latest commit: `(pending)` — Fix record spin jump at hold seam
+
+Latest local/Pi change:
+- Amp-rack hold loop was 8→9s (wrong period); now one real revolution (31 frames @ 24fps ≈ 1.29s) with frame-accurate seek.
+- CSS label no longer resets to 0° on pause (`animation-play-state` instead of tearing down the animation).
+- Lounge freezes the arm-down frame (no clean seam in that footage) while the label keeps spinning.
+- Hard refresh `?v=91`. Rebuild `vinyl`.
+
+Previous:
+- Center cover + A–Z by artist (`4b62eea`).
+
+---
+
 ## 2026-07-31 Session update (Cindy Vinyl — centered sleeve + A–Z by artist)
 
 Latest commit: `4b62eea` — Center cover; A–Z by artist (filter pack collapse)

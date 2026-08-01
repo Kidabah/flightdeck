@@ -644,18 +644,17 @@ body.sleeve-dragging .deck-stage.drag-over::after {
   height: 100%;
   border-radius: 50%;
 }
-.deck-stage.playing .platter-spin {
-  animation: platter-spin 1.4583s linear infinite;
+/* Keep the same animation instance whenever a sleeve is loaded — toggling
+ * `animation: none` was resetting to 0deg (visible jump on pause/resume).
+ * Play/pause only flips animation-play-state so the angle is preserved. */
+.deck-stage.has-vinyl .platter-spin {
+  animation: platter-spin var(--platter-period, 1.2917s) linear infinite;
+  animation-play-state: paused;
   will-change: transform;
 }
-.deck-stage.cueing:not(.playing) .platter-spin {
-  /* Cue-in/out with audio paused (e.g. end-of-queue) still spins briefly */
-  animation: platter-spin 1.4583s linear infinite;
-  will-change: transform;
-}
-.deck-stage:not(.playing):not(.cueing) .platter-spin {
-  animation: none;
-  will-change: auto;
+.deck-stage.playing .platter-spin,
+.deck-stage.cueing .platter-spin {
+  animation-play-state: running;
 }
 
 @keyframes platter-spin {

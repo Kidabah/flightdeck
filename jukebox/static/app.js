@@ -5,12 +5,17 @@ const THEME_KEY = "cindy-vinyl-theme";
 
 /** Room / deck themes. Amp-rack footage is shared by dark + light; crate photo
  * and page chrome (`room`) differ. `cueOut: null` → fade instead of lift clip. */
+/** Amp-rack platter period = 31 frames @ 24fps (best seam in cue-in footage). */
+const AMP_PLATTER_PERIOD = 31 / 24;
+
 const AMP_RACK_OVERLAY = {
   restImage: "/static/deck-theme2-rest.jpg",
   cueIn: "/static/deck-theme2-cue-in.mp4",
   cueOut: null,
+  // Was 8→9 (1.0s) — platter actually repeats ~1.29s, so the seam jumped.
   holdLoopStart: 8.0,
-  holdLoopEnd: 9.0,
+  holdLoopEnd: 8.0 + AMP_PLATTER_PERIOD,
+  platterPeriod: AMP_PLATTER_PERIOD,
   audioCueDelayMs: 1800,
   labelLeft: "45.0%",
   labelTop: "19.5%",
@@ -45,8 +50,12 @@ const DECK_THEMES = [
     restImage: "/static/deck.png",
     cueIn: "/static/deck-cue-in.mp4",
     cueOut: "/static/deck-cue-out.mp4",
+    // Lounge footage has no clean groove seam — freeze the arm-down frame and
+    // let the CSS label keep spinning (avoids a visible jump every loop).
     holdLoopStart: 3.55,
-    holdLoopEnd: 4.2,
+    holdLoopEnd: 3.55 + 29 / 24,
+    platterPeriod: 29 / 24,
+    holdFreeze: true,
     audioCueDelayMs: 4000,
     labelLeft: "41.6%",
     labelTop: "55%",
@@ -236,6 +245,69 @@ function playVideoSrc(v, src, token, onReady) {
   v.load();
 }
 
+/** Frame-accurate hold loop (or freeze) once the arm is down. */
+function attachHoldLoop(v, theme, token) {
+  const start = theme.holdLoopStart;
+  const end = theme.holdLoopEnd;
+  const epsilon = 1 / 48; // half-frame @ 24fps
+  const freeze = !!theme.holdFreeze;
+
+  const enterHold = () => {
+    if (state.arm === "cueing-in") state.arm = "hold";
+    if (!freeze) return;
+    try {
+      v.currentTime = start;
+    } catch {
+      /* ignore */
+    }
+    v.pause();
+  };
+
+  const tick = () => {
+    if (token !== state.armToken) return;
+    if (state.arm !== "cueing-in" && state.arm !== "hold") return;
+    if (freeze) {
+      if (v.currentTime >= start - epsilon) enterHold();
+      return;
+    }
+    if (v.currentTime >= end - epsilon) {
+      state.arm = "hold";
+      try {
+        v.currentTime = start;
+      } catch {
+        /* ignore */
+      }
+    } else if (v.currentTime >= start && state.arm === "cueing-in") {
+      state.arm = "hold";
+    }
+    if (typeof v.requestVideoFrameCallback === "function") {
+      v.requestVideoFrameCallback(tick);
+    }
+  };
+
+  if (!freeze && typeof v.requestVideoFrameCallback === "function") {
+    v.ontimeupdate = null;
+    v.requestVideoFrameCallback(tick);
+  } else {
+    v.ontimeupdate = () => tick();
+  }
+
+  v.onended = () => {
+    if (token !== state.armToken) return;
+    state.arm = "hold";
+    try {
+      v.currentTime = start;
+    } catch {
+      /* ignore */
+    }
+    if (freeze) {
+      v.pause();
+      return;
+    }
+    v.play().catch(() => {});
+  };
+}
+
 /** Play cue-in from the start, then keep the platter spinning (arm stays down). */
 function startPlayLoop() {
   const v = deckCue();
@@ -254,31 +326,7 @@ function startPlayLoop() {
   const theme = currentTheme;
   playVideoSrc(v, theme.cueIn, token, () => {
     if (token !== state.armToken) return;
-    v.ontimeupdate = () => {
-      if (token !== state.armToken) return;
-      if (state.arm !== "cueing-in" && state.arm !== "hold") return;
-      // Seek a hair before the end frame so we never flash a mismatched label phase
-      if (v.currentTime >= theme.holdLoopEnd - 0.02) {
-        state.arm = "hold";
-        try {
-          v.currentTime = theme.holdLoopStart;
-        } catch {
-          /* ignore */
-        }
-      } else if (v.currentTime >= theme.holdLoopStart && state.arm === "cueing-in") {
-        state.arm = "hold";
-      }
-    };
-    v.onended = () => {
-      if (token !== state.armToken) return;
-      state.arm = "hold";
-      try {
-        v.currentTime = theme.holdLoopStart;
-      } catch {
-        /* ignore */
-      }
-      v.play().catch(() => {});
-    };
+    attachHoldLoop(v, theme, token);
   });
 }
 
@@ -288,7 +336,8 @@ function cueInThenHold() {
     const stage = $("deckStage");
     stage?.classList.add("cueing");
     const v = deckCue();
-    if (v && v.paused) v.play().catch(() => {});
+    // Freeze themes keep a still arm-down frame; CSS label keeps spinning.
+    if (v && v.paused && !currentTheme.holdFreeze) v.play().catch(() => {});
     return;
   }
   startPlayLoop();
@@ -466,6 +515,8 @@ function _applyOverlayVars() {
   stage.style.setProperty("--tint-top", t.tintTop);
   stage.style.setProperty("--tint-size", t.tintSize);
   stage.style.setProperty("--tint-tilt", t.tintTilt);
+  const period = Number(t.platterPeriod) > 0 ? Number(t.platterPeriod) : 31 / 24;
+  stage.style.setProperty("--platter-period", `${period}s`);
 }
 
 function nudgePosition(dx, dy) {
@@ -1754,8 +1805,12 @@ function wire() {
   try {
     const savedTheme = localStorage.getItem(THEME_KEY);
     if (savedTheme) applyDeckTheme(savedTheme, { persist: false });
-    else syncThemeChrome();
+    else {
+      _applyOverlayVars();
+      syncThemeChrome();
+    }
   } catch {
+    _applyOverlayVars();
     syncThemeChrome();
   }
 
