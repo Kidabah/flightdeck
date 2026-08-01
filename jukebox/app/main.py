@@ -22,7 +22,7 @@ from .folder_albums import (
     resolve_folder_key,
     warm_folder_caches,
 )
-from .locate import locate_song
+from .locate import locate_album, locate_song
 from . import meta_overrides as meta
 
 NAVIDROME = os.environ.get("NAVIDROME_URL", "http://127.0.0.1:4533").rstrip("/")
@@ -981,7 +981,7 @@ async def locate(song_id: str):
         fallback = song.get("path")
     except HTTPException:
         pass
-    info = locate_song(song_id, fallback_path=fallback)
+    info = await asyncio.to_thread(locate_song, song_id, fallback)
     if song:
         if not info.get("title"):
             info["title"] = song.get("title")
@@ -991,6 +991,15 @@ async def locate(song_id: str):
             info["artist"] = song.get("artist")
     if not info.get("found"):
         raise HTTPException(404, "Track path not found in Cindy index")
+    return info
+
+
+@app.get("/api/locate-album/{album_id:path}")
+async def locate_album_api(album_id: str):
+    """Live Cindy/Navidrome tags + UNC paths for a sleeve (and each track)."""
+    info = await asyncio.to_thread(locate_album, album_id)
+    if not info.get("found"):
+        raise HTTPException(404, "Album path not found in Cindy index")
     return info
 
 

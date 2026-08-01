@@ -599,6 +599,146 @@ async function copyField(inputId) {
   }
 }
 
+function fillCindyPaths({ path = "", unc = "", folderUnc = "" } = {}) {
+  $("cindyRelPath").value = path || "";
+  $("cindyUncPath").value = unc || folderUnc || "";
+  $("cindyFolderUnc").value = folderUnc || "";
+}
+
+function renderCindyLiveTags(bits) {
+  const el = $("cindyLiveTags");
+  if (!el) return;
+  const parts = (bits || []).filter((b) => b && b.value != null && b.value !== "");
+  if (!parts.length) {
+    el.hidden = true;
+    el.innerHTML = "";
+    return;
+  }
+  el.hidden = false;
+  el.innerHTML = parts
+    .map(
+      (b) =>
+        `<span>${escapeHtml(b.label)} <strong>${escapeHtml(String(b.value))}</strong></span>`,
+    )
+    .join("");
+}
+
+function renderCindyTracks(tracks, { selectId = null } = {}) {
+  const wrap = $("cindyTracksWrap");
+  const list = $("cindyTrackList");
+  const hint = $("cindyTracksHint");
+  if (!wrap || !list) return;
+  if (!tracks?.length) {
+    wrap.hidden = true;
+    list.innerHTML = "";
+    return;
+  }
+  wrap.hidden = false;
+  if (hint) {
+    hint.textContent = `${tracks.length} side${tracks.length === 1 ? "" : "s"} — click to load path`;
+  }
+  list.innerHTML = tracks
+    .map((t, i) => {
+      const n = t.track || i + 1;
+      const meta = [t.artist, t.year, t.suffix && String(t.suffix).toUpperCase(), t.bitRate && `${t.bitRate}kbps`]
+        .filter(Boolean)
+        .join(" · ");
+      const active = selectId && t.id === selectId ? "active" : "";
+      return `<li class="${active}" data-track-id="${escapeHtml(t.id || "")}" data-i="${i}">
+        <span class="n">${escapeHtml(n)}</span>
+        <div class="t">
+          <span class="title">${escapeHtml(t.title || "Track")}</span>
+          <span class="meta">${escapeHtml(meta)}</span>
+        </div>
+        <button type="button" class="go" data-copy-unc title="Copy file UNC">Copy</button>
+      </li>`;
+    })
+    .join("");
+
+  list.querySelectorAll("li[data-i]").forEach((li) => {
+    const i = Number(li.dataset.i);
+    const track = tracks[i];
+    li.addEventListener("click", (e) => {
+      if (e.target.closest?.(".go")) return;
+      list.querySelectorAll("li.active").forEach((x) => x.classList.remove("active"));
+      li.classList.add("active");
+      fillCindyPaths({
+        path: track.path,
+        unc: track.unc,
+        folderUnc: track.folderUnc,
+      });
+      $("cindyTrackLabel").textContent =
+        `${track.title || "Track"} · ${track.artist || ""}`;
+      renderCindyLiveTags([
+        { label: "Album", value: track.album },
+        { label: "Album artist", value: track.albumArtist },
+        { label: "Year", value: track.year },
+        { label: "Genre", value: track.genre },
+        { label: "File", value: track.suffix && String(track.suffix).toUpperCase() },
+        { label: "Bitrate", value: track.bitRate && `${track.bitRate} kbps` },
+      ]);
+    });
+    li.querySelector(".go")?.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const text = track.unc || track.folderUnc || track.path || "";
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text);
+        setStatus("Copied track UNC.");
+      } catch {
+        setStatus("Couldn’t copy — select the path field instead.");
+      }
+    });
+  });
+}
+
+function openCindyModal(info, { mode = "track", selectId = null } = {}) {
+  const label = $("cindyTrackLabel");
+  if (mode === "album") {
+    if (label) {
+      label.textContent = `${info.name || "Album"} · ${info.artist || ""}`;
+    }
+    renderCindyLiveTags([
+      { label: "Album", value: info.name },
+      { label: "Album artist", value: info.artist },
+      { label: "Year", value: info.year },
+      { label: "Genre", value: info.genre },
+      { label: "Tracks", value: info.songCount },
+      { label: "Pack", value: info.merged ? "folder merge" : null },
+      { label: "Share", value: info.share },
+      { label: "Host", value: info.smbHost },
+    ]);
+    fillCindyPaths({
+      path: info.path,
+      unc: info.folderUnc || info.unc,
+      folderUnc: info.folderUnc || info.unc,
+    });
+    renderCindyTracks(info.tracks || [], { selectId });
+  } else {
+    if (label) {
+      label.textContent = `${info.title || "Track"} · ${info.artist || ""}`;
+    }
+    renderCindyLiveTags([
+      { label: "Title", value: info.title },
+      { label: "Artist", value: info.artist },
+      { label: "Album", value: info.album },
+      { label: "Album artist", value: info.albumArtist },
+      { label: "Year", value: info.year },
+      { label: "Genre", value: info.genre },
+      { label: "File", value: info.suffix && String(info.suffix).toUpperCase() },
+      { label: "Bitrate", value: info.bitRate && `${info.bitRate} kbps` },
+      { label: "Share", value: info.share },
+    ]);
+    fillCindyPaths({
+      path: info.path,
+      unc: info.unc,
+      folderUnc: info.folderUnc,
+    });
+    renderCindyTracks([], {});
+  }
+  openModal("cindyModal");
+}
+
 async function showOnCindy() {
   const song = currentSong();
   if (!song?.id) {
@@ -608,15 +748,55 @@ async function showOnCindy() {
   }
   try {
     const info = await api(`/api/locate/${encodeURIComponent(song.id)}`);
-    $("cindyTrackLabel").textContent = `${info.title || song.title || "Track"} · ${info.artist || song.artist || ""}`;
-    $("cindyRelPath").value = info.path || "";
-    $("cindyUncPath").value = info.unc || "";
-    $("cindyFolderUnc").value = info.folderUnc || "";
-    openModal("cindyModal");
+    openCindyModal(info, { mode: "track" });
   } catch (err) {
     setStatus(String(err.message || err).slice(0, 180));
     closeMenu();
   }
+}
+
+async function showAlbumOnCindy(album, e) {
+  e?.preventDefault?.();
+  e?.stopPropagation?.();
+  closeSleeveMenus();
+  if (!album?.id) {
+    setStatus("That sleeve has no id to locate.");
+    return;
+  }
+  setStatus("Looking up Cindy paths…");
+  try {
+    const info = await api(`/api/locate-album/${encodeURIComponent(album.id)}`);
+    openCindyModal(info, { mode: "album" });
+    setStatus("Live Cindy data ready — copy a UNC into Explorer.");
+  } catch (err) {
+    setStatus(String(err.message || err).slice(0, 180));
+  }
+}
+
+async function showTrackOnCindy(song, e) {
+  e?.preventDefault?.();
+  e?.stopPropagation?.();
+  if (!song?.id) {
+    setStatus("No track id to locate.");
+    return;
+  }
+  setStatus("Looking up Cindy path…");
+  try {
+    const info = await api(`/api/locate/${encodeURIComponent(song.id)}`);
+    openCindyModal(info, { mode: "track" });
+    setStatus("Live Cindy data ready — copy a UNC into Explorer.");
+  } catch (err) {
+    setStatus(String(err.message || err).slice(0, 180));
+  }
+}
+
+function closeSleeveMenus() {
+  document.querySelectorAll(".sleeve-menu-wrap.open").forEach((w) => {
+    w.classList.remove("open");
+    const menu = w.querySelector(".sleeve-menu");
+    if (menu) menu.hidden = true;
+    w.querySelector(".sleeve-edit")?.setAttribute("aria-expanded", "false");
+  });
 }
 
 function fillProperties(album) {
@@ -928,12 +1108,14 @@ function renderQueue() {
     const near = Math.abs(i - state.index) <= 6;
     const remoteArt = s.coverArt && !String(s.id || "").startsWith("local:");
     const art = near && remoteArt ? coverUrl(s.coverArt, 80) : "";
+    const canLocate = s.id && !String(s.id).startsWith("local:");
     parts.push(`<li class="${active}" data-i="${i}">
         ${art ? `<img src="${art}" alt="" loading="lazy">` : `<span class="track-art-ph" aria-hidden="true"></span>`}
         <div>
           <div class="t">${escapeHtml(s.title || "Track")}</div>
           <div class="a">${escapeHtml(s.artist || "")}</div>
         </div>
+        ${canLocate ? `<button type="button" class="track-locate" data-locate-i="${i}" title="On Cindy">Cindy</button>` : `<span></span>`}
       </li>`);
   }
   if (end < n) {
@@ -944,11 +1126,18 @@ function renderQueue() {
   list.innerHTML = parts.join("");
   list.querySelectorAll("li[data-i]").forEach((li) => {
     const i = Number(li.dataset.i);
-    li.addEventListener("click", () => {
+    li.addEventListener("click", (e) => {
       if (suppressSleeveClick) return;
+      if (e.target.closest?.(".track-locate")) return;
       playIndex(i);
     });
     bindQueueDrag(li, i);
+  });
+  list.querySelectorAll(".track-locate").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      const i = Number(btn.dataset.locateI);
+      showTrackOnCindy(state.queue[i], e);
+    });
   });
   list.querySelectorAll("li.track-more").forEach((li) => {
     li.addEventListener("click", () => {
@@ -1001,7 +1190,7 @@ function bindPointerDrag(el, payload) {
   });
   el.addEventListener("pointerdown", (e) => {
     if (e.button !== 0) return;
-    if (e.target.closest?.(".sleeve-edit")) return;
+    if (e.target.closest?.(".sleeve-edit, .sleeve-menu")) return;
     sleeveDrag = {
       payload,
       el,
@@ -1488,15 +1677,45 @@ function sleeveButton(album) {
     }
   });
 
+  const menuWrap = document.createElement("div");
+  menuWrap.className = "sleeve-menu-wrap";
   const edit = document.createElement("button");
   edit.type = "button";
   edit.className = "sleeve-edit";
-  edit.title = "Edit display name / artist";
-  edit.setAttribute("aria-label", `Edit ${album.name || album.title || "album"}`);
+  edit.title = "Sleeve options";
+  edit.setAttribute("aria-label", `Options for ${album.name || album.title || "album"}`);
+  edit.setAttribute("aria-haspopup", "menu");
+  edit.setAttribute("aria-expanded", "false");
   edit.textContent = "⋯";
-  edit.addEventListener("click", (e) => openAlbumEdit(album, e));
+  const menu = document.createElement("div");
+  menu.className = "sleeve-menu";
+  menu.setAttribute("role", "menu");
+  menu.hidden = true;
+  const editItem = document.createElement("button");
+  editItem.type = "button";
+  editItem.setAttribute("role", "menuitem");
+  editItem.textContent = "Edit names…";
+  editItem.addEventListener("click", (e) => openAlbumEdit(album, e));
+  const cindyItem = document.createElement("button");
+  cindyItem.type = "button";
+  cindyItem.setAttribute("role", "menuitem");
+  cindyItem.textContent = "On Cindy…";
+  cindyItem.addEventListener("click", (e) => showAlbumOnCindy(album, e));
+  menu.append(editItem, cindyItem);
+  edit.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const open = menu.hidden;
+    closeSleeveMenus();
+    if (open) {
+      menu.hidden = false;
+      menuWrap.classList.add("open");
+      edit.setAttribute("aria-expanded", "true");
+    }
+  });
+  menuWrap.append(edit, menu);
 
-  wrap.append(btn, edit);
+  wrap.append(btn, menuWrap);
   bindAlbumDrag(wrap, album);
   return wrap;
 }
@@ -1878,6 +2097,7 @@ function wire() {
   });
   document.addEventListener("click", (e) => {
     if (!$("topMenu")?.contains(e.target)) closeMenu();
+    if (!e.target.closest?.(".sleeve-menu-wrap")) closeSleeveMenus();
   });
   document.querySelectorAll("[data-close]").forEach((btn) => {
     btn.addEventListener("click", () => closeModal(btn.dataset.close));
@@ -1896,6 +2116,7 @@ function wire() {
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
       closeMenu();
+      closeSleeveMenus();
       closeModal("cindyModal");
       closeModal("propsModal");
       return;

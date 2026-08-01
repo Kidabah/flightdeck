@@ -6,6 +6,21 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-01 Session update (Cindy Vinyl — On Cindy live data)
+
+Latest commit: `(pending)` — Sleeve ⋯ On Cindy live album/track paths
+
+Latest local/Pi change:
+- Sleeve **⋯** is a menu: **Edit names…** / **On Cindy…**.
+- On Cindy pulls live Navidrome tags + library/UNC paths for the album and each track (click a track to load its path).
+- Tracks panel gets a **Cindy** button per side for the same lookup.
+- Hard refresh `?v=92`. Rebuild `vinyl`.
+
+Previous:
+- Smooth platter hold loop (`74b7dd5`).
+
+---
+
 ## 2026-08-01 Session update (Cindy Vinyl — smooth platter loop)
 
 Latest commit: `74b7dd5` — Fix record spin jump at hold seam

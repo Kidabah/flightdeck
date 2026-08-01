@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=91">
+  <link rel="stylesheet" href="/static/style.css?v=92">
 </head>
 <body data-room="dark">
   <div class="lamp" aria-hidden="true"></div>
@@ -167,12 +167,13 @@
   <audio id="audio" preload="none"></audio>
 
   <div class="modal" id="cindyModal" hidden>
-    <div class="modal-card" role="dialog" aria-labelledby="cindyModalTitle">
+    <div class="modal-card cindy-card" role="dialog" aria-labelledby="cindyModalTitle">
       <header class="modal-head">
         <h2 id="cindyModalTitle">On Cindy</h2>
         <button type="button" class="modal-close" data-close="cindyModal" aria-label="Close">×</button>
       </header>
       <p class="modal-note" id="cindyTrackLabel">—</p>
+      <div class="cindy-live" id="cindyLiveTags" hidden></div>
       <label class="field">
         <span>Library path</span>
         <div class="path-row">
@@ -194,7 +195,14 @@
           <button type="button" class="ghost-btn tiny" data-copy="cindyFolderUnc">Copy</button>
         </div>
       </label>
-      <p class="hint">Paste the UNC into Explorer while on the LAN. Cindy stays read-only.</p>
+      <div class="cindy-tracks" id="cindyTracksWrap" hidden>
+        <div class="cindy-tracks-head">
+          <span>Tracks (live tags)</span>
+          <span class="hint" id="cindyTracksHint">Click a row to copy its path</span>
+        </div>
+        <ol class="cindy-track-list" id="cindyTrackList"></ol>
+      </div>
+      <p class="hint">Paste the UNC into Explorer on the LAN to fix tags/files on Cindy. Vinyl itself stays read-only.</p>
     </div>
   </div>
 
@@ -222,6 +230,6 @@
     </div>
   </div>
 
-  <script src="/static/app.js?v=91"></script>
+  <script src="/static/app.js?v=92"></script>
 </body>
 </html>
