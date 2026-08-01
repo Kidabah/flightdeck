@@ -1098,6 +1098,11 @@ body.theme-light .crate-carousel-frame {
   cursor: pointer;
   padding: 0.2rem 0.35rem;
 }
+#cindyOpenHint a {
+  color: var(--gold-hot);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
 .track-list li .track-locate {
   border: 0;
   background: transparent;

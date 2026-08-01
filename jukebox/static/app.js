@@ -599,6 +599,69 @@ async function copyField(inputId) {
   }
 }
 
+/** Turn \\host\share\path into cindyvinyl://open/host/share/path (custom protocol). */
+function uncToCindyProtocol(unc, { select = false } = {}) {
+  const cleaned = String(unc || "")
+    .trim()
+    .replace(/^\\\\/, "")
+    .replace(/\\/g, "/")
+    .replace(/^\/+/, "");
+  if (!cleaned) return "";
+  const encoded = cleaned
+    .split("/")
+    .map((p) => encodeURIComponent(p))
+    .join("/");
+  return select ? `cindyvinyl://select/${encoded}` : `cindyvinyl://open/${encoded}`;
+}
+
+function looksLikeFileUnc(unc) {
+  const s = String(unc || "");
+  return /\.[a-z0-9]{2,5}$/i.test(s.replace(/[\\/]+$/, ""));
+}
+
+/** Open a Cindy UNC in Windows Explorer via the cindyvinyl:// helper protocol. */
+function openCindyLocation(unc, { select = false } = {}) {
+  const path = String(unc || "").trim();
+  if (!path) {
+    setStatus("No Cindy path to open.");
+    return false;
+  }
+  // If they passed a file path but asked for folder open, still open parent unless select.
+  let target = path;
+  let doSelect = select;
+  if (select && !looksLikeFileUnc(path)) {
+    doSelect = false;
+  }
+  if (!doSelect && looksLikeFileUnc(path)) {
+    // Open the containing folder when "Open folder" was meant.
+    target = path.replace(/[\\/][^\\/]+$/, "");
+  }
+  const href = uncToCindyProtocol(target, { select: doSelect && looksLikeFileUnc(target) });
+  if (!href) {
+    setStatus("No Cindy path to open.");
+    return false;
+  }
+  let iframe = $("cindyOpenFrame");
+  if (!iframe) {
+    iframe = document.createElement("iframe");
+    iframe.id = "cindyOpenFrame";
+    iframe.setAttribute("hidden", "");
+    iframe.style.cssText = "display:none;width:0;height:0;border:0";
+    document.body.appendChild(iframe);
+  }
+  try {
+    iframe.src = href;
+  } catch {
+    window.location.href = href;
+  }
+  setStatus(
+    doSelect && looksLikeFileUnc(target)
+      ? "Opening file in Explorer…"
+      : "Opening folder in Explorer…",
+  );
+  return true;
+}
+
 function fillCindyPaths({ path = "", unc = "", folderUnc = "" } = {}) {
   $("cindyRelPath").value = path || "";
   $("cindyUncPath").value = unc || folderUnc || "";
@@ -635,7 +698,7 @@ function renderCindyTracks(tracks, { selectId = null } = {}) {
   }
   wrap.hidden = false;
   if (hint) {
-    hint.textContent = `${tracks.length} side${tracks.length === 1 ? "" : "s"} — click to load path`;
+    hint.textContent = `${tracks.length} side${tracks.length === 1 ? "" : "s"} — Open jumps to the file`;
   }
   list.innerHTML = tracks
     .map((t, i) => {
@@ -650,7 +713,7 @@ function renderCindyTracks(tracks, { selectId = null } = {}) {
           <span class="title">${escapeHtml(t.title || "Track")}</span>
           <span class="meta">${escapeHtml(meta)}</span>
         </div>
-        <button type="button" class="go" data-copy-unc title="Copy file UNC">Copy</button>
+        <button type="button" class="go" title="Open file in Explorer">Open</button>
       </li>`;
     })
     .join("");
@@ -678,21 +741,21 @@ function renderCindyTracks(tracks, { selectId = null } = {}) {
         { label: "Bitrate", value: track.bitRate && `${track.bitRate} kbps` },
       ]);
     });
-    li.querySelector(".go")?.addEventListener("click", async (e) => {
+    li.querySelector(".go")?.addEventListener("click", (e) => {
       e.stopPropagation();
-      const text = track.unc || track.folderUnc || track.path || "";
-      if (!text) return;
-      try {
-        await navigator.clipboard.writeText(text);
-        setStatus("Copied track UNC.");
-      } catch {
-        setStatus("Couldn’t copy — select the path field instead.");
-      }
+      const fileUnc = track.unc || "";
+      const folderUnc = track.folderUnc || "";
+      fillCindyPaths({
+        path: track.path,
+        unc: fileUnc,
+        folderUnc,
+      });
+      openCindyLocation(fileUnc || folderUnc, { select: !!fileUnc });
     });
   });
 }
 
-function openCindyModal(info, { mode = "track", selectId = null } = {}) {
+function openCindyModal(info, { mode = "track", selectId = null, autoOpen = true } = {}) {
   const label = $("cindyTrackLabel");
   if (mode === "album") {
     if (label) {
@@ -714,6 +777,10 @@ function openCindyModal(info, { mode = "track", selectId = null } = {}) {
       folderUnc: info.folderUnc || info.unc,
     });
     renderCindyTracks(info.tracks || [], { selectId });
+    openModal("cindyModal");
+    if (autoOpen) {
+      openCindyLocation(info.folderUnc || info.unc || info.path, { select: false });
+    }
   } else {
     if (label) {
       label.textContent = `${info.title || "Track"} · ${info.artist || ""}`;
@@ -735,8 +802,13 @@ function openCindyModal(info, { mode = "track", selectId = null } = {}) {
       folderUnc: info.folderUnc,
     });
     renderCindyTracks([], {});
+    openModal("cindyModal");
+    if (autoOpen) {
+      openCindyLocation(info.unc || info.folderUnc, {
+        select: !!info.unc && looksLikeFileUnc(info.unc),
+      });
+    }
   }
-  openModal("cindyModal");
 }
 
 async function showOnCindy() {
@@ -2104,6 +2176,13 @@ function wire() {
   });
   document.querySelectorAll("[data-copy]").forEach((btn) => {
     btn.addEventListener("click", () => copyField(btn.dataset.copy));
+  });
+  document.querySelectorAll("[data-open-unc]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const input = $(btn.dataset.openUnc);
+      const unc = input?.value || "";
+      openCindyLocation(unc, { select: btn.dataset.openSelect === "1" });
+    });
   });
   $("propSaveAlbum")?.addEventListener("click", () => saveAlbumProps());
   $("propSaveTrack")?.addEventListener("click", () => saveTrackProps());

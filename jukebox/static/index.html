@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=92">
+  <link rel="stylesheet" href="/static/style.css?v=93">
 </head>
 <body data-room="dark">
   <div class="lamp" aria-hidden="true"></div>
@@ -178,31 +178,35 @@
         <span>Library path</span>
         <div class="path-row">
           <input id="cindyRelPath" type="text" readonly>
-          <button type="button" class="ghost-btn tiny" data-copy="cindyRelPath">Copy</button>
+          <button type="button" class="ghost-btn tiny" data-copy="cindyRelPath" title="Copy relative path">Copy</button>
         </div>
       </label>
       <label class="field">
-        <span>Windows / Explorer (UNC)</span>
+        <span>File / track (Explorer)</span>
         <div class="path-row">
           <input id="cindyUncPath" type="text" readonly>
-          <button type="button" class="ghost-btn tiny" data-copy="cindyUncPath">Copy</button>
+          <button type="button" class="ghost-btn tiny" id="cindyOpenFileBtn" data-open-unc="cindyUncPath" data-open-select="1">Open</button>
         </div>
       </label>
       <label class="field">
         <span>Album folder</span>
         <div class="path-row">
           <input id="cindyFolderUnc" type="text" readonly>
-          <button type="button" class="ghost-btn tiny" data-copy="cindyFolderUnc">Copy</button>
+          <button type="button" class="ghost-btn tiny" id="cindyOpenFolderBtn" data-open-unc="cindyFolderUnc">Open</button>
         </div>
       </label>
       <div class="cindy-tracks" id="cindyTracksWrap" hidden>
         <div class="cindy-tracks-head">
           <span>Tracks (live tags)</span>
-          <span class="hint" id="cindyTracksHint">Click a row to copy its path</span>
+          <span class="hint" id="cindyTracksHint">Click a row — Open jumps to that file</span>
         </div>
         <ol class="cindy-track-list" id="cindyTrackList"></ol>
       </div>
-      <p class="hint">Paste the UNC into Explorer on the LAN to fix tags/files on Cindy. Vinyl itself stays read-only.</p>
+      <p class="hint" id="cindyOpenHint">
+        Open launches Explorer on your PC (LAN). First time only:
+        <a href="/static/install-cindy-open.ps1" download="install-cindy-open.ps1">install Open helper</a>
+        (Run with PowerShell) — then try Open again.
+      </p>
     </div>
   </div>
 
@@ -230,6 +234,6 @@
     </div>
   </div>
 
-  <script src="/static/app.js?v=92"></script>
+  <script src="/static/app.js?v=93"></script>
 </body>
 </html>

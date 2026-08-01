@@ -6,6 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-01 Session update (Cindy Vinyl — Open in Explorer)
+
+Latest commit: `(pending)` — On Cindy opens Explorer (not just copy)
+
+Latest local/Pi change:
+- On Cindy **Open** launches the album folder / selects the track file in Windows Explorer.
+- Needs a one-time helper: download `install-cindy-open.ps1` from the modal → Run with PowerShell (registers `cindyvinyl://`).
+- Hard refresh `?v=93`. Rebuild `vinyl`.
+
+Previous:
+- On Cindy live data (`9de7fc4`).
+
+---
+
 ## 2026-08-01 Session update (Cindy Vinyl — On Cindy live data)
 
 Latest commit: `9de7fc4` — Sleeve ⋯ On Cindy live album/track paths
