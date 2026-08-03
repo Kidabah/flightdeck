@@ -1,7 +1,7 @@
 # Installs Cindy Vinyl as a Desktop (+ Start Menu) app window on this PC.
 # Default: home LAN URL (no Tailscale). Override with -Url for Tailscale HTTPS.
 param(
-    [string]$Url = "http://192.168.4.239:4541",
+    [string]$Url = "http://192.168.4.77:4541",
     [ValidateSet("edge", "chrome", "auto")]
     [string]$Browser = "auto",
     [switch]$StartMenuOnly,

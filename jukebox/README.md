@@ -2,38 +2,36 @@
 
 Vinyl hi-fi web player for the Cindy NAS music library (CHECKED + MUSIC + JAMAL).
 
-## Stack
-- CIFS mounts: `/mnt/cindy/{MUSIC,CHECKED,JAMAL}` via `mount-cindy.sh` (**read-only**)
-- **Navidrome** indexes & streams (`:4533`) — local DB only; never writes tags/files on Cindy
-- **cindy-vinyl** FastAPI UI + Subsonic proxy (`:4540` localhost / `:4541` LAN)
-- Pi-local symlink view (`cindy-library-view`) skips Synology `#recycle` — Cindy NAS stays untouched
-- Folder-pack merge in the vinyl proxy: VA weekly drops with per-track tags become one sleeve
+## Host (Mora)
 
-## Pi setup
+Runs on **Mora** (`192.168.4.77` / Tailscale `flightdeck-nas`), not the Flightdeck Pi.
+
+- Music: Mora remote shares `/share/{Cindy,Checked,Jamal}` → Cindy (`192.168.4.53`)
+- App + Navidrome DB: SSD **volume2** at `/volume2/cindy-vinyl/`
+- Compose: `/volume2/cindy-vinyl/compose/docker-compose.mora.yml`
+
 ```bash
-# creds (already on Pi ideally)
-# ~/.smbcredentials-cindy  chmod 600
-
-bash /home/flightdeck/bin/mount-cindy.sh
-bash /home/flightdeck/flightdeck/jukebox/scripts/build-cindy-library-view.sh
-cd /home/flightdeck/flightdeck/jukebox
-# create .env with JUKEBOX_USER / JUKEBOX_PASSWORD matching a Navidrome user
-docker compose up -d --build
+# On Mora (as root / sudo)
+cd /volume2/cindy-vinyl/compose
+docker compose -f docker-compose.mora.yml up -d --build
+# Rebuild library view after share remount:
+CINDY_LIBRARY_VIEW=/volume2/cindy-vinyl/library-view \
+  /bin/sh build-mora-library-view.sh
 ```
 
 ### Open the app
-- **Home LAN (no Tailscale):** `http://192.168.4.239:4541`
-- **Tailscale HTTPS:** `https://flightdeck.tail7de73e.ts.net:4540`
-
-First Navidrome scan of ~5.4TB takes hours; the UI fills as albums appear.
+- **Home LAN:** `http://192.168.4.77:4541`
+- **Tailscale:** `http://flightdeck-nas:4541` (or `http://100.115.102.18:4541`)
+- Optional HTTPS via Tailscale serve on Mora:  
+  `sudo tailscale serve --bg --https=4540 http://127.0.0.1:4540`
 
 ## Windows install (wife / home PCs)
 
-On the PC (same Wi‑Fi/LAN as the Pi), double‑click:
+On the PC (same Wi‑Fi/LAN), double‑click:
 
 `jukebox/scripts/Install-CindyVinyl.bat`
 
-That puts **Cindy Vinyl** on the Desktop and Start Menu (Edge/Chrome app window → LAN URL).
+That puts **Cindy Vinyl** on the Desktop and Start Menu (Edge/Chrome app window → Mora LAN URL).
 
 Or from PowerShell:
 
@@ -44,15 +42,21 @@ powershell -ExecutionPolicy Bypass -File jukebox\scripts\Install-CindyVinyl.ps1
 Away from home (Tailscale on that PC):
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File jukebox\scripts\Install-CindyVinyl.ps1 -Url "https://flightdeck.tail7de73e.ts.net:4540"
+powershell -ExecutionPolicy Bypass -File jukebox\scripts\Install-CindyVinyl.ps1 -Url "http://100.115.102.18:4541"
 ```
 
-## Install as a PWA (Tailscale HTTPS only)
+## Stack
+- **Navidrome** indexes & streams (`:4533` on Mora) — DB on volume2; never writes tags/files on Cindy
+- **cindy-vinyl** FastAPI UI + Subsonic proxy (`:4540` / `:4541`)
+- Library view on volume2 skips Synology `#recycle`
+- Folder-pack merge in the vinyl proxy: VA weekly drops with per-track tags become one sleeve
 
-Chrome/Edge need **HTTPS** to use Install app. On the Pi (once):
+## Migrate / re-sync from Pi (ops)
+
+From the Flightdeck Pi (with Mora SSH + sudo working for `Kidabah`):
 
 ```bash
-sudo tailscale serve --bg --https=4540 http://127.0.0.1:4540
+python3 /home/flightdeck/flightdeck/jukebox/scripts/migrate-vinyl-to-mora.py
 ```
 
-Then open `https://flightdeck.tail7de73e.ts.net:4540` → menu → **Install Cindy Vinyl**.
+Pi `cindy-vinyl` / `cindy-navidrome` should stay **stopped** (`restart=no`) after cutover.

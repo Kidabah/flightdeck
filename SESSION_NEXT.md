@@ -6,6 +6,21 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-03 Session update (Cindy Vinyl → Mora)
+
+Latest commit: *(pending)* — Move Cindy Vinyl + Navidrome to Mora volume2
+
+Latest local/Mora change:
+- Vinyl + Navidrome now run on **Mora** (`192.168.4.77`), data on SSD `/volume2/cindy-vinyl/`, music via `/share/{Cindy,Checked,Jamal}`.
+- LAN URL: `http://192.168.4.77:4541` (reinstall Desktop shortcut / hard refresh bookmarks).
+- Pi `cindy-vinyl` + `cindy-navidrome` stopped with `restart=no`.
+- Files: `jukebox/docker-compose.mora.yml`, `scripts/build-mora-library-view.sh`, `scripts/migrate-vinyl-to-mora.py`.
+
+Previous:
+- Open helper fix (`5a400e7`).
+
+---
+
 ## 2026-08-01 Session update (Cindy Vinyl — Open helper fix)
 
 Latest commit: `5a400e7` — Fix cindyvinyl:// Explorer open (path mangling)

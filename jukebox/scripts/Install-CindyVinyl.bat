@@ -3,16 +3,16 @@ setlocal EnableExtensions
 title Install Cindy Vinyl
 
 rem Self-contained — works from a network share (UNC). No .ps1 required beside this file.
-set "VINYL_URL=http://192.168.4.239:4541"
+set "VINYL_URL=http://192.168.4.77:4541"
 if not "%~1"=="" set "VINYL_URL=%~1"
-set "ICON_URL=http://192.168.4.239:4541/static/cindy-vinyl.ico"
+set "ICON_URL=http://192.168.4.77:4541/static/cindy-vinyl.ico"
 set "ICON_DIR=%LOCALAPPDATA%\CindyVinyl"
 set "ICON_PATH=%ICON_DIR%\cindy-vinyl.ico"
 
 set "PS1=%TEMP%\Install-CindyVinyl-run.ps1"
 > "%PS1%" echo $ErrorActionPreference = 'Stop'
 >> "%PS1%" echo $Url = $env:VINYL_URL
->> "%PS1%" echo if (-not $Url) { $Url = 'http://192.168.4.239:4541' }
+>> "%PS1%" echo if (-not $Url) { $Url = 'http://192.168.4.77:4541' }
 >> "%PS1%" echo $IconDir = $env:ICON_DIR
 >> "%PS1%" echo $IconPath = $env:ICON_PATH
 >> "%PS1%" echo $IconUrl = $env:ICON_URL
