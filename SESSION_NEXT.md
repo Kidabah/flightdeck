@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-03 Session update (Cindy Vinyl — loudness normalise)
 
-Latest commit: *(pending)* — Add deck loudness normaliser
+Latest commit: $h — Add deck loudness normaliser
 
 Latest local/Mora change:
 - Deck control **⌀** toggles Web Audio loudness normalise (levels quiet/loud tracks). Preference saved in `localStorage`.
