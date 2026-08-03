@@ -6,6 +6,19 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-03 Session update (Cindy Vinyl — loudness normalise)
+
+Latest commit: *(pending)* — Add deck loudness normaliser
+
+Latest local/Mora change:
+- Deck control **⌀** toggles Web Audio loudness normalise (levels quiet/loud tracks). Preference saved in `localStorage`.
+- Live on Mora — hard refresh Vinyl (`http://192.168.4.77:4541`).
+
+Previous:
+- Vinyl on Mora (`9f3d922`).
+
+---
+
 ## 2026-08-03 Session update (Cindy Vinyl → Mora)
 
 Latest commit: `9f3d922` — Move Cindy Vinyl and Navidrome onto Mora volume2

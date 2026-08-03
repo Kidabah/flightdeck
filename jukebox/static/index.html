@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=94">
+  <link rel="stylesheet" href="/static/style.css?v=__STYLE_CSS_VER__">
 </head>
 <body data-room="dark">
   <div class="lamp" aria-hidden="true"></div>
@@ -78,6 +78,8 @@
                 <div class="hero-actions">
                   <button type="button" class="spin-btn" id="spinBtn">SPIN</button>
                   <button type="button" class="ghost-btn" id="playPauseBtn" disabled>Play</button>
+                  <button type="button" class="ghost-btn tiny" id="addToPlaylistBtn" disabled title="Add to playlist" aria-haspopup="menu" aria-expanded="false">+ Playlist</button>
+                  <button type="button" class="ghost-btn tiny" id="editNowPlayingBtn" disabled title="Edit names / cover for this sleeve">Edit…</button>
                 </div>
                 <p class="hint" id="statusLine">Warming up the tubes…</p>
                 <p class="now-track">Now playing: <span id="nowTrackTitle">—</span></p>
@@ -94,11 +96,18 @@
 
         <aside class="track-panel" id="queueStrip">
           <div class="track-panel-head">
-            <h2>Tracks</h2>
+            <div class="track-panel-tabs" role="tablist">
+              <button type="button" class="track-panel-tab active" id="tracksTabBtn" data-view="tracks">Tracks</button>
+              <button type="button" class="track-panel-tab" id="playlistTabBtn" data-view="playlist">Playlist</button>
+            </div>
+            <button type="button" class="ghost-btn tiny" id="clearPlaylistBtn" hidden>Clear</button>
             <span class="track-count" id="trackCount">—</span>
           </div>
           <ol id="queueList" class="track-list">
             <li class="track-empty">Spin a sleeve and the sides show up here.</li>
+          </ol>
+          <ol id="playlistPanelList" class="track-list" hidden>
+            <li class="track-empty">Nothing in your playlist yet — hit “+ Playlist” on the deck.</li>
           </ol>
         </aside>
       </div>
@@ -130,6 +139,13 @@
             <button type="button" class="crate-nav next" id="crateCarouselNext" aria-label="Next letter">›</button>
           </div>
           <div class="crate-page" id="cratePageBar" hidden>
+            <label class="crate-sort" for="crateSortSelect">
+              Sort
+              <select id="crateSortSelect">
+                <option value="artist">Artist, Album</option>
+                <option value="album">Album, Artist</option>
+              </select>
+            </label>
             <span class="crate-page-hint" id="cratePageHint"></span>
             <button type="button" class="ghost-btn tiny" id="crateMoreBtn" hidden>More sleeves</button>
           </div>
@@ -156,15 +172,26 @@
       </div>
     </div>
     <div class="deck-controls">
+      <button type="button" id="shuffleBtn" aria-label="Shuffle" title="Shuffle queue" aria-pressed="false">🔀</button>
       <button type="button" id="prevBtn" aria-label="Previous">⏮</button>
       <button type="button" id="deckPlay" aria-label="Play/Pause">▶</button>
       <button type="button" id="nextBtn" aria-label="Next">⏭</button>
       <button type="button" id="muteBtn" aria-label="Mute" title="Mute (M)">🔊</button>
       <input type="range" id="volume" min="0" max="100" value="85" aria-label="Volume">
+      <button type="button" id="normBtn" aria-label="Loudness normalise" title="Loudness normalise — even out quiet/loud tracks" aria-pressed="false">⌀</button>
     </div>
   </footer>
 
   <audio id="audio" preload="none"></audio>
+
+  <!-- Body-level home for sleeve ⋯ menus — keeps them from being clipped by
+       scrollable/content-visibility ancestors. Positioned in JS. -->
+  <div id="sleeveMenuLayer" aria-hidden="false">
+    <div class="sleeve-menu" id="addToPlaylistMenu" role="menu" hidden>
+      <button type="button" role="menuitem" id="addTrackBtn">Add track</button>
+      <button type="button" role="menuitem" id="addAlbumBtn">Add album</button>
+    </div>
+  </div>
 
   <div class="modal" id="cindyModal" hidden>
     <div class="modal-card cindy-card" role="dialog" aria-labelledby="cindyModalTitle">
@@ -224,6 +251,21 @@
         <button type="button" class="ghost-btn" id="propSaveAlbum">Save album</button>
       </fieldset>
       <fieldset class="prop-block">
+        <legend>Cover</legend>
+        <div class="cover-edit-row">
+          <img id="propCoverPreview" alt="" class="cover-edit-preview">
+          <div class="cover-edit-actions">
+            <label class="ghost-btn tiny" for="propCoverFile">Upload image…</label>
+            <input type="file" id="propCoverFile" accept="image/*" hidden>
+            <button type="button" class="ghost-btn tiny" id="propCoverSearchBtn">Search online</button>
+            <button type="button" class="ghost-btn tiny" id="propCoverRemove" hidden>Remove custom cover</button>
+          </div>
+        </div>
+        <label class="field">Image URL <input id="propCoverUrl" type="text" placeholder="https://…"></label>
+        <button type="button" class="ghost-btn tiny" id="propCoverUrlSave">Use URL</button>
+        <div class="cover-search-results" id="propCoverSearchResults" hidden></div>
+      </fieldset>
+      <fieldset class="prop-block">
         <legend>Current track</legend>
         <label class="field">Title <input id="propTrackTitle" type="text"></label>
         <label class="field">Artist <input id="propTrackArtist" type="text"></label>
@@ -234,6 +276,6 @@
     </div>
   </div>
 
-  <script src="/static/app.js?v=94"></script>
+  <script src="/static/app.js?v=__APP_JS_VER__"></script>
 </body>
 </html>

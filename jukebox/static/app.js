@@ -2,6 +2,7 @@ const $ = (id) => document.getElementById(id);
 
 const VOL_KEY = "cindy-vinyl-volume";
 const THEME_KEY = "cindy-vinyl-theme";
+const NORM_KEY = "cindy-vinyl-normalize";
 
 /** Room / deck themes. Amp-rack footage is shared by dark + light; crate photo
  * and page chrome (`room`) differ. `cueOut: null` → fade instead of lift clip. */
@@ -93,6 +94,12 @@ const state = {
   crateType: "alphabeticalByName",
   crateLetter: "A",
   crateGenre: "",
+  /** Order within an A–Z letter bucket: "artist" (default) or "album". */
+  crateSort: "artist",
+  /** Shuffle the current queue/album instead of playing it in order. */
+  shuffle: false,
+  /** Which list the left panel shows: "tracks" (live queue) or "playlist". */
+  trackPanelView: "tracks",
   genresCache: null,
   genreFilterToken: 0,
   /** Non-empty A–Z/VA/# buckets, fetched once from /api/letters. */
@@ -104,6 +111,8 @@ const state = {
   crateLetterHasMore: false,
   crateLetterLoadingMore: false,
   volumeBeforeMute: 0.85,
+  /** Loudness normaliser (Web Audio AGC) — levels quiet/loud tracks. */
+  normalize: false,
   /** @type {'rest'|'cueing-in'|'hold'|'cueing-out'} */
   arm: "rest",
   armToken: 0,
@@ -114,6 +123,107 @@ const state = {
 };
 
 const audio = $("audio");
+
+/** Web Audio graph for loudness normalise (created lazily after a user gesture). */
+let _audioCtx = null;
+let _mediaSource = null;
+let _normGain = null;
+let _analyser = null;
+let _normRaf = 0;
+const NORM_TARGET_RMS = 0.11;
+const NORM_MAX_GAIN = 3.2; // ~+10 dB
+const NORM_MIN_GAIN = 0.4; // ~-8 dB
+
+function ensureAudioGraph() {
+  if (_mediaSource) return;
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return;
+  _audioCtx = new Ctx();
+  _mediaSource = _audioCtx.createMediaElementSource(audio);
+  _normGain = _audioCtx.createGain();
+  _analyser = _audioCtx.createAnalyser();
+  _analyser.fftSize = 2048;
+  _analyser.smoothingTimeConstant = 0.5;
+  _mediaSource.connect(_normGain);
+  _normGain.connect(_analyser);
+  _analyser.connect(_audioCtx.destination);
+  _normGain.gain.value = 1;
+}
+
+function stopNormLoop() {
+  if (_normRaf) {
+    cancelAnimationFrame(_normRaf);
+    _normRaf = 0;
+  }
+}
+
+function startNormLoop() {
+  stopNormLoop();
+  if (!_analyser || !_normGain || !_audioCtx) return;
+  const data = new Uint8Array(_analyser.fftSize);
+  const tick = () => {
+    if (!state.normalize || !_normGain) {
+      _normRaf = 0;
+      return;
+    }
+    _analyser.getByteTimeDomainData(data);
+    let sum = 0;
+    for (let i = 0; i < data.length; i++) {
+      const x = (data[i] - 128) / 128;
+      sum += x * x;
+    }
+    const rms = Math.sqrt(sum / data.length);
+    // Don't boost near-silence (between tracks / pauses).
+    if (rms > 0.012 && !audio.paused) {
+      const desired = Math.max(
+        NORM_MIN_GAIN,
+        Math.min(NORM_MAX_GAIN, NORM_TARGET_RMS / rms)
+      );
+      const cur = _normGain.gain.value;
+      const next = cur * 0.9 + desired * 0.1;
+      _normGain.gain.setTargetAtTime(next, _audioCtx.currentTime, 0.35);
+    }
+    _normRaf = requestAnimationFrame(tick);
+  };
+  _normRaf = requestAnimationFrame(tick);
+}
+
+function setNormalize(on, { persist = true } = {}) {
+  state.normalize = !!on;
+  const btn = $("normBtn");
+  if (btn) {
+    btn.classList.toggle("active", state.normalize);
+    btn.setAttribute("aria-pressed", state.normalize ? "true" : "false");
+    btn.title = state.normalize
+      ? "Loudness normalise on — click to turn off"
+      : "Loudness normalise — even out quiet/loud tracks";
+  }
+  if (state.normalize) {
+    ensureAudioGraph();
+    if (_audioCtx?.state === "suspended") _audioCtx.resume().catch(() => {});
+    if (_normGain) _normGain.gain.value = 1;
+    startNormLoop();
+  } else {
+    stopNormLoop();
+    if (_normGain && _audioCtx) {
+      _normGain.gain.cancelScheduledValues(_audioCtx.currentTime);
+      _normGain.gain.setTargetAtTime(1, _audioCtx.currentTime, 0.05);
+    }
+  }
+  if (persist) {
+    try {
+      localStorage.setItem(NORM_KEY, state.normalize ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+function resetNormForNewTrack() {
+  if (!state.normalize || !_normGain || !_audioCtx) return;
+  _normGain.gain.cancelScheduledValues(_audioCtx.currentTime);
+  _normGain.gain.setValueAtTime(1, _audioCtx.currentTime);
+}
 
 async function api(path, opts = {}) {
   const init = { ...opts };
@@ -860,12 +970,26 @@ async function showTrackOnCindy(song, e) {
 }
 
 function closeSleeveMenus() {
-  document.querySelectorAll(".sleeve-menu-wrap.open").forEach((w) => {
-    w.classList.remove("open");
-    const menu = w.querySelector(".sleeve-menu");
-    if (menu) menu.hidden = true;
-    w.querySelector(".sleeve-edit")?.setAttribute("aria-expanded", "false");
-  });
+  if (!_openSleeveMenu) return;
+  const { menu, menuWrap, edit } = _openSleeveMenu;
+  menu.hidden = true;
+  menuWrap.classList.remove("open");
+  edit.setAttribute("aria-expanded", "false");
+  _openSleeveMenu = null;
+}
+
+/** Position an already-unhidden fixed-position menu against its trigger,
+ * clamped to stay inside the viewport. */
+function positionSleeveMenu(menu, edit) {
+  const r = edit.getBoundingClientRect();
+  const mw = menu.offsetWidth || 168;
+  const mh = menu.offsetHeight || 80;
+  let left = r.right - mw;
+  left = Math.max(8, Math.min(left, window.innerWidth - mw - 8));
+  let top = r.bottom + 4;
+  if (top + mh > window.innerHeight - 8) top = Math.max(8, r.top - mh - 4);
+  menu.style.left = `${Math.round(left)}px`;
+  menu.style.top = `${Math.round(top)}px`;
 }
 
 function fillProperties(album) {
@@ -881,6 +1005,16 @@ function fillProperties(album) {
   const canTrack = Boolean(song.id);
   $("propSaveAlbum").disabled = !canAlbum;
   $("propSaveTrack").disabled = !canTrack;
+  const hasCustomCover = String(al.coverArt || "").startsWith("vinylcover:");
+  $("propCoverPreview").src = al.coverArt ? coverUrl(al.coverArt, 200) : "";
+  $("propCoverPreview").style.visibility = al.coverArt ? "visible" : "hidden";
+  $("propCoverRemove").hidden = !hasCustomCover;
+  $("propCoverUrl").value = "";
+  $("propCoverSearchResults").hidden = true;
+  $("propCoverSearchResults").innerHTML = "";
+  [$("propCoverFile"), $("propCoverSearchBtn"), $("propCoverUrlSave")].forEach((el) => {
+    if (el) el.disabled = !canAlbum;
+  });
   if (canAlbum && canTrack) {
     $("propStatus").textContent = "Edits apply in Vinyl only (Cindy is read-only).";
   } else if (canAlbum) {
@@ -965,6 +1099,101 @@ async function saveTrackProps() {
   }
 }
 
+function applyNewCoverEverywhere(albumId, coverArt) {
+  const al = state.editAlbum;
+  if (al?.id === albumId) al.coverArt = coverArt;
+  if (state.album?.id === albumId) {
+    state.album.coverArt = coverArt;
+    setVinylArt(coverArt);
+  }
+  state.queue.forEach((s) => {
+    if (s.albumId === albumId) s.coverArt = coverArt;
+  });
+  renderQueue();
+}
+
+async function uploadAlbumCover(file) {
+  const album = state.editAlbum || state.album;
+  if (!album?.id || !file) return;
+  $("propStatus").textContent = "Uploading…";
+  try {
+    const fd = new FormData();
+    fd.append("file", file);
+    const data = await api(`/api/meta/cover/${encodeURIComponent(album.id)}/upload`, { method: "POST", body: fd });
+    applyNewCoverEverywhere(album.id, data.coverArt);
+    fillProperties(album);
+    $("propStatus").textContent = "Cover saved for Vinyl.";
+    await loadCrates(state.crateType);
+  } catch (err) {
+    $("propStatus").textContent = String(err.message || err).slice(0, 160);
+  }
+}
+
+async function setCoverFromUrl(url) {
+  const album = state.editAlbum || state.album;
+  if (!album?.id || !url.trim()) return;
+  $("propStatus").textContent = "Fetching…";
+  try {
+    const data = await api(`/api/meta/cover/${encodeURIComponent(album.id)}/from-url`, {
+      method: "POST",
+      body: { url: url.trim() },
+    });
+    applyNewCoverEverywhere(album.id, data.coverArt);
+    fillProperties(album);
+    $("propStatus").textContent = "Cover saved for Vinyl.";
+    await loadCrates(state.crateType);
+  } catch (err) {
+    $("propStatus").textContent = String(err.message || err).slice(0, 160);
+  }
+}
+
+async function removeAlbumCoverOverride() {
+  const album = state.editAlbum || state.album;
+  if (!album?.id) return;
+  try {
+    await api(`/api/meta/cover/${encodeURIComponent(album.id)}`, { method: "DELETE" });
+    $("propStatus").textContent = "Custom cover removed.";
+    try {
+      const fresh = await api(`/api/album/${encodeURIComponent(album.id)}`);
+      applyNewCoverEverywhere(album.id, fresh.coverArt);
+      state.editAlbum = { ...album, coverArt: fresh.coverArt };
+      fillProperties(state.editAlbum);
+    } catch {
+      /* best-effort refresh of the modal preview */
+    }
+    await loadCrates(state.crateType);
+  } catch (err) {
+    $("propStatus").textContent = String(err.message || err).slice(0, 160);
+  }
+}
+
+async function searchCoverOnline() {
+  const album = state.editAlbum || state.album;
+  if (!album?.id) return;
+  const q = `${album.artist || album.displayArtist || ""} ${album.name || album.title || ""}`.trim();
+  const box = $("propCoverSearchResults");
+  box.hidden = false;
+  box.innerHTML = "<p class='hint'>Searching…</p>";
+  try {
+    const data = await api(`/api/coversearch?q=${encodeURIComponent(q)}`);
+    const results = data.results || [];
+    if (!results.length) {
+      box.innerHTML = "<p class='hint'>No matches online.</p>";
+      return;
+    }
+    box.innerHTML = "";
+    results.forEach((r) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.innerHTML = `<img src="${escapeHtml(r.thumbUrl)}" alt="" loading="lazy"><span class="cs-label">${escapeHtml(r.collectionName || "")}</span>`;
+      btn.addEventListener("click", () => setCoverFromUrl(r.artworkUrl));
+      box.appendChild(btn);
+    });
+  } catch (err) {
+    box.innerHTML = `<p class='hint'>${escapeHtml(err.message || err)}</p>`;
+  }
+}
+
 async function refreshPacks() {
   closeMenu();
   setStatus("Refreshing folder packs…");
@@ -1041,8 +1270,16 @@ function togglePlayPause() {
     setStatus("Paused.");
     return;
   }
-  if (audio.paused) audio.play().then(() => setPlaying(true)).catch(() => {});
-  else {
+  if (audio.paused) {
+    audio.play().then(() => {
+      setPlaying(true);
+      if (state.normalize) {
+        ensureAudioGraph();
+        if (_audioCtx?.state === "suspended") _audioCtx.resume().catch(() => {});
+        startNormLoop();
+      }
+    }).catch(() => {});
+  } else {
     audio.pause();
     setPlaying(false);
   }
@@ -1146,14 +1383,15 @@ function prefetchQueueCovers(around = 2) {
 function renderQueue() {
   const list = $("queueList");
   const count = $("trackCount");
+  const showCount = state.trackPanelView !== "playlist";
   if (!list) return;
   if (!state.queue.length) {
-    if (count) count.textContent = "—";
+    if (count && showCount) count.textContent = "—";
     list.innerHTML = `<li class="track-empty">Spin a sleeve and the sides show up here.</li>`;
     return;
   }
   const n = state.queue.length;
-  if (count) count.textContent = `${n} side${n === 1 ? "" : "s"}`;
+  if (count && showCount) count.textContent = `${n} side${n === 1 ? "" : "s"}`;
 
   // Folder packs can be 100–600 tracks — don't mount every cover at once.
   const MAX_DOM = 80;
@@ -1174,12 +1412,10 @@ function renderQueue() {
   for (let i = start; i < end; i++) {
     const s = state.queue[i];
     const active = i === state.index ? "active" : "";
-    const near = Math.abs(i - state.index) <= 6;
     const remoteArt = s.coverArt && !String(s.id || "").startsWith("local:");
-    const art = near && remoteArt ? coverUrl(s.coverArt, 80) : "";
     const canLocate = s.id && !String(s.id).startsWith("local:");
     parts.push(`<li class="${active}" data-i="${i}">
-        ${art ? `<img src="${art}" alt="" loading="lazy">` : `<span class="track-art-ph" aria-hidden="true"></span>`}
+        <span class="track-art-ph"${remoteArt ? ` data-cover="${escapeHtml(s.coverArt)}"` : ""} aria-hidden="true"></span>
         <div>
           <div class="t">${escapeHtml(s.title || "Track")}</div>
           <div class="a">${escapeHtml(s.artist || "")}</div>
@@ -1193,6 +1429,7 @@ function renderQueue() {
     );
   }
   list.innerHTML = parts.join("");
+  observeTrackArt(list);
   list.querySelectorAll("li[data-i]").forEach((li) => {
     const i = Number(li.dataset.i);
     li.addEventListener("click", (e) => {
@@ -1232,6 +1469,37 @@ function escapeHtml(s) {
  */
 let sleeveDrag = null; // { payload, el, x0, y0, started, pointerId }
 let suppressSleeveClick = false;
+/** Currently open sleeve ⋯ menu — { menu, menuWrap, edit } or null. The menu
+ * itself lives in #sleeveMenuLayer (a body-level portal), not the sleeve's own
+ * DOM subtree, because ancestors (.sleeve-wrap's content-visibility, .crate-rail's
+ * overflow-x) would otherwise clip it — see the "3-dot menu cut off" bug. */
+let _openSleeveMenu = null;
+let _trackArtObserver = null;
+
+/** Loads track-art thumbnails as their placeholders scroll into view, instead
+ * of only near the currently-playing track — fixes covers staying blank for
+ * anything you scroll to in a large (100-600 track) folder pack. */
+function observeTrackArt(container) {
+  if (_trackArtObserver) _trackArtObserver.disconnect();
+  _trackArtObserver = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        const ph = entry.target;
+        _trackArtObserver.unobserve(ph);
+        const coverId = ph.dataset.cover;
+        if (!coverId) continue;
+        const img = document.createElement("img");
+        img.alt = "";
+        img.loading = "lazy";
+        img.src = coverUrl(coverId, 80);
+        ph.replaceWith(img);
+      }
+    },
+    { root: container, rootMargin: "200px 0px" },
+  );
+  container.querySelectorAll(".track-art-ph[data-cover]").forEach((ph) => _trackArtObserver.observe(ph));
+}
 
 function markDropTargets(on) {
   document.body.classList.toggle("sleeve-dragging", on);
@@ -1590,6 +1858,26 @@ function wireDeckDrop() {
   );
 }
 
+function playPlaylist(tracks, startIndex = 0) {
+  if (!tracks.length) {
+    setStatus("Playlist is empty.");
+    return;
+  }
+  revokeLocalQueueUrls(state.queue);
+  state.album = { name: "Playlist", artist: "", coverArt: tracks[0]?.coverArt };
+  state.queue = tracks;
+  state.index = 0;
+  resetArmToRest();
+  $("nowTitle").textContent = "Playlist";
+  $("nowArtist").textContent = `${tracks.length} track${tracks.length === 1 ? "" : "s"}`;
+  setVinylArt(tracks[0]?.coverArt);
+  ensureVinylColorForAlbum(state.album);
+  renderQueue();
+  prefetchQueueCovers(3);
+  $("playPauseBtn").disabled = false;
+  playIndex(startIndex);
+}
+
 function loadAlbumIntoQueue(album, { autoplay = true } = {}) {
   const songs = album.song || [];
   if (!songs.length) {
@@ -1620,14 +1908,27 @@ function loadAlbumIntoQueue(album, { autoplay = true } = {}) {
   else setStatus("Ready on the platter.");
 }
 
+function nextIndex() {
+  if (!state.shuffle || state.queue.length <= 1) return state.index + 1;
+  let i;
+  do {
+    i = Math.floor(Math.random() * state.queue.length);
+  } while (i === state.index);
+  return i;
+}
+
 async function playIndex(i) {
   if (i < 0 || i >= state.queue.length) return;
   state.index = i;
   const song = state.queue[i];
+  $("addToPlaylistBtn").disabled = false;
+  $("editNowPlayingBtn").disabled = !state.album?.id;
   $("deckTitle").textContent = song.title || "Track";
   $("deckArtist").textContent = song.artist || state.album?.artist || "";
   $("nowTrackTitle").textContent = song.title || "Track";
-  $("nextTrackTitle").textContent = state.queue[i + 1]?.title || "—";
+  $("nextTrackTitle").textContent = state.shuffle
+    ? (state.queue.length > 1 ? "Shuffling…" : "—")
+    : state.queue[i + 1]?.title || "—";
   if (song.coverArt) setVinylArt(song.coverArt);
   else if (state.album?.coverArt) setVinylArt(state.album.coverArt);
   ensureVinylColorForAlbum(state.album, song);
@@ -1637,6 +1938,11 @@ async function playIndex(i) {
   const playGen = ++state.playDelayToken;
   state.awaitingAudio = false;
   audio.src = song.localUrl || `/api/stream/${encodeURIComponent(song.id)}`;
+  resetNormForNewTrack();
+  if (state.normalize) {
+    ensureAudioGraph();
+    if (_audioCtx?.state === "suspended") _audioCtx.resume().catch(() => {});
+  }
 
   // Arm already on the record (skip / resume) — start sound immediately.
   const armReady = state.arm === "hold" || state.arm === "cueing-in";
@@ -1658,6 +1964,11 @@ async function playIndex(i) {
       audio.pause();
       return;
     }
+    if (state.normalize) {
+      ensureAudioGraph();
+      if (_audioCtx?.state === "suspended") await _audioCtx.resume().catch(() => {});
+      startNormLoop();
+    }
     setPlaying(true);
   } catch (err) {
     if (playGen !== state.playDelayToken) return;
@@ -1674,6 +1985,11 @@ function setPlaying(on) {
   stage?.classList.toggle("playing", on);
   $("playPauseBtn").textContent = on ? "Pause" : "Play";
   $("deckPlay").textContent = on ? "⏸" : "▶";
+  [$("playPauseBtn"), $("deckPlay")].forEach((btn) => {
+    if (!btn) return;
+    btn.classList.toggle("is-playing", on);
+    btn.classList.toggle("is-paused", !on);
+  });
   if (!on) {
     cancelPendingAudio();
     setStatus("Paused.");
@@ -1774,15 +2090,18 @@ function sleeveButton(album) {
   edit.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();
-    const open = menu.hidden;
+    const wasOpen = _openSleeveMenu?.menu === menu;
     closeSleeveMenus();
-    if (open) {
+    if (!wasOpen) {
       menu.hidden = false;
+      positionSleeveMenu(menu, edit);
       menuWrap.classList.add("open");
       edit.setAttribute("aria-expanded", "true");
+      _openSleeveMenu = { menu, menuWrap, edit };
     }
   });
-  menuWrap.append(edit, menu);
+  menuWrap.append(edit);
+  (document.getElementById("sleeveMenuLayer") || document.body).appendChild(menu);
 
   wrap.append(btn, menuWrap);
   bindAlbumDrag(wrap, album);
@@ -1848,7 +2167,10 @@ async function loadCrates(type, { append = false } = {}) {
       size: String(pageSize),
       offset: String(offset),
     });
-    if (isLetter) params.set("letter", state.crateLetter || "A");
+    if (isLetter) {
+      params.set("letter", state.crateLetter || "A");
+      params.set("sort", state.crateSort || "artist");
+    }
     if (type === "byGenre") {
       if (!state.crateGenre) {
         await ensureGenres();
@@ -1906,6 +2228,58 @@ async function loadCrates(type, { append = false } = {}) {
     state.crateLetterLoadingMore = false;
     updateCratePageUi();
   }
+}
+
+function setTrackPanelView(view) {
+  state.trackPanelView = view;
+  $("tracksTabBtn")?.classList.toggle("active", view === "tracks");
+  $("playlistTabBtn")?.classList.toggle("active", view === "playlist");
+  const queueList = $("queueList");
+  const playlistList = $("playlistPanelList");
+  if (queueList) queueList.hidden = view !== "tracks";
+  if (playlistList) playlistList.hidden = view !== "playlist";
+  const clearBtn = $("clearPlaylistBtn");
+  if (clearBtn) clearBtn.hidden = view !== "playlist";
+  if (view === "playlist") renderPlaylistPanel();
+}
+
+async function renderPlaylistPanel() {
+  const list = $("playlistPanelList");
+  const count = $("trackCount");
+  if (!list) return;
+  let tracks;
+  try {
+    const data = await api("/api/playlist");
+    tracks = data.tracks || [];
+  } catch (err) {
+    list.innerHTML = `<li class="track-empty">${escapeHtml(err.message || err)}</li>`;
+    return;
+  }
+  if (state.trackPanelView !== "playlist") return;
+  if (count) count.textContent = `${tracks.length} track${tracks.length === 1 ? "" : "s"}`;
+  if (!tracks.length) {
+    list.innerHTML = `<li class="track-empty">Nothing in your playlist yet — hit “+ Playlist” on the deck.</li>`;
+    return;
+  }
+  list.innerHTML = tracks
+    .map((s, i) => {
+      const art = s.coverArt ? coverUrl(s.coverArt, 80) : "";
+      return `<li data-i="${i}">
+          ${art ? `<img src="${art}" alt="" loading="lazy">` : `<span class="track-art-ph" aria-hidden="true"></span>`}
+          <div>
+            <div class="t">${escapeHtml(s.title || "Track")}</div>
+            <div class="a">${escapeHtml(s.artist || "")}</div>
+          </div>
+        </li>`;
+    })
+    .join("");
+  list.querySelectorAll("li[data-i]").forEach((li) => {
+    const i = Number(li.dataset.i);
+    li.addEventListener("click", () => {
+      playPlaylist(tracks, i);
+      setTrackPanelView("tracks");
+    });
+  });
 }
 
 async function loadMoreLetterSleeves() {
@@ -2090,6 +2464,14 @@ function wire() {
   state.volumeBeforeMute = saved || 0.85;
   applyVolume(saved, { persist: false });
 
+  let normOn = false;
+  try {
+    normOn = localStorage.getItem(NORM_KEY) === "1";
+  } catch {
+    /* ignore */
+  }
+  setNormalize(normOn, { persist: false });
+
   try {
     const savedTheme = localStorage.getItem(THEME_KEY);
     if (savedTheme) applyDeckTheme(savedTheme, { persist: false });
@@ -2109,9 +2491,20 @@ function wire() {
   $("spinBtn").addEventListener("click", () => spin());
   $("playPauseBtn").addEventListener("click", () => togglePlayPause());
   $("deckPlay").addEventListener("click", () => togglePlayPause());
-  $("nextBtn").addEventListener("click", () => playIndex(state.index + 1));
+  $("nextBtn").addEventListener("click", () => playIndex(nextIndex()));
   $("prevBtn").addEventListener("click", () => playIndex(state.index - 1));
+  $("shuffleBtn")?.addEventListener("click", () => {
+    state.shuffle = !state.shuffle;
+    const btn = $("shuffleBtn");
+    btn.classList.toggle("active", state.shuffle);
+    btn.setAttribute("aria-pressed", String(state.shuffle));
+    $("nextTrackTitle").textContent = state.shuffle
+      ? (state.queue.length > 1 ? "Shuffling…" : "—")
+      : state.queue[state.index + 1]?.title || "—";
+    setStatus(state.shuffle ? "Shuffle on." : "Shuffle off.");
+  });
   $("muteBtn").addEventListener("click", () => toggleMute());
+  $("normBtn")?.addEventListener("click", () => setNormalize(!state.normalize));
   $("volume")?.addEventListener("input", () => {
     const v = Number($("volume").value) / 100;
     if (v > 0) state.volumeBeforeMute = v;
@@ -2119,8 +2512,11 @@ function wire() {
   });
 
   audio.addEventListener("ended", () => {
-    if (state.index + 1 < state.queue.length) playIndex(state.index + 1);
-    else {
+    if (state.shuffle && state.queue.length > 1) {
+      playIndex(nextIndex());
+    } else if (state.index + 1 < state.queue.length) {
+      playIndex(state.index + 1);
+    } else {
       setPlaying(false);
       cueOutToRest();
     }
@@ -2144,6 +2540,77 @@ function wire() {
   $("crateCarouselPrev")?.addEventListener("click", () => stepCrateLetter(-1));
   $("crateCarouselNext")?.addEventListener("click", () => stepCrateLetter(1));
   $("crateMoreBtn")?.addEventListener("click", () => loadMoreLetterSleeves());
+  $("tracksTabBtn")?.addEventListener("click", () => setTrackPanelView("tracks"));
+  $("playlistTabBtn")?.addEventListener("click", () => setTrackPanelView("playlist"));
+  $("clearPlaylistBtn")?.addEventListener("click", async () => {
+    if (!confirm("Clear the whole playlist?")) return;
+    try {
+      await api("/api/playlist", { method: "DELETE" });
+      if (state.trackPanelView === "playlist") renderPlaylistPanel();
+    } catch (err) {
+      setStatus(String(err.message || err).slice(0, 160));
+    }
+  });
+  $("crateSortSelect")?.addEventListener("change", (e) => {
+    state.crateSort = e.target.value === "album" ? "album" : "artist";
+    if (state.crateType === "alphabeticalByName") loadCrates("alphabeticalByName");
+  });
+  function songForPlaylist(song) {
+    return {
+      id: song.id,
+      title: song.title,
+      artist: song.artist || state.album?.artist || "",
+      album: state.album?.name || state.album?.title || "",
+      coverArt: song.coverArt || state.album?.coverArt || "",
+      duration: song.duration,
+    };
+  }
+  async function afterPlaylistAdd(label) {
+    setStatus(label);
+    if (state.trackPanelView === "playlist") renderPlaylistPanel();
+  }
+  $("addToPlaylistBtn")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const btn = $("addToPlaylistBtn");
+    const menu = $("addToPlaylistMenu");
+    const wasOpen = _openSleeveMenu?.menu === menu;
+    closeSleeveMenus();
+    if (!wasOpen) {
+      menu.hidden = false;
+      positionSleeveMenu(menu, btn);
+      btn.setAttribute("aria-expanded", "true");
+      _openSleeveMenu = { menu, menuWrap: btn, edit: btn };
+    }
+  });
+  $("editNowPlayingBtn")?.addEventListener("click", (e) => {
+    if (!state.album?.id) return;
+    openAlbumEdit(state.album, e);
+  });
+  $("addTrackBtn")?.addEventListener("click", async () => {
+    closeSleeveMenus();
+    const song = state.queue[state.index];
+    if (!song) return;
+    try {
+      await api("/api/playlist/add", { method: "POST", body: songForPlaylist(song) });
+      await afterPlaylistAdd("Added track to playlist.");
+    } catch (err) {
+      setStatus(String(err.message || err).slice(0, 160));
+    }
+  });
+  $("addAlbumBtn")?.addEventListener("click", async () => {
+    closeSleeveMenus();
+    if (!state.queue.length) return;
+    try {
+      await api("/api/playlist/add-many", {
+        method: "POST",
+        body: { tracks: state.queue.map(songForPlaylist) },
+      });
+      await afterPlaylistAdd(`Added ${state.queue.length} track${state.queue.length === 1 ? "" : "s"} to playlist.`);
+    } catch (err) {
+      setStatus(String(err.message || err).slice(0, 160));
+    }
+  });
   $("searchForm").addEventListener("submit", (e) => {
     e.preventDefault();
     runSearch($("searchInput").value);
@@ -2166,8 +2633,12 @@ function wire() {
   });
   document.addEventListener("click", (e) => {
     if (!$("topMenu")?.contains(e.target)) closeMenu();
-    if (!e.target.closest?.(".sleeve-menu-wrap")) closeSleeveMenus();
+    if (!e.target.closest?.(".sleeve-menu-wrap") && !e.target.closest?.(".sleeve-menu")) closeSleeveMenus();
   });
+  // Fixed-position menu doesn't track its trigger while scrolling — close it
+  // rather than let it drift away from the sleeve it belongs to.
+  window.addEventListener("scroll", () => closeSleeveMenus(), { capture: true, passive: true });
+  window.addEventListener("resize", () => closeSleeveMenus());
   document.querySelectorAll("[data-close]").forEach((btn) => {
     btn.addEventListener("click", () => closeModal(btn.dataset.close));
   });
@@ -2183,6 +2654,14 @@ function wire() {
   });
   $("propSaveAlbum")?.addEventListener("click", () => saveAlbumProps());
   $("propSaveTrack")?.addEventListener("click", () => saveTrackProps());
+  $("propCoverFile")?.addEventListener("change", (e) => {
+    const file = e.target.files?.[0];
+    if (file) uploadAlbumCover(file);
+    e.target.value = "";
+  });
+  $("propCoverUrlSave")?.addEventListener("click", () => setCoverFromUrl($("propCoverUrl").value));
+  $("propCoverRemove")?.addEventListener("click", () => removeAlbumCoverOverride());
+  $("propCoverSearchBtn")?.addEventListener("click", () => searchCoverOnline());
   ["cindyModal", "propsModal"].forEach((id) => {
     $(id)?.addEventListener("click", (e) => {
       if (e.target === $(id)) closeModal(id);

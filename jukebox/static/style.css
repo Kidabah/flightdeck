@@ -8,6 +8,10 @@
   --gold-hot: #f0d78c;
   --gold-dim: rgba(212, 175, 55, 0.35);
   --chrome: #c8c8cc;
+  /* Always-light text for badges/popups with a hardcoded dark backdrop
+     (e.g. .sleeve-edit, .sleeve-menu) — must NOT flip with --cream in
+     light theme, or dark-on-dark makes them unreadable. */
+  --overlay-ink: #f2ebe0;
   --font-display: "Bebas Neue", sans-serif;
   --font-serif: "Libre Baskerville", Georgia, serif;
   --font-ui: "Source Sans 3", sans-serif;
@@ -272,6 +276,59 @@ body.theme-light .crate-carousel-letter {
 .prop-block .ghost-btn {
   margin-top: 0.45rem;
 }
+.cover-edit-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+.cover-edit-preview {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--gold-dim);
+  flex-shrink: 0;
+}
+.cover-edit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: flex-start;
+}
+.cover-edit-actions label.ghost-btn {
+  cursor: pointer;
+}
+.cover-search-results {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+  max-height: 15rem;
+  overflow-y: auto;
+}
+.cover-search-results button {
+  border: 1px solid var(--gold-dim);
+  background: rgba(0, 0, 0, 0.25);
+  padding: 0.3rem;
+  cursor: pointer;
+  text-align: center;
+}
+.cover-search-results button:hover { border-color: var(--gold); }
+.cover-search-results img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  display: block;
+}
+.cover-search-results .cs-label {
+  display: block;
+  font-size: 0.68rem;
+  color: var(--muted);
+  margin-top: 0.2rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 .brand-mark {
   display: block;
@@ -366,6 +423,23 @@ body.theme-light .crate-carousel-letter {
   margin: 0;
   font-weight: 400;
 }
+.track-panel-tabs {
+  display: flex;
+  gap: 0.9rem;
+}
+.track-panel-tab {
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: var(--font-display);
+  letter-spacing: 0.1em;
+  font-size: 1.35rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+.track-panel-tab:hover { color: var(--gold-hot); }
+.track-panel-tab.active { color: var(--cream); }
 .track-count {
   font-size: 0.8rem;
   color: var(--muted);
@@ -928,6 +1002,30 @@ body.theme-light .crate-carousel-frame {
   color: var(--muted);
   letter-spacing: 0.02em;
 }
+.crate-sort {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.crate-sort select {
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--cream);
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--gold-dim);
+  border-radius: 3px;
+  padding: 0.35rem 0.5rem;
+  cursor: pointer;
+  text-transform: none;
+  letter-spacing: normal;
+}
+.crate-sort select:hover { border-color: var(--gold); }
 .crate-page .ghost-btn.tiny:disabled {
   opacity: 0.55;
   cursor: default;
@@ -966,7 +1064,7 @@ body.theme-light .crate-carousel-frame {
   border-radius: 4px;
   border: 1px solid rgba(212, 175, 55, 0.45);
   background: rgba(10, 9, 11, 0.82);
-  color: var(--cream);
+  color: var(--overlay-ink);
   font-size: 1.05rem;
   line-height: 1;
   letter-spacing: 0.04em;
@@ -990,16 +1088,17 @@ body.theme-light .crate-carousel-frame {
   position: static;
 }
 .sleeve-menu {
-  position: absolute;
-  top: calc(100% + 0.25rem);
-  right: 0;
+  /* Lives in #sleeveMenuLayer (body-level), positioned in JS via
+     positionSleeveMenu() — fixed here, not absolute, so it isn't clipped by
+     .sleeve-wrap's content-visibility or .crate-rail's overflow-x. */
+  position: fixed;
   min-width: 10.5rem;
   background: #161418;
   border: 1px solid var(--gold-dim);
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55);
   border-radius: 4px;
   padding: 0.25rem;
-  z-index: 5;
+  z-index: 200;
 }
 .sleeve-menu[hidden] { display: none !important; }
 .sleeve-menu button {
@@ -1008,7 +1107,7 @@ body.theme-light .crate-carousel-frame {
   text-align: left;
   background: transparent;
   border: 0;
-  color: var(--cream);
+  color: var(--overlay-ink);
   padding: 0.5rem 0.65rem;
   cursor: pointer;
   font: inherit;
@@ -1222,13 +1321,36 @@ body.theme-light .crate-carousel-frame {
   border-color: var(--gold);
   color: var(--gold-hot);
 }
+#deckPlay.is-playing,
+#playPauseBtn.is-playing {
+  border-color: #3fb950;
+  color: #3fb950;
+  box-shadow: 0 0 0 1px rgba(63, 185, 80, 0.35);
+}
+#deckPlay.is-paused,
+#playPauseBtn.is-paused {
+  border-color: #e5534b;
+  color: #e5534b;
+  box-shadow: 0 0 0 1px rgba(229, 83, 75, 0.3);
+}
 #volume {
   width: 5.5rem;
   accent-color: var(--gold);
 }
 #muteBtn.muted {
+  opacity: 0.55;
   color: var(--gold);
   border-color: var(--gold);
+}
+#normBtn.active {
+  border-color: var(--gold);
+  color: var(--gold-hot);
+  box-shadow: 0 0 0 1px rgba(212, 175, 55, 0.35);
+}
+#shuffleBtn.active {
+  color: var(--gold-hot);
+  border-color: var(--gold);
+  background: rgba(212, 175, 55, 0.14);
 }
 
 @media (max-width: 700px) {
