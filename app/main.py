@@ -9930,12 +9930,13 @@ def _h_series_nozzle_low_temp_conflict(job: dict, printer_status: Optional[dict]
     """Detect H-series high-temp job with low-temp filament still at the nozzle.
 
     Uses AMS tray_now (last-used when idle) as the nozzle filament signal.
-    On H2D, only conflicts when that tray feeds a nozzle the job will heat.
+    Always treat low-temp at tray_now as a conflict before any high-temp job —
+    H2D L/R path metadata is often inconsistent with AMS HT mapping, and
+    skipping "other path" missed real PETG-loaded-then-ASA-print cases.
     """
     if not _is_h_series_printer_status(printer_status):
         return None
-    high_nozzles = _job_high_temp_nozzle_targets(job, printer_status)
-    if not high_nozzles:
+    if not _job_high_temp_nozzle_targets(job, printer_status):
         return None
     active = _reported_active_slot(printer_status)
     if not active or active.get("empty"):
@@ -9947,10 +9948,6 @@ def _h_series_nozzle_low_temp_conflict(job: dict, printer_status: Optional[dict]
         active_nozzle = int(active["nozzle"]) if active.get("nozzle") is not None else None
     except (TypeError, ValueError):
         active_nozzle = None
-    known_high = {n for n in high_nozzles if n in (0, 1)}
-    if known_high and active_nozzle in (0, 1) and active_nozzle not in known_high:
-        # Low-temp is parked on the other toolhead path — safe for this job.
-        return None
     label = active.get("label") or "AMS"
     return {
         "material": active_mat,

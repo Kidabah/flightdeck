@@ -6,13 +6,26 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-03 Session update (H-series unload — drop path skip)
+
+Latest commit: `(pending)` — Always unload low-temp before H-series high-temp jobs
+
+Latest local/Pi change:
+- BigBoy test (job #243): ASA on left metadata + PETG on AMS HT skipped unload because of H2D “other path” logic.
+- Removed that skip — any low-temp at `tray_now` before a high-temp queue job now auto-unloads.
+- **Backend restart required**.
+
+Previous:
+- H-series unload gate (`6653256`).
+
+---
+
 ## 2026-08-03 Session update (H-series high-temp nozzle unload)
 
 Latest commit: `6653256` — Auto-unload low-temp before H-series high-temp queue jobs
 
 Latest local/Pi change:
 - On **H-series** queue dispatch: if the job needs high-temp (ABS/ASA/PA/PC/…) and AMS `tray_now` still shows low-temp (PLA/PETG/TPU/…) at the nozzle, Flightdeck **auto-unloads**, waits until clear (up to 5 min), then starts the print.
-- H2D path-aware: only unloads when the loaded low-temp tray feeds a nozzle this job will heat.
 - Preflight shows an info line; decisions logged as `ams_unload_before_high_temp*`.
 - Files: `app/main.py`, `app/printers/bambu.py` (unload-without-slot now heats to tray_now material).
 - **Backend restart required** after Pi pull.
