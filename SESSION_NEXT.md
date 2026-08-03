@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-03 Session update (Cindy Vinyl → Mora)
 
-Latest commit: *(pending)* — Move Cindy Vinyl + Navidrome to Mora volume2
+Latest commit: `9f3d922` — Move Cindy Vinyl and Navidrome onto Mora volume2
 
 Latest local/Mora change:
 - Vinyl + Navidrome now run on **Mora** (`192.168.4.77`), data on SSD `/volume2/cindy-vinyl/`, music via `/share/{Cindy,Checked,Jamal}`.
