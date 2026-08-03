@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-03 Session update (H-series unload — drop path skip)
 
-Latest commit: `(pending)` — Always unload low-temp before H-series high-temp jobs
+Latest commit: `0caaa79` — Always unload low-temp before H-series high-temp jobs
 
 Latest local/Pi change:
 - BigBoy test (job #243): ASA on left metadata + PETG on AMS HT skipped unload because of H2D “other path” logic.
