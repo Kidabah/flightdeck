@@ -13,6 +13,7 @@ Latest commit: `9f3d922` — Move Cindy Vinyl and Navidrome onto Mora volume2
 Latest local/Mora change:
 - Vinyl + Navidrome now run on **Mora** (`192.168.4.77`), data on SSD `/volume2/cindy-vinyl/`, music via `/share/{Cindy,Checked,Jamal}`.
 - LAN URL: `http://192.168.4.77:4541` (reinstall Desktop shortcut / hard refresh bookmarks).
+- Tailscale serve on Mora: `https://flightdeck-nas.tail7de73e.ts.net:4540/` (may need DSM firewall allow if it times out).
 - Pi `cindy-vinyl` + `cindy-navidrome` stopped with `restart=no`.
 - Files: `jukebox/docker-compose.mora.yml`, `scripts/build-mora-library-view.sh`, `scripts/migrate-vinyl-to-mora.py`.
 
