@@ -1025,12 +1025,26 @@ class BambuPrinter:
         })
 
     def _ams_slot_material(self, slot: Optional[int]) -> str:
-        if slot is None:
-            return ""
-        unit_id, tray_id = _split_ams_slot(slot)
         try:
             dump = self._printer.mqtt_dump().get("print", {})
-            for unit_data in (dump.get("ams", {}) or {}).get("ams", []):
+            ams = dump.get("ams", {}) or {}
+            units = ams.get("ams", [])
+            if slot is None:
+                # Unload-without-slot: heat to whatever tray_now still has loaded.
+                tray_now = int(ams.get("tray_now", 255))
+                if tray_now < 0 or tray_now >= 254:
+                    return ""
+                regular_ams_slots = _regular_ams_slot_count(units)
+                for unit_data in units:
+                    unit_id = int(unit_data.get("id", 0))
+                    for tray_data in unit_data.get("tray", []):
+                        tray_id = int(tray_data.get("id", 0))
+                        slot_index = _bambu_slot_index(unit_id, tray_id)
+                        if tray_now == _bambu_tray_target(slot_index, regular_ams_slots):
+                            return str(tray_data.get("tray_type") or "")
+                return ""
+            unit_id, tray_id = _split_ams_slot(slot)
+            for unit_data in units:
                 if int(unit_data.get("id", 0)) != int(unit_id):
                     continue
                 for tray_data in unit_data.get("tray", []):

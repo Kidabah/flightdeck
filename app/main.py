@@ -9871,12 +9871,97 @@ def _queue_nozzle_label(nozzle: Optional[int]) -> str:
     return "left nozzle" if nozzle == 0 else "right nozzle" if nozzle == 1 else "unknown nozzle"
 
 
+def _is_h_series_printer_status(printer_status: Optional[dict]) -> bool:
+    return str((printer_status or {}).get("model_name") or "").upper().startswith("H")
+
+
 def _is_h2_printer_status(printer_status: Optional[dict]) -> bool:
     return str((printer_status or {}).get("model_name") or "").upper().startswith("H2")
 
 
 def _is_h2d_printer_status(printer_status: Optional[dict]) -> bool:
     return str((printer_status or {}).get("model_name") or "").upper() == "H2D"
+
+
+# Queue safety: PLA/PETG/TPU left in the nozzle while the next job heats for
+# ABS/ASA/PA/PC will cook the soft filament. Broader than Colour Match families.
+def _filament_temp_family(material: Optional[str]) -> Optional[str]:
+    """Classify filament as 'low' / 'high' for nozzle unload safety. None = unknown."""
+    n = _norm_material(material)
+    if not n:
+        return None
+    if any(n == token or n.startswith(token) for token in ("pla", "petg", "pctg", "tpu", "pva", "bvoh")):
+        return "low"
+    if n == "pet" or n.startswith("pet"):
+        return "low"
+    if any(n == token or n.startswith(token) for token in ("abs", "asa", "nylon", "pacf", "pagf", "pps", "ppa")):
+        return "high"
+    if n == "pc" or (n.startswith("pc") and not n.startswith("pct")):
+        return "high"
+    # PA / nylon family — after PLA so "pla*" is never treated as PA.
+    if n == "pa" or (n.startswith("pa") and not n.startswith("pla")):
+        return "high"
+    return None
+
+
+def _job_high_temp_nozzle_targets(job: dict, printer_status: Optional[dict]) -> set[Optional[int]]:
+    """Nozzles that will print high-temp for this job.
+
+    Empty set = job is not high-temp. {None} = high-temp but path unknown
+    (treat as any/all paths). {0}/{1}/both = H2D path-aware.
+    """
+    nozzles: set[Optional[int]] = set()
+    for req in _queue_nozzle_requirements(job, printer_status):
+        if _filament_temp_family(req.get("material")) == "high":
+            nozzles.add(req.get("nozzle"))
+    if nozzles:
+        return nozzles
+    for req in _queue_colour_requirements(job, printer_status):
+        if _filament_temp_family(req.get("material")) == "high":
+            nozzles.add(None)
+    if nozzles:
+        return nozzles
+    if _filament_temp_family(job.get("filament_type")) == "high":
+        nozzles.add(None)
+    return nozzles
+
+
+def _h_series_nozzle_low_temp_conflict(job: dict, printer_status: Optional[dict]) -> Optional[dict]:
+    """Detect H-series high-temp job with low-temp filament still at the nozzle.
+
+    Uses AMS tray_now (last-used when idle) as the nozzle filament signal.
+    On H2D, only conflicts when that tray feeds a nozzle the job will heat.
+    """
+    if not _is_h_series_printer_status(printer_status):
+        return None
+    high_nozzles = _job_high_temp_nozzle_targets(job, printer_status)
+    if not high_nozzles:
+        return None
+    active = _reported_active_slot(printer_status)
+    if not active or active.get("empty"):
+        return None
+    active_mat = _reported_slot_material_text(active)
+    if _filament_temp_family(active_mat) != "low":
+        return None
+    try:
+        active_nozzle = int(active["nozzle"]) if active.get("nozzle") is not None else None
+    except (TypeError, ValueError):
+        active_nozzle = None
+    known_high = {n for n in high_nozzles if n in (0, 1)}
+    if known_high and active_nozzle in (0, 1) and active_nozzle not in known_high:
+        # Low-temp is parked on the other toolhead path — safe for this job.
+        return None
+    label = active.get("label") or "AMS"
+    return {
+        "material": active_mat,
+        "label": label,
+        "flat_slot": active.get("flat_slot"),
+        "nozzle": active_nozzle,
+        "message": (
+            f"Will auto-unload {label} ({active_mat or 'low-temp'}) "
+            f"before high-temp print — nozzle still loaded"
+        ),
+    }
 
 
 def _reported_ams_path_slots(printer_status: Optional[dict]) -> list[dict]:
@@ -10255,6 +10340,9 @@ def _queue_preflight(job: dict, printer_status: Optional[dict]) -> dict:
     active_reported = _reported_active_slot(printer_status)
     ams_mismatches = _printer_ams_mismatches(printer_status, loaded_spools)
     issues.extend(_h2d_nozzle_mapping_issues(job, printer_status))
+    nozzle_conflict = _h_series_nozzle_low_temp_conflict(job, printer_status)
+    if nozzle_conflict:
+        issues.append({"level": "info", "message": nozzle_conflict["message"]})
     impacted_mismatches = [m for m in ams_mismatches if _ams_mismatch_impacts_job(m, material, color_reqs)]
     if impacted_mismatches:
         detail = "; ".join(f"{m['label']}: {m['message']}" for m in impacted_mismatches[:2])
@@ -10590,6 +10678,82 @@ async def _boot_queue_auto_dispatch() -> None:
         await _maybe_auto_advance_queue(printer_id, trigger="startup")
 
 
+async def _ensure_low_temp_unloaded_for_high_temp(printer_id: str, job: dict) -> bool:
+    """Unload low-temp filament before an H-series high-temp queue job.
+
+    Returns True when dispatch may proceed. Returns False when the job was
+    failed (unload refused / timed out / printer fault).
+    """
+    p = _bambu_printer(printer_id)
+    if p is None:
+        return True
+
+    async def _fresh_status() -> Optional[dict]:
+        try:
+            status = await asyncio.to_thread(p.status)
+        except Exception as exc:
+            log.warning("queue: high-temp unload status failed on %s: %s", printer_id, exc)
+            return None
+        return asdict(status)
+
+    status = await _fresh_status()
+    if status is None:
+        status = (await _printer_status_map()).get(printer_id)
+    conflict = _h_series_nozzle_low_temp_conflict(job, status)
+    if not conflict:
+        return True
+
+    job_id = job.get("id")
+    label = conflict.get("label") or "AMS"
+    mat = conflict.get("material") or "low-temp"
+    note = f"Job #{job_id}: unloading {label} ({mat}) before high-temp print"
+    log.info("queue: %s on %s", note, printer_id)
+    db.log_decision(printer_id, "ams_unload_before_high_temp", note)
+
+    try:
+        ok = await asyncio.to_thread(p.unload_ams_filament, None)
+    except Exception as exc:
+        reason = f"Failed to unload {label} ({mat}) before high-temp print: {exc}"
+        log.error("queue: %s on %s", reason, printer_id)
+        if job_id is not None:
+            db.queue_update_status(int(job_id), "failed", reason)
+        db.log_decision(printer_id, "ams_unload_before_high_temp_failed", reason)
+        return False
+    if not ok:
+        reason = f"Printer refused unload of {label} ({mat}) before high-temp print"
+        if job_id is not None:
+            db.queue_update_status(int(job_id), "failed", reason)
+        db.log_decision(printer_id, "ams_unload_before_high_temp_failed", reason)
+        return False
+
+    deadline = time.monotonic() + 300.0
+    while time.monotonic() < deadline:
+        await asyncio.sleep(3.0)
+        status = await _fresh_status()
+        if status is None:
+            continue
+        state = str(status.get("state") or "").lower()
+        if state in {"offline", "error", "estop"}:
+            reason = f"Printer {state} while unloading {mat} before high-temp print"
+            if job_id is not None:
+                db.queue_update_status(int(job_id), "failed", reason)
+            db.log_decision(printer_id, "ams_unload_before_high_temp_failed", reason)
+            return False
+        if not _h_series_nozzle_low_temp_conflict(job, status):
+            db.log_decision(
+                printer_id,
+                "ams_unload_before_high_temp_done",
+                f"Job #{job_id}: nozzle clear after unloading {mat}",
+            )
+            return True
+
+    reason = f"Timed out waiting for unload of {label} ({mat}) before high-temp print"
+    if job_id is not None:
+        db.queue_update_status(int(job_id), "failed", reason)
+    db.log_decision(printer_id, "ams_unload_before_high_temp_failed", reason)
+    return False
+
+
 async def _advance_queue(printer_id: str) -> None:
     job = db.queue_next_pending(printer_id)
     if not job:
@@ -10603,6 +10767,8 @@ async def _advance_queue(printer_id: str) -> None:
         db.log_decision(printer_id, "queue_preflight_blocked", f"Job #{job_id} {filename}: {reason}")
         return
     if await _maybe_calibrate_before_queue(printer_id, job):
+        return
+    if not await _ensure_low_temp_unloaded_for_high_temp(printer_id, job):
         return
     db.queue_update_status(job_id, "uploading")
     try:
@@ -10837,6 +11003,8 @@ async def _advance_queue_specific(job_id: int, printer_id: str,
             db.log_decision(printer_id, "queue_preflight_blocked", f"Job #{job_id} {filename}: {reason}")
             return
     if job and await _maybe_calibrate_before_queue(printer_id, job):
+        return
+    if job and not await _ensure_low_temp_unloaded_for_high_temp(printer_id, job):
         return
     db.queue_update_status(job_id, "uploading")
     try:

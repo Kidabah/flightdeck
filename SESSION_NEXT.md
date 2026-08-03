@@ -6,6 +6,22 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-03 Session update (H-series high-temp nozzle unload)
+
+Latest commit: `(pending)` — Auto-unload low-temp before H-series high-temp queue jobs
+
+Latest local/Pi change:
+- On **H-series** queue dispatch: if the job needs high-temp (ABS/ASA/PA/PC/…) and AMS `tray_now` still shows low-temp (PLA/PETG/TPU/…) at the nozzle, Flightdeck **auto-unloads**, waits until clear (up to 5 min), then starts the print.
+- H2D path-aware: only unloads when the loaded low-temp tray feeds a nozzle this job will heat.
+- Preflight shows an info line; decisions logged as `ams_unload_before_high_temp*`.
+- Files: `app/main.py`, `app/printers/bambu.py` (unload-without-slot now heats to tray_now material).
+- **Backend restart required** after Pi pull.
+
+Previous:
+- Loudness normaliser (`4d329fe`).
+
+---
+
 ## 2026-08-03 Session update (Cindy Vinyl — loudness normalise)
 
 Latest commit: `4d329fe` — Add deck loudness normaliser
