@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-04 Session update (Vinyl — add to playlist from crates/Stacks)
 
-Latest commit: `(pending)` — Add albums/tracks from crates & Stacks to playlist
+Latest commit: `166d5f4` — Add albums and tracks from crates and Stacks to playlist
 
 Latest Mora change:
 - Sleeve ⋯ on crates + Found in the stacks albums: **Add album to playlist**.
