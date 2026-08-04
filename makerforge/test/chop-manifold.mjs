@@ -3,7 +3,7 @@
  * pieces (0 open edges, 0 non-manifold edges) on both sides of a cut.
  * Run via ./run.sh. Exit code 0 = all pass, 1 = a regression.
  */
-import { sliceMeshByPlane, modularCut } from "./_staged/mesh-cut.js";
+import { sliceMeshByPlane, modularCut, parallelPlaneCut } from "./_staged/mesh-cut.js";
 import { countOpenEdges } from "./_staged/stl.js";
 
 let failures = 0;
@@ -165,6 +165,23 @@ function mergeMeshes(meshes) {
   const { pieces } = modularCut(box, [10, 10, 10]);
   if (pieces.length !== 1) { results.push(`FAIL modular already-fits: expected 1 piece, got ${pieces.length}`); failures++; }
   else checkSide("modular already-fits", pieces[0]);
+}
+
+{
+  // Number-of-planes cut: 5 evenly-spaced parallel cuts along Z should yield 6 pieces.
+  const box = buildBox(0, 0, 0, 12, 12, 60);
+  const pieces = parallelPlaneCut(box, [0, 0, 0], [0, 0, 1], 6);
+  results.push(`INFO parallel cut: ${pieces.length} pieces (expect 6)`);
+  if (pieces.length !== 6) { results.push("FAIL parallel cut: expected 6 pieces"); failures++; }
+  for (let i = 0; i < pieces.length; i++) checkSide(`parallel cut piece ${i}`, pieces[i]);
+}
+
+{
+  // Number-of-planes cut with count 1 should be a no-op (single unchanged piece).
+  const box = buildBox(0, 0, 0, 10, 10, 10);
+  const pieces = parallelPlaneCut(box, [0, 0, 0], [0, 0, 1], 1);
+  if (pieces.length !== 1) { results.push(`FAIL parallel cut count=1: expected 1 piece, got ${pieces.length}`); failures++; }
+  else checkSide("parallel cut count=1", pieces[0]);
 }
 
 for (const r of results) console.log(r);

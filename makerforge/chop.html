@@ -110,6 +110,11 @@
         </div>
         <div class="hint" style="margin-top:6px">Drag the handles in the viewport to place the cut plane.</div>
       </div>
+      <div class="dims-row" style="grid-template-columns:auto 1fr;align-items:center;gap:8px;margin-top:10px">
+        <label for="numPlanes" style="font-size:12px;color:var(--muted)">Number of planes</label>
+        <input type="number" id="numPlanes" min="1" max="64" step="1" value="1">
+      </div>
+      <div class="hint" style="margin-top:4px">More than 1 lays down evenly-spaced parallel cuts through the whole piece along the current plane, in one Commit Cut.</div>
       <div class="btn-row" style="margin-top:10px">
         <button class="btn btn-primary" id="commitCutBtn" disabled>Commit Cut</button>
         <button class="btn btn-ghost" id="resetPlaneBtn">Reset Plane</button>
@@ -149,7 +154,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import './js/nav.js?v=551';
 import { loadMeshFromFile } from './js/mesh-import.js?v=1';
-import { sliceMeshByPlane, modularCut, computeBounds } from './js/mesh-cut.js?v=2';
+import { sliceMeshByPlane, parallelPlaneCut, modularCut, computeBounds } from './js/mesh-cut.js?v=3';
 import { meshToStl, downloadBlob, countOpenEdges } from './js/stl.js?v=372';
 
 const $ = (id) => document.getElementById(id);
@@ -585,23 +590,41 @@ $('commitCutBtn').addEventListener('click', () => {
   const piece = selectedPiece();
   if (!piece) return;
   const { point, normal } = currentPlane();
+  const numPlanes = Math.max(1, Math.round(Number($('numPlanes').value) || 1));
   setStatus('Cutting…');
-  let result;
-  try {
-    result = sliceMeshByPlane(piece.mesh, point, normal);
-  } catch (e) {
-    setStatus('Cut failed: ' + e.message);
-    return;
+
+  let newPieces;
+  if (numPlanes <= 1) {
+    let result;
+    try {
+      result = sliceMeshByPlane(piece.mesh, point, normal);
+    } catch (e) {
+      setStatus('Cut failed: ' + e.message);
+      return;
+    }
+    if (!result.above || !result.below) {
+      setStatus("Plane doesn't intersect this piece — adjust it and try again.");
+      return;
+    }
+    newPieces = [result.above, result.below].map((m) => ({ id: `piece-${nextId++}`, mesh: m, openEdgeCount: m.openEdgeCount }));
+  } else {
+    let slices;
+    try {
+      slices = parallelPlaneCut(piece.mesh, point, normal, numPlanes);
+    } catch (e) {
+      setStatus('Cut failed: ' + e.message);
+      return;
+    }
+    if (slices.length <= 1) {
+      setStatus("Planes don't intersect this piece — adjust it and try again.");
+      return;
+    }
+    newPieces = slices.map((m) => ({ id: `piece-${nextId++}`, mesh: m, openEdgeCount: m.openEdgeCount }));
   }
-  if (!result.above || !result.below) {
-    setStatus("Plane doesn't intersect this piece — adjust it and try again.");
-    return;
-  }
+
   undoStack.push(pieces.slice());
   const idx = pieces.findIndex((p) => p.id === piece.id);
-  const above = { id: `piece-${nextId++}`, mesh: result.above, openEdgeCount: result.above.openEdgeCount };
-  const below = { id: `piece-${nextId++}`, mesh: result.below, openEdgeCount: result.below.openEdgeCount };
-  pieces.splice(idx, 1, above, below);
+  pieces.splice(idx, 1, ...newPieces);
   renumberPieces();
   selectedId = null;
   rebuildScene();
@@ -609,7 +632,9 @@ $('commitCutBtn').addEventListener('click', () => {
   gizmo.detach();
   gizmo.visible = false; gizmo.enabled = false;
   $('commitCutBtn').disabled = true;
-  setStatus(`Cut into ${above.name} and ${below.name}. Select a piece to cut again or export.`);
+  const openCount = newPieces.filter((p) => p.openEdgeCount > 0).length;
+  const note = openCount ? ` (${openCount} came out with open edges — repair in Mesh Prep)` : '';
+  setStatus(`Cut into ${newPieces.length} piece${newPieces.length === 1 ? '' : 's'}${note}. Select a piece to cut again or export.`);
 });
 
 $('modularCutBtn').addEventListener('click', () => {

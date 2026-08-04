@@ -303,6 +303,48 @@ export function sliceMeshByPlane(mesh, planePoint, planeNormal) {
   };
 }
 
+/**
+ * LuBan-style "Number of planes" cut: lay `count` evenly-spaced parallel
+ * planes (all sharing `normal`) across the full extent of `mesh` along that
+ * normal, splitting it into up to count+1 pieces in one pass. Unlike
+ * modularCut, every cut here shares the same direction, so each piece only
+ * ever carries cut-face caps from that one direction — the corner-coincidence
+ * failure mode modularCut works around with MODULAR_CUT_OFFSETS doesn't
+ * arise, since no two caps from different directions ever meet.
+ *
+ * Cuts proceed low-to-high along the normal; each step peels off the
+ * "below" side as a finished piece and keeps "above" as the remainder for
+ * the next plane. Returns an array of {positions,indices,openEdgeCount}
+ * pieces, ordered low-to-high along the normal.
+ */
+export function parallelPlaneCut(mesh, planePoint, planeNormal, count) {
+  const withOpenEdgeCount = (m) =>
+    m.openEdgeCount === undefined ? { ...m, openEdgeCount: countOpenEdges(m.positions, m.indices) } : m;
+
+  if (count <= 1) return [withOpenEdgeCount(mesh)];
+
+  const normal = normalize(planeNormal);
+  const { min, max } = computeBounds(mesh.positions);
+  const corners = [];
+  for (const x of [min[0], max[0]]) for (const y of [min[1], max[1]]) for (const z of [min[2], max[2]]) corners.push([x, y, z]);
+  const projections = corners.map((c) => dot(sub(c, planePoint), normal));
+  const tMin = Math.min(...projections);
+  const tMax = Math.max(...projections);
+
+  const pieces = [];
+  let remaining = mesh;
+  for (let i = 1; i < count && remaining; i++) {
+    const t = tMin + ((tMax - tMin) * i) / count;
+    const point = [planePoint[0] + normal[0] * t, planePoint[1] + normal[1] * t, planePoint[2] + normal[2] * t];
+    const cut = sliceMeshByPlane(remaining, point, normal);
+    if (!cut.below && !cut.above) continue; // plane missed this remainder — skip, try the next one
+    if (cut.below) pieces.push(cut.below);
+    remaining = cut.above;
+  }
+  if (remaining) pieces.push(withOpenEdgeCount(remaining));
+  return pieces;
+}
+
 // Fractional offsets from a piece's exact bounds-midpoint tried in order for
 // a modularCut bisection. Landing a cut plane precisely on the midpoint can
 // coincide with a vertex already sitting there from earlier cuts' cap
