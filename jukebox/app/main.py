@@ -10,8 +10,8 @@ from typing import Any
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import FastAPI, HTTPException, Query, Request, Response
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import FastAPI, File, HTTPException, Query, Request, Response, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -24,6 +24,7 @@ from .folder_albums import (
 )
 from .locate import locate_album, locate_song
 from . import meta_overrides as meta
+from . import playlist as playlist_store
 
 NAVIDROME = os.environ.get("NAVIDROME_URL", "http://127.0.0.1:4533").rstrip("/")
 USER = os.environ.get("JUKEBOX_USER", "jukebox")
@@ -45,7 +46,7 @@ _letter_cache_built: dict[str, float] = {}
 _LETTER_TTL = 600.0
 # Full collapsed letter lists (for A–Z paging). Built once per letter, then
 # sliced by offset/size. Short TTL — not a source of truth.
-_letter_full_cache: dict[str, tuple[list[dict[str, Any]], str, float]] = {}
+_letter_full_cache: dict[tuple[str, str], tuple[list[dict[str, Any]], str, float]] = {}
 _LETTER_FULL_TTL = 300.0
 _LETTER_FETCH_CAP = 10000
 _genres_lock = asyncio.Lock()
@@ -70,6 +71,23 @@ class SongMetaPatch(BaseModel):
     title: str | None = None
     artist: str | None = None
     album: str | None = None
+
+
+class CoverFromUrl(BaseModel):
+    url: str = Field(min_length=1)
+
+
+class PlaylistAdd(BaseModel):
+    id: str = Field(min_length=1)
+    title: str | None = None
+    artist: str | None = None
+    album: str | None = None
+    coverArt: str | None = None
+    duration: float | None = None
+
+
+class PlaylistAddMany(BaseModel):
+    tracks: list[PlaylistAdd] = Field(min_length=1)
 
 
 def _auth_params() -> dict[str, str]:
@@ -510,11 +528,33 @@ def _filter_letter_sleeves(
     return out
 
 
-async def _letter_collapsed_full(ch: str) -> tuple[list[dict[str, Any]], str]:
+def _sort_collapsed(
+    collapsed: list[dict[str, Any]], sort: str
+) -> list[dict[str, Any]]:
+    """Re-order an already artist-filed letter bucket.
+
+    Bucket membership (which letter chip an album files under) always stays
+    artist-based — this only changes the order *within* that bucket.
+    """
+    if sort == "album":
+        return sorted(
+            collapsed,
+            key=lambda a: (
+                (a.get("sortName") or a.get("name") or "").lower(),
+                (a.get("artist") or "").lower(),
+            ),
+        )
+    return collapsed  # "artist" — already artist-ordered from the source query
+
+
+async def _letter_collapsed_full(
+    ch: str, sort: str = "artist"
+) -> tuple[list[dict[str, Any]], str]:
     """Full collapsed sleeve list for a letter (cached)."""
     key = (ch or "A").upper()
+    cache_key = (key, sort)
     now = time.monotonic()
-    cached = _letter_full_cache.get(key)
+    cached = _letter_full_cache.get(cache_key)
     if cached is not None and now - cached[2] < _LETTER_FULL_TTL:
         return cached[0], cached[1]
 
@@ -528,26 +568,28 @@ async def _letter_collapsed_full(ch: str) -> tuple[list[dict[str, Any]], str]:
             )
             if extra and extra[0]:
                 albums = albums + extra[0]
-        collapsed = _filter_letter_sleeves(
-            await asyncio.to_thread(_collapse_apply, albums), key
+        collapsed = _sort_collapsed(
+            _filter_letter_sleeves(await asyncio.to_thread(_collapse_apply, albums), key),
+            sort,
         )
-        _letter_full_cache[key] = (collapsed, "db", time.monotonic())
+        _letter_full_cache[cache_key] = (collapsed, "db", time.monotonic())
         return collapsed, "db"
 
     matched = await _letter_albums_cached(key)
-    collapsed = _filter_letter_sleeves(
-        await asyncio.to_thread(_collapse_apply, matched), key
+    collapsed = _sort_collapsed(
+        _filter_letter_sleeves(await asyncio.to_thread(_collapse_apply, matched), key),
+        sort,
     )
     mode = "seek" if _alpha_index is None else "index"
-    _letter_full_cache[key] = (collapsed, mode, time.monotonic())
+    _letter_full_cache[cache_key] = (collapsed, mode, time.monotonic())
     return collapsed, mode
 
 
 async def _letter_rail(
-    ch: str, size: int, offset: int = 0
+    ch: str, size: int, offset: int = 0, sort: str = "artist"
 ) -> tuple[list[dict[str, Any]], int, str]:
     """Page of collapsed sleeves for a letter + total collapsed count."""
-    full, mode = await _letter_collapsed_full(ch)
+    full, mode = await _letter_collapsed_full(ch, sort)
     offset = max(0, int(offset))
     size = max(1, int(size))
     return full[offset : offset + size], len(full), mode
@@ -699,18 +741,89 @@ async def health():
         return {"ok": False, "error": str(exc)}
 
 
+def _random_albums_db(size: int = 40) -> list[dict[str, Any]] | None:
+    """Pick albums from Navidrome SQLite when Subsonic list endpoints are empty."""
+    import sqlite3
+
+    if not os.path.isfile(NAVIDROME_DB):
+        return None
+    try:
+        con = sqlite3.connect(f"file:{NAVIDROME_DB}?mode=ro", uri=True, timeout=5.0)
+        con.row_factory = sqlite3.Row
+    except sqlite3.Error:
+        return None
+    try:
+        rows = con.execute(
+            """
+            SELECT id, name, album_artist, song_count, max_year, compilation,
+                   order_album_name, sort_album_name
+            FROM album
+            WHERE COALESCE(missing, 0) = 0
+              AND COALESCE(song_count, 0) > 0
+            ORDER BY RANDOM()
+            LIMIT ?
+            """,
+            (max(1, int(size)),),
+        ).fetchall()
+    except sqlite3.Error:
+        return None
+    finally:
+        con.close()
+    return [
+        {
+            "id": r["id"],
+            "name": r["name"],
+            "artist": r["album_artist"] or "Various Artists",
+            "coverArt": r["id"],
+            "songCount": r["song_count"],
+            "year": r["max_year"] or None,
+            "sortName": r["sort_album_name"] or r["order_album_name"] or "",
+            "compilation": bool(r["compilation"]),
+        }
+        for r in rows
+    ]
+
+
 @app.get("/api/random-album")
 async def random_album():
-    sub = await _nd_get("getAlbumList2.view", {"type": "random", "size": 12})
-    albums = (sub.get("albumList2") or {}).get("album") or []
-    if not albums:
-        sub = await _nd_get("getAlbumList2.view", {"type": "newest", "size": 40})
+    albums: list[dict[str, Any]] = []
+    try:
+        sub = await _nd_get("getAlbumList2.view", {"type": "random", "size": 24})
         albums = (sub.get("albumList2") or {}).get("album") or []
-        if not albums:
-            raise HTTPException(404, "No albums yet — Navidrome may still be scanning")
+    except HTTPException:
+        albums = []
+    if not albums:
+        try:
+            sub = await _nd_get("getAlbumList2.view", {"type": "newest", "size": 40})
+            albums = (sub.get("albumList2") or {}).get("album") or []
+        except HTTPException:
+            albums = []
+    if not albums:
+        albums = await asyncio.to_thread(_random_albums_db, 40) or []
+    if not albums:
+        raise HTTPException(404, "No albums yet — Navidrome may still be scanning")
+
     albums = await asyncio.to_thread(_collapse_apply, albums)
-    album = random.choice(albums)
-    return await album_detail(album["id"])
+    if not albums:
+        raise HTTPException(404, "No albums yet — Navidrome may still be scanning")
+
+    # Folder packs / stale ids can 404 — retry a few picks before giving up.
+    last_exc: HTTPException | None = None
+    picks = list(albums)
+    random.shuffle(picks)
+    for album in picks[:12]:
+        aid = str(album.get("id") or "")
+        if not aid:
+            continue
+        try:
+            return await album_detail(aid)
+        except HTTPException as exc:
+            if exc.status_code != 404:
+                raise
+            last_exc = exc
+    if last_exc:
+        raise last_exc
+    raise HTTPException(404, "No playable albums found")
 
 
 # Broad crate categories — map messy Cindy tags up to these buckets.
@@ -888,15 +1001,17 @@ async def albums(
     offset: int = Query(0, ge=0),
     letter: str | None = Query(None, min_length=1, max_length=2),
     genre: str | None = Query(None, min_length=1, max_length=80),
+    sort: str = Query("artist", pattern="^(artist|album)$"),
 ):
     if list_type == "alphabeticalByName" and letter:
         ch = letter.upper()
-        albums, total, mode = await _letter_rail(ch, size, offset)
+        albums, total, mode = await _letter_rail(ch, size, offset, sort)
         return {
             "albums": albums,
             "type": list_type,
             "letter": letter,
             "genre": genre,
+            "sort": sort,
             "total": total,
             "offset": offset,
             "size": size,
@@ -1006,6 +1121,7 @@ async def locate_album_api(album_id: str):
 @app.post("/api/meta/album")
 async def meta_album(body: AlbumMetaPatch):
     saved = meta.patch_album(body.id, {"name": body.name, "artist": body.artist})
+    _letter_full_cache.clear()
     return {"ok": True, "id": body.id, "override": saved, "note": "Vinyl display only — Cindy files unchanged"}
 
 
@@ -1015,7 +1131,110 @@ async def meta_song(body: SongMetaPatch):
         body.id,
         {"title": body.title, "artist": body.artist, "album": body.album},
     )
+    _letter_full_cache.clear()
     return {"ok": True, "id": body.id, "override": saved, "note": "Vinyl display only — Cindy files unchanged"}
+
+
+_MAX_COVER_BYTES = 8 * 1024 * 1024
+
+
+@app.post("/api/meta/cover/{album_id}/upload")
+async def upload_album_cover(album_id: str, file: UploadFile = File(...)):
+    content = await file.read()
+    if not content:
+        raise HTTPException(400, "empty file")
+    if len(content) > _MAX_COVER_BYTES:
+        raise HTTPException(400, "image too large (max 8MB)")
+    ctype = file.content_type or "image/jpeg"
+    if not ctype.startswith("image/"):
+        raise HTTPException(400, "not an image")
+    cover_id = meta.set_album_cover(album_id, content, ctype)
+    _letter_full_cache.clear()
+    return {"ok": True, "id": album_id, "coverArt": cover_id}
+
+
+@app.post("/api/meta/cover/{album_id}/from-url")
+async def set_album_cover_from_url(album_id: str, body: CoverFromUrl):
+    client = await _http_client()
+    try:
+        r = await client.get(body.url, timeout=15, follow_redirects=True)
+    except httpx.HTTPError as err:
+        raise HTTPException(400, f"could not fetch that url: {err}") from err
+    if r.status_code >= 400 or not r.content:
+        raise HTTPException(400, "could not fetch that image")
+    ctype = r.headers.get("content-type", "image/jpeg").split(";")[0].strip()
+    if not ctype.startswith("image/"):
+        raise HTTPException(400, "that url isn't an image")
+    if len(r.content) > _MAX_COVER_BYTES:
+        raise HTTPException(400, "image too large (max 8MB)")
+    cover_id = meta.set_album_cover(album_id, r.content, ctype)
+    _letter_full_cache.clear()
+    return {"ok": True, "id": album_id, "coverArt": cover_id}
+
+
+@app.delete("/api/meta/cover/{album_id}")
+async def remove_album_cover(album_id: str):
+    meta.clear_album_cover(album_id)
+    _letter_full_cache.clear()
+    return {"ok": True, "id": album_id}
+
+
+@app.get("/api/coversearch")
+async def cover_search(q: str = Query(..., min_length=1)):
+    client = await _http_client()
+    try:
+        r = await client.get(
+            "https://itunes.apple.com/search",
+            params={"term": q, "media": "music", "entity": "album", "limit": 12},
+            timeout=10,
+        )
+    except httpx.HTTPError as err:
+        raise HTTPException(502, f"search failed: {err}") from err
+    if r.status_code >= 400:
+        raise HTTPException(502, "search failed")
+    results = []
+    for item in r.json().get("results", []):
+        art = item.get("artworkUrl100")
+        if not art:
+            continue
+        results.append(
+            {
+                "collectionName": item.get("collectionName"),
+                "artistName": item.get("artistName"),
+                "thumbUrl": art,
+                "artworkUrl": art.replace("100x100bb", "600x600bb"),
+            }
+        )
+    return {"results": results}
+
+
+@app.get("/api/playlist")
+async def get_playlist():
+    return {"tracks": playlist_store.get_playlist()}
+
+
+@app.post("/api/playlist/add")
+async def add_to_playlist(body: PlaylistAdd):
+    tracks = playlist_store.add_track(body.model_dump())
+    return {"ok": True, "tracks": tracks}
+
+
+@app.post("/api/playlist/add-many")
+async def add_many_to_playlist(body: PlaylistAddMany):
+    tracks = playlist_store.add_tracks([t.model_dump() for t in body.tracks])
+    return {"ok": True, "tracks": tracks}
+
+
+@app.delete("/api/playlist/{song_id}")
+async def remove_from_playlist(song_id: str):
+    tracks = playlist_store.remove_track(song_id)
+    return {"ok": True, "tracks": tracks}
+
+
+@app.delete("/api/playlist")
+async def clear_playlist():
+    playlist_store.clear_playlist()
+    return {"ok": True, "tracks": []}
 
 
 @app.post("/api/refresh-packs")
@@ -1027,6 +1246,19 @@ async def refresh_packs():
 
 @app.get("/api/cover/{cover_id}")
 async def cover(cover_id: str, size: int = Query(600, ge=40, le=1200)):
+    if cover_id.startswith(meta.COVER_ID_PREFIX):
+        # ...@<version> is a cache-buster (see meta.set_album_cover) — the
+        # lookup key is just the album id in front of it.
+        album_id = cover_id[len(meta.COVER_ID_PREFIX) :].rsplit("@", 1)[0]
+        found = meta.get_album_cover(album_id)
+        if not found:
+            raise HTTPException(404, "cover override missing")
+        content, content_type = found
+        return Response(
+            content=content,
+            media_type=content_type,
+            headers={"Cache-Control": "public, max-age=604800, immutable"},
+        )
     params = _auth_params()
     params.update({"id": cover_id, "size": str(size)})
     url = f"{NAVIDROME}/rest/getCoverArt.view?{urlencode(params)}"
@@ -1072,12 +1304,25 @@ async def stream(song_id: str, request: Request):
     return StreamingResponse(body(), status_code=r.status_code, headers=out_headers, media_type=r.headers.get("content-type"))
 
 
+def _asset_ver(name: str) -> str:
+    """Short content hash for cache-busting — changes automatically whenever
+    the file's bytes change, so a redeploy can never serve stale cached JS/CSS."""
+    try:
+        data = (STATIC / name).read_bytes()
+    except OSError:
+        return "0"
+    return hashlib.md5(data).hexdigest()[:10]
+
+
 @app.get("/")
 async def index():
     index_path = STATIC / "index.html"
     if not index_path.exists():
         raise HTTPException(404, "UI missing")
-    return FileResponse(index_path)
+    html = index_path.read_text(encoding="utf-8")
+    html = html.replace("__APP_JS_VER__", _asset_ver("app.js"))
+    html = html.replace("__STYLE_CSS_VER__", _asset_ver("style.css"))
+    return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
 
 
 def _pwa_file(name: str, media_type: str) -> FileResponse:

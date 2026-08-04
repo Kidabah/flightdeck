@@ -6,6 +6,22 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-04 Session update (Vinyl — add to playlist from crates/Stacks)
+
+Latest commit: `(pending)` — Add albums/tracks from crates & Stacks to playlist
+
+Latest Mora change:
+- Sleeve ⋯ on crates + Found in the stacks albums: **Add album to playlist**.
+- Stacks track tiles ⋯: **Add to playlist**.
+- Reuses existing playlist APIs; no new crates.
+- Files: `jukebox/static/app.js` (cache-bust via `_asset_ver`).
+- Hard refresh Vinyl (`http://192.168.4.77:4541`). Rebuild `cindy-vinyl` on Mora.
+
+Previous:
+- H-series unload path-skip (`0caaa79`).
+
+---
+
 ## 2026-08-03 Session update (H-series unload — drop path skip)
 
 Latest commit: `0caaa79` — Always unload low-temp before H-series high-temp jobs
