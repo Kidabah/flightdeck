@@ -3,7 +3,7 @@
  * pieces (0 open edges, 0 non-manifold edges) on both sides of a cut.
  * Run via ./run.sh. Exit code 0 = all pass, 1 = a regression.
  */
-import { sliceMeshByPlane } from "./_staged/mesh-cut.js";
+import { sliceMeshByPlane, modularCut } from "./_staged/mesh-cut.js";
 import { countOpenEdges } from "./_staged/stl.js";
 
 let failures = 0;
@@ -133,6 +133,38 @@ function mergeMeshes(meshes) {
   const second = sliceMeshByPlane(first.above, [0, 0, 2], [1, 0, 0]);
   checkSide("chained second-cut above", second.above);
   checkSide("chained second-cut below", second.below);
+}
+
+{
+  // Modular cut: oversized on Z only should keep bisecting along Z until every piece fits.
+  const box = buildBox(0, 0, 0, 8, 8, 40);
+  const { pieces, capped } = modularCut(box, [10, 10, 10]);
+  results.push(`INFO modular single-axis: ${pieces.length} pieces, capped ${capped}`);
+  if (capped) { results.push("FAIL modular single-axis: hit piece cap unexpectedly"); failures++; }
+  for (let i = 0; i < pieces.length; i++) checkSide(`modular single-axis piece ${i}`, pieces[i]);
+  const allFit = pieces.every((p) => {
+    let minZ = Infinity, maxZ = -Infinity;
+    for (let i = 2; i < p.positions.length; i += 3) { minZ = Math.min(minZ, p.positions[i]); maxZ = Math.max(maxZ, p.positions[i]); }
+    return maxZ - minZ <= 10 + 1e-6;
+  });
+  if (!allFit) { results.push("FAIL modular single-axis: a piece still exceeds bed Z"); failures++; }
+}
+
+{
+  // Modular cut: oversized on all three axes.
+  const box = buildBox(0, 0, 0, 25, 25, 25);
+  const { pieces, capped } = modularCut(box, [10, 10, 10]);
+  results.push(`INFO modular multi-axis: ${pieces.length} pieces, capped ${capped}`);
+  if (pieces.length <= 1) { results.push("FAIL modular multi-axis: expected multiple pieces"); failures++; }
+  for (let i = 0; i < pieces.length; i++) checkSide(`modular multi-axis piece ${i}`, pieces[i]);
+}
+
+{
+  // Modular cut: a piece that already fits the bed should be returned unchanged.
+  const box = buildBox(0, 0, 0, 8, 8, 8);
+  const { pieces } = modularCut(box, [10, 10, 10]);
+  if (pieces.length !== 1) { results.push(`FAIL modular already-fits: expected 1 piece, got ${pieces.length}`); failures++; }
+  else checkSide("modular already-fits", pieces[0]);
 }
 
 for (const r of results) console.log(r);

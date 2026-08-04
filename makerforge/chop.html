@@ -118,6 +118,12 @@
     </div>
 
     <div>
+      <div class="section-label">Modular Cut</div>
+      <button class="btn btn-primary" id="modularCutBtn" style="width:100%" disabled>Auto-Chop to Fit Bed</button>
+      <div class="hint" style="margin-top:6px">Repeatedly splits the selected piece along its oversized axis until every part fits the bed above.</div>
+    </div>
+
+    <div>
       <div class="section-label">Pieces</div>
       <div class="piece-list" id="pieceList"></div>
     </div>
@@ -143,7 +149,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import './js/nav.js?v=551';
 import { loadMeshFromFile } from './js/mesh-import.js?v=1';
-import { sliceMeshByPlane, computeBounds } from './js/mesh-cut.js?v=1';
+import { sliceMeshByPlane, modularCut, computeBounds } from './js/mesh-cut.js?v=2';
 import { meshToStl, downloadBlob, countOpenEdges } from './js/stl.js?v=372';
 
 const $ = (id) => document.getElementById(id);
@@ -349,11 +355,14 @@ function renderPieceList() {
     row.className = 'piece-row' + (p.id === selectedId ? ' selected' : '');
     const pillClass = fit === null ? '' : fit ? 'good' : 'bad';
     const pillText = fit === null ? 'No bed set' : fit ? 'Fits bed' : 'Too big';
+    const openPill = p.openEdgeCount > 0
+      ? `<span class="pill bad" style="margin-top:4px;margin-left:4px">${p.openEdgeCount} open edge${p.openEdgeCount === 1 ? '' : 's'}</span>`
+      : '';
     row.innerHTML = `
       <div class="info">
         <div class="name">${p.name}</div>
         <div class="size">${fmt(b.size[0])} × ${fmt(b.size[1])} × ${fmt(b.size[2])} mm</div>
-        <span class="pill ${pillClass}" style="margin-top:4px">${pillText}</span>
+        <span class="pill ${pillClass}" style="margin-top:4px">${pillText}</span>${openPill}
       </div>
       <div class="actions">
         <button class="btn btn-icon btn-ghost" data-act="export" title="Export STL">&#x2913;</button>
@@ -368,6 +377,8 @@ function renderPieceList() {
     list.appendChild(row);
   }
   $('undoBtn').disabled = undoStack.length === 0;
+  const sel = selectedPiece();
+  $('modularCutBtn').disabled = !sel || sel.openEdgeCount > 0 || fitsBed(sel) !== false;
 }
 
 function selectPiece(id) {
@@ -599,6 +610,41 @@ $('commitCutBtn').addEventListener('click', () => {
   gizmo.visible = false; gizmo.enabled = false;
   $('commitCutBtn').disabled = true;
   setStatus(`Cut into ${above.name} and ${below.name}. Select a piece to cut again or export.`);
+});
+
+$('modularCutBtn').addEventListener('click', () => {
+  const piece = selectedPiece();
+  const bed = bedDims();
+  if (!piece || !bed) return;
+  setStatus('Auto-chopping…');
+  let result;
+  try {
+    result = modularCut(piece.mesh, bed);
+  } catch (e) {
+    setStatus('Modular cut failed: ' + e.message);
+    return;
+  }
+  if (result.pieces.length <= 1) {
+    setStatus('Already fits the bed — nothing to cut.');
+    return;
+  }
+  undoStack.push(pieces.slice());
+  const idx = pieces.findIndex((p) => p.id === piece.id);
+  const newPieces = result.pieces.map((m) => ({ id: `piece-${nextId++}`, mesh: m, openEdgeCount: m.openEdgeCount }));
+  pieces.splice(idx, 1, ...newPieces);
+  renumberPieces();
+  selectedId = null;
+  rebuildScene();
+  renderPieceList();
+  gizmo.detach();
+  gizmo.visible = false; gizmo.enabled = false;
+  $('commitCutBtn').disabled = true;
+  const openCount = newPieces.filter((p) => p.openEdgeCount > 0).length;
+  const notes = [];
+  if (result.capped) notes.push('hit the piece cap — some parts may still be oversized');
+  if (openCount) notes.push(`${openCount} piece${openCount === 1 ? '' : 's'} came out with open edges — repair in Mesh Prep before printing`);
+  const note = notes.length ? ` (${notes.join('; ')})` : '';
+  setStatus(`Auto-chopped ${piece.name} into ${newPieces.length} pieces${note}. Select a piece to cut again or export.`);
 });
 
 $('undoBtn').addEventListener('click', () => {

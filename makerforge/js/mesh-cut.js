@@ -302,3 +302,82 @@ export function sliceMeshByPlane(mesh, planePoint, planeNormal) {
     loopCount: loops.length,
   };
 }
+
+// Fractional offsets from a piece's exact bounds-midpoint tried in order for
+// a modularCut bisection. Landing a cut plane precisely on the midpoint can
+// coincide with a vertex already sitting there from earlier cuts' cap
+// triangulation (most likely once a piece has been cut on two other axes
+// already, since their caps meet at a corner) — a known sliceMeshByPlane
+// edge case that silently drops part of the new cut loop, leaving open
+// edges. Rather than guess which offset dodges it, modularCut tries each of
+// these in turn and keeps whichever comes back with the fewest open edges
+// (stopping early on a perfectly watertight one). This doesn't guarantee a
+// clean cut on adversarial/highly symmetric geometry — see "modular
+// multi-axis" in chop-manifold.mjs — but it recovers cleanly for realistic,
+// non-symmetric shapes and never leaves a cut worse than the plain midpoint.
+const MODULAR_CUT_OFFSETS = [0, 0.001, -0.001, 0.005, -0.005, 0.02, -0.02, 0.06, -0.06];
+
+/**
+ * Auto-fit-to-bed cutting (LuBan calls this "Modular cut"): recursively
+ * bisect `mesh` along whichever axis exceeds `bedSize`, at (or very near)
+ * the midpoint of its current bounds, until every resulting piece fits — no
+ * manual plane placement per piece. Each bisection roughly halves the
+ * piece's size on the cut axis, so this converges without needing a depth
+ * limit, though `maxPieces` still caps runaway cases (e.g. a bed dimension
+ * of 0). See MODULAR_CUT_OFFSETS above for why the exact midpoint isn't
+ * always used.
+ *
+ * Returns { pieces, capped }. `pieces` are watertight
+ * {positions,indices,openEdgeCount} meshes, unless every offset in
+ * MODULAR_CUT_OFFSETS failed to produce a clean cut for a given piece — in
+ * that rare case the plain-midpoint result is kept even though it may carry
+ * open edges, so no geometry is silently dropped; `capped` is true if
+ * maxPieces was hit before every piece fit.
+ */
+export function modularCut(mesh, bedSize, { maxPieces = 128 } = {}) {
+  const withOpenEdgeCount = (m) =>
+    m.openEdgeCount === undefined ? { ...m, openEdgeCount: countOpenEdges(m.positions, m.indices) } : m;
+
+  const eps = boundsDiagonal(mesh.positions) * 1e-6;
+  const queue = [mesh];
+  const pieces = [];
+  let capped = false;
+
+  while (queue.length) {
+    if (pieces.length + queue.length >= maxPieces) { capped = true; break; }
+    const m = queue.pop();
+    const b = computeBounds(m.positions);
+    let axis = -1, worst = eps;
+    for (let i = 0; i < 3; i++) {
+      const over = b.size[i] - bedSize[i];
+      if (over > worst) { worst = over; axis = i; }
+    }
+    if (axis === -1) { pieces.push(withOpenEdgeCount(m)); continue; }
+
+    const mid = (b.min[axis] + b.max[axis]) / 2;
+    const normal = [0, 0, 0];
+    normal[axis] = 1;
+
+    let best = null;
+    let bestScore = Infinity;
+    for (const frac of MODULAR_CUT_OFFSETS) {
+      const point = [
+        (b.min[0] + b.max[0]) / 2,
+        (b.min[1] + b.max[1]) / 2,
+        (b.min[2] + b.max[2]) / 2,
+      ];
+      point[axis] = mid + b.size[axis] * frac;
+      const cut = sliceMeshByPlane(m, point, normal);
+      if (!cut.above || !cut.below) continue;
+      const score = cut.above.openEdgeCount + cut.below.openEdgeCount;
+      if (score < bestScore) { bestScore = score; best = cut; }
+      if (score === 0) break;
+    }
+    if (!best) { pieces.push(withOpenEdgeCount(m)); continue; }
+    queue.push(best.above, best.below);
+  }
+  if (capped) {
+    for (const m of queue) pieces.push(withOpenEdgeCount(m));
+  }
+  return { pieces, capped };
+}
