@@ -8,13 +8,14 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-04 Session update (Vinyl — add to playlist from crates/Stacks)
 
-Latest commit: `166d5f4` — Add albums and tracks from crates and Stacks to playlist
+Latest commit: `1da3a16` — Add albums/tracks from crates & Stacks to playlist (+ multipart)
 
 Latest Mora change:
 - Sleeve ⋯ on crates + Found in the stacks albums: **Add album to playlist**.
 - Stacks track tiles ⋯: **Add to playlist**.
 - Reuses existing playlist APIs; no new crates.
-- Files: `jukebox/static/app.js` (cache-bust via `_asset_ver`).
+- Also ships `python-multipart` (needed for cover upload Form routes — Mora rebuild).
+- Files: `jukebox/static/app.js`, `jukebox/app/playlist.py`, `jukebox/app/main.py`, `jukebox/requirements.txt`.
 - Hard refresh Vinyl (`http://192.168.4.77:4541`). Rebuild `cindy-vinyl` on Mora.
 
 Previous:
