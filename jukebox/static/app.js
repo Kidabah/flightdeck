@@ -992,6 +992,109 @@ function positionSleeveMenu(menu, edit) {
   menu.style.top = `${Math.round(top)}px`;
 }
 
+function songForPlaylist(song, album = null) {
+  const al = album || state.album;
+  return {
+    id: song?.id,
+    title: song?.title,
+    artist: song?.artist || al?.artist || "",
+    album: song?.album || al?.name || al?.title || "",
+    coverArt: song?.coverArt || al?.coverArt || "",
+    duration: song?.duration,
+  };
+}
+
+async function afterPlaylistAdd(label) {
+  setStatus(label);
+  if (state.trackPanelView === "playlist") renderPlaylistPanel();
+}
+
+async function addSongsToPlaylist(songs, label, album = null) {
+  const tracks = (songs || [])
+    .map((s) => songForPlaylist(s, album))
+    .filter((t) => t.id);
+  if (!tracks.length) {
+    setStatus("Nothing to add.");
+    return;
+  }
+  await api("/api/playlist/add-many", {
+    method: "POST",
+    body: { tracks },
+  });
+  await afterPlaylistAdd(
+    label
+      || `Added ${tracks.length} track${tracks.length === 1 ? "" : "s"} to playlist.`,
+  );
+}
+
+async function addAlbumToPlaylist(album) {
+  if (!album?.id) {
+    setStatus("No album to add.");
+    return;
+  }
+  setStatus("Adding album to playlist…");
+  const full = await api(`/api/album/${encodeURIComponent(album.id)}`);
+  const songs = full.song || [];
+  if (!songs.length) {
+    setStatus("That sleeve is empty.");
+    return;
+  }
+  const name = full.name || full.title || album.name || album.title || "Album";
+  await addSongsToPlaylist(
+    songs,
+    `Added “${name}” to playlist (${songs.length} track${songs.length === 1 ? "" : "s"}).`,
+    full,
+  );
+}
+
+/** Shared ⋯ trigger + fixed menu chrome used by album sleeves and Stacks tracks. */
+function attachSleeveMenu(wrap, triggerLabel, items) {
+  const menuWrap = document.createElement("div");
+  menuWrap.className = "sleeve-menu-wrap";
+  const edit = document.createElement("button");
+  edit.type = "button";
+  edit.className = "sleeve-edit";
+  edit.title = "Options";
+  edit.setAttribute("aria-label", triggerLabel);
+  edit.setAttribute("aria-haspopup", "menu");
+  edit.setAttribute("aria-expanded", "false");
+  edit.textContent = "⋯";
+  const menu = document.createElement("div");
+  menu.className = "sleeve-menu";
+  menu.setAttribute("role", "menu");
+  menu.hidden = true;
+  for (const item of items) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.setAttribute("role", "menuitem");
+    btn.textContent = item.label;
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      closeSleeveMenus();
+      item.onClick(e);
+    });
+    menu.append(btn);
+  }
+  edit.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const wasOpen = _openSleeveMenu?.menu === menu;
+    closeSleeveMenus();
+    if (!wasOpen) {
+      menu.hidden = false;
+      positionSleeveMenu(menu, edit);
+      menuWrap.classList.add("open");
+      edit.setAttribute("aria-expanded", "true");
+      _openSleeveMenu = { menu, menuWrap, edit };
+    }
+  });
+  menuWrap.append(edit);
+  (document.getElementById("sleeveMenuLayer") || document.body).appendChild(menu);
+  wrap.append(menuWrap);
+  return { menuWrap, edit, menu };
+}
+
 function fillProperties(album) {
   const al = album || state.editAlbum || state.album || {};
   state.editAlbum = al?.id ? al : state.album;
@@ -2062,48 +2165,27 @@ function sleeveButton(album) {
     }
   });
 
-  const menuWrap = document.createElement("div");
-  menuWrap.className = "sleeve-menu-wrap";
-  const edit = document.createElement("button");
-  edit.type = "button";
-  edit.className = "sleeve-edit";
-  edit.title = "Sleeve options";
-  edit.setAttribute("aria-label", `Options for ${album.name || album.title || "album"}`);
-  edit.setAttribute("aria-haspopup", "menu");
-  edit.setAttribute("aria-expanded", "false");
-  edit.textContent = "⋯";
-  const menu = document.createElement("div");
-  menu.className = "sleeve-menu";
-  menu.setAttribute("role", "menu");
-  menu.hidden = true;
-  const editItem = document.createElement("button");
-  editItem.type = "button";
-  editItem.setAttribute("role", "menuitem");
-  editItem.textContent = "Edit names…";
-  editItem.addEventListener("click", (e) => openAlbumEdit(album, e));
-  const cindyItem = document.createElement("button");
-  cindyItem.type = "button";
-  cindyItem.setAttribute("role", "menuitem");
-  cindyItem.textContent = "On Cindy…";
-  cindyItem.addEventListener("click", (e) => showAlbumOnCindy(album, e));
-  menu.append(editItem, cindyItem);
-  edit.addEventListener("click", (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const wasOpen = _openSleeveMenu?.menu === menu;
-    closeSleeveMenus();
-    if (!wasOpen) {
-      menu.hidden = false;
-      positionSleeveMenu(menu, edit);
-      menuWrap.classList.add("open");
-      edit.setAttribute("aria-expanded", "true");
-      _openSleeveMenu = { menu, menuWrap, edit };
-    }
-  });
-  menuWrap.append(edit);
-  (document.getElementById("sleeveMenuLayer") || document.body).appendChild(menu);
-
-  wrap.append(btn, menuWrap);
+  wrap.append(btn);
+  attachSleeveMenu(wrap, `Options for ${album.name || album.title || "album"}`, [
+    {
+      label: "Add album to playlist",
+      onClick: async () => {
+        try {
+          await addAlbumToPlaylist(album);
+        } catch (err) {
+          setStatus(String(err.message || err).slice(0, 160));
+        }
+      },
+    },
+    {
+      label: "Edit names…",
+      onClick: (e) => openAlbumEdit(album, e),
+    },
+    {
+      label: "On Cindy…",
+      onClick: (e) => showAlbumOnCindy(album, e),
+    },
+  ]);
   bindAlbumDrag(wrap, album);
   return wrap;
 }
@@ -2435,6 +2517,21 @@ async function runSearch(q) {
         }
       });
       wrap.append(btn);
+      attachSleeveMenu(wrap, `Options for ${song.title || "track"}`, [
+        {
+          label: "Add to playlist",
+          onClick: async () => {
+            try {
+              await addSongsToPlaylist(
+                [song],
+                `Added “${song.title || "track"}” to playlist.`,
+              );
+            } catch (err) {
+              setStatus(String(err.message || err).slice(0, 160));
+            }
+          },
+        },
+      ]);
       bindSongDrag(wrap, song);
       frag.appendChild(wrap);
     });
@@ -2555,20 +2652,6 @@ function wire() {
     state.crateSort = e.target.value === "album" ? "album" : "artist";
     if (state.crateType === "alphabeticalByName") loadCrates("alphabeticalByName");
   });
-  function songForPlaylist(song) {
-    return {
-      id: song.id,
-      title: song.title,
-      artist: song.artist || state.album?.artist || "",
-      album: state.album?.name || state.album?.title || "",
-      coverArt: song.coverArt || state.album?.coverArt || "",
-      duration: song.duration,
-    };
-  }
-  async function afterPlaylistAdd(label) {
-    setStatus(label);
-    if (state.trackPanelView === "playlist") renderPlaylistPanel();
-  }
   $("addToPlaylistBtn")?.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -2592,8 +2675,7 @@ function wire() {
     const song = state.queue[state.index];
     if (!song) return;
     try {
-      await api("/api/playlist/add", { method: "POST", body: songForPlaylist(song) });
-      await afterPlaylistAdd("Added track to playlist.");
+      await addSongsToPlaylist([song], "Added track to playlist.");
     } catch (err) {
       setStatus(String(err.message || err).slice(0, 160));
     }
@@ -2602,11 +2684,10 @@ function wire() {
     closeSleeveMenus();
     if (!state.queue.length) return;
     try {
-      await api("/api/playlist/add-many", {
-        method: "POST",
-        body: { tracks: state.queue.map(songForPlaylist) },
-      });
-      await afterPlaylistAdd(`Added ${state.queue.length} track${state.queue.length === 1 ? "" : "s"} to playlist.`);
+      await addSongsToPlaylist(
+        state.queue,
+        `Added ${state.queue.length} track${state.queue.length === 1 ? "" : "s"} to playlist.`,
+      );
     } catch (err) {
       setStatus(String(err.message || err).slice(0, 160));
     }

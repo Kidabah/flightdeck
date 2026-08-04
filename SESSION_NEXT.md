@@ -17,7 +17,24 @@ Latest local/Pi change:
 - MakerDeck session notes → [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.md)
 
 Previous:
-- H-series unload path-skip fix (`0caaa79`).
+- Vinyl — add to playlist from crates/Stacks (`6cd9885`).
+
+---
+
+## 2026-08-04 Session update (Vinyl — add to playlist from crates/Stacks)
+
+Latest commit: `6cd9885` — Add albums/tracks from crates & Stacks to playlist
+
+Latest Mora change:
+- Sleeve ⋯ on crates + Found in the stacks albums: **Add album to playlist**.
+- Stacks track tiles ⋯: **Add to playlist**.
+- Reuses existing playlist APIs; no new crates.
+- Also ships `python-multipart` (cover upload Form routes).
+- Mora compose host port is **4541 only** (Tailscale serve owns 4540).
+- Hard refresh Vinyl (`http://192.168.4.77:4541`).
+
+Previous:
+- H-series unload path-skip (`0caaa79`).
 
 ---
 
