@@ -217,7 +217,7 @@ function repairNonManifoldFaces(positions, indices, maxPasses = 4) {
   return out;
 }
 
-function weldMeshVertices(positions, indices, eps = 0.008) {
+export function weldMeshVertices(positions, indices, eps = 0.008) {
   const table = new Map();
   const outPos = [];
 

@@ -4,6 +4,20 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## Chop — plane-cutting tool (Phase 1)
+**Date:** 2026-08-04
+
+### MakerDeck
+- New tool **Chop** (`chop.html`) — load an STL/OBJ, scale to a target size (mm/cm/m/in, printer-bed prefill), cut it with a straight (axis slider) or angled (drag gizmo) plane, live clipping-plane preview, undo, per-piece bed-fit pill, per-piece STL export.
+- New from-scratch plane-cutting core (`js/mesh-cut.js`): triangle-plane clip + loop-chaining (handles disjoint/multi-loop cuts) + earcut capping (hole support for tube-like cross-sections) + weld/verify. No CSG existed in the repo before this. Covered by `test/chop-manifold.mjs` (axis-aligned, angled, vertex-through, multi-loop, chained cuts — all 0 open edges, wired into `test/run.sh`).
+- New STL (binary+ASCII) + OBJ loaders (`js/mesh-import.js`) — neither existed before.
+- New backend `GET /api/printers/bed-sizes` (reads `printers.yaml` `build_volume`) feeds the bed picker/prefill.
+- Registered in shared MakerDeck nav (`js/nav.js`); `js/stl.js`'s `weldMeshVertices` exported for reuse.
+- Deferred to a later session: connector pegs/sockets between cut faces, embossed part-number stamping, batch folder/zip export (per-piece export only for now).
+- Verified via automated tests + a headless-Chrome scripted pass (load → cut → undo → angled cut → export), not yet a manual hands-on pass. **Backend restart required** (new route).
+
+---
+
 ## b576 — Ooshies stand matches reference scale + photo
 **Date:** 2026-07-28
 

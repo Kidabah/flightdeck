@@ -3431,6 +3431,20 @@ async def get_printers():
         return _stale_printers() or []
 
 
+@app.get("/api/printers/bed-sizes")
+async def get_printer_bed_sizes():
+    cfg = load()
+    return [
+        {
+            "id": entry.id,
+            "model_name": entry.model_name,
+            "custom_name": entry.custom_name,
+            "build_volume": entry.build_volume,
+        }
+        for entry in cfg.printers
+    ]
+
+
 @app.get("/api/printers/{printer_id}")
 async def get_printer(printer_id: str):
     for (id, model_name, custom_name, icon, url, kind, toolhead_count) in _moonraker:

@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chop · MakerDeck</title>
+<script type="importmap">
+{ "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"
+} }
+</script>
+<link rel="stylesheet" href="css/makerdeck.css">
+<style>
+:root{--sidebar-w:320px;--footer-h:32px}
+.app{display:grid;height:100vh;grid-template-rows:var(--nav-h) 1fr var(--footer-h);
+  grid-template-columns:var(--sidebar-w) 1fr;grid-template-areas:"nav nav" "sidebar viewport" "footer footer"}
+.sidebar{grid-area:sidebar;background:var(--panel);border-right:1px solid var(--border);
+  overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:14px}
+.viewport{grid-area:viewport;position:relative;background:var(--bg);overflow:hidden}
+.viewport canvas{display:block;width:100%!important;height:100%!important}
+.drop-zone .icon{font-size:28px;margin-bottom:6px}
+.pill{display:inline-flex;align-items:center;min-height:24px;padding:3px 8px;border-radius:999px;
+  border:1px solid var(--border);background:var(--panel-2);font-size:11px;font-weight:700;color:var(--muted)}
+.pill.good{border-color:var(--green);color:var(--green);background:rgba(52,211,153,.08)}
+.pill.warn{border-color:var(--amber);color:var(--amber);background:rgba(251,191,36,.08)}
+.pill.bad{border-color:var(--red);color:var(--red);background:rgba(248,113,113,.08)}
+.dims-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.dims-row input{width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--border);
+  border-radius:var(--radius-sm);padding:4px 6px;font:inherit}
+.axis-btns{display:flex;gap:4px}
+.axis-btns button{flex:1}
+.axis-btns button.active,.mode-btns button.active{background:var(--accent);color:var(--bg);border-color:var(--accent)}
+.mode-btns{display:flex;gap:4px}
+.mode-btns button{flex:1}
+.piece-list{display:flex;flex-direction:column;gap:6px}
+.piece-row{display:flex;align-items:center;gap:8px;padding:7px 8px;border:1px solid var(--border);
+  border-radius:var(--radius-sm);cursor:pointer;transition:all .15s}
+.piece-row:hover{border-color:var(--accent)}
+.piece-row.selected{border-color:var(--accent);background:var(--accent-dim)}
+.piece-row .info{flex:1;min-width:0}
+.piece-row .name{font-weight:600;font-size:12px}
+.piece-row .size{font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace}
+.piece-row .actions{display:flex;gap:4px}
+.hint{font-size:11px;color:var(--muted);line-height:1.4}
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="md-nav"></nav>
+
+  <div class="sidebar">
+    <div>
+      <div class="section-label">Load Model</div>
+      <div class="drop-zone" id="dropZone">
+        <div class="icon">&#x1F4E6;</div>
+        Drop STL or OBJ here or click to browse
+        <input type="file" id="fileInput" accept=".stl,.obj" hidden>
+      </div>
+      <div id="loadPill" class="pill" style="margin-top:8px;display:none"></div>
+    </div>
+
+    <div>
+      <div class="section-label">Scale</div>
+      <div class="dims-row" style="margin-bottom:6px">
+        <select id="unitSelect">
+          <option value="mm">mm</option>
+          <option value="cm">cm</option>
+          <option value="m">m</option>
+          <option value="in">in</option>
+        </select>
+        <label class="check-row" style="grid-column:span 2"><input type="checkbox" id="uniformScale" checked> Uniform</label>
+      </div>
+      <div class="dims-row">
+        <input type="number" id="dimX" step="any" placeholder="X">
+        <input type="number" id="dimY" step="any" placeholder="Y">
+        <input type="number" id="dimZ" step="any" placeholder="Z">
+      </div>
+      <button class="btn btn-primary" id="applyScaleBtn" style="width:100%;margin-top:8px" disabled>Apply Scale</button>
+    </div>
+
+    <div>
+      <div class="section-label">Print Bed</div>
+      <select id="printerSelect" style="margin-bottom:6px"><option value="">Manual entry…</option></select>
+      <div class="dims-row">
+        <input type="number" id="bedX" step="any" placeholder="Bed X">
+        <input type="number" id="bedY" step="any" placeholder="Bed Y">
+        <input type="number" id="bedZ" step="any" placeholder="Bed Z">
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Cut</div>
+      <div class="mode-btns" style="margin-bottom:6px">
+        <button class="btn active" id="modeStraight">Straight</button>
+        <button class="btn" id="modeAngled">Angled</button>
+      </div>
+      <div id="straightControls">
+        <div class="axis-btns" style="margin-bottom:6px">
+          <button class="btn active" id="axisX" data-axis="x">X</button>
+          <button class="btn" id="axisY" data-axis="y">Y</button>
+          <button class="btn" id="axisZ" data-axis="z">Z</button>
+        </div>
+        <input type="range" id="axisSlider" min="0" max="100" value="50">
+      </div>
+      <div id="angledControls" style="display:none">
+        <div class="mode-btns">
+          <button class="btn active" id="gizmoMove">Move</button>
+          <button class="btn" id="gizmoRotate">Rotate</button>
+        </div>
+        <div class="hint" style="margin-top:6px">Drag the handles in the viewport to place the cut plane.</div>
+      </div>
+      <div class="btn-row" style="margin-top:10px">
+        <button class="btn btn-primary" id="commitCutBtn" disabled>Commit Cut</button>
+        <button class="btn btn-ghost" id="resetPlaneBtn">Reset Plane</button>
+        <button class="btn btn-ghost" id="undoBtn" disabled>Undo</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Pieces</div>
+      <div class="piece-list" id="pieceList"></div>
+    </div>
+  </div>
+
+  <div class="viewport" id="viewport">
+    <div class="viewport-toolbar">
+      <button id="tbFrame">Frame</button>
+      <button id="tbWire">Wire</button>
+    </div>
+    <div class="statusbar"><span id="status">Drop an STL or OBJ to begin</span></div>
+  </div>
+
+  <div class="md-footer">
+    <span id="fileName">No model loaded</span>
+    <span>Chop</span>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { TransformControls } from 'three/addons/controls/TransformControls.js';
+import './js/nav.js?v=551';
+import { loadMeshFromFile } from './js/mesh-import.js?v=1';
+import { sliceMeshByPlane, computeBounds } from './js/mesh-cut.js?v=1';
+import { meshToStl, downloadBlob, countOpenEdges } from './js/stl.js?v=372';
+
+const $ = (id) => document.getElementById(id);
+const setStatus = (msg) => { $('status').textContent = msg; };
+const UNIT_TO_MM = { mm: 1, cm: 10, m: 1000, in: 25.4 };
+
+let pieces = [];       // { id, partNumber, name, mesh:{positions,indices}, openEdgeCount }
+let selectedId = null;
+let undoStack = [];
+let baseName = 'model';
+let nextId = 1;
+let cutMode = 'straight'; // 'straight' | 'angled'
+let cutAxis = 'x';
+let originalAspect = null; // [x,y,z] of the piece as first loaded, for uniform scale
+
+// -- Three.js bootstrap ---------------------------------------------------
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x060a10);
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 20000);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.localClippingEnabled = true;
+$('viewport').appendChild(renderer.domElement);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+scene.add(new THREE.HemisphereLight(0xffffff, 0x223344, 1.6));
+const key = new THREE.DirectionalLight(0xffffff, 1.8);
+key.position.set(80, 120, 160);
+scene.add(key);
+
+const piecesGroup = new THREE.Group();
+scene.add(piecesGroup);
+let wire = null;
+
+const planeTarget = new THREE.Object3D();
+scene.add(planeTarget);
+const planeVisual = new THREE.Mesh(
+  new THREE.PlaneGeometry(1, 1),
+  new THREE.MeshBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false }),
+);
+planeTarget.add(planeVisual);
+
+const gizmo = new TransformControls(camera, renderer.domElement);
+gizmo.addEventListener('dragging-changed', (e) => { controls.enabled = !e.value; });
+gizmo.addEventListener('objectChange', updateClipPreview);
+scene.add(gizmo);
+gizmo.visible = false;
+gizmo.enabled = false;
+
+function resize() {
+  const r = $('viewport').getBoundingClientRect();
+  renderer.setSize(r.width, r.height);
+  camera.aspect = r.width / Math.max(1, r.height);
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+resize();
+
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+function frame() {
+  const box = new THREE.Box3().setFromObject(piecesGroup);
+  if (box.isEmpty()) return;
+  const center = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z) || 1;
+  camera.position.set(center.x, center.y, center.z + maxDim * 1.9);
+  controls.target.copy(center);
+  controls.update();
+}
+
+// -- Mesh <-> Three helpers -------------------------------------------------
+
+function toBufferGeometry(mesh) {
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(mesh.positions), 3));
+  geom.setIndex(mesh.indices);
+  geom.computeVertexNormals();
+  return geom;
+}
+
+function pieceBounds(piece) {
+  return computeBounds(piece.mesh.positions);
+}
+
+function combinedBounds() {
+  let b = null;
+  for (const p of pieces) {
+    const pb = pieceBounds(p);
+    if (!b) { b = pb; continue; }
+    b = {
+      min: [Math.min(b.min[0], pb.min[0]), Math.min(b.min[1], pb.min[1]), Math.min(b.min[2], pb.min[2])],
+      max: [Math.max(b.max[0], pb.max[0]), Math.max(b.max[1], pb.max[1]), Math.max(b.max[2], pb.max[2])],
+    };
+  }
+  if (!b) return null;
+  b.size = [b.max[0] - b.min[0], b.max[1] - b.min[1], b.max[2] - b.min[2]];
+  return b;
+}
+
+function fmt(n) { return Number.isFinite(n) ? n.toLocaleString(undefined, { maximumFractionDigits: 1 }) : '-'; }
+
+// -- Scene rebuild ------------------------------------------------------
+
+function rebuildScene() {
+  while (piecesGroup.children.length) piecesGroup.remove(piecesGroup.children[0]);
+  for (const p of pieces) {
+    const geom = toBufferGeometry(p.mesh);
+    const selected = p.id === selectedId;
+    const mat = new THREE.MeshStandardMaterial({
+      color: selected ? 0x3ecfff : 0x2a3a4a, roughness: 0.55, metalness: 0.1,
+      side: THREE.DoubleSide, flatShading: true, transparent: false, opacity: 1,
+    });
+    const mesh = new THREE.Mesh(geom, mat);
+    mesh.userData.pieceId = p.id;
+    piecesGroup.add(mesh);
+  }
+  updateClipPreview();
+}
+
+function selectedPiece() { return pieces.find((p) => p.id === selectedId) || null; }
+function selectedThreeMesh() { return piecesGroup.children.find((m) => m.userData.pieceId === selectedId) || null; }
+
+// -- Cut plane placement --------------------------------------------------
+
+function resetPlaneToPiece() {
+  const p = selectedPiece();
+  if (!p) return;
+  const b = pieceBounds(p);
+  const center = [(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2, (b.min[2] + b.max[2]) / 2];
+  const radius = Math.hypot(b.size[0], b.size[1], b.size[2]) || 10;
+  planeVisual.geometry.dispose();
+  planeVisual.geometry = new THREE.PlaneGeometry(radius * 1.4, radius * 1.4);
+  planeTarget.position.set(center[0], center[1], center[2]);
+  planeTarget.quaternion.identity();
+  if (cutMode === 'straight') applyAxisToPlane();
+  updateClipPreview();
+}
+
+function applyAxisToPlane() {
+  const p = selectedPiece();
+  if (!p) return;
+  const b = pieceBounds(p);
+  const axisIdx = { x: 0, y: 1, z: 2 }[cutAxis];
+  const t = Number($('axisSlider').value) / 100;
+  const pos = [
+    (b.min[0] + b.max[0]) / 2,
+    (b.min[1] + b.max[1]) / 2,
+    (b.min[2] + b.max[2]) / 2,
+  ];
+  pos[axisIdx] = b.min[axisIdx] + t * b.size[axisIdx];
+  planeTarget.position.set(pos[0], pos[1], pos[2]);
+  const targetNormal = new THREE.Vector3(0, 0, 0); targetNormal.setComponent(axisIdx, 1);
+  planeTarget.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), targetNormal);
+  updateClipPreview();
+}
+
+function currentPlane() {
+  const normal = new THREE.Vector3(0, 0, 1).applyQuaternion(planeTarget.quaternion).normalize();
+  return { point: [planeTarget.position.x, planeTarget.position.y, planeTarget.position.z], normal: [normal.x, normal.y, normal.z] };
+}
+
+function updateClipPreview() {
+  const mesh = selectedThreeMesh();
+  if (!mesh) return;
+  const { point, normal } = currentPlane();
+  const n = new THREE.Vector3(normal[0], normal[1], normal[2]);
+  const planeConst = -(n.x * point[0] + n.y * point[1] + n.z * point[2]);
+  mesh.material.clippingPlanes = selectedId ? [new THREE.Plane(n, planeConst)] : [];
+}
+
+// -- Piece list / status --------------------------------------------------
+
+function bedDims() {
+  const x = Number($('bedX').value), y = Number($('bedY').value), z = Number($('bedZ').value);
+  if (!x || !y || !z) return null;
+  return [x, y, z];
+}
+
+function fitsBed(piece) {
+  const bed = bedDims();
+  if (!bed) return null;
+  const b = pieceBounds(piece);
+  return b.size[0] <= bed[0] && b.size[1] <= bed[1] && b.size[2] <= bed[2];
+}
+
+function renumberPieces() {
+  pieces.forEach((p, i) => { p.partNumber = i + 1; p.name = `Piece ${i + 1}`; });
+}
+
+function renderPieceList() {
+  const list = $('pieceList');
+  list.innerHTML = '';
+  for (const p of pieces) {
+    const b = pieceBounds(p);
+    const fit = fitsBed(p);
+    const row = document.createElement('div');
+    row.className = 'piece-row' + (p.id === selectedId ? ' selected' : '');
+    const pillClass = fit === null ? '' : fit ? 'good' : 'bad';
+    const pillText = fit === null ? 'No bed set' : fit ? 'Fits bed' : 'Too big';
+    row.innerHTML = `
+      <div class="info">
+        <div class="name">${p.name}</div>
+        <div class="size">${fmt(b.size[0])} × ${fmt(b.size[1])} × ${fmt(b.size[2])} mm</div>
+        <span class="pill ${pillClass}" style="margin-top:4px">${pillText}</span>
+      </div>
+      <div class="actions">
+        <button class="btn btn-icon btn-ghost" data-act="export" title="Export STL">&#x2913;</button>
+        <button class="btn btn-icon btn-danger" data-act="delete" title="Delete">&#x2715;</button>
+      </div>`;
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('button')) return;
+      selectPiece(p.id);
+    });
+    row.querySelector('[data-act=export]').addEventListener('click', () => exportPiece(p));
+    row.querySelector('[data-act=delete]').addEventListener('click', () => deletePiece(p.id));
+    list.appendChild(row);
+  }
+  $('undoBtn').disabled = undoStack.length === 0;
+}
+
+function selectPiece(id) {
+  selectedId = id;
+  rebuildScene();
+  renderPieceList();
+  resetPlaneToPiece();
+  const p = selectedPiece();
+  $('commitCutBtn').disabled = !p || p.openEdgeCount > 0;
+  if (p && p.openEdgeCount > 0) {
+    setStatus(`Piece has ${p.openEdgeCount} open edge(s) — repair in Mesh Prep before cutting.`);
+  } else if (p) {
+    setStatus(`Selected ${p.name}. Position the cut plane, then Commit Cut.`);
+  }
+}
+
+function deletePiece(id) {
+  pieces = pieces.filter((p) => p.id !== id);
+  if (selectedId === id) selectedId = pieces[0]?.id ?? null;
+  renumberPieces();
+  rebuildScene();
+  renderPieceList();
+  if (selectedId) resetPlaneToPiece();
+}
+
+function exportPiece(piece) {
+  try {
+    const blob = meshToStl(piece.mesh, piece.name);
+    downloadBlob(blob, `${baseName}-piece-${piece.partNumber}.stl`);
+    setStatus(`Exported ${piece.name}.`);
+  } catch (e) {
+    setStatus('Export error: ' + e.message);
+  }
+}
+
+// -- File loading -----------------------------------------------------------
+
+async function loadFile(file) {
+  try {
+    setStatus('Loading…');
+    const mesh = await loadMeshFromFile(file);
+    const openEdgeCount = countOpenEdges(mesh.positions, mesh.indices);
+    baseName = file.name.replace(/\.(stl|obj)$/i, '');
+    pieces = [{ id: `piece-${nextId++}`, partNumber: 1, name: 'Piece 1', mesh, openEdgeCount }];
+    selectedId = pieces[0].id;
+    undoStack = [];
+    renumberPieces();
+    rebuildScene();
+    frame();
+    resetPlaneToPiece();
+    renderPieceList();
+    updateScaleFieldsFromModel();
+
+    const loadPill = $('loadPill');
+    loadPill.style.display = 'inline-flex';
+    if (openEdgeCount > 0) {
+      loadPill.className = 'pill bad';
+      loadPill.textContent = `${openEdgeCount} open edges`;
+      $('commitCutBtn').disabled = true;
+      setStatus(`Loaded ${file.name} — ${openEdgeCount} open edge(s). Repair in Mesh Prep before cutting.`);
+    } else {
+      loadPill.className = 'pill good';
+      loadPill.textContent = 'Watertight';
+      $('commitCutBtn').disabled = false;
+      setStatus(`Loaded ${file.name}.`);
+    }
+    $('fileName').textContent = `${file.name} — ${mesh.indices.length / 3} faces`;
+    $('applyScaleBtn').disabled = false;
+  } catch (e) {
+    setStatus('Error: ' + e.message);
+  }
+}
+
+$('dropZone').addEventListener('click', () => $('fileInput').click());
+$('fileInput').addEventListener('change', (e) => { const f = e.target.files[0]; if (f) loadFile(f); });
+$('dropZone').addEventListener('dragover', (e) => { e.preventDefault(); $('dropZone').classList.add('dragover'); });
+$('dropZone').addEventListener('dragleave', () => $('dropZone').classList.remove('dragover'));
+$('dropZone').addEventListener('drop', (e) => {
+  e.preventDefault(); $('dropZone').classList.remove('dragover');
+  const f = e.dataTransfer.files[0]; if (f) loadFile(f);
+});
+
+// -- Scale ------------------------------------------------------------------
+
+function updateScaleFieldsFromModel() {
+  const b = combinedBounds();
+  if (!b) return;
+  originalAspect = b.size.slice();
+  const unit = $('unitSelect').value;
+  const factor = UNIT_TO_MM[unit];
+  $('dimX').value = (b.size[0] / factor).toFixed(2);
+  $('dimY').value = (b.size[1] / factor).toFixed(2);
+  $('dimZ').value = (b.size[2] / factor).toFixed(2);
+}
+
+function onDimInput(axis) {
+  if (!$('uniformScale').checked || !originalAspect) return;
+  const unit = $('unitSelect').value;
+  const factor = UNIT_TO_MM[unit];
+  const fields = { x: $('dimX'), y: $('dimY'), z: $('dimZ') };
+  const axisIdx = { x: 0, y: 1, z: 2 }[axis];
+  const newMm = Number(fields[axis].value) * factor;
+  if (!newMm || !originalAspect[axisIdx]) return;
+  const ratio = newMm / originalAspect[axisIdx];
+  for (const [a, idx] of [['x', 0], ['y', 1], ['z', 2]]) {
+    if (a === axis) continue;
+    fields[a].value = ((originalAspect[idx] * ratio) / factor).toFixed(2);
+  }
+}
+$('dimX').addEventListener('input', () => onDimInput('x'));
+$('dimY').addEventListener('input', () => onDimInput('y'));
+$('dimZ').addEventListener('input', () => onDimInput('z'));
+$('unitSelect').addEventListener('change', updateScaleFieldsFromModel);
+
+$('applyScaleBtn').addEventListener('click', () => {
+  const b = combinedBounds();
+  if (!b || !pieces.length) return;
+  const unit = $('unitSelect').value;
+  const factor = UNIT_TO_MM[unit];
+  const targetMm = [Number($('dimX').value) * factor, Number($('dimY').value) * factor, Number($('dimZ').value) * factor];
+  const scale = targetMm.map((v, i) => (b.size[i] > 1e-9 ? v / b.size[i] : 1));
+  const center = [(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2, (b.min[2] + b.max[2]) / 2];
+  for (const p of pieces) {
+    const pos = p.mesh.positions;
+    for (let i = 0; i < pos.length; i += 3) {
+      pos[i] = center[0] + (pos[i] - center[0]) * scale[0];
+      pos[i + 1] = center[1] + (pos[i + 1] - center[1]) * scale[1];
+      pos[i + 2] = center[2] + (pos[i + 2] - center[2]) * scale[2];
+    }
+  }
+  rebuildScene();
+  frame();
+  resetPlaneToPiece();
+  renderPieceList();
+  updateScaleFieldsFromModel();
+  setStatus('Scale applied.');
+});
+
+// -- Bed / printers -----------------------------------------------------
+
+async function loadPrinterBedSizes() {
+  try {
+    const res = await fetch('/api/printers/bed-sizes');
+    if (!res.ok) return;
+    const printers = await res.json();
+    const select = $('printerSelect');
+    for (const p of printers) {
+      if (!p.build_volume) continue;
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = `${p.custom_name || p.model_name} (${p.build_volume.x}×${p.build_volume.y}×${p.build_volume.z})`;
+      opt.dataset.x = p.build_volume.x; opt.dataset.y = p.build_volume.y; opt.dataset.z = p.build_volume.z;
+      select.appendChild(opt);
+    }
+  } catch { /* backend not available (e.g. static-only local server) — manual entry still works */ }
+}
+loadPrinterBedSizes();
+
+$('printerSelect').addEventListener('change', (e) => {
+  const opt = e.target.selectedOptions[0];
+  if (!opt || !opt.dataset.x) return;
+  $('bedX').value = opt.dataset.x; $('bedY').value = opt.dataset.y; $('bedZ').value = opt.dataset.z;
+  renderPieceList();
+});
+['bedX', 'bedY', 'bedZ'].forEach((id) => $(id).addEventListener('input', renderPieceList));
+
+// -- Cut mode / axis ----------------------------------------------------
+
+function setCutMode(mode) {
+  cutMode = mode;
+  $('modeStraight').classList.toggle('active', mode === 'straight');
+  $('modeAngled').classList.toggle('active', mode === 'angled');
+  $('straightControls').style.display = mode === 'straight' ? '' : 'none';
+  $('angledControls').style.display = mode === 'angled' ? '' : 'none';
+  if (mode === 'angled' && selectedId) {
+    gizmo.attach(planeTarget);
+    gizmo.visible = true; gizmo.enabled = true;
+    gizmo.setMode('translate');
+    $('gizmoMove').classList.add('active'); $('gizmoRotate').classList.remove('active');
+  } else {
+    gizmo.detach();
+    gizmo.visible = false; gizmo.enabled = false;
+  }
+  if (mode === 'straight') applyAxisToPlane();
+}
+$('modeStraight').addEventListener('click', () => setCutMode('straight'));
+$('modeAngled').addEventListener('click', () => setCutMode('angled'));
+$('gizmoMove').addEventListener('click', () => { gizmo.setMode('translate'); $('gizmoMove').classList.add('active'); $('gizmoRotate').classList.remove('active'); });
+$('gizmoRotate').addEventListener('click', () => { gizmo.setMode('rotate'); $('gizmoRotate').classList.add('active'); $('gizmoMove').classList.remove('active'); });
+
+for (const axis of ['x', 'y', 'z']) {
+  $(`axis${axis.toUpperCase()}`).addEventListener('click', () => {
+    cutAxis = axis;
+    for (const a of ['x', 'y', 'z']) $(`axis${a.toUpperCase()}`).classList.toggle('active', a === axis);
+    applyAxisToPlane();
+  });
+}
+$('axisSlider').addEventListener('input', applyAxisToPlane);
+$('resetPlaneBtn').addEventListener('click', resetPlaneToPiece);
+
+// -- Commit cut / undo ----------------------------------------------------
+
+$('commitCutBtn').addEventListener('click', () => {
+  const piece = selectedPiece();
+  if (!piece) return;
+  const { point, normal } = currentPlane();
+  setStatus('Cutting…');
+  let result;
+  try {
+    result = sliceMeshByPlane(piece.mesh, point, normal);
+  } catch (e) {
+    setStatus('Cut failed: ' + e.message);
+    return;
+  }
+  if (!result.above || !result.below) {
+    setStatus("Plane doesn't intersect this piece — adjust it and try again.");
+    return;
+  }
+  undoStack.push(pieces.slice());
+  const idx = pieces.findIndex((p) => p.id === piece.id);
+  const above = { id: `piece-${nextId++}`, mesh: result.above, openEdgeCount: result.above.openEdgeCount };
+  const below = { id: `piece-${nextId++}`, mesh: result.below, openEdgeCount: result.below.openEdgeCount };
+  pieces.splice(idx, 1, above, below);
+  renumberPieces();
+  selectedId = null;
+  rebuildScene();
+  renderPieceList();
+  gizmo.detach();
+  gizmo.visible = false; gizmo.enabled = false;
+  $('commitCutBtn').disabled = true;
+  setStatus(`Cut into ${above.name} and ${below.name}. Select a piece to cut again or export.`);
+});
+
+$('undoBtn').addEventListener('click', () => {
+  if (!undoStack.length) return;
+  pieces = undoStack.pop();
+  selectedId = pieces[0]?.id ?? null;
+  rebuildScene();
+  renderPieceList();
+  if (selectedId) { resetPlaneToPiece(); setCutMode(cutMode); }
+  setStatus('Undid last cut.');
+});
+
+// -- Viewport toolbar -------------------------------------------------------
+
+$('tbFrame').addEventListener('click', frame);
+$('tbWire').addEventListener('click', () => {
+  if (wire) { scene.remove(wire); wire = null; return; }
+  const group = new THREE.Group();
+  for (const m of piecesGroup.children) {
+    group.add(new THREE.LineSegments(new THREE.WireframeGeometry(m.geometry), new THREE.LineBasicMaterial({ color: 0x8be9ff, transparent: true, opacity: 0.28 })));
+  }
+  wire = group;
+  scene.add(wire);
+});
+</script>
+</body>
+</html>

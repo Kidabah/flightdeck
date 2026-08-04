@@ -12,12 +12,14 @@ const TOOLS = [
   { id: 'painter',   label: 'STL Painter', href: 'painter.html' },
   { id: 'paper3d',   label: 'Paper3D', href: 'paper3d.html' },
   { id: 'meshprep',  label: 'Mesh Prep', href: 'meshprep.html' },
+  { id: 'chop',      label: 'Chop', href: 'chop.html' },
 ];
 
 function detectActiveTool() {
   const path = location.pathname.toLowerCase();
   if (path.includes('painter')) return 'painter';
   if (path.includes('meshprep')) return 'meshprep';
+  if (path.includes('chop')) return 'chop';
   if (path.includes('paper3d') || path.includes('voronoi')) return 'paper3d';
   return 'container'; // index.html or root
 }

@@ -11,4 +11,7 @@ cp ../js/*.js _staged/
 # rewrite ./mod.js?v=NNN  ->  ./mod.js   and  esm.sh earcut -> bare "earcut"
 sed -i 's/from "\.\/\([a-z0-9-]*\)\.js?v=[0-9]*"/from ".\/\1.js"/g; s|from "https://esm.sh/earcut@2.2.4"|from "earcut"|' _staged/*.js
 [ -d node_modules/earcut ] || npm install --silent >/dev/null 2>&1
-node manifold.mjs
+status=0
+node manifold.mjs || status=1
+node chop-manifold.mjs || status=1
+exit $status

@@ -6,6 +6,21 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-04 Session update (MakerDeck — new Chop plane-cutting tool)
+
+Latest local/Pi change:
+- New MakerDeck tool **Chop** (`/makerdeck/chop.html`): load STL/OBJ → scale to a target size → straight/angled plane cuts → per-piece STL export, with a bed-fit pill sourced from `printers.yaml` build volumes.
+- From-scratch plane-cutting core (`makerforge/js/mesh-cut.js`) — no CSG existed in the repo before. Verified watertight via new `makerforge/test/chop-manifold.mjs` (axis-aligned / angled / vertex-through / multi-loop / chained cuts, all 0 open edges) and a scripted headless-Chrome pass.
+- New STL+OBJ loaders (`makerforge/js/mesh-import.js`), new `GET /api/printers/bed-sizes` endpoint.
+- Connectors (pegs/sockets) and part-number stamping intentionally deferred to a follow-up session — this is Phase 1 only.
+- **Backend restart required** (new API route).
+- MakerDeck session notes → [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.md)
+
+Previous:
+- H-series unload path-skip fix (`0caaa79`).
+
+---
+
 ## 2026-08-03 Session update (H-series unload — drop path skip)
 
 Latest commit: `0caaa79` — Always unload low-temp before H-series high-temp jobs
