@@ -46,8 +46,8 @@ services:
     container_name: cindy-vinyl
     restart: unless-stopped
     ports:
-      # LAN + Tailscale on Mora
-      - "4540:4540"
+      # LAN: http://192.168.4.77:4541 — do not also bind :4540 on the host;
+      # Tailscale serve already owns 4540 on Mora.
       - "4541:4540"
     environment:
       NAVIDROME_URL: http://navidrome:4533
