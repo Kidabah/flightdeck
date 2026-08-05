@@ -250,7 +250,11 @@ function frame() {
   const center = box.getCenter(new THREE.Vector3());
   const size = box.getSize(new THREE.Vector3());
   const maxDim = Math.max(size.x, size.y, size.z) || 1;
-  camera.position.set(center.x, center.y, center.z + maxDim * 1.9);
+  // Angled 3/4 front-elevated view instead of straight top-down, so a
+  // freshly loaded model reads as a recognizable figure right away rather
+  // than a flat silhouette from above. Z is reliably "up" now that loaded
+  // models rest with their base at Z=0.
+  camera.position.set(center.x, center.y - maxDim * 1.4, center.z + maxDim * 0.9);
   controls.target.copy(center);
   controls.update();
 }
