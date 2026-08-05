@@ -61,6 +61,12 @@
     </div>
 
     <div>
+      <div class="section-label">Output Folder</div>
+      <button class="btn btn-ghost" id="chooseFolderBtn" style="width:100%">Choose Folder…</button>
+      <div class="hint" id="outputFolderStatus" style="margin-top:6px">Exports go to your Downloads by default. Choose a folder to save straight into a "chop" subfolder there instead.</div>
+    </div>
+
+    <div>
       <div class="section-label">Scale</div>
       <div class="dims-row" style="margin-bottom:6px">
         <select id="unitSelect">
@@ -130,6 +136,7 @@
 
     <div>
       <div class="section-label">Pieces</div>
+      <button class="btn btn-ghost" id="exportAllBtn" style="width:100%;margin-bottom:8px" disabled>Export All to Folder</button>
       <div class="piece-list" id="pieceList"></div>
     </div>
   </div>
@@ -169,6 +176,7 @@ let nextId = 1;
 let cutMode = 'straight'; // 'straight' | 'angled'
 let cutAxis = 'x';
 let originalAspect = null; // [x,y,z] of the piece as first loaded, for uniform scale
+let outputDirHandle = null; // FileSystemDirectoryHandle, if the user granted one; else fall back to browser downloads
 
 // -- Three.js bootstrap ---------------------------------------------------
 
@@ -428,6 +436,7 @@ function renderPieceList() {
   $('undoBtn').disabled = undoStack.length === 0;
   const sel = selectedPiece();
   $('modularCutBtn').disabled = !sel || sel.openEdgeCount > 0 || fitsBed(sel) !== false;
+  $('exportAllBtn').disabled = !outputDirHandle || pieces.length === 0;
 }
 
 function selectPiece(id) {
@@ -453,14 +462,49 @@ function deletePiece(id) {
   if (selectedId) resetPlaneToPiece();
 }
 
-function exportPiece(piece) {
+/** Write a blob into "<outputDirHandle>/chop/<filename>", creating the chop folder if needed. */
+async function writeStlToOutputFolder(blob, filename) {
+  const chopDir = await outputDirHandle.getDirectoryHandle('chop', { create: true });
+  const fileHandle = await chopDir.getFileHandle(filename, { create: true });
+  const writable = await fileHandle.createWritable();
+  await writable.write(blob);
+  await writable.close();
+}
+
+async function exportPiece(piece) {
   try {
     const blob = meshToStl(piece.mesh, piece.name);
-    downloadBlob(blob, `${baseName}-piece-${piece.partNumber}.stl`);
-    setStatus(`Exported ${piece.name}.`);
+    const filename = `${baseName}-piece-${piece.partNumber}.stl`;
+    if (outputDirHandle) {
+      await writeStlToOutputFolder(blob, filename);
+      setStatus(`Saved ${piece.name} to ${outputDirHandle.name}/chop/${filename}.`);
+    } else {
+      downloadBlob(blob, filename);
+      setStatus(`Exported ${piece.name}.`);
+    }
   } catch (e) {
     setStatus('Export error: ' + e.message);
   }
+}
+
+async function exportAllPieces() {
+  if (!outputDirHandle || !pieces.length) return;
+  $('exportAllBtn').disabled = true;
+  let done = 0;
+  for (const p of pieces) {
+    try {
+      const blob = meshToStl(p.mesh, p.name);
+      await writeStlToOutputFolder(blob, `${baseName}-piece-${p.partNumber}.stl`);
+      done++;
+      setStatus(`Saving pieces… ${done}/${pieces.length}`);
+    } catch (e) {
+      setStatus(`Export failed on ${p.name} (${done}/${pieces.length} saved): ${e.message}`);
+      $('exportAllBtn').disabled = false;
+      return;
+    }
+  }
+  setStatus(`Saved all ${done} piece${done === 1 ? '' : 's'} to ${outputDirHandle.name}/chop/.`);
+  $('exportAllBtn').disabled = false;
 }
 
 // -- File loading -----------------------------------------------------------
@@ -585,6 +629,26 @@ async function loadPrinterBedSizes() {
   } catch { /* backend not available (e.g. static-only local server) — manual entry still works */ }
 }
 loadPrinterBedSizes();
+
+// -- Output folder ----------------------------------------------------------
+
+if (!window.showDirectoryPicker) {
+  $('chooseFolderBtn').disabled = true;
+  $('outputFolderStatus').textContent = 'Folder saving needs Chrome or Edge — exports will go to your Downloads instead.';
+}
+
+$('chooseFolderBtn').addEventListener('click', async () => {
+  try {
+    outputDirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+    $('outputFolderStatus').textContent = `Saving exports into "${outputDirHandle.name}/chop/".`;
+    setStatus(`Output folder set to "${outputDirHandle.name}".`);
+    renderPieceList();
+  } catch (e) {
+    if (e.name !== 'AbortError') setStatus('Could not access that folder: ' + e.message);
+  }
+});
+
+$('exportAllBtn').addEventListener('click', exportAllPieces);
 
 $('printerSelect').addEventListener('change', (e) => {
   const opt = e.target.selectedOptions[0];
