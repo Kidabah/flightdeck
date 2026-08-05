@@ -154,7 +154,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import './js/nav.js?v=551';
 import { loadMeshFromFile } from './js/mesh-import.js?v=1';
-import { sliceMeshByPlane, parallelPlaneCut, modularCut, computeBounds } from './js/mesh-cut.js?v=3';
+import { sliceMeshByPlane, parallelPlaneCut, modularCut, computeBounds } from './js/mesh-cut.js?v=4';
 import { meshToStl, downloadBlob, countOpenEdges } from './js/stl.js?v=372';
 
 const $ = (id) => document.getElementById(id);
@@ -586,37 +586,42 @@ $('resetPlaneBtn').addEventListener('click', resetPlaneToPiece);
 
 // -- Commit cut / undo ----------------------------------------------------
 
-$('commitCutBtn').addEventListener('click', () => {
+$('commitCutBtn').addEventListener('click', async () => {
   const piece = selectedPiece();
   if (!piece) return;
   const { point, normal } = currentPlane();
   const numPlanes = Math.max(1, Math.round(Number($('numPlanes').value) || 1));
   setStatus('Cutting…');
+  $('commitCutBtn').disabled = true;
 
   let newPieces;
   if (numPlanes <= 1) {
     let result;
     try {
-      result = sliceMeshByPlane(piece.mesh, point, normal);
+      result = await sliceMeshByPlane(piece.mesh, point, normal);
     } catch (e) {
       setStatus('Cut failed: ' + e.message);
+      $('commitCutBtn').disabled = false;
       return;
     }
     if (!result.above || !result.below) {
       setStatus("Plane doesn't intersect this piece — adjust it and try again.");
+      $('commitCutBtn').disabled = false;
       return;
     }
     newPieces = [result.above, result.below].map((m) => ({ id: `piece-${nextId++}`, mesh: m, openEdgeCount: m.openEdgeCount }));
   } else {
     let slices;
     try {
-      slices = parallelPlaneCut(piece.mesh, point, normal, numPlanes);
+      slices = await parallelPlaneCut(piece.mesh, point, normal, numPlanes);
     } catch (e) {
       setStatus('Cut failed: ' + e.message);
+      $('commitCutBtn').disabled = false;
       return;
     }
     if (slices.length <= 1) {
       setStatus("Planes don't intersect this piece — adjust it and try again.");
+      $('commitCutBtn').disabled = false;
       return;
     }
     newPieces = slices.map((m) => ({ id: `piece-${nextId++}`, mesh: m, openEdgeCount: m.openEdgeCount }));
@@ -637,20 +642,23 @@ $('commitCutBtn').addEventListener('click', () => {
   setStatus(`Cut into ${newPieces.length} piece${newPieces.length === 1 ? '' : 's'}${note}. Select a piece to cut again or export.`);
 });
 
-$('modularCutBtn').addEventListener('click', () => {
+$('modularCutBtn').addEventListener('click', async () => {
   const piece = selectedPiece();
   const bed = bedDims();
   if (!piece || !bed) return;
   setStatus('Auto-chopping…');
+  $('modularCutBtn').disabled = true;
   let result;
   try {
-    result = modularCut(piece.mesh, bed);
+    result = await modularCut(piece.mesh, bed);
   } catch (e) {
     setStatus('Modular cut failed: ' + e.message);
+    renderPieceList();
     return;
   }
   if (result.pieces.length <= 1) {
     setStatus('Already fits the bed — nothing to cut.');
+    renderPieceList();
     return;
   }
   undoStack.push(pieces.slice());

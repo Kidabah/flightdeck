@@ -8,9 +8,9 @@ here="$(cd "$(dirname "$0")" && pwd)"
 cd "$here"
 rm -rf _staged && mkdir _staged
 cp ../js/*.js _staged/
-# rewrite ./mod.js?v=NNN  ->  ./mod.js   and  esm.sh earcut -> bare "earcut"
-sed -i 's/from "\.\/\([a-z0-9-]*\)\.js?v=[0-9]*"/from ".\/\1.js"/g; s|from "https://esm.sh/earcut@2.2.4"|from "earcut"|' _staged/*.js
-[ -d node_modules/earcut ] || npm install --silent >/dev/null 2>&1
+# rewrite ./mod.js?v=NNN -> ./mod.js, and CDN imports -> bare specifiers resolved from node_modules
+sed -i 's/from "\.\/\([a-z0-9-]*\)\.js?v=[0-9]*"/from ".\/\1.js"/g; s|from "https://esm.sh/earcut@2.2.4"|from "earcut"|; s|from "https://cdn.jsdelivr.net/npm/manifold-3d@[0-9.]*/manifold.js"|from "manifold-3d"|' _staged/*.js
+{ [ -d node_modules/earcut ] && [ -d node_modules/manifold-3d ]; } || npm install --silent >/dev/null 2>&1
 status=0
 node manifold.mjs || status=1
 node chop-manifold.mjs || status=1
