@@ -57,6 +57,9 @@
         Drop STL or OBJ here or click to browse
         <input type="file" id="fileInput" accept=".stl,.obj" hidden>
       </div>
+      <button class="btn btn-ghost" id="loadFromFolderBtn" style="width:100%;margin-top:8px">Choose Folder &amp; Load Model</button>
+      <div class="hint" style="margin-top:4px">Picks a folder, lists its STL/OBJ files, and links that same folder as the output folder — no separate step after.</div>
+      <div id="folderFileList" class="piece-list" style="display:none;margin-top:8px"></div>
       <div id="loadPill" class="pill" style="margin-top:8px;display:none"></div>
       <button class="btn btn-ghost" id="clearModelBtn" style="width:100%;margin-top:8px;display:none">Clear / Load New Model</button>
     </div>
@@ -729,18 +732,68 @@ $('applyScaleBtn').addEventListener('click', () => {
 
 if (!window.showDirectoryPicker) {
   $('chooseFolderBtn').disabled = true;
+  $('loadFromFolderBtn').disabled = true;
   $('outputFolderStatus').textContent = 'Folder saving needs Chrome or Edge — exports will go to your Downloads instead.';
+}
+
+function setOutputFolder(handle) {
+  outputDirHandle = handle;
+  $('outputFolderStatus').textContent = `Saving exports into "${outputDirHandle.name}/chop/".`;
+  renderPieceList();
 }
 
 $('chooseFolderBtn').addEventListener('click', async () => {
   try {
-    outputDirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
-    $('outputFolderStatus').textContent = `Saving exports into "${outputDirHandle.name}/chop/".`;
-    setStatus(`Output folder set to "${outputDirHandle.name}".`);
-    renderPieceList();
+    const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
+    setOutputFolder(handle);
+    setStatus(`Output folder set to "${handle.name}".`);
   } catch (e) {
     if (e.name !== 'AbortError') setStatus('Could not access that folder: ' + e.message);
   }
+});
+
+async function loadFromFileHandle(dirHandle, fileHandle) {
+  const file = await fileHandle.getFile();
+  await loadFile(file);
+  setOutputFolder(dirHandle);
+  $('folderFileList').style.display = 'none';
+  $('folderFileList').innerHTML = '';
+}
+
+$('loadFromFolderBtn').addEventListener('click', async () => {
+  let dirHandle;
+  try {
+    dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+  } catch (e) {
+    if (e.name !== 'AbortError') setStatus('Could not access that folder: ' + e.message);
+    return;
+  }
+  setStatus(`Scanning "${dirHandle.name}"…`);
+  const modelFiles = [];
+  for await (const [name, handle] of dirHandle.entries()) {
+    if (handle.kind === 'file' && /\.(stl|obj)$/i.test(name)) modelFiles.push({ name, handle });
+  }
+  if (!modelFiles.length) {
+    setStatus(`No STL or OBJ files found directly in "${dirHandle.name}".`);
+    return;
+  }
+  if (modelFiles.length === 1) {
+    setStatus(`Loading "${modelFiles[0].name}" from "${dirHandle.name}"…`);
+    await loadFromFileHandle(dirHandle, modelFiles[0].handle);
+    return;
+  }
+  modelFiles.sort((a, b) => a.name.localeCompare(b.name));
+  const list = $('folderFileList');
+  list.innerHTML = '';
+  for (const { name, handle } of modelFiles) {
+    const row = document.createElement('div');
+    row.className = 'piece-row';
+    row.innerHTML = `<div class="info"><div class="name">${name}</div></div>`;
+    row.addEventListener('click', () => loadFromFileHandle(dirHandle, handle));
+    list.appendChild(row);
+  }
+  list.style.display = '';
+  setStatus(`${modelFiles.length} models found in "${dirHandle.name}" — pick one to load.`);
 });
 
 $('exportAllBtn').addEventListener('click', exportAllPieces);
