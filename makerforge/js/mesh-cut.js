@@ -107,26 +107,75 @@ export async function sliceMeshByPlane(mesh, planePoint, planeNormal) {
 }
 
 /**
- * LuBan-style "Number of planes" cut: lay `planeCount` evenly-spaced
- * parallel planes (all sharing `normal`) across the full extent of `mesh`
- * along that normal, splitting it into up to planeCount+1 pieces in one
- * pass. `planeCount` is a literal plane count (matching LuBan's own field
- * of the same name and its multi-plane preview) — 10 planes -> up to 11
- * pieces, not 10.
+ * Compute `planeCount` default evenly-spaced planes across `mesh`'s full
+ * extent along `normal`, anchored at `planePoint`. Returns
+ * [{t, point, normal}] ordered low-to-high, where `t` is signed distance
+ * from `planePoint` along `normal` — the same coordinate space `flexiCut`
+ * sorts by. This is LuBan's Flexi cut starting point: build the default
+ * list here, optionally move any individual plane's `t`/`point`, then cut
+ * with `flexiCut`. Planar cut (`parallelPlaneCut`) is just this with zero
+ * overrides, so fixing bugs here fixes both.
+ */
+export function computeDefaultFlexiPlanes(mesh, planePoint, planeNormal, planeCount) {
+  const normal = normalize(planeNormal);
+  const { min, max } = computeBounds(mesh.positions);
+  const corners = [];
+  for (const x of [min[0], max[0]]) for (const y of [min[1], max[1]]) for (const z of [min[2], max[2]]) corners.push([x, y, z]);
+  const projections = corners.map((c) => dot(sub(c, planePoint), normal));
+  const tMin = Math.min(...projections);
+  const tMax = Math.max(...projections);
+  const planes = [];
+  for (let i = 1; i <= planeCount; i++) {
+    const t = tMin + ((tMax - tMin) * i) / (planeCount + 1);
+    planes.push({ t, tMin, tMax, normal, point: [planePoint[0] + normal[0] * t, planePoint[1] + normal[1] * t, planePoint[2] + normal[2] * t] });
+  }
+  return planes;
+}
+
+/**
+ * LuBan-style "Flexi cut": sequentially slice `mesh` through an explicit
+ * list of `{point, normal, t}` planes (each independently positioned/
+ * oriented — unlike parallelPlaneCut's shared normal), always processed
+ * low-to-high by `t` regardless of the order given, since the sequential
+ * peel-off algorithm below needs ascending order to behave predictably.
+ *
+ * Each step peels off the "below" side as a finished piece and keeps
+ * "above" as the remainder for the next plane. Returns an array of
+ * {positions,indices,openEdgeCount} pieces, ordered low-to-high.
+ */
+export async function flexiCut(mesh, planes) {
+  const sorted = [...planes].sort((a, b) => (a.t ?? 0) - (b.t ?? 0));
+  const pieces = [];
+  let remaining = mesh;
+  for (const { point, normal } of sorted) {
+    if (!remaining) break;
+    const cut = await sliceMeshByPlane(remaining, point, normal);
+    if (!cut.below && !cut.above) continue; // plane missed this remainder — try the next one
+    if (cut.below) pieces.push(cut.below);
+    remaining = cut.above;
+  }
+  if (remaining) pieces.push(withOpenEdgeCount(remaining));
+  return pieces;
+}
+
+/**
+ * LuBan-style "Number of planes" cut (Planar cut): lay `planeCount`
+ * evenly-spaced parallel planes (all sharing `normal`) across the full
+ * extent of `mesh` along that normal, splitting it into up to
+ * planeCount+1 pieces in one pass. `planeCount` is a literal plane count
+ * (matching LuBan's own field of the same name and its multi-plane
+ * preview) — 10 planes -> up to 11 pieces, not 10. Just
+ * computeDefaultFlexiPlanes + flexiCut with no overrides; see those for
+ * the actual cutting logic.
  *
  * By default the span always covers the piece's full extent (tMin to
- * tMax), same as before. Pass `startAtPlane: true` to instead treat
- * `planePoint` itself as where the evenly-spaced span begins: everything
- * on the near side of that plane is peeled off once, unsplit, as its own
- * piece (so nothing is lost), and only the far side gets divided into
- * planeCount+1 pieces. Useful when the model's bounding box includes a
- * disconnected low-lying feature (e.g. a tail dipping to the same height
- * as the paws) that would otherwise land in the very first slice.
- *
- * Cuts proceed low-to-high along the normal; each step peels off the
- * "below" side as a finished piece and keeps "above" as the remainder for
- * the next plane. Returns an array of {positions,indices,openEdgeCount}
- * pieces, ordered low-to-high along the normal.
+ * tMax). Pass `startAtPlane: true` to instead treat `planePoint` itself as
+ * where the evenly-spaced span begins: everything on the near side of
+ * that plane is peeled off once, unsplit, as its own piece (so nothing is
+ * lost), and only the far side gets divided into planeCount+1 pieces.
+ * Useful when the model's bounding box includes a disconnected low-lying
+ * feature (e.g. a tail dipping to the same height as the paws) that would
+ * otherwise land in the very first slice.
  */
 export async function parallelPlaneCut(mesh, planePoint, planeNormal, planeCount, { startAtPlane = false } = {}) {
   if (planeCount <= 0) return [withOpenEdgeCount(mesh)];
@@ -141,24 +190,9 @@ export async function parallelPlaneCut(mesh, planePoint, planeNormal, planeCount
     workingMesh = cut0.above;
   }
 
-  const { min, max } = computeBounds(workingMesh.positions);
-  const corners = [];
-  for (const x of [min[0], max[0]]) for (const y of [min[1], max[1]]) for (const z of [min[2], max[2]]) corners.push([x, y, z]);
-  const projections = corners.map((c) => dot(sub(c, planePoint), normal));
-  const tMin = Math.min(...projections);
-  const tMax = Math.max(...projections);
-
-  let remaining = workingMesh;
-  for (let i = 1; i <= planeCount && remaining; i++) {
-    const t = tMin + ((tMax - tMin) * i) / (planeCount + 1);
-    const point = [planePoint[0] + normal[0] * t, planePoint[1] + normal[1] * t, planePoint[2] + normal[2] * t];
-    const cut = await sliceMeshByPlane(remaining, point, normal);
-    if (!cut.below && !cut.above) continue; // plane missed this remainder — try the next one
-    if (cut.below) pieces.push(cut.below);
-    remaining = cut.above;
-  }
-  if (remaining) pieces.push(withOpenEdgeCount(remaining));
-  return pieces;
+  const planes = computeDefaultFlexiPlanes(workingMesh, planePoint, normal, planeCount);
+  const rest = await flexiCut(workingMesh, planes);
+  return [...pieces, ...rest];
 }
 
 /**

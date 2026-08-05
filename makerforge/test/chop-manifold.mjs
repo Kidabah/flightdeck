@@ -4,7 +4,7 @@
  * Backed by manifold-3d (see mesh-cut.js header for why). Run via ./run.sh.
  * Exit code 0 = all pass, 1 = a regression.
  */
-import { sliceMeshByPlane, modularCut, parallelPlaneCut } from "./_staged/mesh-cut.js";
+import { sliceMeshByPlane, modularCut, parallelPlaneCut, computeDefaultFlexiPlanes, flexiCut } from "./_staged/mesh-cut.js";
 import { countOpenEdges, sanitizeMeshForStl } from "./_staged/stl.js";
 
 let failures = 0;
@@ -229,6 +229,48 @@ function mergeMeshes(meshes) {
     return maxZ - minZ;
   })();
   if (!(lowPieceZSize <= 3 + 1e-6)) { results.push(`FAIL startAtPlane: low piece Z extent ${lowPieceZSize} should be <= 3 (paws+tail height)`); failures++; }
+}
+
+{
+  // computeDefaultFlexiPlanes + flexiCut with zero overrides must exactly
+  // match parallelPlaneCut's own piece boundaries (same underlying code
+  // path -- this is the whole point of the refactor: Planar cut IS Flexi
+  // cut with no overrides).
+  const box = buildBox(0, 0, 0, 12, 12, 60);
+  const viaParallel = await parallelPlaneCut(box, [0, 0, 0], [0, 0, 1], 5);
+  const defaults = computeDefaultFlexiPlanes(box, [0, 0, 0], [0, 0, 1], 5);
+  const viaFlexi = await flexiCut(box, defaults);
+  const zBounds = (p) => {
+    let minZ = Infinity, maxZ = -Infinity;
+    for (let i = 2; i < p.positions.length; i += 3) { minZ = Math.min(minZ, p.positions[i]); maxZ = Math.max(maxZ, p.positions[i]); }
+    return [minZ, maxZ];
+  };
+  const match = viaParallel.length === viaFlexi.length
+    && viaParallel.every((p, i) => { const [a1, a2] = zBounds(p), [b1, b2] = zBounds(viaFlexi[i]); return Math.abs(a1 - b1) < 1e-6 && Math.abs(a2 - b2) < 1e-6; });
+  results.push(`${match ? "PASS" : "FAIL"} flexiCut with no overrides matches parallelPlaneCut: ${viaParallel.length} vs ${viaFlexi.length} pieces`);
+  if (!match) failures++;
+  for (let i = 0; i < viaFlexi.length; i++) checkSide(`flexi-no-override piece ${i}`, viaFlexi[i]);
+}
+
+{
+  // flexiCut with one plane manually moved: the piece boundary on either
+  // side of the moved plane should shift accordingly, and everything must
+  // still come out watertight regardless of plane order given (out-of-order
+  // input must still sort correctly before cutting).
+  const box = buildBox(0, 0, 0, 12, 12, 60); // Z -30..30
+  const defaults = computeDefaultFlexiPlanes(box, [0, 0, 0], [0, 0, 1], 3); // 3 planes -> 4 pieces, evenly at Z -15,0,15
+  // Move the middle plane (index 1, t=0) way up to t=20, and deliberately
+  // pass the planes out of order to prove sorting works.
+  const moved = defaults.map((d, i) => (i === 1 ? { ...d, t: 20, point: [0, 0, 20] } : d));
+  const shuffled = [moved[2], moved[0], moved[1]];
+  const pieces = await flexiCut(box, shuffled);
+  results.push(`INFO flexi moved-plane: ${pieces.length} pieces (expect 4)`);
+  if (pieces.length !== 4) { results.push("FAIL flexi moved-plane: expected 4 pieces"); failures++; }
+  for (let i = 0; i < pieces.length; i++) checkSide(`flexi-moved piece ${i}`, pieces[i]);
+  // Pieces should come out ordered low-to-high in Z regardless of input order.
+  const zMids = pieces.map((p) => { const [a, b] = (() => { let mn=Infinity, mx=-Infinity; for (let i=2;i<p.positions.length;i+=3){mn=Math.min(mn,p.positions[i]);mx=Math.max(mx,p.positions[i]);} return [mn,mx]; })(); return (a + b) / 2; });
+  const sorted = zMids.every((z, i) => i === 0 || z >= zMids[i - 1] - 1e-6);
+  if (!sorted) { results.push(`FAIL flexi moved-plane: pieces not in ascending Z order: ${zMids}`); failures++; }
 }
 
 {
