@@ -4,7 +4,7 @@
  * Backed by manifold-3d (see mesh-cut.js header for why). Run via ./run.sh.
  * Exit code 0 = all pass, 1 = a regression.
  */
-import { sliceMeshByPlane, modularCut, parallelPlaneCut, computeDefaultFlexiPlanes, flexiCut } from "./_staged/mesh-cut.js";
+import { sliceMeshByPlane, modularCut, parallelPlaneCut, computeDefaultFlexiPlanes, flexiCut, gridCut } from "./_staged/mesh-cut.js";
 import { countOpenEdges, sanitizeMeshForStl } from "./_staged/stl.js";
 
 let failures = 0;
@@ -271,6 +271,37 @@ function mergeMeshes(meshes) {
   const zMids = pieces.map((p) => { const [a, b] = (() => { let mn=Infinity, mx=-Infinity; for (let i=2;i<p.positions.length;i+=3){mn=Math.min(mn,p.positions[i]);mx=Math.max(mx,p.positions[i]);} return [mn,mx]; })(); return (a + b) / 2; });
   const sorted = zMids.every((z, i) => i === 0 || z >= zMids[i - 1] - 1e-6);
   if (!sorted) { results.push(`FAIL flexi moved-plane: pieces not in ascending Z order: ${zMids}`); failures++; }
+}
+
+{
+  // Grid cut: 2 X-planes x 1 Y-plane should yield a 3x2 waffle of 6 pieces,
+  // all watertight, since it's built from the same parallelPlaneCut
+  // primitive as Straight cut just applied on two axes in sequence.
+  const box = buildBox(0, 0, 0, 30, 20, 10);
+  const cells = await gridCut(box, 2, 1);
+  results.push(`INFO grid cut: ${cells.length} pieces from 2x1 divisions (expect 6)`);
+  if (cells.length !== 6) { results.push("FAIL grid cut: expected 6 pieces (3 x 2)"); failures++; }
+  for (let i = 0; i < cells.length; i++) checkSide(`grid cut piece ${i}`, cells[i]);
+}
+
+{
+  // Grid cut with 0 divisions on both axes must be a no-op (single unchanged piece).
+  const box = buildBox(0, 0, 0, 10, 10, 10);
+  const cells = await gridCut(box, 0, 0);
+  if (cells.length !== 1) { results.push(`FAIL grid cut 0x0: expected 1 piece, got ${cells.length}`); failures++; }
+  else checkSide("grid cut 0x0", cells[0]);
+}
+
+{
+  // Grid cut with divisions on only one axis must match a plain Straight
+  // cut along that axis (the other axis's split is simply skipped).
+  const box = buildBox(0, 0, 0, 12, 12, 60);
+  const viaGrid = await gridCut(box, 0, 4);
+  const viaStraight = await parallelPlaneCut(box, [0, 0, 0], [0, 1, 0], 4);
+  const match = viaGrid.length === viaStraight.length && viaGrid.length === 5;
+  results.push(`${match ? "PASS" : "FAIL"} grid cut single-axis matches Straight cut: ${viaGrid.length} vs ${viaStraight.length} pieces`);
+  if (!match) failures++;
+  for (let i = 0; i < viaGrid.length; i++) checkSide(`grid single-axis piece ${i}`, viaGrid[i]);
 }
 
 {

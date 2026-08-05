@@ -100,42 +100,66 @@
 
     <div>
       <div class="section-label">Cut</div>
-      <div class="mode-btns" style="margin-bottom:6px">
-        <button class="btn active" id="modeStraight">Straight</button>
-        <button class="btn" id="modeAngled">Angled</button>
-      </div>
-      <div id="straightControls">
-        <div class="axis-btns" style="margin-bottom:6px">
-          <button class="btn" id="axisX" data-axis="x">X</button>
-          <button class="btn" id="axisY" data-axis="y">Y</button>
-          <button class="btn active" id="axisZ" data-axis="z">Z</button>
+      <select id="cutModeSelect" style="width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px;font:inherit;margin-bottom:8px">
+        <option value="straight">Straight</option>
+        <option value="angled">Angled</option>
+        <option value="grid">Grid</option>
+        <option value="modular">Modular (Auto-Chop)</option>
+      </select>
+
+      <div id="straightAngledControls">
+        <div id="straightControls">
+          <div class="axis-btns" style="margin-bottom:6px">
+            <button class="btn" id="axisX" data-axis="x">X</button>
+            <button class="btn" id="axisY" data-axis="y">Y</button>
+            <button class="btn active" id="axisZ" data-axis="z">Z</button>
+          </div>
+          <input type="range" id="axisSlider" min="0" max="100" value="50">
         </div>
-        <input type="range" id="axisSlider" min="0" max="100" value="50">
-      </div>
-      <div id="angledControls" style="display:none">
-        <div class="mode-btns">
-          <button class="btn active" id="gizmoMove">Move</button>
-          <button class="btn" id="gizmoRotate">Rotate</button>
+        <div id="angledControls" style="display:none">
+          <div class="mode-btns">
+            <button class="btn active" id="gizmoMove">Move</button>
+            <button class="btn" id="gizmoRotate">Rotate</button>
+          </div>
+          <div class="hint" style="margin-top:6px">Drag the handles in the viewport to place the cut plane.</div>
         </div>
-        <div class="hint" style="margin-top:6px">Drag the handles in the viewport to place the cut plane.</div>
-      </div>
-      <div class="dims-row" style="grid-template-columns:auto 1fr;align-items:center;gap:8px;margin-top:10px">
-        <label for="numPlanes" style="font-size:12px;color:var(--muted)">Number of planes</label>
-        <input type="number" id="numPlanes" min="1" max="64" step="1" value="1">
-      </div>
-      <div class="hint" style="margin-top:4px">More than 1 lays down that many evenly-spaced parallel planes through the whole piece (shown as a preview below), producing planes+1 pieces in one Commit Cut.</div>
-      <label class="check-row" style="margin-top:8px"><input type="checkbox" id="startAtPlane"> Start planes here, not at the piece's edge</label>
-      <div class="hint" style="margin-top:4px">Splits off everything on the near side of the current plane as one unsplit piece first, so a low-lying disconnected feature (e.g. a tail near the paws) doesn't land in the first slice.</div>
-      <div id="adjustPlaneControls" style="display:none;margin-top:10px">
-        <div class="section-label" style="margin-bottom:4px">Flexi Cut</div>
-        <div class="dims-row" style="grid-template-columns:auto 1fr;align-items:center;gap:8px">
-          <label for="adjustPlaneIndex" style="font-size:12px;color:var(--muted)">Adjust plane</label>
-          <input type="number" id="adjustPlaneIndex" min="1" value="1" step="1">
+        <div class="dims-row" style="grid-template-columns:auto 1fr;align-items:center;gap:8px;margin-top:10px">
+          <label for="numPlanes" style="font-size:12px;color:var(--muted)">Number of planes</label>
+          <input type="number" id="numPlanes" min="1" max="64" step="1" value="1">
         </div>
-        <input type="range" id="adjustPlaneSlider" min="0" max="100" value="50" style="margin-top:6px">
-        <div class="hint" style="margin-top:4px">Repositions just this one plane (shown in amber below) along the same direction; the rest stay evenly spaced.</div>
-        <button class="btn btn-ghost" id="resetAdjustPlaneBtn" style="width:100%;margin-top:6px">Reset This Plane</button>
+        <div class="hint" style="margin-top:4px">More than 1 lays down that many evenly-spaced parallel planes through the whole piece (shown as a preview below), producing planes+1 pieces in one Commit Cut.</div>
+        <label class="check-row" style="margin-top:8px"><input type="checkbox" id="startAtPlane"> Start planes here, not at the piece's edge</label>
+        <div class="hint" style="margin-top:4px">Splits off everything on the near side of the current plane as one unsplit piece first, so a low-lying disconnected feature (e.g. a tail near the paws) doesn't land in the first slice.</div>
+        <div id="adjustPlaneControls" style="display:none;margin-top:10px">
+          <div class="section-label" style="margin-bottom:4px">Flexi Cut</div>
+          <div class="dims-row" style="grid-template-columns:auto 1fr;align-items:center;gap:8px">
+            <label for="adjustPlaneIndex" style="font-size:12px;color:var(--muted)">Adjust plane</label>
+            <input type="number" id="adjustPlaneIndex" min="1" value="1" step="1">
+          </div>
+          <input type="range" id="adjustPlaneSlider" min="0" max="100" value="50" style="margin-top:6px">
+          <div class="hint" style="margin-top:4px">Repositions just this one plane (shown in amber below) along the same direction; the rest stay evenly spaced.</div>
+          <button class="btn btn-ghost" id="resetAdjustPlaneBtn" style="width:100%;margin-top:6px">Reset This Plane</button>
+        </div>
       </div>
+
+      <div id="gridControls" style="display:none">
+        <div class="dims-row" style="grid-template-columns:1fr 1fr">
+          <div>
+            <label class="hint" for="gridXCount">X divisions</label>
+            <input type="number" id="gridXCount" min="0" max="32" step="1" value="1">
+          </div>
+          <div>
+            <label class="hint" for="gridYCount">Y divisions</label>
+            <input type="number" id="gridYCount" min="0" max="32" step="1" value="1">
+          </div>
+        </div>
+        <div class="hint" style="margin-top:6px">Lays down evenly-spaced planes across X and Y together, like a waffle grid — (X divisions+1) × (Y divisions+1) pieces in one Commit Cut.</div>
+      </div>
+
+      <div id="modularControls" style="display:none">
+        <div class="hint">Repeatedly splits the selected piece along its oversized axis until every part fits the bed above.</div>
+      </div>
+
       <div class="btn-row" style="margin-top:10px">
         <button class="btn btn-primary" id="commitCutBtn" disabled>Commit Cut</button>
         <button class="btn btn-ghost" id="resetPlaneBtn">Reset Plane</button>
@@ -144,15 +168,14 @@
     </div>
 
     <div>
-      <div class="section-label">Modular Cut</div>
-      <button class="btn btn-primary" id="modularCutBtn" style="width:100%" disabled>Auto-Chop to Fit Bed</button>
-      <div class="hint" style="margin-top:6px">Repeatedly splits the selected piece along its oversized axis until every part fits the bed above.</div>
-    </div>
-
-    <div>
-      <div class="section-label">Pieces</div>
-      <button class="btn btn-ghost" id="exportAllBtn" style="width:100%;margin-bottom:8px" disabled>Export All to Folder</button>
-      <div class="piece-list" id="pieceList"></div>
+      <div class="section-label" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" id="piecesHeader">
+        <span>Pieces</span>
+        <button class="btn btn-icon btn-ghost" id="togglePiecesBtn" title="Show/hide piece list">&#x25B8;</button>
+      </div>
+      <div id="piecesBody" style="display:none">
+        <button class="btn btn-ghost" id="exportAllBtn" style="width:100%;margin-bottom:8px" disabled>Export All to Folder</button>
+        <div class="piece-list" id="pieceList"></div>
+      </div>
     </div>
   </div>
 
@@ -176,7 +199,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import './js/nav.js?v=551';
 import { loadMeshFromFile } from './js/mesh-import.js?v=2';
-import { sliceMeshByPlane, parallelPlaneCut, modularCut, computeBounds, computeDefaultFlexiPlanes, flexiCut } from './js/mesh-cut.js?v=7';
+import { sliceMeshByPlane, parallelPlaneCut, modularCut, gridCut, computeBounds, computeDefaultFlexiPlanes, flexiCut } from './js/mesh-cut.js?v=8';
 import { meshToStl, downloadBlob, countOpenEdges } from './js/stl.js?v=372';
 
 const $ = (id) => document.getElementById(id);
@@ -188,7 +211,7 @@ let selectedId = null;
 let undoStack = [];
 let baseName = 'model';
 let nextId = 1;
-let cutMode = 'straight'; // 'straight' | 'angled'
+let cutMode = 'straight'; // 'straight' | 'angled' | 'grid' | 'modular'
 let cutAxis = 'z';
 let originalAspect = null; // [x,y,z] of the piece as first loaded, for uniform scale
 let outputDirHandle = null; // FileSystemDirectoryHandle, if the user granted one; else fall back to browser downloads
@@ -466,6 +489,21 @@ function renumberPieces() {
   pieces.forEach((p, i) => { p.partNumber = i + 1; p.name = `Piece ${i + 1}`; });
 }
 
+/**
+ * Commit Cut's enabled state depends on the selected mode, not just
+ * whether a piece is selected: Modular additionally needs a bed size set
+ * and a piece that doesn't already fit (matching its old standalone
+ * button's rule), while Straight/Angled/Grid just need a watertight
+ * selected piece. Reset Plane only makes sense for the plane-based modes.
+ */
+function updateCommitButtonState() {
+  const sel = selectedPiece();
+  let disabled = !sel || sel.openEdgeCount > 0;
+  if (!disabled && cutMode === 'modular') disabled = !bedDims() || fitsBed(sel) !== false;
+  $('commitCutBtn').disabled = disabled;
+  $('resetPlaneBtn').disabled = !sel || (cutMode !== 'straight' && cutMode !== 'angled');
+}
+
 function renderPieceList() {
   const list = $('pieceList');
   list.innerHTML = '';
@@ -498,10 +536,8 @@ function renderPieceList() {
     list.appendChild(row);
   }
   $('undoBtn').disabled = undoStack.length === 0;
-  const sel = selectedPiece();
-  $('modularCutBtn').disabled = !sel || sel.openEdgeCount > 0 || fitsBed(sel) !== false;
   $('exportAllBtn').disabled = !outputDirHandle || pieces.length === 0;
-  $('resetPlaneBtn').disabled = !sel;
+  updateCommitButtonState();
 }
 
 function selectPiece(id) {
@@ -510,7 +546,7 @@ function selectPiece(id) {
   renderPieceList();
   resetPlaneToPiece();
   const p = selectedPiece();
-  $('commitCutBtn').disabled = !p || p.openEdgeCount > 0;
+  updateCommitButtonState();
   if (p && p.openEdgeCount > 0) {
     setStatus(`Piece has ${p.openEdgeCount} open edge(s) — repair in Mesh Prep before cutting.`);
   } else if (p) {
@@ -623,12 +659,10 @@ async function loadFile(file) {
     if (openEdgeCount > 0) {
       loadPill.className = 'pill bad';
       loadPill.textContent = `${openEdgeCount} open edges`;
-      $('commitCutBtn').disabled = true;
       setStatus(`Loaded ${file.name} — ${openEdgeCount} open edge(s). Repair in Mesh Prep before cutting.`);
     } else {
       loadPill.className = 'pill good';
       loadPill.textContent = 'Watertight';
-      $('commitCutBtn').disabled = false;
       setStatus(`Loaded ${file.name}.`);
     }
     $('fileName').textContent = `${file.name} — ${mesh.indices.length / 3} faces`;
@@ -662,6 +696,18 @@ function clearModel() {
   setStatus('Drop an STL or OBJ to begin');
 }
 $('clearModelBtn').addEventListener('click', clearModel);
+
+// Pieces panel starts collapsed — selecting/deleting/exporting individual
+// pieces is a secondary workflow now that Commit Cut/Auto-Chop auto-save,
+// so it stays out of the way (and out of the sidebar's limited space)
+// until expanded. That space is earmarked for the Connectors panel later.
+function setPiecesOpen(open) {
+  $('piecesBody').style.display = open ? '' : 'none';
+  $('togglePiecesBtn').innerHTML = open ? '&#x25BE;' : '&#x25B8;';
+}
+$('piecesHeader').addEventListener('click', () => {
+  setPiecesOpen($('piecesBody').style.display === 'none');
+});
 
 $('dropZone').addEventListener('click', () => $('fileInput').click());
 $('fileInput').addEventListener('change', (e) => { const f = e.target.files[0]; if (f) loadFile(f); });
@@ -804,10 +850,14 @@ $('exportAllBtn').addEventListener('click', exportAllPieces);
 
 function setCutMode(mode) {
   cutMode = mode;
-  $('modeStraight').classList.toggle('active', mode === 'straight');
-  $('modeAngled').classList.toggle('active', mode === 'angled');
+  $('cutModeSelect').value = mode;
+  const isPlaneMode = mode === 'straight' || mode === 'angled';
+  $('straightAngledControls').style.display = isPlaneMode ? '' : 'none';
   $('straightControls').style.display = mode === 'straight' ? '' : 'none';
   $('angledControls').style.display = mode === 'angled' ? '' : 'none';
+  $('gridControls').style.display = mode === 'grid' ? '' : 'none';
+  $('modularControls').style.display = mode === 'modular' ? '' : 'none';
+  planeTarget.visible = isPlaneMode;
   if (mode === 'angled' && selectedId) {
     gizmo.attach(planeTarget);
     gizmo.visible = true; gizmo.enabled = true;
@@ -818,9 +868,14 @@ function setCutMode(mode) {
     gizmo.visible = false; gizmo.enabled = false;
   }
   if (mode === 'straight') applyAxisToPlane();
+  if (!isPlaneMode) {
+    clearExtraPlaneVisuals();
+    const mesh = selectedThreeMesh();
+    if (mesh) mesh.material.clippingPlanes = [];
+  }
+  updateCommitButtonState();
 }
-$('modeStraight').addEventListener('click', () => setCutMode('straight'));
-$('modeAngled').addEventListener('click', () => setCutMode('angled'));
+$('cutModeSelect').addEventListener('change', (e) => setCutMode(e.target.value));
 $('gizmoMove').addEventListener('click', () => { gizmo.setMode('translate'); $('gizmoMove').classList.add('active'); $('gizmoRotate').classList.remove('active'); });
 $('gizmoRotate').addEventListener('click', () => { gizmo.setMode('rotate'); $('gizmoRotate').classList.add('active'); $('gizmoMove').classList.remove('active'); });
 
@@ -846,7 +901,31 @@ $('resetPlaneBtn').addEventListener('click', resetPlaneToPiece);
 
 // -- Commit cut / undo ----------------------------------------------------
 
-$('commitCutBtn').addEventListener('click', async () => {
+/** Finish a successful cut: splice newPieces in for `piece`, reset selection/gizmo, auto-save. Shared tail for all four cut modes. */
+async function finishCut(piece, newPieces, extraNotes = []) {
+  undoStack.push(pieces.slice());
+  const idx = pieces.findIndex((p) => p.id === piece.id);
+  pieces.splice(idx, 1, ...newPieces);
+  renumberPieces();
+  selectedId = null;
+  planeOverrides.clear();
+  rebuildScene();
+  renderPieceList();
+  gizmo.detach();
+  gizmo.visible = false; gizmo.enabled = false;
+  const openCount = newPieces.filter((p) => p.openEdgeCount > 0).length;
+  const notes = [...extraNotes];
+  if (openCount) notes.push(`${openCount} came out with open edges — repair in Mesh Prep`);
+  const saveResult = await autoSaveIfFolderSet(newPieces);
+  if (saveResult) {
+    notes.push(saveResult.error
+      ? `saved ${saveResult.saved}/${saveResult.total} to ${outputDirHandle.name}/chop/ before failing: ${saveResult.error}`
+      : `saved to ${outputDirHandle.name}/chop/`);
+  }
+  return { note: notes.length ? ` (${notes.join('; ')})` : '', saved: !!saveResult };
+}
+
+async function commitPlaneCut() {
   const piece = selectedPiece();
   if (!piece) return;
   const { point, normal } = currentPlane();
@@ -861,12 +940,12 @@ $('commitCutBtn').addEventListener('click', async () => {
       result = await sliceMeshByPlane(piece.mesh, point, normal);
     } catch (e) {
       setStatus('Cut failed: ' + e.message);
-      $('commitCutBtn').disabled = false;
+      updateCommitButtonState();
       return;
     }
     if (!result.above || !result.below) {
       setStatus("Plane doesn't intersect this piece — adjust it and try again.");
-      $('commitCutBtn').disabled = false;
+      updateCommitButtonState();
       return;
     }
     newPieces = [result.above, result.below].map((m) => ({ id: `piece-${nextId++}`, mesh: m, openEdgeCount: m.openEdgeCount }));
@@ -892,83 +971,79 @@ $('commitCutBtn').addEventListener('click', async () => {
       }
     } catch (e) {
       setStatus('Cut failed: ' + e.message);
-      $('commitCutBtn').disabled = false;
+      updateCommitButtonState();
       return;
     }
     if (slices.length <= 1) {
       setStatus("Planes don't intersect this piece — adjust it and try again.");
-      $('commitCutBtn').disabled = false;
+      updateCommitButtonState();
       return;
     }
     newPieces = slices.map((m) => ({ id: `piece-${nextId++}`, mesh: m, openEdgeCount: m.openEdgeCount }));
   }
 
-  undoStack.push(pieces.slice());
-  const idx = pieces.findIndex((p) => p.id === piece.id);
-  pieces.splice(idx, 1, ...newPieces);
-  renumberPieces();
-  selectedId = null;
-  planeOverrides.clear();
-  rebuildScene();
-  renderPieceList();
-  gizmo.detach();
-  gizmo.visible = false; gizmo.enabled = false;
-  $('commitCutBtn').disabled = true;
-  const openCount = newPieces.filter((p) => p.openEdgeCount > 0).length;
-  const notes = [];
-  if (openCount) notes.push(`${openCount} came out with open edges — repair in Mesh Prep`);
-  const saveResult = await autoSaveIfFolderSet(newPieces);
-  if (saveResult) {
-    notes.push(saveResult.error
-      ? `saved ${saveResult.saved}/${saveResult.total} to ${outputDirHandle.name}/chop/ before failing: ${saveResult.error}`
-      : `saved to ${outputDirHandle.name}/chop/`);
-  }
-  const note = notes.length ? ` (${notes.join('; ')})` : '';
-  setStatus(`Cut into ${newPieces.length} piece${newPieces.length === 1 ? '' : 's'}${note}.${saveResult ? '' : ' Select a piece to cut again or export.'}`);
-});
+  const { note, saved } = await finishCut(piece, newPieces);
+  setStatus(`Cut into ${newPieces.length} piece${newPieces.length === 1 ? '' : 's'}${note}.${saved ? '' : ' Select a piece to cut again or export.'}`);
+}
 
-$('modularCutBtn').addEventListener('click', async () => {
+async function commitGridCut() {
+  const piece = selectedPiece();
+  if (!piece) return;
+  const xCount = Math.max(0, Math.round(Number($('gridXCount').value) || 0));
+  const yCount = Math.max(0, Math.round(Number($('gridYCount').value) || 0));
+  if (xCount === 0 && yCount === 0) {
+    setStatus('Set at least one of X/Y divisions above 0 to grid-cut.');
+    return;
+  }
+  setStatus('Grid cutting…');
+  $('commitCutBtn').disabled = true;
+  let cells;
+  try {
+    cells = await gridCut(piece.mesh, xCount, yCount);
+  } catch (e) {
+    setStatus('Grid cut failed: ' + e.message);
+    updateCommitButtonState();
+    return;
+  }
+  if (cells.length <= 1) {
+    setStatus("Grid didn't intersect this piece — adjust divisions and try again.");
+    updateCommitButtonState();
+    return;
+  }
+  const newPieces = cells.map((m) => ({ id: `piece-${nextId++}`, mesh: m, openEdgeCount: m.openEdgeCount }));
+  const { note, saved } = await finishCut(piece, newPieces);
+  setStatus(`Grid-cut into ${newPieces.length} piece${newPieces.length === 1 ? '' : 's'}${note}.${saved ? '' : ' Select a piece to cut again or export.'}`);
+}
+
+async function commitModularCut() {
   const piece = selectedPiece();
   const bed = bedDims();
   if (!piece || !bed) return;
   setStatus('Auto-chopping…');
-  $('modularCutBtn').disabled = true;
+  $('commitCutBtn').disabled = true;
   let result;
   try {
     result = await modularCut(piece.mesh, bed);
   } catch (e) {
     setStatus('Modular cut failed: ' + e.message);
-    renderPieceList();
+    updateCommitButtonState();
     return;
   }
   if (result.pieces.length <= 1) {
     setStatus('Already fits the bed — nothing to cut.');
-    renderPieceList();
+    updateCommitButtonState();
     return;
   }
-  undoStack.push(pieces.slice());
-  const idx = pieces.findIndex((p) => p.id === piece.id);
   const newPieces = result.pieces.map((m) => ({ id: `piece-${nextId++}`, mesh: m, openEdgeCount: m.openEdgeCount }));
-  pieces.splice(idx, 1, ...newPieces);
-  renumberPieces();
-  selectedId = null;
-  rebuildScene();
-  renderPieceList();
-  gizmo.detach();
-  gizmo.visible = false; gizmo.enabled = false;
-  $('commitCutBtn').disabled = true;
-  const openCount = newPieces.filter((p) => p.openEdgeCount > 0).length;
-  const notes = [];
-  if (result.capped) notes.push('hit the piece cap — some parts may still be oversized');
-  if (openCount) notes.push(`${openCount} piece${openCount === 1 ? '' : 's'} came out with open edges — repair in Mesh Prep before printing`);
-  const saveResult = await autoSaveIfFolderSet(newPieces);
-  if (saveResult) {
-    notes.push(saveResult.error
-      ? `saved ${saveResult.saved}/${saveResult.total} to ${outputDirHandle.name}/chop/ before failing: ${saveResult.error}`
-      : `saved to ${outputDirHandle.name}/chop/`);
-  }
-  const note = notes.length ? ` (${notes.join('; ')})` : '';
-  setStatus(`Auto-chopped ${piece.name} into ${newPieces.length} pieces${note}.${saveResult ? '' : ' Select a piece to cut again or export.'}`);
+  const extraNotes = result.capped ? ['hit the piece cap — some parts may still be oversized'] : [];
+  const { note, saved } = await finishCut(piece, newPieces, extraNotes);
+  setStatus(`Auto-chopped ${piece.name} into ${newPieces.length} pieces${note}.${saved ? '' : ' Select a piece to cut again or export.'}`);
+}
+
+$('commitCutBtn').addEventListener('click', () => {
+  if (cutMode === 'grid') return commitGridCut();
+  if (cutMode === 'modular') return commitModularCut();
+  return commitPlaneCut();
 });
 
 $('undoBtn').addEventListener('click', () => {

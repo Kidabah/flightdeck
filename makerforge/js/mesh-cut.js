@@ -196,6 +196,31 @@ export async function parallelPlaneCut(mesh, planePoint, planeNormal, planeCount
 }
 
 /**
+ * LuBan-style "Grid cut": divides `mesh` into a waffle-like grid of
+ * (xCount+1) x (yCount+1) pieces by laying `xCount` evenly-spaced planes
+ * across the X extent and `yCount` across the Y extent, independently.
+ * Built from the same `parallelPlaneCut` primitive as Straight cut — first
+ * split into X strips, then split each strip into Y cells — so it inherits
+ * the same watertight guarantees. A count of 0 on either axis skips that
+ * axis's split (e.g. xCount=2, yCount=0 behaves like a plain Straight cut
+ * along X). Order of pieces is X-strip-major, then Y within each strip.
+ */
+export async function gridCut(mesh, xCount, yCount) {
+  const stripsX = xCount > 0
+    ? await parallelPlaneCut(mesh, [0, 0, 0], [1, 0, 0], xCount)
+    : [withOpenEdgeCount(mesh)];
+  const cells = [];
+  for (const strip of stripsX) {
+    if (yCount > 0) {
+      cells.push(...(await parallelPlaneCut(strip, [0, 0, 0], [0, 1, 0], yCount)));
+    } else {
+      cells.push(withOpenEdgeCount(strip));
+    }
+  }
+  return cells;
+}
+
+/**
  * Auto-fit-to-bed cutting (LuBan's "Modular cut"): recursively bisect
  * `mesh` along whichever axis exceeds `bedSize`, at the midpoint of its
  * current bounds, until every resulting piece fits — no manual plane
