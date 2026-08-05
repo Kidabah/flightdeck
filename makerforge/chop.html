@@ -103,9 +103,9 @@
       </div>
       <div id="straightControls">
         <div class="axis-btns" style="margin-bottom:6px">
-          <button class="btn active" id="axisX" data-axis="x">X</button>
+          <button class="btn" id="axisX" data-axis="x">X</button>
           <button class="btn" id="axisY" data-axis="y">Y</button>
-          <button class="btn" id="axisZ" data-axis="z">Z</button>
+          <button class="btn active" id="axisZ" data-axis="z">Z</button>
         </div>
         <input type="range" id="axisSlider" min="0" max="100" value="50">
       </div>
@@ -174,7 +174,7 @@ let undoStack = [];
 let baseName = 'model';
 let nextId = 1;
 let cutMode = 'straight'; // 'straight' | 'angled'
-let cutAxis = 'x';
+let cutAxis = 'z';
 let originalAspect = null; // [x,y,z] of the piece as first loaded, for uniform scale
 let outputDirHandle = null; // FileSystemDirectoryHandle, if the user granted one; else fall back to browser downloads
 
@@ -306,7 +306,17 @@ function resetPlaneToPiece() {
   planeVisual.geometry = new THREE.PlaneGeometry(radius * 1.4, radius * 1.4);
   planeTarget.position.set(center[0], center[1], center[2]);
   planeTarget.quaternion.identity();
-  if (cutMode === 'straight') applyAxisToPlane();
+  if (cutMode === 'straight') {
+    // Default the Z axis to world Z=0 (the print-bed plane) instead of the
+    // piece's own bounds-center, matching how LuBan's own default reads.
+    if (cutAxis === 'z' && b.size[2] > 0) {
+      const t = Math.min(100, Math.max(0, ((0 - b.min[2]) / b.size[2]) * 100));
+      $('axisSlider').value = t;
+    } else {
+      $('axisSlider').value = 50;
+    }
+    applyAxisToPlane();
+  }
   updateClipPreview();
 }
 
