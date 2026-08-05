@@ -38,12 +38,37 @@ function parseSTLAsciiPositions(text) {
   return new Float32Array(verts.slice(0, usable));
 }
 
+/**
+ * Weld epsilon scaled to the model's own size. weldMeshVertices' 0.008
+ * default assumes millimeter-scale coordinates (fine for most STL exports),
+ * but source files can arrive in any raw unit — e.g. a Blender OBJ export
+ * with coordinates spanning ~0-1 before the user applies a real-world
+ * scale. A fixed 0.008 there is ~1% of the whole model's size and silently
+ * collapses distinct nearby vertices into one, destroying most of the
+ * mesh's actual detail (a real case: a 2M-triangle scan welded down to
+ * 21k vertices, 47x fewer than it should have — invisible under smooth
+ * shading in this app's own viewer, but glaringly faceted once sliced,
+ * since slicers render flat per-facet).
+ */
+export function weldEpsFor(flatPositions) {
+  let minX = Infinity, minY = Infinity, minZ = Infinity;
+  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+  for (let i = 0; i < flatPositions.length; i += 3) {
+    const x = flatPositions[i], y = flatPositions[i + 1], z = flatPositions[i + 2];
+    if (x < minX) minX = x; if (x > maxX) maxX = x;
+    if (y < minY) minY = y; if (y > maxY) maxY = y;
+    if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
+  }
+  const diagonal = Math.hypot(maxX - minX, maxY - minY, maxZ - minZ) || 1;
+  return diagonal * 1e-5;
+}
+
 /** Weld an unindexed flat triangle soup into the repo's {positions,indices} shape. */
 function toIndexedMesh(flatPositions) {
   const nVerts = flatPositions.length / 3;
   const naiveIndices = new Array(nVerts);
   for (let i = 0; i < nVerts; i++) naiveIndices[i] = i;
-  const welded = weldMeshVertices(Array.from(flatPositions), naiveIndices);
+  const welded = weldMeshVertices(Array.from(flatPositions), naiveIndices, weldEpsFor(flatPositions));
   return { positions: welded.positions, indices: welded.indices };
 }
 
