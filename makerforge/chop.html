@@ -307,14 +307,7 @@ function resetPlaneToPiece() {
   planeTarget.position.set(center[0], center[1], center[2]);
   planeTarget.quaternion.identity();
   if (cutMode === 'straight') {
-    // Default the Z axis to world Z=0 (the print-bed plane) instead of the
-    // piece's own bounds-center, matching how LuBan's own default reads.
-    if (cutAxis === 'z' && b.size[2] > 0) {
-      const t = Math.min(100, Math.max(0, ((0 - b.min[2]) / b.size[2]) * 100));
-      $('axisSlider').value = t;
-    } else {
-      $('axisSlider').value = 50;
-    }
+    $('axisSlider').value = 50;
     applyAxisToPlane();
   }
   updateClipPreview();
@@ -523,6 +516,13 @@ async function loadFile(file) {
   try {
     setStatus('Loading…');
     const mesh = await loadMeshFromFile(file);
+    // Rest the model on the print bed (base at Z=0), matching LuBan's own
+    // convention — X/Y are left exactly as authored, only Z is shifted.
+    const loadBounds = computeBounds(mesh.positions);
+    const zShift = -loadBounds.min[2];
+    if (zShift !== 0) {
+      for (let i = 2; i < mesh.positions.length; i += 3) mesh.positions[i] += zShift;
+    }
     const openEdgeCount = countOpenEdges(mesh.positions, mesh.indices);
     baseName = file.name.replace(/\.(stl|obj)$/i, '');
     pieces = [{ id: `piece-${nextId++}`, partNumber: 1, name: 'Piece 1', mesh, openEdgeCount }];
