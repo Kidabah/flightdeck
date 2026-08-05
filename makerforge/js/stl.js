@@ -2,6 +2,30 @@
  * Binary STL writer from indexed mesh { positions, indices }.
  */
 
+/**
+ * Weld epsilon scaled to a mesh's own bounding-box diagonal, instead of a
+ * fixed absolute value. A fixed epsilon implicitly assumes millimeter-scale
+ * coordinates; for a small cut piece (or any source model in smaller raw
+ * units, e.g. a Blender export before real-world scaling) it can be a large
+ * fraction of the mesh's own size and catastrophically over-merge vertices
+ * — confirmed on a real case where sanitizeMeshForStl's old fixed 0.05
+ * collapsed a clean 1542-triangle piece down to 44 triangles on export,
+ * because 0.05 was 23% of that piece's diagonal. See also mesh-import.js's
+ * weldEpsFor, which fixed the same class of bug at load time.
+ */
+function weldEpsForMesh(positions) {
+  let minX = Infinity, minY = Infinity, minZ = Infinity;
+  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+  for (let i = 0; i < positions.length; i += 3) {
+    const x = positions[i], y = positions[i + 1], z = positions[i + 2];
+    if (x < minX) minX = x; if (x > maxX) maxX = x;
+    if (y < minY) minY = y; if (y > maxY) maxY = y;
+    if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
+  }
+  const diagonal = Math.hypot(maxX - minX, maxY - minY, maxZ - minZ) || 1;
+  return diagonal * 1e-5;
+}
+
 function facetNormal(a, b, c) {
   const ux = b[0] - a[0];
   const uy = b[1] - a[1];
@@ -69,7 +93,18 @@ export function sanitizeMeshForStl(mesh, { strict = true, repair = true } = {}) 
   const indices = mesh?.indices;
   if (!positions?.length || !indices?.length) return null;
 
-  let welded = weldMeshVertices(positions, indices, 0.05);
+  // If the mesh is already watertight (indices already exactly shared —
+  // e.g. straight out of manifold-3d), the weld/repair pipeline below can
+  // only hurt it: re-welding by spatial proximity risks merging vertices
+  // that are legitimately close but distinct, and repairNonManifoldFaces
+  // peels faces it mistakes for defects. Confirmed on real data: running
+  // an already-clean piece through this pipeline introduced 3-72 open
+  // edges that weren't there going in. Skip straight to export.
+  if (countOpenEdges(positions, indices) === 0) {
+    return { positions, indices, openEdgeCount: 0 };
+  }
+
+  let welded = weldMeshVertices(positions, indices, weldEpsForMesh(positions));
   let idx = removeDuplicateTriangles(welded.indices);
   idx = removeDegenerateTriangles(welded.positions, idx);
   idx = removeDuplicateCoplanarTriangles(welded.positions, idx);
@@ -91,7 +126,17 @@ export function prepareMeshFor3mf(mesh) {
   const indices = mesh?.indices;
   if (!positions?.length || !indices?.length) return null;
 
-  const welded = weldMeshVertices(positions, indices, 0.04);
+  // Same reasoning as sanitizeMeshForStl above: already-watertight input
+  // (indices already exactly shared) doesn't need re-welding, and skipping
+  // it also trivially keeps triangleExtruders aligned since triangle
+  // order/count is untouched.
+  if (countOpenEdges(positions, indices) === 0) {
+    const out = { positions, indices, openEdgeCount: 0 };
+    if (mesh.triangleExtruders?.length === indices.length / 3) out.triangleExtruders = mesh.triangleExtruders;
+    return out;
+  }
+
+  const welded = weldMeshVertices(positions, indices, weldEpsForMesh(positions));
   let idx = removeDuplicateTriangles(welded.indices);
   // Topology-safe only: drop collapsed/invalid tris, KEEP thin slivers — deleting a
   // positive-area sliver from a closed mesh tears an open edge (Text lost 340 edges

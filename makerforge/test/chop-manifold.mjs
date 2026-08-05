@@ -5,7 +5,7 @@
  * Exit code 0 = all pass, 1 = a regression.
  */
 import { sliceMeshByPlane, modularCut, parallelPlaneCut } from "./_staged/mesh-cut.js";
-import { countOpenEdges } from "./_staged/stl.js";
+import { countOpenEdges, sanitizeMeshForStl } from "./_staged/stl.js";
 
 let failures = 0;
 const results = [];
@@ -191,6 +191,42 @@ function mergeMeshes(meshes) {
   const pieces = await parallelPlaneCut(box, [0, 0, 0], [0, 0, 1], 1);
   if (pieces.length !== 1) { results.push(`FAIL parallel cut count=1: expected 1 piece, got ${pieces.length}`); failures++; }
   else checkSide("parallel cut count=1", pieces[0]);
+}
+
+{
+  // Export sanitize must not damage an already-watertight piece. Regression
+  // for a real bug: sanitizeMeshForStl's fixed weld epsilon (0.05) was ~23%
+  // of a small cut piece's own size (raw sub-1-unit source coordinates,
+  // before the user applied a real-world scale) and collapsed 1542 tris
+  // down to 44 on export. A scale-relative epsilon alone wasn't enough —
+  // re-running the old repair pipeline on already-clean manifold-3d output
+  // still introduced 3-72 open edges per piece that weren't there going
+  // in, so sanitizeMeshForStl must skip weld+repair entirely when the
+  // input already has 0 open edges.
+  const tinyBox = buildBox(0, 0, 0, 0.05, 0.05, 0.05); // sub-1-unit scale, like the real case
+  const { above } = await sliceMeshByPlane(tinyBox, [0, 0, 0], [0.4, 0.3, 1]);
+  const before = above.indices.length / 3;
+  const sanitized = sanitizeMeshForStl(above);
+  const after = sanitized.indices.length / 3;
+  results.push(`INFO export-sanitize tiny piece: ${before} tris before, ${after} after, open ${sanitized.openEdgeCount}`);
+  if (after !== before || sanitized.openEdgeCount !== 0) {
+    results.push(`FAIL export-sanitize tiny piece: expected ${before} tris / 0 open, got ${after} tris / ${sanitized.openEdgeCount} open`);
+    failures++;
+  }
+}
+
+{
+  // sanitizeMeshForStl must still repair genuinely broken (unwelded, duplicated) input.
+  const positions = [
+    0, 0, 0, 1, 0, 0, 0, 1, 0,
+    1, 0, 0, 1, 1, 0, 0, 1, 0,
+    1, 0, 0, 1, 1, 0, 0, 1, 0, // duplicate of the triangle above
+  ];
+  const indices = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+  const sanitized = sanitizeMeshForStl({ positions, indices });
+  const ok = sanitized.positions.length / 3 === 4 && sanitized.indices.length / 3 === 2;
+  results.push(`${ok ? "PASS" : "FAIL"} export-sanitize repairs broken input: verts ${sanitized.positions.length / 3}, tris ${sanitized.indices.length / 3}`);
+  if (!ok) failures++;
 }
 
 {
