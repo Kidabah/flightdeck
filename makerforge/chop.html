@@ -58,6 +58,7 @@
         <input type="file" id="fileInput" accept=".stl,.obj" hidden>
       </div>
       <div id="loadPill" class="pill" style="margin-top:8px;display:none"></div>
+      <button class="btn btn-ghost" id="clearModelBtn" style="width:100%;margin-top:8px;display:none">Clear / Load New Model</button>
     </div>
 
     <div>
@@ -87,7 +88,6 @@
 
     <div>
       <div class="section-label">Print Bed</div>
-      <select id="printerSelect" style="margin-bottom:6px"><option value="">Manual entry…</option></select>
       <div class="dims-row">
         <input type="number" id="bedX" step="any" placeholder="Bed X">
         <input type="number" id="bedY" step="any" placeholder="Bed Y">
@@ -494,6 +494,7 @@ function renderPieceList() {
   const sel = selectedPiece();
   $('modularCutBtn').disabled = !sel || sel.openEdgeCount > 0 || fitsBed(sel) !== false;
   $('exportAllBtn').disabled = !outputDirHandle || pieces.length === 0;
+  $('resetPlaneBtn').disabled = !sel;
 }
 
 function selectPiece(id) {
@@ -625,10 +626,35 @@ async function loadFile(file) {
     }
     $('fileName').textContent = `${file.name} — ${mesh.indices.length / 3} faces`;
     $('applyScaleBtn').disabled = false;
+    $('clearModelBtn').style.display = '';
   } catch (e) {
     setStatus('Error: ' + e.message);
   }
 }
+
+/** Wipe the whole workspace back to the pre-load state — bed dims and output folder are left alone since those carry over sensibly to the next model. */
+function clearModel() {
+  pieces = [];
+  selectedId = null;
+  undoStack = [];
+  planeOverrides.clear();
+  baseName = 'model';
+  nextId = 1;
+  originalAspect = null;
+  rebuildScene();
+  renderPieceList();
+  gizmo.detach();
+  gizmo.visible = false; gizmo.enabled = false;
+  clearExtraPlaneVisuals();
+  $('loadPill').style.display = 'none';
+  $('clearModelBtn').style.display = 'none';
+  $('fileName').textContent = 'No model loaded';
+  $('applyScaleBtn').disabled = true;
+  $('dimX').value = ''; $('dimY').value = ''; $('dimZ').value = '';
+  $('commitCutBtn').disabled = true;
+  setStatus('Drop an STL or OBJ to begin');
+}
+$('clearModelBtn').addEventListener('click', clearModel);
 
 $('dropZone').addEventListener('click', () => $('fileInput').click());
 $('fileInput').addEventListener('change', (e) => { const f = e.target.files[0]; if (f) loadFile(f); });
@@ -695,26 +721,6 @@ $('applyScaleBtn').addEventListener('click', () => {
   setStatus('Scale applied.');
 });
 
-// -- Bed / printers -----------------------------------------------------
-
-async function loadPrinterBedSizes() {
-  try {
-    const res = await fetch('/api/printers/bed-sizes');
-    if (!res.ok) return;
-    const printers = await res.json();
-    const select = $('printerSelect');
-    for (const p of printers) {
-      if (!p.build_volume) continue;
-      const opt = document.createElement('option');
-      opt.value = p.id;
-      opt.textContent = `${p.custom_name || p.model_name} (${p.build_volume.x}×${p.build_volume.y}×${p.build_volume.z})`;
-      opt.dataset.x = p.build_volume.x; opt.dataset.y = p.build_volume.y; opt.dataset.z = p.build_volume.z;
-      select.appendChild(opt);
-    }
-  } catch { /* backend not available (e.g. static-only local server) — manual entry still works */ }
-}
-loadPrinterBedSizes();
-
 // -- Output folder ----------------------------------------------------------
 
 if (!window.showDirectoryPicker) {
@@ -735,12 +741,6 @@ $('chooseFolderBtn').addEventListener('click', async () => {
 
 $('exportAllBtn').addEventListener('click', exportAllPieces);
 
-$('printerSelect').addEventListener('change', (e) => {
-  const opt = e.target.selectedOptions[0];
-  if (!opt || !opt.dataset.x) return;
-  $('bedX').value = opt.dataset.x; $('bedY').value = opt.dataset.y; $('bedZ').value = opt.dataset.z;
-  renderPieceList();
-});
 ['bedX', 'bedY', 'bedZ'].forEach((id) => $(id).addEventListener('input', renderPieceList));
 
 // -- Cut mode / axis ----------------------------------------------------
@@ -936,6 +936,8 @@ $('tbWire').addEventListener('click', () => {
   wire = group;
   scene.add(wire);
 });
+
+renderPieceList(); // correct initial disabled state for Reset Plane / Undo / Auto-Chop / Export All before any model is loaded
 </script>
 </body>
 </html>
