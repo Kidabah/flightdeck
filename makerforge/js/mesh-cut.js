@@ -114,24 +114,41 @@ export async function sliceMeshByPlane(mesh, planePoint, planeNormal) {
  * of the same name and its multi-plane preview) — 10 planes -> up to 11
  * pieces, not 10.
  *
+ * By default the span always covers the piece's full extent (tMin to
+ * tMax), same as before. Pass `startAtPlane: true` to instead treat
+ * `planePoint` itself as where the evenly-spaced span begins: everything
+ * on the near side of that plane is peeled off once, unsplit, as its own
+ * piece (so nothing is lost), and only the far side gets divided into
+ * planeCount+1 pieces. Useful when the model's bounding box includes a
+ * disconnected low-lying feature (e.g. a tail dipping to the same height
+ * as the paws) that would otherwise land in the very first slice.
+ *
  * Cuts proceed low-to-high along the normal; each step peels off the
  * "below" side as a finished piece and keeps "above" as the remainder for
  * the next plane. Returns an array of {positions,indices,openEdgeCount}
  * pieces, ordered low-to-high along the normal.
  */
-export async function parallelPlaneCut(mesh, planePoint, planeNormal, planeCount) {
+export async function parallelPlaneCut(mesh, planePoint, planeNormal, planeCount, { startAtPlane = false } = {}) {
   if (planeCount <= 0) return [withOpenEdgeCount(mesh)];
-
   const normal = normalize(planeNormal);
-  const { min, max } = computeBounds(mesh.positions);
+
+  const pieces = [];
+  let workingMesh = mesh;
+  if (startAtPlane) {
+    const cut0 = await sliceMeshByPlane(mesh, planePoint, normal);
+    if (cut0.below) pieces.push(cut0.below);
+    if (!cut0.above) return pieces.length ? pieces : [withOpenEdgeCount(mesh)];
+    workingMesh = cut0.above;
+  }
+
+  const { min, max } = computeBounds(workingMesh.positions);
   const corners = [];
   for (const x of [min[0], max[0]]) for (const y of [min[1], max[1]]) for (const z of [min[2], max[2]]) corners.push([x, y, z]);
   const projections = corners.map((c) => dot(sub(c, planePoint), normal));
   const tMin = Math.min(...projections);
   const tMax = Math.max(...projections);
 
-  const pieces = [];
-  let remaining = mesh;
+  let remaining = workingMesh;
   for (let i = 1; i <= planeCount && remaining; i++) {
     const t = tMin + ((tMax - tMin) * i) / (planeCount + 1);
     const point = [planePoint[0] + normal[0] * t, planePoint[1] + normal[1] * t, planePoint[2] + normal[2] * t];

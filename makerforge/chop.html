@@ -121,6 +121,8 @@
         <input type="number" id="numPlanes" min="1" max="64" step="1" value="1">
       </div>
       <div class="hint" style="margin-top:4px">More than 1 lays down that many evenly-spaced parallel planes through the whole piece (shown as a preview below), producing planes+1 pieces in one Commit Cut.</div>
+      <label class="check-row" style="margin-top:8px"><input type="checkbox" id="startAtPlane"> Start planes here, not at the piece's edge</label>
+      <div class="hint" style="margin-top:4px">Splits off everything on the near side of the current plane as one unsplit piece first, so a low-lying disconnected feature (e.g. a tail near the paws) doesn't land in the first slice.</div>
       <div class="btn-row" style="margin-top:10px">
         <button class="btn btn-primary" id="commitCutBtn" disabled>Commit Cut</button>
         <button class="btn btn-ghost" id="resetPlaneBtn">Reset Plane</button>
@@ -161,7 +163,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import './js/nav.js?v=551';
 import { loadMeshFromFile } from './js/mesh-import.js?v=2';
-import { sliceMeshByPlane, parallelPlaneCut, modularCut, computeBounds } from './js/mesh-cut.js?v=5';
+import { sliceMeshByPlane, parallelPlaneCut, modularCut, computeBounds } from './js/mesh-cut.js?v=6';
 import { meshToStl, downloadBlob, countOpenEdges } from './js/stl.js?v=372';
 
 const $ = (id) => document.getElementById(id);
@@ -362,7 +364,8 @@ function updatePlaneVisuals() {
   const corners = [];
   for (const x of [b.min[0], b.max[0]]) for (const y of [b.min[1], b.max[1]]) for (const z of [b.min[2], b.max[2]]) corners.push(new THREE.Vector3(x, y, z));
   const projections = corners.map((c) => c.clone().sub(refPoint).dot(n));
-  const tMin = Math.min(...projections), tMax = Math.max(...projections);
+  const tMin = $('startAtPlane').checked ? 0 : Math.min(...projections);
+  const tMax = Math.max(...projections);
 
   for (let i = 1; i <= planeCount; i++) {
     const t = tMin + ((tMax - tMin) * i) / (planeCount + 1);
@@ -722,6 +725,7 @@ for (const axis of ['x', 'y', 'z']) {
 }
 $('axisSlider').addEventListener('input', applyAxisToPlane);
 $('numPlanes').addEventListener('input', updatePlaneVisuals);
+$('startAtPlane').addEventListener('change', updatePlaneVisuals);
 $('resetPlaneBtn').addEventListener('click', resetPlaneToPiece);
 
 // -- Commit cut / undo ----------------------------------------------------
@@ -753,7 +757,7 @@ $('commitCutBtn').addEventListener('click', async () => {
   } else {
     let slices;
     try {
-      slices = await parallelPlaneCut(piece.mesh, point, normal, numPlanes);
+      slices = await parallelPlaneCut(piece.mesh, point, normal, numPlanes, { startAtPlane: $('startAtPlane').checked });
     } catch (e) {
       setStatus('Cut failed: ' + e.message);
       $('commitCutBtn').disabled = false;

@@ -203,6 +203,35 @@ function mergeMeshes(meshes) {
 }
 
 {
+  // startAtPlane: a disconnected low-lying feature (like a tail dipping to
+  // the same height as the paws) shouldn't get split apart from the paws
+  // in the first slice -- it should come out as one unsplit piece below
+  // the chosen start plane, with only the main body above divided further.
+  const paws = buildBox(0, 0, 1.5, 4, 4, 3);   // Z 0..3
+  const tail = buildBox(10, 0, 1, 3, 3, 2);    // Z 0..2, disconnected in X from paws
+  const body = buildBox(0, 0, 12.5, 6, 6, 15); // Z 5..20, well above both
+  const dog = mergeMeshes([paws, tail, body]);
+
+  const withoutStart = await parallelPlaneCut(dog, [0, 0, 0], [0, 0, 1], 4);
+  results.push(`INFO startAtPlane=false: ${withoutStart.length} pieces (expect 5)`);
+  for (let i = 0; i < withoutStart.length; i++) checkSide(`no-start piece ${i}`, withoutStart[i]);
+
+  const withStart = await parallelPlaneCut(dog, [0, 0, 4], [0, 0, 1], 4, { startAtPlane: true });
+  results.push(`INFO startAtPlane=true: ${withStart.length} pieces (expect 6: 1 unsplit low piece + 5 from the body)`);
+  if (withStart.length !== 6) { results.push("FAIL startAtPlane: expected 6 pieces (1 low + 5 body)"); failures++; }
+  for (let i = 0; i < withStart.length; i++) checkSide(`startAtPlane piece ${i}`, withStart[i]);
+  // The first piece (paws+tail, both disconnected shells) should be far
+  // smaller in Z extent than any of the body slices above it.
+  const lowPieceZSize = (() => {
+    const p = withStart[0];
+    let minZ = Infinity, maxZ = -Infinity;
+    for (let i = 2; i < p.positions.length; i += 3) { minZ = Math.min(minZ, p.positions[i]); maxZ = Math.max(maxZ, p.positions[i]); }
+    return maxZ - minZ;
+  })();
+  if (!(lowPieceZSize <= 3 + 1e-6)) { results.push(`FAIL startAtPlane: low piece Z extent ${lowPieceZSize} should be <= 3 (paws+tail height)`); failures++; }
+}
+
+{
   // Export sanitize must not damage an already-watertight piece. Regression
   // for a real bug: sanitizeMeshForStl's fixed weld epsilon (0.05) was ~23%
   // of a small cut piece's own size (raw sub-1-unit source coordinates,
