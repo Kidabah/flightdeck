@@ -63,7 +63,7 @@
     <div>
       <div class="section-label">Output Folder</div>
       <button class="btn btn-ghost" id="chooseFolderBtn" style="width:100%">Choose Folder…</button>
-      <div class="hint" id="outputFolderStatus" style="margin-top:6px">Exports go to your Downloads by default. Choose a folder to save straight into a "chop" subfolder there instead.</div>
+      <div class="hint" id="outputFolderStatus" style="margin-top:6px">Exports go to your Downloads by default. Choose a folder and every Commit Cut / Auto-Chop saves its new pieces straight into a "chop" subfolder there, automatically.</div>
     </div>
 
     <div>
@@ -510,6 +510,27 @@ async function exportAllPieces() {
   $('exportAllBtn').disabled = false;
 }
 
+/**
+ * If an output folder is set, save freshly-cut pieces there right away
+ * (Commit Cut / Auto-Chop), instead of requiring a separate Export All
+ * click. Returns null when no folder is set (caller falls back to its
+ * normal status message), or { saved, total, error }.
+ */
+async function autoSaveIfFolderSet(newPieces) {
+  if (!outputDirHandle) return null;
+  let saved = 0;
+  for (const p of newPieces) {
+    try {
+      const blob = meshToStl(p.mesh, p.name);
+      await writeStlToOutputFolder(blob, `${baseName}-piece-${p.partNumber}.stl`);
+      saved++;
+    } catch (e) {
+      return { saved, total: newPieces.length, error: e.message };
+    }
+  }
+  return { saved, total: newPieces.length, error: null };
+}
+
 // -- File loading -----------------------------------------------------------
 
 async function loadFile(file) {
@@ -757,8 +778,16 @@ $('commitCutBtn').addEventListener('click', async () => {
   gizmo.visible = false; gizmo.enabled = false;
   $('commitCutBtn').disabled = true;
   const openCount = newPieces.filter((p) => p.openEdgeCount > 0).length;
-  const note = openCount ? ` (${openCount} came out with open edges — repair in Mesh Prep)` : '';
-  setStatus(`Cut into ${newPieces.length} piece${newPieces.length === 1 ? '' : 's'}${note}. Select a piece to cut again or export.`);
+  const notes = [];
+  if (openCount) notes.push(`${openCount} came out with open edges — repair in Mesh Prep`);
+  const saveResult = await autoSaveIfFolderSet(newPieces);
+  if (saveResult) {
+    notes.push(saveResult.error
+      ? `saved ${saveResult.saved}/${saveResult.total} to ${outputDirHandle.name}/chop/ before failing: ${saveResult.error}`
+      : `saved to ${outputDirHandle.name}/chop/`);
+  }
+  const note = notes.length ? ` (${notes.join('; ')})` : '';
+  setStatus(`Cut into ${newPieces.length} piece${newPieces.length === 1 ? '' : 's'}${note}.${saveResult ? '' : ' Select a piece to cut again or export.'}`);
 });
 
 $('modularCutBtn').addEventListener('click', async () => {
@@ -795,8 +824,14 @@ $('modularCutBtn').addEventListener('click', async () => {
   const notes = [];
   if (result.capped) notes.push('hit the piece cap — some parts may still be oversized');
   if (openCount) notes.push(`${openCount} piece${openCount === 1 ? '' : 's'} came out with open edges — repair in Mesh Prep before printing`);
+  const saveResult = await autoSaveIfFolderSet(newPieces);
+  if (saveResult) {
+    notes.push(saveResult.error
+      ? `saved ${saveResult.saved}/${saveResult.total} to ${outputDirHandle.name}/chop/ before failing: ${saveResult.error}`
+      : `saved to ${outputDirHandle.name}/chop/`);
+  }
   const note = notes.length ? ` (${notes.join('; ')})` : '';
-  setStatus(`Auto-chopped ${piece.name} into ${newPieces.length} pieces${note}. Select a piece to cut again or export.`);
+  setStatus(`Auto-chopped ${piece.name} into ${newPieces.length} pieces${note}.${saveResult ? '' : ' Select a piece to cut again or export.'}`);
 });
 
 $('undoBtn').addEventListener('click', () => {
