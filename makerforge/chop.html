@@ -114,7 +114,7 @@
         <label for="numPlanes" style="font-size:12px;color:var(--muted)">Number of planes</label>
         <input type="number" id="numPlanes" min="1" max="64" step="1" value="1">
       </div>
-      <div class="hint" style="margin-top:4px">More than 1 lays down evenly-spaced parallel cuts through the whole piece along the current plane, in one Commit Cut.</div>
+      <div class="hint" style="margin-top:4px">More than 1 lays down that many evenly-spaced parallel planes through the whole piece (shown as a preview below), producing planes+1 pieces in one Commit Cut.</div>
       <div class="btn-row" style="margin-top:10px">
         <button class="btn btn-primary" id="commitCutBtn" disabled>Commit Cut</button>
         <button class="btn btn-ghost" id="resetPlaneBtn">Reset Plane</button>
@@ -154,7 +154,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import './js/nav.js?v=551';
 import { loadMeshFromFile } from './js/mesh-import.js?v=2';
-import { sliceMeshByPlane, parallelPlaneCut, modularCut, computeBounds } from './js/mesh-cut.js?v=4';
+import { sliceMeshByPlane, parallelPlaneCut, modularCut, computeBounds } from './js/mesh-cut.js?v=5';
 import { meshToStl, downloadBlob, countOpenEdges } from './js/stl.js?v=372';
 
 const $ = (id) => document.getElementById(id);
@@ -196,6 +196,9 @@ const planeVisual = new THREE.Mesh(
   new THREE.MeshBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false }),
 );
 planeTarget.add(planeVisual);
+
+const extraPlaneGroup = new THREE.Group();
+scene.add(extraPlaneGroup);
 
 const gizmo = new TransformControls(camera, renderer.domElement);
 gizmo.addEventListener('dragging-changed', (e) => { controls.enabled = !e.value; });
@@ -322,7 +325,48 @@ function currentPlane() {
   return { point: [planeTarget.position.x, planeTarget.position.y, planeTarget.position.z], normal: [normal.x, normal.y, normal.z] };
 }
 
+function clearExtraPlaneVisuals() {
+  while (extraPlaneGroup.children.length) {
+    const m = extraPlaneGroup.children.pop();
+    m.geometry.dispose();
+    m.material.dispose();
+    extraPlaneGroup.remove(m);
+  }
+}
+
+/** Preview every plane a "Number of planes" > 1 cut will actually land on, matching parallelPlaneCut's math. */
+function updatePlaneVisuals() {
+  clearExtraPlaneVisuals();
+  const p = selectedPiece();
+  if (!p) return;
+  const planeCount = Math.max(1, Math.round(Number($('numPlanes').value) || 1));
+  if (planeCount <= 1) return; // single plane already shown via planeVisual
+
+  const b = pieceBounds(p);
+  const radius = Math.hypot(b.size[0], b.size[1], b.size[2]) || 10;
+  const { point, normal } = currentPlane();
+  const n = new THREE.Vector3(normal[0], normal[1], normal[2]);
+  const refPoint = new THREE.Vector3(point[0], point[1], point[2]);
+
+  const corners = [];
+  for (const x of [b.min[0], b.max[0]]) for (const y of [b.min[1], b.max[1]]) for (const z of [b.min[2], b.max[2]]) corners.push(new THREE.Vector3(x, y, z));
+  const projections = corners.map((c) => c.clone().sub(refPoint).dot(n));
+  const tMin = Math.min(...projections), tMax = Math.max(...projections);
+
+  for (let i = 1; i <= planeCount; i++) {
+    const t = tMin + ((tMax - tMin) * i) / (planeCount + 1);
+    const mesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(radius * 1.4, radius * 1.4),
+      new THREE.MeshBasicMaterial({ color: 0x2dd4bf, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false }),
+    );
+    mesh.position.copy(refPoint).addScaledVector(n, t);
+    mesh.quaternion.copy(planeTarget.quaternion);
+    extraPlaneGroup.add(mesh);
+  }
+}
+
 function updateClipPreview() {
+  updatePlaneVisuals();
   const mesh = selectedThreeMesh();
   if (!mesh) return;
   const { point, normal } = currentPlane();
@@ -582,6 +626,7 @@ for (const axis of ['x', 'y', 'z']) {
   });
 }
 $('axisSlider').addEventListener('input', applyAxisToPlane);
+$('numPlanes').addEventListener('input', updatePlaneVisuals);
 $('resetPlaneBtn').addEventListener('click', resetPlaneToPiece);
 
 // -- Commit cut / undo ----------------------------------------------------

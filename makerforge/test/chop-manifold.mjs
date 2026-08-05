@@ -177,20 +177,29 @@ function mergeMeshes(meshes) {
 }
 
 {
-  // Number-of-planes cut: 5 evenly-spaced parallel cuts along Z should yield 6 pieces.
+  // Number-of-planes cut: 6 literal planes (matching LuBan's own field name and
+  // multi-plane preview) should yield 7 pieces, not 6.
   const box = buildBox(0, 0, 0, 12, 12, 60);
   const pieces = await parallelPlaneCut(box, [0, 0, 0], [0, 0, 1], 6);
-  results.push(`INFO parallel cut: ${pieces.length} pieces (expect 6)`);
-  if (pieces.length !== 6) { results.push("FAIL parallel cut: expected 6 pieces"); failures++; }
+  results.push(`INFO parallel cut: ${pieces.length} pieces from 6 planes (expect 7)`);
+  if (pieces.length !== 7) { results.push("FAIL parallel cut: expected 7 pieces from 6 planes"); failures++; }
   for (let i = 0; i < pieces.length; i++) checkSide(`parallel cut piece ${i}`, pieces[i]);
 }
 
 {
-  // Number-of-planes cut with count 1 should be a no-op (single unchanged piece).
+  // Number-of-planes cut with 1 plane should yield 2 pieces (an ordinary single cut).
   const box = buildBox(0, 0, 0, 10, 10, 10);
   const pieces = await parallelPlaneCut(box, [0, 0, 0], [0, 0, 1], 1);
-  if (pieces.length !== 1) { results.push(`FAIL parallel cut count=1: expected 1 piece, got ${pieces.length}`); failures++; }
-  else checkSide("parallel cut count=1", pieces[0]);
+  if (pieces.length !== 2) { results.push(`FAIL parallel cut planeCount=1: expected 2 pieces, got ${pieces.length}`); failures++; }
+  else { checkSide("parallel cut planeCount=1 above", pieces[0]); checkSide("parallel cut planeCount=1 below", pieces[1]); }
+}
+
+{
+  // Number-of-planes cut with 0 planes should be a no-op (single unchanged piece).
+  const box = buildBox(0, 0, 0, 10, 10, 10);
+  const pieces = await parallelPlaneCut(box, [0, 0, 0], [0, 0, 1], 0);
+  if (pieces.length !== 1) { results.push(`FAIL parallel cut planeCount=0: expected 1 piece, got ${pieces.length}`); failures++; }
+  else checkSide("parallel cut planeCount=0", pieces[0]);
 }
 
 {

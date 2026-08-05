@@ -107,17 +107,20 @@ export async function sliceMeshByPlane(mesh, planePoint, planeNormal) {
 }
 
 /**
- * LuBan-style "Number of planes" cut: lay `count` evenly-spaced parallel
- * planes (all sharing `normal`) across the full extent of `mesh` along that
- * normal, splitting it into up to count+1 pieces in one pass.
+ * LuBan-style "Number of planes" cut: lay `planeCount` evenly-spaced
+ * parallel planes (all sharing `normal`) across the full extent of `mesh`
+ * along that normal, splitting it into up to planeCount+1 pieces in one
+ * pass. `planeCount` is a literal plane count (matching LuBan's own field
+ * of the same name and its multi-plane preview) — 10 planes -> up to 11
+ * pieces, not 10.
  *
  * Cuts proceed low-to-high along the normal; each step peels off the
  * "below" side as a finished piece and keeps "above" as the remainder for
  * the next plane. Returns an array of {positions,indices,openEdgeCount}
  * pieces, ordered low-to-high along the normal.
  */
-export async function parallelPlaneCut(mesh, planePoint, planeNormal, count) {
-  if (count <= 1) return [withOpenEdgeCount(mesh)];
+export async function parallelPlaneCut(mesh, planePoint, planeNormal, planeCount) {
+  if (planeCount <= 0) return [withOpenEdgeCount(mesh)];
 
   const normal = normalize(planeNormal);
   const { min, max } = computeBounds(mesh.positions);
@@ -129,8 +132,8 @@ export async function parallelPlaneCut(mesh, planePoint, planeNormal, count) {
 
   const pieces = [];
   let remaining = mesh;
-  for (let i = 1; i < count && remaining; i++) {
-    const t = tMin + ((tMax - tMin) * i) / count;
+  for (let i = 1; i <= planeCount && remaining; i++) {
+    const t = tMin + ((tMax - tMin) * i) / (planeCount + 1);
     const point = [planePoint[0] + normal[0] * t, planePoint[1] + normal[1] * t, planePoint[2] + normal[2] * t];
     const cut = await sliceMeshByPlane(remaining, point, normal);
     if (!cut.below && !cut.above) continue; // plane missed this remainder — try the next one
