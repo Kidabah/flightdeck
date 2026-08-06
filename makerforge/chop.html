@@ -30,7 +30,7 @@
   border-radius:var(--radius-sm);padding:4px 6px;font:inherit}
 .axis-btns{display:flex;gap:4px}
 .axis-btns button{flex:1}
-.axis-btns button.active,.mode-btns button.active{background:var(--accent);color:var(--bg);border-color:var(--accent)}
+.axis-btns button.active,.mode-btns button.active,#moveModelBtn.active{background:var(--accent);color:var(--bg);border-color:var(--accent)}
 .mode-btns{display:flex;gap:4px}
 .mode-btns button{flex:1}
 .piece-list{display:flex;flex-direction:column;gap:6px}
@@ -87,6 +87,12 @@
         <input type="number" id="dimZ" step="any" placeholder="Z">
       </div>
       <button class="btn btn-primary" id="applyScaleBtn" style="width:100%;margin-top:8px" disabled>Apply Scale</button>
+    </div>
+
+    <div>
+      <div class="section-label">Position</div>
+      <button class="btn btn-ghost" id="moveModelBtn" style="width:100%" disabled>Move Model</button>
+      <div class="hint" style="margin-top:6px">Drag the model in the viewport to re-center it — useful when an off-center feature (like a tail) throws off where Grid/Straight cuts land. Height stays locked to the bed; click again to lock the new position in.</div>
     </div>
 
     <div>
@@ -325,6 +331,41 @@ scene.add(gizmo);
 gizmo.visible = false;
 gizmo.enabled = false;
 
+// Separate gizmo (not the cut-plane one above) for repositioning the model
+// itself in X/Y before cutting -- e.g. re-centering when an off-center
+// feature like a tail skews the bounding box and throws off where an
+// "even" Grid/Straight cut lands. Z is locked (showZ=false) since models
+// always rest on the bed at Z=0; only X/Y ever move.
+let moveMode = false;
+const modelGizmo = new TransformControls(camera, renderer.domElement);
+modelGizmo.showZ = false;
+modelGizmo.addEventListener('dragging-changed', (e) => { controls.enabled = !e.value; });
+modelGizmo.addEventListener('mouseUp', () => { bakeModelMove(); updateGridVisuals(); updateAxesHelper(); });
+scene.add(modelGizmo);
+modelGizmo.visible = false;
+modelGizmo.enabled = false;
+
+/** Fold the model-move gizmo's accumulated X/Y offset into the piece's raw vertex data (same "bake it into positions" convention Apply Scale already uses), then zero the gizmo's Object3D position back out. */
+function bakeModelMove() {
+  const p = selectedPiece();
+  const mesh = selectedThreeMesh();
+  if (!p || !mesh) return;
+  const dx = mesh.position.x, dy = mesh.position.y;
+  if (!dx && !dy) return;
+  const pos = p.mesh.positions;
+  for (let i = 0; i < pos.length; i += 3) { pos[i] += dx; pos[i + 1] += dy; }
+  mesh.position.set(0, 0, 0);
+}
+
+function exitMoveMode() {
+  if (!moveMode) return;
+  bakeModelMove();
+  modelGizmo.detach();
+  modelGizmo.visible = false; modelGizmo.enabled = false;
+  moveMode = false;
+  $('moveModelBtn').classList.remove('active');
+}
+
 function resize() {
   const r = $('viewport').getBoundingClientRect();
   renderer.setSize(r.width, r.height);
@@ -390,6 +431,7 @@ function fmt(n) { return Number.isFinite(n) ? n.toLocaleString(undefined, { maxi
 // -- Scene rebuild ------------------------------------------------------
 
 function rebuildScene() {
+  exitMoveMode(); // bake+detach before the mesh it's attached to gets torn down below
   while (piecesGroup.children.length) piecesGroup.remove(piecesGroup.children[0]);
   for (const p of pieces) {
     const geom = toBufferGeometry(p.mesh);
@@ -640,6 +682,7 @@ function updateCommitButtonState() {
   if (!disabled && cutMode === 'modular') disabled = !bedDims() || fitsBed(sel) !== false;
   $('commitCutBtn').disabled = disabled;
   $('resetPlaneBtn').disabled = !sel || (cutMode !== 'straight' && cutMode !== 'angled');
+  $('moveModelBtn').disabled = !sel;
 }
 
 function renderPieceList() {
@@ -915,6 +958,24 @@ $('applyScaleBtn').addEventListener('click', () => {
   setStatus('Scale applied.');
 });
 
+$('moveModelBtn').addEventListener('click', () => {
+  if (moveMode) {
+    exitMoveMode();
+    updateGridVisuals();
+    updateAxesHelper();
+    setStatus('Model position locked in.');
+    return;
+  }
+  const mesh = selectedThreeMesh();
+  if (!mesh) return;
+  moveMode = true;
+  modelGizmo.attach(mesh);
+  modelGizmo.setMode('translate');
+  modelGizmo.visible = true; modelGizmo.enabled = true;
+  $('moveModelBtn').classList.add('active');
+  setStatus('Drag the model in the viewport to reposition it, then click "Move Model" again to lock it in.');
+});
+
 // -- Output folder ----------------------------------------------------------
 
 if (!window.showDirectoryPicker) {
@@ -990,6 +1051,7 @@ $('exportAllBtn').addEventListener('click', exportAllPieces);
 // -- Cut mode / axis ----------------------------------------------------
 
 function setCutMode(mode) {
+  exitMoveMode(); // don't let the move gizmo and the cut-plane gizmo show at once
   cutMode = mode;
   $('cutModeSelect').value = mode;
   const isPlaneMode = mode === 'straight' || mode === 'angled';
