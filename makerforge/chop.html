@@ -59,6 +59,8 @@
       </div>
       <button class="btn btn-ghost" id="loadFromFolderBtn" style="width:100%;margin-top:8px">Choose Folder &amp; Load Model</button>
       <div class="hint" style="margin-top:4px">Picks a folder, lists its STL/OBJ files, and links that same folder as the output folder — no separate step after.</div>
+      <button class="btn btn-ghost" id="importAllPiecesBtn" style="width:100%;margin-top:8px;display:none">Import All as Pieces</button>
+      <div class="hint" id="importAllPiecesHint" style="margin-top:4px;display:none">Loads every model here as a separate piece, keeping their original positions — for re-inspecting a cut you already made (e.g. with Explode) rather than loading a fresh model.</div>
       <div id="folderFileList" class="piece-list" style="display:none;margin-top:8px"></div>
       <div id="loadPill" class="pill" style="margin-top:8px;display:none"></div>
       <button class="btn btn-ghost" id="clearModelBtn" style="width:100%;margin-top:8px;display:none">Clear / Load New Model</button>
@@ -961,6 +963,68 @@ async function loadFile(file) {
   }
 }
 
+/**
+ * Re-import a folder of already-cut STL/OBJ files as separate pieces —
+ * for inspecting a completed cut (with Explode/colors) rather than loading
+ * a fresh model. Unlike loadFile(), this does NOT shift each file to
+ * Z=0 — that would destroy their correct relative positions from the
+ * original cut — and it keeps each file's own name instead of the
+ * generic "Piece N" renumberPieces() would assign.
+ */
+async function loadPiecesFromFolder(dirHandle, modelFiles) {
+  try {
+    setStatus(`Loading ${modelFiles.length} pieces from "${dirHandle.name}"…`);
+    const loaded = [];
+    let totalOpenEdges = 0;
+    for (const { name, handle } of modelFiles) {
+      const file = await handle.getFile();
+      const mesh = await loadMeshFromFile(file);
+      const openEdgeCount = countOpenEdges(mesh.positions, mesh.indices);
+      totalOpenEdges += openEdgeCount;
+      loaded.push({
+        id: `piece-${nextId++}`,
+        partNumber: loaded.length + 1,
+        name: name.replace(/\.(stl|obj)$/i, ''),
+        mesh,
+        openEdgeCount,
+      });
+    }
+    baseName = dirHandle.name;
+    pieces = loaded;
+    selectedId = pieces[0].id;
+    undoStack = [];
+    rebuildScene();
+    frame();
+    updateAxesHelper();
+    resetPlaneToPiece();
+    renderPieceList();
+    updateScaleFieldsFromModel();
+    setOutputFolder(dirHandle);
+
+    const loadPill = $('loadPill');
+    loadPill.style.display = 'inline-flex';
+    if (totalOpenEdges > 0) {
+      loadPill.className = 'pill bad';
+      loadPill.textContent = `${totalOpenEdges} open edges`;
+      setStatus(`Loaded ${pieces.length} pieces from "${dirHandle.name}" — ${totalOpenEdges} open edge(s) total. Press E to explode, R to restore.`);
+    } else {
+      loadPill.className = 'pill good';
+      loadPill.textContent = 'Watertight';
+      setStatus(`Loaded ${pieces.length} pieces from "${dirHandle.name}". Press E to explode, R to restore.`);
+    }
+    $('fileName').textContent = `${pieces.length} pieces from "${dirHandle.name}"`;
+    $('applyScaleBtn').disabled = false;
+    $('clearModelBtn').style.display = '';
+
+    $('folderFileList').style.display = 'none';
+    $('folderFileList').innerHTML = '';
+    $('importAllPiecesBtn').style.display = 'none';
+    $('importAllPiecesHint').style.display = 'none';
+  } catch (e) {
+    setStatus('Error: ' + e.message);
+  }
+}
+
 /** Wipe the whole workspace back to the pre-load state — bed dims and output folder are left alone since those carry over sensibly to the next model. */
 function clearModel() {
   pieces = [];
@@ -1112,6 +1176,8 @@ async function loadFromFileHandle(dirHandle, fileHandle) {
   setOutputFolder(dirHandle);
   $('folderFileList').style.display = 'none';
   $('folderFileList').innerHTML = '';
+  $('importAllPiecesBtn').style.display = 'none';
+  $('importAllPiecesHint').style.display = 'none';
 }
 
 $('loadFromFolderBtn').addEventListener('click', async () => {
@@ -1147,7 +1213,11 @@ $('loadFromFolderBtn').addEventListener('click', async () => {
     list.appendChild(row);
   }
   list.style.display = '';
-  setStatus(`${modelFiles.length} models found in "${dirHandle.name}" — pick one to load.`);
+  const importAllBtn = $('importAllPiecesBtn');
+  importAllBtn.style.display = '';
+  importAllBtn.onclick = () => loadPiecesFromFolder(dirHandle, modelFiles);
+  $('importAllPiecesHint').style.display = '';
+  setStatus(`${modelFiles.length} models found in "${dirHandle.name}" — pick one to load, or "Import All as Pieces" to load them together (e.g. to inspect a completed cut).`);
 });
 
 $('exportAllBtn').addEventListener('click', exportAllPieces);
