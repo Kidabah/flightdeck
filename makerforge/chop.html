@@ -211,7 +211,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import './js/nav.js?v=551';
 import { loadMeshFromFile } from './js/mesh-import.js?v=2';
-import { sliceMeshByPlane, parallelPlaneCut, modularCut, gridCut, computeBounds, computeDefaultFlexiPlanes, flexiCut } from './js/mesh-cut.js?v=9';
+import { sliceMeshByPlane, parallelPlaneCut, modularCut, gridCut, smoothMesh, computeBounds, computeDefaultFlexiPlanes, flexiCut } from './js/mesh-cut.js?v=10';
 import { meshToStl, downloadBlob, countOpenEdges } from './js/stl.js?v=372';
 
 const $ = (id) => document.getElementById(id);
@@ -730,6 +730,7 @@ function renderPieceList() {
         <span class="pill ${pillClass}" style="margin-top:4px">${pillText}</span>${openPill}
       </div>
       <div class="actions">
+        <button class="btn btn-icon btn-ghost" data-act="smooth" title="Smooth (round off low-poly facets)"${p.openEdgeCount > 0 ? ' disabled' : ''}>&#x223F;</button>
         <button class="btn btn-icon btn-ghost" data-act="export" title="Export STL">&#x2913;</button>
         <button class="btn btn-icon btn-danger" data-act="delete" title="Delete">&#x2715;</button>
       </div>`;
@@ -737,6 +738,7 @@ function renderPieceList() {
       if (e.target.closest('button')) return;
       selectPiece(p.id);
     });
+    row.querySelector('[data-act=smooth]').addEventListener('click', () => smoothPiece(p));
     row.querySelector('[data-act=export]').addEventListener('click', () => exportPiece(p));
     row.querySelector('[data-act=delete]').addEventListener('click', () => deletePiece(p.id));
     list.appendChild(row);
@@ -767,6 +769,32 @@ function deletePiece(id) {
   rebuildScene();
   renderPieceList();
   if (selectedId) resetPlaneToPiece();
+}
+
+/**
+ * Round off a piece's low-poly "faceted" look (see mesh-cut.js's
+ * smoothMesh doc comment for why small pieces end up under-triangulated)
+ * without changing its actual shape or size -- mutates this one piece in
+ * place, same convention as Apply Scale, with an undo entry so a bad
+ * result is one click to back out of.
+ */
+async function smoothPiece(piece) {
+  const before = piece.mesh.indices.length / 3;
+  setStatus(`Smoothing ${piece.name}…`);
+  let result;
+  try {
+    result = await smoothMesh(piece.mesh);
+  } catch (e) {
+    setStatus('Smooth failed: ' + e.message);
+    return;
+  }
+  undoStack.push(pieces.slice());
+  piece.mesh = result;
+  piece.openEdgeCount = result.openEdgeCount;
+  rebuildScene();
+  renderPieceList();
+  const after = result.indices.length / 3;
+  setStatus(`Smoothed ${piece.name}: ${before} → ${after} triangles.`);
 }
 
 /** Write a blob into "<outputDirHandle>/chop/<filename>", creating the chop folder if needed. */

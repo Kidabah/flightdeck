@@ -4,8 +4,9 @@
  * Backed by manifold-3d (see mesh-cut.js header for why). Run via ./run.sh.
  * Exit code 0 = all pass, 1 = a regression.
  */
-import { sliceMeshByPlane, modularCut, parallelPlaneCut, computeDefaultFlexiPlanes, flexiCut, gridCut } from "./_staged/mesh-cut.js";
+import { sliceMeshByPlane, modularCut, parallelPlaneCut, computeDefaultFlexiPlanes, flexiCut, gridCut, smoothMesh } from "./_staged/mesh-cut.js";
 import { countOpenEdges, sanitizeMeshForStl } from "./_staged/stl.js";
+import ManifoldModule from "manifold-3d";
 
 let failures = 0;
 const results = [];
@@ -67,6 +68,42 @@ function buildBox(cx, cy, cz, sx, sy, sz) {
     1, 2, 6, 1, 6, 5, // right (+x)
   ];
   return { positions, indices };
+}
+
+let manifoldWasmPromise = null;
+function getManifoldWasm() {
+  if (!manifoldWasmPromise) manifoldWasmPromise = ManifoldModule().then((wasm) => { wasm.setup(); return wasm; });
+  return manifoldWasmPromise;
+}
+
+/**
+ * Same box as buildBox, but with each face subdivided into n^2 quads (2*n^2
+ * triangles per face) instead of just 2. smoothMesh's tests need this rather
+ * than the bare 12-triangle box: manifold-3d's smoothOut/refineToLength has
+ * a real edge case on faces with only 2 triangles (confirmed via a
+ * standalone diagnostic -- every "refined" vertex collapsed back onto the
+ * original 8 corners, silently, with status() still reporting NoError) that
+ * does not occur on faces with 3+ triangles (manifold-3d's own docs note
+ * "flat faces of three or more triangles will always remain flat", implying
+ * 2-triangle faces are a known special case) or on any real cut piece
+ * (confirmed directly against a real exported 126-triangle piece: 100% of
+ * refined vertices came out unique, zero collapse). Built via manifold-3d's
+ * own `.refine()` for fixture generation only, not part of what's under test.
+ */
+async function buildDenseBox(cx, cy, cz, sx, sy, sz, n = 4) {
+  const { Manifold, Mesh } = await getManifoldWasm();
+  const box = buildBox(cx, cy, cz, sx, sy, sz);
+  const manifold = new Manifold(new Mesh({
+    numProp: 3,
+    vertProperties: Float32Array.from(box.positions),
+    triVerts: Uint32Array.from(box.indices),
+  }));
+  const dense = manifold.refine(n);
+  const raw = dense.getMesh();
+  const result = { positions: Array.from(raw.vertProperties), indices: Array.from(raw.triVerts) };
+  manifold.delete();
+  dense.delete();
+  return result;
 }
 
 function mergeMeshes(meshes) {
@@ -363,6 +400,32 @@ function mergeMeshes(meshes) {
   } catch (e) {
     results.push(`PASS non-manifold-input: threw as expected (${e.message})`);
   }
+}
+
+{
+  // smoothMesh must genuinely increase resolution on a coarse mesh, while staying watertight.
+  const box = await buildDenseBox(0, 0, 0, 20, 20, 20); // 192 triangles
+  const smoothed = await smoothMesh(box);
+  const before = box.indices.length / 3, after = smoothed.indices.length / 3;
+  results.push(`INFO smoothMesh triangle count: ${before} -> ${after}`);
+  if (after <= before) { results.push("FAIL smoothMesh: expected more triangles after refining a coarse box"); failures++; }
+  checkSide("smoothMesh coarse box", smoothed);
+}
+
+{
+  // The whole point of using manifold-3d's smoothOut (flat faces of 3+
+  // triangles always stay flat) is that it's safe to run on a real cut
+  // piece without bulging the flat cut cross-section into a curve. Cut a
+  // box near its base, smooth the result, and confirm the flat cap stays
+  // flat instead of drifting off z=3.
+  const box = await buildDenseBox(0, 0, 0, 30, 30, 30); // z in [-15, 15]
+  const { below } = await sliceMeshByPlane(box, [0, 0, 3], [0, 0, 1]);
+  const smoothed = await smoothMesh(below);
+  checkSide("smoothMesh flat-cap piece", smoothed);
+  let maxZ = -Infinity;
+  for (let i = 2; i < smoothed.positions.length; i += 3) maxZ = Math.max(maxZ, smoothed.positions[i]);
+  results.push(`INFO smoothMesh flat cap max Z: ${maxZ} (expect ~3)`);
+  if (Math.abs(maxZ - 3) > 0.01) { results.push(`FAIL smoothMesh: flat cut face should stay flat at z=3, got maxZ=${maxZ}`); failures++; }
 }
 
 for (const r of results) console.log(r);

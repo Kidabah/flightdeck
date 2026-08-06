@@ -107,6 +107,70 @@ export async function sliceMeshByPlane(mesh, planePoint, planeNormal) {
 }
 
 /**
+ * Round off the low-poly "faceted" look a small cut piece can have once
+ * scaled up in a slicer. Real cause: a source scan's triangle budget is
+ * fixed and gets divided by surface area across however many pieces a cut
+ * produces, so a small piece can end up with very few triangles for its
+ * physical size — each one highly visible once magnified, even though the
+ * mesh itself is perfectly watertight (confirmed on a real 27-piece cut:
+ * every piece 0 open/non-manifold edges, this is a resolution problem, not
+ * a correctness one). Uses manifold-3d's own smoothing pipeline rather
+ * than a hand-rolled subdivision — `smoothOut` auto-detects which edges
+ * are real corners (kept sharp) vs. genuinely curved surface (smoothed to
+ * G1 continuity), critically leaving flat faces of 3+ triangles — e.g. the
+ * planar cross-section every planar cut produces — untouched, then
+ * `refineToLength` subdivides until triangles are below `targetLength`,
+ * moving new vertices onto the interpolated smooth surface rather than
+ * just flat-splitting.
+ *
+ * `targetLength` is not required — computed automatically as this piece's
+ * own bounding-box diagonal / 80, clamped to [0.1, 3]. That means it's a
+ * near no-op on the large pieces from an original dense scan (already
+ * finer than that), and meaningfully refines the tiny sparse ones without
+ * needing per-piece tuning — same "scale-relative, not a fixed constant"
+ * approach as the weld epsilon fixes elsewhere in this pipeline.
+ */
+export async function smoothMesh(mesh, { targetLength, minSharpAngle = 52.5, minSmoothness = 0 } = {}) {
+  const { Manifold, Mesh } = await getManifoldModule();
+  const b = computeBounds(mesh.positions);
+  const diagonal = Math.hypot(...b.size) || 1;
+  const length = targetLength ?? Math.min(3, Math.max(0.1, diagonal / 80));
+  let manifold = toManifold(Manifold, Mesh, mesh);
+  // manifold-3d's smoothOut has a real edge case on meshes with very few
+  // triangles per flat face (confirmed directly: a bare 12-triangle box, 2
+  // triangles/face, silently collapses every refined vertex back onto the
+  // original 8 corners -- status() still reports NoError throughout, so
+  // this can't be caught any other way than knowing to avoid it). Sparse
+  // input is exactly what this feature targets (small under-triangulated
+  // pieces), so pre-refine first to guarantee every face has enough
+  // triangles to dodge it; skip for anything already dense enough that
+  // it's very unlikely to be a simple few-triangle shape, so an
+  // already-detailed piece doesn't get its triangle count needlessly
+  // multiplied before refineToLength even runs.
+  if (manifold.numTri() < 2000) {
+    const denser = manifold.refine(4);
+    manifold.delete();
+    manifold = denser;
+  }
+  let smoothed, refined;
+  try {
+    smoothed = manifold.smoothOut(minSharpAngle, minSmoothness);
+    refined = smoothed.refineToLength(length);
+  } finally {
+    manifold.delete();
+  }
+  if (refined.numTri() > 2_000_000) {
+    smoothed.delete();
+    refined.delete();
+    throw new Error(`Smoothing would produce ${refined.numTri()} triangles — aborted to avoid freezing the browser.`);
+  }
+  const result = fromManifold(refined);
+  smoothed.delete();
+  refined.delete();
+  return result;
+}
+
+/**
  * Compute `planeCount` default evenly-spaced planes across `mesh`'s full
  * extent along `normal`, anchored at `planePoint`. Returns
  * [{t, point, normal}] ordered low-to-high, where `t` is signed distance
