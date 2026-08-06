@@ -234,6 +234,16 @@ let planeOverrides = new Map(); // Flexi cut: 1-based plane index -> {t, point, 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x060a10);
 const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 20000);
+// This whole app treats Z as "up" (loaded models rest with their base at
+// Z=0, cut planes, the axis/grid helper, everything) but three.js
+// defaults camera.up to Y -- TransformControls' internal translate-plane
+// math depends on camera.up for disambiguating axis/plane orientation, so
+// leaving the mismatch in place silently broke its drag math (confirmed:
+// pointerdown correctly grabbed the right axis, but the actual position
+// offset it computed during pointermove stayed zero/NaN). OrbitControls
+// tolerates the mismatch fine (still orbits, just not "wrong"), which is
+// why only the Move Model gizmo was ever visibly broken.
+camera.up.set(0, 0, 1);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.localClippingEnabled = true;
 $('viewport').appendChild(renderer.domElement);
@@ -353,10 +363,10 @@ function bakeModelMove() {
   const mesh = selectedThreeMesh();
   if (!p || !mesh) return;
   const dx = mesh.position.x, dy = mesh.position.y;
-  if (!dx && !dy) return;
+  mesh.position.set(0, 0, 0); // always reset the gizmo's offset, even on a degenerate/failed drag
+  if (!Number.isFinite(dx) || !Number.isFinite(dy) || (!dx && !dy)) return; // never let a bad drag corrupt real vertex data
   const pos = p.mesh.positions;
   for (let i = 0; i < pos.length; i += 3) { pos[i] += dx; pos[i + 1] += dy; }
-  mesh.position.set(0, 0, 0);
 }
 
 function exitMoveMode() {
