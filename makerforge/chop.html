@@ -185,6 +185,8 @@
 
   <div class="viewport" id="viewport">
     <div class="viewport-toolbar">
+      <button id="tbRotateLeft" title="Rotate left">&#x21B6;</button>
+      <button id="tbRotateRight" title="Rotate right">&#x21B7;</button>
       <button id="tbFrame">Frame</button>
       <button id="tbWire">Wire</button>
     </div>
@@ -522,6 +524,15 @@ function updateGridVisuals() {
   const p = selectedPiece();
   if (!p) return;
   const b = pieceBounds(p);
+  // computeDefaultFlexiPlanes is anchored at the world origin (matching
+  // gridCut's own math), so its returned `t` is only the coordinate along
+  // the cut axis -- the other two coordinates must be filled in separately
+  // with the model's own center, or the plane renders centered on world
+  // (0,0,0) instead of the model. That previously sank X/Y-normal preview
+  // planes well below Z=0 (below the bed) whenever the model's actual
+  // mid-height wasn't 0, even though the real cut (a full-extent Manifold
+  // plane) was never affected -- purely a preview positioning bug.
+  const center = [(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2, (b.min[2] + b.max[2]) / 2];
   const margin = 1.15;
   const planeDims = {
     x: [b.size[2] * margin, b.size[1] * margin], // X-normal plane spans Z (width) x Y (height)
@@ -532,18 +543,20 @@ function updateGridVisuals() {
   const yCount = Math.max(0, Math.round(Number($('gridYCount').value) || 0));
   const zCount = Math.max(0, Math.round(Number($('gridZCount').value) || 0));
 
-  const addAxisPlanes = (count, normal, dims, color) => {
+  const addAxisPlanes = (count, axisIdx, normal, dims, color) => {
     if (count <= 0) return;
     const targetNormal = new THREE.Vector3(normal[0], normal[1], normal[2]);
     const quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), targetNormal);
     const geom = new THREE.PlaneGeometry(dims[0] || 10, dims[1] || 10);
     const edgeGeom = new THREE.EdgesGeometry(geom);
-    for (const { point } of computeDefaultFlexiPlanes(p.mesh, [0, 0, 0], normal, count)) {
+    for (const { t } of computeDefaultFlexiPlanes(p.mesh, [0, 0, 0], normal, count)) {
+      const pos = center.slice();
+      pos[axisIdx] = t;
       const mesh = new THREE.Mesh(
         geom,
         new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false }),
       );
-      mesh.position.set(point[0], point[1], point[2]);
+      mesh.position.set(pos[0], pos[1], pos[2]);
       mesh.quaternion.copy(quat);
       extraPlaneGroup.add(mesh);
       const edges = new THREE.LineSegments(edgeGeom, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.7 }));
@@ -552,9 +565,9 @@ function updateGridVisuals() {
       extraPlaneGroup.add(edges);
     }
   };
-  addAxisPlanes(xCount, [1, 0, 0], planeDims.x, 0xff6b6b); // red — X divisions
-  addAxisPlanes(yCount, [0, 1, 0], planeDims.y, 0x4ade80); // green — Y divisions
-  addAxisPlanes(zCount, [0, 0, 1], planeDims.z, 0xfbbf24); // amber — Z divisions
+  addAxisPlanes(xCount, 0, [1, 0, 0], planeDims.x, 0xff6b6b); // red — X divisions
+  addAxisPlanes(yCount, 1, [0, 1, 0], planeDims.y, 0x4ade80); // green — Y divisions
+  addAxisPlanes(zCount, 2, [0, 0, 1], planeDims.z, 0xfbbf24); // amber — Z divisions
 }
 
 function adjustPlaneSliderChanged() {
@@ -1185,6 +1198,19 @@ $('undoBtn').addEventListener('click', () => {
 });
 
 // -- Viewport toolbar -------------------------------------------------------
+
+/** Turntable-style left/right rotation around the current target, keeping height (Z) fixed -- an explicit, drag-free alternative to OrbitControls' left-click orbit, since Z is our world "up" rather than the Y OrbitControls assumes internally for its own keyboard/touch defaults. */
+function rotateAroundTarget(deltaRad) {
+  const offset = camera.position.clone().sub(controls.target);
+  const cos = Math.cos(deltaRad), sin = Math.sin(deltaRad);
+  const x = offset.x * cos - offset.y * sin;
+  const y = offset.x * sin + offset.y * cos;
+  offset.x = x; offset.y = y;
+  camera.position.copy(controls.target).add(offset);
+  controls.update();
+}
+$('tbRotateLeft').addEventListener('click', () => rotateAroundTarget(Math.PI / 6));
+$('tbRotateRight').addEventListener('click', () => rotateAroundTarget(-Math.PI / 6));
 
 $('tbFrame').addEventListener('click', frame);
 $('tbWire').addEventListener('click', () => {
