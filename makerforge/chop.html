@@ -195,6 +195,8 @@
       <button id="tbRotateRight" title="Rotate right">&#x21B7;</button>
       <button id="tbFrame">Frame</button>
       <button id="tbWire">Wire</button>
+      <button id="tbExplode" title="Explode view — see where each cut landed (or press E)">Explode</button>
+      <button id="tbRestore" title="Restore assembled view (or press R)">Restore</button>
     </div>
     <div class="statusbar"><span id="status">Drop an STL or OBJ to begin</span></div>
   </div>
@@ -455,22 +457,73 @@ function fmt(n) { return Number.isFinite(n) ? n.toLocaleString(undefined, { maxi
 
 // -- Scene rebuild ------------------------------------------------------
 
+// Stable, distinct colors so an exploded view reads as "one color per
+// piece" rather than needing to guess which fragment came from where.
+const PIECE_PALETTE = [
+  0xff6b6b, 0x4ade80, 0xfbbf24, 0x60a5fa, 0xc084fc, 0x2dd4bf, 0xf472b6, 0xa3e635,
+  0xfb923c, 0x38bdf8, 0xe879f9, 0x34d399, 0xfacc15, 0x818cf8, 0xf87171, 0x22d3ee,
+];
+let explodeFactor = 0; // 0 = assembled; increases via the E key / Explode button, R resets to 0
+
 function rebuildScene() {
   exitMoveMode(); // bake+detach before the mesh it's attached to gets torn down below
   while (piecesGroup.children.length) piecesGroup.remove(piecesGroup.children[0]);
-  for (const p of pieces) {
+  // Only switch to the per-piece palette once there's actually more than one
+  // piece to tell apart -- a single freshly-loaded model keeps the old
+  // plain selected/unselected coloring, since there's nothing to explode yet.
+  const multi = pieces.length > 1;
+  const cb = multi ? combinedBounds() : null;
+  const centerPt = cb ? [(cb.min[0] + cb.max[0]) / 2, (cb.min[1] + cb.max[1]) / 2, (cb.min[2] + cb.max[2]) / 2] : null;
+  const explodeScale = cb ? Math.hypot(...cb.size) * 0.5 : 0;
+  pieces.forEach((p, i) => {
     const geom = toBufferGeometry(p.mesh);
     const selected = p.id === selectedId;
+    const baseColor = multi ? PIECE_PALETTE[i % PIECE_PALETTE.length] : (selected ? 0x3ecfff : 0x2a3a4a);
     const mat = new THREE.MeshStandardMaterial({
-      color: selected ? 0x3ecfff : 0x2a3a4a, roughness: 0.55, metalness: 0.1,
+      color: baseColor, roughness: 0.55, metalness: 0.1,
       side: THREE.DoubleSide, flatShading: true, transparent: false, opacity: 1,
+      emissive: selected ? new THREE.Color(baseColor).multiplyScalar(0.35) : 0x000000,
     });
     const mesh = new THREE.Mesh(geom, mat);
     mesh.userData.pieceId = p.id;
+    if (multi && explodeFactor > 0) {
+      const pb = pieceBounds(p);
+      const pc = [(pb.min[0] + pb.max[0]) / 2, (pb.min[1] + pb.max[1]) / 2, (pb.min[2] + pb.max[2]) / 2];
+      const dir = [pc[0] - centerPt[0], pc[1] - centerPt[1], pc[2] - centerPt[2]];
+      const len = Math.hypot(...dir) || 1;
+      mesh.position.set(
+        (dir[0] / len) * explodeFactor * explodeScale,
+        (dir[1] / len) * explodeFactor * explodeScale,
+        (dir[2] / len) * explodeFactor * explodeScale,
+      );
+    }
     piecesGroup.add(mesh);
-  }
+  });
   updateClipPreview();
 }
+
+/**
+ * Push every piece outward from the combined center by one more step (E),
+ * or reset them all back to assembled (R) -- a quick way to see where each
+ * cut boundary actually landed, especially useful for spotting an
+ * unexpectedly-small sliver piece. Pure view state: doesn't touch any
+ * piece's real vertex data, just an Object3D offset reapplied in
+ * rebuildScene(), so cutting math is completely unaffected regardless of
+ * how exploded the view currently is (press R first if the clip-plane
+ * preview looks off while positioning a Straight/Angled cut -- that
+ * preview is computed in the piece's true, unexploded position).
+ */
+function setExplodeFactor(factor) {
+  explodeFactor = Math.max(0, Math.min(3, factor));
+  rebuildScene();
+  setStatus(explodeFactor > 0 ? `Exploded view (${explodeFactor.toFixed(1)}) — press R to restore.` : 'Restored to assembled view.');
+}
+window.addEventListener('keydown', (e) => {
+  if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) return;
+  if (pieces.length <= 1) return;
+  if (e.key === 'e' || e.key === 'E') setExplodeFactor(explodeFactor + 0.4);
+  else if (e.key === 'r' || e.key === 'R') setExplodeFactor(0);
+});
 
 function selectedPiece() { return pieces.find((p) => p.id === selectedId) || null; }
 function selectedThreeMesh() { return piecesGroup.children.find((m) => m.userData.pieceId === selectedId) || null; }
@@ -1337,6 +1390,8 @@ $('tbWire').addEventListener('click', () => {
   wire = group;
   scene.add(wire);
 });
+$('tbExplode').addEventListener('click', () => setExplodeFactor(explodeFactor + 0.4));
+$('tbRestore').addEventListener('click', () => setExplodeFactor(0));
 
 renderPieceList(); // correct initial disabled state for Reset Plane / Undo / Auto-Chop / Export All before any model is loaded
 </script>
