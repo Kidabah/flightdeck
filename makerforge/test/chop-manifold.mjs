@@ -274,29 +274,41 @@ function mergeMeshes(meshes) {
 }
 
 {
-  // Grid cut: 2 X-planes x 1 Y-plane should yield a 3x2 waffle of 6 pieces,
-  // all watertight, since it's built from the same parallelPlaneCut
-  // primitive as Straight cut just applied on two axes in sequence.
+  // Grid cut: 2 X-planes x 1 Y-plane x 0 Z-planes should yield a 3x2x1
+  // waffle of 6 pieces, all watertight, since it's built from the same
+  // parallelPlaneCut primitive as Straight cut just applied per axis in sequence.
   const box = buildBox(0, 0, 0, 30, 20, 10);
-  const cells = await gridCut(box, 2, 1);
-  results.push(`INFO grid cut: ${cells.length} pieces from 2x1 divisions (expect 6)`);
-  if (cells.length !== 6) { results.push("FAIL grid cut: expected 6 pieces (3 x 2)"); failures++; }
+  const cells = await gridCut(box, 2, 1, 0);
+  results.push(`INFO grid cut: ${cells.length} pieces from 2x1x0 divisions (expect 6)`);
+  if (cells.length !== 6) { results.push("FAIL grid cut: expected 6 pieces (3 x 2 x 1)"); failures++; }
   for (let i = 0; i < cells.length; i++) checkSide(`grid cut piece ${i}`, cells[i]);
 }
 
 {
-  // Grid cut with 0 divisions on both axes must be a no-op (single unchanged piece).
+  // Grid cut with divisions on all three axes -- this is the real LuBan
+  // behavior (a reference screenshot showed "Number of sections in X, Y, Z"
+  // = 2, 2, 3 cutting all three axes simultaneously, not just X/Y). 1 X x
+  // 1 Y x 2 Z divisions should yield a 2x2x3 waffle of 12 pieces.
+  const box = buildBox(0, 0, 0, 12, 12, 60);
+  const cells = await gridCut(box, 1, 1, 2);
+  results.push(`INFO grid cut 3-axis: ${cells.length} pieces from 1x1x2 divisions (expect 12)`);
+  if (cells.length !== 12) { results.push("FAIL grid cut 3-axis: expected 12 pieces (2 x 2 x 3)"); failures++; }
+  for (let i = 0; i < cells.length; i++) checkSide(`grid 3-axis piece ${i}`, cells[i]);
+}
+
+{
+  // Grid cut with 0 divisions on all three axes must be a no-op (single unchanged piece).
   const box = buildBox(0, 0, 0, 10, 10, 10);
-  const cells = await gridCut(box, 0, 0);
-  if (cells.length !== 1) { results.push(`FAIL grid cut 0x0: expected 1 piece, got ${cells.length}`); failures++; }
-  else checkSide("grid cut 0x0", cells[0]);
+  const cells = await gridCut(box, 0, 0, 0);
+  if (cells.length !== 1) { results.push(`FAIL grid cut 0x0x0: expected 1 piece, got ${cells.length}`); failures++; }
+  else checkSide("grid cut 0x0x0", cells[0]);
 }
 
 {
   // Grid cut with divisions on only one axis must match a plain Straight
-  // cut along that axis (the other axis's split is simply skipped).
+  // cut along that axis (the other axes' splits are simply skipped).
   const box = buildBox(0, 0, 0, 12, 12, 60);
-  const viaGrid = await gridCut(box, 0, 4);
+  const viaGrid = await gridCut(box, 0, 4, 0);
   const viaStraight = await parallelPlaneCut(box, [0, 0, 0], [0, 1, 0], 4);
   const match = viaGrid.length === viaStraight.length && viaGrid.length === 5;
   results.push(`${match ? "PASS" : "FAIL"} grid cut single-axis matches Straight cut: ${viaGrid.length} vs ${viaStraight.length} pieces`);

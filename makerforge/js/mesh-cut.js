@@ -196,27 +196,28 @@ export async function parallelPlaneCut(mesh, planePoint, planeNormal, planeCount
 }
 
 /**
- * LuBan-style "Grid cut": divides `mesh` into a waffle-like grid of
- * (xCount+1) x (yCount+1) pieces by laying `xCount` evenly-spaced planes
- * across the X extent and `yCount` across the Y extent, independently.
- * Built from the same `parallelPlaneCut` primitive as Straight cut — first
- * split into X strips, then split each strip into Y cells — so it inherits
- * the same watertight guarantees. A count of 0 on either axis skips that
- * axis's split (e.g. xCount=2, yCount=0 behaves like a plain Straight cut
- * along X). Order of pieces is X-strip-major, then Y within each strip.
+ * LuBan-style "Grid cut": divides `mesh` into a waffle-like 3D grid of
+ * (xCount+1) x (yCount+1) x (zCount+1) pieces by laying evenly-spaced
+ * planes across all three axes independently (LuBan's own "Number of
+ * sections in X, Y, Z" — confirmed via reference screenshot showing all
+ * three axes cut simultaneously, not just X/Y). Built from the same
+ * `parallelPlaneCut` primitive as Straight cut, applied axis by axis to
+ * every piece from the previous axis, so it inherits the same watertight
+ * guarantees. A count of 0 on any axis skips that axis's split entirely
+ * (e.g. xCount=2, yCount=0, zCount=0 behaves like a plain Straight cut
+ * along X). Order of pieces is X-major, then Y, then Z within each cell.
  */
-export async function gridCut(mesh, xCount, yCount) {
-  const stripsX = xCount > 0
-    ? await parallelPlaneCut(mesh, [0, 0, 0], [1, 0, 0], xCount)
-    : [withOpenEdgeCount(mesh)];
-  const cells = [];
-  for (const strip of stripsX) {
-    if (yCount > 0) {
-      cells.push(...(await parallelPlaneCut(strip, [0, 0, 0], [0, 1, 0], yCount)));
-    } else {
-      cells.push(withOpenEdgeCount(strip));
-    }
-  }
+export async function gridCut(mesh, xCount, yCount, zCount) {
+  const splitAxis = async (pieces, count, normal) => {
+    if (count <= 0) return pieces;
+    const out = [];
+    for (const piece of pieces) out.push(...(await parallelPlaneCut(piece, [0, 0, 0], normal, count)));
+    return out;
+  };
+  let cells = [withOpenEdgeCount(mesh)];
+  cells = await splitAxis(cells, xCount, [1, 0, 0]);
+  cells = await splitAxis(cells, yCount, [0, 1, 0]);
+  cells = await splitAxis(cells, zCount, [0, 0, 1]);
   return cells;
 }
 
