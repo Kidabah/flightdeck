@@ -91,14 +91,8 @@
 
     <div>
       <div class="section-label">Position</div>
-      <div class="btn-row" style="margin-bottom:6px">
-        <button class="btn btn-ghost" id="nudgeXMinus" title="Nudge -X">&#x2190; X</button>
-        <button class="btn btn-ghost" id="nudgeXPlus" title="Nudge +X">X &#x2192;</button>
-        <button class="btn btn-ghost" id="nudgeYMinus" title="Nudge -Y">&#x2193; Y</button>
-        <button class="btn btn-ghost" id="nudgeYPlus" title="Nudge +Y">Y &#x2191;</button>
-      </div>
       <button class="btn btn-ghost" id="moveModelBtn" style="width:100%" disabled>Move Model (drag in viewport)</button>
-      <div class="hint" style="margin-top:6px">Nudge buttons shift the model a fixed step; click Move Model to drag it freely instead. Both re-center it before cutting — useful when an off-center feature (like a tail) throws off where Grid/Straight cuts land. Height stays locked to the bed.</div>
+      <div class="hint" style="margin-top:6px">Drag the model in the viewport to re-center it — useful when an off-center feature (like a tail) throws off where Grid/Straight cuts land. Height stays locked to the bed; click again to lock the new position in.</div>
     </div>
 
     <div>
@@ -372,21 +366,6 @@ function exitMoveMode() {
   modelGizmo.visible = false; modelGizmo.enabled = false;
   moveMode = false;
   $('moveModelBtn').classList.remove('active');
-}
-
-/** Shift the selected piece by a fixed step (5% of its own larger X/Y extent) in a single click -- no precise 3D picking required, unlike the drag gizmo. Directly mutates raw positions (no Object3D offset trick here), so needs a real rebuildScene() to show up. */
-function nudgeModel(dx, dy) {
-  const p = selectedPiece();
-  if (!p) return;
-  const b = pieceBounds(p);
-  const step = Math.max(b.size[0], b.size[1]) * 0.05 || 1;
-  const ddx = dx * step, ddy = dy * step;
-  const pos = p.mesh.positions;
-  for (let i = 0; i < pos.length; i += 3) { pos[i] += ddx; pos[i + 1] += ddy; }
-  rebuildScene();
-  updateGridVisuals();
-  updateAxesHelper();
-  resetPlaneToPiece();
 }
 
 function resize() {
@@ -706,7 +685,6 @@ function updateCommitButtonState() {
   $('commitCutBtn').disabled = disabled;
   $('resetPlaneBtn').disabled = !sel || (cutMode !== 'straight' && cutMode !== 'angled');
   $('moveModelBtn').disabled = !sel;
-  for (const id of ['nudgeXMinus', 'nudgeXPlus', 'nudgeYMinus', 'nudgeYPlus']) $(id).disabled = !sel;
 }
 
 function renderPieceList() {
@@ -981,11 +959,6 @@ $('applyScaleBtn').addEventListener('click', () => {
   updateScaleFieldsFromModel();
   setStatus('Scale applied.');
 });
-
-$('nudgeXMinus').addEventListener('click', () => nudgeModel(-1, 0));
-$('nudgeXPlus').addEventListener('click', () => nudgeModel(1, 0));
-$('nudgeYMinus').addEventListener('click', () => nudgeModel(0, -1));
-$('nudgeYPlus').addEventListener('click', () => nudgeModel(0, 1));
 
 $('moveModelBtn').addEventListener('click', () => {
   if (moveMode) {
