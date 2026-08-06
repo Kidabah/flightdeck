@@ -367,6 +367,19 @@ function bakeModelMove() {
   if (!Number.isFinite(dx) || !Number.isFinite(dy) || (!dx && !dy)) return; // never let a bad drag corrupt real vertex data
   const pos = p.mesh.positions;
   for (let i = 0; i < pos.length; i += 3) { pos[i] += dx; pos[i + 1] += dy; }
+  // toBufferGeometry() copies positions into a fresh Float32Array at build
+  // time (`new Float32Array(mesh.positions)`), so it's NOT a live view --
+  // updating the raw array above does nothing on screen by itself. Update
+  // the existing GPU buffer in place instead of a full rebuildScene() (which
+  // would tear down the gizmo attachment and force-exit move mode, breaking
+  // multiple drags in a row); normals are untouched since translation alone
+  // can't change them, but the bounding sphere needs recomputing since other
+  // code (frame(), Box3.setFromObject in the axes/grid helpers) reads it.
+  const attr = mesh.geometry.attributes.position;
+  attr.array.set(pos);
+  attr.needsUpdate = true;
+  mesh.geometry.computeBoundingBox();
+  mesh.geometry.computeBoundingSphere();
 }
 
 function exitMoveMode() {
