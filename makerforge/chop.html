@@ -240,6 +240,71 @@ const piecesGroup = new THREE.Group();
 scene.add(piecesGroup);
 let wire = null;
 
+const axesGroup = new THREE.Group();
+scene.add(axesGroup);
+
+/** Small canvas-texture sprite reading a single axis letter, always facing the camera. */
+function makeAxisLabel(text, color) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 64; canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = color;
+  ctx.font = 'bold 44px sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, 32, 34);
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), depthTest: false, transparent: true }));
+  return sprite;
+}
+
+/**
+ * LuBan-style spatial reference: colored X/Y/Z axis lines (standard
+ * red/green/blue convention) plus a floor grid on the Z=0 plane, matching
+ * where loaded models rest (see loadFile's Z-shift). GridHelper defaults
+ * to the XZ plane (Y up); rotated 90° about X so it lies flat on our XY
+ * ground plane instead (Z up). Sized off the current workspace bounds so
+ * it scales sensibly with whatever's loaded, falling back to a fixed
+ * default when the scene is empty (matches LuBan showing axes even before
+ * a model is loaded).
+ */
+function updateAxesHelper() {
+  while (axesGroup.children.length) {
+    const c = axesGroup.children.pop();
+    if (c.geometry) c.geometry.dispose();
+    if (c.material) { if (c.material.map) c.material.map.dispose(); c.material.dispose(); }
+    axesGroup.remove(c);
+  }
+  const b = combinedBounds();
+  const size = b ? Math.max(b.size[0], b.size[1], b.size[2], 1) : 60;
+  const axisLen = size * 0.75;
+
+  axesGroup.add(new THREE.AxesHelper(axisLen));
+
+  const grid = new THREE.GridHelper(size * 1.6, 16, 0x3a4a5a, 0x1c2733);
+  grid.rotation.x = Math.PI / 2;
+  axesGroup.add(grid);
+
+  const labelDist = axisLen * 1.12;
+  const labelScale = size * 0.09;
+  const labels = [
+    ['X', '#ff5555', [labelDist, 0, 0]],
+    ['Y', '#55ff55', [0, labelDist, 0]],
+    ['Z', '#5588ff', [0, 0, labelDist]],
+  ];
+  for (const [text, color, pos] of labels) {
+    const label = makeAxisLabel(text, color);
+    label.position.set(pos[0], pos[1], pos[2]);
+    label.scale.set(labelScale, labelScale, 1);
+    axesGroup.add(label);
+  }
+}
+updateAxesHelper();
+// Give the camera somewhere to look before any model is loaded (frame()
+// only runs once pieces exist) so the axes/grid aren't staring at (0,0,0)
+// from (0,0,0) -- otherwise nothing renders until the first model loads.
+camera.position.set(0, -90, 60);
+controls.target.set(0, 0, 0);
+controls.update();
+
 const planeTarget = new THREE.Object3D();
 scene.add(planeTarget);
 const planeVisual = new THREE.Mesh(
@@ -710,6 +775,7 @@ async function loadFile(file) {
     renumberPieces();
     rebuildScene();
     frame();
+    updateAxesHelper();
     resetPlaneToPiece();
     renderPieceList();
     updateScaleFieldsFromModel();
@@ -743,6 +809,7 @@ function clearModel() {
   nextId = 1;
   originalAspect = null;
   rebuildScene();
+  updateAxesHelper();
   renderPieceList();
   gizmo.detach();
   gizmo.visible = false; gizmo.enabled = false;
@@ -828,6 +895,7 @@ $('applyScaleBtn').addEventListener('click', () => {
   }
   rebuildScene();
   frame();
+  updateAxesHelper();
   resetPlaneToPiece();
   renderPieceList();
   updateScaleFieldsFromModel();
