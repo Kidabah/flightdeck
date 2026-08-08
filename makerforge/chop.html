@@ -38,6 +38,7 @@
   border-radius:var(--radius-sm);cursor:pointer;transition:all .15s}
 .piece-row:hover{border-color:var(--accent)}
 .piece-row.selected{border-color:var(--accent);background:var(--accent-dim)}
+.piece-row.merge-selected{outline:2px solid #fbbf24;outline-offset:-2px}
 .piece-row .info{flex:1;min-width:0}
 .piece-row .name{font-weight:600;font-size:12px}
 .piece-row .size{font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace}
@@ -201,7 +202,9 @@
       </div>
       <div id="piecesBody" style="display:none">
         <button class="btn btn-ghost" id="exportAllBtn" style="width:100%;margin-bottom:8px" disabled>Export All to Folder</button>
+        <div class="hint" style="margin-bottom:6px">Ctrl/Cmd-click (or Shift-click) pieces below to select more than one for merging — works whether the model is assembled or exploded.</div>
         <div class="piece-list" id="pieceList"></div>
+        <button class="btn btn-primary" id="mergeSelectedBtn" style="width:100%;margin-top:8px;display:none">Merge Selected</button>
       </div>
     </div>
   </div>
@@ -230,7 +233,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import './js/nav.js?v=551';
 import { loadMeshFromFile } from './js/mesh-import.js?v=2';
-import { sliceMeshByPlane, parallelPlaneCut, modularCut, gridCut, smoothMesh, computeBounds, computeDefaultFlexiPlanes, flexiCut, splitIntoIslands } from './js/mesh-cut.js?v=11';
+import { sliceMeshByPlane, parallelPlaneCut, modularCut, gridCut, smoothMesh, computeBounds, computeDefaultFlexiPlanes, flexiCut, splitIntoIslands, unionMeshes } from './js/mesh-cut.js?v=12';
 import { meshToStl, downloadBlob, countOpenEdges } from './js/stl.js?v=372';
 
 const $ = (id) => document.getElementById(id);
@@ -239,6 +242,7 @@ const UNIT_TO_MM = { mm: 1, cm: 10, m: 1000, in: 25.4 };
 
 let pieces = [];       // { id, partNumber, name, mesh:{positions,indices}, openEdgeCount }
 let selectedId = null;
+let mergeSelection = new Set(); // piece ids picked via Ctrl/Cmd/Shift-click, for Merge Selected
 let undoStack = [];
 let baseName = 'model';
 let nextId = 1;
@@ -534,11 +538,16 @@ function rebuildScene() {
   pieces.forEach((p, i) => {
     const geom = toBufferGeometry(p.mesh);
     const selected = p.id === selectedId;
+    const merging = mergeSelection.has(p.id);
     const baseColor = multi ? PIECE_PALETTE[i % PIECE_PALETTE.length] : (selected ? 0x3ecfff : 0x2a3a4a);
+    // Merge-selected takes priority over the normal selected glow (amber,
+    // matching the piece list's merge-selected outline) so it reads clearly
+    // even on top of the per-piece palette colors.
+    const emissive = merging ? 0xfbbf24 : selected ? new THREE.Color(baseColor).multiplyScalar(0.35) : 0x000000;
     const mat = new THREE.MeshStandardMaterial({
       color: baseColor, roughness: 0.55, metalness: 0.1,
       side: THREE.DoubleSide, flatShading: true, transparent: false, opacity: 1,
-      emissive: selected ? new THREE.Color(baseColor).multiplyScalar(0.35) : 0x000000,
+      emissive, emissiveIntensity: merging ? 0.55 : 1,
     });
     const mesh = new THREE.Mesh(geom, mat);
     mesh.userData.pieceId = p.id;
@@ -892,7 +901,7 @@ function renderPieceList() {
     const b = pieceBounds(p);
     const fit = fitsBed(p);
     const row = document.createElement('div');
-    row.className = 'piece-row' + (p.id === selectedId ? ' selected' : '');
+    row.className = 'piece-row' + (p.id === selectedId ? ' selected' : '') + (mergeSelection.has(p.id) ? ' merge-selected' : '');
     const pillClass = fit === null ? '' : fit ? 'good' : 'bad';
     const pillText = fit === null ? 'No bed set' : fit ? 'Fits bed' : 'Too big';
     const openPill = p.openEdgeCount > 0
@@ -911,7 +920,15 @@ function renderPieceList() {
       </div>`;
     row.addEventListener('click', (e) => {
       if (e.target.closest('button')) return;
-      selectPiece(p.id);
+      if (e.ctrlKey || e.metaKey || e.shiftKey) {
+        if (mergeSelection.has(p.id)) mergeSelection.delete(p.id);
+        else mergeSelection.add(p.id);
+        renderPieceList();
+        rebuildScene();
+      } else {
+        mergeSelection.clear();
+        selectPiece(p.id);
+      }
     });
     row.querySelector('[data-act=smooth]').addEventListener('click', () => smoothPiece(p));
     row.querySelector('[data-act=export]').addEventListener('click', () => exportPiece(p));
@@ -920,6 +937,9 @@ function renderPieceList() {
   }
   $('undoBtn').disabled = undoStack.length === 0;
   $('exportAllBtn').disabled = !outputDirHandle || pieces.length === 0;
+  const mergeBtn = $('mergeSelectedBtn');
+  mergeBtn.style.display = mergeSelection.size >= 2 ? '' : 'none';
+  mergeBtn.textContent = `Merge Selected (${mergeSelection.size})`;
   updateCommitButtonState();
 }
 
@@ -945,6 +965,41 @@ function deletePiece(id) {
   renderPieceList();
   if (selectedId) resetPlaneToPiece();
 }
+
+/**
+ * Recombine the pieces picked via Ctrl/Cmd/Shift-click into one, via a real
+ * boolean union rather than just concatenating them -- undoes a cut that
+ * landed somewhere undesirable (e.g. straight through an eye) without
+ * having to redo the whole cut by hand. Works regardless of explodeFactor:
+ * merging always operates on the pieces' real vertex data, which explode
+ * never touches (it's a pure view-space Object3D offset), so you can spot
+ * what needs merging while exploded and still get a correct result.
+ */
+async function mergeSelectedPieces() {
+  const targets = pieces.filter((p) => mergeSelection.has(p.id));
+  if (targets.length < 2) return;
+  setStatus(`Merging ${targets.length} pieces…`);
+  let merged;
+  try {
+    merged = await unionMeshes(targets.map((p) => p.mesh));
+  } catch (e) {
+    setStatus('Merge failed: ' + e.message);
+    return;
+  }
+  undoStack.push(pieces.slice());
+  const firstIdx = pieces.findIndex((p) => mergeSelection.has(p.id));
+  pieces = pieces.filter((p) => !mergeSelection.has(p.id));
+  const newPiece = { id: `piece-${nextId++}`, mesh: merged, openEdgeCount: merged.openEdgeCount };
+  pieces.splice(firstIdx, 0, newPiece);
+  renumberPieces();
+  mergeSelection.clear();
+  selectedId = newPiece.id;
+  rebuildScene();
+  renderPieceList();
+  resetPlaneToPiece();
+  setStatus(`Merged ${targets.length} pieces into ${newPiece.name}${merged.openEdgeCount > 0 ? ` — ${merged.openEdgeCount} open edges, repair in Mesh Prep` : ''}.`);
+}
+$('mergeSelectedBtn').addEventListener('click', mergeSelectedPieces);
 
 /**
  * Round off a piece's low-poly "faceted" look (see mesh-cut.js's

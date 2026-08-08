@@ -162,6 +162,39 @@ export async function sliceMeshByPlane(mesh, planePoint, planeNormal) {
 }
 
 /**
+ * Boolean-union `meshes` into a single watertight piece — lets "Merge
+ * Selected" recombine pieces the cutter split apart, e.g. undoing a cut
+ * that landed somewhere undesirable (straight through an eye) rather than
+ * having to redo the whole cut by hand. A real boolean rather than a plain
+ * concatenation: two pieces that share an exact coincident cut face (the
+ * common case — both came from the same split) weld cleanly into one solid
+ * with the internal seam gone, not just two shells touching. Genuinely
+ * disjoint inputs (not adjacent at all) still union fine — the result is
+ * just their combined volume, same as the multi-shell case sliceMeshByPlane
+ * already has to handle on either side of an ordinary cut.
+ */
+export async function unionMeshes(meshes) {
+  const { Manifold, Mesh } = await getManifoldModule();
+  let acc = null;
+  try {
+    for (const mesh of meshes) {
+      const m = toManifold(Manifold, Mesh, mesh);
+      if (acc) {
+        const next = acc.add(m);
+        acc.delete();
+        m.delete();
+        acc = next;
+      } else {
+        acc = m;
+      }
+    }
+    return fromManifold(acc);
+  } finally {
+    if (acc) acc.delete();
+  }
+}
+
+/**
  * Round off the low-poly "faceted" look a small cut piece can have once
  * scaled up in a slicer. Real cause: a source scan's triangle budget is
  * fixed and gets divided by surface area across however many pieces a cut

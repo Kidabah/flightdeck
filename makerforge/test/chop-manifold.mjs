@@ -4,7 +4,7 @@
  * Backed by manifold-3d (see mesh-cut.js header for why). Run via ./run.sh.
  * Exit code 0 = all pass, 1 = a regression.
  */
-import { sliceMeshByPlane, modularCut, parallelPlaneCut, computeDefaultFlexiPlanes, flexiCut, gridCut, smoothMesh, splitIntoIslands } from "./_staged/mesh-cut.js";
+import { sliceMeshByPlane, modularCut, parallelPlaneCut, computeDefaultFlexiPlanes, flexiCut, gridCut, smoothMesh, splitIntoIslands, unionMeshes } from "./_staged/mesh-cut.js";
 import { countOpenEdges, sanitizeMeshForStl } from "./_staged/stl.js";
 import ManifoldModule from "manifold-3d";
 
@@ -250,6 +250,38 @@ function mergeMeshes(meshes) {
   const pieces = await parallelPlaneCut(box, [0, 0, 0], [0, 0, 1], 1);
   if (pieces.length !== 2) { results.push(`FAIL parallel cut planeCount=1: expected 2 pieces, got ${pieces.length}`); failures++; }
   else { checkSide("parallel cut planeCount=1 above", pieces[0]); checkSide("parallel cut planeCount=1 below", pieces[1]); }
+}
+
+{
+  // Merge Selected's core case: re-union the two halves of an ordinary cut
+  // back into one piece. Should come back watertight and match the
+  // original box's volume/tri count closely (Manifold may retriangulate
+  // the reunited coincident face slightly differently, so allow a little
+  // slack rather than requiring an exact tri count match).
+  const box = buildBox(0, 0, 0, 10, 10, 10);
+  const { above, below } = await sliceMeshByPlane(box, [0, 0, 0], [0, 0, 1]);
+  const merged = await unionMeshes([above, below]);
+  checkSide("unionMeshes re-merged halves", merged);
+  const origTris = box.indices.length / 3;
+  const mergedTris = merged.indices.length / 3;
+  results.push(`INFO unionMeshes re-merged halves: ${mergedTris} tris (original box had ${origTris})`);
+  if (mergedTris < origTris * 0.5 || mergedTris > origTris * 3) {
+    results.push(`FAIL unionMeshes re-merged halves: triangle count ${mergedTris} way off from original ${origTris}`);
+    failures++;
+  }
+}
+
+{
+  // Genuinely disjoint pieces (never touching) should still union cleanly
+  // into one watertight multi-shell mesh -- same shape splitIntoIslands
+  // exists to reverse, but merging two truly separate pieces by hand is a
+  // valid (if unusual) user action and must not throw.
+  const boxA = buildBox(-15, 0, 0, 10, 10, 10);
+  const boxB = buildBox(15, 0, 0, 10, 10, 10);
+  const merged = await unionMeshes([boxA, boxB]);
+  checkSide("unionMeshes disjoint pieces", merged);
+  const islands = splitIntoIslands(merged);
+  if (islands.length !== 2) { results.push(`FAIL unionMeshes disjoint pieces: expected 2 islands back out, got ${islands.length}`); failures++; }
 }
 
 {
