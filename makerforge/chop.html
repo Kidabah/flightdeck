@@ -373,6 +373,21 @@ const movePivot = new THREE.Object3D();
 scene.add(movePivot);
 let moveOrigin = [0, 0];
 
+// The XY-plane handle (the shaded square between the X/Y arrows) moves
+// both axes at once when dragged -- easy to grab by accident instead of a
+// single arrow, and since it's not gated by showX/showY/showZ (only fully
+// disabled if a whole axis is off), it stays active even with Z locked.
+// Neutered on both the visible and picker groups so only the single-axis
+// X/Y arrows are ever draggable -- no accidental two-axis moves.
+function disablePlaneHandle() {
+  modelGizmo.traverse((child) => {
+    if (child.name === 'XY') {
+      child.visible = false;
+      child.raycast = () => {};
+    }
+  });
+}
+
 function centerMovePivot() {
   const p = selectedPiece();
   if (!p) return;
@@ -1165,6 +1180,7 @@ $('moveModelBtn').addEventListener('click', () => {
   centerMovePivot();
   modelGizmo.attach(movePivot);
   modelGizmo.setMode('translate');
+  disablePlaneHandle();
   modelGizmo.visible = true; modelGizmo.enabled = true;
   $('moveModelBtn').classList.add('active');
   setStatus('Drag the model in the viewport to reposition it, then click "Move Model" again to lock it in.');
