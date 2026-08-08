@@ -957,13 +957,18 @@ function selectPiece(id) {
   }
 }
 
-function deletePiece(id) {
+async function deletePiece(id) {
+  const deleted = pieces.find((p) => p.id === id);
   pieces = pieces.filter((p) => p.id !== id);
   if (selectedId === id) selectedId = pieces[0]?.id ?? null;
   renumberPieces();
   rebuildScene();
   renderPieceList();
   if (selectedId) resetPlaneToPiece();
+  const saveResult = await syncOutputFolder();
+  if (saveResult && !saveResult.error) {
+    setStatus(`Deleted ${deleted?.name ?? 'piece'}. Saved to ${outputDirHandle.name}/chop/${saveResult.pruned ? ` (removed ${saveResult.pruned} stale file${saveResult.pruned === 1 ? '' : 's'})` : ''}.`);
+  }
 }
 
 /**
@@ -997,7 +1002,13 @@ async function mergeSelectedPieces() {
   rebuildScene();
   renderPieceList();
   resetPlaneToPiece();
-  setStatus(`Merged ${targets.length} pieces into ${newPiece.name}${merged.openEdgeCount > 0 ? ` — ${merged.openEdgeCount} open edges, repair in Mesh Prep` : ''}.`);
+  const saveResult = await syncOutputFolder();
+  const saveNote = saveResult
+    ? saveResult.error
+      ? ` (saved ${saveResult.saved}/${saveResult.total} to ${outputDirHandle.name}/chop/ before failing: ${saveResult.error})`
+      : ` (saved to ${outputDirHandle.name}/chop/${saveResult.pruned ? `, removed ${saveResult.pruned} stale file${saveResult.pruned === 1 ? '' : 's'}` : ''})`
+    : '';
+  setStatus(`Merged ${targets.length} pieces into ${newPiece.name}${merged.openEdgeCount > 0 ? ` — ${merged.openEdgeCount} open edges, repair in Mesh Prep` : ''}.${saveNote}`);
 }
 $('tbMerge').addEventListener('click', mergeSelectedPieces);
 
@@ -1055,6 +1066,7 @@ async function exportPiece(piece) {
 async function exportAllPieces() {
   if (!outputDirHandle || !pieces.length) return;
   $('exportAllBtn').disabled = true;
+  const pruned = await pruneStaleOutputFiles();
   let done = 0;
   for (const p of pieces) {
     try {
@@ -1068,29 +1080,55 @@ async function exportAllPieces() {
       return;
     }
   }
-  setStatus(`Saved all ${done} piece${done === 1 ? '' : 's'} to ${outputDirHandle.name}/chop/.`);
+  setStatus(`Saved all ${done} piece${done === 1 ? '' : 's'} to ${outputDirHandle.name}/chop/.${pruned ? ` Removed ${pruned} stale file${pruned === 1 ? '' : 's'}.` : ''}`);
   $('exportAllBtn').disabled = false;
 }
 
 /**
- * If an output folder is set, save freshly-cut pieces there right away
- * (Commit Cut / Auto-Chop), instead of requiring a separate Export All
- * click. Returns null when no folder is set (caller falls back to its
- * normal status message), or { saved, total, error }.
+ * Delete any existing "{baseName}-piece-N.stl" in the output folder that no
+ * longer corresponds to a current piece -- left behind by Merge Selected
+ * shrinking the piece count, Delete removing one, or renumberPieces()
+ * simply shifting numbers around after either. Without this, only ever
+ * ADDING files meant an old, already-merged-away or deleted piece could
+ * sit in the folder indefinitely looking like a current, ready-to-print
+ * part. Returns the number of files removed.
  */
-async function autoSaveIfFolderSet(newPieces) {
+async function pruneStaleOutputFiles() {
+  const chopDir = await outputDirHandle.getDirectoryHandle('chop', { create: true });
+  const escapedBaseName = baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const piecePattern = new RegExp(`^${escapedBaseName}-piece-\\d+\\.stl$`);
+  const expected = new Set(pieces.map((p) => `${baseName}-piece-${p.partNumber}.stl`));
+  let pruned = 0;
+  for await (const [name, handle] of chopDir.entries()) {
+    if (handle.kind === 'file' && piecePattern.test(name) && !expected.has(name)) {
+      await chopDir.removeEntry(name);
+      pruned++;
+    }
+  }
+  return pruned;
+}
+
+/**
+ * Keep the output folder's piece-*.stl files in exact sync with the
+ * current `pieces` array: prune stale files (see pruneStaleOutputFiles),
+ * then (re)write every current piece fresh. Returns null when no folder is
+ * set (caller falls back to its normal status message), or { saved,
+ * total, pruned, error }.
+ */
+async function syncOutputFolder() {
   if (!outputDirHandle) return null;
+  const pruned = await pruneStaleOutputFiles();
   let saved = 0;
-  for (const p of newPieces) {
+  for (const p of pieces) {
     try {
       const blob = meshToStl(p.mesh, p.name);
       await writeStlToOutputFolder(blob, `${baseName}-piece-${p.partNumber}.stl`);
       saved++;
     } catch (e) {
-      return { saved, total: newPieces.length, error: e.message };
+      return { saved, total: pieces.length, pruned, error: e.message };
     }
   }
-  return { saved, total: newPieces.length, error: null };
+  return { saved, total: pieces.length, pruned, error: null };
 }
 
 // -- File loading -----------------------------------------------------------
@@ -1504,11 +1542,11 @@ async function finishCut(piece, newPieces, extraNotes = []) {
   const notes = [...extraNotes];
   if (splitCount) notes.push(`${splitCount} piece${splitCount === 1 ? '' : 's'} split into separate parts (were disconnected fragments bundled together)`);
   if (openCount) notes.push(`${openCount} came out with open edges — repair in Mesh Prep`);
-  const saveResult = await autoSaveIfFolderSet(newPieces);
+  const saveResult = await syncOutputFolder();
   if (saveResult) {
     notes.push(saveResult.error
       ? `saved ${saveResult.saved}/${saveResult.total} to ${outputDirHandle.name}/chop/ before failing: ${saveResult.error}`
-      : `saved to ${outputDirHandle.name}/chop/`);
+      : `saved to ${outputDirHandle.name}/chop/${saveResult.pruned ? ` (removed ${saveResult.pruned} stale file${saveResult.pruned === 1 ? '' : 's'})` : ''}`);
   }
   return { note: notes.length ? ` (${notes.join('; ')})` : '', saved: !!saveResult };
 }
