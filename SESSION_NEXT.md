@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-08 Session update (Cindy Vinyl — post-power-outage recovery)
 
-Latest commit: _(pending)_ — Fix Mora vinyl mounts after Cindy NAS offline / reboot
+Latest commit: `35157e2` — Fix Mora vinyl mounts after Cindy NAS offline / reboot
 
 Latest Mora change:
 - **Root cause:** power outage → Cindy NAS off → Mora lost `/share/{Cindy,Checked,Jamal}` remote mounts → `cindy-navidrome` exited; vinyl health/covers/stream failed.
