@@ -293,14 +293,27 @@ export async function gridCut(mesh, xCount, yCount, zCount) {
  * the cut axis, so this converges without needing a depth limit, though
  * `maxPieces` still caps runaway cases (e.g. a bed dimension of 0).
  *
+ * A raw midpoint split can land squarely on a thin protruding feature
+ * (e.g. a toe sticking out from a paw) — and since each recursive halving
+ * re-centers on whatever's left, that same thin feature can get sliced
+ * through several times in a row before the surrounding chunk finally
+ * shrinks below bed size, stranding it as multiple paper-thin slivers
+ * instead of one sensible piece. To avoid that, each split first tries the
+ * midpoint, and if either resulting half comes out pathologically thin
+ * relative to the piece being split, nearby offsets are tried instead,
+ * keeping whichever avoids stranding a sliver. The midpoint is always the
+ * fallback if no offset does better, so this still terminates exactly as
+ * before.
+ *
  * Returns { pieces, capped }. `pieces` are watertight
  * {positions,indices,openEdgeCount} meshes. If a plane fails to intersect a
  * still-oversized piece (degenerate geometry), that piece is kept as-is
  * rather than dropped. `capped` is true if maxPieces was hit before every
  * piece fit.
  */
-export async function modularCut(mesh, bedSize, { maxPieces = 128 } = {}) {
+export async function modularCut(mesh, bedSize, { maxPieces = 128, minPieceFraction = 0.15 } = {}) {
   const eps = 1e-6;
+  const SPLIT_FRACTIONS = [0.5, 0.4, 0.6, 0.3, 0.7, 0.2, 0.8];
   const queue = [mesh];
   const pieces = [];
   let capped = false;
@@ -316,16 +329,29 @@ export async function modularCut(mesh, bedSize, { maxPieces = 128 } = {}) {
     }
     if (axis === -1) { pieces.push(withOpenEdgeCount(m)); continue; }
 
-    const point = [
-      (b.min[0] + b.max[0]) / 2,
-      (b.min[1] + b.max[1]) / 2,
-      (b.min[2] + b.max[2]) / 2,
-    ];
+    const parentDiagonal = Math.hypot(...b.size);
+    const minDiagonal = parentDiagonal * minPieceFraction;
     const normal = [0, 0, 0];
     normal[axis] = 1;
-    const cut = await sliceMeshByPlane(m, point, normal);
-    if (!cut.above || !cut.below) { pieces.push(withOpenEdgeCount(m)); continue; }
-    queue.push(cut.above, cut.below);
+
+    let fallback = null;
+    let chosen = null;
+    for (const frac of SPLIT_FRACTIONS) {
+      const point = [
+        axis === 0 ? b.min[0] + b.size[0] * frac : (b.min[0] + b.max[0]) / 2,
+        axis === 1 ? b.min[1] + b.size[1] * frac : (b.min[1] + b.max[1]) / 2,
+        axis === 2 ? b.min[2] + b.size[2] * frac : (b.min[2] + b.max[2]) / 2,
+      ];
+      const cut = await sliceMeshByPlane(m, point, normal);
+      if (!cut.above || !cut.below) continue;
+      if (frac === 0.5) fallback = cut;
+      const da = Math.hypot(...computeBounds(cut.above.positions).size);
+      const db = Math.hypot(...computeBounds(cut.below.positions).size);
+      if (Math.min(da, db) >= minDiagonal) { chosen = cut; break; }
+    }
+    const result = chosen || fallback;
+    if (!result) { pieces.push(withOpenEdgeCount(m)); continue; }
+    queue.push(result.above, result.below);
   }
   if (capped) {
     for (const m of queue) pieces.push(withOpenEdgeCount(m));
