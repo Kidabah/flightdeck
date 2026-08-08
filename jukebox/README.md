@@ -6,7 +6,7 @@ Vinyl hi-fi web player for the Cindy NAS music library (CHECKED + MUSIC + JAMAL)
 
 Runs on **Mora** (`192.168.4.77` / Tailscale `flightdeck-nas`), not the Flightdeck Pi.
 
-- Music: Mora remote shares `/share/{Cindy,Checked,Jamal}` → Cindy (`192.168.4.53`)
+- Music: Mora mounts `/volume2/cindy-vinyl/mounts/{Cindy,Checked,Jamal}` → Cindy (`192.168.4.53`)
 - App + Navidrome DB: SSD **volume2** at `/volume2/cindy-vinyl/`
 - Compose: `/volume2/cindy-vinyl/compose/docker-compose.mora.yml`
 
@@ -15,6 +15,7 @@ Runs on **Mora** (`192.168.4.77` / Tailscale `flightdeck-nas`), not the Flightde
 cd /volume2/cindy-vinyl/compose
 docker compose -f docker-compose.mora.yml up -d --build
 # Rebuild library view after share remount:
+/bin/sh mount-cindy-on-mora.sh   # when Cindy NAS is online
 CINDY_LIBRARY_VIEW=/volume2/cindy-vinyl/library-view \
   /bin/sh build-mora-library-view.sh
 ```

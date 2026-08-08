@@ -4,9 +4,9 @@
 set -e
 
 VIEW="${CINDY_LIBRARY_VIEW:-/volume2/cindy-vinyl/library-view}"
-CINDY="${CINDY_SHARE:-/share/Cindy}"
-CHECKED="${CHECKED_SHARE:-/share/Checked}"
-JAMAL="${JAMAL_SHARE:-/share/Jamal}"
+CINDY="${CINDY_SHARE:-/volume2/cindy-vinyl/mounts/Cindy}"
+CHECKED="${CHECKED_SHARE:-/volume2/cindy-vinyl/mounts/Checked}"
+JAMAL="${JAMAL_SHARE:-/volume2/cindy-vinyl/mounts/Jamal}"
 
 mkdir -p "$VIEW/CHECKED"
 ln -sfn "$CINDY" "$VIEW/MUSIC"

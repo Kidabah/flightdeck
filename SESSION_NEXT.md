@@ -6,6 +6,22 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-08 Session update (Cindy Vinyl — post-power-outage recovery)
+
+Latest commit: _(pending)_ — Fix Mora vinyl mounts after Cindy NAS offline / reboot
+
+Latest Mora change:
+- **Root cause:** power outage → Cindy NAS off → Mora lost `/share/{Cindy,Checked,Jamal}` remote mounts → `cindy-navidrome` exited; vinyl health/covers/stream failed.
+- **Fix:** Navidrome compose now bind-mounts `/volume2/cindy-vinyl/mounts/{Cindy,Checked,Jamal}` (stable SSD paths). New `jukebox/scripts/mount-cindy-on-mora.sh` CIFS-mounts Cindy when it's back online.
+- **Deployed on Mora:** Navidrome restarted; `/api/health` ok, random album 200. **Playback needs Cindy NAS powered on** + run mount script.
+- When Cindy is back: on Mora (sudo) `cd /volume2/cindy-vinyl/compose && sh mount-cindy-on-mora.sh && sh build-mora-library-view.sh && docker compose -f docker-compose.mora.yml restart navidrome`
+- LAN: `http://192.168.4.77:4541` — no app.js bump (infra only).
+
+Previous:
+- Vinyl — add to playlist from crates/Stacks (`6cd9885`).
+
+---
+
 ## 2026-08-04 Session update (MakerDeck — new Chop plane-cutting tool)
 
 Latest local/Pi change:
