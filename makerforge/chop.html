@@ -202,6 +202,8 @@
       </div>
       <div id="piecesBody" style="display:none">
         <button class="btn btn-ghost" id="exportAllBtn" style="width:100%;margin-bottom:8px" disabled>Export All to Folder</button>
+        <button class="btn btn-ghost" id="addPartNumbersBtn" style="width:100%;margin-bottom:8px">Add Part Numbers</button>
+        <div class="hint" style="margin-bottom:6px">Engraves each piece's own number into its largest flat face (almost always the cut face) — hidden once glued back together, visible while sorting loose parts.</div>
         <div class="hint" style="margin-bottom:6px">Click pieces in the viewport (or Ctrl/Cmd/Shift-click them below) to pick more than one for merging, then hit Merge Selected in the viewport toolbar — works whether the model is assembled or exploded.</div>
         <div class="piece-list" id="pieceList"></div>
       </div>
@@ -233,7 +235,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import './js/nav.js?v=551';
 import { loadMeshFromFile } from './js/mesh-import.js?v=2';
-import { sliceMeshByPlane, parallelPlaneCut, modularCut, gridCut, smoothMesh, computeBounds, computeDefaultFlexiPlanes, flexiCut, splitIntoIslands, unionMeshes } from './js/mesh-cut.js?v=12';
+import { sliceMeshByPlane, parallelPlaneCut, modularCut, gridCut, smoothMesh, computeBounds, computeDefaultFlexiPlanes, flexiCut, splitIntoIslands, unionMeshes, subtractMesh, findLargestFlatFace, buildStampMesh } from './js/mesh-cut.js?v=13';
 import { meshToStl, downloadBlob, countOpenEdges } from './js/stl.js?v=372';
 
 const $ = (id) => document.getElementById(id);
@@ -1011,6 +1013,88 @@ async function mergeSelectedPieces() {
   setStatus(`Merged ${targets.length} pieces into ${newPiece.name}${merged.openEdgeCount > 0 ? ` — ${merged.openEdgeCount} open edges, repair in Mesh Prep` : ''}.${saveNote}`);
 }
 $('tbMerge').addEventListener('click', mergeSelectedPieces);
+
+// -- Part numbers ------------------------------------------------------------
+
+/** Rasterize `text` to a plain on/off pixel grid via an offscreen canvas -- the browser's own font rendering stands in for a real vector font, since digits are all we need. */
+function rasterizeDigits(text, pixelHeight = 28, fontFamily = "'Arial Black', Arial, sans-serif") {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.font = `bold ${pixelHeight}px ${fontFamily}`;
+  const width = Math.max(1, Math.ceil(ctx.measureText(text).width) + 4);
+  const height = pixelHeight + 8;
+  canvas.width = width;
+  canvas.height = height;
+  ctx.font = `bold ${pixelHeight}px ${fontFamily}`;
+  ctx.fillStyle = '#fff';
+  ctx.textBaseline = 'top';
+  ctx.fillText(text, 2, 2);
+  const img = ctx.getImageData(0, 0, width, height).data;
+  const grid = new Uint8Array(width * height);
+  for (let i = 0; i < grid.length; i++) grid[i] = img[i * 4 + 3] > 128 ? 1 : 0; // alpha threshold
+  return { grid, gridW: width, gridH: height };
+}
+
+/**
+ * Engrave `piece`'s own part number into its largest flat face -- almost
+ * always the cut face, so the mark is hidden once pieces are glued back
+ * together but visible while sorting loose parts (same convention LuBan
+ * uses). Sized to a fraction of the face's smaller dimension, clamped to a
+ * legible-but-not-absurd range, and capped against the face's actual width
+ * so a long number on a narrow face shrinks to fit rather than overflowing
+ * past the solid edge. Mutates nothing on failure -- throws, caller decides
+ * how to report it (a piece with no usable flat face, e.g. an already-
+ * merged organic blob, is a real possibility, not a bug).
+ */
+async function stampPartNumber(piece) {
+  const face = findLargestFlatFace(piece.mesh);
+  if (!face) throw new Error('no flat face found');
+  const faceW = face.uMax - face.uMin, faceH = face.vMax - face.vMin;
+  if (faceW < 6 || faceH < 6) throw new Error('largest flat face is too small to stamp');
+  const text = String(piece.partNumber);
+  const { grid, gridW, gridH } = rasterizeDigits(text);
+  let targetHeight = Math.min(12, Math.max(4, Math.min(faceW, faceH) * 0.35));
+  let targetWidth = targetHeight * (gridW / gridH);
+  if (targetWidth > faceW * 0.85) {
+    targetWidth = faceW * 0.85;
+    targetHeight = targetWidth * (gridH / gridW);
+  }
+  const depth = 0.6; // mm engraved into the surface
+  const boxes = buildStampMesh(face, grid, gridW, gridH, targetWidth, targetHeight, [-depth, 0.3]);
+  if (!boxes.length) throw new Error('nothing rendered for that number');
+  const stamp = await unionMeshes(boxes);
+  return subtractMesh(piece.mesh, stamp);
+}
+
+/** Stamp every current piece with its own part number in one pass, so reassembly is unambiguous even after Merge/Delete renumbering has shuffled things around. Pieces without a usable flat face (rare -- an already-merged organic blob with no planar cut face left) are skipped, not fatal to the rest. */
+async function addPartNumbersToAllPieces() {
+  if (!pieces.length) return;
+  $('addPartNumbersBtn').disabled = true;
+  // Clone each piece object (not just the array) -- every piece below gets
+  // its .mesh reassigned in place, and a plain pieces.slice() would leave
+  // the undo snapshot holding the very same objects, silently "updating"
+  // right along with the live ones instead of preserving the pre-stamp state.
+  undoStack.push(pieces.map((p) => ({ ...p })));
+  let done = 0, skipped = 0;
+  for (const p of pieces) {
+    setStatus(`Stamping part numbers… ${done + skipped}/${pieces.length}`);
+    try {
+      const stamped = await stampPartNumber(p);
+      p.mesh = stamped;
+      p.openEdgeCount = stamped.openEdgeCount;
+      done++;
+    } catch (e) {
+      skipped++;
+    }
+  }
+  rebuildScene();
+  renderPieceList();
+  const saveResult = await syncOutputFolder();
+  const saveNote = saveResult && !saveResult.error ? ` Saved to ${outputDirHandle.name}/chop/.` : '';
+  setStatus(`Stamped ${done} piece${done === 1 ? '' : 's'}${skipped ? `, skipped ${skipped} (no usable flat face)` : ''}.${saveNote}`);
+  $('addPartNumbersBtn').disabled = false;
+}
+$('addPartNumbersBtn').addEventListener('click', addPartNumbersToAllPieces);
 
 /**
  * Round off a piece's low-poly "faceted" look (see mesh-cut.js's

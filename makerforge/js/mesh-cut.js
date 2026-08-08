@@ -29,6 +29,7 @@ function getManifoldModule() {
 
 function dot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
 function sub(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }
+function cross(a, b) { return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]; }
 function normalize(v) {
   const len = Math.hypot(v[0], v[1], v[2]) || 1;
   return [v[0] / len, v[1] / len, v[2] / len];
@@ -192,6 +193,149 @@ export async function unionMeshes(meshes) {
   } finally {
     if (acc) acc.delete();
   }
+}
+
+/** Boolean-subtract `cutter` from `base` -- `base` minus every bit of volume `cutter` occupies. Used to engrave a part number into a piece rather than raise it. */
+export async function subtractMesh(base, cutter) {
+  const { Manifold, Mesh } = await getManifoldModule();
+  const baseM = toManifold(Manifold, Mesh, base);
+  const cutterM = toManifold(Manifold, Mesh, cutter);
+  try {
+    const result = baseM.subtract(cutterM);
+    try {
+      return fromManifold(result);
+    } finally {
+      result.delete();
+    }
+  } finally {
+    baseM.delete();
+    cutterM.delete();
+  }
+}
+
+/**
+ * Find the largest contiguous flat region on `mesh` -- almost always a
+ * piece's cut face (the flat cross-section a plane cut leaves behind),
+ * which is exactly where a part number belongs: hidden once pieces are
+ * glued back together, but visible while sorting loose parts before then.
+ * Groups triangles first by (quantized) normal direction, then by planar
+ * offset along that normal, so triangles that merely face the same way but
+ * sit on different planes (e.g. two parallel walls) don't get lumped
+ * together; picks whichever group has the largest total triangle area.
+ * Returns null for a degenerate/empty mesh.
+ *
+ * Returned frame: `normal` points outward from the solid; `u`/`v` are an
+ * orthonormal in-plane basis; `origin` is a point on the plane; `uMin`/
+ * `uMax`/`vMin`/`vMax` bound the flat region's actual footprint in that
+ * (u,v) frame, for sizing/centering whatever gets placed on it.
+ */
+export function findLargestFlatFace(mesh) {
+  const { positions, indices } = mesh;
+  const numTri = indices.length / 3;
+  if (numTri === 0) return null;
+  const eps = 1e-4;
+  const groups = new Map();
+  for (let t = 0; t < numTri; t++) {
+    const ia = indices[t * 3], ib = indices[t * 3 + 1], ic = indices[t * 3 + 2];
+    const a = [positions[ia * 3], positions[ia * 3 + 1], positions[ia * 3 + 2]];
+    const b = [positions[ib * 3], positions[ib * 3 + 1], positions[ib * 3 + 2]];
+    const c = [positions[ic * 3], positions[ic * 3 + 1], positions[ic * 3 + 2]];
+    const n = cross(sub(b, a), sub(c, a));
+    const len = Math.hypot(...n);
+    if (len < 1e-12) continue; // degenerate triangle
+    const area = len / 2;
+    const normal = [n[0] / len, n[1] / len, n[2] / len];
+    const offset = dot(normal, a);
+    const key = `${Math.round(normal[0] / eps)},${Math.round(normal[1] / eps)},${Math.round(normal[2] / eps)}|${Math.round(offset / eps)}`;
+    let g = groups.get(key);
+    if (!g) { g = { normal, offset, area: 0, tris: [] }; groups.set(key, g); }
+    g.area += area;
+    g.tris.push(t);
+  }
+  if (!groups.size) return null;
+  let best = null;
+  for (const g of groups.values()) if (!best || g.area > best.area) best = g;
+
+  const normal = best.normal;
+  const ref = Math.abs(normal[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0];
+  const u = normalize(cross(ref, normal));
+  const v = cross(normal, u);
+  const origin = [normal[0] * best.offset, normal[1] * best.offset, normal[2] * best.offset];
+
+  let uMin = Infinity, uMax = -Infinity, vMin = Infinity, vMax = -Infinity;
+  const seen = new Set();
+  for (const t of best.tris) {
+    for (let k = 0; k < 3; k++) {
+      const vi = indices[t * 3 + k];
+      if (seen.has(vi)) continue;
+      seen.add(vi);
+      const p = sub([positions[vi * 3], positions[vi * 3 + 1], positions[vi * 3 + 2]], origin);
+      const pu = dot(p, u), pv = dot(p, v);
+      if (pu < uMin) uMin = pu; if (pu > uMax) uMax = pu;
+      if (pv < vMin) vMin = pv; if (pv > vMax) vMax = pv;
+    }
+  }
+  return { normal, u, v, origin, uMin, uMax, vMin, vMax, area: best.area };
+}
+
+/**
+ * Build one small watertight box mesh per "on" pixel of a plain on/off
+ * raster (e.g. a rasterized digit bitmap), placed on `face` (a frame from
+ * findLargestFlatFace) and centered in its (u,v) footprint. `depthRange`
+ * is [innerDepth, outerDepth] measured along `face.normal` from the face
+ * plane -- for engraving, make innerDepth negative (into the solid) and
+ * outerDepth slightly positive (pokes just past the surface, so the
+ * subtract fully severs the surface skin rather than leaving a degenerate
+ * coincident face). Each pixel box is deliberately oversized by `overlap`
+ * beyond one pixel's pitch so adjacent "on" pixels' boxes overlap
+ * slightly, guaranteeing a contiguous shape with no micro-gaps once
+ * unioned. Returns an ARRAY of individual {positions,indices} box meshes,
+ * not one combined mesh -- manifold-3d requires a valid (non-self-
+ * intersecting) manifold as input to any boolean, and overlapping boxes
+ * concatenated as raw triangle soup are not one; union them with
+ * unionMeshes() first (they're deliberately small/cheap per-box) before
+ * using the result as a subtractMesh/unionMeshes cutter.
+ */
+export function buildStampMesh(face, grid, gridW, gridH, targetWidth, targetHeight, depthRange, overlap = 1.2) {
+  const pitchU = targetWidth / gridW;
+  const pitchV = targetHeight / gridH;
+  const centerU = (face.uMin + face.uMax) / 2;
+  const centerV = (face.vMin + face.vMax) / 2;
+  const [innerDepth, outerDepth] = depthRange;
+  const buildBox = (u0, u1, v0, v1) => {
+    const positions = [];
+    const corners = [
+      [u0, v0, innerDepth], [u1, v0, innerDepth], [u1, v1, innerDepth], [u0, v1, innerDepth],
+      [u0, v0, outerDepth], [u1, v0, outerDepth], [u1, v1, outerDepth], [u0, v1, outerDepth],
+    ];
+    for (const [cu, cv, cd] of corners) {
+      positions.push(
+        face.origin[0] + face.u[0] * cu + face.v[0] * cv + face.normal[0] * cd,
+        face.origin[1] + face.u[1] * cu + face.v[1] * cv + face.normal[1] * cd,
+        face.origin[2] + face.u[2] * cu + face.v[2] * cv + face.normal[2] * cd,
+      );
+    }
+    const indices = [
+      0, 3, 2, 0, 2, 1, // inner (-depth)
+      4, 5, 6, 4, 6, 7, // outer (+depth)
+      0, 1, 5, 0, 5, 4,
+      2, 3, 7, 2, 7, 6,
+      0, 4, 7, 0, 7, 3,
+      1, 2, 6, 1, 6, 5,
+    ];
+    return { positions, indices };
+  };
+  const boxes = [];
+  for (let row = 0; row < gridH; row++) {
+    for (let col = 0; col < gridW; col++) {
+      if (!grid[row * gridW + col]) continue;
+      const cu = (col + 0.5) * pitchU - targetWidth / 2 + centerU;
+      const cv = (gridH - 1 - row + 0.5) * pitchV - targetHeight / 2 + centerV; // raster row 0 = top = +v
+      const hw = (pitchU * overlap) / 2, hv = (pitchV * overlap) / 2;
+      boxes.push(buildBox(cu - hw, cu + hw, cv - hv, cv + hv));
+    }
+  }
+  return boxes;
 }
 
 /**

@@ -4,7 +4,7 @@
  * Backed by manifold-3d (see mesh-cut.js header for why). Run via ./run.sh.
  * Exit code 0 = all pass, 1 = a regression.
  */
-import { sliceMeshByPlane, modularCut, parallelPlaneCut, computeDefaultFlexiPlanes, flexiCut, gridCut, smoothMesh, splitIntoIslands, unionMeshes } from "./_staged/mesh-cut.js";
+import { sliceMeshByPlane, modularCut, parallelPlaneCut, computeDefaultFlexiPlanes, flexiCut, gridCut, smoothMesh, splitIntoIslands, unionMeshes, subtractMesh, findLargestFlatFace, buildStampMesh } from "./_staged/mesh-cut.js";
 import { countOpenEdges, sanitizeMeshForStl } from "./_staged/stl.js";
 import ManifoldModule from "manifold-3d";
 
@@ -282,6 +282,62 @@ function mergeMeshes(meshes) {
   checkSide("unionMeshes disjoint pieces", merged);
   const islands = splitIntoIslands(merged);
   if (islands.length !== 2) { results.push(`FAIL unionMeshes disjoint pieces: expected 2 islands back out, got ${islands.length}`); failures++; }
+}
+
+{
+  // findLargestFlatFace on a non-cube box should pick one of the two
+  // largest (40x40) faces, not a side face -- and its footprint should
+  // roughly match that face's real 40x40 extent.
+  const box = buildBox(0, 0, 0, 40, 40, 10);
+  const face = findLargestFlatFace(box);
+  const width = face.uMax - face.uMin, height = face.vMax - face.vMin;
+  const isTopOrBottom = Math.abs(Math.abs(face.normal[2]) - 1) < 1e-6;
+  results.push(`INFO findLargestFlatFace: normal=[${face.normal.map(n => n.toFixed(2))}] footprint=${width.toFixed(1)}x${height.toFixed(1)} (expect top/bottom, ~40x40)`);
+  if (!isTopOrBottom) { results.push("FAIL findLargestFlatFace: picked a side face instead of top/bottom"); failures++; }
+  if (Math.abs(width - 40) > 0.01 || Math.abs(height - 40) > 0.01) {
+    results.push("FAIL findLargestFlatFace: footprint doesn't match the real 40x40 face");
+    failures++;
+  }
+}
+
+{
+  // Part-number pipeline end to end: engrave a simple raster (a hollow
+  // square ring, so it's unambiguous whether it actually cut in rather
+  // than e.g. silently no-op'ing) into a box's largest face -- union the
+  // per-pixel boxes into one clean cutter solid, then subtract that from
+  // the piece -- and confirm the result is watertight and has strictly
+  // less volume than the untouched box (proof material was actually
+  // removed, not just a watertight-but-unchanged passthrough).
+  const box = buildBox(0, 0, 0, 40, 40, 10);
+  const face = findLargestFlatFace(box);
+  const gridW = 8, gridH = 8;
+  const grid = new Array(gridW * gridH).fill(0);
+  for (let row = 0; row < gridH; row++) {
+    for (let col = 0; col < gridW; col++) {
+      const onRing = row === 0 || row === gridH - 1 || col === 0 || col === gridW - 1;
+      if (onRing) grid[row * gridW + col] = 1;
+    }
+  }
+  const boxes = buildStampMesh(face, grid, gridW, gridH, 20, 20, [-2, 0.5]);
+  results.push(`INFO part-number stamp: ${boxes.length} pixel boxes (expect ${gridW * 4 - 4} for an 8x8 ring)`);
+  const stamp = await unionMeshes(boxes);
+  checkSide("part-number stamp solid (unioned boxes)", stamp);
+  const engraved = await subtractMesh(box, stamp);
+  checkSide("part-number engrave result", engraved);
+  const volOf = (m) => {
+    let vol = 0;
+    for (let t = 0; t < m.indices.length; t += 3) {
+      const ia = m.indices[t] * 3, ib = m.indices[t + 1] * 3, ic = m.indices[t + 2] * 3;
+      const ax = m.positions[ia], ay = m.positions[ia + 1], az = m.positions[ia + 2];
+      const bx = m.positions[ib], by = m.positions[ib + 1], bz = m.positions[ib + 2];
+      const cx = m.positions[ic], cy = m.positions[ic + 1], cz = m.positions[ic + 2];
+      vol += (ax * (by * cz - bz * cy) - ay * (bx * cz - bz * cx) + az * (bx * cy - by * cx)) / 6;
+    }
+    return Math.abs(vol);
+  };
+  const boxVol = volOf(box), engravedVol = volOf(engraved);
+  results.push(`INFO part-number engrave: box vol ${boxVol.toFixed(1)} -> engraved vol ${engravedVol.toFixed(1)}`);
+  if (!(engravedVol < boxVol - 1)) { results.push("FAIL part-number engrave: no material was actually removed"); failures++; }
 }
 
 {
