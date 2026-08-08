@@ -230,7 +230,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import './js/nav.js?v=551';
 import { loadMeshFromFile } from './js/mesh-import.js?v=2';
-import { sliceMeshByPlane, parallelPlaneCut, modularCut, gridCut, smoothMesh, computeBounds, computeDefaultFlexiPlanes, flexiCut } from './js/mesh-cut.js?v=10';
+import { sliceMeshByPlane, parallelPlaneCut, modularCut, gridCut, smoothMesh, computeBounds, computeDefaultFlexiPlanes, flexiCut, splitIntoIslands } from './js/mesh-cut.js?v=11';
 import { meshToStl, downloadBlob, countOpenEdges } from './js/stl.js?v=372';
 
 const $ = (id) => document.getElementById(id);
@@ -1420,6 +1420,20 @@ $('resetPlaneBtn').addEventListener('click', resetPlaneToPiece);
 
 /** Finish a successful cut: splice newPieces in for `piece`, reset selection/gizmo, auto-save. Shared tail for all four cut modes. */
 async function finishCut(piece, newPieces, extraNotes = []) {
+  // A single cutting plane can produce a "half" that's naturally
+  // disconnected for complex organic geometry (e.g. slicing through the
+  // gap between two legs, or a strap sitting close against a body) --
+  // split any such piece into its real separate islands instead of
+  // silently exporting a bundled multi-part mesh as one piece.
+  const expanded = [];
+  let splitCount = 0;
+  for (const np of newPieces) {
+    const islands = splitIntoIslands(np.mesh);
+    if (islands.length > 1) splitCount++;
+    for (const island of islands) expanded.push({ id: `piece-${nextId++}`, mesh: island, openEdgeCount: island.openEdgeCount });
+  }
+  newPieces = expanded;
+
   undoStack.push(pieces.slice());
   const idx = pieces.findIndex((p) => p.id === piece.id);
   pieces.splice(idx, 1, ...newPieces);
@@ -1433,6 +1447,7 @@ async function finishCut(piece, newPieces, extraNotes = []) {
   gizmo.visible = false; gizmo.enabled = false;
   const openCount = newPieces.filter((p) => p.openEdgeCount > 0).length;
   const notes = [...extraNotes];
+  if (splitCount) notes.push(`${splitCount} piece${splitCount === 1 ? '' : 's'} split into separate parts (were disconnected fragments bundled together)`);
   if (openCount) notes.push(`${openCount} came out with open edges — repair in Mesh Prep`);
   const saveResult = await autoSaveIfFolderSet(newPieces);
   if (saveResult) {

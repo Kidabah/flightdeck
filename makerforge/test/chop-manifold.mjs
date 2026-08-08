@@ -4,7 +4,7 @@
  * Backed by manifold-3d (see mesh-cut.js header for why). Run via ./run.sh.
  * Exit code 0 = all pass, 1 = a regression.
  */
-import { sliceMeshByPlane, modularCut, parallelPlaneCut, computeDefaultFlexiPlanes, flexiCut, gridCut, smoothMesh } from "./_staged/mesh-cut.js";
+import { sliceMeshByPlane, modularCut, parallelPlaneCut, computeDefaultFlexiPlanes, flexiCut, gridCut, smoothMesh, splitIntoIslands } from "./_staged/mesh-cut.js";
 import { countOpenEdges, sanitizeMeshForStl } from "./_staged/stl.js";
 import ManifoldModule from "manifold-3d";
 
@@ -156,6 +156,27 @@ function mergeMeshes(meshes) {
   const { above, below } = await sliceMeshByPlane(dumbbell, [0, 0, 0], [0, 0, 1]);
   checkSide("multi-shell above", above);
   checkSide("multi-shell below", below);
+
+  // splitIntoIslands should separate that bundled multi-shell result into
+  // its two real, independent pieces -- the actual bug this exists to fix:
+  // a single flat cut plane can produce a "half" that's naturally
+  // disconnected (e.g. slicing between two legs), and Manifold has no
+  // concept of that, so it silently ships as one bundled mesh otherwise.
+  const islands = splitIntoIslands(above);
+  results.push(`INFO splitIntoIslands multi-shell: ${islands.length} islands (expect 2)`);
+  if (islands.length !== 2) { results.push("FAIL splitIntoIslands multi-shell: expected 2 islands"); failures++; }
+  for (let i = 0; i < islands.length; i++) checkSide(`splitIntoIslands multi-shell island ${i}`, islands[i]);
+  const totalTris = islands.reduce((sum, isl) => sum + isl.indices.length / 3, 0);
+  if (totalTris !== above.indices.length / 3) { results.push(`FAIL splitIntoIslands multi-shell: island triangles ${totalTris} != original ${above.indices.length / 3}`); failures++; }
+}
+
+{
+  // Already-connected single-piece mesh should come back as exactly one
+  // island, unchanged -- splitIntoIslands must be a no-op for the common case.
+  const box = buildBox(0, 0, 0, 10, 10, 10);
+  const islands = splitIntoIslands(box);
+  if (islands.length !== 1) { results.push(`FAIL splitIntoIslands single-piece: expected 1 island, got ${islands.length}`); failures++; }
+  else checkSide("splitIntoIslands single-piece", islands[0]);
 }
 
 {

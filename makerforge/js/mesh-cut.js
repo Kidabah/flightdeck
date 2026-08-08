@@ -83,6 +83,61 @@ function fromManifold(manifold) {
 }
 
 /**
+ * Split `mesh` into its separate connected components (islands), if it has
+ * more than one. A single flat cutting plane can produce a "half" that's
+ * naturally disconnected for complex organic geometry (e.g. slicing
+ * through the gap between two legs, or a strap sitting close against a
+ * body) — Manifold.splitByPlane has no concept of this and just returns
+ * everything on that side as one mesh, silently bundling a smaller
+ * detached fragment in with a larger piece instead of surfacing it as its
+ * own piece. Manifold's own output already has real shared-vertex
+ * topology (that's what "manifold" means), so plain union-find over the
+ * index graph is enough — no position-based re-welding needed. Returns
+ * [mesh-with-openEdgeCount] unchanged (as a 1-element array) if already a
+ * single connected piece.
+ */
+export function splitIntoIslands(mesh) {
+  const { positions, indices } = mesh;
+  const numVerts = positions.length / 3;
+  const numTri = indices.length / 3;
+  const parent = new Int32Array(numVerts);
+  for (let i = 0; i < numVerts; i++) parent[i] = i;
+  const find = (x) => { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
+  const union = (a, b) => { a = find(a); b = find(b); if (a !== b) parent[a] = b; };
+  for (let t = 0; t < numTri; t++) {
+    union(indices[t * 3], indices[t * 3 + 1]);
+    union(indices[t * 3 + 1], indices[t * 3 + 2]);
+  }
+  const roots = new Set();
+  for (let t = 0; t < numTri; t++) roots.add(find(indices[t * 3]));
+  if (roots.size <= 1) return [{ positions, indices, openEdgeCount: countOpenEdges(positions, indices) }];
+
+  const islands = [];
+  for (const root of roots) {
+    const vertMap = new Map();
+    const newPositions = [];
+    const newIndices = [];
+    for (let t = 0; t < numTri; t++) {
+      const v0 = indices[t * 3];
+      if (find(v0) !== root) continue;
+      for (let k = 0; k < 3; k++) {
+        const v = indices[t * 3 + k];
+        let idx = vertMap.get(v);
+        if (idx === undefined) {
+          idx = newPositions.length / 3;
+          newPositions.push(positions[v * 3], positions[v * 3 + 1], positions[v * 3 + 2]);
+          vertMap.set(v, idx);
+        }
+        newIndices.push(idx);
+      }
+    }
+    islands.push({ positions: newPositions, indices: newIndices, openEdgeCount: countOpenEdges(newPositions, newIndices) });
+  }
+  islands.sort((a, b) => b.indices.length - a.indices.length); // largest first, cosmetic ordering
+  return islands;
+}
+
+/**
  * Slice `mesh` by the plane through `planePoint` with unit `planeNormal`.
  * Returns { above, below }. `above`/`below` are each either a watertight
  * {positions,indices,openEdgeCount} piece or null if the plane didn't
