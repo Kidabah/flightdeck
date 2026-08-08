@@ -202,9 +202,8 @@
       </div>
       <div id="piecesBody" style="display:none">
         <button class="btn btn-ghost" id="exportAllBtn" style="width:100%;margin-bottom:8px" disabled>Export All to Folder</button>
-        <div class="hint" style="margin-bottom:6px">Ctrl/Cmd-click (or Shift-click) pieces below to select more than one for merging — works whether the model is assembled or exploded.</div>
+        <div class="hint" style="margin-bottom:6px">Click pieces in the viewport (or Ctrl/Cmd/Shift-click them below) to pick more than one for merging, then hit Merge Selected in the viewport toolbar — works whether the model is assembled or exploded.</div>
         <div class="piece-list" id="pieceList"></div>
-        <button class="btn btn-primary" id="mergeSelectedBtn" style="width:100%;margin-top:8px;display:none">Merge Selected</button>
       </div>
     </div>
   </div>
@@ -217,6 +216,7 @@
       <button id="tbWire">Wire</button>
       <button id="tbExplode" title="Explode view — see where each cut landed (or press E)">Explode</button>
       <button id="tbRestore" title="Restore assembled view (or press R)">Restore</button>
+      <button id="tbMerge" title="Click pieces in the viewport to pick them, then Merge" style="display:none">Merge Selected</button>
     </div>
     <div class="statusbar"><span id="status">Drop an STL or OBJ to begin</span></div>
   </div>
@@ -937,7 +937,7 @@ function renderPieceList() {
   }
   $('undoBtn').disabled = undoStack.length === 0;
   $('exportAllBtn').disabled = !outputDirHandle || pieces.length === 0;
-  const mergeBtn = $('mergeSelectedBtn');
+  const mergeBtn = $('tbMerge');
   mergeBtn.style.display = mergeSelection.size >= 2 ? '' : 'none';
   mergeBtn.textContent = `Merge Selected (${mergeSelection.size})`;
   updateCommitButtonState();
@@ -999,7 +999,7 @@ async function mergeSelectedPieces() {
   resetPlaneToPiece();
   setStatus(`Merged ${targets.length} pieces into ${newPiece.name}${merged.openEdgeCount > 0 ? ` — ${merged.openEdgeCount} open edges, repair in Mesh Prep` : ''}.`);
 }
-$('mergeSelectedBtn').addEventListener('click', mergeSelectedPieces);
+$('tbMerge').addEventListener('click', mergeSelectedPieces);
 
 /**
  * Round off a piece's low-poly "faceted" look (see mesh-cut.js's
@@ -1688,6 +1688,36 @@ $('tbWire').addEventListener('click', () => {
 });
 $('tbExplode').addEventListener('click', () => setExplodeFactor(explodeFactor + 0.4));
 $('tbRestore').addEventListener('click', () => setExplodeFactor(0));
+
+// -- Click-to-pick pieces for merging, directly in the viewport -------------
+// A plain click toggles that piece in/out of mergeSelection (no modifier
+// key needed -- the whole point is to skip hunting through the piece list).
+// Distinguished from an OrbitControls drag/orbit by requiring the pointer to
+// have moved only a few pixels between down and up; suppressed entirely
+// while a gizmo drag is in flight so it never fights Move Model or the
+// Straight/Angled cut-plane gizmo for the same pointer events.
+const mergeRaycaster = new THREE.Raycaster();
+let mergeClickStart = null;
+renderer.domElement.addEventListener('pointerdown', (e) => { mergeClickStart = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener('pointerup', (e) => {
+  const start = mergeClickStart;
+  mergeClickStart = null;
+  if (!start || pieces.length <= 1 || moveMode || gizmo.dragging || modelGizmo.dragging) return;
+  if (Math.hypot(e.clientX - start[0], e.clientY - start[1]) > 4) return; // was a drag, not a click
+  const rect = renderer.domElement.getBoundingClientRect();
+  const ndc = new THREE.Vector2(
+    ((e.clientX - rect.left) / rect.width) * 2 - 1,
+    -((e.clientY - rect.top) / rect.height) * 2 + 1,
+  );
+  mergeRaycaster.setFromCamera(ndc, camera);
+  const hit = mergeRaycaster.intersectObjects(piecesGroup.children, false)[0];
+  if (!hit) return;
+  const pieceId = hit.object.userData.pieceId;
+  if (mergeSelection.has(pieceId)) mergeSelection.delete(pieceId);
+  else mergeSelection.add(pieceId);
+  renderPieceList();
+  rebuildScene();
+});
 
 renderPieceList(); // correct initial disabled state for Reset Plane / Undo / Auto-Chop / Export All before any model is loaded
 </script>
