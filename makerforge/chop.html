@@ -1053,10 +1053,13 @@ async function stampPartNumber(piece) {
   if (faceW < 6 || faceH < 6) throw new Error('largest flat face is too small to stamp');
   const text = String(piece.partNumber);
   const { grid, gridW, gridH } = rasterizeDigits(text);
-  let targetHeight = Math.min(12, Math.max(4, Math.min(faceW, faceH) * 0.35));
+  // Sized generously -- most of the face's smaller dimension, not a
+  // timid corner mark. A future Connector feature will need to steer
+  // clear of (or share space with) whatever region this actually stamps.
+  let targetHeight = Math.min(50, Math.max(8, Math.min(faceW, faceH) * 0.6));
   let targetWidth = targetHeight * (gridW / gridH);
-  if (targetWidth > faceW * 0.85) {
-    targetWidth = faceW * 0.85;
+  if (targetWidth > faceW * 0.9) {
+    targetWidth = faceW * 0.9;
     targetHeight = targetWidth * (gridH / gridW);
   }
   const depth = 0.6; // mm engraved into the surface
