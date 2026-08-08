@@ -214,25 +214,29 @@ export async function subtractMesh(base, cutter) {
 }
 
 /**
- * Find the largest contiguous flat region on `mesh` -- almost always a
- * piece's cut face (the flat cross-section a plane cut leaves behind),
- * which is exactly where a part number belongs: hidden once pieces are
- * glued back together, but visible while sorting loose parts before then.
- * Groups triangles first by (quantized) normal direction, then by planar
- * offset along that normal, so triangles that merely face the same way but
- * sit on different planes (e.g. two parallel walls) don't get lumped
- * together; picks whichever group has the largest total triangle area.
- * Returns null for a degenerate/empty mesh.
+ * Find every contiguous flat region on `mesh` at or above `minArea` --
+ * almost always a piece's cut faces (the flat cross-sections a plane cut
+ * leaves behind). A piece can have more than one (e.g. a middle piece in a
+ * row of three has a cut face on each side, connecting to a different
+ * neighbor), which is why this exists as its own function rather than just
+ * returning the single largest -- adjacency detection (findAdjacentPieces)
+ * needs to check every candidate face on both pieces, not just each
+ * piece's biggest one. Groups triangles first by (quantized) normal
+ * direction, then by planar offset along that normal, so triangles that
+ * merely face the same way but sit on different planes (e.g. two parallel
+ * walls) don't get lumped together; sums each group's total triangle area.
+ * Returns groups sorted largest-first; empty array for a degenerate/empty
+ * mesh or one with nothing at or above minArea.
  *
- * Returned frame: `normal` points outward from the solid; `u`/`v` are an
- * orthonormal in-plane basis; `origin` is a point on the plane; `uMin`/
+ * Each returned frame: `normal` points outward from the solid; `u`/`v` are
+ * an orthonormal in-plane basis; `origin` is a point on the plane; `uMin`/
  * `uMax`/`vMin`/`vMax` bound the flat region's actual footprint in that
  * (u,v) frame, for sizing/centering whatever gets placed on it.
  */
-export function findLargestFlatFace(mesh) {
+export function findFlatFaceGroups(mesh, minArea = 0) {
   const { positions, indices } = mesh;
   const numTri = indices.length / 3;
-  if (numTri === 0) return null;
+  if (numTri === 0) return [];
   const eps = 1e-4;
   const groups = new Map();
   for (let t = 0; t < numTri; t++) {
@@ -252,30 +256,88 @@ export function findLargestFlatFace(mesh) {
     g.area += area;
     g.tris.push(t);
   }
-  if (!groups.size) return null;
-  let best = null;
-  for (const g of groups.values()) if (!best || g.area > best.area) best = g;
 
-  const normal = best.normal;
-  const ref = Math.abs(normal[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0];
-  const u = normalize(cross(ref, normal));
-  const v = cross(normal, u);
-  const origin = [normal[0] * best.offset, normal[1] * best.offset, normal[2] * best.offset];
+  const frames = [];
+  for (const g of groups.values()) {
+    if (g.area < minArea) continue;
+    const normal = g.normal;
+    const ref = Math.abs(normal[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0];
+    const u = normalize(cross(ref, normal));
+    const v = cross(normal, u);
+    const origin = [normal[0] * g.offset, normal[1] * g.offset, normal[2] * g.offset];
 
-  let uMin = Infinity, uMax = -Infinity, vMin = Infinity, vMax = -Infinity;
-  const seen = new Set();
-  for (const t of best.tris) {
-    for (let k = 0; k < 3; k++) {
-      const vi = indices[t * 3 + k];
-      if (seen.has(vi)) continue;
-      seen.add(vi);
-      const p = sub([positions[vi * 3], positions[vi * 3 + 1], positions[vi * 3 + 2]], origin);
-      const pu = dot(p, u), pv = dot(p, v);
-      if (pu < uMin) uMin = pu; if (pu > uMax) uMax = pu;
-      if (pv < vMin) vMin = pv; if (pv > vMax) vMax = pv;
+    let uMin = Infinity, uMax = -Infinity, vMin = Infinity, vMax = -Infinity;
+    const seen = new Set();
+    for (const t of g.tris) {
+      for (let k = 0; k < 3; k++) {
+        const vi = indices[t * 3 + k];
+        if (seen.has(vi)) continue;
+        seen.add(vi);
+        const p = sub([positions[vi * 3], positions[vi * 3 + 1], positions[vi * 3 + 2]], origin);
+        const pu = dot(p, u), pv = dot(p, v);
+        if (pu < uMin) uMin = pu; if (pu > uMax) uMax = pu;
+        if (pv < vMin) vMin = pv; if (pv > vMax) vMax = pv;
+      }
+    }
+    frames.push({ normal, u, v, origin, uMin, uMax, vMin, vMax, area: g.area });
+  }
+  frames.sort((a, b) => b.area - a.area);
+  return frames;
+}
+
+/** The single largest flat region on `mesh` (see findFlatFaceGroups) -- null if the mesh has no faces at all. */
+export function findLargestFlatFace(mesh) {
+  return findFlatFaceGroups(mesh)[0] ?? null;
+}
+
+/**
+ * Find pairs of pieces that share a real cut face -- two pieces that came
+ * from splitting the same parent at the same plane leave an exact matching
+ * scar: opposite-facing normals, coincident plane, and (for an unmerged,
+ * unmoved pair) an identical footprint, so their face centroids land on
+ * top of each other. That's checked directly rather than doing a full
+ * polygon-overlap test, which real adjacency doesn't need: for a genuine
+ * cut interface the two faces are mirror images of the same boundary, not
+ * just two coplanar shapes that happen to be near each other.
+ *
+ * `pieces` is an array of `{id, mesh}`. Returns an array of
+ * `{pieceA, pieceB, faceA, faceB, area}`, one entry per detected shared
+ * face (a middle piece with neighbors on two different faces produces two
+ * entries). `faceA`/`faceB` are the two sides' own frames (see
+ * findFlatFaceGroups) -- the actual site where connector geometry would
+ * eventually go. `minArea` (mm^2) filters out small/noisy coplanar bits
+ * that aren't real connector-worthy interfaces (default 25mm^2, i.e. a
+ * ~5x5mm minimum).
+ */
+export function findAdjacentPieces(pieces, { minArea = 25 } = {}) {
+  const withFaces = pieces.map((p) => ({ id: p.id, faces: findFlatFaceGroups(p.mesh, minArea) }));
+  const results = [];
+  for (let i = 0; i < withFaces.length; i++) {
+    for (let j = i + 1; j < withFaces.length; j++) {
+      for (const faceA of withFaces[i].faces) {
+        for (const faceB of withFaces[j].faces) {
+          if (dot(faceA.normal, faceB.normal) > -0.999) continue; // must face opposite ways
+          const planeGap = Math.abs(dot(faceA.normal, sub(faceB.origin, faceA.origin)));
+          if (planeGap > 0.5) continue; // not the same plane (0.5mm slop for float noise)
+
+          const centerA = [(faceA.uMin + faceA.uMax) / 2, (faceA.vMin + faceA.vMax) / 2];
+          const worldCenterB = [
+            faceB.origin[0] + faceB.u[0] * (faceB.uMin + faceB.uMax) / 2 + faceB.v[0] * (faceB.vMin + faceB.vMax) / 2,
+            faceB.origin[1] + faceB.u[1] * (faceB.uMin + faceB.uMax) / 2 + faceB.v[1] * (faceB.vMin + faceB.vMax) / 2,
+            faceB.origin[2] + faceB.u[2] * (faceB.uMin + faceB.uMax) / 2 + faceB.v[2] * (faceB.vMin + faceB.vMax) / 2,
+          ];
+          const p = sub(worldCenterB, faceA.origin);
+          const centerBInA = [dot(p, faceA.u), dot(p, faceA.v)];
+          const dist = Math.hypot(centerA[0] - centerBInA[0], centerA[1] - centerBInA[1]);
+          const scale = Math.max(faceA.uMax - faceA.uMin, faceA.vMax - faceA.vMin, faceB.uMax - faceB.uMin, faceB.vMax - faceB.vMin);
+          if (dist > scale * 0.3) continue; // centroids too far apart to be the same cut interface
+
+          results.push({ pieceA: withFaces[i].id, pieceB: withFaces[j].id, faceA, faceB, area: Math.min(faceA.area, faceB.area) });
+        }
+      }
     }
   }
-  return { normal, u, v, origin, uMin, uMax, vMin, vMax, area: best.area };
+  return results;
 }
 
 /**

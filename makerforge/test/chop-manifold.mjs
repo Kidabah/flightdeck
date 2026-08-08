@@ -4,7 +4,7 @@
  * Backed by manifold-3d (see mesh-cut.js header for why). Run via ./run.sh.
  * Exit code 0 = all pass, 1 = a regression.
  */
-import { sliceMeshByPlane, modularCut, parallelPlaneCut, computeDefaultFlexiPlanes, flexiCut, gridCut, smoothMesh, splitIntoIslands, unionMeshes, subtractMesh, findLargestFlatFace, buildStampMesh } from "./_staged/mesh-cut.js";
+import { sliceMeshByPlane, modularCut, parallelPlaneCut, computeDefaultFlexiPlanes, flexiCut, gridCut, smoothMesh, splitIntoIslands, unionMeshes, subtractMesh, findLargestFlatFace, buildStampMesh, findFlatFaceGroups, findAdjacentPieces } from "./_staged/mesh-cut.js";
 import { countOpenEdges, sanitizeMeshForStl } from "./_staged/stl.js";
 import ManifoldModule from "manifold-3d";
 
@@ -338,6 +338,47 @@ function mergeMeshes(meshes) {
   const boxVol = volOf(box), engravedVol = volOf(engraved);
   results.push(`INFO part-number engrave: box vol ${boxVol.toFixed(1)} -> engraved vol ${engravedVol.toFixed(1)}`);
   if (!(engravedVol < boxVol - 1)) { results.push("FAIL part-number engrave: no material was actually removed"); failures++; }
+}
+
+{
+  // findFlatFaceGroups should find ALL of a box's 6 faces (above minArea),
+  // not just the largest -- a piece can have a neighbor on more than one
+  // face, which adjacency detection needs to check every candidate for.
+  const box = buildBox(0, 0, 0, 20, 15, 10);
+  const groups = findFlatFaceGroups(box, 25);
+  results.push(`INFO findFlatFaceGroups: ${groups.length} groups on a plain box (expect 6)`);
+  if (groups.length !== 6) { results.push(`FAIL findFlatFaceGroups: expected 6 faces, got ${groups.length}`); failures++; }
+  const totalArea = groups.reduce((s, g) => s + g.area, 0);
+  const expectedSurfaceArea = 2 * (20 * 15 + 20 * 10 + 15 * 10);
+  if (Math.abs(totalArea - expectedSurfaceArea) > 0.1) {
+    results.push(`FAIL findFlatFaceGroups: total area ${totalArea} != box surface area ${expectedSurfaceArea}`);
+    failures++;
+  }
+}
+
+{
+  // The actual adjacency-detection case findAdjacentPieces exists for: cut
+  // one box into two real halves (a genuine shared cut face, must be
+  // detected), while two OTHER boxes that happen to share a coplanar
+  // facing direction but sit far apart with a real gap between them (same
+  // plane, no actual overlap) must NOT be flagged -- proves this isn't
+  // just checking "same plane," it's checking real spatial overlap.
+  const cutMe = buildBox(0, 0, 0, 10, 10, 10);
+  const { above, below } = await sliceMeshByPlane(cutMe, [0, 0, 0], [0, 1, 0]);
+  const farA = buildBox(0, 0, 0, 10, 10, 10);   // +X face at x=5
+  const farB = buildBox(0, 30, 0, 10, 10, 10);  // also has a +X face at x=5, but 20mm away in Y -- no real overlap
+
+  const pairs = findAdjacentPieces([
+    { id: 'half-above', mesh: above },
+    { id: 'half-below', mesh: below },
+    { id: 'far-a', mesh: farA },
+    { id: 'far-b', mesh: farB },
+  ]);
+  const halves = pairs.filter((p) => (p.pieceA === 'half-above' && p.pieceB === 'half-below') || (p.pieceA === 'half-below' && p.pieceB === 'half-above'));
+  const farPair = pairs.filter((p) => (p.pieceA === 'far-a' && p.pieceB === 'far-b') || (p.pieceA === 'far-b' && p.pieceB === 'far-a'));
+  results.push(`INFO findAdjacentPieces: ${pairs.length} total pairs found (expect 1: the real cut halves, not the far-apart coplanar boxes)`);
+  if (halves.length !== 1) { results.push(`FAIL findAdjacentPieces: expected the real cut halves to be detected as adjacent, found ${halves.length} matches`); failures++; }
+  if (farPair.length !== 0) { results.push(`FAIL findAdjacentPieces: far-apart-but-coplanar boxes were wrongly flagged as adjacent`); failures++; }
 }
 
 {
