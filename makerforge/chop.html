@@ -361,14 +361,36 @@ scene.add(modelGizmo);
 modelGizmo.visible = false;
 modelGizmo.enabled = false;
 
-/** Fold the model-move gizmo's accumulated X/Y offset into the piece's raw vertex data (same "bake it into positions" convention Apply Scale already uses), then zero the gizmo's Object3D position back out. */
+// The gizmo attaches to this pivot, not the mesh itself -- the mesh's own
+// Object3D.position always stays at (0,0,0) since a move gets baked
+// straight into the piece's raw vertex data (see bakeModelMove) rather than
+// kept as a transform. If the gizmo attached to the mesh directly, it would
+// always render at world (0,0,0), drifting further from the model's actual
+// on-screen position with every past move instead of tracking where the
+// model visually is. Re-centered on the piece's true bounds each time move
+// mode is entered and after every bake.
+const movePivot = new THREE.Object3D();
+scene.add(movePivot);
+let moveOrigin = [0, 0];
+
+function centerMovePivot() {
+  const p = selectedPiece();
+  if (!p) return;
+  const b = pieceBounds(p);
+  const cx = (b.min[0] + b.max[0]) / 2;
+  const cy = (b.min[1] + b.max[1]) / 2;
+  movePivot.position.set(cx, cy, 0);
+  moveOrigin = [cx, cy];
+}
+
+/** Fold the move pivot's accumulated X/Y offset (relative to where it was centered at the start of this drag) into the piece's raw vertex data (same "bake it into positions" convention Apply Scale already uses), then re-center the pivot on the model's new true position. */
 function bakeModelMove() {
   const p = selectedPiece();
   const mesh = selectedThreeMesh();
   if (!p || !mesh) return;
-  const dx = mesh.position.x, dy = mesh.position.y;
-  mesh.position.set(0, 0, 0); // always reset the gizmo's offset, even on a degenerate/failed drag
-  if (!Number.isFinite(dx) || !Number.isFinite(dy) || (!dx && !dy)) return; // never let a bad drag corrupt real vertex data
+  const dx = movePivot.position.x - moveOrigin[0];
+  const dy = movePivot.position.y - moveOrigin[1];
+  if (!Number.isFinite(dx) || !Number.isFinite(dy) || (!dx && !dy)) { centerMovePivot(); return; } // never let a bad drag corrupt real vertex data
   const pos = p.mesh.positions;
   for (let i = 0; i < pos.length; i += 3) { pos[i] += dx; pos[i + 1] += dy; }
   // toBufferGeometry() copies positions into a fresh Float32Array at build
@@ -384,6 +406,7 @@ function bakeModelMove() {
   attr.needsUpdate = true;
   mesh.geometry.computeBoundingBox();
   mesh.geometry.computeBoundingSphere();
+  centerMovePivot(); // re-center the gizmo on the model's new true center for the next drag
 }
 
 function exitMoveMode() {
@@ -1139,7 +1162,8 @@ $('moveModelBtn').addEventListener('click', () => {
   const mesh = selectedThreeMesh();
   if (!mesh) return;
   moveMode = true;
-  modelGizmo.attach(mesh);
+  centerMovePivot();
+  modelGizmo.attach(movePivot);
   modelGizmo.setMode('translate');
   modelGizmo.visible = true; modelGizmo.enabled = true;
   $('moveModelBtn').classList.add('active');
