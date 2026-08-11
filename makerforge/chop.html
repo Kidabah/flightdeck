@@ -176,6 +176,8 @@
           </div>
         </div>
         <div class="hint" style="margin-top:6px">Lays down evenly-spaced planes across X, Y and Z together, like a 3D waffle — (X+1) × (Y+1) × (Z+1) pieces in one Commit Cut.</div>
+        <label class="check-row" style="margin-top:8px"><input type="checkbox" id="gridStaggered"> Staggered cut pattern</label>
+        <div class="hint" style="margin-top:4px">Offsets the Y cut every other X row, like a brick course, so seams don't run straight through in a line — needs both X and Y divisions set. Not available together with Adjust Grid Plane overrides.</div>
         <div id="gridAdjustControls" style="display:none;margin-top:10px">
           <div class="section-label" style="margin-bottom:4px">Adjust Grid Plane</div>
           <div class="dims-row" style="grid-template-columns:auto 1fr auto;align-items:center;gap:8px">
@@ -246,7 +248,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import './js/nav.js?v=551';
 import { loadMeshFromFile } from './js/mesh-import.js?v=2';
-import { sliceMeshByPlane, parallelPlaneCut, modularCut, gridCut, smoothMesh, computeBounds, computeDefaultFlexiPlanes, flexiCut, splitIntoIslands, unionMeshes, subtractMesh, findLargestFlatFace, buildStampMesh, findAdjacentPieces, addConnectorsToPieces } from './js/mesh-cut.js?v=14';
+import { sliceMeshByPlane, parallelPlaneCut, modularCut, gridCut, smoothMesh, computeBounds, computeDefaultFlexiPlanes, flexiCut, splitIntoIslands, unionMeshes, subtractMesh, findLargestFlatFace, buildStampMesh, findAdjacentPieces, addConnectorsToPieces } from './js/mesh-cut.js?v=15';
 import { meshToStl, downloadBlob, countOpenEdges } from './js/stl.js?v=372';
 
 const $ = (id) => document.getElementById(id);
@@ -795,7 +797,46 @@ function updateGridVisuals() {
     });
   };
   addAxisPlanes('x', xCount, 0, planeDims.x, 0xff6b6b); // red — X divisions
-  addAxisPlanes('y', yCount, 1, planeDims.y, 0x4ade80); // green — Y divisions
+
+  // Staggered mode shifts Y's cut positions per X-strip (see gridCut's own
+  // doc comment) -- overrides always win if any are set (mutually
+  // exclusive per the UI hint), so this branch only applies to the plain,
+  // no-override case. Each strip gets its own row of Y planes, sized to
+  // just that strip's own width and shifted by half the Y pitch on
+  // alternating strips, so the preview actually reads as a running-bond
+  // pattern instead of full-width planes overlapping in a confusing pile.
+  const staggered = $('gridStaggered').checked && gridPlaneOverrides.size === 0;
+  if (staggered && xCount > 0 && yCount > 0) {
+    const { tMin: xMin, tMax: xMax } = gridAxisSpan(p.mesh, 'x');
+    const xPlaneTs = gridAxisPlanes(p.mesh, 'x', xCount).map((pl) => pl.t).sort((a, b) => a - b);
+    const xBoundaries = [xMin, ...xPlaneTs, xMax];
+    const { tMin: yMin, tMax: yMax, normal: yNormal } = gridAxisSpan(p.mesh, 'y');
+    const yPitch = (yMax - yMin) / (yCount + 1);
+    const targetNormal = new THREE.Vector3(yNormal[0], yNormal[1], yNormal[2]);
+    const quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), targetNormal);
+    for (let i = 0; i < xBoundaries.length - 1; i++) {
+      const stripCenterX = (xBoundaries[i] + xBoundaries[i + 1]) / 2;
+      const stripWidth = (xBoundaries[i + 1] - xBoundaries[i]) * margin;
+      const geom = new THREE.PlaneGeometry(stripWidth || 10, planeDims.y[1] || 10);
+      const edgeGeom = new THREE.EdgesGeometry(geom);
+      const shift = i % 2 === 1 ? yPitch / 2 : 0;
+      for (let j = 1; j <= yCount; j++) {
+        const pos = center.slice();
+        pos[0] = stripCenterX;
+        pos[1] = yMin + yPitch * j + shift;
+        const mesh = new THREE.Mesh(geom, new THREE.MeshBasicMaterial({ color: 0x4ade80, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false }));
+        mesh.position.set(pos[0], pos[1], pos[2]);
+        mesh.quaternion.copy(quat);
+        extraPlaneGroup.add(mesh);
+        const edges = new THREE.LineSegments(edgeGeom, new THREE.LineBasicMaterial({ color: 0x4ade80, transparent: true, opacity: 0.7 }));
+        edges.position.copy(mesh.position);
+        edges.quaternion.copy(quat);
+        extraPlaneGroup.add(edges);
+      }
+    }
+  } else {
+    addAxisPlanes('y', yCount, 1, planeDims.y, 0x4ade80); // green — Y divisions
+  }
   addAxisPlanes('z', zCount, 2, planeDims.z, 0xfbbf24); // amber — Z divisions
 }
 
@@ -1652,6 +1693,7 @@ $('resetAdjustPlaneBtn').addEventListener('click', () => {
   planeOverrides.delete(idx);
   loadAdjustPlaneSliderFromIndex();
 });
+$('gridStaggered').addEventListener('change', updateGridVisuals);
 $('gridAdjustAxis').addEventListener('change', loadGridAdjustSliderFromIndex);
 $('gridAdjustIndex').addEventListener('input', loadGridAdjustSliderFromIndex);
 $('gridAdjustSlider').addEventListener('input', gridAdjustSliderChanged);
@@ -1793,11 +1835,12 @@ async function commitGridCut() {
   }
   setStatus('Grid cutting…');
   $('commitCutBtn').disabled = true;
+  const staggered = $('gridStaggered').checked;
   let cells;
   try {
     cells = gridPlaneOverrides.size > 0
       ? await gridCutWithOverrides(piece.mesh, xCount, yCount, zCount)
-      : await gridCut(piece.mesh, xCount, yCount, zCount);
+      : await gridCut(piece.mesh, xCount, yCount, zCount, { staggered });
   } catch (e) {
     setStatus('Grid cut failed: ' + e.message);
     updateCommitButtonState();
