@@ -122,6 +122,7 @@
         <option value="straight">Straight</option>
         <option value="angled">Angled</option>
         <option value="grid">Grid</option>
+        <option value="radial">Radial (Pie-slice)</option>
         <option value="modular">Modular (Auto-Chop)</option>
       </select>
 
@@ -195,6 +196,34 @@
         </div>
       </div>
 
+      <div id="radialControls" style="display:none">
+        <div class="hint" style="margin-bottom:6px">Direction (rotation axis)</div>
+        <div class="axis-btns" style="margin-bottom:8px">
+          <button class="btn" id="radialAxisX" data-axis="x">X</button>
+          <button class="btn" id="radialAxisY" data-axis="y">Y</button>
+          <button class="btn active" id="radialAxisZ" data-axis="z">Z</button>
+        </div>
+        <div class="dims-row" style="grid-template-columns:auto 1fr;align-items:center;gap:8px">
+          <label for="radialCount" style="font-size:12px;color:var(--muted)">Number of cuts</label>
+          <input type="number" id="radialCount" min="0" max="64" step="1" value="4">
+        </div>
+        <div class="dims-row" style="grid-template-columns:auto 1fr;align-items:center;gap:8px;margin-top:6px">
+          <label for="radialStartAngle" style="font-size:12px;color:var(--muted)">Start angle (deg)</label>
+          <input type="number" id="radialStartAngle" step="any" value="0">
+        </div>
+        <div class="dims-row" style="margin-top:8px">
+          <div>
+            <label class="hint" for="radialCenterU">Center U [-1,1]</label>
+            <input type="number" id="radialCenterU" min="-1" max="1" step="0.05" value="0">
+          </div>
+          <div>
+            <label class="hint" for="radialCenterV">Center V [-1,1]</label>
+            <input type="number" id="radialCenterV" min="-1" max="1" step="0.05" value="0">
+          </div>
+        </div>
+        <div class="hint" style="margin-top:6px">Cuts like a pie, through a shared axis — evenly spaced wedges around Direction, starting at Start angle. Center U/V shifts the rotation axis off the piece's own center (0 = centered, ±1 = piece edge) in the two axes perpendicular to Direction.</div>
+      </div>
+
       <div id="modularControls" style="display:none">
         <div class="hint">Repeatedly splits the selected piece along its oversized axis until every part fits the bed above.</div>
       </div>
@@ -248,7 +277,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import './js/nav.js?v=551';
 import { loadMeshFromFile } from './js/mesh-import.js?v=2';
-import { sliceMeshByPlane, parallelPlaneCut, modularCut, gridCut, smoothMesh, computeBounds, computeDefaultFlexiPlanes, flexiCut, splitIntoIslands, unionMeshes, subtractMesh, findLargestFlatFace, buildStampMesh, findAdjacentPieces, addConnectorsToPieces } from './js/mesh-cut.js?v=15';
+import { sliceMeshByPlane, parallelPlaneCut, modularCut, gridCut, radialCut, smoothMesh, computeBounds, computeDefaultFlexiPlanes, flexiCut, splitIntoIslands, unionMeshes, subtractMesh, findLargestFlatFace, buildStampMesh, findAdjacentPieces, addConnectorsToPieces } from './js/mesh-cut.js?v=16';
 import { meshToStl, downloadBlob, countOpenEdges } from './js/stl.js?v=372';
 
 const $ = (id) => document.getElementById(id);
@@ -261,8 +290,9 @@ let mergeSelection = new Set(); // piece ids picked via Ctrl/Cmd/Shift-click, fo
 let undoStack = [];
 let baseName = 'model';
 let nextId = 1;
-let cutMode = 'straight'; // 'straight' | 'angled' | 'grid' | 'modular'
+let cutMode = 'straight'; // 'straight' | 'angled' | 'grid' | 'radial' | 'modular'
 let cutAxis = 'z';
+let radialAxis = 'z';
 let originalAspect = null; // [x,y,z] of the piece as first loaded, for uniform scale
 let outputDirHandle = null; // FileSystemDirectoryHandle, if the user granted one; else fall back to browser downloads
 let planeOverrides = new Map(); // Flexi cut: 1-based plane index -> {t, point, normal}, only for manually-moved planes
@@ -840,6 +870,80 @@ function updateGridVisuals() {
   addAxisPlanes('z', zCount, 2, planeDims.z, 0xfbbf24); // amber — Z divisions
 }
 
+/** The rotation axis's other two in-plane axis indices, matching radialCut's own right-hand cyclic convention (x->y->z->x). */
+function radialAxisIndices(axis) {
+  const axisIdx = { x: 0, y: 1, z: 2 }[axis];
+  return { axisIdx, uIdx: (axisIdx + 1) % 3, vIdx: (axisIdx + 2) % 3 };
+}
+
+/** The actual rotation center for a radial cut on `mesh`, matching radialCut's own bounds-relative offset math. */
+function radialCenter(mesh, axis, centerU, centerV) {
+  const b = computeBounds(mesh.positions);
+  const { uIdx, vIdx } = radialAxisIndices(axis);
+  const bcenter = [(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2, (b.min[2] + b.max[2]) / 2];
+  const center = bcenter.slice();
+  center[uIdx] = bcenter[uIdx] + centerU * (b.size[uIdx] / 2);
+  center[vIdx] = bcenter[vIdx] + centerV * (b.size[vIdx] / 2);
+  return { center, bounds: b };
+}
+
+/**
+ * Preview Radial cut's wedge-boundary planes before committing -- one
+ * rectangle per cut angle, matching radialCut's own per-wedge normal math
+ * exactly (see that function's doc comment for why a single plane only
+ * bisects at 180°, and why an even count's opposite-angle planes end up
+ * drawn twice on top of each other -- harmless, and it's exactly why an
+ * even count visually reads as a clean cross/star rather than needing any
+ * special-casing here). Each plane's orientation is built from an explicit
+ * (right, up, normal) basis rather than THREE.Quaternion.setFromUnitVectors
+ * -- that method leaves the roll (rotation about the normal) unspecified,
+ * which is fine when a plane's own footprint is a big enough square to
+ * cover the piece regardless of roll (as Straight/Flexi's preview does),
+ * but here the two dimensions genuinely differ (axis-direction extent vs.
+ * radial reach) and need to land in the right place: "up" is fixed to the
+ * rotation axis itself, so the plane's height dimension always aligns
+ * with it.
+ */
+function updateRadialVisuals() {
+  clearExtraPlaneVisuals();
+  if (cutMode !== 'radial') return;
+  const p = selectedPiece();
+  if (!p) return;
+  const count = Math.max(0, Math.round(Number($('radialCount').value) || 0));
+  if (count < 2) return;
+  const startAngle = Number($('radialStartAngle').value) || 0;
+  const centerU = Math.max(-1, Math.min(1, Number($('radialCenterU').value) || 0));
+  const centerV = Math.max(-1, Math.min(1, Number($('radialCenterV').value) || 0));
+  const { axisIdx, uIdx, vIdx } = radialAxisIndices(radialAxis);
+  const { center, bounds: b } = radialCenter(p.mesh, radialAxis, centerU, centerV);
+  const margin = 1.15;
+  const width = Math.hypot(b.size[uIdx], b.size[vIdx]) * margin; // radial reach -- generous, angle-independent
+  const height = (b.size[axisIdx] || 10) * margin; // extent along the rotation axis itself
+  const geom = new THREE.PlaneGeometry(width || 10, height);
+  const edgeGeom = new THREE.EdgesGeometry(geom);
+  const up = [0, 0, 0]; up[axisIdx] = 1;
+  const upVec3 = new THREE.Vector3(up[0], up[1], up[2]);
+  const angleStep = 360 / count;
+  for (let i = 0; i < count; i++) {
+    const rad = ((startAngle + i * angleStep) * Math.PI) / 180;
+    const n = [0, 0, 0];
+    n[uIdx] = -Math.sin(rad);
+    n[vIdx] = Math.cos(rad);
+    const normalVec3 = new THREE.Vector3(n[0], n[1], n[2]);
+    const rightVec3 = new THREE.Vector3().crossVectors(upVec3, normalVec3).normalize();
+    const basis = new THREE.Matrix4().makeBasis(rightVec3, upVec3, normalVec3);
+    const quat = new THREE.Quaternion().setFromRotationMatrix(basis);
+    const mesh = new THREE.Mesh(geom, new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false }));
+    mesh.position.set(center[0], center[1], center[2]);
+    mesh.quaternion.copy(quat);
+    extraPlaneGroup.add(mesh);
+    const edges = new THREE.LineSegments(edgeGeom, new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.7 }));
+    edges.position.copy(mesh.position);
+    edges.quaternion.copy(quat);
+    extraPlaneGroup.add(edges);
+  }
+}
+
 function adjustPlaneSliderChanged() {
   const p = selectedPiece();
   if (!p) return;
@@ -904,6 +1008,7 @@ function loadGridAdjustSliderFromIndex() {
 function updateClipPreview() {
   updatePlaneVisuals();
   if (cutMode === 'grid') updateGridVisuals();
+  if (cutMode === 'radial') updateRadialVisuals();
   const mesh = selectedThreeMesh();
   if (!mesh) return;
   if (cutMode !== 'straight' && cutMode !== 'angled') { mesh.material.clippingPlanes = []; return; }
@@ -1647,6 +1752,7 @@ function setCutMode(mode) {
   $('straightControls').style.display = mode === 'straight' ? '' : 'none';
   $('angledControls').style.display = mode === 'angled' ? '' : 'none';
   $('gridControls').style.display = mode === 'grid' ? '' : 'none';
+  $('radialControls').style.display = mode === 'radial' ? '' : 'none';
   $('modularControls').style.display = mode === 'modular' ? '' : 'none';
   planeTarget.visible = isPlaneMode;
   if (mode === 'angled' && selectedId) {
@@ -1674,6 +1780,16 @@ for (const axis of ['x', 'y', 'z']) {
   });
 }
 $('axisSlider').addEventListener('input', applyAxisToPlane);
+for (const axis of ['x', 'y', 'z']) {
+  $(`radialAxis${axis.toUpperCase()}`).addEventListener('click', () => {
+    radialAxis = axis;
+    for (const a of ['x', 'y', 'z']) $(`radialAxis${a.toUpperCase()}`).classList.toggle('active', a === axis);
+    updateRadialVisuals();
+  });
+}
+['radialCount', 'radialStartAngle', 'radialCenterU', 'radialCenterV'].forEach((id) => {
+  $(id).addEventListener('input', updateRadialVisuals);
+});
 $('numPlanes').addEventListener('input', () => { planeOverrides.clear(); updatePlaneVisuals(); });
 $('startAtPlane').addEventListener('change', () => { planeOverrides.clear(); updatePlaneVisuals(); });
 // Changing a count changes that axis's spacing/plane count, so its own
@@ -1856,6 +1972,37 @@ async function commitGridCut() {
   setStatus(`Grid-cut into ${newPieces.length} piece${newPieces.length === 1 ? '' : 's'}${note}.${saved ? '' : ' Select a piece to cut again or export.'}`);
 }
 
+async function commitRadialCut() {
+  const piece = selectedPiece();
+  if (!piece) return;
+  const count = Math.max(0, Math.round(Number($('radialCount').value) || 0));
+  if (count < 2) {
+    setStatus('Set Number of cuts to 2 or more to radial-cut.');
+    return;
+  }
+  const startAngleDeg = Number($('radialStartAngle').value) || 0;
+  const centerU = Math.max(-1, Math.min(1, Number($('radialCenterU').value) || 0));
+  const centerV = Math.max(-1, Math.min(1, Number($('radialCenterV').value) || 0));
+  setStatus('Radial cutting…');
+  $('commitCutBtn').disabled = true;
+  let wedges;
+  try {
+    wedges = await radialCut(piece.mesh, { axis: radialAxis, count, startAngleDeg, centerOffset: [centerU, centerV] });
+  } catch (e) {
+    setStatus('Radial cut failed: ' + e.message);
+    updateCommitButtonState();
+    return;
+  }
+  if (wedges.length <= 1) {
+    setStatus("Radial cut didn't intersect this piece — adjust the axis/center and try again.");
+    updateCommitButtonState();
+    return;
+  }
+  const newPieces = wedges.map((m) => ({ id: `piece-${nextId++}`, mesh: m, openEdgeCount: m.openEdgeCount }));
+  const { note, saved } = await finishCut(piece, newPieces);
+  setStatus(`Radial-cut into ${newPieces.length} wedge${newPieces.length === 1 ? '' : 's'}${note}.${saved ? '' : ' Select a piece to cut again or export.'}`);
+}
+
 async function commitModularCut() {
   const piece = selectedPiece();
   const bed = bedDims();
@@ -1883,6 +2030,7 @@ async function commitModularCut() {
 
 $('commitCutBtn').addEventListener('click', () => {
   if (cutMode === 'grid') return commitGridCut();
+  if (cutMode === 'radial') return commitRadialCut();
   if (cutMode === 'modular') return commitModularCut();
   return commitPlaneCut();
 });
