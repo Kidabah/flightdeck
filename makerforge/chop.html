@@ -244,9 +244,8 @@
         <button class="btn btn-ghost" id="exportAllBtn" style="width:100%;margin-bottom:8px" disabled>Export All to Folder</button>
         <button class="btn btn-ghost" id="addPartNumbersBtn" style="width:100%;margin-bottom:8px">Add Part Numbers</button>
         <div class="hint" style="margin-bottom:6px">Engraves each piece's own number into its largest flat face (almost always the cut face) — hidden once glued back together, visible while sorting loose parts.</div>
-        <button class="btn btn-ghost" id="addConnectorsBtn" style="width:100%;margin-bottom:8px">Add Connectors</button>
-        <div class="hint" style="margin-bottom:6px">Adds a grid of tapered alignment pegs/sockets across every shared cut face, so pieces key together and glue cleanly. Runs once across the whole model. If a piece already has a part number stamped on the same face, the two aren't yet coordinated and may overlap — add connectors first if you plan to use both.</div>
         <div class="hint" style="margin-bottom:6px">Click pieces in the viewport (or Ctrl/Cmd/Shift-click them below) to pick more than one for merging, then hit Merge Selected in the viewport toolbar — works whether the model is assembled or exploded.</div>
+        <div class="hint" style="margin-bottom:6px">Add Connectors (viewport toolbar) adds a grid of tapered alignment pegs/sockets across every shared cut face, sized to each face's own size, so pieces key together and glue cleanly. If a piece already has a part number stamped on the same face, the two aren't yet coordinated and may overlap — add connectors first if you plan to use both.</div>
         <div class="piece-list" id="pieceList"></div>
       </div>
     </div>
@@ -260,6 +259,7 @@
       <button id="tbWire">Wire</button>
       <button id="tbExplode" title="Explode view — see where each cut landed (or press E)">Explode</button>
       <button id="tbRestore" title="Restore assembled view (or press R)">Restore</button>
+      <button id="tbConnectors" title="Add tapered alignment pegs/sockets across every shared cut face, sized to each face">Add Connectors</button>
       <button id="tbMerge" title="Click pieces in the viewport to pick them, then Merge" style="display:none">Merge Selected</button>
     </div>
     <div class="statusbar"><span id="status">Drop an STL or OBJ to begin</span></div>
@@ -579,7 +579,7 @@ function rebuildScene() {
   const multi = pieces.length > 1;
   const cb = multi ? combinedBounds() : null;
   const centerPt = cb ? [(cb.min[0] + cb.max[0]) / 2, (cb.min[1] + cb.max[1]) / 2, (cb.min[2] + cb.max[2]) / 2] : null;
-  const explodeScale = cb ? Math.hypot(...cb.size) * 0.5 : 0;
+  const explodeScale = cb ? Math.hypot(...cb.size) * 0.15 : 0;
   pieces.forEach((p, i) => {
     const geom = toBufferGeometry(p.mesh);
     const selected = p.id === selectedId;
@@ -622,16 +622,24 @@ function rebuildScene() {
  * how exploded the view currently is (press R first if the clip-plane
  * preview looks off while positioning a Straight/Angled cut -- that
  * preview is computed in the piece's true, unexploded position).
+ *
+ * Small steps (0.2 per press, capped at 2, against a 0.15x-diagonal base
+ * scale) on purpose -- an early version jumped 0.4 per press against a
+ * 0.5x-diagonal base and flung pieces far off past a screen-filling
+ * distance on the very first press, nothing like LuBan's own gradual
+ * explode/restore. This way it takes several presses to fully separate,
+ * same as LuBan, and pieces stay close enough to recognize their assembled
+ * layout throughout.
  */
 function setExplodeFactor(factor) {
-  explodeFactor = Math.max(0, Math.min(3, factor));
+  explodeFactor = Math.max(0, Math.min(2, factor));
   rebuildScene();
   setStatus(explodeFactor > 0 ? `Exploded view (${explodeFactor.toFixed(1)}) — press R to restore.` : 'Restored to assembled view.');
 }
 window.addEventListener('keydown', (e) => {
   if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) return;
   if (pieces.length <= 1) return;
-  if (e.key === 'e' || e.key === 'E') setExplodeFactor(explodeFactor + 0.4);
+  if (e.key === 'e' || e.key === 'E') setExplodeFactor(explodeFactor + 0.2);
   else if (e.key === 'r' || e.key === 'R') setExplodeFactor(0);
 });
 
@@ -1259,6 +1267,27 @@ $('addPartNumbersBtn').addEventListener('click', addPartNumbersToAllPieces);
 // -- Connectors ----------------------------------------------------------
 
 /**
+ * Connector size scales with the face it sits on -- confirmed wrong when
+ * first shipped as a flat 7.5mm everywhere (reverse-engineered from one
+ * particular LuBan export at one particular piece size): a real LuBan
+ * multi-part export shows visibly bigger connectors on a big piece (the
+ * torso) and visibly smaller ones on a small piece (an ear), not a fixed
+ * size regardless of scale. Uses the SMALLER of the face's own two in-
+ * plane dimensions, same "smaller dimension drives the size" rule
+ * stampPartNumber already uses for its own face-relative sizing --
+ * clamped so a tiny sliver face doesn't get an unusably small connector
+ * and a huge face doesn't get one absurdly large. Depth keeps the ~1.5x
+ * ratio read off LuBan's own "Depth ratio" field; tolerance stays a fixed
+ * 0.2mm regardless of size -- that's a print-clearance value (how loose
+ * the fit is), not a shape proportion, so there's no reason it should
+ * scale with the connector.
+ */
+function connectorWidthForFace(face) {
+  const minDim = Math.min(face.uMax - face.uMin, face.vMax - face.vMin);
+  return Math.min(20, Math.max(3, minDim * 0.06));
+}
+
+/**
  * Add a grid of tapered peg/socket connectors across every shared cut face
  * in the current piece set, in one pass. `findAdjacentPieces` locates every
  * real interface up front (against each piece's ORIGINAL mesh); each
@@ -1273,12 +1302,12 @@ $('addPartNumbersBtn').addEventListener('click', addPartNumbersToAllPieces);
  */
 async function addConnectorsToAllPieces() {
   if (pieces.length < 2) { setStatus('Need at least 2 pieces to add connectors.'); return; }
-  $('addConnectorsBtn').disabled = true;
+  $('tbConnectors').disabled = true;
   setStatus('Finding adjacent cut faces…');
   const interfaces = findAdjacentPieces(pieces.map((p) => ({ id: p.id, mesh: p.mesh })), { minArea: 25 });
   if (!interfaces.length) {
     setStatus('No adjacent cut faces found to connect.');
-    $('addConnectorsBtn').disabled = false;
+    $('tbConnectors').disabled = false;
     return;
   }
   undoStack.push(pieces.map((p) => ({ ...p })));
@@ -1287,7 +1316,12 @@ async function addConnectorsToAllPieces() {
   for (const iface of interfaces) {
     setStatus(`Adding connectors… ${done + skipped}/${interfaces.length} interfaces`);
     try {
-      const result = await addConnectorsToPieces(meshById.get(iface.pieceA), meshById.get(iface.pieceB), iface.faceA, iface.faceB);
+      // Both sides of one interface share the same real footprint, so
+      // their face-derived widths should already be nearly identical --
+      // take the smaller of the two defensively rather than assuming
+      // they're exactly equal.
+      const width = Math.min(connectorWidthForFace(iface.faceA), connectorWidthForFace(iface.faceB));
+      const result = await addConnectorsToPieces(meshById.get(iface.pieceA), meshById.get(iface.pieceB), iface.faceA, iface.faceB, { width, depth: width * 1.5, tolerance: 0.2 });
       if (result.count > 0) {
         meshById.set(iface.pieceA, result.meshA);
         meshById.set(iface.pieceB, result.meshB);
@@ -1309,9 +1343,9 @@ async function addConnectorsToAllPieces() {
   const saveResult = await syncOutputFolder();
   const saveNote = saveResult && !saveResult.error ? ` Saved to ${outputDirHandle.name}/chop/.` : '';
   setStatus(`Added ${totalSites} connector site${totalSites === 1 ? '' : 's'} across ${done} interface${done === 1 ? '' : 's'}${skipped ? `, skipped ${skipped}` : ''}.${saveNote}`);
-  $('addConnectorsBtn').disabled = false;
+  $('tbConnectors').disabled = false;
 }
-$('addConnectorsBtn').addEventListener('click', addConnectorsToAllPieces);
+$('tbConnectors').addEventListener('click', addConnectorsToAllPieces);
 
 /**
  * Round off a piece's low-poly "faceted" look (see mesh-cut.js's
@@ -2070,7 +2104,7 @@ $('tbWire').addEventListener('click', () => {
   wire = group;
   scene.add(wire);
 });
-$('tbExplode').addEventListener('click', () => setExplodeFactor(explodeFactor + 0.4));
+$('tbExplode').addEventListener('click', () => setExplodeFactor(explodeFactor + 0.2));
 $('tbRestore').addEventListener('click', () => setExplodeFactor(0));
 
 // -- Click-to-pick pieces for merging, directly in the viewport -------------
