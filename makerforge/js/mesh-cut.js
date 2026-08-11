@@ -231,7 +231,12 @@ export async function subtractMesh(base, cutter) {
  * Each returned frame: `normal` points outward from the solid; `u`/`v` are
  * an orthonormal in-plane basis; `origin` is a point on the plane; `uMin`/
  * `uMax`/`vMin`/`vMax` bound the flat region's actual footprint in that
- * (u,v) frame, for sizing/centering whatever gets placed on it.
+ * (u,v) frame, for sizing/centering whatever gets placed on it; `uvTris` is
+ * the group's own triangles projected into (u,v) -- `[[u0,v0],[u1,v1],
+ * [u2,v2]], ...]` -- for callers (e.g. connector placement) that need to
+ * know the region's real, possibly-irregular boundary rather than just its
+ * bounding rectangle (a cut face from an organic model is rarely a clean
+ * rectangle; the bounding box alone would place things past the edge).
  */
 export function findFlatFaceGroups(mesh, minArea = 0) {
   const { positions, indices } = mesh;
@@ -267,19 +272,20 @@ export function findFlatFaceGroups(mesh, minArea = 0) {
     const origin = [normal[0] * g.offset, normal[1] * g.offset, normal[2] * g.offset];
 
     let uMin = Infinity, uMax = -Infinity, vMin = Infinity, vMax = -Infinity;
-    const seen = new Set();
+    const uvTris = [];
     for (const t of g.tris) {
+      const tri = [];
       for (let k = 0; k < 3; k++) {
         const vi = indices[t * 3 + k];
-        if (seen.has(vi)) continue;
-        seen.add(vi);
         const p = sub([positions[vi * 3], positions[vi * 3 + 1], positions[vi * 3 + 2]], origin);
         const pu = dot(p, u), pv = dot(p, v);
         if (pu < uMin) uMin = pu; if (pu > uMax) uMax = pu;
         if (pv < vMin) vMin = pv; if (pv > vMax) vMax = pv;
+        tri.push([pu, pv]);
       }
+      uvTris.push(tri);
     }
-    frames.push({ normal, u, v, origin, uMin, uMax, vMin, vMax, area: g.area });
+    frames.push({ normal, u, v, origin, uMin, uMax, vMin, vMax, area: g.area, uvTris });
   }
   frames.sort((a, b) => b.area - a.area);
   return frames;
@@ -398,6 +404,165 @@ export function buildStampMesh(face, grid, gridW, gridH, targetWidth, targetHeig
     }
   }
   return boxes;
+}
+
+/** True if (px,py) falls inside `tri` ([[u0,v0],[u1,v1],[u2,v2]]), boundary inclusive. */
+function pointInTriangle(px, py, tri) {
+  const [[ax, ay], [bx, by], [cx, cy]] = tri;
+  const d1 = (px - bx) * (ay - by) - (ax - bx) * (py - by);
+  const d2 = (px - cx) * (by - cy) - (bx - cx) * (py - cy);
+  const d3 = (px - ax) * (cy - ay) - (cx - ax) * (py - ay);
+  const hasNeg = d1 < 0 || d2 < 0 || d3 < 0;
+  const hasPos = d1 > 0 || d2 > 0 || d3 > 0;
+  return !(hasNeg && hasPos);
+}
+
+/** True if (px,py) falls inside the union of `uvTris` -- a face's real, possibly-irregular footprint. */
+function pointInUvTris(px, py, uvTris) {
+  for (const tri of uvTris) {
+    if (pointInTriangle(px, py, tri)) return true;
+  }
+  return false;
+}
+
+/**
+ * Build one tapered (frustum) box, extruded along `face.normal` from `d0`
+ * to `d1` with independent half-widths `w0`/`w1` at each end -- a straight
+ * prism when w0 === w1, a peg/socket taper otherwise. Shares buildStampMesh's
+ * 8-corner box topology; `d0`/`d1` and `w0`/`w1` are deliberately free-signed
+ * (negative depth = into the solid) so the same helper builds both an
+ * outward-protruding peg and an inward-cut socket cavity.
+ */
+function buildFrustumBox(face, cu, cv, w0, d0, w1, d1) {
+  // The box's 8-corner winding below assumes d0 < d1 (corners 0-3 are the
+  // "near" end, 4-7 the "far" end, wound for an outward normal in that
+  // order) -- callers may legitimately pass either order (e.g. a socket
+  // cavity's cutting direction runs opposite its taper direction), so swap
+  // ends here rather than at every call site. Building an inside-out box
+  // silently corrupts the boolean that consumes it: manifold-3d treats
+  // winding as the solid/void boundary, so a flipped cutter in subtract()
+  // effectively adds volume instead of removing it.
+  if (d0 > d1) { [w0, d0, w1, d1] = [w1, d1, w0, d0]; }
+  const positions = [];
+  const corners = [
+    [cu - w0, cv - w0, d0], [cu + w0, cv - w0, d0], [cu + w0, cv + w0, d0], [cu - w0, cv + w0, d0],
+    [cu - w1, cv - w1, d1], [cu + w1, cv - w1, d1], [cu + w1, cv + w1, d1], [cu - w1, cv + w1, d1],
+  ];
+  for (const [pu, pv, pd] of corners) {
+    positions.push(
+      face.origin[0] + face.u[0] * pu + face.v[0] * pv + face.normal[0] * pd,
+      face.origin[1] + face.u[1] * pu + face.v[1] * pv + face.normal[1] * pd,
+      face.origin[2] + face.u[2] * pu + face.v[2] * pv + face.normal[2] * pd,
+    );
+  }
+  const indices = [
+    0, 3, 2, 0, 2, 1,
+    4, 5, 6, 4, 6, 7,
+    0, 1, 5, 0, 5, 4,
+    2, 3, 7, 2, 7, 6,
+    0, 4, 7, 0, 7, 3,
+    1, 2, 6, 1, 6, 5,
+  ];
+  return { positions, indices };
+}
+
+/**
+ * Lay out a dense grid of candidate connector sites across the shared
+ * interface between `faceA` and `faceB` (a pair from findAdjacentPieces),
+ * keeping only sites whose full footprint -- center plus all 4 corners --
+ * falls inside BOTH faces' real (organic, possibly-irregular) boundary via
+ * `uvTris`, not just their bounding rectangle. Checking both sides (not
+ * just faceA) matters because the two pieces' cut faces are only
+ * approximately mirror images once floating-point noise and any prior
+ * merge/smooth pass are accounted for -- a site near the edge on one side
+ * can fall just outside the boundary on the other.
+ *
+ * Returns `[{cuA, cvA, cuB, cvB}, ...]` -- each site's position in both
+ * faceA's and faceB's own (u,v) frames (found by projecting faceA's world
+ * position into faceB's frame, since the two frames' u/v axes are built
+ * independently and aren't guaranteed to line up).
+ */
+export function planConnectorSites(faceA, faceB, { width = 7.5, pitch, margin } = {}) {
+  const p = pitch ?? width * 1.6;
+  const half = (margin ?? width / 2);
+  const uSpan = faceA.uMax - faceA.uMin;
+  const vSpan = faceA.vMax - faceA.vMin;
+  const cols = Math.max(1, Math.floor(uSpan / p) + 1);
+  const rows = Math.max(1, Math.floor(vSpan / p) + 1);
+  const startU = faceA.uMin + (uSpan - (cols - 1) * p) / 2;
+  const startV = faceA.vMin + (vSpan - (rows - 1) * p) / 2;
+
+  const sites = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const cu = startU + c * p;
+      const cv = startV + r * p;
+      const cornersA = [[cu, cv], [cu - half, cv - half], [cu + half, cv - half], [cu + half, cv + half], [cu - half, cv + half]];
+      if (!cornersA.every(([pu, pv]) => pointInUvTris(pu, pv, faceA.uvTris))) continue;
+
+      const world = [
+        faceA.origin[0] + faceA.u[0] * cu + faceA.v[0] * cv,
+        faceA.origin[1] + faceA.u[1] * cu + faceA.v[1] * cv,
+        faceA.origin[2] + faceA.u[2] * cu + faceA.v[2] * cv,
+      ];
+      const rel = sub(world, faceB.origin);
+      const cuB = dot(rel, faceB.u), cvB = dot(rel, faceB.v);
+      const cornersB = [[cuB, cvB], [cuB - half, cvB - half], [cuB + half, cvB - half], [cuB + half, cvB + half], [cuB - half, cvB + half]];
+      if (!cornersB.every(([pu, pv]) => pointInUvTris(pu, pv, faceB.uvTris))) continue;
+
+      sites.push({ cuA: cu, cvA: cv, cuB, cvB });
+    }
+  }
+  return sites;
+}
+
+/**
+ * Build the peg/socket geometry for one shared interface (see
+ * findAdjacentPieces), reverse-engineered from a real LuBan-exported
+ * connector STL: ~7.5mm square footprint, tapered (frustum) shape, ~11mm
+ * depth, ~0.2mm tolerance -- see analyze-connector-detail.mjs findings.
+ * Pegs sit on faceA (protrude outward along faceA.normal, wide at the face
+ * narrowing to `tipHalf` at the tip, for easier insertion); sockets sit on
+ * faceB (cavity cut inward along faceB.normal, oversized by `tolerance` on
+ * every side for clearance, and `0.5` deeper than the peg so it doesn't
+ * bottom out, with a small `0.5` proud lip past the surface so the eventual
+ * subtract cleanly severs the surface skin rather than leaving a degenerate
+ * coincident face -- same trick buildStampMesh uses for engraving).
+ *
+ * Each peg/socket is returned as its own small box mesh, NOT pre-unioned --
+ * manifold-3d requires valid (non-self-intersecting) input to any boolean,
+ * and overlapping boxes as raw triangle soup aren't one; union them with
+ * unionMeshes() first before using as a subtractMesh cutter or unioning
+ * onto a piece.
+ */
+export function buildConnectorMeshes(faceA, faceB, opts = {}) {
+  const { width = 7.5, depth = 11, taper = 0.15, tolerance = 0.2, pitch, margin } = opts;
+  const sites = planConnectorSites(faceA, faceB, { width, pitch, margin });
+  const baseHalf = width / 2;
+  const tipHalf = baseHalf * (1 - taper);
+  const pegs = sites.map((s) => buildFrustumBox(faceA, s.cuA, s.cvA, baseHalf, 0, tipHalf, depth));
+  const sockets = sites.map((s) => buildFrustumBox(faceB, s.cuB, s.cvB, baseHalf + tolerance, 0.5, tipHalf + tolerance, -(depth + 0.5)));
+  return { sites, pegs, sockets };
+}
+
+/**
+ * Add real Plug-style connectors to one adjacent piece pair -- unions the
+ * peg grid onto `meshA`, subtracts the matching (oversized-for-tolerance)
+ * socket grid from `meshB`. `faceA`/`faceB` come from a findAdjacentPieces
+ * result. Returns the two new meshes plus `count` (number of connector
+ * sites actually placed, which can be 0 for a very small/sliver shared
+ * face -- callers should skip the union/subtract and leave both meshes
+ * unchanged in that case, which this function does not itself decide since
+ * it has no piece bookkeeping to update).
+ */
+export async function addConnectorsToPieces(meshA, meshB, faceA, faceB, opts = {}) {
+  const { sites, pegs, sockets } = buildConnectorMeshes(faceA, faceB, opts);
+  if (sites.length === 0) return { meshA, meshB, count: 0 };
+  const pegSolid = await unionMeshes(pegs);
+  const socketSolid = await unionMeshes(sockets);
+  const newMeshA = await unionMeshes([meshA, pegSolid]);
+  const newMeshB = await subtractMesh(meshB, socketSolid);
+  return { meshA: newMeshA, meshB: newMeshB, count: sites.length };
 }
 
 /**

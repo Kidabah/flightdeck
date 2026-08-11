@@ -4,7 +4,7 @@
  * Backed by manifold-3d (see mesh-cut.js header for why). Run via ./run.sh.
  * Exit code 0 = all pass, 1 = a regression.
  */
-import { sliceMeshByPlane, modularCut, parallelPlaneCut, computeDefaultFlexiPlanes, flexiCut, gridCut, smoothMesh, splitIntoIslands, unionMeshes, subtractMesh, findLargestFlatFace, buildStampMesh, findFlatFaceGroups, findAdjacentPieces } from "./_staged/mesh-cut.js";
+import { sliceMeshByPlane, modularCut, parallelPlaneCut, computeDefaultFlexiPlanes, flexiCut, gridCut, smoothMesh, splitIntoIslands, unionMeshes, subtractMesh, findLargestFlatFace, buildStampMesh, findFlatFaceGroups, findAdjacentPieces, planConnectorSites, buildConnectorMeshes, addConnectorsToPieces } from "./_staged/mesh-cut.js";
 import { countOpenEdges, sanitizeMeshForStl } from "./_staged/stl.js";
 import ManifoldModule from "manifold-3d";
 
@@ -379,6 +379,61 @@ function mergeMeshes(meshes) {
   results.push(`INFO findAdjacentPieces: ${pairs.length} total pairs found (expect 1: the real cut halves, not the far-apart coplanar boxes)`);
   if (halves.length !== 1) { results.push(`FAIL findAdjacentPieces: expected the real cut halves to be detected as adjacent, found ${halves.length} matches`); failures++; }
   if (farPair.length !== 0) { results.push(`FAIL findAdjacentPieces: far-apart-but-coplanar boxes were wrongly flagged as adjacent`); failures++; }
+}
+
+{
+  // Connector generation end to end: slice a box into two real halves, plan
+  // a peg/socket grid across the shared face, then actually union the pegs
+  // onto one side and subtract the sockets from the other. Both outputs
+  // must stay watertight, meshA must gain volume (pegs added) and meshB
+  // must lose volume (sockets cut) -- catches both mesh-validity bugs and
+  // sign/direction bugs (a peg built protruding the wrong way, or a socket
+  // cavity that doesn't actually overlap the solid it's meant to carve into,
+  // would still produce a "valid" watertight mesh, just a physically wrong
+  // one, which only a volume-direction check like this one catches).
+  const box = buildBox(0, 0, 0, 60, 60, 30);
+  const { above, below } = await sliceMeshByPlane(box, [0, 0, 0], [1, 0, 0]);
+  const pairs = findAdjacentPieces([{ id: 'A', mesh: above }, { id: 'B', mesh: below }], { minArea: 5 });
+  if (pairs.length !== 1) {
+    results.push(`FAIL connectors: expected 1 adjacent pair on a 2-piece box split, got ${pairs.length}`);
+    failures++;
+  } else {
+    const { faceA, faceB } = pairs[0];
+    const sites = planConnectorSites(faceA, faceB, { width: 7.5 });
+    results.push(`INFO connectors: ${sites.length} sites planned on a 60x30 shared face at 7.5mm width`);
+    if (sites.length < 3) { results.push(`FAIL connectors: expected several sites on a 60x30 face, got ${sites.length}`); failures++; }
+
+    const volOf = (m) => {
+      let v = 0;
+      for (let t = 0; t < m.indices.length; t += 3) {
+        const ia = m.indices[t] * 3, ib = m.indices[t + 1] * 3, ic = m.indices[t + 2] * 3;
+        const ax = m.positions[ia], ay = m.positions[ia + 1], az = m.positions[ia + 2];
+        const bx = m.positions[ib], by = m.positions[ib + 1], bz = m.positions[ib + 2];
+        const cx = m.positions[ic], cy = m.positions[ic + 1], cz = m.positions[ic + 2];
+        v += (ax * (by * cz - bz * cy) - ay * (bx * cz - bz * cx) + az * (bx * cy - by * cx)) / 6;
+      }
+      return Math.abs(v);
+    };
+    const volA0 = volOf(above), volB0 = volOf(below);
+    const result = await addConnectorsToPieces(above, below, faceA, faceB, { width: 7.5, depth: 11, tolerance: 0.2 });
+    checkSide("connectors meshA (pegs unioned)", result.meshA);
+    checkSide("connectors meshB (sockets subtracted)", result.meshB);
+    const volA1 = volOf(result.meshA), volB1 = volOf(result.meshB);
+    results.push(`INFO connectors: volume A ${volA0.toFixed(1)} -> ${volA1.toFixed(1)}, volume B ${volB0.toFixed(1)} -> ${volB1.toFixed(1)}`);
+    if (!(volA1 > volA0)) { results.push("FAIL connectors: meshA should gain volume from unioned pegs"); failures++; }
+    if (!(volB1 < volB0)) { results.push("FAIL connectors: meshB should lose volume from subtracted sockets"); failures++; }
+    if (result.count !== sites.length) { results.push(`FAIL connectors: addConnectorsToPieces count ${result.count} != planned sites ${sites.length}`); failures++; }
+  }
+}
+
+{
+  // A shared face too narrow for even one connector footprint (with margin)
+  // should plan zero sites, not throw or silently place an overlapping one.
+  const faceA = { normal: [0, 0, 1], u: [1, 0, 0], v: [0, 1, 0], origin: [0, 0, 0], uMin: -2, uMax: 2, vMin: -20, vMax: 20, uvTris: [[[-2, -20], [2, -20], [2, 20]], [[-2, -20], [2, 20], [-2, 20]]] };
+  const faceB = { normal: [0, 0, -1], u: [1, 0, 0], v: [0, 1, 0], origin: [0, 0, 0], uMin: -2, uMax: 2, vMin: -20, vMax: 20, uvTris: faceA.uvTris };
+  const narrowSites = planConnectorSites(faceA, faceB, { width: 7.5 });
+  results.push(`INFO connectors: ${narrowSites.length} sites planned on a 4mm-wide sliver (expect 0 -- narrower than one 7.5mm connector)`);
+  if (narrowSites.length !== 0) { results.push(`FAIL connectors: sliver face should plan 0 sites, got ${narrowSites.length}`); failures++; }
 }
 
 {
