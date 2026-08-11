@@ -718,6 +718,18 @@ export async function parallelPlaneCut(mesh, planePoint, planeNormal, planeCount
   return [...pieces, ...rest];
 }
 
+/** The Y-normal plane list gridCut would use for one X-strip, optionally shifted by half the Y pitch (LuBan's "Staggered cut pattern" — alternating rows offset sideways, like a running-bond brick course, so a straight-through seam doesn't run the full length of the model). Shifting a uniform set of `count` planes by pitch/2 always stays strictly inside (tMin,tMax) — the two end cells simply come out half- and one-and-a-half-pitch wide instead of uniform, exactly like the cut/full bricks at the end of a real staggered course; no wraparound or plane-count change needed. */
+function buildStaggeredYPlanes(piece, count, shift) {
+  const base = computeDefaultFlexiPlanes(piece, [0, 0, 0], [0, 1, 0], count);
+  if (!shift || base.length === 0) return base;
+  const { tMin, tMax, normal } = base[0];
+  const halfPitch = (tMax - tMin) / (count + 1) / 2;
+  return base.map((p) => {
+    const t = p.t + halfPitch;
+    return { t, tMin, tMax, normal, point: [normal[0] * t, normal[1] * t, normal[2] * t] };
+  });
+}
+
 /**
  * LuBan-style "Grid cut": divides `mesh` into a waffle-like 3D grid of
  * (xCount+1) x (yCount+1) x (zCount+1) pieces by laying evenly-spaced
@@ -729,8 +741,16 @@ export async function parallelPlaneCut(mesh, planePoint, planeNormal, planeCount
  * guarantees. A count of 0 on any axis skips that axis's split entirely
  * (e.g. xCount=2, yCount=0, zCount=0 behaves like a plain Straight cut
  * along X). Order of pieces is X-major, then Y, then Z within each cell.
+ *
+ * `staggered` (LuBan's own "Staggered cut pattern" checkbox) offsets the Y
+ * cut positions by half a pitch for every other X-strip, matching the
+ * reference screenshot's top-down running-bond look — only demonstrated
+ * there for the X/Y pair, so Z cuts stay uniform regardless (no reference
+ * to confirm a 3-axis convention against, and Z-staggering is rarely
+ * wanted for print-bed splitting anyway). No-op unless both xCount and
+ * yCount are set — staggering needs alternating rows to offset between.
  */
-export async function gridCut(mesh, xCount, yCount, zCount) {
+export async function gridCut(mesh, xCount, yCount, zCount, { staggered = false } = {}) {
   const splitAxis = async (pieces, count, normal) => {
     if (count <= 0) return pieces;
     const out = [];
@@ -739,7 +759,15 @@ export async function gridCut(mesh, xCount, yCount, zCount) {
   };
   let cells = [withOpenEdgeCount(mesh)];
   cells = await splitAxis(cells, xCount, [1, 0, 0]);
-  cells = await splitAxis(cells, yCount, [0, 1, 0]);
+  if (staggered && xCount > 0 && yCount > 0) {
+    const out = [];
+    for (let i = 0; i < cells.length; i++) {
+      out.push(...(await flexiCut(cells[i], buildStaggeredYPlanes(cells[i], yCount, i % 2 === 1))));
+    }
+    cells = out;
+  } else {
+    cells = await splitAxis(cells, yCount, [0, 1, 0]);
+  }
   cells = await splitAxis(cells, zCount, [0, 0, 1]);
   return cells;
 }

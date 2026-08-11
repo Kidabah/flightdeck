@@ -4,7 +4,7 @@
  * Backed by manifold-3d (see mesh-cut.js header for why). Run via ./run.sh.
  * Exit code 0 = all pass, 1 = a regression.
  */
-import { sliceMeshByPlane, modularCut, parallelPlaneCut, computeDefaultFlexiPlanes, flexiCut, gridCut, smoothMesh, splitIntoIslands, unionMeshes, subtractMesh, findLargestFlatFace, buildStampMesh, findFlatFaceGroups, findAdjacentPieces, planConnectorSites, buildConnectorMeshes, addConnectorsToPieces } from "./_staged/mesh-cut.js";
+import { sliceMeshByPlane, modularCut, parallelPlaneCut, computeDefaultFlexiPlanes, flexiCut, gridCut, smoothMesh, splitIntoIslands, unionMeshes, subtractMesh, findLargestFlatFace, buildStampMesh, findFlatFaceGroups, findAdjacentPieces, planConnectorSites, buildConnectorMeshes, addConnectorsToPieces, computeBounds } from "./_staged/mesh-cut.js";
 import { countOpenEdges, sanitizeMeshForStl } from "./_staged/stl.js";
 import ManifoldModule from "manifold-3d";
 
@@ -556,6 +556,44 @@ function mergeMeshes(meshes) {
   results.push(`${match ? "PASS" : "FAIL"} grid cut single-axis matches Straight cut: ${viaGrid.length} vs ${viaStraight.length} pieces`);
   if (!match) failures++;
   for (let i = 0; i < viaGrid.length; i++) checkSide(`grid single-axis piece ${i}`, viaGrid[i]);
+}
+
+{
+  // Staggered Grid cut (LuBan's "Staggered cut pattern"): the Y split
+  // position should shift by half the Y pitch between alternating X-strips
+  // -- a 40x40x10 box with 1 X-plane + 1 Y-plane, staggered, should NOT
+  // produce 4 identical quadrants like the plain grid does; the second
+  // X-strip's Y split should land at Y=+10 (half of the 20-unit pitch)
+  // instead of Y=0, so its two Y-pieces come out 30/10 split instead of
+  // 20/20. Piece count and watertightness must be unaffected -- staggering
+  // only repositions existing cut planes, never adds or removes one.
+  const box = buildBox(0, 0, 0, 40, 40, 10);
+  const plain = await gridCut(box, 1, 1, 0);
+  const staggered = await gridCut(box, 1, 1, 0, { staggered: true });
+  results.push(`INFO staggered grid: ${staggered.length} pieces (expect 4, same as plain grid's ${plain.length})`);
+  if (staggered.length !== 4 || plain.length !== 4) { results.push("FAIL staggered grid: expected 4 pieces from 1x1x0 divisions either way"); failures++; }
+  for (let i = 0; i < staggered.length; i++) checkSide(`staggered grid piece ${i}`, staggered[i]);
+
+  const ySizeOf = (m) => computeBounds(m.positions).size[1];
+  const plainStrip0YSizes = [ySizeOf(plain[0]), ySizeOf(plain[1])].sort((a, b) => a - b);
+  const staggeredStrip1YSizes = [ySizeOf(staggered[2]), ySizeOf(staggered[3])].sort((a, b) => a - b);
+  results.push(`INFO staggered grid: plain X-strip0 Y-sizes ${plainStrip0YSizes.map((v) => v.toFixed(1))} (expect ~20/20), staggered X-strip1 Y-sizes ${staggeredStrip1YSizes.map((v) => v.toFixed(1))} (expect ~10/30 -- shifted by half pitch)`);
+  const isEven = Math.abs(plainStrip0YSizes[0] - plainStrip0YSizes[1]) < 0.5;
+  const isShifted = Math.abs(staggeredStrip1YSizes[0] - 10) < 0.5 && Math.abs(staggeredStrip1YSizes[1] - 30) < 0.5;
+  if (!isEven) { results.push("FAIL staggered grid: plain (unstaggered) X-strip0 should split Y evenly"); failures++; }
+  if (!isShifted) { results.push("FAIL staggered grid: staggered X-strip1 should split Y at +10 (10/30), not evenly"); failures++; }
+}
+
+{
+  // staggered:true must be a no-op when there's nothing to alternate
+  // against (only one axis has divisions) -- must match the plain grid
+  // exactly, not throw or silently do something unexpected.
+  const box = buildBox(0, 0, 0, 20, 20, 20);
+  const plain = await gridCut(box, 0, 3, 0);
+  const staggered = await gridCut(box, 0, 3, 0, { staggered: true });
+  const match = plain.length === staggered.length && plain.length === 4;
+  results.push(`${match ? "PASS" : "FAIL"} staggered grid no-op with only one active axis: ${plain.length} vs ${staggered.length} pieces`);
+  if (!match) failures++;
 }
 
 {
