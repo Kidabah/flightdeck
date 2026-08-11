@@ -773,6 +773,75 @@ export async function gridCut(mesh, xCount, yCount, zCount, { staggered = false 
 }
 
 /**
+ * LuBan-style "Radial cut": partitions `mesh` into `count` pie-slice wedges
+ * around `axis` ('x'/'y'/'z'), like slicing a cake through its center --
+ * evenly spaced by `360/count` degrees starting at `startAngleDeg`, with
+ * the rotation center offset from the piece's own bounding-box center by
+ * `centerOffset` (a `[u,v]` pair, each in [-1,1], scaled by that in-plane
+ * axis's own half-extent -- LuBan's "Center X/Y [-1,1]" fields).
+ *
+ * Needs no new CSG primitive: every wedge boundary is a full plane
+ * containing the rotation axis, which `sliceMeshByPlane` already handles
+ * for an arbitrary normal. A single such plane only ever bisects space at
+ * 180° increments (the plane extends infinitely both directions through
+ * the axis), so a wedge narrower than 180° -- the normal case for
+ * count>=3 -- needs the INTERSECTION of two half-space cuts: split by the
+ * wedge's leading-edge plane and keep the "above" half (spanning the next
+ * 180°), then split that half by the trailing-edge plane and keep
+ * "below" -- the two constraints together narrow it down to exactly the
+ * angular span between the two edges. Each wedge is computed fresh from
+ * the original `mesh` (not a sequential peel like flexiCut/gridCut use)
+ * since wedges aren't nested along one axis, they all meet at the shared
+ * rotation axis. count===2 is the one case where a single plane already
+ * gives the full answer (both halves in one cut, no intersection needed).
+ * count<=1 is a no-op (nothing to slice into).
+ *
+ * The two in-plane axes for a given rotation axis follow the standard
+ * right-hand cyclic convention (x->y->z->x): rotating around Z sweeps
+ * from +X toward +Y as the angle increases, around X sweeps +Y toward
+ * +Z, around Y sweeps +Z toward +X -- not verified against a LuBan
+ * reference for axes other than Z, since no screenshot of Direction=X/Y
+ * was available to confirm its exact Center-field axis order; Z matches
+ * the reference screenshot's own top-down view.
+ */
+export async function radialCut(mesh, { axis = 'z', count, startAngleDeg = 0, centerOffset = [0, 0] } = {}) {
+  if (!count || count <= 1) return [withOpenEdgeCount(mesh)];
+  const b = computeBounds(mesh.positions);
+  const axisIdx = { x: 0, y: 1, z: 2 }[axis];
+  const uIdx = (axisIdx + 1) % 3;
+  const vIdx = (axisIdx + 2) % 3;
+  const bcenter = [(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2, (b.min[2] + b.max[2]) / 2];
+  const center = bcenter.slice();
+  center[uIdx] = bcenter[uIdx] + centerOffset[0] * (b.size[uIdx] / 2);
+  center[vIdx] = bcenter[vIdx] + centerOffset[1] * (b.size[vIdx] / 2);
+
+  const normalAt = (deg) => {
+    const rad = (deg * Math.PI) / 180;
+    const n = [0, 0, 0];
+    n[uIdx] = -Math.sin(rad);
+    n[vIdx] = Math.cos(rad);
+    return n;
+  };
+  const angleStep = 360 / count;
+
+  if (count === 2) {
+    const { above, below } = await sliceMeshByPlane(mesh, center, normalAt(startAngleDeg));
+    return [above, below].filter(Boolean);
+  }
+
+  const wedges = [];
+  for (let i = 0; i < count; i++) {
+    const thetaA = startAngleDeg + i * angleStep;
+    const thetaB = startAngleDeg + (i + 1) * angleStep;
+    const cutA = await sliceMeshByPlane(mesh, center, normalAt(thetaA));
+    if (!cutA.above) continue;
+    const cutB = await sliceMeshByPlane(cutA.above, center, normalAt(thetaB));
+    if (cutB.below) wedges.push(cutB.below);
+  }
+  return wedges;
+}
+
+/**
  * Auto-fit-to-bed cutting (LuBan's "Modular cut"): recursively bisect
  * `mesh` along whichever axis exceeds `bedSize`, at the midpoint of its
  * current bounds, until every resulting piece fits — no manual plane

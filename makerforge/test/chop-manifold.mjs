@@ -4,7 +4,7 @@
  * Backed by manifold-3d (see mesh-cut.js header for why). Run via ./run.sh.
  * Exit code 0 = all pass, 1 = a regression.
  */
-import { sliceMeshByPlane, modularCut, parallelPlaneCut, computeDefaultFlexiPlanes, flexiCut, gridCut, smoothMesh, splitIntoIslands, unionMeshes, subtractMesh, findLargestFlatFace, buildStampMesh, findFlatFaceGroups, findAdjacentPieces, planConnectorSites, buildConnectorMeshes, addConnectorsToPieces, computeBounds } from "./_staged/mesh-cut.js";
+import { sliceMeshByPlane, modularCut, parallelPlaneCut, computeDefaultFlexiPlanes, flexiCut, gridCut, radialCut, smoothMesh, splitIntoIslands, unionMeshes, subtractMesh, findLargestFlatFace, buildStampMesh, findFlatFaceGroups, findAdjacentPieces, planConnectorSites, buildConnectorMeshes, addConnectorsToPieces, computeBounds } from "./_staged/mesh-cut.js";
 import { countOpenEdges, sanitizeMeshForStl } from "./_staged/stl.js";
 import ManifoldModule from "manifold-3d";
 
@@ -594,6 +594,74 @@ function mergeMeshes(meshes) {
   const match = plain.length === staggered.length && plain.length === 4;
   results.push(`${match ? "PASS" : "FAIL"} staggered grid no-op with only one active axis: ${plain.length} vs ${staggered.length} pieces`);
   if (!match) failures++;
+}
+
+{
+  // Radial cut (LuBan's pie-slice partition around an axis): a box square
+  // in cross-section, cut into 4 wedges around Z centered on its own axis,
+  // must produce exactly 4 equal watertight quarters -- the cleanest
+  // possible correctness check, since a centered square's quadrants are
+  // provably equal by symmetry, not just "roughly equal."
+  const volOf = (m) => {
+    let v = 0;
+    for (let t = 0; t < m.indices.length; t += 3) {
+      const ia = m.indices[t] * 3, ib = m.indices[t + 1] * 3, ic = m.indices[t + 2] * 3;
+      const ax = m.positions[ia], ay = m.positions[ia + 1], az = m.positions[ia + 2];
+      const bx = m.positions[ib], by = m.positions[ib + 1], bz = m.positions[ib + 2];
+      const cx = m.positions[ic], cy = m.positions[ic + 1], cz = m.positions[ic + 2];
+      v += (ax * (by * cz - bz * cy) - ay * (bx * cz - bz * cx) + az * (bx * cy - by * cx)) / 6;
+    }
+    return Math.abs(v);
+  };
+  const box = buildBox(0, 0, 0, 40, 40, 20);
+  const totalVol = volOf(box);
+
+  const quad = await radialCut(box, { axis: 'z', count: 4 });
+  results.push(`INFO radial cut: ${quad.length} wedges from count=4 (expect 4)`);
+  if (quad.length !== 4) { results.push("FAIL radial cut: expected 4 wedges"); failures++; }
+  for (let i = 0; i < quad.length; i++) checkSide(`radial quad piece ${i}`, quad[i]);
+  const quadVols = quad.map(volOf);
+  const allEqual = quadVols.every((v) => Math.abs(v - totalVol / 4) < 0.5);
+  results.push(`INFO radial cut: quadrant volumes ${quadVols.map((v) => v.toFixed(1))} (expect all ~${(totalVol / 4).toFixed(1)})`);
+  if (!allEqual) { results.push("FAIL radial cut: centered quadrants of a square cross-section should be exactly equal"); failures++; }
+
+  // count<=1 must be a no-op -- nothing to slice into.
+  const noop0 = await radialCut(box, { axis: 'z', count: 0 });
+  const noop1 = await radialCut(box, { axis: 'z', count: 1 });
+  if (noop0.length !== 1 || noop1.length !== 1) { results.push("FAIL radial cut: count<=1 should return the mesh unchanged as 1 piece"); failures++; }
+
+  // count=2 uses the single-plane fast path -- must still conserve volume and stay watertight.
+  const halves = await radialCut(box, { axis: 'z', count: 2 });
+  const halvesVolSum = halves.reduce((s, w) => s + volOf(w), 0);
+  results.push(`INFO radial cut: count=2 -> ${halves.length} pieces, volume sum ${halvesVolSum.toFixed(1)} (expect ${totalVol.toFixed(1)})`);
+  if (halves.length !== 2 || Math.abs(halvesVolSum - totalVol) > 0.5) { failures++; results.push("FAIL radial cut: count=2 should give 2 watertight halves conserving total volume"); }
+  for (let i = 0; i < halves.length; i++) checkSide(`radial half piece ${i}`, halves[i]);
+
+  // An odd count (3), a different rotation axis (X), and an off-center
+  // rotation axis must all still conserve total volume and stay
+  // watertight -- these don't have a clean equal-split symmetry to check
+  // against like the centered 4-quadrant case above, so volume
+  // conservation is the correctness signal.
+  const three = await radialCut(box, { axis: 'z', count: 3 });
+  const threeVolSum = three.reduce((s, w) => s + volOf(w), 0);
+  results.push(`INFO radial cut: count=3 -> ${three.length} wedges, volume sum ${threeVolSum.toFixed(1)} (expect ${totalVol.toFixed(1)})`);
+  if (three.length !== 3 || Math.abs(threeVolSum - totalVol) > 0.5) { failures++; results.push("FAIL radial cut: count=3 should give 3 watertight wedges conserving total volume"); }
+  for (let i = 0; i < three.length; i++) checkSide(`radial odd-count piece ${i}`, three[i]);
+
+  const aroundX = await radialCut(box, { axis: 'x', count: 4 });
+  const aroundXVolSum = aroundX.reduce((s, w) => s + volOf(w), 0);
+  if (aroundX.length !== 4 || Math.abs(aroundXVolSum - totalVol) > 0.5) { failures++; results.push("FAIL radial cut: rotation around X should also give 4 watertight wedges conserving total volume"); }
+  for (let i = 0; i < aroundX.length; i++) checkSide(`radial around-X piece ${i}`, aroundX[i]);
+
+  const offCenter = await radialCut(box, { axis: 'z', count: 4, centerOffset: [0.5, 0] });
+  const offCenterVolSum = offCenter.reduce((s, w) => s + volOf(w), 0);
+  const offCenterUnequal = Math.max(...offCenter.map(volOf)) - Math.min(...offCenter.map(volOf)) > 1;
+  results.push(`INFO radial cut: off-center count=4 volumes ${offCenter.map((w) => volOf(w).toFixed(1))} (expect unequal, still summing to ${totalVol.toFixed(1)})`);
+  if (offCenter.length !== 4 || Math.abs(offCenterVolSum - totalVol) > 0.5 || !offCenterUnequal) {
+    failures++;
+    results.push("FAIL radial cut: off-center rotation axis should skew wedge sizes while still conserving total volume");
+  }
+  for (let i = 0; i < offCenter.length; i++) checkSide(`radial off-center piece ${i}`, offCenter[i]);
 }
 
 {
