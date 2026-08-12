@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-12 Session update (Vinyl — Taskbar above OS bar)
 
-Latest commit: `pending` — Dock compact modes above Windows taskbar
+Latest commit: `81794a0` — Dock compact modes above Windows taskbar
 
 Latest local/Mora change:
 - Taskbar/Small player now re-measure `outerHeight` and sit **above** the Windows taskbar (was sliding underneath).
