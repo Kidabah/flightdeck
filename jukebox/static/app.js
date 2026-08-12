@@ -12,10 +12,10 @@ const RIBBON_SLIM_H = 240;
 /** Compact “small player” window — matches the size Chris locked in. */
 const SMALL_PLAYER_W = 680;
 const SMALL_PLAYER_H = 210;
-/** Ultra-slim taskbar strip. */
-const TASKBAR_W = 560;
-const TASKBAR_H = 92;
-const TASKBAR_DETECT_H = 120;
+/** Ultra-slim taskbar strip (outer size — title bar eats ~30–40px). */
+const TASKBAR_W = 620;
+const TASKBAR_H = 110;
+const TASKBAR_DETECT_H = 130;
 
 /** Room / deck themes. Amp-rack footage is shared by dark + light; crate photo
  * and page chrome (`room`) differ. `cueOut: null` → fade instead of lift clip. */
@@ -844,8 +844,29 @@ function openVinylRoomWindow() {
   }
 }
 
+/** Sit the compact window fully above the Windows taskbar using real outer size. */
+function dockCompactAboveTaskbar() {
+  try {
+    const availLeft = window.screen.availLeft || 0;
+    const availTop = window.screen.availTop || 0;
+    const availW = window.screen.availWidth || window.screen.width;
+    const availH = window.screen.availHeight || window.screen.height;
+    const screenH = window.screen.height || availH;
+    // If availHeight didn't exclude the OS taskbar, keep a reserve from the screen bottom.
+    const reportedGap = Math.max(0, screenH - (availTop + availH));
+    const reserve = reportedGap > 8 ? 4 : 52;
+    const outerW = window.outerWidth || TASKBAR_W;
+    const outerH = window.outerHeight || TASKBAR_H;
+    const x = Math.max(availLeft, Math.min(window.screenX, availLeft + availW - outerW));
+    const y = Math.max(availTop, availTop + availH - outerH - reserve);
+    window.moveTo(x, y);
+  } catch {
+    /* ignore */
+  }
+}
+
 function resizeToCompactMode(mode) {
-  if (!isStandaloneApp() && mode !== "room") return;
+  if (!isStandaloneApp()) return;
   try {
     if (!_ribbonGeom) {
       _ribbonGeom = {
@@ -862,12 +883,15 @@ function resizeToCompactMode(mode) {
     const targetW = mode === "taskbar" ? TASKBAR_W : SMALL_PLAYER_W;
     const targetH = mode === "taskbar" ? TASKBAR_H : SMALL_PLAYER_H;
     const w = Math.min(targetW, availW - 24);
-    const h = Math.min(targetH, availH - 24);
+    const h = Math.min(targetH, Math.max(80, availH - 24));
+    // Leave maximised first if needed, then size, then dock using measured chrome.
     window.moveTo(availLeft + 24, availTop + 24);
     window.resizeTo(w, h);
-    const x = Math.max(availLeft, Math.min(_ribbonGeom.x, availLeft + availW - w));
-    const y = availTop + availH - h;
-    window.moveTo(x, y);
+    dockCompactAboveTaskbar();
+    // resizeTo is async on some hosts — re-dock after outerHeight settles.
+    _ribbonIgnoreLayoutUntil = Date.now() + 900;
+    setTimeout(dockCompactAboveTaskbar, 50);
+    setTimeout(dockCompactAboveTaskbar, 200);
   } catch {
     /* blocked */
   }

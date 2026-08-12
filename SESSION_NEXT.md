@@ -6,6 +6,19 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-12 Session update (Vinyl — Taskbar above OS bar)
+
+Latest commit: `pending` — Dock compact modes above Windows taskbar
+
+Latest local/Mora change:
+- Taskbar/Small player now re-measure `outerHeight` and sit **above** the Windows taskbar (was sliding underneath).
+- Hard refresh / reopen Cindy. Rebuild `vinyl` on Mora.
+
+Previous:
+- Taskbar mode (`5fdd075`).
+
+---
+
 ## 2026-08-12 Session update (Vinyl — Taskbar mode)
 
 Latest commit: `5fdd075` — Third chrome mode: Taskbar strip
