@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-12 Session update (Chop — tidy sidebar, finish by default)
 
-Latest commit: `pending` — Chop UI flow + connectors/part # after every cut
+Latest commit: `c618353` — Chop UI flow + connectors/part # after every cut
 
 Latest local/Pi change:
 - Sidebar is now **Load → Setup → Cut → Finish → Pieces** instead of a pile of add-on panels.
