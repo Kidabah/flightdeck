@@ -6,6 +6,21 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-12 Session update (Chop — catch missing joints)
+
+Latest commit: _(pending)_ — Detect staggered cut faces; lower tiny-face skip to 22mm
+
+Latest local/Pi change:
+- Some joints got no connectors: adjacency only matched near-identical scars (missed staggered/partial overlaps), and the 40mm skip was too aggressive.
+- `findAdjacentPieces` now uses UV AABB overlap + slightly looser normal/plane tolerances.
+- Tiny-face glue-only threshold lowered to **22 mm**; mid faces still get small pegs.
+- Hard refresh Chop (`mesh-cut.js?v=21`). Undo + Add Connectors again.
+
+Previous:
+- Skip tiny-face connectors (`9de77f1`).
+
+---
+
 ## 2026-08-12 Session update (Chop — skip connectors on tiny faces)
 
 Latest commit: `9de77f1` — Skip connectors on faces under 40mm

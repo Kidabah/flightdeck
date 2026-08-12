@@ -297,23 +297,11 @@ export function findLargestFlatFace(mesh) {
 }
 
 /**
- * Find pairs of pieces that share a real cut face -- two pieces that came
- * from splitting the same parent at the same plane leave an exact matching
- * scar: opposite-facing normals, coincident plane, and (for an unmerged,
- * unmoved pair) an identical footprint, so their face centroids land on
- * top of each other. That's checked directly rather than doing a full
- * polygon-overlap test, which real adjacency doesn't need: for a genuine
- * cut interface the two faces are mirror images of the same boundary, not
- * just two coplanar shapes that happen to be near each other.
- *
- * `pieces` is an array of `{id, mesh}`. Returns an array of
- * `{pieceA, pieceB, faceA, faceB, area}`, one entry per detected shared
- * face (a middle piece with neighbors on two different faces produces two
- * entries). `faceA`/`faceB` are the two sides' own frames (see
- * findFlatFaceGroups) -- the actual site where connector geometry would
- * eventually go. `minArea` (mm^2) filters out small/noisy coplanar bits
- * that aren't real connector-worthy interfaces (default 25mm^2, i.e. a
- * ~5x5mm minimum).
+ * Find pairs of pieces that share a real cut face -- opposite-facing
+ * normals, coincident plane, and overlapping footprints in that plane.
+ * Overlap is an AABB check in faceA's (u,v) frame (not just centroid
+ * proximity) so staggered modular cuts still match when only part of
+ * each face touches. `minArea` (mm^2) filters noise / micro contacts.
  */
 export function findAdjacentPieces(pieces, { minArea = 25 } = {}) {
   const withFaces = pieces.map((p) => ({ id: p.id, faces: findFlatFaceGroups(p.mesh, minArea) }));
@@ -322,23 +310,41 @@ export function findAdjacentPieces(pieces, { minArea = 25 } = {}) {
     for (let j = i + 1; j < withFaces.length; j++) {
       for (const faceA of withFaces[i].faces) {
         for (const faceB of withFaces[j].faces) {
-          if (dot(faceA.normal, faceB.normal) > -0.999) continue; // must face opposite ways
+          // ~8° of opposite-normal slop — organic cuts / float noise after smooth
+          if (dot(faceA.normal, faceB.normal) > -0.99) continue;
           const planeGap = Math.abs(dot(faceA.normal, sub(faceB.origin, faceA.origin)));
-          if (planeGap > 0.5) continue; // not the same plane (0.5mm slop for float noise)
+          if (planeGap > 1.0) continue;
 
-          const centerA = [(faceA.uMin + faceA.uMax) / 2, (faceA.vMin + faceA.vMax) / 2];
-          const worldCenterB = [
-            faceB.origin[0] + faceB.u[0] * (faceB.uMin + faceB.uMax) / 2 + faceB.v[0] * (faceB.vMin + faceB.vMax) / 2,
-            faceB.origin[1] + faceB.u[1] * (faceB.uMin + faceB.uMax) / 2 + faceB.v[1] * (faceB.vMin + faceB.vMax) / 2,
-            faceB.origin[2] + faceB.u[2] * (faceB.uMin + faceB.uMax) / 2 + faceB.v[2] * (faceB.vMin + faceB.vMax) / 2,
+          // Project faceB's UV bbox into faceA's frame and require real overlap
+          const cornersB = [
+            [faceB.uMin, faceB.vMin], [faceB.uMax, faceB.vMin],
+            [faceB.uMax, faceB.vMax], [faceB.uMin, faceB.vMax],
           ];
-          const p = sub(worldCenterB, faceA.origin);
-          const centerBInA = [dot(p, faceA.u), dot(p, faceA.v)];
-          const dist = Math.hypot(centerA[0] - centerBInA[0], centerA[1] - centerBInA[1]);
-          const scale = Math.max(faceA.uMax - faceA.uMin, faceA.vMax - faceA.vMin, faceB.uMax - faceB.uMin, faceB.vMax - faceB.vMin);
-          if (dist > scale * 0.3) continue; // centroids too far apart to be the same cut interface
+          let bu0 = Infinity, bu1 = -Infinity, bv0 = Infinity, bv1 = -Infinity;
+          for (const [bu, bv] of cornersB) {
+            const world = [
+              faceB.origin[0] + faceB.u[0] * bu + faceB.v[0] * bv,
+              faceB.origin[1] + faceB.u[1] * bu + faceB.v[1] * bv,
+              faceB.origin[2] + faceB.u[2] * bu + faceB.v[2] * bv,
+            ];
+            const rel = sub(world, faceA.origin);
+            const u = dot(rel, faceA.u), v = dot(rel, faceA.v);
+            if (u < bu0) bu0 = u; if (u > bu1) bu1 = u;
+            if (v < bv0) bv0 = v; if (v > bv1) bv1 = v;
+          }
+          const ou = Math.min(faceA.uMax, bu1) - Math.max(faceA.uMin, bu0);
+          const ov = Math.min(faceA.vMax, bv1) - Math.max(faceA.vMin, bv0);
+          if (ou <= 0 || ov <= 0) continue;
+          const overlapArea = ou * ov;
+          if (overlapArea < minArea) continue;
 
-          results.push({ pieceA: withFaces[i].id, pieceB: withFaces[j].id, faceA, faceB, area: Math.min(faceA.area, faceB.area) });
+          results.push({
+            pieceA: withFaces[i].id,
+            pieceB: withFaces[j].id,
+            faceA,
+            faceB,
+            area: Math.min(faceA.area, faceB.area, overlapArea),
+          });
         }
       }
     }
@@ -488,7 +494,7 @@ function projectSiteToFaceB(faceA, faceB, cu, cv) {
  * Shrinks width until the footprint fits both organic cut faces (or returns []).
  * Returns `{ sites, width }` — `width` is the fitted size actually used.
  */
-export function planSingleConnectorSite(faceA, faceB, { width, margin, minWidth = 8 } = {}) {
+export function planSingleConnectorSite(faceA, faceB, { width, margin, minWidth = 5 } = {}) {
   let w = width;
   const cu0 = (faceA.uMin + faceA.uMax) / 2;
   const cv0 = (faceA.vMin + faceA.vMax) / 2;

@@ -379,6 +379,24 @@ function mergeMeshes(meshes) {
   results.push(`INFO findAdjacentPieces: ${pairs.length} total pairs found (expect 1: the real cut halves, not the far-apart coplanar boxes)`);
   if (halves.length !== 1) { results.push(`FAIL findAdjacentPieces: expected the real cut halves to be detected as adjacent, found ${halves.length} matches`); failures++; }
   if (farPair.length !== 0) { results.push(`FAIL findAdjacentPieces: far-apart-but-coplanar boxes were wrongly flagged as adjacent`); failures++; }
+
+  // Partial/staggered overlap: coplanar opposite faces that only partially
+  // overlap (centroids far apart) must still be detected — modular
+  // staggered cuts look like this on a real model.
+  // left:  occupies x=-20..0, y=-20..20  → +X face at x=0
+  // right: occupies x=0..20,  y=-5..35   → -X face at x=0 (Y overlap -5..20)
+  const left = buildBox(-10, 0, 0, 20, 40, 20);
+  const rightPartial = buildBox(10, 15, 0, 20, 40, 20);
+  const partialPairs = findAdjacentPieces([
+    { id: 'left', mesh: left },
+    { id: 'right', mesh: rightPartial },
+  ], { minArea: 25 });
+  const partialHit = partialPairs.filter((p) => (p.pieceA === 'left' && p.pieceB === 'right') || (p.pieceA === 'right' && p.pieceB === 'left'));
+  results.push(`INFO findAdjacentPieces staggered: ${partialHit.length} pair(s) (expect 1)`);
+  if (partialHit.length !== 1) {
+    results.push(`FAIL findAdjacentPieces: staggered/partial overlap should be detected, got ${partialHit.length}`);
+    failures++;
+  }
 }
 
 {
@@ -429,7 +447,7 @@ function mergeMeshes(meshes) {
     const minDim = Math.min(face.uMax - face.uMin, face.vMax - face.vMin);
     const t = Math.min(1, Math.max(0, (minDim - 40) / 200));
     const ratio = 0.40 * (1 - t) + 0.12 * t;
-    return Math.max(8, Math.min(minDim * ratio, minDim - 4, 30));
+    return Math.max(5, Math.min(minDim * ratio, minDim - 4, 30));
   };
   const bigW = sizeFor(bigFace), smallW = sizeFor(smallFace);
   results.push(`INFO connector sizing: big face width≈${bigW.toFixed(1)}mm, small≈${smallW.toFixed(1)}mm`);
