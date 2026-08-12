@@ -5,9 +5,12 @@ const THEME_KEY = "cindy-vinyl-theme";
 const NORM_KEY = "cindy-vinyl-normalize";
 const RIBBON_KEY = "cindy-vinyl-ribbon";
 /** Window taller than this while ribboned (without PiP) → auto-restore full room. */
-const RIBBON_RESTORE_H = 220;
+const RIBBON_RESTORE_H = 280;
 /** Treat as slim ribbon chrome at or below this height. */
-const RIBBON_SLIM_H = 180;
+const RIBBON_SLIM_H = 240;
+/** Compact “small player” window — matches the size Chris locked in. */
+const SMALL_PLAYER_W = 680;
+const SMALL_PLAYER_H = 210;
 
 /** Room / deck themes. Amp-rack footage is shared by dark + light; crate photo
  * and page chrome (`room`) differ. `cueOut: null` → fade instead of lift clip. */
@@ -731,11 +734,12 @@ function syncRibbonButtons(on) {
   const btn = $("ribbonBtn");
   if (btn) {
     btn.setAttribute("aria-pressed", active ? "true" : "false");
-    btn.title = active ? "Open vinyl room" : "Minimise to ribbon";
+    btn.title = active ? "Open vinyl room" : "Small player";
     btn.setAttribute("aria-label", btn.title);
+    btn.textContent = active ? "ROOM" : "Small player";
   }
   const menuItem = document.querySelector('#menuDrop [data-action="ribbon"]');
-  if (menuItem) menuItem.textContent = active ? "Open vinyl room" : "Minimise to ribbon";
+  if (menuItem) menuItem.textContent = active ? "Open vinyl room" : "Small player";
   const expand = $("ribbonExpandBtn");
   if (expand) {
     expand.title = "Open vinyl room (use this instead of Windows maximise)";
@@ -756,8 +760,8 @@ async function tryEnterPipRibbon() {
   if (!transport) return false;
   try {
     const pip = await documentPictureInPicture.requestWindow({
-      width: Math.min(920, Math.max(560, Math.round(window.screen.availWidth * 0.42))),
-      height: 96,
+      width: SMALL_PLAYER_W,
+      height: Math.max(120, SMALL_PLAYER_H - 40),
     });
     _pipWindow = pip;
     copyPipStyles(pip);
@@ -821,12 +825,18 @@ function tryResizeRibbonWindow(enter) {
           h: window.outerHeight,
         };
       }
-      const w = Math.max(720, Math.min(_ribbonGeom.w, Math.round(window.screen.availWidth * 0.92)));
-      const h = 148;
-      window.resizeTo(w, h);
+      const availLeft = window.screen.availLeft || 0;
       const availTop = window.screen.availTop || 0;
+      const availW = window.screen.availWidth || window.screen.width;
       const availH = window.screen.availHeight || window.screen.height;
-      window.moveTo(_ribbonGeom.x, availTop + availH - h);
+      const w = Math.min(SMALL_PLAYER_W, availW - 24);
+      const h = Math.min(SMALL_PLAYER_H, availH - 24);
+      // Leave maximised first if needed.
+      window.moveTo(availLeft + 24, availTop + 24);
+      window.resizeTo(w, h);
+      const x = Math.max(availLeft, Math.min(_ribbonGeom.x, availLeft + availW - w));
+      const y = availTop + availH - h;
+      window.moveTo(x, y);
     } else {
       _ribbonGeom = null;
       openVinylRoomWindow();
@@ -834,6 +844,11 @@ function tryResizeRibbonWindow(enter) {
   } catch {
     /* blocked outside script-opened / some PWA hosts */
   }
+}
+
+/** Enter the compact small-player window (ribbon chrome). */
+function openSmallPlayer() {
+  setRibbon(true);
 }
 
 /** ROOM button / Escape — leave ribbon and open the vinyl room properly. */
@@ -877,7 +892,8 @@ async function setRibbon(on, { skipWindow = false, skipPip = false } = {}) {
 }
 
 function toggleRibbon() {
-  setRibbon(!document.body.classList.contains("ribbon"));
+  if (document.body.classList.contains("ribbon")) restoreVinylRoom();
+  else openSmallPlayer();
 }
 
 function closeMenu() {

@@ -6,6 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-12 Session update (Vinyl — Small player button)
+
+Latest commit: `pending` — Named Small player size (680×210)
+
+Latest local/Mora change:
+- Header **Small player** button (and ⋯ menu) opens the compact player at the size Chris liked.
+- **ROOM** still restores the full vinyl room.
+- Hard refresh / reopen Cindy. Rebuild `vinyl` on Mora.
+
+Previous:
+- ROOM restore + shuffle/norm (`cc5dca5`).
+
+---
+
 ## 2026-08-12 Session update (Vinyl — ROOM restore + ribbon controls)
 
 Latest commit: `cc5dca5` — ROOM opens vinyl room; keep shuffle/norm on ribbon

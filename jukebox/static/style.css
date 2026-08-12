@@ -134,8 +134,17 @@ body.theme-light .crate-carousel-letter {
   border-radius: 4px;
 }
 .menu-btn:hover,
-.menu-btn[aria-expanded="true"],
-.ribbon-btn[aria-pressed="true"] {
+.menu-btn[aria-expanded="true"] {
+  border-color: var(--gold);
+  color: var(--gold-hot);
+}
+.small-player-btn {
+  white-space: nowrap;
+  min-width: auto;
+  height: 2.4rem;
+  padding: 0 0.85rem;
+}
+.small-player-btn[aria-pressed="true"] {
   border-color: var(--gold);
   color: var(--gold-hot);
 }
@@ -1442,9 +1451,8 @@ body.theme-light.ribbon .transport {
   background: rgba(126, 133, 150, 0.98);
 }
 
-/* Slim window (PWA ribbon / manual resize) — same chrome + always show SPIN/Room.
-   Height threshold is generous: title-bar chrome makes outer-tall / inner-short windows common. */
-@media (max-height: 220px) {
+/* Slim / small-player window — transport fills the frame; always show SPIN/Room. */
+@media (max-height: 280px) {
   body .lamp,
   body .grain,
   body .top,
