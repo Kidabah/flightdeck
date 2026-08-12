@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-12 Session update (Vinyl — ribbon fixes)
 
-Latest commit: `pending` — Ribbon SPIN + auto-restore on maximise
+Latest commit: `d039444` — Ribbon SPIN + auto-restore on maximise
 
 Latest local/Mora change:
 - Ribbon bar now has **SPIN** (random sleeve) and **▴ Room** to browse crates.
