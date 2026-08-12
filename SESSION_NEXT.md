@@ -6,6 +6,21 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-12 Session update (Vinyl — Taskbar mode)
+
+Latest commit: `pending` — Third chrome mode: Taskbar strip
+
+Latest local/Mora change:
+- Header **Taskbar** (and ⋯ / Small→Taskbar chip) docks an ultra-slim strip (~560×92).
+- Taskbar keeps art, title, prev/play/next, **Small**, **ROOM**.
+- Modes: vinyl room → Small player → Taskbar.
+- Hard refresh / reopen Cindy. Rebuild `vinyl` on Mora.
+
+Previous:
+- Small player button (`9c657e6`).
+
+---
+
 ## 2026-08-12 Session update (Vinyl — Small player button)
 
 Latest commit: `9c657e6` — Named Small player size (680×210)
