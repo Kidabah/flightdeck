@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-12 Session update (Chop — LuBan connectors, smaller)
 
-Latest commit: _(pending)_ — Cap connector size / depth so pegs aren't bricks
+Latest commit: `9d5f003` — Cap connector size / depth so pegs aren't bricks
 
 Latest local/Pi change:
 - After LuBan single-connector pass, life-size faces still got oversized pegs (up to ~35% of face, depth 1.5× width).
