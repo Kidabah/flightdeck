@@ -6,6 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-12 Session update (Chop — part # away from connectors)
+
+Latest commit: `pending` — Stamp part numbers in a corner, not on the peg
+
+Latest local/Pi change:
+- Auto-finish was engraving huge centered part numbers on the same cut face as the connector → jagged boolean junk.
+- Numbers are now small and in a **corner**; skipped if the face is too small to host both.
+- Hard refresh Chop (`mesh-cut.js?v=24`). Recut (or undo + recut) to clear existing artifacts.
+
+Previous:
+- Chop UI flow (`c618353`).
+
+---
+
 ## 2026-08-12 Session update (Chop — tidy sidebar, finish by default)
 
 Latest commit: `c618353` — Chop UI flow + connectors/part # after every cut

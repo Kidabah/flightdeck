@@ -419,11 +419,11 @@ export function findAdjacentPieces(pieces, { minArea = 25 } = {}) {
  * unionMeshes() first (they're deliberately small/cheap per-box) before
  * using the result as a subtractMesh/unionMeshes cutter.
  */
-export function buildStampMesh(face, grid, gridW, gridH, targetWidth, targetHeight, depthRange, overlap = 1.2) {
+export function buildStampMesh(face, grid, gridW, gridH, targetWidth, targetHeight, depthRange, overlap = 1.2, { centerU, centerV } = {}) {
   const pitchU = targetWidth / gridW;
   const pitchV = targetHeight / gridH;
-  const centerU = (face.uMin + face.uMax) / 2;
-  const centerV = (face.vMin + face.vMax) / 2;
+  const cu0 = centerU ?? (face.uMin + face.uMax) / 2;
+  const cv0 = centerV ?? (face.vMin + face.vMax) / 2;
   const [innerDepth, outerDepth] = depthRange;
   const buildBox = (u0, u1, v0, v1) => {
     const positions = [];
@@ -452,8 +452,8 @@ export function buildStampMesh(face, grid, gridW, gridH, targetWidth, targetHeig
   for (let row = 0; row < gridH; row++) {
     for (let col = 0; col < gridW; col++) {
       if (!grid[row * gridW + col]) continue;
-      const cu = (col + 0.5) * pitchU - targetWidth / 2 + centerU;
-      const cv = (gridH - 1 - row + 0.5) * pitchV - targetHeight / 2 + centerV; // raster row 0 = top = +v
+      const cu = (col + 0.5) * pitchU - targetWidth / 2 + cu0;
+      const cv = (gridH - 1 - row + 0.5) * pitchV - targetHeight / 2 + cv0; // raster row 0 = top = +v
       const hw = (pitchU * overlap) / 2, hv = (pitchV * overlap) / 2;
       boxes.push(buildBox(cu - hw, cu + hw, cv - hv, cv + hv));
     }

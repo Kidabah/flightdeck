@@ -227,7 +227,7 @@
       <div class="section-label">4 · Finish</div>
       <label class="check-row"><input type="checkbox" id="optConnectors" checked> Connectors</label>
       <label class="check-row"><input type="checkbox" id="optPartNumbers" checked> Part numbers</label>
-      <div class="hint" style="margin-top:4px">Applied automatically after each cut. Tiny / paper-thin joints stay glue-only.</div>
+      <div class="hint" style="margin-top:4px">Applied automatically after each cut. Part numbers sit in a corner so they don’t hit the connector. Tiny / paper-thin joints stay glue-only.</div>
       <button class="btn btn-ghost" id="applyFinishBtn" style="width:100%;margin-top:8px" disabled>Apply to current pieces</button>
     </div>
 
@@ -269,7 +269,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import './js/nav.js?v=551';
 import { loadMeshFromFile } from './js/mesh-import.js?v=2';
-import { sliceMeshByPlane, parallelPlaneCut, modularCut, gridCut, radialCut, smoothMesh, computeBounds, computeDefaultFlexiPlanes, flexiCut, splitIntoIslands, unionMeshes, subtractMesh, findLargestFlatFace, buildStampMesh, findAdjacentPieces, addConnectorsToPieces, meshThicknessAlong } from './js/mesh-cut.js?v=23';
+import { sliceMeshByPlane, parallelPlaneCut, modularCut, gridCut, radialCut, smoothMesh, computeBounds, computeDefaultFlexiPlanes, flexiCut, splitIntoIslands, unionMeshes, subtractMesh, findLargestFlatFace, buildStampMesh, findAdjacentPieces, addConnectorsToPieces, meshThicknessAlong } from './js/mesh-cut.js?v=24';
 import { meshToStl, downloadBlob, countOpenEdges } from './js/stl.js?v=372';
 
 const $ = (id) => document.getElementById(id);
@@ -1232,34 +1232,44 @@ function rasterizeDigits(text, pixelHeight = 28, fontFamily = "'Arial Black', Ar
 }
 
 /**
- * Engrave `piece`'s own part number into its largest flat face -- almost
- * always the cut face, so the mark is hidden once pieces are glued back
- * together but visible while sorting loose parts (same convention LuBan
- * uses). Sized to a fraction of the face's smaller dimension, clamped to a
- * legible-but-not-absurd range, and capped against the face's actual width
- * so a long number on a narrow face shrinks to fit rather than overflowing
- * past the solid edge. Mutates nothing on failure -- throws, caller decides
- * how to report it (a piece with no usable flat face, e.g. an already-
- * merged organic blob, is a real possibility, not a bug).
+ * Engrave `piece`'s own part number into a corner of its largest flat
+ * face (usually the cut face). Kept modest and off-center so it doesn't
+ * chew through a LuBan connector sitting in the middle of the same face —
+ * that overlap is what produced the jagged "tabs" on auto-finish cuts.
  */
-async function stampPartNumber(piece) {
+async function stampPartNumber(piece, { avoidCenter = false } = {}) {
   const face = findLargestFlatFace(piece.mesh);
   if (!face) throw new Error('no flat face found');
   const faceW = face.uMax - face.uMin, faceH = face.vMax - face.vMin;
   if (faceW < 6 || faceH < 6) throw new Error('largest flat face is too small to stamp');
   const text = String(piece.partNumber);
   const { grid, gridW, gridH } = rasterizeDigits(text);
-  // Sized generously -- most of the face's smaller dimension, not a
-  // timid corner mark. A future Connector feature will need to steer
-  // clear of (or share space with) whatever region this actually stamps.
-  let targetHeight = Math.min(50, Math.max(8, Math.min(faceW, faceH) * 0.6));
+  let targetHeight = Math.min(18, Math.max(6, Math.min(faceW, faceH) * 0.18));
   let targetWidth = targetHeight * (gridW / gridH);
-  if (targetWidth > faceW * 0.9) {
-    targetWidth = faceW * 0.9;
+  const maxW = faceW * 0.45, maxH = faceH * 0.45;
+  if (targetWidth > maxW) {
+    targetWidth = maxW;
     targetHeight = targetWidth * (gridH / gridW);
   }
+  if (targetHeight > maxH) {
+    targetHeight = maxH;
+    targetWidth = targetHeight * (gridW / gridH);
+  }
+  const margin = Math.max(2.5, Math.min(faceW, faceH) * 0.06);
+  let centerU = face.uMin + margin + targetWidth / 2;
+  let centerV = face.vMin + margin + targetHeight / 2;
+  centerU = Math.min(Math.max(centerU, face.uMin + margin + targetWidth / 2), face.uMax - margin - targetWidth / 2);
+  centerV = Math.min(Math.max(centerV, face.vMin + margin + targetHeight / 2), face.vMax - margin - targetHeight / 2);
+  if (avoidCenter) {
+    const midU = (face.uMin + face.uMax) / 2;
+    const midV = (face.vMin + face.vMax) / 2;
+    const keepOut = Math.min(faceW, faceH) * 0.28;
+    if (Math.hypot(centerU - midU, centerV - midV) < keepOut) {
+      throw new Error('face too small to stamp beside connector');
+    }
+  }
   const depth = 0.6; // mm engraved into the surface
-  const boxes = buildStampMesh(face, grid, gridW, gridH, targetWidth, targetHeight, [-depth, 0.3]);
+  const boxes = buildStampMesh(face, grid, gridW, gridH, targetWidth, targetHeight, [-depth, 0.3], 1.2, { centerU, centerV });
   if (!boxes.length) throw new Error('nothing rendered for that number');
   const stamp = await unionMeshes(boxes);
   return subtractMesh(piece.mesh, stamp);
@@ -1273,7 +1283,7 @@ async function addPartNumbersToAllPieces({ skipUndo = false, quiet = false } = {
   for (const p of pieces) {
     if (!quiet) setStatus(`Stamping part numbers… ${done + skipped}/${pieces.length}`);
     try {
-      const stamped = await stampPartNumber(p);
+      const stamped = await stampPartNumber(p, { avoidCenter: connectorRecords.length > 0 });
       p.mesh = stamped;
       p.openEdgeCount = stamped.openEdgeCount;
       done++;
