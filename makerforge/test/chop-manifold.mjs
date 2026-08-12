@@ -4,7 +4,7 @@
  * Backed by manifold-3d (see mesh-cut.js header for why). Run via ./run.sh.
  * Exit code 0 = all pass, 1 = a regression.
  */
-import { sliceMeshByPlane, modularCut, parallelPlaneCut, computeDefaultFlexiPlanes, flexiCut, gridCut, radialCut, smoothMesh, splitIntoIslands, unionMeshes, subtractMesh, findLargestFlatFace, buildStampMesh, findFlatFaceGroups, findAdjacentPieces, planConnectorSites, buildConnectorMeshes, addConnectorsToPieces, computeBounds } from "./_staged/mesh-cut.js";
+import { sliceMeshByPlane, modularCut, parallelPlaneCut, computeDefaultFlexiPlanes, flexiCut, gridCut, radialCut, smoothMesh, splitIntoIslands, unionMeshes, subtractMesh, findLargestFlatFace, buildStampMesh, findFlatFaceGroups, findAdjacentPieces, planConnectorSites, buildConnectorMeshes, addConnectorsToPieces, computeBounds, meshThicknessAlong } from "./_staged/mesh-cut.js";
 import { countOpenEdges, sanitizeMeshForStl } from "./_staged/stl.js";
 import ManifoldModule from "manifold-3d";
 
@@ -395,6 +395,18 @@ function mergeMeshes(meshes) {
   results.push(`INFO findAdjacentPieces staggered: ${partialHit.length} pair(s) (expect 1)`);
   if (partialHit.length !== 1) {
     results.push(`FAIL findAdjacentPieces: staggered/partial overlap should be detected, got ${partialHit.length}`);
+    failures++;
+  }
+}
+
+{
+  const box = buildBox(0, 0, 0, 60, 60, 30);
+  const faces = findFlatFaceGroups(box, 5);
+  const top = faces.find((f) => f.normal[2] > 0.9);
+  const thick = top ? meshThicknessAlong(box, top) : NaN;
+  results.push(`INFO meshThicknessAlong: ${thick.toFixed?.(1) ?? thick}mm on 30mm-tall box top (expect ~30)`);
+  if (!(thick > 28 && thick < 32)) {
+    results.push(`FAIL meshThicknessAlong: expected ~30mm, got ${thick}`);
     failures++;
   }
 }

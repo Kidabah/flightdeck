@@ -6,9 +6,24 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-12 Session update (Chop — merge strips connectors / no punch-through)
+
+Latest commit: `pending` — Thickness-capped pegs; merge removes internal connectors
+
+Latest local/Pi change:
+- Thin neck/shell joints were getting pegs that punched through; merge kept that geometry.
+- Connector depth now capped at **40% of wall thickness** (skip if wall &lt; 8 mm).
+- **Merge Selected** strips any connector that sat between the pieces you merge.
+- Hard refresh Chop (`mesh-cut.js?v=22`). Undo connectors, re-add, then merge — or merge now to strip the poking peg.
+
+Previous:
+- Catch missing joints (`5e5fbce`).
+
+---
+
 ## 2026-08-12 Session update (Chop — catch missing joints)
 
-Latest commit: _(pending)_ — Detect staggered cut faces; lower tiny-face skip to 22mm
+Latest commit: `5e5fbce` — Detect staggered cut faces; lower tiny-face skip to 22mm
 
 Latest local/Pi change:
 - Some joints got no connectors: adjacency only matched near-identical scars (missed staggered/partial overlaps), and the 40mm skip was too aggressive.

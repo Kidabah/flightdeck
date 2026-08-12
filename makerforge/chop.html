@@ -245,7 +245,7 @@
         <button class="btn btn-ghost" id="addPartNumbersBtn" style="width:100%;margin-bottom:8px">Add Part Numbers</button>
         <div class="hint" style="margin-bottom:6px">Engraves each piece's own number into its largest flat face (almost always the cut face) — hidden once glued back together, visible while sorting loose parts.</div>
         <div class="hint" style="margin-bottom:6px">Click pieces in the viewport (or Ctrl/Cmd/Shift-click them below) to pick more than one for merging, then hit Merge Selected in the viewport toolbar — works whether the model is assembled or exploded.</div>
-        <div class="hint" style="margin-bottom:6px">Add Connectors (viewport toolbar) adds one LuBan-style alignment peg/socket per shared cut face — bigger on big pieces, smaller on small ones. Tiny faces (under ~22 mm, e.g. ear-tip slivers) are skipped for glue-only joins. If a piece already has a part number stamped on the same face, the two aren't yet coordinated and may overlap — add connectors first if you plan to use both.</div>
+        <div class="hint" style="margin-bottom:6px">Add Connectors (viewport toolbar) adds one LuBan-style alignment peg/socket per shared cut face — bigger on big pieces, smaller on small ones, depth capped by wall thickness so thin shells don't get punched through. Tiny / paper-thin joints are glue-only. Merge Selected strips any connector that sat between the pieces you merge. If a piece already has a part number stamped on the same face, add connectors first if you plan to use both.</div>
         <div class="piece-list" id="pieceList"></div>
       </div>
     </div>
@@ -277,7 +277,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import './js/nav.js?v=551';
 import { loadMeshFromFile } from './js/mesh-import.js?v=2';
-import { sliceMeshByPlane, parallelPlaneCut, modularCut, gridCut, radialCut, smoothMesh, computeBounds, computeDefaultFlexiPlanes, flexiCut, splitIntoIslands, unionMeshes, subtractMesh, findLargestFlatFace, buildStampMesh, findAdjacentPieces, addConnectorsToPieces } from './js/mesh-cut.js?v=21';
+import { sliceMeshByPlane, parallelPlaneCut, modularCut, gridCut, radialCut, smoothMesh, computeBounds, computeDefaultFlexiPlanes, flexiCut, splitIntoIslands, unionMeshes, subtractMesh, findLargestFlatFace, buildStampMesh, findAdjacentPieces, addConnectorsToPieces, meshThicknessAlong } from './js/mesh-cut.js?v=22';
 import { meshToStl, downloadBlob, countOpenEdges } from './js/stl.js?v=372';
 
 const $ = (id) => document.getElementById(id);
@@ -288,6 +288,7 @@ let pieces = [];       // { id, partNumber, name, mesh:{positions,indices}, open
 let selectedId = null;
 let mergeSelection = new Set(); // piece ids picked via Ctrl/Cmd/Shift-click, for Merge Selected
 let undoStack = [];
+let connectorRecords = []; // { aId, bId, peg, socket } from last Add Connectors pass
 let baseName = 'model';
 let nextId = 1;
 let cutMode = 'straight'; // 'straight' | 'angled' | 'grid' | 'radial' | 'modular'
@@ -1147,21 +1148,57 @@ async function deletePiece(id) {
  * never touches (it's a pure view-space Object3D offset), so you can spot
  * what needs merging while exploded and still get a correct result.
  */
+function pushUndo() {
+  undoStack.push({
+    pieces: pieces.map((p) => ({ ...p })),
+    connectors: connectorRecords.map((r) => ({ ...r })),
+  });
+}
+
+function popUndo() {
+  const snap = undoStack.pop();
+  if (!snap) return;
+  if (Array.isArray(snap)) {
+    pieces = snap;
+    connectorRecords = [];
+    return;
+  }
+  pieces = snap.pieces;
+  connectorRecords = snap.connectors || [];
+}
+
 async function mergeSelectedPieces() {
   const targets = pieces.filter((p) => mergeSelection.has(p.id));
   if (targets.length < 2) return;
   setStatus(`Merging ${targets.length} pieces…`);
+  const idSet = new Set(targets.map((p) => p.id));
+  const internal = connectorRecords.filter((r) => idSet.has(r.aId) && idSet.has(r.bId));
+  const meshById = new Map(targets.map((p) => [p.id, p.mesh]));
+  let stripped = 0;
+  for (const rec of internal) {
+    try {
+      if (rec.peg) meshById.set(rec.aId, await subtractMesh(meshById.get(rec.aId), rec.peg));
+      if (rec.socket) meshById.set(rec.bId, await unionMeshes([meshById.get(rec.bId), rec.socket]));
+      stripped++;
+    } catch (_) { /* keep going — still merge the rest */ }
+  }
   let merged;
   try {
-    merged = await unionMeshes(targets.map((p) => p.mesh));
+    merged = await unionMeshes([...meshById.values()]);
   } catch (e) {
     setStatus('Merge failed: ' + e.message);
     return;
   }
-  undoStack.push(pieces.slice());
+  pushUndo();
+  const newId = `piece-${nextId++}`;
+  connectorRecords = connectorRecords.filter((r) => !(idSet.has(r.aId) && idSet.has(r.bId)));
+  for (const r of connectorRecords) {
+    if (idSet.has(r.aId)) r.aId = newId;
+    if (idSet.has(r.bId)) r.bId = newId;
+  }
   const firstIdx = pieces.findIndex((p) => mergeSelection.has(p.id));
   pieces = pieces.filter((p) => !mergeSelection.has(p.id));
-  const newPiece = { id: `piece-${nextId++}`, mesh: merged, openEdgeCount: merged.openEdgeCount };
+  const newPiece = { id: newId, mesh: merged, openEdgeCount: merged.openEdgeCount };
   pieces.splice(firstIdx, 0, newPiece);
   renumberPieces();
   mergeSelection.clear();
@@ -1175,7 +1212,8 @@ async function mergeSelectedPieces() {
       ? ` (saved ${saveResult.saved}/${saveResult.total} to ${outputDirHandle.name}/chop/ before failing: ${saveResult.error})`
       : ` (saved to ${outputDirHandle.name}/chop/${saveResult.pruned ? `, removed ${saveResult.pruned} stale file${saveResult.pruned === 1 ? '' : 's'}` : ''})`
     : '';
-  setStatus(`Merged ${targets.length} pieces into ${newPiece.name}${merged.openEdgeCount > 0 ? ` — ${merged.openEdgeCount} open edges, repair in Mesh Prep` : ''}.${saveNote}`);
+  const stripNote = stripped ? ` Stripped ${stripped} connector${stripped === 1 ? '' : 's'} between them.` : '';
+  setStatus(`Merged ${targets.length} pieces into ${newPiece.name}${merged.openEdgeCount > 0 ? ` — ${merged.openEdgeCount} open edges, repair in Mesh Prep` : ''}.${stripNote}${saveNote}`);
 }
 $('tbMerge').addEventListener('click', mergeSelectedPieces);
 
@@ -1273,6 +1311,7 @@ $('addPartNumbersBtn').addEventListener('click', addPartNumbersToAllPieces);
  * peg — mid-size joints use a smaller ratio so they still key.
  */
 const MIN_CONNECTOR_FACE_MM = 22;
+const MIN_CONNECTOR_WALL_MM = 8;
 
 function faceMinDim(face) {
   return Math.min(face.uMax - face.uMin, face.vMax - face.vMin);
@@ -1309,7 +1348,8 @@ async function addConnectorsToAllPieces() {
     $('tbConnectors').disabled = false;
     return;
   }
-  undoStack.push(pieces.map((p) => ({ ...p })));
+  pushUndo();
+  connectorRecords = [];
   const meshById = new Map(pieces.map((p) => [p.id, p.mesh]));
   let done = 0, totalSites = 0, skipped = 0, skippedTiny = 0;
   for (const iface of interfaces) {
@@ -1320,16 +1360,20 @@ async function addConnectorsToAllPieces() {
         skippedTiny++; // ear-tip / sliver joints — glue only
         continue;
       }
-      // Both sides of one interface share the same real footprint, so
-      // their face-derived widths should already be nearly identical --
-      // take the smaller of the two defensively rather than assuming
-      // they're exactly equal.
+      const meshA0 = meshById.get(iface.pieceA);
+      const meshB0 = meshById.get(iface.pieceB);
+      const wall = Math.min(meshThicknessAlong(meshA0, iface.faceA), meshThicknessAlong(meshB0, iface.faceB));
+      if (wall < MIN_CONNECTOR_WALL_MM) {
+        skippedTiny++; // thin shell — peg would punch through
+        continue;
+      }
       const width = Math.min(connectorWidthForFace(iface.faceA), connectorWidthForFace(iface.faceB));
-      const depth = Math.min(width * 0.6, 18);
-      const result = await addConnectorsToPieces(meshById.get(iface.pieceA), meshById.get(iface.pieceB), iface.faceA, iface.faceB, { width, depth, tolerance: 0.2, maxSites: 1 });
+      const depth = Math.min(width * 0.6, 18, wall * 0.4);
+      const result = await addConnectorsToPieces(meshA0, meshB0, iface.faceA, iface.faceB, { width, depth, tolerance: 0.2, maxSites: 1 });
       if (result.count > 0) {
         meshById.set(iface.pieceA, result.meshA);
         meshById.set(iface.pieceB, result.meshB);
+        connectorRecords.push({ aId: iface.pieceA, bId: iface.pieceB, peg: result.pegSolid, socket: result.socketSolid });
         totalSites += result.count;
         done++;
       } else {
@@ -2079,7 +2123,7 @@ $('commitCutBtn').addEventListener('click', () => {
 
 $('undoBtn').addEventListener('click', () => {
   if (!undoStack.length) return;
-  pieces = undoStack.pop();
+  popUndo();
   selectedId = pieces[0]?.id ?? null;
   rebuildScene();
   renderPieceList();

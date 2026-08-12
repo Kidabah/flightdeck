@@ -35,6 +35,55 @@ function normalize(v) {
   return [v[0] / len, v[1] / len, v[2] / len];
 }
 
+/** Möller–Trumbore; returns t along `dir` or null. */
+function rayTriangleT(orig, dir, v0, v1, v2) {
+  const eps = 1e-8;
+  const e1 = sub(v1, v0), e2 = sub(v2, v0);
+  const pvec = cross(dir, e2);
+  const det = dot(e1, pvec);
+  if (Math.abs(det) < eps) return null;
+  const inv = 1 / det;
+  const tvec = sub(orig, v0);
+  const u = dot(tvec, pvec) * inv;
+  if (u < 0 || u > 1) return null;
+  const qvec = cross(tvec, e1);
+  const v = dot(dir, qvec) * inv;
+  if (v < 0 || u + v > 1) return null;
+  const t = dot(e2, qvec) * inv;
+  return t > eps ? t : null;
+}
+
+/**
+ * Local wall thickness at a flat face: ray from just inside the face
+ * along -normal until it exits the solid. Infinity if the ray misses
+ * (open mesh / degenerate). Used to stop connector pegs punching through
+ * thin shells.
+ */
+export function meshThicknessAlong(mesh, face, { inset = 0.05 } = {}) {
+  const cu = (face.uMin + face.uMax) / 2;
+  const cv = (face.vMin + face.vMax) / 2;
+  const n = face.normal;
+  const orig = [
+    face.origin[0] + face.u[0] * cu + face.v[0] * cv - n[0] * inset,
+    face.origin[1] + face.u[1] * cu + face.v[1] * cv - n[1] * inset,
+    face.origin[2] + face.u[2] * cu + face.v[2] * cv - n[2] * inset,
+  ];
+  const dir = [-n[0], -n[1], -n[2]];
+  const { positions, indices } = mesh;
+  let best = Infinity;
+  for (let t = 0; t < indices.length; t += 3) {
+    const ia = indices[t] * 3, ib = indices[t + 1] * 3, ic = indices[t + 2] * 3;
+    const hit = rayTriangleT(
+      orig, dir,
+      [positions[ia], positions[ia + 1], positions[ia + 2]],
+      [positions[ib], positions[ib + 1], positions[ib + 2]],
+      [positions[ic], positions[ic + 1], positions[ic + 2]],
+    );
+    if (hit != null && hit > inset && hit < best) best = hit;
+  }
+  return Number.isFinite(best) ? best + inset : Infinity;
+}
+
 export function computeBounds(positions) {
   let minX = Infinity, minY = Infinity, minZ = Infinity;
   let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
@@ -585,12 +634,12 @@ export function buildConnectorMeshes(faceA, faceB, opts = {}) {
  */
 export async function addConnectorsToPieces(meshA, meshB, faceA, faceB, opts = {}) {
   const { sites, pegs, sockets } = buildConnectorMeshes(faceA, faceB, opts);
-  if (sites.length === 0) return { meshA, meshB, count: 0 };
+  if (sites.length === 0) return { meshA, meshB, count: 0, pegSolid: null, socketSolid: null };
   const pegSolid = await unionMeshes(pegs);
   const socketSolid = await unionMeshes(sockets);
   const newMeshA = await unionMeshes([meshA, pegSolid]);
   const newMeshB = await subtractMesh(meshB, socketSolid);
-  return { meshA: newMeshA, meshB: newMeshB, count: sites.length };
+  return { meshA: newMeshA, meshB: newMeshB, count: sites.length, pegSolid, socketSolid };
 }
 
 /**
