@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-12 Session update (Vinyl — ROOM restore + ribbon controls)
 
-Latest commit: `pending` — ROOM opens vinyl room; keep shuffle/norm on ribbon
+Latest commit: `cc5dca5` — ROOM opens vinyl room; keep shuffle/norm on ribbon
 
 Latest local/Mora change:
 - **ROOM** (not Windows maximise) opens a clean large vinyl-room window.
