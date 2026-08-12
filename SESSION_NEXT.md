@@ -6,6 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-12 Session update (Chop — connectors smaller again)
+
+Latest commit: _(pending)_ — Lower connector cap to 30×18 mm
+
+Latest local/Pi change:
+- Neck/rump pegs still looked brick-like at 55mm/40mm depth.
+- Cap now **30 mm** wide, depth **≤18 mm** (0.6× width); face ratio 40%→12%.
+- Hard refresh Chop (`mesh-cut.js?v=19`). Undo + Add Connectors on a clean cut.
+
+Previous:
+- Connector size cap 55mm (`9d5f003`).
+
+---
+
 ## 2026-08-12 Session update (Chop — LuBan connectors, smaller)
 
 Latest commit: `9d5f003` — Cap connector size / depth so pegs aren't bricks
