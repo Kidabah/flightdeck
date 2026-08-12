@@ -1281,10 +1281,26 @@ $('addPartNumbersBtn').addEventListener('click', addPartNumbersToAllPieces);
  * 0.2mm regardless of size -- that's a print-clearance value (how loose
  * the fit is), not a shape proportion, so there's no reason it should
  * scale with the connector.
+ *
+ * Cap dropped from 20mm to 12mm, and the caller passes a much wider
+ * pitch (6x the width, not the engine's own 1.6x default) -- first
+ * version was confirmed against only a modest synthetic test box that
+ * never got near either extreme, and shipping it against a real
+ * life-size multi-part cut (Trix.stl, 796x1083x850mm, 18 pieces) showed
+ * why: a big torso-scale face hit the old 20mm cap essentially every
+ * time, and at the engine's default tight pitch that meant hundreds of
+ * large, tall pegs tiling the ENTIRE face edge to edge on just about
+ * every sizeable interface (1931 connector sites total across the real
+ * model) -- nothing like LuBan's own reference export, which places a
+ * comparatively sparse handful of modest connectors even on its biggest
+ * pieces. This combination (smaller cap + much sparser pitch) cuts the
+ * same real model down to 160 total sites -- verified watertight
+ * throughout, see repro-connector-bug.mjs / check-tuning.mjs in a past
+ * session's scratch work for the actual before/after numbers.
  */
 function connectorWidthForFace(face) {
   const minDim = Math.min(face.uMax - face.uMin, face.vMax - face.vMin);
-  return Math.min(20, Math.max(3, minDim * 0.06));
+  return Math.min(12, Math.max(3, minDim * 0.06));
 }
 
 /**
@@ -1321,7 +1337,7 @@ async function addConnectorsToAllPieces() {
       // take the smaller of the two defensively rather than assuming
       // they're exactly equal.
       const width = Math.min(connectorWidthForFace(iface.faceA), connectorWidthForFace(iface.faceB));
-      const result = await addConnectorsToPieces(meshById.get(iface.pieceA), meshById.get(iface.pieceB), iface.faceA, iface.faceB, { width, depth: width * 1.5, tolerance: 0.2 });
+      const result = await addConnectorsToPieces(meshById.get(iface.pieceA), meshById.get(iface.pieceB), iface.faceA, iface.faceB, { width, depth: width * 1.5, tolerance: 0.2, pitch: width * 6 });
       if (result.count > 0) {
         meshById.set(iface.pieceA, result.meshA);
         meshById.set(iface.pieceB, result.meshB);
