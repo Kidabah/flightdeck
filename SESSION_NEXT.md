@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-12 Session update (Chop — merge strips connectors / no punch-through)
 
-Latest commit: `pending` — Thickness-capped pegs; merge removes internal connectors
+Latest commit: `2bb01b4` — Thickness-capped pegs; merge removes internal connectors
 
 Latest local/Pi change:
 - Thin neck/shell joints were getting pegs that punched through; merge kept that geometry.
