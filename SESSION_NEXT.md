@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-12 Session update (Vinyl — minimise to ribbon)
 
-Latest commit: `pending` — Cindy Vinyl ribbon / windowshade mode
+Latest commit: `7e0e694` — Cindy Vinyl ribbon / windowshade mode
 
 Latest local/Mora change:
 - **▬** in the header (and ⋯ → Minimise to ribbon) collapses the vinyl room to a slim now-playing bar. ▴ or Escape restores.
