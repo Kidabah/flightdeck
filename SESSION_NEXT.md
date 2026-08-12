@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-12 Session update (Chop — connectors smaller again)
 
-Latest commit: _(pending)_ — Lower connector cap to 30×18 mm
+Latest commit: `9446912` — Lower connector cap to 30×18 mm
 
 Latest local/Pi change:
 - Neck/rump pegs still looked brick-like at 55mm/40mm depth.
