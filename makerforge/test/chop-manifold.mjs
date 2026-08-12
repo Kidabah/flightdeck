@@ -382,15 +382,9 @@ function mergeMeshes(meshes) {
 }
 
 {
-  // Connector generation end to end: slice a box into two real halves, plan
-  // a peg/socket grid across the shared face, then actually union the pegs
-  // onto one side and subtract the sockets from the other. Both outputs
-  // must stay watertight, meshA must gain volume (pegs added) and meshB
-  // must lose volume (sockets cut) -- catches both mesh-validity bugs and
-  // sign/direction bugs (a peg built protruding the wrong way, or a socket
-  // cavity that doesn't actually overlap the solid it's meant to carve into,
-  // would still produce a "valid" watertight mesh, just a physically wrong
-  // one, which only a volume-direction check like this one catches).
+  // LuBan-style connectors: one sized peg/socket per shared face (not a
+  // dense grid). Slice a box, place a single connector, verify volumes
+  // move the right way and both sides stay watertight.
   const box = buildBox(0, 0, 0, 60, 60, 30);
   const { above, below } = await sliceMeshByPlane(box, [0, 0, 0], [1, 0, 0]);
   const pairs = findAdjacentPieces([{ id: 'A', mesh: above }, { id: 'B', mesh: below }], { minArea: 5 });
@@ -399,9 +393,9 @@ function mergeMeshes(meshes) {
     failures++;
   } else {
     const { faceA, faceB } = pairs[0];
-    const sites = planConnectorSites(faceA, faceB, { width: 7.5 });
-    results.push(`INFO connectors: ${sites.length} sites planned on a 60x30 shared face at 7.5mm width`);
-    if (sites.length < 3) { results.push(`FAIL connectors: expected several sites on a 60x30 face, got ${sites.length}`); failures++; }
+    const sites = planConnectorSites(faceA, faceB, { width: 20, maxSites: 1 });
+    results.push(`INFO connectors: ${sites.length} LuBan-style site(s) on a 60x30 shared face`);
+    if (sites.length !== 1) { results.push(`FAIL connectors: expected exactly 1 site (LuBan), got ${sites.length}`); failures++; }
 
     const volOf = (m) => {
       let v = 0;
@@ -415,14 +409,30 @@ function mergeMeshes(meshes) {
       return Math.abs(v);
     };
     const volA0 = volOf(above), volB0 = volOf(below);
-    const result = await addConnectorsToPieces(above, below, faceA, faceB, { width: 7.5, depth: 11, tolerance: 0.2 });
+    const result = await addConnectorsToPieces(above, below, faceA, faceB, { width: 20, depth: 30, tolerance: 0.2, maxSites: 1 });
     checkSide("connectors meshA (pegs unioned)", result.meshA);
     checkSide("connectors meshB (sockets subtracted)", result.meshB);
     const volA1 = volOf(result.meshA), volB1 = volOf(result.meshB);
     results.push(`INFO connectors: volume A ${volA0.toFixed(1)} -> ${volA1.toFixed(1)}, volume B ${volB0.toFixed(1)} -> ${volB1.toFixed(1)}`);
     if (!(volA1 > volA0)) { results.push("FAIL connectors: meshA should gain volume from unioned pegs"); failures++; }
     if (!(volB1 < volB0)) { results.push("FAIL connectors: meshB should lose volume from subtracted sockets"); failures++; }
-    if (result.count !== sites.length) { results.push(`FAIL connectors: addConnectorsToPieces count ${result.count} != planned sites ${sites.length}`); failures++; }
+    if (result.count !== 1) { results.push(`FAIL connectors: expected count 1, got ${result.count}`); failures++; }
+  }
+}
+
+{
+  // Bigger face → bigger connector; smaller face → smaller (LuBan sizing rule).
+  const bigFace = { normal: [0, 0, 1], u: [1, 0, 0], v: [0, 1, 0], origin: [0, 0, 0], uMin: -100, uMax: 100, vMin: -80, vMax: 80, uvTris: [[[-100, -80], [100, -80], [100, 80]], [[-100, -80], [100, 80], [-100, 80]]] };
+  const smallFace = { normal: [0, 0, 1], u: [1, 0, 0], v: [0, 1, 0], origin: [0, 0, 0], uMin: -20, uMax: 20, vMin: -15, vMax: 15, uvTris: [[[-20, -15], [20, -15], [20, 15]], [[-20, -15], [20, 15], [-20, 15]]] };
+  const bigW = Math.min(bigFace.uMax - bigFace.uMin, bigFace.vMax - bigFace.vMin) * 0.35;
+  const smallW = Math.min(smallFace.uMax - smallFace.uMin, smallFace.vMax - smallFace.vMin) * 0.85;
+  results.push(`INFO connector sizing: big face width≈${bigW.toFixed(1)}mm, small≈${smallW.toFixed(1)}mm`);
+  if (!(bigW > smallW * 2)) { results.push(`FAIL connector sizing: big face connector should be much larger than small (${bigW} vs ${smallW})`); failures++; }
+  const bigSites = planConnectorSites(bigFace, { ...bigFace, normal: [0, 0, -1] }, { width: bigW, maxSites: 1 });
+  const smallSites = planConnectorSites(smallFace, { ...smallFace, normal: [0, 0, -1] }, { width: smallW, maxSites: 1 });
+  if (bigSites.length !== 1 || smallSites.length !== 1) {
+    results.push(`FAIL connector sizing: expected 1 site each, got big=${bigSites.length} small=${smallSites.length}`);
+    failures++;
   }
 }
 

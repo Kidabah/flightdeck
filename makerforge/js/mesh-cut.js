@@ -466,23 +466,58 @@ function buildFrustumBox(face, cu, cv, w0, d0, w1, d1) {
   return { positions, indices };
 }
 
+/** True if a square footprint of half-width `half` centered at (cu,cv) fits inside `face`. */
+function connectorFootprintFits(face, cu, cv, half) {
+  const corners = [[cu, cv], [cu - half, cv - half], [cu + half, cv - half], [cu + half, cv + half], [cu - half, cv + half]];
+  return corners.every(([pu, pv]) => pointInUvTris(pu, pv, face.uvTris));
+}
+
+/** Project faceA's (cu,cv) into faceB's local (u,v) frame. */
+function projectSiteToFaceB(faceA, faceB, cu, cv) {
+  const world = [
+    faceA.origin[0] + faceA.u[0] * cu + faceA.v[0] * cv,
+    faceA.origin[1] + faceA.u[1] * cu + faceA.v[1] * cv,
+    faceA.origin[2] + faceA.u[2] * cu + faceA.v[2] * cv,
+  ];
+  const rel = sub(world, faceB.origin);
+  return { cuB: dot(rel, faceB.u), cvB: dot(rel, faceB.v) };
+}
+
 /**
- * Lay out a dense grid of candidate connector sites across the shared
- * interface between `faceA` and `faceB` (a pair from findAdjacentPieces),
- * keeping only sites whose full footprint -- center plus all 4 corners --
- * falls inside BOTH faces' real (organic, possibly-irregular) boundary via
- * `uvTris`, not just their bounding rectangle. Checking both sides (not
- * just faceA) matters because the two pieces' cut faces are only
- * approximately mirror images once floating-point noise and any prior
- * merge/smooth pass are accounted for -- a site near the edge on one side
- * can fall just outside the boundary on the other.
- *
- * Returns `[{cuA, cvA, cuB, cvB}, ...]` -- each site's position in both
- * faceA's and faceB's own (u,v) frames (found by projecting faceA's world
- * position into faceB's frame, since the two frames' u/v axes are built
- * independently and aren't guaranteed to line up).
+ * LuBan-style: one peg/socket per shared interface, centred on the overlap.
+ * Shrinks width until the footprint fits both organic cut faces (or returns []).
+ * Returns `{ sites, width }` — `width` is the fitted size actually used.
  */
-export function planConnectorSites(faceA, faceB, { width = 7.5, pitch, margin } = {}) {
+export function planSingleConnectorSite(faceA, faceB, { width, margin, minWidth = 8 } = {}) {
+  let w = width;
+  const cu0 = (faceA.uMin + faceA.uMax) / 2;
+  const cv0 = (faceA.vMin + faceA.vMax) / 2;
+  while (w >= minWidth) {
+    const half = margin ?? w / 2;
+    if (connectorFootprintFits(faceA, cu0, cv0, half)) {
+      const { cuB, cvB } = projectSiteToFaceB(faceA, faceB, cu0, cv0);
+      if (connectorFootprintFits(faceB, cuB, cvB, half)) {
+        return { sites: [{ cuA: cu0, cvA: cv0, cuB, cvB }], width: w };
+      }
+    }
+    w *= 0.9;
+  }
+  return { sites: [], width: 0 };
+}
+
+/**
+ * Lay out connector sites across the shared interface between `faceA` and
+ * `faceB`. Default (maxSites === 1) is LuBan-style: a single centred peg.
+ * Pass maxSites > 1 (or omit with an explicit pitch) for a dense grid —
+ * kept for tests / experimental multi-peg layouts.
+ *
+ * Returns `[{cuA, cvA, cuB, cvB}, ...]` — each site's position in both
+ * face frames (projected, since u/v axes are built independently).
+ */
+export function planConnectorSites(faceA, faceB, { width = 7.5, pitch, margin, maxSites } = {}) {
+  if (maxSites === 1) {
+    return planSingleConnectorSite(faceA, faceB, { width, margin }).sites;
+  }
   const p = pitch ?? width * 1.6;
   const half = (margin ?? width / 2);
   const uSpan = faceA.uMax - faceA.uMin;
@@ -497,63 +532,50 @@ export function planConnectorSites(faceA, faceB, { width = 7.5, pitch, margin } 
     for (let c = 0; c < cols; c++) {
       const cu = startU + c * p;
       const cv = startV + r * p;
-      const cornersA = [[cu, cv], [cu - half, cv - half], [cu + half, cv - half], [cu + half, cv + half], [cu - half, cv + half]];
-      if (!cornersA.every(([pu, pv]) => pointInUvTris(pu, pv, faceA.uvTris))) continue;
-
-      const world = [
-        faceA.origin[0] + faceA.u[0] * cu + faceA.v[0] * cv,
-        faceA.origin[1] + faceA.u[1] * cu + faceA.v[1] * cv,
-        faceA.origin[2] + faceA.u[2] * cu + faceA.v[2] * cv,
-      ];
-      const rel = sub(world, faceB.origin);
-      const cuB = dot(rel, faceB.u), cvB = dot(rel, faceB.v);
-      const cornersB = [[cuB, cvB], [cuB - half, cvB - half], [cuB + half, cvB - half], [cuB + half, cvB + half], [cuB - half, cvB + half]];
-      if (!cornersB.every(([pu, pv]) => pointInUvTris(pu, pv, faceB.uvTris))) continue;
-
+      if (!connectorFootprintFits(faceA, cu, cv, half)) continue;
+      const { cuB, cvB } = projectSiteToFaceB(faceA, faceB, cu, cv);
+      if (!connectorFootprintFits(faceB, cuB, cvB, half)) continue;
       sites.push({ cuA: cu, cvA: cv, cuB, cvB });
+      if (maxSites != null && sites.length >= maxSites) return sites;
     }
   }
   return sites;
 }
 
 /**
- * Build the peg/socket geometry for one shared interface (see
- * findAdjacentPieces), reverse-engineered from a real LuBan-exported
- * connector STL: ~7.5mm square footprint, tapered (frustum) shape, ~11mm
- * depth, ~0.2mm tolerance -- see analyze-connector-detail.mjs findings.
- * Pegs sit on faceA (protrude outward along faceA.normal, wide at the face
- * narrowing to `tipHalf` at the tip, for easier insertion); sockets sit on
- * faceB (cavity cut inward along faceB.normal, oversized by `tolerance` on
- * every side for clearance, and `0.5` deeper than the peg so it doesn't
- * bottom out, with a small `0.5` proud lip past the surface so the eventual
- * subtract cleanly severs the surface skin rather than leaving a degenerate
- * coincident face -- same trick buildStampMesh uses for engraving).
+ * Build peg/socket geometry for one shared interface. Default is one
+ * LuBan-style centred connector (maxSites: 1), sized by `width` (shrunk
+ * to fit if the organic cut face is irregular). Pegs on faceA, sockets on
+ * faceB with print clearance via `tolerance`.
  *
- * Each peg/socket is returned as its own small box mesh, NOT pre-unioned --
- * manifold-3d requires valid (non-self-intersecting) input to any boolean,
- * and overlapping boxes as raw triangle soup aren't one; union them with
- * unionMeshes() first before using as a subtractMesh cutter or unioning
- * onto a piece.
+ * Each peg/socket is its own small box mesh — union with unionMeshes()
+ * before boolean ops (manifold-3d needs non-self-intersecting input).
  */
 export function buildConnectorMeshes(faceA, faceB, opts = {}) {
-  const { width = 7.5, depth = 11, taper = 0.15, tolerance = 0.2, pitch, margin } = opts;
-  const sites = planConnectorSites(faceA, faceB, { width, pitch, margin });
-  const baseHalf = width / 2;
+  const { width = 7.5, depth = 11, taper = 0.15, tolerance = 0.2, pitch, margin, maxSites = 1 } = opts;
+  let sites;
+  let usedWidth = width;
+  if (maxSites === 1) {
+    const planned = planSingleConnectorSite(faceA, faceB, { width, margin });
+    sites = planned.sites;
+    usedWidth = planned.width || width;
+  } else {
+    sites = planConnectorSites(faceA, faceB, { width, pitch, margin, maxSites });
+  }
+  const baseHalf = usedWidth / 2;
   const tipHalf = baseHalf * (1 - taper);
-  const pegs = sites.map((s) => buildFrustumBox(faceA, s.cuA, s.cvA, baseHalf, 0, tipHalf, depth));
-  const sockets = sites.map((s) => buildFrustumBox(faceB, s.cuB, s.cvB, baseHalf + tolerance, 0.5, tipHalf + tolerance, -(depth + 0.5)));
-  return { sites, pegs, sockets };
+  const usedDepth = depth * (usedWidth / width);
+  const pegs = sites.map((s) => buildFrustumBox(faceA, s.cuA, s.cvA, baseHalf, 0, tipHalf, usedDepth));
+  const sockets = sites.map((s) => buildFrustumBox(faceB, s.cuB, s.cvB, baseHalf + tolerance, 0.5, tipHalf + tolerance, -(usedDepth + 0.5)));
+  return { sites, pegs, sockets, width: usedWidth };
 }
 
 /**
- * Add real Plug-style connectors to one adjacent piece pair -- unions the
- * peg grid onto `meshA`, subtracts the matching (oversized-for-tolerance)
- * socket grid from `meshB`. `faceA`/`faceB` come from a findAdjacentPieces
- * result. Returns the two new meshes plus `count` (number of connector
- * sites actually placed, which can be 0 for a very small/sliver shared
- * face -- callers should skip the union/subtract and leave both meshes
- * unchanged in that case, which this function does not itself decide since
- * it has no piece bookkeeping to update).
+ * Add one LuBan-style Plug connector to an adjacent piece pair -- unions
+ * the peg onto `meshA`, subtracts the matching (oversized-for-tolerance)
+ * socket from `meshB`. `faceA`/`faceB` come from a findAdjacentPieces
+ * result. Returns the two new meshes plus `count` (0 or 1 -- 0 when the
+ * shared face is too small/narrow for even one connector footprint).
  */
 export async function addConnectorsToPieces(meshA, meshB, faceA, faceB, opts = {}) {
   const { sites, pegs, sockets } = buildConnectorMeshes(faceA, faceB, opts);

@@ -245,7 +245,7 @@
         <button class="btn btn-ghost" id="addPartNumbersBtn" style="width:100%;margin-bottom:8px">Add Part Numbers</button>
         <div class="hint" style="margin-bottom:6px">Engraves each piece's own number into its largest flat face (almost always the cut face) — hidden once glued back together, visible while sorting loose parts.</div>
         <div class="hint" style="margin-bottom:6px">Click pieces in the viewport (or Ctrl/Cmd/Shift-click them below) to pick more than one for merging, then hit Merge Selected in the viewport toolbar — works whether the model is assembled or exploded.</div>
-        <div class="hint" style="margin-bottom:6px">Add Connectors (viewport toolbar) adds a grid of tapered alignment pegs/sockets across every shared cut face, sized to each face's own size, so pieces key together and glue cleanly. If a piece already has a part number stamped on the same face, the two aren't yet coordinated and may overlap — add connectors first if you plan to use both.</div>
+        <div class="hint" style="margin-bottom:6px">Add Connectors (viewport toolbar) adds one LuBan-style alignment peg/socket per shared cut face — bigger on big pieces, smaller on small ones — so parts key together without tiling dozens of pegs. If a piece already has a part number stamped on the same face, the two aren't yet coordinated and may overlap — add connectors first if you plan to use both.</div>
         <div class="piece-list" id="pieceList"></div>
       </div>
     </div>
@@ -259,7 +259,7 @@
       <button id="tbWire">Wire</button>
       <button id="tbExplode" title="Explode view — see where each cut landed (or press E)">Explode</button>
       <button id="tbRestore" title="Restore assembled view (or press R)">Restore</button>
-      <button id="tbConnectors" title="Add tapered alignment pegs/sockets across every shared cut face, sized to each face">Add Connectors</button>
+      <button id="tbConnectors" title="Add one LuBan-style peg/socket per shared cut face, sized to that face">Add Connectors</button>
       <button id="tbMerge" title="Click pieces in the viewport to pick them, then Merge" style="display:none">Merge Selected</button>
     </div>
     <div class="statusbar"><span id="status">Drop an STL or OBJ to begin</span></div>
@@ -277,7 +277,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import './js/nav.js?v=551';
 import { loadMeshFromFile } from './js/mesh-import.js?v=2';
-import { sliceMeshByPlane, parallelPlaneCut, modularCut, gridCut, radialCut, smoothMesh, computeBounds, computeDefaultFlexiPlanes, flexiCut, splitIntoIslands, unionMeshes, subtractMesh, findLargestFlatFace, buildStampMesh, findAdjacentPieces, addConnectorsToPieces } from './js/mesh-cut.js?v=16';
+import { sliceMeshByPlane, parallelPlaneCut, modularCut, gridCut, radialCut, smoothMesh, computeBounds, computeDefaultFlexiPlanes, flexiCut, splitIntoIslands, unionMeshes, subtractMesh, findLargestFlatFace, buildStampMesh, findAdjacentPieces, addConnectorsToPieces } from './js/mesh-cut.js?v=17';
 import { meshToStl, downloadBlob, countOpenEdges } from './js/stl.js?v=372';
 
 const $ = (id) => document.getElementById(id);
@@ -1267,65 +1267,19 @@ $('addPartNumbersBtn').addEventListener('click', addPartNumbersToAllPieces);
 // -- Connectors ----------------------------------------------------------
 
 /**
- * Connector size scales with the face it sits on -- confirmed wrong when
- * first shipped as a flat 7.5mm everywhere (reverse-engineered from one
- * particular LuBan export at one particular piece size): a real LuBan
- * multi-part export shows visibly bigger connectors on a big piece (the
- * torso) and visibly smaller ones on a small piece (an ear), not a fixed
- * size regardless of scale. Uses the SMALLER of the face's own two in-
- * plane dimensions, same "smaller dimension drives the size" rule
- * stampPartNumber already uses for its own face-relative sizing --
- * clamped so a tiny sliver face doesn't get an unusably small connector
- * and a huge face doesn't get one absurdly large. Depth keeps the ~1.5x
- * ratio read off LuBan's own "Depth ratio" field; tolerance stays a fixed
- * 0.2mm regardless of size -- that's a print-clearance value (how loose
- * the fit is), not a shape proportion, so there's no reason it should
- * scale with the connector.
- *
- * Cap dropped from 20mm to 12mm -- first version was confirmed against
- * only a modest synthetic test box that never got near either extreme,
- * and shipping it against a real life-size multi-part cut (Trix.stl,
- * 796x1083x850mm, 18 pieces) showed why: a big torso-scale face hit the
- * old 20mm cap essentially every time.
+ * LuBan-style connector width: one peg per interface, sized from the
+ * face's smaller in-plane dimension. Small pieces (ear/tail slivers) use
+ * most of the face (~85%); torso-scale cuts use ~35%. Matches real LuBan
+ * Trixie exports (e.g. ~38 mm peg on a ~43 mm piece, ~450 mm on ~1.4 m).
  */
 function connectorWidthForFace(face) {
   const minDim = Math.min(face.uMax - face.uMin, face.vMax - face.vMin);
-  return Math.min(12, Math.max(3, minDim * 0.06));
+  const ratio = minDim < 80 ? 0.85 : 0.35;
+  return Math.max(8, Math.min(minDim * ratio, minDim - 4));
 }
 
 /**
- * How far apart to space connectors on one interface -- deliberately NOT
- * a multiple of connector width (tried that first: width*6 still tiled
- * hundreds of pegs across a big face, because pitch-as-a-function-of-
- * width means a bigger face with a bigger connector still gets MORE of
- * them, just each one further apart in absolute terms -- the count still
- * scales with area). LuBan's own reference export shows roughly the SAME
- * small handful of connectors (looked like ~4-10) on a face regardless of
- * whether that face is small or torso-sized -- count stays flat, only
- * size grows. Matched here by deriving pitch from the interface's own
- * area targeting a fixed `targetCount`, not from width: a uniform pitch
- * of sqrt(area/targetCount) applied across a rectangular region yields
- * roughly targetCount grid cells regardless of aspect ratio or absolute
- * size. `iface.area` (from findAdjacentPieces) is already the SMALLER of
- * the two sides' areas, which matters for a staggered-grid piece pair --
- * two adjacent pieces from a staggered cut only partially overlap along
- * their shared boundary (that's the point of staggering), so sizing off
- * the smaller/true-overlap area avoids planning a grid across a full face
- * span that a large majority of get rejected by the smaller side's real
- * boundary. Floored at 1.4x width so connectors never plan overlapping
- * regardless of how small targetCount forces the area-derived pitch.
- * Verified against the real Trix.stl model: 22/22 interfaces land 4-10
- * sites each (159 total, vs. 1931 with the original fixed-pitch-
- * multiplier approach and 96 with an early width*1.6-normalized attempt
- * that left some big interfaces at just 0-1 site) -- watertight
- * throughout.
- */
-function connectorPitchForInterface(area, width, targetCount = 8) {
-  return Math.max(width * 1.4, Math.sqrt(area / targetCount));
-}
-
-/**
- * Add a grid of tapered peg/socket connectors across every shared cut face
+ * Add one LuBan-style peg/socket per shared cut face
  * in the current piece set, in one pass. `findAdjacentPieces` locates every
  * real interface up front (against each piece's ORIGINAL mesh); each
  * interface's `faceA`/`faceB` frames stay geometrically valid afterward
@@ -1358,8 +1312,7 @@ async function addConnectorsToAllPieces() {
       // take the smaller of the two defensively rather than assuming
       // they're exactly equal.
       const width = Math.min(connectorWidthForFace(iface.faceA), connectorWidthForFace(iface.faceB));
-      const pitch = connectorPitchForInterface(iface.area, width);
-      const result = await addConnectorsToPieces(meshById.get(iface.pieceA), meshById.get(iface.pieceB), iface.faceA, iface.faceB, { width, depth: width * 1.5, tolerance: 0.2, pitch });
+      const result = await addConnectorsToPieces(meshById.get(iface.pieceA), meshById.get(iface.pieceB), iface.faceA, iface.faceB, { width, depth: width * 1.5, tolerance: 0.2, maxSites: 1 });
       if (result.count > 0) {
         meshById.set(iface.pieceA, result.meshA);
         meshById.set(iface.pieceB, result.meshB);

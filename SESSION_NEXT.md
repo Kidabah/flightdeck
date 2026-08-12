@@ -6,6 +6,22 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-12 Session update (Chop — LuBan-style single connectors)
+
+Latest commit: _(pending)_ — One proportional connector per joint (LuBan-style)
+
+Latest local/Pi change:
+- **Problem:** Add Connectors tiled a dense grid of tiny pegs (~12 mm cap) across every cut face — unprintable on life-size Trixie pieces vs LuBan’s single large interlocking peg.
+- **Fix:** One centred peg/socket per shared interface; width scales with face size (~85% of min dim on small faces, ~35% on large). Shrinks to fit organic cut boundaries.
+- Files: `makerforge/js/mesh-cut.js`, `makerforge/chop.html` (`mesh-cut.js?v=17`), `makerforge/test/chop-manifold.mjs`.
+- Hard refresh Chop. UI-only static — pull required; restart optional.
+- Verified: `chop-manifold.mjs` — all 203 checks passed.
+
+Previous:
+- Cindy Vinyl post-outage recovery (`35157e2`).
+
+---
+
 ## 2026-08-08 Session update (Cindy Vinyl — post-power-outage recovery)
 
 Latest commit: `35157e2` — Fix Mora vinyl mounts after Cindy NAS offline / reboot

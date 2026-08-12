@@ -4,6 +4,16 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## Chop — LuBan-style single connectors
+**Date:** 2026-08-12
+
+### MakerDeck
+- Add Connectors no longer tiles a dense peg grid. Matches LuBan: **one** tapered peg/socket per shared cut face, sized from the face (bigger piece → bigger connector).
+- `planSingleConnectorSite` + `maxSites: 1` default in `buildConnectorMeshes`; width ~85% of min dim on small faces, ~35% on large, shrink-to-fit for organic boundaries.
+- Hard refresh Chop (`mesh-cut.js?v=17`). Tests updated in `chop-manifold.mjs` (203 pass).
+
+---
+
 ## Chop — plane-cutting tool (Phase 1)
 **Date:** 2026-08-04
 
