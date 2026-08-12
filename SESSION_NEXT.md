@@ -6,6 +6,21 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-12 Session update (Vinyl — ribbon SPIN actually shows)
+
+Latest commit: `pending` — SPIN/ROOM always on slim bar; fix ribbon race
+
+Latest local/Mora change:
+- SPIN + ROOM show whenever the window is short (not only when `.ribbon` class sticks).
+- Entering ribbon no longer immediately auto-exits (race with resizeTo).
+- ROOM restores a tall window so the vinyl room can come back.
+- Hard refresh / reopen the installed Cindy app. Rebuild `vinyl` on Mora.
+
+Previous:
+- Ribbon SPIN attempt (`d039444`).
+
+---
+
 ## 2026-08-12 Session update (Vinyl — ribbon fixes)
 
 Latest commit: `d039444` — Ribbon SPIN + auto-restore on maximise

@@ -5,7 +5,9 @@ const THEME_KEY = "cindy-vinyl-theme";
 const NORM_KEY = "cindy-vinyl-normalize";
 const RIBBON_KEY = "cindy-vinyl-ribbon";
 /** Window taller than this while ribboned (without PiP) → auto-restore full room. */
-const RIBBON_RESTORE_H = 200;
+const RIBBON_RESTORE_H = 220;
+/** Treat as slim ribbon chrome at or below this height. */
+const RIBBON_SLIM_H = 180;
 
 /** Room / deck themes. Amp-rack footage is shared by dark + light; crate photo
  * and page chrome (`room`) differ. `cueOut: null` → fade instead of lift clip. */
@@ -687,6 +689,11 @@ function parkTransport(el) {
 
 let _ribbonGeom = null;
 let _pipWindow = null;
+/** Ignore height-based restore briefly after entering ribbon (resizeTo is async). */
+let _ribbonIgnoreLayoutUntil = 0;
+let _ribbonLayoutTimer = 0;
+/** User asked for the full room — don't immediately re-ribbon if resizeTo failed. */
+let _ribbonForceFull = false;
 
 function syncRibbonHome() {
   const home = $("ribbonHome");
@@ -695,13 +702,26 @@ function syncRibbonHome() {
   home.hidden = !_pipWindow;
 }
 
-/** If the user expands/maximises the window, leave ribbon mode automatically. */
+function scheduleRibbonLayoutCheck() {
+  clearTimeout(_ribbonLayoutTimer);
+  _ribbonLayoutTimer = setTimeout(() => onRibbonLayoutChange(), 120);
+}
+
+/** Keep ribbon class + chrome in sync with window height (no grey stuck screen). */
 function onRibbonLayoutChange() {
   syncRibbonHome();
-  if (!document.body.classList.contains("ribbon")) return;
   if (_pipWindow) return;
-  if (window.innerHeight > RIBBON_RESTORE_H) {
+  if (Date.now() < _ribbonIgnoreLayoutUntil) return;
+  const h = window.innerHeight;
+  const ribboned = document.body.classList.contains("ribbon");
+  if (h > RIBBON_RESTORE_H) _ribbonForceFull = false;
+  if (ribboned && h > RIBBON_RESTORE_H) {
     setRibbon(false, { skipWindow: true });
+    return;
+  }
+  // Short window without the class (maximise cleared it, or manual resize): re-arm ribbon chrome.
+  if (!ribboned && h <= RIBBON_SLIM_H && !_ribbonForceFull) {
+    setRibbon(true, { skipWindow: true, skipPip: true });
   }
 }
 
@@ -764,9 +784,9 @@ function closePipRibbon() {
 }
 
 function tryResizeRibbonWindow(enter) {
-  if (!isStandaloneApp()) return;
   try {
     if (enter) {
+      if (!isStandaloneApp()) return;
       if (!_ribbonGeom) {
         _ribbonGeom = {
           x: window.screenX,
@@ -775,8 +795,8 @@ function tryResizeRibbonWindow(enter) {
           h: window.outerHeight,
         };
       }
-      const w = Math.max(640, Math.min(_ribbonGeom.w, 980));
-      const h = 118;
+      const w = Math.max(720, Math.min(_ribbonGeom.w, Math.round(window.screen.availWidth * 0.92)));
+      const h = 132;
       window.resizeTo(w, h);
       const availTop = window.screen.availTop || 0;
       const availH = window.screen.availHeight || window.screen.height;
@@ -784,11 +804,13 @@ function tryResizeRibbonWindow(enter) {
     } else {
       const g = _ribbonGeom;
       _ribbonGeom = null;
-      if (g) {
+      if (g && g.h > RIBBON_RESTORE_H) {
         window.resizeTo(g.w, g.h);
         window.moveTo(g.x, g.y);
       } else {
-        window.resizeTo(1100, 760);
+        const w = Math.min(1200, Math.max(980, window.screen.availWidth * 0.7));
+        const h = Math.min(820, Math.max(700, window.screen.availHeight * 0.75));
+        window.resizeTo(w, h);
       }
     }
   } catch {
@@ -798,6 +820,12 @@ function tryResizeRibbonWindow(enter) {
 
 async function setRibbon(on, { skipWindow = false, skipPip = false } = {}) {
   const next = !!on;
+  const was = document.body.classList.contains("ribbon");
+  if (next === was && skipWindow && skipPip) {
+    syncRibbonButtons(next);
+    syncRibbonHome();
+    return;
+  }
   document.documentElement.classList.toggle("ribbon", next);
   document.body.classList.toggle("ribbon", next);
   try {
@@ -810,15 +838,17 @@ async function setRibbon(on, { skipWindow = false, skipPip = false } = {}) {
   closeModal("cindyModal");
   closeModal("propsModal");
   if (next) {
+    _ribbonForceFull = false;
+    _ribbonIgnoreLayoutUntil = Date.now() + 800;
     if (!skipPip) await tryEnterPipRibbon();
     if (!skipWindow) tryResizeRibbonWindow(true);
   } else {
+    _ribbonForceFull = true;
     if (!skipPip) closePipRibbon();
     parkTransport();
     if (!skipWindow) tryResizeRibbonWindow(false);
   }
   syncRibbonHome();
-  onRibbonLayoutChange();
 }
 
 function toggleRibbon() {
@@ -2903,7 +2933,7 @@ function wire() {
   window.addEventListener("scroll", () => closeSleeveMenus(), { capture: true, passive: true });
   window.addEventListener("resize", () => {
     closeSleeveMenus();
-    onRibbonLayoutChange();
+    scheduleRibbonLayoutCheck();
   });
   document.querySelectorAll("[data-close]").forEach((btn) => {
     btn.addEventListener("click", () => closeModal(btn.dataset.close));
