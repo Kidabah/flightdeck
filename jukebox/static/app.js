@@ -4,7 +4,7 @@ const VOL_KEY = "cindy-vinyl-volume";
 const THEME_KEY = "cindy-vinyl-theme";
 const NORM_KEY = "cindy-vinyl-normalize";
 const RIBBON_KEY = "cindy-vinyl-ribbon"; // legacy compact flag
-const PLAYER_MODE_KEY = "cindy-vinyl-player-mode"; // room | small | taskbar
+const PLAYER_MODE_KEY = "cindy-vinyl-player-mode"; // room | small
 /** Window taller than this while ribboned (without PiP) → auto-restore full room. */
 const RIBBON_RESTORE_H = 280;
 /** Treat as slim ribbon chrome at or below this height. */
@@ -12,10 +12,6 @@ const RIBBON_SLIM_H = 240;
 /** Compact “small player” window — matches the size Chris locked in. */
 const SMALL_PLAYER_W = 680;
 const SMALL_PLAYER_H = 210;
-/** Ultra-slim taskbar strip (outer size — Win11 title bar eats ~32–40px). */
-const TASKBAR_W = 720;
-const TASKBAR_H = 102;
-const TASKBAR_DETECT_H = 125;
 
 /** Room / deck themes. Amp-rack footage is shared by dark + light; crate photo
  * and page chrome (`room`) differ. `cueOut: null` → fade instead of lift clip. */
@@ -729,20 +725,13 @@ function onRibbonLayoutChange() {
     restoreVinylRoom();
     return;
   }
-  // Short window without compact chrome: re-arm small/taskbar from height.
-  if (!compact && !_ribbonForceFull) {
-    if (h <= TASKBAR_DETECT_H) setPlayerMode("taskbar", { skipWindow: true, skipPip: true });
-    else if (h <= RIBBON_SLIM_H) setPlayerMode("small", { skipWindow: true, skipPip: true });
-  } else if (compact && !_ribbonForceFull) {
-    if (h <= TASKBAR_DETECT_H && mode !== "taskbar") setPlayerMode("taskbar", { skipWindow: true, skipPip: true });
-    else if (h > TASKBAR_DETECT_H && h <= RIBBON_SLIM_H && mode !== "small") setPlayerMode("small", { skipWindow: true, skipPip: true });
+  if (!compact && !_ribbonForceFull && h <= RIBBON_SLIM_H) {
+    setPlayerMode("small", { skipWindow: true, skipPip: true });
   }
 }
 
 function getPlayerMode() {
-  if (document.body.classList.contains("taskbar")) return "taskbar";
-  if (document.body.classList.contains("ribbon")) return "small";
-  return "room";
+  return document.body.classList.contains("ribbon") ? "small" : "room";
 }
 
 function syncRibbonButtons(mode) {
@@ -750,31 +739,19 @@ function syncRibbonButtons(mode) {
   const compact = m !== "room";
   const smallBtn = $("ribbonBtn");
   if (smallBtn) {
-    smallBtn.setAttribute("aria-pressed", m === "small" ? "true" : "false");
+    smallBtn.setAttribute("aria-pressed", compact ? "true" : "false");
     smallBtn.title = "Small player";
     smallBtn.setAttribute("aria-label", "Small player");
     smallBtn.textContent = "Small player";
   }
-  const taskBtn = $("taskbarModeBtn");
-  if (taskBtn) {
-    taskBtn.setAttribute("aria-pressed", m === "taskbar" ? "true" : "false");
-    taskBtn.title = "Taskbar strip";
-    taskBtn.setAttribute("aria-label", "Taskbar");
-  }
   const menuSmall = document.querySelector('#menuDrop [data-action="ribbon"]');
   if (menuSmall) menuSmall.textContent = "Small player";
-  const menuTask = document.querySelector('#menuDrop [data-action="taskbar"]');
-  if (menuTask) menuTask.textContent = "Taskbar";
   const expand = $("ribbonExpandBtn");
   if (expand) {
     expand.hidden = !compact;
     expand.title = "Open vinyl room (use this instead of Windows maximise)";
     expand.setAttribute("aria-label", "Open vinyl room");
   }
-  const toSmall = $("toSmallBtn");
-  if (toSmall) toSmall.hidden = m !== "taskbar";
-  const toTask = $("toTaskbarBtn");
-  if (toTask) toTask.hidden = m !== "small";
 }
 
 function copyPipStyles(pip) {
@@ -783,21 +760,20 @@ function copyPipStyles(pip) {
   });
 }
 
-async function tryEnterPipRibbon(mode = "small") {
+async function tryEnterPipRibbon() {
   if (isStandaloneApp()) return false;
   if (!window.documentPictureInPicture) return false;
   const transport = $("transport");
   if (!transport) return false;
   try {
     const pip = await documentPictureInPicture.requestWindow({
-      width: mode === "taskbar" ? TASKBAR_W : SMALL_PLAYER_W,
-      height: mode === "taskbar" ? Math.max(72, TASKBAR_H - 24) : Math.max(120, SMALL_PLAYER_H - 40),
+      width: SMALL_PLAYER_W,
+      height: Math.max(120, SMALL_PLAYER_H - 40),
     });
     _pipWindow = pip;
     copyPipStyles(pip);
-    const task = mode === "taskbar";
-    pip.document.documentElement.className = `${document.documentElement.className} ribbon${task ? " taskbar" : ""}`;
-    pip.document.body.className = `${document.body.className} ribbon pip-ribbon${task ? " taskbar" : ""}`;
+    pip.document.documentElement.className = `${document.documentElement.className} ribbon`;
+    pip.document.body.className = `${document.body.className} ribbon pip-ribbon`;
     pip.document.body.dataset.room = document.body.dataset.room || "";
     pip.document.body.style.margin = "0";
     pip.document.body.appendChild(transport);
@@ -834,7 +810,6 @@ function openVinylRoomWindow() {
     // Nudge out of maximised state first — resizeTo is often ignored while maximised.
     window.moveTo(left + 40, top + 40);
     window.resizeTo(Math.min(900, availW - 80), Math.min(640, availH - 80));
-    // Then fill the work area as a normal (non-maximised) window.
     const w = Math.max(980, availW - 16);
     const h = Math.max(700, availH - 16);
     window.resizeTo(w, h);
@@ -852,11 +827,10 @@ function dockCompactAboveTaskbar() {
     const availW = window.screen.availWidth || window.screen.width;
     const availH = window.screen.availHeight || window.screen.height;
     const screenH = window.screen.height || availH;
-    // If availHeight didn't exclude the OS taskbar, keep a reserve from the screen bottom.
     const reportedGap = Math.max(0, screenH - (availTop + availH));
     const reserve = reportedGap > 8 ? 4 : 52;
-    const outerW = window.outerWidth || TASKBAR_W;
-    const outerH = window.outerHeight || TASKBAR_H;
+    const outerW = window.outerWidth || SMALL_PLAYER_W;
+    const outerH = window.outerHeight || SMALL_PLAYER_H;
     const x = Math.max(availLeft, Math.min(window.screenX, availLeft + availW - outerW));
     const y = Math.max(availTop, availTop + availH - outerH - reserve);
     window.moveTo(x, y);
@@ -865,7 +839,7 @@ function dockCompactAboveTaskbar() {
   }
 }
 
-function resizeToCompactMode(mode) {
+function resizeToCompactMode() {
   if (!isStandaloneApp()) return;
   try {
     if (!_ribbonGeom) {
@@ -880,15 +854,11 @@ function resizeToCompactMode(mode) {
     const availTop = window.screen.availTop || 0;
     const availW = window.screen.availWidth || window.screen.width;
     const availH = window.screen.availHeight || window.screen.height;
-    const targetW = mode === "taskbar" ? TASKBAR_W : SMALL_PLAYER_W;
-    const targetH = mode === "taskbar" ? TASKBAR_H : SMALL_PLAYER_H;
-    const w = Math.min(targetW, availW - 24);
-    const h = Math.min(targetH, Math.max(80, availH - 24));
-    // Leave maximised first if needed, then size, then dock using measured chrome.
+    const w = Math.min(SMALL_PLAYER_W, availW - 24);
+    const h = Math.min(SMALL_PLAYER_H, Math.max(80, availH - 24));
     window.moveTo(availLeft + 24, availTop + 24);
     window.resizeTo(w, h);
     dockCompactAboveTaskbar();
-    // resizeTo is async on some hosts — re-dock after outerHeight settles.
     _ribbonIgnoreLayoutUntil = Date.now() + 900;
     setTimeout(dockCompactAboveTaskbar, 50);
     setTimeout(dockCompactAboveTaskbar, 200);
@@ -901,11 +871,7 @@ function openSmallPlayer() {
   setPlayerMode("small");
 }
 
-function openTaskbarPlayer() {
-  setPlayerMode("taskbar");
-}
-
-/** ROOM button / Escape — leave compact modes and open the vinyl room properly. */
+/** ROOM button / Escape — leave compact mode and open the vinyl room properly. */
 function restoreVinylRoom() {
   _ribbonForceFull = true;
   _ribbonIgnoreLayoutUntil = Date.now() + 1000;
@@ -913,19 +879,18 @@ function restoreVinylRoom() {
 }
 
 async function setPlayerMode(mode, { skipWindow = false, skipPip = false } = {}) {
-  const next = mode === "small" || mode === "taskbar" ? mode : "room";
+  const next = mode === "small" ? "small" : "room";
   const was = getPlayerMode();
   if (next === was && skipWindow && skipPip) {
     syncRibbonButtons(next);
     syncRibbonHome();
     return;
   }
-  const compact = next !== "room";
-  const taskbar = next === "taskbar";
+  const compact = next === "small";
   document.documentElement.classList.toggle("ribbon", compact);
-  document.documentElement.classList.toggle("taskbar", taskbar);
+  document.documentElement.classList.remove("taskbar");
   document.body.classList.toggle("ribbon", compact);
-  document.body.classList.toggle("taskbar", taskbar);
+  document.body.classList.remove("taskbar");
   try {
     localStorage.setItem(PLAYER_MODE_KEY, next);
     localStorage.setItem(RIBBON_KEY, compact ? "1" : "0");
@@ -941,9 +906,9 @@ async function setPlayerMode(mode, { skipWindow = false, skipPip = false } = {})
     _ribbonIgnoreLayoutUntil = Date.now() + 800;
     if (!skipPip) {
       if (_pipWindow) closePipRibbon();
-      await tryEnterPipRibbon(next);
+      await tryEnterPipRibbon();
     }
-    if (!skipWindow) resizeToCompactMode(next);
+    if (!skipWindow) resizeToCompactMode();
   } else {
     _ribbonForceFull = true;
     if (!skipPip) closePipRibbon();
@@ -956,14 +921,23 @@ async function setPlayerMode(mode, { skipWindow = false, skipPip = false } = {})
   syncRibbonHome();
 }
 
-/** @deprecated use setPlayerMode */
-async function setRibbon(on, opts = {}) {
-  return setPlayerMode(on ? "small" : "room", opts);
-}
-
 function toggleRibbon() {
   if (getPlayerMode() !== "room") restoreVinylRoom();
   else openSmallPlayer();
+}
+
+function openPlaylistMenuFrom(btn) {
+  if (!btn) return;
+  const menu = $("addToPlaylistMenu");
+  if (!menu) return;
+  const wasOpen = _openSleeveMenu?.menu === menu && _openSleeveMenu?.edit === btn;
+  closeSleeveMenus();
+  if (!wasOpen) {
+    menu.hidden = false;
+    positionSleeveMenu(menu, btn);
+    btn.setAttribute("aria-expanded", "true");
+    _openSleeveMenu = { menu, menuWrap: btn, edit: btn };
+  }
 }
 
 function closeMenu() {
@@ -2322,6 +2296,8 @@ async function playIndex(i) {
   state.index = i;
   const song = state.queue[i];
   $("addToPlaylistBtn").disabled = false;
+  const ribbonPl = $("ribbonPlaylistBtn");
+  if (ribbonPl) ribbonPl.disabled = false;
   $("editNowPlayingBtn").disabled = !state.album?.id;
   $("deckTitle").textContent = song.title || "Track";
   $("deckArtist").textContent = song.artist || state.album?.artist || "";
@@ -2884,7 +2860,8 @@ function wire() {
     try {
       savedMode = localStorage.getItem(PLAYER_MODE_KEY) || "";
       if (!savedMode && localStorage.getItem(RIBBON_KEY) === "1") savedMode = "small";
-      if (savedMode !== "small" && savedMode !== "taskbar") savedMode = "room";
+      if (savedMode === "taskbar") savedMode = "small";
+      if (savedMode !== "small") savedMode = "room";
     } catch {
       savedMode = "room";
     }
@@ -2977,16 +2954,12 @@ function wire() {
   $("addToPlaylistBtn")?.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();
-    const btn = $("addToPlaylistBtn");
-    const menu = $("addToPlaylistMenu");
-    const wasOpen = _openSleeveMenu?.menu === menu;
-    closeSleeveMenus();
-    if (!wasOpen) {
-      menu.hidden = false;
-      positionSleeveMenu(menu, btn);
-      btn.setAttribute("aria-expanded", "true");
-      _openSleeveMenu = { menu, menuWrap: btn, edit: btn };
-    }
+    openPlaylistMenuFrom($("addToPlaylistBtn"));
+  });
+  $("ribbonPlaylistBtn")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openPlaylistMenuFrom($("ribbonPlaylistBtn"));
   });
   $("editNowPlayingBtn")?.addEventListener("click", (e) => {
     if (!state.album?.id) return;
@@ -3025,18 +2998,6 @@ function wire() {
     e.stopPropagation();
     openSmallPlayer();
   });
-  $("taskbarModeBtn")?.addEventListener("click", (e) => {
-    e.stopPropagation();
-    openTaskbarPlayer();
-  });
-  $("toSmallBtn")?.addEventListener("click", (e) => {
-    e.stopPropagation();
-    openSmallPlayer();
-  });
-  $("toTaskbarBtn")?.addEventListener("click", (e) => {
-    e.stopPropagation();
-    openTaskbarPlayer();
-  });
   $("ribbonExpandBtn")?.addEventListener("click", (e) => {
     e.stopPropagation();
     restoreVinylRoom();
@@ -3051,7 +3012,6 @@ function wire() {
     const action = btn.dataset.action;
     if (action === "cindy") showOnCindy();
     else if (action === "ribbon") openSmallPlayer();
-    else if (action === "taskbar") openTaskbarPlayer();
     else if (action === "props") {
       fillProperties(state.album);
       openModal("propsModal");

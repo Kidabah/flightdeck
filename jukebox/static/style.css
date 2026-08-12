@@ -1377,24 +1377,6 @@ body.theme-light .crate-carousel-frame {
   min-width: 3.8rem;
   white-space: nowrap;
 }
-.mode-chip {
-  display: none;
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  padding: 0 0.5rem;
-  min-width: auto;
-  height: 2.4rem;
-  white-space: nowrap;
-  background: transparent;
-  border: 1px solid var(--gold-dim);
-  color: var(--cream);
-  cursor: pointer;
-}
-.mode-chip:hover {
-  border-color: var(--gold);
-  color: var(--gold-hot);
-}
 .ribbon-only {
   display: none;
   font-size: 0.78rem;
@@ -1405,89 +1387,19 @@ body.theme-light .crate-carousel-frame {
   box-shadow: none;
   flex-shrink: 0;
 }
-/* Show SPIN / Room whenever we're in ribbon mode OR the window is already a slim bar
-   (maximise can clear .ribbon while the PWA stays short — that's why SPIN vanished). */
+#ribbonPlaylistBtn.ribbon-only {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 0 0.65rem;
+}
+/* Show SPIN / Playlist / Room in small-player mode. */
 body.ribbon .ribbon-only,
 body.ribbon .ribbon-expand,
 html.ribbon .ribbon-expand {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-}
-body.ribbon:not(.taskbar) #toTaskbarBtn:not([hidden]) {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-body.taskbar #toSmallBtn:not([hidden]) {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* Taskbar strip — ONE row only (must override the ≤700px stacked transport). */
-body.taskbar .seek-row,
-body.taskbar #deckArtist,
-body.taskbar #ribbonSpinBtn,
-body.taskbar #shuffleBtn,
-body.taskbar #muteBtn,
-body.taskbar #volume,
-body.taskbar #normBtn,
-body.taskbar #toTaskbarBtn {
-  display: none !important;
-}
-body.taskbar .transport {
-  display: flex !important;
-  flex-direction: row !important;
-  flex-wrap: nowrap !important;
-  align-items: center !important;
-  grid-template-columns: none !important;
-  grid-template-rows: none !important;
-  inset: 0 !important;
-  height: 100% !important;
-  width: 100% !important;
-  padding: 0.15rem 0.5rem !important;
-  gap: 0.5rem !important;
-  box-sizing: border-box;
-}
-body.taskbar .deck-art {
-  flex: 0 0 auto;
-}
-body.taskbar .deck-art img {
-  width: 36px;
-  height: 36px;
-  display: block;
-}
-body.taskbar .deck-meta {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-}
-body.taskbar .deck-meta #deckTitle {
-  font-size: 0.88rem;
-  line-height: 1.2;
-  margin: 0;
-}
-body.taskbar .deck-controls {
-  flex: 0 0 auto !important;
-  display: flex !important;
-  flex-wrap: nowrap !important;
-  align-items: center !important;
-  gap: 0.3rem !important;
-  grid-column: auto !important;
-  justify-content: flex-end !important;
-}
-body.taskbar .deck-controls button {
-  width: 2.1rem;
-  height: 2.1rem;
-  flex-shrink: 0;
-}
-body.taskbar #toSmallBtn,
-body.taskbar .ribbon-expand {
-  display: inline-flex !important;
-  width: auto;
-  min-width: 3.2rem;
-  padding: 0 0.45rem;
 }
 
 /* Windowshade: hide the vinyl room, keep the transport as a slim ribbon. */
@@ -1532,22 +1444,6 @@ body.ribbon .transport {
   gap: 0.7rem;
   background: rgba(8, 8, 10, 0.98);
   box-shadow: inset 3px 0 0 var(--gold);
-}
-/* Taskbar fills the whole compact window (must beat body.ribbon .transport inset). */
-body.ribbon.taskbar .transport,
-body.taskbar .transport {
-  display: flex !important;
-  flex-direction: row !important;
-  flex-wrap: nowrap !important;
-  align-items: center !important;
-  inset: 0 !important;
-  top: 0 !important;
-  right: 0 !important;
-  bottom: 0 !important;
-  left: 0 !important;
-  height: 100% !important;
-  padding: 0.15rem 0.5rem !important;
-  gap: 0.5rem !important;
 }
 body.ribbon .deck-art img {
   width: 44px;
@@ -1613,15 +1509,4 @@ body.theme-light.ribbon .transport {
     justify-content: flex-end;
   }
   #volume { width: 4.5rem; }
-
-  /* Taskbar must stay a single strip even when narrow. */
-  body.taskbar .transport {
-    display: flex !important;
-    flex-direction: row !important;
-    grid-template-columns: none !important;
-    grid-template-rows: none !important;
-  }
-  body.taskbar .deck-controls {
-    grid-column: auto !important;
-  }
 }

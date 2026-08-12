@@ -6,6 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-12 Session update (Vinyl — drop Taskbar, playlist in Small)
+
+Latest commit: `pending` — Remove Taskbar; + Playlist in Small player
+
+Latest local/Mora change:
+- Removed Taskbar mode (worth a shot; can’t embed in the OS bar).
+- Small player keeps **SPIN** and now has **+ Playlist** beside it.
+- Hard refresh / reopen Cindy. Rebuild `vinyl` on Mora.
+
+Previous:
+- Taskbar layout attempts.
+
+---
+
 ## 2026-08-12 Session update (Vinyl — Taskbar layout fix)
 
 Latest commit: `0a8b7f6` — Taskbar fills window as one row

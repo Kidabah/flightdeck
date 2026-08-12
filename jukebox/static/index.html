@@ -33,11 +33,9 @@
     </form>
     <div class="top-menu" id="topMenu">
       <button type="button" class="ghost-btn tiny small-player-btn" id="ribbonBtn" aria-label="Small player" title="Small player" aria-pressed="false">Small player</button>
-      <button type="button" class="ghost-btn tiny small-player-btn" id="taskbarModeBtn" aria-label="Taskbar" title="Taskbar strip" aria-pressed="false">Taskbar</button>
       <button type="button" class="menu-btn" id="menuBtn" aria-label="Menu" aria-haspopup="menu" aria-expanded="false">⋯</button>
       <div class="menu-drop" id="menuDrop" role="menu" hidden>
         <button type="button" role="menuitem" data-action="ribbon">Small player</button>
-        <button type="button" role="menuitem" data-action="taskbar">Taskbar</button>
         <button type="button" role="menuitem" data-action="cindy">Show on Cindy</button>
         <button type="button" role="menuitem" data-action="props">Edit names…</button>
         <button type="button" role="menuitem" data-action="refresh">Refresh packs</button>
@@ -182,6 +180,7 @@
     </div>
     <div class="deck-controls">
       <button type="button" class="ribbon-only spin-btn" id="ribbonSpinBtn" title="Drop the needle — random sleeve">SPIN</button>
+      <button type="button" class="ribbon-only ghost-btn tiny" id="ribbonPlaylistBtn" title="Add to playlist" aria-haspopup="menu" aria-expanded="false">+ Playlist</button>
       <button type="button" id="shuffleBtn" aria-label="Shuffle" title="Shuffle queue" aria-pressed="false">🔀</button>
       <button type="button" id="prevBtn" aria-label="Previous">⏮</button>
       <button type="button" id="deckPlay" aria-label="Play/Pause">▶</button>
@@ -189,8 +188,6 @@
       <button type="button" id="muteBtn" aria-label="Mute" title="Mute (M)">🔊</button>
       <input type="range" id="volume" min="0" max="100" value="85" aria-label="Volume">
       <button type="button" id="normBtn" aria-label="Loudness normalise" title="Loudness normalise — even out quiet/loud tracks" aria-pressed="false">⌀</button>
-      <button type="button" class="mode-chip" id="toTaskbarBtn" hidden title="Shrink to taskbar strip">Taskbar</button>
-      <button type="button" class="mode-chip" id="toSmallBtn" hidden title="Open small player">Small</button>
       <button type="button" class="ribbon-expand" id="ribbonExpandBtn" aria-label="Open vinyl room" title="Open vinyl room (use this instead of Windows maximise)">ROOM</button>
     </div>
   </footer>
