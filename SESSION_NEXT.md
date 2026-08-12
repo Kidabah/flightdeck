@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-12 Session update (Chop — skip connectors on tiny faces)
 
-Latest commit: _(pending)_ — Skip connectors on faces under 40mm
+Latest commit: `9de77f1` — Skip connectors on faces under 40mm
 
 Latest local/Pi change:
 - Ear-tip / sliver joints still got pegs that swallowed the piece.
