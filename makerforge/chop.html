@@ -277,7 +277,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import './js/nav.js?v=551';
 import { loadMeshFromFile } from './js/mesh-import.js?v=2';
-import { sliceMeshByPlane, parallelPlaneCut, modularCut, gridCut, radialCut, smoothMesh, computeBounds, computeDefaultFlexiPlanes, flexiCut, splitIntoIslands, unionMeshes, subtractMesh, findLargestFlatFace, buildStampMesh, findAdjacentPieces, addConnectorsToPieces } from './js/mesh-cut.js?v=17';
+import { sliceMeshByPlane, parallelPlaneCut, modularCut, gridCut, radialCut, smoothMesh, computeBounds, computeDefaultFlexiPlanes, flexiCut, splitIntoIslands, unionMeshes, subtractMesh, findLargestFlatFace, buildStampMesh, findAdjacentPieces, addConnectorsToPieces } from './js/mesh-cut.js?v=18';
 import { meshToStl, downloadBlob, countOpenEdges } from './js/stl.js?v=372';
 
 const $ = (id) => document.getElementById(id);
@@ -1268,14 +1268,18 @@ $('addPartNumbersBtn').addEventListener('click', addPartNumbersToAllPieces);
 
 /**
  * LuBan-style connector width: one peg per interface, sized from the
- * face's smaller in-plane dimension. Small pieces (ear/tail slivers) use
- * most of the face (~85%); torso-scale cuts use ~35%. Matches real LuBan
- * Trixie exports (e.g. ~38 mm peg on a ~43 mm piece, ~450 mm on ~1.4 m).
+ * face's smaller in-plane dimension. Small faces use a higher fraction
+ * so the peg still keys; large torso faces use a smaller fraction AND a
+ * hard cap so life-size cuts don't grow brick-sized pegs. Depth stays a
+ * fraction of width (see addConnectorsToAllPieces) — never 1.5x, which
+ * poked through thin pieces and looked huge in explode view.
  */
 function connectorWidthForFace(face) {
   const minDim = Math.min(face.uMax - face.uMin, face.vMax - face.vMin);
-  const ratio = minDim < 80 ? 0.85 : 0.35;
-  return Math.max(8, Math.min(minDim * ratio, minDim - 4));
+  // Blend 55% → 18% as face grows from ~40mm to ~240mm+
+  const t = Math.min(1, Math.max(0, (minDim - 40) / 200));
+  const ratio = 0.55 * (1 - t) + 0.18 * t;
+  return Math.max(8, Math.min(minDim * ratio, minDim - 4, 55));
 }
 
 /**
@@ -1312,7 +1316,8 @@ async function addConnectorsToAllPieces() {
       // take the smaller of the two defensively rather than assuming
       // they're exactly equal.
       const width = Math.min(connectorWidthForFace(iface.faceA), connectorWidthForFace(iface.faceB));
-      const result = await addConnectorsToPieces(meshById.get(iface.pieceA), meshById.get(iface.pieceB), iface.faceA, iface.faceB, { width, depth: width * 1.5, tolerance: 0.2, maxSites: 1 });
+      const depth = Math.min(width * 0.75, 40);
+      const result = await addConnectorsToPieces(meshById.get(iface.pieceA), meshById.get(iface.pieceB), iface.faceA, iface.faceB, { width, depth, tolerance: 0.2, maxSites: 1 });
       if (result.count > 0) {
         meshById.set(iface.pieceA, result.meshA);
         meshById.set(iface.pieceB, result.meshB);

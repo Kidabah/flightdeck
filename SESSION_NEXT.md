@@ -6,6 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-12 Session update (Chop — LuBan connectors, smaller)
+
+Latest commit: _(pending)_ — Cap connector size / depth so pegs aren't bricks
+
+Latest local/Pi change:
+- After LuBan single-connector pass, life-size faces still got oversized pegs (up to ~35% of face, depth 1.5× width).
+- Now: width blends 55%→18% of face min-dim, **hard cap 55 mm**; depth = min(0.75×width, 40 mm).
+- Hard refresh Chop (`mesh-cut.js?v=18`). Undo + Add Connectors again on a clean cut.
+
+Previous:
+- LuBan single connectors (`1a994e3`).
+
+---
+
 ## 2026-08-12 Session update (Chop — LuBan-style single connectors)
 
 Latest commit: `1a994e3` — One proportional connector per joint (LuBan-style)

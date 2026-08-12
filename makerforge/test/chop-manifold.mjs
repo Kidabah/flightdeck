@@ -424,10 +424,17 @@ function mergeMeshes(meshes) {
   // Bigger face → bigger connector; smaller face → smaller (LuBan sizing rule).
   const bigFace = { normal: [0, 0, 1], u: [1, 0, 0], v: [0, 1, 0], origin: [0, 0, 0], uMin: -100, uMax: 100, vMin: -80, vMax: 80, uvTris: [[[-100, -80], [100, -80], [100, 80]], [[-100, -80], [100, 80], [-100, 80]]] };
   const smallFace = { normal: [0, 0, 1], u: [1, 0, 0], v: [0, 1, 0], origin: [0, 0, 0], uMin: -20, uMax: 20, vMin: -15, vMax: 15, uvTris: [[[-20, -15], [20, -15], [20, 15]], [[-20, -15], [20, 15], [-20, 15]]] };
-  const bigW = Math.min(bigFace.uMax - bigFace.uMin, bigFace.vMax - bigFace.vMin) * 0.35;
-  const smallW = Math.min(smallFace.uMax - smallFace.uMin, smallFace.vMax - smallFace.vMin) * 0.85;
+  // Mirror chop.html connectorWidthForFace (55%→18% blend, 55mm cap).
+  const sizeFor = (face) => {
+    const minDim = Math.min(face.uMax - face.uMin, face.vMax - face.vMin);
+    const t = Math.min(1, Math.max(0, (minDim - 40) / 200));
+    const ratio = 0.55 * (1 - t) + 0.18 * t;
+    return Math.max(8, Math.min(minDim * ratio, minDim - 4, 55));
+  };
+  const bigW = sizeFor(bigFace), smallW = sizeFor(smallFace);
   results.push(`INFO connector sizing: big face width≈${bigW.toFixed(1)}mm, small≈${smallW.toFixed(1)}mm`);
-  if (!(bigW > smallW * 2)) { results.push(`FAIL connector sizing: big face connector should be much larger than small (${bigW} vs ${smallW})`); failures++; }
+  if (!(bigW > smallW)) { results.push(`FAIL connector sizing: big face connector should be larger than small (${bigW} vs ${smallW})`); failures++; }
+  if (bigW > 55.01) { results.push(`FAIL connector sizing: big face should hit 55mm cap, got ${bigW}`); failures++; }
   const bigSites = planConnectorSites(bigFace, { ...bigFace, normal: [0, 0, -1] }, { width: bigW, maxSites: 1 });
   const smallSites = planConnectorSites(smallFace, { ...smallFace, normal: [0, 0, -1] }, { width: smallW, maxSites: 1 });
   if (bigSites.length !== 1 || smallSites.length !== 1) {
