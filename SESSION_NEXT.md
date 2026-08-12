@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-12 Session update (Vinyl — Small player button)
 
-Latest commit: `pending` — Named Small player size (680×210)
+Latest commit: `9c657e6` — Named Small player size (680×210)
 
 Latest local/Mora change:
 - Header **Small player** button (and ⋯ menu) opens the compact player at the size Chris liked.
