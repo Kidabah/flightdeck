@@ -6,6 +6,21 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-12 Session update (Vinyl — ROOM restore + ribbon controls)
+
+Latest commit: `pending` — ROOM opens vinyl room; keep shuffle/norm on ribbon
+
+Latest local/Mora change:
+- **ROOM** (not Windows maximise) opens a clean large vinyl-room window.
+- Windows maximise while ribboned is redirected through the same ROOM restore.
+- Shuffle + loudness normalise stay on the slim ribbon bar.
+- Hard refresh / reopen Cindy. Rebuild `vinyl` on Mora.
+
+Previous:
+- Ribbon SPIN visibility (`af924d2`).
+
+---
+
 ## 2026-08-12 Session update (Vinyl — ribbon SPIN actually shows)
 
 Latest commit: `af924d2` — SPIN/ROOM always on slim bar; fix ribbon race

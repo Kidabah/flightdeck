@@ -716,7 +716,8 @@ function onRibbonLayoutChange() {
   const ribboned = document.body.classList.contains("ribbon");
   if (h > RIBBON_RESTORE_H) _ribbonForceFull = false;
   if (ribboned && h > RIBBON_RESTORE_H) {
-    setRibbon(false, { skipWindow: true });
+    // Windows maximise while ribboned goes weird — route through ROOM restore instead.
+    restoreVinylRoom();
     return;
   }
   // Short window without the class (maximise cleared it, or manual resize): re-arm ribbon chrome.
@@ -730,11 +731,16 @@ function syncRibbonButtons(on) {
   const btn = $("ribbonBtn");
   if (btn) {
     btn.setAttribute("aria-pressed", active ? "true" : "false");
-    btn.title = active ? "Restore vinyl room" : "Minimise to ribbon";
+    btn.title = active ? "Open vinyl room" : "Minimise to ribbon";
     btn.setAttribute("aria-label", btn.title);
   }
   const menuItem = document.querySelector('#menuDrop [data-action="ribbon"]');
-  if (menuItem) menuItem.textContent = active ? "Restore vinyl room" : "Minimise to ribbon";
+  if (menuItem) menuItem.textContent = active ? "Open vinyl room" : "Minimise to ribbon";
+  const expand = $("ribbonExpandBtn");
+  if (expand) {
+    expand.title = "Open vinyl room (use this instead of Windows maximise)";
+    expand.setAttribute("aria-label", "Open vinyl room");
+  }
 }
 
 function copyPipStyles(pip) {
@@ -783,6 +789,26 @@ function closePipRibbon() {
   }
 }
 
+/** Open the full vinyl room in a clean large window (prefer this over Windows maximise). */
+function openVinylRoomWindow() {
+  try {
+    const left = window.screen.availLeft || 0;
+    const top = window.screen.availTop || 0;
+    const availW = window.screen.availWidth || window.screen.width;
+    const availH = window.screen.availHeight || window.screen.height;
+    // Nudge out of maximised state first — resizeTo is often ignored while maximised.
+    window.moveTo(left + 40, top + 40);
+    window.resizeTo(Math.min(900, availW - 80), Math.min(640, availH - 80));
+    // Then fill the work area as a normal (non-maximised) window.
+    const w = Math.max(980, availW - 16);
+    const h = Math.max(700, availH - 16);
+    window.resizeTo(w, h);
+    window.moveTo(left + Math.max(0, Math.floor((availW - w) / 2)), top + Math.max(0, Math.floor((availH - h) / 2)));
+  } catch {
+    /* ignore */
+  }
+}
+
 function tryResizeRibbonWindow(enter) {
   try {
     if (enter) {
@@ -796,26 +822,25 @@ function tryResizeRibbonWindow(enter) {
         };
       }
       const w = Math.max(720, Math.min(_ribbonGeom.w, Math.round(window.screen.availWidth * 0.92)));
-      const h = 132;
+      const h = 148;
       window.resizeTo(w, h);
       const availTop = window.screen.availTop || 0;
       const availH = window.screen.availHeight || window.screen.height;
       window.moveTo(_ribbonGeom.x, availTop + availH - h);
     } else {
-      const g = _ribbonGeom;
       _ribbonGeom = null;
-      if (g && g.h > RIBBON_RESTORE_H) {
-        window.resizeTo(g.w, g.h);
-        window.moveTo(g.x, g.y);
-      } else {
-        const w = Math.min(1200, Math.max(980, window.screen.availWidth * 0.7));
-        const h = Math.min(820, Math.max(700, window.screen.availHeight * 0.75));
-        window.resizeTo(w, h);
-      }
+      openVinylRoomWindow();
     }
   } catch {
     /* blocked outside script-opened / some PWA hosts */
   }
+}
+
+/** ROOM button / Escape — leave ribbon and open the vinyl room properly. */
+function restoreVinylRoom() {
+  _ribbonForceFull = true;
+  _ribbonIgnoreLayoutUntil = Date.now() + 1000;
+  setRibbon(false, { skipWindow: false });
 }
 
 async function setRibbon(on, { skipWindow = false, skipPip = false } = {}) {
@@ -2899,14 +2924,14 @@ function wire() {
   });
 
   $("ribbonSpinBtn")?.addEventListener("click", () => spin());
-  $("ribbonHomeBtn")?.addEventListener("click", () => setRibbon(false));
+  $("ribbonHomeBtn")?.addEventListener("click", () => restoreVinylRoom());
   $("ribbonBtn")?.addEventListener("click", (e) => {
     e.stopPropagation();
     toggleRibbon();
   });
   $("ribbonExpandBtn")?.addEventListener("click", (e) => {
     e.stopPropagation();
-    setRibbon(false);
+    restoreVinylRoom();
   });
   $("menuBtn")?.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -2974,7 +2999,7 @@ function wire() {
       closeModal("cindyModal");
       closeModal("propsModal");
       if (!menuOpen && !cindyOpen && !propsOpen && document.body.classList.contains("ribbon")) {
-        setRibbon(false);
+        restoreVinylRoom();
       }
       return;
     }

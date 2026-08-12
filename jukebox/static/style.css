@@ -1481,10 +1481,6 @@ body.theme-light.ribbon .transport {
     flex-wrap: nowrap;
     overflow: visible;
   }
-  body #shuffleBtn,
-  body #normBtn {
-    display: none;
-  }
   body #volume {
     width: 3.5rem;
   }
