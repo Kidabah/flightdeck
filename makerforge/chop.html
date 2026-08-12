@@ -1282,25 +1282,46 @@ $('addPartNumbersBtn').addEventListener('click', addPartNumbersToAllPieces);
  * the fit is), not a shape proportion, so there's no reason it should
  * scale with the connector.
  *
- * Cap dropped from 20mm to 12mm, and the caller passes a much wider
- * pitch (6x the width, not the engine's own 1.6x default) -- first
- * version was confirmed against only a modest synthetic test box that
- * never got near either extreme, and shipping it against a real
- * life-size multi-part cut (Trix.stl, 796x1083x850mm, 18 pieces) showed
- * why: a big torso-scale face hit the old 20mm cap essentially every
- * time, and at the engine's default tight pitch that meant hundreds of
- * large, tall pegs tiling the ENTIRE face edge to edge on just about
- * every sizeable interface (1931 connector sites total across the real
- * model) -- nothing like LuBan's own reference export, which places a
- * comparatively sparse handful of modest connectors even on its biggest
- * pieces. This combination (smaller cap + much sparser pitch) cuts the
- * same real model down to 160 total sites -- verified watertight
- * throughout, see repro-connector-bug.mjs / check-tuning.mjs in a past
- * session's scratch work for the actual before/after numbers.
+ * Cap dropped from 20mm to 12mm -- first version was confirmed against
+ * only a modest synthetic test box that never got near either extreme,
+ * and shipping it against a real life-size multi-part cut (Trix.stl,
+ * 796x1083x850mm, 18 pieces) showed why: a big torso-scale face hit the
+ * old 20mm cap essentially every time.
  */
 function connectorWidthForFace(face) {
   const minDim = Math.min(face.uMax - face.uMin, face.vMax - face.vMin);
   return Math.min(12, Math.max(3, minDim * 0.06));
+}
+
+/**
+ * How far apart to space connectors on one interface -- deliberately NOT
+ * a multiple of connector width (tried that first: width*6 still tiled
+ * hundreds of pegs across a big face, because pitch-as-a-function-of-
+ * width means a bigger face with a bigger connector still gets MORE of
+ * them, just each one further apart in absolute terms -- the count still
+ * scales with area). LuBan's own reference export shows roughly the SAME
+ * small handful of connectors (looked like ~4-10) on a face regardless of
+ * whether that face is small or torso-sized -- count stays flat, only
+ * size grows. Matched here by deriving pitch from the interface's own
+ * area targeting a fixed `targetCount`, not from width: a uniform pitch
+ * of sqrt(area/targetCount) applied across a rectangular region yields
+ * roughly targetCount grid cells regardless of aspect ratio or absolute
+ * size. `iface.area` (from findAdjacentPieces) is already the SMALLER of
+ * the two sides' areas, which matters for a staggered-grid piece pair --
+ * two adjacent pieces from a staggered cut only partially overlap along
+ * their shared boundary (that's the point of staggering), so sizing off
+ * the smaller/true-overlap area avoids planning a grid across a full face
+ * span that a large majority of get rejected by the smaller side's real
+ * boundary. Floored at 1.4x width so connectors never plan overlapping
+ * regardless of how small targetCount forces the area-derived pitch.
+ * Verified against the real Trix.stl model: 22/22 interfaces land 4-10
+ * sites each (159 total, vs. 1931 with the original fixed-pitch-
+ * multiplier approach and 96 with an early width*1.6-normalized attempt
+ * that left some big interfaces at just 0-1 site) -- watertight
+ * throughout.
+ */
+function connectorPitchForInterface(area, width, targetCount = 8) {
+  return Math.max(width * 1.4, Math.sqrt(area / targetCount));
 }
 
 /**
@@ -1337,7 +1358,8 @@ async function addConnectorsToAllPieces() {
       // take the smaller of the two defensively rather than assuming
       // they're exactly equal.
       const width = Math.min(connectorWidthForFace(iface.faceA), connectorWidthForFace(iface.faceB));
-      const result = await addConnectorsToPieces(meshById.get(iface.pieceA), meshById.get(iface.pieceB), iface.faceA, iface.faceB, { width, depth: width * 1.5, tolerance: 0.2, pitch: width * 6 });
+      const pitch = connectorPitchForInterface(iface.area, width);
+      const result = await addConnectorsToPieces(meshById.get(iface.pieceA), meshById.get(iface.pieceB), iface.faceA, iface.faceB, { width, depth: width * 1.5, tolerance: 0.2, pitch });
       if (result.count > 0) {
         meshById.set(iface.pieceA, result.meshA);
         meshById.set(iface.pieceB, result.meshB);
