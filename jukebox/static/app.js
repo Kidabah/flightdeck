@@ -12,10 +12,10 @@ const RIBBON_SLIM_H = 240;
 /** Compact “small player” window — matches the size Chris locked in. */
 const SMALL_PLAYER_W = 680;
 const SMALL_PLAYER_H = 210;
-/** Ultra-slim taskbar strip (outer size — title bar eats ~30–40px). */
-const TASKBAR_W = 620;
-const TASKBAR_H = 110;
-const TASKBAR_DETECT_H = 130;
+/** Ultra-slim taskbar strip (outer size — Win11 title bar eats ~32–40px). */
+const TASKBAR_W = 720;
+const TASKBAR_H = 102;
+const TASKBAR_DETECT_H = 125;
 
 /** Room / deck themes. Amp-rack footage is shared by dark + light; crate photo
  * and page chrome (`room`) differ. `cueOut: null` → fade instead of lift clip. */

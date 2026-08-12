@@ -6,6 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-12 Session update (Vinyl — Taskbar layout fix)
+
+Latest commit: `pending` — Taskbar fills window as one row
+
+Latest local/Mora change:
+- Taskbar mode was leaving a huge empty grey slab (ribbon CSS pinned the bar to the bottom).
+- Now fills the compact window as a single strip; also stops the ≤700px wrap stacking.
+- Hard refresh / reopen Cindy. Rebuild `vinyl` on Mora.
+
+Previous:
+- Dock above OS taskbar (`81794a0`).
+
+---
+
 ## 2026-08-12 Session update (Vinyl — Taskbar above OS bar)
 
 Latest commit: `81794a0` — Dock compact modes above Windows taskbar
