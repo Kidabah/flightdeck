@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-12 Session update (Vinyl — Taskbar mode)
 
-Latest commit: `pending` — Third chrome mode: Taskbar strip
+Latest commit: `5fdd075` — Third chrome mode: Taskbar strip
 
 Latest local/Mora change:
 - Header **Taskbar** (and ⋯ / Small→Taskbar chip) docks an ultra-slim strip (~560×92).
