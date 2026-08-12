@@ -245,7 +245,7 @@
         <button class="btn btn-ghost" id="addPartNumbersBtn" style="width:100%;margin-bottom:8px">Add Part Numbers</button>
         <div class="hint" style="margin-bottom:6px">Engraves each piece's own number into its largest flat face (almost always the cut face) — hidden once glued back together, visible while sorting loose parts.</div>
         <div class="hint" style="margin-bottom:6px">Click pieces in the viewport (or Ctrl/Cmd/Shift-click them below) to pick more than one for merging, then hit Merge Selected in the viewport toolbar — works whether the model is assembled or exploded.</div>
-        <div class="hint" style="margin-bottom:6px">Add Connectors (viewport toolbar) adds one LuBan-style alignment peg/socket per shared cut face — bigger on big pieces, smaller on small ones — so parts key together without tiling dozens of pegs. If a piece already has a part number stamped on the same face, the two aren't yet coordinated and may overlap — add connectors first if you plan to use both.</div>
+        <div class="hint" style="margin-bottom:6px">Add Connectors (viewport toolbar) adds one LuBan-style alignment peg/socket per shared cut face — bigger on big pieces, smaller on small ones. Tiny faces (under ~40 mm, e.g. ear-tip slivers) are skipped for glue-only joins. If a piece already has a part number stamped on the same face, the two aren't yet coordinated and may overlap — add connectors first if you plan to use both.</div>
         <div class="piece-list" id="pieceList"></div>
       </div>
     </div>
@@ -277,7 +277,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import './js/nav.js?v=551';
 import { loadMeshFromFile } from './js/mesh-import.js?v=2';
-import { sliceMeshByPlane, parallelPlaneCut, modularCut, gridCut, radialCut, smoothMesh, computeBounds, computeDefaultFlexiPlanes, flexiCut, splitIntoIslands, unionMeshes, subtractMesh, findLargestFlatFace, buildStampMesh, findAdjacentPieces, addConnectorsToPieces } from './js/mesh-cut.js?v=19';
+import { sliceMeshByPlane, parallelPlaneCut, modularCut, gridCut, radialCut, smoothMesh, computeBounds, computeDefaultFlexiPlanes, flexiCut, splitIntoIslands, unionMeshes, subtractMesh, findLargestFlatFace, buildStampMesh, findAdjacentPieces, addConnectorsToPieces } from './js/mesh-cut.js?v=20';
 import { meshToStl, downloadBlob, countOpenEdges } from './js/stl.js?v=372';
 
 const $ = (id) => document.getElementById(id);
@@ -1269,11 +1269,18 @@ $('addPartNumbersBtn').addEventListener('click', addPartNumbersToAllPieces);
 /**
  * LuBan-style connector width: one peg per interface, sized from the
  * face's smaller in-plane dimension. Kept modest — life-size cuts have
- * large faces that would otherwise grow brick pegs (neck stubs were still
- * ~50mm at the previous 55mm cap). Hard cap 30mm; depth capped separately.
+ * large faces that would otherwise grow brick pegs. Hard cap 30mm.
+ * Faces below MIN_CONNECTOR_FACE_MM are skipped entirely (glue only) —
+ * an ear-tip sliver can't take an 8mm peg without swallowing the piece.
  */
+const MIN_CONNECTOR_FACE_MM = 40;
+
+function faceMinDim(face) {
+  return Math.min(face.uMax - face.uMin, face.vMax - face.vMin);
+}
+
 function connectorWidthForFace(face) {
-  const minDim = Math.min(face.uMax - face.uMin, face.vMax - face.vMin);
+  const minDim = faceMinDim(face);
   // Blend 40% → 12% as face grows from ~40mm to ~240mm+
   const t = Math.min(1, Math.max(0, (minDim - 40) / 200));
   const ratio = 0.40 * (1 - t) + 0.12 * t;
@@ -1305,10 +1312,15 @@ async function addConnectorsToAllPieces() {
   }
   undoStack.push(pieces.map((p) => ({ ...p })));
   const meshById = new Map(pieces.map((p) => [p.id, p.mesh]));
-  let done = 0, totalSites = 0, skipped = 0;
+  let done = 0, totalSites = 0, skipped = 0, skippedTiny = 0;
   for (const iface of interfaces) {
-    setStatus(`Adding connectors… ${done + skipped}/${interfaces.length} interfaces`);
+    setStatus(`Adding connectors… ${done + skipped + skippedTiny}/${interfaces.length} interfaces`);
     try {
+      const minDim = Math.min(faceMinDim(iface.faceA), faceMinDim(iface.faceB));
+      if (minDim < MIN_CONNECTOR_FACE_MM) {
+        skippedTiny++; // ear-tip / sliver joints — glue only
+        continue;
+      }
       // Both sides of one interface share the same real footprint, so
       // their face-derived widths should already be nearly identical --
       // take the smaller of the two defensively rather than assuming
@@ -1336,7 +1348,10 @@ async function addConnectorsToAllPieces() {
   renderPieceList();
   const saveResult = await syncOutputFolder();
   const saveNote = saveResult && !saveResult.error ? ` Saved to ${outputDirHandle.name}/chop/.` : '';
-  setStatus(`Added ${totalSites} connector site${totalSites === 1 ? '' : 's'} across ${done} interface${done === 1 ? '' : 's'}${skipped ? `, skipped ${skipped}` : ''}.${saveNote}`);
+  const skipBits = [];
+  if (skippedTiny) skipBits.push(`${skippedTiny} tiny (glue only)`);
+  if (skipped) skipBits.push(`${skipped} unfit`);
+  setStatus(`Added ${totalSites} connector site${totalSites === 1 ? '' : 's'} across ${done} interface${done === 1 ? '' : 's'}${skipBits.length ? `, skipped ${skipBits.join(', ')}` : ''}.${saveNote}`);
   $('tbConnectors').disabled = false;
 }
 $('tbConnectors').addEventListener('click', addConnectorsToAllPieces);
