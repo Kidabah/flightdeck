@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-12 Session update (Vinyl — ribbon SPIN actually shows)
 
-Latest commit: `pending` — SPIN/ROOM always on slim bar; fix ribbon race
+Latest commit: `af924d2` — SPIN/ROOM always on slim bar; fix ribbon race
 
 Latest local/Mora change:
 - SPIN + ROOM show whenever the window is short (not only when `.ribbon` class sticks).
