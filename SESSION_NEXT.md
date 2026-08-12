@@ -6,6 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-12 Session update (Chop — tidy sidebar, finish by default)
+
+Latest commit: `pending` — Chop UI flow + connectors/part # after every cut
+
+Latest local/Pi change:
+- Sidebar is now **Load → Setup → Cut → Finish → Pieces** instead of a pile of add-on panels.
+- **Connectors** and **Part numbers** are on by default and run automatically after Commit Cut / Auto-Chop. Uncheck to skip; “Apply to current pieces” re-runs on an existing cut.
+- Hard refresh Chop (`mesh-cut.js?v=23`).
+
+Previous:
+- Thickness-capped pegs / merge strips connectors (`2bb01b4`).
+
+---
+
 ## 2026-08-12 Session update (Chop — merge strips connectors / no punch-through)
 
 Latest commit: `2bb01b4` — Thickness-capped pegs; merge removes internal connectors

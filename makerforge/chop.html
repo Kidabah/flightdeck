@@ -52,29 +52,24 @@
 
   <div class="sidebar">
     <div>
-      <div class="section-label">Load Model</div>
+      <div class="section-label">1 · Load</div>
       <div class="drop-zone" id="dropZone">
         <div class="icon">&#x1F4E6;</div>
-        Drop STL or OBJ here or click to browse
+        Drop STL or OBJ, or click to browse
         <input type="file" id="fileInput" accept=".stl,.obj" hidden>
       </div>
-      <button class="btn btn-ghost" id="loadFromFolderBtn" style="width:100%;margin-top:8px">Choose Folder &amp; Load Model</button>
-      <div class="hint" style="margin-top:4px">Picks a folder, lists its STL/OBJ files, and links that same folder as the output folder — no separate step after.</div>
+      <button class="btn btn-ghost" id="loadFromFolderBtn" style="width:100%;margin-top:8px">Choose Folder…</button>
+      <div class="hint" id="outputFolderStatus" style="margin-top:4px">Saves cuts into a <code>chop</code> subfolder. Downloads if you skip this.</div>
+      <button class="btn btn-ghost" id="chooseFolderBtn" style="display:none">Choose Folder…</button>
       <button class="btn btn-ghost" id="importAllPiecesBtn" style="width:100%;margin-top:8px;display:none">Import All as Pieces</button>
-      <div class="hint" id="importAllPiecesHint" style="margin-top:4px;display:none">Loads every model here as a separate piece, keeping their original positions — for re-inspecting a cut you already made (e.g. with Explode) rather than loading a fresh model.</div>
+      <div class="hint" id="importAllPiecesHint" style="margin-top:4px;display:none">Load every STL/OBJ here as separate pieces (re-inspect a previous cut).</div>
       <div id="folderFileList" class="piece-list" style="display:none;margin-top:8px"></div>
       <div id="loadPill" class="pill" style="margin-top:8px;display:none"></div>
-      <button class="btn btn-ghost" id="clearModelBtn" style="width:100%;margin-top:8px;display:none">Clear / Load New Model</button>
+      <button class="btn btn-ghost" id="clearModelBtn" style="width:100%;margin-top:8px;display:none">Clear / Load New</button>
     </div>
 
     <div>
-      <div class="section-label">Output Folder</div>
-      <button class="btn btn-ghost" id="chooseFolderBtn" style="width:100%">Choose Folder…</button>
-      <div class="hint" id="outputFolderStatus" style="margin-top:6px">Exports go to your Downloads by default. Choose a folder and every Commit Cut / Auto-Chop saves its new pieces straight into a "chop" subfolder there, automatically.</div>
-    </div>
-
-    <div>
-      <div class="section-label">Scale</div>
+      <div class="section-label">2 · Setup</div>
       <div class="dims-row" style="margin-bottom:6px">
         <select id="unitSelect">
           <option value="mm">mm</option>
@@ -82,7 +77,7 @@
           <option value="m">m</option>
           <option value="in">in</option>
         </select>
-        <label class="check-row" style="grid-column:span 2"><input type="checkbox" id="uniformScale" checked> Uniform</label>
+        <label class="check-row" style="grid-column:span 2"><input type="checkbox" id="uniformScale" checked> Uniform scale</label>
       </div>
       <div class="dims-row">
         <div>
@@ -94,30 +89,23 @@
           <input type="number" id="dimY" step="any" placeholder="Y">
         </div>
         <div>
-          <label class="hint" for="dimZ" style="color:#fbbf24">Z (height)</label>
+          <label class="hint" for="dimZ" style="color:#fbbf24">Z</label>
           <input type="number" id="dimZ" step="any" placeholder="Z">
         </div>
       </div>
       <button class="btn btn-primary" id="applyScaleBtn" style="width:100%;margin-top:8px" disabled>Apply Scale</button>
-    </div>
-
-    <div>
-      <div class="section-label">Position</div>
-      <button class="btn btn-ghost" id="moveModelBtn" style="width:100%" disabled>Move Model (drag in viewport)</button>
-      <div class="hint" style="margin-top:6px">Drag the model in the viewport to re-center it — useful when an off-center feature (like a tail) throws off where Grid/Straight cuts land. Height stays locked to the bed; click again to lock the new position in.</div>
-    </div>
-
-    <div>
-      <div class="section-label">Print Bed</div>
+      <div class="section-label" style="margin-top:12px;margin-bottom:4px">Print bed</div>
       <div class="dims-row">
         <input type="number" id="bedX" step="any" placeholder="Bed X">
         <input type="number" id="bedY" step="any" placeholder="Bed Y">
         <input type="number" id="bedZ" step="any" placeholder="Bed Z">
       </div>
+      <button class="btn btn-ghost" id="moveModelBtn" style="width:100%;margin-top:8px" disabled>Reposition on bed</button>
+      <div class="hint" style="margin-top:4px">Drag in the viewport, then click again to lock. Height stays on the bed.</div>
     </div>
 
     <div>
-      <div class="section-label">Cut</div>
+      <div class="section-label">3 · Cut</div>
       <select id="cutModeSelect" style="width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px;font:inherit;margin-bottom:8px">
         <option value="straight">Straight</option>
         <option value="angled">Angled</option>
@@ -236,16 +224,21 @@
     </div>
 
     <div>
+      <div class="section-label">4 · Finish</div>
+      <label class="check-row"><input type="checkbox" id="optConnectors" checked> Connectors</label>
+      <label class="check-row"><input type="checkbox" id="optPartNumbers" checked> Part numbers</label>
+      <div class="hint" style="margin-top:4px">Applied automatically after each cut. Tiny / paper-thin joints stay glue-only.</div>
+      <button class="btn btn-ghost" id="applyFinishBtn" style="width:100%;margin-top:8px" disabled>Apply to current pieces</button>
+    </div>
+
+    <div>
       <div class="section-label" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" id="piecesHeader">
         <span>Pieces</span>
         <button class="btn btn-icon btn-ghost" id="togglePiecesBtn" title="Show/hide piece list">&#x25B8;</button>
       </div>
       <div id="piecesBody" style="display:none">
-        <button class="btn btn-ghost" id="exportAllBtn" style="width:100%;margin-bottom:8px" disabled>Export All to Folder</button>
-        <button class="btn btn-ghost" id="addPartNumbersBtn" style="width:100%;margin-bottom:8px">Add Part Numbers</button>
-        <div class="hint" style="margin-bottom:6px">Engraves each piece's own number into its largest flat face (almost always the cut face) — hidden once glued back together, visible while sorting loose parts.</div>
-        <div class="hint" style="margin-bottom:6px">Click pieces in the viewport (or Ctrl/Cmd/Shift-click them below) to pick more than one for merging, then hit Merge Selected in the viewport toolbar — works whether the model is assembled or exploded.</div>
-        <div class="hint" style="margin-bottom:6px">Add Connectors (viewport toolbar) adds one LuBan-style alignment peg/socket per shared cut face — bigger on big pieces, smaller on small ones, depth capped by wall thickness so thin shells don't get punched through. Tiny / paper-thin joints are glue-only. Merge Selected strips any connector that sat between the pieces you merge. If a piece already has a part number stamped on the same face, add connectors first if you plan to use both.</div>
+        <button class="btn btn-ghost" id="exportAllBtn" style="width:100%;margin-bottom:8px" disabled>Export All</button>
+        <div class="hint" style="margin-bottom:6px">Click pieces to merge, then Merge Selected in the viewport.</div>
         <div class="piece-list" id="pieceList"></div>
       </div>
     </div>
@@ -259,7 +252,6 @@
       <button id="tbWire">Wire</button>
       <button id="tbExplode" title="Explode view — see where each cut landed (or press E)">Explode</button>
       <button id="tbRestore" title="Restore assembled view (or press R)">Restore</button>
-      <button id="tbConnectors" title="Add one LuBan-style peg/socket per shared cut face, sized to that face">Add Connectors</button>
       <button id="tbMerge" title="Click pieces in the viewport to pick them, then Merge" style="display:none">Merge Selected</button>
     </div>
     <div class="statusbar"><span id="status">Drop an STL or OBJ to begin</span></div>
@@ -277,7 +269,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import './js/nav.js?v=551';
 import { loadMeshFromFile } from './js/mesh-import.js?v=2';
-import { sliceMeshByPlane, parallelPlaneCut, modularCut, gridCut, radialCut, smoothMesh, computeBounds, computeDefaultFlexiPlanes, flexiCut, splitIntoIslands, unionMeshes, subtractMesh, findLargestFlatFace, buildStampMesh, findAdjacentPieces, addConnectorsToPieces, meshThicknessAlong } from './js/mesh-cut.js?v=22';
+import { sliceMeshByPlane, parallelPlaneCut, modularCut, gridCut, radialCut, smoothMesh, computeBounds, computeDefaultFlexiPlanes, flexiCut, splitIntoIslands, unionMeshes, subtractMesh, findLargestFlatFace, buildStampMesh, findAdjacentPieces, addConnectorsToPieces, meshThicknessAlong } from './js/mesh-cut.js?v=23';
 import { meshToStl, downloadBlob, countOpenEdges } from './js/stl.js?v=372';
 
 const $ = (id) => document.getElementById(id);
@@ -1105,6 +1097,7 @@ function renderPieceList() {
   }
   $('undoBtn').disabled = undoStack.length === 0;
   $('exportAllBtn').disabled = !outputDirHandle || pieces.length === 0;
+  $('applyFinishBtn').disabled = pieces.length === 0;
   const mergeBtn = $('tbMerge');
   mergeBtn.style.display = mergeSelection.size >= 2 ? '' : 'none';
   mergeBtn.textContent = `Merge Selected (${mergeSelection.size})`;
@@ -1272,18 +1265,13 @@ async function stampPartNumber(piece) {
   return subtractMesh(piece.mesh, stamp);
 }
 
-/** Stamp every current piece with its own part number in one pass, so reassembly is unambiguous even after Merge/Delete renumbering has shuffled things around. Pieces without a usable flat face (rare -- an already-merged organic blob with no planar cut face left) are skipped, not fatal to the rest. */
-async function addPartNumbersToAllPieces() {
-  if (!pieces.length) return;
-  $('addPartNumbersBtn').disabled = true;
-  // Clone each piece object (not just the array) -- every piece below gets
-  // its .mesh reassigned in place, and a plain pieces.slice() would leave
-  // the undo snapshot holding the very same objects, silently "updating"
-  // right along with the live ones instead of preserving the pre-stamp state.
-  undoStack.push(pieces.map((p) => ({ ...p })));
+/** Stamp every current piece with its own part number. Returns a short summary. */
+async function addPartNumbersToAllPieces({ skipUndo = false, quiet = false } = {}) {
+  if (!pieces.length) return '';
+  if (!skipUndo) pushUndo();
   let done = 0, skipped = 0;
   for (const p of pieces) {
-    setStatus(`Stamping part numbers… ${done + skipped}/${pieces.length}`);
+    if (!quiet) setStatus(`Stamping part numbers… ${done + skipped}/${pieces.length}`);
     try {
       const stamped = await stampPartNumber(p);
       p.mesh = stamped;
@@ -1293,14 +1281,15 @@ async function addPartNumbersToAllPieces() {
       skipped++;
     }
   }
-  rebuildScene();
-  renderPieceList();
-  const saveResult = await syncOutputFolder();
-  const saveNote = saveResult && !saveResult.error ? ` Saved to ${outputDirHandle.name}/chop/.` : '';
-  setStatus(`Stamped ${done} piece${done === 1 ? '' : 's'}${skipped ? `, skipped ${skipped} (no usable flat face)` : ''}.${saveNote}`);
-  $('addPartNumbersBtn').disabled = false;
+  if (!quiet) {
+    rebuildScene();
+    renderPieceList();
+    const saveResult = await syncOutputFolder();
+    const saveNote = saveResult && !saveResult.error ? ` Saved to ${outputDirHandle.name}/chop/.` : '';
+    setStatus(`Stamped ${done} piece${done === 1 ? '' : 's'}${skipped ? `, skipped ${skipped} (no usable flat face)` : ''}.${saveNote}`);
+  }
+  return `part # on ${done}${skipped ? `, ${skipped} skipped` : ''}`;
 }
-$('addPartNumbersBtn').addEventListener('click', addPartNumbersToAllPieces);
 
 // -- Connectors ----------------------------------------------------------
 
@@ -1338,22 +1327,23 @@ function connectorWidthForFace(face) {
  * interface always builds on the previous one's result rather than the
  * stale original mesh.
  */
-async function addConnectorsToAllPieces() {
-  if (pieces.length < 2) { setStatus('Need at least 2 pieces to add connectors.'); return; }
-  $('tbConnectors').disabled = true;
-  setStatus('Finding adjacent cut faces…');
+async function addConnectorsToAllPieces({ skipUndo = false, quiet = false } = {}) {
+  if (pieces.length < 2) {
+    if (!quiet) setStatus('Need at least 2 pieces to add connectors.');
+    return '';
+  }
+  if (!quiet) setStatus('Finding adjacent cut faces…');
   const interfaces = findAdjacentPieces(pieces.map((p) => ({ id: p.id, mesh: p.mesh })), { minArea: 25 });
   if (!interfaces.length) {
-    setStatus('No adjacent cut faces found to connect.');
-    $('tbConnectors').disabled = false;
-    return;
+    if (!quiet) setStatus('No adjacent cut faces found to connect.');
+    return 'no connector faces';
   }
-  pushUndo();
+  if (!skipUndo) pushUndo();
   connectorRecords = [];
   const meshById = new Map(pieces.map((p) => [p.id, p.mesh]));
   let done = 0, totalSites = 0, skipped = 0, skippedTiny = 0;
   for (const iface of interfaces) {
-    setStatus(`Adding connectors… ${done + skipped + skippedTiny}/${interfaces.length} interfaces`);
+    if (!quiet) setStatus(`Adding connectors… ${done + skipped + skippedTiny}/${interfaces.length} interfaces`);
     try {
       const minDim = Math.min(faceMinDim(iface.faceA), faceMinDim(iface.faceB));
       if (minDim < MIN_CONNECTOR_FACE_MM) {
@@ -1387,17 +1377,45 @@ async function addConnectorsToAllPieces() {
     const m = meshById.get(p.id);
     if (m !== p.mesh) { p.mesh = m; p.openEdgeCount = m.openEdgeCount; }
   }
+  if (!quiet) {
+    rebuildScene();
+    renderPieceList();
+    const saveResult = await syncOutputFolder();
+    const saveNote = saveResult && !saveResult.error ? ` Saved to ${outputDirHandle.name}/chop/.` : '';
+    const skipBits = [];
+    if (skippedTiny) skipBits.push(`${skippedTiny} tiny (glue only)`);
+    if (skipped) skipBits.push(`${skipped} unfit`);
+    setStatus(`Added ${totalSites} connector site${totalSites === 1 ? '' : 's'} across ${done} interface${done === 1 ? '' : 's'}${skipBits.length ? `, skipped ${skipBits.join(', ')}` : ''}.${saveNote}`);
+  }
+  const skipBits = [];
+  if (skippedTiny) skipBits.push(`${skippedTiny} tiny`);
+  if (skipped) skipBits.push(`${skipped} unfit`);
+  return `${totalSites} connector${totalSites === 1 ? '' : 's'}${skipBits.length ? ` (${skipBits.join(', ')})` : ''}`;
+}
+
+async function applyFinishOptions({ skipUndo = false, quiet = false } = {}) {
+  const wantConn = $('optConnectors').checked;
+  const wantNums = $('optPartNumbers').checked;
+  if (!wantConn && !wantNums) return '';
+  if (pieces.length < 1) return '';
+  if (!skipUndo) pushUndo();
+  const bits = [];
+  if (wantConn && pieces.length >= 2) {
+    const summary = await addConnectorsToAllPieces({ skipUndo: true, quiet: true });
+    if (summary) bits.push(summary);
+  }
+  if (wantNums) {
+    const summary = await addPartNumbersToAllPieces({ skipUndo: true, quiet: true });
+    if (summary) bits.push(summary);
+  }
   rebuildScene();
   renderPieceList();
   const saveResult = await syncOutputFolder();
   const saveNote = saveResult && !saveResult.error ? ` Saved to ${outputDirHandle.name}/chop/.` : '';
-  const skipBits = [];
-  if (skippedTiny) skipBits.push(`${skippedTiny} tiny (glue only)`);
-  if (skipped) skipBits.push(`${skipped} unfit`);
-  setStatus(`Added ${totalSites} connector site${totalSites === 1 ? '' : 's'} across ${done} interface${done === 1 ? '' : 's'}${skipBits.length ? `, skipped ${skipBits.join(', ')}` : ''}.${saveNote}`);
-  $('tbConnectors').disabled = false;
+  const note = bits.join('; ');
+  if (!quiet) setStatus(`Finish: ${note || 'nothing to apply'}.${saveNote}`);
+  return note;
 }
-$('tbConnectors').addEventListener('click', addConnectorsToAllPieces);
 
 /**
  * Round off a piece's low-poly "faceted" look (see mesh-cut.js's
@@ -1630,6 +1648,7 @@ function clearModel() {
   pieces = [];
   selectedId = null;
   undoStack = [];
+  connectorRecords = [];
   planeOverrides.clear();
   gridPlaneOverrides.clear();
   baseName = 'model';
@@ -1651,10 +1670,7 @@ function clearModel() {
 }
 $('clearModelBtn').addEventListener('click', clearModel);
 
-// Pieces panel starts collapsed — selecting/deleting/exporting individual
-// pieces is a secondary workflow now that Commit Cut/Auto-Chop auto-save,
-// so it stays out of the way (and out of the sidebar's limited space)
-// until expanded. That space is earmarked for the Connectors panel later.
+// Pieces panel starts collapsed; opens after a cut.
 function setPiecesOpen(open) {
   $('piecesBody').style.display = open ? '' : 'none';
   $('togglePiecesBtn').innerHTML = open ? '&#x25BE;' : '&#x25B8;';
@@ -1746,7 +1762,7 @@ $('moveModelBtn').addEventListener('click', () => {
   disablePlaneHandle();
   modelGizmo.visible = true; modelGizmo.enabled = true;
   $('moveModelBtn').classList.add('active');
-  setStatus('Drag the model in the viewport to reposition it, then click "Move Model" again to lock it in.');
+  setStatus('Drag the model in the viewport to reposition it, then click Reposition again to lock it in.');
 });
 
 // -- Output folder ----------------------------------------------------------
@@ -1907,6 +1923,7 @@ $('resetGridAdjustPlaneBtn').addEventListener('click', () => {
   loadGridAdjustSliderFromIndex();
 });
 $('resetPlaneBtn').addEventListener('click', resetPlaneToPiece);
+$('applyFinishBtn').addEventListener('click', () => applyFinishOptions());
 
 // -- Commit cut / undo ----------------------------------------------------
 
@@ -1941,6 +1958,9 @@ async function finishCut(piece, newPieces, extraNotes = []) {
   const notes = [...extraNotes];
   if (splitCount) notes.push(`${splitCount} piece${splitCount === 1 ? '' : 's'} split into separate parts (were disconnected fragments bundled together)`);
   if (openCount) notes.push(`${openCount} came out with open edges — repair in Mesh Prep`);
+  setPiecesOpen(true);
+  const finishNote = await applyFinishOptions({ skipUndo: true, quiet: true });
+  if (finishNote) notes.push(finishNote);
   const saveResult = await syncOutputFolder();
   if (saveResult) {
     notes.push(saveResult.error

@@ -4,6 +4,15 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## Chop — tidy UI, finish by default
+**Date:** 2026-08-12
+
+### MakerDeck
+- Chop sidebar: Load → Setup → Cut → Finish → Pieces.
+- Connectors + part numbers default **on**, applied after every cut.
+
+---
+
 ## Chop — LuBan-style single connectors
 **Date:** 2026-08-12
 
