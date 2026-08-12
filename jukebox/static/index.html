@@ -32,8 +32,10 @@
       <input id="searchInput" type="search" placeholder="Search the crates…" enterkeyhint="search">
     </form>
     <div class="top-menu" id="topMenu">
+      <button type="button" class="menu-btn ribbon-btn" id="ribbonBtn" aria-label="Minimise to ribbon" title="Minimise to ribbon">▬</button>
       <button type="button" class="menu-btn" id="menuBtn" aria-label="Menu" aria-haspopup="menu" aria-expanded="false">⋯</button>
       <div class="menu-drop" id="menuDrop" role="menu" hidden>
+        <button type="button" role="menuitem" data-action="ribbon">Minimise to ribbon</button>
         <button type="button" role="menuitem" data-action="cindy">Show on Cindy</button>
         <button type="button" role="menuitem" data-action="props">Edit names…</button>
         <button type="button" role="menuitem" data-action="refresh">Refresh packs</button>
@@ -160,7 +162,12 @@
     </section>
   </main>
 
-  <footer class="transport">
+  <div class="ribbon-home" id="ribbonHome" hidden>
+    <p>Playing in the ribbon.</p>
+    <button type="button" class="spin-btn" id="ribbonHomeBtn">Restore vinyl room</button>
+  </div>
+
+  <footer class="transport" id="transport">
     <div class="deck-art"><img id="deckArt" alt=""></div>
     <div class="deck-meta">
       <div id="deckTitle">—</div>
@@ -179,6 +186,7 @@
       <button type="button" id="muteBtn" aria-label="Mute" title="Mute (M)">🔊</button>
       <input type="range" id="volume" min="0" max="100" value="85" aria-label="Volume">
       <button type="button" id="normBtn" aria-label="Loudness normalise" title="Loudness normalise — even out quiet/loud tracks" aria-pressed="false">⌀</button>
+      <button type="button" class="ribbon-expand" id="ribbonExpandBtn" aria-label="Restore vinyl room" title="Restore vinyl room">▴</button>
     </div>
   </footer>
 

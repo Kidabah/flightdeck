@@ -6,6 +6,21 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-12 Session update (Vinyl — minimise to ribbon)
+
+Latest commit: `pending` — Cindy Vinyl ribbon / windowshade mode
+
+Latest local/Mora change:
+- **▬** in the header (and ⋯ → Minimise to ribbon) collapses the vinyl room to a slim now-playing bar. ▴ or Escape restores.
+- Installed PWA: tries to shrink the window and dock it to the bottom of the screen.
+- Browser (Edge/Chrome): uses a floating always-on-top ribbon when Document Picture-in-Picture is available.
+- Hard refresh Vinyl (`http://192.168.4.77:4541`). Rebuild `vinyl` on Mora.
+
+Previous:
+- Chop part-number offset (`fe47d5f`).
+
+---
+
 ## 2026-08-12 Session update (Chop — part # away from connectors)
 
 Latest commit: `pending` — Stamp part numbers in a corner, not on the peg

@@ -3,6 +3,7 @@ const $ = (id) => document.getElementById(id);
 const VOL_KEY = "cindy-vinyl-volume";
 const THEME_KEY = "cindy-vinyl-theme";
 const NORM_KEY = "cindy-vinyl-normalize";
+const RIBBON_KEY = "cindy-vinyl-ribbon";
 
 /** Room / deck themes. Amp-rack footage is shared by dark + light; crate photo
  * and page chrome (`room`) differ. `cueOut: null` → fade instead of lift clip. */
@@ -667,6 +668,149 @@ function nudgeTilt(delta) {
 function currentSong() {
   if (state.index < 0 || state.index >= state.queue.length) return null;
   return state.queue[state.index];
+}
+
+function isStandaloneApp() {
+  return window.matchMedia("(display-mode: standalone)").matches
+    || window.matchMedia("(display-mode: window-controls-overlay)").matches
+    || window.navigator.standalone === true;
+}
+
+function parkTransport(el) {
+  const node = el || $("transport");
+  const audioEl = $("audio");
+  if (!node || !audioEl?.parentNode) return;
+  audioEl.parentNode.insertBefore(node, audioEl);
+}
+
+let _ribbonGeom = null;
+let _pipWindow = null;
+
+function syncRibbonHome() {
+  const home = $("ribbonHome");
+  if (!home) return;
+  const ribbon = document.body.classList.contains("ribbon");
+  const short = window.innerHeight < 140;
+  home.hidden = !ribbon || (short && !_pipWindow);
+}
+
+function syncRibbonButtons(on) {
+  const active = on ?? document.body.classList.contains("ribbon");
+  const btn = $("ribbonBtn");
+  if (btn) {
+    btn.setAttribute("aria-pressed", active ? "true" : "false");
+    btn.title = active ? "Restore vinyl room" : "Minimise to ribbon";
+    btn.setAttribute("aria-label", btn.title);
+  }
+  const menuItem = document.querySelector('#menuDrop [data-action="ribbon"]');
+  if (menuItem) menuItem.textContent = active ? "Restore vinyl room" : "Minimise to ribbon";
+}
+
+function copyPipStyles(pip) {
+  document.querySelectorAll('link[rel="stylesheet"], link[rel="preconnect"]').forEach((el) => {
+    pip.document.head.appendChild(el.cloneNode(true));
+  });
+}
+
+async function tryEnterPipRibbon() {
+  if (isStandaloneApp()) return false;
+  if (!window.documentPictureInPicture) return false;
+  const transport = $("transport");
+  if (!transport) return false;
+  try {
+    const pip = await documentPictureInPicture.requestWindow({
+      width: Math.min(920, Math.max(560, Math.round(window.screen.availWidth * 0.42))),
+      height: 96,
+    });
+    _pipWindow = pip;
+    copyPipStyles(pip);
+    pip.document.documentElement.className = `${document.documentElement.className} ribbon`;
+    pip.document.body.className = `${document.body.className} ribbon pip-ribbon`;
+    pip.document.body.dataset.room = document.body.dataset.room || "";
+    pip.document.body.style.margin = "0";
+    pip.document.body.appendChild(transport);
+    syncRibbonHome();
+    pip.addEventListener("pagehide", () => {
+      parkTransport(transport);
+      _pipWindow = null;
+      setRibbon(false, { skipWindow: true, skipPip: true });
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function closePipRibbon() {
+  const pip = _pipWindow;
+  _pipWindow = null;
+  if (!pip) return;
+  try {
+    pip.close();
+  } catch {
+    /* already gone */
+  }
+}
+
+function tryResizeRibbonWindow(enter) {
+  if (!isStandaloneApp()) return;
+  try {
+    if (enter) {
+      if (!_ribbonGeom) {
+        _ribbonGeom = {
+          x: window.screenX,
+          y: window.screenY,
+          w: window.outerWidth,
+          h: window.outerHeight,
+        };
+      }
+      const w = Math.max(640, Math.min(_ribbonGeom.w, 980));
+      const h = 118;
+      window.resizeTo(w, h);
+      const availTop = window.screen.availTop || 0;
+      const availH = window.screen.availHeight || window.screen.height;
+      window.moveTo(_ribbonGeom.x, availTop + availH - h);
+    } else {
+      const g = _ribbonGeom;
+      _ribbonGeom = null;
+      if (g) {
+        window.resizeTo(g.w, g.h);
+        window.moveTo(g.x, g.y);
+      } else {
+        window.resizeTo(1100, 760);
+      }
+    }
+  } catch {
+    /* blocked outside script-opened / some PWA hosts */
+  }
+}
+
+async function setRibbon(on, { skipWindow = false, skipPip = false } = {}) {
+  const next = !!on;
+  document.documentElement.classList.toggle("ribbon", next);
+  document.body.classList.toggle("ribbon", next);
+  try {
+    localStorage.setItem(RIBBON_KEY, next ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
+  syncRibbonButtons(next);
+  closeMenu();
+  closeModal("cindyModal");
+  closeModal("propsModal");
+  if (next) {
+    if (!skipPip) await tryEnterPipRibbon();
+    if (!skipWindow) tryResizeRibbonWindow(true);
+  } else {
+    if (!skipPip) closePipRibbon();
+    parkTransport();
+    if (!skipWindow) tryResizeRibbonWindow(false);
+  }
+  syncRibbonHome();
+}
+
+function toggleRibbon() {
+  setRibbon(!document.body.classList.contains("ribbon"));
 }
 
 function closeMenu() {
@@ -2581,6 +2725,13 @@ function wire() {
     syncThemeChrome();
   }
 
+  try {
+    if (localStorage.getItem(RIBBON_KEY) === "1") setRibbon(true, { skipPip: true });
+    else syncRibbonButtons(false);
+  } catch {
+    syncRibbonButtons(false);
+  }
+
   wireDeckDrop();
   buildThemeMenuDom();
   wireMediaSessionActions();
@@ -2697,6 +2848,15 @@ function wire() {
     runSearch($("searchInput").value);
   });
 
+  $("ribbonHomeBtn")?.addEventListener("click", () => setRibbon(false));
+  $("ribbonBtn")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggleRibbon();
+  });
+  $("ribbonExpandBtn")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    setRibbon(false);
+  });
   $("menuBtn")?.addEventListener("click", (e) => {
     e.stopPropagation();
     toggleMenu();
@@ -2706,6 +2866,7 @@ function wire() {
     if (!btn) return;
     const action = btn.dataset.action;
     if (action === "cindy") showOnCindy();
+    else if (action === "ribbon") toggleRibbon();
     else if (action === "props") {
       fillProperties(state.album);
       openModal("propsModal");
@@ -2719,7 +2880,10 @@ function wire() {
   // Fixed-position menu doesn't track its trigger while scrolling — close it
   // rather than let it drift away from the sleeve it belongs to.
   window.addEventListener("scroll", () => closeSleeveMenus(), { capture: true, passive: true });
-  window.addEventListener("resize", () => closeSleeveMenus());
+  window.addEventListener("resize", () => {
+    closeSleeveMenus();
+    syncRibbonHome();
+  });
   document.querySelectorAll("[data-close]").forEach((btn) => {
     btn.addEventListener("click", () => closeModal(btn.dataset.close));
   });
@@ -2751,10 +2915,16 @@ function wire() {
 
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
+      const menuOpen = $("menuDrop") && !$("menuDrop").hidden;
+      const cindyOpen = $("cindyModal") && !$("cindyModal").hidden;
+      const propsOpen = $("propsModal") && !$("propsModal").hidden;
       closeMenu();
       closeSleeveMenus();
       closeModal("cindyModal");
       closeModal("propsModal");
+      if (!menuOpen && !cindyOpen && !propsOpen && document.body.classList.contains("ribbon")) {
+        setRibbon(false);
+      }
       return;
     }
     if (isTypingTarget(e.target)) return;
