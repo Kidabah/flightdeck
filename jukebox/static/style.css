@@ -1359,8 +1359,26 @@ body.theme-light .crate-carousel-frame {
 
 .ribbon-expand {
   display: none;
-  font-size: 1rem;
+  font-size: 0.78rem;
   line-height: 1;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 0 0.45rem;
+  min-width: 4.6rem;
+}
+.ribbon-only {
+  display: none;
+  font-size: 0.82rem;
+  letter-spacing: 0.12em;
+  padding: 0.35rem 0.65rem 0.28rem;
+  min-width: auto;
+  height: 2.4rem;
+  box-shadow: none;
+}
+body.ribbon .ribbon-only {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 body.ribbon .ribbon-expand,
 html.ribbon .ribbon-expand {
@@ -1404,6 +1422,8 @@ body.ribbon .ribbon-home:not([hidden]) {
   display: grid;
 }
 body.ribbon .transport {
+  position: fixed;
+  inset: auto 0 0 0;
   border-bottom: 0;
   padding: 0.35rem 0.7rem 0.35rem 0.55rem;
   gap: 0.7rem;

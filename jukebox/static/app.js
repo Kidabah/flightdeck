@@ -4,6 +4,8 @@ const VOL_KEY = "cindy-vinyl-volume";
 const THEME_KEY = "cindy-vinyl-theme";
 const NORM_KEY = "cindy-vinyl-normalize";
 const RIBBON_KEY = "cindy-vinyl-ribbon";
+/** Window taller than this while ribboned (without PiP) → auto-restore full room. */
+const RIBBON_RESTORE_H = 200;
 
 /** Room / deck themes. Amp-rack footage is shared by dark + light; crate photo
  * and page chrome (`room`) differ. `cueOut: null` → fade instead of lift clip. */
@@ -689,9 +691,18 @@ let _pipWindow = null;
 function syncRibbonHome() {
   const home = $("ribbonHome");
   if (!home) return;
-  const ribbon = document.body.classList.contains("ribbon");
-  const short = window.innerHeight < 140;
-  home.hidden = !ribbon || (short && !_pipWindow);
+  // Only when the bar lives in a PiP window — main tab keeps the crates behind it.
+  home.hidden = !_pipWindow;
+}
+
+/** If the user expands/maximises the window, leave ribbon mode automatically. */
+function onRibbonLayoutChange() {
+  syncRibbonHome();
+  if (!document.body.classList.contains("ribbon")) return;
+  if (_pipWindow) return;
+  if (window.innerHeight > RIBBON_RESTORE_H) {
+    setRibbon(false, { skipWindow: true });
+  }
 }
 
 function syncRibbonButtons(on) {
@@ -807,6 +818,7 @@ async function setRibbon(on, { skipWindow = false, skipPip = false } = {}) {
     if (!skipWindow) tryResizeRibbonWindow(false);
   }
   syncRibbonHome();
+  onRibbonLayoutChange();
 }
 
 function toggleRibbon() {
@@ -2250,7 +2262,8 @@ function setPlaying(on) {
 }
 
 async function spin() {
-  $("spinBtn").disabled = true;
+  const btns = [$("spinBtn"), $("ribbonSpinBtn")].filter(Boolean);
+  btns.forEach((b) => { b.disabled = true; });
   setStatus("Digging through the crates…");
   try {
     const album = await api("/api/random-album");
@@ -2259,7 +2272,7 @@ async function spin() {
   } catch (err) {
     setStatus(String(err.message || err).slice(0, 180));
   } finally {
-    $("spinBtn").disabled = false;
+    btns.forEach((b) => { b.disabled = false; });
   }
 }
 
@@ -2726,8 +2739,15 @@ function wire() {
   }
 
   try {
-    if (localStorage.getItem(RIBBON_KEY) === "1") setRibbon(true, { skipPip: true });
-    else syncRibbonButtons(false);
+    const wantRibbon = localStorage.getItem(RIBBON_KEY) === "1";
+    if (wantRibbon && window.innerHeight <= RIBBON_RESTORE_H) {
+      setRibbon(true, { skipPip: true });
+    } else {
+      if (wantRibbon) {
+        try { localStorage.setItem(RIBBON_KEY, "0"); } catch { /* ignore */ }
+      }
+      syncRibbonButtons(false);
+    }
   } catch {
     syncRibbonButtons(false);
   }
@@ -2848,6 +2868,7 @@ function wire() {
     runSearch($("searchInput").value);
   });
 
+  $("ribbonSpinBtn")?.addEventListener("click", () => spin());
   $("ribbonHomeBtn")?.addEventListener("click", () => setRibbon(false));
   $("ribbonBtn")?.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -2882,7 +2903,7 @@ function wire() {
   window.addEventListener("scroll", () => closeSleeveMenus(), { capture: true, passive: true });
   window.addEventListener("resize", () => {
     closeSleeveMenus();
-    syncRibbonHome();
+    onRibbonLayoutChange();
   });
   document.querySelectorAll("[data-close]").forEach((btn) => {
     btn.addEventListener("click", () => closeModal(btn.dataset.close));
