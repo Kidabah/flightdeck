@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-12 Session update (Vinyl — drop Taskbar, playlist in Small)
 
-Latest commit: `pending` — Remove Taskbar; + Playlist in Small player
+Latest commit: `59393e0` — Remove Taskbar; + Playlist in Small player
 
 Latest local/Mora change:
 - Removed Taskbar mode (worth a shot; can’t embed in the OS bar).
