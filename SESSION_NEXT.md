@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-12 Session update (Chop — LuBan-style single connectors)
 
-Latest commit: _(pending)_ — One proportional connector per joint (LuBan-style)
+Latest commit: `1a994e3` — One proportional connector per joint (LuBan-style)
 
 Latest local/Pi change:
 - **Problem:** Add Connectors tiled a dense grid of tiny pegs (~12 mm cap) across every cut face — unprintable on life-size Trixie pieces vs LuBan’s single large interlocking peg.
