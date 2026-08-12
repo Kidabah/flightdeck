@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-12 Session update (Vinyl — Taskbar layout fix)
 
-Latest commit: `pending` — Taskbar fills window as one row
+Latest commit: `0a8b7f6` — Taskbar fills window as one row
 
 Latest local/Mora change:
 - Taskbar mode was leaving a huge empty grey slab (ribbon CSS pinned the bar to the bottom).
