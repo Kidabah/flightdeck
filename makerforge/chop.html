@@ -132,9 +132,9 @@
         </div>
         <div class="dims-row" style="grid-template-columns:auto 1fr;align-items:center;gap:8px;margin-top:10px">
           <label for="numPlanes" style="font-size:12px;color:var(--muted)">Number of planes</label>
-          <input type="number" id="numPlanes" min="1" max="64" step="1" value="1">
+          <input type="number" id="numPlanes" min="1" max="256" step="1" value="1">
         </div>
-        <div class="hint" style="margin-top:4px">More than 1 lays down that many evenly-spaced parallel planes through the whole piece (shown as a preview below), producing planes+1 pieces in one Commit Cut.</div>
+        <div class="hint" style="margin-top:4px">More than 1 lays down that many evenly-spaced parallel planes through the whole piece (shown as a preview below), producing planes+1 pieces in one Commit Cut. Up to 256 planes.</div>
         <label class="check-row" style="margin-top:8px"><input type="checkbox" id="startAtPlane"> Start planes here, not at the piece's edge</label>
         <div class="hint" style="margin-top:4px">Splits off everything on the near side of the current plane as one unsplit piece first, so a low-lying disconnected feature (e.g. a tail near the paws) doesn't land in the first slice.</div>
         <div id="adjustPlaneControls" style="display:none;margin-top:10px">
@@ -143,8 +143,8 @@
             <label for="adjustPlaneIndex" style="font-size:12px;color:var(--muted)">Adjust plane</label>
             <input type="number" id="adjustPlaneIndex" min="1" value="1" step="1">
           </div>
-          <input type="range" id="adjustPlaneSlider" min="0" max="100" value="50" style="margin-top:6px">
-          <div class="hint" style="margin-top:4px">Repositions just this one plane (shown in amber below) along the same direction; the rest stay evenly spaced.</div>
+          <input type="range" id="adjustPlaneSlider" min="0" max="1000" value="500" step="1" style="margin-top:6px">
+          <div class="hint" style="margin-top:4px">Repositions just this one plane (shown in amber below) along the full length of the piece; the rest stay evenly spaced.</div>
           <button class="btn btn-ghost" id="resetAdjustPlaneBtn" style="width:100%;margin-top:6px">Reset This Plane</button>
         </div>
       </div>
@@ -275,6 +275,12 @@ import { meshToStl, downloadBlob, countOpenEdges } from './js/stl.js?v=372';
 const $ = (id) => document.getElementById(id);
 const setStatus = (msg) => { $('status').textContent = msg; };
 const UNIT_TO_MM = { mm: 1, cm: 10, m: 1000, in: 25.4 };
+const MAX_FLEXI_PLANES = 256;
+const FLEXI_SLIDER_MAX = 1000;
+
+function getNumPlanes() {
+  return Math.min(MAX_FLEXI_PLANES, Math.max(1, Math.round(Number($('numPlanes').value) || 1)));
+}
 
 let pieces = [];       // { id, partNumber, name, mesh:{positions,indices}, openEdgeCount }
 let selectedId = null;
@@ -711,7 +717,7 @@ function updatePlaneVisuals() {
   clearExtraPlaneVisuals();
   if (cutMode !== 'straight' && cutMode !== 'angled') return; // Grid/Modular have their own preview or none
   const p = selectedPiece();
-  const planeCount = Math.max(1, Math.round(Number($('numPlanes').value) || 1));
+  const planeCount = getNumPlanes();
   $('adjustPlaneControls').style.display = (p && planeCount > 1) ? '' : 'none';
   if (!p || planeCount <= 1) return; // single plane already shown via planeVisual
 
@@ -948,10 +954,10 @@ function updateRadialVisuals() {
 function adjustPlaneSliderChanged() {
   const p = selectedPiece();
   if (!p) return;
-  const planeCount = Math.max(1, Math.round(Number($('numPlanes').value) || 1));
+  const planeCount = getNumPlanes();
   const idx = Math.min(planeCount, Math.max(1, Math.round(Number($('adjustPlaneIndex').value) || 1)));
   const { point, normal, tMin, tMax } = currentPlaneSpan(p);
-  const pct = Number($('adjustPlaneSlider').value) / 100;
+  const pct = Number($('adjustPlaneSlider').value) / FLEXI_SLIDER_MAX;
   const t = tMin + (tMax - tMin) * pct;
   planeOverrides.set(idx, { t, point: [point[0] + normal[0] * t, point[1] + normal[1] * t, point[2] + normal[2] * t], normal });
   updatePlaneVisuals();
@@ -960,14 +966,14 @@ function adjustPlaneSliderChanged() {
 function loadAdjustPlaneSliderFromIndex() {
   const p = selectedPiece();
   if (!p) return;
-  const planeCount = Math.max(1, Math.round(Number($('numPlanes').value) || 1));
+  const planeCount = getNumPlanes();
   const idx = Math.min(planeCount, Math.max(1, Math.round(Number($('adjustPlaneIndex').value) || 1)));
   $('adjustPlaneIndex').value = idx;
   const { tMin, tMax } = currentPlaneSpan(p);
   const override = planeOverrides.get(idx);
   const t = override ? override.t : tMin + ((tMax - tMin) * idx) / (planeCount + 1);
-  const pct = tMax > tMin ? ((t - tMin) / (tMax - tMin)) * 100 : 50;
-  $('adjustPlaneSlider').value = Math.min(100, Math.max(0, pct));
+  const pct = tMax > tMin ? ((t - tMin) / (tMax - tMin)) * FLEXI_SLIDER_MAX : FLEXI_SLIDER_MAX / 2;
+  $('adjustPlaneSlider').value = Math.min(FLEXI_SLIDER_MAX, Math.max(0, pct));
   updatePlaneVisuals();
 }
 
@@ -1902,7 +1908,12 @@ for (const axis of ['x', 'y', 'z']) {
 ['radialCount', 'radialStartAngle', 'radialCenterU', 'radialCenterV'].forEach((id) => {
   $(id).addEventListener('input', updateRadialVisuals);
 });
-$('numPlanes').addEventListener('input', () => { planeOverrides.clear(); updatePlaneVisuals(); });
+$('numPlanes').addEventListener('input', () => {
+  const raw = Number($('numPlanes').value);
+  if (Number.isFinite(raw) && raw > MAX_FLEXI_PLANES) $('numPlanes').value = MAX_FLEXI_PLANES;
+  planeOverrides.clear();
+  updatePlaneVisuals();
+});
 $('startAtPlane').addEventListener('change', () => { planeOverrides.clear(); updatePlaneVisuals(); });
 // Changing a count changes that axis's spacing/plane count, so its own
 // manual overrides no longer line up -- clear just that axis, matching how
@@ -1916,7 +1927,7 @@ $('startAtPlane').addEventListener('change', () => { planeOverrides.clear(); upd
 $('adjustPlaneIndex').addEventListener('input', loadAdjustPlaneSliderFromIndex);
 $('adjustPlaneSlider').addEventListener('input', adjustPlaneSliderChanged);
 $('resetAdjustPlaneBtn').addEventListener('click', () => {
-  const planeCount = Math.max(1, Math.round(Number($('numPlanes').value) || 1));
+  const planeCount = getNumPlanes();
   const idx = Math.min(planeCount, Math.max(1, Math.round(Number($('adjustPlaneIndex').value) || 1)));
   planeOverrides.delete(idx);
   loadAdjustPlaneSliderFromIndex();
@@ -1984,7 +1995,7 @@ async function commitPlaneCut() {
   const piece = selectedPiece();
   if (!piece) return;
   const { point, normal } = currentPlane();
-  const numPlanes = Math.max(1, Math.round(Number($('numPlanes').value) || 1));
+  const numPlanes = getNumPlanes();
   setStatus('Cutting…');
   $('commitCutBtn').disabled = true;
 

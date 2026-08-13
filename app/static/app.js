@@ -394,6 +394,7 @@ let _onAbout = false;           // true while about page is active
 let _onMakerWorld = false;      // true while MakerWorld page is active
 let _onMakerDeck = false;       // true while MakerDeck embed is active
 let _onPainter = false;         // true while STL Painter embed is active
+let _onChop = false;            // true while Chop embed is active
 let _makerWorldUrl = '';
 let _makerWorldResolved = null;
 let _makerWorldRecent = [];
@@ -908,6 +909,7 @@ function _commandStaticItems() {
     ['MakerWorld', '#/makerworld', 'Paste MakerWorld links and import plates into Print Vault'],
     ['MakerDeck', '#/makerdeck', 'Design boxes, pencil cases, lids — export STL and 3MF'],
     ['STL Painter', '#/painter', 'Paint STL/3MF faces and export coloured 3MF'],
+    ['Chop', '#/chop', 'Slice STLs into printable pieces with Flexi Cut'],
     ['Flight Manual', '#/manual', 'Setup, recovery, Bambu and walkthrough notes'],
     ['About Flightdeck', '#/about', 'Origin story, credits, and release notes'],
     ['Settings', '#/settings', 'Configuration'],
@@ -4075,6 +4077,7 @@ function parseRoute() {
   if (hash === '#/makerworld') return { view: 'makerworld' };
   if (hash === '#/makerdeck') return { view: 'makerdeck' };
   if (hash === '#/painter') return { view: 'painter' };
+  if (hash === '#/chop') return { view: 'chop' };
   if (hash === '#/manual') return { view: 'manual' };
   if (hash === '#/about') return { view: 'about' };
   const settingsMatch = hash.match(/^#\/settings\/([^/]+)/);
@@ -4110,6 +4113,13 @@ function _ensurePainterFrame() {
   const frame = document.getElementById('painter-frame');
   if (!frame || frame.dataset.loaded === '1') return;
   frame.src = '/makerdeck/painter.html';
+  frame.dataset.loaded = '1';
+}
+
+function _ensureChopFrame() {
+  const frame = document.getElementById('chop-frame');
+  if (!frame || frame.dataset.loaded === '1') return;
+  frame.src = '/makerdeck/chop.html';
   frame.dataset.loaded = '1';
 }
 
@@ -4167,6 +4177,7 @@ function router() {
   _onMakerWorld = route.view === 'makerworld';
   _onMakerDeck = route.view === 'makerdeck';
   _onPainter = route.view === 'painter';
+  _onChop = route.view === 'chop';
   if (route.view !== 'spool') _renderedSpoolDetailId = null;
 
   if (route.view !== 'settings' && wasOnSettings) {
@@ -4196,6 +4207,7 @@ function router() {
   document.getElementById('view-makerworld').hidden = route.view !== 'makerworld';
   document.getElementById('view-makerdeck').hidden = route.view !== 'makerdeck';
   document.getElementById('view-painter').hidden  = route.view !== 'painter';
+  document.getElementById('view-chop').hidden     = route.view !== 'chop';
   document.getElementById('view-manual').hidden    = route.view !== 'manual';
   document.getElementById('view-about').hidden     = route.view !== 'about';
 
@@ -4218,6 +4230,7 @@ function router() {
       (route.view === 'makerworld' && href === '#/makerworld') ||
       (route.view === 'makerdeck' && href === '#/makerdeck') ||
       (route.view === 'painter'  && href === '#/painter') ||
+      (route.view === 'chop'     && href === '#/chop') ||
       (route.view === 'manual'   && href === '#/manual') ||
       (route.view === 'about'    && href === '#/about') ||
       (route.view === 'settings' && (
@@ -4256,6 +4269,7 @@ function router() {
   if (route.view === 'makerworld' && !wasOnMakerWorld) renderMakerWorldView();
   if (route.view === 'makerdeck') _ensureMakerDeckFrame();
   if (route.view === 'painter') _ensurePainterFrame();
+  if (route.view === 'chop') _ensureChopFrame();
   if (route.view === 'manual' && !wasOnManual) renderManualView();
   if (route.view === 'about' && !wasOnAbout) renderAboutView();
 }
@@ -4332,6 +4346,7 @@ function buildTabs(printers) {
       `<a class="tab" href="#/makerworld">MakerWorld</a>`,
       `<a class="tab tab-makerdeck" href="#/makerdeck">MakerDeck</a>`,
       `<a class="tab tab-painter" href="#/painter">STL Painter</a>`,
+      `<a class="tab tab-chop" href="#/chop">Chop</a>`,
       `<a class="tab" href="#/manual">Flight Manual</a>`,
       `<a class="tab" href="#/about">About</a>`,
       `<div class="tab-flyout">

@@ -136,19 +136,22 @@ body.sidebar-resizing {
 }
 
 #view-makerdeck,
-#view-painter {
+#view-painter,
+#view-chop {
   overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 
 #view-makerdeck[hidden],
-#view-painter[hidden] {
+#view-painter[hidden],
+#view-chop[hidden] {
   display: none !important;
 }
 
 .makerdeck-page,
-.painter-page {
+.painter-page,
+.chop-page {
   flex: 1;
   min-height: 0;
   display: flex;
@@ -157,7 +160,8 @@ body.sidebar-resizing {
 }
 
 #makerdeck-frame,
-#painter-frame {
+#painter-frame,
+#chop-frame {
   flex: 1;
   width: 100%;
   min-height: 0;
@@ -23205,6 +23209,13 @@ select optgroup {
 .tab.tab-painter:hover { color: #fcd34d; }
 .tab.tab-painter.active { color: #111827; background: #f59e0b; }
 .tab.tab-painter.active::before { background: #111827; }
+
+/* Chop sidebar tab — teal, matching the cut-plane preview */
+.tab.tab-chop { color: #2dd4bf; font-weight: 600; }
+.tab.tab-chop::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #14b8a6; margin-right: 8px; vertical-align: middle; }
+.tab.tab-chop:hover { color: #5eead4; }
+.tab.tab-chop.active { color: #042f2e; background: #2dd4bf; }
+.tab.tab-chop.active::before { background: #042f2e; }
 
 /* ── Colour Match (Spools) ─────────────────────────────────────────────── */
 .spool-page-colour-mode .spool-intel-panel,
