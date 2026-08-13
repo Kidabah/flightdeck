@@ -6,6 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-13 Session update (Painter — Flip + Chop socket seating)
+
+Latest commit: `482d294` — Painter Flip; seat on cut face not socket
+
+Latest local/Pi change:
+- Chop connector sockets were fooling Painter's "lay on bed" heuristic (minY = pocket floor → Trix sat on her snout). Now scores the dominant flat instead.
+- **Flip** / Spin 90° / Roll 90° in Painter (toolbar + Model tab) so you can turn a model over.
+- Hard refresh (`app.js?v=654`, Painter **b577** / `painter.html?v=577`). Reload Trix if she is already open.
+
+Previous:
+- Chop Flexi range + own menu (`f654a16`).
+
+---
+
 ## 2026-08-13 Session update (Chop — Flexi range + own menu)
 
 Latest commit: `f654a16` — Chop Flexi Cut 256 planes; own sidebar tab

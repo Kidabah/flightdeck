@@ -4,6 +4,16 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b577 — Painter Flip + Chop socket seating
+**Date:** 2026-08-13
+
+### MakerDeck
+- Auto-orient no longer treats a recessed Chop connector as the bed — it scores the dominant flat so a cut neck lands down, not the snout.
+- **Flip over**, **Spin 90°**, **Roll 90°** on the Model tab and a toolbar **Flip** button.
+- Hard refresh Painter **b577**.
+
+---
+
 ## Chop — Flexi range + Flightdeck tab
 **Date:** 2026-08-13
 
