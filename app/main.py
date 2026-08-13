@@ -8742,6 +8742,60 @@ def _timelapse_path_from_record(record: dict) -> Path:
         raise HTTPException(status_code=404, detail="timelapse path unavailable") from exc
 
 
+def _mp4_needs_faststart(path: Path) -> bool:
+    """True when moov is after mdat — browsers must download the whole file before play."""
+    if path.suffix.lower() != ".mp4" or not path.is_file():
+        return False
+    try:
+        size = path.stat().st_size
+        peek = min(size, 256 * 1024)
+        with path.open("rb") as fh:
+            head = fh.read(peek)
+        moov = head.find(b"moov")
+        mdat = head.find(b"mdat")
+        if moov >= 0 and (mdat < 0 or moov < mdat):
+            return False
+        return True
+    except OSError:
+        return False
+
+
+async def _faststart_timelapse(path: Path) -> None:
+    """Rewrite MP4 so the index is at the front. Copy-only; skip if already faststart."""
+    if not _mp4_needs_faststart(path):
+        return
+    tmp = path.with_name(path.stem + ".faststart" + path.suffix)
+    proc = await asyncio.create_subprocess_exec(
+        "ffmpeg",
+        "-y",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-i",
+        str(path),
+        "-c",
+        "copy",
+        "-movflags",
+        "+faststart",
+        str(tmp),
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    _, err = await proc.communicate()
+    if proc.returncode == 0 and tmp.is_file() and tmp.stat().st_size > 1024:
+        tmp.replace(path)
+        return
+    try:
+        tmp.unlink(missing_ok=True)
+    except OSError:
+        pass
+    log.warning(
+        "flight recorder faststart remux failed for %s: %s",
+        path.name,
+        (err or b"").decode("utf-8", "ignore").strip()[:240],
+    )
+
+
 def _timelapse_realtime_factor() -> float:
     interval = float(os.getenv("FLIGHTDECK_TIMELAPSE_INTERVAL", "8"))
     fps = float(os.getenv("FLIGHTDECK_TIMELAPSE_FPS", "30"))
@@ -9226,6 +9280,7 @@ async def _save_and_attach_timelapse(
         raise HTTPException(status_code=422, detail="recorder clip type is unsupported")
     out_path = _timelapse_safe_output_path(printer_id, print_id, item.get("filename") or "print", suffix)
     out_path.write_bytes(data)
+    await _faststart_timelapse(out_path)
     if not db.attach_print_timelapse(print_id, out_path, source=source):
         raise HTTPException(status_code=404, detail="print not found")
     detail = candidate.get("path") or candidate.get("name") or out_path.name
@@ -9446,6 +9501,7 @@ async def upload_print_timelapse(printer_id: str, print_id: int, file: UploadFil
         except OSError:
             pass
         raise HTTPException(status_code=400, detail="empty timelapse upload")
+    await _faststart_timelapse(out_path)
     if not db.attach_print_timelapse(print_id, out_path, source="upload"):
         raise HTTPException(status_code=404, detail="print not found")
     db.log_decision(printer_id, "flight_recorder_attached", f"Attached timelapse {out_path.name}", print_id=print_id)

@@ -4154,6 +4154,10 @@ function router() {
   if (route.view !== 'filament') {
     _fleetFilamentSignature = '';
   }
+  if (route.view !== 'memory') _teardownMediaIn(document.getElementById('memory-passport'));
+  if (route.view !== 'printer' || route.subtab !== 'history') {
+    _teardownMediaIn(document.getElementById('history-day-detail'));
+  }
   const wasOnSettings = _onSettings;
   const wasOnFailures = _onFailures;
   const wasOnSpools = _onSpools;
@@ -7264,9 +7268,22 @@ function _passportSection(title, bodyHtml, { open = false, extraClass = '' } = {
   </details>`;
 }
 
+function _teardownMediaIn(el) {
+  if (!el) return;
+  el.querySelectorAll('video, audio').forEach((media) => {
+    try {
+      media.pause();
+      media.removeAttribute('src');
+      media.querySelectorAll('source').forEach((s) => s.remove());
+      media.load();
+    } catch {}
+  });
+}
+
 function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
   const el = targetEl || document.getElementById('history-day-detail');
   if (!el) return;
+  _teardownMediaIn(el);
 
   const raw = print.subtask_name || print.filename.replace(/.*[/\\]/, '');
   const name = raw.replace(/\.gcode$/i, '');
@@ -7334,7 +7351,7 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
       </div>` : ''}
     </div>
     ${print.has_timelapse
-      ? `<video class="flight-recorder-video${print.timelapse_source === 'flightdeck-native' ? ' flight-recorder-timelapse' : ''}${recorderNeedsUpgrade ? ' flight-recorder-low-coverage' : ''}" src="${recorderUrl}" controls preload="metadata"${print.timelapse_source === 'flightdeck-native' ? ' data-timelapse-native="1"' : ''}></video>`
+      ? `<video class="flight-recorder-video${print.timelapse_source === 'flightdeck-native' ? ' flight-recorder-timelapse' : ''}${recorderNeedsUpgrade ? ' flight-recorder-low-coverage' : ''}" src="${recorderUrl}" controls preload="none" playsinline${print.timelapse_source === 'flightdeck-native' ? ' data-timelapse-native="1"' : ''}></video>`
       : `<div class="flight-recorder-empty">No recorder clip attached yet.</div>`}
     ${recorderDebugHtml}
   </div>` : '';
@@ -8221,6 +8238,7 @@ function _memorySetHash(page) {
 async function _memoryOpenPassport(printId) {
   const detail = document.getElementById('memory-passport');
   if (!detail) return;
+  _teardownMediaIn(detail);
   detail.innerHTML = '<div class="history-day-loading">...</div>';
   try {
     const r = await fetch(`/api/print-memory/${printId}`);
@@ -8243,6 +8261,7 @@ async function _memoryOpenPassport(printId) {
 async function renderPrintMemoryView() {
   const page = document.getElementById('memory-page');
   if (!page) return;
+  _teardownMediaIn(page);
   const params = Object.fromEntries(_routeParams('#/memory').entries());
   const apiParams = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
