@@ -4,6 +4,15 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## Chop — Flexi range + Flightdeck tab
+**Date:** 2026-08-13
+
+### MakerDeck
+- Flexi Cut / Number of planes max **256** (was 64). Adjust-plane slider uses 0–1000 so you can nudge a plane along the full piece more precisely.
+- Chop has its own Flightdeck sidebar tab (`#/chop` → `/makerdeck/chop.html`), same as STL Painter. MakerDeck nav still links to it. Flightdeck commit `f654a16`.
+
+---
+
 ## Chop — tidy UI, finish by default
 **Date:** 2026-08-12
 

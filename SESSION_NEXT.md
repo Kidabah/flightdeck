@@ -6,6 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-13 Session update (Chop — Flexi range + own menu)
+
+Latest commit: `f654a16` — Chop Flexi Cut 256 planes; own sidebar tab
+
+Latest local/Pi change:
+- Flexi Cut plane count max **64 → 256**; adjust-plane slider is 10× finer (full piece length).
+- **Chop** is now its own Flightdeck sidebar tab (`#/chop`), same iframe pattern as STL Painter. Still reachable from MakerDeck too.
+- Hard refresh (`app.js?v=653` / `style.css?v=501`). Chop HTML is served fresh on first open of the tab.
+
+Previous:
+- Vinyl — drop Taskbar, playlist in Small (`59393e0`).
+
+---
+
 ## 2026-08-12 Session update (Vinyl — drop Taskbar, playlist in Small)
 
 Latest commit: `59393e0` — Remove Taskbar; + Playlist in Small player
