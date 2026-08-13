@@ -6,6 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-13 Session update (Flight Recorder — Windows lockup)
+
+Latest commit: `68f3635` — Don't auto-decode Bambu clips in Flight Recorder
+
+Latest local/Pi change:
+- Opening a print passport auto-loaded the Flight Recorder video (`preload=metadata`). Bambu harvested MP4s keep `moov` at the **end**, so the browser downloads the whole clip and hardware-decodes it immediately — that can freeze/crash Windows (GPU TDR).
+- Videos now `preload="none"` (click play to load), previous clip is aborted when switching prints, and new harvests/uploads are remuxed with faststart.
+- Hard refresh (`app.js?v=655`). Backend restart required.
+
+Previous:
+- Painter Flip + Chop socket seating (`482d294`).
+
+---
+
 ## 2026-08-13 Session update (Painter — Flip + Chop socket seating)
 
 Latest commit: `482d294` — Painter Flip; seat on cut face not socket
