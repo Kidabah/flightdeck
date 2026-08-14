@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-14 Session update (Projects — Bambu Save vs Export)
 
-Latest commit: pending — Detect Bambu project archives vs plate .gcode.3mf exports
+Latest commit: `cf6bdfd` — Explain Bambu Save Project vs plate .gcode.3mf exports in Projects.
 
 Latest local/Pi change:
 - Bambu **Save Project** `.3mf` keeps plate previews but empties `slice_info` — Flightdeck now labels that clearly instead of “Not sliced yet”.
