@@ -63,6 +63,7 @@ _cam_proxies: dict[str, BambuCameraProxy] = {}  # printer_id → live RTSP proxy
 _native_recorders: dict[str, PrintNativeRecorder] = {}  # printer_id → active camera capture
 _calibration_sessions: dict[str, dict] = {}  # printer_id → active calibration orchestration
 _ws_clients: set[WebSocket] = set()
+_project_slice_jobs: dict[str, dict] = {}  # vault-relative path → slice job status
 _broadcast_task: asyncio.Task | None = None
 _ntfy: NtfyConfig | None = None
 _prev_states: dict[str, str] = {}  # printer_id → last known state
@@ -3220,39 +3221,47 @@ async def open_file_in_orca(body: SlicerOpenRequest):
     return result
 
 
-@app.post("/api/slicer/run")
-async def run_slice_from_file_desk(body: SliceRunRequest):
-    printer_id = body.printer_id.strip()
-    source_id = body.source_id.strip()
-    source_path = body.path.strip().lstrip("/")
+async def _slice_model_to_bytes(
+    *,
+    filename: str,
+    data: bytes,
+    printer_id: str,
+    output_filename: str,
+    all_plates: bool = False,
+    plate: str = "1",
+    bed_type: str = "Textured PEI Plate",
+    support_mode: str = "profile",
+    brim_mode: str = "profile",
+) -> tuple[str, bytes, dict, dict]:
+    """Slice a source model. Returns (sliced_name, sliced_data, profiles, slice_options)."""
     target_kind = _printer_kind(printer_id)
     if target_kind is None:
         raise HTTPException(status_code=404, detail="Target printer not found")
-    filename, data = await _read_file_desk_source(source_id, source_path)
-    ext = _queue_file_extension(filename)
-    if filename.lower().endswith(".gcode.3mf") or ext not in _SOURCE_MODEL_EXT:
-        raise HTTPException(status_code=422, detail="Only source model files can be sliced")
-
     settings = db.get_all_settings()
-    profiles = _slice_request_profiles(body, settings, printer_id)
+    profiles = {
+        "printer": (settings.get(_slicer_profile_key(printer_id, "printer"), "") or "").strip(),
+        "process": (settings.get(_slicer_profile_key(printer_id, "process"), "") or "").strip(),
+        "filament": (settings.get(_slicer_profile_key(printer_id, "filament"), "") or "").strip(),
+    }
     missing_profiles = [label for label, value in profiles.items() if not str(value or "").strip()]
     if missing_profiles:
         raise HTTPException(status_code=422, detail=f"Set slicer defaults for {', '.join(missing_profiles)} first")
 
     output_kind = "gcode.3mf" if target_kind == "bambu" else "gcode"
-    output_ext = ".gcode.3mf" if output_kind == "gcode.3mf" else ".gcode"
-    base_name = _file_archive_key(filename) or "sliced_model"
-    output_filename = (body.output_filename or f"{base_name}_{printer_id}{output_ext}").strip()
     worker_url = (settings.get("orcaslicer_worker_url") or "").strip().rstrip("/")
     sidecar_url = (settings.get("orcaslicer_api_url") or "").strip().rstrip("/")
     target = _printer_meta(printer_id) or {}
-    target_name = " ".join(str(v or "") for v in ((target or {}).get("model_name"), (target or {}).get("custom_name"), profiles["printer"]))
+    target_name = " ".join(
+        str(v or "") for v in ((target or {}).get("model_name"), (target or {}).get("custom_name"), profiles["printer"])
+    )
     arrange = target_kind == "bambu" and ("h2d" in target_name.lower() or filename.lower().endswith(".3mf"))
-    slice_options = _slice_option_summary(body.bed_type, body.support_mode, body.brim_mode)
+    slice_options = _slice_option_summary(bed_type, support_mode, brim_mode)
     h2d_loose_mesh = _h2d_loose_mesh_requires_sidecar(filename, profiles)
     if h2d_loose_mesh and not sidecar_url:
         raise HTTPException(status_code=422, detail=_h2d_sidecar_required_message())
 
+    sliced_name = output_filename
+    sliced_data = b""
     if worker_url:
         form = {
             "printer_profile": profiles["printer"],
@@ -3260,8 +3269,8 @@ async def run_slice_from_file_desk(body: SliceRunRequest):
             "filament_profile": profiles["filament"],
             "output_kind": output_kind,
             "output_filename": output_filename,
-            "plate": body.plate or "1",
-            "all_plates": str(bool(body.all_plates)).lower(),
+            "plate": plate or "1",
+            "all_plates": str(bool(all_plates)).lower(),
             "sidecar_url": sidecar_url,
             "arrange": str(bool(arrange)).lower(),
             "bed_type": slice_options["bed_type"],
@@ -3285,8 +3294,8 @@ async def run_slice_from_file_desk(body: SliceRunRequest):
                 profiles=profiles,
                 output_kind=output_kind,
                 output_filename=output_filename,
-                plate=body.plate or "1",
-                all_plates=bool(body.all_plates),
+                plate=plate or "1",
+                all_plates=bool(all_plates),
                 arrange=arrange,
                 bed_type=slice_options["bed_type"],
                 support_mode=slice_options["support_mode"],
@@ -3311,8 +3320,8 @@ async def run_slice_from_file_desk(body: SliceRunRequest):
             profiles=profiles,
             output_kind=output_kind,
             output_filename=output_filename,
-            plate=body.plate or "1",
-            all_plates=bool(body.all_plates),
+            plate=plate or "1",
+            all_plates=bool(all_plates),
             arrange=arrange,
             bed_type=slice_options["bed_type"],
             support_mode=slice_options["support_mode"],
@@ -3326,15 +3335,46 @@ async def run_slice_from_file_desk(body: SliceRunRequest):
             profiles=profiles,
             output_kind=output_kind,
             output_filename=output_filename,
-            plate=body.plate or "1",
-            all_plates=bool(body.all_plates),
+            plate=plate or "1",
+            all_plates=bool(all_plates),
             support_mode=slice_options["support_mode"],
             brim_mode=slice_options["brim_mode"],
         )
+    _enforce_file_size(len(sliced_data), label="Sliced output")
+    return sliced_name, sliced_data, profiles, slice_options
+
+
+@app.post("/api/slicer/run")
+async def run_slice_from_file_desk(body: SliceRunRequest):
+    printer_id = body.printer_id.strip()
+    source_id = body.source_id.strip()
+    source_path = body.path.strip().lstrip("/")
+    target_kind = _printer_kind(printer_id)
+    if target_kind is None:
+        raise HTTPException(status_code=404, detail="Target printer not found")
+    filename, data = await _read_file_desk_source(source_id, source_path)
+    ext = _queue_file_extension(filename)
+    if filename.lower().endswith(".gcode.3mf") or ext not in _SOURCE_MODEL_EXT:
+        raise HTTPException(status_code=422, detail="Only source model files can be sliced")
+
+    output_kind = "gcode.3mf" if target_kind == "bambu" else "gcode"
+    output_ext = ".gcode.3mf" if output_kind == "gcode.3mf" else ".gcode"
+    base_name = _file_archive_key(filename) or "sliced_model"
+    output_filename = (body.output_filename or f"{base_name}_{printer_id}{output_ext}").strip()
+    sliced_name, sliced_data, profiles, slice_options = await _slice_model_to_bytes(
+        filename=filename,
+        data=data,
+        printer_id=printer_id,
+        output_filename=output_filename,
+        all_plates=bool(body.all_plates),
+        plate=body.plate or "1",
+        bed_type=body.bed_type,
+        support_mode=body.support_mode,
+        brim_mode=body.brim_mode,
+    )
 
     library_root = _print_library_path().resolve()
     library_root.mkdir(parents=True, exist_ok=True)
-    _enforce_file_size(len(sliced_data), label="Sliced output")
     dest = _unique_library_destination(library_root, sliced_name or output_filename)
     dest.write_bytes(sliced_data)
     stat = dest.stat()
@@ -3350,7 +3390,6 @@ async def run_slice_from_file_desk(body: SliceRunRequest):
     db.log_decision(printer_id, "slicer_run", json.dumps({
         "source": filename,
         "output": dest.name,
-        "worker": worker_url or "local",
         "profiles": profiles,
         "slice_options": slice_options,
     }))
@@ -5283,6 +5322,183 @@ def _adopt_orphan_project_folders() -> None:
         db.create_project(child.name, rel, notes="Recovered from Print Vault folder")
 
 
+def _project_source_needs_slice(filename: str, meta: Optional[dict] = None) -> bool:
+    name = str(filename or "").lower()
+    if name.endswith(".gcode.3mf") or name.endswith(".gcode.gz") or name.endswith(".gcode") or name.endswith(".ufp"):
+        return False
+    ext = _queue_file_extension(filename)
+    if ext in {".step", ".stp"}:
+        return False
+    if ext not in _SOURCE_MODEL_EXT:
+        return False
+    return not bool((meta or {}).get("sliced"))
+
+
+def _guess_3mf_printer_blob(data: bytes) -> str:
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as zf:
+            for name in zf.namelist():
+                n = name.replace("\\", "/").lower()
+                if n.endswith("project_settings.config"):
+                    return zf.read(name).decode("utf-8", "ignore")[:8000]
+    except Exception:
+        return ""
+    return ""
+
+
+def _project_slice_targets() -> list[dict]:
+    settings = db.get_all_settings()
+    rows = []
+    for meta in _costing_printer_meta():
+        pid = str(meta.get("id") or "")
+        if not pid:
+            continue
+        profiles = {
+            "printer": (settings.get(_slicer_profile_key(pid, "printer"), "") or "").strip(),
+            "process": (settings.get(_slicer_profile_key(pid, "process"), "") or "").strip(),
+            "filament": (settings.get(_slicer_profile_key(pid, "filament"), "") or "").strip(),
+        }
+        rows.append({
+            "id": pid,
+            "label": str(meta.get("custom_name") or meta.get("model_name") or pid),
+            "model_name": str(meta.get("model_name") or ""),
+            "kind": str(meta.get("kind") or ""),
+            "has_defaults": all(profiles.values()),
+        })
+    rows.sort(key=lambda r: (not r["has_defaults"], 0 if r["kind"] == "bambu" else 1, r["label"].lower()))
+    return rows
+
+
+def _pick_project_slice_printer(row: dict, filename: str, data: bytes) -> dict:
+    targets = [t for t in _project_slice_targets() if t.get("has_defaults")]
+    if not targets:
+        raise HTTPException(
+            status_code=422,
+            detail="Set slicer defaults on a printer in Settings → Slicer before auto-quoting unsliced files.",
+        )
+    wanted = str(row.get("quote_printer_id") or "").strip()
+    if wanted:
+        match = next((t for t in targets if t["id"] == wanted), None)
+        if match:
+            return match
+    blob = _guess_3mf_printer_blob(data).upper() if str(filename or "").lower().endswith(".3mf") else ""
+    compact_blob = re.sub(r"[^A-Z0-9]+", "", blob)
+    if compact_blob:
+        scored = []
+        for t in targets:
+            model = re.sub(r"[^A-Z0-9]+", "", str(t.get("model_name") or "").upper())
+            if model and model in compact_blob:
+                scored.append(t)
+        if scored:
+            return scored[0]
+    bambu = next((t for t in targets if t.get("kind") == "bambu"), None)
+    return bambu or targets[0]
+
+
+def _project_matching_slice(folder: Path, source_name: str) -> Optional[str]:
+    key = _file_archive_key(source_name)
+    if not key or not folder.exists():
+        return None
+    try:
+        names = [p.name for p in folder.iterdir() if p.is_file()]
+    except OSError:
+        return None
+    for name in names:
+        lower = name.lower()
+        if name == source_name:
+            continue
+        if not (lower.endswith(".gcode.3mf") or lower.endswith(".gcode") or lower.endswith(".gcode.gz")):
+            continue
+        other = _file_archive_key(name)
+        if other == key or other.startswith(f"{key}_") or key.startswith(f"{other}_"):
+            return name
+    return None
+
+
+def _http_error_detail(exc: Exception) -> str:
+    if isinstance(exc, HTTPException):
+        detail = exc.detail
+        if isinstance(detail, str) and detail.strip():
+            return detail.strip()
+        return str(detail)
+    return str(exc).strip() or "Slice failed"
+
+
+def _queue_project_file_slice(project_id: int, dest: Path, row: dict, data: bytes) -> None:
+    root = _print_library_path().resolve()
+    rel = dest.relative_to(root).as_posix()
+    existing = _project_slice_jobs.get(rel) or {}
+    if existing.get("status") == "slicing":
+        return
+    meta = slice_meta.parse_slice_totals(dest.name, data)
+    if not _project_source_needs_slice(dest.name, meta):
+        return
+    matched = _project_matching_slice(dest.parent, dest.name)
+    if matched:
+        _project_slice_jobs[rel] = {
+            "status": "sliced_source",
+            "status_detail": f"Using existing sliced file {matched}",
+            "output": matched,
+            "project_id": project_id,
+        }
+        return
+    _project_slice_jobs[rel] = {
+        "status": "slicing",
+        "status_detail": "Slicing for quote…",
+        "project_id": project_id,
+        "source": dest.name,
+    }
+    asyncio.create_task(_run_project_file_slice(project_id, dest, rel, row, data))
+
+
+async def _run_project_file_slice(project_id: int, dest: Path, rel: str, row: dict, data: bytes) -> None:
+    try:
+        target = _pick_project_slice_printer(row, dest.name, data)
+        printer_id = target["id"]
+        kind = _printer_kind(printer_id) or "bambu"
+        output_ext = ".gcode.3mf" if kind == "bambu" else ".gcode"
+        output_name = f"{_file_archive_key(dest.name) or dest.stem}_{printer_id}{output_ext}"
+        _project_slice_jobs[rel] = {
+            "status": "slicing",
+            "status_detail": f"Slicing on {target.get('label') or printer_id}…",
+            "project_id": project_id,
+            "printer_id": printer_id,
+            "source": dest.name,
+        }
+        sliced_name, sliced_data, profiles, slice_options = await _slice_model_to_bytes(
+            filename=dest.name,
+            data=data,
+            printer_id=printer_id,
+            output_filename=output_name,
+            all_plates=dest.name.lower().endswith(".3mf") and not dest.name.lower().endswith(".gcode.3mf"),
+        )
+        out_path = dest.parent / (sliced_name or output_name)
+        out_path.write_bytes(sliced_data)
+        db.touch_project(project_id)
+        db.log_decision(printer_id, "project_slice", json.dumps({
+            "project_id": project_id,
+            "source": dest.name,
+            "output": out_path.name,
+            "profiles": profiles,
+            "slice_options": slice_options,
+        }))
+        _project_slice_jobs[rel] = {
+            "status": "sliced_source",
+            "status_detail": f"Quoted from {out_path.name}",
+            "output": out_path.name,
+            "project_id": project_id,
+            "printer_id": printer_id,
+        }
+    except Exception as exc:
+        log.exception("Project auto-slice failed for %s", dest)
+        _project_slice_jobs[rel] = {
+            "status": "error",
+            "status_detail": _http_error_detail(exc),
+            "project_id": project_id,
+            "source": dest.name,
+        }
+
+
 def _scan_project_files(vault_folder: str) -> list[dict]:
     folder = _project_dir(vault_folder, missing_ok=True)
     if not folder.exists() or not folder.is_dir():
@@ -5299,6 +5515,9 @@ def _scan_project_files(vault_folder: str) -> list[dict]:
             continue
         meta = slice_meta.parse_slice_totals(path.name, data)
         rel = path.relative_to(root).as_posix()
+        job = _project_slice_jobs.get(rel) or {}
+        status = job.get("status") or meta.get("status") or ("sliced" if meta.get("sliced") else "not_sliced")
+        detail = job.get("status_detail") or meta.get("status_detail") or ("Sliced" if meta.get("sliced") else "Not sliced yet")
         rows.append({
             "name": path.name,
             "path": rel,
@@ -5310,8 +5529,9 @@ def _scan_project_files(vault_folder: str) -> list[dict]:
             "grams": meta.get("grams"),
             "material": meta.get("material"),
             "plate_count": int(meta.get("plate_count") or 0),
-            "status": meta.get("status") or ("sliced" if meta.get("sliced") else "not_sliced"),
-            "status_detail": meta.get("status_detail") or ("Sliced" if meta.get("sliced") else "Not sliced yet"),
+            "status": status,
+            "status_detail": detail,
+            "output": job.get("output"),
         })
         if len(rows) >= 80:
             break
@@ -5331,10 +5551,12 @@ def _project_quote(files: list[dict], parallel_printers: int = 1) -> dict:
     fleet = db.quote_print_cost(hours=printer_hours, grams=grams, material=material)
     elapsed = db.quote_print_cost(hours=elapsed_hours, grams=grams, material=material)
     sliced = sum(1 for f in files if f.get("sliced"))
+    slicing = sum(1 for f in files if f.get("status") == "slicing")
     return {
         "file_count": len(files),
         "sliced_count": sliced,
         "unsliced_count": len(files) - sliced,
+        "slicing_count": slicing,
         "grams": round(grams, 1) if grams else None,
         "printer_hours": round(printer_hours, 2),
         "elapsed_hours": round(elapsed_hours, 2),
@@ -5365,7 +5587,14 @@ def _project_quote(files: list[dict], parallel_printers: int = 1) -> dict:
 def _project_payload(row: dict) -> dict:
     files = _scan_project_files(row.get("vault_folder") or "")
     quote = _project_quote(files, row.get("parallel_printers") or 1)
-    return {**row, "files": files, "quote": quote}
+    slicing = any(f.get("status") == "slicing" for f in files)
+    return {
+        **row,
+        "files": files,
+        "quote": quote,
+        "slicing": slicing,
+        "slice_targets": _project_slice_targets(),
+    }
 
 
 class ProjectCreateRequest(BaseModel):
@@ -5378,6 +5607,7 @@ class ProjectUpdateRequest(BaseModel):
     name: Optional[str] = None
     notes: Optional[str] = None
     parallel_printers: Optional[int] = None
+    quote_printer_id: Optional[str] = None
 
 
 @app.get("/api/projects")
@@ -5391,6 +5621,7 @@ async def api_list_projects():
             **row,
             "file_count": quote["file_count"],
             "sliced_count": quote["sliced_count"],
+            "slicing": quote.get("slicing_count", 0) > 0,
             "quote": quote,
         })
     return {"items": rows}
@@ -5426,6 +5657,7 @@ async def api_update_project(project_id: int, body: ProjectUpdateRequest):
         name=body.name,
         notes=body.notes,
         parallel_printers=body.parallel_printers,
+        quote_printer_id=body.quote_printer_id,
     )
     if not row:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -5468,7 +5700,34 @@ async def api_upload_project_file(project_id: int, file: UploadFile = File(...))
         dest = folder / f"{stem}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}{suffix}"
     dest.write_bytes(data)
     db.touch_project(project_id)
-    return _project_payload(db.get_project_row(project_id) or row)
+    fresh = db.get_project_row(project_id) or row
+    _queue_project_file_slice(project_id, dest, fresh, data)
+    return _project_payload(fresh)
+
+
+@app.post("/api/projects/{project_id}/slice")
+async def api_slice_project(project_id: int):
+    row = db.get_project_row(project_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Project not found")
+    folder = _project_dir(row["vault_folder"], missing_ok=True)
+    started = 0
+    if folder.exists():
+        for path in sorted(folder.iterdir()):
+            if not path.is_file():
+                continue
+            try:
+                data = path.read_bytes()
+            except OSError:
+                continue
+            before = (_project_slice_jobs.get(path.relative_to(_print_library_path().resolve()).as_posix()) or {}).get("status")
+            _queue_project_file_slice(project_id, path, row, data)
+            after = (_project_slice_jobs.get(path.relative_to(_print_library_path().resolve()).as_posix()) or {}).get("status")
+            if after == "slicing" and before != "slicing":
+                started += 1
+    payload = _project_payload(row)
+    payload["started"] = started
+    return payload
 
 
 class MakerWorldResolveRequest(BaseModel):

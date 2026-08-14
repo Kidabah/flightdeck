@@ -390,6 +390,7 @@ let _fleetFilamentSignature = '';
 let _onMemory = false;          // true while Print Memory is active
 let _onProjects = false;
 let _lastProjectsRouteKey = '';
+let _projectSlicePoll = 0;
 let _onManual = false;          // true while flight manual is active
 let _onDemo = false;            // true while walkthrough mode is active
 let _onAbout = false;           // true while about page is active
@@ -8026,12 +8027,14 @@ function _projectQuoteStrip(quote, { compact = false } = {}) {
 
 function _projectFileRow(file) {
   let detail;
+  const status = file.status || '';
   if (file.sliced) {
     detail = `${file.grams != null ? `${Number(file.grams).toFixed(0)} g` : '—'} · ${file.seconds ? formatTime(file.seconds) : '—'}`;
   } else {
     detail = file.status_detail || 'Not sliced yet';
   }
-  return `<div class="project-file-row">
+  const cls = status === 'slicing' ? ' is-slicing' : (status === 'error' ? ' is-error' : '');
+  return `<div class="project-file-row${cls}">
     <strong title="${esc(file.path || file.name || '')}">${esc(file.name || 'file')}</strong>
     <span title="${esc(detail)}">${esc(detail)}</span>
   </div>`;
@@ -8058,7 +8061,7 @@ async function renderProjectsView(projectId) {
     return `<a class="project-card" href="#/projects/${p.id}">
       <strong>${esc(p.name)}</strong>
       <em>${esc(p.vault_folder || '')}</em>
-      <span>${p.file_count || 0} file${p.file_count === 1 ? '' : 's'}${p.sliced_count ? ` · ${p.sliced_count} sliced` : ''}</span>
+      <span>${p.file_count || 0} file${p.file_count === 1 ? '' : 's'}${p.sliced_count ? ` · ${p.sliced_count} sliced` : ''}${p.slicing ? ' · slicing…' : ''}</span>
       ${_projectQuoteStrip(q, { compact: true })}
     </a>`;
   }).join('') : '<div class="filedesk-empty">No projects yet. Create one, drop sliced plates in, and Flightdeck will total grams and time.</div>';
@@ -8067,7 +8070,7 @@ async function renderProjectsView(projectId) {
       <div>
         <span class="memory-hero-eyebrow">Print Vault</span>
         <h1>Projects</h1>
-        <p>Drop <strong>.gcode.3mf</strong> plate exports here (Bambu: Export plate data). A plain “Save Project” <code>.3mf</code> keeps previews only — no time/weight for quotes.</p>
+        <p>Drop a MakerWorld / Save Project <code>.3mf</code> and Flightdeck slices it for the quote. Or drop plate <strong>.gcode.3mf</strong> exports if you already sliced.</p>
       </div>
       <form class="project-create" data-project-create>
         <input class="settings-input" name="name" type="text" maxlength="80" placeholder="Summer Goose" required>
@@ -8111,7 +8114,7 @@ async function _renderProjectDetail(page, projectId) {
   const quote = project.quote || {};
   const fileRows = files.length
     ? files.map(_projectFileRow).join('')
-    : '<div class="filedesk-empty">Drop sliced .gcode.3mf / .gcode files here. Unsliced STLs wait until you slice.</div>';
+    : '<div class="filedesk-empty">Drop a .3mf / STL here. Unsliced files are sliced in the background, then quoted.</div>';
   page.innerHTML = `<div class="projects-shell">
     <div class="project-detail-head">
       <a href="#/projects">All projects</a>
@@ -8119,21 +8122,62 @@ async function _renderProjectDetail(page, projectId) {
       <p class="settings-hint">Vault folder <code>${esc(project.vault_folder || '')}</code> · ${files.length} file${files.length === 1 ? '' : 's'}</p>
     </div>
     ${_projectQuoteStrip(quote)}
+    ${project.slicing ? '<p class="settings-hint project-slicing-note">Slicing in the background — quote fills in when the plate export lands.</p>' : ''}
     <div class="project-toolbar">
+      <label>Slice / quote printer
+        <select class="settings-input" data-project-printer>
+          <option value="">Auto (match 3MF or first with defaults)</option>
+          ${(project.slice_targets || []).map(t => `
+            <option value="${esc(t.id)}"${project.quote_printer_id === t.id ? ' selected' : ''}${t.has_defaults ? '' : ' disabled'}>
+              ${esc(t.label)}${t.has_defaults ? '' : ' — set slicer defaults'}
+            </option>`).join('')}
+        </select>
+      </label>
       <label>Printers overlapping
         <input class="settings-input" data-project-parallel type="number" min="1" max="12" step="1" value="${esc(String(project.parallel_printers || 1))}">
       </label>
       <span class="settings-hint">Elapsed quote uses max(longest plate, total hours ÷ printers). Leave at 1 for sequential.</span>
       <label class="project-drop">
         <input type="file" multiple accept=".3mf,.gcode,.gcode.3mf,.gcode.gz,.stl,.obj,.step,.stp">
-        <span>Drop plates here or browse</span>
+        <span>Drop .3mf / plates here</span>
       </label>
+      <button type="button" class="costing-ghost-btn" data-project-slice>Slice unsliced</button>
       <a class="costing-ghost-btn" href="#/files">Open Print Bay</a>
       <button type="button" class="settings-delete-btn" data-project-delete>Delete project</button>
     </div>
     <div class="project-files">${fileRows}</div>
   </div>`;
 
+  const printerSel = page.querySelector('[data-project-printer]');
+  printerSel?.addEventListener('change', async () => {
+    try {
+      const r = await fetch(`/api/projects/${projectId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quote_printer_id: printerSel.value || '' }),
+      });
+      if (!r.ok) throw new Error('Save failed');
+      showToast('Quote printer saved', printerSel.selectedOptions[0]?.text || 'Auto', 'success');
+    } catch (err) {
+      showToast('Could not save printer', err.message || '', 'error');
+    }
+  });
+
+  page.querySelector('[data-project-slice]')?.addEventListener('click', async () => {
+    const btn = page.querySelector('[data-project-slice]');
+    if (btn) btn.disabled = true;
+    try {
+      const r = await fetch(`/api/projects/${projectId}/slice`, { method: 'POST' });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.detail || 'Slice failed');
+      showToast('Slicing', data.started ? `${data.started} file(s)` : 'Nothing new to slice', 'success');
+      _lastProjectsRouteKey = '';
+      renderProjectsView(projectId);
+    } catch (err) {
+      showToast('Slice failed', err.message || '', 'error');
+      if (btn) btn.disabled = false;
+    }
+  });
   const parallel = page.querySelector('[data-project-parallel]');
   parallel?.addEventListener('change', async () => {
     const n = Number(parallel.value || 1);
@@ -8156,14 +8200,19 @@ async function _renderProjectDetail(page, projectId) {
   const sendFiles = async list => {
     const picked = [...list];
     if (!picked.length) return;
+    let last = {};
     for (const file of picked) {
       const form = new FormData();
       form.append('file', file);
       const r = await fetch(`/api/projects/${projectId}/files`, { method: 'POST', body: form });
-      const data = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(data.detail || `Upload failed: ${file.name}`);
+      last = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(last.detail || `Upload failed: ${file.name}`);
     }
-    showToast('Files added', `${picked.length} into ${project.name}`, 'success');
+    showToast(
+      last.slicing ? 'Slicing for quote' : 'Files added',
+      `${picked.length} into ${project.name}`,
+      'success',
+    );
     _lastProjectsRouteKey = '';
     renderProjectsView(projectId);
   };
@@ -8199,6 +8248,14 @@ async function _renderProjectDetail(page, projectId) {
       showToast('Delete failed', err.message || '', 'error');
     }
   });
+  clearTimeout(_projectSlicePoll);
+  if (project.slicing) {
+    _projectSlicePoll = setTimeout(() => {
+      if (location.hash !== `#/projects/${projectId}`) return;
+      _lastProjectsRouteKey = '';
+      renderProjectsView(projectId);
+    }, 4000);
+  }
 }
 
 // ── Print Memory ─────────────────────────────────────────────────────────

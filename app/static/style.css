@@ -23949,3 +23949,6 @@ select optgroup {
   background: var(--surface);
 }
 .project-file-row span { color: var(--muted); font-size: 0.8rem; }
+.project-file-row.is-slicing span { color: #7dd3fc; }
+.project-file-row.is-error span { color: #fca5a5; }
+.project-slicing-note { color: #7dd3fc; }

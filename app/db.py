@@ -662,6 +662,7 @@ def init() -> None:
             "ALTER TABLE empty_spool_profiles ADD COLUMN is_default INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE empty_spool_profiles ADD COLUMN archived_at TEXT",
             "ALTER TABLE projects ADD COLUMN parallel_printers INTEGER NOT NULL DEFAULT 1",
+            "ALTER TABLE projects ADD COLUMN quote_printer_id TEXT",
         ):
             try:
                 conn.execute(stmt)
@@ -2500,6 +2501,7 @@ def _project_row(row) -> dict:
         "notes": row["notes"] or "",
         "vault_folder": row["vault_folder"],
         "parallel_printers": max(1, min(int(row["parallel_printers"] or 1), 12)),
+        "quote_printer_id": str(row["quote_printer_id"] or "") if "quote_printer_id" in row.keys() else "",
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
@@ -2508,7 +2510,7 @@ def _project_row(row) -> dict:
 def list_projects() -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(
-            """SELECT id, name, notes, vault_folder, parallel_printers, created_at, updated_at
+            """SELECT id, name, notes, vault_folder, parallel_printers, quote_printer_id, created_at, updated_at
                FROM projects
                ORDER BY updated_at DESC, id DESC"""
         ).fetchall()
@@ -2518,7 +2520,7 @@ def list_projects() -> list[dict]:
 def get_project_row(project_id: int) -> Optional[dict]:
     with _conn() as conn:
         row = conn.execute(
-            """SELECT id, name, notes, vault_folder, parallel_printers, created_at, updated_at
+            """SELECT id, name, notes, vault_folder, parallel_printers, quote_printer_id, created_at, updated_at
                FROM projects WHERE id = ?""",
             (int(project_id),),
         ).fetchone()
@@ -2551,6 +2553,7 @@ def update_project(
     name: Optional[str] = None,
     notes: Optional[str] = None,
     parallel_printers: Optional[int] = None,
+    quote_printer_id: Optional[str] = None,
 ) -> Optional[dict]:
     if get_project_row(project_id) is None:
         return None
@@ -2569,6 +2572,11 @@ def update_project(
             conn.execute(
                 "UPDATE projects SET parallel_printers = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
                 (max(1, min(int(parallel_printers), 12)), int(project_id)),
+            )
+        if quote_printer_id is not None:
+            conn.execute(
+                "UPDATE projects SET quote_printer_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (str(quote_printer_id).strip()[:64] or None, int(project_id)),
             )
     return get_project_row(project_id)
 

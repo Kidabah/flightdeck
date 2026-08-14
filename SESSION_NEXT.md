@@ -6,6 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-14 Session update (Project auto-slice)
+
+Latest commit: `(pending)` — Auto-slice unsliced project 3MF files for quotes.
+
+Latest local/Pi change:
+- Drop a MakerWorld / Save Project `.3mf` (or STL) into a Project: Flightdeck background-slices it with slicer defaults and writes a `.gcode.3mf` into the vault folder, then quotes grams/time.
+- Pick **Slice / quote printer** on the project (or Auto matches the 3MF printer / first printer with defaults). **Slice unsliced** retries failures.
+- Needs Settings → Slicer defaults + worker/API. Hard refresh (`app.js?v=663`, `style.css?v=506`). Backend restart required.
+
+Previous:
+- Overhead electric name match (`44f0f71`).
+
+---
+
 ## 2026-08-14 Session update (Overhead electric name match)
 
 Latest commit: `44f0f71` — Only fill the Electricity overhead from Power this month.
