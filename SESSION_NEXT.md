@@ -6,6 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-15 Session update (Quote-slice .gcode.3mf)
+
+Latest commit: `a917993` — Keep quote-slice output as .gcode.3mf and sanitize MakerWorld H2D G-code placeholders.
+
+Latest local/Pi change:
+- Docker sidecar was saving quote-slices as generic `result.3mf`, so Print Bay still showed **Slice** on the source. Output is now `{source}_{printer}.gcode.3mf`. Print Bay offers **Queue sliced** when that sibling exists (also treats leftover `result.3mf` as sliced).
+- MakerWorld/H2D 3MF custom G-code: rewrite `{elsif}` / `ceil()` / `filament_map` / `old_extruder_variant` so Orca 2.4.0-alpha can slice highland cow style files.
+- Hard refresh (`app.js?v=666`). Backend restart on Pi **and** Windows worker.
+
+Previous:
+- H2D G-code placeholders (`f7290ce`).
+
+---
+
 ## 2026-08-14 Session update (H2D G-code placeholders)
 
 Latest commit: `f7290ce` — Strip unknown H2D G-code placeholders so Docker Orca can slice MakerWorld 3MFs.
