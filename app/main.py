@@ -5233,11 +5233,12 @@ def _adopt_orphan_project_folders() -> None:
     if not projects_root.exists() or not projects_root.is_dir():
         return
     claimed = {str(p.get("vault_folder") or "") for p in db.list_projects()}
+    dismissed = db.get_dismissed_project_folders()
     for child in sorted(projects_root.iterdir()):
         if not child.is_dir():
             continue
         rel = child.relative_to(root).as_posix()
-        if rel in claimed:
+        if rel in claimed or rel in dismissed:
             continue
         try:
             has_files = any(p.is_file() for p in child.rglob("*"))
@@ -5366,6 +5367,7 @@ async def api_create_project(body: ProjectCreateRequest):
     folder = _unique_project_folder(body.name)
     dest = _project_dir(folder, missing_ok=True)
     dest.mkdir(parents=True, exist_ok=True)
+    db.undismiss_project_folder(folder)
     row = db.create_project(
         body.name,
         folder,
@@ -5398,9 +5400,15 @@ async def api_update_project(project_id: int, body: ProjectUpdateRequest):
 
 @app.delete("/api/projects/{project_id}")
 async def api_delete_project(project_id: int):
+    row = db.get_project_row(project_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Project not found")
+    folder = str(row.get("vault_folder") or "")
     if not db.delete_project(project_id):
         raise HTTPException(status_code=404, detail="Project not found")
-    return {"ok": True}
+    # Keep vault files, but don't auto-resurrect this folder on the next list.
+    db.dismiss_project_folder(folder)
+    return {"ok": True, "vault_folder": folder}
 
 
 @app.post("/api/projects/{project_id}/files", status_code=201)

@@ -6,6 +6,19 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-14 Session update (Projects delete stick)
+
+Latest commit: pending — Keep deleted projects from auto-resurrecting
+
+Latest local/Pi change:
+- Delete project was toasting success then immediately re-adopting the vault folder. Dismissed folders are now remembered so delete sticks; files still stay on disk.
+- Hard refresh (`app.js?v=659`). Backend restart required.
+
+Previous:
+- Projects Bambu Save vs Export (`cf6bdfd`).
+
+---
+
 ## 2026-08-14 Session update (Projects — Bambu Save vs Export)
 
 Latest commit: `cf6bdfd` — Explain Bambu Save Project vs plate .gcode.3mf exports in Projects.

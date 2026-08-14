@@ -8191,8 +8191,10 @@ async function _renderProjectDetail(page, projectId) {
     try {
       const r = await fetch(`/api/projects/${projectId}`, { method: 'DELETE' });
       if (!r.ok) throw new Error('Delete failed');
-      showToast('Project deleted', project.name, 'success');
+      showToast('Project deleted', `${project.name} · files kept in vault`, 'success');
+      _lastProjectsRouteKey = '';
       location.hash = '#/projects';
+      renderProjectsView();
     } catch (err) {
       showToast('Delete failed', err.message || '', 'error');
     }

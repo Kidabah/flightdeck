@@ -2340,6 +2340,40 @@ def delete_project(project_id: int) -> bool:
     return cur.rowcount > 0
 
 
+_PROJECT_DISMISSED_KEY = "project_vault_dismissed"
+
+
+def get_dismissed_project_folders() -> set[str]:
+    raw = get_all_settings().get(_PROJECT_DISMISSED_KEY) or "[]"
+    try:
+        parsed = json.loads(raw)
+    except Exception:
+        return set()
+    if not isinstance(parsed, list):
+        return set()
+    return {str(item).strip().strip("/") for item in parsed if str(item).strip()}
+
+
+def dismiss_project_folder(vault_folder: str) -> None:
+    folder = str(vault_folder or "").strip().strip("/")
+    if not folder:
+        return
+    dismissed = get_dismissed_project_folders()
+    dismissed.add(folder)
+    set_setting(_PROJECT_DISMISSED_KEY, json.dumps(sorted(dismissed)))
+
+
+def undismiss_project_folder(vault_folder: str) -> None:
+    folder = str(vault_folder or "").strip().strip("/")
+    if not folder:
+        return
+    dismissed = get_dismissed_project_folders()
+    if folder not in dismissed:
+        return
+    dismissed.discard(folder)
+    set_setting(_PROJECT_DISMISSED_KEY, json.dumps(sorted(dismissed)))
+
+
 # ── slicer profiles ───────────────────────────────────────────────────────
 
 def save_slicer_profile_vendor(vendor: str, payload: dict) -> None:
