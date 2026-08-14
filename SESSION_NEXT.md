@@ -6,6 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-14 Session update (Project folders)
+
+Latest commit: `03ca599` — Add project folders so a vault kit quotes from sliced grams and time.
+
+Latest local/Pi change:
+- New **Projects** tab: named Print Vault folder (`Projects/Summer Goose`), drop sliced plates, Flightdeck sums grams + time from 3MF/gcode.
+- Quote uses Costing shop rate: filament, printer-hours (shop floor), and **elapsed** (overlap = max(longest plate, total ÷ printers)).
+- PrintShelf stays the library. Hard refresh (`app.js?v=657`, `style.css?v=503`). **Backend restart required.**
+
+Previous:
+- Shop costing for local quotes (`3db4475`).
+
+---
+
 ## 2026-08-14 Session update (Shop costing for local quotes)
 
 Latest commit: `3db4475` — Add shop costing so local quotes cover overhead without a full labour rate.
