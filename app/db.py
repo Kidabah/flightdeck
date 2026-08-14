@@ -564,6 +564,8 @@ def init() -> None:
                 filament_weight_g   REAL,
                 filament_type       TEXT,
                 filament_colors     TEXT,
+                plate_number        INTEGER,
+                plate_count         INTEGER,
                 created_at          TEXT DEFAULT (datetime('now')),
                 started_at          TEXT,
                 finished_at         TEXT,
@@ -656,6 +658,8 @@ def init() -> None:
             "ALTER TABLE print_queue ADD COLUMN filament_colors TEXT",
             "ALTER TABLE print_queue ADD COLUMN calibrate_before_start INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE print_queue ADD COLUMN allow_short_filament INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE print_queue ADD COLUMN plate_number INTEGER",
+            "ALTER TABLE print_queue ADD COLUMN plate_count INTEGER",
             "ALTER TABLE filament_catalog ADD COLUMN updated_at TEXT NOT NULL DEFAULT (datetime('now'))",
             "ALTER TABLE empty_spool_profiles ADD COLUMN source TEXT NOT NULL DEFAULT 'manual'",
             "ALTER TABLE empty_spool_profiles ADD COLUMN notes TEXT",
@@ -5315,6 +5319,8 @@ def queue_add(
     filament_type: Optional[str] = None,
     filament_colors: Optional[str] = None,
     calibrate_before_start: bool = False,
+    plate_number: Optional[int] = None,
+    plate_count: Optional[int] = None,
 ) -> int:
     with _conn() as conn:
         row = conn.execute(
@@ -5326,11 +5332,11 @@ def queue_add(
             """INSERT INTO print_queue
                (printer_id, position, filename, file_path, file_size,
                 preview_png, estimated_seconds, filament_weight_g, filament_type, filament_colors,
-                calibrate_before_start)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                calibrate_before_start, plate_number, plate_count)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (printer_id, position, filename, file_path, file_size,
              preview_png, estimated_seconds, filament_weight_g, filament_type, filament_colors,
-             1 if calibrate_before_start else 0),
+             1 if calibrate_before_start else 0, plate_number, plate_count),
         )
         return cursor.lastrowid
 
@@ -5343,6 +5349,7 @@ def queue_list(printer_id: Optional[str] = None) -> list[dict]:
                 f"""SELECT id, printer_id, position, filename, file_path, file_size, status,
                            estimated_seconds, filament_weight_g, filament_type, filament_colors,
                            calibrate_before_start, allow_short_filament,
+                           plate_number, plate_count,
                            created_at, started_at, finished_at, error_msg,
                            (preview_png IS NOT NULL) AS has_preview
                     FROM print_queue WHERE printer_id = ?
@@ -5354,6 +5361,7 @@ def queue_list(printer_id: Optional[str] = None) -> list[dict]:
                 f"""SELECT id, printer_id, position, filename, file_path, file_size, status,
                            estimated_seconds, filament_weight_g, filament_type, filament_colors,
                            calibrate_before_start, allow_short_filament,
+                           plate_number, plate_count,
                            created_at, started_at, finished_at, error_msg,
                            (preview_png IS NOT NULL) AS has_preview
                     FROM print_queue
@@ -5376,6 +5384,7 @@ def queue_get(job_id: int) -> Optional[dict]:
             """SELECT id, printer_id, position, filename, file_path, file_size,
                       status, estimated_seconds, filament_weight_g, filament_type, filament_colors,
                       calibrate_before_start, allow_short_filament,
+                      plate_number, plate_count,
                       created_at, started_at, finished_at, error_msg
                FROM print_queue WHERE id = ?""",
             (job_id,),
@@ -5388,6 +5397,7 @@ def queue_latest_reprintable(printer_id: str) -> Optional[dict]:
         row = conn.execute(
             """SELECT id, printer_id, position, filename, file_path, file_size,
                       status, estimated_seconds, filament_weight_g, filament_type, filament_colors,
+                      plate_number, plate_count,
                       created_at, started_at, finished_at, error_msg
                FROM print_queue
                WHERE printer_id = ? AND status = 'done'
@@ -5403,6 +5413,7 @@ def queue_active_job(printer_id: str) -> Optional[dict]:
         row = conn.execute(
             """SELECT id, printer_id, filename, file_path, status,
                       estimated_seconds, filament_weight_g, filament_type, filament_colors,
+                      plate_number, plate_count,
                       started_at
                FROM print_queue
                WHERE printer_id = ? AND status IN ('printing', 'uploading')
@@ -5594,7 +5605,11 @@ def queue_fail_active_except(printer_id: str, keep_job_id: int, error_msg: str) 
 
 
 def queue_delete(job_id: int) -> tuple[bool, Optional[str]]:
-    """Delete a pending/failed/cancelled job. Returns (deleted, file_path)."""
+    """Delete a pending/failed/cancelled job. Returns (deleted, file_path).
+
+    file_path is only returned when no other queue row still uses that file
+    (multi-plate jobs share one .gcode.3mf).
+    """
     with _conn() as conn:
         row = conn.execute(
             "SELECT file_path FROM print_queue WHERE id = ? AND status IN ('pending', 'failed', 'cancelled')",
@@ -5603,14 +5618,19 @@ def queue_delete(job_id: int) -> tuple[bool, Optional[str]]:
         if not row:
             return False, None
         conn.execute("DELETE FROM print_queue WHERE id = ?", (job_id,))
-    return True, row["file_path"]
+        still = conn.execute(
+            "SELECT 1 FROM print_queue WHERE file_path = ? LIMIT 1",
+            (row["file_path"],),
+        ).fetchone()
+    return True, None if still else row["file_path"]
 
 
 def queue_next_pending(printer_id: str) -> Optional[dict]:
     with _conn() as conn:
         row = conn.execute(
             """SELECT id, printer_id, filename, file_path,
-                      estimated_seconds, filament_weight_g, filament_type, filament_colors
+                      estimated_seconds, filament_weight_g, filament_type, filament_colors,
+                      plate_number, plate_count
                FROM print_queue
                WHERE printer_id = ? AND status = 'pending'
                ORDER BY position ASC, id ASC LIMIT 1""",
@@ -5668,7 +5688,20 @@ def queue_clear_completed(printer_id: str) -> list[str]:
             "DELETE FROM print_queue WHERE printer_id = ? AND status IN ('done', 'failed', 'cancelled')",
             (printer_id,),
         )
-    return [r["file_path"] for r in rows]
+        remaining = {
+            r["file_path"]
+            for r in conn.execute("SELECT DISTINCT file_path FROM print_queue").fetchall()
+            if r["file_path"]
+        }
+    seen: set[str] = set()
+    out: list[str] = []
+    for r in rows:
+        fp = r["file_path"]
+        if not fp or fp in remaining or fp in seen:
+            continue
+        seen.add(fp)
+        out.append(fp)
+    return out
 
 
 def queue_pending_counts() -> dict:

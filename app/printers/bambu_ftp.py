@@ -110,12 +110,22 @@ def _parse_3mf(
     plates = root_el.findall("plate")
     plate = None
     if plates:
-        # Bambu plate filenames are 1-based: Metadata/plate_6.gcode maps to
-        # the sixth <plate> entry in slice_info.config.
-        if 1 <= plate_number <= len(plates):
-            plate = plates[plate_number - 1]
-        else:
-            plate = plates[0]
+        # Prefer metadata index=N (matches Metadata/plate_N.gcode). Fall back
+        # to 1-based position when the export omitted index keys.
+        for el in plates:
+            idx_el = el.find("metadata[@key='index']")
+            try:
+                idx = int(idx_el.get("value")) if idx_el is not None else None
+            except (TypeError, ValueError):
+                idx = None
+            if idx == plate_number:
+                plate = el
+                break
+        if plate is None:
+            if 1 <= plate_number <= len(plates):
+                plate = plates[plate_number - 1]
+            else:
+                plate = plates[0]
 
     def meta(key: str) -> Optional[str]:
         el = plate.find(f"metadata[@key='{key}']") if plate is not None else None
@@ -256,6 +266,29 @@ def _parse_3mf(
     )
 
 
+def _gcode_plate_numbers(names: list[str]) -> list[int]:
+    """Return sorted 1-based plate indexes that have Metadata/plate_N.gcode."""
+    plates: list[int] = []
+    for name in names:
+        match = re.search(r"(?i)(?:^|/)Metadata/plate_(\d+)\.gcode$", name.replace("\\", "/"))
+        if not match:
+            continue
+        try:
+            plates.append(int(match.group(1)))
+        except ValueError:
+            pass
+    return sorted(set(plates))
+
+
+def list_3mf_gcode_plates(data: bytes) -> list[int]:
+    """Plate numbers inside a .gcode.3mf that can actually be printed."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            return _gcode_plate_numbers(z.namelist())
+    except Exception:
+        return []
+
+
 def _resolve_print_plate_number(names: list[str], requested: Optional[int] = None) -> int:
     """Return the plate number that actually has printable gcode.
 
@@ -267,18 +300,11 @@ def _resolve_print_plate_number(names: list[str], requested: Optional[int] = Non
         requested_num = int(requested) if requested is not None else None
     except (TypeError, ValueError):
         requested_num = None
-    gcode_plates: list[int] = []
-    for name in names:
-        match = re.match(r"Metadata/plate_(\d+)\.gcode$", name, re.IGNORECASE)
-        if match:
-            try:
-                gcode_plates.append(int(match.group(1)))
-            except ValueError:
-                pass
+    gcode_plates = _gcode_plate_numbers(names)
     if requested_num and requested_num in gcode_plates:
         return requested_num
     if gcode_plates:
-        return sorted(gcode_plates)[0]
+        return gcode_plates[0]
     return requested_num or 1
 
 
@@ -907,7 +933,13 @@ def download_bambu_file(ip: str, access_code: str, path: str) -> bytes:
             pass
 
 
-def upload_bambu_file(ip: str, access_code: str, filename: str, data: bytes) -> BambuPreview:
+def upload_bambu_file(
+    ip: str,
+    access_code: str,
+    filename: str,
+    data: bytes,
+    plate_number: Optional[int] = None,
+) -> BambuPreview:
     """Upload a .gcode.3mf to the printer via FTPS and return parsed metadata.
 
     Raises on connection or transfer failure — caller handles retry logic.
@@ -938,10 +970,11 @@ def upload_bambu_file(ip: str, access_code: str, filename: str, data: bytes) -> 
 
     try:
         buf.seek(0)
-        return _parse_3mf(buf)
+        return _parse_3mf(buf, plate_number=plate_number, include_object_geometry=False)
     except Exception:
         return BambuPreview(image_png=None, estimated_total_seconds=None,
-                            filament_weight_g=None, filament_type=None)
+                            filament_weight_g=None, filament_type=None,
+                            print_plate_number=plate_number)
 
 
 def list_bambu_files(ip: str, access_code: str, path: str = "/") -> list[dict]:

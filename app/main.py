@@ -1835,6 +1835,73 @@ def _queue_file_metadata(filename: str, data: bytes) -> dict:
     }
 
 
+def _queue_plate_metas(filename: str, data: bytes, *, split_plates: bool) -> list[dict]:
+    """One metadata dict per printable plate (or a single whole-file job)."""
+    base = _queue_file_metadata(filename, data)
+    if not split_plates or _queue_file_extension(filename) != ".3mf":
+        return [{**base, "plate_number": None, "plate_count": None}]
+    try:
+        from .printers.bambu_ftp import _parse_3mf, list_3mf_gcode_plates
+        plates = list_3mf_gcode_plates(data)
+    except Exception:
+        plates = []
+    if len(plates) <= 1:
+        plate_n = plates[0] if plates else None
+        return [{**base, "plate_number": plate_n, "plate_count": len(plates) or None}]
+    out: list[dict] = []
+    buf = io.BytesIO(data)
+    for n in plates:
+        try:
+            buf.seek(0)
+            p = _parse_3mf(buf, plate_number=n, include_object_geometry=False)
+            out.append({
+                "preview_png": p.image_png or base["preview_png"],
+                "estimated_seconds": p.estimated_total_seconds,
+                "filament_weight_g": p.filament_weight_g,
+                "filament_type": p.filament_type or base["filament_type"],
+                "filament_colors": p.filament_colors or base["filament_colors"],
+                "plate_number": n,
+                "plate_count": len(plates),
+            })
+        except Exception:
+            out.append({**base, "plate_number": n, "plate_count": len(plates)})
+    return out or [{**base, "plate_number": None, "plate_count": None}]
+
+
+def _enqueue_print_file(
+    printer_id: str,
+    filename: str,
+    file_path: str,
+    data: bytes,
+    *,
+    calibrate_before_start: bool = False,
+    split_plates: bool = False,
+) -> list[int]:
+    metas = _queue_plate_metas(filename, data, split_plates=split_plates)
+    job_ids: list[int] = []
+    for i, meta in enumerate(metas):
+        job_ids.append(db.queue_add(
+            printer_id, filename, file_path, len(data),
+            preview_png=meta["preview_png"],
+            estimated_seconds=meta["estimated_seconds"],
+            filament_weight_g=meta["filament_weight_g"],
+            filament_type=meta["filament_type"],
+            filament_colors=meta["filament_colors"],
+            calibrate_before_start=bool(calibrate_before_start and i == 0),
+            plate_number=meta.get("plate_number"),
+            plate_count=meta.get("plate_count"),
+        ))
+    return job_ids
+
+
+def _queue_enqueue_response(job_ids: list[int]) -> dict:
+    return {
+        "id": job_ids[0] if job_ids else None,
+        "ids": job_ids,
+        "count": len(job_ids),
+    }
+
+
 async def _read_file_desk_source(source_id: str, source_path: str) -> tuple[str, bytes]:
     source_id = source_id.strip()
     source_path = source_path.strip().lstrip("/")
@@ -2036,18 +2103,17 @@ async def queue_file_from_file_desk(body: FileQueueRequest):
     with open(file_path, "wb") as f:
         f.write(data)
 
-    meta = _queue_file_metadata(filename, data)
-    job_id = db.queue_add(
-        printer_id, filename, file_path, len(data),
-        preview_png=meta["preview_png"],
-        estimated_seconds=meta["estimated_seconds"],
-        filament_weight_g=meta["filament_weight_g"],
-        filament_type=meta["filament_type"],
-        filament_colors=meta["filament_colors"],
+    job_ids = _enqueue_print_file(
+        printer_id, filename, file_path, data,
+        split_plates=target_kind == "bambu",
     )
-    db.log_decision(printer_id, "filedesk_queued", f"{source_id}:{source_path} -> job #{job_id}")
+    db.log_decision(
+        printer_id,
+        "filedesk_queued",
+        f"{source_id}:{source_path} -> jobs {job_ids}",
+    )
     asyncio.create_task(_maybe_auto_advance_queue(printer_id, trigger="filedesk_queue"))
-    return {"id": job_id}
+    return _queue_enqueue_response(job_ids)
 
 
 @app.post("/api/files/library/copy", status_code=201)
@@ -11407,6 +11473,7 @@ async def _advance_queue(printer_id: str) -> None:
     if not job:
         return
     job_id, filename, file_path = job["id"], job["filename"], job["file_path"]
+    plate_number = job.get("plate_number")
     statuses = await _printer_status_map()
     preflight = _queue_preflight(job, statuses.get(printer_id))
     if not preflight["can_start"]:
@@ -11428,10 +11495,11 @@ async def _advance_queue(printer_id: str) -> None:
                 return
         for p in _bambu:
             if p.id == printer_id:
-                await asyncio.to_thread(p.send_file, file_path, filename)
+                await asyncio.to_thread(p.send_file, file_path, filename, plate_number)
                 db.queue_set_started(job_id)
                 await _wait_for_bambu_physical_start(p, job_id, filename)
-                log.info("queue: started job %d on %s (%s)", job_id, printer_id, filename)
+                log.info("queue: started job %d on %s (%s plate %s)",
+                         job_id, printer_id, filename, plate_number or 1)
                 return
         db.queue_update_status(job_id, "failed", "Printer not found")
     except Exception as exc:
@@ -11493,19 +11561,13 @@ async def queue_upload(
     with open(file_path, "wb") as f:
         f.write(data)
 
-    meta = _queue_file_metadata(raw_name, data)
-
-    job_id = db.queue_add(
-        printer_id, raw_name, file_path, len(data),
-        preview_png=meta["preview_png"],
-        estimated_seconds=meta["estimated_seconds"],
-        filament_weight_g=meta["filament_weight_g"],
-        filament_type=meta["filament_type"],
-        filament_colors=meta["filament_colors"],
+    job_ids = _enqueue_print_file(
+        printer_id, raw_name, file_path, data,
         calibrate_before_start=bool(calibrate_before_start and kind == "bambu"),
+        split_plates=kind == "bambu",
     )
     asyncio.create_task(_maybe_auto_advance_queue(printer_id, trigger="queue_upload"))
-    return {"id": job_id}
+    return _queue_enqueue_response(job_ids)
 
 
 @app.get("/api/queue/{job_id}/preview")
@@ -11655,6 +11717,7 @@ async def _advance_queue_specific(job_id: int, printer_id: str,
     if job and not await _ensure_low_temp_unloaded_for_high_temp(printer_id, job):
         return
     db.queue_update_status(job_id, "uploading")
+    plate_number = (job or {}).get("plate_number")
     try:
         for (pid, _, _, _, url, _kind, _toolhead_count) in _moonraker:
             if pid == printer_id:
@@ -11663,7 +11726,7 @@ async def _advance_queue_specific(job_id: int, printer_id: str,
                 return
         for p in _bambu:
             if p.id == printer_id:
-                await asyncio.to_thread(p.send_file, file_path, filename)
+                await asyncio.to_thread(p.send_file, file_path, filename, plate_number)
                 db.queue_set_started(job_id)
                 await _wait_for_bambu_physical_start(p, job_id, filename)
                 return

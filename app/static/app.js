@@ -8042,7 +8042,9 @@ function _projectFileRow(file) {
   let detail;
   const status = file.status || '';
   if (file.sliced) {
-    detail = `${file.grams != null ? `${Number(file.grams).toFixed(0)} g` : '—'} · ${file.seconds ? formatTime(file.seconds) : '—'}`;
+    const plates = Number(file.plate_count || 0);
+    const plateBit = plates > 1 ? `${plates} plates · ` : '';
+    detail = `${plateBit}${file.grams != null ? `${Number(file.grams).toFixed(0)} g` : '—'} · ${file.seconds ? formatTime(file.seconds) : '—'}`;
   } else {
     detail = file.status_detail || 'Not sliced yet';
   }
@@ -10832,7 +10834,10 @@ async function _queueFileToPrinter({ sourceId, path, printerId, button, goQueue 
     if (!r.ok) throw new Error(data.detail || 'Unable to queue file');
     _rememberQueuePrinterId(printerId);
     const name = _printerQueueLabel(_latestPrinters.find(p => p.id === printerId));
-    showToast('Added to queue', `${name} · auto-sends when free`, 'success');
+    const n = Number(data.count || 1);
+    showToast('Added to queue', n > 1
+      ? `${name} · ${n} plates · auto-sends when free`
+      : `${name} · auto-sends when free`, 'success');
     _updateQueueBadge();
     if (goQueue) location.hash = '#/queue';
   } catch (err) {
@@ -12306,6 +12311,12 @@ function _queueJobCard(job, isFirst, isLast, printerKind = '') {
   const preflight = job.preflight;
   const isSourceModel = _queueJobIsSourceModel(job);
   const canSend = !preflight || preflight.can_start;
+  const plateCount = Number(job.plate_count || 0);
+  const plateNumber = Number(job.plate_number || 0);
+  const plateLabel = plateCount > 1 && plateNumber
+    ? `Plate ${plateNumber} of ${plateCount}`
+    : '';
+  const displayName = plateLabel ? `${job.filename} · ${plateLabel}` : job.filename;
   const meta = [
     isSourceModel ? 'STEP source model' : '',
     job.filament_type || '',
@@ -12334,7 +12345,7 @@ function _queueJobCard(job, isFirst, isLast, printerKind = '') {
         : `<div class="queue-job-thumb-placeholder">${isSourceModel ? 'STEP' : '🖨'}</div>`}
     </div>
     <div class="queue-job-body">
-      <div class="queue-job-name" title="${job.filename}">${job.filename}</div>
+      <div class="queue-job-name" title="${esc(displayName || job.filename || '')}">${esc(displayName || job.filename || '')}</div>
       ${meta ? `<div class="queue-job-meta">${meta}</div>` : ''}
       <div class="queue-job-status-row">
         ${_queueStatusBadge(job.status)}
@@ -12525,7 +12536,9 @@ async function _queueHandleFileRaw(printerId, kind, file, area) {
       const err = await r.json().catch(() => ({}));
       throw new Error(err.detail || r.statusText);
     }
-    progress.textContent = '✓ Added to queue';
+    const data = await r.json().catch(() => ({}));
+    const n = Number(data.count || 1);
+    progress.textContent = n > 1 ? `✓ Queued ${n} plates` : '✓ Added to queue';
     setTimeout(() => renderQueueView(), 800);
   } catch (e) {
     progress.textContent = `✗ ${e.message}`;

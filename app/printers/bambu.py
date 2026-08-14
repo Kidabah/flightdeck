@@ -1303,18 +1303,26 @@ class BambuPrinter:
                 })
         return slots
 
-    def send_file(self, file_path: str, filename: str) -> None:
+    def send_file(self, file_path: str, filename: str, plate_number: Optional[int] = None) -> None:
         """Upload a .gcode.3mf to the printer via FTPS then send the MQTT print command."""
         from .bambu_ftp import upload_bambu_file
         with open(file_path, "rb") as f:
             data = f.read()
-        preview = upload_bambu_file(self._ip, self._access_code, filename, data)
+        try:
+            requested_plate = int(plate_number) if plate_number is not None else None
+        except (TypeError, ValueError):
+            requested_plate = None
+        preview = upload_bambu_file(
+            self._ip, self._access_code, filename, data, plate_number=requested_plate,
+        )
         subtask_name = filename.removesuffix(".gcode.3mf")
         if preview and preview.image_png:
             self.seed_preview(subtask_name, preview)
 
         filament_ids = preview.filament_ids if preview else None
-        print_plate_number = preview.print_plate_number if preview and preview.print_plate_number else 1
+        print_plate_number = requested_plate or (
+            preview.print_plate_number if preview and preview.print_plate_number else 1
+        )
         slots = self.ams_slots()
         ams_mapping, mapping_note = _derive_bambu_ams_mapping(
             preview.filament_colors if preview else None,
