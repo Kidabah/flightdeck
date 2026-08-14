@@ -3247,6 +3247,8 @@ async def _slice_model_to_bytes(
     h2d_loose_mesh = _h2d_loose_mesh_requires_sidecar(filename, profiles)
     if h2d_loose_mesh and not sidecar_url:
         raise HTTPException(status_code=422, detail=_h2d_sidecar_required_message())
+    if filename.lower().endswith(".3mf") and not filename.lower().endswith(".gcode.3mf"):
+        data = slice_meta.sanitize_3mf_cli_sentinels(data)
 
     sliced_name = output_filename
     sliced_data = b""
@@ -6389,8 +6391,12 @@ def _friendly_slicer_error(detail: str) -> str:
             "Slicer could not map the selected filament to the target printer. "
             "Try the slicer API sidecar, or choose matching printer/process/filament profiles."
         )
-    if "unknown file format" in lowered and ".step" in lowered:
-        return "Orca background slicing cannot import STEP files. Use Open Orca/Download model, or export the source as STL/3MF first."
+    if "param values in 3mf/config" in lowered:
+        return (
+            "Orca CLI rejected Bambu inherit-settings in this 3MF "
+            "(Param values in 3mf/config). Flightdeck strips those sentinels automatically — "
+            "hit Slice unsliced to retry."
+        )
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     important = [
         line for line in lines
@@ -6585,6 +6591,8 @@ def _run_orca_slice_sidecar(
     filament_data = _normalise_slicer_profile_type(filament_data, "filament")
 
     safe_source = _safe_basename(filename, "flightdeck-model.stl")
+    if safe_source.lower().endswith(".3mf") and not safe_source.lower().endswith(".gcode.3mf"):
+        data = slice_meta.sanitize_3mf_cli_sentinels(data)
     requested = _safe_basename(output_filename, f"{_file_archive_key(safe_source)}.gcode.3mf")
     sidecar_url = sidecar_url.strip().rstrip("/")
     if not sidecar_url:
@@ -6684,6 +6692,8 @@ def _run_orca_slice_local(
     filament = _orca_profile_file(str(profiles.get("filament") or ""), "filament", exe)
 
     safe_source = _safe_basename(filename, "flightdeck-model")
+    if safe_source.lower().endswith(".3mf") and not safe_source.lower().endswith(".gcode.3mf"):
+        data = slice_meta.sanitize_3mf_cli_sentinels(data)
     suffixes = "".join(Path(safe_source).suffixes)
     suffix = suffixes if suffixes.lower() in {".stl", ".obj", ".step", ".stp", ".3mf"} else ".stl"
     requested = _safe_basename(output_filename, f"{_file_archive_key(safe_source)}.gcode.3mf")
@@ -6722,18 +6732,29 @@ def _run_orca_slice_local(
         proc = subprocess.run(args, text=True, capture_output=True, timeout=900)
         if proc.returncode not in (0, None):
             detail = (proc.stderr or proc.stdout or f"OrcaSlicer exited {proc.returncode}").strip()
-            source_ext = _queue_file_extension(safe_source)
-            friendly = _friendly_slicer_error(detail)
-            if (
-                _looks_like_h2d_slice_profile(profiles)
-                and source_ext in {".stl", ".obj"}
-                and "slic3r::cli::run found error" in detail.lower()
-            ):
-                friendly = (
-                    "Orca local CLI can slice this STL for single-toolhead printers, but this Orca build rejects "
-                    "the H2D loose STL slice profile. Open Orca for this H2D STL or start the Orca slicer API sidecar."
-                )
-            raise HTTPException(status_code=502, detail=friendly)
+            extra = slice_meta.parse_3mf_cli_param_keys(detail)
+            if extra and suffix.lower() == ".3mf":
+                retried = slice_meta.sanitize_3mf_cli_sentinels(data, extra_keys=extra)
+                if retried != data:
+                    source_path.write_bytes(retried)
+                    proc = subprocess.run(args, text=True, capture_output=True, timeout=900)
+                    if proc.returncode in (0, None):
+                        detail = ""
+                    else:
+                        detail = (proc.stderr or proc.stdout or f"OrcaSlicer exited {proc.returncode}").strip()
+            if proc.returncode not in (0, None):
+                source_ext = _queue_file_extension(safe_source)
+                friendly = _friendly_slicer_error(detail)
+                if (
+                    _looks_like_h2d_slice_profile(profiles)
+                    and source_ext in {".stl", ".obj"}
+                    and "slic3r::cli::run found error" in detail.lower()
+                ):
+                    friendly = (
+                        "Orca local CLI can slice this STL for single-toolhead printers, but this Orca build rejects "
+                        "the H2D loose STL slice profile. Open Orca for this H2D STL or start the Orca slicer API sidecar."
+                    )
+                raise HTTPException(status_code=502, detail=friendly)
         if output_kind != "gcode.3mf" and not output_path.exists():
             generated = sorted(tmp.glob("*.gcode"), key=lambda p: p.stat().st_mtime, reverse=True)
             if generated:

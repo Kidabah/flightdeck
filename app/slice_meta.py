@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import gzip
 import io
+import json
 import re
 import zipfile
 from xml.etree import ElementTree as ET
@@ -270,3 +271,108 @@ def _parse_gcode_slice(text: str) -> dict:
 
 def hours_from_seconds(seconds: int | None) -> float | None:
     return _fmt_hours(seconds)
+
+
+# Bambu Studio writes inherit-sentinels into Metadata/project_settings.config.
+# The GUI treats them as "use parent preset"; Orca's CLI range-checks them first
+# and exits with "Param values in 3mf/config error". Drop those keys so
+# --load-settings supplies valid defaults.
+_CLI_SENTINEL_MINUS_ONE_KEYS = {
+    "raft_first_layer_expansion",
+    "tree_support_wall_count",
+    "prime_tower_brim_width",
+    "prime_tower_width",
+    "support_interface_spacing",
+    "support_base_pattern_spacing",
+}
+_CLI_SENTINEL_ZERO_FILAMENT_KEYS = {
+    "solid_infill_filament",
+    "sparse_infill_filament",
+    "wall_filament",
+    "support_filament",
+    "support_interface_filament",
+}
+_CLI_PARAM_ERROR_RE = re.compile(
+    r"^([A-Za-z0-9_]+):\s+[-0-9.]+ not in range",
+    re.MULTILINE,
+)
+
+
+def _cli_scalar_is(value, *, target: float) -> bool:
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, (int, float)) and float(value) == target:
+        return True
+    if isinstance(value, str):
+        try:
+            return float(value.strip()) == target
+        except ValueError:
+            return False
+    return False
+
+
+def _cli_value_is_sentinel(key: str, value, extra_keys: set[str] | None = None) -> bool:
+    extra = extra_keys or set()
+    if isinstance(value, list):
+        return bool(value) and all(_cli_value_is_sentinel(key, item, extra) for item in value)
+    if (key in _CLI_SENTINEL_MINUS_ONE_KEYS or key in extra) and _cli_scalar_is(value, target=-1.0):
+        return True
+    if (key in _CLI_SENTINEL_ZERO_FILAMENT_KEYS or key in extra) and _cli_scalar_is(value, target=0.0):
+        return True
+    return False
+
+
+def parse_3mf_cli_param_keys(detail: str) -> set[str]:
+    return {match.group(1) for match in _CLI_PARAM_ERROR_RE.finditer(detail or "")}
+
+
+def sanitize_3mf_cli_sentinels(data: bytes, extra_keys: set[str] | None = None) -> bytes:
+    """Strip Bambu inherit-sentinels so Orca CLI can slice MakerWorld/Save Project 3MFs."""
+    if not data or data[:2] != b"PK":
+        return data
+    extra = {str(k) for k in (extra_keys or set()) if str(k).strip()}
+    try:
+        source = zipfile.ZipFile(io.BytesIO(data))
+    except zipfile.BadZipFile:
+        return data
+    try:
+        names = source.namelist()
+        targets = [
+            name for name in names
+            if "project_settings.config" in name.replace("\\", "/").lower()
+        ]
+        if not targets:
+            return data
+        replacements: dict[str, bytes] = {}
+        for name in targets:
+            raw_settings = source.read(name)
+            try:
+                parsed = json.loads(raw_settings.decode("utf-8", "ignore"))
+            except Exception:
+                continue
+            if not isinstance(parsed, dict):
+                continue
+            cleaned = {
+                key: value
+                for key, value in parsed.items()
+                if not _cli_value_is_sentinel(str(key), value, extra)
+            }
+            if cleaned == parsed:
+                continue
+            replacements[name] = json.dumps(cleaned, indent=4).encode("utf-8")
+        if not replacements:
+            return data
+        out = io.BytesIO()
+        with zipfile.ZipFile(out, "w", compression=zipfile.ZIP_DEFLATED) as dest:
+            for info in source.infolist():
+                if info.is_dir():
+                    continue
+                payload = replacements.get(info.filename)
+                if payload is None:
+                    payload = source.read(info.filename)
+                dest.writestr(info.filename, payload)
+        return out.getvalue()
+    except Exception:
+        return data
+    finally:
+        source.close()
