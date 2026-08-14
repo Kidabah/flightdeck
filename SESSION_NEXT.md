@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-14 Session update (Overhead electric name match)
 
-Latest commit: `(pending)` — Only fill the Electricity overhead from Power this month.
+Latest commit: `44f0f71` — Only fill the Electricity overhead from Power this month.
 
 Latest local/Pi change:
 - “Daily Network Electricity Access” was matching `electric` in the name and getting overwritten to the power $ total. Power now binds only to the dedicated Electricity line (id/name exactly Electricity).
