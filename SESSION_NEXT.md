@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-14 Session update (Project quote line items)
 
-Latest commit: `(pending)` — Show filament, shop time, labour, and suggested separately on Projects.
+Latest commit: `b026b71` — Show filament, shop time, labour, and suggested separately on Projects.
 
 Latest local/Pi change:
 - Project quote was labelling the full floor as “shop”, so filament looked extra. Cards now split filament / shop hours / my time / suggested.
