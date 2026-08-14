@@ -6,6 +6,21 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-14 Session update (Multi-plate queue split)
+
+Latest commit: `0700b11` — Queue an all-plates `.gcode.3mf` as one job per plate.
+
+Latest local/Pi change:
+- Bambu **Export all plates** `.gcode.3mf` now enqueues **N prints** (plate 1…N), not one print of plate 1.
+- Each queue row shows `Plate 3 of 8` plus that plate’s time/grams/thumbnail; send uses `Metadata/plate_N.gcode`.
+- Projects file row shows `8 plates · …` when the export has more than one plate.
+- Hard refresh (`app.js?v=665`). Backend restart required.
+
+Previous:
+- Project quote line items (`b026b71`).
+
+---
+
 ## 2026-08-14 Session update (Project quote line items)
 
 Latest commit: `b026b71` — Show filament, shop time, labour, and suggested separately on Projects.
