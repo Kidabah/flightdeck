@@ -24230,18 +24230,82 @@ function _costingQuoteLocal(cfg, costs, grams, hours, material, filamentOverride
   };
 }
 
+function _costingIsElectricityOverhead(row) {
+  const id = String(row?.id || row?.dataset?.id || '').toLowerCase();
+  const name = String(row?.name || '').toLowerCase();
+  return id === 'electricity' || name.includes('electric');
+}
+
+function _costingElectricityFromPower(state) {
+  const n = Number(state?.power?.total_cost);
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
+}
+
+function _costingFindElectricityRow(el) {
+  return [...el.querySelectorAll('.costing-overhead-row')].find(row => {
+    const id = String(row.dataset.id || '').toLowerCase();
+    const name = String(row.querySelector('[data-costing="name"]')?.value || '').toLowerCase();
+    return id === 'electricity' || name.includes('electric');
+  }) || null;
+}
+
+function _costingElectricityRowHtml(amount) {
+  return `
+    <div class="costing-overhead-row" data-id="electricity" data-power-driven="1">
+      <input class="settings-input" data-costing="name" type="text" maxlength="80" value="Electricity" placeholder="Name">
+      <span class="costing-amount-wrap"><span>$</span>
+        <input class="settings-input" data-costing="amount" type="number" min="0" step="0.01" value="${esc(Number(amount || 0).toFixed(2))}" readonly title="Filled from Power this month">
+      </span>
+    </div>`;
+}
+
+function _costingApplyPowerToElectricity(el, state) {
+  const amount = _costingElectricityFromPower(state);
+  if (amount == null) return;
+  let row = _costingFindElectricityRow(el);
+  const list = el.querySelector('.costing-overhead-list');
+  if (!row && list) {
+    list.querySelector('.settings-empty')?.remove();
+    list.insertAdjacentHTML('afterbegin', _costingElectricityRowHtml(amount));
+    row = _costingFindElectricityRow(el);
+  }
+  if (!row) return;
+  row.dataset.powerDriven = '1';
+  const input = row.querySelector('[data-costing="amount"]');
+  if (input) {
+    input.value = amount.toFixed(2);
+    input.readOnly = true;
+    input.title = 'Filled from Power this month';
+  }
+}
+
 function _costingCategoryHtml(state) {
-  const cfg = _costingRates(state.cfg || _costingDefaults());
+  const cfgIn = state.cfg || _costingDefaults();
+  const powerElec = _costingElectricityFromPower(state);
+  let overheads = [...(cfgIn.overheads || [])];
+  if (powerElec != null) {
+    let found = false;
+    overheads = overheads.map(row => {
+      if (!_costingIsElectricityOverhead(row)) return row;
+      found = true;
+      return { ...row, amount: powerElec };
+    });
+    if (!found) overheads = [{ id: 'electricity', name: 'Electricity', amount: powerElec }, ...overheads];
+  }
+  const cfg = _costingRates({ ...cfgIn, overheads });
   const costs = state.costs || [];
   const recent = Number(cfg.recent_hours_30d || 0);
-  const overheadRows = (cfg.overheads || []).map(row => `
-    <div class="costing-overhead-row" data-id="${esc(row.id || '')}">
+  const overheadRows = (cfg.overheads || []).map(row => {
+    const fromPower = powerElec != null && _costingIsElectricityOverhead(row);
+    return `
+    <div class="costing-overhead-row" data-id="${esc(row.id || '')}"${fromPower ? ' data-power-driven="1"' : ''}>
       <input class="settings-input" data-costing="name" type="text" maxlength="80" value="${esc(row.name || '')}" placeholder="Name">
       <span class="costing-amount-wrap"><span>$</span>
-        <input class="settings-input" data-costing="amount" type="number" min="0" step="0.01" value="${esc(String(row.amount ?? 0))}">
+        <input class="settings-input" data-costing="amount" type="number" min="0" step="0.01" value="${esc(fromPower ? powerElec.toFixed(2) : String(row.amount ?? 0))}"${fromPower ? ' readonly title="Filled from Power this month"' : ''}>
       </span>
-      <button type="button" class="settings-delete-btn costing-remove-overhead">Remove</button>
-    </div>`).join('');
+      ${fromPower ? '' : '<button type="button" class="settings-delete-btn costing-remove-overhead">Remove</button>'}
+    </div>`;
+  }).join('');
   const materialOpts = _costingMaterialOptions(costs).map(mat =>
     `<option value="${esc(mat)}">${esc(mat)}</option>`
   ).join('');
@@ -24262,7 +24326,7 @@ function _costingCategoryHtml(state) {
     </div>
     <div class="settings-section">
       <div class="settings-section-title">Monthly overheads</div>
-      <p class="settings-hint">Bambu, electricity bill share, consumables — whatever you pay whether a job sells or not. For real kWh from print time, use <em>Power this month</em> below.</p>
+      <p class="settings-hint">Bambu, consumables, and the rest — whatever you pay whether a job sells or not. <em>Electricity</em> is filled from Power this month (print hours × wiki watts × tariff), not the whole house bill.</p>
       <div class="costing-overhead-list">${overheadRows || '<div class="settings-empty">No overhead lines yet.</div>'}</div>
       <button type="button" class="costing-ghost-btn" data-costing-add>Add line</button>
     </div>
@@ -24382,6 +24446,7 @@ function _costingRefreshPowerLocal(el, state) {
     state.power.total_kwh = Math.round(totalKwh * 1000) / 1000;
     state.power.total_cost = Math.round(totalKwh * rate * 100) / 100;
   }
+  _costingApplyPowerToElectricity(el, state);
 }
 
 async function _costingLoadPower(el, state, month) {
@@ -24414,17 +24479,16 @@ async function _costingLoadPower(el, state, month) {
     state.power = data;
     if (body) body.innerHTML = _costingPowerRowsHtml(data);
     el.querySelectorAll('[data-power-watts]').forEach(input => {
-      input.addEventListener('input', () => {
-        _costingCollect(el);
-        _costingRefreshPowerLocal(el, state);
-      });
+      input.addEventListener('input', () => _costingRefreshDerived(el, state));
     });
+    _costingRefreshDerived(el, state);
   } catch (err) {
     if (body) body.innerHTML = `<div class="settings-empty">${esc(err.message || 'Power load failed')}</div>`;
   }
 }
 
 function _costingRefreshDerived(el, state) {
+  _costingRefreshPowerLocal(el, state);
   const cfg = _costingCollect(el);
   cfg.recent_hours_30d = state.cfg.recent_hours_30d;
   state.cfg = { ...state.cfg, ...cfg };
@@ -24453,7 +24517,6 @@ function _costingRefreshDerived(el, state) {
   setOut('labour', quote.labour, hasInput && quote.labour > 0);
   setOut('floor', quote.floor, hasInput && quote.floor > 0);
   setOut('suggested', quote.suggested, hasInput && quote.suggested > 0);
-  _costingRefreshPowerLocal(el, state);
 }
 
 function _attachCostingEvents(el, state) {
@@ -24463,10 +24526,7 @@ function _attachCostingEvents(el, state) {
     input.addEventListener('change', refresh);
   });
   el.querySelectorAll('[data-power-watts]').forEach(input => {
-    input.addEventListener('input', () => {
-      _costingCollect(el);
-      _costingRefreshPowerLocal(el, state);
-    });
+    input.addEventListener('input', refresh);
   });
   el.querySelector('[data-costing-add]')?.addEventListener('click', () => {
     const cfg = _costingCollect(el);

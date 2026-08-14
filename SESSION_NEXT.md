@@ -6,6 +6,19 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-14 Session update (Electricity from power calc)
+
+Latest commit: `(pending)` — Fill Costing Electricity overhead from Power this month.
+
+Latest local/Pi change:
+- Monthly overheads **Electricity** is filled from the Power this month $ total (print hours × wiki watts × tariff). Shop rate updates live; Save costing to persist.
+- Hard refresh (`app.js?v=661`, `style.css?v=505`). Backend restart optional.
+
+Previous:
+- Power this month (`f17089a`).
+
+---
+
 ## 2026-08-14 Session update (Power this month)
 
 Latest commit: `f17089a` — Estimate print electricity from History hours × Bambu wiki watts × tariff.

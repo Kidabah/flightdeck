@@ -23669,6 +23669,13 @@ select optgroup {
   color: var(--muted);
 }
 .costing-amount-wrap .settings-input { flex: 1; }
+.costing-overhead-row[data-power-driven] {
+  grid-template-columns: minmax(8rem, 1fr) 7.5rem;
+}
+.costing-overhead-row[data-power-driven] [data-costing="amount"] {
+  opacity: 0.85;
+  cursor: default;
+}
 .costing-ghost-btn {
   border: 1px solid var(--border);
   background: transparent;
