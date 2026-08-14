@@ -5159,6 +5159,8 @@ class CostingUpdate(BaseModel):
     expected_hours: float = 40
     markup_pct: float = 35
     labour_per_hour: float = 0
+    electricity_rate_per_kwh: float = 0.30
+    power_watts: dict[str, float] = {}
 
 
 class CostingQuoteRequest(BaseModel):
@@ -5167,6 +5169,32 @@ class CostingQuoteRequest(BaseModel):
     material: str = ""
     brand: str = ""
     filament_cost: Optional[float] = None
+
+
+def _costing_printer_meta() -> list[dict]:
+    rows: list[dict] = []
+    for p in _bambu:
+        rows.append({
+            "id": p.id,
+            "model_name": p.model_name,
+            "custom_name": p.custom_name,
+            "kind": "bambu",
+        })
+    for pid, model_name, custom_name, _icon, _url, kind, _toolhead_count in _moonraker:
+        rows.append({
+            "id": pid,
+            "model_name": model_name,
+            "custom_name": custom_name,
+            "kind": kind,
+        })
+    for pid, model_name, custom_name, _icon, profile, _scenario in _simulated:
+        rows.append({
+            "id": pid,
+            "model_name": model_name,
+            "custom_name": custom_name,
+            "kind": profile,
+        })
+    return rows
 
 
 @app.get("/api/costing")
@@ -5188,6 +5216,12 @@ async def post_costing_quote(body: CostingQuoteRequest):
         brand=body.brand,
         filament_cost=body.filament_cost,
     )
+
+
+@app.get("/api/costing/power")
+async def get_costing_power(month: Optional[str] = None):
+    """Estimate electricity from History print hours × wiki average watts × tariff."""
+    return db.estimate_power_month(month, printers=_costing_printer_meta())
 
 
 _PROJECTS_VAULT_ROOT = "Projects"

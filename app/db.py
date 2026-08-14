@@ -2,6 +2,7 @@ from __future__ import annotations
 import sqlite3
 import logging
 import json
+import re
 import secrets
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
@@ -84,11 +85,257 @@ def _normalise_costing(raw: Optional[dict]) -> dict:
         })
     if not overheads:
         overheads = [dict(row) for row in DEFAULT_COSTING_OVERHEADS]
+    power_watts: dict[str, float] = {}
+    raw_watts = data.get("power_watts")
+    if isinstance(raw_watts, dict):
+        for key, value in raw_watts.items():
+            pid = str(key or "").strip()[:64]
+            if not pid:
+                continue
+            watts = round(_costing_float(value, 0.0, 0.0, 2000.0), 1)
+            if watts > 0:
+                power_watts[pid] = watts
     return {
         "overheads": overheads,
         "expected_hours": round(_costing_float(data.get("expected_hours"), 40.0, 0.0, 1000.0), 2),
         "markup_pct": round(_costing_float(data.get("markup_pct"), 35.0, 0.0, 500.0), 2),
         "labour_per_hour": round(_costing_float(data.get("labour_per_hour"), 0.0, 0.0, 1000.0), 2),
+        # Tariff for “Power this month” — print hours × wiki kW, not the bill-share overhead line.
+        "electricity_rate_per_kwh": round(
+            _costing_float(data.get("electricity_rate_per_kwh"), 0.30, 0.0, 10.0), 4
+        ),
+        "power_watts": power_watts,
+    }
+
+
+# Average print draw (W) from Bambu Lab wiki — PLA baseline; material keys when known.
+# https://wiki.bambulab.com/en/general/power-consumption
+# Peaks (bed/nozzle heat) are not used for cost — averages during printing are.
+_POWER_W_BY_MODEL: dict[str, dict[str, float]] = {
+    "h2d": {"PLA": 197, "PETG": 230, "ABS": 310, "ASA": 310, "PC": 395, "PA": 350, "TPU": 180, "_": 197},
+    "h2c": {"PLA": 200, "PETG": 230, "ABS": 310, "PC": 395, "_": 200},
+    "h2s": {"PLA": 200, "PETG": 230, "ABS": 310, "PC": 395, "_": 200},
+    "x1c": {"PLA": 105, "PETG": 125, "ABS": 180, "ASA": 180, "PC": 220, "PA": 200, "TPU": 100, "_": 105},
+    "x1e": {"PLA": 185, "PETG": 200, "ABS": 250, "ASA": 250, "PC": 280, "PA": 260, "_": 185},
+    "x1": {"PLA": 105, "PETG": 125, "ABS": 180, "_": 105},
+    "p1s": {"PLA": 105, "PETG": 125, "ABS": 160, "ASA": 160, "TPU": 100, "_": 105},
+    "p1p": {"PLA": 110, "PETG": 125, "ABS": 150, "_": 110},
+    "a1": {"PLA": 100, "PETG": 115, "ABS": 140, "TPU": 95, "_": 100},
+    "a1_mini": {"PLA": 55, "PETG": 65, "TPU": 50, "_": 55},
+    "default": {"_": 120},
+}
+
+_POWER_MODEL_ALIASES = (
+    ("a1_mini", ("A1MINI", "A1-MINI", "A1 MINI")),
+    ("h2d", ("H2D",)),
+    ("h2c", ("H2C",)),
+    ("h2s", ("H2S",)),
+    ("x1e", ("X1E",)),
+    ("x1c", ("X1C",)),
+    ("x1", ("X1",)),
+    ("p1s", ("P1S",)),
+    ("p1p", ("P1P",)),
+    ("a1", ("A1",)),
+)
+
+
+def _power_model_key(model_name: str) -> str:
+    compact = re.sub(r"[^A-Z0-9]+", "", str(model_name or "").upper())
+    spaced = str(model_name or "").upper()
+    for key, aliases in _POWER_MODEL_ALIASES:
+        for alias in aliases:
+            needle = re.sub(r"[^A-Z0-9]+", "", alias)
+            if needle and needle in compact:
+                return key
+            if alias in spaced:
+                return key
+    return "default"
+
+
+def _power_material_key(material: str) -> str:
+    raw = str(material or "").strip().upper()
+    if not raw:
+        return "_"
+    token = re.split(r"[\s_/+\-]+", raw)[0]
+    for family in ("PLA", "PETG", "ABS", "ASA", "PC", "PA", "TPU", "PVA", "HIPS"):
+        if token.startswith(family) or family in token:
+            return family
+    return "_"
+
+
+def default_print_watts(model_name: str, material: str = "") -> tuple[float, str]:
+    """Return (watts, source label) for average print draw."""
+    model_key = _power_model_key(model_name)
+    mat_key = _power_material_key(material)
+    table = _POWER_W_BY_MODEL.get(model_key) or _POWER_W_BY_MODEL["default"]
+    if mat_key in table:
+        return float(table[mat_key]), f"wiki:{model_key.upper()}/{mat_key}"
+    watts = float(table.get("_") or _POWER_W_BY_MODEL["default"]["_"])
+    label = f"wiki:{model_key.upper()}/PLA" if mat_key == "_" else f"wiki:{model_key.upper()}/default"
+    return watts, label
+
+
+def _parse_year_month(month: Optional[str]) -> tuple[int, int, str]:
+    raw = str(month or "").strip()
+    now = datetime.utcnow()
+    if re.fullmatch(r"\d{4}-\d{2}", raw):
+        year, mon = int(raw[:4]), int(raw[5:7])
+        if 1 <= mon <= 12 and 2000 <= year <= 2100:
+            return year, mon, f"{year:04d}-{mon:02d}"
+    return now.year, now.month, f"{now.year:04d}-{now.month:02d}"
+
+
+def _month_start_end(year: int, month: int) -> tuple[str, str]:
+    start = f"{year:04d}-{month:02d}-01"
+    if month == 12:
+        end = f"{year + 1:04d}-01-01"
+    else:
+        end = f"{year:04d}-{month + 1:02d}-01"
+    return start, end
+
+
+def print_hours_by_printer_month(month: Optional[str] = None) -> dict:
+    """Sum print duration by printer (+ material) for a calendar month (UTC started_at)."""
+    year, mon, ym = _parse_year_month(month)
+    start, end = _month_start_end(year, mon)
+    with _conn() as conn:
+        rows = conn.execute(
+            """SELECT printer_id,
+                      COALESCE(NULLIF(TRIM(material), ''), '') AS material,
+                      COALESCE(SUM(duration_seconds), 0) AS secs
+               FROM prints
+               WHERE duration_seconds IS NOT NULL AND duration_seconds > 0
+                 AND started_at >= ? AND started_at < ?
+                 AND COALESCE(exclude_from_stats, 0) = 0
+               GROUP BY printer_id, material
+               ORDER BY printer_id, material""",
+            (start, end),
+        ).fetchall()
+    by_printer: dict[str, list[dict]] = {}
+    for row in rows:
+        pid = str(row["printer_id"] or "")
+        secs = float(row["secs"] or 0)
+        if not pid or secs <= 0:
+            continue
+        by_printer.setdefault(pid, []).append({
+            "material": str(row["material"] or ""),
+            "hours": round(secs / 3600.0, 3),
+            "seconds": int(secs),
+        })
+    return {"month": ym, "start": start, "end": end, "by_printer": by_printer}
+
+
+def estimate_power_month(
+    month: Optional[str] = None,
+    *,
+    printers: Optional[list[dict]] = None,
+    rate_per_kwh: Optional[float] = None,
+    watt_overrides: Optional[dict] = None,
+) -> dict:
+    """Estimate kWh/$ from History hours × wiki average W × tariff."""
+    cfg = get_costing_settings()
+    rate = _costing_float(
+        rate_per_kwh if rate_per_kwh is not None else cfg.get("electricity_rate_per_kwh"),
+        0.30,
+        0.0,
+        10.0,
+    )
+    overrides = watt_overrides if isinstance(watt_overrides, dict) else cfg.get("power_watts") or {}
+    hours_payload = print_hours_by_printer_month(month)
+    meta_by_id = {
+        str(p.get("id") or ""): p
+        for p in (printers or [])
+        if isinstance(p, dict) and p.get("id")
+    }
+    rows_out = []
+    total_hours = 0.0
+    total_kwh = 0.0
+    for pid, segments in sorted(hours_payload["by_printer"].items()):
+        meta = meta_by_id.get(pid) or {}
+        model_name = str(meta.get("model_name") or meta.get("model") or pid)
+        label = str(meta.get("custom_name") or meta.get("label") or model_name or pid)
+        override = _costing_float(overrides.get(pid), 0.0, 0.0, 2000.0) if pid in overrides else 0.0
+        breakdown = []
+        printer_hours = 0.0
+        printer_kwh = 0.0
+        weighted_w = 0.0
+        weighted_default_w = 0.0
+        for seg in segments:
+            hours = float(seg["hours"])
+            printer_hours += hours
+            default_w, default_source = default_print_watts(model_name, seg.get("material") or "")
+            weighted_default_w += default_w * hours
+            if override > 0:
+                watts = override
+                source = "override"
+            else:
+                watts, source = default_w, default_source
+            kwh = hours * (watts / 1000.0)
+            printer_kwh += kwh
+            weighted_w += watts * hours
+            breakdown.append({
+                "material": seg.get("material") or "unknown",
+                "hours": round(hours, 2),
+                "watts": round(watts, 1),
+                "kwh": round(kwh, 3),
+                "watts_source": source,
+            })
+        avg_w = (weighted_w / printer_hours) if printer_hours > 0 else 0.0
+        avg_default_w = (weighted_default_w / printer_hours) if printer_hours > 0 else 0.0
+        if avg_default_w <= 0:
+            avg_default_w, _ = default_print_watts(model_name, "PLA")
+        cost = printer_kwh * rate
+        total_hours += printer_hours
+        total_kwh += printer_kwh
+        rows_out.append({
+            "printer_id": pid,
+            "label": label,
+            "model_name": model_name,
+            "hours": round(printer_hours, 2),
+            "watts": round(avg_w, 1),
+            "watts_default": round(float(avg_default_w), 1),
+            "watts_override": round(override, 1) if override > 0 else None,
+            "kwh": round(printer_kwh, 3),
+            "cost": round(cost, 2),
+            "breakdown": breakdown,
+        })
+    # Include configured printers with zero hours so overrides can still be edited.
+    seen = {r["printer_id"] for r in rows_out}
+    for pid, meta in sorted(meta_by_id.items()):
+        if pid in seen:
+            continue
+        model_name = str(meta.get("model_name") or meta.get("model") or pid)
+        label = str(meta.get("custom_name") or meta.get("label") or model_name or pid)
+        override = _costing_float(overrides.get(pid), 0.0, 0.0, 2000.0) if pid in overrides else 0.0
+        watts_default, source = default_print_watts(model_name, "PLA")
+        watts = override if override > 0 else watts_default
+        if override > 0:
+            source = "override"
+        rows_out.append({
+            "printer_id": pid,
+            "label": label,
+            "model_name": model_name,
+            "hours": 0.0,
+            "watts": round(float(watts), 1),
+            "watts_default": round(float(watts_default), 1),
+            "watts_override": round(override, 1) if override > 0 else None,
+            "kwh": 0.0,
+            "cost": 0.0,
+            "breakdown": [],
+            "watts_source": source,
+        })
+    rows_out.sort(key=lambda r: (-float(r["hours"]), str(r["label"]).lower()))
+    return {
+        "month": hours_payload["month"],
+        "start": hours_payload["start"],
+        "end": hours_payload["end"],
+        "rate_per_kwh": round(rate, 4),
+        "wiki_url": "https://wiki.bambulab.com/en/general/power-consumption",
+        "note": "Uses History print hours × Bambu wiki average print watts (not heater peaks). Idle/standby not included.",
+        "printers": rows_out,
+        "total_hours": round(total_hours, 2),
+        "total_kwh": round(total_kwh, 3),
+        "total_cost": round(total_kwh * rate, 2),
     }
 
 

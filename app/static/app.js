@@ -24101,6 +24101,8 @@ function _costingDefaults() {
     expected_hours: 40,
     markup_pct: 35,
     labour_per_hour: 0,
+    electricity_rate_per_kwh: 0.30,
+    power_watts: {},
     monthly_total: 0,
     shop_rate: 0,
     recent_hours_30d: 0,
@@ -24119,6 +24121,8 @@ function _costingRates(cfg) {
     shop_rate: shop,
     labour_per_hour: labour,
     markup_pct: Number(cfg.markup_pct || 0),
+    electricity_rate_per_kwh: Number(cfg.electricity_rate_per_kwh ?? 0.30),
+    power_watts: cfg.power_watts || {},
   };
 }
 
@@ -24128,12 +24132,60 @@ function _costingCollect(el) {
     name: row.querySelector('[data-costing="name"]')?.value || '',
     amount: Number(row.querySelector('[data-costing="amount"]')?.value || 0) || 0,
   }));
+  const powerWatts = { ...(el._powerWatts || {}) };
+  el.querySelectorAll('[data-power-watts]').forEach(input => {
+    const pid = input.getAttribute('data-power-watts');
+    if (!pid) return;
+    const watts = Number(input.value || 0);
+    const def = Number(input.getAttribute('data-default-watts') || 0);
+    if (watts > 0 && Math.abs(watts - def) > 0.51) powerWatts[pid] = watts;
+    else delete powerWatts[pid];
+  });
+  el._powerWatts = powerWatts;
   return {
     overheads,
     expected_hours: Number(el.querySelector('[data-costing="expected_hours"]')?.value || 0) || 0,
     markup_pct: Number(el.querySelector('[data-costing="markup_pct"]')?.value || 0) || 0,
     labour_per_hour: Number(el.querySelector('[data-costing="labour_per_hour"]')?.value || 0) || 0,
+    electricity_rate_per_kwh: Number(el.querySelector('[data-costing="electricity_rate_per_kwh"]')?.value || 0) || 0,
+    power_watts: powerWatts,
   };
+}
+
+function _costingMonthDefault() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function _costingPowerRowsHtml(power) {
+  const rows = power?.printers || [];
+  if (!rows.length) {
+    return '<div class="settings-empty">No printers or print hours for this month yet.</div>';
+  }
+  return `
+    <div class="costing-power-table">
+      <div class="costing-power-head">
+        <span>Printer</span><span>Hours</span><span>Avg W</span><span>kWh</span><span>$</span>
+      </div>
+      ${rows.map(row => `
+        <div class="costing-power-row" data-printer-id="${esc(row.printer_id || '')}">
+          <div class="costing-power-printer">
+            <strong>${esc(row.label || row.printer_id || '')}</strong>
+            <span>${esc(row.model_name || '')}</span>
+          </div>
+          <span>${Number(row.hours || 0).toFixed(1)}</span>
+          <label class="costing-power-watts">
+            <input class="settings-input" data-power-watts="${esc(row.printer_id || '')}" data-default-watts="${esc(String(row.watts_default || row.watts || 0))}" type="number" min="0" max="2000" step="1" value="${esc(String(row.watts_override || row.watts || 0))}" title="Override average watts (leave at wiki default to clear override on save)">
+          </label>
+          <span>${Number(row.kwh || 0).toFixed(2)}</span>
+          <span>${_printCostMoney(row.cost || 0)}</span>
+        </div>`).join('')}
+    </div>
+    <div class="costing-power-totals">
+      <span>${Number(power.total_hours || 0).toFixed(1)} h</span>
+      <span>${Number(power.total_kwh || 0).toFixed(2)} kWh</span>
+      <strong>${_printCostMoney(power.total_cost || 0)}</strong>
+    </div>`;
 }
 
 function _costingMaterialOptions(costs) {
@@ -24210,7 +24262,7 @@ function _costingCategoryHtml(state) {
     </div>
     <div class="settings-section">
       <div class="settings-section-title">Monthly overheads</div>
-      <p class="settings-hint">Bambu, electricity, consumables — whatever you pay whether a job sells or not. Electricity is a bill share, not live kWh.</p>
+      <p class="settings-hint">Bambu, electricity bill share, consumables — whatever you pay whether a job sells or not. For real kWh from print time, use <em>Power this month</em> below.</p>
       <div class="costing-overhead-list">${overheadRows || '<div class="settings-empty">No overhead lines yet.</div>'}</div>
       <button type="button" class="costing-ghost-btn" data-costing-add>Add line</button>
     </div>
@@ -24262,6 +24314,23 @@ function _costingCategoryHtml(state) {
         <div><span>Floor</span><strong data-quote-out="floor">—</strong></div>
         <div class="costing-quote-suggested"><span>Suggested</span><strong data-quote-out="suggested">—</strong></div>
       </div>
+    </div>
+    <div class="settings-section costing-power-section">
+      <div class="settings-section-title">Power this month</div>
+      <p class="settings-hint">History print hours × Bambu wiki average watts × your tariff. Peaks (heaters) are ignored — this is print-time draw only, not the whole house bill. <a href="https://wiki.bambulab.com/en/general/power-consumption" target="_blank" rel="noopener">Wiki source</a></p>
+      <div class="settings-form-row costing-power-controls">
+        <label class="settings-label">Month
+          <input class="settings-input" data-power-month type="month" value="${esc((state.power && state.power.month) || _costingMonthDefault())}">
+        </label>
+        <label class="settings-label">Tariff ($/kWh)
+          <input class="settings-input" data-costing="electricity_rate_per_kwh" type="number" min="0" max="10" step="0.01" value="${esc(String(cfg.electricity_rate_per_kwh ?? 0.30))}">
+        </label>
+        <button type="button" class="costing-ghost-btn" data-power-refresh>Refresh</button>
+      </div>
+      <div class="costing-power-body" data-power-body>
+        ${state.power ? _costingPowerRowsHtml(state.power) : '<div class="settings-empty">Loading power…</div>'}
+      </div>
+      <div class="settings-hint">${esc((state.power && state.power.note) || 'Edit Avg W per printer if your setup differs, then Save costing.')}</div>
     </div>`;
 }
 
@@ -24273,6 +24342,7 @@ function _paintCosting(el, state) {
     filament: el.querySelector('[data-quote="filament"]')?.value || state.quote?.filament || '',
   };
   state.quote = quoteSnap;
+  el._powerWatts = { ...(state.cfg?.power_watts || {}), ...(el._powerWatts || {}) };
   el.innerHTML = _costingCategoryHtml(state);
   const setVal = (sel, value) => {
     const node = el.querySelector(sel);
@@ -24283,6 +24353,75 @@ function _paintCosting(el, state) {
   setVal('[data-quote="material"]', quoteSnap.material);
   setVal('[data-quote="filament"]', quoteSnap.filament);
   _attachCostingEvents(el, state);
+}
+
+function _costingRefreshPowerLocal(el, state) {
+  const rate = Number(el.querySelector('[data-costing="electricity_rate_per_kwh"]')?.value || 0) || 0;
+  let totalHours = 0;
+  let totalKwh = 0;
+  el.querySelectorAll('.costing-power-row').forEach(row => {
+    const hours = Number(row.children[1]?.textContent || 0) || 0;
+    const watts = Number(row.querySelector('[data-power-watts]')?.value || 0) || 0;
+    const kwh = hours * (watts / 1000);
+    const cost = kwh * rate;
+    totalHours += hours;
+    totalKwh += kwh;
+    if (row.children[3]) row.children[3].textContent = kwh.toFixed(2);
+    if (row.children[4]) row.children[4].textContent = _printCostMoney(cost);
+  });
+  const totals = el.querySelector('.costing-power-totals');
+  if (totals) {
+    totals.innerHTML = `
+      <span>${totalHours.toFixed(1)} h</span>
+      <span>${totalKwh.toFixed(2)} kWh</span>
+      <strong>${_printCostMoney(totalKwh * rate)}</strong>`;
+  }
+  if (state.power) {
+    state.power.rate_per_kwh = rate;
+    state.power.total_hours = Math.round(totalHours * 100) / 100;
+    state.power.total_kwh = Math.round(totalKwh * 1000) / 1000;
+    state.power.total_cost = Math.round(totalKwh * rate * 100) / 100;
+  }
+}
+
+async function _costingLoadPower(el, state, month) {
+  const body = el.querySelector('[data-power-body]');
+  const ym = month || el.querySelector('[data-power-month]')?.value || _costingMonthDefault();
+  if (body) body.innerHTML = '<div class="settings-empty">Loading power…</div>';
+  try {
+    const collected = _costingCollect(el);
+    state.cfg = { ...state.cfg, ...collected, recent_hours_30d: state.cfg.recent_hours_30d };
+    const r = await fetch(`/api/costing/power?month=${encodeURIComponent(ym)}`);
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.detail || 'Power load failed');
+    const overrides = collected.power_watts || {};
+    const rate = Number(collected.electricity_rate_per_kwh ?? data.rate_per_kwh ?? 0.3);
+    (data.printers || []).forEach(row => {
+      const ov = Number(overrides[row.printer_id] || 0);
+      if (ov > 0) {
+        row.watts_override = ov;
+        row.watts = ov;
+        row.kwh = Math.round(Number(row.hours || 0) * (ov / 1000) * 1000) / 1000;
+        row.cost = Math.round(row.kwh * rate * 100) / 100;
+      } else {
+        row.cost = Math.round(Number(row.kwh || 0) * rate * 100) / 100;
+      }
+    });
+    data.rate_per_kwh = rate;
+    data.total_kwh = Math.round((data.printers || []).reduce((s, p) => s + Number(p.kwh || 0), 0) * 1000) / 1000;
+    data.total_hours = Math.round((data.printers || []).reduce((s, p) => s + Number(p.hours || 0), 0) * 100) / 100;
+    data.total_cost = Math.round(data.total_kwh * rate * 100) / 100;
+    state.power = data;
+    if (body) body.innerHTML = _costingPowerRowsHtml(data);
+    el.querySelectorAll('[data-power-watts]').forEach(input => {
+      input.addEventListener('input', () => {
+        _costingCollect(el);
+        _costingRefreshPowerLocal(el, state);
+      });
+    });
+  } catch (err) {
+    if (body) body.innerHTML = `<div class="settings-empty">${esc(err.message || 'Power load failed')}</div>`;
+  }
 }
 
 function _costingRefreshDerived(el, state) {
@@ -24314,6 +24453,7 @@ function _costingRefreshDerived(el, state) {
   setOut('labour', quote.labour, hasInput && quote.labour > 0);
   setOut('floor', quote.floor, hasInput && quote.floor > 0);
   setOut('suggested', quote.suggested, hasInput && quote.suggested > 0);
+  _costingRefreshPowerLocal(el, state);
 }
 
 function _attachCostingEvents(el, state) {
@@ -24322,11 +24462,17 @@ function _attachCostingEvents(el, state) {
     input.addEventListener('input', refresh);
     input.addEventListener('change', refresh);
   });
+  el.querySelectorAll('[data-power-watts]').forEach(input => {
+    input.addEventListener('input', () => {
+      _costingCollect(el);
+      _costingRefreshPowerLocal(el, state);
+    });
+  });
   el.querySelector('[data-costing-add]')?.addEventListener('click', () => {
     const cfg = _costingCollect(el);
     cfg.overheads.push({ id: '', name: 'Other', amount: 0 });
     cfg.recent_hours_30d = state.cfg.recent_hours_30d;
-    _paintCosting(el, { cfg, costs: state.costs });
+    _paintCosting(el, { cfg, costs: state.costs, power: state.power, quote: state.quote });
   });
   el.querySelectorAll('.costing-remove-overhead').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -24334,7 +24480,7 @@ function _attachCostingEvents(el, state) {
       row?.remove();
       const cfg = _costingCollect(el);
       cfg.recent_hours_30d = state.cfg.recent_hours_30d;
-      _paintCosting(el, { cfg, costs: state.costs });
+      _paintCosting(el, { cfg, costs: state.costs, power: state.power, quote: state.quote });
     });
   });
   el.querySelector('[data-costing-use-recent]')?.addEventListener('click', () => {
@@ -24343,6 +24489,12 @@ function _attachCostingEvents(el, state) {
     if (!hoursInput || !(recent > 0)) return;
     hoursInput.value = String(Math.round(recent));
     refresh();
+  });
+  el.querySelector('[data-power-refresh]')?.addEventListener('click', () => {
+    _costingLoadPower(el, state);
+  });
+  el.querySelector('[data-power-month]')?.addEventListener('change', () => {
+    _costingLoadPower(el, state);
   });
   el.querySelector('[data-costing-save]')?.addEventListener('click', async () => {
     const btn = el.querySelector('[data-costing-save]');
@@ -24359,7 +24511,9 @@ function _attachCostingEvents(el, state) {
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data.detail || 'Save failed');
       state.cfg = data;
+      el._powerWatts = { ...(data.power_watts || {}) };
       _paintCosting(el, state);
+      await _costingLoadPower(el, state);
       showToast('Costing saved', `Shop rate ${_printCostMoney(data.shop_rate || 0)}/h`, 'success');
     } catch (err) {
       if (status) status.textContent = err.message || 'Save failed';
@@ -24458,14 +24612,17 @@ async function _renderSettingsContent(category) {
     _attachLocationsEvents(el, locations);
   } else if (category === 'costing') {
     el.innerHTML = `<div class="detail-placeholder" style="min-height:10rem">Loading…</div>`;
-    const [costing, costs] = await Promise.all([
+    const [costing, costs, power] = await Promise.all([
       fetch('/api/costing').then(r => r.json()).catch(() => null),
       fetch('/api/filament/costs').then(r => r.json()).catch(() => []),
+      fetch(`/api/costing/power?month=${encodeURIComponent(_costingMonthDefault())}`).then(r => r.json()).catch(() => null),
     ]);
     const state = {
       cfg: costing && typeof costing === 'object' ? costing : _costingDefaults(),
       costs: Array.isArray(costs) ? costs : [],
+      power: power && typeof power === 'object' ? power : null,
     };
+    el._powerWatts = { ...(state.cfg.power_watts || {}) };
     _paintCosting(el, state);
   }
 }

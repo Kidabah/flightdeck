@@ -6,6 +6,21 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-14 Session update (Power this month)
+
+Latest commit: `(pending)` — Estimate print electricity from History hours × Bambu wiki watts × tariff.
+
+Latest local/Pi change:
+- Settings → Costing: **Power this month** panel — month picker, print hours by printer, wiki avg W (material-aware when known), editable W overrides, $/kWh tariff → kWh and $.
+- Does **not** dump the whole bill onto printers; shop-rate overhead “Electricity” line stays a bill share. Quotes still use shop $/hr.
+- API: `GET /api/costing/power?month=YYYY-MM`. Costing settings store `electricity_rate_per_kwh` + optional `power_watts` overrides.
+- Hard refresh (`app.js?v=660`, `style.css?v=504`). Backend restart required.
+
+Previous:
+- Projects delete stick (`97999f4`).
+
+---
+
 ## 2026-08-14 Session update (Projects delete stick)
 
 Latest commit: `97999f4` — Keep deleted Projects from coming back via orphan folder adopt.
