@@ -973,7 +973,7 @@ function _commandStaticItems() {
     }),
   ];
 
-  const settings = ['Printers', 'Hardware', 'Appearance', 'Slicer', 'Locations'].map(label => {
+  const settings = ['Printers', 'Hardware', 'Appearance', 'Slicer', 'Locations', 'Costing'].map(label => {
     const id = label.toLowerCase();
     return _commandItem({
       label: `Settings: ${label}`,
@@ -983,6 +983,13 @@ function _commandStaticItems() {
       run: () => _commandNavigate(`#/settings/${id}`),
     });
   });
+  settings.push(_commandItem({
+    label: 'Quote a print',
+    meta: 'Floor + suggested sell',
+    group: 'Settings',
+    keywords: 'cost price quote shop goose hours grams',
+    run: () => _commandNavigate('#/settings/costing'),
+  }));
 
   return [...nav, ...spoolViews, ...settings];
 }
@@ -7280,6 +7287,61 @@ function _teardownMediaIn(el) {
   });
 }
 
+function _printCostMoney(n, digits = 2) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return '—';
+  return `$${v.toFixed(digits)}`;
+}
+
+function _printCostTitle(item) {
+  const bits = [];
+  const filament = item.filament_cost != null ? item.filament_cost : item.total_cost;
+  if (filament != null) bits.push(`Filament ${_printCostMoney(filament)}`);
+  if (item.time_cost != null) bits.push(`Time ${_printCostMoney(item.time_cost)}`);
+  if (item.labour_cost != null) bits.push(`My time ${_printCostMoney(item.labour_cost)}`);
+  if (item.floor_price != null) bits.push(`Floor ${_printCostMoney(item.floor_price)}`);
+  if (item.suggested_price != null) bits.push(`Suggested ${_printCostMoney(item.suggested_price)}`);
+  return bits.join(' · ');
+}
+
+function _printCostDetailRows(print) {
+  const rows = [];
+  const hasFilament = print.total_cost != null || print.cost_pending;
+  const hasShop = print.floor_price != null || print.suggested_price != null || print.time_cost != null || print.labour_cost != null;
+  if (!hasFilament && !hasShop) return rows;
+  if (hasFilament) {
+    const fil = print.total_cost != null
+      ? `${_printCostMoney(print.total_cost)}${print.cost_pending ? ' · partial' : ''}`
+      : 'Set filament costs';
+    rows.push(`<div class="detail-row"><span class="detail-label">Filament cost</span><span class="detail-value">${fil}</span></div>`);
+  }
+  if (print.duration_seconds) {
+    const hours = Number(print.duration_seconds) / 3600;
+    const rate = Number(print.shop_rate || 0);
+    let timeText;
+    if (print.time_cost != null) {
+      timeText = `${_printCostMoney(print.time_cost)} · ${hours.toFixed(1)} h × ${_printCostMoney(rate)}/h`;
+    } else if (rate > 0) {
+      timeText = `${_printCostMoney(hours * rate)} · ${hours.toFixed(1)} h`;
+    } else {
+      timeText = `${hours.toFixed(1)} h · <a href="#/settings/costing">set shop hours in Costing</a>`;
+    }
+    rows.push(`<div class="detail-row"><span class="detail-label">Time</span><span class="detail-value">${timeText}</span></div>`);
+  }
+  if (print.labour_cost != null) {
+    const labourRate = Number(print.labour_rate || 0);
+    const extra = labourRate > 0 ? ` · ${_printCostMoney(labourRate)}/h` : '';
+    rows.push(`<div class="detail-row"><span class="detail-label">My time</span><span class="detail-value">${_printCostMoney(print.labour_cost)}${extra}</span></div>`);
+  }
+  if (print.floor_price != null) {
+    rows.push(`<div class="detail-row"><span class="detail-label">Floor</span><span class="detail-value">${_printCostMoney(print.floor_price)}</span></div>`);
+  }
+  if (print.suggested_price != null) {
+    rows.push(`<div class="detail-row detail-row-quote"><span class="detail-label">Suggested</span><span class="detail-value">${_printCostMoney(print.suggested_price)}</span></div>`);
+  }
+  return rows;
+}
+
 function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
   const el = targetEl || document.getElementById('history-day-detail');
   if (!el) return;
@@ -7310,12 +7372,7 @@ function _showPrintDetail(printerId, dateStr, print, targetEl = null) {
     const mat = print.material ? ` · ${print.material}` : '';
     rows.push(`<div class="detail-row"><span class="detail-label">Filament</span><span class="detail-value">${print.filament_grams.toFixed(1)}g${mat}</span></div>`);
   }
-  if (print.total_cost != null || print.cost_pending) {
-    const costText = print.total_cost != null
-      ? `$${Number(print.total_cost).toFixed(2)}${print.cost_pending ? ' · partial' : ''}`
-      : 'Set filament costs';
-    rows.push(`<div class="detail-row"><span class="detail-label">Cost</span><span class="detail-value">${costText}</span></div>`);
-  }
+  rows.push(..._printCostDetailRows(print));
 
   const errorHtml = print.error_message
     ? `<div class="print-detail-error">${print.error_message}</div>`
@@ -7962,12 +8019,16 @@ function _memoryRow(item) {
     : '';
   const material = item.material || (item.spool_usage || [])[0]?.material || '';
   const spoolCount = (item.spool_usage || []).length;
-  const cost = item.total_cost != null ? ` · $${Number(item.total_cost).toFixed(2)}` : '';
+  const quote = item.suggested_price != null
+    ? Number(item.suggested_price)
+    : (item.floor_price != null ? Number(item.floor_price) : (item.total_cost != null ? Number(item.total_cost) : null));
+  const cost = quote != null ? ` · $${quote.toFixed(2)}` : '';
+  const costTitle = _printCostTitle(item);
   return `<button class="memory-row ${_memoryRowStateClass(item)}" type="button" data-print-id="${item.id}" data-printer-id="${esc(item.printer_id)}">
     <span class="memory-date"><strong>${esc(dateLabel)}</strong><em>${esc(timeLabel)}</em></span>
     <span class="memory-main">
       <strong title="${esc(item.filename || '')}">${esc(_memoryPrintName(item))}</strong>
-      <em>${esc(_memoryPrinterLabel(item.printer_id))}${material ? ` · ${esc(material)}` : ''}${spoolCount ? ` · ${spoolCount} spool${spoolCount !== 1 ? 's' : ''}` : ''}${cost}</em>
+      <em${costTitle ? ` title="${esc(costTitle)}"` : ''}>${esc(_memoryPrinterLabel(item.printer_id))}${material ? ` · ${esc(material)}` : ''}${spoolCount ? ` · ${spoolCount} spool${spoolCount !== 1 ? 's' : ''}` : ''}${cost}</em>
     </span>
     <span class="memory-meta">${_memoryStateBadge(item.final_state)}<em>${esc(dur)}</em>${estimate}</span>
     <span class="memory-flags">${_memoryFlags(item)}</span>
@@ -8018,8 +8079,12 @@ function _memorySummary(items) {
   const cancelled = items.filter(i => i.final_state === 'CANCELLED').length;
   const excluded = items.filter(i => i.exclude_from_stats).length;
   const hours = items.reduce((sum, i) => sum + Number(i.duration_seconds || 0), 0) / 3600;
-  const cost = items.reduce((sum, i) => sum + Number(i.total_cost || 0), 0);
-  const costCount = items.filter(i => i.total_cost != null).length;
+  const filament = items.reduce((sum, i) => sum + Number(i.total_cost || 0), 0);
+  const filamentCount = items.filter(i => i.total_cost != null).length;
+  const floor = items.reduce((sum, i) => sum + Number(i.floor_price || 0), 0);
+  const floorCount = items.filter(i => i.floor_price != null).length;
+  const suggested = items.reduce((sum, i) => sum + Number(i.suggested_price || 0), 0);
+  const suggestedCount = items.filter(i => i.suggested_price != null).length;
   return `<div class="memory-summary">
     <span><strong>${items.length}</strong> prints</span>
     <span><strong>${finished}</strong> finished</span>
@@ -8027,7 +8092,9 @@ function _memorySummary(items) {
     <span><strong>${failed}</strong> failed</span>
     ${excluded ? `<span><strong>${excluded}</strong> no stats</span>` : ''}
     <span><strong>${hours.toFixed(1)}</strong> h</span>
-    ${costCount ? `<span><strong>$${cost.toFixed(2)}</strong> costed</span>` : ''}
+    ${floorCount ? `<span><strong>$${floor.toFixed(2)}</strong> floor</span>` : ''}
+    ${suggestedCount ? `<span><strong>$${suggested.toFixed(2)}</strong> suggested</span>` : ''}
+    ${filamentCount ? `<span><strong>$${filament.toFixed(2)}</strong> filament</span>` : ''}
   </div>`;
 }
 
@@ -14131,6 +14198,7 @@ const _SETTINGS_CATEGORIES = [
   { id: 'appearance', label: 'Appearance' },
   { id: 'slicer',     label: 'Slicer'     },
   { id: 'locations',  label: 'Locations'  },
+  { id: 'costing',    label: 'Costing'    },
 ];
 
 async function refreshPrinters() {
@@ -23804,6 +23872,285 @@ function _attachLocationsEvents(el, locations) {
   });
 }
 
+function _costingDefaults() {
+  return {
+    overheads: [
+      { id: 'bambu', name: 'Bambu / subscriptions', amount: 0 },
+      { id: 'electricity', name: 'Electricity', amount: 0 },
+      { id: 'other', name: 'Other', amount: 0 },
+    ],
+    expected_hours: 40,
+    markup_pct: 35,
+    labour_per_hour: 0,
+    monthly_total: 0,
+    shop_rate: 0,
+    recent_hours_30d: 0,
+  };
+}
+
+function _costingRates(cfg) {
+  const overheads = cfg.overheads || [];
+  const monthly = overheads.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+  const hours = Number(cfg.expected_hours || 0);
+  const shop = hours > 0 ? monthly / hours : 0;
+  const labour = Number(cfg.labour_per_hour || 0);
+  return {
+    ...cfg,
+    monthly_total: monthly,
+    shop_rate: shop,
+    labour_per_hour: labour,
+    markup_pct: Number(cfg.markup_pct || 0),
+  };
+}
+
+function _costingCollect(el) {
+  const overheads = [...el.querySelectorAll('.costing-overhead-row')].map(row => ({
+    id: row.dataset.id || '',
+    name: row.querySelector('[data-costing="name"]')?.value || '',
+    amount: Number(row.querySelector('[data-costing="amount"]')?.value || 0) || 0,
+  }));
+  return {
+    overheads,
+    expected_hours: Number(el.querySelector('[data-costing="expected_hours"]')?.value || 0) || 0,
+    markup_pct: Number(el.querySelector('[data-costing="markup_pct"]')?.value || 0) || 0,
+    labour_per_hour: Number(el.querySelector('[data-costing="labour_per_hour"]')?.value || 0) || 0,
+  };
+}
+
+function _costingMaterialOptions(costs) {
+  const seen = new Set();
+  const mats = [];
+  for (const row of costs || []) {
+    const mat = String(row.material || '').trim();
+    if (!mat) continue;
+    const key = mat.toUpperCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    mats.push(mat);
+  }
+  mats.sort((a, b) => a.localeCompare(b));
+  return mats;
+}
+
+function _costingQuoteLocal(cfg, costs, grams, hours, material, filamentOverride) {
+  const rates = _costingRates(cfg);
+  let filament = null;
+  if (filamentOverride !== '' && filamentOverride != null && Number.isFinite(Number(filamentOverride))) {
+    filament = Number(filamentOverride);
+  } else if (grams > 0) {
+    const mat = String(material || '').toUpperCase();
+    const rows = (costs || []).filter(c => String(c.material || '').toUpperCase() === mat && Number(c.cost_per_gram) > 0);
+    const pool = rows.length ? rows : (costs || []).filter(c => Number(c.cost_per_gram) > 0);
+    if (pool.length) {
+      const cpg = pool.reduce((sum, c) => sum + Number(c.cost_per_gram), 0) / pool.length;
+      filament = grams * cpg;
+    }
+  }
+  const time = hours > 0 ? hours * rates.shop_rate : 0;
+  const labour = hours > 0 ? hours * Number(rates.labour_per_hour || 0) : 0;
+  const floor = Number(filament || 0) + time + labour;
+  return {
+    filament,
+    time,
+    labour,
+    floor,
+    suggested: floor > 0 ? floor * (1 + Number(rates.markup_pct || 0) / 100) : 0,
+    shop_rate: rates.shop_rate,
+  };
+}
+
+function _costingCategoryHtml(state) {
+  const cfg = _costingRates(state.cfg || _costingDefaults());
+  const costs = state.costs || [];
+  const recent = Number(cfg.recent_hours_30d || 0);
+  const overheadRows = (cfg.overheads || []).map(row => `
+    <div class="costing-overhead-row" data-id="${esc(row.id || '')}">
+      <input class="settings-input" data-costing="name" type="text" maxlength="80" value="${esc(row.name || '')}" placeholder="Name">
+      <span class="costing-amount-wrap"><span>$</span>
+        <input class="settings-input" data-costing="amount" type="number" min="0" step="0.01" value="${esc(String(row.amount ?? 0))}">
+      </span>
+      <button type="button" class="settings-delete-btn costing-remove-overhead">Remove</button>
+    </div>`).join('');
+  const materialOpts = _costingMaterialOptions(costs).map(mat =>
+    `<option value="${esc(mat)}">${esc(mat)}</option>`
+  ).join('');
+  const rateText = cfg.shop_rate > 0 ? _printCostMoney(cfg.shop_rate) : '$0.00';
+  return `
+    <div class="settings-section">
+      <div class="settings-section-title">Shop rate</div>
+      <p class="settings-hint">Cover monthly costs across the hours you actually print. Leave “my time” at $0 so local quotes stay friendly.</p>
+      <div class="costing-rate-hero">
+        <span>Shop rate</span>
+        <strong data-costing-rate>${rateText}</strong>
+        <em>/ print hour</em>
+      </div>
+      <div class="costing-rate-meta">
+        <span data-costing-monthly>${_printCostMoney(cfg.monthly_total)} / month</span>
+        <span data-costing-hours-label>${Number(cfg.expected_hours || 0).toFixed(0)} expected hours</span>
+      </div>
+    </div>
+    <div class="settings-section">
+      <div class="settings-section-title">Monthly overheads</div>
+      <p class="settings-hint">Bambu, electricity, consumables — whatever you pay whether a job sells or not. Electricity is a bill share, not live kWh.</p>
+      <div class="costing-overhead-list">${overheadRows || '<div class="settings-empty">No overhead lines yet.</div>'}</div>
+      <button type="button" class="costing-ghost-btn" data-costing-add>Add line</button>
+    </div>
+    <div class="settings-section">
+      <div class="settings-section-title">Hours &amp; markup</div>
+      <div class="settings-form-row">
+        <label class="settings-label">Expected hours / month</label>
+        <input class="settings-input" data-costing="expected_hours" type="number" min="0" max="1000" step="1" value="${esc(String(cfg.expected_hours ?? 40))}">
+        <button type="button" class="costing-ghost-btn" data-costing-use-recent${recent > 0 ? '' : ' disabled'}>Use last 30 days${recent > 0 ? ` (${recent.toFixed(1)} h)` : ''}</button>
+      </div>
+      <div class="settings-hint">Last 30 days of finished, failed, and cancelled prints: ${recent.toFixed(1)} h. The shop rate only works if this estimate is honest.</div>
+      <div class="settings-form-row">
+        <label class="settings-label">Markup</label>
+        <input class="settings-input" data-costing="markup_pct" type="number" min="0" max="500" step="1" value="${esc(String(cfg.markup_pct ?? 35))}"> %
+      </div>
+      <div class="settings-hint">Suggested sell = floor × (1 + markup). 30–40% is a modest local-ad profit.</div>
+      <div class="settings-form-row">
+        <label class="settings-label">My time ($/hr)</label>
+        <input class="settings-input" data-costing="labour_per_hour" type="number" min="0" max="1000" step="0.5" value="${esc(String(cfg.labour_per_hour ?? 0))}">
+      </div>
+      <div class="settings-hint">Optional and small. A full wage will price you out of local work — $0 is the default.</div>
+      <button type="button" class="settings-save-btn" data-costing-save>Save costing</button>
+      <span class="costing-save-status" data-costing-status></span>
+    </div>
+    <div class="settings-section">
+      <div class="settings-section-title">Quote helper</div>
+      <p class="settings-hint">Someone asks “how much for a goose?” — grams + hours in, floor and suggested out. Uses the numbers on this page, even before you save.</p>
+      <div class="costing-quote-grid">
+        <label>Grams
+          <input class="settings-input" data-quote="grams" type="number" min="0" step="0.1" value="">
+        </label>
+        <label>Hours
+          <input class="settings-input" data-quote="hours" type="number" min="0" step="0.1" value="">
+        </label>
+        <label>Material
+          <select class="settings-input" data-quote="material">
+            <option value="">Catalogue average</option>
+            ${materialOpts}
+          </select>
+        </label>
+        <label>Filament $ <span class="settings-hint">(optional override)</span>
+          <input class="settings-input" data-quote="filament" type="number" min="0" step="0.01" placeholder="auto">
+        </label>
+      </div>
+      <div class="costing-quote-result">
+        <div><span>Filament</span><strong data-quote-out="filament">—</strong></div>
+        <div><span>Time</span><strong data-quote-out="time">—</strong></div>
+        <div data-quote-labour-row hidden><span>My time</span><strong data-quote-out="labour">—</strong></div>
+        <div><span>Floor</span><strong data-quote-out="floor">—</strong></div>
+        <div class="costing-quote-suggested"><span>Suggested</span><strong data-quote-out="suggested">—</strong></div>
+      </div>
+    </div>`;
+}
+
+function _paintCosting(el, state) {
+  const quoteSnap = {
+    grams: el.querySelector('[data-quote="grams"]')?.value || state.quote?.grams || '',
+    hours: el.querySelector('[data-quote="hours"]')?.value || state.quote?.hours || '',
+    material: el.querySelector('[data-quote="material"]')?.value || state.quote?.material || '',
+    filament: el.querySelector('[data-quote="filament"]')?.value || state.quote?.filament || '',
+  };
+  state.quote = quoteSnap;
+  el.innerHTML = _costingCategoryHtml(state);
+  const setVal = (sel, value) => {
+    const node = el.querySelector(sel);
+    if (node && value !== undefined && value !== '') node.value = value;
+  };
+  setVal('[data-quote="grams"]', quoteSnap.grams);
+  setVal('[data-quote="hours"]', quoteSnap.hours);
+  setVal('[data-quote="material"]', quoteSnap.material);
+  setVal('[data-quote="filament"]', quoteSnap.filament);
+  _attachCostingEvents(el, state);
+}
+
+function _costingRefreshDerived(el, state) {
+  const cfg = _costingCollect(el);
+  cfg.recent_hours_30d = state.cfg.recent_hours_30d;
+  state.cfg = { ...state.cfg, ...cfg };
+  const rates = _costingRates(cfg);
+  const rateEl = el.querySelector('[data-costing-rate]');
+  const monthlyEl = el.querySelector('[data-costing-monthly]');
+  const hoursEl = el.querySelector('[data-costing-hours-label]');
+  if (rateEl) rateEl.textContent = rates.shop_rate > 0 ? _printCostMoney(rates.shop_rate) : '$0.00';
+  if (monthlyEl) monthlyEl.textContent = `${_printCostMoney(rates.monthly_total)} / month`;
+  if (hoursEl) hoursEl.textContent = `${Number(rates.expected_hours || 0).toFixed(0)} expected hours`;
+  const grams = Number(el.querySelector('[data-quote="grams"]')?.value || 0);
+  const hours = Number(el.querySelector('[data-quote="hours"]')?.value || 0);
+  const material = el.querySelector('[data-quote="material"]')?.value || '';
+  const filInput = el.querySelector('[data-quote="filament"]')?.value ?? '';
+  const quote = _costingQuoteLocal(rates, state.costs, grams, hours, material, filInput);
+  const setOut = (key, value, show) => {
+    const node = el.querySelector(`[data-quote-out="${key}"]`);
+    if (!node) return;
+    node.textContent = show ? _printCostMoney(value) : '—';
+  };
+  const hasInput = grams > 0 || hours > 0 || filInput !== '';
+  setOut('filament', quote.filament, hasInput && quote.filament != null);
+  setOut('time', quote.time, hasInput && quote.time > 0);
+  const labourRow = el.querySelector('[data-quote-labour-row]');
+  if (labourRow) labourRow.hidden = !(hasInput && quote.labour > 0);
+  setOut('labour', quote.labour, hasInput && quote.labour > 0);
+  setOut('floor', quote.floor, hasInput && quote.floor > 0);
+  setOut('suggested', quote.suggested, hasInput && quote.suggested > 0);
+}
+
+function _attachCostingEvents(el, state) {
+  const refresh = () => _costingRefreshDerived(el, state);
+  el.querySelectorAll('[data-costing], [data-quote]').forEach(input => {
+    input.addEventListener('input', refresh);
+    input.addEventListener('change', refresh);
+  });
+  el.querySelector('[data-costing-add]')?.addEventListener('click', () => {
+    const cfg = _costingCollect(el);
+    cfg.overheads.push({ id: '', name: 'Other', amount: 0 });
+    cfg.recent_hours_30d = state.cfg.recent_hours_30d;
+    _paintCosting(el, { cfg, costs: state.costs });
+  });
+  el.querySelectorAll('.costing-remove-overhead').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const row = btn.closest('.costing-overhead-row');
+      row?.remove();
+      const cfg = _costingCollect(el);
+      cfg.recent_hours_30d = state.cfg.recent_hours_30d;
+      _paintCosting(el, { cfg, costs: state.costs });
+    });
+  });
+  el.querySelector('[data-costing-use-recent]')?.addEventListener('click', () => {
+    const hoursInput = el.querySelector('[data-costing="expected_hours"]');
+    const recent = Number(state.cfg.recent_hours_30d || 0);
+    if (!hoursInput || !(recent > 0)) return;
+    hoursInput.value = String(Math.round(recent));
+    refresh();
+  });
+  el.querySelector('[data-costing-save]')?.addEventListener('click', async () => {
+    const btn = el.querySelector('[data-costing-save]');
+    const status = el.querySelector('[data-costing-status]');
+    const payload = _costingCollect(el);
+    if (btn) btn.disabled = true;
+    if (status) status.textContent = 'Saving…';
+    try {
+      const r = await fetch('/api/costing', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.detail || 'Save failed');
+      state.cfg = data;
+      _paintCosting(el, state);
+      showToast('Costing saved', `Shop rate ${_printCostMoney(data.shop_rate || 0)}/h`, 'success');
+    } catch (err) {
+      if (status) status.textContent = err.message || 'Save failed';
+      showToast('Costing save failed', err.message || 'Could not save', 'error');
+      if (btn) btn.disabled = false;
+    }
+  });
+  refresh();
+}
+
 async function _renderSettingsContent(category) {
   const el = document.getElementById('settings-content');
   if (!el) return;
@@ -23890,6 +24237,17 @@ async function _renderSettingsContent(category) {
     _allSpools = spools;
     el.innerHTML = _locationsCategoryHtml(locations);
     _attachLocationsEvents(el, locations);
+  } else if (category === 'costing') {
+    el.innerHTML = `<div class="detail-placeholder" style="min-height:10rem">Loading…</div>`;
+    const [costing, costs] = await Promise.all([
+      fetch('/api/costing').then(r => r.json()).catch(() => null),
+      fetch('/api/filament/costs').then(r => r.json()).catch(() => []),
+    ]);
+    const state = {
+      cfg: costing && typeof costing === 'object' ? costing : _costingDefaults(),
+      costs: Array.isArray(costs) ? costs : [],
+    };
+    _paintCosting(el, state);
   }
 }
 

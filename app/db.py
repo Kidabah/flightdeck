@@ -43,8 +43,78 @@ DEFAULT_SETTINGS = {
     "slicer_use_api": "false",
 }
 
+COSTING_SETTINGS_KEY = "shop_costing"
+
+DEFAULT_COSTING_OVERHEADS = [
+    {"id": "bambu", "name": "Bambu / subscriptions", "amount": 0.0},
+    {"id": "electricity", "name": "Electricity", "amount": 0.0},
+    {"id": "other", "name": "Other", "amount": 0.0},
+]
+
 _PRINTER_PRINTING_ENABLED_PREFIX = "printer_print_enabled_"
 _PRINTER_PRINTING_NOTE_PREFIX = "printer_print_note_"
+
+
+def _costing_float(value, default: float = 0.0, lo: float = 0.0, hi: float = 1_000_000.0) -> float:
+    try:
+        n = float(value)
+    except (TypeError, ValueError):
+        return default
+    if n != n or n in (float("inf"), float("-inf")):
+        return default
+    return max(lo, min(hi, n))
+
+
+def _normalise_costing(raw: Optional[dict]) -> dict:
+    data = raw if isinstance(raw, dict) else {}
+    overheads = []
+    seen_ids: set[str] = set()
+    for entry in data.get("overheads") or []:
+        if not isinstance(entry, dict):
+            continue
+        name = str(entry.get("name") or "").strip()[:80] or "Overhead"
+        oid = str(entry.get("id") or "").strip()[:24]
+        if not oid or oid in seen_ids or not all(c.isalnum() or c in "-_" for c in oid):
+            oid = secrets.token_hex(4)
+        seen_ids.add(oid)
+        overheads.append({
+            "id": oid,
+            "name": name,
+            "amount": round(_costing_float(entry.get("amount"), 0.0, 0.0, 999_999.0), 2),
+        })
+    if not overheads:
+        overheads = [dict(row) for row in DEFAULT_COSTING_OVERHEADS]
+    return {
+        "overheads": overheads,
+        "expected_hours": round(_costing_float(data.get("expected_hours"), 40.0, 0.0, 1000.0), 2),
+        "markup_pct": round(_costing_float(data.get("markup_pct"), 35.0, 0.0, 500.0), 2),
+        "labour_per_hour": round(_costing_float(data.get("labour_per_hour"), 0.0, 0.0, 1000.0), 2),
+    }
+
+
+def _parse_costing_value(value: Optional[str]) -> dict:
+    raw = {}
+    if value:
+        try:
+            parsed = json.loads(value)
+            if isinstance(parsed, dict):
+                raw = parsed
+        except Exception:
+            raw = {}
+    return _normalise_costing(raw)
+
+
+def _costing_with_rates(cfg: dict) -> dict:
+    monthly = sum(float(row.get("amount") or 0) for row in cfg.get("overheads") or [])
+    hours = float(cfg.get("expected_hours") or 0)
+    shop_rate = (monthly / hours) if hours > 0 else 0.0
+    labour = float(cfg.get("labour_per_hour") or 0)
+    return {
+        **cfg,
+        "monthly_total": round(monthly, 2),
+        "shop_rate": round(shop_rate, 4),
+        "effective_rate": round(shop_rate + labour, 4),
+    }
 
 
 def init() -> None:
@@ -1004,8 +1074,12 @@ def get_prints_for_day(printer_id: str, date_str: str) -> list[dict]:
         cost_rows = conn.execute(
             "SELECT material, brand, cost_per_gram FROM material_costs"
         ).fetchall()
+        costing_row = conn.execute(
+            "SELECT value FROM settings WHERE key = ?", (COSTING_SETTINGS_KEY,)
+        ).fetchone()
     spools = {int(r["id"]): dict(r) for r in spool_rows}
     cost_lookup = _print_cost_lookup(cost_rows)
+    costing = _costing_with_rates(_parse_costing_value(costing_row["value"] if costing_row else None))
     result = []
     import json
     for r in rows:
@@ -1023,7 +1097,7 @@ def get_prints_for_day(printer_id: str, date_str: str) -> list[dict]:
             item["tags"] = []
         item["exclude_from_stats"] = bool(item.get("exclude_from_stats"))
         _mark_reconcile_suggestions(item["spool_usage"], spools, low_pct)
-        _attach_print_cost(item, spools, cost_lookup)
+        _attach_print_cost(item, spools, cost_lookup, costing)
         result.append(item)
     return result
 
@@ -1042,8 +1116,12 @@ def _hydrate_print_rows(rows) -> list[dict]:
         cost_rows = conn.execute(
             "SELECT material, brand, cost_per_gram FROM material_costs"
         ).fetchall()
+        costing_row = conn.execute(
+            "SELECT value FROM settings WHERE key = ?", (COSTING_SETTINGS_KEY,)
+        ).fetchone()
     spools = {int(r["id"]): dict(r) for r in spool_rows}
     cost_lookup = _print_cost_lookup(cost_rows)
+    costing = _costing_with_rates(_parse_costing_value(costing_row["value"] if costing_row else None))
     result = []
     for r in rows:
         item = dict(r)
@@ -1060,7 +1138,7 @@ def _hydrate_print_rows(rows) -> list[dict]:
             item["tags"] = []
         item["exclude_from_stats"] = bool(item.get("exclude_from_stats"))
         _mark_reconcile_suggestions(item["spool_usage"], spools, low_pct)
-        _attach_print_cost(item, spools, cost_lookup)
+        _attach_print_cost(item, spools, cost_lookup, costing)
         result.append(item)
     return result
 
@@ -1112,11 +1190,12 @@ def _usage_grams(entry: dict) -> float:
         return 0.0
 
 
-def _attach_print_cost(item: dict, spools: dict[int, dict], cost_lookup: dict) -> None:
+def _attach_print_cost(item: dict, spools: dict[int, dict], cost_lookup: dict, costing: Optional[dict] = None) -> None:
     usage = item.get("spool_usage") or []
     if not isinstance(usage, list) or not usage:
         item["total_cost"] = None
         item["cost_pending"] = bool(item.get("filament_grams"))
+        _attach_shop_cost(item, costing)
         return
     total = 0.0
     pending = False
@@ -1158,6 +1237,34 @@ def _attach_print_cost(item: dict, spools: dict[int, dict], cost_lookup: dict) -
         total += cost
     item["total_cost"] = round(total, 2) if total > 0 else None
     item["cost_pending"] = pending
+    _attach_shop_cost(item, costing)
+
+
+def _attach_shop_cost(item: dict, costing: Optional[dict] = None) -> None:
+    rates = costing if isinstance(costing, dict) and "shop_rate" in costing else _costing_with_rates(
+        costing if isinstance(costing, dict) else _normalise_costing({})
+    )
+    filament = item.get("total_cost")
+    item["filament_cost"] = filament
+    try:
+        hours = max(0.0, float(item.get("duration_seconds") or 0) / 3600.0)
+    except (TypeError, ValueError):
+        hours = 0.0
+    shop_rate = float(rates.get("shop_rate") or 0)
+    labour_rate = float(rates.get("labour_per_hour") or 0)
+    markup = float(rates.get("markup_pct") or 0)
+    time_cost = round(hours * shop_rate, 2) if hours > 0 and shop_rate > 0 else 0.0
+    labour_cost = round(hours * labour_rate, 2) if hours > 0 and labour_rate > 0 else 0.0
+    item["time_cost"] = time_cost if time_cost > 0 else None
+    item["labour_cost"] = labour_cost if labour_cost > 0 else None
+    floor = float(filament or 0) + time_cost + labour_cost
+    item["floor_price"] = round(floor, 2) if floor > 0 else None
+    if item["floor_price"] is not None:
+        item["suggested_price"] = round(item["floor_price"] * (1 + markup / 100.0), 2)
+    else:
+        item["suggested_price"] = None
+    item["shop_rate"] = round(shop_rate, 4) if shop_rate > 0 else None
+    item["labour_rate"] = round(labour_rate, 4) if labour_rate > 0 else None
 
 
 def get_print_memory(
@@ -2033,6 +2140,99 @@ def set_setting(key: str, value: str) -> None:
                SET value = excluded.value, updated_at = excluded.updated_at""",
             (key, value),
         )
+
+
+def recent_print_hours(days: int = 30) -> float:
+    days = max(1, min(int(days or 30), 365))
+    with _conn() as conn:
+        row = conn.execute(
+            """SELECT COALESCE(SUM(duration_seconds), 0) AS secs
+               FROM prints
+               WHERE duration_seconds IS NOT NULL AND duration_seconds > 0
+                 AND started_at >= datetime('now', ?)""",
+            (f"-{days} days",),
+        ).fetchone()
+    secs = float(row["secs"] if row else 0)
+    return round(secs / 3600.0, 2)
+
+
+def get_costing_settings() -> dict:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT value FROM settings WHERE key = ?", (COSTING_SETTINGS_KEY,)
+        ).fetchone()
+    cfg = _costing_with_rates(_parse_costing_value(row["value"] if row else None))
+    cfg["recent_hours_30d"] = recent_print_hours(30)
+    return cfg
+
+
+def set_costing_settings(payload: Optional[dict]) -> dict:
+    cfg = _normalise_costing(payload if isinstance(payload, dict) else {})
+    set_setting(COSTING_SETTINGS_KEY, json.dumps(cfg))
+    return get_costing_settings()
+
+
+def quote_print_cost(
+    *,
+    hours: float = 0.0,
+    grams: float = 0.0,
+    material: str = "",
+    brand: str = "",
+    filament_cost: Optional[float] = None,
+) -> dict:
+    cfg = get_costing_settings()
+    hours = _costing_float(hours, 0.0, 0.0, 1000.0)
+    grams = _costing_float(grams, 0.0, 0.0, 100_000.0)
+    filament = None
+    filament_source = None
+    if filament_cost is not None:
+        filament = round(_costing_float(filament_cost, 0.0, 0.0, 100_000.0), 2)
+        filament_source = "entered"
+    elif grams > 0:
+        lookup = _print_cost_lookup(get_material_costs())
+        mat = str(material or "").strip().upper()
+        brand_key = _cost_brand_key(brand)
+        cpg = None
+        if mat:
+            cpg = lookup.get("exact", {}).get((mat, brand_key))
+            if cpg is not None:
+                filament_source = "spool brand"
+            if cpg is None:
+                cpg = lookup.get("default", {}).get(mat)
+                if cpg is not None:
+                    filament_source = "material default"
+            if cpg is None:
+                cpg = lookup.get("material", {}).get(mat)
+                if cpg is not None:
+                    filament_source = "material average"
+        if cpg is None:
+            averages = list(lookup.get("material", {}).values())
+            if averages:
+                cpg = sum(averages) / len(averages)
+                filament_source = "catalogue average"
+        if cpg is not None:
+            filament = round(grams * float(cpg), 2)
+    shop_rate = float(cfg.get("shop_rate") or 0)
+    labour_rate = float(cfg.get("labour_per_hour") or 0)
+    markup = float(cfg.get("markup_pct") or 0)
+    time_cost = round(hours * shop_rate, 2) if hours > 0 and shop_rate > 0 else 0.0
+    labour_cost = round(hours * labour_rate, 2) if hours > 0 and labour_rate > 0 else 0.0
+    floor = float(filament or 0) + time_cost + labour_cost
+    suggested = round(floor * (1 + markup / 100.0), 2) if floor > 0 else None
+    return {
+        "hours": round(hours, 2),
+        "grams": round(grams, 1),
+        "material": str(material or "").strip(),
+        "filament_cost": filament,
+        "filament_source": filament_source,
+        "time_cost": time_cost if time_cost > 0 else None,
+        "labour_cost": labour_cost if labour_cost > 0 else None,
+        "floor_price": round(floor, 2) if floor > 0 else None,
+        "suggested_price": suggested,
+        "shop_rate": shop_rate if shop_rate > 0 else None,
+        "labour_rate": labour_rate if labour_rate > 0 else None,
+        "markup_pct": markup,
+    }
 
 
 # ── slicer profiles ───────────────────────────────────────────────────────

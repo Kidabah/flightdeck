@@ -5148,6 +5148,48 @@ async def put_setting(key: str, body: SettingUpdate):
     return {"ok": True, "value": value}
 
 
+class CostingOverhead(BaseModel):
+    id: str = ""
+    name: str = ""
+    amount: float = 0
+
+
+class CostingUpdate(BaseModel):
+    overheads: list[CostingOverhead] = []
+    expected_hours: float = 40
+    markup_pct: float = 35
+    labour_per_hour: float = 0
+
+
+class CostingQuoteRequest(BaseModel):
+    hours: float = 0
+    grams: float = 0
+    material: str = ""
+    brand: str = ""
+    filament_cost: Optional[float] = None
+
+
+@app.get("/api/costing")
+async def get_costing():
+    return db.get_costing_settings()
+
+
+@app.put("/api/costing")
+async def put_costing(body: CostingUpdate):
+    return db.set_costing_settings(body.model_dump())
+
+
+@app.post("/api/costing/quote")
+async def post_costing_quote(body: CostingQuoteRequest):
+    return db.quote_print_cost(
+        hours=body.hours,
+        grams=body.grams,
+        material=body.material,
+        brand=body.brand,
+        filament_cost=body.filament_cost,
+    )
+
+
 class MakerWorldResolveRequest(BaseModel):
     url: str
 

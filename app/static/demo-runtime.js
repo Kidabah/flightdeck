@@ -294,6 +294,49 @@
 
     if (path === '/api/settings') return jsonResponse({ temp_unit: 'F', time_format: '24h', accent: '#3b82f6' });
     if (path.startsWith('/api/settings/')) return method === 'GET' ? jsonResponse({ value: null }) : jsonResponse({ ok: true, demo: true });
+    if (path === '/api/costing' && method === 'GET') return jsonResponse({
+      overheads: [
+        { id: 'bambu', name: 'Bambu / subscriptions', amount: 40 },
+        { id: 'electricity', name: 'Electricity', amount: 30 },
+        { id: 'other', name: 'Other', amount: 10 },
+      ],
+      expected_hours: 40,
+      markup_pct: 35,
+      labour_per_hour: 0,
+      monthly_total: 80,
+      shop_rate: 2,
+      effective_rate: 2,
+      recent_hours_30d: 36,
+    });
+    if (path === '/api/costing' && method === 'PUT') {
+      const body = jsonBody();
+      const hours = Number(body.expected_hours || 40) || 40;
+      const monthly = (body.overheads || []).reduce((s, r) => s + Number(r.amount || 0), 0);
+      return jsonResponse({
+        ...body,
+        monthly_total: monthly,
+        shop_rate: hours > 0 ? monthly / hours : 0,
+        effective_rate: hours > 0 ? monthly / hours : 0,
+        recent_hours_30d: 36,
+      });
+    }
+    if (path === '/api/costing/quote' && method === 'POST') {
+      const body = jsonBody();
+      const hours = Number(body.hours || 0);
+      const grams = Number(body.grams || 0);
+      const filament = body.filament_cost != null ? Number(body.filament_cost) : grams * 0.03;
+      const time = hours * 2;
+      const floor = filament + time;
+      return jsonResponse({
+        hours, grams,
+        filament_cost: Math.round(filament * 100) / 100,
+        time_cost: Math.round(time * 100) / 100,
+        floor_price: Math.round(floor * 100) / 100,
+        suggested_price: Math.round(floor * 1.35 * 100) / 100,
+        shop_rate: 2,
+        markup_pct: 35,
+      });
+    }
     if (path === '/api/makerworld/status') return jsonResponse({ has_token: false, token_hint: '', import_dir: 'MakerWorld', demo: true });
     if (path === '/api/makerworld/recent') return jsonResponse({ imports: [], demo: true });
     if (path === '/api/makerworld/resolve' && method === 'POST') return jsonResponse({
