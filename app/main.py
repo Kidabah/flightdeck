@@ -42,7 +42,7 @@ from pydantic import BaseModel
 
 import httpx
 
-from . import db, makerdeck_library, makerworld, relay
+from . import db, makerdeck_library, makerworld, relay, slice_meta
 from .camera import BambuCameraProxy
 from .native_recorder import PrintNativeRecorder, finalize_capture_dir
 from .label_printer import LabelPrinter
@@ -5188,6 +5188,214 @@ async def post_costing_quote(body: CostingQuoteRequest):
         brand=body.brand,
         filament_cost=body.filament_cost,
     )
+
+
+_PROJECTS_VAULT_ROOT = "Projects"
+
+
+def _project_folder_slug(name: str) -> str:
+    safe = re.sub(r"[^A-Za-z0-9._ -]+", "_", str(name or "").strip())[:60].strip(" ._")
+    return safe or "Project"
+
+
+def _project_dir(vault_folder: str, *, missing_ok: bool = False) -> Path:
+    root = _print_library_path().resolve()
+    parts = [p for p in str(vault_folder or "").replace("\\", "/").split("/") if p and p not in {".", ".."}]
+    if not parts:
+        raise HTTPException(status_code=400, detail="Project folder missing")
+    return _safe_join_under(root, *parts, missing_ok=missing_ok)
+
+
+def _unique_project_folder(name: str) -> str:
+    slug = _project_folder_slug(name)
+    root = _print_library_path().resolve()
+    folder = f"{_PROJECTS_VAULT_ROOT}/{slug}"
+    n = 2
+    while _safe_join_under(root, *folder.split("/"), missing_ok=True).exists():
+        folder = f"{_PROJECTS_VAULT_ROOT}/{slug}_{n}"
+        n += 1
+        if n > 50:
+            folder = f"{_PROJECTS_VAULT_ROOT}/{slug}_{int(time.time())}"
+            break
+    return folder
+
+
+def _scan_project_files(vault_folder: str) -> list[dict]:
+    folder = _project_dir(vault_folder, missing_ok=True)
+    if not folder.exists() or not folder.is_dir():
+        return []
+    rows = []
+    root = _print_library_path().resolve()
+    for path in sorted(folder.rglob("*")):
+        if not path.is_file():
+            continue
+        try:
+            stat = path.stat()
+            data = path.read_bytes()
+        except OSError:
+            continue
+        meta = slice_meta.parse_slice_totals(path.name, data)
+        rel = path.relative_to(root).as_posix()
+        rows.append({
+            "name": path.name,
+            "path": rel,
+            "kind": _file_kind(path.name),
+            "size": stat.st_size,
+            "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+            "sliced": bool(meta.get("sliced")),
+            "seconds": meta.get("seconds"),
+            "grams": meta.get("grams"),
+            "material": meta.get("material"),
+            "plate_count": int(meta.get("plate_count") or 0),
+        })
+        if len(rows) >= 80:
+            break
+    return rows
+
+
+def _project_quote(files: list[dict], parallel_printers: int = 1) -> dict:
+    grams = sum(float(f.get("grams") or 0) for f in files)
+    seconds = sum(int(f.get("seconds") or 0) for f in files)
+    longest = max((int(f.get("seconds") or 0) for f in files), default=0)
+    printer_hours = seconds / 3600.0 if seconds else 0.0
+    longest_hours = longest / 3600.0 if longest else 0.0
+    n = max(1, min(int(parallel_printers or 1), 12))
+    elapsed_hours = max(longest_hours, printer_hours / n) if printer_hours else 0.0
+    materials = [str(f.get("material") or "").strip() for f in files if f.get("material")]
+    material = materials[0] if len({m.upper() for m in materials}) == 1 else ""
+    fleet = db.quote_print_cost(hours=printer_hours, grams=grams, material=material)
+    elapsed = db.quote_print_cost(hours=elapsed_hours, grams=grams, material=material)
+    sliced = sum(1 for f in files if f.get("sliced"))
+    return {
+        "file_count": len(files),
+        "sliced_count": sliced,
+        "unsliced_count": len(files) - sliced,
+        "grams": round(grams, 1) if grams else None,
+        "printer_hours": round(printer_hours, 2),
+        "elapsed_hours": round(elapsed_hours, 2),
+        "longest_hours": round(longest_hours, 2),
+        "parallel_printers": n,
+        "material": material or None,
+        "filament_cost": fleet.get("filament_cost"),
+        "filament_source": fleet.get("filament_source"),
+        "fleet": {
+            "hours": fleet.get("hours"),
+            "time_cost": fleet.get("time_cost"),
+            "floor_price": fleet.get("floor_price"),
+            "suggested_price": fleet.get("suggested_price"),
+        },
+        "elapsed": {
+            "hours": elapsed.get("hours"),
+            "time_cost": elapsed.get("time_cost"),
+            "floor_price": elapsed.get("floor_price"),
+            "suggested_price": elapsed.get("suggested_price"),
+        },
+        "quote_floor": elapsed.get("floor_price"),
+        "quote_suggested": elapsed.get("suggested_price"),
+        "shop_rate": fleet.get("shop_rate"),
+        "markup_pct": fleet.get("markup_pct"),
+    }
+
+
+def _project_payload(row: dict) -> dict:
+    files = _scan_project_files(row.get("vault_folder") or "")
+    quote = _project_quote(files, row.get("parallel_printers") or 1)
+    return {**row, "files": files, "quote": quote}
+
+
+class ProjectCreateRequest(BaseModel):
+    name: str
+    notes: str = ""
+    parallel_printers: int = 1
+
+
+class ProjectUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    notes: Optional[str] = None
+    parallel_printers: Optional[int] = None
+
+
+@app.get("/api/projects")
+async def api_list_projects():
+    rows = []
+    for row in db.list_projects():
+        files = _scan_project_files(row.get("vault_folder") or "")
+        quote = _project_quote(files, row.get("parallel_printers") or 1)
+        rows.append({
+            **row,
+            "file_count": quote["file_count"],
+            "sliced_count": quote["sliced_count"],
+            "quote": quote,
+        })
+    return {"items": rows}
+
+
+@app.post("/api/projects", status_code=201)
+async def api_create_project(body: ProjectCreateRequest):
+    folder = _unique_project_folder(body.name)
+    dest = _project_dir(folder, missing_ok=True)
+    dest.mkdir(parents=True, exist_ok=True)
+    row = db.create_project(
+        body.name,
+        folder,
+        notes=body.notes,
+        parallel_printers=body.parallel_printers,
+    )
+    return _project_payload(row)
+
+
+@app.get("/api/projects/{project_id}")
+async def api_get_project(project_id: int):
+    row = db.get_project_row(project_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return _project_payload(row)
+
+
+@app.put("/api/projects/{project_id}")
+async def api_update_project(project_id: int, body: ProjectUpdateRequest):
+    row = db.update_project(
+        project_id,
+        name=body.name,
+        notes=body.notes,
+        parallel_printers=body.parallel_printers,
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return _project_payload(row)
+
+
+@app.delete("/api/projects/{project_id}")
+async def api_delete_project(project_id: int):
+    if not db.delete_project(project_id):
+        raise HTTPException(status_code=404, detail="Project not found")
+    return {"ok": True}
+
+
+@app.post("/api/projects/{project_id}/files", status_code=201)
+async def api_upload_project_file(project_id: int, file: UploadFile = File(...)):
+    row = db.get_project_row(project_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Project not found")
+    raw_name = _safe_basename(file.filename, "model")
+    ext = _queue_file_extension(raw_name)
+    if raw_name.lower().endswith(".gcode.3mf"):
+        allowed = _ALLOWED_BAMBU_EXT
+    else:
+        allowed = _ALLOWED_BAMBU_EXT | _ALLOWED_MOONRAKER_EXT | _SOURCE_MODEL_EXT
+    if ext not in allowed:
+        raise HTTPException(status_code=422, detail="Unsupported file type")
+    data = await _read_upload_bytes(file, label="Project upload")
+    folder = _project_dir(row["vault_folder"], missing_ok=True)
+    folder.mkdir(parents=True, exist_ok=True)
+    dest = folder / raw_name
+    if dest.exists():
+        stem = dest.stem
+        suffix = "".join(dest.suffixes) or ext
+        dest = folder / f"{stem}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}{suffix}"
+    dest.write_bytes(data)
+    db.touch_project(project_id)
+    return _project_payload(db.get_project_row(project_id) or row)
 
 
 class MakerWorldResolveRequest(BaseModel):

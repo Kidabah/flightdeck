@@ -365,6 +365,16 @@ def init() -> None:
                 payload     TEXT NOT NULL,
                 synced_at   TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS projects (
+                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                name                TEXT NOT NULL,
+                notes               TEXT,
+                vault_folder        TEXT NOT NULL,
+                parallel_printers   INTEGER NOT NULL DEFAULT 1,
+                created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
         """)
     # Migrate existing DB: add columns if missing
     with _conn() as conn:
@@ -404,6 +414,7 @@ def init() -> None:
             "ALTER TABLE empty_spool_profiles ADD COLUMN notes TEXT",
             "ALTER TABLE empty_spool_profiles ADD COLUMN is_default INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE empty_spool_profiles ADD COLUMN archived_at TEXT",
+            "ALTER TABLE projects ADD COLUMN parallel_printers INTEGER NOT NULL DEFAULT 1",
         ):
             try:
                 conn.execute(stmt)
@@ -2233,6 +2244,100 @@ def quote_print_cost(
         "labour_rate": labour_rate if labour_rate > 0 else None,
         "markup_pct": markup,
     }
+
+
+def _project_row(row) -> dict:
+    return {
+        "id": int(row["id"]),
+        "name": row["name"],
+        "notes": row["notes"] or "",
+        "vault_folder": row["vault_folder"],
+        "parallel_printers": max(1, min(int(row["parallel_printers"] or 1), 12)),
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+    }
+
+
+def list_projects() -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            """SELECT id, name, notes, vault_folder, parallel_printers, created_at, updated_at
+               FROM projects
+               ORDER BY updated_at DESC, id DESC"""
+        ).fetchall()
+    return [_project_row(r) for r in rows]
+
+
+def get_project_row(project_id: int) -> Optional[dict]:
+    with _conn() as conn:
+        row = conn.execute(
+            """SELECT id, name, notes, vault_folder, parallel_printers, created_at, updated_at
+               FROM projects WHERE id = ?""",
+            (int(project_id),),
+        ).fetchone()
+    return _project_row(row) if row else None
+
+
+def create_project(name: str, vault_folder: str, notes: str = "", parallel_printers: int = 1) -> dict:
+    cleaned = str(name or "").strip()[:80] or "Untitled project"
+    folder = str(vault_folder or "").strip().strip("/")[:180]
+    printers = max(1, min(int(parallel_printers or 1), 12))
+    with _conn() as conn:
+        cur = conn.execute(
+            """INSERT INTO projects (name, notes, vault_folder, parallel_printers)
+               VALUES (?, ?, ?, ?)""",
+            (cleaned, str(notes or "").strip()[:500] or None, folder, printers),
+        )
+        project_id = int(cur.lastrowid)
+    return get_project_row(project_id) or {
+        "id": project_id,
+        "name": cleaned,
+        "vault_folder": folder,
+        "parallel_printers": printers,
+        "notes": "",
+    }
+
+
+def update_project(
+    project_id: int,
+    *,
+    name: Optional[str] = None,
+    notes: Optional[str] = None,
+    parallel_printers: Optional[int] = None,
+) -> Optional[dict]:
+    if get_project_row(project_id) is None:
+        return None
+    with _conn() as conn:
+        if name is not None:
+            conn.execute(
+                "UPDATE projects SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (str(name).strip()[:80] or "Untitled project", int(project_id)),
+            )
+        if notes is not None:
+            conn.execute(
+                "UPDATE projects SET notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (str(notes).strip()[:500] or None, int(project_id)),
+            )
+        if parallel_printers is not None:
+            conn.execute(
+                "UPDATE projects SET parallel_printers = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (max(1, min(int(parallel_printers), 12)), int(project_id)),
+            )
+    return get_project_row(project_id)
+
+
+def touch_project(project_id: int) -> None:
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE projects SET updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (int(project_id),),
+        )
+
+
+def delete_project(project_id: int) -> bool:
+    with _conn() as conn:
+        cur = conn.execute("DELETE FROM projects WHERE id = ?", (int(project_id),))
+    return cur.rowcount > 0
 
 
 # ── slicer profiles ───────────────────────────────────────────────────────

@@ -337,6 +337,19 @@
         markup_pct: 35,
       });
     }
+    if (path === '/api/projects' && method === 'GET') return jsonResponse({ items: [] });
+    if (path === '/api/projects' && method === 'POST') {
+      const body = jsonBody();
+      return jsonResponse({
+        id: 1,
+        name: body.name || 'Demo project',
+        vault_folder: 'Projects/Demo',
+        parallel_printers: 1,
+        files: [],
+        quote: { file_count: 0, grams: null, printer_hours: 0, elapsed_hours: 0, quote_floor: null, quote_suggested: null },
+      });
+    }
+    if (path.startsWith('/api/projects/')) return jsonResponse({ id: 1, name: 'Demo', files: [], quote: {} });
     if (path === '/api/makerworld/status') return jsonResponse({ has_token: false, token_hint: '', import_dir: 'MakerWorld', demo: true });
     if (path === '/api/makerworld/recent') return jsonResponse({ imports: [], demo: true });
     if (path === '/api/makerworld/resolve' && method === 'POST') return jsonResponse({

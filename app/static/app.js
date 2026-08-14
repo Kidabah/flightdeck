@@ -388,6 +388,8 @@ let _onSpools = false;          // true while spool inventory is active
 let _onFilament = false;        // true while Fleet Filament board is active
 let _fleetFilamentSignature = '';
 let _onMemory = false;          // true while Print Memory is active
+let _onProjects = false;
+let _lastProjectsRouteKey = '';
 let _onManual = false;          // true while flight manual is active
 let _onDemo = false;            // true while walkthrough mode is active
 let _onAbout = false;           // true while about page is active
@@ -904,6 +906,7 @@ function _commandStaticItems() {
     ['Telemetry', '#/stats', 'Stats, RH, utilisation'],
     ['Queue', '#/queue', 'Pending print jobs'],
     ['Global Print Bay', '#/files', 'Files, printer storage, and reprint staging'],
+    ['Projects', '#/projects', 'Project folders, slice totals, and local quotes'],
     ['Spools', '#/spools', 'Spool inventory'],
     ['Walkthrough Mode', '#/walkthrough', 'Guided first-look tour for testers'],
     ['MakerWorld', '#/makerworld', 'Paste MakerWorld links and import plates into Print Vault'],
@@ -4077,6 +4080,9 @@ function parseRoute() {
   if (hash === '#/fleet') return { view: 'fleet' };
   if (hash === '#/filament' || hash.startsWith('#/filament?')) return { view: 'filament' };
   if (hash === '#/files') return { view: 'files' };
+  const projectMatch = hash.match(/^#\/projects\/(\d+)/);
+  if (projectMatch) return { view: 'projects', id: parseInt(projectMatch[1], 10) };
+  if (hash === '#/projects') return { view: 'projects' };
   if (hash === '#/memory' || hash.startsWith('#/memory?')) return { view: 'memory' };
   if (hash === '#/failures' || hash.startsWith('#/failures?')) return { view: 'failures' };
   if (hash === '#/spools' || hash.startsWith('#/spools?')) return { view: 'spools' };
@@ -4170,6 +4176,7 @@ function router() {
   const wasOnSpools = _onSpools;
   const wasOnFilament = _onFilament;
   const wasOnMemory = _onMemory;
+  const wasOnProjects = _onProjects;
   const wasOnManual = _onManual;
   const wasOnDemo = _onDemo;
   const wasOnAbout = _onAbout;
@@ -4177,11 +4184,13 @@ function router() {
   const wasSpoolDetailId = _renderedSpoolDetailId;
   const spoolsRouteKey = route.view === 'spools' ? (location.hash || '#/spools') : '';
   const memoryRouteKey = route.view === 'memory' ? (location.hash || '#/memory') : '';
+  const projectsRouteKey = route.view === 'projects' ? (location.hash || '#/projects') : '';
   _onSettings = route.view === 'settings';
   _onFailures = route.view === 'failures';
   _onSpools = route.view === 'spools';
   _onFilament = route.view === 'filament';
   _onMemory = route.view === 'memory';
+  _onProjects = route.view === 'projects';
   _onManual = route.view === 'manual';
   _onDemo = route.view === 'demo';
   _onAbout = route.view === 'about';
@@ -4210,6 +4219,8 @@ function router() {
   document.getElementById('view-cameras').hidden   = route.view !== 'cameras';
   document.getElementById('view-queue').hidden     = route.view !== 'queue';
   document.getElementById('view-files').hidden     = route.view !== 'files';
+  const projectsView = document.getElementById('view-projects');
+  if (projectsView) projectsView.hidden = route.view !== 'projects';
   document.getElementById('view-memory').hidden    = route.view !== 'memory';
   document.getElementById('view-failures').hidden  = route.view !== 'failures';
   document.getElementById('view-spools').hidden    = route.view !== 'spools';
@@ -4234,6 +4245,7 @@ function router() {
       printerTabActive ||
       (route.view === 'queue'    && href === '#/queue') ||
       (route.view === 'files'    && href === '#/files') ||
+      (route.view === 'projects' && (href === '#/projects' || (href || '').startsWith('#/projects/'))) ||
       (route.view === 'memory'   && href === '#/memory') ||
       (route.view === 'failures' && href === '#/failures') ||
       (route.view === 'spools'   && href === '#/spools') ||
@@ -4264,6 +4276,11 @@ function router() {
   if (route.view === 'cameras') renderCamerasView();
   if (route.view === 'queue') renderQueueView();
   if (route.view === 'files' && !_fileDeskRenderInFlight) renderFileDeskView();
+  if (route.view === 'projects' && (!wasOnProjects || _lastProjectsRouteKey !== projectsRouteKey)) {
+    _lastProjectsRouteKey = projectsRouteKey;
+    renderProjectsView(route.id);
+  }
+  if (route.view !== 'projects') _lastProjectsRouteKey = '';
   if (route.view === 'memory' && (!wasOnMemory || _lastMemoryRouteKey !== memoryRouteKey)) {
     _lastMemoryRouteKey = memoryRouteKey;
     renderPrintMemoryView();
@@ -4348,6 +4365,7 @@ function buildTabs(printers) {
     section('operations', 'Operations', [
       `<a class="tab" href="#/queue">Queue</a>`,
       `<a class="tab" href="#/files">Global Print Bay</a>`,
+      `<a class="tab" href="#/projects">Projects</a>`,
       `<a class="tab" href="#/memory">Print Memory</a>`,
       `<a class="tab" href="#/filament">Fleet Filament</a>`,
       `<a class="tab" href="#/spools">Spools</a>`,
@@ -7978,6 +7996,202 @@ async function _renderHistoryBody(printerId) {
       const key = `${printerId}:${row.dataset.date}`;
       const prints = _dayPrintsCache[key];
       if (prints) _showPrintDetail(printerId, row.dataset.date, prints[parseInt(row.dataset.printIdx, 10)]);
+    }
+  });
+}
+
+function _projectMoney(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v) || v <= 0) return '—';
+  return `$${v.toFixed(2)}`;
+}
+
+function _projectHours(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v) || v <= 0) return '—';
+  return `${v.toFixed(1)} h`;
+}
+
+function _projectQuoteStrip(quote, { compact = false } = {}) {
+  const q = quote || {};
+  const floor = q.quote_floor != null ? q.quote_floor : q.elapsed?.floor_price;
+  const suggested = q.quote_suggested != null ? q.quote_suggested : q.elapsed?.suggested_price;
+  const shopFloor = q.fleet?.floor_price;
+  return `<div class="project-quote${compact ? ' project-quote-compact' : ''}">
+    <div><span>Filament</span><strong>${q.grams != null ? `${Number(q.grams).toFixed(0)} g` : '—'}</strong><em>${_projectMoney(q.filament_cost)}</em></div>
+    <div><span>Printer-hours</span><strong>${_projectHours(q.printer_hours)}</strong><em>shop ${_projectMoney(shopFloor)}</em></div>
+    <div class="project-quote-local"><span>Local quote</span><strong>${_projectHours(q.elapsed_hours)}</strong><em>floor ${_projectMoney(floor)} · suggested ${_projectMoney(suggested)}</em></div>
+  </div>`;
+}
+
+function _projectFileRow(file) {
+  const sliced = file.sliced
+    ? `${file.grams != null ? `${Number(file.grams).toFixed(0)} g` : '—'} · ${file.seconds ? formatTime(file.seconds) : '—'}`
+    : 'Not sliced yet';
+  return `<div class="project-file-row">
+    <strong title="${esc(file.path || file.name || '')}">${esc(file.name || 'file')}</strong>
+    <span>${esc(sliced)}</span>
+  </div>`;
+}
+
+async function renderProjectsView(projectId) {
+  const page = document.getElementById('projects-page');
+  if (!page) return;
+  if (projectId) {
+    await _renderProjectDetail(page, projectId);
+    return;
+  }
+  page.innerHTML = '<div class="detail-placeholder">Loading projects…</div>';
+  let items = [];
+  try {
+    const r = await fetch('/api/projects');
+    if (r.ok) {
+      const data = await r.json();
+      items = data.items || [];
+    }
+  } catch {}
+  const cards = items.length ? items.map(p => {
+    const q = p.quote || {};
+    return `<a class="project-card" href="#/projects/${p.id}">
+      <strong>${esc(p.name)}</strong>
+      <em>${esc(p.vault_folder || '')}</em>
+      <span>${p.file_count || 0} file${p.file_count === 1 ? '' : 's'}${p.sliced_count ? ` · ${p.sliced_count} sliced` : ''}</span>
+      ${_projectQuoteStrip(q, { compact: true })}
+    </a>`;
+  }).join('') : '<div class="filedesk-empty">No projects yet. Create one, drop sliced plates in, and Flightdeck will total grams and time.</div>';
+  page.innerHTML = `<div class="projects-shell">
+    <section class="project-hero">
+      <div>
+        <span class="memory-hero-eyebrow">Print Vault</span>
+        <h1>Projects</h1>
+        <p>A folder per built model. Drop sliced plates in — grams, hours, floor and suggested come from the slice, using your Costing shop rate.</p>
+      </div>
+      <form class="project-create" data-project-create>
+        <input class="settings-input" name="name" type="text" maxlength="80" placeholder="Summer Goose" required>
+        <button type="submit" class="settings-save-btn">New project</button>
+      </form>
+    </section>
+    <div class="project-grid">${cards}</div>
+  </div>`;
+  page.querySelector('[data-project-create]')?.addEventListener('submit', async e => {
+    e.preventDefault();
+    const name = e.currentTarget.querySelector('[name="name"]')?.value.trim();
+    if (!name) return;
+    try {
+      const r = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.detail || 'Could not create project');
+      showToast('Project created', data.name || name, 'success');
+      location.hash = `#/projects/${data.id}`;
+    } catch (err) {
+      showToast('Project create failed', err.message || '', 'error');
+    }
+  });
+}
+
+async function _renderProjectDetail(page, projectId) {
+  page.innerHTML = '<div class="detail-placeholder">Loading project…</div>';
+  let project = null;
+  try {
+    const r = await fetch(`/api/projects/${projectId}`);
+    if (!r.ok) throw new Error('Project not found');
+    project = await r.json();
+  } catch (err) {
+    page.innerHTML = `<div class="filedesk-empty">${esc(err.message || 'Unable to load project.')} <a href="#/projects">Back</a></div>`;
+    return;
+  }
+  const files = project.files || [];
+  const quote = project.quote || {};
+  const fileRows = files.length
+    ? files.map(_projectFileRow).join('')
+    : '<div class="filedesk-empty">Drop sliced .gcode.3mf / .gcode files here. Unsliced STLs wait until you slice.</div>';
+  page.innerHTML = `<div class="projects-shell">
+    <div class="project-detail-head">
+      <a href="#/projects">All projects</a>
+      <h1>${esc(project.name)}</h1>
+      <p class="settings-hint">Vault folder <code>${esc(project.vault_folder || '')}</code> · ${files.length} file${files.length === 1 ? '' : 's'}</p>
+    </div>
+    ${_projectQuoteStrip(quote)}
+    <div class="project-toolbar">
+      <label>Printers overlapping
+        <input class="settings-input" data-project-parallel type="number" min="1" max="12" step="1" value="${esc(String(project.parallel_printers || 1))}">
+      </label>
+      <span class="settings-hint">Elapsed quote uses max(longest plate, total hours ÷ printers). Leave at 1 for sequential.</span>
+      <label class="project-drop">
+        <input type="file" multiple accept=".3mf,.gcode,.gcode.3mf,.gcode.gz,.stl,.obj,.step,.stp">
+        <span>Drop plates here or browse</span>
+      </label>
+      <a class="costing-ghost-btn" href="#/files">Open Print Bay</a>
+      <button type="button" class="settings-delete-btn" data-project-delete>Delete project</button>
+    </div>
+    <div class="project-files">${fileRows}</div>
+  </div>`;
+
+  const parallel = page.querySelector('[data-project-parallel]');
+  parallel?.addEventListener('change', async () => {
+    const n = Number(parallel.value || 1);
+    try {
+      const r = await fetch(`/api/projects/${projectId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parallel_printers: n }),
+      });
+      if (!r.ok) throw new Error('Save failed');
+      _lastProjectsRouteKey = '';
+      renderProjectsView(projectId);
+    } catch (err) {
+      showToast('Could not save printers', err.message || '', 'error');
+    }
+  });
+
+  const uploadInput = page.querySelector('.project-drop input[type="file"]');
+  const drop = page.querySelector('.project-drop');
+  const sendFiles = async list => {
+    const picked = [...list];
+    if (!picked.length) return;
+    for (const file of picked) {
+      const form = new FormData();
+      form.append('file', file);
+      const r = await fetch(`/api/projects/${projectId}/files`, { method: 'POST', body: form });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.detail || `Upload failed: ${file.name}`);
+    }
+    showToast('Files added', `${picked.length} into ${project.name}`, 'success');
+    _lastProjectsRouteKey = '';
+    renderProjectsView(projectId);
+  };
+  uploadInput?.addEventListener('change', async () => {
+    try {
+      await sendFiles(uploadInput.files || []);
+    } catch (err) {
+      showToast('Upload failed', err.message || '', 'error');
+    }
+    uploadInput.value = '';
+  });
+  drop?.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('is-drop'); });
+  drop?.addEventListener('dragleave', () => drop.classList.remove('is-drop'));
+  drop?.addEventListener('drop', async e => {
+    e.preventDefault();
+    drop.classList.remove('is-drop');
+    try {
+      await sendFiles(e.dataTransfer?.files || []);
+    } catch (err) {
+      showToast('Upload failed', err.message || '', 'error');
+    }
+  });
+  page.querySelector('[data-project-delete]')?.addEventListener('click', async () => {
+    if (!confirm(`Delete project “${project.name}”? Vault files stay on disk.`)) return;
+    try {
+      const r = await fetch(`/api/projects/${projectId}`, { method: 'DELETE' });
+      if (!r.ok) throw new Error('Delete failed');
+      showToast('Project deleted', project.name, 'success');
+      location.hash = '#/projects';
+    } catch (err) {
+      showToast('Delete failed', err.message || '', 'error');
     }
   });
 }
