@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-14 Session update (Power this month)
 
-Latest commit: `(pending)` — Estimate print electricity from History hours × Bambu wiki watts × tariff.
+Latest commit: `f17089a` — Estimate print electricity from History hours × Bambu wiki watts × tariff.
 
 Latest local/Pi change:
 - Settings → Costing: **Power this month** panel — month picker, print hours by printer, wiki avg W (material-aware when known), editable W overrides, $/kWh tariff → kWh and $.
