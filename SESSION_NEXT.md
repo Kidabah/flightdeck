@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-14 Session update (Project auto-slice)
 
-Latest commit: `(pending)` — Auto-slice unsliced project 3MF files for quotes.
+Latest commit: `2b1fe1a` — Auto-slice unsliced project 3MF files for quotes.
 
 Latest local/Pi change:
 - Drop a MakerWorld / Save Project `.3mf` (or STL) into a Project: Flightdeck background-slices it with slicer defaults and writes a `.gcode.3mf` into the vault folder, then quotes grams/time.
