@@ -6,6 +6,19 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-14 Session update (Overhead electric name match)
+
+Latest commit: `(pending)` — Only fill the Electricity overhead from Power this month.
+
+Latest local/Pi change:
+- “Daily Network Electricity Access” was matching `electric` in the name and getting overwritten to the power $ total. Power now binds only to the dedicated Electricity line (id/name exactly Electricity).
+- Hard refresh (`app.js?v=662`). Re-enter the network line amount if it already saved as the power figure.
+
+Previous:
+- Electricity from power calc (`60ff95e`).
+
+---
+
 ## 2026-08-14 Session update (Electricity from power calc)
 
 Latest commit: `60ff95e` — Fill Costing Electricity overhead from Power this month.

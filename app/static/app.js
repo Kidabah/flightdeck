@@ -24232,8 +24232,9 @@ function _costingQuoteLocal(cfg, costs, grams, hours, material, filamentOverride
 
 function _costingIsElectricityOverhead(row) {
   const id = String(row?.id || row?.dataset?.id || '').toLowerCase();
-  const name = String(row?.name || '').toLowerCase();
-  return id === 'electricity' || name.includes('electric');
+  const name = String(row?.name || '').trim().toLowerCase();
+  // Only the dedicated Electricity line — not “Daily Network Electricity Access” etc.
+  return id === 'electricity' || name === 'electricity';
 }
 
 function _costingElectricityFromPower(state) {
@@ -24242,11 +24243,10 @@ function _costingElectricityFromPower(state) {
 }
 
 function _costingFindElectricityRow(el) {
-  return [...el.querySelectorAll('.costing-overhead-row')].find(row => {
-    const id = String(row.dataset.id || '').toLowerCase();
-    const name = String(row.querySelector('[data-costing="name"]')?.value || '').toLowerCase();
-    return id === 'electricity' || name.includes('electric');
-  }) || null;
+  const rows = [...el.querySelectorAll('.costing-overhead-row')];
+  return rows.find(row => String(row.dataset.id || '').toLowerCase() === 'electricity')
+    || rows.find(row => String(row.querySelector('[data-costing="name"]')?.value || '').trim().toLowerCase() === 'electricity')
+    || null;
 }
 
 function _costingElectricityRowHtml(amount) {
