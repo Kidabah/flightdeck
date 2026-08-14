@@ -2949,7 +2949,9 @@ async def slicer_worker_slice(
         "filament": filament_profile,
     }
     sidecar_url = (sidecar_url or "").strip().rstrip("/")
-    if sidecar_url:
+    # Sidecar is optional. If it's down, local Orca on the worker still slices 3MF/project files.
+    use_sidecar = bool(sidecar_url) and _h2d_loose_mesh_requires_sidecar(source_name, profiles)
+    if use_sidecar:
         try:
             name, data, _log = await asyncio.to_thread(
                 _run_orca_slice_sidecar,
@@ -2969,21 +2971,7 @@ async def slicer_worker_slice(
         except HTTPException as exc:
             if exc.status_code != 502:
                 raise
-            if _h2d_loose_mesh_requires_sidecar(source_name, profiles):
-                raise HTTPException(status_code=502, detail=_h2d_sidecar_required_message()) from exc
-            log.warning("slicer sidecar unreachable on worker, falling back to local Orca: %s", exc.detail)
-            name, data, _log = await asyncio.to_thread(
-                _run_orca_slice_local,
-                filename=source_name,
-                data=source_data,
-                profiles=profiles,
-                output_kind=output_kind,
-                output_filename=output_filename,
-                plate=plate,
-                all_plates=all_plates,
-                support_mode=support_mode,
-                brim_mode=brim_mode,
-            )
+            raise HTTPException(status_code=502, detail=_h2d_sidecar_required_message()) from exc
     else:
         if _h2d_loose_mesh_requires_sidecar(source_name, profiles):
             raise HTTPException(status_code=422, detail=_h2d_sidecar_required_message())
@@ -3262,6 +3250,9 @@ async def _slice_model_to_bytes(
 
     sliced_name = output_filename
     sliced_data = b""
+    # Only send the sidecar URL when this file actually needs it (H2D STL/OBJ).
+    # Otherwise the Windows worker uses local Orca, even if the API sidecar is down.
+    worker_sidecar = sidecar_url if h2d_loose_mesh else ""
     if worker_url:
         form = {
             "printer_profile": profiles["printer"],
@@ -3271,7 +3262,7 @@ async def _slice_model_to_bytes(
             "output_filename": output_filename,
             "plate": plate or "1",
             "all_plates": str(bool(all_plates)).lower(),
-            "sidecar_url": sidecar_url,
+            "sidecar_url": worker_sidecar,
             "arrange": str(bool(arrange)).lower(),
             "bed_type": slice_options["bed_type"],
             "support_mode": slice_options["support_mode"],
@@ -3279,38 +3270,23 @@ async def _slice_model_to_bytes(
         }
         files = {"file": (filename, data, "application/octet-stream")}
         try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(connect=10.0, read=900.0, write=30.0, pool=10.0)) as client:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(connect=15.0, read=900.0, write=180.0, pool=15.0)) as client:
                 resp = await client.post(f"{worker_url}/api/slicer/worker/slice", data=form, files=files)
         except Exception as exc:
-            if not sidecar_url:
-                detail = str(exc).strip() or "connection timed out"
-                raise HTTPException(status_code=502, detail=f"Slicer worker unreachable: {detail}") from exc
-            log.warning("slicer worker unreachable, falling back to API: %s", exc)
-            sliced_name, sliced_data, _log = await asyncio.to_thread(
-                _run_orca_slice_sidecar,
-                sidecar_url=sidecar_url,
-                filename=filename,
-                data=data,
-                profiles=profiles,
-                output_kind=output_kind,
-                output_filename=output_filename,
-                plate=plate or "1",
-                all_plates=bool(all_plates),
-                arrange=arrange,
-                bed_type=slice_options["bed_type"],
-                support_mode=slice_options["support_mode"],
-                brim_mode=slice_options["brim_mode"],
-            )
-        else:
-            if resp.status_code >= 400:
-                try:
-                    detail = resp.json().get("detail")
-                except Exception:
-                    detail = resp.text
-                raise HTTPException(status_code=resp.status_code, detail=detail or "Slicer worker failed")
-            sliced_name = resp.headers.get("X-Flightdeck-Sliced-Filename") or output_filename
-            sliced_data = resp.content
-            _enforce_file_size(len(sliced_data), label="Sliced output")
+            detail = str(exc).strip() or "connection timed out"
+            raise HTTPException(
+                status_code=502,
+                detail=f"Windows slicer worker unreachable ({worker_url}): {detail}",
+            ) from exc
+        if resp.status_code >= 400:
+            try:
+                detail = resp.json().get("detail")
+            except Exception:
+                detail = resp.text
+            raise HTTPException(status_code=resp.status_code, detail=detail or "Slicer worker failed")
+        sliced_name = resp.headers.get("X-Flightdeck-Sliced-Filename") or output_filename
+        sliced_data = resp.content
+        _enforce_file_size(len(sliced_data), label="Sliced output")
     elif sidecar_url:
         sliced_name, sliced_data, _log = await asyncio.to_thread(
             _run_orca_slice_sidecar,
@@ -6628,7 +6604,7 @@ def _run_orca_slice_sidecar(
         "requestId": f"flightdeck-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}",
     }
     try:
-        with httpx.Client(timeout=httpx.Timeout(connect=10.0, read=900.0, write=60.0, pool=10.0)) as client:
+        with httpx.Client(timeout=httpx.Timeout(connect=4.0, read=900.0, write=60.0, pool=4.0)) as client:
             response = client.post(f"{sidecar_url}/slice", data=form, files=files)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Slicer API unreachable: {exc}") from exc
