@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-14 Session update (Projects delete stick)
 
-Latest commit: pending — Keep deleted projects from auto-resurrecting
+Latest commit: `97999f4` — Keep deleted Projects from coming back via orphan folder adopt.
 
 Latest local/Pi change:
 - Delete project was toasting success then immediately re-adopting the vault folder. Dismissed folders are now remembered so delete sticks; files still stay on disk.
