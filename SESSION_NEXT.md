@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-14 Session update (Slice without dead sidecar)
 
-Latest commit: `(pending)` — Quote slices use Windows Orca when the Slicer API sidecar is down.
+Latest commit: `dfe35b7` — Quote slices use Windows Orca when the Slicer API sidecar is down.
 
 Latest local/Pi change:
 - Project auto-slice was timing out on the offline Slicer API (`:3003`). 3MF/project files now go to the Windows worker’s local Orca (`orca-slicer.exe`) and skip the sidecar unless an H2D STL/OBJ actually needs it.
