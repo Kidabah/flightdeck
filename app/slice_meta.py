@@ -376,3 +376,131 @@ def sanitize_3mf_cli_sentinels(data: bytes, extra_keys: set[str] | None = None) 
         return data
     finally:
         source.close()
+
+
+# Newer Bambu H2D profiles use placeholders Orca 2.4.0-alpha does not know.
+# Treat those as false: keep the {else} body / ternary false-arm.
+_CLI_UNKNOWN_GCODE_BOOLS = {
+    "cooling_filter_enabled",
+    "timelapse_inline_photo",
+    "farthest_point_timelapse_enabled",
+}
+_GCODE_IDENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+_GCODE_UNKNOWN_VAR_RE = re.compile(
+    r"Not a variable name[^\n]*\r?\n\s*\{(?:if\s*\(?\s*)?([A-Za-z_][A-Za-z0-9_]*)",
+    re.IGNORECASE,
+)
+_GCODE_UNKNOWN_CARET_RE = re.compile(
+    r"Not a variable name[^\n]*\r?\n([^\n]+)\r?\n([ \t]*)\^",
+    re.IGNORECASE,
+)
+_GCODE_IF_TOKEN_RE = re.compile(r"\{if\b|\{else\}|\{endif\}", re.IGNORECASE)
+
+
+def parse_unknown_gcode_vars(detail: str) -> set[str]:
+    text = detail or ""
+    names = {match.group(1) for match in _GCODE_UNKNOWN_VAR_RE.finditer(text)}
+    for match in _GCODE_UNKNOWN_CARET_RE.finditer(text):
+        line = match.group(1)
+        col = len(match.group(2))
+        hit = ""
+        for ident in _GCODE_IDENT_RE.finditer(line):
+            if ident.start() <= col < ident.end():
+                hit = ident.group(0)
+                break
+        if not hit:
+            later = [ident for ident in _GCODE_IDENT_RE.finditer(line) if ident.start() >= col]
+            if later:
+                hit = later[0].group(0)
+        if hit and hit.lower() not in {"if", "else", "endif"}:
+            names.add(hit)
+    return names
+
+
+def _strip_unknown_gcode_if_blocks(text: str, names: set[str]) -> str:
+    out = text
+    for name in names:
+        if not name:
+            continue
+        out = _keep_else_for_unknown_bool(out, name)
+        ident = re.escape(name)
+        ternary = re.compile(
+            rf"\(\s*{ident}\s*\?(?P<yes>.*?):(?P<no>.*?)\)",
+            re.IGNORECASE | re.DOTALL,
+        )
+        out = ternary.sub(lambda m: f"({m.group('no').strip()})", out)
+    return out
+
+
+def _keep_else_for_unknown_bool(text: str, name: str) -> str:
+    start_re = re.compile(
+        rf"\{{if\s*\(?\s*{re.escape(name)}\s*\)?\}}",
+        re.IGNORECASE,
+    )
+    pieces: list[str] = []
+    cursor = 0
+    while True:
+        start = start_re.search(text, cursor)
+        if not start:
+            pieces.append(text[cursor:])
+            break
+        pieces.append(text[cursor:start.start()])
+        depth = 1
+        else_body_at: int | None = None
+        scan = start.end()
+        end_at = None
+        while depth > 0:
+            token = _GCODE_IF_TOKEN_RE.search(text, scan)
+            if not token:
+                pieces.append(text[start.start():])
+                return "".join(pieces)
+            kind = token.group(0).lower()
+            if kind.startswith("{if"):
+                depth += 1
+            elif kind == "{else}":
+                if depth == 1:
+                    else_body_at = token.end()
+            elif kind == "{endif}":
+                depth -= 1
+                if depth == 0:
+                    end_at = token.start()
+                    cursor = token.end()
+                    break
+            scan = token.end()
+        if else_body_at is not None and end_at is not None:
+            pieces.append(text[else_body_at:end_at])
+        elif end_at is None:
+            pieces.append(text[start.start():])
+            break
+    return "".join(pieces)
+
+
+def sanitize_profile_gcode_placeholders(profile_data: bytes, extra_names: set[str] | None = None) -> bytes:
+    """Replace unknown custom-G-code placeholders so older Orca CLI can slice."""
+    names = set(_CLI_UNKNOWN_GCODE_BOOLS)
+    for name in extra_names or set():
+        key = str(name).strip()
+        if key:
+            names.add(key)
+    if not names or not profile_data:
+        return profile_data
+    try:
+        profile = json.loads(profile_data.decode("utf-8-sig"))
+    except Exception:
+        return profile_data
+    if not isinstance(profile, dict):
+        return profile_data
+
+    def rewrite(value):
+        if isinstance(value, str):
+            return _strip_unknown_gcode_if_blocks(value, names)
+        if isinstance(value, list):
+            return [rewrite(item) for item in value]
+        if isinstance(value, dict):
+            return {key: rewrite(item) for key, item in value.items()}
+        return value
+
+    cleaned = rewrite(profile)
+    if cleaned == profile:
+        return profile_data
+    return json.dumps(cleaned, ensure_ascii=False, indent=4).encode("utf-8")

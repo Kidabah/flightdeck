@@ -3015,8 +3015,9 @@ async def slicer_worker_slice(
         "filament": filament_profile,
     }
     sidecar_url = (sidecar_url or "").strip().rstrip("/")
-    # Sidecar is optional. If it's down, local Orca on the worker still slices 3MF/project files.
-    use_sidecar = bool(sidecar_url) and _h2d_loose_mesh_requires_sidecar(source_name, profiles)
+    # Prefer the Docker sidecar when the Pi passed a URL. Fall back to local
+    # Orca if the sidecar is unreachable (unless this file truly needs it).
+    use_sidecar = bool(sidecar_url)
     if use_sidecar:
         try:
             name, data, _log = await asyncio.to_thread(
@@ -3035,9 +3036,25 @@ async def slicer_worker_slice(
                 brim_mode=brim_mode,
             )
         except HTTPException as exc:
-            if exc.status_code != 502:
+            detail = str(exc.detail or "")
+            unreachable = exc.status_code == 502 and "unreachable" in detail.lower()
+            if not unreachable or _h2d_loose_mesh_requires_sidecar(source_name, profiles):
+                if unreachable:
+                    raise HTTPException(status_code=502, detail=_h2d_sidecar_required_message()) from exc
                 raise
-            raise HTTPException(status_code=502, detail=_h2d_sidecar_required_message()) from exc
+            log.warning("slicer sidecar unreachable on worker, falling back to local Orca: %s", detail)
+            name, data, _log = await asyncio.to_thread(
+                _run_orca_slice_local,
+                filename=source_name,
+                data=source_data,
+                profiles=profiles,
+                output_kind=output_kind,
+                output_filename=output_filename,
+                plate=plate,
+                all_plates=all_plates,
+                support_mode=support_mode,
+                brim_mode=brim_mode,
+            )
     else:
         if _h2d_loose_mesh_requires_sidecar(source_name, profiles):
             raise HTTPException(status_code=422, detail=_h2d_sidecar_required_message())
@@ -3318,9 +3335,9 @@ async def _slice_model_to_bytes(
 
     sliced_name = output_filename
     sliced_data = b""
-    # Only send the sidecar URL when this file actually needs it (H2D STL/OBJ).
-    # Otherwise the Windows worker uses local Orca, even if the API sidecar is down.
-    worker_sidecar = sidecar_url if h2d_loose_mesh else ""
+    slicer_use_api = str(settings.get("slicer_use_api") or "").strip().lower() in {"1", "true", "yes", "on"}
+    # H2D STL/OBJ always needs the sidecar. Other files use it when Settings → Use Slicer API is on.
+    worker_sidecar = sidecar_url if sidecar_url and (h2d_loose_mesh or slicer_use_api) else ""
     if worker_url:
         form = {
             "printer_profile": profiles["printer"],
@@ -6465,12 +6482,40 @@ def _friendly_slicer_error(detail: str) -> str:
             "(Param values in 3mf/config). Flightdeck strips those sentinels automatically — "
             "hit Slice unsliced to retry."
         )
+    noise = (
+        "slic3r::cli::run found error",
+        "run found error, return",
+        "run found error, exit",
+        "mesa opengl",
+        "system opengl library",
+        "cli_callback_mgr",
+        "update: percent=",
+        "update: m_total_progress",
+    )
     lines = [line.strip() for line in text.splitlines() if line.strip()]
+    useful = [line for line in lines if not any(token in line.lower() for token in noise)]
+    preferred_needles = (
+        "parsing error",
+        "failed to generate g-code",
+        "invalid custom g-code",
+        "not a variable name",
+        "param values",
+        "not in range",
+        "unknown file format",
+        "failed slicing",
+    )
+    preferred = [
+        line for line in useful
+        if any(needle in line.lower() for needle in preferred_needles)
+    ]
+    if preferred:
+        summary = " ".join(preferred[-8:]).strip()
+        return summary[-700:] if summary else text[-500:]
     important = [
-        line for line in lines
+        line for line in useful
         if "[error]" in line.lower() or "error" in line.lower() or "failed" in line.lower()
     ]
-    picked = important[-3:] if important else lines[-4:]
+    picked = important[-4:] if important else useful[-6:] or lines[-4:]
     summary = " ".join(picked).strip()
     return summary[-500:] if summary else text[-500:]
 
@@ -6558,7 +6603,8 @@ def _normalise_slicer_profile_type(profile_data: bytes, category: str) -> bytes:
         raise HTTPException(status_code=422, detail=f"Selected {category} profile is not a valid Orca profile")
     if profile.get("type") != profile_type:
         profile["type"] = profile_type
-    return json.dumps(profile, ensure_ascii=False, indent=4).encode("utf-8")
+    encoded = json.dumps(profile, ensure_ascii=False, indent=4).encode("utf-8")
+    return slice_meta.sanitize_profile_gcode_placeholders(encoded)
 
 
 def _apply_slice_process_overrides(process_data: bytes, *, support_mode: str | None = "profile", brim_mode: str | None = "profile") -> bytes:
@@ -6656,6 +6702,7 @@ def _run_orca_slice_sidecar(
     filament_name, filament_data = _slicer_profile_blob(str(profiles.get("filament") or ""), "filament", exe)
     machine_data = _normalise_slicer_profile_type(machine_data, "machine")
     process_data = _apply_slice_process_overrides(process_data, support_mode=support_mode, brim_mode=brim_mode)
+    process_data = slice_meta.sanitize_profile_gcode_placeholders(process_data)
     filament_data = _normalise_slicer_profile_type(filament_data, "filament")
 
     safe_source = _safe_basename(filename, "flightdeck-model.stl")
@@ -6666,12 +6713,6 @@ def _run_orca_slice_sidecar(
     if not sidecar_url:
         raise HTTPException(status_code=422, detail="Slicer API URL is not set")
 
-    files = [
-        ("file", (safe_source, data, _slicer_model_mime(safe_source))),
-        ("printerProfile", (machine_name, machine_data, "application/json")),
-        ("presetProfile", (process_name, process_data, "application/json")),
-        ("filamentProfile", (filament_name, filament_data, "application/json")),
-    ]
     form = {
         "plate": "0" if all_plates else str(plate or "1"),
         "exportType": "3mf" if output_kind == "gcode.3mf" else "gcode",
@@ -6679,24 +6720,55 @@ def _run_orca_slice_sidecar(
         "bedType": (bed_type or "Textured PEI Plate").strip() or "Textured PEI Plate",
         "requestId": f"flightdeck-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}",
     }
+    detail = ""
     try:
         with httpx.Client(timeout=httpx.Timeout(connect=4.0, read=900.0, write=60.0, pool=4.0)) as client:
-            response = client.post(f"{sidecar_url}/slice", data=form, files=files)
+            response = None
+            for _attempt in range(6):
+                files = [
+                    ("file", (safe_source, data, _slicer_model_mime(safe_source))),
+                    ("printerProfile", (machine_name, machine_data, "application/json")),
+                    ("presetProfile", (process_name, process_data, "application/json")),
+                    ("filamentProfile", (filament_name, filament_data, "application/json")),
+                ]
+                response = client.post(f"{sidecar_url}/slice", data=form, files=files)
+                if response.status_code < 400:
+                    break
+                try:
+                    payload = response.json()
+                    detail = (
+                        payload.get("details")
+                        or payload.get("detail")
+                        or payload.get("error")
+                        or payload.get("message")
+                        or json.dumps(payload)
+                    )
+                except Exception:
+                    detail = response.text
+                extra_vars = slice_meta.parse_unknown_gcode_vars(str(detail or ""))
+                if not extra_vars:
+                    break
+                machine_data = slice_meta.sanitize_profile_gcode_placeholders(machine_data, extra_vars)
+                process_data = slice_meta.sanitize_profile_gcode_placeholders(process_data, extra_vars)
+                filament_data = slice_meta.sanitize_profile_gcode_placeholders(filament_data, extra_vars)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Slicer API unreachable: {exc}") from exc
 
+    if response is None:
+        raise HTTPException(status_code=502, detail="Slicer API returned no response")
     if response.status_code >= 400:
-        try:
-            payload = response.json()
-            detail = (
-                payload.get("details")
-                or payload.get("detail")
-                or payload.get("error")
-                or payload.get("message")
-                or json.dumps(payload)
-            )
-        except Exception:
-            detail = response.text
+        if not detail:
+            try:
+                payload = response.json()
+                detail = (
+                    payload.get("details")
+                    or payload.get("detail")
+                    or payload.get("error")
+                    or payload.get("message")
+                    or json.dumps(payload)
+                )
+            except Exception:
+                detail = response.text
         if _h2d_loose_mesh_requires_sidecar(safe_source, profiles):
             raw = str(detail or "").strip()
             lowered = raw.lower()
@@ -6773,7 +6845,9 @@ def _run_orca_slice_local(
         process_for_slice = tmp / "flightdeck-process.json"
         filament_for_slice = tmp / "flightdeck-filament.json"
         machine_for_slice.write_bytes(_normalise_slicer_profile_type(machine.read_bytes(), "machine"))
-        process_for_slice.write_bytes(_apply_slice_process_overrides(process.read_bytes(), support_mode=support_mode, brim_mode=brim_mode))
+        process_for_slice.write_bytes(slice_meta.sanitize_profile_gcode_placeholders(
+            _apply_slice_process_overrides(process.read_bytes(), support_mode=support_mode, brim_mode=brim_mode)
+        ))
         filament_for_slice.write_bytes(_normalise_slicer_profile_type(filament.read_bytes(), "filament"))
         args = [str(exe)]
         datadir = _orca_datadir()
