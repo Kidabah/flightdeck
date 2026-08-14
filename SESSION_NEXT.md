@@ -6,6 +6,21 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-14 Session update (Shop costing for local quotes)
+
+Latest commit: `3db4475` — Add shop costing so local quotes cover overhead without a full labour rate.
+
+Latest local/Pi change:
+- Settings → **Costing**: monthly overheads (Bambu, electricity, other), expected print hours (prefill from last 30 days), markup %, optional “my time” $/hr (default $0).
+- Derived **shop rate** = monthly ÷ hours. Quote helper: grams + hours → filament / time / floor / suggested.
+- Passports and Print Memory show **filament / time / floor / suggested**. Filament `total_cost` is unchanged so old numbers don’t lie.
+- Hard refresh (`app.js?v=656`, `style.css?v=502`). **Backend restart required.**
+
+Previous:
+- Flight Recorder Windows lockup (`68f3635`).
+
+---
+
 ## 2026-08-13 Session update (Flight Recorder — Windows lockup)
 
 Latest commit: `68f3635` — Don't auto-decode Bambu clips in Flight Recorder
