@@ -9773,7 +9773,38 @@ function _fileKindClass(kind) {
   return String(kind || 'file').replace(/[^a-z0-9_-]/gi, '-').toLowerCase();
 }
 
+function _fileArchiveKey(name) {
+  let text = String(name || '').split(/[/\\]/).pop().toLowerCase();
+  for (const suffix of ['.gcode.3mf', '.gcode.gz', '.3mf', '.gcode', '.ufp', '.step', '.stp', '.stl', '.obj']) {
+    if (text.endsWith(suffix)) {
+      text = text.slice(0, -suffix.length);
+      break;
+    }
+  }
+  return text.trim();
+}
+
+function _matchingSlicedJob(file, siblings) {
+  if (!_fileIsSourceModel(file)) return null;
+  const key = _fileArchiveKey(file.name || file.path);
+  if (!key) return null;
+  const folder = _libraryVaultFolderKey(file);
+  const pool = Array.isArray(siblings) ? siblings : [];
+  const byName = pool.find(other => {
+    if (other === file || !_fileIsSlicedJob(other)) return false;
+    if (_libraryVaultFolderKey(other) !== folder) return false;
+    const otherKey = _fileArchiveKey(other.name || other.path);
+    return otherKey === key || otherKey.startsWith(`${key}_`) || key.startsWith(`${otherKey}_`);
+  });
+  if (byName) return byName;
+  const sliced = pool.filter(other => other !== file && _fileIsSlicedJob(other) && _libraryVaultFolderKey(other) === folder);
+  const sources = pool.filter(other => _fileIsSourceModel(other) && _libraryVaultFolderKey(other) === folder);
+  if (sliced.length === 1 && sources.length === 1) return sliced[0];
+  return null;
+}
+
 function _fileIsSourceModel(file) {
+  if (_fileIsSlicedJob(file)) return false;
   const name = String(file?.name || file?.path || '').toLowerCase();
   return name.endsWith('.stl') || name.endsWith('.obj') || name.endsWith('.step') || name.endsWith('.stp') ||
     (name.endsWith('.3mf') && !name.endsWith('.gcode.3mf'));
@@ -9781,7 +9812,11 @@ function _fileIsSourceModel(file) {
 
 function _fileIsSlicedJob(file) {
   const name = String(file?.name || file?.path || '').toLowerCase();
-  return name.endsWith('.gcode.3mf') || name.endsWith('.gcode') || name.endsWith('.gcode.gz') || name.endsWith('.ufp');
+  if (name.endsWith('.gcode.3mf') || name.endsWith('.gcode') || name.endsWith('.gcode.gz') || name.endsWith('.ufp')) {
+    return true;
+  }
+  const base = name.split(/[/\\]/).pop();
+  return base === 'result.3mf';
 }
 
 function _fileDeskHasPreview(file) {
@@ -10224,14 +10259,18 @@ function _libraryVaultFolderKey(file) {
 }
 
 function _fileDeskFileRowHtml(f, target, options = {}) {
-  const targetPrinterId = options.printerId || '';
+  const targetPrinterId = options.printerId || options.targetPrinterId || '';
   const directQueue = !!options.directQueue && !!targetPrinterId;
   const compactBay = !!options.compactBay;
   const inFolder = !!options.inFolder;
+  const siblings = options.siblings || target.files || [];
   const path = esc(f.path || f.name);
   const printers = _fileCompatiblePrinters(f, target);
   const printable = _filePrintablePrinters(f, target);
-  const isSource = _fileIsSourceModel(f);
+  const slicedMatch = _matchingSlicedJob(f, siblings);
+  const queueFile = slicedMatch || f;
+  const queuePath = esc(queueFile.path || queueFile.name);
+  const isSource = _fileIsSourceModel(f) && !slicedMatch;
   const ready = printers.filter(p => p.state === 'idle' || p.state === 'finished');
   const printerChips = compactBay ? '' : printers.slice(0, 4).map(p => `<span class="filedesk-printer-chip${ready.some(r => r.id === p.id) ? ' filedesk-printer-ready' : ''}">${esc(p.model_name || p.custom_name || p.id)}</span>`).join('');
   const more = compactBay ? '' : (printers.length > 4 ? `<span class="filedesk-printer-chip">+${printers.length - 4}</span>` : '');
@@ -10251,7 +10290,7 @@ function _fileDeskFileRowHtml(f, target, options = {}) {
     : '';
   const actionBtn = isSource
     ? `<button class="filedesk-action-btn filedesk-slice-primary" data-file-action="slice" data-source-id="${esc(target.id)}" data-path="${path}" ${targetPrinterId ? `data-target-printer="${esc(targetPrinterId)}"` : ''}>Slice</button>`
-    : `<button class="filedesk-action-btn filedesk-queue-primary" data-file-action="queue" data-source-id="${esc(target.id)}" data-path="${path}" ${directQueue ? `data-target-printer="${esc(targetPrinterId)}"` : ''} ${printable.length ? '' : 'disabled'} title="${printable.length ? 'Add to print queue' : 'No compatible printer'}">${esc(_queueButtonLabel(f, target, targetPrinterId))}</button>`;
+    : `<button class="filedesk-action-btn filedesk-queue-primary" data-file-action="queue" data-source-id="${esc(target.id)}" data-path="${queuePath}" ${directQueue ? `data-target-printer="${esc(targetPrinterId)}"` : ''} ${printable.length || slicedMatch ? '' : 'disabled'} title="${printable.length || slicedMatch ? 'Add to print queue' : 'No compatible printer'}">${esc(slicedMatch ? 'Queue sliced' : _queueButtonLabel(queueFile, target, targetPrinterId))}</button>`;
   return `<article class="filedesk-file-row${compactBay ? ' filedesk-file-row-compact' : ''}${inFolder ? ' filedesk-file-row-folder' : ''}">
     <input type="checkbox" class="filedesk-select" data-source-id="${esc(target.id)}" data-path="${path}" data-name="${esc(f.name || f.path || 'File')}" aria-label="Select ${esc(f.name || f.path || 'file')}">
     <div class="filedesk-file-body">
@@ -10287,12 +10326,12 @@ function _fileDeskLibraryGroupedRowsHtml(files, target, options = {}) {
     return a.localeCompare(b);
   });
   if (keys.length <= 1 && (!keys[0] || keys[0] === '')) {
-    return files.map(f => _fileDeskFileRowHtml(f, target, options)).join('');
+    return files.map(f => _fileDeskFileRowHtml(f, target, { ...options, siblings: files })).join('');
   }
   return keys.map(key => {
     const groupFiles = groups.get(key) || [];
     groupFiles.sort((a, b) => String(a.path || a.name).localeCompare(String(b.path || b.name)));
-    const rowOptions = { ...options, inFolder: Boolean(key) };
+    const rowOptions = { ...options, inFolder: Boolean(key), siblings: groupFiles };
     const rows = groupFiles.map(f => _fileDeskFileRowHtml(f, target, rowOptions)).join('');
     if (!key) return rows;
     const open = key.startsWith('MakerWorld/') || key === 'MakerWorld';
@@ -10320,7 +10359,7 @@ function _fileDeskTargetHtml(target, options = {}) {
   const rows = files.length
     ? (target.id === 'library' && !compactBay
       ? _fileDeskLibraryGroupedRowsHtml(files, target, { targetPrinterId, directQueue, compactBay })
-      : files.map(f => _fileDeskFileRowHtml(f, target, { targetPrinterId, directQueue, compactBay })).join(''))
+      : files.map(f => _fileDeskFileRowHtml(f, target, { targetPrinterId, directQueue, compactBay, siblings: files })).join(''))
     : `<div class="filedesk-empty">${target.error ? esc(target.error) : 'No printable files found.'}</div>`;
   const formatNote = target.actions?.format_sd && !compactBay
     ? `<div class="filedesk-format-row">

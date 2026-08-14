@@ -3402,7 +3402,8 @@ async def _slice_model_to_bytes(
             brim_mode=slice_options["brim_mode"],
         )
     _enforce_file_size(len(sliced_data), label="Sliced output")
-    return sliced_name, sliced_data, profiles, slice_options
+    # Sidecar often returns a generic result.3mf — keep the printable .gcode.3mf name.
+    return output_filename, sliced_data, profiles, slice_options
 
 
 @app.post("/api/slicer/run")
@@ -5526,14 +5527,14 @@ async def _run_project_file_slice(project_id: int, dest: Path, rel: str, row: di
             "printer_id": printer_id,
             "source": dest.name,
         }
-        sliced_name, sliced_data, profiles, slice_options = await _slice_model_to_bytes(
+        _, sliced_data, profiles, slice_options = await _slice_model_to_bytes(
             filename=dest.name,
             data=data,
             printer_id=printer_id,
             output_filename=output_name,
             all_plates=dest.name.lower().endswith(".3mf") and not dest.name.lower().endswith(".gcode.3mf"),
         )
-        out_path = dest.parent / (sliced_name or output_name)
+        out_path = dest.parent / output_name
         out_path.write_bytes(sliced_data)
         db.touch_project(project_id)
         db.log_decision(printer_id, "project_slice", json.dumps({
@@ -6509,7 +6510,13 @@ def _friendly_slicer_error(detail: str) -> str:
         if any(needle in line.lower() for needle in preferred_needles)
     ]
     if preferred:
-        summary = " ".join(preferred[-8:]).strip()
+        extras = []
+        for idx, line in enumerate(useful):
+            if "not a variable name" in line.lower() and idx + 1 < len(useful):
+                snippet = useful[idx + 1]
+                if snippet not in preferred and len(snippet) < 240:
+                    extras.append(snippet)
+        summary = " ".join((preferred + extras)[-8:]).strip()
         return summary[-700:] if summary else text[-500:]
     important = [
         line for line in useful
@@ -6745,12 +6752,17 @@ def _run_orca_slice_sidecar(
                     )
                 except Exception:
                     detail = response.text
-                extra_vars = slice_meta.parse_unknown_gcode_vars(str(detail or ""))
+                extra_vars = slice_meta.parse_unknown_gcode_vars(
+                    str(detail or ""),
+                    [machine_data, process_data, filament_data, data],
+                )
                 if not extra_vars:
                     break
                 machine_data = slice_meta.sanitize_profile_gcode_placeholders(machine_data, extra_vars)
                 process_data = slice_meta.sanitize_profile_gcode_placeholders(process_data, extra_vars)
                 filament_data = slice_meta.sanitize_profile_gcode_placeholders(filament_data, extra_vars)
+                if safe_source.lower().endswith(".3mf"):
+                    data = slice_meta.sanitize_3mf_cli_sentinels(data, extra_gcode_names=extra_vars)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Slicer API unreachable: {exc}") from exc
 
@@ -6809,7 +6821,7 @@ def _run_orca_slice_sidecar(
     if not response.content:
         raise HTTPException(status_code=502, detail="Slicer API returned an empty file")
     _enforce_file_size(len(response.content), label="Sliced output")
-    return name, response.content, f"Slicer API {response.status_code}"
+    return requested, response.content, f"Slicer API {response.status_code}"
 
 
 def _run_orca_slice_local(

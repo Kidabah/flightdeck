@@ -326,11 +326,16 @@ def parse_3mf_cli_param_keys(detail: str) -> set[str]:
     return {match.group(1) for match in _CLI_PARAM_ERROR_RE.finditer(detail or "")}
 
 
-def sanitize_3mf_cli_sentinels(data: bytes, extra_keys: set[str] | None = None) -> bytes:
+def sanitize_3mf_cli_sentinels(
+    data: bytes,
+    extra_keys: set[str] | None = None,
+    extra_gcode_names: set[str] | None = None,
+) -> bytes:
     """Strip Bambu inherit-sentinels so Orca CLI can slice MakerWorld/Save Project 3MFs."""
     if not data or data[:2] != b"PK":
         return data
     extra = {str(k) for k in (extra_keys or set()) if str(k).strip()}
+    extra_gcode = {str(k).strip() for k in (extra_gcode_names or set()) if str(k).strip()}
     try:
         source = zipfile.ZipFile(io.BytesIO(data))
     except zipfile.BadZipFile:
@@ -357,9 +362,12 @@ def sanitize_3mf_cli_sentinels(data: bytes, extra_keys: set[str] | None = None) 
                 for key, value in parsed.items()
                 if not _cli_value_is_sentinel(str(key), value, extra)
             }
-            if cleaned == parsed:
-                continue
-            replacements[name] = json.dumps(cleaned, indent=4).encode("utf-8")
+            rewritten = sanitize_profile_gcode_placeholders(
+                json.dumps(cleaned, indent=4).encode("utf-8"),
+                extra_gcode,
+            )
+            if rewritten != raw_settings:
+                replacements[name] = rewritten
         if not replacements:
             return data
         out = io.BytesIO()
@@ -378,12 +386,26 @@ def sanitize_3mf_cli_sentinels(data: bytes, extra_keys: set[str] | None = None) 
         source.close()
 
 
-# Newer Bambu H2D profiles use placeholders Orca 2.4.0-alpha does not know.
-# Treat those as false: keep the {else} body / ternary false-arm.
+# Newer Bambu H2D / MakerWorld 3MF G-code uses placeholders Orca 2.4.0-alpha
+# does not know. Treat unknown bools as false; rewrite elsif/ceil; stub the rest.
 _CLI_UNKNOWN_GCODE_BOOLS = {
     "cooling_filter_enabled",
     "timelapse_inline_photo",
     "farthest_point_timelapse_enabled",
+}
+_CLI_UNKNOWN_GCODE_STRINGS = {
+    "old_extruder_variant",
+    "new_extruder_variant",
+}
+_CLI_UNKNOWN_GCODE_ARRAYS = {
+    "filament_map",
+    "retract_length_toolchange",
+    "flush_volumetric_speeds",
+    "retraction_distances_when_cut",
+}
+_CLI_UNKNOWN_GCODE_FUNCS = {"ceil"}
+_GCODE_KEEP_IDENTS = {
+    "if", "else", "endif", "elsif", "min", "max", "true", "false", "and", "or", "not",
 }
 _GCODE_IDENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 _GCODE_UNKNOWN_VAR_RE = re.compile(
@@ -394,10 +416,15 @@ _GCODE_UNKNOWN_CARET_RE = re.compile(
     r"Not a variable name[^\n]*\r?\n([^\n]+)\r?\n([ \t]*)\^",
     re.IGNORECASE,
 )
+_GCODE_FIELD_LINE_RE = re.compile(
+    r"([A-Za-z0-9_]*gcode) Parsing error at line (\d+):",
+    re.IGNORECASE,
+)
 _GCODE_IF_TOKEN_RE = re.compile(r"\{if\b|\{else\}|\{endif\}", re.IGNORECASE)
+_GCODE_FLOW_RE = re.compile(r"\{elsif\b|\{if\b|\{else\}|\{endif\}", re.IGNORECASE)
 
 
-def parse_unknown_gcode_vars(detail: str) -> set[str]:
+def parse_unknown_gcode_vars(detail: str, gcode_sources: list[bytes] | None = None) -> set[str]:
     text = detail or ""
     names = {match.group(1) for match in _GCODE_UNKNOWN_VAR_RE.finditer(text)}
     for match in _GCODE_UNKNOWN_CARET_RE.finditer(text):
@@ -412,14 +439,164 @@ def parse_unknown_gcode_vars(detail: str) -> set[str]:
             later = [ident for ident in _GCODE_IDENT_RE.finditer(line) if ident.start() >= col]
             if later:
                 hit = later[0].group(0)
-        if hit and hit.lower() not in {"if", "else", "endif"}:
+        if hit and hit.lower() not in _GCODE_KEEP_IDENTS:
             names.add(hit)
+    field_match = _GCODE_FIELD_LINE_RE.search(text)
+    if field_match:
+        names.update(_names_from_gcode_error_line(
+            field_match.group(1),
+            int(field_match.group(2)),
+            gcode_sources or [],
+        ))
+    return {name for name in names if name and name.lower() not in _GCODE_KEEP_IDENTS}
+
+
+def _profile_dicts_from_blob(blob: bytes) -> list[dict]:
+    if not blob:
+        return []
+    if blob[:2] == b"PK":
+        try:
+            with zipfile.ZipFile(io.BytesIO(blob)) as archive:
+                found: list[dict] = []
+                for name in archive.namelist():
+                    if "project_settings.config" not in name.replace("\\", "/").lower():
+                        continue
+                    parsed = json.loads(archive.read(name).decode("utf-8", "ignore"))
+                    if isinstance(parsed, dict):
+                        found.append(parsed)
+                return found
+        except Exception:
+            return []
+    try:
+        parsed = json.loads(blob.decode("utf-8-sig"))
+    except Exception:
+        return []
+    return [parsed] if isinstance(parsed, dict) else []
+
+
+def _names_from_gcode_error_line(field: str, line_no: int, sources: list[bytes]) -> set[str]:
+    names: set[str] = set()
+    known = (
+        _CLI_UNKNOWN_GCODE_BOOLS
+        | _CLI_UNKNOWN_GCODE_STRINGS
+        | _CLI_UNKNOWN_GCODE_ARRAYS
+        | _CLI_UNKNOWN_GCODE_FUNCS
+    )
+    for blob in sources:
+        for profile in _profile_dicts_from_blob(blob):
+            raw = profile.get(field)
+            if not isinstance(raw, str):
+                continue
+            lines = raw.splitlines()
+            for idx in (line_no - 1, line_no - 2):
+                if idx < 0 or idx >= len(lines):
+                    continue
+                line = lines[idx]
+                for ident in _GCODE_IDENT_RE.findall(line):
+                    if ident in known or ident.lower() in _CLI_UNKNOWN_GCODE_FUNCS:
+                        names.add(ident)
+                    elif re.search(rf"\b{re.escape(ident)}\s*\(", line) and ident.lower() not in {"min", "max", "if"}:
+                        names.add(ident)
     return names
 
 
-def _strip_unknown_gcode_if_blocks(text: str, names: set[str]) -> str:
+def _placeholder_end(text: str, start: int) -> int:
+    close = text.find("}", start)
+    return close + 1 if close >= 0 else len(text)
+
+
+def _rewrite_elsif_blocks(text: str) -> str:
+    """Orca 2.4.0-alpha has no {elsif}; expand to nested {else}{if}…{endif}."""
+    if "{elsif" not in text.lower():
+        return text
+    out: list[str] = []
+    cursor = 0
+    depth = 0
+    extras: dict[int, int] = {}
+    for token in _GCODE_FLOW_RE.finditer(text):
+        if token.start() < cursor:
+            continue
+        out.append(text[cursor:token.start()])
+        kind = token.group(0).lower()
+        end = _placeholder_end(text, token.start())
+        chunk = text[token.start():end]
+        if kind.startswith("{elsif"):
+            cond = chunk[len("{elsif"):-1] if chunk.endswith("}") else chunk[len("{elsif"):]
+            extras[depth] = extras.get(depth, 0) + 1
+            out.append("{else}{if" + cond + "}")
+        elif kind.startswith("{if"):
+            depth += 1
+            extras[depth] = 0
+            out.append(chunk)
+        elif kind == "{else}":
+            out.append(chunk)
+        elif kind == "{endif}":
+            extra = extras.get(depth, 0)
+            extras[depth] = 0
+            out.append(chunk + ("{endif}" * extra))
+            depth = max(0, depth - 1)
+        cursor = end
+    out.append(text[cursor:])
+    return "".join(out)
+
+
+def _replace_array_uses(text: str, name: str, value: str) -> str:
+    pattern = re.compile(rf"\b{re.escape(name)}\s*\[[^\[\]]*\]", re.IGNORECASE)
+    prev = None
     out = text
+    while out != prev:
+        prev = out
+        out = pattern.sub(value, out)
+    return out
+
+
+def _replace_func_uses(text: str, name: str) -> str:
+    pattern = re.compile(rf"\b{re.escape(name)}\s*\(([^()]*)\)", re.IGNORECASE)
+    return pattern.sub(r"(\1)", text)
+
+
+def _replace_ident_uses(text: str, name: str, value: str) -> str:
+    pattern = re.compile(rf"\b{re.escape(name)}\b", re.IGNORECASE)
+
+    def repl(match: re.Match) -> str:
+        body = match.group(1)
+        return "{" + pattern.sub(value, body) + "}"
+
+    return re.sub(r"\{([^{}]+)\}", repl, text)
+
+
+def _strip_unknown_gcode_if_blocks(text: str, names: set[str]) -> str:
+    out = _rewrite_elsif_blocks(text)
+    bools = {name for name in names if name in _CLI_UNKNOWN_GCODE_BOOLS or name.endswith("_enabled")}
+    strings = {name for name in names if name in _CLI_UNKNOWN_GCODE_STRINGS or name.endswith("_variant")}
+    arrays = {name for name in names if name in _CLI_UNKNOWN_GCODE_ARRAYS}
+    funcs = {name for name in names if name.lower() in _CLI_UNKNOWN_GCODE_FUNCS}
     for name in names:
+        key = name.lower()
+        if key in _CLI_UNKNOWN_GCODE_FUNCS:
+            funcs.add(name)
+        if name in _CLI_UNKNOWN_GCODE_ARRAYS:
+            arrays.add(name)
+        if name in _CLI_UNKNOWN_GCODE_STRINGS or name.endswith("_variant"):
+            strings.add(name)
+        if name in _CLI_UNKNOWN_GCODE_BOOLS or name.endswith("_enabled"):
+            bools.add(name)
+    for name in funcs:
+        out = _replace_func_uses(out, name)
+    prev = None
+    while out != prev:
+        prev = out
+        for name in arrays:
+            out = _replace_array_uses(out, name, "1")
+    for name in strings:
+        out = _replace_ident_uses(out, name, '""')
+    leftover = names - bools - strings - arrays - funcs
+    for name in leftover:
+        if name.lower() in _GCODE_KEEP_IDENTS:
+            continue
+        out = _replace_array_uses(out, name, "0")
+        out = _replace_ident_uses(out, name, "0")
+    for name in bools:
         if not name:
             continue
         out = _keep_else_for_unknown_bool(out, name)
@@ -478,6 +655,9 @@ def _keep_else_for_unknown_bool(text: str, name: str) -> str:
 def sanitize_profile_gcode_placeholders(profile_data: bytes, extra_names: set[str] | None = None) -> bytes:
     """Replace unknown custom-G-code placeholders so older Orca CLI can slice."""
     names = set(_CLI_UNKNOWN_GCODE_BOOLS)
+    names.update(_CLI_UNKNOWN_GCODE_STRINGS)
+    names.update(_CLI_UNKNOWN_GCODE_ARRAYS)
+    names.update(_CLI_UNKNOWN_GCODE_FUNCS)
     for name in extra_names or set():
         key = str(name).strip()
         if key:
@@ -491,13 +671,15 @@ def sanitize_profile_gcode_placeholders(profile_data: bytes, extra_names: set[st
     if not isinstance(profile, dict):
         return profile_data
 
-    def rewrite(value):
+    def rewrite(value, key=""):
         if isinstance(value, str):
-            return _strip_unknown_gcode_if_blocks(value, names)
+            if "gcode" in str(key).lower():
+                return _strip_unknown_gcode_if_blocks(value, names)
+            return value
         if isinstance(value, list):
-            return [rewrite(item) for item in value]
+            return [rewrite(item, key) for item in value]
         if isinstance(value, dict):
-            return {key: rewrite(item) for key, item in value.items()}
+            return {child: rewrite(item, child) for child, item in value.items()}
         return value
 
     cleaned = rewrite(profile)
