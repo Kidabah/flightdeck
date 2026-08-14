@@ -8025,12 +8025,15 @@ function _projectQuoteStrip(quote, { compact = false } = {}) {
 }
 
 function _projectFileRow(file) {
-  const sliced = file.sliced
-    ? `${file.grams != null ? `${Number(file.grams).toFixed(0)} g` : '—'} · ${file.seconds ? formatTime(file.seconds) : '—'}`
-    : 'Not sliced yet';
+  let detail;
+  if (file.sliced) {
+    detail = `${file.grams != null ? `${Number(file.grams).toFixed(0)} g` : '—'} · ${file.seconds ? formatTime(file.seconds) : '—'}`;
+  } else {
+    detail = file.status_detail || 'Not sliced yet';
+  }
   return `<div class="project-file-row">
     <strong title="${esc(file.path || file.name || '')}">${esc(file.name || 'file')}</strong>
-    <span>${esc(sliced)}</span>
+    <span title="${esc(detail)}">${esc(detail)}</span>
   </div>`;
 }
 
@@ -8064,7 +8067,7 @@ async function renderProjectsView(projectId) {
       <div>
         <span class="memory-hero-eyebrow">Print Vault</span>
         <h1>Projects</h1>
-        <p>A folder per built model. Drop sliced plates in — grams, hours, floor and suggested come from the slice, using your Costing shop rate.</p>
+        <p>Drop <strong>.gcode.3mf</strong> plate exports here (Bambu: Export plate data). A plain “Save Project” <code>.3mf</code> keeps previews only — no time/weight for quotes.</p>
       </div>
       <form class="project-create" data-project-create>
         <input class="settings-input" name="name" type="text" maxlength="80" placeholder="Summer Goose" required>

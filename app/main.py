@@ -5209,15 +5209,43 @@ def _project_dir(vault_folder: str, *, missing_ok: bool = False) -> Path:
 def _unique_project_folder(name: str) -> str:
     slug = _project_folder_slug(name)
     root = _print_library_path().resolve()
-    folder = f"{_PROJECTS_VAULT_ROOT}/{slug}"
-    n = 2
-    while _safe_join_under(root, *folder.split("/"), missing_ok=True).exists():
-        folder = f"{_PROJECTS_VAULT_ROOT}/{slug}_{n}"
-        n += 1
-        if n > 50:
-            folder = f"{_PROJECTS_VAULT_ROOT}/{slug}_{int(time.time())}"
-            break
-    return folder
+    claimed = {str(p.get("vault_folder") or "") for p in db.list_projects()}
+
+    def exists(rel: str) -> bool:
+        return _safe_join_under(root, *rel.split("/"), missing_ok=True).exists()
+
+    candidates = [f"{_PROJECTS_VAULT_ROOT}/{slug}"]
+    candidates.extend(f"{_PROJECTS_VAULT_ROOT}/{slug}_{n}" for n in range(2, 51))
+    # Prefer an existing orphan folder first, then a free new name.
+    for folder in candidates:
+        if folder not in claimed and exists(folder):
+            return folder
+    for folder in candidates:
+        if folder not in claimed and not exists(folder):
+            return folder
+    return f"{_PROJECTS_VAULT_ROOT}/{slug}_{int(time.time())}"
+
+
+def _adopt_orphan_project_folders() -> None:
+    """Re-register Print Vault Projects/* folders that lost their DB rows."""
+    root = _print_library_path().resolve()
+    projects_root = _safe_join_under(root, _PROJECTS_VAULT_ROOT, missing_ok=True)
+    if not projects_root.exists() or not projects_root.is_dir():
+        return
+    claimed = {str(p.get("vault_folder") or "") for p in db.list_projects()}
+    for child in sorted(projects_root.iterdir()):
+        if not child.is_dir():
+            continue
+        rel = child.relative_to(root).as_posix()
+        if rel in claimed:
+            continue
+        try:
+            has_files = any(p.is_file() for p in child.rglob("*"))
+        except OSError:
+            has_files = False
+        if not has_files:
+            continue
+        db.create_project(child.name, rel, notes="Recovered from Print Vault folder")
 
 
 def _scan_project_files(vault_folder: str) -> list[dict]:
@@ -5247,6 +5275,8 @@ def _scan_project_files(vault_folder: str) -> list[dict]:
             "grams": meta.get("grams"),
             "material": meta.get("material"),
             "plate_count": int(meta.get("plate_count") or 0),
+            "status": meta.get("status") or ("sliced" if meta.get("sliced") else "not_sliced"),
+            "status_detail": meta.get("status_detail") or ("Sliced" if meta.get("sliced") else "Not sliced yet"),
         })
         if len(rows) >= 80:
             break
@@ -5317,6 +5347,7 @@ class ProjectUpdateRequest(BaseModel):
 
 @app.get("/api/projects")
 async def api_list_projects():
+    _adopt_orphan_project_folders()
     rows = []
     for row in db.list_projects():
         files = _scan_project_files(row.get("vault_folder") or "")

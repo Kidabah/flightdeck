@@ -6,6 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-14 Session update (Projects — Bambu Save vs Export)
+
+Latest commit: pending — Detect Bambu project archives vs plate .gcode.3mf exports
+
+Latest local/Pi change:
+- Bambu **Save Project** `.3mf` keeps plate previews but empties `slice_info` — Flightdeck now labels that clearly instead of “Not sliced yet”.
+- Quotes need **Export plate data** `.gcode.3mf` files (per plate). Orphan `Projects/*` vault folders are re-linked on Projects list.
+- Hard refresh (`app.js?v=658`). Backend restart required.
+
+Previous:
+- Project folders (`03ca599`).
+
+---
+
 ## 2026-08-14 Session update (Project folders)
 
 Latest commit: `03ca599` — Add project folders so a vault kit quotes from sliced grams and time.
