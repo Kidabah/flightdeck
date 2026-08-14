@@ -6,6 +6,22 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-14 Session update (H2D G-code placeholders)
+
+Latest commit: `f7290ce` — Strip unknown H2D G-code placeholders so Docker Orca can slice MakerWorld 3MFs.
+
+Latest local/Pi change:
+- Nightly Orca (and even stable 2.4.2) still fails windowless CLI without Mesa. Slice unsliced now uses the Docker sidecar (`:3003`, Orca 2.4.0-alpha) when **Use Slicer API** is on.
+- H2D machine G-code uses placeholders that alpha does not know (`cooling_filter_enabled`, `timelapse_inline_photo`, `farthest_point_timelapse_enabled`). Flightdeck treats those as false (keep `{else}` / ternary false-arm) and retries leftover unknown vars from the sidecar error.
+- Friendly slicer errors skip the useless `Slic3r::CLI::run found error` footer.
+- Desktop Orca is now **2.4.2** (was Nightly). Local CLI still needs a `mesa\` copy from Bambu Studio for windowless GPU; sidecar is the working path.
+- Backend restart required on the Pi **and** Windows worker. Hard refresh not required (`app.js?v=665`). On highland cow hit **Slice unsliced**.
+
+Previous:
+- Multi-plate queue split (`0700b11`).
+
+---
+
 ## 2026-08-14 Session update (Multi-plate queue split)
 
 Latest commit: `0700b11` — Queue an all-plates `.gcode.3mf` as one job per plate.
