@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-14 Session update (3MF CLI sentinels)
 
-Latest commit: `(pending)` — Strip Bambu inherit-sentinels so Orca CLI can slice MakerWorld 3MFs.
+Latest commit: `516e8a1` — Strip Bambu inherit-sentinels so Orca CLI can slice MakerWorld 3MFs.
 
 Latest local/Pi change:
 - Orca CLI was failing with `Param values in 3mf/config` because Bambu writes `-1` / filament `0` inherit sentinels. Flightdeck now strips those from `project_settings.config` before slice (and retries any leftover keys from the error).
