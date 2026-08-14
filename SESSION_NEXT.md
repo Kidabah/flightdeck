@@ -6,6 +6,19 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-14 Session update (Project quote line items)
+
+Latest commit: `(pending)` — Show filament, shop time, labour, and suggested separately on Projects.
+
+Latest local/Pi change:
+- Project quote was labelling the full floor as “shop”, so filament looked extra. Cards now split filament / shop hours / my time / suggested.
+- Hard refresh (`app.js?v=664`). Backend restart required.
+
+Previous:
+- 3MF CLI sentinels (`516e8a1`).
+
+---
+
 ## 2026-08-14 Session update (3MF CLI sentinels)
 
 Latest commit: `516e8a1` — Strip Bambu inherit-sentinels so Orca CLI can slice MakerWorld 3MFs.

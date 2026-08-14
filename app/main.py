@@ -5546,12 +5546,14 @@ def _project_quote(files: list[dict], parallel_printers: int = 1) -> dict:
         "fleet": {
             "hours": fleet.get("hours"),
             "time_cost": fleet.get("time_cost"),
+            "labour_cost": fleet.get("labour_cost"),
             "floor_price": fleet.get("floor_price"),
             "suggested_price": fleet.get("suggested_price"),
         },
         "elapsed": {
             "hours": elapsed.get("hours"),
             "time_cost": elapsed.get("time_cost"),
+            "labour_cost": elapsed.get("labour_cost"),
             "floor_price": elapsed.get("floor_price"),
             "suggested_price": elapsed.get("suggested_price"),
         },

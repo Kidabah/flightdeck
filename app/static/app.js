@@ -8015,13 +8015,26 @@ function _projectHours(n) {
 
 function _projectQuoteStrip(quote, { compact = false } = {}) {
   const q = quote || {};
-  const floor = q.quote_floor != null ? q.quote_floor : q.elapsed?.floor_price;
-  const suggested = q.quote_suggested != null ? q.quote_suggested : q.elapsed?.suggested_price;
-  const shopFloor = q.fleet?.floor_price;
-  return `<div class="project-quote${compact ? ' project-quote-compact' : ''}">
+  const elapsed = q.elapsed || {};
+  const fleet = q.fleet || {};
+  const floor = q.quote_floor != null ? q.quote_floor : elapsed.floor_price;
+  const suggested = q.quote_suggested != null ? q.quote_suggested : elapsed.suggested_price;
+  const timeCost = elapsed.time_cost != null ? elapsed.time_cost : fleet.time_cost;
+  const labour = elapsed.labour_cost != null ? elapsed.labour_cost : fleet.labour_cost;
+  if (compact) {
+    return `<div class="project-quote project-quote-compact">
+      <div><span>Filament</span><strong>${q.grams != null ? `${Number(q.grams).toFixed(0)} g` : '—'}</strong></div>
+      <div class="project-quote-local"><span>Suggested</span><strong>${_projectMoney(suggested)}</strong></div>
+    </div>`;
+  }
+  const labourRow = Number(labour) > 0
+    ? `<div><span>My time</span><strong>${_projectMoney(labour)}</strong><em>labour rate on print hours</em></div>`
+    : '';
+  return `<div class="project-quote">
     <div><span>Filament</span><strong>${q.grams != null ? `${Number(q.grams).toFixed(0)} g` : '—'}</strong><em>${_projectMoney(q.filament_cost)}</em></div>
-    <div><span>Printer-hours</span><strong>${_projectHours(q.printer_hours)}</strong><em>shop ${_projectMoney(shopFloor)}</em></div>
-    <div class="project-quote-local"><span>Local quote</span><strong>${_projectHours(q.elapsed_hours)}</strong><em>floor ${_projectMoney(floor)} · suggested ${_projectMoney(suggested)}</em></div>
+    <div><span>Printer-hours</span><strong>${_projectHours(q.printer_hours)}</strong><em>shop ${_projectMoney(timeCost)}</em></div>
+    ${labourRow}
+    <div class="project-quote-local"><span>Local quote</span><strong>${_projectMoney(suggested)}</strong><em>floor ${_projectMoney(floor)} · ${Number(q.markup_pct || 0).toFixed(0)}% markup</em></div>
   </div>`;
 }
 
