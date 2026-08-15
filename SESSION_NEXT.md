@@ -6,6 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-15 Session update (Queue Release / Tools)
+
+Latest commit: `ecff7b1` — Add Flightdeck-only queue Release so stuck printing jobs can be cleared from the UI.
+
+Latest local/Pi change:
+- Printing/uploading queue rows now have **Release** (Queue page and Settings → Tools). Drops the Flightdeck row only — does not cancel or stop the printer. If the bay is idle, the next pending job may auto-start.
+- Settings → **Tools** lists stuck jobs and flags when the printer is idle but the queue still says printing.
+- Hard refresh (`app.js?v=667`, `style.css?v=507`). Backend restart required.
+
+Previous:
+- Quote-slice .gcode.3mf (`a917993`).
+
+---
+
 ## 2026-08-15 Session update (Quote-slice .gcode.3mf)
 
 Latest commit: `a917993` — Keep quote-slice output as .gcode.3mf and sanitize MakerWorld H2D G-code placeholders.
