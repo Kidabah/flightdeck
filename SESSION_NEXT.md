@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-15 Session update (Painter SVG artwork)
 
-Latest commit: *(pending)* — Stamp SVG artwork onto meshes in STL Painter.
+Latest commit: `5b10ec9` — Stamp SVG artwork onto meshes in STL Painter.
 
 Latest local/Pi change:
 - STL Painter Paint tab: drop an SVG, set size/rotation, click the model to stamp as paint.
