@@ -6,6 +6,21 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-15 Session update (Tiered sell strategies)
+
+Latest commit: `751290b` — Add batch, machine-hour, and value sell strategies on top of shop costing.
+
+Latest local/Pi change:
+- Settings → Costing keeps **floor** (filament + shop hours + optional labour) as true cost.
+- New **Sell strategies**: Shop markup (current default), Batch (filament × 4–6), Machine-hour (filament + hours × rate), Value (filament × 10 as an art starting price). Fail buffer (default 8%) is in sell prices only. Design $/hr is a separate quote-helper line.
+- Quote helper, passports, and projects show all three plus Suggested from the strategy you pick. Save costing after choosing.
+- Hard refresh (`app.js?v=668`, `style.css?v=508`). Backend restart required.
+
+Previous:
+- Queue Release / Tools (`ecff7b1`).
+
+---
+
 ## 2026-08-15 Session update (Queue Release / Tools)
 
 Latest commit: `ecff7b1` — Add Flightdeck-only queue Release so stuck printing jobs can be cleared from the UI.
