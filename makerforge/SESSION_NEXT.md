@@ -4,6 +4,16 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b578 — Painter SVG artwork stamp
+**Date:** 2026-08-15
+
+### MakerDeck
+- STL Painter Paint tab has **Artwork**: drop an SVG, size/rotate, then click the model to stamp it as face paint.
+- **SVG colours** maps fills onto AMS slots (adds slots as needed). **Active slot** stamps a silhouette in the current colour.
+- Ghost preview follows the cursor. Hard refresh Painter **b578** (`painter.html?v=578`).
+
+---
+
 ## b577 — Painter Flip + Chop socket seating
 **Date:** 2026-08-13
 

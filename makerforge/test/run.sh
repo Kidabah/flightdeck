@@ -14,4 +14,5 @@ sed -i 's/from "\.\/\([a-z0-9-]*\)\.js?v=[0-9]*"/from ".\/\1.js"/g; s|from "http
 status=0
 node manifold.mjs || status=1
 node chop-manifold.mjs || status=1
+node painter-art.mjs || status=1
 exit $status

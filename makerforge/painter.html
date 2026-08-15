@@ -245,6 +245,12 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
 .viewport.brush-mode{cursor:none}
 .viewport.eyedrop-mode{cursor:copy}
 .viewport.click-select-mode{cursor:pointer}
+.viewport.art-mode{cursor:copy}
+.art-preview-wrap{margin-top:8px;background:#04080e;border:1px solid var(--border);border-radius:var(--radius-sm);
+  overflow:hidden;display:flex;align-items:center;justify-content:center;min-height:72px}
+.art-preview-wrap canvas{max-width:100%;max-height:88px;display:block}
+.art-preview-wrap.hidden,.art-meta.hidden{display:none}
+.art-meta{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.35}
 
 /* -- Bottom Panel (Components) ------------------------------------- */
 .bottom-panel{grid-area:bottom;display:none;background:var(--panel);
@@ -307,7 +313,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   <header class="header">
     <button class="toggle-sidebar" id="toggleSidebar" title="Toggle sidebar">☰</button>
     <div class="logo">Maker<span>Deck</span> · STL Painter</div>
-    <div class="build">b577</div>
+    <div class="build">b578</div>
   </header>
 
   <!-- Left Sidebar (tabbed) -->
@@ -476,6 +482,38 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
           <span>Symmetry paint (mirror X)</span>
         </label>
 
+        <div class="section-label" style="margin-top:12px">Artwork</div>
+        <div class="drop-zone" id="artDropZone">
+          Drop SVG here<br><span style="font-size:11px;color:var(--muted)">or click to browse · stamp onto the model</span>
+          <input type="file" id="artFileInput" accept=".svg,image/svg+xml">
+        </div>
+        <p class="art-meta hidden" id="artMeta"></p>
+        <div class="art-preview-wrap hidden" id="artPreviewWrap">
+          <canvas id="artPreviewCanvas" width="240" height="88"></canvas>
+        </div>
+        <div class="opts-panel" id="artOpts">
+          <div class="form-group">
+            <div class="form-label"><span>Size (mm)</span><span class="value" id="artSizeVal">48</span></div>
+            <input type="range" id="artSize" min="8" max="180" step="1" value="48">
+          </div>
+          <div class="form-group">
+            <div class="form-label"><span>Rotation</span><span class="value" id="artRotVal">0°</span></div>
+            <input type="range" id="artRot" min="-180" max="180" step="1" value="0">
+          </div>
+          <div class="form-group">
+            <div class="form-label"><span>Colours</span></div>
+            <div class="stroke-row">
+              <button class="stroke-btn" data-artmode="active" id="artModeActive">Active slot</button>
+              <button class="stroke-btn active" data-artmode="svg" id="artModeSvg">SVG colours</button>
+            </div>
+          </div>
+          <p class="flow-desc">Click the model to stamp. Right-drag orbits. Fine/Ultra first if the logo looks blocky.</p>
+          <div class="btn-row">
+            <button class="btn btn-primary" id="artPlaceBtn" disabled>Place on model</button>
+            <button class="btn" id="artClearBtn" disabled>Clear SVG</button>
+          </div>
+        </div>
+
         <div class="section-label" style="margin-top:12px">Advanced Tools</div>
         <div class="tool-grid">
           <button class="tool-toggle" id="toolSmart">Smart</button>
@@ -627,7 +665,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b577</span>
+    <span>MakerDeck · STL Painter b578</span>
   </footer>
 </div>
 
@@ -654,6 +692,10 @@ import {
   findMeshIslands, buildIslandMap, floodFillSameClass, floodFillSameSlot, selectIsland,
   import3MF, buildSymmetryMap, masksToFacePaint, facePaintToMasks, MAX_PAINT_SLOTS
 } from './js/painter.js?v=574';
+import {
+  rasterizeSvgText, collectStampHits, makeStampFrame, mirrorStampFrameX,
+  nearestSlot, parseHexColor, extractSvgFillHexes, stampSizeMm, ART_MATCH_DIST2
+} from './js/painter-art.js?v=578';
 
 /* ================================================================== */
 /*  STATE                                                             */
@@ -701,6 +743,14 @@ const S = {
   symmetryCenterX: 0,
   symmetryOn: false,
   turntable: false,
+};
+
+const art = {
+  fileName: '',
+  raster: null,
+  mode: 'svg',
+  preview: null,
+  texture: null,
 };
 
 /* ================================================================== */
@@ -1157,6 +1207,7 @@ function disposeSceneObject(obj) {
 function clearSceneModel() {
   disposeSceneObject(S.mesh);
   disposeSceneObject(S.wireframe);
+  disposeArtPreview();
   S.mesh = null;
   S.wireframe = null;
   S.hiddenManual = null;
@@ -1289,6 +1340,247 @@ function pickHitAtClient(clientX, clientY) {
     return { faceIndex: hit.faceIndex, point: S.mesh.worldToLocal(hit.point.clone()), worldPoint: hit.point };
   }
   return null;
+}
+
+function faceNormalLocal(faceIndex) {
+  const i0 = S.faces[faceIndex * 3], i1 = S.faces[faceIndex * 3 + 1], i2 = S.faces[faceIndex * 3 + 2];
+  const ax = S.verts[i0 * 3], ay = S.verts[i0 * 3 + 1], az = S.verts[i0 * 3 + 2];
+  const bx = S.verts[i1 * 3], by = S.verts[i1 * 3 + 1], bz = S.verts[i1 * 3 + 2];
+  const cx = S.verts[i2 * 3], cy = S.verts[i2 * 3 + 1], cz = S.verts[i2 * 3 + 2];
+  const nx = (by - ay) * (cz - az) - (bz - az) * (cy - ay);
+  const ny = (bz - az) * (cx - ax) - (bx - ax) * (cz - az);
+  const nz = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+  const L = Math.hypot(nx, ny, nz) || 1;
+  return [nx / L, ny / L, nz / L];
+}
+
+function artSizeMm() {
+  return stampSizeMm(parseFloat($('artSize')?.value) || 48, art.raster?.aspect || 1);
+}
+
+function artRotationDeg() {
+  return parseFloat($('artRot')?.value) || 0;
+}
+
+function syncArtMeta() {
+  const meta = $('artMeta');
+  const wrap = $('artPreviewWrap');
+  const has = !!art.raster;
+  $('artOpts')?.classList.toggle('visible', has);
+  if ($('artClearBtn')) $('artClearBtn').disabled = !has;
+  if ($('artPlaceBtn')) $('artPlaceBtn').disabled = !has || !S.mesh;
+  if (!has) {
+    if (meta) { meta.classList.add('hidden'); meta.textContent = ''; }
+    wrap?.classList.add('hidden');
+    hideArtPreview();
+    return;
+  }
+  const { widthMm, heightMm } = artSizeMm();
+  if (meta) {
+    meta.classList.remove('hidden');
+    meta.textContent = `${art.fileName || 'logo.svg'} · ${widthMm.toFixed(0)}×${heightMm.toFixed(0)} mm`;
+  }
+  wrap?.classList.remove('hidden');
+  const src = art.raster.canvas;
+  const dest = $('artPreviewCanvas');
+  if (src && dest) {
+    const ctx = dest.getContext('2d');
+    ctx.clearRect(0, 0, dest.width, dest.height);
+    const scale = Math.min(dest.width / src.width, dest.height / src.height);
+    const dw = src.width * scale, dh = src.height * scale;
+    ctx.drawImage(src, (dest.width - dw) / 2, (dest.height - dh) / 2, dw, dh);
+  }
+}
+
+function ensureSlotsForHexes(hexes) {
+  if (!hexes?.length) return;
+  for (const hex of hexes) {
+    const rgb = parseHexColor(hex);
+    if (!rgb) continue;
+    const slots = slotColorsArray(S.slotCount).map((h) => parseHexColor(h) || [0, 0, 0]);
+    const { dist2 } = nearestSlot(rgb, slots);
+    if (dist2 <= ART_MATCH_DIST2) continue;
+    if (S.slotCount >= MAX_AMS_SLOTS) break;
+    S.slotCount += 1;
+    syncSlotCountUI();
+    const i = S.slotCount - 1;
+    if (colorInputs[i]) colorInputs[i].value = hex;
+    if (colorHexEls[i]) colorHexEls[i].textContent = hex.toUpperCase();
+  }
+  syncPaintSwatches();
+  updateMeshColors();
+}
+
+function paintFaceSlotPairs(pairs) {
+  const fp = ensureFacePaint();
+  if (!fp || !pairs?.length) return 0;
+  let faces = pairs.filter((p) => p.face >= 0 && p.face < S.nTri && !isFaceHidden(p.face));
+  if (S.symmetryOn && S.symmetryMap) {
+    const extra = [];
+    for (const p of faces) {
+      const m = S.symmetryMap[p.face];
+      if (m >= 0 && m !== p.face && !isFaceHidden(m)) extra.push({ face: m, slot: p.slot });
+    }
+    if (extra.length) faces = faces.concat(extra);
+  }
+  if (!faces.length) return 0;
+  pushUndo();
+  for (const p of faces) fp[p.face] = slotIndex(p.slot);
+  syncLegacyMasks();
+  updateMeshColors();
+  recountPaint();
+  exportBtn.disabled = false;
+  return faces.length;
+}
+
+function disposeArtPreview() {
+  if (!art.preview) return;
+  scene.remove(art.preview);
+  art.preview.geometry?.dispose?.();
+  art.preview.material?.dispose?.();
+  art.preview = null;
+}
+
+function hideArtPreview() {
+  if (art.preview) art.preview.visible = false;
+}
+
+function artStampFrameFromHit(hit) {
+  const n = faceNormalLocal(hit.faceIndex);
+  return makeStampFrame([hit.point.x, hit.point.y, hit.point.z], n, artRotationDeg());
+}
+
+function updateArtPreviewAtHit(hit) {
+  if (!art.raster || !S.mesh || S.tool !== 'art' || !hit) { hideArtPreview(); return; }
+  const { widthMm, heightMm } = artSizeMm();
+  const frame = artStampFrameFromHit(hit);
+  if (!art.texture) {
+    art.texture = new THREE.CanvasTexture(art.raster.canvas);
+    art.texture.needsUpdate = true;
+  }
+  if (!art.preview) {
+    const geom = new THREE.PlaneGeometry(1, 1);
+    const mat = new THREE.MeshBasicMaterial({
+      map: art.texture, transparent: true, opacity: 0.72, depthWrite: false,
+      side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2,
+    });
+    art.preview = new THREE.Mesh(geom, mat);
+    art.preview.renderOrder = 2;
+    scene.add(art.preview);
+  } else if (art.preview.material.map !== art.texture) {
+    art.preview.material.map = art.texture;
+    art.preview.material.needsUpdate = true;
+  }
+  const origin = new THREE.Vector3(frame.origin[0], frame.origin[1], frame.origin[2]);
+  const right = new THREE.Vector3(frame.right[0], frame.right[1], frame.right[2]);
+  const up = new THREE.Vector3(frame.up[0], frame.up[1], frame.up[2]);
+  const normal = new THREE.Vector3(frame.normal[0], frame.normal[1], frame.normal[2]);
+  S.mesh.localToWorld(origin);
+  right.transformDirection(S.mesh.matrixWorld).normalize();
+  up.transformDirection(S.mesh.matrixWorld).normalize();
+  normal.transformDirection(S.mesh.matrixWorld).normalize();
+  const m = new THREE.Matrix4().makeBasis(right, up, normal);
+  art.preview.quaternion.setFromRotationMatrix(m);
+  art.preview.position.copy(origin).addScaledVector(normal, 0.25);
+  art.preview.scale.set(widthMm, heightMm, 1);
+  art.preview.visible = true;
+}
+
+function collectHitsForFrame(frame) {
+  const { widthMm, heightMm } = artSizeMm();
+  return collectStampHits({
+    verts: S.verts, faces: S.faces, nTri: S.nTri,
+    origin: frame.origin, right: frame.right, up: frame.up, normal: frame.normal,
+    widthMm, heightMm,
+    pixels: art.raster.imageData.data,
+    imgW: art.raster.width, imgH: art.raster.height,
+  });
+}
+
+function stampArtworkAtHit(hit) {
+  if (!art.raster || !S.mesh || !hit) return;
+  const frame = artStampFrameFromHit(hit);
+  let hits = collectHitsForFrame(frame);
+  if (S.symmetryOn) {
+    hits = hits.concat(collectHitsForFrame(mirrorStampFrameX(frame, S.symmetryCenterX || 0)));
+  }
+  if (!hits.length) {
+    setStatus('Artwork missed the surface — try a bigger size or click a flatter face', 'idle');
+    return;
+  }
+  let pairs;
+  if (art.mode === 'active') {
+    const slot = slotIndex(S.paintTarget);
+    pairs = hits.map((h) => ({ face: h.face, slot }));
+  } else {
+    const slotRgbs = slotColorsArray(S.slotCount).map((h) => parseHexColor(h) || [0, 0, 0]);
+    const pending = [];
+    pairs = [];
+    for (const h of hits) {
+      const rgb = [h.r, h.g, h.b];
+      const found = nearestSlot(rgb, slotRgbs);
+      if (found.dist2 <= ART_MATCH_DIST2) {
+        pairs.push({ face: h.face, slot: found.slot });
+      } else {
+        pending.push(h);
+      }
+    }
+    const extraHex = [];
+    const extraSeen = new Set();
+    for (const h of pending) {
+      const qr = (h.r / 16 + 0.5 | 0) * 16;
+      const qg = (h.g / 16 + 0.5 | 0) * 16;
+      const qb = (h.b / 16 + 0.5 | 0) * 16;
+      const hex = `#${[qr, qg, qb].map((v) => Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0')).join('')}`;
+      if (extraSeen.has(hex) || extraHex.length >= 6) continue;
+      extraSeen.add(hex);
+      extraHex.push(hex);
+    }
+    if (extraHex.length) ensureSlotsForHexes(extraHex);
+    const allRgbs = slotColorsArray(S.slotCount).map((hx) => parseHexColor(hx) || [0, 0, 0]);
+    for (const h of pending) {
+      pairs.push({ face: h.face, slot: nearestSlot([h.r, h.g, h.b], allRgbs).slot });
+    }
+  }
+  const n = paintFaceSlotPairs(pairs);
+  setStatus(`Artwork stamped — ${n.toLocaleString()} faces`, 'idle');
+}
+
+async function loadArtworkFile(file) {
+  if (!file) return;
+  const name = file.name || 'logo.svg';
+  if (!/\.svg$/i.test(name) && file.type && file.type !== 'image/svg+xml') {
+    setStatus('Drop an SVG file', 'error');
+    return;
+  }
+  setStatus(`Loading ${name}…`, 'working');
+  try {
+    const text = await file.text();
+    art.raster = await rasterizeSvgText(text);
+    art.fileName = name;
+    if (art.texture) { art.texture.dispose(); art.texture = null; }
+    disposeArtPreview();
+    const fills = extractSvgFillHexes(text);
+    if (art.mode === 'svg' && fills.length) ensureSlotsForHexes(fills);
+    syncArtMeta();
+    setTool('art', { sticky: true });
+    switchTab('paint');
+    setStatus(`${name} ready — click the model to stamp`, 'idle');
+  } catch (err) {
+    setStatus(err.message || 'Could not read SVG', 'error');
+  }
+}
+
+function clearArtwork() {
+  art.fileName = '';
+  art.raster = null;
+  if (art.texture) { art.texture.dispose(); art.texture = null; }
+  disposeArtPreview();
+  const input = $('artFileInput');
+  if (input) input.value = '';
+  syncArtMeta();
+  if (S.tool === 'art') setTool('orbit');
+  setStatus('SVG cleared', 'idle');
 }
 
 function facesInScreenBox(x0, y0, x1, y1) {
@@ -2161,16 +2453,18 @@ function showToolOpts(tool) {
   $('areaOpts')?.classList.toggle('visible', tool === 'lasso' || tool === 'box');
 }
 
-function setTool(tool) {
-  if (tool === S.tool && tool !== 'orbit') tool = 'orbit';
+function setTool(tool, { sticky = false } = {}) {
+  if (!sticky && tool === S.tool && tool !== 'orbit') tool = 'orbit';
   S.tool = tool;
   resetInteraction();
+  if (tool !== 'art') hideArtPreview();
 
   for (const [id, t] of [['toolBrush','brush'],['toolSpray','spray'],['toolEyedrop','eyedrop'],
     ['toolClickSelect','clickSelect'],['toolLasso','lasso'],['toolSmart','smart'],
     ['toolBox','box'],['toolEdge','edge'],['toolDetect','detect']]) {
     $(id)?.classList.toggle('active', tool === t);
   }
+  $('artPlaceBtn')?.classList.toggle('active-mode', tool === 'art');
   showToolOpts(tool);
   if (tool !== 'smart') clearSmartPreview();
   // Keep face selection across tool switches so you can Lasso → pick slot → Fill
@@ -2186,6 +2480,7 @@ function setTool(tool) {
   if (isBrushTool(tool)) viewport.classList.add('brush-mode');
   if (tool === 'eyedrop') viewport.classList.add('eyedrop-mode');
   if (tool === 'clickSelect') viewport.classList.add('click-select-mode');
+  if (tool === 'art') viewport.classList.add('art-mode');
 
   const hints = {
     brush: 'Brush — paint on model · right-drag or Alt+drag to orbit',
@@ -2197,12 +2492,13 @@ function setTool(tool) {
     lasso: 'Lasso — Lock on, draw around an area (eyebrow…) · pick slot · Fill Selection',
     box: 'Box — Lock on, drag a rectangle · pick slot · Fill Selection',
     detect: 'Detect — find raised/sunken detail',
+    art: 'Artwork — click to stamp the SVG · right-drag orbits',
   };
   if (tool === 'edge') syncEdgeModeUI();
   viewportHint.textContent = hints[tool] || 'Left-drag orbits · scroll zooms · pick a tool';
 
   // Auto-switch to Paint tab when selecting a tool
-  if (['brush','spray','eyedrop','clickSelect','smart','box','edge','detect'].includes(tool)) {
+  if (['brush','spray','eyedrop','clickSelect','smart','box','edge','detect','art'].includes(tool)) {
     switchTab('paint');
   }
 }
@@ -2246,7 +2542,7 @@ function syncOrbitLock() {
   controls.enablePan = true;
   // Brush/spray/smart/eyedrop own left-drag. Box/Lasso need Lock. Edge is click-select.
   const leftBlocked = S.orbitOverride ? false :
-    (S.tool === 'eyedrop' || S.tool === 'smart' || S.tool === 'clickSelect' || S.tool === 'edge' ||
+    (S.tool === 'eyedrop' || S.tool === 'smart' || S.tool === 'clickSelect' || S.tool === 'edge' || S.tool === 'art' ||
      isBrushTool() || ((S.tool === 'box' || S.tool === 'lasso') && locked));
   controls.mouseButtons.LEFT = leftBlocked ? -1 : THREE.MOUSE.ROTATE;
   controls.mouseButtons.MIDDLE = THREE.MOUSE.DOLLY;
@@ -2459,11 +2755,9 @@ async function loadSTL(file) {
   $('flipToolBtn').disabled = false;
   $('islandInfo').textContent = 'Click "Find Islands" to detect mesh components.';
   viewportHint.style.display = 'block';
+  syncArtMeta();
   setStatus(`Loaded ${file.name} — ${nTri.toLocaleString()} faces${orientation.thin ? ', laid flat' : ''}`, 'idle');
 }
-
-/* ================================================================== */
-/*  TAB NAVIGATION                                                    */
 
 /* ================================================================== */
 /*  LOAD FILE (dispatcher)                                            */
@@ -2541,6 +2835,7 @@ async function load3MF(file) {
     $('flipToolBtn').disabled = false;
     $('islandInfo').textContent = 'Click "Find Islands" to detect components.';
     viewportHint.style.display = 'block';
+    syncArtMeta();
     const painted = result.painted ?? [...facePaint].filter(s => s > 0).length;
     const placed = result.transformsApplied ? ', applied 3MF placement' : '';
     const laidFlat = orientation.thin ? ', laid flat' : '';
@@ -2665,6 +2960,7 @@ function clearModel() {
   // Reset file input so the same file can be re-loaded
   fileInput.value = '';
   updateStats(); updateResMeta();
+  syncArtMeta();
   viewportHint.textContent = 'Load a model · pick a colour · paint';
   viewportHint.style.display = 'block'; viewportHint.style.opacity = '1';
   setStatus('Model cleared — drop an STL or 3MF to start', 'idle');
@@ -2757,6 +3053,40 @@ $('toolSmart')?.addEventListener('click', () => setTool('smart'));
 $('toolBox')?.addEventListener('click', () => setTool('box'));
 $('toolEdge')?.addEventListener('click', () => setTool('edge'));
 $('toolDetect')?.addEventListener('click', () => setTool('detect'));
+
+const artDrop = $('artDropZone');
+artDrop?.addEventListener('click', () => $('artFileInput')?.click());
+artDrop?.addEventListener('dragover', (e) => { e.preventDefault(); artDrop.classList.add('dragover'); });
+artDrop?.addEventListener('dragleave', () => artDrop.classList.remove('dragover'));
+artDrop?.addEventListener('drop', (e) => {
+  e.preventDefault(); artDrop.classList.remove('dragover');
+  const file = e.dataTransfer?.files?.[0];
+  if (file) loadArtworkFile(file);
+});
+$('artFileInput')?.addEventListener('change', () => {
+  if ($('artFileInput').files[0]) loadArtworkFile($('artFileInput').files[0]);
+});
+$('artPlaceBtn')?.addEventListener('click', () => {
+  if (!art.raster) { setStatus('Drop an SVG first', 'idle'); return; }
+  if (!S.mesh) { setStatus('Load a model first', 'idle'); return; }
+  setTool('art', { sticky: true });
+  setStatus('Click the model to stamp the SVG', 'idle');
+});
+$('artClearBtn')?.addEventListener('click', clearArtwork);
+$('artSize')?.addEventListener('input', () => {
+  $('artSizeVal').textContent = String(Math.round(parseFloat($('artSize').value) || 48));
+  syncArtMeta();
+});
+$('artRot')?.addEventListener('input', () => {
+  $('artRotVal').textContent = `${Math.round(parseFloat($('artRot').value) || 0)}°`;
+});
+document.querySelectorAll('[data-artmode]').forEach((b) => {
+  b.addEventListener('click', () => {
+    art.mode = b.dataset.artmode === 'active' ? 'active' : 'svg';
+    document.querySelectorAll('[data-artmode]').forEach((x) => x.classList.toggle('active', x === b));
+  });
+});
+syncArtMeta();
 
 // Stroke mode
 document.querySelectorAll('.stroke-btn[data-stroke]').forEach(b => b.addEventListener('click', () => setBrushStroke(b.dataset.stroke)));
@@ -2946,6 +3276,19 @@ viewport.addEventListener('pointerdown', (e) => {
     return;
   }
 
+  if (S.tool === 'art') {
+    if (e.altKey || S.orbitOverride) return;
+    e.preventDefault(); e.stopPropagation();
+    if (!art.raster) {
+      setStatus('Drop an SVG first', 'idle');
+      return;
+    }
+    const hit = pickHitAtClient(e.clientX, e.clientY);
+    if (hit) stampArtworkAtHit(hit);
+    else setStatus('Click the model to stamp the SVG', 'idle');
+    return;
+  }
+
   if (S.tool === 'clickSelect') {
     if (e.altKey || S.orbitOverride) return;
     e.preventDefault(); e.stopPropagation();
@@ -3045,6 +3388,10 @@ viewport.addEventListener('pointermove', (e) => {
     previewSmartFill(e.clientX, e.clientY);
     return;
   }
+  if (S.tool === 'art') {
+    updateArtPreviewAtHit(pickHitAtClient(e.clientX, e.clientY));
+    return;
+  }
   if (S.tool === 'edge') {
     if (S._edgeSelectionLocked) return;
     const now = performance.now();
@@ -3123,6 +3470,7 @@ viewport.addEventListener('lostpointercapture', (e) => {
 viewport.addEventListener('contextmenu', (e) => { if (S.tool !== 'orbit') e.preventDefault(); });
 viewport.addEventListener('pointerleave', () => {
   if (S.tool === 'smart' && !S._smartClick) clearSmartPreview();
+  if (S.tool === 'art') hideArtPreview();
   if (isBrushTool() && !S.brushStrokeActive && smartCursor) smartCursor.style.display = 'none';
 });
 

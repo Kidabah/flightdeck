@@ -912,7 +912,7 @@ function _commandStaticItems() {
     ['Walkthrough Mode', '#/walkthrough', 'Guided first-look tour for testers'],
     ['MakerWorld', '#/makerworld', 'Paste MakerWorld links and import plates into Print Vault'],
     ['MakerDeck', '#/makerdeck', 'Design boxes, pencil cases, lids — export STL and 3MF'],
-    ['STL Painter', '#/painter', 'Paint STL/3MF faces and export coloured 3MF'],
+    ['STL Painter', '#/painter', 'Paint STL/3MF faces, stamp SVG art, export coloured 3MF'],
     ['Chop', '#/chop', 'Slice STLs into printable pieces with Flexi Cut'],
     ['Flight Manual', '#/manual', 'Setup, recovery, Bambu and walkthrough notes'],
     ['About Flightdeck', '#/about', 'Origin story, credits, and release notes'],
@@ -4126,7 +4126,7 @@ function _ensureMakerDeckFrame() {
 function _ensurePainterFrame() {
   const frame = document.getElementById('painter-frame');
   if (!frame || frame.dataset.loaded === '1') return;
-  frame.src = '/makerdeck/painter.html?v=577';
+  frame.src = '/makerdeck/painter.html?v=578';
   frame.dataset.loaded = '1';
 }
 

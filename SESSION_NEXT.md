@@ -6,6 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-15 Session update (Painter SVG artwork)
+
+Latest commit: *(pending)* — Stamp SVG artwork onto meshes in STL Painter.
+
+Latest local/Pi change:
+- STL Painter Paint tab: drop an SVG, set size/rotation, click the model to stamp as paint.
+- SVG colours map onto AMS slots; Active slot stamps a silhouette. Ghost preview on hover.
+- Hard refresh (`app.js?v=669`, Painter `painter.html?v=578` / **b578**). Backend restart not required (static only).
+
+Previous:
+- Tiered sell strategies (`751290b`).
+
+---
+
 ## 2026-08-15 Session update (Tiered sell strategies)
 
 Latest commit: `751290b` — Add batch, machine-hour, and value sell strategies on top of shop costing.
