@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-15 Session update (Painter PNG/JPG artwork)
 
-Latest commit: *(pending)* — Accept PNG/JPG artwork in STL Painter, not just SVG.
+Latest commit: `f04b288` — Accept PNG/JPG artwork in STL Painter, not just SVG.
 
 Latest local/Pi change:
 - Artwork drop now takes **PNG, JPG, WebP, GIF**, plus SVG. White-background knockout for photos (toggle).
