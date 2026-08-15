@@ -4,6 +4,15 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b581 — Painter artwork is MakerDeck slabs, not face paint
+**Date:** 2026-08-15
+
+### MakerDeck
+- STL Painter stamps a **raised logo mesh** (~0.28 mm slabs, same idea as MakerDeck face decals) instead of painting the hoodie’s coarse triangles.
+- Logo colours become real geometry + AMS slots. Undo restores the mesh. Hard refresh Painter **b581**.
+
+---
+
 ## b580 — Painter stamp: Fine auto + no fringe shards
 **Date:** 2026-08-15
 

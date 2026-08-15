@@ -1,6 +1,6 @@
 /**
- * STL Painter — SVG artwork stamp.
- * Rasterize an SVG, then project it onto a mesh as face paint.
+ * STL Painter — artwork stamp.
+ * Rasterize SVG/PNG, then build MakerDeck-style raised slabs on a click plane.
  */
 
 export const ART_ALPHA_MIN = 160;
@@ -428,3 +428,119 @@ export function stampSizeMm(widthMm, aspect) {
   const a = aspect > 0 ? aspect : 1;
   return { widthMm: w, heightMm: w / a };
 }
+
+export function opaqueLogoMask(pixels, imgW, imgH, { alphaMin = ART_ALPHA_MIN } = {}) {
+  const mask = new Uint8Array(imgW * imgH);
+  if (!pixels) return mask;
+  for (let i = 0; i < imgW * imgH; i++) {
+    const o = i * 4;
+    if (pixels[o + 3] < alphaMin) continue;
+    if (isPaperRgb(pixels[o], pixels[o + 1], pixels[o + 2])) continue;
+    mask[i] = 1;
+  }
+  return mask;
+}
+
+export function classifyRasterToMasks(pixels, imgW, imgH, paletteRgbs, { alphaMin = ART_ALPHA_MIN } = {}) {
+  const layers = paletteRgbs.map(() => new Uint8Array(imgW * imgH));
+  if (!pixels || !imgW || !paletteRgbs?.length) return layers;
+  for (let i = 0; i < imgW * imgH; i++) {
+    const o = i * 4;
+    if (pixels[o + 3] < alphaMin) continue;
+    if (isPaperRgb(pixels[o], pixels[o + 1], pixels[o + 2])) continue;
+    const found = nearestSlot([pixels[o], pixels[o + 1], pixels[o + 2]], paletteRgbs);
+    if (found.dist2 > ART_MATCH_DIST2) continue;
+    layers[found.slot][i] = 1;
+  }
+  return layers;
+}
+
+export function downsampleMask(mask, srcW, srcH, dstW, dstH) {
+  const out = new Uint8Array(dstW * dstH);
+  if (!mask || !srcW || !srcH || !dstW || !dstH) return out;
+  for (let y = 0; y < dstH; y++) {
+    const sy = Math.min(srcH - 1, ((y + 0.5) * srcH / dstH) | 0);
+    for (let x = 0; x < dstW; x++) {
+      const sx = Math.min(srcW - 1, ((x + 0.5) * srcW / dstW) | 0);
+      out[y * dstW + x] = mask[sy * srcW + sx];
+    }
+  }
+  return out;
+}
+
+function mapStampPoint(origin, right, up, normal, u, v, d) {
+  return [
+    origin[0] + right[0] * u + up[0] * v + normal[0] * d,
+    origin[1] + right[1] * u + up[1] * v + normal[1] * d,
+    origin[2] + right[2] * u + up[2] * v + normal[2] * d,
+  ];
+}
+
+function pushQuad(positions, indices, faceSlots, a, b, c, d, slot) {
+  const base = positions.length / 3;
+  positions.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2], d[0], d[1], d[2]);
+  indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  faceSlots.push(slot, slot);
+}
+
+function pushStampPrism(positions, indices, faceSlots, origin, right, up, normal, u0, v0, u1, v1, d0, d1, slot) {
+  const c00 = mapStampPoint(origin, right, up, normal, u0, v0, d0);
+  const c10 = mapStampPoint(origin, right, up, normal, u1, v0, d0);
+  const c11 = mapStampPoint(origin, right, up, normal, u1, v1, d0);
+  const c01 = mapStampPoint(origin, right, up, normal, u0, v1, d0);
+  const o00 = mapStampPoint(origin, right, up, normal, u0, v0, d1);
+  const o10 = mapStampPoint(origin, right, up, normal, u1, v0, d1);
+  const o11 = mapStampPoint(origin, right, up, normal, u1, v1, d1);
+  const o01 = mapStampPoint(origin, right, up, normal, u0, v1, d1);
+  pushQuad(positions, indices, faceSlots, o00, o10, o11, o01, slot);
+  pushQuad(positions, indices, faceSlots, c00, c01, c11, c10, slot);
+  pushQuad(positions, indices, faceSlots, c00, c10, o10, o00, slot);
+  pushQuad(positions, indices, faceSlots, c01, o01, o11, c11, slot);
+  pushQuad(positions, indices, faceSlots, c00, o00, o01, c01, slot);
+  pushQuad(positions, indices, faceSlots, c10, c11, o11, o10, slot);
+}
+
+/**
+ * MakerDeck-style ~0.28 mm face slabs from a logo raster, in the stamp tangent frame.
+ */
+export function buildStampSlabs({
+  pixels, imgW, imgH, paletteRgbs = [], slotIndexes,
+  origin, right, up, normal, widthMm, heightMm,
+  d0 = -0.45, d1 = 0.7, stepMm = 0.28, singleSlot = null,
+}) {
+  const positions = [];
+  const indices = [];
+  const faceSlots = [];
+  if (!pixels || widthMm <= 0 || heightMm <= 0) return { positions, indices, faceSlots };
+  if (singleSlot == null && !paletteRgbs.length) return { positions, indices, faceSlots };
+
+  const cols = Math.max(24, Math.round(widthMm / stepMm));
+  const rows = Math.max(24, Math.round(heightMm / stepMm));
+  const layers = singleSlot != null
+    ? [opaqueLogoMask(pixels, imgW, imgH)]
+    : classifyRasterToMasks(pixels, imgW, imgH, paletteRgbs);
+  const slots = singleSlot != null ? [singleSlot] : (slotIndexes || layers.map((_, i) => i));
+  const cellU = widthMm / cols;
+  const cellV = heightMm / rows;
+  for (let li = 0; li < layers.length; li++) {
+    const slot = slots[li] ?? li;
+    const mask = downsampleMask(layers[li], imgW, imgH, cols, rows);
+    for (let row = 0; row < rows; row++) {
+      let col = 0;
+      while (col < cols) {
+        while (col < cols && !mask[row * cols + col]) col++;
+        const start = col;
+        while (col < cols && mask[row * cols + col]) col++;
+        if (col <= start) continue;
+        const u0 = -widthMm / 2 + start * cellU;
+        const u1 = -widthMm / 2 + col * cellU;
+        const v1 = heightMm / 2 - row * cellV;
+        const v0 = heightMm / 2 - (row + 1) * cellV;
+        pushStampPrism(positions, indices, faceSlots, origin, right, up, normal, u0, v0, u1, v1, d0, d1, slot);
+      }
+    }
+  }
+  return { positions, indices, faceSlots };
+}
+
+

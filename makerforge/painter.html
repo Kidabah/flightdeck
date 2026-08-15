@@ -313,7 +313,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   <header class="header">
     <button class="toggle-sidebar" id="toggleSidebar" title="Toggle sidebar">☰</button>
     <div class="logo">Maker<span>Deck</span> · STL Painter</div>
-    <div class="build">b580</div>
+    <div class="build">b581</div>
   </header>
 
   <!-- Left Sidebar (tabbed) -->
@@ -511,7 +511,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
             <input type="checkbox" id="artKnockout" checked>
             <span>Knock out white background</span>
           </label>
-          <p class="flow-desc">Click the model to stamp. First stamp upgrades to Fine so the logo isn't triangle-shattered. Right-drag orbits.</p>
+          <p class="flow-desc">Click to stamp. Builds a MakerDeck-style raised logo (not painted triangles). Right-drag orbits.</p>
           <div class="btn-row">
             <button class="btn btn-primary" id="artPlaceBtn" disabled>Place on model</button>
             <button class="btn" id="artClearBtn" disabled>Clear art</button>
@@ -669,7 +669,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b580</span>
+    <span>MakerDeck · STL Painter b581</span>
   </footer>
 </div>
 
@@ -697,11 +697,11 @@ import {
   import3MF, buildSymmetryMap, masksToFacePaint, facePaintToMasks, MAX_PAINT_SLOTS
 } from './js/painter.js?v=574';
 import {
-  rasterizeSvgText, rasterizeImageFile, collectStampHits, collectStampRectFaces, makeStampFrame, mirrorStampFrameX,
-  nearestSlot, parseHexColor, extractSvgFillHexes, extractRasterPalette, stampSizeMm,
+  rasterizeSvgText, rasterizeImageFile, collectStampRectFaces, makeStampFrame, mirrorStampFrameX,
+  nearestSlot, parseHexColor, extractSvgFillHexes, extractRasterPalette, stampSizeMm, buildStampSlabs,
   isSvgArtFile, isRasterArtFile, clonePixelData, rasterHasAlpha, knockOutPaperBackground,
   ART_MATCH_DIST2
-} from './js/painter-art.js?v=580';
+} from './js/painter-art.js?v=581';
 
 /* ================================================================== */
 /*  STATE                                                             */
@@ -1246,10 +1246,17 @@ function zoomBy(factor) {
 /*  PAINT SYSTEM                                                      */
 /* ================================================================== */
 
-function pushUndo() {
+function pushUndo({ geom = false } = {}) {
   const fp = ensureFacePaint();
   if (!fp) return;
-  S.undoStack.push({ paint: fp.slice() });
+  const snap = { paint: fp.slice() };
+  if (geom) {
+    snap.verts = S.verts.slice();
+    snap.faces = new Uint32Array(S.faces);
+    snap.nVerts = S.nVerts;
+    snap.nTri = S.nTri;
+  }
+  S.undoStack.push(snap);
   if (S.undoStack.length > 30) S.undoStack.shift();
   S.redoStack.length = 0; // new paint action clears redo
   $('undoBtn').disabled = false;
@@ -1494,107 +1501,93 @@ function updateArtPreviewAtHit(hit) {
   art.preview.visible = true;
 }
 
-function collectHitsForFrame(frame) {
-  const { widthMm, heightMm } = artSizeMm();
-  return collectStampHits({
-    verts: S.verts, faces: S.faces, nTri: S.nTri,
-    origin: frame.origin, right: frame.right, up: frame.up, normal: frame.normal,
-    widthMm, heightMm,
-    pixels: art.raster.imageData.data,
-    imgW: art.raster.width, imgH: art.raster.height,
-  });
-}
-
-function collectRectForFrame(frame) {
-  const { widthMm, heightMm } = artSizeMm();
-  return collectStampRectFaces({
-    verts: S.verts, faces: S.faces, nTri: S.nTri,
-    origin: frame.origin, right: frame.right, up: frame.up, normal: frame.normal,
-    widthMm, heightMm,
-  });
-}
-
 function logoPaletteRgbs() {
   const hexes = extractRasterPalette(art.raster.imageData.data);
   return hexes.map((h) => parseHexColor(h)).filter(Boolean);
 }
 
-async function stampArtworkAtHit(hit) {
-  if (!art.raster || !S.mesh || !hit) return;
-  const frame = artStampFrameFromHit(hit);
-  const { widthMm, heightMm } = artSizeMm();
-  const targetHits = Math.max(500, (widthMm * heightMm) / 0.4);
-
-  try {
-    if (S.resLevel < 1) {
-      setStatus('Upgrading mesh so the logo stays sharp…', 'working');
-      await runResolutionUpgrade(1);
-    }
-    let hits = collectHitsForFrame(frame);
-    if (S.resLevel < 2 && hits.length < targetHits * 0.28) {
-      setStatus('Still chunky — Ultra detail…', 'working');
-      await runResolutionUpgrade(1);
-      hits = collectHitsForFrame(frame);
-    }
-    if (S.symmetryOn) {
-      hits = hits.concat(collectHitsForFrame(mirrorStampFrameX(frame, S.symmetryCenterX || 0)));
-    }
-    if (!hits.length) {
-      setStatus('Artwork missed the surface — try a bigger size or click a flatter face', 'idle');
-      return;
-    }
-
-    const rectFaces = collectRectForFrame(frame);
-    let pairs;
-    if (art.mode === 'active') {
-      const slot = slotIndex(S.paintTarget);
-      pairs = hits.map((h) => ({ face: h.face, slot }));
-    } else {
-      const palette = logoPaletteRgbs();
-      const slotRgbs = slotColorsArray(S.slotCount).map((h) => parseHexColor(h) || [0, 0, 0]);
-      pairs = [];
-      for (const h of hits) {
-        const rgb = [h.r, h.g, h.b];
-        if (palette.length) {
-          const pal = nearestSlot(rgb, palette);
-          if (pal.dist2 > ART_MATCH_DIST2) continue;
-          pairs.push({ face: h.face, slot: nearestSlot(palette[pal.slot], slotRgbs).slot });
-        } else {
-          const found = nearestSlot(rgb, slotRgbs);
-          if (found.dist2 > ART_MATCH_DIST2) continue;
-          pairs.push({ face: h.face, slot: found.slot });
-        }
-      }
-      if (!pairs.length) {
-        const slot = slotIndex(S.paintTarget);
-        pairs = hits.map((h) => ({ face: h.face, slot }));
-      }
-    }
-    const n = paintStamp(rectFaces, pairs);
-    setStatus(`Artwork stamped — ${n.toLocaleString()} faces`, 'idle');
-  } catch (err) {
-    setStatus(err.message || 'Artwork stamp failed', 'error');
-  }
-}
-
-function paintStamp(rectFaces, pairs) {
+function appendStampMesh(positions, indices, faceSlots) {
+  const nNewV = positions.length / 3;
+  const nNewT = indices.length / 3;
+  if (!nNewT) return 0;
   const fp = ensureFacePaint();
-  if (!fp) return 0;
-  pushUndo();
-  for (const i of rectFaces || []) {
-    if (i >= 0 && i < S.nTri && !isFaceHidden(i)) fp[i] = 0;
-  }
-  let n = 0;
-  for (const p of pairs || []) {
-    if (p.face < 0 || p.face >= S.nTri || isFaceHidden(p.face)) continue;
-    fp[p.face] = slotIndex(p.slot);
-    n++;
-  }
+  const newVerts = new Float32Array((S.nVerts + nNewV) * 3);
+  newVerts.set(S.verts);
+  newVerts.set(positions, S.nVerts * 3);
+  const newFaces = new Uint32Array((S.nTri + nNewT) * 3);
+  newFaces.set(S.faces);
+  const vBase = S.nVerts;
+  for (let i = 0; i < indices.length; i++) newFaces[S.nTri * 3 + i] = indices[i] + vBase;
+  const newPaint = new Uint8Array(S.nTri + nNewT);
+  if (fp) newPaint.set(fp);
+  for (let i = 0; i < nNewT; i++) newPaint[S.nTri + i] = slotIndex(faceSlots[i] || 0);
+  S.verts = newVerts;
+  S.faces = newFaces;
+  S.nVerts += nNewV;
+  S.nTri += nNewT;
+  S.facePaint = newPaint;
+  S.faceAdj = null;
+  S.symmetryMap = null;
   syncLegacyMasks();
-  updateMeshColors();
+  buildMesh({ frame: false });
   recountPaint();
   exportBtn.disabled = false;
-  return n;
+  return nNewT;
+}
+
+function stampSlabsForFrame(frame, { widthMm, heightMm }) {
+  const slotRgbs = slotColorsArray(S.slotCount).map((h) => parseHexColor(h) || [0, 0, 0]);
+  const common = {
+    pixels: art.raster.imageData.data,
+    imgW: art.raster.width, imgH: art.raster.height,
+    origin: frame.origin, right: frame.right, up: frame.up, normal: frame.normal,
+    widthMm, heightMm,
+  };
+  if (art.mode === 'active') {
+    return buildStampSlabs({ ...common, singleSlot: slotIndex(S.paintTarget) });
+  }
+  const palette = logoPaletteRgbs();
+  if (!palette.length) return buildStampSlabs({ ...common, singleSlot: slotIndex(S.paintTarget) });
+  const slotIndexes = palette.map((rgb) => nearestSlot(rgb, slotRgbs).slot);
+  return buildStampSlabs({ ...common, paletteRgbs: palette, slotIndexes });
+}
+
+function stampArtworkAtHit(hit) {
+  if (!art.raster || !S.mesh || !hit) return;
+  const frame = artStampFrameFromHit(hit);
+  const size = artSizeMm();
+  setStatus('Building logo geometry…', 'working');
+  requestAnimationFrame(() => {
+    try {
+      let { positions, indices, faceSlots } = stampSlabsForFrame(frame, size);
+      if (S.symmetryOn) {
+        const mir = stampSlabsForFrame(mirrorStampFrameX(frame, S.symmetryCenterX || 0), size);
+        const vBase = positions.length / 3;
+        positions = positions.concat(mir.positions);
+        for (const idx of mir.indices) indices.push(idx + vBase);
+        faceSlots = faceSlots.concat(mir.faceSlots);
+      }
+      if (!indices.length) {
+        setStatus('Artwork missed the surface — try a bigger size or click a flatter face', 'idle');
+        return;
+      }
+      const rectFaces = collectStampRectFaces({
+        verts: S.verts, faces: S.faces, nTri: S.nTri,
+        origin: frame.origin, right: frame.right, up: frame.up, normal: frame.normal,
+        widthMm: size.widthMm, heightMm: size.heightMm,
+      });
+      pushUndo({ geom: true });
+      const fp = ensureFacePaint();
+      for (const i of rectFaces) {
+        if (fp && i >= 0 && i < S.nTri && !isFaceHidden(i)) fp[i] = 0;
+      }
+      const n = appendStampMesh(positions, indices, faceSlots);
+      hideArtPreview();
+      setStatus(`Logo geometry stamped — ${n.toLocaleString()} faces`, 'idle');
+    } catch (err) {
+      setStatus(err.message || 'Artwork stamp failed', 'error');
+    }
+  });
 }
 
 async function loadArtworkFile(file) {
@@ -3252,11 +3245,29 @@ $('undoBtn').addEventListener('click', doUndo);
 $('redoBtn').addEventListener('click', doRedo);
 $('turntableBtn').addEventListener('click', toggleTurntable);
 
+function restoreGeomSnap(snap) {
+  if (!snap?.verts) return;
+  S.verts = snap.verts;
+  S.faces = snap.faces;
+  S.nVerts = snap.nVerts;
+  S.nTri = snap.nTri;
+  S.faceAdj = null;
+  S.symmetryMap = null;
+}
+
 function doUndo() {
   const snap = S.undoStack.pop(); if (!snap) return;
   const fp = ensureFacePaint();
-  if (fp) S.redoStack.push({ paint: fp.slice() });
+  const redoSnap = { paint: fp ? fp.slice() : null };
+  if (snap.verts) {
+    redoSnap.verts = S.verts.slice();
+    redoSnap.faces = new Uint32Array(S.faces);
+    redoSnap.nVerts = S.nVerts;
+    redoSnap.nTri = S.nTri;
+  }
+  S.redoStack.push(redoSnap);
   if (S.redoStack.length > 30) S.redoStack.shift();
+  restoreGeomSnap(snap);
   if (snap.paint) {
     S.facePaint = snap.paint;
     syncLegacyMasks();
@@ -3264,6 +3275,7 @@ function doUndo() {
     S.embossMask = snap.emboss; S.debossMask = snap.deboss; S.trimMask = snap.trim;
     S.facePaint = masksToFacePaint(S.embossMask, S.debossMask, S.trimMask, S.nTri);
   }
+  if (snap.verts) buildMesh({ frame: false });
   S.edgeHighlight = null; S.smartPreview = null; S.smartPreviewFaces = null;
   clearClickSelection();
   updateMeshColors(); recountPaint();
@@ -3275,7 +3287,15 @@ function doUndo() {
 function doRedo() {
   const snap = S.redoStack.pop(); if (!snap) return;
   const fp = ensureFacePaint();
-  if (fp) S.undoStack.push({ paint: fp.slice() });
+  const undoSnap = { paint: fp ? fp.slice() : null };
+  if (snap.verts) {
+    undoSnap.verts = S.verts.slice();
+    undoSnap.faces = new Uint32Array(S.faces);
+    undoSnap.nVerts = S.nVerts;
+    undoSnap.nTri = S.nTri;
+  }
+  S.undoStack.push(undoSnap);
+  restoreGeomSnap(snap);
   if (snap.paint) {
     S.facePaint = snap.paint;
     syncLegacyMasks();
@@ -3283,6 +3303,7 @@ function doRedo() {
     S.embossMask = snap.emboss; S.debossMask = snap.deboss; S.trimMask = snap.trim;
     S.facePaint = masksToFacePaint(S.embossMask, S.debossMask, S.trimMask, S.nTri);
   }
+  if (snap.verts) buildMesh({ frame: false });
   S.edgeHighlight = null; S.smartPreview = null; S.smartPreviewFaces = null;
   clearClickSelection();
   updateMeshColors(); recountPaint();

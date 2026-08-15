@@ -1,7 +1,7 @@
 /**
  * Painter SVG stamp — planar projection must paint the facing patch and skip the back.
  */
-import { collectStampHits, makeStampFrame, mirrorStampFrameX, nearestSlot, parseHexColor, extractSvgFillHexes, stampSizeMm, knockOutPaperBackground, rasterHasAlpha, extractRasterPalette, isSvgArtFile, isRasterArtFile } from "./_staged/painter-art.js";
+import { collectStampHits, makeStampFrame, mirrorStampFrameX, nearestSlot, parseHexColor, extractSvgFillHexes, stampSizeMm, knockOutPaperBackground, rasterHasAlpha, extractRasterPalette, isSvgArtFile, isRasterArtFile, buildStampSlabs } from "./_staged/painter-art.js";
 
 let failures = 0;
 const results = [];
@@ -91,6 +91,24 @@ for (let i = 0; i < 12; i++) { pal[i * 4] = 192; pal[i * 4 + 3] = 255; }
 for (let i = 12; i < 16; i++) pal[i * 4 + 3] = 0;
 const hexes = extractRasterPalette(pal, { maxColors: 3, alphaMin: 48 });
 check("palette from opaque red", hexes[0] === "#c00000", hexes.join(","));
+
+const slabPix = new Uint8ClampedArray(8 * 8 * 4);
+for (let y = 0; y < 8; y++) {
+  for (let x = 0; x < 8; x++) {
+    const o = (y * 8 + x) * 4;
+    if (x < 4) { slabPix[o] = 20; slabPix[o + 3] = 255; }
+  }
+}
+const slab = buildStampSlabs({
+  pixels: slabPix, imgW: 8, imgH: 8,
+  origin: [0, 0, 0], right: [1, 0, 0], up: [0, 1, 0], normal: [0, 0, 1],
+  widthMm: 20, heightMm: 20, stepMm: 5, singleSlot: 2,
+});
+check("slab builds triangles", slab.indices.length >= 12, `n=${slab.indices.length}`);
+check("slab slot is 2", slab.faceSlots.every((s) => s === 2));
+let maxX = -Infinity;
+for (let i = 0; i < slab.positions.length; i += 3) maxX = Math.max(maxX, slab.positions[i]);
+check("slab stays on left half", maxX <= 0.05, `maxX=${maxX}`);
 
 for (const line of results) console.log(line);
 if (failures) {

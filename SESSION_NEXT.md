@@ -6,6 +6,19 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-15 Session update (Painter MakerDeck-style logo)
+
+Latest commit: *(pending)* — Stamp artwork as raised logo geometry, not painted triangles.
+
+Latest local/Pi change:
+- STL Painter Artwork now builds MakerDeck-style ~0.28 mm slabs on the click plane (same clear logo look as boxes/vases).
+- Hard refresh (`app.js?v=672`, Painter `painter.html?v=581` / **b581**). Clear Paint, then stamp the logo again.
+
+Previous:
+- Painter stamp sharpness (`0217012`).
+
+---
+
 ## 2026-08-15 Session update (Painter stamp sharpness)
 
 Latest commit: `0217012` — Stop shattered logo stamps in STL Painter.
