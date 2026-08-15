@@ -4,6 +4,15 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b582 — Painter uses MakerDeck multi-colour team-logo trace
+**Date:** 2026-08-15
+
+### MakerDeck
+- STL Painter Artwork runs the same **Multi-colour — team logo (AMS)** trace as Art on box, then stamps those ink layers as raised slabs.
+- Grey paper/mat is dropped by the trace. Threshold + Invert included. Hard refresh Painter **b582**.
+
+---
+
 ## b581 — Painter artwork is MakerDeck slabs, not face paint
 **Date:** 2026-08-15
 

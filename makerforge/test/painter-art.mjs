@@ -1,7 +1,7 @@
 /**
  * Painter SVG stamp — planar projection must paint the facing patch and skip the back.
  */
-import { collectStampHits, makeStampFrame, mirrorStampFrameX, nearestSlot, parseHexColor, extractSvgFillHexes, stampSizeMm, knockOutPaperBackground, rasterHasAlpha, extractRasterPalette, isSvgArtFile, isRasterArtFile, buildStampSlabs } from "./_staged/painter-art.js";
+import { collectStampHits, makeStampFrame, mirrorStampFrameX, nearestSlot, parseHexColor, extractSvgFillHexes, stampSizeMm, knockOutPaperBackground, rasterHasAlpha, extractRasterPalette, isSvgArtFile, isRasterArtFile, buildStampSlabs, stampLayersFromTrace, buildStampSlabsFromMasks } from "./_staged/painter-art.js";
 
 let failures = 0;
 const results = [];
@@ -109,6 +109,30 @@ check("slab slot is 2", slab.faceSlots.every((s) => s === 2));
 let maxX = -Infinity;
 for (let i = 0; i < slab.positions.length; i += 3) maxX = Math.max(maxX, slab.positions[i]);
 check("slab stays on left half", maxX <= 0.05, `maxX=${maxX}`);
+
+const redMask = new Uint8Array(16);
+const blackMask = new Uint8Array(16);
+for (let i = 0; i < 8; i++) redMask[i] = 1;
+for (let i = 8; i < 16; i++) blackMask[i] = 1;
+const traced = stampLayersFromTrace({
+  width: 4, height: 4,
+  colorLayers: [
+    { rgb: [200, 0, 0], mask: redMask },
+    { rgb: [10, 10, 10], mask: blackMask },
+  ],
+}, { slotForRgb: (rgb) => nearestSlot(rgb, [[176, 176, 176], [12, 12, 12], [200, 0, 0]]).slot });
+check("trace layers keep two colours", traced.layers.length === 2, `n=${traced.layers.length}`);
+check("trace red maps to slot 2", traced.layers[0].slot === 2, `slot=${traced.layers[0].slot}`);
+check("trace black maps to slot 1", traced.layers[1].slot === 1, `slot=${traced.layers[1].slot}`);
+const fromMasks = buildStampSlabsFromMasks({
+  layers: traced.layers, imgW: 4, imgH: 4,
+  origin: [0, 0, 0], right: [1, 0, 0], up: [0, 1, 0], normal: [0, 0, 1],
+  widthMm: 20, heightMm: 20, stepMm: 5,
+});
+check("multi-colour slabs build", fromMasks.indices.length >= 24, `n=${fromMasks.indices.length}`);
+check("multi-colour uses both slots", new Set(fromMasks.faceSlots).size === 2, [...new Set(fromMasks.faceSlots)].join(","));
+const sil = stampLayersFromTrace({ width: 4, height: 4, silhouetteMask: redMask }, { singleSlot: 3 });
+check("active slot uses silhouette", sil.layers.length === 1 && sil.layers[0].slot === 3);
 
 for (const line of results) console.log(line);
 if (failures) {

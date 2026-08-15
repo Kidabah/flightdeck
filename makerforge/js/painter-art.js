@@ -459,13 +459,100 @@ export function downsampleMask(mask, srcW, srcH, dstW, dstH) {
   const out = new Uint8Array(dstW * dstH);
   if (!mask || !srcW || !srcH || !dstW || !dstH) return out;
   for (let y = 0; y < dstH; y++) {
-    const sy = Math.min(srcH - 1, ((y + 0.5) * srcH / dstH) | 0);
+    const y0 = Math.floor(y * srcH / dstH);
+    const y1 = Math.max(y0 + 1, Math.ceil((y + 1) * srcH / dstH));
     for (let x = 0; x < dstW; x++) {
-      const sx = Math.min(srcW - 1, ((x + 0.5) * srcW / dstW) | 0);
-      out[y * dstW + x] = mask[sy * srcW + sx];
+      const x0 = Math.floor(x * srcW / dstW);
+      const x1 = Math.max(x0 + 1, Math.ceil((x + 1) * srcW / dstW));
+      let on = 0;
+      for (let sy = y0; sy < y1 && !on; sy++) {
+        for (let sx = x0; sx < x1; sx++) {
+          if (mask[sy * srcW + sx]) { on = 1; break; }
+        }
+      }
+      out[y * dstW + x] = on;
     }
   }
   return out;
+}
+
+export function stampStepMm(widthMm, heightMm) {
+  const span = Math.max(widthMm, heightMm, 1);
+  return Math.min(0.16, Math.max(0.08, span / 560));
+}
+
+export function resolveTraceInkMask(result) {
+  if (result?.silhouetteMask?.length) return result.silhouetteMask;
+  if (result?.mask?.length) return result.mask;
+  return null;
+}
+
+/** MakerDeck trace result → per-slot ink masks (background already knocked out). */
+export function stampLayersFromTrace(result, { singleSlot = null, slotForRgb } = {}) {
+  const imgW = result?.width | 0;
+  const imgH = result?.height | 0;
+  if (!imgW || !imgH) return { imgW, imgH, layers: [] };
+  const expect = imgW * imgH;
+  if (singleSlot != null) {
+    const mask = resolveTraceInkMask(result);
+    if (!mask || mask.length !== expect) return { imgW, imgH, layers: [] };
+    return { imgW, imgH, layers: [{ mask, slot: singleSlot }] };
+  }
+  if (result.colorLayers?.length) {
+    const layers = [];
+    for (const layer of result.colorLayers) {
+      if (!layer?.mask || layer.mask.length !== expect) continue;
+      const rgb = layer.rgb || [0, 0, 0];
+      layers.push({ mask: layer.mask, slot: slotForRgb ? slotForRgb(rgb) : 0 });
+    }
+    if (layers.length) return { imgW, imgH, layers };
+  }
+  const mask = resolveTraceInkMask(result);
+  if (!mask || mask.length !== expect) return { imgW, imgH, layers: [] };
+  return { imgW, imgH, layers: [{ mask, slot: 0 }] };
+}
+
+export function buildStampSlabsFromMasks({
+  layers, imgW, imgH,
+  origin, right, up, normal, widthMm, heightMm,
+  d0 = -0.45, d1 = 0.7, stepMm = null,
+}) {
+  const positions = [];
+  const indices = [];
+  const faceSlots = [];
+  if (!layers?.length || widthMm <= 0 || heightMm <= 0 || !imgW || !imgH) {
+    return { positions, indices, faceSlots };
+  }
+  let step = stepMm ?? stampStepMm(widthMm, heightMm);
+  let cols = Math.max(24, Math.round(widthMm / step));
+  let rows = Math.max(24, Math.round(heightMm / step));
+  while (Math.max(cols, rows) > 720 && step < 0.4) {
+    step *= 1.15;
+    cols = Math.max(24, Math.round(widthMm / step));
+    rows = Math.max(24, Math.round(heightMm / step));
+  }
+  const cellU = widthMm / cols;
+  const cellV = heightMm / rows;
+  for (const layer of layers) {
+    if (!layer?.mask) continue;
+    const slot = layer.slot ?? 0;
+    const mask = downsampleMask(layer.mask, imgW, imgH, cols, rows);
+    for (let row = 0; row < rows; row++) {
+      let col = 0;
+      while (col < cols) {
+        while (col < cols && !mask[row * cols + col]) col++;
+        const start = col;
+        while (col < cols && mask[row * cols + col]) col++;
+        if (col <= start) continue;
+        const u0 = -widthMm / 2 + start * cellU;
+        const u1 = -widthMm / 2 + col * cellU;
+        const v1 = heightMm / 2 - row * cellV;
+        const v0 = heightMm / 2 - (row + 1) * cellV;
+        pushStampPrism(positions, indices, faceSlots, origin, right, up, normal, u0, v0, u1, v1, d0, d1, slot);
+      }
+    }
+  }
+  return { positions, indices, faceSlots };
 }
 
 function mapStampPoint(origin, right, up, normal, u, v, d) {
@@ -501,46 +588,23 @@ function pushStampPrism(positions, indices, faceSlots, origin, right, up, normal
 }
 
 /**
- * MakerDeck-style ~0.28 mm face slabs from a logo raster, in the stamp tangent frame.
+ * MakerDeck-style face slabs from a logo raster, in the stamp tangent frame.
  */
 export function buildStampSlabs({
   pixels, imgW, imgH, paletteRgbs = [], slotIndexes,
   origin, right, up, normal, widthMm, heightMm,
-  d0 = -0.45, d1 = 0.7, stepMm = 0.28, singleSlot = null,
+  d0 = -0.45, d1 = 0.7, stepMm = 0.12, singleSlot = null,
 }) {
-  const positions = [];
-  const indices = [];
-  const faceSlots = [];
-  if (!pixels || widthMm <= 0 || heightMm <= 0) return { positions, indices, faceSlots };
-  if (singleSlot == null && !paletteRgbs.length) return { positions, indices, faceSlots };
-
-  const cols = Math.max(24, Math.round(widthMm / stepMm));
-  const rows = Math.max(24, Math.round(heightMm / stepMm));
-  const layers = singleSlot != null
+  if (!pixels || widthMm <= 0 || heightMm <= 0) return { positions: [], indices: [], faceSlots: [] };
+  if (singleSlot == null && !paletteRgbs.length) return { positions: [], indices: [], faceSlots: [] };
+  const masks = singleSlot != null
     ? [opaqueLogoMask(pixels, imgW, imgH)]
     : classifyRasterToMasks(pixels, imgW, imgH, paletteRgbs);
-  const slots = singleSlot != null ? [singleSlot] : (slotIndexes || layers.map((_, i) => i));
-  const cellU = widthMm / cols;
-  const cellV = heightMm / rows;
-  for (let li = 0; li < layers.length; li++) {
-    const slot = slots[li] ?? li;
-    const mask = downsampleMask(layers[li], imgW, imgH, cols, rows);
-    for (let row = 0; row < rows; row++) {
-      let col = 0;
-      while (col < cols) {
-        while (col < cols && !mask[row * cols + col]) col++;
-        const start = col;
-        while (col < cols && mask[row * cols + col]) col++;
-        if (col <= start) continue;
-        const u0 = -widthMm / 2 + start * cellU;
-        const u1 = -widthMm / 2 + col * cellU;
-        const v1 = heightMm / 2 - row * cellV;
-        const v0 = heightMm / 2 - (row + 1) * cellV;
-        pushStampPrism(positions, indices, faceSlots, origin, right, up, normal, u0, v0, u1, v1, d0, d1, slot);
-      }
-    }
-  }
-  return { positions, indices, faceSlots };
+  const slots = singleSlot != null ? [singleSlot] : (slotIndexes || masks.map((_, i) => i));
+  return buildStampSlabsFromMasks({
+    layers: masks.map((mask, i) => ({ mask, slot: slots[i] ?? i })),
+    imgW, imgH, origin, right, up, normal, widthMm, heightMm, d0, d1, stepMm,
+  });
 }
 
 

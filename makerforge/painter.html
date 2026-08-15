@@ -313,7 +313,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   <header class="header">
     <button class="toggle-sidebar" id="toggleSidebar" title="Toggle sidebar">☰</button>
     <div class="logo">Maker<span>Deck</span> · STL Painter</div>
-    <div class="build">b581</div>
+    <div class="build">b582</div>
   </header>
 
   <!-- Left Sidebar (tabbed) -->
@@ -484,12 +484,12 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
 
         <div class="section-label" style="margin-top:12px">Artwork</div>
         <div class="drop-zone" id="artDropZone">
-          Drop PNG, JPG, or SVG<br><span style="font-size:11px;color:var(--muted)">team logos work best as PNG/JPG · click to browse</span>
+          Drop logo, SVG, or PNG<br><span style="font-size:11px;color:var(--muted)">team logos → Multi-colour trace · click to browse</span>
           <input type="file" id="artFileInput" accept=".png,.jpg,.jpeg,.webp,.gif,.svg,image/png,image/jpeg,image/webp,image/gif,image/svg+xml">
         </div>
         <p class="art-meta hidden" id="artMeta"></p>
         <div class="art-preview-wrap hidden" id="artPreviewWrap">
-          <canvas id="artPreviewCanvas" width="240" height="88"></canvas>
+          <canvas id="artPreviewCanvas" width="240" height="120"></canvas>
         </div>
         <div class="opts-panel" id="artOpts">
           <div class="form-group">
@@ -501,19 +501,24 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
             <input type="range" id="artRot" min="-180" max="180" step="1" value="0">
           </div>
           <div class="form-group">
-            <div class="form-label"><span>Colours</span></div>
+            <div class="form-label"><span>Trace</span></div>
             <div class="stroke-row">
               <button class="stroke-btn" data-artmode="active" id="artModeActive">Active slot</button>
-              <button class="stroke-btn active" data-artmode="svg" id="artModeSvg">Logo colours</button>
+              <button class="stroke-btn active" data-artmode="svg" id="artModeSvg">Multi-colour AMS</button>
             </div>
           </div>
+          <div class="form-group">
+            <div class="form-label"><span>Threshold</span><span class="value" id="artTraceThrVal">128</span></div>
+            <input type="range" id="artTraceThreshold" min="40" max="220" step="1" value="128">
+          </div>
           <label class="check-row">
-            <input type="checkbox" id="artKnockout" checked>
-            <span>Knock out white background</span>
+            <input type="checkbox" id="artTraceInvert">
+            <span>Invert (light logo on dark)</span>
           </label>
-          <p class="flow-desc">Click to stamp. Builds a MakerDeck-style raised logo (not painted triangles). Right-drag orbits.</p>
+          <p class="flow-desc">Same MakerDeck Multi-colour team-logo trace, then a raised ink stamp. Click the model to place.</p>
           <div class="btn-row">
             <button class="btn btn-primary" id="artPlaceBtn" disabled>Place on model</button>
+            <button class="btn" id="artTraceBtn" disabled>Trace</button>
             <button class="btn" id="artClearBtn" disabled>Clear art</button>
           </div>
         </div>
@@ -669,7 +674,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b581</span>
+    <span>MakerDeck · STL Painter b582</span>
   </footer>
 </div>
 
@@ -699,9 +704,11 @@ import {
 import {
   rasterizeSvgText, rasterizeImageFile, collectStampRectFaces, makeStampFrame, mirrorStampFrameX,
   nearestSlot, parseHexColor, extractSvgFillHexes, extractRasterPalette, stampSizeMm, buildStampSlabs,
-  isSvgArtFile, isRasterArtFile, clonePixelData, rasterHasAlpha, knockOutPaperBackground,
+  buildStampSlabsFromMasks, stampLayersFromTrace, stampStepMm,
+  isSvgArtFile, isRasterArtFile, clonePixelData, rasterHasAlpha,
   ART_MATCH_DIST2
-} from './js/painter-art.js?v=581';
+} from './js/painter-art.js?v=582';
+import { loadImageFromFile, traceCanvasAsync, drawTracePreview } from './js/trace.js?v=370';
 
 /* ================================================================== */
 /*  STATE                                                             */
@@ -759,6 +766,10 @@ const art = {
   mode: 'svg',
   preview: null,
   texture: null,
+  traceCanvas: null,
+  trace: null,
+  traceJob: 0,
+  traceTimer: null,
 };
 
 /* ================================================================== */
@@ -1369,12 +1380,38 @@ function faceNormalLocal(faceIndex) {
   return [nx / L, ny / L, nz / L];
 }
 
+function artAspect() {
+  if (art.trace?.width && art.trace?.height) return art.trace.width / art.trace.height;
+  return art.raster?.aspect || 1;
+}
+
 function artSizeMm() {
-  return stampSizeMm(parseFloat($('artSize')?.value) || 48, art.raster?.aspect || 1);
+  return stampSizeMm(parseFloat($('artSize')?.value) || 48, artAspect());
 }
 
 function artRotationDeg() {
   return parseFloat($('artRot')?.value) || 0;
+}
+
+function artTraceThreshold() {
+  return parseFloat($('artTraceThreshold')?.value) || 128;
+}
+
+function artTraceInvert() {
+  return !!$('artTraceInvert')?.checked;
+}
+
+function artTraceSummary() {
+  const t = art.trace;
+  if (!t) return 'tracing…';
+  const n = t.colorLayers?.length || 0;
+  if (n) {
+    const labels = t.colorLayers.map((l) => l.label).filter(Boolean).slice(0, 6).join(', ');
+    const merged = t.rawColourBucketCount > n ? ` · merged from ${t.rawColourBucketCount} inks` : '';
+    return `${n} colours · multi-colour logo${merged}${labels ? ` · ${labels}` : ''}`;
+  }
+  if (t.outlineRaster) return `${(t.rectCount || 0).toLocaleString()} ink runs · line art`;
+  return t.mode || 'traced';
 }
 
 function syncArtMeta() {
@@ -1383,6 +1420,7 @@ function syncArtMeta() {
   const has = !!art.raster;
   $('artOpts')?.classList.toggle('visible', has);
   if ($('artClearBtn')) $('artClearBtn').disabled = !has;
+  if ($('artTraceBtn')) $('artTraceBtn').disabled = !has;
   if ($('artPlaceBtn')) $('artPlaceBtn').disabled = !has || !S.mesh;
   if (!has) {
     if (meta) { meta.classList.add('hidden'); meta.textContent = ''; }
@@ -1393,17 +1431,72 @@ function syncArtMeta() {
   const { widthMm, heightMm } = artSizeMm();
   if (meta) {
     meta.classList.remove('hidden');
-    meta.textContent = `${art.fileName || 'logo.svg'} · ${widthMm.toFixed(0)}×${heightMm.toFixed(0)} mm`;
+    meta.textContent = `${art.fileName || 'logo'} · ${widthMm.toFixed(0)}×${heightMm.toFixed(0)} mm · ${artTraceSummary()}`;
   }
   wrap?.classList.remove('hidden');
-  const src = art.raster.canvas;
   const dest = $('artPreviewCanvas');
-  if (src && dest) {
+  if (dest && art.traceCanvas && art.trace) {
+    drawTracePreview(dest, art.traceCanvas, art.trace);
+  } else if (dest && art.raster?.canvas) {
+    const src = art.raster.canvas;
     const ctx = dest.getContext('2d');
     ctx.clearRect(0, 0, dest.width, dest.height);
     const scale = Math.min(dest.width / src.width, dest.height / src.height);
     const dw = src.width * scale, dh = src.height * scale;
     ctx.drawImage(src, (dest.width - dw) / 2, (dest.height - dh) / 2, dw, dh);
+  }
+}
+
+function hexToRgb255(hex) {
+  const rgb = parseHexColor(hex);
+  return rgb || [136, 136, 136];
+}
+
+function artInkCanvas() {
+  const t = art.trace;
+  if (!t?.width || !t?.height) return art.raster?.canvas || null;
+  const w = t.width, h = t.height;
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext('2d');
+  const img = ctx.createImageData(w, h);
+  const d = img.data;
+  if (art.mode !== 'active' && t.colorLayers?.length) {
+    for (const layer of t.colorLayers) {
+      const [r, g, b] = layer.rgb || [180, 180, 180];
+      const mask = layer.mask;
+      if (!mask) continue;
+      for (let i = 0; i < mask.length; i++) {
+        if (!mask[i]) continue;
+        const o = i * 4;
+        d[o] = r; d[o + 1] = g; d[o + 2] = b; d[o + 3] = 255;
+      }
+    }
+  } else {
+    const mask = t.silhouetteMask || t.mask;
+    const [r, g, b] = hexToRgb255(getSlotColor(slotIndex(S.paintTarget)));
+    if (mask) {
+      for (let i = 0; i < mask.length; i++) {
+        if (!mask[i]) continue;
+        const o = i * 4;
+        d[o] = r; d[o + 1] = g; d[o + 2] = b; d[o + 3] = 230;
+      }
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  return c;
+}
+
+function refreshArtTexture() {
+  if (art.texture) { art.texture.dispose(); art.texture = null; }
+  const canvas = artInkCanvas();
+  if (!canvas) return;
+  art.texture = new THREE.CanvasTexture(canvas);
+  art.texture.needsUpdate = true;
+  if (art.preview?.material) {
+    art.preview.material.map = art.texture;
+    art.preview.material.needsUpdate = true;
   }
 }
 
@@ -1469,14 +1562,12 @@ function updateArtPreviewAtHit(hit) {
   if (!art.raster || !S.mesh || S.tool !== 'art' || !hit) { hideArtPreview(); return; }
   const { widthMm, heightMm } = artSizeMm();
   const frame = artStampFrameFromHit(hit);
-  if (!art.texture) {
-    art.texture = new THREE.CanvasTexture(art.raster.canvas);
-    art.texture.needsUpdate = true;
-  }
+  if (!art.texture) refreshArtTexture();
+  if (!art.texture) return;
   if (!art.preview) {
     const geom = new THREE.PlaneGeometry(1, 1);
     const mat = new THREE.MeshBasicMaterial({
-      map: art.texture, transparent: true, opacity: 0.72, depthWrite: false,
+      map: art.texture, transparent: true, opacity: 0.78, depthWrite: false,
       side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2,
     });
     art.preview = new THREE.Mesh(geom, mat);
@@ -1537,11 +1628,21 @@ function appendStampMesh(positions, indices, faceSlots) {
 
 function stampSlabsForFrame(frame, { widthMm, heightMm }) {
   const slotRgbs = slotColorsArray(S.slotCount).map((h) => parseHexColor(h) || [0, 0, 0]);
+  const geom = {
+    origin: frame.origin, right: frame.right, up: frame.up, normal: frame.normal,
+    widthMm, heightMm, stepMm: stampStepMm(widthMm, heightMm),
+  };
+  if (art.trace) {
+    const packed = stampLayersFromTrace(art.trace, {
+      singleSlot: art.mode === 'active' ? slotIndex(S.paintTarget) : null,
+      slotForRgb: (rgb) => nearestSlot(rgb, slotRgbs).slot,
+    });
+    if (packed.layers.length) return buildStampSlabsFromMasks({ ...geom, ...packed });
+  }
   const common = {
     pixels: art.raster.imageData.data,
     imgW: art.raster.width, imgH: art.raster.height,
-    origin: frame.origin, right: frame.right, up: frame.up, normal: frame.normal,
-    widthMm, heightMm,
+    ...geom,
   };
   if (art.mode === 'active') {
     return buildStampSlabs({ ...common, singleSlot: slotIndex(S.paintTarget) });
@@ -1590,6 +1691,68 @@ function stampArtworkAtHit(hit) {
   });
 }
 
+function typedArtFile(file) {
+  if (file?.type && /^image\//.test(file.type)) return file;
+  const name = String(file?.name || '').toLowerCase();
+  const type = name.endsWith('.png') ? 'image/png'
+    : name.endsWith('.webp') ? 'image/webp'
+    : name.endsWith('.gif') ? 'image/gif'
+    : /\.jpe?g$/.test(name) ? 'image/jpeg'
+    : file.type;
+  return type ? new File([file], file.name, { type }) : file;
+}
+
+function rasterFromCanvas(canvas) {
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  return {
+    imageData, width: canvas.width, height: canvas.height,
+    aspect: canvas.width / Math.max(canvas.height, 1e-6),
+    canvas, viewBox: null,
+  };
+}
+
+async function retraceArtwork() {
+  if (!art.traceCanvas) return;
+  const job = ++art.traceJob;
+  setStatus('Tracing multi-colour logo…', 'working');
+  try {
+    let result = await traceCanvasAsync(art.traceCanvas, {
+      threshold: artTraceThreshold(),
+      invert: artTraceInvert(),
+      mode: 'multi-colour',
+      colorSeparation: false,
+    });
+    if (job !== art.traceJob) return;
+    if (!result?.colorLayers?.length) {
+      result = await traceCanvasAsync(art.traceCanvas, {
+        threshold: artTraceThreshold(),
+        invert: artTraceInvert(),
+        mode: 'auto',
+        preferWrapLineArt: true,
+      });
+    }
+    if (job !== art.traceJob) return;
+    art.trace = result;
+    const fills = (result.colorLayers || []).map((l) => l.hex).filter(Boolean);
+    if (fills.length) ensureSlotsForHexes(fills);
+    refreshArtTexture();
+    syncArtMeta();
+    const n = result.colorLayers?.length || 0;
+    setStatus(n
+      ? `${n} AMS colours traced — click the model to stamp`
+      : 'Trace ready — click the model to stamp', 'idle');
+  } catch (err) {
+    if (job !== art.traceJob) return;
+    setStatus(err.message || 'Trace failed', 'error');
+  }
+}
+
+function scheduleArtTrace() {
+  clearTimeout(art.traceTimer);
+  art.traceTimer = setTimeout(() => retraceArtwork(), 350);
+}
+
 async function loadArtworkFile(file) {
   if (!file) return;
   const name = file.name || 'logo';
@@ -1605,47 +1768,43 @@ async function loadArtworkFile(file) {
     let fills = [];
     if (svg) {
       const text = await file.text();
-      result = await rasterizeSvgText(text);
+      result = await rasterizeSvgText(text, 1600);
       fills = extractSvgFillHexes(text);
     } else {
-      result = await rasterizeImageFile(file);
+      try {
+        const loaded = await loadImageFromFile(typedArtFile(file));
+        result = rasterFromCanvas(loaded.canvas);
+      } catch {
+        result = await rasterizeImageFile(file, 1600);
+      }
     }
     art.raster = result;
     art.original = clonePixelData(result.imageData);
     art.hadAlpha = rasterHasAlpha(result.imageData.data);
     art.fileName = name;
+    art.traceCanvas = result.canvas;
+    art.trace = null;
     if (art.texture) { art.texture.dispose(); art.texture = null; }
     disposeArtPreview();
-    const knockEl = $('artKnockout');
-    if (knockEl) knockEl.checked = !art.hadAlpha;
-    applyArtKnockout({ quiet: true });
-    if (!fills.length) fills = extractRasterPalette(art.raster.imageData.data);
     if (art.mode === 'svg' && fills.length) ensureSlotsForHexes(fills);
     syncArtMeta();
     setTool('art', { sticky: true });
     switchTab('paint');
-    setStatus(`${name} ready — click the model to stamp`, 'idle');
+    await retraceArtwork();
   } catch (err) {
     setStatus(err.message || 'Could not read artwork', 'error');
   }
 }
 
-function applyArtKnockout({ quiet = false } = {}) {
-  if (!art.raster || !art.original) return;
-  art.raster.imageData.data.set(art.original.data);
-  if ($('artKnockout')?.checked) knockOutPaperBackground(art.raster.imageData.data);
-  const ctx = art.raster.canvas.getContext('2d');
-  ctx.putImageData(art.raster.imageData, 0, 0);
-  if (art.texture) art.texture.needsUpdate = true;
-  syncArtMeta();
-  if (!quiet) setStatus($('artKnockout')?.checked ? 'White background knocked out' : 'White background kept', 'idle');
-}
-
 function clearArtwork() {
+  art.traceJob += 1;
+  clearTimeout(art.traceTimer);
   art.fileName = '';
   art.raster = null;
   art.original = null;
   art.hadAlpha = false;
+  art.traceCanvas = null;
+  art.trace = null;
   if (art.texture) { art.texture.dispose(); art.texture = null; }
   disposeArtPreview();
   const input = $('artFileInput');
@@ -3151,7 +3310,12 @@ $('artPlaceBtn')?.addEventListener('click', () => {
   setStatus('Click the model to stamp the artwork', 'idle');
 });
 $('artClearBtn')?.addEventListener('click', clearArtwork);
-$('artKnockout')?.addEventListener('change', () => applyArtKnockout());
+$('artTraceBtn')?.addEventListener('click', () => retraceArtwork());
+$('artTraceThreshold')?.addEventListener('input', () => {
+  $('artTraceThrVal').textContent = String(Math.round(artTraceThreshold()));
+  scheduleArtTrace();
+});
+$('artTraceInvert')?.addEventListener('change', () => retraceArtwork());
 $('artSize')?.addEventListener('input', () => {
   $('artSizeVal').textContent = String(Math.round(parseFloat($('artSize').value) || 48));
   syncArtMeta();
@@ -3163,6 +3327,8 @@ document.querySelectorAll('[data-artmode]').forEach((b) => {
   b.addEventListener('click', () => {
     art.mode = b.dataset.artmode === 'active' ? 'active' : 'svg';
     document.querySelectorAll('[data-artmode]').forEach((x) => x.classList.toggle('active', x === b));
+    refreshArtTexture();
+    syncArtMeta();
   });
 });
 syncArtMeta();
