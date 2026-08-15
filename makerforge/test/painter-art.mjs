@@ -15,8 +15,9 @@ function check(name, cond, detail = "") {
 const verts = new Float32Array([
   -8, -4, 0,  -2, -4, 0,  -5, 4, 0,
    2, -4, 0,   8, -4, 0,   5, 4, 0,
+  -1, 0, 0,    9, -3, 0,   9, 3, 0,
 ]);
-const faces = new Uint32Array([0, 1, 2, 3, 4, 5]);
+const faces = new Uint32Array([0, 1, 2, 3, 4, 5, 6, 7, 8]);
 
 // 4×4 raster: left half red opaque, right half transparent
 const imgW = 4, imgH = 4;
@@ -30,7 +31,7 @@ for (let y = 0; y < imgH; y++) {
 
 const frame = makeStampFrame([0, 0, 0], [0, 0, 1], 0);
 const hits = collectStampHits({
-  verts, faces, nTri: 2,
+  verts, faces, nTri: 3,
   ...frame,
   widthMm: 20, heightMm: 20,
   pixels, imgW, imgH,
@@ -38,6 +39,7 @@ const hits = collectStampHits({
 
 check("left triangle paints", hits.some((h) => h.face === 0), `hits=${hits.map((h) => h.face).join(",")}`);
 check("right triangle skipped", !hits.some((h) => h.face === 1), `hits=${hits.map((h) => h.face).join(",")}`);
+check("grazing vertex does not paint", !hits.some((h) => h.face === 2), `hits=${hits.map((h) => h.face).join(",")}`);
 check("painted pixel is red", hits[0]?.r === 200, `r=${hits[0]?.r}`);
 
 const back = makeStampFrame([0, 0, 0], [0, 0, -1], 0);

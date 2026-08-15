@@ -313,7 +313,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   <header class="header">
     <button class="toggle-sidebar" id="toggleSidebar" title="Toggle sidebar">☰</button>
     <div class="logo">Maker<span>Deck</span> · STL Painter</div>
-    <div class="build">b579</div>
+    <div class="build">b580</div>
   </header>
 
   <!-- Left Sidebar (tabbed) -->
@@ -511,7 +511,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
             <input type="checkbox" id="artKnockout" checked>
             <span>Knock out white background</span>
           </label>
-          <p class="flow-desc">Click the model to stamp. Right-drag orbits. Fine/Ultra first if the logo looks blocky.</p>
+          <p class="flow-desc">Click the model to stamp. First stamp upgrades to Fine so the logo isn't triangle-shattered. Right-drag orbits.</p>
           <div class="btn-row">
             <button class="btn btn-primary" id="artPlaceBtn" disabled>Place on model</button>
             <button class="btn" id="artClearBtn" disabled>Clear art</button>
@@ -669,7 +669,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b579</span>
+    <span>MakerDeck · STL Painter b580</span>
   </footer>
 </div>
 
@@ -697,11 +697,11 @@ import {
   import3MF, buildSymmetryMap, masksToFacePaint, facePaintToMasks, MAX_PAINT_SLOTS
 } from './js/painter.js?v=574';
 import {
-  rasterizeSvgText, rasterizeImageFile, collectStampHits, makeStampFrame, mirrorStampFrameX,
+  rasterizeSvgText, rasterizeImageFile, collectStampHits, collectStampRectFaces, makeStampFrame, mirrorStampFrameX,
   nearestSlot, parseHexColor, extractSvgFillHexes, extractRasterPalette, stampSizeMm,
   isSvgArtFile, isRasterArtFile, clonePixelData, rasterHasAlpha, knockOutPaperBackground,
   ART_MATCH_DIST2
-} from './js/painter-art.js?v=579';
+} from './js/painter-art.js?v=580';
 
 /* ================================================================== */
 /*  STATE                                                             */
@@ -1505,53 +1505,96 @@ function collectHitsForFrame(frame) {
   });
 }
 
-function stampArtworkAtHit(hit) {
+function collectRectForFrame(frame) {
+  const { widthMm, heightMm } = artSizeMm();
+  return collectStampRectFaces({
+    verts: S.verts, faces: S.faces, nTri: S.nTri,
+    origin: frame.origin, right: frame.right, up: frame.up, normal: frame.normal,
+    widthMm, heightMm,
+  });
+}
+
+function logoPaletteRgbs() {
+  const hexes = extractRasterPalette(art.raster.imageData.data);
+  return hexes.map((h) => parseHexColor(h)).filter(Boolean);
+}
+
+async function stampArtworkAtHit(hit) {
   if (!art.raster || !S.mesh || !hit) return;
   const frame = artStampFrameFromHit(hit);
-  let hits = collectHitsForFrame(frame);
-  if (S.symmetryOn) {
-    hits = hits.concat(collectHitsForFrame(mirrorStampFrameX(frame, S.symmetryCenterX || 0)));
-  }
-  if (!hits.length) {
-    setStatus('Artwork missed the surface — try a bigger size or click a flatter face', 'idle');
-    return;
-  }
-  let pairs;
-  if (art.mode === 'active') {
-    const slot = slotIndex(S.paintTarget);
-    pairs = hits.map((h) => ({ face: h.face, slot }));
-  } else {
-    const slotRgbs = slotColorsArray(S.slotCount).map((h) => parseHexColor(h) || [0, 0, 0]);
-    const pending = [];
-    pairs = [];
-    for (const h of hits) {
-      const rgb = [h.r, h.g, h.b];
-      const found = nearestSlot(rgb, slotRgbs);
-      if (found.dist2 <= ART_MATCH_DIST2) {
-        pairs.push({ face: h.face, slot: found.slot });
-      } else {
-        pending.push(h);
+  const { widthMm, heightMm } = artSizeMm();
+  const targetHits = Math.max(500, (widthMm * heightMm) / 0.4);
+
+  try {
+    if (S.resLevel < 1) {
+      setStatus('Upgrading mesh so the logo stays sharp…', 'working');
+      await runResolutionUpgrade(1);
+    }
+    let hits = collectHitsForFrame(frame);
+    if (S.resLevel < 2 && hits.length < targetHits * 0.28) {
+      setStatus('Still chunky — Ultra detail…', 'working');
+      await runResolutionUpgrade(1);
+      hits = collectHitsForFrame(frame);
+    }
+    if (S.symmetryOn) {
+      hits = hits.concat(collectHitsForFrame(mirrorStampFrameX(frame, S.symmetryCenterX || 0)));
+    }
+    if (!hits.length) {
+      setStatus('Artwork missed the surface — try a bigger size or click a flatter face', 'idle');
+      return;
+    }
+
+    const rectFaces = collectRectForFrame(frame);
+    let pairs;
+    if (art.mode === 'active') {
+      const slot = slotIndex(S.paintTarget);
+      pairs = hits.map((h) => ({ face: h.face, slot }));
+    } else {
+      const palette = logoPaletteRgbs();
+      const slotRgbs = slotColorsArray(S.slotCount).map((h) => parseHexColor(h) || [0, 0, 0]);
+      pairs = [];
+      for (const h of hits) {
+        const rgb = [h.r, h.g, h.b];
+        if (palette.length) {
+          const pal = nearestSlot(rgb, palette);
+          if (pal.dist2 > ART_MATCH_DIST2) continue;
+          pairs.push({ face: h.face, slot: nearestSlot(palette[pal.slot], slotRgbs).slot });
+        } else {
+          const found = nearestSlot(rgb, slotRgbs);
+          if (found.dist2 > ART_MATCH_DIST2) continue;
+          pairs.push({ face: h.face, slot: found.slot });
+        }
+      }
+      if (!pairs.length) {
+        const slot = slotIndex(S.paintTarget);
+        pairs = hits.map((h) => ({ face: h.face, slot }));
       }
     }
-    const extraHex = [];
-    const extraSeen = new Set();
-    for (const h of pending) {
-      const qr = (h.r / 16 + 0.5 | 0) * 16;
-      const qg = (h.g / 16 + 0.5 | 0) * 16;
-      const qb = (h.b / 16 + 0.5 | 0) * 16;
-      const hex = `#${[qr, qg, qb].map((v) => Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0')).join('')}`;
-      if (extraSeen.has(hex) || extraHex.length >= 6) continue;
-      extraSeen.add(hex);
-      extraHex.push(hex);
-    }
-    if (extraHex.length) ensureSlotsForHexes(extraHex);
-    const allRgbs = slotColorsArray(S.slotCount).map((hx) => parseHexColor(hx) || [0, 0, 0]);
-    for (const h of pending) {
-      pairs.push({ face: h.face, slot: nearestSlot([h.r, h.g, h.b], allRgbs).slot });
-    }
+    const n = paintStamp(rectFaces, pairs);
+    setStatus(`Artwork stamped — ${n.toLocaleString()} faces`, 'idle');
+  } catch (err) {
+    setStatus(err.message || 'Artwork stamp failed', 'error');
   }
-  const n = paintFaceSlotPairs(pairs);
-  setStatus(`Artwork stamped — ${n.toLocaleString()} faces`, 'idle');
+}
+
+function paintStamp(rectFaces, pairs) {
+  const fp = ensureFacePaint();
+  if (!fp) return 0;
+  pushUndo();
+  for (const i of rectFaces || []) {
+    if (i >= 0 && i < S.nTri && !isFaceHidden(i)) fp[i] = 0;
+  }
+  let n = 0;
+  for (const p of pairs || []) {
+    if (p.face < 0 || p.face >= S.nTri || isFaceHidden(p.face)) continue;
+    fp[p.face] = slotIndex(p.slot);
+    n++;
+  }
+  syncLegacyMasks();
+  updateMeshColors();
+  recountPaint();
+  exportBtn.disabled = false;
+  return n;
 }
 
 async function loadArtworkFile(file) {
@@ -2723,32 +2766,38 @@ function isAreaTool(t = S.tool) { return t === 'box' || t === 'lasso'; }
 /* ================================================================== */
 
 function runResolutionUpgrade(levels) {
-  if (!S.verts || !S.nTri) return;
+  if (!S.verts || !S.nTri) return Promise.resolve();
   setStatus(`Upgrading paint detail (×${Math.pow(4, levels)})…`, 'working');
-  setTimeout(() => {
-    try {
-      ensureFacePaint();
-      let r = { verts:S.verts, faces:S.faces, nVerts:S.nVerts, nTri:S.nTri,
-        embossMask:S.embossMask, debossMask:S.debossMask, trimMask:S.trimMask, facePaint:S.facePaint };
-      for (let i = 0; i < levels; i++) {
-        r = upgradePaintResolution(r.verts, r.faces, r.nVerts, r.nTri,
-          { embossMask:r.embossMask, debossMask:r.debossMask, trimMask:r.trimMask, facePaint:r.facePaint });
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      try {
+        ensureFacePaint();
+        let r = { verts:S.verts, faces:S.faces, nVerts:S.nVerts, nTri:S.nTri,
+          embossMask:S.embossMask, debossMask:S.debossMask, trimMask:S.trimMask, facePaint:S.facePaint };
+        for (let i = 0; i < levels; i++) {
+          r = upgradePaintResolution(r.verts, r.faces, r.nVerts, r.nTri,
+            { embossMask:r.embossMask, debossMask:r.debossMask, trimMask:r.trimMask, facePaint:r.facePaint });
+        }
+        Object.assign(S, { verts:r.verts, faces:r.faces, nVerts:r.nVerts, nTri:r.nTri,
+          embossMask:r.embossMask, debossMask:r.debossMask, trimMask:r.trimMask, facePaint:r.facePaint,
+          featureEmboss:null, featureDeboss:null, faceAdj:null,
+          edgeHighlight:null, smartPreview:null, smartPreviewFaces:null,
+          islands:null, islandMap:null, undoStack:[], hiddenManual:null });
+        S.hiddenIslands.clear();
+        S.resLevel += levels;
+        $('undoBtn').disabled = true;
+        buildMesh({ frame: false });
+        recountPaint();
+        updateResMeta();
+        $('islandInfo').textContent = 'Mesh changed — re-detect islands.';
+        setStatus(`Paint detail upgraded — ${S.nTri.toLocaleString()} faces`, 'idle');
+        resolve();
+      } catch (err) {
+        setStatus(err.message || 'Upgrade failed', 'error');
+        reject(err);
       }
-      Object.assign(S, { verts:r.verts, faces:r.faces, nVerts:r.nVerts, nTri:r.nTri,
-        embossMask:r.embossMask, debossMask:r.debossMask, trimMask:r.trimMask, facePaint:r.facePaint,
-        featureEmboss:null, featureDeboss:null, faceAdj:null,
-        edgeHighlight:null, smartPreview:null, smartPreviewFaces:null,
-        islands:null, islandMap:null, undoStack:[], hiddenManual:null });
-      S.hiddenIslands.clear();
-      S.resLevel += levels;
-      $('undoBtn').disabled = true;
-      buildMesh({ frame: false });
-      recountPaint();
-      updateResMeta();
-      $('islandInfo').textContent = 'Mesh changed — re-detect islands.';
-      setStatus(`Paint detail upgraded — ${S.nTri.toLocaleString()} faces`, 'idle');
-    } catch (err) { setStatus(err.message || 'Upgrade failed', 'error'); }
-  }, 30);
+    }, 30);
+  });
 }
 
 /* ================================================================== */

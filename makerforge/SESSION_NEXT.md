@@ -4,6 +4,16 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b580 — Painter stamp: Fine auto + no fringe shards
+**Date:** 2026-08-15
+
+### MakerDeck
+- Artwork stamp auto-upgrades to **Fine** (Ultra if still chunky) so logos aren't triangle-shattered.
+- Face must be mostly on solid logo pixels (not one grazing vertex). Anti-alias white/grey/blue fringe is ignored.
+- Re-stamp wipes the stamp rectangle first. Hard refresh Painter **b580**.
+
+---
+
 ## b579 — Painter PNG/JPG artwork
 **Date:** 2026-08-15
 

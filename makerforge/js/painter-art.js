@@ -3,9 +3,11 @@
  * Rasterize an SVG, then project it onto a mesh as face paint.
  */
 
-export const ART_ALPHA_MIN = 48;
-export const ART_MATCH_DIST2 = 32 * 32;
+export const ART_ALPHA_MIN = 160;
+export const ART_MATCH_DIST2 = 40 * 40;
 export const ART_MAX_RASTER = 768;
+export const ART_COVERAGE_MIN = 0.5;
+export const ART_PAPER_LUMA = 228;
 
 function hypot3(x, y, z) {
   return Math.hypot(x, y, z) || 1;
@@ -92,7 +94,7 @@ export function rasterHasAlpha(data, { alphaCut = 250 } = {}) {
 }
 
 /** Punch near-white paper out of JPGs / flattened PNGs. Mutates `data`. */
-export function knockOutPaperBackground(data, { lumaMax = 242 } = {}) {
+export function knockOutPaperBackground(data, { lumaMax = ART_PAPER_LUMA } = {}) {
   let n = 0;
   for (let i = 0; i < data.length; i += 4) {
     const luma = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
@@ -109,6 +111,7 @@ export function extractRasterPalette(data, { maxColors = 6, alphaMin = ART_ALPHA
   let opaque = 0;
   for (let i = 0; i < data.length; i += 4) {
     if (data[i + 3] < alphaMin) continue;
+    if (isPaperRgb(data[i], data[i + 1], data[i + 2])) continue;
     opaque++;
     const qr = Math.max(0, Math.min(255, (data[i] / 16 + 0.5 | 0) * 16));
     const qg = Math.max(0, Math.min(255, (data[i + 1] / 16 + 0.5 | 0) * 16));
@@ -312,34 +315,20 @@ function sampleStamp(pixels, imgW, imgH, u, v, widthMm, heightMm, alphaMin) {
   return [pixels[o], pixels[o + 1], pixels[o + 2], a];
 }
 
-/**
- * Project a raster stamp onto mesh faces. Returns { face, r, g, b } hits.
- */
-export function collectStampHits({
-  verts,
-  faces,
-  nTri,
-  origin,
-  right,
-  up,
-  normal,
-  widthMm,
-  heightMm,
-  pixels,
-  imgW,
-  imgH,
-  alphaMin = ART_ALPHA_MIN,
-  maxAngleDot = Math.cos(70 * Math.PI / 180),
-  maxBehindMm = 18,
-  maxFrontMm = 14,
-}) {
-  const hits = [];
-  if (!verts || !faces || !pixels || !nTri || widthMm <= 0 || heightMm <= 0) return hits;
+export function rgbLuma(r, g, b) {
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+export function isPaperRgb(r, g, b, lumaMax = ART_PAPER_LUMA) {
+  return rgbLuma(r, g, b) >= lumaMax;
+}
+
+function stampGeomLoop(verts, faces, nTri, origin, right, up, normal, widthMm, heightMm, maxAngleDot, maxBehindMm, maxFrontMm, onFace) {
   const ox = origin[0], oy = origin[1], oz = origin[2];
   const rx = right[0], ry = right[1], rz = right[2];
   const ux = up[0], uy = up[1], uz = up[2];
   const nx = normal[0], ny = normal[1], nz = normal[2];
-
+  const halfW = widthMm / 2, halfH = heightMm / 2;
   const project = (x, y, z) => {
     const dx = x - ox, dy = y - oy, dz = z - oz;
     return [dx * rx + dy * ry + dz * rz, dx * ux + dy * uy + dz * uz, dx * nx + dy * ny + dz * nz];
@@ -362,19 +351,75 @@ export function collectStampHits({
     const mx = (ax + bx + cx) / 3, my = (ay + by + cy) / 3, mz = (az + bz + cz) / 3;
     const pc = project(mx, my, mz);
     if (pc[2] < -maxBehindMm || pc[2] > maxFrontMm) continue;
+    if (Math.abs(pc[0]) > halfW || Math.abs(pc[1]) > halfH) continue;
 
-    let samp = sampleStamp(pixels, imgW, imgH, pc[0], pc[1], widthMm, heightMm, alphaMin);
-    if (!samp) {
-      const pa = project(ax, ay, az);
-      const pb = project(bx, by, bz);
-      const pcc = project(cx, cy, cz);
-      samp = sampleStamp(pixels, imgW, imgH, pa[0], pa[1], widthMm, heightMm, alphaMin)
-        || sampleStamp(pixels, imgW, imgH, pb[0], pb[1], widthMm, heightMm, alphaMin)
-        || sampleStamp(pixels, imgW, imgH, pcc[0], pcc[1], widthMm, heightMm, alphaMin);
-    }
-    if (!samp) continue;
-    hits.push({ face: i, r: samp[0], g: samp[1], b: samp[2] });
+    const pa = project(ax, ay, az);
+    const pb = project(bx, by, bz);
+    const pcc = project(cx, cy, cz);
+    const mab = [(pa[0] + pb[0]) * 0.5, (pa[1] + pb[1]) * 0.5];
+    const mbc = [(pb[0] + pcc[0]) * 0.5, (pb[1] + pcc[1]) * 0.5];
+    const mca = [(pcc[0] + pa[0]) * 0.5, (pcc[1] + pa[1]) * 0.5];
+    onFace(i, [pc, pa, pb, pcc, mab, mbc, mca]);
   }
+}
+
+/**
+ * Faces whose centroid sits in the stamp rectangle — used to wipe a previous shattered stamp.
+ */
+export function collectStampRectFaces({
+  verts, faces, nTri, origin, right, up, normal, widthMm, heightMm,
+  maxAngleDot = Math.cos(70 * Math.PI / 180),
+  maxBehindMm = 18,
+  maxFrontMm = 14,
+}) {
+  const rect = [];
+  if (!verts || !faces || !nTri || widthMm <= 0 || heightMm <= 0) return rect;
+  stampGeomLoop(verts, faces, nTri, origin, right, up, normal, widthMm, heightMm, maxAngleDot, maxBehindMm, maxFrontMm, (i) => {
+    rect.push(i);
+  });
+  return rect;
+}
+
+/**
+ * Project a raster stamp onto mesh faces. Returns { face, r, g, b } hits.
+ * A face paints only when most sample points land on solid logo pixels — a single
+ * grazing vertex must not colour the whole triangle.
+ */
+export function collectStampHits({
+  verts,
+  faces,
+  nTri,
+  origin,
+  right,
+  up,
+  normal,
+  widthMm,
+  heightMm,
+  pixels,
+  imgW,
+  imgH,
+  alphaMin = ART_ALPHA_MIN,
+  coverageMin = ART_COVERAGE_MIN,
+  maxAngleDot = Math.cos(70 * Math.PI / 180),
+  maxBehindMm = 18,
+  maxFrontMm = 14,
+}) {
+  const hits = [];
+  if (!verts || !faces || !pixels || !nTri || widthMm <= 0 || heightMm <= 0) return hits;
+
+  stampGeomLoop(verts, faces, nTri, origin, right, up, normal, widthMm, heightMm, maxAngleDot, maxBehindMm, maxFrontMm, (i, pts) => {
+    let opaque = 0;
+    let best = null;
+    for (const p of pts) {
+      const samp = sampleStamp(pixels, imgW, imgH, p[0], p[1], widthMm, heightMm, alphaMin);
+      if (!samp) continue;
+      if (isPaperRgb(samp[0], samp[1], samp[2])) continue;
+      opaque++;
+      if (!best || samp[3] > best[3]) best = samp;
+    }
+    if (!best || opaque / pts.length < coverageMin) return;
+    hits.push({ face: i, r: best[0], g: best[1], b: best[2] });
+  });
   return hits;
 }
 
