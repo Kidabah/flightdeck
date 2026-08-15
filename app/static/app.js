@@ -7356,7 +7356,19 @@ function _printCostDetailRows(print) {
     rows.push(`<div class="detail-row"><span class="detail-label">Floor</span><span class="detail-value">${_printCostMoney(print.floor_price)}</span></div>`);
   }
   if (print.suggested_price != null) {
-    rows.push(`<div class="detail-row detail-row-quote"><span class="detail-label">Suggested</span><span class="detail-value">${_printCostMoney(print.suggested_price)}</span></div>`);
+    const strategy = _pricingStrategyLabel(print.pricing_strategy);
+    rows.push(`<div class="detail-row detail-row-quote"><span class="detail-label">Suggested · ${esc(strategy)}</span><span class="detail-value">${_printCostMoney(print.suggested_price)}</span></div>`);
+  }
+  if (print.batch_price != null || print.machine_price != null || print.value_price != null) {
+    const bits = [
+      print.shop_price != null ? `Shop ${_printCostMoney(print.shop_price)}` : '',
+      print.batch_price != null ? `Batch ${_printCostMoney(print.batch_price)}` : '',
+      print.machine_price != null ? `Machine ${_printCostMoney(print.machine_price)}` : '',
+      print.value_price != null ? `Value ${_printCostMoney(print.value_price)}` : '',
+    ].filter(Boolean).join(' · ');
+    if (bits) {
+      rows.push(`<div class="detail-row"><span class="detail-label">Sell strategies</span><span class="detail-value">${bits}</span></div>`);
+    }
   }
   return rows;
 }
@@ -8034,7 +8046,8 @@ function _projectQuoteStrip(quote, { compact = false } = {}) {
     <div><span>Filament</span><strong>${q.grams != null ? `${Number(q.grams).toFixed(0)} g` : '—'}</strong><em>${_projectMoney(q.filament_cost)}</em></div>
     <div><span>Printer-hours</span><strong>${_projectHours(q.printer_hours)}</strong><em>shop ${_projectMoney(timeCost)}</em></div>
     ${labourRow}
-    <div class="project-quote-local"><span>Local quote</span><strong>${_projectMoney(suggested)}</strong><em>floor ${_projectMoney(floor)} · ${Number(q.markup_pct || 0).toFixed(0)}% markup</em></div>
+    <div class="project-quote-local"><span>Local quote</span><strong>${_projectMoney(suggested)}</strong><em>floor ${_projectMoney(floor)} · ${_pricingStrategyLabel(q.pricing_strategy || elapsed.pricing_strategy)}</em></div>
+    ${(q.batch_price != null || q.machine_price != null || q.value_price != null) ? `<div><span>Strategies</span><strong>${_projectMoney(q.batch_price)}</strong><em>batch · machine ${_projectMoney(q.machine_price)} · value ${_projectMoney(q.value_price)}</em></div>` : ''}
   </div>`;
 }
 
@@ -24267,6 +24280,12 @@ function _costingDefaults() {
     labour_per_hour: 0,
     electricity_rate_per_kwh: 0.30,
     power_watts: {},
+    pricing_strategy: 'shop',
+    fail_pct: 8,
+    batch_multiplier: 5,
+    machine_hour_rate: 0,
+    value_multiplier: 10,
+    design_per_hour: 50,
     monthly_total: 0,
     shop_rate: 0,
     recent_hours_30d: 0,
@@ -24313,6 +24332,12 @@ function _costingCollect(el) {
     labour_per_hour: Number(el.querySelector('[data-costing="labour_per_hour"]')?.value || 0) || 0,
     electricity_rate_per_kwh: Number(el.querySelector('[data-costing="electricity_rate_per_kwh"]')?.value || 0) || 0,
     power_watts: powerWatts,
+    pricing_strategy: el.querySelector('[data-costing="pricing_strategy"]:checked')?.value || 'shop',
+    fail_pct: Number(el.querySelector('[data-costing="fail_pct"]')?.value || 0) || 0,
+    batch_multiplier: Number(el.querySelector('[data-costing="batch_multiplier"]')?.value || 0) || 0,
+    machine_hour_rate: Number(el.querySelector('[data-costing="machine_hour_rate"]')?.value || 0) || 0,
+    value_multiplier: Number(el.querySelector('[data-costing="value_multiplier"]')?.value || 0) || 0,
+    design_per_hour: Number(el.querySelector('[data-costing="design_per_hour"]')?.value || 0) || 0,
   };
 }
 
@@ -24367,6 +24392,35 @@ function _costingMaterialOptions(costs) {
   return mats;
 }
 
+function _pricingStrategyLabel(strategy) {
+  return {
+    shop: 'Shop markup',
+    batch: 'Batch',
+    machine: 'Machine-hour',
+    value: 'Value',
+  }[String(strategy || 'shop')] || 'Shop markup';
+}
+
+function _costingSellPrices(rates, filament, hours, floor) {
+  const fail = Number(rates.fail_pct || 0);
+  const batchMult = Number(rates.batch_multiplier || 5);
+  let machineRate = Number(rates.machine_hour_rate || 0);
+  if (!(machineRate > 0)) machineRate = Number(rates.shop_rate || 0);
+  const valueMult = Number(rates.value_multiplier || 10);
+  const markup = Number(rates.markup_pct || 0);
+  const strategy = String(rates.pricing_strategy || 'shop');
+  const fil = Number(filament || 0);
+  const hrs = Number(hours || 0);
+  const fl = Number(floor || 0);
+  const buffered = fil * (1 + fail / 100);
+  const shop = fl > 0 ? fl * (1 + markup / 100) : 0;
+  const batch = buffered > 0 ? buffered * batchMult : 0;
+  const machine = (buffered > 0 || (hrs > 0 && machineRate > 0)) ? buffered + hrs * machineRate : 0;
+  const value = buffered > 0 ? buffered * valueMult : 0;
+  const suggested = { shop, batch, machine, value }[strategy] ?? shop;
+  return { shop, batch, machine, value, suggested, buffered, fail, strategy, machineRate };
+}
+
 function _costingQuoteLocal(cfg, costs, grams, hours, material, filamentOverride) {
   const rates = _costingRates(cfg);
   let filament = null;
@@ -24384,13 +24438,20 @@ function _costingQuoteLocal(cfg, costs, grams, hours, material, filamentOverride
   const time = hours > 0 ? hours * rates.shop_rate : 0;
   const labour = hours > 0 ? hours * Number(rates.labour_per_hour || 0) : 0;
   const floor = Number(filament || 0) + time + labour;
+  const sell = _costingSellPrices(rates, filament || 0, hours, floor);
   return {
     filament,
     time,
     labour,
     floor,
-    suggested: floor > 0 ? floor * (1 + Number(rates.markup_pct || 0) / 100) : 0,
+    suggested: sell.suggested,
+    shop: sell.shop,
+    batch: sell.batch,
+    machine: sell.machine,
+    value: sell.value,
+    strategy: sell.strategy,
     shop_rate: rates.shop_rate,
+    design_per_hour: Number(rates.design_per_hour || 0),
   };
 }
 
@@ -24506,18 +24567,68 @@ function _costingCategoryHtml(state) {
         <label class="settings-label">Markup</label>
         <input class="settings-input" data-costing="markup_pct" type="number" min="0" max="500" step="1" value="${esc(String(cfg.markup_pct ?? 35))}"> %
       </div>
-      <div class="settings-hint">Suggested sell = floor × (1 + markup). 30–40% is a modest local-ad profit.</div>
+      <div class="settings-hint">Used when Suggested is Shop markup. Floor × (1 + markup). 30–40% is a modest local-ad profit.</div>
       <div class="settings-form-row">
         <label class="settings-label">My time ($/hr)</label>
         <input class="settings-input" data-costing="labour_per_hour" type="number" min="0" max="1000" step="0.5" value="${esc(String(cfg.labour_per_hour ?? 0))}">
       </div>
-      <div class="settings-hint">Optional and small. A full wage will price you out of local work — $0 is the default.</div>
+      <div class="settings-hint">Optional and small. A full wage will price you out of local work — $0 is the default. CAD / mesh repair is a separate design fee below, not this.</div>
+    </div>
+    <div class="settings-section">
+      <div class="settings-section-title">Sell strategies</div>
+      <p class="settings-hint">Floor is what it costs you. Pick which sell price becomes Suggested on passports and projects. Quote helper always shows all three. Fail buffer sits in the sell prices only — not the floor.</p>
+      <div class="costing-strategy-picks" role="radiogroup" aria-label="Default suggested strategy">
+        <label class="costing-strategy-pick${(cfg.pricing_strategy || 'shop') === 'shop' ? ' is-active' : ''}">
+          <input type="radio" name="pricing_strategy" data-costing="pricing_strategy" value="shop"${(cfg.pricing_strategy || 'shop') === 'shop' ? ' checked' : ''}>
+          <strong>Shop markup</strong>
+          <span>Floor × markup. Local ads, what you use now.</span>
+        </label>
+        <label class="costing-strategy-pick${cfg.pricing_strategy === 'batch' ? ' is-active' : ''}">
+          <input type="radio" name="pricing_strategy" data-costing="pricing_strategy" value="batch"${cfg.pricing_strategy === 'batch' ? ' checked' : ''}>
+          <strong>Batch</strong>
+          <span>Filament × ${esc(String(cfg.batch_multiplier ?? 5))}. Fast for bulk / trays of the same part.</span>
+        </label>
+        <label class="costing-strategy-pick${cfg.pricing_strategy === 'machine' ? ' is-active' : ''}">
+          <input type="radio" name="pricing_strategy" data-costing="pricing_strategy" value="machine"${cfg.pricing_strategy === 'machine' ? ' checked' : ''}>
+          <strong>Machine-hour</strong>
+          <span>Filament + print hours × rate. Bills for tying up a bay.</span>
+        </label>
+        <label class="costing-strategy-pick${cfg.pricing_strategy === 'value' ? ' is-active' : ''}">
+          <input type="radio" name="pricing_strategy" data-costing="pricing_strategy" value="value"${cfg.pricing_strategy === 'value' ? ' checked' : ''}>
+          <strong>Value</strong>
+          <span>Starting art price (filament × ${esc(String(cfg.value_multiplier ?? 10))}). Charge what the piece is worth.</span>
+        </label>
+      </div>
+      <div class="settings-form-row">
+        <label class="settings-label">Fail buffer</label>
+        <input class="settings-input" data-costing="fail_pct" type="number" min="0" max="25" step="1" value="${esc(String(cfg.fail_pct ?? 8))}"> %
+      </div>
+      <div class="settings-hint">5–10% of prints fail. This bumps filament inside Batch / Machine / Value, not the shop floor.</div>
+      <div class="settings-form-row">
+        <label class="settings-label">Batch multiplier</label>
+        <input class="settings-input" data-costing="batch_multiplier" type="number" min="1" max="12" step="0.5" value="${esc(String(cfg.batch_multiplier ?? 5))}"> ×
+      </div>
+      <div class="settings-form-row">
+        <label class="settings-label">Machine-hour ($/hr)</label>
+        <input class="settings-input" data-costing="machine_hour_rate" type="number" min="0" max="100" step="0.25" value="${esc(Number(cfg.machine_hour_rate || 0) > 0 ? String(cfg.machine_hour_rate) : '')}" placeholder="${esc(cfg.shop_rate > 0 ? _printCostMoney(cfg.shop_rate) : 'shop rate')}">
+      </div>
+      <div class="settings-hint">Leave blank to use the shop rate (${cfg.shop_rate > 0 ? _printCostMoney(cfg.shop_rate) : '$0'}/h). $2–$5 is a typical capacity premium.</div>
+      <div class="settings-form-row">
+        <label class="settings-label">Value multiplier</label>
+        <input class="settings-input" data-costing="value_multiplier" type="number" min="1" max="50" step="0.5" value="${esc(String(cfg.value_multiplier ?? 10))}"> ×
+      </div>
+      <div class="settings-hint">A $15 filament helmet at ×10 starts at $150. Raise it if the artistry is the product.</div>
+      <div class="settings-form-row">
+        <label class="settings-label">Design ($/hr)</label>
+        <input class="settings-input" data-costing="design_per_hour" type="number" min="0" max="500" step="5" value="${esc(String(cfg.design_per_hour ?? 50))}">
+      </div>
+      <div class="settings-hint">CAD, mesh repair, file prep — add hours in the quote helper. Typical $30–$75/h, billed separately from print time. If you are selling someone else’s model, you still need their commercial licence.</div>
       <button type="button" class="settings-save-btn" data-costing-save>Save costing</button>
       <span class="costing-save-status" data-costing-status></span>
     </div>
     <div class="settings-section">
       <div class="settings-section-title">Quote helper</div>
-      <p class="settings-hint">Someone asks “how much for a goose?” — grams + hours in, floor and suggested out. Uses the numbers on this page, even before you save.</p>
+      <p class="settings-hint">Someone asks “how much for a goose?” — grams + hours in, all three sell prices out. Uses the numbers on this page, even before you save.</p>
       <div class="costing-quote-grid">
         <label>Grams
           <input class="settings-input" data-quote="grams" type="number" min="0" step="0.1" value="">
@@ -24534,13 +24645,20 @@ function _costingCategoryHtml(state) {
         <label>Filament $ <span class="settings-hint">(optional override)</span>
           <input class="settings-input" data-quote="filament" type="number" min="0" step="0.01" placeholder="auto">
         </label>
+        <label>Design hours
+          <input class="settings-input" data-quote="design_hours" type="number" min="0" step="0.25" value="" placeholder="0">
+        </label>
       </div>
       <div class="costing-quote-result">
         <div><span>Filament</span><strong data-quote-out="filament">—</strong></div>
         <div><span>Time</span><strong data-quote-out="time">—</strong></div>
         <div data-quote-labour-row hidden><span>My time</span><strong data-quote-out="labour">—</strong></div>
         <div><span>Floor</span><strong data-quote-out="floor">—</strong></div>
-        <div class="costing-quote-suggested"><span>Suggested</span><strong data-quote-out="suggested">—</strong></div>
+        <div data-quote-strategy="shop"><span>Shop</span><strong data-quote-out="shop">—</strong></div>
+        <div data-quote-strategy="batch"><span>Batch</span><strong data-quote-out="batch">—</strong></div>
+        <div data-quote-strategy="machine"><span>Machine</span><strong data-quote-out="machine">—</strong></div>
+        <div data-quote-strategy="value"><span>Value</span><strong data-quote-out="value">—</strong></div>
+        <div data-quote-design-row hidden><span>Design</span><strong data-quote-out="design">—</strong></div>
       </div>
     </div>
     <div class="settings-section costing-power-section">
@@ -24568,6 +24686,7 @@ function _paintCosting(el, state) {
     hours: el.querySelector('[data-quote="hours"]')?.value || state.quote?.hours || '',
     material: el.querySelector('[data-quote="material"]')?.value || state.quote?.material || '',
     filament: el.querySelector('[data-quote="filament"]')?.value || state.quote?.filament || '',
+    design_hours: el.querySelector('[data-quote="design_hours"]')?.value || state.quote?.design_hours || '',
   };
   state.quote = quoteSnap;
   el._powerWatts = { ...(state.cfg?.power_watts || {}), ...(el._powerWatts || {}) };
@@ -24580,6 +24699,7 @@ function _paintCosting(el, state) {
   setVal('[data-quote="hours"]', quoteSnap.hours);
   setVal('[data-quote="material"]', quoteSnap.material);
   setVal('[data-quote="filament"]', quoteSnap.filament);
+  setVal('[data-quote="design_hours"]', quoteSnap.design_hours);
   _attachCostingEvents(el, state);
 }
 
@@ -24667,7 +24787,9 @@ function _costingRefreshDerived(el, state) {
   const hours = Number(el.querySelector('[data-quote="hours"]')?.value || 0);
   const material = el.querySelector('[data-quote="material"]')?.value || '';
   const filInput = el.querySelector('[data-quote="filament"]')?.value ?? '';
+  const designHours = Number(el.querySelector('[data-quote="design_hours"]')?.value || 0);
   const quote = _costingQuoteLocal(rates, state.costs, grams, hours, material, filInput);
+  const design = designHours > 0 ? designHours * Number(quote.design_per_hour || 0) : 0;
   const setOut = (key, value, show) => {
     const node = el.querySelector(`[data-quote-out="${key}"]`);
     if (!node) return;
@@ -24680,7 +24802,21 @@ function _costingRefreshDerived(el, state) {
   if (labourRow) labourRow.hidden = !(hasInput && quote.labour > 0);
   setOut('labour', quote.labour, hasInput && quote.labour > 0);
   setOut('floor', quote.floor, hasInput && quote.floor > 0);
-  setOut('suggested', quote.suggested, hasInput && quote.suggested > 0);
+  setOut('shop', quote.shop, hasInput && quote.shop > 0);
+  setOut('batch', quote.batch, hasInput && quote.batch > 0);
+  setOut('machine', quote.machine, hasInput && quote.machine > 0);
+  setOut('value', quote.value, hasInput && quote.value > 0);
+  const designRow = el.querySelector('[data-quote-design-row]');
+  if (designRow) designRow.hidden = !(design > 0);
+  setOut('design', design, design > 0);
+  const strategy = quote.strategy || rates.pricing_strategy || 'shop';
+  el.querySelectorAll('.costing-strategy-pick').forEach(label => {
+    const input = label.querySelector('input');
+    label.classList.toggle('is-active', !!(input && input.checked));
+  });
+  el.querySelectorAll('[data-quote-strategy]').forEach(tile => {
+    tile.classList.toggle('costing-quote-suggested', tile.dataset.quoteStrategy === strategy);
+  });
 }
 
 function _attachCostingEvents(el, state) {

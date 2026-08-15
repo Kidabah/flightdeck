@@ -66,6 +66,59 @@ def _costing_float(value, default: float = 0.0, lo: float = 0.0, hi: float = 1_0
     return max(lo, min(hi, n))
 
 
+_PRICING_STRATEGIES = ("shop", "batch", "machine", "value")
+
+
+def _pricing_strategy(value) -> str:
+    raw = str(value or "shop").strip().lower()
+    return raw if raw in _PRICING_STRATEGIES else "shop"
+
+
+def _money_or_none(value: float) -> Optional[float]:
+    n = round(float(value or 0), 2)
+    return n if n > 0 else None
+
+
+def _sell_prices(cfg: dict, *, filament: float, hours: float, floor: float) -> dict:
+    """Turn cost into the three sell strategies plus shop markup.
+
+    Fail buffer applies to sell prices only, not the shop floor.
+    machine_hour_rate 0 means “use the derived shop rate”.
+    """
+    fail_pct = float(cfg.get("fail_pct") or 0)
+    batch_mult = float(cfg.get("batch_multiplier") or 5)
+    machine_rate = float(cfg.get("machine_hour_rate") or 0)
+    shop_rate = float(cfg.get("shop_rate") or 0)
+    if machine_rate <= 0:
+        machine_rate = shop_rate
+    value_mult = float(cfg.get("value_multiplier") or 10)
+    markup = float(cfg.get("markup_pct") or 0)
+    strategy = _pricing_strategy(cfg.get("pricing_strategy"))
+    fil = max(0.0, float(filament or 0))
+    hrs = max(0.0, float(hours or 0))
+    floor = max(0.0, float(floor or 0))
+    buffered = fil * (1.0 + fail_pct / 100.0)
+    shop = floor * (1.0 + markup / 100.0) if floor > 0 else 0.0
+    batch = buffered * batch_mult if buffered > 0 else 0.0
+    machine = 0.0
+    if buffered > 0 or (hrs > 0 and machine_rate > 0):
+        machine = buffered + hrs * machine_rate
+    value = buffered * value_mult if buffered > 0 else 0.0
+    picked = {"shop": shop, "batch": batch, "machine": machine, "value": value}.get(strategy) or shop
+    return {
+        "pricing_strategy": strategy,
+        "fail_pct": round(fail_pct, 2),
+        "batch_multiplier": round(batch_mult, 2),
+        "machine_hour_rate": round(machine_rate, 4) if machine_rate > 0 else None,
+        "value_multiplier": round(value_mult, 2),
+        "shop_price": _money_or_none(shop),
+        "batch_price": _money_or_none(batch),
+        "machine_price": _money_or_none(machine),
+        "value_price": _money_or_none(value),
+        "suggested_price": _money_or_none(picked),
+    }
+
+
 def _normalise_costing(raw: Optional[dict]) -> dict:
     data = raw if isinstance(raw, dict) else {}
     overheads = []
@@ -105,6 +158,12 @@ def _normalise_costing(raw: Optional[dict]) -> dict:
             _costing_float(data.get("electricity_rate_per_kwh"), 0.30, 0.0, 10.0), 4
         ),
         "power_watts": power_watts,
+        "pricing_strategy": _pricing_strategy(data.get("pricing_strategy")),
+        "fail_pct": round(_costing_float(data.get("fail_pct"), 8.0, 0.0, 25.0), 2),
+        "batch_multiplier": round(_costing_float(data.get("batch_multiplier"), 5.0, 1.0, 12.0), 2),
+        "machine_hour_rate": round(_costing_float(data.get("machine_hour_rate"), 0.0, 0.0, 100.0), 2),
+        "value_multiplier": round(_costing_float(data.get("value_multiplier"), 10.0, 1.0, 50.0), 2),
+        "design_per_hour": round(_costing_float(data.get("design_per_hour"), 50.0, 0.0, 500.0), 2),
     }
 
 
@@ -1515,17 +1574,20 @@ def _attach_shop_cost(item: dict, costing: Optional[dict] = None) -> None:
         hours = 0.0
     shop_rate = float(rates.get("shop_rate") or 0)
     labour_rate = float(rates.get("labour_per_hour") or 0)
-    markup = float(rates.get("markup_pct") or 0)
     time_cost = round(hours * shop_rate, 2) if hours > 0 and shop_rate > 0 else 0.0
     labour_cost = round(hours * labour_rate, 2) if hours > 0 and labour_rate > 0 else 0.0
     item["time_cost"] = time_cost if time_cost > 0 else None
     item["labour_cost"] = labour_cost if labour_cost > 0 else None
     floor = float(filament or 0) + time_cost + labour_cost
     item["floor_price"] = round(floor, 2) if floor > 0 else None
-    if item["floor_price"] is not None:
-        item["suggested_price"] = round(item["floor_price"] * (1 + markup / 100.0), 2)
-    else:
-        item["suggested_price"] = None
+    sell = _sell_prices(rates, filament=float(filament or 0), hours=hours, floor=floor)
+    item["suggested_price"] = sell["suggested_price"]
+    item["pricing_strategy"] = sell["pricing_strategy"]
+    item["shop_price"] = sell["shop_price"]
+    item["batch_price"] = sell["batch_price"]
+    item["machine_price"] = sell["machine_price"]
+    item["value_price"] = sell["value_price"]
+    item["fail_pct"] = sell["fail_pct"]
     item["shop_rate"] = round(shop_rate, 4) if shop_rate > 0 else None
     item["labour_rate"] = round(labour_rate, 4) if labour_rate > 0 else None
 
@@ -2477,11 +2539,10 @@ def quote_print_cost(
             filament = round(grams * float(cpg), 2)
     shop_rate = float(cfg.get("shop_rate") or 0)
     labour_rate = float(cfg.get("labour_per_hour") or 0)
-    markup = float(cfg.get("markup_pct") or 0)
     time_cost = round(hours * shop_rate, 2) if hours > 0 and shop_rate > 0 else 0.0
     labour_cost = round(hours * labour_rate, 2) if hours > 0 and labour_rate > 0 else 0.0
     floor = float(filament or 0) + time_cost + labour_cost
-    suggested = round(floor * (1 + markup / 100.0), 2) if floor > 0 else None
+    sell = _sell_prices(cfg, filament=float(filament or 0), hours=hours, floor=floor)
     return {
         "hours": round(hours, 2),
         "grams": round(grams, 1),
@@ -2491,10 +2552,20 @@ def quote_print_cost(
         "time_cost": time_cost if time_cost > 0 else None,
         "labour_cost": labour_cost if labour_cost > 0 else None,
         "floor_price": round(floor, 2) if floor > 0 else None,
-        "suggested_price": suggested,
+        "suggested_price": sell["suggested_price"],
+        "pricing_strategy": sell["pricing_strategy"],
+        "shop_price": sell["shop_price"],
+        "batch_price": sell["batch_price"],
+        "machine_price": sell["machine_price"],
+        "value_price": sell["value_price"],
+        "fail_pct": sell["fail_pct"],
         "shop_rate": shop_rate if shop_rate > 0 else None,
         "labour_rate": labour_rate if labour_rate > 0 else None,
-        "markup_pct": markup,
+        "markup_pct": float(cfg.get("markup_pct") or 0),
+        "batch_multiplier": sell["batch_multiplier"],
+        "machine_hour_rate": sell["machine_hour_rate"],
+        "value_multiplier": sell["value_multiplier"],
+        "design_per_hour": float(cfg.get("design_per_hour") or 0),
     }
 
 

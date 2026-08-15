@@ -5262,6 +5262,12 @@ class CostingUpdate(BaseModel):
     labour_per_hour: float = 0
     electricity_rate_per_kwh: float = 0.30
     power_watts: dict[str, float] = {}
+    pricing_strategy: str = "shop"
+    fail_pct: float = 8
+    batch_multiplier: float = 5
+    machine_hour_rate: float = 0
+    value_multiplier: float = 10
+    design_per_hour: float = 50
 
 
 class CostingQuoteRequest(BaseModel):
@@ -5643,6 +5649,11 @@ def _project_quote(files: list[dict], parallel_printers: int = 1) -> dict:
         },
         "quote_floor": elapsed.get("floor_price"),
         "quote_suggested": elapsed.get("suggested_price"),
+        "pricing_strategy": elapsed.get("pricing_strategy"),
+        "shop_price": elapsed.get("shop_price"),
+        "batch_price": elapsed.get("batch_price"),
+        "machine_price": elapsed.get("machine_price"),
+        "value_price": elapsed.get("value_price"),
         "shop_rate": fleet.get("shop_rate"),
         "markup_pct": fleet.get("markup_pct"),
     }
