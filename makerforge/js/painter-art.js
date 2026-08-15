@@ -63,6 +63,67 @@ export function nearestSlot(rgb, slotRgbs) {
   return { slot: best, dist2: bestD };
 }
 
+export function isSvgArtFile(file) {
+  const name = String(file?.name || "").toLowerCase();
+  const type = String(file?.type || "").toLowerCase();
+  return name.endsWith(".svg") || type === "image/svg+xml";
+}
+
+export function isRasterArtFile(file) {
+  const name = String(file?.name || "").toLowerCase();
+  const type = String(file?.type || "").toLowerCase();
+  return /\.(png|jpe?g|webp|gif)$/i.test(name) || /^image\/(png|jpeg|webp|gif)$/.test(type);
+}
+
+export function clonePixelData(imageData) {
+  return {
+    data: new Uint8ClampedArray(imageData.data),
+    width: imageData.width,
+    height: imageData.height,
+  };
+}
+
+export function rasterHasAlpha(data, { alphaCut = 250 } = {}) {
+  if (!data?.length) return false;
+  let transparent = 0;
+  const n = data.length / 4;
+  for (let i = 3; i < data.length; i += 4) if (data[i] < alphaCut) transparent++;
+  return transparent / n > 0.04;
+}
+
+/** Punch near-white paper out of JPGs / flattened PNGs. Mutates `data`. */
+export function knockOutPaperBackground(data, { lumaMax = 242 } = {}) {
+  let n = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    const luma = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+    if (luma >= lumaMax) {
+      data[i + 3] = 0;
+      n++;
+    }
+  }
+  return n;
+}
+
+export function extractRasterPalette(data, { maxColors = 6, alphaMin = ART_ALPHA_MIN } = {}) {
+  const counts = new Map();
+  let opaque = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] < alphaMin) continue;
+    opaque++;
+    const qr = Math.max(0, Math.min(255, (data[i] / 16 + 0.5 | 0) * 16));
+    const qg = Math.max(0, Math.min(255, (data[i + 1] / 16 + 0.5 | 0) * 16));
+    const qb = Math.max(0, Math.min(255, (data[i + 2] / 16 + 0.5 | 0) * 16));
+    const hex = rgbToHex(qr, qg, qb);
+    counts.set(hex, (counts.get(hex) || 0) + 1);
+  }
+  const min = Math.max(8, opaque * 0.008);
+  return [...counts.entries()]
+    .filter(([, n]) => n >= min)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, maxColors)
+    .map(([hex]) => hex);
+}
+
 export function extractSvgFillHexes(svgText) {
   const out = [];
   const seen = new Set();
@@ -155,6 +216,47 @@ export async function rasterizeSvgText(svgText, maxDim = ART_MAX_RASTER) {
     img.onerror = () => {
       URL.revokeObjectURL(url);
       reject(new Error("Could not read SVG"));
+    };
+    img.src = url;
+  });
+}
+
+function canvasFromImage(img, maxDim) {
+  const iw = img.naturalWidth || img.width || 1;
+  const ih = img.naturalHeight || img.height || 1;
+  const aspect = iw / Math.max(ih, 1e-6);
+  const w = aspect >= 1 ? maxDim : Math.max(32, Math.round(maxDim * aspect));
+  const h = aspect >= 1 ? Math.max(32, Math.round(maxDim / aspect)) : maxDim;
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.clearRect(0, 0, w, h);
+  ctx.drawImage(img, 0, 0, w, h);
+  const imageData = ctx.getImageData(0, 0, w, h);
+  return { imageData, width: w, height: h, aspect, canvas, viewBox: null };
+}
+
+export async function rasterizeImageFile(file, maxDim = ART_MAX_RASTER) {
+  if (typeof Image === "undefined" || typeof document === "undefined") {
+    throw new Error("Image rasterize needs a browser");
+  }
+  const url = URL.createObjectURL(file);
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const result = canvasFromImage(img, maxDim);
+        URL.revokeObjectURL(url);
+        resolve(result);
+      } catch (err) {
+        URL.revokeObjectURL(url);
+        reject(err);
+      }
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Could not read image"));
     };
     img.src = url;
   });

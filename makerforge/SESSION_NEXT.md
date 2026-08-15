@@ -4,6 +4,16 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b579 — Painter PNG/JPG artwork
+**Date:** 2026-08-15
+
+### MakerDeck
+- STL Painter Artwork accepts **PNG / JPG / WebP / GIF** as well as SVG. Same click-to-stamp.
+- White paper knockout for photos (toggle). Logo colours come from the image palette.
+- Hard refresh Painter **b579**.
+
+---
+
 ## b578 — Painter SVG artwork stamp
 **Date:** 2026-08-15
 

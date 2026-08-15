@@ -6,6 +6,20 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-15 Session update (Painter PNG/JPG artwork)
+
+Latest commit: *(pending)* — Accept PNG/JPG artwork in STL Painter, not just SVG.
+
+Latest local/Pi change:
+- Artwork drop now takes **PNG, JPG, WebP, GIF**, plus SVG. White-background knockout for photos (toggle).
+- Logo colours come from the image palette. Same click-to-stamp on the mesh.
+- Hard refresh (`app.js?v=670`, Painter `painter.html?v=579` / **b579**). Backend restart not required.
+
+Previous:
+- Painter SVG artwork (`5b10ec9`).
+
+---
+
 ## 2026-08-15 Session update (Painter SVG artwork)
 
 Latest commit: `5b10ec9` — Stamp SVG artwork onto meshes in STL Painter.

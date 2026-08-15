@@ -313,7 +313,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   <header class="header">
     <button class="toggle-sidebar" id="toggleSidebar" title="Toggle sidebar">☰</button>
     <div class="logo">Maker<span>Deck</span> · STL Painter</div>
-    <div class="build">b578</div>
+    <div class="build">b579</div>
   </header>
 
   <!-- Left Sidebar (tabbed) -->
@@ -484,8 +484,8 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
 
         <div class="section-label" style="margin-top:12px">Artwork</div>
         <div class="drop-zone" id="artDropZone">
-          Drop SVG here<br><span style="font-size:11px;color:var(--muted)">or click to browse · stamp onto the model</span>
-          <input type="file" id="artFileInput" accept=".svg,image/svg+xml">
+          Drop PNG, JPG, or SVG<br><span style="font-size:11px;color:var(--muted)">team logos work best as PNG/JPG · click to browse</span>
+          <input type="file" id="artFileInput" accept=".png,.jpg,.jpeg,.webp,.gif,.svg,image/png,image/jpeg,image/webp,image/gif,image/svg+xml">
         </div>
         <p class="art-meta hidden" id="artMeta"></p>
         <div class="art-preview-wrap hidden" id="artPreviewWrap">
@@ -504,13 +504,17 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
             <div class="form-label"><span>Colours</span></div>
             <div class="stroke-row">
               <button class="stroke-btn" data-artmode="active" id="artModeActive">Active slot</button>
-              <button class="stroke-btn active" data-artmode="svg" id="artModeSvg">SVG colours</button>
+              <button class="stroke-btn active" data-artmode="svg" id="artModeSvg">Logo colours</button>
             </div>
           </div>
+          <label class="check-row">
+            <input type="checkbox" id="artKnockout" checked>
+            <span>Knock out white background</span>
+          </label>
           <p class="flow-desc">Click the model to stamp. Right-drag orbits. Fine/Ultra first if the logo looks blocky.</p>
           <div class="btn-row">
             <button class="btn btn-primary" id="artPlaceBtn" disabled>Place on model</button>
-            <button class="btn" id="artClearBtn" disabled>Clear SVG</button>
+            <button class="btn" id="artClearBtn" disabled>Clear art</button>
           </div>
         </div>
 
@@ -665,7 +669,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b578</span>
+    <span>MakerDeck · STL Painter b579</span>
   </footer>
 </div>
 
@@ -693,9 +697,11 @@ import {
   import3MF, buildSymmetryMap, masksToFacePaint, facePaintToMasks, MAX_PAINT_SLOTS
 } from './js/painter.js?v=574';
 import {
-  rasterizeSvgText, collectStampHits, makeStampFrame, mirrorStampFrameX,
-  nearestSlot, parseHexColor, extractSvgFillHexes, stampSizeMm, ART_MATCH_DIST2
-} from './js/painter-art.js?v=578';
+  rasterizeSvgText, rasterizeImageFile, collectStampHits, makeStampFrame, mirrorStampFrameX,
+  nearestSlot, parseHexColor, extractSvgFillHexes, extractRasterPalette, stampSizeMm,
+  isSvgArtFile, isRasterArtFile, clonePixelData, rasterHasAlpha, knockOutPaperBackground,
+  ART_MATCH_DIST2
+} from './js/painter-art.js?v=579';
 
 /* ================================================================== */
 /*  STATE                                                             */
@@ -748,6 +754,8 @@ const S = {
 const art = {
   fileName: '',
   raster: null,
+  original: null,
+  hadAlpha: false,
   mode: 'svg',
   preview: null,
   texture: null,
@@ -1548,39 +1556,67 @@ function stampArtworkAtHit(hit) {
 
 async function loadArtworkFile(file) {
   if (!file) return;
-  const name = file.name || 'logo.svg';
-  if (!/\.svg$/i.test(name) && file.type && file.type !== 'image/svg+xml') {
-    setStatus('Drop an SVG file', 'error');
+  const name = file.name || 'logo';
+  const svg = isSvgArtFile(file);
+  const rasterOk = isRasterArtFile(file);
+  if (!svg && !rasterOk) {
+    setStatus('Drop a PNG, JPG, or SVG', 'error');
     return;
   }
   setStatus(`Loading ${name}…`, 'working');
   try {
-    const text = await file.text();
-    art.raster = await rasterizeSvgText(text);
+    let result;
+    let fills = [];
+    if (svg) {
+      const text = await file.text();
+      result = await rasterizeSvgText(text);
+      fills = extractSvgFillHexes(text);
+    } else {
+      result = await rasterizeImageFile(file);
+    }
+    art.raster = result;
+    art.original = clonePixelData(result.imageData);
+    art.hadAlpha = rasterHasAlpha(result.imageData.data);
     art.fileName = name;
     if (art.texture) { art.texture.dispose(); art.texture = null; }
     disposeArtPreview();
-    const fills = extractSvgFillHexes(text);
+    const knockEl = $('artKnockout');
+    if (knockEl) knockEl.checked = !art.hadAlpha;
+    applyArtKnockout({ quiet: true });
+    if (!fills.length) fills = extractRasterPalette(art.raster.imageData.data);
     if (art.mode === 'svg' && fills.length) ensureSlotsForHexes(fills);
     syncArtMeta();
     setTool('art', { sticky: true });
     switchTab('paint');
     setStatus(`${name} ready — click the model to stamp`, 'idle');
   } catch (err) {
-    setStatus(err.message || 'Could not read SVG', 'error');
+    setStatus(err.message || 'Could not read artwork', 'error');
   }
+}
+
+function applyArtKnockout({ quiet = false } = {}) {
+  if (!art.raster || !art.original) return;
+  art.raster.imageData.data.set(art.original.data);
+  if ($('artKnockout')?.checked) knockOutPaperBackground(art.raster.imageData.data);
+  const ctx = art.raster.canvas.getContext('2d');
+  ctx.putImageData(art.raster.imageData, 0, 0);
+  if (art.texture) art.texture.needsUpdate = true;
+  syncArtMeta();
+  if (!quiet) setStatus($('artKnockout')?.checked ? 'White background knocked out' : 'White background kept', 'idle');
 }
 
 function clearArtwork() {
   art.fileName = '';
   art.raster = null;
+  art.original = null;
+  art.hadAlpha = false;
   if (art.texture) { art.texture.dispose(); art.texture = null; }
   disposeArtPreview();
   const input = $('artFileInput');
   if (input) input.value = '';
   syncArtMeta();
   if (S.tool === 'art') setTool('orbit');
-  setStatus('SVG cleared', 'idle');
+  setStatus('Artwork cleared', 'idle');
 }
 
 function facesInScreenBox(x0, y0, x1, y1) {
@@ -2492,7 +2528,7 @@ function setTool(tool, { sticky = false } = {}) {
     lasso: 'Lasso — Lock on, draw around an area (eyebrow…) · pick slot · Fill Selection',
     box: 'Box — Lock on, drag a rectangle · pick slot · Fill Selection',
     detect: 'Detect — find raised/sunken detail',
-    art: 'Artwork — click to stamp the SVG · right-drag orbits',
+    art: 'Artwork — click to stamp the logo · right-drag orbits',
   };
   if (tool === 'edge') syncEdgeModeUI();
   viewportHint.textContent = hints[tool] || 'Left-drag orbits · scroll zooms · pick a tool';
@@ -3067,12 +3103,13 @@ $('artFileInput')?.addEventListener('change', () => {
   if ($('artFileInput').files[0]) loadArtworkFile($('artFileInput').files[0]);
 });
 $('artPlaceBtn')?.addEventListener('click', () => {
-  if (!art.raster) { setStatus('Drop an SVG first', 'idle'); return; }
+  if (!art.raster) { setStatus('Drop a PNG, JPG, or SVG first', 'idle'); return; }
   if (!S.mesh) { setStatus('Load a model first', 'idle'); return; }
   setTool('art', { sticky: true });
-  setStatus('Click the model to stamp the SVG', 'idle');
+  setStatus('Click the model to stamp the artwork', 'idle');
 });
 $('artClearBtn')?.addEventListener('click', clearArtwork);
+$('artKnockout')?.addEventListener('change', () => applyArtKnockout());
 $('artSize')?.addEventListener('input', () => {
   $('artSizeVal').textContent = String(Math.round(parseFloat($('artSize').value) || 48));
   syncArtMeta();
@@ -3280,12 +3317,12 @@ viewport.addEventListener('pointerdown', (e) => {
     if (e.altKey || S.orbitOverride) return;
     e.preventDefault(); e.stopPropagation();
     if (!art.raster) {
-      setStatus('Drop an SVG first', 'idle');
+      setStatus('Drop a PNG, JPG, or SVG first', 'idle');
       return;
     }
     const hit = pickHitAtClient(e.clientX, e.clientY);
     if (hit) stampArtworkAtHit(hit);
-    else setStatus('Click the model to stamp the SVG', 'idle');
+    else setStatus('Click the model to stamp the artwork', 'idle');
     return;
   }
 

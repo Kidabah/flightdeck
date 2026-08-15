@@ -1,7 +1,7 @@
 /**
  * Painter SVG stamp — planar projection must paint the facing patch and skip the back.
  */
-import { collectStampHits, makeStampFrame, mirrorStampFrameX, nearestSlot, parseHexColor, extractSvgFillHexes, stampSizeMm } from "./_staged/painter-art.js";
+import { collectStampHits, makeStampFrame, mirrorStampFrameX, nearestSlot, parseHexColor, extractSvgFillHexes, stampSizeMm, knockOutPaperBackground, rasterHasAlpha, extractRasterPalette, isSvgArtFile, isRasterArtFile } from "./_staged/painter-art.js";
 
 let failures = 0;
 const results = [];
@@ -70,6 +70,25 @@ check("extract two fills", fills.length === 2 && fills[0] === "#c20820", fills.j
 
 const size = stampSizeMm(40, 2);
 check("aspect keeps height", Math.abs(size.heightMm - 20) < 1e-9, `h=${size.heightMm}`);
+
+check("svg file detect", isSvgArtFile({ name: "logo.SVG", type: "" }));
+check("png file detect", isRasterArtFile({ name: "nrl.png", type: "image/png" }));
+check("jpg file detect", isRasterArtFile({ name: "panthers.jpg", type: "image/jpeg" }));
+check("stl is not art", !isRasterArtFile({ name: "hoodie.stl", type: "" }) && !isSvgArtFile({ name: "hoodie.stl", type: "" }));
+
+const paper = new Uint8ClampedArray(8);
+paper[0] = 255; paper[1] = 255; paper[2] = 255; paper[3] = 255;
+paper[4] = 192; paper[5] = 0; paper[6] = 0; paper[7] = 255;
+check("jpg has no alpha", !rasterHasAlpha(paper));
+knockOutPaperBackground(paper);
+check("knockout clears white", paper[3] === 0, `a=${paper[3]}`);
+check("knockout keeps red", paper[7] === 255 && paper[4] === 192, `r=${paper[4]} a=${paper[7]}`);
+
+const pal = new Uint8ClampedArray(16 * 4);
+for (let i = 0; i < 12; i++) { pal[i * 4] = 192; pal[i * 4 + 3] = 255; }
+for (let i = 12; i < 16; i++) pal[i * 4 + 3] = 0;
+const hexes = extractRasterPalette(pal, { maxColors: 3, alphaMin: 48 });
+check("palette from opaque red", hexes[0] === "#c00000", hexes.join(","));
 
 for (const line of results) console.log(line);
 if (failures) {
