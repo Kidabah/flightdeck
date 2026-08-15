@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-15 Session update (Painter drop grey logo mat)
 
-Latest commit: *(pending)* — Drop the grey bounding-mat around Painter team logos.
+Latest commit: `358bbea` — Drop the grey bounding-mat around Painter team logos.
 
 Latest local/Pi change:
 - Multi-colour stamp now throws away grey/white paper that hugs the image edge (the jagged grey box around the Dragons crest). Shield colours stay.
