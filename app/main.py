@@ -11691,6 +11691,29 @@ async def delete_queue_job(job_id: int):
     return {"ok": True}
 
 
+@app.post("/api/queue/{job_id}/release")
+async def release_queue_job(job_id: int):
+    """Drop a queue row from Flightdeck only. Does not cancel or stop the printer."""
+    job = db.queue_get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    deleted, file_path = db.queue_release(job_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if file_path:
+        try:
+            Path(file_path).unlink(missing_ok=True)
+        except Exception:
+            pass
+    db.log_decision(
+        job["printer_id"],
+        "queue_released",
+        f"Released queue job #{job_id} {job.get('filename') or ''} (Flightdeck only)",
+    )
+    asyncio.create_task(_maybe_auto_advance_queue(job["printer_id"], trigger="queue_release"))
+    return {"ok": True, "printer_id": job["printer_id"], "filename": job.get("filename")}
+
+
 class QueueReorderRequest(BaseModel):
     direction: str  # "up" | "down"
 

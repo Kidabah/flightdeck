@@ -5625,6 +5625,27 @@ def queue_delete(job_id: int) -> tuple[bool, Optional[str]]:
     return True, None if still else row["file_path"]
 
 
+def queue_release(job_id: int) -> tuple[bool, Optional[str]]:
+    """Force-remove a queue row from Flightdeck. Never talks to a printer.
+
+    Use this for stuck printing/uploading jobs that are not actually on the
+    machine. file_path is only returned when no other queue row still uses it.
+    """
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT file_path FROM print_queue WHERE id = ?",
+            (job_id,),
+        ).fetchone()
+        if not row:
+            return False, None
+        conn.execute("DELETE FROM print_queue WHERE id = ?", (job_id,))
+        still = conn.execute(
+            "SELECT 1 FROM print_queue WHERE file_path = ? LIMIT 1",
+            (row["file_path"],),
+        ).fetchone()
+    return True, None if still else row["file_path"]
+
+
 def queue_next_pending(printer_id: str) -> Optional[dict]:
     with _conn() as conn:
         row = conn.execute(

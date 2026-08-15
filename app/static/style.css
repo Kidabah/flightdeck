@@ -20642,6 +20642,31 @@ select optgroup {
 .queue-act-slice:hover:not(:disabled) { background: rgba(34,197,94,0.12); }
 .queue-act-del  { color: #f87171; border-color: #f87171; }
 .queue-act-del:hover:not(:disabled)  { background: rgba(239,68,68,0.1); }
+.queue-act-release { color: #fbbf24; border-color: #fbbf24; }
+.queue-act-release:hover:not(:disabled) { background: rgba(251,191,36,0.12); }
+
+.settings-tools-job {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.settings-tools-job:last-child { border-bottom: none; }
+.settings-tools-job-body { flex: 1; min-width: 0; }
+.settings-tools-job-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.settings-tools-job-meta,
+.settings-tools-job-note {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-top: 0.15rem;
+}
+.settings-tools-mismatch { color: #fbbf24; }
 
 @media (max-width: 900px) {
   .queue-hero {

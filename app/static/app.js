@@ -977,7 +977,7 @@ function _commandStaticItems() {
     }),
   ];
 
-  const settings = ['Printers', 'Hardware', 'Appearance', 'Slicer', 'Locations', 'Costing'].map(label => {
+  const settings = ['Printers', 'Hardware', 'Appearance', 'Slicer', 'Locations', 'Costing', 'Tools'].map(label => {
     const id = label.toLowerCase();
     return _commandItem({
       label: `Settings: ${label}`,
@@ -12341,6 +12341,30 @@ function _queuePrinterSectionTone(jobs, printer) {
   return 'idle';
 }
 
+function _queueJobLooksLive(job, printer) {
+  if (!job || !printer) return false;
+  const state = String(printer.state || '').toLowerCase();
+  if (!['printing', 'paused'].includes(state)) return false;
+  const jobName = String(job.filename || '').trim().toLowerCase();
+  if (!jobName) return false;
+  const liveJob = printer.job || {};
+  const candidates = [liveJob.filename, liveJob.subtask_name]
+    .map(v => String(v || '').trim().toLowerCase())
+    .filter(Boolean);
+  const jobBase = jobName.split(/[/\\]/).pop();
+  return candidates.some(c => {
+    const cBase = c.split(/[/\\]/).pop();
+    return jobName === c || jobBase === cBase || cBase.includes(jobBase) || jobBase.includes(cBase);
+  });
+}
+
+function _queueReleaseConfirmMessage(job, printer) {
+  if (_queueJobLooksLive(job, printer)) {
+    return 'The printer still looks like it is running this file. Release anyway? This only removes it from Flightdeck — it will not stop the printer.';
+  }
+  return 'Remove this from Flightdeck only? It will not cancel anything on the printer. If the bay is idle, the next queued job may start.';
+}
+
 function _queueJobCard(job, isFirst, isLast, printerKind = '') {
   const isPending   = job.status === 'pending';
   const isActive    = job.status === 'printing' || job.status === 'uploading';
@@ -12409,6 +12433,8 @@ function _queueJobCard(job, isFirst, isLast, printerKind = '') {
       ` : isReprintable ? `
         <button class="queue-act-btn queue-act-reprint" data-action="reprint" data-id="${job.id}" title="Queue this file again">Reprint</button>
         <button class="queue-act-btn queue-act-del"     data-action="delete"  data-id="${job.id}" title="Remove">✕</button>
+      ` : isActive ? `
+        <button class="queue-act-btn queue-act-release" data-action="release" data-id="${job.id}" title="Remove from Flightdeck only — does not stop the printer">Release</button>
       ` : ''}
     </div>
   </div>`;
@@ -12599,6 +12625,21 @@ async function _queueHandleAction(e) {
         btn.disabled = true;
         try {
           await fetch(`/api/queue/${id}`, { method: 'DELETE' });
+          await renderQueueView();
+        } catch (err) {
+          showToast('Queue action failed', err.message || '', 'error');
+          btn.disabled = false;
+        }
+      });
+      return;
+    } else if (action === 'release') {
+      btn.disabled = false;
+      const job = _queueLatestJobs.find(j => String(j.id) === String(id));
+      const printer = _latestPrinters.find(p => p.id === job?.printer_id);
+      _modal.show(_queueReleaseConfirmMessage(job, printer), async () => {
+        btn.disabled = true;
+        try {
+          await _queueFetchJson(`/api/queue/${id}/release`, { method: 'POST' });
           await renderQueueView();
         } catch (err) {
           showToast('Queue action failed', err.message || '', 'error');
@@ -14540,6 +14581,7 @@ const _SETTINGS_CATEGORIES = [
   { id: 'slicer',     label: 'Slicer'     },
   { id: 'locations',  label: 'Locations'  },
   { id: 'costing',    label: 'Costing'    },
+  { id: 'tools',      label: 'Tools'      },
 ];
 
 async function refreshPrinters() {
@@ -24706,6 +24748,61 @@ function _attachCostingEvents(el, state) {
   refresh();
 }
 
+function _toolsCategoryHtml(jobs, printers) {
+  const byId = Object.fromEntries((printers || []).map(p => [p.id, p]));
+  const active = (jobs || []).filter(j => j.status === 'printing' || j.status === 'uploading');
+  const rows = active.length
+    ? active.map(job => {
+        const printer = byId[job.printer_id];
+        const printerName = printer ? _printerNavLabel(printer) : job.printer_id;
+        const printerState = printer ? (_printerDisplayStateLabel(printer) || printer.state || 'unknown') : 'unknown';
+        const mismatch = !_queueJobLooksLive(job, printer);
+        const note = mismatch
+          ? 'Not on the machine — safe to release'
+          : 'Printer still looks like it is running this file';
+        return `<div class="settings-tools-job">
+          <div class="settings-tools-job-body">
+            <div class="settings-tools-job-name">${esc(job.filename || `Job #${job.id}`)}</div>
+            <div class="settings-tools-job-meta">${esc(printerName)} · ${esc(job.status)} · printer ${esc(printerState)}</div>
+            <div class="settings-tools-job-note${mismatch ? ' settings-tools-mismatch' : ''}">${esc(note)}</div>
+          </div>
+          <button type="button" class="settings-save-btn" data-tools-release="${job.id}">Release</button>
+        </div>`;
+      }).join('')
+    : '<div class="settings-empty">No printing or uploading queue jobs.</div>';
+  return `
+    <div class="settings-section">
+      <div class="settings-section-title">Flightdeck tools</div>
+      <div class="settings-hint">These actions only change Flightdeck. Nothing here stops or cancels a printer.</div>
+    </div>
+    <div class="settings-section">
+      <div class="settings-section-title">Stuck queue jobs</div>
+      <div class="settings-hint">Use this when a job still says Printing but it is not actually on the machine. Same as Release on the Queue page.</div>
+      ${rows}
+    </div>`;
+}
+
+function _attachToolsEvents(el) {
+  el.querySelectorAll('[data-tools-release]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.toolsRelease;
+      const job = _queueLatestJobs.find(j => String(j.id) === String(id));
+      const printer = _latestPrinters.find(p => p.id === job?.printer_id);
+      _modal.show(_queueReleaseConfirmMessage(job, printer), async () => {
+        btn.disabled = true;
+        try {
+          await _queueFetchJson(`/api/queue/${id}/release`, { method: 'POST' });
+          showToast('Queue released', job?.filename || `Job #${id}`, 'ok');
+          await _renderSettingsContent('tools');
+        } catch (err) {
+          showToast('Release failed', err.message || '', 'error');
+          btn.disabled = false;
+        }
+      });
+    });
+  });
+}
+
 async function _renderSettingsContent(category) {
   const el = document.getElementById('settings-content');
   if (!el) return;
@@ -24806,6 +24903,18 @@ async function _renderSettingsContent(category) {
     };
     el._powerWatts = { ...(state.cfg.power_watts || {}) };
     _paintCosting(el, state);
+  } else if (category === 'tools') {
+    el.innerHTML = `<div class="detail-placeholder" style="min-height:10rem">Loading…</div>`;
+    const [jobsRaw, printersRaw] = await Promise.all([
+      fetch('/api/queue').then(r => r.ok ? r.json() : []).catch(() => []),
+      fetch('/api/printers').then(r => r.ok ? r.json() : (_latestPrinters || [])).catch(() => (_latestPrinters || [])),
+    ]);
+    const jobs = Array.isArray(jobsRaw) ? jobsRaw : [];
+    const printers = Array.isArray(printersRaw) ? printersRaw : [];
+    _queueLatestJobs = jobs;
+    _latestPrinters = printers;
+    el.innerHTML = _toolsCategoryHtml(jobs, printers);
+    _attachToolsEvents(el);
   }
 }
 
