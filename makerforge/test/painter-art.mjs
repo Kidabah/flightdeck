@@ -1,7 +1,7 @@
 /**
  * Painter SVG stamp — planar projection must paint the facing patch and skip the back.
  */
-import { collectStampHits, makeStampFrame, mirrorStampFrameX, nearestSlot, parseHexColor, extractSvgFillHexes, stampSizeMm, knockOutPaperBackground, rasterHasAlpha, extractRasterPalette, isSvgArtFile, isRasterArtFile, buildStampSlabs, stampLayersFromTrace, buildStampSlabsFromMasks } from "./_staged/painter-art.js";
+import { collectStampHits, makeStampFrame, mirrorStampFrameX, nearestSlot, parseHexColor, extractSvgFillHexes, stampSizeMm, knockOutPaperBackground, rasterHasAlpha, extractRasterPalette, isSvgArtFile, isRasterArtFile, buildStampSlabs, stampLayersFromTrace, buildStampSlabsFromMasks, scrubTraceMat, isTraceMatLayer } from "./_staged/painter-art.js";
 
 let failures = 0;
 const results = [];
@@ -133,6 +133,37 @@ check("multi-colour slabs build", fromMasks.indices.length >= 24, `n=${fromMasks
 check("multi-colour uses both slots", new Set(fromMasks.faceSlots).size === 2, [...new Set(fromMasks.faceSlots)].join(","));
 const sil = stampLayersFromTrace({ width: 4, height: 4, silhouetteMask: redMask }, { singleSlot: 3 });
 check("active slot uses silhouette", sil.layers.length === 1 && sil.layers[0].slot === 3);
+
+const grey = new Uint8Array(8 * 8);
+const crest = new Uint8Array(8 * 8);
+for (let y = 0; y < 8; y++) {
+  for (let x = 0; x < 8; x++) {
+    const i = y * 8 + x;
+    if (x === 0 || y === 0 || x === 7 || y === 7) grey[i] = 1;
+    else if (x >= 2 && x <= 5 && y >= 2 && y <= 5) crest[i] = 1;
+  }
+}
+check("grey ring is a mat", isTraceMatLayer(grey, 8, 8, [150, 150, 150]));
+check("inner crest is not a mat", !isTraceMatLayer(crest, 8, 8, [220, 220, 220]));
+const scrubbed = scrubTraceMat({
+  width: 8, height: 8,
+  colorLayers: [
+    { rgb: [150, 150, 150], hex: "#969696", label: "Dark grey", mask: grey },
+    { rgb: [200, 0, 0], hex: "#c80000", label: "Red", mask: crest },
+  ],
+  silhouetteMask: Uint8Array.from(grey, (v, i) => v || crest[i]),
+});
+check("scrub drops grey mat", scrubbed.colorLayers.length === 1 && scrubbed.colorLayers[0].label === "Red");
+check("scrub keeps inner crest", [...crest].every((v, i) => !v || scrubbed.silhouetteMask[i]));
+check("scrub punches grey from silhouette", [...grey].every((v, i) => !v || !scrubbed.silhouetteMask[i]));
+const noGrey = stampLayersFromTrace({
+  width: 8, height: 8,
+  colorLayers: [
+    { rgb: [150, 150, 150], mask: grey },
+    { rgb: [200, 0, 0], mask: crest },
+  ],
+}, { slotForRgb: (rgb) => nearestSlot(rgb, [[176, 176, 176], [12, 12, 12], [200, 0, 0]]).slot });
+check("stamp skips grey mat layer", noGrey.layers.length === 1 && noGrey.layers[0].slot === 2);
 
 for (const line of results) console.log(line);
 if (failures) {

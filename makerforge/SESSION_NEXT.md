@@ -4,6 +4,14 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b583 — Painter drops grey logo mat
+**Date:** 2026-08-15
+
+### MakerDeck
+- Multi-colour AMS stamp no longer extrudes the grey PNG bounding box. Edge-hugging grey/white paper is scrubbed; the crest stays. Hard refresh Painter **b583**.
+
+---
+
 ## b582 — Painter uses MakerDeck multi-colour team-logo trace
 **Date:** 2026-08-15
 

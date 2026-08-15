@@ -487,27 +487,84 @@ export function resolveTraceInkMask(result) {
   return null;
 }
 
+export function maskBorderTouchRatio(mask, w, h) {
+  if (!mask || !w || !h) return 0;
+  let border = 0, on = 0;
+  for (let x = 0; x < w; x++) {
+    border += 2;
+    if (mask[x]) on++;
+    if (mask[(h - 1) * w + x]) on++;
+  }
+  for (let y = 1; y < h - 1; y++) {
+    border += 2;
+    if (mask[y * w]) on++;
+    if (mask[y * w + w - 1]) on++;
+  }
+  return border ? on / border : 0;
+}
+
+/** Grey/white paper mat that hugs the crop — not interior white/red/black logo fills. */
+export function isTraceMatLayer(mask, w, h, rgb) {
+  if (!mask || mask.length !== w * h) return false;
+  const [r, g, b] = rgb || [128, 128, 128];
+  const chroma = Math.max(r, g, b) - Math.min(r, g, b);
+  const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+  const border = maskBorderTouchRatio(mask, w, h);
+  return border >= 0.16 && chroma <= 48 && lum >= 70;
+}
+
+function punchMasks(mask, punches) {
+  if (!mask || !punches?.length) return mask;
+  const out = new Uint8Array(mask);
+  for (const punch of punches) {
+    if (!punch || punch.length !== out.length) continue;
+    for (let i = 0; i < out.length; i++) if (punch[i]) out[i] = 0;
+  }
+  return out;
+}
+
+/** Drop the grey bounding-mat layer MakerDeck still lists as "Dark grey". */
+export function scrubTraceMat(result) {
+  if (!result) return result;
+  const imgW = result.width | 0;
+  const imgH = result.height | 0;
+  const layers = result.colorLayers || [];
+  const mats = layers.filter((layer) => isTraceMatLayer(layer.mask, imgW, imgH, layer.rgb));
+  if (!mats.length) return result;
+  const punches = mats.map((layer) => layer.mask);
+  const colorLayers = layers.filter((layer) => !mats.includes(layer));
+  const silhouette = punchMasks(resolveTraceInkMask(result), punches);
+  return {
+    ...result,
+    colorLayers,
+    colorLayerCount: colorLayers.length,
+    silhouetteMask: silhouette || result.silhouetteMask,
+    mask: silhouette || result.mask,
+  };
+}
+
 /** MakerDeck trace result → per-slot ink masks (background already knocked out). */
 export function stampLayersFromTrace(result, { singleSlot = null, slotForRgb } = {}) {
-  const imgW = result?.width | 0;
-  const imgH = result?.height | 0;
+  const cleaned = scrubTraceMat(result);
+  const imgW = cleaned?.width | 0;
+  const imgH = cleaned?.height | 0;
   if (!imgW || !imgH) return { imgW, imgH, layers: [] };
   const expect = imgW * imgH;
   if (singleSlot != null) {
-    const mask = resolveTraceInkMask(result);
+    const mask = resolveTraceInkMask(cleaned);
     if (!mask || mask.length !== expect) return { imgW, imgH, layers: [] };
     return { imgW, imgH, layers: [{ mask, slot: singleSlot }] };
   }
-  if (result.colorLayers?.length) {
+  if (cleaned.colorLayers?.length) {
     const layers = [];
-    for (const layer of result.colorLayers) {
+    for (const layer of cleaned.colorLayers) {
       if (!layer?.mask || layer.mask.length !== expect) continue;
       const rgb = layer.rgb || [0, 0, 0];
       layers.push({ mask: layer.mask, slot: slotForRgb ? slotForRgb(rgb) : 0 });
     }
     if (layers.length) return { imgW, imgH, layers };
   }
-  const mask = resolveTraceInkMask(result);
+  const mask = resolveTraceInkMask(cleaned);
   if (!mask || mask.length !== expect) return { imgW, imgH, layers: [] };
   return { imgW, imgH, layers: [{ mask, slot: 0 }] };
 }
