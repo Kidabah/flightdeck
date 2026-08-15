@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-15 Session update (Painter stamp sharpness)
 
-Latest commit: *(pending)* — Stop shattered logo stamps in STL Painter.
+Latest commit: `0217012` — Stop shattered logo stamps in STL Painter.
 
 Latest local/Pi change:
 - Artwork stamp auto Fine (Ultra if still coarse). Only paints faces mostly on solid logo pixels.
