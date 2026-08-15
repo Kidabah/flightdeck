@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-15 Session update (Painter multi-colour team-logo trace)
 
-Latest commit: *(pending)* — Stamp Painter logos via MakerDeck Multi-colour AMS trace.
+Latest commit: `2dd3bab` — Stamp Painter logos via MakerDeck Multi-colour AMS trace.
 
 Latest local/Pi change:
 - STL Painter Artwork uses the same **Multi-colour — team logo (AMS)** trace as Art on box, then extrudes those ink layers (no grey mat, no pixel shards).
