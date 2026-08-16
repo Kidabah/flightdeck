@@ -6,6 +6,18 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-16 Session update (Hoodie stamp too deep)
+
+Latest commit: `8cbe554` — Keep hoodie chest logos as a shallow stamp, not a pocket carve.
+
+Latest local/Pi change:
+- Per-vertex chest drape was sampling the pouch interior and pulling the WAK logo ~28 mm into the pocket. Art now sits on hole-closed front fabric (~0.4 mm proud). Hard refresh (`app.js?v=688`, MakerDeck `app.js?v=581` / **b581**). Header must say **b581**. Re-click Stubby holder, drop the PNG again.
+
+Previous:
+- Stubby holder round1 crash (`d1e7ef6`).
+
+---
+
 ## 2026-08-16 Session update (Stubby holder round1 crash)
 
 Latest commit: `d1e7ef6` — Fix Stubby holder crash: round1 was missing after the chest-drape change.

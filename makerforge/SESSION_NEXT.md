@@ -4,6 +4,14 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b581 — Hoodie chest stamp is shallow, not a pocket carve
+**Date:** 2026-08-16
+
+### MakerDeck
+- The WAK logo was boolean-carved into the kangaroo pocket because drape sampled the pouch interior. Hole-close the chest heightfield, sample it in `mapPoint` (~0.18 mm proud), default `embossDepth` 0.4 mm. Hard refresh MakerDeck **b581**. Re-click Stubby holder and drop the PNG again.
+
+---
+
 ## b580 — Stubby holder no longer crashes on round1
 **Date:** 2026-08-16
 
