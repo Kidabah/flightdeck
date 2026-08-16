@@ -28,7 +28,7 @@ import {
   shapeSupportsProfileArt,
   shapeSupportsArt,
   STACK_LIP_MM,
-} from "./features.js?v=550";
+} from "./features.js?v=577";
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=161";
 import { buildOoshieStand, ooshieMeta, OOSHIE_DEFAULTS } from "./ooshie-stand.js?v=576";
@@ -1614,7 +1614,7 @@ export function normalizeLidType(lidType, shape) {
 }
 
 export function shapeSupportsLid(shape) {
-  return shape !== "vase" && shape !== "ooshieStand";
+  return shape !== "vase" && shape !== "ooshieStand" && shape !== "stubbyHolder";
 }
 
 function resolveContainer(params) {
@@ -2799,6 +2799,24 @@ export const CANISTER_SQUARE_SET_PRESET = {
   embossArtColor: "#4a3728",
 };
 
+/** 375 ml modular drink holder — ~66 mm can, wrap art on the cup wall. */
+export const DRINK_HOLDER_PRESET = {
+  innerWidth: 68,
+  innerDepth: 68,
+  innerHeight: 122,
+  wall: 2.2,
+  floor: 2,
+  lidEnabled: false,
+  insertEnabled: false,
+  joinerEnabled: false,
+  holderMode: "can",
+  holderPartColor: "#64748b",
+  embossFace: "wrap",
+  embossFont: "bebas",
+  embossTextAlign: "center",
+  boxColor: "#38bdf8",
+};
+
 export const CANISTER_JAR_PRESET = {
   innerWidth: 94,
   innerDepth: 94,
@@ -3071,4 +3089,6 @@ export const DEFAULTS = {
   lidPrintSupports: false,
   canisterContent: "custom",
   canisterSize: "md",
+  holderMode: "can",
+  holderPartColor: "#64748b",
 };

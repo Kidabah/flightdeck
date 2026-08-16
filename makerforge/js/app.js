@@ -1,9 +1,9 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, ANIMAL_PRESET, SIGN_PRESET, TEMORA_VET_SIGN_PRESET, TEMORA_VET_CELTIC_SVG_URL } from "./geometry.js?v=576";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, resolveEmbossFontWeight, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=575";
+import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, DRINK_HOLDER_PRESET, ANIMAL_PRESET, SIGN_PRESET, TEMORA_VET_SIGN_PRESET, TEMORA_VET_CELTIC_SVG_URL, isDrinkHolderShape } from "./geometry.js?v=577";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, resolveEmbossFontWeight, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=577";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=370";
-import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=372";
+import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=374";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=378";
 import {
   folderExportSupported,
@@ -35,7 +35,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b576";
+const MAKERDECK_BUILD = "b577";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -133,7 +133,12 @@ function applyLengthSliderRange(slider, mmMin, mmMax, mmValue) {
   return display;
 }
 
-const PRESET_SHAPES = new Set(["pencil", "pencilBox", "teardrop", "star", "heart", "canisterSquare", "canisterSquareSet", "canisterJar", "canisterStack", "animal", "sign"]);
+const PRESET_SHAPES = new Set(["pencil", "pencilBox", "teardrop", "star", "heart", "canisterSquare", "canisterSquareSet", "canisterJar", "canisterStack", "stubbyHolder", "animal", "sign"]);
+
+const STUBBY_FIT_TABLE = {
+  easy: { innerWidth: 68, label: "Easy (68 mm)", hint: "68 mm ID · easy slide on ~66 mm can" },
+  snug: { innerWidth: 67.5, label: "Snug (67.5 mm)", hint: "67.5 mm ID · snug grip on ~66 mm can" },
+};
 
 const CANISTER_CONTENT_LABELS = {
   coffee: "COFFEE",
@@ -361,6 +366,7 @@ const PRESET_CONFIG = {
   canisterSquareSet: { preset: CANISTER_SQUARE_SET_PRESET, profile: "canister" },
   canisterJar: { preset: CANISTER_JAR_PRESET, profile: "canister" },
   canisterStack: { preset: CANISTER_STACK_PRESET, profile: "canister" },
+  stubbyHolder: { preset: DRINK_HOLDER_PRESET, profile: "stubby" },
   animal: { preset: ANIMAL_PRESET, profile: "default" },
   sign: { preset: SIGN_PRESET, profile: "default" },
 };
@@ -369,6 +375,7 @@ const state = { ...DEFAULTS, shape: "rect", displayUnit: "mm" };
 let meshCache = null;
 let lidCache = null;
 let accentPreviewParts = [];
+let holderPreviewParts = [];
 let insertCache = null;
 let linerCache = null;
 let debossCutterCache = null;
@@ -387,6 +394,7 @@ const EMBOSS_FACE_LABELS = {
 const BED_LIFT = 0.35;
 const LID_PREVIEW_GAP = 0.35;
 const LID_ANIM_LIFT = 14;
+const HOLDER_PREVIEW_GAP = 12;
 
 /** Preview shading tuned to match matte PLA filament (same hex as 3MF export). */
 const FILAMENT_PREVIEW = {
@@ -731,6 +739,9 @@ function buildParams() {
     insertSlotRamp: state.insertSlotRamp,
     linerEnabled: state.linerEnabled,
     animalName: state.animalName || "bear",
+    holderMode: state.holderMode === "bottle" ? "bottle" : "can",
+    holderPartColor: state.holderPartColor || "#64748b",
+    boxColor: state.boxColor || "#38bdf8",
     linerWall: state.linerWall,
     linerClearance: state.linerClearance,
     linerFlangeTh: state.linerFlangeTh,
@@ -1539,7 +1550,31 @@ function exportIncludesSeparateLinerFile() {
 }
 
 function exportUsesMultiFileZip() {
-  return exportIncludesLidPlate() || exportIncludesSeparateLinerFile();
+  return exportIncludesLidPlate() || exportIncludesSeparateLinerFile() || exportIncludesHolderStack();
+}
+
+function exportIncludesHolderStack(exportCache = meshCache) {
+  return isDrinkHolderShape(state.shape) && !!exportCache?.holderParts?.parts?.length;
+}
+
+function collectHolderStackExportParts(exportCache) {
+  if (!exportCache?.holderParts?.parts?.length) return [];
+  const stackColor = state.holderPartColor || "#64748b";
+  const capColor = state.lidColor || stackColor;
+  let extruder = 2;
+  return exportCache.holderParts.parts.map((part) => {
+    const clean = sanitizeMeshForStl({
+      positions: part.mesh.positions,
+      indices: part.mesh.indices,
+    });
+    if (!clean?.indices?.length) return null;
+    return {
+      name: part.name,
+      mesh: clean,
+      color: part.id === "cap" ? capColor : stackColor,
+      extruder: extruder++,
+    };
+  }).filter(Boolean);
 }
 
 function collectColoredLinerExportParts(exportCache) {
@@ -1569,19 +1604,23 @@ const CONTAINER_EXPORT_README = [
   "5. Optional: Lid breakaway supports in Design if nest-groove bridging fails.",
   "6. Avoid Bambu Repair on multi-colour AMS files — it remeshes parts.",
 ].join("\n");
+const HOLDER_STACK_README = "Import both 3MF files in Bambu Studio. Print the base first, then stack parts (can ring OR neck + cap). Snap-fit rims in v1 — test fit on your printer.";
 
 async function buildBody3mfExport(exportCache, parts) {
   const projectName = baseModelName(exportCache.meta);
   const separateLiner = exportIncludesSeparateLinerFile() && !!exportCache?.linerMesh;
   const lidOn = exportIncludesLidPlate();
+  const holderOn = exportIncludesHolderStack(exportCache);
   const multiFile = exportUsesMultiFileZip();
 
   if (!multiFile) {
-    return { blob: buildColoredProject3mf(parts, projectName), zipExport: false, lidPartCount: 0, linerPartCount: 0 };
+    return { blob: buildColoredProject3mf(parts, projectName), zipExport: false, lidPartCount: 0, linerPartCount: 0, holderPartCount: 0 };
   }
 
   const containerBlob = buildColoredProject3mf(parts, projectName);
-  const containerFile = filename3mfFor(exportCache.meta, "container");
+  const containerFile = isDrinkHolderShape(state.shape)
+    ? filename3mfFor(exportCache.meta, "base")
+    : filename3mfFor(exportCache.meta, "container");
 
   const zipEntries = [];
   const containerData = await containerBlob.arrayBuffer().then((buf) => new Uint8Array(buf));
@@ -1591,6 +1630,21 @@ async function buildBody3mfExport(exportCache, parts) {
   let lidFile = null;
   let linerPartCount = 0;
   let linerFile = null;
+  let holderPartCount = 0;
+  let holderFile = null;
+  let readme = CONTAINER_EXPORT_README;
+
+  if (holderOn) {
+    const holderParts = collectHolderStackExportParts(exportCache);
+    holderPartCount = holderParts.length;
+    if (holderParts.length) {
+      const holderBlob = buildColoredProject3mf(holderParts, `${projectName} stack`);
+      holderFile = filename3mfFor(exportCache.meta, "stack");
+      const holderData = await holderBlob.arrayBuffer().then((buf) => new Uint8Array(buf));
+      zipEntries.push({ name: holderFile, data: holderData });
+      readme = HOLDER_STACK_README;
+    }
+  }
 
   if (lidOn) {
     const lidParts = collectColoredLidExportParts();
@@ -1614,7 +1668,7 @@ async function buildBody3mfExport(exportCache, parts) {
     }
   }
 
-  zipEntries.push({ name: "README.txt", data: CONTAINER_EXPORT_README });
+  zipEntries.push({ name: "README.txt", data: readme });
   const zipBlob = createZipArchiveBlob(zipEntries, { rootFolder: projectName });
   return {
     blob: zipBlob,
@@ -1623,10 +1677,12 @@ async function buildBody3mfExport(exportCache, parts) {
     folderEntries: zipEntries,
     lidPartCount,
     linerPartCount,
+    holderPartCount,
     containerBlob,
     containerFile,
     lidFile,
     linerFile,
+    holderFile,
   };
 }
 
@@ -1716,6 +1772,36 @@ function disposeAccentPreview() {
     part.material.dispose();
   }
   accentPreviewParts = [];
+}
+
+function disposeHolderPreview() {
+  for (const part of holderPreviewParts) {
+    previewRoot.remove(part.mesh);
+    part.mesh.geometry.dispose();
+    part.material.dispose();
+  }
+  holderPreviewParts = [];
+}
+
+function mountHolderPreviewIfNeeded() {
+  disposeHolderPreview();
+  if (!meshCache?.holderParts?.parts?.length) return;
+  const stackColor = state.holderPartColor || "#64748b";
+  const capColor = state.lidColor || stackColor;
+  meshCache.holderParts.parts.forEach((part, i) => {
+    const hex = part.id === "cap" ? capColor : (part.color || stackColor);
+    const mat = new THREE.MeshStandardMaterial({ color: hex });
+    applyFilamentMaterial(mat);
+    const source = part.previewMesh || part.mesh;
+    const geom = toBufferGeometry(THREE, source);
+    const mesh = new THREE.Mesh(geom, mat);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.renderOrder = 6 + i;
+    mesh.position.y = (part.seatZ ?? meshCache.totalH) + HOLDER_PREVIEW_GAP * (i + 1);
+    previewRoot.add(mesh);
+    holderPreviewParts.push({ mesh, material: mat });
+  });
 }
 
 function disposeInsertPreview() {
@@ -2350,7 +2436,6 @@ async function applySessionPayload(payload) {
     if (payload.state[key] !== undefined) state[key] = payload.state[key];
   }
   if (payload.state.shape) state.shape = payload.state.shape;
-  if (state.shape === "stubbyHolder") state.shape = "circle";
   if (payload.state.displayUnit) state.displayUnit = normalizeDisplayUnit(payload.state.displayUnit);
   if (state.shape === "fatQuarters") state.shape = "rounded";
   if (state.insertMount === "fixed") state.joinerEnabled = false;
@@ -3276,6 +3361,7 @@ function rebuildMesh() {
     edgeLines.geometry.dispose();
   }
   disposeAccentPreview();
+  disposeHolderPreview();
   disposeInsertPreview();
   disposeLinerPreview();
   disposeLabelPreview();
@@ -3357,6 +3443,7 @@ function rebuildMesh() {
   }
 
   mountArtPreviewIfNeeded();
+  mountHolderPreviewIfNeeded();
   mountEmbossLabelPreviewIfNeeded();
 
   if (!bodyMesh?.parent) {
@@ -3382,7 +3469,7 @@ function updateStats(meta) {
   const fmt = (n) => fmtDimReadout(n);
   if (meta.shape === "vase") {
     document.getElementById("stat-outer").textContent = `${meta.styleLabel || "Vase"} · ⌀${fmt(outer.w)} × ${fmt(outer.h)} ${u}`;
-  } else if (meta.shape === "circle") {
+  } else if (meta.shape === "circle" || meta.shape === "stubbyHolder") {
     document.getElementById("stat-outer").textContent = `⌀${fmt(outer.w)} × ${fmt(outer.h)} ${u}`;
   } else if (meta.shape === "oval") {
     document.getElementById("stat-outer").textContent = `Oval ${fmt(outer.w)} × ${fmt(outer.d)} × ${fmt(outer.h)} ${u}`;
@@ -3463,6 +3550,11 @@ const SLIDER_PROFILES = {
     width: { min: 70, max: 160 },
     depth: { min: 70, max: 160 },
     height: { min: 80, max: 250 },
+  },
+  stubby: {
+    width: { min: 64, max: 72 },
+    depth: { min: 64, max: 72 },
+    height: { min: 110, max: 140 },
   },
 };
 
@@ -3590,6 +3682,11 @@ function applyPreset(shape) {
     syncSliderUi("lid-clearance", "lidClearance", { min: 0.15, max: 0.8, value: state.lidClearance ?? 0.3, parseKind: "float" });
     syncSliderUi("lid-lip", "lidLipDepth", { min: 0, max: 8, value: state.lidLipDepth ?? (shape === "canisterStack" ? 0 : 2.5), parseKind: "float" });
   }
+  if (shape === "stubbyHolder") {
+    state.holderMode = state.holderMode || "can";
+    state.lidEnabled = false;
+    syncStubbyFitChips();
+  }
   if (isCanisterShape(shape)) {
     document.getElementById("stackable-enabled").checked = !!state.stackableEnabled;
     syncCanisterControlsFromState();
@@ -3629,6 +3726,8 @@ function resetFromPresetToBasic(shape) {
   state.stackableEnabled = d.stackableEnabled;
   state.stackStyle = d.stackStyle;
   state.lidColor = d.lidColor;
+  state.holderMode = d.holderMode;
+  state.holderPartColor = d.holderPartColor;
   if (state.embossFace === "lid") state.embossFace = "front";
   applySliderProfile("default");
   if (shape === "rounded") {
@@ -3711,6 +3810,39 @@ function syncShapeControlsFromState() {
   document.getElementById("lid-enabled").checked = !!state.lidEnabled;
   document.getElementById("lid-type").value = state.lidType || "slip";
   updateLabels();
+  updateStubbyUi();
+}
+
+function syncStubbyFitChips() {
+  const id = state.innerWidth <= 67.6 ? "snug" : "easy";
+  document.querySelectorAll("[data-stubby-fit]").forEach((btn) => {
+    const entry = STUBBY_FIT_TABLE[btn.dataset.stubbyFit];
+    const active = btn.dataset.stubbyFit === id;
+    btn.classList.toggle("active", active);
+    if (entry?.label) btn.textContent = entry.label;
+    if (entry?.hint) btn.title = entry.hint;
+  });
+}
+
+function applyStubbyFit(fit, { rebuildNow = true } = {}) {
+  const entry = STUBBY_FIT_TABLE[fit] || STUBBY_FIT_TABLE.easy;
+  state.innerWidth = entry.innerWidth;
+  state.innerDepth = entry.innerWidth;
+  syncStubbyFitChips();
+  syncShapeControlsFromState();
+  if (rebuildNow) {
+    rebuild();
+    pushAppHistory();
+  }
+}
+
+function updateStubbyUi() {
+  const drink = isDrinkHolderShape(state.shape);
+  document.getElementById("section-stubby")?.classList.toggle("hidden", !drink);
+  document.getElementById("stubby-fit-row")?.classList.toggle("hidden", !drink || state.holderMode === "bottle");
+  const modeSel = document.getElementById("holder-mode");
+  if (modeSel) modeSel.value = state.holderMode === "bottle" ? "bottle" : "can";
+  if (drink) syncStubbyFitChips();
 }
 
 /** Load Temora Vet Clinic plaque: 180×120 sign, exact text, Celtic frame SVG. */
@@ -3845,7 +3977,7 @@ function applySliderProfile(profileKey) {
 function updateLabels() {
   const { shape } = state;
   const hex = shape === "hex";
-  const circle = shape === "circle" || shape === "canisterJar" || shape === "canisterStack";
+  const circle = shape === "circle" || shape === "canisterJar" || shape === "canisterStack" || shape === "stubbyHolder";
   const oval = shape === "oval";
   const rounded = shape === "rounded";
   const preset = PRESET_SHAPES.has(shape);
@@ -3885,6 +4017,7 @@ function updateLabels() {
     canisterSquareSet: "Square stack size",
     canisterJar: "Jar size",
     canisterStack: "Stack jar size",
+    stubbyHolder: "Can size",
   };
   document.getElementById("label-inner-size").innerHTML = sizeHeading[shape]
     ? `${sizeHeading[shape]} ${unitLenSpan()}`
@@ -5076,7 +5209,8 @@ function describeBodyExportParts() {
 }
 
 function describeMultiFileZipLabel() {
-  const bits = ["container"];
+  const bits = isDrinkHolderShape(state.shape) ? ["base"] : ["container"];
+  if (exportIncludesHolderStack()) bits.push("stack");
   if (exportIncludesLidPlate()) bits.push("lid");
   if (exportIncludesSeparateLinerFile()) bits.push("liner");
   return folderExportSupported() ? `Folder · ${bits.join(" + ")}` : `ZIP · ${bits.join(" + ")}`;
@@ -7194,8 +7328,22 @@ document.querySelectorAll("[data-stack-member]").forEach((btn) => {
   });
 });
 
-// Hide canister controls until a kitchen preset is active.
+document.getElementById("holder-mode")?.addEventListener("change", (e) => {
+  state.holderMode = e.target.value === "bottle" ? "bottle" : "can";
+  updateStubbyUi();
+  rebuild();
+  pushAppHistory();
+});
+
+document.querySelectorAll("[data-stubby-fit]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    applyStubbyFit(btn.dataset.stubbyFit);
+  });
+});
+
+// Hide canister / stubby controls until those presets are active.
 syncCanisterControlsFromState();
+updateStubbyUi();
 
 function updateProfileTextureUiVisibility() {
   const supported = shapeSupportsProfileTexture(state.shape);

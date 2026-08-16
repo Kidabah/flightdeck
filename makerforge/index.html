@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Oswald:wght@700&family=Roboto+Mono:wght@700&family=Roboto:wght@700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=576">
+  <link rel="stylesheet" href="css/style.css?v=577">
 
   <script type="importmap">
 
@@ -215,7 +215,29 @@
 
                 <button type="button" class="shape-btn shape-btn--preset" data-shape="ooshieStand">Ooshies stand</button>
 
+                <button type="button" class="shape-btn shape-btn--preset" data-shape="stubbyHolder">Stubby holder</button>
+
               </div>
+
+              <section class="section hidden" id="section-stubby">
+                <h2 class="section-sub">Drink holder</h2>
+                <p class="hint">Modular insulated drink holder — base cup + stack parts. Sized for a 375 ml stubby / 350 ml long-neck. Drop a PNG on the Art tab to wrap the logo around the cup.</p>
+                <label class="field field-select" id="field-holder-mode">
+                  <span class="field-label">Holder mode</span>
+                  <select id="holder-mode">
+                    <option value="can" selected>Can (375 ml)</option>
+                    <option value="bottle">Bottle (350 ml stack)</option>
+                  </select>
+                </label>
+                <p class="field-hint">Can mode exports <strong>Base</strong> + <strong>Can ring</strong>. Bottle mode exports <strong>Base</strong> + <strong>Neck sleeve</strong> + <strong>Cap + opener</strong>.</p>
+                <div class="canister-size-row" id="stubby-fit-row" role="group" aria-label="Can fit">
+                  <span class="field-label">Can fit</span>
+                  <div class="chip-row">
+                    <button type="button" class="chip-btn active" data-stubby-fit="easy" title="68 mm ID · easy slide on ~66 mm can">Easy (68 mm)</button>
+                    <button type="button" class="chip-btn" data-stubby-fit="snug" title="67.5 mm ID · snug grip on ~66 mm can">Snug (67.5 mm)</button>
+                  </div>
+                </div>
+              </section>
 
               <h2 class="section-sub">Signs</h2>
 
@@ -1572,7 +1594,7 @@
     </div>
   </dialog>
 
-  <script type="module" src="js/app.js?v=576"></script>
+  <script type="module" src="js/app.js?v=577"></script>
 
 </body>
 
