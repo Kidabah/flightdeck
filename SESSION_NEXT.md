@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-16 Session update (Painter sit logo on hoodie)
 
-Latest commit: pending — Sit Painter logos on the hoodie surface and drop the grey under-layer.
+Latest commit: `75369e1` — Sit Painter logos on the hoodie surface and drop the grey under-layer.
 
 Latest local/Pi change:
 - Stamp follows the chest (no more flat slab cutting in). Logo sits ~0.14 mm on top, ~0.32 mm thick. Pale grey fringe layers are dropped.
