@@ -6,6 +6,19 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-16 Session update (Painter clip logo to ink island)
+
+Latest commit: *(pending)* — Clip Painter logos to the sealed red/black island and stop fringe growth.
+
+Latest local/Pi change:
+- Stamp now floods from the crop edge and stops at a sealed red/black outline, so the grey halo around the shield is punched. Slab downsample needs a majority of ink (no more fat saw-teeth).
+- Hard refresh (`app.js?v=677`, Painter `painter.html?v=586` / **b586**). Reload the hoodie STL, drop the logo, stamp once.
+
+Previous:
+- Painter source-flood logo mat (`36a232f`).
+
+---
+
 ## 2026-08-16 Session update (Painter source-flood logo mat)
 
 Latest commit: `36a232f` — Knock out logo paper from the PNG pixels, and replace the old stamp.

@@ -1,7 +1,7 @@
 /**
  * Painter SVG stamp — planar projection must paint the facing patch and skip the back.
  */
-import { collectStampHits, makeStampFrame, mirrorStampFrameX, nearestSlot, parseHexColor, extractSvgFillHexes, stampSizeMm, knockOutPaperBackground, rasterHasAlpha, extractRasterPalette, isSvgArtFile, isRasterArtFile, buildStampSlabs, stampLayersFromTrace, buildStampSlabsFromMasks, scrubTraceMat, isTraceMatLayer, floodBorderBackground } from "./_staged/painter-art.js";
+import { collectStampHits, makeStampFrame, mirrorStampFrameX, nearestSlot, parseHexColor, extractSvgFillHexes, stampSizeMm, knockOutPaperBackground, rasterHasAlpha, extractRasterPalette, isSvgArtFile, isRasterArtFile, buildStampSlabs, stampLayersFromTrace, buildStampSlabsFromMasks, scrubTraceMat, isTraceMatLayer, floodBorderBackground, clipLayersToInkIsland } from "./_staged/painter-art.js";
 
 let failures = 0;
 const results = [];
@@ -227,6 +227,15 @@ const fromSrc = scrubTraceMat({
 }, { pixels: srcPix, srcW, srcH });
 check("source scrub drops grey", !fromSrc.colorLayers.some((l) => l.label === "Dark grey"));
 check("source scrub keeps white+red", fromSrc.colorLayers.some((l) => l.label === "White") && fromSrc.colorLayers.some((l) => l.label === "Red"));
+
+const clipped = clipLayersToInkIsland([
+  { rgb: [150, 150, 150], label: "Dark grey", mask: grey },
+  { rgb: [240, 240, 240], label: "White", mask: whiteFill },
+  { rgb: [200, 0, 0], label: "Red", mask: crest },
+], 8, 8);
+check("ink-island drops outer grey", !clipped.some((l) => l.label === "Dark grey"));
+check("ink-island keeps crest white", clipped.some((l) => l.label === "White"));
+check("ink-island keeps red", clipped.some((l) => l.label === "Red"));
 
 for (const line of results) console.log(line);
 if (failures) {

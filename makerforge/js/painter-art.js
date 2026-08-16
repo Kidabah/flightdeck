@@ -464,13 +464,14 @@ export function downsampleMask(mask, srcW, srcH, dstW, dstH) {
     for (let x = 0; x < dstW; x++) {
       const x0 = Math.floor(x * srcW / dstW);
       const x1 = Math.max(x0 + 1, Math.ceil((x + 1) * srcW / dstW));
-      let on = 0;
-      for (let sy = y0; sy < y1 && !on; sy++) {
+      let on = 0, n = 0;
+      for (let sy = y0; sy < y1; sy++) {
         for (let sx = x0; sx < x1; sx++) {
-          if (mask[sy * srcW + sx]) { on = 1; break; }
+          n++;
+          if (mask[sy * srcW + sx]) on++;
         }
       }
-      out[y * dstW + x] = on;
+      out[y * dstW + x] = n && on * 2 >= n ? 1 : 0;
     }
   }
   return out;
@@ -716,6 +717,36 @@ function punchMaskBits(mask, punch) {
   return out;
 }
 
+/**
+ * Keep logo ink + enclosed white. Punch anything reachable from the crop
+ * edge without crossing sealed red/black — the grey halo around a crest.
+ */
+export function clipLayersToInkIsland(layers, w, h) {
+  if (!layers?.length || !w || !h) return layers || [];
+  const ink = unionLayerMask(layers, w, h, isInkRgb);
+  let inkOn = 0;
+  for (let i = 0; i < ink.length; i++) if (ink[i]) inkOn++;
+  if (inkOn < 8) return layers;
+  const seal = Math.min(w, h) >= 64 ? Math.max(3, Math.round(Math.min(w, h) / 180)) : 1;
+  const wall = dilateMask4(ink, w, h, seal);
+  const passable = new Uint8Array(w * h);
+  for (let i = 0; i < passable.length; i++) passable[i] = wall[i] ? 0 : 1;
+  const exterior = floodFromBorder(passable, w, h);
+  const out = [];
+  for (const layer of layers) {
+    if (!layer?.mask || layer.mask.length !== w * h) continue;
+    const mask = new Uint8Array(layer.mask);
+    let on = 0;
+    for (let i = 0; i < mask.length; i++) {
+      if (exterior[i]) mask[i] = 0;
+      if (mask[i]) on++;
+    }
+    if (on < 2) continue;
+    out.push({ ...layer, mask });
+  }
+  return out;
+}
+
 /** Drop the grey bounding-mat / halo around a team logo. */
 export function scrubTraceMat(result, source = null) {
   if (!result) return result;
@@ -745,6 +776,7 @@ export function scrubTraceMat(result, source = null) {
 
   if (layers.length) {
     layers = punchExteriorPaper(layers, imgW, imgH);
+    layers = clipLayersToInkIsland(layers, imgW, imgH);
     layers = layers.filter((layer) => !isTraceMatLayer(layer.mask, imgW, imgH, layer.rgb));
   }
   const sil = layers.length

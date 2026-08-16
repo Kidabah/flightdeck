@@ -4,6 +4,14 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b586 — Painter clips logos to the ink island
+**Date:** 2026-08-16
+
+### MakerDeck
+- Team-logo stamp clips to the sealed red/black outline (grey halo outside the shield is punched) and uses majority downsample so fringe doesn't fatten. Hard refresh Painter **b586**. Reload the STL, stamp once.
+
+---
+
 ## b585 — Painter floods PNG paper, replaces old stamp
 **Date:** 2026-08-16
 
