@@ -3743,6 +3743,7 @@ function buildWatertightBottomDebossExport(shellMesh, meta, shapeGroups, depth =
 /** Shallow bottom deboss — MD monogram + date/serial on the exterior underside. */
 export function applyExportWatermark(mesh, meta, params, stamp) {
   if (!mesh || params.watermarkEnabled === false || !stamp) return mesh;
+  if (meta.shape === "stubbyHolder") return mesh;
   if (!shapeSupportsDecor(meta.shape)) return mesh;
   const collected = collectWatermarkShapeGroups(meta, stamp);
   if (!collected?.shapeGroups?.length) return mesh;
@@ -3752,7 +3753,7 @@ export function applyExportWatermark(mesh, meta, params, stamp) {
 
 /** Preview-only groove mesh for the underside watermark (no shell surgery). */
 export function buildWatermarkPreviewMesh(meta, stamp) {
-  if (!stamp || !shapeSupportsDecor(meta.shape)) return null;
+  if (!stamp || meta.shape === "stubbyHolder" || !shapeSupportsDecor(meta.shape)) return null;
   const collected = collectWatermarkShapeGroups(meta, stamp);
   if (!collected?.shapeGroups?.length) return null;
   const { frame, shapeGroups, depth } = collected;
@@ -4671,7 +4672,7 @@ function round1(n) {
 }
 
 export function shapeSupportsDecor(shape) {
-  return shape === "rect" || shape === "rounded" || shape === "pencil" || shape === "pencilBox" || shape === "canisterSquare" || shape === "canisterSquareSet" || shape === "animal" || shape === "sign";
+  return shape === "rect" || shape === "rounded" || shape === "pencil" || shape === "pencilBox" || shape === "canisterSquare" || shape === "canisterSquareSet" || shape === "animal" || shape === "sign" || shape === "stubbyHolder";
 }
 
 /** Parametric wall relief on curved profile containers (pots, tubes). */
@@ -4690,7 +4691,6 @@ export function shapeSupportsProfileTexture(shape) {
     || shape === "canisterSquareSet"
     || shape === "canisterJar"
     || shape === "canisterStack"
-    || shape === "stubbyHolder"
   );
 }
 
@@ -4704,7 +4704,6 @@ export function shapeSupportsProfileArt(shape) {
     || shape === "oval"
     || shape === "canisterJar"
     || shape === "canisterStack"
-    || shape === "stubbyHolder"
   );
 }
 
@@ -4724,7 +4723,6 @@ export function shapeSupportsAccent(shape) {
     || shape === "canisterSquareSet"
     || shape === "canisterJar"
     || shape === "circle"
-    || shape === "stubbyHolder"
     || shape === "oval"
     || shape === "hex"
     || shape === "polygon"
@@ -4801,11 +4799,12 @@ export function getEmbossFaceFrame(meta, face, params = null) {
     // For "front" (world -Y) text is not mirrored — reads normally.
     // For "back" (world +Y) mirror X so text reads correctly when viewed from +Y.
     const mirror = useFace === "back";
+    const chest = meta.shape === "stubbyHolder";
     return {
       face: useFace,
-      faceW: b.outerW,
+      faceW: chest ? Math.min(b.outerW, 90) : b.outerW,
       faceH: b.totalH,
-      centerZ: b.totalH * 0.72,
+      centerZ: chest ? b.totalH * 0.46 : b.totalH * 0.72,
       mapPoint: (px, py, offset) => {
         const y = yOut + yDir * offset;
         const x = mirror ? -px : px;

@@ -28,7 +28,8 @@ import {
   shapeSupportsProfileArt,
   shapeSupportsArt,
   STACK_LIP_MM,
-} from "./features.js?v=577";
+} from "./features.js?v=578";
+import { getHoodieStubbyCache } from "./hoodie-stubby.js?v=578";
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=161";
 import { buildOoshieStand, ooshieMeta, OOSHIE_DEFAULTS } from "./ooshie-stand.js?v=576";
@@ -692,7 +693,7 @@ export const HOLDER_MODES = {
 };
 
 export function isDrinkHolderShape(shape) {
-  return shape === "stubbyHolder";
+  return false;
 }
 
 /** Male snap bead on the base cup outer rim — mates with ring / neck skirts. */
@@ -1644,17 +1645,15 @@ function resolveContainer(params) {
     // fall through to rect fallback if the silhouette failed
   }
 
-  if (shape === "circle" || shape === "canisterJar" || shape === "canisterStack" || shape === "stubbyHolder") {
+  if (shape === "circle" || shape === "canisterJar" || shape === "canisterStack") {
     const diameter = clamp(params.innerWidth, 10, 500);
     const innerH = clamp(params.innerHeight, 5, 400);
     const innerR = diameter / 2;
     const outerR = innerR + wall;
     const segments = circleSegmentsForRadius(outerR);
-    const metaShape = shape === "stubbyHolder"
-      ? "stubbyHolder"
-      : shape === "canisterJar" || shape === "canisterStack"
-        ? "canisterJar"
-        : "circle";
+    const metaShape = shape === "canisterJar" || shape === "canisterStack"
+      ? "canisterJar"
+      : "circle";
     return {
       outer: circleVertices(outerR, segments),
       inner: circleVertices(innerR, segments),
@@ -1883,7 +1882,7 @@ function computeMeta({ innerW, innerD, innerH, wall, floor, shape, sides = 6, st
   let outerW;
   let outerD;
 
-  if (shape === "circle" || shape === "stubbyHolder") {
+  if (shape === "circle") {
     const r = innerW / 2;
     const outerDia = innerW + wall * 2;
     cavityMl = (Math.PI * r * r * innerH) / 1000;
@@ -2293,7 +2292,84 @@ export function buildSign(params) {
   };
 }
 
+function buildHoodieStubbyContainer(params) {
+  const loaded = getHoodieStubbyCache();
+  const fallbackMeta = loaded?.meta || {
+    shape: "stubbyHolder",
+    inner: { w: 65, d: 65, h: 145 },
+    outer: { w: 155, d: 97, h: 150 },
+    cavityMl: 0,
+    materialMl: 0,
+    estGrams: 0,
+    styleLabel: "Hoodie stubby",
+  };
+  if (!loaded?.mesh?.positions?.length) {
+    return {
+      positions: [],
+      indices: [],
+      meta: fallbackMeta,
+      totalH: fallbackMeta.outer.h,
+      accentMeshes: [],
+      insertMesh: null,
+      linerMesh: null,
+      labelMesh: null,
+      graphicMesh: null,
+      holderParts: null,
+    };
+  }
+  const mesh = {
+    positions: loaded.mesh.positions.slice(),
+    indices: loaded.mesh.indices.slice(),
+  };
+  const artMeta = {
+    ...loaded.meta,
+    totalH: loaded.meta.outer.h,
+  };
+  const boxShell = {
+    positions: mesh.positions.slice(),
+    indices: mesh.indices.slice(),
+  };
+  const shellMesh = applyBodyDecorations(mesh, artMeta, params);
+  let labelMesh = null;
+  let graphicMesh = null;
+  let graphicColourParts = null;
+  let debossCutterMesh = null;
+  const previewDraft = !!params._artPreviewDraft;
+  if (!previewDraft) {
+    if (params.embossDeboss) {
+      labelMesh = buildLabelEmboss(artMeta, params, params.embossSvgText || "", "emboss");
+      debossCutterMesh = buildLabelEmboss(artMeta, params, params.embossSvgText || "", "deboss-cutter");
+    } else {
+      const parts = buildLabelEmbossParts(artMeta, params, params.embossSvgText || "", "emboss");
+      labelMesh = parts.text;
+      graphicMesh = parts.graphic;
+      graphicColourParts = parts.graphicColourParts || null;
+    }
+  }
+  return {
+    positions: shellMesh.positions,
+    indices: shellMesh.indices,
+    shellMesh,
+    boxShell,
+    meta: {
+      ...artMeta,
+      embossFace: params.embossFace || "front",
+      embossDeboss: !!params.embossDeboss,
+    },
+    totalH: artMeta.totalH,
+    accentMeshes: [],
+    insertMesh: null,
+    linerMesh: null,
+    labelMesh,
+    graphicMesh,
+    graphicColourParts,
+    debossCutterMesh,
+    holderParts: null,
+  };
+}
+
 export function buildContainer(params) {
+  if (params.shape === "stubbyHolder") return buildHoodieStubbyContainer(params);
   if (params.shape === "sign") return buildSign(params);
   if (params.shape === "ooshieStand") {
     const built = buildOoshieStand(params);
@@ -2799,21 +2875,24 @@ export const CANISTER_SQUARE_SET_PRESET = {
   embossArtColor: "#4a3728",
 };
 
-/** 375 ml modular drink holder — ~66 mm can, wrap art on the cup wall. */
-export const DRINK_HOLDER_PRESET = {
-  innerWidth: 68,
-  innerDepth: 68,
-  innerHeight: 122,
+/** Panthers hoodie stubby — 150 mm tall, 65 mm well, chest art on the front. */
+export const HOODIE_STUBBY_PRESET = {
+  innerWidth: 65,
+  innerDepth: 65,
+  innerHeight: 145,
   wall: 2.2,
-  floor: 2,
+  floor: 5,
   lidEnabled: false,
   insertEnabled: false,
   joinerEnabled: false,
-  holderMode: "can",
-  holderPartColor: "#64748b",
-  embossFace: "wrap",
+  stackableEnabled: false,
+  honeycombEnabled: false,
+  linerEnabled: false,
+  accentEnabled: false,
+  embossFace: "front",
   embossFont: "bebas",
   embossTextAlign: "center",
+  embossTraceSize: 56,
   boxColor: "#38bdf8",
 };
 

@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, DRINK_HOLDER_PRESET, ANIMAL_PRESET, SIGN_PRESET, TEMORA_VET_SIGN_PRESET, TEMORA_VET_CELTIC_SVG_URL, isDrinkHolderShape } from "./geometry.js?v=577";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, resolveEmbossFontWeight, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=577";
+import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, HOODIE_STUBBY_PRESET, ANIMAL_PRESET, SIGN_PRESET, TEMORA_VET_SIGN_PRESET, TEMORA_VET_CELTIC_SVG_URL, isDrinkHolderShape } from "./geometry.js?v=578";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, resolveEmbossFontWeight, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=578";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=370";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=374";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=378";
@@ -16,6 +16,7 @@ import {
 } from "./export-folder.js?v=368";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
+import { ensureHoodieStubbyMesh } from "./hoodie-stubby.js?v=578";
 import {
   MAX_ACCENT_BANDS,
   newAccentBand,
@@ -35,7 +36,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b577";
+const MAKERDECK_BUILD = "b578";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -134,11 +135,6 @@ function applyLengthSliderRange(slider, mmMin, mmMax, mmValue) {
 }
 
 const PRESET_SHAPES = new Set(["pencil", "pencilBox", "teardrop", "star", "heart", "canisterSquare", "canisterSquareSet", "canisterJar", "canisterStack", "stubbyHolder", "animal", "sign"]);
-
-const STUBBY_FIT_TABLE = {
-  easy: { innerWidth: 68, label: "Easy (68 mm)", hint: "68 mm ID · easy slide on ~66 mm can" },
-  snug: { innerWidth: 67.5, label: "Snug (67.5 mm)", hint: "67.5 mm ID · snug grip on ~66 mm can" },
-};
 
 const CANISTER_CONTENT_LABELS = {
   coffee: "COFFEE",
@@ -366,7 +362,7 @@ const PRESET_CONFIG = {
   canisterSquareSet: { preset: CANISTER_SQUARE_SET_PRESET, profile: "canister" },
   canisterJar: { preset: CANISTER_JAR_PRESET, profile: "canister" },
   canisterStack: { preset: CANISTER_STACK_PRESET, profile: "canister" },
-  stubbyHolder: { preset: DRINK_HOLDER_PRESET, profile: "stubby" },
+  stubbyHolder: { preset: HOODIE_STUBBY_PRESET, profile: "default" },
   animal: { preset: ANIMAL_PRESET, profile: "default" },
   sign: { preset: SIGN_PRESET, profile: "default" },
 };
@@ -2438,6 +2434,13 @@ async function applySessionPayload(payload) {
   if (payload.state.shape) state.shape = payload.state.shape;
   if (payload.state.displayUnit) state.displayUnit = normalizeDisplayUnit(payload.state.displayUnit);
   if (state.shape === "fatQuarters") state.shape = "rounded";
+  if (state.shape === "stubbyHolder") {
+    try {
+      await ensureHoodieStubbyMesh();
+    } catch (err) {
+      console.warn("Hoodie stubby failed to load:", err);
+    }
+  }
   if (state.insertMount === "fixed") state.joinerEnabled = false;
   if (payload.state.embossTraceRects) {
     state.embossTraceRects = deserializeEmbossTraceRects(payload.state.embossTraceRects);
@@ -3469,7 +3472,9 @@ function updateStats(meta) {
   const fmt = (n) => fmtDimReadout(n);
   if (meta.shape === "vase") {
     document.getElementById("stat-outer").textContent = `${meta.styleLabel || "Vase"} · ⌀${fmt(outer.w)} × ${fmt(outer.h)} ${u}`;
-  } else if (meta.shape === "circle" || meta.shape === "stubbyHolder") {
+  } else if (meta.shape === "stubbyHolder") {
+    document.getElementById("stat-outer").textContent = `${meta.styleLabel || "Hoodie stubby"} · ${fmt(outer.w)} × ${fmt(outer.d)} × ${fmt(outer.h)} ${u}`;
+  } else if (meta.shape === "circle") {
     document.getElementById("stat-outer").textContent = `⌀${fmt(outer.w)} × ${fmt(outer.h)} ${u}`;
   } else if (meta.shape === "oval") {
     document.getElementById("stat-outer").textContent = `Oval ${fmt(outer.w)} × ${fmt(outer.d)} × ${fmt(outer.h)} ${u}`;
@@ -3550,11 +3555,6 @@ const SLIDER_PROFILES = {
     width: { min: 70, max: 160 },
     depth: { min: 70, max: 160 },
     height: { min: 80, max: 250 },
-  },
-  stubby: {
-    width: { min: 64, max: 72 },
-    depth: { min: 64, max: 72 },
-    height: { min: 110, max: 140 },
   },
 };
 
@@ -3683,9 +3683,8 @@ function applyPreset(shape) {
     syncSliderUi("lid-lip", "lidLipDepth", { min: 0, max: 8, value: state.lidLipDepth ?? (shape === "canisterStack" ? 0 : 2.5), parseKind: "float" });
   }
   if (shape === "stubbyHolder") {
-    state.holderMode = state.holderMode || "can";
     state.lidEnabled = false;
-    syncStubbyFitChips();
+    state.embossFace = "front";
   }
   if (isCanisterShape(shape)) {
     document.getElementById("stackable-enabled").checked = !!state.stackableEnabled;
@@ -3813,36 +3812,44 @@ function syncShapeControlsFromState() {
   updateStubbyUi();
 }
 
-function syncStubbyFitChips() {
-  const id = state.innerWidth <= 67.6 ? "snug" : "easy";
-  document.querySelectorAll("[data-stubby-fit]").forEach((btn) => {
-    const entry = STUBBY_FIT_TABLE[btn.dataset.stubbyFit];
-    const active = btn.dataset.stubbyFit === id;
-    btn.classList.toggle("active", active);
-    if (entry?.label) btn.textContent = entry.label;
-    if (entry?.hint) btn.title = entry.hint;
-  });
-}
-
-function applyStubbyFit(fit, { rebuildNow = true } = {}) {
-  const entry = STUBBY_FIT_TABLE[fit] || STUBBY_FIT_TABLE.easy;
-  state.innerWidth = entry.innerWidth;
-  state.innerDepth = entry.innerWidth;
-  syncStubbyFitChips();
-  syncShapeControlsFromState();
-  if (rebuildNow) {
-    rebuild();
-    pushAppHistory();
-  }
-}
-
 function updateStubbyUi() {
-  const drink = isDrinkHolderShape(state.shape);
-  document.getElementById("section-stubby")?.classList.toggle("hidden", !drink);
-  document.getElementById("stubby-fit-row")?.classList.toggle("hidden", !drink || state.holderMode === "bottle");
-  const modeSel = document.getElementById("holder-mode");
-  if (modeSel) modeSel.value = state.holderMode === "bottle" ? "bottle" : "can";
-  if (drink) syncStubbyFitChips();
+  const hoodie = state.shape === "stubbyHolder";
+  document.getElementById("section-stubby")?.classList.toggle("hidden", !hoodie);
+}
+
+async function applyHoodieStubby() {
+  cancelPendingArtRebuild();
+  stopLidAnimation(true);
+  if (previewXRayOn) setPreviewXRayMode(false);
+
+  state.shape = "stubbyHolder";
+  Object.assign(state, HOODIE_STUBBY_PRESET);
+  state.lidEnabled = false;
+  state.embossFace = "front";
+  normalizeStackLipParams();
+  applySliderProfile("default");
+
+  const status = document.getElementById("status") || document.getElementById("export-status");
+  if (status) status.textContent = "Loading hoodie stubby…";
+  try {
+    await ensureHoodieStubbyMesh();
+  } catch (err) {
+    console.error(err);
+    if (status) status.textContent = err?.message || "Could not load hoodie stubby.";
+    return;
+  }
+
+  syncLidTypeSelect();
+  syncShapeControlsFromState();
+  syncCanisterControlsFromState();
+  updateVaseUiVisibility();
+  updateLidUi();
+  updateDecorUi();
+  updateJoinerUi();
+  rebuild();
+  pushAppHistory();
+  if (meshCache) fitCamera(meshCache.meta);
+  if (status) status.textContent = "Hoodie stubby — drop a PNG on the Art tab for the chest logo.";
 }
 
 /** Load Temora Vet Clinic plaque: 180×120 sign, exact text, Celtic frame SVG. */
@@ -3922,6 +3929,9 @@ function selectShape(next) {
     applyVaseShape();
   } else if (next === "ooshieStand") {
     applyOoshieShape();
+  } else if (next === "stubbyHolder") {
+    void applyHoodieStubby();
+    return;
   } else if (PRESET_CONFIG[next]) {
     state.shape = next;
     if (next === "sign") state.signSample = "";
@@ -3977,7 +3987,7 @@ function applySliderProfile(profileKey) {
 function updateLabels() {
   const { shape } = state;
   const hex = shape === "hex";
-  const circle = shape === "circle" || shape === "canisterJar" || shape === "canisterStack" || shape === "stubbyHolder";
+  const circle = shape === "circle" || shape === "canisterJar" || shape === "canisterStack";
   const oval = shape === "oval";
   const rounded = shape === "rounded";
   const preset = PRESET_SHAPES.has(shape);
@@ -4017,7 +4027,6 @@ function updateLabels() {
     canisterSquareSet: "Square stack size",
     canisterJar: "Jar size",
     canisterStack: "Stack jar size",
-    stubbyHolder: "Can size",
   };
   document.getElementById("label-inner-size").innerHTML = sizeHeading[shape]
     ? `${sizeHeading[shape]} ${unitLenSpan()}`
@@ -6331,6 +6340,7 @@ function updateDecorUi() {
 function syncEmbossFaceUi() {
   const select = document.getElementById("emboss-face");
   if (!select) return;
+  const hoodie = state.shape === "stubbyHolder";
   const profileArt = shapeSupportsProfileArt(state.shape);
   const lidOn = state.lidEnabled && shapeSupportsLid(state.shape);
   const wrapOpt = select.querySelector('option[value="wrap"]');
@@ -6341,11 +6351,16 @@ function syncEmbossFaceUi() {
     } else if (profileArt) {
       opt.hidden = true;
       opt.disabled = true;
+    } else if (hoodie) {
+      const frontOnly = opt.value === "front";
+      opt.hidden = !frontOnly;
+      opt.disabled = !frontOnly;
     } else {
       opt.hidden = false;
       opt.disabled = opt.value === "lid" && !lidOn;
     }
   }
+  if (hoodie) state.embossFace = "front";
   if (profileArt && state.embossFace !== "wrap") {
     state.embossFace = "wrap";
   }
@@ -6360,7 +6375,10 @@ function syncEmbossFaceUi() {
 
   const hint = document.getElementById("emboss-face-hint");
   if (hint) {
-    if (profileArt && face === "wrap") {
+    if (hoodie && face === "front") {
+      hint.textContent = "Logo sits on the hoodie chest as a separate colour part — same as other MakerDeck art.";
+      hint.classList.remove("hidden");
+    } else if (profileArt && face === "wrap") {
       hint.textContent = "Art wraps around the outer wall — great for logos and patterns on pots.";
       hint.classList.remove("hidden");
     } else if (lidOn && face === "top") {
@@ -7328,19 +7346,6 @@ document.querySelectorAll("[data-stack-member]").forEach((btn) => {
   });
 });
 
-document.getElementById("holder-mode")?.addEventListener("change", (e) => {
-  state.holderMode = e.target.value === "bottle" ? "bottle" : "can";
-  updateStubbyUi();
-  rebuild();
-  pushAppHistory();
-});
-
-document.querySelectorAll("[data-stubby-fit]").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    applyStubbyFit(btn.dataset.stubbyFit);
-  });
-});
-
 // Hide canister / stubby controls until those presets are active.
 syncCanisterControlsFromState();
 updateStubbyUi();
@@ -7357,18 +7362,21 @@ function updateProfileTextureUiVisibility() {
 function updateVaseUiVisibility() {
   const isVase = state.shape === "vase";
   const isOoshie = state.shape === "ooshieStand";
-  const hideClassic = isVase || isOoshie;
-  if ((isVase || isOoshie) && state.lidEnabled) {
+  const isHoodie = state.shape === "stubbyHolder";
+  const hideClassic = isVase || isOoshie || isHoodie;
+  if ((isVase || isOoshie || isHoodie) && state.lidEnabled) {
     state.lidEnabled = false;
   }
   document.getElementById("section-vase")?.classList.toggle("hidden", !isVase);
   document.getElementById("section-ooshie")?.classList.toggle("hidden", !isOoshie);
+  updateStubbyUi();
   document.getElementById("section-classic-size")?.classList.toggle("hidden", hideClassic);
   document.getElementById("section-walls")?.classList.toggle("hidden", hideClassic);
   document.getElementById("section-edges")?.classList.toggle("hidden", hideClassic);
   document.querySelectorAll('.tab[data-tab="art"], .tab[data-tab="stack"], .tab[data-tab="link"], .tab[data-tab="lid"], .tab[data-tab="insert"]').forEach((tab) => {
-    tab.classList.toggle("tab--disabled", hideClassic);
-    tab.disabled = hideClassic;
+    const disable = isHoodie ? tab.dataset.tab !== "art" : hideClassic;
+    tab.classList.toggle("tab--disabled", disable);
+    tab.disabled = disable;
   });
   document.getElementById("field-vase-drainage-size")?.classList.toggle("hidden", !state.vaseDrainage);
   document.getElementById("field-vase-flute-depth")?.classList.toggle("hidden", !(state.vaseFlutes > 0));
@@ -7614,6 +7622,13 @@ async function bootMakerDeck() {
   syncLidTypeSelect();
   ensureStateAccentBands(state);
   const restored = await restoreSession();
+  if (state.shape === "stubbyHolder") {
+    try {
+      await ensureHoodieStubbyMesh();
+    } catch (err) {
+      console.warn("Hoodie stubby failed to load:", err);
+    }
+  }
   const unitSel = document.getElementById("display-unit");
   if (unitSel) unitSel.value = normalizeDisplayUnit(state.displayUnit);
   if (restored) {
