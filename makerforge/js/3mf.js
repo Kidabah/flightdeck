@@ -305,7 +305,7 @@ function worldTransformForPlate(centerOffset, plateId, bedWidth = BAMBU_BED_WIDT
 function buildItemXml(objectId, transform = null, { multiPlate = false } = {}) {
   if (multiPlate) {
     const matrix = transform || formatTransform3x4(0, 0, 0);
-    return `<item objectid="${objectId}" transform="${matrix}" printable="1" auto_drop="1"/>`;
+    return `<item objectid="${objectId}" transform="${matrix}" printable="1" auto_drop="0"/>`;
   }
   if (transform) {
     return `<item objectid="${objectId}" transform="${transform}" printable="1"/>`;
@@ -351,6 +351,53 @@ function appendModelSettingsPlate(lines, plateId, plateName, assemblyId, identif
   lines.push(`      <metadata key="identify_id" value="${identifyId}"/>`);
   lines.push("    </model_instance>");
   lines.push("  </plate>");
+}
+
+function buildBambuSeparateObjectsModelSettingsXml(objects, worldTransform, filamentSlotCount = 1) {
+  const lines = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    "<config>",
+  ];
+  for (const obj of objects) {
+    lines.push(`  <object id="${obj.id}">`);
+    lines.push(`    <metadata key="name" value="${escapeXml(obj.name)}"/>`);
+    lines.push(`    <metadata key="extruder" value="${obj.extruder}"/>`);
+    lines.push("  </object>");
+  }
+  lines.push("  <plate>");
+  lines.push('    <metadata key="plater_id" value="1"/>');
+  lines.push('    <metadata key="plater_name" value=""/>');
+  lines.push('    <metadata key="locked" value="false"/>');
+  if (filamentSlotCount > 1) {
+    lines.push('    <metadata key="filament_map_mode" value="Manual"/>');
+    lines.push(`    <metadata key="filament_maps" value="${buildH2DFilamentMapsMeta(filamentSlotCount)}"/>`);
+  } else {
+    lines.push('    <metadata key="filament_map_mode" value="Auto For Flush"/>');
+  }
+  lines.push('    <metadata key="thumbnail_file" value="Metadata/plate_1.png"/>');
+  lines.push('    <metadata key="thumbnail_no_light_file" value="Metadata/plate_no_light_1.png"/>');
+  lines.push('    <metadata key="top_file" value="Metadata/top_1.png"/>');
+  lines.push('    <metadata key="pick_file" value="Metadata/pick_1.png"/>');
+  lines.push('    <metadata key="pattern_bbox_file" value="Metadata/plate_1.json"/>');
+  for (const obj of objects) {
+    lines.push("    <model_instance>");
+    lines.push(`      <metadata key="object_id" value="${obj.id}"/>`);
+    lines.push('      <metadata key="instance_id" value="0"/>');
+    lines.push(`      <metadata key="identify_id" value="${obj.id}"/>`);
+    lines.push("    </model_instance>");
+  }
+  lines.push("  </plate>");
+  if (worldTransform) {
+    lines.push("  <assemble>");
+    for (const obj of objects) {
+      lines.push(
+        `   <assemble_item object_id="${obj.id}" instance_id="0" transform="${worldTransform}" offset="0 0 0" />`,
+      );
+    }
+    lines.push("  </assemble>");
+  }
+  lines.push("</config>");
+  return lines.join("\n");
 }
 
 /**
@@ -564,8 +611,9 @@ function packColoredProject3mf({
     return buildItemXml(entry.objectId, entry.transform ?? null, { multiPlate });
   }).join("\n    ");
   const modelXml = `<?xml version="1.0" encoding="UTF-8"?>
-<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06">
-  <metadata name="Application">MakerDeck</metadata>
+<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06" xmlns:BambuStudio="http://schemas.bambulab.com/package/2021">
+  <metadata name="Application">BambuStudio</metadata>
+  <metadata name="BambuStudio:3mfVersion">1</metadata>
   <metadata name="Title">${escapeXml(projectName)}</metadata>
   <metadata name="MakerDeck-Triangles">${triangleCount}</metadata>
   <resources>
@@ -577,7 +625,7 @@ function packColoredProject3mf({
 </model>`;
 
   const projectSettings = JSON.stringify({
-    from: "MakerDeck",
+    from: "BambuStudio",
     // Bambu uses this as the embedded process profile id — must NOT be the model filename.
     name: "project_settings",
     version: "2.2.0",
@@ -606,6 +654,8 @@ function packColoredProject3mf({
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
   <Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/>
   <Default Extension="config" ContentType="application/octet-stream"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Default Extension="json" ContentType="application/json"/>
 </Types>`;
 
   const rels = `<?xml version="1.0" encoding="UTF-8"?>
@@ -718,11 +768,72 @@ export function buildMultiPlateColoredProject3mf(plates, projectName = "makerdec
 /**
  * @param {Array<{name:string, mesh:object, color:string, extruder:number}>} parts
  */
-export function buildColoredProject3mf(parts, projectName = "makerdeck") {
+export function buildColoredProject3mf(parts, projectName = "makerdeck", options = {}) {
   const usable = filterUsableParts(parts);
   if (!usable.length) throw new Error("No geometry to export");
 
   const filament = buildFilamentSlots(usable);
+  const separateObjects = !!options.separateObjects;
+
+  if (separateObjects) {
+    const objectXml = [];
+    const modelObjects = [];
+    let objectId = 1;
+    let localBBox = null;
+    let triangleCount = 0;
+    for (const part of usable) {
+      const built = meshTo3mfResources(part.mesh, objectId, part.name, part.extruder || 1, {
+        resanitize: false,
+        plain: false,
+        triangleExtruders: part.triangleExtruders || part.mesh?.triangleExtruders,
+      });
+      if (!built) continue;
+      objectXml.push(built.objectXml);
+      modelObjects.push({ id: objectId, name: part.name, extruder: part.extruder || 1 });
+      localBBox = unionAxisAlignedBBox(localBBox, meshAxisAlignedBBox(part.mesh));
+      triangleCount += Math.floor((part.mesh.indices?.length || 0) / 3);
+      objectId++;
+    }
+    if (!modelObjects.length) throw new Error("No valid mesh parts to export");
+    const centerOffset = centeringOffsetOnBed(localBBox);
+    const worldTransform = formatTransform3x4(centerOffset.x, centerOffset.y, centerOffset.z ?? 0);
+    const plateBBox = translateAxisAlignedBBox(
+      localBBox || { minX: 0, minY: 0, maxX: 1, maxY: 1 },
+      centerOffset.x,
+      centerOffset.y,
+    );
+    const modelSettings = buildBambuSeparateObjectsModelSettingsXml(
+      modelObjects,
+      worldTransform,
+      filament.maxExtruder,
+    );
+    const extraZipFiles = [
+      {
+        name: "Metadata/plate_1.json",
+        data: encodeText(buildBambuPlateJson({
+          identifyId: modelObjects[0].id,
+          name: projectName,
+          bbox: plateBBox,
+        })),
+      },
+      { name: "Metadata/plate_1.png", data: MINIMAL_PLATE_PNG },
+      { name: "Metadata/plate_no_light_1.png", data: MINIMAL_PLATE_PNG },
+      { name: "Metadata/top_1.png", data: MINIMAL_PLATE_PNG },
+      { name: "Metadata/pick_1.png", data: MINIMAL_PLATE_PNG },
+    ];
+    return packColoredProject3mf({
+      projectName,
+      objectXml,
+      buildEntries: modelObjects.map((obj) => ({ objectId: obj.id, transform: worldTransform })),
+      triangleCount,
+      filament,
+      modelSettings,
+      plainSingle: false,
+      extraZipFiles,
+      multiPlate: true,
+    });
+  }
+
   // Always embed Bambu Metadata — plainSingle skipped project_settings and Bambu used the filename as profile.
   const built = buildAssemblyFromParts(usable, projectName, 1, { plainSingle: false });
   if (!built) throw new Error("No valid mesh parts to export");

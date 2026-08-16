@@ -10,7 +10,7 @@ import {
   resolveVaseTexture,
   vaseTextureDisplacement,
 } from "./vase-textures.js";
-import { sampleHoodieChestY, HOODIE_ART_PROUD_MM } from "./hoodie-stubby.js?v=582";
+import { sampleHoodieChestY, HOODIE_ART_PROUD_MM } from "./hoodie-stubby.js?v=583";
 
 export const EMBOSS_FONTS = [
   { id: "segoe-ui", label: "Segoe UI — Windows", family: '"Segoe UI Variable", "Segoe UI", system-ui, sans-serif', weight: 700 },
@@ -4995,6 +4995,12 @@ function labelOffsets(params) {
     // Slicer-facing cutter STL: pokes 0.4mm past the surface and sinks (depth + 0.05)mm inward
     // so the boolean subtract is clean at the outer skin.
     return { d0: -depth - 0.05, d1: 0.4, depth, deboss: true };
+  }
+  if (params.__hoodieArtExport) {
+    // Closed proud slab on the draped chest. Embedding along Y through the
+    // kangaroo pocket folds the solid; Bambu then reports zero volume and drops the logo.
+    const useDepth = Math.max(depth, 0.8);
+    return { d0: 0.15, d1: 0.15 + useDepth, depth: useDepth, deboss: false };
   }
   // Raised emboss: flush in preview; export embeds into wall pockets (no air gap).
   let standoff = 0;

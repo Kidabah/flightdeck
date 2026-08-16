@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, HOODIE_STUBBY_PRESET, ANIMAL_PRESET, SIGN_PRESET, TEMORA_VET_SIGN_PRESET, TEMORA_VET_CELTIC_SVG_URL, isDrinkHolderShape } from "./geometry.js?v=582";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, resolveEmbossFontWeight, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=582";
+import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, HOODIE_STUBBY_PRESET, ANIMAL_PRESET, SIGN_PRESET, TEMORA_VET_SIGN_PRESET, TEMORA_VET_CELTIC_SVG_URL, isDrinkHolderShape } from "./geometry.js?v=583";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, resolveEmbossFontWeight, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=583";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=370";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=374";
-import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=378";
+import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=583";
 import {
   folderExportSupported,
   folderExportBlockedReason,
@@ -16,7 +16,7 @@ import {
 } from "./export-folder.js?v=368";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
-import { ensureHoodieStubbyMesh } from "./hoodie-stubby.js?v=582";
+import { ensureHoodieStubbyMesh } from "./hoodie-stubby.js?v=583";
 import {
   MAX_ACCENT_BANDS,
   newAccentBand,
@@ -36,7 +36,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b582";
+const MAKERDECK_BUILD = "b583";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -1415,11 +1415,13 @@ function collectColoredExportParts(exportCache, stamp = null, { includeLiner = t
 
   if (separateColor && (params.embossFace || "front") !== "lid") {
     // Separate Body / Art / Text — each part gets its own filament slot (merged AMS broke Bambu colours).
+    const hoodie = params.shape === "stubbyHolder";
     const exportParams = {
       ...params,
       __labelExportStandoff: true,
       __multiColourAmsExport: true,
-      __labelExportEmbedded: true,
+      __labelExportEmbedded: hoodie ? false : true,
+      __hoodieArtExport: hoodie,
     };
     const boxShell = exportCache.boxShell || exportCache.shellMesh || exportCache;
     const bodyClean = prepareMeshFor3mf({
@@ -1610,7 +1612,8 @@ async function buildBody3mfExport(exportCache, parts) {
   const multiFile = exportUsesMultiFileZip();
 
   if (!multiFile) {
-    return { blob: buildColoredProject3mf(parts, projectName), zipExport: false, lidPartCount: 0, linerPartCount: 0, holderPartCount: 0 };
+    const opts = state.shape === "stubbyHolder" ? { separateObjects: true } : {};
+    return { blob: buildColoredProject3mf(parts, projectName, opts), zipExport: false, lidPartCount: 0, linerPartCount: 0, holderPartCount: 0 };
   }
 
   const containerBlob = buildColoredProject3mf(parts, projectName);
