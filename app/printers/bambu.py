@@ -829,14 +829,16 @@ class BambuPrinter:
                 # Keep a real error visible, but release a closed, code-free fault
                 # after a short grace period so queue preflight stops blocking.
                 age = time.monotonic() - self._error_seen_at if self._error_seen_at else 999.0
-                if not err_code and age >= 15.0 and db.is_print_closed(self.id, self._error_job_key):
+                operator_cancel = self._cancel_requested or _bambu_failed_is_operator_cancel(err_code, alarm_message)
+                if operator_cancel or (not err_code and age >= 15.0 and db.is_print_closed(self.id, self._error_job_key)):
                     if self._error_print_id:
                         db.log_decision(self.id, "error_cleared",
-                                       "Bambu FAILED state retained with no active error code; live fault cleared",
+                                       "Bambu FAILED state retained after cancel; live fault cleared",
                                        print_id=self._error_print_id)
                     self._error_job_key = None
                     self._error_print_id = None
                     self._error_seen_at = 0.0
+                    self._cancel_requested = False
                     return "idle"
                 # Already showing this in-session error; keep showing it while active.
                 return "error"
@@ -901,10 +903,22 @@ class BambuPrinter:
     def cancel(self) -> None:
         self._cancel_requested = True
         self._printer.stop_print()
+        self._publish_clean_print_error()
 
     def estop(self) -> None:
         self._cancel_requested = True
         self._printer.stop_print()  # Bambu MQTT has no dedicated e-stop
+        self._publish_clean_print_error()
+
+    def _publish_clean_print_error(self) -> None:
+        """Dismiss a retained FAILED/HMS banner so the printer can go idle."""
+        try:
+            client = self._printer.mqtt_client
+            client._PrinterMQTTClient__publish_command({
+                "print": {"command": "clean_print_error", "sequence_id": "0"},
+            })
+        except Exception:
+            log.debug("Bambu clean_print_error publish failed", exc_info=True)
 
     def start_calibration(
         self,
@@ -2000,8 +2014,14 @@ def bambu_hms_summary(mqtt_dump: Optional[dict]) -> Optional[str]:
 
 
 def _bambu_failed_is_operator_cancel(err_code, alarm_message: Optional[str]) -> bool:
-    """Bambu reports printer-screen Stop as FAILED, usually without an error code."""
-    return not alarm_message and not _normalise_bambu_alarm_code(err_code)
+    """Bambu reports printer-screen Stop as FAILED; 0300-400C is 'Printing was cancelled'."""
+    code = _normalise_bambu_alarm_code(err_code)
+    if code.endswith("0300400C") or code == "50348044":
+        return True
+    msg = (alarm_message or "").lower()
+    if "0300-400c" in msg or "printing was cancelled" in msg:
+        return True
+    return not alarm_message and not code
 
 
 def _bambu_slot_index(unit_id: int, tray_id: int) -> int:
