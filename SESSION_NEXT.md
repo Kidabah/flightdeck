@@ -6,6 +6,18 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-16 Session update (Hoodie 3MF survives Bambu)
+
+Latest commit: `29aa8ab` — Export hoodie logos as closed 3MF solids that stay standing in Bambu.
+
+Latest local/Pi change:
+- MakerDeck preview was right; Bambu dropped the art as zero-volume parts and auto-dropped the hoodie onto its back. 3MF now ships Body + colour art as separate objects, closed ~0.8 mm proud slabs, no auto_drop. Hard refresh (`app.js?v=690`, MakerDeck `app.js?v=583` / **b583**). Header must say **b583**. Re-export 3MF from MakerDeck (not the original STL).
+
+Previous:
+- Hoodie stamp follows fabric (`7c08c52`).
+
+---
+
 ## 2026-08-16 Session update (Hoodie stamp follows the fabric)
 
 Latest commit: `7c08c52` — Sit hoodie logos on the outer fabric instead of a recessed chest plane.

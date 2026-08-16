@@ -4,6 +4,14 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b583 — Hoodie 3MF keeps the logo standing in Bambu
+**Date:** 2026-08-16
+
+### MakerDeck
+- Preview looked great; Bambu said invalid config / zero volume, then showed a blank hoodie on its back. Export the chest art as closed proud solids and as separate 3MF objects (geometry-only import still keeps the picture). `auto_drop=0` so it stays upright. Hard refresh MakerDeck **b583**. Download 3MF from MakerDeck again.
+
+---
+
 ## b582 — Hoodie stamp follows the pocket, not a flat chest plane
 **Date:** 2026-08-16
 
