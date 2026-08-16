@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-16 Session update (Painter source-flood logo mat)
 
-Latest commit: *(pending)* — Knock out logo paper from the PNG pixels, and replace the old stamp.
+Latest commit: `36a232f` — Knock out logo paper from the PNG pixels, and replace the old stamp.
 
 Latest local/Pi change:
 - Artwork scrub now floods the **source PNG** from the border (same idea as MakerDeck paper knockout), so grey/white mats die even when they were quantized as White.
