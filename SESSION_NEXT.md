@@ -6,6 +6,18 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-16 Session update (Painter logo survives slice)
+
+Latest commit: `55f1b8f` — Sink Painter logos into the hoodie so Bambu keeps them after slice.
+
+Latest local/Pi change:
+- Logo showed in Prepare then vanished after slice (15s filament changes). The stamp was a 0.32 mm shell floating 0.14 mm off the chest, so the slicer dropped it. Stamp now embeds ~0.55 mm, is ~0.8 mm thick, stacks ink above the white plate, and paints the hoodie triangles (including white). Hard refresh (`app.js?v=682`, Painter `painter.html?v=590` / **b590**). Reload the STL, stamp once, export. In Preview switch the colour legend from Line Type to **Filament**.
+
+Previous:
+- Painter 3MF empty export (`40a1ea7`).
+
+---
+
 ## 2026-08-16 Session update (Painter 3MF export empty file)
 
 Latest commit: `40a1ea7` — Stop Painter logo stamps from writing a 0-byte 3MF.

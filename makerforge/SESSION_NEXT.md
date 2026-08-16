@@ -4,6 +4,14 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b590 — Painter logos survive Bambu slice
+**Date:** 2026-08-16
+
+### MakerDeck
+- Prepare showed the crest, Preview did not (almost no filament changes). The stamp floated off the chest as a thin wafer. It now embeds into the hoodie, stacks ink on the plate, and paints the chest triangles so Studio keeps the colours. Hard refresh Painter **b590**. Reload the STL, stamp once, export. Preview colour mode: **Filament**, not Line Type.
+
+---
+
 ## b589 — Painter 3MF export no longer writes a 0-byte file
 **Date:** 2026-08-16
 
