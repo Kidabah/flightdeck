@@ -281,8 +281,8 @@ for (let i = 2; i < slab.positions.length; i += 3) {
   minZ = Math.min(minZ, slab.positions[i]);
   maxZ = Math.max(maxZ, slab.positions[i]);
 }
-check("slab embeds into the plane", minZ < -0.2, `minZ=${minZ}`);
-check("slab still stands proud", maxZ > 0.15, `maxZ=${maxZ}`);
+check("slab sits on top of the plane", minZ > 0.01, `minZ=${minZ}`);
+check("slab still stands proud", maxZ > 0.5, `maxZ=${maxZ}`);
 
 const liftVerts = new Float32Array([-12, -12, 2, 12, -12, 2, 0, 12, 2]);
 const liftFaces = new Uint32Array([0, 1, 2]);
@@ -303,8 +303,8 @@ for (let i = 2; i < lifted.positions.length; i += 3) {
   minLiftZ = Math.min(minLiftZ, lifted.positions[i]);
   maxLiftZ = Math.max(maxLiftZ, lifted.positions[i]);
 }
-check("lifted slab embeds into the hoodie", minLiftZ < 2, `minZ=${minLiftZ}`);
-check("lifted slab stands proud of the hoodie", maxLiftZ > 2.1, `maxZ=${maxLiftZ}`);
+check("lifted slab sits on the hoodie", minLiftZ > 2, `minZ=${minLiftZ}`);
+check("lifted slab stands proud of the hoodie", maxLiftZ > 2.5, `maxZ=${maxLiftZ}`);
 
 const plateMask = new Uint8Array(16);
 const inkMask = new Uint8Array(16);
@@ -351,6 +351,26 @@ try {
 } catch (err) {
   check("empty 3MF is rejected", /empty/i.test(err.message), err.message);
 }
+
+const splitZip = export3MF(
+  new Float32Array([0, 0, 0, 10, 0, 0, 0, 10, 0, 0, 0, 1, 10, 0, 1, 0, 10, 1]),
+  new Uint32Array([0, 1, 2, 3, 4, 5]),
+  6, 2,
+  new Uint8Array([0, 0]), new Uint8Array([0, 0]),
+  {
+    projectName: 'split-logo',
+    slotCount: 2,
+    slotColors: ['#888888', '#ff0000'],
+    facePaint: new Uint8Array([0, 1]),
+    stampTri0: 1,
+    stampVert0: 3,
+  },
+);
+const splitText = new TextDecoder().decode(splitZip);
+check("export splits stamp to object_2", splitText.includes('object_2.model'));
+const splitImported = await import3MF(splitZip.buffer);
+check("import merges hoodie and logo", splitImported.nTri === 2 && splitImported.nVerts === 6, `t=${splitImported.nTri} v=${splitImported.nVerts}`);
+check("import keeps logo paint", splitImported.facePaint[1] === 1, `p=${splitImported.facePaint[1]}`);
 
 for (const line of results) console.log(line);
 if (failures) {

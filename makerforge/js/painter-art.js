@@ -9,12 +9,12 @@ export const ART_MAX_RASTER = 768;
 export const ART_COVERAGE_MIN = 0.5;
 export const ART_PAPER_LUMA = 228;
 /** Sit the logo on the hoodie, not through it. */
-export const STAMP_SKIN_MM = 0.14;
-/** Sink into the chest so the slicer unions the logo instead of dropping a floating wafer. */
-export const STAMP_EMBED_MM = 0.55;
-export const STAMP_THICK_MM = 0.80;
+export const STAMP_SKIN_MM = 0.04;
+/** Kept for older stamps; new logos sit on the surface as their own 3MF part. */
+export const STAMP_EMBED_MM = 0;
+export const STAMP_THICK_MM = 0.72;
 /** Stack later colours (ink) further out so they don't occupy the same volume as the plate. */
-export const STAMP_LAYER_MM = 0.26;
+export const STAMP_LAYER_MM = 0.22;
 
 function hypot3(x, y, z) {
   return Math.hypot(x, y, z) || 1;
@@ -1046,7 +1046,7 @@ function maskOnCount(mask) {
 export function buildStampSlabsFromMasks({
   layers, imgW, imgH,
   origin, right, up, normal, widthMm, heightMm,
-  d0 = -STAMP_EMBED_MM, d1 = -STAMP_EMBED_MM + STAMP_THICK_MM, stepMm = null,
+  d0 = STAMP_SKIN_MM, d1 = STAMP_SKIN_MM + STAMP_THICK_MM, stepMm = null,
   verts = null, faces = null, nTri = 0,
 }) {
   const positions = [];
@@ -1161,7 +1161,7 @@ function appendStampHeightfield(
 export function buildStampSlabs({
   pixels, imgW, imgH, paletteRgbs = [], slotIndexes,
   origin, right, up, normal, widthMm, heightMm,
-  d0 = -STAMP_EMBED_MM, d1 = -STAMP_EMBED_MM + STAMP_THICK_MM, stepMm = 0.12, singleSlot = null,
+  d0 = STAMP_SKIN_MM, d1 = STAMP_SKIN_MM + STAMP_THICK_MM, stepMm = 0.12, singleSlot = null,
 }) {
   if (!pixels || widthMm <= 0 || heightMm <= 0) return { positions: [], indices: [], faceSlots: [] };
   if (singleSlot == null && !paletteRgbs.length) return { positions: [], indices: [], faceSlots: [] };

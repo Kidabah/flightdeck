@@ -1,5 +1,5 @@
 /**
- * MakerDeck STL Painter Engine — b589
+ * MakerDeck STL Painter Engine — b591
  * Pure computation module: STL parsing, feature detection, 3MF export.
  */
 
@@ -1006,6 +1006,63 @@ function fmtCoord(n) {
   return String(Math.round(x * 1e4) / 1e4);
 }
 
+function meshXmlChunk(verts, faces, paint, face0, faceCount, vert0, vertCount) {
+  const vLines = new Array(vertCount);
+  for (let i = 0; i < vertCount; i++) {
+    const vi = vert0 + i;
+    vLines[i] = `        <vertex x="${fmtCoord(verts[vi * 3])}" y="${fmtCoord(verts[vi * 3 + 1])}" z="${fmtCoord(verts[vi * 3 + 2])}" />`;
+  }
+  const tLines = new Array(faceCount);
+  for (let i = 0; i < faceCount; i++) {
+    const fi = face0 + i;
+    const v1 = faces[fi * 3] - vert0;
+    const v2 = faces[fi * 3 + 1] - vert0;
+    const v3 = faces[fi * 3 + 2] - vert0;
+    const slot = paint[fi] || 0;
+    const attrs = (slot > 0 && slot < PAINT_COLOR_CODES.length)
+      ? ` paint_color="${PAINT_COLOR_CODES[slot]}"`
+      : '';
+    tLines[i] = `        <triangle v1="${v1}" v2="${v2}" v3="${v3}"${attrs} />`;
+  }
+  return {
+    vertices: vLines.join('\n') + '\n',
+    triangles: tLines.join('\n') + '\n',
+  };
+}
+
+function objectModelFile(vertices, triangles, objectId = 1) {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<model unit="millimeter" xml:lang="en-US"
+  xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02"
+  xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06"
+  xmlns:b="http://schemas.bambulab.com/package/2021">
+  <resources>
+    <object id="${objectId}" type="model">
+      <mesh>
+        <vertices>
+${vertices}        </vertices>
+        <triangles>
+${triangles}        </triangles>
+      </mesh>
+    </object>
+  </resources>
+  <build>
+    <item objectid="${objectId}" />
+  </build>
+</model>`;
+}
+
+function stampRangeIsSeparate(faces, nTri, nVerts, stampTri0, stampVert0) {
+  if (!(stampTri0 > 0 && stampTri0 < nTri && stampVert0 > 0 && stampVert0 < nVerts)) return false;
+  for (let i = 0; i < stampTri0; i++) {
+    if (faces[i * 3] >= stampVert0 || faces[i * 3 + 1] >= stampVert0 || faces[i * 3 + 2] >= stampVert0) return false;
+  }
+  for (let i = stampTri0; i < nTri; i++) {
+    if (faces[i * 3] < stampVert0 || faces[i * 3 + 1] < stampVert0 || faces[i * 3 + 2] < stampVert0) return false;
+  }
+  return true;
+}
+
 /** paint_color string → 0-based slot index */
 const PAINT_CODE_TO_SLOT = (() => {
   const m = Object.create(null);
@@ -1251,13 +1308,44 @@ export async function import3MF(buffer) {
   }
   if (!modelEntry) throw new Error('No object model found in 3MF');
 
-  const xml = new TextDecoder().decode(modelEntry.data);
-  const parsed = parseObjectModelXml(xml);
-  if (!parsed.nTri) throw new Error('3MF model has no triangles');
+  const objectEntries = modelCandidates
+    .filter(e => /objects\//i.test(e.name))
+    .sort((a, b) => a.name.localeCompare(b.name, 'en'));
+  const toParse = objectEntries.length ? objectEntries : (modelEntry ? [modelEntry] : []);
+  if (!toParse.length) throw new Error('No object model found in 3MF');
 
-  const { verts, faces, nVerts, nTri, facePaint, painted } = parsed;
-  const transforms = find3MFImportTransforms(entries, modelEntry.name);
-  for (const t of transforms) apply3MFTransformToVerts(verts, nVerts, t);
+  const parts = [];
+  let painted = 0;
+  let transformsApplied = 0;
+  for (const entry of toParse) {
+    const xml = new TextDecoder().decode(entry.data);
+    const parsed = parseObjectModelXml(xml);
+    if (!parsed.nTri) continue;
+    const transforms = find3MFImportTransforms(entries, entry.name);
+    for (const t of transforms) apply3MFTransformToVerts(parsed.verts, parsed.nVerts, t);
+    transformsApplied += transforms.length;
+    painted += parsed.painted;
+    parts.push(parsed);
+  }
+  if (!parts.length) throw new Error('3MF model has no triangles');
+
+  let nVerts = 0, nTri = 0;
+  for (const p of parts) { nVerts += p.nVerts; nTri += p.nTri; }
+  const verts = new Float32Array(nVerts * 3);
+  const faces = new Uint32Array(nTri * 3);
+  const facePaint = new Uint8Array(nTri);
+  let vo = 0, fo = 0;
+  for (const p of parts) {
+    verts.set(p.verts, vo * 3);
+    for (let i = 0; i < p.nTri; i++) {
+      faces[(fo + i) * 3] = p.faces[i * 3] + vo;
+      faces[(fo + i) * 3 + 1] = p.faces[i * 3 + 1] + vo;
+      faces[(fo + i) * 3 + 2] = p.faces[i * 3 + 2] + vo;
+      facePaint[fo + i] = p.facePaint[i];
+    }
+    vo += p.nVerts;
+    fo += p.nTri;
+  }
   const { embossMask, debossMask, trimMask } = facePaintToMasks(facePaint, nTri);
 
   // Try to read filament colours from project_settings.config
@@ -1272,7 +1360,7 @@ export async function import3MF(buffer) {
     } catch { /* not JSON or missing */ }
   }
 
-  return { verts, faces, nVerts, nTri, embossMask, debossMask, trimMask, facePaint, colors, painted, transformsApplied: transforms.length };
+  return { verts, faces, nVerts, nTri, embossMask, debossMask, trimMask, facePaint, colors, painted, transformsApplied };
 }
 
 function normalizeFilamentHex(c) {
@@ -1308,6 +1396,8 @@ export function export3MF(verts, faces, nVerts, nTri, embossMask, debossMask, op
     filamentProfile = 'Generic PLA',
     printerModel = 'Bambu Lab X1 Carbon',
     projectName = 'painted_object',
+    stampTri0 = null,
+    stampVert0 = null,
   } = options;
 
   const nSlots = Math.max(1, Math.min(MAX_PAINT_SLOTS, slotCount | 0));
@@ -1348,46 +1438,17 @@ export function export3MF(verts, faces, nVerts, nTri, embossMask, debossMask, op
     throw new Error(`Too many faces to export (${nTri.toLocaleString()}). Reload the STL and stamp the logo again.`);
   }
 
-  // Build object_1.model (with painted faces). Join once — += on huge meshes OOMs.
-  const vLines = new Array(nVerts);
-  for (let i = 0; i < nVerts; i++) {
-    vLines[i] = `        <vertex x="${fmtCoord(verts[i * 3])}" y="${fmtCoord(verts[i * 3 + 1])}" z="${fmtCoord(verts[i * 3 + 2])}" />`;
-  }
-  const objVertices = vLines.join('\n') + '\n';
-
-  const tLines = new Array(nTri);
-  for (let i = 0; i < nTri; i++) {
-    const v1 = faces[i * 3], v2 = faces[i * 3 + 1], v3 = faces[i * 3 + 2];
-    const slot = paint[i] || 0;
-    // Slot 1 (index 0) = default extruder — no paint_color. Slots 2–16 use codes.
-    const attrs = (slot > 0 && slot < PAINT_COLOR_CODES.length)
-      ? ` paint_color="${PAINT_COLOR_CODES[slot]}"`
-      : '';
-    tLines[i] = `        <triangle v1="${v1}" v2="${v2}" v3="${v3}"${attrs} />`;
-  }
-  const objTriangles = tLines.join('\n') + '\n';
+  const splitStamp = stampRangeIsSeparate(faces, nTri, nVerts, stampTri0, stampVert0);
+  const bodyMesh = splitStamp
+    ? meshXmlChunk(verts, faces, paint, 0, stampTri0, 0, stampVert0)
+    : meshXmlChunk(verts, faces, paint, 0, nTri, 0, nVerts);
+  const stampMesh = splitStamp
+    ? meshXmlChunk(verts, faces, paint, stampTri0, nTri - stampTri0, stampVert0, nVerts - stampVert0)
+    : null;
 
   const safeName = String(projectName || 'painted_object').replace(/[<>&"']/g, '');
-
-  const objectModel = `<?xml version="1.0" encoding="UTF-8"?>
-<model unit="millimeter" xml:lang="en-US"
-  xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02"
-  xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06"
-  xmlns:b="http://schemas.bambulab.com/package/2021">
-  <resources>
-    <object id="1" type="model">
-      <mesh>
-        <vertices>
-${objVertices}        </vertices>
-        <triangles>
-${objTriangles}        </triangles>
-      </mesh>
-    </object>
-  </resources>
-  <build>
-    <item objectid="1" />
-  </build>
-</model>`;
+  const objectModel = objectModelFile(bodyMesh.vertices, bodyMesh.triangles, 1);
+  const stampObjectModel = stampMesh ? objectModelFile(stampMesh.vertices, stampMesh.triangles, 1) : null;
 
   const mainModel = `<?xml version="1.0" encoding="UTF-8"?>
 <model unit="millimeter" xml:lang="en-US"
@@ -1400,10 +1461,16 @@ ${objTriangles}        </triangles>
       <components>
         <component objectid="1" p:path="/3D/Objects/object_1.model" />
       </components>
-    </object>
+    </object>${splitStamp ? `
+    <object id="2" type="model" p:path="/3D/Objects/object_2.model">
+      <components>
+        <component objectid="2" p:path="/3D/Objects/object_2.model" />
+      </components>
+    </object>` : ''}
   </resources>
   <build>
-    <item objectid="1" />
+    <item objectid="1" />${splitStamp ? `
+    <item objectid="2" />` : ''}
   </build>
 </model>`;
 
@@ -1422,7 +1489,8 @@ ${objTriangles}        </triangles>
 
   const modelRels = `<?xml version="1.0" encoding="UTF-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Target="/3D/Objects/object_1.model" Id="rel1" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel" />
+  <Relationship Target="/3D/Objects/object_1.model" Id="rel1" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel" />${splitStamp ? `
+  <Relationship Target="/3D/Objects/object_2.model" Id="rel2" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel" />` : ''}
 </Relationships>`;
 
   const modelSettings = `<?xml version="1.0" encoding="UTF-8"?>
@@ -1436,7 +1504,12 @@ ${objTriangles}        </triangles>
       <metadata key="object_id" value="1" />
       <metadata key="instance_id" value="0" />
       <metadata key="identify_id" value="0" />
-    </model_instance>
+    </model_instance>${splitStamp ? `
+    <model_instance>
+      <metadata key="object_id" value="2" />
+      <metadata key="instance_id" value="0" />
+      <metadata key="identify_id" value="1" />
+    </model_instance>` : ''}
   </plate>
   <object id="1">
     <metadata key="name" value="${safeName}" />
@@ -1444,7 +1517,14 @@ ${objTriangles}        </triangles>
       <metadata key="name" value="${safeName}" />
       <metadata key="extruder" value="1" />
     </part>
-  </object>
+  </object>${splitStamp ? `
+  <object id="2">
+    <metadata key="name" value="${safeName}_logo" />
+    <part id="1" subtype="normal_part">
+      <metadata key="name" value="${safeName}_logo" />
+      <metadata key="extruder" value="1" />
+    </part>
+  </object>` : ''}
 </config>`;
 
   // Painter exports are intentionally single-tool AMS projects. H2C/H2D
@@ -1482,6 +1562,7 @@ ${objTriangles}        </triangles>
     { name: '3D/3dmodel.model', data: mainModel },
     { name: '3D/_rels/3dmodel.model.rels', data: modelRels },
     { name: '3D/Objects/object_1.model', data: objectModel },
+    ...(stampObjectModel ? [{ name: '3D/Objects/object_2.model', data: stampObjectModel }] : []),
     { name: 'Metadata/model_settings.config', data: modelSettings },
     { name: 'Metadata/project_settings.config', data: projectSettings }
   ];
