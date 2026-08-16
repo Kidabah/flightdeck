@@ -6,6 +6,19 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-16 Session update (Painter stop restamping the grey PNG)
+
+Latest commit: pending — Stop Painter from rebuilding the grey logo fringe off the raw PNG.
+
+Latest local/Pi change:
+- Stamp uses the scrubbed trace only (no raw-PNG fallback that put the grey halo back). Grey layers and border-connected grey pixels are dropped; the white crest plate stays; 1px spikes on the plate edge are opened off.
+- Hard refresh (`app.js?v=678`, Painter `painter.html?v=587` / **b587**). Reload the hoodie STL, drop the logo, stamp once. Header must say **b587**.
+
+Previous:
+- Painter clip logo to ink island (`0ebd0de`).
+
+---
+
 ## 2026-08-16 Session update (Painter clip logo to ink island)
 
 Latest commit: 0ebd0de — Clip Painter logos to the sealed red/black island and stop fringe growth.

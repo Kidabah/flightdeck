@@ -1,7 +1,7 @@
 /**
  * Painter SVG stamp — planar projection must paint the facing patch and skip the back.
  */
-import { collectStampHits, makeStampFrame, mirrorStampFrameX, nearestSlot, parseHexColor, extractSvgFillHexes, stampSizeMm, knockOutPaperBackground, rasterHasAlpha, extractRasterPalette, isSvgArtFile, isRasterArtFile, buildStampSlabs, stampLayersFromTrace, buildStampSlabsFromMasks, scrubTraceMat, isTraceMatLayer, floodBorderBackground, clipLayersToInkIsland } from "./_staged/painter-art.js";
+import { collectStampHits, makeStampFrame, mirrorStampFrameX, nearestSlot, parseHexColor, extractSvgFillHexes, stampSizeMm, knockOutPaperBackground, rasterHasAlpha, extractRasterPalette, isSvgArtFile, isRasterArtFile, buildStampSlabs, stampLayersFromTrace, buildStampSlabsFromMasks, scrubTraceMat, isTraceMatLayer, floodBorderBackground, clipLayersToInkIsland, punchExteriorPaper } from "./_staged/painter-art.js";
 
 let failures = 0;
 const results = [];
@@ -236,6 +236,25 @@ const clipped = clipLayersToInkIsland([
 check("ink-island drops outer grey", !clipped.some((l) => l.label === "Dark grey"));
 check("ink-island keeps crest white", clipped.some((l) => l.label === "White"));
 check("ink-island keeps red", clipped.some((l) => l.label === "Red"));
+
+const plate = new Uint8Array(8 * 8);
+plate.fill(1);
+const plateScrub = punchExteriorPaper([
+  { rgb: [245, 245, 245], label: "White", mask: plate },
+  { rgb: [200, 0, 0], label: "Red", mask: core },
+], 8, 8);
+check("white backing plate is kept", plateScrub.some((l) => l.label === "White") && plateScrub.find((l) => l.label === "White").mask[3 * 8 + 3] === 1);
+check("white backing still covers the field", plateScrub.find((l) => l.label === "White").mask[1 * 8 + 1] === 1);
+
+const spiked = new Uint8Array(8 * 8);
+for (let y = 2; y <= 5; y++) for (let x = 2; x <= 5; x++) spiked[y * 8 + x] = 1;
+spiked[4] = 1;
+const spikeScrub = punchExteriorPaper([
+  { rgb: [240, 240, 240], label: "White", mask: spiked },
+  { rgb: [200, 0, 0], label: "Red", mask: crest },
+], 8, 8);
+check("white crop spike is stripped", spikeScrub.find((l) => l.label === "White") && spikeScrub.find((l) => l.label === "White").mask[4] === 0);
+check("white plate body survives open", spikeScrub.find((l) => l.label === "White").mask[3 * 8 + 3] === 1);
 
 for (const line of results) console.log(line);
 if (failures) {

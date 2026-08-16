@@ -4,6 +4,14 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b587 — Painter stops restamping the grey PNG fringe
+**Date:** 2026-08-16
+
+### MakerDeck
+- Logo stamp no longer falls back to the raw PNG (that was putting the grey halo back after scrub). Grey layers + border-connected grey pixels are dropped; the white crest plate stays; 1px saw-teeth on the plate are opened off. Hard refresh Painter **b587**. Reload the STL, stamp once.
+
+---
+
 ## b586 — Painter clips logos to the ink island
 **Date:** 2026-08-16
 

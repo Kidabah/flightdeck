@@ -512,7 +512,8 @@ export function rgbChromaLum(r, g, b) {
 
 export function isInkRgb(r, g, b) {
   const { chroma, lum } = rgbChromaLum(r, g, b);
-  return lum < 60 || chroma >= 26;
+  if (lum > 200) return false;
+  return lum < 60 || chroma >= 32;
 }
 
 export function isLogoWhiteRgb(r, g, b) {
@@ -554,6 +555,30 @@ function dilateMask4(mask, w, h, passes = 1) {
   return cur;
 }
 
+function erodeMask4(mask, w, h, passes = 1) {
+  let cur = mask;
+  for (let p = 0; p < passes; p++) {
+    const next = new Uint8Array(cur.length);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        if (!cur[y * w + x]) continue;
+        if ((x === 0 || !cur[y * w + x - 1])
+          || (x + 1 === w || !cur[y * w + x + 1])
+          || (y === 0 || !cur[(y - 1) * w + x])
+          || (y + 1 === h || !cur[(y + 1) * w + x])) continue;
+        next[y * w + x] = 1;
+      }
+    }
+    cur = next;
+  }
+  return cur;
+}
+
+function openMask4(mask, w, h, passes = 1) {
+  if (passes <= 0) return mask;
+  return dilateMask4(erodeMask4(mask, w, h, passes), w, h, passes);
+}
+
 function floodFromBorder(passable, w, h) {
   const seen = new Uint8Array(w * h);
   const stack = [];
@@ -593,29 +618,43 @@ function unionLayerMask(layers, w, h, pred) {
 }
 
 /**
- * Punch grey/empty that's reachable from the crop edge without crossing
- * red/black/white logo ink. Keeps interior white; drops the outer mat + halo.
+ * Drop the grey halo, keep the white logo plate. Grey/empty floods in from the
+ * crop edge and stops at white or red/black. Paper layers then get a 1px open
+ * so anti-alias saw-teeth on the plate edge don't become grey geometry.
  */
 export function punchExteriorPaper(layers, w, h) {
   if (!layers?.length || !w || !h) return layers || [];
-  const ink = unionLayerMask(layers, w, h, isInkRgb);
-  const white = unionLayerMask(layers, w, h, isLogoWhiteRgb);
-  const wall = dilateMask4(ink, w, h, 1);
+  const kept = [];
+  for (const layer of layers) {
+    if (!layer?.mask || layer.mask.length !== w * h) continue;
+    const [r, g, b] = layer.rgb || [0, 0, 0];
+    if (isMatGreyRgb(r, g, b)) continue;
+    kept.push(layer);
+  }
+  const ink = unionLayerMask(kept, w, h, isInkRgb);
+  const white = unionLayerMask(kept, w, h, isLogoWhiteRgb);
+  const wall = dilateMask4(ink, w, h, Math.min(w, h) >= 64 ? 2 : 1);
   const passable = new Uint8Array(w * h);
   for (let i = 0; i < passable.length; i++) {
     passable[i] = (!wall[i] && !white[i]) ? 1 : 0;
   }
   const exterior = floodFromBorder(passable, w, h);
   const out = [];
-  for (const layer of layers) {
-    if (!layer?.mask || layer.mask.length !== w * h) continue;
-    const mask = new Uint8Array(layer.mask);
+  for (const layer of kept) {
+    const [r, g, b] = layer.rgb || [0, 0, 0];
+    let mask = new Uint8Array(layer.mask);
     let on = 0;
     for (let i = 0; i < mask.length; i++) {
       if (exterior[i]) mask[i] = 0;
       if (mask[i]) on++;
     }
     if (on < 2) continue;
+    if (!isInkRgb(r, g, b)) {
+      mask = openMask4(mask, w, h, 1);
+      on = 0;
+      for (let i = 0; i < mask.length; i++) if (mask[i]) on++;
+      if (on < 2) continue;
+    }
     out.push({ ...layer, mask });
   }
   return out;
@@ -717,34 +756,25 @@ function punchMaskBits(mask, punch) {
   return out;
 }
 
+/** Border-connected mid-grey / clear pixels — the jagged halo, not crest white. */
+export function floodMatGreyFromBorder(pixels, w, h) {
+  const passable = new Uint8Array(w * h);
+  if (!pixels || !w || !h) return passable;
+  for (let i = 0; i < w * h; i++) {
+    const o = i * 4;
+    if (pixels[o + 3] < 40 || isMatGreyRgb(pixels[o], pixels[o + 1], pixels[o + 2])) {
+      passable[i] = 1;
+    }
+  }
+  return floodFromBorder(passable, w, h);
+}
+
 /**
- * Keep logo ink + enclosed white. Punch anything reachable from the crop
- * edge without crossing sealed red/black — the grey halo around a crest.
+ * Keep the white logo plate + red/black ink. Drop grey halo layers and
+ * border-connected grey, then strip 1px saw-teeth on paper fills.
  */
 export function clipLayersToInkIsland(layers, w, h) {
-  if (!layers?.length || !w || !h) return layers || [];
-  const ink = unionLayerMask(layers, w, h, isInkRgb);
-  let inkOn = 0;
-  for (let i = 0; i < ink.length; i++) if (ink[i]) inkOn++;
-  if (inkOn < 8) return layers;
-  const seal = Math.min(w, h) >= 64 ? Math.max(3, Math.round(Math.min(w, h) / 180)) : 1;
-  const wall = dilateMask4(ink, w, h, seal);
-  const passable = new Uint8Array(w * h);
-  for (let i = 0; i < passable.length; i++) passable[i] = wall[i] ? 0 : 1;
-  const exterior = floodFromBorder(passable, w, h);
-  const out = [];
-  for (const layer of layers) {
-    if (!layer?.mask || layer.mask.length !== w * h) continue;
-    const mask = new Uint8Array(layer.mask);
-    let on = 0;
-    for (let i = 0; i < mask.length; i++) {
-      if (exterior[i]) mask[i] = 0;
-      if (mask[i]) on++;
-    }
-    if (on < 2) continue;
-    out.push({ ...layer, mask });
-  }
-  return out;
+  return punchExteriorPaper(layers, w, h);
 }
 
 /** Drop the grey bounding-mat / halo around a team logo. */
@@ -753,10 +783,11 @@ export function scrubTraceMat(result, source = null) {
   const imgW = result.width | 0;
   const imgH = result.height | 0;
   let layers = (result.colorLayers || []).map((layer) => ({ ...layer }));
+  const hadColor = layers.length > 0;
   if (!layers.length && !resolveTraceInkMask(result)) return result;
 
   if (source?.pixels && source.srcW && source.srcH && imgW && imgH) {
-    const extFull = floodBorderBackground(source.pixels, source.srcW, source.srcH);
+    const extFull = floodMatGreyFromBorder(source.pixels, source.srcW, source.srcH);
     const ox = result.cropOx || 0;
     const oy = result.cropOy || 0;
     const ext = (ox === 0 && oy === 0 && imgW === source.srcW && imgH === source.srcH)
@@ -776,12 +807,10 @@ export function scrubTraceMat(result, source = null) {
 
   if (layers.length) {
     layers = punchExteriorPaper(layers, imgW, imgH);
-    layers = clipLayersToInkIsland(layers, imgW, imgH);
-    layers = layers.filter((layer) => !isTraceMatLayer(layer.mask, imgW, imgH, layer.rgb));
   }
   const sil = layers.length
     ? unionMasks(layers.map((l) => l.mask), imgW * imgH)
-    : resolveTraceInkMask(result);
+    : (hadColor ? new Uint8Array(imgW * imgH) : resolveTraceInkMask(result));
   return {
     ...result,
     colorLayers: layers,
@@ -812,6 +841,7 @@ export function stampLayersFromTrace(result, { singleSlot = null, slotForRgb, pi
     }
     if (layers.length) return { imgW, imgH, layers };
   }
+  if ((result.colorLayers || []).length) return { imgW, imgH, layers: [] };
   const mask = resolveTraceInkMask(cleaned);
   if (!mask || mask.length !== expect) return { imgW, imgH, layers: [] };
   return { imgW, imgH, layers: [{ mask, slot: 0 }] };
