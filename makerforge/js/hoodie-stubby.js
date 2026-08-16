@@ -7,6 +7,8 @@ import { weldMeshVertices } from "./stl.js?v=374";
 export const HOODIE_STUBBY_STL_URL = "models/hoodie-stubby.stl?v=578";
 export const HOODIE_WELL_MM = 65;
 export const HOODIE_FLOOR_MM = 5;
+/** Stamp sits this far in front of the sampled fabric so it reads as a decal, not a carve. */
+export const HOODIE_ART_PROUD_MM = 0.85;
 
 let cache = null;
 let loadPromise = null;
@@ -83,26 +85,26 @@ function buildChestHeightfield(positions) {
     const k = iz * nx + ix;
     if (y < best[k]) best[k] = y;
   }
-  for (let pass = 0; pass < 8; pass++) {
+  // Fill pouch openings with the front-most neighbour (not an average —
+  // averaging pulled the stamp back onto the chest plane).
+  for (let pass = 0; pass < 16; pass++) {
     let filledAny = false;
     for (let iz = 0; iz < nz; iz++) {
       for (let ix = 0; ix < nx; ix++) {
         const k = iz * nx + ix;
         if (best[k] !== Infinity) continue;
-        let acc = 0, n = 0;
+        let mn = Infinity;
         for (let dz = -1; dz <= 1; dz++) {
           for (let dx = -1; dx <= 1; dx++) {
             if (!dx && !dz) continue;
             const jx = ix + dx, jz = iz + dz;
             if (jx < 0 || jz < 0 || jx >= nx || jz >= nz) continue;
             const v = best[jz * nx + jx];
-            if (v === Infinity) continue;
-            acc += v;
-            n++;
+            if (Number.isFinite(v) && v < mn) mn = v;
           }
         }
-        if (n) {
-          best[k] = acc / n;
+        if (mn !== Infinity) {
+          best[k] = mn;
           filledAny = true;
         }
       }
@@ -112,28 +114,8 @@ function buildChestHeightfield(positions) {
   return { y: best, xMin, xMax, zMin, zMax, nx, nz };
 }
 
-function closeChestHoles(field) {
-  const { y, nx, nz } = field;
-  const out = new Float32Array(y);
-  const rad = 8;
-  for (let iz = 0; iz < nz; iz++) {
-    for (let ix = 0; ix < nx; ix++) {
-      const vals = [];
-      for (let dz = -rad; dz <= rad; dz++) {
-        for (let dx = -rad; dx <= rad; dx++) {
-          const jx = ix + dx, jz = iz + dz;
-          if (jx < 0 || jz < 0 || jx >= nx || jz >= nz) continue;
-          const v = y[jz * nx + jx];
-          if (Number.isFinite(v) && v !== Infinity) vals.push(v);
-        }
-      }
-      if (!vals.length) continue;
-      vals.sort((a, b) => a - b);
-      out[iz * nx + ix] = vals[Math.floor(vals.length * 0.12)];
-    }
-  }
-  field.y = out;
-  return field;
+function finiteFrontY(v) {
+  return Number.isFinite(v) && v !== Infinity ? v : null;
 }
 
 function sampleChestY(field, x, z) {
@@ -145,10 +127,14 @@ function sampleChestY(field, x, z) {
   const x0 = Math.floor(fx), z0 = Math.floor(fz);
   const x1 = Math.min(nx - 1, x0 + 1), z1 = Math.min(nz - 1, z0 + 1);
   const tx = fx - x0, tz = fz - z0;
-  const v00 = y[z0 * nx + x0], v10 = y[z0 * nx + x1], v01 = y[z1 * nx + x0], v11 = y[z1 * nx + x1];
-  if (![v00, v10, v01, v11].every(Number.isFinite) || [v00, v10, v01, v11].some((v) => v === Infinity)) {
-    const vals = [v00, v10, v01, v11].filter((v) => Number.isFinite(v) && v !== Infinity);
-    return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+  const v00 = finiteFrontY(y[z0 * nx + x0]);
+  const v10 = finiteFrontY(y[z0 * nx + x1]);
+  const v01 = finiteFrontY(y[z1 * nx + x0]);
+  const v11 = finiteFrontY(y[z1 * nx + x1]);
+  const vals = [v00, v10, v01, v11];
+  if (vals.some((v) => v == null)) {
+    const ok = vals.filter((v) => v != null);
+    return ok.length ? Math.min(...ok) : null;
   }
   const v0 = v00 * (1 - tx) + v10 * tx;
   const v1 = v01 * (1 - tx) + v11 * tx;
@@ -202,7 +188,7 @@ function meshFromStlBuffer(buffer) {
     positions,
     indices,
     meta: metaFromMesh(positions),
-    chestField: closeChestHoles(buildChestHeightfield(positions)),
+    chestField: buildChestHeightfield(positions),
   };
 }
 
