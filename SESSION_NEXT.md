@@ -6,6 +6,39 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## STOP — pick up 2026-08-17 (hoodie logo still not crisp)
+
+Latest commit: `57fee2b` / `19593e3` — session parked. MakerDeck **b584** is live. Do not ship another depth/drape tweak until crispness is fixed.
+
+**What Chris sees:** St George crest on the hoodie in MakerDeck is blocky, scanlined, and a bit engraved. STL Painter is the look we want (thin stamp on the fabric, clean edges). He was comparing Painter vs MakerDeck; MakerDeck is the one that’s wrong.
+
+**This is the same family of bugs as this morning, not a new one.**
+
+| When | What we did | What it caused |
+| --- | --- | --- |
+| Painter b590 | Paint colours onto hoodie triangles | Jagged red spikes (`f13c15b` / b591 undid this) |
+| Painter b589 | One prism per bitmap cell | Millions of faces, 0-byte 3MF. Fix: **shared-vertex heightfield**, grid ~0.2 mm |
+| Painter b584–b588 | Raw PNG grey halo | Fringe / saw-teeth around the shield |
+| MakerDeck b584 tonight | Forced hoodie art to **0.22 mm cells** + row banding | **Tonight’s “not crisp”** — stepped letters, horizontal scanlines |
+
+**Tomorrow — do this:**
+
+1. **Undo the 0.22 mm hoodie cap** in `features.js` (`buildFlatShapeGroupsSolidMesh` stepMm and `buildWrapTraceSlabMesh` stepPx). That cap is why ST. GEORGE / ILLAWARRA look like Lego. Box art stays crisp at **0.035 mm export / 0.05 mm preview**.
+2. **Do not row-band the crest** with `DECAL_LAYER_MM` (0.2 mm). That’s the horizontal striations across the shield.
+3. **Keep** b584’s good bits: Painter skin **0.04 mm**, shell **~0.72 mm**, smoothed front-face chest field. Those fixed the side-on brick, not the top-down pixels.
+4. Prefer **Painter’s `appendStampHeightfield`** (`makerforge/js/painter-art.js`) on MakerDeck’s `getEmbossFaceFrame` / chest field — one shell per colour, shared verts — instead of voxel marching with fat cells.
+5. **Never** paint the hoodie mesh triangles again (b591). Logo stays a separate colour part.
+6. If the grey halo is back, reuse Painter’s `scrubTraceMat` / paper knockout — don’t restamp the raw PNG.
+
+**Do not:** another proud/depth pass, pocket-interior drape, or painting the STL. Crispness is grid + builder, not millimetres of offset.
+
+Hard refresh still **b584** until tomorrow’s build. Re-click Stubby holder after the crisp fix.
+
+Previous:
+- MakerDeck hoodie stamp matches Painter thickness (`57fee2b`).
+
+---
+
 ## 2026-08-16 Session update (MakerDeck hoodie stamp matches Painter)
 
 Latest commit: `57fee2b` — Match MakerDeck hoodie logos to STL Painter's thin smooth stamp.

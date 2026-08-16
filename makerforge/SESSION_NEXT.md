@@ -4,6 +4,15 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## STOP — 2026-08-17: hoodie crest still not crisp
+**Date:** 2026-08-16 (parked)
+
+### MakerDeck
+- b584 made the stamp *thin* like Painter but **not crisp**. 0.22 mm cells + `DECAL_LAYER_MM` row banding = blocky ST. GEORGE and horizontal scanlines. Same class of bug as Painter b589 (per-cell prisms) / b590 (painted hoodie tris → spikes).
+- Tomorrow: drop the 0.22 mm hoodie override; use fine voxels or `appendStampHeightfield`; keep 0.04 / 0.72 skin; never paint hoodie triangles. Details in root `SESSION_NEXT.md`.
+
+---
+
 ## b584 — Hoodie stamp matches STL Painter
 **Date:** 2026-08-16
 
