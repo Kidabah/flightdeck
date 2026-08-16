@@ -10,7 +10,7 @@ import {
   resolveVaseTexture,
   vaseTextureDisplacement,
 } from "./vase-textures.js";
-import { sampleHoodieChestY, HOODIE_ART_PROUD_MM } from "./hoodie-stubby.js?v=583";
+import { sampleHoodieChestY, HOODIE_ART_PROUD_MM } from "./hoodie-stubby.js?v=584";
 
 export const EMBOSS_FONTS = [
   { id: "segoe-ui", label: "Segoe UI — Windows", family: '"Segoe UI Variable", "Segoe UI", system-ui, sans-serif', weight: 700 },
@@ -753,6 +753,7 @@ export function buildFlatShapeGroupsSolidMesh(frame, shapeGroups, d0, d1, params
   const spanY = Math.max(bounds.maxY - bounds.minY, 0.2);
   // Label/sign solids: finer voxels so light letter stems stay crisp at 0.4 mm nozzles.
   let stepMm = params?.__labelExportStandoff ? 0.035 : 0.05;
+  if (params?.shape === "stubbyHolder" || params?.__hoodieArtExport) stepMm = 0.22;
   const maxDim = params?.__labelExportStandoff ? 2800 : 1600;
   if (spanX / stepMm > maxDim || spanY / stepMm > maxDim) {
     stepMm = Math.max(spanX, spanY) / maxDim;
@@ -812,6 +813,9 @@ function buildWrapTraceSlabMesh(frame, bitmap, params, shapeGroups, d0, d1, opts
     maxRows: opts.fineRows ? maskH : maxRows,
     maxPreviewIndices: opts.fineRows ? 0 : (preview ? WRAP_SVG_PREVIEW_MAX_INDICES : 0),
   });
+  if (params?.shape === "stubbyHolder" || params?.__hoodieArtExport) {
+    stepPx = Math.max(stepPx, Math.max(1, Math.round(0.22 / Math.max(scale, 0.05))));
+  }
 
   // Flat faces: closed voxel-surface solid — row shells are wrap-only. Their tubes have no
   // top/bottom caps, so flat line-art traces exported tens of thousands of open edges
@@ -4996,11 +5000,10 @@ function labelOffsets(params) {
     // so the boolean subtract is clean at the outer skin.
     return { d0: -depth - 0.05, d1: 0.4, depth, deboss: true };
   }
-  if (params.__hoodieArtExport) {
-    // Closed proud slab on the draped chest. Embedding along Y through the
-    // kangaroo pocket folds the solid; Bambu then reports zero volume and drops the logo.
-    const useDepth = Math.max(depth, 0.8);
-    return { d0: 0.15, d1: 0.15 + useDepth, depth: useDepth, deboss: false };
+  if (params.__hoodieArtExport || params.shape === "stubbyHolder") {
+    // STL Painter stamp: 0.04 mm skin + ~0.72 mm shell.
+    const useDepth = clamp(params.embossDepth ?? 0.72, 0.5, 1.0);
+    return { d0: 0.04, d1: 0.04 + useDepth, depth: useDepth, deboss: false };
   }
   // Raised emboss: flush in preview; export embeds into wall pockets (no air gap).
   let standoff = 0;

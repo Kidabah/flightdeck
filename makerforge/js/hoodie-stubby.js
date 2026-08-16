@@ -7,8 +7,8 @@ import { weldMeshVertices } from "./stl.js?v=374";
 export const HOODIE_STUBBY_STL_URL = "models/hoodie-stubby.stl?v=578";
 export const HOODIE_WELL_MM = 65;
 export const HOODIE_FLOOR_MM = 5;
-/** Stamp sits this far in front of the sampled fabric so it reads as a decal, not a carve. */
-export const HOODIE_ART_PROUD_MM = 0.85;
+/** Same skin as STL Painter — a decal, not a brick. */
+export const HOODIE_ART_PROUD_MM = 0.04;
 
 let cache = null;
 let loadPromise = null;
@@ -68,48 +68,84 @@ function chestFrontY(positions) {
   return ys[Math.floor(ys.length * 0.12)];
 }
 
-function buildChestHeightfield(positions) {
+function buildChestHeightfield(positions, indices) {
   const xMin = -52, xMax = 52, zMin = 8, zMax = 148;
-  const nx = 72, nz = 96;
+  const nx = 96, nz = 128;
   const best = new Float32Array(nx * nz);
   best.fill(Infinity);
-  // Ignore pouch-interior verts (they sit ~20mm behind the chest fabric).
   const chestY = chestFrontY(positions);
-  const yCut = Number.isFinite(chestY) ? chestY + 10 : 0;
-  for (let i = 0; i < positions.length; i += 3) {
-    const x = positions[i], y = positions[i + 1], z = positions[i + 2];
-    if (!(y < yCut)) continue;
+  const yCut = Number.isFinite(chestY) ? chestY + 8 : 0;
+  const splat = (x, y, z) => {
+    if (!(y < yCut)) return;
     const ix = Math.round((x - xMin) / (xMax - xMin) * (nx - 1));
     const iz = Math.round((z - zMin) / (zMax - zMin) * (nz - 1));
-    if (ix < 0 || iz < 0 || ix >= nx || iz >= nz) continue;
+    if (ix < 0 || iz < 0 || ix >= nx || iz >= nz) return;
     const k = iz * nx + ix;
     if (y < best[k]) best[k] = y;
+  };
+  if (indices?.length) {
+    for (let t = 0; t < indices.length; t += 3) {
+      const ia = indices[t] * 3, ib = indices[t + 1] * 3, ic = indices[t + 2] * 3;
+      const ax = positions[ia], ay = positions[ia + 1], az = positions[ia + 2];
+      const bx = positions[ib], by = positions[ib + 1], bz = positions[ib + 2];
+      const cx = positions[ic], cy = positions[ic + 1], cz = positions[ic + 2];
+      const e1x = bx - ax, e1y = by - ay, e1z = bz - az;
+      const e2x = cx - ax, e2y = cy - ay, e2z = cz - az;
+      const ny = e1z * e2x - e1x * e2z;
+      if (!(ny < 0)) continue;
+      splat(ax, ay, az);
+      splat(bx, by, bz);
+      splat(cx, cy, cz);
+    }
+  } else {
+    for (let i = 0; i < positions.length; i += 3) splat(positions[i], positions[i + 1], positions[i + 2]);
   }
-  // Fill pouch openings with the front-most neighbour (not an average —
-  // averaging pulled the stamp back onto the chest plane).
   for (let pass = 0; pass < 16; pass++) {
     let filledAny = false;
     for (let iz = 0; iz < nz; iz++) {
       for (let ix = 0; ix < nx; ix++) {
         const k = iz * nx + ix;
         if (best[k] !== Infinity) continue;
-        let mn = Infinity;
+        let acc = 0, n = 0;
         for (let dz = -1; dz <= 1; dz++) {
           for (let dx = -1; dx <= 1; dx++) {
             if (!dx && !dz) continue;
             const jx = ix + dx, jz = iz + dz;
             if (jx < 0 || jz < 0 || jx >= nx || jz >= nz) continue;
             const v = best[jz * nx + jx];
-            if (Number.isFinite(v) && v < mn) mn = v;
+            if (Number.isFinite(v) && v !== Infinity) {
+              acc += v;
+              n++;
+            }
           }
         }
-        if (mn !== Infinity) {
-          best[k] = mn;
+        if (n) {
+          best[k] = acc / n;
           filledAny = true;
         }
       }
     }
     if (!filledAny) break;
+  }
+  for (let pass = 0; pass < 5; pass++) {
+    const next = new Float32Array(best);
+    for (let iz = 0; iz < nz; iz++) {
+      for (let ix = 0; ix < nx; ix++) {
+        let acc = 0, n = 0;
+        for (let dz = -1; dz <= 1; dz++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            const jx = ix + dx, jz = iz + dz;
+            if (jx < 0 || jz < 0 || jx >= nx || jz >= nz) continue;
+            const v = best[jz * nx + jx];
+            if (!Number.isFinite(v) || v === Infinity) continue;
+            acc += v;
+            n++;
+          }
+        }
+        if (n) next[iz * nx + ix] = acc / n;
+      }
+    }
+    best.set(next);
   }
   return { y: best, xMin, xMax, zMin, zMax, nx, nz };
 }
@@ -188,7 +224,7 @@ function meshFromStlBuffer(buffer) {
     positions,
     indices,
     meta: metaFromMesh(positions),
-    chestField: buildChestHeightfield(positions),
+    chestField: buildChestHeightfield(positions, indices),
   };
 }
 

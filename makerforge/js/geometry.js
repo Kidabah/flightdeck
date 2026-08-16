@@ -28,8 +28,8 @@ import {
   shapeSupportsProfileArt,
   shapeSupportsArt,
   STACK_LIP_MM,
-} from "./features.js?v=583";
-import { getHoodieStubbyCache } from "./hoodie-stubby.js?v=583";
+} from "./features.js?v=584";
+import { getHoodieStubbyCache } from "./hoodie-stubby.js?v=584";
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=161";
 import { buildOoshieStand, ooshieMeta, OOSHIE_DEFAULTS } from "./ooshie-stand.js?v=576";
@@ -2895,7 +2895,7 @@ export const HOODIE_STUBBY_PRESET = {
   embossFont: "bebas",
   embossTextAlign: "center",
   embossTraceSize: 56,
-  embossDepth: 0.4,
+  embossDepth: 0.72,
   boxColor: "#38bdf8",
 };
 
