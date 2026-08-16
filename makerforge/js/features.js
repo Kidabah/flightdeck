@@ -4794,12 +4794,15 @@ export function getEmbossFaceFrame(meta, face, params = null) {
 
   // Convention: default preview camera looks at -Y face → that's the user's "front".
   if (useFace === "front" || useFace === "back") {
-    const yOut = useFace === "front" ? -b.od2 : b.od2;
     const yDir = useFace === "front" ? -1 : 1;
     // For "front" (world -Y) text is not mirrored — reads normally.
     // For "back" (world +Y) mirror X so text reads correctly when viewed from +Y.
     const mirror = useFace === "back";
     const chest = meta.shape === "stubbyHolder";
+    const chestY = Number(meta.chestY);
+    const yOut = chest && Number.isFinite(chestY)
+      ? (useFace === "front" ? chestY : -chestY)
+      : (useFace === "front" ? -b.od2 : b.od2);
     return {
       face: useFace,
       faceW: chest ? Math.min(b.outerW, 90) : b.outerW,
