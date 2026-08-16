@@ -1,7 +1,7 @@
 /**
  * Painter SVG stamp — planar projection must paint the facing patch and skip the back.
  */
-import { collectStampHits, makeStampFrame, mirrorStampFrameX, nearestSlot, parseHexColor, extractSvgFillHexes, stampSizeMm, knockOutPaperBackground, rasterHasAlpha, extractRasterPalette, isSvgArtFile, isRasterArtFile, buildStampSlabs, stampLayersFromTrace, buildStampSlabsFromMasks, scrubTraceMat, isTraceMatLayer } from "./_staged/painter-art.js";
+import { collectStampHits, makeStampFrame, mirrorStampFrameX, nearestSlot, parseHexColor, extractSvgFillHexes, stampSizeMm, knockOutPaperBackground, rasterHasAlpha, extractRasterPalette, isSvgArtFile, isRasterArtFile, buildStampSlabs, stampLayersFromTrace, buildStampSlabsFromMasks, scrubTraceMat, isTraceMatLayer, floodBorderBackground } from "./_staged/painter-art.js";
 
 let failures = 0;
 const results = [];
@@ -196,6 +196,37 @@ const keepWhite = scrubTraceMat({
 });
 check("interior white stays", keepWhite.colorLayers.some((l) => l.label === "White"));
 check("outer grey still drops next to white", !keepWhite.colorLayers.some((l) => l.label === "Dark grey"));
+
+const srcW = 8, srcH = 8;
+const srcPix = new Uint8ClampedArray(srcW * srcH * 4);
+for (let y = 0; y < srcH; y++) {
+  for (let x = 0; x < srcW; x++) {
+    const o = (y * srcW + x) * 4;
+    srcPix[o + 3] = 255;
+    if (x >= 2 && x <= 5 && y >= 2 && y <= 5) {
+      srcPix[o] = 250; srcPix[o + 1] = 250; srcPix[o + 2] = 250;
+    } else {
+      srcPix[o] = 150; srcPix[o + 1] = 150; srcPix[o + 2] = 150;
+    }
+    if (x >= 3 && x <= 4 && y >= 3 && y <= 4) {
+      srcPix[o] = 200; srcPix[o + 1] = 0; srcPix[o + 2] = 0;
+    }
+  }
+}
+const ext = floodBorderBackground(srcPix, srcW, srcH);
+check("source flood marks grey border", ext[0] === 1 && ext[7] === 1);
+check("source flood keeps white field", ext[2 * 8 + 2] === 0);
+check("source flood keeps red core", ext[3 * 8 + 3] === 0);
+const fromSrc = scrubTraceMat({
+  width: 8, height: 8, cropOx: 0, cropOy: 0,
+  colorLayers: [
+    { rgb: [150, 150, 150], label: "Dark grey", mask: grey },
+    { rgb: [240, 240, 240], label: "White", mask: whiteFill },
+    { rgb: [200, 0, 0], label: "Red", mask: crest },
+  ],
+}, { pixels: srcPix, srcW, srcH });
+check("source scrub drops grey", !fromSrc.colorLayers.some((l) => l.label === "Dark grey"));
+check("source scrub keeps white+red", fromSrc.colorLayers.some((l) => l.label === "White") && fromSrc.colorLayers.some((l) => l.label === "Red"));
 
 for (const line of results) console.log(line);
 if (failures) {

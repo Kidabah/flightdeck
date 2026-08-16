@@ -639,34 +639,129 @@ function unionMasks(masks, len) {
   return out;
 }
 
+function cropMask2d(src, srcW, srcH, ox, oy, w, h) {
+  const out = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) {
+    const sy = oy + y;
+    if (sy < 0 || sy >= srcH) continue;
+    for (let x = 0; x < w; x++) {
+      const sx = ox + x;
+      if (sx < 0 || sx >= srcW) continue;
+      out[y * w + x] = src[sy * srcW + sx];
+    }
+  }
+  return out;
+}
+
+/** Flood from the PNG border through paper grey/white — MakerDeck's mat knockout. */
+export function floodBorderBackground(pixels, w, h, { tol = 52 } = {}) {
+  const exterior = new Uint8Array(w * h);
+  if (!pixels || !w || !h) return exterior;
+  const samples = [];
+  const add = (x, y) => {
+    const px = Math.max(0, Math.min(w - 1, x | 0));
+    const py = Math.max(0, Math.min(h - 1, y | 0));
+    const i = (py * w + px) * 4;
+    if (pixels[i + 3] < 16) return;
+    samples.push([pixels[i], pixels[i + 1], pixels[i + 2]]);
+  };
+  const stepX = Math.max(1, (w / 24) | 0);
+  const stepY = Math.max(1, (h / 24) | 0);
+  for (let x = 0; x < w; x += stepX) { add(x, 0); add(x, h - 1); }
+  for (let y = 0; y < h; y += stepY) { add(0, y); add(w - 1, y); }
+  add(0, 0); add(w - 1, 0); add(0, h - 1); add(w - 1, h - 1);
+  if (!samples.length) return exterior;
+  samples.sort((a, b) => (a[0] + a[1] + a[2]) - (b[0] + b[1] + b[2]));
+  const mid = samples[(samples.length / 2) | 0];
+  const bgLum = 0.299 * mid[0] + 0.587 * mid[1] + 0.114 * mid[2];
+  const tolSq = tol * tol;
+  const isBg = (x, y) => {
+    const i = (y * w + x) * 4;
+    if (pixels[i + 3] < 40) return true;
+    const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
+    const chroma = Math.max(r, g, b) - Math.min(r, g, b);
+    const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+    if (lum < 50 && bgLum > 90) return false;
+    if (chroma >= 36 && Math.abs(lum - bgLum) > 28) return false;
+    const dr = r - mid[0], dg = g - mid[1], db = b - mid[2];
+    if (dr * dr + dg * dg + db * db <= tolSq) return true;
+    return chroma <= 42 && Math.abs(lum - bgLum) <= 58;
+  };
+  const stack = [];
+  const seed = (x, y) => {
+    const idx = y * w + x;
+    if (exterior[idx] || !isBg(x, y)) return;
+    exterior[idx] = 1;
+    stack.push(idx);
+  };
+  for (let x = 0; x < w; x++) { seed(x, 0); seed(x, h - 1); }
+  for (let y = 0; y < h; y++) { seed(0, y); seed(w - 1, y); }
+  while (stack.length) {
+    const idx = stack.pop();
+    const x = idx % w;
+    const y = (idx / w) | 0;
+    if (x) seed(x - 1, y);
+    if (x + 1 < w) seed(x + 1, y);
+    if (y) seed(x, y - 1);
+    if (y + 1 < h) seed(x, y + 1);
+  }
+  const grow = Math.min(w, h) >= 64 ? 2 : 0;
+  return grow ? dilateMask4(exterior, w, h, grow) : exterior;
+}
+
+function punchMaskBits(mask, punch) {
+  if (!mask || !punch || mask.length !== punch.length) return mask;
+  const out = new Uint8Array(mask);
+  for (let i = 0; i < out.length; i++) if (punch[i]) out[i] = 0;
+  return out;
+}
+
 /** Drop the grey bounding-mat / halo around a team logo. */
-export function scrubTraceMat(result) {
+export function scrubTraceMat(result, source = null) {
   if (!result) return result;
   const imgW = result.width | 0;
   const imgH = result.height | 0;
   let layers = (result.colorLayers || []).map((layer) => ({ ...layer }));
-  if (!layers.length) return result;
-  const before = layers;
-  layers = punchExteriorPaper(layers, imgW, imgH);
-  layers = layers.filter((layer) => !isTraceMatLayer(layer.mask, imgW, imgH, layer.rgb));
-  if (layers.length === before.length && layers.every((l, i) => l.mask === before[i].mask)) {
-    return result;
+  if (!layers.length && !resolveTraceInkMask(result)) return result;
+
+  if (source?.pixels && source.srcW && source.srcH && imgW && imgH) {
+    const extFull = floodBorderBackground(source.pixels, source.srcW, source.srcH);
+    const ox = result.cropOx || 0;
+    const oy = result.cropOy || 0;
+    const ext = (ox === 0 && oy === 0 && imgW === source.srcW && imgH === source.srcH)
+      ? extFull
+      : cropMask2d(extFull, source.srcW, source.srcH, ox, oy, imgW, imgH);
+    const next = [];
+    for (const layer of layers) {
+      if (!layer?.mask || layer.mask.length !== imgW * imgH) continue;
+      const mask = punchMaskBits(layer.mask, ext);
+      let on = 0;
+      for (let i = 0; i < mask.length; i++) if (mask[i]) on++;
+      if (on < 2) continue;
+      next.push({ ...layer, mask });
+    }
+    layers = next;
   }
-  const silhouette = layers.length
+
+  if (layers.length) {
+    layers = punchExteriorPaper(layers, imgW, imgH);
+    layers = layers.filter((layer) => !isTraceMatLayer(layer.mask, imgW, imgH, layer.rgb));
+  }
+  const sil = layers.length
     ? unionMasks(layers.map((l) => l.mask), imgW * imgH)
-    : punchMasks(resolveTraceInkMask(result), before.map((l) => l.mask));
+    : resolveTraceInkMask(result);
   return {
     ...result,
     colorLayers: layers,
     colorLayerCount: layers.length,
-    silhouetteMask: silhouette,
-    mask: silhouette,
+    silhouetteMask: sil,
+    mask: sil,
   };
 }
 
 /** MakerDeck trace result → per-slot ink masks (background already knocked out). */
-export function stampLayersFromTrace(result, { singleSlot = null, slotForRgb } = {}) {
-  const cleaned = scrubTraceMat(result);
+export function stampLayersFromTrace(result, { singleSlot = null, slotForRgb, pixels, srcW, srcH } = {}) {
+  const cleaned = scrubTraceMat(result, pixels ? { pixels, srcW, srcH } : null);
   const imgW = cleaned?.width | 0;
   const imgH = cleaned?.height | 0;
   if (!imgW || !imgH) return { imgW, imgH, layers: [] };

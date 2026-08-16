@@ -4,6 +4,14 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b585 — Painter floods PNG paper, replaces old stamp
+**Date:** 2026-08-16
+
+### MakerDeck
+- Logo stamp knocks out border-connected grey/white from the **source pixels**, then replaces any previous stamp mesh. Hard refresh Painter **b585**. Reload the STL, drop the logo, stamp once.
+
+---
+
 ## b584 — Painter punches grey halo around logos
 **Date:** 2026-08-15
 

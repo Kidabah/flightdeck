@@ -6,6 +6,19 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-16 Session update (Painter source-flood logo mat)
+
+Latest commit: *(pending)* — Knock out logo paper from the PNG pixels, and replace the old stamp.
+
+Latest local/Pi change:
+- Artwork scrub now floods the **source PNG** from the border (same idea as MakerDeck paper knockout), so grey/white mats die even when they were quantized as White.
+- Re-stamp replaces the previous logo mesh. Hard refresh (`app.js?v=676`, Painter `painter.html?v=585` / **b585**). Reload the hoodie STL, drop the logo, stamp once.
+
+Previous:
+- Painter punch grey logo halo (`2734919`).
+
+---
+
 ## 2026-08-15 Session update (Painter punch grey logo halo)
 
 Latest commit: `2734919` — Punch grey halo outside the crest, not just the full-frame mat.
