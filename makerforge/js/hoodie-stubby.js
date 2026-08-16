@@ -51,6 +51,10 @@ function sitOnBedCentered(positions) {
   }
 }
 
+function round1(n) {
+  return Math.round(n * 10) / 10;
+}
+
 function chestFrontY(positions) {
   const ys = [];
   for (let i = 0; i < positions.length; i += 3) {

@@ -29,7 +29,7 @@ import {
   shapeSupportsArt,
   STACK_LIP_MM,
 } from "./features.js?v=579";
-import { getHoodieStubbyCache, drapeArtOntoHoodieChest } from "./hoodie-stubby.js?v=579";
+import { getHoodieStubbyCache, drapeArtOntoHoodieChest } from "./hoodie-stubby.js?v=580";
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=161";
 import { buildOoshieStand, ooshieMeta, OOSHIE_DEFAULTS } from "./ooshie-stand.js?v=576";
