@@ -6,6 +6,18 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-16 Session update (Painter logo clean edges + separate 3MF part)
+
+Latest commit: `f13c15b` — Stop painting hoodie triangles; export the logo as its own 3MF part.
+
+Latest local/Pi change:
+- b590 painted the chest mesh, so the crest grew jagged red spikes and a white triangle. Logo now sits on the surface again (~0.72 mm) and exports as `object_2` so Bambu keeps it after slice without shattering the hoodie. Hard refresh (`app.js?v=683`, Painter `painter.html?v=591` / **b591**). Reload the STL, stamp once, export. Preview colour mode: **Filament**.
+
+Previous:
+- Painter logo survives slice (`55f1b8f`).
+
+---
+
 ## 2026-08-16 Session update (Painter logo survives slice)
 
 Latest commit: `55f1b8f` — Sink Painter logos into the hoodie so Bambu keeps them after slice.

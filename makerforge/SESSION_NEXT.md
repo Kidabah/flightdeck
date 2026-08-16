@@ -4,6 +4,14 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b591 — Painter logo is its own part, not painted hoodie triangles
+**Date:** 2026-08-16
+
+### MakerDeck
+- Painting the chest mesh made the St George crest grow jagged red spikes. The logo sits on the surface again and exports as a second 3MF object so slice keeps it. Hard refresh Painter **b591**. Reload the STL, stamp once, export. Preview: **Filament**, not Line Type.
+
+---
+
 ## b590 — Painter logos survive Bambu slice
 **Date:** 2026-08-16
 
