@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-16 Session update (Painter stop restamping the grey PNG)
 
-Latest commit: pending — Stop Painter from rebuilding the grey logo fringe off the raw PNG.
+Latest commit: `019832a` — Stop Painter from rebuilding the grey logo fringe off the raw PNG.
 
 Latest local/Pi change:
 - Stamp uses the scrubbed trace only (no raw-PNG fallback that put the grey halo back). Grey layers and border-connected grey pixels are dropped; the white crest plate stays; 1px spikes on the plate edge are opened off.
