@@ -6,6 +6,18 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-16 Session update (MakerDeck stubby holder back)
+
+Latest commit: `6713cfe` — Restore the MakerDeck stubby holder preset so wrap art can be tested on a cup.
+
+Latest local/Pi change:
+- Painter logo still does not transfer the way MakerDeck wrap-art does, so the parametric **Stubby holder** is back on MakerDeck Quick presets. Can vs Bottle, Easy 68 mm / Snug 67.5 mm. Drop a PNG on the Art tab — it wraps the cup wall. Export is `*-base.3mf` + `*-stack.3mf`. Hard refresh (`app.js?v=684`, MakerDeck `app.js?v=577` / **b577**). Header must say **b577**.
+
+Previous:
+- Painter logo separate 3MF part (`f13c15b`).
+
+---
+
 ## 2026-08-16 Session update (Painter logo clean edges + separate 3MF part)
 
 Latest commit: `f13c15b` — Stop painting hoodie triangles; export the logo as its own 3MF part.

@@ -4,6 +4,14 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b577 — Stubby holder preset is back (wrap art on the cup)
+**Date:** 2026-08-16
+
+### MakerDeck
+- Parametric drink holder is a Quick preset again so logos can be tested the same way as other wrap-art shapes. Can (375 ml) or Bottle (350 ml stack), Easy 68 mm / Snug 67.5 mm. Art tab PNG wraps the cup wall. Export ZIP: base + stack 3MF. Hard refresh MakerDeck **b577**.
+
+---
+
 ## b591 — Painter logo is its own part, not painted hoodie triangles
 **Date:** 2026-08-16
 
