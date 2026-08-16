@@ -6,6 +6,18 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-16 Session update (MakerDeck hoodie stamp matches Painter)
+
+Latest commit: `57fee2b` — Match MakerDeck hoodie logos to STL Painter's thin smooth stamp.
+
+Latest local/Pi change:
+- MakerDeck was voxel-extruding a noisy chest field (~0.85 mm proud). It now uses Painter’s skin (0.04 mm) + ~0.72 mm shell, a smoothed front-face heightfield, and a ~0.22 mm grid. Hard refresh (`app.js?v=691`, MakerDeck `app.js?v=584` / **b584**). Header must say **b584**. Re-click Stubby holder, drop the PNG again.
+
+Previous:
+- Hoodie 3MF Bambu export (`29aa8ab`).
+
+---
+
 ## 2026-08-16 Session update (Hoodie 3MF survives Bambu)
 
 Latest commit: `29aa8ab` — Export hoodie logos as closed 3MF solids that stay standing in Bambu.

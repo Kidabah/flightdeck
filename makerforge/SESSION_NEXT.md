@@ -4,6 +4,14 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b584 — Hoodie stamp matches STL Painter
+**Date:** 2026-08-16
+
+### MakerDeck
+- Logo was a chunky sawtooth brick. Now a thin Painter-style decal: 0.04 mm skin, ~0.72 mm thick, smoothed chest field, ~0.22 mm cells. Hard refresh MakerDeck **b584**. Re-click Stubby holder and drop the PNG.
+
+---
+
 ## b583 — Hoodie 3MF keeps the logo standing in Bambu
 **Date:** 2026-08-16
 
