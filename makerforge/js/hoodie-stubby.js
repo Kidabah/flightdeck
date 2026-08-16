@@ -71,9 +71,12 @@ function buildChestHeightfield(positions) {
   const nx = 72, nz = 96;
   const best = new Float32Array(nx * nz);
   best.fill(Infinity);
+  // Ignore pouch-interior verts (they sit ~20mm behind the chest fabric).
+  const chestY = chestFrontY(positions);
+  const yCut = Number.isFinite(chestY) ? chestY + 10 : 0;
   for (let i = 0; i < positions.length; i += 3) {
     const x = positions[i], y = positions[i + 1], z = positions[i + 2];
-    if (!(y < 8)) continue;
+    if (!(y < yCut)) continue;
     const ix = Math.round((x - xMin) / (xMax - xMin) * (nx - 1));
     const iz = Math.round((z - zMin) / (zMax - zMin) * (nz - 1));
     if (ix < 0 || iz < 0 || ix >= nx || iz >= nz) continue;
@@ -109,6 +112,30 @@ function buildChestHeightfield(positions) {
   return { y: best, xMin, xMax, zMin, zMax, nx, nz };
 }
 
+function closeChestHoles(field) {
+  const { y, nx, nz } = field;
+  const out = new Float32Array(y);
+  const rad = 8;
+  for (let iz = 0; iz < nz; iz++) {
+    for (let ix = 0; ix < nx; ix++) {
+      const vals = [];
+      for (let dz = -rad; dz <= rad; dz++) {
+        for (let dx = -rad; dx <= rad; dx++) {
+          const jx = ix + dx, jz = iz + dz;
+          if (jx < 0 || jz < 0 || jx >= nx || jz >= nz) continue;
+          const v = y[jz * nx + jx];
+          if (Number.isFinite(v) && v !== Infinity) vals.push(v);
+        }
+      }
+      if (!vals.length) continue;
+      vals.sort((a, b) => a - b);
+      out[iz * nx + ix] = vals[Math.floor(vals.length * 0.12)];
+    }
+  }
+  field.y = out;
+  return field;
+}
+
 function sampleChestY(field, x, z) {
   if (!field) return null;
   const { y, xMin, xMax, zMin, zMax, nx, nz } = field;
@@ -128,20 +155,8 @@ function sampleChestY(field, x, z) {
   return v0 * (1 - tz) + v1 * tz;
 }
 
-/** Slide a front-face art slab onto the hoodie chest, keeping slab thickness. */
-export function drapeArtOntoHoodieChest(mesh, field, proudMm = 0.22) {
-  if (!mesh?.positions?.length || !field || mesh.__hoodieDraped) return mesh;
-  const p = mesh.positions;
-  let planeY = Infinity;
-  for (let i = 1; i < p.length; i += 3) if (p[i] < planeY) planeY = p[i];
-  if (!Number.isFinite(planeY)) return mesh;
-  for (let i = 0; i < p.length; i += 3) {
-    const ySurf = sampleChestY(field, p[i], p[i + 2]);
-    if (!Number.isFinite(ySurf)) continue;
-    p[i + 1] += (ySurf - proudMm) - planeY;
-  }
-  mesh.__hoodieDraped = true;
-  return mesh;
+export function sampleHoodieChestY(field, x, z) {
+  return sampleChestY(field, x, z);
 }
 
 function metaFromMesh(positions) {
@@ -187,7 +202,7 @@ function meshFromStlBuffer(buffer) {
     positions,
     indices,
     meta: metaFromMesh(positions),
-    chestField: buildChestHeightfield(positions),
+    chestField: closeChestHoles(buildChestHeightfield(positions)),
   };
 }
 

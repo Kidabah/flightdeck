@@ -28,8 +28,8 @@ import {
   shapeSupportsProfileArt,
   shapeSupportsArt,
   STACK_LIP_MM,
-} from "./features.js?v=579";
-import { getHoodieStubbyCache, drapeArtOntoHoodieChest } from "./hoodie-stubby.js?v=580";
+} from "./features.js?v=581";
+import { getHoodieStubbyCache } from "./hoodie-stubby.js?v=581";
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=161";
 import { buildOoshieStand, ooshieMeta, OOSHIE_DEFAULTS } from "./ooshie-stand.js?v=576";
@@ -2347,17 +2347,6 @@ function buildHoodieStubbyContainer(params) {
       graphicColourParts = parts.graphicColourParts || null;
     }
   }
-  const field = loaded.chestField;
-  if (field) {
-    if (labelMesh) drapeArtOntoHoodieChest(labelMesh, field);
-    if (graphicMesh) drapeArtOntoHoodieChest(graphicMesh, field);
-    if (graphicColourParts?.length) {
-      for (const cp of graphicColourParts) {
-        if (cp?.mesh) drapeArtOntoHoodieChest(cp.mesh, field);
-      }
-    }
-    if (debossCutterMesh) drapeArtOntoHoodieChest(debossCutterMesh, field, -0.15);
-  }
   return {
     positions: shellMesh.positions,
     indices: shellMesh.indices,
@@ -2377,7 +2366,7 @@ function buildHoodieStubbyContainer(params) {
     graphicColourParts,
     debossCutterMesh,
     holderParts: null,
-    chestField: field,
+    chestField: loaded.chestField,
   };
 }
 
@@ -2906,6 +2895,7 @@ export const HOODIE_STUBBY_PRESET = {
   embossFont: "bebas",
   embossTextAlign: "center",
   embossTraceSize: 56,
+  embossDepth: 0.4,
   boxColor: "#38bdf8",
 };
 
