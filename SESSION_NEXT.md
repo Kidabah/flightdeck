@@ -6,6 +6,19 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-16 Session update (Painter 3MF export empty file)
+
+Latest commit: `40a1ea7` — Stop Painter logo stamps from writing a 0-byte 3MF.
+
+Latest local/Pi change:
+- The painted hoodie 3MFs (`obj_1_Hoodie_stubby_150x65_painted.3mf`, `test.3mf`) are **0 bytes** — the save picker created the file, then export died building a per-cell stamp mesh (white crest plate = hundreds of thousands of isolated prisms). Those files cannot be repaired; reload the STL and re-export.
+- Stamp is now a shared-vertex heightfield, grid capped (~0.2 mm), 3MF XML is built in one join, empty exports are rejected. Hard refresh (`app.js?v=681`, Painter `painter.html?v=589` / **b589**). Header must say **b589**. Reload the hoodie STL, stamp the logo once, export again.
+
+Previous:
+- Tools dismiss failed queue leftovers (`420acc3`).
+
+---
+
 ## 2026-08-16 Session update (Tools dismiss failed queue leftovers)
 
 Latest commit: `420acc3` — Add Settings → Tools dismiss for failed/cancelled queue leftovers.

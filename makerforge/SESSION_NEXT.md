@@ -4,6 +4,14 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b589 — Painter 3MF export no longer writes a 0-byte file
+**Date:** 2026-08-16
+
+### MakerDeck
+- Logo stamps were one prism per cell (the white crest plate exploded into millions of faces). Export crashed after the save picker created the file, leaving a 0-byte 3MF that slicer and Painter both reject. Stamp is now a shared heightfield, grid is capped, empty exports are rejected. Hard refresh Painter **b589**. Those 0-byte files cannot be repaired — reload the STL, stamp once, export again.
+
+---
+
 ## b588 — Painter sits logos on the hoodie, not through it
 **Date:** 2026-08-16
 
