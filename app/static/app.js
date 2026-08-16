@@ -24884,28 +24884,58 @@ function _attachCostingEvents(el, state) {
   refresh();
 }
 
+function _toolsJobRow({ job, printer, note, noteCls = '', action, label }) {
+  const printerName = printer ? _printerNavLabel(printer) : job.printer_id;
+  const printerState = printer ? (_printerDisplayStateLabel(printer) || printer.state || 'unknown') : 'unknown';
+  return `<div class="settings-tools-job">
+    <div class="settings-tools-job-body">
+      <div class="settings-tools-job-name">${esc(job.filename || `Job #${job.id}`)}</div>
+      <div class="settings-tools-job-meta">${esc(printerName)} · ${esc(job.status)} · printer ${esc(printerState)}</div>
+      <div class="settings-tools-job-note${noteCls ? ` ${noteCls}` : ''}">${esc(note)}</div>
+    </div>
+    <button type="button" class="settings-save-btn" data-tools-${action}="${job.id}">${esc(label)}</button>
+  </div>`;
+}
+
 function _toolsCategoryHtml(jobs, printers) {
   const byId = Object.fromEntries((printers || []).map(p => [p.id, p]));
   const active = (jobs || []).filter(j => j.status === 'printing' || j.status === 'uploading');
-  const rows = active.length
+  const leftovers = (jobs || []).filter(j => j.status === 'failed' || j.status === 'cancelled');
+  const stuckRows = active.length
     ? active.map(job => {
         const printer = byId[job.printer_id];
-        const printerName = printer ? _printerNavLabel(printer) : job.printer_id;
-        const printerState = printer ? (_printerDisplayStateLabel(printer) || printer.state || 'unknown') : 'unknown';
         const mismatch = !_queueJobLooksLive(job, printer);
-        const note = mismatch
-          ? 'Not on the machine — safe to release'
-          : 'Printer still looks like it is running this file';
-        return `<div class="settings-tools-job">
-          <div class="settings-tools-job-body">
-            <div class="settings-tools-job-name">${esc(job.filename || `Job #${job.id}`)}</div>
-            <div class="settings-tools-job-meta">${esc(printerName)} · ${esc(job.status)} · printer ${esc(printerState)}</div>
-            <div class="settings-tools-job-note${mismatch ? ' settings-tools-mismatch' : ''}">${esc(note)}</div>
-          </div>
-          <button type="button" class="settings-save-btn" data-tools-release="${job.id}">Release</button>
-        </div>`;
+        return _toolsJobRow({
+          job, printer,
+          note: mismatch
+            ? 'Not on the machine — safe to release'
+            : 'Printer still looks like it is running this file',
+          noteCls: mismatch ? 'settings-tools-mismatch' : '',
+          action: 'release',
+          label: 'Release',
+        });
       }).join('')
     : '<div class="settings-empty">No printing or uploading queue jobs.</div>';
+  const leftoverHead = leftovers.length > 1
+    ? `<div class="settings-tools-job-actions"><button type="button" class="settings-save-btn" data-tools-dismiss-all="1">Dismiss all</button></div>`
+    : '';
+  const leftoverRows = leftovers.length
+    ? leftoverHead + leftovers.map(job => {
+        const printer = byId[job.printer_id];
+        const reprinting = active.some(a => a.printer_id === job.printer_id && a.filename === job.filename);
+        return _toolsJobRow({
+          job, printer,
+          note: reprinting
+            ? 'Leftover from an earlier try — a reprint of this file is already on the machine'
+            : job.status === 'failed'
+              ? 'Failed leftover — remove it from Flightdeck only'
+              : 'Cancelled leftover — remove it from Flightdeck only',
+          noteCls: 'settings-tools-failed',
+          action: 'dismiss',
+          label: 'Dismiss',
+        });
+      }).join('')
+    : '<div class="settings-empty">No failed or cancelled queue leftovers.</div>';
   return `
     <div class="settings-section">
       <div class="settings-section-title">Flightdeck tools</div>
@@ -24914,8 +24944,17 @@ function _toolsCategoryHtml(jobs, printers) {
     <div class="settings-section">
       <div class="settings-section-title">Stuck queue jobs</div>
       <div class="settings-hint">Use this when a job still says Printing but it is not actually on the machine. Same as Release on the Queue page.</div>
-      ${rows}
+      ${stuckRows}
+    </div>
+    <div class="settings-section">
+      <div class="settings-section-title">Failed queue leftovers</div>
+      <div class="settings-hint">Dismiss a failed or cancelled row after you have already retried it, or when you just want it off the board. Same as ✕ on the Queue page.</div>
+      ${leftoverRows}
     </div>`;
+}
+
+async function _toolsDismissQueueJob(id) {
+  await _queueFetchJson(`/api/queue/${id}`, { method: 'DELETE' });
 }
 
 function _attachToolsEvents(el) {
@@ -24935,6 +24974,36 @@ function _attachToolsEvents(el) {
           btn.disabled = false;
         }
       });
+    });
+  });
+  el.querySelectorAll('[data-tools-dismiss]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.toolsDismiss;
+      const job = _queueLatestJobs.find(j => String(j.id) === String(id));
+      _modal.show('Remove this leftover from Flightdeck? The printer is not touched.', async () => {
+        btn.disabled = true;
+        try {
+          await _toolsDismissQueueJob(id);
+          showToast('Queue leftover dismissed', job?.filename || `Job #${id}`, 'ok');
+          await _renderSettingsContent('tools');
+        } catch (err) {
+          showToast('Dismiss failed', err.message || '', 'error');
+          btn.disabled = false;
+        }
+      });
+    });
+  });
+  el.querySelector('[data-tools-dismiss-all]')?.addEventListener('click', () => {
+    const leftovers = (_queueLatestJobs || []).filter(j => j.status === 'failed' || j.status === 'cancelled');
+    if (!leftovers.length) return;
+    _modal.show(`Dismiss ${leftovers.length} leftover queue rows? The printer is not touched.`, async () => {
+      try {
+        for (const job of leftovers) await _toolsDismissQueueJob(job.id);
+        showToast('Queue leftovers dismissed', `${leftovers.length} row${leftovers.length === 1 ? '' : 's'}`, 'ok');
+        await _renderSettingsContent('tools');
+      } catch (err) {
+        showToast('Dismiss failed', err.message || '', 'error');
+      }
     });
   });
 }

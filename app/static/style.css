@@ -20667,6 +20667,8 @@ select optgroup {
   margin-top: 0.15rem;
 }
 .settings-tools-mismatch { color: #fbbf24; }
+.settings-tools-failed { color: #f87171; }
+.settings-tools-job-actions { display: flex; justify-content: flex-end; padding: 0.35rem 0 0.15rem; }
 
 @media (max-width: 900px) {
   .queue-hero {
