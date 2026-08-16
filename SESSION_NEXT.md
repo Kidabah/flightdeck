@@ -6,6 +6,18 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-16 Session update (Hoodie stamp follows the fabric)
+
+Latest commit: `7c08c52` — Sit hoodie logos on the outer fabric instead of a recessed chest plane.
+
+Latest local/Pi change:
+- b581 still flattened the stamp onto the chest plane while the pocket stuck out (side-view step). Art now follows the front-most fabric and sits ~0.85 mm proud. Hard refresh (`app.js?v=689`, MakerDeck `app.js?v=582` / **b582**). Header must say **b582**. Re-click Stubby holder, drop the PNG again.
+
+Previous:
+- Hoodie stamp too deep (`8cbe554`).
+
+---
+
 ## 2026-08-16 Session update (Hoodie stamp too deep)
 
 Latest commit: `8cbe554` — Keep hoodie chest logos as a shallow stamp, not a pocket carve.

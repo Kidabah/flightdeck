@@ -4,6 +4,14 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b582 — Hoodie stamp follows the pocket, not a flat chest plane
+**Date:** 2026-08-16
+
+### MakerDeck
+- Side view still showed a step: hole-close flattened the logo onto the chest while the pocket stuck out. Drop the flatten; fill openings with the front-most neighbour; sit ~0.85 mm proud. Hard refresh MakerDeck **b582**. Re-click Stubby holder and drop the PNG again.
+
+---
+
 ## b581 — Hoodie chest stamp is shallow, not a pocket carve
 **Date:** 2026-08-16
 
