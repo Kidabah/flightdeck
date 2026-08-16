@@ -4,6 +4,14 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b579 — Hoodie logos sit on the chest, not in front of it
+**Date:** 2026-08-16
+
+### MakerDeck
+- Art was on the belly bounding-box plane, so the logo floated in space. It now drapes onto the chest surface. Hard refresh MakerDeck **b579**. Re-drop the PNG.
+
+---
+
 ## b578 — Stubby holder is the Panthers hoodie
 **Date:** 2026-08-16
 

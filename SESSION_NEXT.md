@@ -6,6 +6,18 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-16 Session update (Hoodie chest art sits on the surface)
+
+Latest commit: `21449f9` — Drape MakerDeck logos onto the hoodie chest instead of the belly bounding box.
+
+Latest local/Pi change:
+- The logo was floating in front of the hoodie because art sat on the pocket AABB, not the chest. It now drapes onto the chest surface. Hard refresh (`app.js?v=686`, MakerDeck `app.js?v=579` / **b579**). Header must say **b579**. Re-click Stubby holder, drop the PNG again.
+
+Previous:
+- Hoodie is the MakerDeck stubby holder (`085927b`).
+
+---
+
 ## 2026-08-16 Session update (Hoodie is the MakerDeck stubby holder)
 
 Latest commit: `085927b` — Put the Panthers hoodie mesh in MakerDeck as Stubby holder.
