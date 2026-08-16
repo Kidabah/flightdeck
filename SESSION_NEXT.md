@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-16 Session update (Painter clip logo to ink island)
 
-Latest commit: *(pending)* — Clip Painter logos to the sealed red/black island and stop fringe growth.
+Latest commit: 0ebd0de — Clip Painter logos to the sealed red/black island and stop fringe growth.
 
 Latest local/Pi change:
 - Stamp now floods from the crop edge and stops at a sealed red/black outline, so the grey halo around the shield is punched. Slab downsample needs a majority of ink (no more fat saw-teeth).
