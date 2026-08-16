@@ -6,6 +6,18 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-17 Session update (Hoodie crest is a fine stamp)
+
+Latest commit: MakerDeck **b585** — shared-vertex chest stamp, no 0.22 mm cells / scanlines.
+
+Latest local/Pi change:
+- St George was Lego-blocky with horizontal scanlines because b584 forced 0.22 mm voxels and `DECAL_LAYER_MM` row banding. Chest art now uses Painter’s shared-vertex heightfield (~0.06 mm start, grid cap 520 ≈ 0.11 mm on a 56 mm logo). Skin stays 0.04 / ~0.72 mm. Hard refresh (`app.js?v=692`, MakerDeck `app.js?v=585` / **b585**). Header must say **b585**. Re-click Stubby holder and drop the PNG again.
+
+Previous:
+- Hoodie stamp matches Painter thickness (`57fee2b`).
+
+---
+
 ## STOP — pick up 2026-08-17 (hoodie logo still not crisp)
 
 Latest commit: `57fee2b` / `19593e3` — session parked. MakerDeck **b584** is live. Do not ship another depth/drape tweak until crispness is fixed.

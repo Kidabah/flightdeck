@@ -10,7 +10,7 @@ import {
   resolveVaseTexture,
   vaseTextureDisplacement,
 } from "./vase-textures.js";
-import { sampleHoodieChestY, HOODIE_ART_PROUD_MM } from "./hoodie-stubby.js?v=584";
+import { sampleHoodieChestY, HOODIE_ART_PROUD_MM } from "./hoodie-stubby.js?v=585";
 
 export const EMBOSS_FONTS = [
   { id: "segoe-ui", label: "Segoe UI — Windows", family: '"Segoe UI Variable", "Segoe UI", system-ui, sans-serif', weight: 700 },
@@ -357,6 +357,122 @@ const ACCENT_SKIN_MM = 0.12;
 const ACCENT_BAND_THICKNESS_MM = 0.45;
 /** Layer-height slabs for face decals (same slice strategy as accent bands). */
 const DECAL_LAYER_MM = 0.2;
+
+function isHoodieArtParams(params) {
+  return params?.shape === "stubbyHolder" || !!params?.__hoodieArtExport;
+}
+
+function majorityDownsampleMask(mask, srcW, srcH, dstW, dstH) {
+  const out = new Uint8Array(dstW * dstH);
+  if (!mask || !srcW || !srcH || !dstW || !dstH) return out;
+  for (let y = 0; y < dstH; y++) {
+    const y0 = Math.floor(y * srcH / dstH);
+    const y1 = Math.max(y0 + 1, Math.ceil((y + 1) * srcH / dstH));
+    for (let x = 0; x < dstW; x++) {
+      const x0 = Math.floor(x * srcW / dstW);
+      const x1 = Math.max(x0 + 1, Math.ceil((x + 1) * srcW / dstW));
+      let on = 0, n = 0;
+      for (let sy = y0; sy < y1; sy++) {
+        for (let sx = x0; sx < x1; sx++) {
+          n++;
+          if (mask[sy * srcW + sx]) on++;
+        }
+      }
+      out[y * dstW + x] = n && on * 2 >= n ? 1 : 0;
+    }
+  }
+  return out;
+}
+
+function hoodieStampGrid(artW, artH, params) {
+  let step = params?.__labelExportStandoff ? 0.06 : 0.07;
+  let cols = Math.max(32, Math.round(artW / step));
+  let rows = Math.max(32, Math.round(artH / step));
+  const cap = params?.__labelExportStandoff ? 520 : 420;
+  while (Math.max(cols, rows) > cap && step < 0.14) {
+    step *= 1.1;
+    cols = Math.max(32, Math.round(artW / step));
+    rows = Math.max(32, Math.round(artH / step));
+  }
+  return { cols, rows };
+}
+
+/** Painter-style shared-vertex shell on the draped chest — no layer-height scanlines. */
+function buildHoodieFaceStampMesh(frame, mask, maskW, maskH, place, d0, d1, params) {
+  if (!frame?.mapPoint || !mask?.length || maskW < 2 || maskH < 2) return null;
+  const artW = place.artW;
+  const artH = place.artHeight;
+  if (!(artW > 0.5) || !(artH > 0.5)) return null;
+  const { cols, rows } = hoodieStampGrid(artW, artH, params);
+  const small = majorityDownsampleMask(mask, maskW, maskH, cols, rows);
+  const cellU = artW / cols;
+  const cellV = artH / rows;
+  const thick = Math.max(0.16, d1 - d0);
+  const xOff = place.xOff;
+  const zOff = place.zOff;
+  const rotation = params?.decorRotation ?? 0;
+  const rotCx = xOff + artW / 2;
+  const rotCy = zOff + artH / 2;
+  const gw = cols + 1;
+  const gh = rows + 1;
+  const used = new Uint8Array(gw * gh);
+  const onAt = (c, r) => c >= 0 && r >= 0 && c < cols && r < rows && small[r * cols + c];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (!small[r * cols + c]) continue;
+      used[r * gw + c] = 1;
+      used[r * gw + c + 1] = 1;
+      used[(r + 1) * gw + c] = 1;
+      used[(r + 1) * gw + c + 1] = 1;
+    }
+  }
+  const positions = [];
+  const indices = [];
+  const innerOf = new Int32Array(gw * gh);
+  innerOf.fill(-1);
+  const map = (c, r, offset) => {
+    let ax = xOff + c * cellU;
+    let ay = zOff + (rows - r) * cellV;
+    if (rotation) {
+      const p = rotateFacePoint(rotCx, rotCy, ax, ay, rotation);
+      ax = p[0];
+      ay = p[1];
+    }
+    return frame.mapPoint(ax, ay, offset);
+  };
+  for (let r = 0; r < gh; r++) {
+    for (let c = 0; c < gw; c++) {
+      const gi = r * gw + c;
+      if (!used[gi]) continue;
+      innerOf[gi] = positions.length / 3;
+      const inn = map(c, r, d0);
+      const out = map(c, r, d0 + thick);
+      positions.push(inn[0], inn[1], inn[2], out[0], out[1], out[2]);
+    }
+  }
+  const quad = (a, b, c, d) => {
+    indices.push(a, b, c, a, c, d);
+  };
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (!small[r * cols + c]) continue;
+      const i00 = innerOf[(r + 1) * gw + c];
+      const i10 = innerOf[(r + 1) * gw + c + 1];
+      const i11 = innerOf[r * gw + c + 1];
+      const i01 = innerOf[r * gw + c];
+      if (i00 < 0 || i10 < 0 || i11 < 0 || i01 < 0) continue;
+      const o00 = i00 + 1, o10 = i10 + 1, o11 = i11 + 1, o01 = i01 + 1;
+      quad(o00, o10, o11, o01);
+      quad(i00, i01, i11, i10);
+      if (!onAt(c, r + 1)) quad(i00, i10, o10, o00);
+      if (!onAt(c, r - 1)) quad(i01, o01, o11, i11);
+      if (!onAt(c - 1, r)) quad(i00, o00, o01, i01);
+      if (!onAt(c + 1, r)) quad(i10, i11, o11, o10);
+    }
+  }
+  return indices.length ? { positions, indices } : null;
+}
+
 /** Wrap preview art — raster slabs (no earcut on curved wall). */
 const WRAP_DECAL_STEP_MM = 0.4;
 const WRAP_DECAL_TARGET_COLS = 560;
@@ -752,8 +868,9 @@ export function buildFlatShapeGroupsSolidMesh(frame, shapeGroups, d0, d1, params
   const spanX = Math.max(bounds.maxX - bounds.minX, 0.2);
   const spanY = Math.max(bounds.maxY - bounds.minY, 0.2);
   // Label/sign solids: finer voxels so light letter stems stay crisp at 0.4 mm nozzles.
+  // Hoodie: rasterize fine, then Painter-style shared-vertex stamp (no 0.22 mm / layer bands).
   let stepMm = params?.__labelExportStandoff ? 0.035 : 0.05;
-  if (params?.shape === "stubbyHolder" || params?.__hoodieArtExport) stepMm = 0.22;
+  if (isHoodieArtParams(params)) stepMm = params?.__labelExportStandoff ? 0.06 : 0.07;
   const maxDim = params?.__labelExportStandoff ? 2800 : 1600;
   if (spanX / stepMm > maxDim || spanY / stepMm > maxDim) {
     stepMm = Math.max(spanX, spanY) / maxDim;
@@ -779,8 +896,11 @@ export function buildFlatShapeGroupsSolidMesh(frame, shapeGroups, d0, d1, params
     artHeight: maskH * stepMm,
   };
   // Band rows to layer height on export (same as art); rotation already baked into the groups.
-  const stepPx = params?.__labelExportStandoff ? Math.max(1, Math.round(DECAL_LAYER_MM / stepMm)) : 1;
   const solidParams = params?.decorRotation ? { ...params, decorRotation: 0 } : params;
+  if (isHoodieArtParams(params)) {
+    return buildHoodieFaceStampMesh(frame, mask, maskW, maskH, place, d0, d1, solidParams);
+  }
+  const stepPx = params?.__labelExportStandoff ? Math.max(1, Math.round(DECAL_LAYER_MM / stepMm)) : 1;
   return buildFlatTraceSolidMesh(frame, mask, maskW, maskH, place, solidParams, d0, d1, stepPx);
 }
 
@@ -813,9 +933,6 @@ function buildWrapTraceSlabMesh(frame, bitmap, params, shapeGroups, d0, d1, opts
     maxRows: opts.fineRows ? maskH : maxRows,
     maxPreviewIndices: opts.fineRows ? 0 : (preview ? WRAP_SVG_PREVIEW_MAX_INDICES : 0),
   });
-  if (params?.shape === "stubbyHolder" || params?.__hoodieArtExport) {
-    stepPx = Math.max(stepPx, Math.max(1, Math.round(0.22 / Math.max(scale, 0.05))));
-  }
 
   // Flat faces: closed voxel-surface solid — row shells are wrap-only. Their tubes have no
   // top/bottom caps, so flat line-art traces exported tens of thousands of open edges
@@ -823,6 +940,12 @@ function buildWrapTraceSlabMesh(frame, bitmap, params, shapeGroups, d0, d1, opts
   if (frame.face !== "wrap") {
     // Rasterized groups were already rotated in px space — don't rotate twice.
     const solidParams = !hasMask && rotation ? { ...params, decorRotation: 0 } : params;
+    if (isHoodieArtParams(params)) {
+      const stamp = buildHoodieFaceStampMesh(frame, mask, maskW, maskH, place, d0, d1, solidParams);
+      if (stamp) return stamp;
+      const fine = buildFlatTraceSolidMesh(frame, mask, maskW, maskH, place, solidParams, d0, d1, 1);
+      if (fine) return fine;
+    }
     const solid = buildFlatTraceSolidMesh(frame, mask, maskW, maskH, place, solidParams, d0, d1, stepPx);
     if (solid) return solid;
   }

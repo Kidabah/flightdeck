@@ -28,8 +28,8 @@ import {
   shapeSupportsProfileArt,
   shapeSupportsArt,
   STACK_LIP_MM,
-} from "./features.js?v=584";
-import { getHoodieStubbyCache } from "./hoodie-stubby.js?v=584";
+} from "./features.js?v=585";
+import { getHoodieStubbyCache } from "./hoodie-stubby.js?v=585";
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=161";
 import { buildOoshieStand, ooshieMeta, OOSHIE_DEFAULTS } from "./ooshie-stand.js?v=576";

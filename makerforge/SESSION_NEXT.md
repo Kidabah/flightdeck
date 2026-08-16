@@ -4,6 +4,12 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b585 — Hoodie crest is a fine Painter-style stamp
+**Date:** 2026-08-17
+
+### MakerDeck
+- b584’s 0.22 mm cells + layer-height row banding made ST. GEORGE / ILLAWARRA blocky with scanlines. Chest art is now a shared-vertex shell (same idea as Painter `appendStampHeightfield`), ~0.06–0.11 mm grid, same 0.04 / ~0.72 mm skin. Logo stays a separate colour part. Hard refresh MakerDeck **b585**. Re-click Stubby holder and drop the PNG.
+
 ## STOP — 2026-08-17: hoodie crest still not crisp
 **Date:** 2026-08-16 (parked)
 
