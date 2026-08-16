@@ -6,6 +6,18 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-16 Session update (Stubby holder round1 crash)
+
+Latest commit: `d1e7ef6` — Fix Stubby holder crash: round1 was missing after the chest-drape change.
+
+Latest local/Pi change:
+- Clicking Stubby holder threw `round1 is not defined`. Helper is back. Hard refresh (`app.js?v=687`, MakerDeck `app.js?v=580` / **b580**). Header must say **b580**.
+
+Previous:
+- Hoodie chest art drape (`21449f9`).
+
+---
+
 ## 2026-08-16 Session update (Hoodie chest art sits on the surface)
 
 Latest commit: `21449f9` — Drape MakerDeck logos onto the hoodie chest instead of the belly bounding box.

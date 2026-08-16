@@ -4,6 +4,14 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b580 — Stubby holder no longer crashes on round1
+**Date:** 2026-08-16
+
+### MakerDeck
+- Clicking the preset threw `round1 is not defined` (helper got dropped when chest drape landed). It’s back. Hard refresh MakerDeck **b580**.
+
+---
+
 ## b579 — Hoodie logos sit on the chest, not in front of it
 **Date:** 2026-08-16
 
