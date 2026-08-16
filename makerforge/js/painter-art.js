@@ -8,6 +8,9 @@ export const ART_MATCH_DIST2 = 40 * 40;
 export const ART_MAX_RASTER = 768;
 export const ART_COVERAGE_MIN = 0.5;
 export const ART_PAPER_LUMA = 228;
+/** Sit the logo on the hoodie, not through it. */
+export const STAMP_SKIN_MM = 0.14;
+export const STAMP_THICK_MM = 0.32;
 
 function hypot3(x, y, z) {
   return Math.hypot(x, y, z) || 1;
@@ -380,6 +383,122 @@ export function collectStampRectFaces({
   return rect;
 }
 
+const LIFT_EMPTY = -1e9;
+
+function fillLiftHoles(lift, gw, gh) {
+  for (let pass = 0; pass < 12; pass++) {
+    let filled = 0;
+    const next = lift.slice();
+    for (let y = 0; y < gh; y++) {
+      for (let x = 0; x < gw; x++) {
+        const i = y * gw + x;
+        if (lift[i] > LIFT_EMPTY + 1) continue;
+        let s = 0, n = 0;
+        if (x && lift[i - 1] > LIFT_EMPTY + 1) { s += lift[i - 1]; n++; }
+        if (x + 1 < gw && lift[i + 1] > LIFT_EMPTY + 1) { s += lift[i + 1]; n++; }
+        if (y && lift[i - gw] > LIFT_EMPTY + 1) { s += lift[i - gw]; n++; }
+        if (y + 1 < gh && lift[i + gw] > LIFT_EMPTY + 1) { s += lift[i + gw]; n++; }
+        if (!n) continue;
+        next[i] = s / n;
+        filled++;
+      }
+    }
+    lift.set(next);
+    if (!filled) break;
+  }
+}
+
+/**
+ * Height of the hoodie along the stamp normal, at each slab-grid corner.
+ * Positive is toward the camera; a curved chest falls negative at the edges.
+ */
+export function sampleStampSurfaceLift({
+  verts, faces, nTri,
+  origin, right, up, normal,
+  widthMm, heightMm, cols, rows,
+  maxAngleDot = Math.cos(75 * Math.PI / 180),
+  maxBehindMm = 22,
+  maxFrontMm = 16,
+}) {
+  const gw = cols + 1, gh = rows + 1;
+  const lift = new Float32Array(gw * gh);
+  lift.fill(LIFT_EMPTY);
+  if (!verts || !faces || !nTri || widthMm <= 0 || heightMm <= 0 || cols < 1 || rows < 1) {
+    lift.fill(0);
+    return lift;
+  }
+  const ox = origin[0], oy = origin[1], oz = origin[2];
+  const rx = right[0], ry = right[1], rz = right[2];
+  const ux = up[0], uy = up[1], uz = up[2];
+  const nx = normal[0], ny = normal[1], nz = normal[2];
+  const halfW = widthMm / 2, halfH = heightMm / 2;
+  const project = (x, y, z) => {
+    const dx = x - ox, dy = y - oy, dz = z - oz;
+    return [dx * rx + dy * ry + dz * rz, dx * ux + dy * uy + dz * uz, dx * nx + dy * ny + dz * nz];
+  };
+
+  for (let i = 0; i < nTri; i++) {
+    const i0 = faces[i * 3], i1 = faces[i * 3 + 1], i2 = faces[i * 3 + 2];
+    const ax = verts[i0 * 3], ay = verts[i0 * 3 + 1], az = verts[i0 * 3 + 2];
+    const bx = verts[i1 * 3], by = verts[i1 * 3 + 1], bz = verts[i1 * 3 + 2];
+    const cx = verts[i2 * 3], cy = verts[i2 * 3 + 1], cz = verts[i2 * 3 + 2];
+    const e1x = bx - ax, e1y = by - ay, e1z = bz - az;
+    const e2x = cx - ax, e2y = cy - ay, e2z = cz - az;
+    let fnx = e1y * e2z - e1z * e2y;
+    let fny = e1z * e2x - e1x * e2z;
+    let fnz = e1x * e2y - e1y * e2x;
+    const fl = hypot3(fnx, fny, fnz);
+    if (fl < 1e-10) continue;
+    fnx /= fl; fny /= fl; fnz /= fl;
+    if (fnx * nx + fny * ny + fnz * nz < maxAngleDot) continue;
+
+    const pa = project(ax, ay, az);
+    const pb = project(bx, by, bz);
+    const pc = project(cx, cy, cz);
+    const midU = (pa[0] + pb[0] + pc[0]) / 3;
+    const midV = (pa[1] + pb[1] + pc[1]) / 3;
+    const midD = (pa[2] + pb[2] + pc[2]) / 3;
+    if (midD < -maxBehindMm || midD > maxFrontMm) continue;
+    if (Math.abs(midU) > halfW + 2 || Math.abs(midV) > halfH + 2) continue;
+
+    const u0 = pa[0], v0 = pa[1], d0 = pa[2];
+    const u1 = pb[0], v1 = pb[1], d1 = pb[2];
+    const u2 = pc[0], v2 = pc[1], d2 = pc[2];
+    const denom = (u1 - u0) * (v2 - v0) - (u2 - u0) * (v1 - v0);
+    if (Math.abs(denom) < 1e-12) continue;
+
+    const xs = [(u0 + halfW) / widthMm * cols, (u1 + halfW) / widthMm * cols, (u2 + halfW) / widthMm * cols];
+    const ys = [(halfH - v0) / heightMm * rows, (halfH - v1) / heightMm * rows, (halfH - v2) / heightMm * rows];
+    const gx0 = Math.max(0, Math.floor(Math.min(xs[0], xs[1], xs[2])));
+    const gx1 = Math.min(cols, Math.ceil(Math.max(xs[0], xs[1], xs[2])));
+    const gy0 = Math.max(0, Math.floor(Math.min(ys[0], ys[1], ys[2])));
+    const gy1 = Math.min(rows, Math.ceil(Math.max(ys[0], ys[1], ys[2])));
+
+    for (let gy = gy0; gy <= gy1; gy++) {
+      for (let gx = gx0; gx <= gx1; gx++) {
+        const u = -halfW + (gx / cols) * widthMm;
+        const v = halfH - (gy / rows) * heightMm;
+        const w1 = ((u - u0) * (v2 - v0) - (u2 - u0) * (v - v0)) / denom;
+        const w2 = ((u1 - u0) * (v - v0) - (u - u0) * (v1 - v0)) / denom;
+        const w0 = 1 - w1 - w2;
+        if (w0 < -1e-4 || w1 < -1e-4 || w2 < -1e-4) continue;
+        const d = w0 * d0 + w1 * d1 + w2 * d2;
+        if (d < -maxBehindMm || d > maxFrontMm) continue;
+        const idx = gy * gw + gx;
+        if (d > lift[idx]) lift[idx] = d;
+      }
+    }
+  }
+  fillLiftHoles(lift, gw, gh);
+  let sum = 0, known = 0;
+  for (let i = 0; i < lift.length; i++) {
+    if (lift[i] > LIFT_EMPTY + 1) { sum += lift[i]; known++; }
+  }
+  const fallback = known ? sum / known : 0;
+  for (let i = 0; i < lift.length; i++) if (lift[i] <= LIFT_EMPTY + 1) lift[i] = fallback;
+  return lift;
+}
+
 /**
  * Project a raster stamp onto mesh faces. Returns { face, r, g, b } hits.
  * A face paints only when most sample points land on solid logo pixels — a single
@@ -524,15 +643,30 @@ export function isLogoWhiteRgb(r, g, b) {
 /** Mid-grey paper / silver mat — not black, not crest white. */
 export function isMatGreyRgb(r, g, b) {
   const { chroma, lum } = rgbChromaLum(r, g, b);
-  return chroma <= 48 && lum >= 70 && lum <= 210;
+  return chroma <= 55 && lum >= 55 && lum <= 232;
+}
+
+export function maskInteriorOnRatio(mask, w, h) {
+  if (!mask || w < 3 || h < 3) return 0;
+  let n = 0, on = 0;
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      n++;
+      if (mask[y * w + x]) on++;
+    }
+  }
+  return n ? on / n : 0;
 }
 
 /** Grey/white paper mat that hugs the crop — not interior white/red/black logo fills. */
 export function isTraceMatLayer(mask, w, h, rgb) {
   if (!mask || mask.length !== w * h) return false;
   const [r, g, b] = rgb || [128, 128, 128];
+  if (isInkRgb(r, g, b)) return false;
+  if (isMatGreyRgb(r, g, b)) return true;
   const border = maskBorderTouchRatio(mask, w, h);
-  return border >= 0.08 && isMatGreyRgb(r, g, b);
+  const inner = maskInteriorOnRatio(mask, w, h);
+  return isLogoWhiteRgb(r, g, b) && border >= 0.10 && inner < 0.18;
 }
 
 function dilateMask4(mask, w, h, passes = 1) {
@@ -628,7 +762,7 @@ export function punchExteriorPaper(layers, w, h) {
   for (const layer of layers) {
     if (!layer?.mask || layer.mask.length !== w * h) continue;
     const [r, g, b] = layer.rgb || [0, 0, 0];
-    if (isMatGreyRgb(r, g, b)) continue;
+    if (isMatGreyRgb(r, g, b) || isTraceMatLayer(layer.mask, w, h, [r, g, b])) continue;
     kept.push(layer);
   }
   const ink = unionLayerMask(kept, w, h, isInkRgb);
@@ -650,7 +784,7 @@ export function punchExteriorPaper(layers, w, h) {
     }
     if (on < 2) continue;
     if (!isInkRgb(r, g, b)) {
-      mask = openMask4(mask, w, h, 1);
+      mask = openMask4(mask, w, h, Math.min(w, h) >= 64 ? 2 : 1);
       on = 0;
       for (let i = 0; i < mask.length; i++) if (mask[i]) on++;
       if (on < 2) continue;
@@ -850,7 +984,8 @@ export function stampLayersFromTrace(result, { singleSlot = null, slotForRgb, pi
 export function buildStampSlabsFromMasks({
   layers, imgW, imgH,
   origin, right, up, normal, widthMm, heightMm,
-  d0 = -0.45, d1 = 0.7, stepMm = null,
+  d0 = STAMP_SKIN_MM, d1 = STAMP_SKIN_MM + STAMP_THICK_MM, stepMm = null,
+  verts = null, faces = null, nTri = 0,
 }) {
   const positions = [];
   const indices = [];
@@ -868,6 +1003,15 @@ export function buildStampSlabsFromMasks({
   }
   const cellU = widthMm / cols;
   const cellV = heightMm / rows;
+  const thick = Math.max(0.16, d1 - d0);
+  const gw = cols + 1;
+  const lift = (verts && faces && nTri)
+    ? sampleStampSurfaceLift({
+      verts, faces, nTri, origin, right, up, normal, widthMm, heightMm, cols, rows,
+    })
+    : null;
+  const innerAt = (c, r) => (lift ? lift[r * gw + c] : 0) + d0;
+  const chunk = lift ? 1 : 1e9;
   for (const layer of layers) {
     if (!layer?.mask) continue;
     const slot = layer.slot ?? 0;
@@ -877,13 +1021,19 @@ export function buildStampSlabsFromMasks({
       while (col < cols) {
         while (col < cols && !mask[row * cols + col]) col++;
         const start = col;
-        while (col < cols && mask[row * cols + col]) col++;
+        while (col < cols && col < start + chunk && mask[row * cols + col]) col++;
         if (col <= start) continue;
         const u0 = -widthMm / 2 + start * cellU;
         const u1 = -widthMm / 2 + col * cellU;
         const v1 = heightMm / 2 - row * cellV;
         const v0 = heightMm / 2 - (row + 1) * cellV;
-        pushStampPrism(positions, indices, faceSlots, origin, right, up, normal, u0, v0, u1, v1, d0, d1, slot);
+        pushStampPrism(
+          positions, indices, faceSlots, origin, right, up, normal,
+          u0, v0, u1, v1,
+          innerAt(start, row + 1), innerAt(col, row + 1),
+          innerAt(col, row), innerAt(start, row),
+          thick, slot,
+        );
       }
     }
   }
@@ -905,15 +1055,15 @@ function pushQuad(positions, indices, faceSlots, a, b, c, d, slot) {
   faceSlots.push(slot, slot);
 }
 
-function pushStampPrism(positions, indices, faceSlots, origin, right, up, normal, u0, v0, u1, v1, d0, d1, slot) {
-  const c00 = mapStampPoint(origin, right, up, normal, u0, v0, d0);
-  const c10 = mapStampPoint(origin, right, up, normal, u1, v0, d0);
-  const c11 = mapStampPoint(origin, right, up, normal, u1, v1, d0);
-  const c01 = mapStampPoint(origin, right, up, normal, u0, v1, d0);
-  const o00 = mapStampPoint(origin, right, up, normal, u0, v0, d1);
-  const o10 = mapStampPoint(origin, right, up, normal, u1, v0, d1);
-  const o11 = mapStampPoint(origin, right, up, normal, u1, v1, d1);
-  const o01 = mapStampPoint(origin, right, up, normal, u0, v1, d1);
+function pushStampPrism(positions, indices, faceSlots, origin, right, up, normal, u0, v0, u1, v1, d00, d10, d11, d01, thick, slot) {
+  const c00 = mapStampPoint(origin, right, up, normal, u0, v0, d00);
+  const c10 = mapStampPoint(origin, right, up, normal, u1, v0, d10);
+  const c11 = mapStampPoint(origin, right, up, normal, u1, v1, d11);
+  const c01 = mapStampPoint(origin, right, up, normal, u0, v1, d01);
+  const o00 = mapStampPoint(origin, right, up, normal, u0, v0, d00 + thick);
+  const o10 = mapStampPoint(origin, right, up, normal, u1, v0, d10 + thick);
+  const o11 = mapStampPoint(origin, right, up, normal, u1, v1, d11 + thick);
+  const o01 = mapStampPoint(origin, right, up, normal, u0, v1, d01 + thick);
   pushQuad(positions, indices, faceSlots, o00, o10, o11, o01, slot);
   pushQuad(positions, indices, faceSlots, c00, c01, c11, c10, slot);
   pushQuad(positions, indices, faceSlots, c00, c10, o10, o00, slot);
@@ -928,7 +1078,7 @@ function pushStampPrism(positions, indices, faceSlots, origin, right, up, normal
 export function buildStampSlabs({
   pixels, imgW, imgH, paletteRgbs = [], slotIndexes,
   origin, right, up, normal, widthMm, heightMm,
-  d0 = -0.45, d1 = 0.7, stepMm = 0.12, singleSlot = null,
+  d0 = STAMP_SKIN_MM, d1 = STAMP_SKIN_MM + STAMP_THICK_MM, stepMm = 0.12, singleSlot = null,
 }) {
   if (!pixels || widthMm <= 0 || heightMm <= 0) return { positions: [], indices: [], faceSlots: [] };
   if (singleSlot == null && !paletteRgbs.length) return { positions: [], indices: [], faceSlots: [] };

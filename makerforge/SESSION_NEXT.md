@@ -4,6 +4,14 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b588 — Painter sits logos on the hoodie, not through it
+**Date:** 2026-08-16
+
+### MakerDeck
+- Artwork stamp follows the chest surface and sits on top (~0.32 mm) instead of a flat slab cutting into the hoodie (the Fusion “embedded panther” look). Pale grey fringe/under-layers are dropped. Hard refresh Painter **b588**. Reload the STL, stamp once.
+
+---
+
 ## b587 — Painter stops restamping the grey PNG fringe
 **Date:** 2026-08-16
 

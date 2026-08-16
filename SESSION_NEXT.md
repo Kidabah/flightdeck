@@ -6,6 +6,19 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-16 Session update (Painter sit logo on hoodie)
+
+Latest commit: pending — Sit Painter logos on the hoodie surface and drop the grey under-layer.
+
+Latest local/Pi change:
+- Stamp follows the chest (no more flat slab cutting in). Logo sits ~0.14 mm on top, ~0.32 mm thick. Pale grey fringe layers are dropped.
+- Hard refresh (`app.js?v=679`, Painter `painter.html?v=588` / **b588**). Reload the hoodie STL, drop the logo, stamp once. Header must say **b588**.
+
+Previous:
+- Painter stop restamping grey PNG (`019832a`).
+
+---
+
 ## 2026-08-16 Session update (Painter stop restamping the grey PNG)
 
 Latest commit: `019832a` — Stop Painter from rebuilding the grey logo fringe off the raw PNG.

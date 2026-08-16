@@ -1,7 +1,7 @@
 /**
  * Painter SVG stamp — planar projection must paint the facing patch and skip the back.
  */
-import { collectStampHits, makeStampFrame, mirrorStampFrameX, nearestSlot, parseHexColor, extractSvgFillHexes, stampSizeMm, knockOutPaperBackground, rasterHasAlpha, extractRasterPalette, isSvgArtFile, isRasterArtFile, buildStampSlabs, stampLayersFromTrace, buildStampSlabsFromMasks, scrubTraceMat, isTraceMatLayer, floodBorderBackground, clipLayersToInkIsland, punchExteriorPaper } from "./_staged/painter-art.js";
+import { collectStampHits, makeStampFrame, mirrorStampFrameX, nearestSlot, parseHexColor, extractSvgFillHexes, stampSizeMm, knockOutPaperBackground, rasterHasAlpha, extractRasterPalette, isSvgArtFile, isRasterArtFile, buildStampSlabs, stampLayersFromTrace, buildStampSlabsFromMasks, scrubTraceMat, isTraceMatLayer, floodBorderBackground, clipLayersToInkIsland, punchExteriorPaper, sampleStampSurfaceLift } from "./_staged/painter-art.js";
 
 let failures = 0;
 const results = [];
@@ -144,7 +144,7 @@ for (let y = 0; y < 8; y++) {
   }
 }
 check("grey ring is a mat", isTraceMatLayer(grey, 8, 8, [150, 150, 150]));
-check("inner crest is not a mat", !isTraceMatLayer(crest, 8, 8, [220, 220, 220]));
+check("inner crest is not a mat", !isTraceMatLayer(crest, 8, 8, [245, 245, 245]));
 const scrubbed = scrubTraceMat({
   width: 8, height: 8,
   colorLayers: [
@@ -255,6 +255,36 @@ const spikeScrub = punchExteriorPaper([
 ], 8, 8);
 check("white crop spike is stripped", spikeScrub.find((l) => l.label === "White") && spikeScrub.find((l) => l.label === "White").mask[4] === 0);
 check("white plate body survives open", spikeScrub.find((l) => l.label === "White").mask[3 * 8 + 3] === 1);
+
+const pale = new Uint8Array(8 * 8);
+pale.fill(1);
+const paleScrub = punchExteriorPaper([
+  { rgb: [220, 220, 220], label: "Pale grey", mask: pale },
+  { rgb: [200, 0, 0], label: "Red", mask: crest },
+], 8, 8);
+check("pale grey fringe layer drops", !paleScrub.some((l) => l.label === "Pale grey"));
+
+let minZ = Infinity;
+for (let i = 2; i < slab.positions.length; i += 3) minZ = Math.min(minZ, slab.positions[i]);
+check("slab sits on top of the plane", minZ > 0.05, `minZ=${minZ}`);
+
+const liftVerts = new Float32Array([-12, -12, 2, 12, -12, 2, 0, 12, 2]);
+const liftFaces = new Uint32Array([0, 1, 2]);
+const lift = sampleStampSurfaceLift({
+  verts: liftVerts, faces: liftFaces, nTri: 1,
+  origin: [0, 0, 0], right: [1, 0, 0], up: [0, 1, 0], normal: [0, 0, 1],
+  widthMm: 20, heightMm: 20, cols: 8, rows: 8,
+});
+check("surface lift reads hoodie height", lift[4 * 9 + 4] > 1.5 && lift[4 * 9 + 4] < 2.5, `d=${lift[4 * 9 + 4]}`);
+const lifted = buildStampSlabsFromMasks({
+  layers: [{ mask: redMask, slot: 1 }], imgW: 4, imgH: 4,
+  origin: [0, 0, 0], right: [1, 0, 0], up: [0, 1, 0], normal: [0, 0, 1],
+  widthMm: 20, heightMm: 20, stepMm: 5,
+  verts: liftVerts, faces: liftFaces, nTri: 1,
+});
+let minLiftZ = Infinity;
+for (let i = 2; i < lifted.positions.length; i += 3) minLiftZ = Math.min(minLiftZ, lifted.positions[i]);
+check("lifted slab sits on the hoodie", minLiftZ > 2, `minZ=${minLiftZ}`);
 
 for (const line of results) console.log(line);
 if (failures) {
