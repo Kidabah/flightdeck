@@ -313,7 +313,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   <header class="header">
     <button class="toggle-sidebar" id="toggleSidebar" title="Toggle sidebar">☰</button>
     <div class="logo">Maker<span>Deck</span> · STL Painter</div>
-    <div class="build">b588</div>
+    <div class="build">b589</div>
   </header>
 
   <!-- Left Sidebar (tabbed) -->
@@ -674,7 +674,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b588</span>
+    <span>MakerDeck · STL Painter b589</span>
   </footer>
 </div>
 
@@ -700,14 +700,14 @@ import {
   paintClassOf, upgradePaintResolution, export3MF,
   findMeshIslands, buildIslandMap, floodFillSameClass, floodFillSameSlot, selectIsland,
   import3MF, buildSymmetryMap, masksToFacePaint, facePaintToMasks, MAX_PAINT_SLOTS
-} from './js/painter.js?v=574';
+} from './js/painter.js?v=589';
 import {
   rasterizeSvgText, rasterizeImageFile, collectStampRectFaces, makeStampFrame, mirrorStampFrameX,
   nearestSlot, parseHexColor, extractSvgFillHexes, extractRasterPalette, stampSizeMm, buildStampSlabs,
   buildStampSlabsFromMasks, stampLayersFromTrace, stampStepMm, scrubTraceMat,
   isSvgArtFile, isRasterArtFile, clonePixelData, rasterHasAlpha,
   ART_MATCH_DIST2
-} from './js/painter-art.js?v=588';
+} from './js/painter-art.js?v=589';
 import { loadImageFromFile, traceCanvasAsync, drawTracePreview } from './js/trace.js?v=370';
 
 /* ================================================================== */
@@ -3032,6 +3032,9 @@ async function load3MF(file) {
   S.fileName = file.name.replace(/\.3mf$/i, '');
 
   try {
+    if (!file.size) {
+      throw new Error('This 3MF is empty (0 bytes). The last export crashed before writing — reload the hoodie STL, stamp again, then export.');
+    }
     const buf = await file.arrayBuffer();
     const result = await import3MF(buf);
 
@@ -3871,6 +3874,7 @@ function showExportChoiceModal(fileName) {
 }
 
 async function writeBlobToHandle(handle, blob) {
+  if (!blob || blob.size < 64) throw new Error('Export produced an empty 3MF');
   const writable = await handle.createWritable();
   await writable.write(blob);
   await writable.close();
@@ -3897,6 +3901,7 @@ async function resolveExportDestination(suggestedName) {
     if (choice === 'replace' && S.exportHandle) {
       return {
         name: S.exportFileName || suggestedName,
+        handle: S.exportHandle,
         write: (blob) => writeBlobToHandle(S.exportHandle, blob),
       };
     }
@@ -3924,6 +3929,7 @@ async function resolveExportDestination(suggestedName) {
       S.exportFileName = handle.name || suggestedName;
       return {
         name: S.exportFileName,
+        handle,
         write: (blob) => writeBlobToHandle(handle, blob),
       };
     } catch (err) {
@@ -3982,10 +3988,15 @@ exportBtn.addEventListener('click', async () => {
   try {
     await new Promise(r => setTimeout(r, 10)); // let status paint
     const blob = buildPainted3mfBlob();
+    if (blob.size < 64) throw new Error('Export produced an empty 3MF');
     await dest.write(blob);
-    setStatus(`Exported ${dest.name} (${S.slotCount} colours)`, 'idle');
+    setStatus(`Exported ${dest.name} (${(blob.size / 1e6).toFixed(1)} MB, ${S.slotCount} colours)`, 'idle');
   } catch (err) {
     console.error(err);
+    if (dest.handle?.remove) {
+      try { await dest.handle.remove(); } catch { /* leftover 0-byte file */ }
+      S.exportHandle = null;
+    }
     setStatus(err?.message || 'Export failed', 'error');
   }
 });

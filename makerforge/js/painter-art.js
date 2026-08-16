@@ -598,7 +598,9 @@ export function downsampleMask(mask, srcW, srcH, dstW, dstH) {
 
 export function stampStepMm(widthMm, heightMm) {
   const span = Math.max(widthMm, heightMm, 1);
-  return Math.min(0.16, Math.max(0.08, span / 560));
+  // ~0.2 mm is plenty for a 0.4 mm nozzle. Finer grids explode face count
+  // and the 3MF exporter dies, leaving a 0-byte file.
+  return Math.min(0.28, Math.max(0.18, span / 200));
 }
 
 export function resolveTraceInkMask(result) {
@@ -996,7 +998,7 @@ export function buildStampSlabsFromMasks({
   let step = stepMm ?? stampStepMm(widthMm, heightMm);
   let cols = Math.max(24, Math.round(widthMm / step));
   let rows = Math.max(24, Math.round(heightMm / step));
-  while (Math.max(cols, rows) > 720 && step < 0.4) {
+  while (Math.max(cols, rows) > 220 && step < 0.45) {
     step *= 1.15;
     cols = Math.max(24, Math.round(widthMm / step));
     rows = Math.max(24, Math.round(heightMm / step));
@@ -1011,31 +1013,15 @@ export function buildStampSlabsFromMasks({
     })
     : null;
   const innerAt = (c, r) => (lift ? lift[r * gw + c] : 0) + d0;
-  const chunk = lift ? 1 : 1e9;
   for (const layer of layers) {
     if (!layer?.mask) continue;
     const slot = layer.slot ?? 0;
     const mask = downsampleMask(layer.mask, imgW, imgH, cols, rows);
-    for (let row = 0; row < rows; row++) {
-      let col = 0;
-      while (col < cols) {
-        while (col < cols && !mask[row * cols + col]) col++;
-        const start = col;
-        while (col < cols && col < start + chunk && mask[row * cols + col]) col++;
-        if (col <= start) continue;
-        const u0 = -widthMm / 2 + start * cellU;
-        const u1 = -widthMm / 2 + col * cellU;
-        const v1 = heightMm / 2 - row * cellV;
-        const v0 = heightMm / 2 - (row + 1) * cellV;
-        pushStampPrism(
-          positions, indices, faceSlots, origin, right, up, normal,
-          u0, v0, u1, v1,
-          innerAt(start, row + 1), innerAt(col, row + 1),
-          innerAt(col, row), innerAt(start, row),
-          thick, slot,
-        );
-      }
-    }
+    appendStampHeightfield(
+      positions, indices, faceSlots,
+      mask, cols, rows, cellU, cellV, widthMm, heightMm,
+      origin, right, up, normal, innerAt, thick, slot,
+    );
   }
   return { positions, indices, faceSlots };
 }
@@ -1048,28 +1034,61 @@ function mapStampPoint(origin, right, up, normal, u, v, d) {
   ];
 }
 
-function pushQuad(positions, indices, faceSlots, a, b, c, d, slot) {
-  const base = positions.length / 3;
-  positions.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2], d[0], d[1], d[2]);
-  indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+function pushIndexedQuad(indices, faceSlots, a, b, c, d, slot) {
+  indices.push(a, b, c, a, c, d);
   faceSlots.push(slot, slot);
 }
 
-function pushStampPrism(positions, indices, faceSlots, origin, right, up, normal, u0, v0, u1, v1, d00, d10, d11, d01, thick, slot) {
-  const c00 = mapStampPoint(origin, right, up, normal, u0, v0, d00);
-  const c10 = mapStampPoint(origin, right, up, normal, u1, v0, d10);
-  const c11 = mapStampPoint(origin, right, up, normal, u1, v1, d11);
-  const c01 = mapStampPoint(origin, right, up, normal, u0, v1, d01);
-  const o00 = mapStampPoint(origin, right, up, normal, u0, v0, d00 + thick);
-  const o10 = mapStampPoint(origin, right, up, normal, u1, v0, d10 + thick);
-  const o11 = mapStampPoint(origin, right, up, normal, u1, v1, d11 + thick);
-  const o01 = mapStampPoint(origin, right, up, normal, u0, v1, d01 + thick);
-  pushQuad(positions, indices, faceSlots, o00, o10, o11, o01, slot);
-  pushQuad(positions, indices, faceSlots, c00, c01, c11, c10, slot);
-  pushQuad(positions, indices, faceSlots, c00, c10, o10, o00, slot);
-  pushQuad(positions, indices, faceSlots, c01, o01, o11, c11, slot);
-  pushQuad(positions, indices, faceSlots, c00, o00, o01, c01, slot);
-  pushQuad(positions, indices, faceSlots, c10, c11, o11, o10, slot);
+/** Shared-vertex heightfield — one shell per colour, not a prism per cell. */
+function appendStampHeightfield(
+  positions, indices, faceSlots,
+  mask, cols, rows, cellU, cellV, widthMm, heightMm,
+  origin, right, up, normal, innerAt, thick, slot,
+) {
+  const gw = cols + 1;
+  const gh = rows + 1;
+  const used = new Uint8Array(gw * gh);
+  const onAt = (c, r) => c >= 0 && r >= 0 && c < cols && r < rows && mask[r * cols + c];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (!mask[r * cols + c]) continue;
+      used[r * gw + c] = 1;
+      used[r * gw + c + 1] = 1;
+      used[(r + 1) * gw + c] = 1;
+      used[(r + 1) * gw + c + 1] = 1;
+    }
+  }
+  const innerOf = new Int32Array(gw * gh);
+  innerOf.fill(-1);
+  for (let r = 0; r < gh; r++) {
+    for (let c = 0; c < gw; c++) {
+      const gi = r * gw + c;
+      if (!used[gi]) continue;
+      const u = -widthMm / 2 + c * cellU;
+      const v = heightMm / 2 - r * cellV;
+      const d = innerAt(c, r);
+      innerOf[gi] = positions.length / 3;
+      const inn = mapStampPoint(origin, right, up, normal, u, v, d);
+      const out = mapStampPoint(origin, right, up, normal, u, v, d + thick);
+      positions.push(inn[0], inn[1], inn[2], out[0], out[1], out[2]);
+    }
+  }
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (!mask[r * cols + c]) continue;
+      const i00 = innerOf[(r + 1) * gw + c];
+      const i10 = innerOf[(r + 1) * gw + c + 1];
+      const i11 = innerOf[r * gw + c + 1];
+      const i01 = innerOf[r * gw + c];
+      const o00 = i00 + 1, o10 = i10 + 1, o11 = i11 + 1, o01 = i01 + 1;
+      pushIndexedQuad(indices, faceSlots, o00, o10, o11, o01, slot);
+      pushIndexedQuad(indices, faceSlots, i00, i01, i11, i10, slot);
+      if (!onAt(c, r + 1)) pushIndexedQuad(indices, faceSlots, i00, i10, o10, o00, slot);
+      if (!onAt(c, r - 1)) pushIndexedQuad(indices, faceSlots, i01, o01, o11, i11, slot);
+      if (!onAt(c - 1, r)) pushIndexedQuad(indices, faceSlots, i00, o00, o01, i01, slot);
+      if (!onAt(c + 1, r)) pushIndexedQuad(indices, faceSlots, i10, i11, o11, o10, slot);
+    }
+  }
 }
 
 /**

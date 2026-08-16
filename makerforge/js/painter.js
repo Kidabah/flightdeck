@@ -1,5 +1,5 @@
 /**
- * MakerDeck STL Painter Engine — b573
+ * MakerDeck STL Painter Engine — b589
  * Pure computation module: STL parsing, feature detection, 3MF export.
  */
 
@@ -998,6 +998,13 @@ export const PAINT_COLOR_CODES = [
   '6C', '7C', '8C', '9C', 'AC', 'BC', 'CC', 'DC',
 ];
 export const MAX_PAINT_SLOTS = PAINT_COLOR_CODES.length;
+export const EXPORT_MAX_FACES = 1_800_000;
+
+function fmtCoord(n) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return '0';
+  return String(Math.round(x * 1e4) / 1e4);
+}
 
 /** paint_color string → 0-based slot index */
 const PAINT_CODE_TO_SLOT = (() => {
@@ -1228,6 +1235,9 @@ function apply3MFTransformToVerts(verts, nVerts, t) {
  * @returns {{ verts, faces, nVerts, nTri, embossMask, debossMask, trimMask, facePaint, colors, painted }}
  */
 export async function import3MF(buffer) {
+  if (!buffer || buffer.byteLength < 30) {
+    throw new Error('3MF is empty (0 bytes). The last export crashed before writing — reload the STL and export again.');
+  }
   const entries = await unzipEntries(buffer);
 
   // Prefer Objects/* mesh (where Painter/Bambu store paint). Fall back to any .model with triangles.
@@ -1334,23 +1344,28 @@ export function export3MF(verts, faces, nVerts, nTri, embossMask, debossMask, op
   const filamentMap = Array.from({ length: nSlots }, () => '1');
   const colourTypes = Array.from({ length: nSlots }, () => '2');
 
-  // Build object_1.model (with painted faces)
-  let objVertices = '';
-  for (let i = 0; i < nVerts; i++) {
-    objVertices += `        <vertex x="${verts[i * 3]}" y="${verts[i * 3 + 1]}" z="${verts[i * 3 + 2]}" />\n`;
+  if (nTri > EXPORT_MAX_FACES) {
+    throw new Error(`Too many faces to export (${nTri.toLocaleString()}). Reload the STL and stamp the logo again.`);
   }
 
-  let objTriangles = '';
+  // Build object_1.model (with painted faces). Join once — += on huge meshes OOMs.
+  const vLines = new Array(nVerts);
+  for (let i = 0; i < nVerts; i++) {
+    vLines[i] = `        <vertex x="${fmtCoord(verts[i * 3])}" y="${fmtCoord(verts[i * 3 + 1])}" z="${fmtCoord(verts[i * 3 + 2])}" />`;
+  }
+  const objVertices = vLines.join('\n') + '\n';
+
+  const tLines = new Array(nTri);
   for (let i = 0; i < nTri; i++) {
     const v1 = faces[i * 3], v2 = faces[i * 3 + 1], v3 = faces[i * 3 + 2];
-    let attrs = '';
     const slot = paint[i] || 0;
     // Slot 1 (index 0) = default extruder — no paint_color. Slots 2–16 use codes.
-    if (slot > 0 && slot < PAINT_COLOR_CODES.length) {
-      attrs = ` paint_color="${PAINT_COLOR_CODES[slot]}"`;
-    }
-    objTriangles += `        <triangle v1="${v1}" v2="${v2}" v3="${v3}"${attrs} />\n`;
+    const attrs = (slot > 0 && slot < PAINT_COLOR_CODES.length)
+      ? ` paint_color="${PAINT_COLOR_CODES[slot]}"`
+      : '';
+    tLines[i] = `        <triangle v1="${v1}" v2="${v2}" v3="${v3}"${attrs} />`;
   }
+  const objTriangles = tLines.join('\n') + '\n';
 
   const safeName = String(projectName || 'painted_object').replace(/[<>&"']/g, '');
 

@@ -2,6 +2,7 @@
  * Painter SVG stamp — planar projection must paint the facing patch and skip the back.
  */
 import { collectStampHits, makeStampFrame, mirrorStampFrameX, nearestSlot, parseHexColor, extractSvgFillHexes, stampSizeMm, knockOutPaperBackground, rasterHasAlpha, extractRasterPalette, isSvgArtFile, isRasterArtFile, buildStampSlabs, stampLayersFromTrace, buildStampSlabsFromMasks, scrubTraceMat, isTraceMatLayer, floodBorderBackground, clipLayersToInkIsland, punchExteriorPaper, sampleStampSurfaceLift } from "./_staged/painter-art.js";
+import { export3MF, import3MF } from "../js/painter.js";
 
 let failures = 0;
 const results = [];
@@ -106,6 +107,17 @@ const slab = buildStampSlabs({
 });
 check("slab builds triangles", slab.indices.length >= 12, `n=${slab.indices.length}`);
 check("slab slot is 2", slab.faceSlots.every((s) => s === 2));
+const solidMask = new Uint8Array(64);
+solidMask.fill(1);
+const solid = buildStampSlabsFromMasks({
+  layers: [{ mask: solidMask, slot: 1 }], imgW: 8, imgH: 8,
+  origin: [0, 0, 0], right: [1, 0, 0], up: [0, 1, 0], normal: [0, 0, 1],
+  widthMm: 16, heightMm: 16, stepMm: 2,
+});
+const solidTris = solid.indices.length / 3;
+const solidVerts = solid.positions.length / 3;
+check("shared stamp reuses verts", solidVerts / solidTris < 0.58, `v=${solidVerts} t=${solidTris}`);
+check("shared stamp still has a closed shell", solidTris >= 96 && solidVerts >= 16, `t=${solidTris}`);
 let maxX = -Infinity;
 for (let i = 0; i < slab.positions.length; i += 3) maxX = Math.max(maxX, slab.positions[i]);
 check("slab stays on left half", maxX <= 0.05, `maxX=${maxX}`);
@@ -285,6 +297,23 @@ const lifted = buildStampSlabsFromMasks({
 let minLiftZ = Infinity;
 for (let i = 2; i < lifted.positions.length; i += 3) minLiftZ = Math.min(minLiftZ, lifted.positions[i]);
 check("lifted slab sits on the hoodie", minLiftZ > 2, `minZ=${minLiftZ}`);
+
+const zip = export3MF(
+  new Float32Array([0, 0, 0, 10, 0, 0, 0, 10, 0]),
+  new Uint32Array([0, 1, 2]),
+  3, 1,
+  new Uint8Array([0]), new Uint8Array([0]),
+  { projectName: 'empty-guard', slotCount: 1, slotColors: ['#888888'] },
+);
+check("export writes a real zip", zip && zip.byteLength > 200 && zip[0] === 0x50 && zip[1] === 0x4b, `n=${zip?.byteLength}`);
+const imported = await import3MF(zip.buffer);
+check("round-trip 3MF has the triangle", imported.nTri === 1 && imported.nVerts === 3, `t=${imported.nTri}`);
+try {
+  await import3MF(new ArrayBuffer(0));
+  check("empty 3MF is rejected", false);
+} catch (err) {
+  check("empty 3MF is rejected", /empty/i.test(err.message), err.message);
+}
 
 for (const line of results) console.log(line);
 if (failures) {
