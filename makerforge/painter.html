@@ -313,7 +313,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   <header class="header">
     <button class="toggle-sidebar" id="toggleSidebar" title="Toggle sidebar">☰</button>
     <div class="logo">Maker<span>Deck</span> · STL Painter</div>
-    <div class="build">b589</div>
+    <div class="build">b590</div>
   </header>
 
   <!-- Left Sidebar (tabbed) -->
@@ -674,7 +674,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b589</span>
+    <span>MakerDeck · STL Painter b590</span>
   </footer>
 </div>
 
@@ -702,12 +702,12 @@ import {
   import3MF, buildSymmetryMap, masksToFacePaint, facePaintToMasks, MAX_PAINT_SLOTS
 } from './js/painter.js?v=589';
 import {
-  rasterizeSvgText, rasterizeImageFile, collectStampRectFaces, makeStampFrame, mirrorStampFrameX,
+  rasterizeSvgText, rasterizeImageFile, collectStampLayerHits, makeStampFrame, mirrorStampFrameX,
   nearestSlot, parseHexColor, extractSvgFillHexes, extractRasterPalette, stampSizeMm, buildStampSlabs,
   buildStampSlabsFromMasks, stampLayersFromTrace, stampStepMm, scrubTraceMat,
   isSvgArtFile, isRasterArtFile, clonePixelData, rasterHasAlpha,
   ART_MATCH_DIST2
-} from './js/painter-art.js?v=589';
+} from './js/painter-art.js?v=590';
 import { loadImageFromFile, traceCanvasAsync, drawTracePreview } from './js/trace.js?v=370';
 
 /* ================================================================== */
@@ -1652,9 +1652,9 @@ function stampSlabsForFrame(frame, { widthMm, heightMm }) {
       srcW: art.raster?.width,
       srcH: art.raster?.height,
     });
-    return buildStampSlabsFromMasks({ ...geom, ...packed });
+    return { ...buildStampSlabsFromMasks({ ...geom, ...packed }), layers: packed.layers, imgW: packed.imgW, imgH: packed.imgH };
   }
-  return { positions: [], indices: [], faceSlots: [] };
+  return { positions: [], indices: [], faceSlots: [], layers: [], imgW: 0, imgH: 0 };
 }
 
 function stampArtworkAtHit(hit) {
@@ -1664,7 +1664,7 @@ function stampArtworkAtHit(hit) {
   setStatus('Building logo geometry…', 'working');
   requestAnimationFrame(() => {
     try {
-      let { positions, indices, faceSlots } = stampSlabsForFrame(frame, size);
+      let { positions, indices, faceSlots, layers, imgW, imgH } = stampSlabsForFrame(frame, size);
       if (S.symmetryOn) {
         const mir = stampSlabsForFrame(mirrorStampFrameX(frame, S.symmetryCenterX || 0), size);
         const vBase = positions.length / 3;
@@ -1682,15 +1682,20 @@ function stampArtworkAtHit(hit) {
         S.stampTri0 = S.nTri;
         S.stampVert0 = S.nVerts;
       }
-      const rectFaces = collectStampRectFaces({
-        verts: S.verts, faces: S.faces, nTri: S.nTri,
-        origin: frame.origin, right: frame.right, up: frame.up, normal: frame.normal,
-        widthMm: size.widthMm, heightMm: size.heightMm,
-      });
       const fp = ensureFacePaint();
-      for (const i of rectFaces) {
-        if (fp && i >= 0 && i < S.nTri && !isFaceHidden(i)) fp[i] = 0;
-      }
+      const paintHits = (hitFrame) => collectStampLayerHits({
+        verts: S.verts, faces: S.faces, nTri: S.nTri,
+        origin: hitFrame.origin, right: hitFrame.right, up: hitFrame.up, normal: hitFrame.normal,
+        widthMm: size.widthMm, heightMm: size.heightMm,
+        layers, imgW, imgH,
+      });
+      const applyHits = (hits) => {
+        for (const h of hits) {
+          if (fp && h.face >= 0 && h.face < S.nTri && !isFaceHidden(h.face)) fp[h.face] = slotIndex(h.slot);
+        }
+      };
+      applyHits(paintHits(frame));
+      if (S.symmetryOn) applyHits(paintHits(mirrorStampFrameX(frame, S.symmetryCenterX || 0)));
       const n = appendStampMesh(positions, indices, faceSlots);
       hideArtPreview();
       setStatus(`Logo geometry stamped — ${n.toLocaleString()} faces`, 'idle');

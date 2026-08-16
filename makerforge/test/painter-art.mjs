@@ -1,7 +1,7 @@
 /**
  * Painter SVG stamp — planar projection must paint the facing patch and skip the back.
  */
-import { collectStampHits, makeStampFrame, mirrorStampFrameX, nearestSlot, parseHexColor, extractSvgFillHexes, stampSizeMm, knockOutPaperBackground, rasterHasAlpha, extractRasterPalette, isSvgArtFile, isRasterArtFile, buildStampSlabs, stampLayersFromTrace, buildStampSlabsFromMasks, scrubTraceMat, isTraceMatLayer, floodBorderBackground, clipLayersToInkIsland, punchExteriorPaper, sampleStampSurfaceLift } from "./_staged/painter-art.js";
+import { collectStampHits, collectStampLayerHits, makeStampFrame, mirrorStampFrameX, nearestSlot, parseHexColor, extractSvgFillHexes, stampSizeMm, knockOutPaperBackground, rasterHasAlpha, extractRasterPalette, isSvgArtFile, isRasterArtFile, buildStampSlabs, stampLayersFromTrace, buildStampSlabsFromMasks, scrubTraceMat, isTraceMatLayer, floodBorderBackground, clipLayersToInkIsland, punchExteriorPaper, sampleStampSurfaceLift } from "./_staged/painter-art.js";
 import { export3MF, import3MF } from "../js/painter.js";
 
 let failures = 0;
@@ -276,9 +276,13 @@ const paleScrub = punchExteriorPaper([
 ], 8, 8);
 check("pale grey fringe layer drops", !paleScrub.some((l) => l.label === "Pale grey"));
 
-let minZ = Infinity;
-for (let i = 2; i < slab.positions.length; i += 3) minZ = Math.min(minZ, slab.positions[i]);
-check("slab sits on top of the plane", minZ > 0.05, `minZ=${minZ}`);
+let minZ = Infinity, maxZ = -Infinity;
+for (let i = 2; i < slab.positions.length; i += 3) {
+  minZ = Math.min(minZ, slab.positions[i]);
+  maxZ = Math.max(maxZ, slab.positions[i]);
+}
+check("slab embeds into the plane", minZ < -0.2, `minZ=${minZ}`);
+check("slab still stands proud", maxZ > 0.15, `maxZ=${maxZ}`);
 
 const liftVerts = new Float32Array([-12, -12, 2, 12, -12, 2, 0, 12, 2]);
 const liftFaces = new Uint32Array([0, 1, 2]);
@@ -294,9 +298,42 @@ const lifted = buildStampSlabsFromMasks({
   widthMm: 20, heightMm: 20, stepMm: 5,
   verts: liftVerts, faces: liftFaces, nTri: 1,
 });
-let minLiftZ = Infinity;
-for (let i = 2; i < lifted.positions.length; i += 3) minLiftZ = Math.min(minLiftZ, lifted.positions[i]);
-check("lifted slab sits on the hoodie", minLiftZ > 2, `minZ=${minLiftZ}`);
+let minLiftZ = Infinity, maxLiftZ = -Infinity;
+for (let i = 2; i < lifted.positions.length; i += 3) {
+  minLiftZ = Math.min(minLiftZ, lifted.positions[i]);
+  maxLiftZ = Math.max(maxLiftZ, lifted.positions[i]);
+}
+check("lifted slab embeds into the hoodie", minLiftZ < 2, `minZ=${minLiftZ}`);
+check("lifted slab stands proud of the hoodie", maxLiftZ > 2.1, `maxZ=${maxLiftZ}`);
+
+const plateMask = new Uint8Array(16);
+const inkMask = new Uint8Array(16);
+plateMask.fill(1);
+inkMask[5] = 1; inkMask[6] = 1;
+const stacked = buildStampSlabsFromMasks({
+  layers: [{ mask: plateMask, slot: 0 }, { mask: inkMask, slot: 2 }],
+  imgW: 4, imgH: 4,
+  origin: [0, 0, 0], right: [1, 0, 0], up: [0, 1, 0], normal: [0, 0, 1],
+  widthMm: 20, heightMm: 20, stepMm: 5,
+});
+let plateMax = -Infinity, inkMax = -Infinity;
+for (let t = 0; t < stacked.faceSlots.length; t++) {
+  const a = stacked.indices[t * 3], b = stacked.indices[t * 3 + 1], c = stacked.indices[t * 3 + 2];
+  const z = Math.max(stacked.positions[a * 3 + 2], stacked.positions[b * 3 + 2], stacked.positions[c * 3 + 2]);
+  if (stacked.faceSlots[t] === 2) inkMax = Math.max(inkMax, z);
+  else plateMax = Math.max(plateMax, z);
+}
+check("ink layer sits above the plate", inkMax > plateMax + 0.1, `ink=${inkMax} plate=${plateMax}`);
+
+const fullMask = new Uint8Array(16);
+fullMask.fill(1);
+const layerHits = collectStampLayerHits({
+  verts, faces, nTri: 2,
+  origin: [0, 0, 0], right: [1, 0, 0], up: [0, 1, 0], normal: [0, 0, 1],
+  widthMm: 20, heightMm: 20,
+  layers: [{ mask: fullMask, slot: 2 }], imgW: 4, imgH: 4,
+});
+check("layer hits paint the facing patch", layerHits.some((h) => h.face === 0 && h.slot === 2), JSON.stringify(layerHits));
 
 const zip = export3MF(
   new Float32Array([0, 0, 0, 10, 0, 0, 0, 10, 0]),

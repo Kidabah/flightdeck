@@ -10,7 +10,11 @@ export const ART_COVERAGE_MIN = 0.5;
 export const ART_PAPER_LUMA = 228;
 /** Sit the logo on the hoodie, not through it. */
 export const STAMP_SKIN_MM = 0.14;
-export const STAMP_THICK_MM = 0.32;
+/** Sink into the chest so the slicer unions the logo instead of dropping a floating wafer. */
+export const STAMP_EMBED_MM = 0.55;
+export const STAMP_THICK_MM = 0.80;
+/** Stack later colours (ink) further out so they don't occupy the same volume as the plate. */
+export const STAMP_LAYER_MM = 0.26;
 
 function hypot3(x, y, z) {
   return Math.hypot(x, y, z) || 1;
@@ -381,6 +385,55 @@ export function collectStampRectFaces({
     rect.push(i);
   });
   return rect;
+}
+
+function stampUvToPixel(u, v, widthMm, heightMm, imgW, imgH) {
+  const halfW = widthMm / 2, halfH = heightMm / 2;
+  if (u < -halfW || u > halfW || v < -halfH || v > halfH) return -1;
+  const px = ((u + halfW) / widthMm) * (imgW - 1);
+  const py = (1 - (v + halfH) / heightMm) * (imgH - 1);
+  const ix = Math.max(0, Math.min(imgW - 1, (px + 0.5) | 0));
+  const iy = Math.max(0, Math.min(imgH - 1, (py + 0.5) | 0));
+  return iy * imgW + ix;
+}
+
+/**
+ * Colour the hoodie triangles under the logo (including the white plate).
+ * Bambu slices this paint_color even if the raised shell is too thin.
+ */
+export function collectStampLayerHits({
+  verts, faces, nTri, origin, right, up, normal, widthMm, heightMm,
+  layers, imgW, imgH,
+  coverageMin = ART_COVERAGE_MIN,
+  maxAngleDot = Math.cos(70 * Math.PI / 180),
+  maxBehindMm = 18,
+  maxFrontMm = 14,
+}) {
+  const hits = [];
+  if (!verts || !faces || !nTri || !layers?.length || !imgW || !imgH) return hits;
+  stampGeomLoop(verts, faces, nTri, origin, right, up, normal, widthMm, heightMm, maxAngleDot, maxBehindMm, maxFrontMm, (i, pts) => {
+    const counts = new Uint32Array(layers.length);
+    let samples = 0;
+    for (const p of pts) {
+      const idx = stampUvToPixel(p[0], p[1], widthMm, heightMm, imgW, imgH);
+      if (idx < 0) continue;
+      samples++;
+      for (let li = 0; li < layers.length; li++) {
+        if (layers[li]?.mask?.[idx]) counts[li]++;
+      }
+    }
+    if (!samples) return;
+    let best = -1, bestN = 0;
+    for (let li = 0; li < layers.length; li++) {
+      if (counts[li] >= samples * coverageMin && counts[li] >= bestN) {
+        best = li;
+        bestN = counts[li];
+      }
+    }
+    if (best < 0) return;
+    hits.push({ face: i, slot: layers[best].slot ?? 0 });
+  });
+  return hits;
 }
 
 const LIFT_EMPTY = -1e9;
@@ -983,10 +1036,17 @@ export function stampLayersFromTrace(result, { singleSlot = null, slotForRgb, pi
   return { imgW, imgH, layers: [{ mask, slot: 0 }] };
 }
 
+function maskOnCount(mask) {
+  if (!mask) return 0;
+  let n = 0;
+  for (let i = 0; i < mask.length; i++) if (mask[i]) n++;
+  return n;
+}
+
 export function buildStampSlabsFromMasks({
   layers, imgW, imgH,
   origin, right, up, normal, widthMm, heightMm,
-  d0 = STAMP_SKIN_MM, d1 = STAMP_SKIN_MM + STAMP_THICK_MM, stepMm = null,
+  d0 = -STAMP_EMBED_MM, d1 = -STAMP_EMBED_MM + STAMP_THICK_MM, stepMm = null,
   verts = null, faces = null, nTri = 0,
 }) {
   const positions = [];
@@ -1012,17 +1072,21 @@ export function buildStampSlabsFromMasks({
       verts, faces, nTri, origin, right, up, normal, widthMm, heightMm, cols, rows,
     })
     : null;
-  const innerAt = (c, r) => (lift ? lift[r * gw + c] : 0) + d0;
-  for (const layer of layers) {
-    if (!layer?.mask) continue;
+  const ordered = layers
+    .filter((layer) => layer?.mask)
+    .slice()
+    .sort((a, b) => maskOnCount(b.mask) - maskOnCount(a.mask));
+  ordered.forEach((layer, li) => {
     const slot = layer.slot ?? 0;
     const mask = downsampleMask(layer.mask, imgW, imgH, cols, rows);
+    const layerLift = li * STAMP_LAYER_MM;
+    const innerAt = (c, r) => (lift ? lift[r * gw + c] : 0) + d0 + layerLift;
     appendStampHeightfield(
       positions, indices, faceSlots,
       mask, cols, rows, cellU, cellV, widthMm, heightMm,
       origin, right, up, normal, innerAt, thick, slot,
     );
-  }
+  });
   return { positions, indices, faceSlots };
 }
 
@@ -1097,7 +1161,7 @@ function appendStampHeightfield(
 export function buildStampSlabs({
   pixels, imgW, imgH, paletteRgbs = [], slotIndexes,
   origin, right, up, normal, widthMm, heightMm,
-  d0 = STAMP_SKIN_MM, d1 = STAMP_SKIN_MM + STAMP_THICK_MM, stepMm = 0.12, singleSlot = null,
+  d0 = -STAMP_EMBED_MM, d1 = -STAMP_EMBED_MM + STAMP_THICK_MM, stepMm = 0.12, singleSlot = null,
 }) {
   if (!pixels || widthMm <= 0 || heightMm <= 0) return { positions: [], indices: [], faceSlots: [] };
   if (singleSlot == null && !paletteRgbs.length) return { positions: [], indices: [], faceSlots: [] };
