@@ -6,6 +6,18 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-16 Session update (Hoodie is the MakerDeck stubby holder)
+
+Latest commit: `085927b` — Put the Panthers hoodie mesh in MakerDeck as Stubby holder.
+
+Latest local/Pi change:
+- Stubby holder is the hoodie (150 mm / 65 mm well), not the can-cup. Drop a PNG on the Art tab — chest logo exports as a separate colour part like other MakerDeck boxes. Hard refresh (`app.js?v=685`, MakerDeck `app.js?v=578` / **b578**). Header must say **b578**.
+
+Previous:
+- MakerDeck stubby holder cup (`6713cfe`).
+
+---
+
 ## 2026-08-16 Session update (MakerDeck stubby holder back)
 
 Latest commit: `6713cfe` — Restore the MakerDeck stubby holder preset so wrap art can be tested on a cup.

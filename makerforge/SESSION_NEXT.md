@@ -4,6 +4,14 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b578 — Stubby holder is the Panthers hoodie
+**Date:** 2026-08-16
+
+### MakerDeck
+- Quick preset **Stubby holder** loads the hoodie mesh (150 mm tall, 65 mm well), not the parametric can cup. Art tab stamps the chest as Body + Art, same as other MakerDeck boxes. Hard refresh MakerDeck **b578**.
+
+---
+
 ## b577 — Stubby holder preset is back (wrap art on the cup)
 **Date:** 2026-08-16
 
