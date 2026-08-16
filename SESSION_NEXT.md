@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-16 Session update (Tools dismiss failed queue leftovers)
 
-Latest commit: pending — Add Settings → Tools dismiss for failed/cancelled queue leftovers.
+Latest commit: `420acc3` — Add Settings → Tools dismiss for failed/cancelled queue leftovers.
 
 Latest local/Pi change:
 - Tools can dismiss leftover failed/cancelled queue rows (like BigBoy job #307) without touching the printer. Hard refresh (`app.js?v=680`, `style.css?v=509`).
