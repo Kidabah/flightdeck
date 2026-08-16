@@ -4,6 +4,14 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b584 — Painter punches grey halo around logos
+**Date:** 2026-08-15
+
+### MakerDeck
+- Grey mat/halo around a team logo is flooded from the image edge (grey/empty only) so the jagged silver fringe goes; crest white/red/black stays. Hard refresh Painter **b584**. Undo the previous stamp first.
+
+---
+
 ## b583 — Painter drops grey logo mat
 **Date:** 2026-08-15
 

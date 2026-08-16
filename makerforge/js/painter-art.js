@@ -503,14 +503,121 @@ export function maskBorderTouchRatio(mask, w, h) {
   return border ? on / border : 0;
 }
 
+export function rgbChromaLum(r, g, b) {
+  const chroma = Math.max(r, g, b) - Math.min(r, g, b);
+  const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+  return { chroma, lum };
+}
+
+export function isInkRgb(r, g, b) {
+  const { chroma, lum } = rgbChromaLum(r, g, b);
+  return lum < 60 || chroma >= 26;
+}
+
+export function isLogoWhiteRgb(r, g, b) {
+  const { chroma, lum } = rgbChromaLum(r, g, b);
+  return chroma <= 55 && lum > 210;
+}
+
+/** Mid-grey paper / silver mat — not black, not crest white. */
+export function isMatGreyRgb(r, g, b) {
+  const { chroma, lum } = rgbChromaLum(r, g, b);
+  return chroma <= 48 && lum >= 70 && lum <= 210;
+}
+
 /** Grey/white paper mat that hugs the crop — not interior white/red/black logo fills. */
 export function isTraceMatLayer(mask, w, h, rgb) {
   if (!mask || mask.length !== w * h) return false;
   const [r, g, b] = rgb || [128, 128, 128];
-  const chroma = Math.max(r, g, b) - Math.min(r, g, b);
-  const lum = 0.299 * r + 0.587 * g + 0.114 * b;
   const border = maskBorderTouchRatio(mask, w, h);
-  return border >= 0.16 && chroma <= 48 && lum >= 70;
+  return border >= 0.08 && isMatGreyRgb(r, g, b);
+}
+
+function dilateMask4(mask, w, h, passes = 1) {
+  let cur = mask;
+  for (let p = 0; p < passes; p++) {
+    const next = new Uint8Array(cur);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        if (cur[y * w + x]) continue;
+        if ((x && cur[y * w + x - 1])
+          || (x + 1 < w && cur[y * w + x + 1])
+          || (y && cur[(y - 1) * w + x])
+          || (y + 1 < h && cur[(y + 1) * w + x])) {
+          next[y * w + x] = 1;
+        }
+      }
+    }
+    cur = next;
+  }
+  return cur;
+}
+
+function floodFromBorder(passable, w, h) {
+  const seen = new Uint8Array(w * h);
+  const stack = [];
+  const seed = (i) => {
+    if (!passable[i] || seen[i]) return;
+    seen[i] = 1;
+    stack.push(i);
+  };
+  for (let x = 0; x < w; x++) {
+    seed(x);
+    seed((h - 1) * w + x);
+  }
+  for (let y = 0; y < h; y++) {
+    seed(y * w);
+    seed(y * w + w - 1);
+  }
+  while (stack.length) {
+    const i = stack.pop();
+    const x = i % w;
+    const y = (i / w) | 0;
+    if (x) seed(i - 1);
+    if (x + 1 < w) seed(i + 1);
+    if (y) seed(i - w);
+    if (y + 1 < h) seed(i + w);
+  }
+  return seen;
+}
+
+function unionLayerMask(layers, w, h, pred) {
+  const out = new Uint8Array(w * h);
+  for (const layer of layers) {
+    const [r, g, b] = layer.rgb || [0, 0, 0];
+    if (!pred(r, g, b) || !layer.mask) continue;
+    for (let i = 0; i < out.length; i++) if (layer.mask[i]) out[i] = 1;
+  }
+  return out;
+}
+
+/**
+ * Punch grey/empty that's reachable from the crop edge without crossing
+ * red/black/white logo ink. Keeps interior white; drops the outer mat + halo.
+ */
+export function punchExteriorPaper(layers, w, h) {
+  if (!layers?.length || !w || !h) return layers || [];
+  const ink = unionLayerMask(layers, w, h, isInkRgb);
+  const white = unionLayerMask(layers, w, h, isLogoWhiteRgb);
+  const wall = dilateMask4(ink, w, h, 1);
+  const passable = new Uint8Array(w * h);
+  for (let i = 0; i < passable.length; i++) {
+    passable[i] = (!wall[i] && !white[i]) ? 1 : 0;
+  }
+  const exterior = floodFromBorder(passable, w, h);
+  const out = [];
+  for (const layer of layers) {
+    if (!layer?.mask || layer.mask.length !== w * h) continue;
+    const mask = new Uint8Array(layer.mask);
+    let on = 0;
+    for (let i = 0; i < mask.length; i++) {
+      if (exterior[i]) mask[i] = 0;
+      if (mask[i]) on++;
+    }
+    if (on < 2) continue;
+    out.push({ ...layer, mask });
+  }
+  return out;
 }
 
 function punchMasks(mask, punches) {
@@ -523,23 +630,37 @@ function punchMasks(mask, punches) {
   return out;
 }
 
-/** Drop the grey bounding-mat layer MakerDeck still lists as "Dark grey". */
+function unionMasks(masks, len) {
+  const out = new Uint8Array(len);
+  for (const mask of masks) {
+    if (!mask || mask.length !== len) continue;
+    for (let i = 0; i < len; i++) if (mask[i]) out[i] = 1;
+  }
+  return out;
+}
+
+/** Drop the grey bounding-mat / halo around a team logo. */
 export function scrubTraceMat(result) {
   if (!result) return result;
   const imgW = result.width | 0;
   const imgH = result.height | 0;
-  const layers = result.colorLayers || [];
-  const mats = layers.filter((layer) => isTraceMatLayer(layer.mask, imgW, imgH, layer.rgb));
-  if (!mats.length) return result;
-  const punches = mats.map((layer) => layer.mask);
-  const colorLayers = layers.filter((layer) => !mats.includes(layer));
-  const silhouette = punchMasks(resolveTraceInkMask(result), punches);
+  let layers = (result.colorLayers || []).map((layer) => ({ ...layer }));
+  if (!layers.length) return result;
+  const before = layers;
+  layers = punchExteriorPaper(layers, imgW, imgH);
+  layers = layers.filter((layer) => !isTraceMatLayer(layer.mask, imgW, imgH, layer.rgb));
+  if (layers.length === before.length && layers.every((l, i) => l.mask === before[i].mask)) {
+    return result;
+  }
+  const silhouette = layers.length
+    ? unionMasks(layers.map((l) => l.mask), imgW * imgH)
+    : punchMasks(resolveTraceInkMask(result), before.map((l) => l.mask));
   return {
     ...result,
-    colorLayers,
-    colorLayerCount: colorLayers.length,
-    silhouetteMask: silhouette || result.silhouetteMask,
-    mask: silhouette || result.mask,
+    colorLayers: layers,
+    colorLayerCount: layers.length,
+    silhouetteMask: silhouette,
+    mask: silhouette,
   };
 }
 

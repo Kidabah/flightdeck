@@ -4126,7 +4126,7 @@ function _ensureMakerDeckFrame() {
 function _ensurePainterFrame() {
   const frame = document.getElementById('painter-frame');
   if (!frame || frame.dataset.loaded === '1') return;
-  frame.src = '/makerdeck/painter.html?v=583';
+  frame.src = '/makerdeck/painter.html?v=584';
   frame.dataset.loaded = '1';
 }
 

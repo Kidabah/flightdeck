@@ -6,6 +6,19 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-15 Session update (Painter punch grey logo halo)
+
+Latest commit: *(pending)* — Punch grey halo outside the crest, not just the full-frame mat.
+
+Latest local/Pi change:
+- Flood from the crop edge through grey/empty so a jagged silver halo around the shield is removed. Interior white stays.
+- Hard refresh (`app.js?v=675`, Painter `painter.html?v=584` / **b584**). Undo the old stamp (geometry), drop/trace again, click the chest.
+
+Previous:
+- Painter drop grey logo mat (`358bbea`).
+
+---
+
 ## 2026-08-15 Session update (Painter drop grey logo mat)
 
 Latest commit: `358bbea` — Drop the grey bounding-mat around Painter team logos.

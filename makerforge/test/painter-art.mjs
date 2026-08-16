@@ -165,6 +165,38 @@ const noGrey = stampLayersFromTrace({
 }, { slotForRgb: (rgb) => nearestSlot(rgb, [[176, 176, 176], [12, 12, 12], [200, 0, 0]]).slot });
 check("stamp skips grey mat layer", noGrey.layers.length === 1 && noGrey.layers[0].slot === 2);
 
+const halo = new Uint8Array(8 * 8);
+const core = new Uint8Array(8 * 8);
+for (let y = 0; y < 8; y++) {
+  for (let x = 0; x < 8; x++) {
+    const i = y * 8 + x;
+    if (x >= 1 && x <= 6 && y >= 1 && y <= 6 && (x === 1 || x === 6 || y === 1 || y === 6)) halo[i] = 1;
+    else if (x >= 3 && x <= 4 && y >= 3 && y <= 4) core[i] = 1;
+  }
+}
+const haloScrub = scrubTraceMat({
+  width: 8, height: 8,
+  colorLayers: [
+    { rgb: [160, 160, 160], hex: "#a0a0a0", label: "Grey", mask: halo },
+    { rgb: [200, 0, 0], hex: "#c80000", label: "Red", mask: core },
+  ],
+});
+check("halo grey does not need to touch crop", !haloScrub.colorLayers.some((l) => l.label === "Grey"));
+check("halo scrub keeps red core", haloScrub.colorLayers.some((l) => l.label === "Red"));
+
+const whiteFill = new Uint8Array(8 * 8);
+for (let y = 2; y <= 5; y++) for (let x = 2; x <= 5; x++) whiteFill[y * 8 + x] = 1;
+const keepWhite = scrubTraceMat({
+  width: 8, height: 8,
+  colorLayers: [
+    { rgb: [150, 150, 150], mask: grey, label: "Dark grey" },
+    { rgb: [240, 240, 240], mask: whiteFill, label: "White" },
+    { rgb: [200, 0, 0], mask: crest, label: "Red" },
+  ],
+});
+check("interior white stays", keepWhite.colorLayers.some((l) => l.label === "White"));
+check("outer grey still drops next to white", !keepWhite.colorLayers.some((l) => l.label === "Dark grey"));
+
 for (const line of results) console.log(line);
 if (failures) {
   console.error(`\n${failures} painter-art check(s) failed`);
