@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-16 Session update (Clear BigBoy cancelled-print fault)
 
-Latest commit: pending — Treat Bambu 0300-400C (printing was cancelled) as a cleared cancel, not a live fault.
+Latest commit: `29391e8` — Treat Bambu 0300-400C (printing was cancelled) as a cleared cancel, not a live fault.
 
 Latest local/Pi change:
 - BigBoy was stuck `error` after a cancelled print (`0300-400C`). Flightdeck now dismisses that retained FAILED banner and sends `clean_print_error`. Backend restart required.
