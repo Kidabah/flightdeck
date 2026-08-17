@@ -6,6 +6,18 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-17 Session update (Hoodie 3MF loads as H2C 0.24 Standard)
+
+Latest commit: `beaf424` — MakerDeck **b601**, 3MF is a real Bambu project on **0.24mm Standard @BBL H2C**.
+
+Latest local/Pi change:
+- Studio dumped settings because Application was `BambuStudio` (no version) and the JSON had no `nozzle_diameter` / `extruder_type`. There is no Hoodie Fast in System presets — fastest stock is **0.24mm Standard**. Hard refresh (`app.js?v=708`, MakerDeck `app.js?v=601` / **b601**). Header **b601**. Re-export. Process dropdown should show 0.24mm Standard, no “invalid config”.
+
+Previous:
+- Hoodie 0.4 slice cracks (`ee77d2a`).
+
+---
+
 ## 2026-08-17 Session update (Hoodie 0.4 slice cracks + H2C config)
 
 Latest commit: `ee77d2a` — MakerDeck **b600**, thicker 0.4 mm stamp; 3MF is H2C 0.4 / 0.20mm Standard.

@@ -4,6 +4,12 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b601 — 3MF is H2C 0.24mm Standard
+**Date:** 2026-08-17
+
+### MakerDeck
+- Invalid config: 3MF now has `BambuStudio-01.09.00.00`, `from: project`, dual `nozzle_diameter` + `extruder_type`. Process is **0.24mm Standard @BBL H2C** (fastest system preset Chris has). Hard refresh **b601**. Re-export.
+
 ## b600 — Hoodie 0.4 stamp fills; H2C 0.4 config
 **Date:** 2026-08-17
 
