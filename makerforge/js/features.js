@@ -2669,8 +2669,11 @@ function computeTextArtLayout(meta, params) {
       letterSpacing,
       fontWeight,
     });
-    if (lineHeightsMm) raster._lineHeightsMm = lineHeightsMm;
-    raster._lineSpacing = lineSpacing;
+    // Headless export validation intentionally runs without browser fonts.
+    // Keep its documented no-font path nullable so callers can skip text
+    // instead of crashing before they inspect the empty raster.
+    if (raster && lineHeightsMm) raster._lineHeightsMm = lineHeightsMm;
+    if (raster) raster._lineSpacing = lineSpacing;
   }
   if (!raster?.mask?.length) return null;
 

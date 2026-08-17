@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, HOODIE_STUBBY_PRESET, ANIMAL_PRESET, SIGN_PRESET, TEMORA_VET_SIGN_PRESET, TEMORA_VET_CELTIC_SVG_URL, isDrinkHolderShape } from "./geometry.js?v=598";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, resolveEmbossFontWeight, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=600";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, resolveEmbossFontWeight, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=601";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=370";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges, countNonManifoldEdges } from "./stl.js?v=599";
-import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=613";
+import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=614";
 import {
   folderExportSupported,
   folderExportBlockedReason,
@@ -36,7 +36,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b613";
+const MAKERDECK_BUILD = "b614";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -1744,31 +1744,54 @@ function inflateMesh(mesh, mm) {
   return { ...mesh, positions: pos };
 }
 
-/** Same-nozzle art cannot occupy the same voxels or H2C dumps those toolpaths. */
-async function subtractOverlappingHoodieArt(parts) {
+/**
+ * Make the hoodie's coloured meshes real non-overlapping volumes.
+ *
+ * A Bambu object can contain floating decorative volumes because the white
+ * body supports them. It cannot contain two materials in the same voxels:
+ * the H2C then emits a gcode-path conflict and drops the right-nozzle art.
+ */
+async function resolveHoodieVolumeOverlaps(parts) {
+  const bodyIdx = parts.findIndex((part) => (part.extruder || 1) === 1);
   const artIdx = [];
   for (let i = 0; i < parts.length; i++) {
-    if ((parts[i].extruder || 1) > 1) artIdx.push(i);
+    if (i !== bodyIdx && (parts[i].extruder || 1) > 1) artIdx.push(i);
   }
-  if (artIdx.length < 2) return parts;
+  if (bodyIdx < 0 || !artIdx.length) return parts;
   let subtractMesh;
   try {
     ({ subtractMesh } = await import("./mesh-cut.js?v=24"));
   } catch (err) {
-    console.warn("hoodie art CSG unavailable", err);
-    return parts;
+    console.error("hoodie CSG unavailable", err);
+    throw new Error("Hoodie colour volumes could not be prepared. Check your connection and export again.");
   }
   const next = parts.slice();
+  // A small clearance prevents coincident faces from becoming competing tool
+  // paths while remaining far below a visible printed feature.
+  const clearance = 0.04;
+  for (const i of artIdx) {
+    try {
+      const cutter = inflateMesh(next[i].mesh, clearance);
+      const cut = await subtractMesh(next[bodyIdx].mesh, cutter);
+      if (cut?.indices?.length) next[bodyIdx] = { ...next[bodyIdx], mesh: prepareMeshFor3mf(cut) };
+    } catch (err) {
+      console.error("hoodie body/art CSG failed", next[i].name, err);
+      throw new Error(`Could not separate Body from ${next[i].name}. Rebuild the artwork and export again.`);
+    }
+  }
+  // The imported crest can have red and dark regions sitting on the same
+  // surface. Trim earlier art volumes too, so their colours never collide.
   for (let a = 0; a < artIdx.length; a++) {
     for (let b = a + 1; b < artIdx.length; b++) {
       const i = artIdx[a];
       const j = artIdx[b];
       try {
-        const cutter = inflateMesh(next[j].mesh, 0.22);
+        const cutter = inflateMesh(next[j].mesh, clearance);
         const cut = await subtractMesh(next[i].mesh, cutter);
         if (cut?.indices?.length) next[i] = { ...next[i], mesh: prepareMeshFor3mf(cut) };
       } catch (err) {
-        console.warn("hoodie art subtract failed", next[i].name, next[j].name, err);
+        console.error("hoodie art subtract failed", next[i].name, next[j].name, err);
+        throw new Error(`Could not separate ${next[i].name} from ${next[j].name}. Rebuild the artwork and export again.`);
       }
     }
   }
@@ -1776,7 +1799,7 @@ async function subtractOverlappingHoodieArt(parts) {
 }
 
 async function prepareHoodieExportParts(parts) {
-  return subtractOverlappingHoodieArt(mergeHoodiePartsBySlot(parts));
+  return resolveHoodieVolumeOverlaps(mergeHoodiePartsBySlot(parts));
 }
 
 async function buildBody3mfExport(exportCache, parts) {
@@ -1786,10 +1809,10 @@ async function buildBody3mfExport(exportCache, parts) {
     : parts;
   const hoodie3mf = state.shape === "stubbyHolder" ? {
     filamentPreset: "Bambu PLA Basic @BBL H2C",
-    // H2C only honours object-level extruders (assembled volumes slice as
-    // filament 1). A continuous sprue keeps those objects legal to slice.
-    separateObjects: true,
-    artSprues: true,
+    // One printable hoodie object, with body/red/black as non-overlapping
+    // volumes. This keeps chest art supported without a floating-object
+    // warning or the b613 plate-to-crest sprue.
+    splitVolumes: true,
     printer: {
       printer_model: "Bambu Lab H2C",
       printer_settings_id: "Bambu Lab H2C 0.4 nozzle",
@@ -1808,7 +1831,14 @@ async function buildBody3mfExport(exportCache, parts) {
   const multiFile = exportUsesMultiFileZip();
 
   if (!multiFile) {
-    return { blob: buildColoredProject3mf(exportParts, projectName, hoodie3mf), zipExport: false, lidPartCount: 0, linerPartCount: 0, holderPartCount: 0 };
+    return {
+      blob: buildColoredProject3mf(exportParts, projectName, hoodie3mf),
+      zipExport: false,
+      exportedParts: exportParts,
+      lidPartCount: 0,
+      linerPartCount: 0,
+      holderPartCount: 0,
+    };
   }
 
   const containerBlob = buildColoredProject3mf(exportParts, projectName, hoodie3mf);
@@ -1867,6 +1897,7 @@ async function buildBody3mfExport(exportCache, parts) {
   return {
     blob: zipBlob,
     zipExport: true,
+    exportedParts: exportParts,
     folderName: projectName,
     folderEntries: zipEntries,
     lidPartCount,
@@ -5817,13 +5848,14 @@ function runExport(format, options = {}) {
             } else {
               downloadBlob(blob, fname);
             }
+            const exportedParts = packed.exportedParts || parts;
             const partNames = packed.zipExport
               ? [
-                parts.map((p) => p.name).join(" + "),
+                exportedParts.map((p) => p.name).join(" + "),
                 packed.lidFile ? "Lid" : "",
                 packed.linerFile ? "Liner" : "",
               ].filter(Boolean).join(" + ")
-              : parts.map((p) => p.name).join(" + ");
+              : exportedParts.map((p) => p.name).join(" + ");
             const zipNote = packed.zipExport
               ? ` · ${[packed.containerFile, packed.lidFile, packed.linerFile].filter(Boolean).join(" + ")}`
               : "";
@@ -5860,7 +5892,7 @@ function runExport(format, options = {}) {
               ? `Saved to ${folderSaveResult?.pathLabel || folderSaveResult?.folderName || sanitizeExportFolderName(options.filename || packed.folderName)}/ — open each .3mf in Bambu`
               : packed.zipExport
                 ? "ZIP downloaded — open each .3mf in Bambu (container, lid, liner as needed)"
-                : `${parts.length > 1 ? `${parts.length}-part` : "Plain"} 3MF exported — ${partNames}`;
+                : `${exportedParts.length > 1 ? `${exportedParts.length}-${params.shape === "stubbyHolder" ? "volume" : "part"}` : "Plain"} 3MF exported — ${partNames}`;
             const exportDetail = `${triCount} triangles${zipNote}${openNote}${wmNote}`;
             setExportStatus(exportHeadline, { detail: exportDetail });
             void archiveBodyExport(

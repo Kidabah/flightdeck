@@ -14,7 +14,7 @@
 </script>
 <style>
 /* ================================================================== */
-/*  b561 — MakerDeck STL Painter  (tabbed layout)                     */
+/*  b614 — MakerDeck STL Painter  (tabbed layout)                     */
 /* ================================================================== */
 
 /* -- Reset & Vars -------------------------------------------------- */
@@ -58,10 +58,17 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   padding:0 14px;background:var(--panel);border-bottom:1px solid var(--border);z-index:20}
 .header .logo{font-weight:700;font-size:14px;letter-spacing:.3px;white-space:nowrap}
 .header .logo span{color:var(--accent)}
+.header .logo{color:var(--text);text-decoration:none}
 .header .build{color:var(--muted);font-size:11px;margin-left:auto}
 .header .toggle-sidebar{width:28px;height:28px;display:flex;align-items:center;justify-content:center;
   border-radius:var(--radius-sm);color:var(--muted);transition:background .15s}
 .header .toggle-sidebar:hover{background:var(--accent-dim);color:var(--text)}
+.header .tool-nav{display:flex;align-items:center;gap:2px;min-width:0}
+.header .tool-nav a{padding:4px 7px;border-radius:var(--radius-sm);color:var(--muted);
+  text-decoration:none;font-size:11px;font-weight:600;white-space:nowrap;transition:background .15s,color .15s}
+.header .tool-nav a:hover{background:var(--accent-dim);color:var(--text)}
+.header .tool-nav a.active{background:var(--accent-dim);color:var(--accent)}
+@media (max-width:900px){.header .tool-nav a:not(.active){display:none}}
 
 /* -- Sidebar ------------------------------------------------------- */
 .sidebar{grid-area:sidebar;display:flex;flex-direction:column;
@@ -312,8 +319,15 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   <!-- Header -->
   <header class="header">
     <button class="toggle-sidebar" id="toggleSidebar" title="Toggle sidebar">☰</button>
-    <div class="logo">Maker<span>Deck</span> · STL Painter</div>
-    <div class="build">b591</div>
+    <a class="logo" href="index.html" title="MakerDeck home">Maker<span>Deck</span> · STL Painter</a>
+    <nav class="tool-nav" aria-label="MakerDeck tools">
+      <a href="index.html">Container</a>
+      <a href="painter.html" class="active" aria-current="page">STL Painter</a>
+      <a href="paper3d.html">Paper3D</a>
+      <a href="meshprep.html">Mesh Prep</a>
+      <a href="chop.html">Chop</a>
+    </nav>
+    <div class="build">b614</div>
   </header>
 
   <!-- Left Sidebar (tabbed) -->
@@ -674,7 +688,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b591</span>
+    <span>MakerDeck · STL Painter b614</span>
   </footer>
 </div>
 
@@ -700,7 +714,7 @@ import {
   paintClassOf, upgradePaintResolution, export3MF,
   findMeshIslands, buildIslandMap, floodFillSameClass, floodFillSameSlot, selectIsland,
   import3MF, buildSymmetryMap, masksToFacePaint, facePaintToMasks, MAX_PAINT_SLOTS
-} from './js/painter.js?v=591';
+} from './js/painter.js?v=614';
 import {
   rasterizeSvgText, rasterizeImageFile, makeStampFrame, mirrorStampFrameX,
   nearestSlot, parseHexColor, extractSvgFillHexes, extractRasterPalette, stampSizeMm, buildStampSlabs,

@@ -4,6 +4,15 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b614 — Restore STL Painter tool navigation
+**Date:** 2026-08-17
+
+### MakerDeck
+- The Painter UI restore had removed its Home and cross-tool links. Its header now links to Container, Paper3D, Mesh Prep, and Chop, with the active tool marked; the shared navigation/build labels are b614. At desktop width the links stay in the header; below 900px only the active tool remains visible.
+- Hoodie H2C export no longer creates b613's disconnected plate-to-crest sprues. The white body, red art, and dark-grey art are linked non-overlapping Bambu volumes in one printable hoodie object; the body is CSG-cut around art, red/black are trimmed apart, and the per-plate `filament_volume_maps` are written with the left/right filament map. The MakerDeck status reports the three actual output volumes rather than the pre-merge PNG trace layers. Re-export: older b613 files cannot be repaired into this structure.
+- Added `test/h2c-3mf.mjs` to lock the H2C project structure (three linked volumes, `1 2 2` nozzle map, `0 0 0` volume map, no sprue). Also fixed the documented no-font headless text-export path so the full geometry gate can run.
+- Verified live HTTP paths for Container, Painter, Paper3D, Mesh Prep, Chop, and the shared navigation assets. Browser-console and rendered-layout verification remain pending because the local Browser component is unavailable.
+
 ## b613 — Hoodie H2C object extruders + sprues
 **Date:** 2026-08-17
 

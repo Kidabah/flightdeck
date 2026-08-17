@@ -200,89 +200,6 @@ function formatTransform3x4(tx = 0, ty = 0, tz = 0) {
   return `1 0 0 0 1 0 0 0 1 ${tx} ${ty} ${tz}`;
 }
 
-function meshMinZ(mesh) {
-  const positions = mesh?.positions;
-  if (!positions?.length) return 0;
-  let minZ = Infinity;
-  for (let i = 2; i < positions.length; i += 3) {
-    if (positions[i] < minZ) minZ = positions[i];
-  }
-  return Number.isFinite(minZ) ? minZ : 0;
-}
-
-/** Axis-aligned box glued onto a mesh (sprue / bed foot). */
-function appendBox(mesh, x, y, z0, z1, half = 0.4) {
-  const vBase = (mesh.positions.length / 3) | 0;
-  const positions = Array.from(mesh.positions);
-  const indices = Array.from(mesh.indices);
-  const verts = [
-    x - half, y - half, z0, x + half, y - half, z0, x + half, y + half, z0, x - half, y + half, z0,
-    x - half, y - half, z1, x + half, y - half, z1, x + half, y + half, z1, x - half, y + half, z1,
-  ];
-  for (let i = 0; i < verts.length; i++) positions.push(verts[i]);
-  const cube = [0, 1, 2, 0, 2, 3, 4, 6, 5, 4, 7, 6, 0, 4, 5, 0, 5, 1, 3, 2, 6, 3, 6, 7, 0, 3, 7, 0, 7, 4, 1, 5, 6, 1, 6, 2];
-  for (let i = 0; i < cube.length; i++) indices.push(cube[i] + vBase);
-  const next = { ...mesh, positions, indices };
-  if (mesh.triangleExtruders?.length) {
-    const extra = cube.length / 3;
-    next.triangleExtruders = mesh.triangleExtruders.concat(Array.from({ length: extra }, () => mesh.triangleExtruders[0] || 1));
-  }
-  return next;
-}
-
-/** Tiny solid at body bed height so Studio's ensure_on_bed cannot drop floating art. */
-function appendBedFoot(mesh, x, y, z) {
-  return appendBox(mesh, x, y, z, z + 0.24, 0.35);
-}
-
-function pinFloatingPartsToBed(parts) {
-  const body = parts[0]?.mesh;
-  const bbox = meshAxisAlignedBBox(body);
-  if (!bbox) return parts;
-  const z = meshMinZ(body);
-  const cx = (bbox.minX + bbox.maxX) / 2;
-  const cy = (bbox.minY + bbox.maxY) / 2;
-  return parts.map((part, i) => {
-    if (i === 0) return part;
-    if (meshMinZ(part.mesh) <= z + 0.05) return part;
-    return { ...part, mesh: appendBedFoot(part.mesh, cx, cy, z) };
-  });
-}
-
-function meshCentroidXY(mesh) {
-  const positions = mesh?.positions;
-  if (!positions?.length) return { x: 0, y: 0 };
-  let x = 0;
-  let y = 0;
-  const n = (positions.length / 3) | 0;
-  for (let i = 0; i < positions.length; i += 3) {
-    x += positions[i];
-    y += positions[i + 1];
-  }
-  return { x: x / n, y: y / n };
-}
-
-/**
- * H2C skips objects with empty layers (tiny bed feet caused that). A 0.8 mm
- * column from the plate up to the art keeps every layer legal, and sitting
- * off to the side of the crest so red/black sprues don't occupy the same XY.
- */
-function addArtSprues(parts) {
-  const body = parts[0]?.mesh;
-  if (!body) return parts;
-  const z0 = meshMinZ(body);
-  return parts.map((part, i) => {
-    if (i === 0) return part;
-    const z1 = meshMinZ(part.mesh);
-    if (!(z1 > z0 + 0.3)) return part;
-    const c = meshCentroidXY(part.mesh);
-    const slot = part.extruder || (i + 1);
-    const cx = (slot % 2 === 0) ? -36 : 36;
-    const cy = c.y + (c.y < 0 ? 1.5 : -1.5);
-    return { ...part, mesh: appendBox(part.mesh, cx, cy, z0, z1, 0.4) };
-  });
-}
-
 function meshAxisAlignedBBox(mesh) {
   const positions = mesh?.positions;
   if (!positions?.length) return null;
@@ -426,6 +343,10 @@ function appendModelSettingsPlate(lines, plateId, plateName, assemblyId, identif
   if (filamentSlotCount > 1) {
     lines.push('    <metadata key="filament_map_mode" value="Manual"/>');
     lines.push(`    <metadata key="filament_maps" value="${filamentMaps || buildH2DFilamentMapsMeta(filamentSlotCount)}"/>`);
+    // Bambu persists this alongside filament_maps. Without it, H2C can
+    // silently fall back to the first logical filament when reloading a
+    // multi-volume project.
+    lines.push(`    <metadata key="filament_volume_maps" value="${buildFilamentVolumeMapsMeta(filamentSlotCount)}"/>`);
   } else {
     lines.push('    <metadata key="filament_map_mode" value="Auto For Flush"/>');
   }
@@ -464,6 +385,7 @@ function buildBambuSeparateObjectsModelSettingsXml(objects, worldTransform, fila
   if (filamentSlotCount > 1) {
     lines.push('    <metadata key="filament_map_mode" value="Manual"/>');
     lines.push(`    <metadata key="filament_maps" value="${buildH2DFilamentMapsMeta(filamentSlotCount, allLeft)}"/>`);
+    lines.push(`    <metadata key="filament_volume_maps" value="${buildFilamentVolumeMapsMeta(filamentSlotCount)}"/>`);
   } else {
     lines.push('    <metadata key="filament_map_mode" value="Auto For Flush"/>');
   }
@@ -640,6 +562,11 @@ function buildH2DFilamentMap(slotCount, allLeft = false) {
 
 function buildH2DFilamentMapsMeta(slotCount, allLeft = false) {
   return buildH2DFilamentMap(slotCount, allLeft).join(" ");
+}
+
+/** Bambu's per-plate volume selector: 0 means use the matching filament map. */
+function buildFilamentVolumeMapsMeta(slotCount) {
+  return Array.from({ length: Math.max(1, slotCount) }, () => "0").join(" ");
 }
 
 function buildDifferentSettingsToSystem(filamentCount, printDiffKeys, printerDiffKeys) {
@@ -1046,10 +973,8 @@ function packSplitVolumeColoredProject3mf(usable, projectName, filament, printer
  * @param {Array<{name:string, mesh:object, color:string, extruder:number}>} parts
  */
 export function buildColoredProject3mf(parts, projectName = "makerdeck", options = {}) {
-  let usable = filterUsableParts(parts);
+  const usable = filterUsableParts(parts);
   if (!usable.length) throw new Error("No geometry to export");
-  if (options.artSprues && usable.length > 1) usable = addArtSprues(usable);
-  else if (options.anchorFloating && usable.length > 1) usable = pinFloatingPartsToBed(usable);
 
   const filament = buildFilamentSlots(usable, options.filamentPreset);
   const printer = options.printer || null;

@@ -15,4 +15,5 @@ status=0
 node manifold.mjs || status=1
 node chop-manifold.mjs || status=1
 node painter-art.mjs || status=1
+node h2c-3mf.mjs || status=1
 exit $status
