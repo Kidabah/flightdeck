@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-17 Session update (Hoodie back text uses the front stamp)
 
-Latest commit: (this push) — MakerDeck **b595**, back text uses the same Y-stamp as the chest.
+Latest commit: `efff7b2` — MakerDeck **b595**, back text uses the same Y-stamp as the chest.
 
 Latest local/Pi change:
 - Back LITTLE was a comb of spikes from offsetting along noisy surface normals. Back text now uses the same setup as the front: type in the Text box, stamp along world Y. Face Front = chest logo or text; Back = rear text. Hard refresh (`app.js?v=702`, MakerDeck `app.js?v=595` / **b595**). Header **b595**. Re-click Stubby holder.
