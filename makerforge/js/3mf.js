@@ -180,8 +180,8 @@ function meshTo3mfResources(mesh, objectId, name, extruder, { resanitize = false
   };
 }
 
-/** Bambu H2D printable bed (mm) — plate stride = width × 1.2 (PartPlate.cpp LOGICAL_PART_PLATE_GAP). */
-const BAMBU_BED_WIDTH_MM = 350;
+/** Bambu H2C printable bed (mm) — plate stride = width × 1.2 (PartPlate.cpp LOGICAL_PART_PLATE_GAP). */
+const BAMBU_BED_WIDTH_MM = 330;
 const BAMBU_BED_DEPTH_MM = 320;
 const BAMBU_PLATE_GRID_GAP_RATIO = 0.2;
 const BAMBU_PLATE_GRID_COLS = 2;
@@ -529,7 +529,7 @@ function filterUsableParts(parts) {
   return (parts || []).filter((p) => p?.mesh?.positions?.length && p?.mesh?.indices?.length);
 }
 
-function buildFilamentSlots(usable, defaultPreset = "Generic PLA @BBL H2D") {
+function buildFilamentSlots(usable, defaultPreset = "Generic PLA @BBL H2C 0.4 nozzle") {
   const maxExtruder = Math.max(1, ...usable.map((p) => partMaxExtruder(p)));
   const slotColors = Array.from({ length: maxExtruder }, (_, i) => {
     const slot = i + 1;
@@ -663,7 +663,7 @@ function packColoredProject3mf({
   }).join("\n    ");
   const modelXml = `<?xml version="1.0" encoding="UTF-8"?>
 <model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06" xmlns:BambuStudio="http://schemas.bambulab.com/package/2021"${productionExt ? ' requiredextensions="p"' : ""}>
-  <metadata name="Application">BambuStudio-01.09.00.00</metadata>
+  <metadata name="Application">BambuStudio-02.08.00.50</metadata>
   <metadata name="BambuStudio:3mfVersion">1</metadata>
   <metadata name="Title">${escapeXml(projectName)}</metadata>
   <metadata name="MakerDeck-Triangles">${triangleCount}</metadata>
@@ -677,17 +677,17 @@ function packColoredProject3mf({
 </model>`;
 
   const multiColour = filament.maxExtruder > 1;
-  const printerModel = printer?.printer_model || "Bambu Lab H2D";
-  const printerSettingsId = printer?.printer_settings_id || "Bambu Lab H2D 0.4 nozzle";
-  const printSettingsId = printer?.print_settings_id || "0.20mm Standard @BBL H2D";
+  const printerModel = printer?.printer_model || "Bambu Lab H2C";
+  const printerSettingsId = printer?.printer_settings_id || "Bambu Lab H2C 0.4 nozzle";
+  const printSettingsId = printer?.print_settings_id || "0.20mm Standard @BBL H2C";
   const layerHeight = printer?.layerHeight;
   const bedW = printer?.bedWidth ?? BAMBU_BED_WIDTH_MM;
   const bedD = printer?.bedDepth ?? BAMBU_BED_DEPTH_MM;
   const nozzleDia = String(printer?.nozzleDiameter ?? 0.4);
   const allLeft = !!printer?.singleNozzle;
-  const amsHtLeft = !!printer?.amsHtLeft;
+  const dualNozzle = !allLeft;
   const filamentMap = buildH2DFilamentMap(filament.maxExtruder, allLeft);
-  const printDiff = ["filament_map", "filament_map_mode"];
+  const printDiff = ["filament_map", "filament_map_mode", "enable_filament_dynamic_map"];
   const printerDiff = [];
   if (Number.isFinite(layerHeight)) printDiff.push("layer_height", "initial_layer_print_height");
   if (multiColour) {
@@ -695,21 +695,20 @@ function packColoredProject3mf({
       "flush_into_infill",
       "flush_into_objects",
       "enable_prime_tower",
-      "enable_tower_interface_features",
-      "flush_multiplier",
     );
   }
-  if (amsHtLeft) printerDiff.push("extruder_ams_count", "extruder_printable_area");
+  if (dualNozzle) printerDiff.push("extruder_ams_count", "extruder_printable_area", "nozzle_volume_type");
   const projectSettings = JSON.stringify({
     from: "project",
     // Bambu uses this as the embedded process profile id — must NOT be the model filename.
     name: "project_settings",
-    version: "01.09.00.00",
+    version: "02.08.00.50",
     printer_model: printerModel,
     printer_settings_id: printerSettingsId,
     print_settings_id: printSettingsId,
     nozzle_diameter: [nozzleDia, nozzleDia],
     extruder_type: ["Direct Drive", "Direct Drive"],
+    nozzle_volume_type: ["Standard", "Standard"],
     printable_area: ["0x0", `${bedW}x0`, `${bedW}x${bedD}`, `0x${bedD}`],
     printable_height: "325",
     filament_type: filament.filamentType,
@@ -720,15 +719,16 @@ function packColoredProject3mf({
     filament_diameter: filament.filamentDiameter,
     filament_density: filament.filamentDensity,
     filament_map: filamentMap,
-    // Native Bambu projects also persist the singular project-level map. The
-    // plate XML carries the plural form; H2C Preview needs both bindings.
     filament_volume_map: Array.from({ length: filament.maxExtruder }, () => "0"),
     filament_map_mode: "Manual",
+    // Slice on H2C recomputes grouping when this is 1 + flush-into-infill.
+    // July's working vase kept both nozzles with dynamic map on, but flush off.
+    enable_filament_dynamic_map: "1",
     physical_extruder_map: ["1", "0"],
-    // Match Bambu Studio's native H2C project ordering for its two nozzle
-    // feeder banks. The previous order did not match native saved projects.
-    ...(amsHtLeft ? {
-      extruder_ams_count: ["1#1|4#0", "1#0|4#1"],
+    // Same AMS banks as the 2026-07-06 H2C vase that sliced with the right nozzle:
+    // left = AMS HT, right = regular AMS.
+    ...(dualNozzle ? {
+      extruder_ams_count: ["1#0|4#1", "1#1|4#0"],
       extruder_printable_area: [
         `0x0,325x0,325x${bedD},0x${bedD}`,
         `25x0,330x0,330x${bedD},25x${bedD}`,
@@ -739,14 +739,10 @@ function packColoredProject3mf({
       layer_height: String(layerHeight),
       initial_layer_print_height: String(layerHeight),
     } : {}),
-    // Dual-nozzle art (hoodie: white left / red+black right) needs a prime tower —
-    // the right nozzle cannot purge into left-nozzle infill. All-left maps skip the tower.
     ...(multiColour ? {
-      flush_into_infill: "1",
-      flush_into_objects: "1",
+      flush_into_infill: "0",
+      flush_into_objects: "0",
       enable_prime_tower: allLeft ? "0" : "1",
-      enable_tower_interface_features: allLeft ? "0" : "1",
-      flush_multiplier: ["0.4", "0.4"],
     } : {}),
   });
 
@@ -940,7 +936,7 @@ function packSplitVolumeColoredProject3mf(usable, projectName, filament, printer
     localBBox,
     printer?.bedWidth ?? BAMBU_BED_WIDTH_MM,
     printer?.bedDepth ?? BAMBU_BED_DEPTH_MM,
-    !!printer?.amsHtLeft,
+    !printer?.singleNozzle,
   );
   const worldTransform = formatTransform3x4(centerOffset.x, centerOffset.y, centerOffset.z ?? 0);
   const plateBBox = translateAxisAlignedBBox(
@@ -1032,7 +1028,7 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck", options
       localBBox,
       printer?.bedWidth ?? BAMBU_BED_WIDTH_MM,
       printer?.bedDepth ?? BAMBU_BED_DEPTH_MM,
-      !!printer?.amsHtLeft,
+      !printer?.singleNozzle,
     );
     const worldTransform = formatTransform3x4(centerOffset.x, centerOffset.y, centerOffset.z ?? 0);
     const plateBBox = translateAxisAlignedBBox(
@@ -1084,7 +1080,7 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck", options
     built.localBBox,
     printer?.bedWidth ?? BAMBU_BED_WIDTH_MM,
     printer?.bedDepth ?? BAMBU_BED_DEPTH_MM,
-    !!printer?.amsHtLeft,
+    !printer?.singleNozzle,
   );
   const worldTransform = formatTransform3x4(centerOffset.x, centerOffset.y, centerOffset.z ?? 0);
   const plateBBox = translateAxisAlignedBBox(

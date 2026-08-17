@@ -4,7 +4,7 @@ import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBuf
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, resolveEmbossFontWeight, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=617";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=370";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges, countNonManifoldEdges } from "./stl.js?v=599";
-import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=617";
+import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=618";
 import {
   folderExportSupported,
   folderExportBlockedReason,
@@ -36,7 +36,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b617";
+const MAKERDECK_BUILD = "b618";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -1797,23 +1797,19 @@ async function buildBody3mfExport(exportCache, parts) {
   const exportParts = state.shape === "stubbyHolder"
     ? await prepareHoodieExportParts(parts)
     : parts;
-  const hoodie3mf = state.shape === "stubbyHolder" ? {
-    filamentPreset: "Bambu PLA Basic @BBL H2C",
-    // A single Bambu parent model, with non-overlapping body/red/black parts.
-    // This keeps chest art supported by Body without free-standing objects.
-    splitVolumes: true,
+  const export3mf = {
+    filamentPreset: state.shape === "stubbyHolder" ? "Bambu PLA Basic @BBL H2C" : "Generic PLA @BBL H2C 0.4 nozzle",
+    ...(state.shape === "stubbyHolder" ? { splitVolumes: true } : {}),
     printer: {
       printer_model: "Bambu Lab H2C",
       printer_settings_id: "Bambu Lab H2C 0.4 nozzle",
-      print_settings_id: "0.24mm Standard @BBL H2C",
+      print_settings_id: state.shape === "stubbyHolder" ? "0.24mm Standard @BBL H2C" : "0.20mm Standard @BBL H2C",
       nozzleDiameter: 0.4,
-      layerHeight: 0.24,
+      layerHeight: state.shape === "stubbyHolder" ? 0.24 : 0.2,
       bedWidth: 330,
       bedDepth: 320,
-      // White body on left AMS HT; red/black art on the right regular AMS.
-      amsHtLeft: true,
     },
-  } : {};
+  };
   const separateLiner = exportIncludesSeparateLinerFile() && !!exportCache?.linerMesh;
   const lidOn = exportIncludesLidPlate();
   const holderOn = exportIncludesHolderStack(exportCache);
@@ -1821,7 +1817,7 @@ async function buildBody3mfExport(exportCache, parts) {
 
   if (!multiFile) {
     return {
-      blob: buildColoredProject3mf(exportParts, projectName, hoodie3mf),
+      blob: buildColoredProject3mf(exportParts, projectName, export3mf),
       zipExport: false,
       exportedParts: exportParts,
       lidPartCount: 0,
@@ -1830,7 +1826,7 @@ async function buildBody3mfExport(exportCache, parts) {
     };
   }
 
-  const containerBlob = buildColoredProject3mf(exportParts, projectName, hoodie3mf);
+  const containerBlob = buildColoredProject3mf(exportParts, projectName, export3mf);
   const containerFile = isDrinkHolderShape(state.shape)
     ? filename3mfFor(exportCache.meta, "base")
     : filename3mfFor(exportCache.meta, "container");

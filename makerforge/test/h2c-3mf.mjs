@@ -72,7 +72,9 @@ assert.match(settings, /key="filament_maps" value="1 2 2"/);
 assert.match(settings, /key="filament_volume_maps" value="0 0 0"/);
 assert.match(settings, /<assemble>[\s\S]*?<assemble_item object_id="4" instance_id="0"[\s\S]*?<assemble_item object_id="4" volume_id="0"[\s\S]*?<assemble_item object_id="4" volume_id="1"[\s\S]*?<assemble_item object_id="4" volume_id="2"/);
 assert.match(projectSettings, /"filament_volume_map":\["0","0","0"\]/);
-assert.match(projectSettings, /"extruder_ams_count":\["1#1\|4#0","1#0\|4#1"\]/);
+assert.match(projectSettings, /"extruder_ams_count":\["1#0\|4#1","1#1\|4#0"\]/);
+assert.match(projectSettings, /"flush_into_infill":"0"/);
+assert.match(projectSettings, /"printer_model":"Bambu Lab H2C"/);
 assert.ok(!volumes.includes("<component"), "colour volumes stay as meshes, not free-standing plate objects");
 
 console.log("PASS h2c 3MF native volume export: b617 metadata, one parent model, 3 linked volumes, H2C left/right maps, no sprues");

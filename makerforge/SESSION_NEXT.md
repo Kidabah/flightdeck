@@ -4,6 +4,12 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b618 — H2C slice was remapping RHS grouping to left
+**Date:** 2026-08-17
+
+### MakerDeck
+- Dual nozzles aren’t the difference. The 6 Jul vase that sliced with a right nozzle had `flush_into_infill=0`, H2C per-nozzle printable areas, and HT-left AMS banks. Tonight’s vase flushed extras into infill and omitted those zones, so H2C slice parked everything on the left. Hard refresh **b618**. Re-export.
+
 ## b617 — H2C hoodie: native volume metadata for Preview
 **Date:** 2026-08-17
 
