@@ -4,7 +4,7 @@ import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBuf
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, resolveEmbossFontWeight, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=600";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=370";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges, countNonManifoldEdges } from "./stl.js?v=599";
-import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=610";
+import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=611";
 import {
   folderExportSupported,
   folderExportBlockedReason,
@@ -36,7 +36,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b610";
+const MAKERDECK_BUILD = "b611";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -1685,9 +1685,10 @@ async function buildBody3mfExport(exportCache, parts) {
     : parts;
   const hoodie3mf = state.shape === "stubbyHolder" ? {
     filamentPreset: "Bambu PLA Basic @BBL H2C",
-    // Real Bambu volumes (not paint, not separate plate objects) so H2C
-    // slices red/black without dropping the crest off the chest.
-    splitVolumes: true,
+    // H2C only honours extruders on separate plate objects (b606). Studio then
+    // drops floating art to the bed — a hidden foot at body Z keeps the crest up.
+    separateObjects: true,
+    anchorFloating: true,
     printer: {
       printer_model: "Bambu Lab H2C",
       printer_settings_id: "Bambu Lab H2C 0.4 nozzle",

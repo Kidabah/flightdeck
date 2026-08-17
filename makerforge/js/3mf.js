@@ -200,6 +200,52 @@ function formatTransform3x4(tx = 0, ty = 0, tz = 0) {
   return `1 0 0 0 1 0 0 0 1 ${tx} ${ty} ${tz}`;
 }
 
+function meshMinZ(mesh) {
+  const positions = mesh?.positions;
+  if (!positions?.length) return 0;
+  let minZ = Infinity;
+  for (let i = 2; i < positions.length; i += 3) {
+    if (positions[i] < minZ) minZ = positions[i];
+  }
+  return Number.isFinite(minZ) ? minZ : 0;
+}
+
+/** Tiny solid at body bed height so Studio's ensure_on_bed cannot drop floating art. */
+function appendBedFoot(mesh, x, y, z) {
+  const vBase = (mesh.positions.length / 3) | 0;
+  const s = 0.35;
+  const h = 0.24;
+  const positions = Array.from(mesh.positions);
+  const indices = Array.from(mesh.indices);
+  const verts = [
+    x - s, y - s, z, x + s, y - s, z, x + s, y + s, z, x - s, y + s, z,
+    x - s, y - s, z + h, x + s, y - s, z + h, x + s, y + s, z + h, x - s, y + s, z + h,
+  ];
+  for (let i = 0; i < verts.length; i++) positions.push(verts[i]);
+  const cube = [0, 1, 2, 0, 2, 3, 4, 6, 5, 4, 7, 6, 0, 4, 5, 0, 5, 1, 3, 2, 6, 3, 6, 7, 0, 3, 7, 0, 7, 4, 1, 5, 6, 1, 6, 2];
+  for (let i = 0; i < cube.length; i++) indices.push(cube[i] + vBase);
+  const next = { ...mesh, positions, indices };
+  if (mesh.triangleExtruders?.length) {
+    const extra = cube.length / 3;
+    next.triangleExtruders = mesh.triangleExtruders.concat(Array.from({ length: extra }, () => mesh.triangleExtruders[0] || 1));
+  }
+  return next;
+}
+
+function pinFloatingPartsToBed(parts) {
+  const body = parts[0]?.mesh;
+  const bbox = meshAxisAlignedBBox(body);
+  if (!bbox) return parts;
+  const z = meshMinZ(body);
+  const cx = (bbox.minX + bbox.maxX) / 2;
+  const cy = (bbox.minY + bbox.maxY) / 2;
+  return parts.map((part, i) => {
+    if (i === 0) return part;
+    if (meshMinZ(part.mesh) <= z + 0.05) return part;
+    return { ...part, mesh: appendBedFoot(part.mesh, cx, cy, z) };
+  });
+}
+
 function meshAxisAlignedBBox(mesh) {
   const positions = mesh?.positions;
   if (!positions?.length) return null;
@@ -963,8 +1009,9 @@ function packSplitVolumeColoredProject3mf(usable, projectName, filament, printer
  * @param {Array<{name:string, mesh:object, color:string, extruder:number}>} parts
  */
 export function buildColoredProject3mf(parts, projectName = "makerdeck", options = {}) {
-  const usable = filterUsableParts(parts);
+  let usable = filterUsableParts(parts);
   if (!usable.length) throw new Error("No geometry to export");
+  if (options.anchorFloating && usable.length > 1) usable = pinFloatingPartsToBed(usable);
 
   const filament = buildFilamentSlots(usable, options.filamentPreset);
   const printer = options.printer || null;
