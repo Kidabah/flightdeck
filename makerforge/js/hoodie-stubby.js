@@ -98,13 +98,14 @@ function buildSurfaceHeightfield(positions, indices, side) {
       const ax = positions[ia], ay = positions[ia + 1], az = positions[ia + 2];
       const bx = positions[ib], by = positions[ib + 1], bz = positions[ib + 2];
       const cx = positions[ic], cy = positions[ic + 1], cz = positions[ic + 2];
+      const e1x = bx - ax, e1z = bz - az;
+      const e2x = cx - ax, e2z = cz - az;
+      const ny = e1z * e2x - e1x * e2z;
       if (front) {
-        const e1x = bx - ax, e1y = by - ay, e1z = bz - az;
-        const e2x = cx - ax, e2y = cy - ay, e2z = cz - az;
-        const ny = e1z * e2x - e1x * e2z;
         if (!(ny < 0)) continue;
-      } else if ((ay + by + cy) / 3 <= yCut) {
-        continue;
+      } else {
+        if (!(ny > 0)) continue;
+        if ((ay + by + cy) / 3 <= yCut) continue;
       }
       splat(ax, ay, az);
       splat(bx, by, bz);
@@ -120,7 +121,7 @@ function buildSurfaceHeightfield(positions, indices, side) {
       for (let ix = 0; ix < nx; ix++) {
         const k = iz * nx + ix;
         if (isFilled(best[k])) continue;
-        let acc = 0, n = 0, hi = empty;
+        let acc = 0, n = 0;
         for (let dz = -1; dz <= 1; dz++) {
           for (let dx = -1; dx <= 1; dx++) {
             if (!dx && !dz) continue;
@@ -130,22 +131,19 @@ function buildSurfaceHeightfield(positions, indices, side) {
             if (isFilled(v)) {
               acc += v;
               n++;
-              if (!front && v > hi) hi = v;
             }
           }
         }
         if (n) {
-          best[k] = front ? acc / n : hi;
+          best[k] = acc / n;
           filledAny = true;
         }
       }
     }
     if (!filledAny) break;
   }
-  // Front: mean-blur closes the kangaroo pocket. Back: one light pass so
-  // single-vertex spikes die without flattening the cylinder into a plane.
-  const blurPasses = front ? 5 : 1;
-  for (let pass = 0; pass < blurPasses; pass++) {
+  // Same pocket-close blur as the chest so back text is the same class of stamp.
+  for (let pass = 0; pass < 5; pass++) {
       const next = new Float32Array(best);
       for (let iz = 0; iz < nz; iz++) {
         for (let ix = 0; ix < nx; ix++) {
