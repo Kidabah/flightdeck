@@ -4,6 +4,13 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b619 — H2C purge matrix and tower position
+**Date:** 2026-08-17
+
+### MakerDeck
+- b618 restored correct left/right grouping, but its imported project omitted the two 3×3 H2C purge matrices and their two nozzle multipliers. Bambu therefore divided an empty matrix while calculating the Preview panel: `inf` / `-NaN` filament totals, no total time, and detached vertical prime-tower toolpaths. b619 writes both native matrices, `0.4` multipliers, H2C nozzle purge data, prime volumes, and an explicit plate-bound tower position while retaining b618's right-nozzle mapping.
+- `test/h2c-3mf.mjs` locks the 18-entry H2C matrix, the two multipliers, and tower coordinates. Reload **b619** and export a new 3MF; b618 exports cannot gain these values after import.
+
 ## b618 — H2C slice was remapping RHS grouping to left
 **Date:** 2026-08-17
 

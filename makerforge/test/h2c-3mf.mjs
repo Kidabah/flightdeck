@@ -54,8 +54,9 @@ const root = files.get("3D/3dmodel.model") || "";
 const volumes = files.get("3D/Objects/object_1.model") || "";
 const settings = files.get("Metadata/model_settings.config") || "";
 const projectSettings = files.get("Metadata/project_settings.config") || "";
+const project = JSON.parse(projectSettings);
 
-assert.match(root, /<metadata name="MakerDeck-Export">H2C-native-linked-volumes-b617<\/metadata>/);
+assert.match(root, /<metadata name="MakerDeck-Export">H2C-validated-purge-matrix-b619<\/metadata>/);
 assert.match(root, /<object id="4"[^>]*type="model">[\s\S]*<components>[\s\S]*objectid="1"[\s\S]*objectid="2"[\s\S]*objectid="3"/);
 assert.match(root, /<build>[\s\S]*<item objectid="4"/);
 assert.doesNotMatch(root, /<item objectid="[123]"/, "only the parent model may be a printable object");
@@ -75,6 +76,12 @@ assert.match(projectSettings, /"filament_volume_map":\["0","0","0"\]/);
 assert.match(projectSettings, /"extruder_ams_count":\["1#0\|4#1","1#1\|4#0"\]/);
 assert.match(projectSettings, /"flush_into_infill":"0"/);
 assert.match(projectSettings, /"printer_model":"Bambu Lab H2C"/);
+assert.deepEqual(project.flush_multiplier, ["0.4", "0.4"], "both H2C nozzles need a purge multiplier");
+assert.equal(project.flush_volumes_matrix.length, 18, "3 colour slots need a 3x3 matrix for each of 2 nozzles");
+assert.deepEqual(project.flush_volumes_matrix.slice(0, 9), ["0", "280", "280", "280", "0", "280", "280", "280", "0"]);
+assert.deepEqual(project.flush_volumes_matrix.slice(9), project.flush_volumes_matrix.slice(0, 9));
+assert.equal(project.wipe_tower_x, "40");
+assert.equal(project.wipe_tower_y, "220");
 assert.ok(!volumes.includes("<component"), "colour volumes stay as meshes, not free-standing plate objects");
 
-console.log("PASS h2c 3MF native volume export: b617 metadata, one parent model, 3 linked volumes, H2C left/right maps, no sprues");
+console.log("PASS h2c 3MF volume export: b619 purge matrix, plate-bound tower, 3 linked volumes, H2C left/right maps");

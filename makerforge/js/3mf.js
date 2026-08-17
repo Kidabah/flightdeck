@@ -584,6 +584,27 @@ function buildFilamentVolumeMapsMeta(slotCount) {
   return Array.from({ length: Math.max(1, slotCount) }, () => "0").join(" ");
 }
 
+/**
+ * H2C has two physical nozzles. Bambu stores a square colour-change matrix
+ * for each one, even when several logical filaments share the right nozzle.
+ * Missing either matrix makes its Preview statistics divide by an empty
+ * flush-multiplier array, which displays as inf/-NaN and can create a broken
+ * prime tower.
+ */
+function buildH2CFlushVolumesMatrix(filamentCount, nozzleCount = 2, purgeVolume = 280) {
+  const colours = Math.max(1, Number(filamentCount) || 1);
+  const oneNozzle = Array.from({ length: colours * colours }, (_, index) => {
+    const from = Math.floor(index / colours);
+    const to = index % colours;
+    return String(from === to ? 0 : purgeVolume);
+  });
+  return Array.from({ length: nozzleCount }, () => oneNozzle).flat();
+}
+
+function buildH2CPrimeVolumes(filamentCount, volume) {
+  return Array.from({ length: Math.max(1, Number(filamentCount) || 1) }, () => String(volume));
+}
+
 function buildDifferentSettingsToSystem(filamentCount, printDiffKeys, printerDiffKeys) {
   const n = Math.max(3, (Number(filamentCount) || 1) + 2);
   const out = Array.from({ length: n }, () => "");
@@ -687,6 +708,9 @@ function packColoredProject3mf({
   const allLeft = !!printer?.singleNozzle;
   const dualNozzle = !allLeft;
   const filamentMap = buildH2DFilamentMap(filament.maxExtruder, allLeft);
+  const flushVolumesMatrix = buildH2CFlushVolumesMatrix(filament.maxExtruder);
+  const primeVolumes = buildH2CPrimeVolumes(filament.maxExtruder, 45);
+  const primeVolumesNc = buildH2CPrimeVolumes(filament.maxExtruder, 30);
   const printDiff = ["filament_map", "filament_map_mode", "enable_filament_dynamic_map"];
   const printerDiff = [];
   if (Number.isFinite(layerHeight)) printDiff.push("layer_height", "initial_layer_print_height");
@@ -725,6 +749,18 @@ function packColoredProject3mf({
     // July's working vase kept both nozzles with dynamic map on, but flush off.
     enable_filament_dynamic_map: "1",
     physical_extruder_map: ["1", "0"],
+    // Complete H2C purge/tower data. Bambu's slicer does not derive this when
+    // an imported project overrides the nozzle map, so emitting only the
+    // enable flag led to inf/-NaN totals and detached tower toolpaths.
+    nozzle_flush_dataset: ["1", "2", "2", "1", "2"],
+    nozzle_volume: ["130", "133", "133", "145", "148"],
+    flush_multiplier: ["0.4", "0.4"],
+    flush_multiplier_fast: "1.2",
+    flush_volumes_matrix: flushVolumesMatrix,
+    flush_volumes_vector: ["140", "140", "140", "140", "140", "140"],
+    filament_minimal_purge_on_wipe_tower: buildH2CPrimeVolumes(filament.maxExtruder, 15),
+    filament_prime_volume: primeVolumes,
+    filament_prime_volume_nc: primeVolumesNc,
     // Same AMS banks as the 2026-07-06 H2C vase that sliced with the right nozzle:
     // left = AMS HT, right = regular AMS.
     ...(dualNozzle ? {
@@ -743,6 +779,26 @@ function packColoredProject3mf({
       flush_into_infill: "0",
       flush_into_objects: "0",
       enable_prime_tower: allLeft ? "0" : "1",
+      // Native H2C defaults keep the purge tower on the plate. Without these
+      // positional values, an imported project can retain stale/invalid tower
+      // coordinates from a prior plate and render isolated vertical strands.
+      prime_tower_width: "60",
+      prime_tower_brim_width: "-1",
+      prime_tower_enable_framework: "0",
+      prime_tower_extra_rib_length: "0",
+      prime_tower_fillet_wall: "1",
+      prime_tower_flat_ironing: "1",
+      prime_tower_infill_gap: "100%",
+      prime_tower_lift_height: "-1",
+      prime_tower_lift_speed: "90",
+      prime_tower_max_speed: "90",
+      prime_tower_rib_wall: "0",
+      prime_tower_rib_width: "8",
+      prime_tower_skip_points: "1",
+      wipe_tower_no_sparse_layers: "0",
+      wipe_tower_rotation_angle: "0",
+      wipe_tower_x: "40",
+      wipe_tower_y: "220",
     } : {}),
   });
 
@@ -985,7 +1041,7 @@ function packSplitVolumeColoredProject3mf(usable, projectName, filament, printer
     multiPlate: true,
     printer,
     productionExt: true,
-    exportMarker: "H2C-native-linked-volumes-b617",
+    exportMarker: "H2C-validated-purge-matrix-b619",
   });
 }
 
