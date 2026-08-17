@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-17 Session update (Hoodie back letters wrap the curve)
 
-Latest commit: (this push) — MakerDeck **b594**, back text follows the outer curve, not a flat plane.
+Latest commit: `3973047` — MakerDeck **b594**, back text follows the outer curve, not a flat plane.
 
 Latest local/Pi change:
 - LITTLE was buried at the spine and floating at the ends because the back field was flattened and offset in +Y. It now keeps the cylinder envelope and stamps along the surface normal. Front unchanged. Hard refresh (`app.js?v=701`, MakerDeck `app.js?v=594` / **b594**). Header **b594**. Re-click Stubby holder.
