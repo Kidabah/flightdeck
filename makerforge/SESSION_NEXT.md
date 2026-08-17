@@ -4,6 +4,12 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b606 — Hoodie colours as separate objects
+**Date:** 2026-08-17
+
+### MakerDeck
+- H2C sliced the assembly as filament 1 only (right nozzle empty). Body/art/text are separate assembled objects with their own extruders. Hard refresh **b606**. Re-export.
+
 ## b605 — Hoodie AMS HT on left only
 **Date:** 2026-08-17
 

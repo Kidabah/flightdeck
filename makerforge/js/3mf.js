@@ -359,6 +359,10 @@ function buildBambuSeparateObjectsModelSettingsXml(objects, worldTransform, fila
     lines.push(`  <object id="${obj.id}">`);
     lines.push(`    <metadata key="name" value="${escapeXml(obj.name)}"/>`);
     lines.push(`    <metadata key="extruder" value="${obj.extruder}"/>`);
+    lines.push(`    <part id="1" subtype="normal_part">`);
+    lines.push(`      <metadata key="name" value="${escapeXml(obj.name)}"/>`);
+    lines.push(`      <metadata key="extruder" value="${obj.extruder}"/>`);
+    lines.push("    </part>");
     lines.push("  </object>");
   }
   lines.push("  <plate>");
