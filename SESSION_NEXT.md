@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-17 Session update (Hoodie off the left-only strip)
 
-Latest commit: `PENDING` — MakerDeck **b608**, hoodie sits in the H2C **dual-nozzle** zone (25–325 mm), not the left-nozzle-only strip.
+Latest commit: `f194013` — MakerDeck **b608**, hoodie sits in the H2C **dual-nozzle** zone (25–325 mm), not the left-nozzle-only strip.
 
 Latest local/Pi change:
 - Right nozzle was empty because the 3MF put the model at the origin (left-only). Placement is assemble-only now; printable areas match H2C. Hard refresh (`app.js?v=715`, MakerDeck `app.js?v=608` / **b608**). Header **b608**. Re-export. Model should sit in the middle of the plate, not on “Left nozzle only area”.
