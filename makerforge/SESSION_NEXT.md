@@ -4,6 +4,12 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b596 — Back text wraps around the well
+**Date:** 2026-08-17
+
+### MakerDeck
+- Y-stamping LITTLE into the cylindrical back crumpled the letters. Back face is an arc-length cylinder at `backY`. Type in Text, Face → Back. Front unchanged. Hard refresh MakerDeck **b596**. Re-click Stubby holder.
+
 ## b595 — Back text uses the same stamp as the chest
 **Date:** 2026-08-17
 

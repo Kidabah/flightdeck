@@ -10,7 +10,7 @@ import {
   resolveVaseTexture,
   vaseTextureDisplacement,
 } from "./vase-textures.js";
-import { sampleHoodieChestY, sampleHoodieBackY, HOODIE_ART_PROUD_MM } from "./hoodie-stubby.js?v=595";
+import { sampleHoodieChestY, HOODIE_ART_PROUD_MM } from "./hoodie-stubby.js?v=596";
 
 export const EMBOSS_FONTS = [
   { id: "segoe-ui", label: "Segoe UI — Windows", family: '"Segoe UI Variable", "Segoe UI", system-ui, sans-serif', weight: 700 },
@@ -4957,6 +4957,22 @@ export function getEmbossFaceFrame(meta, face, params = null) {
     const centerZ = chest
       ? (useFace === "back" ? b.totalH * 0.62 : b.totalH * 0.50)
       : b.totalH * 0.72;
+    if (chest && useFace === "back") {
+      // Outer back is a cylinder around the well — a Y-heightfield crumples letters
+      // into the wall. Unwrap px as arc length so typed text hugs the fabric.
+      const radius = Number.isFinite(backY) && backY > 12 ? backY : Math.max(b.od2, 36);
+      return {
+        face: "back",
+        faceW: Math.min(radius * 2.2, 90),
+        faceH: b.totalH,
+        centerZ,
+        mapPoint: (px, py, offset) => {
+          const r = Math.max(8, radius + offset);
+          const theta = px / radius;
+          return [-r * Math.sin(theta), r * Math.cos(theta), py];
+        },
+      };
+    }
     return {
       face: useFace,
       faceW: chest ? Math.min(b.outerW, 90) : b.outerW,
@@ -4967,9 +4983,6 @@ export function getEmbossFaceFrame(meta, face, params = null) {
         let yBase = yOut;
         if (chest && useFace === "front" && meta.chestField) {
           const sampled = sampleHoodieChestY(meta.chestField, x, py);
-          if (Number.isFinite(sampled)) yBase = sampled;
-        } else if (chest && useFace === "back" && meta.backField) {
-          const sampled = sampleHoodieBackY(meta.backField, x, py);
           if (Number.isFinite(sampled)) yBase = sampled;
         }
         const y = yBase + yDir * offset;

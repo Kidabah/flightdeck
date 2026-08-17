@@ -6,6 +6,18 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-17 Session update (Hoodie back text wraps the cylinder)
+
+Latest commit: (this push) — MakerDeck **b596**, back text wraps around the well like a can label.
+
+Latest local/Pi change:
+- Chest-style Y-stamp cannot sit on the cylindrical back — letters crumpled into the wall. Back text now unwraps around `backY` (same Text box, Face → Back). Front logo unchanged. Hard refresh (`app.js?v=703`, MakerDeck `app.js?v=596` / **b596**). Header **b596**. Re-click Stubby holder, Face → Back — rear text, type again.
+
+Previous:
+- Hoodie back text uses the front stamp (`efff7b2`).
+
+---
+
 ## 2026-08-17 Session update (Hoodie back text uses the front stamp)
 
 Latest commit: `efff7b2` — MakerDeck **b595**, back text uses the same Y-stamp as the chest.
