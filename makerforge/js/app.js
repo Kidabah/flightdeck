@@ -4,7 +4,7 @@ import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBuf
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, resolveEmbossFontWeight, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=600";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=370";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges, countNonManifoldEdges } from "./stl.js?v=599";
-import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=611";
+import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=612";
 import {
   folderExportSupported,
   folderExportBlockedReason,
@@ -36,7 +36,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b611";
+const MAKERDECK_BUILD = "b612";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -1678,17 +1678,37 @@ function mergeHoodieExportFilaments(parts) {
   return parts.map((part, i) => ({ ...part, extruder: kindToSlot.get(kinds[i]) || 1 }));
 }
 
+function mergeHoodiePartsBySlot(parts) {
+  const mapped = mergeHoodieExportFilaments(parts);
+  const groups = new Map();
+  for (const part of mapped) {
+    const slot = part.extruder || 1;
+    if (!groups.has(slot)) groups.set(slot, []);
+    groups.get(slot).push(part);
+  }
+  return [...groups.keys()].sort((a, b) => a - b).map((slot) => {
+    const group = groups.get(slot);
+    const mesh = group.length === 1 ? group[0].mesh : mergeMeshes(...group.map((p) => p.mesh));
+    return {
+      name: group.length === 1 ? group[0].name : (slot === 1 ? "Body" : String(group[0].name || "Art").replace(/ \d+$/, "")),
+      mesh,
+      color: group[0].color,
+      extruder: slot,
+      filamentPreset: group[0].filamentPreset || "",
+    };
+  });
+}
+
 async function buildBody3mfExport(exportCache, parts) {
   const projectName = baseModelName(exportCache.meta);
   const exportParts = state.shape === "stubbyHolder"
-    ? mergeHoodieExportFilaments(parts)
+    ? mergeHoodiePartsBySlot(parts)
     : parts;
   const hoodie3mf = state.shape === "stubbyHolder" ? {
     filamentPreset: "Bambu PLA Basic @BBL H2C",
-    // H2C only honours extruders on separate plate objects (b606). Studio then
-    // drops floating art to the bed — a hidden foot at body Z keeps the crest up.
-    separateObjects: true,
-    anchorFloating: true,
+    // One object, one volume per colour. Separate plate objects overlap on the
+    // chest (gcode conflicts) and the bed foot caused empty layers.
+    splitVolumes: true,
     printer: {
       printer_model: "Bambu Lab H2C",
       printer_settings_id: "Bambu Lab H2C 0.4 nozzle",
