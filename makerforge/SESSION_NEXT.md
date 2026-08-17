@@ -4,6 +4,12 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b587 — Stubby holder loads again
+**Date:** 2026-08-17
+
+### MakerDeck
+- b586 split `hoodie-stubby.js` into two module caches, so selecting the preset built an empty mesh. One import version now. Hard refresh MakerDeck **b587**. Click Stubby holder again.
+
 ## b586 — Hoodie multi-colour 3MF flushes into the body
 **Date:** 2026-08-17
 

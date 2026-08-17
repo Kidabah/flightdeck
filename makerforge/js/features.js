@@ -10,7 +10,7 @@ import {
   resolveVaseTexture,
   vaseTextureDisplacement,
 } from "./vase-textures.js";
-import { sampleHoodieChestY, HOODIE_ART_PROUD_MM } from "./hoodie-stubby.js?v=585";
+import { sampleHoodieChestY, HOODIE_ART_PROUD_MM } from "./hoodie-stubby.js?v=587";
 
 export const EMBOSS_FONTS = [
   { id: "segoe-ui", label: "Segoe UI — Windows", family: '"Segoe UI Variable", "Segoe UI", system-ui, sans-serif', weight: 700 },
