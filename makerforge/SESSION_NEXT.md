@@ -4,6 +4,12 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b599 — Close hoodie Body 3-open
+**Date:** 2026-08-17
+
+### MakerDeck
+- 3MF peel punched a hole in duplicate hoodie faces. Strip dups first. Hard refresh MakerDeck **b599**. Re-export. Do not click Repair.
+
 ## b598 — Back text uses the chest stamp
 **Date:** 2026-08-17
 

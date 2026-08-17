@@ -6,6 +6,18 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-17 Session update (Hoodie Body 3 open edges)
+
+Latest commit: `cf8f26c` — MakerDeck **b599**, 3MF sanitiser strips duplicate faces before peel so the hoodie Body stays closed.
+
+Latest local/Pi change:
+- Export warned “Body 3 open” because peel treated 24 duplicate faces as non-manifold and punched a hole. Duplicates go first now. Hard refresh (`app.js?v=706`, MakerDeck `app.js?v=599` / **b599**). Header **b599**. Re-click Stubby holder, export 3MF. **Do not click Repair.**
+
+Previous:
+- Hoodie back uses the chest stamp (`c1d7dee`).
+
+---
+
 ## 2026-08-17 Session update (Hoodie back uses the chest stamp)
 
 Latest commit: `c1d7dee` — MakerDeck **b598**, back text uses the same Y-stamp + 5-pass blur as the chest.
