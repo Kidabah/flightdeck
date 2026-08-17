@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-17 Session update (Hoodie dual nozzle)
 
-Latest commit: `PENDING` — MakerDeck **b604**, hoodie 3MF maps **white body to left** (AMS HT) and **red/black art to right**. Prime tower on (right nozzle cannot purge into left infill).
+Latest commit: `00b15f0` — MakerDeck **b604**, hoodie 3MF maps **white body to left** (AMS HT) and **red/black art to right**. Prime tower on (right nozzle cannot purge into left infill).
 
 Latest local/Pi change:
 - b602/b603 pinned every slot to the left, so Studio showed right nozzle empty. Dual map is back; colour merge still caps ~3–4 slots so the tower should stay far under the old 20h. Hard refresh (`app.js?v=711`, MakerDeck `app.js?v=604` / **b604**). Header **b604**. Re-export. Filament grouping: 1 on left, 2+3 on right.
