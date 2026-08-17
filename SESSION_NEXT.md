@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-17 Session update (Hoodie H2C object extruders + sprues)
 
-Latest commit: *(pending)* — MakerDeck **b613**. H2C ignores assembled/painted volume extruders (slice = filament 1, right nozzle empty, crest as grey relief). Export is separate objects again (the only path that coloured in Prepare) with a **continuous sprue** from the plate to the crest (no empty-layer skip) and a boolean gap between red/black so they don’t fight on the right nozzle.
+Latest commit: `b4d70f0` — MakerDeck **b613**. H2C ignores assembled/painted volume extruders (slice = filament 1, right nozzle empty, crest as grey relief). Export is separate objects again (the only path that coloured in Prepare) with a **continuous sprue** from the plate to the crest (no empty-layer skip) and a boolean gap between red/black so they don’t fight on the right nozzle.
 
 Latest local/Pi change:
 - Hard refresh (`app.js?v=720`, MakerDeck `app.js?v=613` / **b613**). Header **b613**. Re-export a **new** 3MF. Prepare: Body + Art as separate objects, 3 filaments, no empty-layer / floating / red↔grey conflict. Slice **Filament** view: white body, red crest, black knight; grouping left=1, right=2+3. Do not click Repair.
