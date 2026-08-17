@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-17 Session update (Hoodie 18h slice was AMS, not geometry)
 
-Latest commit: MakerDeck **b586** — one-object 3MF + flush into the hoodie body.
+Latest commit: `23da307` — MakerDeck **b586**, one-object 3MF + flush into the hoodie body.
 
 Latest local/Pi change:
 - test2 in Bambu was **18h 43m** with 553 AMS swaps, prime tower on, flush-into-infill off. Crest is ~56 mm tall so it hits ~280 layers × 3 colours. Next export is one assembly (not separate objects), purge into infill, no tower, art on the right H2D nozzle. Hard refresh (`app.js?v=693`, MakerDeck `app.js?v=586` / **b586**). Re-export 3MF. In the open slicer: Flush into infill + objects, multiplier ~0.4, prime tower off, then slice again. Orca preset **0.28mm Hoodie Fast @H2D**.
