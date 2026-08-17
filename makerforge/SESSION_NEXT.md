@@ -4,6 +4,12 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b603 — Hoodie dark grey stays black
+**Date:** 2026-08-17
+
+### MakerDeck
+- b602 merged `Art Dark grey` into the body (knight on white). Dark grey/black now keep their own filament. Hard refresh **b603**. Re-export.
+
 ## b602 — Hoodie: no prime tower, colours on left
 **Date:** 2026-08-17
 

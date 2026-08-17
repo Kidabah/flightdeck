@@ -36,7 +36,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b602";
+const MAKERDECK_BUILD = "b603";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -1630,16 +1630,26 @@ function rgbDist(a, b) {
   return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 }
 
+function luma(rgb) {
+  return rgb[0] * 0.299 + rgb[1] * 0.587 + rgb[2] * 0.114;
+}
+
 /** PNG trace splits a crest into ~8 AMS slots. Keep body / red / black / white. */
-function hoodieColorKind(rgb, bodyRgb) {
-  if (rgbDist(rgb, bodyRgb) < 36) return "body";
+function hoodieColorKind(rgb, bodyRgb, label = "") {
+  const tag = String(label || "").toLowerCase();
+  if (/\bblack\b|dark grey|dark gray/.test(tag)) return "black";
+  if (rgbDist(rgb, bodyRgb) < 28) return "body";
+  if (/\bwhite\b/.test(tag)) return "white";
   const [r, g, b] = rgb;
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const chroma = max - min;
-  const lum = (r + g + b) / 3;
-  if (lum < 48 && chroma < 55) return "black";
-  if (chroma < 32) return lum >= 168 ? "white" : "body";
+  const chroma = Math.max(r, g, b) - Math.min(r, g, b);
+  const lum = luma(rgb);
+  const bodyLum = luma(bodyRgb);
+  if (lum < 55 && chroma < 55) return "black";
+  if (chroma < 35) {
+    if (lum > 215) return lum > bodyLum + 20 ? "white" : "body";
+    if (lum <= 128 || lum < bodyLum - 24) return "black";
+    return "body";
+  }
   if (r >= g + 18 && r >= b + 18) return "red";
   return "accent";
 }
@@ -1647,27 +1657,24 @@ function hoodieColorKind(rgb, bodyRgb) {
 function mergeHoodieExportFilaments(parts) {
   if (!parts?.length) return parts;
   const bodyRgb = hexToRgb(parts[0].color);
-  const clusters = [{ kind: "body", rgb: bodyRgb, extruder: 1 }];
-  const mapped = parts.map((part, i) => {
-    if (i === 0) return { ...part, extruder: 1 };
-    const rgb = hexToRgb(part.color);
-    const kind = hoodieColorKind(rgb, bodyRgb);
-    let cluster = clusters.find((c) => c.kind === kind);
-    if (!cluster) {
-      if (clusters.length >= 4) {
-        cluster = (kind === "white" || kind === "body")
-          ? clusters[0]
-          : (clusters.find((c) => c.kind === "red" || c.kind === "accent") || clusters[0]);
-      } else {
-        cluster = { kind, rgb, extruder: clusters.length + 1 };
-        clusters.push(cluster);
-      }
-    }
-    return { ...part, extruder: cluster.extruder };
+  const kinds = parts.map((part, i) => {
+    if (i === 0) return "body";
+    return hoodieColorKind(hexToRgb(part.color), bodyRgb, `${part.name || ""} ${part.label || ""}`);
   });
-  const used = [...new Set(mapped.map((p) => p.extruder))].sort((a, b) => a - b);
-  const remap = new Map(used.map((e, i) => [e, i + 1]));
-  return mapped.map((p) => ({ ...p, extruder: remap.get(p.extruder) || 1 }));
+  const kindToSlot = new Map([["body", 1]]);
+  let next = 2;
+  for (const preferred of ["red", "black", "white", "accent"]) {
+    if (!kinds.includes(preferred) || kindToSlot.has(preferred)) continue;
+    if (next > 4) break;
+    kindToSlot.set(preferred, next++);
+  }
+  if (!kindToSlot.has("accent") && kindToSlot.has("red")) kindToSlot.set("accent", kindToSlot.get("red"));
+  if (!kindToSlot.has("white")) kindToSlot.set("white", 1);
+  if (!kindToSlot.has("black") && kinds.includes("black")) {
+    kindToSlot.set("black", next <= 4 ? next : (kindToSlot.get("white") && kindToSlot.get("white") !== 1 ? kindToSlot.get("white") : 2));
+    if (kindToSlot.get("black") === kindToSlot.get("white")) kindToSlot.set("white", 1);
+  }
+  return parts.map((part, i) => ({ ...part, extruder: kindToSlot.get(kinds[i]) || 1 }));
 }
 
 async function buildBody3mfExport(exportCache, parts) {
