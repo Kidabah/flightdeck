@@ -4,7 +4,7 @@ import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBuf
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, resolveEmbossFontWeight, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=600";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=370";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges, countNonManifoldEdges } from "./stl.js?v=599";
-import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=608";
+import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=609";
 import {
   folderExportSupported,
   folderExportBlockedReason,
@@ -36,7 +36,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b608";
+const MAKERDECK_BUILD = "b609";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -1678,46 +1678,16 @@ function mergeHoodieExportFilaments(parts) {
   return parts.map((part, i) => ({ ...part, extruder: kindToSlot.get(kinds[i]) || 1 }));
 }
 
-/** One object, art triangles painted — separate objects fell off the chest on H2C. */
-function paintHoodieExportParts(parts) {
-  if (!parts?.length) return parts;
-  const positions = [];
-  const indices = [];
-  const triangleExtruders = [];
-  const extruderColors = {};
-  for (const part of parts) {
-    const mesh = part.mesh;
-    if (!mesh?.indices?.length) continue;
-    const slot = part.extruder || 1;
-    if (!extruderColors[slot]) extruderColors[slot] = part.color || "#ffffff";
-    const vBase = positions.length / 3;
-    const P = mesh.positions;
-    const I = mesh.indices;
-    for (let i = 0; i < P.length; i++) positions.push(P[i]);
-    for (let t = 0; t < I.length; t += 3) {
-      indices.push(I[t] + vBase, I[t + 1] + vBase, I[t + 2] + vBase);
-      triangleExtruders.push(slot);
-    }
-  }
-  if (!indices.length) return parts;
-  return [{
-    name: parts[0].name || "Body",
-    mesh: { positions, indices, triangleExtruders },
-    color: extruderColors[1] || parts[0].color,
-    extruder: 1,
-    extruderColors,
-    triangleExtruders,
-    filamentPreset: parts[0].filamentPreset || "",
-  }];
-}
-
 async function buildBody3mfExport(exportCache, parts) {
   const projectName = baseModelName(exportCache.meta);
   const exportParts = state.shape === "stubbyHolder"
-    ? paintHoodieExportParts(mergeHoodieExportFilaments(parts))
+    ? mergeHoodieExportFilaments(parts)
     : parts;
   const hoodie3mf = state.shape === "stubbyHolder" ? {
     filamentPreset: "Bambu PLA Basic @BBL H2C",
+    // Real Bambu volumes (not paint, not separate plate objects) so H2C
+    // slices red/black without dropping the crest off the chest.
+    splitVolumes: true,
     printer: {
       printer_model: "Bambu Lab H2C",
       printer_settings_id: "Bambu Lab H2C 0.4 nozzle",

@@ -306,8 +306,10 @@ function worldTransformForPlate(centerOffset, plateId, bedWidth = BAMBU_BED_WIDT
 }
 
 function buildItemXml(objectId, transform = null, { multiPlate = false } = {}) {
-  // Placement lives on assemble_item only. Putting the same matrix on <item>
-  // makes H2C drop the model at the origin (left-nozzle-only strip).
+  if (multiPlate || transform) {
+    const matrix = transform || formatTransform3x4(0, 0, 0);
+    return `<item objectid="${objectId}" transform="${matrix}" printable="1" auto_drop="0"/>`;
+  }
   return `<item objectid="${objectId}" printable="1" auto_drop="0"/>`;
 }
 
@@ -316,13 +318,17 @@ function appendModelSettingsObject(lines, assemblyId, name, modelParts, singlePa
   lines.push(`    <metadata key="name" value="${escapeXml(name)}"/>`);
   if (singlePart && modelParts.length === 1) {
     lines.push(`    <metadata key="extruder" value="${modelParts[0].extruder}"/>`);
+    lines.push(`    <part id="1" subtype="normal_part">`);
+    lines.push(`      <metadata key="name" value="${escapeXml(modelParts[0].name)}"/>`);
+    lines.push(`      <metadata key="extruder" value="${modelParts[0].extruder}"/>`);
+    lines.push("    </part>");
   } else {
-    for (const part of modelParts) {
-      lines.push(`    <part id="${part.id}" subtype="normal_part">`);
+    modelParts.forEach((part, i) => {
+      lines.push(`    <part id="${i + 1}" subtype="normal_part">`);
       lines.push(`      <metadata key="name" value="${escapeXml(part.name)}"/>`);
       lines.push(`      <metadata key="extruder" value="${part.extruder}"/>`);
       lines.push("    </part>");
-    }
+    });
   }
   lines.push("  </object>");
 }
@@ -589,7 +595,9 @@ function buildAssemblyFromParts(usable, projectName, startObjectId, { plainSingl
   } else {
     const assemblyId = objectId;
     buildObjectId = assemblyId;
-    const componentsXml = modelParts.map((p) => `<component objectid="${p.id}"/>`).join("");
+    const componentsXml = modelParts.map((p) =>
+      `<component objectid="${p.id}" transform="1 0 0 0 1 0 0 0 1 0 0 0"/>`,
+    ).join("");
     objectXml.push(`<object id="${assemblyId}" type="model">
       <metadata name="Name">${escapeXml(projectName)}</metadata>
       <components>${componentsXml}</components>
@@ -824,6 +832,120 @@ export function buildMultiPlateColoredProject3mf(plates, projectName = "makerdec
   });
 }
 
+const IDENTITY_TRANSFORM_3X4 = "1 0 0 0 1 0 0 0 1 0 0 0";
+
+function meshToProductionObjectFile(mesh, objectId, name, extruder) {
+  const built = meshTo3mfResources(mesh, objectId, name, extruder, {
+    resanitize: false,
+    plain: true,
+  });
+  if (!built) return null;
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06" xmlns:b="http://schemas.bambulab.com/package/2021">
+  <resources>
+    ${built.objectXml}
+  </resources>
+  <build>
+    <item objectid="${objectId}"/>
+  </build>
+</model>`;
+}
+
+/**
+ * Native Bambu production 3MF: each colour is a volume in 3D/Objects/object_N.model,
+ * assembled as ONE printable parent so H2C uses part extruders without dropping art.
+ */
+function packSplitVolumeColoredProject3mf(usable, projectName, filament, printer) {
+  const extraZipFiles = [];
+  const modelParts = [];
+  const rels = [];
+  let localBBox = null;
+  let triangleCount = 0;
+  let objectId = 1;
+
+  for (const part of usable) {
+    const doc = meshToProductionObjectFile(part.mesh, objectId, part.name, part.extruder || 1);
+    if (!doc) continue;
+    extraZipFiles.push({ name: `3D/Objects/object_${objectId}.model`, data: encodeText(doc) });
+    rels.push(`  <Relationship Target="/3D/Objects/object_${objectId}.model" Id="rel${objectId}" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>`);
+    modelParts.push({ id: objectId, name: part.name, extruder: part.extruder || 1 });
+    localBBox = unionAxisAlignedBBox(localBBox, meshAxisAlignedBBox(part.mesh));
+    triangleCount += Math.floor((part.mesh.indices?.length || 0) / 3);
+    objectId++;
+  }
+  if (!modelParts.length) throw new Error("No valid mesh parts to export");
+
+  extraZipFiles.push({
+    name: "3D/_rels/3dmodel.model.rels",
+    data: encodeText(`<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+${rels.join("\n")}
+</Relationships>`),
+  });
+
+  const assemblyId = objectId;
+  const componentsXml = modelParts.map((p) =>
+    `<component objectid="${p.id}" p:path="/3D/Objects/object_${p.id}.model" transform="${IDENTITY_TRANSFORM_3X4}"/>`,
+  ).join("");
+  const volumeXml = [`<object id="${assemblyId}" type="model">
+      <metadata name="Name">${escapeXml(projectName)}</metadata>
+      <components>${componentsXml}</components>
+    </object>`];
+
+  const centerOffset = centeringOffsetOnBed(
+    localBBox,
+    printer?.bedWidth ?? BAMBU_BED_WIDTH_MM,
+    printer?.bedDepth ?? BAMBU_BED_DEPTH_MM,
+    !!printer?.amsHtLeft,
+  );
+  const worldTransform = formatTransform3x4(centerOffset.x, centerOffset.y, centerOffset.z ?? 0);
+  const plateBBox = translateAxisAlignedBBox(
+    localBBox || { minX: 0, minY: 0, maxX: 1, maxY: 1 },
+    centerOffset.x,
+    centerOffset.y,
+  );
+  const modelSettings = buildBambuModelSettingsXml(
+    assemblyId,
+    projectName,
+    modelParts,
+    {
+      singlePart: false,
+      worldTransform,
+      filamentSlotCount: filament.maxExtruder,
+      filamentMaps: buildH2DFilamentMapsMeta(filament.maxExtruder, !!printer?.singleNozzle),
+    },
+  );
+  extraZipFiles.push(
+    {
+      name: "Metadata/plate_1.json",
+      data: encodeText(buildBambuPlateJson({
+        identifyId: assemblyId,
+        name: projectName,
+        bbox: plateBBox,
+        layerHeight: printer?.layerHeight ?? 0.2,
+        nozzleDiameter: printer?.nozzleDiameter ?? 0.4,
+      })),
+    },
+    { name: "Metadata/plate_1.png", data: MINIMAL_PLATE_PNG },
+    { name: "Metadata/plate_no_light_1.png", data: MINIMAL_PLATE_PNG },
+    { name: "Metadata/top_1.png", data: MINIMAL_PLATE_PNG },
+    { name: "Metadata/pick_1.png", data: MINIMAL_PLATE_PNG },
+  );
+
+  return packColoredProject3mf({
+    projectName,
+    objectXml: volumeXml,
+    buildEntries: [{ objectId: assemblyId, transform: worldTransform }],
+    triangleCount,
+    filament,
+    modelSettings,
+    plainSingle: false,
+    extraZipFiles,
+    multiPlate: true,
+    printer,
+  });
+}
+
 /**
  * @param {Array<{name:string, mesh:object, color:string, extruder:number}>} parts
  */
@@ -834,6 +956,10 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck", options
   const filament = buildFilamentSlots(usable, options.filamentPreset);
   const printer = options.printer || null;
   const separateObjects = !!options.separateObjects;
+
+  if (options.splitVolumes && usable.length > 1 && !separateObjects) {
+    return packSplitVolumeColoredProject3mf(usable, projectName, filament, printer);
+  }
 
   if (separateObjects) {
     const objectXml = [];
