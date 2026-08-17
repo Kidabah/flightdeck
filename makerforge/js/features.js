@@ -5155,11 +5155,11 @@ function labelOffsets(params) {
     return { d0: -depth - 0.05, d1: 0.4, depth, deboss: true };
   }
   if (params.__hoodieArtExport) {
-    // 0.4 mm nozzle ~0.42 mm line. Old 0.62 mm stamp was one-and-a-bit lines — grey
-    // cracks through the crest and LITTLE. Two lines (~0.90 mm) fills solid.
+    // Sit on the chest, do not sink into the body. Embedded stamps overlap
+    // Body and H2C reports "Art Red <-> Body" then dumps the colour paths.
     const proud = 0.66;
-    const embed = 0.24;
-    return { d0: -embed, d1: proud, depth: proud + embed, deboss: false };
+    const skin = 0.05;
+    return { d0: skin, d1: skin + proud, depth: proud, deboss: false };
   }
   if (params.shape === "stubbyHolder") {
     const proud = 0.5;

@@ -4,6 +4,12 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b615 — Hoodie runner in front of the crest
+**Date:** 2026-08-17
+
+### MakerDeck
+- b613 sprue punched through Body (layer 79 conflict) and did not touch the crest (empty layers / floating grey) so slice dropped colour. Separate objects again (b606 colours); art sits on the surface; 1.6 mm runner in the air in front of the chest with a joining bar. Hard refresh **b615**. Re-export.
+
 ## b614 — Restore STL Painter tool navigation
 **Date:** 2026-08-17
 

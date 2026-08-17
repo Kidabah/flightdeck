@@ -200,6 +200,99 @@ function formatTransform3x4(tx = 0, ty = 0, tz = 0) {
   return `1 0 0 0 1 0 0 0 1 ${tx} ${ty} ${tz}`;
 }
 
+function meshBounds3(mesh) {
+  const positions = mesh?.positions;
+  if (!positions?.length) return null;
+  let minX = Infinity;
+  let minY = Infinity;
+  let minZ = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  let maxZ = -Infinity;
+  for (let i = 0; i < positions.length; i += 3) {
+    const x = positions[i];
+    const y = positions[i + 1];
+    const z = positions[i + 2];
+    if (x < minX) minX = x;
+    if (y < minY) minY = y;
+    if (z < minZ) minZ = z;
+    if (x > maxX) maxX = x;
+    if (y > maxY) maxY = y;
+    if (z > maxZ) maxZ = z;
+  }
+  if (!Number.isFinite(minX)) return null;
+  return { minX, minY, minZ, maxX, maxY, maxZ };
+}
+
+/** Solid box between two corners; each axis is at least `minT` so a 0.4 mm nozzle will slice it. */
+function appendAabb(mesh, x0, y0, z0, x1, y1, z1, minT = 1.6) {
+  let xa = Math.min(x0, x1);
+  let xb = Math.max(x0, x1);
+  let ya = Math.min(y0, y1);
+  let yb = Math.max(y0, y1);
+  let za = Math.min(z0, z1);
+  let zb = Math.max(z0, z1);
+  if (xb - xa < minT) {
+    const m = (xa + xb) / 2;
+    xa = m - minT / 2;
+    xb = m + minT / 2;
+  }
+  if (yb - ya < minT) {
+    const m = (ya + yb) / 2;
+    ya = m - minT / 2;
+    yb = m + minT / 2;
+  }
+  if (zb - za < minT) {
+    const m = (za + zb) / 2;
+    za = m - minT / 2;
+    zb = m + minT / 2;
+  }
+  const vBase = (mesh.positions.length / 3) | 0;
+  const positions = Array.from(mesh.positions);
+  const indices = Array.from(mesh.indices);
+  const verts = [
+    xa, ya, za, xb, ya, za, xb, yb, za, xa, yb, za,
+    xa, ya, zb, xb, ya, zb, xb, yb, zb, xa, yb, zb,
+  ];
+  for (let i = 0; i < verts.length; i++) positions.push(verts[i]);
+  const cube = [0, 1, 2, 0, 2, 3, 4, 6, 5, 4, 7, 6, 0, 4, 5, 0, 5, 1, 3, 2, 6, 3, 6, 7, 0, 3, 7, 0, 7, 4, 1, 5, 6, 1, 6, 2];
+  for (let i = 0; i < cube.length; i++) indices.push(cube[i] + vBase);
+  const next = { ...mesh, positions, indices };
+  if (mesh.triangleExtruders?.length) {
+    const extra = cube.length / 3;
+    next.triangleExtruders = mesh.triangleExtruders.concat(Array.from({ length: extra }, () => mesh.triangleExtruders[0] || 1));
+  }
+  return next;
+}
+
+/**
+ * H2C only colours per-object extruders, but it skips floating / empty-layer
+ * objects and dumps overlapping ones. A 1.6 mm runner sits in the air in
+ * front of the crest (not through the body) and a short bar actually joins
+ * the art so every layer from the plate to the logo is legal.
+ */
+function addArtSprues(parts) {
+  const body = meshBounds3(parts[0]?.mesh);
+  if (!body) return parts;
+  return parts.map((part, i) => {
+    if (i === 0) return part;
+    const art = meshBounds3(part.mesh);
+    if (!art || !(art.minZ > body.minZ + 0.3)) return part;
+    const slot = part.extruder || (i + 1);
+    const cx = (art.minX + art.maxX) / 2 + (slot % 2 === 0 ? -14 : 14);
+    const frontSide = (art.minY + art.maxY) / 2 < 0;
+    const faceY = frontSide ? art.minY : art.maxY;
+    const columnY = frontSide ? faceY - 8 : faceY + 8;
+    const intoArtY = frontSide ? faceY + 0.6 : faceY - 0.6;
+    const z0 = body.minZ;
+    const zJoin = art.minZ;
+    let mesh = part.mesh;
+    mesh = appendAabb(mesh, cx, columnY, z0, cx, columnY, zJoin + 2);
+    mesh = appendAabb(mesh, cx, columnY, zJoin, cx, intoArtY, zJoin + 1.6);
+    return { ...part, mesh };
+  });
+}
+
 function meshAxisAlignedBBox(mesh) {
   const positions = mesh?.positions;
   if (!positions?.length) return null;
@@ -973,8 +1066,9 @@ function packSplitVolumeColoredProject3mf(usable, projectName, filament, printer
  * @param {Array<{name:string, mesh:object, color:string, extruder:number}>} parts
  */
 export function buildColoredProject3mf(parts, projectName = "makerdeck", options = {}) {
-  const usable = filterUsableParts(parts);
+  let usable = filterUsableParts(parts);
   if (!usable.length) throw new Error("No geometry to export");
+  if (options.artSprues && usable.length > 1) usable = addArtSprues(usable);
 
   const filament = buildFilamentSlots(usable, options.filamentPreset);
   const printer = options.printer || null;
