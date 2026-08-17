@@ -6,6 +6,18 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-17 Session update (Hoodie 0.4 slice cracks + H2C config)
+
+Latest commit: `ee77d2a` — MakerDeck **b600**, thicker 0.4 mm stamp; 3MF is H2C 0.4 / 0.20mm Standard.
+
+Latest local/Pi change:
+- Grey cracks in the crest and LITTLE were a 0.62 mm stamp (one 0.4 mm line). Export is ~0.90 mm (two lines) with a deeper bite into the fabric. 3MF now says **Bambu Lab H2C 0.4 nozzle** + **0.20mm Standard @BBL H2C** so Studio should keep the settings (not 20 hr geometry-only). Hard refresh (`app.js?v=707`, MakerDeck `app.js?v=600` / **b600**). Header **b600**. Re-click Stubby holder, re-export. **Do not click Repair.**
+
+Previous:
+- Hoodie Body 3 open edges (`cf8f26c`).
+
+---
+
 ## 2026-08-17 Session update (Hoodie Body 3 open edges)
 
 Latest commit: `cf8f26c` — MakerDeck **b599**, 3MF sanitiser strips duplicate faces before peel so the hoodie Body stays closed.

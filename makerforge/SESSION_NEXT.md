@@ -4,6 +4,12 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b600 — Hoodie 0.4 stamp fills; H2C 0.4 config
+**Date:** 2026-08-17
+
+### MakerDeck
+- Slice cracks: stamp was 0.62 mm (one 0.4 mm line). Export is ~0.90 mm. 3MF printer is **H2C 0.4** + **0.20mm Standard @BBL H2C**. Hard refresh **b600**. Re-export. Do not click Repair.
+
 ## b599 — Close hoodie Body 3-open
 **Date:** 2026-08-17
 
