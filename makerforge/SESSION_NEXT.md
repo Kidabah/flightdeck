@@ -4,6 +4,12 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b594 — Back letters follow the curve
+**Date:** 2026-08-17
+
+### MakerDeck
+- LITTLE sat on a flat plane (buried in the middle, floating at L/E). Back field is the un-blurred outer cylinder; stamp offsets along the surface normal. Front unchanged. Hard refresh MakerDeck **b594**. Re-click Stubby holder.
+
 ## b593 — Back text stays on the outer fabric
 **Date:** 2026-08-17
 

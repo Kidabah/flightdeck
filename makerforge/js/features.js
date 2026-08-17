@@ -10,7 +10,7 @@ import {
   resolveVaseTexture,
   vaseTextureDisplacement,
 } from "./vase-textures.js";
-import { sampleHoodieChestY, sampleHoodieBackY, HOODIE_ART_PROUD_MM } from "./hoodie-stubby.js?v=593";
+import { sampleHoodieChestY, sampleHoodieBackHit, HOODIE_ART_PROUD_MM } from "./hoodie-stubby.js?v=594";
 
 export const EMBOSS_FONTS = [
   { id: "segoe-ui", label: "Segoe UI — Windows", family: '"Segoe UI Variable", "Segoe UI", system-ui, sans-serif', weight: 700 },
@@ -4969,8 +4969,14 @@ export function getEmbossFaceFrame(meta, face, params = null) {
           const sampled = sampleHoodieChestY(meta.chestField, x, py);
           if (Number.isFinite(sampled)) yBase = sampled;
         } else if (chest && useFace === "back" && meta.backField) {
-          const sampled = sampleHoodieBackY(meta.backField, x, py);
-          if (Number.isFinite(sampled)) yBase = sampled;
+          const hit = sampleHoodieBackHit(meta.backField, x, py);
+          if (hit) {
+            return [
+              x + hit.nx * offset,
+              hit.y + hit.ny * offset,
+              py + hit.nz * offset,
+            ];
+          }
         }
         const y = yBase + yDir * offset;
         return [x, y, py];

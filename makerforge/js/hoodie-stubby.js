@@ -80,7 +80,10 @@ function buildSurfaceHeightfield(positions, indices, side) {
   const best = new Float32Array(nx * nz);
   best.fill(empty);
   const bandY = chestBandYs(positions, front);
-  const yCut = Number.isFinite(bandY) ? (front ? bandY + 8 : bandY - 8) : 0;
+  const wellR = HOODIE_WELL_MM / 2;
+  const yCut = front
+    ? (Number.isFinite(bandY) ? bandY + 8 : 0)
+    : wellR + 3;
   const splat = (x, y, z) => {
     if (front ? !(y < yCut) : !(y > yCut)) return;
     const ix = Math.round((x - xMin) / (xMax - xMin) * (nx - 1));
@@ -139,26 +142,29 @@ function buildSurfaceHeightfield(positions, indices, side) {
     }
     if (!filledAny) break;
   }
-  // Smooth cliffs so the stamp does not stretch through the wall.
-  for (let pass = 0; pass < 5; pass++) {
-    const next = new Float32Array(best);
-    for (let iz = 0; iz < nz; iz++) {
-      for (let ix = 0; ix < nx; ix++) {
-        let acc = 0, n = 0;
-        for (let dz = -1; dz <= 1; dz++) {
-          for (let dx = -1; dx <= 1; dx++) {
-            const jx = ix + dx, jz = iz + dz;
-            if (jx < 0 || jz < 0 || jx >= nx || jz >= nz) continue;
-            const v = best[jz * nx + jx];
-            if (!isFilled(v)) continue;
-            acc += v;
-            n++;
+  // Front only: mean-blur closes the kangaroo pocket. Blurring the back
+  // flattens the cylinder so letters bury in the spine and float at the sides.
+  if (front) {
+    for (let pass = 0; pass < 5; pass++) {
+      const next = new Float32Array(best);
+      for (let iz = 0; iz < nz; iz++) {
+        for (let ix = 0; ix < nx; ix++) {
+          let acc = 0, n = 0;
+          for (let dz = -1; dz <= 1; dz++) {
+            for (let dx = -1; dx <= 1; dx++) {
+              const jx = ix + dx, jz = iz + dz;
+              if (jx < 0 || jz < 0 || jx >= nx || jz >= nz) continue;
+              const v = best[jz * nx + jx];
+              if (!isFilled(v)) continue;
+              acc += v;
+              n++;
+            }
           }
+          if (n) next[iz * nx + ix] = acc / n;
         }
-        if (n) next[iz * nx + ix] = acc / n;
       }
+      best.set(next);
     }
-    best.set(next);
   }
   return { y: best, xMin, xMax, zMin, zMax, nx, nz, side, ySkin: bandY };
 }
@@ -202,6 +208,22 @@ export function sampleHoodieChestY(field, x, z) {
 
 export function sampleHoodieBackY(field, x, z) {
   return sampleSurfaceY(field, x, z);
+}
+
+/** Outer back skin + outward normal so stamps follow the curve instead of a +Y plane. */
+export function sampleHoodieBackHit(field, x, z) {
+  const y = sampleSurfaceY(field, x, z);
+  if (!Number.isFinite(y)) return null;
+  const e = field?.nx > 1 ? (field.xMax - field.xMin) / (field.nx - 1) : 1;
+  const yx = sampleSurfaceY(field, x + e, z);
+  const yz = sampleSurfaceY(field, x, z + e);
+  const fx = Number.isFinite(yx) ? (yx - y) / e : 0;
+  const fz = Number.isFinite(yz) ? (yz - y) / e : 0;
+  let nx = -fx;
+  let ny = 1;
+  let nz = -fz;
+  const len = Math.hypot(nx, ny, nz) || 1;
+  return { y, nx: nx / len, ny: ny / len, nz: nz / len };
 }
 
 function metaFromMesh(positions) {
