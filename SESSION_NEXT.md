@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-17 Session update (H2C slice kept dumping RHS grouping)
 
-Latest commit: *(pending)* — MakerDeck **b618**. July 6 `Vase_1.gcode.3mf` (working) vs tonight’s `blue grey vase.3mf`: both dual-nozzle, but the new file flushed extras into infill (`flush_into_infill=1`), omitted per-nozzle printable areas, and used H2D presets. H2C slice then remaps Prepare’s RHS grouping to left-only. Match the working vase: flush off, H2C AMS/printable zones, Generic PLA @BBL H2C.
+Latest commit: `9a4fb63` — MakerDeck **b618**. July 6 `Vase_1.gcode.3mf` (working) vs tonight’s `blue grey vase.3mf`: both dual-nozzle, but the new file flushed extras into infill (`flush_into_infill=1`), omitted per-nozzle printable areas, and used H2D presets. H2C slice then remaps Prepare’s RHS grouping to left-only. Match the working vase: flush off, H2C AMS/printable zones, Generic PLA @BBL H2C.
 
 Latest local/Pi change:
 - Hard refresh (`app.js?v=724`, MakerDeck `app.js?v=618` / **b618**). Header **b618**. Re-export the blue/grey vase. Prepare can still show extras on the right; after slice grouping should keep a right nozzle (like the July vase: left white, right colour). Do not click Set to Optimal.
