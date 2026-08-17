@@ -391,16 +391,59 @@ function majorityDownsampleMask(mask, srcW, srcH, dstW, dstH) {
 }
 
 function hoodieStampGrid(artW, artH, params) {
-  let step = params?.__labelExportStandoff ? 0.06 : 0.07;
+  // Bitmap logos need a grid that reflects the smallest printable feature, not
+  // the source PNG's anti-aliased pixels.  Keep the fine grid for vector text
+  // (for example the clean LITTLE 1959 back label), but simplify only the
+  // coloured raster-art path before it becomes a watertight chest stamp.
+  const rasterCleanup = !!params?.__hoodieRasterCleanup;
+  let step = rasterCleanup ? 0.18 : (params?.__labelExportStandoff ? 0.06 : 0.07);
   let cols = Math.max(32, Math.round(artW / step));
   let rows = Math.max(32, Math.round(artH / step));
-  const cap = params?.__labelExportStandoff ? 520 : 420;
-  while (Math.max(cols, rows) > cap && step < 0.14) {
+  const cap = rasterCleanup ? 300 : (params?.__labelExportStandoff ? 520 : 420);
+  const maxStep = rasterCleanup ? 0.26 : 0.14;
+  while (Math.max(cols, rows) > cap && step < maxStep) {
     step *= 1.1;
     cols = Math.max(32, Math.round(artW / step));
     rows = Math.max(32, Math.round(artH / step));
   }
   return { cols, rows };
+}
+
+/** Drop disconnected raster dust that cannot form a reliable 0.4 mm extrusion.
+ * Eight-way connectivity preserves diagonal strokes and small enclosed details. */
+function pruneHoodieRasterSpecks(mask, width, height, minCells = 5) {
+  const out = mask instanceof Uint8Array ? mask.slice() : new Uint8Array(mask);
+  const seen = new Uint8Array(out.length);
+  const queue = new Int32Array(out.length);
+  for (let start = 0; start < out.length; start++) {
+    if (!out[start] || seen[start]) continue;
+    let head = 0;
+    let tail = 0;
+    queue[tail++] = start;
+    seen[start] = 1;
+    while (head < tail) {
+      const at = queue[head++];
+      const x = at % width;
+      const y = Math.floor(at / width);
+      for (let dy = -1; dy <= 1; dy++) {
+        const ny = y + dy;
+        if (ny < 0 || ny >= height) continue;
+        for (let dx = -1; dx <= 1; dx++) {
+          if (!dx && !dy) continue;
+          const nx = x + dx;
+          if (nx < 0 || nx >= width) continue;
+          const next = ny * width + nx;
+          if (!out[next] || seen[next]) continue;
+          seen[next] = 1;
+          queue[tail++] = next;
+        }
+      }
+    }
+    if (tail < minCells) {
+      for (let i = 0; i < tail; i++) out[queue[i]] = 0;
+    }
+  }
+  return out;
 }
 
 /** Painter-style shared-vertex shell on the draped chest — no layer-height scanlines. */
@@ -410,11 +453,14 @@ function buildHoodieFaceStampMesh(frame, mask, maskW, maskH, place, d0, d1, para
   const artH = place.artHeight;
   if (!(artW > 0.5) || !(artH > 0.5)) return null;
   const { cols, rows } = hoodieStampGrid(artW, artH, params);
-  const small = resolveMaskDiagonalPinches(
-    majorityDownsampleMask(mask, maskW, maskH, cols, rows),
-    cols,
-    rows,
-  );
+  let small = majorityDownsampleMask(mask, maskW, maskH, cols, rows);
+  if (params?.__hoodieRasterCleanup) {
+    // Heal one-cell cracks from PNG anti-aliasing, then remove little islands
+    // that are smaller than a nozzle-width mark on the physical hoodie.
+    small = closeBitmapMask(small, cols, rows, 1);
+    small = pruneHoodieRasterSpecks(small, cols, rows);
+  }
+  small = resolveMaskDiagonalPinches(small, cols, rows);
   const cellU = artW / cols;
   const cellV = artH / rows;
   const thick = Math.max(0.16, d1 - d0);
@@ -3648,7 +3694,12 @@ function buildMultiColourLayerEmboss(meta, params, traceData, layer) {
   };
 
   // Same path as coffee-bag / dragons preview — dilated vectors & accent slabs shredded line art.
-  return buildEmbossBitmap(meta, params, ensureEmbossBitmapMask(bitmapOpts));
+  // Hoodie logos originate as PNG masks, unlike its vector back text.  Mark just
+  // those bitmap layers for print-safe resampling in buildHoodieFaceStampMesh.
+  const artParams = isHoodieArtParams(params)
+    ? { ...params, __hoodieRasterCleanup: true }
+    : params;
+  return buildEmbossBitmap(meta, artParams, ensureEmbossBitmapMask(bitmapOpts));
 }
 
 function hexLuma(hex) {

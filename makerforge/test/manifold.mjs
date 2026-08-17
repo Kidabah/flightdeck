@@ -119,6 +119,42 @@ const meta = { shape: "box", inner: { w: 90, d: 90, h: 123 }, outer: { w: 94, d:
 }
 
 {
+  // Hoodie crest-style bitmap art: retain substantial red/black detail, but
+  // prove that print-safe raster cleanup still produces closed colour volumes.
+  const W = 720, H = 720;
+  const red = new Uint8Array(W * H), dark = new Uint8Array(W * H);
+  const set = (target, x, y) => { if (x >= 0 && y >= 0 && x < W && y < H) target[y * W + x] = 1; };
+  for (let y = 100; y < 630; y++) {
+    const half = 120 + Math.floor((y - 100) * 0.34);
+    for (let x = 360 - half; x <= 360 + half; x++) {
+      if (x < 160 || x > 560) continue;
+      if (x < 180 || x > 540 || y < 125 || y > 600) set(red, x, y);
+      if (Math.abs(x - 360) < 80 && y > 220 && y < 490 && ((x + y) % 37 < 5)) set(dark, x, y);
+    }
+  }
+  // Simulate anti-aliased tracing dust that should not become floating dots.
+  for (let i = 0; i < 75; i++) set(dark, 175 + ((i * 53) % 365), 140 + ((i * 97) % 460));
+  const hoodieMeta = {
+    shape: "stubbyHolder",
+    inner: { w: 65, d: 65, h: 145 },
+    outer: { w: 155, d: 97, h: 150 },
+    chestY: -44,
+  };
+  const params = {
+    shape: "stubbyHolder", embossFace: "front", embossTraceSize: 64, embossDepth: 0.6,
+    embossTraceEnabled: true, __hoodieArtExport: true, __labelExportStandoff: true,
+    __multiColourAmsExport: true,
+  };
+  const td = {
+    multiColour: true, width: W, height: H, mode: "multi-colour",
+    colorLayers: [{ mask: red, hex: "#c91d2e", label: "Red" }, { mask: dark, hex: "#202124", label: "Dark grey" }],
+  };
+  const parts = buildMultiColourGraphicEmboss(hoodieMeta, params, td) || [];
+  if (parts.length !== 2) { results.push("FAIL hoodie raster cleanup: expected two colour parts"); failures++; }
+  for (const cp of parts) check(`hoodie raster ${cp.name} (b620)`, cp.mesh);
+}
+
+{
   const params = { embossFace: "front", embossText: "COFFEE", embossTextSize: 16, embossDepth: 0.6,
     embossFont: "arial-black", __labelExportStandoff: true, __multiColourAmsExport: true, __labelExportEmbedded: true };
   const mesh = buildTextLabelExportMesh(meta, params);

@@ -4,6 +4,13 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b620 — Print-safe cleanup for hoodie bitmap logos
+**Date:** 2026-08-17
+
+### MakerDeck
+- Back lettering stays on the fine vector-text path. Multi-colour PNG logo layers on the hoodie now resample to a nozzle-appropriate grid, close one-cell anti-aliasing cracks, and remove disconnected sub-nozzle dust before their closed, supported H2C volumes are built. This cleans the detailed front crest without altering the correct b619 left/right filament grouping, purge matrix, tower placement, or time calculation.
+- `test/manifold.mjs` now covers a dense two-colour hoodie crest-style bitmap and asserts both cleaned colour volumes remain watertight. Hard refresh **b620** and export a new 3MF; an existing b619 download retains its old crest mesh.
+
 ## b619 — H2C purge matrix and tower position
 **Date:** 2026-08-17
 
