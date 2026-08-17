@@ -4,7 +4,7 @@ import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBuf
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, resolveEmbossFontWeight, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=600";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=370";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges, countNonManifoldEdges } from "./stl.js?v=599";
-import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=612";
+import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=613";
 import {
   folderExportSupported,
   folderExportBlockedReason,
@@ -36,7 +36,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b612";
+const MAKERDECK_BUILD = "b613";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -1637,18 +1637,20 @@ function luma(rgb) {
 /** PNG trace splits a crest into ~8 AMS slots. Keep body / red / black / white. */
 function hoodieColorKind(rgb, bodyRgb, label = "") {
   const tag = String(label || "").toLowerCase();
-  if (/\bblack\b|dark grey|dark gray/.test(tag)) return "black";
-  if (/\bred\b|\bpink\b/.test(tag)) return "red";
-  if (rgbDist(rgb, bodyRgb) < 28) return "body";
-  if (/\bwhite\b/.test(tag)) return "white";
-  const [r, g, b] = rgb;
-  const chroma = Math.max(r, g, b) - Math.min(r, g, b);
   const lum = luma(rgb);
   const bodyLum = luma(bodyRgb);
-  if (lum < 55 && chroma < 55) return "black";
-  if (chroma < 35) {
+  const [r, g, b] = rgb;
+  const chroma = Math.max(r, g, b) - Math.min(r, g, b);
+  if (/\bblack\b|\bknight\b/.test(tag)) return "black";
+  if (/\bdark\b/.test(tag) && (/\bgrey\b|\bgray\b/.test(tag) || lum < 170)) return "black";
+  if ((/\bgrey\b|\bgray\b/.test(tag)) && lum < 160) return "black";
+  if (/\bred\b|\bpink\b|\bmaroon\b|\bcrimson\b/.test(tag)) return "red";
+  if (rgbDist(rgb, bodyRgb) < 22 && lum > 160) return "body";
+  if (/\bwhite\b/.test(tag)) return lum < 80 ? "black" : "white";
+  if (lum < 70 && chroma < 60) return "black";
+  if (chroma < 40) {
     if (lum > 215) return lum > bodyLum + 20 ? "white" : "body";
-    if (lum <= 128 || lum < bodyLum - 24) return "black";
+    if (lum < bodyLum - 12) return "black";
     return "body";
   }
   if (r >= g + 18 && r >= b + 18) return "red";
@@ -1699,16 +1701,95 @@ function mergeHoodiePartsBySlot(parts) {
   });
 }
 
+function inflateMesh(mesh, mm) {
+  const pos = Array.from(mesh.positions);
+  const idx = mesh.indices;
+  const n = (pos.length / 3) | 0;
+  const acc = new Float32Array(n * 3);
+  for (let t = 0; t < idx.length; t += 3) {
+    const ia = idx[t];
+    const ib = idx[t + 1];
+    const ic = idx[t + 2];
+    const ax = pos[ia * 3];
+    const ay = pos[ia * 3 + 1];
+    const az = pos[ia * 3 + 2];
+    const bx = pos[ib * 3];
+    const by = pos[ib * 3 + 1];
+    const bz = pos[ib * 3 + 2];
+    const cx = pos[ic * 3];
+    const cy = pos[ic * 3 + 1];
+    const cz = pos[ic * 3 + 2];
+    const nx = (by - ay) * (cz - az) - (bz - az) * (cy - ay);
+    const ny = (bz - az) * (cx - ax) - (bx - ax) * (cz - az);
+    const nz = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+    acc[ia * 3] += nx;
+    acc[ia * 3 + 1] += ny;
+    acc[ia * 3 + 2] += nz;
+    acc[ib * 3] += nx;
+    acc[ib * 3 + 1] += ny;
+    acc[ib * 3 + 2] += nz;
+    acc[ic * 3] += nx;
+    acc[ic * 3 + 1] += ny;
+    acc[ic * 3 + 2] += nz;
+  }
+  for (let i = 0; i < n; i++) {
+    const x = acc[i * 3];
+    const y = acc[i * 3 + 1];
+    const z = acc[i * 3 + 2];
+    const len = Math.hypot(x, y, z) || 1;
+    pos[i * 3] += (x / len) * mm;
+    pos[i * 3 + 1] += (y / len) * mm;
+    pos[i * 3 + 2] += (z / len) * mm;
+  }
+  return { ...mesh, positions: pos };
+}
+
+/** Same-nozzle art cannot occupy the same voxels or H2C dumps those toolpaths. */
+async function subtractOverlappingHoodieArt(parts) {
+  const artIdx = [];
+  for (let i = 0; i < parts.length; i++) {
+    if ((parts[i].extruder || 1) > 1) artIdx.push(i);
+  }
+  if (artIdx.length < 2) return parts;
+  let subtractMesh;
+  try {
+    ({ subtractMesh } = await import("./mesh-cut.js?v=24"));
+  } catch (err) {
+    console.warn("hoodie art CSG unavailable", err);
+    return parts;
+  }
+  const next = parts.slice();
+  for (let a = 0; a < artIdx.length; a++) {
+    for (let b = a + 1; b < artIdx.length; b++) {
+      const i = artIdx[a];
+      const j = artIdx[b];
+      try {
+        const cutter = inflateMesh(next[j].mesh, 0.22);
+        const cut = await subtractMesh(next[i].mesh, cutter);
+        if (cut?.indices?.length) next[i] = { ...next[i], mesh: prepareMeshFor3mf(cut) };
+      } catch (err) {
+        console.warn("hoodie art subtract failed", next[i].name, next[j].name, err);
+      }
+    }
+  }
+  return next;
+}
+
+async function prepareHoodieExportParts(parts) {
+  return subtractOverlappingHoodieArt(mergeHoodiePartsBySlot(parts));
+}
+
 async function buildBody3mfExport(exportCache, parts) {
   const projectName = baseModelName(exportCache.meta);
   const exportParts = state.shape === "stubbyHolder"
-    ? mergeHoodiePartsBySlot(parts)
+    ? await prepareHoodieExportParts(parts)
     : parts;
   const hoodie3mf = state.shape === "stubbyHolder" ? {
     filamentPreset: "Bambu PLA Basic @BBL H2C",
-    // One object, one volume per colour. Separate plate objects overlap on the
-    // chest (gcode conflicts) and the bed foot caused empty layers.
-    splitVolumes: true,
+    // H2C only honours object-level extruders (assembled volumes slice as
+    // filament 1). A continuous sprue keeps those objects legal to slice.
+    separateObjects: true,
+    artSprues: true,
     printer: {
       printer_model: "Bambu Lab H2C",
       printer_settings_id: "Bambu Lab H2C 0.4 nozzle",

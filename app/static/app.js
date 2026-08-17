@@ -4119,7 +4119,7 @@ function _stopCameraImages(selector) {
 function _ensureMakerDeckFrame() {
   const frame = document.getElementById('makerdeck-frame');
   if (!frame || frame.dataset.loaded === '1') return;
-  frame.src = '/makerdeck/?v=612';
+  frame.src = '/makerdeck/?v=613';
   frame.dataset.loaded = '1';
 }
 

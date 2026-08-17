@@ -4,6 +4,12 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b613 — Hoodie H2C object extruders + sprues
+**Date:** 2026-08-17
+
+### MakerDeck
+- Assembled volumes / paint still sliced as filament 1 on H2C (crest visible as grey relief, right nozzle empty). H2C only honours per-object extruders. Separate objects again; continuous sprue from plate to crest (empty-layer skip was dumping the art); CSG gap between red and black on the right nozzle. Hard refresh **b613**. Re-export.
+
 ## b612 — Hoodie one object, one volume per colour
 **Date:** 2026-08-17
 
