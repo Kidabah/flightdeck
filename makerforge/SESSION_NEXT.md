@@ -4,6 +4,12 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b590 — Hoodie back text sits on the fabric
+**Date:** 2026-08-17
+
+### MakerDeck
+- b589’s 0.55 mm embed punched LITTLE through the back in preview. Stamp sits on the fabric; export only overlaps 0.12 mm. Back field keeps the outer envelope. Hard refresh MakerDeck **b590**. Re-click Stubby holder.
+
 ## b589 — Hoodie shield stays in the slice
 **Date:** 2026-08-17
 

@@ -10,7 +10,7 @@ import {
   resolveVaseTexture,
   vaseTextureDisplacement,
 } from "./vase-textures.js";
-import { sampleHoodieChestY, sampleHoodieBackY } from "./hoodie-stubby.js?v=589";
+import { sampleHoodieChestY, sampleHoodieBackY, HOODIE_ART_PROUD_MM } from "./hoodie-stubby.js?v=590";
 
 export const EMBOSS_FONTS = [
   { id: "segoe-ui", label: "Segoe UI — Windows", family: '"Segoe UI Variable", "Segoe UI", system-ui, sans-serif', weight: 700 },
@@ -5152,10 +5152,12 @@ function labelOffsets(params) {
     return { d0: -depth - 0.05, d1: 0.4, depth, deboss: true };
   }
   if (params.__hoodieArtExport || params.shape === "stubbyHolder") {
-    // Sit on the fabric and poke into the wall so separate colour parts bond in the slicer.
-    const proud = 0.4;
-    const embed = 0.55;
-    return { d0: -embed, d1: proud, depth: proud + embed, deboss: false };
+    // Preview sits on the fabric (0.55 mm embed punched LITTLE through the back).
+    // Export only: a thin bite so colour parts fuse without a crater.
+    const proud = 0.5;
+    const embed = params.__hoodieArtExport ? 0.12 : 0;
+    const skin = embed ? 0 : HOODIE_ART_PROUD_MM;
+    return { d0: skin - embed, d1: skin + proud, depth: proud + embed, deboss: false };
   }
   // Raised emboss: flush in preview; export embeds into wall pockets (no air gap).
   let standoff = 0;

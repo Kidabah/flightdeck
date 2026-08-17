@@ -6,6 +6,18 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-17 Session update (Hoodie back text too deep)
+
+Latest commit: (this push) — MakerDeck **b590**, back text sits on the fabric again.
+
+Latest local/Pi change:
+- b589 embedded 0.55 mm into the hoodie on preview, so LITTLE punched through the back. Preview is a 0.5 mm stamp on the fabric; export only bites 0.12 mm for bonding. Back heightfield no longer mean-blurs inward. Hard refresh (`app.js?v=697`, MakerDeck `app.js?v=590` / **b590**). Header **b590**. Re-click Stubby holder, Face → Back — text.
+
+Previous:
+- Hoodie shield slice + manifold (`edb6a7c`).
+
+---
+
 ## 2026-08-17 Session update (Hoodie shield slice + manifold)
 
 Latest commit: `edb6a7c` — MakerDeck **b589**, 3MF sanitiser peels 3+ face edges; crest embeds into the fabric.
