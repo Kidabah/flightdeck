@@ -4,6 +4,12 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b607 — Hoodie logo painted on one object
+**Date:** 2026-08-17
+
+### MakerDeck
+- b606 separate objects dropped the crest off the chest (red crumbs at the hem, 3-colour tower). One object again; art triangles carry paint_color. Hard refresh **b607**. Re-export. Do not click Repair.
+
 ## b606 — Hoodie colours as separate objects
 **Date:** 2026-08-17
 

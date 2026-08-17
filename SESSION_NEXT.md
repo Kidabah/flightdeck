@@ -6,6 +6,18 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-17 Session update (Hoodie paint, not separate objects)
+
+Latest commit: `PENDING` — MakerDeck **b607**, logo stays on the hoodie. b606 separate objects dropped art to the plate (tiny red at the hem, tower still 3-colour).
+
+Latest local/Pi change:
+- One object again; crest/text triangles are AMS-painted (not a second object that H2C auto-drops). Hard refresh (`app.js?v=714`, MakerDeck `app.js?v=607` / **b607**). Header **b607**. Re-export. Do not click Repair.
+
+Previous:
+- Hoodie colours as separate objects (`642d53b`).
+
+---
+
 ## 2026-08-17 Session update (Hoodie colours as separate objects)
 
 Latest commit: `642d53b` — MakerDeck **b606**, hoodie Body / Art / Text are **separate 3MF objects** (assembled), so H2C cannot union the crest onto filament 1.
