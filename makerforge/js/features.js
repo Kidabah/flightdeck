@@ -10,7 +10,7 @@ import {
   resolveVaseTexture,
   vaseTextureDisplacement,
 } from "./vase-textures.js";
-import { sampleHoodieChestY, HOODIE_ART_PROUD_MM } from "./hoodie-stubby.js?v=587";
+import { sampleHoodieChestY, sampleHoodieBackY, HOODIE_ART_PROUD_MM } from "./hoodie-stubby.js?v=588";
 
 export const EMBOSS_FONTS = [
   { id: "segoe-ui", label: "Segoe UI — Windows", family: '"Segoe UI Variable", "Segoe UI", system-ui, sans-serif', weight: 700 },
@@ -360,6 +360,12 @@ const DECAL_LAYER_MM = 0.2;
 
 function isHoodieArtParams(params) {
   return params?.shape === "stubbyHolder" || !!params?.__hoodieArtExport;
+}
+
+function hoodieGraphicParams(params) {
+  if (!isHoodieArtParams(params)) return params;
+  if ((params.embossFace || "front") === "front") return params;
+  return { ...params, embossFace: "front" };
 }
 
 function majorityDownsampleMask(mask, srcW, srcH, dstW, dstH) {
@@ -3131,6 +3137,7 @@ function unionDenseTraceShapeGroups(sourceGroups, maskW, maskH, artH, params, bi
 }
 
 function collectBitmapGraphicShapeGroups(meta, params, bitmap) {
+  params = hoodieGraphicParams(params);
   if (!bitmap?.width || !bitmap.height) return null;
   const frame = getEmbossFaceFrame(meta, params.embossFace || "front", params);
   const artH = wrapSafeArtHeight(frame, params.embossTraceSize ?? 16);
@@ -3234,6 +3241,7 @@ function collectBitmapGraphicShapeGroups(meta, params, bitmap) {
 }
 
 function collectSvgGraphicShapeGroups(meta, params, svgText) {
+  params = hoodieGraphicParams(params);
   const parsed = parseSvgPaths(svgText);
   const layout = computeSvgArtLayout(parsed, meta, params);
   if (!layout) return null;
@@ -3666,6 +3674,7 @@ function fillLightLayerGapsForExport(traceData, params) {
 
 /** Per-colour wrap/front emboss meshes for multi-colour logo traces. */
 export function buildMultiColourGraphicEmboss(meta, params, traceData) {
+  params = hoodieGraphicParams(params);
   if (!traceData?.multiColour || !traceData.colorLayers?.length) return null;
   traceData = fillLightLayerGapsForExport(traceData, params);
   const parts = [];
@@ -4019,6 +4028,7 @@ function buildWrapGoldenSlabEmboss(frame, bitmap, params, maskW, maskH, d0, d1) 
 }
 
 export function buildEmbossBitmap(meta, params, bitmap) {
+  params = hoodieGraphicParams(params);
   bitmap = ensureEmbossBitmapMask(bitmap);
   if (!bitmap?.width || !bitmap.height) return null;
   const frame = getEmbossFaceFrame(meta, params.embossFace || "front", params);
@@ -4741,6 +4751,7 @@ function extrudeSvgFillRings(outPos, outIdx, fillRingItems, layout, params, view
 }
 
 export function buildEmbossSvg(meta, params, svgText) {
+  params = hoodieGraphicParams(params);
   const parsed = parseSvgPaths(svgText, { maxPoints: svgPathMaxPoints(params) });
   const layout = computeSvgArtLayout(parsed, meta, params);
   if (!layout) return null;
@@ -4931,7 +4942,9 @@ export function getEmbossFaceFrame(meta, face, params = null) {
     const yOut = chest && Number.isFinite(chestY)
       ? (useFace === "front" ? chestY : -chestY)
       : (useFace === "front" ? -b.od2 : b.od2);
-    const centerZ = chest ? b.totalH * 0.50 : b.totalH * 0.72;
+    const centerZ = chest
+      ? (useFace === "back" ? b.totalH * 0.62 : b.totalH * 0.50)
+      : b.totalH * 0.72;
     return {
       face: useFace,
       faceW: chest ? Math.min(b.outerW, 90) : b.outerW,
@@ -4943,6 +4956,9 @@ export function getEmbossFaceFrame(meta, face, params = null) {
         if (chest && useFace === "front" && meta.chestField) {
           const sampled = sampleHoodieChestY(meta.chestField, x, py);
           if (Number.isFinite(sampled)) yBase = sampled - HOODIE_ART_PROUD_MM;
+        } else if (chest && useFace === "back" && meta.backField) {
+          const sampled = sampleHoodieBackY(meta.backField, x, py);
+          if (Number.isFinite(sampled)) yBase = sampled + HOODIE_ART_PROUD_MM;
         }
         const y = yBase + yDir * offset;
         return [x, y, py];
@@ -5293,7 +5309,7 @@ export function buildLabelEmbossParts(meta, params, svgText = "", mode = "emboss
 
 /** Graphic-only label (SVG/trace) — for body export when text is a separate colour. */
 export function buildLabelGraphicEmboss(meta, params, svgText = "", mode = "emboss") {
-  const p = { ...params, embossText: "", __embossMode: mode };
+  const p = hoodieGraphicParams({ ...params, embossText: "", __embossMode: mode });
   if (isLabelExport(p)) return buildGraphicLabelExportMesh(meta, p, svgText);
   return labelEmbossParts(meta, p, svgText, mode).graphic;
 }

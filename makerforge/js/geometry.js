@@ -28,8 +28,8 @@ import {
   shapeSupportsProfileArt,
   shapeSupportsArt,
   STACK_LIP_MM,
-} from "./features.js?v=587";
-import { getHoodieStubbyCache } from "./hoodie-stubby.js?v=587";
+} from "./features.js?v=588";
+import { getHoodieStubbyCache } from "./hoodie-stubby.js?v=588";
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=161";
 import { buildOoshieStand, ooshieMeta, OOSHIE_DEFAULTS } from "./ooshie-stand.js?v=576";
@@ -2325,6 +2325,7 @@ function buildHoodieStubbyContainer(params) {
     ...loaded.meta,
     totalH: loaded.meta.outer.h,
     chestField: loaded.chestField,
+    backField: loaded.backField,
   };
   const boxShell = {
     positions: mesh.positions.slice(),
@@ -2367,6 +2368,7 @@ function buildHoodieStubbyContainer(params) {
     debossCutterMesh,
     holderParts: null,
     chestField: loaded.chestField,
+    backField: loaded.backField,
   };
 }
 

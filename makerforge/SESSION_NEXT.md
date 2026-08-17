@@ -4,6 +4,12 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b588 — Hoodie text on the back
+**Date:** 2026-08-17
+
+### MakerDeck
+- Face dropdown now has Front (chest logo) and Back (text). Logo stays on the chest. Hard refresh MakerDeck **b588**. Art tab → Face → Back — text.
+
 ## b587 — Stubby holder loads again
 **Date:** 2026-08-17
 

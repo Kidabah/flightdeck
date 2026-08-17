@@ -57,31 +57,37 @@ function round1(n) {
   return Math.round(n * 10) / 10;
 }
 
-function chestFrontY(positions) {
+function chestBandYs(positions, wantFront) {
   const ys = [];
   for (let i = 0; i < positions.length; i += 3) {
     const x = positions[i], y = positions[i + 1], z = positions[i + 2];
-    if (z >= 58 && z <= 102 && Math.abs(x) < 28 && y < 0) ys.push(y);
+    if (z >= 58 && z <= 102 && Math.abs(x) < 28 && (wantFront ? y < 0 : y > 0)) ys.push(y);
   }
   if (!ys.length) return null;
   ys.sort((a, b) => a - b);
-  return ys[Math.floor(ys.length * 0.12)];
+  return wantFront ? ys[Math.floor(ys.length * 0.12)] : ys[Math.floor(ys.length * 0.88)];
 }
 
-function buildChestHeightfield(positions, indices) {
+function chestFrontY(positions) {
+  return chestBandYs(positions, true);
+}
+
+function buildSurfaceHeightfield(positions, indices, side) {
+  const front = side === "front";
   const xMin = -52, xMax = 52, zMin = 8, zMax = 148;
   const nx = 96, nz = 128;
+  const empty = front ? Infinity : -Infinity;
   const best = new Float32Array(nx * nz);
-  best.fill(Infinity);
-  const chestY = chestFrontY(positions);
-  const yCut = Number.isFinite(chestY) ? chestY + 8 : 0;
+  best.fill(empty);
+  const bandY = chestBandYs(positions, front);
+  const yCut = Number.isFinite(bandY) ? (front ? bandY + 8 : bandY - 8) : 0;
   const splat = (x, y, z) => {
-    if (!(y < yCut)) return;
+    if (front ? !(y < yCut) : !(y > yCut)) return;
     const ix = Math.round((x - xMin) / (xMax - xMin) * (nx - 1));
     const iz = Math.round((z - zMin) / (zMax - zMin) * (nz - 1));
     if (ix < 0 || iz < 0 || ix >= nx || iz >= nz) return;
     const k = iz * nx + ix;
-    if (y < best[k]) best[k] = y;
+    if (front ? y < best[k] : y > best[k]) best[k] = y;
   };
   if (indices?.length) {
     for (let t = 0; t < indices.length; t += 3) {
@@ -92,7 +98,7 @@ function buildChestHeightfield(positions, indices) {
       const e1x = bx - ax, e1y = by - ay, e1z = bz - az;
       const e2x = cx - ax, e2y = cy - ay, e2z = cz - az;
       const ny = e1z * e2x - e1x * e2z;
-      if (!(ny < 0)) continue;
+      if (front ? !(ny < 0) : !(ny > 0)) continue;
       splat(ax, ay, az);
       splat(bx, by, bz);
       splat(cx, cy, cz);
@@ -100,12 +106,13 @@ function buildChestHeightfield(positions, indices) {
   } else {
     for (let i = 0; i < positions.length; i += 3) splat(positions[i], positions[i + 1], positions[i + 2]);
   }
+  const isFilled = (v) => Number.isFinite(v) && v !== empty;
   for (let pass = 0; pass < 16; pass++) {
     let filledAny = false;
     for (let iz = 0; iz < nz; iz++) {
       for (let ix = 0; ix < nx; ix++) {
         const k = iz * nx + ix;
-        if (best[k] !== Infinity) continue;
+        if (isFilled(best[k])) continue;
         let acc = 0, n = 0;
         for (let dz = -1; dz <= 1; dz++) {
           for (let dx = -1; dx <= 1; dx++) {
@@ -113,7 +120,7 @@ function buildChestHeightfield(positions, indices) {
             const jx = ix + dx, jz = iz + dz;
             if (jx < 0 || jz < 0 || jx >= nx || jz >= nz) continue;
             const v = best[jz * nx + jx];
-            if (Number.isFinite(v) && v !== Infinity) {
+            if (isFilled(v)) {
               acc += v;
               n++;
             }
@@ -137,7 +144,7 @@ function buildChestHeightfield(positions, indices) {
             const jx = ix + dx, jz = iz + dz;
             if (jx < 0 || jz < 0 || jx >= nx || jz >= nz) continue;
             const v = best[jz * nx + jx];
-            if (!Number.isFinite(v) || v === Infinity) continue;
+            if (!isFilled(v)) continue;
             acc += v;
             n++;
           }
@@ -147,30 +154,36 @@ function buildChestHeightfield(positions, indices) {
     }
     best.set(next);
   }
-  return { y: best, xMin, xMax, zMin, zMax, nx, nz };
+  return { y: best, xMin, xMax, zMin, zMax, nx, nz, side };
 }
 
-function finiteFrontY(v) {
-  return Number.isFinite(v) && v !== Infinity ? v : null;
+function buildChestHeightfield(positions, indices) {
+  return buildSurfaceHeightfield(positions, indices, "front");
 }
 
-function sampleChestY(field, x, z) {
+function finiteFieldY(v, empty) {
+  return Number.isFinite(v) && v !== empty ? v : null;
+}
+
+function sampleSurfaceY(field, x, z) {
   if (!field) return null;
   const { y, xMin, xMax, zMin, zMax, nx, nz } = field;
+  const empty = field.side === "back" ? -Infinity : Infinity;
+  const pick = field.side === "back" ? Math.max : Math.min;
   const fx = (x - xMin) / (xMax - xMin) * (nx - 1);
   const fz = (z - zMin) / (zMax - zMin) * (nz - 1);
   if (fx < 0 || fz < 0 || fx > nx - 1 || fz > nz - 1) return null;
   const x0 = Math.floor(fx), z0 = Math.floor(fz);
   const x1 = Math.min(nx - 1, x0 + 1), z1 = Math.min(nz - 1, z0 + 1);
   const tx = fx - x0, tz = fz - z0;
-  const v00 = finiteFrontY(y[z0 * nx + x0]);
-  const v10 = finiteFrontY(y[z0 * nx + x1]);
-  const v01 = finiteFrontY(y[z1 * nx + x0]);
-  const v11 = finiteFrontY(y[z1 * nx + x1]);
+  const v00 = finiteFieldY(y[z0 * nx + x0], empty);
+  const v10 = finiteFieldY(y[z0 * nx + x1], empty);
+  const v01 = finiteFieldY(y[z1 * nx + x0], empty);
+  const v11 = finiteFieldY(y[z1 * nx + x1], empty);
   const vals = [v00, v10, v01, v11];
   if (vals.some((v) => v == null)) {
     const ok = vals.filter((v) => v != null);
-    return ok.length ? Math.min(...ok) : null;
+    return ok.length ? pick(...ok) : null;
   }
   const v0 = v00 * (1 - tx) + v10 * tx;
   const v1 = v01 * (1 - tx) + v11 * tx;
@@ -178,7 +191,11 @@ function sampleChestY(field, x, z) {
 }
 
 export function sampleHoodieChestY(field, x, z) {
-  return sampleChestY(field, x, z);
+  return sampleSurfaceY(field, x, z);
+}
+
+export function sampleHoodieBackY(field, x, z) {
+  return sampleSurfaceY(field, x, z);
 }
 
 function metaFromMesh(positions) {
@@ -225,6 +242,7 @@ function meshFromStlBuffer(buffer) {
     indices,
     meta: metaFromMesh(positions),
     chestField: buildChestHeightfield(positions, indices),
+    backField: buildSurfaceHeightfield(positions, indices, "back"),
   };
 }
 
@@ -244,6 +262,7 @@ export async function ensureHoodieStubbyMesh() {
         mesh: { positions: loaded.positions, indices: loaded.indices },
         meta: loaded.meta,
         chestField: loaded.chestField,
+        backField: loaded.backField,
       };
       return cache;
     })();

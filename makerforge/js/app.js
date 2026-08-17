@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, HOODIE_STUBBY_PRESET, ANIMAL_PRESET, SIGN_PRESET, TEMORA_VET_SIGN_PRESET, TEMORA_VET_CELTIC_SVG_URL, isDrinkHolderShape } from "./geometry.js?v=587";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, resolveEmbossFontWeight, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=587";
+import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, HOODIE_STUBBY_PRESET, ANIMAL_PRESET, SIGN_PRESET, TEMORA_VET_SIGN_PRESET, TEMORA_VET_CELTIC_SVG_URL, isDrinkHolderShape } from "./geometry.js?v=588";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, resolveEmbossFontWeight, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=588";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=370";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=374";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=587";
@@ -16,7 +16,7 @@ import {
 } from "./export-folder.js?v=368";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
-import { ensureHoodieStubbyMesh } from "./hoodie-stubby.js?v=587";
+import { ensureHoodieStubbyMesh } from "./hoodie-stubby.js?v=588";
 import {
   MAX_ACCENT_BANDS,
   newAccentBand,
@@ -36,7 +36,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b587";
+const MAKERDECK_BUILD = "b588";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -3688,7 +3688,7 @@ function applyPreset(shape) {
   }
   if (shape === "stubbyHolder") {
     state.lidEnabled = false;
-    state.embossFace = "front";
+    if (state.embossFace !== "front" && state.embossFace !== "back") state.embossFace = "front";
   }
   if (isCanisterShape(shape)) {
     document.getElementById("stackable-enabled").checked = !!state.stackableEnabled;
@@ -3853,7 +3853,7 @@ async function applyHoodieStubby() {
   rebuild();
   pushAppHistory();
   if (meshCache) fitCamera(meshCache.meta);
-  if (status) status.textContent = "Hoodie stubby — drop a PNG on the Art tab for the chest logo.";
+  if (status) status.textContent = "Hoodie stubby — chest logo on Graphic, or Face → Back for text.";
 }
 
 /** Load Temora Vet Clinic plaque: 180×120 sign, exact text, Celtic frame SVG. */
@@ -6347,6 +6347,10 @@ function syncEmbossFaceUi() {
   const hoodie = state.shape === "stubbyHolder";
   const profileArt = shapeSupportsProfileArt(state.shape);
   const lidOn = state.lidEnabled && shapeSupportsLid(state.shape);
+  const frontOpt = select.querySelector('option[value="front"]');
+  const backOpt = select.querySelector('option[value="back"]');
+  if (frontOpt) frontOpt.textContent = hoodie ? "Front — chest logo" : "Front";
+  if (backOpt) backOpt.textContent = hoodie ? "Back — text" : "Back";
   const wrapOpt = select.querySelector('option[value="wrap"]');
   for (const opt of select.options) {
     if (opt.value === "wrap") {
@@ -6356,15 +6360,17 @@ function syncEmbossFaceUi() {
       opt.hidden = true;
       opt.disabled = true;
     } else if (hoodie) {
-      const frontOnly = opt.value === "front";
-      opt.hidden = !frontOnly;
-      opt.disabled = !frontOnly;
+      const ok = opt.value === "front" || opt.value === "back";
+      opt.hidden = !ok;
+      opt.disabled = !ok;
     } else {
       opt.hidden = false;
       opt.disabled = opt.value === "lid" && !lidOn;
     }
   }
-  if (hoodie) state.embossFace = "front";
+  if (hoodie && state.embossFace !== "front" && state.embossFace !== "back") {
+    state.embossFace = "front";
+  }
   if (profileArt && state.embossFace !== "wrap") {
     state.embossFace = "wrap";
   }
@@ -6380,7 +6386,10 @@ function syncEmbossFaceUi() {
   const hint = document.getElementById("emboss-face-hint");
   if (hint) {
     if (hoodie && face === "front") {
-      hint.textContent = "Logo sits on the hoodie chest as a separate colour part — same as other MakerDeck art.";
+      hint.textContent = "Chest logo stays on the front. Pick Back to put Text on the rear.";
+      hint.classList.remove("hidden");
+    } else if (hoodie && face === "back") {
+      hint.textContent = "Text sits on the back. The chest logo stays on the front.";
       hint.classList.remove("hidden");
     } else if (profileArt && face === "wrap") {
       hint.textContent = "Art wraps around the outer wall — great for logos and patterns on pots.";
@@ -7138,7 +7147,7 @@ document.getElementById("emboss-face").addEventListener("change", (e) => {
   state.embossFace = e.target.value;
   syncEmbossFaceUi();
   syncArtEditorUi();
-  if (traceSourceCanvas) runTraceAsync();
+  if (traceSourceCanvas && state.shape !== "stubbyHolder") runTraceAsync();
   scheduleArtRebuild(true);
   pushAppHistory();
 });
