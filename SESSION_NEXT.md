@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-17 Session update (Hoodie back text through the wall)
 
-Latest commit: (this push) — MakerDeck **b593**, back stamp uses the outer fabric only.
+Latest commit: `32986c3` — MakerDeck **b593**, back stamp uses the outer fabric only.
 
 Latest local/Pi change:
 - Back LITTLE was shredded through the well wall because the heightfield kept every vertex past Y=2 (inner well + outer skin). It now only samples the outer back. Front chest path unchanged. Hard refresh (`app.js?v=700`, MakerDeck `app.js?v=593` / **b593**). Header **b593**. Re-click Stubby holder.
