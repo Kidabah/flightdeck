@@ -6,9 +6,19 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
-## 2026-08-17 Session update (Hoodie Bambu object_1 volumes)
+## 2026-08-17 Session update (Hoodie separate objects + bed foot)
 
-Latest commit: *(pending)* — MakerDeck **b610**, hoodie colours are volumes inside **one** `object_1.model` (how Studio actually saves multi-part objects).
+Latest commit: *(pending)* — MakerDeck **b611**, hoodie colours as **separate objects** (the only H2C path that used red/black) with a hidden bed foot so Studio cannot drop the crest.
+
+Latest local/Pi change:
+- Paint / assembled volumes never made H2C use extra filaments. b606 did — then auto-drop put art on the plate. Each art mesh now has a tiny foot at body Z. Hard refresh (`app.js?v=718`, MakerDeck `app.js?v=611` / **b611**). Header **b611**. Re-export. Prepare should list Body + Art (not one lump). Slice Filament view: white/red/black; crest still on the chest. Do not click Repair.
+
+Previous:
+- Hoodie Bambu object_1 volumes (`37a10d3`).
+
+---
+
+Latest commit: `37a10d3` — MakerDeck **b610**, hoodie colours are volumes inside **one** `object_1.model` (how Studio actually saves multi-part objects).
 
 Latest local/Pi change:
 - b609 was still the wrong production layout (one file per colour). H2C ignored those part extruders — same all-white slice, right nozzle empty, mid-plate. Hard refresh (`app.js?v=717`, MakerDeck `app.js?v=610` / **b610**). Header **b610**. Re-export a **new** 3MF. Prepare tab: one hoodie with Body / Art parts. Filament view: white/red/black. Grouping left=1, right=2+3. Do not click Repair.

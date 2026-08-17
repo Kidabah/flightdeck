@@ -4,6 +4,12 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b611 — Hoodie separate objects + bed foot
+**Date:** 2026-08-17
+
+### MakerDeck
+- H2C ignores assembled/painted volume extruders. b606 separate objects coloured correctly then dropped the crest. Art meshes get a hidden foot at body Z so `ensure_on_bed` cannot dump them. Hard refresh **b611**. Re-export.
+
 ## b610 — Hoodie volumes in one object_1.model
 **Date:** 2026-08-17
 
