@@ -614,7 +614,7 @@ function packColoredProject3mf({
   }).join("\n    ");
   const modelXml = `<?xml version="1.0" encoding="UTF-8"?>
 <model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06" xmlns:BambuStudio="http://schemas.bambulab.com/package/2021">
-  <metadata name="Application">BambuStudio</metadata>
+  <metadata name="Application">BambuStudio-01.09.00.00</metadata>
   <metadata name="BambuStudio:3mfVersion">1</metadata>
   <metadata name="Title">${escapeXml(projectName)}</metadata>
   <metadata name="MakerDeck-Triangles">${triangleCount}</metadata>
@@ -631,15 +631,20 @@ function packColoredProject3mf({
   const printerSettingsId = printer?.printer_settings_id || "Bambu Lab H2D 0.4 nozzle";
   const printSettingsId = printer?.print_settings_id || "0.20mm Standard @BBL H2D";
   const layerHeight = printer?.layerHeight;
+  const bedW = printer?.bedWidth ?? BAMBU_BED_WIDTH_MM;
+  const bedD = printer?.bedDepth ?? BAMBU_BED_DEPTH_MM;
+  const nozzleDia = String(printer?.nozzleDiameter ?? 0.4);
   const projectSettings = JSON.stringify({
-    from: "BambuStudio",
+    from: "project",
     // Bambu uses this as the embedded process profile id — must NOT be the model filename.
     name: "project_settings",
-    version: "2.2.0",
+    version: "01.09.00.00",
     printer_model: printerModel,
     printer_settings_id: printerSettingsId,
     print_settings_id: printSettingsId,
-    printable_area: ["0x0", `${BAMBU_BED_WIDTH_MM}x0`, `${BAMBU_BED_WIDTH_MM}x${BAMBU_BED_DEPTH_MM}`, `0x${BAMBU_BED_DEPTH_MM}`],
+    nozzle_diameter: [nozzleDia, nozzleDia],
+    extruder_type: ["Direct Drive", "Direct Drive"],
+    printable_area: ["0x0", `${bedW}x0`, `${bedW}x${bedD}`, `0x${bedD}`],
     printable_height: "325",
     filament_type: filament.filamentType,
     filament_colour: filament.slotColors,
