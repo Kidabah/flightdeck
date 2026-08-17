@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-17 Session update (Stubby holder empty after b586)
 
-Latest commit: MakerDeck **b587** — one hoodie-stubby module instance.
+Latest commit: `b5bbbe7` — MakerDeck **b587**, one hoodie-stubby module instance.
 
 Latest local/Pi change:
 - Clicking Stubby holder loaded the STL into one JS cache and built the mesh from another (empty) because `hoodie-stubby.js?v=586` vs `?v=585`. Hard refresh (`app.js?v=694`, MakerDeck `app.js?v=587` / **b587**). Header must say **b587**. Click Stubby holder again.
