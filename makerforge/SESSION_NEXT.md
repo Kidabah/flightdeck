@@ -4,6 +4,12 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b593 — Back text stays on the outer fabric
+**Date:** 2026-08-17
+
+### MakerDeck
+- Back field was mixing the drink-well wall with the outer skin (`y > 2`), so LITTLE stretched through the cylinder. Outer-back only now. Front unchanged. Hard refresh MakerDeck **b593**. Re-click Stubby holder.
+
 ## b592 — Undo b591 front spikes
 **Date:** 2026-08-17
 

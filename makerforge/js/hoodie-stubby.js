@@ -80,31 +80,34 @@ function buildSurfaceHeightfield(positions, indices, side) {
   const best = new Float32Array(nx * nz);
   best.fill(empty);
   const bandY = chestBandYs(positions, front);
-  const yCut = Number.isFinite(bandY) ? (front ? bandY + 8 : bandY - 12) : 0;
+  const yCut = Number.isFinite(bandY) ? (front ? bandY + 8 : bandY - 8) : 0;
   const splat = (x, y, z) => {
-    if (front ? !(y < yCut) : !(y > Math.min(yCut, 2))) return;
+    if (front ? !(y < yCut) : !(y > yCut)) return;
     const ix = Math.round((x - xMin) / (xMax - xMin) * (nx - 1));
     const iz = Math.round((z - zMin) / (zMax - zMin) * (nz - 1));
     if (ix < 0 || iz < 0 || ix >= nx || iz >= nz) return;
     const k = iz * nx + ix;
     if (front ? y < best[k] : y > best[k]) best[k] = y;
   };
-  if (front && indices?.length) {
+  if (indices?.length) {
     for (let t = 0; t < indices.length; t += 3) {
       const ia = indices[t] * 3, ib = indices[t + 1] * 3, ic = indices[t + 2] * 3;
       const ax = positions[ia], ay = positions[ia + 1], az = positions[ia + 2];
       const bx = positions[ib], by = positions[ib + 1], bz = positions[ib + 2];
       const cx = positions[ic], cy = positions[ic + 1], cz = positions[ic + 2];
-      const e1x = bx - ax, e1y = by - ay, e1z = bz - az;
-      const e2x = cx - ax, e2y = cy - ay, e2z = cz - az;
-      const ny = e1z * e2x - e1x * e2z;
-      if (!(ny < 0)) continue;
+      if (front) {
+        const e1x = bx - ax, e1y = by - ay, e1z = bz - az;
+        const e2x = cx - ax, e2y = cy - ay, e2z = cz - az;
+        const ny = e1z * e2x - e1x * e2z;
+        if (!(ny < 0)) continue;
+      } else if ((ay + by + cy) / 3 <= yCut) {
+        continue;
+      }
       splat(ax, ay, az);
       splat(bx, by, bz);
       splat(cx, cy, cz);
     }
   } else {
-    // Back: outer envelope (max Y). Skip the well interior by keeping y > 0.
     for (let i = 0; i < positions.length; i += 3) splat(positions[i], positions[i + 1], positions[i + 2]);
   }
   const isFilled = (v) => Number.isFinite(v) && v !== empty;
@@ -136,31 +139,28 @@ function buildSurfaceHeightfield(positions, indices, side) {
     }
     if (!filledAny) break;
   }
-  // Front only: mean-blur closes the kangaroo pocket. Do not blur the back
-  // envelope — that buries lettering inside the hoodie.
-  if (front) {
-    for (let pass = 0; pass < 5; pass++) {
-      const next = new Float32Array(best);
-      for (let iz = 0; iz < nz; iz++) {
-        for (let ix = 0; ix < nx; ix++) {
-          let acc = 0, n = 0;
-          for (let dz = -1; dz <= 1; dz++) {
-            for (let dx = -1; dx <= 1; dx++) {
-              const jx = ix + dx, jz = iz + dz;
-              if (jx < 0 || jz < 0 || jx >= nx || jz >= nz) continue;
-              const v = best[jz * nx + jx];
-              if (!isFilled(v)) continue;
-              acc += v;
-              n++;
-            }
+  // Smooth cliffs so the stamp does not stretch through the wall.
+  for (let pass = 0; pass < 5; pass++) {
+    const next = new Float32Array(best);
+    for (let iz = 0; iz < nz; iz++) {
+      for (let ix = 0; ix < nx; ix++) {
+        let acc = 0, n = 0;
+        for (let dz = -1; dz <= 1; dz++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            const jx = ix + dx, jz = iz + dz;
+            if (jx < 0 || jz < 0 || jx >= nx || jz >= nz) continue;
+            const v = best[jz * nx + jx];
+            if (!isFilled(v)) continue;
+            acc += v;
+            n++;
           }
-          if (n) next[iz * nx + ix] = acc / n;
         }
+        if (n) next[iz * nx + ix] = acc / n;
       }
-      best.set(next);
     }
+    best.set(next);
   }
-  return { y: best, xMin, xMax, zMin, zMax, nx, nz, side };
+  return { y: best, xMin, xMax, zMin, zMax, nx, nz, side, ySkin: bandY };
 }
 
 function buildChestHeightfield(positions, indices) {
