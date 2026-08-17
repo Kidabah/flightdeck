@@ -4,6 +4,12 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b608 — Hoodie in the dual-nozzle zone
+**Date:** 2026-08-17
+
+### MakerDeck
+- H2C showed right nozzle empty because the hoodie sat on “Left nozzle only area” (origin). Assemble-only transform, dual overlap 25–325 mm. Hard refresh **b608**. Re-export.
+
 ## b607 — Hoodie logo painted on one object
 **Date:** 2026-08-17
 

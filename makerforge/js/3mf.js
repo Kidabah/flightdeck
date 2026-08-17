@@ -263,13 +263,16 @@ function buildBambuPlateJson({ identifyId, name, bbox, layerHeight = 0.2, nozzle
   });
 }
 
-/** Translate assembly bbox centre onto bed centre (plate-local, before grid offset). */
-function centeringOffsetOnBed(bbox, bedWidth = BAMBU_BED_WIDTH_MM, bedDepth = BAMBU_BED_DEPTH_MM) {
+/** Translate assembly bbox centre onto bed centre (plate-local, before grid offset).
+ * H2C dual-nozzle overlap is 25–325 mm. Sitting in 0–25 forces left-nozzle-only. */
+function centeringOffsetOnBed(bbox, bedWidth = BAMBU_BED_WIDTH_MM, bedDepth = BAMBU_BED_DEPTH_MM, dualNozzle = false) {
   if (!bbox) return { x: 0, y: 0, z: 0 };
+  const originX = dualNozzle ? 25 : 0;
+  const usableW = dualNozzle ? 300 : bedWidth;
   const cx = (bbox.minX + bbox.maxX) / 2;
   const cy = (bbox.minY + bbox.maxY) / 2;
   return {
-    x: bedWidth / 2 - cx,
+    x: originX + usableW / 2 - cx,
     y: bedDepth / 2 - cy,
     z: 0,
   };
@@ -303,11 +306,9 @@ function worldTransformForPlate(centerOffset, plateId, bedWidth = BAMBU_BED_WIDT
 }
 
 function buildItemXml(objectId, transform = null, { multiPlate = false } = {}) {
-  if (multiPlate || transform) {
-    const matrix = transform || formatTransform3x4(0, 0, 0);
-    return `<item objectid="${objectId}" transform="${matrix}" printable="1" auto_drop="0"/>`;
-  }
-  return `<item objectid="${objectId}"/>`;
+  // Placement lives on assemble_item only. Putting the same matrix on <item>
+  // makes H2C drop the model at the origin (left-nozzle-only strip).
+  return `<item objectid="${objectId}" printable="1" auto_drop="0"/>`;
 }
 
 function appendModelSettingsObject(lines, assemblyId, name, modelParts, singlePart) {
@@ -660,7 +661,7 @@ function packColoredProject3mf({
       "flush_multiplier",
     );
   }
-  if (amsHtLeft) printerDiff.push("extruder_ams_count");
+  if (amsHtLeft) printerDiff.push("extruder_ams_count", "extruder_printable_area");
   const projectSettings = JSON.stringify({
     from: "project",
     // Bambu uses this as the embedded process profile id — must NOT be the model filename.
@@ -684,7 +685,13 @@ function packColoredProject3mf({
     filament_map_mode: "Manual",
     physical_extruder_map: ["1", "0"],
     // Left nozzle = AMS HT (type 4); right nozzle = regular AMS (type 1).
-    ...(amsHtLeft ? { extruder_ams_count: ["1#0|4#1", "1#1|4#0"] } : {}),
+    ...(amsHtLeft ? {
+      extruder_ams_count: ["1#0|4#1", "1#1|4#0"],
+      extruder_printable_area: [
+        `0x0,325x0,325x${bedD},0x${bedD}`,
+        `25x0,330x0,330x${bedD},25x${bedD}`,
+      ],
+    } : {}),
     different_settings_to_system: buildDifferentSettingsToSystem(filament.maxExtruder, printDiff, printerDiff),
     ...(Number.isFinite(layerHeight) ? {
       layer_height: String(layerHeight),
@@ -848,7 +855,12 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck", options
       objectId++;
     }
     if (!modelObjects.length) throw new Error("No valid mesh parts to export");
-    const centerOffset = centeringOffsetOnBed(localBBox);
+    const centerOffset = centeringOffsetOnBed(
+      localBBox,
+      printer?.bedWidth ?? BAMBU_BED_WIDTH_MM,
+      printer?.bedDepth ?? BAMBU_BED_DEPTH_MM,
+      !!printer?.amsHtLeft,
+    );
     const worldTransform = formatTransform3x4(centerOffset.x, centerOffset.y, centerOffset.z ?? 0);
     const plateBBox = translateAxisAlignedBBox(
       localBBox || { minX: 0, minY: 0, maxX: 1, maxY: 1 },
@@ -895,7 +907,12 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck", options
   const built = buildAssemblyFromParts(usable, projectName, 1, { plainSingle: false });
   if (!built) throw new Error("No valid mesh parts to export");
 
-  const centerOffset = centeringOffsetOnBed(built.localBBox);
+  const centerOffset = centeringOffsetOnBed(
+    built.localBBox,
+    printer?.bedWidth ?? BAMBU_BED_WIDTH_MM,
+    printer?.bedDepth ?? BAMBU_BED_DEPTH_MM,
+    !!printer?.amsHtLeft,
+  );
   const worldTransform = formatTransform3x4(centerOffset.x, centerOffset.y, centerOffset.z ?? 0);
   const plateBBox = translateAxisAlignedBBox(
     built.localBBox || { minX: 0, minY: 0, maxX: 1, maxY: 1 },
