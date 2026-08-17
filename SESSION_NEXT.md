@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-17 Session update (Hoodie runner in front of crest)
 
-Latest commit: *(pending)* — MakerDeck **b615**. b613’s sprue went *through* the body (Art Red ↔ Body at layer 79, empty layers, floating grey) so Studio dumped the art back to filament 1. Back to the b606 path that actually coloured: separate objects, crest **on** the chest (not embedded), 1.6 mm runner **in front of** the hoodie with a bar that joins the art.
+Latest commit: `67cc0ac` — MakerDeck **b615**. b613’s sprue went *through* the body (Art Red ↔ Body at layer 79, empty layers, floating grey) so Studio dumped the art back to filament 1. Back to the b606 path that actually coloured: separate objects, crest **on** the chest (not embedded), 1.6 mm runner **in front of** the hoodie with a bar that joins the art.
 
 Latest local/Pi change:
 - Hard refresh (`app.js?v=721`, MakerDeck `app.js?v=615` / **b615**). Header **b615**. Re-export a **new** 3MF. Prepare: Body + Art as separate objects. Expect two thin coloured sticks in front of the chest from the plate up to the crest — snip after print. Slice **Filament** view: white / red / black; grouping left=1, right=2+3. No Repair. No “Art Red ↔ Body”, no empty-layer, no floating grey.
