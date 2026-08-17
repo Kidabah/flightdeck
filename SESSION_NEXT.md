@@ -6,7 +6,17 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
-## 2026-08-17 Session update (Hoodie off the left-only strip)
+## 2026-08-17 Session update (Hoodie native volumes)
+
+Latest commit: `59527ce` — MakerDeck **b609**, hoodie colours are real Bambu volumes in **one** assembled object.
+
+Latest local/Pi change:
+- Placement was never the bug (model was already mid-plate). H2C ignores triangle `paint_color`; separate plate objects dropped the crest. Export now writes `3D/Objects/object_N.model` + one parent with `p:path` components. Hard refresh (`app.js?v=716`, MakerDeck `app.js?v=609` / **b609**). Header **b609**. Re-export a **new** 3MF. Object list = one hoodie; Filament view = white/red/black; grouping left=1, right=2+3; crest stays on the chest. Do not click Repair.
+
+Previous:
+- Hoodie off the left-only strip (`f194013`).
+
+---
 
 Latest commit: `f194013` — MakerDeck **b608**, hoodie sits in the H2C **dual-nozzle** zone (25–325 mm), not the left-nozzle-only strip.
 

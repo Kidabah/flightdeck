@@ -4,6 +4,12 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b609 — Hoodie native Bambu volumes
+**Date:** 2026-08-17
+
+### MakerDeck
+- Mid-plate placement was not the empty-nozzle bug. H2C does not treat triangle paint as volumes; separate objects dropped the crest. Hoodie 3MF is now production volumes (`3D/Objects/object_N.model`) under one assembled parent. Hard refresh **b609**. Re-export.
+
 ## b608 — Hoodie in the dual-nozzle zone
 **Date:** 2026-08-17
 
