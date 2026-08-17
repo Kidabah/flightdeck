@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-17 Session update (Hoodie AMS HT left only)
 
-Latest commit: `PENDING` — MakerDeck **b605**, left nozzle = **AMS HT**, right nozzle = **regular AMS**. White/red/black no longer all labelled HT-A.
+Latest commit: `42267fb` — MakerDeck **b605**, left nozzle = **AMS HT**, right nozzle = **regular AMS**. White/red/black no longer all labelled HT-A.
 
 Latest local/Pi change:
 - 3MF was missing `extruder_ams_count`, so Studio parked every PLA Basic on HT-A. Now left is `1#0|4#1` (HT) and right is `1#1|4#0` (AMS). Hard refresh (`app.js?v=712`, MakerDeck `app.js?v=605` / **b605**). Header **b605**. Re-export.
