@@ -4,6 +4,13 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b616 — H2C hoodie: one linked parent model, no runner
+**Date:** 2026-08-17
+
+### MakerDeck
+- b615's separate Body / Art Red / Art Dark grey objects (and its in-air runner) reproduce the Bambu conflicts, floating-region warnings, and all-white single-nozzle slice. Hoodie export is back to one Bambu parent model containing three linked volume meshes: CSG removes red/black space from the white body, trims colour-to-colour collisions, and writes the H2C left/right map (`1 2 2`). No plate runner or independent art object is emitted.
+- The root model carries `MakerDeck-Export=H2C-single-parent-volumes-b616`, and `test/h2c-3mf.mjs` asserts that the only printable build item is the parent object. Re-export after loading **b616**; old b615 files are structurally invalid for this workflow.
+
 ## b615 — Hoodie runner in front of the crest
 **Date:** 2026-08-17
 

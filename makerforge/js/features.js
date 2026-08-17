@@ -5155,11 +5155,11 @@ function labelOffsets(params) {
     return { d0: -depth - 0.05, d1: 0.4, depth, deboss: true };
   }
   if (params.__hoodieArtExport) {
-    // Sit on the chest, do not sink into the body. Embedded stamps overlap
-    // Body and H2C reports "Art Red <-> Body" then dumps the colour paths.
+    // Embed through the skin. The export CSG cuts this space from Body, so
+    // the art is supported but never shares printable material with it.
     const proud = 0.66;
-    const skin = 0.05;
-    return { d0: skin, d1: skin + proud, depth: proud, deboss: false };
+    const embed = 0.24;
+    return { d0: -embed, d1: proud, depth: proud + embed, deboss: false };
   }
   if (params.shape === "stubbyHolder") {
     const proud = 0.5;

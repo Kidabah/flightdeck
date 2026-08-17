@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, HOODIE_STUBBY_PRESET, ANIMAL_PRESET, SIGN_PRESET, TEMORA_VET_SIGN_PRESET, TEMORA_VET_CELTIC_SVG_URL, isDrinkHolderShape } from "./geometry.js?v=598";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, resolveEmbossFontWeight, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=615";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, resolveEmbossFontWeight, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=616";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=370";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges, countNonManifoldEdges } from "./stl.js?v=599";
-import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=615";
+import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=616";
 import {
   folderExportSupported,
   folderExportBlockedReason,
@@ -36,7 +36,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b615";
+const MAKERDECK_BUILD = "b616";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -1701,17 +1701,107 @@ function mergeHoodiePartsBySlot(parts) {
   });
 }
 
+function inflateMesh(mesh, mm) {
+  const pos = Array.from(mesh.positions);
+  const idx = mesh.indices;
+  const n = (pos.length / 3) | 0;
+  const acc = new Float32Array(n * 3);
+  for (let t = 0; t < idx.length; t += 3) {
+    const ia = idx[t];
+    const ib = idx[t + 1];
+    const ic = idx[t + 2];
+    const ax = pos[ia * 3];
+    const ay = pos[ia * 3 + 1];
+    const az = pos[ia * 3 + 2];
+    const bx = pos[ib * 3];
+    const by = pos[ib * 3 + 1];
+    const bz = pos[ib * 3 + 2];
+    const cx = pos[ic * 3];
+    const cy = pos[ic * 3 + 1];
+    const cz = pos[ic * 3 + 2];
+    const nx = (by - ay) * (cz - az) - (bz - az) * (cy - ay);
+    const ny = (bz - az) * (cx - ax) - (bx - ax) * (cz - az);
+    const nz = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+    acc[ia * 3] += nx;
+    acc[ia * 3 + 1] += ny;
+    acc[ia * 3 + 2] += nz;
+    acc[ib * 3] += nx;
+    acc[ib * 3 + 1] += ny;
+    acc[ib * 3 + 2] += nz;
+    acc[ic * 3] += nx;
+    acc[ic * 3 + 1] += ny;
+    acc[ic * 3 + 2] += nz;
+  }
+  for (let i = 0; i < n; i++) {
+    const x = acc[i * 3];
+    const y = acc[i * 3 + 1];
+    const z = acc[i * 3 + 2];
+    const len = Math.hypot(x, y, z) || 1;
+    pos[i * 3] += (x / len) * mm;
+    pos[i * 3 + 1] += (y / len) * mm;
+    pos[i * 3 + 2] += (z / len) * mm;
+  }
+  return { ...mesh, positions: pos };
+}
+
+/** Make the hoodie colours real, non-overlapping volumes in a single model. */
+async function resolveHoodieVolumeOverlaps(parts) {
+  const bodyIdx = parts.findIndex((part) => (part.extruder || 1) === 1);
+  const artIdx = [];
+  for (let i = 0; i < parts.length; i++) {
+    if (i !== bodyIdx && (parts[i].extruder || 1) > 1) artIdx.push(i);
+  }
+  if (bodyIdx < 0 || !artIdx.length) return parts;
+  let subtractMesh;
+  try {
+    ({ subtractMesh } = await import("./mesh-cut.js?v=24"));
+  } catch (err) {
+    console.error("hoodie CSG unavailable", err);
+    throw new Error("Hoodie colour volumes could not be prepared. Check your connection and export again.");
+  }
+  const next = parts.slice();
+  const clearance = 0.04;
+  for (const i of artIdx) {
+    try {
+      const cut = await subtractMesh(next[bodyIdx].mesh, inflateMesh(next[i].mesh, clearance));
+      if (!cut?.indices?.length) throw new Error("body subtraction returned no mesh");
+      next[bodyIdx] = { ...next[bodyIdx], mesh: prepareMeshFor3mf(cut) };
+    } catch (err) {
+      console.error("hoodie body/art CSG failed", next[i].name, err);
+      throw new Error(`Could not separate Body from ${next[i].name}. Rebuild the artwork and export again.`);
+    }
+  }
+  for (let a = 0; a < artIdx.length; a++) {
+    for (let b = a + 1; b < artIdx.length; b++) {
+      const i = artIdx[a];
+      const j = artIdx[b];
+      try {
+        const cut = await subtractMesh(next[i].mesh, inflateMesh(next[j].mesh, clearance));
+        if (!cut?.indices?.length) throw new Error("art subtraction returned no mesh");
+        next[i] = { ...next[i], mesh: prepareMeshFor3mf(cut) };
+      } catch (err) {
+        console.error("hoodie art subtract failed", next[i].name, next[j].name, err);
+        throw new Error(`Could not separate ${next[i].name} from ${next[j].name}. Rebuild the artwork and export again.`);
+      }
+    }
+  }
+  return next;
+}
+
+async function prepareHoodieExportParts(parts) {
+  return resolveHoodieVolumeOverlaps(mergeHoodiePartsBySlot(parts));
+}
+
 async function buildBody3mfExport(exportCache, parts) {
   const projectName = baseModelName(exportCache.meta);
   const exportParts = state.shape === "stubbyHolder"
-    ? mergeHoodiePartsBySlot(parts)
+    ? await prepareHoodieExportParts(parts)
     : parts;
   const hoodie3mf = state.shape === "stubbyHolder" ? {
     filamentPreset: "Bambu PLA Basic @BBL H2C",
-    // H2C only colours object-level extruders (b606). Runner sits in front
-    // of the crest so it does not collide with Body; a bar joins the art.
-    separateObjects: true,
-    artSprues: true,
+    // A single Bambu parent model, with non-overlapping body/red/black parts.
+    // This keeps chest art supported by Body without free-standing objects.
+    splitVolumes: true,
     printer: {
       printer_model: "Bambu Lab H2C",
       printer_settings_id: "Bambu Lab H2C 0.4 nozzle",

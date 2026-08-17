@@ -54,7 +54,10 @@ const root = files.get("3D/3dmodel.model") || "";
 const volumes = files.get("3D/Objects/object_1.model") || "";
 const settings = files.get("Metadata/model_settings.config") || "";
 
+assert.match(root, /<metadata name="MakerDeck-Export">H2C-single-parent-volumes-b616<\/metadata>/);
 assert.match(root, /<object id="4"[^>]*type="model">[\s\S]*<components>[\s\S]*objectid="1"[\s\S]*objectid="2"[\s\S]*objectid="3"/);
+assert.match(root, /<build>[\s\S]*<item objectid="4"/);
+assert.doesNotMatch(root, /<item objectid="[123]"/, "only the parent model may be a printable object");
 assert.equal((volumes.match(/<object id="\d+"/g) || []).length, 3, "one Bambu volume per colour");
 assert.match(volumes, /slic3rpe:extruder">1<\/metadata>/);
 assert.match(volumes, /slic3rpe:extruder">2<\/metadata>/);
@@ -66,4 +69,4 @@ assert.match(settings, /key="filament_maps" value="1 2 2"/);
 assert.match(settings, /key="filament_volume_maps" value="0 0 0"/);
 assert.ok(!volumes.includes("<component"), "colour volumes stay as meshes, not free-standing plate objects");
 
-console.log("PASS h2c 3MF volume export: 3 linked volumes, left/right filament maps, no sprue objects");
+console.log("PASS h2c 3MF volume export: b616 marker, one parent model, 3 linked volumes, left/right maps, no sprues");
