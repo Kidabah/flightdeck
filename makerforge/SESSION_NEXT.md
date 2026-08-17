@@ -4,6 +4,12 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b592 — Undo b591 front spikes
+**Date:** 2026-08-17
+
+### MakerDeck
+- b591’s front-most chest field sampled the pouch interior and exploded the shield. Restored pocket-close blur. Back drape unchanged. Hard refresh MakerDeck **b592**. Re-click Stubby holder, drop the PNG again.
+
 ## b591 — Hoodie letters sit on the pocket, not in it
 **Date:** 2026-08-17
 

@@ -6,6 +6,18 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-17 Session update (Undo b591 front field)
+
+Latest commit: (this push) — MakerDeck **b592**, chest logo field restored; back-only drape stays.
+
+Latest local/Pi change:
+- b591 sampled the pouch interior and exploded the front shield into spikes. Front heightfield is back to the pocket-close blur. Back text path unchanged. Hard refresh (`app.js?v=699`, MakerDeck `app.js?v=592` / **b592**). Header **b592**. Re-click Stubby holder and drop the PNG again.
+
+Previous:
+- Hoodie LITTLE Swiss cheese (`cd0ad7b`) — reverted.
+
+---
+
 ## 2026-08-17 Session update (Hoodie LITTLE Swiss cheese)
 
 Latest commit: `cd0ad7b` — MakerDeck **b591**, chest stamp follows the pocket skin.
