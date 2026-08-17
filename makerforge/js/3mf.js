@@ -496,7 +496,7 @@ function filterUsableParts(parts) {
   return (parts || []).filter((p) => p?.mesh?.positions?.length && p?.mesh?.indices?.length);
 }
 
-function buildFilamentSlots(usable) {
+function buildFilamentSlots(usable, defaultPreset = "Generic PLA @BBL H2D") {
   const maxExtruder = Math.max(1, ...usable.map((p) => partMaxExtruder(p)));
   const slotColors = Array.from({ length: maxExtruder }, (_, i) => {
     const slot = i + 1;
@@ -512,7 +512,7 @@ function buildFilamentSlots(usable) {
     for (const part of usable) {
       if ((part.extruder || 1) === slot && part.filamentPreset) return String(part.filamentPreset).trim();
     }
-    return "Generic PLA @BBL H2D";
+    return defaultPreset;
   };
   // filament_id from BambuStudio system profiles: PLA Pure=GFA19, PLA Basic=GFA00, PLA Matte=GFA01.
   const presetFilamentId = (preset) => {
@@ -606,6 +606,7 @@ function packColoredProject3mf({
   plainSingle = false,
   extraZipFiles = [],
   multiPlate = false,
+  printer = null,
 }) {
   const buildItems = buildEntries.map((entry) => {
     if (typeof entry === "number") return buildItemXml(entry, null, { multiPlate });
@@ -626,14 +627,18 @@ function packColoredProject3mf({
 </model>`;
 
   const multiColour = filament.maxExtruder > 1;
+  const printerModel = printer?.printer_model || "Bambu Lab H2D";
+  const printerSettingsId = printer?.printer_settings_id || "Bambu Lab H2D 0.4 nozzle";
+  const printSettingsId = printer?.print_settings_id || "0.20mm Standard @BBL H2D";
+  const layerHeight = printer?.layerHeight;
   const projectSettings = JSON.stringify({
     from: "BambuStudio",
     // Bambu uses this as the embedded process profile id — must NOT be the model filename.
     name: "project_settings",
     version: "2.2.0",
-    printer_model: "Bambu Lab H2D",
-    printer_settings_id: "Bambu Lab H2D 0.4 nozzle",
-    print_settings_id: "0.20mm Standard @BBL H2D",
+    printer_model: printerModel,
+    printer_settings_id: printerSettingsId,
+    print_settings_id: printSettingsId,
     printable_area: ["0x0", `${BAMBU_BED_WIDTH_MM}x0`, `${BAMBU_BED_WIDTH_MM}x${BAMBU_BED_DEPTH_MM}`, `0x${BAMBU_BED_DEPTH_MM}`],
     printable_height: "325",
     filament_type: filament.filamentType,
@@ -646,6 +651,10 @@ function packColoredProject3mf({
     filament_map: buildH2DFilamentMap(filament.maxExtruder),
     filament_map_mode: "Manual",
     physical_extruder_map: ["1", "0"],
+    ...(Number.isFinite(layerHeight) ? {
+      layer_height: String(layerHeight),
+      initial_layer_print_height: String(layerHeight),
+    } : {}),
     // Tall multi-colour logos (hoodie crest) otherwise AMS-swap hundreds of times
     // into a prime tower. Purge into the body instead.
     ...(multiColour ? {
@@ -779,7 +788,8 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck", options
   const usable = filterUsableParts(parts);
   if (!usable.length) throw new Error("No geometry to export");
 
-  const filament = buildFilamentSlots(usable);
+  const filament = buildFilamentSlots(usable, options.filamentPreset);
+  const printer = options.printer || null;
   const separateObjects = !!options.separateObjects;
 
   if (separateObjects) {
@@ -821,6 +831,8 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck", options
           identifyId: modelObjects[0].id,
           name: projectName,
           bbox: plateBBox,
+          layerHeight: printer?.layerHeight ?? 0.2,
+          nozzleDiameter: printer?.nozzleDiameter ?? 0.4,
         })),
       },
       { name: "Metadata/plate_1.png", data: MINIMAL_PLATE_PNG },
@@ -838,6 +850,7 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck", options
       plainSingle: false,
       extraZipFiles,
       multiPlate: true,
+      printer,
     });
   }
 
@@ -867,6 +880,8 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck", options
         identifyId: built.buildObjectId,
         name: projectName,
         bbox: plateBBox,
+        layerHeight: printer?.layerHeight ?? 0.2,
+        nozzleDiameter: printer?.nozzleDiameter ?? 0.4,
       })),
     },
     { name: "Metadata/plate_1.png", data: MINIMAL_PLATE_PNG },
@@ -885,6 +900,7 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck", options
     plainSingle: false,
     extraZipFiles,
     multiPlate: true,
+    printer,
   });
 }
 
