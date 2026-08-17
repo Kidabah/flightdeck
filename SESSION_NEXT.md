@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-17 Session update (Hoodie shield slice + manifold)
 
-Latest commit: (this push) — MakerDeck **b589**, 3MF sanitiser peels 3+ face edges; crest embeds into the fabric.
+Latest commit: `edb6a7c` — MakerDeck **b589**, 3MF sanitiser peels 3+ face edges; crest embeds into the fabric.
 
 Latest local/Pi change:
 - Bambu’s “24 non-manifold edges” on `stubby-holder-65x145mm` was real: the sanitiser only counted **open** (1-face) edges, so a closed hoodie with 3-face edges skipped repair. Shield also sat ~0.04 mm off the chest so the slice could drop it. Hard refresh (`app.js?v=696`, MakerDeck `app.js?v=589` / **b589**). Header **b589**. Re-click Stubby holder, re-drop the PNG, re-export 3MF. **Do not click Repair.** Side view: crest and back text should sit in the fabric.
