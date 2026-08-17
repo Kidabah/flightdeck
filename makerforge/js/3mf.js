@@ -538,7 +538,7 @@ function buildFilamentSlots(usable, defaultPreset = "Generic PLA @BBL H2D") {
 function buildH2DFilamentMap(slotCount, allLeft = false) {
   const n = Math.max(1, slotCount);
   if (allLeft || n <= 1) return Array.from({ length: n }, () => "1");
-  // Default: body left, extra colours right. Hoodie sets singleNozzle so flush-into-body works.
+  // Body on left (AMS HT); extra colours on the right nozzle.
   return Array.from({ length: n }, (_, i) => (i === 0 ? "1" : "2"));
 }
 
@@ -680,13 +680,13 @@ function packColoredProject3mf({
       layer_height: String(layerHeight),
       initial_layer_print_height: String(layerHeight),
     } : {}),
-    // Tall multi-colour logos (hoodie crest) otherwise AMS-swap hundreds of times
-    // into a prime tower. Purge into the body instead.
+    // Dual-nozzle art (hoodie: white left / red+black right) needs a prime tower —
+    // the right nozzle cannot purge into left-nozzle infill. All-left maps skip the tower.
     ...(multiColour ? {
       flush_into_infill: "1",
       flush_into_objects: "1",
-      enable_prime_tower: "0",
-      enable_tower_interface_features: "0",
+      enable_prime_tower: allLeft ? "0" : "1",
+      enable_tower_interface_features: allLeft ? "0" : "1",
       flush_multiplier: ["0.4", "0.4"],
     } : {}),
   });

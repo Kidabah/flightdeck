@@ -4,6 +4,12 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b604 — Hoodie dual nozzle (white left, art right)
+**Date:** 2026-08-17
+
+### MakerDeck
+- b602 pinned all slots to the left, so AMS HT white + right-nozzle red/black showed an empty right nozzle. Body → left, red/black → right, tower on. Hard refresh **b604**. Re-export.
+
 ## b603 — Hoodie dark grey stays black
 **Date:** 2026-08-17
 
