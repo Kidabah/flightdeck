@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-17 Session update (Hoodie text on the back)
 
-Latest commit: MakerDeck **b588** — Face Back puts text on the rear, chest logo stays.
+Latest commit: `7007588` — MakerDeck **b588**, Face Back puts text on the rear, chest logo stays.
 
 Latest local/Pi change:
 - Stubby holder Face is Front or Back. PNG/logo stays on the chest; Text on Back drapes on the rear fabric. Hard refresh (`app.js?v=695`, MakerDeck `app.js?v=588` / **b588**). Header **b588**. Art tab → Face → **Back — text**, then type on the Text pane.
