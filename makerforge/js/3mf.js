@@ -132,7 +132,7 @@ function paintCodeForExtruder(extruder) {
   return PAINT_COLOR_CODES[Math.max(0, Math.min(15, (extruder || 1) - 1))];
 }
 
-function meshTo3mfResources(mesh, objectId, name, extruder, { resanitize = false, plain = false, triangleExtruders = null } = {}) {
+function meshTo3mfResources(mesh, objectId, name, extruder, { resanitize = false, plain = false, triangleExtruders = null, uuid = null } = {}) {
   const clean = resanitize ? sanitizeMeshForStl(mesh) : mesh;
   if (!clean?.positions?.length || !clean?.indices?.length) return null;
 
@@ -164,8 +164,9 @@ function meshTo3mfResources(mesh, objectId, name, extruder, { resanitize = false
     : `<metadata name="Name">${escapeXml(name)}</metadata>
       <metadata name="slic3rpe:extruder">${extruder}</metadata>`;
 
+  const uuidAttr = uuid ? ` p:UUID="${uuid}"` : "";
   return {
-    objectXml: `<object id="${objectId}" type="model">
+    objectXml: `<object id="${objectId}"${uuidAttr} type="model">
       ${metaXml}
       <mesh>
         <vertices>${verts.join("")}</vertices>
@@ -324,9 +325,10 @@ function appendModelSettingsObject(lines, assemblyId, name, modelParts, singlePa
     lines.push("    </part>");
   } else {
     modelParts.forEach((part, i) => {
-      lines.push(`    <part id="${i + 1}" subtype="normal_part">`);
+      lines.push(`    <part id="${part.id || i + 1}" subtype="normal_part">`);
       lines.push(`      <metadata key="name" value="${escapeXml(part.name)}"/>`);
       lines.push(`      <metadata key="extruder" value="${part.extruder}"/>`);
+      lines.push(`      <metadata key="matrix" value="1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1"/>`);
       lines.push("    </part>");
     });
   }
@@ -627,13 +629,14 @@ function packColoredProject3mf({
   extraZipFiles = [],
   multiPlate = false,
   printer = null,
+  productionExt = false,
 }) {
   const buildItems = buildEntries.map((entry) => {
     if (typeof entry === "number") return buildItemXml(entry, null, { multiPlate });
     return buildItemXml(entry.objectId, entry.transform ?? null, { multiPlate });
   }).join("\n    ");
   const modelXml = `<?xml version="1.0" encoding="UTF-8"?>
-<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06" xmlns:BambuStudio="http://schemas.bambulab.com/package/2021">
+<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06" xmlns:BambuStudio="http://schemas.bambulab.com/package/2021"${productionExt ? ' requiredextensions="p"' : ""}>
   <metadata name="Application">BambuStudio-01.09.00.00</metadata>
   <metadata name="BambuStudio:3mfVersion">1</metadata>
   <metadata name="Title">${escapeXml(projectName)}</metadata>
@@ -833,63 +836,72 @@ export function buildMultiPlateColoredProject3mf(plates, projectName = "makerdec
 }
 
 const IDENTITY_TRANSFORM_3X4 = "1 0 0 0 1 0 0 0 1 0 0 0";
+const OBJECT_UUID_SUFFIX = "-61cb-4c03-9d28-80fed5dfa1dc";
+const SUB_OBJECT_UUID_SUFFIX = "-81cb-4c03-9d28-80fed5dfa1dc";
+const COMPONENT_UUID_SUFFIX = "-b206-40ff-9872-83e8017abed1";
 
-function meshToProductionObjectFile(mesh, objectId, name, extruder) {
-  const built = meshTo3mfResources(mesh, objectId, name, extruder, {
-    resanitize: false,
-    plain: true,
-  });
-  if (!built) return null;
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06" xmlns:b="http://schemas.bambulab.com/package/2021">
-  <resources>
-    ${built.objectXml}
-  </resources>
-  <build>
-    <item objectid="${objectId}"/>
-  </build>
-</model>`;
+function hex8(n) {
+  return (n >>> 0).toString(16).padStart(8, "0");
 }
 
 /**
- * Native Bambu production 3MF: each colour is a volume in 3D/Objects/object_N.model,
- * assembled as ONE printable parent so H2C uses part extruders without dropping art.
+ * Native Bambu production 3MF: ALL colour volumes live in one
+ * 3D/Objects/object_1.model (Bambu Studio's loader binds part extruders
+ * from that file). Parent in the root model is the only build item, so
+ * chest art cannot auto-drop off the hoodie.
  */
 function packSplitVolumeColoredProject3mf(usable, projectName, filament, printer) {
+  const backupId = 1;
+  const objectPath = "/3D/Objects/object_1.model";
   const extraZipFiles = [];
   const modelParts = [];
-  const rels = [];
+  const volumeXml = [];
   let localBBox = null;
   let triangleCount = 0;
-  let objectId = 1;
+  let volumeId = 1;
 
   for (const part of usable) {
-    const doc = meshToProductionObjectFile(part.mesh, objectId, part.name, part.extruder || 1);
-    if (!doc) continue;
-    extraZipFiles.push({ name: `3D/Objects/object_${objectId}.model`, data: encodeText(doc) });
-    rels.push(`  <Relationship Target="/3D/Objects/object_${objectId}.model" Id="rel${objectId}" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>`);
-    modelParts.push({ id: objectId, name: part.name, extruder: part.extruder || 1 });
+    const uuid = `${hex8((volumeId - 1) + (backupId << 16))}${SUB_OBJECT_UUID_SUFFIX}`;
+    const built = meshTo3mfResources(part.mesh, volumeId, part.name, part.extruder || 1, {
+      resanitize: false,
+      plain: false,
+      uuid,
+    });
+    if (!built) continue;
+    volumeXml.push(built.objectXml);
+    modelParts.push({ id: volumeId, name: part.name, extruder: part.extruder || 1 });
     localBBox = unionAxisAlignedBBox(localBBox, meshAxisAlignedBBox(part.mesh));
     triangleCount += Math.floor((part.mesh.indices?.length || 0) / 3);
-    objectId++;
+    volumeId++;
   }
   if (!modelParts.length) throw new Error("No valid mesh parts to export");
 
+  const objectFile = `<?xml version="1.0" encoding="UTF-8"?>
+<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06" xmlns:BambuStudio="http://schemas.bambulab.com/package/2021" requiredextensions="p">
+  <resources>
+    ${volumeXml.join("\n    ")}
+  </resources>
+  <build>
+  </build>
+</model>`;
+  extraZipFiles.push({ name: "3D/Objects/object_1.model", data: encodeText(objectFile) });
   extraZipFiles.push({
     name: "3D/_rels/3dmodel.model.rels",
     data: encodeText(`<?xml version="1.0" encoding="UTF-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-${rels.join("\n")}
+  <Relationship Target="/3D/Objects/object_1.model" Id="rel1" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>
 </Relationships>`),
   });
 
-  const assemblyId = objectId;
-  const componentsXml = modelParts.map((p) =>
-    `<component objectid="${p.id}" p:path="/3D/Objects/object_${p.id}.model" transform="${IDENTITY_TRANSFORM_3X4}"/>`,
+  const assemblyId = volumeId;
+  const componentsXml = modelParts.map((p, i) =>
+    `<component p:path="${objectPath}" objectid="${p.id}" p:UUID="${hex8(i + (backupId << 16))}${COMPONENT_UUID_SUFFIX}" transform="${IDENTITY_TRANSFORM_3X4}"/>`,
   ).join("");
-  const volumeXml = [`<object id="${assemblyId}" type="model">
+  const parentXml = [`<object id="${assemblyId}" p:UUID="${hex8(backupId)}${OBJECT_UUID_SUFFIX}" type="model">
       <metadata name="Name">${escapeXml(projectName)}</metadata>
-      <components>${componentsXml}</components>
+      <components>
+        ${componentsXml}
+      </components>
     </object>`];
 
   const centerOffset = centeringOffsetOnBed(
@@ -934,7 +946,7 @@ ${rels.join("\n")}
 
   return packColoredProject3mf({
     projectName,
-    objectXml: volumeXml,
+    objectXml: parentXml,
     buildEntries: [{ objectId: assemblyId, transform: worldTransform }],
     triangleCount,
     filament,
@@ -943,6 +955,7 @@ ${rels.join("\n")}
     extraZipFiles,
     multiPlate: true,
     printer,
+    productionExt: true,
   });
 }
 
