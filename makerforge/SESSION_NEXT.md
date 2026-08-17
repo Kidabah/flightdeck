@@ -4,6 +4,12 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b595 — Back text uses the same stamp as the chest
+**Date:** 2026-08-17
+
+### MakerDeck
+- Normal wrap spiked LITTLE into a comb. Back now stamps like the front (type in Text, offset in Y). Face Front = chest logo or text. Hard refresh MakerDeck **b595**. Re-click Stubby holder.
+
 ## b594 — Back letters follow the curve
 **Date:** 2026-08-17
 

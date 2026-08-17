@@ -142,10 +142,10 @@ function buildSurfaceHeightfield(positions, indices, side) {
     }
     if (!filledAny) break;
   }
-  // Front only: mean-blur closes the kangaroo pocket. Blurring the back
-  // flattens the cylinder so letters bury in the spine and float at the sides.
-  if (front) {
-    for (let pass = 0; pass < 5; pass++) {
+  // Front: mean-blur closes the kangaroo pocket. Back: one light pass so
+  // single-vertex spikes die without flattening the cylinder into a plane.
+  const blurPasses = front ? 5 : 1;
+  for (let pass = 0; pass < blurPasses; pass++) {
       const next = new Float32Array(best);
       for (let iz = 0; iz < nz; iz++) {
         for (let ix = 0; ix < nx; ix++) {
@@ -165,7 +165,6 @@ function buildSurfaceHeightfield(positions, indices, side) {
       }
       best.set(next);
     }
-  }
   return { y: best, xMin, xMax, zMin, zMax, nx, nz, side, ySkin: bandY };
 }
 
@@ -208,22 +207,6 @@ export function sampleHoodieChestY(field, x, z) {
 
 export function sampleHoodieBackY(field, x, z) {
   return sampleSurfaceY(field, x, z);
-}
-
-/** Outer back skin + outward normal so stamps follow the curve instead of a +Y plane. */
-export function sampleHoodieBackHit(field, x, z) {
-  const y = sampleSurfaceY(field, x, z);
-  if (!Number.isFinite(y)) return null;
-  const e = field?.nx > 1 ? (field.xMax - field.xMin) / (field.nx - 1) : 1;
-  const yx = sampleSurfaceY(field, x + e, z);
-  const yz = sampleSurfaceY(field, x, z + e);
-  const fx = Number.isFinite(yx) ? (yx - y) / e : 0;
-  const fz = Number.isFinite(yz) ? (yz - y) / e : 0;
-  let nx = -fx;
-  let ny = 1;
-  let nz = -fz;
-  const len = Math.hypot(nx, ny, nz) || 1;
-  return { y, nx: nx / len, ny: ny / len, nz: nz / len };
 }
 
 function metaFromMesh(positions) {
