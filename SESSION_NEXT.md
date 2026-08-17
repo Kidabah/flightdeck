@@ -6,9 +6,19 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
-## 2026-08-17 Session update (Hoodie separate objects + bed foot)
+## 2026-08-17 Session update (Hoodie one object per colour volume)
 
-Latest commit: *(pending)* — MakerDeck **b611**, hoodie colours as **separate objects** (the only H2C path that used red/black) with a hidden bed foot so Studio cannot drop the crest.
+Latest commit: `51a7c66` — MakerDeck **b612**, hoodie is **one object** with one volume per colour (red pieces merged). No separate plate objects, no bed foot.
+
+Latest local/Pi change:
+- b611 got colours in Prepare (crest + tower) then slice dumped them: Art Red/Grey gcode conflicts, Art Red 3 floating, empty layers from the bed foot. Same-colour meshes are merged; they are parts of one assembled object so overlap on the chest is legal. Hard refresh (`app.js?v=719`, MakerDeck `app.js?v=612` / **b612**). Header **b612**. Re-export. Prepare: one hoodie, no “Art Red 3”, no conflict/floating/empty-layer warnings. Then slice Filament view.
+
+Previous:
+- Hoodie separate objects + bed foot (`5ce5988`).
+
+---
+
+Latest commit: `5ce5988` — MakerDeck **b611**, hoodie colours as **separate objects** (the only H2C path that used red/black) with a hidden bed foot so Studio cannot drop the crest.
 
 Latest local/Pi change:
 - Paint / assembled volumes never made H2C use extra filaments. b606 did — then auto-drop put art on the plate. Each art mesh now has a tiny foot at body Z. Hard refresh (`app.js?v=718`, MakerDeck `app.js?v=611` / **b611**). Header **b611**. Re-export. Prepare should list Body + Art (not one lump). Slice Filament view: white/red/black; crest still on the chest. Do not click Repair.

@@ -4,6 +4,12 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b612 — Hoodie one object, one volume per colour
+**Date:** 2026-08-17
+
+### MakerDeck
+- b611 separate objects coloured in Prepare then slice failed (Art Red <-> Dark grey conflicts, Art Red 3 floating, empty layers from the bed foot). Merge same-colour meshes; export as one assembled object. Hard refresh **b612**. Re-export.
+
 ## b611 — Hoodie separate objects + bed foot
 **Date:** 2026-08-17
 
