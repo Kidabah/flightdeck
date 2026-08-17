@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-17 Session update (Hoodie no prime tower)
 
-Latest commit: `PENDING` — MakerDeck **b602**, hoodie 3MF maps all filaments to the **left** nozzle, merges similar crest colours (cap 4), and keeps **prime tower off** via `different_settings_to_system`.
+Latest commit: `5291bf3` — MakerDeck **b602**, hoodie 3MF maps all filaments to the **left** nozzle, merges similar crest colours (cap 4), and keeps **prime tower off** via `different_settings_to_system`.
 
 Latest local/Pi change:
 - 19h 44m + tower was 8 AMS slots with art on the **right** nozzle (flush-into-body cannot eat right-nozzle purges). Export now: ~3–4 filaments all on left, tower off, purge into hoodie infill/objects. Hard refresh (`app.js?v=709`, MakerDeck `app.js?v=602` / **b602**). Header **b602**. Re-export. In Studio: do **not** click “Set to Optimal” (that puts colours back on the right). Prime tower should be off.
