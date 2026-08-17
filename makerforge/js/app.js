@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, HOODIE_STUBBY_PRESET, ANIMAL_PRESET, SIGN_PRESET, TEMORA_VET_SIGN_PRESET, TEMORA_VET_CELTIC_SVG_URL, isDrinkHolderShape } from "./geometry.js?v=588";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, resolveEmbossFontWeight, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=588";
+import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, HOODIE_STUBBY_PRESET, ANIMAL_PRESET, SIGN_PRESET, TEMORA_VET_SIGN_PRESET, TEMORA_VET_CELTIC_SVG_URL, isDrinkHolderShape } from "./geometry.js?v=589";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, resolveEmbossFontWeight, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=589";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=370";
-import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges } from "./stl.js?v=374";
-import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=587";
+import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges, countNonManifoldEdges } from "./stl.js?v=589";
+import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=589";
 import {
   folderExportSupported,
   folderExportBlockedReason,
@@ -16,7 +16,7 @@ import {
 } from "./export-folder.js?v=368";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
-import { ensureHoodieStubbyMesh } from "./hoodie-stubby.js?v=588";
+import { ensureHoodieStubbyMesh } from "./hoodie-stubby.js?v=589";
 import {
   MAX_ACCENT_BANDS,
   newAccentBand,
@@ -36,7 +36,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b588";
+const MAKERDECK_BUILD = "b589";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -1175,6 +1175,11 @@ function partOpenEdgeCount(part) {
   return part.mesh.openEdgeCount ?? countOpenEdges(part.mesh.positions, part.mesh.indices);
 }
 
+function partNonManifoldEdgeCount(part) {
+  if (!part?.mesh?.positions?.length || !part?.mesh?.indices?.length) return 0;
+  return part.mesh.nonManifoldEdgeCount ?? countNonManifoldEdges(part.mesh.positions, part.mesh.indices);
+}
+
 function mergeInsertIntoBodyExport() {
   return state.insertMount === "fixed" && state.insertEnabled;
 }
@@ -1190,13 +1195,20 @@ function syncExportStateFromUi() {
   if (joinerOn) state.joinerEnabled = joinerOn.checked;
 }
 
-/** Tally open edges across every part that will ship (container + lid + liner). */
+/** Tally open + 3+ face edges across every part that will ship (container + lid + liner). */
 function tallyExportOpenEdges(exportCache, containerParts) {
   const rows = [];
   let total = 0;
   const add = (name, part) => {
     const open = partOpenEdgeCount(part);
-    if (open > 0) { rows.push(`${name} ${open}`); total += open; }
+    const over = partNonManifoldEdgeCount(part);
+    const n = open + over;
+    if (n <= 0) return;
+    const bits = [];
+    if (open) bits.push(`${open} open`);
+    if (over) bits.push(`${over} non-manifold`);
+    rows.push(`${name} ${bits.join(", ")}`);
+    total += n;
   };
   for (const part of containerParts || []) add(part.name, part);
   if (exportIncludesLidPlate()) {
@@ -5579,10 +5591,10 @@ function runExport(format, options = {}) {
             }
             const manifold = tallyExportOpenEdges(exportCache, parts);
             if (manifold.total > 0 && !_exportManifoldOverride) {
-              const msg = `Manifold check: ${manifold.total} open edge${manifold.total === 1 ? "" : "s"} (${manifold.rows.join(", ")}).\n\n`
+              const msg = `Manifold check: ${manifold.total} bad edge${manifold.total === 1 ? "" : "s"} (${manifold.rows.join(", ")}).\n\n`
                 + "This file may not slice cleanly and Bambu will offer to 'Repair' it — which remeshes and shreds the art.\n\n"
                 + "Export anyway?";
-              if (status) setExportStatus(`Manifold check failed — ${manifold.total} open edges (${manifold.rows.join(", ")})`, { detail: "Fix in MakerDeck or export anyway from the prompt." });
+              if (status) setExportStatus(`Manifold check failed — ${manifold.total} bad edges (${manifold.rows.join(", ")})`, { detail: "Fix in MakerDeck or export anyway from the prompt." });
               if (!confirm(msg)) {
                 if (status) setExportStatus("Export cancelled — non-manifold geometry.", { detail: `${manifold.rows.join(", ")}` });
                 return;

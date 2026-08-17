@@ -69,22 +69,38 @@ function edgeKey(a, b) {
   return a < b ? `${a}|${b}` : `${b}|${a}`;
 }
 
-/** Count boundary edges (each should be 0 for a closed manifold mesh). */
-export function countOpenEdges(positions, indices) {
-  const edgeFaces = new Map();
+/** Tally edges with 1 face (open/boundary) vs 3+ faces (Bambu "non-manifold edges"). */
+function tallyEdgeUse(positions, indices) {
+  const counts = new Map();
   for (let t = 0; t < indices.length; t += 3) {
-    const tri = [indices[t], indices[t + 1], indices[t + 2]];
-    const fi = t / 3;
-    for (let k = 0; k < 3; k++) {
-      const key = edgeKey(tri[k], tri[(k + 1) % 3]);
-      edgeFaces.set(key, [...(edgeFaces.get(key) || []), fi]);
-    }
+    const a = indices[t];
+    const b = indices[t + 1];
+    const c = indices[t + 2];
+    const bump = (i, j) => {
+      const key = edgeKey(i, j);
+      counts.set(key, (counts.get(key) || 0) + 1);
+    };
+    bump(a, b);
+    bump(b, c);
+    bump(c, a);
   }
   let open = 0;
-  for (const faces of edgeFaces.values()) {
-    if (faces.length === 1) open += 1;
+  let over = 0;
+  for (const n of counts.values()) {
+    if (n === 1) open += 1;
+    else if (n > 2) over += 1;
   }
-  return open;
+  return { open, over };
+}
+
+/** Count boundary edges (each should be 0 for a closed manifold mesh). */
+export function countOpenEdges(positions, indices) {
+  return tallyEdgeUse(positions, indices).open;
+}
+
+/** Count edges shared by 3+ faces — Bambu's "non-manifold edges" warning. */
+export function countNonManifoldEdges(positions, indices) {
+  return tallyEdgeUse(positions, indices).over;
 }
 
 /** Drop bad tris, weld verts, peel non-manifold faces, and verify the shell is closed. */
@@ -93,15 +109,13 @@ export function sanitizeMeshForStl(mesh, { strict = true, repair = true } = {}) 
   const indices = mesh?.indices;
   if (!positions?.length || !indices?.length) return null;
 
-  // If the mesh is already watertight (indices already exactly shared —
-  // e.g. straight out of manifold-3d), the weld/repair pipeline below can
-  // only hurt it: re-welding by spatial proximity risks merging vertices
-  // that are legitimately close but distinct, and repairNonManifoldFaces
-  // peels faces it mistakes for defects. Confirmed on real data: running
-  // an already-clean piece through this pipeline introduced 3-72 open
-  // edges that weren't there going in. Skip straight to export.
-  if (countOpenEdges(positions, indices) === 0) {
-    return { positions, indices, openEdgeCount: 0 };
+  // Skip weld/repair only when the shell is actually manifold: 0 open
+  // edges AND 0 edges with 3+ faces. A closed hoodie STL can have 0 holes
+  // and still trip Bambu ("24 non-manifold edges") — those used to skip
+  // this pipeline and ship raw.
+  const before = tallyEdgeUse(positions, indices);
+  if (before.open === 0 && before.over === 0) {
+    return { positions, indices, openEdgeCount: 0, nonManifoldEdgeCount: 0 };
   }
 
   let welded = weldMeshVertices(positions, indices, weldEpsForMesh(positions));
@@ -112,41 +126,62 @@ export function sanitizeMeshForStl(mesh, { strict = true, repair = true } = {}) 
 
   if (!idx.length) return null;
 
-  const open = countOpenEdges(welded.positions, idx);
-  if (strict && open > 0) {
-    console.warn(`MakerDeck export: ${open} open edge(s) remain after sanitize — mesh may need repair in slicer`);
+  const after = tallyEdgeUse(welded.positions, idx);
+  if (strict && (after.open > 0 || after.over > 0)) {
+    console.warn(`MakerDeck export: ${after.open} open / ${after.over} non-manifold edge(s) remain after sanitize — mesh may need repair in slicer`);
   }
 
-  return { positions: welded.positions, indices: idx, openEdgeCount: open };
+  return { positions: welded.positions, indices: idx, openEdgeCount: after.open, nonManifoldEdgeCount: after.over };
 }
 
-/** Light weld for 3MF — never peel faces (stack feet + profile shells break under repair). */
+/** Light 3MF clean: weld open shells; peel 3+ face edges on otherwise-closed meshes.
+ * Stack feet with holes still skip peel (open-edge weld only) so profile shells stay intact. */
 export function prepareMeshFor3mf(mesh) {
   const positions = mesh?.positions;
   const indices = mesh?.indices;
   if (!positions?.length || !indices?.length) return null;
 
-  // Same reasoning as sanitizeMeshForStl above: already-watertight input
-  // (indices already exactly shared) doesn't need re-welding, and skipping
-  // it also trivially keeps triangleExtruders aligned since triangle
-  // order/count is untouched.
-  if (countOpenEdges(positions, indices) === 0) {
-    const out = { positions, indices, openEdgeCount: 0 };
+  const before = tallyEdgeUse(positions, indices);
+  if (before.open === 0 && before.over === 0) {
+    const out = { positions, indices, openEdgeCount: 0, nonManifoldEdgeCount: 0 };
     if (mesh.triangleExtruders?.length === indices.length / 3) out.triangleExtruders = mesh.triangleExtruders;
     return out;
   }
 
-  const welded = weldMeshVertices(positions, indices, weldEpsForMesh(positions));
-  let idx = removeDuplicateTriangles(welded.indices);
-  // Topology-safe only: drop collapsed/invalid tris, KEEP thin slivers — deleting a
-  // positive-area sliver from a closed mesh tears an open edge (Text lost 340 edges
-  // this way: 0.04 weld merged dense glyph points, then area cull removed the tris).
-  idx = removeCollapsedTriangles(welded.positions, idx);
+  let pos = positions;
+  let idx = indices;
+  let changed = false;
+
+  // Closed but non-manifold (hoodie STL, stamp pinches): peel extra faces, no spatial weld.
+  if (before.over > 0) {
+    idx = repairNonManifoldFaces(pos, idx, 12);
+    idx = removeDuplicateTriangles(idx);
+    idx = removeCollapsedTriangles(pos, idx);
+    changed = true;
+  }
+
+  if (before.open > 0) {
+    const welded = weldMeshVertices(pos, idx, weldEpsForMesh(pos));
+    pos = welded.positions;
+    idx = removeDuplicateTriangles(welded.indices);
+    // Topology-safe only: drop collapsed/invalid tris, KEEP thin slivers — deleting a
+    // positive-area sliver from a closed mesh tears an open edge (Text lost 340 edges
+    // this way: 0.04 weld merged dense glyph points, then area cull removed the tris).
+    idx = removeCollapsedTriangles(pos, idx);
+    changed = true;
+    const mid = tallyEdgeUse(pos, idx);
+    if (mid.over > 0) {
+      idx = repairNonManifoldFaces(pos, idx, 12);
+      idx = removeDuplicateTriangles(idx);
+      idx = removeCollapsedTriangles(pos, idx);
+    }
+  }
+
   if (!idx.length) return null;
 
-  const open = countOpenEdges(welded.positions, idx);
-  const out = { positions: welded.positions, indices: idx, openEdgeCount: open };
-  if (mesh.triangleExtruders?.length === idx.length / 3) {
+  const after = tallyEdgeUse(pos, idx);
+  const out = { positions: pos, indices: idx, openEdgeCount: after.open, nonManifoldEdgeCount: after.over };
+  if (!changed && mesh.triangleExtruders?.length === idx.length / 3) {
     out.triangleExtruders = mesh.triangleExtruders;
   }
   return out;

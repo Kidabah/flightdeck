@@ -4,6 +4,12 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b589 — Hoodie shield stays in the slice
+**Date:** 2026-08-17
+
+### MakerDeck
+- Export sanitiser skipped the hoodie because it had 0 *open* edges; Bambu still saw 24 *non-manifold* (3+ face) edges. `prepareMeshFor3mf` now peels those. Crest/text embed ~0.55 mm into the fabric so they bond instead of floating. Stamp mask pinches filled. Hard refresh MakerDeck **b589**. Re-export 3MF. Do not click Repair.
+
 ## b588 — Hoodie text on the back
 **Date:** 2026-08-17
 

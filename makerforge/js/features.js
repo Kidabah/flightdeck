@@ -10,7 +10,7 @@ import {
   resolveVaseTexture,
   vaseTextureDisplacement,
 } from "./vase-textures.js";
-import { sampleHoodieChestY, sampleHoodieBackY, HOODIE_ART_PROUD_MM } from "./hoodie-stubby.js?v=588";
+import { sampleHoodieChestY, sampleHoodieBackY } from "./hoodie-stubby.js?v=589";
 
 export const EMBOSS_FONTS = [
   { id: "segoe-ui", label: "Segoe UI — Windows", family: '"Segoe UI Variable", "Segoe UI", system-ui, sans-serif', weight: 700 },
@@ -410,7 +410,11 @@ function buildHoodieFaceStampMesh(frame, mask, maskW, maskH, place, d0, d1, para
   const artH = place.artHeight;
   if (!(artW > 0.5) || !(artH > 0.5)) return null;
   const { cols, rows } = hoodieStampGrid(artW, artH, params);
-  const small = majorityDownsampleMask(mask, maskW, maskH, cols, rows);
+  const small = resolveMaskDiagonalPinches(
+    majorityDownsampleMask(mask, maskW, maskH, cols, rows),
+    cols,
+    rows,
+  );
   const cellU = artW / cols;
   const cellV = artH / rows;
   const thick = Math.max(0.16, d1 - d0);
@@ -3922,6 +3926,11 @@ export function buildEmbossText(meta, params) {
   const collected = collectTextEmbossShapeGroups(meta, params, layout);
   if (!collected) return null;
 
+  if (isHoodieArtParams(params)) {
+    const solid = buildFlatShapeGroupsSolidMesh(collected.frame, collected.shapeGroups, d0, d1, params);
+    if (solid?.indices?.length) return solid;
+  }
+
   const positions = [];
   const indices = [];
   const flatCoord = (w) => flatCoordForFrame(collected.frame, w);
@@ -4939,8 +4948,11 @@ export function getEmbossFaceFrame(meta, face, params = null) {
     const mirror = useFace === "back";
     const chest = meta.shape === "stubbyHolder";
     const chestY = Number(meta.chestY);
-    const yOut = chest && Number.isFinite(chestY)
-      ? (useFace === "front" ? chestY : -chestY)
+    const backY = Number(meta.backY);
+    const yOut = chest
+      ? (useFace === "front"
+        ? (Number.isFinite(chestY) ? chestY : -b.od2)
+        : (Number.isFinite(backY) ? backY : b.od2))
       : (useFace === "front" ? -b.od2 : b.od2);
     const centerZ = chest
       ? (useFace === "back" ? b.totalH * 0.62 : b.totalH * 0.50)
@@ -4955,10 +4967,10 @@ export function getEmbossFaceFrame(meta, face, params = null) {
         let yBase = yOut;
         if (chest && useFace === "front" && meta.chestField) {
           const sampled = sampleHoodieChestY(meta.chestField, x, py);
-          if (Number.isFinite(sampled)) yBase = sampled - HOODIE_ART_PROUD_MM;
+          if (Number.isFinite(sampled)) yBase = sampled;
         } else if (chest && useFace === "back" && meta.backField) {
           const sampled = sampleHoodieBackY(meta.backField, x, py);
-          if (Number.isFinite(sampled)) yBase = sampled + HOODIE_ART_PROUD_MM;
+          if (Number.isFinite(sampled)) yBase = sampled;
         }
         const y = yBase + yDir * offset;
         return [x, y, py];
@@ -5140,9 +5152,10 @@ function labelOffsets(params) {
     return { d0: -depth - 0.05, d1: 0.4, depth, deboss: true };
   }
   if (params.__hoodieArtExport || params.shape === "stubbyHolder") {
-    // STL Painter stamp: 0.04 mm skin + ~0.72 mm shell.
-    const useDepth = clamp(params.embossDepth ?? 0.72, 0.5, 1.0);
-    return { d0: 0.04, d1: 0.04 + useDepth, depth: useDepth, deboss: false };
+    // Sit on the fabric and poke into the wall so separate colour parts bond in the slicer.
+    const proud = 0.4;
+    const embed = 0.55;
+    return { d0: -embed, d1: proud, depth: proud + embed, deboss: false };
   }
   // Raised emboss: flush in preview; export embeds into wall pockets (no air gap).
   let standoff = 0;

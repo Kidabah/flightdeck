@@ -2,7 +2,7 @@
  * Panthers hoodie stubby — 150 mm tall, 65 mm well.
  * Loaded as a solid mesh (not the parametric can cup).
  */
-import { weldMeshVertices } from "./stl.js?v=374";
+import { weldMeshVertices } from "./stl.js?v=589";
 
 export const HOODIE_STUBBY_STL_URL = "models/hoodie-stubby.stl?v=578";
 export const HOODIE_WELL_MM = 65;
@@ -80,16 +80,16 @@ function buildSurfaceHeightfield(positions, indices, side) {
   const best = new Float32Array(nx * nz);
   best.fill(empty);
   const bandY = chestBandYs(positions, front);
-  const yCut = Number.isFinite(bandY) ? (front ? bandY + 8 : bandY - 8) : 0;
+  const yCut = Number.isFinite(bandY) ? (front ? bandY + 8 : bandY - 12) : 0;
   const splat = (x, y, z) => {
-    if (front ? !(y < yCut) : !(y > yCut)) return;
+    if (front ? !(y < yCut) : !(y > Math.min(yCut, 2))) return;
     const ix = Math.round((x - xMin) / (xMax - xMin) * (nx - 1));
     const iz = Math.round((z - zMin) / (zMax - zMin) * (nz - 1));
     if (ix < 0 || iz < 0 || ix >= nx || iz >= nz) return;
     const k = iz * nx + ix;
     if (front ? y < best[k] : y > best[k]) best[k] = y;
   };
-  if (indices?.length) {
+  if (front && indices?.length) {
     for (let t = 0; t < indices.length; t += 3) {
       const ia = indices[t] * 3, ib = indices[t + 1] * 3, ic = indices[t + 2] * 3;
       const ax = positions[ia], ay = positions[ia + 1], az = positions[ia + 2];
@@ -98,12 +98,13 @@ function buildSurfaceHeightfield(positions, indices, side) {
       const e1x = bx - ax, e1y = by - ay, e1z = bz - az;
       const e2x = cx - ax, e2y = cy - ay, e2z = cz - az;
       const ny = e1z * e2x - e1x * e2z;
-      if (front ? !(ny < 0) : !(ny > 0)) continue;
+      if (!(ny < 0)) continue;
       splat(ax, ay, az);
       splat(bx, by, bz);
       splat(cx, cy, cz);
     }
   } else {
+    // Back: outer envelope (max Y). Skip the well interior by keeping y > 0.
     for (let i = 0; i < positions.length; i += 3) splat(positions[i], positions[i + 1], positions[i + 2]);
   }
   const isFilled = (v) => Number.isFinite(v) && v !== empty;
@@ -208,6 +209,7 @@ function metaFromMesh(positions) {
   const outerMl = (w * d * h) / 1000;
   const materialMl = Math.max(0, outerMl - cavityMl);
   const chestY = chestFrontY(positions);
+  const backY = chestBandYs(positions, false);
   return {
     shape: "stubbyHolder",
     inner: { w: HOODIE_WELL_MM, d: HOODIE_WELL_MM, h: round1(innerH) },
@@ -217,6 +219,7 @@ function metaFromMesh(positions) {
     estGrams: round1(materialMl * 1.24),
     styleLabel: "Hoodie stubby",
     chestY: chestY == null ? undefined : round1(chestY),
+    backY: backY == null ? undefined : round1(backY),
   };
 }
 
