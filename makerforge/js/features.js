@@ -10,7 +10,7 @@ import {
   resolveVaseTexture,
   vaseTextureDisplacement,
 } from "./vase-textures.js";
-import { sampleHoodieChestY, sampleHoodieBackY, HOODIE_ART_PROUD_MM } from "./hoodie-stubby.js?v=590";
+import { sampleHoodieChestY, sampleHoodieBackY } from "./hoodie-stubby.js?v=591";
 
 export const EMBOSS_FONTS = [
   { id: "segoe-ui", label: "Segoe UI — Windows", family: '"Segoe UI Variable", "Segoe UI", system-ui, sans-serif', weight: 700 },
@@ -5152,11 +5152,11 @@ function labelOffsets(params) {
     return { d0: -depth - 0.05, d1: 0.4, depth, deboss: true };
   }
   if (params.__hoodieArtExport || params.shape === "stubbyHolder") {
-    // Preview sits on the fabric (0.55 mm embed punched LITTLE through the back).
-    // Export only: a thin bite so colour parts fuse without a crater.
+    // Preview must clear the true fabric (0.04 mm sat inside the pocket → holes).
+    // Export only: a thin bite so colour parts fuse.
     const proud = 0.5;
     const embed = params.__hoodieArtExport ? 0.12 : 0;
-    const skin = embed ? 0 : HOODIE_ART_PROUD_MM;
+    const skin = embed ? 0 : 0.25;
     return { d0: skin - embed, d1: skin + proud, depth: proud + embed, deboss: false };
   }
   // Raised emboss: flush in preview; export embeds into wall pockets (no air gap).

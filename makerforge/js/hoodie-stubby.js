@@ -114,7 +114,7 @@ function buildSurfaceHeightfield(positions, indices, side) {
       for (let ix = 0; ix < nx; ix++) {
         const k = iz * nx + ix;
         if (isFilled(best[k])) continue;
-        let acc = 0, n = 0, hi = empty;
+        let n = 0, hi = empty, lo = empty;
         for (let dz = -1; dz <= 1; dz++) {
           for (let dx = -1; dx <= 1; dx++) {
             if (!dx && !dz) continue;
@@ -122,44 +122,22 @@ function buildSurfaceHeightfield(positions, indices, side) {
             if (jx < 0 || jz < 0 || jx >= nx || jz >= nz) continue;
             const v = best[jz * nx + jx];
             if (isFilled(v)) {
-              acc += v;
               n++;
               if (!front && v > hi) hi = v;
+              if (front && v < lo) lo = v;
             }
           }
         }
         if (n) {
-          best[k] = front ? acc / n : hi;
+          best[k] = front ? lo : hi;
           filledAny = true;
         }
       }
     }
     if (!filledAny) break;
   }
-  // Front: mean-blur closes the kangaroo pocket. Back: skip — blur pulls the
-  // outer envelope inward and buries lettering inside the hoodie.
-  if (front) {
-    for (let pass = 0; pass < 5; pass++) {
-      const next = new Float32Array(best);
-      for (let iz = 0; iz < nz; iz++) {
-        for (let ix = 0; ix < nx; ix++) {
-          let acc = 0, n = 0;
-          for (let dz = -1; dz <= 1; dz++) {
-            for (let dx = -1; dx <= 1; dx++) {
-              const jx = ix + dx, jz = iz + dz;
-              if (jx < 0 || jz < 0 || jx >= nx || jz >= nz) continue;
-              const v = best[jz * nx + jx];
-              if (!isFilled(v)) continue;
-              acc += v;
-              n++;
-            }
-          }
-          if (n) next[iz * nx + ix] = acc / n;
-        }
-      }
-      best.set(next);
-    }
-  }
+  // Keep the outer envelope. Mean-blur pulled the pocket/back off the true
+  // skin so the stamp sat inside the fabric (Swiss-cheese LITTLE).
   return { y: best, xMin, xMax, zMin, zMax, nx, nz, side };
 }
 

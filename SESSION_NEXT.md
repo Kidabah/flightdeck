@@ -6,6 +6,18 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-17 Session update (Hoodie LITTLE Swiss cheese)
+
+Latest commit: (this push) — MakerDeck **b591**, chest stamp follows the pocket skin.
+
+Latest local/Pi change:
+- LITTLE on the chest was holey because the heightfield was mean-blurred behind the kangaroo pocket, then sat 0.04 mm “on” that fake surface. Stamp now follows the outer fabric; preview sits 0.25 mm proud. Hard refresh (`app.js?v=698`, MakerDeck `app.js?v=591` / **b591**). Header **b591**. Re-click Stubby holder.
+
+Previous:
+- Hoodie back text too deep (`01fbcff`).
+
+---
+
 ## 2026-08-17 Session update (Hoodie back text too deep)
 
 Latest commit: `01fbcff` — MakerDeck **b590**, back text sits on the fabric again.

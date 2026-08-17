@@ -4,6 +4,12 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b591 — Hoodie letters sit on the pocket, not in it
+**Date:** 2026-08-17
+
+### MakerDeck
+- LITTLE looked Swiss-cheese because the chest field was averaged behind the kangaroo pocket. Outer envelope + 0.25 mm preview standoff. Hard refresh MakerDeck **b591**. Re-click Stubby holder.
+
 ## b590 — Hoodie back text sits on the fabric
 **Date:** 2026-08-17
 
