@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-17 Session update (Hoodie colours as separate objects)
 
-Latest commit: `PENDING` — MakerDeck **b606**, hoodie Body / Art / Text are **separate 3MF objects** (assembled), so H2C cannot union the crest onto filament 1.
+Latest commit: `642d53b` — MakerDeck **b606**, hoodie Body / Art / Text are **separate 3MF objects** (assembled), so H2C cannot union the crest onto filament 1.
 
 Latest local/Pi change:
 - Slice used only filament 1 (0 colour changes, right nozzle empty) because the assembly was one object and H2C printed it all as white. Hard refresh (`app.js?v=713`, MakerDeck `app.js?v=606` / **b606**). Header **b606**. Re-export. Object list should show Body + Art Red + Art Dark grey + Text, not a single “1”.
