@@ -317,8 +317,13 @@ function buildItemXml(objectId, transform = null, { multiPlate = false } = {}) {
 function appendModelSettingsObject(lines, assemblyId, name, modelParts, singlePart) {
   lines.push(`  <object id="${assemblyId}">`);
   lines.push(`    <metadata key="name" value="${escapeXml(name)}"/>`);
+  // Native Bambu projects retain a parent extruder as well as one per volume.
+  // H2C Preview uses this as the model baseline before it reads the part map.
+  const parentExtruder = modelParts.find((part) => Number(part.extruder) === 1)?.extruder
+    ?? modelParts[0]?.extruder
+    ?? 1;
+  lines.push(`    <metadata key="extruder" value="${parentExtruder}"/>`);
   if (singlePart && modelParts.length === 1) {
-    lines.push(`    <metadata key="extruder" value="${modelParts[0].extruder}"/>`);
     lines.push(`    <part id="1" subtype="normal_part">`);
     lines.push(`      <metadata key="name" value="${escapeXml(modelParts[0].name)}"/>`);
     lines.push(`      <metadata key="extruder" value="${modelParts[0].extruder}"/>`);
@@ -421,7 +426,7 @@ function buildBambuSeparateObjectsModelSettingsXml(objects, worldTransform, fila
  * a single model — parts mid-air (accent bands, floating text) are supported
  * by the body instead of erroring with "empty first layer".
  */
-function buildBambuModelSettingsXml(assemblyId, name, parts, { singlePart = false, worldTransform = null, filamentSlotCount = 1, filamentMaps = null } = {}) {
+function buildBambuModelSettingsXml(assemblyId, name, parts, { singlePart = false, worldTransform = null, filamentSlotCount = 1, filamentMaps = null, volumeTransforms = null } = {}) {
   const lines = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     "<config>",
@@ -433,6 +438,16 @@ function buildBambuModelSettingsXml(assemblyId, name, parts, { singlePart = fals
     lines.push(
       `   <assemble_item object_id="${assemblyId}" instance_id="0" transform="${worldTransform}" offset="0 0 0" />`,
     );
+    // Bambu Studio writes a local assemble row for every linked volume. It
+    // looks redundant next to the parent instance, but H2C Preview uses these
+    // rows when carrying the volume-to-filament assignment into the slice.
+    if (Array.isArray(volumeTransforms)) {
+      volumeTransforms.forEach((transform, volumeId) => {
+        lines.push(
+          `   <assemble_item object_id="${assemblyId}" volume_id="${volumeId}" transform="${transform || IDENTITY_TRANSFORM_3X4}" />`,
+        );
+      });
+    }
     lines.push("  </assemble>");
   }
   lines.push("</config>");
@@ -705,11 +720,15 @@ function packColoredProject3mf({
     filament_diameter: filament.filamentDiameter,
     filament_density: filament.filamentDensity,
     filament_map: filamentMap,
+    // Native Bambu projects also persist the singular project-level map. The
+    // plate XML carries the plural form; H2C Preview needs both bindings.
+    filament_volume_map: Array.from({ length: filament.maxExtruder }, () => "0"),
     filament_map_mode: "Manual",
     physical_extruder_map: ["1", "0"],
-    // Left nozzle = AMS HT (type 4); right nozzle = regular AMS (type 1).
+    // Match Bambu Studio's native H2C project ordering for its two nozzle
+    // feeder banks. The previous order did not match native saved projects.
     ...(amsHtLeft ? {
-      extruder_ams_count: ["1#0|4#1", "1#1|4#0"],
+      extruder_ams_count: ["1#1|4#0", "1#0|4#1"],
       extruder_printable_area: [
         `0x0,325x0,325x${bedD},0x${bedD}`,
         `25x0,330x0,330x${bedD},25x${bedD}`,
@@ -890,6 +909,7 @@ function packSplitVolumeColoredProject3mf(usable, projectName, filament, printer
 
   const objectFile = `<?xml version="1.0" encoding="UTF-8"?>
 <model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06" xmlns:BambuStudio="http://schemas.bambulab.com/package/2021" requiredextensions="p">
+  <metadata name="BambuStudio:3mfVersion">1</metadata>
   <resources>
     ${volumeXml.join("\n    ")}
   </resources>
@@ -937,6 +957,7 @@ function packSplitVolumeColoredProject3mf(usable, projectName, filament, printer
       worldTransform,
       filamentSlotCount: filament.maxExtruder,
       filamentMaps: buildH2DFilamentMapsMeta(filament.maxExtruder, !!printer?.singleNozzle),
+      volumeTransforms: modelParts.map(() => IDENTITY_TRANSFORM_3X4),
     },
   );
   extraZipFiles.push(
@@ -968,7 +989,7 @@ function packSplitVolumeColoredProject3mf(usable, projectName, filament, printer
     multiPlate: true,
     printer,
     productionExt: true,
-    exportMarker: "H2C-single-parent-volumes-b616",
+    exportMarker: "H2C-native-linked-volumes-b617",
   });
 }
 

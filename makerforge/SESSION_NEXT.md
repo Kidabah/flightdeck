@@ -4,6 +4,13 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b617 — H2C hoodie: native volume metadata for Preview
+**Date:** 2026-08-17
+
+### MakerDeck
+- Direct comparison with a Bambu Studio-saved H2C hoodie project showed why b616 could look correct in Prepare while Preview assigned all geometry to left white: its linked meshes lacked the native parent extruder, per-volume assemble rows, object-model Bambu version metadata, and singular project-level `filament_volume_map`; its H2C AMS-bank order was also reversed. b617 writes those native bindings while retaining b616's one parent, non-overlapping Body / Art Red / Art Dark grey geometry.
+- `test/h2c-3mf.mjs` now checks every Preview-critical binding. Reload **b617**, export a new 3MF, and slice that new file; previous downloads cannot gain the missing metadata.
+
 ## b616 — H2C hoodie: one linked parent model, no runner
 **Date:** 2026-08-17
 

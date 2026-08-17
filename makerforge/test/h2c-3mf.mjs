@@ -53,20 +53,26 @@ const files = readStoredZip(new Uint8Array(await blob.arrayBuffer()));
 const root = files.get("3D/3dmodel.model") || "";
 const volumes = files.get("3D/Objects/object_1.model") || "";
 const settings = files.get("Metadata/model_settings.config") || "";
+const projectSettings = files.get("Metadata/project_settings.config") || "";
 
-assert.match(root, /<metadata name="MakerDeck-Export">H2C-single-parent-volumes-b616<\/metadata>/);
+assert.match(root, /<metadata name="MakerDeck-Export">H2C-native-linked-volumes-b617<\/metadata>/);
 assert.match(root, /<object id="4"[^>]*type="model">[\s\S]*<components>[\s\S]*objectid="1"[\s\S]*objectid="2"[\s\S]*objectid="3"/);
 assert.match(root, /<build>[\s\S]*<item objectid="4"/);
 assert.doesNotMatch(root, /<item objectid="[123]"/, "only the parent model may be a printable object");
 assert.equal((volumes.match(/<object id="\d+"/g) || []).length, 3, "one Bambu volume per colour");
+assert.match(volumes, /<metadata name="BambuStudio:3mfVersion">1<\/metadata>/);
 assert.match(volumes, /slic3rpe:extruder">1<\/metadata>/);
 assert.match(volumes, /slic3rpe:extruder">2<\/metadata>/);
 assert.match(volumes, /slic3rpe:extruder">3<\/metadata>/);
 assert.match(settings, /<part id="1" subtype="normal_part">[\s\S]*?<metadata key="extruder" value="1"\/>/);
 assert.match(settings, /<part id="2" subtype="normal_part">[\s\S]*?<metadata key="extruder" value="2"\/>/);
 assert.match(settings, /<part id="3" subtype="normal_part">[\s\S]*?<metadata key="extruder" value="3"\/>/);
+assert.match(settings, /<object id="4">[\s\S]*?<metadata key="extruder" value="1"\/>/);
 assert.match(settings, /key="filament_maps" value="1 2 2"/);
 assert.match(settings, /key="filament_volume_maps" value="0 0 0"/);
+assert.match(settings, /<assemble>[\s\S]*?<assemble_item object_id="4" instance_id="0"[\s\S]*?<assemble_item object_id="4" volume_id="0"[\s\S]*?<assemble_item object_id="4" volume_id="1"[\s\S]*?<assemble_item object_id="4" volume_id="2"/);
+assert.match(projectSettings, /"filament_volume_map":\["0","0","0"\]/);
+assert.match(projectSettings, /"extruder_ams_count":\["1#1\|4#0","1#0\|4#1"\]/);
 assert.ok(!volumes.includes("<component"), "colour volumes stay as meshes, not free-standing plate objects");
 
-console.log("PASS h2c 3MF volume export: b616 marker, one parent model, 3 linked volumes, left/right maps, no sprues");
+console.log("PASS h2c 3MF native volume export: b617 metadata, one parent model, 3 linked volumes, H2C left/right maps, no sprues");
