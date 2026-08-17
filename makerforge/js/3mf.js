@@ -326,14 +326,14 @@ function appendModelSettingsObject(lines, assemblyId, name, modelParts, singlePa
   lines.push("  </object>");
 }
 
-function appendModelSettingsPlate(lines, plateId, plateName, assemblyId, identifyId = 0, { filamentSlotCount = 1 } = {}) {
+function appendModelSettingsPlate(lines, plateId, plateName, assemblyId, identifyId = 0, { filamentSlotCount = 1, filamentMaps = null } = {}) {
   lines.push("  <plate>");
   lines.push(`    <metadata key="plater_id" value="${plateId}"/>`);
   lines.push(`    <metadata key="plater_name" value="${escapeXml(plateName || "")}"/>`);
   lines.push('    <metadata key="locked" value="false"/>');
   if (filamentSlotCount > 1) {
     lines.push('    <metadata key="filament_map_mode" value="Manual"/>');
-    lines.push(`    <metadata key="filament_maps" value="${buildH2DFilamentMapsMeta(filamentSlotCount)}"/>`);
+    lines.push(`    <metadata key="filament_maps" value="${filamentMaps || buildH2DFilamentMapsMeta(filamentSlotCount)}"/>`);
   } else {
     lines.push('    <metadata key="filament_map_mode" value="Auto For Flush"/>');
   }
@@ -350,7 +350,7 @@ function appendModelSettingsPlate(lines, plateId, plateName, assemblyId, identif
   lines.push("  </plate>");
 }
 
-function buildBambuSeparateObjectsModelSettingsXml(objects, worldTransform, filamentSlotCount = 1) {
+function buildBambuSeparateObjectsModelSettingsXml(objects, worldTransform, filamentSlotCount = 1, allLeft = false) {
   const lines = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     "<config>",
@@ -367,7 +367,7 @@ function buildBambuSeparateObjectsModelSettingsXml(objects, worldTransform, fila
   lines.push('    <metadata key="locked" value="false"/>');
   if (filamentSlotCount > 1) {
     lines.push('    <metadata key="filament_map_mode" value="Manual"/>');
-    lines.push(`    <metadata key="filament_maps" value="${buildH2DFilamentMapsMeta(filamentSlotCount)}"/>`);
+    lines.push(`    <metadata key="filament_maps" value="${buildH2DFilamentMapsMeta(filamentSlotCount, allLeft)}"/>`);
   } else {
     lines.push('    <metadata key="filament_map_mode" value="Auto For Flush"/>');
   }
@@ -403,13 +403,13 @@ function buildBambuSeparateObjectsModelSettingsXml(objects, worldTransform, fila
  * a single model — parts mid-air (accent bands, floating text) are supported
  * by the body instead of erroring with "empty first layer".
  */
-function buildBambuModelSettingsXml(assemblyId, name, parts, { singlePart = false, worldTransform = null, filamentSlotCount = 1 } = {}) {
+function buildBambuModelSettingsXml(assemblyId, name, parts, { singlePart = false, worldTransform = null, filamentSlotCount = 1, filamentMaps = null } = {}) {
   const lines = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     "<config>",
   ];
   appendModelSettingsObject(lines, assemblyId, name, parts, singlePart);
-  appendModelSettingsPlate(lines, 1, "", assemblyId, assemblyId, { filamentSlotCount });
+  appendModelSettingsPlate(lines, 1, "", assemblyId, assemblyId, { filamentSlotCount, filamentMaps });
   if (worldTransform) {
     lines.push("  <assemble>");
     lines.push(
@@ -534,17 +534,23 @@ function buildFilamentSlots(usable, defaultPreset = "Generic PLA @BBL H2D") {
   };
 }
 
-/** H2D logical extruder 1 = left hotend (regular AMS). All slots on left avoids right-nozzle range errors on wide bodies. */
-function buildH2DFilamentMap(slotCount) {
+/** H2D/H2C logical extruder 1 = left hotend (regular AMS). */
+function buildH2DFilamentMap(slotCount, allLeft = false) {
   const n = Math.max(1, slotCount);
-  // Body on left; extra colour slots on the right so H2D does not AMS-swap
-  // the hoodie body on every crest layer (nozzle switch is cheap, AMS is not).
-  if (n <= 1) return ["1"];
+  if (allLeft || n <= 1) return Array.from({ length: n }, () => "1");
+  // Default: body left, extra colours right. Hoodie sets singleNozzle so flush-into-body works.
   return Array.from({ length: n }, (_, i) => (i === 0 ? "1" : "2"));
 }
 
-function buildH2DFilamentMapsMeta(slotCount) {
-  return buildH2DFilamentMap(slotCount).join(" ");
+function buildH2DFilamentMapsMeta(slotCount, allLeft = false) {
+  return buildH2DFilamentMap(slotCount, allLeft).join(" ");
+}
+
+function buildDifferentSettingsToSystem(filamentCount, printDiffKeys) {
+  const n = Math.max(3, (Number(filamentCount) || 1) + 2);
+  const out = Array.from({ length: n }, () => "");
+  out[0] = (printDiffKeys || []).filter(Boolean).join(";");
+  return out;
 }
 
 function buildAssemblyFromParts(usable, projectName, startObjectId, { plainSingle = false } = {}) {
@@ -634,6 +640,19 @@ function packColoredProject3mf({
   const bedW = printer?.bedWidth ?? BAMBU_BED_WIDTH_MM;
   const bedD = printer?.bedDepth ?? BAMBU_BED_DEPTH_MM;
   const nozzleDia = String(printer?.nozzleDiameter ?? 0.4);
+  const allLeft = !!printer?.singleNozzle;
+  const filamentMap = buildH2DFilamentMap(filament.maxExtruder, allLeft);
+  const printDiff = ["filament_map", "filament_map_mode"];
+  if (Number.isFinite(layerHeight)) printDiff.push("layer_height", "initial_layer_print_height");
+  if (multiColour) {
+    printDiff.push(
+      "flush_into_infill",
+      "flush_into_objects",
+      "enable_prime_tower",
+      "enable_tower_interface_features",
+      "flush_multiplier",
+    );
+  }
   const projectSettings = JSON.stringify({
     from: "project",
     // Bambu uses this as the embedded process profile id — must NOT be the model filename.
@@ -653,9 +672,10 @@ function packColoredProject3mf({
     filament_vendor: filament.filamentVendor,
     filament_diameter: filament.filamentDiameter,
     filament_density: filament.filamentDensity,
-    filament_map: buildH2DFilamentMap(filament.maxExtruder),
+    filament_map: filamentMap,
     filament_map_mode: "Manual",
     physical_extruder_map: ["1", "0"],
+    different_settings_to_system: buildDifferentSettingsToSystem(filament.maxExtruder, printDiff),
     ...(Number.isFinite(layerHeight) ? {
       layer_height: String(layerHeight),
       initial_layer_print_height: String(layerHeight),
@@ -666,6 +686,7 @@ function packColoredProject3mf({
       flush_into_infill: "1",
       flush_into_objects: "1",
       enable_prime_tower: "0",
+      enable_tower_interface_features: "0",
       flush_multiplier: ["0.4", "0.4"],
     } : {}),
   });
@@ -828,6 +849,7 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck", options
       modelObjects,
       worldTransform,
       filament.maxExtruder,
+      !!printer?.singleNozzle,
     );
     const extraZipFiles = [
       {
@@ -875,7 +897,12 @@ export function buildColoredProject3mf(parts, projectName = "makerdeck", options
     built.buildObjectId,
     built.singlePart ? built.modelParts[0].name : projectName,
     built.modelParts,
-    { singlePart: built.singlePart, worldTransform, filamentSlotCount: filament.maxExtruder },
+    {
+      singlePart: built.singlePart,
+      worldTransform,
+      filamentSlotCount: filament.maxExtruder,
+      filamentMaps: buildH2DFilamentMapsMeta(filament.maxExtruder, !!printer?.singleNozzle),
+    },
   );
 
   const extraZipFiles = [

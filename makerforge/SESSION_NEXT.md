@@ -4,6 +4,12 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b602 — Hoodie: no prime tower, colours on left
+**Date:** 2026-08-17
+
+### MakerDeck
+- 20h slice was 8 filaments with 2–8 on the right nozzle + stock 0.24mm Standard tower. Merge similar reds/pinks (cap 4), map every slot to left, `enable_prime_tower=0` listed in `different_settings_to_system`. Hard refresh **b602**. Re-export. Do not click Set to Optimal.
+
 ## b601 — 3MF is H2C 0.24mm Standard
 **Date:** 2026-08-17
 

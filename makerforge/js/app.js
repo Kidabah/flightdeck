@@ -4,7 +4,7 @@ import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBuf
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, resolveEmbossFontWeight, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=600";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=370";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges, countNonManifoldEdges } from "./stl.js?v=599";
-import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=601";
+import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=602";
 import {
   folderExportSupported,
   folderExportBlockedReason,
@@ -36,7 +36,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b601";
+const MAKERDECK_BUILD = "b602";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -1618,8 +1618,61 @@ const CONTAINER_EXPORT_README = [
 ].join("\n");
 const HOLDER_STACK_README = "Import both 3MF files in Bambu Studio. Print the base first, then stack parts (can ring OR neck + cap). Snap-fit rims in v1 — test fit on your printer.";
 
+function hexToRgb(hex) {
+  const h = String(hex || "#ffffff").replace("#", "");
+  const full = h.length === 3 ? [...h].map((c) => c + c).join("") : h.slice(0, 6).padEnd(6, "0");
+  const n = parseInt(full, 16);
+  if (!Number.isFinite(n)) return [255, 255, 255];
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function rgbDist(a, b) {
+  return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+}
+
+/** PNG trace splits a crest into ~8 AMS slots. Keep body / red / black / white. */
+function hoodieColorKind(rgb, bodyRgb) {
+  if (rgbDist(rgb, bodyRgb) < 36) return "body";
+  const [r, g, b] = rgb;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const chroma = max - min;
+  const lum = (r + g + b) / 3;
+  if (lum < 48 && chroma < 55) return "black";
+  if (chroma < 32) return lum >= 168 ? "white" : "body";
+  if (r >= g + 18 && r >= b + 18) return "red";
+  return "accent";
+}
+
+function mergeHoodieExportFilaments(parts) {
+  if (!parts?.length) return parts;
+  const bodyRgb = hexToRgb(parts[0].color);
+  const clusters = [{ kind: "body", rgb: bodyRgb, extruder: 1 }];
+  const mapped = parts.map((part, i) => {
+    if (i === 0) return { ...part, extruder: 1 };
+    const rgb = hexToRgb(part.color);
+    const kind = hoodieColorKind(rgb, bodyRgb);
+    let cluster = clusters.find((c) => c.kind === kind);
+    if (!cluster) {
+      if (clusters.length >= 4) {
+        cluster = (kind === "white" || kind === "body")
+          ? clusters[0]
+          : (clusters.find((c) => c.kind === "red" || c.kind === "accent") || clusters[0]);
+      } else {
+        cluster = { kind, rgb, extruder: clusters.length + 1 };
+        clusters.push(cluster);
+      }
+    }
+    return { ...part, extruder: cluster.extruder };
+  });
+  const used = [...new Set(mapped.map((p) => p.extruder))].sort((a, b) => a - b);
+  const remap = new Map(used.map((e, i) => [e, i + 1]));
+  return mapped.map((p) => ({ ...p, extruder: remap.get(p.extruder) || 1 }));
+}
+
 async function buildBody3mfExport(exportCache, parts) {
   const projectName = baseModelName(exportCache.meta);
+  const exportParts = state.shape === "stubbyHolder" ? mergeHoodieExportFilaments(parts) : parts;
   const hoodie3mf = state.shape === "stubbyHolder" ? {
     filamentPreset: "Generic PLA",
     printer: {
@@ -1630,6 +1683,8 @@ async function buildBody3mfExport(exportCache, parts) {
       layerHeight: 0.24,
       bedWidth: 330,
       bedDepth: 320,
+      // All slots on the left hotend so colour changes purge into the hoodie, not a tower.
+      singleNozzle: true,
     },
   } : {};
   const separateLiner = exportIncludesSeparateLinerFile() && !!exportCache?.linerMesh;
@@ -1638,10 +1693,10 @@ async function buildBody3mfExport(exportCache, parts) {
   const multiFile = exportUsesMultiFileZip();
 
   if (!multiFile) {
-    return { blob: buildColoredProject3mf(parts, projectName, hoodie3mf), zipExport: false, lidPartCount: 0, linerPartCount: 0, holderPartCount: 0 };
+    return { blob: buildColoredProject3mf(exportParts, projectName, hoodie3mf), zipExport: false, lidPartCount: 0, linerPartCount: 0, holderPartCount: 0 };
   }
 
-  const containerBlob = buildColoredProject3mf(parts, projectName, hoodie3mf);
+  const containerBlob = buildColoredProject3mf(exportParts, projectName, hoodie3mf);
   const containerFile = isDrinkHolderShape(state.shape)
     ? filename3mfFor(exportCache.meta, "base")
     : filename3mfFor(exportCache.meta, "container");
