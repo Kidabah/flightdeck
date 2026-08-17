@@ -6,6 +6,18 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-17 Session update (Hoodie back uses the chest stamp)
+
+Latest commit: `c1d7dee` — MakerDeck **b598**, back text uses the same Y-stamp + 5-pass blur as the chest.
+
+Latest local/Pi change:
+- Front LITTLE is close because it stamps on a min-Y heightfield with pocket-close blur. Back now uses that same path on the outer +Y skin (no cylinder unwrap, no normals). Face → Back, type in Text. PNG still chest-only. Hard refresh (`app.js?v=705`, MakerDeck `app.js?v=598` / **b598**). Header **b598**. Re-click Stubby holder.
+
+Previous:
+- Drop hoodie back text (`fa27395`).
+
+---
+
 ## 2026-08-17 Session update (Drop hoodie back text)
 
 Latest commit: `fa27395` — MakerDeck **b597**, stubby holder text/logo on the chest only.

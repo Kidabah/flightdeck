@@ -4,6 +4,12 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b598 — Back text uses the chest stamp
+**Date:** 2026-08-17
+
+### MakerDeck
+- Front is close (Y-stamp + 5-pass blur). Back now uses that same setup on the outer rear skin — Face → Back, type in Text. PNG stays on the chest. Hard refresh MakerDeck **b598**. Re-click Stubby holder.
+
 ## b597 — No back text on the stubby holder
 **Date:** 2026-08-17
 
