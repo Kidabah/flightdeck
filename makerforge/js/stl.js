@@ -134,6 +134,42 @@ export function sanitizeMeshForStl(mesh, { strict = true, repair = true } = {}) 
   return { positions: welded.positions, indices: idx, openEdgeCount: after.open, nonManifoldEdgeCount: after.over };
 }
 
+/** Cap a 3-edge hole left when peel drops one triangle. Opposite winding to the open rim. */
+function fillTriangularBoundaryHoles(positions, indices) {
+  const use = new Map();
+  const dir = new Map();
+  for (let t = 0; t < indices.length; t += 3) {
+    const tri = [indices[t], indices[t + 1], indices[t + 2]];
+    for (let k = 0; k < 3; k++) {
+      const a = tri[k];
+      const b = tri[(k + 1) % 3];
+      const key = edgeKey(a, b);
+      use.set(key, (use.get(key) || 0) + 1);
+      if (!dir.has(key)) dir.set(key, [a, b]);
+    }
+  }
+  const opens = [];
+  for (const [key, n] of use) {
+    if (n === 1) opens.push(dir.get(key));
+  }
+  if (opens.length !== 3) return indices;
+  const verts = new Set();
+  for (const [a, b] of opens) {
+    verts.add(a);
+    verts.add(b);
+  }
+  if (verts.size !== 3) return indices;
+  const [a, b] = opens[0];
+  let x = -1;
+  for (const v of verts) {
+    if (v !== a && v !== b) x = v;
+  }
+  if (x < 0 || triArea(positions, a, x, b) < 1e-12) return indices;
+  const out = indices.slice();
+  out.push(a, x, b);
+  return out;
+}
+
 /** Light 3MF clean: weld open shells; peel 3+ face edges on otherwise-closed meshes.
  * Stack feet with holes still skip peel (open-edge weld only) so profile shells stay intact. */
 export function prepareMeshFor3mf(mesh) {
@@ -152,15 +188,25 @@ export function prepareMeshFor3mf(mesh) {
   let idx = indices;
   let changed = false;
 
+  // Duplicate faces after weld look like 3+ edge-use. Peeling those first
+  // punches a hole (hoodie Body: 24 over → 3 open). Strip dups before peel.
+  idx = removeDuplicateTriangles(idx);
+  idx = removeCollapsedTriangles(pos, idx);
+  changed = true;
+  let mid = tallyEdgeUse(pos, idx);
+  if (mid.open === 0 && mid.over === 0) {
+    return { positions: pos, indices: idx, openEdgeCount: 0, nonManifoldEdgeCount: 0 };
+  }
+
   // Closed but non-manifold (hoodie STL, stamp pinches): peel extra faces, no spatial weld.
-  if (before.over > 0) {
+  if (mid.over > 0) {
     idx = repairNonManifoldFaces(pos, idx, 12);
     idx = removeDuplicateTriangles(idx);
     idx = removeCollapsedTriangles(pos, idx);
-    changed = true;
+    mid = tallyEdgeUse(pos, idx);
   }
 
-  if (before.open > 0) {
+  if (mid.open > 0) {
     const welded = weldMeshVertices(pos, idx, weldEpsForMesh(pos));
     pos = welded.positions;
     idx = removeDuplicateTriangles(welded.indices);
@@ -168,13 +214,17 @@ export function prepareMeshFor3mf(mesh) {
     // positive-area sliver from a closed mesh tears an open edge (Text lost 340 edges
     // this way: 0.04 weld merged dense glyph points, then area cull removed the tris).
     idx = removeCollapsedTriangles(pos, idx);
-    changed = true;
-    const mid = tallyEdgeUse(pos, idx);
+    mid = tallyEdgeUse(pos, idx);
     if (mid.over > 0) {
       idx = repairNonManifoldFaces(pos, idx, 12);
       idx = removeDuplicateTriangles(idx);
       idx = removeCollapsedTriangles(pos, idx);
+      mid = tallyEdgeUse(pos, idx);
     }
+  }
+
+  if (mid.open === 3) {
+    idx = fillTriangularBoundaryHoles(pos, idx);
   }
 
   if (!idx.length) return null;
