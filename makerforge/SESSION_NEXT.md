@@ -4,6 +4,12 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b597 — No back text on the stubby holder
+**Date:** 2026-08-17
+
+### MakerDeck
+- Rear text on the well kept clipping and crumpling. Face is chest only — type or drop a PNG there. Hard refresh MakerDeck **b597**. Re-click Stubby holder.
+
 ## b596 — Back text wraps around the well
 **Date:** 2026-08-17
 

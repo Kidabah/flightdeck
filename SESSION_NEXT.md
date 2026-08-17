@@ -6,6 +6,18 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-17 Session update (Drop hoodie back text)
+
+Latest commit: (this push) — MakerDeck **b597**, stubby holder text/logo on the chest only.
+
+Latest local/Pi change:
+- Back text on the hoodie well was never going to sit clean (cylinder + stamp kept clipping/crumpling). Face Back is gone. Type in Text or drop a PNG on the chest. Hard refresh (`app.js?v=704`, MakerDeck `app.js?v=597` / **b597**). Header **b597**. Re-click Stubby holder.
+
+Previous:
+- Hoodie back text wraps the cylinder (`26ab787`).
+
+---
+
 ## 2026-08-17 Session update (Hoodie back text wraps the cylinder)
 
 Latest commit: `26ab787` — MakerDeck **b596**, back text wraps around the well like a can label.
