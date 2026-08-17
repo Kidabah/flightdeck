@@ -4,6 +4,12 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b610 — Hoodie volumes in one object_1.model
+**Date:** 2026-08-17
+
+### MakerDeck
+- b609 wrote one `.model` file per colour; Bambu Studio binds part extruders from a single `object_1.model`. Same all-white H2C slice. Hard refresh **b610**. Re-export.
+
 ## b609 — Hoodie native Bambu volumes
 **Date:** 2026-08-17
 

@@ -6,7 +6,17 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
-## 2026-08-17 Session update (Hoodie native volumes)
+## 2026-08-17 Session update (Hoodie Bambu object_1 volumes)
+
+Latest commit: *(pending)* — MakerDeck **b610**, hoodie colours are volumes inside **one** `object_1.model` (how Studio actually saves multi-part objects).
+
+Latest local/Pi change:
+- b609 was still the wrong production layout (one file per colour). H2C ignored those part extruders — same all-white slice, right nozzle empty, mid-plate. Hard refresh (`app.js?v=717`, MakerDeck `app.js?v=610` / **b610**). Header **b610**. Re-export a **new** 3MF. Prepare tab: one hoodie with Body / Art parts. Filament view: white/red/black. Grouping left=1, right=2+3. Do not click Repair.
+
+Previous:
+- Hoodie native volumes (`59527ce`).
+
+---
 
 Latest commit: `59527ce` — MakerDeck **b609**, hoodie colours are real Bambu volumes in **one** assembled object.
 
