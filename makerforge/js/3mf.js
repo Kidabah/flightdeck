@@ -303,12 +303,9 @@ function worldTransformForPlate(centerOffset, plateId, bedWidth = BAMBU_BED_WIDT
 }
 
 function buildItemXml(objectId, transform = null, { multiPlate = false } = {}) {
-  if (multiPlate) {
+  if (multiPlate || transform) {
     const matrix = transform || formatTransform3x4(0, 0, 0);
     return `<item objectid="${objectId}" transform="${matrix}" printable="1" auto_drop="0"/>`;
-  }
-  if (transform) {
-    return `<item objectid="${objectId}" transform="${transform}" printable="1"/>`;
   }
   return `<item objectid="${objectId}"/>`;
 }
@@ -539,7 +536,11 @@ function buildFilamentSlots(usable) {
 
 /** H2D logical extruder 1 = left hotend (regular AMS). All slots on left avoids right-nozzle range errors on wide bodies. */
 function buildH2DFilamentMap(slotCount) {
-  return Array.from({ length: Math.max(1, slotCount) }, () => "1");
+  const n = Math.max(1, slotCount);
+  // Body on left; extra colour slots on the right so H2D does not AMS-swap
+  // the hoodie body on every crest layer (nozzle switch is cheap, AMS is not).
+  if (n <= 1) return ["1"];
+  return Array.from({ length: n }, (_, i) => (i === 0 ? "1" : "2"));
 }
 
 function buildH2DFilamentMapsMeta(slotCount) {
@@ -624,6 +625,7 @@ function packColoredProject3mf({
   </build>
 </model>`;
 
+  const multiColour = filament.maxExtruder > 1;
   const projectSettings = JSON.stringify({
     from: "BambuStudio",
     // Bambu uses this as the embedded process profile id — must NOT be the model filename.
@@ -641,12 +643,17 @@ function packColoredProject3mf({
     filament_vendor: filament.filamentVendor,
     filament_diameter: filament.filamentDiameter,
     filament_density: filament.filamentDensity,
-    // Always pin filaments to the left nozzle — single-filament files (liner) previously
-    // omitted the map, Bambu grouped them to the right nozzle, and AMS auto-mapping
-    // couldn't offer trays that feed the left side (AMS HT PLA Pure ignored → AMS 1).
     filament_map: buildH2DFilamentMap(filament.maxExtruder),
     filament_map_mode: "Manual",
     physical_extruder_map: ["1", "0"],
+    // Tall multi-colour logos (hoodie crest) otherwise AMS-swap hundreds of times
+    // into a prime tower. Purge into the body instead.
+    ...(multiColour ? {
+      flush_into_infill: "1",
+      flush_into_objects: "1",
+      enable_prime_tower: "0",
+      flush_multiplier: ["0.4", "0.4"],
+    } : {}),
   });
 
   const contentTypes = `<?xml version="1.0" encoding="UTF-8"?>

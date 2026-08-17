@@ -4,6 +4,12 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b586 — Hoodie multi-colour 3MF flushes into the body
+**Date:** 2026-08-17
+
+### MakerDeck
+- 18h slice was 553 AMS swaps into a prime tower (crest spans ~280 layers). Export Body+art as one object, purge into infill, no tower. Hard refresh MakerDeck **b586**. Re-export 3MF. Or in the open slicer: flush into infill/objects, multiplier 0.4, tower off.
+
 ## b585 — Hoodie crest is a fine Painter-style stamp
 **Date:** 2026-08-17
 
