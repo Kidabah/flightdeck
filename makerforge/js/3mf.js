@@ -546,10 +546,11 @@ function buildH2DFilamentMapsMeta(slotCount, allLeft = false) {
   return buildH2DFilamentMap(slotCount, allLeft).join(" ");
 }
 
-function buildDifferentSettingsToSystem(filamentCount, printDiffKeys) {
+function buildDifferentSettingsToSystem(filamentCount, printDiffKeys, printerDiffKeys) {
   const n = Math.max(3, (Number(filamentCount) || 1) + 2);
   const out = Array.from({ length: n }, () => "");
   out[0] = (printDiffKeys || []).filter(Boolean).join(";");
+  out[1] = (printerDiffKeys || []).filter(Boolean).join(";");
   return out;
 }
 
@@ -641,8 +642,10 @@ function packColoredProject3mf({
   const bedD = printer?.bedDepth ?? BAMBU_BED_DEPTH_MM;
   const nozzleDia = String(printer?.nozzleDiameter ?? 0.4);
   const allLeft = !!printer?.singleNozzle;
+  const amsHtLeft = !!printer?.amsHtLeft;
   const filamentMap = buildH2DFilamentMap(filament.maxExtruder, allLeft);
   const printDiff = ["filament_map", "filament_map_mode"];
+  const printerDiff = [];
   if (Number.isFinite(layerHeight)) printDiff.push("layer_height", "initial_layer_print_height");
   if (multiColour) {
     printDiff.push(
@@ -653,6 +656,7 @@ function packColoredProject3mf({
       "flush_multiplier",
     );
   }
+  if (amsHtLeft) printerDiff.push("extruder_ams_count");
   const projectSettings = JSON.stringify({
     from: "project",
     // Bambu uses this as the embedded process profile id — must NOT be the model filename.
@@ -675,7 +679,9 @@ function packColoredProject3mf({
     filament_map: filamentMap,
     filament_map_mode: "Manual",
     physical_extruder_map: ["1", "0"],
-    different_settings_to_system: buildDifferentSettingsToSystem(filament.maxExtruder, printDiff),
+    // Left nozzle = AMS HT (type 4); right nozzle = regular AMS (type 1).
+    ...(amsHtLeft ? { extruder_ams_count: ["1#0|4#1", "1#1|4#0"] } : {}),
+    different_settings_to_system: buildDifferentSettingsToSystem(filament.maxExtruder, printDiff, printerDiff),
     ...(Number.isFinite(layerHeight) ? {
       layer_height: String(layerHeight),
       initial_layer_print_height: String(layerHeight),

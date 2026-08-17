@@ -4,6 +4,12 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b605 — Hoodie AMS HT on left only
+**Date:** 2026-08-17
+
+### MakerDeck
+- All three filaments showed HT-A because the 3MF had no `extruder_ams_count`. Left = AMS HT, right = regular AMS. Hard refresh **b605**. Re-export.
+
 ## b604 — Hoodie dual nozzle (white left, art right)
 **Date:** 2026-08-17
 
