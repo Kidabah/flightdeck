@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-17 Session update (Hoodie dark grey stays black)
 
-Latest commit: `PENDING` — MakerDeck **b603**, crest **Dark grey** (knight) no longer merges into the white body slot.
+Latest commit: `2d7b7a4` — MakerDeck **b603**, crest **Dark grey** (knight) no longer merges into the white body slot.
 
 Latest local/Pi change:
 - b602 parked `Art Dark grey` on filament 1, so the knight vanished. Dark grey / black now get their own slot (priority: body, red, black, white). Hard refresh (`app.js?v=710`, MakerDeck `app.js?v=603` / **b603**). Header **b603**. Re-export. Do not click Set to Optimal.
