@@ -5206,11 +5206,11 @@ function labelOffsets(params) {
     return { d0: -depth - 0.05, d1: 0.4, depth, deboss: true };
   }
   if (params.__hoodieArtExport) {
-    // Embed through the skin. The export CSG cuts this space from Body, so
-    // the art is supported but never shares printable material with it.
-    const proud = 0.66;
-    const embed = 0.24;
-    return { d0: -embed, d1: proud, depth: proud + embed, deboss: false };
+    // Sit on the fabric like preview — do not sink into the hoodie. Embedding
+    // plus CSG cut a jagged panther pocket into Body and printed rough.
+    const proud = 0.84;
+    const skin = HOODIE_ART_PROUD_MM;
+    return { d0: skin, d1: skin + proud, depth: proud, deboss: false };
   }
   if (params.shape === "stubbyHolder") {
     const proud = 0.5;

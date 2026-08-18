@@ -4,6 +4,12 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b621 — Hoodie crest sits on the fabric, not carved into Body
+**Date:** 2026-08-18
+
+### MakerDeck
+- Export CSG was cutting the panther out of the hoodie (Fusion embedded-logo look, rough print). Body is the original mesh; art is a ~0.84 mm decal on the chest. Red/black still trimmed so they don’t share voxels. Hard refresh **b621**. Re-export.
+
 ## b620 — Print-safe cleanup for hoodie bitmap logos
 **Date:** 2026-08-17
 

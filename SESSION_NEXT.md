@@ -6,6 +6,18 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-18 Session update (Hoodie art sits on the fabric)
+
+Latest commit: *(pending)* — MakerDeck **b621**. Export was carving the panther into Body (0.24 mm embed + CSG pocket), which is the jagged Fusion mesh and the rough print. Body stays the original hoodie; crest sits on the chest (~0.84 mm proud). Red/black still trimmed apart.
+
+Latest local/Pi change:
+- Hard refresh (`app.js?v=727`, MakerDeck `app.js?v=621` / **b621**). Header **b621**. Re-export a **new** 3MF. Fusion Body = plain hoodie, Art = separate crest on the chest. Do not click Repair.
+
+Previous:
+- Print-safe hoodie bitmap cleanup (b620).
+
+---
+
 ## 2026-08-17 Session update (H2C slice kept dumping RHS grouping)
 
 Latest commit: `9a4fb63` — MakerDeck **b618**. July 6 `Vase_1.gcode.3mf` (working) vs tonight’s `blue grey vase.3mf`: both dual-nozzle, but the new file flushed extras into infill (`flush_into_infill=1`), omitted per-nozzle printable areas, and used H2D presets. H2C slice then remaps Prepare’s RHS grouping to left-only. Match the working vase: flush off, H2C AMS/printable zones, Generic PLA @BBL H2C.
