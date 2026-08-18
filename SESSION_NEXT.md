@@ -8,7 +8,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ## 2026-08-18 Session update (Hoodie art sits on the fabric)
 
-Latest commit: *(pending)* — MakerDeck **b621**. Export was carving the panther into Body (0.24 mm embed + CSG pocket), which is the jagged Fusion mesh and the rough print. Body stays the original hoodie; crest sits on the chest (~0.84 mm proud). Red/black still trimmed apart.
+Latest commit: `f0f1140` — MakerDeck **b621**. Export was carving the panther into Body (0.24 mm embed + CSG pocket), which is the jagged Fusion mesh and the rough print. Body stays the original hoodie; crest sits on the chest (~0.84 mm proud). Red/black still trimmed apart.
 
 Latest local/Pi change:
 - Hard refresh (`app.js?v=727`, MakerDeck `app.js?v=621` / **b621**). Header **b621**. Re-export a **new** 3MF. Fusion Body = plain hoodie, Art = separate crest on the chest. Do not click Repair.
