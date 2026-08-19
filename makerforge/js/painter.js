@@ -1,5 +1,5 @@
 /**
- * MakerDeck STL Painter Engine — b591
+ * MakerDeck STL Painter Engine — b623
  * Pure computation module: STL parsing, feature detection, 3MF export.
  */
 
@@ -1410,29 +1410,11 @@ export function export3MF(verts, faces, nVerts, nTri, embossMask, debossMask, op
 
   const filTypes = Array.from({ length: nSlots }, (_, i) =>
     (filamentType && filamentType[i]) || filamentType?.[0] || 'PLA');
-  const baseProfile = String(filamentProfile || 'Generic PLA').replace(/\s*@.*$/, '').trim() || 'Generic PLA';
-  const defaultSettingsId = baseProfile;
-  const filSettings = Array.from({ length: nSlots }, (_, i) => {
-    let raw = String((filamentSettingsId && filamentSettingsId[i]) || defaultSettingsId).trim();
-    // Painter exports should not force a printer-specific filament preset.
-    // On H2C, "Generic PLA @BBL H2C" imports into Studio as HT-A for every
-    // slot; plain "Generic PLA" lets Studio bind to the user's normal AMS /
-    // AMS 2 Pro trays.
-    raw = raw.replace(/\s*@.*$/, '').trim() || baseProfile;
-    // Strip nozzle suffix — Orca is happier and Studio can resolve the generic preset.
-    raw = raw.replace(/\s+0\.\d+\s*nozzle\s*$/i, '');
-    return raw;
-  });
   const filVendors = Array.from({ length: nSlots }, () =>
     /^bambu/i.test(filamentProfile) ? 'Bambu Lab' : 'Generic');
   const filIds = Array.from({ length: nSlots }, () => 'GFL99');
   const filDiameter = Array.from({ length: nSlots }, () => '1.75');
   const filDensity = Array.from({ length: nSlots }, () => '1.24');
-  // Keep a simple Bambu-style filament map, but let Studio bind those project
-  // colours to the loaded AMS/AMS2 Pro trays. Manual pinning made H2C imports
-  // show every painted slot as HT-A.
-  const filamentMap = Array.from({ length: nSlots }, () => '1');
-  const colourTypes = Array.from({ length: nSlots }, () => '2');
 
   if (nTri > EXPORT_MAX_FACES) {
     throw new Error(`Too many faces to export (${nTri.toLocaleString()}). Reload the STL and stamp the logo again.`);
@@ -1447,8 +1429,11 @@ export function export3MF(verts, faces, nVerts, nTri, embossMask, debossMask, op
     : null;
 
   const safeName = String(projectName || 'painted_object').replace(/[<>&"']/g, '');
-  const objectModel = objectModelFile(bodyMesh.vertices, bodyMesh.triangles, 1);
-  const stampObjectModel = stampMesh ? objectModelFile(stampMesh.vertices, stampMesh.triangles, 1) : null;
+  // Bambu's production extension needs a distinct resource ID inside each
+  // external model. Reusing the parent object ID here creates a recursive
+  // component reference, which Studio imports as an invalid, zero-volume part.
+  const objectModel = objectModelFile(bodyMesh.vertices, bodyMesh.triangles, 2);
+  const stampObjectModel = stampMesh ? objectModelFile(stampMesh.vertices, stampMesh.triangles, 4) : null;
 
   const mainModel = `<?xml version="1.0" encoding="UTF-8"?>
 <model unit="millimeter" xml:lang="en-US"
@@ -1457,20 +1442,20 @@ export function export3MF(verts, faces, nVerts, nTri, embossMask, debossMask, op
   <metadata name="Application">MakerDeck STL Painter</metadata>
   <metadata name="Title">${safeName}</metadata>
   <resources>
-    <object id="1" type="model" p:path="/3D/Objects/object_1.model">
+    <object id="1" type="model">
       <components>
-        <component objectid="1" p:path="/3D/Objects/object_1.model" />
+        <component objectid="2" p:path="/3D/Objects/object_1.model" />
       </components>
     </object>${splitStamp ? `
-    <object id="2" type="model" p:path="/3D/Objects/object_2.model">
+    <object id="3" type="model">
       <components>
-        <component objectid="2" p:path="/3D/Objects/object_2.model" />
+        <component objectid="4" p:path="/3D/Objects/object_2.model" />
       </components>
     </object>` : ''}
   </resources>
   <build>
     <item objectid="1" />${splitStamp ? `
-    <item objectid="2" />` : ''}
+    <item objectid="3" />` : ''}
   </build>
 </model>`;
 
@@ -1495,6 +1480,14 @@ export function export3MF(verts, faces, nVerts, nTri, embossMask, debossMask, op
 
   const modelSettings = `<?xml version="1.0" encoding="UTF-8"?>
 <config>
+  <object id="1">
+    <metadata key="name" value="${safeName}" />
+    <metadata key="extruder" value="1" />
+  </object>${splitStamp ? `
+  <object id="3">
+    <metadata key="name" value="${safeName}_logo" />
+    <metadata key="extruder" value="1" />
+  </object>` : ''}
   <plate>
     <metadata key="plater_id" value="1" />
     <metadata key="plater_name" value="" />
@@ -1506,57 +1499,30 @@ export function export3MF(verts, faces, nVerts, nTri, embossMask, debossMask, op
       <metadata key="identify_id" value="0" />
     </model_instance>${splitStamp ? `
     <model_instance>
-      <metadata key="object_id" value="2" />
+      <metadata key="object_id" value="3" />
       <metadata key="instance_id" value="0" />
       <metadata key="identify_id" value="1" />
     </model_instance>` : ''}
   </plate>
-  <object id="1">
-    <metadata key="name" value="${safeName}" />
-    <part id="1" subtype="normal_part">
-      <metadata key="name" value="${safeName}" />
-      <metadata key="extruder" value="1" />
-    </part>
-  </object>${splitStamp ? `
-  <object id="2">
-    <metadata key="name" value="${safeName}_logo" />
-    <part id="1" subtype="normal_part">
-      <metadata key="name" value="${safeName}_logo" />
-      <metadata key="extruder" value="1" />
-    </part>
-  </object>` : ''}
 </config>`;
 
-  // Painter exports are intentionally single-tool AMS projects. H2C/H2D
-  // printer profiles make Studio auto-route colours onto left/right nozzles
-  // and can default rows to HT-A or right-nozzle ranges. Use a neutral Bambu
-  // AMS profile for the 3MF; the user can switch the printer after import.
-  const exportPrinterModel = 'Bambu Lab X1 Carbon';
-  const processId = '0.20mm Standard @BBL X1C';
-  const nozzleId = 'Bambu Lab X1 Carbon 0.4 nozzle';
-
-  // Keep this list small — Studio-only keys (soft_fine_layer_expander, etc.) break Orca.
+  // Deliberately use only the Bambu-safe colour fields. Printer/profile fields
+  // are coupled to the source printer and make Studio reject an otherwise valid
+  // painter project when it is opened against a different machine.
   const projectSettings = JSON.stringify({
     from: 'MakerDeck',
     name: 'project_settings',
     version: '2.2.0',
-    printer_model: exportPrinterModel,
-    printer_settings_id: nozzleId,
-    print_settings_id: processId,
     filament_type: filTypes,
     filament_colour: colorsArr,
-    filament_colour_type: colourTypes,
     filament_ids: filIds,
-    filament_settings_id: filSettings,
     filament_vendor: filVendors,
     filament_diameter: filDiameter,
     filament_density: filDensity,
-    default_filament_colour: colorsArr,
-    filament_map: filamentMap,
-    filament_map_mode: 'Auto For Flush',
   }, null, 2);
 
   const zipFiles = [
+    { name: 'mimetype', data: 'application/vnd.ms-package.3dmanufacturing-3dmodel+xml' },
     { name: '[Content_Types].xml', data: contentTypes },
     { name: '_rels/.rels', data: rels },
     { name: '3D/3dmodel.model', data: mainModel },

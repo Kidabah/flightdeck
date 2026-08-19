@@ -388,6 +388,11 @@ const splitZip = export3MF(
 );
 const splitText = new TextDecoder().decode(splitZip);
 check("export splits stamp to object_2", splitText.includes('object_2.model'));
+check("split export uses non-recursive body component IDs", splitText.includes('<component objectid="2" p:path="/3D/Objects/object_1.model" />'));
+check("split export uses non-recursive logo component IDs", splitText.includes('<component objectid="4" p:path="/3D/Objects/object_2.model" />'));
+check("split export maps the logo plate instance to its outer object", splitText.includes('<metadata key="object_id" value="3" />'));
+check("split export includes the standard 3MF mimetype", splitText.includes('application/vnd.ms-package.3dmanufacturing-3dmodel+xml'));
+check("project config stays printer-neutral", !splitText.includes('"printer_model"') && !splitText.includes('"filament_settings_id"'));
 const splitImported = await import3MF(splitZip.buffer);
 check("import merges hoodie and logo", splitImported.nTri === 2 && splitImported.nVerts === 6, `t=${splitImported.nTri} v=${splitImported.nVerts}`);
 check("import keeps logo paint", splitImported.facePaint[1] === 1, `p=${splitImported.facePaint[1]}`);
