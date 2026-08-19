@@ -136,6 +136,15 @@ _BAMBU_PROFILE_ALIASES = {
         "nozzle_temp_min": 220,
         "nozzle_temp_max": 260,
     },
+    "GFG98": {
+        "brand": "Generic",
+        "profile": "Generic PETG-CF",
+        "material": "PETG-CF",
+        "tray_info_idx": "GFG98",
+        "tray_type": "PETG-CF",
+        "nozzle_temp_min": 240,
+        "nozzle_temp_max": 270,
+    },
     "GFU99": {
         "brand": "Generic",
         "profile": "Generic TPU",
@@ -2118,6 +2127,7 @@ def _bambu_pla_profile_key(spool: dict) -> Optional[str]:
 
 def _custom_filament_for_spool(spool: dict) -> Optional[AMSFilamentSettings]:
     material = str(spool.get("material") or "").strip().upper()
+    subtype = str(spool.get("subtype") or "").strip().upper()
     brand = str(spool.get("brand") or "").strip().lower()
     if material == "ASA" and "siddament" in brand:
         profile = _BAMBU_PROFILE_ALIASES["P461bccf"]
@@ -2136,17 +2146,28 @@ def _custom_filament_for_spool(spool: dict) -> Optional[AMSFilamentSettings]:
             profile["nozzle_temp_max"],
             profile["tray_type"],
         )
+    if "PETG" in material and "CF" in f"{material} {subtype}":
+        profile = _BAMBU_PROFILE_ALIASES["GFG98"]
+        return AMSFilamentSettings(
+            profile["tray_info_idx"],
+            profile["nozzle_temp_min"],
+            profile["nozzle_temp_max"],
+            profile["tray_type"],
+        )
     return None
 
 
 def _profile_alias_for_spool(spool: dict) -> dict:
     material = str(spool.get("material") or "").strip().upper()
+    subtype = str(spool.get("subtype") or "").strip().upper()
     brand = str(spool.get("brand") or "").strip().lower()
     if material == "ASA" and "siddament" in brand:
         return _BAMBU_PROFILE_ALIASES["P461bccf"]
     pla_key = _bambu_pla_profile_key(spool)
     if pla_key:
         return _BAMBU_PROFILE_ALIASES[pla_key]
+    if "PETG" in material and "CF" in f"{material} {subtype}":
+        return _BAMBU_PROFILE_ALIASES["GFG98"]
     filament = _filament_for_spool(spool)
     if isinstance(filament, AMSFilamentSettings):
         for alias in _BAMBU_PROFILE_ALIASES.values():
