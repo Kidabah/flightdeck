@@ -6,6 +6,14 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-19 Session update (Painter b625 free artwork move)
+
+Painter artwork now has separate on-model transforms: drag the small blue centre target to move the live preview continuously over the fabric, and drag the outer blue ring to rotate it. A normal click still establishes the initial position. Size and Rotation labels are now editable number fields that stay synchronised with their sliders; Enter or clicking away applies the value.
+
+Feature commit: `2093056` — hard refresh Painter **b625** (`painter.html?v=625`; Flightdeck shell `app.js?v=731`). `node makerforge/test/painter-art.mjs`, Painter module syntax, and browser b625 control/console checks passed.
+
+---
+
 ## 2026-08-19 Session update (Painter b624 adjustable artwork)
 
 Painter artwork is no longer committed on the first chest click. **b624** first positions a live logo preview, then exposes a blue on-model rotation ring plus the Rotation slider; only **Stamp artwork** turns that position into 3MF geometry. After stamping, **Adjust artwork** reopens the same logo so it can be moved or rotated again without uploading or tracing it again. Escape/Cancel abandons the pending adjustment and keeps the existing stamp.

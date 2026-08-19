@@ -4,6 +4,14 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b625 — Painter artwork moves freely before stamping
+**Date:** 2026-08-19
+
+### STL Painter
+- The live artwork preview now has a small blue centre target: drag it over the mesh to continuously re-project/move the logo across the fabric. The outer blue ring remains rotation-only, so move and rotate no longer fight each other.
+- Size and Rotation readouts are editable numeric fields as well as sliders. Type an exact value and press Enter or click away; both controls remain in sync.
+- Feature commit `2093056`. Hard refresh **b625** (`painter.html?v=625`; Flightdeck shell `app.js?v=731`). Painter-art tests, module syntax, and browser control/console checks passed.
+
 ## b624 — Painter artwork can be rotated before it becomes geometry
 **Date:** 2026-08-19
 
