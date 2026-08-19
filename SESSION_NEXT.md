@@ -6,6 +6,14 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-19 Session update (Painter b624 adjustable artwork)
+
+Painter artwork is no longer committed on the first chest click. **b624** first positions a live logo preview, then exposes a blue on-model rotation ring plus the Rotation slider; only **Stamp artwork** turns that position into 3MF geometry. After stamping, **Adjust artwork** reopens the same logo so it can be moved or rotated again without uploading or tracing it again. Escape/Cancel abandons the pending adjustment and keeps the existing stamp.
+
+Feature commit: `427432f` — hard refresh Painter **b624** (`painter.html?v=624`; Flightdeck shell `app.js?v=730`). `node makerforge/test/painter-art.mjs`, Painter module syntax, and local browser console smoke passed.
+
+---
+
 ## 2026-08-19 Session update (Painter b623 3MF volume export)
 
 The b622 Painter preview could be perfect while Bambu Studio rejected the saved 3MF configuration and deleted zero-volume objects. The split exporter used a recursive external component reference: a parent object and its mesh resource shared the same ID. b623 uses valid pairs (`1 → 2` for Body and `3 → 4` for Art), adds the mandatory `mimetype`, and emits only Bambu-safe, printer-neutral project settings.

@@ -4,6 +4,14 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b624 — Painter artwork can be rotated before it becomes geometry
+**Date:** 2026-08-19
+
+### STL Painter
+- Placing artwork now creates a live, correctly aligned preview instead of immediately changing the mesh. Drag its bright blue rotation ring like a slicer transform control, or use the Rotation slider, then click **Stamp artwork** to create the raised multi-colour geometry.
+- After stamping, **Adjust artwork** reopens the same stored position so a logo can be moved or rotated without re-uploading/retracing. **Cancel position** / Escape discards only the pending preview and keeps the prior stamp.
+- Feature commit `427432f`. Hard refresh **b624** (`painter.html?v=624`; Flightdeck shell `app.js?v=730`). `test/painter-art.mjs`, module syntax, and browser console smoke passed.
+
 ## b623 — Painter 3MF exports contain real body and logo volumes
 **Date:** 2026-08-19
 
