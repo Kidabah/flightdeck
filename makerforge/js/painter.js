@@ -1008,10 +1008,14 @@ function fmtCoord(n) {
 
 function meshXmlChunk(verts, faces, paint, face0, faceCount, vert0, vertCount) {
   const vLines = new Array(vertCount);
-  for (let i = 0; i < vertCount; i++) {
-    const vi = vert0 + i;
-    vLines[i] = `        <vertex x="${fmtCoord(verts[vi * 3])}" y="${fmtCoord(verts[vi * 3 + 1])}" z="${fmtCoord(verts[vi * 3 + 2])}" />`;
-  }
+for (let i = 0; i < vertCount; i++) {
+  const vi = vert0 + i;
+
+  // Painter is Y-up internally; 3MF/Bambu/Orca are Z-up.
+  // Exact inverse of STL load transform:
+  // Painter (x, y, z) -> 3MF (x, -z, y).
+  vLines[i] = `        <vertex x="${fmtCoord(verts[vi * 3])}" y="${fmtCoord(-verts[vi * 3 + 2])}" z="${fmtCoord(verts[vi * 3 + 1])}" />`;
+}
   const tLines = new Array(faceCount);
   for (let i = 0; i < faceCount; i++) {
     const fi = face0 + i;
@@ -1022,7 +1026,8 @@ function meshXmlChunk(verts, faces, paint, face0, faceCount, vert0, vertCount) {
     const attrs = (slot > 0 && slot < PAINT_COLOR_CODES.length)
       ? ` paint_color="${PAINT_COLOR_CODES[slot]}"`
       : '';
-    tLines[i] = `        <triangle v1="${v1}" v2="${v2}" v3="${v3}"${attrs} />`;
+    
+	tLines[i] = `        <triangle v1="${v1}" v2="${v2}" v3="${v3}"${attrs} />`;
   }
   return {
     vertices: vLines.join('\n') + '\n',
