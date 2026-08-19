@@ -462,8 +462,14 @@ function fillLiftHoles(lift, gw, gh) {
 }
 
 /**
- * Height of the hoodie along the stamp normal, at each slab-grid corner.
+ * Height of the model along the stamp normal, at each slab-grid corner.
  * Positive is toward the camera; a curved chest falls negative at the edges.
+ *
+ * Importers and the Painter's bed-orientation transform can legitimately
+ * reverse a mesh's winding.  Height sampling is geometric rather than a
+ * shading operation, so accept either winding here and retain the front-most
+ * nearby surface.  Requiring only a positive normal dot made those meshes
+ * fall back to a flat decal, which can cut through a curved chest.
  */
 export function sampleStampSurfaceLift({
   verts, faces, nTri,
@@ -503,7 +509,7 @@ export function sampleStampSurfaceLift({
     const fl = hypot3(fnx, fny, fnz);
     if (fl < 1e-10) continue;
     fnx /= fl; fny /= fl; fnz /= fl;
-    if (fnx * nx + fny * ny + fnz * nz < maxAngleDot) continue;
+    if (Math.abs(fnx * nx + fny * ny + fnz * nz) < maxAngleDot) continue;
 
     const pa = project(ax, ay, az);
     const pb = project(bx, by, bz);

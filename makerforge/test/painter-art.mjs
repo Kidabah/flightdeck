@@ -306,6 +306,26 @@ for (let i = 2; i < lifted.positions.length; i += 3) {
 check("lifted slab sits on the hoodie", minLiftZ > 2, `minZ=${minLiftZ}`);
 check("lifted slab stands proud of the hoodie", maxLiftZ > 2.5, `maxZ=${maxLiftZ}`);
 
+// Imported STLs and the Painter's auto-orientation can reverse face winding.
+// The surface is still the same physical chest; a logo must not fall back to
+// the tangent plane and cut into it merely because the triangle is reversed.
+const reversedLiftFaces = new Uint32Array([0, 2, 1]);
+const reversedLift = sampleStampSurfaceLift({
+  verts: liftVerts, faces: reversedLiftFaces, nTri: 1,
+  origin: [0, 0, 0], right: [1, 0, 0], up: [0, 1, 0], normal: [0, 0, 1],
+  widthMm: 20, heightMm: 20, cols: 8, rows: 8,
+});
+check("surface lift ignores reversed STL winding", reversedLift[4 * 9 + 4] > 1.5 && reversedLift[4 * 9 + 4] < 2.5, `d=${reversedLift[4 * 9 + 4]}`);
+const reversedLifted = buildStampSlabsFromMasks({
+  layers: [{ mask: redMask, slot: 1 }], imgW: 4, imgH: 4,
+  origin: [0, 0, 0], right: [1, 0, 0], up: [0, 1, 0], normal: [0, 0, 1],
+  widthMm: 20, heightMm: 20, stepMm: 5,
+  verts: liftVerts, faces: reversedLiftFaces, nTri: 1,
+});
+let minReversedLiftZ = Infinity;
+for (let i = 2; i < reversedLifted.positions.length; i += 3) minReversedLiftZ = Math.min(minReversedLiftZ, reversedLifted.positions[i]);
+check("reversed-winding slab stays outside the hoodie", minReversedLiftZ > 2, `minZ=${minReversedLiftZ}`);
+
 const plateMask = new Uint8Array(16);
 const inkMask = new Uint8Array(16);
 plateMask.fill(1);
