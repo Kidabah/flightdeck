@@ -4,6 +4,15 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b626 — Protected bucket fill and base-colour swap
+**Date:** 2026-08-19
+
+### STL Painter
+- **Bucket** fills the connected base-model paint region under the click with the active slot. It respects hidden faces and will not cross into stamped artwork.
+- **Swap base colours** exchanges two selected paint slots only on the original model. All stamped-artwork faces remain assigned to their existing artwork colours.
+- Every ordinary paint and clear path now shares the same artwork lock. Split Painter 3MF imports restore the `object_2` artwork boundary, and a slot still used by artwork cannot be removed accidentally.
+- Feature commit `0362a36`. Hard refresh **b626** (`painter.html?v=626`; Painter module `v=624`; Flightdeck shell `app.js?v=733`). Painter-art tests include export/import preservation of the protected boundary.
+
 ## 2026-08-19 — Flightdeck Bambu Lab naming and free colour entry
 - Flightdeck now stores the printer spelling **Bambu Lab** instead of the old **Bambu** alias, including a startup migration for existing spool/catalogue/cost data. AMS/Queue profile checks recognise both historical spellings so a BigBoy job cannot be blocked solely by `printer Bambu Lab` versus `Flightdeck Bambu`.
 - Spool Manager colour names are now literal text fields: no app-side partial-name replacement, datalist, or browser autocomplete. Standard swatch clicks still fill a standard colour name deliberately.

@@ -6,6 +6,14 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-19 Session update (Painter b626 protected bucket and colour swap)
+
+Painter now has a **Bucket** tool that fills the connected base-model region under the click, plus **Swap base colours** controls for exchanging two painted filament slots. Stamped artwork is a protected layer: brush, spray, selection, smart fill, bucket, colour swap, and Clear Paint cannot alter its faces. Reopening a split Painter 3MF restores the body/art boundary, so the protection survives export and import.
+
+Feature commit: `0362a36` — hard refresh Painter **b626** (`painter.html?v=626`; Painter module `v=624`; Flightdeck shell `app.js?v=733`). Painter module syntax, `node makerforge/test/painter-art.mjs`, 3MF round-trip artwork-boundary assertions, and diff checks passed before deployment.
+
+---
+
 ## 2026-08-19 Session update (Bambu Lab brand normalisation and colour entry)
 
 Legacy Flightdeck `Bambu` inventory/catalogue/cost records are promoted to `Bambu Lab` at startup, and all new spool, restock, incoming-stock, catalogue, cost, and empty-spool-profile writes use the same spelling. Queue/Profile Doctor matching also treats either historical spelling as one brand, so BigBoy’s AMS slot 3 no longer blocks merely because the printer says `Bambu Lab` while Flightdeck previously stored `Bambu`.
