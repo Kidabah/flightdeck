@@ -4,6 +4,14 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b622 — Painter artwork follows curved, reversed-winding meshes
+**Date:** 2026-08-19
+
+### STL Painter
+- Artwork height sampling now treats triangle winding as import metadata, not as the physical outside of the model. On an STL whose winding was flipped during import or automatic bed orientation, the Painter retains the nearest chest surface rather than falling back to a flat decal that cuts through it.
+- The artwork remains a separate, closed raised part (0.04 mm skin gap, 0.72 mm relief) and retains its colour layers for 3MF export. `test/painter-art.mjs` covers the reversed-winding curved-chest case.
+- Hard refresh **b622** (the Flightdeck Painter frame now loads `painter.html?v=622`; static shell `app.js?v=728`), reload the model, then place and export a new stamp. Existing exports retain their old geometry.
+
 ## b621 — Hoodie crest sits on the fabric, not carved into Body
 **Date:** 2026-08-18
 

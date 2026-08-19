@@ -6,6 +6,14 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-19 Session update (Painter b622 curved artwork)
+
+Painter now stamps artwork onto the actual nearby chest surface even when an imported STL has reversed face winding. The old sampler rejected those triangles and could revert to a flat plane that passed through a curved shirt. The relief remains a separate closed 3MF part, 0.04 mm clear of the surface and 0.72 mm proud.
+
+Feature commit: `b594dbc` — MakerDeck **b622**. The Painter frame is cache-busted to `painter.html?v=622` and the Flightdeck shell to `app.js?v=728`. `node makerforge/test/painter-art.mjs` passed, including a reversed-winding curved-surface regression case. Reload the model, stamp again, and export a new 3MF; prior exports retain their former decal mesh.
+
+---
+
 ## 2026-08-19 Session update (PETG-CF AMS profile)
 
 Feature commit: `35a16d6` — a Flightdeck spool recorded as `PETG` with subtype `CF` (including Siddament PETG CF) now programs the AMS with Bambu's `GFG98 · Generic PETG-CF` profile, at its 240–270 °C range. Plain PETG remains `GFG99 · Generic PETG`.
