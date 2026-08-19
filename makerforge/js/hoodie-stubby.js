@@ -225,7 +225,7 @@ function metaFromMesh(positions) {
     cavityMl: round1(cavityMl),
     materialMl: round1(materialMl),
     estGrams: round1(materialMl * 1.24),
-    styleLabel: "Hoodie stubby",
+    styleLabel: "Hoodie container",
     chestY: chestY == null ? undefined : round1(chestY),
     backY: backY == null ? undefined : round1(backY),
   };
@@ -266,7 +266,7 @@ export async function ensureHoodieStubbyMesh() {
   if (!loadPromise) {
     loadPromise = (async () => {
       const res = await fetch(HOODIE_STUBBY_STL_URL, { cache: "no-store" });
-      if (!res.ok) throw new Error(`Could not load hoodie stubby (${res.status})`);
+      if (!res.ok) throw new Error(`Could not load hoodie container (${res.status})`);
       const buffer = await res.arrayBuffer();
       const loaded = meshFromStlBuffer(buffer);
       cache = {

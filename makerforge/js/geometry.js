@@ -2301,7 +2301,7 @@ function buildHoodieStubbyContainer(params) {
     cavityMl: 0,
     materialMl: 0,
     estGrams: 0,
-    styleLabel: "Hoodie stubby",
+    styleLabel: "Hoodie container",
   };
   if (!loaded?.mesh?.positions?.length) {
     return {

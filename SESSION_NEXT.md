@@ -6,6 +6,14 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-19 Session update (MakerDeck b622 preset cleanup)
+
+Ooshies stand and Temora Vet shelf are off MakerDeck. Stubby holder is labelled **Hoodie container** (internal id still `stubbyHolder`). Sign / plaque stays.
+
+Hard refresh (`app.js?v=734`, MakerDeck `app.js?v=622` / **b622**). Header **b622**. Re-open MakerDeck.
+
+---
+
 ## 2026-08-19 Session update (Painter b626 protected bucket and colour swap)
 
 Painter now has a **Bucket** tool that fills the connected base-model region under the click, plus **Swap base colours** controls for exchanging two painted filament slots. Stamped artwork is a protected layer: brush, spray, selection, smart fill, bucket, colour swap, and Clear Paint cannot alter its faces. Reopening a split Painter 3MF restores the body/art boundary, so the protection survives export and import.

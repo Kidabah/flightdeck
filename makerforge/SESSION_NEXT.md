@@ -4,6 +4,15 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b622 — Preset cleanup: hoodie container, drop Ooshies + Temora Vet
+**Date:** 2026-08-19
+
+### MakerDeck
+- **Ooshies stand** is off Quick presets (and its settings panel is gone). A saved session on that shape falls back to rounded.
+- **Stubby holder** is labelled **Hoodie container** in the UI, stats, status, and export filename (`hoodie-container-…`). Internal id stays `stubbyHolder`.
+- **Temora Vet shelf** sample is gone from Signs. Generic **Sign / plaque** stays.
+- Hard refresh MakerDeck **b622** (`app.js?v=622`). Flightdeck iframe `/makerdeck/?v=622`, shell `app.js?v=734`.
+
 ## b626 — Protected bucket fill and base-colour swap
 **Date:** 2026-08-19
 

@@ -462,7 +462,7 @@ export function baseModelName(meta) {
   const d = fmtMm(meta.inner.d);
   const h = fmtMm(meta.inner.h);
   if (meta.shape === "circle") return `circle-${w}x${h}mm`;
-  if (meta.shape === "stubbyHolder") return `stubby-holder-${w}x${h}mm`;
+  if (meta.shape === "stubbyHolder") return `hoodie-container-${w}x${h}mm`;
   if (meta.shape === "oval") return `oval-${w}x${d}x${h}mm`;
   if (meta.shape === "pencil") return `pencil-${w}x${d}x${h}mm`;
   if (meta.shape === "pencilBox") return `pencil-box-${w}x${d}x${h}mm`;

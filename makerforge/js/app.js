@@ -1,9 +1,9 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, HOODIE_STUBBY_PRESET, ANIMAL_PRESET, SIGN_PRESET, TEMORA_VET_SIGN_PRESET, TEMORA_VET_CELTIC_SVG_URL, isDrinkHolderShape } from "./geometry.js?v=598";
+import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, HOODIE_STUBBY_PRESET, ANIMAL_PRESET, SIGN_PRESET, isDrinkHolderShape } from "./geometry.js?v=622";
 import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, resolveEmbossFontWeight, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=621";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=370";
-import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges, countNonManifoldEdges } from "./stl.js?v=599";
+import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges, countNonManifoldEdges } from "./stl.js?v=622";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=619";
 import {
   folderExportSupported,
@@ -16,7 +16,7 @@ import {
 } from "./export-folder.js?v=368";
 import { mountColorPicker, setColorPickerValue, suggestAccentColor } from "./color-picker.js?v=73";
 import { appliedHasArt } from "./art-editor.js";
-import { ensureHoodieStubbyMesh } from "./hoodie-stubby.js?v=598";
+import { ensureHoodieStubbyMesh } from "./hoodie-stubby.js?v=622";
 import {
   MAX_ACCENT_BANDS,
   newAccentBand,
@@ -36,7 +36,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b621";
+const MAKERDECK_BUILD = "b622";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -2641,11 +2641,12 @@ async function applySessionPayload(payload) {
   if (payload.state.shape) state.shape = payload.state.shape;
   if (payload.state.displayUnit) state.displayUnit = normalizeDisplayUnit(payload.state.displayUnit);
   if (state.shape === "fatQuarters") state.shape = "rounded";
+  if (state.shape === "ooshieStand") state.shape = "rounded";
   if (state.shape === "stubbyHolder") {
     try {
       await ensureHoodieStubbyMesh();
     } catch (err) {
-      console.warn("Hoodie stubby failed to load:", err);
+      console.warn("Hoodie container failed to load:", err);
     }
   }
   if (state.insertMount === "fixed") state.joinerEnabled = false;
@@ -3680,7 +3681,7 @@ function updateStats(meta) {
   if (meta.shape === "vase") {
     document.getElementById("stat-outer").textContent = `${meta.styleLabel || "Vase"} · ⌀${fmt(outer.w)} × ${fmt(outer.h)} ${u}`;
   } else if (meta.shape === "stubbyHolder") {
-    document.getElementById("stat-outer").textContent = `${meta.styleLabel || "Hoodie stubby"} · ${fmt(outer.w)} × ${fmt(outer.d)} × ${fmt(outer.h)} ${u}`;
+    document.getElementById("stat-outer").textContent = `${meta.styleLabel || "Hoodie container"} · ${fmt(outer.w)} × ${fmt(outer.d)} × ${fmt(outer.h)} ${u}`;
   } else if (meta.shape === "circle") {
     document.getElementById("stat-outer").textContent = `⌀${fmt(outer.w)} × ${fmt(outer.h)} ${u}`;
   } else if (meta.shape === "oval") {
@@ -4037,12 +4038,12 @@ async function applyHoodieStubby() {
   applySliderProfile("default");
 
   const status = document.getElementById("status") || document.getElementById("export-status");
-  if (status) status.textContent = "Loading hoodie stubby…";
+  if (status) status.textContent = "Loading hoodie container…";
   try {
     await ensureHoodieStubbyMesh();
   } catch (err) {
     console.error(err);
-    if (status) status.textContent = err?.message || "Could not load hoodie stubby.";
+    if (status) status.textContent = err?.message || "Could not load hoodie container.";
     return;
   }
 
@@ -4056,72 +4057,7 @@ async function applyHoodieStubby() {
   rebuild();
   pushAppHistory();
   if (meshCache) fitCamera(meshCache.meta);
-  if (status) status.textContent = "Hoodie stubby — chest logo on Graphic, or Face → Back for text.";
-}
-
-/** Load Temora Vet Clinic plaque: 180×120 sign, exact text, Celtic frame SVG. */
-async function loadTemoraVetPlaque() {
-  const status = document.getElementById("status") || document.getElementById("export-status");
-  try {
-    cancelPendingArtRebuild();
-    stopLidAnimation(true);
-    if (previewXRayOn) setPreviewXRayMode(false);
-
-    state.shape = "sign";
-    Object.assign(state, TEMORA_VET_SIGN_PRESET);
-    state.signSample = "temora-vet";
-    state.embossTextLayout = "flat";
-    state.embossArcPreset = "arch-up";
-    state.embossTextLines = [];
-    state.embossText = "";
-    syncEmbossTextState();
-    normalizeStackLipParams();
-    applySliderProfile("default");
-
-    document.getElementById("lid-enabled").checked = false;
-    document.getElementById("insert-enabled").checked = false;
-
-    syncLidTypeSelect();
-    syncShapeControlsFromState();
-    syncUiFromState();
-    updateVaseUiVisibility();
-    updateLidUi();
-    updateDecorUi();
-    updateJoinerUi();
-
-    await ensureEmbossFontLoaded(state.embossFont || "bebas");
-
-    let svgText = "";
-    try {
-      const res = await fetch(`${TEMORA_VET_CELTIC_SVG_URL}?v=${MAKERDECK_BUILD}`, { cache: "no-store" });
-      if (!res.ok) throw new Error(`SVG HTTP ${res.status}`);
-      svgText = await res.text();
-    } catch (err) {
-      console.warn("Temora Celtic SVG fetch failed:", err);
-      if (status) status.textContent = "Temora plaque loaded (text only — Celtic SVG missing).";
-    }
-
-    if (svgText?.trim()) {
-      await importSvgFile(svgText, { fileName: "temora-vet-celtic-frame.svg" });
-    } else {
-      rebuild();
-      pushAppHistory();
-    }
-
-    // Celtic SVG must not leave text on Arc (old auto-arc-on-graphic habit).
-    state.embossTextLayout = "flat";
-    syncTextLayoutUi();
-    updateDecorUi();
-
-    if (meshCache) fitCamera(meshCache.meta);
-    syncShapeButtonActive();
-    if (status && svgText?.trim()) {
-      status.textContent = "Temora Vet plaque ready — Export 3MF (silver plate, black text + knot).";
-    }
-  } catch (err) {
-    console.error(err);
-    if (status) status.textContent = err?.message || "Temora plaque load failed.";
-  }
+  if (status) status.textContent = "Hoodie container — chest logo on Graphic, or Face → Back for text.";
 }
 
 function selectShape(next) {
@@ -4129,13 +4065,13 @@ function selectShape(next) {
   stopLidAnimation(true);
   if (previewXRayOn) setPreviewXRayMode(false);
 
+  if (next === "ooshieStand") next = "rounded";
+
   const prev = state.shape;
   const leavingPreset = PRESET_SHAPES.has(prev) || prev === "vase" || prev === "ooshieStand";
 
   if (next === "vase") {
     applyVaseShape();
-  } else if (next === "ooshieStand") {
-    applyOoshieShape();
   } else if (next === "stubbyHolder") {
     void applyHoodieStubby();
     return;
@@ -6753,6 +6689,7 @@ function applySliderValue(slider, key, val, parseKind) {
 
 function bindRange(sliderId, key, parseKind = "int") {
   const slider = document.getElementById(sliderId);
+  if (!slider) return;
   const syncFromSlider = () => {
     let val = parseFieldValue(slider.value, parseKind);
     if (isLengthKey(key)) val = displayToMm(val);
@@ -7539,10 +7476,6 @@ document.querySelectorAll("#field-joiner-hand .chip").forEach((chip) => {
 
 document.querySelectorAll(".shape-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
-    if (btn.dataset.sample === "temora-vet") {
-      loadTemoraVetPlaque();
-      return;
-    }
     selectShape(btn.dataset.shape);
   });
 });
@@ -7630,15 +7563,6 @@ vaseStyleSelect.addEventListener("change", (e) => {
 bindRange("vase-diameter", "vaseDiameter", "float");
 bindRange("vase-height", "vaseHeight", "float");
 bindRange("vase-wall", "vaseWall", "float");
-bindRange("ooshie-peg-dia", "ooshiePegDia", "float");
-bindRange("ooshie-peg-height", "ooshiePegHeight", "float");
-bindRange("ooshie-pegs", "ooshiePegsPerShelf", "int");
-bindRange("ooshie-pitch", "ooshiePitch", "float");
-bindRange("ooshie-uppers", "ooshieUpperShelves", "int");
-bindRange("ooshie-clearance", "ooshieClearance", "float");
-bindRange("ooshie-shelf-depth", "ooshieShelfDepth", "float");
-bindRange("ooshie-thick", "ooshieShelfThick", "float");
-bindRange("ooshie-fit", "ooshieFitClearance", "float");
 document.getElementById("ooshie-cutouts")?.addEventListener("change", (e) => {
   state.ooshieCutouts = !!e.target.checked;
   rebuild();
@@ -7843,7 +7767,7 @@ async function bootMakerDeck() {
     try {
       await ensureHoodieStubbyMesh();
     } catch (err) {
-      console.warn("Hoodie stubby failed to load:", err);
+      console.warn("Hoodie container failed to load:", err);
     }
   }
   const unitSel = document.getElementById("display-unit");

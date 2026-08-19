@@ -213,14 +213,12 @@
 
                 <button type="button" class="shape-btn shape-btn--preset" data-shape="vase">Vase / pot</button>
 
-                <button type="button" class="shape-btn shape-btn--preset" data-shape="ooshieStand">Ooshies stand</button>
-
-                <button type="button" class="shape-btn shape-btn--preset" data-shape="stubbyHolder">Stubby holder</button>
+                <button type="button" class="shape-btn shape-btn--preset" data-shape="stubbyHolder">Hoodie container</button>
 
               </div>
 
               <section class="section hidden" id="section-stubby">
-                <h2 class="section-sub">Hoodie stubby</h2>
+                <h2 class="section-sub">Hoodie container</h2>
                 <p class="hint">Panthers hoodie — 150 mm tall, 65 mm can well. Drop a PNG on the Art tab to stamp the logo on the chest. Export is Body + Art, same as other MakerDeck boxes.</p>
               </section>
 
@@ -228,7 +226,6 @@
 
               <div class="preset-grid">
                 <button type="button" class="shape-btn shape-btn--preset" data-shape="sign">Sign / plaque</button>
-                <button type="button" class="shape-btn shape-btn--preset" id="btn-temora-vet-plaque" data-shape="sign" data-sample="temora-vet">Temora Vet shelf</button>
               </div>
 
               <section class="section section-sign hidden" id="section-sign">
@@ -561,84 +558,6 @@
 
                 <input type="checkbox" id="vase-saucer">
 
-              </label>
-
-              </div>
-
-            </details>
-
-
-
-            <details class="section section-collapse hidden" id="section-ooshie" data-collapse="ooshie">
-
-              <summary class="collapse-summary">Ooshies stand</summary>
-
-              <div class="collapse-body">
-
-              <p class="field-hint" id="ooshie-join-hint">
-                Tuned to the reference stand scaled for <strong>Ø6.5&nbsp;mm pegs</strong> (~218×93×244&nbsp;mm).
-                Kit join: shelf <strong>end tabs</strong> press into side-panel slots (~0.25&nbsp;mm fit).
-                Default gap ~28&nbsp;mm matches that height — raise <em>Figure clearance</em> if your 40–50&nbsp;mm Ooshies need more room (stand gets taller).
-              </p>
-              <p class="field-hint" id="ooshie-size-summary"></p>
-
-              <label class="field">
-                <span class="field-label">Peg diameter <span class="unit unit-len">mm</span></span>
-                <input type="range" id="ooshie-peg-dia" min="4" max="10" step="0.1" value="6.5" tabindex="-1">
-                <button type="button" class="value-edit" data-slider="ooshie-peg-dia" data-key="ooshiePegDia" data-parse="float">6.5</button>
-              </label>
-
-              <label class="field">
-                <span class="field-label">Peg height <span class="unit unit-len">mm</span></span>
-                <input type="range" id="ooshie-peg-height" min="5" max="16" step="0.5" value="10" tabindex="-1">
-                <button type="button" class="value-edit" data-slider="ooshie-peg-height" data-key="ooshiePegHeight" data-parse="float">10</button>
-              </label>
-
-              <label class="field">
-                <span class="field-label">Pegs per shelf</span>
-                <input type="range" id="ooshie-pegs" min="2" max="8" step="1" value="5" tabindex="-1">
-                <button type="button" class="value-edit" data-slider="ooshie-pegs" data-key="ooshiePegsPerShelf" data-parse="int">5</button>
-              </label>
-
-              <label class="field">
-                <span class="field-label">Peg pitch (centre spacing) <span class="unit unit-len">mm</span></span>
-                <input type="range" id="ooshie-pitch" min="20" max="55" step="0.5" value="41" tabindex="-1">
-                <button type="button" class="value-edit" data-slider="ooshie-pitch" data-key="ooshiePitch" data-parse="float">41</button>
-              </label>
-
-              <label class="field">
-                <span class="field-label">Upper shelves (above base)</span>
-                <input type="range" id="ooshie-uppers" min="1" max="8" step="1" value="7" tabindex="-1">
-                <button type="button" class="value-edit" data-slider="ooshie-uppers" data-key="ooshieUpperShelves" data-parse="int">7</button>
-              </label>
-
-              <label class="field">
-                <span class="field-label">Figure clearance (shelf gap) <span class="unit unit-len">mm</span></span>
-                <input type="range" id="ooshie-clearance" min="22" max="70" step="1" value="28" tabindex="-1">
-                <button type="button" class="value-edit" data-slider="ooshie-clearance" data-key="ooshieClearance" data-parse="float">28</button>
-              </label>
-
-              <label class="field">
-                <span class="field-label">Shelf depth <span class="unit unit-len">mm</span></span>
-                <input type="range" id="ooshie-shelf-depth" min="16" max="45" step="0.5" value="30" tabindex="-1">
-                <button type="button" class="value-edit" data-slider="ooshie-shelf-depth" data-key="ooshieShelfDepth" data-parse="float">30</button>
-              </label>
-
-              <label class="field">
-                <span class="field-label">Shelf / side thickness <span class="unit unit-len">mm</span></span>
-                <input type="range" id="ooshie-thick" min="3" max="8" step="0.2" value="5" tabindex="-1">
-                <button type="button" class="value-edit" data-slider="ooshie-thick" data-key="ooshieShelfThick" data-parse="float">5</button>
-              </label>
-
-              <label class="field">
-                <span class="field-label">Slide-fit clearance <span class="unit unit-len">mm</span></span>
-                <input type="range" id="ooshie-fit" min="0.15" max="0.5" step="0.05" value="0.25" tabindex="-1">
-                <button type="button" class="value-edit" data-slider="ooshie-fit" data-key="ooshieFitClearance" data-parse="float">0.25</button>
-              </label>
-
-              <label class="field field-toggle">
-                <span class="field-label">Side panel cutouts</span>
-                <input type="checkbox" id="ooshie-cutouts" checked>
               </label>
 
               </div>
@@ -1579,7 +1498,7 @@
     </div>
   </dialog>
 
-  <script type="module" src="js/app.js?v=621"></script>
+  <script type="module" src="js/app.js?v=622"></script>
 
 </body>
 
