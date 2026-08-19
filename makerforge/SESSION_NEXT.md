@@ -4,6 +4,11 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## 2026-08-19 — Flightdeck Bambu Lab naming and free colour entry
+- Flightdeck now stores the printer spelling **Bambu Lab** instead of the old **Bambu** alias, including a startup migration for existing spool/catalogue/cost data. AMS/Queue profile checks recognise both historical spellings so a BigBoy job cannot be blocked solely by `printer Bambu Lab` versus `Flightdeck Bambu`.
+- Spool Manager colour names are now literal text fields: no app-side partial-name replacement, datalist, or browser autocomplete. Standard swatch clicks still fill a standard colour name deliberately.
+- Feature commit `a149fdf`; hard refresh Flightdeck shell `app.js?v=732` after deploy.
+
 ## b625 — Painter artwork moves freely before stamping
 **Date:** 2026-08-19
 

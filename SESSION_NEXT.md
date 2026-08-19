@@ -6,6 +6,16 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-19 Session update (Bambu Lab brand normalisation and colour entry)
+
+Legacy Flightdeck `Bambu` inventory/catalogue/cost records are promoted to `Bambu Lab` at startup, and all new spool, restock, incoming-stock, catalogue, cost, and empty-spool-profile writes use the same spelling. Queue/Profile Doctor matching also treats either historical spelling as one brand, so BigBoy’s AMS slot 3 no longer blocks merely because the printer says `Bambu Lab` while Flightdeck previously stored `Bambu`.
+
+The Spool Manager Colour name field is no longer a hidden colour-alias/autocomplete rule. It preserves every character the operator types, disables browser autocomplete, and leaves swatch clicks as the only intentional standard-name helper.
+
+Feature commit: `a149fdf` — Flightdeck shell cache-busted to `app.js?v=732`. Focused Bambu alias/preflight assertions, Python compile, JavaScript syntax, and diff checks passed before deployment.
+
+---
+
 ## 2026-08-19 Session update (Painter b625 free artwork move)
 
 Painter artwork now has separate on-model transforms: drag the small blue centre target to move the live preview continuously over the fabric, and drag the outer blue ring to rotate it. A normal click still establishes the initial position. Size and Rotation labels are now editable number fields that stay synchronised with their sliders; Enter or clicking away applies the value.
