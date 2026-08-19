@@ -396,6 +396,7 @@ check("project config stays printer-neutral", !splitText.includes('"printer_mode
 const splitImported = await import3MF(splitZip.buffer);
 check("import merges hoodie and logo", splitImported.nTri === 2 && splitImported.nVerts === 6, `t=${splitImported.nTri} v=${splitImported.nVerts}`);
 check("import keeps logo paint", splitImported.facePaint[1] === 1, `p=${splitImported.facePaint[1]}`);
+check("import keeps the artwork boundary locked", splitImported.stampTri0 === 1 && splitImported.stampVert0 === 3, `t=${splitImported.stampTri0} v=${splitImported.stampVert0}`);
 
 for (const line of results) console.log(line);
 if (failures) {

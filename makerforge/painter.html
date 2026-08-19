@@ -119,6 +119,9 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
 .slot-card .slot-btn:hover{color:var(--text);border-color:var(--accent)}
 .slot-card .slot-btn.off{color:var(--red);border-color:var(--red)}
 .slot-card.slot-off{display:none}
+.swap-row{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:5px}
+.swap-row span{color:var(--accent);font-size:16px;font-weight:700;line-height:1}
+.swap-row select{min-width:0;padding:4px 6px;font-size:11px}
 .section-label-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
 .section-label-row .section-label{margin:0}
 .slot-count-ctrl{display:inline-flex;align-items:center;gap:4px}
@@ -256,6 +259,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
 .viewport.brush-mode{cursor:none}
 .viewport.eyedrop-mode{cursor:copy}
 .viewport.click-select-mode{cursor:pointer}
+.viewport.bucket-mode{cursor:cell}
 .viewport.art-mode{cursor:copy}
 .art-preview-wrap{margin-top:8px;background:#04080e;border:1px solid var(--border);border-radius:var(--radius-sm);
   overflow:hidden;display:flex;align-items:center;justify-content:center;min-height:72px}
@@ -326,12 +330,12 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
     <a class="logo" href="index.html" title="MakerDeck home">Maker<span>Deck</span> · STL Painter</a>
     <nav class="tool-nav" aria-label="MakerDeck tools">
       <a href="index.html">Container</a>
-      <a href="painter.html?v=625" class="active" aria-current="page">STL Painter</a>
+      <a href="painter.html?v=626" class="active" aria-current="page">STL Painter</a>
       <a href="paper3d.html">Paper3D</a>
       <a href="meshprep.html">Mesh Prep</a>
       <a href="chop.html">Chop</a>
     </nav>
-    <div class="build">b625</div>
+    <div class="build">b626</div>
   </header>
 
   <!-- Left Sidebar (tabbed) -->
@@ -403,6 +407,15 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
         <p class="flow-desc" style="margin-top:0">+/− adds or removes colours (1–16 for multi-AMS). Removing a slot puts its paint back on Slot 1.</p>
         <div class="slot-list" id="slotList"></div>
 
+        <div class="section-label">Swap base paint</div>
+        <p class="flow-desc" style="margin-top:0">Swaps painted model regions only. Stamped artwork stays locked.</p>
+        <div class="swap-row">
+          <select id="swapSlotA" aria-label="First colour slot to swap"></select>
+          <span aria-hidden="true">↔</span>
+          <select id="swapSlotB" aria-label="Second colour slot to swap"></select>
+        </div>
+        <button class="btn" id="swapSlotsBtn" style="margin-top:6px;width:100%" disabled>Swap base colours</button>
+
         <div class="section-label">Presets</div>
         <div class="preset-row" id="presetRow"></div>
 
@@ -424,6 +437,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
           <button class="tool-toggle" id="toolSpray">Spray</button>
           <button class="tool-toggle" id="toolEyedrop">Eyedrop</button>
           <button class="tool-toggle" id="toolClickSelect">Select</button>
+          <button class="tool-toggle" id="toolBucket">Bucket</button>
         </div>
 
         <!-- Brush opts -->
@@ -467,11 +481,11 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
               <button class="stroke-btn" id="selModeColor" data-selmode="color">Same Color</button>
             </div>
           </div>
-          <p class="flow-desc">Click a connected region (good for whole patches).</p>
+          <p class="flow-desc">Click a connected base-model region (good for whole patches). Stamped artwork is locked.</p>
         </div>
 
         <div class="section-label" style="margin-top:12px">Visibility</div>
-        <p class="flow-desc" style="margin-top:4px">Hide a colour (hard mask) → paint the edge → <b>Show All Hidden</b>. Hidden faces never take paint.</p>
+        <p class="flow-desc" style="margin-top:4px">Hide a colour (hard mask) → paint the edge → <b>Show All Hidden</b>. Hidden faces and stamped artwork never take paint.</p>
         <div class="btn-row" style="margin-top:6px">
           <button class="btn" id="hideActiveSlotBtn" disabled>Hide Active Colour</button>
           <button class="btn" id="findPartsPaintBtn" disabled>Find Parts</button>
@@ -484,7 +498,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
           <button class="tool-toggle" id="toolBox" title="Drag a rectangle">Box</button>
         </div>
         <div class="opts-panel" id="areaOpts">
-          <p class="flow-desc">Lasso/Box the area (magenta = selected, not painted yet). Then click a colour slot or <b>Fill Selection</b>.</p>
+          <p class="flow-desc">Lasso/Box the base model (magenta = selected, not painted yet). Then click a colour slot or <b>Fill Selection</b>. Artwork stays locked.</p>
         </div>
         <div class="btn-row" style="margin-top:6px">
           <button class="btn btn-primary" id="selPaintBtn" disabled>Fill Selection</button>
@@ -693,7 +707,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b625</span>
+    <span>MakerDeck · STL Painter b626</span>
   </footer>
 </div>
 
@@ -719,7 +733,7 @@ import {
   paintClassOf, upgradePaintResolution, export3MF,
   findMeshIslands, buildIslandMap, floodFillSameClass, floodFillSameSlot, selectIsland,
   import3MF, buildSymmetryMap, masksToFacePaint, facePaintToMasks, MAX_PAINT_SLOTS
-} from './js/painter.js?v=623';
+} from './js/painter.js?v=624';
 import {
   rasterizeSvgText, rasterizeImageFile, makeStampFrame, mirrorStampFrameX,
   nearestSlot, parseHexColor, extractSvgFillHexes, extractRasterPalette, stampSizeMm, buildStampSlabs,
@@ -1154,12 +1168,34 @@ function facePaintClass(i) {
   return s === 1 ? 'emboss' : s === 2 ? 'deboss' : s === 3 ? 'trim' : 'body';
 }
 
+/** Stamped artwork is appended after the original model and is never paintable. */
+function baseFaceCount() {
+  const firstArtFace = Number.isInteger(S.stampTri0) ? S.stampTri0 : S.nTri;
+  return Math.max(0, Math.min(firstArtFace, S.nTri));
+}
+
+function isArtworkFace(i) {
+  return i >= baseFaceCount() && i < S.nTri;
+}
+
 function isFaceHidden(i) {
   if (S.hiddenManual && S.hiddenManual[i]) return true;
   if (S.islandMap && S.hiddenIslands.has(S.islandMap[i])) return true;
   const slot = facePaintSlot(i);
   if (S.soloActive) return slot !== slotIndex(S.paintTarget);
   return !!S.hiddenSlots[slot];
+}
+
+function isPaintableBaseFace(i) {
+  return i >= 0 && i < baseFaceCount() && !isFaceHidden(i);
+}
+
+function paintableBaseRegion() {
+  const region = new Uint8Array(S.nTri);
+  for (let i = 0, end = baseFaceCount(); i < end; i++) {
+    if (!isFaceHidden(i)) region[i] = 1;
+  }
+  return region;
 }
 
 function buildMesh({ frame = true } = {}) {
@@ -1322,7 +1358,7 @@ function paintFacesFree(faceIndices, target, { undo = true, refresh = true, live
   const slot = slotIndex(target != null ? target : S.paintTarget);
   let faces = [];
   for (const i of faceIndices) {
-    if (isFaceHidden(i)) continue;
+    if (!isPaintableBaseFace(i)) continue;
     if ((fp[i] || 0) === slot) continue; // already painted — skip work
     faces.push(i);
   }
@@ -1332,7 +1368,7 @@ function paintFacesFree(faceIndices, target, { undo = true, refresh = true, live
     const extra = [];
     for (const i of faces) {
       const m = S.symmetryMap[i];
-      if (m >= 0 && m !== i && !isFaceHidden(m) && (fp[m] || 0) !== slot) extra.push(m);
+      if (m >= 0 && m !== i && isPaintableBaseFace(m) && (fp[m] || 0) !== slot) extra.push(m);
     }
     if (extra.length) faces = faces.concat(extra);
   }
@@ -1352,13 +1388,13 @@ function paintFacesFree(faceIndices, target, { undo = true, refresh = true, live
 function clearFacesFree(faceIndices, { undo = true, refresh = true } = {}) {
   const fp = ensureFacePaint();
   if (!fp || !faceIndices.length) return 0;
-  let faces = faceIndices.filter(i => !isFaceHidden(i));
+  let faces = faceIndices.filter(isPaintableBaseFace);
   if (!faces.length) return 0;
   if (S.symmetryOn && S.symmetryMap) {
     const extra = [];
     for (const i of faces) {
       const m = S.symmetryMap[i];
-      if (m >= 0 && m !== i && !isFaceHidden(m)) extra.push(m);
+      if (m >= 0 && m !== i && isPaintableBaseFace(m)) extra.push(m);
     }
     if (extra.length) faces = faces.concat(extra);
   }
@@ -2320,7 +2356,7 @@ function computeSmartFill(hit) {
       localNormals: $('smartWrapEdges')?.checked !== false,
       trimMask: S.trimMask,
       facePaint: S.facePaint,
-      canUseFace: i => !isFaceHidden(i),
+      canUseFace: isPaintableBaseFace,
     });
 }
 
@@ -2344,6 +2380,33 @@ function commitSmartFill() {
   S.smartPreview = null; S.smartPreviewFaces = null;
   updateMeshColors();
   setStatus(`Smart fill: ${faces.length.toLocaleString()} faces → ${S.paintTarget}`, 'idle');
+}
+
+/* ================================================================== */
+/*  BUCKET FILL — CONNECTED BASE PATCH ONLY                           */
+/* ================================================================== */
+
+function bucketFillAtClient(clientX, clientY) {
+  const hit = pickHitAtClient(clientX, clientY);
+  if (!hit) {
+    setStatus('Bucket — click a base-model patch to fill it', 'idle');
+    return;
+  }
+  if (isArtworkFace(hit.faceIndex)) {
+    setStatus('Artwork is locked — bucket fill only changes the base model', 'idle');
+    return;
+  }
+  const fp = ensureFacePaint();
+  ensureFaceAdj();
+  const faces = floodFillSameSlot(hit.faceIndex, fp, S.nTri, S.faceAdj, {
+    region: paintableBaseRegion(),
+  });
+  const count = paintFacesFree(faces, S.paintTarget);
+  if (!count) {
+    setStatus(`Bucket fill already uses ${slotLabel(slotIndex(S.paintTarget))}`, 'idle');
+    return;
+  }
+  setStatus(`Bucket filled ${count.toLocaleString()} base faces → ${slotLabel(slotIndex(S.paintTarget))} · artwork kept`, 'idle');
 }
 
 function clearSmartPreview() {
@@ -2623,6 +2686,11 @@ function commitEdgeSelection(mode) {
 function performClickSelect(clientX, clientY) {
   const hit = pickHitAtClient(clientX, clientY);
   if (!hit) { clearClickSelection(); setStatus('Click on the model to select a region', 'idle'); return; }
+  if (isArtworkFace(hit.faceIndex)) {
+    clearClickSelection();
+    setStatus('Artwork is locked — select a base-model region instead', 'idle');
+    return;
+  }
   ensureFaceAdj();
 
   let faces;
@@ -2636,6 +2704,7 @@ function performClickSelect(clientX, clientY) {
     S.selectedIsland = -1;
   }
 
+  faces = (faces || []).filter(isPaintableBaseFace);
   const mask = new Uint8Array(S.nTri);
   for (const f of faces) mask[f] = 1;
   S.clickSelection = mask;
@@ -2667,6 +2736,7 @@ function clearClickSelection({ repaint = true, syncIslands = true } = {}) {
 
 /** Put faces into the shared selection (Paint / Hide Selection), not auto-paint. */
 function setFaceSelection(faces, label = 'selection', { quiet = false } = {}) {
+  faces = (faces || []).filter(isPaintableBaseFace);
   if (!faces?.length) {
     clearClickSelection();
     if (!quiet) setStatus('No faces in selection', 'idle');
@@ -2694,10 +2764,11 @@ function paintClickSelection() {
     return;
   }
   const slot = slotIndex(S.paintTarget);
-  const n = S.clickSelectionFaces.length;
-  paintFacesFree(S.clickSelectionFaces, slot);
+  const n = paintFacesFree(S.clickSelectionFaces, slot);
   clearClickSelection();
-  setStatus(`Filled ${n.toLocaleString()} faces → ${slotLabel(slot)}`, 'idle');
+  setStatus(n
+    ? `Filled ${n.toLocaleString()} base faces → ${slotLabel(slot)}`
+    : 'Artwork is locked — no base faces were changed', 'idle');
 }
 
 /* ================================================================== */
@@ -2768,7 +2839,12 @@ function selectIslandById(id) {
   const isl = S.islands?.find(i => i.id === id);
   if (!isl) return;
   const mask = new Uint8Array(S.nTri);
-  const faces = Array.from(isl.faces);
+  const faces = Array.from(isl.faces).filter(isPaintableBaseFace);
+  if (!faces.length) {
+    clearClickSelection();
+    setStatus('Artwork is locked — that island cannot be painted', 'idle');
+    return;
+  }
   for (const f of faces) mask[f] = 1;
   S.clickSelection = mask; S.clickSelectionFaces = faces; S.selectedIsland = id;
   syncFillSelectionBtn();
@@ -2787,8 +2863,10 @@ function toggleIslandHide(id) {
 function paintIslandById(id) {
   const isl = S.islands?.find(i => i.id === id);
   if (!isl) return;
-  paintFacesFree(Array.from(isl.faces), S.paintTarget);
-  setStatus(`Painted island ${id + 1} → ${S.paintTarget}`, 'idle');
+  const count = paintFacesFree(Array.from(isl.faces), S.paintTarget);
+  setStatus(count
+    ? `Painted ${count.toLocaleString()} base faces → ${S.paintTarget}`
+    : 'Artwork is locked — that island cannot be painted', 'idle');
 }
 
 function syncIslandCards() {
@@ -2836,9 +2914,64 @@ function clearSlotPaintToBody(slot) {
   const s = slotIndex(slot);
   if (!fp || !S.nTri || s === 0) return 0;
   const faces = [];
-  for (let i = 0; i < S.nTri; i++) if (fp[i] === s) faces.push(i);
+  for (let i = 0, end = baseFaceCount(); i < end; i++) if (fp[i] === s) faces.push(i);
   if (faces.length) paintFacesFree(faces, 0);
   return faces.length;
+}
+
+function artworkUsesSlot(slot) {
+  const fp = ensureFacePaint();
+  if (!fp) return false;
+  for (let i = baseFaceCount(); i < S.nTri; i++) {
+    if ((fp[i] || 0) === slot) return true;
+  }
+  return false;
+}
+
+function syncSwapControls() {
+  const a = $('swapSlotA'), b = $('swapSlotB'), button = $('swapSlotsBtn');
+  if (!a || !b || !button) return;
+  const prevA = Number(a.value), prevB = Number(b.value);
+  const options = Array.from({ length: S.slotCount }, (_, i) => `<option value="${i}">${slotLabel(i)}</option>`).join('');
+  a.innerHTML = options;
+  b.innerHTML = options;
+  const fallbackA = Math.max(0, Math.min(S.slotCount - 1, slotIndex(S.paintTarget)));
+  const fallbackB = S.slotCount > 1 ? (fallbackA === 0 ? 1 : 0) : 0;
+  a.value = Number.isInteger(prevA) && prevA >= 0 && prevA < S.slotCount ? String(prevA) : String(fallbackA);
+  b.value = Number.isInteger(prevB) && prevB >= 0 && prevB < S.slotCount && prevB !== Number(a.value)
+    ? String(prevB) : String(fallbackB);
+  button.disabled = S.slotCount < 2;
+}
+
+function swapBasePaintSlots(a, b) {
+  const first = slotIndex(a), second = slotIndex(b);
+  if (first === second) {
+    setStatus('Choose two different colour slots to swap', 'idle');
+    return;
+  }
+  const fp = ensureFacePaint();
+  if (!fp) return;
+  let count = 0;
+  for (let i = 0, end = baseFaceCount(); i < end; i++) {
+    const slot = fp[i] || 0;
+    if (slot === first || slot === second) count++;
+  }
+  if (!count) {
+    setStatus('Those slots have no base-model paint to swap; artwork was kept unchanged', 'idle');
+    return;
+  }
+  pushUndo();
+  for (let i = 0, end = baseFaceCount(); i < end; i++) {
+    const slot = fp[i] || 0;
+    if (slot === first) fp[i] = second;
+    else if (slot === second) fp[i] = first;
+  }
+  syncLegacyMasks();
+  clearClickSelection({ repaint: false });
+  updateMeshColors();
+  recountPaint();
+  exportBtn.disabled = false;
+  setStatus(`Swapped ${count.toLocaleString()} base faces: ${slotLabel(first)} ↔ ${slotLabel(second)} · artwork kept`, 'idle');
 }
 
 function rebuildSlotUI() {
@@ -2900,6 +3033,7 @@ function rebuildSlotUI() {
   if (label) label.textContent = String(n);
   if ($('slotMinusBtn')) $('slotMinusBtn').disabled = n <= 1;
   if ($('slotPlusBtn')) $('slotPlusBtn').disabled = n >= MAX_AMS_SLOTS;
+  syncSwapControls();
   syncHideUI();
   syncPaintSwatches();
 }
@@ -2928,6 +3062,10 @@ function removeAmsSlot() {
     return;
   }
   const slot = S.slotCount - 1;
+  if (artworkUsesSlot(slot)) {
+    setStatus(`${slotLabel(slot)} is used by locked artwork — clear or restamp the artwork before removing that slot`, 'idle');
+    return;
+  }
   const cleared = clearSlotPaintToBody(slot);
   S.hiddenSlots[slot] = false;
   S.slotCount -= 1;
@@ -2991,7 +3129,7 @@ function setTool(tool, { sticky = false } = {}) {
   if (tool !== 'art') hideArtPreview();
 
   for (const [id, t] of [['toolBrush','brush'],['toolSpray','spray'],['toolEyedrop','eyedrop'],
-    ['toolClickSelect','clickSelect'],['toolLasso','lasso'],['toolSmart','smart'],
+    ['toolClickSelect','clickSelect'],['toolBucket','bucket'],['toolLasso','lasso'],['toolSmart','smart'],
     ['toolBox','box'],['toolEdge','edge'],['toolDetect','detect']]) {
     $(id)?.classList.toggle('active', tool === t);
   }
@@ -3011,6 +3149,7 @@ function setTool(tool, { sticky = false } = {}) {
   if (isBrushTool(tool)) viewport.classList.add('brush-mode');
   if (tool === 'eyedrop') viewport.classList.add('eyedrop-mode');
   if (tool === 'clickSelect') viewport.classList.add('click-select-mode');
+  if (tool === 'bucket') viewport.classList.add('bucket-mode');
   if (tool === 'art') viewport.classList.add('art-mode');
 
   const hints = {
@@ -3018,6 +3157,7 @@ function setTool(tool, { sticky = false } = {}) {
     spray: 'Spray — mist on model · right-drag to orbit',
     eyedrop: 'Eyedropper — click a face to pick its slot',
     clickSelect: 'Click to select a connected region · then Fill Selection',
+    bucket: 'Bucket — click a connected base patch to fill it · artwork stays locked',
     edge: 'Clean Edge — click the fringe to select · Fill / Clear to commit',
     smart: 'Smart fill — facing patch only · hover preview · click to paint · Wrap off by default',
     lasso: 'Lasso — Lock on, draw around an area (eyebrow…) · pick slot · Fill Selection',
@@ -3029,7 +3169,7 @@ function setTool(tool, { sticky = false } = {}) {
   viewportHint.textContent = hints[tool] || 'Left-drag orbits · scroll zooms · pick a tool';
 
   // Auto-switch to Paint tab when selecting a tool
-  if (['brush','spray','eyedrop','clickSelect','smart','box','edge','detect','art'].includes(tool)) {
+  if (['brush','spray','eyedrop','clickSelect','bucket','smart','box','edge','detect','art'].includes(tool)) {
     switchTab('paint');
   }
 }
@@ -3073,7 +3213,7 @@ function syncOrbitLock() {
   controls.enablePan = true;
   // Brush/spray/smart/eyedrop own left-drag. Box/Lasso need Lock. Edge is click-select.
   const leftBlocked = S.orbitOverride ? false :
-    (S.tool === 'eyedrop' || S.tool === 'smart' || S.tool === 'clickSelect' || S.tool === 'edge' || S.tool === 'art' ||
+    (S.tool === 'eyedrop' || S.tool === 'smart' || S.tool === 'clickSelect' || S.tool === 'bucket' || S.tool === 'edge' || S.tool === 'art' ||
      isBrushTool() || ((S.tool === 'box' || S.tool === 'lasso') && locked));
   controls.mouseButtons.LEFT = leftBlocked ? -1 : THREE.MOUSE.ROTATE;
   controls.mouseButtons.MIDDLE = THREE.MOUSE.DOLLY;
@@ -3340,6 +3480,8 @@ async function load3MF(file) {
       islands: null, islandMap: null, clickSelection: null, clickSelectionFaces: null,
       hiddenSlots: Array(16).fill(false), hiddenManual: null,
       soloActive: false, selectedIsland: -1,
+      stampTri0: result.stampTri0,
+      stampVert0: result.stampVert0,
     });
     S.hiddenIslands.clear();
     clearExportDestination();
@@ -3458,13 +3600,15 @@ function clearPaint() {
   const fp = ensureFacePaint();
   if (!fp) return;
   pushUndo();
-  fp.fill(0);
+  fp.fill(0, 0, baseFaceCount());
   syncLegacyMasks();
   S.edgeHighlight = null;
   S.smartPreview = null; S.smartPreviewFaces = null;
   clearClickSelection({ repaint: false });
   updateMeshColors(); recountPaint();
-  setStatus('All paint cleared — model is Slot 1 colour only', 'idle');
+  setStatus(S.nTri > baseFaceCount()
+    ? 'Base paint cleared — stamped artwork was kept'
+    : 'All paint cleared — model is Slot 1 colour only', 'idle');
 }
 
 function clearModel() {
@@ -3592,6 +3736,7 @@ $('toolBrush')?.addEventListener('click', () => setTool('brush'));
 $('toolSpray')?.addEventListener('click', () => setTool('spray'));
 $('toolEyedrop')?.addEventListener('click', () => setTool('eyedrop'));
 $('toolClickSelect')?.addEventListener('click', () => setTool('clickSelect'));
+$('toolBucket')?.addEventListener('click', () => setTool('bucket'));
 $('toolLasso')?.addEventListener('click', () => setTool('lasso'));
 $('toolSmart')?.addEventListener('click', () => setTool('smart'));
 $('toolBox')?.addEventListener('click', () => setTool('box'));
@@ -3724,6 +3869,9 @@ updateSensitivityLabel();
 // AMS slot count (+/−)
 $('slotPlusBtn')?.addEventListener('click', addAmsSlot);
 $('slotMinusBtn')?.addEventListener('click', removeAmsSlot);
+$('swapSlotsBtn')?.addEventListener('click', () => {
+  swapBasePaintSlots($('swapSlotA')?.value, $('swapSlotB')?.value);
+});
 
 // Viewport toolbar
 $('zoomInBtn').addEventListener('click', () => zoomBy(0.72));
@@ -3900,6 +4048,13 @@ viewport.addEventListener('pointerdown', (e) => {
     if (e.altKey || S.orbitOverride) return;
     e.preventDefault(); e.stopPropagation();
     performClickSelect(e.clientX, e.clientY);
+    return;
+  }
+
+  if (S.tool === 'bucket') {
+    if (e.altKey || S.orbitOverride) return;
+    e.preventDefault(); e.stopPropagation();
+    bucketFillAtClient(e.clientX, e.clientY);
     return;
   }
 

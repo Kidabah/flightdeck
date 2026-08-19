@@ -1289,7 +1289,7 @@ function apply3MFTransformToVerts(verts, nVerts, t) {
 
 /**
  * Parse a 3MF file (ZIP) and extract geometry + paint state.
- * @returns {{ verts, faces, nVerts, nTri, embossMask, debossMask, trimMask, facePaint, colors, painted }}
+ * @returns {{ verts, faces, nVerts, nTri, embossMask, debossMask, trimMask, facePaint, colors, painted, stampTri0, stampVert0 }}
  */
 export async function import3MF(buffer) {
   if (!buffer || buffer.byteLength < 30) {
@@ -1325,7 +1325,7 @@ export async function import3MF(buffer) {
     for (const t of transforms) apply3MFTransformToVerts(parsed.verts, parsed.nVerts, t);
     transformsApplied += transforms.length;
     painted += parsed.painted;
-    parts.push(parsed);
+    parts.push({ ...parsed, entryName: entry.name });
   }
   if (!parts.length) throw new Error('3MF model has no triangles');
 
@@ -1335,7 +1335,14 @@ export async function import3MF(buffer) {
   const faces = new Uint32Array(nTri * 3);
   const facePaint = new Uint8Array(nTri);
   let vo = 0, fo = 0;
+  let stampTri0 = null, stampVert0 = null;
   for (const p of parts) {
+    // Painter exports the raised artwork as object_2. Keep the split on
+    // import so paint tools cannot repaint a logo when a project is reopened.
+    if (stampTri0 == null && /objects\/object_2\.model$/i.test(p.entryName || '')) {
+      stampTri0 = fo;
+      stampVert0 = vo;
+    }
     verts.set(p.verts, vo * 3);
     for (let i = 0; i < p.nTri; i++) {
       faces[(fo + i) * 3] = p.faces[i * 3] + vo;
@@ -1360,7 +1367,7 @@ export async function import3MF(buffer) {
     } catch { /* not JSON or missing */ }
   }
 
-  return { verts, faces, nVerts, nTri, embossMask, debossMask, trimMask, facePaint, colors, painted, transformsApplied };
+  return { verts, faces, nVerts, nTri, embossMask, debossMask, trimMask, facePaint, colors, painted, transformsApplied, stampTri0, stampVert0 };
 }
 
 function normalizeFilamentHex(c) {
