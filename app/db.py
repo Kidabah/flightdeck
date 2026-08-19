@@ -56,6 +56,15 @@ _PRINTER_PRINTING_ENABLED_PREFIX = "printer_print_enabled_"
 _PRINTER_PRINTING_NOTE_PREFIX = "printer_print_note_"
 
 
+def _canonical_brand(value: str | None) -> str:
+    """Keep one operator-facing spelling for brands with established aliases."""
+    brand = str(value or "").strip()
+    compact = re.sub(r"[^a-z0-9]+", "", brand.lower())
+    if compact in {"bambu", "bambulab"}:
+        return "Bambu Lab"
+    return brand
+
+
 def _costing_float(value, default: float = 0.0, lo: float = 0.0, hi: float = 1_000_000.0) -> float:
     try:
         n = float(value)
@@ -762,6 +771,43 @@ def init() -> None:
             conn.execute("DROP TABLE material_costs")
             conn.execute("ALTER TABLE _mat_new RENAME TO material_costs")
 
+        # Bambu's printer API uses "Bambu Lab", while older Flightdeck records
+        # used "Bambu". Store only the printer spelling so it is obvious in the
+        # UI and cannot create a false AMS brand mismatch.
+        bambu_aliases = ("bambu", "bambulab")
+        for table in ("spools", "incoming_stock_rolls", "filament_catalog"):
+            conn.execute(
+                f"""UPDATE {table}
+                    SET brand = 'Bambu Lab'
+                    WHERE LOWER(REPLACE(brand, ' ', '')) IN (?, ?)
+                      AND brand != 'Bambu Lab'""",
+                bambu_aliases,
+            )
+
+        # Costs use a composite key. Preserve the canonical Bambu Lab amount
+        # if both spellings exist, otherwise promote the old record in place.
+        old_costs = conn.execute(
+            """SELECT material, brand FROM material_costs
+               WHERE LOWER(REPLACE(brand, ' ', '')) IN (?, ?)
+                 AND brand != 'Bambu Lab'""",
+            bambu_aliases,
+        ).fetchall()
+        for row in old_costs:
+            canonical = conn.execute(
+                "SELECT 1 FROM material_costs WHERE material = ? AND brand = 'Bambu Lab'",
+                (row["material"],),
+            ).fetchone()
+            if canonical:
+                conn.execute(
+                    "DELETE FROM material_costs WHERE material = ? AND brand = ?",
+                    (row["material"], row["brand"]),
+                )
+            else:
+                conn.execute(
+                    "UPDATE material_costs SET brand = 'Bambu Lab' WHERE material = ? AND brand = ?",
+                    (row["material"], row["brand"]),
+                )
+
     UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
     FLIGHT_RECORDER_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -1466,7 +1512,7 @@ def _hydrate_print_rows(rows) -> list[dict]:
 
 
 def _cost_brand_key(value: str | None) -> str:
-    brand = str(value or "").strip().upper()
+    brand = _canonical_brand(value).upper()
     aliases = {
         "BAMBU": "BAMBU LAB",
         "BAMBULAB": "BAMBU LAB",
@@ -3059,7 +3105,7 @@ def _normalise_empty_spool_profile(
     notes: Optional[str] = None,
     is_default: bool = False,
 ) -> dict:
-    cleaned_brand = (brand or "").strip()
+    cleaned_brand = _canonical_brand(brand)
     cleaned_material = (material or "").strip().upper() or None
     cleaned_name = (profile_name or "").strip()
     if not cleaned_name:
@@ -3217,7 +3263,7 @@ def replace_filament_catalog(rows: list[dict], source: str = "open_filament_data
                     source,
                     r.get("source_variant_id"),
                     r.get("source_filament_id"),
-                    r.get("brand") or "",
+                    _canonical_brand(r.get("brand")),
                     r.get("material") or "",
                     r.get("product"),
                     r.get("subtype"),
@@ -3342,6 +3388,7 @@ def set_material_cost(
     comment: Optional[str] = None,
     empty_spool_weight_g: Optional[float] = None,
 ) -> None:
+    brand = _canonical_brand(brand)
     with _conn() as conn:
         conn.execute(
             """INSERT INTO material_costs (material, brand, cost_per_gram, comment, empty_spool_weight_g, updated_at)
@@ -3356,6 +3403,7 @@ def set_material_cost(
 
 
 def delete_material_cost(material: str, brand: str) -> None:
+    brand = _canonical_brand(brand)
     with _conn() as conn:
         conn.execute(
             "DELETE FROM material_costs WHERE material = ? AND brand = ?",
@@ -3517,6 +3565,7 @@ def create_spool(
     notes: Optional[str] = None,
     empty_spool_weight_g: Optional[float] = None,
 ) -> int:
+    brand = _canonical_brand(brand)
     color_scheme = _clean_spool_color_scheme(color_scheme)
     color_hex_2 = _clean_optional_hex(color_hex_2)
     color_hex_3 = _clean_optional_hex(color_hex_3)
@@ -3562,6 +3611,7 @@ def restock_spool_line(
     if not existing:
         return False
     display_id = int(existing.get("display_id") or spool_id)
+    brand = _canonical_brand(brand)
     color_scheme = _clean_spool_color_scheme(color_scheme)
     color_hex_2 = _clean_optional_hex(color_hex_2)
     color_hex_3 = _clean_optional_hex(color_hex_3)
@@ -3690,7 +3740,7 @@ def create_incoming_stock_order(supplier: Optional[str], order_ref: Optional[str
                         order_id,
                         _new_stock_token(conn),
                         (line.get("material") or "PLA").strip(),
-                        (line.get("brand") or "Unknown").strip(),
+                        _canonical_brand(line.get("brand") or "Unknown"),
                         line.get("subtype"),
                         (line.get("color_hex") or "#808080").strip(),
                         line.get("color_name"),
@@ -3775,7 +3825,9 @@ def update_incoming_stock_roll(token: str, fields: dict) -> Optional[dict]:
             value = _clean_spool_color_scheme(value)
         if key in {"color_hex_2", "color_hex_3"}:
             value = _clean_optional_hex(value)
-        if key in {"material", "brand"} and isinstance(value, str):
+        if key == "brand":
+            value = _canonical_brand(value)
+        elif key == "material" and isinstance(value, str):
             value = value.strip()
         updates[key] = value
     if not updates:
@@ -4095,6 +4147,8 @@ def update_spool(spool_id: int, **fields) -> bool:
     allowed = {"material", "brand", "subtype", "color_hex", "color_name", "color_hex_2", "color_hex_3", "color_scheme",
                "label_weight_g", "remaining_g", "empty_spool_weight_g", "notes"}
     updates = {k: v for k, v in fields.items() if k in allowed}
+    if "brand" in updates:
+        updates["brand"] = _canonical_brand(updates["brand"])
     if "color_scheme" in updates:
         updates["color_scheme"] = _clean_spool_color_scheme(updates.get("color_scheme"))
     for key in ("color_hex_2", "color_hex_3"):

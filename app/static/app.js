@@ -19182,7 +19182,7 @@ function _colourMatchHtml() {
           </div>
           <div class="cm-mat-hint" id="cm-mat-hint">Low temp = PLA / PETG (can mix). High temp = ABS / ASA. Never mix high with low.</div>
           <div class="cm-chip-row" id="cm-brand-chips">
-            ${[['','All brands'],['Siddament','Siddament'],['Bambu','Bambu Lab']].map(([v, label]) =>
+            ${[['','All brands'],['Siddament','Siddament'],['Bambu Lab','Bambu Lab']].map(([v, label]) =>
               `<button type="button" class="cm-chip${(st.brand || '') === v ? ' active' : ''}" data-cm-brand="${esc(v)}">${label}</button>`
             ).join('')}
           </div>
@@ -19940,6 +19940,11 @@ function _reportedProfileText(report) {
     .filter(Boolean).join(' ');
 }
 
+function _canonBrand(value) {
+  const normalised = _normMat(value);
+  return normalised === 'BAMBU' || normalised === 'BAMBULAB' ? 'BAMBULAB' : normalised;
+}
+
 function _spoolProfileText(spool) {
   return [spool?.brand, spool?.material, spool?.subtype].filter(Boolean).join(' ');
 }
@@ -19952,8 +19957,8 @@ function _genericProfileRejectsSpool(report, spool) {
 }
 
 function _reportedBrandMatchesSpool(reportedBrand, spool) {
-  const reported = _normMat(reportedBrand);
-  const spoolBrand = _normMat(spool?.brand || '');
+  const reported = _canonBrand(reportedBrand);
+  const spoolBrand = _canonBrand(spool?.brand || '');
   if (!reported || reported === 'GENERIC' || reported === spoolBrand) return true;
   const spoolProfile = _normMat([spool?.brand, spool?.material, spool?.subtype].filter(Boolean).join(' '));
   if (spoolProfile && (spoolProfile.includes(reported) || reported.includes(spoolProfile))) return true;
@@ -19984,8 +19989,8 @@ function _slotMismatch(spool, report) {
   if (_hexDistance(report.color, spool.color_hex) > 95) {
     return `Colour mismatch: printer ${report.color}, Flightdeck ${spool.color_hex}`;
   }
-  const reportedBrand = _normMat(report.brand || '');
-  const spoolBrand = _normMat(spool.brand || '');
+  const reportedBrand = _canonBrand(report.brand || '');
+  const spoolBrand = _canonBrand(spool.brand || '');
   if (reportedBrand && spoolBrand && !_reportedBrandMatchesSpool(report.brand || '', spool)) {
     return `Brand mismatch: printer ${report.brand}, Flightdeck ${spool.brand}`;
   }
@@ -22752,10 +22757,7 @@ function _openSpoolModal(costs, onSaved, prefill = null) {
         </div>
         <div class="spool-form-row">
           <label class="spool-form-label">Colour name</label>
-          <input id="sm-color-name" class="spool-form-input" type="text" placeholder="e.g. Jade White" value="${p0.color_name||''}" list="sm-colour-name-options">
-          <datalist id="sm-colour-name-options">
-            ${['Black','White','Silver','Grey','Red','Orange','Yellow','Green','Cyan','Blue','Purple','Pink','Magenta','Brown','Rainbow'].map(v => `<option value="${v}"></option>`).join('')}
-          </datalist>
+          <input id="sm-color-name" class="spool-form-input" type="text" placeholder="e.g. Jade White" value="${p0.color_name||''}" autocomplete="off" autocapitalize="off" spellcheck="false">
         </div>
         <div class="spool-form-row">
           <label class="spool-form-label">Colour scheme</label>
@@ -23598,48 +23600,6 @@ function _openSpoolModal(costs, onSaved, prefill = null) {
     '#06b6d4':'Cyan','#3b82f6':'Blue','#a855f7':'Purple','#ec4899':'Pink',
   };
   const _knownSwatchNames = new Set(Object.values(_swatchNames));
-  const _colourAliases = [
-    { name: 'Black', hex: '#1a1a1a', keys: ['black', 'blk'] },
-    { name: 'White', hex: '#ffffff', keys: ['white', 'wht'] },
-    { name: 'Silver', hex: '#c0c0c0', keys: ['silver', 'sil'] },
-    { name: 'Grey', hex: '#808080', keys: ['grey', 'gray', 'gry'] },
-    { name: 'Red', hex: '#ef4444', keys: ['red'] },
-    { name: 'Orange', hex: '#f97316', keys: ['orange', 'org'] },
-    { name: 'Yellow', hex: '#eab308', keys: ['yellow', 'yel'] },
-    { name: 'Green', hex: '#22c55e', keys: ['green', 'grn'] },
-    { name: 'Cyan', hex: '#06b6d4', keys: ['cyan', 'aqua'] },
-    { name: 'Blue', hex: '#3b82f6', keys: ['blue', 'blu'] },
-    { name: 'Purple', hex: '#a855f7', keys: ['purple', 'purp', 'violet'] },
-    { name: 'Pink', hex: '#ec4899', keys: ['pink', 'pnk'] },
-    { name: 'Magenta', hex: '#ec4899', keys: ['magenta', 'mag'] },
-    { name: 'Brown', hex: '#7c3f20', keys: ['brown', 'brn'] },
-    { name: 'Rainbow', hex: '#ec4899', keys: ['rainbow', 'multi'] },
-  ];
-
-  function colourAliasMatch(value) {
-    const needle = String(value || '').trim().toLowerCase();
-    if (!needle) return null;
-    const exact = _colourAliases.find(c => c.name.toLowerCase() === needle || c.keys.includes(needle));
-    if (exact) return exact;
-    const matches = _colourAliases.filter(c =>
-      c.name.toLowerCase().startsWith(needle) || c.keys.some(k => k.startsWith(needle))
-    );
-    return matches.length === 1 ? matches[0] : null;
-  }
-
-  function applyColourNameAlias(value) {
-    const match = colourAliasMatch(value);
-    if (!match) return false;
-    const nameEl = overlay.querySelector('#sm-color-name');
-    nameEl.value = match.name;
-    syncColor(match.hex);
-    if (match.name === 'Rainbow') {
-      schemeSel.value = 'mixed';
-      updateSchemeColourRows();
-    }
-    updateDraftPreview('Colour matched');
-    return true;
-  }
 
   overlay.querySelectorAll('.spool-swatch').forEach(sw => {
     sw.addEventListener('click', () => {
@@ -23671,12 +23631,7 @@ function _openSpoolModal(costs, onSaved, prefill = null) {
     updateDraftPreview();
   });
   const colorNameInput = overlay.querySelector('#sm-color-name');
-  colorNameInput?.addEventListener('input', () => {
-    if (!applyColourNameAlias(colorNameInput.value)) updateDraftPreview();
-  });
-  colorNameInput?.addEventListener('change', () => {
-    applyColourNameAlias(colorNameInput.value);
-  });
+  colorNameInput?.addEventListener('input', updateDraftPreview);
   weighBtn.addEventListener('click', async () => {
     const old = weighBtn.textContent;
     weighBtn.disabled = true;
