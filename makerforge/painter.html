@@ -14,7 +14,7 @@
 </script>
 <style>
 /* ================================================================== */
-/*  b623 — MakerDeck STL Painter  (tabbed layout)                     */
+/*  b624 — MakerDeck STL Painter  (tabbed layout)                     */
 /* ================================================================== */
 
 /* -- Reset & Vars -------------------------------------------------- */
@@ -322,12 +322,12 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
     <a class="logo" href="index.html" title="MakerDeck home">Maker<span>Deck</span> · STL Painter</a>
     <nav class="tool-nav" aria-label="MakerDeck tools">
       <a href="index.html">Container</a>
-      <a href="painter.html?v=623" class="active" aria-current="page">STL Painter</a>
+      <a href="painter.html?v=624" class="active" aria-current="page">STL Painter</a>
       <a href="paper3d.html">Paper3D</a>
       <a href="meshprep.html">Mesh Prep</a>
       <a href="chop.html">Chop</a>
     </nav>
-    <div class="build">b623</div>
+    <div class="build">b624</div>
   </header>
 
   <!-- Left Sidebar (tabbed) -->
@@ -529,9 +529,10 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
             <input type="checkbox" id="artTraceInvert">
             <span>Invert (light logo on dark)</span>
           </label>
-          <p class="flow-desc">Same MakerDeck Multi-colour team-logo trace, then a raised ink stamp. Click the model to place.</p>
+          <p class="flow-desc" id="artPlaceHint">Click the model to position the logo. Drag the blue ring or use Rotation, then stamp it.</p>
           <div class="btn-row">
             <button class="btn btn-primary" id="artPlaceBtn" disabled>Place on model</button>
+            <button class="btn" id="artCancelPlaceBtn" hidden>Cancel position</button>
             <button class="btn" id="artTraceBtn" disabled>Trace</button>
             <button class="btn" id="artClearBtn" disabled>Clear art</button>
           </div>
@@ -688,7 +689,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b623</span>
+    <span>MakerDeck · STL Painter b624</span>
   </footer>
 </div>
 
@@ -784,6 +785,11 @@ const art = {
   trace: null,
   traceJob: 0,
   traceTimer: null,
+  // A live anchor lets artwork be positioned and rotated before it becomes mesh geometry.
+  placement: null,
+  lastPlacement: null,
+  rotateHandle: null,
+  rotationDrag: null,
 };
 
 /* ================================================================== */
@@ -1241,6 +1247,9 @@ function clearSceneModel() {
   disposeSceneObject(S.mesh);
   disposeSceneObject(S.wireframe);
   disposeArtPreview();
+  art.placement = null;
+  art.lastPlacement = null;
+  art.rotationDrag = null;
   S.mesh = null;
   S.wireframe = null;
   S.hiddenManual = null;
@@ -1440,6 +1449,7 @@ function syncArtMeta() {
     if (meta) { meta.classList.add('hidden'); meta.textContent = ''; }
     wrap?.classList.add('hidden');
     hideArtPreview();
+    syncArtPlacementUI();
     return;
   }
   const { widthMm, heightMm } = artSizeMm();
@@ -1459,6 +1469,7 @@ function syncArtMeta() {
     const dw = src.width * scale, dh = src.height * scale;
     ctx.drawImage(src, (dest.width - dw) / 2, (dest.height - dh) / 2, dw, dh);
   }
+  syncArtPlacementUI();
 }
 
 function hexToRgb255(hex) {
@@ -1556,26 +1567,73 @@ function paintFaceSlotPairs(pairs) {
 }
 
 function disposeArtPreview() {
-  if (!art.preview) return;
-  scene.remove(art.preview);
-  art.preview.geometry?.dispose?.();
-  art.preview.material?.dispose?.();
-  art.preview = null;
+  if (art.preview) {
+    scene.remove(art.preview);
+    art.preview.geometry?.dispose?.();
+    art.preview.material?.dispose?.();
+    art.preview = null;
+  }
+  if (art.rotateHandle) {
+    scene.remove(art.rotateHandle);
+    art.rotateHandle.geometry?.dispose?.();
+    art.rotateHandle.material?.dispose?.();
+    art.rotateHandle = null;
+  }
 }
 
 function hideArtPreview() {
   if (art.preview) art.preview.visible = false;
+  if (art.rotateHandle) art.rotateHandle.visible = false;
 }
 
-function artStampFrameFromHit(hit) {
+function artStampFrameFromHit(hit, rotationDeg = artRotationDeg()) {
   const n = faceNormalLocal(hit.faceIndex);
-  return makeStampFrame([hit.point.x, hit.point.y, hit.point.z], n, artRotationDeg());
+  return makeStampFrame([hit.point.x, hit.point.y, hit.point.z], n, rotationDeg);
 }
 
-function updateArtPreviewAtHit(hit) {
-  if (!art.raster || !S.mesh || S.tool !== 'art' || !hit) { hideArtPreview(); return; }
+function cloneArtPlacement(placement) {
+  if (!placement) return null;
+  return {
+    origin: placement.origin.slice(),
+    normal: placement.normal.slice(),
+    rotationDeg: placement.rotationDeg,
+  };
+}
+
+function artStampFrameFromPlacement(placement = art.placement) {
+  if (!placement) return null;
+  return makeStampFrame(placement.origin, placement.normal, placement.rotationDeg);
+}
+
+function artWorldFrame(frame) {
+  const origin = new THREE.Vector3(frame.origin[0], frame.origin[1], frame.origin[2]);
+  const right = new THREE.Vector3(frame.right[0], frame.right[1], frame.right[2]);
+  const up = new THREE.Vector3(frame.up[0], frame.up[1], frame.up[2]);
+  const normal = new THREE.Vector3(frame.normal[0], frame.normal[1], frame.normal[2]);
+  S.mesh.updateMatrixWorld(true);
+  S.mesh.localToWorld(origin);
+  right.transformDirection(S.mesh.matrixWorld).normalize();
+  up.transformDirection(S.mesh.matrixWorld).normalize();
+  normal.transformDirection(S.mesh.matrixWorld).normalize();
+  return { origin, right, up, normal };
+}
+
+function ensureArtRotateHandle() {
+  if (art.rotateHandle) return art.rotateHandle;
+  const geometry = new THREE.TorusGeometry(1, 0.055, 10, 80);
+  const material = new THREE.MeshBasicMaterial({
+    color: 0x25d8ff, transparent: true, opacity: 0.88,
+    depthTest: false, depthWrite: false,
+  });
+  art.rotateHandle = new THREE.Mesh(geometry, material);
+  art.rotateHandle.renderOrder = 3;
+  scene.add(art.rotateHandle);
+  return art.rotateHandle;
+}
+
+function showArtPreviewForFrame(frame, { adjustable = false } = {}) {
+  if (!art.raster || !S.mesh || !frame) { hideArtPreview(); return; }
   const { widthMm, heightMm } = artSizeMm();
-  const frame = artStampFrameFromHit(hit);
   if (!art.texture) refreshArtTexture();
   if (!art.texture) return;
   if (!art.preview) {
@@ -1591,19 +1649,156 @@ function updateArtPreviewAtHit(hit) {
     art.preview.material.map = art.texture;
     art.preview.material.needsUpdate = true;
   }
-  const origin = new THREE.Vector3(frame.origin[0], frame.origin[1], frame.origin[2]);
-  const right = new THREE.Vector3(frame.right[0], frame.right[1], frame.right[2]);
-  const up = new THREE.Vector3(frame.up[0], frame.up[1], frame.up[2]);
-  const normal = new THREE.Vector3(frame.normal[0], frame.normal[1], frame.normal[2]);
-  S.mesh.localToWorld(origin);
-  right.transformDirection(S.mesh.matrixWorld).normalize();
-  up.transformDirection(S.mesh.matrixWorld).normalize();
-  normal.transformDirection(S.mesh.matrixWorld).normalize();
+  const { origin, right, up, normal } = artWorldFrame(frame);
   const m = new THREE.Matrix4().makeBasis(right, up, normal);
   art.preview.quaternion.setFromRotationMatrix(m);
   art.preview.position.copy(origin).addScaledVector(normal, 0.25);
   art.preview.scale.set(widthMm, heightMm, 1);
   art.preview.visible = true;
+
+  if (adjustable) {
+    const ring = ensureArtRotateHandle();
+    const radius = Math.hypot(widthMm * 0.5, heightMm * 0.5) + 7;
+    ring.quaternion.copy(art.preview.quaternion);
+    ring.position.copy(origin).addScaledVector(normal, 0.48);
+    ring.scale.setScalar(radius);
+    ring.visible = true;
+  } else if (art.rotateHandle) {
+    art.rotateHandle.visible = false;
+  }
+}
+
+function updateArtPreviewAtHit(hit) {
+  if (!art.raster || !S.mesh || S.tool !== 'art' || !hit || art.placement) {
+    if (!art.placement) hideArtPreview();
+    return;
+  }
+  showArtPreviewForFrame(artStampFrameFromHit(hit));
+}
+
+function updatePlacedArtPreview() {
+  if (!art.placement) return;
+  showArtPreviewForFrame(artStampFrameFromPlacement(), { adjustable: true });
+}
+
+function syncArtPlacementUI() {
+  const placeBtn = $('artPlaceBtn');
+  const cancelBtn = $('artCancelPlaceBtn');
+  const hint = $('artPlaceHint');
+  if (!placeBtn) return;
+  const hasStamp = S.stampTri0 != null && S.nTri > S.stampTri0;
+  if (art.placement) {
+    placeBtn.textContent = 'Stamp artwork';
+    if (hint) hint.textContent = 'Artwork is positioned. Drag the blue ring or use Rotation, then stamp it.';
+  } else if (art.lastPlacement && hasStamp) {
+    placeBtn.textContent = 'Adjust artwork';
+    if (hint) hint.textContent = 'Reopen the stamped artwork to move or rotate it without retracing.';
+  } else {
+    placeBtn.textContent = 'Place on model';
+    if (hint) hint.textContent = 'Click the model to position the logo. Drag the blue ring or use Rotation, then stamp it.';
+  }
+  if (cancelBtn) cancelBtn.hidden = !art.placement;
+}
+
+function setArtRotation(value) {
+  const rotationDeg = ((Number(value) + 180) % 360 + 360) % 360 - 180;
+  const input = $('artRot');
+  if (input) input.value = String(rotationDeg);
+  if ($('artRotVal')) $('artRotVal').textContent = `${Math.round(rotationDeg)}°`;
+  if (art.placement) {
+    art.placement.rotationDeg = rotationDeg;
+    updatePlacedArtPreview();
+  }
+}
+
+function setArtPlacementAtHit(hit) {
+  const normal = faceNormalLocal(hit.faceIndex);
+  art.placement = {
+    origin: [hit.point.x, hit.point.y, hit.point.z],
+    normal,
+    rotationDeg: artRotationDeg(),
+  };
+  updatePlacedArtPreview();
+  syncArtPlacementUI();
+  setStatus('Artwork positioned — drag the blue ring or use Rotation, then click Stamp artwork', 'idle');
+}
+
+function resumeArtPlacement() {
+  if (!art.lastPlacement) return false;
+  art.placement = cloneArtPlacement(art.lastPlacement);
+  setArtRotation(art.placement.rotationDeg);
+  setTool('art', { sticky: true });
+  updatePlacedArtPreview();
+  syncArtPlacementUI();
+  setStatus('Artwork reopened — drag the blue ring to rotate it, or click elsewhere to move it', 'idle');
+  return true;
+}
+
+function cancelArtPlacement() {
+  art.rotationDrag = null;
+  art.placement = null;
+  hideArtPreview();
+  syncArtPlacementUI();
+  setTool('orbit', { sticky: true });
+  setStatus('Artwork adjustment cancelled — the existing stamp was kept', 'idle');
+}
+
+function setRayFromClient(clientX, clientY) {
+  const rect = viewport.getBoundingClientRect();
+  pointerNdc.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+  pointerNdc.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(pointerNdc, camera);
+}
+
+function artRotationHandleAtClient(clientX, clientY) {
+  if (!art.placement || !art.rotateHandle?.visible) return null;
+  art.rotateHandle.updateMatrixWorld(true);
+  setRayFromClient(clientX, clientY);
+  return raycaster.intersectObject(art.rotateHandle, false)[0] || null;
+}
+
+function artPointerAngleAtClient(clientX, clientY) {
+  if (!art.placement || !S.mesh) return null;
+  const baseFrame = makeStampFrame(art.placement.origin, art.placement.normal, 0);
+  const { origin, right, up, normal } = artWorldFrame(baseFrame);
+  setRayFromClient(clientX, clientY);
+  const point = raycaster.ray.intersectPlane(new THREE.Plane().setFromNormalAndCoplanarPoint(normal, origin), new THREE.Vector3());
+  if (!point) return null;
+  point.sub(origin);
+  if (point.lengthSq() < 1e-5) return null;
+  return Math.atan2(point.dot(up), point.dot(right)) * 180 / Math.PI;
+}
+
+function startArtRotationDrag(e) {
+  const angle = artPointerAngleAtClient(e.clientX, e.clientY);
+  if (angle == null || !art.placement) return false;
+  art.rotationDrag = { pointerId: e.pointerId, startAngle: angle, startRotation: art.placement.rotationDeg };
+  controls.enabled = false;
+  try { viewport.setPointerCapture?.(e.pointerId); } catch {}
+  setStatus('Rotating artwork — release to keep the new angle', 'working');
+  return true;
+}
+
+function moveArtRotationDrag(e) {
+  const drag = art.rotationDrag;
+  if (!drag || drag.pointerId !== e.pointerId) return false;
+  const angle = artPointerAngleAtClient(e.clientX, e.clientY);
+  if (angle == null) return true;
+  let delta = angle - drag.startAngle;
+  if (delta > 180) delta -= 360;
+  if (delta < -180) delta += 360;
+  setArtRotation(drag.startRotation + delta);
+  return true;
+}
+
+function endArtRotationDrag(e, { keep = true } = {}) {
+  if (!art.rotationDrag || (e?.pointerId != null && art.rotationDrag.pointerId !== e.pointerId)) return false;
+  const pointerId = art.rotationDrag.pointerId;
+  art.rotationDrag = null;
+  releaseViewportPointer(pointerId);
+  syncOrbitLock();
+  if (keep) setStatus('Artwork rotated — click Stamp artwork when it looks right', 'idle');
+  return true;
 }
 
 function logoPaletteRgbs() {
@@ -1671,9 +1866,8 @@ function stampSlabsForFrame(frame, { widthMm, heightMm }) {
   return { positions: [], indices: [], faceSlots: [], layers: [], imgW: 0, imgH: 0 };
 }
 
-function stampArtworkAtHit(hit) {
-  if (!art.raster || !S.mesh || !hit) return;
-  const frame = artStampFrameFromHit(hit);
+function stampArtworkForFrame(frame, placement) {
+  if (!art.raster || !S.mesh || !frame || !placement) return;
   const size = artSizeMm();
   setStatus('Building logo geometry…', 'working');
   requestAnimationFrame(() => {
@@ -1697,12 +1891,23 @@ function stampArtworkAtHit(hit) {
         S.stampVert0 = S.nVerts;
       }
       const n = appendStampMesh(positions, indices, faceSlots);
+      art.lastPlacement = cloneArtPlacement(placement);
+      art.placement = null;
+      art.rotationDrag = null;
       hideArtPreview();
-      setStatus(`Logo geometry stamped — ${n.toLocaleString()} faces`, 'idle');
+      syncArtPlacementUI();
+      setTool('orbit', { sticky: true });
+      setStatus(`Logo geometry stamped — ${n.toLocaleString()} faces. Use Adjust artwork to change it again.`, 'idle');
     } catch (err) {
       setStatus(err.message || 'Artwork stamp failed', 'error');
     }
   });
+}
+
+function stampArtworkAtPlacement() {
+  if (!art.placement) return;
+  const placement = cloneArtPlacement(art.placement);
+  stampArtworkForFrame(artStampFrameFromPlacement(placement), placement);
 }
 
 function typedArtFile(file) {
@@ -1802,6 +2007,8 @@ async function loadArtworkFile(file) {
     art.fileName = name;
     art.traceCanvas = result.canvas;
     art.trace = null;
+    art.placement = null;
+    art.lastPlacement = null;
     if (art.texture) { art.texture.dispose(); art.texture = null; }
     disposeArtPreview();
     if (art.mode === 'svg' && fills.length) ensureSlotsForHexes(fills);
@@ -1823,6 +2030,9 @@ function clearArtwork() {
   art.hadAlpha = false;
   art.traceCanvas = null;
   art.trace = null;
+  art.placement = null;
+  art.lastPlacement = null;
+  art.rotationDrag = null;
   if (art.texture) { art.texture.dispose(); art.texture = null; }
   disposeArtPreview();
   const input = $('artFileInput');
@@ -2780,7 +2990,7 @@ function setBrushStroke(mode) {
 
 function syncOrbitLock() {
   const locked = !!orbitLockCheck?.checked;
-  const stroking = !!S.brushStrokeActive || !!S._smartClick || !!boxDrag || !!lassoDrag;
+  const stroking = !!S.brushStrokeActive || !!S._smartClick || !!boxDrag || !!lassoDrag || !!art.rotationDrag;
   // During an active paint stroke, kill OrbitControls entirely so it cannot steal the pointer.
   if (stroking && !S.orbitOverride) {
     controls.enabled = false;
@@ -2804,8 +3014,9 @@ function releaseViewportPointer(id) {
 }
 
 function resetInteraction(msg) {
-  const pids = [S.brushStrokeActive?.pointerId, S._smartClick?.pointerId, boxDrag?.pointerId, lassoDrag?.pointerId].filter(v => v != null);
+  const pids = [S.brushStrokeActive?.pointerId, S._smartClick?.pointerId, boxDrag?.pointerId, lassoDrag?.pointerId, art.rotationDrag?.pointerId].filter(v => v != null);
   S.brushStrokeActive = null; S._smartClick = null; S.orbitOverride = false;
+  art.rotationDrag = null;
   if (boxDrag) endBoxDrag();
   if (lassoDrag) endLassoDrag();
   for (const id of pids) releaseViewportPointer(id);
@@ -3329,9 +3540,15 @@ $('artFileInput')?.addEventListener('change', () => {
 $('artPlaceBtn')?.addEventListener('click', () => {
   if (!art.raster) { setStatus('Drop a PNG, JPG, or SVG first', 'idle'); return; }
   if (!S.mesh) { setStatus('Load a model first', 'idle'); return; }
+  if (art.placement) {
+    stampArtworkAtPlacement();
+    return;
+  }
+  if (resumeArtPlacement()) return;
   setTool('art', { sticky: true });
-  setStatus('Click the model to stamp the artwork', 'idle');
+  setStatus('Click the model to position the artwork', 'idle');
 });
+$('artCancelPlaceBtn')?.addEventListener('click', cancelArtPlacement);
 $('artClearBtn')?.addEventListener('click', clearArtwork);
 $('artTraceBtn')?.addEventListener('click', () => retraceArtwork());
 $('artTraceThreshold')?.addEventListener('input', () => {
@@ -3342,9 +3559,10 @@ $('artTraceInvert')?.addEventListener('change', () => retraceArtwork());
 $('artSize')?.addEventListener('input', () => {
   $('artSizeVal').textContent = String(Math.round(parseFloat($('artSize').value) || 48));
   syncArtMeta();
+  updatePlacedArtPreview();
 });
 $('artRot')?.addEventListener('input', () => {
-  $('artRotVal').textContent = `${Math.round(parseFloat($('artRot').value) || 0)}°`;
+  setArtRotation(parseFloat($('artRot').value) || 0);
 });
 document.querySelectorAll('[data-artmode]').forEach((b) => {
   b.addEventListener('click', () => {
@@ -3579,9 +3797,13 @@ viewport.addEventListener('pointerdown', (e) => {
       setStatus('Drop a PNG, JPG, or SVG first', 'idle');
       return;
     }
+    if (artRotationHandleAtClient(e.clientX, e.clientY)) {
+      startArtRotationDrag(e);
+      return;
+    }
     const hit = pickHitAtClient(e.clientX, e.clientY);
-    if (hit) stampArtworkAtHit(hit);
-    else setStatus('Click the model to stamp the artwork', 'idle');
+    if (hit) setArtPlacementAtHit(hit);
+    else setStatus('Click the model to position the artwork', 'idle');
     return;
   }
 
@@ -3645,6 +3867,7 @@ viewport.addEventListener('pointerdown', (e) => {
 }, true);
 
 viewport.addEventListener('pointermove', (e) => {
+  if (moveArtRotationDrag(e)) return;
   if (S.brushStrokeActive) {
     moveBrushStroke(e);
     return;
@@ -3685,7 +3908,8 @@ viewport.addEventListener('pointermove', (e) => {
     return;
   }
   if (S.tool === 'art') {
-    updateArtPreviewAtHit(pickHitAtClient(e.clientX, e.clientY));
+    if (!art.placement) updateArtPreviewAtHit(pickHitAtClient(e.clientX, e.clientY));
+    renderer.domElement.style.cursor = artRotationHandleAtClient(e.clientX, e.clientY) ? 'grab' : '';
     return;
   }
   if (S.tool === 'edge') {
@@ -3700,6 +3924,7 @@ viewport.addEventListener('pointermove', (e) => {
 });
 
 function finishPointerUp(e) {
+  if (endArtRotationDrag(e)) return true;
   if (S.brushStrokeActive && pointerMatchesStroke(e, S.brushStrokeActive)) {
     endBrushStroke(true);
     return true;
@@ -3748,6 +3973,7 @@ viewport.addEventListener('pointerup', (e) => {
 });
 
 viewport.addEventListener('pointercancel', (e) => {
+  endArtRotationDrag(e, { keep: false });
   if (S.brushStrokeActive) endBrushStroke(false);
   S._smartClick = null;
   if (boxDrag) endBoxDrag(e);
@@ -3766,7 +3992,7 @@ viewport.addEventListener('lostpointercapture', (e) => {
 viewport.addEventListener('contextmenu', (e) => { if (S.tool !== 'orbit') e.preventDefault(); });
 viewport.addEventListener('pointerleave', () => {
   if (S.tool === 'smart' && !S._smartClick) clearSmartPreview();
-  if (S.tool === 'art') hideArtPreview();
+  if (S.tool === 'art' && !art.placement) hideArtPreview();
   if (isBrushTool() && !S.brushStrokeActive && smartCursor) smartCursor.style.display = 'none';
 });
 
@@ -3787,12 +4013,15 @@ viewport.addEventListener('dblclick', (e) => {
 
 // Capture-phase window listeners so lift always ends the stroke even outside the viewport.
 window.addEventListener('pointerup', (e) => {
+  if (e.button === 0) endArtRotationDrag(e);
   if (e.button === 0 && S.brushStrokeActive) endBrushStroke(true);
 }, true);
 window.addEventListener('pointercancel', () => {
+  endArtRotationDrag(null, { keep: false });
   if (S.brushStrokeActive) endBrushStroke(false);
 }, true);
 window.addEventListener('blur', () => {
+  endArtRotationDrag(null, { keep: false });
   endBrushStroke(false);
   S._smartClick = null;
   if (boxDrag) endBoxDrag();
@@ -3801,7 +4030,10 @@ window.addEventListener('blur', () => {
 });
 
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') { resetInteraction('Controls reset'); clearClickSelection(); setTool('orbit'); return; }
+  if (e.key === 'Escape') {
+    if (art.placement) { cancelArtPlacement(); return; }
+    resetInteraction('Controls reset'); clearClickSelection(); setTool('orbit'); return;
+  }
   if (e.code === 'Space' && !e.repeat && !e.target.closest?.('input,textarea,select')) {
     e.preventDefault(); S.orbitOverride = true; syncOrbitLock(); return;
   }
